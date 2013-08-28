@@ -1,0 +1,23 @@
+body { color: white; font-family:"Inconsolata"; background:#25262b;}
+div { box-sizing:border-box; }
+#top { border-bottom: 1px solid #555; padding:20px; width:100%; }
+#middle {height: 60%; padding:20px; width:100%;}
+#middle div {display:inline-block; margin:3px 5px; vertical-align:middle; }
+#middle > div {display:inline-block; margin:3px 5px; }
+#bottom { border-top: 1px solid #555; padding:20px; width:100%;}
+#middle .droptarget { width:20px; height:20px; display:inline-block; vertical-align:middle; margin:0 5px;}
+.unknown {display:inline-block; }
+input { border:2px solid #555; outline:none; padding:3px; background:#303030; border-radius:2px; margin:0 5px; color: #ccc;}
+.vector { display:block !important; border:1px solid #c8f; border-radius:3px; background:#85c; padding:3px; margin:3px; color:#325; }
+.map { border:1px solid #8fc; border-radius:3px; background:#5ca; padding:3px; margin:3px; color:#353; }
+.vector > .droptarget { background:#c8f; border-radius:3px; }
+.map span > .droptarget { background:#8fc; border-radius:3px; }
+.droptarget {background:rgba(255,255,255, 0.6) !important; }
+#top .map { display:inline-block; padding:10px; }
+#top .vector { display:inline-block; padding:10px; }
+
+.string { border-bottom:1px solid rgba(255,255,255, 0.5); border-radius:3px; padding:3px; }
+.map .string { border-bottom:1px solid rgba(255,255,255, 0.7); }
+
+.key { border-right:1px solid #555; }
+.entry { width:100%; }
