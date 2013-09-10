@@ -1,0 +1,50 @@
+;;Data science
+;;------------
+;;
+;; Get some events from the database
+;; get only the things you're interested in
+;; do some math on those events
+;; show a graph
+;;
+
+ {:data {}
+
+  :pipes [{:id ->1
+		   :name main
+		   :pipe [(get-data)
+				  (clean _PREV_)
+				  (to-graph _PREV_)]}
+
+		  {:id ->2
+		   :name get-data
+		   :pipe [[{"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}]
+				  ]}
+
+		  {:id ->4
+		   :name clean
+		   :scope [things]
+		   :pipe [(filter-match [gt10 (fn [x] (> x 10))]
+								{"time" (_ :guard gt10)}
+								things)
+				  (group-by "date" _PREV_)
+				  (vals _PREV_)
+				  (each _PREV_ do-math)
+				  ]}
+
+		  {:id ->5
+		   :name do-math
+		   :scope [thing]
+		   :pipe [(core/extract thing "time")
+				  (core/!math ["/" ["sum" _PREV_] ["count" _PREV_]])
+				  ]}
+
+		  {:id ->3
+		   :name to-graph
+		   :scope [data]
+		   :pipe [(core/!chart {"type" "pie"
+								"values" data
+								"x" ["monday" "tuesday" "wednesday" "thursday" "friday"]})]}
+
+		  ]
+
+  :main main}

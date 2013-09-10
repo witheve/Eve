@@ -1,11 +1,16 @@
 (ns aurora.core
   (:require [clojure.walk :as walk]
+            [aurora.keyboard :as kb]
+            [aurora.transformers.chart :as chart]
+            [aurora.transformers.math :as math]
             [dommy.core :as dommy]
             [dommy.utils :as utils]
             [cljs.reader :as reader]
+            [clojure.string :as string]
             [cljs.core.async.impl.protocols :as protos]
             [cljs.core.async :refer [put! chan sliding-buffer take! timeout]])
   (:require-macros [dommy.macros :refer [node sel1 sel]]
+                   [aurora.macros :refer [with-path]]
                    [cljs.core.async.macros :refer [go]]))
 
 (set! js/cljs.core.*print-fn* #(when-not (empty? (.trim %))
@@ -23,7 +28,7 @@
         (protos/put! async-channel val fn-handler)
         (-enqueue port val))
   protos/Channel
-  (close! [this] (close! async-channel))
+  (close! [this] (protos/close! async-channel))
   IChannel
   (-history [this] (seq (.-stuff this)))
   (-enqueue [this v] (when-not (= (first (.-stuff this)) v)
@@ -42,317 +47,398 @@
 (defn history [c]
   (-history c))
 
-(def c (channel))
+(defn html? [e]
+  (instance? js/HTMLElement e))
 
-(defn redraw [thing]
-  (dommy/set-html! (sel1 :body) "")
-  (dommy/append! (sel1 :body) thing))
+(defn primitive? [e]
+  (or (string? e) (number? e) (keyword? e)))
 
-(def root (channel))
-(def ui-channel (channel))
-(def update-chan (chan))
-(def events (chan))
+(defn str-contains? [s needle]
+  (> (.indexOf s needle) -1))
 
-(def paths (js-obj))
+(def stop false)
+(def ^:dynamic *path* [])
+(def contexts (atom #{}))
 
-(defn header [w]
-  [:div#top
-   (for [[id d] (:data w)]
-     (->rep d [:data id]))
-   [:div.map {:draggable "true" :data-structure "map"} "map"]
-   [:div.vector {:draggable "true" :data-structure "vector"} "vector"]
-   ])
+(defn ctx! [c]
+  (swap! contexts conj c)
+  (kb/merge-keys @contexts))
 
-(def paths nil)
+(defn rem-ctx! [c]
+  (swap! contexts disj c)
+  (kb/merge-keys @contexts))
 
-(defn ->rep [t path]
-  (let [id (next-pid)]
-    (assoc! paths id path)
-    (assoc! paths path id)
-    (cond
-     (vector? t) [:div.vector {:draggable "true" :data-id id} (for [[i v] (map-indexed vector t)] (->rep v (conj path i)))
-                  (placeholder (next-pid) (conj path (count t)))]
-     (map? t) [:div.map {:draggable "true" :data-id id}
-               [:table
-                [:tbody
-                 (for [[k v] t]
-                   [:tr.entry [:td.key (->rep k (conj path k ::key))] [:td.value (->rep v (conj path k))]])
-                 [:tr.entry [:td.key (placeholder (next-pid) (conj path ::key))] [:td.value ]]
-                 ]]]
-     (or (list? t) (seq? t)) (apply (funcs (first t)) (conj (rest t) id))
-     (string? t) [:div.string {:draggable "true" :data-id id} t]
-     :else [:div.unknown {:draggable "true" :data-id id} (pr-str t)])))
+;;Program is a set of data channels and then a set of pipelines
+;; {:data {foo [1 2 3]}
+;;  :pipelines {p1 [foo bar baz]
+;;              p2 [blah glah wlah]}}
+(def program (channel))
 
-(defn main-area [w]
-  [:div#middle
-   (for [[i thing] (map-indexed vector (:main w))]
-     (->rep thing [:main i]))])
+;;UI reacts to program changes and ui changes to update the screen
+(def ui (channel))
 
-(defn footer [w]
-  [:div#bottom
-   (try
-   (when (:result w)
-     (node (:result w)))
-     (catch js/Error e
-       [:p "Invalid input"]))]
-  )
+(defn menu [menu]
+  [:div.menu {:style (str "top: " (:top menu) "px; left: " (:left menu) "px;")}
+   (for [[i item] (map-indexed vector (:items menu))]
+     (-> (node [:div {:class (str "quad quad" i)} (:label item)])
+         (dommy/listen! :click #(do
+                                  ((:click item))
+                                  (put! ui (assoc @ui :menu nil))))))])
 
-(defn ->ui [world]
-  [:div
-   (header world)
-   (main-area world)
-   (footer world)])
+(defn rep-attr [attrs info]
+  (merge {:path *path*} attrs info {:class (str (:class attrs) " " (:class info))}))
 
-(let [cur (atom 0)]
-  (defn next-pid []
-    (str (swap! cur inc))
+(defmulti ->rep #(cond (vector? %) :vec
+                       (map? %) :map
+                       (string? %) :string
+                       (html? %) :html
+                       (number? %) :number
+                       :else (type %)))
+
+(defmethod ->rep :html [v info]
+  v)
+
+(defmethod ->rep :vec [v info]
+  (let [attr (rep-attr {:class "vector"} info)
+        elem [:ol (rep-attr {:class "vector"} info)
+              (doall
+               (for [[k v] (map-indexed vector v)]
+                 (with-path k
+                   [:li {:class (if (vector? v) "vector" "")}
+                    (->rep v (when (:recurse info)
+                               info))])))]
+        elem (node elem)]
+;    (when (= (count *path*) 2)
+;      (.. (js/$ elem) (sortable )))
+    elem
     ))
 
-(defn placeholder [id path]
-  (assoc! paths id path)
-  [:div.droptarget {:data-id id}])
+(defmethod ->rep :map [v info]
+  [:p (rep-attr {:class "map"} info)
+   (doall
+    (for [[k v] v]
+      [:span.entry
+       (with-path [k ::key]
+         (->rep k (when (:recurse info)
+                    info)))
+       (with-path k
+         (->rep v (when (:recurse info)
+                    info)))]))])
 
-(defn insert [id val]
-  [:input {:type "text" :data-id id :value (or val "")}])
+(defmethod ->rep :string [v info]
+  [:span (rep-attr {:class "string"} info) (str v)])
 
-(defmulti create keyword)
+(defmethod ->rep :number [v info]
+  [:span (rep-attr {:class "number"} info) (str v)])
 
-(defmethod create :map [_]
-  {(list 'placeholder (next-pid)) (list 'placeholder (next-pid))})
+(defmethod ->rep :default [v info]
+  [:span (rep-attr {:class "unknown"} info) (pr-str v)])
 
-(defmethod create :vector [_]
-  [(list 'placeholder (next-pid))])
+(defn ->data-rep [v]
+  (->rep v {:class "data"}))
 
-(defmulti add-placeholders identity)
+(defn data-ui [data]
+  (with-path :data
+    [:div.data-container
+     (doall
+      (for [[k v] data]
+        (with-path k
+          (->data-rep v))))]))
 
-(defmethod add-placeholders :map [_ m]
-  (assoc m (list 'placeholder (next-pid)) (list 'placeholder (next-pid))))
+(defn input-focus []
+  (rem-ctx! :app)
+  (ctx! :input))
 
-(defmethod add-placeholders :vector [_ v]
-  (conj v (list 'placeholder (next-pid))))
+(defn input-blur []
+  (rem-ctx! :input)
+  (ctx! :app))
 
-(def funcs {'placeholder placeholder
-            'insert insert})
+(defn input [path]
+  (-> (node [:input {:type "text" :path path :value (get-in @program path)}])
+      (dommy/listen! :focus input-focus :blur input-blur)))
 
-(defn replace-insert [id structure rep]
-  (walk/postwalk-replace {(list 'insert id) rep} structure))
+(defn substitute-key [prog path neue]
+  (let [val (get-in prog path)]
+    (-> (update-in prog (butlast path) dissoc (last path))
+        (update-in prog (butlast path) assoc neue val))))
 
-(defn replace-placeholder [id structure rep]
-  (let [cur (list 'placeholder id)]
-  (walk/postwalk (fn [x]
-                   (if (or (and (vector? x) (some #{cur} x))
-                           (and (map? x) (x cur)))
-                     (add-placeholders (if (map? x)
-                                         :map
-                                         :vector)
-                                       (walk/postwalk-replace {cur rep} x))
-                     x))
-                 structure)))
+(defn adorn [program ui]
+  (reduce (fn [prog path]
+            (if (= (last path) ::key)
+              (substitute-key prog path (input path))
+              (assoc-in prog path (input path))))
+          program
+          (:inputs ui)))
 
-(defn dissoc-in
-  [m [k & ks :as keys]]
-  (if ks
-    (if-let [nextmap (get m k)]
-      (let [newmap (dissoc-in nextmap ks)]
-        (assoc m k newmap))
-      m)
-    (dissoc m k)))
+(defmulti workspace-rep #(:state %))
 
-(defn update [cur]
-  (let [[id value] inputs
-        path (get paths id)
-        [path key?] (if (= (last path) ::key)
-                      [(butlast path) :key]
-                      [path])
-        cur (if key?
-              (dissoc-in cur path)
-              cur)
-        val (try
-              (if (> (.indexOf value " ") 0)
-                value
-                (let [fin (reader/read-string value)]
-                  (if (symbol? fin)
-                    (str fin)
-                    fin)))
-              (catch js/Error e
-                value))]
-    (set! inputs nil)
-    (if key?
-      (assoc-in cur (concat (butlast path) [val]) nil)
-      (assoc-in cur path val))))
+(defmethod workspace-rep :structure [ui program]
+  (let [program (adorn program ui)]
+    (when-let [cur (get-in program (:current ui))]
+      (with-path (:current ui)
+        (->rep cur {:recurse true :class "editable"})))))
 
-(defn handle-inserts [struct ui]
-  (if-not (:insert ui)
-    struct
-    (do
-      (go
-       (<! update-chan)
-       (put! events {:type :focus :path (:insert ui)}))
-      (if (= (last (:insert ui)) ::key)
-        (assoc-in struct (concat (butlast (:insert ui)) [(list 'insert)]) nil)
-        (assoc-in struct (:insert ui) (list 'insert (get-in struct (:insert ui))))))))
+(defmethod workspace-rep :pipeline [ui program]
+  (when-let [cur (-> program :pipelines (get (:current ui)))]
+    [:p (str "In pipeline: " (:current ui) " " (pr-str cur))]))
 
-(.-outerHTML (node ["li" {"class" "woot"} "zomg"]))
+(defmethod workspace-rep :default [ui program]
+  [:p "nothing in here"])
 
-(defn ->result [cur]
-  (try
-    (assoc cur :result (for [thing (:main cur)]
-                               (node thing)))
-    (catch js/Error e
-      (.error js/console e)
-      (assoc cur :result [:p "Invalid result"]))))
+(defn workspace-ui [program ui]
+  [:div.workspace
+   (when (:current ui)
+     (workspace-rep ui program))
+   ])
 
-(go
- (while true
-   (let [[_ ch] (alts! [root ui-channel])
-         cur @root
-         ui @ui-channel]
-     (if inputs
-       (put! root (-> (update cur)
-                      (->result)))
-       (do
-         (set! paths (transient {}))
-         (-> cur
-             (->result)
-             (handle-inserts ui)
-             (->ui)
-             (redraw))
-         (set! paths (persistent! paths))
-         (put! update-chan true))))))
+(defn inject [ui]
+  (dommy/set-html! (sel1 :body) "")
+  (dommy/append! (sel1 :body) (node ui)))
 
-(dommy/listen! [(sel1 :body) :#top :div] :click (fn [e]
-                                                (put! events {:type :select
-                                                              :e e})))
-
-(dommy/listen! [(sel1 :body) :#top :div] :dragstart (fn [e]
-                                                (put! events {:type :dragstart
-                                                              :target (.-target e)
-                                                              :e e})))
-(dommy/listen! [(sel1 :body) :#middle :.droptarget] :dragover (fn [e]
-                                                     (.preventDefault e)
-                                                     ))
-(dommy/listen! [(sel1 :body) :#middle :div] :dragenter (fn [e]
-                                                     (.preventDefault e)
-                                                                 (put! events {:type :dragenter
-                                                                               :e e
-                                                                               :target (.-target e)})
-                                                     ))
-(dommy/listen! [(sel1 :body) :#middle :div] :dragleave (fn [e]
-                                                     (.preventDefault e)
-                                                                (.stopPropagation e)
-                                                                (put! events {:type :dragexit
-                                                                               :e e
-                                                                               :target (.-target e)})
-                                                     ))
-(dommy/listen! [(sel1 :body) :#middle :.droptarget] :drop (fn [e]
-                                                            (.preventDefault e)
-                                                            (.stopPropagation e)
-                                                            (.log js/console e)
-                                                            (put! events {:type :drop
-                                                                          :e e
-                                                                          :target (.-target e)})
-                                                     ))
-
-(dommy/listen! [(sel1 :body) :#middle] :dragover (fn [e]
-                                                     (.preventDefault e)
-                                                     ))
-(dommy/listen! [(sel1 :body) :#middle] :drop (fn [e]
-                                               (when-not (.-defaultPrevented e)
-                                                            (.preventDefault e)
-                                                            (.stopPropagation e)
-                                                            (put! events {:type :drop-add
-                                                                          :e e
-                                                                          :target (.-target e)}))
-                                                     ))
-
-(dommy/listen! [(sel1 :body) :input] :keyup (fn [e]
-                                              (put! events {:type :input
-                                                            :e e
-                                                            :id (dommy/attr (.-target e) :data-id)
-                                                            :value (dommy/value (.-target e))})))
-
-(dommy/listen! [(sel1 :body) :#middle :.droptarget] :click (fn [e]
-                                                             (put! events {:type :insert
-                                                                           :target (.-target e)
-                                                                           :e e})))
-
-(dommy/listen! [(sel1 :body) :#middle :.unknown] :click (fn [e]
-                                                             (put! events {:type :insert
-                                                                           :target (.-target e)
-                                                                           :e e})))
-
-(dommy/listen! [(sel1 :body) :#middle :.string] :click (fn [e]
-                                                             (put! events {:type :insert
-                                                                           :target (.-target e)
-                                                                           :e e})))
-
-(set! stop false)
-(def dragging nil)
-(def inputs nil)
-
-(defmulti handle-event :type)
-(defmethod handle-event :dragstart [e]
-  (set! dragging (:target e)))
-
-(defmethod handle-event :drop [e]
-  (let [drag-id (dommy/attr dragging :data-id)]
-  (when-let [id  (dommy/attr (:target e) "data-id")]
-    (if-let [type (dommy/attr dragging "data-structure")]
-      (put! root (assoc-in @root (get paths id) (if (= type "vector")
-                                                                             []
-                                                                             {})))
-      (put! root (assoc-in @root (get paths id) (get-in @root (get paths drag-id))))))
-  (set! dragging nil)))
-
-(defmethod handle-event :drop-add [e]
-  (if-let [type (dommy/attr dragging "data-structure")]
-    (put! root (assoc @root :main (conj (:main @root) (if (= type "vector")
-                                                        []
-                                                        {}))))
-    (put! root (assoc @root :main (conj (:main @root) (get-in @root (get paths (dommy/attr dragging :data-id)))))))
-  (set! dragging nil))
-
-(defmethod handle-event :insert [e]
-  (when-let [id  (dommy/attr (:target e) "data-id")]
-    (put! ui-channel (assoc @ui-channel :insert (get paths id)))))
-
-(defmethod handle-event :focus [e]
-  (let [id (or (:id e) (get paths (:path e)))
-        cur (sel1 (str "[data-id='" id "']"))]
-    (when cur
-      (.focus cur))))
-
-(defmethod handle-event :input [e]
-  (set! inputs [(:id e) (:value e)])
-  (when (= 13 (.-keyCode (:e e)))
-    (put! events {:type :submit :id (:id e) :value (:value e)})))
-
-(defmethod handle-event :submit [e]
-  (put! ui-channel (assoc @ui-channel :insert nil)))
+(defn ->screen [program ui]
+  (-> [:div#aurora {:tabindex 0}
+       ;(data-ui (:data program))
+       (workspace-ui program ui)
+       (when (:menu ui)
+         (menu (:menu ui)))]
+      (inject))
+  (when-let [elem (and (:cursor ui)
+                       (sel1 (str "[path='" (string/replace (pr-str (:cursor ui)) "\"" "\\\"") "']")))]
+    (println "we have a cursor elem")
+    (dommy/add-class! elem :active))
+  (when-let [elem (and (:focus ui)
+                       (sel1 (str "input[path='" (string/replace (pr-str (:focus ui)) "\"" "\\\"") "']")))]
+    (.focus elem)))
 
 (comment
-(defmethod handle-event :dragenter [e]
-  (dommy/add-class! (:target e) :over))
-
-(defmethod handle-event :dragexit [e]
-  (dommy/remove-class! (:target e) :over))
-  )
-
-(defmethod handle-event :default [e]
-  (println "Unhandled event: " e))
-
 (go
  (while (not stop)
-   (let [ev (<! events)]
-     (try
-       (handle-event ev)
-       (catch js/Error e
-         (.error js/console e))))))
+   (alts! [program ui])
+   (->screen @program @ui)))
+  )
 
-(put! root {:data {'foo [1 2 3]
-                   'woot [{:name "mac and cheese"} {:name "burgers"}]
-                   'blugah {:name "chris" :age 26 :mood :happy}}
-            :main '[]
-            :result nil})
+(defn e->elem [e]
+  (.-selectedTarget e))
 
-(-> @root)
+(defn e->path [e]
+  (reader/read-string (dommy/attr (e->elem e) :path)))
+
+(defn input->value [input]
+  (let [s (dommy/value input)]
+    (if (str-contains? s " ")
+      s
+      (let [s (reader/read-string s)]
+        (if (symbol? s)
+          (str s)
+          s)))))
+
+(defn click-data [e]
+  (put! ui (assoc @ui :state :structure :current (e->path e))))
+
+(defn click-editable [e]
+  (if (primitive? (get-in @program (e->path e)))
+    (put! ui (-> (update-in @ui [:inputs] conj (e->path e))
+                 (assoc :focus (e->path e))))))
+
+(defn keydown-input [e]
+  (when (= 13 (.-keyCode e))
+    (put! program (assoc-in @program (e->path e) (input->value (e->elem e))))
+    (put! ui (-> (update-in @ui [:inputs] disj (e->path e))
+                 (assoc :focus nil)))))
+
+(defn contextmenu-workspace [e]
+  (.preventDefault e)
+  (.stopPropagation e)
+  (put! ui (assoc @ui :menu {:top (.-clientY e)
+                             :left (.-clientX e)
+                             :items [{:label "vector"
+                                      :click #(println "adding a vector")}
+                                     {:label "map"
+                                      :click #(println "adding a map")}]})))
+
+(defn click-body [e]
+  (when (:menu @ui)
+    (put! ui (assoc @ui :menu nil))))
+
+(comment
+(dommy/listen! [(sel1 :body) :.data] :click #(click-data %))
+(dommy/listen! [(sel1 :body) :.editable] :click #(click-editable %))
+(dommy/listen! [(sel1 :body) :input] :keydown #(keydown-input %))
+(dommy/listen! [(sel1 :body) :.workspace] :contextmenu #(contextmenu-workspace %))
+(dommy/listen! (sel1 :body) :click #(click-body %))
+  )
+
+(put! program {:data {'blah [1 2 3]
+                      'foo []
+                      'user {:name "chris"
+                             :data [1 2 3]}}
+               :pipelines {'p1 '[+ 2 3 (first foo)]}})
+
+(put! ui {:state :structure
+          :current [:data 'foo]
+          :cursor [:data 'foo]
+          :menu nil
+          :focus nil
+          :inputs #{}})
+
+(defn cursor-item []
+  (get-in @program (@ui :cursor)))
+
+(defn cursor-parent []
+  (get-in @program (butlast (@ui :cursor))))
+
+(defn conj-cursor [v]
+  (put! ui (update-in @ui [:cursor] conj v)))
+
+(defn pop-cursor []
+  (put! ui (update-in @ui [:cursor] #(vec (butlast %)))))
+
+(defn assoc-last-cursor [v]
+  (put! ui (update-in @ui [:cursor] #(assoc % (dec (count %)) v))))
+
+(defn roll-over [count cur dir]
+  (let [last-index (dec count)
+        neue (dir cur)]
+    (cond
+     (= count 0) 0
+     (and (= dec dir) (<= cur 0)) last-index
+     (and (= inc dir) (>= cur last-index)) 0
+     :else neue)))
+
+(defn up! []
+  (when (> (count (:cursor @ui)) 2)
+    (pop-cursor)))
+
+(defn down! []
+  (let [item (cursor-item)]
+    (cond
+     (map? item) (conj-cursor (-> item first first))
+     (vector? item) (conj-cursor 0)
+     :else nil)))
+
+(defn left! []
+  (let [parent (cursor-parent)
+        cur (last (:cursor @ui))]
+    (cond
+     (map? parent) (conj-cursor (-> item first first))
+     (vector? parent) (assoc-last-cursor (roll-over (count parent) cur dec))
+     :else nil)
+    )
+  )
+
+(defn right! []
+  (let [parent (cursor-parent)
+        cur (last (:cursor @ui))]
+    (cond
+     (map? parent) (conj-cursor (-> item first first))
+     (vector? parent) (assoc-last-cursor (roll-over (count parent) cur inc))
+     :else nil)
+    )
+  )
+
+(defn modify! []
+  )
+
+(defn add! [cur orig-path val]
+  (when (= (count cur) 0)
+    (let [[neue path] (if (map? cur)
+                        [(conj cur [val nil]) (conj orig-path nil)]
+                        [(conj cur val) (conj orig-path 0)])]
+      (put! program (assoc-in @program path val))
+      path
+      )))
+
+(defn add-map! []
+  (put! program (insert-after-cursor (:cursor @ui) {}))
+  )
+
+(defn edit! [path]
+  (let [path (or path (:cursor @ui))
+        cur (get-in @program path)]
+    (if (primitive? cur)
+      (put! ui (-> (update-in @ui [:inputs] conj path)
+                   (assoc :focus path)))
+      )))
+
+(defn vector-insert [v i thing]
+  (vec (concat (take i v) [thing] (drop i v))))
+
+(defn vector-remove [v i]
+  (vec (concat (take i v) (drop (inc i) v))))
+
+(defn insert-after-cursor [cursor thing]
+  (let [cur (get-in @program cursor)
+        [path cur] (if (and (vector? cur) (= 0 (count cur)))
+                     [cursor cur]
+                     [cursor (get-in @program (butlast cursor))])
+        index (if (number? (last path))
+                (inc (last path))
+                0)
+        final-path (conj (if (= 0 index)
+                           (vec cursor)
+                           (vec (butlast cursor))) index)]
+    (when (vector? cur)
+      [final-path
+       (cond
+        (= 0 (count cur)) (update-in @program path vector-insert index thing)
+        :else (update-in @program (butlast path) vector-insert index thing)
+        )])))
+
+(defn insert! [path index]
+
+  )
+
+(defn add-vector! []
+  (let [[path prog] (insert-after-cursor (:cursor @ui) [])]
+    (println "vec path: " path)
+    (put! program prog)
+    (put! ui (assoc @ui :cursor path))
+    ))
+
+(defn add-nil! []
+  (let [[path prog] (insert-after-cursor (:cursor @ui) "")]
+    (println path)
+    (put! program prog)
+    (put! ui (assoc @ui :cursor path))
+    (edit!)))
+
+(reset! kb/keys {:app {"v" [#(add-vector!)]
+                       "m" [#(add-map!)]
+                       "i" [#(add-nil!)]
+                       "e" [#(edit!)]
+                       "d" [#(up!)]
+                       "f" [#(down!)]
+                       "h" [#(left!)]
+                       "l" [#(right!)]
+                       "j" [#(down!)]
+                       "k" [#(up!)]
+                       "left" [#(up!)]
+                       "right" [#(down!)]
+                       "up" [#(left!)]
+                       "down" [#(right!)]}})
+;(kb/merge-keys [:app])
+
+(defn type [thing]
+  (cond
+   (list? thing) :list
+   (map? thing) :map
+   (vector? thing) :vector
+   (set? thing) :set
+   (number? thing) :number
+   (keyword? thing) :keyword
+   (symbol? thing) :symbol
+   (string? thing) :string))
+
+(def walk walk/postwalk)
+(def prewalk walk/prewalk)
+
+(defn !to-data [name thing]
+  (if (aget js/aurora.pipelines name)
+    (throw (js/Error. "Cannot replace data only supply new data"))
+    (aset js/aurora.pipelines name thing)))
+
+(defn extract [things k]
+  (map #(get % k) things))
+
+(def !chart chart/!chart)
+(def !math math/!math)

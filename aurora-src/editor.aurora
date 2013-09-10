@@ -1,0 +1,77 @@
+{:data {program {:data {foo [1 2 2]}
+                 :pipes [{:id ->1
+                          :name doit
+                          :pipe [["div" {"class" "awesome" "click" "woot"}
+								  (foo 0)
+								  ["div" "woot"]]
+								 (match [a]
+										[1] 1)]}]
+                 :main doit}
+        state {"pipe" ->1}}
+ :pipes [
+         {:id ->1
+          :name show
+          :pipe [[:div#aurora
+                  (->data)
+                  (->pipeline (-> (let [cur (state "pipe")]
+                                    (filter-match [] {:id cur}
+                                                  (get-in program [:pipes])))
+                                  first))]
+                 (core/inject _PREV_)]}
+
+
+         {:id ->2
+          :name ->data
+          :pipe [[:ul.data
+                  (each (program :data) ->data-rep)]]}
+
+         {:id ->3
+          :name ->data-rep
+          :scope [[k v]]
+          :pipe [[:li (pr-str v)]]}
+
+		 {:id ->5
+		  :name ->match-ui
+		  :scope [match]
+		  :pipe [[:div.match "match" " cool stuff"]]}
+
+		 {:id ->9
+		  :name ->filter-match-ui
+		  :scope [match]
+		  :pipe [[:div.match "filter-match"]]}
+
+		 {:id ->7
+		  :name ->invocation
+		  :scope [func args]
+		  :pipe [[:div.func [:div (-> func str)] (each args ->pipe-step)]]}
+
+		 {:id ->8
+		  :name ->map-entry
+		  :scope [[k v]]
+		  :pipe [[:li.entry (->pipe-step k) (->pipe-step v)]]
+		  }
+
+         {:id ->4
+          :name ->pipe-step
+          :scope [substep]
+          :pipe [
+                 (match [(core/type substep) substep]
+                        [:vector _] [:div.vector (each substep ->pipe-step)]
+                        [:list (['match & r] :seq)] (->match-ui substep)
+						[:list (['filter-match & r] :seq)] (->filter-match-ui substep)
+                        [:list ([func & r] :seq)] (->invocation func r)
+						[:map _] [:ul.map (each substep ->map-entry)]
+						[:number _] [:div.number (str substep)]
+                        [:string _] [:div.string substep]
+                        [:keyword _] [:div.string (str substep)]
+                        :else (pr-str substep))]}
+
+         {:id 6
+          :name ->pipeline
+          :scope [pipe]
+          :pipe [[:div.pipe
+                  (each (pipe :pipe) ->pipe-step)]]}
+
+         ]
+ :main show}
+
