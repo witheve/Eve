@@ -2,6 +2,7 @@
   (:require [clojure.walk :as walk]
             [aurora.keyboard :as kb]
             [aurora.transformers.chart :as chart]
+            [aurora.transformers.editor :as editor]
             [aurora.transformers.math :as math]
             [dommy.core :as dommy]
             [dommy.utils :as utils]
@@ -192,8 +193,8 @@
    ])
 
 (defn inject [ui]
-  (dommy/set-html! (sel1 :body) "")
-  (dommy/append! (sel1 :body) (node ui)))
+  (dommy/set-html! (sel1 :#wrapper) "")
+  (dommy/append! (sel1 :#wrapper) (node ui)))
 
 (defn ->screen [program ui]
   (-> [:div#aurora {:tabindex 0}
@@ -442,3 +443,18 @@
 
 (def !chart chart/!chart)
 (def !math math/!math)
+
+(defn last-path [thing]
+  (-> thing meta :path last))
+
+(defn munge* [thing]
+  (-> (str thing)
+      (string/replace "-" "_")
+      (string/replace ">" "_GT_")
+      (string/replace "<" "_LT_")
+      (string/replace "!" "_BANG_")
+      (string/replace "*" "_STAR_")
+      ))
+
+(def !runner editor/!runner)
+(def !in-running editor/!in-running)

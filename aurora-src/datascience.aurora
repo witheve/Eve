@@ -9,19 +9,16 @@
 
  {:data {}
 
-  :pipes [{:id ->1
-		   :name main
+  :pipes [{:name root
 		   :pipe [(get-data)
 				  (clean _PREV_)
 				  (to-graph _PREV_)]}
 
-		  {:id ->2
-		   :name get-data
+		  {:name get-data
 		   :pipe [[{"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}]
 				  ]}
 
-		  {:id ->4
-		   :name clean
+		  {:name clean
 		   :scope [things]
 		   :pipe [(filter-match [gt10 (fn [x] (> x 10))]
 								{"time" (_ :guard gt10)}
@@ -31,20 +28,18 @@
 				  (each _PREV_ do-math)
 				  ]}
 
-		  {:id ->5
-		   :name do-math
+		  {:name do-math
 		   :scope [thing]
 		   :pipe [(core/extract thing "time")
 				  (core/!math ["/" ["sum" _PREV_] ["count" _PREV_]])
 				  ]}
 
-		  {:id ->3
-		   :name to-graph
+		  {:name to-graph
 		   :scope [data]
-		   :pipe [(core/!chart {"type" "pie"
+		   :pipe [(core/!chart {"type" "line"
 								"values" data
 								"x" ["monday" "tuesday" "wednesday" "thursday" "friday"]})]}
 
 		  ]
 
-  :main main}
+  :main root}

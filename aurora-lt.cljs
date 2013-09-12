@@ -7,18 +7,29 @@
             [lt.objs.clients :as clients]
             [lt.util.dom :refer [$ append]]))
 
-(defn ->exec [s path]
-  (str "aurora.engine.exec_program(cljs.reader.read_string(" (pr-str s) "));
+(defn ->exec [s path clear?]
+  (str "aurora.engine.exec_program(cljs.reader.read_string(" (pr-str s) "), " (pr-str clear?) ");
 
        //# sourceURL=" path))
 
-(object/behavior* ::on-eval
-                  :triggers #{:eval
-                              :eval.one}
+(object/behavior* ::on-eval-clear
+                  :triggers #{:eval}
                   :reaction (fn [editor]
+                              (let [neue-path (-> @editor :info :path)]
+                              (object/merge! aurora-lang {:last neue-path})
                               (object/raise aurora-lang :eval! {:origin editor
-                                                             :info (assoc (@editor :info)
-                                                                     :code (->exec (ed/->val (:ed @editor)) (or (-> @editor :info :path) (-> @editor :info :name))))})))
+                                                                :info (assoc (@editor :info)
+                                                                        :code (->exec (ed/->val (:ed @editor)) (or (-> @editor :info :path) (-> @editor :info :name)) true))}))))
+
+(object/behavior* ::on-eval
+                  :triggers #{:eval.one}
+                  :reaction (fn [editor]
+                              (let [neue-path (-> @editor :info :path)
+                                    clear? (not= neue-path (@aurora-lang :last))]
+                              (object/merge! aurora-lang {:last neue-path})
+                              (object/raise aurora-lang :eval! {:origin editor
+                                                                :info (assoc (@editor :info)
+                                                                        :code (->exec (ed/->val (:ed @editor)) (or (-> @editor :info :path) (-> @editor :info :name)) clear?))}))))
 
 (object/behavior* ::eval-on-save
                   :triggers #{:save}
@@ -44,4 +55,4 @@
 (def aurora-lang (object/create ::aurora-lang))
 
 (object/tag-behaviors :aurora-lang #{::eval!})
-(object/tag-behaviors :editor.aurora #{::on-eval ::eval-on-save})
+(object/tag-behaviors :editor.aurora #{::on-eval ::eval-on-save ::on-eval-clear})

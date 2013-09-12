@@ -4818,16 +4818,16 @@ cljs.core.with_meta = function with_meta(b, c) {
     c && (b ? (c = (c = b.cljs$lang$protocol_mask$partition0$ & 262144) ? c : b.cljs$core$IWithMeta$, c = c ? !0 : b.cljs$lang$protocol_mask$partition0$ ? !1 : cljs.core.type_satisfies_.call(null, cljs.core.IWithMeta, b)) : c = cljs.core.type_satisfies_.call(null, cljs.core.IWithMeta, b), c = !c);
     return c
   }() ? with_meta.call(null, function() {
-    "undefined" === typeof cljs.core.t26639 && (cljs.core.t26639 = {}, cljs.core.t26639 = function(b, c, f, g) {
+    "undefined" === typeof cljs.core.t29601 && (cljs.core.t29601 = {}, cljs.core.t29601 = function(b, c, f, g) {
       this.meta = b;
       this.o = c;
       this.with_meta = f;
-      this.meta26640 = g;
+      this.meta29602 = g;
       this.cljs$lang$protocol_mask$partition1$ = 0;
       this.cljs$lang$protocol_mask$partition0$ = 393217
-    }, cljs.core.t26639.cljs$lang$type = !0, cljs.core.t26639.cljs$lang$ctorStr = "cljs.core/t26639", cljs.core.t26639.cljs$lang$ctorPrWriter = function(b, c, f) {
-      return cljs.core._write.call(null, c, "cljs.core/t26639")
-    }, cljs.core.t26639.prototype.call = function() {
+    }, cljs.core.t29601.cljs$lang$type = !0, cljs.core.t29601.cljs$lang$ctorStr = "cljs.core/t29601", cljs.core.t29601.cljs$lang$ctorPrWriter = function(b, c, f) {
+      return cljs.core._write.call(null, c, "cljs.core/t29601")
+    }, cljs.core.t29601.prototype.call = function() {
       var b = function(b, c) {
         return cljs.core.apply.call(null, b.o, c)
       }, c = function(c, e) {
@@ -4844,17 +4844,17 @@ cljs.core.with_meta = function with_meta(b, c) {
       };
       c.cljs$core$IFn$_invoke$arity$variadic = b;
       return c
-    }(), cljs.core.t26639.prototype.apply = function(b, c) {
+    }(), cljs.core.t29601.prototype.apply = function(b, c) {
       b = this;
       return b.call.apply(b, [b].concat(c.slice()))
-    }, cljs.core.t26639.prototype.cljs$core$Fn$ = !0, cljs.core.t26639.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
-      return this.meta26640
-    }, cljs.core.t26639.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, c) {
-      return new cljs.core.t26639(this.meta, this.o, this.with_meta, c)
-    }, cljs.core.__GT_t26639 = function(b, c, f, g) {
-      return new cljs.core.t26639(b, c, f, g)
+    }, cljs.core.t29601.prototype.cljs$core$Fn$ = !0, cljs.core.t29601.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
+      return this.meta29602
+    }, cljs.core.t29601.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, c) {
+      return new cljs.core.t29601(this.meta, this.o, this.with_meta, c)
+    }, cljs.core.__GT_t29601 = function(b, c, f, g) {
+      return new cljs.core.t29601(b, c, f, g)
     });
-    return new cljs.core.t26639(c, b, with_meta, null)
+    return new cljs.core.t29601(c, b, with_meta, null)
   }(), c) : cljs.core._with_meta.call(null, b, c)
 };
 cljs.core.meta = function(a) {
@@ -17680,26 +17680,26 @@ cljs.core.async.impl.ioc_helpers.finished_QMARK_ = function(a) {
   return"\ufdd0:finished" === a[cljs.core.async.impl.ioc_helpers.STATE_IDX]
 };
 cljs.core.async.impl.ioc_helpers.fn_handler = function fn_handler(b) {
-  "undefined" === typeof cljs.core.async.impl.ioc_helpers.t27544 && (cljs.core.async.impl.ioc_helpers.t27544 = {}, cljs.core.async.impl.ioc_helpers.t27544 = function(b, d, e) {
+  "undefined" === typeof cljs.core.async.impl.ioc_helpers.t30506 && (cljs.core.async.impl.ioc_helpers.t30506 = {}, cljs.core.async.impl.ioc_helpers.t30506 = function(b, d, e) {
     this.f = b;
     this.fn_handler = d;
-    this.meta27545 = e;
+    this.meta30507 = e;
     this.cljs$lang$protocol_mask$partition1$ = 0;
     this.cljs$lang$protocol_mask$partition0$ = 393216
-  }, cljs.core.async.impl.ioc_helpers.t27544.cljs$lang$type = !0, cljs.core.async.impl.ioc_helpers.t27544.cljs$lang$ctorStr = "cljs.core.async.impl.ioc-helpers/t27544", cljs.core.async.impl.ioc_helpers.t27544.cljs$lang$ctorPrWriter = function(b, d, e) {
-    return cljs.core._write.call(null, d, "cljs.core.async.impl.ioc-helpers/t27544")
-  }, cljs.core.async.impl.ioc_helpers.t27544.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.impl.ioc_helpers.t27544.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
+  }, cljs.core.async.impl.ioc_helpers.t30506.cljs$lang$type = !0, cljs.core.async.impl.ioc_helpers.t30506.cljs$lang$ctorStr = "cljs.core.async.impl.ioc-helpers/t30506", cljs.core.async.impl.ioc_helpers.t30506.cljs$lang$ctorPrWriter = function(b, d, e) {
+    return cljs.core._write.call(null, d, "cljs.core.async.impl.ioc-helpers/t30506")
+  }, cljs.core.async.impl.ioc_helpers.t30506.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.impl.ioc_helpers.t30506.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
     return!0
-  }, cljs.core.async.impl.ioc_helpers.t27544.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
+  }, cljs.core.async.impl.ioc_helpers.t30506.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
     return this.f
-  }, cljs.core.async.impl.ioc_helpers.t27544.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
-    return this.meta27545
-  }, cljs.core.async.impl.ioc_helpers.t27544.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
-    return new cljs.core.async.impl.ioc_helpers.t27544(this.f, this.fn_handler, d)
-  }, cljs.core.async.impl.ioc_helpers.__GT_t27544 = function(b, d, e) {
-    return new cljs.core.async.impl.ioc_helpers.t27544(b, d, e)
+  }, cljs.core.async.impl.ioc_helpers.t30506.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
+    return this.meta30507
+  }, cljs.core.async.impl.ioc_helpers.t30506.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
+    return new cljs.core.async.impl.ioc_helpers.t30506(this.f, this.fn_handler, d)
+  }, cljs.core.async.impl.ioc_helpers.__GT_t30506 = function(b, d, e) {
+    return new cljs.core.async.impl.ioc_helpers.t30506(b, d, e)
   });
-  return new cljs.core.async.impl.ioc_helpers.t27544(b, fn_handler, null)
+  return new cljs.core.async.impl.ioc_helpers.t30506(b, fn_handler, null)
 };
 cljs.core.async.impl.ioc_helpers.run_state_machine = function(a) {
   return cljs.core.async.impl.ioc_helpers.aget_object.call(null, a, cljs.core.async.impl.ioc_helpers.FN_IDX).call(null, a)
@@ -17964,24 +17964,24 @@ cljs.core.async.impl.dispatch.queue_delay = function(a, b) {
 };
 cljs.core.async.impl.channels = {};
 cljs.core.async.impl.channels.box = function box(b) {
-  "undefined" === typeof cljs.core.async.impl.channels.t27533 && (cljs.core.async.impl.channels.t27533 = {}, cljs.core.async.impl.channels.t27533 = function(b, d, e) {
+  "undefined" === typeof cljs.core.async.impl.channels.t30495 && (cljs.core.async.impl.channels.t30495 = {}, cljs.core.async.impl.channels.t30495 = function(b, d, e) {
     this.val = b;
     this.box = d;
-    this.meta27534 = e;
+    this.meta30496 = e;
     this.cljs$lang$protocol_mask$partition1$ = 0;
     this.cljs$lang$protocol_mask$partition0$ = 425984
-  }, cljs.core.async.impl.channels.t27533.cljs$lang$type = !0, cljs.core.async.impl.channels.t27533.cljs$lang$ctorStr = "cljs.core.async.impl.channels/t27533", cljs.core.async.impl.channels.t27533.cljs$lang$ctorPrWriter = function(b, d, e) {
-    return cljs.core._write.call(null, d, "cljs.core.async.impl.channels/t27533")
-  }, cljs.core.async.impl.channels.t27533.prototype.cljs$core$IDeref$_deref$arity$1 = function(b) {
+  }, cljs.core.async.impl.channels.t30495.cljs$lang$type = !0, cljs.core.async.impl.channels.t30495.cljs$lang$ctorStr = "cljs.core.async.impl.channels/t30495", cljs.core.async.impl.channels.t30495.cljs$lang$ctorPrWriter = function(b, d, e) {
+    return cljs.core._write.call(null, d, "cljs.core.async.impl.channels/t30495")
+  }, cljs.core.async.impl.channels.t30495.prototype.cljs$core$IDeref$_deref$arity$1 = function(b) {
     return this.val
-  }, cljs.core.async.impl.channels.t27533.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
-    return this.meta27534
-  }, cljs.core.async.impl.channels.t27533.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
-    return new cljs.core.async.impl.channels.t27533(this.val, this.box, d)
-  }, cljs.core.async.impl.channels.__GT_t27533 = function(b, d, e) {
-    return new cljs.core.async.impl.channels.t27533(b, d, e)
+  }, cljs.core.async.impl.channels.t30495.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
+    return this.meta30496
+  }, cljs.core.async.impl.channels.t30495.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
+    return new cljs.core.async.impl.channels.t30495(this.val, this.box, d)
+  }, cljs.core.async.impl.channels.__GT_t30495 = function(b, d, e) {
+    return new cljs.core.async.impl.channels.t30495(b, d, e)
   });
-  return new cljs.core.async.impl.channels.t27533(b, box, null)
+  return new cljs.core.async.impl.channels.t30495(b, box, null)
 };
 cljs.core.async.impl.channels.PutBox = function(a, b) {
   this.handler = a;
@@ -18365,26 +18365,26 @@ cljs.core.async.impl.timers.timeout = function(a) {
   return d
 };
 cljs.core.async.fn_handler = function fn_handler$$0(b) {
-  "undefined" === typeof cljs.core.async.t27477 && (cljs.core.async.t27477 = {}, cljs.core.async.t27477 = function(b, d, e) {
+  "undefined" === typeof cljs.core.async.t30439 && (cljs.core.async.t30439 = {}, cljs.core.async.t30439 = function(b, d, e) {
     this.f = b;
     this.fn_handler = d;
-    this.meta27478 = e;
+    this.meta30440 = e;
     this.cljs$lang$protocol_mask$partition1$ = 0;
     this.cljs$lang$protocol_mask$partition0$ = 393216
-  }, cljs.core.async.t27477.cljs$lang$type = !0, cljs.core.async.t27477.cljs$lang$ctorStr = "cljs.core.async/t27477", cljs.core.async.t27477.cljs$lang$ctorPrWriter = function(b, d, e) {
-    return cljs.core._write.call(null, d, "cljs.core.async/t27477")
-  }, cljs.core.async.t27477.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.t27477.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
+  }, cljs.core.async.t30439.cljs$lang$type = !0, cljs.core.async.t30439.cljs$lang$ctorStr = "cljs.core.async/t30439", cljs.core.async.t30439.cljs$lang$ctorPrWriter = function(b, d, e) {
+    return cljs.core._write.call(null, d, "cljs.core.async/t30439")
+  }, cljs.core.async.t30439.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.t30439.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
     return!0
-  }, cljs.core.async.t27477.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
+  }, cljs.core.async.t30439.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
     return this.f
-  }, cljs.core.async.t27477.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
-    return this.meta27478
-  }, cljs.core.async.t27477.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
-    return new cljs.core.async.t27477(this.f, this.fn_handler, d)
-  }, cljs.core.async.__GT_t27477 = function(b, d, e) {
-    return new cljs.core.async.t27477(b, d, e)
+  }, cljs.core.async.t30439.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
+    return this.meta30440
+  }, cljs.core.async.t30439.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
+    return new cljs.core.async.t30439(this.f, this.fn_handler, d)
+  }, cljs.core.async.__GT_t30439 = function(b, d, e) {
+    return new cljs.core.async.t30439(b, d, e)
   });
-  return new cljs.core.async.t27477(b, fn_handler$$0, null)
+  return new cljs.core.async.t30439(b, fn_handler$$0, null)
 };
 cljs.core.async.buffer = function(a) {
   return cljs.core.async.impl.buffers.fixed_buffer.call(null, a)
@@ -18498,51 +18498,51 @@ cljs.core.async.random_array = function(a) {
 };
 cljs.core.async.alt_flag = function alt_flag() {
   var b = cljs.core.atom.call(null, !0);
-  "undefined" === typeof cljs.core.async.t27488 && (cljs.core.async.t27488 = {}, cljs.core.async.t27488 = function(b, d, e) {
+  "undefined" === typeof cljs.core.async.t30450 && (cljs.core.async.t30450 = {}, cljs.core.async.t30450 = function(b, d, e) {
     this.flag = b;
     this.alt_flag = d;
-    this.meta27489 = e;
+    this.meta30451 = e;
     this.cljs$lang$protocol_mask$partition1$ = 0;
     this.cljs$lang$protocol_mask$partition0$ = 393216
-  }, cljs.core.async.t27488.cljs$lang$type = !0, cljs.core.async.t27488.cljs$lang$ctorStr = "cljs.core.async/t27488", cljs.core.async.t27488.cljs$lang$ctorPrWriter = function(b, d, e) {
-    return cljs.core._write.call(null, d, "cljs.core.async/t27488")
-  }, cljs.core.async.t27488.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.t27488.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
+  }, cljs.core.async.t30450.cljs$lang$type = !0, cljs.core.async.t30450.cljs$lang$ctorStr = "cljs.core.async/t30450", cljs.core.async.t30450.cljs$lang$ctorPrWriter = function(b, d, e) {
+    return cljs.core._write.call(null, d, "cljs.core.async/t30450")
+  }, cljs.core.async.t30450.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.t30450.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
     return cljs.core.deref.call(null, this.flag)
-  }, cljs.core.async.t27488.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
+  }, cljs.core.async.t30450.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
     cljs.core.reset_BANG_.call(null, this.flag, null);
     return!0
-  }, cljs.core.async.t27488.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
-    return this.meta27489
-  }, cljs.core.async.t27488.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
-    return new cljs.core.async.t27488(this.flag, this.alt_flag, d)
-  }, cljs.core.async.__GT_t27488 = function(b, d, e) {
-    return new cljs.core.async.t27488(b, d, e)
+  }, cljs.core.async.t30450.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
+    return this.meta30451
+  }, cljs.core.async.t30450.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
+    return new cljs.core.async.t30450(this.flag, this.alt_flag, d)
+  }, cljs.core.async.__GT_t30450 = function(b, d, e) {
+    return new cljs.core.async.t30450(b, d, e)
   });
-  return new cljs.core.async.t27488(b, alt_flag, null)
+  return new cljs.core.async.t30450(b, alt_flag, null)
 };
 cljs.core.async.alt_handler = function alt_handler(b, c) {
-  "undefined" === typeof cljs.core.async.t27494 && (cljs.core.async.t27494 = {}, cljs.core.async.t27494 = function(b, c, f, g) {
+  "undefined" === typeof cljs.core.async.t30456 && (cljs.core.async.t30456 = {}, cljs.core.async.t30456 = function(b, c, f, g) {
     this.cb = b;
     this.flag = c;
     this.alt_handler = f;
-    this.meta27495 = g;
+    this.meta30457 = g;
     this.cljs$lang$protocol_mask$partition1$ = 0;
     this.cljs$lang$protocol_mask$partition0$ = 393216
-  }, cljs.core.async.t27494.cljs$lang$type = !0, cljs.core.async.t27494.cljs$lang$ctorStr = "cljs.core.async/t27494", cljs.core.async.t27494.cljs$lang$ctorPrWriter = function(b, c, f) {
-    return cljs.core._write.call(null, c, "cljs.core.async/t27494")
-  }, cljs.core.async.t27494.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.t27494.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
+  }, cljs.core.async.t30456.cljs$lang$type = !0, cljs.core.async.t30456.cljs$lang$ctorStr = "cljs.core.async/t30456", cljs.core.async.t30456.cljs$lang$ctorPrWriter = function(b, c, f) {
+    return cljs.core._write.call(null, c, "cljs.core.async/t30456")
+  }, cljs.core.async.t30456.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.t30456.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
     return cljs.core.async.impl.protocols.active_QMARK_.call(null, this.flag)
-  }, cljs.core.async.t27494.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
+  }, cljs.core.async.t30456.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
     cljs.core.async.impl.protocols.commit.call(null, this.flag);
     return this.cb
-  }, cljs.core.async.t27494.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
-    return this.meta27495
-  }, cljs.core.async.t27494.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, c) {
-    return new cljs.core.async.t27494(this.cb, this.flag, this.alt_handler, c)
-  }, cljs.core.async.__GT_t27494 = function(b, c, f, g) {
-    return new cljs.core.async.t27494(b, c, f, g)
+  }, cljs.core.async.t30456.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
+    return this.meta30457
+  }, cljs.core.async.t30456.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, c) {
+    return new cljs.core.async.t30456(this.cb, this.flag, this.alt_handler, c)
+  }, cljs.core.async.__GT_t30456 = function(b, c, f, g) {
+    return new cljs.core.async.t30456(b, c, f, g)
   });
-  return new cljs.core.async.t27494(c, b, alt_handler, null)
+  return new cljs.core.async.t30456(c, b, alt_handler, null)
 };
 cljs.core.async.do_alts = function(a, b, c) {
   var d = cljs.core.async.alt_flag.call(null), e = cljs.core.count.call(null, b), f = cljs.core.async.random_array.call(null, e), g = (new cljs.core.Keyword("\ufdd0:priority")).call(null, c), h = function() {
@@ -19825,12 +19825,12 @@ try {
   Window.prototype.dommy$template$PElement$ = !0, Window.prototype.dommy$template$PElement$_elem$arity$1 = function(a) {
     return a
   }
-}catch(e28103) {
-  if(e28103 instanceof ReferenceError) {
-    var __28104 = e28103;
+}catch(e31065) {
+  if(e31065 instanceof ReferenceError) {
+    var __31066 = e31065;
     console.log("PElement: js/Window not defined by browser, skipping it... (running on phantomjs?)")
   }else {
-    throw e28103;
+    throw e31065;
   }
 }
 dommy.template.node = function(a) {
@@ -20377,6 +20377,26 @@ aurora.transformers.math.eval = function eval(b) {
 aurora.transformers.math._BANG_math = function(a) {
   return aurora.transformers.math.eval.call(null, a)
 };
+aurora.transformers.editor = {};
+aurora.transformers.editor.__GT_exec = function(a, b) {
+  return[cljs.core.str("aurora.engine.exec_program(cljs.reader.read_string("), cljs.core.str(cljs.core.pr_str.call(null, cljs.core.pr_str.call(null, a))), cljs.core.str("), "), cljs.core.str(cljs.core.pr_str.call(null, b)), cljs.core.str(");")].join("")
+};
+aurora.transformers.editor._BANG_runner = function(a) {
+  console.log("in runner");
+  aurora.transformers.editor.__GT_exec.call(null, a, !1);
+  console.log("trying to start runner");
+  var b = window.frames.runner;
+  cljs.core.truth_(b) && (b.aurora.engine.commute_listener = function() {
+    return cljs.core.async.put_BANG_.call(null, aurora.engine.event_loop, "\ufdd0:sub-commute")
+  }, b.aurora.engine.exec_program(a, !1));
+  return null
+};
+aurora.transformers.editor._BANG_in_running = function(a) {
+  var b = window.frames.runner;
+  return cljs.core.truth_(b.aurora.pipelines) ? b.aurora.pipelines[a] : null
+};
+aurora.transformers.editor.frame = window.frames.runner;
+aurora.transformers.editor.frame.aurora;
 aurora.transformers.chart = {};
 aurora.transformers.chart.colors = cljs.core.PersistentVector.fromArray(["#FFBF2D", "#F5861E", "#AC3C5A", "#892143", "#472B5D"], !0);
 aurora.transformers.chart.create_canvas = function() {
@@ -20386,8 +20406,8 @@ aurora.transformers.chart.create_canvas = function() {
   return cljs.core.PersistentVector.fromArray([a, a.getContext("2d")], !0)
 };
 aurora.transformers.chart.inject = function(a) {
-  dommy.core.set_html_BANG_.call(null, document.body, "");
-  return dommy.core.append_BANG_.call(null, document.body, dommy.template.__GT_node_like.call(null, a))
+  dommy.core.set_html_BANG_.call(null, document.getElementById("wrapper"), "");
+  return dommy.core.append_BANG_.call(null, document.getElementById("wrapper"), dommy.template.__GT_node_like.call(null, a))
 };
 aurora.transformers.chart._BANG_chart_STAR_ = function() {
   var a = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY), b = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY), c = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY), d = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY), e = cljs.core.get.call(null, cljs.core.PersistentArrayMap.EMPTY, "\ufdd0:hierarchy", cljs.core.get_global_hierarchy.call(null));
@@ -20847,8 +20867,8 @@ aurora.core.workspace_ui = function(a, b) {
   return cljs.core.PersistentVector.fromArray(["\ufdd0:div.workspace", cljs.core.truth_((new cljs.core.Keyword("\ufdd0:current")).call(null, b)) ? aurora.core.workspace_rep.call(null, b, a) : null], !0)
 };
 aurora.core.inject = function(a) {
-  dommy.core.set_html_BANG_.call(null, document.body, "");
-  return dommy.core.append_BANG_.call(null, document.body, dommy.template.__GT_node_like.call(null, a))
+  dommy.core.set_html_BANG_.call(null, document.getElementById("wrapper"), "");
+  return dommy.core.append_BANG_.call(null, document.getElementById("wrapper"), dommy.template.__GT_node_like.call(null, a))
 };
 aurora.core.__GT_screen = function(a, b) {
   aurora.core.inject.call(null, cljs.core.PersistentVector.fromArray(["\ufdd0:div#aurora", cljs.core.PersistentArrayMap.fromArray(["\ufdd0:tabindex", 0], !0), aurora.core.workspace_ui.call(null, a, b), cljs.core.truth_((new cljs.core.Keyword("\ufdd0:menu")).call(null, b)) ? aurora.core.menu.call(null, (new cljs.core.Keyword("\ufdd0:menu")).call(null, b)) : null], !0));
@@ -21040,6 +21060,14 @@ aurora.core.extract = function(a, b) {
 };
 aurora.core._BANG_chart = aurora.transformers.chart._BANG_chart;
 aurora.core._BANG_math = aurora.transformers.math._BANG_math;
+aurora.core.last_path = function(a) {
+  return cljs.core.last.call(null, (new cljs.core.Keyword("\ufdd0:path")).call(null, cljs.core.meta.call(null, a)))
+};
+aurora.core.munge_STAR_ = function(a) {
+  return clojure.string.replace.call(null, clojure.string.replace.call(null, clojure.string.replace.call(null, clojure.string.replace.call(null, clojure.string.replace.call(null, "" + cljs.core.str(a), "-", "_"), "\x3e", "_GT_"), "\x3c", "_LT_"), "!", "_BANG_"), "*", "_STAR_")
+};
+aurora.core._BANG_runner = aurora.transformers.editor._BANG_runner;
+aurora.core._BANG_in_running = aurora.transformers.editor._BANG_in_running;
 aurora.engine = {};
 aurora.engine.MetaPrimitive = function(a, b) {
   this.thing = a;
@@ -21071,12 +21099,14 @@ aurora.engine.__GT_value = function(a) {
   return b ? cljs.core.deref.call(null, a) : a
 };
 aurora.engine.event_loop = cljs.core.async.chan.call(null);
+aurora.engine.commute_listener = null;
 aurora.engine.commute = function(a) {
   var b = (new cljs.core.Keyword("\ufdd0:path")).call(null, cljs.core.meta.call(null, a));
   a = cljs.core.seq_QMARK_.call(null, a) ? cljs.core.with_meta.call(null, cljs.core.vec.call(null, a), cljs.core.meta.call(null, a)) : a;
-  cljs.core.println.call(null, "going to set: ", b, " to ", cljs.core.pr_str.call(null, a));
   aurora.pipelines[cljs.core.first.call(null, b)] = cljs.core.next.call(null, b) ? cljs.core.assoc_in.call(null, aurora.pipelines[cljs.core.first.call(null, b)], cljs.core.rest.call(null, b), a) : a;
-  return cljs.core.async.put_BANG_.call(null, aurora.engine.event_loop, "\ufdd0:commute")
+  cljs.core.truth_(cljs.core.second.call(null, b)) || aurora.engine.meta_walk.call(null, a, b);
+  cljs.core.async.put_BANG_.call(null, aurora.engine.event_loop, "\ufdd0:commute");
+  return cljs.core.truth_(aurora.engine.commute_listener) ? aurora.engine.commute_listener.call(null) : null
 };
 aurora.engine.as_meta = function(a, b) {
   var c;
@@ -21103,11 +21133,11 @@ aurora.engine.rem = function(a, b) {
 aurora.engine.conj = function(a, b) {
   return cljs.core.conj.call(null, a, cljs.core.with_meta.call(null, b, cljs.core.PersistentArrayMap.fromArray(["\ufdd0:path", cljs.core.conj.call(null, (new cljs.core.Keyword("\ufdd0:path")).call(null, cljs.core.meta.call(null, a)), cljs.core.count.call(null, a))], !0)))
 };
-aurora.engine.assoc = function(a, b, c) {
+aurora.engine.assoc = cljs.core.with_meta.call(null, function(a, b, c) {
   var d;
   c ? (d = (d = c.cljs$lang$protocol_mask$partition0$ & 131072) ? d : c.cljs$core$IMeta$, d = d ? !0 : c.cljs$lang$protocol_mask$partition0$ ? !1 : cljs.core.type_satisfies_.call(null, cljs.core.IMeta, c)) : d = cljs.core.type_satisfies_.call(null, cljs.core.IMeta, c);
   return d ? cljs.core.assoc.call(null, a, b, cljs.core.with_meta.call(null, c, cljs.core.PersistentArrayMap.fromArray(["\ufdd0:path", cljs.core.conj.call(null, (new cljs.core.Keyword("\ufdd0:path")).call(null, cljs.core.meta.call(null, a)), b)], !0))) : cljs.core.assoc.call(null, a, b, c)
-};
+}, cljs.core.PersistentArrayMap.fromArray(["\ufdd0:desc", "Add key/value"], !0));
 aurora.engine.start_main_loop = function(a) {
   var b = cljs.core.async.chan.call(null, 1);
   cljs.core.async.impl.dispatch.run.call(null, function() {
@@ -21141,7 +21171,8 @@ aurora.engine.start_main_loop = function(a) {
         }()
       }(function(b) {
         var c = b[1];
-        return 7 === c ? (b[5] = b[2], b[2] = null, b[1] = 2, "\ufdd0:recur") : 6 === c ? (c = b[2], b[2] = c, b[1] = 3, "\ufdd0:recur") : 5 === c ? (b[2] = null, b[1] = 6, "\ufdd0:recur") : 4 === c ? (c = a.call(null), b[6] = c, cljs.core.async.impl.ioc_helpers.take_BANG_.call(null, b, 7, aurora.engine.event_loop)) : 3 === c ? (c = b[2], cljs.core.async.impl.ioc_helpers.return_chan.call(null, b, c)) : 2 === c ? (b[1] = 4, "\ufdd0:recur") : 1 === c ? (b[2] = null, b[1] = 2, "\ufdd0:recur") : null
+        return 7 === c ? (c = b[2], b[5] = c, b[2] = null, b[1] = 2, "\ufdd0:recur") : 6 === c ? (c = b[2], b[2] = c, b[1] = 3, "\ufdd0:recur") : 5 === c ? (b[2] = null, b[1] = 6, "\ufdd0:recur") : 4 === c ? (c = a.call(null), b[6] = c, cljs.core.async.impl.ioc_helpers.take_BANG_.call(null, b, 7, aurora.engine.event_loop)) : 3 === c ? (c = b[2], cljs.core.async.impl.ioc_helpers.return_chan.call(null, b, c)) : 2 === c ? (c = b[5], cljs.core.truth_(c) ? b[1] = 4 : b[1] = 5, "\ufdd0:recur") : 1 === 
+        c ? (b[5] = !0, b[2] = null, b[1] = 2, "\ufdd0:recur") : null
       })
     }(), d = function() {
       var a = c.call(null);
@@ -21193,30 +21224,31 @@ aurora.engine.meta_walk = function meta_walk(b, c) {
     return null
   }
 };
-aurora.engine.exec_program = function(a) {
-  aurora.pipelines = {};
-  for(var b = cljs.core.seq.call(null, (new cljs.core.Keyword("\ufdd0:data")).call(null, a)), c = null, d = 0, e = 0;;) {
-    if(e < d) {
-      var f = cljs.core._nth.call(null, c, e), g = cljs.core.nth.call(null, f, 0, null), f = cljs.core.nth.call(null, f, 1, null);
-      aurora.engine.meta_walk.call(null, f, cljs.core.PersistentVector.fromArray(["" + cljs.core.str(g)], !0));
-      aurora.pipelines["" + cljs.core.str(g)] = f;
-      e += 1
+aurora.engine.exec_program = function(a, b) {
+  cljs.core.truth_(cljs.core.truth_(b) ? b : cljs.core.not.call(null, aurora.pipelines)) && (aurora.pipelines = {});
+  for(var c = cljs.core.seq.call(null, (new cljs.core.Keyword("\ufdd0:data")).call(null, a)), d = null, e = 0, f = 0;;) {
+    if(f < e) {
+      var g = cljs.core._nth.call(null, d, f), h = cljs.core.nth.call(null, g, 0, null), g = cljs.core.nth.call(null, g, 1, null);
+      cljs.core.not.call(null, aurora.pipelines["" + cljs.core.str(h)]) && (aurora.engine.meta_walk.call(null, g, cljs.core.PersistentVector.fromArray(["" + cljs.core.str(h)], !0)), aurora.pipelines["" + cljs.core.str(h)] = g);
+      f += 1
     }else {
-      if(b = cljs.core.seq.call(null, b)) {
-        cljs.core.chunked_seq_QMARK_.call(null, b) ? (d = cljs.core.chunk_first.call(null, b), b = cljs.core.chunk_rest.call(null, b), c = d, d = cljs.core.count.call(null, d)) : (d = cljs.core.first.call(null, b), c = cljs.core.nth.call(null, d, 0, null), d = cljs.core.nth.call(null, d, 1, null), aurora.engine.meta_walk.call(null, d, cljs.core.PersistentVector.fromArray(["" + cljs.core.str(c)], !0)), aurora.pipelines["" + cljs.core.str(c)] = d, b = cljs.core.next.call(null, b), c = null, d = 0), 
-        e = 0
+      if(c = cljs.core.seq.call(null, c)) {
+        cljs.core.chunked_seq_QMARK_.call(null, c) ? (e = cljs.core.chunk_first.call(null, c), c = cljs.core.chunk_rest.call(null, c), d = e, e = cljs.core.count.call(null, e)) : (e = cljs.core.first.call(null, c), d = cljs.core.nth.call(null, e, 0, null), e = cljs.core.nth.call(null, e, 1, null), cljs.core.not.call(null, aurora.pipelines["" + cljs.core.str(d)]) && (aurora.engine.meta_walk.call(null, e, cljs.core.PersistentVector.fromArray(["" + cljs.core.str(d)], !0)), aurora.pipelines["" + cljs.core.str(d)] = 
+        e), c = cljs.core.next.call(null, c), d = null, e = 0), f = 0
       }else {
         break
       }
     }
   }
-  var h = cljs.core.async.chan.call(null, 1);
+  cljs.core.async.put_BANG_.call(null, aurora.engine.event_loop, !1);
+  aurora.engine.event_loop = cljs.core.async.chan.call(null);
+  var k = cljs.core.async.chan.call(null, 1);
   cljs.core.async.impl.dispatch.run.call(null, function() {
     var b = function() {
       return function(a) {
         return function() {
           var b = null, c = function() {
-            var a = Array(6);
+            var a = Array(7);
             a[0] = b;
             a[1] = 1;
             return a
@@ -21243,18 +21275,19 @@ aurora.engine.exec_program = function(a) {
       }(function(b) {
         var c = b[1];
         if(2 === c) {
-          var c = window.eval(b[2]), d = (new cljs.core.Keyword("\ufdd0:main")).call(null, a), d = "" + cljs.core.str(d), d = aurora.engine.start_main_loop.call(null, aurora.pipelines[d]);
-          b[5] = c;
-          return cljs.core.async.impl.ioc_helpers.return_chan.call(null, b, d)
+          var d = b[2], c = window.eval(d), d = cljs.core.subs.call(null, d, 0, 10), d = cljs.core.println.call(null, "evaled: ", d), e = (new cljs.core.Keyword("\ufdd0:main")).call(null, a), e = "" + cljs.core.str(e), e = aurora.engine.start_main_loop.call(null, aurora.pipelines[e]);
+          b[5] = d;
+          b[6] = c;
+          return cljs.core.async.impl.ioc_helpers.return_chan.call(null, b, e)
         }
         return 1 === c ? (c = cljs.core.vector.call(null, "\ufdd0:post", "http://localhost:8082/code"), d = (new cljs.core.Keyword("\ufdd0:pipes")).call(null, a), d = cljs.core.pr_str.call(null, d), d = cljs.core.hash_map.call(null, "\ufdd0:code", d), c = aurora.util.xhr.xhr.call(null, c, d), cljs.core.async.impl.ioc_helpers.take_BANG_.call(null, b, 2, c)) : null
       })
     }(), c = function() {
       var a = b.call(null);
-      a[cljs.core.async.impl.ioc_helpers.USER_START_IDX] = h;
+      a[cljs.core.async.impl.ioc_helpers.USER_START_IDX] = k;
       return a
     }();
     return cljs.core.async.impl.ioc_helpers.run_state_machine_wrapped.call(null, c)
   });
-  return h
+  return k
 };

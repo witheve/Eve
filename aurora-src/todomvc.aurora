@@ -5,8 +5,7 @@
 
          {:name ->todo
           :scope [current-todo]
-          :pipe [(println current-todo)
-                 (match [current-todo]
+          :pipe [(match [current-todo]
                         [{"editing?" true}] ["li.editing"
                                              ["input" {"enter" (partial ->edit current-todo) "value" (current-todo "todo")}]]
                         :else ["li" {"class" (->done-class current-todo)}
@@ -20,7 +19,7 @@
                         ["active"] (filter-match {"done?" false} todos)
                         ["completed"] (filter-match {"done?" true} todos))]}
 
-         {:name todosMain
+         {:name root
 		  :pipe [["div#todoapp"
 				  ["header#header"
 				   [:h1 "Todos"]
@@ -113,4 +112,4 @@
                         :else "")]}
          ]
 
- :main todosMain}
+ :main root}

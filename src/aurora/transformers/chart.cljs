@@ -16,8 +16,8 @@
     [canvas (.getContext canvas "2d")]))
 
 (defn inject [ui]
-  (dommy/set-html! (sel1 :body) "")
-  (dommy/append! (sel1 :body) (node ui)))
+  (dommy/set-html! (sel1 :#wrapper) "")
+  (dommy/append! (sel1 :#wrapper) (node ui)))
 
 (defmulti !chart* #(get % "type"))
 

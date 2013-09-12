@@ -46,6 +46,7 @@
                       (comp/emit-str (cljs/analyze env form)))))))
    (catch Exception e
      (println e)
+     (str e)
      )))
 
 (defn compile-pipeline [code]

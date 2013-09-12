@@ -33,17 +33,23 @@
 ;;[:data 'foo :comments 0]
 
 (def event-loop (chan))
+(def commute-listener nil)
 
 (defn commute [v]
   (let [path (-> v meta :path)
         v (if (seq? v)
             (with-meta (vec v) (meta v))
             v)]
-    (println "going to set: " path " to " (pr-str v))
     (aset js/aurora.pipelines (first path) (if (next path)
                                              (assoc-in (aget js/aurora.pipelines (first path)) (rest path) v)
                                              v))
-    (put! event-loop :commute)))
+    (when-not (second path)
+      (meta-walk v path))
+
+    (put! event-loop :commute)
+
+    (when commute-listener
+      (commute-listener))))
 
 (defn as-meta [thing path]
   (if-not (satisfies? IMeta thing)
@@ -68,16 +74,18 @@
 (defn conj [p c]
   (cljs.core/conj p (with-meta c {:path (-> p meta :path (cljs.core/conj (count p)))})))
 
-(defn assoc [p k v]
-  (if-not (satisfies? IMeta v)
-    (cljs.core/assoc p k v)
-    (cljs.core/assoc p k (with-meta v {:path (-> p meta :path (cljs.core/conj k))}))))
+(def assoc (with-meta (fn assoc [p k v]
+                        (if-not (satisfies? IMeta v)
+                          (cljs.core/assoc p k v)
+                          (cljs.core/assoc p k (with-meta v {:path (-> p meta :path (cljs.core/conj k))}))))
+             {:desc "Add key/value"}))
 
 (defn start-main-loop [main]
   (go
-   (while true
-     (main)
-     (<! event-loop))))
+   (loop [run? true]
+     (when run?
+       (main)
+       (recur (<! event-loop))))))
 
 (defn meta-walk [cur path]
   (when (satisfies? IMeta cur)
@@ -88,13 +96,18 @@
      (vector? cur) (doseq [[k v] (map-indexed vector cur)]
                      (meta-walk v (cljs.core/conj path k))))))
 
-(defn exec-program [prog]
-  (set! js/aurora.pipelines (js-obj))
-  (doseq [[k v] (:data prog)]
+(defn exec-program [prog clear?]
+  (when (or clear? (not js/aurora.pipelines))
+    (set! js/aurora.pipelines (js-obj)))
+  (doseq [[k v] (:data prog)
+          :when (not (aget js/aurora.pipelines (str k)))]
     (meta-walk v [(str k)])
     (aset js/aurora.pipelines (str k) v))
+  (put! event-loop false)
+  (set! js/aurora.engine.event-loop (chan))
   (go
    (let [pipes (<! (xhr/xhr [:post "http://localhost:8082/code"] {:code (pr-str (:pipes prog))}))]
      (.eval js/window pipes)
+     (println "evaled: " (subs pipes 0 10))
      (start-main-loop (aget js/aurora.pipelines (str (:main prog))))
      )))

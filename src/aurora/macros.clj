@@ -8,11 +8,18 @@
      ~@body))
 
 (defmacro filter-match
-  [with pattern things]
+  ([pattern things]
+   `(with-meta
+     (filter #(match [%]
+                     [~pattern] true
+                     :else false)
+             ~things)
+     (meta ~things)))
+  ([with pattern things]
    `(let ~with
       (with-meta
         (filter #(match [%]
                         [~pattern] true
                         :else false)
                 ~things)
-        (meta ~things))))
+        (meta ~things)))))
