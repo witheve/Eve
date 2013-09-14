@@ -1,41 +1,43 @@
 {:data {program
 
-{:data {todos [{"todo" "hi" "done?" false}]
+{:data {todos [{"todo" "Get milk" "done?" false}]
         state {"state" "all"}}
 
  :pipes [
 
          {:name ->todo
-          :scope [current-todo]
+          :scope [todos current-todo]
           :pipe [(match [current-todo]
                         [{"editing?" true}] ["li.editing"
                                              ["input" {"enter" (partial ->edit current-todo) "value" (current-todo "todo")}]]
                         :else ["li" {"class" (->done-class current-todo)}
                                ["input" {"checked" (current-todo "done?") "type" "checkbox" "click" (partial ->toggle-done current-todo)}]
                                ["label" {"dblclick" (partial ->editing current-todo)} (current-todo "todo")]
-                               ["button" {"click" (partial ->rem current-todo)} ""]])]}
+                               ["button" {"click" (partial ->rem todos current-todo)} ""]])]}
 
          {:name ->active-todos
+		  :scope [todos state]
           :pipe [(match [(state "state")]
                         ["all"] todos
                         ["active"] (filter-match {"done?" false} todos)
                         ["completed"] (filter-match {"done?" true} todos))]}
 
          {:name root
+		  :scope [todos state]
 		  :pipe [["div#todoapp"
 				  ["header#header"
 				   [:h1 "Todos"]
-				   [:input#toggle-all {"type" "checkbox" "click" ->all-completed "checked" (state "all-toggle")}]
-				   ["input#new-todo" {"enter" ->add "placeholder" "What needs to be done?"}]]
+				   [:input#toggle-all {"type" "checkbox" "click" (partial ->all-completed todos state) "checked" (state "all-toggle")}]
+				   ["input#new-todo" {"enter" (partial ->add todos) "placeholder" "What needs to be done?"}]]
 				  ["ul#todo-list"
-				   (each (->active-todos) ->todo)]
+				   (each (->active-todos todos state) (partial ->todo todos))]
 				  ["div#footer"
-				   ["span#todo-count" (->left)]
+				   ["span#todo-count" (->left todos)]
 				   ["ul#filters"
-					["li" [:a {"click" (partial ->state "all") "class" (->state-class "all")} "All"]]
-					["li" [:a {"click" (partial ->state "active") "class" (->state-class "active")} "Active"]]
-					["li" [:a {"click" (partial ->state "completed") "class" (->state-class "completed")} "Completed"]]]
-				   (->rem-completed-button)]]
+					["li" [:a {"click" (partial ->state state "all") "class" (->state-class state "all")} "All"]]
+					["li" [:a {"click" (partial ->state state "active") "class" (->state-class state "active")} "Active"]]
+					["li" [:a {"click" (partial ->state state "completed") "class" (->state-class state "completed")} "Completed"]]]
+				   (->rem-completed-button todos)]]
 				 (core/inject _PREV_)]}
 
          {:name ->done-class
@@ -45,19 +47,21 @@
                         :else "")]}
 
          {:name ->set-done
-          :scope [current-todo]
+          :scope [state current-todo]
           :pipe [(assoc current-todo "done?" (state "all-toggle"))]}
 
          {:name ->all-completed
+		  :scope [todos state]
           :pipe [(assoc state "all-toggle" (not (state "all-toggle")))
                  (commute _PREV_)
-                 (each todos ->set-done)
+                 (each todos (partial ->set-done state))
                  (commute _PREV_)]}
 
          {:name ->add
-          :scope [e]
-          :pipe [(conj todos {"todo" (e "value")
-                              "done?" false})
+          :scope [todos e]
+          :pipe [{"todo" (e "value")
+				  "done?" false}
+				 (conj todos _PREV_)
                  (commute _PREV_)]}
 
          {:name ->editing
@@ -81,34 +85,37 @@
                  (commute _PREV_)]}
 
          {:name ->rem
-          :scope [current-todo]
+          :scope [todos current-todo]
           :pipe [(rem current-todo todos)
                  (commute _PREV_)]}
 
          {:name ->rem-completed
+		  :scope [todos]
           :pipe [(filter-match {"done?" false} todos)
                  (commute _PREV_)]}
 
          {:name ->rem-completed-button
-          :scope [current-todo]
+          :scope [todos current-todo]
           :pipe [(count (filter-match {"done?" true} todos))
                  (match [_PREV_]
                         [0] nil
-                        [cur] [:button#clear-completed {"click" ->rem-completed} "Clear completed (" cur ")"])]}
+                        [cur] [:button#clear-completed {"click" (partial ->rem-completed todos)} "Clear completed (" cur ")"])]}
 
          {:name ->left
-          :pipe [(count (filter-match {"done?" false} todos))
+		  :scope [todos]
+          :pipe [(filter-match {"done?" false} todos)
+				 (count _PREV_)
                  (match [_PREV_]
                         [1] (str "1 item left")
                         [cur] (str cur " items left" ))]}
 
          {:name ->state
-          :scope [val]
+          :scope [state val]
           :pipe [(assoc state "state" val)
                  (commute _PREV_)]}
 
          {:name ->state-class
-          :scope [val]
+          :scope [state val]
           :pipe [(match [(state "state")]
                         [val] "active"
                         :else "")]}
@@ -116,11 +123,10 @@
 
  :main root}
 
-
-
         state {"pipe" root
 			   "step" 0
-			   "prev" []}}
+			   "prev" []
+			   "dirty" true}}
  :pipes [
 
 		 {:name find-pipe
@@ -131,7 +137,9 @@
 					 first)]}
 
          {:name show
-          :pipe [(core/!runner program)
+          :pipe [(when (state "dirty")
+				   (core/!runner program)
+				   (commute (assoc state "dirty" false)))
 				 (let [cur (find-pipe (state "pipe"))]
 				   [:div#aurora
 					;(->data)
@@ -151,13 +159,13 @@
           :pipe [[:li (pr-str v)]]}
 
 		 {:name ->match-pair
-		  :scope [[match action]]
-		  :pipe [[:div.entry (pr-str match) (step-rep action)]]}
+		  :scope [pipe [match action]]
+		  :pipe [[:div.entry (pr-str match) (step-rep pipe action)]]}
 
 		 {:name ->match-ui
 		  :scope [match]
 		  :pipe [[:div.match (pr-str (second match))
-				  (each (partition 2 (drop 2 match)) ->match-pair)]]}
+				  (each (partition 2 (drop 2 match)) (partial ->match-pair pipe))]]}
 
 		 {:name ->filter-match-ui
 		  :scope [match]
@@ -170,38 +178,71 @@
 				 (assoc _PREV_ "step" 0)
 				 (commute _PREV_)]}
 
+		 {:name filter-in-scope
+		  :scope [pipe args]
+		  :pipe [
+				 (set (:scope pipe))
+				 (remove _PREV_ args)]}
+
+		 {:name get-in-scope
+		  :scope [pipe var depth]
+		  :pipe [(if (= var (symbol "_PREV_"))
+				   (js/aurora.transformers.editor.->step (:name pipe) (dec (:cur-step pipe)))
+				   (-> (js/aurora.transformers.editor.->scope (:name pipe))
+					   (get var)
+					   (get-in depth))
+
+						)
+				 ]}
+
 		 {:name ->invocation
-		  :scope [func args]
+		  :scope [func args pipe]
 		  :pipe [(let [pipe? (find-pipe func)
 					   data? (get-in program [:data func])
+					   in-scope? ((set (:scope pipe)) func)
 					   attrs (if pipe?
 							   {"click" (partial set-pipe func)
 								"class" "func pipeline"}
-							   {})]
-				   (match [pipe? data? func]
-						  [(_ :guard boolean) _ _] (if-let [desc (op-lookup func args)]
+							   {})
+					   prev (symbol "_PREV_")]
+				   (match [pipe? data? in-scope? func]
+						  [(_ :guard boolean) _ _ _] (if-let [desc (op-lookup func args pipe)]
 													 [:div.func attrs desc]
-													 [:div.func attrs "(" [:div (-> func str)] (each args step-rep) ")"])
-						  [_ (_ :guard boolean) _] [:div.data (pr-str (get-in (core/!in-running (str func)) args))]
-						  [_ _ 'partial] (->invocation (first args) (rest args))
-						  :else (if-let [desc (op-lookup func args)]
+													 [:div.func attrs "(" [:div (-> func str)] (each (filter-in-scope pipe args) (partial step-rep pipe)) ")"])
+						  [_ _ (_ :guard boolean) _] [:div.data  (pr-str (get-in-scope pipe func args))]
+						  [_ _ _ 'partial] (->invocation (first args) (rest args) pipe)
+						  [_ _ _ prev] [:div.prev.data (pr-str (js/aurora.transformers.editor.->step (:name pipe) (dec (:cur-step pipe))))]
+						  :else (if-let [desc (op-lookup func args pipe)]
 								  [:div.func attrs desc]
-								  [:div.func attrs "(" [:div (-> func str)] (each args step-rep) ")"]))
+								  [:div.func attrs "(" [:div (-> func str)] (each args (partial step-rep pipe)) ")"]))
 
 				 )]}
 
 		 {:name ->map-entry
-		  :scope [[k v]]
-		  :pipe [[:li.entry (step-rep k) (step-rep v)]]
+		  :scope [pipe [k v] class]
+		  :pipe [[:li {"class" (str "entry " class)} (step-rep pipe k) (step-rep pipe v)]]
 		  }
 
 		 {:name op-lookup
-		  :scope [op args]
+		  :scope [op args pipe ]
 		  :pipe [(match [op]
-						['assoc] (list "In " (->invocation (first args)) " set " (str (second args) " to " (nth args 2)))
+						['assoc] [:div.map "{" (for [[k v] (get-in-scope pipe (first args))]
+												 (if (= k (second args))
+												   (->map-entry pipe [k (nth args 2)] "assoc")
+												   (->map-entry pipe [k v] ))) "}"]
+						;(list "In " (->invocation (first args) nil pipe) " set " (str (second args) " to " (nth args 2)))
+
 						['commute] (str "Replace")
 						['core/inject] (str "To html")
-						['conj] (list "Append " (pr-str (second args)) " to " (->invocation (first args)))
+						['conj] (let [cur (get-in-scope pipe (first args))
+									  cnt (count cur)
+									  cur (if (> cnt 2)
+											(apply vector "..." (subvec cur (- cnt 3) cnt))
+											cur)]
+
+								  [:div.vector "[" (each cur pr-str) [:div.assoc (step-rep pipe (second args))] "]"]
+								  )
+						;(list "Append " (pr-str (second args)) " to " (->invocation (first args) nil pipe))
 						:else nil)]}
 
 		 {:name ->math-rep
@@ -230,28 +271,38 @@
 				 ]}
 
 		 {:name step-rep
-		  :scope [substep]
-		  :pipe [(match [(core/type substep) substep]
-                        [:vector _] [:div.vector (each substep step-rep) ]
-                        [:list (['match & r] :seq)] (->match-ui substep)
+		  :scope [pipe substep]
+		  :pipe [(let [prev (symbol "_PREV_")
+					   not-sym (complement symbol)]
+				 (match [(core/type substep) substep]
+                        [:vector _] [:div.vector (each substep (partial step-rep pipe))]
+                        [:list (['match & r] :seq)] (->match-ui substep pipe)
 						[:list (['filter-match & r] :seq)] (->filter-match-ui substep)
 						[:list (['core/!math & r] :seq)] (->math substep)
-                        [:list ([func & r] :seq)] (->invocation func r)
-						[:map _] [:ul.map "{" (each substep ->map-entry) "}"]
+                        [:list ([func & r] :seq)] (if (symbol? func)
+													(->invocation func r pipe)
+													(each substep (partial step-rep pipe)))
+						[:seq _] (each substep (partial step-rep pipe))
+						[:map _] [:ul.map "{" (each substep (partial ->map-entry pipe)) "}"]
 						[:number _] [:div.number (str substep)]
-						[:symbol _] (->invocation substep)
+						[:symbol _] (->invocation substep nil pipe)
                         [:string _] [:div.string substep]
                         [:keyword _] [:div.string (str substep)]
-                        :else (pr-str substep))]}
+						[:fn _] [:div.fn "fn"]
+						[:html _] [:div.html "We have html!"]
+                        :else (pr-str substep)))]}
 
          {:name ->pipe-step
-          :scope [substep]
+          :scope [pipe substep]
           :pipe [[:li {"click" (partial set-step (core/last-path substep))
 					   "class" (let [i (core/last-path substep)]
 								 (match [(state "step")]
 										[i] "active"
 										:else ""))}
-				  (step-rep substep)]]}
+				  (step-rep (assoc pipe :cur-step (core/last-path substep)) substep)
+				  (when-let [cap (js/aurora.transformers.editor.->step (:name pipe) (core/last-path substep))]
+					[:div.result (step-rep (assoc pipe :cur-step (core/last-path substep)) cap)])
+				  ]]}
 
 		 {:name ->backup
 		  :scope [cur]
@@ -272,7 +323,9 @@
 		 {:name ->workspace
 		  :scope [pipe]
 		  :pipe [[:ul.workspace
-				  (each (pipe :pipe) ->pipe-step)]]}
+				  (when-let [cap (js/aurora.transformers.editor.->scope (:name pipe))]
+					[:li.scope (pr-str cap)])
+				  (each (pipe :pipe) (partial ->pipe-step pipe))]]}
 
          ]
  :main show}

@@ -32,6 +32,7 @@
 ;;[:data 'foo 2 0]
 ;;[:data 'foo :comments 0]
 
+(def listener-loop (chan))
 (def event-loop (chan))
 (def commute-listener nil)
 
@@ -46,10 +47,7 @@
     (when-not (second path)
       (meta-walk v path))
 
-    (put! event-loop :commute)
-
-    (when commute-listener
-      (commute-listener))))
+    (put! event-loop :commute)))
 
 (defn as-meta [thing path]
   (if-not (satisfies? IMeta thing)
@@ -85,10 +83,12 @@
    (loop [run? true]
      (when run?
        (main)
+       (put! listener-loop :done)
        (recur (<! event-loop))))))
 
 (defn meta-walk [cur path]
-  (when (satisfies? IMeta cur)
+  (when (and (not= nil cur)
+             (satisfies? IMeta cur))
     (alter-meta! cur cljs.core/assoc :path path)
     (cond
      (map? cur) (doseq [[k v] cur]
@@ -105,9 +105,16 @@
     (aset js/aurora.pipelines (str k) v))
   (put! event-loop false)
   (set! js/aurora.engine.event-loop (chan))
+  (put! listener-loop false)
+  (set! js/aurora.engine.listener-loop (chan))
   (go
    (let [pipes (<! (xhr/xhr [:post "http://localhost:8082/code"] {:code (pr-str (:pipes prog))}))]
      (.eval js/window pipes)
      (println "evaled: " (subs pipes 0 10))
-     (start-main-loop (aget js/aurora.pipelines (str (:main prog))))
+     (start-main-loop (fn []
+                        (let [main-fn (aget js/aurora.pipelines (str (:main prog)))
+                              main-pipe (first (filter #(= (:main prog) (:name %)) (:pipes prog)))
+                              vals (map #(aget js/aurora.pipelines (str %)) (:scope main-pipe))]
+                          (apply main-fn vals))))
+
      )))

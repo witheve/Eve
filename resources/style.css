@@ -55,12 +55,16 @@ a img { border: none; }
 
 /* STYLES */
 
+body { display:block; }
+
 div { box-sizing:border-box; }
 ul { list-style:none; }
 ol {list-style:none;}
 li { display:block;}
 
-#aurora {display:-webkit-flex; -webkit-flex-flow:row nowrap; -webkit-align-items:stretch; -webkit-align-content:stretch; width:1024px; height:768px; font-family:"Inconsolata"; font-size:18pt; overflow:hidden;  background:#25262b; background:transparent; position:relative; padding:20px; box-sizing:border-box; }
+#wrapper { display:inline-block; width:100%;}
+
+#aurora {display:-webkit-flex; -webkit-flex-flow:row nowrap; -webkit-align-items:stretch; -webkit-align-content:stretch; width:1024px; height:768px; font-family:"Inconsolata"; font-size:12pt; overflow:hidden;  background:#25262b; background:transparent; position:relative; padding:20px; box-sizing:border-box; }
 
 #aurora .breadcrumb { display:inline-block; height:100%; width:-webkit-fit-content; padding-right:5px; }
 #aurora .breadcrumb > li { width:20px; height:100%; display:inline-block; border-radius:3px; }
@@ -86,6 +90,8 @@ li { display:block;}
 
 .func.pipeline { background:#cfc; cursor:default; }
 
+.assoc { background: #f92; }
+
 .data { background:#fcc; }
 
 #aurora .workspace > * { display:block !important; }
@@ -109,4 +115,4 @@ li { display:block;}
 
 #aurora .workspace .math-divider {display:block !important; width:auto; border-bottom:1px solid #444;  background:red; text-align:center; }
 
-iframe { width:100%; height:100%;}
+iframe { width:100%; height:100%; display:block;}

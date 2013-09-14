@@ -421,6 +421,8 @@
 
 (defn type [thing]
   (cond
+   (or (instance? js/HTMLElement thing)
+       (instance? (.-HTMLElement (aget (.-frames js/window) "runner")) thing)) :html
    (list? thing) :list
    (map? thing) :map
    (vector? thing) :vector
@@ -428,7 +430,10 @@
    (number? thing) :number
    (keyword? thing) :keyword
    (symbol? thing) :symbol
-   (string? thing) :string))
+   (string? thing) :string
+   (fn? thing) :fn
+   (seq? thing) :seq
+   :else nil))
 
 (def walk walk/postwalk)
 (def prewalk walk/prewalk)
