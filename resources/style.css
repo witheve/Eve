@@ -55,16 +55,16 @@ a img { border: none; }
 
 /* STYLES */
 
-body { display:block; }
+body { display:block; overflow:hidden; display:-webkit-flex; width:2048px; -webkit-flex-flow:row nowrap; -webkit-align-items:stretch; -webkit-align-content:stretch; }
 
-div { box-sizing:border-box; }
-ul { list-style:none; }
-ol {list-style:none;}
-li { display:block;}
+#wrapper div { box-sizing:border-box; }
+#wrapper ul { list-style:none; }
+#wrapper ol {list-style:none;}
+#wrapper li { display:block;}
 
-#wrapper { display:inline-block; width:100%;}
+#wrapper { -webkit-transition:margin-left 0.4s ease-in-out; }
 
-#aurora {display:-webkit-flex; -webkit-flex-flow:row nowrap; -webkit-align-items:stretch; -webkit-align-content:stretch; width:1024px; height:768px; font-family:"Inconsolata"; font-size:12pt; overflow:hidden;  background:#25262b; background:transparent; position:relative; padding:20px; box-sizing:border-box; }
+#aurora {  display:-webkit-flex; -webkit-flex-flow:row nowrap; -webkit-align-items:stretch; -webkit-align-content:stretch; background:red; width:1024px; height:640px; font-family:"Inconsolata"; font-size:16pt; overflow:hidden;  background:#25262b; background:transparent; position:relative; padding:20px; box-sizing:border-box; }
 
 #aurora .breadcrumb { display:inline-block; height:100%; width:-webkit-fit-content; padding-right:5px; }
 #aurora .breadcrumb > li { width:20px; height:100%; display:inline-block; border-radius:3px; }
@@ -101,7 +101,9 @@ li { display:block;}
 
 .string, .number { display: inline-block; }
 
-.chart { font-weight:bold; }
+.chart { font-weight:bold; position:relative; }
+.chart ul { display:block; }
+.chart li { display:block; width:100%; }
 
 #aurora .workspace .math { margin-left:20px; vertical-align:middle; font-family:times; }
 .math-expression {display:inline-block; width: auto; text-align:center; vertical-align:middle; }
@@ -115,4 +117,4 @@ li { display:block;}
 
 #aurora .workspace .math-divider {display:block !important; width:auto; border-bottom:1px solid #444;  background:red; text-align:center; }
 
-iframe { width:100%; height:100%; display:block;}
+#running-wrapper { width:1024px; height:100%; display:inline-block; flex:1 auto;}

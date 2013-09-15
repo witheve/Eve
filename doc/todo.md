@@ -1,6 +1,5 @@
 ##STL
 
-* modify data
 * scope creation
 * step creation
 * v match
@@ -22,3 +21,4 @@
 
 * Capture values/scope
 * Visualize and fill in scope
+* modify data

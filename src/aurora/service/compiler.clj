@@ -24,7 +24,18 @@
   (let [env {:context :expr :file nil :locals {} :ns {}}]
     (comp/with-core-cljs
          (comp/emit-str (cljs/analyze env '(ns aurora.pipelines
-                              (:require [aurora.engine :refer [commute each rem conj assoc]]
+                              (:require [aurora.engine :refer [commute each-meta each rem conj assoc]]
+                                        [aurora.core :as core]
+                                        [cljs.core.match]
+                                        [cljs.core.async.impl.protocols :as protos]
+                                        [cljs.core.async :refer [put! chan sliding-buffer take! timeout]])
+                              (:require-macros [cljs.core.match.macros :refer [match]]
+                                               [dommy.macros :refer [node sel1 sel]]
+                                               [cljs.core.async.macros :refer [go]]
+                                               [aurora.macros :refer [filter-match]]))))
+         (comp/emit-str (cljs/analyze env '(ns running.pipelines
+                              (:require [aurora.engine :refer [each each-meta rem conj assoc]]
+                                        [aurora.transformers.editor :refer [commute]]
                                         [aurora.core :as core]
                                         [cljs.core.match]
                                         [cljs.core.async.impl.protocols :as protos]
@@ -36,11 +47,11 @@
 
 (init-ns)
 
-(defn compile [forms]
+(defn compile [forms cur-ns]
   (try
-    (binding [cljs/*cljs-ns* pipeline-ns
-              *ns* (create-ns pipeline-ns)]
-      (let [env {:context :expr :file nil :locals {} :ns (@cljs/namespaces pipeline-ns)}]
+    (binding [cljs/*cljs-ns* cur-ns
+              *ns* (create-ns cur-ns)]
+      (let [env {:context :expr :file nil :locals {} :ns (@cljs/namespaces cur-ns)}]
         (comp/with-core-cljs
          (reduce #(str % ";" %2) (for [form forms]
                       (comp/emit-str (cljs/analyze env form)))))))
@@ -49,7 +60,7 @@
      (str e)
      )))
 
-(defn compile-pipeline [code]
-  (println "reading code")
-  (let [all (read-string code)]
-    (compile (map pipeline->code all))))
+(defn compile-pipeline [code ns-prefix]
+  (let [cur-ns (symbol (str (or ns-prefix "aurora") ".pipelines"))
+        all (read-string code)]
+    (compile (map pipeline->code all) cur-ns)))

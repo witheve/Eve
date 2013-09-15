@@ -7,10 +7,13 @@
             ))
 
 (defroutes main-routes
-  (POST "/code" [code]
+  (POST "/code" [code ns-prefix]
         {:status 200
-         :headers {"Access-Control-Allow-Origin" "*"}
-         :body (comp/compile-pipeline code)})
+         :headers {"Content-Type" "text/javascript; charset=utf-8"
+                   "Access-Control-Allow-Origin" "*"}
+         :body (try (comp/compile-pipeline code ns-prefix)
+                 (catch Exception e
+                   (str e)))})
   (route/not-found "<h1>Page not found</h1>"))
 
 (def app

@@ -1,122 +1,122 @@
 {:data {todos [{"todo" "Get milk" "done?" false}]
-        state {"state" "all"}}
+		state {"state" "all"}}
 
  :pipes [
 
-         {:name ->todo
-          :scope [todos current-todo]
-          :pipe [(match [current-todo]
-                        [{"editing?" true}] ["li.editing"
-                                             ["input" {"enter" (partial ->edit current-todo) "value" (current-todo "todo")}]]
-                        :else ["li" {"class" (->done-class current-todo)}
-                               ["input" {"checked" (current-todo "done?") "type" "checkbox" "click" (partial ->toggle-done current-todo)}]
-                               ["label" {"dblclick" (partial ->editing current-todo)} (current-todo "todo")]
-                               ["button" {"click" (partial ->rem todos current-todo)} ""]])]}
+		 {:name ->todo
+		  :scope [todos current-todo]
+		  :pipe [(match [current-todo]
+						[{"editing?" true}] ["li.editing"
+											 ["input" {"enter" (partial ->edit current-todo) "value" (current-todo "todo") "focused" true}]]
+						:else ["li" {"class" (->done-class current-todo)}
+							   ["input" {"checked" (current-todo "done?") "type" "checkbox" "click" (partial ->toggle-done current-todo)}]
+							   ["label" {"dblclick" (partial ->editing current-todo)} (current-todo "todo")]
+							   ["button" {"click" (partial ->rem todos current-todo)} ""]])]}
 
-         {:name ->active-todos
+		 {:name ->active-todos
 		  :scope [todos state]
-          :pipe [(match [(state "state")]
-                        ["all"] todos
-                        ["active"] (filter-match {"done?" false} todos)
-                        ["completed"] (filter-match {"done?" true} todos))]}
+		  :pipe [(match [(state "state")]
+						["all"] todos
+						["active"] (filter-match {"done?" false} todos)
+						["completed"] (filter-match {"done?" true} todos))]}
 
-         {:name root
+		 {:name root
 		  :scope [todos state]
 		  :pipe [["div#todoapp"
 				  ["header#header"
-				   [:h1 "Todos"]
-				   [:input#toggle-all {"type" "checkbox" "click" (partial ->all-completed todos state) "checked" (state "all-toggle")}]
+				   ["h1" "Todos"]
+				   ["input#toggle-all" {"type" "checkbox" "click" (partial ->all-completed todos state) "checked" (state "all-toggle")}]
 				   ["input#new-todo" {"enter" (partial ->add todos) "placeholder" "What needs to be done?"}]]
 				  ["ul#todo-list"
 				   (each (->active-todos todos state) (partial ->todo todos))]
 				  ["div#footer"
 				   ["span#todo-count" (->left todos)]
 				   ["ul#filters"
-					["li" [:a {"click" (partial ->state state "all") "class" (->state-class state "all")} "All"]]
-					["li" [:a {"click" (partial ->state state "active") "class" (->state-class state "active")} "Active"]]
-					["li" [:a {"click" (partial ->state state "completed") "class" (->state-class state "completed")} "Completed"]]]
+					["li" ["a" {"click" (partial ->state state "all") "class" (->state-class state "all")} "All"]]
+					["li" ["a" {"click" (partial ->state state "active") "class" (->state-class state "active")} "Active"]]
+					["li" ["a" {"click" (partial ->state state "completed") "class" (->state-class state "completed")} "Completed"]]]
 				   (->rem-completed-button todos)]]
 				 (core/inject _PREV_)]}
 
-         {:name ->done-class
-          :scope [current-todo]
-          :pipe [(match [(current-todo "done?")]
-                        [true] "completed"
-                        :else "")]}
+		 {:name ->done-class
+		  :scope [current-todo]
+		  :pipe [(match [(current-todo "done?")]
+						[true] "completed"
+						:else "")]}
 
-         {:name ->set-done
-          :scope [state current-todo]
-          :pipe [(assoc current-todo "done?" (state "all-toggle"))]}
+		 {:name ->set-done
+		  :scope [state current-todo]
+		  :pipe [(assoc current-todo "done?" (state "all-toggle"))]}
 
-         {:name ->all-completed
+		 {:name ->all-completed
 		  :scope [todos state]
-          :pipe [(assoc state "all-toggle" (not (state "all-toggle")))
-                 (commute _PREV_)
-                 (each todos (partial ->set-done state))
-                 (commute _PREV_)]}
+		  :pipe [(assoc state "all-toggle" (not (state "all-toggle")))
+				 (commute _PREV_)
+				 (each todos (partial ->set-done state))
+				 (commute _PREV_)]}
 
-         {:name ->add
-          :scope [todos e]
-          :pipe [{"todo" (e "value")
+		 {:name ->add
+		  :scope [todos e]
+		  :pipe [{"todo" (e "value")
 				  "done?" false}
 				 (conj todos _PREV_)
-                 (commute _PREV_)]}
+				 (commute _PREV_)]}
 
-         {:name ->editing
-          :scope [current-todo]
-          :pipe [(assoc current-todo "editing?" true)
+		 {:name ->editing
+		  :scope [current-todo]
+		  :pipe [(assoc current-todo "editing?" true)
 				 (commute _PREV_)
 				 ]}
 
-         {:name ->edit
-          :scope [current-todo e]
-          :pipe [(assoc current-todo "todo" (e "value"))
+		 {:name ->edit
+		  :scope [current-todo e]
+		  :pipe [(assoc current-todo "todo" (e "value"))
 				 (assoc _PREV_ "editing?" false)
-                 (commute _PREV_)]}
+				 (commute _PREV_)]}
 
-         {:name ->toggle-done
-          :scope [current-todo]
-          :pipe [(match [current-todo]
-                        [{"done?" true}] false
-                        :else true)
-                 (assoc current-todo "done?" _PREV_)
-                 (commute _PREV_)]}
+		 {:name ->toggle-done
+		  :scope [current-todo]
+		  :pipe [(match [current-todo]
+						[{"done?" true}] false
+						:else true)
+				 (assoc current-todo "done?" _PREV_)
+				 (commute _PREV_)]}
 
-         {:name ->rem
-          :scope [todos current-todo]
-          :pipe [(rem current-todo todos)
-                 (commute _PREV_)]}
+		 {:name ->rem
+		  :scope [todos current-todo]
+		  :pipe [(rem current-todo todos)
+				 (commute _PREV_)]}
 
-         {:name ->rem-completed
+		 {:name ->rem-completed
 		  :scope [todos]
-          :pipe [(filter-match {"done?" false} todos)
-                 (commute _PREV_)]}
+		  :pipe [(filter-match {"done?" false} todos)
+				 (commute _PREV_)]}
 
-         {:name ->rem-completed-button
-          :scope [todos current-todo]
-          :pipe [(count (filter-match {"done?" true} todos))
-                 (match [_PREV_]
-                        [0] nil
-                        [cur] [:button#clear-completed {"click" (partial ->rem-completed todos)} "Clear completed (" cur ")"])]}
+		 {:name ->rem-completed-button
+		  :scope [todos current-todo]
+		  :pipe [(count (filter-match {"done?" true} todos))
+				 (match [_PREV_]
+						[0] nil
+						[cur] [:button#clear-completed {"click" (partial ->rem-completed todos)} "Clear completed (" cur ")"])]}
 
-         {:name ->left
+		 {:name ->left
 		  :scope [todos]
-          :pipe [(filter-match {"done?" false} todos)
+		  :pipe [(filter-match {"done?" false} todos)
 				 (count _PREV_)
-                 (match [_PREV_]
-                        [1] (str "1 item left")
-                        [cur] (str cur " items left" ))]}
+				 (match [_PREV_]
+						[1] (str "1 item left")
+						[cur] (str cur " items left" ))]}
 
-         {:name ->state
-          :scope [state val]
-          :pipe [(assoc state "state" val)
-                 (commute _PREV_)]}
+		 {:name ->state
+		  :scope [state val]
+		  :pipe [(assoc state "state" val)
+				 (commute _PREV_)]}
 
-         {:name ->state-class
-          :scope [state val]
-          :pipe [(match [(state "state")]
-                        [val] "active"
-                        :else "")]}
-         ]
+		 {:name ->state-class
+		  :scope [state val]
+		  :pipe [(match [(state "state")]
+						[val] "active"
+						:else "")]}
+		 ]
 
  :main root}

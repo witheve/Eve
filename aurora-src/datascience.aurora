@@ -7,7 +7,7 @@
 ;; show a graph
 ;;
 
- {:data {}
+		 {:data {}
 
   :pipes [{:name root
 		   :pipe [(get-data)
@@ -15,7 +15,16 @@
 				  (to-graph _PREV_)]}
 
 		  {:name get-data
-		   :pipe [[{"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}]
+		   :pipe [[{"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+				   {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+				   {"time" 59 "date" "8/28/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+				   {"time" 114 "date" "8/29/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+				   {"time" 90 "date" "8/30/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+				   {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+				   {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+				   {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+				   {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+				   ]
 				  ]}
 
 		  {:name clean
@@ -38,6 +47,7 @@
 		   :scope [data]
 		   :pipe [(core/!chart {"type" "line"
 								"values" data
+								"bezierCurve" true
 								"x" ["monday" "tuesday" "wednesday" "thursday" "friday"]})]}
 
 		  ]

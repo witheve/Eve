@@ -16,8 +16,8 @@
     [canvas (.getContext canvas "2d")]))
 
 (defn inject [ui]
-  (dommy/set-html! (sel1 :#wrapper) "")
-  (dommy/append! (sel1 :#wrapper) (node ui)))
+  (dommy/set-html! (sel1 :#running-wrapper) "")
+  (dommy/append! (sel1 :#running-wrapper) (node ui)))
 
 (defmulti !chart* #(get % "type"))
 
@@ -43,12 +43,13 @@
 
 (defmethod !chart* "pie" [data]
   (let [[canvas ctx] (create-canvas)
-        data (merge {"segmentShowStroke" false "animationEasing" "easeOutExpo" "animationSteps" 60} data)]
-    (inject [:div.chart
-             canvas
-             (->legend (->labels data))])
+        data (merge {"segmentShowStroke" false "animationEasing" "easeOutExpo" "animationSteps" 60} data)
+        elem (node [:div.chart
+                    canvas
+                    (->legend (->labels data))])]
+    (inject elem)
     (.. (js/Chart. ctx) (Pie (clj->js (map-indexed ->value (data "values"))) (clj->js data)))
-    canvas))
+    elem))
 
 (defmethod !chart* :default [_]
   nil)

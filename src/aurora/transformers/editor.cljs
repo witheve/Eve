@@ -1,12 +1,10 @@
 (ns aurora.transformers.editor
   (:require [dommy.core :as dommy]
+            [aurora.util.xhr :as xhr]
             [cljs.core.async.impl.protocols :as protos]
             [cljs.core.async :refer [put! chan sliding-buffer take! timeout]])
   (:require-macros [dommy.macros :refer [node sel sel1]]
                    [cljs.core.async.macros :refer [go]]))
-
-(defn ->exec [s clear?]
-  (str "aurora.engine.exec_program(cljs.reader.read_string(" (pr-str (pr-str s)) "), " (pr-str clear?) ");"))
 
 (defn instrument-pipes [prog]
   (assoc prog :pipes
@@ -14,9 +12,9 @@
           (for [pipe (:pipes prog)]
             (assoc pipe :pipe
               (reduce (fn [cur v]
-                        (conj cur v (list 'js/aurora.engine.step (list 'quote (:name pipe)) '_PREV_))
+                        (conj cur v (list 'js/aurora.transformers.editor.step (list 'quote (:name pipe)) '_PREV_))
                         )
-                      [(list 'js/aurora.engine.scope (list 'quote (:name pipe)) (list 'zipmap (list 'quote (:scope pipe)) (:scope pipe)))]
+                      [(list 'js/aurora.transformers.editor.scope (list 'quote (:name pipe)) (list 'zipmap (list 'quote (:scope pipe)) (:scope pipe)))]
                       (:pipe pipe)))))))
 
 (def captures (js-obj))
@@ -27,40 +25,21 @@
   (.push (aget captures (str name)) (js-obj "scope" scope "steps" (array))))
 
 (defn step [name v]
-  (.push (-> (aget captures (str name)) last (aget "steps")) v))
+  (.push (-> (aget captures (str name)) last (aget "steps")) v)
+  v)
 
 (defn !runner [prog]
-    (when-let [frame (aget (.-frames js/window) "runner")]
+  (go
+   (while (<! listener-loop)
+     (put! js/aurora.engine.event-loop :sub-commute)
+     ))
 
-      (set! (.-aurora.engine.scope frame) (fn [name s]
-                                            (scope name s)))
-
-      (set! (.-aurora.engine.step frame) (fn [name v]
-                                           (step name v)
-                                           v))
-
-      (go
-       (while (<! (.-aurora.engine.listener-loop frame))
-         (put! js/aurora.engine.event-loop :sub-commute)
-         ))
-
-      (.aurora.engine.exec_program frame (instrument-pipes prog) false)
-      (comment
-      (dommy/listen! (sel1 "#runner") :load (fn []
-                                   (println "evaling runner")
-                                              (println code)
-                                   )))
-
-
-      ))
+  (exec-program (instrument-pipes prog) false))
 
 
 (defn !in-running [thing]
-  (let [frame (aget (.-frames js/window) "runner")]
-    (when (.-aurora.pipelines frame)
-      (aget (.-aurora.pipelines frame) thing))))
-
-(def frame (aget (.-frames js/window) "runner"))
+  (when js/running.pipelines
+    (aget js/running.pipelines thing)))
 
 
 (defn ->step [name step iter]
@@ -85,3 +64,53 @@
                        (-> x str symbol))
                      (keys (aget cap "scope")))
                 (vals (aget cap "scope")))))))
+
+(defn commute [v]
+  (let [path (-> v meta :path)
+        v (if (seq? v)
+            (with-meta (vec v) (meta v))
+            v)]
+    (aset js/running.pipelines (first path) (if (next path)
+                                             (assoc-in (aget js/running.pipelines (first path)) (rest path) v)
+                                             v))
+    (when-not (second path)
+      (js/aurora.engine.meta-walk v path))
+
+    (put! event-loop :commute)))
+
+(set! js/running (js-obj))
+
+(def listener-loop (chan))
+(def event-loop (chan))
+
+(defn start-main-loop [main]
+  (go
+   (loop [run? true]
+     (when run?
+       (main)
+       (put! listener-loop :done)
+       (recur (<! event-loop))))))
+
+(defn exec-program [prog clear?]
+  (when (or clear? (not js/running.pipelines))
+    (set! js/running.pipelines (js-obj)))
+  (doseq [[k v] (:data prog)
+          :when (not (aget js/running.pipelines (str k)))]
+    (js/aurora.engine.meta-walk v [(str k)])
+    (aset js/running.pipelines (str k) v))
+  (put! event-loop false)
+  (set! js/aurora.transformers.editor.event-loop (chan))
+  (put! listener-loop false)
+  (set! js/aurora.transformers.editor.listener-loop (chan))
+  (go
+   (let [pipes (<! (xhr/xhr [:post "http://localhost:8082/code"] {:code (pr-str (:pipes prog))
+                                                                  :ns-prefix "running"}))]
+     (.eval js/window pipes)
+     (println "evaled: " (subs pipes 0 10))
+     (start-main-loop (fn []
+                        (let [main-fn (aget js/running.pipelines (str (:main prog)))
+                              main-pipe (first (filter #(= (:main prog) (:name %)) (:pipes prog)))
+                              vals (map #(aget js/running.pipelines (str %)) (:scope main-pipe))]
+                          (apply main-fn vals))))
+
+     )))

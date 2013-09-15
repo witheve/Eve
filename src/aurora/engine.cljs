@@ -1,6 +1,7 @@
 (ns aurora.engine
   (:require [aurora.core :as core]
             [aurora.util.xhr :as xhr]
+            [clojure.walk :as walk]
             [cljs.core.match]
             [cljs.core.async.impl.protocols :as protos]
             [cljs.core.async :refer [put! chan sliding-buffer take! timeout]])
@@ -40,7 +41,12 @@
   (let [path (-> v meta :path)
         v (if (seq? v)
             (with-meta (vec v) (meta v))
-            v)]
+            v)
+        v (walk/postwalk (fn [x]
+                           (if (instance? MetaPrimitive x)
+                             @x
+                             x))
+                         v)]
     (aset js/aurora.pipelines (first path) (if (next path)
                                              (assoc-in (aget js/aurora.pipelines (first path)) (rest path) v)
                                              v))
@@ -52,13 +58,22 @@
 (defn as-meta [thing path]
   (if-not (satisfies? IMeta thing)
     (MetaPrimitive. thing {:path path})
-    (do
-      (alter-meta! thing cljs.core/assoc :path path)
-      thing)))
+    thing))
 
 (defn each [vs f]
-  (let [path (-> vs meta :path (or []))]
-    (with-meta (map f vs) (meta vs))))
+  (if-let [path (-> vs meta :path (or []))]
+    (with-meta (map f vs) (meta vs))
+    (map f vs)))
+
+(defn each-meta [vs f]
+  (if-let [path (-> vs meta :path)]
+    (each
+     (with-meta
+       (for [[i v] (map-indexed vector vs)]
+         (as-meta v (conj path i)))
+       (meta vs))
+     f)
+    (each vs f)))
 
 (defn mget [thing path]
   (when-let [cur (get-in thing path)]
@@ -86,11 +101,20 @@
        (put! listener-loop :done)
        (recur (<! event-loop))))))
 
+(extend-protocol IAssociative
+  List
+  (-assoc [coll k v]
+          (with-meta
+            (apply list (assoc (with-meta (vec coll) (meta coll)) k v))
+            (meta coll))))
+
 (defn meta-walk [cur path]
   (when (and (not= nil cur)
              (satisfies? IMeta cur))
     (alter-meta! cur cljs.core/assoc :path path)
     (cond
+     (list? cur) (doseq [[k v] (map-indexed vector cur)]
+                     (meta-walk v (cljs.core/conj path k)))
      (map? cur) (doseq [[k v] cur]
                   (meta-walk v (cljs.core/conj path k)))
      (vector? cur) (doseq [[k v] (map-indexed vector cur)]
@@ -118,3 +142,4 @@
                           (apply main-fn vals))))
 
      )))
+
