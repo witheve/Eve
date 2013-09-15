@@ -7,49 +7,49 @@
 ;; show a graph
 ;;
 
-		 {:data {}
+{:data {}
 
-  :pipes [{:name root
-		   :pipe [(get-data)
-				  (clean _PREV_)
-				  (to-graph _PREV_)]}
+ :pipes [{:name root
+		  :pipe [(get-data)
+				 (clean _PREV_)
+				 (to-graph _PREV_)]}
 
-		  {:name get-data
-		   :pipe [[{"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
-				   {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
-				   {"time" 59 "date" "8/28/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
-				   {"time" 114 "date" "8/29/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
-				   {"time" 90 "date" "8/30/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
-				   {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
-				   {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
-				   {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
-				   {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
-				   ]
-				  ]}
+		 {:name get-data
+		  :pipe [[{"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+				  {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+				  {"time" 59 "date" "8/28/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+				  {"time" 114 "date" "8/29/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+				  {"time" 90 "date" "8/30/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+				  {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+				  {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+				  {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+				  {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+				  ]
+				 ]}
 
-		  {:name clean
-		   :scope [things]
-		   :pipe [(filter-match [gt10 (fn [x] (> x 10))]
-								{"time" (_ :guard gt10)}
-								things)
-				  (group-by "date" _PREV_)
-				  (vals _PREV_)
-				  (each _PREV_ do-math)
-				  ]}
+		 {:name clean
+		  :scope [things]
+		  :pipe [(filter-match [gt10 (fn [x] (> x 10))]
+							   {"time" (_ :guard gt10)}
+							   things)
+				 (group-by "date" _PREV_)
+				 (vals _PREV_)
+				 (each _PREV_ do-math)
+				 ]}
 
-		  {:name do-math
-		   :scope [thing]
-		   :pipe [(core/extract thing "time")
-				  (core/!math ["/" ["sum" _PREV_] ["count" _PREV_]])
-				  ]}
+		 {:name do-math
+		  :scope [thing]
+		  :pipe [(core/extract thing "time")
+				 (core/!math ["/" ["sum" _PREV_] ["count" _PREV_]])
+				 ]}
 
-		  {:name to-graph
-		   :scope [data]
-		   :pipe [(core/!chart {"type" "line"
-								"values" data
-								"bezierCurve" true
-								"x" ["monday" "tuesday" "wednesday" "thursday" "friday"]})]}
+		 {:name to-graph
+		  :scope [data]
+		  :pipe [(core/!chart {"type" "line"
+							   "values" data
+							   "bezierCurve" true
+							   "x" ["monday" "tuesday" "wednesday" "thursday" "friday"]})]}
 
-		  ]
+		 ]
 
-  :main root}
+ :main root}

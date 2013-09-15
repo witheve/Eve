@@ -1,57 +1,133 @@
 {:data {program
 
-		{:data {}
+{:data {todos [{"todo" "Get milk" "done?" false}]
+		state {"state" "all"}}
 
- :pipes [{:name root
-		  :pipe [(get-data)
-				 (clean _PREV_)
-				 (to-graph _PREV_)]}
+ :pipes [
 
-		 {:name get-data
-		  :pipe [[{"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
-				  {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
-				  {"time" 59 "date" "8/28/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
-				  {"time" 114 "date" "8/29/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
-				  {"time" 90 "date" "8/30/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
-				  {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
-				  {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
-				  {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
-				  {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
-				  ]
+		 {:name ->todo
+		  :scope [todos current-todo]
+		  :pipe [(match [current-todo]
+						[{"editing?" true}] ["li.editing"
+											 ["input" {"enter" (partial ->edit current-todo) "value" (current-todo "todo") "focused" true}]]
+						:else ["li" {"class" (->done-class current-todo)}
+							   ["input" {"checked" (current-todo "done?") "type" "checkbox" "click" (partial ->toggle-done current-todo)}]
+							   ["label" {"dblclick" (partial ->editing current-todo)} (current-todo "todo")]
+							   ["button" {"click" (partial ->rem todos current-todo)} ""]])]}
+
+		 {:name ->active-todos
+		  :scope [todos state]
+		  :pipe [(match [(state "state")]
+						["all"] todos
+						["active"] (filter-match {"done?" false} todos)
+						["completed"] (filter-match {"done?" true} todos))]}
+
+		 {:name root
+		  :scope [todos state]
+		  :pipe [["div#todoapp"
+				  ["header#header"
+				   ["h1" "Todos"]
+				   ["input#toggle-all" {"type" "checkbox" "click" (partial ->all-completed todos state) "checked" (state "all-toggle")}]
+				   ["input#new-todo" {"enter" (partial ->add todos) "placeholder" "What needs to be done?"}]]
+				  ["ul#todo-list"
+				   (each (->active-todos todos state) (partial ->todo todos))]
+				  ["div#footer"
+				   ["span#todo-count" (->left todos)]
+				   ["ul#filters"
+					["li" ["a" {"click" (partial ->state state "all") "class" (->state-class state "all")} "All"]]
+					["li" ["a" {"click" (partial ->state state "active") "class" (->state-class state "active")} "Active"]]
+					["li" ["a" {"click" (partial ->state state "completed") "class" (->state-class state "completed")} "Completed"]]]
+				   (->rem-completed-button todos)]]
+				 (core/inject _PREV_)]}
+
+		 {:name ->done-class
+		  :scope [current-todo]
+		  :pipe [(match [(current-todo "done?")]
+						[true] "completed"
+						:else "")]}
+
+		 {:name ->set-done
+		  :scope [state val current-todo]
+		  :pipe [(assoc current-todo "done?" val)]}
+
+		 {:name ->all-completed
+		  :scope [todos state]
+		  :pipe [(assoc state "all-toggle" (not (state "all-toggle")))
+				 (commute _PREV_)
+				 (each todos (partial ->set-done state (not (state "all-toggle"))))
+				 (commute _PREV_)]}
+
+		 {:name ->add
+		  :scope [todos e]
+		  :pipe [{"todo" (e "value")
+				  "done?" false}
+				 (conj todos _PREV_)
+				 (commute _PREV_)]}
+
+		 {:name ->editing
+		  :scope [current-todo]
+		  :pipe [(assoc current-todo "editing?" true)
+				 (commute _PREV_)
 				 ]}
 
-		 {:name clean
-		  :scope [things]
-		  :pipe [(filter-match [gt10 (fn [x] (> x 10))]
-							   {"time" (_ :guard gt10)}
-							   things)
-				 (group-by "date" _PREV_)
-				 (vals _PREV_)
-				 (each _PREV_ do-math)
-				 ]}
+		 {:name ->edit
+		  :scope [current-todo e]
+		  :pipe [(assoc current-todo "todo" (e "value"))
+				 (assoc _PREV_ "editing?" false)
+				 (commute _PREV_)]}
 
-		 {:name do-math
-		  :scope [thing]
-		  :pipe [(core/extract thing "time")
-				 (core/!math ["/" ["sum" _PREV_] ["count" _PREV_]])
-				 ]}
+		 {:name ->toggle-done
+		  :scope [current-todo]
+		  :pipe [(match [current-todo]
+						[{"done?" true}] false
+						:else true)
+				 (assoc current-todo "done?" _PREV_)
+				 (commute _PREV_)]}
 
-		 {:name to-graph
-		  :scope [data]
-		  :pipe [(core/!chart {"type" "line"
-							   "values" data
-							   "bezierCurve" true
-							   "x" ["monday" "tuesday" "wednesday" "thursday" "friday"]})]}
+		 {:name ->rem
+		  :scope [todos current-todo]
+		  :pipe [(rem current-todo todos)
+				 (commute _PREV_)]}
 
+		 {:name ->rem-completed
+		  :scope [todos]
+		  :pipe [(filter-match {"done?" false} todos)
+				 (commute _PREV_)]}
+
+		 {:name ->rem-completed-button
+		  :scope [todos current-todo]
+		  :pipe [(count (filter-match {"done?" true} todos))
+				 (match [_PREV_]
+						[0] nil
+						[cur] [:button#clear-completed {"click" (partial ->rem-completed todos)} "Clear completed (" cur ")"])]}
+
+		 {:name ->left
+		  :scope [todos]
+		  :pipe [(filter-match {"done?" false} todos)
+				 (count _PREV_)
+				 (match [_PREV_]
+						[1] (str "1 item left")
+						[cur] (str cur " items left" ))]}
+
+		 {:name ->state
+		  :scope [state val]
+		  :pipe [(assoc state "state" val)
+				 (commute _PREV_)]}
+
+		 {:name ->state-class
+		  :scope [state val]
+		  :pipe [(match [(state "state")]
+						[val] "active"
+						:else "")]}
 		 ]
 
  :main root}
 
-
         state {"pipe" root
 			   "step" 0
 			   "prev" []
-			   "dirty" true}}
+			   "dirty" true
+			   "charts" {}}}
  :pipes [
 
 		 {:name find-pipe
@@ -63,17 +139,19 @@
 
          {:name show
           :pipe [(core/ctx! :app)
-				 (when (state "dirty")
-				   (println "re running")
-				   (core/!runner program)
-				   (commute (assoc state "dirty" false)))
-				 (let [cur (find-pipe (state "pipe"))]
-				   [:div#aurora
-					;(->data)
-					(->pipeline cur)
-					(->workspace cur)
-					])
-                 (core/root-inject _PREV_)
+				 (if (state "dirty")
+				   (do
+					 (println "[editor] Executing dirty")
+					 (core/!runner program))
+				   (let [cur (find-pipe (state "pipe"))]
+					 (println "[editor] re-drawing")
+					 (core/root-inject
+					  [:div#aurora
+					   ;(->data)
+					   (->pipeline cur)
+					   (->workspace cur)
+					   ])))
+
 				 ]}
 
 
@@ -211,22 +289,73 @@
 				 (assoc state "dirty" true)
 				 (commute _PREV_)]}
 
-		 {:name chart-make-pie
-		  :scope [chart]
+		 {:name fill-scope
+		  :scope [pipe struct step-num]
+		  :pipe [(let [prev-sym (symbol "_PREV_")
+					   prev-value (js/aurora.transformers.editor.->step (:name pipe) (dec step-num))
+					   scope (js/aurora.transformers.editor.->scope (:name pipe))
+					   scope (assoc scope prev-sym prev-value)]
+				   (js/clojure.walk.postwalk-replace scope struct))]}
+
+		 {:name chart-options
+		  :scope [chart-ed]
 		  :pipe [
-				 (match [(chart "type")]
-						["pie"] "line"
-						["line"] "pie")
-				 (assoc chart "type" _PREV_)
-				 (program-commute _PREV_)]
+				 (assoc-in state ["charts" (-> chart-ed meta :path) "options"] true)
+				 (commute _PREV_)
+				 ]
+		  }
+
+		 {:name chart-add-data
+		  :scope [chart e]
+		  :pipe [
+				 (last (js/cljs.reader.read-string (.dataTransfer.getData e "path")))
+				 (do (println _PREV_) _PREV_)
+				 (assoc chart "values" _PREV_)
+				 (program-commute _PREV_)
+				 ]
+		  }
+
+		 {:name set-chart-option
+		  :scope [chart option value]
+		  :pipe [
+				 (println chart)
+				 (assoc chart option value)
+				 (do (println _PREV_) _PREV_)
+				 (program-commute _PREV_)
+				 ]
+		  }
+
+		 {:name set-chart-type
+		  :scope [chart v]
+		  :pipe [
+				 (println e)
+				 (assoc chart "type" v)
+				 (program-commute _PREV_)
+				 ]
 		  }
 
 		 {:name ->chart-ed
-		  :scope [chart-call]
+		  :scope [pipe chart-call]
 		  :pipe [(println (meta chart-call))
-				 [:div.chart-ed {"click" (partial chart-make-pie (second chart-call))}
-				  "make pie"
-				  ]]}
+				 (let [chart-state ((state "charts")
+									(-> chart-call meta :path))
+					   chart-data (fill-scope pipe (second chart-call) (core/last-path chart-call))]
+				   [:div.chart-ed
+					[:div {;"click" (partial chart-options chart-call)
+						   "dragover" (fn [e] (.preventDefault e))
+						   "dragenter" (fn [e] (println "entered!") (.preventDefault e))
+						   "drop" (partial chart-add-data (second chart-call))}
+					 (js/aurora.transformers.chart.!chart-canvas  chart-data)]
+					[:ul.chart-options
+					 (for [t ["line" "pie" "bar" "donut"]]
+					   [:li {"click" (partial set-chart-type (second chart-call) t) "selected" (= (chart-data "type") t)} t]
+					   )
+					 [:li {"selected" (chart-data "bezierCurve") "click" (partial set-chart-option (second chart-call) "bezierCurve" (not (chart-data "bezierCurve")))} "smooth"]
+
+					 ]]
+				   )
+
+				  ]}
 
 		 {:name modify-primitive
 		  :scope [cur]
@@ -256,6 +385,10 @@
 					 [:div {"class" class "click" (partial modify-primitive prim)} val])
 				   )]}
 
+		 {:name drag-data
+		  :scope [substep e]
+		  :pipe [(.dataTransfer.setData e "path" (-> substep meta :path))]}
+
 		 {:name step-rep
 		  :scope [pipe substep]
 		  :pipe [(let [prev (symbol "_PREV_")
@@ -264,11 +397,11 @@
 							 @substep
 							 substep)]
 				 (match [(core/type substep) substep]
-                        [:vector _] [:div.vector (each-meta substep (partial step-rep pipe))]
+                        [:vector _] [:div.vector {"draggable" true "dragstart" (partial drag-data substep)} (each-meta substep (partial step-rep pipe))]
                         [:list (['match & r] :seq)] (->match-ui substep pipe)
 						[:list (['filter-match & r] :seq)] (->filter-match-ui substep)
 						[:list (['core/!math & r] :seq)] (->math substep)
-						[:list (['core/!chart & r] :seq)] (->chart-ed substep)
+						[:list (['core/!chart & r] :seq)] (->chart-ed pipe substep)
                         [:list ([func & r] :seq)] (if (symbol? func)
 													(->invocation func r pipe)
 													(each-meta substep (partial step-rep pipe)))
@@ -279,7 +412,7 @@
                         [:string _] (primitive-or-editor substep cur "string")
                         [:keyword _] [:div.string (str cur)]
 						[:fn _] [:div.fn "fn"]
-						[:html _] [:div.html "Html!"]
+						[:html _] [:div.html "html!"]
                         :else (pr-str cur)))]}
 
          {:name ->pipe-step
@@ -291,7 +424,7 @@
 										:else ""))}
 				  (step-rep (assoc pipe :cur-step (core/last-path substep)) substep)
 				  (when-let [cap (js/aurora.transformers.editor.->step (:name pipe) (core/last-path substep))]
-					[:div.result (step-rep (assoc pipe :cur-step (core/last-path substep)) cap)])
+					[:div.result (step-rep (assoc pipe :cur-step (core/last-path substep)) (ensure-meta cap [(symbol "_PREV_")]))])
 				  ]]}
 
 		 {:name ->backup
@@ -316,8 +449,8 @@
 				  (when-let [cap (js/aurora.transformers.editor.->scope (:name pipe))]
 					[:li.scope (for [[k v] cap]
 								 (step-rep pipe (if (satisfies? IMeta v)
-												  (with-meta v {:path ['program :data k]})
-												  (js/aurora.engine.as-meta v ['program :data k]))))])
+												  (with-meta v {:path [k]})
+												  (js/aurora.engine.as-meta v [k]))))])
 				  (each-meta (pipe :pipe) (partial ->pipe-step pipe))]]}
 
          ]

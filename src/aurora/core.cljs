@@ -74,9 +74,13 @@
     ))
 
 (defn root-inject [ui]
-  (dommy/set-html! (sel1 :#wrapper) "")
-  (dommy/append! (sel1 :#wrapper) (node ui))
-  (focus-walk (sel1 :#wrapper)))
+  (let [wrapper (sel1 :#wrapper)
+        ws (sel1 "#aurora .workspace")
+        scroll-top (when ws (.-scrollTop ws))]
+    (dommy/set-html! wrapper "")
+    (dommy/append! wrapper (node ui))
+    (focus-walk wrapper)
+    (set! (.-scrollTop (sel1 "#aurora .workspace")) scroll-top)))
 
 (defn inject [ui]
   (dommy/set-html! (sel1 :#running-wrapper) "")

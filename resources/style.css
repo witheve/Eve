@@ -62,9 +62,9 @@ body { display:block; overflow:hidden; display:-webkit-flex; width:2048px; -webk
 #wrapper ol {list-style:none;}
 #wrapper li { display:block;}
 
-#wrapper { -webkit-transition:margin-left 0.4s ease-in-out; }
+#wrapper { -webkit-transition:margin-left 0.3s ease-in-out; }
 
-#aurora {  display:-webkit-flex; -webkit-flex-flow:row nowrap; -webkit-align-items:stretch; -webkit-align-content:stretch; background:red; width:1024px; height:640px; font-family:"Inconsolata"; font-size:16pt; overflow:hidden;  background:#25262b; background:transparent; position:relative; padding:20px; box-sizing:border-box; }
+#aurora {  display:-webkit-flex; -webkit-flex-flow:row nowrap; -webkit-align-items:stretch; -webkit-align-content:stretch; background:red; width:1024px; height:640px; height:100%; font-family:"Inconsolata"; font-size:16pt; overflow:hidden;  background:#25262b; background:transparent; position:relative; padding:20px; box-sizing:border-box; }
 
 #aurora .breadcrumb { display:inline-block; height:100%; width:-webkit-fit-content; padding-right:5px; }
 #aurora .breadcrumb > li { width:20px; height:100%; display:inline-block; border-radius:3px; }
@@ -117,4 +117,9 @@ body { display:block; overflow:hidden; display:-webkit-flex; width:2048px; -webk
 
 #aurora .workspace .math-divider {display:block !important; width:auto; border-bottom:1px solid #444;  background:red; text-align:center; }
 
-#running-wrapper { width:1024px; height:100%; display:inline-block; flex:1 auto;}
+#running-wrapper { width:1024px; max-width:1024px; height:100%; display:inline-block; flex:1 auto;}
+
+.chart-ed .chart { display:inline-block; }
+.chart-ed .chart-options { display:inline-block; width:30px; }
+.chart-ed .chart-options li { width:100%; overflow:hidden; background:#ccc; padding:3px; margin-bottom:2px; border-radius:3px; }
+.chart-ed .chart-options li[selected="true"] { background:#444; color:#fff; }

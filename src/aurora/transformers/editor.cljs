@@ -1,6 +1,7 @@
 (ns aurora.transformers.editor
   (:require [dommy.core :as dommy]
             [aurora.util.xhr :as xhr]
+            [aurora.util.async :as async]
             [cljs.core.async.impl.protocols :as protos]
             [cljs.core.async :refer [put! chan sliding-buffer take! timeout]])
   (:require-macros [dommy.macros :refer [node sel sel1]]
@@ -31,7 +32,8 @@
 (defn !runner [prog]
   (go
    (while (<! listener-loop)
-     (put! js/aurora.engine.event-loop :sub-commute)
+     (js/aurora.engine.commute (assoc js/aurora.pipelines.state "dirty" false))
+     ;(put! js/aurora.engine.event-loop :sub-commute)
      ))
 
   (exec-program (instrument-pipes prog) false))
@@ -84,12 +86,14 @@
 (def event-loop (chan))
 
 (defn start-main-loop [main]
+  (let [debounced (async/debounce event-loop 100)]
   (go
    (loop [run? true]
      (when run?
+       (println "[child] running at: " (.getTime (js/Date.)))
        (main)
        (put! listener-loop :done)
-       (recur (<! event-loop))))))
+       (recur (<! debounced)))))))
 
 (defn exec-program [prog clear?]
   (when (or clear? (not js/running.pipelines))

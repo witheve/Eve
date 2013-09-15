@@ -4818,16 +4818,16 @@ cljs.core.with_meta = function with_meta(b, c) {
     c && (b ? (c = (c = b.cljs$lang$protocol_mask$partition0$ & 262144) ? c : b.cljs$core$IWithMeta$, c = c ? !0 : b.cljs$lang$protocol_mask$partition0$ ? !1 : cljs.core.type_satisfies_.call(null, cljs.core.IWithMeta, b)) : c = cljs.core.type_satisfies_.call(null, cljs.core.IWithMeta, b), c = !c);
     return c
   }() ? with_meta.call(null, function() {
-    "undefined" === typeof cljs.core.t87395 && (cljs.core.t87395 = {}, cljs.core.t87395 = function(b, c, f, g) {
+    "undefined" === typeof cljs.core.t10142 && (cljs.core.t10142 = {}, cljs.core.t10142 = function(b, c, f, g) {
       this.meta = b;
       this.o = c;
       this.with_meta = f;
-      this.meta87396 = g;
+      this.meta10143 = g;
       this.cljs$lang$protocol_mask$partition1$ = 0;
       this.cljs$lang$protocol_mask$partition0$ = 393217
-    }, cljs.core.t87395.cljs$lang$type = !0, cljs.core.t87395.cljs$lang$ctorStr = "cljs.core/t87395", cljs.core.t87395.cljs$lang$ctorPrWriter = function(b, c, f) {
-      return cljs.core._write.call(null, c, "cljs.core/t87395")
-    }, cljs.core.t87395.prototype.call = function() {
+    }, cljs.core.t10142.cljs$lang$type = !0, cljs.core.t10142.cljs$lang$ctorStr = "cljs.core/t10142", cljs.core.t10142.cljs$lang$ctorPrWriter = function(b, c, f) {
+      return cljs.core._write.call(null, c, "cljs.core/t10142")
+    }, cljs.core.t10142.prototype.call = function() {
       var b = function(b, c) {
         return cljs.core.apply.call(null, b.o, c)
       }, c = function(c, e) {
@@ -4844,17 +4844,17 @@ cljs.core.with_meta = function with_meta(b, c) {
       };
       c.cljs$core$IFn$_invoke$arity$variadic = b;
       return c
-    }(), cljs.core.t87395.prototype.apply = function(b, c) {
+    }(), cljs.core.t10142.prototype.apply = function(b, c) {
       b = this;
       return b.call.apply(b, [b].concat(c.slice()))
-    }, cljs.core.t87395.prototype.cljs$core$Fn$ = !0, cljs.core.t87395.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
-      return this.meta87396
-    }, cljs.core.t87395.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, c) {
-      return new cljs.core.t87395(this.meta, this.o, this.with_meta, c)
-    }, cljs.core.__GT_t87395 = function(b, c, f, g) {
-      return new cljs.core.t87395(b, c, f, g)
+    }, cljs.core.t10142.prototype.cljs$core$Fn$ = !0, cljs.core.t10142.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
+      return this.meta10143
+    }, cljs.core.t10142.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, c) {
+      return new cljs.core.t10142(this.meta, this.o, this.with_meta, c)
+    }, cljs.core.__GT_t10142 = function(b, c, f, g) {
+      return new cljs.core.t10142(b, c, f, g)
     });
-    return new cljs.core.t87395(c, b, with_meta, null)
+    return new cljs.core.t10142(c, b, with_meta, null)
   }(), c) : cljs.core._with_meta.call(null, b, c)
 };
 cljs.core.meta = function(a) {
@@ -17680,26 +17680,26 @@ cljs.core.async.impl.ioc_helpers.finished_QMARK_ = function(a) {
   return"\ufdd0:finished" === a[cljs.core.async.impl.ioc_helpers.STATE_IDX]
 };
 cljs.core.async.impl.ioc_helpers.fn_handler = function fn_handler(b) {
-  "undefined" === typeof cljs.core.async.impl.ioc_helpers.t88300 && (cljs.core.async.impl.ioc_helpers.t88300 = {}, cljs.core.async.impl.ioc_helpers.t88300 = function(b, d, e) {
+  "undefined" === typeof cljs.core.async.impl.ioc_helpers.t11047 && (cljs.core.async.impl.ioc_helpers.t11047 = {}, cljs.core.async.impl.ioc_helpers.t11047 = function(b, d, e) {
     this.f = b;
     this.fn_handler = d;
-    this.meta88301 = e;
+    this.meta11048 = e;
     this.cljs$lang$protocol_mask$partition1$ = 0;
     this.cljs$lang$protocol_mask$partition0$ = 393216
-  }, cljs.core.async.impl.ioc_helpers.t88300.cljs$lang$type = !0, cljs.core.async.impl.ioc_helpers.t88300.cljs$lang$ctorStr = "cljs.core.async.impl.ioc-helpers/t88300", cljs.core.async.impl.ioc_helpers.t88300.cljs$lang$ctorPrWriter = function(b, d, e) {
-    return cljs.core._write.call(null, d, "cljs.core.async.impl.ioc-helpers/t88300")
-  }, cljs.core.async.impl.ioc_helpers.t88300.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.impl.ioc_helpers.t88300.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
+  }, cljs.core.async.impl.ioc_helpers.t11047.cljs$lang$type = !0, cljs.core.async.impl.ioc_helpers.t11047.cljs$lang$ctorStr = "cljs.core.async.impl.ioc-helpers/t11047", cljs.core.async.impl.ioc_helpers.t11047.cljs$lang$ctorPrWriter = function(b, d, e) {
+    return cljs.core._write.call(null, d, "cljs.core.async.impl.ioc-helpers/t11047")
+  }, cljs.core.async.impl.ioc_helpers.t11047.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.impl.ioc_helpers.t11047.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
     return!0
-  }, cljs.core.async.impl.ioc_helpers.t88300.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
+  }, cljs.core.async.impl.ioc_helpers.t11047.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
     return this.f
-  }, cljs.core.async.impl.ioc_helpers.t88300.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
-    return this.meta88301
-  }, cljs.core.async.impl.ioc_helpers.t88300.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
-    return new cljs.core.async.impl.ioc_helpers.t88300(this.f, this.fn_handler, d)
-  }, cljs.core.async.impl.ioc_helpers.__GT_t88300 = function(b, d, e) {
-    return new cljs.core.async.impl.ioc_helpers.t88300(b, d, e)
+  }, cljs.core.async.impl.ioc_helpers.t11047.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
+    return this.meta11048
+  }, cljs.core.async.impl.ioc_helpers.t11047.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
+    return new cljs.core.async.impl.ioc_helpers.t11047(this.f, this.fn_handler, d)
+  }, cljs.core.async.impl.ioc_helpers.__GT_t11047 = function(b, d, e) {
+    return new cljs.core.async.impl.ioc_helpers.t11047(b, d, e)
   });
-  return new cljs.core.async.impl.ioc_helpers.t88300(b, fn_handler, null)
+  return new cljs.core.async.impl.ioc_helpers.t11047(b, fn_handler, null)
 };
 cljs.core.async.impl.ioc_helpers.run_state_machine = function(a) {
   return cljs.core.async.impl.ioc_helpers.aget_object.call(null, a, cljs.core.async.impl.ioc_helpers.FN_IDX).call(null, a)
@@ -17964,24 +17964,24 @@ cljs.core.async.impl.dispatch.queue_delay = function(a, b) {
 };
 cljs.core.async.impl.channels = {};
 cljs.core.async.impl.channels.box = function box(b) {
-  "undefined" === typeof cljs.core.async.impl.channels.t88289 && (cljs.core.async.impl.channels.t88289 = {}, cljs.core.async.impl.channels.t88289 = function(b, d, e) {
+  "undefined" === typeof cljs.core.async.impl.channels.t11036 && (cljs.core.async.impl.channels.t11036 = {}, cljs.core.async.impl.channels.t11036 = function(b, d, e) {
     this.val = b;
     this.box = d;
-    this.meta88290 = e;
+    this.meta11037 = e;
     this.cljs$lang$protocol_mask$partition1$ = 0;
     this.cljs$lang$protocol_mask$partition0$ = 425984
-  }, cljs.core.async.impl.channels.t88289.cljs$lang$type = !0, cljs.core.async.impl.channels.t88289.cljs$lang$ctorStr = "cljs.core.async.impl.channels/t88289", cljs.core.async.impl.channels.t88289.cljs$lang$ctorPrWriter = function(b, d, e) {
-    return cljs.core._write.call(null, d, "cljs.core.async.impl.channels/t88289")
-  }, cljs.core.async.impl.channels.t88289.prototype.cljs$core$IDeref$_deref$arity$1 = function(b) {
+  }, cljs.core.async.impl.channels.t11036.cljs$lang$type = !0, cljs.core.async.impl.channels.t11036.cljs$lang$ctorStr = "cljs.core.async.impl.channels/t11036", cljs.core.async.impl.channels.t11036.cljs$lang$ctorPrWriter = function(b, d, e) {
+    return cljs.core._write.call(null, d, "cljs.core.async.impl.channels/t11036")
+  }, cljs.core.async.impl.channels.t11036.prototype.cljs$core$IDeref$_deref$arity$1 = function(b) {
     return this.val
-  }, cljs.core.async.impl.channels.t88289.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
-    return this.meta88290
-  }, cljs.core.async.impl.channels.t88289.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
-    return new cljs.core.async.impl.channels.t88289(this.val, this.box, d)
-  }, cljs.core.async.impl.channels.__GT_t88289 = function(b, d, e) {
-    return new cljs.core.async.impl.channels.t88289(b, d, e)
+  }, cljs.core.async.impl.channels.t11036.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
+    return this.meta11037
+  }, cljs.core.async.impl.channels.t11036.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
+    return new cljs.core.async.impl.channels.t11036(this.val, this.box, d)
+  }, cljs.core.async.impl.channels.__GT_t11036 = function(b, d, e) {
+    return new cljs.core.async.impl.channels.t11036(b, d, e)
   });
-  return new cljs.core.async.impl.channels.t88289(b, box, null)
+  return new cljs.core.async.impl.channels.t11036(b, box, null)
 };
 cljs.core.async.impl.channels.PutBox = function(a, b) {
   this.handler = a;
@@ -18365,26 +18365,26 @@ cljs.core.async.impl.timers.timeout = function(a) {
   return d
 };
 cljs.core.async.fn_handler = function fn_handler$$0(b) {
-  "undefined" === typeof cljs.core.async.t88233 && (cljs.core.async.t88233 = {}, cljs.core.async.t88233 = function(b, d, e) {
+  "undefined" === typeof cljs.core.async.t10980 && (cljs.core.async.t10980 = {}, cljs.core.async.t10980 = function(b, d, e) {
     this.f = b;
     this.fn_handler = d;
-    this.meta88234 = e;
+    this.meta10981 = e;
     this.cljs$lang$protocol_mask$partition1$ = 0;
     this.cljs$lang$protocol_mask$partition0$ = 393216
-  }, cljs.core.async.t88233.cljs$lang$type = !0, cljs.core.async.t88233.cljs$lang$ctorStr = "cljs.core.async/t88233", cljs.core.async.t88233.cljs$lang$ctorPrWriter = function(b, d, e) {
-    return cljs.core._write.call(null, d, "cljs.core.async/t88233")
-  }, cljs.core.async.t88233.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.t88233.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
+  }, cljs.core.async.t10980.cljs$lang$type = !0, cljs.core.async.t10980.cljs$lang$ctorStr = "cljs.core.async/t10980", cljs.core.async.t10980.cljs$lang$ctorPrWriter = function(b, d, e) {
+    return cljs.core._write.call(null, d, "cljs.core.async/t10980")
+  }, cljs.core.async.t10980.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.t10980.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
     return!0
-  }, cljs.core.async.t88233.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
+  }, cljs.core.async.t10980.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
     return this.f
-  }, cljs.core.async.t88233.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
-    return this.meta88234
-  }, cljs.core.async.t88233.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
-    return new cljs.core.async.t88233(this.f, this.fn_handler, d)
-  }, cljs.core.async.__GT_t88233 = function(b, d, e) {
-    return new cljs.core.async.t88233(b, d, e)
+  }, cljs.core.async.t10980.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
+    return this.meta10981
+  }, cljs.core.async.t10980.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
+    return new cljs.core.async.t10980(this.f, this.fn_handler, d)
+  }, cljs.core.async.__GT_t10980 = function(b, d, e) {
+    return new cljs.core.async.t10980(b, d, e)
   });
-  return new cljs.core.async.t88233(b, fn_handler$$0, null)
+  return new cljs.core.async.t10980(b, fn_handler$$0, null)
 };
 cljs.core.async.buffer = function(a) {
   return cljs.core.async.impl.buffers.fixed_buffer.call(null, a)
@@ -18498,51 +18498,51 @@ cljs.core.async.random_array = function(a) {
 };
 cljs.core.async.alt_flag = function alt_flag() {
   var b = cljs.core.atom.call(null, !0);
-  "undefined" === typeof cljs.core.async.t88244 && (cljs.core.async.t88244 = {}, cljs.core.async.t88244 = function(b, d, e) {
+  "undefined" === typeof cljs.core.async.t10991 && (cljs.core.async.t10991 = {}, cljs.core.async.t10991 = function(b, d, e) {
     this.flag = b;
     this.alt_flag = d;
-    this.meta88245 = e;
+    this.meta10992 = e;
     this.cljs$lang$protocol_mask$partition1$ = 0;
     this.cljs$lang$protocol_mask$partition0$ = 393216
-  }, cljs.core.async.t88244.cljs$lang$type = !0, cljs.core.async.t88244.cljs$lang$ctorStr = "cljs.core.async/t88244", cljs.core.async.t88244.cljs$lang$ctorPrWriter = function(b, d, e) {
-    return cljs.core._write.call(null, d, "cljs.core.async/t88244")
-  }, cljs.core.async.t88244.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.t88244.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
+  }, cljs.core.async.t10991.cljs$lang$type = !0, cljs.core.async.t10991.cljs$lang$ctorStr = "cljs.core.async/t10991", cljs.core.async.t10991.cljs$lang$ctorPrWriter = function(b, d, e) {
+    return cljs.core._write.call(null, d, "cljs.core.async/t10991")
+  }, cljs.core.async.t10991.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.t10991.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
     return cljs.core.deref.call(null, this.flag)
-  }, cljs.core.async.t88244.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
+  }, cljs.core.async.t10991.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
     cljs.core.reset_BANG_.call(null, this.flag, null);
     return!0
-  }, cljs.core.async.t88244.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
-    return this.meta88245
-  }, cljs.core.async.t88244.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
-    return new cljs.core.async.t88244(this.flag, this.alt_flag, d)
-  }, cljs.core.async.__GT_t88244 = function(b, d, e) {
-    return new cljs.core.async.t88244(b, d, e)
+  }, cljs.core.async.t10991.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
+    return this.meta10992
+  }, cljs.core.async.t10991.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
+    return new cljs.core.async.t10991(this.flag, this.alt_flag, d)
+  }, cljs.core.async.__GT_t10991 = function(b, d, e) {
+    return new cljs.core.async.t10991(b, d, e)
   });
-  return new cljs.core.async.t88244(b, alt_flag, null)
+  return new cljs.core.async.t10991(b, alt_flag, null)
 };
 cljs.core.async.alt_handler = function alt_handler(b, c) {
-  "undefined" === typeof cljs.core.async.t88250 && (cljs.core.async.t88250 = {}, cljs.core.async.t88250 = function(b, c, f, g) {
+  "undefined" === typeof cljs.core.async.t10997 && (cljs.core.async.t10997 = {}, cljs.core.async.t10997 = function(b, c, f, g) {
     this.cb = b;
     this.flag = c;
     this.alt_handler = f;
-    this.meta88251 = g;
+    this.meta10998 = g;
     this.cljs$lang$protocol_mask$partition1$ = 0;
     this.cljs$lang$protocol_mask$partition0$ = 393216
-  }, cljs.core.async.t88250.cljs$lang$type = !0, cljs.core.async.t88250.cljs$lang$ctorStr = "cljs.core.async/t88250", cljs.core.async.t88250.cljs$lang$ctorPrWriter = function(b, c, f) {
-    return cljs.core._write.call(null, c, "cljs.core.async/t88250")
-  }, cljs.core.async.t88250.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.t88250.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
+  }, cljs.core.async.t10997.cljs$lang$type = !0, cljs.core.async.t10997.cljs$lang$ctorStr = "cljs.core.async/t10997", cljs.core.async.t10997.cljs$lang$ctorPrWriter = function(b, c, f) {
+    return cljs.core._write.call(null, c, "cljs.core.async/t10997")
+  }, cljs.core.async.t10997.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.t10997.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
     return cljs.core.async.impl.protocols.active_QMARK_.call(null, this.flag)
-  }, cljs.core.async.t88250.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
+  }, cljs.core.async.t10997.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
     cljs.core.async.impl.protocols.commit.call(null, this.flag);
     return this.cb
-  }, cljs.core.async.t88250.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
-    return this.meta88251
-  }, cljs.core.async.t88250.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, c) {
-    return new cljs.core.async.t88250(this.cb, this.flag, this.alt_handler, c)
-  }, cljs.core.async.__GT_t88250 = function(b, c, f, g) {
-    return new cljs.core.async.t88250(b, c, f, g)
+  }, cljs.core.async.t10997.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
+    return this.meta10998
+  }, cljs.core.async.t10997.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, c) {
+    return new cljs.core.async.t10997(this.cb, this.flag, this.alt_handler, c)
+  }, cljs.core.async.__GT_t10997 = function(b, c, f, g) {
+    return new cljs.core.async.t10997(b, c, f, g)
   });
-  return new cljs.core.async.t88250(c, b, alt_handler, null)
+  return new cljs.core.async.t10997(c, b, alt_handler, null)
 };
 cljs.core.async.do_alts = function(a, b, c) {
   var d = cljs.core.async.alt_flag.call(null), e = cljs.core.count.call(null, b), f = cljs.core.async.random_array.call(null, e), g = (new cljs.core.Keyword("\ufdd0:priority")).call(null, c), h = function() {
@@ -19094,6 +19094,163 @@ dommy.attrs.bounding_client_rect = function(a) {
     return b
   }(), "\ufdd0:keywordize-keys", !0)
 };
+/*
+ Portions of this code are from MochiKit, received by
+ The Closure Authors under the MIT license. All other code is Copyright
+ 2005-2009 The Closure Authors. All Rights Reserved.
+*/
+goog.async = {};
+goog.async.Deferred = function(a, b) {
+  this.sequence_ = [];
+  this.onCancelFunction_ = a;
+  this.defaultScope_ = b || null
+};
+goog.async.Deferred.prototype.fired_ = !1;
+goog.async.Deferred.prototype.hadError_ = !1;
+goog.async.Deferred.prototype.blocked_ = !1;
+goog.async.Deferred.prototype.blocking_ = !1;
+goog.async.Deferred.prototype.silentlyCancelled_ = !1;
+goog.async.Deferred.prototype.branches_ = 0;
+goog.async.Deferred.prototype.cancel = function(a) {
+  if(this.hasFired()) {
+    this.result_ instanceof goog.async.Deferred && this.result_.cancel()
+  }else {
+    if(this.parent_) {
+      var b = this.parent_;
+      delete this.parent_;
+      a ? b.cancel(a) : b.branchCancel_()
+    }
+    this.onCancelFunction_ ? this.onCancelFunction_.call(this.defaultScope_, this) : this.silentlyCancelled_ = !0;
+    this.hasFired() || this.errback(new goog.async.Deferred.CancelledError(this))
+  }
+};
+goog.async.Deferred.prototype.branchCancel_ = function() {
+  this.branches_--;
+  0 >= this.branches_ && this.cancel()
+};
+goog.async.Deferred.prototype.continue_ = function(a, b) {
+  this.blocked_ = !1;
+  this.updateResult_(a, b)
+};
+goog.async.Deferred.prototype.updateResult_ = function(a, b) {
+  this.fired_ = !0;
+  this.result_ = b;
+  this.hadError_ = !a;
+  this.fire_()
+};
+goog.async.Deferred.prototype.check_ = function() {
+  if(this.hasFired()) {
+    if(!this.silentlyCancelled_) {
+      throw new goog.async.Deferred.AlreadyCalledError(this);
+    }
+    this.silentlyCancelled_ = !1
+  }
+};
+goog.async.Deferred.prototype.callback = function(a) {
+  this.check_();
+  this.assertNotDeferred_(a);
+  this.updateResult_(!0, a)
+};
+goog.async.Deferred.prototype.errback = function(a) {
+  this.check_();
+  this.assertNotDeferred_(a);
+  this.updateResult_(!1, a)
+};
+goog.async.Deferred.prototype.assertNotDeferred_ = function(a) {
+  goog.asserts.assert(!(a instanceof goog.async.Deferred), "An execution sequence may not be initiated with a blocking Deferred.")
+};
+goog.async.Deferred.prototype.addCallback = function(a, b) {
+  return this.addCallbacks(a, null, b)
+};
+goog.async.Deferred.prototype.addErrback = function(a, b) {
+  return this.addCallbacks(null, a, b)
+};
+goog.async.Deferred.prototype.addBoth = function(a, b) {
+  return this.addCallbacks(a, a, b)
+};
+goog.async.Deferred.prototype.addCallbacks = function(a, b, c) {
+  goog.asserts.assert(!this.blocking_, "Blocking Deferreds can not be re-used");
+  this.sequence_.push([a, b, c]);
+  this.hasFired() && this.fire_();
+  return this
+};
+goog.async.Deferred.prototype.chainDeferred = function(a) {
+  this.addCallbacks(a.callback, a.errback, a);
+  return this
+};
+goog.async.Deferred.prototype.awaitDeferred = function(a) {
+  return this.addCallback(goog.bind(a.branch, a))
+};
+goog.async.Deferred.prototype.branch = function(a) {
+  var b = new goog.async.Deferred;
+  this.chainDeferred(b);
+  a && (b.parent_ = this, this.branches_++);
+  return b
+};
+goog.async.Deferred.prototype.hasFired = function() {
+  return this.fired_
+};
+goog.async.Deferred.prototype.isError = function(a) {
+  return a instanceof Error
+};
+goog.async.Deferred.prototype.hasErrback_ = function() {
+  return goog.array.some(this.sequence_, function(a) {
+    return goog.isFunction(a[1])
+  })
+};
+goog.async.Deferred.prototype.fire_ = function() {
+  this.unhandledExceptionTimeoutId_ && (this.hasFired() && this.hasErrback_()) && (goog.global.clearTimeout(this.unhandledExceptionTimeoutId_), delete this.unhandledExceptionTimeoutId_);
+  this.parent_ && (this.parent_.branches_--, delete this.parent_);
+  for(var a = this.result_, b = !1, c = !1;this.sequence_.length && !this.blocked_;) {
+    var d = this.sequence_.shift(), e = d[0], f = d[1], d = d[2];
+    if(e = this.hadError_ ? f : e) {
+      try {
+        var g = e.call(d || this.defaultScope_, a);
+        goog.isDef(g) && (this.hadError_ = this.hadError_ && (g == a || this.isError(g)), this.result_ = a = g);
+        a instanceof goog.async.Deferred && (this.blocked_ = c = !0)
+      }catch(h) {
+        a = h, this.hadError_ = !0, this.hasErrback_() || (b = !0)
+      }
+    }
+  }
+  this.result_ = a;
+  c && (a.addCallbacks(goog.bind(this.continue_, this, !0), goog.bind(this.continue_, this, !1)), a.blocking_ = !0);
+  b && (this.unhandledExceptionTimeoutId_ = goog.global.setTimeout(function() {
+    throw a;
+  }, 0))
+};
+goog.async.Deferred.succeed = function(a) {
+  var b = new goog.async.Deferred;
+  b.callback(a);
+  return b
+};
+goog.async.Deferred.fail = function(a) {
+  var b = new goog.async.Deferred;
+  b.errback(a);
+  return b
+};
+goog.async.Deferred.cancelled = function() {
+  var a = new goog.async.Deferred;
+  a.cancel();
+  return a
+};
+goog.async.Deferred.when = function(a, b, c) {
+  return a instanceof goog.async.Deferred ? a.branch(!0).addCallback(b, c) : goog.async.Deferred.succeed(a).addCallback(b, c)
+};
+goog.async.Deferred.AlreadyCalledError = function(a) {
+  goog.debug.Error.call(this);
+  this.deferred = a
+};
+goog.inherits(goog.async.Deferred.AlreadyCalledError, goog.debug.Error);
+goog.async.Deferred.AlreadyCalledError.prototype.message = "Deferred has already fired";
+goog.async.Deferred.AlreadyCalledError.prototype.name = "AlreadyCalledError";
+goog.async.Deferred.CancelledError = function(a) {
+  goog.debug.Error.call(this);
+  this.deferred = a
+};
+goog.inherits(goog.async.Deferred.CancelledError, goog.debug.Error);
+goog.async.Deferred.CancelledError.prototype.message = "Deferred was cancelled";
+goog.async.Deferred.CancelledError.prototype.name = "CancelledError";
 aurora.util.dom = {};
 aurora.util.dom.lazy_nl_via_item = function() {
   var a = null, b = function(b) {
@@ -19424,6 +19581,1130 @@ aurora.util.dom.index = function(a) {
 aurora.util.dom.ready = function(a) {
   return aurora.util.dom.on.call(null, document, "\ufdd0:DOMContentLoaded", a)
 };
+goog.dom = {};
+goog.dom.BrowserFeature = {CAN_ADD_NAME_OR_TYPE_ATTRIBUTES:!goog.userAgent.IE || goog.userAgent.isDocumentMode(9), CAN_USE_CHILDREN_ATTRIBUTE:!goog.userAgent.GECKO && !goog.userAgent.IE || goog.userAgent.IE && goog.userAgent.isDocumentMode(9) || goog.userAgent.GECKO && goog.userAgent.isVersion("1.9.1"), CAN_USE_INNER_TEXT:goog.userAgent.IE && !goog.userAgent.isVersion("9"), CAN_USE_PARENT_ELEMENT_PROPERTY:goog.userAgent.IE || goog.userAgent.OPERA || goog.userAgent.WEBKIT, INNER_HTML_NEEDS_SCOPED_ELEMENT:goog.userAgent.IE};
+goog.dom.TagName = {A:"A", ABBR:"ABBR", ACRONYM:"ACRONYM", ADDRESS:"ADDRESS", APPLET:"APPLET", AREA:"AREA", ARTICLE:"ARTICLE", ASIDE:"ASIDE", AUDIO:"AUDIO", B:"B", BASE:"BASE", BASEFONT:"BASEFONT", BDI:"BDI", BDO:"BDO", BIG:"BIG", BLOCKQUOTE:"BLOCKQUOTE", BODY:"BODY", BR:"BR", BUTTON:"BUTTON", CANVAS:"CANVAS", CAPTION:"CAPTION", CENTER:"CENTER", CITE:"CITE", CODE:"CODE", COL:"COL", COLGROUP:"COLGROUP", COMMAND:"COMMAND", DATA:"DATA", DATALIST:"DATALIST", DD:"DD", DEL:"DEL", DETAILS:"DETAILS", DFN:"DFN", 
+DIALOG:"DIALOG", DIR:"DIR", DIV:"DIV", DL:"DL", DT:"DT", EM:"EM", EMBED:"EMBED", FIELDSET:"FIELDSET", FIGCAPTION:"FIGCAPTION", FIGURE:"FIGURE", FONT:"FONT", FOOTER:"FOOTER", FORM:"FORM", FRAME:"FRAME", FRAMESET:"FRAMESET", H1:"H1", H2:"H2", H3:"H3", H4:"H4", H5:"H5", H6:"H6", HEAD:"HEAD", HEADER:"HEADER", HGROUP:"HGROUP", HR:"HR", HTML:"HTML", I:"I", IFRAME:"IFRAME", IMG:"IMG", INPUT:"INPUT", INS:"INS", ISINDEX:"ISINDEX", KBD:"KBD", KEYGEN:"KEYGEN", LABEL:"LABEL", LEGEND:"LEGEND", LI:"LI", LINK:"LINK", 
+MAP:"MAP", MARK:"MARK", MATH:"MATH", MENU:"MENU", META:"META", METER:"METER", NAV:"NAV", NOFRAMES:"NOFRAMES", NOSCRIPT:"NOSCRIPT", OBJECT:"OBJECT", OL:"OL", OPTGROUP:"OPTGROUP", OPTION:"OPTION", OUTPUT:"OUTPUT", P:"P", PARAM:"PARAM", PRE:"PRE", PROGRESS:"PROGRESS", Q:"Q", RP:"RP", RT:"RT", RUBY:"RUBY", S:"S", SAMP:"SAMP", SCRIPT:"SCRIPT", SECTION:"SECTION", SELECT:"SELECT", SMALL:"SMALL", SOURCE:"SOURCE", SPAN:"SPAN", STRIKE:"STRIKE", STRONG:"STRONG", STYLE:"STYLE", SUB:"SUB", SUMMARY:"SUMMARY", 
+SUP:"SUP", SVG:"SVG", TABLE:"TABLE", TBODY:"TBODY", TD:"TD", TEXTAREA:"TEXTAREA", TFOOT:"TFOOT", TH:"TH", THEAD:"THEAD", TIME:"TIME", TITLE:"TITLE", TR:"TR", TRACK:"TRACK", TT:"TT", U:"U", UL:"UL", VAR:"VAR", VIDEO:"VIDEO", WBR:"WBR"};
+goog.dom.classes = {};
+goog.dom.classes.set = function(a, b) {
+  a.className = b
+};
+goog.dom.classes.get = function(a) {
+  a = a.className;
+  return goog.isString(a) && a.match(/\S+/g) || []
+};
+goog.dom.classes.add = function(a, b) {
+  var c = goog.dom.classes.get(a), d = goog.array.slice(arguments, 1), e = c.length + d.length;
+  goog.dom.classes.add_(c, d);
+  goog.dom.classes.set(a, c.join(" "));
+  return c.length == e
+};
+goog.dom.classes.remove = function(a, b) {
+  var c = goog.dom.classes.get(a), d = goog.array.slice(arguments, 1), e = goog.dom.classes.getDifference_(c, d);
+  goog.dom.classes.set(a, e.join(" "));
+  return e.length == c.length - d.length
+};
+goog.dom.classes.add_ = function(a, b) {
+  for(var c = 0;c < b.length;c++) {
+    goog.array.contains(a, b[c]) || a.push(b[c])
+  }
+};
+goog.dom.classes.getDifference_ = function(a, b) {
+  return goog.array.filter(a, function(a) {
+    return!goog.array.contains(b, a)
+  })
+};
+goog.dom.classes.swap = function(a, b, c) {
+  for(var d = goog.dom.classes.get(a), e = !1, f = 0;f < d.length;f++) {
+    d[f] == b && (goog.array.splice(d, f--, 1), e = !0)
+  }
+  e && (d.push(c), goog.dom.classes.set(a, d.join(" ")));
+  return e
+};
+goog.dom.classes.addRemove = function(a, b, c) {
+  var d = goog.dom.classes.get(a);
+  goog.isString(b) ? goog.array.remove(d, b) : goog.isArray(b) && (d = goog.dom.classes.getDifference_(d, b));
+  goog.isString(c) && !goog.array.contains(d, c) ? d.push(c) : goog.isArray(c) && goog.dom.classes.add_(d, c);
+  goog.dom.classes.set(a, d.join(" "))
+};
+goog.dom.classes.has = function(a, b) {
+  return goog.array.contains(goog.dom.classes.get(a), b)
+};
+goog.dom.classes.enable = function(a, b, c) {
+  c ? goog.dom.classes.add(a, b) : goog.dom.classes.remove(a, b)
+};
+goog.dom.classes.toggle = function(a, b) {
+  var c = !goog.dom.classes.has(a, b);
+  goog.dom.classes.enable(a, b, c);
+  return c
+};
+goog.math = {};
+goog.math.randomInt = function(a) {
+  return Math.floor(Math.random() * a)
+};
+goog.math.uniformRandom = function(a, b) {
+  return a + Math.random() * (b - a)
+};
+goog.math.clamp = function(a, b, c) {
+  return Math.min(Math.max(a, b), c)
+};
+goog.math.modulo = function(a, b) {
+  var c = a % b;
+  return 0 > c * b ? c + b : c
+};
+goog.math.lerp = function(a, b, c) {
+  return a + c * (b - a)
+};
+goog.math.nearlyEquals = function(a, b, c) {
+  return Math.abs(a - b) <= (c || 1E-6)
+};
+goog.math.standardAngle = function(a) {
+  return goog.math.modulo(a, 360)
+};
+goog.math.toRadians = function(a) {
+  return a * Math.PI / 180
+};
+goog.math.toDegrees = function(a) {
+  return 180 * a / Math.PI
+};
+goog.math.angleDx = function(a, b) {
+  return b * Math.cos(goog.math.toRadians(a))
+};
+goog.math.angleDy = function(a, b) {
+  return b * Math.sin(goog.math.toRadians(a))
+};
+goog.math.angle = function(a, b, c, d) {
+  return goog.math.standardAngle(goog.math.toDegrees(Math.atan2(d - b, c - a)))
+};
+goog.math.angleDifference = function(a, b) {
+  var c = goog.math.standardAngle(b) - goog.math.standardAngle(a);
+  180 < c ? c -= 360 : -180 >= c && (c = 360 + c);
+  return c
+};
+goog.math.sign = function(a) {
+  return 0 == a ? 0 : 0 > a ? -1 : 1
+};
+goog.math.longestCommonSubsequence = function(a, b, c, d) {
+  c = c || function(a, b) {
+    return a == b
+  };
+  d = d || function(b, c) {
+    return a[b]
+  };
+  for(var e = a.length, f = b.length, g = [], h = 0;h < e + 1;h++) {
+    g[h] = [], g[h][0] = 0
+  }
+  for(var k = 0;k < f + 1;k++) {
+    g[0][k] = 0
+  }
+  for(h = 1;h <= e;h++) {
+    for(k = 1;k <= e;k++) {
+      c(a[h - 1], b[k - 1]) ? g[h][k] = g[h - 1][k - 1] + 1 : g[h][k] = Math.max(g[h - 1][k], g[h][k - 1])
+    }
+  }
+  for(var l = [], h = e, k = f;0 < h && 0 < k;) {
+    c(a[h - 1], b[k - 1]) ? (l.unshift(d(h - 1, k - 1)), h--, k--) : g[h - 1][k] > g[h][k - 1] ? h-- : k--
+  }
+  return l
+};
+goog.math.sum = function(a) {
+  return goog.array.reduce(arguments, function(a, c) {
+    return a + c
+  }, 0)
+};
+goog.math.average = function(a) {
+  return goog.math.sum.apply(null, arguments) / arguments.length
+};
+goog.math.standardDeviation = function(a) {
+  var b = arguments.length;
+  if(2 > b) {
+    return 0
+  }
+  var c = goog.math.average.apply(null, arguments), b = goog.math.sum.apply(null, goog.array.map(arguments, function(a) {
+    return Math.pow(a - c, 2)
+  })) / (b - 1);
+  return Math.sqrt(b)
+};
+goog.math.isInt = function(a) {
+  return isFinite(a) && 0 == a % 1
+};
+goog.math.isFiniteNumber = function(a) {
+  return isFinite(a) && !isNaN(a)
+};
+goog.math.safeFloor = function(a, b) {
+  goog.asserts.assert(!goog.isDef(b) || 0 < b);
+  return Math.floor(a + (b || 2E-15))
+};
+goog.math.safeCeil = function(a, b) {
+  goog.asserts.assert(!goog.isDef(b) || 0 < b);
+  return Math.ceil(a - (b || 2E-15))
+};
+goog.math.Coordinate = function(a, b) {
+  this.x = goog.isDef(a) ? a : 0;
+  this.y = goog.isDef(b) ? b : 0
+};
+goog.math.Coordinate.prototype.clone = function() {
+  return new goog.math.Coordinate(this.x, this.y)
+};
+goog.DEBUG && (goog.math.Coordinate.prototype.toString = function() {
+  return"(" + this.x + ", " + this.y + ")"
+});
+goog.math.Coordinate.equals = function(a, b) {
+  return a == b ? !0 : a && b ? a.x == b.x && a.y == b.y : !1
+};
+goog.math.Coordinate.distance = function(a, b) {
+  var c = a.x - b.x, d = a.y - b.y;
+  return Math.sqrt(c * c + d * d)
+};
+goog.math.Coordinate.magnitude = function(a) {
+  return Math.sqrt(a.x * a.x + a.y * a.y)
+};
+goog.math.Coordinate.azimuth = function(a) {
+  return goog.math.angle(0, 0, a.x, a.y)
+};
+goog.math.Coordinate.squaredDistance = function(a, b) {
+  var c = a.x - b.x, d = a.y - b.y;
+  return c * c + d * d
+};
+goog.math.Coordinate.difference = function(a, b) {
+  return new goog.math.Coordinate(a.x - b.x, a.y - b.y)
+};
+goog.math.Coordinate.sum = function(a, b) {
+  return new goog.math.Coordinate(a.x + b.x, a.y + b.y)
+};
+goog.math.Coordinate.prototype.ceil = function() {
+  this.x = Math.ceil(this.x);
+  this.y = Math.ceil(this.y);
+  return this
+};
+goog.math.Coordinate.prototype.floor = function() {
+  this.x = Math.floor(this.x);
+  this.y = Math.floor(this.y);
+  return this
+};
+goog.math.Coordinate.prototype.round = function() {
+  this.x = Math.round(this.x);
+  this.y = Math.round(this.y);
+  return this
+};
+goog.math.Coordinate.prototype.translate = function(a, b) {
+  a instanceof goog.math.Coordinate ? (this.x += a.x, this.y += a.y) : (this.x += a, goog.isNumber(b) && (this.y += b));
+  return this
+};
+goog.math.Coordinate.prototype.scale = function(a, b) {
+  var c = goog.isNumber(b) ? b : a;
+  this.x *= a;
+  this.y *= c;
+  return this
+};
+goog.math.Size = function(a, b) {
+  this.width = a;
+  this.height = b
+};
+goog.math.Size.equals = function(a, b) {
+  return a == b ? !0 : a && b ? a.width == b.width && a.height == b.height : !1
+};
+goog.math.Size.prototype.clone = function() {
+  return new goog.math.Size(this.width, this.height)
+};
+goog.DEBUG && (goog.math.Size.prototype.toString = function() {
+  return"(" + this.width + " x " + this.height + ")"
+});
+goog.math.Size.prototype.getLongest = function() {
+  return Math.max(this.width, this.height)
+};
+goog.math.Size.prototype.getShortest = function() {
+  return Math.min(this.width, this.height)
+};
+goog.math.Size.prototype.area = function() {
+  return this.width * this.height
+};
+goog.math.Size.prototype.perimeter = function() {
+  return 2 * (this.width + this.height)
+};
+goog.math.Size.prototype.aspectRatio = function() {
+  return this.width / this.height
+};
+goog.math.Size.prototype.isEmpty = function() {
+  return!this.area()
+};
+goog.math.Size.prototype.ceil = function() {
+  this.width = Math.ceil(this.width);
+  this.height = Math.ceil(this.height);
+  return this
+};
+goog.math.Size.prototype.fitsInside = function(a) {
+  return this.width <= a.width && this.height <= a.height
+};
+goog.math.Size.prototype.floor = function() {
+  this.width = Math.floor(this.width);
+  this.height = Math.floor(this.height);
+  return this
+};
+goog.math.Size.prototype.round = function() {
+  this.width = Math.round(this.width);
+  this.height = Math.round(this.height);
+  return this
+};
+goog.math.Size.prototype.scale = function(a, b) {
+  var c = goog.isNumber(b) ? b : a;
+  this.width *= a;
+  this.height *= c;
+  return this
+};
+goog.math.Size.prototype.scaleToFit = function(a) {
+  a = this.aspectRatio() > a.aspectRatio() ? a.width / this.width : a.height / this.height;
+  return this.scale(a)
+};
+goog.dom.ASSUME_QUIRKS_MODE = !1;
+goog.dom.ASSUME_STANDARDS_MODE = !1;
+goog.dom.COMPAT_MODE_KNOWN_ = goog.dom.ASSUME_QUIRKS_MODE || goog.dom.ASSUME_STANDARDS_MODE;
+goog.dom.NodeType = {ELEMENT:1, ATTRIBUTE:2, TEXT:3, CDATA_SECTION:4, ENTITY_REFERENCE:5, ENTITY:6, PROCESSING_INSTRUCTION:7, COMMENT:8, DOCUMENT:9, DOCUMENT_TYPE:10, DOCUMENT_FRAGMENT:11, NOTATION:12};
+goog.dom.getDomHelper = function(a) {
+  return a ? new goog.dom.DomHelper(goog.dom.getOwnerDocument(a)) : goog.dom.defaultDomHelper_ || (goog.dom.defaultDomHelper_ = new goog.dom.DomHelper)
+};
+goog.dom.getDocument = function() {
+  return document
+};
+goog.dom.getElement = function(a) {
+  return goog.isString(a) ? document.getElementById(a) : a
+};
+goog.dom.$ = goog.dom.getElement;
+goog.dom.getElementsByTagNameAndClass = function(a, b, c) {
+  return goog.dom.getElementsByTagNameAndClass_(document, a, b, c)
+};
+goog.dom.getElementsByClass = function(a, b) {
+  var c = b || document;
+  return goog.dom.canUseQuerySelector_(c) ? c.querySelectorAll("." + a) : c.getElementsByClassName ? c.getElementsByClassName(a) : goog.dom.getElementsByTagNameAndClass_(document, "*", a, b)
+};
+goog.dom.getElementByClass = function(a, b) {
+  var c = b || document, d = null;
+  return(d = goog.dom.canUseQuerySelector_(c) ? c.querySelector("." + a) : goog.dom.getElementsByClass(a, b)[0]) || null
+};
+goog.dom.canUseQuerySelector_ = function(a) {
+  return!(!a.querySelectorAll || !a.querySelector)
+};
+goog.dom.getElementsByTagNameAndClass_ = function(a, b, c, d) {
+  a = d || a;
+  b = b && "*" != b ? b.toUpperCase() : "";
+  if(goog.dom.canUseQuerySelector_(a) && (b || c)) {
+    return a.querySelectorAll(b + (c ? "." + c : ""))
+  }
+  if(c && a.getElementsByClassName) {
+    a = a.getElementsByClassName(c);
+    if(b) {
+      d = {};
+      for(var e = 0, f = 0, g;g = a[f];f++) {
+        b == g.nodeName && (d[e++] = g)
+      }
+      d.length = e;
+      return d
+    }
+    return a
+  }
+  a = a.getElementsByTagName(b || "*");
+  if(c) {
+    d = {};
+    for(f = e = 0;g = a[f];f++) {
+      b = g.className, "function" == typeof b.split && goog.array.contains(b.split(/\s+/), c) && (d[e++] = g)
+    }
+    d.length = e;
+    return d
+  }
+  return a
+};
+goog.dom.$$ = goog.dom.getElementsByTagNameAndClass;
+goog.dom.setProperties = function(a, b) {
+  goog.object.forEach(b, function(b, d) {
+    "style" == d ? a.style.cssText = b : "class" == d ? a.className = b : "for" == d ? a.htmlFor = b : d in goog.dom.DIRECT_ATTRIBUTE_MAP_ ? a.setAttribute(goog.dom.DIRECT_ATTRIBUTE_MAP_[d], b) : goog.string.startsWith(d, "aria-") || goog.string.startsWith(d, "data-") ? a.setAttribute(d, b) : a[d] = b
+  })
+};
+goog.dom.DIRECT_ATTRIBUTE_MAP_ = {cellpadding:"cellPadding", cellspacing:"cellSpacing", colspan:"colSpan", frameborder:"frameBorder", height:"height", maxlength:"maxLength", role:"role", rowspan:"rowSpan", type:"type", usemap:"useMap", valign:"vAlign", width:"width"};
+goog.dom.getViewportSize = function(a) {
+  return goog.dom.getViewportSize_(a || window)
+};
+goog.dom.getViewportSize_ = function(a) {
+  a = a.document;
+  a = goog.dom.isCss1CompatMode_(a) ? a.documentElement : a.body;
+  return new goog.math.Size(a.clientWidth, a.clientHeight)
+};
+goog.dom.getDocumentHeight = function() {
+  return goog.dom.getDocumentHeight_(window)
+};
+goog.dom.getDocumentHeight_ = function(a) {
+  var b = a.document, c = 0;
+  if(b) {
+    a = goog.dom.getViewportSize_(a).height;
+    var c = b.body, d = b.documentElement;
+    if(goog.dom.isCss1CompatMode_(b) && d.scrollHeight) {
+      c = d.scrollHeight != a ? d.scrollHeight : d.offsetHeight
+    }else {
+      var b = d.scrollHeight, e = d.offsetHeight;
+      d.clientHeight != e && (b = c.scrollHeight, e = c.offsetHeight);
+      c = b > a ? b > e ? b : e : b < e ? b : e
+    }
+  }
+  return c
+};
+goog.dom.getPageScroll = function(a) {
+  return goog.dom.getDomHelper((a || goog.global || window).document).getDocumentScroll()
+};
+goog.dom.getDocumentScroll = function() {
+  return goog.dom.getDocumentScroll_(document)
+};
+goog.dom.getDocumentScroll_ = function(a) {
+  var b = goog.dom.getDocumentScrollElement_(a);
+  a = goog.dom.getWindow_(a);
+  return new goog.math.Coordinate(a.pageXOffset || b.scrollLeft, a.pageYOffset || b.scrollTop)
+};
+goog.dom.getDocumentScrollElement = function() {
+  return goog.dom.getDocumentScrollElement_(document)
+};
+goog.dom.getDocumentScrollElement_ = function(a) {
+  return!goog.userAgent.WEBKIT && goog.dom.isCss1CompatMode_(a) ? a.documentElement : a.body
+};
+goog.dom.getWindow = function(a) {
+  return a ? goog.dom.getWindow_(a) : window
+};
+goog.dom.getWindow_ = function(a) {
+  return a.parentWindow || a.defaultView
+};
+goog.dom.createDom = function(a, b, c) {
+  return goog.dom.createDom_(document, arguments)
+};
+goog.dom.createDom_ = function(a, b) {
+  var c = b[0], d = b[1];
+  if(!goog.dom.BrowserFeature.CAN_ADD_NAME_OR_TYPE_ATTRIBUTES && d && (d.name || d.type)) {
+    c = ["\x3c", c];
+    d.name && c.push(' name\x3d"', goog.string.htmlEscape(d.name), '"');
+    if(d.type) {
+      c.push(' type\x3d"', goog.string.htmlEscape(d.type), '"');
+      var e = {};
+      goog.object.extend(e, d);
+      delete e.type;
+      d = e
+    }
+    c.push("\x3e");
+    c = c.join("")
+  }
+  c = a.createElement(c);
+  d && (goog.isString(d) ? c.className = d : goog.isArray(d) ? goog.dom.classes.add.apply(null, [c].concat(d)) : goog.dom.setProperties(c, d));
+  2 < b.length && goog.dom.append_(a, c, b, 2);
+  return c
+};
+goog.dom.append_ = function(a, b, c, d) {
+  function e(c) {
+    c && b.appendChild(goog.isString(c) ? a.createTextNode(c) : c)
+  }
+  for(;d < c.length;d++) {
+    var f = c[d];
+    goog.isArrayLike(f) && !goog.dom.isNodeLike(f) ? goog.array.forEach(goog.dom.isNodeList(f) ? goog.array.toArray(f) : f, e) : e(f)
+  }
+};
+goog.dom.$dom = goog.dom.createDom;
+goog.dom.createElement = function(a) {
+  return document.createElement(a)
+};
+goog.dom.createTextNode = function(a) {
+  return document.createTextNode(String(a))
+};
+goog.dom.createTable = function(a, b, c) {
+  return goog.dom.createTable_(document, a, b, !!c)
+};
+goog.dom.createTable_ = function(a, b, c, d) {
+  for(var e = ["\x3ctr\x3e"], f = 0;f < c;f++) {
+    e.push(d ? "\x3ctd\x3e\x26nbsp;\x3c/td\x3e" : "\x3ctd\x3e\x3c/td\x3e")
+  }
+  e.push("\x3c/tr\x3e");
+  e = e.join("");
+  c = ["\x3ctable\x3e"];
+  for(f = 0;f < b;f++) {
+    c.push(e)
+  }
+  c.push("\x3c/table\x3e");
+  a = a.createElement(goog.dom.TagName.DIV);
+  a.innerHTML = c.join("");
+  return a.removeChild(a.firstChild)
+};
+goog.dom.htmlToDocumentFragment = function(a) {
+  return goog.dom.htmlToDocumentFragment_(document, a)
+};
+goog.dom.htmlToDocumentFragment_ = function(a, b) {
+  var c = a.createElement("div");
+  goog.dom.BrowserFeature.INNER_HTML_NEEDS_SCOPED_ELEMENT ? (c.innerHTML = "\x3cbr\x3e" + b, c.removeChild(c.firstChild)) : c.innerHTML = b;
+  if(1 == c.childNodes.length) {
+    return c.removeChild(c.firstChild)
+  }
+  for(var d = a.createDocumentFragment();c.firstChild;) {
+    d.appendChild(c.firstChild)
+  }
+  return d
+};
+goog.dom.getCompatMode = function() {
+  return goog.dom.isCss1CompatMode() ? "CSS1Compat" : "BackCompat"
+};
+goog.dom.isCss1CompatMode = function() {
+  return goog.dom.isCss1CompatMode_(document)
+};
+goog.dom.isCss1CompatMode_ = function(a) {
+  return goog.dom.COMPAT_MODE_KNOWN_ ? goog.dom.ASSUME_STANDARDS_MODE : "CSS1Compat" == a.compatMode
+};
+goog.dom.canHaveChildren = function(a) {
+  if(a.nodeType != goog.dom.NodeType.ELEMENT) {
+    return!1
+  }
+  switch(a.tagName) {
+    case goog.dom.TagName.APPLET:
+    ;
+    case goog.dom.TagName.AREA:
+    ;
+    case goog.dom.TagName.BASE:
+    ;
+    case goog.dom.TagName.BR:
+    ;
+    case goog.dom.TagName.COL:
+    ;
+    case goog.dom.TagName.COMMAND:
+    ;
+    case goog.dom.TagName.EMBED:
+    ;
+    case goog.dom.TagName.FRAME:
+    ;
+    case goog.dom.TagName.HR:
+    ;
+    case goog.dom.TagName.IMG:
+    ;
+    case goog.dom.TagName.INPUT:
+    ;
+    case goog.dom.TagName.IFRAME:
+    ;
+    case goog.dom.TagName.ISINDEX:
+    ;
+    case goog.dom.TagName.KEYGEN:
+    ;
+    case goog.dom.TagName.LINK:
+    ;
+    case goog.dom.TagName.NOFRAMES:
+    ;
+    case goog.dom.TagName.NOSCRIPT:
+    ;
+    case goog.dom.TagName.META:
+    ;
+    case goog.dom.TagName.OBJECT:
+    ;
+    case goog.dom.TagName.PARAM:
+    ;
+    case goog.dom.TagName.SCRIPT:
+    ;
+    case goog.dom.TagName.SOURCE:
+    ;
+    case goog.dom.TagName.STYLE:
+    ;
+    case goog.dom.TagName.TRACK:
+    ;
+    case goog.dom.TagName.WBR:
+      return!1
+  }
+  return!0
+};
+goog.dom.appendChild = function(a, b) {
+  a.appendChild(b)
+};
+goog.dom.append = function(a, b) {
+  goog.dom.append_(goog.dom.getOwnerDocument(a), a, arguments, 1)
+};
+goog.dom.removeChildren = function(a) {
+  for(var b;b = a.firstChild;) {
+    a.removeChild(b)
+  }
+};
+goog.dom.insertSiblingBefore = function(a, b) {
+  b.parentNode && b.parentNode.insertBefore(a, b)
+};
+goog.dom.insertSiblingAfter = function(a, b) {
+  b.parentNode && b.parentNode.insertBefore(a, b.nextSibling)
+};
+goog.dom.insertChildAt = function(a, b, c) {
+  a.insertBefore(b, a.childNodes[c] || null)
+};
+goog.dom.removeNode = function(a) {
+  return a && a.parentNode ? a.parentNode.removeChild(a) : null
+};
+goog.dom.replaceNode = function(a, b) {
+  var c = b.parentNode;
+  c && c.replaceChild(a, b)
+};
+goog.dom.flattenElement = function(a) {
+  var b, c = a.parentNode;
+  if(c && c.nodeType != goog.dom.NodeType.DOCUMENT_FRAGMENT) {
+    if(a.removeNode) {
+      return a.removeNode(!1)
+    }
+    for(;b = a.firstChild;) {
+      c.insertBefore(b, a)
+    }
+    return goog.dom.removeNode(a)
+  }
+};
+goog.dom.getChildren = function(a) {
+  return goog.dom.BrowserFeature.CAN_USE_CHILDREN_ATTRIBUTE && void 0 != a.children ? a.children : goog.array.filter(a.childNodes, function(a) {
+    return a.nodeType == goog.dom.NodeType.ELEMENT
+  })
+};
+goog.dom.getFirstElementChild = function(a) {
+  return void 0 != a.firstElementChild ? a.firstElementChild : goog.dom.getNextElementNode_(a.firstChild, !0)
+};
+goog.dom.getLastElementChild = function(a) {
+  return void 0 != a.lastElementChild ? a.lastElementChild : goog.dom.getNextElementNode_(a.lastChild, !1)
+};
+goog.dom.getNextElementSibling = function(a) {
+  return void 0 != a.nextElementSibling ? a.nextElementSibling : goog.dom.getNextElementNode_(a.nextSibling, !0)
+};
+goog.dom.getPreviousElementSibling = function(a) {
+  return void 0 != a.previousElementSibling ? a.previousElementSibling : goog.dom.getNextElementNode_(a.previousSibling, !1)
+};
+goog.dom.getNextElementNode_ = function(a, b) {
+  for(;a && a.nodeType != goog.dom.NodeType.ELEMENT;) {
+    a = b ? a.nextSibling : a.previousSibling
+  }
+  return a
+};
+goog.dom.getNextNode = function(a) {
+  if(!a) {
+    return null
+  }
+  if(a.firstChild) {
+    return a.firstChild
+  }
+  for(;a && !a.nextSibling;) {
+    a = a.parentNode
+  }
+  return a ? a.nextSibling : null
+};
+goog.dom.getPreviousNode = function(a) {
+  if(!a) {
+    return null
+  }
+  if(!a.previousSibling) {
+    return a.parentNode
+  }
+  for(a = a.previousSibling;a && a.lastChild;) {
+    a = a.lastChild
+  }
+  return a
+};
+goog.dom.isNodeLike = function(a) {
+  return goog.isObject(a) && 0 < a.nodeType
+};
+goog.dom.isElement = function(a) {
+  return goog.isObject(a) && a.nodeType == goog.dom.NodeType.ELEMENT
+};
+goog.dom.isWindow = function(a) {
+  return goog.isObject(a) && a.window == a
+};
+goog.dom.getParentElement = function(a) {
+  if(goog.dom.BrowserFeature.CAN_USE_PARENT_ELEMENT_PROPERTY) {
+    return a.parentElement
+  }
+  a = a.parentNode;
+  return goog.dom.isElement(a) ? a : null
+};
+goog.dom.contains = function(a, b) {
+  if(a.contains && b.nodeType == goog.dom.NodeType.ELEMENT) {
+    return a == b || a.contains(b)
+  }
+  if("undefined" != typeof a.compareDocumentPosition) {
+    return a == b || Boolean(a.compareDocumentPosition(b) & 16)
+  }
+  for(;b && a != b;) {
+    b = b.parentNode
+  }
+  return b == a
+};
+goog.dom.compareNodeOrder = function(a, b) {
+  if(a == b) {
+    return 0
+  }
+  if(a.compareDocumentPosition) {
+    return a.compareDocumentPosition(b) & 2 ? 1 : -1
+  }
+  if(goog.userAgent.IE && !goog.userAgent.isDocumentMode(9)) {
+    if(a.nodeType == goog.dom.NodeType.DOCUMENT) {
+      return-1
+    }
+    if(b.nodeType == goog.dom.NodeType.DOCUMENT) {
+      return 1
+    }
+  }
+  if("sourceIndex" in a || a.parentNode && "sourceIndex" in a.parentNode) {
+    var c = a.nodeType == goog.dom.NodeType.ELEMENT, d = b.nodeType == goog.dom.NodeType.ELEMENT;
+    if(c && d) {
+      return a.sourceIndex - b.sourceIndex
+    }
+    var e = a.parentNode, f = b.parentNode;
+    return e == f ? goog.dom.compareSiblingOrder_(a, b) : !c && goog.dom.contains(e, b) ? -1 * goog.dom.compareParentsDescendantNodeIe_(a, b) : !d && goog.dom.contains(f, a) ? goog.dom.compareParentsDescendantNodeIe_(b, a) : (c ? a.sourceIndex : e.sourceIndex) - (d ? b.sourceIndex : f.sourceIndex)
+  }
+  d = goog.dom.getOwnerDocument(a);
+  c = d.createRange();
+  c.selectNode(a);
+  c.collapse(!0);
+  d = d.createRange();
+  d.selectNode(b);
+  d.collapse(!0);
+  return c.compareBoundaryPoints(goog.global.Range.START_TO_END, d)
+};
+goog.dom.compareParentsDescendantNodeIe_ = function(a, b) {
+  var c = a.parentNode;
+  if(c == b) {
+    return-1
+  }
+  for(var d = b;d.parentNode != c;) {
+    d = d.parentNode
+  }
+  return goog.dom.compareSiblingOrder_(d, a)
+};
+goog.dom.compareSiblingOrder_ = function(a, b) {
+  for(var c = b;c = c.previousSibling;) {
+    if(c == a) {
+      return-1
+    }
+  }
+  return 1
+};
+goog.dom.findCommonAncestor = function(a) {
+  var b, c = arguments.length;
+  if(!c) {
+    return null
+  }
+  if(1 == c) {
+    return arguments[0]
+  }
+  var d = [], e = Infinity;
+  for(b = 0;b < c;b++) {
+    for(var f = [], g = arguments[b];g;) {
+      f.unshift(g), g = g.parentNode
+    }
+    d.push(f);
+    e = Math.min(e, f.length)
+  }
+  f = null;
+  for(b = 0;b < e;b++) {
+    for(var g = d[0][b], h = 1;h < c;h++) {
+      if(g != d[h][b]) {
+        return f
+      }
+    }
+    f = g
+  }
+  return f
+};
+goog.dom.getOwnerDocument = function(a) {
+  return a.nodeType == goog.dom.NodeType.DOCUMENT ? a : a.ownerDocument || a.document
+};
+goog.dom.getFrameContentDocument = function(a) {
+  return a.contentDocument || a.contentWindow.document
+};
+goog.dom.getFrameContentWindow = function(a) {
+  return a.contentWindow || goog.dom.getWindow_(goog.dom.getFrameContentDocument(a))
+};
+goog.dom.setTextContent = function(a, b) {
+  if("textContent" in a) {
+    a.textContent = b
+  }else {
+    if(a.firstChild && a.firstChild.nodeType == goog.dom.NodeType.TEXT) {
+      for(;a.lastChild != a.firstChild;) {
+        a.removeChild(a.lastChild)
+      }
+      a.firstChild.data = b
+    }else {
+      goog.dom.removeChildren(a);
+      var c = goog.dom.getOwnerDocument(a);
+      a.appendChild(c.createTextNode(String(b)))
+    }
+  }
+};
+goog.dom.getOuterHtml = function(a) {
+  if("outerHTML" in a) {
+    return a.outerHTML
+  }
+  var b = goog.dom.getOwnerDocument(a).createElement("div");
+  b.appendChild(a.cloneNode(!0));
+  return b.innerHTML
+};
+goog.dom.findNode = function(a, b) {
+  var c = [];
+  return goog.dom.findNodes_(a, b, c, !0) ? c[0] : void 0
+};
+goog.dom.findNodes = function(a, b) {
+  var c = [];
+  goog.dom.findNodes_(a, b, c, !1);
+  return c
+};
+goog.dom.findNodes_ = function(a, b, c, d) {
+  if(null != a) {
+    for(a = a.firstChild;a;) {
+      if(b(a) && (c.push(a), d) || goog.dom.findNodes_(a, b, c, d)) {
+        return!0
+      }
+      a = a.nextSibling
+    }
+  }
+  return!1
+};
+goog.dom.TAGS_TO_IGNORE_ = {SCRIPT:1, STYLE:1, HEAD:1, IFRAME:1, OBJECT:1};
+goog.dom.PREDEFINED_TAG_VALUES_ = {IMG:" ", BR:"\n"};
+goog.dom.isFocusableTabIndex = function(a) {
+  var b = a.getAttributeNode("tabindex");
+  return b && b.specified ? (a = a.tabIndex, goog.isNumber(a) && 0 <= a && 32768 > a) : !1
+};
+goog.dom.setFocusableTabIndex = function(a, b) {
+  b ? a.tabIndex = 0 : (a.tabIndex = -1, a.removeAttribute("tabIndex"))
+};
+goog.dom.getTextContent = function(a) {
+  if(goog.dom.BrowserFeature.CAN_USE_INNER_TEXT && "innerText" in a) {
+    a = goog.string.canonicalizeNewlines(a.innerText)
+  }else {
+    var b = [];
+    goog.dom.getTextContent_(a, b, !0);
+    a = b.join("")
+  }
+  a = a.replace(/ \xAD /g, " ").replace(/\xAD/g, "");
+  a = a.replace(/\u200B/g, "");
+  goog.dom.BrowserFeature.CAN_USE_INNER_TEXT || (a = a.replace(/ +/g, " "));
+  " " != a && (a = a.replace(/^\s*/, ""));
+  return a
+};
+goog.dom.getRawTextContent = function(a) {
+  var b = [];
+  goog.dom.getTextContent_(a, b, !1);
+  return b.join("")
+};
+goog.dom.getTextContent_ = function(a, b, c) {
+  if(!(a.nodeName in goog.dom.TAGS_TO_IGNORE_)) {
+    if(a.nodeType == goog.dom.NodeType.TEXT) {
+      c ? b.push(String(a.nodeValue).replace(/(\r\n|\r|\n)/g, "")) : b.push(a.nodeValue)
+    }else {
+      if(a.nodeName in goog.dom.PREDEFINED_TAG_VALUES_) {
+        b.push(goog.dom.PREDEFINED_TAG_VALUES_[a.nodeName])
+      }else {
+        for(a = a.firstChild;a;) {
+          goog.dom.getTextContent_(a, b, c), a = a.nextSibling
+        }
+      }
+    }
+  }
+};
+goog.dom.getNodeTextLength = function(a) {
+  return goog.dom.getTextContent(a).length
+};
+goog.dom.getNodeTextOffset = function(a, b) {
+  for(var c = b || goog.dom.getOwnerDocument(a).body, d = [];a && a != c;) {
+    for(var e = a;e = e.previousSibling;) {
+      d.unshift(goog.dom.getTextContent(e))
+    }
+    a = a.parentNode
+  }
+  return goog.string.trimLeft(d.join("")).replace(/ +/g, " ").length
+};
+goog.dom.getNodeAtOffset = function(a, b, c) {
+  a = [a];
+  for(var d = 0, e = null;0 < a.length && d < b;) {
+    if(e = a.pop(), !(e.nodeName in goog.dom.TAGS_TO_IGNORE_)) {
+      if(e.nodeType == goog.dom.NodeType.TEXT) {
+        var f = e.nodeValue.replace(/(\r\n|\r|\n)/g, "").replace(/ +/g, " "), d = d + f.length
+      }else {
+        if(e.nodeName in goog.dom.PREDEFINED_TAG_VALUES_) {
+          d += goog.dom.PREDEFINED_TAG_VALUES_[e.nodeName].length
+        }else {
+          for(f = e.childNodes.length - 1;0 <= f;f--) {
+            a.push(e.childNodes[f])
+          }
+        }
+      }
+    }
+  }
+  goog.isObject(c) && (c.remainder = e ? e.nodeValue.length + b - d - 1 : 0, c.node = e);
+  return e
+};
+goog.dom.isNodeList = function(a) {
+  if(a && "number" == typeof a.length) {
+    if(goog.isObject(a)) {
+      return"function" == typeof a.item || "string" == typeof a.item
+    }
+    if(goog.isFunction(a)) {
+      return"function" == typeof a.item
+    }
+  }
+  return!1
+};
+goog.dom.getAncestorByTagNameAndClass = function(a, b, c) {
+  if(!b && !c) {
+    return null
+  }
+  var d = b ? b.toUpperCase() : null;
+  return goog.dom.getAncestor(a, function(a) {
+    return(!d || a.nodeName == d) && (!c || goog.dom.classes.has(a, c))
+  }, !0)
+};
+goog.dom.getAncestorByClass = function(a, b) {
+  return goog.dom.getAncestorByTagNameAndClass(a, null, b)
+};
+goog.dom.getAncestor = function(a, b, c, d) {
+  c || (a = a.parentNode);
+  c = null == d;
+  for(var e = 0;a && (c || e <= d);) {
+    if(b(a)) {
+      return a
+    }
+    a = a.parentNode;
+    e++
+  }
+  return null
+};
+goog.dom.getActiveElement = function(a) {
+  try {
+    return a && a.activeElement
+  }catch(b) {
+  }
+  return null
+};
+goog.dom.DomHelper = function(a) {
+  this.document_ = a || goog.global.document || document
+};
+goog.dom.DomHelper.prototype.getDomHelper = goog.dom.getDomHelper;
+goog.dom.DomHelper.prototype.setDocument = function(a) {
+  this.document_ = a
+};
+goog.dom.DomHelper.prototype.getDocument = function() {
+  return this.document_
+};
+goog.dom.DomHelper.prototype.getElement = function(a) {
+  return goog.isString(a) ? this.document_.getElementById(a) : a
+};
+goog.dom.DomHelper.prototype.$ = goog.dom.DomHelper.prototype.getElement;
+goog.dom.DomHelper.prototype.getElementsByTagNameAndClass = function(a, b, c) {
+  return goog.dom.getElementsByTagNameAndClass_(this.document_, a, b, c)
+};
+goog.dom.DomHelper.prototype.getElementsByClass = function(a, b) {
+  return goog.dom.getElementsByClass(a, b || this.document_)
+};
+goog.dom.DomHelper.prototype.getElementByClass = function(a, b) {
+  return goog.dom.getElementByClass(a, b || this.document_)
+};
+goog.dom.DomHelper.prototype.$$ = goog.dom.DomHelper.prototype.getElementsByTagNameAndClass;
+goog.dom.DomHelper.prototype.setProperties = goog.dom.setProperties;
+goog.dom.DomHelper.prototype.getViewportSize = function(a) {
+  return goog.dom.getViewportSize(a || this.getWindow())
+};
+goog.dom.DomHelper.prototype.getDocumentHeight = function() {
+  return goog.dom.getDocumentHeight_(this.getWindow())
+};
+goog.dom.DomHelper.prototype.createDom = function(a, b, c) {
+  return goog.dom.createDom_(this.document_, arguments)
+};
+goog.dom.DomHelper.prototype.$dom = goog.dom.DomHelper.prototype.createDom;
+goog.dom.DomHelper.prototype.createElement = function(a) {
+  return this.document_.createElement(a)
+};
+goog.dom.DomHelper.prototype.createTextNode = function(a) {
+  return this.document_.createTextNode(String(a))
+};
+goog.dom.DomHelper.prototype.createTable = function(a, b, c) {
+  return goog.dom.createTable_(this.document_, a, b, !!c)
+};
+goog.dom.DomHelper.prototype.htmlToDocumentFragment = function(a) {
+  return goog.dom.htmlToDocumentFragment_(this.document_, a)
+};
+goog.dom.DomHelper.prototype.getCompatMode = function() {
+  return this.isCss1CompatMode() ? "CSS1Compat" : "BackCompat"
+};
+goog.dom.DomHelper.prototype.isCss1CompatMode = function() {
+  return goog.dom.isCss1CompatMode_(this.document_)
+};
+goog.dom.DomHelper.prototype.getWindow = function() {
+  return goog.dom.getWindow_(this.document_)
+};
+goog.dom.DomHelper.prototype.getDocumentScrollElement = function() {
+  return goog.dom.getDocumentScrollElement_(this.document_)
+};
+goog.dom.DomHelper.prototype.getDocumentScroll = function() {
+  return goog.dom.getDocumentScroll_(this.document_)
+};
+goog.dom.DomHelper.prototype.getActiveElement = function(a) {
+  return goog.dom.getActiveElement(a || this.document_)
+};
+goog.dom.DomHelper.prototype.appendChild = goog.dom.appendChild;
+goog.dom.DomHelper.prototype.append = goog.dom.append;
+goog.dom.DomHelper.prototype.canHaveChildren = goog.dom.canHaveChildren;
+goog.dom.DomHelper.prototype.removeChildren = goog.dom.removeChildren;
+goog.dom.DomHelper.prototype.insertSiblingBefore = goog.dom.insertSiblingBefore;
+goog.dom.DomHelper.prototype.insertSiblingAfter = goog.dom.insertSiblingAfter;
+goog.dom.DomHelper.prototype.insertChildAt = goog.dom.insertChildAt;
+goog.dom.DomHelper.prototype.removeNode = goog.dom.removeNode;
+goog.dom.DomHelper.prototype.replaceNode = goog.dom.replaceNode;
+goog.dom.DomHelper.prototype.flattenElement = goog.dom.flattenElement;
+goog.dom.DomHelper.prototype.getChildren = goog.dom.getChildren;
+goog.dom.DomHelper.prototype.getFirstElementChild = goog.dom.getFirstElementChild;
+goog.dom.DomHelper.prototype.getLastElementChild = goog.dom.getLastElementChild;
+goog.dom.DomHelper.prototype.getNextElementSibling = goog.dom.getNextElementSibling;
+goog.dom.DomHelper.prototype.getPreviousElementSibling = goog.dom.getPreviousElementSibling;
+goog.dom.DomHelper.prototype.getNextNode = goog.dom.getNextNode;
+goog.dom.DomHelper.prototype.getPreviousNode = goog.dom.getPreviousNode;
+goog.dom.DomHelper.prototype.isNodeLike = goog.dom.isNodeLike;
+goog.dom.DomHelper.prototype.isElement = goog.dom.isElement;
+goog.dom.DomHelper.prototype.isWindow = goog.dom.isWindow;
+goog.dom.DomHelper.prototype.getParentElement = goog.dom.getParentElement;
+goog.dom.DomHelper.prototype.contains = goog.dom.contains;
+goog.dom.DomHelper.prototype.compareNodeOrder = goog.dom.compareNodeOrder;
+goog.dom.DomHelper.prototype.findCommonAncestor = goog.dom.findCommonAncestor;
+goog.dom.DomHelper.prototype.getOwnerDocument = goog.dom.getOwnerDocument;
+goog.dom.DomHelper.prototype.getFrameContentDocument = goog.dom.getFrameContentDocument;
+goog.dom.DomHelper.prototype.getFrameContentWindow = goog.dom.getFrameContentWindow;
+goog.dom.DomHelper.prototype.setTextContent = goog.dom.setTextContent;
+goog.dom.DomHelper.prototype.getOuterHtml = goog.dom.getOuterHtml;
+goog.dom.DomHelper.prototype.findNode = goog.dom.findNode;
+goog.dom.DomHelper.prototype.findNodes = goog.dom.findNodes;
+goog.dom.DomHelper.prototype.isFocusableTabIndex = goog.dom.isFocusableTabIndex;
+goog.dom.DomHelper.prototype.setFocusableTabIndex = goog.dom.setFocusableTabIndex;
+goog.dom.DomHelper.prototype.getTextContent = goog.dom.getTextContent;
+goog.dom.DomHelper.prototype.getNodeTextLength = goog.dom.getNodeTextLength;
+goog.dom.DomHelper.prototype.getNodeTextOffset = goog.dom.getNodeTextOffset;
+goog.dom.DomHelper.prototype.getNodeAtOffset = goog.dom.getNodeAtOffset;
+goog.dom.DomHelper.prototype.isNodeList = goog.dom.isNodeList;
+goog.dom.DomHelper.prototype.getAncestorByTagNameAndClass = goog.dom.getAncestorByTagNameAndClass;
+goog.dom.DomHelper.prototype.getAncestorByClass = goog.dom.getAncestorByClass;
+goog.dom.DomHelper.prototype.getAncestor = goog.dom.getAncestor;
+goog.net.jsloader = {};
+goog.net.jsloader.GLOBAL_VERIFY_OBJS_ = "closure_verification";
+goog.net.jsloader.DEFAULT_TIMEOUT = 5E3;
+goog.net.jsloader.scriptsToLoad_ = [];
+goog.net.jsloader.loadMany = function(a, b) {
+  if(a.length) {
+    var c = goog.net.jsloader.scriptsToLoad_.length;
+    goog.array.extend(goog.net.jsloader.scriptsToLoad_, a);
+    if(!c) {
+      a = goog.net.jsloader.scriptsToLoad_;
+      var d = function() {
+        var c = a.shift(), c = goog.net.jsloader.load(c, b);
+        a.length && c.addBoth(d)
+      };
+      d()
+    }
+  }
+};
+goog.net.jsloader.load = function(a, b) {
+  var c = b || {}, d = c.document || document, e = goog.dom.createElement(goog.dom.TagName.SCRIPT), f = {script_:e, timeout_:void 0}, g = new goog.async.Deferred(goog.net.jsloader.cancel_, f), h = null, k = goog.isDefAndNotNull(c.timeout) ? c.timeout : goog.net.jsloader.DEFAULT_TIMEOUT;
+  0 < k && (h = window.setTimeout(function() {
+    goog.net.jsloader.cleanup_(e, !0);
+    g.errback(new goog.net.jsloader.Error(goog.net.jsloader.ErrorCode.TIMEOUT, "Timeout reached for loading script " + a))
+  }, k), f.timeout_ = h);
+  e.onload = e.onreadystatechange = function() {
+    e.readyState && "loaded" != e.readyState && "complete" != e.readyState || (goog.net.jsloader.cleanup_(e, c.cleanupWhenDone || !1, h), g.callback(null))
+  };
+  e.onerror = function() {
+    goog.net.jsloader.cleanup_(e, !0, h);
+    g.errback(new goog.net.jsloader.Error(goog.net.jsloader.ErrorCode.LOAD_ERROR, "Error while loading script " + a))
+  };
+  goog.dom.setProperties(e, {type:"text/javascript", charset:"UTF-8", src:a});
+  goog.net.jsloader.getScriptParentElement_(d).appendChild(e);
+  return g
+};
+goog.net.jsloader.loadAndVerify = function(a, b, c) {
+  goog.global[goog.net.jsloader.GLOBAL_VERIFY_OBJS_] || (goog.global[goog.net.jsloader.GLOBAL_VERIFY_OBJS_] = {});
+  var d = goog.global[goog.net.jsloader.GLOBAL_VERIFY_OBJS_];
+  if(goog.isDef(d[b])) {
+    return goog.async.Deferred.fail(new goog.net.jsloader.Error(goog.net.jsloader.ErrorCode.VERIFY_OBJECT_ALREADY_EXISTS, "Verification object " + b + " already defined."))
+  }
+  c = goog.net.jsloader.load(a, c);
+  var e = new goog.async.Deferred(c.cancel);
+  c.addCallback(function() {
+    var c = d[b];
+    goog.isDef(c) ? (e.callback(c), delete d[b]) : e.errback(new goog.net.jsloader.Error(goog.net.jsloader.ErrorCode.VERIFY_ERROR, "Script " + a + " loaded, but verification object " + b + " was not defined."))
+  });
+  c.addErrback(function(a) {
+    goog.isDef(d[b]) && delete d[b];
+    e.errback(a)
+  });
+  return e
+};
+goog.net.jsloader.getScriptParentElement_ = function(a) {
+  var b = a.getElementsByTagName(goog.dom.TagName.HEAD);
+  return!b || goog.array.isEmpty(b) ? a.documentElement : b[0]
+};
+goog.net.jsloader.cancel_ = function() {
+  if(this && this.script_) {
+    var a = this.script_;
+    a && "SCRIPT" == a.tagName && goog.net.jsloader.cleanup_(a, !0, this.timeout_)
+  }
+};
+goog.net.jsloader.cleanup_ = function(a, b, c) {
+  goog.isDefAndNotNull(c) && goog.global.clearTimeout(c);
+  a.onload = goog.nullFunction;
+  a.onerror = goog.nullFunction;
+  a.onreadystatechange = goog.nullFunction;
+  b && window.setTimeout(function() {
+    goog.dom.removeNode(a)
+  }, 0)
+};
+goog.net.jsloader.ErrorCode = {LOAD_ERROR:0, TIMEOUT:1, VERIFY_ERROR:2, VERIFY_OBJECT_ALREADY_EXISTS:3};
+goog.net.jsloader.Error = function(a, b) {
+  var c = "Jsloader error (code #" + a + ")";
+  b && (c += ": " + b);
+  goog.debug.Error.call(this, c);
+  this.code = a
+};
+goog.inherits(goog.net.jsloader.Error, goog.debug.Error);
+goog.net.Jsonp = function(a, b) {
+  this.uri_ = new goog.Uri(a);
+  this.callbackParamName_ = b ? b : "callback";
+  this.timeout_ = 5E3
+};
+goog.net.Jsonp.CALLBACKS = "_callbacks_";
+goog.net.Jsonp.scriptCounter_ = 0;
+goog.net.Jsonp.prototype.setRequestTimeout = function(a) {
+  this.timeout_ = a
+};
+goog.net.Jsonp.prototype.getRequestTimeout = function() {
+  return this.timeout_
+};
+goog.net.Jsonp.prototype.send = function(a, b, c, d) {
+  a = a || null;
+  d = d || "_" + (goog.net.Jsonp.scriptCounter_++).toString(36) + goog.now().toString(36);
+  goog.global[goog.net.Jsonp.CALLBACKS] || (goog.global[goog.net.Jsonp.CALLBACKS] = {});
+  var e = this.uri_.clone();
+  a && goog.net.Jsonp.addPayloadToUri_(a, e);
+  b && (b = goog.net.Jsonp.newReplyHandler_(d, b), goog.global[goog.net.Jsonp.CALLBACKS][d] = b, e.setParameterValues(this.callbackParamName_, goog.net.Jsonp.CALLBACKS + "." + d));
+  b = goog.net.jsloader.load(e.toString(), {timeout:this.timeout_, cleanupWhenDone:!0});
+  c = goog.net.Jsonp.newErrorHandler_(d, a, c);
+  b.addErrback(c);
+  return{id_:d, deferred_:b}
+};
+goog.net.Jsonp.prototype.cancel = function(a) {
+  a && (a.deferred_ && a.deferred_.cancel(), a.id_ && goog.net.Jsonp.cleanup_(a.id_, !1))
+};
+goog.net.Jsonp.newErrorHandler_ = function(a, b, c) {
+  return function() {
+    goog.net.Jsonp.cleanup_(a, !1);
+    c && c(b)
+  }
+};
+goog.net.Jsonp.newReplyHandler_ = function(a, b) {
+  return function(c) {
+    goog.net.Jsonp.cleanup_(a, !0);
+    b.apply(void 0, arguments)
+  }
+};
+goog.net.Jsonp.cleanup_ = function(a, b) {
+  goog.global[goog.net.Jsonp.CALLBACKS][a] && (b ? delete goog.global[goog.net.Jsonp.CALLBACKS][a] : goog.global[goog.net.Jsonp.CALLBACKS][a] = goog.nullFunction)
+};
+goog.net.Jsonp.addPayloadToUri_ = function(a, b) {
+  for(var c in a) {
+    a.hasOwnProperty && !a.hasOwnProperty(c) || b.setParameterValues(c, a[c])
+  }
+  return b
+};
 clojure.walk = {};
 clojure.walk.walk = function(a, b, c) {
   return cljs.core.seq_QMARK_.call(null, c) ? b.call(null, cljs.core.doall.call(null, cljs.core.map.call(null, a, c))) : cljs.core.coll_QMARK_.call(null, c) ? b.call(null, cljs.core.into.call(null, cljs.core.empty.call(null, c), cljs.core.map.call(null, a, c))) : b.call(null, c)
@@ -19616,7 +20897,7 @@ dommy.utils.__GT_Array = function(a) {
 cljs.core.match = {};
 cljs.core.match.backtrack = Error();
 dommy.template = {};
-dommy.template.handlers = cljs.core.PersistentHashSet.fromArray(["mouseup", null, "keydown", null, "mousedown", null, "click", null, "mousemove", null, "enter", null, "keyup", null, "dblclick", null], !0);
+dommy.template.handlers = cljs.core.PersistentHashSet.fromArray(["mouseup", null, "keydown", null, "touchstart", null, "dragleave", null, "dragenter", null, "mousedown", null, "dragend", null, "dragover", null, "click", null, "mouseout", null, "contextmenu", null, "dragstart", null, "drop", null, "touchmove", null, "change", null, "mousemove", null, "submit", null, "enter", null, "mouseover", null, "keyup", null, "dblclick", null, "touchend", null], !0);
 dommy.template.add_handler_BANG_ = function() {
   var a = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY), b = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY), c = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY), d = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY), e = cljs.core.get.call(null, cljs.core.PersistentArrayMap.EMPTY, "\ufdd0:hierarchy", cljs.core.get_global_hierarchy.call(null));
   return new cljs.core.MultiFn("add-handler!", function(a, b) {
@@ -19626,6 +20907,16 @@ dommy.template.add_handler_BANG_ = function() {
 cljs.core._add_method.call(null, dommy.template.add_handler_BANG_, "\ufdd0:enter", function(a, b, c) {
   return dommy.core.listen_BANG_(a, "keydown", function(b) {
     return cljs.core._EQ_.call(null, 13, b.keyCode) ? c.call(null, cljs.core.PersistentArrayMap.fromArray(["value", dommy.core.value(a), "e", b], !0)) : null
+  })
+});
+cljs.core._add_method.call(null, dommy.template.add_handler_BANG_, "\ufdd0:submit", function(a, b, c) {
+  return dommy.core.listen_BANG_(a, "keydown", function(b) {
+    return cljs.core._EQ_.call(null, 13, b.keyCode) ? c.call(null, cljs.core.PersistentArrayMap.fromArray(["value", dommy.core.value(a), "e", b], !0)) : null
+  })
+});
+cljs.core._add_method.call(null, dommy.template.add_handler_BANG_, "\ufdd0:change", function(a, b, c) {
+  return dommy.core.listen_BANG_(a, "change", function(b) {
+    return c.call(null, cljs.core.PersistentArrayMap.fromArray(["value", a.options[a.selectedIndex].value, "e", b], !0))
   })
 });
 cljs.core._add_method.call(null, dommy.template.add_handler_BANG_, "\ufdd0:default", function(a, b, c) {
@@ -19825,12 +21116,12 @@ try {
   Window.prototype.dommy$template$PElement$ = !0, Window.prototype.dommy$template$PElement$_elem$arity$1 = function(a) {
     return a
   }
-}catch(e88859) {
-  if(e88859 instanceof ReferenceError) {
-    var __88860 = e88859;
+}catch(e11606) {
+  if(e11606 instanceof ReferenceError) {
+    var __11607 = e11606;
     console.log("PElement: js/Window not defined by browser, skipping it... (running on phantomjs?)")
   }else {
-    throw e88859;
+    throw e11606;
   }
 }
 dommy.template.node = function(a) {
@@ -20377,6 +21668,122 @@ aurora.transformers.math.eval = function eval(b) {
 aurora.transformers.math._BANG_math = function(a) {
   return aurora.transformers.math.eval.call(null, a)
 };
+aurora.util.async = {};
+aurora.util.async.debounce = function() {
+  var a = null, b = function(b, c) {
+    return a.call(null, cljs.core.async.chan.call(null), b, c)
+  }, c = function(a, b, c) {
+    var g = cljs.core.async.chan.call(null, 1);
+    cljs.core.async.impl.dispatch.run.call(null, function() {
+      var h = function() {
+        return function(a) {
+          return function() {
+            var b = null, c = function() {
+              var a = Array(12);
+              a[0] = b;
+              a[1] = 1;
+              return a
+            }, d = function(b) {
+              for(;;) {
+                var c = a.call(null, b);
+                if("\ufdd0:recur" !== c) {
+                  return c
+                }
+              }
+            }, b = function(a) {
+              switch(arguments.length) {
+                case 0:
+                  return c.call(this);
+                case 1:
+                  return d.call(this, a)
+              }
+              throw Error("Invalid arity: " + arguments.length);
+            };
+            b.cljs$core$IFn$_invoke$arity$0 = c;
+            b.cljs$core$IFn$_invoke$arity$1 = d;
+            return b
+          }()
+        }(function(g) {
+          var h = g[1];
+          if(1 === h) {
+            var k = "\ufdd0:aurora.util.async/init", h = cljs.core.vector.call(null, b);
+            g[5] = h;
+            g[6] = k;
+            g[2] = null;
+            g[1] = 2;
+            return"\ufdd0:recur"
+          }
+          if(2 === h) {
+            var h = g[5], p = cljs.core.nth.call(null, h, 0, null), k = cljs.core.nth.call(null, h, 1, null);
+            g[7] = k;
+            g[8] = p;
+            return cljs.core.async.impl.ioc_helpers.ioc_alts_BANG_.call(null, g, 4, h)
+          }
+          if(3 === h) {
+            return h = g[2], cljs.core.async.impl.ioc_helpers.return_chan.call(null, g, h)
+          }
+          if(4 === h) {
+            return h = g[9], k = g[2], h = cljs.core.nth.call(null, k, 0, null), k = cljs.core.nth.call(null, k, 1, null), p = cljs.core._EQ_.call(null, b, k), g[9] = k, g[10] = h, g[1] = p ? 5 : 6, "\ufdd0:recur"
+          }
+          if(5 === h) {
+            return k = g[6], h = cljs.core._EQ_.call(null, "\ufdd0:aurora.util.async/init", k), g[1] = h ? 8 : 9, "\ufdd0:recur"
+          }
+          if(6 === h) {
+            return k = g[7], h = g[9], h = cljs.core._EQ_.call(null, k, h), g[1] = h ? 15 : 16, "\ufdd0:recur"
+          }
+          if(7 === h) {
+            return h = g[2], g[2] = h, g[1] = 3, "\ufdd0:recur"
+          }
+          if(8 === h) {
+            return h = g[10], cljs.core.async.impl.ioc_helpers.put_BANG_.call(null, g, 11, a, h)
+          }
+          if(9 === h) {
+            return k = g[6], h = cljs.core._EQ_.call(null, "\ufdd0:aurora.util.async/debouncing", k), g[1] = h ? 12 : 13, "\ufdd0:recur"
+          }
+          if(10 === h) {
+            return h = g[2], g[2] = h, g[1] = 7, "\ufdd0:recur"
+          }
+          if(11 === h) {
+            return h = g[5], k = g[2], p = cljs.core.async.timeout.call(null, c), h = cljs.core.conj.call(null, h, p), g[11] = k, g[5] = h, g[6] = "\ufdd0:aurora.util.async/debouncing", g[2] = null, g[1] = 2, "\ufdd0:recur"
+          }
+          if(12 === h) {
+            return h = g[5], k = g[6], h = cljs.core.pop.call(null, h), p = cljs.core.async.timeout.call(null, c), h = cljs.core.conj.call(null, h, p), g[5] = h, g[6] = k, g[2] = null, g[1] = 2, "\ufdd0:recur"
+          }
+          if(13 === h) {
+            throw k = g[6], g = [cljs.core.str("No matching clause: "), cljs.core.str(k)].join(""), Error(g);
+          }
+          if(14 === h) {
+            return h = g[2], g[2] = h, g[1] = 10, "\ufdd0:recur"
+          }
+          if(15 === h) {
+            return h = g[5], h = cljs.core.pop.call(null, h), g[5] = h, g[6] = "\ufdd0:aurora.util.async/init", g[2] = null, g[1] = 2, "\ufdd0:recur"
+          }
+          if(16 === h) {
+            throw h = g[9], g = [cljs.core.str("No matching clause: "), cljs.core.str(h)].join(""), Error(g);
+          }
+          return 17 === h ? (h = g[2], g[2] = h, g[1] = 7, "\ufdd0:recur") : null
+        })
+      }(), k = function() {
+        var a = h.call(null);
+        a[cljs.core.async.impl.ioc_helpers.USER_START_IDX] = g;
+        return a
+      }();
+      return cljs.core.async.impl.ioc_helpers.run_state_machine_wrapped.call(null, k)
+    });
+    return a
+  }, a = function(a, e, f) {
+    switch(arguments.length) {
+      case 2:
+        return b.call(this, a, e);
+      case 3:
+        return c.call(this, a, e, f)
+    }
+    throw Error("Invalid arity: " + arguments.length);
+  };
+  a.cljs$core$IFn$_invoke$arity$2 = b;
+  a.cljs$core$IFn$_invoke$arity$3 = c;
+  return a
+}();
 aurora.transformers.editor = {};
 aurora.transformers.editor.instrument_pipes = function(a) {
   return cljs.core.assoc.call(null, a, "\ufdd0:pipes", cljs.core.into.call(null, cljs.core.PersistentVector.EMPTY, function() {
@@ -20461,7 +21868,7 @@ aurora.transformers.editor._BANG_runner = function(a) {
         }()
       }(function(a) {
         var b = a[1];
-        return 7 === b ? (b = a, b[2] = a[2], b[1] = 3, "\ufdd0:recur") : 6 === b ? (a[2] = null, a[1] = 7, "\ufdd0:recur") : 5 === b ? (b = cljs.core.async.put_BANG_.call(null, aurora.engine.event_loop, "\ufdd0:sub-commute"), a[5] = b, a[2] = null, a[1] = 2, "\ufdd0:recur") : 4 === b ? (b = a[2], cljs.core.truth_(b) ? a[1] = 5 : a[1] = 6, "\ufdd0:recur") : 3 === b ? (b = a[2], cljs.core.async.impl.ioc_helpers.return_chan.call(null, a, b)) : 2 === b ? cljs.core.async.impl.ioc_helpers.take_BANG_.call(null, 
+        return 7 === b ? (b = a, b[2] = a[2], b[1] = 3, "\ufdd0:recur") : 6 === b ? (a[2] = null, a[1] = 7, "\ufdd0:recur") : 5 === b ? (b = cljs.core.assoc.call(null, aurora.pipelines.state, "dirty", !1), b = aurora.engine.commute(b), a[5] = b, a[2] = null, a[1] = 2, "\ufdd0:recur") : 4 === b ? (b = a[2], cljs.core.truth_(b) ? a[1] = 5 : a[1] = 6, "\ufdd0:recur") : 3 === b ? (b = a[2], cljs.core.async.impl.ioc_helpers.return_chan.call(null, a, b)) : 2 === b ? cljs.core.async.impl.ioc_helpers.take_BANG_.call(null, 
         a, 4, aurora.transformers.editor.listener_loop) : 1 === b ? (a[2] = null, a[1] = 2, "\ufdd0:recur") : null
       })
     }(), d = function() {
@@ -20501,13 +21908,13 @@ running = {};
 aurora.transformers.editor.listener_loop = cljs.core.async.chan.call(null);
 aurora.transformers.editor.event_loop = cljs.core.async.chan.call(null);
 aurora.transformers.editor.start_main_loop = function(a) {
-  var b = cljs.core.async.chan.call(null, 1);
+  var b = aurora.util.async.debounce.call(null, aurora.transformers.editor.event_loop, 100), c = cljs.core.async.chan.call(null, 1);
   cljs.core.async.impl.dispatch.run.call(null, function() {
-    var c = function() {
+    var d = function() {
       return function(a) {
         return function() {
           var b = null, c = function() {
-            var a = Array(8);
+            var a = Array(9);
             a[0] = b;
             a[1] = 1;
             return a
@@ -20531,33 +21938,34 @@ aurora.transformers.editor.start_main_loop = function(a) {
           b.cljs$core$IFn$_invoke$arity$1 = d;
           return b
         }()
-      }(function(b) {
-        var c = b[1];
-        if(7 === c) {
-          return c = b[2], b[5] = c, b[2] = null, b[1] = 2, "\ufdd0:recur"
+      }(function(c) {
+        var d = c[1];
+        if(7 === d) {
+          return d = c[2], c[5] = d, c[2] = null, c[1] = 2, "\ufdd0:recur"
         }
-        if(6 === c) {
-          return c = b[2], b[2] = c, b[1] = 3, "\ufdd0:recur"
+        if(6 === d) {
+          return d = c[2], c[2] = d, c[1] = 3, "\ufdd0:recur"
         }
-        if(5 === c) {
-          return b[2] = null, b[1] = 6, "\ufdd0:recur"
+        if(5 === d) {
+          return c[2] = null, c[1] = 6, "\ufdd0:recur"
         }
-        if(4 === c) {
-          var c = a.call(null), d = cljs.core.async.put_BANG_.call(null, aurora.transformers.editor.listener_loop, "\ufdd0:done");
-          b[6] = d;
-          b[7] = c;
-          return cljs.core.async.impl.ioc_helpers.take_BANG_.call(null, b, 7, aurora.transformers.editor.event_loop)
+        if(4 === d) {
+          var d = (new Date).getTime(), d = cljs.core.println.call(null, "[child] running at: ", d), e = a.call(null), k = cljs.core.async.put_BANG_.call(null, aurora.transformers.editor.listener_loop, "\ufdd0:done");
+          c[6] = k;
+          c[7] = e;
+          c[8] = d;
+          return cljs.core.async.impl.ioc_helpers.take_BANG_.call(null, c, 7, b)
         }
-        return 3 === c ? (c = b[2], cljs.core.async.impl.ioc_helpers.return_chan.call(null, b, c)) : 2 === c ? (c = b[5], cljs.core.truth_(c) ? b[1] = 4 : b[1] = 5, "\ufdd0:recur") : 1 === c ? (b[5] = !0, b[2] = null, b[1] = 2, "\ufdd0:recur") : null
+        return 3 === d ? (d = c[2], cljs.core.async.impl.ioc_helpers.return_chan.call(null, c, d)) : 2 === d ? (d = c[5], cljs.core.truth_(d) ? c[1] = 4 : c[1] = 5, "\ufdd0:recur") : 1 === d ? (c[5] = !0, c[2] = null, c[1] = 2, "\ufdd0:recur") : null
       })
-    }(), d = function() {
-      var a = c.call(null);
-      a[cljs.core.async.impl.ioc_helpers.USER_START_IDX] = b;
+    }(), e = function() {
+      var a = d.call(null);
+      a[cljs.core.async.impl.ioc_helpers.USER_START_IDX] = c;
       return a
     }();
-    return cljs.core.async.impl.ioc_helpers.run_state_machine_wrapped.call(null, d)
+    return cljs.core.async.impl.ioc_helpers.run_state_machine_wrapped.call(null, e)
   });
-  return b
+  return c
 };
 aurora.transformers.editor.exec_program = function(a, b) {
   cljs.core.truth_(cljs.core.truth_(b) ? b : cljs.core.not.call(null, running.pipelines)) && (running.pipelines = {});
@@ -20651,7 +22059,7 @@ aurora.transformers.chart = {};
 aurora.transformers.chart.colors = cljs.core.PersistentVector.fromArray(["#FFBF2D", "#F5861E", "#AC3C5A", "#892143", "#472B5D"], !0);
 aurora.transformers.chart.create_canvas = function() {
   var a = document.createElement("canvas");
-  a.setAttribute("width", "800");
+  a.setAttribute("width", "600");
   a.setAttribute("height", "400");
   return cljs.core.PersistentVector.fromArray([a, a.getContext("2d")], !0)
 };
@@ -20669,12 +22077,13 @@ aurora.transformers.chart.__GT_labels = function(a) {
   var b = a.call(null, "x");
   return cljs.core.truth_(b) ? b : cljs.core.range.call(null, 1, cljs.core.count.call(null, a.call(null, "values")) + 1)
 };
-cljs.core._add_method.call(null, aurora.transformers.chart._BANG_chart_STAR_, "line", function(a) {
-  var b = aurora.transformers.chart.create_canvas.call(null), c = cljs.core.nth.call(null, b, 0, null), b = cljs.core.nth.call(null, b, 1, null);
-  a = cljs.core.merge.call(null, cljs.core.PersistentArrayMap.fromArray(["x", aurora.transformers.chart.__GT_labels.call(null, a)], !0), a);
-  aurora.transformers.chart.inject.call(null, c);
-  (new Chart(b)).Line(cljs.core.clj__GT_js.call(null, cljs.core.PersistentArrayMap.fromArray(["\ufdd0:labels", a.call(null, "x"), "\ufdd0:datasets", cljs.core.PersistentVector.fromArray([cljs.core.PersistentArrayMap.fromArray(["\ufdd0:data", a.call(null, "values"), "\ufdd0:strokeColor", aurora.transformers.chart.colors.call(null, 1), "\ufdd0:fillColor", aurora.transformers.chart.colors.call(null, 0)], !0)], !0)], !0)), cljs.core.clj__GT_js.call(null, a));
-  return c
+cljs.core._add_method.call(null, aurora.transformers.chart._BANG_chart_STAR_, "line", function(a, b) {
+  var c = aurora.transformers.chart.create_canvas.call(null), d = cljs.core.nth.call(null, c, 0, null), c = cljs.core.nth.call(null, c, 1, null), e = cljs.core.merge.call(null, cljs.core.PersistentArrayMap.fromArray(["x", aurora.transformers.chart.__GT_labels.call(null, a)], !0), a), f = document.createElement("div");
+  f.className = "chart";
+  f.appendChild(dommy.template.__GT_node_like.call(null, d));
+  cljs.core.truth_(b) && aurora.transformers.chart.inject.call(null, f);
+  (new Chart(c)).Line(cljs.core.clj__GT_js.call(null, cljs.core.PersistentArrayMap.fromArray(["\ufdd0:labels", e.call(null, "x"), "\ufdd0:datasets", cljs.core.PersistentVector.fromArray([cljs.core.PersistentArrayMap.fromArray(["\ufdd0:data", e.call(null, "values"), "\ufdd0:strokeColor", aurora.transformers.chart.colors.call(null, 1), "\ufdd0:fillColor", aurora.transformers.chart.colors.call(null, 0)], !0)], !0)], !0)), cljs.core.clj__GT_js.call(null, e));
+  return f
 });
 aurora.transformers.chart.__GT_value = function(a, b) {
   return cljs.core.PersistentArrayMap.fromArray(["\ufdd0:value", b, "\ufdd0:color", aurora.transformers.chart.colors.call(null, a)], !0)
@@ -20714,22 +22123,40 @@ aurora.transformers.chart.__GT_legend = function(a) {
     }.call(null, cljs.core.map_indexed.call(null, cljs.core.vector, a))
   }()], !0)
 };
-cljs.core._add_method.call(null, aurora.transformers.chart._BANG_chart_STAR_, "pie", function(a) {
-  var b = aurora.transformers.chart.create_canvas.call(null), c = cljs.core.nth.call(null, b, 0, null), b = cljs.core.nth.call(null, b, 1, null);
-  a = cljs.core.merge.call(null, cljs.core.PersistentArrayMap.fromArray(["segmentShowStroke", !1, "animationEasing", "easeOutExpo", "animationSteps", 60], !0), a);
-  var d = document.createElement("div");
-  d.className = "chart";
-  d.appendChild(dommy.template.__GT_node_like.call(null, c));
-  d.appendChild(dommy.template.__GT_node_like.call(null, aurora.transformers.chart.__GT_legend.call(null, aurora.transformers.chart.__GT_labels.call(null, a))));
-  aurora.transformers.chart.inject.call(null, d);
-  (new Chart(b)).Pie(cljs.core.clj__GT_js.call(null, cljs.core.map_indexed.call(null, aurora.transformers.chart.__GT_value, a.call(null, "values"))), cljs.core.clj__GT_js.call(null, a));
-  return d
+cljs.core._add_method.call(null, aurora.transformers.chart._BANG_chart_STAR_, "bar", function(a, b) {
+  var c = aurora.transformers.chart.create_canvas.call(null), d = cljs.core.nth.call(null, c, 0, null), c = cljs.core.nth.call(null, c, 1, null), e = cljs.core.merge.call(null, cljs.core.PersistentArrayMap.fromArray(["x", aurora.transformers.chart.__GT_labels.call(null, a)], !0), a), f = document.createElement("div");
+  f.className = "chart";
+  f.appendChild(dommy.template.__GT_node_like.call(null, d));
+  cljs.core.truth_(b) && aurora.transformers.chart.inject.call(null, f);
+  (new Chart(c)).Bar(cljs.core.clj__GT_js.call(null, cljs.core.PersistentArrayMap.fromArray(["\ufdd0:labels", e.call(null, "x"), "\ufdd0:datasets", cljs.core.PersistentVector.fromArray([cljs.core.PersistentArrayMap.fromArray(["\ufdd0:data", e.call(null, "values"), "\ufdd0:strokeColor", aurora.transformers.chart.colors.call(null, 1), "\ufdd0:fillColor", aurora.transformers.chart.colors.call(null, 0)], !0)], !0)], !0)), cljs.core.clj__GT_js.call(null, e));
+  return f
+});
+cljs.core._add_method.call(null, aurora.transformers.chart._BANG_chart_STAR_, "donut", function(a, b) {
+  var c = aurora.transformers.chart.create_canvas.call(null), d = cljs.core.nth.call(null, c, 0, null), c = cljs.core.nth.call(null, c, 1, null), e = cljs.core.merge.call(null, cljs.core.PersistentArrayMap.fromArray(["segmentShowStroke", !1, "animationEasing", "easeOutExpo", "animationSteps", 60], !0), a), f = document.createElement("div");
+  f.className = "chart";
+  f.appendChild(dommy.template.__GT_node_like.call(null, d));
+  f.appendChild(dommy.template.__GT_node_like.call(null, aurora.transformers.chart.__GT_legend.call(null, aurora.transformers.chart.__GT_labels.call(null, e))));
+  cljs.core.truth_(b) && aurora.transformers.chart.inject.call(null, f);
+  (new Chart(c)).Doughnut(cljs.core.clj__GT_js.call(null, cljs.core.map_indexed.call(null, aurora.transformers.chart.__GT_value, e.call(null, "values"))), cljs.core.clj__GT_js.call(null, e));
+  return f
+});
+cljs.core._add_method.call(null, aurora.transformers.chart._BANG_chart_STAR_, "pie", function(a, b) {
+  var c = aurora.transformers.chart.create_canvas.call(null), d = cljs.core.nth.call(null, c, 0, null), c = cljs.core.nth.call(null, c, 1, null), e = cljs.core.merge.call(null, cljs.core.PersistentArrayMap.fromArray(["segmentShowStroke", !1, "animationEasing", "easeOutExpo", "animationSteps", 60], !0), a), f = document.createElement("div");
+  f.className = "chart";
+  f.appendChild(dommy.template.__GT_node_like.call(null, d));
+  f.appendChild(dommy.template.__GT_node_like.call(null, aurora.transformers.chart.__GT_legend.call(null, aurora.transformers.chart.__GT_labels.call(null, e))));
+  cljs.core.truth_(b) && aurora.transformers.chart.inject.call(null, f);
+  (new Chart(c)).Pie(cljs.core.clj__GT_js.call(null, cljs.core.map_indexed.call(null, aurora.transformers.chart.__GT_value, e.call(null, "values"))), cljs.core.clj__GT_js.call(null, e));
+  return f
 });
 cljs.core._add_method.call(null, aurora.transformers.chart._BANG_chart_STAR_, "\ufdd0:default", function(a) {
   return null
 });
+aurora.transformers.chart._BANG_chart_canvas = function(a) {
+  return aurora.transformers.chart._BANG_chart_STAR_.call(null, a, !1)
+};
 aurora.transformers.chart._BANG_chart = function(a) {
-  return aurora.transformers.chart._BANG_chart_STAR_.call(null, a)
+  return aurora.transformers.chart._BANG_chart_STAR_.call(null, a, !0)
 };
 aurora.core = {};
 cljs.core._STAR_print_fn_STAR_ = function(a) {
@@ -20843,9 +22270,11 @@ aurora.core.focus_walk = function(a) {
   }
 };
 aurora.core.root_inject = function(a) {
-  dommy.core.set_html_BANG_.call(null, document.getElementById("wrapper"), "");
-  dommy.core.append_BANG_.call(null, document.getElementById("wrapper"), dommy.template.__GT_node_like.call(null, a));
-  return aurora.core.focus_walk.call(null, document.getElementById("wrapper"))
+  var b = document.getElementById("wrapper"), c = document.querySelector("#aurora .workspace"), c = cljs.core.truth_(c) ? c.scrollTop : null;
+  dommy.core.set_html_BANG_.call(null, b, "");
+  dommy.core.append_BANG_.call(null, b, dommy.template.__GT_node_like.call(null, a));
+  aurora.core.focus_walk.call(null, b);
+  return document.querySelector("#aurora .workspace").scrollTop = c
 };
 aurora.core.inject = function(a) {
   dommy.core.set_html_BANG_.call(null, document.getElementById("running-wrapper"), "");
@@ -20944,6 +22373,7 @@ aurora.engine.listener_loop = cljs.core.async.chan.call(null);
 aurora.engine.event_loop = cljs.core.async.chan.call(null);
 aurora.engine.commute_listener = null;
 aurora.engine.commute = function(a) {
+  cljs.core.println.call(null, "[engine] Commuting: ", cljs.core.meta.call(null, a));
   var b = (new cljs.core.Keyword("\ufdd0:path")).call(null, cljs.core.meta.call(null, a));
   a = cljs.core.seq_QMARK_.call(null, a) ? cljs.core.with_meta.call(null, cljs.core.vec.call(null, a), cljs.core.meta.call(null, a)) : a;
   a = clojure.walk.postwalk.call(null, function(a, b) {
@@ -21023,13 +22453,13 @@ aurora.engine.assoc = cljs.core.with_meta.call(null, function(a, b, c) {
   return d ? cljs.core.assoc.call(null, a, b, cljs.core.with_meta.call(null, c, cljs.core.PersistentArrayMap.fromArray(["\ufdd0:path", cljs.core.conj.call(null, (new cljs.core.Keyword("\ufdd0:path")).call(null, cljs.core.meta.call(null, a)), b)], !0))) : cljs.core.assoc.call(null, a, b, c)
 }, cljs.core.PersistentArrayMap.fromArray(["\ufdd0:desc", "Add key/value"], !0));
 aurora.engine.start_main_loop = function(a) {
-  var b = cljs.core.async.chan.call(null, 1);
+  var b = aurora.util.async.debounce.call(null, aurora.engine.event_loop, 10), c = cljs.core.async.chan.call(null, 1);
   cljs.core.async.impl.dispatch.run.call(null, function() {
-    var c = function() {
+    var d = function() {
       return function(a) {
         return function() {
           var b = null, c = function() {
-            var a = Array(8);
+            var a = Array(9);
             a[0] = b;
             a[1] = 1;
             return a
@@ -21053,33 +22483,34 @@ aurora.engine.start_main_loop = function(a) {
           b.cljs$core$IFn$_invoke$arity$1 = d;
           return b
         }()
-      }(function(b) {
-        var c = b[1];
-        if(7 === c) {
-          return c = b[2], b[5] = c, b[2] = null, b[1] = 2, "\ufdd0:recur"
+      }(function(c) {
+        var d = c[1];
+        if(7 === d) {
+          return d = c[2], c[5] = d, c[2] = null, c[1] = 2, "\ufdd0:recur"
         }
-        if(6 === c) {
-          return c = b[2], b[2] = c, b[1] = 3, "\ufdd0:recur"
+        if(6 === d) {
+          return d = c[2], c[2] = d, c[1] = 3, "\ufdd0:recur"
         }
-        if(5 === c) {
-          return b[2] = null, b[1] = 6, "\ufdd0:recur"
+        if(5 === d) {
+          return c[2] = null, c[1] = 6, "\ufdd0:recur"
         }
-        if(4 === c) {
-          var c = a.call(null), d = cljs.core.async.put_BANG_.call(null, aurora.engine.listener_loop, "\ufdd0:done");
-          b[6] = d;
-          b[7] = c;
-          return cljs.core.async.impl.ioc_helpers.take_BANG_.call(null, b, 7, aurora.engine.event_loop)
+        if(4 === d) {
+          var d = (new Date).getTime(), d = cljs.core.println.call(null, "[engine] running at: ", d), e = a.call(null), k = cljs.core.async.put_BANG_.call(null, aurora.engine.listener_loop, "\ufdd0:done");
+          c[6] = e;
+          c[7] = k;
+          c[8] = d;
+          return cljs.core.async.impl.ioc_helpers.take_BANG_.call(null, c, 7, b)
         }
-        return 3 === c ? (c = b[2], cljs.core.async.impl.ioc_helpers.return_chan.call(null, b, c)) : 2 === c ? (c = b[5], cljs.core.truth_(c) ? b[1] = 4 : b[1] = 5, "\ufdd0:recur") : 1 === c ? (b[5] = !0, b[2] = null, b[1] = 2, "\ufdd0:recur") : null
+        return 3 === d ? (d = c[2], cljs.core.async.impl.ioc_helpers.return_chan.call(null, c, d)) : 2 === d ? (d = c[5], cljs.core.truth_(d) ? c[1] = 4 : c[1] = 5, "\ufdd0:recur") : 1 === d ? (c[5] = !0, c[2] = null, c[1] = 2, "\ufdd0:recur") : null
       })
-    }(), d = function() {
-      var a = c.call(null);
-      a[cljs.core.async.impl.ioc_helpers.USER_START_IDX] = b;
+    }(), e = function() {
+      var a = d.call(null);
+      a[cljs.core.async.impl.ioc_helpers.USER_START_IDX] = c;
       return a
     }();
-    return cljs.core.async.impl.ioc_helpers.run_state_machine_wrapped.call(null, d)
+    return cljs.core.async.impl.ioc_helpers.run_state_machine_wrapped.call(null, e)
   });
-  return b
+  return c
 };
 cljs.core.List.prototype.cljs$core$IAssociative$ = !0;
 cljs.core.List.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(a, b, c) {
@@ -21208,8 +22639,8 @@ aurora.engine.exec_program = function(a, b) {
               }
             }(d, d, e, f, g, c)
           }(), h = aurora.engine.start_main_loop.call(null, h);
-          b[5] = g;
-          b[6] = e;
+          b[5] = e;
+          b[6] = g;
           return cljs.core.async.impl.ioc_helpers.return_chan.call(null, b, h)
         }
         if(1 === c) {
@@ -21227,3 +22658,182 @@ aurora.engine.exec_program = function(a, b) {
   });
   return k
 };
+aurora.engine.exec_program.call(null, cljs.core.PersistentArrayMap.fromArray(["\ufdd0:data", cljs.core.PersistentArrayMap.fromArray([new cljs.core.Symbol(null, "program", "program", -1949919171, null), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:data", cljs.core.PersistentArrayMap.fromArray([new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), cljs.core.PersistentVector.fromArray([cljs.core.PersistentArrayMap.fromArray(["todo", "Get milk", "done?", !1], !0)], !0), new cljs.core.Symbol(null, 
+"state", "state", -1530773942, null), cljs.core.PersistentArrayMap.fromArray(["state", "all"], !0)], !0), "\ufdd0:pipes", cljs.core.PersistentVector.fromArray([cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3etodo", "-\x3etodo", -291395792, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null)], !0), "\ufdd0:pipe", 
+cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null)], !0), cljs.core.PersistentVector.fromArray([cljs.core.PersistentArrayMap.fromArray(["editing?", !0], !0)], !0), cljs.core.PersistentVector.fromArray(["li.editing", cljs.core.PersistentVector.fromArray(["input", cljs.core.PersistentArrayMap.fromArray(["enter", cljs.core.list(new cljs.core.Symbol(null, 
+"partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3eedit", "-\x3eedit", -291853068, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null)), "value", cljs.core.list(new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null), "todo"), "focused", !0], !0)], !0)], !0), "\ufdd0:else", cljs.core.PersistentVector.fromArray(["li", cljs.core.PersistentArrayMap.fromArray(["class", cljs.core.list(new cljs.core.Symbol(null, "-\x3edone-class", 
+"-\x3edone-class", -1841853033, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null))], !0), cljs.core.PersistentVector.fromArray(["input", cljs.core.PersistentArrayMap.fromArray(["checked", cljs.core.list(new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null), "done?"), "type", "checkbox", "click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3etoggle-done", "-\x3etoggle-done", 
+1057237443, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null))], !0)], !0), cljs.core.PersistentVector.fromArray(["label", cljs.core.PersistentArrayMap.fromArray(["dblclick", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3eediting", "-\x3eediting", 1715458176, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null))], !0), cljs.core.list(new cljs.core.Symbol(null, "current-todo", 
+"current-todo", -217789997, null), "todo")], !0), cljs.core.PersistentVector.fromArray(["button", cljs.core.PersistentArrayMap.fromArray(["click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3erem", "-\x3erem", -1597013246, null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null))], !0), ""], !0)], !0))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", 
+new cljs.core.Symbol(null, "-\x3eactive-todos", "-\x3eactive-todos", 705287504, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "state", "state", 
+-1530773942, null), "state")], !0), cljs.core.PersistentVector.fromArray(["all"], !0), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), cljs.core.PersistentVector.fromArray(["active"], !0), cljs.core.list(new cljs.core.Symbol(null, "filter-match", "filter-match", -601900823, null), cljs.core.PersistentArrayMap.fromArray(["done?", !1], !0), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null)), cljs.core.PersistentVector.fromArray(["completed"], !0), cljs.core.list(new cljs.core.Symbol(null, 
+"filter-match", "filter-match", -601900823, null), cljs.core.PersistentArrayMap.fromArray(["done?", !0], !0), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null)))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "root", "root", -1637025125, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null)], !0), "\ufdd0:pipe", 
+cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["div#todoapp", cljs.core.PersistentVector.fromArray(["header#header", cljs.core.PersistentVector.fromArray(["h1", "Todos"], !0), cljs.core.PersistentVector.fromArray(["input#toggle-all", cljs.core.PersistentArrayMap.fromArray(["type", "checkbox", "click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3eall-completed", "-\x3eall-completed", 702314695, null), 
+new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null)), "checked", cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "all-toggle")], !0)], !0), cljs.core.PersistentVector.fromArray(["input#new-todo", cljs.core.PersistentArrayMap.fromArray(["enter", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3eadd", "-\x3eadd", -1597029623, 
+null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null)), "placeholder", "What needs to be done?"], !0)], !0)], !0), cljs.core.PersistentVector.fromArray(["ul#todo-list", cljs.core.list(new cljs.core.Symbol(null, "each", "each", -1637426246, null), cljs.core.list(new cljs.core.Symbol(null, "-\x3eactive-todos", "-\x3eactive-todos", 705287504, null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null)), cljs.core.list(new cljs.core.Symbol(null, 
+"partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3etodo", "-\x3etodo", -291395792, null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null)))], !0), cljs.core.PersistentVector.fromArray(["div#footer", cljs.core.PersistentVector.fromArray(["span#todo-count", cljs.core.list(new cljs.core.Symbol(null, "-\x3eleft", "-\x3eleft", -291643663, null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null))], !0), cljs.core.PersistentVector.fromArray(["ul#filters", 
+cljs.core.PersistentVector.fromArray(["li", cljs.core.PersistentVector.fromArray(["a", cljs.core.PersistentArrayMap.fromArray(["click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3estate", "-\x3estate", 1527193401, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "all"), "class", cljs.core.list(new cljs.core.Symbol(null, "-\x3estate-class", "-\x3estate-class", 1837415588, null), new cljs.core.Symbol(null, 
+"state", "state", -1530773942, null), "all")], !0), "All"], !0)], !0), cljs.core.PersistentVector.fromArray(["li", cljs.core.PersistentVector.fromArray(["a", cljs.core.PersistentArrayMap.fromArray(["click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3estate", "-\x3estate", 1527193401, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "active"), "class", cljs.core.list(new cljs.core.Symbol(null, "-\x3estate-class", 
+"-\x3estate-class", 1837415588, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "active")], !0), "Active"], !0)], !0), cljs.core.PersistentVector.fromArray(["li", cljs.core.PersistentVector.fromArray(["a", cljs.core.PersistentArrayMap.fromArray(["click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3estate", "-\x3estate", 1527193401, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), 
+"completed"), "class", cljs.core.list(new cljs.core.Symbol(null, "-\x3estate-class", "-\x3estate-class", 1837415588, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "completed")], !0), "Completed"], !0)], !0)], !0), cljs.core.list(new cljs.core.Symbol(null, "-\x3erem-completed-button", "-\x3erem-completed-button", -317123919, null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null))], !0)], !0), cljs.core.list(new cljs.core.Symbol("core", "inject", "core/inject", 
+1668618606, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3edone-class", "-\x3edone-class", -1841853033, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "match", "match", -1536863362, 
+null), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null), "done?")], !0), cljs.core.PersistentVector.fromArray([!0], !0), "completed", "\ufdd0:else", "")], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3eset-done", "-\x3eset-done", -917818249, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "state", "state", -1530773942, null), 
+new cljs.core.Symbol(null, "val", "val", -1640415014, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null), "done?", new cljs.core.Symbol(null, "val", "val", -1640415014, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, 
+"-\x3eall-completed", "-\x3eall-completed", 702314695, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "all-toggle", cljs.core.list(new cljs.core.Symbol(null, 
+"not", "not", -1640422260, null), cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "all-toggle"))), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), cljs.core.list(new cljs.core.Symbol(null, "each", "each", -1637426246, null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), 
+new cljs.core.Symbol(null, "-\x3eset-done", "-\x3eset-done", -917818249, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), cljs.core.list(new cljs.core.Symbol(null, "not", "not", -1640422260, null), cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "all-toggle")))), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", 
+new cljs.core.Symbol(null, "-\x3eadd", "-\x3eadd", -1597029623, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "e", "e", -1640531426, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentArrayMap.fromArray(["todo", cljs.core.list(new cljs.core.Symbol(null, "e", "e", -1640531426, null), "value"), "done?", !1], !0), cljs.core.list(new cljs.core.Symbol(null, "conj", 
+"conj", -1637472031, null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3eediting", "-\x3eediting", 1715458176, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
+"current-todo", "current-todo", -217789997, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null), "editing?", !0), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", 
+new cljs.core.Symbol(null, "-\x3eedit", "-\x3eedit", -291853068, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null), new cljs.core.Symbol(null, "e", "e", -1640531426, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null), "todo", cljs.core.list(new cljs.core.Symbol(null, 
+"e", "e", -1640531426, null), "value")), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null), "editing?", !1), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3etoggle-done", "-\x3etoggle-done", 1057237443, null), 
+"\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null)], !0), cljs.core.PersistentVector.fromArray([cljs.core.PersistentArrayMap.fromArray(["done?", !0], !0)], !0), !1, "\ufdd0:else", 
+!0), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null), "done?", new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3erem", "-\x3erem", 
+-1597013246, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "rem", "rem", -1640418733, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null)), cljs.core.list(new cljs.core.Symbol(null, 
+"commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3erem-completed", "-\x3erem-completed", 1603867776, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "todos", "todos", -1529996634, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "filter-match", 
+"filter-match", -601900823, null), cljs.core.PersistentArrayMap.fromArray(["done?", !1], !0), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null)), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3erem-completed-button", "-\x3erem-completed-button", -317123919, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
+"todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "count", "count", -1545680184, null), cljs.core.list(new cljs.core.Symbol(null, "filter-match", "filter-match", -601900823, null), cljs.core.PersistentArrayMap.fromArray(["done?", !0], !0), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null))), cljs.core.list(new cljs.core.Symbol(null, 
+"match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)], !0), cljs.core.PersistentVector.fromArray([0], !0), null, cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:button#clear-completed", cljs.core.PersistentArrayMap.fromArray(["click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, 
+null), new cljs.core.Symbol(null, "-\x3erem-completed", "-\x3erem-completed", 1603867776, null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null))], !0), "Clear completed (", new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), ")"], !0))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3eleft", "-\x3eleft", -291643663, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "todos", "todos", 
+-1529996634, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "filter-match", "filter-match", -601900823, null), cljs.core.PersistentArrayMap.fromArray(["done?", !1], !0), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null)), cljs.core.list(new cljs.core.Symbol(null, "count", "count", -1545680184, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), cljs.core.list(new cljs.core.Symbol(null, "match", "match", 
+-1536863362, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)], !0), cljs.core.PersistentVector.fromArray([1], !0), cljs.core.list(new cljs.core.Symbol(null, "str", "str", -1640417302, null), "1 item left"), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)], !0), cljs.core.list(new cljs.core.Symbol(null, "str", "str", -1640417302, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, 
+null), " items left"))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3estate", "-\x3estate", 1527193401, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "state", "state", -1530773942, null), new cljs.core.Symbol(null, "val", "val", -1640415014, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, 
+"state", "state", -1530773942, null), "state", new cljs.core.Symbol(null, "val", "val", -1640415014, null)), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3estate-class", "-\x3estate-class", 1837415588, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "state", 
+"state", -1530773942, null), new cljs.core.Symbol(null, "val", "val", -1640415014, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "state")], !0), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "val", "val", -1640415014, null)], !0), "active", "\ufdd0:else", "")], !0)], 
+!0)], !0), "\ufdd0:main", new cljs.core.Symbol(null, "root", "root", -1637025125, null)], !0), new cljs.core.Symbol(null, "state", "state", -1530773942, null), cljs.core.PersistentArrayMap.fromArray(["pipe", new cljs.core.Symbol(null, "root", "root", -1637025125, null), "step", 0, "prev", cljs.core.PersistentVector.EMPTY, "dirty", !0, "charts", cljs.core.PersistentArrayMap.EMPTY], !0)], !0), "\ufdd0:pipes", cljs.core.PersistentVector.fromArray([cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", 
+new cljs.core.Symbol(null, "find-pipe", "find-pipe", -1256729861, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "name", "name", -1637157820, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), cljs.core.list(new cljs.core.Symbol(null, "filter-match", "filter-match", -601900823, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "cur", "cur", 
+-1640432647, null), new cljs.core.Symbol(null, "name", "name", -1637157820, null)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)], !0), cljs.core.list(new cljs.core.Symbol(null, "get-in", "get-in", 1405049013, null), new cljs.core.Symbol(null, "program", "program", -1949919171, null), cljs.core.PersistentVector.fromArray(["\ufdd0:pipes"], !0))), new cljs.core.Symbol(null, "first", "first", -1543091095, null))], !0)], !0), 
+cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "show", "show", -1637002058, null), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol("core", "ctx!", "core/ctx!", -1439465563, null), "\ufdd0:app"), cljs.core.list(new cljs.core.Symbol(null, "if", "if", -1640528170, null), cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "dirty"), cljs.core.list(new cljs.core.Symbol(null, "do", "do", -1640528316, 
+null), cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, null), "[editor] Executing dirty"), cljs.core.list(new cljs.core.Symbol("core", "!runner", "core/!runner", 1155997806, null), new cljs.core.Symbol(null, "program", "program", -1949919171, null))), cljs.core.list(new cljs.core.Symbol(null, "let", "let", -1640424492, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), cljs.core.list(new cljs.core.Symbol(null, "find-pipe", 
+"find-pipe", -1256729861, null), cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "pipe"))], !0), cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, null), "[editor] re-drawing"), cljs.core.list(new cljs.core.Symbol("core", "root-inject", "core/root-inject", 1159106979, null), cljs.core.PersistentVector.fromArray(["\ufdd0:div#aurora", cljs.core.list(new cljs.core.Symbol(null, "-\x3epipeline", "-\x3epipeline", 1636165900, null), new cljs.core.Symbol(null, 
+"cur", "cur", -1640432647, null)), cljs.core.list(new cljs.core.Symbol(null, "-\x3eworkspace", "-\x3eworkspace", 910964669, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null))], !0))))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3edata", "-\x3edata", -291885420, null), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["\ufdd0:ul.data", cljs.core.list(new cljs.core.Symbol(null, "each-meta", 
+"each-meta", -1565038582, null), cljs.core.list(new cljs.core.Symbol(null, "program", "program", -1949919171, null), "\ufdd0:data"), new cljs.core.Symbol(null, "-\x3edata-rep", "-\x3edata-rep", -498829724, null))], !0)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3edata-rep", "-\x3edata-rep", -498829724, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "k", "k", -1640531420, 
+null), new cljs.core.Symbol(null, "v", "v", -1640531409, null)], !0)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["\ufdd0:li", cljs.core.list(new cljs.core.Symbol(null, "pr-str", "pr-str", 1672669599, null), new cljs.core.Symbol(null, "v", "v", -1640531409, null))], !0)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3ematch-pair", "-\x3ematch-pair", 1950340108, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
+"pipe", "pipe", -1637090457, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "match", "match", -1536863362, null), new cljs.core.Symbol(null, "action", "action", 1231484911, null)], !0)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["\ufdd0:div.entry", cljs.core.list(new cljs.core.Symbol(null, "pr-str", "pr-str", 1672669599, null), new cljs.core.Symbol(null, "match", "match", -1536863362, null)), cljs.core.list(new cljs.core.Symbol(null, 
+"step-rep", "step-rep", -213162027, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "action", "action", 1231484911, null))], !0)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3ematch-ui", "-\x3ematch-ui", -1989867002, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "match", "match", -1536863362, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["\ufdd0:div.match", 
+cljs.core.list(new cljs.core.Symbol(null, "pr-str", "pr-str", 1672669599, null), cljs.core.list(new cljs.core.Symbol(null, "second", "second", 1748155949, null), new cljs.core.Symbol(null, "match", "match", -1536863362, null))), cljs.core.list(new cljs.core.Symbol(null, "each-meta", "each-meta", -1565038582, null), cljs.core.list(new cljs.core.Symbol(null, "partition", "partition", 854625443, null), 2, cljs.core.list(new cljs.core.Symbol(null, "drop", "drop", -1637439320, null), 2, new cljs.core.Symbol(null, 
+"match", "match", -1536863362, null))), cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3ematch-pair", "-\x3ematch-pair", 1950340108, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)))], !0)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3efilter-match-ui", "-\x3efilter-match-ui", -1556535751, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
+"match", "match", -1536863362, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["\ufdd0:div.match", "filter-match"], !0)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "set-pipe", "set-pipe", -271266318, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "func", "func", -1637376899, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, 
+"update-in", "update-in", 705189474, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), cljs.core.PersistentVector.fromArray(["prev"], !0), new cljs.core.Symbol(null, "conj", "conj", -1637472031, null), cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "pipe")), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null), "pipe", new cljs.core.Symbol(null, "func", 
+"func", -1637376899, null)), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null), "step", 0), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "filter-in-scope", "filter-in-scope", 1810745370, null), "\ufdd0:scope", 
+cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "set", "set", -1640417765, null), cljs.core.list("\ufdd0:scope", new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null))), cljs.core.list(new cljs.core.Symbol(null, "remove", "remove", 1719824957, null), new cljs.core.Symbol(null, 
+"_PREV_", "_PREV_", 1155631430, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "get-in-scope", "get-in-scope", -539984388, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "var", "var", -1640415008, null), new cljs.core.Symbol(null, "depth", "depth", -1545059204, null)], !0), "\ufdd0:pipe", 
+cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "if", "if", -1640528170, null), cljs.core.list(new cljs.core.Symbol(null, "\x3d", "\x3d", -1640531466, null), new cljs.core.Symbol(null, "var", "var", -1640415008, null), cljs.core.list(new cljs.core.Symbol(null, "symbol", "symbol", 1766911825, null), "_PREV_")), cljs.core.list(new cljs.core.Symbol("js", "aurora.transformers.editor.-\x3estep", "js/aurora.transformers.editor.-\x3estep", -935302006, null), cljs.core.list("\ufdd0:name", 
+new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)), cljs.core.list(new cljs.core.Symbol(null, "dec", "dec", -1640432197, null), cljs.core.list("\ufdd0:cur-step", new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)))), cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), cljs.core.list(new cljs.core.Symbol("js", "aurora.transformers.editor.-\x3escope", "js/aurora.transformers.editor.-\x3escope", -1260389830, null), cljs.core.list("\ufdd0:name", new cljs.core.Symbol(null, 
+"pipe", "pipe", -1637090457, null))), cljs.core.list(new cljs.core.Symbol(null, "get", "get", -1640429297, null), new cljs.core.Symbol(null, "var", "var", -1640415008, null)), cljs.core.list(new cljs.core.Symbol(null, "get-in", "get-in", 1405049013, null), new cljs.core.Symbol(null, "depth", "depth", -1545059204, null))))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3einvocation", "-\x3einvocation", 1870089914, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
+"func", "func", -1637376899, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "let", "let", -1640424492, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe?", "pipe?", -1533858294, null), cljs.core.list(new cljs.core.Symbol(null, "find-pipe", "find-pipe", -1256729861, null), new cljs.core.Symbol(null, 
+"func", "func", -1637376899, null)), new cljs.core.Symbol(null, "data?", "data?", -1545175154, null), cljs.core.list(new cljs.core.Symbol(null, "get-in", "get-in", 1405049013, null), new cljs.core.Symbol(null, "program", "program", -1949919171, null), cljs.core.PersistentVector.fromArray(["\ufdd0:data", new cljs.core.Symbol(null, "func", "func", -1637376899, null)], !0)), new cljs.core.Symbol(null, "in-scope?", "in-scope?", 661077964, null), cljs.core.list(cljs.core.list(new cljs.core.Symbol(null, 
+"set", "set", -1640417765, null), cljs.core.list("\ufdd0:scope", new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null))), new cljs.core.Symbol(null, "func", "func", -1637376899, null)), new cljs.core.Symbol(null, "attrs", "attrs", -1547379109, null), cljs.core.list(new cljs.core.Symbol(null, "if", "if", -1640528170, null), new cljs.core.Symbol(null, "pipe?", "pipe?", -1533858294, null), cljs.core.PersistentArrayMap.fromArray(["click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 
+1861501754, null), new cljs.core.Symbol(null, "set-pipe", "set-pipe", -271266318, null), new cljs.core.Symbol(null, "func", "func", -1637376899, null)), "class", "func pipeline"], !0), cljs.core.PersistentArrayMap.EMPTY), new cljs.core.Symbol(null, "prev", "prev", -1637082132, null), cljs.core.list(new cljs.core.Symbol(null, "symbol", "symbol", 1766911825, null), "_PREV_")], !0), cljs.core.list(new cljs.core.Symbol(null, "match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
+"pipe?", "pipe?", -1533858294, null), new cljs.core.Symbol(null, "data?", "data?", -1545175154, null), new cljs.core.Symbol(null, "in-scope?", "in-scope?", 661077964, null), new cljs.core.Symbol(null, "func", "func", -1637376899, null)], !0), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "_", "_", -1640531432, null), "\ufdd0:guard", new cljs.core.Symbol(null, "boolean", "boolean", -1575819807, null)), new cljs.core.Symbol(null, "_", "_", -1640531432, null), new cljs.core.Symbol(null, 
+"_", "_", -1640531432, null), new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.list(new cljs.core.Symbol(null, "if-let", "if-let", 1461176100, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "desc", "desc", -1637451702, null), cljs.core.list(new cljs.core.Symbol(null, "op-lookup", "op-lookup", 1702580383, null), new cljs.core.Symbol(null, "func", "func", -1637376899, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null), new cljs.core.Symbol(null, 
+"pipe", "pipe", -1637090457, null))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.func", new cljs.core.Symbol(null, "attrs", "attrs", -1547379109, null), new cljs.core.Symbol(null, "desc", "desc", -1637451702, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.func", new cljs.core.Symbol(null, "attrs", "attrs", -1547379109, null), "(", cljs.core.PersistentVector.fromArray(["\ufdd0:div", cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, 
+"func", "func", -1637376899, null), new cljs.core.Symbol(null, "str", "str", -1640417302, null))], !0), cljs.core.list(new cljs.core.Symbol(null, "each-meta", "each-meta", -1565038582, null), cljs.core.list(new cljs.core.Symbol(null, "filter-in-scope", "filter-in-scope", 1810745370, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null)), cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), 
+new cljs.core.Symbol(null, "step-rep", "step-rep", -213162027, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null))), ")"], !0)), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "_", "_", -1640531432, null), new cljs.core.Symbol(null, "_", "_", -1640531432, null), cljs.core.list(new cljs.core.Symbol(null, "_", "_", -1640531432, null), "\ufdd0:guard", new cljs.core.Symbol(null, "boolean", "boolean", -1575819807, null)), new cljs.core.Symbol(null, "_", "_", -1640531432, 
+null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.data", cljs.core.list(new cljs.core.Symbol(null, "pr-str", "pr-str", 1672669599, null), cljs.core.list(new cljs.core.Symbol(null, "get-in-scope", "get-in-scope", -539984388, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "func", "func", -1637376899, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null)))], !0), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
+"_", "_", -1640531432, null), new cljs.core.Symbol(null, "_", "_", -1640531432, null), new cljs.core.Symbol(null, "_", "_", -1640531432, null), cljs.core.list(new cljs.core.Symbol(null, "quote", "quote", -1532577739, null), new cljs.core.Symbol(null, "partial", "partial", 1861501754, null))], !0), cljs.core.list(new cljs.core.Symbol(null, "-\x3einvocation", "-\x3einvocation", 1870089914, null), cljs.core.list(new cljs.core.Symbol(null, "first", "first", -1543091095, null), new cljs.core.Symbol(null, 
+"args", "args", -1637528938, null)), cljs.core.list(new cljs.core.Symbol(null, "rest", "rest", -1637034611, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null)), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "_", "_", -1640531432, null), new cljs.core.Symbol(null, "_", "_", -1640531432, null), new cljs.core.Symbol(null, "_", "_", -1640531432, null), new cljs.core.Symbol(null, "prev", "prev", -1637082132, 
+null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.prev.data", cljs.core.list(new cljs.core.Symbol(null, "pr-str", "pr-str", 1672669599, null), cljs.core.list(new cljs.core.Symbol("js", "aurora.transformers.editor.-\x3estep", "js/aurora.transformers.editor.-\x3estep", -935302006, null), cljs.core.list("\ufdd0:name", new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)), cljs.core.list(new cljs.core.Symbol(null, "dec", "dec", -1640432197, null), cljs.core.list("\ufdd0:cur-step", 
+new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)))))], !0), "\ufdd0:else", cljs.core.list(new cljs.core.Symbol(null, "if-let", "if-let", 1461176100, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "desc", "desc", -1637451702, null), cljs.core.list(new cljs.core.Symbol(null, "op-lookup", "op-lookup", 1702580383, null), new cljs.core.Symbol(null, "func", "func", -1637376899, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null), new cljs.core.Symbol(null, 
+"pipe", "pipe", -1637090457, null))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.func", new cljs.core.Symbol(null, "attrs", "attrs", -1547379109, null), new cljs.core.Symbol(null, "desc", "desc", -1637451702, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.func", new cljs.core.Symbol(null, "attrs", "attrs", -1547379109, null), "(", cljs.core.PersistentVector.fromArray(["\ufdd0:div", cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, 
+"func", "func", -1637376899, null), new cljs.core.Symbol(null, "str", "str", -1640417302, null))], !0), cljs.core.list(new cljs.core.Symbol(null, "each-meta", "each-meta", -1565038582, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null), cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "step-rep", "step-rep", -213162027, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null))), ")"], !0))))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", 
+new cljs.core.Symbol(null, "ensure-meta", "ensure-meta", -1506472979, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "thing", "thing", -1530200409, null), new cljs.core.Symbol(null, "path", "path", -1637098018, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "if", "if", -1640528170, null), cljs.core.list(new cljs.core.Symbol(null, "satisfies?", "satisfies?", 396750295, null), new cljs.core.Symbol(null, 
+"IMeta", "IMeta", -1570719833, null), new cljs.core.Symbol(null, "thing", "thing", -1530200409, null)), cljs.core.list(new cljs.core.Symbol(null, "with-meta", "with-meta", -774206363, null), new cljs.core.Symbol(null, "thing", "thing", -1530200409, null), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:path", new cljs.core.Symbol(null, "path", "path", -1637098018, null)], !0)), cljs.core.list(new cljs.core.Symbol("js", "aurora.engine.as-meta", "js/aurora.engine.as-meta", 1373505508, null), new cljs.core.Symbol(null, 
+"thing", "thing", -1530200409, null), new cljs.core.Symbol(null, "path", "path", -1637098018, null)))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3emap-entry", "-\x3emap-entry", -386885655, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "path", "path", -1637098018, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "k", 
+"k", -1640531420, null), new cljs.core.Symbol(null, "v", "v", -1640531409, null)], !0), new cljs.core.Symbol(null, "class", "class", -1545788623, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["\ufdd0:li", cljs.core.PersistentArrayMap.fromArray(["class", cljs.core.list(new cljs.core.Symbol(null, "str", "str", -1640417302, null), "entry ", new cljs.core.Symbol(null, "class", "class", -1545788623, null))], !0), cljs.core.list(new cljs.core.Symbol(null, 
+"step-rep", "step-rep", -213162027, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.list(new cljs.core.Symbol(null, "ensure-meta", "ensure-meta", -1506472979, null), new cljs.core.Symbol(null, "k", "k", -1640531420, null), cljs.core.list(new cljs.core.Symbol("cljs.core", "conj", "cljs.core/conj", 1413638748, null), new cljs.core.Symbol(null, "path", "path", -1637098018, null), new cljs.core.Symbol(null, "k", "k", -1640531420, null), "\ufdd0:aurora.core/key"))), cljs.core.list(new cljs.core.Symbol(null, 
+"step-rep", "step-rep", -213162027, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.list(new cljs.core.Symbol(null, "ensure-meta", "ensure-meta", -1506472979, null), new cljs.core.Symbol(null, "v", "v", -1640531409, null), cljs.core.list(new cljs.core.Symbol("cljs.core", "conj", "cljs.core/conj", 1413638748, null), new cljs.core.Symbol(null, "path", "path", -1637098018, null), new cljs.core.Symbol(null, "k", "k", -1640531420, null))))], !0)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", 
+new cljs.core.Symbol(null, "op-lookup", "op-lookup", 1702580383, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "op", "op", -1640527974, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
+"op", "op", -1640527974, null)], !0), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "quote", "quote", -1532577739, null), new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.map", "{", cljs.core.list(new cljs.core.Symbol(null, "for", "for", -1640429950, null), cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "k", "k", -1640531420, null), new cljs.core.Symbol(null, 
+"v", "v", -1640531409, null)], !0), cljs.core.list(new cljs.core.Symbol(null, "get-in-scope", "get-in-scope", -539984388, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.list(new cljs.core.Symbol(null, "first", "first", -1543091095, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null)))], !0), cljs.core.list(new cljs.core.Symbol(null, "if", "if", -1640528170, null), cljs.core.list(new cljs.core.Symbol(null, "\x3d", "\x3d", -1640531466, null), new cljs.core.Symbol(null, 
+"k", "k", -1640531420, null), cljs.core.list(new cljs.core.Symbol(null, "second", "second", 1748155949, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null))), cljs.core.list(new cljs.core.Symbol(null, "-\x3emap-entry", "-\x3emap-entry", -386885655, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.PersistentVector.EMPTY, cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "k", "k", -1640531420, null), cljs.core.list(new cljs.core.Symbol(null, 
+"nth", "nth", -1640422117, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null), 2)], !0), "assoc"), cljs.core.list(new cljs.core.Symbol(null, "-\x3emap-entry", "-\x3emap-entry", -386885655, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.PersistentVector.EMPTY, cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "k", "k", -1640531420, null), new cljs.core.Symbol(null, "v", "v", -1640531409, null)], !0)))), "}"], !0), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, 
+"quote", "quote", -1532577739, null), new cljs.core.Symbol(null, "commute", "commute", -690117421, null))], !0), cljs.core.list(new cljs.core.Symbol(null, "str", "str", -1640417302, null), "Replace"), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "quote", "quote", -1532577739, null), new cljs.core.Symbol("core", "inject", "core/inject", 1668618606, null))], !0), cljs.core.list(new cljs.core.Symbol(null, "str", "str", -1640417302, null), "To html"), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, 
+"quote", "quote", -1532577739, null), new cljs.core.Symbol(null, "conj", "conj", -1637472031, null))], !0), cljs.core.list(new cljs.core.Symbol(null, "let", "let", -1640424492, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), cljs.core.list(new cljs.core.Symbol(null, "get-in-scope", "get-in-scope", -539984388, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.list(new cljs.core.Symbol(null, "first", "first", -1543091095, 
+null), new cljs.core.Symbol(null, "args", "args", -1637528938, null))), new cljs.core.Symbol(null, "cnt", "cnt", -1640432862, null), cljs.core.list(new cljs.core.Symbol(null, "count", "count", -1545680184, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), cljs.core.list(new cljs.core.Symbol(null, "if", "if", -1640528170, null), cljs.core.list(new cljs.core.Symbol(null, "\x3e", "\x3e", -1640531465, null), new cljs.core.Symbol(null, 
+"cnt", "cnt", -1640432862, null), 2), cljs.core.list(new cljs.core.Symbol(null, "apply", "apply", -1547502297, null), new cljs.core.Symbol(null, "vector", "vector", 1834048252, null), "...", cljs.core.list(new cljs.core.Symbol(null, "subvec", "subvec", 1762908941, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), cljs.core.list(new cljs.core.Symbol(null, "-", "-", -1640531482, null), new cljs.core.Symbol(null, "cnt", "cnt", -1640432862, null), 3), new cljs.core.Symbol(null, "cnt", 
+"cnt", -1640432862, null))), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.vector", "[", cljs.core.list(new cljs.core.Symbol(null, "each", "each", -1637426246, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), new cljs.core.Symbol(null, "pr-str", "pr-str", 1672669599, null)), cljs.core.PersistentVector.fromArray(["\ufdd0:div.assoc", cljs.core.list(new cljs.core.Symbol(null, "step-rep", "step-rep", -213162027, 
+null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.list(new cljs.core.Symbol(null, "second", "second", 1748155949, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null)))], !0), "]"], !0)), "\ufdd0:else", null)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3emath-rep", "-\x3emath-rep", -1986941246, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "form", "form", 
+-1637382531, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol("core", "type", "core/type", -1442106619, null), new cljs.core.Symbol(null, "form", "form", -1637382531, null)), new cljs.core.Symbol(null, "form", "form", -1637382531, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:vector", cljs.core.list(cljs.core.PersistentVector.fromArray(["count", 
+new cljs.core.Symbol(null, "\x26", "\x26", -1640531489, null), new cljs.core.Symbol(null, "r", "r", -1640531413, null)], !0), "\ufdd0:seq")], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:span.math-op.math-count", "n"], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:vector", cljs.core.list(cljs.core.PersistentVector.fromArray(["sum", new cljs.core.Symbol(null, "\x26", "\x26", -1640531489, null), new cljs.core.Symbol(null, "r", "r", -1640531413, null)], !0), "\ufdd0:seq")], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:span.math-op", 
+cljs.core.PersistentVector.fromArray(["\ufdd0:span.math-sigma", "\u03a3"], !0), "x", cljs.core.PersistentVector.fromArray(["\ufdd0:sub", "i"], !0)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:vector", new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.math-expression", cljs.core.list(new cljs.core.Symbol(null, "each-meta", "each-meta", -1565038582, null), cljs.core.list(new cljs.core.Symbol(null, "interpose", "interpose", -1137596122, 
+null), cljs.core.list(new cljs.core.Symbol(null, "first", "first", -1543091095, null), new cljs.core.Symbol(null, "form", "form", -1637382531, null)), cljs.core.list(new cljs.core.Symbol(null, "rest", "rest", -1637034611, null), new cljs.core.Symbol(null, "form", "form", -1637382531, null))), new cljs.core.Symbol(null, "-\x3emath-rep", "-\x3emath-rep", -1986941246, null))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:string", "/"], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.math-divider"], 
+!0), cljs.core.PersistentVector.fromArray(["\ufdd0:string", new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:span.math-op", new cljs.core.Symbol(null, "form", "form", -1637382531, null)], !0), "\ufdd0:else", cljs.core.PersistentVector.fromArray(["\ufdd0:span.prim", cljs.core.list(new cljs.core.Symbol(null, "str", "str", -1640417302, null), new cljs.core.Symbol(null, "form", "form", -1637382531, null))], !0))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", 
+new cljs.core.Symbol(null, "set-step", "set-step", -271166704, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "i", "i", -1640531422, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "step", new cljs.core.Symbol(null, "i", "i", -1640531422, null)), cljs.core.list(new cljs.core.Symbol(null, "commute", 
+"commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3esteps-ui", "-\x3esteps-ui", -857342620, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.EMPTY], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, 
+"-\x3emath", "-\x3emath", -291617294, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "math-call", "math-call", -937413700, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "rest", "rest", -1637034611, null), new cljs.core.Symbol(null, "math-call", "math-call", -937413700, null)), cljs.core.PersistentVector.fromArray(["\ufdd0:div.math", cljs.core.list(new cljs.core.Symbol(null, "each", "each", -1637426246, 
+null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null), new cljs.core.Symbol(null, "-\x3emath-rep", "-\x3emath-rep", -1986941246, null))], !0)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "program-commute", "program-commute", -2142444918, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "thing", "thing", -1530200409, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, 
+"commute", "commute", -690117421, null), new cljs.core.Symbol(null, "thing", "thing", -1530200409, null)), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "dirty", !0), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, 
+"fill-scope", "fill-scope", 989418307, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "struct", "struct", 1762461070, null), new cljs.core.Symbol(null, "step-num", "step-num", -213165378, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "let", "let", -1640424492, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "prev-sym", 
+"prev-sym", 1378876902, null), cljs.core.list(new cljs.core.Symbol(null, "symbol", "symbol", 1766911825, null), "_PREV_"), new cljs.core.Symbol(null, "prev-value", "prev-value", 910102288, null), cljs.core.list(new cljs.core.Symbol("js", "aurora.transformers.editor.-\x3estep", "js/aurora.transformers.editor.-\x3estep", -935302006, null), cljs.core.list("\ufdd0:name", new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)), cljs.core.list(new cljs.core.Symbol(null, "dec", "dec", -1640432197, 
+null), new cljs.core.Symbol(null, "step-num", "step-num", -213165378, null))), new cljs.core.Symbol(null, "scope", "scope", -1531267059, null), cljs.core.list(new cljs.core.Symbol("js", "aurora.transformers.editor.-\x3escope", "js/aurora.transformers.editor.-\x3escope", -1260389830, null), cljs.core.list("\ufdd0:name", new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null))), new cljs.core.Symbol(null, "scope", "scope", -1531267059, null), cljs.core.list(new cljs.core.Symbol(null, "assoc", 
+"assoc", -1547409970, null), new cljs.core.Symbol(null, "scope", "scope", -1531267059, null), new cljs.core.Symbol(null, "prev-sym", "prev-sym", 1378876902, null), new cljs.core.Symbol(null, "prev-value", "prev-value", 910102288, null))], !0), cljs.core.list(new cljs.core.Symbol("js", "clojure.walk.postwalk-replace", "js/clojure.walk.postwalk-replace", -1489718817, null), new cljs.core.Symbol(null, "scope", "scope", -1531267059, null), new cljs.core.Symbol(null, "struct", "struct", 1762461070, null)))], 
+!0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "chart-options", "chart-options", 1434975592, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "chart-ed", "chart-ed", -204086617, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "assoc-in", "assoc-in", -2005053546, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), cljs.core.PersistentVector.fromArray(["charts", 
+cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, "chart-ed", "chart-ed", -204086617, null), new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), "\ufdd0:path"), "options"], !0), !0), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "chart-add-data", 
+"chart-add-data", -1992559586, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "chart", "chart", -1545907817, null), new cljs.core.Symbol(null, "e", "e", -1640531426, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "last", "last", -1637217201, null), cljs.core.list(new cljs.core.Symbol("js", "cljs.reader.read-string", "js/cljs.reader.read-string", 1949826957, null), cljs.core.list(new cljs.core.Symbol(null, 
+".dataTransfer.getData", ".dataTransfer.getData", -617727026, null), new cljs.core.Symbol(null, "e", "e", -1640531426, null), "path"))), cljs.core.list(new cljs.core.Symbol(null, "do", "do", -1640528316, null), cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, 
+null), new cljs.core.Symbol(null, "chart", "chart", -1545907817, null), "values", new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), cljs.core.list(new cljs.core.Symbol(null, "program-commute", "program-commute", -2142444918, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "set-chart-option", "set-chart-option", -620054904, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
+"chart", "chart", -1545907817, null), new cljs.core.Symbol(null, "option", "option", 1644298798, null), new cljs.core.Symbol(null, "value", "value", -1528558806, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, null), new cljs.core.Symbol(null, "chart", "chart", -1545907817, null)), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "chart", "chart", 
+-1545907817, null), new cljs.core.Symbol(null, "option", "option", 1644298798, null), new cljs.core.Symbol(null, "value", "value", -1528558806, null)), cljs.core.list(new cljs.core.Symbol(null, "do", "do", -1640528316, null), cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), cljs.core.list(new cljs.core.Symbol(null, "program-commute", 
+"program-commute", -2142444918, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "set-chart-type", "set-chart-type", 1055656909, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "chart", "chart", -1545907817, null), new cljs.core.Symbol(null, "v", "v", -1640531409, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, 
+"println", "println", -1955249496, null), new cljs.core.Symbol(null, "e", "e", -1640531426, null)), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "chart", "chart", -1545907817, null), "type", new cljs.core.Symbol(null, "v", "v", -1640531409, null)), cljs.core.list(new cljs.core.Symbol(null, "program-commute", "program-commute", -2142444918, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", 
+new cljs.core.Symbol(null, "-\x3echart-ed", "-\x3echart-ed", -850286760, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "chart-call", "chart-call", 98465958, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, null), cljs.core.list(new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), new cljs.core.Symbol(null, 
+"chart-call", "chart-call", 98465958, null))), cljs.core.list(new cljs.core.Symbol(null, "let", "let", -1640424492, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "chart-state", "chart-state", 744115099, null), cljs.core.list(cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "charts"), cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, "chart-call", "chart-call", 98465958, null), new cljs.core.Symbol(null, 
+"meta", "meta", -1637183554, null), "\ufdd0:path")), new cljs.core.Symbol(null, "chart-data", "chart-data", 98495986, null), cljs.core.list(new cljs.core.Symbol(null, "fill-scope", "fill-scope", 989418307, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.list(new cljs.core.Symbol(null, "second", "second", 1748155949, null), new cljs.core.Symbol(null, "chart-call", "chart-call", 98465958, null)), cljs.core.list(new cljs.core.Symbol("core", "last-path", "core/last-path", 
+520323523, null), new cljs.core.Symbol(null, "chart-call", "chart-call", 98465958, null)))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.chart-ed", cljs.core.PersistentVector.fromArray(["\ufdd0:div", cljs.core.PersistentArrayMap.fromArray(["dragover", cljs.core.list(new cljs.core.Symbol(null, "fn", "fn", -1640528255, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "e", "e", -1640531426, null)], !0), cljs.core.list(new cljs.core.Symbol(null, ".preventDefault", ".preventDefault", 
+1564239536, null), new cljs.core.Symbol(null, "e", "e", -1640531426, null))), "dragenter", cljs.core.list(new cljs.core.Symbol(null, "fn", "fn", -1640528255, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "e", "e", -1640531426, null)], !0), cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, null), "entered!"), cljs.core.list(new cljs.core.Symbol(null, ".preventDefault", ".preventDefault", 1564239536, null), new cljs.core.Symbol(null, "e", "e", -1640531426, 
+null))), "drop", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "chart-add-data", "chart-add-data", -1992559586, null), cljs.core.list(new cljs.core.Symbol(null, "second", "second", 1748155949, null), new cljs.core.Symbol(null, "chart-call", "chart-call", 98465958, null)))], !0), cljs.core.list(new cljs.core.Symbol("js", "aurora.transformers.chart.!chart-canvas", "js/aurora.transformers.chart.!chart-canvas", 35972116, null), new cljs.core.Symbol(null, 
+"chart-data", "chart-data", 98495986, null))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:ul.chart-options", cljs.core.list(new cljs.core.Symbol(null, "for", "for", -1640429950, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "t", "t", -1640531411, null), cljs.core.PersistentVector.fromArray(["line", "pie", "bar", "donut"], !0)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:li", cljs.core.PersistentArrayMap.fromArray(["click", cljs.core.list(new cljs.core.Symbol(null, 
+"partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "set-chart-type", "set-chart-type", 1055656909, null), cljs.core.list(new cljs.core.Symbol(null, "second", "second", 1748155949, null), new cljs.core.Symbol(null, "chart-call", "chart-call", 98465958, null)), new cljs.core.Symbol(null, "t", "t", -1640531411, null)), "selected", cljs.core.list(new cljs.core.Symbol(null, "\x3d", "\x3d", -1640531466, null), cljs.core.list(new cljs.core.Symbol(null, "chart-data", "chart-data", 98495986, 
+null), "type"), new cljs.core.Symbol(null, "t", "t", -1640531411, null))], !0), new cljs.core.Symbol(null, "t", "t", -1640531411, null)], !0)), cljs.core.PersistentVector.fromArray(["\ufdd0:li", cljs.core.PersistentArrayMap.fromArray(["selected", cljs.core.list(new cljs.core.Symbol(null, "chart-data", "chart-data", 98495986, null), "bezierCurve"), "click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "set-chart-option", "set-chart-option", 
+-620054904, null), cljs.core.list(new cljs.core.Symbol(null, "second", "second", 1748155949, null), new cljs.core.Symbol(null, "chart-call", "chart-call", 98465958, null)), "bezierCurve", cljs.core.list(new cljs.core.Symbol(null, "not", "not", -1640422260, null), cljs.core.list(new cljs.core.Symbol(null, "chart-data", "chart-data", 98495986, null), "bezierCurve")))], !0), "smooth"], !0)], !0)], !0))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "modify-primitive", 
+"modify-primitive", -1572683443, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, null), "time to modify: ", cljs.core.list(new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)), cljs.core.list(new cljs.core.Symbol(null, "assoc", 
+"assoc", -1547409970, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "modifying", cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), "\ufdd0:path"))), cljs.core.list(new cljs.core.Symbol(null, "when-let", "when-let", 401149633, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "path", "path", -1637098018, 
+null), cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), "\ufdd0:path")], !0), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "modifying", new cljs.core.Symbol(null, 
+"path", "path", -1637098018, null))))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "set-primitive", "set-primitive", -950627595, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), new cljs.core.Symbol(null, "e", "e", -1640531426, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, null), 
+"set primitive!", cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, "prim", "prim", -1637082017, null), new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), "\ufdd0:path")), cljs.core.list(new cljs.core.Symbol(null, "cond", "cond", -1637472037, null), cljs.core.list(new cljs.core.Symbol(null, "string?", "string?", 772676615, null), cljs.core.list(new cljs.core.Symbol("clojure.core", "deref", "clojure.core/deref", -564909588, null), 
+new cljs.core.Symbol(null, "cur", "cur", -1640432647, null))), cljs.core.list(new cljs.core.Symbol(null, "e", "e", -1640531426, null), "value"), cljs.core.list(new cljs.core.Symbol("core", "is-float?", "core/is-float?", 620429145, null), cljs.core.list(new cljs.core.Symbol("clojure.core", "deref", "clojure.core/deref", -564909588, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null))), cljs.core.list(new cljs.core.Symbol("js", "parseFloat", "js/parseFloat", 1650693117, null), cljs.core.list(new cljs.core.Symbol(null, 
+"e", "e", -1640531426, null), "value")), cljs.core.list(new cljs.core.Symbol(null, "number?", "number?", 653920207, null), cljs.core.list(new cljs.core.Symbol("clojure.core", "deref", "clojure.core/deref", -564909588, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null))), cljs.core.list(new cljs.core.Symbol("js", "parseInt", "js/parseInt", -452526386, null), cljs.core.list(new cljs.core.Symbol(null, "e", "e", -1640531426, null), "value")), "\ufdd0:else", cljs.core.list(new cljs.core.Symbol(null, 
+"e", "e", -1640531426, null), "value")), cljs.core.list(new cljs.core.Symbol("core", "commute-path", "core/commute-path", 2018961351, null), cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), "\ufdd0:path"), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, 
+null), "commuting state", cljs.core.list(new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null))), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "dirty", !0), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, 
+"_PREV_", "_PREV_", 1155631430, null), "modifying", null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "primitive-or-editor", "primitive-or-editor", 255352042, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "prim", "prim", -1637082017, null), new cljs.core.Symbol(null, "val", "val", -1640415014, null), new cljs.core.Symbol(null, "class", "class", -1545788623, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, 
+"let", "let", -1640424492, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "path", "path", -1637098018, null), cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, "prim", "prim", -1637082017, null), new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), "\ufdd0:path")], !0), cljs.core.list(new cljs.core.Symbol(null, "if", "if", -1640528170, null), cljs.core.list(new cljs.core.Symbol(null, "and", "and", -1640434800, 
+null), new cljs.core.Symbol(null, "path", "path", -1637098018, null), cljs.core.list(new cljs.core.Symbol(null, "\x3d", "\x3d", -1640531466, null), new cljs.core.Symbol(null, "path", "path", -1637098018, null), cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "modifying"))), cljs.core.PersistentVector.fromArray(["\ufdd0:input.prim-editor", cljs.core.PersistentArrayMap.fromArray(["enter", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), 
+new cljs.core.Symbol(null, "set-primitive", "set-primitive", -950627595, null), new cljs.core.Symbol(null, "prim", "prim", -1637082017, null)), "\ufdd0:value", cljs.core.list(new cljs.core.Symbol("clojure.core", "deref", "clojure.core/deref", -564909588, null), new cljs.core.Symbol(null, "prim", "prim", -1637082017, null)), "\ufdd0:focused", !0], !0)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div", cljs.core.PersistentArrayMap.fromArray(["class", new cljs.core.Symbol(null, "class", "class", 
+-1545788623, null), "click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "modify-primitive", "modify-primitive", -1572683443, null), new cljs.core.Symbol(null, "prim", "prim", -1637082017, null))], !0), new cljs.core.Symbol(null, "val", "val", -1640415014, null)], !0)))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "drag-data", "drag-data", -1998487972, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
+"substep", "substep", 786833093, null), new cljs.core.Symbol(null, "e", "e", -1640531426, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, ".dataTransfer.setData", ".dataTransfer.setData", 1442382554, null), new cljs.core.Symbol(null, "e", "e", -1640531426, null), "path", cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null), new cljs.core.Symbol(null, 
+"meta", "meta", -1637183554, null), "\ufdd0:path"))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "step-rep", "step-rep", -213162027, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "let", "let", -1640424492, 
+null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "prev", "prev", -1637082132, null), cljs.core.list(new cljs.core.Symbol(null, "symbol", "symbol", 1766911825, null), "_PREV_"), new cljs.core.Symbol(null, "not-sym", "not-sym", 487044742, null), cljs.core.list(new cljs.core.Symbol(null, "complement", "complement", 2113019871, null), new cljs.core.Symbol(null, "symbol", "symbol", 1766911825, null)), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), cljs.core.list(new cljs.core.Symbol(null, 
+"if", "if", -1640528170, null), cljs.core.list(new cljs.core.Symbol(null, "satisfies?", "satisfies?", 396750295, null), new cljs.core.Symbol(null, "IDeref", "IDeref", 515317602, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)), cljs.core.list(new cljs.core.Symbol("clojure.core", "deref", "clojure.core/deref", -564909588, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)), new cljs.core.Symbol(null, "substep", "substep", 786833093, null))], !0), cljs.core.list(new cljs.core.Symbol(null, 
+"match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol("core", "type", "core/type", -1442106619, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:vector", new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.vector", cljs.core.PersistentArrayMap.fromArray(["draggable", 
+!0, "dragstart", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "drag-data", "drag-data", -1998487972, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null))], !0), cljs.core.list(new cljs.core.Symbol(null, "each-meta", "each-meta", -1565038582, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null), cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, 
+"step-rep", "step-rep", -213162027, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:list", cljs.core.list(cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "quote", "quote", -1532577739, null), new cljs.core.Symbol(null, "match", "match", -1536863362, null)), new cljs.core.Symbol(null, "\x26", "\x26", -1640531489, null), new cljs.core.Symbol(null, "r", "r", -1640531413, null)], !0), "\ufdd0:seq")], 
+!0), cljs.core.list(new cljs.core.Symbol(null, "-\x3ematch-ui", "-\x3ematch-ui", -1989867002, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)), cljs.core.PersistentVector.fromArray(["\ufdd0:list", cljs.core.list(cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "quote", "quote", -1532577739, null), new cljs.core.Symbol(null, "filter-match", "filter-match", -601900823, null)), new cljs.core.Symbol(null, 
+"\x26", "\x26", -1640531489, null), new cljs.core.Symbol(null, "r", "r", -1640531413, null)], !0), "\ufdd0:seq")], !0), cljs.core.list(new cljs.core.Symbol(null, "-\x3efilter-match-ui", "-\x3efilter-match-ui", -1556535751, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)), cljs.core.PersistentVector.fromArray(["\ufdd0:list", cljs.core.list(cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "quote", "quote", -1532577739, null), new cljs.core.Symbol("core", 
+"!math", "core/!math", -1411533930, null)), new cljs.core.Symbol(null, "\x26", "\x26", -1640531489, null), new cljs.core.Symbol(null, "r", "r", -1640531413, null)], !0), "\ufdd0:seq")], !0), cljs.core.list(new cljs.core.Symbol(null, "-\x3emath", "-\x3emath", -291617294, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)), cljs.core.PersistentVector.fromArray(["\ufdd0:list", cljs.core.list(cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "quote", 
+"quote", -1532577739, null), new cljs.core.Symbol("core", "!chart", "core/!chart", -406028766, null)), new cljs.core.Symbol(null, "\x26", "\x26", -1640531489, null), new cljs.core.Symbol(null, "r", "r", -1640531413, null)], !0), "\ufdd0:seq")], !0), cljs.core.list(new cljs.core.Symbol(null, "-\x3echart-ed", "-\x3echart-ed", -850286760, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)), cljs.core.PersistentVector.fromArray(["\ufdd0:list", 
+cljs.core.list(cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "func", "func", -1637376899, null), new cljs.core.Symbol(null, "\x26", "\x26", -1640531489, null), new cljs.core.Symbol(null, "r", "r", -1640531413, null)], !0), "\ufdd0:seq")], !0), cljs.core.list(new cljs.core.Symbol(null, "if", "if", -1640528170, null), cljs.core.list(new cljs.core.Symbol(null, "symbol?", "symbol?", 910997344, null), new cljs.core.Symbol(null, "func", "func", -1637376899, null)), cljs.core.list(new cljs.core.Symbol(null, 
+"-\x3einvocation", "-\x3einvocation", 1870089914, null), new cljs.core.Symbol(null, "func", "func", -1637376899, null), new cljs.core.Symbol(null, "r", "r", -1640531413, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)), cljs.core.list(new cljs.core.Symbol(null, "each-meta", "each-meta", -1565038582, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null), cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, 
+"step-rep", "step-rep", -213162027, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)))), cljs.core.PersistentVector.fromArray(["\ufdd0:seq", new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.list(new cljs.core.Symbol(null, "each-meta", "each-meta", -1565038582, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null), cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "step-rep", 
+"step-rep", -213162027, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null))), cljs.core.PersistentVector.fromArray(["\ufdd0:map", new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:ul.map", "{", cljs.core.list(new cljs.core.Symbol(null, "each", "each", -1637426246, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null), cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, 
+"-\x3emap-entry", "-\x3emap-entry", -386885655, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null), new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), "\ufdd0:path"))), "}"], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:number", new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.list(new cljs.core.Symbol(null, 
+"primitive-or-editor", "primitive-or-editor", 255352042, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null), cljs.core.list(new cljs.core.Symbol(null, "str", "str", -1640417302, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)), "number"), cljs.core.PersistentVector.fromArray(["\ufdd0:symbol", new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.list(new cljs.core.Symbol(null, "-\x3einvocation", "-\x3einvocation", 1870089914, null), new cljs.core.Symbol(null, 
+"substep", "substep", 786833093, null), null, new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)), cljs.core.PersistentVector.fromArray(["\ufdd0:string", new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.list(new cljs.core.Symbol(null, "primitive-or-editor", "primitive-or-editor", 255352042, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), "string"), cljs.core.PersistentVector.fromArray(["\ufdd0:keyword", 
+new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.string", cljs.core.list(new cljs.core.Symbol(null, "str", "str", -1640417302, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:fn", new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.fn", "fn"], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:html", new cljs.core.Symbol(null, 
+"_", "_", -1640531432, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.html", "html!"], !0), "\ufdd0:else", cljs.core.list(new cljs.core.Symbol(null, "pr-str", "pr-str", 1672669599, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null))))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3epipe-step", "-\x3epipe-step", 1094962867, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", 
+"pipe", -1637090457, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["\ufdd0:li", cljs.core.PersistentArrayMap.fromArray(["class", cljs.core.list(new cljs.core.Symbol(null, "let", "let", -1640424492, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "i", "i", -1640531422, null), cljs.core.list(new cljs.core.Symbol("core", "last-path", "core/last-path", 520323523, 
+null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null))], !0), cljs.core.list(new cljs.core.Symbol(null, "match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "step")], !0), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "i", "i", -1640531422, null)], !0), "active", "\ufdd0:else", ""))], !0), cljs.core.list(new cljs.core.Symbol(null, "step-rep", "step-rep", -213162027, 
+null), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), "\ufdd0:cur-step", cljs.core.list(new cljs.core.Symbol("core", "last-path", "core/last-path", 520323523, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null))), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)), cljs.core.list(new cljs.core.Symbol(null, "when-let", "when-let", 401149633, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
+"cap", "cap", -1640433269, null), cljs.core.list(new cljs.core.Symbol("js", "aurora.transformers.editor.-\x3estep", "js/aurora.transformers.editor.-\x3estep", -935302006, null), cljs.core.list("\ufdd0:name", new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)), cljs.core.list(new cljs.core.Symbol("core", "last-path", "core/last-path", 520323523, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.result", cljs.core.list(new cljs.core.Symbol(null, 
+"step-rep", "step-rep", -213162027, null), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), "\ufdd0:cur-step", cljs.core.list(new cljs.core.Symbol("core", "last-path", "core/last-path", 520323523, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null))), cljs.core.list(new cljs.core.Symbol(null, "ensure-meta", "ensure-meta", -1506472979, null), new cljs.core.Symbol(null, "cap", "cap", -1640433269, 
+null), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "symbol", "symbol", 1766911825, null), "_PREV_")], !0)))], !0))], !0)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3ebackup", "-\x3ebackup", 1565469804, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, 
+"assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "prev", cljs.core.list(new cljs.core.Symbol(null, "vec", "vec", -1640414899, null), cljs.core.list(new cljs.core.Symbol(null, "take", "take", -1636979136, null), cljs.core.list(new cljs.core.Symbol("core", "last-path", "core/last-path", 520323523, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)), cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "prev")))), 
+cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null), "pipe", new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3eprev-step", "-\x3eprev-step", -1085523634, 
+null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "p", "p", -1640531415, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["li", cljs.core.PersistentArrayMap.fromArray(["click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3ebackup", "-\x3ebackup", 1565469804, null), new cljs.core.Symbol(null, "p", "p", -1640531415, null))], !0)], !0)], !0)], 
+!0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3epipeline", "-\x3epipeline", 1636165900, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["\ufdd0:ul.breadcrumb", cljs.core.list(new cljs.core.Symbol(null, "each-meta", "each-meta", -1565038582, null), cljs.core.list(new cljs.core.Symbol(null, 
+"state", "state", -1530773942, null), "prev"), new cljs.core.Symbol(null, "-\x3eprev-step", "-\x3eprev-step", -1085523634, null))], !0)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3eworkspace", "-\x3eworkspace", 910964669, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["\ufdd0:ul.workspace", 
+cljs.core.list(new cljs.core.Symbol(null, "when-let", "when-let", 401149633, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "cap", "cap", -1640433269, null), cljs.core.list(new cljs.core.Symbol("js", "aurora.transformers.editor.-\x3escope", "js/aurora.transformers.editor.-\x3escope", -1260389830, null), cljs.core.list("\ufdd0:name", new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:li.scope", cljs.core.list(new cljs.core.Symbol(null, 
+"for", "for", -1640429950, null), cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "k", "k", -1640531420, null), new cljs.core.Symbol(null, "v", "v", -1640531409, null)], !0), new cljs.core.Symbol(null, "cap", "cap", -1640433269, null)], !0), cljs.core.list(new cljs.core.Symbol(null, "step-rep", "step-rep", -213162027, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.list(new cljs.core.Symbol(null, "if", "if", -1640528170, 
+null), cljs.core.list(new cljs.core.Symbol(null, "satisfies?", "satisfies?", 396750295, null), new cljs.core.Symbol(null, "IMeta", "IMeta", -1570719833, null), new cljs.core.Symbol(null, "v", "v", -1640531409, null)), cljs.core.list(new cljs.core.Symbol(null, "with-meta", "with-meta", -774206363, null), new cljs.core.Symbol(null, "v", "v", -1640531409, null), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:path", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "k", "k", -1640531420, 
+null)], !0)], !0)), cljs.core.list(new cljs.core.Symbol("js", "aurora.engine.as-meta", "js/aurora.engine.as-meta", 1373505508, null), new cljs.core.Symbol(null, "v", "v", -1640531409, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "k", "k", -1640531420, null)], !0)))))], !0)), cljs.core.list(new cljs.core.Symbol(null, "each-meta", "each-meta", -1565038582, null), cljs.core.list(new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), "\ufdd0:pipe"), cljs.core.list(new cljs.core.Symbol(null, 
+"partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3epipe-step", "-\x3epipe-step", 1094962867, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)))], !0)], !0)], !0)], !0), "\ufdd0:main", new cljs.core.Symbol(null, "show", "show", -1637002058, null)], !0));
