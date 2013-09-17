@@ -2,6 +2,8 @@
   (:require [dommy.core :as dommy]
             [aurora.util.xhr :as xhr]
             [aurora.util.async :as async]
+            [clojure.walk :as walk]
+            [cljs.reader :as reader]
             [cljs.core.async.impl.protocols :as protos]
             [cljs.core.async :refer [put! chan sliding-buffer take! timeout]])
   (:require-macros [dommy.macros :refer [node sel sel1]]
@@ -29,14 +31,14 @@
   (.push (-> (aget captures (str name)) last (aget "steps")) v)
   v)
 
-(defn !runner [prog]
+(defn !runner [prog full?]
   (go
    (while (<! listener-loop)
      (js/aurora.engine.commute (assoc js/aurora.pipelines.state "dirty" false))
      ;(put! js/aurora.engine.event-loop :sub-commute)
      ))
 
-  (exec-program (instrument-pipes prog) false))
+  (exec-program (instrument-pipes prog) full?))
 
 
 (defn !in-running [thing]
@@ -99,8 +101,9 @@
   (when (or clear? (not js/running.pipelines))
     (set! js/running.pipelines (js-obj)))
   (doseq [[k v] (:data prog)
-          :when (not (aget js/running.pipelines (str k)))]
-    (js/aurora.engine.meta-walk v [(str k)])
+          :when (not (aget js/running.pipelines (str k)))
+          :let [v (reader/read-string (pr-str v))]]
+    (js/aurora.engine.meta-walk v [k])
     (aset js/running.pipelines (str k) v))
   (put! event-loop false)
   (set! js/aurora.transformers.editor.event-loop (chan))
@@ -115,6 +118,7 @@
                         (let [main-fn (aget js/running.pipelines (str (:main prog)))
                               main-pipe (first (filter #(= (:main prog) (:name %)) (:pipes prog)))
                               vals (map #(aget js/running.pipelines (str %)) (:scope main-pipe))]
+                          (println "calling main with: " vals)
                           (apply main-fn vals))))
 
      )))

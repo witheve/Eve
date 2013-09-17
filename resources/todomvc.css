@@ -1,4 +1,4 @@
-#running-wrapper button {
+#todoapp button {
 	margin: 0;
 	padding: 0;
 	border: 0;
@@ -16,7 +16,7 @@
 
 #running-wrapper {
 	font: 14px 'Helvetica Neue', Helvetica, Arial, sans-serif;
-	background: #eaeaea url('bg.png');
+	background: #eaeaea;
 	color: #4d4d4d;
 	-webkit-font-smoothing: antialiased;
 }

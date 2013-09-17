@@ -53,6 +53,8 @@ blockquote, q { quotes: "" ""; }
 
 a img { border: none; }
 
+* {outline:none;}
+
 /* STYLES */
 
 body { display:block; overflow:hidden; display:-webkit-flex; width:2048px; -webkit-flex-flow:row nowrap; -webkit-align-items:stretch; -webkit-align-content:stretch; }
@@ -99,7 +101,15 @@ body { display:block; overflow:hidden; display:-webkit-flex; width:2048px; -webk
 .entry { display:inline-block !important; }
 .entry > div { display:inline-block; margin-right:8px; }
 
-.string, .number { display: inline-block; }
+.string, .number { display: inline-block; min-width:20px; min-height:20px; border-bottom:1px solid #ddd; }
+
+.result {font-size:12pt; position:absolute; bottom:0; right:0;}
+#aurora .workspace > li .rem-step { -webkit-transition:opacity 0.2s ease-in-out; opacity:0; pointer-events:none; position:absolute; top:0; right:0; border:none; background:#f99; border-radius:3px; }
+#aurora .workspace > li:hover .rem-step { opacity:1; display:inline-block; pointer-events:auto; }
+#aurora .workspace > li .add-step { -webkit-transition:opacity 0.2s ease-in-out; opacity:0; pointer-events:none; position:absolute; z-index:5; bottom:-8px; left:0; border:none; background:#ccf; border-radius:3px; width:15px; height:15px; padding:0; margin:0; }
+#aurora .workspace > li:hover .add-step { opacity:1; display:inline-block; pointer-events:auto; }
+
+.workspace > li { position:relative; }
 
 .chart { font-weight:bold; position:relative; }
 .chart ul { display:block; }
@@ -119,7 +129,15 @@ body { display:block; overflow:hidden; display:-webkit-flex; width:2048px; -webk
 
 #running-wrapper { width:1024px; max-width:1024px; height:100%; display:inline-block; flex:1 auto;}
 
-.chart-ed .chart { display:inline-block; }
+.chart-ed .chart { display:inline-block; cursor:default; }
 .chart-ed .chart-options { display:inline-block; width:30px; }
-.chart-ed .chart-options li { width:100%; overflow:hidden; background:#ccc; padding:3px; margin-bottom:2px; border-radius:3px; }
+.chart-ed .chart-options li { width:100%; cursor:default; -webkit-user-select:none; overflow:hidden; background:#ccc; padding:3px; margin-bottom:2px; border-radius:3px; }
 .chart-ed .chart-options li[selected="true"] { background:#444; color:#fff; }
+
+.context-menu { position:absolute; font-family:"inconsolata"; padding:3px 5px; background:#aaf; border-radius:3px; }
+.context-menu li { padding:3px 5px; text-align:center; border-radius:3px; cursor:default; }
+.context-menu li:hover { background:#adf; }
+.context-menu li + li { border-top:0px solid #ddf; }
+
+.console { position:absolute; bottom:0; left:0; font-size:10pt; width:100%;}
+.console p { color:red; }

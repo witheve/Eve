@@ -4818,16 +4818,16 @@ cljs.core.with_meta = function with_meta(b, c) {
     c && (b ? (c = (c = b.cljs$lang$protocol_mask$partition0$ & 262144) ? c : b.cljs$core$IWithMeta$, c = c ? !0 : b.cljs$lang$protocol_mask$partition0$ ? !1 : cljs.core.type_satisfies_.call(null, cljs.core.IWithMeta, b)) : c = cljs.core.type_satisfies_.call(null, cljs.core.IWithMeta, b), c = !c);
     return c
   }() ? with_meta.call(null, function() {
-    "undefined" === typeof cljs.core.t10142 && (cljs.core.t10142 = {}, cljs.core.t10142 = function(b, c, f, g) {
+    "undefined" === typeof cljs.core.t20007 && (cljs.core.t20007 = {}, cljs.core.t20007 = function(b, c, f, g) {
       this.meta = b;
       this.o = c;
       this.with_meta = f;
-      this.meta10143 = g;
+      this.meta20008 = g;
       this.cljs$lang$protocol_mask$partition1$ = 0;
       this.cljs$lang$protocol_mask$partition0$ = 393217
-    }, cljs.core.t10142.cljs$lang$type = !0, cljs.core.t10142.cljs$lang$ctorStr = "cljs.core/t10142", cljs.core.t10142.cljs$lang$ctorPrWriter = function(b, c, f) {
-      return cljs.core._write.call(null, c, "cljs.core/t10142")
-    }, cljs.core.t10142.prototype.call = function() {
+    }, cljs.core.t20007.cljs$lang$type = !0, cljs.core.t20007.cljs$lang$ctorStr = "cljs.core/t20007", cljs.core.t20007.cljs$lang$ctorPrWriter = function(b, c, f) {
+      return cljs.core._write.call(null, c, "cljs.core/t20007")
+    }, cljs.core.t20007.prototype.call = function() {
       var b = function(b, c) {
         return cljs.core.apply.call(null, b.o, c)
       }, c = function(c, e) {
@@ -4844,17 +4844,17 @@ cljs.core.with_meta = function with_meta(b, c) {
       };
       c.cljs$core$IFn$_invoke$arity$variadic = b;
       return c
-    }(), cljs.core.t10142.prototype.apply = function(b, c) {
+    }(), cljs.core.t20007.prototype.apply = function(b, c) {
       b = this;
       return b.call.apply(b, [b].concat(c.slice()))
-    }, cljs.core.t10142.prototype.cljs$core$Fn$ = !0, cljs.core.t10142.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
-      return this.meta10143
-    }, cljs.core.t10142.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, c) {
-      return new cljs.core.t10142(this.meta, this.o, this.with_meta, c)
-    }, cljs.core.__GT_t10142 = function(b, c, f, g) {
-      return new cljs.core.t10142(b, c, f, g)
+    }, cljs.core.t20007.prototype.cljs$core$Fn$ = !0, cljs.core.t20007.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
+      return this.meta20008
+    }, cljs.core.t20007.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, c) {
+      return new cljs.core.t20007(this.meta, this.o, this.with_meta, c)
+    }, cljs.core.__GT_t20007 = function(b, c, f, g) {
+      return new cljs.core.t20007(b, c, f, g)
     });
-    return new cljs.core.t10142(c, b, with_meta, null)
+    return new cljs.core.t20007(c, b, with_meta, null)
   }(), c) : cljs.core._with_meta.call(null, b, c)
 };
 cljs.core.meta = function(a) {
@@ -17680,26 +17680,26 @@ cljs.core.async.impl.ioc_helpers.finished_QMARK_ = function(a) {
   return"\ufdd0:finished" === a[cljs.core.async.impl.ioc_helpers.STATE_IDX]
 };
 cljs.core.async.impl.ioc_helpers.fn_handler = function fn_handler(b) {
-  "undefined" === typeof cljs.core.async.impl.ioc_helpers.t11047 && (cljs.core.async.impl.ioc_helpers.t11047 = {}, cljs.core.async.impl.ioc_helpers.t11047 = function(b, d, e) {
+  "undefined" === typeof cljs.core.async.impl.ioc_helpers.t20912 && (cljs.core.async.impl.ioc_helpers.t20912 = {}, cljs.core.async.impl.ioc_helpers.t20912 = function(b, d, e) {
     this.f = b;
     this.fn_handler = d;
-    this.meta11048 = e;
+    this.meta20913 = e;
     this.cljs$lang$protocol_mask$partition1$ = 0;
     this.cljs$lang$protocol_mask$partition0$ = 393216
-  }, cljs.core.async.impl.ioc_helpers.t11047.cljs$lang$type = !0, cljs.core.async.impl.ioc_helpers.t11047.cljs$lang$ctorStr = "cljs.core.async.impl.ioc-helpers/t11047", cljs.core.async.impl.ioc_helpers.t11047.cljs$lang$ctorPrWriter = function(b, d, e) {
-    return cljs.core._write.call(null, d, "cljs.core.async.impl.ioc-helpers/t11047")
-  }, cljs.core.async.impl.ioc_helpers.t11047.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.impl.ioc_helpers.t11047.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
+  }, cljs.core.async.impl.ioc_helpers.t20912.cljs$lang$type = !0, cljs.core.async.impl.ioc_helpers.t20912.cljs$lang$ctorStr = "cljs.core.async.impl.ioc-helpers/t20912", cljs.core.async.impl.ioc_helpers.t20912.cljs$lang$ctorPrWriter = function(b, d, e) {
+    return cljs.core._write.call(null, d, "cljs.core.async.impl.ioc-helpers/t20912")
+  }, cljs.core.async.impl.ioc_helpers.t20912.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.impl.ioc_helpers.t20912.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
     return!0
-  }, cljs.core.async.impl.ioc_helpers.t11047.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
+  }, cljs.core.async.impl.ioc_helpers.t20912.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
     return this.f
-  }, cljs.core.async.impl.ioc_helpers.t11047.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
-    return this.meta11048
-  }, cljs.core.async.impl.ioc_helpers.t11047.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
-    return new cljs.core.async.impl.ioc_helpers.t11047(this.f, this.fn_handler, d)
-  }, cljs.core.async.impl.ioc_helpers.__GT_t11047 = function(b, d, e) {
-    return new cljs.core.async.impl.ioc_helpers.t11047(b, d, e)
+  }, cljs.core.async.impl.ioc_helpers.t20912.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
+    return this.meta20913
+  }, cljs.core.async.impl.ioc_helpers.t20912.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
+    return new cljs.core.async.impl.ioc_helpers.t20912(this.f, this.fn_handler, d)
+  }, cljs.core.async.impl.ioc_helpers.__GT_t20912 = function(b, d, e) {
+    return new cljs.core.async.impl.ioc_helpers.t20912(b, d, e)
   });
-  return new cljs.core.async.impl.ioc_helpers.t11047(b, fn_handler, null)
+  return new cljs.core.async.impl.ioc_helpers.t20912(b, fn_handler, null)
 };
 cljs.core.async.impl.ioc_helpers.run_state_machine = function(a) {
   return cljs.core.async.impl.ioc_helpers.aget_object.call(null, a, cljs.core.async.impl.ioc_helpers.FN_IDX).call(null, a)
@@ -17964,24 +17964,24 @@ cljs.core.async.impl.dispatch.queue_delay = function(a, b) {
 };
 cljs.core.async.impl.channels = {};
 cljs.core.async.impl.channels.box = function box(b) {
-  "undefined" === typeof cljs.core.async.impl.channels.t11036 && (cljs.core.async.impl.channels.t11036 = {}, cljs.core.async.impl.channels.t11036 = function(b, d, e) {
+  "undefined" === typeof cljs.core.async.impl.channels.t20901 && (cljs.core.async.impl.channels.t20901 = {}, cljs.core.async.impl.channels.t20901 = function(b, d, e) {
     this.val = b;
     this.box = d;
-    this.meta11037 = e;
+    this.meta20902 = e;
     this.cljs$lang$protocol_mask$partition1$ = 0;
     this.cljs$lang$protocol_mask$partition0$ = 425984
-  }, cljs.core.async.impl.channels.t11036.cljs$lang$type = !0, cljs.core.async.impl.channels.t11036.cljs$lang$ctorStr = "cljs.core.async.impl.channels/t11036", cljs.core.async.impl.channels.t11036.cljs$lang$ctorPrWriter = function(b, d, e) {
-    return cljs.core._write.call(null, d, "cljs.core.async.impl.channels/t11036")
-  }, cljs.core.async.impl.channels.t11036.prototype.cljs$core$IDeref$_deref$arity$1 = function(b) {
+  }, cljs.core.async.impl.channels.t20901.cljs$lang$type = !0, cljs.core.async.impl.channels.t20901.cljs$lang$ctorStr = "cljs.core.async.impl.channels/t20901", cljs.core.async.impl.channels.t20901.cljs$lang$ctorPrWriter = function(b, d, e) {
+    return cljs.core._write.call(null, d, "cljs.core.async.impl.channels/t20901")
+  }, cljs.core.async.impl.channels.t20901.prototype.cljs$core$IDeref$_deref$arity$1 = function(b) {
     return this.val
-  }, cljs.core.async.impl.channels.t11036.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
-    return this.meta11037
-  }, cljs.core.async.impl.channels.t11036.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
-    return new cljs.core.async.impl.channels.t11036(this.val, this.box, d)
-  }, cljs.core.async.impl.channels.__GT_t11036 = function(b, d, e) {
-    return new cljs.core.async.impl.channels.t11036(b, d, e)
+  }, cljs.core.async.impl.channels.t20901.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
+    return this.meta20902
+  }, cljs.core.async.impl.channels.t20901.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
+    return new cljs.core.async.impl.channels.t20901(this.val, this.box, d)
+  }, cljs.core.async.impl.channels.__GT_t20901 = function(b, d, e) {
+    return new cljs.core.async.impl.channels.t20901(b, d, e)
   });
-  return new cljs.core.async.impl.channels.t11036(b, box, null)
+  return new cljs.core.async.impl.channels.t20901(b, box, null)
 };
 cljs.core.async.impl.channels.PutBox = function(a, b) {
   this.handler = a;
@@ -18365,26 +18365,26 @@ cljs.core.async.impl.timers.timeout = function(a) {
   return d
 };
 cljs.core.async.fn_handler = function fn_handler$$0(b) {
-  "undefined" === typeof cljs.core.async.t10980 && (cljs.core.async.t10980 = {}, cljs.core.async.t10980 = function(b, d, e) {
+  "undefined" === typeof cljs.core.async.t20845 && (cljs.core.async.t20845 = {}, cljs.core.async.t20845 = function(b, d, e) {
     this.f = b;
     this.fn_handler = d;
-    this.meta10981 = e;
+    this.meta20846 = e;
     this.cljs$lang$protocol_mask$partition1$ = 0;
     this.cljs$lang$protocol_mask$partition0$ = 393216
-  }, cljs.core.async.t10980.cljs$lang$type = !0, cljs.core.async.t10980.cljs$lang$ctorStr = "cljs.core.async/t10980", cljs.core.async.t10980.cljs$lang$ctorPrWriter = function(b, d, e) {
-    return cljs.core._write.call(null, d, "cljs.core.async/t10980")
-  }, cljs.core.async.t10980.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.t10980.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
+  }, cljs.core.async.t20845.cljs$lang$type = !0, cljs.core.async.t20845.cljs$lang$ctorStr = "cljs.core.async/t20845", cljs.core.async.t20845.cljs$lang$ctorPrWriter = function(b, d, e) {
+    return cljs.core._write.call(null, d, "cljs.core.async/t20845")
+  }, cljs.core.async.t20845.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.t20845.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
     return!0
-  }, cljs.core.async.t10980.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
+  }, cljs.core.async.t20845.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
     return this.f
-  }, cljs.core.async.t10980.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
-    return this.meta10981
-  }, cljs.core.async.t10980.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
-    return new cljs.core.async.t10980(this.f, this.fn_handler, d)
-  }, cljs.core.async.__GT_t10980 = function(b, d, e) {
-    return new cljs.core.async.t10980(b, d, e)
+  }, cljs.core.async.t20845.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
+    return this.meta20846
+  }, cljs.core.async.t20845.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
+    return new cljs.core.async.t20845(this.f, this.fn_handler, d)
+  }, cljs.core.async.__GT_t20845 = function(b, d, e) {
+    return new cljs.core.async.t20845(b, d, e)
   });
-  return new cljs.core.async.t10980(b, fn_handler$$0, null)
+  return new cljs.core.async.t20845(b, fn_handler$$0, null)
 };
 cljs.core.async.buffer = function(a) {
   return cljs.core.async.impl.buffers.fixed_buffer.call(null, a)
@@ -18498,51 +18498,51 @@ cljs.core.async.random_array = function(a) {
 };
 cljs.core.async.alt_flag = function alt_flag() {
   var b = cljs.core.atom.call(null, !0);
-  "undefined" === typeof cljs.core.async.t10991 && (cljs.core.async.t10991 = {}, cljs.core.async.t10991 = function(b, d, e) {
+  "undefined" === typeof cljs.core.async.t20856 && (cljs.core.async.t20856 = {}, cljs.core.async.t20856 = function(b, d, e) {
     this.flag = b;
     this.alt_flag = d;
-    this.meta10992 = e;
+    this.meta20857 = e;
     this.cljs$lang$protocol_mask$partition1$ = 0;
     this.cljs$lang$protocol_mask$partition0$ = 393216
-  }, cljs.core.async.t10991.cljs$lang$type = !0, cljs.core.async.t10991.cljs$lang$ctorStr = "cljs.core.async/t10991", cljs.core.async.t10991.cljs$lang$ctorPrWriter = function(b, d, e) {
-    return cljs.core._write.call(null, d, "cljs.core.async/t10991")
-  }, cljs.core.async.t10991.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.t10991.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
+  }, cljs.core.async.t20856.cljs$lang$type = !0, cljs.core.async.t20856.cljs$lang$ctorStr = "cljs.core.async/t20856", cljs.core.async.t20856.cljs$lang$ctorPrWriter = function(b, d, e) {
+    return cljs.core._write.call(null, d, "cljs.core.async/t20856")
+  }, cljs.core.async.t20856.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.t20856.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
     return cljs.core.deref.call(null, this.flag)
-  }, cljs.core.async.t10991.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
+  }, cljs.core.async.t20856.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
     cljs.core.reset_BANG_.call(null, this.flag, null);
     return!0
-  }, cljs.core.async.t10991.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
-    return this.meta10992
-  }, cljs.core.async.t10991.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
-    return new cljs.core.async.t10991(this.flag, this.alt_flag, d)
-  }, cljs.core.async.__GT_t10991 = function(b, d, e) {
-    return new cljs.core.async.t10991(b, d, e)
+  }, cljs.core.async.t20856.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
+    return this.meta20857
+  }, cljs.core.async.t20856.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, d) {
+    return new cljs.core.async.t20856(this.flag, this.alt_flag, d)
+  }, cljs.core.async.__GT_t20856 = function(b, d, e) {
+    return new cljs.core.async.t20856(b, d, e)
   });
-  return new cljs.core.async.t10991(b, alt_flag, null)
+  return new cljs.core.async.t20856(b, alt_flag, null)
 };
 cljs.core.async.alt_handler = function alt_handler(b, c) {
-  "undefined" === typeof cljs.core.async.t10997 && (cljs.core.async.t10997 = {}, cljs.core.async.t10997 = function(b, c, f, g) {
+  "undefined" === typeof cljs.core.async.t20862 && (cljs.core.async.t20862 = {}, cljs.core.async.t20862 = function(b, c, f, g) {
     this.cb = b;
     this.flag = c;
     this.alt_handler = f;
-    this.meta10998 = g;
+    this.meta20863 = g;
     this.cljs$lang$protocol_mask$partition1$ = 0;
     this.cljs$lang$protocol_mask$partition0$ = 393216
-  }, cljs.core.async.t10997.cljs$lang$type = !0, cljs.core.async.t10997.cljs$lang$ctorStr = "cljs.core.async/t10997", cljs.core.async.t10997.cljs$lang$ctorPrWriter = function(b, c, f) {
-    return cljs.core._write.call(null, c, "cljs.core.async/t10997")
-  }, cljs.core.async.t10997.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.t10997.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
+  }, cljs.core.async.t20862.cljs$lang$type = !0, cljs.core.async.t20862.cljs$lang$ctorStr = "cljs.core.async/t20862", cljs.core.async.t20862.cljs$lang$ctorPrWriter = function(b, c, f) {
+    return cljs.core._write.call(null, c, "cljs.core.async/t20862")
+  }, cljs.core.async.t20862.prototype.cljs$core$async$impl$protocols$Handler$ = !0, cljs.core.async.t20862.prototype.cljs$core$async$impl$protocols$Handler$active_QMARK_$arity$1 = function(b) {
     return cljs.core.async.impl.protocols.active_QMARK_.call(null, this.flag)
-  }, cljs.core.async.t10997.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
+  }, cljs.core.async.t20862.prototype.cljs$core$async$impl$protocols$Handler$commit$arity$1 = function(b) {
     cljs.core.async.impl.protocols.commit.call(null, this.flag);
     return this.cb
-  }, cljs.core.async.t10997.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
-    return this.meta10998
-  }, cljs.core.async.t10997.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, c) {
-    return new cljs.core.async.t10997(this.cb, this.flag, this.alt_handler, c)
-  }, cljs.core.async.__GT_t10997 = function(b, c, f, g) {
-    return new cljs.core.async.t10997(b, c, f, g)
+  }, cljs.core.async.t20862.prototype.cljs$core$IMeta$_meta$arity$1 = function(b) {
+    return this.meta20863
+  }, cljs.core.async.t20862.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(b, c) {
+    return new cljs.core.async.t20862(this.cb, this.flag, this.alt_handler, c)
+  }, cljs.core.async.__GT_t20862 = function(b, c, f, g) {
+    return new cljs.core.async.t20862(b, c, f, g)
   });
-  return new cljs.core.async.t10997(c, b, alt_handler, null)
+  return new cljs.core.async.t20862(c, b, alt_handler, null)
 };
 cljs.core.async.do_alts = function(a, b, c) {
   var d = cljs.core.async.alt_flag.call(null), e = cljs.core.count.call(null, b), f = cljs.core.async.random_array.call(null, e), g = (new cljs.core.Keyword("\ufdd0:priority")).call(null, c), h = function() {
@@ -21116,12 +21116,12 @@ try {
   Window.prototype.dommy$template$PElement$ = !0, Window.prototype.dommy$template$PElement$_elem$arity$1 = function(a) {
     return a
   }
-}catch(e11606) {
-  if(e11606 instanceof ReferenceError) {
-    var __11607 = e11606;
+}catch(e21471) {
+  if(e21471 instanceof ReferenceError) {
+    var __21472 = e21471;
     console.log("PElement: js/Window not defined by browser, skipping it... (running on phantomjs?)")
   }else {
-    throw e11606;
+    throw e21471;
   }
 }
 dommy.template.node = function(a) {
@@ -21707,14 +21707,14 @@ aurora.util.async.debounce = function() {
           var h = g[1];
           if(1 === h) {
             var k = "\ufdd0:aurora.util.async/init", h = cljs.core.vector.call(null, b);
-            g[5] = h;
-            g[6] = k;
+            g[5] = k;
+            g[6] = h;
             g[2] = null;
             g[1] = 2;
             return"\ufdd0:recur"
           }
           if(2 === h) {
-            var h = g[5], p = cljs.core.nth.call(null, h, 0, null), k = cljs.core.nth.call(null, h, 1, null);
+            var h = g[6], p = cljs.core.nth.call(null, h, 0, null), k = cljs.core.nth.call(null, h, 1, null);
             g[7] = k;
             g[8] = p;
             return cljs.core.async.impl.ioc_helpers.ioc_alts_BANG_.call(null, g, 4, h)
@@ -21723,13 +21723,13 @@ aurora.util.async.debounce = function() {
             return h = g[2], cljs.core.async.impl.ioc_helpers.return_chan.call(null, g, h)
           }
           if(4 === h) {
-            return h = g[9], k = g[2], h = cljs.core.nth.call(null, k, 0, null), k = cljs.core.nth.call(null, k, 1, null), p = cljs.core._EQ_.call(null, b, k), g[9] = k, g[10] = h, g[1] = p ? 5 : 6, "\ufdd0:recur"
+            return h = g[9], k = g[2], h = cljs.core.nth.call(null, k, 0, null), k = cljs.core.nth.call(null, k, 1, null), p = cljs.core._EQ_.call(null, b, k), g[10] = h, g[9] = k, g[1] = p ? 5 : 6, "\ufdd0:recur"
           }
           if(5 === h) {
-            return k = g[6], h = cljs.core._EQ_.call(null, "\ufdd0:aurora.util.async/init", k), g[1] = h ? 8 : 9, "\ufdd0:recur"
+            return k = g[5], h = cljs.core._EQ_.call(null, "\ufdd0:aurora.util.async/init", k), g[1] = h ? 8 : 9, "\ufdd0:recur"
           }
           if(6 === h) {
-            return k = g[7], h = g[9], h = cljs.core._EQ_.call(null, k, h), g[1] = h ? 15 : 16, "\ufdd0:recur"
+            return h = g[9], k = g[7], h = cljs.core._EQ_.call(null, k, h), g[1] = h ? 15 : 16, "\ufdd0:recur"
           }
           if(7 === h) {
             return h = g[2], g[2] = h, g[1] = 3, "\ufdd0:recur"
@@ -21738,25 +21738,25 @@ aurora.util.async.debounce = function() {
             return h = g[10], cljs.core.async.impl.ioc_helpers.put_BANG_.call(null, g, 11, a, h)
           }
           if(9 === h) {
-            return k = g[6], h = cljs.core._EQ_.call(null, "\ufdd0:aurora.util.async/debouncing", k), g[1] = h ? 12 : 13, "\ufdd0:recur"
+            return k = g[5], h = cljs.core._EQ_.call(null, "\ufdd0:aurora.util.async/debouncing", k), g[1] = h ? 12 : 13, "\ufdd0:recur"
           }
           if(10 === h) {
             return h = g[2], g[2] = h, g[1] = 7, "\ufdd0:recur"
           }
           if(11 === h) {
-            return h = g[5], k = g[2], p = cljs.core.async.timeout.call(null, c), h = cljs.core.conj.call(null, h, p), g[11] = k, g[5] = h, g[6] = "\ufdd0:aurora.util.async/debouncing", g[2] = null, g[1] = 2, "\ufdd0:recur"
+            return h = g[6], k = g[2], p = cljs.core.async.timeout.call(null, c), h = cljs.core.conj.call(null, h, p), g[11] = k, g[5] = "\ufdd0:aurora.util.async/debouncing", g[6] = h, g[2] = null, g[1] = 2, "\ufdd0:recur"
           }
           if(12 === h) {
-            return h = g[5], k = g[6], h = cljs.core.pop.call(null, h), p = cljs.core.async.timeout.call(null, c), h = cljs.core.conj.call(null, h, p), g[5] = h, g[6] = k, g[2] = null, g[1] = 2, "\ufdd0:recur"
+            return k = g[5], h = g[6], h = cljs.core.pop.call(null, h), p = cljs.core.async.timeout.call(null, c), h = cljs.core.conj.call(null, h, p), g[5] = k, g[6] = h, g[2] = null, g[1] = 2, "\ufdd0:recur"
           }
           if(13 === h) {
-            throw k = g[6], g = [cljs.core.str("No matching clause: "), cljs.core.str(k)].join(""), Error(g);
+            throw k = g[5], g = [cljs.core.str("No matching clause: "), cljs.core.str(k)].join(""), Error(g);
           }
           if(14 === h) {
             return h = g[2], g[2] = h, g[1] = 10, "\ufdd0:recur"
           }
           if(15 === h) {
-            return h = g[5], h = cljs.core.pop.call(null, h), g[5] = h, g[6] = "\ufdd0:aurora.util.async/init", g[2] = null, g[1] = 2, "\ufdd0:recur"
+            return h = g[6], h = cljs.core.pop.call(null, h), g[5] = "\ufdd0:aurora.util.async/init", g[6] = h, g[2] = null, g[1] = 2, "\ufdd0:recur"
           }
           if(16 === h) {
             throw h = g[9], g = [cljs.core.str("No matching clause: "), cljs.core.str(h)].join(""), Error(g);
@@ -21835,8 +21835,8 @@ aurora.transformers.editor.step = function(a, b) {
   cljs.core.last.call(null, aurora.transformers.editor.captures["" + cljs.core.str(a)]).steps.push(b);
   return b
 };
-aurora.transformers.editor._BANG_runner = function(a) {
-  var b = cljs.core.async.chan.call(null, 1);
+aurora.transformers.editor._BANG_runner = function(a, b) {
+  var c = cljs.core.async.chan.call(null, 1);
   cljs.core.async.impl.dispatch.run.call(null, function() {
     var a = function() {
       return function(a) {
@@ -21871,14 +21871,14 @@ aurora.transformers.editor._BANG_runner = function(a) {
         return 7 === b ? (b = a, b[2] = a[2], b[1] = 3, "\ufdd0:recur") : 6 === b ? (a[2] = null, a[1] = 7, "\ufdd0:recur") : 5 === b ? (b = cljs.core.assoc.call(null, aurora.pipelines.state, "dirty", !1), b = aurora.engine.commute(b), a[5] = b, a[2] = null, a[1] = 2, "\ufdd0:recur") : 4 === b ? (b = a[2], cljs.core.truth_(b) ? a[1] = 5 : a[1] = 6, "\ufdd0:recur") : 3 === b ? (b = a[2], cljs.core.async.impl.ioc_helpers.return_chan.call(null, a, b)) : 2 === b ? cljs.core.async.impl.ioc_helpers.take_BANG_.call(null, 
         a, 4, aurora.transformers.editor.listener_loop) : 1 === b ? (a[2] = null, a[1] = 2, "\ufdd0:recur") : null
       })
-    }(), d = function() {
-      var d = a.call(null);
-      d[cljs.core.async.impl.ioc_helpers.USER_START_IDX] = b;
-      return d
+    }(), b = function() {
+      var b = a.call(null);
+      b[cljs.core.async.impl.ioc_helpers.USER_START_IDX] = c;
+      return b
     }();
-    return cljs.core.async.impl.ioc_helpers.run_state_machine_wrapped.call(null, d)
+    return cljs.core.async.impl.ioc_helpers.run_state_machine_wrapped.call(null, b)
   });
-  return aurora.transformers.editor.exec_program.call(null, aurora.transformers.editor.instrument_pipes.call(null, a), !1)
+  return aurora.transformers.editor.exec_program.call(null, aurora.transformers.editor.instrument_pipes.call(null, a), b)
 };
 aurora.transformers.editor._BANG_in_running = function(a) {
   return cljs.core.truth_(running.pipelines) ? running.pipelines[a] : null
@@ -21951,9 +21951,9 @@ aurora.transformers.editor.start_main_loop = function(a) {
         }
         if(4 === d) {
           var d = (new Date).getTime(), d = cljs.core.println.call(null, "[child] running at: ", d), e = a.call(null), k = cljs.core.async.put_BANG_.call(null, aurora.transformers.editor.listener_loop, "\ufdd0:done");
-          c[6] = k;
+          c[6] = d;
           c[7] = e;
-          c[8] = d;
+          c[8] = k;
           return cljs.core.async.impl.ioc_helpers.take_BANG_.call(null, c, 7, b)
         }
         return 3 === d ? (d = c[2], cljs.core.async.impl.ioc_helpers.return_chan.call(null, c, d)) : 2 === d ? (d = c[5], cljs.core.truth_(d) ? c[1] = 4 : c[1] = 5, "\ufdd0:recur") : 1 === d ? (c[5] = !0, c[2] = null, c[1] = 2, "\ufdd0:recur") : null
@@ -21972,12 +21972,12 @@ aurora.transformers.editor.exec_program = function(a, b) {
   for(var c = cljs.core.seq.call(null, (new cljs.core.Keyword("\ufdd0:data")).call(null, a)), d = null, e = 0, f = 0;;) {
     if(f < e) {
       var g = cljs.core._nth.call(null, d, f), h = cljs.core.nth.call(null, g, 0, null), g = cljs.core.nth.call(null, g, 1, null);
-      cljs.core.not.call(null, running.pipelines["" + cljs.core.str(h)]) && (aurora.engine.meta_walk(g, cljs.core.PersistentVector.fromArray(["" + cljs.core.str(h)], !0)), running.pipelines["" + cljs.core.str(h)] = g);
+      cljs.core.not.call(null, running.pipelines["" + cljs.core.str(h)]) && (g = cljs.reader.read_string.call(null, cljs.core.pr_str.call(null, g)), aurora.engine.meta_walk(g, cljs.core.PersistentVector.fromArray([h], !0)), running.pipelines["" + cljs.core.str(h)] = g);
       f += 1
     }else {
       if(c = cljs.core.seq.call(null, c)) {
-        cljs.core.chunked_seq_QMARK_.call(null, c) ? (e = cljs.core.chunk_first.call(null, c), c = cljs.core.chunk_rest.call(null, c), d = e, e = cljs.core.count.call(null, e)) : (e = cljs.core.first.call(null, c), d = cljs.core.nth.call(null, e, 0, null), e = cljs.core.nth.call(null, e, 1, null), cljs.core.not.call(null, running.pipelines["" + cljs.core.str(d)]) && (aurora.engine.meta_walk(e, cljs.core.PersistentVector.fromArray(["" + cljs.core.str(d)], !0)), running.pipelines["" + cljs.core.str(d)] = 
-        e), c = cljs.core.next.call(null, c), d = null, e = 0), f = 0
+        cljs.core.chunked_seq_QMARK_.call(null, c) ? (e = cljs.core.chunk_first.call(null, c), c = cljs.core.chunk_rest.call(null, c), d = e, e = cljs.core.count.call(null, e)) : (e = cljs.core.first.call(null, c), d = cljs.core.nth.call(null, e, 0, null), e = cljs.core.nth.call(null, e, 1, null), cljs.core.not.call(null, running.pipelines["" + cljs.core.str(d)]) && (e = cljs.reader.read_string.call(null, cljs.core.pr_str.call(null, e)), aurora.engine.meta_walk(e, cljs.core.PersistentVector.fromArray([d], 
+        !0)), running.pipelines["" + cljs.core.str(d)] = e), c = cljs.core.next.call(null, c), d = null, e = 0), f = 0
       }else {
         break
       }
@@ -22032,12 +22032,13 @@ aurora.transformers.editor.exec_program = function(a, b) {
                     return running.pipelines["" + cljs.core.str(a)]
                   }
                 }(h, k, b, c, d, e, f, g), (new cljs.core.Keyword("\ufdd0:scope")).call(null, k));
+                cljs.core.println.call(null, "calling main with: ", k);
                 return cljs.core.apply.call(null, h, k)
               }
             }(d, d, e, f, g, c)
           }(), h = aurora.transformers.editor.start_main_loop.call(null, h);
-          b[5] = g;
-          b[6] = e;
+          b[5] = e;
+          b[6] = g;
           return cljs.core.async.impl.ioc_helpers.return_chan.call(null, b, h)
         }
         if(1 === c) {
@@ -22056,7 +22057,7 @@ aurora.transformers.editor.exec_program = function(a, b) {
   return k
 };
 aurora.transformers.chart = {};
-aurora.transformers.chart.colors = cljs.core.PersistentVector.fromArray(["#FFBF2D", "#F5861E", "#AC3C5A", "#892143", "#472B5D"], !0);
+aurora.transformers.chart.colors = cljs.core.vec.call(null, cljs.core.take.call(null, 20, cljs.core.cycle.call(null, cljs.core.PersistentVector.fromArray(["#FFBF2D", "#F5861E", "#AC3C5A", "#892143", "#472B5D"], !0))));
 aurora.transformers.chart.create_canvas = function() {
   var a = document.createElement("canvas");
   a.setAttribute("width", "600");
@@ -22249,6 +22250,10 @@ aurora.core.ctx_BANG_ = function(a) {
   cljs.core.swap_BANG_.call(null, aurora.core.contexts, cljs.core.conj, a);
   return aurora.keyboard.merge_keys.call(null, cljs.core.deref.call(null, aurora.core.contexts))
 };
+aurora.core.ctxs_BANG_ = function(a) {
+  cljs.core.reset_BANG_.call(null, aurora.core.contexts, a);
+  return aurora.keyboard.merge_keys.call(null, cljs.core.deref.call(null, aurora.core.contexts))
+};
 aurora.core.rem_ctx_BANG_ = function(a) {
   cljs.core.swap_BANG_.call(null, aurora.core.contexts, cljs.core.disj, a);
   return aurora.keyboard.merge_keys.call(null, cljs.core.deref.call(null, aurora.core.contexts))
@@ -22274,7 +22279,8 @@ aurora.core.root_inject = function(a) {
   dommy.core.set_html_BANG_.call(null, b, "");
   dommy.core.append_BANG_.call(null, b, dommy.template.__GT_node_like.call(null, a));
   aurora.core.focus_walk.call(null, b);
-  return document.querySelector("#aurora .workspace").scrollTop = c
+  a = document.querySelector("#aurora .workspace");
+  return cljs.core.truth_(a) ? a.scrollTop = c : null
 };
 aurora.core.inject = function(a) {
   dommy.core.set_html_BANG_.call(null, document.getElementById("running-wrapper"), "");
@@ -22288,10 +22294,10 @@ aurora.core.e__GT_path = function(a) {
   return cljs.reader.read_string.call(null, dommy.core.attr.call(null, aurora.core.e__GT_elem.call(null, a), "\ufdd0:path"))
 };
 aurora.core.vector_insert = function(a, b, c) {
-  return cljs.core.vec.call(null, cljs.core.concat.call(null, cljs.core.take.call(null, b, a), cljs.core.PersistentVector.fromArray([c], !0), cljs.core.drop.call(null, b, a)))
+  return cljs.core.with_meta.call(null, cljs.core.vec.call(null, cljs.core.concat.call(null, cljs.core.take.call(null, b, a), cljs.core.PersistentVector.fromArray([c], !0), cljs.core.drop.call(null, b, a))), cljs.core.meta.call(null, a))
 };
 aurora.core.vector_remove = function(a, b) {
-  return cljs.core.vec.call(null, cljs.core.concat.call(null, cljs.core.take.call(null, b, a), cljs.core.drop.call(null, b + 1, a)))
+  return cljs.core.with_meta.call(null, cljs.core.vec.call(null, cljs.core.concat.call(null, cljs.core.take.call(null, b, a), cljs.core.drop.call(null, b + 1, a))), cljs.core.meta.call(null, a))
 };
 aurora.core.slide_to = function(a) {
   return dommy.core.set_style_BANG_.call(null, document.getElementById("wrapper"), "\ufdd0:margin-left", a)
@@ -22302,8 +22308,8 @@ cljs.core.reset_BANG_.call(null, aurora.keyboard.keys, cljs.core.PersistentArray
   return aurora.core.slide_to.call(null, -1024)
 }], !0)], !0)], !0));
 aurora.core.type = function type(b) {
-  return b instanceof aurora.engine.MetaPrimitive ? type.call(null, cljs.core.deref.call(null, b)) : b instanceof HTMLElement ? "\ufdd0:html" : cljs.core.list_QMARK_.call(null, b) ? "\ufdd0:list" : cljs.core.map_QMARK_.call(null, b) ? "\ufdd0:map" : cljs.core.vector_QMARK_.call(null, b) ? "\ufdd0:vector" : cljs.core.set_QMARK_.call(null, b) ? "\ufdd0:set" : "number" === typeof b ? "\ufdd0:number" : cljs.core.keyword_QMARK_.call(null, b) ? "\ufdd0:keyword" : b instanceof cljs.core.Symbol ? "\ufdd0:symbol" : 
-  cljs.core.string_QMARK_.call(null, b) ? "\ufdd0:string" : cljs.core.fn_QMARK_.call(null, b) ? "\ufdd0:fn" : cljs.core.seq_QMARK_.call(null, b) ? "\ufdd0:seq" : null
+  return b instanceof aurora.engine.MetaPrimitive ? type.call(null, cljs.core.deref.call(null, b)) : b instanceof HTMLElement ? "\ufdd0:html" : null == b ? "\ufdd0:nil" : cljs.core.list_QMARK_.call(null, b) ? "\ufdd0:list" : cljs.core.map_QMARK_.call(null, b) ? "\ufdd0:map" : cljs.core.vector_QMARK_.call(null, b) ? "\ufdd0:vector" : cljs.core.set_QMARK_.call(null, b) ? "\ufdd0:set" : "number" === typeof b ? "\ufdd0:number" : cljs.core.keyword_QMARK_.call(null, b) ? "\ufdd0:keyword" : b instanceof 
+  cljs.core.Symbol ? "\ufdd0:symbol" : cljs.core.string_QMARK_.call(null, b) ? "\ufdd0:string" : cljs.core.fn_QMARK_.call(null, b) ? "\ufdd0:fn" : cljs.core.seq_QMARK_.call(null, b) ? "\ufdd0:list" : null
 };
 aurora.core.walk = clojure.walk.postwalk;
 aurora.core.prewalk = clojure.walk.prewalk;
@@ -22326,6 +22332,7 @@ aurora.core.map_key_change = function(a, b) {
 };
 aurora.core.commute_path = function(a, b) {
   cljs.core._EQ_.call(null, cljs.core.last.call(null, a), "\ufdd0:aurora.core/key") ? aurora.core.map_key_change.call(null, cljs.core.butlast.call(null, a), b) : aurora.pipelines[cljs.core.first.call(null, a)] = cljs.core.next.call(null, a) ? cljs.core.assoc_in.call(null, aurora.pipelines[cljs.core.first.call(null, a)], cljs.core.rest.call(null, a), b) : b;
+  aurora.engine.meta_walk(b, a);
   return cljs.core.async.put_BANG_.call(null, aurora.engine.event_loop, "\ufdd0:commute")
 };
 aurora.core.last_path = function(a) {
@@ -22339,6 +22346,28 @@ aurora.core._BANG_in_running = aurora.transformers.editor._BANG_in_running;
 aurora.core.is_float_QMARK_ = function(a) {
   return 0 !== cljs.core.mod.call(null, a, 1)
 };
+aurora.core.string_float_QMARK_ = function(a) {
+  return cljs.core.re_seq.call(null, /^[\d\.]+$/, a)
+};
+aurora.core.string_int_QMARK_ = function(a) {
+  return cljs.core.re_seq.call(null, /^[\d]+$/, a)
+};
+aurora.core.in_program_QMARK_ = function(a, b) {
+  var c = cljs.core.get_in.call(null, a, cljs.core.PersistentVector.fromArray(["\ufdd0:data", b], !0));
+  return cljs.core.truth_(c) ? c : cljs.core.first.call(null, cljs.core.filter.call(null, function(a) {
+    return cljs.core._EQ_.call(null, b, (new cljs.core.Keyword("\ufdd0:name")).call(null, a))
+  }, (new cljs.core.Keyword("\ufdd0:pipes")).call(null, a)))
+};
+aurora.core.gen_id = function(a, b) {
+  for(var c = 1;;) {
+    var d = cljs.core.symbol.call(null, [cljs.core.str(b), cljs.core.str(c)].join(""));
+    if(cljs.core.not.call(null, aurora.core.in_program_QMARK_.call(null, a, d))) {
+      return d
+    }
+    c += 1
+  }
+};
+aurora.core.prev_symbol = new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null);
 aurora.engine = {};
 aurora.engine.MetaPrimitive = function(a, b) {
   this.thing = a;
@@ -22372,23 +22401,41 @@ aurora.engine.__GT_value = function(a) {
 aurora.engine.listener_loop = cljs.core.async.chan.call(null);
 aurora.engine.event_loop = cljs.core.async.chan.call(null);
 aurora.engine.commute_listener = null;
+aurora.engine.conj = function(a, b) {
+  return cljs.core.conj.call(null, a, cljs.core.with_meta.call(null, b, cljs.core.PersistentArrayMap.fromArray(["\ufdd0:path", cljs.core.conj.call(null, (new cljs.core.Keyword("\ufdd0:path")).call(null, cljs.core.meta.call(null, a)), cljs.core.count.call(null, a))], !0)))
+};
+aurora.engine.assoc = cljs.core.with_meta.call(null, function(a, b, c) {
+  return cljs.core.with_meta.call(null, function() {
+    if(c) {
+      var a;
+      a = (a = c.cljs$lang$protocol_mask$partition0$ & 131072) ? a : c.cljs$core$IMeta$;
+      return a ? !0 : c.cljs$lang$protocol_mask$partition0$ ? !1 : cljs.core.type_satisfies_.call(null, cljs.core.IMeta, c)
+    }
+    return cljs.core.type_satisfies_.call(null, cljs.core.IMeta, c)
+  }() ? cljs.core.assoc.call(null, a, b, cljs.core.with_meta.call(null, c, cljs.core.PersistentArrayMap.fromArray(["\ufdd0:path", cljs.core.conj.call(null, (new cljs.core.Keyword("\ufdd0:path")).call(null, cljs.core.meta.call(null, a)), b)], !0))) : cljs.core.assoc.call(null, a, b, c), cljs.core.meta.call(null, a))
+}, cljs.core.PersistentArrayMap.fromArray(["\ufdd0:desc", "Add key/value"], !0));
+aurora.engine.assoc_in = function assoc_in(b, c, d) {
+  var e = cljs.core.nth.call(null, c, 0, null);
+  c = cljs.core.nthnext.call(null, c, 1);
+  return cljs.core.truth_(c) ? aurora.engine.assoc.call(null, b, e, assoc_in.call(null, cljs.core.get.call(null, b, e), c, d)) : aurora.engine.assoc.call(null, b, e, d)
+};
 aurora.engine.commute = function(a) {
-  cljs.core.println.call(null, "[engine] Commuting: ", cljs.core.meta.call(null, a));
   var b = (new cljs.core.Keyword("\ufdd0:path")).call(null, cljs.core.meta.call(null, a));
-  a = cljs.core.seq_QMARK_.call(null, a) ? cljs.core.with_meta.call(null, cljs.core.vec.call(null, a), cljs.core.meta.call(null, a)) : a;
+  a = cljs.core.seq_QMARK_.call(null, a) ? cljs.core.with_meta.call(null, a, cljs.core.meta.call(null, a)) : a;
   a = clojure.walk.postwalk.call(null, function(a, b) {
     return function(a) {
       return a instanceof aurora.engine.MetaPrimitive ? cljs.core.deref.call(null, a) : a
     }
   }(b, a), a);
-  aurora.pipelines[cljs.core.first.call(null, b)] = cljs.core.next.call(null, b) ? cljs.core.assoc_in.call(null, aurora.pipelines[cljs.core.first.call(null, b)], cljs.core.rest.call(null, b), a) : a;
-  cljs.core.truth_(cljs.core.second.call(null, b)) || aurora.engine.meta_walk.call(null, a, b);
+  aurora.pipelines[cljs.core.first.call(null, b)] = cljs.core.next.call(null, b) ? aurora.engine.assoc_in.call(null, aurora.pipelines[cljs.core.first.call(null, b)], cljs.core.rest.call(null, b), a) : a;
+  aurora.engine.meta_walk.call(null, a, b);
   return cljs.core.async.put_BANG_.call(null, aurora.engine.event_loop, "\ufdd0:commute")
 };
 aurora.engine.as_meta = function(a, b) {
   var c;
-  a ? (c = (c = a.cljs$lang$protocol_mask$partition0$ & 131072) ? c : a.cljs$core$IMeta$, c = c ? !0 : a.cljs$lang$protocol_mask$partition0$ ? !1 : cljs.core.type_satisfies_.call(null, cljs.core.IMeta, a)) : c = cljs.core.type_satisfies_.call(null, cljs.core.IMeta, a);
-  return c ? a : new aurora.engine.MetaPrimitive(a, cljs.core.PersistentArrayMap.fromArray(["\ufdd0:path", b], !0))
+  c = a instanceof cljs.core.Symbol;
+  c || (c = cljs.core.not.call(null, a), c || (a ? (c = (c = a.cljs$lang$protocol_mask$partition0$ & 131072) ? c : a.cljs$core$IMeta$, c = c ? !0 : a.cljs$lang$protocol_mask$partition0$ ? !1 : cljs.core.type_satisfies_.call(null, cljs.core.IMeta, a)) : c = cljs.core.type_satisfies_.call(null, cljs.core.IMeta, a), c = !c));
+  return c ? new aurora.engine.MetaPrimitive(a, cljs.core.PersistentArrayMap.fromArray(["\ufdd0:path", b], !0)) : a
 };
 aurora.engine.each = function(a, b) {
   var c;
@@ -22444,14 +22491,23 @@ aurora.engine.rem = function(a, b) {
   aurora.engine.meta_walk.call(null, c, (new cljs.core.Keyword("\ufdd0:path")).call(null, cljs.core.meta.call(null, b)));
   return c
 };
-aurora.engine.conj = function(a, b) {
-  return cljs.core.conj.call(null, a, cljs.core.with_meta.call(null, b, cljs.core.PersistentArrayMap.fromArray(["\ufdd0:path", cljs.core.conj.call(null, (new cljs.core.Keyword("\ufdd0:path")).call(null, cljs.core.meta.call(null, a)), cljs.core.count.call(null, a))], !0)))
-};
-aurora.engine.assoc = cljs.core.with_meta.call(null, function(a, b, c) {
-  var d;
-  c ? (d = (d = c.cljs$lang$protocol_mask$partition0$ & 131072) ? d : c.cljs$core$IMeta$, d = d ? !0 : c.cljs$lang$protocol_mask$partition0$ ? !1 : cljs.core.type_satisfies_.call(null, cljs.core.IMeta, c)) : d = cljs.core.type_satisfies_.call(null, cljs.core.IMeta, c);
-  return d ? cljs.core.assoc.call(null, a, b, cljs.core.with_meta.call(null, c, cljs.core.PersistentArrayMap.fromArray(["\ufdd0:path", cljs.core.conj.call(null, (new cljs.core.Keyword("\ufdd0:path")).call(null, cljs.core.meta.call(null, a)), b)], !0))) : cljs.core.assoc.call(null, a, b, c)
-}, cljs.core.PersistentArrayMap.fromArray(["\ufdd0:desc", "Add key/value"], !0));
+aurora.engine.merge = function() {
+  var a = function(a, b) {
+    return cljs.core.with_meta.call(null, cljs.core.apply.call(null, cljs.core.merge, a, b), cljs.core.meta.call(null, a))
+  }, b = function(b, d) {
+    var e = null;
+    1 < arguments.length && (e = cljs.core.array_seq(Array.prototype.slice.call(arguments, 1), 0));
+    return a.call(this, b, e)
+  };
+  b.cljs$lang$maxFixedArity = 1;
+  b.cljs$lang$applyTo = function(b) {
+    var d = cljs.core.first(b);
+    b = cljs.core.rest(b);
+    return a(d, b)
+  };
+  b.cljs$core$IFn$_invoke$arity$variadic = a;
+  return b
+}();
 aurora.engine.start_main_loop = function(a) {
   var b = aurora.util.async.debounce.call(null, aurora.engine.event_loop, 10), c = cljs.core.async.chan.call(null, 1);
   cljs.core.async.impl.dispatch.run.call(null, function() {
@@ -22459,7 +22515,7 @@ aurora.engine.start_main_loop = function(a) {
       return function(a) {
         return function() {
           var b = null, c = function() {
-            var a = Array(9);
+            var a = Array(10);
             a[0] = b;
             a[1] = 1;
             return a
@@ -22495,10 +22551,11 @@ aurora.engine.start_main_loop = function(a) {
           return c[2] = null, c[1] = 6, "\ufdd0:recur"
         }
         if(4 === d) {
-          var d = (new Date).getTime(), d = cljs.core.println.call(null, "[engine] running at: ", d), e = a.call(null), k = cljs.core.async.put_BANG_.call(null, aurora.engine.listener_loop, "\ufdd0:done");
-          c[6] = e;
+          var d = console.time("main"), e = a.call(null), k = console.timeEnd("main"), l = cljs.core.async.put_BANG_.call(null, aurora.engine.listener_loop, "\ufdd0:done");
+          c[6] = l;
           c[7] = k;
-          c[8] = d;
+          c[8] = e;
+          c[9] = d;
           return cljs.core.async.impl.ioc_helpers.take_BANG_.call(null, c, 7, b)
         }
         return 3 === d ? (d = c[2], cljs.core.async.impl.ioc_helpers.return_chan.call(null, c, d)) : 2 === d ? (d = c[5], cljs.core.truth_(d) ? c[1] = 4 : c[1] = 5, "\ufdd0:recur") : 1 === d ? (c[5] = !0, c[2] = null, c[1] = 2, "\ufdd0:recur") : null
@@ -22512,6 +22569,10 @@ aurora.engine.start_main_loop = function(a) {
   });
   return c
 };
+cljs.core.LazySeq.prototype.cljs$core$IAssociative$ = !0;
+cljs.core.LazySeq.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(a, b, c) {
+  return cljs.core.with_meta.call(null, cljs.core.apply.call(null, cljs.core.list, aurora.engine.assoc.call(null, cljs.core.with_meta.call(null, cljs.core.vec.call(null, a), cljs.core.meta.call(null, a)), b, c)), cljs.core.meta.call(null, a))
+};
 cljs.core.List.prototype.cljs$core$IAssociative$ = !0;
 cljs.core.List.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(a, b, c) {
   return cljs.core.with_meta.call(null, cljs.core.apply.call(null, cljs.core.list, aurora.engine.assoc.call(null, cljs.core.with_meta.call(null, cljs.core.vec.call(null, a), cljs.core.meta.call(null, a)), b, c)), cljs.core.meta.call(null, a))
@@ -22521,17 +22582,20 @@ aurora.engine.meta_walk = function meta_walk(b, c) {
     var c = cljs.core.not_EQ_.call(null, null, b);
     return c ? b ? (c = (c = b.cljs$lang$protocol_mask$partition0$ & 131072) ? c : b.cljs$core$IMeta$, c ? !0 : b.cljs$lang$protocol_mask$partition0$ ? !1 : cljs.core.type_satisfies_.call(null, cljs.core.IMeta, b)) : cljs.core.type_satisfies_.call(null, cljs.core.IMeta, b) : c
   }()) {
-    if(cljs.core.alter_meta_BANG_.call(null, b, cljs.core.assoc, "\ufdd0:path", c), cljs.core.list_QMARK_.call(null, b)) {
+    if(cljs.core.alter_meta_BANG_.call(null, b, cljs.core.assoc, "\ufdd0:path", c), function() {
+      var c = cljs.core.list_QMARK_.call(null, b);
+      return c ? c : cljs.core.seq_QMARK_.call(null, b)
+    }()) {
       for(var d = cljs.core.seq.call(null, cljs.core.map_indexed.call(null, cljs.core.vector, b)), e = null, f = 0, g = 0;;) {
         if(g < f) {
           var h = cljs.core._nth.call(null, e, g), k = cljs.core.nth.call(null, h, 0, null), h = cljs.core.nth.call(null, h, 1, null);
           meta_walk.call(null, h, cljs.core.conj.call(null, c, k));
           g += 1
         }else {
-          if(k = cljs.core.seq.call(null, d)) {
-            d = k, cljs.core.chunked_seq_QMARK_.call(null, d) ? (k = cljs.core.chunk_first.call(null, d), d = cljs.core.chunk_rest.call(null, d), h = k, k = cljs.core.count.call(null, k), e = h, f = k) : (h = cljs.core.first.call(null, d), k = cljs.core.nth.call(null, h, 0, null), h = cljs.core.nth.call(null, h, 1, null), meta_walk.call(null, h, cljs.core.conj.call(null, c, k)), d = cljs.core.next.call(null, d), e = null, f = 0), g = 0
+          if(d = cljs.core.seq.call(null, d)) {
+            cljs.core.chunked_seq_QMARK_.call(null, d) ? (f = cljs.core.chunk_first.call(null, d), d = cljs.core.chunk_rest.call(null, d), e = f, f = cljs.core.count.call(null, f)) : (f = cljs.core.first.call(null, d), e = cljs.core.nth.call(null, f, 0, null), f = cljs.core.nth.call(null, f, 1, null), meta_walk.call(null, f, cljs.core.conj.call(null, c, e)), d = cljs.core.next.call(null, d), e = null, f = 0), g = 0
           }else {
-            return null
+            break
           }
         }
       }
@@ -22541,10 +22605,10 @@ aurora.engine.meta_walk = function meta_walk(b, c) {
           if(g < f) {
             h = cljs.core._nth.call(null, e, g), k = cljs.core.nth.call(null, h, 0, null), h = cljs.core.nth.call(null, h, 1, null), meta_walk.call(null, h, cljs.core.conj.call(null, c, k)), g += 1
           }else {
-            if(k = cljs.core.seq.call(null, d)) {
-              d = k, cljs.core.chunked_seq_QMARK_.call(null, d) ? (k = cljs.core.chunk_first.call(null, d), d = cljs.core.chunk_rest.call(null, d), h = k, k = cljs.core.count.call(null, k), e = h, f = k) : (h = cljs.core.first.call(null, d), k = cljs.core.nth.call(null, h, 0, null), h = cljs.core.nth.call(null, h, 1, null), meta_walk.call(null, h, cljs.core.conj.call(null, c, k)), d = cljs.core.next.call(null, d), e = null, f = 0), g = 0
+            if(d = cljs.core.seq.call(null, d)) {
+              cljs.core.chunked_seq_QMARK_.call(null, d) ? (f = cljs.core.chunk_first.call(null, d), d = cljs.core.chunk_rest.call(null, d), e = f, f = cljs.core.count.call(null, f)) : (f = cljs.core.first.call(null, d), e = cljs.core.nth.call(null, f, 0, null), f = cljs.core.nth.call(null, f, 1, null), meta_walk.call(null, f, cljs.core.conj.call(null, c, e)), d = cljs.core.next.call(null, d), e = null, f = 0), g = 0
             }else {
-              return null
+              break
             }
           }
         }
@@ -22554,33 +22618,30 @@ aurora.engine.meta_walk = function meta_walk(b, c) {
             if(g < f) {
               h = cljs.core._nth.call(null, e, g), k = cljs.core.nth.call(null, h, 0, null), h = cljs.core.nth.call(null, h, 1, null), meta_walk.call(null, h, cljs.core.conj.call(null, c, k)), g += 1
             }else {
-              if(k = cljs.core.seq.call(null, d)) {
-                d = k, cljs.core.chunked_seq_QMARK_.call(null, d) ? (k = cljs.core.chunk_first.call(null, d), d = cljs.core.chunk_rest.call(null, d), h = k, k = cljs.core.count.call(null, k), e = h, f = k) : (h = cljs.core.first.call(null, d), k = cljs.core.nth.call(null, h, 0, null), h = cljs.core.nth.call(null, h, 1, null), meta_walk.call(null, h, cljs.core.conj.call(null, c, k)), d = cljs.core.next.call(null, d), e = null, f = 0), g = 0
+              if(d = cljs.core.seq.call(null, d)) {
+                cljs.core.chunked_seq_QMARK_.call(null, d) ? (f = cljs.core.chunk_first.call(null, d), d = cljs.core.chunk_rest.call(null, d), e = f, f = cljs.core.count.call(null, f)) : (f = cljs.core.first.call(null, d), e = cljs.core.nth.call(null, f, 0, null), f = cljs.core.nth.call(null, f, 1, null), meta_walk.call(null, f, cljs.core.conj.call(null, c, e)), d = cljs.core.next.call(null, d), e = null, f = 0), g = 0
               }else {
-                return null
+                break
               }
             }
           }
-        }else {
-          return null
         }
       }
     }
-  }else {
-    return null
   }
+  return b
 };
 aurora.engine.exec_program = function(a, b) {
   cljs.core.truth_(cljs.core.truth_(b) ? b : cljs.core.not.call(null, aurora.pipelines)) && (aurora.pipelines = {});
   for(var c = cljs.core.seq.call(null, (new cljs.core.Keyword("\ufdd0:data")).call(null, a)), d = null, e = 0, f = 0;;) {
     if(f < e) {
       var g = cljs.core._nth.call(null, d, f), h = cljs.core.nth.call(null, g, 0, null), g = cljs.core.nth.call(null, g, 1, null);
-      cljs.core.not.call(null, aurora.pipelines["" + cljs.core.str(h)]) && (aurora.engine.meta_walk.call(null, g, cljs.core.PersistentVector.fromArray(["" + cljs.core.str(h)], !0)), aurora.pipelines["" + cljs.core.str(h)] = g);
+      cljs.core.not.call(null, aurora.pipelines["" + cljs.core.str(h)]) && (g = cljs.reader.read_string.call(null, cljs.core.pr_str.call(null, g)), aurora.engine.meta_walk.call(null, g, cljs.core.PersistentVector.fromArray([h], !0)), aurora.pipelines["" + cljs.core.str(h)] = g);
       f += 1
     }else {
       if(c = cljs.core.seq.call(null, c)) {
-        cljs.core.chunked_seq_QMARK_.call(null, c) ? (e = cljs.core.chunk_first.call(null, c), c = cljs.core.chunk_rest.call(null, c), d = e, e = cljs.core.count.call(null, e)) : (e = cljs.core.first.call(null, c), d = cljs.core.nth.call(null, e, 0, null), e = cljs.core.nth.call(null, e, 1, null), cljs.core.not.call(null, aurora.pipelines["" + cljs.core.str(d)]) && (aurora.engine.meta_walk.call(null, e, cljs.core.PersistentVector.fromArray(["" + cljs.core.str(d)], !0)), aurora.pipelines["" + cljs.core.str(d)] = 
-        e), c = cljs.core.next.call(null, c), d = null, e = 0), f = 0
+        cljs.core.chunked_seq_QMARK_.call(null, c) ? (e = cljs.core.chunk_first.call(null, c), c = cljs.core.chunk_rest.call(null, c), d = e, e = cljs.core.count.call(null, e)) : (e = cljs.core.first.call(null, c), d = cljs.core.nth.call(null, e, 0, null), e = cljs.core.nth.call(null, e, 1, null), cljs.core.not.call(null, aurora.pipelines["" + cljs.core.str(d)]) && (e = cljs.reader.read_string.call(null, cljs.core.pr_str.call(null, e)), aurora.engine.meta_walk.call(null, e, cljs.core.PersistentVector.fromArray([d], 
+        !0)), aurora.pipelines["" + cljs.core.str(d)] = e), c = cljs.core.next.call(null, c), d = null, e = 0), f = 0
       }else {
         break
       }
@@ -22639,8 +22700,8 @@ aurora.engine.exec_program = function(a, b) {
               }
             }(d, d, e, f, g, c)
           }(), h = aurora.engine.start_main_loop.call(null, h);
-          b[5] = e;
-          b[6] = g;
+          b[5] = g;
+          b[6] = e;
           return cljs.core.async.impl.ioc_helpers.return_chan.call(null, b, h)
         }
         if(1 === c) {
@@ -22658,182 +22719,3 @@ aurora.engine.exec_program = function(a, b) {
   });
   return k
 };
-aurora.engine.exec_program.call(null, cljs.core.PersistentArrayMap.fromArray(["\ufdd0:data", cljs.core.PersistentArrayMap.fromArray([new cljs.core.Symbol(null, "program", "program", -1949919171, null), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:data", cljs.core.PersistentArrayMap.fromArray([new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), cljs.core.PersistentVector.fromArray([cljs.core.PersistentArrayMap.fromArray(["todo", "Get milk", "done?", !1], !0)], !0), new cljs.core.Symbol(null, 
-"state", "state", -1530773942, null), cljs.core.PersistentArrayMap.fromArray(["state", "all"], !0)], !0), "\ufdd0:pipes", cljs.core.PersistentVector.fromArray([cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3etodo", "-\x3etodo", -291395792, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null)], !0), "\ufdd0:pipe", 
-cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null)], !0), cljs.core.PersistentVector.fromArray([cljs.core.PersistentArrayMap.fromArray(["editing?", !0], !0)], !0), cljs.core.PersistentVector.fromArray(["li.editing", cljs.core.PersistentVector.fromArray(["input", cljs.core.PersistentArrayMap.fromArray(["enter", cljs.core.list(new cljs.core.Symbol(null, 
-"partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3eedit", "-\x3eedit", -291853068, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null)), "value", cljs.core.list(new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null), "todo"), "focused", !0], !0)], !0)], !0), "\ufdd0:else", cljs.core.PersistentVector.fromArray(["li", cljs.core.PersistentArrayMap.fromArray(["class", cljs.core.list(new cljs.core.Symbol(null, "-\x3edone-class", 
-"-\x3edone-class", -1841853033, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null))], !0), cljs.core.PersistentVector.fromArray(["input", cljs.core.PersistentArrayMap.fromArray(["checked", cljs.core.list(new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null), "done?"), "type", "checkbox", "click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3etoggle-done", "-\x3etoggle-done", 
-1057237443, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null))], !0)], !0), cljs.core.PersistentVector.fromArray(["label", cljs.core.PersistentArrayMap.fromArray(["dblclick", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3eediting", "-\x3eediting", 1715458176, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null))], !0), cljs.core.list(new cljs.core.Symbol(null, "current-todo", 
-"current-todo", -217789997, null), "todo")], !0), cljs.core.PersistentVector.fromArray(["button", cljs.core.PersistentArrayMap.fromArray(["click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3erem", "-\x3erem", -1597013246, null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null))], !0), ""], !0)], !0))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", 
-new cljs.core.Symbol(null, "-\x3eactive-todos", "-\x3eactive-todos", 705287504, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "state", "state", 
--1530773942, null), "state")], !0), cljs.core.PersistentVector.fromArray(["all"], !0), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), cljs.core.PersistentVector.fromArray(["active"], !0), cljs.core.list(new cljs.core.Symbol(null, "filter-match", "filter-match", -601900823, null), cljs.core.PersistentArrayMap.fromArray(["done?", !1], !0), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null)), cljs.core.PersistentVector.fromArray(["completed"], !0), cljs.core.list(new cljs.core.Symbol(null, 
-"filter-match", "filter-match", -601900823, null), cljs.core.PersistentArrayMap.fromArray(["done?", !0], !0), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null)))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "root", "root", -1637025125, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null)], !0), "\ufdd0:pipe", 
-cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["div#todoapp", cljs.core.PersistentVector.fromArray(["header#header", cljs.core.PersistentVector.fromArray(["h1", "Todos"], !0), cljs.core.PersistentVector.fromArray(["input#toggle-all", cljs.core.PersistentArrayMap.fromArray(["type", "checkbox", "click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3eall-completed", "-\x3eall-completed", 702314695, null), 
-new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null)), "checked", cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "all-toggle")], !0)], !0), cljs.core.PersistentVector.fromArray(["input#new-todo", cljs.core.PersistentArrayMap.fromArray(["enter", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3eadd", "-\x3eadd", -1597029623, 
-null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null)), "placeholder", "What needs to be done?"], !0)], !0)], !0), cljs.core.PersistentVector.fromArray(["ul#todo-list", cljs.core.list(new cljs.core.Symbol(null, "each", "each", -1637426246, null), cljs.core.list(new cljs.core.Symbol(null, "-\x3eactive-todos", "-\x3eactive-todos", 705287504, null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null)), cljs.core.list(new cljs.core.Symbol(null, 
-"partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3etodo", "-\x3etodo", -291395792, null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null)))], !0), cljs.core.PersistentVector.fromArray(["div#footer", cljs.core.PersistentVector.fromArray(["span#todo-count", cljs.core.list(new cljs.core.Symbol(null, "-\x3eleft", "-\x3eleft", -291643663, null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null))], !0), cljs.core.PersistentVector.fromArray(["ul#filters", 
-cljs.core.PersistentVector.fromArray(["li", cljs.core.PersistentVector.fromArray(["a", cljs.core.PersistentArrayMap.fromArray(["click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3estate", "-\x3estate", 1527193401, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "all"), "class", cljs.core.list(new cljs.core.Symbol(null, "-\x3estate-class", "-\x3estate-class", 1837415588, null), new cljs.core.Symbol(null, 
-"state", "state", -1530773942, null), "all")], !0), "All"], !0)], !0), cljs.core.PersistentVector.fromArray(["li", cljs.core.PersistentVector.fromArray(["a", cljs.core.PersistentArrayMap.fromArray(["click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3estate", "-\x3estate", 1527193401, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "active"), "class", cljs.core.list(new cljs.core.Symbol(null, "-\x3estate-class", 
-"-\x3estate-class", 1837415588, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "active")], !0), "Active"], !0)], !0), cljs.core.PersistentVector.fromArray(["li", cljs.core.PersistentVector.fromArray(["a", cljs.core.PersistentArrayMap.fromArray(["click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3estate", "-\x3estate", 1527193401, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), 
-"completed"), "class", cljs.core.list(new cljs.core.Symbol(null, "-\x3estate-class", "-\x3estate-class", 1837415588, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "completed")], !0), "Completed"], !0)], !0)], !0), cljs.core.list(new cljs.core.Symbol(null, "-\x3erem-completed-button", "-\x3erem-completed-button", -317123919, null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null))], !0)], !0), cljs.core.list(new cljs.core.Symbol("core", "inject", "core/inject", 
-1668618606, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3edone-class", "-\x3edone-class", -1841853033, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "match", "match", -1536863362, 
-null), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null), "done?")], !0), cljs.core.PersistentVector.fromArray([!0], !0), "completed", "\ufdd0:else", "")], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3eset-done", "-\x3eset-done", -917818249, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "state", "state", -1530773942, null), 
-new cljs.core.Symbol(null, "val", "val", -1640415014, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null), "done?", new cljs.core.Symbol(null, "val", "val", -1640415014, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, 
-"-\x3eall-completed", "-\x3eall-completed", 702314695, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "all-toggle", cljs.core.list(new cljs.core.Symbol(null, 
-"not", "not", -1640422260, null), cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "all-toggle"))), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), cljs.core.list(new cljs.core.Symbol(null, "each", "each", -1637426246, null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), 
-new cljs.core.Symbol(null, "-\x3eset-done", "-\x3eset-done", -917818249, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), cljs.core.list(new cljs.core.Symbol(null, "not", "not", -1640422260, null), cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "all-toggle")))), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", 
-new cljs.core.Symbol(null, "-\x3eadd", "-\x3eadd", -1597029623, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "e", "e", -1640531426, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentArrayMap.fromArray(["todo", cljs.core.list(new cljs.core.Symbol(null, "e", "e", -1640531426, null), "value"), "done?", !1], !0), cljs.core.list(new cljs.core.Symbol(null, "conj", 
-"conj", -1637472031, null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3eediting", "-\x3eediting", 1715458176, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
-"current-todo", "current-todo", -217789997, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null), "editing?", !0), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", 
-new cljs.core.Symbol(null, "-\x3eedit", "-\x3eedit", -291853068, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null), new cljs.core.Symbol(null, "e", "e", -1640531426, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null), "todo", cljs.core.list(new cljs.core.Symbol(null, 
-"e", "e", -1640531426, null), "value")), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null), "editing?", !1), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3etoggle-done", "-\x3etoggle-done", 1057237443, null), 
-"\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null)], !0), cljs.core.PersistentVector.fromArray([cljs.core.PersistentArrayMap.fromArray(["done?", !0], !0)], !0), !1, "\ufdd0:else", 
-!0), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null), "done?", new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3erem", "-\x3erem", 
--1597013246, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "rem", "rem", -1640418733, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null)), cljs.core.list(new cljs.core.Symbol(null, 
-"commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3erem-completed", "-\x3erem-completed", 1603867776, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "todos", "todos", -1529996634, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "filter-match", 
-"filter-match", -601900823, null), cljs.core.PersistentArrayMap.fromArray(["done?", !1], !0), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null)), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3erem-completed-button", "-\x3erem-completed-button", -317123919, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
-"todos", "todos", -1529996634, null), new cljs.core.Symbol(null, "current-todo", "current-todo", -217789997, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "count", "count", -1545680184, null), cljs.core.list(new cljs.core.Symbol(null, "filter-match", "filter-match", -601900823, null), cljs.core.PersistentArrayMap.fromArray(["done?", !0], !0), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null))), cljs.core.list(new cljs.core.Symbol(null, 
-"match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)], !0), cljs.core.PersistentVector.fromArray([0], !0), null, cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:button#clear-completed", cljs.core.PersistentArrayMap.fromArray(["click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, 
-null), new cljs.core.Symbol(null, "-\x3erem-completed", "-\x3erem-completed", 1603867776, null), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null))], !0), "Clear completed (", new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), ")"], !0))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3eleft", "-\x3eleft", -291643663, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "todos", "todos", 
--1529996634, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "filter-match", "filter-match", -601900823, null), cljs.core.PersistentArrayMap.fromArray(["done?", !1], !0), new cljs.core.Symbol(null, "todos", "todos", -1529996634, null)), cljs.core.list(new cljs.core.Symbol(null, "count", "count", -1545680184, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), cljs.core.list(new cljs.core.Symbol(null, "match", "match", 
--1536863362, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)], !0), cljs.core.PersistentVector.fromArray([1], !0), cljs.core.list(new cljs.core.Symbol(null, "str", "str", -1640417302, null), "1 item left"), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)], !0), cljs.core.list(new cljs.core.Symbol(null, "str", "str", -1640417302, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, 
-null), " items left"))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3estate", "-\x3estate", 1527193401, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "state", "state", -1530773942, null), new cljs.core.Symbol(null, "val", "val", -1640415014, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, 
-"state", "state", -1530773942, null), "state", new cljs.core.Symbol(null, "val", "val", -1640415014, null)), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3estate-class", "-\x3estate-class", 1837415588, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "state", 
-"state", -1530773942, null), new cljs.core.Symbol(null, "val", "val", -1640415014, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "state")], !0), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "val", "val", -1640415014, null)], !0), "active", "\ufdd0:else", "")], !0)], 
-!0)], !0), "\ufdd0:main", new cljs.core.Symbol(null, "root", "root", -1637025125, null)], !0), new cljs.core.Symbol(null, "state", "state", -1530773942, null), cljs.core.PersistentArrayMap.fromArray(["pipe", new cljs.core.Symbol(null, "root", "root", -1637025125, null), "step", 0, "prev", cljs.core.PersistentVector.EMPTY, "dirty", !0, "charts", cljs.core.PersistentArrayMap.EMPTY], !0)], !0), "\ufdd0:pipes", cljs.core.PersistentVector.fromArray([cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", 
-new cljs.core.Symbol(null, "find-pipe", "find-pipe", -1256729861, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "name", "name", -1637157820, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), cljs.core.list(new cljs.core.Symbol(null, "filter-match", "filter-match", -601900823, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "cur", "cur", 
--1640432647, null), new cljs.core.Symbol(null, "name", "name", -1637157820, null)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)], !0), cljs.core.list(new cljs.core.Symbol(null, "get-in", "get-in", 1405049013, null), new cljs.core.Symbol(null, "program", "program", -1949919171, null), cljs.core.PersistentVector.fromArray(["\ufdd0:pipes"], !0))), new cljs.core.Symbol(null, "first", "first", -1543091095, null))], !0)], !0), 
-cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "show", "show", -1637002058, null), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol("core", "ctx!", "core/ctx!", -1439465563, null), "\ufdd0:app"), cljs.core.list(new cljs.core.Symbol(null, "if", "if", -1640528170, null), cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "dirty"), cljs.core.list(new cljs.core.Symbol(null, "do", "do", -1640528316, 
-null), cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, null), "[editor] Executing dirty"), cljs.core.list(new cljs.core.Symbol("core", "!runner", "core/!runner", 1155997806, null), new cljs.core.Symbol(null, "program", "program", -1949919171, null))), cljs.core.list(new cljs.core.Symbol(null, "let", "let", -1640424492, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), cljs.core.list(new cljs.core.Symbol(null, "find-pipe", 
-"find-pipe", -1256729861, null), cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "pipe"))], !0), cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, null), "[editor] re-drawing"), cljs.core.list(new cljs.core.Symbol("core", "root-inject", "core/root-inject", 1159106979, null), cljs.core.PersistentVector.fromArray(["\ufdd0:div#aurora", cljs.core.list(new cljs.core.Symbol(null, "-\x3epipeline", "-\x3epipeline", 1636165900, null), new cljs.core.Symbol(null, 
-"cur", "cur", -1640432647, null)), cljs.core.list(new cljs.core.Symbol(null, "-\x3eworkspace", "-\x3eworkspace", 910964669, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null))], !0))))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3edata", "-\x3edata", -291885420, null), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["\ufdd0:ul.data", cljs.core.list(new cljs.core.Symbol(null, "each-meta", 
-"each-meta", -1565038582, null), cljs.core.list(new cljs.core.Symbol(null, "program", "program", -1949919171, null), "\ufdd0:data"), new cljs.core.Symbol(null, "-\x3edata-rep", "-\x3edata-rep", -498829724, null))], !0)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3edata-rep", "-\x3edata-rep", -498829724, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "k", "k", -1640531420, 
-null), new cljs.core.Symbol(null, "v", "v", -1640531409, null)], !0)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["\ufdd0:li", cljs.core.list(new cljs.core.Symbol(null, "pr-str", "pr-str", 1672669599, null), new cljs.core.Symbol(null, "v", "v", -1640531409, null))], !0)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3ematch-pair", "-\x3ematch-pair", 1950340108, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
-"pipe", "pipe", -1637090457, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "match", "match", -1536863362, null), new cljs.core.Symbol(null, "action", "action", 1231484911, null)], !0)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["\ufdd0:div.entry", cljs.core.list(new cljs.core.Symbol(null, "pr-str", "pr-str", 1672669599, null), new cljs.core.Symbol(null, "match", "match", -1536863362, null)), cljs.core.list(new cljs.core.Symbol(null, 
-"step-rep", "step-rep", -213162027, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "action", "action", 1231484911, null))], !0)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3ematch-ui", "-\x3ematch-ui", -1989867002, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "match", "match", -1536863362, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["\ufdd0:div.match", 
-cljs.core.list(new cljs.core.Symbol(null, "pr-str", "pr-str", 1672669599, null), cljs.core.list(new cljs.core.Symbol(null, "second", "second", 1748155949, null), new cljs.core.Symbol(null, "match", "match", -1536863362, null))), cljs.core.list(new cljs.core.Symbol(null, "each-meta", "each-meta", -1565038582, null), cljs.core.list(new cljs.core.Symbol(null, "partition", "partition", 854625443, null), 2, cljs.core.list(new cljs.core.Symbol(null, "drop", "drop", -1637439320, null), 2, new cljs.core.Symbol(null, 
-"match", "match", -1536863362, null))), cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3ematch-pair", "-\x3ematch-pair", 1950340108, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)))], !0)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3efilter-match-ui", "-\x3efilter-match-ui", -1556535751, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
-"match", "match", -1536863362, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["\ufdd0:div.match", "filter-match"], !0)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "set-pipe", "set-pipe", -271266318, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "func", "func", -1637376899, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, 
-"update-in", "update-in", 705189474, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), cljs.core.PersistentVector.fromArray(["prev"], !0), new cljs.core.Symbol(null, "conj", "conj", -1637472031, null), cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "pipe")), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null), "pipe", new cljs.core.Symbol(null, "func", 
-"func", -1637376899, null)), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null), "step", 0), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "filter-in-scope", "filter-in-scope", 1810745370, null), "\ufdd0:scope", 
-cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "set", "set", -1640417765, null), cljs.core.list("\ufdd0:scope", new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null))), cljs.core.list(new cljs.core.Symbol(null, "remove", "remove", 1719824957, null), new cljs.core.Symbol(null, 
-"_PREV_", "_PREV_", 1155631430, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "get-in-scope", "get-in-scope", -539984388, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "var", "var", -1640415008, null), new cljs.core.Symbol(null, "depth", "depth", -1545059204, null)], !0), "\ufdd0:pipe", 
-cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "if", "if", -1640528170, null), cljs.core.list(new cljs.core.Symbol(null, "\x3d", "\x3d", -1640531466, null), new cljs.core.Symbol(null, "var", "var", -1640415008, null), cljs.core.list(new cljs.core.Symbol(null, "symbol", "symbol", 1766911825, null), "_PREV_")), cljs.core.list(new cljs.core.Symbol("js", "aurora.transformers.editor.-\x3estep", "js/aurora.transformers.editor.-\x3estep", -935302006, null), cljs.core.list("\ufdd0:name", 
-new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)), cljs.core.list(new cljs.core.Symbol(null, "dec", "dec", -1640432197, null), cljs.core.list("\ufdd0:cur-step", new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)))), cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), cljs.core.list(new cljs.core.Symbol("js", "aurora.transformers.editor.-\x3escope", "js/aurora.transformers.editor.-\x3escope", -1260389830, null), cljs.core.list("\ufdd0:name", new cljs.core.Symbol(null, 
-"pipe", "pipe", -1637090457, null))), cljs.core.list(new cljs.core.Symbol(null, "get", "get", -1640429297, null), new cljs.core.Symbol(null, "var", "var", -1640415008, null)), cljs.core.list(new cljs.core.Symbol(null, "get-in", "get-in", 1405049013, null), new cljs.core.Symbol(null, "depth", "depth", -1545059204, null))))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3einvocation", "-\x3einvocation", 1870089914, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
-"func", "func", -1637376899, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "let", "let", -1640424492, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe?", "pipe?", -1533858294, null), cljs.core.list(new cljs.core.Symbol(null, "find-pipe", "find-pipe", -1256729861, null), new cljs.core.Symbol(null, 
-"func", "func", -1637376899, null)), new cljs.core.Symbol(null, "data?", "data?", -1545175154, null), cljs.core.list(new cljs.core.Symbol(null, "get-in", "get-in", 1405049013, null), new cljs.core.Symbol(null, "program", "program", -1949919171, null), cljs.core.PersistentVector.fromArray(["\ufdd0:data", new cljs.core.Symbol(null, "func", "func", -1637376899, null)], !0)), new cljs.core.Symbol(null, "in-scope?", "in-scope?", 661077964, null), cljs.core.list(cljs.core.list(new cljs.core.Symbol(null, 
-"set", "set", -1640417765, null), cljs.core.list("\ufdd0:scope", new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null))), new cljs.core.Symbol(null, "func", "func", -1637376899, null)), new cljs.core.Symbol(null, "attrs", "attrs", -1547379109, null), cljs.core.list(new cljs.core.Symbol(null, "if", "if", -1640528170, null), new cljs.core.Symbol(null, "pipe?", "pipe?", -1533858294, null), cljs.core.PersistentArrayMap.fromArray(["click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 
-1861501754, null), new cljs.core.Symbol(null, "set-pipe", "set-pipe", -271266318, null), new cljs.core.Symbol(null, "func", "func", -1637376899, null)), "class", "func pipeline"], !0), cljs.core.PersistentArrayMap.EMPTY), new cljs.core.Symbol(null, "prev", "prev", -1637082132, null), cljs.core.list(new cljs.core.Symbol(null, "symbol", "symbol", 1766911825, null), "_PREV_")], !0), cljs.core.list(new cljs.core.Symbol(null, "match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
-"pipe?", "pipe?", -1533858294, null), new cljs.core.Symbol(null, "data?", "data?", -1545175154, null), new cljs.core.Symbol(null, "in-scope?", "in-scope?", 661077964, null), new cljs.core.Symbol(null, "func", "func", -1637376899, null)], !0), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "_", "_", -1640531432, null), "\ufdd0:guard", new cljs.core.Symbol(null, "boolean", "boolean", -1575819807, null)), new cljs.core.Symbol(null, "_", "_", -1640531432, null), new cljs.core.Symbol(null, 
-"_", "_", -1640531432, null), new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.list(new cljs.core.Symbol(null, "if-let", "if-let", 1461176100, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "desc", "desc", -1637451702, null), cljs.core.list(new cljs.core.Symbol(null, "op-lookup", "op-lookup", 1702580383, null), new cljs.core.Symbol(null, "func", "func", -1637376899, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null), new cljs.core.Symbol(null, 
-"pipe", "pipe", -1637090457, null))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.func", new cljs.core.Symbol(null, "attrs", "attrs", -1547379109, null), new cljs.core.Symbol(null, "desc", "desc", -1637451702, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.func", new cljs.core.Symbol(null, "attrs", "attrs", -1547379109, null), "(", cljs.core.PersistentVector.fromArray(["\ufdd0:div", cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, 
-"func", "func", -1637376899, null), new cljs.core.Symbol(null, "str", "str", -1640417302, null))], !0), cljs.core.list(new cljs.core.Symbol(null, "each-meta", "each-meta", -1565038582, null), cljs.core.list(new cljs.core.Symbol(null, "filter-in-scope", "filter-in-scope", 1810745370, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null)), cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), 
-new cljs.core.Symbol(null, "step-rep", "step-rep", -213162027, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null))), ")"], !0)), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "_", "_", -1640531432, null), new cljs.core.Symbol(null, "_", "_", -1640531432, null), cljs.core.list(new cljs.core.Symbol(null, "_", "_", -1640531432, null), "\ufdd0:guard", new cljs.core.Symbol(null, "boolean", "boolean", -1575819807, null)), new cljs.core.Symbol(null, "_", "_", -1640531432, 
-null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.data", cljs.core.list(new cljs.core.Symbol(null, "pr-str", "pr-str", 1672669599, null), cljs.core.list(new cljs.core.Symbol(null, "get-in-scope", "get-in-scope", -539984388, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "func", "func", -1637376899, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null)))], !0), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
-"_", "_", -1640531432, null), new cljs.core.Symbol(null, "_", "_", -1640531432, null), new cljs.core.Symbol(null, "_", "_", -1640531432, null), cljs.core.list(new cljs.core.Symbol(null, "quote", "quote", -1532577739, null), new cljs.core.Symbol(null, "partial", "partial", 1861501754, null))], !0), cljs.core.list(new cljs.core.Symbol(null, "-\x3einvocation", "-\x3einvocation", 1870089914, null), cljs.core.list(new cljs.core.Symbol(null, "first", "first", -1543091095, null), new cljs.core.Symbol(null, 
-"args", "args", -1637528938, null)), cljs.core.list(new cljs.core.Symbol(null, "rest", "rest", -1637034611, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null)), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "_", "_", -1640531432, null), new cljs.core.Symbol(null, "_", "_", -1640531432, null), new cljs.core.Symbol(null, "_", "_", -1640531432, null), new cljs.core.Symbol(null, "prev", "prev", -1637082132, 
-null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.prev.data", cljs.core.list(new cljs.core.Symbol(null, "pr-str", "pr-str", 1672669599, null), cljs.core.list(new cljs.core.Symbol("js", "aurora.transformers.editor.-\x3estep", "js/aurora.transformers.editor.-\x3estep", -935302006, null), cljs.core.list("\ufdd0:name", new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)), cljs.core.list(new cljs.core.Symbol(null, "dec", "dec", -1640432197, null), cljs.core.list("\ufdd0:cur-step", 
-new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)))))], !0), "\ufdd0:else", cljs.core.list(new cljs.core.Symbol(null, "if-let", "if-let", 1461176100, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "desc", "desc", -1637451702, null), cljs.core.list(new cljs.core.Symbol(null, "op-lookup", "op-lookup", 1702580383, null), new cljs.core.Symbol(null, "func", "func", -1637376899, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null), new cljs.core.Symbol(null, 
-"pipe", "pipe", -1637090457, null))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.func", new cljs.core.Symbol(null, "attrs", "attrs", -1547379109, null), new cljs.core.Symbol(null, "desc", "desc", -1637451702, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.func", new cljs.core.Symbol(null, "attrs", "attrs", -1547379109, null), "(", cljs.core.PersistentVector.fromArray(["\ufdd0:div", cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, 
-"func", "func", -1637376899, null), new cljs.core.Symbol(null, "str", "str", -1640417302, null))], !0), cljs.core.list(new cljs.core.Symbol(null, "each-meta", "each-meta", -1565038582, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null), cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "step-rep", "step-rep", -213162027, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null))), ")"], !0))))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", 
-new cljs.core.Symbol(null, "ensure-meta", "ensure-meta", -1506472979, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "thing", "thing", -1530200409, null), new cljs.core.Symbol(null, "path", "path", -1637098018, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "if", "if", -1640528170, null), cljs.core.list(new cljs.core.Symbol(null, "satisfies?", "satisfies?", 396750295, null), new cljs.core.Symbol(null, 
-"IMeta", "IMeta", -1570719833, null), new cljs.core.Symbol(null, "thing", "thing", -1530200409, null)), cljs.core.list(new cljs.core.Symbol(null, "with-meta", "with-meta", -774206363, null), new cljs.core.Symbol(null, "thing", "thing", -1530200409, null), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:path", new cljs.core.Symbol(null, "path", "path", -1637098018, null)], !0)), cljs.core.list(new cljs.core.Symbol("js", "aurora.engine.as-meta", "js/aurora.engine.as-meta", 1373505508, null), new cljs.core.Symbol(null, 
-"thing", "thing", -1530200409, null), new cljs.core.Symbol(null, "path", "path", -1637098018, null)))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3emap-entry", "-\x3emap-entry", -386885655, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "path", "path", -1637098018, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "k", 
-"k", -1640531420, null), new cljs.core.Symbol(null, "v", "v", -1640531409, null)], !0), new cljs.core.Symbol(null, "class", "class", -1545788623, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["\ufdd0:li", cljs.core.PersistentArrayMap.fromArray(["class", cljs.core.list(new cljs.core.Symbol(null, "str", "str", -1640417302, null), "entry ", new cljs.core.Symbol(null, "class", "class", -1545788623, null))], !0), cljs.core.list(new cljs.core.Symbol(null, 
-"step-rep", "step-rep", -213162027, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.list(new cljs.core.Symbol(null, "ensure-meta", "ensure-meta", -1506472979, null), new cljs.core.Symbol(null, "k", "k", -1640531420, null), cljs.core.list(new cljs.core.Symbol("cljs.core", "conj", "cljs.core/conj", 1413638748, null), new cljs.core.Symbol(null, "path", "path", -1637098018, null), new cljs.core.Symbol(null, "k", "k", -1640531420, null), "\ufdd0:aurora.core/key"))), cljs.core.list(new cljs.core.Symbol(null, 
-"step-rep", "step-rep", -213162027, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.list(new cljs.core.Symbol(null, "ensure-meta", "ensure-meta", -1506472979, null), new cljs.core.Symbol(null, "v", "v", -1640531409, null), cljs.core.list(new cljs.core.Symbol("cljs.core", "conj", "cljs.core/conj", 1413638748, null), new cljs.core.Symbol(null, "path", "path", -1637098018, null), new cljs.core.Symbol(null, "k", "k", -1640531420, null))))], !0)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", 
-new cljs.core.Symbol(null, "op-lookup", "op-lookup", 1702580383, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "op", "op", -1640527974, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
-"op", "op", -1640527974, null)], !0), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "quote", "quote", -1532577739, null), new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.map", "{", cljs.core.list(new cljs.core.Symbol(null, "for", "for", -1640429950, null), cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "k", "k", -1640531420, null), new cljs.core.Symbol(null, 
-"v", "v", -1640531409, null)], !0), cljs.core.list(new cljs.core.Symbol(null, "get-in-scope", "get-in-scope", -539984388, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.list(new cljs.core.Symbol(null, "first", "first", -1543091095, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null)))], !0), cljs.core.list(new cljs.core.Symbol(null, "if", "if", -1640528170, null), cljs.core.list(new cljs.core.Symbol(null, "\x3d", "\x3d", -1640531466, null), new cljs.core.Symbol(null, 
-"k", "k", -1640531420, null), cljs.core.list(new cljs.core.Symbol(null, "second", "second", 1748155949, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null))), cljs.core.list(new cljs.core.Symbol(null, "-\x3emap-entry", "-\x3emap-entry", -386885655, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.PersistentVector.EMPTY, cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "k", "k", -1640531420, null), cljs.core.list(new cljs.core.Symbol(null, 
-"nth", "nth", -1640422117, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null), 2)], !0), "assoc"), cljs.core.list(new cljs.core.Symbol(null, "-\x3emap-entry", "-\x3emap-entry", -386885655, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.PersistentVector.EMPTY, cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "k", "k", -1640531420, null), new cljs.core.Symbol(null, "v", "v", -1640531409, null)], !0)))), "}"], !0), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, 
-"quote", "quote", -1532577739, null), new cljs.core.Symbol(null, "commute", "commute", -690117421, null))], !0), cljs.core.list(new cljs.core.Symbol(null, "str", "str", -1640417302, null), "Replace"), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "quote", "quote", -1532577739, null), new cljs.core.Symbol("core", "inject", "core/inject", 1668618606, null))], !0), cljs.core.list(new cljs.core.Symbol(null, "str", "str", -1640417302, null), "To html"), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, 
-"quote", "quote", -1532577739, null), new cljs.core.Symbol(null, "conj", "conj", -1637472031, null))], !0), cljs.core.list(new cljs.core.Symbol(null, "let", "let", -1640424492, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), cljs.core.list(new cljs.core.Symbol(null, "get-in-scope", "get-in-scope", -539984388, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.list(new cljs.core.Symbol(null, "first", "first", -1543091095, 
-null), new cljs.core.Symbol(null, "args", "args", -1637528938, null))), new cljs.core.Symbol(null, "cnt", "cnt", -1640432862, null), cljs.core.list(new cljs.core.Symbol(null, "count", "count", -1545680184, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), cljs.core.list(new cljs.core.Symbol(null, "if", "if", -1640528170, null), cljs.core.list(new cljs.core.Symbol(null, "\x3e", "\x3e", -1640531465, null), new cljs.core.Symbol(null, 
-"cnt", "cnt", -1640432862, null), 2), cljs.core.list(new cljs.core.Symbol(null, "apply", "apply", -1547502297, null), new cljs.core.Symbol(null, "vector", "vector", 1834048252, null), "...", cljs.core.list(new cljs.core.Symbol(null, "subvec", "subvec", 1762908941, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), cljs.core.list(new cljs.core.Symbol(null, "-", "-", -1640531482, null), new cljs.core.Symbol(null, "cnt", "cnt", -1640432862, null), 3), new cljs.core.Symbol(null, "cnt", 
-"cnt", -1640432862, null))), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.vector", "[", cljs.core.list(new cljs.core.Symbol(null, "each", "each", -1637426246, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), new cljs.core.Symbol(null, "pr-str", "pr-str", 1672669599, null)), cljs.core.PersistentVector.fromArray(["\ufdd0:div.assoc", cljs.core.list(new cljs.core.Symbol(null, "step-rep", "step-rep", -213162027, 
-null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.list(new cljs.core.Symbol(null, "second", "second", 1748155949, null), new cljs.core.Symbol(null, "args", "args", -1637528938, null)))], !0), "]"], !0)), "\ufdd0:else", null)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3emath-rep", "-\x3emath-rep", -1986941246, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "form", "form", 
--1637382531, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol("core", "type", "core/type", -1442106619, null), new cljs.core.Symbol(null, "form", "form", -1637382531, null)), new cljs.core.Symbol(null, "form", "form", -1637382531, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:vector", cljs.core.list(cljs.core.PersistentVector.fromArray(["count", 
-new cljs.core.Symbol(null, "\x26", "\x26", -1640531489, null), new cljs.core.Symbol(null, "r", "r", -1640531413, null)], !0), "\ufdd0:seq")], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:span.math-op.math-count", "n"], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:vector", cljs.core.list(cljs.core.PersistentVector.fromArray(["sum", new cljs.core.Symbol(null, "\x26", "\x26", -1640531489, null), new cljs.core.Symbol(null, "r", "r", -1640531413, null)], !0), "\ufdd0:seq")], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:span.math-op", 
-cljs.core.PersistentVector.fromArray(["\ufdd0:span.math-sigma", "\u03a3"], !0), "x", cljs.core.PersistentVector.fromArray(["\ufdd0:sub", "i"], !0)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:vector", new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.math-expression", cljs.core.list(new cljs.core.Symbol(null, "each-meta", "each-meta", -1565038582, null), cljs.core.list(new cljs.core.Symbol(null, "interpose", "interpose", -1137596122, 
-null), cljs.core.list(new cljs.core.Symbol(null, "first", "first", -1543091095, null), new cljs.core.Symbol(null, "form", "form", -1637382531, null)), cljs.core.list(new cljs.core.Symbol(null, "rest", "rest", -1637034611, null), new cljs.core.Symbol(null, "form", "form", -1637382531, null))), new cljs.core.Symbol(null, "-\x3emath-rep", "-\x3emath-rep", -1986941246, null))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:string", "/"], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.math-divider"], 
-!0), cljs.core.PersistentVector.fromArray(["\ufdd0:string", new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:span.math-op", new cljs.core.Symbol(null, "form", "form", -1637382531, null)], !0), "\ufdd0:else", cljs.core.PersistentVector.fromArray(["\ufdd0:span.prim", cljs.core.list(new cljs.core.Symbol(null, "str", "str", -1640417302, null), new cljs.core.Symbol(null, "form", "form", -1637382531, null))], !0))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", 
-new cljs.core.Symbol(null, "set-step", "set-step", -271166704, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "i", "i", -1640531422, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "step", new cljs.core.Symbol(null, "i", "i", -1640531422, null)), cljs.core.list(new cljs.core.Symbol(null, "commute", 
-"commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3esteps-ui", "-\x3esteps-ui", -857342620, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.EMPTY], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, 
-"-\x3emath", "-\x3emath", -291617294, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "math-call", "math-call", -937413700, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "rest", "rest", -1637034611, null), new cljs.core.Symbol(null, "math-call", "math-call", -937413700, null)), cljs.core.PersistentVector.fromArray(["\ufdd0:div.math", cljs.core.list(new cljs.core.Symbol(null, "each", "each", -1637426246, 
-null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null), new cljs.core.Symbol(null, "-\x3emath-rep", "-\x3emath-rep", -1986941246, null))], !0)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "program-commute", "program-commute", -2142444918, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "thing", "thing", -1530200409, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, 
-"commute", "commute", -690117421, null), new cljs.core.Symbol(null, "thing", "thing", -1530200409, null)), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "dirty", !0), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, 
-"fill-scope", "fill-scope", 989418307, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "struct", "struct", 1762461070, null), new cljs.core.Symbol(null, "step-num", "step-num", -213165378, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "let", "let", -1640424492, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "prev-sym", 
-"prev-sym", 1378876902, null), cljs.core.list(new cljs.core.Symbol(null, "symbol", "symbol", 1766911825, null), "_PREV_"), new cljs.core.Symbol(null, "prev-value", "prev-value", 910102288, null), cljs.core.list(new cljs.core.Symbol("js", "aurora.transformers.editor.-\x3estep", "js/aurora.transformers.editor.-\x3estep", -935302006, null), cljs.core.list("\ufdd0:name", new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)), cljs.core.list(new cljs.core.Symbol(null, "dec", "dec", -1640432197, 
-null), new cljs.core.Symbol(null, "step-num", "step-num", -213165378, null))), new cljs.core.Symbol(null, "scope", "scope", -1531267059, null), cljs.core.list(new cljs.core.Symbol("js", "aurora.transformers.editor.-\x3escope", "js/aurora.transformers.editor.-\x3escope", -1260389830, null), cljs.core.list("\ufdd0:name", new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null))), new cljs.core.Symbol(null, "scope", "scope", -1531267059, null), cljs.core.list(new cljs.core.Symbol(null, "assoc", 
-"assoc", -1547409970, null), new cljs.core.Symbol(null, "scope", "scope", -1531267059, null), new cljs.core.Symbol(null, "prev-sym", "prev-sym", 1378876902, null), new cljs.core.Symbol(null, "prev-value", "prev-value", 910102288, null))], !0), cljs.core.list(new cljs.core.Symbol("js", "clojure.walk.postwalk-replace", "js/clojure.walk.postwalk-replace", -1489718817, null), new cljs.core.Symbol(null, "scope", "scope", -1531267059, null), new cljs.core.Symbol(null, "struct", "struct", 1762461070, null)))], 
-!0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "chart-options", "chart-options", 1434975592, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "chart-ed", "chart-ed", -204086617, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "assoc-in", "assoc-in", -2005053546, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), cljs.core.PersistentVector.fromArray(["charts", 
-cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, "chart-ed", "chart-ed", -204086617, null), new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), "\ufdd0:path"), "options"], !0), !0), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "chart-add-data", 
-"chart-add-data", -1992559586, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "chart", "chart", -1545907817, null), new cljs.core.Symbol(null, "e", "e", -1640531426, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "last", "last", -1637217201, null), cljs.core.list(new cljs.core.Symbol("js", "cljs.reader.read-string", "js/cljs.reader.read-string", 1949826957, null), cljs.core.list(new cljs.core.Symbol(null, 
-".dataTransfer.getData", ".dataTransfer.getData", -617727026, null), new cljs.core.Symbol(null, "e", "e", -1640531426, null), "path"))), cljs.core.list(new cljs.core.Symbol(null, "do", "do", -1640528316, null), cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, 
-null), new cljs.core.Symbol(null, "chart", "chart", -1545907817, null), "values", new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), cljs.core.list(new cljs.core.Symbol(null, "program-commute", "program-commute", -2142444918, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "set-chart-option", "set-chart-option", -620054904, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
-"chart", "chart", -1545907817, null), new cljs.core.Symbol(null, "option", "option", 1644298798, null), new cljs.core.Symbol(null, "value", "value", -1528558806, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, null), new cljs.core.Symbol(null, "chart", "chart", -1545907817, null)), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "chart", "chart", 
--1545907817, null), new cljs.core.Symbol(null, "option", "option", 1644298798, null), new cljs.core.Symbol(null, "value", "value", -1528558806, null)), cljs.core.list(new cljs.core.Symbol(null, "do", "do", -1640528316, null), cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), cljs.core.list(new cljs.core.Symbol(null, "program-commute", 
-"program-commute", -2142444918, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "set-chart-type", "set-chart-type", 1055656909, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "chart", "chart", -1545907817, null), new cljs.core.Symbol(null, "v", "v", -1640531409, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, 
-"println", "println", -1955249496, null), new cljs.core.Symbol(null, "e", "e", -1640531426, null)), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "chart", "chart", -1545907817, null), "type", new cljs.core.Symbol(null, "v", "v", -1640531409, null)), cljs.core.list(new cljs.core.Symbol(null, "program-commute", "program-commute", -2142444918, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", 
-new cljs.core.Symbol(null, "-\x3echart-ed", "-\x3echart-ed", -850286760, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "chart-call", "chart-call", 98465958, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, null), cljs.core.list(new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), new cljs.core.Symbol(null, 
-"chart-call", "chart-call", 98465958, null))), cljs.core.list(new cljs.core.Symbol(null, "let", "let", -1640424492, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "chart-state", "chart-state", 744115099, null), cljs.core.list(cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "charts"), cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, "chart-call", "chart-call", 98465958, null), new cljs.core.Symbol(null, 
-"meta", "meta", -1637183554, null), "\ufdd0:path")), new cljs.core.Symbol(null, "chart-data", "chart-data", 98495986, null), cljs.core.list(new cljs.core.Symbol(null, "fill-scope", "fill-scope", 989418307, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.list(new cljs.core.Symbol(null, "second", "second", 1748155949, null), new cljs.core.Symbol(null, "chart-call", "chart-call", 98465958, null)), cljs.core.list(new cljs.core.Symbol("core", "last-path", "core/last-path", 
-520323523, null), new cljs.core.Symbol(null, "chart-call", "chart-call", 98465958, null)))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.chart-ed", cljs.core.PersistentVector.fromArray(["\ufdd0:div", cljs.core.PersistentArrayMap.fromArray(["dragover", cljs.core.list(new cljs.core.Symbol(null, "fn", "fn", -1640528255, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "e", "e", -1640531426, null)], !0), cljs.core.list(new cljs.core.Symbol(null, ".preventDefault", ".preventDefault", 
-1564239536, null), new cljs.core.Symbol(null, "e", "e", -1640531426, null))), "dragenter", cljs.core.list(new cljs.core.Symbol(null, "fn", "fn", -1640528255, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "e", "e", -1640531426, null)], !0), cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, null), "entered!"), cljs.core.list(new cljs.core.Symbol(null, ".preventDefault", ".preventDefault", 1564239536, null), new cljs.core.Symbol(null, "e", "e", -1640531426, 
-null))), "drop", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "chart-add-data", "chart-add-data", -1992559586, null), cljs.core.list(new cljs.core.Symbol(null, "second", "second", 1748155949, null), new cljs.core.Symbol(null, "chart-call", "chart-call", 98465958, null)))], !0), cljs.core.list(new cljs.core.Symbol("js", "aurora.transformers.chart.!chart-canvas", "js/aurora.transformers.chart.!chart-canvas", 35972116, null), new cljs.core.Symbol(null, 
-"chart-data", "chart-data", 98495986, null))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:ul.chart-options", cljs.core.list(new cljs.core.Symbol(null, "for", "for", -1640429950, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "t", "t", -1640531411, null), cljs.core.PersistentVector.fromArray(["line", "pie", "bar", "donut"], !0)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:li", cljs.core.PersistentArrayMap.fromArray(["click", cljs.core.list(new cljs.core.Symbol(null, 
-"partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "set-chart-type", "set-chart-type", 1055656909, null), cljs.core.list(new cljs.core.Symbol(null, "second", "second", 1748155949, null), new cljs.core.Symbol(null, "chart-call", "chart-call", 98465958, null)), new cljs.core.Symbol(null, "t", "t", -1640531411, null)), "selected", cljs.core.list(new cljs.core.Symbol(null, "\x3d", "\x3d", -1640531466, null), cljs.core.list(new cljs.core.Symbol(null, "chart-data", "chart-data", 98495986, 
-null), "type"), new cljs.core.Symbol(null, "t", "t", -1640531411, null))], !0), new cljs.core.Symbol(null, "t", "t", -1640531411, null)], !0)), cljs.core.PersistentVector.fromArray(["\ufdd0:li", cljs.core.PersistentArrayMap.fromArray(["selected", cljs.core.list(new cljs.core.Symbol(null, "chart-data", "chart-data", 98495986, null), "bezierCurve"), "click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "set-chart-option", "set-chart-option", 
--620054904, null), cljs.core.list(new cljs.core.Symbol(null, "second", "second", 1748155949, null), new cljs.core.Symbol(null, "chart-call", "chart-call", 98465958, null)), "bezierCurve", cljs.core.list(new cljs.core.Symbol(null, "not", "not", -1640422260, null), cljs.core.list(new cljs.core.Symbol(null, "chart-data", "chart-data", 98495986, null), "bezierCurve")))], !0), "smooth"], !0)], !0)], !0))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "modify-primitive", 
-"modify-primitive", -1572683443, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, null), "time to modify: ", cljs.core.list(new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)), cljs.core.list(new cljs.core.Symbol(null, "assoc", 
-"assoc", -1547409970, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "modifying", cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), "\ufdd0:path"))), cljs.core.list(new cljs.core.Symbol(null, "when-let", "when-let", 401149633, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "path", "path", -1637098018, 
-null), cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), "\ufdd0:path")], !0), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "modifying", new cljs.core.Symbol(null, 
-"path", "path", -1637098018, null))))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "set-primitive", "set-primitive", -950627595, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), new cljs.core.Symbol(null, "e", "e", -1640531426, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, null), 
-"set primitive!", cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, "prim", "prim", -1637082017, null), new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), "\ufdd0:path")), cljs.core.list(new cljs.core.Symbol(null, "cond", "cond", -1637472037, null), cljs.core.list(new cljs.core.Symbol(null, "string?", "string?", 772676615, null), cljs.core.list(new cljs.core.Symbol("clojure.core", "deref", "clojure.core/deref", -564909588, null), 
-new cljs.core.Symbol(null, "cur", "cur", -1640432647, null))), cljs.core.list(new cljs.core.Symbol(null, "e", "e", -1640531426, null), "value"), cljs.core.list(new cljs.core.Symbol("core", "is-float?", "core/is-float?", 620429145, null), cljs.core.list(new cljs.core.Symbol("clojure.core", "deref", "clojure.core/deref", -564909588, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null))), cljs.core.list(new cljs.core.Symbol("js", "parseFloat", "js/parseFloat", 1650693117, null), cljs.core.list(new cljs.core.Symbol(null, 
-"e", "e", -1640531426, null), "value")), cljs.core.list(new cljs.core.Symbol(null, "number?", "number?", 653920207, null), cljs.core.list(new cljs.core.Symbol("clojure.core", "deref", "clojure.core/deref", -564909588, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null))), cljs.core.list(new cljs.core.Symbol("js", "parseInt", "js/parseInt", -452526386, null), cljs.core.list(new cljs.core.Symbol(null, "e", "e", -1640531426, null), "value")), "\ufdd0:else", cljs.core.list(new cljs.core.Symbol(null, 
-"e", "e", -1640531426, null), "value")), cljs.core.list(new cljs.core.Symbol("core", "commute-path", "core/commute-path", 2018961351, null), cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), "\ufdd0:path"), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null)), cljs.core.list(new cljs.core.Symbol(null, "println", "println", -1955249496, 
-null), "commuting state", cljs.core.list(new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null))), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "dirty", !0), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, 
-"_PREV_", "_PREV_", 1155631430, null), "modifying", null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "primitive-or-editor", "primitive-or-editor", 255352042, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "prim", "prim", -1637082017, null), new cljs.core.Symbol(null, "val", "val", -1640415014, null), new cljs.core.Symbol(null, "class", "class", -1545788623, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, 
-"let", "let", -1640424492, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "path", "path", -1637098018, null), cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, "prim", "prim", -1637082017, null), new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), "\ufdd0:path")], !0), cljs.core.list(new cljs.core.Symbol(null, "if", "if", -1640528170, null), cljs.core.list(new cljs.core.Symbol(null, "and", "and", -1640434800, 
-null), new cljs.core.Symbol(null, "path", "path", -1637098018, null), cljs.core.list(new cljs.core.Symbol(null, "\x3d", "\x3d", -1640531466, null), new cljs.core.Symbol(null, "path", "path", -1637098018, null), cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "modifying"))), cljs.core.PersistentVector.fromArray(["\ufdd0:input.prim-editor", cljs.core.PersistentArrayMap.fromArray(["enter", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), 
-new cljs.core.Symbol(null, "set-primitive", "set-primitive", -950627595, null), new cljs.core.Symbol(null, "prim", "prim", -1637082017, null)), "\ufdd0:value", cljs.core.list(new cljs.core.Symbol("clojure.core", "deref", "clojure.core/deref", -564909588, null), new cljs.core.Symbol(null, "prim", "prim", -1637082017, null)), "\ufdd0:focused", !0], !0)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div", cljs.core.PersistentArrayMap.fromArray(["class", new cljs.core.Symbol(null, "class", "class", 
--1545788623, null), "click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "modify-primitive", "modify-primitive", -1572683443, null), new cljs.core.Symbol(null, "prim", "prim", -1637082017, null))], !0), new cljs.core.Symbol(null, "val", "val", -1640415014, null)], !0)))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "drag-data", "drag-data", -1998487972, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
-"substep", "substep", 786833093, null), new cljs.core.Symbol(null, "e", "e", -1640531426, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, ".dataTransfer.setData", ".dataTransfer.setData", 1442382554, null), new cljs.core.Symbol(null, "e", "e", -1640531426, null), "path", cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null), new cljs.core.Symbol(null, 
-"meta", "meta", -1637183554, null), "\ufdd0:path"))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "step-rep", "step-rep", -213162027, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "let", "let", -1640424492, 
-null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "prev", "prev", -1637082132, null), cljs.core.list(new cljs.core.Symbol(null, "symbol", "symbol", 1766911825, null), "_PREV_"), new cljs.core.Symbol(null, "not-sym", "not-sym", 487044742, null), cljs.core.list(new cljs.core.Symbol(null, "complement", "complement", 2113019871, null), new cljs.core.Symbol(null, "symbol", "symbol", 1766911825, null)), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), cljs.core.list(new cljs.core.Symbol(null, 
-"if", "if", -1640528170, null), cljs.core.list(new cljs.core.Symbol(null, "satisfies?", "satisfies?", 396750295, null), new cljs.core.Symbol(null, "IDeref", "IDeref", 515317602, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)), cljs.core.list(new cljs.core.Symbol("clojure.core", "deref", "clojure.core/deref", -564909588, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)), new cljs.core.Symbol(null, "substep", "substep", 786833093, null))], !0), cljs.core.list(new cljs.core.Symbol(null, 
-"match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol("core", "type", "core/type", -1442106619, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:vector", new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.vector", cljs.core.PersistentArrayMap.fromArray(["draggable", 
-!0, "dragstart", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "drag-data", "drag-data", -1998487972, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null))], !0), cljs.core.list(new cljs.core.Symbol(null, "each-meta", "each-meta", -1565038582, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null), cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, 
-"step-rep", "step-rep", -213162027, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:list", cljs.core.list(cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "quote", "quote", -1532577739, null), new cljs.core.Symbol(null, "match", "match", -1536863362, null)), new cljs.core.Symbol(null, "\x26", "\x26", -1640531489, null), new cljs.core.Symbol(null, "r", "r", -1640531413, null)], !0), "\ufdd0:seq")], 
-!0), cljs.core.list(new cljs.core.Symbol(null, "-\x3ematch-ui", "-\x3ematch-ui", -1989867002, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)), cljs.core.PersistentVector.fromArray(["\ufdd0:list", cljs.core.list(cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "quote", "quote", -1532577739, null), new cljs.core.Symbol(null, "filter-match", "filter-match", -601900823, null)), new cljs.core.Symbol(null, 
-"\x26", "\x26", -1640531489, null), new cljs.core.Symbol(null, "r", "r", -1640531413, null)], !0), "\ufdd0:seq")], !0), cljs.core.list(new cljs.core.Symbol(null, "-\x3efilter-match-ui", "-\x3efilter-match-ui", -1556535751, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)), cljs.core.PersistentVector.fromArray(["\ufdd0:list", cljs.core.list(cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "quote", "quote", -1532577739, null), new cljs.core.Symbol("core", 
-"!math", "core/!math", -1411533930, null)), new cljs.core.Symbol(null, "\x26", "\x26", -1640531489, null), new cljs.core.Symbol(null, "r", "r", -1640531413, null)], !0), "\ufdd0:seq")], !0), cljs.core.list(new cljs.core.Symbol(null, "-\x3emath", "-\x3emath", -291617294, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)), cljs.core.PersistentVector.fromArray(["\ufdd0:list", cljs.core.list(cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "quote", 
-"quote", -1532577739, null), new cljs.core.Symbol("core", "!chart", "core/!chart", -406028766, null)), new cljs.core.Symbol(null, "\x26", "\x26", -1640531489, null), new cljs.core.Symbol(null, "r", "r", -1640531413, null)], !0), "\ufdd0:seq")], !0), cljs.core.list(new cljs.core.Symbol(null, "-\x3echart-ed", "-\x3echart-ed", -850286760, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)), cljs.core.PersistentVector.fromArray(["\ufdd0:list", 
-cljs.core.list(cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "func", "func", -1637376899, null), new cljs.core.Symbol(null, "\x26", "\x26", -1640531489, null), new cljs.core.Symbol(null, "r", "r", -1640531413, null)], !0), "\ufdd0:seq")], !0), cljs.core.list(new cljs.core.Symbol(null, "if", "if", -1640528170, null), cljs.core.list(new cljs.core.Symbol(null, "symbol?", "symbol?", 910997344, null), new cljs.core.Symbol(null, "func", "func", -1637376899, null)), cljs.core.list(new cljs.core.Symbol(null, 
-"-\x3einvocation", "-\x3einvocation", 1870089914, null), new cljs.core.Symbol(null, "func", "func", -1637376899, null), new cljs.core.Symbol(null, "r", "r", -1640531413, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)), cljs.core.list(new cljs.core.Symbol(null, "each-meta", "each-meta", -1565038582, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null), cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, 
-"step-rep", "step-rep", -213162027, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)))), cljs.core.PersistentVector.fromArray(["\ufdd0:seq", new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.list(new cljs.core.Symbol(null, "each-meta", "each-meta", -1565038582, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null), cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "step-rep", 
-"step-rep", -213162027, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null))), cljs.core.PersistentVector.fromArray(["\ufdd0:map", new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:ul.map", "{", cljs.core.list(new cljs.core.Symbol(null, "each", "each", -1637426246, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null), cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, 
-"-\x3emap-entry", "-\x3emap-entry", -386885655, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.list(new cljs.core.Symbol(null, "-\x3e", "-\x3e", -1640530070, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null), new cljs.core.Symbol(null, "meta", "meta", -1637183554, null), "\ufdd0:path"))), "}"], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:number", new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.list(new cljs.core.Symbol(null, 
-"primitive-or-editor", "primitive-or-editor", 255352042, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null), cljs.core.list(new cljs.core.Symbol(null, "str", "str", -1640417302, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)), "number"), cljs.core.PersistentVector.fromArray(["\ufdd0:symbol", new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.list(new cljs.core.Symbol(null, "-\x3einvocation", "-\x3einvocation", 1870089914, null), new cljs.core.Symbol(null, 
-"substep", "substep", 786833093, null), null, new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)), cljs.core.PersistentVector.fromArray(["\ufdd0:string", new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.list(new cljs.core.Symbol(null, "primitive-or-editor", "primitive-or-editor", 255352042, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null), "string"), cljs.core.PersistentVector.fromArray(["\ufdd0:keyword", 
-new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.string", cljs.core.list(new cljs.core.Symbol(null, "str", "str", -1640417302, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:fn", new cljs.core.Symbol(null, "_", "_", -1640531432, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.fn", "fn"], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:html", new cljs.core.Symbol(null, 
-"_", "_", -1640531432, null)], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.html", "html!"], !0), "\ufdd0:else", cljs.core.list(new cljs.core.Symbol(null, "pr-str", "pr-str", 1672669599, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null))))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3epipe-step", "-\x3epipe-step", 1094962867, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", 
-"pipe", -1637090457, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["\ufdd0:li", cljs.core.PersistentArrayMap.fromArray(["class", cljs.core.list(new cljs.core.Symbol(null, "let", "let", -1640424492, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "i", "i", -1640531422, null), cljs.core.list(new cljs.core.Symbol("core", "last-path", "core/last-path", 520323523, 
-null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null))], !0), cljs.core.list(new cljs.core.Symbol(null, "match", "match", -1536863362, null), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "step")], !0), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "i", "i", -1640531422, null)], !0), "active", "\ufdd0:else", ""))], !0), cljs.core.list(new cljs.core.Symbol(null, "step-rep", "step-rep", -213162027, 
-null), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), "\ufdd0:cur-step", cljs.core.list(new cljs.core.Symbol("core", "last-path", "core/last-path", 520323523, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null))), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)), cljs.core.list(new cljs.core.Symbol(null, "when-let", "when-let", 401149633, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, 
-"cap", "cap", -1640433269, null), cljs.core.list(new cljs.core.Symbol("js", "aurora.transformers.editor.-\x3estep", "js/aurora.transformers.editor.-\x3estep", -935302006, null), cljs.core.list("\ufdd0:name", new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)), cljs.core.list(new cljs.core.Symbol("core", "last-path", "core/last-path", 520323523, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null)))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:div.result", cljs.core.list(new cljs.core.Symbol(null, 
-"step-rep", "step-rep", -213162027, null), cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), "\ufdd0:cur-step", cljs.core.list(new cljs.core.Symbol("core", "last-path", "core/last-path", 520323523, null), new cljs.core.Symbol(null, "substep", "substep", 786833093, null))), cljs.core.list(new cljs.core.Symbol(null, "ensure-meta", "ensure-meta", -1506472979, null), new cljs.core.Symbol(null, "cap", "cap", -1640433269, 
-null), cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, "symbol", "symbol", 1766911825, null), "_PREV_")], !0)))], !0))], !0)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3ebackup", "-\x3ebackup", 1565469804, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.list(new cljs.core.Symbol(null, 
-"assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "state", "state", -1530773942, null), "prev", cljs.core.list(new cljs.core.Symbol(null, "vec", "vec", -1640414899, null), cljs.core.list(new cljs.core.Symbol(null, "take", "take", -1636979136, null), cljs.core.list(new cljs.core.Symbol("core", "last-path", "core/last-path", 520323523, null), new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)), cljs.core.list(new cljs.core.Symbol(null, "state", "state", -1530773942, null), "prev")))), 
-cljs.core.list(new cljs.core.Symbol(null, "assoc", "assoc", -1547409970, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null), "pipe", new cljs.core.Symbol(null, "cur", "cur", -1640432647, null)), cljs.core.list(new cljs.core.Symbol(null, "commute", "commute", -690117421, null), new cljs.core.Symbol(null, "_PREV_", "_PREV_", 1155631430, null))], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3eprev-step", "-\x3eprev-step", -1085523634, 
-null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "p", "p", -1640531415, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["li", cljs.core.PersistentArrayMap.fromArray(["click", cljs.core.list(new cljs.core.Symbol(null, "partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3ebackup", "-\x3ebackup", 1565469804, null), new cljs.core.Symbol(null, "p", "p", -1640531415, null))], !0)], !0)], !0)], 
-!0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3epipeline", "-\x3epipeline", 1636165900, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["\ufdd0:ul.breadcrumb", cljs.core.list(new cljs.core.Symbol(null, "each-meta", "each-meta", -1565038582, null), cljs.core.list(new cljs.core.Symbol(null, 
-"state", "state", -1530773942, null), "prev"), new cljs.core.Symbol(null, "-\x3eprev-step", "-\x3eprev-step", -1085523634, null))], !0)], !0)], !0), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:name", new cljs.core.Symbol(null, "-\x3eworkspace", "-\x3eworkspace", 910964669, null), "\ufdd0:scope", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)], !0), "\ufdd0:pipe", cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray(["\ufdd0:ul.workspace", 
-cljs.core.list(new cljs.core.Symbol(null, "when-let", "when-let", 401149633, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "cap", "cap", -1640433269, null), cljs.core.list(new cljs.core.Symbol("js", "aurora.transformers.editor.-\x3escope", "js/aurora.transformers.editor.-\x3escope", -1260389830, null), cljs.core.list("\ufdd0:name", new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)))], !0), cljs.core.PersistentVector.fromArray(["\ufdd0:li.scope", cljs.core.list(new cljs.core.Symbol(null, 
-"for", "for", -1640429950, null), cljs.core.PersistentVector.fromArray([cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "k", "k", -1640531420, null), new cljs.core.Symbol(null, "v", "v", -1640531409, null)], !0), new cljs.core.Symbol(null, "cap", "cap", -1640433269, null)], !0), cljs.core.list(new cljs.core.Symbol(null, "step-rep", "step-rep", -213162027, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), cljs.core.list(new cljs.core.Symbol(null, "if", "if", -1640528170, 
-null), cljs.core.list(new cljs.core.Symbol(null, "satisfies?", "satisfies?", 396750295, null), new cljs.core.Symbol(null, "IMeta", "IMeta", -1570719833, null), new cljs.core.Symbol(null, "v", "v", -1640531409, null)), cljs.core.list(new cljs.core.Symbol(null, "with-meta", "with-meta", -774206363, null), new cljs.core.Symbol(null, "v", "v", -1640531409, null), cljs.core.PersistentArrayMap.fromArray(["\ufdd0:path", cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "k", "k", -1640531420, 
-null)], !0)], !0)), cljs.core.list(new cljs.core.Symbol("js", "aurora.engine.as-meta", "js/aurora.engine.as-meta", 1373505508, null), new cljs.core.Symbol(null, "v", "v", -1640531409, null), cljs.core.PersistentVector.fromArray([new cljs.core.Symbol(null, "k", "k", -1640531420, null)], !0)))))], !0)), cljs.core.list(new cljs.core.Symbol(null, "each-meta", "each-meta", -1565038582, null), cljs.core.list(new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null), "\ufdd0:pipe"), cljs.core.list(new cljs.core.Symbol(null, 
-"partial", "partial", 1861501754, null), new cljs.core.Symbol(null, "-\x3epipe-step", "-\x3epipe-step", 1094962867, null), new cljs.core.Symbol(null, "pipe", "pipe", -1637090457, null)))], !0)], !0)], !0)], !0), "\ufdd0:main", new cljs.core.Symbol(null, "show", "show", -1637002058, null)], !0));

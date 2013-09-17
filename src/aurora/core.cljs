@@ -64,6 +64,10 @@
   (swap! contexts conj c)
   (kb/merge-keys @contexts))
 
+(defn ctxs! [c]
+  (reset! contexts c)
+  (kb/merge-keys @contexts))
+
 (defn rem-ctx! [c]
   (swap! contexts disj c)
   (kb/merge-keys @contexts))
@@ -80,7 +84,8 @@
     (dommy/set-html! wrapper "")
     (dommy/append! wrapper (node ui))
     (focus-walk wrapper)
-    (set! (.-scrollTop (sel1 "#aurora .workspace")) scroll-top)))
+    (when-let [ws (sel1 "#aurora .workspace")]
+      (set! (.-scrollTop ws) scroll-top))))
 
 (defn inject [ui]
   (dommy/set-html! (sel1 :#running-wrapper) "")
@@ -94,10 +99,14 @@
   (reader/read-string (dommy/attr (e->elem e) :path)))
 
 (defn vector-insert [v i thing]
-  (vec (concat (take i v) [thing] (drop i v))))
+  (with-meta
+    (vec (concat (take i v) [thing] (drop i v)))
+    (meta v)))
 
 (defn vector-remove [v i]
-  (vec (concat (take i v) (drop (inc i) v))))
+  (with-meta
+    (vec (concat (take i v) (drop (inc i) v)))
+    (meta v)))
 
 (defn slide-to [n]
   (dommy/set-style! (sel1 :#wrapper) :margin-left n))
@@ -110,6 +119,7 @@
   (cond
    (instance? js/aurora.engine.MetaPrimitive thing) (type @thing)
    (instance? js/HTMLElement thing) :html
+   (nil? thing) :nil
    (list? thing) :list
    (map? thing) :map
    (vector? thing) :vector
@@ -119,7 +129,7 @@
    (symbol? thing) :symbol
    (string? thing) :string
    (fn? thing) :fn
-   (seq? thing) :seq
+   (seq? thing) :list
    :else nil))
 
 (def walk walk/postwalk)
@@ -153,8 +163,8 @@
     (aset js/aurora.pipelines (first path) (if (next path)
                                              (assoc-in (aget js/aurora.pipelines (first path)) (rest path) v)
                                              v)))
-
-    (put! js/aurora.engine.event-loop :commute))
+  (js/aurora.engine.meta-walk v path)
+  (put! js/aurora.engine.event-loop :commute))
 
 (defn last-path [thing]
   (-> thing meta :path last))
@@ -174,3 +184,22 @@
 
 (defn is-float? [n]
   (not (identical? (mod n 1) 0)))
+
+(defn string-float? [s]
+  (re-seq #"^[\d\.]+$" s))
+
+(defn string-int? [s]
+  (re-seq #"^[\d]+$" s))
+
+(defn in-program? [program sym]
+  (or (get-in program [:data sym])
+      (first (filter #(= sym (:name %)) (:pipes program)))))
+
+(defn gen-id [program prefix]
+  (loop [i 1]
+    (let [id (symbol (str prefix i))]
+      (if-not (in-program? program id)
+        id
+        (recur (inc i))))))
+
+(def prev-symbol '_PREV_)

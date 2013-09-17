@@ -8,7 +8,7 @@
                    [cljs.core.async.macros :refer [go]]
                    [aurora.macros :refer [filter-match]]))
 
-(def colors ["#FFBF2D" "#F5861E" "#AC3C5A" "#892143" "#472B5D"])
+(def colors (vec (take 20 (cycle ["#FFBF2D" "#F5861E" "#AC3C5A" "#892143" "#472B5D"]))))
 
 
 (defn create-canvas []

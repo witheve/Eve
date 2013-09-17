@@ -1,132 +1,21 @@
 {:data {program
 
-{:data {todos [{"todo" "Get milk" "done?" false}]
-		state {"state" "all"}}
+		{:data {}
 
- :pipes [
-
-		 {:name ->todo
-		  :scope [todos current-todo]
-		  :pipe [(match [current-todo]
-						[{"editing?" true}] ["li.editing"
-											 ["input" {"enter" (partial ->edit current-todo) "value" (current-todo "todo") "focused" true}]]
-						:else ["li" {"class" (->done-class current-todo)}
-							   ["input" {"checked" (current-todo "done?") "type" "checkbox" "click" (partial ->toggle-done current-todo)}]
-							   ["label" {"dblclick" (partial ->editing current-todo)} (current-todo "todo")]
-							   ["button" {"click" (partial ->rem todos current-todo)} ""]])]}
-
-		 {:name ->active-todos
-		  :scope [todos state]
-		  :pipe [(match [(state "state")]
-						["all"] todos
-						["active"] (filter-match {"done?" false} todos)
-						["completed"] (filter-match {"done?" true} todos))]}
-
-		 {:name root
-		  :scope [todos state]
-		  :pipe [["div#todoapp"
-				  ["header#header"
-				   ["h1" "Todos"]
-				   ["input#toggle-all" {"type" "checkbox" "click" (partial ->all-completed todos state) "checked" (state "all-toggle")}]
-				   ["input#new-todo" {"enter" (partial ->add todos) "placeholder" "What needs to be done?"}]]
-				  ["ul#todo-list"
-				   (each (->active-todos todos state) (partial ->todo todos))]
-				  ["div#footer"
-				   ["span#todo-count" (->left todos)]
-				   ["ul#filters"
-					["li" ["a" {"click" (partial ->state state "all") "class" (->state-class state "all")} "All"]]
-					["li" ["a" {"click" (partial ->state state "active") "class" (->state-class state "active")} "Active"]]
-					["li" ["a" {"click" (partial ->state state "completed") "class" (->state-class state "completed")} "Completed"]]]
-				   (->rem-completed-button todos)]]
-				 (core/inject _PREV_)]}
-
-		 {:name ->done-class
-		  :scope [current-todo]
-		  :pipe [(match [(current-todo "done?")]
-						[true] "completed"
-						:else "")]}
-
-		 {:name ->set-done
-		  :scope [state val current-todo]
-		  :pipe [(assoc current-todo "done?" val)]}
-
-		 {:name ->all-completed
-		  :scope [todos state]
-		  :pipe [(assoc state "all-toggle" (not (state "all-toggle")))
-				 (commute _PREV_)
-				 (each todos (partial ->set-done state (not (state "all-toggle"))))
-				 (commute _PREV_)]}
-
-		 {:name ->add
-		  :scope [todos e]
-		  :pipe [{"todo" (e "value")
-				  "done?" false}
-				 (conj todos _PREV_)
-				 (commute _PREV_)]}
-
-		 {:name ->editing
-		  :scope [current-todo]
-		  :pipe [(assoc current-todo "editing?" true)
-				 (commute _PREV_)
-				 ]}
-
-		 {:name ->edit
-		  :scope [current-todo e]
-		  :pipe [(assoc current-todo "todo" (e "value"))
-				 (assoc _PREV_ "editing?" false)
-				 (commute _PREV_)]}
-
-		 {:name ->toggle-done
-		  :scope [current-todo]
-		  :pipe [(match [current-todo]
-						[{"done?" true}] false
-						:else true)
-				 (assoc current-todo "done?" _PREV_)
-				 (commute _PREV_)]}
-
-		 {:name ->rem
-		  :scope [todos current-todo]
-		  :pipe [(rem current-todo todos)
-				 (commute _PREV_)]}
-
-		 {:name ->rem-completed
-		  :scope [todos]
-		  :pipe [(filter-match {"done?" false} todos)
-				 (commute _PREV_)]}
-
-		 {:name ->rem-completed-button
-		  :scope [todos current-todo]
-		  :pipe [(count (filter-match {"done?" true} todos))
-				 (match [_PREV_]
-						[0] nil
-						[cur] [:button#clear-completed {"click" (partial ->rem-completed todos)} "Clear completed (" cur ")"])]}
-
-		 {:name ->left
-		  :scope [todos]
-		  :pipe [(filter-match {"done?" false} todos)
-				 (count _PREV_)
-				 (match [_PREV_]
-						[1] (str "1 item left")
-						[cur] (str cur " items left" ))]}
-
-		 {:name ->state
-		  :scope [state val]
-		  :pipe [(assoc state "state" val)
-				 (commute _PREV_)]}
-
-		 {:name ->state-class
-		  :scope [state val]
-		  :pipe [(match [(state "state")]
-						[val] "active"
-						:else "")]}
-		 ]
+ :pipes [{:name root
+		  :scope []
+		  :pipe []}]
 
  :main root}
+
 
         state {"pipe" root
 			   "step" 0
 			   "prev" []
 			   "dirty" true
+			   "contexts" #{:app}
+			   "context-menu" {}
+			   "data-editor" {}
 			   "charts" {}}}
  :pipes [
 
@@ -137,19 +26,26 @@
 								   (get-in program [:pipes]))
 					 first)]}
 
+		 {:name clear-menu
+		  :scope []
+		  :pipe [(when (get-in state ["context-menu" "active"])
+				   (commute (assoc state "context-menu" {}))
+				 )]}
+
          {:name show
-          :pipe [(core/ctx! :app)
+          :pipe [(core/ctxs! (state "contexts"))
 				 (if (state "dirty")
 				   (do
-					 (println "[editor] Executing dirty")
-					 (core/!runner program))
-				   (let [cur (find-pipe (state "pipe"))]
-					 (println "[editor] re-drawing")
+					 (core/!runner program (= (state "dirty") "full")))
+				   (let [cur (or (find-pipe (state "pipe")) 'root)]
 					 (core/root-inject
-					  [:div#aurora
+					  [:div#aurora {"click" clear-menu}
 					   ;(->data)
 					   (->pipeline cur)
 					   (->workspace cur)
+					   [:div.console [:p "program:"] (pr-str program) [:p "state:"] (pr-str state) ]
+					   (when (get-in state ["context-menu" "active"])
+						 ((get-in state ["context-menu" "ui"])))
 					   ])))
 
 				 ]}
@@ -201,31 +97,36 @@
 				 ]}
 
 		 {:name ->invocation
-		  :scope [func args pipe]
-		  :pipe [(let [pipe? (find-pipe func)
+		  :scope [[func & args :as call] pipe]
+		  :pipe [
+				 (let [pipe? (find-pipe func)
 					   data? (get-in program [:data func])
 					   in-scope? ((set (:scope pipe)) func)
 					   attrs (if pipe?
 							   {"click" (partial set-pipe func)
-								"class" "func pipeline"}
-							   {})
+								"class" "func pipeline"
+								"contextmenu" (partial new-data-menu "conj" (-> call meta :path))}
+							   {"contextmenu" (partial new-data-menu "conj" (-> call meta :path))})
 					   prev (symbol "_PREV_")]
 				   (match [pipe? data? in-scope? func]
-						  [(_ :guard boolean) _ _ _] (if-let [desc (op-lookup func args pipe)]
+						  [(_ :guard boolean) _ _ _] (if-let [desc (op-lookup call func args pipe)]
 													 [:div.func attrs desc]
-													 [:div.func attrs "(" [:div (-> func str)] (each-meta (filter-in-scope pipe args) (partial step-rep pipe)) ")"])
-						  [_ _ (_ :guard boolean) _] [:div.data  (pr-str (get-in-scope pipe func args))]
-						  [_ _ _ 'partial] (->invocation (first args) (rest args) pipe)
-						  [_ _ _ prev] [:div.prev.data (pr-str (js/aurora.transformers.editor.->step (:name pipe) (dec (:cur-step pipe))))]
-						  :else (if-let [desc (op-lookup func args pipe)]
+													 [:div.func attrs "(" [:div (:desc pipe?)] (each-meta (filter-in-scope pipe args) (partial step-rep pipe)) ")"])
+						  [_ _ (_ :guard boolean) _] [:div.data  (data-rep pipe (get-in-scope pipe func args))]
+						  [_ _ _ 'get-in] [:div.data (println "args: " args) (data-rep pipe (get-in-scope pipe (first args) (second args)))]
+						  [_ _ _ 'partial] (->invocation args pipe)
+						  [_ _ _ prev] [:div.prev.data (data-rep pipe (js/aurora.transformers.editor.->step (:name pipe) (dec (:cur-step pipe))))]
+						  :else (if-let [desc (op-lookup call func args pipe)]
 								  [:div.func attrs desc]
-								  [:div.func attrs "(" [:div (-> func str)] (each-meta args (partial step-rep pipe)) ")"]))
+								  [:div.func attrs "(" [:div (-> func str)] (rest (each-meta (with-meta (conj args nil) (meta call)) (partial step-rep pipe))) ")"]))
 
 				 )]}
 
 		 {:name ensure-meta
 		  :scope [thing path]
-		  :pipe [(if (satisfies? IMeta thing)
+		  :pipe [(if (and (satisfies? IMeta thing)
+						  thing
+						  (not (symbol? thing)))
 				   (with-meta thing {:path path})
 				   (js/aurora.engine.as-meta thing path))]}
 
@@ -236,13 +137,41 @@
 				  (step-rep pipe (ensure-meta v (cljs.core/conj path k)))]]
 		  }
 
+		 {:name ->assoc-entry
+		  :scope [pipe path [k v] old]
+		  :pipe [[:li {"class" (str "entry assoc")}
+				  (data-rep pipe (ensure-meta k (cljs.core/conj path k :aurora.core/key)))
+				  [:div.fromto (data-rep pipe old) "=>" (step-rep pipe (ensure-meta v path))]]]
+		  }
+
+		 {:name make-assoc
+		  :scope [pipe path k v]
+		  :pipe [(println "Make assoc: " (:cur-step pipe) (meta pipe) path k)
+				 (assoc (:pipe pipe) (:cur-step pipe) (list 'assoc (get-in pipe [:pipe (:cur-step pipe)]) k v))
+				 (commute _PREV_)
+				 ]}
+
+		 {:name ->data-map-entry
+		  :scope [pipe path [k v] class]
+		  :pipe [[:li {"class" (str "entry " class)}
+				  (data-rep pipe (ensure-meta k (cljs.core/conj path k :aurora.core/key)))
+				  (data-rep pipe (ensure-meta v (cljs.core/conj path k)) {"click" (partial make-assoc pipe path k v)})]]
+		  }
+
 		 {:name op-lookup
-		  :scope [op args pipe ]
-		  :pipe [(match [op]
-						['assoc] [:div.map "{" (for [[k v] (get-in-scope pipe (first args))]
-												 (if (= k (second args))
-												   (->map-entry pipe [] [k (nth args 2)] "assoc")
-												   (->map-entry pipe [] [k v] ))) "}"]
+		  :scope [call op args pipe ]
+		  :pipe [(println "Op lookup: " op args pipe)
+				 (match [op]
+						['assoc] (let [orig (first args)
+									   orig (if (symbol? orig)
+											  [orig]
+											  [(second orig) (first (drop 2 orig))])
+									   orig-value (apply get-in-scope pipe orig)]
+								   (println "assoc rep: " orig (apply get-in-scope pipe orig) )
+								   [:div.map.data "{" (for [[k v] orig-value]
+												   (if (= k (second args))
+													 (->assoc-entry pipe (cljs.core/conj (-> call meta :path) 3) [k (nth args 2)] v)
+													 (->map-entry pipe [] [k v] ))) "}"])
 						;(list "In " (->invocation (first args) nil pipe) " set " (str (second args) " to " (nth args 2)))
 
 						['commute] (str "Replace")
@@ -309,7 +238,7 @@
 		  :scope [chart e]
 		  :pipe [
 				 (last (js/cljs.reader.read-string (.dataTransfer.getData e "path")))
-				 (do (println _PREV_) _PREV_)
+				 (do (println "chart drop: " _PREV_ (meta chart)) _PREV_)
 				 (assoc chart "values" _PREV_)
 				 (program-commute _PREV_)
 				 ]
@@ -318,17 +247,14 @@
 		 {:name set-chart-option
 		  :scope [chart option value]
 		  :pipe [
-				 (println chart)
 				 (assoc chart option value)
-				 (do (println _PREV_) _PREV_)
 				 (program-commute _PREV_)
 				 ]
 		  }
 
 		 {:name set-chart-type
 		  :scope [chart v]
-		  :pipe [
-				 (println e)
+		  :pipe [(println "Got chart click")
 				 (assoc chart "type" v)
 				 (program-commute _PREV_)
 				 ]
@@ -336,14 +262,14 @@
 
 		 {:name ->chart-ed
 		  :scope [pipe chart-call]
-		  :pipe [(println (meta chart-call))
+		  :pipe [(println "Chart ed: " (meta chart-call) (meta (second chart-call)))
 				 (let [chart-state ((state "charts")
 									(-> chart-call meta :path))
 					   chart-data (fill-scope pipe (second chart-call) (core/last-path chart-call))]
 				   [:div.chart-ed
 					[:div {;"click" (partial chart-options chart-call)
 						   "dragover" (fn [e] (.preventDefault e))
-						   "dragenter" (fn [e] (println "entered!") (.preventDefault e))
+						   "dragenter" (fn [e]  (.preventDefault e))
 						   "drop" (partial chart-add-data (second chart-call))}
 					 (js/aurora.transformers.chart.!chart-canvas  chart-data)]
 					[:ul.chart-options
@@ -359,21 +285,21 @@
 
 		 {:name modify-primitive
 		  :scope [cur]
-		  :pipe [(println "time to modify: " (meta cur) (assoc state "modifying" (-> cur meta :path)))
+		  :pipe [
 				 (when-let [path (-> cur meta :path)]
 				 (commute (assoc state "modifying" path)))]}
 
 		 {:name set-primitive
 		  :scope [cur e]
-		  :pipe [(println "set primitive!" (-> prim meta :path))
+		  :pipe [(e "value")
 				 (cond
-				  (string? @cur) (e "value")
-				  (core/is-float? @cur) (js/parseFloat (e "value"))
-				  (number? @cur) (js/parseInt (e "value"))
+				  (core/string-float? _PREV_) (js/parseFloat (e "value"))
+				  (core/string-int? _PREV_) (js/parseInt (e "value"))
 				  :else (e "value"))
 				 (core/commute-path (-> cur meta :path) _PREV_)
-				 (println "commuting state" (meta state))
-				 (assoc state "dirty" true)
+				 (assoc state "dirty" (if (= (take 2 (-> cur meta :path) ['program :data]))
+										"full"
+										true))
 				 (commute (assoc _PREV_ "modifying" nil))]}
 
 		 {:name primitive-or-editor
@@ -382,56 +308,153 @@
 				   (if (and path
 							(= path (state "modifying")))
 					 [:input.prim-editor {"enter" (partial set-primitive prim) :value @prim :focused true}]
-					 [:div {"class" class "click" (partial modify-primitive prim)} val])
+					 [:div {"class" class "click" (partial modify-primitive prim) "contextmenu" (partial new-data-menu "assoc" (-> prim meta :path))
+							"draggable" true "dragstart" (partial drag-data prim)} val])
 				   )]}
 
 		 {:name drag-data
 		  :scope [substep e]
-		  :pipe [(.dataTransfer.setData e "path" (-> substep meta :path))]}
+		  :pipe [(.dataTransfer.setData e "path" (vec (remove #{'program :data} (-> substep meta :path))))
+				 (.stopPropagation e)]}
+
+		 {:name add-key
+		  :scope [map e]
+		  :pipe [
+				 (assoc map "new-key" nil)
+				 (commute _PREV_)
+				 (assoc state "modifying" (-> map meta :path (cljs.core/conj "new-key" :aurora.core/key)))
+				 (assoc _PREV_ "dirty" "full")
+				 (commute _PREV_)
+				 (.preventDefault e)
+				 (.stopPropagation e)]}
 
 		 {:name step-rep
 		  :scope [pipe substep]
-		  :pipe [(let [prev (symbol "_PREV_")
+		  :pipe [
+				 (let [prev (symbol "_PREV_")
 					   not-sym (complement symbol)
 					   cur (if (satisfies? IDeref substep)
 							 @substep
 							 substep)]
-				 (match [(core/type substep) substep]
-                        [:vector _] [:div.vector {"draggable" true "dragstart" (partial drag-data substep)} (each-meta substep (partial step-rep pipe))]
+				 (match [(core/type cur) substep]
+                        [:vector _] [:div.vector {"draggable" true "dragstart" (partial drag-data substep)
+												  "contextmenu" (partial new-data-menu "conj" (-> substep meta :path))}
+									 "["
+									 (each-meta substep (partial step-rep pipe))
+									 "]"]
                         [:list (['match & r] :seq)] (->match-ui substep pipe)
 						[:list (['filter-match & r] :seq)] (->filter-match-ui substep)
 						[:list (['core/!math & r] :seq)] (->math substep)
 						[:list (['core/!chart & r] :seq)] (->chart-ed pipe substep)
                         [:list ([func & r] :seq)] (if (symbol? func)
-													(->invocation func r pipe)
+													(->invocation substep pipe)
 													(each-meta substep (partial step-rep pipe)))
-						[:seq _] (each-meta substep (partial step-rep pipe))
-						[:map _] [:ul.map "{" (each substep (partial ->map-entry pipe (-> substep meta :path))) "}"]
+						[:map _] [:ul.map {"draggable" true "dragstart" (partial drag-data substep) "contextmenu" (partial add-key substep)} "{" (each substep (partial ->map-entry pipe (-> substep meta :path))) "}"]
 						[:number _] (primitive-or-editor substep (str cur) "number")
-						[:symbol _] (->invocation substep nil pipe)
-                        [:string _] (primitive-or-editor substep cur "string")
+						[:symbol _] (->invocation (with-meta [cur] (meta substep)) pipe)
+                        [:string _]  (primitive-or-editor substep cur "string")
+                        [:nil _] (do (println substep) (primitive-or-editor substep (pr-str cur) "string"))
                         [:keyword _] [:div.string (str cur)]
 						[:fn _] [:div.fn "fn"]
 						[:html _] [:div.html "html!"]
                         :else (pr-str cur)))]}
 
+		 {:name ->each
+		  :scope [pipe step]
+		  :pipe [(println "each: " step (meta step))]}
+
+		 {:name op-menu-ui
+		  :scope [pipe substep]
+		  :pipe [(match [(core/type substep)]
+						[:vector] (list
+								   [:li {"click" (partial ->each pipe substep)} "each"]
+								   [:li "filter"]
+								   [:li "extract"]
+								   [:li "group"]
+								   )
+						[:map] (list [:li "keys"]
+									 [:li "vals"]
+									 [:li "match"]))
+				 [:ul.context-menu {:style (str "top: " (- (get-in state ["context-menu" "y"]) 55)
+												"px; left: " (- (get-in state ["context-menu" "x"]) 30) "px;")}
+				  _PREV_
+				  ]]}
+
+		 {:name op-context
+		  :scope [pipe substep e]
+		  :pipe [(assoc state "context-menu" {"active" true
+											  "ui" (partial op-menu-ui pipe substep)
+											  "x" (.-clientX e)
+											  "y" (.-clientY e)})
+				 (commute _PREV_)
+				 (.preventDefault e)
+				 (.stopPropagation e)]}
+
+		 {:name data-rep
+		  :scope [pipe substep attrs]
+		  :pipe [
+				 (let [prev (symbol "_PREV_")
+					   not-sym (complement symbol)
+					   cur (if (satisfies? IDeref substep)
+							 @substep
+							 substep)]
+				 (match [(core/type cur) substep]
+                        [:vector _] [:div.vector {"draggable" true "dragstart" (partial drag-data substep)
+												  "contextmenu" (partial op-context pipe substep)}
+									 "["
+									 (each-meta substep (partial data-rep pipe))
+									 "]"]
+                        [:list (['match & r] :seq)] (->match-ui substep pipe)
+						[:list (['filter-match & r] :seq)] (->filter-match-ui substep)
+						[:list (['core/!math & r] :seq)] (->math substep)
+						[:list (['core/!chart & r] :seq)] (->chart-ed pipe substep)
+                        [:list ([func & r] :seq)] (if (symbol? func)
+													(->invocation substep pipe)
+													(each-meta substep (partial data-rep pipe)))
+						[:map _] [:ul.map {"draggable" true "dragstart" (partial drag-data substep)
+										   "contextmenu" (partial op-context pipe substep)} "{" (each substep (partial ->data-map-entry pipe (-> substep meta :path))) "}"]
+						[:number _] [:div (merge {"class" "number" "draggable" true "dragstart" (partial drag-data prim)}
+												 attrs)
+									 (str cur)]
+						[:symbol _] (->invocation (with-meta [cur] (meta substep)) pipe)
+						[:string _]  [:div (merge {"class" "string" "draggable" true "dragstart" (partial drag-data prim)}
+												  attrs)
+									  cur]
+                        :else (step-rep cur)))]}
+
+		 {:name add-step-after
+		  :scope [pipe cur]
+		  :pipe [(core/vector-insert (:pipe pipe) (inc (core/last-path cur)) core/prev-symbol)
+				 (program-commute _PREV_)]}
+
+		 {:name rem-step
+		  :scope [pipe step]
+		  :pipe [(core/vector-remove (:pipe pipe) (core/last-path step))
+				 (program-commute _PREV_)]}
+
          {:name ->pipe-step
           :scope [pipe substep]
-          :pipe [[:li {
+          :pipe [(println "pipe-step: " substep (meta substep))
+				 [:li {"tabindex" "1"
+					   "focus" (fn [x] (println "focused step"))
 					   "class" (let [i (core/last-path substep)]
 								 (match [(state "step")]
 										[i] "active"
 										:else ""))}
-				  (step-rep (assoc pipe :cur-step (core/last-path substep)) substep)
+				  (step-rep (cljs.core/assoc pipe :cur-step (core/last-path substep)) substep)
 				  (when-let [cap (js/aurora.transformers.editor.->step (:name pipe) (core/last-path substep))]
 					[:div.result (step-rep (assoc pipe :cur-step (core/last-path substep)) (ensure-meta cap [(symbol "_PREV_")]))])
+				  [:button.add-step {"click" (partial add-step-after pipe substep)} "+"]
+				  [:button.rem-step {"click" (partial rem-step pipe substep)} "x"]
 				  ]]}
 
 		 {:name ->backup
 		  :scope [cur]
-		  :pipe [(assoc state "prev" (vec (take (core/last-path cur) (state "prev"))))
-				 (assoc _PREV_ "pipe" cur)
-				 (commute _PREV_)]}
+		  :pipe [
+				 (assoc state "prev" (vec (take (core/last-path cur) (state "prev"))))
+				 (assoc _PREV_ "pipe" @cur)
+				 (commute _PREV_)
+				 ]}
 
 		 {:name ->prev-step
 		  :scope [p]
@@ -443,15 +466,157 @@
 				  (each-meta (state "prev") ->prev-step)
                   ]]}
 
+		 {:name check-dirty-full
+		  :scope [state item]
+		  :pipe [(assoc state "dirty" (if (= (take 2 (-> item meta :path)) ['program :data])
+										"full"
+										true))
+				 (commute _PREV_)]}
+
+		 {:name create-return-pipe
+		  :scope []
+		  :pipe [(let [id (core/gen-id program "pipe")
+					   pipe {:name id
+							 :desc "do stuff"
+							 :scope ['e]
+							 :pipe []}]
+				   (->
+					(conj (:pipes program) pipe)
+					(commute))
+				   id)]}
+
+		 {:name handle-menu-add
+		  :scope [thing e]
+		  :pipe [
+				 (let [path (get-in state ["context-menu" "path"])
+					   item (get-in program (rest path))
+					   id (core/gen-id program "data")]
+				 (match [(state "context-menu")]
+						[{"context" "assoc"}] (let [thing (if (= 'pipe thing)
+															(list 'partial (create-return-pipe))
+															thing)]
+												(println "about to assoc: " thing program)
+												(core/commute-path (get-in state ["context-menu" "path"]) thing)
+												(check-dirty-full state (get-in program (-> path rest butlast))))
+						[{"context" "conj"} ] (let [func (if (or (list? item) (seq? item))
+														   (fn [a b] (with-meta (apply list (concat a [b])) (meta a)))
+														   cljs.core/conj)]
+												(println "conjing: " (pr-str (func item thing)) (meta (func item thing)))
+												(commute (func item thing))
+												(-> (if-not (coll? thing)
+													  (assoc state "modifying" (-> item meta :path (cljs.core/conj (count item))))
+													  state)
+												   (check-dirty-full item))
+
+												)
+						[{"context" "scope"}] (when (= (:name item) 'root)
+												(commute (assoc (:data program) id (with-meta thing {:path ['program :data id]})))
+												(commute (assoc item :scope (conj (:scope item) id)))
+												(commute (assoc state "dirty" "full")))
+						:else nil))
+
+				 ]}
+
+		 {:name menu-ui
+		  :scope []
+		  :pipe [
+				 [:ul.context-menu {:style (str "top: " (- (get-in state ["context-menu" "y"]) 55)
+												"px; left: " (- (get-in state ["context-menu" "x"]) 30) "px;")}
+				  [:li {"click" (partial handle-menu-add {})} "Map"]
+				  [:li {"click" (partial handle-menu-add [])} "Vec"]
+				  [:li {"click" (partial handle-menu-add "")} "Prim"]
+				  [:li {"click" (partial handle-menu-add 'pipe)} "Pipe"]
+				  ]
+				 ]}
+
+		 {:name new-data-menu
+		  :scope [ctx path e]
+		  :pipe [(assoc state "context-menu" {"active" true
+											  "context" ctx
+											  "path" path
+											  "ui" menu-ui
+											  "x" (.-clientX e)
+											  "y" (.-clientY e)})
+				 (commute _PREV_)
+				 (.preventDefault e)
+				 (.stopPropagation e)]}
+
+		 {:name ->initial-form
+		  :scope [thing]
+		  :pipe [
+				 (match thing
+						'commute (list 'commute core/prev-symbol)
+						'println '(println "hello world")
+						'core/!chart '(core/!chart {"type" "line"
+													"values" []
+													"bezierCurve" true})
+						'core/!math '(core/!math ["+" 2 2])
+						'core/inject (list 'core/inject core/prev-symbol)
+						:else thing)]}
+
+		 {:name handle-step-add
+		  :scope [pipe thing e]
+		  :pipe [(let [thing (->initial-form thing)]
+				   (->
+					(conj (:pipe pipe) thing)
+					(program-commute)))]}
+
+		 {:name step-menu-ui
+		  :scope [pipe e]
+		  :pipe [[:ul.context-menu {:style (str "top: " (- (get-in state ["context-menu" "y"]) 55)
+												"px; left: " (- (get-in state ["context-menu" "x"]) 30) "px;")}
+				  [:li {"click" (partial handle-step-add pipe {})} "map"]
+				  [:li {"click" (partial handle-step-add pipe [])} "vec"]
+				  [:li {"click" (partial handle-step-add pipe 'commute)} "update!"]
+				  [:li {"click" (partial handle-step-add pipe 'println)} "print"]
+				  [:li {"click" (partial handle-step-add pipe 'core/!chart)} "chart"]
+				  [:li {"click" (partial handle-step-add pipe 'core/!math)} "math"]
+				  [:li {"click" (partial handle-step-add pipe 'core/inject)} "html"]
+				  ]
+				 ]}
+
+		 {:name new-step-menu
+		  :scope [pipe e]
+		  :pipe [(assoc state "context-menu" {"active" true
+											  "ui" (partial step-menu-ui pipe)
+											  "x" (.-clientX e)
+											  "y" (.-clientY e)})
+				 (commute _PREV_)
+				 (.preventDefault e)
+				 (.stopPropagation e)]}
+
+		 {:name data-drop-step
+		  :scope [pipe e]
+		  :pipe [(println (.dataTransfer.getData e "path"))
+				 (let [path (js/cljs.reader.read-string (.dataTransfer.getData e "path"))
+					   _ (println path)
+					   step (if (= 1 (count path))
+							  (first path)
+							  (list 'get-in (first path) (vec (rest path))))]
+				   (println step)
+				   (handle-step-add pipe step nil))
+				 ]}
+
 		 {:name ->workspace
 		  :scope [pipe]
-		  :pipe [[:ul.workspace
-				  (when-let [cap (js/aurora.transformers.editor.->scope (:name pipe))]
-					[:li.scope (for [[k v] cap]
-								 (step-rep pipe (if (satisfies? IMeta v)
-												  (with-meta v {:path [k]})
-												  (js/aurora.engine.as-meta v [k]))))])
-				  (each-meta (pipe :pipe) (partial ->pipe-step pipe))]]}
+		  :pipe [[:ul.workspace {"tabindex" "0" "focus" (fn [x] (println "focused"))}
+				  (if-let [cap (js/aurora.transformers.editor.->scope (:name pipe))]
+					[:li.scope {"contextmenu" (partial new-data-menu "scope" (-> pipe meta :path))}
+					 (for [[k v] cap
+						   :let [path (if (get-in program [:data k])
+										['program :data k]
+										[k])
+								 v (if (satisfies? IMeta v)
+										(with-meta v {:path path})
+										(js/aurora.engine.as-meta v path))]]
+					   (step-rep pipe (js/aurora.engine.meta-walk v path)))]
+					[:li.scope {"contextmenu" (partial new-data-menu "scope" (-> pipe meta :path))} "Right click to add data"])
+				  (each-meta (pipe :pipe) (partial ->pipe-step pipe))
+				  [:li.new-step {"contextmenu" (partial new-step-menu pipe)
+								 "dragover" (fn [e] (.preventDefault e))
+								 "dragenter" (fn [e]  (.preventDefault e))
+								 "drop" (partial data-drop-step pipe)
+								 }]]]}
 
          ]
  :main show}
