@@ -82,7 +82,9 @@
         ws (sel1 "#aurora .workspace")
         scroll-top (when ws (.-scrollTop ws))]
     (dommy/set-html! wrapper "")
+    (.time js/console "[engine][root-inject]")
     (dommy/append! wrapper (node ui))
+    (.timeEnd js/console "[engine][root-inject]")
     (focus-walk wrapper)
     (when-let [ws (sel1 "#aurora .workspace")]
       (set! (.-scrollTop ws) scroll-top))))
@@ -130,6 +132,8 @@
    (string? thing) :string
    (fn? thing) :fn
    (seq? thing) :list
+   (false? thing) :bool
+   (true? thing) :bool
    :else nil))
 
 (def walk walk/postwalk)
@@ -158,13 +162,19 @@
                                          (assoc v (parent cur-key)))))))
 
 (defn commute-path [path v]
+  (let [v (walk/postwalk (fn [x]
+                           (if (instance? js/aurora.engine.MetaPrimitive x)
+                             @x
+                             x))
+                         v)]
+    (println "Commute-path" path (get-in (aget js/aurora.pipelines (first path)) (butlast (rest path))))
   (if (= (last path) ::key)
     (map-key-change (butlast path) v)
     (aset js/aurora.pipelines (first path) (if (next path)
-                                             (assoc-in (aget js/aurora.pipelines (first path)) (rest path) v)
+                                             (js/aurora.engine.assoc-in (aget js/aurora.pipelines (first path)) (rest path) v)
                                              v)))
   (js/aurora.engine.meta-walk v path)
-  (put! js/aurora.engine.event-loop :commute))
+  (put! js/aurora.engine.event-loop :commute)))
 
 (defn last-path [thing]
   (-> thing meta :path last))

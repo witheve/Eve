@@ -22,6 +22,9 @@
 
 (def captures (js-obj))
 
+(def allow-commute true)
+(def current-pipe nil)
+
 (defn scope [name scope]
   (when-not (aget captures (str name))
     (aset captures (str name) (array)))
@@ -31,13 +34,15 @@
   (.push (-> (aget captures (str name)) last (aget "steps")) v)
   v)
 
-(defn !runner [prog full?]
+(defn !runner [prog full? pipe]
   (go
    (while (<! listener-loop)
+     (println "here")
      (js/aurora.engine.commute (assoc js/aurora.pipelines.state "dirty" false))
      ;(put! js/aurora.engine.event-loop :sub-commute)
      ))
-
+  (println "current-pipe" pipe)
+  (set! current-pipe pipe)
   (exec-program (instrument-pipes prog) full?))
 
 
@@ -45,6 +50,18 @@
   (when js/running.pipelines
     (aget js/running.pipelines thing)))
 
+(defn meta-walk [cur path]
+  (when (and (not= nil cur)
+             (satisfies? IMeta cur))
+    (alter-meta! cur cljs.core/assoc :run-path path)
+    (cond
+     (or (list? cur) (seq? cur)) (doseq [[k v] (map-indexed vector cur)]
+                                   (meta-walk v (cljs.core/conj path k)))
+     (map? cur) (doseq [[k v] cur]
+                  (meta-walk v (cljs.core/conj path k)))
+     (vector? cur) (doseq [[k v] (map-indexed vector cur)]
+                     (meta-walk v (cljs.core/conj path k)))))
+  cur)
 
 (defn ->step [name step iter]
   (let [get-i (if iter
@@ -54,7 +71,7 @@
 									 (aget (str name))
 									 (get-i))]
       (when (aget cap "steps")
-        (-> cap (aget "steps") (aget step))))))
+        (-> cap (aget "steps") (aget step) )))))
 
 (defn ->scope [name iter]
   (let [get-i (if iter
@@ -70,17 +87,30 @@
                 (vals (aget cap "scope")))))))
 
 (defn commute [v]
-  (let [path (-> v meta :path)
-        v (if (seq? v)
-            (with-meta (vec v) (meta v))
-            v)]
-    (aset js/running.pipelines (first path) (if (next path)
-                                             (assoc-in (aget js/running.pipelines (first path)) (rest path) v)
-                                             v))
-    (when-not (second path)
-      (js/aurora.engine.meta-walk v path))
+  (when allow-commute
+    (let [path (-> v meta :run-path)
+          v (if (seq? v)
+              (with-meta (vec v) (meta v))
+              v)]
+      (aset js/running.pipelines (first path) (if (next path)
+                                                (assoc-in (aget js/running.pipelines (first path)) (rest path) v)
+                                                v))
 
-    (put! event-loop :commute)))
+      (println "[running] commute: " v path)
+      (meta-walk v path)
+      (put! event-loop :commute))))
+
+(defn run-special [pipe]
+  (let [func (aget js/running.pipelines (str (:name pipe)))
+        scope (if-let [s (->scope (:name pipe))]
+                (map s (:scope pipe))
+                (map #(aget js/running.pipelines (str %)) (:scope pipe)))]
+    (println "running special!")
+    (set! allow-commute false)
+    (when func
+      (apply func scope))
+    (set! allow-commute true)
+    (set! current-pipe nil)))
 
 (set! js/running (js-obj))
 
@@ -88,22 +118,25 @@
 (def event-loop (chan))
 
 (defn start-main-loop [main]
-  (let [debounced (async/debounce event-loop 100)]
+  (let [debounced (async/debounce event-loop 1)]
   (go
    (loop [run? true]
      (when run?
-       (println "[child] running at: " (.getTime (js/Date.)))
+       (.time js/console "[child] runtime")
        (main)
+       (when current-pipe
+         (run-special current-pipe))
+       (.timeEnd js/console "[child] runtime")
        (put! listener-loop :done)
        (recur (<! debounced)))))))
 
-(defn exec-program [prog clear?]
+(defn exec-program [prog clear? pipe]
   (when (or clear? (not js/running.pipelines))
     (set! js/running.pipelines (js-obj)))
   (doseq [[k v] (:data prog)
           :when (not (aget js/running.pipelines (str k)))
           :let [v (reader/read-string (pr-str v))]]
-    (js/aurora.engine.meta-walk v [k])
+    (meta-walk v [k])
     (aset js/running.pipelines (str k) v))
   (put! event-loop false)
   (set! js/aurora.transformers.editor.event-loop (chan))

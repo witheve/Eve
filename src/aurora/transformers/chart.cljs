@@ -80,7 +80,7 @@
   nil)
 
 (defn !chart-canvas [data]
-  (!chart* data false))
+  (!chart* (update-in data ["values"] vec) false))
 
 (defn !chart [data]
-  (!chart* data true))
+  (!chart* (update-in data ["values"] vec) true))

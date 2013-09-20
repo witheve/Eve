@@ -1,8 +1,23 @@
-{:data {program
+(ns aurora.strangeloop
+  (:require [aurora.engine :refer [exec-program]]))
+
+(defn init []
+  (let [prog (if-not (empty? js/window.location.search)
+               (subs js/window.location.search 1)
+               "blank")]
+    (println prog)
+    (exec-program (editor (aget js/aurora.strangeloop prog)) true)))
 
 
+(def blank '{:data {} :pipes [{:name root :scope [] :pipe []}] :main root})
+(def datascience '{:data {}  :pipes [{:name root :scope [] :pipe [(get-data)]}  {:name get-data :desc "get data" :pipe [[{"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"} {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"} {"time" 59 "date" "8/28/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"} {"time" 114 "date" "8/29/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"} {"time" 90 "date" "8/30/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"} {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"} {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"} {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"} {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"} {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"} {"time" 19 "date" "8/28/2013"} {"time" 3 "date" "8/28/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"} {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"} {"time" 159 "date" "8/30/2013"} {"time" 10 "date" "8/30/2013"} {"time" 66 "date" "8/30/2013"} {"time" 79 "date" "8/30/2013"} ] ]} ] :main root} )
+(def todomvc '{:data {todos [{"todo" "Get milk" "done?" false}] state {"state" "all" "all-toggle" false}}  :pipes [  {:name ->todo :scope [todos current-todo] :desc "todo ui" :pipe [(match [current-todo] [{"editing?" true}] ["li.editing" ["input" {"submit" (partial ->edit current-todo) "value" (current-todo "todo") "focused" true}]] :else ["li" {"class" (->done-class current-todo)} ["input" {"checked" (current-todo "done?") "type" "checkbox" "click" (partial ->toggle-done current-todo)}] ["label" {"dblclick" (partial ->editing current-todo)} (current-todo "todo")] ["button" {"click" (partial ->rem todos current-todo)} ""]])]}  {:name ->active-todos :scope [todos state] :desc "filtered todos" :pipe [(match [(state "state")] ["all"] todos ["active"] (filter-match {"done?" false} todos) ["completed"] (filter-match {"done?" true} todos))]}  {:name root :scope [todos state] :pipe [["div#todoapp" ["header#header" ["h1" "Todos"] ["input#toggle-all" {"type" "checkbox" "click" (partial ->all-completed todos state) "checked" (state "all-toggle")}] ["input#new-todo" {"submit" (partial ->add todos) "placeholder" "What needs to be done?"}]] ["ul#todo-list" (each (->active-todos todos state) (partial ->todo todos))] ["div#footer" ["span#todo-count" (->left todos)] ["ul#filters" ["li" ["a" {"click" (partial ->state state "all") "class" (->state-class state "all")} "All"]] ["li" ["a" {"click" (partial ->state state "active") "class" (->state-class state "active")} "Active"]] ["li" ["a" {"click" (partial ->state state "completed") "class" (->state-class state "completed")} "Completed"]]] (->rem-completed-button todos)]] (core/inject _PREV_)]}  {:name ->done-class :scope [current-todo] :desc "done to class" :pipe [(match [(current-todo "done?")] [true] "completed" :else "")]}  {:name ->set-done :scope [to current-todo] :desc "set done? to" :pipe [(assoc current-todo "done?" to)]}  {:name ->all-completed :scope [todos state] :desc "toggle all todos" :pipe [(assoc state "all-toggle" (not (state "all-toggle"))) (commute _PREV_) (each todos (partial ->set-done (not (state "all-toggle")))) (commute _PREV_)]}  {:name ->add :scope [todos e] :desc "add a todo" :pipe [{"todo" (e "value") "done?" false} (conj todos _PREV_) (commute _PREV_)]}  {:name ->editing :scope [current-todo] :desc "edit this todo" :pipe [(assoc current-todo "editing?" true) (commute _PREV_) ]}  {:name ->edit :scope [current-todo e] :desc "save edits" :pipe [(assoc current-todo "todo" (e "value")) (assoc _PREV_ "editing?" false) (commute _PREV_)]}  {:name ->toggle-done :scope [current-todo] :desc "toggle done" :pipe [(match [current-todo] [{"done?" true}] false :else true) (assoc current-todo "done?" _PREV_) (commute _PREV_)]}  {:name ->rem :scope [todos current-todo] :desc "remove this todo" :pipe [(rem current-todo todos) (commute _PREV_)]}  {:name ->rem-completed :desc "remove all completed todos" :scope [todos] :pipe [(filter-match {"done?" false} todos) (commute _PREV_)]}  {:name ->rem-completed-button :scope [todos current-todo] :desc "show 'remove completed' button" :pipe [(filter-match {"done?" true} todos) (count _PREV_) (match [_PREV_] [0] "" :else [:button#clear-completed {"click" (partial ->rem-completed todos)} "Clear completed (" _PREV_ ")"])]}  {:name ->left :scope [todos] :desc "remaining todos text" :pipe [(filter-match {"done?" false} todos) (count _PREV_) (match [_PREV_] [1] "1 item left" :else (str _PREV_ " items left" ))]}  {:name ->state :scope [state val] :desc "set filter to" :pipe [(assoc state "state" val) (commute _PREV_)]}  {:name ->state-class :scope [state val] :desc "active filter? " :pipe [(match [(state "state")] [val] "active" :else "")]} ]  :main root}  )
 
-        state {"pipe" root
+(defn editor [prog]
+  {:data {'program prog
+
+
+        'state '{"pipe" root
                "step" 0
                "prev" []
                "dirty" "full"
@@ -10,7 +25,7 @@
                "context-menu" {}
                "data-editor" {}
                "charts" {}}}
- :pipes [
+ :pipes '[
 
          {:name find-pipe
           :scope [name]
@@ -821,5 +836,8 @@
                                  }]]]}
 
          ]
- :main show}
+ :main 'show}
+  )
 
+
+(init)

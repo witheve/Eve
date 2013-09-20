@@ -9,17 +9,19 @@
 
 (defmacro filter-match
   ([pattern things]
-   `(with-meta
-     (filter #(match [%]
-                     [~pattern] true
-                     :else false)
-             ~things)
-     (meta ~things)))
-  ([with pattern things]
-   `(let ~with
+   `(let [cur# ~things]
       (with-meta
         (filter #(match [%]
                         [~pattern] true
                         :else false)
-                ~things)
-        (meta ~things)))))
+                cur#)
+        (meta cur#))))
+  ([with pattern things]
+   `(let [cur# ~things]
+      (let ~with
+        (with-meta
+          (filter #(match [%]
+                          [~pattern] true
+                          :else false)
+                  cur#)
+          (meta cur#))))))

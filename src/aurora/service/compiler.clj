@@ -9,15 +9,15 @@
 
 (defn squash [pipe]
   (reduce (fn [final cur]
-            (let [replaced (walk/postwalk-replace {'_PREV_ (last final)} cur)]
+            (let [replaced (walk/postwalk-replace {'_PREV_ '_PREV_REPLACE_} cur)]
               (if (= cur replaced)
-                (conj final replaced)
-                (assoc final (dec (count final)) replaced))))
+                (conj final cur)
+                (assoc final (dec (count final)) (list 'let ['_PREV_REPLACE_ (last final)] replaced)))))
           []
           pipe))
 
 (defn pipeline->code [pipe]
-  (list 'defn (:name pipe) (or (:scope pipe) []) (concat '(try) (squash (:pipe pipe)) [(list 'catch 'js/Error 'e (list '.error 'js/console (list 'str (str (:name pipe)) " :: " '(.-stack e) "\n\n")))])))
+  (list 'def (:name pipe) (list 'fn (:name pipe) (or (:scope pipe) []) (concat '(try) (squash (:pipe pipe)) [(list 'catch 'js/Error 'e (list '.error 'js/console (list 'str (str (:name pipe)) " :: " '(.-stack e) "\n\n")))]))))
 
 (defn init-ns []
   (binding [cljs/*cljs-ns* pipeline-ns]

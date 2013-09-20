@@ -39,7 +39,9 @@
 (def commute-listener nil)
 
 (defn conj [p c]
-  (cljs.core/conj p (with-meta c {:path (-> p meta :path (cljs.core/conj (count p)))})))
+  (if (satisfies? IMeta c)
+    (cljs.core/conj p (with-meta c {:path (-> p meta :path (cljs.core/conj (count p)))}))
+    (cljs.core/conj p c)))
 
 (def assoc (with-meta (fn assoc [p k v]
                         (with-meta
@@ -68,17 +70,18 @@
                                              (assoc-in (aget js/aurora.pipelines (first path)) (rest path) v)
                                              v))
     (meta-walk v path)
+    (println "commuted! " v (meta v))
     (put! event-loop :commute)))
 
 (defn as-meta [thing path]
-  (if (or (symbol? thing) (not thing) (not (satisfies? IMeta thing)))
+  (if (or (symbol? thing) (nil? thing) (not (satisfies? IMeta thing)))
     (MetaPrimitive. thing {:path path})
     thing))
 
 (defn each [vs f]
   (if-let [path (-> vs meta :path (or []))]
-    (with-meta (map f vs) (meta vs))
-    (map f vs)))
+    (doall (with-meta (map f vs) (meta vs)))
+    (doall (map f vs))))
 
 (defn each-meta [vs f]
   (if-let [path (-> vs meta :path)]
@@ -106,7 +109,7 @@
     (meta orig)))
 
 (defn start-main-loop [main]
-  (let [debounced (async/debounce event-loop 10)]
+  (let [debounced (async/debounce event-loop 1)]
   (go
    (loop [run? true]
      (when run?
@@ -127,6 +130,33 @@
           (with-meta
             (apply list (assoc (with-meta (vec coll) (meta coll)) k v))
             (meta coll))))
+
+
+(extend-protocol ILookup
+  List
+  (-lookup [tcoll v o]
+    (nth tcoll v))
+  (-lookup [tcoll v]
+    (nth tcoll v))
+
+  LazySeq
+  (-lookup [tcoll v o]
+    (nth tcoll v))
+  (-lookup [tcoll v]
+    (nth tcoll v))
+
+  IndexedSeq
+  (-lookup [tcoll o]
+    (nth tcoll v))
+  (-lookup [tcoll v]
+    (nth tcoll v))
+
+  EmptyList
+  (-lookup [coll v]
+           (nth coll v))
+
+
+  )
 
 (defn meta-walk [cur path]
   (when (and (not= nil cur)

@@ -20,7 +20,7 @@
     form
     (if-let [op (-> form first ops)]
       (apply op (map eval (rest form)))
-      form)))
+      nil)))
 
 (defn !math [struct]
   (eval struct))

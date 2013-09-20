@@ -66,47 +66,63 @@ body { display:block; overflow:hidden; display:-webkit-flex; width:2048px; -webk
 
 #wrapper { -webkit-transition:margin-left 0.3s ease-in-out; }
 
-#aurora {  display:-webkit-flex; -webkit-flex-flow:row nowrap; -webkit-align-items:stretch; -webkit-align-content:stretch; background:red; width:1024px; height:640px; height:100%; font-family:"Inconsolata"; font-size:16pt; overflow:hidden;  background:#25262b; background:transparent; position:relative; padding:20px; box-sizing:border-box; }
+#aurora {   width:1024px; height:640px; height:100%; font-family:"Inconsolata"; font-size:16pt; overflow:hidden;  background:#25262b; background:transparent; position:relative; padding:20px; box-sizing:border-box; }
 
-#aurora .breadcrumb { display:inline-block; height:100%; width:-webkit-fit-content; padding-right:5px; }
-#aurora .breadcrumb > li { width:20px; height:100%; display:inline-block; border-radius:3px; }
-#aurora .breadcrumb > li:nth-child(1) { background:blue; }
-#aurora .breadcrumb > li:nth-child(2) { background:red; }
-#aurora .breadcrumb > li:nth-child(3) { background:green; }
+#aurora .breadcrumb { display:block; height:auto; text-align:right; }
+#aurora .breadcrumb > li { display:inline-block; border-radius:3px; padding:0 8px;  background:#cfc;  color: #49a}
+#aurora .breadcrumb > li + li { margin-left: 10px; }
 
-#aurora .workspace { -webkit-flex-grow:1; flex:1 auto; display:inline-block; box-sizing:border-box; overflow:auto; height:100%;}
-#aurora .workspace > li { border-top:0px solid red; padding:20px 10px; }
-#aurora .workspace > li + li { border-top:1px solid #ccc; }
+#aurora .workspace { display:block; width:100%; padding-bottom:300px; padding-right:15px; display:inline-block; box-sizing:border-box; overflow:auto; height:100%;}
+#aurora .workspace > li { border-top:0px solid red; padding:20px 10px; padding-bottom:50px; min-height:20px; box-sizing:border-box; }
+#aurora .workspace > li + li { border-top:1px solid #ddd; }
 #aurora .workspace > li:last-child { border-bottom:0px solid red; }
 
-#aurora .workspace *, #aurora .pipe * { vertical-align:middle; display:inline-block; margin-right:5px; }
+#aurora .workspace div, #aurora .pipe div { vertical-align:middle; display:inline-block; margin-right:5px; }
 
-  .vector { margin-bottom:0px; padding-left: 5px; border:0px solid #444; border-left:2px solid #ccc; border-radius:3px; display:inline-block;}
+.string, .number { display: inline-block; text-align:center; color:#444; min-width:20px; min-height:20px; border-bottom:1px solid #ddd; }
+
+  .vector { margin-bottom:0px; padding-left: 5px; border:0px solid #444; border-left:2px solid transparent; border-radius:3px; display:inline-block;}
 .vector > * { display:inline-block !important; margin-left:10px; }
 .vector > .vector { display:block !important; margin-bottom:5px; }
-.vector:hover { border:0px solid #ccc; border-left:2px solid #22f; }
+.vector:hover { border:0px solid #ccc; border-left:2px solid #cbf; }
 .vector.active { background:#558; }
 .map { margin-bottom:0px; padding-left: 5px; color:#558;  border:0px solid #558; border-left:0px solid #558; border-radius:3px; display:inline-block;}
 
-.func, .match { margin-bottom:0px; padding-left: 5px; color:#585;  border:0px solid #585; border-left:0px solid #585;  border-radius:3px; display:inline-block;}
+#aurora input { border:none; background:rgba(0,0,0,0.12); padding:4px 5px !important; border-radius:3px; font-size:14pt; }
 
-.func.pipeline { background:#cfc; cursor:default; }
+.func, .match { margin-bottom:0px; padding-left: 5px; color:#188;  border:0px solid #585; border-left:0px solid #585;  border-radius:3px; display:inline-block;}
 
-.assoc { background: #f92; }
+.pipeline input, .assoc input, .data input { background:rgba(255,255,255,0.8); }
 
-.data { background:#fcc; }
+.func.pipeline { background:#cfc; min-width:30px; min-height:20px; cursor:default; }
+.func.pipeline > * { margin-left:10px; }
+
+.assoc div.fromto { background: #5bf; padding:0 6px; border-radius:2px; }
+.prev .assoc div.fromto { background: #a8f; padding:0 6px; border-radius:2px; }
+.assoc div.fromto * { color:black; }
+.assoc div.fromto div + * { margin-left: 10px; }
+.assoc div.fromto > div + div:before { content: "=>"; margin-right:10px; }
+.assoc div.fromto > div + input:before { content: "=>"; margin-right:10px; }
+
+.scope > * { margin-right:30px !important; background: #adf; margin-bottom:5px; }
+
+.data { background:#adf; border-radius:3px; }
+.data * {color:black; }
+.prev { background:#cbf; border-radius:3px; color:black; }
+.prev * { color:black; }
 
 #aurora .workspace > * { display:block !important; }
 
 .entry { display:inline-block !important; }
-.entry > div { display:inline-block; margin-right:8px; }
+.entry > div { display:inline-block; }
+.entry + .entry { content: ","; margin-left:12px; position:relative;}
+.entry + .entry:before { content: ","; position:absolute; left:-17px; }
 
-.string, .number { display: inline-block; min-width:20px; min-height:20px; border-bottom:1px solid #ddd; }
 
-.result {font-size:12pt; position:absolute; bottom:0; right:0;}
-#aurora .workspace > li .rem-step { -webkit-transition:opacity 0.2s ease-in-out; opacity:0; pointer-events:none; position:absolute; top:0; right:0; border:none; background:#f99; border-radius:3px; }
+.result {font-size:12pt; position:absolute; bottom:2px; right:0; white-space:nowrap; max-width:45%; max-height:40px; overflow:hidden;}
+#aurora .workspace > li .rem-step { -webkit-transition:opacity 0.3s ease-in-out; opacity:0; pointer-events:none; position:absolute; top:-10px; right:0; border:none; background:#f99; border-radius:3px; width:18px; height:18px; padding:0; padding-bottom:2px; margin:0; }
 #aurora .workspace > li:hover .rem-step { opacity:1; display:inline-block; pointer-events:auto; }
-#aurora .workspace > li .add-step { -webkit-transition:opacity 0.2s ease-in-out; opacity:0; pointer-events:none; position:absolute; z-index:5; bottom:-8px; left:0; border:none; background:#ccf; border-radius:3px; width:15px; height:15px; padding:0; margin:0; }
+#aurora .workspace > li .add-step { -webkit-transition:opacity 0.3s ease-in-out; opacity:0; pointer-events:none; position:absolute; z-index:5; bottom:-10px; left:0; border:none; background:#ccf; border-radius:3px; width:18px; height:18px; padding:0; padding-bottom:2px; margin:0; }
 #aurora .workspace > li:hover .add-step { opacity:1; display:inline-block; pointer-events:auto; }
 
 .workspace > li { position:relative; }
@@ -117,9 +133,9 @@ body { display:block; overflow:hidden; display:-webkit-flex; width:2048px; -webk
 
 #aurora .workspace .math { margin-left:20px; vertical-align:middle; font-family:times; }
 .math-expression {display:inline-block; width: auto; text-align:center; vertical-align:middle; }
-#aurora .workspace .math-expression * {display:inline-block; vertical-align:middle; margin-right:5px; padding:0; }
+#aurora .workspace .math * {display:inline-block; vertical-align:middle; margin-right:5px; padding:0; }
 
-#aurora .workspace .math-expression sub {font-style:italic; font-size:60%; padding-top:8px;}
+#aurora .workspace .math sub {font-style:italic; font-size:60% !important; padding-top:8px;}
 
 #aurora .workspace .math-sigma {font-size: 150%; padding-right:2px; }
 
@@ -127,7 +143,9 @@ body { display:block; overflow:hidden; display:-webkit-flex; width:2048px; -webk
 
 #aurora .workspace .math-divider {display:block !important; width:auto; border-bottom:1px solid #444;  background:red; text-align:center; }
 
-#running-wrapper { width:1024px; max-width:1024px; height:100%; display:inline-block; flex:1 auto;}
+#running-wrapper { width:1024px; max-width:1024px; height:100%; display:inline-block; flex:1 auto; padding:20px;}
+#running-wrapper > div.ex { font-size:16pt; }
+#running-wrapper > div.ex > button { font-size:16pt; }
 
 .chart-ed .chart { display:inline-block; cursor:default; }
 .chart-ed .chart-options { display:inline-block; width:30px; }
@@ -141,3 +159,9 @@ body { display:block; overflow:hidden; display:-webkit-flex; width:2048px; -webk
 
 .console { position:absolute; bottom:0; left:0; font-size:10pt; width:100%;}
 .console p { color:red; }
+
+.match table { display:block; width:100%; margin-top:10px; border:1px solid #ddd; }
+.match table tr { width:100%;  }
+.match table td { padding-top:10px; border-top:1px solid #ddd; padding-bottom:10px; padding-left:5px; }
+.match table td:nth-child(1) { border-right:1px solid #ddd; padding-right:10px; }
+.match table tr:last-child td { border-bottom:1px solid #ddd; }

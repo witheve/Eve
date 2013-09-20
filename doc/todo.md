@@ -1,6 +1,20 @@
+##DEMO
+
+iteration
+
+truncate data (too big)
+
+PRETTY
+
+
 ##STL
 
-* step creation
+* data dragging
+* conj
+* other ops
+* change the name of pipes
+* pipe call
+
 * scope creation
 * v match
 * v filter-match
@@ -18,7 +32,10 @@
 
 ##DONE
 
+* step creation
 * Capture values/scope
 * Visualize and fill in scope
 * modify data
 * graph editor
+
+naming pipes
