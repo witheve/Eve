@@ -11,7 +11,7 @@
             [cljs.core.async.impl.protocols :as protos]
             [cljs.core.async :refer [put! chan sliding-buffer take! timeout]])
   (:require-macros [dommy.macros :refer [node sel1 sel]]
-                   [aurora.macros :refer [with-path]]
+                   [aurora.macros :refer [with-path dovec]]
                    [cljs.core.async.macros :refer [go]]))
 
 (set! js/cljs.core.*print-fn* #(when-not (empty? (.trim %))
@@ -73,21 +73,58 @@
   (kb/merge-keys @contexts))
 
 (defn focus-walk [elem]
-  (doseq [thing (sel elem "[focused]")]
-    (.focus thing)
-    ))
+  (when-let [to-focus (last (sel elem "[focused]"))]
+    (.focus to-focus)))
+
+(defn clj->js
+   "Recursively transforms ClojureScript values to JavaScript.
+sets/vectors/lists become Arrays, Keywords and Symbol become Strings,
+Maps become Objects. Arbitrary keys are encoded to by key->js."
+   [x]
+   (when-not (nil? x)
+     (if (satisfies? IEncodeJS x)
+       (-clj->js x)
+       (cond
+         (keyword? x) (name x)
+         (symbol? x) (str x)
+         (map? x) (let [m (js-obj)]
+                    (doseq [[k v] x]
+                      (aset m (key->js k) (clj->js v)))
+                    m)
+        (or (seq? x)
+            (:seq? (meta x))) (apply array "__SEQ__" (map clj->js x))
+         (coll? x) (apply array (map clj->js x))
+         :else x))))
+
+(aset js/hic_handlers "enter" (fn [elem func]
+                                (println "got enter")
+                                (.addEventListener elem "keydown"
+                                                   (fn [e]
+                                                     (when (= 13 (.-keyCode e))
+                                                       (func {"value" (js/dommy.core.value (.-target e)) "e" e}))))))
+
+(aset js/hic_handlers "submit" (fn [elem func]
+                                (println "got submit")
+                                (.addEventListener elem "keydown"
+                                                   (fn [e]
+                                                     (when (= 13 (.-keyCode e))
+                                                       (func {"value" (js/dommy.core.value (.-target e)) "e" e}))))))
 
 (defn root-inject [ui]
+  (set! js/current-ui ui)
   (let [wrapper (sel1 :#wrapper)
         ws (sel1 "#aurora .workspace")
         scroll-top (when ws (.-scrollTop ws))]
     (dommy/set-html! wrapper "")
     (.time js/console "[engine][root-inject]")
-    (dommy/append! wrapper (node ui))
+    (dommy/append! wrapper (-> ui
+                               (clj->js)
+                               (js/hic)))
     (.timeEnd js/console "[engine][root-inject]")
     (focus-walk wrapper)
     (when-let [ws (sel1 "#aurora .workspace")]
-      (set! (.-scrollTop ws) scroll-top))))
+      (set! (.-scrollTop ws) scroll-top)
+      )))
 
 (defn inject [ui]
   (dommy/set-html! (sel1 :#running-wrapper) "")
@@ -179,6 +216,7 @@
 (defn last-path [thing]
   (-> thing meta :path last))
 
+(def index last-path)
 
 (defn munge* [thing]
   (-> (str thing)
@@ -205,6 +243,12 @@
   (or (get-in program [:data sym])
       (first (filter #(= sym (:name %)) (:pipes program)))))
 
+(defn ->path [thing extra]
+  (let [p (-> thing meta :path)]
+    (if extra
+      (conj p extra)
+      p)))
+
 (defn gen-id [program prefix]
   (loop [i 1]
     (let [id (symbol (str prefix i))]
@@ -213,3 +257,18 @@
         (recur (inc i))))))
 
 (def prev-symbol '_PREV_)
+
+(defn meta-all [cur path]
+  (if (or (nil? cur)
+          (not (satisfies? IMeta cur)))
+    (aurora.engine.as-meta cur path)
+    (do
+      (alter-meta! cur cljs.core/assoc :path path)
+      (cond
+       (or (list? cur) (seq? cur)) (doseq [[k v] (map-indexed vector cur)]
+                                     (meta-walk v (cljs.core/conj path k)))
+       (map? cur) (doseq [[k v] cur]
+                    (meta-walk v (cljs.core/conj path k)))
+       (vector? cur) (doseq [[k v] (map-indexed vector cur)]
+                       (meta-walk v (cljs.core/conj path k))))))
+  cur)

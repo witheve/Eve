@@ -79,9 +79,14 @@
     thing))
 
 (defn each [vs f]
-  (if-let [path (-> vs meta :path (or []))]
-    (doall (with-meta (map f vs) (meta vs)))
-    (doall (map f vs))))
+  (with-meta
+    (mapv f vs)
+    (assoc (meta vs) :seq? true)))
+
+(defn each-indexed [vs f]
+  (with-meta
+    (mapv f (range) vs)
+    (assoc (meta vs) :seq? true)))
 
 (defn each-meta [vs f]
   (if-let [path (-> vs meta :path)]
@@ -194,3 +199,5 @@
                           (apply main-fn vals))))
 
      )))
+
+(set! js/aurora.core.meta-walk meta-walk)

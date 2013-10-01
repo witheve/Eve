@@ -223,6 +223,8 @@
           :pipe [
                  (assoc (:pipe pipe) (:cur-step pipe) (list 'assoc (get-in pipe [:pipe (:cur-step pipe)]) k v))
                  (commute _PREV_)
+                 (assoc state "modifying" (-> v meta :path))
+                 (commute _PREV_)
                  ]}
 
          {:name ->data-map-entry
@@ -586,7 +588,7 @@
                           [:vector _] [:div.vector {"draggable" true "dragstart" (partial drag-data substep)
                                                     "contextmenu" (partial op-context pipe substep)}
                                        "["
-                                         (if (> (count substep) 2)
+                                         (if (> (count substep) 5)
                                            (let [rep (each-meta substep (partial data-rep pipe))]
                                              (list (take 4 rep)
                                                    "..."
@@ -828,7 +830,7 @@
                                      (js/aurora.engine.as-meta v path))]]
                        (step-rep pipe (js/aurora.engine.meta-walk v path)))]
                     [:li.scope {"contextmenu" (partial new-data-menu "scope" (-> pipe meta :path))} ""])
-                  (each-meta (pipe :pipe) (partial ->pipe-step pipe))
+                  (each-meta (:pipe pipe) (partial ->pipe-step pipe))
                   [:li.new-step {"contextmenu" (partial new-step-menu pipe)
                                  "dragover" (fn [e] (.preventDefault e))
                                  "dragenter" (fn [e]  (.preventDefault e))

@@ -7,21 +7,30 @@
                                   (conj aurora.core/*path* ~path))]
      ~@body))
 
+(defmacro dovec [bindings & body]
+  `(let [xs# ~(second bindings)
+        len# (count xs#)]
+  (loop [~'index 0]
+    (when (< ~'index len#)
+      (let [~(first bindings) (xs# ~'index)]
+        ~@body)
+      (recur (inc ~'index))))))
+
 (defmacro filter-match
   ([pattern things]
    `(let [cur# ~things]
       (with-meta
-        (filter #(match [%]
-                        [~pattern] true
-                        :else false)
-                cur#)
+        (filterv #(match [%]
+                         [~pattern] true
+                         :else false)
+                 cur#)
         (meta cur#))))
   ([with pattern things]
    `(let [cur# ~things]
       (let ~with
         (with-meta
-          (filter #(match [%]
-                          [~pattern] true
-                          :else false)
-                  cur#)
+          (filterv #(match [%]
+                           [~pattern] true
+                           :else false)
+                   cur#)
           (meta cur#))))))

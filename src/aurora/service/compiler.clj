@@ -24,7 +24,7 @@
   (let [env {:context :expr :file nil :locals {} :ns {}}]
     (comp/with-core-cljs
          (comp/emit-str (cljs/analyze env '(ns aurora.pipelines
-                              (:require [aurora.engine :refer [commute assoc-in each-meta each rem conj assoc]]
+                              (:require [aurora.engine :refer [commute assoc-in each-meta each each-indexed rem conj assoc]]
                                         [aurora.core :as core]
                                         [cljs.core.match]
                                         [cljs.core.async.impl.protocols :as protos]
@@ -34,7 +34,7 @@
                                                [cljs.core.async.macros :refer [go]]
                                                [aurora.macros :refer [filter-match]]))))
          (comp/emit-str (cljs/analyze env '(ns running.pipelines
-                              (:require [aurora.engine :refer [each each-meta assoc-in rem conj assoc]]
+                              (:require [aurora.engine :refer [each each-indexed each-meta assoc-in rem conj assoc]]
                                         [aurora.transformers.editor :refer [commute]]
                                         [aurora.core :as core]
                                         [cljs.core.match]
