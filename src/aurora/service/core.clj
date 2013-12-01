@@ -7,6 +7,8 @@
             ))
 
 (defroutes main-routes
+  (GET "/" [] (do (println "hey") (slurp "/users/chris/repos/aurora/index.html")))
+  (GET "/bootstrap.js" [] (slurp "/users/chris/repos/aurora/bootstrap.js"))
   (POST "/code" [code ns-prefix]
         {:status 200
          :headers {"Content-Type" "text/javascript; charset=utf-8"
@@ -14,6 +16,7 @@
          :body (try (comp/compile-pipeline code ns-prefix)
                  (catch Exception e
                    (str e)))})
+  (route/resources "/resources/" {:root ""})
   (route/not-found "<h1>Page not found</h1>"))
 
 (def app
@@ -21,12 +24,11 @@
       ))
 
 (defn -main []
-  (jetty/run-jetty (var app) {:port 8082}))
+  (jetty/run-jetty (var app) {:port 8082 :join? false}))
 
 (comment
 
 (-main)
 
   )
-
 

@@ -23,7 +23,7 @@
         query (query-data/createFromMap (structs/Map. cur))]
     (str query)))
 
-(defn xhr [route content callback & [opts]]
+(defn xhr [route content & [opts]]
   (let [req (new goog.net.XhrIo)
         [method uri] (parse-route route)
         data (->data content)

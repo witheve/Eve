@@ -6,6 +6,7 @@
   :cljsbuild {:builds [{:source-paths ["src"]
                         :compiler {:optimizations :simple
                                    :externs []
+                                   ;:source-map "bootstrap.js.map"
                                    :output-to "bootstrap.js"
                                    :output-dir "target/cljs/"
                                    :pretty-print true}}]}
@@ -16,8 +17,8 @@
                  [ring "1.2.0"]
                  [core.async "0.1.0"]
 
-                 [org.clojure/clojurescript "0.0-1896"]
-                 [org.clojure/tools.reader "0.7.8"]
+                 [org.clojure/clojurescript "0.0-1978"]
+                 [org.clojure/tools.reader "0.7.10"]
                  [ibdknox/dommy "0.1.2"]]
   :source-paths ["src/"
                  "/Users/chris/repos/clojurescript/src/clj"

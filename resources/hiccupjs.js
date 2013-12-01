@@ -82,7 +82,9 @@ function addAttributes(elem, attrs) {
         elem.addEventListener(attr, fn);
       }
     } else {
-      elem.setAttribute(attr, attrs[attr]);
+      if(attrs[attr]) {
+        elem.setAttribute(attr, attrs[attr]);
+      }
     }
   }
 }

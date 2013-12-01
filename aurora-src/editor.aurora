@@ -3,10 +3,52 @@
         {:data {}
 
  :pipes [{:name root
+          :scope []
+          :pipe [(get-data)
+                 (core/group-by "date" _PREV_)
+                 (vals _PREV_)
+                 ]}
+
+         {:name foo
+          :scope []
           :pipe ["hi"
                  [1 2 3 4]
+                 ["ul" ["li" {:class "woot" :id "noway"} "foo"]
+                  ["li" "foo"]]
                  {"name" "chris"
-                  "height" "short"}]}
+                  "height" "short"
+                  "age" 26
+                  "weight" 155}
+                 [ {"name" "chris"
+                  "height" "short"
+                  "age" 26
+                  "weight" 155}
+                   {"name" "chris"
+                  "height" "short"
+                  "age" 26
+                  "weight" 155}]
+
+
+                 {"id" 1
+                  "next" {"id" 2
+                          "next" {"id" 3}}}]}
+
+         {:name get-data
+          :scope []
+          :pipe [[{"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+                  {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+                  {"time" 59 "date" "8/28/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+                  {"time" 114 "date" "8/29/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+                  {"time" 90 "date" "8/30/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+                  {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+                  {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+                  {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+                  {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+                  {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+                  {"time" 19 "date" "8/28/2013"} {"time" 3 "date" "8/28/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+                  {"time" 59 "date" "8/26/2013"} {"time" 23 "date" "8/26/2013"} {"time" 224 "date" "8/27/2013"} {"time" 70 "date" "8/27/2013"}
+                  {"time" 159 "date" "8/30/2013"} {"time" 10 "date" "8/30/2013"} {"time" 66 "date" "8/30/2013"} {"time" 79 "date" "8/30/2013"}
+                  ]]}
          ]
 
  :main root}
@@ -38,7 +80,7 @@
                    [:div#aurora
                     (breadcrumb state)
                     (workspace program state (find-pipe (state "pipe")))
-                    (console program state)
+                    ;(console program state)
                     ])
                  (core/root-inject _PREV_)]}
 
@@ -70,12 +112,15 @@
           :scope [program state pipe]
           :pipe [[:ul.workspace
                   (scope state pipe)
-                  (each-indexed (:pipe pipe) (partial workspace-step (core/->path pipe :pipe)))
+                  (each-indexed (:pipe pipe) (partial workspace-step pipe (core/->path pipe :pipe)))
                   ]]}
 
          {:name workspace-step
-          :scope [path i step]
-          :pipe [[:li.step (rep program state (conj path i) step)]]}
+          :scope [pipe path i step]
+          :pipe [[:li.step
+                  [:div.desc (rep program state (conj path i) step)]
+                  (when (list? step)
+                    (rep program state [core/prev-symbol] (js/aurora.transformers.editor.->step (:name pipe) i)))]]}
 
          {:name scope
           :scope [state pipe]
@@ -115,6 +160,8 @@
                         [:vector] (r-vector program state path thing)
                         [:map] (r-map program state path thing)
                         [:list] (r-invocation program state path thing)
+                        [:seq] (r-vector program state path thing)
+                        [:symbol] (r-ref program state path thing)
                         :else (primitive state path thing))]}
 
          {:name rep-indexed
@@ -123,22 +170,71 @@
 
          {:name r-vector
           :scope [program state path thing]
-          :pipe [[:div.vector "[" (each-indexed thing (partial rep-indexed program state path)) "]"]]}
+          :pipe [(match [(core/type (first thing))]
+                        [:map] (r-table program state path thing)
+                        :else [:div.vector (each-indexed thing (partial rep-indexed program state path))])]}
 
          {:name r-map
           :scope [program state path thing]
-          :pipe [[:div.map "{" (each thing (partial r-map-entry program state path)) "}"]]}
+          :pipe [[:table.map
+                  [:thead [:tr (each (keys thing) (partial r-map-header program state path))]]
+                  [:tbody
+                   [:tr (each thing (partial r-map-entry program state path))]]]]}
+
+         {:name r-map-header
+          :scope [program state path thing]
+          :pipe [[:th (rep program state (cljs.core/conj path thing :aurora.core/key) thing)]]}
 
          {:name r-map-entry
           :scope [program state path [k v]]
-          :pipe [[:div.entry
-                  (rep program state (cljs.core/conj path k :aurora.core/key) k)
-                  ": "
-                  (rep program state (conj path k) v)]]}
+          :pipe [[:td (rep program state (conj path k) v)]]}
+
+         {:name r-table
+          :scope [program state path thing]
+          :pipe [[:table.map [:thead [:tr (each (-> thing first keys) (partial r-table-header program state path))]]
+                  [:tbody
+                   (each-indexed (take 5 thing) (partial r-table-item program state path))
+                   (when (> (count thing) 5)
+                     [:tr [:td {"colspan" (-> thing first keys count)} "..."]])]]]}
+
+         {:name r-table-header
+          :scope [program state path thing]
+          :pipe [[:th (rep program state (cljs.core/conj path thing :aurora.core/key) thing)]]}
+
+         {:name r-table-item
+          :scope [program state path i thing]
+          :pipe [[:tr (each thing (partial r-table-entry program state (cljs.core/conj path i)))]]}
+
+         {:name r-table-entry
+          :scope [program state path [k v]]
+          :pipe [[:td (rep program state (conj path k) v)]]}
 
          ;;************************************************
          ;; invocations
          ;;************************************************
+
+         {:name r-invocation
+          :scope [program state path thing]
+          :pipe [[:div.func (r-invocation-desc program state path thing)]]}
+
+         {:name r-invocation-desc
+          :scope [program state path call]
+          :pipe [(match [(first call)]
+                        ['core/group-by] (list "Group " (rep program state (conj path 2) (nth call 2)) " by the value of " [:span.param (rep program state (conj path 1) (second call))])
+                        ['vals] (list "Get the values of " (rep program state (conj path 1) (second call)))
+                        :else (list (-> call first str))
+                        )]}
+
+         {:name r-param
+          :scope []
+          :pipe []}
+
+         {:name r-ref
+          :scope [program state path ref]
+          :pipe [(let [p core/prev-symbol]
+                   (match [ref]
+                       [p] [:span.prev "that"]
+                       :else [:span.ref (str ref)]))]}
 
 
          ;;************************************************

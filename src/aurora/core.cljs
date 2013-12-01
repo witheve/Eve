@@ -128,7 +128,9 @@ Maps become Objects. Arbitrary keys are encoded to by key->js."
 
 (defn inject [ui]
   (dommy/set-html! (sel1 :#running-wrapper) "")
-  (dommy/append! (sel1 :#running-wrapper) (node ui))
+  (dommy/append! (sel1 :#running-wrapper) (-> ui
+                               (clj->js)
+                               (js/hic)))
   (focus-walk (sel1 :#running-wrapper)))
 
 (defn e->elem [e]
@@ -168,7 +170,7 @@ Maps become Objects. Arbitrary keys are encoded to by key->js."
    (symbol? thing) :symbol
    (string? thing) :string
    (fn? thing) :fn
-   (seq? thing) :list
+   (seq? thing) :seq
    (false? thing) :bool
    (true? thing) :bool
    :else nil))
@@ -238,6 +240,9 @@ Maps become Objects. Arbitrary keys are encoded to by key->js."
 
 (defn string-int? [s]
   (re-seq #"^[\d]+$" s))
+
+(defn group-by [k things]
+  (cljs.core/group-by #(get % k) things))
 
 (defn in-program? [program sym]
   (or (get-in program [:data sym])
