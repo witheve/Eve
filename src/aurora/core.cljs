@@ -11,6 +11,8 @@
                    [aurora.macros :refer [with-path dovec]]
                    [cljs.core.async.macros :refer [go]]))
 
+(enable-console-print!)
+
 (def channel chan)
 (defn take []
   (let [r (vec (js/Array.prototype.slice.call (js* "arguments")))

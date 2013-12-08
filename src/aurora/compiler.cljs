@@ -66,6 +66,18 @@
                                                                {:type :value
                                                                 :data {:value [3 4]}}]}}}
                                         {:tags ["step"]
+                                         :type :operation
+                                         :op {:type :ref
+                                              :ns "program1"
+                                              :to "asyncTest"}
+                                         :args []}
+                                        {:tags ["step"]
+                                         :type :operation
+                                         :op {:type :ref
+                                              :ns "program1"
+                                              :to "asyncMultiTest"}
+                                         :args []}
+                                        {:tags ["step"]
                                          :type :value
                                          :data {:tags ["list"]
                                                 :value {:type :operation
@@ -89,7 +101,6 @@
                         "asyncTest" {:tags ["manual"]
                                      :name "asyncTest"
                                      :desc "async test"
-                                     :async true
                                      :params ["cur"]
                                      :steps [{:tags ["step"]
                                               :type :operation
@@ -116,7 +127,6 @@
                         "asyncMultiTest" {:tags ["manual"]
                                           :name "asyncMultiTest"
                                           :desc "async test"
-                                          :async true
                                           :params ["cur"]
                                           :steps [{:tags ["step"]
                                                    :type :value
@@ -144,8 +154,7 @@
                                                                                                                :value 3}}]}]}}]}}}]}
                         "addone" {:tags ["manual"]
                                   :name "addone"
-                                  :desc "add one"
-                                  :async false
+                                  :desc "add one to "
                                   :params ["cur"]
                                   :steps [{:tags ["math"]
                                            :type :transformer
@@ -154,7 +163,6 @@
                                                          :type :ref
                                                          :to "cur"}]}]}}})
 
-(def editor {:programs [example]})
 
 
 ;;*********************************************************
@@ -185,9 +193,11 @@
 (defn step-nodes [node]
   (apply concat (list node) (mapv step-nodes (node-children node))))
 
-(defn find-ref [ref program]
+(defn find-ref [ref program all]
   (if (= (:ns ref) (:name program))
-    (get-in program [:manuals (:to ref)])))
+    (get-in program [:manuals (:to ref)])
+    (get-in all [:programs (:ns ref) :manuals (:to ref)])
+    ))
 
 (defn is-node? [x]
   (and (map? x) (#{:value :match :operation :transformer :ref} (:type x))))
@@ -298,9 +308,6 @@
 
 (defn asyncify [program]
   (assoc program :manuals (converge-passes program)))
-
-(-> (asyncify example)
-    )
 
 ;;*********************************************************
 ;; augment

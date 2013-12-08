@@ -57,7 +57,8 @@ a img { border: none; }
 
 /* STYLES */
 
-body { background: #25262b; color: #ccc; font-family: "Inconsolata"; font-size: 12pt; }
+body { background: #25262b; color: #ccc; font-family: "Inconsolata"; font-size: 12pt; padding:50px; }
+ul { list-style:none; }
 input { border:none; background:transparent; font-family: "Inconsolata"; color: #ccc; font-size:12pt; }
 
 .breadcrumb { text-align:right; }
@@ -68,26 +69,41 @@ input { border:none; background:transparent; font-family: "Inconsolata"; color: 
 
 .workspace li { padding:10px; }
 
-.step .desc { margin-bottom:20px; background:#34363b; margin-top:20px; padding:10px; border-radius:3px; }
+.steps { margin-top:20px; }
+
+.step .desc { display:block; margin-bottom:20px; background:#34363b; margin-top:20px; padding:10px; border-radius:3px; }
 .step .desc .custom { background:#700A3A; padding:5px 5px; border-radius:3px; border:1px solid #FF1751; }
 
 .step .desc + * { margin-left:10px; }
 
-.vector { background: #45464b; display:inline-block; border-radius:3px; border:1px solid #85868b; }
-.vector > * { padding:5px 10px; display:block; }
-.vector > * + * { border-top:1px solid #85868b; }
-.vector > *:first-child { border-top-left-radius:3px; border-top-right-radius:3px; }
-.vector > *:last-child { border-bottom-left-radius:3px; border-bottom-right-radius:3px; }
-.vector > .vector {display:block; padding: 0px; margin-left:20px; margin-bottom:10px; }
-.vector > .map {display:block; padding:0; width:100%;}
+.list { background: #45464b; display:inline-block; border-radius:3px; border:1px solid #85868b; }
+.list:empty { padding:12px 10px; }
+.list > * { padding:5px 10px; display:block; }
+.list > * + * { border-top:1px solid #85868b; }
+.list > *:first-child { border-top-left-radius:3px; border-top-right-radius:3px; }
+.list > *:last-child { border-bottom-left-radius:3px; border-bottom-right-radius:3px; }
+.list > .list {display:block; padding: 0px; margin-left:20px; margin-bottom:10px; }
+.list > .table {display:block; padding:0; width:100%;}
 
-.map { background: #45464b; display:inline-block; border-radius:3px; border:1px solid #85868b; }
-.map td, th { padding:5px 10px;}
-.map td + td, th + th { border-left:1px solid #85868b; }
-.map th { background: #65666b; text-align:center; }
-.map tr + tr td { border-top:1px solid #85868b; }
+.table { background: #45464b; display:inline-block; border-radius:3px; border:1px solid #85868b; }
+.table td, th { padding:5px 10px;}
+.table td + td, th + th { border-left:1px solid #85868b; }
+.table th { background: #65666b; text-align:center; }
+.table tr + tr td { border-top:1px solid #85868b; }
 
 .prev { background:#45468b; padding:5px; border-radius:3px; border:1px solid #8586cb; }
 .param { background:#45864b; padding:1px 5px; border-radius:3px; border:1px solid #85c68b; display:inline-block;}
+
+.match { margin-top:10px; }
+.match > tbody > tr > td { padding:8px; border:1px solid #777;}
+.match > tbody > tr > td:first-child { text-align:center; padding:8px 20px; }
+.match > tbody > tr > td:first-child  * { text-align:center; }
+.match > tbody > tr > td + td { padding:8px; text-align:center; padding:8px 30px; border-left:0px solid #777; }
+.match > tbody > tr + tr td { padding:8px; border-top:0px solid #777; }
+
+.match .list > * { display:inline-block; }
+.match .list > * + * { border:none; border-left:1px solid #777; }
+
+.value { padding:5px; margin:0 5px; border:1px solid #777; border-radius:3px; }
 
 .console { position:absolute; bottom:0; }
