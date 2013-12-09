@@ -60,6 +60,8 @@ a img { border: none; }
 body { background: #25262b; color: #ccc; font-family: "Inconsolata"; font-size: 12pt; padding:50px; }
 ul { list-style:none; }
 input { border:none; background:transparent; font-family: "Inconsolata"; color: #ccc; font-size:12pt; }
+button { background:#34363b; border:none; border-radius:3px; color:#ccc; padding:5px 10px; }
+button:hover { background:#45464b; }
 
 .breadcrumb { text-align:right; }
 .breadcrumb li { display:inline-block; }
@@ -69,12 +71,18 @@ input { border:none; background:transparent; font-family: "Inconsolata"; color: 
 
 .workspace li { padding:10px; }
 
-.steps { margin-top:20px; }
+.steps { margin-top:20px; width:100%; }
 
-.step .desc { display:block; margin-bottom:20px; background:#34363b; margin-top:20px; padding:10px; border-radius:3px; }
+.step > td { padding: 10px; padding-right: 20px; vertical-align:middle; border-bottom: 0px solid #777; }
+.step > td { border-bottom:20px solid #25262b; }
+.step > td:first-child { background:#34363b; border-radius:3px; }
+.step .desc { display:block; height:100%; background:#34363b; padding:10px; border-radius:3px; }
 .step .desc .custom { background:#700A3A; padding:5px 5px; border-radius:3px; border:1px solid #FF1751; }
 
+.step .desc > * { margin-bottom:10px; }
 .step .desc + * { margin-left:10px; }
+
+.step .result { padding:10px; padding-left: 30px; border-left: 0px solid #777; }
 
 .list { background: #45464b; display:inline-block; border-radius:3px; border:1px solid #85868b; }
 .list:empty { padding:12px 10px; }
@@ -94,8 +102,8 @@ input { border:none; background:transparent; font-family: "Inconsolata"; color: 
 .prev { background:#45468b; padding:5px; border-radius:3px; border:1px solid #8586cb; }
 .param { background:#45864b; padding:1px 5px; border-radius:3px; border:1px solid #85c68b; display:inline-block;}
 
-.match { margin-top:10px; }
-.match > tbody > tr > td { padding:8px; border:1px solid #777;}
+.match { margin-top:15px; width:100%; position:relative; }
+.match > tbody > tr > td { padding:8px; border:1px solid #555; border-radius:3px; }
 .match > tbody > tr > td:first-child { text-align:center; padding:8px 20px; }
 .match > tbody > tr > td:first-child  * { text-align:center; }
 .match > tbody > tr > td + td { padding:8px; text-align:center; padding:8px 30px; border-left:0px solid #777; }

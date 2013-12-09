@@ -85,8 +85,8 @@
     (mapv y x)
     (meta x)))
 
-(defn isTable [t]
-  (-> thing meta ::table))
+(defn isTable [thing]
+  (-> thing meta (get ::table)))
 
 (def isList vector?)
 

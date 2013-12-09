@@ -80,7 +80,6 @@
 (defmulti item-ui :type)
 
 (defmethod item-ui :ref [step]
-  (println "here" step)
   (if (= (:to step) :prev)
     (dom [:span {:className "prev"} "that"])
     (dom [:span {:className "ref"} (str (:to step))]))
@@ -145,11 +144,20 @@
   (dom
    [:p "this is a step of type " (name (:type step))]))
 
+
+
+(defn result-ui [x]
+  (cond
+   (js/aurora.core.isTable x) (table-ui (-> x first keys) (-> x first vals))
+   (js/aurora.core.isList x) (list-ui x)
+   :else (str x)))
+
 (defn manual-step [step i]
   (dom
-   [:li {:className "step"}
-    (step-ui step)
-    [:div {:className "result"} (pr-str (js/aurora.core.->capture (:active @editor-state) (:manual @editor-state) i))]])
+   [:tr {:className "step"}
+    [:td
+     (step-ui step)]
+    [:td {:className "result"} (result-ui (js/aurora.core.->capture (:active @editor-state) (:manual @editor-state) i))]])
   )
 
 (defn manual-step-item [step]
@@ -158,7 +166,7 @@
 
 (defn manual-steps [man]
   (dom
-   [:ul {:className "steps"}
+   [:table {:className "steps"}
     (arrmap manual-step (:steps man))]))
 
 (defn manual [man]
