@@ -14,7 +14,8 @@
               :manuals {"root" {:tags ["manual"]
                                 :name "root"
                                 :desc "do something awesome"
-                                :steps [{:tags ["step"]
+                                :steps [
+                                        {:tags ["step"]
                                          :type :operation
                                          :op {:type :ref
                                               :ns "program1"
@@ -97,7 +98,8 @@
                                                 {:tags ["ref"]
                                                  :type :ref
                                                  :ns "program1"
-                                                 :to "addone"}]}]}
+                                                 :to "addone"}]}
+                                        ]}
                         "asyncTest" {:tags ["manual"]
                                      :name "asyncTest"
                                      :desc "async test"
@@ -126,7 +128,7 @@
 
                         "asyncMultiTest" {:tags ["manual"]
                                           :name "asyncMultiTest"
-                                          :desc "async test"
+                                          :desc "async multi test"
                                           :params ["cur"]
                                           :steps [{:tags ["step"]
                                                    :type :value
@@ -155,6 +157,7 @@
                         "addone" {:tags ["manual"]
                                   :name "addone"
                                   :desc "add one to "
+                                  :async true
                                   :params ["cur"]
                                   :steps [{:tags ["math"]
                                            :type :transformer
@@ -185,6 +188,7 @@
     :value (let [cur (-> node :data :value)]
              (when (coll? cur)
                [cur]))
+    :closure (:steps node)
     :transformer (:data node)
     (cond
      (vector? node) (filter is-node? node)
@@ -234,6 +238,7 @@
          remaining remaining]
     (let [step (first remaining)]
       (cond
+       (:lifted step) (recur (concat steps [step]) (rest remaining))
        (not (seq remaining)) (vec (squash-prev (concat steps [{:type :operation
                                                                :op {:type :ref
                                                                     :ns core-ns
@@ -287,23 +292,33 @@
                           [{:type :ref
                             :to channel}])))))
 
+(defn manual->async [manual program]
+  (let [manual (-> manual
+                   (mark-async program)
+                   (assoc :async true))]
+    (if-not (:channel manual)
+      (wrap-channel manual)
+      (assoc manual :steps (vec (wrap-take (:channel manual) [] (:steps manual)))))
+    )
+  )
+
 (defn asyncify-pass [manuals program]
+  (println program)
   (for [[name manual] manuals]
     (do (println name (async-refs (:steps manual) program))
-      (if (or (and (:async manual) (not (:channel manual)))
-              (async-refs (:steps manual) program))
-        [name (-> manual
-                  (mark-async program)
-                  (wrap-channel))]
+      (if (async-refs (:steps manual) program)
+        [name (assoc manual :async true)]
         [name manual]))))
 
 (defn converge-passes [program]
   (loop [prev (seq (:manuals program))
          i 10]
-    (let [cur (asyncify-pass prev program)]
+    (let [program (assoc program :manuals (into {} prev))
+          cur (asyncify-pass prev program)]
       (if (or (= i 0)
               (= prev cur))
-        (into {} prev)
+        (into {} (for [[name manual] prev]
+                   [name (manual->async manual program)]))
         (recur cur (dec i))))))
 
 (defn asyncify [program]

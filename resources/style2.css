@@ -69,20 +69,35 @@ button:hover { background:#45464b; }
 
 #aurora { overflow:auto; height:100%; padding-bottom:80%; box-sizing:border-box;}
 
+.programs { margin-top:20px; width:30%; }
+.programs .program-item { background:red; }
+.programs .program-item { background:#34363b; padding:8px; }
+.programs .program-item:hover { background:#45464b; }
+.programs .program-item + .program-item { margin-top:3px; }
+.programs .program-item:first-child { border-bottom:none; border-top-left-radius:3px; border-top-right-radius:3px;  }
+.programs .program-item:last-child { border-bottom-left-radius:3px; border-bottom-right-radius:3px;  }
+
+.manuals { margin:20px 0; width:30%; }
+.manuals .manual-item { background:#34363b; padding:8px; }
+.manuals .manual-item:hover { background:#45464b; }
+.manuals .manual-item + .manual-item { margin-top:3px; }
+.manuals .manual-item:first-child { border-bottom:none; border-top-left-radius:3px; border-top-right-radius:3px;  }
+.manuals .manual-item:last-child { border-bottom-left-radius:3px; border-bottom-right-radius:3px;  }
+
 .workspace li { padding:10px; }
 
 .steps { margin-top:20px; width:100%; }
 
 .step > td { padding: 10px; padding-right: 20px; vertical-align:middle; border-bottom: 0px solid #777; }
-.step > td { border-bottom:20px solid #25262b; }
-.step > td:first-child { background:#34363b; border-radius:3px; }
+.step > td { border-bottom:3px solid #25262b; }
+.step > td:first-child { background:#34363b; border-radius:3px; width:65%; }
 .step .desc { display:block; height:100%; background:#34363b; padding:10px; border-radius:3px; }
 .step .desc .custom { background:#700A3A; padding:5px 5px; border-radius:3px; border:1px solid #FF1751; }
 
 .step .desc > * { margin-bottom:10px; }
 .step .desc + * { margin-left:10px; }
 
-.step .result { padding:10px; padding-left: 30px; border-left: 0px solid #777; }
+.step .result { padding:10px; padding-left: 30px; border-left: 0px solid #777; background:#3d3f45; }
 
 .list { background: #45464b; display:inline-block; border-radius:3px; border:1px solid #85868b; }
 .list:empty { padding:12px 10px; }

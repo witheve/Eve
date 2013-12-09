@@ -34,6 +34,7 @@
 
 (def editor-state (atom {:active nil
                          :manual nil}))
+
 (def editor {:representation-cache {"number" (fn [x]
                                                (dom [:span {:className "value"}
                                                      (pr-str x)]))
@@ -46,25 +47,29 @@
                                               (table-ui
                                                (-> x :args first :data :value)
                                                (-> x :args second :data :value)))}
-             :programs {"program1" js/aurora.compiler.example
+             :programs {"program1" compiler/example
                         "aurora.math" {:manuals {"even" {:desc "is even?"}}}
                         "aurora.core" {:manuals {"each" {:desc "For each"}}}}})
 
 (defn program-item [[name program]]
   (dom
-   [:li {:onClick (fn []
+   [:li {:className "program-item"
+         :onClick (fn []
                     (swap! editor-state assoc :active name)
-                    (println "clicked!" name))} name]))
+                    (println "clicked!" name))}
+    name]))
 
 (defn program-list [editor]
   (when-not (:active @editor-state)
     (dom
-     [:ul
+     [:ul {:className "programs"}
       (arrmap program-item (:programs editor))])))
 
 (defn manual-item [[name man]]
-  (dom [:li {:onClick (fn []
-                        (swap! editor-state assoc :manual name))} name]))
+  (dom [:li {:className "manual-item"
+             :onClick (fn []
+                        (swap! editor-state assoc :manual name))}
+        (:desc man)]))
 
 (defn program [prog]
   (when (and prog (not (:manual @editor-state)))
@@ -73,7 +78,7 @@
      [:div
       [:button {:onClick (fn []
                           (swap! editor-state assoc :active nil))} "all programs"]
-      [:ul
+      [:ul {:className "manuals"}
        (arrmap manual-item (:manuals prog))]
       "We have the manual" (:name prog)])))
 
@@ -107,12 +112,18 @@
 (defmulti step-ui :type)
 
 
-(defmethod step-ui :operation [step]
-  (let [op (compiler/find-ref (:op step) (get-in editor [:programs (:active @editor-state)]) editor)]
+(defmethod step-ui :operation [step i]
+  (let [path [(:manual @editor-state) (:active @editor-state) i]
+        cur (get @editor-state path)
+        op (compiler/find-ref (:op step) (get-in editor [:programs (:active @editor-state)]) editor)]
     (dom
-      [:div {:className "desc"}
+      [:div {:className "desc"
+             :onClick (fn []
+                        (swap! editor-state assoc path (not cur)))}
        (:desc op (str "exec " (get-in step [:op :to])))
-       (arrmap manual-step-item (:args step))])))
+       (arrmap manual-step-item (:args step))
+       (when cur
+         (dom [:p "open"]))])))
 
 (defmethod step-ui :value [step]
   (dom
@@ -156,7 +167,7 @@
   (dom
    [:tr {:className "step"}
     [:td
-     (step-ui step)]
+     (step-ui step i)]
     [:td {:className "result"} (result-ui (js/aurora.core.->capture (:active @editor-state) (:manual @editor-state) i))]])
   )
 
