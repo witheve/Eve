@@ -7,7 +7,7 @@
                         :compiler {:optimizations :simple
                                    :externs []
                                    ;:source-map "bootstrap.js.map"
-                                   :output-to "bootstrap.js"
+                                   :output-to "resources/bootstrap.js"
                                    :output-dir "target/cljs/"
                                    :pretty-print true}}]}
   :dependencies [[org.clojure/clojure "1.5.1"]

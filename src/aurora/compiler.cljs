@@ -162,9 +162,13 @@
                                   :steps [{:tags ["math"]
                                            :type :transformer
                                            :name "aurora.math"
-                                           :data ["+" 1 {:tags ["ref"]
-                                                         :type :ref
-                                                         :to "cur"}]}]}}})
+                                           :data [{:tags ["ref"]
+                                                   :type :ref
+                                                   :to "+"}
+                                                  1
+                                                  {:tags ["ref"]
+                                                   :type :ref
+                                                   :to "cur"}]}]}}})
 
 
 
@@ -575,4 +579,3 @@
                     ))
 
 (js/aurora.core.take (js/program1.root) #(println %))
-

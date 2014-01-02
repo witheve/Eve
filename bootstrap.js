@@ -23066,7 +23066,9 @@ aurora.editor.ui.list_ui = function(a) {
   }, a)])
 };
 aurora.editor.ui.editor_state = cljs.core.atom.call(null, new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "active", "active", 3885920888), null, new cljs.core.Keyword(null, "manual", "manual", 4227455800), null], null));
-aurora.editor.ui.editor = new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "representation-cache", "representation-cache", 3885335028), new cljs.core.PersistentArrayMap(null, 4, ["number", function(a) {
+aurora.editor.ui.editor = new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "representation-cache", "representation-cache", 3885335028), new cljs.core.PersistentArrayMap(null, 5, ["math", function(a) {
+  return[cljs.core.str("math!"), cljs.core.str(cljs.core.pr_str.call(null, a))].join("")
+}, "number", function(a) {
   return React.DOM.span.call(null, {className:"value"}, [cljs.core.pr_str.call(null, a)])
 }, "string", function(a) {
   return React.DOM.span.call(null, {className:"value"}, ["" + cljs.core.str(a)])
@@ -23116,6 +23118,10 @@ cljs.core._add_method.call(null, aurora.editor.ui.item_ui, new cljs.core.Keyword
 cljs.core._add_method.call(null, aurora.editor.ui.item_ui, new cljs.core.Keyword(null, "value", "value", 1125876963), function(a) {
   var b = cljs.core.first.call(null, (new cljs.core.Keyword(null, "tags", "tags", 1017456523)).cljs$core$IFn$_invoke$arity$1((new cljs.core.Keyword(null, "data", "data", 1016980252)).cljs$core$IFn$_invoke$arity$1(a))), b = cljs.core.get_in.call(null, aurora.editor.ui.editor, new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "representation-cache", "representation-cache", 3885335028), b], null));
   return cljs.core.truth_(b) ? b.call(null, (new cljs.core.Keyword(null, "value", "value", 1125876963)).cljs$core$IFn$_invoke$arity$1((new cljs.core.Keyword(null, "data", "data", 1016980252)).cljs$core$IFn$_invoke$arity$1(a))) : React.DOM.span.call(null, {className:"value"}, [cljs.core.pr_str.call(null, (new cljs.core.Keyword(null, "value", "value", 1125876963)).cljs$core$IFn$_invoke$arity$1((new cljs.core.Keyword(null, "data", "data", 1016980252)).cljs$core$IFn$_invoke$arity$1(a)))])
+});
+cljs.core._add_method.call(null, aurora.editor.ui.item_ui, new cljs.core.Keyword(null, "transformer", "transformer", 3309322379), function(a) {
+  var b = cljs.core.first.call(null, (new cljs.core.Keyword(null, "tags", "tags", 1017456523)).cljs$core$IFn$_invoke$arity$1(a)), b = cljs.core.get_in.call(null, aurora.editor.ui.editor, new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "representation-cache", "representation-cache", 3885335028), b], null));
+  return cljs.core.truth_(b) ? b.call(null, (new cljs.core.Keyword(null, "data", "data", 1016980252)).cljs$core$IFn$_invoke$arity$1(a)) : React.DOM.span.call(null, {className:"value"}, ["transformer"])
 });
 cljs.core._add_method.call(null, aurora.editor.ui.item_ui, new cljs.core.Keyword(null, "operation", "operation", 2676607193), function(a) {
   var b = aurora.compiler.find_ref.call(null, (new cljs.core.Keyword(null, "op", "op", 1013907795)).cljs$core$IFn$_invoke$arity$1(a), cljs.core.get_in.call(null, aurora.editor.ui.editor, new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "programs", "programs", 4307789281), (new cljs.core.Keyword(null, "active", "active", 3885920888)).cljs$core$IFn$_invoke$arity$1(cljs.core.deref.call(null, aurora.editor.ui.editor_state))], null)), aurora.editor.ui.editor);
@@ -23177,6 +23183,9 @@ cljs.core._add_method.call(null, aurora.editor.ui.step_ui, new cljs.core.Keyword
       }, null, null)
     }.call(null, (new cljs.core.Keyword(null, "branches", "branches", 988497218)).cljs$core$IFn$_invoke$arity$1(a))
   }())])])
+});
+cljs.core._add_method.call(null, aurora.editor.ui.step_ui, new cljs.core.Keyword(null, "transformer", "transformer", 3309322379), function(a) {
+  return aurora.editor.ui.manual_step_item.call(null, a)
 });
 cljs.core._add_method.call(null, aurora.editor.ui.step_ui, new cljs.core.Keyword(null, "default", "default", 2558708147), function(a) {
   return React.DOM.p.call(null, null, ["this is a step of type ", cljs.core.name.call(null, (new cljs.core.Keyword(null, "type", "type", 1017479852)).cljs$core$IFn$_invoke$arity$1(a))])

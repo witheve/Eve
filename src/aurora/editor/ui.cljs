@@ -3,6 +3,8 @@
             [aurora.compiler :as compiler])
   (:require-macros [aurora.macros :refer [dom]]))
 
+(js/React.initializeTouchEvents true)
+
 (defn coll->array [thing]
   (if-not (coll? thing)
     thing
@@ -32,10 +34,22 @@
         (arrmap #(dom [:li (item-ui %)])
                 vs)]))
 
+(defn math-ui [x]
+  (println x (type x))
+  (cond
+   (string? x) (dom [:span {:className "math-op"} x])
+   (vector? x) (dom [:span {:className "math-expression"}
+                     (to-array (map math-ui (interpose (first x) (rest x))))])
+   (compiler/is-node? x) (manual-step-item x)
+   (number? x) (dom [:span {:className "value"}
+                     (pr-str x)])
+   :else (dom [:span (pr-str x)])))
+
 (def editor-state (atom {:active nil
                          :manual nil}))
 
-(def editor {:representation-cache {"number" (fn [x]
+(def editor {:representation-cache {"math" math-ui
+                                    "number" (fn [x]
                                                (dom [:span {:className "value"}
                                                      (pr-str x)]))
                                     "string" (fn [x]
@@ -52,12 +66,14 @@
                         "aurora.core" {:manuals {"each" {:desc "For each"}}}}})
 
 (defn program-item [[name program]]
-  (dom
-   [:li {:className "program-item"
-         :onClick (fn []
-                    (swap! editor-state assoc :active name)
-                    (println "clicked!" name))}
-    name]))
+  (let [click (fn []
+                (swap! editor-state assoc :active name)
+                (println "clicked!" name))]
+    (dom
+     [:li {:className "program-item"
+           :onTouchStart click
+           :onClick click}
+      name])))
 
 (defn program-list [editor]
   (when-not (:active @editor-state)
@@ -66,21 +82,25 @@
       (arrmap program-item (:programs editor))])))
 
 (defn manual-item [[name man]]
-  (dom [:li {:className "manual-item"
-             :onClick (fn []
-                        (swap! editor-state assoc :manual name))}
-        (:desc man)]))
+  (let [click (fn []
+                (swap! editor-state assoc :manual name))]
+    (dom [:li {:className "manual-item"
+               :onClick click
+               :onTouchStart click}
+          (:desc man)])))
 
 (defn program [prog]
   (when (and prog (not (:manual @editor-state)))
-    (dom
+    (let [click (fn []
+                  (swap! editor-state assoc :active nil))]
+      (dom
 
-     [:div
-      [:button {:onClick (fn []
-                          (swap! editor-state assoc :active nil))} "all programs"]
-      [:ul {:className "manuals"}
-       (arrmap manual-item (:manuals prog))]
-      "We have the manual" (:name prog)])))
+       [:div
+        [:button {:onTouchStart click
+                  :onClick click} "all programs"]
+        [:ul {:className "manuals"}
+         (arrmap manual-item (:manuals prog))]
+        "We have the manual" (:name prog)]))))
 
 (defmulti item-ui :type)
 
@@ -96,6 +116,14 @@
     (if rep
       (rep (-> step :data :value))
       (dom [:span {:className "value"} (pr-str (-> step :data :value))]))
+    ))
+
+(defmethod item-ui :transformer [step]
+  (let [tag (-> step :tags first)
+        rep (get-in editor [:representation-cache tag])]
+    (if rep
+      (rep (:data step))
+      (dom [:span {:className "value"} "transformer"]))
     ))
 
 (defmethod item-ui :operation [step]
@@ -115,11 +143,13 @@
 (defmethod step-ui :operation [step i]
   (let [path [(:manual @editor-state) (:active @editor-state) i]
         cur (get @editor-state path)
-        op (compiler/find-ref (:op step) (get-in editor [:programs (:active @editor-state)]) editor)]
+        op (compiler/find-ref (:op step) (get-in editor [:programs (:active @editor-state)]) editor)
+        click (fn []
+                (swap! editor-state assoc path (not cur)))]
     (dom
       [:div {:className "desc"
-             :onClick (fn []
-                        (swap! editor-state assoc path (not cur)))}
+             :onClick click
+             :onTouchStart click}
        (:desc op (str "exec " (get-in step [:op :to])))
        (arrmap manual-step-item (:args step))
        (when cur
@@ -150,6 +180,9 @@
                     [:td (-> x second item-ui)]])
                   ))]
      ]))
+
+(defmethod step-ui :transformer [step]
+  (manual-step-item step))
 
 (defmethod step-ui :default [step]
   (dom
@@ -182,28 +215,36 @@
 
 (defn manual [man]
   (when man
-    (dom
+    (let [click (fn []
+                  (swap! editor-state assoc :manual nil))]
+      (dom
 
-     [:div
-      [:button {:onClick (fn []
-                          (swap! editor-state assoc :manual nil))} "all manuals"]
-      (manual-steps man)
-      ]))
+       [:div
+        [:button {:onTouchStart click
+                  :onClick click} "all manuals"]
+        (manual-steps man)
+        ])))
   )
 
 (swap! editor-state assoc :active nil)
 
 
-(defn update []
-  (time(js/React.renderComponent
-        (dom [:div
-              (program-list editor)
-              (program (-> editor :programs (get (:active @editor-state))))
-              (manual (-> editor :programs (get-in [(:active @editor-state) :manuals (:manual @editor-state)])))
-              ]
+(defn now []
+  (.getTime (js/Date.)))
 
-             )
-        js/document.body)))
+(defn update []
+  (let [start (now)]
+    (time(js/React.renderComponent
+          (dom [:div
+                (program-list editor)
+                (program (-> editor :programs (get (:active @editor-state))))
+                (manual (-> editor :programs (get-in [(:active @editor-state) :manuals (:manual @editor-state)])))
+                ]
+
+               )
+          (js/document.querySelector "#wrapper")))
+    (set! (.-innerHTML (js/document.querySelector "#perf")) (- (now) start))))
+
 (add-watch editor-state :foo (fn [_ _ _ cur]
                                (update)))
 (update)

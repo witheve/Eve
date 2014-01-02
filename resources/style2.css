@@ -129,4 +129,7 @@ button:hover { background:#45464b; }
 
 .value { padding:5px; margin:0 5px; border:1px solid #777; border-radius:3px; }
 
+.math-op { padding: 5px;}
+.math-expression > * { padding:5px; }
+
 .console { position:absolute; bottom:0; }
