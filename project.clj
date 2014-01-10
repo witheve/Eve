@@ -15,11 +15,10 @@
                  [compojure "1.1.5"]
                  [hiccups "0.2.0"]
                  [ring "1.2.0"]
-                 [core.async "0.1.0"]
+                 [org.clojure/core.async "0.1.267.0-0d7780-alpha"]
 
-                 [org.clojure/clojurescript "0.0-1978"]
-                 [org.clojure/tools.reader "0.7.10"]
-                 [ibdknox/dommy "0.1.2"]]
+                 #_[org.clojure/clojurescript "0.0-1978"]
+                 [org.clojure/tools.reader "0.7.10"]]
   :source-paths ["src/"
                  "/Users/chris/repos/clojurescript/src/clj"
                  "/Users/chris/repos/clojurescript/src/cljs"
