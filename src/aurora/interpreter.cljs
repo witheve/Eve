@@ -123,3 +123,5 @@
 
 (run-example example-c [0])
 (run-example example-c [1])
+(run-example example-c [7])
+(run-example example-c [10])
