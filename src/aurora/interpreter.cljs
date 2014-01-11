@@ -12,8 +12,8 @@
   (let [vars #js {}]
     (doseq [[id value] (map vector (:inputs node) inputs)]
       (aset vars id value))
-    (doseq [[id node-inputs node] (:nodes node)]
-      (aset vars id (run-node node (map #(aget vars %) node-inputs) actions)))
+    (doseq [{:keys [id inputs node]} (:nodes node)]
+      (aset vars id (run-node node (map #(aget vars %) inputs) actions)))
     (aget vars (-> node :nodes last first))))
 
 (defn run-match [node inputs actions]
@@ -26,7 +26,7 @@
   (when-not bool (throw (MatchFailure.))))
 
 (defn run-match-branches [branches input actions]
-  (if-let [[[branch inputs node] & branches] (seq branches)]
+  (if-let [[{:keys [branch inputs node]} & branches] (seq branches)]
     (try
       (let [vars #js {}]
         (run-match-branch branch input actions vars)
@@ -64,15 +64,19 @@
 (def example-a
   {:type :pipe
    :inputs ["a" "b" "c"]
-   :nodes [["b-squared" ["b" "b"] {:type :cljs :fn *}]
-           ["four" [] {:type :value :value 4}]
-           ["four-a-c" ["four" "a" "c"] {:type :cljs :fn *}]
-           ["result" ["b-squared" "four-a-c"] {:type :cljs :fn -}]]})
+   :nodes [{:id "b-squared" :inputs ["b" "b"] :node {:type :cljs :fn *}}
+           {:id "four" :inputs [] :node {:type :value :value 4}}
+           {:id "four-a-c" :inputs ["four" "a" "c"] :node {:type :cljs :fn *}}
+           {:id "result" :inputs ["b-squared" "four-a-c"] :node {:type :cljs :fn -}}]})
 
 (def example-b
   {:type :match
-   :branches [[{"a" ^{:var "a"} {:type :cljs :fn number?} "b" ^{:var "b"} {:type :cljs :fn number?}} ["a" "b"] {:type :cljs :fn -}]
-              [[^{:var "x"} {:type :value :value true} "foo"] ["x" "y"] {:type :cljs :fn identity}]]})
+   :branches [{:branch {"a" ^{:var "a"} {:type :cljs :fn number?} "b" ^{:var "b"} {:type :cljs :fn number?}}
+               :inputs ["a" "b"]
+               :node {:type :cljs :fn -}}
+              {:branch [^{:var "x"} {:type :value :value true} "foo"]
+               :inputs ["x" "y"]
+               :node {:type :cljs :fn identity}}]})
 
 (defn run-example [example inputs]
   (try
@@ -81,8 +85,8 @@
 
 (run-node example-a [1 4 2] nil)
 
-(run-example example-b [{"a" 1 "b" 2}] nil)
-(run-example example-b [{"a" 1 "c" 2}] nil)
-(run-example example-b [{"a" 1 "b" "foo"}] nil)
-(run-example example-b [[1 "foo"]] nil)
-(run-example example-b [[1 2]] nil)
+(run-example example-b [{"a" 1 "b" 2}])
+(run-example example-b [{"a" 1 "c" 2}])
+(run-example example-b [{"a" 1 "b" "foo"}])
+(run-example example-b [[1 "foo"]])
+(run-example example-b [[1 2]])
