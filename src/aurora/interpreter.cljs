@@ -1,18 +1,5 @@
 (ns aurora.interpreter)
 
-(defn run-node [program node inputs actions]
-  (prn node inputs)
-  (case (:type node)
-    :match (run-match program node inputs actions)
-    :ref (run-ref program node inputs actions)
-    :pipe (run-pipe program node inputs actions)))
-
-(defn run-ref [program node inputs actions]
-  (case (:kind node)
-    :value (:value node)
-    :cljs (apply (:fn node) inputs)
-    :aurora (run-node program (get program (:id node)) inputs actions)))
-
 (defn run-pipe [program node inputs actions]
   (let [vars #js {}]
     (doseq [[id value] (map vector (:inputs node) inputs)]
@@ -22,6 +9,21 @@
       (aset vars id (run-node program node (map #(aget vars %) inputs) actions))
       (prn vars))
     (aget vars (-> node :nodes last :id))))
+
+(defn run-node [program node inputs actions]
+  (prn node inputs)
+  (case (:type node)
+    :value (run-value program node inputs actions)
+    :match (run-match program node inputs actions)
+    :ref (run-ref program node inputs actions)))
+
+(defn run-value [program node inputs actions]
+  (:value node))
+
+(defn run-ref [program node inputs actions]
+  (case (:kind node)
+    :cljs (apply (:fn node) inputs)
+    :aurora (run-node program (get program (:id node)) inputs actions)))
 
 (defrecord MatchFailure [])
 
@@ -68,49 +70,61 @@
   {"root" {:type :pipe
            :inputs ["a" "b" "c"]
            :nodes [{:id "b-squared" :inputs ["b" "b"] :node {:type :ref :kind :cljs :name *}}
-                   {:id "four" :inputs [] :node {:type :ref :kind :value :value 4}}
+                   {:id "four" :inputs [] :node {:type :value :value 4}}
                    {:id "four-a-c" :inputs ["four" "a" "c"] :node {:type :ref :kind :cljs :fn *}}
                    {:id "result" :inputs ["b-squared" "four-a-c"] :node {:type :ref :kind :cljs :fn -}}]}})
 
 (def example-b
-  {"root" {:type :match
-           :branches [{:pattern {"a" (bind "a" {:type :ref :kind :cljs :fn number?}) "b" (bind "b" {:type :ref :kind :cljs :fn number?})}
-                       :inputs ["a" "b"]
-                       :node {:type :ref :kind :cljs :fn -}}
-                      {:pattern [(bind "x" {:type :ref :kind :value :value true}) "foo"]
-                       :inputs ["x" "y"]
-                       :node {:type :ref :kind :cljs :fn identity}}]}})
+  {"root" {:type :pipe
+           :inputs ["x"]
+           :nodes [{:id "result"
+                    :inputs ["x"]
+                    :node {:type :match
+                           :branches [{:pattern {"a" (bind "a" {:type :ref :kind :cljs :fn number?}) "b" (bind "b" {:type :ref :kind :cljs :fn number?})}
+                                       :inputs ["a" "b"]
+                                       :node {:type :ref :kind :cljs :fn -}}
+                                      {:pattern [(bind "x" {:type :value :value true}) "foo"]
+                                       :inputs ["x" "y"]
+                                       :node {:type :ref :kind :cljs :fn identity}}]}}]}})
 
 (def example-c
   {"root" {:type :ref :kind :aurora :id "even?"}
-   "even?" {:type :match
-            :branches [{:pattern 0
-                        :inputs []
-                        :node {:type :ref :kind :value :value true}}
-                       {:pattern (bind "x" {:type :ref :kind :value :value true})
-                        :inputs ["x"]
-                        :node {:type :ref :kind :aurora :id "even?not-0"}}]}
+   "even?" {:type :pipe
+            :inputs ["x"]
+            :nodes [{:id "result"
+                     :inputs ["x"]
+                     :node {:type :match
+                            :branches [{:pattern 0
+                                        :inputs []
+                                        :node {:type :value :value true}}
+                                       {:pattern (bind "x" {:type :value :value true})
+                                        :inputs ["x"]
+                                        :node {:type :ref :kind :aurora :id "even?not-0"}}]}}]}
    "even?not-0" {:type :pipe
                  :inputs ["x"]
-                 :nodes [{:id "one" :inputs [] :node {:type :ref :kind :value :value 1}}
+                 :nodes [{:id "one" :inputs [] :node {:type :value :value 1}}
                          {:id "x-1" :inputs ["x" "one"] :node {:type :ref :kind :cljs :fn -}}
                          {:id "result" :inputs ["x-1"] :node {:type :ref :kind :aurora :id "odd?"}}]}
-   "odd?" {:type :match
-           :branches [{:pattern 0
-                       :inputs []
-                       :node {:type :ref :kind :value :value false}}
-                      {:pattern (bind "x" {:type :ref :kind :value :value true})
-                       :inputs ["x"]
-                       :node {:type :ref :kind :aurora :id "odd?not-0"}}]}
+   "odd?" {:type :pipe
+           :inputs ["x"]
+           :nodes [{:id "result"
+                    :inputs ["x"]
+                    :node {:type :match
+                           :branches [{:pattern 0
+                                       :inputs []
+                                       :node {:type :value :value false}}
+                                      {:pattern (bind "x" {:type :value :value true})
+                                       :inputs ["x"]
+                                       :node {:type :ref :kind :aurora :id "odd?not-0"}}]}}]}
    "odd?not-0" {:type :pipe
                 :inputs ["x"]
-                :nodes [{:id "one" :inputs [] :node {:type :ref :kind :value :value 1}}
+                :nodes [{:id "one" :inputs [] :node {:type :value :value 1}}
                         {:id "x-1" :inputs ["x" "one"] :node {:type :ref :kind :cljs :fn -}}
                         {:id "result" :inputs ["x-1"] :node {:type :ref :kind :aurora :id "even?"}}]}})
 
 (defn run-example [example inputs]
   (try
-    (run-node example (get example "root") inputs nil)
+    (run-pipe example (get example "root") inputs nil)
     (catch MatchFailure e e)))
 
 (run-example example-a [1 4 2])
