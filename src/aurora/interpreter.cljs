@@ -3,6 +3,7 @@
 ;; interpreter
 
 (defn run-pipe [program node inputs actions]
+  (prn node inputs)
   (let [vars #js {}]
     (doseq [[id value] (map vector (:inputs node) inputs)]
       (aset vars id value))
@@ -13,7 +14,6 @@
     (aget vars (-> node :nodes last :id))))
 
 (defn run-node [program node inputs actions]
-  (prn node inputs)
   (case (:type node)
     :value (run-value program node inputs actions)
     :match (run-match program node inputs actions)
@@ -25,7 +25,7 @@
 (defn run-ref [program node inputs actions]
   (case (:kind node)
     :cljs (apply (:fn node) inputs)
-    :pipe (run-node program (get program (:id node)) inputs actions)))
+    :pipe (run-pipe program (get program (:id node)) inputs actions)))
 
 (defrecord MatchFailure [])
 
