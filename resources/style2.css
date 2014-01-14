@@ -58,22 +58,10 @@ a img { border: none; }
 /* STYLES */
 
 @font-face {
-  font-family: 'Muli';
-  font-style: normal;
-  font-weight: 300;
-  src: local('Muli Light'), local('Muli-Light'), url(http://themes.googleusercontent.com/static/fonts/muli/v5/TgrecWq39GVsTOFonFwGXQLUuEpTyoUstqEm5AMlJo4.woff) format('woff');
-}
-@font-face {
-  font-family: 'Muli';
-  font-style: normal;
-  font-weight: 400;
-  src: local('Muli'), url(http://themes.googleusercontent.com/static/fonts/muli/v5/minRpKQdEvXRRS8oAbAtWvesZW2xOQ-xsNqO47m55DA.woff) format('woff');
-}
-@font-face {
   font-family: 'Nunito';
   font-style: normal;
   font-weight: 300;
-  src: local('Nunito-Light'), url(http://themes.googleusercontent.com/static/fonts/nunito/v5/1TiHc9yag0wq3lDO9cw0vrO3LdcAZYWl9Si6vvxL-qU.woff) format('woff');
+  src: local('Nunito-Light'), url(fonts/Nunito-Light.ttf) format('woff');
 }
 
 * { box-sizing:border-box !important; }
