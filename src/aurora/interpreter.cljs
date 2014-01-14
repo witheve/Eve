@@ -16,12 +16,19 @@
 
 (defn run-node [program node inputs actions]
   (case (:type node)
-    :value (run-value program node inputs actions)
+    :data (run-data program node inputs actions)
     :match (run-match program node inputs actions)
     :ref (run-ref program node inputs actions)))
 
-(defn run-value [program node inputs actions]
-  (:value node))
+(defn run-data [program node inputs actions]
+  (case (:kind node)
+    :value (:value node)
+    :vector (into []
+                  (for [value (:value node)]
+                    (run-data program value inputs actions)))
+    :map (into {}
+               (for [[key value] (:value node)]
+                 [(run-data program key inputs actions) (run-data program value inputs actions)]))))
 
 (defn run-ref [program node inputs actions]
   (case (:kind node)
@@ -48,20 +55,22 @@
 
 (defn run-match-pattern [program pattern input actions vars]
   (condp = (:type pattern)
+    :match/any nil
     :match/bind (do (aset vars (:var pattern) input)
                   (run-match-pattern program (:pattern pattern) input actions vars))
-    :match/any nil
-    :match/value (check (= input (:value pattern)))
-    :match/vec (let [value (:value pattern)]
-                 (check (vector? input))
-                 (check (= (count input) (count value)))
-                 (dotimes [i (count value)]
-                   (run-match-pattern program (nth value i) (nth input i) actions vars)))
-    :match/map (let [value (:value pattern)]
-                 (check (map? input))
-                 (doseq [key (keys value)]
-                   (check (contains? input key))
-                   (run-match-pattern program (get value key) (get input key) actions vars)))
+    :data (case (:kind pattern)
+            :value (check (= input (:value pattern)))
+            :vector (let [value (:value pattern)]
+                      (check (vector? input))
+                      (check (= (count input) (count value)))
+                      (dotimes [i (count value)]
+                        (run-match-pattern program (nth value i) (nth input i) actions vars)))
+            :map (let [value (:value pattern)]
+                   (check (map? input))
+                   (doseq [key-pattern (keys value)]
+                     (let [key (:value key-pattern)]
+                       (check (contains? input key))
+                       (run-match-pattern program (get value key-pattern) (get input key) actions vars)))))
     (check (run-node program pattern [input] actions))))
 
 ;; ast
@@ -72,8 +81,20 @@
    :nodes (for [[id inputs node] (partition 3 nodes)]
             {:id id :inputs inputs :node node})})
 
-(defn value [x]
-  {:type :value :value x})
+(defn data-value [x]
+  {:type :data
+   :kind :value
+   :value x})
+
+(defn data-vector [& values]
+  {:type :data
+   :kind :vector
+   :value (into [] values)})
+
+(defn data-map [& keys&values]
+  {:type :data
+   :kind :map
+   :value (into {} (map vec (partition 2 keys&values)))})
 
 (defn cljs-ref [fn]
   {:type :ref :kind :cljs :fn fn})
@@ -91,51 +112,39 @@
    :var var
    :pattern pattern})
 
-(def match-any
+(def any
   {:type :match/any})
-
-(defn match-value [value]
-  {:type :match/value
-   :value value})
-
-(defn match-vector [& values]
-  {:type :match/vec
-   :value (into [] values)})
-
-(defn match-map [& keys&values]
-  {:type :match/map
-   :value (into {} (map vec (partition 2 keys&values)))})
 
 ;; examples
 
 (def example-a
   {"root" (pipe ["a" "b" "c"]
                 "b-squared" ["b" "b"] (cljs-ref *)
-                "four" [] (value 4)
+                "four" [] (data-value 4)
                 "four-a-c" ["four" "a" "c"] (cljs-ref *)
                 "result" ["b-squared" "four-a-c"] (cljs-ref -))})
 
 (def example-b
   {"root" (pipe ["x"]
-                "result" ["x"] (match (match-map "a" (bind "a" (cljs-ref number?)) "b" (bind "b" (cljs-ref number?))) ["a" "b"] (cljs-ref -)
-                                      (match-vector (bind "x" match-any) (match-value "foo")) ["x"] (cljs-ref identity)))})
+                "result" ["x"] (match (data-map (data-value "a") (bind "a" (cljs-ref number?)) (data-value "b") (bind "b" (cljs-ref number?))) ["a" "b"] (cljs-ref -)
+                                      (data-vector (bind "x" any) (data-value "foo")) ["x"] (cljs-ref identity)))})
 
 (def example-c
   {"root" (pipe ["x"]
                 "result" ["x"] (pipe-ref "even?"))
    "even?" (pipe ["x"]
-                 "result" ["x"] (match (match-value 0) [] (value true)
-                                       (bind "x" match-any) ["x"] (pipe-ref "even?not-0")))
+                 "result" ["x"] (match (data-value 0) [] (data-value true)
+                                       (bind "x" any) ["x"] (pipe-ref "even?not-0")))
    "even?not-0" (pipe ["x"]
-                      "one" [] (value 1)
+                      "one" [] (data-value 1)
                       "x-1" ["x" "one"] (cljs-ref -)
                       "odd?" ["x-1"] (pipe-ref "odd?")
                       "result" ["odd?"] (cljs-ref not))
    "odd?" (pipe ["x"]
-                "result" ["x"] (match (match-value 0) [] (value true)
-                                      (bind "x" match-any) ["x"] (pipe-ref "odd?not-0")))
+                "result" ["x"] (match (data-value 0) [] (data-value true)
+                                      (bind "x" any) ["x"] (pipe-ref "odd?not-0")))
    "odd?not-0" (pipe ["x"]
-                     "one" [] (value 1)
+                     "one" [] (data-value 1)
                      "x-1" ["x" "one"] (cljs-ref -)
                      "even?" ["x-1"] (pipe-ref "even?")
                      "result" ["even?"] (cljs-ref not))})
