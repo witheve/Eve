@@ -10,7 +10,7 @@
 
 (def example {:tags ["program"]
               :name "program1"
-              :desc "example"
+              :desc "Demos"
               :manuals {"root" {:tags ["manual"]
                                 :name "root"
                                 :desc "do something awesome"

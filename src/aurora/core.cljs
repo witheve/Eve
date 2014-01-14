@@ -1,15 +1,11 @@
 (ns aurora.core
   (:require [clojure.walk :as walk]
             [aurora.keyboard :as kb]
-            [dommy.core :as dommy]
-            [dommy.utils :as utils]
             [cljs.reader :as reader]
             [clojure.string :as string]
             [cljs.core.async.impl.protocols :as protos]
             [cljs.core.async :refer [put! chan sliding-buffer take! timeout]])
-  (:require-macros [dommy.macros :refer [node sel1 sel]]
-                   [aurora.macros :refer [with-path dovec]]
-                   [cljs.core.async.macros :refer [go]]))
+  (:require-macros [cljs.core.async.macros :refer [go]]))
 
 (enable-console-print!)
 

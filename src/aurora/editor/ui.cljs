@@ -49,6 +49,8 @@
                          :manual nil}))
 
 (def editor {:representation-cache {"math" math-ui
+                                    "rect" (fn [x]
+                                               )
                                     "number" (fn [x]
                                                (dom [:span {:className "value"}
                                                      (pr-str x)]))
@@ -62,8 +64,10 @@
                                                (-> x :args first :data :value)
                                                (-> x :args second :data :value)))}
              :programs {"program1" compiler/example
-                        "aurora.math" {:manuals {"even" {:desc "is even?"}}}
-                        "aurora.core" {:manuals {"each" {:desc "For each"}}}}})
+                        "aurora.math" {:desc "Math"
+                                       :manuals {"even" {:desc "is even?"}}}
+                        "aurora.core" {:desc "Core"
+                                       :manuals {"each" {:desc "For each of "}}}}})
 
 (defn program-item [[name program]]
   (let [click (fn []
@@ -73,7 +77,7 @@
      [:li {:className "program-item"
            :onTouchStart click
            :onClick click}
-      name])))
+      (:desc program)])))
 
 (defn program-list [editor]
   (when-not (:active @editor-state)
@@ -96,18 +100,17 @@
       (dom
 
        [:div
-        [:button {:onTouchStart click
-                  :onClick click} "all programs"]
+
         [:ul {:className "manuals"}
-         (arrmap manual-item (:manuals prog))]
-        "We have the manual" (:name prog)]))))
+         (arrmap manual-item (:manuals prog))]]))))
 
 (defmulti item-ui :type)
 
 (defmethod item-ui :ref [step]
   (if (= (:to step) :prev)
     (dom [:span {:className "prev"} "that"])
-    (dom [:span {:className "ref"} (str (:to step))]))
+    (dom [:span {:className "ref"} (or (:desc (compiler/find-ref step (get-in editor [:programs (:active @editor-state)]) editor))
+                                       (str (:to step)))]))
   )
 
 (defmethod item-ui :value [step]
@@ -171,7 +174,7 @@
 (defmethod step-ui :match [step]
   (dom
     [:div {:className "desc"}
-     [:p "Find a match for " (arrmap manual-step-item (:root step))]
+     [:p "Find a match for " (arrmap manual-step-item (:root step)) " in "]
      [:table {:className "match"}
       (to-array (for [x (:branches step)]
                   (dom
@@ -182,7 +185,8 @@
      ]))
 
 (defmethod step-ui :transformer [step]
-  (manual-step-item step))
+  (dom [:div {:className "desc"}
+        (manual-step-item step)]))
 
 (defmethod step-ui :default [step]
   (dom
@@ -205,8 +209,7 @@
   )
 
 (defn manual-step-item [step]
-  (item-ui step)
-  )
+  (item-ui step))
 
 (defn manual-steps [man]
   (dom
@@ -219,15 +222,43 @@
                   (swap! editor-state assoc :manual nil))]
       (dom
 
-       [:div
-        [:button {:onTouchStart click
-                  :onClick click} "all manuals"]
+       [:div {:className (str "workspace " (name (:view @editor-state)))}
         (manual-steps man)
         ])))
   )
 
-(swap! editor-state assoc :active nil)
+(defn nav []
+  (dom
+   [:div {:id "nav"}
+    [:ul
+     [:li [:i {:className "icon ion-ios7-arrow-left"
+               :onClick (fn []
+                          (cond
+                           (:manual @editor-state) (swap! editor-state assoc :manual nil)
+                           (:active @editor-state) (swap! editor-state assoc :active nil)
+                           :else nil))}]
+      [:span
+       (cond
+        (:manual @editor-state) "Pages"
+        (:active @editor-state) "Notebooks"
+        :else "Home")]]]
+    [:ul
+     [:li [:i {:className "icon ion-ios7-plus-empty"}] [:span "Add"]]]
+    (when (:manual @editor-state)
+      (dom
+       [:ul
+        [:li {:className (when (= :document (:view @editor-state))
+                           "active")}
+         [:i {:className "icon ion-ios7-browsers-outline"}] [:span "Document"]]
+        [:li {:className (when (= :canvas (:view @editor-state))
+                           "active")}
+         [:i {:className "icon ion-ios7-albums-outline"}] [:span "Canvas"]]
+        [:li {:className (when (= :steps (:view @editor-state))
+                           "active")}
+         [:i {:className "icon ion-ios7-drag"}] [:span "Steps"]]]))
+    ]))
 
+(swap! editor-state assoc :view :steps)
 
 (defn now []
   (.getTime (js/Date.)))
@@ -236,9 +267,11 @@
   (let [start (now)]
     (time(js/React.renderComponent
           (dom [:div
-                (program-list editor)
-                (program (-> editor :programs (get (:active @editor-state))))
-                (manual (-> editor :programs (get-in [(:active @editor-state) :manuals (:manual @editor-state)])))
+                (nav)
+                [:div {:id "content"}
+                 (program-list editor)
+                 (program (-> editor :programs (get (:active @editor-state))))
+                 (manual (-> editor :programs (get-in [(:active @editor-state) :manuals (:manual @editor-state)])))]
                 ]
 
                )
