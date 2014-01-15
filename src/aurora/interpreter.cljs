@@ -182,7 +182,7 @@
    (println (.join (make-array indent) " ") "=>" (.-id frame) (.-vars frame))
    (doseq [call (.-calls frame)]
      (print-stack (+ indent 2) call))
-   (when (js* "(~{} in ~{})" "result" frame) ; seriously?
+   (when (js* "('result' in ~{frame})") ; seriously?
      (println (.join (make-array indent) " ") "<=" (.-id frame) (.-result frame)))))
 
 (defn print-example [example inputs]
@@ -190,5 +190,7 @@
     (print-stack stack)
     (println result)))
 
-(run-example example-b [1 "foo"])
+(print-example example-b [[1 "foo"]])
+(print-example example-b [1 "foo"])
+(print-example example-c [10])
 
