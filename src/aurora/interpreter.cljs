@@ -158,7 +158,7 @@
         program (into {} (for [pipe example] [(:id pipe) pipe]))]
     (try
       [(run-pipe program (get program "root") inputs stack) (aget stack 0)]
-      (catch :default e [e stack]))))
+      (catch :default e [e (aget stack 0)]))))
 
 (run-example example-a [1 4 2])
 
@@ -172,3 +172,23 @@
 (run-example example-c [1])
 (run-example example-c [7])
 (run-example example-c [10])
+
+(.join (make-array 10) " ")
+
+(defn print-stack
+  ([frame]
+   (print-stack 0 frame))
+  ([indent frame]
+   (println (.join (make-array indent) " ") "=>" (.-id frame) (.-vars frame))
+   (doseq [call (.-calls frame)]
+     (print-stack (+ indent 2) call))
+   (when (js* "(~{} in ~{})" "result" frame) ; seriously?
+     (println (.join (make-array indent) " ") "<=" (.-id frame) (.-result frame)))))
+
+(defn print-example [example inputs]
+  (let [[result stack] (run-example example inputs)]
+    (print-stack stack)
+    (println result)))
+
+(run-example example-b [1 "foo"])
+
