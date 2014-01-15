@@ -2,6 +2,8 @@
 
 ;; interpreter
 
+(defrecord Cursor [path value])
+
 (defn run-pipe [program node inputs stack]
   (let [vars #js {}
         calls #js []
@@ -24,18 +26,22 @@
     :ref (run-ref program node inputs stack)))
 
 (defn run-data [program node inputs stack]
+  (assert (empty? inputs))
+  (Cursor. [] (run-data* program node inputs stack)))
+
+(defn run-data* [program node inputs stack]
   (case (:kind node)
     :value (:value node)
     :vector (into []
                   (for [value (:value node)]
-                    (run-data program value inputs stack)))
+                    (run-data* program value inputs stack)))
     :map (into {}
                (for [[key value] (:value node)]
-                 [(run-data program key inputs stack) (run-data program value inputs stack)]))))
+                 [(run-data* program key inputs stack) (run-data* program value inputs stack)]))))
 
 (defn run-ref [program node inputs stack]
   (case (:kind node)
-    :cljs (apply (:fn node) inputs)
+    :cljs (Cursor. [] (apply (:fn node) (map :value inputs)))
     :pipe (run-pipe program (get program (:id node)) inputs stack)))
 
 (defrecord MatchFailure [])
@@ -50,31 +56,31 @@
       (if-let [[{:keys [pattern inputs node]} & branches] (seq branches)]
         (try
           (let [vars #js {}]
-            (run-match-pattern program pattern input stack vars)
+            (run-match-pattern program pattern (:path input) (:value input) stack vars)
             (run-node program node (map #(aget vars %) inputs) stack))
           (catch MatchFailure _
             (recur branches)))
         (throw (MatchFailure.))))))
 
-(defn run-match-pattern [program pattern input stack vars]
+(defn run-match-pattern [program pattern input-path input-value stack vars]
   (condp = (:type pattern)
     :match/any nil
-    :match/bind (do (aset vars (:var pattern) input)
-                  (run-match-pattern program (:pattern pattern) input stack vars))
+    :match/bind (do (aset vars (:var pattern) (Cursor. input-path input-value))
+                  (run-match-pattern program (:pattern pattern) input-path input-value stack vars))
     :data (case (:kind pattern)
-            :value (check (= input (:value pattern)))
+            :value (check (= input-value (:value pattern)))
             :vector (let [value (:value pattern)]
-                      (check (vector? input))
-                      (check (= (count input) (count value)))
+                      (check (vector? input-value))
+                      (check (= (count input-value) (count value)))
                       (dotimes [i (count value)]
-                        (run-match-pattern program (nth value i) (nth input i) stack vars)))
+                        (run-match-pattern program (nth value i) (conj input-path i) (nth input-value i) stack vars)))
             :map (let [value (:value pattern)]
-                   (check (map? input))
+                   (check (map? input-value))
                    (doseq [key-pattern (keys value)]
                      (let [key (:value key-pattern)]
-                       (check (contains? input key))
-                       (run-match-pattern program (get value key-pattern) (get input key) stack vars)))))
-    (check (run-node program pattern [input] stack))))
+                       (check (contains? input-value key))
+                       (run-match-pattern program (get value key-pattern) (conj input-path key) (get input-value key) stack vars)))))
+    (check (:value (run-node program pattern [(Cursor. input-path input-value)] stack)))))
 
 ;; ast
 
@@ -157,8 +163,10 @@
   (let [stack #js []
         program (into {} (for [pipe example] [(:id pipe) pipe]))]
     (try
-      [(run-pipe program (get program "root") inputs stack) (aget stack 0)]
+      [(run-pipe program (get program "root") (map #(Cursor. [] %) inputs) stack) (aget stack 0)]
       (catch :default e [e (aget stack 0)]))))
+
+(set! *print-meta* true)
 
 (run-example example-a [1 4 2])
 
@@ -172,8 +180,6 @@
 (run-example example-c [1])
 (run-example example-c [7])
 (run-example example-c [10])
-
-(.join (make-array 10) " ")
 
 (defn print-stack
   ([frame]
