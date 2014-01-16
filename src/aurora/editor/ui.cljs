@@ -46,7 +46,9 @@
    :else (dom [:span (pr-str x)])))
 
 (def editor-state (atom {:active nil
-                         :manual nil}))
+                         :manual nil
+                         :steps true
+                         :document true}))
 
 (def editor {:representation-cache {"math" math-ui
                                     "rect" (fn [x]
@@ -180,7 +182,7 @@
                   (dom
                    [:tr
                     [:td (-> x first matchee)]
-                    [:td (-> x second item-ui)]])
+                    [:td [:span {:className ""} (-> x second item-ui)]]])
                   ))]
      ]))
 
@@ -213,8 +215,9 @@
 
 (defn manual-steps [man]
   (dom
-   [:table {:className "steps"}
-    (arrmap manual-step (:steps man))]))
+   [:div {:className "steps-container"}
+    [:table {:className "steps"}
+     (arrmap manual-step (:steps man))]]))
 
 (defn manual [man]
   (when man
@@ -222,7 +225,8 @@
                   (swap! editor-state assoc :manual nil))]
       (dom
 
-       [:div {:className (str "workspace " (name (:view @editor-state)))}
+       [:div {:className (str "workspace" (when (:steps @editor-state)
+                                            " active"))}
         (manual-steps man)
         ])))
   )
@@ -247,18 +251,25 @@
     (when (:manual @editor-state)
       (dom
        [:ul
-        [:li {:className (when (= :document (:view @editor-state))
-                           "active")}
+        [:li {:className (when (:document @editor-state)
+                           "active")
+              :onClick (fn []
+                         (swap! editor-state update-in [:document] not))}
          [:i {:className "icon ion-ios7-browsers-outline"}] [:span "Document"]]
-        [:li {:className (when (= :canvas (:view @editor-state))
-                           "active")}
-         [:i {:className "icon ion-ios7-albums-outline"}] [:span "Canvas"]]
-        [:li {:className (when (= :steps (:view @editor-state))
-                           "active")}
+        [:li {:className (when (:steps @editor-state)
+                           "active")
+              :onClick (fn []
+                         (swap! editor-state update-in [:steps] not))}
          [:i {:className "icon ion-ios7-drag"}] [:span "Steps"]]]))
     ]))
 
-(swap! editor-state assoc :view :steps)
+(defn document []
+  (when (:manual @editor-state)
+    (dom [:div {:className (str "document " (when (:document @editor-state)
+                                              "active"))}
+          ])))
+
+(swap! editor-state assoc :steps true)
 
 (defn now []
   (.getTime (js/Date.)))
@@ -270,6 +281,7 @@
                 (nav)
                 [:div {:id "content"}
                  (program-list editor)
+                 (document)
                  (program (-> editor :programs (get (:active @editor-state))))
                  (manual (-> editor :programs (get-in [(:active @editor-state) :manuals (:manual @editor-state)])))]
                 ]
