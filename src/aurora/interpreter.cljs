@@ -26,16 +26,11 @@
 
 (defn run-node [id->node node inputs output stack]
   (case (:type node)
-    :return (run-return id->node node inputs output stack)
     :data (run-data id->node node inputs output stack)
     :ref (run-ref id->node node inputs output stack)
     :match (run-match id->node node inputs output stack)
     :replace (run-replace id->node node inputs output stack)
     :output (run-output id->node node inputs output stack)))
-
-(defn run-return [id->node node inputs output stack]
-  (assert (= 1 (count inputs)))
-  (first inputs))
 
 (defn run-data [id->node node inputs output stack]
   (assert (empty? inputs))
@@ -69,7 +64,10 @@
         (try
           (let [vars #js {}]
             (run-match-pattern id->node pattern (:path input) (:value input) output stack vars)
-            (run-node id->node node (map #(aget vars %) inputs) output stack))
+            (case (:type node)
+              :match/return (do (assert (= 1 (count inputs)))
+                              (aget vars (first inputs)))
+              (run-node id->node node (map #(aget vars %) inputs) output stack)))
           (catch MatchFailure _
             (recur branches)))
         (throw (MatchFailure.))))))
@@ -103,9 +101,6 @@
 (assoc-in {} [] :foo)
 
 ;; ast
-
-(def return
-  {:type :return})
 
 (defn pipe [id inputs & nodes]
   {:type :pipe
@@ -147,6 +142,9 @@
 
 (def any
   {:type :match/any})
+
+(def return
+  {:type :match/return})
 
 (def replace
   {:type :replace})
