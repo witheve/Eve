@@ -199,10 +199,10 @@
 (defn run-example [example this-state]
   (let [stack #js []
         id->node (into {} (for [pipe example] [(:id pipe) pipe]))
-        next-state (atom state)
-        result (run-pipe id->node (get id->node "root") [(Cursor. [] this-state)] next-state stack)]
+        next-state (atom state)]
     (try
-      [result @next-state (aget stack 0)]
+      (let [result (run-pipe id->node (get id->node "root") [(Cursor. [] this-state)] next-state stack)]
+        [result @next-state (aget stack 0)])
       (catch :default exception
         [exception @next-state (aget stack 0)]))))
 
@@ -248,4 +248,3 @@
 (print-example example-b [1 "foo"])
 (print-example example-b 1)
 (print-example example-c 10)
-
