@@ -9,7 +9,7 @@
 
 (defrecord Cursor [path value])
 
-(defn run-pipe [program node inputs output stack]
+(defn run-pipe [id->node node inputs output stack]
   (let [vars #js {}
         calls #js []
         frame #js {:id (:id node) :vars vars :calls calls}]
@@ -19,85 +19,85 @@
       (aset vars id value))
     (doseq [{:keys [id inputs node]} (:nodes node)]
       (assert (not= :pipe (:type node)) "No inline pipes")
-      (aset vars id (run-node program node (map #(aget vars %) inputs) output calls))) ; note calls, not stack
+      (aset vars id (run-node id->node node (map #(aget vars %) inputs) output calls))) ; note calls, not stack
     (let [result (aget vars (-> node :nodes last :id))]
       (aset frame "result" result) ; return
       result)))
 
-(defn run-node [program node inputs output stack]
+(defn run-node [id->node node inputs output stack]
   (case (:type node)
-    :return (run-return program node inputs output stack)
-    :data (run-data program node inputs output stack)
-    :ref (run-ref program node inputs output stack)
-    :match (run-match program node inputs output stack)
-    :replace (run-replace program node inputs output stack)
-    :output (run-output program node inputs output stack)))
+    :return (run-return id->node node inputs output stack)
+    :data (run-data id->node node inputs output stack)
+    :ref (run-ref id->node node inputs output stack)
+    :match (run-match id->node node inputs output stack)
+    :replace (run-replace id->node node inputs output stack)
+    :output (run-output id->node node inputs output stack)))
 
-(defn run-return [program node inputs output stack]
+(defn run-return [id->node node inputs output stack]
   (assert (= 1 (count inputs)))
   (first inputs))
 
-(defn run-data [program node inputs output stack]
+(defn run-data [id->node node inputs output stack]
   (assert (empty? inputs))
-  (Cursor. [] (run-data* program node inputs output stack)))
+  (Cursor. [] (run-data* id->node node inputs output stack)))
 
-(defn run-data* [program node inputs output stack]
+(defn run-data* [id->node node inputs output stack]
   (case (:kind node)
     :value (:value node)
     :vector (into []
                   (for [value (:value node)]
-                    (run-data* program value inputs output stack)))
+                    (run-data* id->node value inputs output stack)))
     :map (into {}
                (for [[key value] (:value node)]
-                 [(run-data* program key inputs output stack) (run-data* program value inputs output stack)]))))
+                 [(run-data* id->node key inputs output stack) (run-data* id->node value inputs output stack)]))))
 
-(defn run-ref [program node inputs output stack]
+(defn run-ref [id->node node inputs output stack]
   (case (:kind node)
     :cljs (Cursor. [] (apply (:fn node) (map :value inputs)))
-    :pipe (run-pipe program (get program (:id node)) inputs output stack)))
+    :pipe (run-pipe id->node (get id->node (:id node)) inputs output stack)))
 
 (defrecord MatchFailure [])
 
 (defn check [bool]
   (when-not bool (throw (MatchFailure.))))
 
-(defn run-match [program node inputs output stack]
+(defn run-match [id->node node inputs output stack]
   (assert (= 1 (count inputs)))
   (let [input (first inputs)]
     (loop [branches (:branches node)]
       (if-let [[{:keys [pattern inputs node]} & branches] (seq branches)]
         (try
           (let [vars #js {}]
-            (run-match-pattern program pattern (:path input) (:value input) output stack vars)
-            (run-node program node (map #(aget vars %) inputs) output stack))
+            (run-match-pattern id->node pattern (:path input) (:value input) output stack vars)
+            (run-node id->node node (map #(aget vars %) inputs) output stack))
           (catch MatchFailure _
             (recur branches)))
         (throw (MatchFailure.))))))
 
-(defn run-match-pattern [program pattern input-path input-value output stack vars]
+(defn run-match-pattern [id->node pattern input-path input-value output stack vars]
   (condp = (:type pattern)
     :match/any nil
     :match/bind (do (aset vars (:var pattern) (Cursor. input-path input-value))
-                  (run-match-pattern program (:pattern pattern) input-path input-value output stack vars))
+                  (run-match-pattern id->node (:pattern pattern) input-path input-value output stack vars))
     :data (case (:kind pattern)
             :value (check (= input-value (:value pattern)))
             :vector (let [value (:value pattern)]
                       (check (vector? input-value))
                       (check (= (count input-value) (count value)))
                       (dotimes [i (count value)]
-                        (run-match-pattern program (nth value i) (conj input-path i) (nth input-value i) output stack vars)))
+                        (run-match-pattern id->node (nth value i) (conj input-path i) (nth input-value i) output stack vars)))
             :map (let [value (:value pattern)]
                    (check (map? input-value))
                    (doseq [key-pattern (keys value)]
                      (let [key (:value key-pattern)]
                        (check (contains? input-value key))
-                       (run-match-pattern program (get value key-pattern) (conj input-path key) (get input-value key) output stack vars)))))
-    (check (:value (run-node program pattern [(Cursor. input-path input-value)] output stack)))))
+                       (run-match-pattern id->node (get value key-pattern) (conj input-path key) (get input-value key) output stack vars)))))
+    (check (:value (run-node id->node pattern [(Cursor. input-path input-value)] output stack)))))
 
-(defn run-replace [program node inputs output stack]
+(defn run-replace [id->node node inputs output stack]
   (swap! output assoc-in (:path (first inputs)) (:value (second inputs))))
 
-(defn run-output [program node inputs output stack]
+(defn run-output [id->node node inputs output stack]
   (swap! output update-in (:path node) cons (:value (first inputs))))
 
 (assoc-in {} [] :foo)
@@ -196,13 +196,21 @@
           "c+1" ["c" "one"] (cljs-ref +)
           "nil" ["c" "c+1"] replace)})
 
-(defn run-example [example input]
+(defn run-example [example this-state]
   (let [stack #js []
-        program (into {} (for [pipe example] [(:id pipe) pipe]))
-        output (atom input)]
+        id->node (into {} (for [pipe example] [(:id pipe) pipe]))
+        next-state (atom state)
+        result (run-pipe id->node (get id->node "root") [(Cursor. [] this-state)] next-state stack)]
     (try
-      [(run-pipe program (get program "root") [(Cursor. [] input)] output stack) @output (aget stack 0)]
-      (catch :default e [e @output (aget stack 0)]))))
+      [result @next-state (aget stack 0)]
+      (catch :default exception
+        [exception @next-state (aget stack 0)]))))
+
+(defn step-example [example watchers input]
+  (let [[_ output _] (run-example example input)]
+    (doseq [watcher watchers]
+      (watcher (:output output)))
+    (dissoc output :output)))
 
 (run-example example-b {"a" 1 "b" 2})
 (run-example example-b {"a" 1 "c" 2})
@@ -216,6 +224,10 @@
 (run-example example-c 10)
 
 (run-example example-d {"counter" 0})
+
+(step-example example-d [] {"counter" 0})
+
+(take 10 (iterate #(step-example example-d [] %) {"counter" 0}))
 
 (defn print-stack
   ([frame]
