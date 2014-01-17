@@ -1,52 +1,42 @@
-(ns aurora.editor.ui
+(ns aurora.editor.ui2
   (:require [aurora.core :as core]
             [aurora.compiler :as compiler])
-  (:require-macros [aurora.macros :refer [dom]]))
+  (:require-macros [aurora.macros :refer [defdom dom]]))
 
 (js/React.initializeTouchEvents true)
-
-(defn coll->array [thing]
-  (if-not (coll? thing)
-    thing
-    (to-array thing)))
-
-(defn react-wrapper [node attr children]
-  (let [children (to-array (map coll->array children))]
-    (apply (aget js/React.DOM node) attr children)))
 
 (defn arrmap [func xs]
   (.map (to-array xs) func))
 
-(defn table-ui [ks vs]
-  (dom [:table {:className "table"}
-        [:thead
-         [:tr
-          (arrmap #(dom [:th %])
-                  ks)]]
-        [:tbody
-         [:tr
-          (arrmap #(dom [:td (item-ui %)
-                         ])
-                  vs)]]]))
+(defdom table-ui [ks vs]
+  [:table {:className "table"}
+   [:thead
+    [:tr
+     (each [k ks]
+           [:th (item-ui k)])]]
+   [:tbody
+    [:tr
+     (each [v vs]
+           [:td (item-ui v)])]]])
 
-(defn list-ui [vs]
-  (dom [:ul {:className "list"}
-        (arrmap #(dom [:li (item-ui %)])
-                vs)]))
+(defdom list-ui [vs]
+  [:ul {:className "list"}
+   (each [v vs]
+         [:li (item-ui v)])])
 
-(defn math-ui [x]
-  (println x (type x))
+(defdom math-ui [x]
   (cond
-   (string? x) (dom [:span {:className "math-op"} x])
-   (vector? x) (dom [:span {:className "math-expression"}
-                     (to-array (map math-ui (interpose (first x) (rest x))))])
    (compiler/is-node? x) (manual-step-item x)
-   (number? x) (dom [:span {:className "value"}
-                     (pr-str x)])
-   :else (dom [:span (pr-str x)])))
+   (string? x) [:span {:className "math-op"} x]
+   (vector? x) [:span {:className "math-expression"}
+                (to-array (map math-ui (interpose (first x) (rest x))))]
+   (number? x) [:span {:className "value"}
+                (pr-str x)]
+   :else [:span (pr-str x)]))
 
 (def editor-state (atom {:active nil
                          :manual nil
+                         :screen :notebooks
                          :steps true
                          :document true}))
 
@@ -71,40 +61,28 @@
                         "aurora.core" {:desc "Core"
                                        :manuals {"each" {:desc "For each of "}}}}})
 
-(defn program-item [[name program]]
-  (let [click (fn []
-                (swap! editor-state assoc :active name)
-                (println "clicked!" name))]
-    (dom
-     [:li {:className "program-item"
-           :onTouchStart click
-           :onClick click}
-      (:desc program)])))
+(defdom notebooks-list [editor]
+  [:ul {:className "programs"}
+   (each [[name program] (:programs editor)]
+         (let [click (fn []
+                       (swap! editor-state assoc :active name :screen :pages)
+                       (println "clicked!" name))]
+           [:li {:className "program-item"
+                 :onTouchStart click
+                 :onClick click}
+            (:desc program)]))])
 
-(defn program-list [editor]
-  (when-not (:active @editor-state)
-    (dom
-     [:ul {:className "programs"}
-      (arrmap program-item (:programs editor))])))
-
-(defn manual-item [[name man]]
-  (let [click (fn []
-                (swap! editor-state assoc :manual name))]
-    (dom [:li {:className "manual-item"
-               :onClick click
-               :onTouchStart click}
-          (:desc man)])))
-
-(defn program [prog]
-  (when (and prog (not (:manual @editor-state)))
-    (let [click (fn []
-                  (swap! editor-state assoc :active nil))]
-      (dom
-
-       [:div
-
-        [:ul {:className "manuals"}
-         (arrmap manual-item (:manuals prog))]]))))
+(defdom pages-list [prog]
+  [:div
+   [:ul {:className "manuals"}
+    (each [[name man] (:manuals prog)]
+          (let [click (fn []
+                        (swap! editor-state assoc :manual name :screen :editor))]
+            [:li {:className "manual-item"
+                  :onClick click
+                  :onTouchStart click}
+             (:desc man)]))
+    ]])
 
 (defmulti item-ui :type)
 
@@ -202,95 +180,82 @@
    (js/aurora.core.isList x) (list-ui x)
    :else (str x)))
 
-(defn manual-step [step i]
-  (dom
-   [:tr {:className "step"}
-    [:td
-     (step-ui step i)]
-    [:td {:className "result"} (result-ui (js/aurora.core.->capture (:active @editor-state) (:manual @editor-state) i))]])
-  )
-
 (defn manual-step-item [step]
   (item-ui step))
 
-(defn manual-steps [man]
-  (dom
-   [:div {:className "steps-container"}
-    [:table {:className "steps"}
-     (arrmap manual-step (:steps man))]]))
+(defdom manual-steps [man]
+  [:div {:className "steps-container"}
+   [:table {:className "steps"}
+    (each [step (:steps man)]
+          [:tr {:className "step"}
+           [:td
+            (step-ui step i)]
+           [:td {:className "result"} "TODO: get result"]])
+    ]])
 
-(defn manual [man]
-  (when man
-    (let [click (fn []
-                  (swap! editor-state assoc :manual nil))]
-      (dom
+(defdom steps-workspace [man]
+  (let [click (fn []
+                (swap! editor-state assoc :manual nil))]
+    [:div {:className (str "workspace" (when (:steps @editor-state)
+                                         " active"))}
+     (manual-steps man)
+     ]))
 
-       [:div {:className (str "workspace" (when (:steps @editor-state)
-                                            " active"))}
-        (manual-steps man)
-        ])))
-  )
-
-(defn nav []
-  (dom
-   [:div {:id "nav"}
-    [:ul
-     [:li [:i {:className "icon ion-ios7-arrow-left"
-               :onClick (fn []
-                          (cond
-                           (:manual @editor-state) (swap! editor-state assoc :manual nil)
-                           (:active @editor-state) (swap! editor-state assoc :active nil)
+(defdom nav []
+  [:div {:id "nav"}
+   [:ul
+    [:li [:i {:className "icon ion-ios7-arrow-left"
+              :onClick (fn []
+                         (condp = (:screen @editor-state)
+                           :editor (swap! editor-state assoc :screen :pages)
+                           :pages (swap! editor-state assoc :screen :notebooks)
                            :else nil))}]
-      [:span
-       (cond
-        (:manual @editor-state) "Pages"
-        (:active @editor-state) "Notebooks"
-        :else "Home")]]]
-    [:ul
-     [:li [:i {:className "icon ion-ios7-plus-empty"}] [:span "Add"]]]
-    (when (:manual @editor-state)
-      (dom
-       [:ul
-        [:li {:className (when (:document @editor-state)
-                           "active")
-              :onClick (fn []
-                         (swap! editor-state update-in [:document] not))}
-         [:i {:className "icon ion-ios7-browsers-outline"}] [:span "Document"]]
-        [:li {:className (when (:steps @editor-state)
-                           "active")
-              :onClick (fn []
-                         (swap! editor-state update-in [:steps] not))}
-         [:i {:className "icon ion-ios7-drag"}] [:span "Steps"]]]))
-    ]))
+     [:span
+      (condp = (:screen @editor-state)
+        :editor "Pages"
+        :pages "Notebooks"
+        "Home")]]]
+   [:ul
+    [:li [:i {:className "icon ion-ios7-plus-empty"}] [:span "Add"]]]
+   (when (= (:screen @editor-state) :editor)
+     [:ul
+      [:li {:className (when (:document @editor-state)
+                         "active")
+            :onClick (fn []
+                       (swap! editor-state update-in [:document] not))}
+       [:i {:className "icon ion-ios7-browsers-outline"}] [:span "Document"]]
+      [:li {:className (when (:steps @editor-state)
+                         "active")
+            :onClick (fn []
+                       (swap! editor-state update-in [:steps] not))}
+       [:i {:className "icon ion-ios7-drag"}] [:span "Steps"]]])])
 
-(defn document []
-  (when (:manual @editor-state)
-    (dom [:div {:className (str "document " (when (:document @editor-state)
-                                              "active"))}
-          ])))
-
-(swap! editor-state assoc :steps true)
+(defdom document []
+  [:div {:className (str "document " (when (:document @editor-state)
+                                       "active"))}
+        ])
 
 (defn now []
   (.getTime (js/Date.)))
 
+(defdom aurora-ui []
+  [:div
+   (nav)
+   [:div {:id "content"}
+    (condp = (:screen @editor-state)
+      :notebooks (notebooks-list editor)
+      :pages (pages-list (-> editor :programs (get (:active @editor-state))))
+      :editor (array (document)
+                     (steps-workspace (-> editor :programs (get-in [(:active @editor-state) :manuals (:manual @editor-state)])))))
+    ]])
+
 (defn update []
   (let [start (now)]
     (time(js/React.renderComponent
-          (dom [:div
-                (nav)
-                [:div {:id "content"}
-                 (program-list editor)
-                 (document)
-                 (program (-> editor :programs (get (:active @editor-state))))
-                 (manual (-> editor :programs (get-in [(:active @editor-state) :manuals (:manual @editor-state)])))]
-                ]
-
-               )
+          (aurora-ui)
           (js/document.querySelector "#wrapper")))
     (set! (.-innerHTML (js/document.querySelector "#perf")) (- (now) start))))
 
-(comment
-  (add-watch editor-state :foo (fn [_ _ _ cur]
-                                 (update)))
-  (update))
+(add-watch editor-state :foo (fn [_ _ _ cur]
+                               (update)))
+(update)

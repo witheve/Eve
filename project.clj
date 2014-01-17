@@ -17,7 +17,7 @@
                  [ring "1.2.0"]
                  [org.clojure/core.async "0.1.267.0-0d7780-alpha"]
 
-                 #_[org.clojure/clojurescript "0.0-1978"]
+                 [org.clojure/clojurescript "0.0-2138"]
                  [org.clojure/tools.reader "0.7.10"]]
   :source-paths ["src/"
                  "/Users/chris/repos/clojurescript/src/clj"

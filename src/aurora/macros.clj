@@ -55,10 +55,50 @@
      (list (emit-react-dom-fn-name element-name) attrs)
      (list (cons 'array (map parse content))))))
 
+(defn err-print [x]
+  (binding [*out* *err*]
+    (println x)))
+
+(defn emit-each [[_ [x xs :as binding-form] & body]]
+  `(.map (to-array ~xs) (fn [~x ~'index]
+                          (dom
+                           ~@body))))
+
+(defn emit-let [[_ binding-form & body]]
+  `(let ~binding-form
+     (dom ~@body)))
+
+(defn emit-when [[when-sym cond & body]]
+  `(~when-sym ~cond
+     (dom ~@body)))
+
+(defn emit-if [[if-sym cond t f]]
+  `(~if-sym ~cond
+     (dom ~t)
+     (dom ~f)))
+
+(defn emit-cond [[_ & pairs :as form]]
+  (let [pairs (partition 2 pairs)
+        pairs (for [[cond do] pairs]
+                [cond `(dom ~do)])
+        pairs (apply concat pairs)]
+    `(cond ~@pairs)))
+
 (defn parse [x]
-  (if (vector? x)
-    (emit-react-dom-call x)
-    x))
+  (cond
+   (vector? x) (emit-react-dom-call x)
+   (and (list? x) (= (first x) 'each)) (emit-each x)
+   (and (list? x) (= (first x) 'let)) (emit-let x)
+   (and (list? x) (= (first x) 'when)) (emit-when x)
+   (and (list? x) (= (first x) 'when-not)) (emit-when x)
+   (and (list? x) (= (first x) 'if)) (emit-if x)
+   (and (list? x) (= (first x) 'if-not)) (emit-if x)
+   (and (list? x) (= (first x) 'cond)) (emit-cond x)
+   :else x))
 
 (defmacro dom [html]
-  (emit-react-dom-call html))
+  (parse html))
+
+(defmacro defdom [name binding-form & body]
+  `(defn ~name ~binding-form
+     (dom ~@body)))
