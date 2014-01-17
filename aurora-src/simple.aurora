@@ -1,6 +1,0 @@
- {:data {foo [1 2 2]}
-  :pipes [{:id ->1
-		   :name main
-		   :pipe [(println "yo")
-				  (println foo)]}]
-  :main main}
