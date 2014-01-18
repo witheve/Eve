@@ -4,6 +4,7 @@
 
 ;; efficient implementation of stack queries (maybe only compile the watched fn?)
 ;; efficient implementation of cursors (maybe via side-vars)
+;; passing a copy of vars into run-match is a messy hack
 
 ;; interpreter
 
@@ -12,23 +13,23 @@
 (defn run-pipe [id->node node inputs output stack]
   (let [vars #js {}
         calls #js []
-        frame #js {:id (:id node) :vars vars :calls calls}]
+        frame #js {:id (:id node) :vars vars :calls calls :inputs inputs :output @output}]
     (.push stack frame) ; call
     (assert (= :pipe (:type node)))
     (doseq [[id value] (map vector (:inputs node) inputs)]
       (aset vars id value))
     (doseq [{:keys [id inputs node]} (:nodes node)]
       (assert (not= :pipe (:type node)) "No inline pipes")
-      (aset vars id (run-node id->node node (map #(aget vars %) inputs) output calls))) ; note calls, not stack
+      (aset vars id (run-node id->node node (map #(aget vars %) inputs) output calls vars))) ; note calls, not stack ; not passing vars is a hack
     (let [result (aget vars (-> node :nodes last :id))]
       (aset frame "result" result) ; return
       result)))
 
-(defn run-node [id->node node inputs output stack]
+(defn run-node [id->node node inputs output stack vars]
   (case (:type node)
     :data (run-data id->node node inputs output stack)
     :ref (run-ref id->node node inputs output stack)
-    :match (run-match id->node node inputs output stack)
+    :match (run-match id->node node inputs output stack vars)
     :replace (run-replace id->node node inputs output stack)
     :output (run-output id->node node inputs output stack)))
 
@@ -56,18 +57,17 @@
 (defn check [bool]
   (when-not bool (throw (MatchFailure.))))
 
-(defn run-match [id->node node inputs output stack]
+(defn run-match [id->node node inputs output stack vars]
   (assert (= 1 (count inputs)))
   (let [input (first inputs)]
     (loop [branches (:branches node)]
       (if-let [[{:keys [pattern inputs node]} & branches] (seq branches)]
         (try
-          (let [vars #js {}]
-            (run-match-pattern id->node pattern (:path input) (:value input) output stack vars)
-            (case (:type node)
-              :match/return (do (assert (= 1 (count inputs)))
-                              (aget vars (first inputs)))
-              (run-node id->node node (map #(aget vars %) inputs) output stack)))
+          (run-match-pattern id->node pattern (:path input) (:value input) output stack vars)
+          (case (:type node)
+            :match/return (do (assert (= 1 (count inputs)))
+                            (aget vars (first inputs)))
+            (run-node id->node node (map #(aget vars %) inputs) output stack vars))
           (catch MatchFailure _
             (recur branches)))
         (throw (MatchFailure.))))))
@@ -90,15 +90,13 @@
                      (let [key (:value key-pattern)]
                        (check (contains? input-value key))
                        (run-match-pattern id->node (get value key-pattern) (conj input-path key) (get input-value key) output stack vars)))))
-    (check (:value (run-node id->node pattern [(Cursor. input-path input-value)] output stack)))))
+    (check (:value (run-node id->node pattern [(Cursor. input-path input-value)] output stack #js {})))))
 
 (defn run-replace [id->node node inputs output stack]
   (swap! output assoc-in (:path (first inputs)) (:value (second inputs))))
 
 (defn run-output [id->node node inputs output stack]
-  (swap! output update-in (:path node) cons (:value (first inputs))))
-
-(assoc-in {} [] :foo)
+  (swap! output update-in (:path node) conj (:value (first inputs))))
 
 ;; ast
 
@@ -194,32 +192,56 @@
           "c+1" ["c" "one"] (cljs-ref +)
           "nil" ["c" "c+1"] replace)})
 
+(def example-e
+  #{(pipe "root" ["root"]
+          "result" ["root"] (match (data-map (data-value "started?") (bind "started?" (data-value "false"))) ["started?"] (pipe-ref "start")
+                                   any ["root"] (pipe-ref "wait")))
+    (pipe "start" ["started?"]
+          "timer" [] (data-map (data-value "cursor") (data-vector (data-value "ready")) (data-value "timeout") (data-value 1000))
+          "result" ["timer"] (output ["output" "timeout"])
+          "true" [] (data-value "true")
+          "foo" ["started?" "true"] replace)
+    (pipe "wait" ["root"]
+          "result" ["root"] (match (data-map (data-value "ready") (bind "ready" (data-value "timeout"))) ["root" "ready"] (pipe-ref "go")
+                                   any [] (data-value "ok")))
+    (pipe "go" ["root" "ready"]
+          "false" [] (data-value "false")
+          "foo" ["ready" "false"] replace
+          "c" ["root"] (match (data-map (data-value "counter") (bind "c" any)) ["c"] return)
+          "one" [] (data-value 1)
+          "c+1" ["c" "one"] (cljs-ref +)
+          "nil" ["c" "c+1"] replace)})
+
 (defn run-example [example this-state]
   (let [stack #js []
         id->node (into {} (for [pipe example] [(:id pipe) pipe]))
-        next-state (atom state)]
+        next-state (atom this-state)]
     (try
       (let [result (run-pipe id->node (get id->node "root") [(Cursor. [] this-state)] next-state stack)]
         [result @next-state (aget stack 0)])
-      (catch :default exception
+      (catch MatchFailure exception
         [exception @next-state (aget stack 0)]))))
 
 (defn step-example [example watchers this-state]
-  (let [[_ next-state _] (run-example example this-state)]
+  (let [stack #js []
+        id->node (into {} (for [pipe example] [(:id pipe) pipe]))
+        next-state (atom this-state)
+        result (run-pipe id->node (get id->node "root") [(Cursor. [] this-state)] next-state stack)]
     (dissoc
      (reduce
       (fn [state watcher] (watcher state))
-      next-state
-      watchers))
-    :output))
+      @next-state
+      watchers)
+     "output")))
 
 (defn watch-timeout* [buffer state]
-  (doseq [{:keys [cursor timeout]} (get-in state :output :timeout)]
+  (doseq [{:strs [cursor timeout]} (get-in state ["output" "timeout"])]
     (js/setTimeout (fn [] (swap! buffer conj cursor)) timeout))
   (let [cursors @buffer] ;; this is only valid because js is single-threaded
+    (reset! buffer nil)
     (reduce #(assoc-in %1 %2 "timeout") state cursors)))
 
-(def watch-timeout
+(defn watch-timeout []
   (let [buffer (atom [])]
     #(watch-timeout* buffer %)))
 
@@ -238,13 +260,28 @@
 
 (step-example example-d [] {"counter" 0})
 
-(take 10 (iterate #(step-example example-d [] %) {"counter" 0}))
+(let [wt (watch-timeout)]
+  (take 10 (iterate #(step-example example-d [wt] %) {"counter" 0})))
+
+(run-example example-e {"counter" 0})
+
+(run-example example-e {"counter" 0 "started?" "false"})
+
+(let [wt (watch-timeout)]
+  (nth (iterate #(step-example example-e [wt] %) {"counter" 0 "started?" "false"}) 2000))
+
+(def buffer (atom []))
+(def wt #(watch-timeout* buffer %))
+(def s0 {"counter" 0 "started?" "false"})
+(def s1 (step-example example-e [wt] s0))
+(def s2 (step-example example-e [wt] s1))
+(def s3 (step-example example-e [wt] s2))
 
 (defn print-stack
   ([frame]
    (print-stack 0 frame))
   ([indent frame]
-   (println (.join (make-array indent) " ") "=>" (.-id frame) (.-vars frame))
+   (println (.join (make-array indent) " ") "=>" (.-id frame) (.-vars frame) (.-inputs frame) (.-output frame))
    (doseq [call (.-calls frame)]
      (print-stack (+ indent 2) call))
    (when (js* "('result' in ~{frame})") ; seriously?
@@ -259,3 +296,6 @@
 (print-example example-b [1 "foo"])
 (print-example example-b 1)
 (print-example example-c 10)
+(print-example example-d {"counter" 0})
+(print-example example-e {"counter" 0})
+(print-example example-e s2)
