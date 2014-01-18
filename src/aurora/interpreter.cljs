@@ -204,11 +204,24 @@
       (catch :default exception
         [exception @next-state (aget stack 0)]))))
 
-(defn step-example [example watchers input]
-  (let [[_ output _] (run-example example input)]
-    (doseq [watcher watchers]
-      (watcher (:output output)))
-    (dissoc output :output)))
+(defn step-example [example watchers this-state]
+  (let [[_ next-state _] (run-example example this-state)]
+    (dissoc
+     (reduce
+      (fn [state watcher] (watcher state))
+      next-state
+      watchers))
+    :output))
+
+(defn watch-timeout* [buffer state]
+  (doseq [{:keys [cursor timeout]} (get-in state :output :timeout)]
+    (js/setTimeout (fn [] (swap! buffer conj cursor)) timeout))
+  (let [cursors @buffer] ;; this is only valid because js is single-threaded
+    (reduce #(assoc-in %1 %2 "timeout") state cursors)))
+
+(def watch-timeout
+  (let [buffer (atom [])]
+    #(watch-timeout* buffer %)))
 
 (run-example example-b {"a" 1 "b" 2})
 (run-example example-b {"a" 1 "c" 2})
