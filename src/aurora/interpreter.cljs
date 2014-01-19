@@ -114,11 +114,13 @@
 
 (defn data-vector [& values]
   {:type :data
+   :tags #{:vector}
    :kind :vector
    :value (into [] values)})
 
 (defn data-map [& keys&values]
   {:type :data
+   :tags #{:map}
    :kind :map
    :value (into {} (map vec (partition 2 keys&values)))})
 
@@ -184,6 +186,30 @@
           "x-1" ["x" "one"] (cljs-ref -)
           "even?" ["x-1"] (pipe-ref "even?")
           "result" ["even?"] (cljs-ref not))})
+
+(def example-c-mappified
+  {"root" (assoc (pipe "root" ["x"]
+                       "result" ["x"] (pipe-ref "even?"))
+            :desc "interpreter example c"
+            :tags #{:page})
+   "even?" (pipe "even?" ["x"]
+                  "result" ["x"] (match (data-value 0) [] (data-value true)
+                                        (bind "x" any) ["x"] (pipe-ref "even?not-0")))
+   "even?not-0" (assoc (pipe "even?not-0" ["x"]
+                            "one" [] (data-value 1)
+                            "x-1" ["x" "one"] (cljs-ref -)
+                            "odd?" ["x-1"] (pipe-ref "odd?")
+                            "result" ["odd?"] (cljs-ref not))
+                  :desc "example c even? not 0"
+                  :tags #{:page})
+   "odd?" (pipe "odd?" ["x"]
+                "result" ["x"] (match (data-value 0) [] (data-value true)
+                                      (bind "x" any) ["x"] (pipe-ref "odd?not-0")))
+   "odd?not-0" (pipe "odd?not-0" ["x"]
+                     "one" [] (data-value 1)
+                     "x-1" ["x" "one"] (cljs-ref -)
+                     "even?" ["x-1"] (pipe-ref "even?")
+                     "result" ["even?"] (cljs-ref not))})
 
 (def example-d
   #{(pipe "root" ["x"]

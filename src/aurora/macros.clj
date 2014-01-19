@@ -60,9 +60,18 @@
     (println x)))
 
 (defn emit-each [[_ [x xs :as binding-form] & body]]
-  `(.map (to-array ~xs) (fn [~x ~'index]
-                          (dom
-                           ~@body))))
+  (let [res-sym (gensym "res")]
+    `(let [~'res-sym (clojure.core/array)
+           xs# (to-array ~xs)
+           xs-count# (.-length xs#)]
+       (loop [~'index 0
+              ~x (aget xs# 0)]
+         (when (< ~'index xs-count#)
+           ~@(for [elem body]
+               `(.push ~'res-sym (dom ~elem)))
+           (recur (inc ~'index) (aget xs# (inc ~'index)))))
+       ~'res-sym)))
+
 
 (defn emit-let [[_ binding-form & body]]
   `(let ~binding-form
@@ -96,8 +105,13 @@
    (and (list? x) (= (first x) 'cond)) (emit-cond x)
    :else x))
 
-(defmacro dom [html]
-  (parse html))
+(defmacro dom [& html]
+  (if (= (count html) 1)
+    (parse (first html))
+    `(clojure.core/array
+      ~@(map parse html))))
+
+
 
 (defmacro defdom [name binding-form & body]
   `(defn ~name ~binding-form

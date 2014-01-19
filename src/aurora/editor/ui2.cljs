@@ -1,6 +1,7 @@
 (ns aurora.editor.ui2
   (:require [aurora.core :as core]
-            [aurora.compiler :as compiler])
+            [aurora.compiler :as compiler]
+            [aurora.interpreter :as interpreter])
   (:require-macros [aurora.macros :refer [defdom dom]]))
 
 (js/React.initializeTouchEvents true)
@@ -34,8 +35,8 @@
                 (pr-str x)]
    :else [:span (pr-str x)]))
 
-(def editor-state (atom {:active nil
-                         :manual nil
+(def editor-state (atom {:notebook nil
+                         :page nil
                          :screen :notebooks
                          :steps true
                          :document true}))
@@ -55,41 +56,20 @@
                                               (table-ui
                                                (-> x :args first :data :value)
                                                (-> x :args second :data :value)))}
-             :programs {"program1" compiler/example
+             :programs {"program1" {:desc "Demos"
+                                    :pages interpreter/example-c-mappified}
                         "aurora.math" {:desc "Math"
-                                       :manuals {"even" {:desc "is even?"}}}
+                                       :pages {"even" {:desc "is even?"}}}
                         "aurora.core" {:desc "Core"
-                                       :manuals {"each" {:desc "For each of "}}}}})
+                                       :pages {"each" {:desc "For each of "}}}}})
 
-(defdom notebooks-list [editor]
-  [:ul {:className "programs"}
-   (each [[name program] (:programs editor)]
-         (let [click (fn []
-                       (swap! editor-state assoc :active name :screen :pages)
-                       (println "clicked!" name))]
-           [:li {:className "program-item"
-                 :onTouchStart click
-                 :onClick click}
-            (:desc program)]))])
-
-(defdom pages-list [prog]
-  [:div
-   [:ul {:className "manuals"}
-    (each [[name man] (:manuals prog)]
-          (let [click (fn []
-                        (swap! editor-state assoc :manual name :screen :editor))]
-            [:li {:className "manual-item"
-                  :onClick click
-                  :onTouchStart click}
-             (:desc man)]))
-    ]])
 
 (defmulti item-ui :type)
 
 (defmethod item-ui :ref [step]
   (if (= (:to step) :prev)
     (dom [:span {:className "prev"} "that"])
-    (dom [:span {:className "ref"} (or (:desc (compiler/find-ref step (get-in editor [:programs (:active @editor-state)]) editor))
+    (dom [:span {:className "ref"} (or (:desc (compiler/find-ref step (get-in editor [:programs (:notebook @editor-state)]) editor))
                                        (str (:to step)))]))
   )
 
@@ -110,7 +90,7 @@
     ))
 
 (defmethod item-ui :operation [step]
-  (let [op (compiler/find-ref (:op step) (get-in editor [:programs (:active @editor-state)]) editor)]
+  (let [op (compiler/find-ref (:op step) (get-in editor [:programs (:notebook @editor-state)]) editor)]
     (dom
      [:div
       (:desc op (str "exec " (get-in step [:op :to])))
@@ -120,28 +100,32 @@
 (defmethod item-ui :default [step]
   (str step))
 
-(defmulti step-ui :type)
+(defmulti step-ui #(-> % :node :type))
 
+(get-in editor [:programs (:notebook @editor-state) :pages "even?"])
 
-(defmethod step-ui :operation [step i]
-  (let [path [(:manual @editor-state) (:active @editor-state) i]
+(+ 3 41)
+
+(defmethod step-ui :ref [step i]
+  (let [path [(:page @editor-state) (:notebook @editor-state) i]
         cur (get @editor-state path)
-        op (compiler/find-ref (:op step) (get-in editor [:programs (:active @editor-state)]) editor)
+        node (:node step)
+        op (when (= (:kind node) :pipe)
+             (get-in editor [:programs (:notebook @editor-state) :pages (-> node :id)]))
         click (fn []
                 (swap! editor-state assoc path (not cur)))]
     (dom
       [:div {:className "desc"
              :onClick click
              :onTouchStart click}
-       (:desc op (str "exec " (get-in step [:op :to])))
-       (arrmap manual-step-item (:args step))
-       (when cur
-         (dom [:p "open"]))])))
+       (:desc op (or (:id node) (-> node :fn)))
+       (pr-str (:inputs step))
+       ])))
 
-(defmethod step-ui :value [step]
+(defmethod step-ui :data [step]
   (dom
     [:div {:className "desc"}
-     [:p "Create a " (-> step :data :tags first)]
+     [:p "Create a " (-> step :node :value)]
      (item-ui step)]))
 
 (defn matchee [x]
@@ -170,7 +154,7 @@
 
 (defmethod step-ui :default [step]
   (dom
-   [:p "this is a step of type " (name (:type step))]))
+   [:p "this is a step of type " (pr-str step)]))
 
 
 
@@ -184,21 +168,34 @@
   (item-ui step))
 
 (defdom manual-steps [man]
-  [:div {:className "steps-container"}
    [:table {:className "steps"}
-    (each [step (:steps man)]
-          [:tr {:className "step"}
-           [:td
-            (step-ui step i)]
-           [:td {:className "result"} "TODO: get result"]])
-    ]])
+    [:tbody
+     (each [node (:nodes man)]
+           [:tr {:className "step"}
+            [:td
+             (step-ui node index)
+             ]
+            [:td {:className "result"} "TODO: get result"]]
+           (when (get @editor-state [(:page @editor-state) (:notebook @editor-state) index])
+             (let [node (:node node)]
+               [:tr {:className "substep step"}
+                [:td {:collSpan 2}
+                 (if (= (:kind node) :pipe)
+                   (manual-steps (get-in editor [:programs (:notebook @editor-state) :pages (-> node :id)]))
+                   "Native method")]
+
+
+                ])))]
+    ])
 
 (defdom steps-workspace [man]
   (let [click (fn []
-                (swap! editor-state assoc :manual nil))]
+                (swap! editor-state assoc :page nil))]
     [:div {:className (str "workspace" (when (:steps @editor-state)
                                          " active"))}
-     (manual-steps man)
+
+     [:div {:className "steps-container"}
+     (manual-steps man)]
      ]))
 
 (defdom nav []
@@ -235,6 +232,27 @@
                                        "active"))}
         ])
 
+(defdom notebooks-list [editor]
+  [:ul {:className "programs"}
+   (each [[name program] (:programs editor)]
+         (let [click (fn []
+                       (swap! editor-state assoc :notebook name :screen :pages)
+                       (println "clicked!" name))]
+           [:li {:className "program-item"
+                 :onTouchStart click
+                 :onClick click}
+            (:desc program)]))])
+
+(defdom pages-list [prog]
+  [:ul {:className "pages"}
+   (each [[name man] (filter #(get (-> % second :tags) :page) (:pages prog))]
+         (let [click (fn []
+                       (swap! editor-state assoc :page name :screen :editor))]
+           [:li {:className "page"
+                 :onClick click
+                 :onTouchStart click}
+            (:desc man)]))])
+
 (defn now []
   (.getTime (js/Date.)))
 
@@ -244,9 +262,9 @@
    [:div {:id "content"}
     (condp = (:screen @editor-state)
       :notebooks (notebooks-list editor)
-      :pages (pages-list (-> editor :programs (get (:active @editor-state))))
+      :pages (pages-list (-> editor :programs (get (:notebook @editor-state))))
       :editor (array (document)
-                     (steps-workspace (-> editor :programs (get-in [(:active @editor-state) :manuals (:manual @editor-state)])))))
+                     (steps-workspace (-> editor :programs (get-in [(:notebook @editor-state) :pages (:page @editor-state)])))))
     ]])
 
 (defn update []

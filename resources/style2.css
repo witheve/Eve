@@ -65,6 +65,7 @@ a img { border: none; }
 }
 
 * { box-sizing:border-box !important; }
+html, body { height:100%; overflow:none; }
 body { background: #fff; color: #333; font-family: "Nunito"; font-weight:300; font-size: 10pt; padding:30px 50px; }
 ul { list-style:none; }
 input { border:none; background:transparent; font-family: "Avenir"; color: #ccc; font-size:12pt; }
@@ -93,17 +94,17 @@ button:hover { background:#eee; }
 .programs .program-item:hover { border-color:#ccc; }
 .programs .program-item + .program-item { margin-top:3px; }
 
-.manuals { margin:0px 0; margin-left:150px; width:30%; }
-.manuals .manual-item { cursor:default; background:white; padding:8px; border:1px solid transparent; }
-.manuals .manual-item:hover { border:1px solid #ccc; }
-.manuals .manual-item + .manual-item { margin-top:3px; }
+.pages { margin:0px 0; margin-left:150px; width:30%; }
+.pages .page { cursor:default; background:white; padding:8px; border:1px solid transparent; }
+.pages .page:hover { border:1px solid #ccc; }
+.pages .page + .page { margin-top:3px; }
 
 .document { display:none; }
 .document.active { display:inline-block; margin-left:100px; min-height:100%; width:800px; padding:15px 20px; box-shadow:0 0 30px #ccc; }
 
 .workspace { display:none; }
-.workspace.active { display:inline-block; padding-right:50px; }
-.steps-container {  display:inline-block; margin-left:50px; max-height:100%; overflow:auto; max-width:600px; padding:15px 20px; box-shadow:0 0 0px #ccc; }
+.workspace.active { display:inline-block; padding-right:50px; vertical-align:top; }
+.steps-container {  display:inline-block; margin-left:50px; max-height:100%; overflow:auto; vertical-align:top; max-width:600px; padding:15px 20px; box-shadow:0 0 0px #ccc; }
 
 .steps { width:100%; }
 
