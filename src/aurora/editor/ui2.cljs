@@ -51,7 +51,7 @@
                                                (dom [:span {:className "value"}
                                                      (str x)]))
                                     "list" (fn [x]
-                                             (list-ui (-> x :args first :data :value)))
+                                             (list-ui x))
                                     "table" (fn [x]
                                               (table-ui
                                                (-> x :args first :data :value)
@@ -63,48 +63,14 @@
                         "aurora.core" {:desc "Core"
                                        :pages {"each" {:desc "For each of "}}}}})
 
-
-(defmulti item-ui :type)
-
-(defmethod item-ui :ref [step]
-  (if (= (:to step) :prev)
-    (dom [:span {:className "prev"} "that"])
-    (dom [:span {:className "ref"} (or (:desc (compiler/find-ref step (get-in editor [:programs (:notebook @editor-state)]) editor))
-                                       (str (:to step)))]))
-  )
-
-(defmethod item-ui :value [step]
-  (let [tag (-> step :data :tags first)
-        rep (get-in editor [:representation-cache tag])]
-    (if rep
-      (rep (-> step :data :value))
-      (dom [:span {:className "value"} (pr-str (-> step :data :value))]))
-    ))
-
-(defmethod item-ui :transformer [step]
-  (let [tag (-> step :tags first)
-        rep (get-in editor [:representation-cache tag])]
-    (if rep
-      (rep (:data step))
-      (dom [:span {:className "value"} "transformer"]))
-    ))
-
-(defmethod item-ui :operation [step]
-  (let [op (compiler/find-ref (:op step) (get-in editor [:programs (:notebook @editor-state)]) editor)]
-    (dom
-     [:div
-      (:desc op (str "exec " (get-in step [:op :to])))
-      (arrmap manual-step-item (:args step))])
-  ))
-
-(defmethod item-ui :default [step]
-  (str step))
+(defn item-ui [x]
+  (let [value (or (:value x) (-> x :node :value))
+        name (datatype-name value)]
+    (if-let [rep (get-in editor [:representation-cache name])]
+      (rep value)
+      (pr-str x))))
 
 (defmulti step-ui #(-> % :node :type))
-
-(get-in editor [:programs (:notebook @editor-state) :pages "even?"])
-
-(+ 3 41)
 
 (defmethod step-ui :ref [step i]
   (let [path [(:page @editor-state) (:notebook @editor-state) i]
@@ -114,19 +80,38 @@
              (get-in editor [:programs (:notebook @editor-state) :pages (-> node :id)]))
         click (fn []
                 (swap! editor-state assoc path (not cur)))]
+    (println node (-> node :fn meta))
     (dom
       [:div {:className "desc"
              :onClick click
              :onTouchStart click}
-       (:desc op (or (:id node) (-> node :fn)))
-       (pr-str (:inputs step))
+       (:desc op (or (:id node) (-> node :fn meta :desc)))
+       (each [input (:inputs step)]
+             [:span {:className "prev"} input])
        ])))
 
+(defn datatype-name [x]
+  (cond
+   (number? x) "number"
+   (string? x) "string"
+   (map? x) "list"
+   (vector? x) "table"
+   :else (str (type x))))
+
 (defmethod step-ui :data [step]
-  (dom
-    [:div {:className "desc"}
-     [:p "Create a " (-> step :node :value)]
-     (item-ui step)]))
+  (let [value (-> step :node :value)
+        name (datatype-name value)]
+    (dom
+     [:div {:className "desc"}
+      [:p "Create a " [:span {:className "value"} name]]
+      (when-let [rep (get-in editor [:representation-cache name])]
+        (rep value))
+      ])))
+
+(defn match-pattern [x]
+  (if (= (namespace (:type x)) "match")
+    (pr-str x)
+    (item-ui x)))
 
 (defn matchee [x]
   (cond
@@ -138,14 +123,13 @@
 (defmethod step-ui :match [step]
   (dom
     [:div {:className "desc"}
-     [:p "Find a match for " (arrmap manual-step-item (:root step)) " in "]
+     [:p "Find a match for " (each [input (:inputs step)]
+                                   [:span {:className "prev"} input]) " in "]
      [:table {:className "match"}
-      (to-array (for [x (:branches step)]
-                  (dom
-                   [:tr
-                    [:td (-> x first matchee)]
-                    [:td [:span {:className ""} (-> x second item-ui)]]])
-                  ))]
+      (each [branch (-> step :node :branches)]
+            [:tr
+             [:td (-> branch :pattern match-pattern)]
+             [:td [:span {:className ""} (-> branch :node item-ui)]]])]
      ]))
 
 (defmethod step-ui :transformer [step]
@@ -179,10 +163,10 @@
            (when (get @editor-state [(:page @editor-state) (:notebook @editor-state) index])
              (let [node (:node node)]
                [:tr {:className "substep step"}
-                [:td {:collSpan 2}
+                [:td {:colSpan 2}
                  (if (= (:kind node) :pipe)
                    (manual-steps (get-in editor [:programs (:notebook @editor-state) :pages (-> node :id)]))
-                   "Native method")]
+                   [:span {:className "native"} "Native method"])]
 
 
                 ])))]

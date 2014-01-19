@@ -325,3 +325,22 @@
 (print-example example-d {"counter" 0})
 (print-example example-e {"counter" 0})
 (print-example example-e s2)
+
+
+;;Set some metadata on the cljs functions we use so we can display them
+;;this should be removed later since these should really be wrapped in languages or turned into
+;;aurora ops of some kind
+
+(extend-type function
+  Fn
+  IMeta
+  (-meta [this] (.-meta this)))
+
+(alter-meta! + assoc :desc "Add ")
+(alter-meta! - assoc :desc "Subtract ")
+(alter-meta! * assoc :desc "Multiply ")
+(alter-meta! / assoc :desc "Divide ")
+
+(alter-meta! number? assoc :desc "Is a number? ")
+
+(alter-meta! not assoc :desc "Is false? ")

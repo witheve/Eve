@@ -124,6 +124,9 @@ button:hover { background:#eee; }
 .step .result > * { -webkit-transition:opacity 0.3s ease-in-out; opacity:0.55; }
 .step:hover .result > * { opacity:1; }
 
+.substep > td { padding: 0; }
+.substep td { background:#f6f6f6 !important; }
+
 .list { background: #f7f7f7; display:inline-block; border-radius:3px; border:1px solid #aaa; }
 .list:empty { padding:5px; }
 .list:empty:after { content: "(empty)"; padding:5px; }
@@ -141,8 +144,8 @@ button:hover { background:#eee; }
 .table th { background: #ddd; text-align:center; border-bottom:1px solid #aaa; }
 .table tr + tr td { border-top:1px solid #aaa; }
 
-.prev { background:#ccf; padding:5px; border-radius:3px; border:1px solid #77c; }
-.param { background:#45864b; padding:1px 5px; border-radius:3px; border:1px solid #85c68b; display:inline-block;}
+.prev, .param { background:#ccf; padding:5px; border-radius:3px; border:1px solid #77c; margin:5px; }
+.native { padding:5px 15px; display:inline-block; }
 
 .match { margin-top:25px; width:auto; position:relative; }
 .match > tbody > tr > td { padding:8px; border:1px solid #ddd; border-width:0; border-radius:0px; }
