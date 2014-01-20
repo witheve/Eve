@@ -23,4 +23,5 @@
                  "/Users/chris/repos/clojurescript/src/clj"
                  "/Users/chris/repos/clojurescript/src/cljs"
                  ]
+    :plugins [[lein-cljsbuild "1.0.1"]]
   )
