@@ -110,7 +110,7 @@ button:hover { background:#eee; }
 
 .step { position:relative; }
 .step > td { padding: 10px; padding-bottom:10px; padding-top:10px; padding-right: 20px; vertical-align:middle; border-bottom: 0px solid #f7f7f7; }
-.step > td { border:1px solid transparent; border-bottom:1px solid #d8d8d8; }
+.step > td { solid transparent; border-bottom:1px solid #d8d8d8; }
 .step > td:first-child { border-bottom:1px solid #d8d8d8; }
 .step > td:first-child { background:#fff; border-radius:3px; width:100%; }
 .step .desc { display:block; height:100%; background:transparent; padding:10px; border-radius:3px; }
@@ -126,6 +126,9 @@ button:hover { background:#eee; }
 
 .substep > td { padding: 0; }
 .substep td { background:#f6f6f6 !important; }
+.substep .substep td { background:#e6e6e6 !important; border-color:#ccc; }
+.substep .substep .substep td { background:#d8d8d8 !important; border-color:#bbb; }
+.substep .substep .substep .substep td { background:#d0d0d0 !important; }
 
 .list { background: #f7f7f7; display:inline-block; border-radius:3px; border:1px solid #aaa; }
 .list:empty { padding:5px; }
