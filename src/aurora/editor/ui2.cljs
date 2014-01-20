@@ -86,7 +86,8 @@
   (let [node (:node step)
         name (ref->name node)
         click (fn []
-                (swap! editor-state update-in [path] not))]
+                (swap! editor-state update-in [path] #(if (not %)
+                                                        (:id node))))]
     (dom
       [:div {:className "desc"
              :onClick click
@@ -134,7 +135,7 @@
    (= :otherwise x) "otherwise"
    :else (item-ui x)))
 
-(defmethod step-ui :match [step i]
+(defmethod step-ui :match [step path]
   (dom
     [:div {:className "desc"}
      [:p "Find a match for " (each [input (:inputs step)]
@@ -143,7 +144,7 @@
       (each [branch (-> step :node :branches)]
             [:tr
              [:td (-> branch :pattern match-pattern)]
-             [:td [:span {:className ""} (branch-result branch i)]]])]
+             [:td [:span {:className ""} (branch-result branch path)]]])]
      ]))
 
 
@@ -170,12 +171,15 @@
                ]
               [:td {:className "result"} "TODO: get result"]]
              (when (get @editor-state path)
-               (let [node (:node node)]
+               (let [node (get-in editor [:programs (:notebook @editor-state) :pages (get @editor-state path)])]
+                 (println node)
                  [:tr {:className "substep step"}
                   [:td {:colSpan 2}
-                   (if (= (:kind node) :pipe)
-                     (manual-steps (get-in editor [:programs (:notebook @editor-state) :pages (-> node :id)])
-                                   (conj path (:id node)))
+                   (if node
+                     (do
+                       (println (:id node) (get-in editor [:programs (:notebook @editor-state) :pages (:id node)]))
+                       (manual-steps (get-in editor [:programs (:notebook @editor-state) :pages (:id node)])
+                                     (conj path (:id node))))
                      [:span {:className "native"} "Native method"])]
 
 
