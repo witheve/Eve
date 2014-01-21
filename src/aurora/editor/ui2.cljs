@@ -165,13 +165,14 @@
 
    [:li {:className "step"}
     [:p {:className "desc"} "If " (each [input (:inputs step)]
-                                        [:span {:className "prev"} input]) "matches"]]
-   (each [branch (-> step :node :branches)]
-         (let [path (conj path (str "match" index))]
-           [:li {:className "match-branch step"}
-            [:span (-> branch :pattern match-pattern)]
-            [:span [:span {:className ""} (branch-result branch path)]]]
-           (sub-step branch path)))
+                                        [:span {:className "prev"} input]) "matches"]
+    [:ul {:className "match-list"}
+     (each [branch (-> step :node :branches)]
+           (let [path (conj path (str "match" index))]
+             [:li {:className "match-branch"}
+              [:span (-> branch :pattern match-pattern)]
+              [:span [:span {:className ""} (branch-result branch path)]]]
+             (sub-step branch path)))]]
      ))
 
 

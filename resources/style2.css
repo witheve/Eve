@@ -125,8 +125,7 @@ button:hover { background:#eee; }
 .match-branch p { display:inline-block; }
 li.match-branch + li.substep { border-top:1px solid #c6c6c6; margin-top:10px; }
 
-.substep { margin: 0; padding:0; padding-left:15px; border-left:1px solid #ddd; box-shadow:0 0 15px #999; }
-/*
+.substep { margin: 0; padding:0; padding-left:15px; border-left:1px solid #ddd; box-shadow:0 0 15px #aaa; }
 .substep { background:#f6f6f6 !important; }
 .substep { background:#e6e6e6 !important; border-color:#bbb; }
 .substep .substep { background:#d8d8d8 !important; border-color:#aaa; }
@@ -137,7 +136,6 @@ li.match-branch + li.substep { border-top:1px solid #c6c6c6; margin-top:10px; }
 .substep .substep .step {  border-color:#aaa; }
 .substep .substep .substep .step {  border-color:#999; }
 .substep .substep .substep .substep .step { border-color:#888; }
-*/
 
 .list { background: #f7f7f7; display:inline-block; border-radius:3px; border:1px solid #aaa; }
 .list:empty { padding:5px; }
