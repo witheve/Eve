@@ -82,20 +82,37 @@
 
 (defmulti step-ui #(-> % :node :type))
 
-(defmethod step-ui :ref [step path]
+(defdom clickable-ref [step path]
   (let [node (:node step)
         name (ref->name node)
         click (fn []
+                (println "setting path: " path (:id node))
                 (swap! editor-state update-in [path] #(if (not %)
                                                         (:id node))))]
     (dom
-      [:div {:className "desc"
+      [:p {:className "desc"
              :onClick click
              :onTouchStart click}
        name
        (each [input (:inputs step)]
-             [:span {:className "prev"} input])
-       ])))
+             [:span {:className "prev"} input])])))
+
+(defdom sub-step [step path]
+  (when (get @editor-state path)
+      (let [node (get-in editor [:programs (:notebook @editor-state) :pages (get @editor-state path)])]
+        [:li {:className "substep step"}
+         (if node
+           (do
+             (manual-steps (get-in editor [:programs (:notebook @editor-state) :pages (:id node)])
+                           (conj path (:id node))))
+           [:span {:className "native"} "Native method"])])))
+
+(defmethod step-ui :ref [step path]
+  (dom
+   [:li {:className "step"}
+    (clickable-ref step path)]
+   (sub-step step path)
+   ))
 
 (defn datatype-name [x]
   (cond
@@ -110,10 +127,11 @@
   (let [value (-> step :node :value)
         name (datatype-name value)]
     (dom
-     [:div {:className "desc"}
-      [:p "Create a " [:span {:className "value"} name]]
-      (when-let [rep (get-in editor [:representation-cache name])]
-        (rep value))
+     [:li {:className "step"}
+      [:p {:className "desc"} "Add a " [:span {:className "value"} name]
+       (when-let [rep (get-in editor [:representation-cache name])]
+        (rep value))]
+
       ])))
 
 (defn match-pattern [x]
@@ -125,7 +143,7 @@
 
 (defn branch-result [branch path]
   (if (-> branch :node :type (= :ref))
-    (step-ui branch path)
+    (clickable-ref branch path)
     (item-ui (:node branch))))
 
 (defn matchee [x]
@@ -135,17 +153,26 @@
    (= :otherwise x) "otherwise"
    :else (item-ui x)))
 
-(defmethod step-ui :match [step path]
-  (dom
-    [:div {:className "desc"}
-     [:p "Find a match for " (each [input (:inputs step)]
-                                   [:span {:className "prev"} input]) " in "]
-     [:table {:className "match"}
+(defn match-table [step path]
+  [:table {:className "match"}
       (each [branch (-> step :node :branches)]
             [:tr
              [:td (-> branch :pattern match-pattern)]
-             [:td [:span {:className ""} (branch-result branch path)]]])]
-     ]))
+             [:td [:span {:className ""} (branch-result branch path)]]])])
+
+(defmethod step-ui :match [step path]
+  (dom
+
+   [:li {:className "step"}
+    [:p {:className "desc"} "If " (each [input (:inputs step)]
+                                        [:span {:className "prev"} input]) "matches"]]
+   (each [branch (-> step :node :branches)]
+         (let [path (conj path (str "match" index))]
+           [:li {:className "match-branch step"}
+            [:span (-> branch :pattern match-pattern)]
+            [:span [:span {:className ""} (branch-result branch path)]]]
+           (sub-step branch path)))
+     ))
 
 
 (defmethod step-ui :default [step]
@@ -160,29 +187,12 @@
    (js/aurora.core.isList x) (list-ui x)
    :else (str x)))
 
+
 (defdom manual-steps [man path]
-   [:table {:className "steps"}
-    [:tbody
+   [:ul {:className "steps"}
      (each [node (:nodes man)]
-           (let [path (conj path index)]
-             [:tr {:className (str "step")}
-              [:td
-               (step-ui node path)
-               ]
-              [:td {:className "result"} "TODO: get result"]]
-             (when (get @editor-state path)
-               (let [node (get-in editor [:programs (:notebook @editor-state) :pages (get @editor-state path)])]
-                 [:tr {:className "substep step"}
-                  [:td {:colSpan 2}
-                   (if node
-                     (do
-                       (manual-steps (get-in editor [:programs (:notebook @editor-state) :pages (:id node)])
-                                     (conj path (:id node))))
-                     [:span {:className "native"} "Native method"])]
-
-
-                  ]))))]
-    ])
+           (step-ui node (conj path index))
+           )])
 
 (defdom steps-workspace [man]
   [:div {:className (str "workspace" (when (:steps @editor-state)
@@ -194,22 +204,19 @@
 
 (defdom nav []
   [:div {:id "nav"}
-   [:ul
-    [:li [:i {:className "icon ion-ios7-arrow-left"
-              :onClick (fn []
+   [:ul {:className "breadcrumb"}
+    [:li
+     [:span {:onClick (fn []
                          (condp = (:screen @editor-state)
                            :editor (swap! editor-state assoc :screen :pages)
                            :pages (swap! editor-state assoc :screen :notebooks)
-                           :else nil))}]
-     [:span
-      (condp = (:screen @editor-state)
-        :editor "Pages"
-        :pages "Notebooks"
-        "Home")]]]
-   [:ul
-    [:li [:i {:className "icon ion-ios7-plus-empty"}] [:span "Add"]]]
+                           :else nil))}
+      "Demos"]
+     [:span "Example c"]
+     [:span "Subtract"]
+     ]]
    (when (= (:screen @editor-state) :editor)
-     [:ul
+     [:ul {:className "toggles"}
       [:li {:className (when (:document @editor-state)
                          "active")
             :onClick (fn []
@@ -257,7 +264,7 @@
     (condp = (:screen @editor-state)
       :notebooks (notebooks-list editor)
       :pages (pages-list (-> editor :programs (get (:notebook @editor-state))))
-      :editor (array (document)
+      :editor (array
                      (steps-workspace (-> editor :programs (get-in [(:notebook @editor-state) :pages (:page @editor-state)])))))
     ]])
 
