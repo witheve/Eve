@@ -48,7 +48,7 @@
                                                       (str x)]))
                                     "number" (fn [x]
                                                (dom [:span {:className "value"}
-                                                     (pr-str x)]))
+                                                     (str x)]))
                                     "string" (fn [x]
                                                (dom [:span {:className "value"}
                                                      (str x)]))
@@ -165,19 +165,17 @@
     [:tbody
      (each [node (:nodes man)]
            (let [path (conj path index)]
-             [:tr {:className "step"}
+             [:tr {:className (str "step")}
               [:td
                (step-ui node path)
                ]
               [:td {:className "result"} "TODO: get result"]]
              (when (get @editor-state path)
                (let [node (get-in editor [:programs (:notebook @editor-state) :pages (get @editor-state path)])]
-                 (println node)
                  [:tr {:className "substep step"}
                   [:td {:colSpan 2}
                    (if node
                      (do
-                       (println (:id node) (get-in editor [:programs (:notebook @editor-state) :pages (:id node)]))
                        (manual-steps (get-in editor [:programs (:notebook @editor-state) :pages (:id node)])
                                      (conj path (:id node))))
                      [:span {:className "native"} "Native method"])]
