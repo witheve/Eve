@@ -100,8 +100,10 @@
    (and (list? x) (= (first x) 'let)) (emit-let x)
    (and (list? x) (= (first x) 'when)) (emit-when x)
    (and (list? x) (= (first x) 'when-not)) (emit-when x)
+   (and (list? x) (= (first x) 'when-let)) (emit-when x)
    (and (list? x) (= (first x) 'if)) (emit-if x)
    (and (list? x) (= (first x) 'if-not)) (emit-if x)
+   (and (list? x) (= (first x) 'if-let)) (emit-if x)
    (and (list? x) (= (first x) 'cond)) (emit-cond x)
    :else x))
 

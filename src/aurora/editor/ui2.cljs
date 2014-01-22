@@ -38,8 +38,8 @@
 ;;*********************************************************
 
 (defdom sub-step [step path]
-  (when (get @aurora-state path)
-      (let [node (get-in @aurora-state [:programs (:notebook @aurora-state) :pages (get @aurora-state path)])]
+  (when (get-in @aurora-state [:open-paths path])
+      (let [node (get-in @aurora-state [:programs (:notebook @aurora-state) :pages (get-in @aurora-state [:open-paths path])])]
         [:li {:className "substep step"}
          (if node
            (do
@@ -75,9 +75,8 @@
   (let [node (:node step)
         name (ref->name node)
         click (fn []
-                (println "setting path: " path (:id node))
-                (swap! aurora-state update-in [path] #(if (not %)
-                                                        (:id node))))]
+                (swap! aurora-state update-in [:open-paths path] #(if (not %)
+                                                                    (:id node))))]
     (dom
       [:p {:className "desc"
              :onClick click
@@ -194,16 +193,18 @@
 (defdom nav []
   [:div {:id "nav"}
    [:ul {:className "breadcrumb"}
-    [:li
-     [:span {:onClick (fn []
-                         (condp = (:screen @aurora-state)
-                           :editor (swap! aurora-state assoc :screen :pages)
-                           :pages (swap! aurora-state assoc :screen :notebooks)
-                           :else nil))}
-      "Demos"]
-     [:span "Example c"]
-     [:span "Subtract"]
-     ]]
+      [:li
+       (when-let [notebook (current :notebook)]
+         [:span {:onClick (fn []
+                            (swap! aurora-state assoc :screen :notebooks :notebook nil :page nil :step nil))}
+          (:desc notebook)])
+       (when-let [page (current :page)]
+         [:span {:onClick (fn []
+                            (swap! aurora-state assoc :screen :pages :page nil :step nil))}
+          (:desc page)])
+       (when-let [step (current :step)]
+         [:span "step"])
+       ]]
    (when (= (:screen @aurora-state) :editor)
      [:ul {:className "toggles"}
       [:li {:className (when (:document @aurora-state)
@@ -240,7 +241,7 @@
   [:ul {:className "pages"}
    (each [[name man] (filter #(get (-> % second :tags) :page) (:pages prog))]
          (let [click (fn []
-                       (swap! aurora-state assoc :page name :screen :editor))]
+                       (swap! aurora-state assoc :page name :screen :editor :step 0))]
            [:li {:className "page"
                  :onClick click
                  :onTouchStart click}
@@ -296,9 +297,11 @@
 
 (def aurora-state (atom {:notebook nil
                          :page nil
+                         :step 0
                          :screen :notebooks
                          :steps true
                          :document true
+                         :open-paths {}
                          :representation-cache {"math" math-ui
                                                 "rect" (fn [x]
                                                          )
@@ -323,6 +326,13 @@
                                                    :pages {"even" {:desc "is even?"}}}
                                     "aurora.core" {:desc "Core"
                                                    :pages {"each" {:desc "For each of "}}}}}))
+
+(defn current [key]
+  (when-let [v (@aurora-state key)]
+    (condp = key
+      :notebook (get-in @aurora-state [:programs v])
+      :page (get-in @aurora-state [:programs (:notebook @aurora-state) :pages v])
+      :step (get-in @aurora-state [:programs (:notebook @aurora-state) :pages (:page @aurora-state) :nodes v]))))
 
 
 ;;*********************************************************

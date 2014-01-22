@@ -103,13 +103,13 @@ button:hover { background:#eee; }
 .workspace { display:none; }
 .workspace.active { display:inline-block; padding-right:50px; vertical-align:top; }
 
-.step-canvas { display:inline-block; height:100%; margin-top:50px;}
+.step-canvas { display:inline-block; height:100%; padding-top:50px; margin:0;}
 
-.steps-container { width:300px; border:1px solid #c6c6c6; background:#f6f6f6; display:inline-block; min-width:250px; height:100%; margin-left:0px; margin-top:0px; max-height:-webkit-calc(100% - 0px); overflow-y:auto; vertical-align:top; max-width:600px; padding:0px 0px; box-shadow:0 0 0px #bbb; }
+.steps-container { border:1px solid #c6c6c6; background:#f6f6f6; display:inline-block; min-width:250px; height:100%; margin-left:0px; margin-top:0px; max-height:-webkit-calc(100% - 0px); overflow-y:auto; vertical-align:top; max-width:600px; padding:0px 0px; box-shadow:0 0 0px #bbb; }
 
 .steps { width:100%; }
 
-.step { width:300px; padding: 0px; padding-bottom:10px; padding-top:10px; padding-right: 0px; vertical-align:middle; border-bottom: 0px solid #f7f7f7; }
+.step { padding: 0px; padding-bottom:10px; padding-top:10px; padding-right: 0px; vertical-align:middle; border-bottom: 0px solid #f7f7f7; }
 .step { border-bottom:1px solid #c6c6c6; }
 .step .desc { background:transparent; padding:10px; padding-left:15px; border-radius:3px; }
 

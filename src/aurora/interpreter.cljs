@@ -104,8 +104,8 @@
   {:type :pipe
    :id id
    :inputs inputs
-   :nodes (for [[id inputs node] (partition 3 nodes)]
-            {:id id :inputs inputs :node node})})
+   :nodes (vec (for [[id inputs node] (partition 3 nodes)]
+                 {:id id :inputs inputs :node node}))})
 
 (defn data-value [x]
   {:type :data
@@ -192,10 +192,10 @@
                        "result" ["x"] (pipe-ref "even?"))
             :desc "interpreter example c"
             :tags #{:page})
-   "even" (pipe "even?" ["x"]
+   "even?" (pipe "even?" ["x"]
                   "result" ["x"] (match (data-value 0) [] (data-value true)
                                         (bind "x" any) ["x"] (pipe-ref "even?not-0")))
-   "even_not_0" (assoc (pipe "even?not-0" ["x"]
+   "even?not-0" (assoc (pipe "even?not-0" ["x"]
                             "one" [] (data-value 1)
                             "x-1" ["x" "one"] (cljs-ref -)
                             "odd?" ["x-1"] (pipe-ref "odd?")
