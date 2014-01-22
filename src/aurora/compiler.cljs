@@ -1,581 +1,173 @@
 (ns aurora.compiler
-  (:require [cljs.reader :as reader]
-            [clojure.walk :as walk]
-            [aurora.util.xhr :refer [xhr]]
-            [cljs.core.async.impl.protocols :as protos]
-            [cljs.core.async :refer [put! chan sliding-buffer take! timeout]])
-  (:require-macros [cljs.core.async.macros :refer [go]]))
+  (:require [clojure.string :refer [join]]
+            [aurora.interpreter :as i]))
 
-(def core-ns "aurora.core")
+(defn id->value [id]
+  (str "value_" id))
 
-(def example {:tags ["program"]
-              :name "program1"
-              :desc "Demos"
-              :manuals {"root" {:tags ["manual"]
-                                :name "root"
-                                :desc "do something awesome"
-                                :steps [
-                                        {:tags ["step"]
-                                         :type :operation
-                                         :op {:type :ref
-                                              :ns "program1"
-                                              :to "addone"}
-                                         :args [{:type :value
-                                                 :data {:tags ["number"]
-                                                        :value 1}}]}
-                                        {:type :match
-                                         :as (gensym "matched")
-                                         :root [{:type :ref
-                                                 :to :prev}]
-                                         :branches [[{"foo" "bar"} "woot"]
-                                                    [{"foo" "bar" "baz" 'z} 'z]
-                                                    [{"num" {:type :operation
-                                                             :op {:type :ref
-                                                                  :ns "aurora.math"
-                                                                  :to "even"}}} 2]
+(defn id->cursor [id]
+  (str "cursor_" id))
 
-                                                    [[1 2 'a] 'a]
-                                                    [[1
-                                                      {:type :operation
-                                                       :op {:type :ref
-                                                            :ns "aurora.math"
-                                                            :to "even"}}
-                                                      'a] 'a]
-                                                    [[] 0]
-                                                    [2 "success"]
-                                                    [:otherwise "foo"]]}
+(defn id->pipe [id]
+  (str "pipe_" id))
 
-                                        {:tags ["step"]
-                                         :type :value
-                                         :data {:tags ["list"]
-                                                :value {:type :operation
-                                                        :op {:type :ref
-                                                             :to "alist"
-                                                             :ns core-ns}
-                                                        :args [{:type :value
-                                                                :data {:value [{:type :ref
-                                                                                :to :prev}]}}]}}}
-                                        {:tags ["step"]
-                                         :type :value
-                                         :data {:tags ["table"]
-                                                :value {:type :operation
-                                                        :op {:type :ref
-                                                             :to "table"
-                                                             :ns core-ns}
-                                                        :args [{:type :value
-                                                                :data {:value ["foo" "bar"]}}
-                                                               {:type :value
-                                                                :data {:value [3 4]}}]}}}
-                                        {:tags ["step"]
-                                         :type :operation
-                                         :op {:type :ref
-                                              :ns "program1"
-                                              :to "asyncTest"}
-                                         :args []}
-                                        {:tags ["step"]
-                                         :type :operation
-                                         :op {:type :ref
-                                              :ns "program1"
-                                              :to "asyncMultiTest"}
-                                         :args []}
-                                        {:tags ["step"]
-                                         :type :value
-                                         :data {:tags ["list"]
-                                                :value {:type :operation
-                                                        :op {:type :ref
-                                                             :to "alist"
-                                                             :ns core-ns}
-                                                        :args [{:type :value
-                                                                :data {:value [1 2 3 4]}}]}}}
-                                        {:tags ["step"]
-                                         :type :operation
-                                         :op {:type :ref
-                                              :ns core-ns
-                                              :to "each"}
-                                         :args [{:tags ["ref"]
-                                                 :type :ref
-                                                 :to :prev}
-                                                {:tags ["ref"]
-                                                 :type :ref
-                                                 :ns "program1"
-                                                 :to "addone"}]}
-                                        ]}
-                        "asyncTest" {:tags ["manual"]
-                                     :name "asyncTest"
-                                     :desc "async test"
-                                     :params ["cur"]
-                                     :steps [{:tags ["step"]
-                                              :type :operation
-                                              :op {:type :ref
-                                                   :ns "program1"
-                                                   :to "addone"}
-                                              :args [{:type :value
-                                                      :data {:tags ["number"]
-                                                             :value 1}}]}
-                                             {:tags ["step"]
-                                              :type :operation
-                                              :op {:type :ref
-                                                   :ns "program1"
-                                                   :to "addone"}
-                                              :args [{:type :ref
-                                                      :to :prev}]}
-                                             {:tags ["math"]
-                                           :type :transformer
-                                           :name "aurora.math"
-                                           :data ["+" 1 {:tags ["ref"]
-                                                         :type :ref
-                                                         :to :prev}]}]}
+(let [next (atom 0)]
+  (defn id []
+    (str (swap! next inc))))
 
-                        "asyncMultiTest" {:tags ["manual"]
-                                          :name "asyncMultiTest"
-                                          :desc "async multi test"
-                                          :params ["cur"]
-                                          :steps [{:tags ["step"]
-                                                   :type :value
-                                                   :data {:tags ["list"]
-                                                          :value {:type :operation
-                                                                  :op {:type :ref
-                                                                       :to "alist"
-                                                                       :ns core-ns}
-                                                                  :args [{:type :value
-                                                                          :data {:value ["div" {:tags ["step"]
-                                                                                                :type :operation
-                                                                                                :op {:type :ref
-                                                                                                     :ns "program1"
-                                                                                                     :to "addone"}
-                                                                                                :args [{:type :value
-                                                                                                        :data {:tags ["number"]
-                                                                                                               :value 1}}]}
-                                                                                         {:tags ["step"]
-                                                                                                :type :operation
-                                                                                                :op {:type :ref
-                                                                                                     :ns "program1"
-                                                                                                     :to "addone"}
-                                                                                                :args [{:type :value
-                                                                                                        :data {:tags ["number"]
-                                                                                                               :value 3}}]}]}}]}}}]}
-                        "addone" {:tags ["manual"]
-                                  :name "addone"
-                                  :desc "add one to "
-                                  :async true
-                                  :params ["cur"]
-                                  :steps [{:tags ["math"]
-                                           :type :transformer
-                                           :name "aurora.math"
-                                           :data [{:tags ["ref"]
-                                                   :type :ref
-                                                   :to "+"}
-                                                  1
-                                                  {:tags ["ref"]
-                                                   :type :ref
-                                                   :to "cur"}]}]}}})
+(let [next (atom 0)]
+  (defn scratch-id []
+    (str "scratch_" (swap! next inc))))
 
+(defn program+scope [program])
 
+(defn program->js [program]
+  (str
+   "(function () {\n"
+   "var program = {}; var failure = \"MatchFailure!\";\n\n"
+   (join "\n\n" (map pipe->js program)) "\n\n"
+   "return program;\n"
+   "}());"))
 
-;;*********************************************************
-;; utils
-;;*********************************************************
+(defn pipe->js [pipe]
+  (str (pipe->js* pipe) "\n"
+       "program." (id->pipe (:id pipe)) " = " (id->pipe (:id pipe))))
 
-(defn collect [pred node]
-  (let [found (transient [])]
-    (walk/prewalk (fn [x]
-                    (when (pred x)
-                      (conj! found x))
-                    x)
-                  node)
-    (persistent! found)))
+(defn pipe->js* [pipe]
+  (let [name (id->pipe (:id pipe))
+        args (interleave
+              (map id->value (:inputs pipe))
+              (map id->cursor (:inputs pipe)))
+        steps (for [node (:nodes pipe)]
+                (step->js (:id node) (:inputs node) (:node node)))
+        return (-> pipe :nodes last :id)]
+    (str "function " name "(" (join ", " args) ") {\n"
+         (join "\n\n" steps)
+         "return [" (id->value return) ", " (id->cursor return) "];\n"
+         "}")))
 
-(defn node-children [node]
-  (condp = (:type node)
-    :operation (:args node)
-    :match (concat (:root node) (:branches node))
-    :value (let [cur (-> node :data :value)]
-             (when (coll? cur)
-               [cur]))
-    :closure (:steps node)
-    :transformer (:data node)
-    (cond
-     (vector? node) (filter is-node? node)
-     :else nil)))
+(defn step->js [id inputs node]
+  (case (:type node)
+    :data (data->js id inputs node)
+    :ref (ref->js id inputs node)
+    :replace (replace->js id inputs node)
+    :output (output->js id inputs node)
+    :match (match->js id inputs node)))
 
-(defn step-nodes [node]
-  (apply concat (list node) (mapv step-nodes (node-children node))))
+(defn data->js [id inputs node]
+  (str "var " (id->value id) " = " (data->js* node) ";\n"
+       "var " (id->cursor id) " = null;"))
 
-(defn find-ref [ref program all]
-  (if (= (:ns ref) (:name program))
-    (get-in program [:manuals (:to ref)])
-    (get-in all [:programs (:ns ref) :manuals (:to ref)])
-    ))
+(defn data->js* [node]
+  (case (:kind node)
+    :value (pr-str (:value node))
+    :vector (str "cljs.core.PersistentVector.fromArray(["
+                 (join ", " (map data->js* (:value node))) "])")
+    :map (str "cljs.core.PersistentHashMap.fromArrays(["
+              (join ", " (map data->js* (keys (:value node))))
+              "], ["
+              (join ", " (map data->js* (vals (:value node)))) "])")))
 
-(defn is-node? [x]
-  (and (map? x) (#{:value :match :operation :transformer :ref} (:type x))))
+(defn ref->js [id inputs node]
+  (case (:kind node)
+    :cljs (str "var " (id->value id) " = " (-> node :fn meta :name) ".call(null, " (join ", " (map id->value inputs)) ");\n"
+               "var " (id->cursor id) " = null;")
+    :pipe (let [scratch (scratch-id)]
+            (str "var " scratch " = " (id->pipe (:id node)) "(" (join ", " (interleave (map id->value inputs) (map id->cursor inputs))) ");\n"
+                 "var " (id->value id) " = " scratch "[0];\n"
+                 "var " (id->cursor id) " = " scratch "[1];"))))
 
-;;*********************************************************
-;; async
-;;*********************************************************
+(defn replace->js [id inputs node]
+  ;; TODO check cursor is not nil
+  (str "program.next_state = cljs.core.assoc_in.call(null, program.next_state, " (id->cursor (first inputs)) ", " (id->value (second inputs)) ");\n"
+       "var " (id->value id) " = null;\n"
+       "var " (id->cursor id) " = null;"))
 
-(defn async-arg? [node program]
-  (seq (filter #(when (= (:type %) :ref)
-                  (-> (find-ref % program)
-                      (:async)))
-               (:args node))))
+(defn output->js [id inputs node]
+  (str "program.next_state = cljs.core.update_in.call(null, program.next_state, " (data->js* (:path node)) ", cljs.core.conj, " (id->value (first inputs)) ");"))
 
-(defn async-refs [step program]
-  (let [refs (filter #(#{:operation} (:type %)) (step-nodes step))]
-    (-> (filter (fn [x]
-                  (when (not (:lifted x))
-                    (or (-> x :op (find-ref program) :async) (async-arg? x program))))
-                refs)
-        (seq))))
+(defn match->js [id inputs node]
+  (let [input (first inputs)
+        scratch (scratch-id)]
+    (reduce
+     (fn [tail branch]
+       (str "try {\n"
+            (pattern->js input (:pattern branch)) "\n"
+            (case (:type (:node branch))
+              :match/return (str "var " (id->value id) " = " (id->value (first (:inputs branch))) ";\n"
+                                 "var " (id->cursor id) " = " (id->cursor (first (:inputs branch))) ";\n")
+              (step->js id (:inputs branch) (:node branch))) "\n"
+            "} catch (" scratch ") {\n"
+            "if (" scratch " === failure) {\n"
+            tail "\n"
+            "} else {throw " scratch "}\n"
+            "}"))
+     "throw failure;"
+     (reverse (:branches node)))))
 
-(defn mark-async [manual program]
-  (assoc manual :steps
-    (mapv (fn [step]
-            (assoc step :async (async-refs step program)))
-          (:steps manual))))
+(defn pattern->js [input pattern]
+  (case (:type pattern)
+    :match/any ""
+    :match/bind (str "var " (id->value (:var pattern)) " = " (id->value input) ";\n"
+                     "var " (id->cursor (:var pattern)) " = " (id->cursor input) ";\n"
+                     (pattern->js input (:pattern pattern)))
+    :data (case (:kind pattern)
+            :value (check->js (str (id->value input) " == " (pr-str (:value pattern))))
+            :vector (let [vector (:value pattern)]
+                      (apply str
+                             (check->js (str "cljs.core.vector_QMARK_.call(null, " (id->value input) ")")) "\n"
+                             (check->js (str "cljs.core.count.call(null, " (id->value input) ") == " (count vector))) "\n"
+                             (for [i (range (count vector))]
+                               (let [elem-scratch (scratch-id)]
+                                 (str "var " (id->value elem-scratch) " = cljs.core.nth.call(null, " (id->value input) ", " (str i) ");\n"
+                                      "var " (id->cursor elem-scratch) " = cljs.core.conj.call(null, " (id->cursor input) ", " (str i) ");\n"
+                                      (pattern->js elem-scratch (nth vector i)) "\n")))))
+            :map (let [map (:value pattern)]
+                   (apply str
+                          (check->js (str "cljs.core.map_QMARK_.call(null, " (id->value input) ")")) "\n"
+                          (for [key (keys map)]
+                            (let [key-scratch (scratch-id)
+                                  value-scratch (scratch-id)]
+                              (str "var " key-scratch " = " (data->js* key) ";\n"
+                                   (check->js (str "cljs.core.contains_QMARK_.call(null, " (id->value input) ", " key-scratch ")")) "\n"
+                                   "var " (id->value value-scratch) " = cljs.core.get.call(null, " (id->value input) ", " key-scratch ");\n"
+                                   "var " (id->cursor value-scratch) " = cljs.core.conj.call(null, " (id->cursor input) ", " key-scratch ");\n"
+                                   (pattern->js value-scratch (get map key))))))))
+    (let [return-scratch (scratch-id)]
+      (str
+       (step->js return-scratch [input] pattern) "\n"
+       (check->js (id->value return-scratch)) "\n"))))
 
-(defn to-lift [op]
-  (assoc op :lifted true :as (str (gensym "lift"))))
+(defn check->js [pred]
+  (str "if (!(" pred ")) {throw failure;};"))
 
-(defn wrap-take [put-channel steps remaining]
-  (loop [steps steps
-         remaining remaining]
-    (let [step (first remaining)]
-      (cond
-       (:lifted step) (recur (concat steps [step]) (rest remaining))
-       (not (seq remaining)) (vec (squash-prev (concat steps [{:type :operation
-                                                               :op {:type :ref
-                                                                    :ns core-ns
-                                                                    :to "put"}
-                                                               :args [{:type :ref
-                                                                       :to put-channel}
-                                                                      {:type :ref
-                                                                       :to :prev}]}])))
-       (not (:async step)) (recur (concat steps [step]) (rest remaining))
-       :else
-       ;;foreach async op lift the value of the operation
-       ;;walk the step to find all instances of that op
-       ;;replace each instance with the value created
-       (let [lifted (map to-lift (:async step))
-             prev-refs (map #(when (:as %)
-                               {:type :ref
-                                :to (:as %)})
-                            (:async step))
-             lift-vars (map :as lifted)
-             lift-var-refs (mapv #(do {:type :ref
-                                       :to %})
-                                 lift-vars)
-             prev-ref-replacements (-> (zipmap prev-refs lift-var-refs)
-                                       (dissoc nil))
-             replacements (zipmap (:async step) lift-var-refs)
-             neue (walk/postwalk-replace (merge prev-ref-replacements replacements) (dissoc step :async))
-             remaining (walk/postwalk-replace prev-ref-replacements remaining)]
-         ;;add lifts and
-         ;;add a take operation at the top of the step
-         (concat steps lifted [{:type :operation
-                                :op {:type :ref
-                                     :ns "aurora.core"
-                                     :to "take"}
-                                :args (-> lift-var-refs
-                                          (conj {:type :closure
-                                                 :params lift-vars
-                                                 :steps (squash-prev (wrap-take put-channel [neue] (rest remaining)))}))}]))))))
+(println (program->js i/example-a))
+(js/eval (program->js i/example-a))
 
+(defn run-example [example state]
+  (let [source (program->js example)
+        _ (println "###################")
+        _ (println source)
+        program (js/eval source)]
+    (aset program "next_state" state)
+    (try
+      [(.pipe_root program state []) (.-next_state program)]
+      (catch :default e e))))
 
-(defn wrap-channel [manual]
-  (let [channel (str (gensym "chan"))]
-    (assoc manual
-      :channel channel
-      :steps (vec (concat [{:type :operation
-                            :as channel
-                            :op {:type :ref
-                                 :ns "aurora.core"
-                                 :to "channel"}
-                            :args []}]
-                          (wrap-take channel [] (:steps manual))
-                          [{:type :ref
-                            :to channel}])))))
+(defn tick-example [example state]
+  (second (run-example example state)))
 
-(defn manual->async [manual program]
-  (let [manual (-> manual
-                   (mark-async program)
-                   (assoc :async true))]
-    (if-not (:channel manual)
-      (wrap-channel manual)
-      (assoc manual :steps (vec (wrap-take (:channel manual) [] (:steps manual)))))
-    )
-  )
+(run-example i/example-b {"a" 1 "b" 2})
+(run-example i/example-b {"a" 1 "c" 2})
+(run-example i/example-b {"a" 1 "b" "foo"})
+(run-example i/example-b [1 "foo"])
+(run-example i/example-b [1 2])
 
-(defn asyncify-pass [manuals program]
-  (println program)
-  (for [[name manual] manuals]
-    (do (println name (async-refs (:steps manual) program))
-      (if (async-refs (:steps manual) program)
-        [name (assoc manual :async true)]
-        [name manual]))))
+(run-example i/example-c 0)
+(run-example i/example-c 1)
+(run-example i/example-c 7)
+(run-example i/example-c 10)
 
-(defn converge-passes [program]
-  (loop [prev (seq (:manuals program))
-         i 10]
-    (let [program (assoc program :manuals (into {} prev))
-          cur (asyncify-pass prev program)]
-      (if (or (= i 0)
-              (= prev cur))
-        (into {} (for [[name manual] prev]
-                   [name (manual->async manual program)]))
-        (recur cur (dec i))))))
+(run-example i/example-d {"counter" 0})
 
-(defn asyncify [program]
-  (assoc program :manuals (converge-passes program)))
-
-;;*********************************************************
-;; augment
-;;*********************************************************
-
-(defn squash-prev [steps]
-  (reduce (fn [final cur]
-            (let [as (-> final last :as)
-                  neue-prev (or as (str (gensym "prev")))
-                  replaced (walk/postwalk-replace {:prev neue-prev} cur)]
-              (if (or (= cur replaced) as)
-                (conj final replaced)
-                (let [prev-i (max 0 (dec (count final)))
-                      prev (get final prev-i)]
-                  (-> final
-                      (assoc prev-i (assoc prev :as neue-prev))
-                      (conj replaced))))))
-          []
-          steps))
-
-(defn with-augmentations [manual program]
-  (let [body (reduce (fn [final cur]
-                       (conj final cur {:type :operation
-                                        :op {:type :ref
-                                             :ns core-ns
-                                             :to "capture"}
-                                        :args [{:type :value
-                                                :data {:value (:name program)}}
-                                               {:type :value
-                                                :data {:value (:name manual)}}
-                                               {:type :ref
-                                                :to :prev}]})
-                       )
-                     [{:type :operation
-                       :op {:type :ref
-                            :ns core-ns
-                            :to "scope"}
-                       :args [{:type :value
-                               :data {:value (:name program)}}
-                              {:type :value
-                               :data {:value (:name manual)}}
-                              {:type :value
-                               :data {:value (mapv symbol (:params manual))}}]}]
-                     (:steps manual))]
-    (assoc manual :steps (squash-prev body))
-    ))
-
-;;*********************************************************
-;; optimize
-;;*********************************************************
-
-(defn with-optimizations [manual program]
-  manual
-  )
-
-;;*********************************************************
-;; transformers
-;;*********************************************************
-
-(defmulti transform :name)
-
-(defn math->ops [thing]
-  (if (vector? thing)
-    {:type :operation
-     :op (if (string? (first thing))
-           {:type :ref
-            :to (first thing)}
-           (first thing))
-     :args (rest (map math->ops thing))}
-    thing))
-
-(defmethod transform "aurora.math" [{:keys [data]}]
-  (node->js* (math->ops data)))
-
-;;*********************************************************
-;; emit
-;;*********************************************************
-
-(defn resolve-ref [ref]
-  (if (:ns ref)
-    (str (:ns ref) "." (:to ref))
-    (:to ref)))
-
-
-(defmulti node->js* :type)
-
-(defmethod node->js* :default [thing]
-  (pr-str thing))
-
-(defmethod node->js* :value [{:keys [data]}]
-  (let [data (:value data)]
-    (cond
-     (is-node? data) (node->js* data)
-     (map? data) (str "{" (reduce str (interpose "," (map node->js* data))) "}")
-     (vector? data) (str "[" (reduce str (interpose "," (map node->js* data))) "]")
-     :else (node->js* data))))
-
-(def infix-ops #{"+" "-" "*" "/"})
-(defmethod node->js* :operation [{:keys [op args]}]
-  (if (infix-ops (-> op :to))
-    (reduce str (interpose (str " " (-> op :to) " ") (for [arg args]
-                                                       (node->js* arg))))
-    (str (resolve-ref op) "(" (reduce str (interpose "," (for [arg args]
-                                                           (node->js* arg)))) ")")))
-
-
-(defmethod node->js* :transformer [this]
-  (transform this))
-
-(defmethod node->js* :closure [this]
-  (str "function("
-       (reduce str (interpose ", " (:params this)))
-       ") {\n"
-       (when (> (count (:steps this)) 1)
-         (reduce str (map node->js (butlast (:steps this)))))
-       (str "return " (-> this :steps last node->js*) ";\n")
-       "}"))
-
-(defmethod node->js* :ref [{:keys [to] :as ref}]
-  (if (= to :prev)
-    '__PREV__
-    (resolve-ref ref)))
-
-(def no-wrap #{:match})
-
-(defn node->js [node]
-  (if (no-wrap (:type node))
-    (str (node->js* node) "\n")
-    (str
-     (if-let [as (:as node)]
-       (str "var " as " = "))
-     (node->js* node) ";\n")))
-
-(defn with-code-str [manual program]
-  (assoc manual :code (str
-                       (:name program) "." (:name manual) " = function("
-                       (reduce str (interpose ", " (:params manual)))
-                       ") {\n"
-                       (when (> (count (:steps manual)) 1)
-                         (reduce str (map node->js (butlast (:steps manual)))))
-                       (str "return " (-> manual :steps last node->js*) ";\n")
-                       "};\n")))
-
-;;*********************************************************
-;; match
-;;*********************************************************
-
-(defn value-condition [a b]
-  (if (and (is-node? a)
-           (is-node? b))
-    (node->js* {:type :operation
-                :op {:type :ref
-                     :ns core-ns
-                     :to "equiv"}
-                :args [a b]})
-    (str (node->js* a)  " === " (node->js* b))))
-
-(defn coll-condition [con ref]
-  (map (fn [[k v]]
-         (let [getter {:type :operation
-                       :op {:type :ref
-                            :ns core-ns
-                            :to "gett"}
-                       :args [ref
-                              {:type :value
-                               :data {:value [k]}}]}]
-           (cond
-            (= (:type v) :operation) (node->js* (update-in v [:args] conj getter))
-            (symbol? v) (str "(" v " = " (node->js* getter) ")")
-            :else (value-condition getter v))))
-       con))
-
-(defn table-condition [con ref]
-  (conj (coll-condition con ref)
-        (node->js* {:type :operation
-                    :op {:type :ref
-                         :ns core-ns
-                         :to "isTable"}
-                    :args [ref]})))
-
-(defn list-condition [con ref]
-  (let [is-list? (node->js* {:type :operation
-                             :op {:type :ref
-                                  :ns core-ns
-                                  :to "isList"}
-                             :args [ref]})]
-    (if (empty? con)
-      [is-list?
-       (node->js* {:type :operation
-                   :op {:type :ref
-                        :ns core-ns
-                        :to "isEmpty"}
-                   :args [ref]})]
-      (conj (coll-condition (map vector (range) con) ref)
-            is-list?))))
-
-(defn compile-conditions [branch refs]
-  (reduce str (interpose " && " (mapcat (fn [[con ref]]
-                                          (cond
-                                           (is-node? con) [(value-condition con ref)]
-                                           (vector? con) (list-condition con ref)
-                                           (map? con) (table-condition con ref)
-                                           :else [(value-condition ref con)]))
-                                        (map vector (butlast branch) refs))))
-  )
-
-(defn compile-branches [branches root as]
-  (reduce (fn [final branch]
-            (if (= (first branch) :otherwise)
-              (str final "else {\n    " as " = " (node->js* (last branch)) ";\n} ")
-              (str final "else if(" (compile-conditions branch root) ") {\n    " as " = " (node->js* (last branch)) ";\n} ")))
-          (str "if(" (compile-conditions (first branches) root) ") {\n    " as " = " (node->js* (-> branches first last)) ";\n} ")
-          (rest branches))
-  )
-
-(defmethod node->js* :match [{:keys [root branches as]}]
-  (str "var " as " = null;\n"
-       (compile-branches branches root as)))
-
-;;*********************************************************
-;; compile
-;;*********************************************************
-
-(defn program->cljs [program]
-  (let [program (assoc program :manuals
-                  (into {}
-                        (for [[name m] (:manuals program)]
-                          [name
-                           (-> m
-                               (with-augmentations program)
-                               (with-optimizations program)
-                               )])))
-        program (asyncify program)
-        program (assoc program :manuals
-                  (into {}
-                        (for [[name m] (:manuals program)]
-                          [name (with-code-str m program)])))]
-    (assoc program :code (reduce #(str % %2 "\n")
-                                 (str (:name program) " = {};\n")
-                                 (map :code (vals (:manuals program)))))))
-
-(defn print-ret [x]
-  (println x)
-  x)
-
-(time (-> (program->cljs example)
-                    :code
-          (print-ret)
-                    (js/eval)
-                    ))
-
-(js/aurora.core.take (js/program1.root) #(println %))
+(run-example i/example-e {"counter" 0 "started?" "false"})

@@ -157,45 +157,45 @@
 
 (def example-a
   #{(pipe "root" ["a" "b" "c"]
-          "b-squared" ["b" "b"] (cljs-ref *)
+          "b_squared" ["b" "b"] (cljs-ref *)
           "four" [] (data-value 4)
-          "four-a-c" ["four" "a" "c"] (cljs-ref *)
-          "result" ["b-squared" "four-a-c"] (cljs-ref -))})
+          "four_a_c" ["four" "a" "c"] (cljs-ref *)
+          "result" ["b_squared" "four_a_c"] (cljs-ref -))})
 
 (def example-b
   #{(pipe "root" ["x"]
           "result" ["x"] (match (data-map (data-value "a") (bind "a" (cljs-ref number?)) (data-value "b") (bind "b" (cljs-ref number?))) ["a" "b"] (cljs-ref -)
-                                      (data-vector (bind "x" any) (data-value "foo")) ["x"] return))})
+                                (data-vector (bind "y" any) (data-value "foo")) ["y"] return))})
 
 (def example-c
   #{(pipe "root" ["x"]
-          "result" ["x"] (pipe-ref "even?"))
-    (pipe "even?" ["x"]
+          "result" ["x"] (pipe-ref "even_"))
+    (pipe "even_" ["x"]
           "result" ["x"] (match (data-value 0) [] (data-value true)
-                                (bind "x" any) ["x"] (pipe-ref "even?not-0")))
-    (pipe "even?not-0" ["x"]
+                                (bind "x" any) ["x"] (pipe-ref "even_not_0")))
+    (pipe "even_not_0" ["x"]
           "one" [] (data-value 1)
-          "x-1" ["x" "one"] (cljs-ref -)
-          "odd?" ["x-1"] (pipe-ref "odd?")
-          "result" ["odd?"] (cljs-ref not))
-    (pipe "odd?" ["x"]
+          "x_1" ["x" "one"] (cljs-ref -)
+          "odd_" ["x_1"] (pipe-ref "odd_")
+          "result" ["odd_"] (cljs-ref not))
+    (pipe "odd_" ["x"]
           "result" ["x"] (match (data-value 0) [] (data-value true)
-                                (bind "x" any) ["x"] (pipe-ref "odd?not-0")))
-    (pipe "odd?not-0" ["x"]
+                                (bind "x" any) ["x"] (pipe-ref "odd_not_0")))
+    (pipe "odd_not_0" ["x"]
           "one" [] (data-value 1)
-          "x-1" ["x" "one"] (cljs-ref -)
-          "even?" ["x-1"] (pipe-ref "even?")
-          "result" ["even?"] (cljs-ref not))})
+          "x_1" ["x" "one"] (cljs-ref -)
+          "even_" ["x_1"] (pipe-ref "even_")
+          "result" ["even_"] (cljs-ref not))})
 
 (def example-c-mappified
   {"root" (assoc (pipe "root" ["x"]
                        "result" ["x"] (pipe-ref "even?"))
             :desc "interpreter example c"
             :tags #{:page})
-   "even?" (pipe "even?" ["x"]
+   "even" (pipe "even?" ["x"]
                   "result" ["x"] (match (data-value 0) [] (data-value true)
                                         (bind "x" any) ["x"] (pipe-ref "even?not-0")))
-   "even?not-0" (assoc (pipe "even?not-0" ["x"]
+   "even_not_0" (assoc (pipe "even?not-0" ["x"]
                             "one" [] (data-value 1)
                             "x-1" ["x" "one"] (cljs-ref -)
                             "odd?" ["x-1"] (pipe-ref "odd?")
@@ -215,28 +215,28 @@
   #{(pipe "root" ["x"]
           "c" ["x"] (match (data-map (data-value "counter") (bind "c" any)) ["c"] return)
           "one" [] (data-value 1)
-          "c+1" ["c" "one"] (cljs-ref +)
-          "nil" ["c" "c+1"] replace)})
+          "c_1" ["c" "one"] (cljs-ref +)
+          "nil" ["c" "c_1"] replace)})
 
 (def example-e
   #{(pipe "root" ["root"]
-          "result" ["root"] (match (data-map (data-value "started?") (bind "started?" (data-value "false"))) ["started?"] (pipe-ref "start")
+          "result" ["root"] (match (data-map (data-value "started_") (bind "started_" (data-value "false"))) ["started_"] (pipe-ref "start")
                                    any ["root"] (pipe-ref "wait")))
-    (pipe "start" ["started?"]
+    (pipe "start" ["started_"]
           "timer" [] (data-map (data-value "cursor") (data-vector (data-value "ready")) (data-value "timeout") (data-value 1000))
-          "result" ["timer"] (output ["output" "timeout"])
+          "result" ["timer"] (output (data-vector (data-value "output") (data-value "timeout")))
           "true" [] (data-value "true")
-          "foo" ["started?" "true"] replace)
+          "foo" ["started_" "true"] replace)
     (pipe "wait" ["root"]
           "result" ["root"] (match (data-map (data-value "ready") (bind "ready" (data-value "timeout"))) ["root" "ready"] (pipe-ref "go")
                                    any [] (data-value "ok")))
     (pipe "go" ["root" "ready"]
           "false" [] (data-value "false")
           "foo" ["ready" "false"] replace
-          "c" ["root"] (match (data-map (data-value "counter") (bind "c" any)) ["c"] return)
+          "c" ["root"] (match (data-map (data-value "counter") (bind "cc" any)) ["cc"] return)
           "one" [] (data-value 1)
-          "c+1" ["c" "one"] (cljs-ref +)
-          "nil" ["c" "c+1"] replace)})
+          "c_1" ["c" "one"] (cljs-ref +)
+          "nil" ["c" "c_1"] replace)})
 
 (defn run-example [example this-state]
   (let [stack #js []
@@ -336,11 +336,11 @@
   IMeta
   (-meta [this] (.-meta this)))
 
-(alter-meta! + assoc :desc "Add ")
-(alter-meta! - assoc :desc "Subtract ")
-(alter-meta! * assoc :desc "Multiply ")
-(alter-meta! / assoc :desc "Divide ")
+(alter-meta! + assoc :desc "Add " :name "cljs.core._PLUS_")
+(alter-meta! - assoc :desc "Subtract " :name "cljs.core._")
+(alter-meta! * assoc :desc "Multiply " :name "cljs.core._STAR_")
+(alter-meta! / assoc :desc "Divide " :name "cljs.core._SLASH_")
 
-(alter-meta! number? assoc :desc "Is a number? ")
+(alter-meta! number? assoc :desc "Is a number? " :name "cljs.core.number_QMARK_")
 
-(alter-meta! not assoc :desc "Is false? ")
+(alter-meta! not assoc :desc "Is false? " :name "cljs.core.not")
