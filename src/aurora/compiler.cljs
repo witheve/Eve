@@ -135,7 +135,7 @@
 (defn ref->js [id inputs node]
   (case (:kind node)
     :cljs `(do
-             (let! ~(id->value id) (~(-> node :fn meta :name) ~@(map value inputs)))
+             (let! ~(id->value id) (~(-> node :fn meta :name) ~@(map id->value inputs)))
              (let! ~(id->cursor id) (data nil)))
     :pipe (let [result (new-id)]
             `(do
