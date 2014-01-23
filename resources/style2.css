@@ -74,7 +74,7 @@ button:hover { background:#eee; }
 
 #aurora { overflow:auto; height:100%; box-sizing:border-box;}
 
-#nav { position:fixed; top:0px; left:0px; padding:10px 30px; padding-left:320px; width:100%; border-bottom:0px solid #c6c6c6; }
+#nav { position:fixed; top:0px; left:320px; padding:10px 30px; padding-left:0px; width:100%; border-bottom:0px solid #c6c6c6; }
 
 #nav ul { display:inline-block; }
 #nav li { display:inline-block; }
@@ -114,6 +114,8 @@ button:hover { background:#eee; }
 .step .desc { background:transparent; padding:10px; padding-left:15px; border-radius:3px; }
 
 .step:last-child { border-bottom:none; }
+
+.step.selected {background:dfd; }
 
 .step .desc > * { margin-bottom:10px; }
 

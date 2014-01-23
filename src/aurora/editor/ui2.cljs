@@ -14,6 +14,8 @@
 (defn now []
   (.getTime (js/Date.)))
 
+(defn update-path [path neue]
+  (update-in path [(-> path count dec)] merge neue))
 
 ;;*********************************************************
 ;; Declares
@@ -39,19 +41,20 @@
 
 (defdom sub-step [step path]
   (when (get-in @aurora-state [:open-paths path])
-      (let [node (get-in @aurora-state [:programs (:notebook @aurora-state) :pages (get-in @aurora-state [:open-paths path])])]
+      (let [node (get-in @aurora-state [:notebooks (:notebook @aurora-state) :pages (get-in @aurora-state [:open-paths path])])]
         [:li {:className "substep step"}
          (if node
            (do
-             (manual-steps (get-in @aurora-state [:programs (:notebook @aurora-state) :pages (:id node)])
-                           (conj path (:id node))))
+             (manual-steps (get-in @aurora-state [:notebooks (:notebook @aurora-state) :pages (:id node)])
+                           (conj path {:notebook (:notebook @aurora-state)
+                                       :page (:id node)})))
            [:span {:className "native"} "Native method"])])))
 
 
 (defdom manual-steps [man path]
    [:ul {:className "steps"}
      (each [node (:nodes man)]
-           (step-list-item node (conj path index))
+           (step-list-item node (update-path path {:step index}))
            )])
 
 (defdom steps-workspace [man]
@@ -59,8 +62,19 @@
                                        " active"))}
 
    [:div {:className "steps-container"}
-    (manual-steps man [(:notebook @aurora-state) (:page @aurora-state)])]
+    (manual-steps man [{:notebook (:notebook @aurora-state)
+                        :page (:page @aurora-state)}])]
      ])
+
+(defn step-click [path]
+  (fn [e]
+    (swap! aurora-state assoc :step path)
+    (.preventDefault e)
+    (.stopPropagation e)))
+
+(defn step-class [path]
+  (str "step " (when (= path (:step @aurora-state))
+                 "selected")))
 
 ;;*********************************************************
 ;; Function calls
@@ -68,29 +82,36 @@
 
 (defn ref->name [node]
   (let [op (when (= (:kind node) :pipe)
-             (get-in @aurora-state [:programs (:notebook @aurora-state) :pages (-> node :id)]))]
+             (get-in @aurora-state [:notebooks (:notebook @aurora-state) :pages (-> node :id)]))]
     (:desc op (or (:id node) (-> node :fn meta :desc)))))
 
 (defdom clickable-ref [step path]
   (let [node (:node step)
         name (ref->name node)
-        click (fn []
+        dblclick (fn []
                 (swap! aurora-state update-in [:open-paths path] #(if (not %)
                                                                     (:id node))))]
     (dom
       [:p {:className "desc"
-             :onClick click
-             :onTouchStart click}
+           :onDoubleClick dblclick}
        name
        (each [input (:inputs step)]
              [:span {:className "prev"} input])])))
 
 (defmethod step-list-item :ref [step path]
   (dom
-   [:li {:className "step"}
+   [:li {:className (step-class path)
+         :onClick (step-click path)}
     (clickable-ref step path)]
    (sub-step step path)
    ))
+
+(defmethod step-description :ref [step path]
+  (dom
+      [:p {:className "desc"}
+       (ref->name (:node step))
+       (each [input (:inputs step)]
+             [:span {:className "prev"} input])]))
 
 ;;*********************************************************
 ;; Matches
@@ -125,17 +146,25 @@
 (defmethod step-list-item :match [step path]
   (dom
 
-   [:li {:className "step"}
+   [:li {:className (step-class path)
+         :onClick (step-click path)}
     [:p {:className "desc"} "If " (each [input (:inputs step)]
                                         [:span {:className "prev"} input]) "matches"]
     [:ul {:className "match-list"}
      (each [branch (-> step :node :branches)]
-           (let [path (conj path (str "match" index))]
+           (let [path (update-path path {:sub-path [:branches index :node]})]
              [:li {:className "match-branch"}
               [:span (-> branch :pattern match-pattern)]
               [:span [:span {:className ""} (branch-result branch path)]]]
              (sub-step branch path)))]]
      ))
+
+(defmethod step-description :match [step path]
+  (dom
+      [:p {:className "desc"}
+       "Find a match for "
+       (each [input (:inputs step)]
+             [:span {:className "prev"} input])]))
 
 ;;*********************************************************
 ;; Data
@@ -150,17 +179,6 @@
    (vector? x) "table"
    :else (str (type x))))
 
-(defmethod step-list-item :data [step]
-  (let [value (-> step :node :value)
-        name (datatype-name value)]
-    (dom
-     [:li {:className "step"}
-      [:p {:className "desc"} "Add a " [:span {:className "value"} name]
-       (when-let [rep (get-in @aurora-state [:representation-cache name])]
-        (rep value))]
-
-      ])))
-
 (defn item-ui [x]
   (if (= (:type x) :ref)
     (ref->name x)
@@ -170,18 +188,36 @@
         (rep value)
         (pr-str x)))))
 
+(defmethod step-list-item :data [step path]
+  (let [value (-> step :node :value)
+        name (datatype-name value)]
+    (dom
+     [:li {:className (step-class path)
+           :onClick (step-click path)}
+      [:p {:className "desc"} "Add a " [:span {:className "value"} name]
+       (when-let [rep (get-in @aurora-state [:representation-cache name])]
+        (rep value))]
+
+      ])))
+
+(defmethod step-description :data [step path]
+  (let [value (-> step :node :value)
+        name (datatype-name value)]
+    (dom
+      [:p {:className "desc"} "Add a " [:span {:className "value"} name]])))
+
 ;;*********************************************************
 ;; editor
 ;;*********************************************************
 
 (defdom editing-view []
   [:div
-   (steps-workspace (-> @aurora-state :programs (get-in [(:notebook @aurora-state) :pages (:page @aurora-state)])))
-   (step-canvas)])
+   (steps-workspace (current :page))
+   (step-canvas (current :step) (:step @aurora-state))])
 
-(defdom step-canvas []
-  [:div {:className (str "step-canvas ")}
-   [:p {:className "desc"} "Step's long description"]
+(defdom step-canvas [step path]
+  [:div {:className (str "step-canvas")}
+   (step-description step path)
    [:div {:className "result"}
     "Shit goes here"]
         ])
@@ -202,8 +238,14 @@
          [:span {:onClick (fn []
                             (swap! aurora-state assoc :screen :pages :page nil :step nil))}
           (:desc page)])
-       (when-let [step (current :step)]
-         [:span "step"])
+       (when-let [path (:step @aurora-state)]
+         (println path)
+         (when (> (count path) 1)
+           (each [{:keys [notebook page]} (rest path)]
+                 (println "trying: " notebook page)
+                 (when-let [cur (get-in @aurora-state [:notebooks notebook :pages page])]
+                   [:span (get cur :desc (:id cur))])))
+         [:span (:step (last path))])
        ]]
    (when (= (:screen @aurora-state) :editor)
      [:ul {:className "toggles"}
@@ -224,7 +266,7 @@
 
 (defdom notebooks-list [editor]
   [:ul {:className "programs"}
-   (each [[name program] (:programs editor)]
+   (each [[name program] (:notebooks editor)]
          (let [click (fn []
                        (swap! aurora-state assoc :notebook name :screen :pages)
                        (println "clicked!" name))]
@@ -241,7 +283,9 @@
   [:ul {:className "pages"}
    (each [[name man] (filter #(get (-> % second :tags) :page) (:pages prog))]
          (let [click (fn []
-                       (swap! aurora-state assoc :page name :screen :editor :step 0))]
+                       (swap! aurora-state assoc :page name :screen :editor :step [{:notebook (:notebook @aurora-state)
+                                                                                    :page name
+                                                                                    :step 0}]))]
            [:li {:className "page"
                  :onClick click
                  :onTouchStart click}
@@ -257,7 +301,7 @@
    [:div {:id "content"}
     (condp = (:screen @aurora-state)
       :notebooks (notebooks-list @aurora-state)
-      :pages (pages-list (-> @aurora-state :programs (get (:notebook @aurora-state))))
+      :pages (pages-list (-> @aurora-state :notebooks (get (:notebook @aurora-state))))
       :editor (editing-view))
     ]])
 
@@ -297,7 +341,7 @@
 
 (def aurora-state (atom {:notebook nil
                          :page nil
-                         :step 0
+                         :step []
                          :screen :notebooks
                          :steps true
                          :document true
@@ -320,19 +364,26 @@
                                                           (table-ui
                                                            (-> x :args first :data :value)
                                                            (-> x :args second :data :value)))}
-                         :programs {"program1" {:desc "Demos"
+                         :notebooks {"program1" {:desc "Demos"
                                                 :pages interpreter/example-c-mappified}
                                     "aurora.math" {:desc "Math"
                                                    :pages {"even" {:desc "is even?"}}}
                                     "aurora.core" {:desc "Core"
                                                    :pages {"each" {:desc "For each of "}}}}}))
 
+
+(defn path->step [path]
+  (let [{:keys [notebook page step]} (last path)]
+    (if (and notebook page step)
+      (get-in @aurora-state [:notebooks notebook :pages page :nodes step])
+      (get-in @aurora-state [:notebooks (:notebook @aurora-state) :pages (:page @aurora-state) :nodes 0]))))
+
 (defn current [key]
   (when-let [v (@aurora-state key)]
     (condp = key
-      :notebook (get-in @aurora-state [:programs v])
-      :page (get-in @aurora-state [:programs (:notebook @aurora-state) :pages v])
-      :step (get-in @aurora-state [:programs (:notebook @aurora-state) :pages (:page @aurora-state) :nodes v]))))
+      :notebook (get-in @aurora-state [:notebooks v])
+      :page (get-in @aurora-state [:notebooks (:notebook @aurora-state) :pages v])
+      :step (path->step v))))
 
 
 ;;*********************************************************
