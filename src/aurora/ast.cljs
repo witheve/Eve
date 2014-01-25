@@ -3,34 +3,15 @@
             aurora.util)
   (:require-macros [aurora.macros :refer [check]]))
 
-;; id = random 128bit string ;; either a notebook, page or step
-;; js = string
-;; ref = {:type :ref/step :step id} | {:type :ref/page :page id :notebook id} | {:type :ref/js :js js}
-;; tag = {:type :tag :id id :name string} ;; like a namespaced keyword
-;; call = {:type :call :ref ref :args [ref*]}
-;; data = number | string | tag | [data*] | {data* data*} | ref
-;; pattern = number | string | tag | [pattern*] | {data* pattern*} | ref ;; if ref is a step, check equality. if page, treat as predicate
-;; action = call | data
-;; branch = {:type :match/branch :pattern pattern :action action}
-;; match = {:type :match :arg ref/step :branches [branch*]}
-;; step = {:id id & (call | data | match)}
-;; page = {:type :page :id id :steps [step*]}
-;; notebook = {:type :notebook :id id :pages [page*]}
-
 (defn id! [x]
   (check (string? x)))
 
 (defn js! [x]
   (check (string? x)))
 
-(defn ref-step! [x]
-  (check (= :ref/step (:type x))
-         (id! (:step x))))
-
-(defn ref-page! [x]
-  (check (= :ref/page (:type x))
-         (id! (:page x))
-         (id! (:notebook x))))
+(defn ref-id! [x]
+  (check (= :ref/id (:type x))
+         (id! (:id x))))
 
 (defn ref-js! [x]
   (check (= :ref/js (:type x))
@@ -38,8 +19,7 @@
 
 (defn ref! [x]
   (case (:type x)
-    :ref/step (ref-step! x)
-    :ref/page (ref-page! x)
+    :ref/id (ref-id! x)
     :ref/js (ref-js! x)
     false))
 
@@ -65,6 +45,10 @@
     (#{:ref/js :ref/step :ref/page} (:type x)) (ref! x)
     :else false)))
 
+(defn constant! [x]
+  (check (= :constant (:type x))
+         (data! (:data x))))
+
 (defn pattern! [x]
   (check
    (cond
@@ -73,14 +57,17 @@
     (= :tag (:type x)) (tag! x)
     (vector? x) (every? pattern! x)
     (map? x) (and (every? data! (keys x)) (every? pattern! (vals x)))
-    (#{:ref/js :ref/step :ref/page} (:type x)) (ref! x)
+    (#{:ref/id :ref/page} (:type x)) (ref! x)
     :else false)))
+
+(defn pattern! [x]
+  (check (= :type )))
 
 (defn action! [x]
   (check
    (case (:type x)
      :call (call! x)
-     :data (data! x)
+     :constant (constant! x)
      false)))
 
 (defn branch! [x]
@@ -98,18 +85,59 @@
   (check (id! (:id x))
          (case (:type x)
            :call (call! x)
-           :data (data! x)
+           :constant (constant! x)
            :match (match! x))))
 
 (defn page! [x]
   (check (= :page (:type x))
          (id! (:id x))
+         (sequential? (:args x))
+         (every? id! (:args x))
          (sequential? (:steps x))
          (every? step! (:steps x))))
 
-(defn notebook [x]
+(defn notebook! [x]
   (check (= :notebook (:type x))
          (id! (:id x))
          (sequential? (:pages x))
          (every? page! (:pages x))))
 
+;; examples
+
+(def example-a
+  {:type :notebook
+   :id "example_a"
+   :pages [{:type :page
+            :id "root"
+            :args ["a" "b" "c"]
+            :steps [{:id "b_squared"
+                     :type :call
+                     :ref {:type :ref/js
+                           :js "cljs.core._STAR_"}
+                     :args [{:type :ref/id
+                             :id "b"}
+                            {:type :ref/id
+                             :id "b"}]}
+                    {:id "four"
+                     :type :constant
+                     :data 4}
+                    {:id "four_a_c"
+                     :type :call
+                     :ref {:type :ref/js
+                           :js "cljs.core._STAR_"}
+                     :args [{:type :ref/id
+                             :id "four"}
+                            {:type :ref/id
+                             :id "a"}
+                            {:type :ref/id
+                             :id "c"}]}
+                    {:id "result"
+                     :type :call
+                     :ref {:type :ref/js
+                           :js "cljs.core._"}
+                     :args [{:type :ref/id
+                             :id "b_squared"}
+                            {:type :ref/id
+                             :id "four_a_c"}]}]}]})
+
+(notebook! example-a)
