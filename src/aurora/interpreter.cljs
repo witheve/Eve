@@ -171,21 +171,24 @@
   #{(pipe "root" ["x"]
           "result" ["x"] (pipe-ref "even_"))
     (pipe "even_" ["x"]
-          "result" ["x"] (match (data-value 0) [] (data-value true)
-                                (bind "x" any) ["x"] (pipe-ref "even_not_0")))
+          "result" ["x"] (match (data-value 0) [] (data-value "true")
+                                (bind "x1" any) ["x1"] (pipe-ref "even_not_0")))
     (pipe "even_not_0" ["x"]
           "one" [] (data-value 1)
           "x_1" ["x" "one"] (cljs-ref -)
           "odd_" ["x_1"] (pipe-ref "odd_")
-          "result" ["odd_"] (cljs-ref not))
+          "result" ["odd_"] (pipe-ref "not"))
     (pipe "odd_" ["x"]
-          "result" ["x"] (match (data-value 0) [] (data-value true)
-                                (bind "x" any) ["x"] (pipe-ref "odd_not_0")))
+          "result" ["x"] (match (data-value 0) [] (data-value "true")
+                                (bind "x1" any) ["x1"] (pipe-ref "odd_not_0")))
     (pipe "odd_not_0" ["x"]
           "one" [] (data-value 1)
           "x_1" ["x" "one"] (cljs-ref -)
           "even_" ["x_1"] (pipe-ref "even_")
-          "result" ["even_"] (cljs-ref not))})
+          "result" ["even_"] (pipe-ref "not"))
+    (pipe "not" ["x"]
+          "result" ["x"] (match (data-value "true") [] (data-value "false")
+                                (data-value "false") [] (data-value "true")))})
 
 (def example-c-mappified
   {"root" (assoc (pipe "root" ["x"]
@@ -342,5 +345,3 @@
 (alter-meta! / assoc :desc "Divide " :name "cljs.core._SLASH_")
 
 (alter-meta! number? assoc :desc "Is a number? " :name "cljs.core.number_QMARK_")
-
-(alter-meta! not assoc :desc "Is false? " :name "cljs.core.not")
