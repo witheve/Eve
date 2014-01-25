@@ -32,17 +32,17 @@
   (check (= :call (:type x))
          (ref! (:ref x))
          (sequential? (:args x))
-         (every? ref! (:args x))))
+         (every? id! (:args x))))
 
 (defn data! [x]
   (check
    (cond
+    (= :tag (:type x)) (tag! x)
+    (#{:ref/id :ref/page} (:type x)) (ref! x)
     (number? x) true
     (string? x) true
-    (= :tag (:type x)) (tag! x)
     (vector? x) (every? data! x)
     (map? x) (and (every? data! (keys x)) (every? data! (vals x)))
-    (#{:ref/js :ref/step :ref/page} (:type x)) (ref! x)
     :else false)))
 
 (defn constant! [x]
@@ -52,16 +52,22 @@
 (defn match-any! [x]
   (check (= :match/any) (:type x)))
 
+(defn match-bind! [x]
+  (check (= :match/bind (:type x))
+         (id! (:id x))
+         (pattern! (:pattern x))))
+
 (defn pattern! [x]
   (check
    (cond
     (= :match/any (:type x) (match-any! x))
+    (= :match/bind (:type x) (match-bind! x))
+    (= :tag (:type x)) (tag! x)
+    (#{:ref/id :ref/page} (:type x)) (ref! x)
     (number? x) true
     (string? x) true
-    (= :tag (:type x)) (tag! x)
     (vector? x) (every? pattern! x)
     (map? x) (and (every? data! (keys x)) (every? pattern! (vals x)))
-    (#{:ref/id :ref/page} (:type x)) (ref! x)
     :else false)))
 
 (defn pattern! [x]
@@ -81,9 +87,9 @@
 
 (defn match! [x]
   (check (= :match (:type x))
-         (ref-step! (:arg match))
+         (id! (:arg x))
          (sequential? (:branches x))
-         (every! branch! (:branches x))))
+         (every? branch! (:branches x))))
 
 (defn step! [x]
   (check (id! (:id x))
@@ -118,10 +124,7 @@
                      :type :call
                      :ref {:type :ref/js
                            :js "cljs.core._STAR_"}
-                     :args [{:type :ref/id
-                             :id "b"}
-                            {:type :ref/id
-                             :id "b"}]}
+                     :args ["b" "b"]}
                     {:id "four"
                      :type :constant
                      :data 4}
@@ -129,19 +132,34 @@
                      :type :call
                      :ref {:type :ref/js
                            :js "cljs.core._STAR_"}
-                     :args [{:type :ref/id
-                             :id "four"}
-                            {:type :ref/id
-                             :id "a"}
-                            {:type :ref/id
-                             :id "c"}]}
+                     :args ["four" "a" "c"]}
                     {:id "result"
                      :type :call
                      :ref {:type :ref/js
                            :js "cljs.core._"}
-                     :args [{:type :ref/id
-                             :id "b_squared"}
-                            {:type :ref/id
-                             :id "four_a_c"}]}]}]})
+                     :args ["b_squared" "four_a_c"]}]}]})
 
 (notebook! example-a)
+
+(def example-b
+  {:type :notebook
+   :id "example_b"
+   :pages [{:type :page
+            :id "root"
+            :args ["x"]
+            :steps [{:id "result"
+                     :type :match
+                     :arg "x"
+                     :branches [{:type :match/branch
+                                 :pattern {"a" {:type :match/bind :id "a" :pattern {:type :ref/js :js "cljs.core.number_QMARK_"}}
+                                           "b" {:type :match/bind :id "b" :pattern {:type :ref/js :js "cljs.core.number_QMARK_"}}}
+                                 :action {:type :call
+                                          :ref {:type :ref/js :js "cljs.core._"}
+                                          :args ["a" "b"]}}
+                                {:type :match/branch
+                                 :pattern [{:type :match/bind :id "y" :pattern {:type :match/any}} "foo"]
+                                 :action {:type :constant
+                                          :data {:type :ref/id
+                                                 :id "y"}}}]}]}]})
+
+(notebook! example-b)
