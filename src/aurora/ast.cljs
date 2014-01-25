@@ -49,9 +49,13 @@
   (check (= :constant (:type x))
          (data! (:data x))))
 
+(defn match-any! [x]
+  (check (= :match/any) (:type x)))
+
 (defn pattern! [x]
   (check
    (cond
+    (= :match/any (:type x) (match-any! x))
     (number? x) true
     (string? x) true
     (= :tag (:type x)) (tag! x)
