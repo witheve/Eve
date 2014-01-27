@@ -54,7 +54,8 @@
 (defdom manual-steps [man path]
    [:ul {:className "steps"}
      (each [node (:nodes man)]
-           (step-list-item node (update-path path {:step index}))
+           (step-list-item node (update-path path {:step index
+                                                   :step-var (:id node)}))
            )])
 
 (defdom steps-workspace [man]
@@ -219,7 +220,7 @@
   [:div {:className (str "step-canvas")}
    (step-description step path)
    [:div {:className "result"}
-    "Shit goes here"]
+    (path->result path)]
         ])
 
 ;;*********************************************************
@@ -239,10 +240,8 @@
                             (swap! aurora-state assoc :screen :pages :page nil :step nil))}
           (:desc page)])
        (when-let [path (:step @aurora-state)]
-         (println path)
          (when (> (count path) 1)
            (each [{:keys [notebook page]} (rest path)]
-                 (println "trying: " notebook page)
                  (when-let [cur (get-in @aurora-state [:notebooks notebook :pages page])]
                    [:span (get cur :desc (:id cur))])))
          [:span (:step (last path))])
@@ -387,6 +386,46 @@
 
 
 ;;*********************************************************
+;; running (this shouldn't be part of the UI eventually)
+;;*********************************************************
+
+(def run-stack (atom nil))
+
+(defn re-run [x]
+  (reset! run-stack #js {:calls [(nth (interpreter/run-example interpreter/example-c x) 2)]})
+  (queue-render))
+
+(re-run 1)
+
+(defn find-id [thing id]
+  (first (filter #(= (aget % "id") id) (aget thing "calls"))))
+
+(-> @run-stack
+    (aget "calls")
+    (aget 0)
+    (aget "id"))
+
+(defn traverse-path [stack path]
+  (loop [stack stack
+         path path]
+    (println stack path)
+    (when stack
+      (if-not path
+        stack
+        (recur (find-id stack (-> path first :page)) (next path))))))
+
+(defn path->result [path]
+  (println "path: " path)
+  (when-let [frame (traverse-path @run-stack path)]
+    (println "Got a frame!" (aget frame "id"))
+    (-> frame
+        (aget "vars")
+        (aget (-> path last :step-var))
+        (:value)
+        (pr-str))))
+
+
+;;*********************************************************
 ;; Re-rendering
 ;;*********************************************************
 
@@ -410,3 +449,6 @@
                                (queue-render)))
 
 (queue-render)
+
+
+

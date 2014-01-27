@@ -192,27 +192,27 @@
 
 (def example-c-mappified
   {"root" (assoc (pipe "root" ["x"]
-                       "result" ["x"] (pipe-ref "even?"))
+                       "result" ["x"] (pipe-ref "even_"))
             :desc "interpreter example c"
             :tags #{:page})
-   "even?" (pipe "even?" ["x"]
+   "even_" (pipe "even_" ["x"]
                   "result" ["x"] (match (data-value 0) [] (data-value true)
-                                        (bind "x" any) ["x"] (pipe-ref "even?not-0")))
-   "even?not-0" (assoc (pipe "even?not-0" ["x"]
+                                        (bind "x" any) ["x"] (pipe-ref "even_not_0")))
+   "even_not_0" (assoc (pipe "even_not_0" ["x"]
                             "one" [] (data-value 1)
-                            "x-1" ["x" "one"] (cljs-ref -)
-                            "odd?" ["x-1"] (pipe-ref "odd?")
-                            "result" ["odd?"] (cljs-ref not))
-                  :desc "example c even? not 0"
+                            "x_1" ["x" "one"] (cljs-ref -)
+                            "odd_" ["x_1"] (pipe-ref "odd_")
+                            "result" ["odd_"] (cljs-ref not))
+                  :desc "example c even_ not 0"
                   :tags #{:page})
-   "odd?" (pipe "odd?" ["x"]
+   "odd_" (pipe "odd_" ["x"]
                 "result" ["x"] (match (data-value 0) [] (data-value true)
-                                      (bind "x" any) ["x"] (pipe-ref "odd?not-0")))
-   "odd?not-0" (pipe "odd?not-0" ["x"]
+                                      (bind "x" any) ["x"] (pipe-ref "odd_not_0")))
+   "odd_not_0" (pipe "odd_not_0" ["x"]
                      "one" [] (data-value 1)
-                     "x-1" ["x" "one"] (cljs-ref -)
-                     "even?" ["x-1"] (pipe-ref "even?")
-                     "result" ["even?"] (cljs-ref not))})
+                     "x_1" ["x" "one"] (cljs-ref -)
+                     "even_" ["x_1"] (pipe-ref "even_")
+                     "result" ["even_"] (cljs-ref not))})
 
 (def example-d
   #{(pipe "root" ["x"]

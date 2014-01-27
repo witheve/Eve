@@ -107,7 +107,7 @@ button:hover { background:#eee; }
 
 .steps-container { border:1px solid #c6c6c6; background:#f6f6f6; display:inline-block; min-width:250px; height:100%; margin-left:0px; margin-top:0px; max-height:-webkit-calc(100% - 0px); overflow-y:auto; vertical-align:top; max-width:600px; padding:0px 0px; box-shadow:0 0 0px #bbb; }
 
-.steps { width:100%; }
+.steps { width:100%; cursor:default; -webkit-user-select:none; }
 
 .step { padding: 0px; padding-bottom:10px; padding-top:10px; padding-right: 0px; vertical-align:middle; border-bottom: 0px solid #f7f7f7; }
 .step { border-bottom:1px solid #c6c6c6; }
