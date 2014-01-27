@@ -1,99 +1,100 @@
 (ns aurora.ast
   (:require aurora.util)
-  (:require-macros [aurora.macros :refer [check]]))
+  (:require-macros [aurora.macros :refer [check defchecked]]))
 
-(defn id! [x]
+(defchecked id! [x]
   (check (string? x)))
 
-(defn js! [x]
+(defchecked js! [x]
   (check (string? x)))
 
-(defn ref-id! [x]
+(defchecked ref-id! [x]
   (check (= :ref/id (:type x))
          (id! (:id x))))
 
-(defn ref-js! [x]
+(defchecked ref-js! [x]
   (check (= :ref/js (:type x))
          (js! (:js x))))
 
-(defn ref! [x]
+(defchecked ref! [x]
   (case (:type x)
-    :ref/id (check (ref-id! x))
-    :ref/js (check (ref-js! x))
+    :ref/id (ref-id! x)
+    :ref/js (ref-js! x)
     (check false)))
 
-(defn tag! [x]
+(defchecked tag! [x]
   (check (= :tag (:type x))
          (id! (:id x))
          (string? (:name x))))
 
-(defn data! [x]
+(defchecked data! [x]
   (cond
-   (= :tag (:type x)) (check (tag! x))
-   (#{:ref/id :ref/js} (:type x)) (check (ref! x))
+   (= :tag (:type x)) (tag! x)
+   (#{:ref/id :ref/js} (:type x)) (ref! x)
    (number? x) true
    (string? x) true
-   (vector? x) (check (every? data! x))
-   (map? x) (check (every? data! (keys x))
-                   (every? data! (vals x)))
+   (vector? x) (every? data! x)
+   (map? x) (and (every? data! (keys x))
+                 (every? data! (vals x)))
    :else (check false)))
 
-(defn constant! [x]
+(defchecked constant! [x]
   (check (= :constant (:type x))
          (data! (:data x))))
 
-(defn call! [x]
+(defchecked call! [x]
   (check (= :call (:type x))
          (ref! (:ref x))
          (sequential? (:args x))
          (every? data! (:args x))))
 
-(defn match-any! [x]
+(defchecked match-any! [x]
   (check (= :match/any (:type x))))
 
-(defn match-bind! [x]
+(defchecked match-bind! [x]
   (check (= :match/bind (:type x))
          (id! (:id x))
          (pattern! (:pattern x))))
 
-(defn pattern! [x]
+(defchecked pattern! [x]
   (cond
-   (= :match/any (:type x)) (check (match-any! x))
-   (= :match/bind (:type x)) (check (match-bind! x))
-   (= :tag (:type x)) (check (tag! x))
-   (#{:ref/id :ref/js} (:type x)) (check (ref! x))
+   (= :match/any (:type x)) (match-any! x)
+   (= :match/bind (:type x)) (match-bind! x)
+   (= :tag (:type x)) (tag! x)
+   (#{:ref/id :ref/js} (:type x)) (ref! x)
    (number? x) true
    (string? x) true
-   (vector? x) (check (every? pattern! x))
-   (map? x) (check (every? data! (keys x))
-                   (every? pattern! (vals x)))
+   (vector? x) (every? pattern! x)
+   (map? x) (and (every? data! (keys x))
+                 (every? pattern! (vals x)))
    :else (check false)))
 
-(defn branch-action! [x]
+(defchecked branch-action! [x]
   (case (:type x)
-    :call (check (call! x))
-    :constant (check (constant! x))
+    :call (call! x)
+    :constant (constant! x)
     (check false)))
 
-(defn branch! [x]
+(defchecked branch! [x]
   (check (= :match/branch (:type x))
          (pattern! (:pattern x))
          (branch-action! (:action x))))
 
-(defn match! [x]
+(defchecked match! [x]
   (check (= :match (:type x))
          (data! (:arg x))
          (sequential? (:branches x))
          (every? branch! (:branches x))))
 
-(defn step! [x]
+(defchecked step! [x]
   (check (id! (:id x)))
   (case (:type x)
-    :call (check (call! x))
-    :constant (check (constant! x))
-    :match (check (match! x))))
+    :call (call! x)
+    :constant (constant! x)
+    :match (match! x)
+    (check false)))
 
-(defn page! [x]
+(defchecked page! [x]
   (check (= :page (:type x))
          (id! (:id x))
          (sequential? (:args x))
@@ -101,7 +102,7 @@
          (sequential? (:steps x))
          (every? step! (:steps x))))
 
-(defn notebook! [x]
+(defchecked notebook! [x]
   (check (= :notebook (:type x))
          (id! (:id x))
          (sequential? (:pages x))
