@@ -1,6 +1,5 @@
 (ns aurora.ast
-  (:require [clojure.walk :refer [postwalk]]
-            aurora.util)
+  (:require aurora.util)
   (:require-macros [aurora.macros :refer [check]]))
 
 (defn id! [x]
@@ -18,10 +17,11 @@
          (js! (:js x))))
 
 (defn ref! [x]
-  (case (:type x)
-    :ref/id (ref-id! x)
-    :ref/js (ref-js! x)
-    false))
+  (check
+   (case (:type x)
+     :ref/id (ref-id! x)
+     :ref/js (ref-js! x)
+     false)))
 
 (defn tag! [x]
   (check (= :tag (:type x))
@@ -42,8 +42,7 @@
     (number? x) true
     (string? x) true
     (vector? x) (every? data! x)
-    (map? x) (and (every? data! (keys x)) (every? data! (vals x)))
-    :else false)))
+    (map? x) (and (every? data! (keys x)) (every? data! (vals x))))))
 
 (defn constant! [x]
   (check (= :constant (:type x))
@@ -67,8 +66,7 @@
     (number? x) true
     (string? x) true
     (vector? x) (every? pattern! x)
-    (map? x) (and (every? data! (keys x)) (every? pattern! (vals x)))
-    :else false)))
+    (map? x) (and (every? data! (keys x)) (every? pattern! (vals x))))))
 
 (defn pattern! [x]
   (check (= :type )))
