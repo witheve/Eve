@@ -17,11 +17,10 @@
          (js! (:js x))))
 
 (defn ref! [x]
-  (check
-   (case (:type x)
-     :ref/id (ref-id! x)
-     :ref/js (ref-js! x)
-     false)))
+  (case (:type x)
+    :ref/id (check (ref-id! x))
+    :ref/js (check (ref-js! x))
+    (check false)))
 
 (defn tag! [x]
   (check (= :tag (:type x))
@@ -35,21 +34,22 @@
          (every? id! (:args x))))
 
 (defn data! [x]
-  (check
-   (cond
-    (= :tag (:type x)) (tag! x)
-    (#{:ref/id :ref/page} (:type x)) (ref! x)
-    (number? x) true
-    (string? x) true
-    (vector? x) (every? data! x)
-    (map? x) (and (every? data! (keys x)) (every? data! (vals x))))))
+  (cond
+   (= :tag (:type x)) (check (tag! x))
+   (#{:ref/id :ref/js} (:type x)) (check (ref! x))
+   (number? x) true
+   (string? x) true
+   (vector? x) (check (every? data! x))
+   (map? x) (check (every? data! (keys x))
+                   (every? data! (vals x)))
+   :else (check false)))
 
 (defn constant! [x]
   (check (= :constant (:type x))
          (data! (:data x))))
 
 (defn match-any! [x]
-  (check (= :match/any) (:type x)))
+  (check (= :match/any (:type x))))
 
 (defn match-bind! [x]
   (check (= :match/bind (:type x))
@@ -57,26 +57,23 @@
          (pattern! (:pattern x))))
 
 (defn pattern! [x]
-  (check
-   (cond
-    (= :match/any (:type x) (match-any! x))
-    (= :match/bind (:type x) (match-bind! x))
-    (= :tag (:type x)) (tag! x)
-    (#{:ref/id :ref/page} (:type x)) (ref! x)
-    (number? x) true
-    (string? x) true
-    (vector? x) (every? pattern! x)
-    (map? x) (and (every? data! (keys x)) (every? pattern! (vals x))))))
-
-(defn pattern! [x]
-  (check (= :type )))
+  (cond
+   (= :match/any (:type x)) (check (match-any! x))
+   (= :match/bind (:type x)) (check (match-bind! x))
+   (= :tag (:type x)) (check (tag! x))
+   (#{:ref/id :ref/js} (:type x)) (check (ref! x))
+   (number? x) true
+   (string? x) true
+   (vector? x) (check (every? pattern! x))
+   (map? x) (check (every? data! (keys x))
+                   (every? pattern! (vals x)))
+   :else (check false)))
 
 (defn action! [x]
-  (check
-   (case (:type x)
-     :call (call! x)
-     :constant (constant! x)
-     false)))
+  (case (:type x)
+    :call (check (call! x))
+    :constant (check (constant! x))
+    (check false)))
 
 (defn branch! [x]
   (check (= :match/branch (:type x))
@@ -90,11 +87,11 @@
          (every? branch! (:branches x))))
 
 (defn step! [x]
-  (check (id! (:id x))
-         (case (:type x)
-           :call (call! x)
-           :constant (constant! x)
-           :match (match! x))))
+  (check (id! (:id x)))
+  (case (:type x)
+    :call (check (call! x))
+    :constant (check (constant! x))
+    :match (check (match! x))))
 
 (defn page! [x]
   (check (= :page (:type x))
