@@ -1,24 +1,19 @@
 (ns aurora.macros
   (require [cljs.core.match.macros :refer [match]]))
 
-(defn quote-except [form env]
-  (clojure.walk/postwalk
-   (fn [x]
-     (cond
-      (symbol? x) (if (= :var (get-in env [:locals x :op])) x `'~x)
-      (seq? x) (cons 'list x)
-      :else x))
-   form))
-
 (defmacro check [& preds]
   `(do
      ~@(for [pred preds]
-         `(when-not
-            (try ~pred
-              (catch aurora.util.FailedCheck e#
-                (throw (aurora.util.FailedCheck. (conj (:stack e#) ~(quote-except pred &env))))))
-            (throw (aurora.util.FailedCheck. [~(quote-except pred &env)]))))
+         `(when-not ~pred
+            (throw (aurora.util.FailedCheck. '~pred ~(:line (meta &form)) ~*file* []))))
      true))
+
+(defmacro defchecked [name args & body]
+  `(defn ~name ~args
+     (try
+       ~@body
+       (catch aurora.util.FailedCheck e#
+         (throw (update-in e# [:trace] conj (list '~name ~@args)))))))
 
 (defmacro with-path [path & body]
   `(binding [aurora.core/*path* (if (coll? ~path)

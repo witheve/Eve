@@ -1,3 +1,3 @@
 (ns aurora.util)
 
-(defrecord FailedCheck [stack])
+(defrecord FailedCheck [message line file trace])
