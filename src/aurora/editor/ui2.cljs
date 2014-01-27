@@ -395,15 +395,9 @@
   (reset! run-stack #js {:calls [(nth (interpreter/run-example interpreter/example-c x) 2)]})
   (queue-render))
 
-(re-run 1)
 
 (defn find-id [thing id]
   (first (filter #(= (aget % "id") id) (aget thing "calls"))))
-
-(-> @run-stack
-    (aget "calls")
-    (aget 0)
-    (aget "id"))
 
 (defn traverse-path [stack path]
   (loop [stack stack
@@ -448,7 +442,8 @@
 (add-watch aurora-state :foo (fn [_ _ _ cur]
                                (queue-render)))
 
-(queue-render)
+(re-run 1)
+
 
 
 
