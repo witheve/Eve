@@ -218,13 +218,21 @@
    (steps-workspace (current :page))
    (step-canvas (current :step) (:step @aurora-state))])
 
+(defdom new-step-helper []
+  [:div
+   [:p "Let's create some data to get started!"]
+   ])
+
 (defdom step-canvas [step path]
-  [:div {:className (str "step-canvas")}
-   (step-description step path)
-   [:div {:className "result"}
-    (item-ui
-     (path->result path))]
-        ])
+    [:div {:className (str "step-canvas")}
+     (when-not step
+       (new-step-helper))
+     (when step
+       (step-description step path)
+       [:div {:className "result"}
+        (item-ui
+         (path->result path))])
+     ])
 
 ;;*********************************************************
 ;; nav

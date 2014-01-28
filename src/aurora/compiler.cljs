@@ -3,11 +3,10 @@
             [aurora.interpreter :as i]))
 
 ;; compiler
-
 (let [next (atom 0)]
   (defn new-id []
     (if js/window.uuid
-      (js/uuid)
+      (.replace (js/uuid) (js/RegExp. "-" "gi") "_")
       (swap! next inc))))
 
 (defn id->value [id]
