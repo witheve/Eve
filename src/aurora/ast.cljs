@@ -15,7 +15,6 @@
 (deftraced ref-js! [index x] [x]
   (check (= :ref/js (:type x))
          (js! index (:js x))))
-
 (deftraced ref! [index x] [x]
   (case (:type x)
     :ref/id (ref-id! index x)
@@ -42,11 +41,18 @@
   (check (= :constant (:type x))
          (data! index (:data x))))
 
+(deftraced js-data! [index x] [x]
+  (cond
+   (nil? x) true
+   :else (data! index x)))
+
 (deftraced call! [index x] [x]
   (check (= :call (:type x))
          (ref! index (:ref x))
          (sequential? (:args x))
-         (every? #(data! index %) (:args x))))
+         (case (:type (:ref x))
+           :ref/id (every? #(data! index %) (:args x))
+           :ref/js (every? #(js-data! index %) (:args x))))) ;; we allow nil when calling cljs stuff
 
 (deftraced match-any! [index x] [x]
   (check (= :match/any (:type x))))
@@ -61,7 +67,8 @@
    (= :match/any (:type x)) (match-any! index x)
    (= :match/bind (:type x)) (match-bind! index x)
    (= :tag (:type x)) (tag! index x)
-   (#{:ref/id :ref/js} (:type x)) (ref! index x)
+   (= :ref/id (:type x)) (ref! index x)
+   (= :call (:type x)) (call! index x)
    (number? x) true
    (string? x) true
    (vector? x) (every? #(pattern! index %) x)
@@ -78,6 +85,8 @@
 (deftraced branch! [index x] [x]
   (check (= :match/branch (:type x))
          (pattern! index (:pattern x))
+         (sequential? (:guards x))
+         (every? #(call! index %) (:guards x))
          (branch-action! index (:action x))))
 
 (deftraced match! [index x] [x]
@@ -143,13 +152,20 @@
              :type :match
              :arg {:type :ref/id :id "x"}
              :branches [{:type :match/branch
-                         :pattern {"a" {:type :match/bind :id "a" :pattern {:type :ref/js :js "cljs.core.number_QMARK_"}}
-                                   "b" {:type :match/bind :id "b" :pattern {:type :ref/js :js "cljs.core.number_QMARK_"}}}
+                         :pattern {"a" {:type :match/bind :id "a" :pattern {:type :match/any}}
+                                   "b" {:type :match/bind :id "b" :pattern {:type :match/any}}}
+                         :guards [{:type :call
+                                   :ref {:type :ref/js :js "cljs.core.number_QMARK_"}
+                                   :args [nil {:type :ref/id :id "b"}]}
+                                  {:type :call
+                                   :ref {:type :ref/js :js "cljs.core.number_QMARK_"}
+                                   :args [nil {:type :ref/id :id "b"}]}]
                          :action {:type :call
                                   :ref {:type :ref/js :js "cljs.core._"}
                                   :args [{:type :ref/id :id "a"} {:type :ref/id :id "b"}]}}
                         {:type :match/branch
                          :pattern [{:type :match/bind :id "y" :pattern {:type :match/any}} "foo"]
+                         :guards []
                          :action {:type :constant
                                   :data {:type :ref/id
                                          :id "y"}}}]}})

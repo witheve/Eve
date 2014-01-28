@@ -42,7 +42,7 @@
                        (str (expression->string (nth x 1)) " === " (expression->string (nth x 2))))
    (= "not" (head x)) (do (check (= (count x) 2))
                         (str "!(" (expression->string (nth x 1)) ")"))
-   (= "ife" (head x)) (do (check (= 3 (count x)))
+   (= "?" (head x)) (do (check (= 4 (count x)))
                         (str "(" (expression->string (nth x 1)) ") ? (" (expression->string (nth x 2))) ") : (" (expression->string (nth x 3) ")"))
    (= "fn" (head x)) (do (check (= (count x) 5)
                                 (vector? (nth x 2)))
