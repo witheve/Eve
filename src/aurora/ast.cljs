@@ -96,6 +96,7 @@
          (every? #(branch! index %) (:branches x))))
 
 (deftraced step! [index x] [x]
+  (check (id! index (:id x)))
   (case (:type x)
     :call (call! index x)
     :constant (constant! index x)
@@ -107,6 +108,7 @@
 
 (deftraced page! [index x] [x]
   (check (= :page (:type x))
+         (id! index (:id x))
          (sequential? (:args x))
          (every? #(page-arg! index (get index %)) (:args x))
          (sequential? (:steps x))
@@ -114,6 +116,7 @@
 
 (deftraced notebook! [index x] [x]
   (check (= :notebook (:type x))
+         (id! index (:id x))
          (sequential? (:pages x))
          (every? #(page! index (get index %)) (:pages x))))
 
@@ -121,21 +124,27 @@
 
 (def example-a
   {"example_a" {:type :notebook
+                :id "example_a"
                 :pages ["root"]}
    "root" {:type :page
+           :id "root"
            :args ["a" "b" "c"]
            :steps ["b_squared" "four" "four_a_c" "result"]}
    "b_squared" {:type :call
+                :id "b_squared"
                 :ref {:type :ref/js
                       :js "cljs.core._STAR_"}
                 :args [{:type :ref/id :id "b"} {:type :ref/id :id "b"}]}
    "four" {:type :constant
+           :id "four"
            :data 4}
    "four_a_c" {:type :call
+               :id "four_a_c"
                :ref {:type :ref/js
                      :js "cljs.core._STAR_"}
                :args [{:type :ref/id :id "four"} {:type :ref/id :id "a"} {:type :ref/id :id "c"}]}
    "result" {:type :call
+             :id "result"
              :ref {:type :ref/js
                    :js "cljs.core._"}
              :args [{:type :ref/id :id "b_squared"} {:type :ref/id :id "four_a_c"}]}})
@@ -144,8 +153,10 @@
 
 (def example-b
   {"example_b" {:type :notebook
+                :id "example_b"
                :pages ["root"]}
    "root" {:type :page
+           :id "root"
            :args ["x"]
            :steps ["result"]}
    "result" {:id "result"
