@@ -226,19 +226,21 @@
 (defn tick-example [example state]
   (second (run-example example state)))
 
-(run-example i/example-b {"a" 1 "b" 2})
-(run-example i/example-b {"a" 1 "c" 2})
-(run-example i/example-b {"a" 1 "b" "foo"})
-(run-example i/example-b [1 "foo"])
-(run-example i/example-b [1 2])
+(comment
 
-(run-example i/example-c 0)
-(run-example i/example-c 1)
-(run-example i/example-c 7)
-(run-example i/example-c 10)
+  (run-example i/example-b {"a" 1 "b" 2})
+  (run-example i/example-b {"a" 1 "c" 2})
+  (run-example i/example-b {"a" 1 "b" "foo"})
+  (run-example i/example-b [1 "foo"])
+  (run-example i/example-b [1 2])
 
-(run-example i/example-d {"counter" 0})
+  (run-example i/example-c 0)
+  (run-example i/example-c 1)
+  (run-example i/example-c 7)
+  (run-example i/example-c 10)
 
-(run-example i/example-e {"counter" 0 "started_" "false"})
+  (run-example i/example-d {"counter" 0})
 
-(println (program->js i/example-b))
+  (run-example i/example-e {"counter" 0 "started_" "false"})
+
+  (println (program->js i/example-b)))

@@ -11,7 +11,7 @@
 ;; utils
 ;;*********************************************************
 
-(js/React.initializeTouchEvents true)
+;(js/React.initializeTouchEvents true)
 
 (defn now []
   (.getTime (js/Date.)))
@@ -274,10 +274,21 @@
    (each [[name notebook] (:notebooks aurora)]
          (let [click (fn []
                        (swap! aurora-state assoc :notebook name :screen :pages))]
-           [:li {:className "program-item"
-                 :onTouchStart click
-                 :onClick click}
-            (:desc notebook)]))
+           (if (input? (:id notebook))
+             [:li {:className "program-item"}
+              [:input {:type "text" :defaultValue (:desc notebook)
+                       :onKeyPress (fn [e]
+                                     (when (= 13 (.-charCode e))
+                                       (remove-input! (:id notebook))
+                                       (swap! aurora-state assoc-in [:notebooks (:id notebook) :desc] (.-target.value e))
+                                       ))}]]
+             [:li {:className "program-item"
+                   :onContextMenu (fn [e]
+                                    (add-input! (:id notebook) :desc)
+                                    (.preventDefault e))
+                   :onTouchStart click
+                   :onClick click}
+              (:desc notebook)])))
    [:li {:className "program-item"
          :onClick click-add-notebook} "Add notebook"]])
 
@@ -291,15 +302,27 @@
 
 (defdom pages-list [notebook]
   [:ul {:className "pages"}
-   (each [[name man] (filter #(get (-> % second :tags) :page) (:pages notebook))]
+   (each [[name page] (filter #(get (-> % second :tags) :page) (:pages notebook))]
          (let [click (fn []
                        (swap! aurora-state assoc :page name :screen :editor :step [{:notebook (:notebook @aurora-state)
                                                                                     :page name
                                                                                     :step 0}]))]
-           [:li {:className "page"
-                 :onClick click
-                 :onTouchStart click}
-            (:desc man)]))
+
+           (if (input? (:id page))
+             [:li {:className "page"}
+              [:input {:type "text" :defaultValue (:desc page)
+                       :onKeyPress (fn [e]
+                                     (when (= 13 (.-charCode e))
+                                       (remove-input! (:id page))
+                                       (swap! aurora-state assoc-in [:notebooks (:id notebook) :pages (:id page) :desc] (.-target.value e))
+                                       ))}]]
+             [:li {:className "page"
+                   :onContextMenu (fn [e]
+                                    (add-input! (:id page) :desc)
+                                    (.preventDefault e))
+                   :onClick click
+                   :onTouchStart click}
+              (:desc page)])))
    [:li {:className "page"
          :onClick #(click-add-page % notebook)} "Add page"]])
 
@@ -311,6 +334,7 @@
   [:div
    (nav)
    [:div {:id "content"}
+
     (condp = (:screen @aurora-state)
       :notebooks (notebooks-list @aurora-state)
       :pages (pages-list (-> @aurora-state :notebooks (get (:notebook @aurora-state))))
@@ -397,6 +421,9 @@
       :page (get-in @aurora-state [:notebooks (:notebook @aurora-state) :pages v])
       :step (path->step v))))
 
+(defn input? [id]
+  (get-in @aurora-state [:cache :inputs id]))
+
 
 ;;*********************************************************
 ;; Aurora state (mutation!)
@@ -405,6 +432,9 @@
 (defn add-input! [id path]
   (swap! aurora-state assoc-in [:cache :inputs id] path))
 
+(defn remove-input! [id]
+  (swap! aurora-state update-in [:cache :inputs] dissoc id))
+
 (defn add-notebook! [desc]
   (let [notebook {:type :notebook
                   :id (compiler/new-id)
@@ -412,6 +442,7 @@
                   :pages {}}]
     (when (ast/notebook! notebook)
       (swap! aurora-state update-in [:notebooks] assoc (:id notebook) notebook)
+      (add-input! (:id notebook) :desc)
       notebook)))
 
 (defn add-page! [notebook-id desc]
