@@ -4,8 +4,11 @@
 
 ;; compiler
 
-(defn new-id []
-  (js/uuid))
+(let [next (atom 0)]
+  (defn new-id []
+    (if (aget js/window "uuid")
+      (js/uuid)
+      (swap! next inc))))
 
 (defn id->value [id]
   (symbol (str "value_" id)))
