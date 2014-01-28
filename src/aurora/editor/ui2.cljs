@@ -450,6 +450,9 @@
       (reset! aurora-state (thaw stored))
       (reset! aurora-state (thaw default-state)))))
 
+(defn clear-storage! []
+  (aset js/localStorage "aurora-state" nil))
+
 (add-watch aurora-state :storage (fn [_ _ _ cur]
                                    (store! cur)))
 
