@@ -402,6 +402,9 @@
 ;; Aurora state (mutation!)
 ;;*********************************************************
 
+(defn add-input! [id path]
+  (swap! aurora-state assoc-in [:cache :inputs id] path))
+
 (defn add-notebook! [desc]
   (let [notebook {:type :notebook
                   :id (compiler/new-id)
@@ -412,7 +415,6 @@
       notebook)))
 
 (defn add-page! [notebook-id desc]
-  (println "adding page! ")
   (let [page {:type :page
               :id (compiler/new-id)
               :tags #{:page}
@@ -422,6 +424,8 @@
     (when (ast/page! page)
       (swap! aurora-state update-in [:notebooks notebook-id :pages] assoc (:id page) page)
       page)))
+
+(defn add-step! [notebook-id page-id info])
 
 ;;*********************************************************
 ;; Aurora state (storage!)
@@ -455,8 +459,6 @@
 
 (add-watch aurora-state :storage (fn [_ _ _ cur]
                                    (store! cur)))
-
-(repopulate)
 
 ;;*********************************************************
 ;; running (this shouldn't be part of the UI eventually)
@@ -511,7 +513,10 @@
 (add-watch aurora-state :foo (fn [_ _ _ cur]
                                (queue-render)))
 
-(re-run 1)
+;;*********************************************************
+;; Go!
+;;*********************************************************
 
+(repopulate)
 
 
