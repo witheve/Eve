@@ -8,12 +8,12 @@
             (throw (aurora.util.FailedCheck. '~pred ~(:line (meta &form)) ~*file* []))))
      true))
 
-(defmacro defchecked [name args & body]
+(defmacro deftraced [name args traced-args & body]
   `(defn ~name ~args
      (try
        ~@body
        (catch aurora.util.FailedCheck e#
-         (throw (update-in e# [:trace] conj (list '~name ~@args)))))))
+         (throw (update-in e# [:trace] conj (list '~name ~@traced-args)))))))
 
 (defmacro with-path [path & body]
   `(binding [aurora.core/*path* (if (coll? ~path)

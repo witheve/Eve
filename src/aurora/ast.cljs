@@ -1,33 +1,33 @@
 (ns aurora.ast
   (:require aurora.util)
-  (:require-macros [aurora.macros :refer [check defchecked]]))
+  (:require-macros [aurora.macros :refer [check deftraced]]))
 
-(defchecked id! [index] [x]
+(deftraced id! [index x] [x]
   (check (string? x)))
 
-(defchecked js! [index] [x]
+(deftraced js! [index x] [x]
   (check (string? x)))
 
-(defchecked ref-id! [index] [x]
+(deftraced ref-id! [index x] [x]
   (check (= :ref/id (:type x))
          (id! index (:id x))))
 
-(defchecked ref-js! [index] [x]
+(deftraced ref-js! [index x] [x]
   (check (= :ref/js (:type x))
          (js! index (:js x))))
 
-(defchecked ref! [index] [x]
+(deftraced ref! [index x] [x]
   (case (:type x)
     :ref/id (ref-id! index x)
     :ref/js (ref-js! index x)
     (check false)))
 
-(defchecked tag! [index] [x]
+(deftraced tag! [index x] [x]
   (check (= :tag (:type x))
          (id! index (:id x))
          (string? (:name x))))
 
-(defchecked data! [index] [x]
+(deftraced data! [index x] [x]
   (cond
    (= :tag (:type x)) (tag! index x)
    (#{:ref/id :ref/js} (:type x)) (ref! index x)
@@ -38,25 +38,25 @@
                  (every? #(data! index %) (vals x)))
    :else (check false)))
 
-(defchecked constant! [index] [x]
+(deftraced constant! [index x] [x]
   (check (= :constant (:type x))
          (data! index (:data x))))
 
-(defchecked call! [index] [x]
+(deftraced call! [index x] [x]
   (check (= :call (:type x))
          (ref! index (:ref x))
          (sequential? (:args x))
          (every? #(data! index %) (:args x))))
 
-(defchecked match-any! [index] [x]
+(deftraced match-any! [index x] [x]
   (check (= :match/any (:type x))))
 
-(defchecked match-bind! [index] [x]
+(deftraced match-bind! [index x] [x]
   (check (= :match/bind (:type x))
          (id! index (:id x))
          (pattern! index (:pattern x))))
 
-(defchecked pattern! [index] [x]
+(deftraced pattern! [index x] [x]
   (cond
    (= :match/any (:type x)) (match-any! index x)
    (= :match/bind (:type x)) (match-bind! index x)
@@ -69,41 +69,41 @@
                  (every? #(pattern! index %) (vals x)))
    :else (check false)))
 
-(defchecked branch-action! [index] [x]
+(deftraced branch-action! [index x] [x]
   (case (:type x)
     :call (call! index x)
     :constant (constant! index x)
     (check false)))
 
-(defchecked branch! [index] [x]
+(deftraced branch! [index x] [x]
   (check (= :match/branch (:type x))
          (pattern! index (:pattern x))
          (branch-action! index (:action x))))
 
-(defchecked match! [index] [x]
+(deftraced match! [index x] [x]
   (check (= :match (:type x))
          (data! index (:arg x))
          (sequential? (:branches x))
          (every? #(branch! index %) (:branches x))))
 
-(defchecked step! [index] [x]
+(deftraced step! [index x] [x]
   (case (:type x)
     :call (call! index x)
     :constant (constant! index x)
     :match (match! index x)
     (check false)))
 
-(defchecked page-arg! [index] [x]
+(deftraced page-arg! [index x] [x]
   (check))
 
-(defchecked page! [index] [x]
+(deftraced page! [index x] [x]
   (check (= :page (:type x))
          (sequential? (:args x))
          (every? #(page-arg! index (get index %)) (:args x))
          (sequential? (:steps x))
          (every? #(step! index (get index %)) (:steps x))))
 
-(defchecked notebook! [index] [x]
+(deftraced notebook! [index x] [x]
   (check (= :notebook (:type x))
          (sequential? (:pages x))
          (every? #(page! index (get index %)) (:pages x))))

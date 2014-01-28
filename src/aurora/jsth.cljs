@@ -1,15 +1,15 @@
 (ns aurora.jsth
   (:require [clojure.string :refer [join split-lines]]
             aurora.util)
-  (:require-macros [aurora.macros :refer [check defchecked]]))
+  (:require-macros [aurora.macros :refer [check deftraced]]))
 
-(defn head [x]
+(defn head [x] [x]
   (try (name (first x)) (catch :default _ nil)))
 
 (defn indent [lines]
   (join "\n" (for [line (split-lines lines)] (str "  " line))))
 
-(defchecked js-data->string [x]
+(deftraced data->string [x] [x]
    (cond
     (nil? x) "null"
     (number? x) (str x)
@@ -19,20 +19,11 @@
                (str "{" "}"))
     :else (check false)))
 
-(defchecked cljs-data->string [x]
-   (cond
-    (nil? x) "null"
-    (number? x) (str x)
-    (string? x) (pr-str x)
-    (vector? x) (expression->string `(cljs.core.PersistentVector.fromArray ~x))
-    (map? x) (expression->string `(cljs.core.PersistentHashMap.fromArrays ~(vec (keys x)) ~(vec (vals x))))
-    :else (check false)))
-
-(defchecked name->string [x]
+(deftraced name->string [x] [x]
   (check (symbol? x))
   (name x))
 
-(defchecked var->string [x]
+(deftraced var->string [x] [x]
    (cond
     (symbol? x) (name->string x)
     (= "get!" (head x)) (do (check (= (count x) 3))
@@ -41,18 +32,18 @@
                         (str (expression->string (nth x 1)) "." (name->string (nth x 2))))
     :else (check false)))
 
-(defchecked expression->string [x]
+(deftraced expression->string [x] [x]
   (cond
    (or (symbol? x) (#{"get!" ".."} (head x))) (var->string x)
-   (or (nil? x) (number? x) (string? x) (vector? x) (map? x)) (js-data->string x)
-   (= "edn" (head x)) (do (check (= (count x) 2))
-                        (cljs-data->string (nth x 1)))
+   (or (nil? x) (number? x) (string? x) (vector? x) (map? x)) (data->string x)
    (= "=" (head x)) (do (check (= (count x) 3))
                       (str (expression->string (nth x 1)) " == " (expression->string (nth x 2))))
    (= "==" (head x)) (do (check (= (count x) 3))
                        (str (expression->string (nth x 1)) " === " (expression->string (nth x 2))))
    (= "not" (head x)) (do (check (= (count x) 2))
                         (str "!(" (expression->string (nth x 1)) ")"))
+   (= "ife" (head x)) (do (check (= 3 (count x)))
+                        (str "(" (expression->string (nth x 1)) ") ? (" (expression->string (nth x 2))) ") : (" (expression->string (nth x 3) ")"))
    (= "fn" (head x)) (do (check (= (count x) 5)
                                 (vector? (nth x 2)))
                        (str "function " (when (nth x 1) (name->string (nth x 1))) "(" (join ", " (map name->string (nth x 2))) ") {\n"
@@ -67,7 +58,7 @@
                   (str f "(" (join ", " args) ")"))))
    :else (check false)))
 
-(defchecked statement->string [x]
+(deftraced statement->string [x] [x]
   (cond
    (= "do" (head x)) (join "\n" (map statement->string (rest x)))
    (= "if" (head x)) (do (check (#{3 4} (count x)))
