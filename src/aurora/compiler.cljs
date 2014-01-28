@@ -6,7 +6,7 @@
 
 (let [next (atom 0)]
   (defn new-id []
-    (if (aget js/window "uuid")
+    (if js/window.uuid
       (js/uuid)
       (swap! next inc))))
 
