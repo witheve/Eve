@@ -1,7 +1,9 @@
 (ns aurora.editor.ui2
   (:require [aurora.core :as core]
             [aurora.compiler :as compiler]
-            [aurora.interpreter :as interpreter])
+            [aurora.ast :as ast]
+            [aurora.interpreter :as interpreter]
+            [cljs.reader :as reader])
   (:require-macros [aurora.macros :refer [defdom dom]]))
 
 
@@ -183,7 +185,7 @@
 (defn item-ui [x]
   (if (= (:type x) :ref)
     (ref->name x)
-    (let [value (or (:value x) (-> x :node :value))
+    (let [value (or (:value x) (-> x :node :value) x)
           name (datatype-name value)]
       (if-let [rep (get-in @aurora-state [:representation-cache name])]
         (rep value)
@@ -220,7 +222,8 @@
   [:div {:className (str "step-canvas")}
    (step-description step path)
    [:div {:className "result"}
-    (path->result path)]
+    (item-ui
+     (path->result path))]
         ])
 
 ;;*********************************************************
@@ -263,24 +266,32 @@
 ;; Notebooks
 ;;*********************************************************
 
-(defdom notebooks-list [editor]
+(defn click-add-notebook [e]
+  (add-notebook! "untitled notebook"))
+
+(defdom notebooks-list [aurora]
   [:ul {:className "programs"}
-   (each [[name program] (:notebooks editor)]
+   (each [[name notebook] (:notebooks aurora)]
          (let [click (fn []
-                       (swap! aurora-state assoc :notebook name :screen :pages)
-                       (println "clicked!" name))]
+                       (swap! aurora-state assoc :notebook name :screen :pages))]
            [:li {:className "program-item"
                  :onTouchStart click
                  :onClick click}
-            (:desc program)]))])
+            (:desc notebook)]))
+   [:li {:className "program-item"
+         :onClick click-add-notebook} "Add notebook"]])
 
 ;;*********************************************************
 ;; Pages
 ;;*********************************************************
 
-(defdom pages-list [prog]
+
+(defn click-add-page [e notebook]
+  (add-page! (:id notebook) "untitled page"))
+
+(defdom pages-list [notebook]
   [:ul {:className "pages"}
-   (each [[name man] (filter #(get (-> % second :tags) :page) (:pages prog))]
+   (each [[name man] (filter #(get (-> % second :tags) :page) (:pages notebook))]
          (let [click (fn []
                        (swap! aurora-state assoc :page name :screen :editor :step [{:notebook (:notebook @aurora-state)
                                                                                     :page name
@@ -288,7 +299,9 @@
            [:li {:className "page"
                  :onClick click
                  :onTouchStart click}
-            (:desc man)]))])
+            (:desc man)]))
+   [:li {:className "page"
+         :onClick #(click-add-page % notebook)} "Add page"]])
 
 ;;*********************************************************
 ;; Aurora ui
@@ -334,42 +347,42 @@
                 (pr-str x)]
    :else [:span (pr-str x)]))
 
+(defn build-rep-cache [state]
+  (assoc-in state [:cache :representations]
+            {"math" math-ui
+             "rect" (fn [x]
+                      )
+             "boolean" (fn [x]
+                         (println "bool!")
+                         (dom [:span {:className "value"}
+                               (str x)]))
+             "number" (fn [x]
+                        (dom [:span {:className "value"}
+                              (str x)]))
+             "string" (fn [x]
+                        (dom [:span {:className "value"}
+                              (str x)]))
+             "list" (fn [x]
+                      (list-ui x))
+             "table" (fn [x]
+                       (table-ui
+                        (-> x :args first :data :value)
+                        (-> x :args second :data :value)))}))
+
 ;;*********************************************************
 ;; Aurora state
 ;;*********************************************************
 
-(def aurora-state (atom {:notebook nil
-                         :page nil
-                         :step []
-                         :screen :notebooks
-                         :steps true
-                         :document true
-                         :open-paths {}
-                         :representation-cache {"math" math-ui
-                                                "rect" (fn [x]
-                                                         )
-                                                "boolean" (fn [x]
-                                                            (dom [:span {:className "value"}
-                                                                  (str x)]))
-                                                "number" (fn [x]
-                                                           (dom [:span {:className "value"}
-                                                                 (str x)]))
-                                                "string" (fn [x]
-                                                           (dom [:span {:className "value"}
-                                                                 (str x)]))
-                                                "list" (fn [x]
-                                                         (list-ui x))
-                                                "table" (fn [x]
-                                                          (table-ui
-                                                           (-> x :args first :data :value)
-                                                           (-> x :args second :data :value)))}
-                         :notebooks {"program1" {:desc "Demos"
-                                                :pages interpreter/example-c-mappified}
-                                    "aurora.math" {:desc "Math"
-                                                   :pages {"even" {:desc "is even?"}}}
-                                    "aurora.core" {:desc "Core"
-                                                   :pages {"each" {:desc "For each of "}}}}}))
-
+(def aurora-state (atom nil))
+(def default-state {:notebook nil
+                    :page nil
+                    :step []
+                    :screen :notebooks
+                    :steps true
+                    :document true
+                    :open-paths {}
+                    :cache {}
+                    :notebooks {}})
 
 (defn path->step [path]
   (let [{:keys [notebook page step]} (last path)]
@@ -384,6 +397,63 @@
       :page (get-in @aurora-state [:notebooks (:notebook @aurora-state) :pages v])
       :step (path->step v))))
 
+
+;;*********************************************************
+;; Aurora state (mutation!)
+;;*********************************************************
+
+(defn add-notebook! [desc]
+  (let [notebook {:type :notebook
+                  :id (compiler/new-id)
+                  :desc desc
+                  :pages {}}]
+    (when (ast/notebook! notebook)
+      (swap! aurora-state update-in [:notebooks] assoc (:id notebook) notebook)
+      notebook)))
+
+(defn add-page! [notebook-id desc]
+  (println "adding page! ")
+  (let [page {:type :page
+              :id (compiler/new-id)
+              :tags #{:page}
+              :args []
+              :desc desc
+              :steps {}}]
+    (when (ast/page! page)
+      (swap! aurora-state update-in [:notebooks notebook-id :pages] assoc (:id page) page)
+      page)))
+
+;;*********************************************************
+;; Aurora state (storage!)
+;;*********************************************************
+
+(defn freeze [state]
+  (-> state
+      (dissoc :cache)
+      (pr-str)))
+
+(defn store! [state]
+  (aset js/localStorage "aurora-state" (freeze state)))
+
+(defn thaw [state]
+  (let [state (if (string? state)
+                (reader/read-string state)
+                state)]
+    (-> state
+        (build-rep-cache))))
+
+(defn repopulate []
+  (let [stored (aget js/localStorage "aurora-state")]
+    (if (and stored
+             (not= "null" stored)
+             (not= stored ""))
+      (reset! aurora-state (thaw stored))
+      (reset! aurora-state (thaw default-state)))))
+
+(add-watch aurora-state :storage (fn [_ _ _ cur]
+                                   (store! cur)))
+
+(repopulate)
 
 ;;*********************************************************
 ;; running (this shouldn't be part of the UI eventually)
@@ -402,21 +472,17 @@
 (defn traverse-path [stack path]
   (loop [stack stack
          path path]
-    (println stack path)
     (when stack
       (if-not path
         stack
         (recur (find-id stack (-> path first :page)) (next path))))))
 
 (defn path->result [path]
-  (println "path: " path)
   (when-let [frame (traverse-path @run-stack path)]
-    (println "Got a frame!" (aget frame "id"))
     (-> frame
         (aget "vars")
         (aget (-> path last :step-var))
-        (:value)
-        (pr-str))))
+        (:value))))
 
 
 ;;*********************************************************
@@ -443,7 +509,6 @@
                                (queue-render)))
 
 (re-run 1)
-
 
 
 
