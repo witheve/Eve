@@ -14,9 +14,9 @@
     (nil? x) "null"
     (number? x) (str x)
     (string? x) (pr-str x)
-    (vector? x) (str "[" (join ", " (map js-data->string x)) "]")
-    (map? x) (check (empty? x) ;; TODO emit objects
-                    (str "{" "}"))
+    (vector? x) (str "[" (join ", " (map expression->string x)) "]")
+    (map? x) (do (check (empty? x)) ;; TODO emit objects
+               (str "{" "}"))
     :else (check false)))
 
 (defchecked cljs-data->string [x]
@@ -24,8 +24,8 @@
     (nil? x) "null"
     (number? x) (str x)
     (string? x) (pr-str x)
-    (vector? x) (expression->string `(cljs.core.PersistentVector.fromArray ~data))
-    (map? x) (expression->string `(cljs.core.PersistentHashMap.fromArrays ~(vec (keys data)) ~(vec (vals data))))
+    (vector? x) (expression->string `(cljs.core.PersistentVector.fromArray ~x))
+    (map? x) (expression->string `(cljs.core.PersistentHashMap.fromArrays ~(vec (keys x)) ~(vec (vals x))))
     :else (check false)))
 
 (defchecked name->string [x]
@@ -60,7 +60,11 @@
                             (indent (str "return " (expression->string (nth x 4)) ";")) "\n"
                             "}"))
    (seq? x) (do (check (>= (count x) 1))
-              (str (expression->string (nth x 0)) "(" (join ", " (map expression->string (rest x))) ")"))
+              (let [f (expression->string (nth x 0))
+                    args (map expression->string (rest x))]
+                (if (= "cljs" (.substring f 0 4)) ;; TODO remove
+                  (str (-> f (.replace "-" "_") (.replace "?" "_QMARK_")) ".call(null, " (join ", " args) ")")
+                  (str f "(" (join ", " args) ")"))))
    :else (check false)))
 
 (defchecked statement->string [x]
