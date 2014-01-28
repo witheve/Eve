@@ -68,7 +68,7 @@ a img { border: none; }
 html, body { height:100%; overflow:none; }
 body { background: #fff; color: #333; font-family: "Nunito"; font-weight:300; font-size: 10pt; padding:0px 0px; }
 ul { list-style:none; }
-input { border:none; background:transparent; font-family: "Avenir"; color: #ccc; font-size:12pt; }
+input { border:none; background:transparent; font-family: "Avenir"; color: #555; font-size:12pt; }
 button { background:white; border:none; border-radius:3px; color:#333; padding:5px 10px; }
 button:hover { background:#eee; }
 
@@ -89,6 +89,7 @@ button:hover { background:#eee; }
 
 .programs { margin-top:50px; margin-left:150px; width:30%; }
 .programs .program-item { cursor:default; background:white; padding:8px; border:1px solid transparent; }
+.programs .program-item input { width:100%; }
 .programs .program-item:hover { border-color:#ccc; }
 .programs .program-item + .program-item { margin-top:3px; }
 

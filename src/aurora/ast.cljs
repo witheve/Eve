@@ -5,6 +5,9 @@
 (defchecked id! [x]
   (check (string? x)))
 
+(defchecked order! [x]
+  (check (number? x)))
+
 (defchecked js! [x]
   (check (string? x)))
 
@@ -87,7 +90,8 @@
          (every? branch! (:branches x))))
 
 (defchecked step! [x]
-  (check (id! (:id x)))
+  (check (id! (:id x))
+         (order! (:order x)))
   (case (:type x)
     :call (call! x)
     :constant (constant! x)
@@ -99,63 +103,70 @@
          (id! (:id x))
          (sequential? (:args x))
          (every? id! (:args x))
-         (sequential? (:steps x))
-         (every? step! (:steps x))))
+         (map? (:steps x))
+         (every? step! (vals (:steps x)))))
 
 (defchecked notebook! [x]
   (check (= :notebook (:type x))
          (id! (:id x))
-         (sequential? (:pages x))
-         (every? page! (:pages x))))
+         (map? (:pages x))
+         (every? page! (vals (:pages x)))))
 
 ;; examples
 
 (def example-a
   {:type :notebook
    :id "example_a"
-   :pages [{:type :page
-            :id "root"
-            :args ["a" "b" "c"]
-            :steps [{:id "b_squared"
-                     :type :call
-                     :ref {:type :ref/js
-                           :js "cljs.core._STAR_"}
-                     :args [{:type :ref/id :id "b"} {:type :ref/id :id "b"}]}
-                    {:id "four"
-                     :type :constant
-                     :data 4}
-                    {:id "four_a_c"
-                     :type :call
-                     :ref {:type :ref/js
-                           :js "cljs.core._STAR_"}
-                     :args [{:type :ref/id :id "four"} {:type :ref/id :id "a"} {:type :ref/id :id "c"}]}
-                    {:id "result"
-                     :type :call
-                     :ref {:type :ref/js
-                           :js "cljs.core._"}
-                     :args [{:type :ref/id :id "b_squared"} {:type :ref/id :id "four_a_c"}]}]}]})
+   :pages {"root" {:type :page
+                   :order 0
+                   :id "root"
+                   :args ["a" "b" "c"]
+                   :steps {"b_squared" {:id "b_squared"
+                                        :type :call
+                                        :order 0
+                                        :ref {:type :ref/js
+                                              :js "cljs.core._STAR_"}
+                                        :args [{:type :ref/id :id "b"} {:type :ref/id :id "b"}]}
+                           "four" {:id "four"
+                                   :order 1
+                                   :type :constant
+                                   :data 4}
+                           "four_a_c" {:id "four_a_c"
+                                       :order 2
+                                       :type :call
+                                       :ref {:type :ref/js
+                                             :js "cljs.core._STAR_"}
+                                       :args [{:type :ref/id :id "four"} {:type :ref/id :id "a"} {:type :ref/id :id "c"}]}
+                           "result" {:id "result"
+                                     :order 3
+                                     :type :call
+                                     :ref {:type :ref/js
+                                           :js "cljs.core._"}
+                                     :args [{:type :ref/id :id "b_squared"} {:type :ref/id :id "four_a_c"}]}}}}})
 
 (notebook! example-a)
 
 (def example-b
   {:type :notebook
    :id "example_b"
-   :pages [{:type :page
-            :id "root"
-            :args ["x"]
-            :steps [{:id "result"
-                     :type :match
-                     :arg {:type :ref/id :id "x"}
-                     :branches [{:type :match/branch
-                                 :pattern {"a" {:type :match/bind :id "a" :pattern {:type :ref/js :js "cljs.core.number_QMARK_"}}
-                                           "b" {:type :match/bind :id "b" :pattern {:type :ref/js :js "cljs.core.number_QMARK_"}}}
-                                 :action {:type :call
-                                          :ref {:type :ref/js :js "cljs.core._"}
-                                          :args [{:type :ref/id :id "a"} {:type :ref/id :id "b"}]}}
-                                {:type :match/branch
-                                 :pattern [{:type :match/bind :id "y" :pattern {:type :match/any}} "foo"]
-                                 :action {:type :constant
-                                          :data {:type :ref/id
-                                                 :id "y"}}}]}]}]})
+   :pages {"root" {:type :page
+                   :id "root"
+                   :order 1
+                   :args ["x"]
+                   :steps {"result" {:id "result"
+                                     :type :match
+                                     :order 0
+                                     :arg {:type :ref/id :id "x"}
+                                     :branches [{:type :match/branch
+                                                 :pattern {"a" {:type :match/bind :id "a" :pattern {:type :ref/js :js "cljs.core.number_QMARK_"}}
+                                                           "b" {:type :match/bind :id "b" :pattern {:type :ref/js :js "cljs.core.number_QMARK_"}}}
+                                                 :action {:type :call
+                                                          :ref {:type :ref/js :js "cljs.core._"}
+                                                          :args [{:type :ref/id :id "a"} {:type :ref/id :id "b"}]}}
+                                                {:type :match/branch
+                                                 :pattern [{:type :match/bind :id "y" :pattern {:type :match/any}} "foo"]
+                                                 :action {:type :constant
+                                                          :data {:type :ref/id
+                                                                 :id "y"}}}]}}}}})
 
 (notebook! example-b)

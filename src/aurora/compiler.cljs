@@ -4,10 +4,8 @@
 
 ;; compiler
 
-(let [next (atom 0)]
-  (defn new-id []
-    ;; TODO remove "id"
-    (str "id" (swap! next inc))))
+(defn new-id []
+  (js/uuid))
 
 (defn id->value [id]
   (symbol (str "value_" id)))
