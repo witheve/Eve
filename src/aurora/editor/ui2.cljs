@@ -279,20 +279,21 @@
 
 (defdom notebooks-list [aurora]
   [:ul {:className "programs"}
-   (each [[name notebook] (:notebooks aurora)]
+   (each [notebook (from-index (:notebooks aurora))]
          (let [click (fn []
-                       (swap! aurora-state assoc :notebook name :screen :pages))]
+                       (swap! aurora-state assoc :notebook (:id notebook) :screen :pages))]
            (if (input? (:id notebook))
              [:li {:className "program-item"}
               [:input {:type "text" :defaultValue (:desc notebook)
                        :onKeyPress (fn [e]
                                      (when (= 13 (.-charCode e))
                                        (remove-input! (:id notebook))
-                                       (swap! aurora-state assoc-in [:notebooks (:id notebook) :desc] (.-target.value e))
+                                       (update-index! notebook [] assoc :desc (.-target.value e))
                                        ))}]]
              [:li {:className "program-item"
                    :onContextMenu (fn [e]
                                     (add-input! (:id notebook) :desc)
+                                    (.stopPropagation e)
                                     (.preventDefault e))
                    :onTouchStart click
                    :onClick click}
@@ -306,14 +307,14 @@
 
 
 (defn click-add-page [e notebook]
-  (add-page! (:id notebook) "untitled page"))
+  (add-page! notebook "untitled page"))
 
 (defdom pages-list [notebook]
   [:ul {:className "pages"}
-   (each [[name page] (filter #(get (-> % second :tags) :page) (:pages notebook))]
+   (each [page (filter #(get (:tags %) :page) (from-index (:pages notebook)))]
          (let [click (fn []
-                       (swap! aurora-state assoc :page name :screen :editor :step [{:notebook (:notebook @aurora-state)
-                                                                                    :page name
+                       (swap! aurora-state assoc :page (:id page) :screen :editor :step [{:notebook (:notebook @aurora-state)
+                                                                                    :page (:id page)
                                                                                     :step 0}]))]
 
            (if (input? (:id page))
@@ -322,11 +323,12 @@
                        :onKeyPress (fn [e]
                                      (when (= 13 (.-charCode e))
                                        (remove-input! (:id page))
-                                       (swap! aurora-state assoc-in [:notebooks (:id notebook) :pages (:id page) :desc] (.-target.value e))
+                                       (update-index! page [] assoc :desc (.-target.value e))
                                        ))}]]
              [:li {:className "page"
                    :onContextMenu (fn [e]
                                     (add-input! (:id page) :desc)
+                                    (.stopPropagation e)
                                     (.preventDefault e))
                    :onClick click
                    :onTouchStart click}
@@ -345,7 +347,7 @@
 
     (condp = (:screen @aurora-state)
       :notebooks (notebooks-list @aurora-state)
-      :pages (pages-list (-> @aurora-state :notebooks (get (:notebook @aurora-state))))
+      :pages (pages-list (from-index (:notebook @aurora-state)))
       :editor (editing-view))
     ]])
 
@@ -414,7 +416,8 @@
                     :document true
                     :open-paths {}
                     :cache {}
-                    :notebooks {}})
+                    :index {}
+                    :notebooks []})
 
 (defn path->step [path]
   (let [{:keys [notebook page step]} (last path)]
@@ -425,9 +428,14 @@
 (defn current [key]
   (when-let [v (@aurora-state key)]
     (condp = key
-      :notebook (get-in @aurora-state [:notebooks v])
-      :page (get-in @aurora-state [:notebooks (:notebook @aurora-state) :pages v])
+      :notebook (from-index v)
+      :page (from-index v)
       :step (path->step v))))
+
+(defn from-index [id]
+  (if (coll? id)
+    (map from-index id)
+    (get-in @aurora-state [:index id])))
 
 (defn input? [id]
   (get-in @aurora-state [:cache :inputs id]))
@@ -443,25 +451,38 @@
 (defn remove-input! [id]
   (swap! aurora-state update-in [:cache :inputs] dissoc id))
 
+(defn update-index! [thing path & args]
+  (apply swap! aurora-state update-in
+         (concat [:index (if (map? thing)
+                           (:id thing)
+                           thing)]
+                 path)
+         args))
+
+(defn add-index! [thing]
+  (swap! aurora-state assoc-in [:index (:id thing)] thing))
+
 (defn add-notebook! [desc]
   (let [notebook {:type :notebook
                   :id (compiler/new-id)
                   :desc desc
-                  :pages {}}]
-    (when (ast/notebook! notebook)
-      (swap! aurora-state update-in [:notebooks] assoc (:id notebook) notebook)
+                  :pages []}]
+    (when (ast/notebook! (:index @aurora-state) notebook)
+      (add-index! notebook)
+      (swap! aurora-state update-in [:notebooks] conj (:id notebook))
       (add-input! (:id notebook) :desc)
       notebook)))
 
-(defn add-page! [notebook-id desc]
+(defn add-page! [notebook desc]
   (let [page {:type :page
               :id (compiler/new-id)
               :tags #{:page}
               :args []
               :desc desc
-              :steps {}}]
-    (when (ast/page! page)
-      (swap! aurora-state update-in [:notebooks notebook-id :pages] assoc (:id page) page)
+              :steps []}]
+    (when (ast/page! (:index @aurora-state) page)
+      (add-index! page)
+      (update-index! notebook [:pages] conj (:id page))
       page)))
 
 (defn add-step! [notebook-id page-id info])
