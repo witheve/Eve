@@ -116,7 +116,13 @@
 (defmethod step-list-item :call [step path]
   (dom
    [:li {:className (step-class path)
-         :onClick (step-click path)}
+         :onClick (step-click path)
+         :onContextMenu (fn [e]
+                          (assoc-cache! [:menu] {:top (.-clientY e)
+                                                 :left (.-clientX e)
+                                                 :items [{:label "remove"
+                                                          :action (fn []
+                                                                    (println "remove!"))}]}))}
     (clickable-ref step path)]
    (sub-step step path)
    ))
@@ -143,7 +149,6 @@
 ;;*********************************************************
 
 (defn match-pattern [x]
-  (println "match pattern! " x)
   (if-not (:type x)
     (item-ui {:type :constant
               :data x})
@@ -186,9 +191,8 @@
 (defmethod step-description :match [step path]
   (dom
       [:p {:className "desc"}
-       "Find a match for "
-       (each [input (:inputs step)]
-             [:span {:className "prev"} input])]))
+       "Find a match for " (item-ui (:arg step))
+       ]))
 
 (defmethod item-ui :match/bind [x]
   (dom [:span {:className "ref"} (:id x)]))
@@ -211,7 +215,6 @@
 (defmethod item-ui :constant [x]
   (let [value (:data x)
         name (datatype-name value)]
-    (println "reping: " name  x)
       (if-let [rep (get-in @aurora-state [:cache :representations name])]
         (rep value)
         (pr-str x))))
@@ -221,10 +224,19 @@
         name (datatype-name value)]
     (dom
      [:li {:className (step-class path)
-           :onClick (step-click path)}
+           :onClick (step-click path)
+           :onContextMenu (fn [e]
+                            (assoc-cache! [:menu] {:top (.-clientY e)
+                                                   :left (.-clientX e)
+                                                   :items [{:label "remove"
+                                                            :action (fn []
+                                                                      (remove-step! (current :page) step)
+                                                                      )}]})
+                            (.preventDefault e)
+                            (.stopPropagation e))}
       [:p {:className "desc"} "Add a " [:span {:className "value"} name]
        (when-let [rep (get-in @aurora-state [:cache :representations name])]
-        (rep value))]
+         (rep value))]
 
       ])))
 
@@ -238,6 +250,19 @@
 ;; editor
 ;;*********************************************************
 
+(defdom contextmenu []
+  (let [menu (from-cache :menu)]
+    (when menu
+      [:ul {:id "menu"
+            :style #js {:top (:top menu)
+                        :left (:left menu)}}
+       (each [item (:items menu)]
+         [:li {:onClick (fn []
+                          (when-let [action (:action item)]
+                            (action))
+                          (assoc-cache! [:menu] nil))} (:label item)]
+         )])))
+
 (defdom editing-view []
   [:div
    (steps-list (current :page))
@@ -246,6 +271,9 @@
 (defdom new-step-helper []
   [:div
    [:p "Let's create some data to get started!"]
+   [:button {:onClick (fn []
+                      (add-step! (current :page) (constant 4)))}
+    "add number"]
    ])
 
 (defdom step-canvas [step path]
@@ -317,7 +345,15 @@
                                        ))}]]
              [:li {:className "program-item"
                    :onContextMenu (fn [e]
-                                    (add-input! (:id notebook) :desc)
+                                    (assoc-cache! [:menu] {:top (.-clientY e)
+                                                           :left (.-clientX e)
+                                                           :items [{:label "Rename"
+                                                                    :action (fn []
+                                                                              (add-input! (:id notebook) :desc)
+                                                                              )}
+                                                                   {:label "Remove"
+                                                                    :action (fn []
+                                                                              (remove-notebook! notebook))}]})
                                     (.stopPropagation e)
                                     (.preventDefault e))
                    :onTouchStart click
@@ -352,7 +388,16 @@
                                        ))}]]
              [:li {:className "page"
                    :onContextMenu (fn [e]
-                                    (add-input! (:id page) :desc)
+                                    (assoc-cache! [:menu] {:top (.-clientY e)
+                                                           :left (.-clientX e)
+                                                           :items [{:label "Rename"
+                                                                    :action (fn []
+                                                                              (add-input! (:id page) :desc)
+                                                                              )}
+                                                                   {:label "Remove"
+                                                                    :action (fn []
+                                                                              (remove-page! notebook page))}]})
+
                                     (.stopPropagation e)
                                     (.preventDefault e))
                    :onClick click
@@ -367,6 +412,7 @@
 
 (defdom aurora-ui []
   [:div
+   (contextmenu)
    (nav)
    [:div {:id "content"}
 
@@ -416,7 +462,6 @@
                               (str (:id x))])
                      )
              "boolean" (fn [x]
-                         (println "bool!")
                          (dom [:span {:className "value"}
                                (str x)]))
              "number" (fn [x]
@@ -431,7 +476,6 @@
              "list" (fn [x]
                       (list-ui x))
              "table" (fn [x]
-                       (println "table: " x)
                        (table-ui
                         (-> x keys)
                         (-> x vals)))}))
@@ -470,13 +514,30 @@
     (map from-index id)
     (get-in @aurora-state [:index id])))
 
+(defn from-cache [path]
+  (if (coll? path)
+    (get-in @aurora-state (concat [:cache] path))
+    (get-in @aurora-state [:cache path])))
+
 (defn input? [id]
   (get-in @aurora-state [:cache :inputs id]))
 
+;;*********************************************************
+;; Aurora state (nodes)
+;;*********************************************************
+
+(defn constant
+  ([data] (constant data {}))
+  ([data opts] (merge {:type :constant
+                       :data data}
+                      opts)))
 
 ;;*********************************************************
 ;; Aurora state (mutation!)
 ;;*********************************************************
+
+(defn assoc-cache! [path v]
+  (swap! aurora-state assoc-in (concat [:cache] path) v))
 
 (defn add-input! [id path]
   (swap! aurora-state assoc-in [:cache :inputs id] path))
@@ -495,6 +556,9 @@
 (defn add-index! [thing]
   (swap! aurora-state assoc-in [:index (:id thing)] thing))
 
+(defn remove-index! [thing]
+  (swap! aurora-state update-in [:index] dissoc (:id thing)))
+
 (defn add-notebook! [desc]
   (let [notebook {:type :notebook
                   :id (compiler/new-id)
@@ -505,6 +569,9 @@
       (swap! aurora-state update-in [:notebooks] conj (:id notebook))
       (add-input! (:id notebook) :desc)
       notebook)))
+
+(defn remove-notebook! [notebook]
+  (swap! aurora-state update-in [:notebooks] #(vec (remove #{(:id notebook)} %))))
 
 (defn add-page! [notebook desc]
   (let [page {:type :page
@@ -518,12 +585,18 @@
       (update-index! notebook [:pages] conj (:id page))
       page)))
 
+(defn remove-page! [notebook page]
+  (update-index! notebook [] #(assoc % :pages (vec (remove #{(:id page)} (:pages %))))))
+
 (defn add-step! [page info]
   (let [step (merge {:id (compiler/new-id)} info)]
     (when (ast/step! (:index @aurora-state) step)
       (add-index! step)
       (update-index! page [:steps] conj (:id step))
       step)))
+
+(defn remove-step! [page step]
+  (update-index! page [] #(assoc % :steps (vec (remove #{(:id step)} (:steps %))))))
 
 ;;*********************************************************
 ;; Aurora state (storage!)
