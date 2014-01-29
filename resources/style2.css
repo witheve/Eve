@@ -160,7 +160,7 @@ li.match-branch + li.substep { border-top:1px solid #c6c6c6; margin-top:10px; }
 .table th { background: #ddd; text-align:center; border-bottom:1px solid #aaa; }
 .table tr + tr td { border-top:1px solid #aaa; }
 
-.prev, .param { background:#ccf; padding:5px; border-radius:3px; border:1px solid #77c; margin:5px; }
+.prev, .param, .ref { background:#ccf; padding:5px; border-radius:3px; border:1px solid #77c; margin:5px; }
 .native { padding:5px 15px; display:inline-block; }
 
 .match { margin-top:25px; width:auto; position:relative; }

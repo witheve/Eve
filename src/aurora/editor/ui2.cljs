@@ -28,6 +28,14 @@
 
 (defmulti step-list-item :type)
 (defmulti step-description :type)
+(defmulti item-ui :type)
+
+(defmethod item-ui :default [step]
+  (dom
+   (if-not (:type step)
+     (item-ui {:type :constant
+               :data step})
+     [:span (pr-str step)])))
 
 (defmethod step-list-item :default [step]
   (dom
@@ -36,6 +44,7 @@
 (defmethod step-description :default [step]
   (dom
    [:p "this is a step description of " (pr-str step)]))
+
 
 ;;*********************************************************
 ;; Step list
@@ -102,7 +111,7 @@
            :onDoubleClick dblclick}
        name
        (each [input (:args step)]
-             [:span {:className "prev"} input])])))
+             (item-ui input))])))
 
 (defmethod step-list-item :call [step path]
   (dom
@@ -117,14 +126,28 @@
       [:p {:className "desc"}
        (ref->name (:ref step))
        (each [input (:args step)]
-             [:span {:className "prev"} input])]))
+             (item-ui input))]))
+
+(defmethod item-ui :ref/id [step]
+  (dom [:span {:className "ref"}
+        (:id step)]))
+
+(defmethod item-ui :call [step]
+  (dom [:p {:className "desc"}
+       (ref->name (:ref step))
+       (each [input (:args step)]
+             (item-ui input))]))
 
 ;;*********************************************************
 ;; Matches
 ;;*********************************************************
 
 (defn match-pattern [x]
-    (item-ui x))
+  (println "match pattern! " x)
+  (if-not (:type x)
+    (item-ui {:type :constant
+              :data x})
+    (item-ui x)))
 
 (defn branch-result [branch path]
   (if (-> branch :node :type (= :ref))
@@ -150,14 +173,13 @@
 
    [:li {:className (step-class path)
          :onClick (step-click path)}
-    [:p {:className "desc"} "If " (each [input (:inputs step)]
-                                        [:span {:className "prev"} input]) "matches"]
+    [:p {:className "desc"} "If " (item-ui (:arg step)) "matches"]
     [:ul {:className "match-list"}
      (each [branch (step :branches)]
            (let [path (update-path path {:sub-path [:branches index :node]})]
              [:li {:className "match-branch"}
               [:span (-> branch :pattern match-pattern)]
-              [:span [:span {:className ""} (branch-result (:action branch) path)]]]
+              [:span [:span {:className ""} (item-ui (:action branch))]]]
              (sub-step branch path)))]]
      ))
 
@@ -168,27 +190,31 @@
        (each [input (:inputs step)]
              [:span {:className "prev"} input])]))
 
+(defmethod item-ui :match/bind [x]
+  (dom [:span {:className "ref"} (:id x)]))
+
 ;;*********************************************************
 ;; Data
 ;;*********************************************************
 
 (defn datatype-name [x]
   (cond
+   (#{:ref/id :ref/js} (:type x)) "ref"
    (or (true? x) (false? x)) "boolean"
+   (keyword? x) "keyword"
    (number? x) "number"
    (string? x) "string"
    (map? x) "table"
    (vector? x) "list"
    :else (str (type x))))
 
-(defn item-ui [x]
-  (if (= (:type x) :ref)
-    (ref->name x)
-    (let [value (:data x)
-          name (datatype-name value)]
+(defmethod item-ui :constant [x]
+  (let [value (:data x)
+        name (datatype-name value)]
+    (println "reping: " name  x)
       (if-let [rep (get-in @aurora-state [:cache :representations name])]
         (rep value)
-        (pr-str x)))))
+        (pr-str x))))
 
 (defmethod step-list-item :constant [step path]
   (let [value (:data step)
@@ -385,11 +411,18 @@
             {"math" math-ui
              "rect" (fn [x]
                       )
+             "ref" (fn [x]
+                     (dom [:span {:className "ref"}
+                              (str (:id x))])
+                     )
              "boolean" (fn [x]
                          (println "bool!")
                          (dom [:span {:className "value"}
                                (str x)]))
              "number" (fn [x]
+                        (dom [:span {:className "value"}
+                              (str x)]))
+             "keyword" (fn [x]
                         (dom [:span {:className "value"}
                               (str x)]))
              "string" (fn [x]
@@ -398,9 +431,10 @@
              "list" (fn [x]
                       (list-ui x))
              "table" (fn [x]
+                       (println "table: " x)
                        (table-ui
-                        (-> x :args first :data :value)
-                        (-> x :args second :data :value)))}))
+                        (-> x keys)
+                        (-> x vals)))}))
 
 ;;*********************************************************
 ;; Aurora state
