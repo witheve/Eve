@@ -157,8 +157,18 @@
   (check (= :page (:type x)))
   `(fn ~(id->value id) ~(vec (interleave (map! id->value (:args x)) (map! id->cursor (:args x))))
      (do
+       (let! stack notebook.stack)
+       (let! frame {})
+       (set! frame.calls [])
+       (set! frame.vars {})
+       (stack.push frame)
+       (set! notebook.stack frame.calls)
        ~@(for! [step-id (:steps x)]
-               (step->jsth index (get index step-id) step-id)))
+               `(do
+                  ~(step->jsth index (get index step-id) step-id)
+                  (set! (.. frame.vars ~(id->value step-id)) ~(id->value step-id))
+                  (set! (.. frame.vars ~(id->cursor step-id)) ~(id->cursor step-id))))
+       (set! notebook.stack stack))
      [~(-> x :steps last id->value) ~(-> x :steps last id->cursor)]))
 
 (deftraced notebook->jsth [index x] [x]
@@ -181,11 +191,14 @@
         _ (println "###################")
         _ (println jsth)
         _ (println source)
-        notebook (js/eval (str "(" source "());"))]
+        notebook (js/eval (str "(" source "());"))
+        stack #js []]
     (aset notebook "next_state" state)
+    (aset notebook "stack" stack)
     (try
-      [(.value_root notebook state []) (.-next_state notebook)]
-      (catch :default e e))))
+      [(.value_root notebook state []) (.-next_state notebook) stack]
+      (catch :default e
+        [e (.-next_state notebook) stack]))))
 
 (defn tick-example [index id state]
   (second (run-index index id state)))
