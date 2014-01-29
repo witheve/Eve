@@ -15,6 +15,7 @@
 (deftraced ref-js! [index x] [x]
   (check (= :ref/js (:type x))
          (js! index (:js x))))
+
 (deftraced ref! [index x] [x]
   (case (:type x)
     :ref/id (ref-id! index x)
@@ -166,10 +167,10 @@
                          :pattern {"a" {:type :match/bind :id "a" :pattern {:type :match/any}}
                                    "b" {:type :match/bind :id "b" :pattern {:type :match/any}}}
                          :guards [{:type :call
-                                   :ref {:type :ref/js :js "cljs.core.number_QMARK_"}
+                                   :ref {:type :ref/js :js "cljs.core.number_QMARK_.call"}
                                    :args [nil {:type :ref/id :id "b"}]}
                                   {:type :call
-                                   :ref {:type :ref/js :js "cljs.core.number_QMARK_"}
+                                   :ref {:type :ref/js :js "cljs.core.number_QMARK_.call"}
                                    :args [nil {:type :ref/id :id "b"}]}]
                          :action {:type :call
                                   :ref {:type :ref/js :js "cljs.core._"}

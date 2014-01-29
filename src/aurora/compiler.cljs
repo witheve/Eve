@@ -1,175 +1,208 @@
 (ns aurora.compiler
   (:require [aurora.jsth :as jsth]
-            [aurora.interpreter :as i]))
+            [aurora.ast :as ast]
+            [aurora.interpreter :as i]
+            [aurora.util :refer [map!]])
+  (:require-macros [aurora.macros :refer [for! check deftraced]]))
 
 ;; compiler
+
 (let [next (atom 0)]
   (defn new-id []
     (if js/window.uuid
       (.replace (js/uuid) (js/RegExp. "-" "gi") "_")
       (swap! next inc))))
 
-(defn id->value [id]
+(deftraced id->value [id] [id]
+  (check id)
   (symbol (str "value_" id)))
-(defn id->cursor [id]
+
+(deftraced id->cursor [id] [id]
+  (check id)
   (symbol (str "cursor_" id)))
-(defn id->scratch [id]
-  (symbol (str "scratch_" id)))
-(defn id->pipe [id]
-  (symbol (str "pipe_" id)))
 
-(defn program->js [program]
-  `(fn nil []
-     (do
-       (let! program {})
-       (let! failure "MatchFailure!")
-       ~@(map pipe->js program))
-     program))
+(deftraced id->temp [id] [id]
+  (check id)
+  (symbol (str "temp_" id)))
 
-(defn pipe->js [pipe]
-  `(do
-     ~(pipe->js* pipe)
-     (set! (.. program ~(id->pipe (:id pipe))) ~(id->pipe (:id pipe)))))
+(deftraced ref->jsth [index x] [x]
+  (case (:type x)
+    :ref/id (id->value (:id x))
+    :ref/js (symbol (:js x))
+    (check false)))
 
-(defn pipe->js* [pipe]
-  (let [args (apply concat
-                    (for [input (:inputs pipe)]
-                      `[~(id->value input) ~(id->cursor input)]))
-        steps (for [node (:nodes pipe)]
-                (step->js (:id node) (:inputs node) (:node node)))
-        return (-> pipe :nodes last :id)]
-    `(fn ~(id->pipe (:id pipe)) [~@args]
-       (do ~@steps)
-       [~(id->value return) ~(id->cursor return)])))
+(deftraced tag->jsth [index x] [x]
+  `(cljs.core.keyword ~(:id x) ~(:name x)))
 
-(defn step->js [id inputs node]
-  (case (:type node)
-    :data (data->js id inputs node)
-    :ref (ref->js id inputs node)
-    :replace (replace->js id inputs node)
-    :output (output->js id inputs node)
-    :match (match->js id inputs node)))
+(deftraced data->value-jsth [index x] [x]
+  (cond
+   (= :tag (:type x)) (tag->jsth index x)
+   (#{:ref/id :ref/js} (:type x)) (ref->jsth index x)
+   (number? x) x
+   (string? x) x
+   (vector? x) `(cljs.core.PersistentVector.fromArray
+                 ~(vec (map! #(data->value-jsth index %) x)))
+   (map? x) `(cljs.core.PersistentHashMap.fromArrays
+              ~(vec (map! #(data->value-jsth index %) (keys x)))
+              ~(vec (map! #(data->value-jsth index %) (vals x))))
+   :else (check false)))
 
-(defn data->js [id inputs node]
-  `(do
-     (let! ~(id->value id) ~(data->js* node))
-     (let! ~(id->cursor id) nil)))
+(deftraced data->cursor-jsth [index x] [x]
+  (if (= :ref/id (:type x))
+    (id->cursor (:id x))
+    nil))
 
-(defn data->js* [node]
-  (case (:kind node)
-    :value `(edn ~(:value node))
-    :vector `(edn ~(into [] (map data->js* (:value node))))
-    :map `(edn ~(into {} (map vector (map data->js* (keys (:value node))) (map data->js* (vals (:value node))))))))
+(deftraced constant->jsth [index x id] [x id]
+  (check (= :constant (:type x)))
+  (let [data (:data x)]
+    `(do
+       (let! ~(id->value id) ~(data->value-jsth index data))
+       (let! ~(id->cursor id) ~(data->cursor-jsth index data)))))
 
-(defn ref->js [id inputs node]
-  (case (:kind node)
-    :cljs `(do
-             (let! ~(id->value id) (~(-> node :fn meta :name symbol) ~@(map id->value inputs)))
-             (let! ~(id->cursor id) nil))
-    :pipe (let [result (new-id)]
-            `(do
-               (let! ~(id->scratch result) (~(id->pipe (:id node)) ~@(apply concat (for [input inputs] `[~(id->value input) ~(id->cursor input)]))))
-               (let! ~(id->value id) (get! ~(id->scratch result) 0))
-               (let! ~(id->cursor id) (get! ~(id->scratch result) 1))))))
+(deftraced js-data->jsth [index x] [x]
+  (cond
+   (nil? x) nil
+   :else (data->value-jsth index x)))
 
-(defn replace->js [id inputs node]
-  ;; TODO check cursor is not nil
-  `(do
-     (set! program.next_state (cljs.core.assoc_in program.next_state ~(id->cursor (first inputs)) ~(id->value (second inputs))))
-     (let! ~(id->value id) nil)
-     (let! ~(id->cursor id) nil)))
+(deftraced call->jsth [index x id] [x id]
+  (case (:type (:ref x))
+    :ref/id (let [temp (id->temp (new-id))]
+              `(do
+                 (let! ~temp (~(ref->jsth index (:ref x)) ~@(interleave (map! #(data->value-jsth index %) (:args x)) (map! #(data->cursor-jsth index %) (:args x)))))
+                 (let! ~(id->value id) (get! ~temp 0))
+                 (let! ~(id->cursor id) (get! ~temp 1))))
+    :ref/js `(do
+               (let! ~(id->value id) (~(ref->jsth index (:ref x)) ~@(map! #(js-data->jsth index %) (:args x))))
+               (let! ~(id->cursor id) nil))
+    (check false)))
 
-(defn output->js [id inputs node]
-  `(do
-     (set! program.next_state (cljs.core.update_in program.next_state ~(data->js* (:path node)) cljs.core.conj ~(id->value (first inputs))))
-     (let! ~(id->value id) nil)
-     (let! ~(id->cursor id) nil)))
-
-(defn match->js [id inputs node]
-  (let [input (first inputs)
-        exception (new-id)]
-    (reduce
-     (fn [tail branch]
-       `(try
-          (do
-            ~(pattern->js input (:pattern branch))
-            ~(case (:type (:node branch))
-               :match/return `(do
-                                (let! ~(id->value id) ~(id->value (first (:inputs branch))))
-                                (let! ~(id->cursor id) ~(id->cursor (first (:inputs branch)))))
-               (step->js id (:inputs branch) (:node branch))))
-          (catch ~(id->scratch exception)
-            (if (== ~(id->scratch exception) failure)
-              ~tail
-              (throw ~(id->scratch exception))))))
-     `(throw failure)
-     (reverse (:branches node)))))
-
-(defn pattern->js [input pattern]
-  (case (:type pattern)
-    :match/any `(do)
-    :match/bind `(do
-                   (let! ~(id->value (:var pattern)) ~(id->value input))
-                   (let! ~(id->cursor (:var pattern)) ~(id->cursor input))
-                   ~(pattern->js input (:pattern pattern)))
-    :data (case (:kind pattern)
-            :value (check->js `(= ~(id->value input) (edn ~(:value pattern))))
-            :vector (let [vector (:value pattern)]
-                      `(do
-                         ~(check->js `(cljs.core.vector? ~(id->value input)))
-                         ~(check->js `(= (cljs.core.count ~(id->value input)) ~(count vector)))
-                         ~@(for [i (range (count vector))]
-                             (let [elem-scratch (new-id)]
-                               `(do
-                                  (let! ~(id->value elem-scratch) (cljs.core.nth ~(id->value input) (edn ~i)))
-                                  (let! ~(id->cursor elem-scratch) (cljs.core.conj ~(id->cursor input) (edn ~i)))
-                                  ~(pattern->js elem-scratch (nth vector i)))))))
-            :map (let [map (:value pattern)]
-                   `(do
-                      ~(check->js `(cljs.core.map? ~(id->value input)))
-                      ~@(for [key (keys map)]
-                          (let [key-scratch (new-id)
-                                value-scratch (new-id)]
-                            `(do
-                               (let! ~(id->scratch key-scratch) ~(data->js* key))
-                               ~(check->js `(cljs.core.contains? ~(id->value input) ~(id->scratch key-scratch)))
-                               (let! ~(id->value value-scratch) (cljs.core.get ~(id->value input) ~(id->scratch key-scratch)))
-                               (let! ~(id->cursor value-scratch) (cljs.core.conj ~(id->cursor input) ~(id->scratch key-scratch)))
-                               ~(pattern->js value-scratch (get map key))))))))
-    (let [return-scratch (new-id)]
-      `(do
-         ~(step->js return-scratch [input] pattern)
-         ~(check->js (id->value return-scratch))))))
-
-(defn check->js [pred]
+(deftraced test->jsth [pred] [pred]
   `(if (not ~pred) (throw failure)))
 
-(defn run-example [example state]
-  (let [jsth (program->js example)
+(deftraced pattern->jsth [index x input] [x input]
+  (cond
+   (= :match/any (:type x)) `(do)
+   (= :match/bind (:type x)) `(do
+                                (let! ~(id->value (:id x)) ~(id->value input))
+                                (let! ~(id->cursor (:id x)) ~(id->cursor input))
+                                ~(pattern->jsth index (:pattern x) input))
+   (= :tag (:type x)) (test->jsth `(= ~(tag->jsth index x) ~(id->value input)))
+   (= :ref/id (:type x)) (test->jsth `(= ~(ref->jsth index x) ~(id->value input)))
+   (number? x) (test->jsth `(= ~x ~(id->value input)))
+   (string? x) (test->jsth `(= ~x ~(id->value input)))
+   (vector? x) `(do
+                  ~(test->jsth `(cljs.core.vector_QMARK_.call nil ~(id->value input)))
+                  ~(test->jsth `(= ~(count x) (cljs.core.count.call nil ~(id->value input))))
+                  ~@(for! [i (range (count x))]
+                          (let [new-input (new-id)]
+                            `(do
+                               (let! ~(id->value new-input) (cljs.core.nth.call nil ~(id->value input) ~i))
+                               (let! ~(id->cursor new-input) (? ~(id->cursor input) (cljs.core.conj.call nil ~(id->cursor input) i) nil))
+                               ~(pattern->jsth index (nth x i) new-input)))))
+   (map? x) `(do
+               ~(test->jsth `(cljs.core.map_QMARK_.call nil ~(id->value input)))
+               ~@(for! [k (keys x)]
+                       (let [k-id (new-id)
+                             new-input (new-id)]
+                         `(do
+                            (let! ~(id->temp k-id) ~(data->value-jsth index k))
+                            ~(test->jsth `(cljs.core.contains_QMARK_.call nil ~(id->value input) ~(id->temp k-id)))
+                            (let! ~(id->value new-input) (cljs.core.get.call nil ~(id->value input) ~(id->temp k-id)))
+                            (let! ~(id->cursor new-input) (? ~(id->cursor input) (cljs.core.conj.call nil ~(id->cursor input) ~(id->temp k-id)) nil))
+                            ~(pattern->jsth index (get x k) new-input)))))
+   :else (check false)))
+
+(deftraced action->jsth [index x id] [x id]
+  (case (:type x)
+    :call (call->jsth index x id)
+    :constant (constant->jsth index x id)
+    (check false)))
+
+(deftraced guard->jsth [index x] [x]
+  (check (= :call (:type x)))
+  (let [temp (new-id)]
+    `(do
+       ~(call->jsth index x temp)
+       ~(test->jsth (id->value temp)))))
+
+(deftraced match->jsth [index x id] [x id]
+  (check (= :match (:type x)))
+  (let [input (new-id)]
+    `(do
+       ~(constant->jsth index {:type :constant :data (:arg x)} input)
+       ~(reduce
+         (fn [tail branch]
+           (let [exception (new-id)]
+             `(try
+                (do
+                  ~(pattern->jsth index (:pattern branch) input)
+                  ~@(for! [guard (:guards branch)]
+                          (guard->jsth index guard))
+                  ~(action->jsth index (:action branch) id))
+                (catch ~(id->temp exception)
+                  (if (== ~(id->temp exception) failure)
+                    ~tail
+                    (throw ~(id->temp exception)))))))
+         `(throw failure)
+         (reverse (:branches x))))))
+
+(deftraced step->jsth [index x id] [x id]
+  (case (:type x)
+    :call (call->jsth index x id)
+    :constant (constant->jsth index x id)
+    :match (match->jsth index x id)
+    (check false)))
+
+(deftraced page->jsth [index x id] [x id]
+  (check (= :page (:type x)))
+  `(fn ~(id->value id) ~(vec (interleave (map! id->value (:args x)) (map! id->cursor (:args x))))
+     (do
+       ~@(for! [step-id (:steps x)]
+               (step->jsth index (get index step-id) step-id)))
+     [~(-> x :steps last id->value) ~(-> x :steps last id->cursor)]))
+
+(deftraced notebook->jsth [index x] [x]
+  (check (= :notebook (:type x)))
+  `(fn nil []
+     (do
+       (let! notebook {})
+       (let! failure "MatchFailure!")
+       ~@(for! [page-id (:pages x)]
+               `(do
+                  ~(page->jsth index (get index page-id) page-id)
+                  (set! (.. notebook ~(id->value page-id)) ~(id->value page-id)))))
+     notebook))
+
+;; runtime
+
+(defn run-index [index id state]
+  (let [jsth (notebook->jsth index (get index id))
         source (jsth/expression->string jsth)
         _ (println "###################")
         _ (println jsth)
         _ (println source)
-        program (js/eval (str "(" source "());"))]
-    (aset program "next_state" state)
+        notebook (js/eval (str "(" source "());"))]
+    (aset notebook "next_state" state)
     (try
-      [(.pipe_root program state []) (.-next_state program)]
+      [(.value_root notebook state []) (.-next_state notebook)]
       (catch :default e e))))
 
-(defn tick-example [example state]
-  (second (run-example example state)))
+(defn tick-example [index id state]
+  (second (run-index index id state)))
 
-(run-example i/example-b {"a" 1 "b" 2})
-(run-example i/example-b {"a" 1 "c" 2})
-(run-example i/example-b {"a" 1 "b" "foo"})
-(run-example i/example-b [1 "foo"])
-(run-example i/example-b [1 2])
+(notebook->jsth ast/example-b (get ast/example-b "example_b"))
 
-(run-example i/example-c 0)
-(run-example i/example-c 1)
-(run-example i/example-c 7)
-(run-example i/example-c 10)
+(run-index ast/example-b "example_b" {"a" 1 "b" 2})
+(run-index ast/example-b "example_b" {"a" 1 "c" 2})
+(run-index ast/example-b "example_b" {"a" 1 "b" "foo"})
+(run-index ast/example-b "example_b" [1 "foo"])
+(run-index ast/example-b "example_b" [1 2])
 
-(run-example i/example-d {"counter" 0})
+;; (run-index ast/example-c 0)
+;; (run-index ast/example-c 1)
+;; (run-index ast/example-c 7)
+;; (run-index ast/example-c 10)
 
-(run-example i/example-e {"counter" 0 "started_" "false"})
+;; (run-index ast/example-d {"counter" 0})
+
+;; (run-index ast/example-e {"counter" 0 "started_" "false"})

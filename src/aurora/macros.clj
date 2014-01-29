@@ -1,6 +1,9 @@
 (ns aurora.macros
   (require [cljs.core.match.macros :refer [match]]))
 
+(defmacro for! [& args]
+  `(doall (for ~@args)))
+
 (defmacro check [& preds]
   `(do
      ~@(for [pred preds]

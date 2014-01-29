@@ -53,9 +53,7 @@
    (seq? x) (do (check (>= (count x) 1))
               (let [f (expression->string (nth x 0))
                     args (map expression->string (rest x))]
-                (if (= "cljs" (.substring f 0 4)) ;; TODO remove
-                  (str (-> f (.replace "-" "_") (.replace "?" "_QMARK_")) ".call(null, " (join ", " args) ")")
-                  (str f "(" (join ", " args) ")"))))
+                (str f "(" (join ", " args) ")")))
    :else (check false)))
 
 (deftraced statement->string [x] [x]
