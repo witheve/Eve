@@ -159,6 +159,7 @@
      (do
        (let! stack notebook.stack)
        (let! frame {})
+       (set! frame.id id)
        (set! frame.calls [])
        (set! frame.vars {})
        (stack.push frame)
@@ -196,9 +197,9 @@
     (aset notebook "next_state" state)
     (aset notebook "stack" stack)
     (try
-      [(.value_root notebook state []) (.-next_state notebook) stack]
+      [(.value_root notebook state []) (.-next_state notebook) (aget stack 0)]
       (catch :default e
-        [e (.-next_state notebook) stack]))))
+        [e (.-next_state notebook) (aget stack 0)]))))
 
 (defn tick-example [index id state]
   (second (run-index index id state)))
