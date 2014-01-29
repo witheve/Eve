@@ -253,15 +253,18 @@
 (defdom contextmenu []
   (let [menu (from-cache :menu)]
     (when menu
-      [:ul {:id "menu"
-            :style #js {:top (:top menu)
-                        :left (:left menu)}}
-       (each [item (:items menu)]
-         [:li {:onClick (fn []
-                          (when-let [action (:action item)]
-                            (action))
-                          (assoc-cache! [:menu] nil))} (:label item)]
-         )])))
+      [:div {:id "menu-shade"
+             :onClick (fn []
+                        (assoc-cache! [:menu] nil))}
+       [:ul {:id "menu"
+             :style #js {:top (:top menu)
+                         :left (:left menu)}}
+        (each [item (:items menu)]
+              [:li {:onClick (fn []
+                               (when-let [action (:action item)]
+                                 (action))
+                               (assoc-cache! [:menu] nil))} (:label item)]
+              )]])))
 
 (defdom editing-view []
   [:div

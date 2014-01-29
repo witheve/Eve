@@ -85,6 +85,8 @@ button:hover { background:#eee; }
 #nav .toggles { position:absolute; right:15px; }
 #nav .toggles span { display:none; }
 
+
+#menu-shade { position:fixed; top:0; bottom:0; left:0; right:0; background:transparent; }
 #menu { position:absolute; background:white; box-shadow:0 0 10px #aaa; padding:3px 0px; }
 #menu li { padding:3px 10px; min-width:100px; }
 #menu li:hover { background:black; color:white; }
