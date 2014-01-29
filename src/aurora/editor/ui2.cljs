@@ -26,8 +26,8 @@
 (declare aurora-state)
 (declare aurora-state)
 
-(defmulti step-list-item #(-> % :node :type))
-(defmulti step-description #(-> % :node :type))
+(defmulti step-list-item :type)
+(defmulti step-description :type)
 
 (defmethod step-list-item :default [step]
   (dom
@@ -53,19 +53,19 @@
            [:span {:className "native"} "Native method"])])))
 
 
-(defdom manual-steps [man path]
+(defdom page-steps [page path]
    [:ul {:className "steps"}
-     (each [node (:nodes man)]
-           (step-list-item node (update-path path {:step index
-                                                   :step-var (:id node)}))
+     (each [step (from-index (:steps page))]
+           (step-list-item step (update-path path {:step index
+                                                   :step-var (:id step)}))
            )])
 
-(defdom steps-workspace [man]
+(defdom steps-list [page]
   [:div {:className (str "workspace" (when (:steps @aurora-state)
                                        " active"))}
 
    [:div {:className "steps-container"}
-    (manual-steps man [{:notebook (:notebook @aurora-state)
+    (page-steps page [{:notebook (:notebook @aurora-state)
                         :page (:page @aurora-state)}])]
      ])
 
@@ -83,25 +83,28 @@
 ;; Function calls
 ;;*********************************************************
 
-(defn ref->name [node]
-  (let [op (when (= (:kind node) :pipe)
-             (get-in @aurora-state [:notebooks (:notebook @aurora-state) :pages (-> node :id)]))]
-    (:desc op (or (:id node) (-> node :fn meta :desc)))))
+(defn ref->name [ref]
+  (let [op (when (= (:type ref) :ref/id)
+             (from-index (:id ref)))]
+    (if op
+      (:desc op (:id ref))
+      (-> (js/eval (:js ref)) meta :desc)
+      )))
 
 (defdom clickable-ref [step path]
-  (let [node (:node step)
-        name (ref->name node)
+  (let [ref (:ref step)
+        name (ref->name ref)
         dblclick (fn []
                 (swap! aurora-state update-in [:open-paths path] #(if (not %)
-                                                                    (:id node))))]
+                                                                    (:id ref))))]
     (dom
       [:p {:className "desc"
            :onDoubleClick dblclick}
        name
-       (each [input (:inputs step)]
+       (each [input (:args step)]
              [:span {:className "prev"} input])])))
 
-(defmethod step-list-item :ref [step path]
+(defmethod step-list-item :call [step path]
   (dom
    [:li {:className (step-class path)
          :onClick (step-click path)}
@@ -109,11 +112,11 @@
    (sub-step step path)
    ))
 
-(defmethod step-description :ref [step path]
+(defmethod step-description :call [step path]
   (dom
       [:p {:className "desc"}
-       (ref->name (:node step))
-       (each [input (:inputs step)]
+       (ref->name (:ref step))
+       (each [input (:args step)]
              [:span {:className "prev"} input])]))
 
 ;;*********************************************************
@@ -121,11 +124,7 @@
 ;;*********************************************************
 
 (defn match-pattern [x]
-  (if (= (namespace (:type x)) "match")
-    (condp = (:type x)
-      :match/bind (dom [:span {:className "param"} (:var x)])
-      (pr-str x))
-    (item-ui x)))
+    (item-ui x))
 
 (defn branch-result [branch path]
   (if (-> branch :node :type (= :ref))
@@ -154,11 +153,11 @@
     [:p {:className "desc"} "If " (each [input (:inputs step)]
                                         [:span {:className "prev"} input]) "matches"]
     [:ul {:className "match-list"}
-     (each [branch (-> step :node :branches)]
+     (each [branch (step :branches)]
            (let [path (update-path path {:sub-path [:branches index :node]})]
              [:li {:className "match-branch"}
               [:span (-> branch :pattern match-pattern)]
-              [:span [:span {:className ""} (branch-result branch path)]]]
+              [:span [:span {:className ""} (branch-result (:action branch) path)]]]
              (sub-step branch path)))]]
      ))
 
@@ -178,33 +177,33 @@
    (or (true? x) (false? x)) "boolean"
    (number? x) "number"
    (string? x) "string"
-   (map? x) "list"
-   (vector? x) "table"
+   (map? x) "table"
+   (vector? x) "list"
    :else (str (type x))))
 
 (defn item-ui [x]
   (if (= (:type x) :ref)
     (ref->name x)
-    (let [value (or (:value x) (-> x :node :value) x)
+    (let [value (:data x)
           name (datatype-name value)]
-      (if-let [rep (get-in @aurora-state [:representation-cache name])]
+      (if-let [rep (get-in @aurora-state [:cache :representations name])]
         (rep value)
         (pr-str x)))))
 
-(defmethod step-list-item :data [step path]
-  (let [value (-> step :node :value)
+(defmethod step-list-item :constant [step path]
+  (let [value (:data step)
         name (datatype-name value)]
     (dom
      [:li {:className (step-class path)
            :onClick (step-click path)}
       [:p {:className "desc"} "Add a " [:span {:className "value"} name]
-       (when-let [rep (get-in @aurora-state [:representation-cache name])]
+       (when-let [rep (get-in @aurora-state [:cache :representations name])]
         (rep value))]
 
       ])))
 
-(defmethod step-description :data [step path]
-  (let [value (-> step :node :value)
+(defmethod step-description :constant [step path]
+  (let [value (:data step)
         name (datatype-name value)]
     (dom
       [:p {:className "desc"} "Add a " [:span {:className "value"} name]])))
@@ -215,7 +214,7 @@
 
 (defdom editing-view []
   [:div
-   (steps-workspace (current :page))
+   (steps-list (current :page))
    (step-canvas (current :step) (:step @aurora-state))])
 
 (defdom new-step-helper []
@@ -420,10 +419,10 @@
                     :notebooks []})
 
 (defn path->step [path]
-  (let [{:keys [notebook page step]} (last path)]
-    (if (and notebook page step)
-      (get-in @aurora-state [:notebooks notebook :pages page :nodes step])
-      (get-in @aurora-state [:notebooks (:notebook @aurora-state) :pages (:page @aurora-state) :nodes 0]))))
+  (let [{:keys [page step]} (last path)
+        step (or step 0)]
+    (when (and page step)
+      (from-index (get-in (from-index page) [:steps step])))))
 
 (defn current [key]
   (when-let [v (@aurora-state key)]
@@ -485,7 +484,12 @@
       (update-index! notebook [:pages] conj (:id page))
       page)))
 
-(defn add-step! [notebook-id page-id info])
+(defn add-step! [page info]
+  (let [step (merge {:id (compiler/new-id)} info)]
+    (when (ast/step! (:index @aurora-state) step)
+      (add-index! step)
+      (update-index! page [:steps] conj (:id step))
+      step)))
 
 ;;*********************************************************
 ;; Aurora state (storage!)
