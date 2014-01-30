@@ -2,6 +2,7 @@
   (:require [aurora.core :as core]
             [aurora.compiler :as compiler]
             [aurora.ast :as ast]
+            [aurora.jsth :as jsth]
             [aurora.interpreter :as interpreter]
             [cljs.reader :as reader])
   (:require-macros [aurora.macros :refer [defdom dom]]))
@@ -297,14 +298,21 @@
    [:button {:onClick (fn []
                       (add-step! (current :page) (constant {"name" "aurora"
                                                             "awesomeness" 100000000})))}
-    "table"]
-   ]
-  )
+    "table"]])
+
+(defdom ref-inserter [page]
+  [:ul
+   (each [refs (concat (:args page) (map :id (from-index (:steps page))))]
+         [:li [:button {:onClick (fn []
+                                   (add-step! (current :page) (constant (ref-id refs))))}
+               (subs refs 0 5)]])
+   ])
 
 (defdom new-step-helper []
   [:div
    [:p "Let's create some data to get started!"]
    (constant-inserter)
+   (ref-inserter (current :page))
    ])
 
 (defdom step-canvas [step path]
@@ -315,7 +323,8 @@
        (step-description step path)
        [:div {:className "result"}
         (item-ui
-         (path->result path))])
+         (path->result path))
+        ])
      ])
 
 ;;*********************************************************
@@ -553,6 +562,11 @@
 (defn input? [id]
   (get-in @aurora-state [:cache :inputs id]))
 
+(defn ->id [thing]
+  (if (map? thing)
+    (:id thing)
+    thing))
+
 ;;*********************************************************
 ;; Aurora state (nodes)
 ;;*********************************************************
@@ -562,6 +576,10 @@
   ([data opts] (merge {:type :constant
                        :data data}
                       opts)))
+
+(defn ref-id [id]
+  {:type :ref/id
+   :id id})
 
 ;;*********************************************************
 ;; Aurora state (mutation!)
@@ -667,11 +685,25 @@
 ;;*********************************************************
 
 (def run-stack (atom nil))
+(def prev nil)
 
-(defn re-run [x]
-  (reset! run-stack #js {:calls [(nth (interpreter/run-example interpreter/example-c x) 2)]})
-  (queue-render))
+(defn run-index [index notebook page state]
+  (let [jsth (compiler/notebook->jsth index (get index (->id notebook)))
+        source (jsth/expression->string jsth)
+        notebook (js/eval (str "(" source "());"))
+        stack #js []
+        func (aget notebook (str "value_" (->id page)))]
+    (aset notebook "next_state" state)
+    (aset notebook "stack" stack)
+    (try
+      [(func state []) (.-next_state notebook) (aget stack 0)]
+      (catch :default e
+        [e (.-next_state notebook) (aget stack 0)]))))
 
+(defn re-run [notebook page args]
+  (when (and notebook page)
+    (reset! run-stack #js {:calls #js [(nth (run-index (:index @aurora-state) notebook page args) 2)]})
+    (queue-render)))
 
 (defn find-id [thing id]
   (first (filter #(= (aget % "id") id) (aget thing "calls"))))
@@ -688,8 +720,13 @@
   (when-let [frame (traverse-path @run-stack path)]
     (-> frame
         (aget "vars")
-        (aget (-> path last :step-var))
-        (:value))))
+        (aget (str "value_" (-> path last :step-var)))
+        )))
+
+(add-watch aurora-state :running (fn [_ _ _ cur]
+                                   (when-not (identical? prev (:index cur))
+                                     ;;TODO: args
+                                     (re-run (current :notebook) (current :page) nil))))
 
 
 ;;*********************************************************

@@ -159,7 +159,7 @@
      (do
        (let! stack notebook.stack)
        (let! frame {})
-       (set! frame.id id)
+       (set! frame.id ~id)
        (set! frame.calls [])
        (set! frame.vars {})
        (stack.push frame)
