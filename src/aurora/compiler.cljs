@@ -172,7 +172,7 @@
        (set! notebook.stack stack))
      ~(if (-> x :steps seq)
         `[~(-> x :steps last id->value) ~(-> x :steps last id->cursor)]
-        nil)
+        [nil nil])
      ))
 
 (deftraced notebook->jsth [index x] [x]
