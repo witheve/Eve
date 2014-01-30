@@ -181,6 +181,13 @@
      (do
        (let! notebook {})
        (let! failure "MatchFailure!")
+       ;; TODO handle nil cursors in replace and append
+       (fn value_replace [value_old cursor_old value_new cursor_new]
+         (cljs.core.assoc_in.call nil notebook.next_state cursor_old value_new)
+         ["ok" nil])
+       (fn value_append [value_old cursor_old value_new cursor_new]
+         (cljs.core.update_in.call nil notebook.next_state cursor_old cljs.core.conj value_new)
+         ["ok" nil])
        ~@(for! [page-id (:pages x)]
                `(do
                   ~(page->jsth index (get index page-id) page-id)
