@@ -274,60 +274,62 @@
   (let [buffer (atom [])]
     #(watch-timeout* buffer %)))
 
-(run-example example-b {"a" 1 "b" 2})
-(run-example example-b {"a" 1 "c" 2})
-(run-example example-b {"a" 1 "b" "foo"})
-(run-example example-b [1 "foo"])
-(run-example example-b [1 2])
+(comment
 
-(run-example example-c 0)
-(run-example example-c 1)
-(run-example example-c 7)
-(run-example example-c 10)
+  (run-example example-b {"a" 1 "b" 2})
+  (run-example example-b {"a" 1 "c" 2})
+  (run-example example-b {"a" 1 "b" "foo"})
+  (run-example example-b [1 "foo"])
+  (run-example example-b [1 2])
 
-(run-example example-d {"counter" 0})
+  (run-example example-c 0)
+  (run-example example-c 1)
+  (run-example example-c 7)
+  (run-example example-c 10)
 
-(step-example example-d [] {"counter" 0})
+  (run-example example-d {"counter" 0})
 
-(let [wt (watch-timeout)]
-  (take 10 (iterate #(step-example example-d [wt] %) {"counter" 0})))
+  (step-example example-d [] {"counter" 0})
 
-(run-example example-e {"counter" 0})
+  (let [wt (watch-timeout)]
+    (take 10 (iterate #(step-example example-d [wt] %) {"counter" 0})))
 
-(run-example example-e {"counter" 0 "started?" "false"})
+  (run-example example-e {"counter" 0})
 
-(let [wt (watch-timeout)]
-  (nth (iterate #(step-example example-e [wt] %) {"counter" 0 "started?" "false"}) 2000))
+  (run-example example-e {"counter" 0 "started?" "false"})
 
-(def buffer (atom []))
-(def wt #(watch-timeout* buffer %))
-(def s0 {"counter" 0 "started?" "false"})
-(def s1 (step-example example-e [wt] s0))
-(def s2 (step-example example-e [wt] s1))
-(def s3 (step-example example-e [wt] s2))
+  (let [wt (watch-timeout)]
+    (nth (iterate #(step-example example-e [wt] %) {"counter" 0 "started?" "false"}) 2000))
 
-(defn print-stack
-  ([frame]
-   (print-stack 0 frame))
-  ([indent frame]
-   (println (.join (make-array indent) " ") "=>" (.-id frame) (.-vars frame) (.-inputs frame) (.-output frame))
-   (doseq [call (.-calls frame)]
-     (print-stack (+ indent 2) call))
-   (when (js* "('result' in ~{frame})") ; seriously?
-     (println (.join (make-array indent) " ") "<=" (.-id frame) (.-result frame)))))
+  (def buffer (atom []))
+  (def wt #(watch-timeout* buffer %))
+  (def s0 {"counter" 0 "started?" "false"})
+  (def s1 (step-example example-e [wt] s0))
+  (def s2 (step-example example-e [wt] s1))
+  (def s3 (step-example example-e [wt] s2))
 
-(defn print-example [example input]
-  (let [[result output stack] (run-example example input)]
-    (print-stack stack)
-    (println output)
-    (println result)))
+  (defn print-stack
+    ([frame]
+     (print-stack 0 frame))
+    ([indent frame]
+     (println (.join (make-array indent) " ") "=>" (.-id frame) (.-vars frame) (.-inputs frame) (.-output frame))
+     (doseq [call (.-calls frame)]
+       (print-stack (+ indent 2) call))
+     (when (js* "('result' in ~{frame})") ; seriously?
+       (println (.join (make-array indent) " ") "<=" (.-id frame) (.-result frame)))))
 
-(print-example example-b [1 "foo"])
-(print-example example-b 1)
-(print-example example-c 10)
-(print-example example-d {"counter" 0})
-(print-example example-e {"counter" 0})
-(print-example example-e s2)
+  (defn print-example [example input]
+    (let [[result output stack] (run-example example input)]
+      (print-stack stack)
+      (println output)
+      (println result)))
+
+  (print-example example-b [1 "foo"])
+  (print-example example-b 1)
+  (print-example example-c 10)
+  (print-example example-d {"counter" 0})
+  (print-example example-e {"counter" 0})
+  (print-example example-e s2))
 
 
 ;;Set some metadata on the cljs functions we use so we can display them

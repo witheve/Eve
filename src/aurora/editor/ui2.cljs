@@ -688,17 +688,24 @@
 (def prev nil)
 
 (defn run-index [index notebook page state]
-  (let [jsth (compiler/notebook->jsth index (get index (->id notebook)))
+  (let [start (now)
+        jsth (compiler/notebook->jsth index (get index (->id notebook)))
         source (jsth/expression->string jsth)
+        _ (set! (.-innerHTML (js/document.getElementById "compile-perf")) (- (now) start))
+        start (now)
         notebook (js/eval (str "(" source "());"))
         stack #js []
         func (aget notebook (str "value_" (->id page)))]
     (aset notebook "next_state" state)
     (aset notebook "stack" stack)
     (try
-      [(func state []) (.-next_state notebook) (aget stack 0)]
+      (let [v [(func state []) (.-next_state notebook) (aget stack 0)]]
+        (set! (.-innerHTML (js/document.getElementById "run-perf")) (- (now) start))
+        v)
       (catch :default e
-        [e (.-next_state notebook) (aget stack 0)]))))
+        (let [v [e (.-next_state notebook) (aget stack 0)]]
+          (set! (.-innerHTML (js/document.getElementById "run-perf")) (- (now) start))
+          v)))))
 
 (defn re-run [notebook page args]
   (when (and notebook page)
@@ -724,9 +731,15 @@
         )))
 
 (add-watch aurora-state :running (fn [_ _ _ cur]
-                                   (when-not (identical? prev (:index cur))
-                                     ;;TODO: args
-                                     (re-run (current :notebook) (current :page) nil)
+                                   (if-not (identical? prev (:index cur))
+                                     (do
+                                       (set! prev (:index cur))
+                                       ;;TODO: args
+                                       (re-run (current :notebook) (current :page) nil))
+                                     (do
+                                       (set! (.-innerHTML (js/document.getElementById "compile-perf")) "n/a")
+                                       (set! (.-innerHTML (js/document.getElementById "run-perf")) "n/a")
+                                       )
                                      )))
 
 
