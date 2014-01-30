@@ -67,7 +67,15 @@
      (each [step (from-index (:steps page))]
            (step-list-item step (update-path path {:step index
                                                    :step-var (:id step)}))
-           )])
+           )
+    [:li {:className "step"
+          :onClick (fn []
+                     (let [page (current :page)]
+                       (swap! aurora-state assoc :step [{:notebook (:id (current :notebook))
+                                                         :page (:id page)
+                                                         :step (count (:steps page))}])))}
+     [:p {:className "desc"}
+      "add step"]]])
 
 (defdom steps-list [page]
   [:div {:className (str "workspace" (when (:steps @aurora-state)
@@ -118,6 +126,9 @@
    [:li {:className (step-class path)
          :onClick (step-click path)
          :onContextMenu (fn [e]
+                          (.nativeEvent.preventDefault e)
+                          (.preventDefault e)
+                          (.stopPropagation e)
                           (assoc-cache! [:menu] {:top (.-clientY e)
                                                  :left (.-clientX e)
                                                  :items [{:label "remove"
@@ -271,12 +282,29 @@
    (steps-list (current :page))
    (step-canvas (current :step) (:step @aurora-state))])
 
+(defdom constant-inserter []
+  [:div
+   [:p "insert a"]
+   [:button {:onClick (fn []
+                      (add-step! (current :page) (constant 4)))}
+    "number"]
+   [:button {:onClick (fn []
+                      (add-step! (current :page) (constant "foo")))}
+    "string"]
+   [:button {:onClick (fn []
+                      (add-step! (current :page) (constant [1 2 3])))}
+    "list"]
+   [:button {:onClick (fn []
+                      (add-step! (current :page) (constant {"name" "aurora"
+                                                            "awesomeness" 100000000})))}
+    "table"]
+   ]
+  )
+
 (defdom new-step-helper []
   [:div
    [:p "Let's create some data to get started!"]
-   [:button {:onClick (fn []
-                      (add-step! (current :page) (constant 4)))}
-    "add number"]
+   (constant-inserter)
    ])
 
 (defdom step-canvas [step path]
