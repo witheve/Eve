@@ -170,7 +170,10 @@
                   (set! (.. frame.vars ~(id->value step-id)) ~(id->value step-id))
                   (set! (.. frame.vars ~(id->cursor step-id)) ~(id->cursor step-id))))
        (set! notebook.stack stack))
-     [~(-> x :steps last id->value) ~(-> x :steps last id->cursor)]))
+     ~(if (-> x :steps seq)
+        `[~(-> x :steps last id->value) ~(-> x :steps last id->cursor)]
+        nil)
+     ))
 
 (deftraced notebook->jsth [index x] [x]
   (check (= :notebook (:type x)))

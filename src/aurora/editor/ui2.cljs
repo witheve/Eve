@@ -726,7 +726,8 @@
 (add-watch aurora-state :running (fn [_ _ _ cur]
                                    (when-not (identical? prev (:index cur))
                                      ;;TODO: args
-                                     (re-run (current :notebook) (current :page) nil))))
+                                     (re-run (current :notebook) (current :page) nil)
+                                     )))
 
 
 ;;*********************************************************
