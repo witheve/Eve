@@ -223,11 +223,11 @@
    (vector? x) "list"
    :else (str (type x))))
 
-(defmethod item-ui :constant [x]
+(defmethod item-ui :constant [x path]
   (let [value (:data x)
         name (datatype-name value)]
       (if-let [rep (get-in @aurora-state [:cache :representations name])]
-        (rep value)
+        (rep value (assoc path :sub-path :data))
         (pr-str x))))
 
 (defmethod step-list-item :constant [step path]
@@ -322,7 +322,8 @@
        (step-description step path)
        [:div {:className "result"}
         (item-ui
-         (path->result path))
+         (path->result path)
+         (last path))
         ])
      ])
 
@@ -503,9 +504,19 @@
              "boolean" (fn [x]
                          (dom [:span {:className "value"}
                                (str x)]))
-             "number" (fn [x]
-                        (dom [:span {:className "value"}
-                              (str x)]))
+             "number" (fn [x path]
+                        (dom
+                         (if (input? path)
+                           [:input {:type "text" :defaultValue (:desc notebook)
+                                    :onKeyPress (fn [e]
+                                                  (when (= 13 (.-charCode e))
+                                                    (update-index! (:step-var path) [] assoc (:sub-path path) (.-target.value e))
+                                                    ))}]
+                           [:span {:className "value"
+                                   :onClick (fn []
+                                              (add-input! path true)
+                                              )}
+                            (str x)])))
              "keyword" (fn [x]
                         (dom [:span {:className "value"}
                               (str x)]))

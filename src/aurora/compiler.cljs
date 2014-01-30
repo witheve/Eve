@@ -1,7 +1,6 @@
 (ns aurora.compiler
   (:require [aurora.jsth :as jsth]
             [aurora.ast :as ast]
-            [aurora.interpreter :as i]
             [aurora.util :refer [map!]])
   (:require-macros [aurora.macros :refer [for! check deftraced]]))
 
