@@ -66,7 +66,9 @@
   (-equiv [o other] (identical? o other))
 
   IDeref
-  (-deref [this] (when atm (get-in @atm (-index-path this))))
+  (-deref [this]  (let [path (-index-path this)]
+                    (or (map-key-path? path)
+                        (get-in @atm path))))
 
   IPrintWithWriter
   (-pr-writer [this writer opts]
@@ -78,13 +80,29 @@
 (defn cursor [id]
   (IndexCursor. aurora-state id []))
 
+(defn map-key-path? [path]
+  (-> path
+      (last)
+      (::key)))
+
 (defn cursors [ids]
   (map cursor id))
+
+(defn cursor-swap! [atm args]
+  (let [path (-index-path atm)
+        map-key? (map-key-path? path)
+        root-value @(.-atm atm)
+        neue-value (apply (first args) @atm (rest args))]
+    (if map-key?
+      (swap! (.-atm atm) assoc-in (butlast path) (-> (get-in root-value (butlast path))
+                                                     (dissoc map-key?)
+                                                     (assoc neue-value (get-in root-value (concat (butlast path) [map-key?])))))
+      (swap! (.-atm atm) assoc-in path neue-value))))
 
 (defn swap! [atm & args]
   (if-not (satisfies? ICursor atm)
     (apply cljs.core/swap! atm args)
-    (swap! (.-atm atm) assoc-in (-index-path atm) (apply (first args) @atm (rest args)))))
+    (cursor-swap! atm args)))
 
 ;;*********************************************************
 ;; Declares
