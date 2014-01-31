@@ -31,6 +31,7 @@
   (cond
    (= :tag (:type x)) (tag! index x)
    (#{:ref/id :ref/js} (:type x)) (ref! index x)
+   (or (true? x) (false? x)) true
    (number? x) true
    (string? x) true
    (vector? x) (every? #(data! index %) x)
