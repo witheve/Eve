@@ -85,6 +85,8 @@
    (= :match/bind (:type x)) `(do
                                 (let! ~(id->value (:id x)) ~(id->value input))
                                 (let! ~(id->cursor (:id x)) ~(id->cursor input))
+                                (set! (.. frame.vars ~(id->value (:id x))) ~(id->value (:id x)))
+                                (set! (.. frame.vars ~(id->cursor (:id x))) ~(id->cursor (:id x)))
                                 ~(pattern->jsth index (:pattern x) input))
    (= :tag (:type x)) (test->jsth `(= ~(tag->jsth index x) ~(id->value input)))
    (= :ref/id (:type x)) (test->jsth `(= ~(ref->jsth index x) ~(id->value input)))
@@ -164,6 +166,10 @@
        (set! frame.vars {})
        (stack.push frame)
        (set! notebook.stack frame.calls)
+       ~@(for! [arg (:args x)]
+               `(do
+                  (set! (.. frame.vars ~(id->value arg)) ~(id->value arg))
+                  (set! (.. frame.vars ~(id->cursor arg)) ~(id->cursor arg))))
        ~@(for! [step-id (:steps x)]
                `(do
                   ~(step->jsth index (get index step-id) step-id)
