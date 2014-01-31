@@ -99,7 +99,7 @@
                           (let [new-input (new-id)]
                             `(do
                                (let! ~(id->value new-input) (cljs.core.nth.call nil ~(id->value input) ~i))
-                               (let! ~(id->cursor new-input) (? ~(id->cursor input) (cljs.core.conj.call nil ~(id->cursor input) i) nil))
+                               (let! ~(id->cursor new-input) (? ~(id->cursor input) (cljs.core.conj.call nil ~(id->cursor input) ~i) nil))
                                ~(pattern->jsth index (nth x i) new-input)))))
    (map? x) `(do
                ~(test->jsth `(cljs.core.map_QMARK_.call nil ~(id->value input)))
@@ -189,10 +189,10 @@
        (let! failure "MatchFailure!")
        ;; TODO handle nil cursors in replace and append
        (fn value_replace [value_old cursor_old value_new cursor_new]
-         (cljs.core.assoc_in.call nil notebook.next_state cursor_old value_new)
+         (set! notebook.next_state (cljs.core.assoc_in.call nil notebook.next_state cursor_old value_new))
          ["ok" nil])
        (fn value_append [value_old cursor_old value_new cursor_new]
-         (cljs.core.update_in.call nil notebook.next_state cursor_old cljs.core.conj value_new)
+         (set! notebook.next_state (cljs.core.update_in.call nil notebook.next_state cursor_old cljs.core.conj value_new))
          ["ok" nil])
        ~@(for! [page-id (:pages x)]
                `(do
