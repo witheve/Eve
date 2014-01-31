@@ -202,7 +202,15 @@
 
 ;; runtime
 
-(defn run-index [index id state]
+(defn see [state watchers]
+  (dissoc
+   (reduce
+    (fn [state watcher] (watcher state))
+    state
+    watchers)
+   "output"))
+
+(defn tick [index id state watchers]
   (let [jsth (notebook->jsth index (get index id))
         source (jsth/expression->string jsth)
         _ (println "###################")
@@ -213,26 +221,41 @@
     (aset notebook "next_state" state)
     (aset notebook "stack" stack)
     (try
-      [(.value_root notebook state []) (.-next_state notebook) (aget stack 0)]
+      (.value_root notebook state [])
+      (let [next-state (.-next_state notebook)]
+        [(see next-state) next-state (aget stack 0)])
       (catch :default e
-        [e (.-next_state notebook) (aget stack 0)]))))
+        (let [next-state (.-next_state notebook)]
+          [e next-state (aget stack 0)])))))
 
-(defn tick-example [index id state]
-  (second (run-index index id state)))
+;; watchers
+
+(defn watch-timeout* [buffer state]
+  (doseq [{:strs [cursor timeout]} (get-in state ["output" "timeout"])]
+    (js/setTimeout (fn [] (swap! buffer conj cursor)) timeout))
+  (let [cursors @buffer] ;; this is only valid because js is single-threaded
+    (reset! buffer nil)
+    (reduce #(assoc-in %1 %2 "timeout") state cursors)))
+
+(defn watch-timeout []
+  (let [buffer (atom [])]
+    #(watch-timeout* buffer %)))
+
+;; examples
 
 (notebook->jsth ast/example-b (get ast/example-b "example_b"))
 
-(run-index ast/example-b "example_b" {"a" 1 "b" 2})
-(run-index ast/example-b "example_b" {"a" 1 "c" 2})
-(run-index ast/example-b "example_b" {"a" 1 "b" "foo"})
-(run-index ast/example-b "example_b" [1 "foo"])
-(run-index ast/example-b "example_b" [1 2])
+(tick ast/example-b "example_b" {"a" 1 "b" 2})
+(tick ast/example-b "example_b" {"a" 1 "c" 2})
+(tick ast/example-b "example_b" {"a" 1 "b" "foo"})
+(tick ast/example-b "example_b" {"vec" [1 "foo"]})
+(tick ast/example-b "example_b" {"vec" [1 2]})
 
-;; (run-index ast/example-c 0)
-;; (run-index ast/example-c 1)
-;; (run-index ast/example-c 7)
-;; (run-index ast/example-c 10)
+;; (tick ast/example-c 0)
+;; (tick ast/example-c 1)
+;; (tick ast/example-c 7)
+;; (tick ast/example-c 10)
 
-;; (run-index ast/example-d {"counter" 0})
+;; (tick ast/example-d {"counter" 0})
 
-;; (run-index ast/example-e {"counter" 0 "started_" "false"})
+;; (tick ast/example-e {"counter" 0 "started_" "false"})
