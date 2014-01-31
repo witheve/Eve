@@ -153,6 +153,11 @@
 
 (notebook! example-a (get example-a "example_a"))
 
+(comment
+  (match x
+         {"a" ^a number? "b" ^b number?} (- a b)
+         {"vec" [^z _ "foo"]} (replace z "more foo!")))
+
 (def example-b
   {"example_b" {:type :notebook
                 :id "example_b"
@@ -198,6 +203,10 @@
                                              "more foo!"]}}]}})
 
 (notebook! example-b (get example-b "example_b"))
+
+(comment
+  (match x
+         {"counter" ^counter _} (replace counter (+ counter 1))))
 
 (def example-c
   {"example_c" {:type :notebook
