@@ -37,6 +37,7 @@
   (cond
    (= :tag (:type x)) (tag->jsth index x)
    (#{:ref/id :ref/js} (:type x)) (ref->jsth index x)
+   (or (true? x) (false? x)) x
    (number? x) x
    (string? x) x
    (vector? x) `(cljs.core.PersistentVector.fromArray
@@ -84,8 +85,6 @@
    (= :match/bind (:type x)) `(do
                                 (let! ~(id->value (:id x)) ~(id->value input))
                                 (let! ~(id->cursor (:id x)) ~(id->cursor input))
-                                (set! (.. frame.vars ~(id->value (:id x))) ~(id->value (:id x)))
-                                (set! (.. frame.vars ~(id->cursor (:id x))) ~(id->cursor (:id x)))
                                 ~(pattern->jsth index (:pattern x) input))
    (= :tag (:type x)) (test->jsth `(= ~(tag->jsth index x) ~(id->value input)))
    (= :ref/id (:type x)) (test->jsth `(= ~(ref->jsth index x) ~(id->value input)))
@@ -98,7 +97,7 @@
                           (let [new-input (new-id)]
                             `(do
                                (let! ~(id->value new-input) (cljs.core.nth.call nil ~(id->value input) ~i))
-                               (let! ~(id->cursor new-input) (? ~(id->cursor input) (cljs.core.conj.call nil ~(id->cursor input) ~i) nil))
+                               (let! ~(id->cursor new-input) (? ~(id->cursor input) (cljs.core.conj.call nil ~(id->cursor input) i) nil))
                                ~(pattern->jsth index (nth x i) new-input)))))
    (map? x) `(do
                ~(test->jsth `(cljs.core.map_QMARK_.call nil ~(id->value input)))
@@ -165,10 +164,6 @@
        (set! frame.vars {})
        (stack.push frame)
        (set! notebook.stack frame.calls)
-       ~@(for! [arg (:args x)]
-               `(do
-                  (set! (.. frame.vars ~(id->value arg)) ~(id->value arg))
-                  (set! (.. frame.vars ~(id->cursor arg)) ~(id->cursor arg))))
        ~@(for! [step-id (:steps x)]
                `(do
                   ~(step->jsth index (get index step-id) step-id)
@@ -188,10 +183,10 @@
        (let! failure "MatchFailure!")
        ;; TODO handle nil cursors in replace and append
        (fn value_replace [value_old cursor_old value_new cursor_new]
-         (set! notebook.next_state (cljs.core.assoc_in.call nil notebook.next_state cursor_old value_new))
+         (cljs.core.assoc_in.call nil notebook.next_state cursor_old value_new)
          ["ok" nil])
        (fn value_append [value_old cursor_old value_new cursor_new]
-         (set! notebook.next_state (cljs.core.update_in.call nil notebook.next_state cursor_old cljs.core.conj value_new))
+         (cljs.core.update_in.call nil notebook.next_state cursor_old cljs.core.conj value_new)
          ["ok" nil])
        ~@(for! [page-id (:pages x)]
                `(do
@@ -201,15 +196,7 @@
 
 ;; runtime
 
-(defn see [state watchers]
-  (dissoc
-   (reduce
-    (fn [state watcher] (watcher state))
-    state
-    watchers)
-   "output"))
-
-(defn tick [index id state watchers]
+(defn run-index [index id state]
   (let [jsth (notebook->jsth index (get index id))
         source (jsth/expression->string jsth)
         _ (println "###################")
@@ -220,41 +207,26 @@
     (aset notebook "next_state" state)
     (aset notebook "stack" stack)
     (try
-      (.value_root notebook state [])
-      (let [next-state (.-next_state notebook)]
-        [(see next-state) next-state (aget stack 0)])
+      [(.value_root notebook state []) (.-next_state notebook) (aget stack 0)]
       (catch :default e
-        (let [next-state (.-next_state notebook)]
-          [e next-state (aget stack 0)])))))
+        [e (.-next_state notebook) (aget stack 0)]))))
 
-;; watchers
-
-(defn watch-timeout* [buffer state]
-  (doseq [{:strs [cursor timeout]} (get-in state ["output" "timeout"])]
-    (js/setTimeout (fn [] (swap! buffer conj cursor)) timeout))
-  (let [cursors @buffer] ;; this is only valid because js is single-threaded
-    (reset! buffer nil)
-    (reduce #(assoc-in %1 %2 "timeout") state cursors)))
-
-(defn watch-timeout []
-  (let [buffer (atom [])]
-    #(watch-timeout* buffer %)))
-
-;; examples
+(defn tick-example [index id state]
+  (second (run-index index id state)))
 
 (notebook->jsth ast/example-b (get ast/example-b "example_b"))
 
-(tick ast/example-b "example_b" {"a" 1 "b" 2})
-(tick ast/example-b "example_b" {"a" 1 "c" 2})
-(tick ast/example-b "example_b" {"a" 1 "b" "foo"})
-(tick ast/example-b "example_b" {"vec" [1 "foo"]})
-(tick ast/example-b "example_b" {"vec" [1 2]})
+(run-index ast/example-b "example_b" {"a" 1 "b" 2})
+(run-index ast/example-b "example_b" {"a" 1 "c" 2})
+(run-index ast/example-b "example_b" {"a" 1 "b" "foo"})
+(run-index ast/example-b "example_b" [1 "foo"])
+(run-index ast/example-b "example_b" [1 2])
 
-;; (tick ast/example-c 0)
-;; (tick ast/example-c 1)
-;; (tick ast/example-c 7)
-;; (tick ast/example-c 10)
+;; (run-index ast/example-c 0)
+;; (run-index ast/example-c 1)
+;; (run-index ast/example-c 7)
+;; (run-index ast/example-c 10)
 
-;; (tick ast/example-d {"counter" 0})
+;; (run-index ast/example-d {"counter" 0})
 
-;; (tick ast/example-e {"counter" 0 "started_" "false"})
+;; (run-index ast/example-e {"counter" 0 "started_" "false"})

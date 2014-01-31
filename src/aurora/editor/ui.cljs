@@ -124,12 +124,7 @@
 ;; Function calls
 ;;*********************************************************
 
-(defn ref->name [ref]
-  (let [op (when (= (:type ref) :ref/id)
-             (cursor (:id ref)))]
-    (if op
-      (:desc @op (:id ref))
-      (-> (js/eval (:js ref)) meta :desc))))
+
 
 (defdom clickable-ref [step stack]
   (let [ref (:ref @step)
@@ -163,14 +158,7 @@
    [:div {:className "result"}
     (item-ui (value-cursor (path->result stack)))]))
 
-(defmethod item-ui :ref/id [step]
-  (dom
-   (if-let [res (path->result (-> (drop 1 (:stack @aurora-state))
-                                  (conj [:step (:id @step)])))]
-     [:span {:className "ref"}
-      (item-ui (value-cursor res))]
-     [:span {:className "ref"}
-      (str (:id @step))]) ))
+
 
 (defmethod item-ui :call [step]
   (dom [:p {:className "desc"}
@@ -255,6 +243,41 @@
       ])))
 
 ;;*********************************************************
+;; refs
+;;*********************************************************
+
+(defn ref->name [ref]
+  (let [op (when (= (:type ref) :ref/id)
+             (cursor (:id ref)))]
+    (if op
+      (:desc @op (:id ref))
+      (-> (js/eval (:js ref)) meta :desc))))
+
+(defn refs-in-scope [page step]
+  (concat (:args @page) (take-while #(not= % (cursor->id step)) (:steps @page))))
+
+(defn ref-menu [step & [cb]]
+  (fn [e]
+    (when (mutable? step)
+      (show-menu! e (for [ref (refs-in-scope (current :page) (current :step))]
+                      {:label (subs ref 0 5)
+                       :action (fn []
+                                 (swap! step (constantly (ref-id ref)))
+                                 (when cb
+                                   (cb)))})))))
+
+(defmethod item-ui :ref/id [step]
+  (dom
+   (if-let [res (path->result (-> (drop 1 (:stack @aurora-state))
+                                  (conj [:step (:id @step)])))]
+     [:span {:className "ref"
+             :onContextMenu (ref-menu step)}
+      (item-ui (value-cursor res))]
+     [:span {:className "ref"
+             :onContextMenu (ref-menu step)}
+      (str (:id @step))]) ))
+
+;;*********************************************************
 ;; editor
 ;;*********************************************************
 
@@ -296,6 +319,9 @@
    [:button {:onClick (fn []
                       (add-step! (current :page) (constant "foo")))}
     "string"]
+   [:button {:onClick (fn []
+                      (add-step! (current :page) (constant true)))}
+    "boolean"]
    [:button {:onClick (fn []
                       (add-step! (current :page) (constant [1 2 3])))}
     "list"]
@@ -457,9 +483,9 @@
 ;;*********************************************************
 
 (defdom table-ui [table]
-  (println (cursor->path table))
   (let [ks (keys @table)]
-    [:table {:className "table"}
+    [:table {:className "table"
+             :onContextMenu (ref-menu table)}
      [:thead
       [:tr
        (each [k ks]
@@ -471,7 +497,8 @@
 
 
 (defdom list-ui [list]
-  [:ul {:className "list"}
+  [:ul {:className "list"
+        :onContextMenu (ref-menu list)}
    (each [v @list]
          [:li (item-ui (conj list index))])])
 
@@ -489,21 +516,12 @@
             {"math" math-ui
              "rect" (fn [x]
                       )
-             "ref" (fn [x]
-                     (dom
-                      (println (-> (:stack @aurora-state)
-                                                     (drop 1)
-                                                     (conj [:step (:id @x)])))
-                      (if-let [res (path->result (-> (:stack @aurora-state)
-                                                     (drop 1)
-                                                     (conj [:step (:id @x)])))]
-                        [:span {:className "ref"}
-                         (item-ui (value-cursor res))]
-                        [:span {:className "ref"}
-                         (str (:id @x))]))
-                     )
              "boolean" (fn [x]
-                         (dom [:span {:className "value"}
+                         (dom [:span {:className "value"
+                                      :onContextMenu (ref-menu x)
+                                      :onClick (fn []
+                                                 (when (mutable? x)
+                                                   (swap! x not)))}
                                (str @x)]))
              "number" (fn [x]
                         (let [path (cursor->path x)]
@@ -515,13 +533,7 @@
                                                       (swap! x (constantly (reader/read-string (.-target.value e))))
                                                       (remove-input! path)))}]
                              [:span {:className "value"
-                                     :onContextMenu (fn [e]
-                                                      (let [page (current :page)]
-                                                        (show-menu! e (for [ref (concat (:args @page) (:steps @page))]
-                                                                        {:label (subs ref 0 5)
-                                                                         :action (fn []
-                                                                                   (swap! x (constantly (ref-id ref))))}
-                                                                        ))))
+                                     :onContextMenu (ref-menu x)
                                      :onClick (fn [e]
                                                 (when (mutable? x)
                                                   (add-input! path true)))}
@@ -540,6 +552,7 @@
                                                       (remove-input! path)
                                                       ))}]
                              [:span {:className "value"
+                                     :onContextMenu (ref-menu x)
                                      :onClick (fn []
                                                 (when (mutable? x)
                                                   (add-input! path path)))}
@@ -555,7 +568,7 @@
 ;;*********************************************************
 
 (defn path->step [path]
-  (let [[type id] (last path)
+  (let [[type id] (first path)
         step (if (= :step type)
                id)]
     (when step
@@ -566,7 +579,7 @@
     (condp = key
       :notebook (cursor v)
       :page (cursor v)
-      :step (path->step v))))
+      :step (path->step (:stack @aurora-state)))))
 
 (defn from-cache [path]
   (if (coll? path)
@@ -575,6 +588,8 @@
 
 (defn input? [id]
   (get-in @aurora-state [:cache :inputs id]))
+
+
 
 ;;*********************************************************
 ;; Aurora state (nodes)
