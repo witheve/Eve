@@ -40,6 +40,51 @@
 
 (alter-meta! number? assoc :desc "Is a number? " :name "cljs.core.number_QMARK_")
 
+;;*********************************************************
+;; Cursors
+;;*********************************************************
+
+(defprotocol ICursor
+  (-conj-path! [this x] "conj to the sub-path")
+  (-index-path [this] "get the full path relative to root"))
+
+(deftype IndexCursor [atm id sub-path]
+  ICursor
+  (-conj-path! [this neue]
+               (let [neue (if (coll? neue)
+                            neue
+                            [neue])]
+                 (println neue)
+                 (IndexCursor. atm id (into sub-path neue))))
+  (-index-path [this] (concat [:index id] sub-path))
+
+  ICollection
+  (-conj [this x]
+         (-conj-path! this x))
+
+  IEquiv
+  (-equiv [o other] (identical? o other))
+
+  IDeref
+  (-deref [this] (when atm (get-in @atm (-index-path this))))
+
+  IPrintWithWriter
+  (-pr-writer [this writer opts]
+    (-write writer (str "#<Cursor: " (pr-str (-index-path this)) ">")))
+
+  IHash
+  (-hash [this] (goog.getUid this)))
+
+(defn cursor [id]
+  (IndexCursor. aurora-state id []))
+
+(defn cursors [ids]
+  (map cursor id))
+
+(defn swap! [atm & args]
+  (if-not (satisfies? ICursor atm)
+    (apply cljs.core/swap! atm args)
+    (swap! (.-atm atm) assoc-in (-index-path atm) (apply (first args) @atm (rest args)))))
 
 ;;*********************************************************
 ;; Declares
