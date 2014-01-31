@@ -30,11 +30,12 @@
 (defmulti step-description :type)
 (defmulti item-ui :type)
 
-(defmethod item-ui :default [step]
+(defmethod item-ui :default [step path]
   (dom
    (if-not (:type step)
-     (item-ui {:type :constant
-               :data step})
+     (item-ui {:type :non-node-constant
+               :data step}
+              path)
      [:span (pr-str step)])))
 
 (defmethod step-list-item :default [step]
@@ -227,7 +228,14 @@
   (let [value (:data x)
         name (datatype-name value)]
       (if-let [rep (get-in @aurora-state [:cache :representations name])]
-        (rep value (assoc path :sub-path :data))
+        (rep value (assoc path :sub-path [:data]))
+        (pr-str x))))
+
+(defmethod item-ui :non-node-constant [x path]
+  (let [value (:data x)
+        name (datatype-name value)]
+      (if-let [rep (get-in @aurora-state [:cache :representations name])]
+        (rep value path)
         (pr-str x))))
 
 (defmethod step-list-item :constant [step path]
@@ -247,7 +255,7 @@
                             (.stopPropagation e))}
       [:p {:className "desc"} "Add a " [:span {:className "value"} name]
        (when-let [rep (get-in @aurora-state [:cache :representations name])]
-         (rep value))]
+         (rep value (assoc (last path) :sub-path [:data])))]
 
       ])))
 
@@ -255,7 +263,11 @@
   (let [value (:data step)
         name (datatype-name value)]
     (dom
-      [:p {:className "desc"} "Add a " [:span {:className "value"} name]])))
+     [:p {:className "desc"} "Add a " [:span {:className "value"} name]]
+     [:div {:className "result"}
+      (item-ui {:type :constant
+                :data (path->result path)} (last path))
+      ])))
 
 ;;*********************************************************
 ;; editor
@@ -320,11 +332,7 @@
        (new-step-helper))
      (when step
        (step-description step path)
-       [:div {:className "result"}
-        (item-ui
-         (path->result path)
-         (last path))
-        ])
+       )
      ])
 
 ;;*********************************************************
@@ -466,22 +474,22 @@
 ;; Representations
 ;;*********************************************************
 
-(defdom table-ui [ks vs]
+(defdom table-ui [ks vs path]
   [:table {:className "table"}
    [:thead
     [:tr
      (each [k ks]
-           [:th (item-ui k)])]]
+           [:th (item-ui k (assoc path :sub-path (conj (:sub-path path []) ::key k)))])]]
    [:tbody
     [:tr
      (each [v vs]
-           [:td (item-ui v)])]]])
+           [:td (item-ui v (assoc path :sub-path (conj (:sub-path path []) (nth ks index))))])]]])
 
 
-(defdom list-ui [vs]
+(defdom list-ui [vs path]
   [:ul {:className "list"}
    (each [v vs]
-         [:li (item-ui v)])])
+         [:li (item-ui v (assoc path :sub-path (conj (:sub-path path []) index)))])])
 
 (defdom math-ui [x]
   (cond
@@ -507,10 +515,11 @@
              "number" (fn [x path]
                         (dom
                          (if (input? path)
-                           [:input {:type "text" :defaultValue (:desc notebook)
+                           [:input {:type "text" :defaultValue x
                                     :onKeyPress (fn [e]
                                                   (when (= 13 (.-charCode e))
-                                                    (update-index! (:step-var path) [] assoc (:sub-path path) (.-target.value e))
+                                                    (assoc-index! (:step-var path) (:sub-path path) (reader/read-string (.-target.value e)))
+                                                    (remove-input! path)
                                                     ))}]
                            [:span {:className "value"
                                    :onClick (fn []
@@ -520,15 +529,28 @@
              "keyword" (fn [x]
                         (dom [:span {:className "value"}
                               (str x)]))
-             "string" (fn [x]
-                        (dom [:span {:className "value"}
-                              (str x)]))
-             "list" (fn [x]
-                      (list-ui x))
-             "table" (fn [x]
+             "string" (fn [x path]
+                        (dom
+                         (if (input? path)
+                           [:input {:type "text" :defaultValue x
+                                    :onKeyPress (fn [e]
+                                                  (when (= 13 (.-charCode e))
+                                                    (assoc-index! (:step-var path) (:sub-path path) (.-target.value e))
+                                                    (remove-input! path)
+                                                    ))}]
+                           [:span {:className "value"
+                                   :onClick (fn []
+                                              (add-input! path true)
+                                              )}
+                            (str x)])
+                          ))
+             "list" (fn [x path]
+                      (list-ui x path))
+             "table" (fn [x path]
                        (table-ui
                         (-> x keys)
-                        (-> x vals)))}))
+                        (-> x vals)
+                        path))}))
 
 ;;*********************************************************
 ;; Aurora state
@@ -605,15 +627,36 @@
   (swap! aurora-state update-in [:cache :inputs] dissoc id))
 
 (defn update-index! [thing path & args]
-  (apply swap! aurora-state update-in
-         (concat [:index (if (map? thing)
-                           (:id thing)
-                           thing)]
-                 path)
-         args))
+  (if-not thing
+    (throw (js/Error. "Trying to update index with nil"))
+    (apply swap! aurora-state update-in
+           (concat [:index (if (map? thing)
+                             (:id thing)
+                             thing)]
+                   path)
+           args)))
 
 (defn add-index! [thing]
   (swap! aurora-state assoc-in [:index (:id thing)] thing))
+
+(defn assoc-index-key! [thing path old-key neue-key]
+  (let [final-path (concat [:index (->id thing)] path)
+        cur (get-in @aurora-state (concat [:index (->id thing)] path))
+        cur-value (get cur old-key)]
+    (swap! aurora-state assoc-in final-path (-> cur
+                                                (dissoc old-key)
+                                                (assoc neue-key cur-value)))))
+
+(defn assoc-index! [thing path v]
+  (let [rev-path (reverse path)]
+    (if (= ::key (second rev-path))
+      (assoc-index-key! thing
+                        (->> rev-path
+                             (drop 2)
+                             (reverse))
+                        (first rev-path)
+                        v)
+      (swap! aurora-state assoc-in (concat [:index (->id thing)] path) v))))
 
 (defn remove-index! [thing]
   (swap! aurora-state update-in [:index] dissoc (:id thing)))
