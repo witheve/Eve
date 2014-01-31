@@ -107,8 +107,7 @@ button:hover { background:#eee; }
 .document { display:none; }
 .document.active { display:inline-block; margin-left:100px; min-height:100%; width:800px; padding:15px 20px; box-shadow:0 0 30px #ccc; }
 
-.workspace { display:none; }
-.workspace.active { display:inline-block; padding-right:50px; vertical-align:top; }
+.workspace { display:inline-block; padding-right:50px; vertical-align:top; }
 
 .step-canvas { display:inline-block; height:100%; padding-top:50px; margin:0;}
 
