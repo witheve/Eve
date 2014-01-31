@@ -253,11 +253,8 @@
 (tick ast/example-b "example_b" {"vec" [1 "foo"]})
 (tick ast/example-b "example_b" {"vec" [1 2]})
 
-;; (tick ast/example-c 0)
-;; (tick ast/example-c 1)
-;; (tick ast/example-c 7)
-;; (tick ast/example-c 10)
+(tick ast/example-c "example_c" {"counter" 0})
 
-;; (tick ast/example-d {"counter" 0})
+(->> {"counter" 0} (tick ast/example-c "example_c") first (tick ast/example-c "example_c") first (tick ast/example-c "example_c") first)
 
 ;; (tick ast/example-e {"counter" 0 "started_" "false"})
