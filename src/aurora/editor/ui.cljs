@@ -19,6 +19,28 @@
 (defn update-path [path neue]
   (update-in path [(-> path count dec)] merge neue))
 
+(defn update-sub-path [path neue]
+  (let [path (if-not (map? path)
+               (last path)
+               path)
+        neue (if (coll? neue)
+               neue
+               [neue])]
+    (assoc path :sub-path (concat (:sub-path path []) neue))))
+
+(extend-type function
+  Fn
+  IMeta
+  (-meta [this] (.-meta this)))
+
+(alter-meta! + assoc :desc "Add " :name "cljs.core._PLUS_")
+(alter-meta! - assoc :desc "Subtract " :name "cljs.core._")
+(alter-meta! * assoc :desc "Multiply " :name "cljs.core._STAR_")
+(alter-meta! / assoc :desc "Divide " :name "cljs.core._SLASH_")
+
+(alter-meta! number? assoc :desc "Is a number? " :name "cljs.core.number_QMARK_")
+
+
 ;;*********************************************************
 ;; Declares
 ;;*********************************************************
@@ -134,7 +156,7 @@
                                                  :left (.-clientX e)
                                                  :items [{:label "remove"
                                                           :action (fn []
-                                                                    (println "remove!"))}]}))}
+                                                                    (remove-step! (current :page) step))}]}))}
     (clickable-ref step path)]
    (sub-step step path)
    ))
@@ -144,7 +166,11 @@
       [:p {:className "desc"}
        (ref->name (:ref step))
        (each [input (:args step)]
-             (item-ui input))]))
+             (item-ui input (update-sub-path path [:args index])))]
+   [:div {:className "result"}
+      (item-ui (path->result path))
+      ]
+   ))
 
 (defmethod item-ui :ref/id [step]
   (dom [:span {:className "ref"}
@@ -319,11 +345,21 @@
                (subs refs 0 5)]])
    ])
 
+(defdom call-inserter [page]
+  [:ul
+   (each [ref [(ref-js "cljs.core._PLUS_")]]
+         [:li [:button {:onClick (fn []
+                                   (add-step! (current :page) (call ref [1 2])))}
+               (ref->name ref)]])
+   [:li "foo"]
+   ])
+
 (defdom new-step-helper []
   [:div
    [:p "Let's create some data to get started!"]
    (constant-inserter)
    (ref-inserter (current :page))
+   (call-inserter (current :page))
    ])
 
 (defdom step-canvas [step path]
@@ -523,7 +559,8 @@
                                                     ))}]
                            [:span {:className "value"
                                    :onClick (fn []
-                                              (add-input! path true)
+                                              (when path
+                                                (add-input! path true))
                                               )}
                             (str x)])))
              "keyword" (fn [x]
@@ -540,7 +577,8 @@
                                                     ))}]
                            [:span {:className "value"
                                    :onClick (fn []
-                                              (add-input! path true)
+                                              (when path
+                                                (add-input! path true))
                                               )}
                             (str x)])
                           ))
@@ -609,9 +647,20 @@
                        :data data}
                       opts)))
 
+(defn call
+  ([ref args] (call ref args {}))
+  ([ref args opts] (merge {:type :call
+                           :ref ref
+                           :args args}
+                      opts)))
+
 (defn ref-id [id]
   {:type :ref/id
    :id id})
+
+(defn ref-js [js]
+  {:type :ref/js
+   :js js})
 
 ;;*********************************************************
 ;; Aurora state (mutation!)
@@ -627,7 +676,9 @@
   (swap! aurora-state update-in [:cache :inputs] dissoc id))
 
 (defn update-index! [thing path & args]
-  (if-not thing
+  (if (or (not thing)
+          (and (map? thing)
+               (not (:id thing))))
     (throw (js/Error. "Trying to update index with nil"))
     (apply swap! aurora-state update-in
            (concat [:index (if (map? thing)
@@ -762,8 +813,10 @@
 
 (defn re-run [notebook page args]
   (when (and notebook page)
-    (reset! run-stack #js {:calls #js [(nth (run-index (:index @aurora-state) notebook page args) 2)]})
-    (queue-render)))
+    (let [run (run-index (:index @aurora-state) notebook page args)]
+      (println "RESULT: " (first run))
+      (reset! run-stack #js {:calls #js [(nth run 2)]})
+      (queue-render))))
 
 (defn find-id [thing id]
   (first (filter #(= (aget % "id") id) (aget thing "calls"))))
@@ -824,5 +877,3 @@
 ;;*********************************************************
 
 (repopulate)
-
-
