@@ -197,3 +197,30 @@
                                              "more foo!"]}}]}})
 
 (notebook! example-b (get example-b "example_b"))
+
+(def example-c
+  {"example_c" {:type :notebook
+                :id "example_c"
+                :pages ["root"]}
+   "root" {:type :page
+           :id "root"
+           :args ["x"]
+           :steps ["counter" "inced" "new_counter"]}
+   "counter" {:type :match
+              :id "counter"
+              :arg {:type :ref/id :id "x"}
+              :branches [{:type :match/branch
+                          :pattern {"counter" {:type :match/bind :id "y" :pattern {:type :match/any}}}
+                          :guards []
+                          :action {:type :constant
+                                   :data {:type :ref/id :id "y"}}}]}
+   "inced" {:type :call
+          :id "inced"
+          :ref {:type :ref/js :js "cljs.core._PLUS_"}
+          :args [{:type :ref/id :id "counter"} 1]}
+   "new_counter" {:type :call
+                  :id "new_counter"
+                  :ref {:type :ref/id :id "replace"}
+                  :args [{:type :ref/id :id "counter"} {:type :ref/id :id "inced"}]}})
+
+(notebook! example-c (get example-c "example_c"))
