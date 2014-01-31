@@ -155,7 +155,7 @@
 (def example-b
   {"example_b" {:type :notebook
                 :id "example_b"
-               :pages ["root"]}
+                :pages ["root" "vec"]}
    "root" {:type :page
            :id "root"
            :args ["x"]
@@ -176,10 +176,24 @@
                                   :ref {:type :ref/js :js "cljs.core._"}
                                   :args [{:type :ref/id :id "a"} {:type :ref/id :id "b"}]}}
                         {:type :match/branch
-                         :pattern [{:type :match/bind :id "y" :pattern {:type :match/any}} "foo"]
+                         :pattern {"vec" {:type :match/bind :id "y" :pattern {:type :match/any}}}
                          :guards []
-                         :action {:type :constant
-                                  :data {:type :ref/id
-                                         :id "y"}}}]}})
+                         :action {:type :call
+                                  :ref {:type :ref/id :id "vec"}
+                                  :args [{:type :ref/id :id "y"}]}}]}
+   "vec" {:type :page
+          :id "vec"
+          :args ["y"]
+          :steps ["vec_result"]}
+   "vec_result" {:id "vec_result"
+                 :type :match
+                 :arg {:type :ref/id :id "y"}
+                 :branches [{:type :match/branch
+                             :pattern [{:type :match/bind :id "z" :pattern {:type :match/any}} "foo"]
+                             :guards []
+                             :action {:type :call
+                                      :ref {:type :ref/id :id "replace"}
+                                      :args [{:type :ref/id :id "z"}
+                                             "more foo!"]}}]}})
 
 (notebook! example-b (get example-b "example_b"))
