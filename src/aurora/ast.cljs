@@ -71,6 +71,7 @@
    (= :tag (:type x)) (tag! index x)
    (= :ref/id (:type x)) (ref! index x)
    (= :call (:type x)) (call! index x)
+   (or (true? x) (false? x)) true
    (number? x) true
    (string? x) true
    (vector? x) (every? #(pattern! index %) x)
