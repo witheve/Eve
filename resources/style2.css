@@ -188,3 +188,4 @@ li.match-branch + li.substep { border-top:1px solid #c6c6c6; margin-top:10px; }
 .console { position:absolute; bottom:0; }
 
 #perf { position:fixed; bottom: 10px; right:10px; }
+#perf td:first-child { text-align:right; padding-right:8px; }

@@ -1,170 +1,201 @@
 (ns aurora.editor.ui
   (:require [aurora.core :as core]
-            [aurora.compiler :as compiler])
-  (:require-macros [aurora.macros :refer [dom]]))
+            [aurora.compiler :as compiler]
+            [aurora.ast :as ast]
+            [aurora.jsth :as jsth]
+            [cljs.reader :as reader])
+  (:require-macros [aurora.macros :refer [defdom dom]]))
 
-(js/React.initializeTouchEvents true)
 
-(defn coll->array [thing]
-  (if-not (coll? thing)
-    thing
-    (to-array thing)))
+;;*********************************************************
+;; utils
+;;*********************************************************
 
-(defn react-wrapper [node attr children]
-  (let [children (to-array (map coll->array children))]
-    (apply (aget js/React.DOM node) attr children)))
+;(js/React.initializeTouchEvents true)
 
-(defn arrmap [func xs]
-  (.map (to-array xs) func))
+(defn now []
+  (.getTime (js/Date.)))
 
-(defn table-ui [ks vs]
-  (dom [:table {:className "table"}
-        [:thead
-         [:tr
-          (arrmap #(dom [:th %])
-                  ks)]]
-        [:tbody
-         [:tr
-          (arrmap #(dom [:td (item-ui %)
-                         ])
-                  vs)]]]))
+(defn update-path [path neue]
+  (update-in path [(-> path count dec)] merge neue))
 
-(defn list-ui [vs]
-  (dom [:ul {:className "list"}
-        (arrmap #(dom [:li (item-ui %)])
-                vs)]))
+(defn update-sub-path [path neue]
+  (let [path (if-not (map? path)
+               (last path)
+               path)
+        neue (if (coll? neue)
+               neue
+               [neue])]
+    (assoc path :sub-path (concat (:sub-path path []) neue))))
 
-(defn math-ui [x]
-  (println x (type x))
-  (cond
-   (string? x) (dom [:span {:className "math-op"} x])
-   (vector? x) (dom [:span {:className "math-expression"}
-                     (to-array (map math-ui (interpose (first x) (rest x))))])
-   (compiler/is-node? x) (manual-step-item x)
-   (number? x) (dom [:span {:className "value"}
-                     (pr-str x)])
-   :else (dom [:span (pr-str x)])))
+(extend-type function
+  Fn
+  IMeta
+  (-meta [this] (.-meta this)))
 
-(def editor-state (atom {:active nil
-                         :manual nil
-                         :steps true
-                         :document true}))
+(alter-meta! + assoc :desc "Add " :name "cljs.core._PLUS_")
+(alter-meta! - assoc :desc "Subtract " :name "cljs.core._")
+(alter-meta! * assoc :desc "Multiply " :name "cljs.core._STAR_")
+(alter-meta! / assoc :desc "Divide " :name "cljs.core._SLASH_")
 
-(def editor {:representation-cache {"math" math-ui
-                                    "rect" (fn [x]
-                                               )
-                                    "number" (fn [x]
-                                               (dom [:span {:className "value"}
-                                                     (pr-str x)]))
-                                    "string" (fn [x]
-                                               (dom [:span {:className "value"}
-                                                     (str x)]))
-                                    "list" (fn [x]
-                                             (list-ui (-> x :args first :data :value)))
-                                    "table" (fn [x]
-                                              (table-ui
-                                               (-> x :args first :data :value)
-                                               (-> x :args second :data :value)))}
-             :programs {"program1" compiler/example
-                        "aurora.math" {:desc "Math"
-                                       :manuals {"even" {:desc "is even?"}}}
-                        "aurora.core" {:desc "Core"
-                                       :manuals {"each" {:desc "For each of "}}}}})
+(alter-meta! number? assoc :desc "Is a number? " :name "cljs.core.number_QMARK_")
 
-(defn program-item [[name program]]
-  (let [click (fn []
-                (swap! editor-state assoc :active name)
-                (println "clicked!" name))]
-    (dom
-     [:li {:className "program-item"
-           :onTouchStart click
-           :onClick click}
-      (:desc program)])))
 
-(defn program-list [editor]
-  (when-not (:active @editor-state)
-    (dom
-     [:ul {:className "programs"}
-      (arrmap program-item (:programs editor))])))
+;;*********************************************************
+;; Declares
+;;*********************************************************
 
-(defn manual-item [[name man]]
-  (let [click (fn []
-                (swap! editor-state assoc :manual name))]
-    (dom [:li {:className "manual-item"
-               :onClick click
-               :onTouchStart click}
-          (:desc man)])))
+(declare aurora-state)
+(declare aurora-state)
 
-(defn program [prog]
-  (when (and prog (not (:manual @editor-state)))
-    (let [click (fn []
-                  (swap! editor-state assoc :active nil))]
-      (dom
-
-       [:div
-
-        [:ul {:className "manuals"}
-         (arrmap manual-item (:manuals prog))]]))))
-
+(defmulti step-list-item :type)
+(defmulti step-description :type)
 (defmulti item-ui :type)
 
-(defmethod item-ui :ref [step]
-  (if (= (:to step) :prev)
-    (dom [:span {:className "prev"} "that"])
-    (dom [:span {:className "ref"} (or (:desc (compiler/find-ref step (get-in editor [:programs (:active @editor-state)]) editor))
-                                       (str (:to step)))]))
-  )
-
-(defmethod item-ui :value [step]
-  (let [tag (-> step :data :tags first)
-        rep (get-in editor [:representation-cache tag])]
-    (if rep
-      (rep (-> step :data :value))
-      (dom [:span {:className "value"} (pr-str (-> step :data :value))]))
-    ))
-
-(defmethod item-ui :transformer [step]
-  (let [tag (-> step :tags first)
-        rep (get-in editor [:representation-cache tag])]
-    (if rep
-      (rep (:data step))
-      (dom [:span {:className "value"} "transformer"]))
-    ))
-
-(defmethod item-ui :operation [step]
-  (let [op (compiler/find-ref (:op step) (get-in editor [:programs (:active @editor-state)]) editor)]
-    (dom
-     [:div
-      (:desc op (str "exec " (get-in step [:op :to])))
-      (arrmap manual-step-item (:args step))])
-  ))
-
-(defmethod item-ui :default [step]
-  (str step))
-
-(defmulti step-ui :type)
-
-
-(defmethod step-ui :operation [step i]
-  (let [path [(:manual @editor-state) (:active @editor-state) i]
-        cur (get @editor-state path)
-        op (compiler/find-ref (:op step) (get-in editor [:programs (:active @editor-state)]) editor)
-        click (fn []
-                (swap! editor-state assoc path (not cur)))]
-    (dom
-      [:div {:className "desc"
-             :onClick click
-             :onTouchStart click}
-       (:desc op (str "exec " (get-in step [:op :to])))
-       (arrmap manual-step-item (:args step))
-       (when cur
-         (dom [:p "open"]))])))
-
-(defmethod step-ui :value [step]
+(defmethod item-ui :default [step path]
   (dom
-    [:div {:className "desc"}
-     [:p "Create a " (-> step :data :tags first)]
-     (item-ui step)]))
+   (if-not (:type step)
+     (item-ui {:type :non-node-constant
+               :data step}
+              path)
+     [:span (pr-str step)])))
+
+(defmethod step-list-item :default [step]
+  (dom
+   [:p "this is a step list item of " (pr-str step)]))
+
+(defmethod step-description :default [step]
+  (dom
+   [:p "this is a step description of " (pr-str step)]))
+
+
+;;*********************************************************
+;; Step list
+;;*********************************************************
+
+(defdom sub-step [step path]
+  (when (get-in @aurora-state [:open-paths path])
+      (let [node (get-in @aurora-state [:notebooks (:notebook @aurora-state) :pages (get-in @aurora-state [:open-paths path])])]
+        [:li {:className "substep step"}
+         (if node
+           (do
+             (manual-steps (get-in @aurora-state [:notebooks (:notebook @aurora-state) :pages (:id node)])
+                           (conj path {:notebook (:notebook @aurora-state)
+                                       :page (:id node)})))
+           [:span {:className "native"} "Native method"])])))
+
+
+(defdom page-steps [page path]
+   [:ul {:className "steps"}
+     (each [step (from-index (:steps page))]
+           (step-list-item step (update-path path {:step index
+                                                   :step-var (:id step)}))
+           )
+    [:li {:className "step"
+          :onClick (fn []
+                     (let [page (current :page)]
+                       (swap! aurora-state assoc :step [{:notebook (:id (current :notebook))
+                                                         :page (:id page)
+                                                         :step (count (:steps page))}])))}
+     [:p {:className "desc"}
+      "add step"]]])
+
+(defdom steps-list [page]
+  [:div {:className (str "workspace" (when (:steps @aurora-state)
+                                       " active"))}
+
+   [:div {:className "steps-container"}
+    (page-steps page [{:notebook (:notebook @aurora-state)
+                        :page (:page @aurora-state)}])]
+     ])
+
+(defn step-click [path]
+  (fn [e]
+    (swap! aurora-state assoc :step path)
+    (.preventDefault e)
+    (.stopPropagation e)))
+
+(defn step-class [path]
+  (str "step " (when (= path (:step @aurora-state))
+                 "selected")))
+
+;;*********************************************************
+;; Function calls
+;;*********************************************************
+
+(defn ref->name [ref]
+  (let [op (when (= (:type ref) :ref/id)
+             (from-index (:id ref)))]
+    (if op
+      (:desc op (:id ref))
+      (-> (js/eval (:js ref)) meta :desc)
+      )))
+
+(defdom clickable-ref [step path]
+  (let [ref (:ref step)
+        name (ref->name ref)
+        dblclick (fn []
+                (swap! aurora-state update-in [:open-paths path] #(if (not %)
+                                                                    (:id ref))))]
+    (dom
+      [:p {:className "desc"
+           :onDoubleClick dblclick}
+       name
+       (each [input (:args step)]
+             (item-ui input))])))
+
+(defmethod step-list-item :call [step path]
+  (dom
+   [:li {:className (step-class path)
+         :onClick (step-click path)
+         :onContextMenu (fn [e]
+                          (.nativeEvent.preventDefault e)
+                          (.preventDefault e)
+                          (.stopPropagation e)
+                          (assoc-cache! [:menu] {:top (.-clientY e)
+                                                 :left (.-clientX e)
+                                                 :items [{:label "remove"
+                                                          :action (fn []
+                                                                    (remove-step! (current :page) step))}]}))}
+    (clickable-ref step path)]
+   (sub-step step path)
+   ))
+
+(defmethod step-description :call [step path]
+  (dom
+      [:p {:className "desc"}
+       (ref->name (:ref step))
+       (each [input (:args step)]
+             (item-ui input (update-sub-path path [:args index])))]
+   [:div {:className "result"}
+      (item-ui (path->result path))
+      ]
+   ))
+
+(defmethod item-ui :ref/id [step]
+  (dom [:span {:className "ref"}
+        (:id step)]))
+
+(defmethod item-ui :call [step]
+  (dom [:p {:className "desc"}
+       (ref->name (:ref step))
+       (each [input (:args step)]
+             (item-ui input))]))
+
+;;*********************************************************
+;; Matches
+;;*********************************************************
+
+(defn match-pattern [x]
+  (if-not (:type x)
+    (item-ui {:type :constant
+              :data x})
+    (item-ui x)))
+
+(defn branch-result [branch path]
+  (if (-> branch :node :type (= :ref))
+    (clickable-ref branch path)
+    (item-ui (:node branch))))
 
 (defn matchee [x]
   (cond
@@ -173,124 +204,676 @@
    (= :otherwise x) "otherwise"
    :else (item-ui x)))
 
-(defmethod step-ui :match [step]
+(defn match-table [step path]
+  [:table {:className "match"}
+      (each [branch (-> step :node :branches)]
+            [:tr
+             [:td (-> branch :pattern match-pattern)]
+             [:td [:span {:className ""} (branch-result branch path)]]])])
+
+(defmethod step-list-item :match [step path]
   (dom
-    [:div {:className "desc"}
-     [:p "Find a match for " (arrmap manual-step-item (:root step)) " in "]
-     [:table {:className "match"}
-      (to-array (for [x (:branches step)]
-                  (dom
-                   [:tr
-                    [:td (-> x first matchee)]
-                    [:td [:span {:className ""} (-> x second item-ui)]]])
-                  ))]
-     ]))
 
-(defmethod step-ui :transformer [step]
-  (dom [:div {:className "desc"}
-        (manual-step-item step)]))
+   [:li {:className (step-class path)
+         :onClick (step-click path)}
+    [:p {:className "desc"} "If " (item-ui (:arg step)) "matches"]
+    [:ul {:className "match-list"}
+     (each [branch (step :branches)]
+           (let [path (update-path path {:sub-path [:branches index :node]})]
+             [:li {:className "match-branch"}
+              [:span (-> branch :pattern match-pattern)]
+              [:span [:span {:className ""} (item-ui (:action branch))]]]
+             (sub-step branch path)))]]
+     ))
 
-(defmethod step-ui :default [step]
+(defmethod step-description :match [step path]
   (dom
-   [:p "this is a step of type " (name (:type step))]))
+      [:p {:className "desc"}
+       "Find a match for " (item-ui (:arg step))
+       ]))
 
+(defmethod item-ui :match/bind [x]
+  (dom [:span {:className "ref"} (:id x)]))
 
+;;*********************************************************
+;; Data
+;;*********************************************************
 
-(defn result-ui [x]
+(defn datatype-name [x]
   (cond
-   (js/aurora.core.isTable x) (table-ui (-> x first keys) (-> x first vals))
-   (js/aurora.core.isList x) (list-ui x)
-   :else (str x)))
+   (#{:ref/id :ref/js} (:type x)) "ref"
+   (or (true? x) (false? x)) "boolean"
+   (keyword? x) "keyword"
+   (number? x) "number"
+   (string? x) "string"
+   (map? x) "table"
+   (vector? x) "list"
+   :else (str (type x))))
 
-(defn manual-step [step i]
-  (dom
-   [:tr {:className "step"}
-    [:td
-     (step-ui step i)]
-    [:td {:className "result"} (result-ui (js/aurora.core.->capture (:active @editor-state) (:manual @editor-state) i))]])
-  )
+(defmethod item-ui :constant [x path]
+  (let [value (:data x)
+        name (datatype-name value)]
+      (if-let [rep (get-in @aurora-state [:cache :representations name])]
+        (rep value (assoc path :sub-path [:data]))
+        (pr-str x))))
 
-(defn manual-step-item [step]
-  (item-ui step))
+(defmethod item-ui :non-node-constant [x path]
+  (let [value (:data x)
+        name (datatype-name value)]
+      (if-let [rep (get-in @aurora-state [:cache :representations name])]
+        (rep value path)
+        (pr-str x))))
 
-(defn manual-steps [man]
-  (dom
-   [:div {:className "steps-container"}
-    [:table {:className "steps"}
-     (arrmap manual-step (:steps man))]]))
+(defmethod step-list-item :constant [step path]
+  (let [value (:data step)
+        name (datatype-name value)]
+    (dom
+     [:li {:className (step-class path)
+           :onClick (step-click path)
+           :onContextMenu (fn [e]
+                            (assoc-cache! [:menu] {:top (.-clientY e)
+                                                   :left (.-clientX e)
+                                                   :items [{:label "remove"
+                                                            :action (fn []
+                                                                      (remove-step! (current :page) step)
+                                                                      )}]})
+                            (.preventDefault e)
+                            (.stopPropagation e))}
+      [:p {:className "desc"} "Add a " [:span {:className "value"} name]
+       (when-let [rep (get-in @aurora-state [:cache :representations name])]
+         (rep value (assoc (last path) :sub-path [:data])))]
 
-(defn manual [man]
-  (when man
-    (let [click (fn []
-                  (swap! editor-state assoc :manual nil))]
-      (dom
+      ])))
 
-       [:div {:className (str "workspace" (when (:steps @editor-state)
-                                            " active"))}
-        (manual-steps man)
-        ])))
-  )
+(defmethod step-description :constant [step path]
+  (let [value (:data step)
+        name (datatype-name value)]
+    (dom
+     [:p {:className "desc"} "Add a " [:span {:className "value"} name]]
+     [:div {:className "result"}
+      (item-ui {:type :constant
+                :data (path->result path)} (last path))
+      ])))
 
-(defn nav []
-  (dom
-   [:div {:id "nav"}
-    [:ul
-     [:li [:i {:className "icon ion-ios7-arrow-left"
-               :onClick (fn []
-                          (cond
-                           (:manual @editor-state) (swap! editor-state assoc :manual nil)
-                           (:active @editor-state) (swap! editor-state assoc :active nil)
-                           :else nil))}]
-      [:span
-       (cond
-        (:manual @editor-state) "Pages"
-        (:active @editor-state) "Notebooks"
-        :else "Home")]]]
-    [:ul
-     [:li [:i {:className "icon ion-ios7-plus-empty"}] [:span "Add"]]]
-    (when (:manual @editor-state)
-      (dom
-       [:ul
-        [:li {:className (when (:document @editor-state)
-                           "active")
-              :onClick (fn []
-                         (swap! editor-state update-in [:document] not))}
-         [:i {:className "icon ion-ios7-browsers-outline"}] [:span "Document"]]
-        [:li {:className (when (:steps @editor-state)
-                           "active")
-              :onClick (fn []
-                         (swap! editor-state update-in [:steps] not))}
-         [:i {:className "icon ion-ios7-drag"}] [:span "Steps"]]]))
-    ]))
+;;*********************************************************
+;; editor
+;;*********************************************************
 
-(defn document []
-  (when (:manual @editor-state)
-    (dom [:div {:className (str "document " (when (:document @editor-state)
-                                              "active"))}
-          ])))
+(defdom contextmenu []
+  (let [menu (from-cache :menu)]
+    (when menu
+      [:div {:id "menu-shade"
+             :onClick (fn []
+                        (assoc-cache! [:menu] nil))}
+       [:ul {:id "menu"
+             :style #js {:top (:top menu)
+                         :left (:left menu)}}
+        (each [item (:items menu)]
+              [:li {:onClick (fn []
+                               (when-let [action (:action item)]
+                                 (action))
+                               (assoc-cache! [:menu] nil))} (:label item)]
+              )]])))
 
-(swap! editor-state assoc :steps true)
+(defdom editing-view []
+  [:div
+   (steps-list (current :page))
+   (step-canvas (current :step) (:step @aurora-state))])
 
-(defn now []
-  (.getTime (js/Date.)))
+(defdom constant-inserter []
+  [:div
+   [:p "insert a"]
+   [:button {:onClick (fn []
+                      (add-step! (current :page) (constant 4)))}
+    "number"]
+   [:button {:onClick (fn []
+                      (add-step! (current :page) (constant "foo")))}
+    "string"]
+   [:button {:onClick (fn []
+                      (add-step! (current :page) (constant [1 2 3])))}
+    "list"]
+   [:button {:onClick (fn []
+                      (add-step! (current :page) (constant {"name" "aurora"
+                                                            "awesomeness" 100000000})))}
+    "table"]])
+
+(defdom ref-inserter [page]
+  [:ul
+   (each [refs (concat (:args page) (map :id (from-index (:steps page))))]
+         [:li [:button {:onClick (fn []
+                                   (add-step! (current :page) (constant (ref-id refs))))}
+               (subs refs 0 5)]])
+   ])
+
+(defdom call-inserter [page]
+  [:ul
+   (each [ref [(ref-js "cljs.core._PLUS_")]]
+         [:li [:button {:onClick (fn []
+                                   (add-step! (current :page) (call ref [1 2])))}
+               (ref->name ref)]])
+   [:li "foo"]
+   ])
+
+(defdom new-step-helper []
+  [:div
+   [:p "Let's create some data to get started!"]
+   (constant-inserter)
+   (ref-inserter (current :page))
+   (call-inserter (current :page))
+   ])
+
+(defdom step-canvas [step path]
+    [:div {:className (str "step-canvas")}
+     (when-not step
+       (new-step-helper))
+     (when step
+       (step-description step path)
+       )
+     ])
+
+;;*********************************************************
+;; nav
+;;*********************************************************
+
+(defdom nav []
+  [:div {:id "nav"}
+   [:ul {:className "breadcrumb"}
+      [:li
+       (when-let [notebook (current :notebook)]
+         [:span {:onClick (fn []
+                            (swap! aurora-state assoc :screen :notebooks :notebook nil :page nil :step nil))}
+          (:desc notebook)])
+       (when-let [page (current :page)]
+         [:span {:onClick (fn []
+                            (swap! aurora-state assoc :screen :pages :page nil :step nil))}
+          (:desc page)])
+       (when-let [path (:step @aurora-state)]
+         (when (> (count path) 1)
+           (each [{:keys [notebook page]} (rest path)]
+                 (when-let [cur (get-in @aurora-state [:notebooks notebook :pages page])]
+                   [:span (get cur :desc (:id cur))])))
+         [:span (:step (last path))])
+       ]]
+   (when (= (:screen @aurora-state) :editor)
+     [:ul {:className "toggles"}
+      [:li {:className (when (:document @aurora-state)
+                         "active")
+            :onClick (fn []
+                       (swap! aurora-state update-in [:document] not))}
+       [:i {:className "icon ion-ios7-browsers-outline"}] [:span "Document"]]
+      [:li {:className (when (:steps @aurora-state)
+                         "active")
+            :onClick (fn []
+                       (swap! aurora-state update-in [:steps] not))}
+       [:i {:className "icon ion-ios7-drag"}] [:span "Steps"]]])])
+
+;;*********************************************************
+;; Notebooks
+;;*********************************************************
+
+(defn click-add-notebook [e]
+  (add-notebook! "untitled notebook"))
+
+(defdom notebooks-list [aurora]
+  [:ul {:className "programs"}
+   (each [notebook (from-index (:notebooks aurora))]
+         (let [click (fn []
+                       (swap! aurora-state assoc :notebook (:id notebook) :screen :pages))]
+           (if (input? (:id notebook))
+             [:li {:className "program-item"}
+              [:input {:type "text" :defaultValue (:desc notebook)
+                       :onKeyPress (fn [e]
+                                     (when (= 13 (.-charCode e))
+                                       (remove-input! (:id notebook))
+                                       (update-index! notebook [] assoc :desc (.-target.value e))
+                                       ))}]]
+             [:li {:className "program-item"
+                   :onContextMenu (fn [e]
+                                    (assoc-cache! [:menu] {:top (.-clientY e)
+                                                           :left (.-clientX e)
+                                                           :items [{:label "Rename"
+                                                                    :action (fn []
+                                                                              (add-input! (:id notebook) :desc)
+                                                                              )}
+                                                                   {:label "Remove"
+                                                                    :action (fn []
+                                                                              (remove-notebook! notebook))}]})
+                                    (.stopPropagation e)
+                                    (.preventDefault e))
+                   :onTouchStart click
+                   :onClick click}
+              (:desc notebook)])))
+   [:li {:className "program-item"
+         :onClick click-add-notebook} "Add notebook"]])
+
+;;*********************************************************
+;; Pages
+;;*********************************************************
+
+
+(defn click-add-page [e notebook]
+  (add-page! notebook "untitled page"))
+
+(defdom pages-list [notebook]
+  [:ul {:className "pages"}
+   (each [page (filter #(get (:tags %) :page) (from-index (:pages notebook)))]
+         (let [click (fn []
+                       (swap! aurora-state assoc :page (:id page) :screen :editor :step [{:notebook (:notebook @aurora-state)
+                                                                                    :page (:id page)
+                                                                                    :step 0}]))]
+
+           (if (input? (:id page))
+             [:li {:className "page"}
+              [:input {:type "text" :defaultValue (:desc page)
+                       :onKeyPress (fn [e]
+                                     (when (= 13 (.-charCode e))
+                                       (remove-input! (:id page))
+                                       (update-index! page [] assoc :desc (.-target.value e))
+                                       ))}]]
+             [:li {:className "page"
+                   :onContextMenu (fn [e]
+                                    (assoc-cache! [:menu] {:top (.-clientY e)
+                                                           :left (.-clientX e)
+                                                           :items [{:label "Rename"
+                                                                    :action (fn []
+                                                                              (add-input! (:id page) :desc)
+                                                                              )}
+                                                                   {:label "Remove"
+                                                                    :action (fn []
+                                                                              (remove-page! notebook page))}]})
+
+                                    (.stopPropagation e)
+                                    (.preventDefault e))
+                   :onClick click
+                   :onTouchStart click}
+              (:desc page)])))
+   [:li {:className "page"
+         :onClick #(click-add-page % notebook)} "Add page"]])
+
+;;*********************************************************
+;; Aurora ui
+;;*********************************************************
+
+(defdom aurora-ui []
+  [:div
+   (contextmenu)
+   (nav)
+   [:div {:id "content"}
+
+    (condp = (:screen @aurora-state)
+      :notebooks (notebooks-list @aurora-state)
+      :pages (pages-list (from-index (:notebook @aurora-state)))
+      :editor (editing-view))
+    ]])
+
+;;*********************************************************
+;; Representations
+;;*********************************************************
+
+(defdom table-ui [ks vs path]
+  [:table {:className "table"}
+   [:thead
+    [:tr
+     (each [k ks]
+           [:th (item-ui k (assoc path :sub-path (conj (:sub-path path []) ::key k)))])]]
+   [:tbody
+    [:tr
+     (each [v vs]
+           [:td (item-ui v (assoc path :sub-path (conj (:sub-path path []) (nth ks index))))])]]])
+
+
+(defdom list-ui [vs path]
+  [:ul {:className "list"}
+   (each [v vs]
+         [:li (item-ui v (assoc path :sub-path (conj (:sub-path path []) index)))])])
+
+(defdom math-ui [x]
+  (cond
+   (string? x) [:span {:className "math-op"} x]
+   (vector? x) [:span {:className "math-expression"}
+                (to-array (map math-ui (interpose (first x) (rest x))))]
+   (number? x) [:span {:className "value"}
+                (pr-str x)]
+   :else [:span (pr-str x)]))
+
+(defn build-rep-cache [state]
+  (assoc-in state [:cache :representations]
+            {"math" math-ui
+             "rect" (fn [x]
+                      )
+             "ref" (fn [x]
+                     (dom [:span {:className "ref"}
+                              (str (:id x))])
+                     )
+             "boolean" (fn [x]
+                         (dom [:span {:className "value"}
+                               (str x)]))
+             "number" (fn [x path]
+                        (dom
+                         (if (input? path)
+                           [:input {:type "text" :defaultValue x
+                                    :onKeyPress (fn [e]
+                                                  (when (= 13 (.-charCode e))
+                                                    (assoc-index! (:step-var path) (:sub-path path) (reader/read-string (.-target.value e)))
+                                                    (remove-input! path)
+                                                    ))}]
+                           [:span {:className "value"
+                                   :onClick (fn []
+                                              (when path
+                                                (add-input! path true))
+                                              )}
+                            (str x)])))
+             "keyword" (fn [x]
+                        (dom [:span {:className "value"}
+                              (str x)]))
+             "string" (fn [x path]
+                        (dom
+                         (if (input? path)
+                           [:input {:type "text" :defaultValue x
+                                    :onKeyPress (fn [e]
+                                                  (when (= 13 (.-charCode e))
+                                                    (assoc-index! (:step-var path) (:sub-path path) (.-target.value e))
+                                                    (remove-input! path)
+                                                    ))}]
+                           [:span {:className "value"
+                                   :onClick (fn []
+                                              (when path
+                                                (add-input! path true))
+                                              )}
+                            (str x)])
+                          ))
+             "list" (fn [x path]
+                      (list-ui x path))
+             "table" (fn [x path]
+                       (table-ui
+                        (-> x keys)
+                        (-> x vals)
+                        path))}))
+
+;;*********************************************************
+;; Aurora state
+;;*********************************************************
+
+(def aurora-state (atom nil))
+(def default-state {:notebook nil
+                    :page nil
+                    :step []
+                    :screen :notebooks
+                    :steps true
+                    :document true
+                    :open-paths {}
+                    :cache {}
+                    :index {}
+                    :notebooks []})
+
+(defn path->step [path]
+  (let [{:keys [page step]} (last path)
+        step (or step 0)]
+    (when (and page step)
+      (from-index (get-in (from-index page) [:steps step])))))
+
+(defn current [key]
+  (when-let [v (@aurora-state key)]
+    (condp = key
+      :notebook (from-index v)
+      :page (from-index v)
+      :step (path->step v))))
+
+(defn from-index [id]
+  (if (coll? id)
+    (map from-index id)
+    (get-in @aurora-state [:index id])))
+
+(defn from-cache [path]
+  (if (coll? path)
+    (get-in @aurora-state (concat [:cache] path))
+    (get-in @aurora-state [:cache path])))
+
+(defn input? [id]
+  (get-in @aurora-state [:cache :inputs id]))
+
+(defn ->id [thing]
+  (if (map? thing)
+    (:id thing)
+    thing))
+
+;;*********************************************************
+;; Aurora state (nodes)
+;;*********************************************************
+
+(defn constant
+  ([data] (constant data {}))
+  ([data opts] (merge {:type :constant
+                       :data data}
+                      opts)))
+
+(defn call
+  ([ref args] (call ref args {}))
+  ([ref args opts] (merge {:type :call
+                           :ref ref
+                           :args args}
+                      opts)))
+
+(defn ref-id [id]
+  {:type :ref/id
+   :id id})
+
+(defn ref-js [js]
+  {:type :ref/js
+   :js js})
+
+;;*********************************************************
+;; Aurora state (mutation!)
+;;*********************************************************
+
+(defn assoc-cache! [path v]
+  (swap! aurora-state assoc-in (concat [:cache] path) v))
+
+(defn add-input! [id path]
+  (swap! aurora-state assoc-in [:cache :inputs id] path))
+
+(defn remove-input! [id]
+  (swap! aurora-state update-in [:cache :inputs] dissoc id))
+
+(defn update-index! [thing path & args]
+  (if (or (not thing)
+          (and (map? thing)
+               (not (:id thing))))
+    (throw (js/Error. "Trying to update index with nil"))
+    (apply swap! aurora-state update-in
+           (concat [:index (if (map? thing)
+                             (:id thing)
+                             thing)]
+                   path)
+           args)))
+
+(defn add-index! [thing]
+  (swap! aurora-state assoc-in [:index (:id thing)] thing))
+
+(defn assoc-index-key! [thing path old-key neue-key]
+  (let [final-path (concat [:index (->id thing)] path)
+        cur (get-in @aurora-state (concat [:index (->id thing)] path))
+        cur-value (get cur old-key)]
+    (swap! aurora-state assoc-in final-path (-> cur
+                                                (dissoc old-key)
+                                                (assoc neue-key cur-value)))))
+
+(defn assoc-index! [thing path v]
+  (let [rev-path (reverse path)]
+    (if (= ::key (second rev-path))
+      (assoc-index-key! thing
+                        (->> rev-path
+                             (drop 2)
+                             (reverse))
+                        (first rev-path)
+                        v)
+      (swap! aurora-state assoc-in (concat [:index (->id thing)] path) v))))
+
+(defn remove-index! [thing]
+  (swap! aurora-state update-in [:index] dissoc (:id thing)))
+
+(defn add-notebook! [desc]
+  (let [notebook {:type :notebook
+                  :id (compiler/new-id)
+                  :desc desc
+                  :pages []}]
+    (when (ast/notebook! (:index @aurora-state) notebook)
+      (add-index! notebook)
+      (swap! aurora-state update-in [:notebooks] conj (:id notebook))
+      (add-input! (:id notebook) :desc)
+      notebook)))
+
+(defn remove-notebook! [notebook]
+  (swap! aurora-state update-in [:notebooks] #(vec (remove #{(:id notebook)} %))))
+
+(defn add-page! [notebook desc]
+  (let [page {:type :page
+              :id (compiler/new-id)
+              :tags #{:page}
+              :args []
+              :desc desc
+              :steps []}]
+    (when (ast/page! (:index @aurora-state) page)
+      (add-index! page)
+      (update-index! notebook [:pages] conj (:id page))
+      page)))
+
+(defn remove-page! [notebook page]
+  (update-index! notebook [] #(assoc % :pages (vec (remove #{(:id page)} (:pages %))))))
+
+(defn add-step! [page info]
+  (let [step (merge {:id (compiler/new-id)} info)]
+    (when (ast/step! (:index @aurora-state) step)
+      (add-index! step)
+      (update-index! page [:steps] conj (:id step))
+      step)))
+
+(defn remove-step! [page step]
+  (update-index! page [] #(assoc % :steps (vec (remove #{(:id step)} (:steps %))))))
+
+;;*********************************************************
+;; Aurora state (storage!)
+;;*********************************************************
+
+(defn freeze [state]
+  (-> state
+      (dissoc :cache)
+      (pr-str)))
+
+(defn store! [state]
+  (aset js/localStorage "aurora-state" (freeze state)))
+
+(defn thaw [state]
+  (let [state (if (string? state)
+                (reader/read-string state)
+                state)]
+    (-> state
+        (build-rep-cache))))
+
+(defn repopulate []
+  (let [stored (aget js/localStorage "aurora-state")]
+    (if (and stored
+             (not= "null" stored)
+             (not= stored ""))
+      (reset! aurora-state (thaw stored))
+      (reset! aurora-state (thaw default-state)))))
+
+(defn clear-storage! []
+  (aset js/localStorage "aurora-state" nil))
+
+(add-watch aurora-state :storage (fn [_ _ _ cur]
+                                   (store! cur)))
+
+;;*********************************************************
+;; running (this shouldn't be part of the UI eventually)
+;;*********************************************************
+
+(def run-stack (atom nil))
+(def prev nil)
+
+(defn run-index [index notebook page state]
+  (let [start (now)
+        jsth (compiler/notebook->jsth index (get index (->id notebook)))
+        source (jsth/expression->string jsth)
+        _ (set! (.-innerHTML (js/document.getElementById "compile-perf")) (- (now) start))
+        start (now)
+        notebook (js/eval (str "(" source "());"))
+        stack #js []
+        func (aget notebook (str "value_" (->id page)))]
+    (aset notebook "next_state" state)
+    (aset notebook "stack" stack)
+    (try
+      (let [v [(func state []) (.-next_state notebook) (aget stack 0)]]
+        (set! (.-innerHTML (js/document.getElementById "run-perf")) (- (now) start))
+        v)
+      (catch :default e
+        (let [v [e (.-next_state notebook) (aget stack 0)]]
+          (set! (.-innerHTML (js/document.getElementById "run-perf")) (- (now) start))
+          v)))))
+
+(defn re-run [notebook page args]
+  (when (and notebook page)
+    (let [run (run-index (:index @aurora-state) notebook page args)]
+      (println "RESULT: " (first run))
+      (reset! run-stack #js {:calls #js [(nth run 2)]})
+      (queue-render))))
+
+(defn find-id [thing id]
+  (first (filter #(= (aget % "id") id) (aget thing "calls"))))
+
+(defn traverse-path [stack path]
+  (loop [stack stack
+         path path]
+    (when stack
+      (if-not path
+        stack
+        (recur (find-id stack (-> path first :page)) (next path))))))
+
+(defn path->result [path]
+  (when-let [frame (traverse-path @run-stack path)]
+    (-> frame
+        (aget "vars")
+        (aget (str "value_" (-> path last :step-var)))
+        )))
+
+(add-watch aurora-state :running (fn [_ _ _ cur]
+                                   (if-not (identical? prev (:index cur))
+                                     (do
+                                       (set! prev (:index cur))
+                                       ;;TODO: args
+                                       (re-run (current :notebook) (current :page) nil))
+                                     (do
+                                       (set! (.-innerHTML (js/document.getElementById "compile-perf")) "n/a")
+                                       (set! (.-innerHTML (js/document.getElementById "run-perf")) "n/a")
+                                       )
+                                     )))
+
+
+;;*********************************************************
+;; Re-rendering
+;;*********************************************************
+
+(def queued? false)
+(def RAF js/requestAnimationFrame)
 
 (defn update []
   (let [start (now)]
-    (time(js/React.renderComponent
-          (dom [:div
-                (nav)
-                [:div {:id "content"}
-                 (program-list editor)
-                 (document)
-                 (program (-> editor :programs (get (:active @editor-state))))
-                 (manual (-> editor :programs (get-in [(:active @editor-state) :manuals (:manual @editor-state)])))]
-                ]
+    (js/React.renderComponent
+     (aurora-ui)
+     (js/document.getElementById "wrapper"))
+    (set! (.-innerHTML (js/document.getElementById "render-perf")) (- (now) start))
+    (set! queued? false)))
 
-               )
-          (js/document.querySelector "#wrapper")))
-    (set! (.-innerHTML (js/document.querySelector "#perf")) (- (now) start))))
+(defn queue-render []
+  (when-not queued?
+    (set! queued? true)
+    (RAF update)))
 
-(comment
-  (add-watch editor-state :foo (fn [_ _ _ cur]
-                                 (update)))
-  (update))
+(add-watch aurora-state :foo (fn [_ _ _ cur]
+                               (queue-render)))
+
+;;*********************************************************
+;; Go!
+;;*********************************************************
+
+(repopulate)
