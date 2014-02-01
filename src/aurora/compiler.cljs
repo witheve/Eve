@@ -1,7 +1,6 @@
 (ns aurora.compiler
   (:require [aurora.jsth :as jsth]
             [aurora.ast :as ast]
-            [aurora.interpreter :as i]
             [aurora.util :refer [map!]])
   (:require-macros [aurora.macros :refer [for! check deftraced]]))
 
@@ -183,19 +182,22 @@
         [nil nil])
      ))
 
+(deftraced prim->jsth [index x id] [x id]
+  (check (= :prim (:type x)))
+  `(fn ~(id->value id) ~(vec (interleave (map! id->value (:args x)) (map! id->cursor (:args x))))
+     ~(:body x)
+     ~(:return x)))
+
 (deftraced notebook->jsth [index x] [x]
   (check (= :notebook (:type x)))
   `(fn nil []
      (do
        (let! notebook {})
        (let! failure "MatchFailure!")
+       ~@(for! [[prim-id prim] index
+                :when (= :prim (:type prim))]
+               (prim->jsth index prim prim-id))
        ;; TODO handle nil cursors in replace and append
-       (fn value_replace [value_old cursor_old value_new cursor_new]
-         (set! notebook.next_state (cljs.core.assoc_in.call nil notebook.next_state cursor_old value_new))
-         ["ok" nil])
-       (fn value_append [value_old cursor_old value_new cursor_new]
-         (set! notebook.next_state (cljs.core.update_in.call nil notebook.next_state cursor_old cljs.core.conj value_new))
-         ["ok" nil])
        ~@(for! [page-id (:pages x)]
                `(do
                   ~(page->jsth index (get index page-id) page-id)
@@ -213,7 +215,8 @@
    "output"))
 
 (defn tick [index id state watchers]
-  (let [jsth (notebook->jsth index (get index id))
+  (let [index (merge index ast/core)
+        jsth (notebook->jsth index (get index id))
         source (jsth/expression->string jsth)
         _ (println "###################")
         _ (println jsth)
@@ -244,8 +247,6 @@
     #(watch-timeout* buffer %)))
 
 ;; examples
-
-(notebook->jsth ast/example-b (get ast/example-b "example_b"))
 
 (tick ast/example-b "example_b" {"a" 1 "b" 2})
 (tick ast/example-b "example_b" {"a" 1 "c" 2})

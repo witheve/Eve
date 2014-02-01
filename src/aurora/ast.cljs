@@ -117,11 +117,35 @@
          (sequential? (:steps x))
          (every? #(step! index (get index %)) (:steps x))))
 
+(deftraced prim! [index x] [x]
+  (check (= :prim (:type x))
+         (id! index (:id x))
+         (sequential? (:args x))
+         (every? #(page-arg! index (get index %)) (:args x))
+         (contains? x :body)
+         (contains? x :return)))
+
 (deftraced notebook! [index x] [x]
   (check (= :notebook (:type x))
          (id! index (:id x))
          (sequential? (:pages x))
          (every? #(page! index (get index %)) (:pages x))))
+
+;; core lib
+
+(def core
+  {"replace" {:type :prim
+                    :id "replace"
+                    :args ["old" "new"]
+                    :body `(set! notebook.next_state (cljs.core.assoc_in.call nil notebook.next_state cursor_old value_new))
+                    :return ["ok" nil]}
+   "append" {:type :prim
+                    :id "append"
+                    :args ["old" "new"]
+                    :body `(set! notebook.next_state (cljs.core.update_in.call nil notebook.next_state cursor_old cljs.core.conj value_new))
+                    :return ["ok" nil]}})
+
+(every? #(prim! core %) (vals core))
 
 ;; examples
 
