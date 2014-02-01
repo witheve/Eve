@@ -48,7 +48,9 @@
    :else (check false)))
 
 (deftraced data->cursor-jsth [index x] [x]
-  (if (= :ref/id (:type x))
+  (if (and (= :ref/id (:type x))
+           ;;pages do not have a cursor
+           (not= :page (-> (:id x) (index) :type)))
     (id->cursor (:id x))
     nil))
 

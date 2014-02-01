@@ -144,8 +144,15 @@
                     :args ["old" "new"]
                     :body `(set! notebook.next_state (cljs.core.update_in.call nil notebook.next_state cursor_old cljs.core.conj value_new))
                     :return ["ok" nil]}
+   "get" {:type :prim
+          :id "get"
+          :desc "get key"
+          :args ["thing" "key"]
+          :body `(let! result (cljs.core.get value_thing value_key))
+          :return `[result (cljs.core.conj cursor_thing value_key)]}
    "mapv" {:type :prim
            :id "mapv"
+           :desc "for each"
            :args ["f" "xs"]
            :body `(do
                     (fn wrapped [x]

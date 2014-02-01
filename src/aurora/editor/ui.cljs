@@ -29,6 +29,7 @@
 (alter-meta! / assoc :desc "Divide " :name "cljs.core._SLASH_")
 
 (alter-meta! number? assoc :desc "Is a number? " :name "cljs.core.number_QMARK_")
+(alter-meta! mapv assoc :desc "each " :name "cljs.core.mapv")
 
 ;;*********************************************************
 ;; Stack
@@ -254,7 +255,9 @@
       (-> (js/eval (:js ref)) meta :desc))))
 
 (defn refs-in-scope [page step]
-  (concat (:args @page) (take-while #(not= % (cursor->id step)) (:steps @page))))
+  (if step
+    (concat (:args @page) (take-while #(not= % (cursor->id step)) (:steps @page)))
+    (concat (:args @page) (:steps @page))))
 
 (defn ref-menu [step & [cb]]
   (fn [e]
@@ -268,14 +271,22 @@
 
 (defmethod item-ui :ref/id [step]
   (dom
-   (if-let [res (path->result (-> (drop 1 (:stack @aurora-state))
-                                  (conj [:step (:id @step)])))]
-     [:span {:className "ref"
-             :onContextMenu (ref-menu step)}
-      (item-ui (value-cursor res))]
-     [:span {:className "ref"
-             :onContextMenu (ref-menu step)}
-      (str (:id @step))]) ))
+   (let [page (cursor (:id @step))
+         page? (when page
+                 (= (:type @page) :page))
+         res (when-not page?
+               (path->result (-> (drop 1 (:stack @aurora-state))
+                                 (conj [:step (:id @step)]))))]
+     (cond
+      res [:span {:className "ref"
+                  :onContextMenu (ref-menu step)}
+           (item-ui (value-cursor res))]
+      page? [:span {:className "ref"
+               :onContextMenu (ref-menu step)}
+             (or (:desc @page) (:id @page))]
+     :else [:span {:className "ref"
+                   :onContextMenu (ref-menu step)}
+            (str (:id @step))])) ))
 
 ;;*********************************************************
 ;; editor
@@ -310,47 +321,66 @@
    (steps-list (current :page))
    (step-canvas (stack->cursor stack :step) stack)])
 
-(defdom constant-inserter []
+(defn add-step|swap!
+  ([cursor v] (add-step|swap! cursor v (constant v)))
+  ([cursor v step]
+   (if (= (:type @cursor) :page)
+     (add-step! cursor step)
+     (swap! cursor (constantly v)))))
+
+(defdom constant-inserter [cursor]
   [:div
    [:p "insert a"]
    [:button {:onClick (fn []
-                      (add-step! (current :page) (constant 4)))}
+                        (add-step|swap! cursor 4))}
     "number"]
    [:button {:onClick (fn []
-                      (add-step! (current :page) (constant "foo")))}
+                        (add-step|swap! cursor "foo"))}
     "string"]
    [:button {:onClick (fn []
-                      (add-step! (current :page) (constant true)))}
+                        (add-step|swap! cursor true))}
     "boolean"]
    [:button {:onClick (fn []
-                      (add-step! (current :page) (constant [1 2 3])))}
+                        (add-step|swap! cursor [1 2 3]))}
     "list"]
    [:button {:onClick (fn []
-                      (add-step! (current :page) (constant {"name" "aurora"
-                                                            "awesomeness" 100000000})))}
+                        (add-step|swap! cursor {"name" "aurora"
+                                                "awesomeness" 100000000}))}
     "table"]])
 
-(defdom ref-inserter [page]
+(defdom ref-inserter [page cursor]
   [:ul
    (each [refs (concat (:args @page) (:steps @page))]
          [:li [:button {:onClick (fn []
-                                   (add-step! (current :page) (constant (ref-id refs))))}
+                                   (add-step|swap! cursor (ref-id refs)))}
                (subs refs 0 5)]])
    ])
 
 (defdom call-inserter [page]
   [:ul
-   (each [ref [(ref-js "cljs.core._PLUS_")]]
+   (each [[ref args] [[(ref-js "cljs.core._PLUS_") (fn [] [1 2])]
+                      [(ref-id "replace") (fn [] [(ref-id "root") 0])]
+                      [(ref-id "get") (fn [] [(ref-id "root") "name"])]
+                      [(ref-id "mapv") (fn []
+                                                   (let [func (add-page! (current :notebook) "each thing" {:args ["current"]})]
+                                                     [(ref-id (:id func)) [1 2 3]])
+                                                   )]]]
          [:li [:button {:onClick (fn []
-                                   (add-step! (current :page) (call ref [1 2])))}
+                                   (add-step! (current :page) (call ref (args))))}
                (ref->name ref)]])
+   ])
+
+(defdom inserter [page cursor]
+  [:div
+   (constant-inserter cursor)
+   (ref-inserter (current :page) cursor)
    ])
 
 (defdom new-step-helper []
   [:div
    [:p "Let's create some data to get started!"]
-   (constant-inserter)
-   (ref-inserter (current :page))
+   (constant-inserter (current :page))
+   (ref-inserter (current :page) (current :page))
    (call-inserter (current :page))
    ])
 
@@ -425,9 +455,8 @@
 ;; Pages
 ;;*********************************************************
 
-
 (defn click-add-page [e notebook]
-  (add-page! notebook "untitled page"))
+  (add-page! notebook "untitled page" {:args ["root"]}))
 
 (defdom pages-list [notebook]
   [:ul {:className "pages"}
@@ -646,13 +675,16 @@
 (defn remove-notebook! [notebook]
   (swap! aurora-state update-in [:notebooks] #(vec (remove #{(:id notebook)} %))))
 
-(defn add-page! [notebook desc]
-  (let [page {:type :page
-              :id (compiler/new-id)
-              :tags #{:page}
-              :args []
-              :desc desc
-              :steps []}]
+(defn add-page! [notebook desc & [opts]]
+  (let [page (merge {:type :page
+                     :id (compiler/new-id)
+                     :tags (if-not (:anonymous opts)
+                             #{:page}
+                             #{})
+                     :args []
+                     :desc desc
+                     :steps []}
+                    opts)]
     (when (ast/page! (:index @aurora-state) page)
       (add-index! page)
       (swap! notebook update-in [:pages] conj (:id page))
@@ -688,7 +720,8 @@
                 (reader/read-string state)
                 state)]
     (-> state
-        (build-rep-cache))))
+        (build-rep-cache)
+        (update-in [:index] merge ast/core))))
 
 (defn repopulate []
   (let [stored (aget js/localStorage "aurora-state")]
@@ -709,12 +742,14 @@
 ;;*********************************************************
 
 (def run-stack (atom nil))
+(def cur-state (atom {"counter" 0}))
 (def prev nil)
 
 (defn run-index [index notebook page state]
   (let [start (now)
         jsth (compiler/notebook->jsth index (get index (:id notebook)))
         source (jsth/expression->string jsth)
+        _ (println source)
         _ (set! (.-innerHTML (js/document.getElementById "compile-perf")) (- (now) start))
         start (now)
         notebook (js/eval (str "(" source "());"))
@@ -724,16 +759,19 @@
     (aset notebook "stack" stack)
     (try
       (let [v [(func state []) (.-next_state notebook) (aget stack 0)]]
+        (println v)
         (set! (.-innerHTML (js/document.getElementById "run-perf")) (- (now) start))
         v)
       (catch :default e
         (let [v [e (.-next_state notebook) (aget stack 0)]]
+          (println v)
           (set! (.-innerHTML (js/document.getElementById "run-perf")) (- (now) start))
           v)))))
 
 (defn re-run [notebook page args]
   (when (and notebook page)
     (let [run (run-index (:index @aurora-state) @notebook @page args)]
+      (reset! cur-state (second run))
       (reset! run-stack #js {:calls #js [(nth run 2)]})
       (queue-render))))
 
@@ -764,7 +802,7 @@
                                      (do
                                        (set! prev (:index cur))
                                        ;;TODO: args
-                                       (re-run (current :notebook) (current :page) nil))
+                                       (re-run (current :notebook) (current :page) @cur-state))
                                      (do
                                        (set! (.-innerHTML (js/document.getElementById "compile-perf")) "n/a")
                                        (set! (.-innerHTML (js/document.getElementById "run-perf")) "n/a")
