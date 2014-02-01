@@ -143,7 +143,16 @@
                     :id "append"
                     :args ["old" "new"]
                     :body `(set! notebook.next_state (cljs.core.update_in.call nil notebook.next_state cursor_old cljs.core.conj value_new))
-                    :return ["ok" nil]}})
+                    :return ["ok" nil]}
+   "mapv" {:type :prim
+           :id "mapv"
+           :args ["f" "xs"]
+           :body `(do
+                    (fn wrapped [x]
+                      (let! result (value_f x))
+                      (get! result 0))
+                    (let! result (cljs.core.mapv.call nil wrapped value_xs)))
+           :return `[result nil]}})
 
 (every? #(prim! core %) (vals core))
 
