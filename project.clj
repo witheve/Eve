@@ -6,9 +6,9 @@
   :cljsbuild {:builds [{:source-paths ["src"]
                         :compiler {:optimizations :simple
                                    :externs []
-                                   ;:source-map "bootstrap.js.map"
+                                   :source-map "resources/bootstrap.js.map"
                                    :output-to "resources/bootstrap.js"
-                                   :output-dir "target/cljs/"
+                                   :output-dir "resources/cljs/"
                                    :pretty-print true}}]}
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [org.clojure/core.match "0.2.0"]
