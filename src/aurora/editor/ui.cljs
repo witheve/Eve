@@ -3,6 +3,7 @@
             [aurora.compiler :as compiler]
             [aurora.ast :as ast]
             [aurora.jsth :as jsth]
+            [aurora.runtime.table :as table]
             [cljs.reader :as reader]
             [aurora.editor.cursors :refer [mutable? cursor cursors overlay-cursor value-cursor
                                            cursor->id cursor->path swap!]]
@@ -204,6 +205,7 @@
 (defn datatype-name [x]
   (cond
    (#{:ref/id :ref/js} (:type x)) "ref"
+   (satisfies? table/ITable x) "table"
    (or (true? x) (false? x)) "boolean"
    (keyword? x) "keyword"
    (number? x) "number"
@@ -338,14 +340,12 @@
                         (add-step|swap! cursor "foo"))}
     "string"]
    [:button {:onClick (fn []
-                        (add-step|swap! cursor true))}
-    "boolean"]
-   [:button {:onClick (fn []
-                        (add-step|swap! cursor [1 2 3]))}
-    "list"]
-   [:button {:onClick (fn []
-                        (add-step|swap! cursor {"name" "aurora"
-                                                "awesomeness" 100000000}))}
+                        (add-step|swap! cursor {"headers" ["a" "b"]
+                                                "columns" [{:type :ref/js
+                                                            :js "aurora.runtime.table.identity_column"}
+                                                           {:type :ref/js
+                                                            :js "aurora.runtime.table.identity_column"}]
+                                                "rows" [[1 2] [3 4]]}))}
     "table"]])
 
 (defdom ref-inserter [page cursor]
@@ -511,18 +511,33 @@
 ;; Representations
 ;;*********************************************************
 
+(defdom table-map-ui [table]
+  [:table {:className "table"
+           :onContextMenu (ref-menu table)}
+   [:thead
+    [:tr
+     (each [k (@table "headers")]
+           [:th (item-ui (conj table ["headers" index]))])]
+    [:tbody
+     (each [row (@table "rows")]
+           [:tr
+            (let [path ["rows" index]]
+              (each [v row]
+                    [:td (item-ui (conj table (conj path index)))]))])]]])
+
 (defdom table-ui [table]
-  (let [ks (keys @table)]
-    [:table {:className "table"
-             :onContextMenu (ref-menu table)}
-     [:thead
-      [:tr
-       (each [k ks]
-             [:th (item-ui (conj table [{::key k}]))])]
-      [:tbody
-       [:tr
-        (each [v (vals @table)]
-              [:td (item-ui (conj table (nth ks index)))])]]]]))
+  [:table {:className "table"
+           :onContextMenu (ref-menu table)}
+   [:thead
+    [:tr
+     (each [k (table/headers @table)]
+           [:th k])]
+    [:tbody
+     (each [row (table/-rows @table)]
+           [:tr
+            (let [path ["rows" index]]
+              (each [v row]
+                    [:td (row index)]))])]]])
 
 
 (defdom list-ui [list]
@@ -590,7 +605,9 @@
              "list" (fn [x]
                       (list-ui x))
              "table" (fn [x]
-                       (table-ui x))}))
+                       (if (map? @x)
+                         (table-map-ui x)
+                         (table-ui x)))}))
 
 ;;*********************************************************
 ;; Aurora state
@@ -742,7 +759,9 @@
 ;;*********************************************************
 
 (def run-stack (atom nil))
-(def cur-state (atom {"counter" 0}))
+(def cur-state (atom (table/table ["counter"]
+                                  [table/identity-column]
+                                  [[0]])))
 (def prev nil)
 
 (defn run-index [index notebook page state]
