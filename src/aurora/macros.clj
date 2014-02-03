@@ -27,11 +27,21 @@
 (defmacro dovec [bindings & body]
   `(let [xs# ~(second bindings)
         len# (count xs#)]
-  (loop [~'index 0]
-    (when (< ~'index len#)
-      (let [~(first bindings) (xs# ~'index)]
-        ~@body)
-      (recur (inc ~'index))))))
+     (loop [~'index 0]
+       (when (< ~'index len#)
+         (let [~(first bindings) (xs# ~'index)]
+           ~@body)
+         (recur (inc ~'index))))))
+
+(defmacro mapv-indexed [func xs]
+  `(let [xs# ~xs
+         len# (count xs#)]
+     (loop [index# 0
+            final# (transient [])]
+       (if-not (< index# len#)
+         (persistent! final#)
+         (recur (inc index#)
+                (conj! final# (~func (xs# index#) index#)))))))
 
 (defmacro filter-match
   ([pattern things]
