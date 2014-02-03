@@ -88,6 +88,8 @@
               (-write writer (str  (apply str (interpose " | " headers)) "\n" (apply str (interpose "\n" (map pr-str rows))))))
   )
 
+
+(def identity-column nil)
 (def table-headers ["A" "B" "C" "D" "E" "F" "G" "H" "I" "J" "K" "L" "M" "N" "O" "P"])
 
 (defn table
@@ -141,11 +143,11 @@
   (let [cols (-columns t)]
     (table (headers t)
            cols
-     (mapv-indexed (fn [row index]
-                     (apply-columns (func row index)
-                                    index
-                                    cols))
-                   (-rows t)))))
+           (mapv-indexed (fn [row index]
+                           (apply-columns (func row index)
+                                          index
+                                          cols))
+                         (-rows t)))))
 
 (comment
 

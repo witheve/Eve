@@ -40,6 +40,14 @@
    (or (true? x) (false? x)) x
    (number? x) x
    (string? x) x
+   ;;it's a table
+   (get x "headers") `(aurora.runtime.table.table.call nil (cljs.core.PersistentVector.fromArray
+                                              ~(vec (map! #(data->value-jsth index %) (x "headers"))))
+                                             (cljs.core.PersistentVector.fromArray
+                                              ~(vec (map! #(data->value-jsth index %) (x "columns"))))
+                                             (cljs.core.PersistentVector.fromArray
+                                              ~(vec (map! #(data->value-jsth index %) (x "rows"))))
+                                             )
    (vector? x) `(cljs.core.PersistentVector.fromArray
                  ~(vec (map! #(data->value-jsth index %) x)))
    (map? x) `(cljs.core.PersistentHashMap.fromArrays
@@ -248,6 +256,7 @@
   (let [buffer (atom [])]
     #(watch-timeout* buffer %)))
 
+
 ;; examples
 
 (tick ast/example-b "example_b" {"a" 1 "b" 2})
@@ -257,6 +266,8 @@
 (tick ast/example-b "example_b" {"vec" [1 2]})
 
 (tick ast/example-c "example_c" {"counter" 0})
+
+(tick ast/example-d "example_d" {})
 
 (->> {"counter" 0} (tick ast/example-c "example_c") first (tick ast/example-c "example_c") first (tick ast/example-c "example_c") first)
 
