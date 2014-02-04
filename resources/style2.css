@@ -159,13 +159,17 @@ li.match-branch + li.substep { border-top:1px solid #c6c6c6; margin-top:10px; }
 .list > .table {display:block; padding:0; width:100%;}
 
 .table { background: transparent; display:inline-block; border-radius:3px; border:1px solid #aaa; }
-.table td, th { padding:5px 10px;}
+.table td, th {}
 .table td { background:#f7f7f7; }
 .table td + td, th + th { border-left:1px solid #aaa; }
 .table th { background: #ddd; text-align:center; border-bottom:1px solid #aaa; }
 .table tr + tr td { border-top:1px solid #aaa; }
 
-.prev, .param, .ref { background:#ccf; padding:5px; border-radius:3px; border:1px solid #77c; margin:5px; }
+.table-editor .add-col { float:right; margin-left: 5px; padding:5px; background:#ddd; border:1px solid #aaa; border-radius:2px;}
+.table-editor .add-row-wrapper {display:block;}
+.table-editor .add-row {display:inline-block; padding:5px; background: #f7f7f7; border:1px solid #aaa; margin-top:5px; border-radius:2px; }
+
+.prev, .param, .ref { display:inline-block; background:#ccf; padding:5px; border-radius:3px; border:1px solid #77c; margin:5px; }
 .native { padding:5px 15px; display:inline-block; }
 
 .match { margin-top:25px; width:auto; position:relative; }
@@ -180,6 +184,8 @@ li.match-branch + li.substep { border-top:1px solid #c6c6c6; margin-top:10px; }
 .match .list > * + * { border:none; border-left:1px solid #777; }
 
 .value { padding:5px; margin:0 5px; border:1px solid #aaa; border-radius:3px; }
+.table .value { border:none; display:inline-block; width:100%; margin:0; padding:5px 15px; }
+.table input { display:inline-block; width:20px; max-width:100%; min-width:20px; padding:0 10px; box-sizing:content-box !important;}
 
 .math-op { padding: 5px;}
 .math-expression > * { padding:5px; }

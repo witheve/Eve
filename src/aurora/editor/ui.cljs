@@ -4,6 +4,7 @@
             [aurora.ast :as ast]
             [aurora.jsth :as jsth]
             [aurora.runtime.table :as table]
+            [aurora.util.dom :as dom]
             [cljs.reader :as reader]
             [aurora.editor.cursors :refer [mutable? cursor cursors overlay-cursor value-cursor
                                            cursor->id cursor->path swap!]]
@@ -512,6 +513,13 @@
 ;;*********************************************************
 
 (defdom table-map-ui [table]
+  [:div {:className "table-editor"}
+   [:span {:className "add-col"
+           :onClick (fn []
+                      (swap! table #(-> (update-in % ["headers"] conj "foo")
+                                        (update-in ["columns"] conj (ref-js "aurora.runtime.table.identity_column"))
+                                        (update-in ["rows"] (fn [x]
+                                                              (mapv (fn [c] (conj c 0)) x))))))} "+"]
   [:table {:className "table"
            :onContextMenu (ref-menu table)}
    [:thead
@@ -523,28 +531,30 @@
            [:tr
             (let [path ["rows" index]]
               (each [v row]
-                    [:td (item-ui (conj table (conj path index)))]))])]]])
+                    [:td (item-ui (conj table (conj path index)))]))])]]]
+   [:div {:className "add-row-wrapper"}
+    [:span {:className "add-row"
+            :onClick (fn []
+                       (swap! table #(update-in % ["rows"] conj (mapv (constantly 0) (@table "headers")))))} "+"]]])
 
 (defdom table-ui [table]
-  [:table {:className "table"
-           :onContextMenu (ref-menu table)}
-   [:thead
-    [:tr
-     (each [k (table/headers @table)]
-           [:th k])]
-    [:tbody
-     (each [row (table/-rows @table)]
-           [:tr
-            (let [path ["rows" index]]
-              (each [v row]
-                    [:td (row index)]))])]]])
+  [:div {:className "table-editor"}
+   [:span {:className "add-col"} "+"]
+   [:table {:className "table"
+            :onContextMenu (ref-menu table)}
+    [:thead
+     [:tr
+      (each [k (table/headers @table)]
+            [:th k])]
+     [:tbody
+      (each [row (table/-rows @table)]
+            [:tr
+             (let [path ["rows" index]]
+               (each [v row]
+                     [:td (row index)]))])]]]
+   [:div {:className "add-row-wrapper"}
+    [:span {:className "add-row"} "+"]]])
 
-
-(defdom list-ui [list]
-  [:ul {:className "list"
-        :onContextMenu (ref-menu list)}
-   (each [v @list]
-         [:li (item-ui (conj list index))])])
 
 (defdom math-ui [x]
   (cond
@@ -560,18 +570,14 @@
             {"math" math-ui
              "rect" (fn [x]
                       )
-             "boolean" (fn [x]
-                         (dom [:span {:className "value"
-                                      :onContextMenu (ref-menu x)
-                                      :onClick (fn []
-                                                 (when (mutable? x)
-                                                   (swap! x not)))}
-                               (str @x)]))
              "number" (fn [x]
                         (let [path (cursor->path x)]
                           (dom
                            (if (input? path)
-                             [:input {:type "text" :defaultValue @x
+                             [:input {:type "text"
+                                      :className "focused"
+                                      :style #js {"width" (* 10 (count (str @x)))}
+                                      :defaultValue @x
                                       :onKeyPress (fn [e]
                                                     (when (= 13 (.-charCode e))
                                                       (swap! x (constantly (reader/read-string (.-target.value e))))
@@ -582,14 +588,13 @@
                                                 (when (mutable? x)
                                                   (add-input! path true)))}
                               (str @x)]))))
-             "keyword" (fn [x]
-                        (dom [:span {:className "value"}
-                              (str @x)]))
              "string" (fn [x path]
                         (let [path (cursor->path x)]
                           (dom
                            (if (input? path)
                              [:input {:type "text" :defaultValue @x
+                                      :className "focused"
+                                      :style #js {"width" (* 10 (count (str @x)))}
                                       :onKeyPress (fn [e]
                                                     (when (= 13 (.-charCode e))
                                                       (swap! x (constantly (.-target.value e)))
@@ -602,8 +607,6 @@
                                                   (add-input! path path)))}
                               (str @x)])
                            )))
-             "list" (fn [x]
-                      (list-ui x))
              "table" (fn [x]
                        (if (map? @x)
                          (table-map-ui x)
@@ -841,6 +844,7 @@
     (js/React.renderComponent
      (aurora-ui)
      (js/document.getElementById "wrapper"))
+    (focus!)
     (set! (.-innerHTML (js/document.getElementById "render-perf")) (- (now) start))
     (set! queued? false)))
 
@@ -851,6 +855,35 @@
 
 (add-watch aurora-state :foo (fn [_ _ _ cur]
                                (queue-render)))
+
+;;*********************************************************
+;; auto-resizing
+;;*********************************************************
+
+(dom/on js/document :keydown (fn [e]
+                               (when (= "INPUT" (.-target.tagName e))
+                                 (dom/css (.-target e) {:width (* 10 (count (.-target.value e)))})
+                                 )))
+
+(dom/on js/document :input (fn [e]
+                               (when (= "INPUT" (.-target.tagName e))
+                                 (dom/css (.-target e) {:width (* 10 (count (.-target.value e)))})
+                                 )))
+
+(dom/on js/document :change (fn [e]
+                               (when (= "INPUT" (.-target.tagName e))
+                                 (dom/css (.-target e) {:width (* 10 (count (.-target.value e)))})
+                                 )))
+
+(dom/on js/document :keyup (fn [e]
+                               (when (= "INPUT" (.-target.tagName e))
+                                 (dom/css (.-target e) {:width (* 10 (count (.-target.value e)))})
+                                 )))
+
+(defn focus! []
+  (->> (dom/$$ :.focused)
+       (last)
+       (.focus)))
 
 ;;*********************************************************
 ;; Go!

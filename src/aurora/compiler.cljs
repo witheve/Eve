@@ -267,7 +267,7 @@
 
 (tick ast/example-c "example_c" {"counter" 0})
 
-(tick ast/example-d "example_d" {})
+;(tick ast/example-d "example_d" {})
 
 (->> {"counter" 0} (tick ast/example-c "example_c") first (tick ast/example-c "example_c") first (tick ast/example-c "example_c") first)
 
