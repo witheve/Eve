@@ -265,12 +265,17 @@
 (defn ref-menu [step & [cb]]
   (fn [e]
     (when (mutable? step)
-      (show-menu! e (for [ref (refs-in-scope (current :page) (current :step))]
-                      {:label (subs ref 0 5)
-                       :action (fn []
-                                 (swap! step (constantly (ref-id ref)))
-                                 (when cb
-                                   (cb)))})))))
+      (show-menu! e (concat [{:label "table!"
+                              :action (fn []
+                                        (swap! step (constantly (table)))
+                                        (when cb
+                                           (cb)))}]
+                            (for [ref (refs-in-scope (current :page) (current :step))]
+                              {:label (subs ref 0 5)
+                               :action (fn []
+                                         (swap! step (constantly (ref-id ref)))
+                                         (when cb
+                                           (cb)))}))))))
 
 (defmethod item-ui :ref/id [step]
   (dom
@@ -341,12 +346,7 @@
                         (add-step|swap! cursor "foo"))}
     "string"]
    [:button {:onClick (fn []
-                        (add-step|swap! cursor {"headers" ["a" "b"]
-                                                "columns" [{:type :ref/js
-                                                            :js "aurora.runtime.table.identity_column"}
-                                                           {:type :ref/js
-                                                            :js "aurora.runtime.table.identity_column"}]
-                                                "rows" [[1 2] [3 4]]}))}
+                        (add-step|swap! cursor (table)))}
     "table"]])
 
 (defdom ref-inserter [page cursor]
@@ -565,48 +565,37 @@
                 (pr-str x)]
    :else [:span (pr-str x)]))
 
+(defn cell [x parser]
+  (let [path (cursor->path x)
+        commit (fn [e]
+                 (swap! x (constantly (parser (.-target.value e))))
+                 (remove-input! path))]
+    (dom
+     (if (input? path)
+       [:input {:type "text"
+                :className "focused"
+                :style #js {"width" (* 10 (count (str @x)))}
+                :defaultValue @x
+                :onKeyPress (fn [e]
+                              (when (= 13 (.-charCode e))
+                                (commit e)))
+                :onBlur commit}]
+       [:span {:className "value"
+               :onContextMenu (ref-menu x)
+               :onClick (fn [e]
+                          (when (mutable? x)
+                            (add-input! path true)))}
+        (str @x)]))))
+
 (defn build-rep-cache [state]
   (assoc-in state [:cache :representations]
             {"math" math-ui
              "rect" (fn [x]
                       )
              "number" (fn [x]
-                        (let [path (cursor->path x)]
-                          (dom
-                           (if (input? path)
-                             [:input {:type "text"
-                                      :className "focused"
-                                      :style #js {"width" (* 10 (count (str @x)))}
-                                      :defaultValue @x
-                                      :onKeyPress (fn [e]
-                                                    (when (= 13 (.-charCode e))
-                                                      (swap! x (constantly (reader/read-string (.-target.value e))))
-                                                      (remove-input! path)))}]
-                             [:span {:className "value"
-                                     :onContextMenu (ref-menu x)
-                                     :onClick (fn [e]
-                                                (when (mutable? x)
-                                                  (add-input! path true)))}
-                              (str @x)]))))
-             "string" (fn [x path]
-                        (let [path (cursor->path x)]
-                          (dom
-                           (if (input? path)
-                             [:input {:type "text" :defaultValue @x
-                                      :className "focused"
-                                      :style #js {"width" (* 10 (count (str @x)))}
-                                      :onKeyPress (fn [e]
-                                                    (when (= 13 (.-charCode e))
-                                                      (swap! x (constantly (.-target.value e)))
-                                                      (remove-input! path)
-                                                      ))}]
-                             [:span {:className "value"
-                                     :onContextMenu (ref-menu x)
-                                     :onClick (fn []
-                                                (when (mutable? x)
-                                                  (add-input! path path)))}
-                              (str @x)])
-                           )))
+                        (cell x reader/read-string))
+             "string" (fn [x]
+                        (cell x identity))
              "table" (fn [x]
                        (if (map? @x)
                          (table-map-ui x)
@@ -656,6 +645,14 @@
                            :ref ref
                            :args args}
                       opts)))
+
+(defn table []
+  {"headers" ["a" "b"]
+   "columns" [{:type :ref/js
+               :js "aurora.runtime.table.identity_column"}
+              {:type :ref/js
+               :js "aurora.runtime.table.identity_column"}]
+   "rows" [[1 2] [3 4]]})
 
 (defn ref-id [id]
   {:type :ref/id
@@ -881,9 +878,8 @@
                                  )))
 
 (defn focus! []
-  (->> (dom/$$ :.focused)
-       (last)
-       (.focus)))
+  (when-let [cur (last (dom/$$ :.focused))]
+    (.focus cur)))
 
 ;;*********************************************************
 ;; Go!
