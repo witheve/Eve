@@ -3,6 +3,8 @@
             [aurora.compiler :as compiler]
             [aurora.ast :as ast]
             [aurora.jsth :as jsth]
+            [aurora.runtime.table :as table]
+            [aurora.util.dom :as dom]
             [cljs.reader :as reader]
             [aurora.editor.cursors :refer [mutable? cursor cursors overlay-cursor value-cursor
                                            cursor->id cursor->path swap!]]
@@ -29,6 +31,7 @@
 (alter-meta! / assoc :desc "Divide " :name "cljs.core._SLASH_")
 
 (alter-meta! number? assoc :desc "Is a number? " :name "cljs.core.number_QMARK_")
+(alter-meta! mapv assoc :desc "each " :name "cljs.core.mapv")
 
 ;;*********************************************************
 ;; Stack
@@ -203,6 +206,7 @@
 (defn datatype-name [x]
   (cond
    (#{:ref/id :ref/js} (:type x)) "ref"
+   (satisfies? table/ITable x) "table"
    (or (true? x) (false? x)) "boolean"
    (keyword? x) "keyword"
    (number? x) "number"
@@ -254,28 +258,43 @@
       (-> (js/eval (:js ref)) meta :desc))))
 
 (defn refs-in-scope [page step]
-  (concat (:args @page) (take-while #(not= % (cursor->id step)) (:steps @page))))
+  (if step
+    (concat (:args @page) (take-while #(not= % (cursor->id step)) (:steps @page)))
+    (concat (:args @page) (:steps @page))))
 
 (defn ref-menu [step & [cb]]
   (fn [e]
     (when (mutable? step)
-      (show-menu! e (for [ref (refs-in-scope (current :page) (current :step))]
-                      {:label (subs ref 0 5)
-                       :action (fn []
-                                 (swap! step (constantly (ref-id ref)))
-                                 (when cb
-                                   (cb)))})))))
+      (show-menu! e (concat [{:label "table!"
+                              :action (fn []
+                                        (swap! step (constantly (table)))
+                                        (when cb
+                                           (cb)))}]
+                            (for [ref (refs-in-scope (current :page) (current :step))]
+                              {:label (subs ref 0 5)
+                               :action (fn []
+                                         (swap! step (constantly (ref-id ref)))
+                                         (when cb
+                                           (cb)))}))))))
 
 (defmethod item-ui :ref/id [step]
   (dom
-   (if-let [res (path->result (-> (drop 1 (:stack @aurora-state))
-                                  (conj [:step (:id @step)])))]
-     [:span {:className "ref"
-             :onContextMenu (ref-menu step)}
-      (item-ui (value-cursor res))]
-     [:span {:className "ref"
-             :onContextMenu (ref-menu step)}
-      (str (:id @step))]) ))
+   (let [page (cursor (:id @step))
+         page? (when page
+                 (= (:type @page) :page))
+         res (when-not page?
+               (path->result (-> (drop 1 (:stack @aurora-state))
+                                 (conj [:step (:id @step)]))))]
+     (cond
+      res [:span {:className "ref"
+                  :onContextMenu (ref-menu step)}
+           (item-ui (value-cursor res))]
+      page? [:span {:className "ref"
+               :onContextMenu (ref-menu step)}
+             (or (:desc @page) (:id @page))]
+     :else [:span {:className "ref"
+                   :onContextMenu (ref-menu step)}
+            (str (:id @step))])) ))
 
 ;;*********************************************************
 ;; editor
@@ -310,47 +329,59 @@
    (steps-list (current :page))
    (step-canvas (stack->cursor stack :step) stack)])
 
-(defdom constant-inserter []
+(defn add-step|swap!
+  ([cursor v] (add-step|swap! cursor v (constant v)))
+  ([cursor v step]
+   (if (= (:type @cursor) :page)
+     (add-step! cursor step)
+     (swap! cursor (constantly v)))))
+
+(defdom constant-inserter [cursor]
   [:div
    [:p "insert a"]
    [:button {:onClick (fn []
-                      (add-step! (current :page) (constant 4)))}
+                        (add-step|swap! cursor 4))}
     "number"]
    [:button {:onClick (fn []
-                      (add-step! (current :page) (constant "foo")))}
+                        (add-step|swap! cursor "foo"))}
     "string"]
    [:button {:onClick (fn []
-                      (add-step! (current :page) (constant true)))}
-    "boolean"]
-   [:button {:onClick (fn []
-                      (add-step! (current :page) (constant [1 2 3])))}
-    "list"]
-   [:button {:onClick (fn []
-                      (add-step! (current :page) (constant {"name" "aurora"
-                                                            "awesomeness" 100000000})))}
+                        (add-step|swap! cursor (table)))}
     "table"]])
 
-(defdom ref-inserter [page]
+(defdom ref-inserter [page cursor]
   [:ul
    (each [refs (concat (:args @page) (:steps @page))]
          [:li [:button {:onClick (fn []
-                                   (add-step! (current :page) (constant (ref-id refs))))}
+                                   (add-step|swap! cursor (ref-id refs)))}
                (subs refs 0 5)]])
    ])
 
 (defdom call-inserter [page]
   [:ul
-   (each [ref [(ref-js "cljs.core._PLUS_")]]
+   (each [[ref args] [[(ref-js "cljs.core._PLUS_") (fn [] [1 2])]
+                      [(ref-id "replace") (fn [] [(ref-id "root") 0])]
+                      [(ref-id "get") (fn [] [(ref-id "root") "name"])]
+                      [(ref-id "mapv") (fn []
+                                                   (let [func (add-page! (current :notebook) "each thing" {:args ["current"]})]
+                                                     [(ref-id (:id func)) [1 2 3]])
+                                                   )]]]
          [:li [:button {:onClick (fn []
-                                   (add-step! (current :page) (call ref [1 2])))}
+                                   (add-step! (current :page) (call ref (args))))}
                (ref->name ref)]])
+   ])
+
+(defdom inserter [page cursor]
+  [:div
+   (constant-inserter cursor)
+   (ref-inserter (current :page) cursor)
    ])
 
 (defdom new-step-helper []
   [:div
    [:p "Let's create some data to get started!"]
-   (constant-inserter)
-   (ref-inserter (current :page))
+   (constant-inserter (current :page))
+   (ref-inserter (current :page) (current :page))
    (call-inserter (current :page))
    ])
 
@@ -425,9 +456,8 @@
 ;; Pages
 ;;*********************************************************
 
-
 (defn click-add-page [e notebook]
-  (add-page! notebook "untitled page"))
+  (add-page! notebook "untitled page" {:args ["root"]}))
 
 (defdom pages-list [notebook]
   [:ul {:className "pages"}
@@ -482,25 +512,49 @@
 ;; Representations
 ;;*********************************************************
 
+(defdom table-map-ui [table]
+  [:div {:className "table-editor"}
+   [:span {:className "add-col"
+           :onClick (fn []
+                      (swap! table #(-> (update-in % ["headers"] conj "foo")
+                                        (update-in ["columns"] conj (ref-js "aurora.runtime.table.identity_column"))
+                                        (update-in ["rows"] (fn [x]
+                                                              (mapv (fn [c] (conj c 0)) x))))))} "+"]
+  [:table {:className "table"
+           :onContextMenu (ref-menu table)}
+   [:thead
+    [:tr
+     (each [k (@table "headers")]
+           [:th (item-ui (conj table ["headers" index]))])]
+    [:tbody
+     (each [row (@table "rows")]
+           [:tr
+            (let [path ["rows" index]]
+              (each [v row]
+                    [:td (item-ui (conj table (conj path index)))]))])]]]
+   [:div {:className "add-row-wrapper"}
+    [:span {:className "add-row"
+            :onClick (fn []
+                       (swap! table #(update-in % ["rows"] conj (mapv (constantly 0) (@table "headers")))))} "+"]]])
+
 (defdom table-ui [table]
-  (let [ks (keys @table)]
-    [:table {:className "table"
-             :onContextMenu (ref-menu table)}
-     [:thead
-      [:tr
-       (each [k ks]
-             [:th (item-ui (conj table [{::key k}]))])]
-      [:tbody
-       [:tr
-        (each [v (vals @table)]
-              [:td (item-ui (conj table (nth ks index)))])]]]]))
+  [:div {:className "table-editor"}
+   [:span {:className "add-col"} "+"]
+   [:table {:className "table"
+            :onContextMenu (ref-menu table)}
+    [:thead
+     [:tr
+      (each [k (table/headers @table)]
+            [:th k])]
+     [:tbody
+      (each [row (table/-rows @table)]
+            [:tr
+             (let [path ["rows" index]]
+               (each [v row]
+                     [:td (row index)]))])]]]
+   [:div {:className "add-row-wrapper"}
+    [:span {:className "add-row"} "+"]]])
 
-
-(defdom list-ui [list]
-  [:ul {:className "list"
-        :onContextMenu (ref-menu list)}
-   (each [v @list]
-         [:li (item-ui (conj list index))])])
 
 (defdom math-ui [x]
   (cond
@@ -511,57 +565,41 @@
                 (pr-str x)]
    :else [:span (pr-str x)]))
 
+(defn cell [x parser]
+  (let [path (cursor->path x)
+        commit (fn [e]
+                 (swap! x (constantly (parser (.-target.value e))))
+                 (remove-input! path))]
+    (dom
+     (if (input? path)
+       [:input {:type "text"
+                :className "focused"
+                :style #js {"width" (* 10 (count (str @x)))}
+                :defaultValue @x
+                :onKeyPress (fn [e]
+                              (when (= 13 (.-charCode e))
+                                (commit e)))
+                :onBlur commit}]
+       [:span {:className "value"
+               :onContextMenu (ref-menu x)
+               :onClick (fn [e]
+                          (when (mutable? x)
+                            (add-input! path true)))}
+        (str @x)]))))
+
 (defn build-rep-cache [state]
   (assoc-in state [:cache :representations]
             {"math" math-ui
              "rect" (fn [x]
                       )
-             "boolean" (fn [x]
-                         (dom [:span {:className "value"
-                                      :onContextMenu (ref-menu x)
-                                      :onClick (fn []
-                                                 (when (mutable? x)
-                                                   (swap! x not)))}
-                               (str @x)]))
              "number" (fn [x]
-                        (let [path (cursor->path x)]
-                          (dom
-                           (if (input? path)
-                             [:input {:type "text" :defaultValue @x
-                                      :onKeyPress (fn [e]
-                                                    (when (= 13 (.-charCode e))
-                                                      (swap! x (constantly (reader/read-string (.-target.value e))))
-                                                      (remove-input! path)))}]
-                             [:span {:className "value"
-                                     :onContextMenu (ref-menu x)
-                                     :onClick (fn [e]
-                                                (when (mutable? x)
-                                                  (add-input! path true)))}
-                              (str @x)]))))
-             "keyword" (fn [x]
-                        (dom [:span {:className "value"}
-                              (str @x)]))
-             "string" (fn [x path]
-                        (let [path (cursor->path x)]
-                          (dom
-                           (if (input? path)
-                             [:input {:type "text" :defaultValue @x
-                                      :onKeyPress (fn [e]
-                                                    (when (= 13 (.-charCode e))
-                                                      (swap! x (constantly (.-target.value e)))
-                                                      (remove-input! path)
-                                                      ))}]
-                             [:span {:className "value"
-                                     :onContextMenu (ref-menu x)
-                                     :onClick (fn []
-                                                (when (mutable? x)
-                                                  (add-input! path path)))}
-                              (str @x)])
-                           )))
-             "list" (fn [x]
-                      (list-ui x))
+                        (cell x reader/read-string))
+             "string" (fn [x]
+                        (cell x identity))
              "table" (fn [x]
-                       (table-ui x))}))
+                       (if (map? @x)
+                         (table-map-ui x)
+                         (table-ui x)))}))
 
 ;;*********************************************************
 ;; Aurora state
@@ -608,6 +646,14 @@
                            :args args}
                       opts)))
 
+(defn table []
+  {"headers" ["a" "b"]
+   "columns" [{:type :ref/js
+               :js "aurora.runtime.table.identity_column"}
+              {:type :ref/js
+               :js "aurora.runtime.table.identity_column"}]
+   "rows" [[1 2] [3 4]]})
+
 (defn ref-id [id]
   {:type :ref/id
    :id id})
@@ -646,13 +692,16 @@
 (defn remove-notebook! [notebook]
   (swap! aurora-state update-in [:notebooks] #(vec (remove #{(:id notebook)} %))))
 
-(defn add-page! [notebook desc]
-  (let [page {:type :page
-              :id (compiler/new-id)
-              :tags #{:page}
-              :args []
-              :desc desc
-              :steps []}]
+(defn add-page! [notebook desc & [opts]]
+  (let [page (merge {:type :page
+                     :id (compiler/new-id)
+                     :tags (if-not (:anonymous opts)
+                             #{:page}
+                             #{})
+                     :args []
+                     :desc desc
+                     :steps []}
+                    opts)]
     (when (ast/page! (:index @aurora-state) page)
       (add-index! page)
       (swap! notebook update-in [:pages] conj (:id page))
@@ -688,7 +737,8 @@
                 (reader/read-string state)
                 state)]
     (-> state
-        (build-rep-cache))))
+        (build-rep-cache)
+        (update-in [:index] merge ast/core))))
 
 (defn repopulate []
   (let [stored (aget js/localStorage "aurora-state")]
@@ -709,12 +759,16 @@
 ;;*********************************************************
 
 (def run-stack (atom nil))
+(def cur-state (atom (table/table ["counter"]
+                                  [table/identity-column]
+                                  [[0]])))
 (def prev nil)
 
 (defn run-index [index notebook page state]
   (let [start (now)
         jsth (compiler/notebook->jsth index (get index (:id notebook)))
         source (jsth/expression->string jsth)
+        _ (println source)
         _ (set! (.-innerHTML (js/document.getElementById "compile-perf")) (- (now) start))
         start (now)
         notebook (js/eval (str "(" source "());"))
@@ -724,16 +778,19 @@
     (aset notebook "stack" stack)
     (try
       (let [v [(func state []) (.-next_state notebook) (aget stack 0)]]
+        (println v)
         (set! (.-innerHTML (js/document.getElementById "run-perf")) (- (now) start))
         v)
       (catch :default e
         (let [v [e (.-next_state notebook) (aget stack 0)]]
+          (println v)
           (set! (.-innerHTML (js/document.getElementById "run-perf")) (- (now) start))
           v)))))
 
 (defn re-run [notebook page args]
   (when (and notebook page)
     (let [run (run-index (:index @aurora-state) @notebook @page args)]
+      (reset! cur-state (second run))
       (reset! run-stack #js {:calls #js [(nth run 2)]})
       (queue-render))))
 
@@ -764,7 +821,7 @@
                                      (do
                                        (set! prev (:index cur))
                                        ;;TODO: args
-                                       (re-run (current :notebook) (current :page) nil))
+                                       (re-run (current :notebook) (current :page) @cur-state))
                                      (do
                                        (set! (.-innerHTML (js/document.getElementById "compile-perf")) "n/a")
                                        (set! (.-innerHTML (js/document.getElementById "run-perf")) "n/a")
@@ -784,6 +841,7 @@
     (js/React.renderComponent
      (aurora-ui)
      (js/document.getElementById "wrapper"))
+    (focus!)
     (set! (.-innerHTML (js/document.getElementById "render-perf")) (- (now) start))
     (set! queued? false)))
 
@@ -794,6 +852,34 @@
 
 (add-watch aurora-state :foo (fn [_ _ _ cur]
                                (queue-render)))
+
+;;*********************************************************
+;; auto-resizing
+;;*********************************************************
+
+(dom/on js/document :keydown (fn [e]
+                               (when (= "INPUT" (.-target.tagName e))
+                                 (dom/css (.-target e) {:width (* 10 (count (.-target.value e)))})
+                                 )))
+
+(dom/on js/document :input (fn [e]
+                               (when (= "INPUT" (.-target.tagName e))
+                                 (dom/css (.-target e) {:width (* 10 (count (.-target.value e)))})
+                                 )))
+
+(dom/on js/document :change (fn [e]
+                               (when (= "INPUT" (.-target.tagName e))
+                                 (dom/css (.-target e) {:width (* 10 (count (.-target.value e)))})
+                                 )))
+
+(dom/on js/document :keyup (fn [e]
+                               (when (= "INPUT" (.-target.tagName e))
+                                 (dom/css (.-target e) {:width (* 10 (count (.-target.value e)))})
+                                 )))
+
+(defn focus! []
+  (when-let [cur (last (dom/$$ :.focused))]
+    (.focus cur)))
 
 ;;*********************************************************
 ;; Go!

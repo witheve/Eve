@@ -1,4 +1,5 @@
-(ns aurora.editor.core)
+(ns aurora.editor.core
+  (:require [aurora.ast :as ast]))
 
 ;;*********************************************************
 ;; Aurora state
@@ -13,5 +14,5 @@
                     :document true
                     :open-paths {}
                     :cache {}
-                    :index {}
+                    :index ast/core
                     :notebooks []})
