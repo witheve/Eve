@@ -189,8 +189,7 @@
    "output"))
 
 (defn tick [index id state watchers]
-  (let [index (merge index ast/core)
-        jsth (notebook->jsth index (get index id))
+  (let [jsth (notebook->jsth index (get index id))
         source (jsth/expression->string jsth)
         _ (println "###################")
         _ (println jsth)
