@@ -172,6 +172,12 @@
      (do
        (let! notebook {})
        (let! failure "MatchFailure!")
+       (fn value_get [cursor]
+         (let! result (cljs.core.get_in nil notebook.state cursor))
+         result)
+       (fn value_put [cursor value]
+         (set! notebook.state (cljs.core.assoc_in nil notebook.state cursor value))
+         result)
        ~@(for! [page-id (:pages x)]
                `(do
                   ~(page->jsth index (get index page-id) page-id)
@@ -196,14 +202,14 @@
         _ (println source)
         notebook (js/eval (str "(" source "());"))
         stack #js []]
-    (aset notebook "next_state" state)
+    (aset notebook "state" state)
     (aset notebook "stack" stack)
     (try
-      (.value_root notebook state [])
-      (let [next-state (.-next_state notebook)]
+      (.value_root notebook)
+      (let [next-state (.-state notebook)]
         [(see next-state) next-state (aget stack 0)])
       (catch :default e
-        (let [next-state (.-next_state notebook)]
+        (let [next-state (.-state notebook)]
           [e next-state (aget stack 0)])))))
 
 ;; watchers
