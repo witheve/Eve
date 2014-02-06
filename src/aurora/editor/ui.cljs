@@ -41,24 +41,28 @@
 ;;*********************************************************
 
 (defn stack->cursor [stack type]
-  (->> stack
-       (filter #(= (first %) type))
-       (first)
-       (second)
-       (cursor)))
+  (when stack
+    (->> stack
+         (filter #(= (first %) type))
+         (first)
+         (second)
+         (cursor))))
 
 (defn push [stack thing]
-  (conj stack [(condp = (:type @thing)
-                 :page :page
-                 :notebook :notebook
-                 :step)
-               (cursor->id thing)]))
+  (when stack
+    (conj stack [(condp = (:type @thing)
+                   :page :page
+                   :notebook :notebook
+                   :step)
+                 (cursor->id thing)])))
 
 (defn set-stack! [stack]
-  (swap! aurora-state assoc :stack stack))
+  (when stack
+    (swap! aurora-state assoc :stack stack)))
 
 (defn current-stack? [stack]
-  (= (:stack @aurora-state) stack))
+  (when stack
+    (= (:stack @aurora-state) stack)))
 
 ;;*********************************************************
 ;; Declares
@@ -102,16 +106,23 @@
 (defdom page-steps [page stack]
    [:ul {:className "steps"}
      (each [step (cursors (:steps @page))]
-           [:li {:className "step-container"}
-            [:div {:className "step-row"}
-             [:div {:className "step-id-container"} [:span {:className "step-id"} (inc index)]]
-             (step-list-item step (push stack step))]
-            (sub-step step stack)
-            (when (and (not recursed)
-                       (= index 2))
-              (set! recursed true)
-              [:div {:className "substep"}
-               (page-steps page stack)])])
+           (let [error? (= (from-cache [:error :stack]) (push stack step))]
+             [:li {:className (str "step-container" (when error?
+                                                      " error"))}
+              [:div {:className "step-row"}
+               [:div {:className "step-id-container"} [:span {:className "step-id"} (inc index)]]
+               (step-list-item step (push stack step))]
+              (when error?
+               [:div {:className "step-error"}
+                (if (= "MatchFailure!" (from-cache [:error :exception]))
+                  "No branch matches the given input"
+                  (pr-str (from-cache [:error :exception])))])
+              (sub-step step stack)
+              (when (and (not recursed)
+                         (= index 2))
+                (set! recursed true)
+                [:div {:className "substep"}
+                 (page-steps page stack)])]))
     [:li {:className "step-container"}
             [:div {:className "step-row"}
              [:div {:className "step-id-container"} [:span {:className "step-id"} "N"]]
@@ -126,7 +137,7 @@
 
 (defn step-click [stack]
   (fn [e]
-    (set-stack! stack)
+    ;(set-stack! stack)
     (.preventDefault e)
     (.stopPropagation e)))
 
@@ -192,16 +203,26 @@
     (item-ui (:node branch))))
 
 (defmethod step-list-item :match [step stack]
-  (dom
-   [:div {:className (step-class stack)
-         :onClick (step-click stack)}
-    [:p {:className "desc"} "If " (item-ui (:arg @step)) "matches"]
-    [:ul {:className "match-list"}
-     (each [branch (:branches @step)]
-             [:li {:className "match-branch"}
-              [:span (item-ui (conj step [:branches index :pattern]))]
-              [:span [:span {:className ""} (item-ui (conj step [:branches index :action]))]]]
-             (sub-step (conj step [:branches index]) stack))]]))
+  (let [matched-branch (path->match-branch stack)]
+    (dom
+     [:div {:className (step-class stack)
+            :onClick (step-click stack)
+            :onContextMenu  #(show-menu! % [{:label "remove step"
+                                             :action (fn []
+                                                       (remove-step! (stack->cursor stack :page) step))}])}
+      [:div {:className "desc"} "If " (item-ui (conj step :arg) stack {:name-only? true}) "matches"]
+      [:ul {:className "match-list"}
+       (each [branch (:branches @step)]
+             [:li {:className (str "match-branch" (when (= matched-branch index)
+                                                    " active"))}
+              [:span (item-ui (conj step [:branches index :pattern]) stack)]
+              [:span {:className "match-action"} (item-ui (conj step [:branches index :action]) stack)]]
+             (sub-step (conj step [:branches index]) stack))]
+      [:button {:className "add-match-branch"
+                :onClick (fn []
+                           (swap! step update-in [:branches] conj (match-branch)))}
+       ""]
+      ])))
 
 (defmethod step-description :match [step stack]
   (dom
@@ -247,7 +268,7 @@
 
 (defmethod item-ui :constant [node stack]
   (if-let [rep (->rep (:data @node))]
-    (rep (conj @node :stack))
+    (rep (conj node :data) stack)
     (pr-str x)))
 
 (defmethod step-list-item :constant [node stack]
@@ -264,7 +285,7 @@
         [:p {:className "desc"} "With " [:span {:className "ref value"} (ref-name stack node (:id value))]])
       [:div {:className "result"}
        (when-let [rep (->rep value)]
-         (rep (conj node :data)))]])))
+         (rep (conj node :data) stack))]])))
 
 (defmethod step-description :constant [step stack]
   (let [value (:data @step)
@@ -272,7 +293,7 @@
     (dom
      [:p {:className "desc"} "Add a " [:span {:className "value"} name]]
      [:div {:className "result"}
-      (item-ui (conj step :data))
+      (item-ui (conj step :data) stack)
       ])))
 
 ;;*********************************************************
@@ -316,28 +337,31 @@
                                                        (swap! step (constantly (ref-id ref)))
                                                        (when cb
                                                          (cb)))})
-                                          (->> (refs-in-scope (current :page) (current :step))
-                                               (take-while #(not= (:id @step) %))
+                                          (->> (refs-in-scope (current :page) nil)
+                                               ;(take-while #(not= (:id @step) %))
                                                (vec))))))))
 
-(defmethod item-ui :ref/id [step]
+(defmethod item-ui :ref/id [step stack opts]
   (dom
    (let [page (cursor (:id @step))
          page? (when page
                  (= (:type @page) :page))
-         res (when-not page?
-               (path->result (-> (drop 1 (:stack @aurora-state))
+         res (when (and (not page?)
+                        (not (:name-only? opts)))
+               (path->result (-> (drop 1 stack)
                                  (conj [:step (:id @step)]))))]
      (cond
-      res [:div {:className "ref"
+      res [:span {:className "ref"
                   :onContextMenu (ref-menu step)}
            (item-ui (value-cursor res))]
-      page? [:div {:className "ref"
+      page? [:span {:className "ref"
                :onContextMenu (ref-menu step)}
              (or (:desc @page) (:id @page))]
-     :else [:div {:className "ref"
+     :else [:span {:className "ref"
                    :onContextMenu (ref-menu step)}
-            (str (:id @step))])) ))
+            [:div {:className "value"}
+             (ref-name stack (stack->cursor stack :step) (:id @step))]])) ))
+
 
 ;;*********************************************************
 ;; editor
@@ -347,6 +371,8 @@
   (let [menu (from-cache :menu)]
     (when menu
       [:div {:id "menu-shade"
+             :onContextMenu (fn []
+                              (assoc-cache! [:menu] nil))
              :onClick (fn []
                         (assoc-cache! [:menu] nil))}
        [:ul {:id "menu"
@@ -369,7 +395,7 @@
 
 (defdom editing-view [stack]
   [:div
-   (steps-list (current :page))
+   (steps-list (current :page) (drop 1 stack))
    ;(step-canvas (stack->cursor stack :step) stack)
    ])
 
@@ -391,7 +417,10 @@
     "map"]
    [:button {:onClick (fn []
                         (add-step|swap! cursor (table)))}
-    "table"]])
+    "table"]
+   [:button {:onClick (fn []
+                        (add-step|swap! cursor nil (match)))}
+    "match"]])
 
 (defdom ref-inserter [page cursor]
   [:ul
@@ -524,7 +553,6 @@
                               :stack (-> ()
                                          (push notebook)
                                          (push page)
-                                         (conj "new")
                                          )))]
            (if (input? (:id @page))
              [:li {:className "notebook"}
@@ -664,23 +692,21 @@
 
 
 (defdom map-ui [x]
-  [:table {:className "map"}
-   [:tbody
-    (each [[k v] (seq @x)]
-          [:tr {:className "map-item"}
-           [:td {:className "map-key"} (item-ui (conj x [{::key k}]))]
-           [:td {:className "map-value"} (item-ui (conj x k))
-            (when (mutable? x)
-              [:span {:className "remove-map-item"
-                      :onClick (fn []
-                                 (swap! x dissoc k))}])
-            ]]
-          )
-    [:tr
-     [:td {:className "add-map-key"
-           :colSpan 2}
-      (item-ui (conj x [{::key "add new key"}]))]]
-    ]]
+  [:div {:className "map-editor"}
+   [:table {:className "map"}
+    [:tbody
+     (each [[k v] (seq @x)]
+           [:tr {:className "map-item"}
+            [:td {:className "map-key"} (item-ui (conj x [{::key k}]))]
+            [:td {:className "map-value"} (item-ui (conj x k))
+             (when (mutable? x)
+               [:span {:className "remove-map-item"
+                       :onClick (fn []
+                                  (swap! x dissoc k))}])
+             ]]
+           )]]
+   [:div {:className "add-map-key"}
+    (item-ui (conj x [{::key "add key"}]))]]
   )
 
 (defn cell-parser [v]
@@ -694,8 +720,8 @@
              "rect" (fn [x]
                       )
 
-             "ref" (fn [x]
-                     (item-ui x))
+             "ref" (fn [x stack]
+                     (item-ui x stack))
 
              "map" (fn [x]
                      (map-ui x))
@@ -754,6 +780,18 @@
                            :ref ref
                            :args args}
                       opts)))
+
+(defn match-branch []
+  {:type :match/branch
+   :pattern "foo"
+   :guards []
+   :action {:type :constant
+            :data "wheeee"}})
+
+(defn match []
+  {:type :match
+   :arg "foo"
+   :branches [(match-branch)]})
 
 (defn table []
   {"headers" ["a" "b"]
@@ -820,11 +858,14 @@
   (swap! page assoc :pages (vec (remove #{(:id @page)} (:pages @notebook)))))
 
 (defn add-step! [page info]
-  (let [step (merge {:id (compiler/new-id)} info)]
-    (when (ast/step! (:index @aurora-state) step)
-      (add-index! step)
-      (swap! page update-in [:steps] conj (:id step))
-      step)))
+  (try
+    (let [step (merge {:id (compiler/new-id)} info)]
+      (when (ast/step! (:index @aurora-state) step)
+        (add-index! step)
+        (swap! page update-in [:steps] conj (:id step))
+        step))
+    (catch :default e
+      (.error js/console (pr-str e)))))
 
 (defn remove-step! [page step]
   (swap! page assoc :steps (vec (remove #{(:id @step)} (:steps @page)))))
@@ -873,26 +914,53 @@
                                   [[0]])))
 (def prev nil)
 
+(defn find-error-frame [stack]
+  (loop [frame stack
+         page-stack [[:page (aget stack "id")]]]
+    (when frame
+      (if (.-exception frame)
+        {:stack page-stack
+         :frame frame}
+        (when-let [next-frame (last (aget frame "calls"))]
+          (recur next-frame (conj page-stack [:page (aget next-frame "id")])))))))
+
+(defn compile-index [index notebook]
+  (try
+    (->> (compiler/notebook->jsth index (get index (:id notebook)))
+         (jsth/expression->string))
+    (catch :default e
+      (.error js/console (pr-str e))
+      nil)))
+
 (defn run-index [index notebook page state]
   (let [start (now)
-        jsth (compiler/notebook->jsth index (get index (:id notebook)))
-        source (jsth/expression->string jsth)
+        source (compile-index index notebook)
         _ (println source)
         _ (set! (.-innerHTML (js/document.getElementById "compile-perf")) (- (now) start))
         start (now)
-        notebook (js/eval (str "(" source "());"))
+        notebook-js (when source (js/eval (str "(" source "());")))
         stack #js []
-        func (aget notebook (str "value_" (:id page)))]
-    (aset notebook "next_state" state)
-    (aset notebook "stack" stack)
-    (try
-      (let [v [(func state []) (.-next_state notebook) (aget stack 0)]]
-        (set! (.-innerHTML (js/document.getElementById "run-perf")) (- (now) start))
-        v)
-      (catch :default e
-        (let [v [e (.-next_state notebook) (aget stack 0)]]
+        func (when notebook-js (aget notebook-js (str "value_" (:id page))))]
+    (when notebook-js
+      (aset notebook-js "next_state" state)
+      (aset notebook-js "stack" stack)
+      (try
+        (let [v [(func state []) (.-next_state notebook-js) (aget stack 0)]]
+          (assoc-cache! [:error] nil)
           (set! (.-innerHTML (js/document.getElementById "run-perf")) (- (now) start))
-          v)))))
+          v)
+        (catch :default e
+          (let [v [e (.-next_state notebook-js) (aget stack 0)]
+                {:keys [stack frame]} (find-error-frame (aget stack 0))
+                failed-step (first (remove (fn [x]
+                                             (aget (.-vars frame) (str "value_" x)))
+                                           (get-in index [(-> stack last second) :steps])))
+                stack (reverse (concat [[:notebook (:id notebook)]] stack [[:step failed-step]]))]
+            (println "ERROR STACK: " stack e)
+            (assoc-cache! [:error] {:stack stack
+                                    :exception e})
+            (set! (.-innerHTML (js/document.getElementById "run-perf")) (- (now) start))
+            v))))))
 
 (defn re-run [notebook page args]
   (when (and notebook page)
@@ -904,7 +972,7 @@
 (defn find-id [thing id]
   (first (filter #(= (aget % "id") id) (aget thing "calls"))))
 
-(defn traverse-path [stack path]
+(defn traverse-path [stack path last-frame?]
   (loop [stack stack
          path path]
     (when stack
@@ -912,8 +980,20 @@
         stack
         (recur (find-id stack (-> path first second)) (next path))))))
 
+(defn path->frame [path]
+  (traverse-path @run-stack (filter #(= (first %) :page) (reverse path))))
+
+(defn path->match-branch [path]
+  (when-let [frame (path->frame path)]
+    (-> frame
+        (aget "matches")
+        (aget (str "value_" (-> path
+                                (first)
+                                (second))))
+        )))
+
 (defn path->result [path]
-  (when-let [frame (traverse-path @run-stack (filter #(= (first %) :page) (reverse path)))]
+  (when-let [frame (path->frame path)]
     (-> frame
         (aget "vars")
         (aget (str "value_" (-> path
@@ -921,15 +1001,13 @@
                                 (second))))
         )))
 
-(:index @aurora-state)
-
 (add-watch aurora-state :running (fn [_ _ _ cur]
                                    (if-not (identical? prev (:index cur))
                                      (do
                                        (set! prev (:index cur))
                                        ;;TODO: args
                                        (re-run (current :notebook) (current :page) @cur-state))
-                                     (do
+                                     (comment
                                        (set! (.-innerHTML (js/document.getElementById "compile-perf")) "n/a")
                                        (set! (.-innerHTML (js/document.getElementById "run-perf")) "n/a")
                                        )
