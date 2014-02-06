@@ -11,6 +11,7 @@
 
 (defn ->vars [form]
   (cond
+   (and (seq? form) (= 'quote (first form))) #{}
    (var? form) #{(->var form)}
    (coll? form) (apply clojure.set/union (map ->vars form))
    :else #{}))
@@ -27,8 +28,12 @@
        (false? pattern)
        (number? pattern)
        (string? pattern)
-       (keyword? pattern))
+       (keyword? pattern)
+       (symbol? pattern))
    (test `(= ~pattern ~input))
+
+   (and (seq? pattern) (= 'quote (first pattern)))
+   (test `(= '~(second pattern) ~input))
 
    (vector? pattern)
    `(do
@@ -43,10 +48,11 @@
    `(do
       ~(test `(map? ~input))
       ~@(for [key (keys pattern)]
-          (let [value (gensym "value")]
-            `(let [~value (get ~input ~key ~::not-found)]
-               ~(test `(not= ~::not-found ~value))
-               ~(pattern->cljs (get pattern key) value)))))
+          (do (assert (not (var? key)))
+            (let [value (gensym "value")]
+              `(let [~value (get ~input ~key ~::not-found)]
+                 ~(test `(not= ~::not-found ~value))
+                 ~(pattern->cljs (get pattern key) value))))))
 
    :else (assert false)))
 
