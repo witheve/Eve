@@ -16,10 +16,6 @@
   (check id)
   (symbol (str "value_" id)))
 
-(deftraced id->cursor [id] [id]
-  (check id)
-  (symbol (str "cursor_" id)))
-
 (deftraced id->temp [id] [id]
   (check id)
   (symbol (str "temp_" id)))
@@ -33,7 +29,7 @@
 (deftraced tag->jsth [index x] [x]
   `(cljs.core.keyword ~(:id x) ~(:name x)))
 
-(deftraced data->value-jsth [index x] [x]
+(deftraced data->jsth [index x] [x]
   (cond
    (= :tag (:type x)) (tag->jsth index x)
    (#{:ref/id :ref/js} (:type x)) (ref->jsth index x)
@@ -49,42 +45,27 @@
                                               ~(vec (map! #(data->value-jsth index %) (x "rows"))))
                                              )
    (vector? x) `(cljs.core.PersistentVector.fromArray
-                 ~(vec (map! #(data->value-jsth index %) x)))
+                 ~(vec (map! #(data->jsth index %) x)))
    (map? x) `(cljs.core.PersistentHashMap.fromArrays
-              ~(vec (map! #(data->value-jsth index %) (keys x)))
-              ~(vec (map! #(data->value-jsth index %) (vals x))))
+              ~(vec (map! #(data->jsth index %) (keys x)))
+              ~(vec (map! #(data->jsth index %) (vals x))))
    :else (check false)))
-
-(deftraced data->cursor-jsth [index x] [x]
-  (if (and (= :ref/id (:type x))
-           ;;pages do not have a cursor
-           (not= :page (-> (:id x) (index) :type)))
-    (id->cursor (:id x))
-    nil))
 
 (deftraced constant->jsth [index x id] [x id]
   (check (= :constant (:type x)))
-  (let [data (:data x)]
-    `(do
-       (let! ~(id->value id) ~(data->value-jsth index data))
-       (let! ~(id->cursor id) ~(data->cursor-jsth index data)))))
+  `(let! ~(id->value id) ~(data->jsth index (:data x))))
 
 (deftraced js-data->jsth [index x] [x]
   (cond
    (nil? x) nil
-   :else (data->value-jsth index x)))
+   :else (data->jsth index x)))
 
 (deftraced call->jsth [index x id] [x id]
-  (case (:type (:ref x))
-    :ref/id (let [temp (id->temp (new-id))]
-              `(do
-                 (let! ~temp (~(ref->jsth index (:ref x)) ~@(interleave (map! #(data->value-jsth index %) (:args x)) (map! #(data->cursor-jsth index %) (:args x)))))
-                 (let! ~(id->value id) (get! ~temp 0))
-                 (let! ~(id->cursor id) (get! ~temp 1))))
-    :ref/js `(do
-               (let! ~(id->value id) (~(ref->jsth index (:ref x)) ~@(map! #(js-data->jsth index %) (:args x))))
-               (let! ~(id->cursor id) nil))
-    (check false)))
+  (let [arg->jsth (case (:type (:ref x))
+                    :ref/id data->jsth
+                    :ref/js js-data->jsth
+                    (check false))] ;; allowed to use nil when calling cljs
+    `(let! ~(id->value id) (~(data->jsth index (:ref x)) ~@(map! #(arg->jsth index %) (:args x))))))
 
 (deftraced test->jsth [pred] [pred]
   `(if (not ~pred) (throw failure)))
@@ -94,9 +75,7 @@
    (= :match/any (:type x)) `(do)
    (= :match/bind (:type x)) `(do
                                 (let! ~(id->value (:id x)) ~(id->value input))
-                                (let! ~(id->cursor (:id x)) ~(id->cursor input))
                                 (set! (.. frame.vars ~(id->value (:id x))) ~(id->value (:id x)))
-                                (set! (.. frame.vars ~(id->cursor (:id x))) ~(id->cursor (:id x)))
                                 ~(pattern->jsth index (:pattern x) input))
    (= :tag (:type x)) (test->jsth `(= ~(tag->jsth index x) ~(id->value input)))
    (= :ref/id (:type x)) (test->jsth `(= ~(ref->jsth index x) ~(id->value input)))
@@ -110,7 +89,6 @@
                           (let [new-input (new-id)]
                             `(do
                                (let! ~(id->value new-input) (cljs.core.nth.call nil ~(id->value input) ~i))
-                               (let! ~(id->cursor new-input) (? ~(id->cursor input) (cljs.core.conj.call nil ~(id->cursor input) ~i) nil))
                                ~(pattern->jsth index (nth x i) new-input)))))
    (map? x) `(do
                ~(test->jsth `(cljs.core.map_QMARK_.call nil ~(id->value input)))
@@ -118,10 +96,9 @@
                        (let [k-id (new-id)
                              new-input (new-id)]
                          `(do
-                            (let! ~(id->temp k-id) ~(data->value-jsth index k))
+                            (let! ~(id->temp k-id) ~(data->jsth index k))
                             ~(test->jsth `(cljs.core.contains_QMARK_.call nil ~(id->value input) ~(id->temp k-id)))
                             (let! ~(id->value new-input) (cljs.core.get.call nil ~(id->value input) ~(id->temp k-id)))
-                            (let! ~(id->cursor new-input) (? ~(id->cursor input) (cljs.core.conj.call nil ~(id->cursor input) ~(id->temp k-id)) nil))
                             ~(pattern->jsth index (get x k) new-input)))))
    :else (check false)))
 
@@ -168,7 +145,7 @@
 
 (deftraced page->jsth [index x id] [x id]
   (check (= :page (:type x)))
-  `(fn ~(id->value id) ~(vec (interleave (map! id->value (:args x)) (map! id->cursor (:args x))))
+  `(fn ~(id->value id) [~@(map! id->value (:args x))]
      (do
        (let! stack notebook.stack)
        (let! frame {})
@@ -178,25 +155,16 @@
        (stack.push frame)
        (set! notebook.stack frame.calls)
        ~@(for! [arg (:args x)]
-               `(do
-                  (set! (.. frame.vars ~(id->value arg)) ~(id->value arg))
-                  (set! (.. frame.vars ~(id->cursor arg)) ~(id->cursor arg))))
+               `(set! (.. frame.vars ~(id->value arg)) ~(id->value arg)))
        ~@(for! [step-id (:steps x)]
                `(do
                   ~(step->jsth index (get index step-id) step-id)
-                  (set! (.. frame.vars ~(id->value step-id)) ~(id->value step-id))
-                  (set! (.. frame.vars ~(id->cursor step-id)) ~(id->cursor step-id))))
+                  (set! (.. frame.vars ~(id->value step-id)) ~(id->value step-id))))
        (set! notebook.stack stack))
      ~(if (-> x :steps seq)
-        `[~(-> x :steps last id->value) ~(-> x :steps last id->cursor)]
-        [nil nil])
+        (-> x :steps last id->value)
+        nil) ;; uh, what does an empty page return?
      ))
-
-(deftraced prim->jsth [index x id] [x id]
-  (check (= :prim (:type x)))
-  `(fn ~(id->value id) ~(vec (interleave (map! id->value (:args x)) (map! id->cursor (:args x))))
-     ~(:body x)
-     ~(:return x)))
 
 (deftraced notebook->jsth [index x] [x]
   (check (= :notebook (:type x)))
@@ -204,10 +172,12 @@
      (do
        (let! notebook {})
        (let! failure "MatchFailure!")
-       ~@(for! [[prim-id prim] index
-                :when (= :prim (:type prim))]
-               (prim->jsth index prim prim-id))
-       ;; TODO handle nil cursors in replace and append
+       (fn value_get [cursor]
+         (let! result (cljs.core.get_in nil notebook.state cursor))
+         result)
+       (fn value_put [cursor value]
+         (set! notebook.state (cljs.core.assoc_in nil notebook.state cursor value))
+         result)
        ~@(for! [page-id (:pages x)]
                `(do
                   ~(page->jsth index (get index page-id) page-id)
@@ -225,22 +195,21 @@
    "output"))
 
 (defn tick [index id state watchers]
-  (let [index (merge index ast/core)
-        jsth (notebook->jsth index (get index id))
+  (let [jsth (notebook->jsth index (get index id))
         source (jsth/expression->string jsth)
         _ (println "###################")
         _ (println jsth)
         _ (println source)
         notebook (js/eval (str "(" source "());"))
         stack #js []]
-    (aset notebook "next_state" state)
+    (aset notebook "state" state)
     (aset notebook "stack" stack)
     (try
-      (.value_root notebook state [])
-      (let [next-state (.-next_state notebook)]
+      (.value_root notebook)
+      (let [next-state (.-state notebook)]
         [(see next-state) next-state (aget stack 0)])
       (catch :default e
-        (let [next-state (.-next_state notebook)]
+        (let [next-state (.-state notebook)]
           [e next-state (aget stack 0)])))))
 
 ;; watchers

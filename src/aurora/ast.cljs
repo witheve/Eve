@@ -117,51 +117,11 @@
          (sequential? (:steps x))
          (every? #(step! index (get index %)) (:steps x))))
 
-(deftraced prim! [index x] [x]
-  (check (= :prim (:type x))
-         (id! index (:id x))
-         (sequential? (:args x))
-         (every? #(page-arg! index (get index %)) (:args x))
-         (contains? x :body)
-         (contains? x :return)))
-
 (deftraced notebook! [index x] [x]
   (check (= :notebook (:type x))
          (id! index (:id x))
          (sequential? (:pages x))
          (every? #(page! index (get index %)) (:pages x))))
-
-;; core lib
-
-(def core
-  {"replace" {:type :prim
-                    :id "replace"
-                    :args ["old" "new"]
-                    :body `(set! notebook.next_state (cljs.core.assoc_in.call nil notebook.next_state cursor_old value_new))
-                    :return ["ok" nil]}
-   "append" {:type :prim
-                    :id "append"
-                    :args ["old" "new"]
-                    :body `(set! notebook.next_state (cljs.core.update_in.call nil notebook.next_state cursor_old cljs.core.conj value_new))
-                    :return ["ok" nil]}
-   "get" {:type :prim
-          :id "get"
-          :desc "get key"
-          :args ["thing" "key"]
-          :body `(let! result (cljs.core.get value_thing value_key))
-          :return `[result (cljs.core.conj cursor_thing value_key)]}
-   "mapv" {:type :prim
-           :id "mapv"
-           :desc "for each"
-           :args ["f" "xs"]
-           :body `(do
-                    (fn wrapped [x]
-                      (let! result (value_f x))
-                      (get! result 0))
-                    (let! result (cljs.core.mapv.call nil wrapped value_xs)))
-           :return `[result nil]}})
-
-(every? #(prim! core %) (vals core))
 
 ;; examples
 
