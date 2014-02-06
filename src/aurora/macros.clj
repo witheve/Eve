@@ -35,13 +35,14 @@
 
 (defmacro mapv-indexed [func xs]
   `(let [xs# ~xs
+         func# ~func
          len# (count xs#)]
      (loop [index# 0
             final# (transient [])]
        (if-not (< index# len#)
          (persistent! final#)
          (recur (inc index#)
-                (conj! final# (~func (xs# index#) index#)))))))
+                (conj! final# (func# (xs# index#) index#)))))))
 
 (defmacro filter-match
   ([pattern things]

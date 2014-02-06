@@ -69,8 +69,9 @@
           neue-value (apply (first args) @cursor (rest args))]
       (if map-key?
         (swap! (.-atm cursor) assoc-in (butlast path) (-> (get-in root-value (butlast path))
-                                                       (dissoc map-key?)
-                                                       (assoc neue-value (get-in root-value (concat (butlast path) [map-key?])))))
+                                                          (dissoc map-key?)
+                                                          (assoc neue-value (or (get-in root-value (concat (butlast path) [map-key?]))
+                                                                                ""))))
         (swap! (.-atm cursor) assoc-in path neue-value)))))
 
 (defn swap! [atm & args]
@@ -162,7 +163,7 @@
                (let [neue (if (coll? neue)
                             neue
                             [neue])]
-                 (ValueCursor. value (into sub-path neue))))
+                 (ValueCursor. value (into sub-path neue) locked)))
   (-index-path [this] sub-path)
 
   ICollection
