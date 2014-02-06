@@ -259,12 +259,12 @@
   (first (keep-indexed #(when (= %2 needle) %1) haystack)))
 
 (defn ref-name [stack cur-step id]
-  (let [page (stack->cursor stack :page)
-        idx (find-index id (:steps @page))
-        cur-idx (find-index (:id @cur-step) (:steps @page))]
-    (if (= (dec cur-idx) idx)
-      "that"
-      (str "step " (inc idx)))))
+  (when-let [page (stack->cursor stack :page)]
+    (let [idx (find-index id (:steps @page))
+          cur-idx (find-index (:id @cur-step) (:steps @page))]
+      (if (= (dec cur-idx) idx)
+        "that"
+        (str "step " (inc idx))))))
 
 (defmethod item-ui :constant [node stack]
   (if-let [rep (->rep (:data @node))]
@@ -360,7 +360,8 @@
      :else [:span {:className "ref"
                    :onContextMenu (ref-menu step)}
             [:div {:className "value"}
-             (ref-name stack (stack->cursor stack :step) (:id @step))]])) ))
+             (or (ref-name stack (stack->cursor stack :step) (:id @step))
+                 (:id @step))]])) ))
 
 
 ;;*********************************************************
@@ -595,7 +596,7 @@
 ;; Representations
 ;;*********************************************************
 
-(defdom table-map-ui [table]
+(defdom table-map-ui [table stack]
   [:div {:className "table-editor"}
 
   [:table {:className "table"
@@ -621,7 +622,7 @@
             :onClick (fn []
                        (swap! table #(update-in % ["rows"] conj (mapv (constantly 0) (@table "headers")))))} "+"]]])
 
-(defdom table-ui [table]
+(defdom table-ui [table stack]
   [:div {:className "table-editor"}
    [:table {:className "table"
             :onContextMenu (ref-menu table)}
@@ -649,7 +650,7 @@
                 (pr-str x)]
    :else [:span (pr-str x)]))
 
-(defn cell [x parser]
+(defn cell [x parser stack]
   (let [path (cursor->path x)
         commit (fn [e]
                  (swap! x (constantly (parser (.-target.value e))))
@@ -674,12 +675,12 @@
 (defn vec-remove [x index]
   (vec (concat (subvec x 0 index) (subvec x (inc index) (count x)))))
 
-(defdom list-ui [list]
+(defdom list-ui [list stack]
   ;;TODO: if the items are maps, table them
   [:ul {:className "list"}
    (each [x @list]
          [:li {:className "list-item"}
-          (item-ui (conj list index))
+          (item-ui (conj list index) stack)
           (when (mutable? list)
             [:span {:className "remove-list-item"
                     :onClick (fn []
@@ -691,14 +692,14 @@
   )
 
 
-(defdom map-ui [x]
+(defdom map-ui [x stack]
   [:div {:className "map-editor"}
    [:table {:className "map"}
     [:tbody
      (each [[k v] (seq @x)]
            [:tr {:className "map-item"}
-            [:td {:className "map-key"} (item-ui (conj x [{::key k}]))]
-            [:td {:className "map-value"} (item-ui (conj x k))
+            [:td {:className "map-key"} (item-ui (conj x [{::key k}]) stack)]
+            [:td {:className "map-value"} (item-ui (conj x k) stack)
              (when (mutable? x)
                [:span {:className "remove-map-item"
                        :onClick (fn []
@@ -717,24 +718,24 @@
 (defn build-rep-cache [state]
   (assoc-in state [:cache :representations]
             {"math" math-ui
-             "rect" (fn [x]
+             "rect" (fn [x stack]
                       )
 
              "ref" (fn [x stack]
                      (item-ui x stack))
 
-             "map" (fn [x]
-                     (map-ui x))
-             "list" (fn [x]
-                      (list-ui x))
-             "number" (fn [x]
-                        (cell x cell-parser))
-             "string" (fn [x]
-                        (cell x cell-parser))
-             "table" (fn [x]
+             "map" (fn [x stack]
+                     (map-ui x stack))
+             "list" (fn [x stack]
+                      (list-ui x stack))
+             "number" (fn [x stack]
+                        (cell x cell-parser stack))
+             "string" (fn [x stack]
+                        (cell x cell-parser stack))
+             "table" (fn [x stack]
                        (if (map? @x)
-                         (table-map-ui x)
-                         (table-ui x)))}))
+                         (table-map-ui x stack)
+                         (table-ui x stack)))}))
 
 ;;*********************************************************
 ;; Aurora state
