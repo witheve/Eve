@@ -128,7 +128,7 @@
                   ~(pattern->jsth index (:pattern branch) input)
                   ~@(for! [guard (:guards branch)]
                           (guard->jsth index guard))
-                  ~(action->jsth index (:action branch) id))
+                  ~(action->jsth index (:action branch) id)) ;; TODO this could throw match failure too
                 (catch ~(id->temp exception)
                   (if (== ~(id->temp exception) failure)
                     ~tail
