@@ -98,12 +98,24 @@
          (sequential? (:branches x))
          (every? #(branch! index %) (:branches x))))
 
+(deftraced math-expression! [index x] [x]
+    (check (cond
+            (vector? x) (every? #(math-expression! index %) x)
+            (number? x) true
+            :else (ref! index x))))
+
+(deftraced math! [index x] [x]
+    (check (= :math (:type x))
+           (:expression x)
+           (math-expression! index (:expression x))))
+
 (deftraced step! [index x] [x]
   (check (id! index (:id x)))
   (case (:type x)
     :call (call! index x)
     :constant (constant! index x)
     :match (match! index x)
+    :math (math! index x)
     (check false)))
 
 (deftraced page-arg! [index x] [x]
@@ -235,3 +247,21 @@
                   :args [{:type :ref/id :id "counter"} {:type :ref/id :id "inced"}]}})
 
 (notebook! example-c (get example-c "example_c"))
+
+(def example-math
+  {"example_math" {:type :notebook
+                :id "example_math"
+                :pages ["root"]}
+   "root" {:type :page
+           :id "root"
+           :args ["x"]
+           :steps ["expression"]}
+   "expression" {:type :math
+                 :id "expression"
+                 :expression [{:type :ref/js
+                               :js "+"} 4
+                              [{:type :ref/js
+                                :js "-"} 3 4 6]
+                              5]}})
+
+(notebook! example-math (get example-math "example_math"))

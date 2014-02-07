@@ -137,11 +137,23 @@
          `(throw failure)
          (reverse (map-indexed vector (:branches x)))))))
 
+(deftraced math-expression->jsth [index x] [x]
+  (println x)
+  (if (vector? x)
+    `(~@(map #(math-expression->jsth index %) x))
+    (data->jsth index x)))
+
+(deftraced math->jsth [index x id] [x id]
+  (check (= :math (:type x))
+         (:expression x))
+  `(let! ~(id->value id) ~(math-expression->jsth index (:expression x))))
+
 (deftraced step->jsth [index x id] [x id]
   (case (:type x)
     :call (call->jsth index x id)
     :constant (constant->jsth index x id)
     :match (match->jsth index x id)
+    :math (math->jsth index x id)
     (check false)))
 
 (deftraced page->jsth [index x id] [x id]
@@ -243,7 +255,7 @@
 
 (tick ast/example-c "example_c" {"counter" 0})
 
-;(tick ast/example-d "example_d" {})
+(tick ast/example-math "example_math" {})
 
 (->> {"counter" 0} (tick ast/example-c "example_c") first (tick ast/example-c "example_c") first (tick ast/example-c "example_c") first)
 

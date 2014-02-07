@@ -3,6 +3,8 @@
             aurora.util)
   (:require-macros [aurora.macros :refer [check deftraced]]))
 
+(def infix-ops #{"+" "-" "%" "/" "*"})
+
 (defn head [x] [x]
   (try (name (first x)) (catch :default _ nil)))
 
@@ -51,6 +53,9 @@
                             (indent (statement->string (nth x 3))) "\n"
                             (indent (str "return " (expression->string (nth x 4)) ";")) "\n"
                             "}"))
+   (infix-ops (head x)) (str "("
+                             (apply str (interpose (str " " (head x) " ") (map expression->string (rest x))))
+                             ")")
    (seq? x) (do (check (>= (count x) 1))
               (let [f (expression->string (nth x 0))
                     args (map expression->string (rest x))]
