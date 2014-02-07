@@ -77,7 +77,7 @@
 
 (defmethod item-ui :default [node stack]
   (if-let [rep (->rep @node)]
-    (rep node)
+    (rep node stack)
     (dom [:span (pr-str x)])))
 
 (defmethod step-list-item :default [step]
@@ -94,11 +94,11 @@
 ;;*********************************************************
 
 (defdom sub-step [step stack]
-  (when-let [id (get-in @aurora-state [:open-paths stack])]
+  (when-let [id (from-cache [:open-paths stack])]
     [:div {:className "substep"}
      (let [page (cursor id)]
-       (if @page
-         (page-steps page (push stack page))
+       (if page
+         (steps-list page (push stack page))
          [:span {:className "native"} "Native method"]))]))
 
 (def recursed false)
@@ -117,12 +117,7 @@
                 (if (= "MatchFailure!" (from-cache [:error :exception]))
                   "No branch matches the given input"
                   (pr-str (from-cache [:error :exception])))])
-              (sub-step step stack)
-              (when (and (not recursed)
-                         (= index 2))
-                (set! recursed true)
-                [:div {:className "substep"}
-                 (page-steps page stack)])]))
+              (sub-step step (push stack step))]))
     [:li {:className "step-container"}
             [:div {:className "step-row"}
              [:div {:className "step-id-container"} [:span {:className "step-id"} "N"]]
@@ -133,7 +128,13 @@
 (defdom steps-list [page stack]
   [:div {:className "workspace"}
    [:div {:className "steps-container"}
-    (page-steps page (push stack page))]])
+    [:div {:className "knowledge step-row"}
+
+     [:div {:className "step-id-container"} [:span {:className "step-id"} "K"]]
+     [:div {:className "step"}
+      ""]
+    ]
+    (page-steps page stack)]])
 
 (defn step-click [stack]
   (fn [e]
@@ -162,7 +163,7 @@
            :onDoubleClick dblclick}
        name
        (each [input (:args @step)]
-             (item-ui (conj step [:args index])))])))
+             (item-ui (conj step [:args index]) stack))])))
 
 (defmethod step-list-item :call [step stack]
   (dom
@@ -173,15 +174,14 @@
                                                     (remove-step! (stack->cursor stack :page) step))}])}
     (clickable-ref step stack)
     [:div {:className "result"}
-    (item-ui (value-cursor (path->result stack)))]]
-   (sub-step step path)))
+    (item-ui (value-cursor (path->result stack)))]]))
 
 (defmethod step-description :call [step stack]
   (dom
    [:p {:className "desc"}
     (ref->name (:ref @step))
     (each [input (:args @step)]
-          (item-ui (conj step [:args index])))]
+          (item-ui (conj step [:args index]) stack))]
    [:div {:className "result"}
     (item-ui (value-cursor (path->result stack)))]))
 
@@ -210,14 +210,14 @@
             :onContextMenu  #(show-menu! % [{:label "remove step"
                                              :action (fn []
                                                        (remove-step! (stack->cursor stack :page) step))}])}
-      [:div {:className "desc"} "If " (item-ui (conj step :arg) stack {:name-only? true}) "matches"]
+      [:div {:className "desc"} "Match" (item-ui (conj step :arg) stack {:name-only? true}) "against"]
       [:ul {:className "match-list"}
        (each [branch (:branches @step)]
              [:li {:className (str "match-branch" (when (= matched-branch index)
                                                     " active"))}
               [:span (item-ui (conj step [:branches index :pattern]) stack)]
               [:span {:className "match-action"} (item-ui (conj step [:branches index :action]) stack)]]
-             (sub-step (conj step [:branches index]) stack))]
+             )]
       [:button {:className "add-match-branch"
                 :onClick (fn []
                            (swap! step update-in [:branches] conj (match-branch)))}
@@ -241,12 +241,10 @@
   (cond
    (nil? x) "string"
    (#{:ref/id :ref/js} (:type x)) "ref"
-   (satisfies? table/ITable x) "table"
    (or (true? x) (false? x)) "boolean"
    (keyword? x) "keyword"
    (number? x) "number"
    (string? x) "string"
-   (get x "headers") "table"
    (map? x) "map"
    (vector? x) "list"
    :else (str (type x))))
@@ -267,9 +265,9 @@
         (str "step " (inc idx))))))
 
 (defmethod item-ui :constant [node stack]
-  (if-let [rep (->rep (:data @node))]
+  (if-let [rep (->rep (or (:data @node) @node))]
     (rep (conj node :data) stack)
-    (pr-str x)))
+    (str (pr-str x))))
 
 (defmethod step-list-item :constant [node stack]
   (let [value (:data @node)
@@ -282,7 +280,7 @@
                                                      (remove-step! (stack->cursor stack :page) node))}])}
       (if (not= "ref" name)
         [:p {:className "desc"} (str "Create a " name)]
-        [:p {:className "desc"} "With " [:span {:className "ref value"} (ref-name stack node (:id value))]])
+        [:p {:className "desc"} "With" [:span {:className "ref value"} (ref-name stack node (:id value))]])
       [:div {:className "result"}
        (when-let [rep (->rep value)]
          (rep (conj node :data) stack))]])))
@@ -312,15 +310,10 @@
     (concat (:args @page) (take-while #(not= % (cursor->id step)) (:steps @page)))
     (concat (:args @page) (:steps @page))))
 
-(defn ref-menu [step & [cb]]
+(defn ref-menu [step stack & [cb]]
   (fn [e]
     (when (mutable? step)
-      (show-menu! e (concat [{:label "table!"
-                              :action (fn []
-                                        (swap! step (constantly (table)))
-                                        (when cb
-                                           (cb)))}
-                             {:label "map!"
+      (show-menu! e (concat [{:label "map!"
                               :action (fn []
                                         (swap! step (constantly {"name" "chris"}))
                                         (when cb
@@ -337,7 +330,7 @@
                                                        (swap! step (constantly (ref-id ref)))
                                                        (when cb
                                                          (cb)))})
-                                          (->> (refs-in-scope (current :page) nil)
+                                          (->> (refs-in-scope (stack->cursor stack :page) nil)
                                                ;(take-while #(not= (:id @step) %))
                                                (vec))))))))
 
@@ -352,13 +345,16 @@
                                  (conj [:step (:id @step)]))))]
      (cond
       res [:span {:className "ref"
-                  :onContextMenu (ref-menu step)}
+                  :onContextMenu (ref-menu step stack)}
            (item-ui (value-cursor res))]
       page? [:span {:className "ref"
-               :onContextMenu (ref-menu step)}
-             (or (:desc @page) (:id @page))]
+                    :onClick (fn []
+                             (assoc-cache! [:open-paths stack] (:id @step)))
+               :onContextMenu (ref-menu step stack)}
+             [:span {:className "value"}
+              (or (:desc @page) (:id @page))]]
      :else [:span {:className "ref"
-                   :onContextMenu (ref-menu step)}
+                   :onContextMenu (ref-menu step stack)}
             [:div {:className "value"}
              (or (ref-name stack (stack->cursor stack :step) (:id @step))
                  (:id @step))]])) ))
@@ -396,7 +392,8 @@
 
 (defdom editing-view [stack]
   [:div
-   (steps-list (current :page) (drop 1 stack))
+
+   (steps-list (current :page) stack)
    ;(step-canvas (stack->cursor stack :step) stack)
    ])
 
@@ -417,9 +414,6 @@
                                                 "height" "short"}))}
     "map"]
    [:button {:onClick (fn []
-                        (add-step|swap! cursor (table)))}
-    "table"]
-   [:button {:onClick (fn []
                         (add-step|swap! cursor nil (match)))}
     "match"]])
 
@@ -439,14 +433,12 @@
 (defdom call-inserter [page]
   [:ul
    (each [[ref args] [[(ref-js "cljs.core._PLUS_") (fn [] [1 2])]
-                      [(ref-id "replace") (fn [] [(ref-id "root") 0])]
-                      [(ref-id "get") (fn [] [(ref-id "root") "name"])]
-                      [(ref-id "mapv") (fn []
+                      [(ref-js "cljs.core.mapv") (fn []
                                                    (let [func (add-page! (current :notebook) "each thing" {:args ["current"]})]
                                                      [(ref-id (:id func)) [1 2 3]])
                                                    )]]]
          [:li [:button {:onClick (fn []
-                                   (add-step! (current :page) (call ref (args))))}
+                                   (add-step! page (call ref (args))))}
                (ref->name ref)]])
    ])
 
@@ -466,18 +458,9 @@
      (dom
       [:p "here we go"]
       (constant-inserter page)
-      (ref-inserter page page)))
-   ;(call-inserter (current :page))
+      (ref-inserter page page)
+      (call-inserter page)))
    ])
-
-(defdom step-canvas [step path]
-    [:div {:className (str "step-canvas")}
-     (when-not step
-       (new-step-helper))
-     (when step
-       (step-description step path)
-       )
-     ])
 
 ;;*********************************************************
 ;; nav
@@ -600,7 +583,7 @@
   [:div {:className "table-editor"}
 
   [:table {:className "table"
-           :onContextMenu (ref-menu table)}
+           :onContextMenu (ref-menu table stack)}
    [:thead
     [:tr
      (each [k (@table "headers")]
@@ -625,7 +608,7 @@
 (defdom table-ui [table stack]
   [:div {:className "table-editor"}
    [:table {:className "table"
-            :onContextMenu (ref-menu table)}
+            :onContextMenu (ref-menu table stack)}
     [:thead
      [:tr
       (each [k (table/headers @table)]
@@ -666,7 +649,7 @@
                                 (commit e)))
                 :onBlur commit}]
        [:span {:className "value"
-               :onContextMenu (ref-menu x)
+               :onContextMenu (ref-menu x stack)
                :onClick (fn [e]
                           (when (mutable? x)
                             (add-input! path true)))}
@@ -936,7 +919,7 @@
 (defn run-index [index notebook page state]
   (let [start (now)
         source (compile-index index notebook)
-        _ (println source)
+        ;_ (println source)
         _ (set! (.-innerHTML (js/document.getElementById "compile-perf")) (- (now) start))
         start (now)
         notebook-js (when source (js/eval (str "(" source "());")))

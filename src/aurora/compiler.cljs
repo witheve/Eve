@@ -144,39 +144,34 @@
     :match (match->jsth index x id)
     (check false)))
 
-(defn print-ret [x]
-  (println x)
-  x)
-
 (deftraced page->jsth [index x id] [x id]
   (check (= :page (:type x)))
-  (print-ret
-   `(fn ~(id->value id) [~@(map! id->value (:args x))]
-      (do
-        (let! stack notebook.stack)
-        (let! frame {})
-        (set! frame.id ~id)
-        (set! frame.calls [])
-        (set! frame.vars {})
-        (set! frame.matches {})
-        (stack.push frame)
-        (set! notebook.stack frame.calls)
-        ~@(for! [arg (:args x)]
-                `(set! (.. frame.vars ~(id->value arg)) ~(id->value arg)))
-        ~@(for! [step-id (:steps x)]
-                `(try
-                   (do
-                     ~(step->jsth index (get index step-id) step-id)
-                     (set! (.. frame.vars ~(id->value step-id)) ~(id->value step-id)))
-                   (catch ~(symbol "__e__")
-                     (do
-                       (set! frame.exception [~step-id ~(symbol "__e__")])
-                       (throw ~(symbol "__e__"))))))
-        (set! notebook.stack stack))
-      ~(if (-> x :steps seq)
-         (-> x :steps last id->value)
-         nil) ;; uh, what does an empty page return?
-      )))
+  `(fn ~(id->value id) [~@(map! id->value (:args x))]
+     (do
+       (let! stack notebook.stack)
+       (let! frame {})
+       (set! frame.id ~id)
+       (set! frame.calls [])
+       (set! frame.vars {})
+       (set! frame.matches {})
+       (stack.push frame)
+       (set! notebook.stack frame.calls)
+       ~@(for! [arg (:args x)]
+               `(set! (.. frame.vars ~(id->value arg)) ~(id->value arg)))
+       ~@(for! [step-id (:steps x)]
+               `(try
+                  (do
+                    ~(step->jsth index (get index step-id) step-id)
+                    (set! (.. frame.vars ~(id->value step-id)) ~(id->value step-id)))
+                  (catch ~(symbol "__e__")
+                    (do
+                      (set! frame.exception [~step-id ~(symbol "__e__")])
+                      (throw ~(symbol "__e__"))))))
+       (set! notebook.stack stack))
+     ~(if (-> x :steps seq)
+        (-> x :steps last id->value)
+        nil) ;; uh, what does an empty page return?
+     ))
 
 (deftraced notebook->jsth [index x] [x]
   (check (= :notebook (:type x)))

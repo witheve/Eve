@@ -74,7 +74,7 @@ button:hover { background:#ddd; }
 
 #aurora { overflow:auto; height:100%; box-sizing:border-box;}
 
-#nav { padding:10px 20px; padding-left:0px; width:100%; border-bottom:0px solid #c6c6c6; }
+#nav { padding:10px 20px; padding-left:0px; padding-bottom:20px; width:100%; border-bottom:0px solid #c6c6c6; }
 
 #nav ul { display:inline-block; }
 #nav li { display:inline-block; }
@@ -103,18 +103,18 @@ button:hover { background:#ddd; }
 .document { display:none; }
 .document.active { display:inline-block; margin-left:100px; min-height:100%; width:800px; padding:15px 20px; box-shadow:0 0 30px #ccc; }
 
-.workspace { display:inline-block; padding:0px 0px; padding-top:10px; vertical-align:top; }
+.workspace { display:inline-block; padding:0px 0px; padding-top:0px; vertical-align:top; }
 
 .step-canvas { display:inline-block; height:100%; padding-top:50px; margin:0;}
 
 .steps-container { min-width:400px; }
 .step-container.error .step-row { border-bottom-left-radius:0px; border-bottom-right-radius:0px; margin-bottom:0; }
 
-.step-error { background:#FFB0B0; color:#A80C0C ; margin-bottom:10px; border-radius:0px; border-bottom-left-radius:3px; border-bottom-right-radius:3px; padding:10px; }
+.step-error { background:#FFB0B0; color:#A80C0C ; margin-bottom:5px; border-radius:0px; border-bottom-left-radius:3px; border-bottom-right-radius:3px; padding:10px; }
 
 .steps { width:100%; cursor:default; -webkit-user-select:none; }
 
-.step-row { display:flex; width:100%; margin-bottom:10px; background:#f7f7f7; border:0px solid #d7d7d7; border-radius:3px; overflow:hidden; }
+.step-row { display:flex; width:100%; margin-bottom:5px; background:#f7f7f7; border:0px solid #d7d7d7; border-radius:3px; overflow:hidden; }
 .step-row + .step-row { }
 .step-id-container { display:flex; align-items:top; text-align:center; min-width:40px; background:#ddd; }
 .step-id { width:100%; color:#aaa; font-size:25pt; margin-top:2px; }
@@ -218,6 +218,9 @@ button:hover { background:#ddd; }
 .map-editor:hover .map { border-bottom-left-radius:0px; border-bottom-right-radius:0px; }
 .ref .add-map-key-row { display:none; }
 
+.knowledge .step-id-container { background:#78F5B0; color:#138747; }
+.knowledge .step-id { color:#53C285; }
+.knowledge .step { background:#CFFFE4; vertical-align:middle; }
 
 .value { display:inline-block; padding:5px; margin:0 5px; border:1px solid #aaa; border-radius:3px; }
 .table .value { border:none; display:inline-block; width:100%; margin:0; padding:5px 15px; }
