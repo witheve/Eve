@@ -222,9 +222,15 @@ button:hover { background:#ddd; }
 .knowledge .step-id { color:#53C285; }
 .knowledge .step { background:#CFFFE4; vertical-align:middle; }
 
+.knowledge .ref .value { border-color:#53C285; background:#aaFFd4; }
+
 .value { display:inline-block; padding:5px; margin:0 5px; border:1px solid #aaa; border-radius:3px; }
 .table .value { border:none; display:inline-block; width:100%; margin:0; padding:5px 15px; }
 .step input { display:inline-block; width:20px; max-width:100%; min-width:20px; padding:2px 15px; padding-top:3px; box-sizing:content-box !important;}
+
+
+.math-expression .value { border:1px solid transparent; margin:0; }
+.math-expression .value:hover { border:1px solid red; }
 
 #perf { color:#aaa; position:fixed; bottom: 10px; right:10px; }
 #perf td:first-child { text-align:right; padding-right:8px; }

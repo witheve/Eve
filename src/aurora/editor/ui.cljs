@@ -80,9 +80,11 @@
     (rep node stack)
     (dom [:span (pr-str x)])))
 
-(defmethod step-list-item :default [step]
-  (dom
-   [:p "this is a step list item of " (pr-str @step)]))
+(defmethod step-list-item :default [step stack]
+  (if-let [rep (->rep @step)]
+    (rep step stack)
+    (dom
+     [:p "this is a step list item of " (pr-str @step)])))
 
 (defmethod step-description :default [step]
   (dom
@@ -125,15 +127,21 @@
 
     ])
 
+(defdom knowledge-container [page stack]
+  [:div {:className "knowledge step-row"}
+   [:div {:className "step-id-container"} [:span {:className "step-id"} "K"]]
+   [:div {:className "step"}
+    (each [arg (:args @page)]
+          [:div {:className "arg"}
+           (item-ui (value-cursor {:type :ref/id
+                                   :id arg})
+                    stack)])]
+   ])
+
 (defdom steps-list [page stack]
   [:div {:className "workspace"}
    [:div {:className "steps-container"}
-    [:div {:className "knowledge step-row"}
-
-     [:div {:className "step-id-container"} [:span {:className "step-id"} "K"]]
-     [:div {:className "step"}
-      ""]
-    ]
+    (knowledge-container page stack)
     (page-steps page stack)]])
 
 (defn step-click [stack]
@@ -241,6 +249,7 @@
   (cond
    (nil? x) "string"
    (#{:ref/id :ref/js} (:type x)) "ref"
+   (= :math (:type x)) "math"
    (or (true? x) (false? x)) "boolean"
    (keyword? x) "keyword"
    (number? x) "number"
@@ -257,12 +266,14 @@
   (first (keep-indexed #(when (= %2 needle) %1) haystack)))
 
 (defn ref-name [stack cur-step id]
-  (when-let [page (stack->cursor stack :page)]
-    (let [idx (find-index id (:steps @page))
-          cur-idx (find-index (:id @cur-step) (:steps @page))]
-      (if (= (dec cur-idx) idx)
-        "that"
-        (str "step " (inc idx))))))
+  (when cur-step
+    (when-let [page (stack->cursor stack :page)]
+      (let [idx (find-index id (:steps @page))
+            cur-idx (find-index (:id @cur-step) (:steps @page))]
+        (if (= (dec cur-idx) idx)
+          "that"
+          (when idx
+            (str "step " (inc idx))))))))
 
 (defmethod item-ui :constant [node stack]
   (if-let [rep (->rep (or (:data @node) @node))]
@@ -333,6 +344,8 @@
                                           (->> (refs-in-scope (stack->cursor stack :page) nil)
                                                ;(take-while #(not= (:id @step) %))
                                                (vec))))))))
+(defmethod item-ui :ref/js [step stack opts]
+  (item-ui (conj step :js) stack))
 
 (defmethod item-ui :ref/id [step stack opts]
   (dom
@@ -357,7 +370,8 @@
                    :onContextMenu (ref-menu step stack)}
             [:div {:className "value"}
              (or (ref-name stack (stack->cursor stack :step) (:id @step))
-                 (:id @step))]])) ))
+                 (:id @step)
+                 (:js @step))]])) ))
 
 
 ;;*********************************************************
@@ -413,6 +427,9 @@
                         (add-step|swap! cursor {"name" "chris"
                                                 "height" "short"}))}
     "map"]
+   [:button {:onClick (fn []
+                        (add-step|swap! cursor nil (math)))}
+    "math"]
    [:button {:onClick (fn []
                         (add-step|swap! cursor nil (match)))}
     "match"]])
@@ -624,14 +641,26 @@
     [:span {:className "add-row"} "+"]]])
 
 
-(defdom math-ui [x]
+(defdom math-expression-ui [x stack]
   (cond
-   (string? x) [:span {:className "math-op"} x]
-   (vector? x) [:span {:className "math-expression"}
-                (to-array (map math-ui (interpose (first x) (rest x))))]
-   (number? x) [:span {:className "value"}
-                (pr-str x)]
-   :else [:span (pr-str x)]))
+   (vector? @x) [:span {:className "math-expression"}
+                (each [item (interpose :op (rest @x))]
+                      (let [real-index (inc (/ (inc index) 2))]
+                        (if (= item :op)
+                          (math-expression-ui (conj x 0) stack)
+                          (math-expression-ui (conj x real-index) stack)))
+                      )
+                ]
+   (= (:type @x) :ref/js) [:span {:className "mathop"} (item-ui x stack)]
+   :else [:span {:className "mathval"} (item-ui x stack)]))
+
+(defdom math-ui [x stack]
+  [:div {:className "step"}
+   (math-expression-ui (conj x :expression) stack)
+    " = "
+    (item-ui (value-cursor (path->result stack)) stack)
+    ]
+  )
 
 (defn cell [x parser stack]
   (let [path (cursor->path x)
@@ -642,6 +671,7 @@
      (if (input? path)
        [:input {:type "text"
                 :className "focused"
+                :tabIndex -1
                 :style #js {"width" (* 10 (count (str @x)))}
                 :defaultValue @x
                 :onKeyPress (fn [e]
@@ -670,10 +700,9 @@
                                (swap! list vec-remove index))}])]
          )
    [:li {:className "add-list-item"}
-    (item-ui (conj list (count @list)))]
+    (item-ui (conj list (count @list)) stack)]
    ]
   )
-
 
 (defdom map-ui [x stack]
   [:div {:className "map-editor"}
@@ -700,7 +729,8 @@
 
 (defn build-rep-cache [state]
   (assoc-in state [:cache :representations]
-            {"math" math-ui
+            {"math" (fn [x stack]
+                      (math-ui x stack))
              "rect" (fn [x stack]
                       )
 
@@ -764,6 +794,12 @@
                            :ref ref
                            :args args}
                       opts)))
+
+(defn math []
+  {:type :math
+   :expression [{:type :ref/js
+                 :js "+"}
+                3 4]})
 
 (defn match-branch []
   {:type :match/branch
