@@ -347,6 +347,19 @@
 (defmethod item-ui :ref/js [step stack opts]
   (item-ui (conj step :js) stack))
 
+(defn open-sub-step [stack id]
+  (let [opened (from-cache [:open-paths])
+        stack-count (count stack)]
+    (if (get opened stack)
+      (assoc-cache! [:open-paths stack] nil)
+      ;;TODO: this will close things from other notebooks/pages - that's probably wrong.
+      (assoc-cache! [:open-paths] (reduce (fn [final [path v]]
+                                            (if (< (count path) stack-count)
+                                              (assoc final path v)
+                                              final))
+                                          {stack id}
+                                          opened)))))
+
 (defmethod item-ui :ref/id [step stack opts]
   (dom
    (let [page (cursor (:id @step))
@@ -362,7 +375,7 @@
            (item-ui (value-cursor res))]
       page? [:span {:className "ref"
                     :onClick (fn []
-                             (assoc-cache! [:open-paths stack] (:id @step)))
+                               (open-sub-step stack (:id @step)))
                :onContextMenu (ref-menu step stack)}
              [:span {:className "value"}
               (or (:desc @page) (:id @page))]]
@@ -451,7 +464,8 @@
   [:ul
    (each [[ref args] [[(ref-js "cljs.core._PLUS_") (fn [] [1 2])]
                       [(ref-js "cljs.core.mapv") (fn []
-                                                   (let [func (add-page! (current :notebook) "each thing" {:args ["current"]})]
+                                                   (let [func (add-page! (current :notebook) "each thing" {:anonymous true
+                                                                                                           :args ["current"]})]
                                                      [(ref-id (:id func)) [1 2 3]])
                                                    )]]]
          [:li [:button {:onClick (fn []
