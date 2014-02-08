@@ -167,7 +167,7 @@
                    (swap! aurora-state update-in [:open-paths stack] #(if (not %)
                                                                        (:id ref))))]
     (dom
-      [:p {:className "desc"
+      [:div {:className "desc"
            :onDoubleClick dblclick}
        name
        (each [input (:args @step)]
@@ -183,17 +183,6 @@
     (clickable-ref step stack)
     [:div {:className "result"}
     (item-ui (value-cursor (path->result stack)))]]))
-
-(defmethod step-description :call [step stack]
-  (dom
-   [:p {:className "desc"}
-    (ref->name (:ref @step))
-    (each [input (:args @step)]
-          (item-ui (conj step [:args index]) stack))]
-   [:div {:className "result"}
-    (item-ui (value-cursor (path->result stack)))]))
-
-
 
 (defmethod item-ui :call [step]
   (dom [:p {:className "desc"}
@@ -993,7 +982,7 @@
                 {:keys [stack frame]} (find-error-frame (aget stack 0))
                 failed-step (first (remove (fn [x]
                                              (aget (.-vars frame) (str "value_" x)))
-                                           (get-in index [(-> stack last second) :steps])))
+                                           (get-in (:index @aurora-state) [(-> stack last second) :steps])))
                 stack (reverse (concat [[:notebook (:id @notebook)]] stack [[:step failed-step]]))]
             (println "ERROR STACK: " stack e)
             (assoc-cache! [:error] {:stack stack

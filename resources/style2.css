@@ -125,6 +125,7 @@ button:hover { background:#ddd; }
 .substep .steps:before { content: "\f280"; font-size:20pt; font-family:"Ionicons"; color:#aaa; position:absolute; left:0; top:5; margin-left:15px; }
 
 .desc { border-bottom:0px solid #098; padding-bottom:0px; }
+.desc * { vertical-align:top; }
 .result { margin-top:15px; margin-left:0px; }
 .result .value { margin:0; }
 .result > input { display:inline-block; width:20px; max-width:100%; min-width:20px; border:1px solid #aaa; padding:5px 15px; border-radius:3px; box-sizing:content-box !important;}
