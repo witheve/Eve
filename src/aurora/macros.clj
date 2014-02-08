@@ -1,5 +1,4 @@
-(ns aurora.macros
-  (require [cljs.core.match.macros :refer [match]]))
+(ns aurora.macros)
 
 (defmacro for! [& args]
   `(doall (for ~@args)))
@@ -8,14 +7,14 @@
   `(do
      ~@(for [pred preds]
          `(when-not ~pred
-            (throw (aurora.util.FailedCheck. '~pred ~(:line (meta &form)) ~*file* []))))
+            (throw (aurora.util.core.FailedCheck. '~pred ~(:line (meta &form)) ~*file* []))))
      true))
 
 (defmacro deftraced [name args traced-args & body]
   `(defn ~name ~args
      (try
        ~@body
-       (catch aurora.util.FailedCheck e#
+       (catch aurora.util.core.FailedCheck e#
          (throw (update-in e# [:trace] conj (list '~name ~@traced-args)))))))
 
 (defmacro with-path [path & body]
@@ -43,26 +42,6 @@
          (persistent! final#)
          (recur (inc index#)
                 (conj! final# (func# (xs# index#) index#)))))))
-
-(defmacro filter-match
-  ([pattern things]
-   `(let [cur# ~things]
-      (with-meta
-        (filterv #(match [%]
-                         [~pattern] true
-                         :else false)
-                 cur#)
-        (meta cur#))))
-  ([with pattern things]
-   `(let [cur# ~things]
-      (let ~with
-        (with-meta
-          (filterv #(match [%]
-                           [~pattern] true
-                           :else false)
-                   cur#)
-          (meta cur#))))))
-
 
 (declare parse)
 

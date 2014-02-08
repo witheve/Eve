@@ -3,13 +3,35 @@
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :cljsbuild {:builds [{:source-paths ["src"]
+  :cljsbuild {:builds [{:id "editor"
+                        :source-paths ["src"]
                         :compiler {:optimizations :simple
                                    :externs []
-                                   :source-map "resources/bootstrap.js.map"
-                                   :output-to "resources/bootstrap.js"
-                                   :output-dir "resources/cljs/"
-                                   :pretty-print true}}]}
+                                   :source-map "resources/editor.js.map"
+                                   :output-to "resources/editor.js"
+                                   :output-dir "resources/cljs/editor/"
+                                   :pretty-print true}}
+                       {:id "compiler"
+                       :source-paths ["src/aurora/compiler/"
+                                      "src/aurora/util/"]
+                        :compiler {:optimizations :simple
+                                   :externs []
+                                   :source-map "resources/compiler.js.map"
+                                   :output-to "resources/compiler.js"
+                                   :output-dir "resources/cljs/compiler/"
+                                   :pretty-print true}}
+                       {:id "runtime"
+                        :source-paths [
+                                       "src/aurora/runtime/"
+                                       "src/aurora/util/"
+                                       ]
+                        :compiler {:optimizations :simple
+                                   :externs []
+                                   :source-map "resources/runtime.js.map"
+                                   :output-to "resources/runtime.js"
+                                   :output-dir "resources/cljs/runtime/"
+                                   :pretty-print true}}
+                       ]}
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [org.clojure/core.match "0.2.0"]
                  [compojure "1.1.5"]
@@ -23,5 +45,5 @@
                  "/Users/chris/repos/clojurescript/src/clj"
                  "/Users/chris/repos/clojurescript/src/cljs"
                  ]
-    :plugins [[lein-cljsbuild "1.0.1"]]
+    :plugins [[lein-cljsbuild "1.0.2"]]
   )
