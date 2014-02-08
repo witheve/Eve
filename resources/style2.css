@@ -193,7 +193,7 @@ button:hover { background:#ddd; }
 .ref .table-editor .add-row-wrapper { display:none; }
 
 .ref { display:inline-block; vertical-align }
-.ref .value, .ref.value { background:#ccf; border:1px solid #77c;}
+.ref .value, .ref.value { background:#ccf; border:1px solid #77c; border:none; }
 .ref .table { background:#ccf; border:1px solid #77c;}
 .ref .table th { background:#ccf; }
 .ref .table tbody .value { background:transparent; }
@@ -222,7 +222,12 @@ button:hover { background:#ddd; }
 .knowledge .step-id { color:#53C285; }
 .knowledge .step { background:#CFFFE4; vertical-align:middle; }
 
-.knowledge .ref .value { border-color:#53C285; background:#aaFFd4; }
+.knowledge .ref .value { border-color:#53C285; background:#78F5B0; color:#357D56;  }
+
+.math-result .value { background:#BDE4FF; border:none; }
+.result * { border-color:#43A4E5 !important; }
+.result .value { background:#BDE4FF; border:none; border-radius:0; }
+.result .map-value .value { background:#f7f7f7; }
 
 .value { display:inline-block; padding:5px; margin:0 5px; border:1px solid #aaa; border-radius:3px; }
 .table .value { border:none; display:inline-block; width:100%; margin:0; padding:5px 15px; }

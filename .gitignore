@@ -7,6 +7,8 @@ resources/editor.js*
 resources/compiler.js*
 resources/runtime.js*
 resources/bootstrap.js
+node-webkit*
+nw*
 pom.xml
 *.jar
 *.class

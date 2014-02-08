@@ -669,10 +669,14 @@
    :else [:span {:className "mathval"} (item-ui x stack)]))
 
 (defdom math-ui [x stack]
-  [:div {:className "step"}
+  [:div {:className "step"
+         :onContextMenu #(show-menu! % [{:label "remove step"
+                                             :action (fn []
+                                                       (remove-step! (stack->cursor stack :page) (stack->cursor stack :step)))}])}
    (math-expression-ui (conj x :expression) stack)
     " = "
-    (item-ui (value-cursor (path->result stack)) stack)
+   [:span {:className "math-result"}
+    (item-ui (value-cursor (path->result stack)) stack)]
     ]
   )
 
@@ -1034,9 +1038,10 @@
                                      (do
                                        (set! prev (:index cur))
                                        ;;TODO: args
-                                       (send-off-compile (:index cur) (-> (current :notebook)
-                                                                          (deref)
-                                                                          (:id))))
+                                       (when (and (current :notebook) (current :page))
+                                         (send-off-compile (:index cur) (-> (current :notebook)
+                                                                            (deref)
+                                                                            (:id)))))
                                      (comment
                                        (set! (.-innerHTML (js/document.getElementById "compile-perf")) "n/a")
                                        (set! (.-innerHTML (js/document.getElementById "run-perf")) "n/a")

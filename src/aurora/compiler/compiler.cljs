@@ -8,9 +8,9 @@
 
 (let [next (atom 0)]
   (defn new-id []
-    (if false
-      (.replace (js/uuid) (js/RegExp. "-" "gi") "_")
-      (swap! next inc))))
+    (if js/self.uuid
+      (.replace (js/self.uuid) (js/RegExp. "-" "gi") "_")
+      (str (swap! next inc)))))
 
 (deftraced id->value [id] [id]
   (check id)
