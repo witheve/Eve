@@ -7,8 +7,9 @@
 (defn now []
   (.getTime (js/Date.)))
 
-(defn compile-index [{:keys [notebook index]}]
-  (let [start (now)]
+(defn compile-index [data]
+  (let [start (now)
+        {:keys [notebook index]} (reader/read-string data)]
     (try
       (let [compl-str (->> (compiler/notebook->jsth index (get index notebook))
                            (jsth/expression->string))]
@@ -21,5 +22,5 @@
                              :stack (.-stack e)})))))
 
 (set! js/self.onmessage (fn [event]
-                          (compile-index (reader/read-string (.-data event)))))
+                          (compile-index (.-data event))))
 
