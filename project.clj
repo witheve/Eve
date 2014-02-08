@@ -33,14 +33,8 @@
                                    :pretty-print true}}
                        ]}
   :dependencies [[org.clojure/clojure "1.5.1"]
-                 [org.clojure/core.match "0.2.0"]
-                 [compojure "1.1.5"]
-                 [hiccups "0.2.0"]
-                 [ring "1.2.0"]
-                 [org.clojure/core.async "0.1.267.0-0d7780-alpha"]
-
-                 [org.clojure/clojurescript "0.0-2138"]
-                 [org.clojure/tools.reader "0.7.10"]]
+                 [org.clojure/clojurescript "0.0-2156"]
+                 [org.clojure/tools.reader "0.8.3"]]
   :source-paths ["src/"
                  "/Users/chris/repos/clojurescript/src/clj"
                  "/Users/chris/repos/clojurescript/src/cljs"

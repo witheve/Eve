@@ -1,6 +1,8 @@
 (ns aurora.editor.core
   (:require [aurora.compiler.ast :as ast]))
 
+(enable-console-print!)
+
 ;;*********************************************************
 ;; Aurora state
 ;;*********************************************************

@@ -1,4 +1,4 @@
-(ns aurora.util.dom
+(ns aurora.editor.dom
   (:refer-clojure :exclude [parents remove next val]))
 
 (defn lazy-nl-via-item

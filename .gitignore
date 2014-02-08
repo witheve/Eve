@@ -2,10 +2,14 @@
 /lib
 /classes
 /checkouts
+resources/cljs/
+resources/editor.js*
+resources/compiler.js*
+resources/runtime.js*
+resources/bootstrap.js
 pom.xml
 *.jar
 *.class
 .lein-deps-sum
 .lein-failures
 .lein-plugins
-resources/bootstrap.js

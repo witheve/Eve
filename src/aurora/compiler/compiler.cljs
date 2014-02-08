@@ -8,7 +8,7 @@
 
 (let [next (atom 0)]
   (defn new-id []
-    (if js/window.uuid
+    (if false
       (.replace (js/uuid) (js/RegExp. "-" "gi") "_")
       (swap! next inc))))
 
@@ -138,7 +138,6 @@
          (reverse (map-indexed vector (:branches x)))))))
 
 (deftraced math-expression->jsth [index x] [x]
-  (println x)
   (if (vector? x)
     `(~@(map #(math-expression->jsth index %) x))
     (data->jsth index x)))
@@ -216,9 +215,9 @@
 (defn tick [index id state watchers]
   (let [jsth (notebook->jsth index (get index id))
         source (jsth/expression->string jsth)
-        _ (println "###################")
-        _ (println jsth)
-        _ (println source)
+;;         _ (println "###################")
+;;         _ (println jsth)
+;;         _ (println source)
         notebook (js/eval (str "(" source "());"))
         stack #js []]
     (aset notebook "state" state)
@@ -247,16 +246,19 @@
 
 ;; examples
 
-(tick ast/example-b "example_b" {"a" 1 "b" 2})
-(tick ast/example-b "example_b" {"a" 1 "c" 2})
-(tick ast/example-b "example_b" {"a" 1 "b" "foo"})
-(tick ast/example-b "example_b" {"vec" [1 "foo"]})
-(tick ast/example-b "example_b" {"vec" [1 2]})
+(comment
 
-(tick ast/example-c "example_c" {"counter" 0})
+  (tick ast/example-b "example_b" {"a" 1 "b" 2})
+  (tick ast/example-b "example_b" {"a" 1 "c" 2})
+  (tick ast/example-b "example_b" {"a" 1 "b" "foo"})
+  (tick ast/example-b "example_b" {"vec" [1 "foo"]})
+  (tick ast/example-b "example_b" {"vec" [1 2]})
 
-(tick ast/example-math "example_math" {})
+  (tick ast/example-c "example_c" {"counter" 0})
 
-(->> {"counter" 0} (tick ast/example-c "example_c") first (tick ast/example-c "example_c") first (tick ast/example-c "example_c") first)
+  (tick ast/example-math "example_math" {})
+
+  (->> {"counter" 0} (tick ast/example-c "example_c") first (tick ast/example-c "example_c") first (tick ast/example-c "example_c") first)
+  )
 
 ;; (tick ast/example-e {"counter" 0 "started_" "false"})

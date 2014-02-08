@@ -3,7 +3,8 @@
             [aurora.compiler.ast :as ast]
             [aurora.compiler.jsth :as jsth]
             [aurora.runtime.table :as table]
-            [aurora.util.dom :as dom]
+            [aurora.editor.dom :as dom]
+
             [cljs.reader :as reader]
             [aurora.editor.cursors :refer [mutable? cursor cursors overlay-cursor value-cursor
                                            cursor->id cursor->path swap!]]
@@ -942,9 +943,7 @@
 ;;*********************************************************
 
 (def run-stack (atom nil))
-(def cur-state (atom (table/table ["counter"]
-                                  [table/identity-column]
-                                  [[0]])))
+(def cur-state (atom {"counter" 0}))
 (def prev nil)
 
 (defn find-error-frame [stack]
@@ -957,23 +956,26 @@
         (when-let [next-frame (last (aget frame "calls"))]
           (recur next-frame (conj page-stack [:page (aget next-frame "id")])))))))
 
-(defn compile-index [index notebook]
-  (try
-    (->> (compiler/notebook->jsth index (get index (:id notebook)))
-         (jsth/expression->string))
-    (catch :default e
-      (.error js/console (pr-str e))
-      nil)))
+(def compile-worker (js/Worker. "compiler.js"))
+(.addEventListener compile-worker "message" (fn [e]
+                                              (handle-compile (.-data e))))
 
-(defn run-index [index notebook page state]
+(defn send-off-compile [index notebook-id]
+  (.postMessage compile-worker (pr-str {:index index
+                                        :notebook notebook-id})))
+
+(defn handle-compile [data]
+  (set! (.-innerHTML (js/document.getElementById "compile-perf")) (.-time data))
+  (let [run (run-source (.-source data) (current :notebook) (current :page) @cur-state)]
+    (reset! cur-state (second run))
+    (reset! run-stack #js {:calls #js [(nth run 2)]})
+    (queue-render)))
+
+(defn run-source [source notebook page state]
   (let [start (now)
-        source (compile-index index notebook)
-        ;_ (println source)
-        _ (set! (.-innerHTML (js/document.getElementById "compile-perf")) (- (now) start))
-        start (now)
         notebook-js (when source (js/eval (str "(" source "());")))
         stack #js []
-        func (when notebook-js (aget notebook-js (str "value_" (:id page))))]
+        func (when notebook-js (aget notebook-js (str "value_" (:id @page))))]
     (when notebook-js
       (aset notebook-js "next_state" state)
       (aset notebook-js "stack" stack)
@@ -988,19 +990,12 @@
                 failed-step (first (remove (fn [x]
                                              (aget (.-vars frame) (str "value_" x)))
                                            (get-in index [(-> stack last second) :steps])))
-                stack (reverse (concat [[:notebook (:id notebook)]] stack [[:step failed-step]]))]
+                stack (reverse (concat [[:notebook (:id @notebook)]] stack [[:step failed-step]]))]
             (println "ERROR STACK: " stack e)
             (assoc-cache! [:error] {:stack stack
                                     :exception e})
             (set! (.-innerHTML (js/document.getElementById "run-perf")) (- (now) start))
             v))))))
-
-(defn re-run [notebook page args]
-  (when (and notebook page)
-    (let [run (run-index (:index @aurora-state) @notebook @page args)]
-      (reset! cur-state (second run))
-      (reset! run-stack #js {:calls #js [(nth run 2)]})
-      (queue-render))))
 
 (defn find-id [thing id]
   (first (filter #(= (aget % "id") id) (aget thing "calls"))))
@@ -1039,7 +1034,9 @@
                                      (do
                                        (set! prev (:index cur))
                                        ;;TODO: args
-                                       (re-run (current :notebook) (current :page) @cur-state))
+                                       (send-off-compile (:index cur) (-> (current :notebook)
+                                                                          (deref)
+                                                                          (:id))))
                                      (comment
                                        (set! (.-innerHTML (js/document.getElementById "compile-perf")) "n/a")
                                        (set! (.-innerHTML (js/document.getElementById "run-perf")) "n/a")

@@ -1,6 +1,6 @@
 (ns aurora.util.core)
 
-(enable-console-print!)
+
 
 (defrecord FailedCheck [message line file trace])
 
