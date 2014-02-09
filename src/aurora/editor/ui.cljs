@@ -964,6 +964,7 @@
 (defn repopulate []
   (let [stored (aget js/localStorage "aurora-state")]
     (if (and stored
+             (not= "{}" stored)
              (not= "null" stored)
              (not= stored ""))
       (reset! aurora-state (thaw stored))
@@ -1069,11 +1070,6 @@
       (.-length (find-id frame (-> (stack->cursor path :page)
                                    (deref)
                                    (:id)))))))
-
-(path->iter-count '([:page "ba5dec97_8922_4b74_a657_a077da4b9dc4"] [:step "5ed68cef_7c8f_4b50_b0d9_808a95aedbbb"] [:page "f2d8b4fa_84aa_470b_80a2_64a7c8f030f5"] [:notebook "346af462_5dd8_488a_b6d2_ea2dbfad2844"]))
-
-(assoc-cache! [:path-iterations] {'([:page "ba5dec97_8922_4b74_a657_a077da4b9dc4"] [:step "5ed68cef_7c8f_4b50_b0d9_808a95aedbbb"] [:page "f2d8b4fa_84aa_470b_80a2_64a7c8f030f5"] [:notebook "346af462_5dd8_488a_b6d2_ea2dbfad2844"])
-                                  1})
 
 (defn path->match-branch [path]
   (when-let [frame (path->frame path)]
