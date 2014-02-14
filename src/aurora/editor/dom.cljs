@@ -106,6 +106,11 @@
     (.-value elem)
     (set! (.-value elem) v)))
 
+(defn prepend [parent child]
+  (if (.-firstChild parent)
+    (.insertBefore parent child (.-firstChild parent))
+    (append parent child)))
+
 (defn prevent [e]
   (.preventDefault e))
 

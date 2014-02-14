@@ -66,20 +66,22 @@ a img { border: none; }
 
 * { box-sizing:border-box !important; }
 html, body { height:100%; overflow:none; }
-body { background: #333; color: #444; font-family: "Nunito"; font-weight:300; font-size: 10pt; padding:0px 50px; }
+body { background: #444; color: #444; font-family: "Nunito"; font-weight:300; font-size: 10pt; padding:0px 50px; }
 ul { list-style:none; }
 input { border:none; background:transparent; font-family: "Avenir"; color: #444; font-size:10pt; }
 button { background:white; border:none; border-radius:3px; color:#444; padding:5px 10px; }
 button:hover { background:#ddd; }
 
 #aurora { overflow:auto; height:100%; box-sizing:border-box;}
+#wrapper { z-index:10; }
+#wrapper > * { position:relative; }
 
 #nav { padding:10px 20px; padding-left:0px; padding-bottom:20px; width:100%; border-bottom:0px solid #c6c6c6; }
 
 #nav ul { display:inline-block; }
 #nav li { display:inline-block; }
-#nav .breadcrumb span { display:inline-block; vertical-align:middle; margin:0; font-size:10pt; color:#aaa; }
-#nav .breadcrumb span + span:before { content:"\f154"; font-family: "Ionicons"; display:inline-block; vertical-align:middle; font-size:18px;  margin:0 12px; }
+#nav .breadcrumb li { display:inline-block; vertical-align:middle; margin:0; font-size:10pt; color:#aaa; }
+#nav .breadcrumb li + li:before { content:"\f154"; font-family: "Ionicons"; display:inline-block; vertical-align:middle; font-size:18px;  margin:0 12px; }
 
 #nav .toggles { position:absolute; right:15px; }
 #nav .toggles span { display:none; }
@@ -118,7 +120,7 @@ button:hover { background:#ddd; }
 .step-row + .step-row { }
 .step-id-container { display:flex; align-items:top; text-align:center; min-width:40px; background:#ddd; }
 .step-id { width:100%; color:#aaa; font-size:25pt; margin-top:2px; }
-.step { flex:1; padding:10 15px; padding-left:25px; }
+.step { flex:1; padding:0px; padding-left:0px; }
 
 .step-container { position:relative; }
 .substep { position:absolute; top:0; left:100%; padding-left:50px; }
@@ -126,7 +128,7 @@ button:hover { background:#ddd; }
 
 .desc { border-bottom:0px solid #098; padding-bottom:0px; }
 .desc * { vertical-align:middle; }
-.result { margin-top:15px; margin-left:0px; }
+.result { margin-top:0; margin-left:0px; }
 .result .value { margin:0; }
 .result > input { display:inline-block; width:20px; max-width:100%; min-width:20px; border:1px solid #cecece; padding:5px 15px; border-radius:3px; box-sizing:content-box !important;}
 
@@ -193,8 +195,8 @@ button:hover { background:#ddd; }
 .ref .table-editor .add-col { display:none; }
 .ref .table-editor .add-row-wrapper { display:none; }
 
-.ref { display:inline-block; vertical-align }
-.ref .value, .ref.value { background:#ccf; border:1px solid #77c; border:none; }
+.ref { display:inline-block; }
+.ref .value, .ref.value { background:#ccf; border:1px solid #77c; border:none; background:none; }
 .ref .table { background:#ccf; border:1px solid #77c;}
 .ref .table th { background:#ccf; }
 .ref .table tbody .value { background:transparent; }
@@ -225,6 +227,8 @@ button:hover { background:#ddd; }
 .knowledge .step { background:#CFFFE4; vertical-align:middle; border-bottom-right-radius:3px; border-top-right-radius:3px; }
 
 .knowledge .ref .value { border-color:#53C285; background:#78F5B0; color:#357D56;  }
+.knowledge .ref .map { border-color:#53C285;  }
+.knowledge .ref .map .map-value { border-color:#53C285;  }
 
 .knowledge .iteration { position:absolute; right:-4px; top:-30; color: #CFFFE4; }
 .knowledge .iteration button { display:inline-block; padding:4px 5px; margin:0 5px; vertical-align:middle; background:none; color: #CFFFE4; font-family:"Ionicons"; font-size:12pt;}
@@ -234,15 +238,37 @@ button:hover { background:#ddd; }
 .inc-iteration:before { content:"\f152"; }
 .dec-iteration:before { content:"\f150"; }
 
-.math-result .value { background:#D1ECFF; border:none; }
+/* .math-result .value { background:#D1ECFF; border:none; }
 .result * { border-color:#90C9F0 !important; }
 .result .value { background:#D1ECFF; border:none; border-radius:0; }
+.result .map-key { background:#D1ECFF; }
 .result .map-value .value { background:#f7f7f7; }
+.result .map-value { background:#f7f7f7; } */
+
+.math-expression .ref { border-color:transparent;}
+.ref { border-radius:3px; }
+
+
+.layer-step { box-shadow: 0 0 0px #ccc; border:1px solid #ddd; border-radius:3px; background:#f7f7f7; padding:10px 20px; }
+.math-result .value { border:none; }
 
 .value { display:inline-block; padding:5px; margin:0 5px; border:1px solid #cecece; border-radius:3px; }
 .table .value { border:none; display:inline-block; width:100%; margin:0; padding:5px 15px; }
 .step input { display:inline-block; width:20px; max-width:100%; min-width:20px; padding:2px 15px; padding-top:3px; box-sizing:content-box !important;}
 
+.stack-ui { position:relative; display:-webkit-flex; align-items:middle; flex-direction:column; align-content:stretch; height:100%; width:100%;}
+.stack-current { flex: 4; display:-webkit-flex; align-items:center; align-content:center; justify-content: center; }
+.stack-current .step { display:inline-block; flex:0 0 auto;}
+.stack-input { flex:1; display:-webkit-flex; align-items:center; justify-content:center;}
+.stack-input > * { display:inline-block; flex:0 0 auto;}
+.stack-input .ref .value { border-color:transparent !important; }
+.stack-next { flex:1; display:-webkit-flex; align-items:top; justify-content:center;}
+.stack-next > * { display:inline-block; flex:0 0 auto; margin:0 30px;}
+
+
+.graph-ui { display:-webkit-flex; flex-direction:column; }
+.graph-ui .layer { display:-webkit-flex; align-items:center; justify-content:center; padding:50px 0; }
+.graph-ui .layer-step { margin:0 30px; }
 
 .math-expression .value { border:1px solid transparent; margin:0; }
 .math-expression .value:hover { border:1px solid red; }
@@ -253,3 +279,5 @@ button:hover { background:#ddd; }
 .debug { position:fixed; right:0;}
 .debug button { background:none; color:#aaa; display:block; text-align:right; }
 .debug button:hover { background:#555; }
+
+canvas { z-index:0; }

@@ -6,6 +6,8 @@
             [aurora.runtime.table :as table]
             [aurora.editor.dom :as dom]
             [clojure.string :as string]
+            [clojure.walk :as walk]
+            [clojure.set :as set]
             [cljs.reader :as reader]
             [aurora.editor.cursors :refer [mutable? cursor cursors overlay-cursor value-cursor
                                            cursor->id cursor->path swap!]]
@@ -110,7 +112,10 @@
            (let [error? (from-cache [:errors (push stack step)])]
              [:li {:className (str "step-container" (when error?
                                                       " error"))}
-              [:div {:className "step-row"}
+              [:div {:className "step-row"
+                     :onClick (fn []
+                                (println "pushing onto the stack: " (push stack step))
+                                (swap! aurora-state assoc :stack (push stack step)))}
                [:div {:className "step-id-container"} [:span {:className "step-id"} (inc index)]]
                (step-list-item step (push stack step))]
               (when error?
@@ -171,12 +176,126 @@
 (defn step-click [stack]
   (fn [e]
     ;(set-stack! stack)
-    (.preventDefault e)
-    (.stopPropagation e)))
+    ;(swap! aurora-state assoc :editor-zoom :stack)
+    ;(.preventDefault e)
+    ;(.stopPropagation e)
+    ))
 
 (defn step-class [stack]
   (str "step " (when (current-stack? stack)
                  "selected")))
+
+
+;;*********************************************************
+;; Stack ui
+;;*********************************************************
+
+(swap! aurora-state assoc :editor-zoom :stack)
+
+(defn find-refs [thing]
+  (let [caps (atom [])]
+    (walk/prewalk (fn [x]
+                     (when (#{:ref/id :ref/js} (:type x))
+                       (swap! caps conj x))
+                     x)
+                   thing)
+    @caps))
+
+(defn refs->curors [refs]
+  (for [r (remove :js refs)
+        :let [cur (cursor (:id r))]
+        :when (or (not cur)
+                  (not= (:type @cur) :page))]
+    (or cur (value-cursor r))))
+
+(defn step->out [step stack]
+  (let [page (stack->cursor stack :page)
+        id (:id @step)]
+    (reduce (fn [refs cur]
+              (if (->> (find-refs @cur)
+                       (filter #(= id (:id %)))
+                       (seq))
+                (conj refs cur)
+                refs))
+            []
+            (cursors (:steps @page)))))
+
+(defn page-graph [page]
+  (let [steps (:steps @page)
+        in (atom {})
+        out (atom {})]
+    (doseq [step steps
+            :let [cur (cursor step)
+                  refs (when cur (find-refs @cur))
+                  refs (when refs (set (filter identity (map :id refs))))]]
+      (swap! in assoc step refs)
+      (swap! out #(merge-with set/union % (zipmap refs (repeat #{step}))))
+      )
+    {:in @in
+     :out @out}))
+
+;;TODO: this is like n^2
+(defn graph->layers [graph]
+  (let [all (->> (concat (keys (:in graph))
+                         (keys (:out graph)))
+                 (set))
+        layers (atom (zipmap all (repeat 0)))
+        final (atom (sorted-map))]
+    (doseq [id all
+            :let [my-layer (@layers id)]
+            parent (-> graph :in (get id))]
+      (when (>= (@layers parent) my-layer)
+        (swap! layers assoc-in [id] (inc (@layers parent)))))
+    (doseq [[id layer] @layers]
+      (swap! final update-in [layer] set/union #{id})
+      )
+    [@final @layers]))
+
+(comment
+  (-> (page-graph (cursor "4ea6a482_80f8_4580_a7dd_7119ee0150cb"))
+      (graph->layers)))
+
+(defdom stack-ui [stack]
+  (let [step (stack->cursor stack :step)
+        refs (find-refs @step)
+        refs2 (refs->curors refs)]
+    (println refs (map (comp :type deref) refs2))
+    [:div {:className "stack-ui"}
+     [:div {:className "stack-input"}
+      (each [ref refs2]
+            (step-list-item ref (push (drop 1 stack) ref)))
+      ]
+     [:div {:className "stack-current"}
+      (step-list-item step stack)
+      ]
+     [:div {:className "stack-next"}
+      (each [ref (step->out step stack)]
+            (step-list-item ref (push (drop 1 stack) ref)))
+      ]
+     ]))
+
+;;*********************************************************
+;; Graph view
+;;*********************************************************
+
+(defdom graph-ui [stack]
+  (when stack
+    (let [page (stack->cursor stack :page)
+          graph (page-graph page)
+          [layers _] (graph->layers graph)]
+      [:div {:className "graph-ui"}
+       (each [[i items] layers]
+             [:div {:className (str "layer layer" i)}
+              (each [item items]
+                    (when-let [cur (or (cursor item) (value-cursor {:type :ref/id
+                                                                    :id item}))]
+                      (when-not (= (:type @cur) :page)
+                        [:div {:className "layer-step"}
+                         (step-list-item cur (push stack cur))])))])]
+      [:div {:className "step-container"}
+            [:div {:className "step-row"}
+             [:div {:className "step-id-container"} [:span {:className "step-id"} "N"]]
+             (new-step-helper page stack)]])))
 
 ;;*********************************************************
 ;; Function calls
@@ -197,8 +316,11 @@
         name (call->name ref :template)
         name-parts (string/split name #"\|")
         dblclick (fn []
-                   (swap! aurora-state update-in [:open-paths stack] #(if (not %)
-                                                                       (:id ref))))]
+                   (println "setting stack to: " (push stack (cursor (:id ref))))
+                   (set-stack! (push stack (cursor (:id ref))))
+                   ;(swap! aurora-state update-in [:open-paths stack] #(if (not %)
+                   ;                                                    (:id ref)))
+                   )]
     (dom
       [:div {:className "desc"
            :onDoubleClick dblclick}
@@ -217,7 +339,7 @@
                                           :action (fn []
                                                     (remove-step! (stack->cursor stack :page) step))}])}
     (clickable-ref step stack)
-    [:div {:className "result"}
+    [:div {:className (str "result " (str "result_" (:id @step)))}
     (item-ui (value-cursor (path->result stack)))]]))
 
 (defmethod item-ui :call [step]
@@ -255,6 +377,7 @@
                 :onClick (fn []
                            (swap! step update-in [:branches] conj (match-branch)))}
        ""]
+      [:div {:className (str "result result_" (:id @step))}]
       ])))
 
 (defmethod step-description :match [step stack]
@@ -316,27 +439,17 @@
                                                      (remove-step! (stack->cursor stack :page) node))}])}
       (if (not= "ref" name)
         (dom
-         [:p {:className "desc"} (str "Create a " name)]
-         [:div {:className "result"}
+         ;[:p {:className "desc"} (str "Create a " name)]
+         [:div {:className (str "result " (str "result_" (:id @node)))}
           (when-let [rep (->rep value)]
             (rep (conj node :data) stack))])
-        (item-ui (conj node :data) stack))
-      ])))
-
-(defmethod step-description :constant [step stack]
-  (let [value (:data @step)
-        name (datatype-name value)]
-    (dom
-     [:p {:className "desc"} "Add a " [:span {:className "value"} name]]
-     [:div {:className "result"}
-      (item-ui (conj step :data) stack)
+        [:div {:className (str "result result_" (-> @node :data :id))}
+         (item-ui (conj node :data) stack)])
       ])))
 
 ;;*********************************************************
 ;; refs
 ;;*********************************************************
-
-
 
 (defn refs-in-scope [page step]
   (if step
@@ -370,17 +483,13 @@
   (item-ui (conj step :js) stack))
 
 (defn open-sub-step [stack id]
-  (let [opened (from-cache [:open-paths])
-        stack-count (count stack)]
-    (if (get opened stack)
-      (assoc-cache! [:open-paths stack] nil)
-      ;;TODO: this will close things from other notebooks/pages - that's probably wrong.
-      (assoc-cache! [:open-paths] (reduce (fn [final [path v]]
-                                            (if (< (count path) stack-count)
-                                              (assoc final path v)
-                                              final))
-                                          {stack id}
-                                          opened)))))
+  (set-stack! (push stack (cursor id)))
+  )
+
+(defmethod step-list-item :ref/id [step stack]
+  (dom
+   [:div {:className (str "result result_" (-> @step :id))}
+    (item-ui step stack)]))
 
 (defmethod item-ui :ref/id [step stack opts]
   (dom
@@ -390,18 +499,21 @@
          res (when (and (not page?)
                         (not (:name-only? opts)))
                (path->result (-> (drop 1 stack)
-                                 (conj [:step (:id @step)]))))]
+                                 (conj [:step (:id @step)]))))
+         id (str "ref_" (:id @step))]
      (cond
-      res [:span {:className "ref"
+      res [:span {:className (str "ref " id)
+                  :id id
                   :onContextMenu (ref-menu step stack)}
            (item-ui (value-cursor res))]
-      page? [:span {:className "ref"
+      page? [:span {:className (str "ref " id)
+                    :id id
                     :onClick (fn []
                                (open-sub-step stack (:id @step)))
                :onContextMenu (ref-menu step stack)}
              [:span {:className "value"}
               (or (:desc @page) (:id @page))]]
-     :else [:span {:className "ref"
+     :else [:span {:className (str "ref " id)
                    :onContextMenu (ref-menu step stack)}
             [:div {:className "value"}
              (or (ref-name stack (stack->cursor stack :step) (:id @step))
@@ -441,8 +553,15 @@
 
 (defdom editing-view [stack]
   [:div
-
-   (steps-list (current :page) stack)
+   (condp = (:editor-zoom @aurora-state)
+     :stack (if (stack->cursor stack :step)
+              (stack-ui (:stack @aurora-state))
+              ;(graph-ui stack)
+              (steps-list (current :page) stack)
+              )
+     :graph (graph-ui stack)
+     nil (steps-list (current :page) stack)
+     )
    ;(step-canvas (stack->cursor stack :step) stack)
    ])
 
@@ -524,25 +643,20 @@
 ;; nav
 ;;*********************************************************
 
+(defn all-groups [xs]
+  (for [i (range (count xs))]
+    (take (inc i) xs)))
+
 (defdom nav []
   [:div {:id "nav"}
    [:ul {:className "breadcrumb"}
-      [:li
-       (when-let [notebook (current :notebook)]
-         [:span {:onClick (fn []
-                            (swap! aurora-state assoc :screen :notebooks :notebook nil :page nil :stack nil))}
-          (:desc @notebook)])
-       (when-let [page (current :page)]
-         [:span {:onClick (fn []
-                            (swap! aurora-state assoc :screen :pages :page nil :stack nil))}
-          (:desc @page)])
-       (when-let [path (:step @aurora-state)]
-         (when (> (count path) 1)
-           (each [{:keys [notebook page]} (rest path)]
-                 (when-let [cur (get-in @aurora-state [:notebooks notebook :pages page])]
-                   [:span (get cur :desc (:id cur))])))
-         [:span (:step (last path))])
-       ]]
+    (each [stack (all-groups (reverse (:stack @aurora-state)))]
+          (let [[type id] (last stack)
+                cur (cursor id)]
+            (when (and cur (not= type :step))
+              [:li {:onClick (fn []
+                               (set-stack! (reverse (butlast stack))))}
+               (or (:desc @cur) (:id @cur))])))]
    ])
 
 ;;*********************************************************
@@ -556,7 +670,8 @@
   [:ul {:className "notebooks"}
    (each [notebook (cursors (:notebooks aurora))]
          (let [click (fn []
-                       (swap! aurora-state assoc :notebook (:id @notebook) :screen :pages))]
+                       (swap! aurora-state assoc :notebook (:id @notebook) :screen :pages
+                              :stack (list [:notebook (:id @notebook)])))]
            (if (input? (:id @notebook))
              [:li {:className "notebook"}
               [:input {:type "text" :defaultValue (:desc @notebook)
@@ -591,7 +706,7 @@
          (let [click (fn []
                        (swap! aurora-state assoc
                               :page (:id @page)
-                              :screen :editor
+                              :editor-zoom :graph
                               :stack (-> ()
                                          (push notebook)
                                          (push page)
@@ -632,11 +747,13 @@
    (contextmenu)
    (nav)
    [:div {:id "content"}
+    (let [stack (:stack @aurora-state)]
 
-    (condp = (:screen @aurora-state)
-      :notebooks (notebooks-list @aurora-state)
-      :pages (pages-list  (cursor (:notebook @aurora-state)))
-      :editor (editing-view (:stack @aurora-state)))
+      (cond
+       (zero? (count stack)) (notebooks-list @aurora-state)
+       (stack->cursor stack :page) (editing-view stack)
+       (stack->cursor stack :notebook) (pages-list (stack->cursor stack :notebook))
+       :else (notebooks-list @aurora-state)))
     ]])
 
 ;;*********************************************************
@@ -703,12 +820,13 @@
 
 (defdom math-ui [x stack]
   [:div {:className "step"
+         :onClick (step-click stack)
          :onContextMenu #(show-menu! % [{:label "remove step"
                                              :action (fn []
                                                        (remove-step! (stack->cursor stack :page) (stack->cursor stack :step)))}])}
    (math-expression-ui (conj x :expression) stack)
     " = "
-   [:span {:className "math-result"}
+   [:span {:className (str "math-result result result_" (.-id (stack->cursor stack :step)))}
     (item-ui (value-cursor (path->result stack)) stack)]
     ]
   )
@@ -981,7 +1099,9 @@
 ;;*********************************************************
 
 (def run-stack (atom nil))
-(def cur-state (atom {"counter" 0}))
+(def cur-state (atom 1))
+(def cur-notebook nil)
+(def last-page nil)
 (def prev nil)
 
 (defn find-error-frames [stack]
@@ -1011,34 +1131,40 @@
   (.postMessage compile-worker (pr-str {:index index
                                         :notebook notebook-id})))
 
+(defn source->notebook [source]
+  (set! cur-notebook (js/eval (str "(" source "());"))))
+
 (defn handle-compile [data]
   (set! (.-innerHTML (js/document.getElementById "compile-perf")) (.-time data))
-  (let [run (run-source (.-source data) (current :notebook) (current :page) @cur-state)]
-    (reset! cur-state (second run))
-    (reset! run-stack #js {:calls #js [(nth run 2)]})
-    (queue-render)))
+  (source->notebook (.-source data))
+  (re-run))
 
-(defn run-source [source notebook page state]
+(defn run-source [notebook page state]
   (let [start (now)
-        notebook-js (when source (js/eval (str "(" source "());")))
         stack #js []
-        func (when notebook-js (aget notebook-js (str "value_" (:id @page))))]
-    (when notebook-js
-      (aset notebook-js "next_state" state)
-      (aset notebook-js "stack" stack)
+        func (when cur-notebook (aget cur-notebook (str "value_" (:id @page))))]
+    (when (and func cur-notebook)
+      (aset cur-notebook "next_state" state)
+      (aset cur-notebook "stack" stack)
       (try
-        (let [v [(func state []) (.-next_state notebook-js) (aget stack 0)]]
+        (let [v [(func state []) (.-next_state cur-notebook) (aget stack 0)]]
           (assoc-cache! [:errors] nil)
           (set! (.-innerHTML (js/document.getElementById "run-perf")) (- (now) start))
           v)
         (catch :default e
-          (let [v [e (.-next_state notebook-js) (aget stack 0)]
+          (let [v [e (.-next_state cur-notebook) (aget stack 0)]
                 frames (find-error-frames (aget stack 0))
                 errors (error-frames->errors frames (:id @notebook) e)]
             (println "ERROR STACK: " errors)
             (assoc-cache! [:errors] errors)
             (set! (.-innerHTML (js/document.getElementById "run-perf")) (- (now) start))
             v))))))
+
+(defn re-run []
+  (let [run (run-source (current :notebook) (current :page) @cur-state)]
+    (reset! cur-state (second run))
+    (reset! run-stack #js {:calls #js [(nth run 2)]})
+    (queue-render)))
 
 (defn find-id [thing id]
   (.filter (aget thing "calls") #(= (aget % "id") id)))
@@ -1047,8 +1173,6 @@
   (loop [stack stack
          path path
          cur-path '()]
-    ;(println "path: " path)
-    ;(println "iter" (or (get iters cur-path) 0))
     (when stack
       (let [[type id :as segment] (first path)]
         (cond
@@ -1059,7 +1183,6 @@
                  (recur (aget (find-id stack id) cur-iter) (next path) cur-path)))))))
 
 (defn path->frame [path]
-  (println "asking for frame: " path)
   (traverse-path @run-stack (reverse path)
                  (from-cache [:path-iterations])))
 
@@ -1091,20 +1214,196 @@
           ))))
 
 (add-watch aurora-state :running (fn [_ _ _ cur]
-                                   (if-not (identical? prev (:index cur))
-                                     (do
-                                       (set! prev (:index cur))
-                                       ;;TODO: args
-                                       (when (and (current :notebook) (current :page))
-                                         (send-off-compile (:index cur) (-> (current :notebook)
-                                                                            (deref)
-                                                                            (:id)))))
-                                     (comment
-                                       (set! (.-innerHTML (js/document.getElementById "compile-perf")) "n/a")
-                                       (set! (.-innerHTML (js/document.getElementById "run-perf")) "n/a")
-                                       )
-                                     )))
+                                   (println last-page (:page cur))
+                                   (when (and (:notebook cur) (:page cur))
+                                     (cond
+                                      (not (identical? prev (:index cur))) (send-off-compile (:index cur) (:notebook cur))
+                                      (not= last-page (:page cur)) (do
+                                                                     (set! last-page (:page cur))
+                                                                     (re-run))
+                                      :else  (comment
+                                               (set! (.-innerHTML (js/document.getElementById "compile-perf")) "n/a")
+                                               (set! (.-innerHTML (js/document.getElementById "run-perf")) "n/a"))))
+                                   (set! prev (:index cur))
+                                   (set! last-page (:page cur))))
 
+
+;;*********************************************************
+;; GRAPH
+;;*********************************************************
+
+(def all-canvases (list (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")
+                        (js/document.createElement "canvas")))
+(def canvas-pool (atom all-canvases))
+
+(defn lease-canvas []
+  (if-let [canvas (first @canvas-pool)]
+    (do
+      (swap! canvas-pool pop)
+      canvas)
+    (throw (ex-info "No canvases remaining in pool" {}))))
+
+(defn release-canvases []
+  (doseq [canvas all-canvases]
+    (dom/remove canvas))
+  (reset! canvas-pool all-canvases))
+
+(def color-counter (atom -1))
+
+(defn reset-colors []
+  (reset! color-counter -1))
+
+(let [colors ["90F0AB" ;;green
+              "90C9F0" ;;blue
+              "F09098" ;;red
+              "DD90F0" ;;purple
+              "F0C290" ;;orange
+              ]]
+  (defn line-color []
+    (get colors (swap! color-counter cycling-move (count colors) inc))
+    ))
+
+(defn line [[x y] [x2 y2] & [color]]
+  (let [canvas (lease-canvas)
+        width (+ 11 (js/Math.abs (- x x2)))
+        height (- (js/Math.abs (- y y2)) 50)
+        end-x (if (> x x2)
+                10
+                (- x2 x))
+        pixel-ratio (or js/window.devicePixelRatio 1)]
+    (dom/attr canvas {:width (* width pixel-ratio)
+                      :height (* height pixel-ratio)})
+    (dom/css canvas {:position "absolute"
+                     :width width
+                     :height height
+                     :left (+ js/document.body.scrollLeft (- (min x x2) 10))
+                     :top (+ js/document.body.scrollTop 25 (min y y2))})
+    (let [ctx (.getContext canvas "2d")
+          color (or color (line-color))]
+      (.scale ctx pixel-ratio pixel-ratio)
+      (set! (.-strokeStyle ctx) color)
+      (set! (.-lineWidth ctx) 1)
+      (.clearRect ctx 0 0 width height)
+      (.beginPath ctx)
+      (.moveTo ctx (if (> x x2)
+                     (+ 10 (- x x2))
+                     10)
+               0)
+      (.bezierCurveTo ctx
+                      (if (> x x2)
+                        (+ 10 (- x x2))
+                        0)
+                      (/ height 1)
+                      (if (> x x2)
+                        3
+                        (- x2 x))
+                      (* height 0)
+                      end-x
+                      height)
+      (.stroke ctx)
+      (.closePath ctx)
+      (.beginPath ctx)
+      (.moveTo ctx (identity end-x) (dec height))
+      (.lineTo ctx (- end-x 6) (- height 6))
+      (.moveTo ctx (identity end-x) (dec height))
+      (.lineTo ctx (+ end-x 6) (- height 6))
+      (.stroke ctx)
+      canvas)))
+
+(defn get-bounding-rects [container id]
+  (when-let [container (first (js/document.getElementsByClassName container))]
+    (when-let [elems (.getElementsByClassName container id)]
+      (for [elem elems]
+        [elem (.getBoundingClientRect elem)]))))
+
+
+(defn find-result-ids [container]
+  (when-let [container (first (js/document.getElementsByClassName container))]
+    (when-let [elems (.getElementsByClassName container "result")]
+      (for [elem elems]
+        (-> (re-seq #"result_(.*)$" (.-className elem)) first second)))))
+
+(defn draw-stack-lines []
+    (doseq [result-id (find-result-ids "stack-input")
+            result (get-bounding-rects "stack-input" (str "result_" result-id))
+            ref (get-bounding-rects "stack-current" (str "ref_" result-id))]
+      (dom/prepend js/document.body (line [(-> (+ (.-left result)
+                                                 (/ (.-width result) 2))
+                                              (js/Math.round))
+                                          (js/Math.floor (.-bottom result))]
+                                         [(-> (+ (.-left ref) (.-right ref))
+                                              (/ 2)
+                                              (js/Math.floor))
+                                          (js/Math.floor (.-top ref))])))
+    (doseq [result-id (find-result-ids "stack-current")
+            result (get-bounding-rects "stack-current" (str "result_" result-id))
+            ref (get-bounding-rects "stack-next" (str "ref_" result-id))]
+      (dom/prepend js/document.body (line [(-> (+ (.-left result) (/ (.-width result) 2))
+                                              (js/Math.round))
+                                          (js/Math.floor (.-bottom result))]
+                                         [(-> (+ (.-left ref) (.-right ref))
+                                              (/ 2)
+                                              (js/Math.round))
+                                          (js/Math.floor (.-top ref))]))))
+
+(defn graph-lines []
+  (reset-colors)
+  (let [page (stack->cursor (:stack @aurora-state) :page)
+        graph (when page (page-graph page))
+        [layers id->layer] (when graph (graph->layers graph))]
+    (when graph
+      (doseq [[layer items] layers
+              id items
+              :let [color (line-color)]
+              out (-> graph :out (get id))
+              [elem ref] (get-bounding-rects (str "layer" (id->layer out)) (str "ref_" id))
+              :let [result (->> (get-bounding-rects (str "layer" layer) (str "result_" id))
+                                (first)
+                                (second))]
+              :when (and ref result)]
+        (dom/css elem {:background (str "#" color)})
+        (dom/prepend js/document.body (line [(-> (+ (.-left result) (.-right result))
+                                                (/ 2)
+                                                (js/Math.floor))
+                                            (js/Math.floor (.-bottom result))]
+                                           [(-> (+ (.-left ref) (.-right ref))
+                                                (/ 2)
+                                                (js/Math.floor))
+                                            (js/Math.floor (.-top ref))]
+                                            color))
+
+        ))
+    ))
+
+;(swap! aurora-state assoc :editor-zoom :graph)
+
+(comment
+  (reset! aurora-state (reader/read-string "{:page \"49e1e80f_a073_48d6_ba4a_f2da39faecea\", :index {\"bd1a0a03_a3bb_48c1_be6d_5c18aaec8ba2\" {:expression [{:type :ref/js, :js \"+\"} {:type :ref/id, :id \"16b04bba_9bcc_4540_a0e5_0465d16fb6fd\"} {:type :ref/id, :id \"7162c4df_15cb_4cba_a8fd_cd95b26adc29\"}], :type :math, :id \"bd1a0a03_a3bb_48c1_be6d_5c18aaec8ba2\"}, \"20185f62_f4c3_4480_980f_c7d0d2e26f34\" {:type :constant, :id \"20185f62_f4c3_4480_980f_c7d0d2e26f34\", :data [1 2 3]}, \"44f97faf_de63_423a_b68f_0bb54332c573\" {:ref {:type :ref/js, :js \"cljs.core.mapv\"}, :type :call, :id \"44f97faf_de63_423a_b68f_0bb54332c573\", :args [{:type :ref/id, :id \"103a16af_f99a_4f44_a7ab_f6e53971cbc9\"} [1 2 9]]}, \"16b04bba_9bcc_4540_a0e5_0465d16fb6fd\" {:expression [{:type :ref/js, :js \"-\"} 6 {:type :ref/id, :id \"current\"}], :type :math, :id \"16b04bba_9bcc_4540_a0e5_0465d16fb6fd\"}, \"7405a129_2ff1_4bc8_b3f9_6e74efb0f606\" {:branches [{:guards [], :pattern [6 2 3], :action {:type :constant, :data \"wheeee\"}, :type :match/branch}], :arg {:type :ref/id, :id \"44f97faf_de63_423a_b68f_0bb54332c573\"}, :type :match, :id \"7405a129_2ff1_4bc8_b3f9_6e74efb0f606\"}, \"332c3ac6_9969_4014_9271_129753c4bcef\" {:desc \"untitled page\", :tags #{:page}, :type :page, :id \"332c3ac6_9969_4014_9271_129753c4bcef\", :args [\"root\"], :steps []}, \"103a16af_f99a_4f44_a7ab_f6e53971cbc9\" {:desc \"do\", :tags #{}, :type :page, :id \"103a16af_f99a_4f44_a7ab_f6e53971cbc9\", :args [\"current\"], :steps [\"bc9915cc_2e0f_4628_9416_4217bb4ccb02\" \"16b04bba_9bcc_4540_a0e5_0465d16fb6fd\" \"7162c4df_15cb_4cba_a8fd_cd95b26adc29\" \"bd1a0a03_a3bb_48c1_be6d_5c18aaec8ba2\" \"a3376ab1_4689_45a6_bced_5848d0622568\"], :anonymous true}, \"a3376ab1_4689_45a6_bced_5848d0622568\" {:expression [{:type :ref/js, :js \"+\"} 3 {:type :ref/id, :id \"bd1a0a03_a3bb_48c1_be6d_5c18aaec8ba2\"}], :type :math, :id \"a3376ab1_4689_45a6_bced_5848d0622568\"}, \"bc9915cc_2e0f_4628_9416_4217bb4ccb02\" {:type :constant, :id \"bc9915cc_2e0f_4628_9416_4217bb4ccb02\", :data {:type :ref/id, :id \"current\"}}, \"76838021_4b8d_4778_802b_9af9b3b2e1fd\" {:desc \"untitled notebook\", :type :notebook, :id \"76838021_4b8d_4778_802b_9af9b3b2e1fd\", :pages [\"49e1e80f_a073_48d6_ba4a_f2da39faecea\" \"103a16af_f99a_4f44_a7ab_f6e53971cbc9\" \"332c3ac6_9969_4014_9271_129753c4bcef\"]}, \"7162c4df_15cb_4cba_a8fd_cd95b26adc29\" {:expression [{:type :ref/js, :js \"+\"} {:type :ref/id, :id \"16b04bba_9bcc_4540_a0e5_0465d16fb6fd\"} 8], :type :math, :id \"7162c4df_15cb_4cba_a8fd_cd95b26adc29\"}, \"49e1e80f_a073_48d6_ba4a_f2da39faecea\" {:desc \"untitled page\", :tags #{:page}, :type :page, :id \"49e1e80f_a073_48d6_ba4a_f2da39faecea\", :args [\"root\"], :steps [\"20185f62_f4c3_4480_980f_c7d0d2e26f34\" \"44f97faf_de63_423a_b68f_0bb54332c573\" \"7405a129_2ff1_4bc8_b3f9_6e74efb0f606\"]}}, :editor-zoom :stack, :notebooks [\"76838021_4b8d_4778_802b_9af9b3b2e1fd\"], :document true, :notebook \"76838021_4b8d_4778_802b_9af9b3b2e1fd\", :steps true, :stack ([:step \"bd1a0a03_a3bb_48c1_be6d_5c18aaec8ba2\"] [:page \"103a16af_f99a_4f44_a7ab_f6e53971cbc9\"] [:step \"44f97faf_de63_423a_b68f_0bb54332c573\"] [:page \"49e1e80f_a073_48d6_ba4a_f2da39faecea\"] [:notebook \"76838021_4b8d_4778_802b_9af9b3b2e1fd\"]), :open-paths {([:step \"44f97faf_de63_423a_b68f_0bb54332c573\"] [:page \"49e1e80f_a073_48d6_ba4a_f2da39faecea\"] [:notebook \"76838021_4b8d_4778_802b_9af9b3b2e1fd\"]) nil}, :step [], :screen :editor}"
+                                           )))
 
 ;;*********************************************************
 ;; Re-rendering
@@ -1119,6 +1418,11 @@
      (aurora-ui)
      (js/document.getElementById "wrapper"))
     (focus!)
+    (release-canvases)
+    (condp = (:editor-zoom @aurora-state)
+      :stack (draw-stack-lines)
+      :graph (graph-lines)
+      nil (graph-lines))
     (set! (.-innerHTML (js/document.getElementById "render-perf")) (- (now) start))
     (set! queued? false)))
 

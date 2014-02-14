@@ -75,7 +75,8 @@
               ~x (aget xs# 0)]
          (when (< ~'index xs-count#)
            ~@(for [elem body]
-               `(.push ~'res-sym (dom ~elem)))
+               `(when-let [e# (dom ~elem)]
+                  (.push ~'res-sym e#)))
            (recur (inc ~'index) (aget xs# (inc ~'index)))))
        ~'res-sym)))
 
