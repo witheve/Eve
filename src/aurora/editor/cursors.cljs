@@ -67,6 +67,7 @@
           map-key? (map-key-path? path)
           root-value @(.-atm cursor)
           neue-value (apply (first args) @cursor (rest args))]
+      (println "Swapping cursor")
       (if map-key?
         (swap! (.-atm cursor) assoc-in (butlast path) (-> (get-in root-value (butlast path))
                                                           (dissoc map-key?)

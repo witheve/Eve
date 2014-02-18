@@ -227,3 +227,11 @@
 (defn ready [func]
   (on js/document :DOMContentLoaded func))
 
+(defn fragment [items]
+  (let [frag (.createDocumentFragment js/document)]
+    (doseq [i items]
+      (.appendChild frag i))
+    frag))
+
+
+

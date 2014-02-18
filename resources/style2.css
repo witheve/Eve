@@ -249,7 +249,9 @@ button:hover { background:#ddd; }
 .ref { border-radius:3px; }
 
 
-.layer-step { box-shadow: 0 0 0px #ccc; border:1px solid #ddd; border-radius:3px; background:#f7f7f7; padding:10px 20px; }
+.constant > * { background:#f7f7f7; border-radius:3px; }
+.layer-step { background:none; border:none;}
+.layer-step .step { border:1px solid #ddd; border-radius:3px; background:#f7f7f7; padding:10px 20px; }
 .math-result .value { border:none; }
 
 .value { display:inline-block; padding:5px; margin:0 5px; border:1px solid #cecece; border-radius:3px; }
