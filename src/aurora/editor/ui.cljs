@@ -28,8 +28,6 @@
 
 ;(js/React.initializeTouchEvents true)
 
-
-
 (defn datatype-name [x]
   (cond
    (nil? x) "string"
@@ -384,7 +382,6 @@
 (defn add-step|swap!
   ([cursor v] (add-step|swap! cursor v (nodes/constant v)))
   ([cursor v step]
-   (println @cursor)
    (if (= (:type @cursor) :page)
      (add-step! cursor step)
      (swap! cursor (constantly v)))))
@@ -550,6 +547,7 @@
 
 (defdom aurora-ui []
   [:div
+   (input-handler)
    (when (util/nw?)
      [:div {:className "debug"}
       [:button {:onClick (fn []
@@ -598,28 +596,29 @@
     ]
   )
 
+(defdom input-handler []
+  [:input {:id "input-handler"
+           :type "text"
+           :tabIndex -1
+           :onChange (fn [e]
+                       (core/change-input! (constantly (cell-parser (.-target.value e)))))}])
+
 (defn cell [x parser stack]
   (let [path (cursor->path x)
         commit (fn [e]
                  (swap! x (constantly (parser (.-target.value e))))
                  (remove-input! path))]
     (dom
-     (if (input? path)
-       [:input {:type "text"
-                :className "focused"
-                :tabIndex -1
-                :style #js {"width" (* 10 (count (str @x)))}
-                :defaultValue @x
-                :onKeyPress (fn [e]
-                              (when (= 13 (.-charCode e))
-                                (commit e)))
-                :onBlur commit}]
-       [:span {:className "value"
+       [:span {:className (str "value" (if (input? path)
+                                         " active"))
                :onContextMenu (ref-menu x stack)
                :onClick (fn [e]
+                          (core/clear-input)
+                          (dom/val (dom/$ "#input-handler") "")
                           (when (mutable? x)
-                            (add-input! path true)))}
-        (str @x)]))))
+                            (add-input! path true)
+                            (.focus (dom/$ "#input-handler"))))}
+        (str @x)])))
 
 (defn vec-remove [x index]
   (vec (concat (subvec x 0 index) (subvec x (inc index) (count x)))))
@@ -659,9 +658,10 @@
   )
 
 (defn cell-parser [v]
-  (if (re-seq #"[^\d\.]" v)
-    v
-    (reader/read-string v)))
+  (cond
+   (= "" v) ""
+   (re-seq #"[^\d\.]" v) v
+   :else (reader/read-string v)))
 
 (swap! core/representations-cache merge
        {"math" (fn [x stack]
@@ -682,26 +682,6 @@
 ;;*********************************************************
 ;; auto-resizing
 ;;*********************************************************
-
-(dom/on js/document :keydown (fn [e]
-                               (when (= "INPUT" (.-target.tagName e))
-                                 (dom/css (.-target e) {:width (* 10 (count (.-target.value e)))})
-                                 )))
-
-(dom/on js/document :input (fn [e]
-                               (when (= "INPUT" (.-target.tagName e))
-                                 (dom/css (.-target e) {:width (* 10 (count (.-target.value e)))})
-                                 )))
-
-(dom/on js/document :change (fn [e]
-                               (when (= "INPUT" (.-target.tagName e))
-                                 (dom/css (.-target e) {:width (* 10 (count (.-target.value e)))})
-                                 )))
-
-(dom/on js/document :keyup (fn [e]
-                               (when (= "INPUT" (.-target.tagName e))
-                                 (dom/css (.-target e) {:width (* 10 (count (.-target.value e)))})
-                                 )))
 
 (defn focus! []
   (when-let [cur (last (dom/$$ :.focused))]

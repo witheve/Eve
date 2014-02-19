@@ -74,7 +74,7 @@
         run (run-source (rev-stack->cursor stack :notebook) (rev-stack->cursor stack :page) @cur-state)]
     (reset! cur-state (second run))
     (reset! run-stack #js {:calls #js [(nth run 2)]})
-    (js/aurora.editor.ui-graph.queue-render)))
+    (js/aurora.editor.ui.queue-render)))
 
 (defn find-id [thing id]
   (.filter (aget thing "calls") #(= (aget % "id") id)))

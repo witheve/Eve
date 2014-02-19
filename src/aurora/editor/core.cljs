@@ -21,6 +21,7 @@
                     :index ast/core
                     :notebooks []})
 
+(def cache (atom {}))
 (def representations-cache (atom {}))
 
 ;;*********************************************************
@@ -35,11 +36,18 @@
 (defn input? [id]
   (get-in @aurora-state [:cache :inputs id]))
 
+(defn change-input! [func]
+  (when-let [[path] (first (get-in @aurora-state [:cache :inputs]))]
+    (swap! aurora-state update-in path func)))
+
+(defn clear-input []
+  (swap! aurora-state assoc-in [:cache :inputs] nil))
+
 (defn assoc-cache! [path v]
   (swap! aurora-state assoc-in (concat [:cache] path) v))
 
 (defn add-input! [id path]
-  (swap! aurora-state assoc-in [:cache :inputs id] path))
+  (swap! aurora-state assoc-in [:cache :inputs] {id path}))
 
 (defn remove-input! [id]
   (swap! aurora-state update-in [:cache :inputs] dissoc id))
@@ -96,13 +104,17 @@
 ;; Aurora state (storage!)
 ;;*********************************************************
 
+(def last-freeze nil)
+
 (defn freeze [state]
   (-> state
       (dissoc :cache)
       (pr-str)))
 
 (defn store! [state]
-  (aset js/localStorage "aurora-state" (freeze state)))
+  (when-not (identical? last-freeze (:index state))
+    (set! last-freeze (:index state))
+    (aset js/localStorage "aurora-state" (freeze state))))
 
 (defn thaw [state]
   (let [state (if (string? state)
