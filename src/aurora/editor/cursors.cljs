@@ -52,8 +52,19 @@
   (when (get-in @aurora-state [:index id])
     (IndexCursor. aurora-state id [])))
 
+(defn from-path [path]
+  (let [sub-path (seq (drop 2 path))
+        cur (cursor (second path))]
+    (if sub-path
+      (conj cur (vec sub-path))
+      cur)))
+
 (defn cursors [ids]
   (map cursor ids))
+
+(defn map-key-cursor? [cursor]
+  (-> (-index-path cursor)
+      (map-key-path?)))
 
 (defn cursor->path [c]
   (-index-path c))
@@ -62,12 +73,14 @@
   (.-id c))
 
 (defn cursor-swap! [cursor args]
+  (println "Cursor swap: " (-index-path cursor))
   (when (mutable? cursor)
     (let [path (-index-path cursor)
           map-key? (map-key-path? path)
+          _ (println "Swapping cursor" map-key? path)
           root-value @(.-atm cursor)
           neue-value (apply (first args) @cursor (rest args))]
-      (println "Swapping cursor")
+
       (if map-key?
         (swap! (.-atm cursor) assoc-in (butlast path) (-> (get-in root-value (butlast path))
                                                           (dissoc map-key?)

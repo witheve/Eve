@@ -258,7 +258,7 @@ button:hover { background:#ddd; }
 .table .value { border:none; display:inline-block; width:100%; margin:0; padding:5px 15px; }
 .step input { display:inline-block; width:20px; max-width:100%; min-width:20px; padding:2px 15px; padding-top:3px; box-sizing:content-box !important;}
 
-#input-handler { width:0px; overflow:hidden; padding:none; position:absolute; }
+#input-handler { width:0px; overflow:hidden; padding:none; position:fixed; top:0; left:0;}
 .value.active { border:2px solid red; }
 
 .stack-ui { position:relative; display:-webkit-flex; align-items:middle; flex-direction:column; align-content:stretch; height:100%; width:100%;}

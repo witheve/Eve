@@ -17,7 +17,7 @@
             [clojure.set :as set]
             [cljs.reader :as reader]
             [aurora.editor.stack :refer [push stack->cursor set-stack! current-stack?]]
-            [aurora.editor.cursors :refer [mutable? cursor cursors overlay-cursor value-cursor
+            [aurora.editor.cursors :as cursors :refer [mutable? cursor cursors overlay-cursor value-cursor
                                            cursor->id cursor->path swap!]]
             [aurora.editor.core :refer [aurora-state default-state]])
   (:require-macros [aurora.macros :refer [defdom dom mapv-indexed]]))
@@ -217,7 +217,7 @@
              )]
       [:button {:className "add-match-branch"
                 :onClick (fn []
-                           (swap! step update-in [:branches] conj (nodes/match-branch)))}
+                           (swap! step update-in [:branches] conj (nodes/match-branch nil nil)))}
        ""]
       [:div {:className (str "result result_" (:id @step))}]
       ])))
@@ -399,7 +399,7 @@
                         (add-step|swap! cursor nil (nodes/math)))}
     "math"]
    [:button {:onClick (fn []
-                        (add-step|swap! cursor nil (nodes/match)))}
+                        (add-step|swap! cursor nil (nodes/match nil nil nil)))}
     "match"]])
 
 (defdom ref-inserter [page cursor]
@@ -611,8 +611,25 @@
     (dom
        [:span {:className (str "value" (if (input? path)
                                          " active"))
+               :draggable "true"
+               :onDragStart (fn [e]
+                              (assoc-cache! [:dragging] {:path path})
+                              (.dataTransfer.setData e "text/html" nil))
+               :onDrag (fn [e]
+                         (assoc-cache! [:dragging] {:path path
+                                                    :x (.-clientX e)
+                                                    :y (.-clientY e)}))
+               :onDragEnd (fn [e]
+                            (assoc-cache! [:dragging] nil))
+               :onDragOver (fn [e]
+                             (.preventDefault e))
+               :onDrop (fn [e]
+                         (let [id (second (from-cache [:dragging :path]))]
+                           (swap! x (constantly (nodes/ref-id id)))
+                           (println "Got a drop: " (from-cache [:dragging :path]))))
                :onContextMenu (ref-menu x stack)
                :onClick (fn [e]
+                          (println "setting path: " path)
                           (core/clear-input)
                           (dom/val (dom/$ "#input-handler") "")
                           (when (mutable? x)

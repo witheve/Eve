@@ -38,7 +38,10 @@
 
 (defn change-input! [func]
   (when-let [[path] (first (get-in @aurora-state [:cache :inputs]))]
-    (swap! aurora-state update-in path func)))
+    (let [cur (js/aurora.editor.cursors.from-path path)]
+      (when (js/aurora.editor.cursors.map-key-cursor? cur)
+        (assoc-cache! [:inputs] {(concat (butlast path) [{:aurora.editor.ui/key (func)}]) true}))
+      (js/aurora.editor.cursors.swap! cur func))))
 
 (defn clear-input []
   (swap! aurora-state assoc-in [:cache :inputs] nil))

@@ -2,7 +2,7 @@
   (:require [aurora.editor.dom :as dom]
             [aurora.editor.stack :refer [stack->cursor]]
             [aurora.compiler.graph :as graph]
-            [aurora.editor.core :refer [aurora-state]]
+            [aurora.editor.core :refer [aurora-state from-cache]]
             [aurora.util.core :refer [cycling-move]]))
 
 (def all-canvases (list (js/document.createElement "canvas")
@@ -135,7 +135,7 @@
               :let [color (when (-> graph :out (get id))
                             (line-color))]
               out (-> graph :out (get id))
-              :let [refs (get-bounding-rects (str "layer" (id->layer out)) (str "ref_" id))
+              :let [refs (get-bounding-rects (str "step_" out) (str "ref_" id))
                     _ (when-not (seq refs)
                         (release-color))]
               [elem ref] refs
@@ -150,13 +150,27 @@
         (dom/append fragment (line [(-> (+ (.-left result) (.-right result))
                                         (/ 2)
                                         (js/Math.floor))
-                                    (js/Math.floor (+ (.-top result) (.-height result) 0))]
+                                    (js/Math.floor (+ (.-bottom result) 0))]
                                    [(-> (+ (.-left ref) (.-right ref))
                                         (/ 2)
                                         (js/Math.floor))
                                     (+ (js/Math.floor (.-top step)) 0)]
                                    color))
 
+        )
+      (when-let [dragging (from-cache [:dragging])]
+        (let [id (second (:path dragging))
+              drag-layer (id->layer id)
+              result (->> (get-bounding-rects (str "layer" drag-layer) (str "result_" id))
+                          (first)
+                          (second))]
+          (dom/append fragment (line [(-> (+ (.-left result) (.-right result))
+                                        (/ 2)
+                                        (js/Math.floor))
+                                    (js/Math.floor (+ (.-top result) (.-height result) 0))]
+                                   [(:x dragging) (:y dragging)]
+                                   "red"))
+          )
         )
       (dom/prepend js/document.body fragment))
     ))

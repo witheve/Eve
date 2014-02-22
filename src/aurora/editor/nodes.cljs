@@ -23,17 +23,17 @@
                  :js "+"}
                 3 4]})
 
-(defn match-branch []
+(defn match-branch [pattern action]
   {:type :match/branch
-   :pattern "foo"
+   :pattern (or pattern "foo")
    :guards []
-   :action {:type :constant
-            :data "wheeee"}})
+   :action (or action {:type :constant
+                       :data "wheeee"})})
 
-(defn match []
+(defn match [arg pattern action]
   {:type :match
-   :arg "foo"
-   :branches [(match-branch)]})
+   :arg (or arg "foo")
+   :branches [(match-branch pattern action)]})
 
 (defn ref-id [id]
   {:type :ref/id
