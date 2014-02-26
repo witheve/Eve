@@ -129,14 +129,17 @@
   (when stack
     (let [page (stack->cursor stack :page)
           graph (graph/page-graph (:index @aurora-state) @page)
-          [layers _] (graph/graph->layers graph)]
+          [layers _] (graph/graph->layers graph)
+          args (set (:args @page))]
       [:div {:className "graph-ui"}
        (iteration-control stack)
        (each [[i items] layers]
              [:div {:className (str "layer layer" i)}
               (each [item items]
-                    (when-let [cur (or (cursor item) (value-cursor {:type :ref/id
-                                                                    :id item}))]
+                    (when-let [cur (or (cursor item)
+                                       (when (args item)
+                                         (value-cursor {:type :ref/id
+                                                        :id item})))]
                       (when-not (= (:type @cur) :page)
                         [:div {:className (str "layer-step step_" item)}
                          (step-list-item cur (push stack cur))
@@ -223,7 +226,8 @@
       ])))
 
 (defmethod item-ui :match/bind [x stack]
-  (dom [:span {:className "ref"} (:id @x)]))
+  (ref-id-ui x stack {:class "match-bind "})
+  )
 
 ;;*********************************************************
 ;; Data
@@ -241,10 +245,8 @@
     (when-let [page (stack->cursor stack :page)]
       (let [idx (find-index id (:steps @page))
             cur-idx (find-index (:id @cur-step) (:steps @page))]
-        (if (= (dec cur-idx) idx)
-          "that"
-          (when idx
-            (str "step " (inc idx))))))))
+        "that"
+        ))))
 
 (defmethod item-ui :constant [node stack]
   (if-let [rep (->rep (or (:data @node) @node))]
@@ -314,7 +316,7 @@
    [:div {:className (str "constant result result_" (-> @step :id))}
     (item-ui step stack)]))
 
-(defmethod item-ui :ref/id [step stack opts]
+(defdom ref-id-ui [step stack opts]
   (dom
    (let [page (cursor (:id @step))
          page? (when page
@@ -323,7 +325,7 @@
                         (not (:name-only? opts)))
                (run/path->result (-> (drop 1 stack)
                                  (conj [:step (:id @step)]))))
-         id (str "ref_" (:id @step))]
+         id (str (:class opts) "ref_" (:id @step))]
      (cond
       res [:span {:className (str "ref " id)
                   :id id
@@ -341,7 +343,10 @@
             [:div {:className "value"}
              (or (ref-name stack (stack->cursor stack :step) (:id @step))
                  (:id @step)
-                 (:js @step))]])) ))
+                 (:js @step))]]))))
+
+(defmethod item-ui :ref/id [step stack opts]
+  (ref-id-ui step stack opts))
 
 
 ;;*********************************************************
@@ -603,6 +608,31 @@
            :onChange (fn [e]
                        (core/change-input! (constantly (cell-parser (.-target.value e)))))}])
 
+(defn sub-path->match [id path]
+  (let [start (first path)]
+    (if (string? start)
+      (nodes/match (nodes/ref-id id) {start (nodes/match-capture "foo")} (nodes/constant (nodes/ref-id "foo")))))
+  )
+
+(defn handle-drop [dropped-on stack e]
+  (let [path (from-cache [:dragging :path])]
+    (show-menu! e [{:label "whole"
+                    :action (fn []
+                              (let [id (second path)]
+                                (swap! dropped-on (constantly (nodes/ref-id id)))
+                                (println "Got a drop: " (from-cache [:dragging :path]))))}
+                   {:label "sub"
+                    :action (fn []
+                              (let [id (second path)
+                                    sub-path (drop 3 path)
+                                    match (sub-path->match id sub-path)
+                                    match-node (add-step! (stack->cursor stack :page) match (cursors/cursor->id dropped-on))]
+                                (println "sub: " match-node)
+                                (swap! dropped-on (constantly (nodes/ref-id (:id match-node))))
+                                ))}]))
+
+  )
+
 (defn cell [x parser stack]
   (let [path (cursor->path x)
         commit (fn [e]
@@ -613,6 +643,7 @@
                                          " active"))
                :draggable "true"
                :onDragStart (fn [e]
+                              (println "Drag path: " path)
                               (assoc-cache! [:dragging] {:path path})
                               (.dataTransfer.setData e "text/html" nil))
                :onDrag (fn [e]
@@ -624,9 +655,7 @@
                :onDragOver (fn [e]
                              (.preventDefault e))
                :onDrop (fn [e]
-                         (let [id (second (from-cache [:dragging :path]))]
-                           (swap! x (constantly (nodes/ref-id id)))
-                           (println "Got a drop: " (from-cache [:dragging :path]))))
+                         (handle-drop x stack e))
                :onContextMenu (ref-menu x stack)
                :onClick (fn [e]
                           (println "setting path: " path)

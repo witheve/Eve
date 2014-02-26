@@ -2,6 +2,7 @@
   (:require [aurora.editor.dom :as dom]
             [aurora.editor.stack :refer [stack->cursor]]
             [aurora.compiler.graph :as graph]
+            [aurora.editor.cursors :refer [cursor]]
             [aurora.editor.core :refer [aurora-state from-cache]]
             [aurora.util.core :refer [cycling-move]]))
 

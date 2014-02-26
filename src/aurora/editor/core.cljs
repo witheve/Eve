@@ -90,12 +90,19 @@
 (defn remove-page! [notebook page]
   (swap! page assoc :pages (vec (remove #{(:id @page)} (:pages @notebook)))))
 
-(defn add-step! [page info]
+(defn add-step! [page info & [before]]
   (try
     (let [step (merge {:id (compiler/new-id)} info)]
       (when (ast/step! (:index @aurora-state) step)
         (add-index! step)
-        (js/aurora.editor.cursors.swap! page update-in [:steps] conj (:id step))
+        (if before
+          (js/aurora.editor.cursors.swap! (conj page :steps) (fn [steps]
+                                                               (vec (concat (take-while #(not= before %)
+                                                                                        steps)
+                                                                            [(:id step)]
+                                                                            (drop-while #(not= before %)
+                                                                                        steps)))))
+          (js/aurora.editor.cursors.swap! page update-in [:steps] conj (:id step)))
         step))
     (catch :default e
       (.error js/console (pr-str e)))))

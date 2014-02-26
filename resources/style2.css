@@ -215,7 +215,7 @@ button:hover { background:#ddd; }
 
 .map-editor { display:inline-block; vertical-align:middle; }
 .add-map-key { display:inline-block; width:100%; overflow:hidden; border-bottom-left-radius:3px; border-bottom-right-radius:3px; }
-.add-map-key { overflow:hidden; display:block; }
+.add-map-key { overflow:hidden; display:block; display:none; }
 .add-map-key .value { width:100%; border:none; }
 .map-editor:hover .add-map-key { height:30px; border:1px solid #cecece; border-top:none; }
 .map-editor:hover .map { border-bottom-left-radius:0px; border-bottom-right-radius:0px; }
@@ -270,9 +270,11 @@ button:hover { background:#ddd; }
 .stack-next { flex:1; display:-webkit-flex; align-items:top; justify-content:center;}
 .stack-next > * { display:inline-block; flex:0 0 auto; margin:0 30px;}
 
+.match-bind { background:#90C9F0; }
+
 
 .graph-ui { display:-webkit-flex; flex-direction:column; }
-.graph-ui .layer { display:-webkit-flex; align-items:center; justify-content:center; padding:50px 0; }
+.graph-ui .layer { display:-webkit-flex; align-items:flex-start; justify-content:center; padding:50px 0; }
 .graph-ui .layer-step { margin:0 30px; }
 
 .math-expression .value { border:1px solid transparent; margin:0; }

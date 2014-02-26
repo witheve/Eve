@@ -30,6 +30,9 @@
    :action (or action {:type :constant
                        :data "wheeee"})})
 
+(defn match-capture [id]
+  {:type :match/bind :id id :pattern {:type :match/any}})
+
 (defn match [arg pattern action]
   {:type :match
    :arg (or arg "foo")

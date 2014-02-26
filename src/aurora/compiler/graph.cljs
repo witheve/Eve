@@ -42,11 +42,17 @@
                  (set))
         layers (atom (zipmap all (repeat 0)))
         final (atom (sorted-map))]
-    (doseq [id all
-            :let [my-layer (@layers id)]
-            parent (-> graph :in (get id))]
-      (when (>= (@layers parent) my-layer)
-        (swap! layers assoc-in [id] (inc (@layers parent)))))
+    (loop [cur @layers
+           prev nil
+           i 0]
+      (when (and (not= prev cur)
+                 (< i 10))
+        (doseq [id all
+                :let [my-layer (@layers id)]
+                parent (-> graph :in (get id))]
+          (when (>= (@layers parent) my-layer)
+            (swap! layers assoc-in [id] (inc (@layers parent)))))
+        (recur @layers cur (inc i))))
     (doseq [[id layer] @layers]
       (swap! final update-in [layer] set/union #{id})
       )
