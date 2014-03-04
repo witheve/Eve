@@ -6,7 +6,8 @@
 
 (def rules
   ;; NOTE this is hand-stratified
-  [[(required :page :page/args :page/steps)
+  [[(required :notebook :notebook/description :notebook/pages)
+    (required :page :page/args :page/steps)
     (required :match :match/arg :match/branches)
     (required :branch :branch/pattern :branch/guards :branch/action)
     (required :call :call/fun :call/args)
@@ -16,6 +17,8 @@
     (exclusive :pattern :data :pattern/any :pattern/bind :pattern/vector :pattern/map)]
 
    [(exclusive :step? :data :call :match)]
+
+   [(rule [?notebook :notebook/pages ?pages] (:in ?page ?pages) :return [page :notebook/page notebook])]
 
    [(rule [?page :page/args ?args] (:in ?arg ?args) :return [arg :arg page])
     (rule [?page :page/steps ?steps] (:in ?step ?steps) :return [step :step page])]
@@ -51,7 +54,9 @@
     })
 
 (def example-a
-  #{[:root :page/args [:arg_a :arg_b :arg_c]]
+  #{[:root_notebook :notebook/description "wooohoo"]
+    [:root_notebook :notebook/pages [:root]]
+    [:root :page/args [:arg_a :arg_b :arg_c]]
     [:root :page/steps [:b_squared :four :four_a_c :result]]
     [:b_squared :call/fun :fun_mult]
     [:b_squared :call/args [:arg_b :arg_b]]
@@ -66,7 +71,9 @@
 (q* (datalog/knowledge (clojure.set/union stdlib example-a) rules) [?id :page true] :return id)
 
 (def example-b
-  #{[:root :page/args [:arg_x]]
+  #{[:root_notebook :notebook/description "wooohoo"]
+    [:root_notebook :notebook/pages [:root :vec]]
+    [:root :page/args [:arg_x]]
     [:root :page/steps [:result]]
     [:result :match/arg :arg_x]
     [:result :match/branches [:branch_map :branch_nested]]
@@ -108,4 +115,4 @@
 
 (errors (datalog/knowledge (clojure.set/union stdlib example-b) rules))
 
-(q* (datalog/knowledge (clojure.set/union stdlib example-b) rules) [?id :match true] :return id)
+(q* (datalog/knowledge (clojure.set/union stdlib example-b) rules) [:vec :notebook/page ?id] :return id)
