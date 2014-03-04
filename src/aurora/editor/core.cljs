@@ -1,6 +1,6 @@
 (ns aurora.editor.core
-  (:require [aurora.compiler.ast :as ast]
-            [aurora.compiler.compiler :as compiler]
+  (:require [aurora.compiler.compiler :as compiler]
+            [aurora.compiler.code :as code]
             [cljs.reader :as reader]))
 
 (enable-console-print!)
@@ -18,7 +18,7 @@
                     :document true
                     :open-paths {}
                     :cache {}
-                    :index ast/core
+                    :index #{}
                     :notebooks []})
 
 (def cache (atom {}))
@@ -58,58 +58,6 @@
 (defn add-index! [thing]
   (swap! aurora-state assoc-in [:index (:id thing)] thing))
 
-(defn add-notebook! [desc]
-  (let [notebook {:type :notebook
-                  :id (compiler/new-id)
-                  :desc desc
-                  :pages []}]
-    (when (ast/notebook! (:index @aurora-state) notebook)
-      (add-index! notebook)
-      (js/aurora.editor.cursors.swap! aurora-state update-in [:notebooks] conj (:id notebook))
-      (add-input! (:id notebook) :desc)
-      notebook)))
-
-(defn remove-notebook! [notebook]
-  (swap! aurora-state update-in [:notebooks] #(vec (remove #{(:id notebook)} %))))
-
-(defn add-page! [notebook desc & [opts]]
-  (let [page (merge {:type :page
-                     :id (compiler/new-id)
-                     :tags (if-not (:anonymous opts)
-                             #{:page}
-                             #{})
-                     :args []
-                     :desc desc
-                     :steps []}
-                    opts)]
-    (when (ast/page! (:index @aurora-state) page)
-      (add-index! page)
-      (js/aurora.editor.cursors.swap! notebook update-in [:pages] conj (:id page))
-      page)))
-
-(defn remove-page! [notebook page]
-  (swap! page assoc :pages (vec (remove #{(:id @page)} (:pages @notebook)))))
-
-(defn add-step! [page info & [before]]
-  (try
-    (let [step (merge {:id (compiler/new-id)} info)]
-      (when (ast/step! (:index @aurora-state) step)
-        (add-index! step)
-        (if before
-          (js/aurora.editor.cursors.swap! (conj page :steps) (fn [steps]
-                                                               (vec (concat (take-while #(not= before %)
-                                                                                        steps)
-                                                                            [(:id step)]
-                                                                            (drop-while #(not= before %)
-                                                                                        steps)))))
-          (js/aurora.editor.cursors.swap! page update-in [:steps] conj (:id step)))
-        step))
-    (catch :default e
-      (.error js/console (pr-str e)))))
-
-(defn remove-step! [page step]
-  (js/aurora.editor.cursors.swap! page assoc :steps (vec (remove #{(:id @step)} (:steps @page)))))
-
 ;;*********************************************************
 ;; Aurora state (storage!)
 ;;*********************************************************
@@ -132,7 +80,7 @@
                 state)]
     (-> state
         (assoc-in [:cache :representations] @representations-cache)
-        (update-in [:index] merge ast/core))))
+        (update-in [:index] merge code/stdlib))))
 
 (defn repopulate []
   (let [stored (aget js/localStorage "aurora-state")]
@@ -146,8 +94,9 @@
 (defn clear-storage! []
   (aset js/localStorage "aurora-state" nil))
 
-(add-watch aurora-state :storage (fn [_ _ _ cur]
-                                   (store! cur)))
+(add-watch aurora-state :storage (js/Cowboy.debounce 1000
+                                                     (fn [_ _ _ cur]
+                                                      (store! cur))))
 
 
 

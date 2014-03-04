@@ -1,4 +1,5 @@
-(ns aurora.compiler.match)
+(ns aurora.compiler.match
+  (:require cljs.compiler))
 
 (defn test [pred]
   `(when-not ~pred (throw (aurora.compiler.match.MatchFailure.))))
@@ -16,13 +17,21 @@
    (coll? form) (apply clojure.set/union (map ->vars form))
    :else #{}))
 
+(defn constant? [form]
+  (cond
+   (and (seq? form) (= 'quote (first form))) true
+   (var? form) false
+   (= '_ form) false
+   (coll? form) (every? constant? form)
+   :else true))
+
 (defn pattern->cljs [pattern input]
   (cond
    (= '_ pattern)
    nil
 
    (var? pattern)
-   `(~'js* ~(str (->var pattern) " = ~{}") ~input)
+   `(~'js* ~(str (cljs.compiler/munge (->var pattern)) " = ~{}") ~input)
 
    (or (true? pattern)
        (false? pattern)
@@ -48,13 +57,13 @@
    `(do
       ~(test `(map? ~input))
       ~@(for [key (keys pattern)]
-          (do (assert (not (var? key)))
+          (do (assert (not (var? key)) (pr-str key))
             (let [value (gensym "value")]
               `(let [~value (get ~input ~key ~::not-found)]
                  ~(test `(not= ~::not-found ~value))
                  ~(pattern->cljs (get pattern key) value))))))
 
-   :else (assert false)))
+   :else (assert false (pr-str pattern))))
 
 (defn match->cljs [patterns guards actions input]
   (let [input-sym (gensym "input")

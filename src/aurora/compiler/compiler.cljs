@@ -1,264 +1,219 @@
 (ns aurora.compiler.compiler
-  (:require [aurora.compiler.jsth :as jsth]
-            [aurora.compiler.ast :as ast]
-            [aurora.util.core :refer [map!]])
-  (:require-macros [aurora.macros :refer [for! check deftraced]]))
+  (:require [clojure.walk :refer [postwalk-replace]]
+            [aurora.compiler.jsth :as jsth]
+            [aurora.compiler.datalog :as datalog]
+            [aurora.compiler.schema :as schema]
+            [aurora.compiler.code :as code])
+  (:require-macros [aurora.macros :refer [for! check deftraced]]
+                   [aurora.compiler.datalog :refer [rule q1 q* q?]]))
 
-;; compiler
+;; ids
 
 (let [next (atom 0)]
   (defn new-id []
-    (if js/self.uuid
-      (.replace (js/self.uuid) (js/RegExp. "-" "gi") "_")
-      (str (swap! next inc)))))
+    (if js/window.uuid
+      (.replace (js/uuid) (js/RegExp. "-" "gi") "_")
+      (swap! next inc))))
 
 (deftraced id->value [id] [id]
   (check id)
-  (symbol (str "value_" id)))
+  (symbol (str "value_" (name id))))
 
-(deftraced id->temp [id] [id]
-  (check id)
-  (symbol (str "temp_" id)))
+;; compiler
 
-(deftraced ref->jsth [index x] [x]
-  (case (:type x)
-    :ref/id (id->value (:id x))
-    :ref/js (symbol (:js x))
-    (check false)))
+(defn jsth? [value]
+  true ;; TODO not very helpful
+  )
 
-(deftraced tag->jsth [index x] [x]
-  `(cljs.core.keyword ~(:id x) ~(:name x)))
+(defn chain [& forms]
+  (reduce
+   (fn [tail form]
+     (clojure.walk/postwalk-replace {::tail tail} form))
+   (concat (reverse forms) [::tail])))
 
-(deftraced data->jsth [index x] [x]
-  (cond
-   (= :tag (:type x)) (tag->jsth index x)
-   (#{:ref/id :ref/js} (:type x)) (ref->jsth index x)
-   (or (true? x) (false? x)) x
-   (number? x) x
-   (string? x) x
-   ;;it's a table
-   (get x "headers") `(aurora.runtime.table.table.call nil (cljs.core.PersistentVector.fromArray
-                                              ~(vec (map! #(data->value-jsth index %) (x "headers"))))
-                                             (cljs.core.PersistentVector.fromArray
-                                              ~(vec (map! #(data->value-jsth index %) (x "columns"))))
-                                             (cljs.core.PersistentVector.fromArray
-                                              ~(vec (map! #(data->value-jsth index %) (x "rows"))))
-                                             )
-   (vector? x) `(cljs.core.PersistentVector.fromArray
-                 ~(vec (map! #(data->jsth index %) x)))
-   (map? x) `(cljs.core.PersistentHashMap.fromArrays
-              ~(vec (map! #(data->jsth index %) (keys x)))
-              ~(vec (map! #(data->jsth index %) (vals x))))
-   :else (check false)))
+(def schemas
+  [(schema/has-one :jsth/page (schema/is! jsth?))
+   (schema/has-one :jsth/step (schema/is! jsth?))
+   (schema/has-one :jsth/pattern (schema/is! jsth?))
+   (schema/has-one :jsth/branch (schema/is! jsth?))
+   (schema/has-one :jsth/guards (schema/is! jsth?))])
 
-(deftraced constant->jsth [index x id] [x id]
-  (check (= :constant (:type x)))
-  `(let! ~(id->value id) ~(data->jsth index (:data x))))
+(def data-rules
+  [(rule [?e :data/nil _]
+         :return
+         [e :jsth/step nil])
+   (rule [?e :data/number ?number]
+         :return
+         [e :jsth/step number])
+   (rule [?e :data/text ?text]
+         :return
+         [e :jsth/step text])
+   (rule [?e :data/vector ?elems]
+         :return
+         [e :jsth/step `(cljs.core.PersistentVector.fromArray
+                       ~(vec (map id->value elems)))])
+   (rule [?e :data/map ?keys&vals]
+         :return
+         [e :jsth/step `(cljs.core.PersistentHashMap.fromArrays
+                       ~(vec (map id->value (keys keys&vals)))
+                       ~(vec (map id->value (vals keys&vals))))])])
 
-(deftraced js-data->jsth [index x] [x]
-  (cond
-   (nil? x) nil
-   :else (data->jsth index x)))
+(def call-rules
+  [(rule [?e :call/fun ?fun]
+         [?e :call/args ?args]
+         :return
+         [e :jsth/step `(~(id->value fun) ~@(map id->value args))])])
 
-(deftraced call->jsth [index x id] [x id]
-  (let [arg->jsth (case (:type (:ref x))
-                    :ref/id data->jsth
-                    :ref/js js-data->jsth
-                    (check false))] ;; allowed to use nil when calling cljs
-    `(let! ~(id->value id) (~(data->jsth index (:ref x)) ~@(map! #(arg->jsth index %) (:args x))))))
+(def match-rules
+  ;; NOTE lack of subqueries hurts here
+  [[(rule [?e :pattern/any _]
+          :return
+          [e :jsth/pattern ::tail])
+    (rule [?e :data/number ?number]
+          :return
+          [e :jsth/pattern `(if (= ::arg ~number) ::tail)])
+    (rule [?e :data/text ?text]
+          :return
+          [e :jsth/pattern `(if (= ::arg ~text) ::tail)])]
+   [(rule
+     [?e :pattern/vector ?elems]
+     (:collect ?jsth-elems [(:in ?i (range (count ?elems)))
+                            [(nth elems i) :jsth/pattern ?jsth-elem]
+                            :return [i (nth elems i) jsth-elem]])
+     (= (count elems) (count jsth-elems))
+     :return
+     [e :jsth/pattern `(if (cljs.core.vector_QMARK_ ::arg)
+                         (if (= ~(count elems) (cljs.core.count ::arg))
+                           ~(apply chain
+                                   (for [[i elem jsth-elem] jsth-elems]
+                                     `(do
+                                        (let! ~(id->value elem) (cljs.core.nth ::arg ~i))
+                                        ~(postwalk-replace {::arg (id->value elem)} jsth-elem))))))])
+    (rule
+     [?e :pattern/map ?keys&vals]
+     (:collect ?jsth-keys&vals [(:in ?key (keys ?keys&vals))
+                                [?key :jsth/step ?jsth-key]
+                                [(get ?keys&vals ?key) :jsth/pattern ?jsth-val]
+                                :return
+                                [key jsth-key (get keys&vals key) jsth-val]])
+     (= (count keys&vals) (count jsth-keys&vals))
+     :return
+     [e :jsth/pattern `(if (cljs.core.map_QMARK_ ::arg)
+                         ~(apply chain
+                                 (for [[key jsth-key val jsth-val] jsth-keys&vals]
+                                   `(do
+                                      (let! ~(id->value key) ~jsth-key)
+                                      (if (cljs.core.contains_QMARK_ ::arg ~(id->value key))
+                                        (do
+                                          (let! ~(id->value val) (cljs.core.get ::arg ~(id->value key)))
+                                          ~(postwalk-replace {::arg (id->value val)} jsth-val)))))))])]
+   [(rule
+     [?e :branch/guards ?guards]
+     (:collect ?jsth-guards [(:in ?guard ?guards)
+                             [?guard :jsth/step ?jsth-guard]
+                             :return
+                             jsth-guard])
+     (= (count guards) (count jsth-guards))
+     :return
+     [e :jsth/guards (apply chain (for [jsth-guard jsth-guards] `(if ~jsth-guard ::tail)))])]
+   [(rule [?e :branch/pattern ?pattern]
+          [?pattern :jsth/pattern ?jsth-pattern]
+          [?e :branch/guards ?guards]
+          [?e :jsth/guards ?jsth-guards] ;; cant attach directly to guards :(
+          [?e :branch/action ?action]
+          [?action :jsth/step ?jsth-action]
+          :return
+          [e :jsth/branch `(do
+                             ~(chain jsth-pattern jsth-guards `(return ~jsth-action))
+                             ::tail)])]
+   [(rule
+     [?e :match/arg ?arg]
+     [?e :match/branches ?branches]
+     (:collect ?jsth-branches [(:in ?branch ?branches)
+                               [?branch :jsth/branch ?jsth-branch]
+                               :return
+                               jsth-branch])
+     (= (count branches) (count jsth-branches))
+     :return
+     [e :jsth/step `((fn [~(id->value arg)]
+                       ~(postwalk-replace {::arg (id->value arg)} (apply chain (concat jsth-branches [`(throw "failed")]))))
+                     ~(id->value arg))])]])
 
-(deftraced test->jsth [pred] [pred]
-  `(if (not ~pred) (throw failure)))
+(def page-rules
+  [(fn [kn]
+     (q* kn
+         [?e :page/args ?args]
+         [?e :page/steps ?steps]
+         (every? #(seq (datalog/has kn % :jsth/step)) steps) ;; hack to prevent q1 blowing up
+         :return
+         (let [jsth-steps (for [step steps]
+                            (q1 kn
+                                [step :jsth/step ?jsth-step]
+                                :return
+                                `(let! ~(id->value step) ~jsth-step)))]
+           [e :jsth/page `(fn ~(id->value e) [~@(map id->value args)]
+                            (do ~@jsth-steps
+                              (return ~(id->value (last steps)))))])))])
 
-(deftraced pattern->jsth [index x input] [x input]
-  (cond
-   (= :match/any (:type x)) `(do)
-   (= :match/bind (:type x)) `(do
-                                (let! ~(id->value (:id x)) ~(id->value input))
-                                (set! (.. frame.vars ~(id->value (:id x))) ~(id->value (:id x)))
-                                ~(pattern->jsth index (:pattern x) input))
-   (= :tag (:type x)) (test->jsth `(= ~(tag->jsth index x) ~(id->value input)))
-   (= :ref/id (:type x)) (test->jsth `(= ~(ref->jsth index x) ~(id->value input)))
-   (or (true? x) (false? x)) (test->jsth `(= ~x ~(id->value input)))
-   (number? x) (test->jsth `(= ~x ~(id->value input)))
-   (string? x) (test->jsth `(= ~x ~(id->value input)))
-   (vector? x) `(do
-                  ~(test->jsth `(cljs.core.vector_QMARK_.call nil ~(id->value input)))
-                  ~(test->jsth `(= ~(count x) (cljs.core.count.call nil ~(id->value input))))
-                  ~@(for! [i (range (count x))]
-                          (let [new-input (new-id)]
-                            `(do
-                               (let! ~(id->value new-input) (cljs.core.nth.call nil ~(id->value input) ~i))
-                               ~(pattern->jsth index (nth x i) new-input)))))
-   (map? x) `(do
-               ~(test->jsth `(cljs.core.map_QMARK_.call nil ~(id->value input)))
-               ~@(for! [k (keys x)]
-                       (let [k-id (new-id)
-                             new-input (new-id)]
-                         `(do
-                            (let! ~(id->temp k-id) ~(data->jsth index k))
-                            ~(test->jsth `(cljs.core.contains_QMARK_.call nil ~(id->value input) ~(id->temp k-id)))
-                            (let! ~(id->value new-input) (cljs.core.get.call nil ~(id->value input) ~(id->temp k-id)))
-                            ~(pattern->jsth index (get x k) new-input)))))
-   :else (check false)))
+(def rules
+  `[~data-rules
+    ~call-rules
+    ~@match-rules
+    ~page-rules])
 
-(deftraced action->jsth [index x id] [x id]
-  (case (:type x)
-    :call (call->jsth index x id)
-    :constant (constant->jsth index x id)
-    (check false)))
+(def one-rule
+  (rule
+   (:collect ?primitives [[?e :js/name ?name] :return [e name]])
+   (:collect ?pages [[?e :jsth/page ?jsth-page] :return [e jsth-page]])
+   :return
+   `((fn []
+       (do
+         (let! program {})
+         ~@(for [[e name] primitives]
+             `(do
+                (let! ~(id->value e) ~(symbol name))
+                (set! (.. program ~(id->value e)) ~(id->value e))))
+         ~@(for [[e jsth-page] pages]
+             `(do
+                ~jsth-page
+                (set! (.. program ~(id->value e)) ~(id->value e))))
+         (return program))))))
 
-(deftraced guard->jsth [index x] [x]
-  (check (= :call (:type x)))
-  (let [temp (new-id)]
-    `(do
-       ~(call->jsth index x temp)
-       ~(test->jsth (id->value temp)))))
+(defn compile [facts]
+  (one-rule (datalog/knowledge facts (concat code/rules rules))))
 
-(deftraced match->jsth [index x id] [x id]
-  (check (= :match (:type x)))
-  (let [input (new-id)]
-    `(do
-       ~(constant->jsth index {:type :constant :data (:arg x)} input)
-       ~(reduce
-         (fn [tail [branch-index branch]]
-           (let [exception (new-id)]
-             `(try
-                (do
-                  ~(pattern->jsth index (:pattern branch) input)
-                  ~@(for! [guard (:guards branch)]
-                          (guard->jsth index guard))
-                  (set! (.. frame.matches ~(id->value id)) ~branch-index)
-                  ~(action->jsth index (:action branch) id)) ;; TODO this could throw match failure too
-                (catch ~(id->temp exception)
-                  (if (== ~(id->temp exception) failure)
-                    ~tail
-                    (throw ~(id->temp exception)))))))
-         `(throw failure)
-         (reverse (map-indexed vector (:branches x)))))))
-
-(deftraced math-expression->jsth [index x] [x]
-  (if (vector? x)
-    `(~@(map #(math-expression->jsth index %) x))
-    (data->jsth index x)))
-
-(deftraced math->jsth [index x id] [x id]
-  (check (= :math (:type x))
-         (:expression x))
-  `(let! ~(id->value id) ~(math-expression->jsth index (:expression x))))
-
-(deftraced step->jsth [index x id] [x id]
-  (case (:type x)
-    :call (call->jsth index x id)
-    :constant (constant->jsth index x id)
-    :match (match->jsth index x id)
-    :math (math->jsth index x id)
-    (check false)))
-
-(deftraced page->jsth [index x id] [x id]
-  (check (= :page (:type x)))
-  `(fn ~(id->value id) [~@(map! id->value (:args x))]
-     (do
-       (let! stack notebook.stack)
-       (let! frame {})
-       (set! frame.id ~id)
-       (set! frame.calls [])
-       (set! frame.vars {})
-       (set! frame.matches {})
-       (stack.push frame)
-       (set! notebook.stack frame.calls)
-       ~@(for! [arg (:args x)]
-               `(set! (.. frame.vars ~(id->value arg)) ~(id->value arg)))
-       ~@(for! [step-id (:steps x)]
-               `(try
-                  (do
-                    ~(step->jsth index (get index step-id) step-id)
-                    (set! (.. frame.vars ~(id->value step-id)) ~(id->value step-id)))
-                  (catch ~(symbol "__e__")
-                    (do
-                      (set! frame.exception [~step-id ~(symbol "__e__")])
-                      (throw ~(symbol "__e__"))))))
-       (set! notebook.stack stack))
-     ~(if (-> x :steps seq)
-        (-> x :steps last id->value)
-        nil) ;; uh, what does an empty page return?
-     ))
-
-(deftraced notebook->jsth [index x] [x]
-  (check (= :notebook (:type x)))
-  `(fn nil []
-     (do
-       (let! notebook {})
-       (let! failure "MatchFailure!")
-       (fn value_get [cursor]
-         (let! result (cljs.core.get_in nil notebook.state cursor))
-         result)
-       (fn value_put [cursor value]
-         (set! notebook.state (cljs.core.assoc_in nil notebook.state cursor value))
-         result)
-       ~@(for! [page-id (:pages x)]
-               `(do
-                  ~(page->jsth index (get index page-id) page-id)
-                  (set! (.. notebook ~(id->value page-id)) ~(id->value page-id)))))
-     notebook))
-
-;; runtime
-
-(defn see [state watchers]
-  (dissoc
-   (reduce
-    (fn [state watcher] (watcher state))
-    state
-    watchers)
-   "output"))
-
-(defn tick [index id state watchers]
-  (let [jsth (notebook->jsth index (get index id))
-        source (jsth/expression->string jsth)
-;;         _ (println "###################")
-;;         _ (println jsth)
-;;         _ (println source)
-        notebook (js/eval (str "(" source "());"))
-        stack #js []]
-    (aset notebook "state" state)
-    (aset notebook "stack" stack)
-    (try
-      (.value_root notebook)
-      (let [next-state (.-state notebook)]
-        [(see next-state) next-state (aget stack 0)])
-      (catch :default e
-        (let [next-state (.-state notebook)]
-          [e next-state (aget stack 0)])))))
-
-;; watchers
-
-(defn watch-timeout* [buffer state]
-  (doseq [{:strs [cursor timeout]} (get-in state ["output" "timeout"])]
-    (js/setTimeout (fn [] (swap! buffer conj cursor)) timeout))
-  (let [cursors @buffer] ;; this is only valid because js is single-threaded
-    (reset! buffer nil)
-    (reduce #(assoc-in %1 %2 "timeout") state cursors)))
-
-(defn watch-timeout []
-  (let [buffer (atom [])]
-    #(watch-timeout* buffer %)))
-
-
-;; examples
+(defn knowledge->js [facts]
+  (-> (compile facts)
+      first
+      (jsth/expression->string)))
 
 (comment
 
-  (tick ast/example-b "example_b" {"a" 1 "b" 2})
-  (tick ast/example-b "example_b" {"a" 1 "c" 2})
-  (tick ast/example-b "example_b" {"a" 1 "b" "foo"})
-  (tick ast/example-b "example_b" {"vec" [1 "foo"]})
-  (tick ast/example-b "example_b" {"vec" [1 2]})
+  (-> (clojure.set/union code/stdlib code/example-a)
+      (datalog/knowledge (concat code/rules rules))
+      one-rule
+      first
+      (jsth/expression->string)
+      #_js/console.log
+      js/eval
+      (.value_root 1 2 3))
 
-  (tick ast/example-c "example_c" {"counter" 0})
+  (-> (clojure.set/union code/stdlib code/example-b)
+      (datalog/knowledge (concat code/rules rules))
+      one-rule
+      first
+      (jsth/expression->string)
+      #_js/console.log
+      js/eval
+      (.value_root {"a" 1 "b" 2}))
 
-  (tick ast/example-math "example_math" {})
+(-> (clojure.set/union code/stdlib code/example-b)
+    (datalog/knowledge (concat code/rules rules))
+    one-rule
+    first
+    (jsth/expression->string)
+    #_js/console.log
+    js/eval
+    (.value_root {"a" 1 "c" 2}))
 
-  (->> {"counter" 0} (tick ast/example-c "example_c") first (tick ast/example-c "example_c") first (tick ast/example-c "example_c") first)
   )
-
-;; (tick ast/example-e {"counter" 0 "started_" "false"})

@@ -19,9 +19,10 @@
         <meta name="viewport" content="initial-scale=1">
       <link href="ionicons.css" rel="stylesheet" type="text/css"></link>
       <link href="style2.css" rel="stylesheet" type="text/css"></link>
-<script type='text/javascript' id='lt_ws' src='http://localhost:58957/socket.io/lighttable/ws.js'></script>
+<script type='text/javascript' id='lt_ws' src='http://localhost:62962/socket.io/lighttable/ws.js'></script>
   </head>
   <body>
+      <div class="hiddenthing"></div>
       <div id="wrapper">
       </div>
       <table id="perf">
@@ -38,6 +39,10 @@
               <td id="run-perf"><td/>
           </tr>
       </dl>
+      <script type="text/javascript">
+          require("nw.gui").Window.get().showDevTools();
+      </script>
+      <script src="throttle.js" type="text/javascript"> </script>
       <script src="uuid.js" type="text/javascript"> </script>
       <script src="keyevents.js" type="text/javascript"> </script>
       <script src="chart.js" type="text/javascript"> </script>

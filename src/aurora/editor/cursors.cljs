@@ -73,20 +73,19 @@
   (.-id c))
 
 (defn cursor-swap! [cursor args]
-  (println "Cursor swap: " (-index-path cursor))
   (when (mutable? cursor)
     (let [path (-index-path cursor)
           map-key? (map-key-path? path)
-          _ (println "Swapping cursor" map-key? path)
           root-value @(.-atm cursor)
-          neue-value (apply (first args) @cursor (rest args))]
-
-      (if map-key?
-        (swap! (.-atm cursor) assoc-in (butlast path) (-> (get-in root-value (butlast path))
-                                                          (dissoc map-key?)
-                                                          (assoc neue-value (or (get-in root-value (concat (butlast path) [map-key?]))
-                                                                                ""))))
-        (swap! (.-atm cursor) assoc-in path neue-value)))))
+          cur-value @cursor
+          neue-value (apply (first args) cur-value (rest args))]
+      (when (not= cur-value neue-value)
+        (if map-key?
+          (swap! (.-atm cursor) assoc-in (butlast path) (-> (get-in root-value (butlast path))
+                                                            (dissoc map-key?)
+                                                            (assoc neue-value (or (get-in root-value (concat (butlast path) [map-key?]))
+                                                                                  ""))))
+          (swap! (.-atm cursor) assoc-in path neue-value))))))
 
 (defn swap! [atm & args]
   (if-not (satisfies? ICursor atm)

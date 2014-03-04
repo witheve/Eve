@@ -158,6 +158,11 @@
     (.-scrollTop elem)
     (set! (.-scrollTop elem) v)))
 
+(defn scroll-left [elem & [v]]
+  (if-not v
+    (.-scrollLeft elem)
+    (set! (.-scrollLeft elem) v)))
+
 (defn top [elem]
   (css elem :top))
 

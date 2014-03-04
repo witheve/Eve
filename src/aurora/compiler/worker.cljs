@@ -1,7 +1,6 @@
 (ns aurora.compiler.worker
   (:require [aurora.util.core :as util]
             [aurora.compiler.compiler :as compiler]
-            [aurora.compiler.jsth :as jsth]
             [cljs.reader :as reader]))
 
 (defn now []
@@ -11,9 +10,7 @@
   (let [start (now)
         {:keys [notebook index]} (reader/read-string data)]
     (try
-      (let [compl-str (->> (compiler/notebook->jsth index (get index notebook))
-                           (jsth/expression->string))]
-
+      (let [compl-str (compiler/knowledge->js index)]
         (js/self.postMessage #js {:time (- (now) start)
                              :source compl-str}))
       (catch :default e

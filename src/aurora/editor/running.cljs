@@ -123,16 +123,16 @@
                                   (second))))
           ))))
 
-(add-watch aurora-state :running (fn [_ _ _ cur]
-                                   (println last-page (:page cur))
-                                   (when (and (:notebook cur) (:page cur))
-                                     (cond
-                                      (not (identical? prev (:index cur))) (send-off-compile (:index cur) (:notebook cur))
-                                      (not= last-page (:page cur)) (do
-                                                                     (set! last-page (:page cur))
-                                                                     (re-run))
-                                      :else  (comment
-                                               (set! (.-innerHTML (js/document.getElementById "compile-perf")) "n/a")
-                                               (set! (.-innerHTML (js/document.getElementById "run-perf")) "n/a"))))
-                                   (set! prev (:index cur))
-                                   (set! last-page (:page cur))))
+(add-watch aurora-state :running (js/Cowboy.debounce 100 (fn [_ _ _ cur]
+                                                           (println last-page (:page cur))
+                                                           (when (and (:notebook cur) (:page cur))
+                                                             (cond
+                                                              (not (identical? prev (:index cur))) (send-off-compile (:index cur) (:notebook cur))
+                                                              (not= last-page (:page cur)) (do
+                                                                                             (set! last-page (:page cur))
+                                                                                             (re-run))
+                                                              :else  (comment
+                                                                       (set! (.-innerHTML (js/document.getElementById "compile-perf")) "n/a")
+                                                                       (set! (.-innerHTML (js/document.getElementById "run-perf")) "n/a"))))
+                                                           (set! prev (:index cur))
+                                                           (set! last-page (:page cur)))))
