@@ -18,7 +18,7 @@
 
    [(exclusive :step? :data :call :match)]
 
-   [(rule [?notebook :notebook/pages ?pages] (:in ?page ?pages) :return [page :notebook/page notebook])]
+   [(rule [?notebook :notebook/pages ?pages] (:in ?page ?pages) :return [page :page/notebook notebook])]
 
    [(rule [?page :page/args ?args] (:in ?arg ?args) :return [arg :arg page])
     (rule [?page :page/steps ?steps] (:in ?step ?steps) :return [step :step page])]
