@@ -27,8 +27,10 @@
   (assert (empty? (match/->vars collection)) (str "Not ground: " (pr-str collection)))
   (let [elem (gensym "elem")]
     `(doseq [~elem ~collection]
-       ~(match/pattern->cljs pattern elem)
-       ~tail)))
+       (try
+         ~(match/pattern->cljs pattern elem)
+         ~tail
+         (catch aurora.compiler.match.MatchFailure e#)))))
 
 (defn collect->cljs [[_ binding collected] knowledge tail]
   `(let [~(match/->var binding) (into #{} ~(query->cljs collected knowledge))]
