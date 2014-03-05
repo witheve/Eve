@@ -18,7 +18,7 @@
 (defn bind-in [pattern bound]
   (cond
    (and (seq? pattern) (= 'quote (first pattern))) pattern
-   (bound (match/->var pattern)) (match/->var pattern)
+   (and (match/var? pattern) (bound (match/->var pattern))) (match/->var pattern)
    (seq? pattern) (into nil (reverse (map #(bind-in % bound) pattern)))
    (coll? pattern) (into (empty pattern) (map #(bind-in % bound) pattern))
    :else pattern))

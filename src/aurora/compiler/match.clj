@@ -8,6 +8,7 @@
   (and (symbol? form) (= "?" (.substring (str form) 0 1))))
 
 (defn ->var [form]
+  (assert (symbol? form))
   (symbol (.substring (str form) 1)))
 
 (defn ->vars [form]
