@@ -4,12 +4,7 @@
   (:require-macros [aurora.macros :refer [check deftraced]]
                    [aurora.compiler.match :refer [match]]))
 
-(defn vars [form]
-  (cond
-   (and (seq? form) (= 'quote (first form))) #{}
-   (symbol? form) #{form}
-   (coll? form) (apply clojure.set/union (map ->vars form))
-   :else #{}))
+(defrecord MatchFailure [input])
 
 (defn chain [& forms]
   (reduce
@@ -20,7 +15,7 @@
 (deftraced data->jsth [pattern] [pattern]
   (cond
    (or (number? pattern) (string? pattern)) pattern
-   (keyword? pattern) `(new (cljs.core.Keyword ~(namespace pattern) ~(name pattern) ~(str (namespace pattern) "/" (name pattern)) ~(hash pattern)))
+   (keyword? pattern) `(new (cljs.core.Keyword ~(namespace pattern) ~(name pattern) ~(str (namespace pattern) (if (namespace pattern) "/" "") (name pattern)) ~(hash pattern)))
    (vector? pattern) `(cljs.core.PersistentVector.fromArray
                        ~(vec (map data->jsth pattern)))
    (map? pattern) `(cljs.core.PersistentHashMap.fromArrays
@@ -50,7 +45,7 @@
                                `(do
                                   (let! ~key-sym ~(data->jsth key))
                                   (let! ~val-sym (cljs.core.get ::input ~key-sym ~(data->jsth ::not-found)))
-                                  (if (not (cljs.core.keyword-identical? ~key-sym ~(data->jsth ::not-found)))
+                                  (if (not (cljs.core.keyword-identical? ~val-sym ~(data->jsth ::not-found)))
                                     ~(postwalk-replace {::input val-sym} (pattern->jsth val)))))))
    :else (check false)))
 
@@ -61,15 +56,17 @@
     (js/Function (jsth/munge input-sym) (jsth/statement->string `(do ~success ~failure)))))
 
 (comment
+  ((pattern '[a _ b] '[a b]) [1 2 3])
+
   (match 1
          2 :no
          1 :ok)
 
   (match [1 2 3]
-         [_ ?x ?y] :when (= x y) [:eq x y]
-         [_ ?x ?y] [:neq x y])
+         [_ x y] :when (= x y) [:eq x y]
+         [_ x y] [:neq x y])
 
   (match {:a 0 :b [1 2]}
          {:c _} :bad
-         {:b [?x ?y]} [x y])
+         {:b [x y]} [x y])
   )

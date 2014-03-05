@@ -1,88 +1,28 @@
-(ns aurora.compiler.match
-  (:require cljs.compiler))
+(ns aurora.compiler.match)
 
-(defn test [pred]
-  `(when-not ~pred (throw (aurora.compiler.match.MatchFailure.))))
-
-(defn var? [form]
-  (and (symbol? form) (= "?" (.substring (str form) 0 1))))
-
-(defn ->var [form]
-  (assert (symbol? form))
-  (symbol (.substring (str form) 1)))
-
-(defn ->vars [form]
+(defn vars [form]
   (cond
-   (and (seq? form) (= 'quote (first form))) #{}
-   (var? form) #{(->var form)}
-   (coll? form) (apply clojure.set/union (map ->vars form))
+   (= '_ form) #{}
+   (symbol? form) #{form}
+   (or (vector? form) (map? form)) (apply clojure.set/union (map vars form))
    :else #{}))
-
-(defn constant? [form]
-  (cond
-   (and (seq? form) (= 'quote (first form))) true
-   (var? form) false
-   (= '_ form) false
-   (coll? form) (every? constant? form)
-   :else true))
-
-(defn pattern->cljs [pattern input]
-  (cond
-   (= '_ pattern)
-   nil
-
-   (var? pattern)
-   `(~'js* ~(str (cljs.compiler/munge (->var pattern)) " = ~{}") ~input)
-
-   (or (true? pattern)
-       (false? pattern)
-       (number? pattern)
-       (string? pattern)
-       (keyword? pattern)
-       (symbol? pattern))
-   (test `(= ~pattern ~input))
-
-   (and (seq? pattern) (= 'quote (first pattern)))
-   (test `(= '~(second pattern) ~input))
-
-   (vector? pattern)
-   `(do
-      ~(test `(vector? ~input))
-      ~(test `(= (count ~input) ~(count pattern)))
-      ~@(for [i (range (count pattern))]
-          (let [elem (gensym "elem")]
-            `(let [~elem (nth ~input ~i)]
-               ~(pattern->cljs (nth pattern i) elem)))))
-
-   (map? pattern)
-   `(do
-      ~(test `(map? ~input))
-      ~@(for [key (keys pattern)]
-          (do (assert (not (var? key)) (pr-str key))
-            (let [value (gensym "value")]
-              `(let [~value (get ~input ~key ~::not-found)]
-                 ~(test `(not= ~::not-found ~value))
-                 ~(pattern->cljs (get pattern key) value))))))
-
-   :else (assert false (pr-str pattern))))
 
 (defn match->cljs [patterns guards actions input]
   (let [input-sym (gensym "input")
-        result-sym (gensym "result")]
-    `(let [~input-sym ~input
-           ~@(interleave (->vars patterns) (repeat nil))
-           ~result-sym ~(reduce
-                         (fn [tail i]
-                           `(try
-                              ~(pattern->cljs (nth patterns i) input-sym)
-                              ~(when (nth guards i) (test (nth guards i)))
-                              ~i
-                              (catch MatchFailure ~'_
-                                ~tail)))
-                         `(check false)
-                         (reverse (range (count patterns))))]
-       (case ~result-sym
-         ~@(interleave (range (count patterns)) actions)))))
+        pattern-syms (for [pattern patterns] (gensym "pattern"))
+        pattern-varss (for [pattern patterns] (vec (vars pattern)))]
+    `(let [~input-sym ~input]
+       ~@(for [[pattern-sym pattern-vars pattern] (map vector pattern-syms pattern-varss patterns)]
+           `(defonce ~pattern-sym (aurora.compiler.match/pattern '~pattern '~pattern-vars)))
+       ~(reduce
+         (fn [tail [pattern-sym pattern-vars pattern guard action]]
+           `(let [results# (~pattern-sym ~input-sym)
+                  ~pattern-vars results#]
+              (if (and results# ~@(when guard [guard]))
+                ~action
+                ~tail)))
+         `(throw (aurora.compiler.match/MatchFailure. ~input-sym))
+         (map vector pattern-syms pattern-varss patterns guards actions)))))
 
 (defn parse-patterns&actions [patterns&actions]
   ;; this is awkwardly trying to parse (pattern action ...) vs (pattern :when guard action ...)
