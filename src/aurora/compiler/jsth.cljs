@@ -83,6 +83,8 @@
                        (str "(function (" (join ", " (map name->string (nth x 1))) ") {\n"
                             (indent (statement->string (nth x 2))) "\n"
                             "})"))
+   (= "new" (head x)) (do (check (= (count x) 2))
+                        (str "new " (expression->string (nth x 1))))
    (seq? x) (do (check (>= (count x) 1))
               (let [f (expression->string (nth x 0))
                     args (map expression->string (rest x))]
