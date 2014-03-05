@@ -3,11 +3,11 @@
   (:require-macros [aurora.macros :refer [check deftraced]]))
 
 ;; TODO doesn't handle reserved names or namespaced symbols
-(defn munge [sym]
+(defn munge-part [part]
   (reduce
    (fn [name [find replace]]
      (.replace name (js/RegExp. (str "\\" find) "gi") replace))
-   (name sym)
+   part
    {"-" "_"
     "." "_DOT_"
     ":" "_COLON_"
@@ -33,6 +33,11 @@
     "/" "_SLASH_"
     "\\" "_BSLASH_"
     "?" "_QMARK_"}))
+
+(defn munge [sym]
+  (clojure.string/join "."
+                       (for [part (clojure.string/split (name sym) ".")]
+                         (munge-part part))))
 
 (declare expression->string statement->string)
 
