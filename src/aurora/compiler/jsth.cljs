@@ -2,6 +2,38 @@
   (:require [clojure.string :refer [join split-lines]])
   (:require-macros [aurora.macros :refer [check deftraced]]))
 
+;; TODO doesn't handle reserved names or namespaced symbols
+(defn munge [sym]
+  (reduce
+   (fn [name [find replace]]
+     (.replace name (js/RegExp. (str "\\" find) "gi") replace))
+   (name sym)
+   {"-" "_"
+    "." "_DOT_"
+    ":" "_COLON_"
+    "+" "_PLUS_"
+    ">" "_GT_"
+    "<" "_LT_"
+    "=" "_EQ_"
+    "~" "_TILDE_"
+    "!" "_BANG_"
+    "@" "_CIRCA_"
+    "#" "_SHARP_"
+    "'" "_SINGLEQUOTE_"
+    "\"" "_DOUBLEQUOTE_"
+    "%" "_PERCENT_"
+    "^" "_CARET_"
+    "&" "_AMPERSAND_"
+    "*" "_STAR_"
+    "|" "_BAR_"
+    "{" "_LBRACE_"
+    "}" "_RBRACE_"
+    "[" "_LBRACK_"
+    "]" "_RBRACK_"
+    "/" "_SLASH_"
+    "\\" "_BSLASH_"
+    "?" "_QMARK_"}))
+
 (declare expression->string statement->string)
 
 (defn head [x] [x]
@@ -23,7 +55,7 @@
 
 (deftraced name->string [x] [x]
   (check (symbol? x))
-  (name x))
+  (munge x))
 
 (deftraced var->string [x] [x]
    (cond
