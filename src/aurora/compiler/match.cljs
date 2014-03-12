@@ -4,7 +4,16 @@
   (:require-macros [aurora.macros :refer [check deftraced]]
                    [aurora.compiler.match :refer [match]]))
 
+;; TODO check repeated vars against each other
+
 (defrecord MatchFailure [input])
+
+(defn vars [form]
+  (cond
+   (= '_ form) #{}
+   (symbol? form) #{form}
+   (or (sequential? form) (map? form)) (apply clojure.set/union (map vars form))
+   :else #{}))
 
 (defn chain [& forms]
   (reduce

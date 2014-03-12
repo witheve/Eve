@@ -4,7 +4,7 @@
   (cond
    (= '_ form) #{}
    (symbol? form) #{form}
-   (or (vector? form) (map? form)) (apply clojure.set/union (map vars form))
+   (or (sequential? form) (map? form)) (apply clojure.set/union (map vars form))
    :else #{}))
 
 (defn match->cljs [patterns guards actions input]
