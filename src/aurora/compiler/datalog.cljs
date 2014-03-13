@@ -6,14 +6,15 @@
                    [aurora.compiler.datalog :refer [query rule]]))
 
 ;; TODO
-;; aggregation - requires thinking about query args
-;; graph representation
-;; dependency ordering in graph
+;; aggregation (set, in)
+;; pattern matching on sets? sorting? vectors? (sort-by, sort-arbitrary)
+;; graph representation?
+;; dependency ordering
+;; seminaive
 ;; incremental assert
 ;; incremental retract
 ;; stratification
 ;; schemas
-;; let bindings - requires dependency ordering in graph
 
 ;; We assume that if we rely on attr then stratification ensures no more retractions are forthcoming
 
@@ -42,6 +43,19 @@
   (Knowledge. (to-be kn) #{} #{}))
 
 ;; creating queries
+
+(defn empty-q [kn]
+  (with-meta
+    #{{}}
+    {::shape #{}}))
+
+(defn debug-q [query]
+  (with-meta
+    (fn [kn]
+      (let [facts (query kn)]
+        (prn facts)
+        facts))
+    (meta query)))
 
 (defn project [pattern]
   (let [return-syms (into [] (match/vars pattern))
@@ -77,34 +91,58 @@
       (into #{} (filter fnk (query kn))))
     {::shape (::shape (meta query))}))
 
-(defn map-q [query fnk]
+(defn map-q [fnk]
   (let [selects (:aurora/selects (meta fnk))]
-    (check (subset? selects (::shape (meta query))))
-    (with-meta
-      (fn [kn]
-        (into #{} (map fnk (into #{} (map #(select-keys % selects) (query kn))))))
-      {::shape nil}))) ;; TODO...
+    (fn [facts]
+      (into #{} (map fnk (into #{} (map #(select-keys % selects) facts)))))))
 
-(defn query* [projects filter-fnks map-fnk]
-  (map-q (reduce filter-q (reduce join (map project projects)) filter-fnks) map-fnk))
+(defn project? [clause]
+  (not (seq? clause)))
 
-;; creating rules
+(defn filter? [clause]
+  (and (seq? clause) (= '? (first clause))))
 
-(defn rule* [projects filter-fnks assert-fnks retract-fnks]
-  (let [query (reduce filter-q (reduce join (map project projects)) filter-fnks)]
+(defn assert? [clause]
+  (and (seq? clause) (= '+ (first clause))))
+
+(defn retract? [clause]
+  (and (seq? clause) (= '- (first clause))))
+
+(defn core* [clauses]
+  (let [assert-fs (map #(map-q (second %)) (filter assert? clauses))
+        retract-fs (map #(map-q (second %)) (filter retract? clauses))
+        query (reduce
+               (fn [query clause]
+                 (debug-q
+                  (cond
+                   (project? clause) (join query (project clause))
+                   (filter? clause) (filter-q query (second clause))
+                   :else query)))
+               empty-q
+               clauses)]
     (fn [kn]
       (let [facts (query kn)
-            kn (reduce
-                (fn [kn assert-fnk]
-                  (reduce assert kn (map assert-fnk facts)))
-                kn
-                assert-fnks)
-            kn (reduce
-                (fn [kn retract-fnk]
-                  (reduce retract kn (map retract-fnk facts)))
-                kn
-                retract-fnks)]
-        kn))))
+            asserts #js []
+            retracts #js []]
+        (doseq [assert-f assert-fs
+                result (assert-f facts)]
+          (.push asserts result))
+        (doseq [retract-f retract-fs
+                result (retract-f facts)]
+          (.push retracts result))
+        [asserts retracts]))))
+
+(defn query* [clauses]
+  (let [core (core* clauses)]
+    (fn [kn]
+      (let [[asserts retracts] (core kn)]
+        (difference (set asserts) retracts)))))
+
+(defn rule* [clauses]
+  (let [core (core* clauses)]
+    (fn [kn]
+      (let [[asserts retracts] (core kn)]
+        (reduce retract (reduce assert kn asserts) retracts)))))
 
 (defn chain [rules]
   (fn [kn]
@@ -130,21 +168,23 @@
 
   ((map-q (project '[a b]) (fnk [a b] (- a b))) (Knowledge. #{[1 2] [3 4] [6 6]} #{} #{}))
 
-  ((query* '[[a b _] [_ a b]] [(fnk [a] (integer? a))] (fnk [a b] (+ a b))) (Knowledge. #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]} #{} #{}))
+  (query* ['[a b _] '[_ a b] (list '? (fnk [a] (integer? a))) (list '+ (fnk [a b] (+ a b)))])
 
-  ((rule* '[[a b _] [_ a b]] [(fnk [a] (integer? a))] [(fnk [a b] (+ a b))] [(fnk [a b] (- a b))]) (Knowledge. #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]} #{} #{}))
+  ((query* ['[a b _] '[_ a b] (list '? (fnk [a] (integer? a))) (list '+ (fnk [a b] (+ a b)))]) (Knowledge. #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]} #{} #{}))
 
-  ((query [[a b _] kn
-           [_ a b] kn
-           :when (integer? a)]
-          (+ a b))
+  ((rule* ['[a b _] '[_ a b] (list '? (fnk [a] (integer? a))) (list '+ (fnk [a b] (+ a b))) (list '- (fnk [a b] (- a b)))]) (Knowledge. #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]} #{} #{}))
+
+  ((query [a b _]
+          [_ a b]
+          (? (integer? a))
+          (+ (+ a b)))
    (Knowledge. #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]} #{} #{}))
 
-  ((rule [[a b _] kn
-          [_ a b] kn
-          :when (integer? a)]
-         + [a a a]
-         - [b b b])
+  ((rule [a b _]
+         [_ a b]
+         (? (integer? a))
+         (+ [a a a])
+         (- [b b b]))
    (Knowledge. #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]} #{} #{}))
 
   )
