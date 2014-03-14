@@ -6,7 +6,7 @@
                    [aurora.compiler.datalog :refer [query rule]]))
 
 ;; TODO
-;; aggregation (set, in)
+;; conj?
 ;; pattern matching on sets? sorting? vectors? (sort-by, sort-arbitrary)
 ;; graph representation?
 ;; dependency ordering
@@ -15,6 +15,7 @@
 ;; incremental retract
 ;; stratification
 ;; schemas
+;; nested rows (find out the correct name for this)
 
 ;; We assume that if we rely on attr then stratification ensures no more retractions are forthcoming
 
@@ -43,6 +44,16 @@
   (Knowledge. (to-be kn) #{} #{}))
 
 ;; creating queries
+
+(defn vars [clause]
+  (condp op? clause
+    '+ed (match/vars (second clause))
+    '-ed (match/vars (second clause))
+    'set (conj (clojure.set/difference (apply clojure.set/union (map vars (nthnext clause 3))) (nth clause 2)) (nth clause 1))
+    'in #{(second clause)}
+    (if (seq? clause)
+      #{}
+      (match/vars clause))))
 
 (defn empty-q [kn]
   (with-meta
@@ -96,40 +107,57 @@
     (fn [facts]
       (into #{} (map fnk (into #{} (map #(select-keys % selects) facts)))))))
 
-(defn project? [clause]
-  (not (seq? clause)))
+(declare gen*)
 
-(defn project-asserted? [clause]
-  (and (seq? clause) (= '+ed (first clause))))
+(defn set-q [name-sym select-syms clauses]
+  (let [vars (apply clojure.set/union (map vars clauses))
+        select-keys (into [] (map keyword select-syms))
+        project-syms (into [] (difference vars select-syms))
+        project-keys (into [] (map keyword project-syms))
+        group-f (apply juxt project-keys)
+        name-key (keyword name-sym)
+        shape (conj (set project-keys) name-key)
+        gen (gen* clauses)]
+    (with-meta
+      (fn [kn]
+        (into #{}
+              (for [[projects selects] (group-by group-f (gen kn))]
+                (assoc (zipmap project-keys projects) name-key (set (map #(clojure.core/select-keys % select-keys) selects))))))
+      {::shape shape})))
 
-(defn project-retracted? [clause]
-  (and (seq? clause) (= '-ed (first clause))))
+(defn in-q [query name-sym set-sym]
+  (let [name-key (keyword name-sym)
+        set-key (keyword set-sym)]
+    (fn [kn]
+      (for [fact (query kn)
+            elem (get fact set-key :inq-not-found)]
+        (assoc fact name-key elem)))))
 
-(defn filter? [clause]
-  (and (seq? clause) (= '? (first clause))))
+(defn op? [op clause]
+  (and (seq? clause) (= op (first clause))))
 
-(defn assert? [clause]
-  (and (seq? clause) (= '+ (first clause))))
+(defn gen* [clauses]
+  (reduce
+   (fn [query clause]
+     (debug-q
+      (condp op? clause
+        '+ed (join query (project (second clause) :asserted))
+        '-ed (join query (project (second clause) :retracted))
+        '? (filter-q query (second clause))
+        'set (join query (set-q (nth clause 1) (nth clause 2) (nthnext clause 3)))
+        'in (in-q query (nth clause 1) (nth clause 2))
+        '+ query ;; handled later
+        '- query ;; handled later
+        (join query (project clause to-be)))))
+   empty-q
+   clauses))
 
-(defn retract? [clause]
-  (and (seq? clause) (= '- (first clause))))
-
-(defn core* [clauses]
+(defn asserts+retracts* [clauses]
   (let [assert-fs (map #(map-q (second %)) (filter assert? clauses))
         retract-fs (map #(map-q (second %)) (filter retract? clauses))
-        query (reduce
-               (fn [query clause]
-                 (debug-q
-                  (cond
-                   (project? clause) (join query (project clause to-be))
-                   (project-asserted? clause) (join query (project (second clause) :asserted))
-                   (project-retracted? clause) (join query (project (second clause) :retracted))
-                   (filter? clause) (filter-q query (second clause))
-                   :else query)))
-               empty-q
-               clauses)]
+        gen (gen* clauses)]
     (fn [kn]
-      (let [facts (query kn)
+      (let [facts (gen kn)
             asserts #js []
             retracts #js []]
         (doseq [assert-f assert-fs
@@ -141,15 +169,15 @@
         [asserts retracts]))))
 
 (defn query* [clauses]
-  (let [core (core* clauses)]
+  (let [asserts+retracts (asserts+retracts* clauses)]
     (fn [kn]
-      (let [[asserts retracts] (core kn)]
+      (let [[asserts retracts] (asserts+retracts kn)]
         (difference (set asserts) retracts)))))
 
 (defn rule* [clauses]
-  (let [core (core* clauses)]
+  (let [asserts+retracts (asserts+retracts* clauses)]
     (fn [kn]
-      (let [[asserts retracts] (core kn)]
+      (let [[asserts retracts] (asserts+retracts kn)]
         (reduce retract (reduce assert kn asserts) retracts)))))
 
 (defn chain [rules]
@@ -172,9 +200,7 @@
 
   ((join (project '[a b _]) (project '[_ a b])) (Knowledge. #{[1 2 3] [2 3 4] [2 4 6] [4 6 8]} #{} #{}))
 
-  ((filter-q (project '[a b]) (fnk [a b] (= a b))) (Knowledge. #{[1 2] [3 4] [6 6]} #{} #{}))
-
-  ((map-q (project '[a b]) (fnk [a b] (- a b))) (Knowledge. #{[1 2] [3 4] [6 6]} #{} #{}))
+  ((filter-q (project '[a b] to-be) (fnk [a b] (= a b))) (Knowledge. #{[1 2] [3 4] [6 6]} #{} #{}))
 
   (query* ['[a b _] '[_ a b] (list '? (fnk [a] (integer? a))) (list '+ (fnk [a b] (+ a b)))])
 
@@ -212,4 +238,29 @@
   ((query (+ed [a b])
           (+ [a b]))
    (Knowledge. #{} #{[1 2]} #{}))
+
+  ((set-q 'x '[b c] '[[a b c] [b c d]]) (Knowledge. #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]} #{} #{}))
+
+  ((query (set x [b c]
+               [a b c]
+               [b c d])
+          (+ [a d x]))
+   (Knowledge. #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]} #{} #{}))
+
+  ((query [a b c]
+          [b c d]
+          (set x [b c]
+               [a b c]
+               [b c d])
+          (+ [a b c d x]))
+   (Knowledge. #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]} #{} #{}))
+
+  ((query [a b c]
+          [b c d]
+          (set x [b c]
+               [a b c]
+               [b c d])
+          (in y x)
+          (+ [a b c d y]))
+   (Knowledge. #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]} #{} #{}))
   )
