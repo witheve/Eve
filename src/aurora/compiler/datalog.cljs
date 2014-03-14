@@ -96,23 +96,8 @@
     (fn [facts]
       (into #{} (map fnk (into #{} (map #(select-keys % selects) facts)))))))
 
-(defn project? [clause]
-  (not (seq? clause)))
-
-(defn project-asserted? [clause]
-  (and (seq? clause) (= '+ed (first clause))))
-
-(defn project-retracted? [clause]
-  (and (seq? clause) (= '-ed (first clause))))
-
-(defn filter? [clause]
-  (and (seq? clause) (= '? (first clause))))
-
-(defn assert? [clause]
-  (and (seq? clause) (= '+ (first clause))))
-
-(defn retract? [clause]
-  (and (seq? clause) (= '- (first clause))))
+(defn op? [op clause]
+  (and (seq? clause) (= op (first clause))))
 
 (defn core* [clauses]
   (let [assert-fs (map #(map-q (second %)) (filter assert? clauses))
@@ -120,12 +105,13 @@
         query (reduce
                (fn [query clause]
                  (debug-q
-                  (cond
-                   (project? clause) (join query (project clause to-be))
-                   (project-asserted? clause) (join query (project (second clause) :asserted))
-                   (project-retracted? clause) (join query (project (second clause) :retracted))
-                   (filter? clause) (filter-q query (second clause))
-                   :else query)))
+                  (condp op? clause
+                   '+ed (join query (project (second clause) :asserted))
+                   '-ed (join query (project (second clause) :retracted))
+                   '? (filter-q query (second clause))
+                   '+ query ;; handled later
+                   '- query ;; handled later
+                   (join query (project clause to-be)))))
                empty-q
                clauses)]
     (fn [kn]
