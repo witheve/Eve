@@ -32,6 +32,12 @@
 (defn retract [kn {:keys [name] :as fact}]
   (update-in kn [:retracted] conj fact))
 
+(defn assert-many [kn facts]
+  (update-in kn [:asserted] union facts))
+
+(defn retract-many [kn facts]
+  (update-in kn [:retracted] union facts))
+
 ;; TODO can probably just do this on assert/retract by looking at counts
 (defn to-be [{:keys [old asserted retracted] :as kn}]
   ;; (old & ¬(retracted & ¬asserted)) | (asserted & ¬retracted)
@@ -64,7 +70,7 @@
   (with-meta
     (fn [kn]
       (let [facts (query kn)]
-        (prn facts)
+        ;(prn facts)
         facts))
     (meta query)))
 

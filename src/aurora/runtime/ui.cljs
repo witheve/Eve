@@ -2,6 +2,7 @@
   (:require [aurora.util.core :as util]
             [aurora.compiler.datalog :as datalog]
             [clojure.set :as set]
+            [aurora.runtime.core :as runtime]
             [aurora.editor.ReactDommy :as dommy])
   (:require-macros [aurora.compiler.datalog :refer [query rule]]))
 
@@ -78,8 +79,8 @@
         el-styles (into {} (map extract styles))
         el-attrs (into el-attrs (for [{:keys [event]} events]
                                   [event (fn [e]
-                                           (.push queue {:name (keyword "ui" event)
-                                                         :id id}))]))
+                                           (queue {:name (keyword "ui" event)
+                                                   :id id}))]))
         el-attrs (if (seq el-styles)
                    (assoc el-attrs :style el-styles)
                    el-attrs)]
@@ -111,6 +112,8 @@
            (js/React.renderComponent (dommy/node (rebuild-tree knowledge queue)) js/document.body)
            )))
 
+(swap! runtime/watchers conj on-bloom-tick)
+
 (comment
 
 (def test-kn (-> datalog/empty
@@ -128,12 +131,10 @@
 
                  (datalog/and-now)))
 
-(rebuild-tree test-kn q)
-
-
 
 (def q (array))
-(on-bloom-tick test-kn q)
+(rebuild-tree test-kn (fn [fact] (.push q fact)))
+(on-bloom-tick test-kn (fn [fact] (.push q fact)))
 q
 
   )

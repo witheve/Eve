@@ -1,5 +1,6 @@
 (ns aurora.runtime.timers
   (:require [aurora.util.core :as util]
+            [aurora.runtime.core :as runtime]
             [aurora.compiler.datalog :as datalog])
   (:require-macros [aurora.compiler.datalog :refer [query rule]]))
 
@@ -19,10 +20,15 @@
                        (+ [time id])))
 
 (defn on-bloom-tick [knowledge queue]
+  (println "in bloom tick")
   (let [waits (find-waits knowledge)]
     (doseq [[time id] waits]
+      (println "setting up wait for: " time id)
       (wait time (fn []
-                   (.push queue {:name :tick :id id :timestamp (now)}))))))
+                   (queue {:name :tick :id id :timestamp (now)})
+                   )))))
+
+(swap! runtime/watchers conj (fn [kn queue] (on-bloom-tick kn queue)))
 
 (comment
 
@@ -31,7 +37,7 @@
                    (datalog/assert {:name :wait :time 100 :id 2})))
 
   (def q (array))
-  (on-bloom-tick test-kn q)
+  (on-bloom-tick test-kn (fn [fact] (.push q fact)))
 
   q
   )
