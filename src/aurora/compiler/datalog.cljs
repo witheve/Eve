@@ -190,7 +190,7 @@
     (let [new-kn (rule kn)]
       (if (= new-kn kn)
         new-kn
-        (recur kn)))))
+        (recur new-kn)))))
 
 ;; tests
 

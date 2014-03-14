@@ -3,31 +3,20 @@
             [aurora.compiler.datalog :as datalog])
   (:require-macros [aurora.compiler.datalog :refer [query rule]]))
 
-(def animation-frame
-  (or (.-requestAnimationFrame js/self)
-      (.-webkitRequestAnimationFrame js/self)
-      (.-mozRequestAnimationFrame js/self)
-      (.-oRequestAnimationFrame js/self)
-      (.-msRequestAnimationFrame js/self)
-      (fn [callback] (js/setTimeout callback 17))))
-
 (defn now []
   (.getTime (js/Date.)))
 
 (defn wait [time do]
   (js/setTimeout do time))
 
-(defn frame [do]
-  (animation-frame do))
-
 ;; generic fact: {:name "someidthing" :madlib "yay [a] and then [b]" :a 5 :b 9}
 ;; wait fact: {:name :wait :madlib "wait [time]ms with [id]" :time 500 :id 1}
 ;; tick fact {:name 12341234 :madlib "tick with [id]" :id 9}
 
-(def find-waits (query {:name :wait
-                       :time time
-                       :id id}
-                      (+ [time id])))
+(def find-waits (query (+ed {:name :wait
+                             :time time
+                             :id id})
+                       (+ [time id])))
 
 (defn on-bloom-tick [knowledge queue]
   (let [waits (find-waits knowledge)]
@@ -39,8 +28,7 @@
 
   (def test-kn (-> datalog/empty
                    (datalog/assert {:name :wait :time 500 :id 1})
-                   (datalog/assert {:name :wait :time 100 :id 2})
-                   (datalog/and-now)))
+                   (datalog/assert {:name :wait :time 100 :id 2})))
 
   (def q (array))
   (on-bloom-tick test-kn q)
