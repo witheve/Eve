@@ -109,28 +109,30 @@
 
 ;; tests
 
-(errors (knowledge #{[:jamie :person/age 27] [:jamie :person/height 11]} [[(has-one :person/age number!)]]))
 
-(errors (knowledge #{[:jamie :person/age "27"] [:jamie :person/height 11]} [[(has-one :person/age number!)]]))
+(comment
+  (errors (knowledge #{[:jamie :person/age 27] [:jamie :person/height 11]} [[(has-one :person/age number!)]]))
 
-(errors (knowledge #{[:jamie :person/age 27] [:jamie :person/age 11]} [[(has-one :person/age number!)]]))
+  (errors (knowledge #{[:jamie :person/age "27"] [:jamie :person/height 11]} [[(has-one :person/age number!)]]))
 
-(errors (knowledge #{[:jamie :employee/boss :chris] [:chris :employee true]} [[(has-one :employee/boss (id! :employee))]]))
+  (errors (knowledge #{[:jamie :person/age 27] [:jamie :person/age 11]} [[(has-one :person/age number!)]]))
 
-(errors (knowledge #{[:jamie :employee/boss {:name :chris}] [:chris :employee true]} [[(has-one :employee/boss (map! (is! keyword?) (id! :employee)))]]))
+  (errors (knowledge #{[:jamie :employee/boss :chris] [:chris :employee true]} [[(has-one :employee/boss (id! :employee))]]))
 
-(errors (knowledge #{[:jamie :employee/boss {:name :santa}] [:chris :employee true]} [[(has-one :employee/boss (map! (is! keyword?) (id! :employee)))]]))
+  (errors (knowledge #{[:jamie :employee/boss {:name :chris}] [:chris :employee true]} [[(has-one :employee/boss (map! (is! keyword?) (id! :employee)))]]))
 
-(errors (knowledge #{[:jamie :employee/boss :chris] [:chris :employee true]} [[(has-one :employee/boss (map! (is! keyword?) (id! :employee)))]]))
+  (errors (knowledge #{[:jamie :employee/boss {:name :santa}] [:chris :employee true]} [[(has-one :employee/boss (map! (is! keyword?) (id! :employee)))]]))
 
-(errors (knowledge #{[:jamie :employee/boss :chris]} [[(has-one :employee/boss (id! :employee))]]))
+  (errors (knowledge #{[:jamie :employee/boss :chris] [:chris :employee true]} [[(has-one :employee/boss (map! (is! keyword?) (id! :employee)))]]))
 
-(errors (knowledge #{[:jamie :employee/boss :santa] [:chris :employee true]} [[(has-one :employee/boss (id! :employee))]]))
+  (errors (knowledge #{[:jamie :employee/boss :chris]} [[(has-one :employee/boss (id! :employee))]]))
 
-(errors (knowledge #{[:jamie :person/age 27] [:jamie :person/height 11]} [[(required :person :person/age :person/height)]]))
+  (errors (knowledge #{[:jamie :employee/boss :santa] [:chris :employee true]} [[(has-one :employee/boss (id! :employee))]]))
 
-(errors (knowledge #{[:jamie :person/height 11]} [[(required :person :person/age :person/height)]]))
+  (errors (knowledge #{[:jamie :person/age 27] [:jamie :person/height 11]} [[(required :person :person/age :person/height)]]))
 
-(errors (knowledge #{[:jamie :person/age 27] ["isbn123" :book/title "Return of the King"]} [[(exclusive :kind :person/age :book/title)]]))
+  (errors (knowledge #{[:jamie :person/height 11]} [[(required :person :person/age :person/height)]]))
 
-(errors (knowledge #{[:jamie :person/age 27] [:jamie :book/title "Return of the King"]} [[(exclusive :kind :person/age :book/title)]]))
+  (errors (knowledge #{[:jamie :person/age 27] ["isbn123" :book/title "Return of the King"]} [[(exclusive :kind :person/age :book/title)]]))
+
+  (errors (knowledge #{[:jamie :person/age 27] [:jamie :book/title "Return of the King"]} [[(exclusive :kind :person/age :book/title)]])))

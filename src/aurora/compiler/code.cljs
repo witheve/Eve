@@ -66,9 +66,9 @@
     [:result :call/fun :fun_sub]
     [:result :call/args [:b_squared :four_a_c]]})
 
-(errors (datalog/knowledge (clojure.set/union stdlib example-a) rules))
+;(errors (datalog/knowledge (clojure.set/union stdlib example-a) rules))
 
-(q* (datalog/knowledge (clojure.set/union stdlib example-a) rules) [?id :page true] :return id)
+;(q* (datalog/knowledge (clojure.set/union stdlib example-a) rules) [?id :page true] :return id)
 
 (def example-b
   #{[:root_notebook :notebook/description "wooohoo"]
@@ -113,6 +113,6 @@
     [:action_only :call/args [:bind_z :text_more]]
     [:text_more :data/text "more foo!"]})
 
-(errors (datalog/knowledge (clojure.set/union stdlib example-b) rules))
+;(errors (datalog/knowledge (clojure.set/union stdlib example-b) rules))
 
-(q* (datalog/knowledge (clojure.set/union stdlib example-b) rules) [:vec :notebook/page ?id] :return id)
+;(q* (datalog/knowledge (clojure.set/union stdlib example-b) rules) [:vec :notebook/page ?id] :return id)
