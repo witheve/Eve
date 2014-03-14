@@ -18,11 +18,9 @@
 (defn quote-clause [clause vars]
   (condp op? clause
     '+ `(list '~(first clause) (fnk ~vars ~(second clause)))
-    '+s `(list '~(first clause) (for [cur# ~(second clause)]
-                                  (fnk ~vars cur#)))
+    '+s `(list '~(first clause) (fnk ~vars ~(second clause)))
     '- `(list '~(first clause) (fnk ~vars ~(second clause)))
-    '-s `(list '~(first clause) (for [cur# ~(second clause)]
-                                  (fnk ~vars cur#)))
+    '-s `(list '~(first clause) (fnk ~vars ~(second clause)))
     '? `(list '~(first clause) (fnk ~vars ~(second clause)))
     `'~clause))
 

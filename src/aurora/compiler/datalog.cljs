@@ -118,6 +118,11 @@
     (fn [facts]
       (into #{} (map fnk (into #{} (map #(select-keys % selects) facts)))))))
 
+(defn mapcat-q [fnk]
+  (let [selects (:aurora/selects (meta fnk))]
+    (fn [facts]
+      (into #{} (mapcat fnk (into #{} (map #(select-keys % selects) facts)))))))
+
 (declare gen*)
 
 (defn set-q [name-sym select-syms clauses]
@@ -164,9 +169,9 @@
 
 (defn asserts+retracts* [clauses]
   (let [assert-fs (into [] (concat (map #(map-q (second %)) (filter #(op? '+ %) clauses))
-                                   (map #(map-q %) (mapcat second (filter #(op? '+s %) clauses)))))
+                                   (map #(mapcat-q (second %)) (filter #(op? '+s %) clauses))))
         retract-fs (into [] (concat (map #(map-q (second %)) (filter #(op? '- %) clauses))
-                                    (map #(map-q %) (mapcat second (filter #(op? '-s %) clauses)))))
+                                    (map #(mapcat-q (second %)) (filter #(op? '-s %) clauses))))
         gen (gen* clauses)]
     (fn [kn]
       (let [facts (gen kn)
