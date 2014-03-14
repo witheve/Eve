@@ -36,7 +36,8 @@
   (cond
    (= '_ pattern) ::tail
    (symbol? pattern) `(do (let! ~pattern ::input) ::tail)
-   (or (number? pattern) (string? pattern) (keyword? pattern)) `(if (= ~(data->jsth pattern) ::input) ::tail)
+   (or (number? pattern) (string? pattern)) `(if (= ~(data->jsth pattern) ::input) ::tail)
+   (keyword? pattern) `(if (cljs.core.keyword-identical? ~(data->jsth pattern) ::input) ::tail)
    (vector? pattern) `(if (cljs.core.vector? ::input)
                         (if (= ~(count pattern) (cljs.core.count ::input))
                           ~(apply chain
@@ -65,6 +66,10 @@
     (js/Function (jsth/munge input-sym) (jsth/statement->string `(do ~success ~failure)))))
 
 (comment
+  (match :a :a :ok)
+
+  (match "a" "a" :ok)
+
   ((pattern '[a _ b] '[a b]) [1 2 3])
 
   (match 1
