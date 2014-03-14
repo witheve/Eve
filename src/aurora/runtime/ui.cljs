@@ -101,6 +101,7 @@
     (doseq [[parent kids] children
             :let [sorted (sort-by :pos kids)
                   parent-el (built-els parent)]
+            :when parent-el
             {:keys [child-id]} sorted
             :let [child-el (built-els child-id)]]
       (.push parent-el child-el))
@@ -114,23 +115,49 @@
 
 (swap! runtime/watchers conj on-bloom-tick)
 
+
+(defn fact-walk [hic facts [parent pos]]
+  (let [[el args & children] hic
+        id (:id args)
+        real-args (dissoc args :id :style :events)]
+    (when parent
+      (.push facts {:name :ui/child :id parent :child id :pos pos}))
+    (.push facts {:name :ui/elem :id id :tag (name el)})
+    (doseq [[k v] real-args]
+      (.push facts {:name :ui/attr :id id :attr (name k) :value v}))
+    (doseq [[k v] (:style args)]
+      (.push facts {:name :ui/style :id id :attr (name k) :value v}))
+    (doseq [ev (:events args)]
+      (.push facts {:name :ui/event-listener :id id :event (name ev)}))
+    (doseq [[i child] (map-indexed vector children)]
+      (if (vector? child)
+        (fact-walk child facts [id i])
+        (do
+          (.push facts {:name :ui/text :id (str id "-" i) :text child})
+          (.push facts {:name :ui/child :id id :child (str id "-" i) :pos i})
+          )))))
+
+(defn hiccup->facts [& hic]
+  (let [facts (array)]
+    (doseq [h hic]
+      (fact-walk h facts []))
+    (vec facts)))
+
 (comment
 
-(def test-kn (-> datalog/empty
-                 (datalog/assert {:name :ui/elem :id 1 :tag "div"})
-                 (datalog/assert {:name :ui/child :id 1 :child 2 :pos 0})
-                 (datalog/assert {:name :ui/child :id 1 :child 3 :pos 1})
-                 (datalog/assert {:name :ui/text :id 2 :text "dude what's up?"})
-                 (datalog/assert {:name :ui/elem :id 3 :tag "b"})
-                 (datalog/assert {:name :ui/event-listener :id 3 :event "onClick"})
-                 (datalog/assert {:name :ui/style :id 3 :attr "background" :value "#222"})
-                 (datalog/assert {:name :ui/style :id 3 :attr "padding" :value "5px"})
-                 (datalog/assert {:name :ui/style :id 3 :attr "margin-left" :value "15px"})
-                 (datalog/assert {:name :ui/child :id 3 :child 4 :pos 1})
-                 (datalog/assert {:name :ui/text :id 4 :text "NO WAI"})
+(def test-kn (datalog/Knowledge. #{{:name :ui/elem, :id "counter-ui", :tag "p"}
+                                   {:name :ui/text, :id "counter-ui-0", :text 4}
+                                   {:name :ui/child, :id "counter-ui", :child "counter-ui-0", :pos 0}
+                                   {:name :ui/elem, :id "incr-button", :tag "button"}
+                                   {:name :ui/event-listener, :id "incr-button", :event "onClick"}
+                                   {:name :ui/text, :id "incr-button-0", :text "increment"}
+                                   {:name :ui/child, :id "incr-button", :child "incr-button-0", :pos 0}
+                                   }
+                                 #{} #{}))
 
-                 (datalog/and-now)))
 
+  (find-elems test-kn)
+  (find-text test-kn)
 
 (def q (array))
 (rebuild-tree test-kn (fn [fact] (.push q fact)))

@@ -29,6 +29,7 @@
 
 (defn handle-feed [env]
   (when-not (:paused @env)
+    (.time js/console "run")
     (let [feed-set (set (:feed @env))]
       (aset (:feed @env) "length" 0)
       (println "Feed set: " feed-set)
@@ -40,6 +41,8 @@
                    (tick (:rules @env) (:watchers @env) (:feeder-fn @env))
                    (datalog/retract-many feed-set)
                    (datalog/and-now))))
+      (.timeEnd js/console "run")
+      (println "final: " (- (.getTime (js/Date.)) start) (:kn @env))
       (swap! env assoc :queued? false))))
 
 (defn run [env]
@@ -68,6 +71,8 @@
 
 (comment
 
+(def hiccup js/aurora.runtime.ui.hiccup->facts)
+
   (def tick (-> (make-env #{[3 5] [9 8 7] [:tick]}
                           [
                            ;;clean up rules
@@ -92,17 +97,15 @@
                             ;;clean up rules
                             [(rule {:name :wait :time t :id i}
                                    (- {:name :wait :time t :id i}))
-                             (rule {:name :ui/text :id "time-value" :text text}
-                                   (- {:name :ui/text :id "time-value" :text text}))]
+                             (rule {:name :ui/text :id "time-0" :text text}
+                                   (- {:name :ui/text :id "time-0" :text text}))]
                             ;;program rules
                             [(rule [:tick]
                                    (- [:tick])
                                    (+ {:name :wait :time 1000 :id "clock"}))
                              (rule {:name :tick :id "clock" :timestamp ts}
                                    (+ {:name :wait :time 1000 :id "clock"})
-                                   (+ {:name :ui/elem :id "time" :tag "p"})
-                                   (+ {:name :ui/child :id "time" :child "time-value" :pos 0})
-                                   (+ {:name :ui/text :id "time-value" :text (str "time is: " (js/Date. ts))})
+                                   (+s (hiccup [:p {:id "time"} (str "time is: " (js/Date. ts))]))
                                    )
                              ]])
                  (run)))
@@ -111,13 +114,10 @@
   (unpause clock)
   @clock
 
-
   (def incrementer (-> (make-env #{{:name "counter" :value 0}}
-                                 [
-                                  ;;clean up rules
-                                  [(rule {:name :ui/text :id "counter-value" :text text}
-                                         (- {:name :ui/text :id "counter-value" :text text}))
-                                   ]
+                                 [;;clean up rules
+                                  [(rule {:name :ui/text :id "counter-ui-0" :text text}
+                                         (- {:name :ui/text :id "counter-ui-0" :text text}))]
                                   ;;program rules
                                   [(rule {:name :ui/onClick :id "incr-button"}
                                          {:name "counter" :value v}
@@ -125,15 +125,9 @@
                                          (- {:name "counter" :value v})
                                          (+ {:name "counter" :value (inc v)}))]
                                   [(rule {:name "counter" :value v}
-                                         (+ {:name :ui/elem :id "counter-ui" :tag "p"})
-                                         (+ {:name :ui/child :id "counter-ui" :child "counter-value" :pos 0})
-                                         (+ {:name :ui/text :id "counter-value" :text (str v)})
-                                         (+ {:name :ui/elem :id "incr-button" :tag "button"})
-                                         (+ {:name :ui/event-listener :id "incr-button" :event "onClick"})
-                                         (+ {:name :ui/child :id "incr-button" :child "incr-value" :pos 0})
-                                         (+ {:name :ui/text :id "incr-value" :text "increment"})
-                                         )
-                                   ]])
+                                         (+s (hiccup
+                                              [:p {:id "counter-ui"} v]
+                                              [:button {:id "incr-button" :events ["onClick"]} "increment"])))]])
                        (run)))
 
   (pause incrementer)
