@@ -6,7 +6,7 @@
                    [aurora.compiler.datalog :refer [query rule]]))
 
 ;; TODO
-;; aggregation (set, in)
+;; conj?
 ;; pattern matching on sets? sorting? vectors? (sort-by, sort-arbitrary)
 ;; graph representation?
 ;; dependency ordering
@@ -50,6 +50,7 @@
     '+ed (match/vars (second clause))
     '-ed (match/vars (second clause))
     'set (conj (clojure.set/difference (apply clojure.set/union (map vars (nthnext clause 3))) (nth clause 2)) (nth clause 1))
+    'in #{(second clause)}
     (if (seq? clause)
       #{}
       (match/vars clause))))
@@ -124,6 +125,14 @@
                 (assoc (zipmap project-keys projects) name-key (set (map #(clojure.core/select-keys % select-keys) selects))))))
       {::shape shape})))
 
+(defn in-q [query name-sym set-sym]
+  (let [name-key (keyword name-sym)
+        set-key (keyword set-sym)]
+    (fn [kn]
+      (for [fact (query kn)
+            elem (get fact set-key :inq-not-found)]
+        (assoc fact name-key elem)))))
+
 (defn op? [op clause]
   (and (seq? clause) (= op (first clause))))
 
@@ -136,6 +145,7 @@
         '-ed (join query (project (second clause) :retracted))
         '? (filter-q query (second clause))
         'set (join query (set-q (nth clause 1) (nth clause 2) (nthnext clause 3)))
+        'in (in-q query (nth clause 1) (nth clause 2))
         '+ query ;; handled later
         '- query ;; handled later
         (join query (project clause to-be)))))
@@ -243,5 +253,14 @@
                [a b c]
                [b c d])
           (+ [a b c d x]))
+   (Knowledge. #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]} #{} #{}))
+
+  ((query [a b c]
+          [b c d]
+          (set x [b c]
+               [a b c]
+               [b c d])
+          (in y x)
+          (+ [a b c d y]))
    (Knowledge. #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]} #{} #{}))
   )

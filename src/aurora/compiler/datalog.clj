@@ -10,6 +10,7 @@
     '+ed (match/vars (second clause))
     '-ed (match/vars (second clause))
     'set (conj (clojure.set/difference (apply clojure.set/union (map vars (nthnext clause 3))) (nth clause 2)) (nth clause 1))
+    'in #{(second clause)}
     (if (seq? clause)
       #{}
       (match/vars clause))))
