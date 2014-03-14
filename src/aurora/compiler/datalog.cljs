@@ -57,7 +57,7 @@
         facts))
     (meta query)))
 
-(defn project [pattern]
+(defn project [pattern kn-f]
   (let [return-syms (into [] (match/vars pattern))
         return-keys (map keyword return-syms)
         shape (into #{} return-keys)
@@ -65,7 +65,7 @@
     (with-meta
       (fn [kn]
         (into #{}
-              (for [fact (to-be kn)
+              (for [fact (kn-f kn)
                     :let [vals (f fact)]
                     :when vals]
                 (zipmap return-keys vals))))
@@ -99,6 +99,12 @@
 (defn project? [clause]
   (not (seq? clause)))
 
+(defn project-asserted? [clause]
+  (and (seq? clause) (= '+ed (first clause))))
+
+(defn project-retracted? [clause]
+  (and (seq? clause) (= '-ed (first clause))))
+
 (defn filter? [clause]
   (and (seq? clause) (= '? (first clause))))
 
@@ -115,7 +121,9 @@
                (fn [query clause]
                  (debug-q
                   (cond
-                   (project? clause) (join query (project clause))
+                   (project? clause) (join query (project clause to-be))
+                   (project-asserted? clause) (join query (project clause :asserted))
+                   (project-retracted? clause) (join query (project clause :retracted))
                    (filter? clause) (filter-q query (second clause))
                    :else query)))
                empty-q
@@ -186,5 +194,12 @@
          (+ [a a a])
          (- [b b b]))
    (Knowledge. #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]} #{} #{}))
+
+  ((rule [a b _]
+         (+ed [_ a b])
+         (? (integer? a))
+         (+ [a a a])
+         (- [b b b]))
+   (Knowledge. #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{}))
 
   )
