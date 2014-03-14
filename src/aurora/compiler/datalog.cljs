@@ -155,14 +155,18 @@
         'set (join query (set-q (nth clause 1) (nth clause 2) (nthnext clause 3)))
         'in (in-q query (nth clause 1) (nth clause 2))
         '+ query ;; handled later
+        '+s query ;; handled later
         '- query ;; handled later
+        '-s query ;; handled later
         (join query (project clause to-be)))))
    empty-q
    clauses))
 
 (defn asserts+retracts* [clauses]
-  (let [assert-fs (into [] (map #(map-q (second %)) (filter #(op? '+ %) clauses)))
-        retract-fs (into [] (map #(map-q (second %)) (filter #(op? '- %) clauses)))
+  (let [assert-fs (into [] (concat (map #(map-q (second %)) (filter #(op? '+ %) clauses))
+                                   (map #(map-q %) (mapcat second (filter #(op? '+s %) clauses)))))
+        retract-fs (into [] (concat (map #(map-q (second %)) (filter #(op? '- %) clauses))
+                                    (map #(map-q %) (mapcat second (filter #(op? '-s %) clauses)))))
         gen (gen* clauses)]
     (fn [kn]
       (let [facts (gen kn)

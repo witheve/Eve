@@ -18,13 +18,17 @@
 (defn quote-clause [clause vars]
   (condp op? clause
     '+ `(list '~(first clause) (fnk ~vars ~(second clause)))
+    '+s `(list '~(first clause) (for [cur# ~(second clause)]
+                                  (fnk ~vars cur#)))
     '- `(list '~(first clause) (fnk ~vars ~(second clause)))
+    '-s `(list '~(first clause) (for [cur# ~(second clause)]
+                                  (fnk ~vars cur#)))
     '? `(list '~(first clause) (fnk ~vars ~(second clause)))
     `'~clause))
 
 (defn quote-clauses [clauses]
   (let [vars (apply clojure.set/union (map vars clauses))]
-    (vec (map #(quote-clause % vars) clauses))))
+    (mapv #(quote-clause % vars) clauses)))
 
 (defmacro query [& clauses]
   `(query* ~(quote-clauses clauses)))
