@@ -15,6 +15,7 @@
 ;; incremental retract
 ;; stratification
 ;; schemas
+;; nested rows (find out the correct name for this)
 
 ;; We assume that if we rely on attr then stratification ensures no more retractions are forthcoming
 
@@ -43,6 +44,15 @@
   (Knowledge. (to-be kn) #{} #{}))
 
 ;; creating queries
+
+(defn vars [clause]
+  (condp op? clause
+    '+ed (match/vars (second clause))
+    '-ed (match/vars (second clause))
+    'set (conj (clojure.set/difference (apply clojure.set/union (map vars (nthnext clause 3))) (nth clause 2)) (nth clause 1))
+    (if (seq? clause)
+      #{}
+      (match/vars clause))))
 
 (defn empty-q [kn]
   (with-meta
@@ -96,26 +106,48 @@
     (fn [facts]
       (into #{} (map fnk (into #{} (map #(select-keys % selects) facts)))))))
 
+(declare gen*)
+
+(defn set-q [name-sym select-syms clauses]
+  (let [vars (apply clojure.set/union (map vars clauses))
+        select-keys (into [] (map keyword select-syms))
+        project-syms (into [] (difference vars select-syms))
+        project-keys (into [] (map keyword project-syms))
+        group-f (apply juxt project-keys)
+        name-key (keyword name-sym)
+        shape (conj (set project-keys) name-key)
+        gen (gen* clauses)]
+    (with-meta
+      (fn [kn]
+        (into #{}
+              (for [[projects selects] (group-by group-f (gen kn))]
+                (assoc (zipmap project-keys projects) name-key (set (map #(clojure.core/select-keys % select-keys) selects))))))
+      {::shape shape})))
+
 (defn op? [op clause]
   (and (seq? clause) (= op (first clause))))
 
-(defn core* [clauses]
+(defn gen* [clauses]
+  (reduce
+   (fn [query clause]
+     (debug-q
+      (condp op? clause
+        '+ed (join query (project (second clause) :asserted))
+        '-ed (join query (project (second clause) :retracted))
+        '? (filter-q query (second clause))
+        'set (join query (set-q (nth clause 1) (nth clause 2) (nthnext clause 3)))
+        '+ query ;; handled later
+        '- query ;; handled later
+        (join query (project clause to-be)))))
+   empty-q
+   clauses))
+
+(defn asserts+retracts* [clauses]
   (let [assert-fs (map #(map-q (second %)) (filter assert? clauses))
         retract-fs (map #(map-q (second %)) (filter retract? clauses))
-        query (reduce
-               (fn [query clause]
-                 (debug-q
-                  (condp op? clause
-                   '+ed (join query (project (second clause) :asserted))
-                   '-ed (join query (project (second clause) :retracted))
-                   '? (filter-q query (second clause))
-                   '+ query ;; handled later
-                   '- query ;; handled later
-                   (join query (project clause to-be)))))
-               empty-q
-               clauses)]
+        gen (gen* clauses)]
     (fn [kn]
-      (let [facts (query kn)
+      (let [facts (gen kn)
             asserts #js []
             retracts #js []]
         (doseq [assert-f assert-fs
@@ -127,15 +159,15 @@
         [asserts retracts]))))
 
 (defn query* [clauses]
-  (let [core (core* clauses)]
+  (let [asserts+retracts (asserts+retracts* clauses)]
     (fn [kn]
-      (let [[asserts retracts] (core kn)]
+      (let [[asserts retracts] (asserts+retracts kn)]
         (difference (set asserts) retracts)))))
 
 (defn rule* [clauses]
-  (let [core (core* clauses)]
+  (let [asserts+retracts (asserts+retracts* clauses)]
     (fn [kn]
-      (let [[asserts retracts] (core kn)]
+      (let [[asserts retracts] (asserts+retracts kn)]
         (reduce retract (reduce assert kn asserts) retracts)))))
 
 (defn chain [rules]
@@ -158,9 +190,7 @@
 
   ((join (project '[a b _]) (project '[_ a b])) (Knowledge. #{[1 2 3] [2 3 4] [2 4 6] [4 6 8]} #{} #{}))
 
-  ((filter-q (project '[a b]) (fnk [a b] (= a b))) (Knowledge. #{[1 2] [3 4] [6 6]} #{} #{}))
-
-  ((map-q (project '[a b]) (fnk [a b] (- a b))) (Knowledge. #{[1 2] [3 4] [6 6]} #{} #{}))
+  ((filter-q (project '[a b] to-be) (fnk [a b] (= a b))) (Knowledge. #{[1 2] [3 4] [6 6]} #{} #{}))
 
   (query* ['[a b _] '[_ a b] (list '? (fnk [a] (integer? a))) (list '+ (fnk [a b] (+ a b)))])
 
@@ -198,4 +228,20 @@
   ((query (+ed [a b])
           (+ [a b]))
    (Knowledge. #{} #{[1 2]} #{}))
+
+  ((set-q 'x '[b c] '[[a b c] [b c d]]) (Knowledge. #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]} #{} #{}))
+
+  ((query (set x [b c]
+               [a b c]
+               [b c d])
+          (+ [a d x]))
+   (Knowledge. #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]} #{} #{}))
+
+  ((query [a b c]
+          [b c d]
+          (set x [b c]
+               [a b c]
+               [b c d])
+          (+ [a b c d x]))
+   (Knowledge. #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]} #{} #{}))
   )
