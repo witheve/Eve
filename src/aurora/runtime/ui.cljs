@@ -106,6 +106,11 @@
     `[:div ~@(for [r roots]
                (built-els r))]))
 
+(defn on-bloom-tick [knowledge queue]
+  (frame (fn []
+           (js/React.renderComponent (dommy/node (rebuild-tree knowledge queue)) js/document.body)
+           )))
+
 (comment
 
 (def test-kn (-> datalog/empty
@@ -125,10 +130,7 @@
 
 (rebuild-tree test-kn q)
 
-(defn on-bloom-tick [knowledge queue]
-  (frame (fn []
-           (js/React.renderComponent (dommy/node (rebuild-tree knowledge queue)) js/document.body)
-           )))
+
 
 (def q (array))
 (on-bloom-tick test-kn q)
