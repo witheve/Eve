@@ -45,6 +45,9 @@
 
 ;; creating queries
 
+(defn op? [op clause]
+  (and (seq? clause) (= op (first clause))))
+
 (defn vars [clause]
   (condp op? clause
     '+ed (match/vars (second clause))
@@ -133,9 +136,6 @@
             elem (get fact set-key :inq-not-found)]
         (assoc fact name-key elem)))))
 
-(defn op? [op clause]
-  (and (seq? clause) (= op (first clause))))
-
 (defn gen* [clauses]
   (reduce
    (fn [query clause]
@@ -153,8 +153,8 @@
    clauses))
 
 (defn asserts+retracts* [clauses]
-  (let [assert-fs (map #(map-q (second %)) (filter assert? clauses))
-        retract-fs (map #(map-q (second %)) (filter retract? clauses))
+  (let [assert-fs (into [] (map #(map-q (second %)) (filter #(op? '+ %) clauses)))
+        retract-fs (into [] (map #(map-q (second %)) (filter #(op? '- %) clauses)))
         gen (gen* clauses)]
     (fn [kn]
       (let [facts (gen kn)
@@ -196,9 +196,9 @@
 
 (comment
 
-  ((project '[a b]) (Knowledge. #{[1 2] [3 4 5] [6 7]} #{} #{}))
+  ((project '[a b] to-be) (Knowledge. #{[1 2] [3 4 5] [6 7]} #{} #{}))
 
-  ((join (project '[a b _]) (project '[_ a b])) (Knowledge. #{[1 2 3] [2 3 4] [2 4 6] [4 6 8]} #{} #{}))
+  ((join (project '[a b _] to-be) (project '[_ a b] to-be)) (Knowledge. #{[1 2 3] [2 3 4] [2 4 6] [4 6 8]} #{} #{}))
 
   ((filter-q (project '[a b] to-be) (fnk [a b] (= a b))) (Knowledge. #{[1 2] [3 4] [6 6]} #{} #{}))
 
