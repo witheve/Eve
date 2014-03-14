@@ -201,10 +201,15 @@
          (+ [a a a])
          (- [b b b]))
    (Knowledge. #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{}))
+
   ((rule [a b _]
          [_ a b]
          (? (integer? a))
          (+ [a a a])
          (- [b b b]))
    (Knowledge. #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{[1 2 3]}))
+
+  ((query (+ed [a b])
+          (+ [a b]))
+   (Knowledge. #{} #{[1 2]} #{}))
   )
