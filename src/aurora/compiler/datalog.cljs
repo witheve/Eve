@@ -136,6 +136,12 @@
 (defn op? [op clause]
   (and (seq? clause) (= op (first clause))))
 
+(defn assert? [clause]
+  (op? '+ clause))
+
+(defn retract? [clause]
+  (op? '- clause))
+
 (defn gen* [clauses]
   (reduce
    (fn [query clause]
