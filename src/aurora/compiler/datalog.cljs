@@ -122,8 +122,8 @@
                  (debug-q
                   (cond
                    (project? clause) (join query (project clause to-be))
-                   (project-asserted? clause) (join query (project clause :asserted))
-                   (project-retracted? clause) (join query (project clause :retracted))
+                   (project-asserted? clause) (join query (project (second clause) :asserted))
+                   (project-retracted? clause) (join query (project (second clause) :retracted))
                    (filter? clause) (filter-q query (second clause))
                    :else query)))
                empty-q
@@ -201,5 +201,10 @@
          (+ [a a a])
          (- [b b b]))
    (Knowledge. #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{}))
-
+  ((rule [a b _]
+         [_ a b]
+         (? (integer? a))
+         (+ [a a a])
+         (- [b b b]))
+   (Knowledge. #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{[1 2 3]}))
   )

@@ -3,7 +3,7 @@
             [aurora.macros :refer [check fnk]]))
 
 (defn quote-clause [clause vars]
-  (if (seq? clause)
+  (if (and (seq? clause) (#{'+ '- '?} (first clause)))
     `(list '~(first clause) (fnk ~vars ~(second clause))) ;; TODO capture vars correctly for graph dependencies
     `'~clause))
 
@@ -16,3 +16,10 @@
 
 (defmacro rule [& clauses]
   `(rule* ~(quote-clauses clauses)))
+
+(aurora.compiler.datalog/rule*
+  ['[a b _]
+   '(+ed [_ a b])
+   (clojure.core/list '? (aurora.macros/fnk #{a b} (integer? a)))
+   (clojure.core/list '+ (aurora.macros/fnk #{a b} [a a a]))
+   (clojure.core/list '- (aurora.macros/fnk #{a b} [b b b]))])
