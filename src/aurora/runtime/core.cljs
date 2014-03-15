@@ -149,5 +149,63 @@
                                ]])
                    (run)))
 
+  (def fetcher (-> (make-env #{{:name "content" :value "Click button to fetch google"}}
+                             [;;clean up rules
+                              [
+                               (rule {:name :ui/text :id "content-ui-0" :text text}
+                                     (- {:name :ui/text :id "content-ui-0" :text text}))
+                               (rule {:name :http-get :url "http://tycho.usno.navy.mil/cgi-bin/timer.pl" :id "google"}
+                                     (- {:name :http-get :url "http://tycho.usno.navy.mil/cgi-bin/timer.pl" :id "google"}))]
+                              ;;program rules
+                              [(rule {:name :ui/onClick :id "fetch-button"}
+                                     (+ {:name :http-get :url "http://tycho.usno.navy.mil/cgi-bin/timer.pl" :id "google"}))
+                               (rule {:name :http-response :id "google" :data data}
+                                     {:name "content" :value v}
+                                     (- {:name "content" :value v})
+                                     )
+                               ]
+                              [(rule {:name :http-response :id "google" :data data}
+                                     (+ {:name "content" :value data})
+                                     )]
+                              [(rule {:name "content" :value v}
+                                     (+s (hiccup
+                                          [:p {:id "content-ui"} v]
+                                          [:button {:id "fetch-button" :events ["onClick"]} "fetch"])))]])
+                   (run)))
+
+  (-> @fetcher :kn :old)
+
+
+
+  (def todo (-> (make-env #{{:name "counter" :value 2}
+                            {:name "todo" :id 0 :text "get milk" :order 0}
+                            {:name "todo" :id 1 :text "take books back" :order 1}
+                            {:name "todo" :id 2 :text "cook" :order 2}
+                            }
+                          [;;clean up rules
+                           []
+                           ;;program rules
+                           [(rule {:name :ui/onClick :id "add-todo"}
+                                  {:name "counter" :value v}
+                                  (- {:name :ui/onClick :id "add-todo"})
+                                  (- {:name "counter" :value v})
+                                  (+ {:name "counter" :value (inc v)})
+                                  (+ {:name "todo" :id (inc v) :text (str "new todo " (+ 2 v)) :order (inc v)})
+                                  )]
+                           [(rule {:name "todo" :id id :text text :order order}
+                                  (+s (hiccup
+                                       [:li {:id (str "todo" id)} text]))
+                                  (+ {:name :ui/child :id "todo-list" :child (str "todo" id) :pos order}))]
+                           [(rule (+s (hiccup
+                                       [:div {:id "app"}
+                                        [:h1 {:id "todo-header"} "Todos"]
+                                        [:input {:id "todo-input" :placeholder "What do you need to do?"}]
+                                        [:button {:id "add-todo" :events ["onClick"]} "add"]
+                                        [:ul {:id "todo-list"}]
+                                        ]))
+                                  )]
+                           ])
+                (run)))
+
 
   )
