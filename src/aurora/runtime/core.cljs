@@ -18,12 +18,12 @@
   (datalog/chain (for [stratum strata]
                    (datalog/fixpoint (datalog/chain stratum)))))
 
-(defn tick [kn rules watchers feeder-fn]
-  (println "ticking: " watchers)
-  (let [chained (chain-rules rules)
+(defn tick [kn tick-rules rules watchers feeder-fn]
+  (let [chained-tick-rules (datalog/chain tick-rules)
+        kn (chained-tick-rules kn)
+        chained (chain-rules rules)
         kn (chained kn)]
     (doseq [watch watchers]
-      (println "going through watchers")
       (watch kn feeder-fn))
     (datalog/and-now kn)))
 
@@ -38,7 +38,7 @@
                (-> cur
                    (datalog/assert-many feed-set)
                    (datalog/and-now)
-                   (tick (:rules @env) (:watchers @env) (:feeder-fn @env))
+                   (tick (:tick-rules @env) (:rules @env) (:watchers @env) (:feeder-fn @env))
                    (datalog/retract-many feed-set)
                    (datalog/and-now))))
       (.timeEnd js/console "run")
@@ -51,15 +51,19 @@
     (handle-feed env)
     env))
 
-(defn make-env
-  ([kn rules]
-   (make-env kn rules @watchers))
-  ([kn rules watchers]
-   (atom {:kn (datalog/Knowledge. kn #{} #{})
-          :rules rules
-          :watchers watchers
-          :feed (array)
-          :queued? false})))
+(defn ->env [opts]
+  (atom (merge {:tick-rules []
+                :rules []
+                :watchers @watchers
+                :feed (array)
+                :queued? false}
+               opts
+               {:kn (datalog/Knowledge. (:kn opts #{}) #{} #{})})))
+
+(defn run-env [opts]
+  (-> opts
+      (->env)
+      (run)))
 
 (defn pause [env]
   (swap! env assoc :paused true))
@@ -73,139 +77,100 @@
 
 (def hiccup js/aurora.runtime.ui.hiccup->facts)
 
-  (def tick (-> (make-env #{[3 5] [9 8 7] [:tick]}
-                          [
-                           ;;clean up rules
-                           [(rule {:name :wait :time t :id i}
-                                  (- {:name :wait :time t :id i}))]
-                           ;;program rules
-                           [(rule [:tick]
+  (def tick (run-env {:kn #{[3 5] [9 8 7] [:tick]}
+                      :tick-rules [(rule {:name :wait :time t :id i}
+                                         (- {:name :wait :time t :id i}))]
+                      :rules [(rule [:tick]
                                   (- [:tick])
                                   (+ {:name :wait :time 1000 :id 1}))
-                            (rule {:name :tick :id 1 :timestamp ts}
+                              (rule {:name :tick :id 1 :timestamp ts}
                                   (+ [:tick])
-                                  (+ ["hi!" ts]))
-                            ]])
-                (run)))
+                                  (+ ["hi!" ts]))]}))
 
   (pause tick)
   (unpause tick)
   @tick
 
-  (def clock (-> (make-env #{[:tick]}
-                           [
-                            ;;clean up rules
-                            [(rule {:name :wait :time t :id i}
-                                   (- {:name :wait :time t :id i}))
-                             (rule {:name :ui/text :id "time-0" :text text}
-                                   (- {:name :ui/text :id "time-0" :text text}))]
-                            ;;program rules
-                            [(rule [:tick]
-                                   (- [:tick])
-                                   (+ {:name :wait :time 1000 :id "clock"}))
-                             (rule {:name :tick :id "clock" :timestamp ts}
-                                   (+ {:name :wait :time 1000 :id "clock"})
-                                   (+s (hiccup [:p {:id "time"} (str "time is: " (js/Date. ts))]))
-                                   )
-                             ]])
-                 (run)))
+  (def clock (run-env {:kn #{{:name :tick :id "clock" :timestamp ""}}
+                       :tick-rules [(rule {:name :wait :time t :id i}
+                                          (- {:name :wait :time t :id i}))
+                                    (rule {:name :ui/text :id "time-0" :text text}
+                                          (- {:name :ui/text :id "time-0" :text text}))
+                                    (rule {:name :tick :id "clock" :timestamp ts}
+                                          (+ {:name :wait :time 1000 :id "clock"}))
+                                    ]
+                       :rules [[(rule {:name :tick :id "clock" :timestamp ts}
+                                      (+s (hiccup [:p {:id "time"} (str "time is: " (js/Date. ts))])))
+                                ]]
+                       }))
 
   (pause clock)
   (unpause clock)
   @clock
 
-  (def incrementer (-> (make-env #{{:name "counter" :value 0}}
-                                 [;;clean up rules
-                                  [(rule {:name :ui/text :id "counter-ui-0" :text text}
-                                         (- {:name :ui/text :id "counter-ui-0" :text text}))]
-                                  ;;program rules
-                                  [(rule {:name :ui/onClick :id "incr-button"}
-                                         {:name "counter" :value v}
-                                         (- {:name :ui/onClick :id "incr-button"})
-                                         (- {:name "counter" :value v})
-                                         (+ {:name "counter" :value (inc v)}))]
-                                  [(rule {:name "counter" :value v}
-                                         (+s (hiccup
-                                              [:p {:id "counter-ui"} v]
-                                              [:button {:id "incr-button" :events ["onClick"]} "increment"])))]])
-                       (run)))
+  (def incrementer (run-env {:kn #{{:name "counter" :value 0}}
+                             :tick-rules [(rule {:name :ui/text :id "counter-ui-0" :text text}
+                                                (- {:name :ui/text :id "counter-ui-0" :text text}))
+                                          (rule {:name :ui/onClick :id "incr-button"}
+                                                {:name "counter" :value v}
+                                                (- {:name "counter" :value v})
+                                                (+ {:name "counter" :value (inc v)}))]
+                             :rules [[(rule {:name "counter" :value v}
+                                            (+s (hiccup
+                                                 [:p {:id "counter-ui"} v]
+                                                 [:button {:id "incr-button" :events ["onClick"]} "increment"])))]]}))
 
   (pause incrementer)
   (unpause incrementer)
   (:kn @incrementer)
 
-
-  (def +s-test (-> (make-env #{[:tick] [:whee] [:zomg]}
-                             [
-                              ;;clean up rules
-                              [(rule {:name :ui/text :id "counter-value" :text text}
-                                     (- {:name :ui/text :id "counter-value" :text text}))
-                               ]
-                              ;;program rules
-                              [(rule [:tick]
-                                     (-s (map vector [:tick :zomg]))
-                                     (+s [{:name "foo"} {:name "zomg"}])
-                                     )
-                               ]])
-                   (run)))
-
-  (def fetcher (-> (make-env #{{:name "content" :value "Click button to fetch google"}}
-                             [;;clean up rules
-                              [
-                               (rule {:name :ui/text :id "content-ui-0" :text text}
-                                     (- {:name :ui/text :id "content-ui-0" :text text}))
-                               (rule {:name :http-get :url "http://tycho.usno.navy.mil/cgi-bin/timer.pl" :id "google"}
-                                     (- {:name :http-get :url "http://tycho.usno.navy.mil/cgi-bin/timer.pl" :id "google"}))]
-                              ;;program rules
-                              [(rule {:name :ui/onClick :id "fetch-button"}
-                                     (+ {:name :http-get :url "http://tycho.usno.navy.mil/cgi-bin/timer.pl" :id "google"}))
-                               (rule {:name :http-response :id "google" :data data}
-                                     {:name "content" :value v}
-                                     (- {:name "content" :value v})
-                                     )
-                               ]
-                              [(rule {:name :http-response :id "google" :data data}
-                                     (+ {:name "content" :value data})
-                                     )]
-                              [(rule {:name "content" :value v}
-                                     (+s (hiccup
-                                          [:p {:id "content-ui"} v]
-                                          [:button {:id "fetch-button" :events ["onClick"]} "fetch"])))]])
-                   (run)))
+  (def fetcher (run-env {:kn #{{:name "content" :value "Click button to fetch google"}}
+                         :tick-rules [(rule {:name :ui/text :id "content-ui-0" :text text}
+                                             (- {:name :ui/text :id "content-ui-0" :text text}))
+                                       (rule {:name :http-get :url "https://google.com" :id "google"}
+                                             (- {:name :http-get :url "https://google.com" :id "google"}))
+                                       (rule {:name :ui/onClick :id "fetch-button"}
+                                             (+ {:name :http-get :url "https://google.com" :id "google"}))
+                                       (rule {:name :http-response :id "google" :data data}
+                                             {:name "content" :value v}
+                                             (- {:name "content" :value v})
+                                             (+ {:name "content" :value data}))
+                                       ]
+                         :rules [[(rule {:name "content" :value v}
+                                        (+s (hiccup
+                                             [:p {:id "content-ui"} v]
+                                             [:button {:id "fetch-button" :events ["onClick"]} "fetch"])))]]}))
 
   (-> @fetcher :kn :old)
 
 
 
-  (def todo (-> (make-env #{{:name "counter" :value 2}
+  (def todo (run-env {:kn #{{:name "counter" :value 2}
                             {:name "todo" :id 0 :text "get milk" :order 0}
                             {:name "todo" :id 1 :text "take books back" :order 1}
                             {:name "todo" :id 2 :text "cook" :order 2}
                             }
-                          [;;clean up rules
-                           []
-                           ;;program rules
-                           [(rule {:name :ui/onClick :id "add-todo"}
-                                  {:name "counter" :value v}
-                                  (- {:name :ui/onClick :id "add-todo"})
-                                  (- {:name "counter" :value v})
-                                  (+ {:name "counter" :value (inc v)})
-                                  (+ {:name "todo" :id (inc v) :text (str "new todo " (+ 2 v)) :order (inc v)})
-                                  )]
-                           [(rule {:name "todo" :id id :text text :order order}
-                                  (+s (hiccup
-                                       [:li {:id (str "todo" id)} text]))
-                                  (+ {:name :ui/child :id "todo-list" :child (str "todo" id) :pos order}))]
-                           [(rule (+s (hiccup
-                                       [:div {:id "app"}
-                                        [:h1 {:id "todo-header"} "Todos"]
-                                        [:input {:id "todo-input" :placeholder "What do you need to do?"}]
-                                        [:button {:id "add-todo" :events ["onClick"]} "add"]
-                                        [:ul {:id "todo-list"}]
-                                        ]))
-                                  )]
-                           ])
-                (run)))
+                      :tick-rules [
+                                   (rule {:name :ui/onClick :id "add-todo"}
+                                         {:name "counter" :value v}
+                                         (- {:name "counter" :value v})
+                                         (+ {:name "counter" :value (inc v)})
+                                         (+ {:name "todo" :id (inc v) :text (str "new todo " (+ 2 v)) :order (inc v)}))
+
+                                   ]
+                      :rules [[(rule {:name "todo" :id id :text text :order order}
+                                     (+s (hiccup
+                                          [:li {:id (str "todo" id)} text]))
+                                     (+ {:name :ui/child :id "todo-list" :child (str "todo" id) :pos order}))]
+                              [(rule (+s (hiccup
+                                          [:div {:id "app"}
+                                           [:h1 {:id "todo-header"} "Todos"]
+                                           [:input {:id "todo-input" :placeholder "What do you need to do?"}]
+                                           [:button {:id "add-todo" :events ["onClick"]} "add"]
+                                           [:ul {:id "todo-list"}]
+                                           ]))
+                                     )]
+                              ]}))
 
 
   )
