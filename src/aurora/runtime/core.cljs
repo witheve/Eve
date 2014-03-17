@@ -72,7 +72,6 @@
   (swap! env assoc :paused false)
   (handle-feed env))
 
-
 (comment
 
 (def hiccup js/aurora.runtime.ui.hiccup->facts)
@@ -149,23 +148,50 @@
                             {:name "todo" :id 0 :text "get milk" :order 0}
                             {:name "todo" :id 1 :text "take books back" :order 1}
                             {:name "todo" :id 2 :text "cook" :order 2}
+                            {:name :todo/current-text :value ""}
                             }
-                      :tick-rules [
+                      :tick-rules [;;ui cleanup
+                                   (rule {:name :ui/text :id "cur-value-1" :text text}
+                                         (- {:name :ui/text :id "cur-value-1" :text text}))
+                                   (rule {:name :ui/attr :id "todo-input" :attr "value" :value v}
+                                         (- {:name :ui/attr :id "todo-input" :attr "value" :value v}))
+
+                                   ;;on change
+                                   (rule {:name :ui/onChange :id "todo-input"}
+                                         {:name :todo/current-text :value v}
+                                         (- {:name :todo/current-text :value v}))
+                                   (rule {:name :ui/onChange :id "todo-input" :value v}
+                                         (+ {:name :todo/current-text :value v}))
+
+                                   ;;submit
                                    (rule {:name :ui/onClick :id "add-todo"}
+                                         (+ {:name :todo/new!}))
+                                   (rule {:name :ui/onKeyDown :id "todo-input" :keyCode 13}
+                                         (+ {:name :todo/new!}))
+
+                                   ;;add a new todo
+                                   (rule {:name :todo/new!}
                                          {:name "counter" :value v}
+                                         {:name :todo/current-text :value text}
+                                         (- {:name :todo/new!})
                                          (- {:name "counter" :value v})
+                                         (- {:name :todo/current-text :value text})
+                                         (+ {:name :todo/current-text :value ""})
                                          (+ {:name "counter" :value (inc v)})
-                                         (+ {:name "todo" :id (inc v) :text (str "new todo " (+ 2 v)) :order (inc v)}))
+                                         (+ {:name "todo" :id (inc v) :text text :order (inc v)}))
 
                                    ]
                       :rules [[(rule {:name "todo" :id id :text text :order order}
                                      (+s (hiccup
                                           [:li {:id (str "todo" id)} text]))
                                      (+ {:name :ui/child :id "todo-list" :child (str "todo" id) :pos order}))]
+                              [(rule {:name :todo/current-text :value v}
+                                     (+s (hiccup
+                                          [:input {:id "todo-input" :value v :events ["onChange" "onKeyDown"] :placeholder "What do you need to do?"}]))
+                                     (+ {:name :ui/child :id "app" :child "todo-input" :pos 1}))]
                               [(rule (+s (hiccup
                                           [:div {:id "app"}
                                            [:h1 {:id "todo-header"} "Todos"]
-                                           [:input {:id "todo-input" :placeholder "What do you need to do?"}]
                                            [:button {:id "add-todo" :events ["onClick"]} "add"]
                                            [:ul {:id "todo-list"}]
                                            ]))

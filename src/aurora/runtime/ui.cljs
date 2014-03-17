@@ -17,6 +17,12 @@
 (defn frame [do]
   (animation-frame do))
 
+(defn event->params [ev e]
+  (condp = ev
+    "onChange" {:value (.-target.value e)}
+    "onKeyDown" {:keyCode (.-keyCode e)}
+    {}))
+
 ;; every bloom tick queue up all the UI changes we should do
 ;; each animation-frame resolve the queue of changes against the UI
 ;;     - are we tracking this id yet? resolve attr/style/child
@@ -79,8 +85,9 @@
         el-styles (into {} (map extract styles))
         el-attrs (into el-attrs (for [{:keys [event]} events]
                                   [event (fn [e]
-                                           (queue {:name (keyword "ui" event)
-                                                   :id id}))]))
+                                           (queue (merge {:name (keyword "ui" event)
+                                                          :id id}
+                                                         (event->params event e))))]))
         el-attrs (if (seq el-styles)
                    (assoc el-attrs :style el-styles)
                    el-attrs)]
