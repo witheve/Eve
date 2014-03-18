@@ -67,6 +67,30 @@
       #{}
       (match/vars clause))))
 
+(defn preds-in [clause]
+  ;; TODO check not nil
+  (condp op? clause
+    '+ed #{(:name (second clause))}
+    '-ed #{(:name (second clause))}
+    'set (apply clojure.set/union (map preds-in (nthnext clause 3)))
+    (if (seq? clause)
+      #{}
+      #{(:name clause)})))
+
+(defn preds-out [clause]
+  ;; TODO check not nil
+  (condp op? clause
+        '+ #{(:name (second clause))}
+        '- #{(:name (second clause))}
+        '+s #{:any}
+        '-s #{:any}
+        '> (let [from-name (:name (nth clause 1))
+                 to-name (:name (nth clause 2))]
+             (check from-name)
+             (check (or (nil? to-name) (= from-name to-name)))
+             #{(:name (nth clause 1))})
+        #{}))
+
 (def empty-q
   (with-meta
     (fn [kn]
@@ -211,9 +235,12 @@
 
 (defn rule* [clauses]
   (let [asserts+retracts (asserts+retracts* clauses)]
-    (fn [kn]
-      (let [[asserts retracts] (asserts+retracts kn)]
-        (reduce retract (reduce assert kn asserts) retracts)))))
+    (with-meta
+      (fn [kn]
+        (let [[asserts retracts] (asserts+retracts kn)]
+          (reduce retract (reduce assert kn asserts) retracts)))
+      {::preds-in (apply union (map preds-in clauses))
+       ::preds-out (apply union (map preds-out clauses))})))
 
 (defn chain [rules]
   (fn [kn]
@@ -242,6 +269,7 @@
          (+ [a a a])
          (- [b b b]))
    (Knowledge. #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]} #{} #{}))
+
   ((rule [a b _]
          (+ed [_ a b])
          (? (integer? a))
@@ -259,8 +287,6 @@
   ((query (+ed [a b])
           (+ [a b]))
    (Knowledge. #{} #{[1 2]} #{}))
-
-  ((set-q 'x '[b c] '[[a b c] [b c d]]) (Knowledge. #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]} #{} #{}))
 
   ((query (set x [b c]
                [a b c]
@@ -300,4 +326,7 @@
          (+ [c c c])
          (- [d d d]))
    (Knowledge. #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{}))
+
+  (rule {:name :quux :quux x}
+        (> {:name :the :foo x} {:bar x}))
   )
