@@ -3,7 +3,7 @@
 (ns aurora.compiler.datalog
   (:require [clojure.set :refer [union intersection difference subset?]]
             [aurora.compiler.match :as match])
-  (:require-macros [aurora.macros :refer [fnk check deftraced]]
+  (:require-macros [aurora.macros :refer [fns check deftraced]]
                    [aurora.compiler.match :refer [match]]
                    [aurora.compiler.datalog :refer [query rule]]))
 
@@ -82,9 +82,8 @@
     (meta query)))
 
 (defn project-q [pattern kn-f]
-  (let [return-syms (into [] (match/vars pattern))
-        return-keys (map keyword return-syms)
-        shape (into #{} return-keys)
+  (let [shape (match/vars pattern)
+        return-syms (into [] shape)
         f (match/pattern pattern return-syms)]
     (with-meta
       (fn [kn]
@@ -92,7 +91,7 @@
               (for [fact (kn-f kn)
                     :let [vals (f fact)]
                     :when vals]
-                (zipmap return-keys vals))))
+                (zipmap return-syms vals))))
       {::shape shape})))
 
 ;; TODO hashjoin instead
@@ -111,61 +110,53 @@
         (join (query1 kn) (query2 kn) join-shape))
       {::shape shape})))
 
-(defn filter-q [query fnk]
-  ;; (check (subset? (:aurora/selects (meta fnk)) (::shape (meta query))))
+(defn filter-q [query fns]
+  ;; (check (subset? (:aurora/selects (meta fns)) (::shape (meta query))))
   (with-meta
     (fn [kn]
-      (into #{} (filter fnk (query kn))))
+      (into #{} (filter fns (query kn))))
     {::shape (::shape (meta query))}))
 
-(defn let-q [query name-sym fnk]
-  ;; (check (subset? (:aurora/selects (meta fnk)) (::shape (meta query))))
-  (let [name-key (keyword name-sym)]
-    (with-meta
-      (fn [kn]
-        (into #{} (for [result (query kn)]
-                    (assoc result name-key (fnk result)))))
-      {::shape (conj (::shape (meta query)) name-key)})))
+(defn let-q [query name-sym fns]
+  ;; (check (subset? (:aurora/selects (meta fns)) (::shape (meta query))))
+  (with-meta
+    (fn [kn]
+      (into #{} (for [result (query kn)]
+                  (assoc result name-sym (fns result)))))
+    {::shape (conj (::shape (meta query)) name-sym)}))
 
 (defn fill-in [template result]
-  (clojure.walk/postwalk-replace
-   (into {} (for [[k v] result] [(symbol (.substring (str k) 1)) v]))
-   template))
+  (clojure.walk/postwalk-replace result template))
 
 (defn fill-in-q [template]
   (fn [facts]
     (into #{} (map #(fill-in template %) facts))))
 
-(defn mapcat-q [fnk]
-  (let [selects (:aurora/selects (meta fnk))]
+(defn mapcat-q [fns]
+  (let [selects (:aurora/selects (meta fns))]
     (fn [facts]
-      (into #{} (mapcat fnk (into #{} (map #(select-keys % selects) facts)))))))
+      (into #{} (mapcat fns (into #{} (map #(select-keys % selects) facts)))))))
 
 (declare gen*)
 
 (defn set-q [name-sym select-syms clauses]
   (let [vars (apply clojure.set/union (map vars clauses))
-        select-keys (into [] (map keyword select-syms))
         project-syms (into [] (difference vars select-syms))
-        project-keys (into [] (map keyword project-syms))
-        group-f (apply juxt project-keys)
-        name-key (keyword name-sym)
-        shape (conj (set project-keys) name-key)
+        group-f (apply juxt project-syms)
+        shape (conj (set project-syms) name-sym)
         gen (gen* clauses)]
     (with-meta
       (fn [kn]
         (into #{}
               (for [[projects selects] (group-by group-f (gen kn))]
-                (assoc (zipmap project-keys projects) name-key (set (map #(clojure.core/select-keys % select-keys) selects))))))
+                (assoc (zipmap project-syms projects) name-sym (set (map #(select-keys % select-syms) selects))))))
       {::shape shape})))
 
 (defn in-q [query name-sym set-sym]
-  (let [name-key (keyword name-sym)
-        set-key (keyword set-sym)]
-    (fn [kn]
-      (for [fact (query kn)
-            elem (get fact set-key :inq-not-found)]
-        (assoc fact name-key elem)))))
+  (fn [kn]
+    (for [fact (query kn)
+          elem (get fact set-sym :inq-not-found)]
+      (assoc fact name-sym elem))))
 
 (defn gen* [clauses]
   (reduce
@@ -193,7 +184,6 @@
         retract-fs (into [] (concat (map #(fill-in-q (second %)) (filter #(op? '- %) clauses))
                                     (map #(mapcat-q (second %)) (filter #(op? '-s %) clauses))))
         update-sym (gensym "fact")
-        update-key (keyword update-sym)
         update-gens (into [] (map #(project-q (with-meta (nth % 1) {:tag update-sym}) to-be) (filter #(op? '> %) clauses)))
         update-templates (into [] (map #(nth % 2) (filter #(op? '> %) clauses)))
         gen (gen* clauses)]
@@ -209,8 +199,8 @@
           (.push retracts result))
         (doseq [[update-gen update-template] (map vector update-gens update-templates)
                 result (join (update-gen kn) facts (intersection (::shape (meta update-gen)) (::shape (meta gen))))]
-          (.push retracts (update-key result))
-          (.push asserts (merge (update-key result) (fill-in update-template result))))
+          (.push retracts (update-sym result))
+          (.push asserts (merge (update-sym result) (fill-in update-template result))))
         [asserts retracts]))))
 
 (defn query* [clauses]

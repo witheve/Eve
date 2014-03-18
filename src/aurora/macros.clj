@@ -1,11 +1,11 @@
 (ns aurora.macros)
 
 ;; because plumbing.core doesnt work in LT
-(defmacro fnk [selects & body]
+(defmacro fns [selects & body]
   `(with-meta
-     (fn [{:keys ~selects}]
+     (fn [{:syms ~selects}]
        ~@body)
-     {:aurora/selects ~(into [] (map keyword selects))}))
+     {:aurora/selects ~selects}))
 
 (defmacro for! [& args]
   `(doall (for ~@args)))
