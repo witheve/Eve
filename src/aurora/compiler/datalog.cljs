@@ -8,7 +8,7 @@
                    [aurora.compiler.datalog :refer [query rule]]))
 
 ;; TODO
-;; conj?
+;; conj? not?
 ;; pattern matching on sets? sorting? vectors? (sort-by, sort-arbitrary)
 ;; graph representation?
 ;; dependency ordering
