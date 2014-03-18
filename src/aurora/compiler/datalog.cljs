@@ -80,16 +80,34 @@
 (defn preds-out [clause]
   ;; TODO check not nil
   (condp op? clause
-        '+ #{(:name (second clause))}
-        '- #{(:name (second clause))}
-        '+s #{::any}
-        '-s #{::any}
-        '> (let [from-name (:name (nth clause 1))
-                 to-name (:name (nth clause 2))]
-             (check from-name)
-             (check (or (nil? to-name) (= from-name to-name)))
-             #{(:name (nth clause 1))})
-        #{}))
+    '+ #{(:name (second clause))}
+    '- #{(:name (second clause))}
+    '+s #{::any}
+    '-s #{::any}
+    '> (let [from-name (:name (nth clause 1))
+             to-name (:name (nth clause 2))]
+         (check from-name)
+         (check (or (nil? to-name) (= from-name to-name)))
+         #{(:name (nth clause 1))})
+    #{}))
+
+(defn negs-in [clause]
+  ;; TODO check not nil
+  (condp op? clause
+    'set (apply clojure.set/union (map preds-in (nthnext clause 3)))
+    #{}))
+
+(defn negs-out [clause]
+  ;; TODO check not nil
+  (condp op? clause
+    '- #{(:name (second clause))}
+    '-s #{::any}
+    '> (let [from-name (:name (nth clause 1))
+             to-name (:name (nth clause 2))]
+         (check from-name)
+         (check (or (nil? to-name) (= from-name to-name)))
+         #{(:name (nth clause 1))})
+    #{}))
 
 (def empty-q
   (with-meta
@@ -240,7 +258,9 @@
         (let [[asserts retracts] (asserts+retracts kn)]
           (reduce retract (reduce assert kn asserts) retracts)))
       {::preds-in (apply union (map preds-in clauses))
-       ::preds-out (apply union (map preds-out clauses))})))
+       ::preds-out (apply union (map preds-out clauses))
+       ::negs-in (apply union (map negs-in clauses))
+       ::negs-out (apply union (map negs-out clauses))})))
 
 (defn chain [rules]
   (fn [kn]
