@@ -82,8 +82,8 @@
   (condp op? clause
         '+ #{(:name (second clause))}
         '- #{(:name (second clause))}
-        '+s #{:any}
-        '-s #{:any}
+        '+s #{::any}
+        '-s #{::any}
         '> (let [from-name (:name (nth clause 1))
                  to-name (:name (nth clause 2))]
              (check from-name)
