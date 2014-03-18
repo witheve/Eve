@@ -15,18 +15,20 @@
       #{}
       (match/vars clause))))
 
-(defn quote-clause [clause vars]
+(defn quote-clause [clause fnk-vars]
   (condp op? clause
-    '+ `(list '~(first clause) (fnk ~vars ~(second clause)))
-    '+s `(list '~(first clause) (fnk ~vars ~(second clause)))
-    '- `(list '~(first clause) (fnk ~vars ~(second clause)))
-    '-s `(list '~(first clause) (fnk ~vars ~(second clause)))
-    '? `(list '~(first clause) (fnk ~vars ~(second clause)))
+    '+ `(list '~'+ (fnk ~fnk-vars ~(second clause)))
+    '+s `(list '~'+s (fnk ~fnk-vars ~(second clause)))
+    '- `(list '~'- (fnk ~fnk-vars ~(second clause)))
+    '-s `(list '~'-s (fnk ~fnk-vars ~(second clause)))
+    '> (let [update-vars (into [] (clojure.set/union (set fnk-vars) (vars (nth clause 1))))]
+         `(list '~'> '~(nth clause 1) (fnk ~update-vars ~(nth clause 2))))
+    '? `(list '~'? (fnk ~fnk-vars ~(second clause)))
     `'~clause))
 
 (defn quote-clauses [clauses]
-  (let [vars (apply clojure.set/union (map vars clauses))]
-    (mapv #(quote-clause % vars) clauses)))
+  (let [fnk-vars (into [] (apply clojure.set/union (map vars clauses)))]
+    (mapv #(quote-clause % fnk-vars) clauses)))
 
 (defmacro query [& clauses]
   `(query* ~(quote-clauses clauses)))

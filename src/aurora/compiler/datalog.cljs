@@ -66,9 +66,10 @@
       #{}
       (match/vars clause))))
 
-(defn empty-q [kn]
+(def empty-q
   (with-meta
-    #{{}}
+    (fn [kn]
+      #{{}})
     {::shape #{}}))
 
 (defn debug-q [query]
@@ -94,16 +95,19 @@
       {::shape shape})))
 
 ;; TODO hashjoin instead
+(defn join [facts1 facts2 join-shape]
+  (into #{}
+        (for [vals1 facts1
+              vals2 facts2
+              :when (= (select-keys vals1 join-shape) (select-keys vals2 join-shape))]
+          (merge vals1 vals2))))
+
 (defn join-q [query1 query2]
   (let [shape (union (::shape (meta query1)) (::shape (meta query2)))
         join-shape (intersection (::shape (meta query1)) (::shape (meta query2)))]
     (with-meta
       (fn [kn]
-        (into #{}
-              (for [vals1 (query1 kn)
-                    vals2 (query2 kn)
-                    :when (= (select-keys vals1 join-shape) (select-keys vals2 join-shape))]
-                (merge vals1 vals2))))
+        (join (query1 kn) (query2 kn) join-shape))
       {::shape shape})))
 
 (defn filter-q [query fnk]
@@ -163,6 +167,7 @@
         '+s query ;; handled later
         '- query ;; handled later
         '-s query ;; handled later
+        '> query ;; handled later
         (join-q query (project-q clause to-be)))))
    empty-q
    clauses))
@@ -172,6 +177,10 @@
                                    (map #(mapcat-q (second %)) (filter #(op? '+s %) clauses))))
         retract-fs (into [] (concat (map #(map-q (second %)) (filter #(op? '- %) clauses))
                                     (map #(mapcat-q (second %)) (filter #(op? '-s %) clauses))))
+        update-sym (gensym "fact")
+        update-key (keyword update-sym)
+        update-gens (into [] (map #(project-q (with-meta (nth % 1) {:tag update-sym}) to-be) (filter #(op? '> %) clauses)))
+        update-fnks (into [] (map #(nth % 2) (filter #(op? '> %) clauses)))
         gen (gen* clauses)]
     (fn [kn]
       (let [facts (gen kn)
@@ -183,6 +192,10 @@
         (doseq [retract-f retract-fs
                 result (retract-f facts)]
           (.push retracts result))
+        (doseq [[update-gen update-fnk] (map vector update-gens update-fnks)
+                result (join (update-gen kn) facts (intersection (::shape (meta update-gen)) (::shape (meta gen))))]
+          (.push retracts (update-key result))
+          (.push asserts (merge (update-key result) (update-fnk result))))
         [asserts retracts]))))
 
 (defn query* [clauses]
@@ -280,4 +293,11 @@
           (in y x)
           (+ [a b c d y]))
    (Knowledge. #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]} #{} #{}))
+
+  ((rule (> {:foo 1} {:bar 1}))
+   (Knowledge. #{{:foo 1 :bar 0}} #{} #{}))
+
+  ((rule {:quux x}
+         (> {:foo x} {:bar x}))
+   (Knowledge. #{{:foo 1 :bar 0} {:quux 1}} #{} #{}))
   )
