@@ -5,7 +5,7 @@
   `(with-meta
      (fn [{:syms ~selects}]
        ~@body)
-     {:aurora/selects ~selects}))
+     {:aurora/selects '~selects}))
 
 (defmacro for! [& args]
   `(doall (for ~@args)))
