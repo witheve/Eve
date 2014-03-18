@@ -1,6 +1,6 @@
 (ns aurora.compiler.datalog
   (:require [aurora.compiler.match :as match]
-            [aurora.macros :refer [check fnk]]))
+            [aurora.macros :refer [check fns]]))
 
 (defn op? [op clause]
   (and (seq? clause) (= op (first clause))))
