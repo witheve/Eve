@@ -79,7 +79,7 @@
         facts))
     (meta query)))
 
-(defn project [pattern kn-f]
+(defn project-q [pattern kn-f]
   (let [return-syms (into [] (match/vars pattern))
         return-keys (map keyword return-syms)
         shape (into #{} return-keys)
@@ -94,7 +94,7 @@
       {::shape shape})))
 
 ;; TODO hashjoin instead
-(defn join [query1 query2]
+(defn join-q [query1 query2]
   (let [shape (union (::shape (meta query1)) (::shape (meta query2)))
         join-shape (intersection (::shape (meta query1)) (::shape (meta query2)))]
     (with-meta
@@ -154,16 +154,16 @@
    (fn [query clause]
      (debug-q
       (condp op? clause
-        '+ed (join query (project (second clause) :asserted))
-        '-ed (join query (project (second clause) :retracted))
+        '+ed (join-q query (project-q (second clause) :asserted))
+        '-ed (join-q query (project-q (second clause) :retracted))
         '? (filter-q query (second clause))
-        'set (join query (set-q (nth clause 1) (nth clause 2) (nthnext clause 3)))
+        'set (join-q query (set-q (nth clause 1) (nth clause 2) (nthnext clause 3)))
         'in (in-q query (nth clause 1) (nth clause 2))
         '+ query ;; handled later
         '+s query ;; handled later
         '- query ;; handled later
         '-s query ;; handled later
-        (join query (project clause to-be)))))
+        (join-q query (project-q clause to-be)))))
    empty-q
    clauses))
 
@@ -213,11 +213,11 @@
 
 (comment
 
-  ((project '[a b] to-be) (Knowledge. #{[1 2] [3 4 5] [6 7]} #{} #{}))
+  ((project-q '[a b] to-be) (Knowledge. #{[1 2] [3 4 5] [6 7]} #{} #{}))
 
-  ((join (project '[a b _] to-be) (project '[_ a b] to-be)) (Knowledge. #{[1 2 3] [2 3 4] [2 4 6] [4 6 8]} #{} #{}))
+  ((join-q (project-q '[a b _] to-be) (project-q '[_ a b] to-be)) (Knowledge. #{[1 2 3] [2 3 4] [2 4 6] [4 6 8]} #{} #{}))
 
-  ((filter-q (project '[a b] to-be) (fnk [a b] (= a b))) (Knowledge. #{[1 2] [3 4] [6 6]} #{} #{}))
+  ((filter-q (project-q '[a b] to-be) (fnk [a b] (= a b))) (Knowledge. #{[1 2] [3 4] [6 6]} #{} #{}))
 
   (query* ['[a b _] '[_ a b] (list '? (fnk [a] (integer? a))) (list '+ (fnk [a b] (+ a b)))])
 
