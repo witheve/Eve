@@ -2,10 +2,17 @@
 
 (defn vars [form]
   (cond
+   (contains? (meta form) :tag) (conj (vars (with-meta form {})) (:tag (meta form)))
    (= '_ form) #{}
    (symbol? form) #{form}
-   (or (sequential? form) (map? form)) (apply clojure.set/union (map vars form))
+   (coll? form) (apply clojure.set/union (map vars form))
    :else #{}))
+
+(defn quote-meta [form]
+  (cond
+   (contains? (meta form) :tag) `(with-meta ~(quote-meta (with-meta form {})) {:tag '~(:tag (meta form))})
+   (symbol? form) `'~form
+   :else form))
 
 (defn match->cljs [patterns guards actions input]
   (let [input-sym (gensym "input")
@@ -13,7 +20,7 @@
         pattern-varss (for [pattern patterns] (vec (vars pattern)))]
     `(let [~input-sym ~input]
        ~@(for [[pattern-sym pattern-vars pattern] (map vector pattern-syms pattern-varss patterns)]
-           `(defonce ~pattern-sym (aurora.compiler.match/pattern '~pattern '~pattern-vars)))
+           `(defonce ~pattern-sym (aurora.compiler.match/pattern ~(clojure.walk/postwalk quote-meta pattern) '~pattern-vars)))
        ~(reduce
          (fn [tail [pattern-sym pattern-vars pattern guard action]]
            `(let [results# (~pattern-sym ~input-sym)

@@ -10,9 +10,10 @@
 
 (defn vars [form]
   (cond
+   (contains? (meta form) :tag) (conj (vars (with-meta form {})) (:tag (meta form)))
    (= '_ form) #{}
    (symbol? form) #{form}
-   (or (sequential? form) (map? form)) (apply clojure.set/union (map vars form))
+   (coll? form) (apply clojure.set/union (map vars form))
    :else #{}))
 
 (defn chain [& forms]
@@ -34,6 +35,7 @@
 
 (deftraced pattern->jsth [pattern] [pattern]
   (cond
+   (contains? (meta pattern) :tag) `(do (let! ~(:tag (meta pattern)) ::input) ~(pattern->jsth (with-meta pattern {})))
    (= '_ pattern) ::tail
    (symbol? pattern) `(do (let! ~pattern ::input) ::tail)
    (or (number? pattern) (string? pattern)) `(if (= ~(data->jsth pattern) ::input) ::tail)
@@ -83,4 +85,8 @@
   (match {:a 0 :b [1 2]}
          {:c _} :bad
          {:b [x y]} [x y])
+
+  (match {:a 0 :b [1 2]}
+         {:c _} :bad
+         ^z {:b [x y]} [x y z])
   )
