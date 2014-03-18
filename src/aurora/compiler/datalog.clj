@@ -18,9 +18,7 @@
 
 (defn quote-clause [clause fnk-vars]
   (condp op? clause
-    '+ `(list '~'+ (fnk ~fnk-vars ~(second clause)))
     '+s `(list '~'+s (fnk ~fnk-vars ~(second clause)))
-    '- `(list '~'- (fnk ~fnk-vars ~(second clause)))
     '-s `(list '~'-s (fnk ~fnk-vars ~(second clause)))
     '> (let [update-vars (into [] (clojure.set/union (set fnk-vars) (vars (nth clause 1))))]
          `(list '~'> '~(nth clause 1) (fnk ~update-vars ~(nth clause 2))))

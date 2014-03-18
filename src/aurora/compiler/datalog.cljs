@@ -127,10 +127,13 @@
                     (assoc result name-key (fnk result)))))
       {::shape (conj (::shape (meta query)) name-key)})))
 
-(defn map-q [fnk]
-  (let [selects (:aurora/selects (meta fnk))]
-    (fn [facts]
-      (into #{} (map fnk (into #{} (map #(select-keys % selects) facts)))))))
+(defn map-q [template]
+  (fn [facts]
+    (into #{}
+          (for [result facts]
+            (clojure.walk/postwalk-replace
+             (into {} (for [[k v] result] [(symbol (.substring (str k) 1)) v]))
+             template)))))
 
 (defn mapcat-q [fnk]
   (let [selects (:aurora/selects (meta fnk))]
@@ -236,19 +239,6 @@
 ;; tests
 
 (comment
-
-  ((project-q '[a b] to-be) (Knowledge. #{[1 2] [3 4 5] [6 7]} #{} #{}))
-
-  ((join-q (project-q '[a b _] to-be) (project-q '[_ a b] to-be)) (Knowledge. #{[1 2 3] [2 3 4] [2 4 6] [4 6 8]} #{} #{}))
-
-  ((filter-q (project-q '[a b] to-be) (fnk [a b] (= a b))) (Knowledge. #{[1 2] [3 4] [6 6]} #{} #{}))
-
-  (query* ['[a b _] '[_ a b] (list '? (fnk [a] (integer? a))) (list '+ (fnk [a b] (+ a b)))])
-
-  ((query* ['[a b _] '[_ a b] (list '? (fnk [a] (integer? a))) (list '+ (fnk [a b] (+ a b)))]) (Knowledge. #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]} #{} #{}))
-
-  ((rule* ['[a b _] '[_ a b] (list '? (fnk [a] (integer? a))) (list '+ (fnk [a b] (+ a b))) (list '- (fnk [a b] (- a b)))]) (Knowledge. #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]} #{} #{}))
-
   ((query [a b _]
           [_ a b]
           (? (integer? a))
@@ -261,7 +251,6 @@
          (+ [a a a])
          (- [b b b]))
    (Knowledge. #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]} #{} #{}))
-
   ((rule [a b _]
          (+ed [_ a b])
          (? (integer? a))
