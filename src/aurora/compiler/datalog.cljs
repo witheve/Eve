@@ -127,13 +127,14 @@
                     (assoc result name-key (fnk result)))))
       {::shape (conj (::shape (meta query)) name-key)})))
 
-(defn map-q [template]
+(defn fill-in [template result]
+  (clojure.walk/postwalk-replace
+   (into {} (for [[k v] result] [(symbol (.substring (str k) 1)) v]))
+   template))
+
+(defn fill-in-q [template]
   (fn [facts]
-    (into #{}
-          (for [result facts]
-            (clojure.walk/postwalk-replace
-             (into {} (for [[k v] result] [(symbol (.substring (str k) 1)) v]))
-             template)))))
+    (into #{} (map #(fill-in template %) facts))))
 
 (defn mapcat-q [fnk]
   (let [selects (:aurora/selects (meta fnk))]
@@ -187,14 +188,14 @@
    clauses))
 
 (defn asserts+retracts* [clauses]
-  (let [assert-fs (into [] (concat (map #(map-q (second %)) (filter #(op? '+ %) clauses))
+  (let [assert-fs (into [] (concat (map #(fill-in-q (second %)) (filter #(op? '+ %) clauses))
                                    (map #(mapcat-q (second %)) (filter #(op? '+s %) clauses))))
-        retract-fs (into [] (concat (map #(map-q (second %)) (filter #(op? '- %) clauses))
+        retract-fs (into [] (concat (map #(fill-in-q (second %)) (filter #(op? '- %) clauses))
                                     (map #(mapcat-q (second %)) (filter #(op? '-s %) clauses))))
         update-sym (gensym "fact")
         update-key (keyword update-sym)
         update-gens (into [] (map #(project-q (with-meta (nth % 1) {:tag update-sym}) to-be) (filter #(op? '> %) clauses)))
-        update-fnks (into [] (map #(nth % 2) (filter #(op? '> %) clauses)))
+        update-templates (into [] (map #(nth % 2) (filter #(op? '> %) clauses)))
         gen (gen* clauses)]
     (fn [kn]
       (let [facts (gen kn)
@@ -206,10 +207,10 @@
         (doseq [retract-f retract-fs
                 result (retract-f facts)]
           (.push retracts result))
-        (doseq [[update-gen update-fnk] (map vector update-gens update-fnks)
+        (doseq [[update-gen update-template] (map vector update-gens update-templates)
                 result (join (update-gen kn) facts (intersection (::shape (meta update-gen)) (::shape (meta gen))))]
           (.push retracts (update-key result))
-          (.push asserts (merge (update-key result) (update-fnk result))))
+          (.push asserts (merge (update-key result) (fill-in update-template result))))
         [asserts retracts]))))
 
 (defn query* [clauses]
