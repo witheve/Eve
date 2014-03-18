@@ -242,15 +242,16 @@
                                    ]
                       :rules [
                               [(rule {:name "todo" :id id :text text :order order}
-                                     {:name "todo-done" :id id :done? "false"}
                                      (+s (hiccup
-                                           [:input {:id (str "todo-checkbox" id) :event-key "todo-checkbox" :entity id :checked "" :events ["onChange"] :type "checkbox"}]))
+                                           [:input {:id (str "todo-checkbox" id)
+                                                    :event-key "todo-checkbox"
+                                                    :entity id
+                                                    :events ["onChange"]
+                                                    :type "checkbox"}]))
                                      (+ {:name :ui/child :id (str "todo" id) :child (str "todo-checkbox" id) :pos -1}))
                                (rule {:name "todo" :id id :text text :order order}
                                      {:name "todo-done" :id id :done? "true"}
-                                     (+s (hiccup
-                                           [:input {:id (str "todo-checkbox" id) :event-key "todo-checkbox" :entity id :checked "checked" :events ["onChange"] :type "checkbox"}]))
-                                     (+ {:name :ui/child :id (str "todo" id) :child (str "todo-checkbox" id) :pos -1}))]
+                                     (+ {:name :ui/attr :id id :attr "checked" :value "checked"})) ]
                               [(rule {:name "todo" :id id :text text :order order}
                                      {:name "todo-editing" :id id :editing? "false"}
                                      (+s (hiccup
