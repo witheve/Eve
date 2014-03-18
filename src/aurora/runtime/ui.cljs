@@ -18,10 +18,20 @@
   (animation-frame do))
 
 (defn event->params [ev e]
-  (condp = ev
-    "onChange" {:value (.-target.value e)}
-    "onKeyDown" {:keyCode (.-keyCode e)}
-    {}))
+  (let [tag (.-target.tagName e)
+        type (.-target.type e)]
+    (condp = ev
+      "onChange" {:value (cond
+                          (= type "checkbox") (if (.-target.checked e)
+                                                "true"
+                                                "false")
+                          (= type "radio") (if (.-target.checked e)
+                                             "true"
+                                             "false")
+                          (= tag "option") (.-target.selected e)
+                          :else (.-target.value e))}
+      "onKeyDown" {:keyCode (.-keyCode e)}
+      {})))
 
 ;; every bloom tick queue up all the UI changes we should do
 ;; each animation-frame resolve the queue of changes against the UI
@@ -59,8 +69,12 @@
 
 (def find-listeners (query {:name :ui/event-listener
                             :id id
+                            :entity entity
+                            :event-key key
                             :event event}
                            (+ {:id id
+                               :event-key key
+                               :entity entity
                                :event event})))
 
 (def find-style (query {:name :ui/style
@@ -83,10 +97,13 @@
   (let [extract (juxt :attr :value)
         el-attrs (into {} (map extract attrs))
         el-styles (into {} (map extract styles))
-        el-attrs (into el-attrs (for [{:keys [event]} events]
+        el-attrs (into el-attrs (for [{:keys [event entity event-key] :as foo} events]
                                   [event (fn [e]
                                            (queue (merge {:name (keyword "ui" event)
+                                                          :event-key event-key
                                                           :id id}
+                                                         (when entity
+                                                           {:entity entity})
                                                          (event->params event e))))]))
         el-attrs (if (seq el-styles)
                    (assoc el-attrs :style el-styles)
@@ -126,7 +143,9 @@
 (defn fact-walk [hic facts [parent pos]]
   (let [[el args & children] hic
         id (:id args)
-        real-args (dissoc args :id :style :events)]
+        entity (:entity args)
+        key (:event-key args)
+        real-args (dissoc args :id :style :events :event-key :entity)]
     (when parent
       (.push facts {:name :ui/child :id parent :child id :pos pos}))
     (.push facts {:name :ui/elem :id id :tag (name el)})
@@ -135,7 +154,7 @@
     (doseq [[k v] (:style args)]
       (.push facts {:name :ui/style :id id :attr (name k) :value v}))
     (doseq [ev (:events args)]
-      (.push facts {:name :ui/event-listener :id id :event (name ev)}))
+      (.push facts {:name :ui/event-listener :id id :event-key key :event (name ev) :entity entity}))
     (doseq [[i child] (map-indexed vector children)]
       (if (vector? child)
         (fact-walk child facts [id i])

@@ -36,9 +36,6 @@
                  [org.clojure/clojurescript "0.0-2156"]
                  [fetch "0.1.1"]
                  [org.clojure/tools.reader "0.8.3"]]
-  :source-paths ["src/"
-                 "/Users/chris/repos/clojurescript/src/clj"
-                 "/Users/chris/repos/clojurescript/src/cljs"
-                 ]
+  :source-paths ["src/"]
     :plugins [[lein-cljsbuild "1.0.2"]]
   )
