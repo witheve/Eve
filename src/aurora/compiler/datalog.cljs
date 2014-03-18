@@ -62,6 +62,7 @@
     '-ed (match/vars (second clause))
     'set (conj (clojure.set/difference (apply clojure.set/union (map vars (nthnext clause 3))) (nth clause 2)) (nth clause 1))
     'in #{(second clause)}
+    '= #{(second clause)}
     (if (seq? clause)
       #{}
       (match/vars clause))))
@@ -76,7 +77,7 @@
   (with-meta
     (fn [kn]
       (let [facts (query kn)]
-        ;(prn facts)
+        (prn facts)
         facts))
     (meta query)))
 
@@ -111,11 +112,20 @@
       {::shape shape})))
 
 (defn filter-q [query fnk]
-  (check (subset? (:aurora/selects (meta fnk)) (::shape (meta query))))
+  ;; (check (subset? (:aurora/selects (meta fnk)) (::shape (meta query))))
   (with-meta
     (fn [kn]
       (into #{} (filter fnk (query kn))))
     {::shape (::shape (meta query))}))
+
+(defn let-q [query name-sym fnk]
+  ;; (check (subset? (:aurora/selects (meta fnk)) (::shape (meta query))))
+  (let [name-key (keyword name-sym)]
+    (with-meta
+      (fn [kn]
+        (into #{} (for [result (query kn)]
+                    (assoc result name-key (fnk result)))))
+      {::shape (conj (::shape (meta query)) name-key)})))
 
 (defn map-q [fnk]
   (let [selects (:aurora/selects (meta fnk))]
@@ -161,6 +171,7 @@
         '+ed (join-q query (project-q (second clause) :asserted))
         '-ed (join-q query (project-q (second clause) :retracted))
         '? (filter-q query (second clause))
+        '= (let-q query (nth clause 1) (nth clause 2))
         'set (join-q query (set-q (nth clause 1) (nth clause 2) (nthnext clause 3)))
         'in (in-q query (nth clause 1) (nth clause 2))
         '+ query ;; handled later
@@ -300,4 +311,13 @@
   ((rule {:quux x}
          (> {:foo x} {:bar x}))
    (Knowledge. #{{:foo 1 :bar 0} {:quux 1}} #{} #{}))
+
+  ((rule [a b _]
+         (+ed [_ a b])
+         (? (integer? a))
+         (= c (+ a b))
+         (= d (- a b))
+         (+ [c c c])
+         (- [d d d]))
+   (Knowledge. #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{}))
   )
