@@ -184,7 +184,7 @@
 (defn set-q [name-sym select-syms clauses]
   (let [vars (apply clojure.set/union (map vars clauses))
         project-syms (into [] (difference vars select-syms))
-        group-f (apply juxt project-syms)
+        group-f #(select-keys % project-syms)
         shape (conj (set project-syms) name-sym)
         gen (gen* clauses)]
     (with-meta
@@ -349,4 +349,9 @@
 
   (rule {:name :quux :quux x}
         (> {:name :the :foo x} {:bar x}))
+
+  ((query (set x [id]
+               {:name "foo" :id id})
+          (+ 1))
+   (Knowledge. #{{:name "zomg" :id 4} {:name "foo" :id 3}} #{} #{}))
   )
