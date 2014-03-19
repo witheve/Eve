@@ -67,28 +67,33 @@
       #{}
       (match/vars clause))))
 
+(defn pred-name [clause]
+  (or (and (map? clause) (:name clause))
+      (and (vector? clause) (first clause))
+      ::any))
+
 (defn preds-in [clause]
   ;; TODO check not nil
   (condp op? clause
-    '+ed #{(:name (second clause))}
-    '-ed #{(:name (second clause))}
+    '+ed #{(pred-name (second clause))}
+    '-ed #{(pred-name (second clause))}
     'set (apply clojure.set/union (map preds-in (nthnext clause 3)))
     (if (seq? clause)
       #{}
-      #{(:name clause)})))
+      #{(pred-name clause)})))
 
 (defn preds-out [clause]
   ;; TODO check not nil
   (condp op? clause
-    '+ #{(:name (second clause))}
-    '- #{(:name (second clause))}
+    '+ #{(pred-name (second clause))}
+    '- #{(pred-name (second clause))}
     '+s #{::any}
     '-s #{::any}
-    '> (let [from-name (:name (nth clause 1))
-             to-name (:name (nth clause 2))]
+    '> (let [from-name (pred-name (nth clause 1))
+             to-name (pred-name (nth clause 2))]
          (check from-name)
-         (check (or (nil? to-name) (= from-name to-name)))
-         #{(:name (nth clause 1))})
+         (check (or (= ::any to-name) (= from-name to-name)))
+         #{(pred-name (nth clause 1))})
     #{}))
 
 (defn negs-in [clause]
@@ -100,13 +105,13 @@
 (defn negs-out [clause]
   ;; TODO check not nil
   (condp op? clause
-    '- #{(:name (second clause))}
+    '- #{(pred-name (second clause))}
     '-s #{::any}
-    '> (let [from-name (:name (nth clause 1))
-             to-name (:name (nth clause 2))]
+    '> (let [from-name (pred-name (nth clause 1))
+             to-name (pred-name (nth clause 2))]
          (check from-name)
-         (check (or (nil? to-name) (= from-name to-name)))
-         #{(:name (nth clause 1))})
+         (check (or (= ::any to-name) (= from-name to-name)))
+         #{(pred-name (nth clause 1))})
     #{}))
 
 (def empty-q
@@ -277,6 +282,8 @@
 ;; tests
 
 (comment
+  (enable-console-print!)
+
   ((query [a b _]
           [_ a b]
           (? (integer? a))
