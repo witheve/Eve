@@ -93,8 +93,14 @@
                               :child-id child-id
                               :pos pos})))
 
+(defn handle-attr [v]
+  (condp = v
+    "true" true
+    "false" false
+    v))
+
 (defn build-element [id tag attrs styles events queue]
-  (let [extract (juxt :attr :value)
+  (let [extract (juxt :attr (comp handle-attr :value))
         el-attrs (into {} (map extract attrs))
         el-styles (into {} (map extract styles))
         el-attrs (into el-attrs (for [{:keys [event entity event-key] :as foo} events]
@@ -134,10 +140,13 @@
 
 (defn on-bloom-tick [knowledge queue]
   (frame (fn []
-           (js/React.renderComponent (dommy/node (rebuild-tree knowledge queue)) js/document.body)
+           (let [tree (rebuild-tree knowledge queue)]
+             (println "UI Tree: " (pr-str tree))
+             (js/React.renderComponent (dommy/node tree) js/document.body))
            )))
 
-(swap! runtime/watchers conj on-bloom-tick)
+(swap! runtime/watchers conj (fn [knowledge queue]
+                               (on-bloom-tick knowledge queue)))
 
 
 (defn fact-walk [hic facts [parent pos]]
