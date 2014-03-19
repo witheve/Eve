@@ -92,44 +92,47 @@
                              (- {:name :ui/event-listener :id id :entity entity :event event}))
                        ])
 
+  (def timer-cleanup-rules [(rule {:name :wait :time t :id i}
+                                  (- {:name :wait :time t :id i}))])
+
+  (def io-cleanup-rules [(rule ^get {:name :http-get}
+                               (- get))])
+
+
   (def tick (run-env {:kn #{[3 5] [9 8 7] [:tick]}
-                      :tick-rules [(rule {:name :wait :time t :id i}
-                                         (- {:name :wait :time t :id i}))]
-                      :rules [(rule [:tick]
-                                  (- [:tick])
-                                  (+ {:name :wait :time 1000 :id 1}))
-                              (rule {:name :tick :id 1 :timestamp ts}
-                                  (+ [:tick])
-                                  (+ ["hi!" ts]))]}))
+                      :cleanup-rules (concat ui-cleanup-rules timer-cleanup-rules
+                                             [])
+                      :tick-rules [(rule [:tick]
+                                         (- [:tick])
+                                         (+ {:name :wait :time 1000 :id 1}))]
+                      :rules [(rule {:name :tick :id 1 :timestamp ts}
+                                    (+ [:tick])
+                                    (+ ["hi!" ts]))]}))
 
   (pause tick)
   (unpause tick)
   @tick
 
-  (def clock (run-env {:kn #{{:name :tick :id "clock" :timestamp ""}}
-                       :tick-rules [(rule {:name :wait :time t :id i}
-                                          (- {:name :wait :time t :id i}))
-                                    (rule {:name :ui/text :id "time-0" :text text}
-                                          (- {:name :ui/text :id "time-0" :text text}))
-                                    (rule {:name :tick :id "clock" :timestamp ts}
-                                          (+ {:name :wait :time 1000 :id "clock"}))
-                                    ]
+  (def clock (run-env {:kn #{{:name :tick :id "clock"}}
+                       :cleanup-rules (concat ui-cleanup-rules timer-cleanup-rules
+                                              [])
+                       :tick-rules [(rule {:name :tick :id "clock"}
+                                          (+ {:name :wait :time 1000 :id "clock"}))]
                        :rules [[(rule {:name :tick :id "clock" :timestamp ts}
-                                      (+s (hiccup [:p {:id "time"} (str "time is: " (js/Date. ts))])))
-                                ]]
+                                      (+s (hiccup [:p {:id "time"} (str "time is: " (js/Date. ts))])))]]
                        }))
 
   (pause clock)
   (unpause clock)
-  @clock
+  (-> @clock :kn :old)
 
   (def incrementer (run-env {:kn #{{:name "counter" :value 0}}
-                             :tick-rules [(rule {:name :ui/text :id "counter-ui-0" :text text}
-                                                (- {:name :ui/text :id "counter-ui-0" :text text}))
-                                          (rule {:name :ui/onClick :id "incr-button"}
+                             :cleanup-rules (concat ui-cleanup-rules timer-cleanup-rules
+                                                    [])
+                             :tick-rules [(rule {:name :ui/onClick :id "incr-button"}
                                                 {:name "counter" :value v}
-                                                (- {:name "counter" :value v})
-                                                (+ {:name "counter" :value (inc v)}))]
+                                                (= z (inc v))
+                                                (> {:name "counter"} {:value z}))]
                              :rules [[(rule {:name "counter" :value v}
                                             (+s (hiccup
                                                  [:p {:id "counter-ui"} v]
@@ -137,20 +140,16 @@
 
   (pause incrementer)
   (unpause incrementer)
-  (:kn @incrementer)
+  (-> @incrementer :kn :old)
 
   (def fetcher (run-env {:kn #{{:name "content" :value "Click button to fetch google"}}
-                         :tick-rules [(rule {:name :ui/text :id "content-ui-0" :text text}
-                                             (- {:name :ui/text :id "content-ui-0" :text text}))
-                                       (rule {:name :http-get :url "https://google.com" :id "google"}
-                                             (- {:name :http-get :url "https://google.com" :id "google"}))
-                                       (rule {:name :ui/onClick :id "fetch-button"}
-                                             (+ {:name :http-get :url "https://google.com" :id "google"}))
-                                       (rule {:name :http-response :id "google" :data data}
-                                             {:name "content" :value v}
-                                             (- {:name "content" :value v})
-                                             (+ {:name "content" :value data}))
-                                       ]
+                         :cleanup-rules (concat ui-cleanup-rules timer-cleanup-rules io-cleanup-rules
+                                                [])
+                         :tick-rules [(rule {:name :ui/onClick :id "fetch-button"}
+                                            (+ {:name :http-get :url "https://google.com" :id "google"}))
+                                      (rule {:name :http-response :id "google" :data data}
+                                            (> {:name "content"} {:value data}))
+                                      ]
                          :rules [[(rule {:name "content" :value v}
                                         (+s (hiccup
                                              [:p {:id "content-ui"} v]
@@ -175,11 +174,8 @@
                       :cleanup-rules (concat ui-cleanup-rules
                                              [])
                       :tick-rules [;;on change
-                                   (rule {:name :ui/onChange :id "todo-input"}
-                                         {:name :todo/current-text :value v}
-                                         (- {:name :todo/current-text :value v}))
                                    (rule {:name :ui/onChange :id "todo-input" :value v}
-                                         (+ {:name :todo/current-text :value v}))
+                                         (> {:name :todo/current-text} {:value v}))
 
                                    ;;submit
                                    (rule {:name :ui/onClick :id "add-todo"}
@@ -191,64 +187,46 @@
                                    (rule {:name :todo/new!}
                                          {:name "counter" :value v}
                                          {:name :todo/current-text :value text}
+                                         (= new-count (inc v))
                                          (- {:name :todo/new!})
-                                         (- {:name "counter" :value v})
-                                         (- {:name :todo/current-text :value text})
-                                         (+ {:name :todo/current-text :value ""})
-                                         (+ {:name "counter" :value (inc v)})
-                                         (+ {:name "todo" :id (inc v) :text text :order (inc v)})
-                                         (+ {:name "todo-editing" :id (inc v) :editing? "false"})
-                                         (+ {:name "todo-done" :id (inc v) :done? "false"})
-                                         )
+                                         (> {:name "counter"} {:value new-count})
+                                         (> {:name :todo/current-text} {:value ""})
+                                         (+ {:name "todo" :id new-count :text text :order new-count})
+                                         (+ {:name "todo-editing" :id new-count :editing? "false"})
+                                         (+ {:name "todo-done" :id new-count :done? "false"}))
 
                                    ;;todo editing
                                    (rule {:name :ui/onDoubleClick :entity ent}
                                          {:name "todo-editing" :id ent :editing? "false"}
-                                         (- {:name "todo-editing" :id ent :editing? "false"})
-                                         (+ {:name "todo-editing" :id ent :editing? "true"})
-                                         )
+                                         (> {:name "todo-editing" :id ent} {:editing? "true"}))
 
                                    (rule {:name :ui/onBlur :entity ent}
                                          {:name "todo-editing" :id ent :editing? "true"}
-                                         (- {:name "todo-editing" :id ent :editing? "true"})
-                                         (+ {:name "todo-editing" :id ent :editing? "false"})
-                                         )
+                                         (> {:name "todo-editing" :id ent} {:editing? "false"}))
 
-
-                                   (rule {:name :ui/onChange :id "todo-editor"}
-                                         {:name :todo/edit-text :value v}
-                                         (- {:name :todo/edit-text :value v}))
                                    (rule {:name :ui/onChange :id "todo-editor" :value v}
+                                         (> {:name :todo/edit-text} {:value v})
                                          (+ {:name :todo/edit-text :value v}))
 
                                    (rule {:name :ui/onKeyDown :id "todo-editor" :keyCode 13 :entity ent}
-                                         {:name "todo" :id ent :text text :order order}
                                          {:name :todo/edit-text :value new-value}
-                                         (- {:name "todo" :id ent :text text :order order})
-                                         (+ {:name "todo" :id ent :text new-value :order order})
-                                         (- {:name "todo-editing" :id ent :editing? "true"})
-                                         (+ {:name "todo-editing" :id ent :editing? "false"}))
+                                         (> {:name "todo" :id ent} {:text new-value})
+                                         (> {:name "todo-editing" :id ent} {:editing? "false"}))
 
-
-                                   (rule {:name :ui/onChange :event-key "todo-checkbox" :entity ent}
-                                         {:name "todo-done" :id ent :done? done}
-                                         (- {:name "todo-done" :id ent :done? done}))
                                    (rule {:name :ui/onChange :event-key "todo-checkbox" :entity ent :value v}
-                                         (+ {:name "todo-done" :id ent :done? v}))
-
-
-
-
+                                         (> {:name "todo-done" :id ent} {:done? v}))
                                    ]
                       :rules [
                               [(rule {:name "todo" :id id :text text :order order}
+                                     (= parent-id (str "todo" id))
+                                     (= child-id (str "todo-checkbox" id))
                                      (+s (hiccup
-                                           [:input {:id (str "todo-checkbox" id)
+                                           [:input {:id child-id
                                                     :event-key "todo-checkbox"
                                                     :entity id
                                                     :events ["onChange"]
                                                     :type "checkbox"}]))
-                                     (+ {:name :ui/child :id (str "todo" id) :child (str "todo-checkbox" id) :pos -1}))
+                                     (+ {:name :ui/child :id parent-id :child child-id :pos -1}))
                                (rule {:name "todo" :id id :text text :order order}
                                      {:name "todo-done" :id id :done? "true"}
                                      (+ {:name :ui/attr :id id :attr "checked" :value "checked"})) ]
@@ -257,12 +235,13 @@
                                      (+s (hiccup
                                           [:li {:id (str "todo" id) :entity id :event-key "todo" :events ["onDoubleClick"]}
                                            text]))
-                                     (+ {:name :ui/child :id "todo-list" :child (str "todo" id) :pos order}))
+                                     (= child-id (str "todo" id))
+                                     (+ {:name :ui/child :id "todo-list" :child child-id :pos order}))
                                (rule {:name "todo" :id id :text text :order order}
                                      {:name "todo-editing" :id id :editing? "true"}
                                      (+s (hiccup
                                           [:input {:id (str "todo-editor") :entity id :event-key "todo-editor" :defaultValue text :events ["onChange" "onKeyDown" "onBlur"]}]))
-                                     (+ {:name :ui/child :id "todo-list" :child (str "todo-editor") :pos order}))
+                                     (+ {:name :ui/child :id "todo-list" :child "todo-editor" :pos order}))
                                ]
                               [(rule {:name :todo/current-text :value v}
                                      (+s (hiccup
@@ -277,6 +256,8 @@
                                      )]
                               ]}))
 
+  ((query ^todo {:name :todo/edit-text}
+          (+ todo)) (-> @todo :kn))
 
   (enable-console-print!)
   )
