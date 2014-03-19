@@ -18,7 +18,6 @@
   (->Knowledge. (->facts rules) #{} #{}))
 
 ;; [:before x y] if pred x must be finished before pred y can be finished
-;; TODO handle ::any
 
 (def ordering-rules
   [;; preds
