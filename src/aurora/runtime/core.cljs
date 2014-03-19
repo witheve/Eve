@@ -204,7 +204,8 @@
                                          (> {:name "todo-editing" :id ent} {:editing? "true"}))
 
                                    (rule {:name :ui/onBlur :entity ent}
-                                         {:name "todo-editing" :id ent :editing? "true"}
+                                         {:name :todo/edit-text :value v}
+                                         (> {:name "todo" :id ent} {:text v})
                                          (> {:name "todo-editing" :id ent} {:editing? "false"}))
 
                                    (rule {:name :ui/onChange :id "todo-editor" :value v}
@@ -246,9 +247,8 @@
                                          ^editing {:name "todo-editing" :id id}
                                          (- todo)
                                          (- done)
-                                         (- editing))
+                                         (- editing))]
 
-                                   ]
                       :rules [[(rule {:name "todo" :id id}
                                      {:name :todo/filter :value "all"}
                                      (+ {:name :todo/displayed :id id}))
