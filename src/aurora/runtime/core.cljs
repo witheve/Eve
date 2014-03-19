@@ -19,10 +19,7 @@
                    (datalog/fixpoint (datalog/chain stratum)))))
 
 (defn tick [kn tick-rules rules watchers feeder-fn]
-  (let [chained-tick-rules (datalog/chain tick-rules)
-        kn (chained-tick-rules kn)
-        chained (chain-rules rules)
-        kn (chained kn)]
+  (let [kn (-> kn (tick-rules) (rules))]
     (doseq [watch watchers]
       (watch kn feeder-fn))
     (datalog/and-now kn)))
@@ -36,7 +33,7 @@
       (swap! env update-in [:kn]
              (fn [cur]
                (-> cur
-                   ((datalog/chain (:cleanup-rules @env)))
+                   ((:cleanup-rules @env))
                    (datalog/and-now)
                    (datalog/assert-many feed-set)
                    (datalog/and-now)
@@ -54,14 +51,19 @@
     env))
 
 (defn ->env [opts]
-  (atom (merge {:tick-rules []
-                :cleanup-rules []
-                :rules []
-                :watchers @watchers
-                :feed (array)
-                :queued? false}
-               opts
-               {:kn (datalog/Knowledge. (:kn opts #{}) #{} #{})})))
+  (let [env (merge {:tick-rules []
+                    :cleanup-rules []
+                    :rules []
+                    :watchers @watchers
+                    :feed (array)
+                    :queued? false}
+                   opts
+                   {:kn (datalog/Knowledge. (:kn opts #{}) #{} #{})})
+        env (-> env
+                (update-in [:cleanup-rules] datalog/chain)
+                (update-in [:rules] chain-rules)
+                (update-in [:tick-rules] datalog/chain))]
+    (atom env)))
 
 (defn run-env [opts]
   (-> opts
