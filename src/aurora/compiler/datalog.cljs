@@ -67,10 +67,14 @@
       #{}
       (match/vars clause))))
 
+(defn name? [x]
+  (or (string? x) (keyword? x)))
+
 (defn pred-name [clause]
-  (or (and (map? clause) (:name clause))
-      (and (vector? clause) (first clause))
-      ::any))
+  (cond
+   (and (map? clause) (name? (:name clause))) (:name clause)
+   (and (vector? clause) (name? (first clause))) (first clause)
+   :else ::any))
 
 (defn preds-in [clause]
   ;; TODO check not nil
