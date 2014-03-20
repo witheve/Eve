@@ -23,6 +23,12 @@
 ;; We assume that if we rely on attr then stratification ensures no more retractions are forthcoming
 
 ;; runtime
+(defn with-info [f x]
+  (aset f "our_info" x)
+  f)
+
+(defn info [f]
+  (aget f "our_info"))
 
 (defrecord Knowledge [old asserted retracted])
 
@@ -120,25 +126,25 @@
     #{}))
 
 (def empty-q
-  (with-meta
-    (fn [kn]
+  (with-info
+    (fn empty-q-fn [kn]
       #{{}})
     {::shape #{}}))
 
 (defn debug-q [query]
-  (with-meta
-    (fn [kn]
+  (with-info
+    (fn debug-q-fn [kn]
       (let [facts (query kn)]
         (prn facts)
         facts))
-    (meta query)))
+    (info query)))
 
 (defn project-q [pattern kn-f]
   (let [shape (match/vars pattern)
         return-syms (into [] shape)
         f (match/pattern pattern return-syms)]
-    (with-meta
-      (fn [kn]
+    (with-info
+      (fn project-q-fn [kn]
         (into #{}
               (for [fact (kn-f kn)
                     :let [vals (f fact)]
@@ -155,38 +161,38 @@
           (merge vals1 vals2))))
 
 (defn join-q [query1 query2]
-  (let [shape (union (::shape (meta query1)) (::shape (meta query2)))
-        join-shape (intersection (::shape (meta query1)) (::shape (meta query2)))]
-    (with-meta
-      (fn [kn]
+  (let [shape (union (::shape (info query1)) (::shape (info query2)))
+        join-shape (intersection (::shape (info query1)) (::shape (info query2)))]
+    (with-info
+      (fn join-q-fn [kn]
         (join (query1 kn) (query2 kn) join-shape))
       {::shape shape})))
 
 (defn filter-q [query fns]
-  ;; (check (subset? (:aurora/selects (meta fns)) (::shape (meta query))))
-  (with-meta
-    (fn [kn]
+  ;; (check (subset? (:aurora/selects (meta fns)) (::shape (info query))))
+  (with-info
+    (fn filter-q-fn [kn]
       (into #{} (filter fns (query kn))))
-    {::shape (::shape (meta query))}))
+    {::shape (::shape (info query))}))
 
 (defn let-q [query name-sym fns]
-  ;; (check (subset? (:aurora/selects (meta fns)) (::shape (meta query))))
-  (with-meta
-    (fn [kn]
+  ;; (check (subset? (:aurora/selects (meta fns)) (::shape (info query))))
+  (with-info
+    (fn let-q-fn [kn]
       (into #{} (for [result (query kn)]
                   (assoc result name-sym (fns result)))))
-    {::shape (conj (::shape (meta query)) name-sym)}))
+    {::shape (conj (::shape (info query)) name-sym)}))
 
 (defn fill-in [template result]
   (clojure.walk/postwalk-replace result template))
 
 (defn fill-in-q [template]
-  (fn [facts]
+  (fn fill-in-q-fn [facts]
     (into #{} (map #(fill-in template %) facts))))
 
 (defn mapcat-q [fns]
   (let [selects (:aurora/selects (meta fns))]
-    (fn [facts]
+    (fn mapcat-q-fn [facts]
       (into #{} (mapcat fns (into #{} (map #(select-keys % selects) facts)))))))
 
 (declare gen*)
@@ -197,36 +203,35 @@
         group-f #(select-keys % project-syms)
         shape (conj (set project-syms) name-sym)
         gen (gen* clauses)]
-    (with-meta
-      (fn [kn]
+    (with-info
+      (fn set-q-fn [kn]
         (into #{}
               (for [[projects selects] (group-by group-f (gen kn))]
                 (assoc (zipmap project-syms projects) name-sym (set (map #(select-keys % select-syms) selects))))))
       {::shape shape})))
 
 (defn in-q [query name-sym set-sym]
-  (fn [kn]
+  (fn in-q-fn [kn]
     (for [fact (query kn)
           elem (get fact set-sym :inq-not-found)]
       (assoc fact name-sym elem))))
 
 (defn gen* [clauses]
   (reduce
-   (fn [query clause]
-     (debug-q
-      (condp op? clause
-        '+ed (join-q query (project-q (second clause) :asserted))
-        '-ed (join-q query (project-q (second clause) :retracted))
-        '? (filter-q query (second clause))
-        '= (let-q query (nth clause 1) (nth clause 2))
-        'set (join-q query (set-q (nth clause 1) (nth clause 2) (nthnext clause 3)))
-        'in (in-q query (nth clause 1) (nth clause 2))
-        '+ query ;; handled later
-        '+s query ;; handled later
-        '- query ;; handled later
-        '-s query ;; handled later
-        '> query ;; handled later
-        (join-q query (project-q clause to-be)))))
+   (fn gen*-fn [query clause]
+     (condp op? clause
+       '+ed (join-q query (project-q (second clause) :asserted))
+       '-ed (join-q query (project-q (second clause) :retracted))
+       '? (filter-q query (second clause))
+       '= (let-q query (nth clause 1) (nth clause 2))
+       'set (join-q query (set-q (nth clause 1) (nth clause 2) (nthnext clause 3)))
+       'in (in-q query (nth clause 1) (nth clause 2))
+       '+ query ;; handled later
+       '+s query ;; handled later
+       '- query ;; handled later
+       '-s query ;; handled later
+       '> query ;; handled later
+       (join-q query (project-q clause to-be))))
    empty-q
    clauses))
 
@@ -239,7 +244,7 @@
         update-gens (into [] (map #(project-q (with-meta (nth % 1) {:tag update-sym}) to-be) (filter #(op? '> %) clauses)))
         update-templates (into [] (map #(nth % 2) (filter #(op? '> %) clauses)))
         gen (gen* clauses)]
-    (fn [kn]
+    (fn asserts+retracts*-fn [kn]
       (let [facts (gen kn)
             asserts #js []
             retracts #js []]
@@ -250,21 +255,21 @@
                 result (retract-f facts)]
           (.push retracts result))
         (doseq [[update-gen update-template] (map vector update-gens update-templates)
-                result (join (update-gen kn) facts (intersection (::shape (meta update-gen)) (::shape (meta gen))))]
+                result (join (update-gen kn) facts (intersection (::shape (info update-gen)) (::shape (info gen))))]
           (.push retracts (update-sym result))
           (.push asserts (merge (update-sym result) (fill-in update-template result))))
         [asserts retracts]))))
 
 (defn query* [clauses]
   (let [asserts+retracts (asserts+retracts* clauses)]
-    (fn [kn]
+    (fn query*-fn [kn]
       (let [[asserts retracts] (asserts+retracts kn)]
         (difference (set asserts) retracts)))))
 
 (defn rule* [clauses]
   (let [asserts+retracts (asserts+retracts* clauses)]
-    (with-meta
-      (fn [kn]
+    (with-info
+      (fn rule*-fn [kn]
         (let [[asserts retracts] (asserts+retracts kn)]
           (reduce retract (reduce assert kn asserts) retracts)))
       {::preds-in (apply union (map preds-in clauses))
@@ -273,12 +278,12 @@
        ::negs-out (apply union (map negs-out clauses))})))
 
 (defn chain [rules]
-  (fn [kn]
+  (fn chain-fn [kn]
     (reduce #(%2 %1) kn rules)))
 
 ;; TODO this doesn't propagate deltas efficiently, needs some fast way to read changes before and after
 (defn fixpoint [rule]
-  (fn [kn]
+  (fn fixpoint-fn [kn]
     (let [new-kn (rule kn)]
       (if (= new-kn kn)
         new-kn
