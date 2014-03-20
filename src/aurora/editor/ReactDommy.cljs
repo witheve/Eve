@@ -62,9 +62,9 @@
       (aset final className true))
     (doseq [k (js/Object.keys (aget tag-attrs "classes"))]
       (aset final k true))
-    (when-let [classes (get attrs "classes")]
+    (when-let [classes (aget attrs "classes")]
       (doseq [k (js/Object.keys classes)]
-        (aset final k true)))
+        (aset final k (aget classes k))))
     (aset attrs "classes" nil)
     (aset attrs "className" (class-set final))
     attrs))

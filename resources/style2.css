@@ -66,7 +66,7 @@ a img { border: none; }
 
 * { box-sizing:border-box !important; }
 html, body { height:100%; overflow:none; }
-body { background: #444; color: #ccc; font-family: "Nunito"; font-weight:300; font-size: 10pt; padding:0px 50px; }
+body { background: #27292b; color: #ddd; font-family: "Nunito"; font-weight:300; font-size: 10pt; padding:0px 50px; }
 ul { list-style:none; }
 input { border:none; background:#f7f7f7; font-family: "Avenir"; color: #444; font-size:10pt; border-radius:2px; padding:5px 10px; }
 button { background:white; border:none; border-radius:3px; color:#444; padding:5px 10px; }
@@ -93,9 +93,24 @@ button:hover { background:#ddd; }
 
 #content { margin-left:0; min-width:100%; padding-right:100px; height:200%; white-space:nowrap; }
 
-.hiddenthing { height:1px; width:1px; display:inline-block; background:transparent; }
+#root { padding:50px;}
+#rules { font-size:12pt; }
+#rules > li { margin-bottom:10px;}
 
-.graph-node { position:absolute; color:#333; background:#f7f7f7; display:inline-block; padding:10px 15px; border-radius:2px;}
+.sub { margin-left:5px; padding-left: 20px; border-left:1px solid #666; }
+.sub li {margin-bottom:0px;}
+
+.var { display:inline-block; background:; color:#96EEB2; border-bottom:0px solid #cda869; border-radius:0px; padding:0px 0px; }
+.bool { color:#DB9EFF; border-color:#C2A1FF; }
+.attr, .value.attr { color:#77C4EE; border-color:#95DE8A; }
+
+.add { border: 1px solid #777; padding:0px 5px; border-radius:2px; margin-top:2px; margin-bottom:2px;}
+.add .value { margin-left: 5px; padding-left:5px; border-left:1px solid #666; color:#ccc;}
+
+.update { border: 1px solid #777; padding:0px 5px; border-radius:2px; margin-top:2px; margin-bottom:2px;}
+.update .value { margin-left: 5px; padding-left:5px; border-left:1px solid #666; color:#ccc;}
+
+.keyword { color:#aaa; }
 
 
 #perf { background:#333; color:#aaa; position:fixed; bottom: 0px; right:0px; padding:10px; border-top-left-radius:3px;}
