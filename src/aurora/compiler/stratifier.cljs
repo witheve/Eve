@@ -23,7 +23,7 @@
   [;; preds
    (rule [:preds-in _ preds-in]
          (in x preds-in)
-         (? (not= :auror.compiler.datalog/any x))
+         (? (not= :aurora.compiler.datalog/any x))
          (+ [:pred x]))
    (rule [:preds-out _ preds-out]
          (in x preds-out)
