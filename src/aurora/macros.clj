@@ -1,5 +1,12 @@
 (ns aurora.macros)
 
+(defmacro console-time [name group & body]
+  `(do
+     (when ~group (js/console.time (str ~name)))
+     (let [result# (do ~@body)]
+       (when ~group (js/console.timeEnd (str ~name)))
+       result#)))
+
 ;; because plumbing.core doesnt work in LT
 (defmacro fns [selects & body]
   `(with-meta

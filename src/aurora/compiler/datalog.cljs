@@ -3,7 +3,7 @@
 (ns aurora.compiler.datalog
   (:require [clojure.set :refer [union intersection difference subset?]]
             [aurora.compiler.match :as match])
-  (:require-macros [aurora.macros :refer [fns check deftraced]]
+  (:require-macros [aurora.macros :refer [fns check deftraced console-time]]
                    [aurora.compiler.match :refer [match]]
                    [aurora.compiler.datalog :refer [query rule]]))
 
@@ -23,6 +23,12 @@
 ;; We assume that if we rely on attr then stratification ensures no more retractions are forthcoming
 
 ;; runtime
+
+(def time-clauses true)
+(def time-parts true)
+(def time-rules true)
+(def time-queries true)
+
 (defn with-info [f x]
   (aset f "our_info" x)
   f)
@@ -145,20 +151,22 @@
         f (match/pattern pattern return-syms)]
     (with-info
       (fn project-q-fn [kn]
-        (into #{}
-              (for [fact (kn-f kn)
-                    :let [vals (f fact)]
-                    :when vals]
-                (zipmap return-syms vals))))
+        (console-time "project" time-clauses
+                      (into #{}
+                            (for [fact (kn-f kn)
+                                  :let [vals (f fact)]
+                                  :when vals]
+                              (zipmap return-syms vals)))))
       {::shape shape})))
 
 ;; TODO hashjoin instead
 (defn join [facts1 facts2 join-shape]
-  (into #{}
-        (for [vals1 facts1
-              vals2 facts2
-              :when (= (select-keys vals1 join-shape) (select-keys vals2 join-shape))]
-          (merge vals1 vals2))))
+  (console-time "join" time-clauses
+                (into #{}
+                      (for [vals1 facts1
+                            vals2 facts2
+                            :when (= (select-keys vals1 join-shape) (select-keys vals2 join-shape))]
+                        (merge vals1 vals2)))))
 
 (defn join-q [query1 query2]
   (let [shape (union (::shape (info query1)) (::shape (info query2)))
@@ -172,15 +180,19 @@
   ;; (check (subset? (:aurora/selects (meta fns)) (::shape (info query))))
   (with-info
     (fn filter-q-fn [kn]
-      (into #{} (filter fns (query kn))))
+      (let [facts (query kn)]
+        (console-time "filter" time-clauses
+                      (into #{} (filter fns facts)))))
     {::shape (::shape (info query))}))
 
 (defn let-q [query name-sym fns]
   ;; (check (subset? (:aurora/selects (meta fns)) (::shape (info query))))
   (with-info
     (fn let-q-fn [kn]
-      (into #{} (for [result (query kn)]
-                  (assoc result name-sym (fns result)))))
+      (let [facts (query kn)]
+        (console-time "let-q" time-clauses
+                      (into #{} (for [result facts]
+                                  (assoc result name-sym (fns result)))))))
     {::shape (conj (::shape (info query)) name-sym)}))
 
 (defn fill-in [template result]
@@ -188,12 +200,14 @@
 
 (defn fill-in-q [template]
   (fn fill-in-q-fn [facts]
-    (into #{} (map #(fill-in template %) facts))))
+    (console-time "fill-in" time-clauses
+                  (into #{} (map #(fill-in template %) facts)))))
 
 (defn mapcat-q [fns]
   (let [selects (:aurora/selects (meta fns))]
     (fn mapcat-q-fn [facts]
-      (into #{} (mapcat fns (into #{} (map #(select-keys % selects) facts)))))))
+      (console-time "mapcat-q" time-clauses
+                    (into #{} (mapcat fns (into #{} (map #(select-keys % selects) facts))))))))
 
 (declare gen*)
 
@@ -205,20 +219,24 @@
         gen (gen* clauses)]
     (with-info
       (fn set-q-fn [kn]
-        (into #{}
-              (for [[projects selects] (group-by group-f (gen kn))]
-                (assoc (zipmap project-syms projects) name-sym (set (map #(select-keys % select-syms) selects))))))
+        (let [facts (gen kn)]
+          (console-time "set" time-clauses
+                        (into #{}
+                              (for [[projects selects] (group-by group-f facts)]
+                                (assoc (zipmap project-syms projects) name-sym (set (map #(select-keys % select-syms) selects))))))))
       {::shape shape})))
 
 (defn in-q [query name-sym set-sym]
   (fn in-q-fn [kn]
-    (for [fact (query kn)
-          elem (get fact set-sym :inq-not-found)]
-      (assoc fact name-sym elem))))
+    (let [facts (query kn)]
+      (console-time "in-q" time-clauses
+                    (for [fact facts
+                          elem (get fact set-sym :inq-not-found)]
+                      (assoc fact name-sym elem))))))
 
 (defn gen* [clauses]
   (reduce
-   (fn gen*-fn [query clause]
+   (fn [query clause]
      (condp op? clause
        '+ed (join-q query (project-q (second clause) :asserted))
        '-ed (join-q query (project-q (second clause) :retracted))
@@ -245,33 +263,43 @@
         update-templates (into [] (map #(nth % 2) (filter #(op? '> %) clauses)))
         gen (gen* clauses)]
     (fn asserts+retracts*-fn [kn]
-      (let [facts (gen kn)
+      (let [facts (console-time "gen" time-parts (gen kn))
             asserts #js []
             retracts #js []]
-        (doseq [assert-f assert-fs
-                result (assert-f facts)]
-          (.push asserts result))
-        (doseq [retract-f retract-fs
-                result (retract-f facts)]
-          (.push retracts result))
-        (doseq [[update-gen update-template] (map vector update-gens update-templates)
-                result (join (update-gen kn) facts (intersection (::shape (info update-gen)) (::shape (info gen))))]
-          (.push retracts (update-sym result))
-          (.push asserts (merge (update-sym result) (fill-in update-template result))))
+        (console-time "asserts+retracts+updates" time-parts
+                      (console-time "asserts" time-parts
+                                    (doseq [assert-f assert-fs
+                                            result (assert-f facts)]
+                                      (.push asserts result)))
+                      (console-time "retracts" time-parts
+                                    (doseq [retract-f retract-fs
+                                            result (retract-f facts)]
+                                      (.push retracts result)))
+                      (console-time "updates" time-parts
+                                    (doseq [[update-gen update-template] (map vector update-gens update-templates)
+                                            result (join (update-gen kn) facts (intersection (::shape (info update-gen)) (::shape (info gen))))]
+                                      (.push retracts (update-sym result))
+                                      (.push asserts (merge (update-sym result) (fill-in update-template result))))))
         [asserts retracts]))))
 
 (defn query* [clauses]
-  (let [asserts+retracts (asserts+retracts* clauses)]
+  (let [asserts+retracts (asserts+retracts* clauses)
+        name (str "query:" clauses)]
     (fn query*-fn [kn]
-      (let [[asserts retracts] (asserts+retracts kn)]
-        (difference (set asserts) retracts)))))
+      (console-time name time-queries
+                    (let [[asserts retracts] (asserts+retracts kn)]
+                      (console-time "query" time-parts
+                                    (difference (set asserts) retracts)))))))
 
 (defn rule* [clauses]
-  (let [asserts+retracts (asserts+retracts* clauses)]
+  (let [asserts+retracts (asserts+retracts* clauses)
+        name (str "rule:" clauses)]
     (with-info
       (fn rule*-fn [kn]
-        (let [[asserts retracts] (asserts+retracts kn)]
-          (reduce retract (reduce assert kn asserts) retracts)))
+        (console-time name time-rules
+                      (let [[asserts retracts] (asserts+retracts kn)]
+                        (console-time "rule" time-parts
+                                      (reduce retract (reduce assert kn asserts) retracts)))))
       {::preds-in (apply union (map preds-in clauses))
        ::preds-out (apply union (map preds-out clauses))
        ::negs-in (apply union (map negs-in clauses))
@@ -287,7 +315,7 @@
     (let [new-kn (rule kn)]
       (if (= new-kn kn)
         new-kn
-        (recur new-kn)))))
+        (fixpoint-fn new-kn)))))
 
 ;; tests
 
