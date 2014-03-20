@@ -206,7 +206,7 @@
 (defn mapcat-q [fns]
   (let [selects (:aurora/selects (meta fns))]
     (fn mapcat-q-fn [facts]
-      (console-time "mapcat-q" time-clauses
+      (console-time "mapcat" time-clauses
                     (into #{} (mapcat fns (into #{} (map #(select-keys % selects) facts))))))))
 
 (declare gen*)
