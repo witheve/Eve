@@ -2,6 +2,7 @@
 
 (ns aurora.compiler.datalog
   (:require [clojure.set :refer [union intersection difference subset?]]
+            [aurora.compiler.jsth :as jsth]
             [aurora.compiler.match :as match])
   (:require-macros [aurora.macros :refer [fns check deftraced console-time]]
                    [aurora.compiler.match :refer [match]]
@@ -317,10 +318,83 @@
         new-kn
         (fixpoint-fn new-kn)))))
 
+
+;;*********************************************************
+;; Macroless-ness
+;;*********************************************************
+
+(defn fns* [syms body & [allowed-fns]]
+  (let [body (for [b body]
+               (if (list? b)
+                 (conj (rest b) (or (allowed-fns (first b))
+                                    (->> (first b)
+                                         (jsth/munge)
+                                         (str "cljs.core.")
+                                         (symbol))))
+                 b))]
+    ((js/Function "gened" (str "return "(jsth/statement->string `(fn foo [x]
+                                                                   (do
+                                                                     ~@(for [s syms]
+                                                                         `(let! ~(symbol s) (cljs.core.get x (cljs.core.symbol ~(str s)))))
+                                                                     ~@(butlast body)
+                                                                     (return ~(last body))))))))))
+
+
+(defn vars* [form]
+  (cond
+   (contains? (meta form) :tag) (conj (vars (with-meta form {})) (:tag (meta form)))
+   (= '_ form) #{}
+   (symbol? form) #{form}
+   (coll? form) (apply clojure.set/union (map vars form))
+   :else #{}))
+
+(defn op? [op clause]
+  (and (seq? clause) (= op (first clause))))
+
+(defn vars [clause]
+  (condp op? clause
+    '+ed (vars* (second clause))
+    '-ed (vars* (second clause))
+    'set (conj (clojure.set/difference (apply clojure.set/union (map vars (nthnext clause 3))) (nth clause 2)) (nth clause 1))
+    'in #{(second clause)}
+    '= #{(second clause)}
+    (if (seq? clause)
+      #{}
+      (vars* clause))))
+
+(defn quote-clause [clause fns-vars allowed-fns]
+  (condp op? clause
+    '+s (list '+s (fns* fns-vars [(second clause)] allowed-fns))
+    '-s (list '-s (fns* fns-vars [(second clause)] allowed-fns))
+    '? (list '? (fns* fns-vars [(second clause)] allowed-fns))
+    '= (list '= (nth clause 1) (fns* fns-vars [(nth clause 2)] allowed-fns))
+    clause))
+
+(defn quote-clauses
+  ([clauses] (quote-clauses clauses {}))
+  ([clauses allowed-fns]
+   (let [fns-vars (into [] (apply clojure.set/union (map vars clauses)))]
+     (mapv #(quote-clause % fns-vars allowed-fns) clauses))))
+
+(defn macroless-rule [clauses]
+  (rule* (quote-clauses clauses)))
+
+(defn macroless-query [clauses]
+  (query* (quote-clauses clauses)))
+
 ;; tests
 
 (comment
   (enable-console-print!)
+
+  (quote-clauses '[[a b c]
+                   (= foo (+ b 4))
+                   (+ [a foo])])
+
+  ((datalog/query* (quote-clauses '[[a b c]
+                                    (= foo (+ b 4))
+                                    (+ [a foo])]))
+   (datalog/Knowledge. #{[1 2 3] [3 4 5]} #{} #{}))
 
   ((query [a b _]
           [_ a b]
