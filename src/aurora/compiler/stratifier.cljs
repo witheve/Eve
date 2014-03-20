@@ -4,6 +4,8 @@
                    [aurora.compiler.match :refer [match]]
                    [aurora.compiler.datalog :refer [query rule]]))
 
+;; Care about non-monotonic and monotonic cycles separately
+
 (defn ->facts [rules]
   (map meta rules)
   (apply clojure.set/union

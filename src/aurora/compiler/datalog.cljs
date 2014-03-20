@@ -8,16 +8,17 @@
                    [aurora.compiler.datalog :refer [query rule]]))
 
 ;; TODO
-;; conj? not?
-;; pattern matching on sets? sorting? vectors? (sort-by, sort-arbitrary)
-;; graph representation?
-;; dependency ordering
-;; seminaive
+;; aggregates (conj? sorting?)
+;; abstract result sets
+;; seminaive evaluation
 ;; incremental assert
 ;; incremental retract
 ;; stratification
 ;; schemas
-;; nested rows (find out the correct name for this)
+;; hashjoins / incremental joins
+;; index by predicate?
+;; profiler
+;; debugger
 
 ;; We assume that if we rely on attr then stratification ensures no more retractions are forthcoming
 
