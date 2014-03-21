@@ -112,6 +112,8 @@ button:hover { background:#ddd; }
 
 .keyword { color:#aaa; }
 
+#results { margin-top:100px; }
+
 
 #perf { background:#333; color:#aaa; position:fixed; bottom: 0px; right:0px; padding:10px; border-top-left-radius:3px;}
 #perf td:first-child { text-align:right; padding-right:8px; }

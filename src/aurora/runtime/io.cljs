@@ -4,11 +4,6 @@
             [aurora.runtime.timers :refer [now]])
   (:require-macros [aurora.compiler.datalog :refer [query rule]]))
 
-
-(fetch/xhr [:get "http://google.com"] {} (fn [data]
-                                           (println data)))
-
-
 (def find-http-gets (query (+ed {:name :http-get
                                 :url url
                                 :id id})

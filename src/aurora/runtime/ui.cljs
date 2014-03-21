@@ -142,7 +142,8 @@
   (frame (fn []
            (let [tree (rebuild-tree knowledge queue)]
              (println "UI Tree: " (pr-str tree))
-             (js/React.renderComponent (dommy/node tree) js/document.body))
+             ;(js/React.renderComponent (dommy/node tree) js/document.body)
+             )
            )))
 
 (swap! runtime/watchers conj (fn [knowledge queue]

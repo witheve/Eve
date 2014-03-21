@@ -77,14 +77,7 @@
   (swap! env assoc :paused false)
   (handle-feed env))
 
-(comment
 
-((datalog/macroless-rule '[[a b]
-                            (= foo (+ a b))
-                            (+ [a b foo])])
- (datalog/Knowledge. #{[3 4] [1 2] [4 5]} #{} #{}))
-
-(def hiccup js/aurora.runtime.ui.hiccup->facts)
 (def ui-cleanup-rules [(rule {:name :ui/text :id id :text text}
                              (- {:name :ui/text :id id :text text}))
                        (rule {:name :ui/elem :id id :tag tag}
@@ -97,13 +90,24 @@
                              (- {:name :ui/child :id id :child child :pos pos}))
                        (rule {:name :ui/event-listener :id id :entity entity :event event}
                              (- {:name :ui/event-listener :id id :entity entity :event event}))
+                       (rule {:ml :ui/draw "ui" u}
+                             (- {:ml :ui/draw "ui" u}))
                        ])
 
-  (def timer-cleanup-rules [(rule {:name :wait :time t :id i}
-                                  (- {:name :wait :time t :id i}))])
+  (def timer-cleanup-rules [(rule ^t {:ml :timers/wait}
+                                  (- t))])
 
   (def io-cleanup-rules [(rule ^get {:name :http-get}
                                (- get))])
+
+(comment
+
+((datalog/macroless-rule '[[a b]
+                            (= foo (+ a b))
+                            (+ [a b foo])])
+ (datalog/Knowledge. #{[3 4] [1 2] [4 5]} #{} #{}))
+
+(def hiccup js/aurora.runtime.ui.hiccup->facts)
 
 
   (def tick (run-env {:kn #{[3 5] [9 8 7] [:tick]}
