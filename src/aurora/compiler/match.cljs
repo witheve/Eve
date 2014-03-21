@@ -27,7 +27,8 @@
    (or (number? pattern) (string? pattern)) pattern
    (keyword? pattern) `(new (cljs.core.Keyword ~(namespace pattern) ~(name pattern) ~(str (namespace pattern) (if (namespace pattern) "/" "") (name pattern)) ~(hash pattern)))
    (vector? pattern) `(cljs.core.PersistentVector.fromArray
-                       ~(vec (map data->jsth pattern)))
+                       ~(vec (map data->jsth pattern))
+                       true) ;; dont clone array
    (map? pattern) `(cljs.core.PersistentHashMap.fromArrays
                     ~(vec (map data->jsth (keys pattern)))
                     ~(vec (map data->jsth (vals pattern))))

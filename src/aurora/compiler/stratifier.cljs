@@ -1,3 +1,5 @@
+(aset js/aurora.compiler "stratifier" nil)
+
 (ns aurora.compiler.stratifier
   (:require [aurora.compiler.datalog :as datalog :refer [->Knowledge chain fixpoint]])
   (:require-macros [aurora.macros :refer [check deftraced]]
