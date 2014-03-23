@@ -25,6 +25,7 @@
 (deftraced data->jsth [pattern] [pattern]
   (cond
    (or (number? pattern) (string? pattern)) pattern
+   (symbol? pattern) pattern ;; passed from inputs
    (keyword? pattern) `(new (cljs.core.Keyword ~(namespace pattern) ~(name pattern) ~(str (namespace pattern) (if (namespace pattern) "/" "") (name pattern)) ~(hash pattern)))
    (vector? pattern) `(cljs.core.PersistentVector.fromArray
                        ~(vec (map data->jsth pattern))
@@ -68,6 +69,10 @@
         failure `(return nil)]
     (js/Function (jsth/munge input-sym) (jsth/statement->string `(do ~success ~failure)))))
 
+(defn constructor [constructor inputs]
+  (let [body (data->jsth constructor)]
+    (apply js/Function (conj (vec (map jsth/munge inputs)) (jsth/statement->string `(return ~body))))))
+
 (comment
   (match :a :a :ok)
 
@@ -90,4 +95,14 @@
   (match {:a 0 :b [1 2]}
          {:c _} :bad
          ^z {:b [x y]} [x y z])
+
+  ((constructor 1 []))
+
+  ((constructor "foo" []))
+
+  ((constructor 'a '[a]) :ok)
+
+  ((constructor '[a a] '[a]) :ok)
+
+  ((constructor '{:a a :b b} '[a b]) :A :B)
   )
