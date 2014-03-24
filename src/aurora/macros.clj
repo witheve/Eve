@@ -26,7 +26,9 @@
   `(with-meta
      (fn [{:syms ~selects}]
        ~@body)
-     {:aurora/selects '~selects}))
+     {:aurora/selects '~selects
+      :aurora/positional (fn [~@selects]
+                           ~@body)}))
 
 (defmacro for! [& args]
   `(doall (for ~@args)))

@@ -8,6 +8,21 @@
                    [aurora.compiler.match :refer [match]]
                    [aurora.compiler.datalog :refer [query rule]]))
 
+(comment ;; grammar
+  pattern
+  (+ed pattern)
+  (-ed pattern)
+  (? vars fn)
+  (= var vars fn)
+  (set var vars & clauses)
+  ;; (in var var)
+  (+ pattern)
+  (- pattern)
+  (> pattern pattern)
+  (+s vars fn)
+  (-s vars fn)
+  )
+
 ;; TODO
 ;; query optimisation (starting with clause sorting)
 ;; aggregates (conj? sorting?)
@@ -26,22 +41,8 @@
 
 (defrecord Knowledge [prev asserted-now retracted-now now])
 
-;; TODO
-(defn assert-now [kn facts])
-(defn retract-now [kn facts])
-(defn assert-later [kn facts])
-(defn retract-later [kn facts])
-
-;; TODO can probably just do this on assert/retract by looking at counts
-(defn to-be [{:keys [old asserted retracted] :as kn}]
-  ;; (old & ¬(retracted & ¬asserted)) | (asserted & ¬retracted)
-  (let [actually-asserted (difference asserted retracted)
-        actually-retracted (difference retracted asserted)
-        to-be (difference (union old actually-asserted) actually-retracted)]
-    to-be))
-
-(defn and-now [kn]
-  (Knowledge. (to-be kn) #{} #{}))
+(defn tick [{:keys [now]}]
+  (->Knowledge. now #{} #{} now))
 
 ;; MAPS -> ROWS
 
@@ -61,7 +62,7 @@
         (if (= value (nth vector ix))
           ix
           (recur (+ ix 1)))
-        (assert false)))))
+        (assert false (str (pr-str value) " is not contained in " (pr-str vector)))))))
 
 (defn ixes-of [vector values]
   (vec (map #(ix-of vector %) values)))
@@ -190,7 +191,7 @@
   (assert #(every? (set shape-i) group-shape) (str "Scope " (pr-str group-shape) " not contained in " (pr-str shape-i)))
   (let [group-ixes (ixes-of shape-i group-shape)
         set-group-shape (set group-shape)
-        project-shape (filter #(not (set-group-shape %)) shape-i)
+        project-shape (vec (filter #(not (set-group-shape %)) shape-i))
         project-ixes (ixes-of shape-i project-shape)
         shape (conj project-shape group-name)]
     (->Group i group-ixes project-ixes shape)))
@@ -207,12 +208,14 @@
              (conj!! result fact)))
          (persistent! result))))
 
-(defn ->map [[i shape-i] map-shape map-fn]
-  (assert #(every? (set shape-i) map-shape) (str "Scope " (pr-str map-shape) " not contained in " (pr-str shape-i)))
-  (let [map-ixes (ixes-of shape-i map-shape)]
+(defn ->map [[i shape-i] map-pattern]
+  (let [map-shape (into [] (match/vars map-pattern))
+        _ (assert #(every? (set shape-i) map-shape) (str "Scope " (pr-str map-shape) " not contained in " (pr-str shape-i)))
+        map-fn (match/constructor map-pattern map-shape)
+        map-ixes (ixes-of shape-i map-shape)]
     (->Map i map-fn map-ixes)))
 
-;; (run-node (->map [0 '[a b c d]] '[b d] (fn [a b] {:a a :b b})) [#{[1 2 3 4] [5 6 7 8]}])
+;; (run-node (->map [0 '[a b c d]] '{:b b :d d}) [#{[1 2 3 4] [5 6 7 8]}])
 
 (defrecord MapCat [i map-fn map-ixes]
   PlanNode
@@ -225,12 +228,12 @@
                (conj!! result fact))))
          (persistent! result))))
 
-(defn ->mapcat [[i shape-i] map-fn map-shape]
+(defn ->mapcat [[i shape-i] map-shape map-fn]
   (assert #(every? (set shape-i) map-shape) (str "Scope " (pr-str map-shape) " not contained in " (pr-str shape-i)))
   (let [map-ixes (ixes-of shape-i map-shape)]
     (->MapCat i map-fn map-ixes)))
 
-;; (run-node (->mapcat [0 '[a b c d]] (fn [a b] [{:a a} {:b b}]) '[b d]) [#{[1 2 3 4] [5 6 7 8]}])
+;; (run-node (->mapcat [0 '[a b c d]] '[b d] (fn [a b] [{:a a} {:b b}])) [#{[1 2 3 4] [5 6 7 8]}])
 
 ;; PLANS
 
@@ -274,20 +277,25 @@
     +ed #{(pred-name (second clause))}
     -ed #{(pred-name (second clause))}
     set (apply clojure.set/union (map preds-in (nthnext clause 3)))
+    > (let [from-name (pred-name (nth clause 1))
+            to-name (pred-name (nth clause 2))]
+        (check from-name)
+        (check (or (= ::any to-name) (= from-name to-name)))
+        #{from-name})
     #{}))
 
 (defn preds-out [clause]
   ;; TODO check not nil
   (case (op clause)
-    + #{(pred-name (second clause))}
-    - #{(pred-name (second clause))}
+    + #{(pred-name (nth clause 1))}
+    - #{(pred-name (nth clause 1))}
     +s #{::any}
     -s #{::any}
     > (let [from-name (pred-name (nth clause 1))
             to-name (pred-name (nth clause 2))]
         (check from-name)
         (check (or (= ::any to-name) (= from-name to-name)))
-        #{(pred-name (nth clause 1))})
+        #{from-name})
     #{}))
 
 (defn negs-in [clause]
@@ -299,13 +307,13 @@
 (defn negs-out [clause]
   ;; TODO check not nil
   (case (op clause)
-    - #{(pred-name (second clause))}
+    - #{(pred-name (nth clause 1))}
     -s #{::any}
     > (let [from-name (pred-name (nth clause 1))
             to-name (pred-name (nth clause 2))]
         (check from-name)
         (check (or (= ::any to-name) (= from-name to-name)))
-        #{(pred-name (nth clause 1))})
+        #{from-name})
     #{}))
 
 ;; PLANS
@@ -319,13 +327,14 @@
                      +ed (+node plan (->project :asserted-now (second clause)))
                      -ed (+node plan (->project :retracted-now (second clause)))
                      set (+node plan (->group (clauses->body plan (nthnext clause 3)) (nth clause 1) (nth clause 2)))))
+        _ (assert (seq projects) "Rules without any project clauses are illegal")
         joined (reduce #(+node plan (->join %1 %2)) projects)
         letted (loop [[_ shape :as node] joined
-                      lets (filter #(= 'let (op %)) clauses)]
+                      lets (filter #(= '= (op %)) clauses)]
                  (if (seq lets)
                    (let [set-shape (set shape)
-                         applicable (filter #(every? set-shape (nth % 2)) clauses)
-                         unapplicable (filter #(not (every? set-shape (nth %2))) clauses)
+                         applicable (filter #(every? set-shape (nth % 2)) lets)
+                         unapplicable (filter #(not (every? set-shape (nth % 2))) lets)
                          _ (assert (seq applicable) (str "Can't resolve loop in " (pr-str unapplicable)))
                          new-node (reduce #(+node plan (->let %1 (nth %2 1) (nth %2 2) (nth %2 3))) node applicable)]
                      (recur new-node unapplicable))
@@ -355,20 +364,21 @@
         body (clauses->body plan clauses)]
     (doseq [clause clauses]
       (case (op clause)
-        + (+assert rule (->map body (nth clause 1) (nth clause 2)))
-        - (+retract rule (->map body (nth clause 1) (nth clause 2)))
+        + (+assert rule (->map body (nth clause 1)))
+        - (+retract rule (->map body (nth clause 1)))
         +s (+assert rule (->mapcat body (nth clause 1) (nth clause 2)))
         -s (+retract rule (->mapcat body (nth clause 1) (nth clause 2)))
         ;; (> p q) -> p (- p) (+ q)
-        > (let [[_ retract-shape retract-pattern retract assert-shape assert] clause
-                 retractees (+node plan (->join body (+node plan (->project :now retract-pattern))))]
-             (+retract rule (->map retractees retract-shape retract-pattern))
-             (+assert rule (->map retractees assert-shape assert-pattern)))
+        > (let [[_ retract-pattern assert-pattern] clause
+                retractees (+node plan (->join body (+node plan (->project :now retract-pattern))))]
+             (+retract rule (->map retractees retract-pattern))
+             (+assert rule (->map retractees assert-pattern)))
         nil))
     rule))
 
-(defn query-rule [{:keys [plan assert-ixes retract-ixes]} cache kn]
-  (let [result (transient #{})]
+(defn query-rule [{:keys [plan assert-ixes retract-ixes]} kn]
+  (let [cache (make-array (count plan))
+        result (transient #{})]
     (run-plan plan cache kn)
     (doseq [assert-ix assert-ixes
             fact (aget cache assert-ix)]
@@ -382,13 +392,13 @@
   (let [kn (->Knowledge. nil nil nil #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
         rule (clauses->rule ['{:a a :b b}
                              '{:c c :b b}
-                             (list '+ '[a c] (fn [a c] {:a a :c c}))])
-        cache (make-array (count (:plan rule)))]
-    (query-rule rule cache kn))
+                             (list '+ '[a c] (fn [a c] {:a a :c c}))])]
+    (query-rule rule kn))
   )
 
-(defn run-rule [{:keys [plan assert-ixes retract-ixes]} cache kn]
-  (let [prev (:prev kn)
+(defn run-rule [{:keys [plan assert-ixes retract-ixes]} kn]
+  (let [cache (make-array (count plan))
+        prev (:prev kn)
         now (transient (:now kn))
         asserted-now (transient (:asserted-now kn))
         retracted-now (transient (:retracted-now kn))]
@@ -407,27 +417,24 @@
 
 (comment
   (let [kn (->Knowledge. #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}} #{} #{} #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
-        rule (clauses->rule ['{:a a :b b}
-                             '{:c c :b b}
-                             (list '+ '[a c] (fn [a c] {:a a :c c}))
-                             (list '- '[a c] (fn [a c] {:a a :c c}))])
-        cache (make-array (count (:plan rule)))]
-    (run-rule rule cache kn))
+        rule (clauses->rule '[{:a a :b b}
+                              {:c c :b b}
+                              (+ {:a a :c c})
+                              (- {:a a :c c})])]
+    (run-rule rule kn))
 
   (let [kn (->Knowledge. #{{:a 1 :c 1} {:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}} #{} #{} #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
-        rule (clauses->rule ['{:a a :b b}
-                             '{:c c :b b}
-                             (list '+ '[a c] (fn [a c] {:a a :c c}))
-                             (list '- '[a c] (fn [a c] {:a a :c c}))])
-        cache (make-array (count (:plan rule)))]
-    (run-rule rule cache kn))
+        rule (clauses->rule '[{:a a :b b}
+                              {:c c :b b}
+                              (+ {:a a :c c})
+                              (- {:a a :c c})])]
+    (run-rule rule kn))
 
   (let [kn (->Knowledge. #{{:a 1 :c 1} {:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}} #{} #{} #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
-        rule (clauses->rule ['{:a a :b b}
-                             '{:c c :b b}
-                             (list '- '[a c] (fn [a c] {:a a :c c}))])
-        cache (make-array (count (:plan rule)))]
-    (run-rule rule cache kn))
+        rule (clauses->rule '[{:a a :b b}
+                              {:c c :b b}
+                              (- {:a a :c c})])]
+    (run-rule rule kn))
   )
 
 ;;*********************************************************
@@ -493,95 +500,106 @@
 (defn macroless-query [clauses]
   (query* (quote-clauses clauses)))
 
-;; tests
+;; TESTS
 
 (comment
   (enable-console-print!)
 
-  (quote-clauses '[[a b c]
-                   (= foo (+ b 4))
-                   (+ [a foo])])
-
-  ((datalog/query* (quote-clauses '[[a b c]
-                                    (= foo (+ b 4))
-                                    (+ [a foo])]))
-   (datalog/Knowledge. #{[1 2 3] [3 4 5]} #{} #{}))
-
-  ((query [a b _]
-          [_ a b]
-          (? (integer? a))
-          (+ (+ a b)))
-   (Knowledge. #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]} #{} #{}))
-
-  ((rule [a b _]
+  (query-rule
+   (rule [a b _]
          [_ a b]
-         (? (integer? a))
+         (? [a] (integer? a))
+         (+ [a b]))
+   (tick {:now #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]}}))
+
+  (run-rule
+   (rule [a b _]
+         [_ a b]
+         (? [a] (integer? a))
          (+ [a a a])
          (- [b b b]))
-   (Knowledge. #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]} #{} #{}))
+   (tick {:now #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]}}))
 
-  ((rule [a b _]
+  (run-rule
+   (rule [a b _]
          (+ed [_ a b])
-         (? (integer? a))
+         (? [a] (integer? a))
          (+ [a a a])
          (- [b b b]))
-   (Knowledge. #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{}))
+   (Knowledge. #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{} #{[2 3 4] [:a :b :c] [:b :c :d] [1 2 3]}))
 
-  ((rule [a b _]
+  (run-rule
+   (rule [a b _]
          [_ a b]
-         (? (integer? a))
+         (? [a] (integer? a))
          (+ [a a a])
          (- [b b b]))
-   (Knowledge. #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{[1 2 3]}))
+   (Knowledge. #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{[1 2 3]} #{[2 3 4] [:a :b :c] [:b :c :d]}))
 
-  ((query (+ed [a b])
-          (+ [a b]))
-   (Knowledge. #{} #{[1 2]} #{}))
+  (query-rule
+   (rule (+ed [a b])
+         (+ [a b]))
+   (Knowledge. #{} #{[1 2]} #{} #{[1 2]}))
 
-  ((query (set x [b c]
-               [a b c]
-               [b c d])
-          (+ [a d x]))
-   (Knowledge. #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]} #{} #{}))
+  (query-rule
+   (rule (set x [b c]
+              [a b c]
+              [b c d])
+         (+ [a d x]))
+   (tick {:now #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]}}))
 
-  ((query [a b c]
-          [b c d]
-          (set x [b c]
-               [a b c]
-               [b c d])
-          (+ [a b c d x]))
-   (Knowledge. #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]} #{} #{}))
+  (query-rule
+   (rule [a b c]
+         [b c d]
+         (set x [b c]
+              [a b c]
+              [b c d])
+         (+ [a b c d x]))
+   (tick {:now #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]}}))
 
-  ((query [a b c]
-          [b c d]
-          (set x [b c]
-               [a b c]
-               [b c d])
-          (in y x)
-          (+ [a b c d y]))
-   (Knowledge. #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]} #{} #{}))
+;; 'in is not currently supported
+;;   (query-rule
+;;    (rule [a b c]
+;;          [b c d]
+;;          (set x [b c]
+;;               [a b c]
+;;               [b c d])
+;;          (in y x)
+;;          (+ [a b c d y]))
+;;    (tick {:now #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]}}))
 
-  ((rule (> {:foo 1} {:bar 1}))
-   (Knowledge. #{{:foo 1 :bar 0}} #{} #{}))
+;; can't figure out how to make this work without an Empty plan node
+;;   (run-rule
+;;    (rule (> {:foo 1} {:bar 1}))
+;;    (tick {:now #{{:foo 1 :bar 0}}}))
 
-  ((rule {:quux x}
+  (run-rule
+   (rule {:quux x}
          (> {:foo x} {:bar x}))
-   (Knowledge. #{{:foo 1 :bar 0} {:quux 1}} #{} #{}))
+   (tick {:now #{{:foo 1 :bar 0} {:quux 1}}}))
 
-  ((rule [a b _]
+  (run-rule
+   (rule [a b _]
          (+ed [_ a b])
-         (? (integer? a))
-         (= c (+ a b))
-         (= d (- a b))
+         (? [a] (integer? a))
+         (= c [a b] (+ a b))
+         (= d [a b] (- a b))
          (+ [c c c])
          (- [d d d]))
-   (Knowledge. #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{}))
+   (Knowledge. #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{} #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]}))
 
   (rule {:name :quux :quux x}
         (> {:name :the :foo x} {:bar x}))
 
-  ((query (set x [id]
-               {:name "foo" :id id})
-          (+ 1))
-   (Knowledge. #{{:name "zomg" :id 4} {:name "foo" :id 3}} #{} #{}))
+  (run-rule
+   (rule (set x [id]
+              {:name "foo" :id id})
+         (+ x))
+   (tick {:now #{{:name "zomg" :id 4} {:name "foo" :id 3}}}))
+
+  (run-rule
+   (rule (set x [id]
+              {:name "foo" :id id})
+         (+s [x] x))
+   (tick {:now #{{:name "zomg" :id 4} {:name "foo" :id 3}}}))
   )
