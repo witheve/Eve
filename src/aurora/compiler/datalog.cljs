@@ -23,6 +23,8 @@
   (-s vars fn)
   )
 
+(def profile? false)
+
 ;; TODO
 ;; query optimisation (starting with clause sorting)
 ;; aggregates (conj? sorting?)
@@ -275,8 +277,10 @@
   [(dec (alength plan)) (:shape node)])
 
 (defn run-plan [plan cache kn]
-  (dotimes [i (count plan)]
-    (aset cache i (run-node (nth plan i) cache kn))))
+  (console-time (str "plan") profile?
+                (dotimes [i (count plan)]
+                  (console-time (pr-str (type (nth plan i))) profile?
+                                (aset cache i (run-node (nth plan i) cache kn))))))
 
 (comment
   (let [kn (->Knowledge nil nil nil #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
@@ -418,12 +422,14 @@
   (let [cache (make-array (count plan))
         result (transient #{})]
     (run-plan plan cache kn)
-    (doseq [assert-ix assert-ixes
-            fact (aget cache assert-ix)]
-      (conj!! result fact))
-    (doseq [retract-ix retract-ixes
-            fact (aget cache retract-ix)]
-      (disj!! result fact))
+    (console-time "query asserts" profile?
+                  (doseq [assert-ix assert-ixes
+                          fact (aget cache assert-ix)]
+                    (conj!! result fact)))
+    (console-time "query retracts" profile?
+                  (doseq [retract-ix retract-ixes
+                          fact (aget cache retract-ix)]
+                    (disj!! result fact)))
     (persistent! result)))
 
 (comment
@@ -441,16 +447,18 @@
         asserted-now (transient (:asserted-now kn))
         retracted-now (transient (:retracted-now kn))]
     (run-plan plan cache kn)
-    (doseq [assert-ix assert-ixes
-            fact (aget cache assert-ix)]
-      (conj!! asserted-now fact)
-      (when (or (contains? prev fact) (not (contains? retracted-now fact)))
-        (conj!! now fact)))
-    (doseq [retract-ix retract-ixes
-            fact (aget cache retract-ix)]
-      (conj!! retracted-now fact)
-      (when (or (not (contains? prev fact)) (not (contains? asserted-now fact)))
-        (disj!! now fact)))
+    (console-time "rule asserts" profile?
+                  (doseq [assert-ix assert-ixes
+                          fact (aget cache assert-ix)]
+                    (conj!! asserted-now fact)
+                    (when (or (contains? prev fact) (not (contains? retracted-now fact)))
+                      (conj!! now fact))))
+    (console-time "rule retracts" profile?
+                  (doseq [retract-ix retract-ixes
+                          fact (aget cache retract-ix)]
+                    (conj!! retracted-now fact)
+                    (when (or (not (contains? prev fact)) (not (contains? asserted-now fact)))
+                      (disj!! now fact))))
     (->Knowledge prev (persistent! asserted-now) (persistent! retracted-now) (persistent! now))))
 
 (comment
