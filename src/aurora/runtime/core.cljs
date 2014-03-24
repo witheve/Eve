@@ -15,11 +15,23 @@
     (swap! env assoc :queued? (js/setTimeout (partial handle-feed env) 0)))
   (.push (:feed @env) fact))
 
+(defn tick-inductive [kn tick-rules]
+  (stratifier/run-ruleset tick-rules kn))
+
+(defn tick-deductive [kn rules]
+  (stratifier/run-ruleset rules kn))
+
+(defn tick-watchers [kn watchers feeder-fn]
+  (doseq [watch watchers]
+    (watch kn feeder-fn))
+  kn)
+
 (defn tick [kn tick-rules rules watchers feeder-fn]
-  (let [kn (->> kn (stratifier/run-ruleset tick-rules) (stratifier/run-ruleset rules))]
-    (doseq [watch watchers]
-      (watch kn feeder-fn))
-    (datalog/tick kn)))
+  (-> kn
+      (tick-inductive tick-rules)
+      (tick-deductive rules)
+      (tick-watchers watchers feeder-fn)
+      (datalog/tick)))
 
 (defn handle-feed [env]
   (when-not (:paused @env)
