@@ -4,7 +4,7 @@
             [clojure.set :as set]
             [aurora.runtime.core :as runtime]
             [aurora.editor.ReactDommy :as dommy])
-  (:require-macros [aurora.compiler.datalog :refer [query rule]]))
+  (:require-macros [aurora.compiler.datalog :refer [rule]]))
 
 (def animation-frame
   (or (.-requestAnimationFrame js/self)
@@ -48,17 +48,17 @@
 ;; {:name :ui/style :id id :attr "background" :value "red"}
 ;; {:name :ui/child :id id :child id :pos i}
 
-(def find-elems (query {:name :ui/elem
+(def find-elems (rule {:name :ui/elem
                         :id id
                         :tag tag}
                        (+ [id tag])))
 
-(def find-text (query {:name :ui/text
+(def find-text (rule {:name :ui/text
                        :id id
                        :text text}
                       (+ [id text])))
 
-(def find-attr (query {:name :ui/attr
+(def find-attr (rule {:name :ui/attr
                        :id id
                        :attr attr
                        :value value}
@@ -67,7 +67,7 @@
                            :value value})))
 
 
-(def find-listeners (query {:name :ui/event-listener
+(def find-listeners (rule {:name :ui/event-listener
                             :id id
                             :entity entity
                             :event-key key
@@ -77,7 +77,7 @@
                                :entity entity
                                :event event})))
 
-(def find-style (query {:name :ui/style
+(def find-style (rule {:name :ui/style
                        :id id
                        :attr attr
                        :value value}
@@ -85,7 +85,7 @@
                            :attr attr
                            :value value})))
 
-(def find-children (query {:name :ui/child
+(def find-children (rule {:name :ui/child
                            :id id
                            :child child-id
                            :pos pos}
@@ -117,15 +117,15 @@
     (array (keyword tag) el-attrs)))
 
 (defn rebuild-tree [knowledge queue]
-  (let [els (find-elems knowledge)
-        attrs (group-by :id (find-attr knowledge))
-        styles (group-by :id (find-style knowledge))
-        listeners (group-by :id (find-listeners knowledge))
+  (let [els (datalog/query-rule find-elems knowledge)
+        attrs (group-by :id (datalog/query-rule find-attr knowledge))
+        styles (group-by :id (datalog/query-rule find-style knowledge))
+        listeners (group-by :id (datalog/query-rule find-listeners knowledge))
         built-els (into {}
                         (for [[id tag] els]
                           [id (build-element id tag (attrs id) (styles id) (listeners id) queue)]))
-        built-els (into built-els (find-text knowledge))
-        all-children (find-children knowledge)
+        built-els (into built-els (datalog/query-rule find-text knowledge))
+        all-children (datalog/query-rule find-children knowledge)
         children (group-by :id all-children)
         roots (set/difference (set (map first els)) (set (map :child-id all-children)))]
     (doseq [[parent kids] children
@@ -191,8 +191,8 @@
                                  #{} #{}))
 
 
-  (find-elems test-kn)
-  (find-text test-kn)
+  (datalog/query-rule find-elems test-kn)
+  (datalog/query-rule find-text test-kn)
 
 (def q (array))
 (rebuild-tree test-kn (fn [fact] (.push q fact)))

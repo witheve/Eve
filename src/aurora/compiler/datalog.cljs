@@ -42,7 +42,29 @@
 (defrecord Knowledge [prev asserted-now retracted-now now])
 
 (defn tick [{:keys [now]}]
-  (->Knowledge. now #{} #{} now))
+  (->Knowledge now #{} #{} now))
+
+(defn assert-facts [kn facts]
+  (let [prev (:prev kn)
+        now (transient (:now kn))
+        asserted-now (transient (:asserted-now kn))
+        retracted-now (:retracted-now kn)]
+    (doseq [fact facts]
+      (conj!! asserted-now fact)
+      (when (or (contains? prev fact) (not (contains? retracted-now fact)))
+        (conj!! now fact)))
+    (Knowledge. prev (persistent! asserted-now) retracted-now (persistent! now))))
+
+(defn retract-facts [kn facts]
+  (let [prev (:prev kn)
+        now (transient (:now kn))
+        asserted-now  (:asserted-now kn)
+        retracted-now (transient (:retracted-now kn))]
+    (doseq [fact facts]
+      (conj!! retracted-now fact)
+      (when (or (not (contains? prev fact)) (not (contains? asserted-now fact)))
+        (disj!! now fact)))
+    (->Knowledge prev asserted-now (persistent! retracted-now) (persistent! now))))
 
 ;; MAPS -> ROWS
 
@@ -92,7 +114,7 @@
         pattern-fn (match/pattern pattern shape)]
     (->Project key pattern pattern-fn shape)))
 
-;; (run-node (->project '[a b]) [] (->Knowledge. nil nil nil #{[0] [1 2] [3 4 5]}))
+;; (run-node (->project '[a b]) [] (->Knowledge nil nil nil #{[0] [1 2] [3 4 5]}))
 
 (defrecord Join [i j key-ixes-i key-ixes-j select-ixes-i select-ixes-j shape]
   PlanNode
@@ -256,7 +278,7 @@
     (aset cache i (run-node (nth plan i) cache kn))))
 
 (comment
-  (let [kn (->Knowledge. nil nil nil #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
+  (let [kn (->Knowledge nil nil nil #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
         plan #js []
         abs (+node plan (->project :now '{:a a :b b}))
         bcs (+node plan (->project :now '{:c c :b b}))
@@ -404,7 +426,7 @@
     (persistent! result)))
 
 (comment
-  (let [kn (->Knowledge. nil nil nil #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
+  (let [kn (->Knowledge nil nil nil #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
         rule (clauses->rule ['{:a a :b b}
                              '{:c c :b b}
                              (list '+ '[a c] (fn [a c] {:a a :c c}))])]
@@ -428,24 +450,24 @@
       (conj!! retracted-now fact)
       (when (or (not (contains? prev fact)) (not (contains? asserted-now fact)))
         (disj!! now fact)))
-    (->Knowledge. prev (persistent! asserted-now) (persistent! retracted-now) (persistent! now))))
+    (->Knowledge prev (persistent! asserted-now) (persistent! retracted-now) (persistent! now))))
 
 (comment
-  (let [kn (->Knowledge. #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}} #{} #{} #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
+  (let [kn (->Knowledge #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}} #{} #{} #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
         rule (clauses->rule '[{:a a :b b}
                               {:c c :b b}
                               (+ {:a a :c c})
                               (- {:a a :c c})])]
     (run-rule rule kn))
 
-  (let [kn (->Knowledge. #{{:a 1 :c 1} {:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}} #{} #{} #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
+  (let [kn (->Knowledge #{{:a 1 :c 1} {:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}} #{} #{} #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
         rule (clauses->rule '[{:a a :b b}
                               {:c c :b b}
                               (+ {:a a :c c})
                               (- {:a a :c c})])]
     (run-rule rule kn))
 
-  (let [kn (->Knowledge. #{{:a 1 :c 1} {:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}} #{} #{} #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
+  (let [kn (->Knowledge #{{:a 1 :c 1} {:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}} #{} #{} #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
         rule (clauses->rule '[{:a a :b b}
                               {:c c :b b}
                               (- {:a a :c c})])]
@@ -455,6 +477,8 @@
 ;;*********************************************************
 ;; Macroless-ness
 ;;*********************************************************
+
+;; TODO this whole section is broken now
 
 (defn fns* [syms body & [allowed-fns]]
   (let [body (for [b body]
@@ -520,6 +544,9 @@
 (comment
   (enable-console-print!)
 
+  (-> (Knowledge. #{:a} #{} #{} #{})
+      (assert-facts [:a :b :c])
+      (retract-facts [:a :b :d]))
   (query-rule
    (rule [a b _]
          [_ a b]

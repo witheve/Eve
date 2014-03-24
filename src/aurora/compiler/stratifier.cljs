@@ -1,74 +1,99 @@
 (aset js/aurora.compiler "stratifier" nil)
 
 (ns aurora.compiler.stratifier
-  (:require [aurora.compiler.datalog :as datalog :refer [->Knowledge chain fixpoint]])
+  (:require [aurora.compiler.datalog :as datalog :refer [tick run-rule]])
   (:require-macros [aurora.macros :refer [check deftraced]]
                    [aurora.compiler.match :refer [match]]
-                   [aurora.compiler.datalog :refer [query rule]]))
+                   [aurora.compiler.datalog :refer [rule]]))
+
+;; RULESETS
+
+(defprotocol Ruleset
+  (run-ruleset [this kn] "-> kn"))
+
+(extend-protocol Ruleset
+  datalog/Rule
+  (run-ruleset [this kn]
+               (run-rule this kn)))
+
+(defrecord Chain [rulesets]
+  Ruleset
+  (run-ruleset [this kn]
+               (reduce #(run-ruleset %2 %1) kn rulesets)))
+
+(defrecord Fixpoint [ruleset]
+  Ruleset
+  (run-ruleset [this kn]
+               (let [new-kn (run-ruleset ruleset kn)]
+                 (if (= kn new-kn) ;; TODO this is a very slow test
+                   new-kn
+                   (recur this new-kn)))))
+
+(defn strata->rule [strata]
+  (Chain.
+   (vec
+    (for [stratum strata]
+      (if (instance? datalog/Rule stratum)
+        stratum
+        (Fixpoint. (Chain. stratum)))))))
+
+;; STRATIFICATION
 
 ;; Care about non-monotonic and monotonic cycles separately
 
 (defn ->facts [rules]
-  (map meta rules)
   (apply clojure.set/union
          (for [[rule i] (map vector rules (range (count rules)))]
            #{[:rule i rule]
-             [:negs-in i (:aurora.compiler.datalog/negs-in (meta rule))]
-             [:negs-out i (:aurora.compiler.datalog/negs-out (meta rule))]
-             [:preds-in i (:aurora.compiler.datalog/preds-in (meta rule))]
-             [:preds-out i (:aurora.compiler.datalog/preds-out (meta rule))]})))
+             [:negs-in i (:negs-in rule)]
+             [:negs-out i (:negs-out rule)]
+             [:preds-in i (:preds-in rule)]
+             [:preds-out i (:preds-out rule)]})))
 
 (defn ->kn [rules]
-  (->Knowledge. (->facts rules) #{} #{}))
+  (tick {:now (->facts rules)}))
 
 ;; [:before x y] if pred x must be finished before pred y can be finished
-
-(def ordering-rules
-  [;; preds
-   (rule [:preds-in _ preds-in]
-         (in x preds-in)
-         (? (not= :aurora.compiler.datalog/any x))
-         (+ [:pred x]))
-   (rule [:preds-out _ preds-out]
-         (in x preds-out)
-         (? (not= :aurora.compiler.datalog/any x))
-         (+ [:pred x]))
-   ;; handle ::any
-   (rule [:pred x]
-         (+ [:matches x x]))
-   (rule [:pred x]
-         (+ [:matches :aurora.compiler.datalog/any x]))
-   ;; if a rule waits for x before producing y...
-   (rule [:negs-in i negs-in]
-         [:preds-out i preds-out]
-         (in x negs-in)
-         (in y preds-out)
-         [:matches x x']
-         [:matches y y']
-         (+ [:before x' y']))
-   ;; if a rule reads from x and removes from y...
-   (rule [:preds-in i preds-in]
-         [:negs-out i negs-out]
-         (in x preds-in)
-         (in y negs-out)
-         [:matches x x']
-         [:matches y y']
-         (+ [:before x' y']))
-   ;; transitive closure
-   [(rule [:before x y]
-          [:before y z]
-          (+ [:before x z]))]
-   ;; cycles
-   (rule [:before x y]
-         [:before y x]
-         (+ [:cyclic x y]))])
-
-(defn strata->rule [strata]
-  (chain
-   (for [stratum strata]
-     (if (fn? stratum)
-       stratum
-       (fixpoint (chain stratum))))))
+(comment
+  (def ordering-rules
+    [;; preds
+     (rule [:preds-in _ preds-in]
+           (in x preds-in)
+           (? (not= :aurora.compiler.datalog/any x))
+           (+ [:pred x]))
+     (rule [:preds-out _ preds-out]
+           (in x preds-out)
+           (? (not= :aurora.compiler.datalog/any x))
+           (+ [:pred x]))
+     ;; handle ::any
+     (rule [:pred x]
+           (+ [:matches x x]))
+     (rule [:pred x]
+           (+ [:matches :aurora.compiler.datalog/any x]))
+     ;; if a rule waits for x before producing y...
+     (rule [:negs-in i negs-in]
+           [:preds-out i preds-out]
+           (in x negs-in)
+           (in y preds-out)
+           [:matches x x']
+           [:matches y y']
+           (+ [:before x' y']))
+     ;; if a rule reads from x and removes from y...
+     (rule [:preds-in i preds-in]
+           [:negs-out i negs-out]
+           (in x preds-in)
+           (in y negs-out)
+           [:matches x x']
+           [:matches y y']
+           (+ [:before x' y']))
+     ;; transitive closure
+     [(rule [:before x y]
+            [:before y z]
+            (+ [:before x z]))]
+     ;; cycles
+     (rule [:before x y]
+           [:before y x]
+           (+ [:cyclic x y]))]))
 
 (comment
 
