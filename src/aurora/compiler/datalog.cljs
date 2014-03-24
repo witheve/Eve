@@ -131,7 +131,7 @@
          (persistent! result))))
 
 (defn ->filter [[i shape-i] filter-shape filter-fn]
-  (assert #(every? (set shape-i) filter-shape) (str "Scope " (pr-str filter-shape) " not contained in " (pr-str shape-i)))
+  (assert (every? (set shape-i) filter-shape) (str "Scope " (pr-str filter-shape) " not contained in " (pr-str shape-i)))
   (let [filter-ixes (ixes-of shape-i filter-shape)
         shape shape-i]
     (->Filter i filter-fn filter-ixes shape)))
@@ -150,7 +150,7 @@
 
 (defn ->let [[i shape-i] let-name let-shape let-fn]
   (assert (not ((set shape-i) let-name)) (str "Name " (pr-str let-name) " is already in scope " (pr-str shape-i)))
-  (assert #(every? (set shape-i) let-shape) (str "Scope " (pr-str let-shape) " not contained in " (pr-str shape-i)))
+  (assert (every? (set shape-i) let-shape) (str "Scope " (pr-str let-shape) " not contained in " (pr-str shape-i)))
   (let [let-ixes (ixes-of shape-i let-shape)
         shape (conj shape-i let-name)]
     (->Let i let-fn let-ixes shape)))
@@ -188,7 +188,7 @@
            (persistent! result)))))
 
 (defn ->group [[i shape-i] group-name group-shape]
-  (assert #(every? (set shape-i) group-shape) (str "Scope " (pr-str group-shape) " not contained in " (pr-str shape-i)))
+  (assert (every? (set shape-i) group-shape) (str "Scope " (pr-str group-shape) " not contained in " (pr-str shape-i)))
   (let [group-ixes (ixes-of shape-i group-shape)
         set-group-shape (set group-shape)
         project-shape (vec (filter #(not (set-group-shape %)) shape-i))
@@ -210,10 +210,20 @@
 
 (defn ->map [[i shape-i] map-pattern]
   (let [map-shape (into [] (match/vars map-pattern))
-        _ (assert #(every? (set shape-i) map-shape) (str "Scope " (pr-str map-shape) " not contained in " (pr-str shape-i)))
+        _ (assert (every? (set shape-i) map-shape) (str "Scope " (pr-str map-shape) " not contained in " (pr-str shape-i)))
         map-fn (match/constructor map-pattern map-shape)
         map-ixes (ixes-of shape-i map-shape)]
     (->Map i map-fn map-ixes)))
+
+;; a hack for hand-written code
+(defn ->merge [[i shape-i] map-pattern input-sym]
+  (let [map-shape (into [] (match/vars map-pattern))
+        merge-shape (into [] (cons input-sym map-shape))
+        _ (assert (every? (set shape-i) merge-shape) (str "Scope " (pr-str merge-shape) " not contained in " (pr-str shape-i)))
+        map-fn (match/constructor map-pattern map-shape)
+        merge-fn (fn [input & args] (merge input (apply map-fn args)))
+        merge-ixes (ixes-of shape-i merge-shape)]
+    (->Map i merge-fn merge-ixes)))
 
 ;; (run-node (->map [0 '[a b c d]] '{:b b :d d}) [#{[1 2 3 4] [5 6 7 8]}])
 
@@ -229,7 +239,7 @@
          (persistent! result))))
 
 (defn ->mapcat [[i shape-i] map-shape map-fn]
-  (assert #(every? (set shape-i) map-shape) (str "Scope " (pr-str map-shape) " not contained in " (pr-str shape-i)))
+  (assert (every? (set shape-i) map-shape) (str "Scope " (pr-str map-shape) " not contained in " (pr-str shape-i)))
   (let [map-ixes (ixes-of shape-i map-shape)]
     (->MapCat i map-fn map-ixes)))
 
@@ -347,12 +357,14 @@
 (defrecord Rule [plan assert-ixes retract-ixes preds-in preds-out negs-in negs-out])
 
 (defn +assert [{:keys [plan assert-ixes]} node]
-  (let [[ix _] (+node plan node)]
-    (.push assert-ixes ix)))
+  (let [[ix shape] (+node plan node)]
+    (.push assert-ixes ix)
+    [ix shape]))
 
 (defn +retract [{:keys [plan retract-ixes]} node]
-  (let [[ix _] (+node plan node)]
-    (.push retract-ixes ix)))
+  (let [[ix shape] (+node plan node)]
+    (.push retract-ixes ix)
+    [ix shape]))
 
 (defn clauses->rule [clauses]
   (let [plan #js []
@@ -369,10 +381,13 @@
         +s (+assert rule (->mapcat body (nth clause 1) (nth clause 2)))
         -s (+retract rule (->mapcat body (nth clause 1) (nth clause 2)))
         ;; (> p q) -> p (- p) (+ q)
+        ;; NOTE the tagging / merging is a hack that is useful for hand-written rules
         > (let [[_ retract-pattern assert-pattern] clause
-                retractees (+node plan (->join body (+node plan (->project :now retract-pattern))))]
-             (+retract rule (->map retractees retract-pattern))
-             (+assert rule (->map retractees assert-pattern)))
+                retract-sym (gensym "retract")
+                tagged-retract-pattern (with-meta retract-pattern {:tag retract-sym})
+                retractees (+node plan (->join body (+node plan (->project :now tagged-retract-pattern))))]
+            (+retract rule (->map retractees retract-sym))
+            (+assert rule (->merge retractees assert-pattern retract-sym)))
         nil))
     rule))
 
@@ -557,7 +572,7 @@
          (+ [a b c d x]))
    (tick {:now #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]}}))
 
-;; 'in is not currently supported
+;; (in ...) is not currently supported
 ;;   (query-rule
 ;;    (rule [a b c]
 ;;          [b c d]
