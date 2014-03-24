@@ -68,9 +68,9 @@
                    opts
                    {:kn (datalog/Knowledge. (:kn opts #{}) #{} #{} (:kn opts #{}))})
         env (-> env
-                (update-in [:cleanup-rules] stratifier/->Chain)
+                (update-in [:cleanup-rules] stratifier/strata->ruleset)
                 (update-in [:rules] stratifier/strata->ruleset)
-                (update-in [:tick-rules] stratifier/->Chain))]
+                (update-in [:tick-rules] stratifier/strata->ruleset))]
     (atom env)))
 
 (defn run-env [opts]

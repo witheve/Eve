@@ -35,7 +35,7 @@
     (for [stratum strata]
       (if (instance? datalog/Rule stratum)
         stratum
-        (Fixpoint. (Chain. stratum)))))))
+        (Fixpoint. (Chain. (vec stratum))))))))
 
 ;; STRATIFICATION
 
