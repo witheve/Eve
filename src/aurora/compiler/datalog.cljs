@@ -36,6 +36,7 @@
 ;; index by predicate?
 ;; profiler
 ;; debugger
+;; figure out time semantics
 
 ;; KNOWLEDGE
 

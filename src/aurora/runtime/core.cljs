@@ -15,10 +15,6 @@
     (swap! env assoc :queued? (js/setTimeout (partial handle-feed env) 0)))
   (.push (:feed @env) fact))
 
-(defn chain-rules [strata]
-  (stratifier/Chain. (for [stratum strata]
-                       (stratifier/Fixpoint. (stratifier/Chain. stratum)))))
-
 (defn tick [kn tick-rules rules watchers feeder-fn]
   (let [kn (->> kn (stratifier/run-ruleset tick-rules) (stratifier/run-ruleset rules))]
     (doseq [watch watchers]
@@ -27,7 +23,6 @@
 
 (defn handle-feed [env]
   (when-not (:paused @env)
-    (map type (:rulesets (:cleanup-rules @env)))
     (.time js/console "run")
     (let [feed-set (set (:feed @env))]
       (aset (:feed @env) "length" 0)
@@ -62,7 +57,7 @@
                    {:kn (datalog/Knowledge. (:kn opts #{}) #{} #{} (:kn opts #{}))})
         env (-> env
                 (update-in [:cleanup-rules] stratifier/->Chain)
-                (update-in [:rules] chain-rules)
+                (update-in [:rules] stratifier/strata->ruleset)
                 (update-in [:tick-rules] stratifier/->Chain))]
     (atom env)))
 

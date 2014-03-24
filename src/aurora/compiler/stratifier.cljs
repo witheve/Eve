@@ -29,7 +29,7 @@
                    new-kn
                    (recur this new-kn)))))
 
-(defn strata->rule [strata]
+(defn strata->ruleset [strata]
   (Chain.
    (vec
     (for [stratum strata]
