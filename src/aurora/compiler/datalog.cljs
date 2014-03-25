@@ -25,10 +25,10 @@
 
 ;; runtime
 
-(def time-clauses true)
-(def time-parts true)
-(def time-rules true)
-(def time-queries true)
+(def time-clauses false)
+(def time-parts false)
+(def time-rules false)
+(def time-queries false)
 
 (defn with-info [f x]
   (aset f "our_info" x)

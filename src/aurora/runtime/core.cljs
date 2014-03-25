@@ -90,8 +90,8 @@
                              (- {:name :ui/child :id id :child child :pos pos}))
                        (rule {:name :ui/event-listener :id id :entity entity :event event}
                              (- {:name :ui/event-listener :id id :entity entity :event event}))
-                       (rule {:ml :ui/draw "ui" u}
-                             (- {:ml :ui/draw "ui" u}))
+                       (rule {:ml :ui/draw "ui" u "thing" t}
+                             (- {:ml :ui/draw "ui" u "thing" t}))
                        ])
 
   (def timer-cleanup-rules [(rule ^t {:ml :timers/wait}

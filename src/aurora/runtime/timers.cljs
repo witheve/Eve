@@ -15,7 +15,7 @@
 ;; tick fact {:name 12341234 :madlib "tick with [id]" :id 9}
 
 (def find-waits (query (+ed {:ml :timers/wait
-                             "waiting" time
+                             "time" time
                              "timer" id})
                        (+ [time id])))
 
