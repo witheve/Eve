@@ -96,6 +96,9 @@
 (defmethod draw-clause :when [clause world path]
   [:span [:span.keyword "when "] (rule-ui clause world path)])
 
+(defmethod draw-clause :find [clause world path]
+  [:span [:span.keyword "find "] (rule-ui clause world path)])
+
 (defmulti compile-clause (fn [clause world]
                            (:type clause)))
 
