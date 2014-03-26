@@ -127,7 +127,10 @@
   (list '+ (dissoc clause :type)))
 
 (defmethod compile-clause :all [clause world]
-  (list '+s (get clause "things" [])))
+  (let [things (get clause "things")]
+    (list '+s (if (string? things)
+                (reader/read-string things)
+                (or things [])))))
 
 (defmethod compile-clause :remove [clause world]
   (list '- (dissoc clause :type)))
