@@ -6,6 +6,7 @@
             [aurora.runtime.timers]
             [aurora.runtime.ui]
             [aurora.runtime.io]
+            [cljs.reader :as reader]
             [aurora.editor.dom :as dom]
             [clojure.set :as set]
             [clojure.string :as string])
@@ -28,6 +29,13 @@
 
 (def state (atom {:madlibs {:timers/tick "[timer] ticked at (time)"
                             :timers/wait "Tick [timer] after waiting (time)"
+                            :ui/elem "[id] is a (tag) HTML element"
+                            :ui/attr "[id] has a (attr) of (value)"
+                            :ui/style "[id] has a (attr) style of (value)"
+                            :ui/text "[id] is the text (text)"
+                            :ui/child "[id] is the parent of (child) at position (pos)"
+                            "see" "(name) as (expression)"
+                            "all" "(things)"
                             :ui/draw "Draw [thing] as (ui)"}
                   :editor {}
                   :matcher {}
@@ -54,12 +62,13 @@
                                                  "ui" 'time}]}])
                   }))
 
+(set! js/cljs.core.hiccup js/aurora.runtime.ui.hiccup->facts)
 
 (defmulti draw-statement (fn [x y path]
                            (:type x)))
 
 (defn statement-item [path & content]
-  [:li {:onDoubleClick (fn [e]
+  [:li {:onContextMenu (fn [e]
                          (.stopPropagation e)
                          (swap! state update-in (butlast path) remove-index (last path))
                          )}
@@ -99,6 +108,12 @@
 (defmethod draw-clause :find [clause world path]
   [:span [:span.keyword "find "] (rule-ui clause world path)])
 
+(defmethod draw-clause :see [clause world path]
+  [:span [:span.keyword "see "] (rule-ui clause world path)])
+
+(defmethod draw-clause :all [clause world path]
+  [:span [:span.keyword "all "] (rule-ui clause world path)])
+
 (defmulti compile-clause (fn [clause world]
                            (:type clause)))
 
@@ -111,27 +126,44 @@
 (defmethod compile-clause :add [clause world]
   (list '+ (dissoc clause :type)))
 
+(defmethod compile-clause :all [clause world]
+  (list '+s (get clause "things" [])))
+
 (defmethod compile-clause :remove [clause world]
   (list '- (dissoc clause :type)))
 
+(defmethod compile-clause :see [clause world]
+  (let [exp (get clause "expression")
+        exp (if (string? exp)
+              (reader/read-string exp)
+              exp)
+        final (list '= (get clause "name") exp)]
+    (println final)
+    (list '= (get clause "name" 'x) exp)))
+
 (defmethod compile-clause :update [])
 
+(defn compile-rule* [r world]
+  (mapv compile-clause (:clauses r)))
+
 (defn compile-rule [r world]
-  (datalog/macroless-rule (mapv compile-clause (:clauses r))))
+  (datalog/macroless-rule (compile-rule* r world)))
 
 (defn compile-fact [f world]
   (dissoc f :type))
 
-(defn compile-statements [statements world]
+(defn compile-statements [statements world no-rule]
   (let [rules (filter #(= (:type %) :rule) statements)
         facts (filter #(not= (:type %) :rule) statements)]
     {:rules (for [r rules]
-              (compile-rule r world))
+              (if-not no-rule
+                (compile-rule r world)
+                (compile-rule* r world)))
      :facts (for [f facts]
               (compile-fact f world))}))
 
-(defn compile-state []
-  (compile-statements (:statements @state) @state))
+(defn compile-state [& [no-rule]]
+  (compile-statements (:statements @state) @state no-rule))
 
 (defn inject-compiled []
   (let [comped (compile-state)
@@ -150,6 +182,12 @@
 ;(enable-console-print!)
 (inject-compiled)
 
+(defn default-parser [v]
+  (cond
+   (= "*" (first v)) (symbol (subs v 1))
+   (not (re-seq #"[^\d.]" v)) (reader/read-string v)
+   :else v))
+
 (defn set-editing [path]
   (fn []
     (when (= (first path) :statements)
@@ -158,22 +196,32 @@
       (pause cur-env)
       (swap! state assoc-in [:editor :path] path))))
 
-(defn editable [v path]
+(defn editable [rule v path]
   (if-not (= path (get-in @state [:editor :path]))
     [:span.value {:onClick (set-editing path)}
-     v]
-    [:input {:onChange (fn [e]
-                         (swap! state assoc-in path (.-target.value e)))
-             :onKeyDown (fn [e]
-                          (when (= (:enter key-codes) (.-keyCode e))
-                            (.target.blur e)))
-             :value v
-             :onBlur (fn []
-                       (when (= v "")
-                         )
-                       (when-not (get-in @state [:editor :pasued?])
-                         (unpause cur-env))
-                       (swap! state assoc :editor {}))}]))
+     (cond
+      (symbol? v) [:span.var.ref (str v)]
+      (vector? v) v
+      (nil? v) v
+      :else (str v))]
+    (let [rule-info (get-in @state [:madlibs (:ml rule)])]
+      [:input {:onChange (fn [e]
+                           (let [v (.-target.value e)
+                                 parser (or (get-in rule-info [(last path) :parser]) default-parser)]
+                             (swap! state assoc-in path (parser v))))
+               :onKeyDown (fn [e]
+                            (when (= (:enter key-codes) (.-keyCode e))
+                              (.target.blur e)))
+               :value (cond
+                       (symbol? v) (str "*" v)
+                       (coll? v) (pr-str v)
+                       :else (str v))
+               :onBlur (fn []
+                         (when (= v "")
+                           )
+                         (when-not (get-in @state [:editor :pasued?])
+                           (unpause cur-env))
+                         (swap! state assoc :editor {}))}])))
 
 (defn holder [path attrs content]
   [:span (merge attrs {:draggable "true"
@@ -186,7 +234,10 @@
                                      (.preventDefault e))
                        :onDrop (fn [e]
                                  (let [drag-path (get-in @state [:editor :drag-path])
-                                       var (symbol (last drag-path))]
+                                       drag-value (get-in @state drag-path)
+                                       var (or (when (symbol? drag-value)
+                                                 drag-value)
+                                               (symbol (last drag-path)))]
                                  (println "dropped!" drag-path path)
                                    (swap! state assoc-in drag-path (symbol var))
                                    (swap! state assoc-in path (symbol var))))
@@ -218,20 +269,22 @@
                                [:span.placeholder
                                 name])
                        [:span {:classes (assoc classes :add true)}
-                        (editable v path)])
+                        (editable rule v path)])
      (and id? v
           (string? v)) (holder path
                                {:classes (assoc classes :add true)}
-                               (editable v path))
-     (symbol? v) (holder path {:classes classes} v-rep)
+                               (editable rule v path))
+     (symbol? v) (holder path {:classes classes}
+                         (editable rule v path))
      :else (holder path {:classes (assoc classes :add true)}
-                   (editable v path)))
+                   (editable rule v path)))
     ))
 
 (defn rule-ui [r world path]
   (let [ml (if world
              (get-in world [:madlibs (:ml r)])
              r)
+        ml (or ml "unknown: " (pr-str r))
         placeholders (vec (re-seq #"\[(.+?)\]|\((.+?)\)" ml))
         split (string/split ml #"\[.+?\]|\(.+?\)")
         split (if-not (seq split)
@@ -264,6 +317,8 @@
       (if (:paused env)
         "unpause"
         "pause")]
+     [:h2 "ui:"]
+     [:div#ui-preview]
      [:h2 "facts:"]
      [:ul
       (for [fact (sort-by (comp str :ml) (:old kn))]
@@ -304,7 +359,7 @@
 (def pair->mode {"[" "id"
                  "(" "attr"})
 
-(def keywords #"when|find|new")
+(def keywords #"when|find|new|see|all")
 
 (defn tokenizer [stream]
   (let [ch (.peek stream)]
@@ -342,7 +397,7 @@
                      (:phrase))
                  (.trim phrase))
         candidates (if-not keyword
-                     (concat ["when" "find" "new"] (vals (:madlibs @state)))
+                     (concat ["when" "find" "new" "see (name) as (expression)" "all (things)"] (vals (:madlibs @state)))
                      (vals (:madlibs @state)))]
     (when-not same?
       (swap! state assoc :matcher (dissoc matcher :last-text :last-selected :selected)))

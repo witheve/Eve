@@ -54,8 +54,9 @@
     (number? x) (str x)
     (string? x) (pr-str x)
     (vector? x) (str "[" (join ", " (map expression->string x)) "]")
-    (map? x) (do (check (empty? x)) ;; TODO emit objects
-               (str "{" "}"))
+    (map? x) (do  ;; TODO emit objects
+               (str "{" (join ", " (for [[k v] x]
+                                     (str (expression->string k) ": " (expression->string v)))) "}"))
     :else (check false)))
 
 (deftraced name->string [x] [x]

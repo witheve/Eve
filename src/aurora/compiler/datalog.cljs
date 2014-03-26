@@ -331,13 +331,15 @@
                                          (jsth/munge)
                                          (str "cljs.core.")
                                          (symbol))))
-                 b))]
-    ((js/Function "gened" (str "return "(jsth/statement->string `(fn foo [x]
-                                                                   (do
-                                                                     ~@(for [s syms]
-                                                                         `(let! ~(symbol s) (cljs.core.get x (cljs.core.symbol ~(str s)))))
-                                                                     ~@(butlast body)
-                                                                     (return ~(last body))))))))))
+                 b))
+        arg (gensym "x")]
+    (with-meta ((js/Function "gened" (str "return " (jsth/statement->string `(fn foo [~arg]
+                                                                              (do
+                                                                                ~@(for [s syms]
+                                                                                    `(let! ~(symbol s) (cljs.core.get ~arg (cljs.core.symbol ~(str s)))))
+                                                                                ~@(butlast body)
+                                                                                (return ~(last body))))))))
+      {:aurora/selects syms})))
 
 
 (defn vars* [form]
@@ -391,10 +393,17 @@
                    (= foo (+ b 4))
                    (+ [a foo])])
 
-  ((datalog/query* (quote-clauses '[[a b c]
+  ((query* (quote-clauses '[[a b c]
                                     (= foo (+ b 4))
-                                    (+ [a foo])]))
-   (datalog/Knowledge. #{[1 2 3] [3 4 5]} #{} #{}))
+                            (+s [[a] [b] [c]])
+                            (+ [a foo])]))
+   (Knowledge. #{[1 2 3] [3 4 5]} #{} #{}))
+
+  ((query [a b c]
+                                    (= foo (+ b 4))
+                            (+s [[a] [b] [c]])
+                            (+ [a foo]))
+   (Knowledge. #{[1 2 3] [3 4 5]} #{} #{}))
 
   ((query [a b _]
           [_ a b]

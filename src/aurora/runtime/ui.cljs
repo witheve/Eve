@@ -2,6 +2,7 @@
   (:require [aurora.util.core :as util]
             [aurora.compiler.datalog :as datalog]
             [clojure.set :as set]
+            [aurora.editor.dom :as dom]
             [aurora.runtime.core :as runtime]
             [aurora.editor.ReactDommy :as dommy])
   (:require-macros [aurora.compiler.datalog :refer [query rule]]))
@@ -48,47 +49,47 @@
 ;; {:name :ui/style :id id :attr "background" :value "red"}
 ;; {:name :ui/child :id id :child id :pos i}
 
-(def find-elems (query {:name :ui/elem
-                        :id id
-                        :tag tag}
+(def find-elems (query {:ml :ui/elem
+                        "id" id
+                        "tag" tag}
                        (+ [id tag])))
 
-(def find-text (query {:name :ui/text
-                       :id id
-                       :text text}
+(def find-text (query {:ml :ui/text
+                       "id" id
+                       "text" text}
                       (+ [id text])))
 
-(def find-attr (query {:name :ui/attr
-                       :id id
-                       :attr attr
-                       :value value}
+(def find-attr (query {:ml :ui/attr
+                       "id" id
+                       "attr" attr
+                       "value" value}
                        (+ {:id id
                            :attr attr
                            :value value})))
 
 
-(def find-listeners (query {:name :ui/event-listener
-                            :id id
-                            :entity entity
-                            :event-key key
-                            :event event}
+(def find-listeners (query {:ml :ui/event-listener
+                            "id" id
+                            "entity" entity
+                            "event-key" key
+                            "event" event}
                            (+ {:id id
                                :event-key key
                                :entity entity
                                :event event})))
 
-(def find-style (query {:name :ui/style
-                       :id id
-                       :attr attr
-                       :value value}
+(def find-style (query {:ml :ui/style
+                       "id" id
+                       "attr" attr
+                       "value" value}
                        (+ {:id id
                            :attr attr
                            :value value})))
 
-(def find-children (query {:name :ui/child
-                           :id id
-                           :child child-id
-                           :pos pos}
+(def find-children (query {:ml :ui/child
+                           "id" id
+                           "child" child-id
+                           "pos" pos}
                           (+ {:id id
                               :child-id child-id
                               :pos pos})))
@@ -140,9 +141,12 @@
 
 (defn on-bloom-tick [knowledge queue]
   (frame (fn []
-           (let [tree (rebuild-tree knowledge queue)]
+           (let [tree (rebuild-tree knowledge queue)
+                 container (dom/$ "#ui-preview")]
              (println "UI Tree: " (pr-str tree))
-             ;(js/React.renderComponent (dommy/node tree) js/document.body)
+             (when container
+               (js/React.renderComponent (dommy/node tree) container))
+             ;
              )
            )))
 
@@ -152,25 +156,26 @@
 
 (defn fact-walk [hic facts [parent pos]]
   (let [[el args & children] hic
+        args (js->clj args :keywordize-keys true)
         id (:id args)
         entity (:entity args)
         key (:event-key args)
         real-args (dissoc args :id :style :events :event-key :entity)]
     (when parent
-      (.push facts {:name :ui/child :id parent :child id :pos pos}))
-    (.push facts {:name :ui/elem :id id :tag (name el)})
+      (.push facts {:ml :ui/child "id" parent "child" id "pos" pos}))
+    (.push facts {:ml :ui/elem "id" id "tag" (name el)})
     (doseq [[k v] real-args]
-      (.push facts {:name :ui/attr :id id :attr (name k) :value v}))
+      (.push facts {:ml :ui/attr "id" id "attr" (name k) "value" v}))
     (doseq [[k v] (:style args)]
-      (.push facts {:name :ui/style :id id :attr (name k) :value v}))
+      (.push facts {:ml :ui/style "id" id "attr" (name k) "value" v}))
     (doseq [ev (:events args)]
-      (.push facts {:name :ui/event-listener :id id :event-key key :event (name ev) :entity entity}))
+      (.push facts {:ml :ui/event-listener "id" id "event-key" key "event" (name ev) "entity" entity}))
     (doseq [[i child] (map-indexed vector children)]
       (if (vector? child)
         (fact-walk child facts [id i])
         (do
-          (.push facts {:name :ui/text :id (str id "-" i) :text child})
-          (.push facts {:name :ui/child :id id :child (str id "-" i) :pos i})
+          (.push facts {:ml :ui/text "id" (str id "-" i) "text" child})
+          (.push facts {:ml :ui/child "id" id "child" (str id "-" i) "pos" i})
           )))))
 
 (defn hiccup->facts [& hic]

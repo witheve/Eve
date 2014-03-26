@@ -78,20 +78,20 @@
   (handle-feed env))
 
 
-(def ui-cleanup-rules [(rule {:name :ui/text :id id :text text}
-                             (- {:name :ui/text :id id :text text}))
-                       (rule {:name :ui/elem :id id :tag tag}
-                             (- {:name :ui/elem :id id :tag tag}))
-                       (rule {:name :ui/attr :id id :attr attr :value value}
-                             (- {:name :ui/attr :id id :attr attr :value value}))
-                       (rule {:name :ui/style :id id :style attr :value value}
-                             (- {:name :ui/style :id id :style attr :value value}))
-                       (rule {:name :ui/child :id id :child child :pos pos}
-                             (- {:name :ui/child :id id :child child :pos pos}))
-                       (rule {:name :ui/event-listener :id id :entity entity :event event}
-                             (- {:name :ui/event-listener :id id :entity entity :event event}))
-                       (rule {:ml :ui/draw "ui" u "thing" t}
-                             (- {:ml :ui/draw "ui" u "thing" t}))
+(def ui-cleanup-rules [(rule ^d {:ml :ui/text}
+                             (- d))
+                       (rule ^d {:ml :ui/elem}
+                             (- d))
+                       (rule ^d {:ml :ui/attr}
+                             (- d))
+                       (rule ^d {:ml :ui/style}
+                             (- d))
+                       (rule ^d {:ml :ui/child}
+                             (- d))
+                       (rule ^d {:ml :ui/event-listener}
+                             (- d))
+                       (rule ^d {:ml :ui/draw}
+                             (- d))
                        ])
 
   (def timer-cleanup-rules [(rule ^t {:ml :timers/wait}
