@@ -2,7 +2,7 @@
   (:require [aurora.editor.ReactDommy :refer [node]]
             [aurora.compiler.compiler :as compiler]
             [aurora.compiler.datalog :as datalog]
-            [aurora.runtime.core :as runtime :refer [run-env pause unpause]]
+            [aurora.runtime.core :as runtime :refer [run-env pause unpause replay-last]]
             [aurora.runtime.timers]
             [aurora.runtime.ui]
             [aurora.runtime.io]
@@ -34,6 +34,10 @@
                             :ui/style "[id] has a (attr) style of (value)"
                             :ui/text "[id] is the text (text)"
                             :ui/child "[id] is the parent of (child) at position (pos)"
+                            :ui/event-listener "Listen for (event) events on [id]"
+                            :ui/onClick "[id] was clicked raising (event) on (entity)"
+                            :ui/onDoubleClick "[id] was double clicked raising (event) on (entity)"
+                            :ui/onChange "[id] changed to (value) raising (event) on (entity)"
                             "see" "(name) as (expression)"
                             "all" "(things)"
                             :ui/draw "Draw [thing] as (ui)"}
@@ -108,6 +112,9 @@
 (defmethod draw-clause :find [clause world path]
   [:span [:span.keyword "find "] (rule-ui clause world path)])
 
+(defmethod draw-clause :forget [clause world path]
+  [:span [:span.keyword "forget "] (rule-ui clause world path)])
+
 (defmethod draw-clause :see [clause world path]
   [:span [:span.keyword "see "] (rule-ui clause world path)])
 
@@ -132,7 +139,7 @@
                 (reader/read-string things)
                 (or things [])))))
 
-(defmethod compile-clause :remove [clause world]
+(defmethod compile-clause :forget [clause world]
   (list '- (dissoc clause :type)))
 
 (defmethod compile-clause :see [clause world]
@@ -173,12 +180,8 @@
         tick-rules (datalog/chain (:rules comped))
         paused? (:paused @cur-env)]
     (pause cur-env)
-    (swap! cur-env assoc
-           :tick-rules tick-rules
-           :kn (datalog/Knowledge. (set/union (set (:facts comped)) (or (get-in @state [:editor :prev-kn])
-                                                                        (-> @cur-env :kn :old)))
-                                   (-> @cur-env :kn :asserted)
-                                   (-> @cur-env :kn :retracted)))
+    (swap! cur-env assoc :tick-rules tick-rules)
+    (replay-last cur-env (set (:facts comped)) 5)
     (when-not paused?
       (unpause cur-env))))
 
@@ -203,7 +206,7 @@
   (if-not (= path (get-in @state [:editor :path]))
     [:span.value {:onClick (set-editing path)}
      (cond
-      (symbol? v) [:span.var.ref (str v)]
+      (symbol? v) (str v)
       (vector? v) v
       (nil? v) v
       :else (str v))]
@@ -258,16 +261,17 @@
         v (get rule name)
         v-rep (when-let [v (get rule name)]
                 (cond
-                 (symbol? v) [:span.var.ref (str v)]
+                 (symbol? v) (str v)
                  (vector? v) v
                  :else (str v)))
         classes {:var true
+                 :ref (symbol? v)
                  :attr attr?}]
     (cond
      (or (not v-rep)
          (= v name)) (if-not (= path (get-in @state [:editor :path]))
                        (holder path
-                               {:classes classes
+                               {:classes (assoc classes :add true)
                                 :onClick (set-editing path)}
                                [:span.placeholder
                                 name])
@@ -277,7 +281,7 @@
           (string? v)) (holder path
                                {:classes (assoc classes :add true)}
                                (editable rule v path))
-     (symbol? v) (holder path {:classes classes}
+     (symbol? v) (holder path {:classes (assoc classes :add true)}
                          (editable rule v path))
      :else (holder path {:classes (assoc classes :add true)}
                    (editable rule v path)))
@@ -362,7 +366,7 @@
 (def pair->mode {"[" "id"
                  "(" "attr"})
 
-(def keywords #"when|find|new|see|all")
+(def keywords #"when|find|new|see|all|forget")
 
 (defn tokenizer [stream]
   (let [ch (.peek stream)]
@@ -400,8 +404,8 @@
                      (:phrase))
                  (.trim phrase))
         candidates (if-not keyword
-                     (concat ["when" "find" "new" "see (name) as (expression)" "all (things)"] (vals (:madlibs @state)))
-                     (vals (:madlibs @state)))]
+                     (concat ["when" "find" "new" "see (name) as (expression)" "all (things)" "forget"] (sort (vals (:madlibs @state))))
+                     (sort (vals (:madlibs @state))))]
     (when-not same?
       (swap! state assoc :matcher (dissoc matcher :last-text :last-selected :selected)))
     (swap! state assoc-in [:matcher :matches]

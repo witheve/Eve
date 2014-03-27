@@ -22,7 +22,7 @@
   (let [tag (.-target.tagName e)
         type (.-target.type e)]
     (condp = ev
-      "onChange" {:value (cond
+      "onChange" {"value" (cond
                           (= type "checkbox") (if (.-target.checked e)
                                                 "true"
                                                 "false")
@@ -31,7 +31,7 @@
                                              "false")
                           (= tag "option") (.-target.selected e)
                           :else (.-target.value e))}
-      "onKeyDown" {:keyCode (.-keyCode e)}
+      "onKeyDown" {"keyCode" (.-keyCode e)}
       {})))
 
 ;; every bloom tick queue up all the UI changes we should do
@@ -106,11 +106,11 @@
         el-styles (into {} (map extract styles))
         el-attrs (into el-attrs (for [{:keys [event entity event-key] :as foo} events]
                                   [event (fn [e]
-                                           (queue (merge {:name (keyword "ui" event)
-                                                          :event-key event-key
-                                                          :id id}
+                                           (queue (merge {:ml (keyword "ui" event)
+                                                          "event" event-key
+                                                          "id" id}
                                                          (when entity
-                                                           {:entity entity})
+                                                           {"entity" entity})
                                                          (event->params event e))))]))
         el-attrs (if (seq el-styles)
                    (assoc el-attrs :style el-styles)

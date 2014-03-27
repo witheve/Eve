@@ -18,18 +18,27 @@
   (datalog/chain (for [stratum strata]
                    (datalog/fixpoint (datalog/chain stratum)))))
 
-(defn tick [kn tick-rules rules watchers feeder-fn]
+(defn tick [kn tick-rules rules watchers feeder-fn opts]
   (let [kn (-> kn (tick-rules) (rules))]
     (doseq [watch watchers]
-      (watch kn feeder-fn))
+      (watch kn feeder-fn opts))
     (datalog/and-now kn)))
 
-(defn handle-feed [env]
-  (when-not (:paused @env)
+(defn add-history [history point limit]
+  (when (>= (.-length history) limit)
+    (.shift history))
+  (.push history point))
+
+(defn handle-feed [env & [opts]]
+  (when (or (:force opts)
+            (not (:paused @env)))
     (.time js/console "run")
-    (let [feed-set (set (:feed @env))]
+    (let [feed-set (or (:feed-set opts) (set (:feed @env)))
+          feed-func (or (:feeder-fn opts) (:feeder-fn @env))]
       (aset (:feed @env) "length" 0)
-      (println "Feed set: " feed-set)
+      (when (and (not (:feed-set opts))
+                 (seq feed-set))
+        (add-history (:history @env) [(:kn @env) feed-set] (:history-size @env)))
       (swap! env update-in [:kn]
              (fn [cur]
                (-> cur
@@ -37,12 +46,30 @@
                    (datalog/and-now)
                    (datalog/assert-many feed-set)
                    (datalog/and-now)
-                   (tick (:tick-rules @env) (:rules @env) (:watchers @env) (:feeder-fn @env))
+                   (tick (:tick-rules @env) (:rules @env) (:watchers @env) feed-func opts)
                    (datalog/retract-many feed-set)
                    (datalog/and-now))))
       (.timeEnd js/console "run")
       ;(println "final: " (- (.getTime (js/Date.)) start) (:kn @env))
       (swap! env assoc :queued? false))))
+
+(defn replay-last [env to-merge num]
+  (let [hist (:history @env)
+        len (dec (.-length hist))
+        num (if (< len num)
+              len
+              num)
+        starting (-> (aget hist (- len num))
+                     (first)
+                     (datalog/assert-many to-merge)
+                     (datalog/and-now))]
+    (swap! env assoc :kn starting)
+    (doseq [x (reverse (range 0 num))
+            :let [feed-set (-> (aget hist (- len x))
+                               (last))]]
+      (handle-feed env {:force true
+                        :feed-set feed-set
+                        :feeder-fn (fn [x y])}))))
 
 (defn run [env]
   (let [feeder-fn (partial feeder env)]
@@ -51,14 +78,17 @@
     env))
 
 (defn ->env [opts]
-  (let [env (merge {:tick-rules []
+  (let [kn (datalog/Knowledge. (:kn opts #{}) #{} #{})
+        env (merge {:tick-rules []
                     :cleanup-rules []
                     :rules []
                     :watchers @watchers
+                    :history-size 20
+                    :history (array [kn #{}])
                     :feed (array)
                     :queued? false}
                    opts
-                   {:kn (datalog/Knowledge. (:kn opts #{}) #{} #{})})
+                   {:kn kn})
         env (-> env
                 (update-in [:cleanup-rules] datalog/chain)
                 (update-in [:rules] chain-rules)

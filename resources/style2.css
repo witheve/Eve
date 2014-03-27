@@ -102,13 +102,13 @@ button:hover { background:#ddd; }
 .sub { margin-left:5px; padding-left: 20px; border-left:1px solid #666; }
 .sub li {margin-bottom:0px;}
 
-.var { display:inline-block; background:; color:#96EEB2; border-bottom:0px solid #cda869; border-radius:0px; padding:0px 0px; vertical-align:middle; }
-.ref { color:#77C4EE; border-color:#C2A1FF; }
-.attr, .value.attr { color:#DB9EFF; border-color:#95DE8A; border: 1px solid #777; padding:0px 5px; border-radius:2px; margin-top:2px; margin-bottom:2px;}
+.var { display:inline-block; background:; color:#96EEB2; border:1px solid #777; border-radius:0px; padding:0px 0px; vertical-align:middle; }
+.attr { color:#DB9EFF; padding:0px 5px; border-radius:2px; margin-top:2px; margin-bottom:2px;}
+.ref { color:#77C4EE; }
 
 .attr .placeholder { color:#aaa; }
 
-.add { border: 1px solid #777; padding:0px 5px; border-radius:2px; margin-top:2px; margin-bottom:2px;}
+.add { padding:0px 5px; border-radius:2px; margin-top:2px; margin-bottom:2px;}
 .add .value { margin-left: 0px; padding-left:0px; border-left:0px solid #666; }
 
 .keyword { color:#aaa; }
