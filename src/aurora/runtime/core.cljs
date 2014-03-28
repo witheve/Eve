@@ -26,20 +26,12 @@
     (watch kn feeder-fn))
   kn)
 
-<<<<<<< HEAD
 (defn tick [kn tick-rules rules watchers feeder-fn]
   (-> kn
       (tick-inductive tick-rules)
       (tick-deductive rules)
       (tick-watchers watchers feeder-fn)
       (datalog/tick)))
-=======
-(defn tick [kn tick-rules rules watchers feeder-fn opts]
-  (let [kn (-> kn (tick-rules) (rules))]
-    (doseq [watch watchers]
-      (watch kn feeder-fn opts))
-    (datalog/and-now kn)))
->>>>>>> plinq
 
 (defn add-history [history point limit]
   (when (>= (.-length history) limit)
@@ -58,7 +50,6 @@
         (add-history (:history @env) [(:kn @env) feed-set] (:history-size @env)))
       (swap! env update-in [:kn]
              (fn [cur]
-<<<<<<< HEAD
                (-> (stratifier/run-ruleset (:cleanup-rules @env) cur)
                    (datalog/tick)
                    (datalog/assert-facts feed-set)
@@ -66,16 +57,6 @@
                    (tick (:tick-rules @env) (:rules @env) (:watchers @env) (:feeder-fn @env))
                    (datalog/retract-facts feed-set)
                    (datalog/tick))))
-=======
-               (-> cur
-                   ((:cleanup-rules @env))
-                   (datalog/and-now)
-                   (datalog/assert-many feed-set)
-                   (datalog/and-now)
-                   (tick (:tick-rules @env) (:rules @env) (:watchers @env) feed-func opts)
-                   (datalog/retract-many feed-set)
-                   (datalog/and-now))))
->>>>>>> plinq
       (.timeEnd js/console "run")
       ;(println "final: " (- (.getTime (js/Date.)) start) (:kn @env))
       (swap! env assoc :queued? false))))
@@ -88,8 +69,8 @@
               num)
         starting (-> (aget hist (- len num))
                      (first)
-                     (datalog/assert-many to-merge)
-                     (datalog/and-now))]
+                     (datalog/assert-facts to-merge)
+                     (datalog/tick))]
     (swap! env assoc :kn starting)
     (doseq [x (reverse (range 0 num))
             :let [feed-set (-> (aget hist (- len x))
@@ -105,7 +86,7 @@
     env))
 
 (defn ->env [opts]
-  (let [kn (datalog/Knowledge. (:kn opts #{}) #{} #{})
+  (let [kn (datalog/Knowledge. (:kn opts #{}) #{} #{} (:kn opts #{}))
         env (merge {:tick-rules []
                     :cleanup-rules []
                     :rules []
@@ -115,11 +96,7 @@
                     :feed (array)
                     :queued? false}
                    opts
-<<<<<<< HEAD
-                   {:kn (datalog/Knowledge. (:kn opts #{}) #{} #{} (:kn opts #{}))})
-=======
                    {:kn kn})
->>>>>>> plinq
         env (-> env
                 (update-in [:cleanup-rules] stratifier/strata->ruleset)
                 (update-in [:rules] stratifier/strata->ruleset)
@@ -138,28 +115,9 @@
   (swap! env assoc :paused false)
   (handle-feed env))
 
-<<<<<<< HEAD
 (defn go-to-do []
 
 (def hiccup js/aurora.runtime.ui.hiccup->facts)
-(def ui-cleanup-rules [(rule {:name :ui/text :id id :text text}
-                             (- {:name :ui/text :id id :text text}))
-                       (rule {:name :ui/elem :id id :tag tag}
-                             (- {:name :ui/elem :id id :tag tag}))
-                       (rule {:name :ui/attr :id id :attr attr :value value}
-                             (- {:name :ui/attr :id id :attr attr :value value}))
-                       (rule {:name :ui/style :id id :style attr :value value}
-                             (- {:name :ui/style :id id :style attr :value value}))
-                       (rule {:name :ui/child :id id :child child :pos pos}
-                             (- {:name :ui/child :id id :child child :pos pos}))
-                       (rule {:name :ui/event-listener :id id :entity entity :event event}
-                             (- {:name :ui/event-listener :id id :entity entity :event event}))
-                       ])
-
-  (def timer-cleanup-rules [(rule {:name :wait :time t :id i}
-                                  (- {:name :wait :time t :id i}))])
-=======
-
 (def ui-cleanup-rules [(rule ^d {:ml :ui/text}
                              (- d))
                        (rule ^d {:ml :ui/elem}
@@ -178,12 +136,9 @@
 
   (def timer-cleanup-rules [(rule ^t {:ml :timers/wait}
                                   (- t))])
->>>>>>> plinq
 
   (def io-cleanup-rules [(rule ^get {:name :http-get}
                                (- get))])
-
-<<<<<<< HEAD
 
   (def todo (run-env {:kn #{{:name "counter" :value 2}
                             {:name "todo" :id 0 :text "get milk" :order 0}
@@ -361,15 +316,7 @@
 ;; (go-to-do)
 ;; (js/setTimeout go-to-do 5000)
 
-=======
->>>>>>> plinq
 (comment
-
-(datalog/query-rule
- (datalog/macroless-rule '[[a b]
-                            (= foo (+ a b))
-                            (+ [a b foo])])
- (datalog/tick {:now #{[3 4] [1 2] [4 5]}}))
 
 (def hiccup js/aurora.runtime.ui.hiccup->facts)
 
@@ -432,186 +379,4 @@
 
   (-> @fetcher :kn :old)
 
-
-
-  (def todo (run-env {:kn #{{:name "counter" :value 2}
-                            {:name "todo" :id 0 :text "get milk" :order 0}
-                            {:name "todo" :id 1 :text "take books back" :order 1}
-                            {:name "todo" :id 2 :text "cook" :order 2}
-                            {:name "todo-done" :id 0 :done? "false"}
-                            {:name "todo-done" :id 1 :done? "false"}
-                            {:name "todo-done" :id 2 :done? "false"}
-                            {:name "todo-editing" :id 0 :editing? "false"}
-                            {:name "todo-editing" :id 1 :editing? "false"}
-                            {:name "todo-editing" :id 2 :editing? "false"}
-                            {:name :todo/current-text :value ""}
-                            {:name :todo/filter :value "all"}
-                            {:name :todo/toggle-all :value "false"}
-                            }
-                      :cleanup-rules (concat ui-cleanup-rules
-                                             [(rule ^disp {:name :todo/displayed}
-                                                    (- disp))])
-                      :tick-rules [;;on change
-                                   (rule {:name :ui/onChange :id "todo-input" :value v}
-                                         (> {:name :todo/current-text} {:value v}))
-
-                                   ;;submit
-                                   (rule {:name :ui/onClick :id "add-todo"}
-                                         (+ {:name :todo/new!}))
-                                   (rule {:name :ui/onKeyDown :id "todo-input" :keyCode 13}
-                                         (+ {:name :todo/new!}))
-
-                                   ;;add a new todo
-                                   (rule {:name :todo/new!}
-                                         {:name "counter" :value v}
-                                         {:name :todo/current-text :value text}
-                                         (= new-count (inc v))
-                                         (- {:name :todo/new!})
-                                         (> {:name "counter"} {:value new-count})
-                                         (> {:name :todo/current-text} {:value ""})
-                                         (+ {:name "todo" :id new-count :text text :order new-count})
-                                         (+ {:name "todo-editing" :id new-count :editing? "false"})
-                                         (+ {:name "todo-done" :id new-count :done? "false"}))
-
-                                   ;;todo editing
-                                   (rule {:name :ui/onDoubleClick :entity ent}
-                                         {:name "todo-editing" :id ent :editing? "false"}
-                                         (> {:name "todo-editing" :id ent} {:editing? "true"}))
-
-                                   (rule {:name :ui/onBlur :entity ent}
-                                         {:name :todo/edit-text :value v}
-                                         (> {:name "todo" :id ent} {:text v})
-                                         (> {:name "todo-editing" :id ent} {:editing? "false"}))
-
-                                   (rule {:name :ui/onChange :id "todo-editor" :value v}
-                                         (> {:name :todo/edit-text} {:value v})
-                                         (+ {:name :todo/edit-text :value v}))
-
-                                   (rule {:name :ui/onKeyDown :id "todo-editor" :keyCode 13 :entity ent}
-                                         {:name :todo/edit-text :value new-value}
-                                         (> {:name "todo" :id ent} {:text new-value})
-                                         (> {:name "todo-editing" :id ent} {:editing? "false"}))
-
-                                   (rule {:name :ui/onChange :event-key "todo-checkbox" :entity ent :value v}
-                                         (> {:name "todo-done" :id ent} {:done? v}))
-
-                                   (rule {:name :ui/onClick :event-key "filter-all"}
-                                         (> {:name :todo/filter} {:value "all"}))
-                                   (rule {:name :ui/onClick :event-key "filter-active"}
-                                         (> {:name :todo/filter} {:value "false"}))
-                                   (rule {:name :ui/onClick :event-key "filter-completed"}
-                                         (> {:name :todo/filter} {:value "true"}))
-
-                                   (rule {:name :ui/onChange :event-key "toggle-all" :value v}
-                                         (> {:name :todo/toggle-all} {:value v}))
-
-                                   (rule {:name "todo-done" :id id}
-                                         {:name :ui/onChange :event-key "toggle-all" :value v}
-                                         (> {:name "todo-done" :id id} {:done? v}))
-
-                                   (rule {:name :ui/onClick :event-key "clear completed"}
-                                         {:name "todo-done" :id ent :done? "true"}
-                                         (+ {:name :todo/remove! :id ent}))
-
-                                   (rule {:name :ui/onClick :event-key "todo-remove" :entity ent}
-                                         (+ {:name :todo/remove! :id ent}))
-
-                                   (rule {:name :todo/remove! :id id}
-                                         ^todo {:name "todo" :id id}
-                                         ^done {:name "todo-done" :id id}
-                                         ^editing {:name "todo-editing" :id id}
-                                         (- todo)
-                                         (- done)
-                                         (- editing))]
-
-                      :rules [[(rule {:name "todo" :id id}
-                                     {:name :todo/filter :value "all"}
-                                     (+ {:name :todo/displayed :id id}))
-                               (rule {:name "todo" :id id}
-                                     {:name :todo/filter :value v}
-                                     {:name "todo-done" :id id :done? v}
-                                     (+ {:name :todo/displayed :id id}))]
-
-                              [(rule {:name :todo/displayed :id id}
-                                     {:name "todo" :id id :text text :order order}
-                                     {:name "todo-done" :id id :done? done}
-                                     (= parent-id (str "todo" id))
-                                     (= child-id (str "todo-checkbox" id))
-                                     (+s (hiccup
-                                          [:input {:id child-id
-                                                   :event-key "todo-checkbox"
-                                                   :entity id
-                                                   :checked done
-                                                   :events ["onChange"]
-                                                   :type "checkbox"}]))
-                                     (+ {:name :ui/child :id parent-id :child child-id :pos -1}))]
-                              [(rule {:name :todo/displayed :id id}
-                                     {:name "todo" :id id :text text :order order}
-                                     {:name "todo-editing" :id id :editing? "false"}
-                                     (+s (hiccup
-                                          [:li {:id (str "todo" id) :entity id :event-key "todo" :events ["onDoubleClick"]}
-                                           text
-                                           [:button {:id (str "todo-remove" id) :style {:margin-left "10px"} :entity id :event-key "todo-remove" :events ["onClick"]} "x"]]))
-                                     (= child-id (str "todo" id))
-                                     (+ {:name :ui/child :id "todo-list" :child child-id :pos order}))
-                               (rule {:name :todo/displayed :id id}
-                                     {:name "todo" :id id :text text :order order}
-                                     {:name "todo-editing" :id id :editing? "true"}
-                                     (+s (hiccup
-                                          [:input {:id (str "todo-editor") :entity id :event-key "todo-editor" :defaultValue text :events ["onChange" "onKeyDown" "onBlur"]}]))
-                                     (+ {:name :ui/child :id "todo-list" :child "todo-editor" :pos order}))]
-
-                              [(rule {:name :todo/current-text :value v}
-                                     (+s (hiccup
-                                          [:input {:id "todo-input" :value v :event-key "todo-input" :events ["onChange" "onKeyDown"] :placeholder "What do you need to do?"}]))
-                                     (+ {:name :ui/child :id "app" :child "todo-input" :pos 1}))]
-
-                              [(rule (set remaining [id]
-                                          {:name "todo-done" :id id :done? "false"})
-                                     (= left (count remaining))
-                                     (= text (if (= left 1)
-                                               " todo "
-                                               " todos "))
-                                     (+s (hiccup [:span {:id "remaining-count"} left text "left"]))
-                                     (+ {:name :ui/child :id "app" :child "remaining-count" :pos 3.5}))
-
-                               (rule (set completed [id]
-                                          {:name "todo-done" :id id :done? "true"})
-                                     (= left (count completed))
-                                     (? (> left 0))
-                                     (+s (hiccup [:span {:id "completed-count" :event-key "clear completed" :events ["onClick"]} "clear completed (" left ")"]))
-                                     (+ {:name :ui/child :id "app" :child "completed-count" :pos 7}))]
-
-                              [(rule {:name :todo/toggle-all :value toggle}
-                                     (+s (hiccup
-                                          [:div {:id "app"}
-                                           [:h1 {:id "todo-header"} "Todos"]
-                                           [:input {:id "toggle-all"
-                                                    :event-key "toggle-all"
-                                                    :checked toggle
-                                                    :events ["onChange"]
-                                                    :type "checkbox"}]
-                                           [:button {:id "add-todo" :event-key "add-todo" :events ["onClick"]} "add"]
-                                           [:ul {:id "todo-list"}]
-                                           [:button {:id "filter-all" :event-key "filter-all" :events ["onClick"]} "all"]
-                                           [:button {:id "filter-active" :event-key "filter-active" :events ["onClick"]} "active"]
-                                           [:button {:id "filter-completed" :event-key "filter-completed" :events ["onClick"]} "completed"]
-                                           ]))
-                                     )]
-                              ]}))
-
-  ((query ^todo {:name :ui/elem :id "remaining-count"}
-          (+ todo)) (-> @todo :kn))
-
-  ( (query {:name :ui/attr
-                       :id id
-                       :attr attr
-                       :value value}
-                       (+ {:id id
-                           :attr attr
-                           :value value}))(-> @todo :kn))
-
-
-(set! *print-fn* (fn []))
-  (enable-console-print!)
   )

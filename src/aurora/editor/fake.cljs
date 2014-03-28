@@ -2,6 +2,7 @@
   (:require [aurora.editor.ReactDommy :refer [node]]
             [aurora.compiler.compiler :as compiler]
             [aurora.compiler.datalog :as datalog]
+            [aurora.compiler.stratifier :as stratifier]
             [aurora.runtime.core :as runtime :refer [run-env pause unpause replay-last]]
             [aurora.runtime.timers]
             [aurora.runtime.ui]
@@ -177,7 +178,7 @@
 
 (defn inject-compiled []
   (let [comped (compile-state)
-        tick-rules (datalog/chain (:rules comped))
+        tick-rules (stratifier/strata->ruleset (:rules comped))
         paused? (:paused @cur-env)]
     (pause cur-env)
     (swap! cur-env assoc :tick-rules tick-rules)
@@ -198,7 +199,7 @@
   (fn []
     (when (= (first path) :statements)
       (swap! state assoc-in [:editor :paused?] (:paused @cur-env))
-      (swap! state assoc-in [:editor :prev-kn] (-> @cur-env :kn :old))
+      (swap! state assoc-in [:editor :prev-kn] (-> @cur-env :kn :prev))
       (pause cur-env)
       (swap! state assoc-in [:editor :path] path))))
 
@@ -328,7 +329,7 @@
      [:div#ui-preview]
      [:h2 "facts:"]
      [:ul
-      (for [fact (sort-by (comp str :ml) (:old kn))]
+      (for [fact (sort-by (comp str :ml) (:prev kn))]
         [:li (rule-ui fact world)])]
      ]
     ))
