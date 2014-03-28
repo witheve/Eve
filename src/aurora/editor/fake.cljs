@@ -181,7 +181,7 @@
         paused? (:paused @cur-env)]
     (pause cur-env)
     (swap! cur-env assoc :tick-rules tick-rules)
-    (replay-last cur-env (set (:facts comped)) 5)
+    (replay-last cur-env (set (:facts comped)) 1)
     (when-not paused?
       (unpause cur-env))))
 

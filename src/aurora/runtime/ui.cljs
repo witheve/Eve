@@ -171,7 +171,7 @@
     (doseq [ev (:events args)]
       (.push facts {:ml :ui/event-listener "id" id "event-key" key "event" (name ev) "entity" entity}))
     (doseq [[i child] (map-indexed vector children)]
-      (if (vector? child)
+      (if (array? child)
         (fact-walk child facts [id i])
         (do
           (.push facts {:ml :ui/text "id" (str id "-" i) "text" child})
