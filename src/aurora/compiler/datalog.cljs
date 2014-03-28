@@ -4,13 +4,31 @@
   (:require [clojure.set :refer [union intersection difference subset?]]
             [aurora.compiler.jsth :as jsth]
             [aurora.compiler.match :as match])
-  (:require-macros [aurora.macros :refer [fns check deftraced console-time]]
+  (:require-macros [aurora.macros :refer [fns check deftraced console-time set!! conj!! disj!! assoc!!]]
                    [aurora.compiler.match :refer [match]]
                    [aurora.compiler.datalog :refer [query rule]]))
 
+(comment ;; grammar
+  pattern
+  (+ed pattern)
+  (-ed pattern)
+  (? vars fn)
+  (= var vars fn)
+  (set var vars & clauses)
+  ;; (in var var)
+  (+ pattern)
+  (- pattern)
+  (> pattern pattern)
+  (+s vars fn)
+  (-s vars fn)
+  )
+
+(def profile? false)
+
 ;; TODO
+;; query optimisation (starting with clause sorting)
 ;; aggregates (conj? sorting?)
-;; abstract result sets
+;; abstract result sets (many of the results can just use arrays)
 ;; seminaive evaluation
 ;; incremental assert
 ;; incremental retract
@@ -20,304 +38,450 @@
 ;; index by predicate?
 ;; profiler
 ;; debugger
+;; figure out time semantics
 
-;; We assume that if we rely on attr then stratification ensures no more retractions are forthcoming
+;; KNOWLEDGE
 
-;; runtime
+(defrecord Knowledge [prev asserted-now retracted-now now])
 
-(def time-clauses false)
-(def time-parts false)
-(def time-rules false)
-(def time-queries false)
+(defn tick [{:keys [now]}]
+  (->Knowledge now #{} #{} now))
 
-(defn with-info [f x]
-  (aset f "our_info" x)
-  f)
+(defn assert-facts [kn facts]
+  (let [prev (:prev kn)
+        now (transient (:now kn))
+        asserted-now (transient (:asserted-now kn))
+        retracted-now (:retracted-now kn)]
+    (doseq [fact facts]
+      (conj!! asserted-now fact)
+      (when (or (contains? prev fact) (not (contains? retracted-now fact)))
+        (conj!! now fact)))
+    (Knowledge. prev (persistent! asserted-now) retracted-now (persistent! now))))
 
-(defn info [f]
-  (aget f "our_info"))
+(defn retract-facts [kn facts]
+  (let [prev (:prev kn)
+        now (transient (:now kn))
+        asserted-now  (:asserted-now kn)
+        retracted-now (transient (:retracted-now kn))]
+    (doseq [fact facts]
+      (conj!! retracted-now fact)
+      (when (or (not (contains? prev fact)) (not (contains? asserted-now fact)))
+        (disj!! now fact)))
+    (->Knowledge prev asserted-now (persistent! retracted-now) (persistent! now))))
 
-(defrecord Knowledge [old asserted retracted])
+;; MAPS -> ROWS
 
-(def empty
-  (Knowledge. #{} #{} #{}))
+(defn select-ixes [vector ixes]
+  (let [result #js []
+        count (count ixes)]
+    (loop [ix 0]
+      (when (< ix count)
+        (.push result (nth vector (nth ixes ix)))
+        (recur (+ ix 1))))
+    result))
 
-(defn assert [kn {:keys [name] :as fact}]
-  (update-in kn [:asserted] conj fact))
+(defn ix-of [vector value]
+  (let [count (count vector)]
+    (loop [ix 0]
+      (if (< ix count)
+        (if (= value (nth vector ix))
+          ix
+          (recur (+ ix 1)))
+        (assert false (str (pr-str value) " is not contained in " (pr-str vector)))))))
 
-(defn retract [kn {:keys [name] :as fact}]
-  (update-in kn [:retracted] conj fact))
+(defn ixes-of [vector values]
+  (vec (map #(ix-of vector %) values)))
 
-(defn assert-many [kn facts]
-  (update-in kn [:asserted] union facts))
+;; PLAN NODES
 
-(defn retract-many [kn facts]
-  (update-in kn [:retracted] union facts))
+;; TODO
+;; can maybe create funs that do the selection rather than selecting each time
+;; funs as js?
+;; maybe pass a transient set into the run? will that mess up abstract sets later?
 
-;; TODO can probably just do this on assert/retract by looking at counts
-(defn to-be [{:keys [old asserted retracted] :as kn}]
-  ;; (old & ¬(retracted & ¬asserted)) | (asserted & ¬retracted)
-  (let [actually-asserted (difference asserted retracted)
-        actually-retracted (difference retracted asserted)
-        to-be (difference (union old actually-asserted) actually-retracted)]
-    to-be))
+(defprotocol PlanNode
+  (run-node [this cache kn] "-> value"))
 
-(defn and-now [kn]
-  (Knowledge. (to-be kn) #{} #{}))
+(defrecord Project [key pattern pattern-fn shape]
+  PlanNode
+  (run-node [this cache kn]
+       (let [result (transient #{})]
+         (doseq [fact (key kn)]
+           (when-let [row (pattern-fn fact)]
+             (conj!! result (js/cljs.core.PersistentVector.fromArray row true))))
+         (persistent! result))))
 
-;; creating queries
+(defn ->project [key pattern]
+  (let [vars (match/vars pattern)
+        shape (vec vars)
+        pattern-fn (match/pattern pattern shape)]
+    (->Project key pattern pattern-fn shape)))
 
-(defn op? [op clause]
-  (and (seq? clause) (= op (first clause))))
+;; (run-node (->project '[a b]) [] (->Knowledge nil nil nil #{[0] [1 2] [3 4 5]}))
 
-(defn vars [clause]
-  (condp op? clause
-    '+ed (match/vars (second clause))
-    '-ed (match/vars (second clause))
-    'set (conj (clojure.set/difference (apply clojure.set/union (map vars (nthnext clause 3))) (nth clause 2)) (nth clause 1))
-    'in #{(second clause)}
-    '= #{(second clause)}
-    (if (seq? clause)
-      #{}
-      (match/vars clause))))
+(defrecord Join [i j key-ixes-i key-ixes-j select-ixes-i select-ixes-j shape]
+  PlanNode
+  (run-node [this cache kn]
+       (let [result (transient #{})]
+         (doseq [row-i (nth cache i)
+                 :let [key-i (js/cljs.core.PersistentVector.fromArray (select-ixes row-i key-ixes-i) true)]
+                 :let [_ (prn 'i key-i)]
+                 row-j (nth cache j)
+                 :let [key-j (js/cljs.core.PersistentVector.fromArray (select-ixes row-j key-ixes-j) true)]
+                 :let [_ (prn 'j key-j)]
+                 :when (= key-i key-j)]
+           (conj!! result (js/cljs.core.PersistentVector.fromArray (.concat (select-ixes row-i select-ixes-i) (select-ixes row-j select-ixes-j)) true)))
+         (persistent! result))))
+
+(defn ->join [[i shape-i] [j shape-j]]
+  (let [join-shape (vec (intersection (set shape-i) (set shape-j)))
+        key-ixes-i (ixes-of shape-i join-shape)
+        key-ixes-j (ixes-of shape-j join-shape)
+        unjoined-shape-j (vec (difference (set shape-j) (set shape-i)))
+        shape (vec (concat shape-i unjoined-shape-j))
+        select-ixes-i (ixes-of shape-i shape-i)
+        select-ixes-j (ixes-of shape-j unjoined-shape-j)]
+    (->Join i j key-ixes-i key-ixes-j select-ixes-i select-ixes-j shape)))
+
+;; (run-node (->join [0 '[w x y]] [1 '[x y z]]) [#{[:w0 :x0 :y0] [:w1 :x1 :y1]} #{[:x0 :y0 :z0] [:x1 :y1 :z1]}])
+
+(defrecord Filter [i filter-fn filter-ixes shape]
+  PlanNode
+  (run-node [this cache kn]
+       (let [result (transient #{})]
+         (doseq [row (nth cache i)
+                 :let [selection (select-ixes row filter-ixes)]
+                 :when (.apply filter-fn nil selection)]
+           (conj!! result row))
+         (persistent! result))))
+
+(defn ->filter [[i shape-i] filter-shape filter-fn]
+  (assert (every? (set shape-i) filter-shape) (str "Scope " (pr-str filter-shape) " not contained in " (pr-str shape-i)))
+  (let [filter-ixes (ixes-of shape-i filter-shape)
+        shape shape-i]
+    (->Filter i filter-fn filter-ixes shape)))
+
+;; (run-node (->filter [0 '[a b c]] '[a b] (fn [a b] (> a b))) [#{[1 2 3] [3 2 1] [4 5 6] [6 5 4]}])
+
+(defrecord Let [i let-fn let-ixes shape]
+  PlanNode
+  (run-node [this cache kn]
+       (let [result (transient #{})]
+         (doseq [row (nth cache i)]
+           (let [selection (select-ixes row let-ixes)
+                 elem (.apply let-fn nil selection)]
+             (conj!! result (conj row elem))))
+         (persistent! result))))
+
+(defn ->let [[i shape-i] let-name let-shape let-fn]
+  (assert (not ((set shape-i) let-name)) (str "Name " (pr-str let-name) " is already in scope " (pr-str shape-i)))
+  (assert (every? (set shape-i) let-shape) (str "Scope " (pr-str let-shape) " not contained in " (pr-str shape-i)))
+  (let [let-ixes (ixes-of shape-i let-shape)
+        shape (conj shape-i let-name)]
+    (->Let i let-fn let-ixes shape)))
+
+;; (run-node (->let [0 '[w x y]] 'z '[x y] (fn [x y] (+ x y))) [#{[1 2 3] [3 4 5]}])
+
+(comment
+  (defrecord In [i from-ix shape]
+    PlanNode
+    (run-node [this cache kn]
+              (let [result (transient #{})]
+                (doseq [row (nth cache i)
+                        elem (nth row from-ix)]
+                  (conj!! result (conj row elem)))
+                (persistent! result))))
+
+  (defn ->in [[i shape-i] from-name]
+    (let [shape (conj shape-i from-name)
+          from-ix (ix-of shape-i from-name)]
+      (->In i from-ix shape))))
+
+;; (run-node (->in [0 '[a b c]] 'a) [#{[[1 2 3] 4 5] [[6 7 8] 9 10]}])
+
+(defrecord Group [i group-ixes project-ixes shape]
+  PlanNode
+  (run-node [this cache kn]
+       (let [groups (transient {})]
+         (doseq [row (nth cache i)]
+           (let [key (js/cljs.core.PersistentVector.fromArray (select-ixes row project-ixes) true)
+                 val (js/cljs.core.PersistentVector.fromArray (select-ixes row group-ixes) true)]
+             (assoc!! groups key (conj (or (get groups key) #{}) val))))
+         (let [result (transient #{})]
+           (doseq [[key vals] (persistent! groups)]
+             (conj!! result (conj key vals)))
+           (persistent! result)))))
+
+(defn ->group [[i shape-i] group-name group-shape]
+  (assert (every? (set shape-i) group-shape) (str "Scope " (pr-str group-shape) " not contained in " (pr-str shape-i)))
+  (let [group-ixes (ixes-of shape-i group-shape)
+        set-group-shape (set group-shape)
+        project-shape (vec (filter #(not (set-group-shape %)) shape-i))
+        project-ixes (ixes-of shape-i project-shape)
+        shape (conj project-shape group-name)]
+    (->Group i group-ixes project-ixes shape)))
+
+;; (run-node (->group [0 '[a b c d]] 'x '[b d]) [#{[1 2 3 4] [1 :a 3 :b] [5 6 7 8]}])
+
+(defrecord Map [i map-fn map-ixes]
+  PlanNode
+  (run-node [this cache kn]
+       (let [result (transient #{})]
+         (doseq [row (nth cache i)]
+           (let [selection (select-ixes row map-ixes)
+                 fact (.apply map-fn nil selection)]
+             (conj!! result fact)))
+         (persistent! result))))
+
+(defn ->map [[i shape-i] map-pattern]
+  (let [map-shape (into [] (match/vars map-pattern))
+        _ (assert (every? (set shape-i) map-shape) (str "Scope " (pr-str map-shape) " not contained in " (pr-str shape-i)))
+        map-fn (match/constructor map-pattern map-shape)
+        map-ixes (ixes-of shape-i map-shape)]
+    (->Map i map-fn map-ixes)))
+
+;; a hack for hand-written code
+(defn ->merge [[i shape-i] map-pattern input-sym]
+  (let [map-shape (into [] (match/vars map-pattern))
+        merge-shape (into [] (cons input-sym map-shape))
+        _ (assert (every? (set shape-i) merge-shape) (str "Scope " (pr-str merge-shape) " not contained in " (pr-str shape-i)))
+        map-fn (match/constructor map-pattern map-shape)
+        merge-fn (fn [input & args] (merge input (apply map-fn args)))
+        merge-ixes (ixes-of shape-i merge-shape)]
+    (->Map i merge-fn merge-ixes)))
+
+;; (run-node (->map [0 '[a b c d]] '{:b b :d d}) [#{[1 2 3 4] [5 6 7 8]}])
+
+(defrecord MapCat [i map-fn map-ixes]
+  PlanNode
+  (run-node [this cache kn]
+       (let [result (transient #{})]
+         (doseq [row (nth cache i)]
+           (let [selection (select-ixes row map-ixes)
+                 facts (.apply map-fn nil selection)]
+             (doseq [fact facts]
+               (conj!! result fact))))
+         (persistent! result))))
+
+(defn ->mapcat [[i shape-i] map-shape map-fn]
+  (assert (every? (set shape-i) map-shape) (str "Scope " (pr-str map-shape) " not contained in " (pr-str shape-i)))
+  (let [map-ixes (ixes-of shape-i map-shape)]
+    (->MapCat i map-fn map-ixes)))
+
+;; (run-node (->mapcat [0 '[a b c d]] '[b d] (fn [a b] [{:a a} {:b b}])) [#{[1 2 3 4] [5 6 7 8]}])
+
+;; PLANS
+
+(defn +node [plan node]
+  (.push plan node)
+  [(dec (alength plan)) (:shape node)])
+
+(defn run-plan [plan cache kn]
+  (console-time (str "plan") profile?
+                (dotimes [i (count plan)]
+                  (console-time (pr-str (type (nth plan i))) profile?
+                                (aset cache i (run-node (nth plan i) cache kn))))))
+
+(comment
+  (let [kn (->Knowledge nil nil nil #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
+        plan #js []
+        abs (+node plan (->project :now '{:a a :b b}))
+        bcs (+node plan (->project :now '{:c c :b b}))
+        abcs (+node plan (->join abs bcs))
+        ret (+node plan (->map abcs (fn [a c] {:a a :c c}) '[a c]))]
+    (last (run-plan plan kn))))
+
+;; RULE ANALYSIS
+
+(defn op [clause]
+  (if (seq? clause)
+    (first clause)
+    :pattern))
 
 (defn name? [x]
   (or (string? x) (keyword? x)))
 
-(defn pred-name [clause]
+(defn pred-name [pattern]
   (cond
-   (and (map? clause) (name? (:name clause))) (:name clause)
-   (and (vector? clause) (name? (first clause))) (first clause)
+   (and (map? pattern) (name? (:name pattern))) (:name pattern)
+   (and (vector? pattern) (name? (first pattern))) (first pattern)
    :else ::any))
 
 (defn preds-in [clause]
   ;; TODO check not nil
-  (condp op? clause
-    '+ed #{(pred-name (second clause))}
-    '-ed #{(pred-name (second clause))}
-    'set (apply clojure.set/union (map preds-in (nthnext clause 3)))
-    (if (seq? clause)
-      #{}
-      #{(pred-name clause)})))
+  (case (op clause)
+    :pattern #{(pred-name clause)}
+    +ed #{(pred-name (second clause))}
+    -ed #{(pred-name (second clause))}
+    set (apply clojure.set/union (map preds-in (nthnext clause 3)))
+    > (let [from-name (pred-name (nth clause 1))
+            to-name (pred-name (nth clause 2))]
+        (check from-name)
+        (check (or (= ::any to-name) (= from-name to-name)))
+        #{from-name})
+    #{}))
 
 (defn preds-out [clause]
   ;; TODO check not nil
-  (condp op? clause
-    '+ #{(pred-name (second clause))}
-    '- #{(pred-name (second clause))}
-    '+s #{::any}
-    '-s #{::any}
-    '> (let [from-name (pred-name (nth clause 1))
-             to-name (pred-name (nth clause 2))]
-         (check from-name)
-         (check (or (= ::any to-name) (= from-name to-name)))
-         #{(pred-name (nth clause 1))})
+  (case (op clause)
+    + #{(pred-name (nth clause 1))}
+    - #{(pred-name (nth clause 1))}
+    +s #{::any}
+    -s #{::any}
+    > (let [from-name (pred-name (nth clause 1))
+            to-name (pred-name (nth clause 2))]
+        (check from-name)
+        (check (or (= ::any to-name) (= from-name to-name)))
+        #{from-name})
     #{}))
 
 (defn negs-in [clause]
   ;; TODO check not nil
-  (condp op? clause
-    'set (apply clojure.set/union (map preds-in (nthnext clause 3)))
+  (case (op clause)
+    set (apply clojure.set/union (map preds-in (nthnext clause 3)))
     #{}))
 
 (defn negs-out [clause]
   ;; TODO check not nil
-  (condp op? clause
-    '- #{(pred-name (second clause))}
-    '-s #{::any}
-    '> (let [from-name (pred-name (nth clause 1))
-             to-name (pred-name (nth clause 2))]
-         (check from-name)
-         (check (or (= ::any to-name) (= from-name to-name)))
-         #{(pred-name (nth clause 1))})
+  (case (op clause)
+    - #{(pred-name (nth clause 1))}
+    -s #{::any}
+    > (let [from-name (pred-name (nth clause 1))
+            to-name (pred-name (nth clause 2))]
+        (check from-name)
+        (check (or (= ::any to-name) (= from-name to-name)))
+        #{from-name})
     #{}))
 
-(def empty-q
-  (with-info
-    (fn empty-q-fn [kn]
-      #{{}})
-    {::shape #{}}))
+;; PLANS
 
-(defn debug-q [query]
-  (with-info
-    (fn debug-q-fn [kn]
-      (let [facts (query kn)]
-        (prn facts)
-        facts))
-    (info query)))
+(defn clauses->body [plan clauses]
+  ;; projects/sets, joins, lets, filters, (asserts, retracts, updates)
+  (let [projects (for [clause clauses
+                       :when (#{:pattern '+ed '-ed 'set} (op clause))]
+                   (case (op clause)
+                     :pattern (+node plan (->project :now clause))
+                     +ed (+node plan (->project :asserted-now (second clause)))
+                     -ed (+node plan (->project :retracted-now (second clause)))
+                     set (+node plan (->group (clauses->body plan (nthnext clause 3)) (nth clause 1) (nth clause 2)))))
+        _ (assert (seq projects) "Rules without any project clauses are illegal")
+        joined (reduce #(+node plan (->join %1 %2)) projects)
+        letted (loop [[_ shape :as node] joined
+                      lets (filter #(= '= (op %)) clauses)]
+                 (if (seq lets)
+                   (let [set-shape (set shape)
+                         applicable (filter #(every? set-shape (nth % 2)) lets)
+                         unapplicable (filter #(not (every? set-shape (nth % 2))) lets)
+                         _ (assert (seq applicable) (str "Can't resolve loop in " (pr-str unapplicable)))
+                         new-node (reduce #(+node plan (->let %1 (nth %2 1) (nth %2 2) (nth %2 3))) node applicable)]
+                     (recur new-node unapplicable))
+                   node))
+        filtered (reduce #(+node plan (->filter %1 (nth %2 1) (nth %2 2))) letted (filter #(= '? (op %)) clauses))]
+    filtered))
 
-(defn project-q [pattern kn-f]
-  (let [shape (match/vars pattern)
-        return-syms (into [] shape)
-        f (match/pattern pattern return-syms)]
-    (with-info
-      (fn project-q-fn [kn]
-        (console-time "project" time-clauses
-                      (into #{}
-                            (for [fact (kn-f kn)
-                                  :let [vals (f fact)]
-                                  :when vals]
-                              (zipmap return-syms vals)))))
-      {::shape shape})))
+;; RULES
 
-;; TODO hashjoin instead
-(defn join [facts1 facts2 join-shape]
-  (console-time "join" time-clauses
-                (into #{}
-                      (for [vals1 facts1
-                            vals2 facts2
-                            :when (= (select-keys vals1 join-shape) (select-keys vals2 join-shape))]
-                        (merge vals1 vals2)))))
+(defrecord Rule [plan assert-ixes retract-ixes preds-in preds-out negs-in negs-out])
 
-(defn join-q [query1 query2]
-  (let [shape (union (::shape (info query1)) (::shape (info query2)))
-        join-shape (intersection (::shape (info query1)) (::shape (info query2)))]
-    (with-info
-      (fn join-q-fn [kn]
-        (join (query1 kn) (query2 kn) join-shape))
-      {::shape shape})))
+(defn +assert [{:keys [plan assert-ixes]} node]
+  (let [[ix shape] (+node plan node)]
+    (.push assert-ixes ix)
+    [ix shape]))
 
-(defn filter-q [query fns]
-  ;; (check (subset? (:aurora/selects (meta fns)) (::shape (info query))))
-  (with-info
-    (fn filter-q-fn [kn]
-      (let [facts (query kn)]
-        (console-time "filter" time-clauses
-                      (into #{} (filter fns facts)))))
-    {::shape (::shape (info query))}))
+(defn +retract [{:keys [plan retract-ixes]} node]
+  (let [[ix shape] (+node plan node)]
+    (.push retract-ixes ix)
+    [ix shape]))
 
-(defn let-q [query name-sym fns]
-  ;; (check (subset? (:aurora/selects (meta fns)) (::shape (info query))))
-  (with-info
-    (fn let-q-fn [kn]
-      (let [facts (query kn)]
-        (console-time "let-q" time-clauses
-                      (into #{} (for [result facts]
-                                  (assoc result name-sym (fns result)))))))
-    {::shape (conj (::shape (info query)) name-sym)}))
+(defn clauses->rule [clauses]
+  (let [plan #js []
+        rule (->Rule plan #js [] #js []
+                     (apply union (map preds-in clauses))
+                     (apply union (map preds-out clauses))
+                     (apply union (map negs-in clauses))
+                     (apply union (map negs-out clauses)))
+        body (clauses->body plan clauses)]
+    (doseq [clause clauses]
+      (case (op clause)
+        + (+assert rule (->map body (nth clause 1)))
+        - (+retract rule (->map body (nth clause 1)))
+        +s (+assert rule (->mapcat body (nth clause 1) (nth clause 2)))
+        -s (+retract rule (->mapcat body (nth clause 1) (nth clause 2)))
+        ;; (> p q) -> p (- p) (+ q)
+        ;; NOTE the tagging / merging is a hack that is useful for hand-written rules
+        > (let [[_ retract-pattern assert-pattern] clause
+                retract-sym (gensym "retract")
+                tagged-retract-pattern (with-meta retract-pattern {:tag retract-sym})
+                retractees (+node plan (->join body (+node plan (->project :now tagged-retract-pattern))))]
+            (+retract rule (->map retractees retract-sym))
+            (+assert rule (->merge retractees assert-pattern retract-sym)))
+        nil))
+    rule))
 
-(defn fill-in [template result]
-  (clojure.walk/postwalk-replace result template))
+(defn query-rule [{:keys [plan assert-ixes retract-ixes]} kn]
+  (let [cache (make-array (count plan))
+        result (transient #{})]
+    (run-plan plan cache kn)
+    (console-time "query asserts" profile?
+                  (doseq [assert-ix assert-ixes
+                          fact (aget cache assert-ix)]
+                    (conj!! result fact)))
+    (console-time "query retracts" profile?
+                  (doseq [retract-ix retract-ixes
+                          fact (aget cache retract-ix)]
+                    (disj!! result fact)))
+    (persistent! result)))
 
-(defn fill-in-q [template]
-  (fn fill-in-q-fn [facts]
-    (console-time "fill-in" time-clauses
-                  (into #{} (map #(fill-in template %) facts)))))
+(comment
+  (let [kn (->Knowledge nil nil nil #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
+        rule (clauses->rule ['{:a a :b b}
+                             '{:c c :b b}
+                             (list '+ '[a c] (fn [a c] {:a a :c c}))])]
+    (query-rule rule kn))
+  )
 
-(defn mapcat-q [fns]
-  (let [selects (:aurora/selects (meta fns))]
-    (fn mapcat-q-fn [facts]
-      (console-time "mapcat" time-clauses
-                    (into #{} (mapcat fns (into #{} (map #(select-keys % selects) facts))))))))
+(defn run-rule [{:keys [plan assert-ixes retract-ixes]} kn]
+  (let [cache (make-array (count plan))
+        prev (:prev kn)
+        now (transient (:now kn))
+        asserted-now (transient (:asserted-now kn))
+        retracted-now (transient (:retracted-now kn))]
+    (run-plan plan cache kn)
+    (console-time "rule asserts" profile?
+                  (doseq [assert-ix assert-ixes
+                          fact (aget cache assert-ix)]
+                    (conj!! asserted-now fact)
+                    (when (or (contains? prev fact) (not (contains? retracted-now fact)))
+                      (conj!! now fact))))
+    (console-time "rule retracts" profile?
+                  (doseq [retract-ix retract-ixes
+                          fact (aget cache retract-ix)]
+                    (conj!! retracted-now fact)
+                    (when (or (not (contains? prev fact)) (not (contains? asserted-now fact)))
+                      (disj!! now fact))))
+    (->Knowledge prev (persistent! asserted-now) (persistent! retracted-now) (persistent! now))))
 
-(declare gen*)
+(comment
+  (let [kn (->Knowledge #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}} #{} #{} #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
+        rule (clauses->rule '[{:a a :b b}
+                              {:c c :b b}
+                              (+ {:a a :c c})
+                              (- {:a a :c c})])]
+    (run-rule rule kn))
 
-(defn set-q [name-sym select-syms clauses]
-  (let [vars (apply clojure.set/union (map vars clauses))
-        project-syms (into [] (difference vars select-syms))
-        group-f #(select-keys % project-syms)
-        shape (conj (set project-syms) name-sym)
-        gen (gen* clauses)]
-    (with-info
-      (fn set-q-fn [kn]
-        (let [facts (gen kn)]
-          (console-time "set" time-clauses
-                        (into #{}
-                              (for [[projects selects] (group-by group-f facts)]
-                                (assoc (zipmap project-syms projects) name-sym (set (map #(select-keys % select-syms) selects))))))))
-      {::shape shape})))
+  (let [kn (->Knowledge #{{:a 1 :c 1} {:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}} #{} #{} #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
+        rule (clauses->rule '[{:a a :b b}
+                              {:c c :b b}
+                              (+ {:a a :c c})
+                              (- {:a a :c c})])]
+    (run-rule rule kn))
 
-(defn in-q [query name-sym set-sym]
-  (fn in-q-fn [kn]
-    (let [facts (query kn)]
-      (console-time "in-q" time-clauses
-                    (for [fact facts
-                          elem (get fact set-sym :inq-not-found)]
-                      (assoc fact name-sym elem))))))
-
-(defn gen* [clauses]
-  (reduce
-   (fn [query clause]
-     (condp op? clause
-       '+ed (join-q query (project-q (second clause) :asserted))
-       '-ed (join-q query (project-q (second clause) :retracted))
-       '? (filter-q query (second clause))
-       '= (let-q query (nth clause 1) (nth clause 2))
-       'set (join-q query (set-q (nth clause 1) (nth clause 2) (nthnext clause 3)))
-       'in (in-q query (nth clause 1) (nth clause 2))
-       '+ query ;; handled later
-       '+s query ;; handled later
-       '- query ;; handled later
-       '-s query ;; handled later
-       '> query ;; handled later
-       (join-q query (project-q clause to-be))))
-   empty-q
-   clauses))
-
-(defn asserts+retracts* [clauses]
-  (let [assert-fs (into [] (concat (map #(fill-in-q (second %)) (filter #(op? '+ %) clauses))
-                                   (map #(mapcat-q (second %)) (filter #(op? '+s %) clauses))))
-        retract-fs (into [] (concat (map #(fill-in-q (second %)) (filter #(op? '- %) clauses))
-                                    (map #(mapcat-q (second %)) (filter #(op? '-s %) clauses))))
-        update-sym (gensym "fact")
-        update-gens (into [] (map #(project-q (with-meta (nth % 1) {:tag update-sym}) to-be) (filter #(op? '> %) clauses)))
-        update-templates (into [] (map #(nth % 2) (filter #(op? '> %) clauses)))
-        gen (gen* clauses)]
-    (fn asserts+retracts*-fn [kn]
-      (let [facts (console-time "gen" time-parts (gen kn))
-            asserts #js []
-            retracts #js []]
-        (console-time "asserts+retracts+updates" time-parts
-                      (console-time "asserts" time-parts
-                                    (doseq [assert-f assert-fs
-                                            result (assert-f facts)]
-                                      (.push asserts result)))
-                      (console-time "retracts" time-parts
-                                    (doseq [retract-f retract-fs
-                                            result (retract-f facts)]
-                                      (.push retracts result)))
-                      (console-time "updates" time-parts
-                                    (doseq [[update-gen update-template] (map vector update-gens update-templates)
-                                            result (join (update-gen kn) facts (intersection (::shape (info update-gen)) (::shape (info gen))))]
-                                      (.push retracts (update-sym result))
-                                      (.push asserts (merge (update-sym result) (fill-in update-template result))))))
-        [asserts retracts]))))
-
-(defn query* [clauses]
-  (let [asserts+retracts (asserts+retracts* clauses)
-        name (str "query:" clauses)]
-    (fn query*-fn [kn]
-      (console-time name time-queries
-                    (let [[asserts retracts] (asserts+retracts kn)]
-                      (console-time "query" time-parts
-                                    (difference (set asserts) retracts)))))))
-
-(defn rule* [clauses]
-  (let [asserts+retracts (asserts+retracts* clauses)
-        name (str "rule:" clauses)]
-    (with-info
-      (fn rule*-fn [kn]
-        (console-time name time-rules
-                      (let [[asserts retracts] (asserts+retracts kn)]
-                        (console-time "rule" time-parts
-                                      (reduce retract (reduce assert kn asserts) retracts)))))
-      {::preds-in (apply union (map preds-in clauses))
-       ::preds-out (apply union (map preds-out clauses))
-       ::negs-in (apply union (map negs-in clauses))
-       ::negs-out (apply union (map negs-out clauses))})))
-
-(defn chain [rules]
-  (fn chain-fn [kn]
-    (reduce #(%2 %1) kn rules)))
-
-;; TODO this doesn't propagate deltas efficiently, needs some fast way to read changes before and after
-(defn fixpoint [rule]
-  (fn fixpoint-fn [kn]
-    (let [new-kn (rule kn)]
-      (if (= new-kn kn)
-        new-kn
-        (fixpoint-fn new-kn)))))
-
+  (let [kn (->Knowledge #{{:a 1 :c 1} {:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}} #{} #{} #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
+        rule (clauses->rule '[{:a a :b b}
+                              {:c c :b b}
+                              (- {:a a :c c})])]
+    (run-rule rule kn))
+  )
 
 ;;*********************************************************
 ;; Macroless-ness
@@ -331,155 +495,163 @@
                                          (jsth/munge)
                                          (str "cljs.core.")
                                          (symbol))))
-                 b))
-        arg (gensym "x")]
-    (with-meta ((js/Function "gened" (str "return " (jsth/statement->string `(fn foo [~arg]
-                                                                              (do
-                                                                                ~@(for [s syms]
-                                                                                    `(let! ~(symbol s) (cljs.core.get ~arg (cljs.core.symbol ~(str s)))))
-                                                                                ~@(butlast body)
-                                                                                (return ~(last body))))))))
-      {:aurora/selects syms})))
+                 b))]
+    ((js/Function "gened" (str "return "(jsth/statement->string `(fn foo [~@syms]
+                                                                   (do
+                                                                     ~@(butlast body)
+                                                                     (return ~(last body))))))))))
 
 
-(defn vars* [form]
+(defn expr->vars [expr]
   (cond
-   (contains? (meta form) :tag) (conj (vars (with-meta form {})) (:tag (meta form)))
-   (= '_ form) #{}
-   (symbol? form) #{form}
-   (coll? form) (apply clojure.set/union (map vars form))
+   (seq? expr) (apply union (map expr->vars (rest expr))) ;; first elem is function
+   (coll? expr) (apply union (map expr->vars expr))
+   (symbol? expr) #{expr}
    :else #{}))
 
-(defn op? [op clause]
-  (and (seq? clause) (= op (first clause))))
-
-(defn vars [clause]
-  (condp op? clause
-    '+ed (vars* (second clause))
-    '-ed (vars* (second clause))
-    'set (conj (clojure.set/difference (apply clojure.set/union (map vars (nthnext clause 3))) (nth clause 2)) (nth clause 1))
-    'in #{(second clause)}
-    '= #{(second clause)}
-    (if (seq? clause)
-      #{}
-      (vars* clause))))
-
-(defn quote-clause [clause fns-vars allowed-fns]
-  (condp op? clause
-    '+s (list '+s (fns* fns-vars [(second clause)] allowed-fns))
-    '-s (list '-s (fns* fns-vars [(second clause)] allowed-fns))
-    '? (list '? (fns* fns-vars [(second clause)] allowed-fns))
-    '= (list '= (nth clause 1) (fns* fns-vars [(nth clause 2)] allowed-fns))
+(defn quote-clause [clause allowed-fns]
+  (case (op clause)
+    +s (list '+s (vec (expr->vars (second clause))) (fns* (vec (expr->vars (second clause))) [(second clause)] allowed-fns))
+    -s (list '-s (vec (expr->vars (second clause))) (fns* (vec (expr->vars (second clause))) [(second clause)] allowed-fns))
+    ? (list '? (vec (expr->vars (second clause))) (fns* (vec (expr->vars (second clause))) [(second clause)] allowed-fns))
+    = (list '= (nth clause 1) (vec (expr->vars (nth clause 2))) (fns* (vec (expr->vars (nth clause 2))) [(nth clause 2)] allowed-fns))
     clause))
 
 (defn quote-clauses
   ([clauses] (quote-clauses clauses {}))
   ([clauses allowed-fns]
-   (let [fns-vars (into [] (apply clojure.set/union (map vars clauses)))]
-     (mapv #(quote-clause % fns-vars allowed-fns) clauses))))
+   (mapv #(quote-clause % allowed-fns) clauses)))
 
 (defn macroless-rule [clauses]
-  (rule* (quote-clauses clauses)))
+  (clauses->rule (quote-clauses clauses)))
 
-(defn macroless-query [clauses]
-  (query* (quote-clauses clauses)))
-
-;; tests
+;; TESTS
 
 (comment
   (enable-console-print!)
+
+  (-> (Knowledge. #{:a} #{} #{} #{})
+      (assert-facts [:a :b :c])
+      (retract-facts [:a :b :d]))
+  (query-rule
+   (rule [a b _]
+         [_ a b]
+         (? [a] (integer? a))
+         (+ [a b]))
+   (tick {:now #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]}}))
 
   (quote-clauses '[[a b c]
                    (= foo (+ b 4))
                    (+ [a foo])])
 
-  ((query* (quote-clauses '[[a b c]
-                                    (= foo (+ b 4))
-                            (+s [[a] [b] [c]])
-                            (+ [a foo])]))
-   (Knowledge. #{[1 2 3] [3 4 5]} #{} #{}))
+  (quote-clause '(+s [[a] [b] [c]]) {})
 
-  ((query [a b c]
-                                    (= foo (+ b 4))
-                            (+s [[a] [b] [c]])
-                            (+ [a foo]))
-   (Knowledge. #{[1 2 3] [3 4 5]} #{} #{}))
+  (query-rule
+   (clauses->rule (quote-clauses '[[a b c]
+                                   (= foo (+ b 4))
+                                   (+s [[a] [b] [c]])
+                                   (+ [a foo])]))
+   (tick {:now #{[1 2 3] [3 4 5]}}))
 
-  ((query [a b _]
-          [_ a b]
-          (? (integer? a))
-          (+ (+ a b)))
-   (Knowledge. #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]} #{} #{}))
+  (query-rule
+   (rule [a b c]
+         (= foo [b] (+ b 4))
+         (+s [a b c] [[a] [b] [c]])
+         (+ [a foo]))
+   (tick {:now #{[1 2 3] [3 4 5]}}))
 
-  ((rule [a b _]
+  (run-rule
+   (rule [a b _]
          [_ a b]
-         (? (integer? a))
+         (? [a] (integer? a))
          (+ [a a a])
          (- [b b b]))
-   (Knowledge. #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]} #{} #{}))
+   (tick {:now #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]}}))
 
-  ((rule [a b _]
+  (run-rule
+   (rule [a b _]
          (+ed [_ a b])
-         (? (integer? a))
+         (? [a] (integer? a))
          (+ [a a a])
          (- [b b b]))
-   (Knowledge. #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{}))
+   (Knowledge. #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{} #{[2 3 4] [:a :b :c] [:b :c :d] [1 2 3]}))
 
-  ((rule [a b _]
+  (run-rule
+   (rule [a b _]
          [_ a b]
-         (? (integer? a))
+         (? [a] (integer? a))
          (+ [a a a])
          (- [b b b]))
-   (Knowledge. #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{[1 2 3]}))
+   (Knowledge. #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{[1 2 3]} #{[2 3 4] [:a :b :c] [:b :c :d]}))
 
-  ((query (+ed [a b])
-          (+ [a b]))
-   (Knowledge. #{} #{[1 2]} #{}))
+  (query-rule
+   (rule (+ed [a b])
+         (+ [a b]))
+   (Knowledge. #{} #{[1 2]} #{} #{[1 2]}))
 
-  ((query (set x [b c]
-               [a b c]
-               [b c d])
-          (+ [a d x]))
-   (Knowledge. #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]} #{} #{}))
+  (query-rule
+   (rule (set x [b c]
+              [a b c]
+              [b c d])
+         (+ [a d x]))
+   (tick {:now #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]}}))
 
-  ((query [a b c]
-          [b c d]
-          (set x [b c]
-               [a b c]
-               [b c d])
-          (+ [a b c d x]))
-   (Knowledge. #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]} #{} #{}))
+  (query-rule
+   (rule [a b c]
+         [b c d]
+         (set x [b c]
+              [a b c]
+              [b c d])
+         (+ [a b c d x]))
+   (tick {:now #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]}}))
 
-  ((query [a b c]
-          [b c d]
-          (set x [b c]
-               [a b c]
-               [b c d])
-          (in y x)
-          (+ [a b c d y]))
-   (Knowledge. #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]} #{} #{}))
+;; (in ...) is not currently supported
+;;   (query-rule
+;;    (rule [a b c]
+;;          [b c d]
+;;          (set x [b c]
+;;               [a b c]
+;;               [b c d])
+;;          (in y x)
+;;          (+ [a b c d y]))
+;;    (tick {:now #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]}}))
 
-  ((rule (> {:foo 1} {:bar 1}))
-   (Knowledge. #{{:foo 1 :bar 0}} #{} #{}))
+;; can't figure out how to make this work without an Empty plan node
+;;   (run-rule
+;;    (rule (> {:foo 1} {:bar 1}))
+;;    (tick {:now #{{:foo 1 :bar 0}}}))
 
-  ((rule {:quux x}
+  (run-rule
+   (rule {:quux x}
          (> {:foo x} {:bar x}))
-   (Knowledge. #{{:foo 1 :bar 0} {:quux 1}} #{} #{}))
+   (tick {:now #{{:foo 1 :bar 0} {:quux 1}}}))
 
-  ((rule [a b _]
+  (run-rule
+   (rule [a b _]
          (+ed [_ a b])
-         (? (integer? a))
-         (= c (+ a b))
-         (= d (- a b))
+         (? [a] (integer? a))
+         (= c [a b] (+ a b))
+         (= d [a b] (- a b))
          (+ [c c c])
          (- [d d d]))
-   (Knowledge. #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{}))
+   (Knowledge. #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{} #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]}))
 
   (rule {:name :quux :quux x}
         (> {:name :the :foo x} {:bar x}))
 
-  ((query (set x [id]
-               {:name "foo" :id id})
-          (+ 1))
-   (Knowledge. #{{:name "zomg" :id 4} {:name "foo" :id 3}} #{} #{}))
+  (run-rule
+   (rule (set x [id]
+              {:name "foo" :id id})
+         (+ x))
+   (tick {:now #{{:name "zomg" :id 4} {:name "foo" :id 3}}}))
+
+  (run-rule
+   (rule (set x [id]
+              {:name "foo" :id id})
+         (+s [x] x))
+   (tick {:now #{{:name "zomg" :id 4} {:name "foo" :id 3}}}))
+
+  (macroless-rule '[[a b]
+                    (= foo (+ a b))
+                    (+ [a b foo])])
   )

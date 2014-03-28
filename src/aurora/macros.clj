@@ -1,4 +1,18 @@
-(ns aurora.macros)
+(ns aurora.macros
+  (:require [cljs.compiler :refer [munge]]))
+
+(defmacro set!! [name val]
+  (assert (symbol? name) (str "Can't set!! " (pr-str name)))
+  `(~'js* ~(str (munge name) "= ~{}") ~val))
+
+(defmacro conj!! [name val]
+  `(set!! ~name (conj! ~name ~val)))
+
+(defmacro disj!! [name val]
+  `(set!! ~name (disj! ~name ~val)))
+
+(defmacro assoc!! [name key val]
+  `(set!! ~name (assoc! ~name ~key ~val)))
 
 (defmacro console-time [name group & body]
   `(do
@@ -12,7 +26,9 @@
   `(with-meta
      (fn [{:syms ~selects}]
        ~@body)
-     {:aurora/selects '~selects}))
+     {:aurora/selects '~selects
+      :aurora/positional (fn [~@selects]
+                           ~@body)}))
 
 (defmacro for! [& args]
   `(doall (for ~@args)))
