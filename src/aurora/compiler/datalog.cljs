@@ -487,8 +487,6 @@
 ;; Macroless-ness
 ;;*********************************************************
 
-;; TODO this whole section is broken now
-
 (defn fns* [syms body & [allowed-fns]]
   (let [body (for [b body]
                (if (list? b)
@@ -498,55 +496,33 @@
                                          (str "cljs.core.")
                                          (symbol))))
                  b))]
-    ((js/Function "gened" (str "return "(jsth/statement->string `(fn foo [x]
+    ((js/Function "gened" (str "return "(jsth/statement->string `(fn foo [~@syms]
                                                                    (do
-                                                                     ~@(for [s syms]
-                                                                         `(let! ~(symbol s) (cljs.core.get x (cljs.core.symbol ~(str s)))))
                                                                      ~@(butlast body)
                                                                      (return ~(last body))))))))))
 
-
-(defn vars* [form]
+(defn expr->vars [expr]
   (cond
-   (contains? (meta form) :tag) (conj (vars (with-meta form {})) (:tag (meta form)))
-   (= '_ form) #{}
-   (symbol? form) #{form}
-   (coll? form) (apply clojure.set/union (map vars form))
+   (seq? expr) (apply union (map expr->vars (rest expr))) ;; first elem is function
+   (coll? expr) (apply union (map expr->vars (rest expr)))
+   (symbol? expr) #{expr}
    :else #{}))
 
-(defn op? [op clause]
-  (and (seq? clause) (= op (first clause))))
-
-(defn vars [clause]
-  (condp op? clause
-    '+ed (vars* (second clause))
-    '-ed (vars* (second clause))
-    'set (conj (clojure.set/difference (apply clojure.set/union (map vars (nthnext clause 3))) (nth clause 2)) (nth clause 1))
-    'in #{(second clause)}
-    '= #{(second clause)}
-    (if (seq? clause)
-      #{}
-      (vars* clause))))
-
-(defn quote-clause [clause fns-vars allowed-fns]
-  (condp op? clause
-    '+s (list '+s (fns* fns-vars [(second clause)] allowed-fns))
-    '-s (list '-s (fns* fns-vars [(second clause)] allowed-fns))
-    '? (list '? (fns* fns-vars [(second clause)] allowed-fns))
-    '= (list '= (nth clause 1) (fns* fns-vars [(nth clause 2)] allowed-fns))
+(defn quote-clause [clause allowed-fns]
+  (case (op clause)
+    +s (list '+s (expr->vars (second clause)) (fns* (expr->vars (second clause)) [(second clause)] allowed-fns))
+    -s (list '-s (expr->vars (second clause)) (fns* (expr->vars (second clause)) [(second clause)] allowed-fns))
+    ? (list '? (expr->vars (second clause)) (fns* (expr->vars (second clause)) [(second clause)] allowed-fns))
+    = (list '= (nth clause 1) (expr->vars (nth clause 2)) (fns* (expr->vars (nth clause 2)) [(nth clause 2)] allowed-fns))
     clause))
 
 (defn quote-clauses
   ([clauses] (quote-clauses clauses {}))
   ([clauses allowed-fns]
-   (let [fns-vars (into [] (apply clojure.set/union (map vars clauses)))]
-     (mapv #(quote-clause % fns-vars allowed-fns) clauses))))
+   (mapv #(quote-clause % allowed-fns) clauses)))
 
 (defn macroless-rule [clauses]
-  (rule* (quote-clauses clauses)))
-
-(defn macroless-query [clauses]
-  (query* (quote-clauses clauses)))
+  (clauses->rule (quote-clauses clauses)))
 
 ;; TESTS
 
@@ -653,4 +629,8 @@
               {:name "foo" :id id})
          (+s [x] x))
    (tick {:now #{{:name "zomg" :id 4} {:name "foo" :id 3}}}))
+
+  (macroless-rule '[[a b]
+                    (= foo (+ a b))
+                    (+ [a b foo])])
   )

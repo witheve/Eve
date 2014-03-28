@@ -287,10 +287,11 @@
 
 (comment
 
-((datalog/macroless-rule '[[a b]
+(datalog/query-rule
+ (datalog/macroless-rule '[[a b]
                             (= foo (+ a b))
                             (+ [a b foo])])
- (datalog/Knowledge. #{[3 4] [1 2] [4 5]} #{} #{}))
+ (datalog/tick {:now #{[3 4] [1 2] [4 5]}}))
 
 (def hiccup js/aurora.runtime.ui.hiccup->facts)
 (def ui-cleanup-rules [(rule {:name :ui/text :id id :text text}
