@@ -9,11 +9,11 @@
 
 ;; ;; ids
 
-;; (let [next (atom 0)]
-;;   (defn new-id []
-;;     (if js/window.uuid
-;;       (.replace (js/uuid) (js/RegExp. "-" "gi") "_")
-;;       (swap! next inc))))
+ (let [next (atom 0)]
+   (defn new-id []
+     (if js/window.uuid
+       (.replace (js/uuid) (js/RegExp. "-" "gi") "_")
+       (swap! next inc))))
 
 ;; (deftraced id->value [id] [id]
 ;;   (check id)

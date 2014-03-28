@@ -94,23 +94,43 @@ button:hover { background:#ddd; }
 #content { margin-left:0; min-width:100%; padding-right:100px; height:200%; white-space:nowrap; }
 
 #root { padding:50px;}
+#root span { vertical-align:middle; }
+
 #rules { font-size:12pt; }
 #rules > li { margin-bottom:10px;}
 
 .sub { margin-left:5px; padding-left: 20px; border-left:1px solid #666; }
 .sub li {margin-bottom:0px;}
 
-.var { display:inline-block; background:; color:#96EEB2; border-bottom:0px solid #cda869; border-radius:0px; padding:0px 0px; }
-.bool { color:#DB9EFF; border-color:#C2A1FF; }
-.attr, .value.attr { color:#77C4EE; border-color:#95DE8A; }
+.var { display:inline-block; background:; color:#96EEB2; border:1px solid #777; border-radius:0px; padding:0px 0px; vertical-align:middle; }
+.attr { color:#DB9EFF; padding:0px 5px; border-radius:2px; margin-top:2px; margin-bottom:2px;}
+.ref { color:#77C4EE; }
 
-.add { border: 1px solid #777; padding:0px 5px; border-radius:2px; margin-top:2px; margin-bottom:2px;}
-.add .value { margin-left: 5px; padding-left:5px; border-left:1px solid #666; color:#ccc;}
+.attr .placeholder { color:#aaa; }
 
-.update { border: 1px solid #777; padding:0px 5px; border-radius:2px; margin-top:2px; margin-bottom:2px;}
-.update .value { margin-left: 5px; padding-left:5px; border-left:1px solid #666; color:#ccc;}
+.add { padding:0px 5px; border-radius:2px; margin-top:2px; margin-bottom:2px;}
+.add .value { margin-left: 0px; padding-left:0px; border-left:0px solid #666; }
 
 .keyword { color:#aaa; }
+
+#matcher .CodeMirror { border:1px solid #666; border-radius:2px; }
+
+#matches { font-size:12pt; background:#; padding:5px 0; border:1px solid #666; border-radius:2px; border-top:none;}
+#matches li { padding: 0 15px; }
+#matches li:hover { background:#444;}
+#matches .selected { background:#555; }
+
+.CodeMirror { background:transparent; color:#ccc; font-family: "Nunito"; font-size:12pt; height:auto;}
+.CodeMirror-scroll { height:auto; }
+.CodeMirror pre { padding-left: 15px; }
+.CodeMirror-lines { padding:9px 0; }
+
+.CodeMirror-cursor { border-color:#ccc !important; background:#ccc; }
+.cm-keyword { color:#aaa !important; }
+.cm-id { color:#96EEB2; }
+.cm-attr { color:#DB9EFF; }
+
+#results { margin-top:100px; }
 
 
 #perf { background:#333; color:#aaa; position:fixed; bottom: 0px; right:0px; padding:10px; border-top-left-radius:3px;}

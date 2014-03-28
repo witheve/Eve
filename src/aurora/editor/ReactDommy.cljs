@@ -48,7 +48,7 @@
   (if (satisfies? PElement data)
     (-elem data)
     (when (seq? data)
-      (to-array (map ->node-like data)))))
+      (to-array (filter identity (map ->node-like data))))))
 
 (defn merge-id [tag-attrs attrs]
   (when-let [id (aget tag-attrs "id")]
@@ -82,7 +82,7 @@
     (->> attrs
          (merge-id tag-attrs)
          (merge-classes tag-attrs))
-    (apply (aget react tag) attrs (map ->node-like children))))
+    (apply (aget react tag) attrs (filter identity (map ->node-like children)))))
 
 (extend-protocol PElement
   js/React.__internals.DOMComponent
@@ -106,9 +106,13 @@
   number
   (-elem [this] (str this))
 
+  nil
+  (-elem [this] nil)
+
   string
   (-elem [this]
       this))
+
 
 (defn node [data]
   (if (satisfies? PElement data)

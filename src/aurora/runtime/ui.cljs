@@ -2,6 +2,7 @@
   (:require [aurora.util.core :as util]
             [aurora.compiler.datalog :as datalog]
             [clojure.set :as set]
+            [aurora.editor.dom :as dom]
             [aurora.runtime.core :as runtime]
             [aurora.editor.ReactDommy :as dommy])
   (:require-macros [aurora.compiler.datalog :refer [rule]]))
@@ -21,7 +22,7 @@
   (let [tag (.-target.tagName e)
         type (.-target.type e)]
     (condp = ev
-      "onChange" {:value (cond
+      "onChange" {"value" (cond
                           (= type "checkbox") (if (.-target.checked e)
                                                 "true"
                                                 "false")
@@ -30,7 +31,7 @@
                                              "false")
                           (= tag "option") (.-target.selected e)
                           :else (.-target.value e))}
-      "onKeyDown" {:keyCode (.-keyCode e)}
+      "onKeyDown" {"keyCode" (.-keyCode e)}
       {})))
 
 ;; every bloom tick queue up all the UI changes we should do
@@ -48,47 +49,47 @@
 ;; {:name :ui/style :id id :attr "background" :value "red"}
 ;; {:name :ui/child :id id :child id :pos i}
 
-(def find-elems (rule {:name :ui/elem
-                        :id id
-                        :tag tag}
+(def find-elems (rule {:ml :ui/elem
+                        "id" id
+                        "tag" tag}
                        (+ [id tag])))
 
-(def find-text (rule {:name :ui/text
-                       :id id
-                       :text text}
+(def find-text (rule {:ml :ui/text
+                       "id" id
+                       "text" text}
                       (+ [id text])))
 
-(def find-attr (rule {:name :ui/attr
-                       :id id
-                       :attr attr
-                       :value value}
+(def find-attr (rule {:ml :ui/attr
+                       "id" id
+                       "attr" attr
+                       "value" value}
                        (+ {:id id
                            :attr attr
                            :value value})))
 
-
-(def find-listeners (rule {:name :ui/event-listener
-                            :id id
-                            :entity entity
-                            :event-key key
-                            :event event}
+(def find-listeners (rule {:ml :ui/event-listener
+                            "id" id
+                            "entity" entity
+                            "event-key" key
+                            "event" event}
                            (+ {:id id
                                :event-key key
                                :entity entity
                                :event event})))
 
-(def find-style (rule {:name :ui/style
-                       :id id
-                       :attr attr
-                       :value value}
+
+(def find-style (rule {:ml :ui/style
+                       "id" id
+                       "attr" attr
+                       "value" value}
                        (+ {:id id
                            :attr attr
                            :value value})))
 
-(def find-children (rule {:name :ui/child
-                           :id id
-                           :child child-id
-                           :pos pos}
+(def find-children (rule {:ml :ui/child
+                          "id" id
+                          "child" child-id
+                          "pos" pos}
                           (+ {:id id
                               :child-id child-id
                               :pos pos})))
@@ -105,11 +106,11 @@
         el-styles (into {} (map extract styles))
         el-attrs (into el-attrs (for [{:keys [event entity event-key] :as foo} events]
                                   [event (fn [e]
-                                           (queue (merge {:name (keyword "ui" event)
-                                                          :event-key event-key
-                                                          :id id}
+                                           (queue (merge {:ml (keyword "ui" event)
+                                                          "event" event-key
+                                                          "id" id}
                                                          (when entity
-                                                           {:entity entity})
+                                                           {"entity" entity})
                                                          (event->params event e))))]))
         el-attrs (if (seq el-styles)
                    (assoc el-attrs :style el-styles)
@@ -140,9 +141,13 @@
 
 (defn on-bloom-tick [knowledge queue]
   (frame (fn []
-           (let [tree (rebuild-tree knowledge queue)]
+           (let [tree (rebuild-tree knowledge queue)
+                 container (dom/$ "#ui-preview")]
              (println "UI Tree: " (pr-str tree))
-             (js/React.renderComponent (dommy/node tree) js/document.body))
+             (when container
+               (js/React.renderComponent (dommy/node tree) container))
+             ;
+             )
            )))
 
 (swap! runtime/watchers conj (fn [knowledge queue]
@@ -151,25 +156,26 @@
 
 (defn fact-walk [hic facts [parent pos]]
   (let [[el args & children] hic
+        args (js->clj args :keywordize-keys true)
         id (:id args)
         entity (:entity args)
         key (:event-key args)
         real-args (dissoc args :id :style :events :event-key :entity)]
     (when parent
-      (.push facts {:name :ui/child :id parent :child id :pos pos}))
-    (.push facts {:name :ui/elem :id id :tag (name el)})
+      (.push facts {:ml :ui/child "id" parent "child" id "pos" pos}))
+    (.push facts {:ml :ui/elem "id" id "tag" (name el)})
     (doseq [[k v] real-args]
-      (.push facts {:name :ui/attr :id id :attr (name k) :value v}))
+      (.push facts {:ml :ui/attr "id" id "attr" (name k) "value" v}))
     (doseq [[k v] (:style args)]
-      (.push facts {:name :ui/style :id id :attr (name k) :value v}))
+      (.push facts {:ml :ui/style "id" id "attr" (name k) "value" v}))
     (doseq [ev (:events args)]
-      (.push facts {:name :ui/event-listener :id id :event-key key :event (name ev) :entity entity}))
+      (.push facts {:ml :ui/event-listener "id" id "event-key" key "event" (name ev) "entity" entity}))
     (doseq [[i child] (map-indexed vector children)]
       (if (vector? child)
         (fact-walk child facts [id i])
         (do
-          (.push facts {:name :ui/text :id (str id "-" i) :text child})
-          (.push facts {:name :ui/child :id id :child (str id "-" i) :pos i})
+          (.push facts {:ml :ui/text "id" (str id "-" i) "text" child})
+          (.push facts {:ml :ui/child "id" id "child" (str id "-" i) "pos" i})
           )))))
 
 (defn hiccup->facts [& hic]

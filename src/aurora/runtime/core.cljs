@@ -26,21 +26,39 @@
     (watch kn feeder-fn))
   kn)
 
+<<<<<<< HEAD
 (defn tick [kn tick-rules rules watchers feeder-fn]
   (-> kn
       (tick-inductive tick-rules)
       (tick-deductive rules)
       (tick-watchers watchers feeder-fn)
       (datalog/tick)))
+=======
+(defn tick [kn tick-rules rules watchers feeder-fn opts]
+  (let [kn (-> kn (tick-rules) (rules))]
+    (doseq [watch watchers]
+      (watch kn feeder-fn opts))
+    (datalog/and-now kn)))
+>>>>>>> plinq
 
-(defn handle-feed [env]
-  (when-not (:paused @env)
+(defn add-history [history point limit]
+  (when (>= (.-length history) limit)
+    (.shift history))
+  (.push history point))
+
+(defn handle-feed [env & [opts]]
+  (when (or (:force opts)
+            (not (:paused @env)))
     (.time js/console "run")
-    (let [feed-set (set (:feed @env))]
+    (let [feed-set (or (:feed-set opts) (set (:feed @env)))
+          feed-func (or (:feeder-fn opts) (:feeder-fn @env))]
       (aset (:feed @env) "length" 0)
-      (println "Feed set: " feed-set)
+      (when (and (not (:feed-set opts))
+                 (seq feed-set))
+        (add-history (:history @env) [(:kn @env) feed-set] (:history-size @env)))
       (swap! env update-in [:kn]
              (fn [cur]
+<<<<<<< HEAD
                (-> (stratifier/run-ruleset (:cleanup-rules @env) cur)
                    (datalog/tick)
                    (datalog/assert-facts feed-set)
@@ -48,9 +66,37 @@
                    (tick (:tick-rules @env) (:rules @env) (:watchers @env) (:feeder-fn @env))
                    (datalog/retract-facts feed-set)
                    (datalog/tick))))
+=======
+               (-> cur
+                   ((:cleanup-rules @env))
+                   (datalog/and-now)
+                   (datalog/assert-many feed-set)
+                   (datalog/and-now)
+                   (tick (:tick-rules @env) (:rules @env) (:watchers @env) feed-func opts)
+                   (datalog/retract-many feed-set)
+                   (datalog/and-now))))
+>>>>>>> plinq
       (.timeEnd js/console "run")
       ;(println "final: " (- (.getTime (js/Date.)) start) (:kn @env))
       (swap! env assoc :queued? false))))
+
+(defn replay-last [env to-merge num]
+  (let [hist (:history @env)
+        len (dec (.-length hist))
+        num (if (< len num)
+              len
+              num)
+        starting (-> (aget hist (- len num))
+                     (first)
+                     (datalog/assert-many to-merge)
+                     (datalog/and-now))]
+    (swap! env assoc :kn starting)
+    (doseq [x (reverse (range 0 num))
+            :let [feed-set (-> (aget hist (- len x))
+                               (last))]]
+      (handle-feed env {:force true
+                        :feed-set feed-set
+                        :feeder-fn (fn [x y])}))))
 
 (defn run [env]
   (let [feeder-fn (partial feeder env)]
@@ -59,14 +105,21 @@
     env))
 
 (defn ->env [opts]
-  (let [env (merge {:tick-rules []
+  (let [kn (datalog/Knowledge. (:kn opts #{}) #{} #{})
+        env (merge {:tick-rules []
                     :cleanup-rules []
                     :rules []
                     :watchers @watchers
+                    :history-size 20
+                    :history (array [kn #{}])
                     :feed (array)
                     :queued? false}
                    opts
+<<<<<<< HEAD
                    {:kn (datalog/Knowledge. (:kn opts #{}) #{} #{} (:kn opts #{}))})
+=======
+                   {:kn kn})
+>>>>>>> plinq
         env (-> env
                 (update-in [:cleanup-rules] stratifier/strata->ruleset)
                 (update-in [:rules] stratifier/strata->ruleset)
@@ -85,6 +138,7 @@
   (swap! env assoc :paused false)
   (handle-feed env))
 
+<<<<<<< HEAD
 (defn go-to-do []
 
 (def hiccup js/aurora.runtime.ui.hiccup->facts)
@@ -104,10 +158,32 @@
 
   (def timer-cleanup-rules [(rule {:name :wait :time t :id i}
                                   (- {:name :wait :time t :id i}))])
+=======
+
+(def ui-cleanup-rules [(rule ^d {:ml :ui/text}
+                             (- d))
+                       (rule ^d {:ml :ui/elem}
+                             (- d))
+                       (rule ^d {:ml :ui/attr}
+                             (- d))
+                       (rule ^d {:ml :ui/style}
+                             (- d))
+                       (rule ^d {:ml :ui/child}
+                             (- d))
+                       (rule ^d {:ml :ui/event-listener}
+                             (- d))
+                       (rule ^d {:ml :ui/draw}
+                             (- d))
+                       ])
+
+  (def timer-cleanup-rules [(rule ^t {:ml :timers/wait}
+                                  (- t))])
+>>>>>>> plinq
 
   (def io-cleanup-rules [(rule ^get {:name :http-get}
                                (- get))])
 
+<<<<<<< HEAD
 
   (def todo (run-env {:kn #{{:name "counter" :value 2}
                             {:name "todo" :id 0 :text "get milk" :order 0}
@@ -285,6 +361,8 @@
 ;; (go-to-do)
 ;; (js/setTimeout go-to-do 5000)
 
+=======
+>>>>>>> plinq
 (comment
 
 (datalog/query-rule
@@ -294,25 +372,6 @@
  (datalog/tick {:now #{[3 4] [1 2] [4 5]}}))
 
 (def hiccup js/aurora.runtime.ui.hiccup->facts)
-(def ui-cleanup-rules [(rule {:name :ui/text :id id :text text}
-                             (- {:name :ui/text :id id :text text}))
-                       (rule {:name :ui/elem :id id :tag tag}
-                             (- {:name :ui/elem :id id :tag tag}))
-                       (rule {:name :ui/attr :id id :attr attr :value value}
-                             (- {:name :ui/attr :id id :attr attr :value value}))
-                       (rule {:name :ui/style :id id :style attr :value value}
-                             (- {:name :ui/style :id id :style attr :value value}))
-                       (rule {:name :ui/child :id id :child child :pos pos}
-                             (- {:name :ui/child :id id :child child :pos pos}))
-                       (rule {:name :ui/event-listener :id id :entity entity :event event}
-                             (- {:name :ui/event-listener :id id :entity entity :event event}))
-                       ])
-
-  (def timer-cleanup-rules [(rule {:name :wait :time t :id i}
-                                  (- {:name :wait :time t :id i}))])
-
-  (def io-cleanup-rules [(rule ^get {:name :http-get}
-                               (- get))])
 
 
   (def tick (run-env {:kn #{[3 5] [9 8 7] [:tick]}

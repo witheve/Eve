@@ -501,19 +501,20 @@
                                                                      ~@(butlast body)
                                                                      (return ~(last body))))))))))
 
+
 (defn expr->vars [expr]
   (cond
    (seq? expr) (apply union (map expr->vars (rest expr))) ;; first elem is function
-   (coll? expr) (apply union (map expr->vars (rest expr)))
+   (coll? expr) (apply union (map expr->vars expr))
    (symbol? expr) #{expr}
    :else #{}))
 
 (defn quote-clause [clause allowed-fns]
   (case (op clause)
-    +s (list '+s (expr->vars (second clause)) (fns* (expr->vars (second clause)) [(second clause)] allowed-fns))
-    -s (list '-s (expr->vars (second clause)) (fns* (expr->vars (second clause)) [(second clause)] allowed-fns))
-    ? (list '? (expr->vars (second clause)) (fns* (expr->vars (second clause)) [(second clause)] allowed-fns))
-    = (list '= (nth clause 1) (expr->vars (nth clause 2)) (fns* (expr->vars (nth clause 2)) [(nth clause 2)] allowed-fns))
+    +s (list '+s (vec (expr->vars (second clause))) (fns* (vec (expr->vars (second clause))) [(second clause)] allowed-fns))
+    -s (list '-s (vec (expr->vars (second clause))) (fns* (vec (expr->vars (second clause))) [(second clause)] allowed-fns))
+    ? (list '? (vec (expr->vars (second clause))) (fns* (vec (expr->vars (second clause))) [(second clause)] allowed-fns))
+    = (list '= (nth clause 1) (vec (expr->vars (nth clause 2))) (fns* (vec (expr->vars (nth clause 2))) [(nth clause 2)] allowed-fns))
     clause))
 
 (defn quote-clauses
@@ -538,6 +539,26 @@
          (? [a] (integer? a))
          (+ [a b]))
    (tick {:now #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]}}))
+
+  (quote-clauses '[[a b c]
+                   (= foo (+ b 4))
+                   (+ [a foo])])
+
+  (quote-clause '(+s [[a] [b] [c]]) {})
+
+  (query-rule
+   (clauses->rule (quote-clauses '[[a b c]
+                                   (= foo (+ b 4))
+                                   (+s [[a] [b] [c]])
+                                   (+ [a foo])]))
+   (tick {:now #{[1 2 3] [3 4 5]}}))
+
+  (query-rule
+   (rule [a b c]
+         (= foo [b] (+ b 4))
+         (+s [a b c] [[a] [b] [c]])
+         (+ [a foo]))
+   (tick {:now #{[1 2 3] [3 4 5]}}))
 
   (run-rule
    (rule [a b _]
