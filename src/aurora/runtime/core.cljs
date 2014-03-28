@@ -230,87 +230,87 @@
                                          (- done)
                                          (- editing))]
 
-                      :rules [[(rule {:name "todo" :id id}
-                                     {:name :todo/filter :value "all"}
-                                     (+ {:name :todo/displayed :id id}))
-                               (rule {:name "todo" :id id}
-                                     {:name :todo/filter :value v}
-                                     {:name "todo-done" :id id :done? v}
-                                     (+ {:name :todo/displayed :id id}))]
+                      :rules [(rule {:name "todo" :id id}
+                                    {:name :todo/filter :value "all"}
+                                    (+ {:name :todo/displayed :id id}))
+                              (rule {:name "todo" :id id}
+                                    {:name :todo/filter :value v}
+                                    {:name "todo-done" :id id :done? v}
+                                    (+ {:name :todo/displayed :id id}))
 
-                              [(rule {:name :todo/displayed :id id}
-                                     {:name "todo" :id id :text text :order order}
-                                     {:name "todo-done" :id id :done? done}
-                                     (= parent-id [id] (str "todo" id))
-                                     (= child-id [id] (str "todo-checkbox" id))
-                                     (+s [child-id id done]
-                                         (hiccup
-                                          [:input {:id child-id
-                                                   :event-key "todo-checkbox"
-                                                   :entity id
-                                                   :checked done
+                              (rule {:name :todo/displayed :id id}
+                                    {:name "todo" :id id :text text :order order}
+                                    {:name "todo-done" :id id :done? done}
+                                    (= parent-id [id] (str "todo" id))
+                                    (= child-id [id] (str "todo-checkbox" id))
+                                    (+s [child-id id done]
+                                        (hiccup
+                                         [:input {:id child-id
+                                                  :event-key "todo-checkbox"
+                                                  :entity id
+                                                  :checked done
+                                                  :events ["onChange"]
+                                                  :type "checkbox"}]))
+                                    (+ {:name :ui/child :id parent-id :child child-id :pos -1}))
+                              (rule {:name :todo/displayed :id id}
+                                    {:name "todo" :id id :text text :order order}
+                                    {:name "todo-editing" :id id :editing? "false"}
+                                    (+s [id text]
+                                        (hiccup
+                                         [:li {:id (str "todo" id) :entity id :event-key "todo" :events ["onDoubleClick"]}
+                                          text
+                                          [:button {:id (str "todo-remove" id) :style {:margin-left "10px"} :entity id :event-key "todo-remove" :events ["onClick"]} "x"]]))
+                                    (= child-id [id] (str "todo" id))
+                                    (+ {:name :ui/child :id "todo-list" :child child-id :pos order}))
+                              (rule {:name :todo/displayed :id id}
+                                    {:name "todo" :id id :text text :order order}
+                                    {:name "todo-editing" :id id :editing? "true"}
+                                    (+s [id text]
+                                        (hiccup
+                                         [:input {:id (str "todo-editor") :entity id :event-key "todo-editor" :defaultValue text :events ["onChange" "onKeyDown" "onBlur"]}]))
+                                    (+ {:name :ui/child :id "todo-list" :child "todo-editor" :pos order}))
+
+                              (rule {:name :todo/current-text :value v}
+                                    (+s []
+                                        (hiccup
+                                         [:input {:id "todo-input" :value v :event-key "todo-input" :events ["onChange" "onKeyDown"] :placeholder "What do you need to do?"}]))
+                                    (+ {:name :ui/child :id "app" :child "todo-input" :pos 1}))
+
+                              (rule (set remaining [id]
+                                         {:name "todo-done" :id id :done? "false"})
+                                    (= left [remaining] (count remaining))
+                                    (= text [left] (if (= left 1)
+                                                     " todo "
+                                                     " todos "))
+                                    (+s [left text]
+                                        (hiccup [:span {:id "remaining-count"} left text "left"]))
+                                    (+ {:name :ui/child :id "app" :child "remaining-count" :pos 3.5}))
+
+                              (rule (set completed [id]
+                                         {:name "todo-done" :id id :done? "true"})
+                                    (= left [completed] (count completed))
+                                    (? [left] (> left 0))
+                                    (+s [left]
+                                        (hiccup [:span {:id "completed-count" :event-key "clear completed" :events ["onClick"]} "clear completed (" left ")"]))
+                                    (+ {:name :ui/child :id "app" :child "completed-count" :pos 7}))
+
+                              (rule {:name :todo/toggle-all :value toggle}
+                                    (+s [toggle]
+                                        (hiccup
+                                         [:div {:id "app"}
+                                          [:h1 {:id "todo-header"} "Todos"]
+                                          [:input {:id "toggle-all"
+                                                   :event-key "toggle-all"
+                                                   :checked toggle
                                                    :events ["onChange"]
-                                                   :type "checkbox"}]))
-                                     (+ {:name :ui/child :id parent-id :child child-id :pos -1}))]
-                              [(rule {:name :todo/displayed :id id}
-                                     {:name "todo" :id id :text text :order order}
-                                     {:name "todo-editing" :id id :editing? "false"}
-                                     (+s [id text]
-                                         (hiccup
-                                          [:li {:id (str "todo" id) :entity id :event-key "todo" :events ["onDoubleClick"]}
-                                           text
-                                           [:button {:id (str "todo-remove" id) :style {:margin-left "10px"} :entity id :event-key "todo-remove" :events ["onClick"]} "x"]]))
-                                     (= child-id [id] (str "todo" id))
-                                     (+ {:name :ui/child :id "todo-list" :child child-id :pos order}))
-                               (rule {:name :todo/displayed :id id}
-                                     {:name "todo" :id id :text text :order order}
-                                     {:name "todo-editing" :id id :editing? "true"}
-                                     (+s [id text]
-                                         (hiccup
-                                          [:input {:id (str "todo-editor") :entity id :event-key "todo-editor" :defaultValue text :events ["onChange" "onKeyDown" "onBlur"]}]))
-                                     (+ {:name :ui/child :id "todo-list" :child "todo-editor" :pos order}))]
-
-                              [(rule {:name :todo/current-text :value v}
-                                     (+s []
-                                         (hiccup
-                                          [:input {:id "todo-input" :value v :event-key "todo-input" :events ["onChange" "onKeyDown"] :placeholder "What do you need to do?"}]))
-                                     (+ {:name :ui/child :id "app" :child "todo-input" :pos 1}))]
-
-                              [(rule (set remaining [id]
-                                          {:name "todo-done" :id id :done? "false"})
-                                     (= left [remaining] (count remaining))
-                                     (= text [left] (if (= left 1)
-                                                      " todo "
-                                                      " todos "))
-                                     (+s [left text]
-                                         (hiccup [:span {:id "remaining-count"} left text "left"]))
-                                     (+ {:name :ui/child :id "app" :child "remaining-count" :pos 3.5}))
-
-                               (rule (set completed [id]
-                                          {:name "todo-done" :id id :done? "true"})
-                                     (= left [completed] (count completed))
-                                     (? [left] (> left 0))
-                                     (+s [left]
-                                         (hiccup [:span {:id "completed-count" :event-key "clear completed" :events ["onClick"]} "clear completed (" left ")"]))
-                                     (+ {:name :ui/child :id "app" :child "completed-count" :pos 7}))]
-
-                              [(rule {:name :todo/toggle-all :value toggle}
-                                     (+s [toggle]
-                                         (hiccup
-                                          [:div {:id "app"}
-                                           [:h1 {:id "todo-header"} "Todos"]
-                                           [:input {:id "toggle-all"
-                                                    :event-key "toggle-all"
-                                                    :checked toggle
-                                                    :events ["onChange"]
-                                                    :type "checkbox"}]
-                                           [:button {:id "add-todo" :event-key "add-todo" :events ["onClick"]} "add"]
-                                           [:ul {:id "todo-list"}]
-                                           [:button {:id "filter-all" :event-key "filter-all" :events ["onClick"]} "all"]
-                                           [:button {:id "filter-active" :event-key "filter-active" :events ["onClick"]} "active"]
-                                           [:button {:id "filter-completed" :event-key "filter-completed" :events ["onClick"]} "completed"]
-                                           ]))
-                                     )]
+                                                   :type "checkbox"}]
+                                          [:button {:id "add-todo" :event-key "add-todo" :events ["onClick"]} "add"]
+                                          [:ul {:id "todo-list"}]
+                                          [:button {:id "filter-all" :event-key "filter-all" :events ["onClick"]} "all"]
+                                          [:button {:id "filter-active" :event-key "filter-active" :events ["onClick"]} "active"]
+                                          [:button {:id "filter-completed" :event-key "filter-completed" :events ["onClick"]} "completed"]
+                                          ]))
+                                    )
                               ]})))
 
 ;; (go-to-do)
