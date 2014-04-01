@@ -154,13 +154,15 @@ var stringScore = function(string, abbreviation) {
    window.fuzzaldrin = function(candidates, query, _arg) {
     var candidate, key, maxResults, queryHasNoSlashes, score, scoredCandidate, scoredCandidates, string, _i, _len, _ref;
     _ref = _arg != null ? _arg : {}, key = _ref.key, maxResults = _ref.maxResults;
+     keyfn = _ref.keyfn;
+
     if (query) {
       queryHasNoSlashes = query.indexOf('/') === -1;
       query = query.replace(/\ /g, '');
       scoredCandidates = [];
       for (_i = 0, _len = candidates.length; _i < _len; _i++) {
         candidate = candidates[_i];
-        string = key != null ? candidate[key] : candidate;
+        string = keyfn != null ? keyfn(candidate) : candidate;
         if (!string) {
           continue;
         }

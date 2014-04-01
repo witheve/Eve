@@ -2,6 +2,8 @@
   (:require [aurora.util.core :as util]
             [aurora.compiler.datalog :as datalog]
             [aurora.compiler.stratifier :as stratifier]
+            [aurora.util.core :refer [now]]
+            [aurora.editor.dom :as dom]
             [clojure.set :as set]
             [aurora.editor.ReactDommy :as dommy])
   (:require-macros [aurora.compiler.datalog :refer [query rule]]))
@@ -41,8 +43,10 @@
 (defn handle-feed [env & [opts]]
   (when (or (:force opts)
             (not (:paused @env)))
-    (.time js/console "run")
-    (let [feed-set (or (:feed-set opts) (set (:feed @env)))
+    (let [start (now)
+          feed-set (or (:feed-set opts) (set (:feed @env)))
+          aurora-facts #{{:ml :aurora/time "time" (.getTime (js/Date.))}}
+          all (set/union feed-set aurora-facts)
           feed-func (or (:feeder-fn opts) (:feeder-fn @env))]
       (aset (:feed @env) "length" 0)
       (when (and (not (:feed-set opts))
@@ -52,12 +56,13 @@
              (fn [cur]
                (-> (stratifier/run-ruleset (:cleanup-rules @env) cur)
                    (datalog/tick)
-                   (datalog/assert-facts feed-set)
+                   (datalog/assert-facts all)
                    (datalog/tick)
                    (tick (:tick-rules @env) (:rules @env) (:watchers @env) (:feeder-fn @env))
-                   (datalog/retract-facts feed-set)
+                   (datalog/retract-facts all)
                    (datalog/tick))))
-      (.timeEnd js/console "run")
+      (when-let [rp (dom/$ "#run-perf")]
+        (dom/html rp (.toFixed (- (now) start) 3)))
       ;(println "final: " (- (.getTime (js/Date.)) start) (:kn @env))
       (swap! env assoc :queued? false))))
 
@@ -77,7 +82,9 @@
                                (last))]]
       (handle-feed env {:force true
                         :feed-set feed-set
-                        :feeder-fn (fn [x y])}))))
+                        ;:feeder-fn (fn [x y])
+                        }))))
+
 
 (defn run [env]
   (let [feeder-fn (partial feeder env)]
@@ -115,30 +122,31 @@
   (swap! env assoc :paused false)
   (handle-feed env))
 
+(def ui-cleanup-rules [(rule ^d {:ml :ui/text}
+                             (- d))
+                       (rule ^d {:ml :ui/elem}
+                             (- d))
+                       (rule ^d {:ml :ui/attr}
+                             (- d))
+                       (rule ^d {:ml :ui/style}
+                             (- d))
+                       (rule ^d {:ml :ui/child}
+                             (- d))
+                       (rule ^d {:ml :ui/event-listener}
+                             (- d))
+                       (rule ^d {:ml :ui/draw}
+                             (- d))
+                       ])
+
+(def timer-cleanup-rules [(rule ^t {:ml :timers/wait}
+                                (- t))])
+
+(def io-cleanup-rules [(rule ^get {:name :http-get}
+                             (- get))])
+
 (defn go-to-do []
 
-  (def hiccup js/aurora.runtime.ui.hiccup->facts)
-  (def ui-cleanup-rules [(rule ^d {:ml :ui/text}
-                               (- d))
-                         (rule ^d {:ml :ui/elem}
-                               (- d))
-                         (rule ^d {:ml :ui/attr}
-                               (- d))
-                         (rule ^d {:ml :ui/style}
-                               (- d))
-                         (rule ^d {:ml :ui/child}
-                               (- d))
-                         (rule ^d {:ml :ui/event-listener}
-                               (- d))
-                         (rule ^d {:ml :ui/draw}
-                               (- d))
-                         ])
-
-  (def timer-cleanup-rules [(rule ^t {:ml :timers/wait}
-                                  (- t))])
-
-  (def io-cleanup-rules [(rule ^get {:name :http-get}
-                               (- get))])
+(def hiccup js/aurora.runtime.ui.hiccup->facts)
 
   (def todo-env {:kn #{{:name "counter" :value 2}
                        {:name "todo" :id 0 :text "get milk" :order 0}

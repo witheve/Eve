@@ -21,7 +21,9 @@
   (doall (map f xs)))
 
 (defn now []
-  (.getTime (js/Date.)))
+  (if (.-performance js/self)
+    (.performance.now js/self)
+    (.getTime (js/Date.))))
 
 (defn cycling-move [cur count dir]
   (if (< (dir cur) 0)
