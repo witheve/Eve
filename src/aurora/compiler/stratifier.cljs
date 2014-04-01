@@ -37,16 +37,24 @@
         stratum
         (Fixpoint. (Chain. (vec stratum))))))))
 
+(defn strata->rules [strata]
+  (apply concat
+         (for [stratum strata]
+           (if (instance? datalog/Rule stratum)
+             [stratum]
+             stratum))))
+
 ;; STRATIFICATION
 
 (defn ->facts [rules]
   (set (apply concat
               (for [[rule i] (map vector rules (range (count rules)))]
-                (concat [[:rule i]]
-                        (for [pred (:preds-in rule)] [:pred-in i pred])
-                        (for [pred (:preds-out rule)] [:pred-out i pred])
-                        (for [pred (:negs-in rule)] [:neg-in i pred])
-                        (for [pred (:negs-out rule)] [:neg-out i pred]))))))
+                (do (assert (instance? datalog/Rule rule))
+                  (concat [[:rule i]]
+                          (for [pred (:preds-in rule)] [:pred-in i pred])
+                          (for [pred (:preds-out rule)] [:pred-out i pred])
+                          (for [pred (:negs-in rule)] [:neg-in i pred])
+                          (for [pred (:negs-out rule)] [:neg-out i pred])))))))
 
 (defn ->kn [rules]
   (tick {:now (->facts rules)}))
@@ -54,7 +62,7 @@
 ;; [:with i j] if rule i must be finished before rule j can be finished
 ;; [:before i j] if rule i must be finished before rule j can be started
 
-(def stratifier-rules
+(def stratifier-strata
   [;; handle ::any
    (rule [:pred-in _ p]
          (+ [:pred p]))
@@ -105,8 +113,11 @@
          (= ordering [groups] (reverse (map second (sort-by #(count (first %)) groups))))
          (+ [:ordering ordering]))])
 
+(def stratifier-rules
+  (strata->rules stratifier-strata))
+
 (def stratifier-ruleset
-  (strata->ruleset stratifier-rules))
+  (strata->ruleset stratifier-strata))
 
 (defn stratification [rules]
   (let [kn (->kn rules)
@@ -199,3 +210,10 @@
 (datalog/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-f)))
 
 (stratification test-rules-f)
+
+(stratification stratifier-rules)
+
+(-> (strata->ruleset (stratify stratifier-rules))
+    (run-ruleset (->kn stratifier-rules))
+    datalog/by-pred-name
+    :ordering)
