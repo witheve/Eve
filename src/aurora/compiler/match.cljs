@@ -33,6 +33,9 @@
    (map? pattern) `(cljs.core.PersistentHashMap.fromArrays
                     ~(vec (map data->jsth (keys pattern)))
                     ~(vec (map data->jsth (vals pattern))))
+   (set? pattern) `(cljs.core.PersistentHashSet.fromArray
+                    ~(vec (map data->jsth pattern))
+                    true) ;; dont clone array
    :else (check false)))
 
 (deftraced pattern->jsth [pattern] [pattern]

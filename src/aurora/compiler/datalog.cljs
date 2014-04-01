@@ -26,9 +26,10 @@
 (def profile? false)
 
 ;; TODO
-;; query optimisation (starting with clause sorting)
-;; aggregates (conj? sorting?)
+;; correct joins
 ;; abstract result sets (many of the results can just use arrays)
+;; aggregates (conj? sorting?)
+;; query optimisation (starting with clause sorting)
 ;; seminaive evaluation
 ;; incremental assert
 ;; incremental retract
