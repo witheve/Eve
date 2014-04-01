@@ -39,6 +39,7 @@
     -s `(list '~'-s '~(nth clause 1) (fn ~(nth clause 1) ~(nth clause 2)))
     ? `(list '~'? '~(nth clause 1) (fn ~(nth clause 1) ~(nth clause 2)))
     = `(list '~'= '~(nth clause 1)'~(nth clause 2) (fn ~(nth clause 2) ~(nth clause 3)))
+    set `(list '~'set '~(nth clause 1) '~(nth clause 2) ~@(map quote-clause (nthnext clause 3)))
     `'~clause))
 
 (defmacro rule [& clauses]
