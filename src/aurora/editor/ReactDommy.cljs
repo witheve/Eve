@@ -21,7 +21,7 @@
 (defn base-element
   "dom element from css-style keyword like :a.class1 or :span#my-span.class"
   [node-key]
-  (let [node-str (subs (str node-key) 1)
+  (let [node-str (name node-key)
         base-idx (next-css-index node-str 0)
         tag (cond
              (> base-idx 0) (.substring node-str 0 base-idx)

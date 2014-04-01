@@ -10,9 +10,14 @@
 (defn wait [time do]
   (js/setTimeout do time))
 
+(def aurora-refresh nil)
+
 ;; generic fact: {:name "someidthing" :madlib "yay [a] and then [b]" :a 5 :b 9}
 ;; wait fact: {:name :wait :madlib "wait [time]ms with [id]" :time 500 :id 1}
 ;; tick fact {:name 12341234 :madlib "tick with [id]" :id 9}
+(def aurora-refreshes (rule {:ml :aurora/refresh
+                             "waiting time" time}
+                            (+ time)))
 
 (def find-waits (rule (+ed {:ml :timers/wait
                              "time" time
@@ -26,7 +31,16 @@
       (println "setting up wait for: " time id)
       (wait time (fn []
                    (queue {:ml :timers/tick "timer" id "time" (now)})
-                   )))))
+                   )))
+    (when-let [refresh (first (datalog/query-rule aurora-refreshes knowledge))]
+      (println "Got refresh: " refresh)
+      (when-not (= (:wait aurora-refresh) refresh)
+        (when (:timer aurora-refresh)
+          (js/clearTimeout (:timer aurora-refresh)))
+        (set! aurora-refresh {:wait refresh
+                              :timer (js/setInterval (fn []
+                                                       (queue {:ml :aurora/refresh-tick}))
+                                                     refresh)})))))
 
 (swap! runtime/watchers conj (fn [kn queue] (on-bloom-tick kn queue)))
 

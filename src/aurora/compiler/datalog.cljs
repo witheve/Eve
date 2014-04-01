@@ -1,5 +1,3 @@
-(aset js/aurora.compiler "datalog" nil)
-
 (ns aurora.compiler.datalog
   (:require [clojure.set :refer [union intersection difference subset?]]
             [aurora.compiler.jsth :as jsth]
