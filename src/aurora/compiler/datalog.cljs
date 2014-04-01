@@ -493,7 +493,9 @@
 (defn fns* [syms body & [allowed-fns]]
   (let [body (for [b body]
                (if (list? b)
-                 (conj (rest b) (or (allowed-fns (first b))
+                 (conj (rest b) (or (when (= (first b) 'js*)
+                                      (first b))
+                                    (allowed-fns (first b))
                                     (->> (first b)
                                          (jsth/munge)
                                          (str "cljs.core.")
@@ -517,7 +519,9 @@
     +s (list '+s (vec (expr->vars (second clause))) (fns* (vec (expr->vars (second clause))) [(second clause)] allowed-fns))
     -s (list '-s (vec (expr->vars (second clause))) (fns* (vec (expr->vars (second clause))) [(second clause)] allowed-fns))
     ? (list '? (vec (expr->vars (second clause))) (fns* (vec (expr->vars (second clause))) [(second clause)] allowed-fns))
-    = (list '= (nth clause 1) (vec (expr->vars (nth clause 2))) (fns* (vec (expr->vars (nth clause 2))) [(nth clause 2)] allowed-fns))
+    = (let [args (or (nth clause 3)
+                     (vec (expr->vars (nth clause 2))))]
+        (list '= (nth clause 1) args (fns* args [(nth clause 2)] allowed-fns)))
     clause))
 
 (defn quote-clauses

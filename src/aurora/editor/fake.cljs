@@ -250,7 +250,7 @@
                                 [k (symbol k)]))
         clause (dissoc clause :type)
         sees (for [[k v] (dissoc clause :ml)]
-               (list '= (symbol (str k "prime"))  (reader/read-string v)))
+               (list '= (symbol (str k "prime"))  (list 'js* v) [(symbol k)]))
         jsd (into clause (for [[k v] (dissoc clause :ml)]
                            [k (symbol (str k "prime"))]))
         ]
