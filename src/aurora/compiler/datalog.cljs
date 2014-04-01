@@ -69,6 +69,11 @@
         (disj!! now fact)))
     (->Knowledge prev asserted-now (persistent! retracted-now) (persistent! now))))
 
+(declare pred-name)
+
+(defn by-pred-name [kn]
+  (group-by pred-name (:now kn)))
+
 ;; MAPS -> ROWS
 
 (defn select-ixes [vector ixes]

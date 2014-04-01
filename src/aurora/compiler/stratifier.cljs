@@ -1,7 +1,7 @@
 (aset js/aurora.compiler "stratifier" nil)
 
 (ns aurora.compiler.stratifier
-  (:require [aurora.compiler.datalog :as datalog :refer [tick run-rule]])
+  (:require [aurora.compiler.datalog :as datalog :refer [tick run-rule query-rule]])
   (:require-macros [aurora.macros :refer [check deftraced]]
                    [aurora.compiler.match :refer [match]]
                    [aurora.compiler.datalog :refer [rule]]))
@@ -42,163 +42,112 @@
 ;; Care about non-monotonic and monotonic cycles separately
 
 (defn ->facts [rules]
-  (apply clojure.set/union
-         (for [[rule i] (map vector rules (range (count rules)))]
-           #{[:rule i rule]
-             [:negs-in i (:negs-in rule)]
-             [:negs-out i (:negs-out rule)]
-             [:preds-in i (:preds-in rule)]
-             [:preds-out i (:preds-out rule)]})))
+  (set (apply concat
+              (for [[rule i] (map vector rules (range (count rules)))]
+                (concat [[:rule i]]
+                        (for [pred (:preds-in rule)] [:pred-in i pred])
+                        (for [pred (:preds-out rule)] [:pred-out i pred])
+                        (for [pred (:negs-in rule)] [:neg-in i pred])
+                        (for [pred (:negs-out rule)] [:neg-out i pred]))))))
 
 (defn ->kn [rules]
   (tick {:now (->facts rules)}))
 
-;; [:before x y] if pred x must be finished before pred y can be finished
-(comment
-  (def ordering-rules
-    [;; preds
-     (rule [:preds-in _ preds-in]
-           (in x preds-in)
-           (? (not= :aurora.compiler.datalog/any x))
-           (+ [:pred x]))
-     (rule [:preds-out _ preds-out]
-           (in x preds-out)
-           (? (not= :aurora.compiler.datalog/any x))
-           (+ [:pred x]))
-     ;; handle ::any
-     (rule [:pred x]
-           (+ [:matches x x]))
-     (rule [:pred x]
-           (+ [:matches :aurora.compiler.datalog/any x]))
-     ;; if a rule waits for x before producing y...
-     (rule [:negs-in i negs-in]
-           [:preds-out i preds-out]
-           (in x negs-in)
-           (in y preds-out)
-           [:matches x x']
-           [:matches y y']
-           (+ [:before x' y']))
-     ;; if a rule reads from x and removes from y...
-     (rule [:preds-in i preds-in]
-           [:negs-out i negs-out]
-           (in x preds-in)
-           (in y negs-out)
-           [:matches x x']
-           [:matches y y']
-           (+ [:before x' y']))
-     ;; transitive closure
-     [(rule [:before x y]
-            [:before y z]
-            (+ [:before x z]))]
-     ;; cycles
-     (rule [:before x y]
-           [:before y x]
-           (+ [:cyclic x y]))]))
+;; [:with i j] if rule i must be finished before rule j can be finished
+;; [:before i j] if rule i must be finished before rule j can be started
 
-(comment
+;; need to order rules, not predicates...
 
-  ((nth ordering-rules 0) todo-rules)
+(def ordering-rules
+  [;; handle ::any
+   (rule [:pred-in _ p]
+         (+ [:pred p]))
+   (rule [:pred-out _ p]
+         (+ [:pred p]))
+   (rule [:pred p]
+         (+ [:matches p p])
+         (+ [:matches :aurora.compiler.datalog/any p])
+         (+ [:matches p :aurora.compiler.datalog/any]))
+   ;; find edges
+   (rule [:pred-out i p]
+         [:pred-in j q]
+         [:matches p q]
+         (+ [:with i j]))
+   (rule [:pred-out i p]
+         [:neg-in j q]
+         [:matches p q]
+         (+ [:before i j]))
+   (rule [:neg-out i p]
+         [:pred-in j q]
+         [:matches p q]
+         (+ [:before i j]))
+   ;; transitive closure
+   [(rule [:with i j]
+          [:with j k]
+          (+ [:with i k]))]
+   [(rule [:with i j]
+          [:before j k]
+          (+ [:before i k]))]
+   ;; cycles
+   (rule [:before i j]
+         (? [i j] (= i j)) ;; TODO get pattern matching to handle repeated vars
+         (set cycle [k]
+              [:before k i])
+         (+ [:cycle i cycle]))])
 
-  ((strata->rule ordering-rules) (->kn ordering-rules))
+;; TESTS
 
-  ((strata->rule ordering-rules) (->kn todo-rules))
+(defn cycles [kn]
+  (:cycle (datalog/by-pred-name kn)))
 
-  (def todo-rules (concat (:tick-rules todo) (apply concat (:rules todo))))
+(def test-rules-a
+  [(rule [:foo x]
+         (- [:bar x]))
+   (rule [:bar x]
+         (- [:foo x]))])
 
-  (def todo {:kn #{{:name "counter" :value 2}
-                            {:name "todo" :id 0 :text "get milk" :order 0}
-                            {:name "todo" :id 1 :text "take books back" :order 1}
-                            {:name "todo" :id 2 :text "cook" :order 2}
-                            {:name "todo-done" :id 0 :done? "false"}
-                            {:name "todo-done" :id 1 :done? "false"}
-                            {:name "todo-done" :id 2 :done? "false"}
-                            {:name "todo-editing" :id 0 :editing? "false"}
-                            {:name "todo-editing" :id 1 :editing? "false"}
-                            {:name "todo-editing" :id 2 :editing? "false"}
-                            {:name :todo/current-text :value ""}
-                            }
-                      :cleanup-rules []
-                      :tick-rules [;;on change
-                                   (rule {:name :ui/onChange :id "todo-input" :value v}
-                                         (> {:name :todo/current-text} {:value v}))
+(def test-rules-b
+  [(rule [:foo x]
+         (- [:bar x]))
+   (rule [:bar x]
+         (+ [:foo x]))])
 
-                                   ;;submit
-                                   (rule {:name :ui/onClick :id "add-todo"}
-                                         (+ {:name :todo/new!}))
-                                   (rule {:name :ui/onKeyDown :id "todo-input" :keyCode 13}
-                                         (+ {:name :todo/new!}))
+(def test-rules-c
+  [(rule [:foo x]
+         (- [:bar x]))
+   (rule any
+         (+ [:foo any]))])
 
-                                   ;;add a new todo
-                                   (rule {:name :todo/new!}
-                                         {:name "counter" :value v}
-                                         {:name :todo/current-text :value text}
-                                         (= new-count (inc v))
-                                         (- {:name :todo/new!})
-                                         (> {:name "counter"} {:value new-count})
-                                         (> {:name :todo/current-text} {:value ""})
-                                         (+ {:name "todo" :id new-count :text text :order new-count})
-                                         (+ {:name "todo-editing" :id new-count :editing? "false"})
-                                         (+ {:name "todo-done" :id new-count :done? "false"}))
+(def test-rules-d
+  [(rule [:foo x]
+         (- [:bar x]))
+   (rule any
+         (+ [:quux any]))])
 
-                                   ;;todo editing
-                                   (rule {:name :ui/onDoubleClick :entity ent}
-                                         {:name "todo-editing" :id ent :editing? "false"}
-                                         (> {:name "todo-editing" :id ent} {:editing? "true"}))
+(def test-rules-e
+  [(rule [:foo x]
+         (- [:bar x]))
+   (rule [:bar x]
+         (+ [:quux x]))
+   (rule [:quux x]
+         (+ [:foo x]))])
 
-                                   (rule {:name :ui/onBlur :entity ent}
-                                         {:name "todo-editing" :id ent :editing? "true"}
-                                         (> {:name "todo-editing" :id ent} {:editing? "false"}))
+(run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-a))
 
-                                   (rule {:name :ui/onChange :id "todo-editor" :value v}
-                                         (> {:name :todo/edit-text} {:value v})
-                                         (+ {:name :todo/edit-text :value v}))
+(cycles (run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-a)))
 
-                                   (rule {:name :ui/onKeyDown :id "todo-editor" :keyCode 13 :entity ent}
-                                         {:name :todo/edit-text :value new-value}
-                                         (> {:name "todo" :id ent} {:text new-value})
-                                         (> {:name "todo-editing" :id ent} {:editing? "false"}))
+(datalog/by-pred-name (run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-b)))
 
-                                   (rule {:name :ui/onChange :event-key "todo-checkbox" :entity ent :value v}
-                                         (> {:name "todo-done" :id ent} {:done? v}))
-                                   ]
-                      :rules [
-                              [(rule {:name "todo" :id id :text text :order order}
-                                     (= parent-id (str "todo" id))
-                                     (= child-id (str "todo-checkbox" id))
-                                     (+s (hiccup
-                                           [:input {:id child-id
-                                                    :event-key "todo-checkbox"
-                                                    :entity id
-                                                    :events ["onChange"]
-                                                    :type "checkbox"}]))
-                                     (+ {:name :ui/child :id parent-id :child child-id :pos -1}))
-                               (rule {:name "todo" :id id :text text :order order}
-                                     {:name "todo-done" :id id :done? "true"}
-                                     (+ {:name :ui/attr :id id :attr "checked" :value "checked"})) ]
-                              [(rule {:name "todo" :id id :text text :order order}
-                                     {:name "todo-editing" :id id :editing? "false"}
-                                     (+s (hiccup
-                                          [:li {:id (str "todo" id) :entity id :event-key "todo" :events ["onDoubleClick"]}
-                                           text]))
-                                     (= child-id (str "todo" id))
-                                     (+ {:name :ui/child :id "todo-list" :child child-id :pos order}))
-                               (rule {:name "todo" :id id :text text :order order}
-                                     {:name "todo-editing" :id id :editing? "true"}
-                                     (+s (hiccup
-                                          [:input {:id (str "todo-editor") :entity id :event-key "todo-editor" :defaultValue text :events ["onChange" "onKeyDown" "onBlur"]}]))
-                                     (+ {:name :ui/child :id "todo-list" :child "todo-editor" :pos order}))
-                               ]
-                              [(rule {:name :todo/current-text :value v}
-                                     (+s (hiccup
-                                          [:input {:id "todo-input" :value v :event-key "todo-input" :events ["onChange" "onKeyDown"] :placeholder "What do you need to do?"}]))
-                                     (+ {:name :ui/child :id "app" :child "todo-input" :pos 1}))]
-                              [(rule (+s (hiccup
-                                          [:div {:id "app"}
-                                           [:h1 {:id "todo-header"} "Todos"]
-                                           [:button {:id "add-todo" :event-key "add-todo" :events ["onClick"]} "add"]
-                                           [:ul {:id "todo-list"}]
-                                           ]))
-                                     )]
-                              ]})
+(cycles (run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-b)))
 
-  )
+(datalog/by-pred-name (run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-c)))
+
+(cycles (run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-c)))
+
+(datalog/by-pred-name (run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-d)))
+
+(cycles (run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-d)))
+
+(datalog/by-pred-name (run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-e)))
+
+(cycles (run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-e)))
