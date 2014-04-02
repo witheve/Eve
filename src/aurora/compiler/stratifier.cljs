@@ -37,18 +37,24 @@
         stratum
         (Fixpoint. (Chain. (vec stratum))))))))
 
-;; STRATIFICATION
+(defn strata->rules [strata]
+  (apply concat
+         (for [stratum strata]
+           (if (instance? datalog/Rule stratum)
+             [stratum]
+             stratum))))
 
-;; Care about non-monotonic and monotonic cycles separately
+;; STRATIFICATION
 
 (defn ->facts [rules]
   (set (apply concat
               (for [[rule i] (map vector rules (range (count rules)))]
-                (concat [[:rule i]]
-                        (for [pred (:preds-in rule)] [:pred-in i pred])
-                        (for [pred (:preds-out rule)] [:pred-out i pred])
-                        (for [pred (:negs-in rule)] [:neg-in i pred])
-                        (for [pred (:negs-out rule)] [:neg-out i pred]))))))
+                (do (assert (instance? datalog/Rule rule))
+                  (concat [[:rule i]]
+                          (for [pred (:preds-in rule)] [:pred-in i pred])
+                          (for [pred (:preds-out rule)] [:pred-out i pred])
+                          (for [pred (:negs-in rule)] [:neg-in i pred])
+                          (for [pred (:negs-out rule)] [:neg-out i pred])))))))
 
 (defn ->kn [rules]
   (tick {:now (->facts rules)}))
@@ -56,9 +62,7 @@
 ;; [:with i j] if rule i must be finished before rule j can be finished
 ;; [:before i j] if rule i must be finished before rule j can be started
 
-;; need to order rules, not predicates...
-
-(def ordering-rules
+(def stratifier-strata
   [;; handle ::any
    (rule [:pred-in _ p]
          (+ [:pred p]))
@@ -81,6 +85,9 @@
          [:pred-in j q]
          [:matches p q]
          (+ [:before i j]))
+   ;; hack around broken aggregates
+   (rule [:rule i]
+         (+ [:before i ::end]))
    ;; transitive closure
    [(rule [:with i j]
           [:with j k]
@@ -93,12 +100,50 @@
          (? [i j] (= i j)) ;; TODO get pattern matching to handle repeated vars
          (set cycle [k]
               [:before k i])
-         (+ [:cycle i cycle]))])
+         (+ [:cycle i cycle]))
+   ;; groups
+   (rule (set descendants [j]
+              [:before i j])
+         (+ [:descendants i descendants]))
+   (rule (set group [i]
+              [:descendants i descendants])
+         (+ [:group group descendants]))
+   (rule (set groups [descendants group]
+              [:group group descendants])
+         (= ordering [groups] (reverse (map second (sort-by #(count (first %)) groups))))
+         (+ [:ordering ordering]))])
+
+(def stratifier-rules
+  (strata->rules stratifier-strata))
+
+(def stratifier-ruleset
+  (strata->ruleset stratifier-strata))
+
+(defn stratification [rules]
+  (let [kn (->kn rules)
+        solved-kn (run-ruleset stratifier-ruleset kn)
+        grouped-kn (datalog/by-pred-name solved-kn)]
+    (if-let [cycles (:cycle grouped-kn)]
+      (throw (ex-info "Non-monotonic edge in cycle" {:rules rules :cycles cycles}))
+      (let [orderings (:ordering grouped-kn)]
+        (assert (= 1 (count orderings)))
+        (let [ordering (second (first orderings))
+              indices (for [group ordering]
+                        (into #{} (map first group)))]
+          (assert (= (reduce + (map count indices)) (count rules)))
+          indices)))))
+
+(defn stratify [rules]
+  (for [group (stratification rules)]
+    (mapv #(nth rules %) group)))
 
 ;; TESTS
 
 (defn cycles [kn]
   (:cycle (datalog/by-pred-name kn)))
+
+(defn ordering [kn]
+  (:ordering (datalog/by-pred-name kn)))
 
 (def test-rules-a
   [(rule [:foo x]
@@ -132,22 +177,43 @@
    (rule [:quux x]
          (+ [:foo x]))])
 
-(run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-a))
+(def test-rules-f
+  [(rule [:foo x]
+         (- [:bar x]))
+   (rule [:bar x]
+         (+ [:quux x]))
+   (rule [:foo x]
+         (- [:quux x]))
+   (rule [:quux x]
+         (+ [:final x]))])
 
-(cycles (run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-a)))
+(datalog/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-a)))
 
-(datalog/by-pred-name (run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-b)))
+(try (stratification test-rules-a) (catch :default e e))
 
-(cycles (run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-b)))
+(datalog/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-b)))
 
-(datalog/by-pred-name (run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-c)))
+(try (stratification test-rules-b) (catch :default e e))
 
-(cycles (run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-c)))
+(datalog/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-c)))
 
-(datalog/by-pred-name (run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-d)))
+(try (stratification test-rules-c) (catch :default e e))
 
-(cycles (run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-d)))
+(datalog/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-d)))
 
-(datalog/by-pred-name (run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-e)))
+(stratification test-rules-d)
 
-(cycles (run-ruleset (strata->ruleset ordering-rules) (->kn test-rules-e)))
+(datalog/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-e)))
+
+(try (stratification test-rules-e) (catch :default e e))
+
+(datalog/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-f)))
+
+(stratification test-rules-f)
+
+(stratification stratifier-rules)
+
+(-> (strata->ruleset (stratify stratifier-rules))
+    (run-ruleset (->kn stratifier-rules))
+    datalog/by-pred-name
+    :ordering)

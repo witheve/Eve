@@ -2,43 +2,52 @@
   (:require [clojure.string :refer [join split-lines]])
   (:require-macros [aurora.macros :refer [check deftraced]]))
 
+(def munge-map
+  {"-" "_"
+   " " "_SPACE_"
+   "." "_DOT_"
+   ":" "_COLON_"
+   "+" "_PLUS_"
+   ">" "_GT_"
+   "<" "_LT_"
+   "=" "_EQ_"
+   "~" "_TILDE_"
+   "!" "_BANG_"
+   "@" "_CIRCA_"
+   "#" "_SHARP_"
+   "'" "_SINGLEQUOTE_"
+   "\"" "_DOUBLEQUOTE_"
+   "%" "_PERCENT_"
+   "^" "_CARET_"
+   "&" "_AMPERSAND_"
+   "*" "_STAR_"
+   "|" "_BAR_"
+   "{" "_LBRACE_"
+   "}" "_RBRACE_"
+   "[" "_LBRACK_"
+   "]" "_RBRACK_"
+   "/" "_SLASH_"
+   "\\" "_BSLASH_"
+   "?" "_QMARK_"})
+
+(def munge-regexes
+  (into-array
+   (for [find (keys munge-map)]
+     (js/RegExp. (str "\\" find) "gi"))))
+
+(def munge-replaces
+  (into-array (vals munge-map)))
+
 ;; TODO doesn't handle reserved names or namespaced symbols
 (defn munge-part [part]
-  (reduce
-   (fn [name [find replace]]
-     (.replace name (js/RegExp. (str "\\" find) "gi") replace))
-   part
-   {"-" "_"
-    " " "_SPACE_"
-    "." "_DOT_"
-    ":" "_COLON_"
-    "+" "_PLUS_"
-    ">" "_GT_"
-    "<" "_LT_"
-    "=" "_EQ_"
-    "~" "_TILDE_"
-    "!" "_BANG_"
-    "@" "_CIRCA_"
-    "#" "_SHARP_"
-    "'" "_SINGLEQUOTE_"
-    "\"" "_DOUBLEQUOTE_"
-    "%" "_PERCENT_"
-    "^" "_CARET_"
-    "&" "_AMPERSAND_"
-    "*" "_STAR_"
-    "|" "_BAR_"
-    "{" "_LBRACE_"
-    "}" "_RBRACE_"
-    "[" "_LBRACK_"
-    "]" "_RBRACK_"
-    "/" "_SLASH_"
-    "\\" "_BSLASH_"
-    "?" "_QMARK_"}))
+  (areduce munge-regexes i part part
+           (.replace part (aget munge-regexes i) (aget munge-replaces i))))
 
 (defn munge [sym]
-  (clojure.string/join "."
-                       (for [part (clojure.string/split (name sym) ".")]
-                         (munge-part part))))
+  (let [parts (.split (name sym) ".")
+        last-part (.pop parts)]
+    (.push parts (munge-part last-part))
+    (.join parts ".")))
 
 (declare expression->string statement->string)
 
