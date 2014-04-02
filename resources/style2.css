@@ -91,11 +91,15 @@ input { border:none; background:#f7f7f7; font-family: "Avenir"; color: #444; fon
 
 #content { margin-left:0; min-width:100%; padding-right:100px; height:200%; white-space:nowrap; }
 
-#root { padding:10px;}
+#root { padding:10px; padding-top:0; display:flex; flex-direction:column; height:100%; }
 #root span { vertical-align:middle; display:inline-block; white-space:pre-wrap; }
 
+#canvas { flex:1; display:flex; flex-direction:row; }
+
+#canvas-editor {flex:1; padding-top:20px; padding-left:20px; }
+
 #rules { font-size:12pt; max-width:74%; }
-#rules > li { margin-bottom:25px;}
+#rules > li { margin-bottom:20px;}
 
 .sub { margin-left:20px; padding-left: 20px; padding-top:8px; border-left:1px solid #ccc; padding-bottom:3px;}
 .sub li {margin-bottom:8px;}
@@ -120,9 +124,12 @@ td.keyword { text-align:right; white-space:pre; }
 
 .add-rule:before { content:"\f1c9"; font-family:"Ionicons"; font-size:24px; margin-left:0px; }
 
-#controls { position:fixed; right:25%; margin-right:10px; top:0px; padding:18px 20px; }
+#header { margin-bottom:0px; vertical-align:middle; border-bottom:1px solid #ddd; padding-bottom:10px; }
+#header h1 { display:inline-block; float:left; font-size:18pt; cursor:default; }
+
+#controls { float:right; position:static; padding:0px; display:inline-block; }
 #controls .icon { font-size:24px; color:#ccc; width:20px; }
-#controls button { background:none; border:none; border-radius:3px; color:#444; padding:5px 10px; }
+#controls button { background:none; border:none; border-radius:3px; color:#444; padding:5px 0px; }
 #controls button:hover .pause { color:#CC5A8D; }
 #controls button:hover .play { color:#00aaaa; }
 
@@ -142,18 +149,27 @@ td.keyword { text-align:right; white-space:pre; }
 #matcher .CodeMirror pre { padding-left: 15px; }
 #matcher .CodeMirror-lines { padding:9px 0; }
 
-.CodeMirror { background:transparent; color:#555; font-family: "Nunito"; font-size:12pt; height:auto;}
+.CodeMirror { background:transparent; color:#555; font-family: "Nunito"; font-size:12pt; height:26px;}
 .CodeMirror-scroll { height:auto; }
 .CodeMirror-cursor { border-color:#777 !important; background:#ccc; }
 .cm-keyword { color:#aaa !important; }
 .cm-id { color:#00aaaa; }
 .cm-attr { color:#9357CF; }
 
-#results { position:fixed; bottom:20px; top:20px; right:20px; width:25%; overflow:hidden; border-left:1px solid #ddd; padding-left:10px; }
+#results { text-align:right; max-width:40%; overflow-y:auto; position:static; min-width:0px; margin:20px 0px; margin-right:5px; border-left:0px solid #ddd; padding-left:10px; }
 #results ul { margin-top:0px; }
-#results li { font-size:10pt; padding:5px 0; }
-#results li + li { border-top:1px solid #ddd; }
+#results li { font-size:10pt; padding:0px 0; text-align: right; }
+#results li div { text-align:left; display:inline-block; }
+#results li + li { border-top:-px solid #ddd; }
 
+#ui-preview { margin-top:50px; }
+
+#pages {  }
+#page-selector { min-height:300px; margin-top:150px; margin-left:150px; margin-right:150px; padding:20px; border:1px solid #ddd; border-radius:5px; }
+#page-selector h1 { padding-bottom:10px; font-size:18pt; color:#777; margin-bottom:20px; border-bottom:1px solid #ddd;}
+#pages-list { font-size:16pt; margin-left:20px; }
+#pages-list li { margin-bottom:10px; cursor:default; color:#777; }
+#pages-list li:hover { color:#00aaaa; }
 
 #perf { background:none; color:#aaa; position:fixed; bottom: 0px; right:0px; padding:10px; border-top-left-radius:3px;}
 #perf td:first-child { text-align:right; padding-right:8px; }

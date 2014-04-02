@@ -9,6 +9,7 @@
      (.replace name (js/RegExp. (str "\\" find) "gi") replace))
    part
    {"-" "_"
+    " " "_SPACE_"
     "." "_DOT_"
     ":" "_COLON_"
     "+" "_PLUS_"

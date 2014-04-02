@@ -32,15 +32,19 @@
       (wait time (fn []
                    (queue {:ml :timers/tick "timer" id "time" (now)})
                    )))
-    (when-let [refresh (first (datalog/query-rule aurora-refreshes knowledge))]
-      (println "Got refresh: " refresh)
-      (when-not (= (:wait aurora-refresh) refresh)
-        (when (:timer aurora-refresh)
-          (js/clearTimeout (:timer aurora-refresh)))
-        (set! aurora-refresh {:wait refresh
-                              :timer (js/setInterval (fn []
-                                                       (queue {:ml :aurora/refresh-tick}))
-                                                     refresh)})))))
+    (if-let [refresh (first (datalog/query-rule aurora-refreshes knowledge))]
+      (do
+        (println "Got refresh: " refresh)
+        (when-not (= (:wait aurora-refresh) refresh)
+          (when (:timer aurora-refresh)
+            (js/clearTimeout (:timer aurora-refresh)))
+          (set! aurora-refresh {:wait refresh
+                                :timer (js/setInterval (fn []
+                                                         (queue {:ml :aurora/refresh-tick}))
+                                                       refresh)})))
+      (do
+        (js/clearTimeout (:timer aurora-refresh))
+        (set! aurora-refresh {})))))
 
 (swap! runtime/watchers conj (fn [kn queue] (on-bloom-tick kn queue)))
 
