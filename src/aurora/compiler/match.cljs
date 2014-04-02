@@ -72,9 +72,13 @@
         failure `(return nil)]
     (js/Function (jsth/munge input-sym) (jsth/statement->string `(do ~success ~failure)))))
 
+(def pattern (memoize pattern))
+
 (defn constructor [constructor inputs]
   (let [body (data->jsth constructor)]
     (apply js/Function (conj (vec (map jsth/munge inputs)) (jsth/statement->string `(return ~body))))))
+
+(def constructor (memoize constructor))
 
 (comment
   (match :a :a :ok)
