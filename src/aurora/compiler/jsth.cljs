@@ -4,6 +4,7 @@
 
 (def munge-map
   {"-" "_"
+   " " "_SPACE_"
    "." "_DOT_"
    ":" "_COLON_"
    "+" "_PLUS_"

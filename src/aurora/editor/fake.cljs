@@ -25,123 +25,134 @@
 (defn remove-index [v i]
   (vec (concat (subvec v 0 i) (subvec v (inc i)))))
 
-(def cur-env (run-env {:cleanup-rules (vec (concat runtime/io-cleanup-rules runtime/timer-cleanup-rules runtime/ui-cleanup-rules))}))
+(def cur-env (atom nil))
 
-(def state (atom {:clauses {
-                            "draw" {:madlib ["ui"]
-                                    :madlib-str "ui"
-                                    :is-phrase true
-                                    :placeholders {"ui" {:order 0 :type "ui" "type" "ui"}}}
-                            }
-                  :madlibs {:aurora/time {:madlib ["the current time is ", "time"]
-                                          :madlib-str "the current time is [time]"
-                                          :placeholders {"time" {:order 0
-                                                                 :type "time"}}}
-                            :aurora/refresh {:madlib ["refresh the time after ", "waiting time"]
-                                            :madlib-str "refresh the time after [waiting time]"
-                                            :placeholders {"waiting time" {:order 0
-                                                                           :type "duration"}}}
-                            :timers/tick {:madlib ["timer", " ticked at ", "time"]
-                                          :madlib-str "[timer] ticked at [time]"
-                                          :placeholders {"timer" {:order 0
-                                                                  :type "id"}
-                                                         "time" {:order 1
-                                                                 :type "time"}}}
-                            :timers/wait {:madlib ["tick ", "timer", " after waiting ", "time"]
-                                          :madlib-str "tick [timer] after waiting [time]"
-                                          :placeholders {"timer" {:order 0
-                                                                 :type "id"}
-                                                        "time" {:order 1
-                                                                :type "duration"}}}
-                            :ui/elem {:madlib ["id", " is a ", "tag", " HTML element"]
-                                      :madlib-str "[id] is a [tag] HTML element"
+(def aurora-state (atom {:cur-page nil
+                         :pages []}))
+
+(def std-lib {:clauses {
+                        "draw" {:madlib ["ui"]
+                                :madlib-str "ui"
+                                :is-phrase true
+                                :placeholders {"ui" {:order 0 :type "ui" "type" "ui"}}}
+                        }
+              :madlibs {:aurora/time {:madlib ["the current time is ", "time"]
+                                      :madlib-str "the current time is [time]"
+                                      :placeholders {"time" {:order 0
+                                                             :type "time"}}}
+                        :aurora/refresh {:madlib ["refresh the time after ", "waiting time"]
+                                         :madlib-str "refresh the time after [waiting time]"
+                                         :placeholders {"waiting time" {:order 0
+                                                                        :type "duration"}}}
+                        :timers/tick {:madlib ["timer", " ticked at ", "time"]
+                                      :madlib-str "[timer] ticked at [time]"
+                                      :placeholders {"timer" {:order 0
+                                                              :type "id"}
+                                                     "time" {:order 1
+                                                             :type "time"}}}
+                        :timers/wait {:madlib ["tick ", "timer", " after waiting ", "time"]
+                                      :madlib-str "tick [timer] after waiting [time]"
+                                      :placeholders {"timer" {:order 0
+                                                              :type "id"}
+                                                     "time" {:order 1
+                                                             :type "duration"}}}
+                        :ui/elem {:madlib ["id", " is a ", "tag", " HTML element"]
+                                  :madlib-str "[id] is a [tag] HTML element"
+                                  :placeholders {"id" {:order 0
+                                                       :type "id"}
+                                                 "tag" {:order 1
+                                                        :type "html tag"}}}
+                        :ui/attr {:madlib ["id", " has a ", "attr", " of ", "value"]
+                                  :madlib-str "[id] has a [attr] of [value]"
+                                  :placeholders {"id" {:order 0
+                                                       :type "id"}
+                                                 "attr" {:order 1
+                                                         :type "html attribute"}
+                                                 "value" {:order 2}}}
+                        :ui/style {:madlib ["id", " has a ", "attr", " style of ", "value"]
+                                   :madlib-str "[id] has a [attr] style of [value]"
+                                   :placeholders {"id" {:order 0
+                                                        :type "id"}
+                                                  "attr" {:order 1
+                                                          :type "html style"}
+                                                  "value" {:order 2}}}
+                        :ui/text {:madlib ["id", " is the text ", "text"]
+                                  :madlib-str "[id] is the text [text]"
+                                  :placeholders {"id" {:order 0
+                                                       :type "id"}
+                                                 "text" {:order 1
+                                                         :type "string"}}}
+                        :ui/child {:madlib ["id", " is the parent of ", "child", " at position ", "pos"]
+                                   :madlib-str "[id] is the parent of [child] at position [pos]"
+                                   :placeholders {"id" {:order 0
+                                                        :type "id"}
+                                                  "child" {:order 1
+                                                           :type "id"}
+                                                  "pos" {:order 2
+                                                         :type "number"}}}
+                        :ui/event-listener {:madlib ["listen for ", "event", " events on ", "id"]
+                                            :madlib-str "listen for [event] events on [id]"
+                                            :placeholders {"event" {:order 0
+                                                                    :type "html event"}
+                                                           "id" {:order 1
+                                                                 :type "id"}}}
+                        :ui/onClick {:madlib ["id", " is clicked"]
+                                     :madlib-str "[id] is clicked"
+                                     :placeholders {"id" {:order 0
+                                                          :type "id"}}}
+                        :ui/onDoubleClick {:madlib ["id", " was double clicked raising ", "event", " on ", "entity"]
+                                           :madlib-str "[id] was double clicked raising [event] on [entity]"
+                                           :placeholders {"id" {:order 0
+                                                                :type "id"}
+                                                          "event" {:order 1
+                                                                   :type "string"}
+                                                          "entity" {:order 2
+                                                                    :type "id"}}}
+                        :ui/onKeyDown {:madlib ["the ", "keyCode", " key was pressed in " "id" " on " "entity"]
+                                      :madlib-str "the [keyCode] key was pressed in [id]"
                                       :placeholders {"id" {:order 0
                                                            :type "id"}
-                                                     "tag" {:order 1
-                                                            :type "html tag"}}}
-                            :ui/attr {:madlib ["id", " has a ", "attr", " of ", "value"]
-                                      :madlib-str "[id] has a [attr] of [value]"
-                                      :placeholders {"id" {:order 0
+                                                     "keyCode" {:order 1
+                                                              :type "number"}
+                                                     "entity" {:order 2
+                                                               :type "string"}}}
+
+                        :ui/onBlur {:madlib ["id", " is blurred with ", "entity"]
+                                     :madlib-str "[id] is blurred"
+                                     :placeholders {"id" {:order 0
                                                           :type "id"}
-                                                    "attr" {:order 1
-                                                            :type "html attribute"}
-                                                    "value" {:order 2}}}
-                            :ui/style {:madlib ["id", " has a ", "attr", " style of ", "value"]
-                                       :madlib-str "[id] has a [attr] style of [value]"
-                                       :placeholders {"id" {:order 0
-                                                           :type "id"}
-                                                     "attr" {:order 1
-                                                             :type "html style"}
-                                                     "value" {:order 2}}}
-                            :ui/text {:madlib ["id", " is the text ", "text"]
-                                      :madlib-str "[id] is the text [text]"
+                                                    "entity" {:order 1
+                                                              :type "string"}}}
+                        :ui/onChange {:madlib ["id", " changed to ", "value", " raising ", "event", " on ", "entity"]
+                                      :madlib-str "[id] changed to [value] raising [event] on [entity]"
                                       :placeholders {"id" {:order 0
                                                            :type "id"}
-                                                     "text" {:order 1
-                                                             :type "string"}}}
-                            :ui/child {:madlib ["id", " is the parent of ", "child", " at position ", "pos"]
-                                       :madlib-str "[id] is the parent of [child] at position [pos]"
-                                       :placeholders {"id" {:order 0
-                                                            :type "id"}
-                                                      "child" {:order 1
-                                                               :type "id"}
-                                                      "pos" {:order 2
-                                                             :type "number"}}}
-                            :ui/event-listener {:madlib ["listen for ", "event", " events on ", "id"]
-                                                :madlib-str "listen for [event] events on [id]"
-                                                :placeholders {"event" {:order 0
-                                                                         :type "html event"}
-                                                               "id" {:order 1
-                                                                     :type "id"}}}
-                            :ui/onClick {:madlib ["id", " is clicked"]
-                                         :madlib-str "[id] is clicked"
-                                         :placeholders {"id" {:order 0
-                                                              :type "id"}}}
-                            :ui/onDoubleClick {:madlib ["id", " was double clicked raising ", "event", " on ", "entity"]
-                                               :madlib-str "[id] was double clicked raising [event] on [entity]"
-                                               :placeholders {"id" {:order 0
-                                                                    :type "id"}
-                                                              "event" {:order 1
-                                                                       :type "string"}
-                                                              "entity" {:order 2
-                                                                        :type "id"}}}
-                            :ui/onChange {:madlib ["id", " changed to ", "value", " raising ", "event", " on ", "entity"]
-                                          :madlib-str "[id] changed to [value] raising [event] on [entity]"
-                                          :placeholders {"id" {:order 0
-                                                                    :type "id"}
-                                                              "event" {:order 1
-                                                                       :type "string"}
-                                                              "entity" {:order 2
-                                                                        :type "id"}}}
-                            :ui/draw {:madlib ["draw ", "thing", " as ", "ui"]
-                                      :madlib-str "draw [thing] as [ui]"
-                                      :placeholders {"thing" {:order 0
-                                                             :type "id"}
-                                                    "ui" {:order 1}}}}
+                                                     "value" {:order 1
+                                                              :type "string"}
+                                                     "event" {:order 2
+                                                              :type "string"}
+                                                     "entity" {:order 3
+                                                               :type "id"}}}
+                        :http/get {:madlib ["fetch " "url" " and call it ", "id"]
+                                   :madlib-str "fetch [url] and call it [id]"
+                                   :placeholders {"url" {:order 0
+                                                         :type "url"}
+                                                  "id" {:order 1
+                                                        :type "string"}}}
+                        :http/response {:madlib ["got url " "content" " named " "id" " at " "time"]
+                                     :madlib-str "got url [content] named [id] at [time]"
+                                     :placeholders {"content" {:order 0
+                                                               :type "string"}
+                                                    "id" {:order 1
+                                                          :type "string"}
+                                                    "time" {:order 2
+                                                            :type "time"}}}
+                        } })
+
+(def state (atom {:name "Incrementer"
                   :editor {}
                   :matcher {}
-                  :statements (or [] [{:type :add
-                                      :ml :timers/tick
-                                      "timer" "timer"
-                                      "time" 0}
-                                     {:type :rule
-                                      :clauses [{:type :when
-                                                 :ml :timers/tick
-                                                 "timer" "timer"}
-                                                {:type :add
-                                                 :ml :timers/wait
-                                                 "timer" "timer"
-                                                 "time" 1000}]}
-                                     {:type :rule
-                                      :clauses [{:type :when
-                                                 :ml :timers/tick
-                                                 "timer" "timer"
-                                                 "time" 'time}
-                                                {:type :add
-                                                 :ml :ui/draw
-                                                 "thing" "clock"
-                                                 "ui" 'time}]}])
-                  }))
+                  :statements []}))
 
 (set! js/cljs.core.hiccup js/aurora.runtime.ui.hiccup->facts)
 
@@ -207,7 +218,7 @@
                                 [k (symbol k)]))]
     [:table
      [:tbody
-      [:tr [:td.keyword "change "] [:td (rule-ui (merge clause placeholders) world path {:no-edit true})]]
+      [:tr [:td.keyword "change "] [:td (rule-ui (merge clause placeholders (::new clause)) world (conj path ::new))]]
       [:tr [:td.keyword "to "] [:td (rule-ui clause world path)]]]]
     ))
 
@@ -248,13 +259,21 @@
   (let [rule (get-in @state [:madlibs (:ml clause)])
         placeholders (into {} (for [k (keys (:placeholders rule))]
                                 [k (symbol k)]))
-        clause (dissoc clause :type)
+        new-bound-syms (::new clause)
+        clause (dissoc clause :type ::new)
+        syms (into {} (for [k (keys (dissoc clause :ml))]
+                        [k (gensym k)]))
         sees (for [[k v] (dissoc clause :ml)]
-               (list '= (symbol (str k "prime"))  (list 'js* v) [(symbol k)]))
+               (list '= (syms k) (if (string? v)
+                                   (reader/read-string v)
+                                   v)))
         jsd (into clause (for [[k v] (dissoc clause :ml)]
-                           [k (symbol (str k "prime"))]))
+                           [k (syms k)]))
         ]
-    (conj sees (merge clause placeholders) (list '- (merge clause placeholders)) (list '+ (merge placeholders clause jsd)))
+    (conj sees
+          (merge clause placeholders)
+          (list '- (merge clause placeholders new-bound-syms))
+          (list '+ (merge placeholders clause new-bound-syms jsd)))
     )
   )
 
@@ -280,12 +299,12 @@
 (defn compile-statements [statements world no-rule]
   (let [rules (filter #(= (:type %) "rule") statements)
         facts (filter #(not= (:type %) "rule") statements)]
-    {:rules (for [r rules]
-              (if-not no-rule
-                (compile-rule r world)
-                (compile-rule* r world)))
-     :facts (for [f facts]
-              (compile-fact f world))}))
+    {:rules (doall (for [r rules]
+                     (if-not no-rule
+                       (compile-rule r world)
+                       (compile-rule* r world))))
+     :facts (doall (for [f facts]
+                     (compile-fact f world)))}))
 
 (defn compile-state [& [no-rule]]
   (let [start (now)
@@ -304,8 +323,9 @@
     (when-not paused?
       (unpause cur-env))))
 
+(compile-state :safe)
+
 ;(enable-console-print!)
-(inject-compiled)
 
 ;;*********************************************************
 ;; Type editors and representations
@@ -334,6 +354,9 @@
   [:span {:onClick (set-editing path)
           :classes {:value true}}
      (cond
+      (string? v) (if (> (.-length v) 100)
+                    (str (subs v 0 100) "...")
+                    v)
       (symbol? v) (str v)
       (vector? v) v
       (nil? v) v
@@ -360,6 +383,7 @@
   (let [[v selected] (cond
                       (>= v 60000) [(/ v 60000) "minutes"]
                       (>= v 1000) [(/ v 1000) "seconds"]
+                      (or (nil? v) (= 0 v)) [1 "seconds"]
                       :else [v "milliseconds"])]
     (swap! state update-in [:editor] merge {:remain-open true
                                             :type "duration"
@@ -494,7 +518,9 @@
                                (swap! cur-env update-in [:kn] #(-> %
                                                                    (datalog/retract-facts #{fact})
                                                                    (datalog/tick))))}
-         (rule-ui fact world)])]
+         [:div
+          (rule-ui fact world)]])]
+     [:div#ui-preview]
      ]
     ))
 
@@ -519,16 +545,48 @@
       [:span.icon.play]
       [:span.icon.pause])]])
 
-(defn root-ui []
+(defn header []
+  [:div#header
+   [:h1 {:onClick (fn []
+                    (pause cur-env)
+                    (force-save @state)
+                    (swap! aurora-state assoc :cur-page nil))}
+    (:name @state)]
+   (controls @cur-env)])
+
+(defn editor-ui []
+  (println "editor")
   [:div#root
-   (controls @cur-env)
-   (rules (:statements @state) @state)
-   (if (get-in @state [:matcher :path])
-     [:div]
-     (matches (:matcher @state)))
-   [:div#ui-preview]
-   (results @cur-env @state)
+   (header)
+   [:div#canvas
+    [:div#canvas-editor
+     (rules (:statements @state) @state)
+     (if (get-in @state [:matcher :path])
+       [:div]
+       (matches (:matcher @state)))
+     ]
+    (results @cur-env @state)
+    ]
    ])
+
+(defn page-list []
+  [:div#pages
+   [:div#page-selector
+    [:h1 "Select a page"]
+    [:ul#pages-list
+     (for [p (:pages @aurora-state)]
+       [:li {:onClick (fn []
+                        (println p)
+                        (swap! aurora-state assoc :cur-page p)
+                        (load-page p)
+                        )}
+        p]
+       )]]])
+
+(defn root-ui []
+  (if (:cur-page @aurora-state)
+    (editor-ui)
+    (page-list)))
 
 ;;*********************************************************
 ;; Value editor CodeMirror
@@ -795,17 +853,62 @@
     (set! queued? true)
     (frame render!)))
 
-(queue-render)
-
 (add-watch cur-env :render (fn [_ _ _ cur]
                              (queue-render)))
 
 (add-watch state :render (fn [_ _ _ cur]
                            (queue-render)))
 
+(add-watch aurora-state :render (fn [_ _ _ cur]
+                                  (queue-render)))
+
+
 (add-watch state :compile (fn [_ _ old cur]
                             (when-not (identical? (:statements old) (:statements cur))
                               (inject-compiled))))
 
-(:statements @state)
+(add-watch state :store (js/Cowboy.debounce 1000
+                                            (fn [_ _ old cur]
+                                              (force-save cur)
+                                              )))
 
+(add-watch aurora-state :store (js/Cowboy.debounce 10
+                                                   (fn [_ _ old cur]
+                                                     (aset js/localStorage "aurora-state" (pr-str cur))
+                                                     )))
+
+(defn force-save [cur]
+  (println "Saving: " (:name cur) (count (pr-str cur)))
+  (aset js/localStorage (:name cur) (pr-str cur)))
+
+(defn clear-env []
+  (let [new-env (runtime/->env {:cleanup-rules (vec (concat runtime/io-cleanup-rules
+                                        runtime/timer-cleanup-rules
+                                        runtime/ui-cleanup-rules))})]
+    (reset! cur-env @new-env)
+    (runtime/run cur-env)))
+
+(defn load-page [name]
+  (let [page (aget js/localStorage name)
+        page (try
+               (reader/read-string page)
+               (catch :default e
+                 (println "got some error")
+                 {:name name
+                  :editor {}
+                  :matcher {}
+                  :statements []}))
+        page (merge-with merge page std-lib)]
+    (clear-env)
+    (reset! state page)))
+
+(defn init []
+  (when-let [stored (aget js/localStorage "aurora-state")]
+    (reset! aurora-state (reader/read-string stored)))
+  (when-let [page-to-load (:cur-page @aurora-state)]
+    (load-page page-to-load))
+  (queue-render)
+  )
+
+
+(init)

@@ -520,8 +520,9 @@
     +s (list '+s (vec (expr->vars (second clause))) (fns* (vec (expr->vars (second clause))) [(second clause)] allowed-fns))
     -s (list '-s (vec (expr->vars (second clause))) (fns* (vec (expr->vars (second clause))) [(second clause)] allowed-fns))
     ? (list '? (vec (expr->vars (second clause))) (fns* (vec (expr->vars (second clause))) [(second clause)] allowed-fns))
-    = (let [args (or (nth clause 3)
-                     (vec (expr->vars (nth clause 2))))]
+    = (let [args (if (= (count clause) 4)
+                   (nth clause 3)
+                   (vec (expr->vars (nth clause 2))))]
         (list '= (nth clause 1) args (fns* args [(nth clause 2)] allowed-fns)))
     clause))
 
