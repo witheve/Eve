@@ -157,8 +157,13 @@
 
 (set! js/cljs.core.hiccup js/aurora.runtime.ui.hiccup->facts)
 
+(declare rule-ui matches)
+
 (defmulti draw-statement (fn [x y path]
                            (:type x)))
+
+(defmulti draw-clause (fn [x y path]
+                        (:type x)))
 
 (defn statement-item [path & content]
   [:li {:onContextMenu (fn [e]
@@ -189,9 +194,6 @@
 (defmethod draw-statement "add" [rule world path]
   (statement-item path
    (draw-clause rule world path)))
-
-(defmulti draw-clause (fn [x y path]
-                        (:type x)))
 
 (defmethod draw-clause "add" [clause world path]
   (rule-ui clause world path))
@@ -328,6 +330,8 @@
 
 ;(enable-console-print!)
 
+
+
 ;;*********************************************************
 ;; Type editors and representations
 ;;*********************************************************
@@ -340,6 +344,24 @@
 
 (defmulti ->parser (fn [type v]
                      type))
+
+(defn set-editing [path]
+  (fn [e]
+    (.preventDefault e)
+    (.stopPropagation e)
+    (when (= (first path) :statements)
+      (swap! state assoc-in [:editor :paused?] (:paused @cur-env))
+      (swap! state assoc-in [:editor :prev-kn] (-> @cur-env :kn :prev))
+      (swap! state update-in [:editor] merge {:path path
+                                              :value nil
+                                              :remain-open false}))))
+
+(defn default-parser [v]
+  (cond
+   (= "" v) nil
+   (= "*" (first v)) (symbol (subs v 1))
+   (not (re-seq #"[^\d.]" v)) (reader/read-string v)
+   :else v))
 
 (defn placeholder-rep [ph path]
   [:span {:onClick (set-editing path)
@@ -426,23 +448,9 @@
 ;; Display
 ;;*********************************************************
 
-(defn default-parser [v]
-  (cond
-   (= "" v) nil
-   (= "*" (first v)) (symbol (subs v 1))
-   (not (re-seq #"[^\d.]" v)) (reader/read-string v)
-   :else v))
 
-(defn set-editing [path]
-  (fn [e]
-    (.preventDefault e)
-    (.stopPropagation e)
-    (when (= (first path) :statements)
-      (swap! state assoc-in [:editor :paused?] (:paused @cur-env))
-      (swap! state assoc-in [:editor :prev-kn] (-> @cur-env :kn :prev))
-      (swap! state update-in [:editor] merge {:path path
-                                              :value nil
-                                              :remain-open false}))))
+
+
 (defn editable [rule-info rule v ph path opts]
   (if (or (not= path (get-in @state [:editor :path]))
           (:no-edit opts))
@@ -520,10 +528,12 @@
                                                                    (representation/retract-facts #{fact})
                                                                    (representation/tick))))}
          [:div
-          (rule-ui fact world)]])]
+          (rule-ui fact world nil)]])]
      [:div#ui-preview]
      ]
     ))
+
+(declare change-match-selection handle-submit instance load-page force-save)
 
 (defn matches [matcher]
   [:div#matcher
@@ -534,7 +544,7 @@
             :onClick (fn []
                        (swap! state assoc-in [:matcher :selected] i)
                        (change-match-selection nil)
-                       (handle-submit (.getValue instance)))} (rule-ui m)])]])
+                       (handle-submit (.getValue instance)))} (rule-ui m nil nil)])]])
 
 (defn controls [env]
   [:div#controls
@@ -854,30 +864,6 @@
     (set! queued? true)
     (frame render!)))
 
-(add-watch cur-env :render (fn [_ _ _ cur]
-                             (queue-render)))
-
-(add-watch state :render (fn [_ _ _ cur]
-                           (queue-render)))
-
-(add-watch aurora-state :render (fn [_ _ _ cur]
-                                  (queue-render)))
-
-
-(add-watch state :compile (fn [_ _ old cur]
-                            (when-not (identical? (:statements old) (:statements cur))
-                              (inject-compiled))))
-
-(add-watch state :store (js/Cowboy.debounce 1000
-                                            (fn [_ _ old cur]
-                                              (force-save cur)
-                                              )))
-
-(add-watch aurora-state :store (js/Cowboy.debounce 10
-                                                   (fn [_ _ old cur]
-                                                     (aset js/localStorage "aurora-state" (pr-str cur))
-                                                     )))
-
 (defn force-save [cur]
   (println "Saving: " (:name cur) (count (pr-str cur)))
   (aset js/localStorage (:name cur) (pr-str cur)))
@@ -910,6 +896,31 @@
     (load-page page-to-load))
   (queue-render)
   )
+
+
+(add-watch cur-env :render (fn [_ _ _ cur]
+                             (queue-render)))
+
+(add-watch state :render (fn [_ _ _ cur]
+                           (queue-render)))
+
+(add-watch aurora-state :render (fn [_ _ _ cur]
+                                  (queue-render)))
+
+
+(add-watch state :compile (fn [_ _ old cur]
+                            (when-not (identical? (:statements old) (:statements cur))
+                              (inject-compiled))))
+
+(add-watch state :store (js/Cowboy.debounce 1000
+                                            (fn [_ _ old cur]
+                                              (force-save cur)
+                                              )))
+
+(add-watch aurora-state :store (js/Cowboy.debounce 10
+                                                   (fn [_ _ old cur]
+                                                     (aset js/localStorage "aurora-state" (pr-str cur))
+                                                     )))
 
 
 (init)
