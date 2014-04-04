@@ -16,3 +16,6 @@ pom.xml
 .lein-deps-sum
 .lein-failures
 .lein-plugins
+resources/
+hs_err*
+.nrepl-port

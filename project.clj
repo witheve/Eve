@@ -11,14 +11,14 @@
                                    :output-to "resources/editor.js"
                                    :output-dir "resources/cljs/editor/"
                                    :pretty-print true}}
-                       {:id "compiler"
-                       :source-paths ["src/aurora/compiler/"
+                       {:id "language"
+                       :source-paths ["src/aurora/language/"
                                       "src/aurora/util/"]
                         :compiler {:optimizations :simple
                                    :externs []
-                                   :source-map "resources/compiler.js.map"
-                                   :output-to "resources/compiler.js"
-                                   :output-dir "resources/cljs/compiler/"
+                                   :source-map "resources/language.js.map"
+                                   :output-to "resources/language.js"
+                                   :output-dir "resources/cljs/language/"
                                    :pretty-print true}}
                        {:id "runtime"
                         :source-paths [

@@ -1,8 +1,10 @@
 (ns aurora.runtime.timers
   (:require [aurora.util.core :as util]
             [aurora.runtime.core :as runtime]
-            [aurora.compiler.datalog :as datalog])
-  (:require-macros [aurora.compiler.datalog :refer [rule]]))
+            [aurora.language.representation :as representation]
+            [aurora.language.operation :as operation]
+            [aurora.language.denotation :as denotation])
+  (:require-macros [aurora.language.macros :refer [rule]]))
 
 (defn now []
   (.getTime (js/Date.)))
@@ -26,13 +28,13 @@
 
 (defn on-bloom-tick [knowledge queue]
   (println "in bloom tick")
-  (let [waits (datalog/query-rule find-waits knowledge)]
+  (let [waits (operation/query-rule find-waits knowledge)]
     (doseq [[time id] waits]
       (println "setting up wait for: " time id)
       (wait time (fn []
                    (queue {:ml :timers/tick "timer" id "time" (now)})
                    )))
-    (if-let [refresh (first (datalog/query-rule aurora-refreshes knowledge))]
+    (if-let [refresh (first (operation/query-rule aurora-refreshes knowledge))]
       (do
         (println "Got refresh: " refresh)
         (when-not (= (:wait aurora-refresh) refresh)
@@ -50,9 +52,9 @@
 
 (comment
 
-  (def test-kn (-> datalog/empty
-                   (datalog/assert {:name :wait :time 500 :id 1})
-                   (datalog/assert {:name :wait :time 100 :id 2})))
+  (def test-kn (-> representation/empty
+                   (representation/assert {:name :wait :time 500 :id 1})
+                   (representation/assert {:name :wait :time 100 :id 2})))
 
   (def q (array))
   (on-bloom-tick test-kn (fn [fact] (.push q fact)))

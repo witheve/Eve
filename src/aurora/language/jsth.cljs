@@ -1,4 +1,4 @@
-(ns aurora.compiler.jsth
+(ns aurora.language.jsth
   (:require [clojure.string :refer [join split-lines]])
   (:require-macros [aurora.macros :refer [check deftraced]]))
 

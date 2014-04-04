@@ -1,5 +1,21 @@
-(ns aurora.compiler.datalog
-  (:require [aurora.compiler.match :as match :refer [match]]))
+(remove-ns 'aurora.language.macros)
+
+(ns aurora.language.macros)
+
+(comment ;; grammar
+  pattern
+  (+ed pattern)
+  (-ed pattern)
+  (? vars fn)
+  (= var vars fn)
+  (set var vars & clauses)
+  ;; (in var var)
+  (+ pattern)
+  (- pattern)
+  (> pattern pattern)
+  (+s vars fn)
+  (-s vars fn)
+  )
 
 (defn op [clause]
   (if (seq? clause)
@@ -44,4 +60,4 @@
 
 (defmacro rule [& clauses]
   (mapv check-clause clauses)
-  `(clauses->rule ~(mapv quote-clause clauses)))
+  `(aurora.language.denotation/clauses->rule ~(mapv quote-clause clauses)))

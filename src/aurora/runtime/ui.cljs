@@ -1,11 +1,12 @@
 (ns aurora.runtime.ui
   (:require [aurora.util.core :as util]
-            [aurora.compiler.datalog :as datalog]
+            [aurora.language.representation :as representation]
+            [aurora.language.operation :as operation]
             [clojure.set :as set]
             [aurora.editor.dom :as dom]
             [aurora.runtime.core :as runtime]
             [aurora.editor.ReactDommy :as dommy])
-  (:require-macros [aurora.compiler.datalog :refer [rule]]))
+  (:require-macros [aurora.language.macros :refer [rule]]))
 
 (def animation-frame
   (or (.-requestAnimationFrame js/self)
@@ -118,15 +119,15 @@
     (array (keyword tag) el-attrs)))
 
 (defn rebuild-tree [knowledge queue]
-  (let [els (datalog/query-rule find-elems knowledge)
-        attrs (group-by :id (datalog/query-rule find-attr knowledge))
-        styles (group-by :id (datalog/query-rule find-style knowledge))
-        listeners (group-by :id (datalog/query-rule find-listeners knowledge))
+  (let [els (operation/query-rule find-elems knowledge)
+        attrs (group-by :id (operation/query-rule find-attr knowledge))
+        styles (group-by :id (operation/query-rule find-style knowledge))
+        listeners (group-by :id (operation/query-rule find-listeners knowledge))
         built-els (into {}
                         (for [[id tag] els]
                           [id (build-element id tag (attrs id) (styles id) (listeners id) queue)]))
-        built-els (into built-els (datalog/query-rule find-text knowledge))
-        all-children (datalog/query-rule find-children knowledge)
+        built-els (into built-els (operation/query-rule find-text knowledge))
+        all-children (operation/query-rule find-children knowledge)
         children (group-by :id all-children)
         roots (set/difference (set (map first els)) (set (map :child-id all-children)))]
     (doseq [[parent kids] children
@@ -186,7 +187,7 @@
 
 (comment
 
-(def test-kn (datalog/Knowledge. #{{:name :ui/elem, :id "counter-ui", :tag "p"}
+(def test-kn (representation/->Knowledge #{{:name :ui/elem, :id "counter-ui", :tag "p"}
                                    {:name :ui/text, :id "counter-ui-0", :text 4}
                                    {:name :ui/child, :id "counter-ui", :child "counter-ui-0", :pos 0}
                                    {:name :ui/elem, :id "incr-button", :tag "button"}
@@ -197,8 +198,8 @@
                                  #{} #{}))
 
 
-  (datalog/query-rule find-elems test-kn)
-  (datalog/query-rule find-text test-kn)
+  (operation/query-rule find-elems test-kn)
+  (operation/query-rule find-text test-kn)
 
 (def q (array))
 (rebuild-tree test-kn (fn [fact] (.push q fact)))

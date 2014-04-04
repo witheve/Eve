@@ -1,10 +1,9 @@
-(aset js/aurora.compiler "stratifier" nil)
+(aset js/aurora.language "stratifier" nil)
 
-(ns aurora.compiler.stratifier
-  (:require [aurora.compiler.datalog :as datalog :refer [tick run-rule query-rule]])
-  (:require-macros [aurora.macros :refer [check deftraced]]
-                   [aurora.compiler.match :refer [match]]
-                   [aurora.compiler.datalog :refer [rule]]))
+(ns aurora.language.stratifier
+  (:require [aurora.language.representation :as representation :refer [tick]]
+            [aurora.language.operation :as operation :refer [run-rule query-rule]])
+  (:require-macros [aurora.language.macros :refer [rule]]))
 
 ;; RULESETS
 
@@ -12,7 +11,7 @@
   (run-ruleset [this kn] "-> kn"))
 
 (extend-protocol Ruleset
-  datalog/Rule
+  operation/Rule
   (run-ruleset [this kn]
                (run-rule this kn)))
 
@@ -33,14 +32,14 @@
   (Chain.
    (vec
     (for [stratum strata]
-      (if (instance? datalog/Rule stratum)
+      (if (instance? operation/Rule stratum)
         stratum
         (Fixpoint. (Chain. (vec stratum))))))))
 
 (defn strata->rules [strata]
   (apply concat
          (for [stratum strata]
-           (if (instance? datalog/Rule stratum)
+           (if (instance? operation/Rule stratum)
              [stratum]
              stratum))))
 
@@ -49,7 +48,7 @@
 (defn ->facts [rules]
   (set (apply concat
               (for [[rule i] (map vector rules (range (count rules)))]
-                (do (assert (instance? datalog/Rule rule))
+                (do (assert (instance? operation/Rule rule))
                   (concat [[:rule i]]
                           (for [pred (:preds-in rule)] [:pred-in i pred])
                           (for [pred (:preds-out rule)] [:pred-out i pred])
@@ -70,8 +69,8 @@
          (+ [:pred p]))
    (rule [:pred p]
          (+ [:matches p p])
-         (+ [:matches :aurora.compiler.datalog/any p])
-         (+ [:matches p :aurora.compiler.datalog/any]))
+         (+ [:matches :aurora.language.representation/any p])
+         (+ [:matches p :aurora.language.representation/any]))
    ;; find edges
    (rule [:pred-out i p]
          [:pred-in j q]
@@ -122,7 +121,7 @@
 (defn stratification [rules]
   (let [kn (->kn rules)
         solved-kn (run-ruleset stratifier-ruleset kn)
-        grouped-kn (datalog/by-pred-name solved-kn)]
+        grouped-kn (representation/by-pred-name solved-kn)]
     (if-let [cycles (:cycle grouped-kn)]
       (throw (ex-info "Non-monotonic edge in cycle" {:rules rules :cycles cycles}))
       (let [orderings (:ordering grouped-kn)]
@@ -140,10 +139,10 @@
 ;; TESTS
 
 (defn cycles [kn]
-  (:cycle (datalog/by-pred-name kn)))
+  (:cycle (representation/by-pred-name kn)))
 
 (defn ordering [kn]
-  (:ordering (datalog/by-pred-name kn)))
+  (:ordering (representation/by-pred-name kn)))
 
 (def test-rules-a
   [(rule [:foo x]
@@ -187,27 +186,27 @@
    (rule [:quux x]
          (+ [:final x]))])
 
-(datalog/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-a)))
+(representation/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-a)))
 
 (try (stratification test-rules-a) (catch :default e e))
 
-(datalog/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-b)))
+(representation/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-b)))
 
 (try (stratification test-rules-b) (catch :default e e))
 
-(datalog/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-c)))
+(representation/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-c)))
 
 (try (stratification test-rules-c) (catch :default e e))
 
-(datalog/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-d)))
+(representation/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-d)))
 
 (stratification test-rules-d)
 
-(datalog/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-e)))
+(representation/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-e)))
 
 (try (stratification test-rules-e) (catch :default e e))
 
-(datalog/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-f)))
+(representation/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-f)))
 
 (stratification test-rules-f)
 
@@ -215,5 +214,5 @@
 
 (-> (strata->ruleset (stratify stratifier-rules))
     (run-ruleset (->kn stratifier-rules))
-    datalog/by-pred-name
+    representation/by-pred-name
     :ordering)

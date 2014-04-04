@@ -1,9 +1,10 @@
 (ns aurora.editor.fake
   (:require [aurora.editor.ReactDommy :refer [node]]
-            [aurora.compiler.compiler :as compiler]
-            [aurora.compiler.datalog :as datalog]
-            [aurora.compiler.jsth :as jsth]
-            [aurora.compiler.stratifier :as stratifier]
+            [aurora.language.operation :as operation]
+            [aurora.language.representation :as representation]
+            [aurora.language.denotation :as denotation]
+            [aurora.language.jsth :as jsth]
+            [aurora.language.stratifier :as stratifier]
             [aurora.runtime.core :as runtime :refer [run-env pause unpause replay-last]]
             [aurora.runtime.timers]
             [aurora.runtime.ui]
@@ -14,7 +15,7 @@
             [clojure.walk :as walk]
             [clojure.string :as string]
             [aurora.util.core :refer [now]])
-  (:require-macros [aurora.compiler.datalog :refer [query rule]]))
+  (:require-macros [aurora.language.macros :refer [query rule]]))
 
 (def key-codes {:up 38
                 :down 40
@@ -291,7 +292,7 @@
   (mapcat compile-clause (:clauses r)))
 
 (defn compile-rule [r world]
-  (datalog/macroless-rule (vec (compile-rule* r world))))
+  (denotation/macroless-rule (vec (compile-rule* r world))))
 
 (defn compile-fact [f world]
   (dissoc f :type))
@@ -516,8 +517,8 @@
       (for [fact (sort-by (comp str :ml) (:prev kn))]
         [:li {:onContextMenu (fn []
                                (swap! cur-env update-in [:kn] #(-> %
-                                                                   (datalog/retract-facts #{fact})
-                                                                   (datalog/tick))))}
+                                                                   (representation/retract-facts #{fact})
+                                                                   (representation/tick))))}
          [:div
           (rule-ui fact world)]])]
      [:div#ui-preview]
@@ -763,7 +764,7 @@
     ))
 
 (defn create-madlib [phrase]
-  (let [id (compiler/new-id)]
+  (let [id (operation/new-id)]
     (swap! state assoc-in [:madlibs id]
            (merge (explode-madlib phrase)
                   {:madlib-str phrase}))
@@ -912,3 +913,6 @@
 
 
 (init)
+
+(comment
+  (swap! aurora-state update-in [:pages] conj "foo"))

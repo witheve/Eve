@@ -1,12 +1,13 @@
 (ns aurora.runtime.core
   (:require [aurora.util.core :as util]
-            [aurora.compiler.datalog :as datalog]
-            [aurora.compiler.stratifier :as stratifier]
+            [aurora.language.representation :as representation]
+            [aurora.language.denotation :as denotation]
+            [aurora.language.stratifier :as stratifier]
             [aurora.util.core :refer [now]]
             [aurora.editor.dom :as dom]
             [clojure.set :as set]
             [aurora.editor.ReactDommy :as dommy])
-  (:require-macros [aurora.compiler.datalog :refer [query rule]]))
+  (:require-macros [aurora.language.macros :refer [query rule]]))
 
 (def watchers (atom []))
 
@@ -33,7 +34,7 @@
       (tick-inductive tick-rules)
       (tick-deductive rules)
       (tick-watchers watchers feeder-fn)
-      (datalog/tick)))
+      (representation/tick)))
 
 (defn add-history [history point limit]
   (when (>= (.-length history) limit)
@@ -55,12 +56,12 @@
       (swap! env update-in [:kn]
              (fn [cur]
                (-> (stratifier/run-ruleset (:cleanup-rules @env) cur)
-                   (datalog/tick)
-                   (datalog/assert-facts all)
-                   (datalog/tick)
+                   (representation/tick)
+                   (representation/assert-facts all)
+                   (representation/tick)
                    (tick (:tick-rules @env) (:rules @env) (:watchers @env) (:feeder-fn @env))
-                   (datalog/retract-facts all)
-                   (datalog/tick))))
+                   (representation/retract-facts all)
+                   (representation/tick))))
       (when-let [rp (dom/$ "#run-perf")]
         (dom/html rp (.toFixed (- (now) start) 3)))
       ;(println "final: " (- (.getTime (js/Date.)) start) (:kn @env))
@@ -74,8 +75,8 @@
               num)
         starting (-> (aget hist (- len num))
                      (first)
-                     (datalog/assert-facts to-merge)
-                     (datalog/tick))]
+                     (representation/assert-facts to-merge)
+                     (representation/tick))]
     (swap! env assoc :kn starting)
     (doseq [x (reverse (range 0 num))
             :let [feed-set (-> (aget hist (- len x))
@@ -93,7 +94,7 @@
     env))
 
 (defn ->env [opts]
-  (let [kn (datalog/Knowledge. (:kn opts #{}) #{} #{} (:kn opts #{}))
+  (let [kn (representation/->Knowledge (:kn opts #{}) #{} #{} (:kn opts #{}))
         env (merge {:tick-rules []
                     :cleanup-rules []
                     :rules []

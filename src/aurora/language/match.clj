@@ -1,4 +1,4 @@
-(ns aurora.compiler.match)
+(ns aurora.language.match)
 
 (defn vars [form]
   (cond
@@ -20,7 +20,7 @@
         pattern-varss (for [pattern patterns] (vec (vars pattern)))]
     `(let [~input-sym ~input]
        ~@(for [[pattern-sym pattern-vars pattern] (map vector pattern-syms pattern-varss patterns)]
-           `(defonce ~pattern-sym (aurora.compiler.match/pattern ~(clojure.walk/postwalk quote-meta pattern) '~pattern-vars)))
+           `(defonce ~pattern-sym (aurora.language.match/pattern ~(clojure.walk/postwalk quote-meta pattern) '~pattern-vars)))
        ~(reduce
          (fn [tail [pattern-sym pattern-vars pattern guard action]]
            `(let [results# (~pattern-sym ~input-sym)
@@ -28,7 +28,7 @@
               (if (and results# ~@(when guard [guard]))
                 ~action
                 ~tail)))
-         `(throw (aurora.compiler.match/MatchFailure. ~input-sym))
+         `(throw (aurora.language.match/MatchFailure. ~input-sym))
          (map vector pattern-syms pattern-varss patterns guards actions)))))
 
 (defn parse-patterns&actions [patterns&actions]

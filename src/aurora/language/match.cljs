@@ -1,8 +1,10 @@
-(ns aurora.compiler.match
+(aset js/aurora.language "match" nil)
+
+(ns aurora.language.match
   (:require [clojure.walk :refer [postwalk-replace]]
-            [aurora.compiler.jsth :as jsth])
+            [aurora.language.jsth :as jsth])
   (:require-macros [aurora.macros :refer [check deftraced]]
-                   [aurora.compiler.match :refer [match]]))
+                   [aurora.language.match :refer [match]]))
 
 ;; TODO check repeated vars against each other
 
