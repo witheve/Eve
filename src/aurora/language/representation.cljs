@@ -28,7 +28,7 @@
 
 (defn check-facts [name->schema authority facts]
   (doseq [fact facts]
-    (when-let [schema (name->schema (pred-name fact))]
+    (when-let [schema (get name->schema (pred-name fact))]
       ;; TODO (assert schema)
       (assert (= authority (:authority schema)) (pr-str fact (:authority schema)))
       (doseq [[key valid?] (:key->valid? schema)]
