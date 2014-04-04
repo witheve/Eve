@@ -53,18 +53,18 @@
 (def find-elems (rule {:ml :ui/elem
                         "id" id
                         "tag" tag}
-                       (+ [id tag])))
+                       (> [id tag])))
 
 (def find-text (rule {:ml :ui/text
                        "id" id
                        "text" text}
-                      (+ [id text])))
+                      (> [id text])))
 
 (def find-attr (rule {:ml :ui/attr
                        "id" id
                        "attr" attr
                        "value" value}
-                       (+ {:id id
+                       (> {:id id
                            :attr attr
                            :value value})))
 
@@ -73,7 +73,7 @@
                             "entity" entity
                             "event-key" key
                             "event" event}
-                           (+ {:id id
+                           (> {:id id
                                :event-key key
                                :entity entity
                                :event event})))
@@ -83,7 +83,7 @@
                        "id" id
                        "attr" attr
                        "value" value}
-                       (+ {:id id
+                       (> {:id id
                            :attr attr
                            :value value})))
 
@@ -91,7 +91,7 @@
                           "id" id
                           "child" child-id
                           "pos" pos}
-                          (+ {:id id
+                          (> {:id id
                               :child-id child-id
                               :pos pos})))
 

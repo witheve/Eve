@@ -19,12 +19,12 @@
 ;; tick fact {:name 12341234 :madlib "tick with [id]" :id 9}
 (def aurora-refreshes (rule {:ml :aurora/refresh
                              "waiting time" time}
-                            (+ time)))
+                            (> time)))
 
 (def find-waits (rule (+ed {:ml :timers/wait
                              "time" time
                              "timer" id})
-                      (+ [time id])))
+                      (> [time id])))
 
 (defn on-bloom-tick [knowledge queue]
   (println "in bloom tick")

@@ -5,32 +5,29 @@
 
 ;; KNOWLEDGE
 
-(defrecord Knowledge [prev asserted-now retracted-now now])
+(defrecord Knowledge [pretended asserted retracted now])
 
-(defn tick [{:keys [now]}]
-  (->Knowledge now #{} #{} now))
+(defn pretend-facts [kn facts]
+  (update-in kn [:pretended] into facts))
 
 (defn assert-facts [kn facts]
-  (let [prev (:prev kn)
-        now (transient (:now kn))
-        asserted-now (transient (:asserted-now kn))
-        retracted-now (:retracted-now kn)]
-    (doseq [fact facts]
-      (conj!! asserted-now fact)
-      (when (or (contains? prev fact) (not (contains? retracted-now fact)))
-        (conj!! now fact)))
-    (->Knowledge prev (persistent! asserted-now) retracted-now (persistent! now))))
+  (update-in kn [:asserted] into facts))
 
 (defn retract-facts [kn facts]
-  (let [prev (:prev kn)
-        now (transient (:now kn))
-        asserted-now  (:asserted-now kn)
-        retracted-now (transient (:retracted-now kn))]
-    (doseq [fact facts]
-      (conj!! retracted-now fact)
-      (when (or (not (contains? prev fact)) (not (contains? asserted-now fact)))
-        (disj!! now fact)))
-    (->Knowledge prev asserted-now (persistent! retracted-now) (persistent! now))))
+  (update-in kn [:retracted] into facts))
+
+(defn tick [kn]
+  (let [now (:now kn)
+        next (transient (:now kn))
+        asserted (:asserted kn)
+        retracted (:retracted kn)]
+    (doseq [fact asserted]
+      (when (or (contains? now fact) (not (contains? retracted fact)))
+        (conj!! next fact)))
+    (doseq [fact retracted]
+      (when (or (not (contains? now fact)) (not (contains? asserted fact)))
+        (disj!! next fact)))
+    (->Knowledge #{} #{} #{} (persistent! next))))
 
 (defn name? [x]
   (or (string? x) (keyword? x)))
@@ -42,10 +39,15 @@
    :else ::any))
 
 (defn by-pred-name [kn]
-  (group-by pred-name (:now kn)))
+  (group-by pred-name (concat (:now kn) (:pretended kn))))
 
 (comment
-  (-> (->Knowledge #{:a} #{} #{} #{})
+  (-> (->Knowledge #{} #{} #{} #{:a})
       (assert-facts [:a :b :c])
-      (retract-facts [:a :b :d]))
+      (retract-facts [:a :b :d])
+      tick)
   )
+
+;; SCHEMAS
+
+(defrecord Schema [name authority]) ;; authority is :state or :view

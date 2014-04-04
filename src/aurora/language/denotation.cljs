@@ -5,50 +5,40 @@
             [aurora.language.jsth :as jsth]
             [aurora.language.match :as match]
             [aurora.language.representation :refer [pred-name tick ->Knowledge]]
-            [aurora.language.operation :refer [expr->vars +node +assert +retract ->project ->join ->filter ->let ->group ->map ->mapcat ->Rule query-rule run-rule]])
+            [aurora.language.operation :refer [expr->vars +node +pretend +assert +retract ->project ->join ->filter ->let ->group ->map ->mapcat ->Rule query-rule run-rule]])
   (:require-macros [aurora.macros :refer [check console-time set!! conj!! disj!! assoc!!]]
                    [aurora.language.macros :refer [query rule]]))
 
 ;; CLAUSES
 
-(defrecord Fact [time pattern])
+(defrecord Fact [time pattern]) ;; time is one of :now&pretended :pretended :asserted :retracted :now
 (defrecord Filter [expr])
 (defrecord Let [name expr])
 (defrecord Set [name vars clauses])
-(defrecord Assert [pattern])
-(defrecord Retract [pattern])
-(defrecord AssertMany [expr])
-(defrecord RetractMany [expr])
+(defrecord Output [action pattern]) ;; action is one of :pretend :assert :retract
+(defrecord OutputMany [action expr]) ;; action is one of :pretend :assert :retract
 
-;; RULE ANALYSIS
+;; DEPENDENCIES
 
 (defn preds-in [clause]
-  ;; TODO check not nil
   (condp = (type clause)
     Fact #{(pred-name (:pattern clause))}
     Set (apply clojure.set/union (map preds-in (:clauses clause)))
     #{}))
 
 (defn preds-out [clause]
-  ;; TODO check not nil
   (condp = (type clause)
-    Assert #{(pred-name (:pattern clause))}
-    Retract #{(pred-name (:pattern clause))}
-    AssertMany #{:aurora.language.representation/any}
-    RetractMany #{:aurora.language.representation/any}
+    Output #{(pred-name (:pattern clause))}
+    OutputMany #{:aurora.language.representation/any}
     #{}))
 
 (defn negs-in [clause]
-  ;; TODO check not nil
   (condp = (type clause)
     Set (apply clojure.set/union (map preds-in (:clauses clause)))
     #{}))
 
 (defn negs-out [clause]
-  ;; TODO check not nil
   (condp = (type clause)
-    Retract #{(pred-name (:pattern clause))}
-    RetractMany #{:aurora.language.representation/any}
     #{}))
 
 ;; PLANS
@@ -77,7 +67,7 @@
 
 (defn clauses->rule [clauses]
   (let [plan #js []
-        rule (->Rule plan #js [] #js []
+        rule (->Rule plan #js [] #js [] #js []
                      (apply union (map preds-in clauses))
                      (apply union (map preds-out clauses))
                      (apply union (map negs-in clauses))
@@ -85,10 +75,14 @@
         body (clauses->body plan clauses)]
     (doseq [clause clauses]
       (condp = (type clause)
-        Assert (+assert rule (->map body (:pattern clause)))
-        Retract (+retract rule (->map body (:pattern clause)))
-        AssertMany (+assert rule (->mapcat body (:expr clause)))
-        RetractMany (+retract rule (->mapcat body (:expr clause)))
+        Output (case (:action clause)
+                 :pretend (+pretend rule (->map body (:pattern clause)))
+                 :assert (+assert rule (->map body (:pattern clause)))
+                 :retract (+retract rule (->map body (:pattern clause))))
+        OutputMany (case (:action clause)
+                     :pretend (+pretend rule (->mapcat body (:expr clause)))
+                     :assert (+assert rule (->mapcat body (:expr clause)))
+                     :retract (+retract rule (->mapcat body (:expr clause))))
         nil))
     rule))
 
@@ -103,14 +97,14 @@
    (rule [a b _]
          [_ a b]
          (? (integer? a))
-         (+ [a b]))
+         (> [a b]))
    (tick {:now #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]}}))
 
   (query-rule
    (rule [a b c]
          (= foo (+ b 4))
-         (+s [[a] [b] [c]])
-         (+ [a foo]))
+         (>s [[a] [b] [c]])
+         (> [a foo]))
    (tick {:now #{[1 2 3] [3 4 5]}}))
 
   (run-rule
@@ -124,29 +118,29 @@
   (run-rule
    (rule [a b _]
          (+ed [_ a b])
-         (? [a] (integer? a))
+         (? (integer? a))
          (+ [a a a])
          (- [b b b]))
-   (->Knowledge #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{} #{[2 3 4] [:a :b :c] [:b :c :d] [1 2 3]}))
+   (->Knowledge #{} #{[1 2 3]} #{} #{[2 3 4] [:a :b :c] [:b :c :d] [1 2 3]}))
 
   (run-rule
    (rule [a b _]
          [_ a b]
-         (? [a] (integer? a))
+         (? (integer? a))
          (+ [a a a])
          (- [b b b]))
-   (->Knowledge #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{[1 2 3]} #{[2 3 4] [:a :b :c] [:b :c :d]}))
+   (->Knowledge #{} #{[1 2 3]} #{[1 2 3]} #{[2 3 4] [:a :b :c] [:b :c :d]}))
 
   (query-rule
    (rule (+ed [a b])
-         (+ [a b]))
-   (->Knowledge #{} #{[1 2]} #{} #{[1 2]}))
+         (> [a b]))
+   (->Knowledge #{} #{[1 2]} #{} #{}))
 
   (query-rule
    (rule (set x [b c]
               [a b c]
               [b c d])
-         (+ [a d x]))
+         (> [a d x]))
    (tick {:now #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]}}))
 
   (query-rule
@@ -155,7 +149,7 @@
          (set x [b c]
               [a b c]
               [b c d])
-         (+ [a b c d x]))
+         (> [a b c d x]))
    (tick {:now #{[1 2 3] [2 3 4] [3 4 5] [2 8 9] [8 9 5]}}))
 
 ;; (in ...) is not currently supported
@@ -177,7 +171,7 @@
          (= d (- a b))
          (+ [c c c])
          (- [d d d]))
-   (->Knowledge #{[2 3 4] [:a :b :c] [:b :c :d]} #{[1 2 3]} #{} #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]}))
+   (->Knowledge #{} #{[1 2 3]} #{} #{[1 2 3] [2 3 4] [:a :b :c] [:b :c :d]}))
 
   (run-rule
    (rule (set x [id]

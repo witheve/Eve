@@ -10,6 +10,7 @@
 (defn check-expr [expr]
   (case (op expr)
     :pattern nil
+    >ed (assert (= 2 (count expr)) (pr-str expr))
     +ed (assert (= 2 (count expr)) (pr-str expr))
     -ed (assert (= 2 (count expr)) (pr-str expr))
     ? (assert (= 2 (count expr))
@@ -22,13 +23,12 @@
                      (vector? (nth expr 2))
                      (mapv check-expr (nthnext expr 3)))
                 (pr-str expr))
+    > (assert (= 2 (count expr)) (pr-str expr))
     + (assert (= 2 (count expr)) (pr-str expr))
     - (assert (= 2 (count expr)) (pr-str expr))
-    > (assert (= 3 (count expr)) (pr-str expr))
-    +s (assert (= 2 (count expr))
-               (pr-str expr))
-    -s (assert (= 2 (count expr))
-               (pr-str expr))))
+    >s (assert (= 2 (count expr)) (pr-str expr))
+    +s (assert (= 2 (count expr)) (pr-str expr))
+    -s (assert (= 2 (count expr)) (pr-str expr))))
 
 (defmacro rule [& exprs]
   (mapv check-expr exprs)

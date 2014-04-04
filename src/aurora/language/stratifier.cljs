@@ -68,53 +68,53 @@
 (def stratifier-strata
   [;; handle ::any
    (rule [:pred-in _ p]
-         (+ [:pred p]))
+         (> [:pred p]))
    (rule [:pred-out _ p]
-         (+ [:pred p]))
+         (> [:pred p]))
    (rule [:pred p]
-         (+ [:matches p p])
-         (+ [:matches :aurora.language.representation/any p])
-         (+ [:matches p :aurora.language.representation/any]))
+         (> [:matches p p])
+         (> [:matches :aurora.language.representation/any p])
+         (> [:matches p :aurora.language.representation/any]))
    ;; find edges
    (rule [:pred-out i p]
          [:pred-in j q]
          [:matches p q]
-         (+ [:with i j]))
+         (> [:with i j]))
    (rule [:pred-out i p]
          [:neg-in j q]
          [:matches p q]
-         (+ [:before i j]))
+         (> [:before i j]))
    (rule [:neg-out i p]
          [:pred-in j q]
          [:matches p q]
-         (+ [:before i j]))
+         (> [:before i j]))
    ;; hack around broken aggregates
    (rule [:rule i]
-         (+ [:before i ::end]))
+         (> [:before i ::end]))
    ;; transitive closure
    [(rule [:with i j]
           [:with j k]
-          (+ [:with i k]))]
+          (> [:with i k]))]
    [(rule [:with i j]
           [:before j k]
-          (+ [:before i k]))]
+          (> [:before i k]))]
    ;; cycles
    (rule [:before i j]
          (? (= i j)) ;; TODO get pattern matching to handle repeated vars
          (set cycle [k]
               [:before k i])
-         (+ [:cycle i cycle]))
+         (> [:cycle i cycle]))
    ;; groups
    (rule (set descendants [j]
               [:before i j])
-         (+ [:descendants i descendants]))
+         (> [:descendants i descendants]))
    (rule (set group [i]
               [:descendants i descendants])
-         (+ [:group group descendants]))
+         (> [:group group descendants]))
    (rule (set groups [descendants group]
               [:group group descendants])
          (= ordering (aurora.language.stratifier.order groups))
-         (+ [:ordering ordering]))])
+         (> [:ordering ordering]))])
 
 (def stratifier-rules
   (strata->rules stratifier-strata))
@@ -158,37 +158,37 @@
   [(rule [:foo x]
          (- [:bar x]))
    (rule [:bar x]
-         (+ [:foo x]))])
+         (> [:foo x]))])
 
 (def test-rules-c
   [(rule [:foo x]
          (- [:bar x]))
    (rule any
-         (+ [:foo any]))])
+         (> [:foo any]))])
 
 (def test-rules-d
   [(rule [:foo x]
          (- [:bar x]))
    (rule any
-         (+ [:quux any]))])
+         (> [:quux any]))])
 
 (def test-rules-e
   [(rule [:foo x]
          (- [:bar x]))
    (rule [:bar x]
-         (+ [:quux x]))
+         (> [:quux x]))
    (rule [:quux x]
-         (+ [:foo x]))])
+         (> [:foo x]))])
 
 (def test-rules-f
   [(rule [:foo x]
          (- [:bar x]))
    (rule [:bar x]
-         (+ [:quux x]))
+         (> [:quux x]))
    (rule [:foo x]
          (- [:quux x]))
    (rule [:quux x]
-         (+ [:final x]))])
+         (> [:final x]))])
 
 (representation/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-a)))
 

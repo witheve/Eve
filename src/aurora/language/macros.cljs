@@ -12,8 +12,10 @@
   (= var expr)
   (set var vars & clauses)
   ;; (in var var)
+  (> pattern)
   (+ pattern)
   (- pattern)
+  (>s expr)
   (+s expr)
   (-s expr)
   )
@@ -25,19 +27,23 @@
 
 (defn expr->clause [expr]
   (case (op expr)
-    :pattern (denotation/->Fact :now expr)
-    +ed (denotation/->Fact :asserted-now (nth expr 1))
-    -ed (denotation/->Fact :retracted-now (nth expr 1))
+    :pattern (denotation/->Fact :now&pretended expr)
+    >ed (denotation/->Fact :pretended (nth expr 1))
+    +ed (denotation/->Fact :asserted (nth expr 1))
+    -ed (denotation/->Fact :retracted (nth expr 1))
     ? (denotation/->Filter (nth expr 1))
     = (denotation/->Let (nth expr 1) (nth expr 2))
     set (denotation/->Set (nth expr 1) (nth expr 2) (mapv expr->clause (nthnext expr 3)))
-    + (denotation/->Assert (nth expr 1))
-    - (denotation/->Retract (nth expr 1))
-    +s (denotation/->AssertMany (nth expr 1))
-    -s (denotation/->RetractMany (nth expr 1))))
+    > (denotation/->Output :pretend (nth expr 1))
+    + (denotation/->Output :assert (nth expr 1))
+    - (denotation/->Output :retract (nth expr 1))
+    >s (denotation/->OutputMany :pretend (nth expr 1))
+    +s (denotation/->OutputMany :assert (nth expr 1))
+    -s (denotation/->OutputMany :retract (nth expr 1))))
 
 (defn macroless-rule [exprs]
   (denotation/clauses->rule (mapv expr->clause exprs)))
+
 
 (comment
   (mapv expr->clause '[[:foo a b]

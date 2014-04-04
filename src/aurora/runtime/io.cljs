@@ -8,7 +8,7 @@
 (def find-http-gets (rule (+ed {:ml :http/get
                                 "url" url
                                 "id" id})
-                          (+ [id url])))
+                          (> [id url])))
 
 (defn on-bloom-tick [knowledge queue]
   (println "in io watcher")

@@ -4,8 +4,9 @@
   (:require [clojure.set :refer [union intersection difference subset?]]
             [aurora.language.jsth :as jsth]
             [aurora.language.match :as match]
-            [aurora.language.representation :refer [->Knowledge]])
-  (:require-macros [aurora.macros :refer [console-time set!! conj!! disj!! assoc!!]]))
+            [aurora.language.representation :refer [->Knowledge tick pretend-facts assert-facts retract-facts]])
+  (:require-macros [aurora.macros :refer [console-time set!! conj!! disj!! assoc!!]]
+                   [aurora.language.macros :refer [rule]]))
 
 (def profile? false)
 
@@ -66,8 +67,14 @@
 (defrecord Project [key pattern pattern-fn shape]
   PlanNode
   (run-node [this cache kn]
-       (let [result (transient #{})]
-         (doseq [fact (key kn)]
+       (let [result (transient #{})
+             facts (case key ;; TODO this is kind of hacky
+                     :now&pretended (concat (:now kn) (:pretended kn))
+                     :pretended (:pretended kn)
+                     :asserted (:asserted kn)
+                     :retracted (:retracted kn)
+                     :now (:now kn))]
+         (doseq [fact facts]
            (when-let [row (pattern-fn fact)]
              (conj!! result (js/cljs.core.PersistentVector.fromArray row true))))
          (persistent! result))))
@@ -250,7 +257,12 @@
 
 ;; RULES
 
-(defrecord Rule [plan assert-ixes retract-ixes preds-in preds-out negs-in negs-out])
+(defrecord Rule [plan pretend-ixes assert-ixes retract-ixes preds-in preds-out negs-in negs-out])
+
+(defn +pretend [{:keys [plan pretend-ixes]} node]
+  (let [[ix shape] (+node plan node)]
+    (.push pretend-ixes ix)
+    [ix shape]))
 
 (defn +assert [{:keys [plan assert-ixes]} node]
   (let [[ix shape] (+node plan node)]
@@ -262,18 +274,14 @@
     (.push retract-ixes ix)
     [ix shape]))
 
-(defn query-rule [{:keys [plan assert-ixes retract-ixes]} kn]
+(defn query-rule [{:keys [plan pretend-ixes]} kn]
   (let [cache (make-array (count plan))
         result (transient #{})]
     (run-plan plan cache kn)
-    (console-time "query asserts" profile?
-                  (doseq [assert-ix assert-ixes
-                          fact (aget cache assert-ix)]
+    (console-time "query pretends" profile?
+                  (doseq [pretend-ix pretend-ixes
+                          fact (aget cache pretend-ix)]
                     (conj!! result fact)))
-    (console-time "query retracts" profile?
-                  (doseq [retract-ix retract-ixes
-                          fact (aget cache retract-ix)]
-                    (disj!! result fact)))
     (persistent! result)))
 
 (comment
@@ -284,45 +292,26 @@
     (query-rule rule kn))
   )
 
-(defn run-rule [{:keys [plan assert-ixes retract-ixes]} kn]
-  (let [cache (make-array (count plan))
-        prev (:prev kn)
-        now (transient (:now kn))
-        asserted-now (transient (:asserted-now kn))
-        retracted-now (transient (:retracted-now kn))]
+(defn run-rule [{:keys [plan pretend-ixes assert-ixes retract-ixes]} kn]
+  (let [cache (make-array (count plan))]
     (run-plan plan cache kn)
+    (console-time "rule pretends" profile?
+                  (doseq [pretend-ix pretend-ixes]
+                    (set!! kn (pretend-facts kn (aget cache pretend-ix)))))
     (console-time "rule asserts" profile?
-                  (doseq [assert-ix assert-ixes
-                          fact (aget cache assert-ix)]
-                    (conj!! asserted-now fact)
-                    (when (or (contains? prev fact) (not (contains? retracted-now fact)))
-                      (conj!! now fact))))
+                  (doseq [assert-ix assert-ixes]
+                    (set!! kn (assert-facts kn (aget cache assert-ix)))))
     (console-time "rule retracts" profile?
-                  (doseq [retract-ix retract-ixes
-                          fact (aget cache retract-ix)]
-                    (conj!! retracted-now fact)
-                    (when (or (not (contains? prev fact)) (not (contains? asserted-now fact)))
-                      (disj!! now fact))))
-    (->Knowledge prev (persistent! asserted-now) (persistent! retracted-now) (persistent! now))))
+                  (doseq [retract-ix retract-ixes]
+                    (set!! kn (retract-facts kn (aget cache retract-ix)))))
+    kn))
 
 (comment
-  (let [kn (->Knowledge #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}} #{} #{} #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
-        rule (clauses->rule '[{:a a :b b}
-                              {:c c :b b}
-                              (+ {:a a :c c})
-                              (- {:a a :c c})])]
-    (run-rule rule kn))
-
-  (let [kn (->Knowledge #{{:a 1 :c 1} {:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}} #{} #{} #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
-        rule (clauses->rule '[{:a a :b b}
-                              {:c c :b b}
-                              (+ {:a a :c c})
-                              (- {:a a :c c})])]
-    (run-rule rule kn))
-
-  (let [kn (->Knowledge #{{:a 1 :c 1} {:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}} #{} #{} #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
-        rule (clauses->rule '[{:a a :b b}
-                              {:c c :b b}
-                              (- {:a a :c c})])]
+  (let [kn (->Knowledge #{} #{} #{} #{{:a 1 :b 2} {:a 2 :b 3} {:c 1 :b 2} {:c 2 :d 4}})
+        rule (rule {:a a :b b}
+                   {:c c :b b}
+                   (> {:a 0 :c c})
+                   (+ {:a 1 :c c})
+                   (- {:a 2 :c c}))]
     (run-rule rule kn))
   )
