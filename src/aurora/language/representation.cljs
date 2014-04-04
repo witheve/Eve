@@ -3,17 +3,47 @@
 (ns aurora.language.representation
   (:require-macros [aurora.macros :refer [set!! conj!! disj!! assoc!!]]))
 
+;; SCHEMAS
+
+(defrecord Schema [name authority key->valid?]) ;; authority is :essential or :derived
+
 ;; KNOWLEDGE
 
-(defrecord Knowledge [pretended asserted retracted now])
+(defrecord Knowledge [pretended asserted retracted now name->schema])
+
+(defn name? [x]
+  (or (string? x) (keyword? x)))
+
+(defn pred-name [fact|pattern]
+  (cond
+   (and (map? fact|pattern) (name? (:name fact|pattern))) (:name fact|pattern)
+   (and (vector? fact|pattern) (name? (first fact|pattern))) (first fact|pattern)
+   :else ::any))
+
+(defn by-pred-name [kn]
+  (group-by pred-name (concat (:now kn) (:pretended kn))))
+
+(defn with-schemas [kn schemas]
+  (assoc-in kn [:name->schema] (zipmap (map :name schemas) schemas)))
+
+(defn check-facts [name->schema authority facts]
+  (doseq [fact facts]
+    (when-let [schema (name->schema (pred-name fact))]
+      ;; TODO (assert schema)
+      (assert (= authority (:authority schema)) (pr-str fact (:authority schema)))
+      (doseq [[key valid?] (:key->valid? schema)]
+        (assert (valid? (get fact key)) (pr-str fact key valid?))))))
 
 (defn pretend-facts [kn facts]
+  (check-facts (:name->schema kn) :derived facts)
   (update-in kn [:pretended] into facts))
 
 (defn assert-facts [kn facts]
+  (check-facts (:name->schema kn) :essential facts)
   (update-in kn [:asserted] into facts))
 
 (defn retract-facts [kn facts]
+  (check-facts (:name->schema kn) :essential facts)
   (update-in kn [:retracted] into facts))
 
 (defn tick [kn]
@@ -29,25 +59,24 @@
         (disj!! next fact)))
     (->Knowledge #{} #{} #{} (persistent! next))))
 
-(defn name? [x]
-  (or (string? x) (keyword? x)))
-
-(defn pred-name [fact|pattern]
-  (cond
-   (and (map? fact|pattern) (name? (:name fact|pattern))) (:name fact|pattern)
-   (and (vector? fact|pattern) (name? (first fact|pattern))) (first fact|pattern)
-   :else ::any))
-
-(defn by-pred-name [kn]
-  (group-by pred-name (concat (:now kn) (:pretended kn))))
-
 (comment
   (-> (->Knowledge #{} #{} #{} #{:a})
       (assert-facts [:a :b :c])
       (retract-facts [:a :b :d])
       tick)
+
+  (-> (->Knowledge #{} #{} #{} #{:a})
+      (with-schemas [(->Schema :foo :essential {1 keyword? 2 string?})])
+      (assert-facts [[:foo :bar "baz"]])
+      tick)
+
+  (-> (->Knowledge #{} #{} #{} #{:a})
+      (with-schemas [(->Schema :foo :essential {1 keyword? 2 string?})])
+      (assert-facts [[:foo :bar :baz]])
+      tick)
+
+  (-> (->Knowledge #{} #{} #{} #{:a})
+      (with-schemas [(->Schema :foo :essential {1 keyword? 2 string?})])
+      (pretend-facts [[:foo :bar "baz"]])
+      tick)
   )
-
-;; SCHEMAS
-
-(defrecord Schema [name authority]) ;; authority is :state or :view

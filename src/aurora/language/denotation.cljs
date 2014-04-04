@@ -4,7 +4,7 @@
   (:require [clojure.set :refer [union intersection difference subset?]]
             [aurora.language.jsth :as jsth]
             [aurora.language.match :as match]
-            [aurora.language.representation :refer [pred-name tick ->Knowledge]]
+            [aurora.language.representation :refer [pred-name tick ->Knowledge ->Schema with-schemas]]
             [aurora.language.operation :refer [expr->vars +node +pretend +assert +retract ->project ->join ->filter ->let ->group ->map ->mapcat ->Rule query-rule run-rule]])
   (:require-macros [aurora.macros :refer [check console-time set!! conj!! disj!! assoc!!]]
                    [aurora.language.macros :refer [query rule]]))
@@ -40,6 +40,20 @@
 (defn negs-out [clause]
   (condp = (type clause)
     #{}))
+
+;; SAFETY
+
+(defn check-clause [{:keys [name->schema] :as kn} clause]
+  (condp = (type clause)
+    Output (let [schema (name->schema (pred-name (:pattern clause)))]
+             (case (:authority schema)
+               :essential (assert (#{:assert :retract} (:action clause)) (pr-str clause (:authority schema)))
+               :derived (assert (#{:pretend} (:action clause)) (pr-str clause (:authority schema)))))
+    nil))
+
+(defn check-clauses [kn clauses]
+  (doseq [clause clauses]
+    (check-clause kn clause)))
 
 ;; PLANS
 
@@ -184,5 +198,14 @@
               {:name "foo" :id id})
          (+s [x] x))
    (tick {:now #{{:name "zomg" :id 4} {:name "foo" :id 3}}}))
+
+  (check-clause (with-schemas (->Knowledge) [(->Schema :foo :essential {})])
+                (->Output :assert [:foo]))
+
+  (check-clause (with-schemas (->Knowledge) [(->Schema :foo :essential {})])
+                (->Output :pretend [:foo]))
+
+  (check-clause (with-schemas (->Knowledge) [(->Schema :foo :derived {})])
+                (->Output :assert [:foo]))
 
   )
