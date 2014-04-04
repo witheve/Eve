@@ -93,10 +93,8 @@
        (let [result (transient #{})]
          (doseq [row-i (nth cache i)
                  :let [key-i (js/cljs.core.PersistentVector.fromArray (select-ixes row-i key-ixes-i) true)]
-                 :let [_ (prn 'i key-i)]
                  row-j (nth cache j)
                  :let [key-j (js/cljs.core.PersistentVector.fromArray (select-ixes row-j key-ixes-j) true)]
-                 :let [_ (prn 'j key-j)]
                  :when (= key-i key-j)]
            (conj!! result (js/cljs.core.PersistentVector.fromArray (.concat (select-ixes row-i select-ixes-i) (select-ixes row-j select-ixes-j)) true)))
          (persistent! result))))
