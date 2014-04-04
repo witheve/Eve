@@ -213,8 +213,6 @@
 (defmethod draw-clause "all" [clause world path]
   [:span [:span.keyword "all "] (rule-ui clause world path)])
 
-(list [3] [2])
-
 (defmethod draw-clause "change" [clause world path]
   (let [rule (get-in @state [:madlibs (:ml clause)])
         placeholders (into {} (for [k (keys (:placeholders rule))]
@@ -235,20 +233,20 @@
   (compile-clause (assoc clause :type "find") world))
 
 (defmethod compile-clause "find" [clause world]
-  [(dissoc clause :type)])
+  [(denotation/Filter. (dissoc clause :type))])
 
 (defmethod compile-clause "add" [clause world]
-  [(list '+ (dissoc clause :type))])
+  [(denotation/Assert. (dissoc clause :type))])
 
 
 (defmethod compile-clause "all" [clause world]
   (let [things (get clause "things")]
-    [(list '+s (if (string? things)
-                 (reader/read-string things)
-                 (or things [])))]))
+    [(denotation/AssertMany. (if (string? things)
+                               (reader/read-string things)
+                               (or things [])))]))
 
 (defmethod compile-clause "forget" [clause world]
-  [(list '- (dissoc clause :type))])
+  [(denotation/Retract. (dissoc clause :type))])
 
 (defmethod compile-clause "see" [clause world]
   (let [exp (get clause "expression")
@@ -256,7 +254,7 @@
               (reader/read-string exp)
               exp)
         final (list '= (get clause "name") exp)]
-    [(list '= (get clause "name" 'x) exp)]))
+    [(denotation/Let. (get clause "name" 'x) exp)]))
 
 (defmethod compile-clause "change" [clause world]
   (let [rule (get-in @state [:madlibs (:ml clause)])
@@ -267,16 +265,16 @@
         syms (into {} (for [k (keys (dissoc clause :ml))]
                         [k (gensym k)]))
         sees (for [[k v] (dissoc clause :ml)]
-               (list '= (syms k) (if (string? v)
-                                   (reader/read-string v)
-                                   v)))
+               (denotation/Let. (syms k) (if (string? v)
+                                           (reader/read-string v)
+                                           v)))
         jsd (into clause (for [[k v] (dissoc clause :ml)]
                            [k (syms k)]))
         ]
     (conj sees
-          (merge clause placeholders)
-          (list '- (merge clause placeholders new-bound-syms))
-          (list '+ (merge placeholders clause new-bound-syms jsd)))
+          (denotation/Filter. (merge clause placeholders))
+          (denotation/Retract. (merge clause placeholders new-bound-syms))
+          (denotation/Assert. (merge placeholders clause new-bound-syms jsd)))
     )
   )
 
@@ -285,16 +283,16 @@
         ui-facts (try
                    (reader/read-string ui)
                    (catch :default e))]
-    [(list '+s (if-not ui-facts
-                 []
-                 `(hiccup ~ui-facts)))]
+    [(denotation/AssertMany. (if-not ui-facts
+                               []
+                               `(hiccup ~ui-facts)))]
     ))
 
 (defn compile-rule* [r world]
   (mapcat compile-clause (:clauses r)))
 
 (defn compile-rule [r world]
-  (aurora.language.macros/macroless-rule (vec (compile-rule* r world))))
+  (denotation/clauses->rule (vec (compile-rule* r world))))
 
 (defn compile-fact [f world]
   (dissoc f :type))
@@ -318,7 +316,7 @@
 
 (defn inject-compiled []
   (let [comped (compile-state)
-        tick-rules (stratifier/strata->ruleset (:rules comped))
+        tick-rules (stratifier/strata->ruleset (stratifier/stratify (:rules comped)))
         paused? (:paused @cur-env)]
     (pause cur-env)
     (swap! cur-env assoc :tick-rules tick-rules)
