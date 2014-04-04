@@ -5,20 +5,20 @@
             [aurora.language.jsth :as jsth]
             [aurora.language.match :as match]
             [aurora.language.representation :refer [pred-name tick ->Knowledge]]
-            [aurora.language.operation :refer [+node +assert +retract ->project ->join ->filter ->let ->group ->map ->mapcat ->Rule query-rule run-rule]])
+            [aurora.language.operation :refer [expr->vars +node +assert +retract ->project ->join ->filter ->let ->group ->map ->mapcat ->Rule query-rule run-rule]])
   (:require-macros [aurora.macros :refer [check console-time set!! conj!! disj!! assoc!!]]
                    [aurora.language.macros :refer [query rule]]))
 
 ;; CLAUSES
 
 (defrecord Fact [time pattern])
-(defrecord Filter [vars fun])
-(defrecord Let [name vars fun])
+(defrecord Filter [expr])
+(defrecord Let [name expr])
 (defrecord Set [name vars clauses])
 (defrecord Assert [pattern])
 (defrecord Retract [pattern])
-(defrecord AssertMany [vars fun])
-(defrecord RetractMany [vars fun])
+(defrecord AssertMany [expr])
+(defrecord RetractMany [expr])
 
 ;; RULE ANALYSIS
 
@@ -66,13 +66,13 @@
                       lets (filter #(= Let (type %)) clauses)]
                  (if (seq lets)
                    (let [set-shape (set shape)
-                         applicable (filter #(every? set-shape (:vars %)) lets)
-                         unapplicable (filter #(not (every? set-shape (:vars %))) lets)
+                         applicable (filter #(every? set-shape (expr->vars (:expr %))) lets)
+                         unapplicable (filter #(not (every? set-shape (expr->vars (:expr %)))) lets)
                          _ (assert (seq applicable) (str "Can't resolve loop in " (pr-str unapplicable)))
-                         new-node (reduce #(+node plan (->let %1 (:name %2) (:vars %2) (:fun %2))) node applicable)]
+                         new-node (reduce #(+node plan (->let %1 (:name %2) (:expr %2))) node applicable)]
                      (recur new-node unapplicable))
                    node))
-        filtered (reduce #(+node plan (->filter %1 (:vars %2) (:fun %2))) letted (filter #(= Filter (type %)) clauses))]
+        filtered (reduce #(+node plan (->filter %1 (:expr %2))) letted (filter #(= Filter (type %)) clauses))]
     filtered))
 
 (defn clauses->rule [clauses]
@@ -87,8 +87,8 @@
       (condp = (type clause)
         Assert (+assert rule (->map body (:pattern clause)))
         Retract (+retract rule (->map body (:pattern clause)))
-        AssertMany (+assert rule (->mapcat body (:vars clause) (:fun clause)))
-        RetractMany (+retract rule (->mapcat body (:vars clause) (:fun clause)))
+        AssertMany (+assert rule (->mapcat body (:expr clause)))
+        RetractMany (+retract rule (->mapcat body (:expr clause)))
         nil))
     rule))
 

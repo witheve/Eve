@@ -2,6 +2,7 @@
 
 (ns aurora.language.operation
   (:require [clojure.set :refer [union intersection difference subset?]]
+            [aurora.language.jsth :as jsth]
             [aurora.language.match :as match]
             [aurora.language.representation :refer [->Knowledge]])
   (:require-macros [aurora.macros :refer [console-time set!! conj!! disj!! assoc!!]]))
@@ -13,6 +14,26 @@
     (if js/window.uuid
       (.replace (js/uuid) (js/RegExp. "-" "gi") "_")
       (swap! next inc))))
+
+;; EXPRS
+
+(defn expr->vars [expr]
+  (cond
+   (seq? expr) (apply union (map expr->vars (rest expr))) ;; first elem is function
+   (coll? expr) (apply union (map expr->vars expr))
+   (symbol? expr) #{expr}
+   :else #{}))
+
+(defn expr->jsth [expr]
+  (clojure.walk/postwalk
+   (fn [form]
+     (if (and (seq? form) (symbol? (first form)) (not (.test #"\." (name (first form)))))
+       (cons (symbol (str "cljs.core." (first form))) (rest form))
+       form))
+   expr))
+
+(defn expr->fun [expr]
+  (apply js/Function (conj (vec (expr->vars expr)) (jsth/statement->string `(return ~(expr->jsth expr))))))
 
 ;; MAPS -> ROWS
 
@@ -95,11 +116,13 @@
            (conj!! result row))
          (persistent! result))))
 
-(defn ->filter [[i shape-i] filter-shape filter-fn]
-  (assert (every? (set shape-i) filter-shape) (str "Scope " (pr-str filter-shape) " not contained in " (pr-str shape-i)))
-  (let [filter-ixes (ixes-of shape-i filter-shape)
-        shape shape-i]
-    (->Filter i filter-fn filter-ixes shape)))
+(defn ->filter [[i shape-i] filter-expr]
+  (let [filter-shape (vec (expr->vars filter-expr))
+        filter-fn (expr->fun filter-expr)]
+    (assert (every? (set shape-i) filter-shape) (str "Scope " (pr-str filter-shape) " not contained in " (pr-str shape-i)))
+    (let [filter-ixes (ixes-of shape-i filter-shape)
+          shape shape-i]
+      (->Filter i filter-fn filter-ixes shape))))
 
 ;; (run-node (->filter [0 '[a b c]] '[a b] (fn [a b] (> a b))) [#{[1 2 3] [3 2 1] [4 5 6] [6 5 4]}])
 
@@ -113,12 +136,14 @@
              (conj!! result (conj row elem))))
          (persistent! result))))
 
-(defn ->let [[i shape-i] let-name let-shape let-fn]
-  (assert (not ((set shape-i) let-name)) (str "Name " (pr-str let-name) " is already in scope " (pr-str shape-i)))
-  (assert (every? (set shape-i) let-shape) (str "Scope " (pr-str let-shape) " not contained in " (pr-str shape-i)))
-  (let [let-ixes (ixes-of shape-i let-shape)
-        shape (conj shape-i let-name)]
-    (->Let i let-fn let-ixes shape)))
+(defn ->let [[i shape-i] let-name let-expr]
+  (let [let-shape (vec (expr->vars let-expr))
+        let-fn (expr->fun let-expr)]
+    (assert (not ((set shape-i) let-name)) (str "Name " (pr-str let-name) " is already in scope " (pr-str shape-i)))
+    (assert (every? (set shape-i) let-shape) (str "Scope " (pr-str let-shape) " not contained in " (pr-str shape-i)))
+    (let [let-ixes (ixes-of shape-i let-shape)
+          shape (conj shape-i let-name)]
+      (->Let i let-fn let-ixes shape))))
 
 ;; (run-node (->let [0 '[w x y]] 'z '[x y] (fn [x y] (+ x y))) [#{[1 2 3] [3 4 5]}])
 
@@ -193,10 +218,12 @@
                (conj!! result fact))))
          (persistent! result))))
 
-(defn ->mapcat [[i shape-i] map-shape map-fn]
-  (assert (every? (set shape-i) map-shape) (str "Scope " (pr-str map-shape) " not contained in " (pr-str shape-i)))
-  (let [map-ixes (ixes-of shape-i map-shape)]
-    (->MapCat i map-fn map-ixes)))
+(defn ->mapcat [[i shape-i] map-expr]
+  (let [map-shape (vec (expr->vars map-expr))
+        map-fn (expr->fun map-expr)]
+    (assert (every? (set shape-i) map-shape) (str "Scope " (pr-str map-shape) " not contained in " (pr-str shape-i)))
+    (let [map-ixes (ixes-of shape-i map-shape)]
+      (->MapCat i map-fn map-ixes))))
 
 ;; (run-node (->mapcat [0 '[a b c d]] '[b d] (fn [a b] [{:a a} {:b b}])) [#{[1 2 3 4] [5 6 7 8]}])
 
