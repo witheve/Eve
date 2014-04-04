@@ -97,10 +97,14 @@
                                                                     :type "html event"}
                                                            "id" {:order 1
                                                                  :type "id"}}}
-                        :ui/onClick {:madlib ["id", " is clicked"]
-                                     :madlib-str "[id] is clicked"
+                        :ui/onClick {:madlib ["id", " is clicked" "event" "entity"]
+                                     :madlib-str "[id] is clicked [event] [entity]"
                                      :placeholders {"id" {:order 0
-                                                          :type "id"}}}
+                                                          :type "id"}
+                                                    "event" {:order 1
+                                                             :type "string"}
+                                                    "entity" {:order 2
+                                                              :type "string"}}}
                         :ui/onDoubleClick {:madlib ["id", " was double clicked raising ", "event", " on ", "entity"]
                                            :madlib-str "[id] was double clicked raising [event] on [entity]"
                                            :placeholders {"id" {:order 0
@@ -155,7 +159,10 @@
                   :matcher {}
                   :statements []}))
 
+(defn cur-date [x]
+  (js/Date. x))
 (set! js/cljs.core.hiccup js/aurora.runtime.ui.hiccup->facts)
+(set! js/cljs.core.date cur-date)
 
 (declare rule-ui matches)
 
@@ -233,20 +240,20 @@
   (compile-clause (assoc clause :type "find") world))
 
 (defmethod compile-clause "find" [clause world]
-  [(denotation/Filter. (dissoc clause :type))])
+  [(denotation/Fact. :now&pretended (dissoc clause :type))])
 
 (defmethod compile-clause "add" [clause world]
-  [(denotation/Assert. (dissoc clause :type))])
+  [(denotation/Output. :assert (dissoc clause :type))])
 
 
 (defmethod compile-clause "all" [clause world]
   (let [things (get clause "things")]
-    [(denotation/AssertMany. (if (string? things)
-                               (reader/read-string things)
-                               (or things [])))]))
+    [(denotation/OutputMany. :assert (if (string? things)
+                                       (reader/read-string things)
+                                       (or things [])))]))
 
 (defmethod compile-clause "forget" [clause world]
-  [(denotation/Retract. (dissoc clause :type))])
+  [(denotation/Output. :retract (dissoc clause :type))])
 
 (defmethod compile-clause "see" [clause world]
   (let [exp (get clause "expression")
@@ -272,9 +279,9 @@
                            [k (syms k)]))
         ]
     (conj sees
-          (denotation/Filter. (merge clause placeholders))
-          (denotation/Retract. (merge clause placeholders new-bound-syms))
-          (denotation/Assert. (merge placeholders clause new-bound-syms jsd)))
+          (denotation/Fact. :now&pretended (merge clause placeholders))
+          (denotation/Output. :retract (merge clause placeholders new-bound-syms))
+          (denotation/Output. :assert (merge placeholders clause new-bound-syms jsd)))
     )
   )
 
@@ -283,9 +290,9 @@
         ui-facts (try
                    (reader/read-string ui)
                    (catch :default e))]
-    [(denotation/AssertMany. (if-not ui-facts
-                               []
-                               `(hiccup ~ui-facts)))]
+    [(denotation/OutputMany. :pretend (if-not ui-facts
+                                        []
+                                        `(cljs.core.hiccup ~ui-facts)))]
     ))
 
 (defn compile-rule* [r world]
@@ -293,6 +300,8 @@
 
 (defn compile-rule [r world]
   (denotation/clauses->rule (vec (compile-rule* r world))))
+
+(def compile-rule (memoize compile-rule))
 
 (defn compile-fact [f world]
   (dissoc f :type))
@@ -302,10 +311,10 @@
         facts (filter #(not= (:type %) "rule") statements)]
     {:rules (doall (for [r rules]
                      (if-not no-rule
-                       (compile-rule r world)
-                       (compile-rule* r world))))
+                       (compile-rule r nil)
+                       (compile-rule* r nil))))
      :facts (doall (for [f facts]
-                     (compile-fact f world)))}))
+                     (compile-fact f nil)))}))
 
 (defn compile-state [& [no-rule]]
   (let [start (now)
@@ -323,8 +332,6 @@
     (replay-last cur-env (set (:facts comped)) 1)
     (when-not paused?
       (unpause cur-env))))
-
-(compile-state :safe)
 
 ;(enable-console-print!)
 
@@ -358,7 +365,7 @@
   (cond
    (= "" v) nil
    (= "*" (first v)) (symbol (subs v 1))
-   (not (re-seq #"[^\d.]" v)) (reader/read-string v)
+   (not (re-seq #"[^\d.-]" v)) (reader/read-string v)
    :else v))
 
 (defn placeholder-rep [ph path]
@@ -516,11 +523,13 @@
                                (swap! state assoc-in [:matcher :path] nil))}
       ])])
 
+(:kn @cur-env)
+
 (defn results [env world]
   (let [kn (:kn env)]
     [:div#results
      [:ul
-      (for [fact (sort-by (comp str :ml) (:prev kn))]
+      (for [fact (sort-by (comp str :ml) (:now kn))]
         [:li {:onContextMenu (fn []
                                (swap! cur-env update-in [:kn] #(-> %
                                                                    (representation/retract-facts #{fact})

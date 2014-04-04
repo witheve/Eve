@@ -1,5 +1,3 @@
-(aset js/aurora.language "denotation" nil)
-
 (ns aurora.language.denotation
   (:require [clojure.set :refer [union intersection difference subset?]]
             [aurora.language.jsth :as jsth]

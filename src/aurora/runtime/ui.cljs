@@ -131,7 +131,10 @@
         children (group-by :id all-children)
         roots (set/difference (set (map first els)) (set (map :child-id all-children)))]
     (doseq [[parent kids] children
-            :let [sorted (sort-by :pos kids)
+            :let [sorted (try (sort-by :pos kids)
+                           (catch :default e
+                             (println "failed sort: " kids)
+                             kids))
                   parent-el (built-els parent)]
             :when parent-el
             {:keys [child-id]} sorted

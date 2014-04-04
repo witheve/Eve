@@ -28,7 +28,7 @@
 (defn expr->jsth [expr]
   (clojure.walk/postwalk
    (fn [form]
-     (if (and (seq? form) (symbol? (first form)) (not (.test #"\." (name (first form)))))
+     (if (and (seq? form) (symbol? (first form)) (not (.test #"\." (name (first form)))) (not= (namespace (first form)) "js") )
        (cons (symbol (str "cljs.core." (first form))) (rest form))
        form))
    expr))

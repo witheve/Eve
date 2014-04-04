@@ -96,7 +96,7 @@ input { border:none; background:#f7f7f7; font-family: "Avenir"; color: #444; fon
 
 #canvas { flex:1; display:flex; flex-direction:row; }
 
-#canvas-editor {flex:1; padding-top:20px; padding-left:20px; }
+#canvas-editor {flex:1; padding-top:20px; padding-left:20px; padding-bottom:700px; overflow-y:auto; }
 
 #rules { font-size:12pt; max-width:74%; }
 #rules > li { margin-bottom:20px;}
@@ -149,7 +149,7 @@ td.keyword { text-align:right; white-space:pre; }
 #matcher .CodeMirror pre { padding-left: 15px; }
 #matcher .CodeMirror-lines { padding:9px 0; }
 
-.CodeMirror { background:transparent; color:#555; font-family: "Nunito"; font-size:12pt; height:26px;}
+.CodeMirror { background:transparent; color:#555; font-family: "Nunito"; font-size:12pt; min-height:26px; height:auto;}
 .CodeMirror-scroll { height:auto; }
 .CodeMirror-cursor { border-color:#777 !important; background:#ccc; }
 .cm-keyword { color:#aaa !important; }
