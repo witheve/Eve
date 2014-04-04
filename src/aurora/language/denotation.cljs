@@ -92,6 +92,8 @@
         nil))
     rule))
 
+(def clauses->rule (memoize clauses->rule))
+
 ;; TESTS
 
 (comment
