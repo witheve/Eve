@@ -61,6 +61,7 @@
    (cond
     (nil? x) "null"
     (or (true? x) (false? x)) (str x)
+    (keyword? x) (pr-str (munge x))
     (number? x) (str x)
     (string? x) (pr-str x)
     (vector? x) (str "[" (join ", " (map expression->string x)) "]")
@@ -85,7 +86,7 @@
 (deftraced expression->string [x] [x]
   (cond
    (or (symbol? x) (#{"get!" ".."} (head x))) (var->string x)
-   (or (nil? x) (true? x) (false? x) (number? x) (string? x) (vector? x) (map? x)) (data->string x)
+   (or (nil? x) (true? x) (false? x) (number? x) (string? x) (vector? x) (map? x) (keyword? x)) (data->string x)
    (= "=" (head x)) (do (check (= (count x) 3))
                       (str (expression->string (nth x 1)) " == " (expression->string (nth x 2))))
    (= "==" (head x)) (do (check (= (count x) 3))
