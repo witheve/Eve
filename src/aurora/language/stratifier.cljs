@@ -1,7 +1,8 @@
 (aset js/aurora.language "stratifier" nil)
 
 (ns aurora.language.stratifier
-  (:require [aurora.language.representation :as representation :refer [tick]]
+  (:require aurora.language.macros
+            [aurora.language.representation :as representation :refer [tick]]
             [aurora.language.operation :as operation :refer [run-rule query-rule]])
   (:require-macros [aurora.language.macros :refer [rule]]))
 
@@ -61,6 +62,9 @@
 ;; [:with i j] if rule i must be finished before rule j can be finished
 ;; [:before i j] if rule i must be finished before rule j can be started
 
+(defn order [groups]
+  (reverse (map second (sort-by #(count (first %)) groups))))
+
 (def stratifier-strata
   [;; handle ::any
    (rule [:pred-in _ p]
@@ -96,7 +100,7 @@
           (+ [:before i k]))]
    ;; cycles
    (rule [:before i j]
-         (? [i j] (= i j)) ;; TODO get pattern matching to handle repeated vars
+         (? (= i j)) ;; TODO get pattern matching to handle repeated vars
          (set cycle [k]
               [:before k i])
          (+ [:cycle i cycle]))
@@ -109,7 +113,7 @@
          (+ [:group group descendants]))
    (rule (set groups [descendants group]
               [:group group descendants])
-         (= ordering [groups] (reverse (map second (sort-by #(count (first %)) groups))))
+         (= ordering (aurora.language.stratifier.order groups))
          (+ [:ordering ordering]))])
 
 (def stratifier-rules

@@ -180,16 +180,6 @@
         map-ixes (ixes-of shape-i map-shape)]
     (->Map i map-fn map-ixes)))
 
-;; a hack for hand-written code
-(defn ->merge [[i shape-i] map-pattern input-sym]
-  (let [map-shape (into [] (match/vars map-pattern))
-        merge-shape (into [] (cons input-sym map-shape))
-        _ (assert (every? (set shape-i) merge-shape) (str "Scope " (pr-str merge-shape) " not contained in " (pr-str shape-i)))
-        map-fn (match/constructor map-pattern map-shape)
-        merge-fn (fn [input & args] (merge input (apply map-fn args)))
-        merge-ixes (ixes-of shape-i merge-shape)]
-    (->Map i merge-fn merge-ixes)))
-
 ;; (run-node (->map [0 '[a b c d]] '{:b b :d d}) [#{[1 2 3 4] [5 6 7 8]}])
 
 (defrecord MapCat [i map-fn map-ixes]

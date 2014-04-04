@@ -145,6 +145,7 @@
 (def io-cleanup-rules [(rule ^get {:name :http-get}
                              (- get))])
 
+(comment
 (defn go-to-do []
 
 (def hiccup js/aurora.runtime.ui.hiccup->facts)
@@ -326,6 +327,7 @@
 
 ;; (go-to-do)
 ;; (js/setTimeout go-to-do 5000)
+  )
 
 (comment
 

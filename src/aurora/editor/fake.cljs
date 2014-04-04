@@ -292,7 +292,7 @@
   (mapcat compile-clause (:clauses r)))
 
 (defn compile-rule [r world]
-  (denotation/macroless-rule (vec (compile-rule* r world))))
+  (aurora.language.macros/macroless-rule (vec (compile-rule* r world))))
 
 (defn compile-fact [f world]
   (dissoc f :type))
