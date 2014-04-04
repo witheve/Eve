@@ -1,5 +1,5 @@
 (ns aurora.editor.dom
-  (:refer-clojure :exclude [parents remove next val]))
+  (:refer-clojure :exclude [parents remove next val empty]))
 
 (defn lazy-nl-via-item
   ([nl] (lazy-nl-via-item nl 0))
@@ -35,15 +35,19 @@
         (or (.item this n) not-found)))
 
 
-(defn $$ [query elem]
-  (let [elem (or elem js/document)
-        res (.querySelectorAll elem (name query))]
-    res))
+(defn $$
+  ([query] ($$ query nil))
+  ([query elem]
+   (let [elem (or elem js/document)
+         res (.querySelectorAll elem (name query))]
+     res)))
 
-(defn $ [query elem]
-  (let [elem (or elem js/document)
-        res (.querySelector elem (name query))]
-    res))
+(defn $
+  ([query] ($ query nil))
+  ([query elem]
+   (let [elem (or elem js/document)
+         res (.querySelector elem (name query))]
+     res)))
 
 (defn append [parent child]
   (.appendChild parent child)
