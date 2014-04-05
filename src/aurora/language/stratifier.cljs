@@ -17,11 +17,17 @@
                (run-rule this kn)))
 
 (defrecord Chain [rulesets]
+  operation/Preparable
+  (prepared [this]
+            (assoc this :rulesets (mapv prepared rulesets)))
   Ruleset
   (run-ruleset [this kn]
                (reduce #(run-ruleset %2 %1) kn rulesets)))
 
 (defrecord Fixpoint [ruleset]
+  operation/Preparable
+  (prepared [this]
+            (assoc this :ruleset (prepared ruleset)))
   Ruleset
   (run-ruleset [this kn]
                (let [new-kn (run-ruleset ruleset kn)]
