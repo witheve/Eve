@@ -2,6 +2,7 @@
 
 (ns aurora.language.macros
   (:require [clojure.set :refer [union]]
+            [aurora.language.operation :as operation]
             [aurora.language.denotation :as denotation]))
 
 (comment ;; grammar
@@ -42,7 +43,7 @@
     -s (denotation/->OutputMany :retract (nth expr 1))))
 
 (defn macroless-rule [exprs]
-  (denotation/clauses->rule (mapv expr->clause exprs)))
+  (operation/prepared (denotation/clauses->rule (mapv expr->clause exprs))))
 
 
 (comment

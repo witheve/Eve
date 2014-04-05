@@ -61,10 +61,16 @@
 
 ;; PLAN NODES
 
+(defprotocol Preparable
+  (prepared [this] "Do any last minute stuff that can't be serialised"))
+
 (defprotocol PlanNode
   (run-node [this cache kn] "-> value"))
 
 (defrecord Project [key pattern pattern-fn shape]
+  Preparable
+  (prepared [this]
+           (assoc this :pattern-fn (match/pattern pattern shape)))
   PlanNode
   (run-node [this cache kn]
        (let [result (transient #{})
@@ -81,13 +87,15 @@
 
 (defn ->project [key pattern]
   (let [vars (match/vars pattern)
-        shape (vec vars)
-        pattern-fn (match/pattern pattern shape)]
-    (->Project key pattern pattern-fn shape)))
+        shape (vec vars)]
+    (->Project key pattern nil shape)))
 
 ;; (run-node (->project '[a b]) [] (->Knowledge nil nil nil #{[0] [1 2] [3 4 5]}))
 
 (defrecord Join [i j key-ixes-i key-ixes-j select-ixes-i select-ixes-j shape]
+  Preparable
+  (prepared [this]
+           this)
   PlanNode
   (run-node [this cache kn]
        (let [result (transient #{})]
@@ -111,7 +119,10 @@
 
 ;; (run-node (->join [0 '[w x y]] [1 '[x y z]]) [#{[:w0 :x0 :y0] [:w1 :x1 :y1]} #{[:x0 :y0 :z0] [:x1 :y1 :z1]}])
 
-(defrecord Filter [i filter-fn filter-ixes shape]
+(defrecord Filter [i filter-expr filter-fn filter-ixes shape]
+  Preparable
+  (prepared [this]
+           (assoc this :filter-fn (expr->fun filter-expr)))
   PlanNode
   (run-node [this cache kn]
        (let [result (transient #{})]
@@ -122,16 +133,18 @@
          (persistent! result))))
 
 (defn ->filter [[i shape-i] filter-expr]
-  (let [filter-shape (vec (expr->vars filter-expr))
-        filter-fn (expr->fun filter-expr)]
+  (let [filter-shape (vec (expr->vars filter-expr))]
     (assert (every? (set shape-i) filter-shape) (str "Scope " (pr-str filter-shape) " not contained in " (pr-str shape-i)))
     (let [filter-ixes (ixes-of shape-i filter-shape)
           shape shape-i]
-      (->Filter i filter-fn filter-ixes shape))))
+      (->Filter i filter-expr nil filter-ixes shape))))
 
 ;; (run-node (->filter [0 '[a b c]] '[a b] (fn [a b] (> a b))) [#{[1 2 3] [3 2 1] [4 5 6] [6 5 4]}])
 
-(defrecord Let [i let-fn let-ixes shape]
+(defrecord Let [i let-expr let-fn let-ixes shape]
+  Preparable
+  (prepared [this]
+           (assoc this :let-fn (expr->fun let-expr)))
   PlanNode
   (run-node [this cache kn]
        (let [result (transient #{})]
@@ -142,18 +155,20 @@
          (persistent! result))))
 
 (defn ->let [[i shape-i] let-name let-expr]
-  (let [let-shape (vec (expr->vars let-expr))
-        let-fn (expr->fun let-expr)]
+  (let [let-shape (vec (expr->vars let-expr))]
     (assert (not ((set shape-i) let-name)) (str "Name " (pr-str let-name) " is already in scope " (pr-str shape-i)))
     (assert (every? (set shape-i) let-shape) (str "Scope " (pr-str let-shape) " not contained in " (pr-str shape-i)))
     (let [let-ixes (ixes-of shape-i let-shape)
           shape (conj shape-i let-name)]
-      (->Let i let-fn let-ixes shape))))
+      (->Let i let-expr nil let-ixes shape))))
 
 ;; (run-node (->let [0 '[w x y]] 'z '[x y] (fn [x y] (+ x y))) [#{[1 2 3] [3 4 5]}])
 
 (comment
   (defrecord In [i from-ix shape]
+    Preparable
+    (prepared [this]
+              this)
     PlanNode
     (run-node [this cache kn]
               (let [result (transient #{})]
@@ -170,6 +185,9 @@
 ;; (run-node (->in [0 '[a b c]] 'a) [#{[[1 2 3] 4 5] [[6 7 8] 9 10]}])
 
 (defrecord Group [i group-ixes project-ixes shape]
+  Preparable
+  (prepared [this]
+           this)
   PlanNode
   (run-node [this cache kn]
        (let [groups (transient {})]
@@ -193,7 +211,11 @@
 
 ;; (run-node (->group [0 '[a b c d]] 'x '[b d]) [#{[1 2 3 4] [1 :a 3 :b] [5 6 7 8]}])
 
-(defrecord Map [i map-fn map-ixes]
+(defrecord Map [i map-pattern map-fn map-ixes]
+  Preparable
+  (prepared [this]
+           (let [map-shape (into [] (match/vars map-pattern))]
+             (assoc this :map-fn (match/constructor map-pattern map-shape))))
   PlanNode
   (run-node [this cache kn]
        (let [result (transient #{})]
@@ -206,13 +228,15 @@
 (defn ->map [[i shape-i] map-pattern]
   (let [map-shape (into [] (match/vars map-pattern))
         _ (assert (every? (set shape-i) map-shape) (str "Scope " (pr-str map-shape) " not contained in " (pr-str shape-i)))
-        map-fn (match/constructor map-pattern map-shape)
         map-ixes (ixes-of shape-i map-shape)]
-    (->Map i map-fn map-ixes)))
+    (->Map i map-pattern nil map-ixes)))
 
 ;; (run-node (->map [0 '[a b c d]] '{:b b :d d}) [#{[1 2 3 4] [5 6 7 8]}])
 
-(defrecord MapCat [i map-fn map-ixes]
+(defrecord MapCat [i map-expr map-fn map-ixes]
+  Preparable
+  (prepared [this]
+           (assoc this :map-fn (expr->fun map-expr)))
   PlanNode
   (run-node [this cache kn]
        (let [result (transient #{})]
@@ -224,11 +248,10 @@
          (persistent! result))))
 
 (defn ->mapcat [[i shape-i] map-expr]
-  (let [map-shape (vec (expr->vars map-expr))
-        map-fn (expr->fun map-expr)]
+  (let [map-shape (vec (expr->vars map-expr))]
     (assert (every? (set shape-i) map-shape) (str "Scope " (pr-str map-shape) " not contained in " (pr-str shape-i)))
     (let [map-ixes (ixes-of shape-i map-shape)]
-      (->MapCat i map-fn map-ixes))))
+      (->MapCat i map-expr nil map-ixes))))
 
 ;; (run-node (->mapcat [0 '[a b c d]] '[b d] (fn [a b] [{:a a} {:b b}])) [#{[1 2 3 4] [5 6 7 8]}])
 
@@ -255,7 +278,10 @@
 
 ;; RULES
 
-(defrecord Rule [plan pretend-ixes assert-ixes retract-ixes preds-in preds-out negs-in negs-out])
+(defrecord Rule [plan pretend-ixes assert-ixes retract-ixes preds-in preds-out negs-in negs-out]
+  Preparable
+  (prepared [this]
+            (assoc this :plan (into-array (map prepared plan)))))
 
 (defn +pretend [{:keys [plan pretend-ixes]} node]
   (let [[ix shape] (+node plan node)]
