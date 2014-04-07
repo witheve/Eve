@@ -50,7 +50,8 @@
       kn
       (recur
        (->
-        (representation/assert-facts kn aurora-facts)
+        (stratifier/run-ruleset (:cleanup-rules env) kn)
+        (representation/assert-facts aurora-facts)
         (representation/tick)
         (tick (:tick-rules env) (:rules env) (:watchers env) (:feeder-fn env))
         (representation/tick))

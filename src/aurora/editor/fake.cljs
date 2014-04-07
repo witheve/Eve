@@ -622,7 +622,13 @@
                         (load-page p)
                         )}
         p]
-       )]]])
+       )]
+    [:button {:onClick (fn []
+                         (let [page-count (count (:pages @aurora-state))]
+                           (swap! aurora-state update-in [:pages] conj (if (> page-count 0)
+                                                                         (str "New page " page-count)
+                                                                         "New page")))
+                         )} "Add a page"]]])
 
 (defn root-ui []
   (if (:cur-page @aurora-state)
@@ -964,4 +970,5 @@
 (init)
 
 (comment
-  (swap! aurora-state update-in [:pages] conj "foo"))
+  (swap! aurora-state update-in [:pages] conj "foo")
+  )
