@@ -147,7 +147,7 @@
   (frame (fn []
            (let [tree (rebuild-tree knowledge queue)
                  container (dom/$ "#ui-preview")]
-             (println "UI Tree: " (pr-str tree))
+             ;(println "UI Tree: " (pr-str tree))
              (when container
                (js/React.renderComponent (dommy/node tree) container))
              ;

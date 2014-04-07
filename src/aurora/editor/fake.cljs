@@ -9,13 +9,15 @@
             [aurora.runtime.timers]
             [aurora.runtime.ui]
             [aurora.runtime.io]
+            [aurora.editor.component]
             [cljs.reader :as reader]
             [aurora.editor.dom :as dom]
             [clojure.set :as set]
             [clojure.walk :as walk]
             [clojure.string :as string]
             [aurora.util.core :refer [now]])
-  (:require-macros [aurora.language.macros :refer [query rule]]))
+  (:require-macros [aurora.language.macros :refer [query rule]]
+                   [aurora.macros :refer [defcomponent defmethodcomponent]]))
 
 (def key-codes {:up 38
                 :down 40
@@ -154,10 +156,10 @@
                                                             :type "time"}}}
                         } })
 
-(def state (atom {:name "Incrementer"
+(def state (atom {:program {:name "Incrementer"
+                            :statements []}
                   :editor {}
-                  :matcher {}
-                  :statements []}))
+                  :matcher {}}))
 
 (defn cur-date [x]
   (js/Date. x))
@@ -182,56 +184,63 @@
         }
    content])
 
-(defmethod draw-statement "rule" [rule world path]
+(defmethodcomponent draw-statement "rule" [rule path matcher? edit-path?]
   (let [clauses (map-indexed vector (:clauses rule))
-        when (first (filter #(= (:type (second %)) "when") clauses))]
+        when (first (filter #(= (:type (second %)) "when") clauses))
+        edit-seg (get edit-path? 4)]
     (statement-item path
-     (if when (draw-clause (second when) world (conj path :clauses (first when))))
+     (if when (draw-clause (second when) (conj path :clauses (first when)) (if (= edit-seg (first when))
+                                                                                     edit-path?)))
       [:ul.sub
        (for [[i c] (filter #(not= (:type (second %)) "when") clauses)
              :let [path (conj path :clauses i)]]
          (statement-item path
-          (draw-clause c world path))
+          (draw-clause c path (if (= edit-seg i)
+                                        edit-path?)))
          )
-       (if (= (get-in world [:matcher :path]) path)
+       (if matcher?
          [:li (matches (:matcher @state))]
          )
        ])))
 
-(defmethod draw-statement "add" [rule world path]
+(defmethodcomponent draw-statement "add" [rule path matcher? edit-path?]
   (statement-item path
-   (draw-clause rule world path)))
+   (draw-clause rule path edit-path?)))
 
-(defmethod draw-clause "add" [clause world path]
-  (rule-ui clause world path))
+(defmethodcomponent draw-clause "add" [clause path edit-path?]
+  (rule-ui clause path))
 
-(defmethod draw-clause "when" [clause world path]
-  [:span [:span.keyword "when "] (rule-ui clause world path)])
+(defmethodcomponent draw-clause "when" [clause path edit-path?]
+  (do
+    [:span [:span.keyword "when "] (rule-ui clause path)]))
 
-(defmethod draw-clause "find" [clause world path]
-  [:span [:span.keyword "find "] (rule-ui clause world path)])
+(defmethodcomponent draw-clause "find" [clause path edit-path?]
+  [:span [:span.keyword "find "] (rule-ui clause path)])
 
-(defmethod draw-clause "forget" [clause world path]
-  [:span [:span.keyword "forget "] (rule-ui clause world path)])
+(defmethodcomponent draw-clause "forget" [clause path edit-path?]
+  [:span [:span.keyword "forget "] (rule-ui clause path)])
 
-(defmethod draw-clause "see" [clause world path]
-  [:span [:span.keyword "see "] (rule-ui clause world path)])
+(defmethodcomponent draw-clause "see" [clause path edit-path?]
+  [:span [:span.keyword "see "] (rule-ui clause path)])
 
-(defmethod draw-clause "all" [clause world path]
-  [:span [:span.keyword "all "] (rule-ui clause world path)])
+(defmethodcomponent draw-clause "all" [clause path edit-path?]
+  [:span [:span.keyword "all "] (rule-ui clause path)])
 
-(defmethod draw-clause "change" [clause world path]
-  (let [rule (get-in @state [:madlibs (:ml clause)])
+(defmethodcomponent draw-clause "pretend" [clause path edit-path?]
+  [:span [:span.keyword "pretend "] (rule-ui clause path)])
+
+(defmethodcomponent draw-clause "change" [clause path edit-path?]
+  (let [rule (get-in @state [:program :madlibs (:ml clause)])
         placeholders (into {} (for [k (keys (:placeholders rule))]
                                 [k (symbol k)]))]
     [:table
      [:tbody
-      [:tr [:td.keyword "change "] [:td (rule-ui (merge clause placeholders (::new clause)) world (conj path ::new))]]
-      [:tr [:td.keyword "to "] [:td (rule-ui clause world path)]]]]
+      [:tr [:td.keyword "change "] [:td (rule-ui (merge clause placeholders (::new clause)) (conj path ::new))]]
+      [:tr [:td.keyword "to "] [:td (rule-ui clause path)]]]]
     ))
 
-(defmethod draw-clause "draw" [clause world path]
-  [:span [:span.keyword "draw "] (rule-ui clause world path)])
+(defmethodcomponent draw-clause "draw" [clause path edit-path?]
+  [:span [:span.keyword "draw "] (rule-ui clause path)])
 
 (defmulti compile-clause (fn [clause world]
                            (:type clause)))
@@ -255,6 +264,9 @@
 (defmethod compile-clause "forget" [clause world]
   [(denotation/Output. :retract (dissoc clause :type))])
 
+(defmethod compile-clause "pretend" [clause world]
+  [(denotation/Output. :pretend (dissoc clause :type))])
+
 (defmethod compile-clause "see" [clause world]
   (let [exp (get clause "expression")
         exp (if (string? exp)
@@ -264,7 +276,7 @@
     [(denotation/Let. (get clause "name" 'x) exp)]))
 
 (defmethod compile-clause "change" [clause world]
-  (let [rule (get-in @state [:madlibs (:ml clause)])
+  (let [rule (get-in @state [:program :madlibs (:ml clause)])
         placeholders (into {} (for [k (keys (:placeholders rule))]
                                 [k (symbol k)]))
         new-bound-syms (::new clause)
@@ -318,21 +330,23 @@
 
 (defn compile-state [& [no-rule]]
   (let [start (now)
-        res (compile-statements (:statements @state) @state no-rule)]
+        res (compile-statements (get-in @state [:program :statements]) @state no-rule)]
     (when-let [rp (dom/$ "#compile-perf")]
       (dom/html rp (.toFixed (- (now) start) 3)))
     res))
 
 (defn inject-compiled []
   (let [comped (compile-state)
-        tick-rules (stratifier/strata->ruleset (stratifier/stratify (:rules comped)))
-        paused? (:paused @cur-env)]
+        rules (operation/prepared (:rules comped))
+        tick-rules (stratifier/strata->ruleset (identity rules))
+        paused? (:pause @cur-env)]
     (pause cur-env)
     (swap! cur-env assoc :tick-rules tick-rules)
     (replay-last cur-env (set (:facts comped)) 1)
     (when-not paused?
       (unpause cur-env))))
 
+;(compile-state :safe)
 ;(enable-console-print!)
 
 
@@ -354,7 +368,7 @@
   (fn [e]
     (.preventDefault e)
     (.stopPropagation e)
-    (when (= (first path) :statements)
+    (when (= (second path) :statements)
       (swap! state assoc-in [:editor :paused?] (:paused @cur-env))
       (swap! state assoc-in [:editor :prev-kn] (-> @cur-env :kn :prev))
       (swap! state update-in [:editor] merge {:path path
@@ -446,8 +460,8 @@
                              structure)]
     [:span.ui-rep {:onClick (set-editing path)}
      walked
+     ;"UI preview"
      ]))
-
 
 ;;*********************************************************
 ;; Display
@@ -497,12 +511,10 @@
             (editable rule-info rule v ph path opts))
     ))
 
-(defn rule-ui [r world path & [opts]]
-  (let [rule-info (if world
-                    (or (get-in world [:madlibs (:ml r)])
-                        (get-in world [:clauses (:type r)])
-                        r)
-                    r)
+(defn rule-ui [r path & [opts]]
+  (let [rule-info (or (get-in @state [:program :madlibs (:ml r)])
+                      (get-in @state [:program :clauses (:type r)])
+                      r)
         placeholders (:placeholders rule-info)
          ]
     [:span (if-not placeholders
@@ -513,17 +525,23 @@
                  part)))]
     ))
 
-
-(defn rules [rs world]
-  [:ul#rules
-   (for [[i r] (map-indexed vector rs)]
-     (draw-statement r world [:statements i]))
-   (when (get-in @state [:matcher :path])
-     [:li.add-rule {:onClick (fn []
-                               (swap! state assoc-in [:matcher :path] nil))}
-      ])])
-
-(:kn @cur-env)
+(defcomponent rules [program world]
+  (let [matcher-path (get-in world [:matcher :path])
+        last-seg (last matcher-path)
+        editor-path (get-in world [:editor :path])
+        statement-seg (get editor-path 2)]
+    [:div
+     [:ul#rules
+      (for [[i s] (map-indexed vector (:statements program))]
+        (draw-statement s [:program :statements i]
+                        (when (= last-seg i)
+                          (:matcher world))
+                        (when (= statement-seg i)
+                          editor-path)))]
+     (when matcher-path
+       [:div.add-rule {:onClick (fn []
+                                  (swap! state assoc-in [:matcher :path] nil))}
+        ])]))
 
 (defn results [env world]
   (let [kn (:kn env)]
@@ -535,14 +553,14 @@
                                                                    (representation/retract-facts #{fact})
                                                                    (representation/tick))))}
          [:div
-          (rule-ui fact world nil)]])]
+          (rule-ui fact nil nil)]])]
      [:div#ui-preview]
      ]
     ))
 
 (declare change-match-selection handle-submit instance load-page force-save)
 
-(defn matches [matcher]
+(defcomponent matches [matcher]
   [:div#matcher
    [:div.matcher-editor-container]
    [:ul#matches
@@ -553,7 +571,7 @@
                        (change-match-selection nil)
                        (handle-submit (.getValue instance)))} (rule-ui m nil nil)])]])
 
-(defn controls [env]
+(defcomponent controls [env]
   [:div#controls
    [:button {:onClick (fn []
                         (if (:paused env)
@@ -563,22 +581,21 @@
       [:span.icon.play]
       [:span.icon.pause])]])
 
-(defn header []
+(defn header [program]
   [:div#header
    [:h1 {:onClick (fn []
                     (pause cur-env)
                     (force-save @state)
                     (swap! aurora-state assoc :cur-page nil))}
-    (:name @state)]
+    (:name program)]
    (controls @cur-env)])
 
 (defn editor-ui []
-  (println "editor")
   [:div#root
-   (header)
+   (header (:program @state))
    [:div#canvas
     [:div#canvas-editor
-     (rules (:statements @state) @state)
+     (rules (get-in @state [:program]) @state)
      (if (get-in @state [:matcher :path])
        [:div]
        (matches (:matcher @state)))
@@ -594,7 +611,6 @@
     [:ul#pages-list
      (for [p (:pages @aurora-state)]
        [:li {:onClick (fn []
-                        (println p)
                         (swap! aurora-state assoc :cur-page p)
                         (load-page p)
                         )}
@@ -675,7 +691,7 @@
 (def pair->mode {"[" "id"
                  "(" "attr"})
 
-(def keywords #"^(when|find|forget|change|see|all|new|draw)")
+(def keywords #"^(when|find|forget|change|see|all|new|draw|pretend)")
 (def key-madlibs #"^(see \[name\] as \[expression\]|all \[expression\])|new \[thing\]")
 
 (defn tokenizer [stream]
@@ -714,8 +730,8 @@
                      (:phrase))
                  (.trim phrase))
         candidates (if-not true;keyword
-                     (concat ["when" "find" "new" "see (name) as (expression)" "all (things)" "forget"] (vals (:madlibs @state)))
-                     (vals (:madlibs @state)))]
+                     (concat ["when" "find" "new" "see (name) as (expression)" "all (things)" "forget"] (vals (get-in @state [:program :madlibs])))
+                     (vals (get-in @state [:program :madlibs])))]
     (when-not same?
       (swap! state assoc :matcher (dissoc matcher :last-text :last-selected :selected)))
     (if (= search "")
@@ -782,7 +798,7 @@
 
 (defn create-madlib [phrase]
   (let [id (operation/new-id)]
-    (swap! state assoc-in [:madlibs id]
+    (swap! state assoc-in [:program :madlibs id]
            (merge (explode-madlib phrase)
                   {:madlib-str phrase}))
     id))
@@ -790,11 +806,11 @@
 (defn handle-submit [v]
   (when (and v (not= "" (.trim v)))
     (let [{:keys [keyword phrase]} (parse-input v)
-          lookup (into {} (for [[k v] (:madlibs @state)]
+          lookup (into {} (for [[k v] (get-in @state [:program :madlibs])]
                             [(:madlib-str v) k]
                             ))
           id (when keyword
-               (let [clause-info (get-in @state [:clauses keyword])]
+               (let [clause-info (get-in @state [:program :clauses keyword])]
                         (if (:is-phrase clause-info)
                           keyword)))
           id (if id
@@ -812,10 +828,10 @@
                   :clauses [node]}
                  node)]
       (if-not cur-path
-        (swap! state update-in [:statements] conj node)
+        (swap! state update-in [:program :statements] conj node)
         (swap! state update-in (conj cur-path :clauses) conj node))
       (when (= (:type node) "rule")
-        (swap! state assoc-in [:matcher :path] [:statements (-> (:statements @state)
+        (swap! state assoc-in [:matcher :path] [:program :statements (-> (get-in @state [:program :statements])
                                                                 (count)
                                                                 (dec))])
         )
@@ -872,8 +888,8 @@
     (frame render!)))
 
 (defn force-save [cur]
-  (println "Saving: " (:name cur) (count (pr-str cur)))
-  (aset js/localStorage (:name cur) (pr-str cur)))
+  (println "Saving: " (get-in cur [:program :name]) (count (pr-str cur)))
+  (aset js/localStorage (get-in cur [:program :name]) (pr-str cur)))
 
 (defn clear-env []
   (let [new-env (runtime/->env {:cleanup-rules (vec (concat runtime/io-cleanup-rules
@@ -888,11 +904,18 @@
                (reader/read-string page)
                (catch :default e
                  (println "got some error")
-                 {:name name
+                 {:program {:name name
+                            :statements []}
                   :editor {}
-                  :matcher {}
-                  :statements []}))
-        page (merge-with merge page std-lib)]
+                  :matcher {}}))
+        program (merge-with merge (:program page) std-lib)
+        page (assoc page :program program)
+        page (if (:statements page)
+               (-> (assoc-in page [:program :name] (:name page))
+                   (assoc-in [:program :statements] (:statements page))
+                   (update-in [:program :madlibs] merge (:madlibs page))
+                   (dissoc :name :statements :madlibs :clauses))
+               page)]
     (clear-env)
     (reset! state page)))
 
@@ -916,7 +939,8 @@
 
 
 (add-watch state :compile (fn [_ _ old cur]
-                            (when-not (identical? (:statements old) (:statements cur))
+                            (when-not (identical? (get-in old [:program :statements]) (get-in cur [:program :statements]))
+                              (println "compiling!")
                               (inject-compiled))))
 
 (add-watch state :store (js/Cowboy.debounce 1000

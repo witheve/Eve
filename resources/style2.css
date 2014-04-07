@@ -89,12 +89,12 @@ input { border:none; background:#f7f7f7; font-family: "Avenir"; color: #444; fon
 #menu li { padding:3px 10px; min-width:100px; }
 #menu li:hover { background:#777; color:#fff; }
 
-#content { margin-left:0; min-width:100%; padding-right:100px; height:200%; white-space:nowrap; }
+#content { margin-left:0; min-width:100%; padding-right:100px; white-space:nowrap; }
 
-#root { padding:10px; padding-top:0; display:flex; flex-direction:column; height:100%; }
+#root { padding:10px; padding-top:0; display:flex; flex-direction:column; }
 #root span { vertical-align:middle; display:inline-block; white-space:pre-wrap; }
 
-#canvas { flex:1; display:flex; flex-direction:row; }
+#canvas { flex:1; display:flex; flex-direction:row; position:relative; overflow:hidden; }
 
 #canvas-editor {flex:1; padding-top:20px; padding-left:20px; padding-bottom:700px; overflow-y:auto; }
 

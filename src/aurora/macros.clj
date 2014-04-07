@@ -1,4 +1,5 @@
 (ns aurora.macros
+  (:refer-clojure :exclude [munge])
   (:require [cljs.compiler :refer [munge]]))
 
 (defmacro set!! [name val]
@@ -20,6 +21,22 @@
      (let [result# (do ~@body)]
        (when ~group (js/console.timeEnd (str ~name)))
        result#)))
+
+(defmacro defcomponent [name vars & body]
+  `(def ~name (aurora.editor.component.component (fn ~vars
+                                                   (aurora.editor.ReactDommy.node
+                                                    ~@body)))))
+
+(defmacro defmethodcomponent [name multi vars  & body]
+  (let [component (gensym (str name "component"))]
+    `(do
+       (def ~component (aurora.editor.component.component (fn ~vars
+                                                            (aurora.editor.ReactDommy.node
+                                                             ~@body))))
+       (defmethod ~name ~multi ~vars
+         (~component ~@vars))
+       )))
+
 
 ;; because plumbing.core doesnt work in LT
 (defmacro fns [selects & body]
