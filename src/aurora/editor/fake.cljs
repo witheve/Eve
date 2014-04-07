@@ -337,7 +337,7 @@
 
 (defn inject-compiled []
   (let [comped (compile-state)
-        rules (operation/prepared (:rules comped))
+        rules (map operation/prepared (:rules comped))
         tick-rules (stratifier/strata->ruleset (identity rules))
         paused? (:pause @cur-env)]
     (pause cur-env)
