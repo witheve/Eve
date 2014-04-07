@@ -27,7 +27,6 @@
                       (> [time id])))
 
 (defn on-bloom-tick [knowledge queue]
-  (println "in bloom tick")
   (let [waits (operation/query-rule find-waits knowledge)]
     (doseq [[time id] waits]
       (println "setting up wait for: " time id)

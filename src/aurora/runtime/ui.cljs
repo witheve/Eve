@@ -109,9 +109,8 @@
                                   [event (fn [e]
                                            (queue (merge {:ml (keyword "ui" event)
                                                           "event" event-key
-                                                          "id" id}
-                                                         (when entity
-                                                           {"entity" entity})
+                                                          "id" id
+                                                          "entity" entity}
                                                          (event->params event e))))]))
         el-attrs (if (seq el-styles)
                    (assoc el-attrs :style el-styles)
@@ -163,8 +162,8 @@
         args (js->clj args :keywordize-keys true)
         id (:id args)
         entity (:entity args)
-        key (:event-key args)
-        real-args (dissoc args :id :style :events :event-key :entity)]
+        key (:event_key args)
+        real-args (dissoc args :id :style :events :event_key :entity)]
     (when parent
       (.push facts {:ml :ui/child "id" parent "child" id "pos" pos}))
     (.push facts {:ml :ui/elem "id" id "tag" (name el)})

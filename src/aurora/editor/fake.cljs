@@ -99,28 +99,28 @@
                                                                     :type "html event"}
                                                            "id" {:order 1
                                                                  :type "id"}}}
-                        :ui/onClick {:madlib ["id", " is clicked" "event" "entity"]
-                                     :madlib-str "[id] is clicked [event] [entity]"
+                        :ui/onClick {:madlib ["id", " is clicked, causing " "event" " on " "entity"]
+                                     :madlib-str "[id] is clicked, causing [event] on [entity]"
                                      :placeholders {"id" {:order 0
                                                           :type "id"}
                                                     "event" {:order 1
                                                              :type "string"}
                                                     "entity" {:order 2
                                                               :type "string"}}}
-                        :ui/onDoubleClick {:madlib ["id", " was double clicked raising ", "event", " on ", "entity"]
-                                           :madlib-str "[id] was double clicked raising [event] on [entity]"
+                        :ui/onDoubleClick {:madlib ["id", " is double clicked raising ", "event", " on ", "entity"]
+                                           :madlib-str "[id] is double clicked raising [event] on [entity]"
                                            :placeholders {"id" {:order 0
                                                                 :type "id"}
                                                           "event" {:order 1
                                                                    :type "string"}
                                                           "entity" {:order 2
                                                                     :type "id"}}}
-                        :ui/onKeyDown {:madlib ["the ", "keyCode", " key was pressed in " "id" " on " "entity"]
-                                      :madlib-str "the [keyCode] key was pressed in [id]"
+                        :ui/onKeyDown {:madlib ["the ", "keyCode", " key is pressed in " "id" " on " "entity"]
+                                      :madlib-str "the [keyCode] key is pressed in [id]"
                                       :placeholders {"id" {:order 0
                                                            :type "id"}
                                                      "keyCode" {:order 1
-                                                              :type "number"}
+                                                              :type "key"}
                                                      "entity" {:order 2
                                                                :type "string"}}}
 
@@ -165,6 +165,9 @@
   (js/Date. x))
 (set! js/cljs.core.hiccup js/aurora.runtime.ui.hiccup->facts)
 (set! js/cljs.core.date cur-date)
+
+(set! js/cljs.core.iff (fn [expression then else]
+                        (if expression then else)))
 
 (declare rule-ui matches)
 
@@ -459,6 +462,12 @@
     [:span.ui-rep {:onClick (set-editing path)}
      walked
      ;"UI preview"
+     ]))
+
+(defmethod ->rep "key" [rule-info rule v ph path]
+  (let []
+    [:span.keyboard-key {:onClick (set-editing path)}
+     ({13 "enter"} v)
      ]))
 
 ;;*********************************************************
