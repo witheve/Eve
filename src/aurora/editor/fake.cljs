@@ -9,6 +9,10 @@
             [aurora.runtime.timers]
             [aurora.runtime.ui]
             [aurora.runtime.io]
+            [aurora.runtime.stdlib :as stdlib]
+            [aurora.editor.types :as types]
+            [aurora.editor.clauses :as clauses]
+            [aurora.editor.core :refer [state cur-env aurora-state]]
             [aurora.editor.component]
             [cljs.reader :as reader]
             [aurora.editor.dom :as dom]
@@ -27,147 +31,6 @@
 
 (defn remove-index [v i]
   (vec (concat (subvec v 0 i) (subvec v (inc i)))))
-
-(def cur-env (atom nil))
-
-(def aurora-state (atom {:cur-page nil
-                         :pages []}))
-
-(def std-lib {:clauses {
-                        "draw" {:madlib ["ui"]
-                                :madlib-str "ui"
-                                :is-phrase true
-                                :placeholders {"ui" {:order 0 :type "ui" "type" "ui"}}}
-                        }
-              :madlibs {:aurora/time {:madlib ["the current time is ", "time"]
-                                      :madlib-str "the current time is [time]"
-                                      :placeholders {"time" {:order 0
-                                                             :type "time"}}}
-                        :aurora/refresh {:madlib ["refresh the time after ", "waiting time"]
-                                         :madlib-str "refresh the time after [waiting time]"
-                                         :placeholders {"waiting time" {:order 0
-                                                                        :type "duration"}}}
-                        :timers/tick {:madlib ["timer", " ticked at ", "time"]
-                                      :madlib-str "[timer] ticked at [time]"
-                                      :placeholders {"timer" {:order 0
-                                                              :type "id"}
-                                                     "time" {:order 1
-                                                             :type "time"}}}
-                        :timers/wait {:madlib ["tick ", "timer", " after waiting ", "time"]
-                                      :madlib-str "tick [timer] after waiting [time]"
-                                      :placeholders {"timer" {:order 0
-                                                              :type "id"}
-                                                     "time" {:order 1
-                                                             :type "duration"}}}
-                        :ui/elem {:madlib ["id", " is a ", "tag", " HTML element"]
-                                  :madlib-str "[id] is a [tag] HTML element"
-                                  :placeholders {"id" {:order 0
-                                                       :type "id"}
-                                                 "tag" {:order 1
-                                                        :type "html tag"}}}
-                        :ui/attr {:madlib ["id", " has a ", "attr", " of ", "value"]
-                                  :madlib-str "[id] has a [attr] of [value]"
-                                  :placeholders {"id" {:order 0
-                                                       :type "id"}
-                                                 "attr" {:order 1
-                                                         :type "html attribute"}
-                                                 "value" {:order 2}}}
-                        :ui/style {:madlib ["id", " has a ", "attr", " style of ", "value"]
-                                   :madlib-str "[id] has a [attr] style of [value]"
-                                   :placeholders {"id" {:order 0
-                                                        :type "id"}
-                                                  "attr" {:order 1
-                                                          :type "html style"}
-                                                  "value" {:order 2}}}
-                        :ui/text {:madlib ["id", " is the text ", "text"]
-                                  :madlib-str "[id] is the text [text]"
-                                  :placeholders {"id" {:order 0
-                                                       :type "id"}
-                                                 "text" {:order 1
-                                                         :type "string"}}}
-                        :ui/child {:madlib ["id", " is the parent of ", "child", " at position ", "pos"]
-                                   :madlib-str "[id] is the parent of [child] at position [pos]"
-                                   :placeholders {"id" {:order 0
-                                                        :type "id"}
-                                                  "child" {:order 1
-                                                           :type "id"}
-                                                  "pos" {:order 2
-                                                         :type "number"}}}
-                        :ui/event-listener {:madlib ["listen for ", "event", " events on ", "id"]
-                                            :madlib-str "listen for [event] events on [id]"
-                                            :placeholders {"event" {:order 0
-                                                                    :type "html event"}
-                                                           "id" {:order 1
-                                                                 :type "id"}}}
-                        :ui/onClick {:madlib ["id", " is clicked, causing " "event" " on " "entity"]
-                                     :madlib-str "[id] is clicked, causing [event] on [entity]"
-                                     :placeholders {"id" {:order 0
-                                                          :type "id"}
-                                                    "event" {:order 1
-                                                             :type "string"}
-                                                    "entity" {:order 2
-                                                              :type "string"}}}
-                        :ui/onDoubleClick {:madlib ["id", " is double clicked raising ", "event", " on ", "entity"]
-                                           :madlib-str "[id] is double clicked raising [event] on [entity]"
-                                           :placeholders {"id" {:order 0
-                                                                :type "id"}
-                                                          "event" {:order 1
-                                                                   :type "string"}
-                                                          "entity" {:order 2
-                                                                    :type "id"}}}
-                        :ui/onKeyDown {:madlib ["the ", "keyCode", " key is pressed in " "id" " on " "entity"]
-                                      :madlib-str "the [keyCode] key is pressed in [id]"
-                                      :placeholders {"id" {:order 0
-                                                           :type "id"}
-                                                     "keyCode" {:order 1
-                                                              :type "key"}
-                                                     "entity" {:order 2
-                                                               :type "string"}}}
-
-                        :ui/onBlur {:madlib ["id", " is blurred with ", "entity"]
-                                     :madlib-str "[id] is blurred"
-                                     :placeholders {"id" {:order 0
-                                                          :type "id"}
-                                                    "entity" {:order 1
-                                                              :type "string"}}}
-                        :ui/onChange {:madlib ["id", " changed to ", "value", " raising ", "event", " on ", "entity"]
-                                      :madlib-str "[id] changed to [value] raising [event] on [entity]"
-                                      :placeholders {"id" {:order 0
-                                                           :type "id"}
-                                                     "value" {:order 1
-                                                              :type "string"}
-                                                     "event" {:order 2
-                                                              :type "string"}
-                                                     "entity" {:order 3
-                                                               :type "id"}}}
-                        :http/get {:madlib ["fetch " "url" " and call it ", "id"]
-                                   :madlib-str "fetch [url] and call it [id]"
-                                   :placeholders {"url" {:order 0
-                                                         :type "url"}
-                                                  "id" {:order 1
-                                                        :type "string"}}}
-                        :http/response {:madlib ["got url " "content" " named " "id" " at " "time"]
-                                     :madlib-str "got url [content] named [id] at [time]"
-                                     :placeholders {"content" {:order 0
-                                                               :type "string"}
-                                                    "id" {:order 1
-                                                          :type "string"}
-                                                    "time" {:order 2
-                                                            :type "time"}}}
-                        } })
-
-(def state (atom {:program {:name "Incrementer"
-                            :statements []}
-                  :editor {}
-                  :matcher {}}))
-
-(defn cur-date [x]
-  (js/Date. x))
-(set! js/cljs.core.hiccup js/aurora.runtime.ui.hiccup->facts)
-(set! js/cljs.core.date cur-date)
-
-(set! js/cljs.core.iff (fn [expression then else]
-                        (if expression then else)))
 
 (declare rule-ui matches)
 
@@ -245,246 +108,24 @@
 (defmethodcomponent draw-clause "draw" [clause path edit-path?]
   [:span [:span.keyword "draw "] (rule-ui clause path)])
 
-(defmulti compile-clause (fn [clause world]
-                           (:type clause)))
-
-(defmethod compile-clause "when" [clause world]
-  (compile-clause (assoc clause :type "find") world))
-
-(defmethod compile-clause "find" [clause world]
-  [(denotation/Fact. :now&pretended (dissoc clause :type))])
-
-(defmethod compile-clause "add" [clause world]
-  [(denotation/Output. :assert (dissoc clause :type))])
-
-
-(defmethod compile-clause "all" [clause world]
-  (let [things (get clause "things")]
-    [(denotation/OutputMany. :assert (if (string? things)
-                                       (reader/read-string things)
-                                       (or things [])))]))
-
-(defmethod compile-clause "forget" [clause world]
-  [(denotation/Output. :retract (dissoc clause :type))])
-
-(defmethod compile-clause "pretend" [clause world]
-  [(denotation/Output. :pretend (dissoc clause :type))])
-
-(defmethod compile-clause "see" [clause world]
-  (let [exp (get clause "expression")
-        exp (if (string? exp)
-              (reader/read-string exp)
-              exp)
-        final (list '= (get clause "name") exp)]
-    [(denotation/Let. (get clause "name" 'x) exp)]))
-
-(defmethod compile-clause "change" [clause world]
-  (let [rule (get-in @state [:program :madlibs (:ml clause)])
-        placeholders (into {} (for [k (keys (:placeholders rule))]
-                                [k (symbol k)]))
-        new-bound-syms (::new clause)
-        clause (dissoc clause :type ::new)
-        syms (into {} (for [k (keys (dissoc clause :ml))]
-                        [k (gensym k)]))
-        sees (for [[k v] (dissoc clause :ml)]
-               (denotation/Let. (syms k) (if (string? v)
-                                           (reader/read-string v)
-                                           v)))
-        jsd (into clause (for [[k v] (dissoc clause :ml)]
-                           [k (syms k)]))
-        ]
-    (conj sees
-          (denotation/Fact. :now&pretended (merge clause placeholders))
-          (denotation/Output. :retract (merge clause placeholders new-bound-syms))
-          (denotation/Output. :assert (merge placeholders clause new-bound-syms jsd)))
-    )
-  )
-
-(defmethod compile-clause "draw" [clause world]
-  (let [ui (get clause "ui")
-        ui-facts (try
-                   (reader/read-string ui)
-                   (catch :default e))]
-    [(denotation/OutputMany. :pretend (if-not ui-facts
-                                        []
-                                        `(cljs.core.hiccup ~ui-facts)))]
-    ))
-
-(defn compile-rule* [r world]
-  (mapcat compile-clause (:clauses r)))
-
-(defn compile-rule [r world]
-  (denotation/clauses->rule (vec (compile-rule* r world))))
-
-(def compile-rule (memoize compile-rule))
-
-(defn compile-fact [f world]
-  (dissoc f :type))
-
-(defn compile-statements [statements world no-rule]
-  (let [rules (filter #(= (:type %) "rule") statements)
-        facts (filter #(not= (:type %) "rule") statements)]
-    {:rules (doall (for [r rules]
-                     (if-not no-rule
-                       (compile-rule r nil)
-                       (compile-rule* r nil))))
-     :facts (doall (for [f facts]
-                     (compile-fact f nil)))}))
-
-(defn compile-state [& [no-rule]]
-  (let [start (now)
-        res (compile-statements (get-in @state [:program :statements]) @state no-rule)]
-    (when-let [rp (dom/$ "#compile-perf")]
-      (dom/html rp (.toFixed (- (now) start) 3)))
-    res))
-
-(defn inject-compiled []
-  (let [comped (compile-state)
-        rules (map operation/prepared (:rules comped))
-        tick-rules (stratifier/strata->ruleset (identity rules))
-        paused? (:pause @cur-env)]
-    (pause cur-env)
-    (swap! cur-env assoc :tick-rules tick-rules)
-    (replay-last cur-env (set (:facts comped)) 1)
-    (when-not paused?
-      (unpause cur-env))))
-
 ;(compile-state :safe)
 ;(enable-console-print!)
 
-;;*********************************************************
-;; Type editors and representations
-;;*********************************************************
 
-(defmulti ->editor (fn [rule-info _ _ ph _]
-                     (get-in rule-info [:placeholders ph :type])))
-
-(defmulti ->rep (fn [rule-info _ _ ph _]
-                  (get-in rule-info [:placeholders ph :type])))
-
-(defmulti ->parser (fn [type v]
-                     type))
-
-(defn set-editing [path]
-  (fn [e]
-    (.preventDefault e)
-    (.stopPropagation e)
-    (when (= (second path) :statements)
-      (swap! state assoc-in [:editor :paused?] (:paused @cur-env))
-      (swap! state assoc-in [:editor :prev-kn] (-> @cur-env :kn :prev))
-      (swap! state update-in [:editor] merge {:path path
-                                              :value nil
-                                              :remain-open false}))))
-
-(defn default-parser [v]
-  (cond
-   (= "" v) nil
-   (= "*" (first v)) (symbol (subs v 1))
-   (not (re-seq #"[^\d.-]" v)) (reader/read-string v)
-   :else v))
-
-(defn placeholder-rep [ph path]
-  [:span {:onClick (set-editing path)
-          :classes {:placeholder true}}
-     ph])
-
-(defn ref-rep [v ph path]
-  [:span {:onClick (set-editing path)
-          :classes {:value true}}
-   (str v)])
-
-(defmethod ->rep :default [rule-info rule v ph path]
-  [:span {:onClick (set-editing path)
-          :classes {:value true}}
-     (cond
-      (string? v) (if (> (.-length v) 100)
-                    (str (subs v 0 100) "...")
-                    v)
-      (symbol? v) (str v)
-      (vector? v) v
-      (nil? v) v
-      :else (str v))])
-
-(defmethod ->editor :default []
-  [:div.value-editor-container {:onClick (fn [e]
-                                           (.preventDefault e)
-                                           (.stopPropagation e))}])
-
-(defmethod ->parser :default [_ v]
-  (default-parser v))
-
-(defmethod ->rep "duration" [rule-info rule v ph path]
-  [:span {:onClick (set-editing path)}
-   (cond
-    (> v 60000) (str (/ v 60000) " minutes")
-    (= v 60000) (str "1 minute")
-    (> v 1000) (str (/ v 1000) " seconds")
-    (= v 1000) (str "1 second")
-    :else (str v " milliseconds"))])
-
-(defmethod ->editor "duration" [rule-info rule v ph path]
-  (let [[v selected] (cond
-                      (>= v 60000) [(/ v 60000) "minutes"]
-                      (>= v 1000) [(/ v 1000) "seconds"]
-                      (or (nil? v) (= 0 v)) [1 "seconds"]
-                      :else [v "milliseconds"])]
-    (swap! state update-in [:editor] merge {:remain-open true
-                                            :type "duration"
-                                            :value v})
-    [:span
-     [:div.value-editor-container]
-     [:select#duration-unit {:defaultValue selected}
-      [:option {:value "minutes"} "minutes"]
-      [:option {:value "seconds"} "seconds"]
-      [:option {:value "milliseconds"} "milliseconds"]]
-     ]))
-
-(defmethod ->parser "duration" [_ v]
-  (let [input (dom/$ "#duration-unit")
-        unit (.-value (aget (.-options input) (.-selectedIndex input)))
-        v (js/parseInt v)]
-    (condp = unit
-      "minutes" (* 60000 v)
-      "seconds" (* 1000 v)
-      "milliseconds" v)))
-
-
-(defmethod ->rep "ui" [rule-info rule v ph path]
-  (let [structure (try
-                    (reader/read-string v)
-                    (catch :default e))
-        walked (walk/prewalk (fn [x]
-                               (if-not (symbol? x)
-                                 x
-                                 [:span.ref (str x)])
-                               )
-                             structure)]
-    [:span.ui-rep {:onClick (set-editing path)}
-     walked
-     ;"UI preview"
-     ]))
-
-(defmethod ->rep "key" [rule-info rule v ph path]
-  (let []
-    [:span.keyboard-key {:onClick (set-editing path)}
-     ({13 "enter"} v)
-     ]))
 
 ;;*********************************************************
 ;; Display
 ;;*********************************************************
 
 
-
-
 (defn editable [rule-info rule v ph path opts]
   (if (or (not= path (get-in @state [:editor :path]))
           (:no-edit opts))
     (cond
-     (not v) (placeholder-rep ph path)
-     (symbol? v) (ref-rep v ph path)
-     :else (->rep rule-info rule v ph path))
-    (->editor rule-info rule v ph path)))
+     (not v) (types/placeholder-rep ph path)
+     (symbol? v) (types/ref-rep v ph path)
+     :else (types/->rep rule-info rule v ph path))
+    (types/->editor rule-info rule v ph path)))
 
 (defn holder [path attrs content]
   [:span (merge attrs {:draggable "true"
@@ -653,7 +294,7 @@
 
 (defn handle-value-submit [v]
   (let [editor (:editor @state)]
-    (swap! state assoc-in (:path editor) (->parser (:type editor) v))
+    (swap! state assoc-in (:path editor) (types/->parser (:type editor) v))
     (when-not (get-in @state [:editor :remain-open])
       (swap! state assoc :editor {})
       (.setValue value-editor ""))))
@@ -921,7 +562,8 @@
                             :statements []}
                   :editor {}
                   :matcher {}}))
-        program (merge-with merge (:program page) std-lib)
+        program (merge-with merge (:program page) {:clauses stdlib/clauses
+                                                   :madlibs stdlib/madlibs})
         page (assoc page :program program)
         page (if (:statements page)
                (-> (assoc-in page [:program :name] (:name page))
@@ -954,7 +596,7 @@
 (add-watch state :compile (fn [_ _ old cur]
                             (when-not (identical? (get-in old [:program :statements]) (get-in cur [:program :statements]))
                               (println "compiling!")
-                              (inject-compiled))))
+                              (clauses/inject-compiled))))
 
 (add-watch state :store (js/Cowboy.debounce 1000
                                             (fn [_ _ old cur]
