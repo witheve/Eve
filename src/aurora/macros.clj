@@ -1,6 +1,15 @@
 (ns aurora.macros
   (:require [cljs.compiler :refer [munge]]))
 
+(defmacro avec [arr]
+  `(js/cljs.core.PersistentVector.fromArray ~arr true))
+
+(defmacro apush* [arr-a arr-b]
+  `(js/Array.prototype.push.apply ~arr-a ~arr-b))
+
+(defmacro apush [arr-a arr-b]
+  `(js/Array.prototype.push.call ~arr-a ~arr-b))
+
 (defmacro set!! [name val]
   (assert (symbol? name) (str "Can't set!! " (pr-str name)))
   `(~'js* ~(str (munge name) "= ~{}") ~val))

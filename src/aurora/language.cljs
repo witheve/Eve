@@ -91,7 +91,7 @@
         values (.-values fact)]
     (dotimes [i (count ixes)]
       (apush result (aget values (aget ixes i))))
-    result))
+    (Fact. nil result nil)))
 
 (defn fact-join-ixes [left-fact right-fact ixes]
   (let [result #js []
@@ -102,7 +102,7 @@
         (if (< ix (alength left-values))
           (apush result (aget left-values ix))
           (apush result (aget right-values (- ix (alength left-values)))))))
-    result))
+    (Fact. nil result nil)))
 
 (comment
   (fact-shape "[a] has a [b] with a [c]")
@@ -130,58 +130,108 @@
 
 ;; FLOW STATE
 
-(defrecord FlowState [node->state in-edge->out-edges edge->values edge->update!])
+(defrecord FlowState [node->state in-edge->out-edges edge->facts edge->update!])
 
-(defn fixpoint [{:keys [node->state in-edge->out-edges edge->values edge->update!] :as flow-state}]
+(defn fixpoint [{:keys [node->state in-edge->out-edges edge->facts edge->update!] :as flow-state}]
   (loop [edge 0]
-    (when (< edge (alength edge->values))
-      (let [in-values (aget edge->values edge)]
-        (if (== 0 (alength in-values))
+    (when (< edge (alength edge->facts))
+      (let [in-facts (aget edge->facts edge)]
+        (if (== 0 (alength in-facts))
           (recur (+ edge 1))
-          (let [out-values #js []]
-            (.call (aget edge->update! edge) nil node->state in-values out-values)
-            (aset edge->values edge #js [])
-            (when (> (alength out-values) 0)
+          (let [out-facts #js []]
+            (prn edge in-facts)
+            (.call (aget edge->update! edge) nil node->state in-facts out-facts)
+            (aset edge->facts edge #js [])
+            (if (> (alength out-facts) 0)
               (let [out-edges (aget in-edge->out-edges edge)
                     min-out-edge (areduce out-edges i min-out-edge (+ edge 1)
                                           (let [out-edge (aget out-edges i)]
-                                            (apush* (aget edge->values out-edge) out-values)
+                                            (apush* (aget edge->facts out-edge) out-facts)
                                             (min out-edge min-out-edge)))]
-                (recur min-out-edge))))))))
+                (recur min-out-edge))
+              (recur (+ edge 1))))))))
   flow-state)
 
-(defn filter-flow [fun]
-  (fn [node->state in-values out-values]
-    (dotimes [i (alength in-values)]
-      (let [value (aget in-values i)]
-        (when (.call fun nil value)
-          (apush out-values value))))))
+(defn filter-map-update! [fun]
+  (fn [node->state in-facts out-facts]
+    (dotimes [i (alength in-facts)]
+      (let [fact (aget in-facts i)]
+        (when-let [new-fact (.call fun nil fact)]
+          (apush out-facts new-fact))))))
 
-(defn set-flow [node]
-  (fn [node->state in-values out-values]
+(defn union-update! [node]
+  (fn [node->state in-facts out-facts]
     (let [set (aget node->state node)]
-      (dotimes [i (alength in-values)]
-        (let [value (aget in-values i)]
-          (when (not (contains? set value))
-            (conj!! set value)
-            (apush out-values value))))
+      (dotimes [i (alength in-facts)]
+        (let [fact (aget in-facts i)]
+          (when (not (contains? set fact))
+            (conj!! set fact)
+            (apush out-facts fact))))
       (aset node->state node set))))
+
+(defn index-update! [node key-ixes]
+  (fn [node->state in-facts out-facts]
+    (let [index (aget node->state node)]
+      (dotimes [i (alength in-facts)]
+        (let [fact (aget in-facts i)
+              key (fact-ixes fact key-ixes)
+              facts (or (get index key) #{})] ;; TODO transients are not seqable :(
+          (when-not (contains? facts fact)
+            (assoc!! index key (conj facts fact))
+            (apush out-facts fact))))
+      (aset node->state node index))))
+
+(defn lookup-update! [node key-ixes val-ixes]
+  (fn [node->state in-facts out-facts]
+    (let [index (aget node->state node)]
+      (dotimes [i (alength in-facts)]
+        (let [left-fact (aget in-facts i)
+              key (fact-ixes left-fact key-ixes)]
+          (doseq [right-fact (get index key)]
+              (apush out-facts (fact-join-ixes left-fact right-fact val-ixes))))))))
 
 (comment
   (->
    (->FlowState #js [(transient #{})]
                 #js [#js [1] #js [0]]
                 #js [#js [:a :b "c" :d] #js []]
-                #js [(filter-flow keyword?) (keep-flow 0)])
+                #js [(filter-map-update! (fn [x] (when (keyword? x) x))) (union-update! 0)])
    fixpoint)
 
   (->
    (->FlowState #js [(transient #{})]
                 #js [#js [1] #js [0]]
                 #js [#js [:a :b "c" :d] #js []]
-                #js [(filter-flow keyword?) (keep-flow 0)])
+                #js [(filter-map-update! (fn [x] (when (keyword? x) x))) (union-update! 0)])
    fixpoint
    :node->state
    (aget 0)
    persistent!)
+
+  (deffact edge "[x] has an edge to [y]")
+  (deffact connected "[x] is connected to [y]")
+
+  ;; [x] has an edge to [y]
+  ;; [y] is connected to [z]
+  ;; + [x] is connected to [z]
+
+  ;; TODO use filter-map in here to get the right shape
+  (->
+   (->
+    (->FlowState #js [(transient #{}) (transient #{}) (transient {}) (transient {}) nil]
+                 #js [#js [2 7] #js [3] #js [4] #js [5] #js [6] #js [6] #js [3] #js [3]]
+                   #js [#js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)] #js [] #js [] #js [] #js [] #js [] #js [] #js []]
+                   #js [(union-update! 0)
+                        (union-update! 1)
+                        (index-update! 2 #js [1])
+                        (index-update! 3 #js [0])
+                        (lookup-update! 3 #js [1] #js [0 3])
+                        (lookup-update! 2 #js [0] #js [2 1])
+                        (union-update! 1)
+                        (union-update! 1)])
+    fixpoint)
+   :node->state
+   (aget 1)
+   persistent!)
+
   )
