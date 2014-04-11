@@ -130,37 +130,37 @@
 
 ;; FLOW STATE
 
-(defrecord FlowState [node->state in-edge->out-edges edge->facts edge->update!])
+(defrecord FlowState [node->state node->out-nodes node->facts node->update!])
 
-(defn fixpoint [{:keys [node->state in-edge->out-edges edge->facts edge->update!] :as flow-state}]
-  (loop [edge 0]
-    (when (< edge (alength edge->facts))
-      (let [in-facts (aget edge->facts edge)]
+(defn fixpoint [{:keys [node->state node->out-nodes node->facts node->update!] :as flow-state}]
+  (loop [node 0]
+    (when (< node (alength node->facts))
+      (let [in-facts (aget node->facts node)]
         (if (== 0 (alength in-facts))
-          (recur (+ edge 1))
+          (recur (+ node 1))
           (let [out-facts #js []]
-            (prn edge in-facts)
-            (.call (aget edge->update! edge) nil node->state in-facts out-facts)
-            (aset edge->facts edge #js [])
+            (prn node in-facts)
+            (.call (aget node->update! node) nil node node->state in-facts out-facts)
+            (aset node->facts node #js [])
             (if (> (alength out-facts) 0)
-              (let [out-edges (aget in-edge->out-edges edge)
-                    min-out-edge (areduce out-edges i min-out-edge (+ edge 1)
-                                          (let [out-edge (aget out-edges i)]
-                                            (apush* (aget edge->facts out-edge) out-facts)
-                                            (min out-edge min-out-edge)))]
-                (recur min-out-edge))
-              (recur (+ edge 1))))))))
+              (let [out-nodes (aget node->out-nodes node)
+                    min-out-node (areduce out-nodes i min-out-node (+ node 1)
+                                          (let [out-node (aget out-nodes i)]
+                                            (apush* (aget node->facts out-node) out-facts)
+                                            (min out-node min-out-node)))]
+                (recur min-out-node))
+              (recur (+ node 1))))))))
   flow-state)
 
 (defn filter-map-update! [fun]
-  (fn [node->state in-facts out-facts]
+  (fn [node node->state in-facts out-facts]
     (dotimes [i (alength in-facts)]
       (let [fact (aget in-facts i)]
         (when-let [new-fact (.call fun nil fact)]
           (apush out-facts new-fact))))))
 
-(defn union-update! [node]
-  (fn [node->state in-facts out-facts]
+(defn union-update! []
+  (fn [node node->state in-facts out-facts]
     (let [set (aget node->state node)]
       (dotimes [i (alength in-facts)]
         (let [fact (aget in-facts i)]
@@ -169,8 +169,8 @@
             (apush out-facts fact))))
       (aset node->state node set))))
 
-(defn index-update! [node key-ixes]
-  (fn [node->state in-facts out-facts]
+(defn index-update! [key-ixes]
+  (fn [node node->state in-facts out-facts]
     (let [index (aget node->state node)]
       (dotimes [i (alength in-facts)]
         (let [fact (aget in-facts i)
@@ -181,9 +181,9 @@
             (apush out-facts fact))))
       (aset node->state node index))))
 
-(defn lookup-update! [node key-ixes val-ixes]
-  (fn [node->state in-facts out-facts]
-    (let [index (aget node->state node)]
+(defn lookup-update! [index-node key-ixes val-ixes]
+  (fn [node node->state in-facts out-facts]
+    (let [index (aget node->state index-node)]
       (dotimes [i (alength in-facts)]
         (let [left-fact (aget in-facts i)
               key (fact-ixes left-fact key-ixes)]
@@ -191,22 +191,6 @@
               (apush out-facts (fact-join-ixes left-fact right-fact val-ixes))))))))
 
 (comment
-  (->
-   (->FlowState #js [(transient #{})]
-                #js [#js [1] #js [0]]
-                #js [#js [:a :b "c" :d] #js []]
-                #js [(filter-map-update! (fn [x] (when (keyword? x) x))) (union-update! 0)])
-   fixpoint)
-
-  (->
-   (->FlowState #js [(transient #{})]
-                #js [#js [1] #js [0]]
-                #js [#js [:a :b "c" :d] #js []]
-                #js [(filter-map-update! (fn [x] (when (keyword? x) x))) (union-update! 0)])
-   fixpoint
-   :node->state
-   (aget 0)
-   persistent!)
 
   (deffact edge "[x] has an edge to [y]")
   (deffact connected "[x] is connected to [y]")
@@ -218,20 +202,20 @@
   ;; TODO use filter-map in here to get the right shape
   (->
    (->
-    (->FlowState #js [(transient #{}) (transient #{}) (transient {}) (transient {}) nil]
-                 #js [#js [2 7] #js [3] #js [4] #js [5] #js [6] #js [6] #js [3] #js [3]]
+    (->FlowState #js [(transient #{}) nil nil (transient {}) (transient {}) nil nil]
+                 #js [#js [1 2] #js [3 7] #js [4] #js [5] #js [6] #js [7] #js [7] #js [0]]
                    #js [#js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)] #js [] #js [] #js [] #js [] #js [] #js [] #js []]
-                   #js [(union-update! 0)
-                        (union-update! 1)
-                        (index-update! 2 #js [1])
-                        (index-update! 3 #js [0])
-                        (lookup-update! 3 #js [1] #js [0 3])
-                        (lookup-update! 2 #js [0] #js [2 1])
-                        (union-update! 1)
-                        (union-update! 1)])
+                   #js [(union-update!)
+                        (filter-map-update! (fn [x] (when (= edge (.-shape x)) x)))
+                        (filter-map-update! (fn [x] (when (= connected (.-shape x)) x)))
+                        (index-update! #js [1])
+                        (index-update! #js [0])
+                        (lookup-update! 4 #js [1] #js [0 3])
+                        (lookup-update! 3 #js [0] #js [2 1])
+                        (filter-map-update! (fn [x] (->connected (fact-ix x 0) (fact-ix x 1))))])
     fixpoint)
    :node->state
-   (aget 1)
+   (aget 0)
    persistent!)
 
   )
