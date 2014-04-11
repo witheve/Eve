@@ -47,8 +47,9 @@
   [data]
   (if (satisfies? PElement data)
     (-elem data)
-    (when (seq? data)
-      (to-array (filter identity (map ->node-like data))))))
+    (if (coll? data)
+      (to-array (filter identity (map ->node-like data)))
+      data)))
 
 (defn merge-id [tag-attrs attrs]
   (when-let [id (aget tag-attrs "id")]
@@ -85,6 +86,7 @@
     (apply (aget react tag) attrs (filter identity (map ->node-like children)))))
 
 (extend-protocol PElement
+
   js/React.__internals.DOMComponent
   (-elem [this] this)
 
@@ -116,4 +118,5 @@
 
 (defn node [data]
   (if (satisfies? PElement data)
-    (-elem data)))
+    (-elem data)
+    data))

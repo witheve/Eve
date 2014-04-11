@@ -1,0 +1,180 @@
+(ns aurora.editor.components.matcher
+  (:require [aurora.editor.types :as types]
+            [aurora.language.operation :as operation]
+            [aurora.editor.dom :as dom]
+            [aurora.editor.core :refer [state]]
+            [aurora.util.core :refer [key-codes]]
+            [clojure.string :as string]))
+
+(def instance (js/CodeMirror. (fn [])))
+(dom/add-class (.getWrapperElement instance) :matcher-editor)
+(def fuzzy (.-fuzzaldrin js/window))
+
+(def pairs {"[" #"[^\]]"
+            "(" #"[^\)]"})
+
+(def pair->mode {"[" "id"
+                 "(" "attr"})
+
+(def keywords #"^(when|find|forget|change|see|all|new|draw|pretend)")
+(def key-madlibs #"^(see \[name\] as \[expression\]|all \[expression\])|new \[thing\]")
+
+(defn tokenizer [stream]
+  (let [ch (.peek stream)]
+    (cond
+     (pairs ch) (do
+                  (.eatWhile stream (pairs ch))
+                  (.next stream)
+                  (pair->mode ch))
+     (.match stream keywords) "keyword"
+     :else (do
+             (.next stream)
+             ""))))
+
+(defn aurora-mode []
+  #js {:token tokenizer})
+
+(defn parse-input [cur-value]
+  (let [space-index (.indexOf cur-value " ")
+        first-word (when (> space-index -1) (.substring cur-value 0 space-index))
+        kw (and first-word (re-seq keywords first-word))
+        to-match (if kw
+                   (.substring cur-value space-index)
+                   cur-value)]
+    {:keyword (when kw first-word)
+     :phrase (.trim to-match)}))
+
+(defn on-cm-change []
+  (let [cur-value (.getValue instance)
+        {:keys [keyword phrase]} (parse-input cur-value)
+        matcher (:matcher @state)
+        same? (= cur-value (:last-selected matcher))
+        search (if same?
+                 (-> (:last-text matcher)
+                     (parse-input)
+                     (:phrase))
+                 (.trim phrase))
+        candidates (if-not true;keyword
+                     (concat ["when" "find" "new" "see (name) as (expression)" "all (things)" "forget"] (vals (get-in @state [:program :madlibs])))
+                     (vals (get-in @state [:program :madlibs])))]
+    (when-not same?
+      (swap! state assoc :matcher (dissoc matcher :last-text :last-selected :selected)))
+    (if (= search "")
+      (swap! state assoc-in [:matcher :matches] (array))
+      (swap! state assoc-in [:matcher :matches]
+             (fuzzy (to-array candidates) search #js {:maxResults 4
+                                                      :keyfn #(:madlib-str %)})))))
+
+(defn circular-move [cur dir total]
+  (if-not cur
+    0
+    (let [moved (if (= :up dir)
+                  (dec cur)
+                  (inc cur))]
+      (cond
+       (< moved 0) (dec total)
+       (>= moved total) 0
+       :else moved))))
+
+(defn change-match-selection [dir]
+  (let [matcher (:matcher @state)
+        moved (if dir
+                (circular-move (:selected matcher) dir (count (:matches matcher)))
+                (:selected matcher))
+        cur-value (or (:last-text matcher) (.getValue instance))
+        {:keys [keyword phrase]} (parse-input cur-value)
+        selected-item (:madlib-str (aget (:matches matcher) moved))
+        neue (assoc matcher :selected moved)
+        final-text (when selected-item
+                     (if keyword
+                       (str keyword " " selected-item)
+                       selected-item))
+        neue (if selected-item
+               (assoc neue :last-selected final-text :last-text cur-value)
+               neue)]
+    (when selected-item
+      (.setValue instance final-text)
+      (.setCursor instance #js {:line 0 :ch nil})
+      )
+    (swap! state assoc :matcher neue)
+    )
+  )
+
+(defn explode-madlib [phrase]
+  (let [split (->> (string/split phrase "]")
+                  (mapcat #(let [[t ph] (string/split % "[")
+                                 final [ph]]
+                             (cond
+                              (and ph
+                                   (not= t "")
+                                   (not= ph "")) [t final]
+                              (not= t "") [t]
+                              (and ph (not= ph "")) [final]
+                              :else nil))))
+        placeholders (into {}
+                           (map #(conj % {:order %2})
+                                (filter #(vector? %) split) (range)))]
+    {:placeholders placeholders
+     :madlib (vec (for [x split]
+                    (if (vector? x)
+                      (first x)
+                      x)))}
+    ))
+
+(defn create-madlib [phrase]
+  (let [id (operation/new-id)]
+    (swap! state assoc-in [:program :madlibs id]
+           (merge (explode-madlib phrase)
+                  {:madlib-str phrase}))
+    id))
+
+(defn handle-submit [v]
+  (when (and v (not= "" (.trim v)))
+    (let [{:keys [keyword phrase]} (parse-input v)
+          lookup (into {} (for [[k v] (get-in @state [:program :madlibs])]
+                            [(:madlib-str v) k]
+                            ))
+          id (when keyword
+               (let [clause-info (get-in @state [:program :clauses keyword])]
+                        (if (:is-phrase clause-info)
+                          keyword)))
+          id (if id
+               id
+               (if-let [found (lookup phrase)]
+                 found
+                 (create-madlib phrase)))
+          cur-path (get-in @state [:matcher :path])
+          node {:type (if keyword
+                        keyword
+                        "add")
+                :ml id}
+          node (if (and keyword (not cur-path))
+                 {:type "rule"
+                  :clauses [node]}
+                 node)]
+      (if-not cur-path
+        (swap! state update-in [:program :statements] conj node)
+        (swap! state update-in (conj cur-path :clauses) conj node))
+      (when (= (:type node) "rule")
+        (swap! state assoc-in [:matcher :path] [:program :statements (-> (get-in @state [:program :statements])
+                                                                (count)
+                                                                (dec))])
+        )
+      (.setValue instance "")
+      )))
+
+(defn on-cm-keydown [e]
+  (when (= (.-keyCode e) (:up key-codes))
+    (change-match-selection :up)
+    (.preventDefault e))
+  (when (= (.-keyCode e) (:down key-codes))
+    (change-match-selection :down)
+    (.preventDefault e))
+  (when (= (.-keyCode e) (:enter key-codes))
+    (handle-submit (.getValue instance))
+    (.preventDefault e)))
+
+(js/CodeMirror.defineMode "aurora" aurora-mode)
+(.setOption instance "mode" "aurora")
+(.on instance "change" (fn [] (on-cm-change)))
+(.on instance "keydown" (fn [_ e] (on-cm-keydown e)))

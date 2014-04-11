@@ -41,6 +41,23 @@
     (.shift history))
   (.push history point))
 
+(defn fixpoint-tick [cur env aurora-facts]
+  (loop [kn cur
+         prev nil
+         i 0]
+    (if (or (= kn prev)
+            (>= i 10))
+      kn
+      (recur
+       (->
+        (stratifier/run-ruleset (:cleanup-rules env) kn)
+        (representation/assert-facts aurora-facts)
+        (representation/tick)
+        (tick (:tick-rules env) (:rules env) (:watchers env) (:feeder-fn env))
+        (representation/tick))
+       kn
+       (inc i)))))
+
 (defn handle-feed [env & [opts]]
   (when (or (:force opts)
             (not (:paused @env)))
@@ -61,7 +78,11 @@
                    (representation/tick)
                    (tick (:tick-rules @env) (:rules @env) (:watchers @env) (:feeder-fn @env))
                    (representation/retract-facts all)
-                   (representation/tick))))
+                   (representation/tick)
+                   (fixpoint-tick @env aurora-facts)
+                   (representation/retract-facts aurora-facts)
+                   (representation/tick))
+               ))
       (when-let [rp (dom/$ "#run-perf")]
         (dom/html rp (.toFixed (- (now) start) 3)))
       ;(println "final: " (- (.getTime (js/Date.)) start) (:kn @env))

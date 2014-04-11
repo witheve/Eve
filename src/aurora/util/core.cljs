@@ -31,3 +31,12 @@
     (if (>= (dir cur) count)
       0
       (dir cur))))
+
+(defn remove-index [v i]
+  (vec (concat (subvec v 0 i) (subvec v (inc i)))))
+
+(def key-codes {:up 38
+                :down 40
+                :esc 27
+                :tab 9
+                :enter 13})

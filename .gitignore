@@ -9,6 +9,7 @@ resources/runtime.js*
 resources/bootstrap.js
 node-webkit*
 aurora.app
+Eve.app
 nw*
 pom.xml
 *.jar
