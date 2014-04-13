@@ -53,10 +53,10 @@
         retracted (:retracted kn)
         name->schema (:name->schema kn)]
     (doseq [fact asserted]
-      (when (or (contains? now fact) (not (contains? retracted fact)))
+      (when (not (contains? retracted fact))
         (conj!! next fact)))
     (doseq [fact retracted]
-      (when (or (not (contains? now fact)) (not (contains? asserted fact)))
+      (when (not (contains? asserted fact))
         (disj!! next fact)))
     (->Knowledge #{} #{} #{} (persistent! next) name->schema)))
 
