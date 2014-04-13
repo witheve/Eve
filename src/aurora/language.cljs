@@ -5,8 +5,9 @@
   (:require-macros [aurora.macros :refer [console-time set!! conj!! disj!! assoc!! apush apush* avec]]
                    [aurora.language :refer [deffact]]))
 
+;; TODO facts and plans need to be serializable
+
 ;; FACTS
-;; TODO facts need to be serialisable, can't depend on identity
 
 (defn- hash-array [array]
   (if (> (alength array) 0)
@@ -208,7 +209,6 @@
   ;; [y] is connected to [z]
   ;; + [x] is connected to [z]
 
-  ;; TODO use filter-map in here to get the right shape
   (->
    (->
     (->FlowState #js [(transient #{}) nil nil (transient {}) (transient {}) nil nil]
@@ -229,17 +229,10 @@
 
   )
 
-;; EXPRS
-
-(defn expr->fun [expr]
-  (if (fn? expr)
-    expr ;; only used for testing
-    (assert false "No expr compiler yet")))
-
 ;; FLOWS
 
 (defrecord Union [nodes])
-(defrecord FilterMap [nodes expr])
+(defrecord FilterMap [nodes fun])
 (defrecord Index [nodes key-ixes])
 (defrecord Lookup [nodes index-node key-ixes val-ixes])
 
@@ -265,7 +258,7 @@
         (aset node->update! node
               (condp = (type flow)
                 Union (union-update!)
-                FilterMap (filter-map-update! (expr->fun (:expr flow)))
+                FilterMap (filter-map-update! (:fun flow))
                 Index (index-update! (:key-ixes flow))
                 Lookup (lookup-update! (:index-node flow) (:key-ixes flow) (:val-ixes flow))))))
     (FlowState. node->state node->out-nodes node->facts node->update!)))
@@ -385,6 +378,11 @@
   ((pattern->deconstructor '[::eg "a" "b" "c"]) (->eg "a" "b" "c"))
   ((pattern->deconstructor '[::eg a b c]) (->eg "a" "b" "c"))
   )
+
+;; EXPRS
+
+(defn expr->fun [vars expr]
+  (apply js/Function (conj (vec vars) (str "return " expr ";"))))
 
 ;; CLAUSES
 
