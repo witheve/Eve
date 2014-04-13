@@ -385,3 +385,32 @@
   ((pattern->deconstructor '[::eg "a" "b" "c"]) (->eg "a" "b" "c"))
   ((pattern->deconstructor '[::eg a b c]) (->eg "a" "b" "c"))
   )
+
+;; CLAUSES
+
+(defrecord Recall [memory pattern]) ;; memory is one of :known :pretended :remembered :forgotten :known&pretended
+(defrecord Filter [expr])
+(defrecord Let [name expr])
+(defrecord Set [name vars clauses])
+(defrecord Output [memory pattern]) ;; memory is one of :pretended :remembered :forgotten
+(defrecord OutputMany [memory expr]) ;; memory is one of :pretended :remembered :forgotten
+
+(defn clause->flow-plan [flow-plan shape clause]
+  (condp = (type clause)
+    ;; TODO !!! keep going here
+    ))
+
+;; RULES
+
+(defrecord Rule [clauses])
+
+(defn rule->flow-plan [flow-plan rule]
+  (loop [flow-plan flow-plan
+         shape []
+         clauses (:clauses rule)]
+    (if-let [[new-flow-plan new-shape clause] (first (map #(clause->flow-plan flow-plan shape %) clauses))]
+      (recur new-flow-plan new-shape (filter #(not= clause %) clauses))
+      (do (assert (empty? clauses) (str "Cannot join " (pr-str shape) " with " (pr-str clauses)))
+        flow-plan))))
+
+;; TODO !!! test
