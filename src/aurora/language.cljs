@@ -277,7 +277,7 @@
     :remembered 2
     :forgotten 3))
 
-(def known+pretended [0 1])
+(def known&pretended [0 1])
 
 (def empty-flow-plan
   (FlowPlan. [(Union. #{}) (Union. #{}) (Union. #{}) (Union. #{})] {}))
@@ -298,8 +298,8 @@
   (deffact connected "[x] is connected to [y]")
 
   (let [plan empty-flow-plan
-        [plan edges] (add-flow plan (FilterMap. known+pretended (fn [x] (when (= edge (.-shape x)) x))))
-        [plan connecteds] (add-flow plan (FilterMap. known+pretended (fn [x] (when (= connected (.-shape x)) x))))
+        [plan edges] (add-flow plan (FilterMap. known&pretended (fn [x] (when (= edge (.-shape x)) x))))
+        [plan connecteds] (add-flow plan (FilterMap. known&pretended (fn [x] (when (= connected (.-shape x)) x))))
         [plan edges-index] (add-flow plan (Index. [edges] #js [1]))
         [plan connecteds-index] (add-flow plan (Index. [connecteds] #js [0]))
         [plan edges-lookup] (add-flow plan (Lookup. [edges-index] connecteds-index #js [1] #js [0 3]))
@@ -309,4 +309,79 @@
         state (flow-plan->flow-state plan)]
     (apush* (aget (:node->facts state) 0) #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
     (-> (fixpoint state) :node->state (aget 1) persistent!))
+  )
+
+;; IXES
+
+(defn ix-of [vector value]
+  (let [count (count vector)]
+    (loop [ix 0]
+      (if (< ix count)
+        (if (= value (nth vector ix))
+          ix
+          (recur (+ ix 1)))
+        (assert false (str (pr-str value) " is not contained in " (pr-str vector)))))))
+
+(defn ixes-of [vector values]
+  (into-array (map #(ix-of vector %) values)))
+
+;; PATTERNS
+
+(defn pattern->shape [pattern]
+  (filterv symbol? (rest pattern)))
+
+(defn pattern->constructor [pattern source-shape]
+  (let [id (first pattern)
+        fact-shape (id->fact-shape id)
+        constants (into-array
+                   (for [value (rest pattern)]
+                     (when-not (symbol? value)
+                       value)))
+        pattern-shape (pattern->shape pattern)
+        source-ixes (ixes-of source-shape pattern-shape)
+        sink-ixes (ixes-of (rest pattern) pattern-shape)]
+    (fn [fact]
+      (let [source (.-values fact)
+            sink (aclone constants)]
+        (dotimes [i (alength source-ixes)]
+          (aset sink (aget sink-ixes i) (aget source (aget source-ixes i))))
+        (Fact. fact-shape sink)))))
+
+(defn pattern->deconstructor [pattern]
+  (let [id (first pattern)
+        constant-values (into-array
+                        (for [[value i] (map vector (rest pattern) (range))
+                              :when (not (symbol? value))]
+                          value))
+        constant-ixes (into-array
+                       (for [[value i] (map vector (rest pattern) (range))
+                             :when (not (symbol? value))]
+                         i))
+        pattern-shape (pattern->shape pattern)
+        var-ixes (ixes-of (rest pattern) pattern-shape)]
+    (fn [fact]
+      (when (= id (.-id (.-shape fact)))
+        (let [source (.-values fact)]
+          (loop [i 0]
+            (if (< i (alength constant-values))
+              (when (= (aget constant-values i) (aget source (aget constant-ixes i)))
+                (recur (+ i 1)))
+              (let [sink (make-array (alength var-ixes))]
+                (dotimes [i (alength var-ixes)]
+                  (aset sink i (aget source (aget var-ixes i))))
+                (Fact. nil sink)))))))))
+
+(comment
+  (deffact eg "[a] has a [b] with a [c]")
+
+  (pattern->shape '[::eg a "b" c])
+
+  ((pattern->constructor '[::eg "a" "b" "c"] []) (->eg 0 1 2))
+  ((pattern->constructor '[::eg c "b" a] '[a b c]) (->eg 0 1 2))
+
+  ((pattern->deconstructor '[::eg a "b" c]) (->eg "a" "b" "c"))
+  ((pattern->deconstructor '[::eg a "b" c]) (->eg "a" "B" "c"))
+  ((pattern->deconstructor '[::eg a "b" "c"]) (->eg "a" "b" "c"))
+  ((pattern->deconstructor '[::eg "a" "b" "c"]) (->eg "a" "b" "c"))
+  ((pattern->deconstructor '[::eg a b c]) (->eg "a" "b" "c"))
   )
