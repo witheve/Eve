@@ -219,3 +219,85 @@
    persistent!)
 
   )
+
+;; EXPRS
+
+(defn expr->fun [expr]
+  (if (fn? expr)
+    expr ;; only used for testing
+    (assert false "No expr compiler yet")))
+
+;; FLOWS
+
+(defrecord Union [nodes])
+(defrecord FilterMap [nodes expr])
+(defrecord Index [nodes key-ixes])
+(defrecord Lookup [nodes index-node key-ixes val-ixes])
+
+;; FLOW PLAN
+
+(defrecord FlowPlan [node->flow flow->node])
+
+(defn flow-plan->flow-state [{:keys [node->flow]}]
+  (let [node->state (into-array (for [_ node->flow] nil))
+        node->out-nodes (into-array (for [_ node->flow] #js []))
+        node->facts (into-array (for [_ node->flow] #js []))
+        node->update! (into-array (for [_ node->flow] nil))]
+    (dotimes [node (count node->flow)]
+      (let [flow (nth node->flow node)]
+        (aset node->state node
+              (condp = (type flow)
+                Union (transient #{})
+                FilterMap nil
+                Index (transient {})
+                Lookup nil))
+        (doseq [in-node (:nodes flow)]
+          (apush (aget node->out-nodes in-node) node))
+        (aset node->update! node
+              (condp = (type flow)
+                Union (union-update!)
+                FilterMap (filter-map-update! (expr->fun (:expr flow)))
+                Index (index-update! (:key-ixes flow))
+                Lookup (lookup-update! (:index-node flow) (:key-ixes flow) (:val-ixes flow))))))
+    (FlowState. node->state node->out-nodes node->facts node->update!)))
+
+(defn memory->node [memory]
+  (case memory
+    :known 0
+    :pretended 1
+    :remembered 2
+    :forgotten 3))
+
+(def known+pretended [0 1])
+
+(def empty-flow-plan
+  (FlowPlan. [(Union. #{}) (Union. #{}) (Union. #{}) (Union. #{})] {}))
+
+(defn output-flow [flow-plan node memory]
+  (update-in flow-plan [:node->flow (memory->node memory) :nodes] conj node))
+
+(defn add-flow [{:keys [node->flow flow->node] :as flow-plan} flow]
+  (if-let [node (flow->node flow)]
+    [flow-plan node]
+    (let [node (count node->flow)
+          node->flow (conj node->flow flow)
+          flow->node (assoc flow->node flow node)]
+      [(FlowPlan. node->flow flow->node) node])))
+
+(comment
+  (deffact edge "[x] has an edge to [y]")
+  (deffact connected "[x] is connected to [y]")
+
+  (let [plan empty-flow-plan
+        [plan edges] (add-flow plan (FilterMap. known+pretended (fn [x] (when (= edge (.-shape x)) x))))
+        [plan connecteds] (add-flow plan (FilterMap. known+pretended (fn [x] (when (= connected (.-shape x)) x))))
+        [plan edges-index] (add-flow plan (Index. [edges] #js [1]))
+        [plan connecteds-index] (add-flow plan (Index. [connecteds] #js [0]))
+        [plan edges-lookup] (add-flow plan (Lookup. [edges-index] connecteds-index #js [1] #js [0 3]))
+        [plan connecteds-lookup] (add-flow plan (Lookup. [connecteds-index] edges-index #js [0] #js [2 1]))
+        [plan new-connecteds] (add-flow plan (FilterMap. [edges edges-lookup connecteds-lookup] (fn [x] (->connected (fact-ix x 0) (fact-ix x 1)))))
+        plan (output-flow plan new-connecteds :pretended)
+        state (flow-plan->flow-state plan)]
+    (apush* (aget (:node->facts state) 0) #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
+    (-> (fixpoint state) :node->state (aget 1) persistent!))
+  )
