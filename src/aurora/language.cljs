@@ -3,7 +3,7 @@
             [aurora.language.jsth :as jsth]
             [aurora.language.match :as match])
   (:require-macros [aurora.macros :refer [console-time set!! conj!! disj!! assoc!! apush apush* avec]]
-                   [aurora.language.macros :refer [deffact rule]]))
+                   [aurora.language :refer [deffact]]))
 
 ;; FACTS
 ;; TODO facts need to be serialisable, can't depend on identity
@@ -21,7 +21,7 @@
   (= (hash-array #js [1 2 :c]) (hash [1 2 :c]))
   )
 
-(deftype FactShape [madlib keys]
+(deftype FactShape [id madlib keys]
   Object
   (toString [this]
             (apply str (interleave madlib (map (fn [k] (str "[" (name k) "]")) keys)))))
@@ -36,8 +36,7 @@
   IEquiv
   (-equiv [this other]
           (and (instance? Fact other)
-               (identical? shape (.-shape other)) ;; TODO check id is equal instead
-               (== (alength values) (alength (.-values other)))
+               (= (.-id shape) (.-id (.-shape other)))
                (loop [i 0]
                  (if (>= i (alength values))
                    true
@@ -68,10 +67,13 @@
                      (aget values i)
                      (recur (+ i 1)))))))))
 
-(defn fact-shape [madlib&keys]
+(defn id->fact-shape [id]
+  (js/eval (str (namespace id) "." (name id)))) ;; TODO assumes facts are created by deffact
+
+(defn fact-shape [id madlib&keys]
   (let [split-madlib&keys (clojure.string/split madlib&keys #"\[|\]")
         [madlib keys] [(take-nth 2 split-madlib&keys) (map keyword (take-nth 2 (rest split-madlib&keys)))]]
-    (FactShape. (into-array madlib) (into-array keys))))
+    (FactShape. id (into-array madlib) (into-array keys))))
 
 (defn fact
   ([values]
@@ -105,23 +107,30 @@
     (Fact. nil result nil)))
 
 (comment
-  (fact-shape "[a] has a [b] with a [c]")
-  (fact-shape "The [a] has a [b] with a [c]")
+  (fact-shape ::eg "[a] has a [b] with a [c]")
+  (fact-shape ::eg "The [a] has a [b] with a [c]")
 
   (fact #js [0 1 2])
-  (fact (fact-shape "The [a] has a [b] with a [c]") #js [0 1 2])
+  (fact (fact-shape ::eg "The [a] has a [b] with a [c]") #js [0 1 2])
 
   (deffact eg "[a] has a [b] with a [c]")
+  (.-id eg)
+
   eg
 
+  (.-id (.-shape (fact (fact-shape ::eg "[a] has a [b] with a [c]") #js ["a" "b" "c"])))
 
   (def x (->eg "a" "b" "c"))
   (nth x 1)
   (get x 1)
   (get x :b)
 
+
+  (fact (fact-shape ::eg "[a] has a [b] with a [c]") #js ["a" "b" "c"])
+
   (= x x)
-  (= x (fact (fact-shape "[a] has a [b] with a [c]") #js ["a" "b" "c"]))
+  (= x (fact (fact-shape ::eg "[a] has a [b] with a [c]") #js ["a" "b" "c"]))
+  (= x (fact (id->fact-shape ::eg) #js ["a" "b" "c"]))
   (= x (fact eg #js ["a" "b" "c"]))
   (= x (->eg "a" "b" "c"))
 

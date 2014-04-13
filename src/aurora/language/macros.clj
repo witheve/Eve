@@ -2,12 +2,6 @@
 
 (ns aurora.language.macros)
 
-(defmacro deffact [name madlib&keys]
-  `(do
-     (def ~name (aurora.language/fact-shape ~madlib&keys))
-     (defn ~(symbol (str "->" name)) [& args#]
-       (aurora.language/fact ~name (.-arr args#)))))
-
 (defn op [expr]
   (if (seq? expr)
     (first expr)
