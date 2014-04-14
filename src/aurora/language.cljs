@@ -25,8 +25,13 @@
 (deftype FactShape [id madlib keys]
   Object
   (toString [this]
-            (apply str (interleave madlib (map (fn [k] (str "[" (name k) "]")) keys)))))
+            (apply str (interleave madlib (map (fn [k] (str "[" (name k) "]")) keys))))
+  IEquiv
+  (-equiv [this other]
+          (and (instance? FactShape other)
+               (= id (.-id other)))))
 
+;; if given a shape behaves like a record, otherwise behaves like a vector
 (deftype Fact [shape values ^:mutable __hash]
   Object
   (toString [this]
@@ -37,12 +42,14 @@
   IEquiv
   (-equiv [this other]
           (and (instance? Fact other)
-               (= (.-id shape) (.-id (.-shape other)))
+               (= shape (.-shape other))
+               (== (alength values) (alength (.-values other)))
                (loop [i 0]
                  (if (>= i (alength values))
                    true
-                   (when (= (aget values i) (aget (.-values other) i))
-                     (recur (+ i 1)))))))
+                   (if (= (aget values i) (aget (.-values other) i))
+                     (recur (+ i 1))
+                     false)))))
 
   IHash
   (-hash [this] (caching-hash this hash-array __hash))
@@ -127,6 +134,8 @@
   (get x :b)
 
 
+  (= eg (fact-shape ::eg "[a] has a [b] with a [c]"))
+
   (fact (fact-shape ::eg "[a] has a [b] with a [c]") #js ["a" "b" "c"])
 
   (= x x)
@@ -134,6 +143,11 @@
   (= x (fact (id->fact-shape ::eg) #js ["a" "b" "c"]))
   (= x (fact eg #js ["a" "b" "c"]))
   (= x (->eg "a" "b" "c"))
+  (= (Fact. nil #js ["a" "b" "c"]) (Fact. nil #js ["a" "b" "c"]))
+
+  (= x (Fact. nil #js ["a" "b" "c"]))
+  (= x (Fact. eg #js ["a" "b" 0]))
+  (= x (fact (fact-shape ::foo "[a] has a [b] with a [c]") #js ["a" "b" "c"]))
 
   (fact-ixes x #js [2 1])
   )
