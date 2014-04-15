@@ -440,13 +440,13 @@
 (deffact Let "Let [name] be the result of [vars] [expr]")
 (deffact When "When [vars] [expr]")
 
-(defn recall->node [plan {:keys [memory pattern]}]
+(defn recall->nodes [plan {:keys [memory pattern]}]
   (let [[plan node] (add-flow plan (FilterMap. (memory->nodes memory) (pattern->deconstructor pattern)))]
-    [plan node (pattern->vars pattern)]))
+    [plan [node] (pattern->vars pattern)]))
 
 ;; if clause can be calculated somehow then return a new [plan node vars] pair that calculates it
 ;; TODO make this extensible
-(defn compute->node [plan node vars {:keys [pattern]}]
+(defn compute->nodes [plan nodes vars {:keys [pattern]}]
   (condp = (.-shape pattern)
     Let (when (every? (set vars) (:vars pattern))
           (let [let-fun (expr->fun vars (:expr pattern))
@@ -455,56 +455,77 @@
                                        new-values (aclone (.-values fact))]
                                    (apush new-values new-value)
                                    (Fact. nil new-values)))
-                [plan node] (add-flow plan (->FilterMap [node] filter-map-fun))]
-            [plan node (conj vars (:name pattern))]))
+                [plan node] (add-flow plan (->FilterMap nodes filter-map-fun))]
+            [plan [node] (conj vars (:name pattern))]))
     When (when (every? (set vars) (:vars pattern))
            (let [when-fun (expr->fun vars (:expr pattern))
                  filter-map-fun (fn [fact]
                                   (when (.apply when-fun (.-values fact))
                                     fact))
-                 [plan node] (add-flow plan (->FilterMap [node] filter-map-fun))]
-             [plan node vars]))))
+                 [plan node] (add-flow plan (->FilterMap nodes filter-map-fun))]
+             [plan [node] vars]))))
 
-(defn computes->node [plan node vars computes]
-  (let [orig-node node] ;; too much shadowing :S
-    (loop [plan plan
-           node node
+(defn computes->nodes [plan nodes vars computes]
+    (loop [orig-nodes nodes
+           plan plan
+           nodes nodes
            vars vars
            computes-remaining computes
+           computes-applied computes-applied
            computes-unapplied []]
       (if-let [[compute & computes-remaining] (seq computes-remaining)]
-        (if-let [[new-plan new-node new-vars] (compute->node plan node vars compute)]
-          (recur new-plan new-node new-vars computes-remaining computes-unapplied)
-          (recur plan node vars computes-remaining (conj computes-unapplied compute)))
-        (if (= node orig-node)
-          [plan node vars computes-unapplied]
-          (computes? plan node vars computes-unapplied))))))
+        (if-let [[new-plan new-nodes new-vars] (compute->nodess plan nodes vars compute)]
+          (recur orig-nodes new-plan new-nodes new-vars computes-remaining (conj computes-applied compute) computes-unapplied)
+          (recur orig-nodes plan nodes vars computes-remaining computes-applied (conj computes-unapplied compute)))
+        (if (= nodes orig-nodes)
+          [plan nodes vars (set computes-applied)]
+          (recur nodes plan nodes vars computes-unapplied computes-applied [])))))
 
-(defn output->node [plan node vars {:keys [memory pattern]}]
+(defn output->nodes [plan nodes vars {:keys [memory pattern]}]
   (assert (every? (set vars) (pattern->vars pattern)))
-  (let [[plan output-node] (add-flow plan (FilterMap. [node] (pattern->constructor pattern)))
+  (let [[plan output-node] (add-flow plan (FilterMap. nodes (pattern->constructor pattern)))
         plan (add-output plan output-node memory)]
     plan))
 
+(defn join->nodes [plan nodes-a vars-a computes-applied-a nodes-b vars-b computes-applied-b]
+  (let [key-vars (intersection (set vars-a) (set vars-b))
+        val-vars (union (set vars-a) (set vars-b))
+        key-ixes-a (ixes-of vars-a key-vars)
+        key-ixes-b (ixes-of vars-b key-vars)
+        val-ixes-a (ixes-of (concat vars-a vars-b) val-vars)
+        val-ixes-b (ixes-of (concat vars-b vars-a) val-vars)
+        [plan index-a] (add-flow plan (->Index nodes-a key-ixes-a))
+        [plan index-b] (add-flow plan (->Index nodes-b key-ixes-b))
+        [plan lookup-a] (add-flow plan (->Lookup [index-a] index-b key-ixes-a val-ixes-a))
+        [plan lookup-b] (add-flow plan (->Lookup [index-b] index-a key-ixes-b val-ixes-b))]
+    [plan [lookup-a lookup-b] (distinct (concat vars-a vars-b)) (union computes-applied-a computes-applied-b)]))
 
 ;; RULES
 
 (defrecord Rule [clauses])
 
-;; turn all Recalls into nodes
-;; try to apply computes
-;; loop
-  ;; join two nodes
-  ;; try to apply computes
-;; filter down vars?
-
 ;; Correctness: Each clause must appear at least once in the plan
 ;; Heuristic: Each Recall clause is used at most once in the plan
 ;; Heuristic: Each Filter/Let clause is used at most once per path in the plan
 
-
 (defn rule->flow-plan [rule]
   (let [recalls (filter #(= Recall (type %)) (:clauses rule))
-        computes (filter #(= Compute (type %)) (:clauses rule))
+        computes (set (filter #(= Compute (type %)) (:clauses rule)))
         outputs (filter #(= Output (type %)) (:clauses rule))
-        node->remaining-computes ()]))
+        main-plan (atom empty-flow-plan)
+        nodes&vars&computes-applied (for [recall recalls]
+                                      (let [plan @main-plan
+                                            [plan node vars] (recall->nodes plan recall)
+                                            [plan node vars computes-applied] (computes->nodes plan node vars computes)]
+                                        (swap! main-plan plan)
+                                        [node vars computes-applied]))
+        [nodes vars computes-applied] (reduce (fn [[nodes-a vars-a computes-applied-a] [nodes-b vars-b computes-applied-b]]
+                                               (let [plan @main-plan
+                                                     [plan nodes vars computes-applied-old] (join->nodes plan nodes-a vars-a computes-applied-a nodes-b vars-b computes-applied-b)
+                                                     [plan nodes vars computes-applied-new] (computes->nodes plan nodes vars (difference computes computes-applied-old))]
+                                                 (swap! main-plan plan)
+                                                 [nodes vars (union computes-applied-old computes-applied-new)]))
+                                              nodes&vars&computes-applied)]
+    (assert (= computes-applied (set computes)) (str "Could not apply " (pr-str (difference (set computes) computes-applied))))
+    (doseq [output outputs]
+      (swap! main-plan (output->nodes @main-plan nodes vars output)))))
