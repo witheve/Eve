@@ -26,7 +26,6 @@
                   (.eatWhile stream (pairs ch))
                   (.next stream)
                   (pair->mode ch))
-     (.match stream keywords) "keyword"
      :else (do
              (.next stream)
              ""))))
@@ -34,29 +33,14 @@
 (defn aurora-mode []
   #js {:token tokenizer})
 
-(defn parse-input [cur-value]
-  (let [space-index (.indexOf cur-value " ")
-        first-word (when (> space-index -1) (.substring cur-value 0 space-index))
-        kw (and first-word (re-seq keywords first-word))
-        to-match (if kw
-                   (.substring cur-value space-index)
-                   cur-value)]
-    {:keyword (when kw first-word)
-     :phrase (.trim to-match)}))
-
 (defn on-cm-change []
   (let [cur-value (.getValue instance)
-        {:keys [keyword phrase]} (parse-input cur-value)
         matcher (:matcher @state)
         same? (= cur-value (:last-selected matcher))
         search (if same?
-                 (-> (:last-text matcher)
-                     (parse-input)
-                     (:phrase))
-                 (.trim phrase))
-        candidates (if-not true;keyword
-                     (concat ["when" "find" "new" "see (name) as (expression)" "all (things)" "forget"] (vals (get-in @state [:program :madlibs])))
-                     (vals (get-in @state [:program :madlibs])))]
+                 (:last-text matcher)
+                 (.trim cur-value))
+        candidates (vals (get-in @state [:program :madlibs]))]
     (when-not same?
       (swap! state assoc :matcher (dissoc matcher :last-text :last-selected :selected)))
     (if (= search "")
@@ -82,13 +66,10 @@
                 (circular-move (:selected matcher) dir (count (:matches matcher)))
                 (:selected matcher))
         cur-value (or (:last-text matcher) (.getValue instance))
-        {:keys [keyword phrase]} (parse-input cur-value)
         selected-item (:madlib-str (aget (:matches matcher) moved))
         neue (assoc matcher :selected moved)
         final-text (when selected-item
-                     (if keyword
-                       (str keyword " " selected-item)
-                       selected-item))
+                     selected-item)
         neue (if selected-item
                (assoc neue :last-selected final-text :last-text cur-value)
                neue)]
@@ -130,25 +111,25 @@
 
 (defn handle-submit [v]
   (when (and v (not= "" (.trim v)))
-    (let [{:keys [keyword phrase]} (parse-input v)
-          lookup (into {} (for [[k v] (get-in @state [:program :madlibs])]
+    (let [lookup (into {} (for [[k v] (get-in @state [:program :madlibs])]
                             [(:madlib-str v) k]
                             ))
+          matcher (:matcher @state)
+          keyword (:type matcher)
           id (when keyword
                (let [clause-info (get-in @state [:program :clauses keyword])]
                         (if (:is-phrase clause-info)
                           keyword)))
           id (if id
                id
-               (if-let [found (lookup phrase)]
+               (if-let [found (lookup v)]
                  found
-                 (create-madlib phrase)))
-          cur-path (get-in @state [:matcher :path])
-          node {:type (if keyword
-                        keyword
-                        "add")
+                 (create-madlib v)))
+          cur-path (:path matcher)
+          node {:type (or keyword "add")
                 :ml id}
-          node (if (and keyword (not cur-path))
+          node (if (and (not cur-path)
+                        (not= keyword "remember"))
                  {:type "rule"
                   :clauses [node]}
                  node)]
@@ -160,6 +141,7 @@
                                                                 (count)
                                                                 (dec))])
         )
+      (swap! state update-in [:matcher] dissoc :type)
       (.setValue instance "")
       )))
 
@@ -169,6 +151,10 @@
     (.preventDefault e))
   (when (= (.-keyCode e) (:down key-codes))
     (change-match-selection :down)
+    (.preventDefault e))
+  (when (and (= (.-keyCode e) (:backspace key-codes))
+             (= (.getValue instance) ""))
+    (swap! state update-in [:matcher] dissoc :type)
     (.preventDefault e))
   (when (= (.-keyCode e) (:enter key-codes))
     (handle-submit (.getValue instance))

@@ -22,6 +22,9 @@
 (defmethod compile-clause "add" [clause world]
   [(denotation/Output. :assert (dissoc clause :type))])
 
+(defmethod compile-clause "remember" [clause world]
+  (compile-clause (assoc clause :type "add")))
+
 
 (defmethod compile-clause "all" [clause world]
   (let [things (get clause "things")]
@@ -47,8 +50,8 @@
   (let [rule (get-in @state [:program :madlibs (:ml clause)])
         placeholders (into {} (for [k (keys (:placeholders rule))]
                                 [k (symbol k)]))
-        new-bound-syms (:aurora.editor.fake/new clause)
-        clause (dissoc clause :type :aurora.editor.fake/new)
+        new-bound-syms (:aurora.editor.ui/new clause)
+        clause (dissoc clause :type :aurora.editor.ui/new :aurora.editor.fake/new)
         syms (into {} (for [k (keys (dissoc clause :ml))]
                         [k (gensym k)]))
         sees (for [[k v] (dissoc clause :ml)]
@@ -79,7 +82,11 @@
   (mapcat compile-clause (:clauses r)))
 
 (defn compile-rule [r world]
-  (denotation/clauses->rule (vec (compile-rule* r world))))
+  (try
+    (denotation/clauses->rule (vec (compile-rule* r world)))
+    (catch :default e
+      (.error js/console e)
+      nil)))
 
 (def compile-rule (memoize compile-rule))
 
@@ -89,10 +96,10 @@
 (defn compile-statements [statements world no-rule]
   (let [rules (filter #(= (:type %) "rule") statements)
         facts (filter #(not= (:type %) "rule") statements)]
-    {:rules (doall (for [r rules]
-                     (if-not no-rule
-                       (compile-rule r nil)
-                       (compile-rule* r nil))))
+    {:rules (filter identity (doall (for [r rules]
+                                      (if-not no-rule
+                                        (compile-rule r nil)
+                                        (compile-rule* r nil)))))
      :facts (doall (for [f facts]
                      (compile-fact f nil)))}))
 
@@ -103,9 +110,16 @@
       (dom/html rp (.toFixed (- (now) start) 3)))
     res))
 
+(defn prepare [thing]
+  (try
+    (operation/prepared thing)
+    (catch :default e
+      (.error js/console e)
+      nil)))
+
 (defn inject-compiled []
   (let [comped (compile-state)
-        rules (map operation/prepared (:rules comped))
+        rules (filter identity (map prepare (:rules comped)))
         tick-rules (stratifier/strata->ruleset (identity rules))
         paused? (:pause @cur-env)]
     (pause cur-env)

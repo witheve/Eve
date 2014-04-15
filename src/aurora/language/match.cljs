@@ -1,5 +1,3 @@
-(aset js/aurora.language "match" nil)
-
 (ns aurora.language.match
   (:require [clojure.walk :refer [postwalk-replace]]
             [aurora.language.jsth :as jsth])

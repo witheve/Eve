@@ -39,4 +39,5 @@
                 :down 40
                 :esc 27
                 :tab 9
+                :backspace 8
                 :enter 13})
