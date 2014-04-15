@@ -334,38 +334,46 @@
 
 ;; PATTERNS
 
-(defn pattern->shape [pattern]
-  (filterv symbol? (rest pattern)))
+(defn pattern->vars [pattern]
+  (vec (distinct (filter symbol? (.-values pattern)))))
 
-(defn pattern->constructor [pattern source-shape]
-  (let [id (first pattern)
-        fact-shape (id->fact-shape id)
-        constants (into-array
-                   (for [value (rest pattern)]
-                     (when-not (symbol? value)
-                       value)))
-        pattern-shape (pattern->shape pattern)
-        source-ixes (ixes-of source-shape pattern-shape)
-        sink-ixes (ixes-of (rest pattern) pattern-shape)]
+(defn pattern->constructor [pattern source-vars]
+  (let [shape (.-shape pattern)
+        values (.-values pattern)
+        source-ixes #js []
+        sink-ixes #js []]
+    (doseq [[value ix] (map vector (.-values pattern) (range))]
+      (when (symbol? value)
+        (do
+          (apush source-ixes (ix-of source-vars value))
+          (apush sink-ixes ix))))
     (fn [fact]
       (let [source (.-values fact)
-            sink (aclone constants)]
+            sink (aclone values)]
         (dotimes [i (alength source-ixes)]
           (aset sink (aget sink-ixes i) (aget source (aget source-ixes i))))
-        (Fact. fact-shape sink)))))
+        (Fact. shape sink)))))
 
 (defn pattern->deconstructor [pattern]
-  (let [id (first pattern)
-        constant-values (into-array
-                        (for [[value i] (map vector (rest pattern) (range))
-                              :when (not (symbol? value))]
-                          value))
-        constant-ixes (into-array
-                       (for [[value i] (map vector (rest pattern) (range))
-                             :when (not (symbol? value))]
-                         i))
-        pattern-shape (pattern->shape pattern)
-        var-ixes (ixes-of (rest pattern) pattern-shape)]
+  (let [id (.-id (.-shape pattern))
+        seen? (atom {})
+        constant-values #js []
+        constant-ixes #js []
+        var-ixes #js []
+        dup-value-ixes #js []
+        dup-var-ixes #js []]
+    (doseq [[value ix] (map vector (.-values pattern) (range))]
+      (if (symbol? value)
+        (if-let [dup-value-ix (@seen? value)]
+          (do
+            (apush dup-value-ixes dup-value-ix)
+            (apush dup-var-ixes ix))
+          (do
+            (apush var-ixes ix)
+            (swap! seen? assoc value ix)))
+        (do
+          (apush constant-values value)
+          (apush constant-ixes ix))))
     (fn [fact]
       (when (= id (.-id (.-shape fact)))
         (let [source (.-values fact)]
@@ -373,24 +381,34 @@
             (if (< i (alength constant-values))
               (when (= (aget constant-values i) (aget source (aget constant-ixes i)))
                 (recur (+ i 1)))
-              (let [sink (make-array (alength var-ixes))]
-                (dotimes [i (alength var-ixes)]
-                  (aset sink i (aget source (aget var-ixes i))))
-                (Fact. nil sink)))))))))
+              (loop [i 0]
+                (if (< i (alength dup-value-ixes))
+                  (when (= (aget source (aget dup-value-ixes i)) (aget source (aget dup-var-ixes i)))
+                    (recur (+ i 1)))
+                  (let [sink (make-array (alength var-ixes))]
+                    (dotimes [i (alength var-ixes)]
+                      (aset sink i (aget source (aget var-ixes i))))
+                    (Fact. nil sink)))))))))))
 
 (comment
   (deffact eg "[a] has a [b] with a [c]")
 
-  (pattern->shape '[::eg a "b" c])
+  (pattern->vars (->eg 'a "b" 'c))
 
-  ((pattern->constructor '[::eg "a" "b" "c"] []) (->eg 0 1 2))
-  ((pattern->constructor '[::eg c "b" a] '[a b c]) (->eg 0 1 2))
+  ((pattern->constructor (->eg "a" "b" "c") '[a b c]) (->eg 0 1 2))
+  ((pattern->constructor (->eg 'a "b" "c") '[a b c]) (->eg 0 1 2))
+  ((pattern->constructor (->eg 'c "b" "a") '[a b c]) (->eg 0 1 2))
+  ((pattern->constructor (->eg 'c 'c 'c) '[a b c]) (->eg 0 1 2))
 
-  ((pattern->deconstructor '[::eg a "b" c]) (->eg "a" "b" "c"))
-  ((pattern->deconstructor '[::eg a "b" c]) (->eg "a" "B" "c"))
-  ((pattern->deconstructor '[::eg a "b" "c"]) (->eg "a" "b" "c"))
-  ((pattern->deconstructor '[::eg "a" "b" "c"]) (->eg "a" "b" "c"))
-  ((pattern->deconstructor '[::eg a b c]) (->eg "a" "b" "c"))
+  ((pattern->deconstructor (->eg 'a "b" 'c)) (->eg "a" "b" "c"))
+  ((pattern->deconstructor (->eg 'a "b" 'c)) (->eg "a" "B" "c"))
+  ((pattern->deconstructor (->eg 'a "b" "c")) (->eg "a" "b" "c"))
+  ((pattern->deconstructor (->eg "a" "b" "c")) (->eg "a" "b" "c"))
+  ((pattern->deconstructor (->eg 'a 'b 'c)) (->eg "a" "b" "c"))
+  ((pattern->deconstructor (->eg 'a 'b 'a)) (->eg "a" "b" "c"))
+  ((pattern->deconstructor (->eg 'a 'b 'a)) (->eg "a" "b" "a"))
+  ((pattern->deconstructor (->eg 'a 'a 'a)) (->eg "a" "b" "a"))
+  ((pattern->deconstructor (->eg 'a 'a 'a)) (->eg "a" "a" "a"))
   )
 
 ;; EXPRS
