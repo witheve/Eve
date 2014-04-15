@@ -1,5 +1,3 @@
-(aset js/aurora.language "macros" nil)
-
 (ns aurora.language.macros
   (:require [clojure.set :refer [union]]
             [aurora.language.operation :as operation]

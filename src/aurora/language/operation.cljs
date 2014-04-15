@@ -1,5 +1,3 @@
-(aset js/aurora.language "operation" nil)
-
 (ns aurora.language.operation
   (:require [clojure.set :refer [union intersection difference subset?]]
             [aurora.language.jsth :as jsth]

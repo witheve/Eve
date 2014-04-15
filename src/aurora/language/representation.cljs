@@ -1,5 +1,3 @@
-(aset js/aurora.language "representation" nil)
-
 (ns aurora.language.representation
   (:require-macros [aurora.macros :refer [set!! conj!! disj!! assoc!!]]))
 

@@ -1,9 +1,5 @@
-(when js/aurora (set! js/aurora.language nil))
-
 (ns aurora.language
-  (:require [clojure.set :refer [union intersection difference subset?]]
-            [aurora.language.jsth :as jsth]
-            [aurora.language.match :as match])
+  (:require [clojure.set :refer [union intersection difference subset?]])
   (:require-macros [aurora.macros :refer [console-time set!! conj!! disj!! assoc!! apush apush* avec]]
                    [aurora.language :refer [deffact]]))
 

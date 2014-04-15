@@ -1,5 +1,3 @@
-(remove-ns 'aurora.language.macros)
-
 (ns aurora.language.macros)
 
 (defn op [expr]

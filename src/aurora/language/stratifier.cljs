@@ -1,5 +1,3 @@
-(aset js/aurora.language "stratifier" nil)
-
 (ns aurora.language.stratifier
   (:require aurora.language.macros
             [aurora.language.representation :as representation :refer [tick]]
