@@ -250,6 +250,9 @@
 (defrecord Index [nodes key-ixes])
 (defrecord Lookup [nodes index-node key-ixes val-ixes])
 
+(defn flow->nodes [flow]
+  (:nodes flow))
+
 ;; FLOW PLAN
 
 (defrecord FlowPlan [node->flow flow->node])
@@ -284,7 +287,13 @@
     :remembered 2
     :forgotten 3))
 
-(def known&pretended [0 1])
+(defn memory->nodes [memory]
+  (case memory
+    :known [0]
+    :pretended [1]
+    :remembered [2]
+    :forgotten [3]
+    :known&pretended [0 1]))
 
 (def empty-flow-plan
   (FlowPlan. [(Union. #{}) (Union. #{}) (Union. #{}) (Union. #{})] {}))
@@ -303,6 +312,8 @@
 (comment
   (deffact edge "[x] has an edge to [y]")
   (deffact connected "[x] is connected to [y]")
+
+  (def known&pretended [0 1])
 
   (let [plan empty-flow-plan
         [plan edges] (add-flow plan (FilterMap. known&pretended (fn [x] (when (= edge (.-shape x)) x))))
@@ -419,20 +430,49 @@
 ;; CLAUSES
 
 (defrecord Recall [memory pattern]) ;; memory is one of :known :pretended :remembered :forgotten :known&pretended
-(defrecord Filter [expr])
-(defrecord Let [name expr])
-(defrecord Set [name vars clauses])
+(defrecord Compute [pattern])
 (defrecord Output [memory pattern]) ;; memory is one of :pretended :remembered :forgotten
-(defrecord OutputMany [memory expr]) ;; memory is one of :pretended :remembered :forgotten
+(defrecord OutputMany [memory vars expr]) ;; memory is one of :pretended :remembered :forgotten
 
-(defn clause->flow-plan [flow-plan shape clause]
-  (condp = (type clause)
-    ;; TODO !!! keep going here
-    ))
+;; horrible non-relational things
+(deffact Let "Let [name] be the result of [vars] [expr]")
+(deffact When "When [vars] [expr]")
+
+;; if clause can be calculated somehow then return a new [plan node shape] pair that calculates it
+;; TODO make this extensible
+(defn compute? [plan node shape {:keys pattern}]
+  (condp = (.-shape pattern)
+    Let (when (every? (set shape) (:vars pattern))
+          (let [let-fun (expr->fun shape (:expr pattern))
+                filter-map-fun (fn [fact]
+                                 (let [new-value (.apply let-fun (.-values fact))
+                                       new-values (aclone (.-values fact))]
+                                   (apush new-values new-value)
+                                   (Fact. nil new-values)))
+                [plan node] (add-flow plan (->FilterMap [node] filter-map-fun))]
+            [plan node (conj shape (:name pattern))]))
+    When (when (every? (set shape) (:vars pattern))
+           (let [when-fun (expr->fun shape (:expr pattern))
+                 filter-map-fun (fn [fact]
+                                  (when (.apply when-fun (.-values fact))
+                                    fact))
+                 [plan node] (add-flow plan (->FilterMap [node] filter-map-fun))]
+             [plan node shape]))))
 
 ;; RULES
 
 (defrecord Rule [clauses])
+
+;; turn all Recalls into nodes
+;; try to apply computes
+;; loop
+  ;; join two nodes
+  ;; try to apply computes
+;; filter down vars?
+
+;; Correctness: Each clause must appear at least once in the plan
+;; Heuristic: Each Recall clause is used at most once in the plan
+;; Heuristic: Each Filter/Let clause is used at most once per path in the pln
 
 (defn rule->flow-plan [flow-plan rule]
   (loop [flow-plan flow-plan
@@ -442,5 +482,3 @@
       (recur new-flow-plan new-shape (filter #(not= clause %) clauses))
       (do (assert (empty? clauses) (str "Cannot join " (pr-str shape) " with " (pr-str clauses)))
         flow-plan))))
-
-;; TODO !!! test
