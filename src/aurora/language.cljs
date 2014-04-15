@@ -563,11 +563,11 @@
 ;; Heuristic: Each Recall clause is used at most once in the plan
 ;; Heuristic: Each Filter/Let clause is used at most once per path in the plan
 
-(defn rule->flow-plan [rule]
+(defn add-rule [plan rule]
   (let [recalls (filter #(= Recall (type %)) (:clauses rule))
         computes (set (filter #(= Compute (type %)) (:clauses rule)))
         outputs (filter #(= Output (type %)) (:clauses rule))
-        main-plan (atom empty-flow-plan)
+        main-plan (atom plan)
         nodes&vars&computes-applied (for [recall recalls]
                                       (let [plan @main-plan
                                             [plan node vars] (recall->nodes plan recall)
@@ -586,14 +586,22 @@
       (reset! main-plan (output->nodes @main-plan nodes vars output)))
     @main-plan))
 
+(defn add-rules [plan rules]
+  ;; TODO stratify
+  (reduce add-rule plan rules))
 
+(comment
   (deffact edge "[x] has an edge to [y]")
   (deffact connected "[x] is connected to [y]")
 
-(rule->flow-plan (Rule. [(Recall. :known&pretended (->edge 'x 'y))
-                         (Output. :pretended (->connected 'x 'y))]))
-
-(rule->flow-plan (Rule. [(Recall. :known&pretended (->edge 'x 'y))
-                         (Recall. :known&pretended (->connected 'y 'z))
-                         (Output. :pretended (->connected 'x 'z))]))
+  (let [plan (add-rules empty-flow-plan
+                        [(Rule. [(Recall. :known&pretended (->edge 'x 'y))
+                                 (Output. :pretended (->connected 'x 'y))])
+                         (Rule. [(Recall. :known&pretended (->edge 'x 'y))
+                                 (Recall. :known&pretended (->connected 'y 'z))
+                                 (Output. :pretended (->connected 'x 'z))])])
+        state (flow-plan->flow-state plan)]
+    (apush* (aget (:node->facts state) 0) #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
+    (persistent! (aget (:node->state (fixpoint state)) 1)))
+  )
 
