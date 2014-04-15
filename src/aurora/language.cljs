@@ -298,7 +298,7 @@
 (def empty-flow-plan
   (FlowPlan. [(Union. #{}) (Union. #{}) (Union. #{}) (Union. #{})] {}))
 
-(defn output-flow [flow-plan node memory]
+(defn add-output [flow-plan node memory]
   (update-in flow-plan [:node->flow (memory->node memory) :nodes] conj node))
 
 (defn add-flow [{:keys [node->flow flow->node] :as flow-plan} flow]
@@ -323,7 +323,7 @@
         [plan edges-lookup] (add-flow plan (Lookup. [edges-index] connecteds-index #js [1] #js [0 3]))
         [plan connecteds-lookup] (add-flow plan (Lookup. [connecteds-index] edges-index #js [0] #js [2 1]))
         [plan new-connecteds] (add-flow plan (FilterMap. [edges edges-lookup connecteds-lookup] (fn [x] (->connected (fact-ix x 0) (fact-ix x 1)))))
-        plan (output-flow plan new-connecteds :pretended)
+        plan (add-output plan new-connecteds :pretended)
         state (flow-plan->flow-state plan)]
     (apush* (aget (:node->facts state) 0) #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
     (-> (fixpoint state) :node->state (aget 1) persistent!))
@@ -432,32 +432,58 @@
 (defrecord Recall [memory pattern]) ;; memory is one of :known :pretended :remembered :forgotten :known&pretended
 (defrecord Compute [pattern])
 (defrecord Output [memory pattern]) ;; memory is one of :pretended :remembered :forgotten
-(defrecord OutputMany [memory vars expr]) ;; memory is one of :pretended :remembered :forgotten
+;; (defrecord OutputMany [memory vars expr]) ;; memory is one of :pretended :remembered :forgotten
 
 ;; horrible non-relational things
 (deffact Let "Let [name] be the result of [vars] [expr]")
 (deffact When "When [vars] [expr]")
 
-;; if clause can be calculated somehow then return a new [plan node shape] pair that calculates it
+(defn recall->node [plan {:keys [memory pattern]}]
+  (let [[plan node] (add-flow plan (FilterMap. (memory->nodes memory) (pattern->deconstructor pattern)))]
+    [plan node (pattern->vars pattern)]))
+
+;; if clause can be calculated somehow then return a new [plan node vars] pair that calculates it
 ;; TODO make this extensible
-(defn compute? [plan node shape {:keys pattern}]
+(defn compute->node [plan node vars {:keys [pattern]}]
   (condp = (.-shape pattern)
-    Let (when (every? (set shape) (:vars pattern))
-          (let [let-fun (expr->fun shape (:expr pattern))
+    Let (when (every? (set vars) (:vars pattern))
+          (let [let-fun (expr->fun vars (:expr pattern))
                 filter-map-fun (fn [fact]
                                  (let [new-value (.apply let-fun (.-values fact))
                                        new-values (aclone (.-values fact))]
                                    (apush new-values new-value)
                                    (Fact. nil new-values)))
                 [plan node] (add-flow plan (->FilterMap [node] filter-map-fun))]
-            [plan node (conj shape (:name pattern))]))
-    When (when (every? (set shape) (:vars pattern))
-           (let [when-fun (expr->fun shape (:expr pattern))
+            [plan node (conj vars (:name pattern))]))
+    When (when (every? (set vars) (:vars pattern))
+           (let [when-fun (expr->fun vars (:expr pattern))
                  filter-map-fun (fn [fact]
                                   (when (.apply when-fun (.-values fact))
                                     fact))
                  [plan node] (add-flow plan (->FilterMap [node] filter-map-fun))]
-             [plan node shape]))))
+             [plan node vars]))))
+
+(defn computes->node [plan node vars computes]
+  (let [orig-node node] ;; too much shadowing :S
+    (loop [plan plan
+           node node
+           vars vars
+           computes-remaining computes
+           computes-unapplied []]
+      (if-let [[compute & computes-remaining] (seq computes-remaining)]
+        (if-let [[new-plan new-node new-vars] (compute->node plan node vars compute)]
+          (recur new-plan new-node new-vars computes-remaining computes-unapplied)
+          (recur plan node vars computes-remaining (conj computes-unapplied compute)))
+        (if (= node orig-node)
+          [plan node vars computes-unapplied]
+          (computes? plan node vars computes-unapplied))))))
+
+(defn output->node [plan node vars {:keys [memory pattern]}]
+  (assert (every? (set vars) (pattern->vars pattern)))
+  (let [[plan output-node] (add-flow plan (FilterMap. [node] (pattern->constructor pattern)))
+        plan (add-output plan output-node memory)]
+    plan))
+
 
 ;; RULES
 
@@ -472,13 +498,15 @@
 
 ;; Correctness: Each clause must appear at least once in the plan
 ;; Heuristic: Each Recall clause is used at most once in the plan
-;; Heuristic: Each Filter/Let clause is used at most once per path in the pln
+;; Heuristic: Each Filter/Let clause is used at most once per path in the plan
 
-(defn rule->flow-plan [flow-plan rule]
-  (loop [flow-plan flow-plan
-         shape []
-         clauses (:clauses rule)]
-    (if-let [[new-flow-plan new-shape clause] (first (map #(clause->flow-plan flow-plan shape %) clauses))]
-      (recur new-flow-plan new-shape (filter #(not= clause %) clauses))
-      (do (assert (empty? clauses) (str "Cannot join " (pr-str shape) " with " (pr-str clauses)))
-        flow-plan))))
+
+(defn rule->flow-plan [rule]
+  (let [recalls (filter #(= Recall (type %)) (:clauses rule))
+        computes (filter #(= Compute (type %)) (:clauses rule))
+        outputs (filter #(= Output (type %)) (:clauses rule))
+        computes? (fn [plan node vars computes]
+                    (if-let [[plan node vars] (first (map #(compute? plan node vars) computes)))
+        node->remaining-computes (reduce recalls empty-flow-plan )]
+    (loop [plan plan
+           node->remaining-computes (zipmap recall-nodes (repeat computes))])
