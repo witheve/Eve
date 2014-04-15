@@ -32,29 +32,44 @@
 (defn statement-item [path & content]
   [:li {:onContextMenu (fn [e]
                          (.stopPropagation e)
-                         (swap! state update-in (butlast path) remove-index (last path))
+                         (swap! state assoc :menu {:top (.-clientY e)
+                                                   :left (.-clientX e)
+                                                   :items [{:label "remove reaction"
+                                                            :action (fn []
+                                                                      (swap! state update-in (butlast path) remove-index (last path))
+                                                                      )}]})
                          )
         :onClick (fn []
                    (swap! state assoc-in [:matcher :path] path))
+        :classes {"statement" true}
         }
+   content])
+
+(defn clause-item [path & content]
+  [:span {:onContextMenu (fn [e]
+                           (.stopPropagation e)
+                           (swap! state assoc :menu {:top (.-clientY e)
+                                                     :left (.-clientX e)
+                                                     :items [{:label "remove"
+                                                              :action (fn []
+                                                                        (swap! state update-in (butlast path) remove-index (last path))
+                                                                        )}]}))
+           }
    content])
 
 (defmethodcomponent draw-statement "rule" [rule path matcher? edit-path?]
   (let [clauses (map-indexed vector (:clauses rule))
-        when (first (filter #(= (:type (second %)) "when") clauses))
         edit-seg (get edit-path? 4)]
     (statement-item path
-     (if when (draw-clause (second when) (conj path :clauses (first when)) (if (= edit-seg (first when))
-                                                                                     edit-path?)))
       [:ul.sub
-       (for [[i c] (filter #(not= (:type (second %)) "when") clauses)
+       (for [[i c] clauses
              :let [path (conj path :clauses i)]]
          (statement-item path
           (draw-clause c path (if (= edit-seg i)
                                         edit-path?)))
          )
        (if matcher?
-         [:li (matches (:matcher @state))]
+         [:li.statement (matches (:matcher @state))]
          )
        ])))
 
@@ -62,41 +77,59 @@
   (statement-item path
    (draw-clause rule path edit-path?)))
 
+(defmethodcomponent draw-statement "remember" [rule path matcher? edit-path?]
+  (statement-item path
+   (draw-clause rule path edit-path?)))
+
 (defmethodcomponent draw-clause "add" [clause path edit-path?]
-  (rule-ui clause path))
+  (draw-clause (assoc clause :type "remember"))
+  )
+
+
+(defmethodcomponent draw-clause "remember" [clause path edit-path?]
+  (clause-item path
+               [:span.keyword "remember"] (rule-ui clause path))
+  )
 
 (defmethodcomponent draw-clause "when" [clause path edit-path?]
-  (do
-    [:span [:span.keyword "when "] (rule-ui clause path)]))
+  (clause-item path
+    [:span.keyword.condition "when"] (rule-ui clause path)))
 
 (defmethodcomponent draw-clause "find" [clause path edit-path?]
-  [:span [:span.keyword "find "] (rule-ui clause path)])
+  (clause-item path
+              [:span.keyword.condition "when"] (rule-ui clause path)))
 
 (defmethodcomponent draw-clause "forget" [clause path edit-path?]
-  [:span [:span.keyword "forget "] (rule-ui clause path)])
+  (clause-item path
+               [:span.keyword "forget"] (rule-ui clause path)))
 
 (defmethodcomponent draw-clause "see" [clause path edit-path?]
-  [:span [:span.keyword "see "] (rule-ui clause path)])
+  (clause-item path
+               [:span.keyword "see"] (rule-ui clause path)))
 
 (defmethodcomponent draw-clause "all" [clause path edit-path?]
-  [:span [:span.keyword "all "] (rule-ui clause path)])
+  (clause-item path
+               [:span.keyword "all"] (rule-ui clause path)))
 
 (defmethodcomponent draw-clause "pretend" [clause path edit-path?]
-  [:span [:span.keyword "pretend "] (rule-ui clause path)])
+  (clause-item path
+               [:span.keyword "pretend"] (rule-ui clause path)))
 
 (defmethodcomponent draw-clause "change" [clause path edit-path?]
   (let [rule (get-in @state [:program :madlibs (:ml clause)])
         placeholders (into {} (for [k (keys (:placeholders rule))]
                                 [k (symbol k)]))]
-    [:table
-     [:tbody
-      [:tr [:td.keyword "change "] [:td (rule-ui (merge clause placeholders (::new clause)) (conj path ::new))]]
-      [:tr [:td.keyword "to "] [:td (rule-ui clause path)]]]]
+    (clause-item path
+     [:table
+      [:tbody
+       [:tr [:td.keyword "change"] [:td (rule-ui (merge clause placeholders (::new clause)) (conj path ::new))]]
+       [:tr [:td.keyword "to"] [:td (rule-ui clause path)]]]])
     ))
 
 (defmethodcomponent draw-clause "draw" [clause path edit-path?]
-  [:span [:span.keyword "draw "] (rule-ui clause path)])
-
+  (clause-item path
+               [:span.keyword "draw"] (rule-ui clause path)))
+(get-in @state [:program :statements])
 ;;*********************************************************
 ;; Display
 ;;*********************************************************
@@ -135,7 +168,7 @@
   (let [path (conj path ph)
         v (get rule ph)
         id? (= "id" (get-in rule-info [:placeholders ph :type]))
-        classes {:var true
+        classes {:var id?
                  :ref (symbol? v)
                  :add true
                  :attr (not id?)}]
@@ -164,16 +197,20 @@
         statement-seg (get editor-path 2)]
     [:div
      [:ul#rules
-      (for [[i s] (map-indexed vector (:statements program))]
-        (draw-statement s [:program :statements i]
-                        (when (= last-seg i)
-                          (:matcher world))
-                        (when (= statement-seg i)
-                          editor-path)))]
-     (when matcher-path
-       [:div.add-rule {:onClick (fn []
-                                  (swap! state assoc-in [:matcher :path] nil))}
-        ])]))
+      (concat
+       (for [[i s] (map-indexed vector (:statements program))]
+         (draw-statement s [:program :statements i]
+                         (when (= last-seg i)
+                           (:matcher world))
+                         (when (= statement-seg i)
+                           editor-path)))
+       [[:li.statement {:onClick (fn []
+                                   (swap! state assoc-in [:matcher :path] nil))}
+         (if-not matcher-path
+           (matches (:matcher @state))
+           [:div.center "Add reaction"])
+         ]])]
+     ]))
 
 (defn results [env world]
   (let [kn (:kn env)]
@@ -194,14 +231,28 @@
 
 (defcomponent matches [matcher]
   [:div#matcher
-   [:div.matcher-editor-container]
-   [:ul#matches
-    (for [[i m] (map-indexed vector (:matches matcher))]
-      [:li {:classes {:selected (= i (:selected matcher))}
-            :onClick (fn []
-                       (swap! state assoc-in [:matcher :selected] i)
-                       (change-match-selection nil)
-                       (handle-submit (.getValue instance)))} (rule-ui m nil nil)])]])
+   (if-not (:type matcher)
+     [:div.keyword-selector
+      [:span.keyword " "]
+      [:ul#clause-types
+       (for [[i m] (map-indexed vector ["when" "remember" "forget" "pretend" "draw" "change"])]
+         [:li {:classes {:selected (= i (:selected matcher))}
+               :onClick (fn []
+                          (swap! state assoc-in [:matcher :type] m)
+                          )}
+          m]
+         )]]
+     [:div
+      [:span.keyword (:type matcher)]
+      [:div#madlib-selector
+       [:div.matcher-editor-container]
+       [:ul#matches
+        (for [[i m] (map-indexed vector (:matches matcher))]
+          [:li {:classes {:selected (= i (:selected matcher))}
+                :onClick (fn []
+                           (swap! state assoc-in [:matcher :selected] i)
+                           (change-match-selection nil)
+                           (handle-submit (.getValue instance)))} (rule-ui m nil nil)])]]])])
 
 (defcomponent controls [env]
   [:div#controls
@@ -222,15 +273,29 @@
     (:name program)]
    (controls @cur-env)])
 
+(defn menu [menu]
+  [:div#menu-shade {:onClick (fn []
+                               (swap! state dissoc :menu))}
+   [:ul#menu {:style {:top (:top menu)
+                      :left (:left menu)}}
+    (for [item (:items menu)]
+      [:li {:onClick (fn []
+                       (when-let [action (:action item)]
+                         (action))
+                       (swap! state dissoc :menu))}
+       (:label item)]
+      )]]
+  )
+
 (defn editor-ui []
   [:div#root
+   (when-let [cur-menu (:menu @state)]
+     (menu cur-menu))
    (header (:program @state))
    [:div#canvas
     [:div#canvas-editor
      (rules (get-in @state [:program]) @state)
-     (if (get-in @state [:matcher :path])
-       [:div]
-       (matches (:matcher @state)))
+
      ]
     (results @cur-env @state)
     ]
