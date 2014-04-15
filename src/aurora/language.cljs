@@ -222,6 +222,9 @@
   (deffact connected "[x] is connected to [y]")
 
   ;; [x] has an edge to [y]
+  ;; + [x] is connected to [y]
+
+  ;; [x] has an edge to [y]
   ;; [y] is connected to [z]
   ;; + [x] is connected to [z]
 
@@ -444,6 +447,13 @@
   (let [[plan node] (add-flow plan (FilterMap. (memory->nodes memory) (pattern->deconstructor pattern)))]
     [plan [node] (pattern->vars pattern)]))
 
+(comment
+  (let [plan empty-flow-plan
+        [plan nodes-a vars-a] (recall->nodes plan (Recall. :known&pretended (->edge 'x 'y)))
+        [plan nodes-b vars-b] (recall->nodes plan (Recall. :known (->connected 'x 0)))]
+    [plan nodes-a nodes-b vars-a vars-b])
+  )
+
 ;; if clause can be calculated somehow then return a new [plan node vars] pair that calculates it
 ;; TODO make this extensible
 (defn compute->nodes [plan nodes vars {:keys [pattern]}]
@@ -465,6 +475,24 @@
                  [plan node] (add-flow plan (->FilterMap nodes filter-map-fun))]
              [plan [node] vars]))))
 
+(comment
+  (let [plan empty-flow-plan
+        [plan nodes-a vars-a] (recall->nodes plan (Recall. :known&pretended (->edge 'x 'y)))
+        [plan nodes-b vars-b] (compute->nodes plan nodes-a vars-a (Compute. (->Let 'z '[x y] "x + y")))]
+    [plan nodes-a nodes-b vars-a vars-b])
+
+
+  (let [plan empty-flow-plan
+        [plan nodes-a vars-a] (recall->nodes plan (Recall. :known&pretended (->edge 'x 'y)))
+        res (compute->nodes plan nodes-a vars-a (Compute. (->Let 'z '[w x y] "w + x + y")))]
+    res)
+
+  (let [plan empty-flow-plan
+        [plan nodes-a vars-a] (recall->nodes plan (Recall. :known&pretended (->edge 'x 'y)))
+        [plan nodes-b vars-b] (compute->nodes plan nodes-a vars-a (Compute. (->When '[x y] "x > y")))]
+    [plan nodes-a nodes-b vars-a vars-b])
+  )
+
 (defn computes->nodes [plan nodes vars computes]
     (loop [orig-nodes nodes
            plan plan
@@ -474,18 +502,37 @@
            computes-applied computes-applied
            computes-unapplied []]
       (if-let [[compute & computes-remaining] (seq computes-remaining)]
-        (if-let [[new-plan new-nodes new-vars] (compute->nodess plan nodes vars compute)]
+        (if-let [[new-plan new-nodes new-vars] (compute->nodes plan nodes vars compute)]
           (recur orig-nodes new-plan new-nodes new-vars computes-remaining (conj computes-applied compute) computes-unapplied)
           (recur orig-nodes plan nodes vars computes-remaining computes-applied (conj computes-unapplied compute)))
         (if (= nodes orig-nodes)
           [plan nodes vars (set computes-applied)]
           (recur nodes plan nodes vars computes-unapplied computes-applied [])))))
 
+(comment
+  (let [plan empty-flow-plan
+        [plan nodes-a vars-a] (recall->nodes plan (Recall. :known&pretended (->edge 'x 'y)))
+        [plan nodes-b vars-b computes-applied] (computes->nodes plan nodes-a vars-a [(Compute. (->When '[x z] "x > z"))
+                                                                                     (Compute. (->Let 'z '[x y] "x + y"))
+                                                                                     (Compute. (->Let 'z '[w x] "a + x"))])]
+    [plan nodes-b vars-b computes-applied])
+  )
+
 (defn output->nodes [plan nodes vars {:keys [memory pattern]}]
   (assert (every? (set vars) (pattern->vars pattern)))
-  (let [[plan output-node] (add-flow plan (FilterMap. nodes (pattern->constructor pattern)))
+  (let [[plan output-node] (add-flow plan (FilterMap. nodes (pattern->constructor pattern vars)))
         plan (add-output plan output-node memory)]
     plan))
+
+(comment
+  (let [plan empty-flow-plan
+        [plan nodes-a vars-a] (recall->nodes plan (Recall. :known&pretended (->edge 'x 'y)))
+        [plan nodes-b vars-b computes-applied] (computes->nodes plan nodes-a vars-a [(Compute. (->When '[x z] "x > z"))
+                                                                                     (Compute. (->Let 'z '[x y] "x + y"))
+                                                                                     (Compute. (->Let 'z '[w x] "a + x"))])
+        plan (output->nodes plan nodes-b vars-b (Output. :remembered (->connected 'x 'y)))]
+    plan)
+  )
 
 (defn join->nodes [plan nodes-a vars-a computes-applied-a nodes-b vars-b computes-applied-b]
   (let [key-vars (intersection (set vars-a) (set vars-b))
@@ -499,6 +546,14 @@
         [plan lookup-a] (add-flow plan (->Lookup [index-a] index-b key-ixes-a val-ixes-a))
         [plan lookup-b] (add-flow plan (->Lookup [index-b] index-a key-ixes-b val-ixes-b))]
     [plan [lookup-a lookup-b] (distinct (concat vars-a vars-b)) (union computes-applied-a computes-applied-b)]))
+
+(comment
+  (let [plan empty-flow-plan
+        [plan nodes-a vars-a] (recall->nodes plan (Recall. :known&pretended (->edge 'x 'y)))
+        [plan nodes-b vars-b] (recall->nodes plan (Recall. :known (->connected 'y 'z)))
+        [plan nodes-c vars-c computes-applied] (join->nodes plan nodes-a vars-a #{} nodes-b vars-b #{})]
+    [plan nodes-c vars-c])
+  )
 
 ;; RULES
 
@@ -517,15 +572,28 @@
                                       (let [plan @main-plan
                                             [plan node vars] (recall->nodes plan recall)
                                             [plan node vars computes-applied] (computes->nodes plan node vars computes)]
-                                        (swap! main-plan plan)
+                                        (reset! main-plan plan)
                                         [node vars computes-applied]))
         [nodes vars computes-applied] (reduce (fn [[nodes-a vars-a computes-applied-a] [nodes-b vars-b computes-applied-b]]
                                                (let [plan @main-plan
                                                      [plan nodes vars computes-applied-old] (join->nodes plan nodes-a vars-a computes-applied-a nodes-b vars-b computes-applied-b)
                                                      [plan nodes vars computes-applied-new] (computes->nodes plan nodes vars (difference computes computes-applied-old))]
-                                                 (swap! main-plan plan)
+                                                 (reset! main-plan plan)
                                                  [nodes vars (union computes-applied-old computes-applied-new)]))
                                               nodes&vars&computes-applied)]
     (assert (= computes-applied (set computes)) (str "Could not apply " (pr-str (difference (set computes) computes-applied))))
     (doseq [output outputs]
-      (swap! main-plan (output->nodes @main-plan nodes vars output)))))
+      (reset! main-plan (output->nodes @main-plan nodes vars output)))
+    @main-plan))
+
+
+  (deffact edge "[x] has an edge to [y]")
+  (deffact connected "[x] is connected to [y]")
+
+(rule->flow-plan (Rule. [(Recall. :known&pretended (->edge 'x 'y))
+                         (Output. :pretended (->connected 'x 'y))]))
+
+(rule->flow-plan (Rule. [(Recall. :known&pretended (->edge 'x 'y))
+                         (Recall. :known&pretended (->connected 'y 'z))
+                         (Output. :pretended (->connected 'x 'z))]))
+
