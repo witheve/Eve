@@ -1,3 +1,5 @@
+(when js/aurora (set! js/aurora.language nil))
+
 (ns aurora.language
   (:require [clojure.set :refer [union intersection difference subset?]]
             [aurora.language.jsth :as jsth]
@@ -505,8 +507,4 @@
   (let [recalls (filter #(= Recall (type %)) (:clauses rule))
         computes (filter #(= Compute (type %)) (:clauses rule))
         outputs (filter #(= Output (type %)) (:clauses rule))
-        computes? (fn [plan node vars computes]
-                    (if-let [[plan node vars] (first (map #(compute? plan node vars) computes)))
-        node->remaining-computes (reduce recalls empty-flow-plan )]
-    (loop [plan plan
-           node->remaining-computes (zipmap recall-nodes (repeat computes))])
+        node->remaining-computes ()]))
