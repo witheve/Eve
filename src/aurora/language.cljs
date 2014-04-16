@@ -154,7 +154,7 @@
 
 (defrecord FlowState [node->state node->out-nodes node->facts node->update!])
 
-(defn fixpoint [{:keys [node->state node->out-nodes node->facts node->update!] :as flow-state}]
+(defn fixpoint! [{:keys [node->state node->out-nodes node->facts node->update!] :as flow-state}]
   (loop [node 0]
     (when (< node (alength node->facts))
       (let [in-facts (aget node->facts node)]
@@ -185,6 +185,7 @@
     (let [set (aget node->state node)]
       (dotimes [i (alength in-facts)]
         (let [fact (aget in-facts i)]
+          ;; TODO this double lookup is a bottleneck
           (when (not (contains? set fact))
             (conj!! set fact)
             (apush out-facts fact))))
@@ -236,7 +237,7 @@
                         (lookup-update! 4 #js [1] #js [0 3])
                         (lookup-update! 3 #js [0] #js [2 1])
                         (filter-map-update! (fn [x] (->connected (fact-ix x 0) (fact-ix x 1))))])
-    fixpoint)
+    fixpoint!)
    :node->state
    (aget 0)
    persistent!)
@@ -326,7 +327,7 @@
         plan (add-output plan new-connecteds :pretended)
         state (flow-plan->flow-state plan)]
     (apush* (aget (:node->facts state) 0) #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
-    (-> (fixpoint state) :node->state (aget 1) persistent!))
+    (-> (fixpoint! state) :node->state (aget 1) persistent!))
   )
 
 ;; IXES
@@ -597,17 +598,7 @@
                                  (Output. :pretended (->connected 'x 'z))])])
         state (flow-plan->flow-state plan)]
     (apush* (aget (:node->facts state) 0) #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
-    (time (fixpoint state))
-    (persistent! (aget (:node->state state) 1)))(let [plan (add-rules empty-flow-plan
-                        [(Rule. [(Recall. :known&pretended (->edge 'x 'y))
-                                 (Output. :pretended (->connected 'x 'y))])
-                         (Rule. [(Recall. :known&pretended (->edge 'x 'y))
-                                 (Recall. :known&pretended (->connected 'y 'z))
-                                 (Output. :pretended (->connected 'x 'z))])])
-        state (flow-plan->flow-state plan)]
-    (apush* (aget (:node->facts state) 0) (into-array (for [i (range 50)]
-                                                        (->edge i (inc i)))))
-    (time (fixpoint state))
+    (time (fixpoint! state))
     (persistent! (aget (:node->state state) 1)))
 
   (let [plan (add-rules empty-flow-plan
@@ -620,11 +611,58 @@
     (apush* (aget (:node->facts state) 0) (into-array (for [i (range 100)]
                                                         (->edge i (inc i)))))
     (js/console.time "new")
-    (fixpoint state)
+    (fixpoint! state)
     (js/console.timeEnd "new")
     (persistent! (aget (:node->state state) 1)))
   ;; 5 => 1 ms
   ;; 10 => 8 ms
   ;; 50 => 1093 ms
   ;; 100 => 11492 ms
+  )
+
+;; TIME AND CHANGE
+
+(defn add-facts [state memory facts]
+  (let [arr (aget (:node->facts state) (memory->node memory))]
+    (doseq [fact facts]
+      (apush arr fact))))
+
+(defn get-facts [state memory]
+  (let [facts (persistent! (aget (:node->state state) (memory->node memory)))]
+    (aset (:node->state state) (memory->node memory) (transient facts))
+    facts))
+
+;; TODO make this incremental
+(defn tick [plan state]
+  (let [known (transient (get-facts state :known))
+        remembered (get-facts state :remembered)
+        forgotten (get-facts state :forgotten)
+        new-state (flow-plan->flow-state plan)]
+    (doseq [fact remembered]
+      (when (not (contains? forgotten fact))
+        (conj!! known fact)))
+    (doseq [fact forgotten]
+      (when (not (contains? remembered fact))
+        (disj!! known fact)))
+    (add-facts new-state :known (persistent! known))
+    new-state))
+
+(defn tick&fixpoint [plan state]
+  (fixpoint! (tick plan state)))
+
+(comment
+  (deffact edge "[x] has an edge to [y]")
+  (deffact connected "[x] is connected to [y]")
+
+  (let [plan (add-rules empty-flow-plan
+                        [(Rule. [(Recall. :known&pretended (->edge 'x 'y))
+                                 (Output. :remembered (->connected 'x 'y))])
+                         (Rule. [(Recall. :known&pretended (->edge 'x 'y))
+                                 (Recall. :known&pretended (->connected 'y 'z))
+                                 (Output. :remembered (->connected 'x 'z))])])
+        state-0 (flow-plan->flow-state plan)]
+    (add-facts state-0 :known #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
+  (fixpoint! state-0)
+  (for [state (take 5 (iterate #(tick&fixpoint plan %) state-0))]
+    (count (get-facts state :known))))
   )
