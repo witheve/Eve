@@ -226,11 +226,17 @@
       representation/by-pred-name
       :ordering)
 
-  (let [kn (tick {:now #{[:edge 0 1] [:edge 1 2] [:edge 2 3] [:edge 3 1]}})
+  (let [kn (tick {:now (set (for [i (range 5)] [:edge i (inc i)]))})
         ruleset (Chain. [(rule [:edge x y]
                                (> [:connected x y]))
                          (Fixpoint. (rule [:edge x y]
                                           [:connected y z]
                                           (> [:connected x z])))])]
-    (time (run-ruleset ruleset kn)))
+    (js/console.time "old")
+    (run-ruleset ruleset kn)
+    (js/console.timeEnd "old"))
+  ;; 5 => 5 ms
+  ;; 10 => 35 ms
+  ;; 50 => 10584 ms
+  ;; 100 => ?
   )

@@ -598,6 +598,16 @@
         state (flow-plan->flow-state plan)]
     (apush* (aget (:node->facts state) 0) #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
     (time (fixpoint state))
+    (persistent! (aget (:node->state state) 1)))(let [plan (add-rules empty-flow-plan
+                        [(Rule. [(Recall. :known&pretended (->edge 'x 'y))
+                                 (Output. :pretended (->connected 'x 'y))])
+                         (Rule. [(Recall. :known&pretended (->edge 'x 'y))
+                                 (Recall. :known&pretended (->connected 'y 'z))
+                                 (Output. :pretended (->connected 'x 'z))])])
+        state (flow-plan->flow-state plan)]
+    (apush* (aget (:node->facts state) 0) (into-array (for [i (range 50)]
+                                                        (->edge i (inc i)))))
+    (time (fixpoint state))
     (persistent! (aget (:node->state state) 1)))
 
   (let [plan (add-rules empty-flow-plan
@@ -609,6 +619,12 @@
         state (flow-plan->flow-state plan)]
     (apush* (aget (:node->facts state) 0) (into-array (for [i (range 100)]
                                                         (->edge i (inc i)))))
-    (time (fixpoint state))
+    (js/console.time "new")
+    (fixpoint state)
+    (js/console.timeEnd "new")
     (persistent! (aget (:node->state state) 1)))
+  ;; 5 => 1 ms
+  ;; 10 => 8 ms
+  ;; 50 => 1093 ms
+  ;; 100 => 11492 ms
   )
