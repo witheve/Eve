@@ -96,15 +96,17 @@ input { border:none; background:#f7f7f7; font-family: "Avenir"; color: #444; fon
 #root { padding:0px; padding-top:0; display:flex; flex-direction:column; }
 #root span { vertical-align:middle; display:inline-block; white-space:pre-wrap; }
 
-#canvas { flex:1; display:flex; flex-direction:row; position:relative; overflow:hidden; background:#e8e8e8; padding:0 20px; margin-bottom:0px; }
+#canvas { flex:1; display:flex; flex-direction:row; position:relative; overflow:hidden; background:#e8e8e8; background:url(http://subtlepatterns.com/patterns/dark_fish_skin.png); padding:0 20px; margin-bottom:0px; }
 
 #canvas-editor {flex:1; padding-top:20px; padding-left:20px; padding-bottom:250px;}
 
-#rules { font-size:12pt; max-width:74%; min-width:380px; display:inline-block; }
+#rules { font-size:12pt; width:100%; min-width:380px; display:inline-block; }
 #rules > li { margin-bottom:8px; }
 
-.statement { background:#f7f7f7; border:1px solid #ddd; box-shadow: 0 0 0px #ccc; padding:15px 20px; padding-right:40px; border-radius:4px; display:block; }
+.statement { background:#f7f7f7; border:1px solid #ddd; box-shadow: 0 0 0px #ccc; padding:15px 20px; padding-right:40px; border-radius:4px;}
 .statement .statement { padding:0; box-shadow:none; border:none; display:block; }
+
+#root .statement-item { display:flex; flex-direction:row; width:100%; }
 
 .sub { margin-left:0px; padding-left: 0px; padding-top:0px; margin-top:8px; border-left:0px solid #ddd; padding-bottom:0px;}
 .sub li {margin-bottom:8px;}
@@ -132,7 +134,7 @@ input { border:none; background:#f7f7f7; font-family: "Avenir"; color: #444; fon
 td { padding-left:12px; }
 td.keyword { text-align:right; white-space:pre; padding-left:5px; }
 
-.keyword { color:#CC5A8D; color:#bbb; width:90px; vertical-align:top !important; text-align:right; border-right: 1px solid #ddd; border-radius:0px; background:none; padding: 0 5px; margin-right:12px; }
+.keyword { color:#CC5A8D; color:#bbb; width:90px; vertical-align:top; text-align:right; border-right: 1px solid #ddd; border-radius:0px; background:none; padding: 0 5px; margin-right:12px; }
 /* .keyword.condition { background:#BEEAF7 ; color:#5BB8D4; } */
 
 .add-rule:before { content:"\f1c9"; font-family:"Ionicons"; font-size:24px; margin-left:0px; }
@@ -176,13 +178,13 @@ td.keyword { text-align:right; white-space:pre; padding-left:5px; }
 
 #menu { position:absolute; z-index:1000; }
 
-#results { text-align:right; max-width:40%; overflow-y:auto; position:static; min-width:0px; margin:20px 0px; margin-right:5px; border-left:0px solid #ddd; padding-left:10px; }
+#results { text-align:left; width:60%; overflow-y:auto; position:static; min-width:0px; margin:20px 0px; margin-right:5px; border-left:0px solid #ddd; padding-left:10px; }
 #results ul { margin-top:0px; }
-#results li { font-size:10pt; padding:0px 0; text-align: right; }
+#results li { font-size:10pt; padding:0px 0; }
 #results li div { text-align:left; display:inline-block; }
 #results li + li { border-top:-px solid #ddd; }
 
-#ui-preview { margin-top:50px; }
+#ui-preview {  padding:20px; background:#f7f7f7; border-radius:5px; border:1px solid #ddd; height:80%; overflow:auto; }
 
 #pages {  }
 #page-selector { min-height:300px; margin-top:150px; margin-left:150px; margin-right:150px; padding:20px; border:1px solid #ddd; border-radius:5px; }

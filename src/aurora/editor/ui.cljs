@@ -46,7 +46,7 @@
    content])
 
 (defn clause-item [path & content]
-  [:span {:onContextMenu (fn [e]
+  [:span.statement-item {:onContextMenu (fn [e]
                            (.stopPropagation e)
                            (swap! state assoc :menu {:top (.-clientY e)
                                                      :left (.-clientX e)
@@ -215,6 +215,7 @@
 (defn results [env world]
   (let [kn (:kn env)]
     [:div#results
+     [:div#ui-preview]
      [:ul
       (for [fact (sort-by (comp str :ml) (:now kn))]
         [:li {:onContextMenu (fn []
@@ -223,7 +224,6 @@
                                                                    (representation/tick))))}
          [:div
           (rule-ui fact nil nil)]])]
-     [:div#ui-preview]
      ]
     ))
 
@@ -293,11 +293,11 @@
      (menu cur-menu))
    (header (:program @state))
    [:div#canvas
+    (results @cur-env @state)
     [:div#canvas-editor
      (rules (get-in @state [:program]) @state)
 
      ]
-    (results @cur-env @state)
     ]
    ])
 

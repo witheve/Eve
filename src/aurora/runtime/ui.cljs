@@ -156,25 +156,32 @@
 (swap! runtime/watchers conj (fn [knowledge queue]
                                (on-bloom-tick knowledge queue)))
 
+(defn name|sym [s]
+  (if (symbol? s)
+    s
+    (name s)))
 
 (defn fact-walk [hic facts [parent pos]]
   (let [[el args & children] hic
-        args (js->clj args :keywordize-keys true)
-        id (:id args)
+        args (if (map? args)
+               args
+               (js->clj args :keywordize-keys true))
+        id (or (:id args) (get args "id"))
         entity (:entity args)
         key (:event_key args)
-        real-args (dissoc args :id :style :events :event_key :entity)]
+        real-args (dissoc args "id" :id :style :events :event_key :entity)
+        ]
     (when parent
       (.push facts {:ml :ui/child "id" parent "child" id "pos" pos}))
-    (.push facts {:ml :ui/elem "id" id "tag" (name el)})
+    (.push facts {:ml :ui/elem "id" id "tag" (name|sym el)})
     (doseq [[k v] real-args]
-      (.push facts {:ml :ui/attr "id" id "attr" (name k) "value" v}))
+      (.push facts {:ml :ui/attr "id" id "attr" (name|sym k) "value" v}))
     (doseq [[k v] (:style args)]
-      (.push facts {:ml :ui/style "id" id "attr" (name k) "value" v}))
+      (.push facts {:ml :ui/style "id" id "attr" (name|sym k) "value" v}))
     (doseq [ev (:events args)]
-      (.push facts {:ml :ui/event-listener "id" id "event-key" key "event" (name ev) "entity" entity}))
+      (.push facts {:ml :ui/event-listener "id" id "event-key" (or key "") "event" (name|sym ev) "entity" (or entity "")}))
     (doseq [[i child] (map-indexed vector children)]
-      (if (array? child)
+      (if (vector? child)
         (fact-walk child facts [id i])
         (do
           (.push facts {:ml :ui/text "id" (str id "-" i) "text" child})
