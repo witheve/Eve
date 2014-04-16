@@ -194,33 +194,43 @@
    (rule [:quux x]
          (> [:final x]))])
 
-(representation/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-a)))
+(comment
+  (representation/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-a)))
 
-(try (stratification test-rules-a) (catch :default e e))
+  (try (stratification test-rules-a) (catch :default e e))
 
-(representation/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-b)))
+  (representation/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-b)))
 
-(try (stratification test-rules-b) (catch :default e e))
+  (try (stratification test-rules-b) (catch :default e e))
 
-(representation/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-c)))
+  (representation/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-c)))
 
-(try (stratification test-rules-c) (catch :default e e))
+  (try (stratification test-rules-c) (catch :default e e))
 
-(representation/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-d)))
+  (representation/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-d)))
 
-(stratification test-rules-d)
+  (stratification test-rules-d)
 
-(representation/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-e)))
+  (representation/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-e)))
 
-(try (stratification test-rules-e) (catch :default e e))
+  (try (stratification test-rules-e) (catch :default e e))
 
-(representation/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-f)))
+  (representation/by-pred-name (run-ruleset stratifier-ruleset (->kn test-rules-f)))
 
-(stratification test-rules-f)
+  (stratification test-rules-f)
 
-(stratification stratifier-rules)
+  (stratification stratifier-rules)
 
-(-> (strata->ruleset (stratify stratifier-rules))
-    (run-ruleset (->kn stratifier-rules))
-    representation/by-pred-name
-    :ordering)
+  (-> (strata->ruleset (stratify stratifier-rules))
+      (run-ruleset (->kn stratifier-rules))
+      representation/by-pred-name
+      :ordering)
+
+  (let [kn (tick {:now #{[:edge 0 1] [:edge 1 2] [:edge 2 3] [:edge 3 1]}})
+        ruleset (Chain. [(rule [:edge x y]
+                               (> [:connected x y]))
+                         (Fixpoint. (rule [:edge x y]
+                                          [:connected y z]
+                                          (> [:connected x z])))])]
+    (time (run-ruleset ruleset kn)))
+  )
