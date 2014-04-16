@@ -161,7 +161,6 @@
         (if (== 0 (alength in-facts))
           (recur (+ node 1))
           (let [out-facts #js []]
-            (prn node in-facts)
             (.call (aget node->update! node) nil node node->state in-facts out-facts)
             (aset node->facts node #js [])
             (if (> (alength out-facts) 0)
@@ -598,6 +597,18 @@
                                  (Output. :pretended (->connected 'x 'z))])])
         state (flow-plan->flow-state plan)]
     (apush* (aget (:node->facts state) 0) #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
-    (persistent! (aget (:node->state (fixpoint state)) 1)))
-  )
+    (time (fixpoint state))
+    (persistent! (aget (:node->state state) 1)))
 
+  (let [plan (add-rules empty-flow-plan
+                        [(Rule. [(Recall. :known&pretended (->edge 'x 'y))
+                                 (Output. :pretended (->connected 'x 'y))])
+                         (Rule. [(Recall. :known&pretended (->edge 'x 'y))
+                                 (Recall. :known&pretended (->connected 'y 'z))
+                                 (Output. :pretended (->connected 'x 'z))])])
+        state (flow-plan->flow-state plan)]
+    (apush* (aget (:node->facts state) 0) (into-array (for [i (range 100)]
+                                                        (->edge i (inc i)))))
+    (time (fixpoint state))
+    (persistent! (aget (:node->state state) 1)))
+  )
