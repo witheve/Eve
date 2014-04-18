@@ -674,4 +674,20 @@
         first
         (.-values))
   )
+
+  (let [rules [(Rule. [
+                       (aurora.language.Recall. :known&pretended, (js/aurora.language.fact :http/response #js ['content "google" 'tim]))
+                       (aurora.language.Output. :remembered (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value74]))
+                       (aurora.language.Output. :forgotten (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value]))
+                       (aurora.language.Recall. :known&pretended, (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value]))
+                       (aurora.language.Compute. (->Let 'value74  #{'value 'content} "value + \" hey \" + content"))])]
+        plan (add-rules empty-flow-plan rules)
+        state (flow-plan->flow-state plan)]
+    (add-facts state :known [(fact. "1df7454c_069e_40ab_b117_b8d43212b473" #js ["Click me"])])
+    (add-facts state :pretended [(fact. :http/response #js ["yo" "google" 1234])])
+    (fixpoint! state)
+    (map #(.-values %)
+         (-> state
+             (get-facts :remembered)))
+    )
   )
