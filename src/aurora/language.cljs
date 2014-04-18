@@ -33,9 +33,9 @@
 (deftype Fact [shape values ^:mutable __hash]
   Object
   (toString [this]
-            (if shape
+            (if (and shape (instance? FactShape shape))
               (apply str (interleave (.-madlib shape) (map (fn [k v] (str "[" (name k) " = " (pr-str v) "]")) (.-keys shape) values)))
-              (apply str (map (fn [v] (str "[_ = " (pr-str v) "]")) values))))
+              (apply str (when shape (str " " shape " ")) (map (fn [v] (str "[_ = " (pr-str v) "]")) values))))
 
   IEquiv
   (-equiv [this other]
@@ -86,7 +86,10 @@
    (assert (array? values) (pr-str values))
    (Fact. nil values nil))
   ([shape values]
+   (assert (or (instance? FactShape shape) (keyword? shape) (string? shape)) (pr-str shape))
    (assert (array? values) (pr-str values))
+   (if (instance? FactShape shape)
+     (assert (= (alength values) (alength (.-keys shape))) (pr-str values shape)))
    (Fact. shape values nil)))
 
 (defn fact-ix [fact ix]
@@ -617,30 +620,42 @@
 (defn add-facts [state memory facts]
   (let [arr (aget (:node->facts state) (memory->node memory))]
     (doseq [fact facts]
-      (apush arr fact))))
+      (apush arr fact))
+    state))
 
 (defn get-facts [state memory]
-  (let [facts (persistent! (aget (:node->state state) (memory->node memory)))]
-    (aset (:node->state state) (memory->node memory) (transient facts))
-    facts))
+  (if-let [facts (aget (:node->state state) (memory->node memory))]
+    (let [facts (persistent! facts)]
+      (aset (:node->state state) (memory->node memory) (transient facts))
+      facts)
+    #{}))
 
 ;; TODO make this incremental
-(defn tick [plan state]
-  (let [known (transient (get-facts state :known))
-        remembered (get-facts state :remembered)
-        forgotten (get-facts state :forgotten)
-        new-state (flow-plan->flow-state plan)]
-    (doseq [fact remembered]
-      (when (not (contains? forgotten fact))
-        (conj!! known fact)))
-    (doseq [fact forgotten]
-      (when (not (contains? remembered fact))
-        (disj!! known fact)))
-    (add-facts new-state :known (persistent! known))
-    new-state))
+(defn tick
+  ([plan] (tick plan (flow-plan->flow-state plan)))
+  ([plan state]
+   (let [known (transient (get-facts state :known))
+         remembered (get-facts state :remembered)
+         forgotten (get-facts state :forgotten)
+         new-state (flow-plan->flow-state plan)]
+     (doseq [fact remembered]
+       (when (not (contains? forgotten fact))
+         (conj!! known fact)))
+     (doseq [fact forgotten]
+       (when (not (contains? remembered fact))
+         (disj!! known fact)))
+     (add-facts new-state :known (persistent! known))
+     new-state)))
 
 (defn tick&fixpoint [plan state]
   (fixpoint! (tick plan state)))
+
+(defn clauses->rule [clauses]
+  (Rule. clauses))
+
+(defn rules->plan [rules]
+  (add-rules empty-flow-plan rules))
+
 
 (comment
   (deffact edge "[x] has an edge to [y]")

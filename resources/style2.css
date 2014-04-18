@@ -95,6 +95,7 @@ input { border:none; background:#f7f7f7; font-family: "Avenir"; color: #444; fon
 
 #root { padding:0px; padding-top:0; display:flex; flex-direction:column; }
 #root span { vertical-align:middle; display:inline-block; white-space:pre-wrap; }
+#root .CodeMirror span { display:inline; white-space:pre; }
 
 #canvas { flex:1; display:flex; flex-direction:row; position:relative; overflow:hidden; background:#e8e8e8; background:url(http://subtlepatterns.com/patterns/dark_fish_skin.png); padding:0 20px; margin-bottom:0px; }
 

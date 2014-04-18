@@ -1,6 +1,8 @@
 (ns aurora.runtime.timers
   (:require [aurora.util.core :as util]
             [aurora.runtime.core :as runtime]
+            [aurora.runtime.stdlib :as stdlib]
+            [aurora.language :as language]
             [aurora.language.representation :as representation]
             [aurora.language.operation :as operation]
             [aurora.language.denotation :as denotation])
@@ -17,23 +19,31 @@
 ;; generic fact: {:name "someidthing" :madlib "yay [a] and then [b]" :a 5 :b 9}
 ;; wait fact: {:name :wait :madlib "wait [time]ms with [id]" :time 500 :id 1}
 ;; tick fact {:name 12341234 :madlib "tick with [id]" :id 9}
-(def aurora-refreshes (rule {:ml :aurora/refresh
-                             "waiting time" time}
-                            (> time)))
 
-(def find-waits (rule (+ed {:ml :timers/wait
-                             "time" time
-                             "timer" id})
-                      (> [time id])))
+(defn collect [facts]
+  (let [refresh (array)
+        waits (array)]
+    (doseq [fact facts
+            :let [[coll thing] (condp = (.-shape fact)
+                                 :timers/wait [waits {"waiting time" (get fact 0)}]
+                                 :aurora/refresh [refresh {"time" (get fact 0)
+                                                           "timer" (get fact 1)}]
+                                 nil)]
+            :when coll]
+      (.push coll thing))
+    {:waits waits
+     :refresh refresh}))
 
 (defn on-bloom-tick [knowledge queue]
-  (let [waits (operation/query-rule find-waits knowledge)]
+  (let [{:keys [waits refresh]} (collect (concat
+                                          (language/get-facts knowledge :known)
+                                          (language/get-facts knowledge :pretended)))]
     (doseq [[time id] waits]
       (println "setting up wait for: " time id)
       (wait time (fn []
-                   (queue {:ml :timers/tick "timer" id "time" (now)})
+                   (queue (stdlib/map->fact {:ml :timers/tick "timer" id "time" (now)}))
                    )))
-    (if-let [refresh (first (operation/query-rule aurora-refreshes knowledge))]
+    (if-let [refresh (first refresh)]
       (do
         (println "Got refresh: " refresh)
         (when-not (= (:wait aurora-refresh) refresh)
@@ -41,7 +51,7 @@
             (js/clearTimeout (:timer aurora-refresh)))
           (set! aurora-refresh {:wait refresh
                                 :timer (js/setInterval (fn []
-                                                         (queue {:ml :aurora/refresh-tick}))
+                                                         (queue (stdlib/map->fact {:ml :aurora/refresh-tick})))
                                                        refresh)})))
       (do
         (js/clearTimeout (:timer aurora-refresh))

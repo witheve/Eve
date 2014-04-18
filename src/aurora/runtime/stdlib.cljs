@@ -1,5 +1,7 @@
 (ns aurora.runtime.stdlib
-  (:require [aurora.runtime.ui]))
+  (:require [aurora.language :as language]))
+
+
 
 (def clauses {"draw" {:madlib ["ui"]
                       :madlib-str "ui"
@@ -124,11 +126,14 @@
                                                      :type "time"}}}
               })
 
+(defn map->fact [m]
+  (let [info (get madlibs (:ml m))
+        ks (filterv identity (map m (:madlib info)))]
+    (language/fact (:ml m) (to-array ks))))
 
 (defn cur-date [x]
   (js/Date. x))
 
-(set! js/cljs.core.hiccup js/aurora.runtime.ui.hiccup->facts)
 (set! js/cljs.core.date cur-date)
 
 (set! js/cljs.core.iff (fn [expression then else]

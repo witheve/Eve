@@ -1,5 +1,6 @@
 (ns aurora.editor.ui
   (:require [aurora.editor.ReactDommy :refer [node]]
+            [aurora.language :as language]
             [aurora.language.representation :as representation]
             [aurora.runtime.core :as runtime :refer [run-env pause unpause replay-last]]
             [aurora.runtime.timers]
@@ -212,18 +213,24 @@
          ]])]
      ]))
 
+(defn fact->map [fact]
+  (when-let [ml (get-in @state [:program :madlibs (.-shape fact)])]
+    (into {:ml (.-shape fact)}
+          (for [[k v] (:placeholders ml)]
+            [k (get fact (:order v))]))))
+
 (defn results [env world]
   (let [kn (:kn env)]
     [:div#results
      [:div#ui-preview]
      [:ul
-      (for [fact (sort-by (comp str :ml) (:now kn))]
+      (for [fact (sort-by (comp str #(.-shape %)) (language/get-facts kn :known))]
         [:li {:onContextMenu (fn []
                                (swap! cur-env update-in [:kn] #(-> %
                                                                    (representation/retract-facts #{fact})
                                                                    (representation/tick))))}
          [:div
-          (rule-ui fact nil nil)]])]
+          (rule-ui (fact->map fact) nil nil)]])]
      ]
     ))
 
@@ -364,9 +371,7 @@
   (aset js/localStorage (get-in cur [:program :name]) (pr-str cur)))
 
 (defn clear-env []
-  (let [new-env (runtime/->env {:cleanup-rules (vec (concat runtime/io-cleanup-rules
-                                        runtime/timer-cleanup-rules
-                                        runtime/ui-cleanup-rules))})]
+  (let [new-env (runtime/->env {})]
     (reset! cur-env @new-env)
     (runtime/run cur-env)))
 

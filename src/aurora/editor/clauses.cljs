@@ -5,84 +5,105 @@
             [aurora.language.denotation :as denotation]
             [aurora.language.jsth :as jsth]
             [aurora.language.stratifier :as stratifier]
+            [aurora.language :as language]
             [aurora.runtime.core :as runtime :refer [run-env pause unpause replay-last]]
             [aurora.editor.core :refer [state cur-env]]
             [cljs.reader :as reader]
             [aurora.editor.dom :as dom]))
 
-(defmulti compile-clause (fn [clause world]
+(defn map->fact [m]
+  (let [info (get-in @state [:program :madlibs (:ml m)])
+        ks (filterv identity (map m (:madlib info)))]
+    (language/fact (:ml m) (to-array ks))))
+
+(defmulti compile-clause (fn [clause vars]
                            (:type clause)))
 
-(defmethod compile-clause "when" [clause world]
-  (compile-clause (assoc clause :type "find") world))
+(defmethod compile-clause "when" [clause vars]
+  (compile-clause (assoc clause :type "find") vars))
 
-(defmethod compile-clause "find" [clause world]
-  [(denotation/Fact. :now&pretended (dissoc clause :type))])
+(defmethod compile-clause "find" [clause vars]
+  [(language/Recall. :known&pretended (map->fact clause))])
 
-(defmethod compile-clause "add" [clause world]
-  [(denotation/Output. :assert (dissoc clause :type))])
+(defmethod compile-clause "add" [clause vars]
+  [(language/Output. :remembered (map->fact clause))])
 
-(defmethod compile-clause "remember" [clause world]
+(defmethod compile-clause "remember" [clause vars]
   (compile-clause (assoc clause :type "add")))
 
-(defmethod compile-clause "forget" [clause world]
-  [(denotation/Output. :retract (dissoc clause :type))])
+(defmethod compile-clause "forget" [clause vars]
+  [(language/Output. :forgotten (map->fact clause))])
 
-(defmethod compile-clause "pretend" [clause world]
-  [(denotation/Output. :pretend (dissoc clause :type))])
+(defmethod compile-clause "pretend" [clause vars]
+  [(language/Output. :pretended (map->fact clause))])
 
-(defmethod compile-clause "see" [clause world]
-  (let [exp (get clause "expression")
-        exp (if (string? exp)
-              (reader/read-string exp)
-              exp)
-        final (list '= (get clause "name") exp)]
-    [(denotation/Let. (get clause "name" 'x) exp)]))
+(defmethod compile-clause "see" [clause vars]
+  (let [exp (get clause "expression")]
+    [(language/Compute. (language/->Let (get clause "name" 'x) [] exp))]))
 
-(defmethod compile-clause "change" [clause world]
+(defn try-extract-vars [v]
+  (try
+    (let [vs (reader/read-string (str "[" v "]"))]
+      (filter #(and (symbol? %)
+                         (re-seq #"[a-zA-Z]+" (str %)))
+                   vs))
+    (catch :default e)))
+
+(defmethod compile-clause "change" [clause vars]
   (let [rule (get-in @state [:program :madlibs (:ml clause)])
+        new-bound-syms (:aurora.editor.ui/new clause {})
         placeholders (into {} (for [k (keys (:placeholders rule))]
-                                [k (symbol k)]))
-        new-bound-syms (:aurora.editor.ui/new clause)
+                                [k (or (new-bound-syms k) (symbol k))]))
         clause (dissoc clause :type :aurora.editor.ui/new :aurora.editor.fake/new)
         syms (into {} (for [k (keys (dissoc clause :ml))]
                         [k (gensym k)]))
         sees (for [[k v] (dissoc clause :ml)]
-               (denotation/Let. (syms k) (if (string? v)
-                                           (reader/read-string v)
-                                           v)))
+               (language/Compute. (language/->Let (syms k) (into #{(placeholders k)} (try-extract-vars v)) v)))
         jsd (into clause (for [[k v] (dissoc clause :ml)]
                            [k (syms k)]))
         ]
     (conj sees
-          (denotation/Fact. :now&pretended (merge clause placeholders))
-          (denotation/Output. :retract (merge clause placeholders new-bound-syms))
-          (denotation/Output. :assert (merge placeholders clause new-bound-syms jsd)))
+          (language/Recall. :known&pretended (map->fact (merge clause placeholders)))
+          (language/Output. :forgotten (map->fact (merge clause placeholders)))
+          (language/Output. :remembered (map->fact (merge placeholders clause jsd))))
     )
   )
 
-(defmethod compile-clause "draw" [clause world]
+(defmethod compile-clause "draw" [clause vars]
   (let [ui (get clause "ui")
         ui-facts (try
                    (reader/read-string ui)
                    (catch :default e))]
-    (mapv #(denotation/Output. :pretend %) (cljs.core.hiccup ui-facts))
+    (mapv #(language/Output. :pretended (map->fact %)) (js/aurora.runtime.ui.hiccup->facts ui-facts))
     ))
 
+(defn clauses->vars [clauses]
+  (let [vars (array)]
+    (doseq [clause clauses]
+      (let [vs (condp = (:type clause)
+                 "change" (concat (vals (:aurora.editor.ui/new clause)) (vals clause))
+                 (vals clause))
+            vs (filter symbol? vs)]
+        (doseq [v vs]
+          (.push vars v))))
+    (set vars)))
+
 (defn compile-rule* [r world]
-  (mapcat compile-clause (:clauses r)))
+  (let [vars (clauses->vars r)]
+    (mapcat #(compile-clause % vars) (:clauses r))))
 
 (defn compile-rule [r world]
   (try
-    (denotation/clauses->rule (vec (compile-rule* r world)))
+    (language/clauses->rule (vec (compile-rule* r world)))
     (catch :default e
       (.error js/console e)
+      (throw e)
       nil)))
 
-(def compile-rule (memoize compile-rule))
+;(def compile-rule (memoize compile-rule))
 
 (defn compile-fact [f world]
-  (dissoc f :type))
+  (map->fact f))
 
 (defn compile-statements [statements world no-rule]
   (let [rules (filter #(= (:type %) "rule") statements)
@@ -110,11 +131,39 @@
 
 (defn inject-compiled []
   (let [comped (compile-state)
-        rules (filter identity (map prepare (:rules comped)))
-        tick-rules (stratifier/strata->ruleset (identity rules))
+        rules (language/rules->plan (:rules comped))
         paused? (:pause @cur-env)]
     (pause cur-env)
-    (swap! cur-env assoc :tick-rules tick-rules)
-    (replay-last cur-env (set (:facts comped)) 1)
+    (swap! cur-env assoc
+           :rules rules
+           :kn (language/tick rules (:kn @cur-env)))
+    (language/add-facts (:kn @cur-env) :known (:facts comped))
+    (runtime/handle-feed cur-env {:force true})
     (when-not paused?
       (unpause cur-env))))
+
+(:rules (compile-state))
+
+;(language/get-facts (:kn @cur-env) :known)
+
+
+(let [rules [(language/Rule. [
+                             (aurora.language.Recall. :known&pretended, (js/aurora.language.fact :http/response #js ['content "google"]))
+                             (aurora.language.Output. :remembered (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value74]))
+                             (aurora.language.Output. :forgotten (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value]))
+                             (aurora.language.Recall. :known&pretended, (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value]))
+                             (aurora.language.Compute. (language/->Let 'value74  #{'value} "value + \"hey\""))])]
+      plan (language/rules->plan rules)
+      state (language/flow-plan->flow-state plan)]
+  (language/add-facts state :known [(language/fact. "1df7454c_069e_40ab_b117_b8d43212b473" #js ["Click me"])])
+  (language/add-facts state :pretended [(language/fact. :http/response #js ["yo" "google" 1234])])
+  (language/fixpoint! state)
+  (-> (language/tick&fixpoint plan state)
+      (language/get-facts :known))
+  )
+
+
+#aurora.language.Output{:memory :remembered, :pattern #< 1df7454c_069e_40ab_b117_b8d43212b473 [_ = value74]>}
+#aurora.language.Output{:memory :forgotten, :pattern #< 1df7454c_069e_40ab_b117_b8d43212b473 [_ = value]>}
+#aurora.language.Recall{:memory :known&pretended, :pattern #< 1df7454c_069e_40ab_b117_b8d43212b473 [_ = value]>}
+#aurora.language.Compute{:pattern #<Let [name = value74] be the result of [vars = (value value)] [expr = "value + \"hey\""]>}

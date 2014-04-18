@@ -1,9 +1,11 @@
 (ns aurora.runtime.ui
   (:require [aurora.util.core :as util]
+            [aurora.language :as language]
             [aurora.language.representation :as representation]
             [aurora.language.operation :as operation]
             [clojure.set :as set]
             [aurora.editor.dom :as dom]
+            [aurora.runtime.stdlib :as stdlib]
             [aurora.runtime.core :as runtime]
             [aurora.editor.ReactDommy :as dommy])
   (:require-macros [aurora.language.macros :refer [rule]]))
@@ -50,50 +52,38 @@
 ;; {:name :ui/style :id id :attr "background" :value "red"}
 ;; {:name :ui/child :id id :child id :pos i}
 
-(def find-elems (rule {:ml :ui/elem
-                        "id" id
-                        "tag" tag}
-                       (> [id tag])))
-
-(def find-text (rule {:ml :ui/text
-                       "id" id
-                       "text" text}
-                      (> [id text])))
-
-(def find-attr (rule {:ml :ui/attr
-                       "id" id
-                       "attr" attr
-                       "value" value}
-                       (> {:id id
-                           :attr attr
-                           :value value})))
-
-(def find-listeners (rule {:ml :ui/event-listener
-                            "id" id
-                            "entity" entity
-                            "event-key" key
-                            "event" event}
-                           (> {:id id
-                               :event-key key
-                               :entity entity
-                               :event event})))
-
-
-(def find-style (rule {:ml :ui/style
-                       "id" id
-                       "attr" attr
-                       "value" value}
-                       (> {:id id
-                           :attr attr
-                           :value value})))
-
-(def find-children (rule {:ml :ui/child
-                          "id" id
-                          "child" child-id
-                          "pos" pos}
-                          (> {:id id
-                              :child-id child-id
-                              :pos pos})))
+(defn collect [facts]
+  (let [styles (array)
+        listeners (array)
+        text (array)
+        elems (array)
+        attrs (array)
+        children (array)]
+    (doseq [fact facts
+            :let [[coll thing] (condp = (.-shape fact)
+                                 :ui/style [styles {:id (get fact 0)
+                                                    :attr (get fact 1)
+                                                    :value (get fact 2)}]
+                                 :ui/event-listener [listeners {:id (get fact 1)
+                                                                :event (get fact 0)
+                                                                }]
+                                 :ui/text [text [(get fact 0) (get fact 1)]]
+                                 :ui/elem [elems [(get fact 0) (get fact 1)]]
+                                 :ui/attr [attrs {:id (get fact 0)
+                                                  :attr (get fact 1)
+                                                  :value (get fact 2)}]
+                                 :ui/child [children {:id (get fact 0)
+                                                      :child-id (get fact 1)
+                                                      :pos (get fact 2)}]
+                                 nil)]
+            :when coll]
+      (.push coll thing))
+    {:styles styles
+     :listeners listeners
+     :text text
+     :elems elems
+     :attrs attrs
+     :children children}))
 
 (defn handle-attr [v]
   (condp = v
@@ -107,26 +97,27 @@
         el-styles (into {} (map extract styles))
         el-attrs (into el-attrs (for [{:keys [event entity event-key] :as foo} events]
                                   [event (fn [e]
-                                           (queue (merge {:ml (keyword "ui" event)
-                                                          "event" event-key
-                                                          "id" id
-                                                          "entity" entity}
-                                                         (event->params event e))))]))
+                                           (queue (stdlib/map->fact (merge {:ml (keyword "ui" event)
+                                                                            "event" event-key
+                                                                            "id" id
+                                                                            "entity" entity}
+                                                                           (event->params event e)))))]))
         el-attrs (if (seq el-styles)
                    (assoc el-attrs :style el-styles)
                    el-attrs)]
     (array (keyword tag) el-attrs)))
 
 (defn rebuild-tree [knowledge queue]
-  (let [els (operation/query-rule find-elems knowledge)
-        attrs (group-by :id (operation/query-rule find-attr knowledge))
-        styles (group-by :id (operation/query-rule find-style knowledge))
-        listeners (group-by :id (operation/query-rule find-listeners knowledge))
+  (let [collected (collect (language/get-facts knowledge :pretended))
+        els (:elems collected)
+        attrs (group-by :id (:attrs collected))
+        styles (group-by :id (:styles collected))
+        listeners (group-by :id (:listeners collected))
         built-els (into {}
                         (for [[id tag] els]
                           [id (build-element id tag (attrs id) (styles id) (listeners id) queue)]))
-        built-els (into built-els (operation/query-rule find-text knowledge))
-        all-children (operation/query-rule find-children knowledge)
+        built-els (into built-els (:text collected))
+        all-children (:children collected)
         children (group-by :id all-children)
         roots (set/difference (set (map first els)) (set (map :child-id all-children)))]
     (doseq [[parent kids] children

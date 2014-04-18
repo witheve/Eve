@@ -1,5 +1,6 @@
 (ns aurora.runtime.core
   (:require [aurora.util.core :as util]
+            [aurora.language :as language]
             [aurora.language.representation :as representation]
             [aurora.language.denotation :as denotation]
             [aurora.language.stratifier :as stratifier]
@@ -40,21 +41,21 @@
   (when (>= (.-length history) limit)
     (.shift history))
   (.push history point))
-
+(enable-console-print!)
 (defn fixpoint-tick [cur env aurora-facts]
   (loop [kn cur
          prev nil
          i 0]
-    (if (or (= kn prev)
+    (if (or (and kn prev
+                 (= (language/get-facts kn :known) (language/get-facts prev :known)))
             (>= i 10))
       kn
       (recur
-       (->
-        (stratifier/run-ruleset (:cleanup-rules env) kn)
-        (representation/assert-facts aurora-facts)
-        (representation/tick)
-        (tick (:tick-rules env) (:rules env) (:watchers env) (:feeder-fn env))
-        (representation/tick))
+       (do
+        (language/add-facts kn :pretended aurora-facts)
+        (language/fixpoint! kn)
+        (tick-watchers kn (:watchers env) (:feeder-fn env))
+        (language/tick&fixpoint (:rules env) kn))
        kn
        (inc i)))))
 
@@ -62,50 +63,47 @@
   (when (or (:force opts)
             (not (:paused @env)))
     (let [start (now)
-          feed-set (or (:feed-set opts) (set (:feed @env)))
-          aurora-facts #{{:ml :aurora/time "time" (.getTime (js/Date.))}}
-          all (set/union feed-set aurora-facts)
-          feed-func (or (:feeder-fn opts) (:feeder-fn @env))]
+          feed-set (or (:feed-set opts) (vec (:feed @env)))
+          aurora-facts [(language/fact :aurora/time #js [(.getTime (js/Date.))])]
+          all (concat feed-set aurora-facts)
+          feed-func (or (:feeder-fn opts) (:feeder-fn @env))
+          cur-env @env
+          plan (:rules cur-env)]
       (aset (:feed @env) "length" 0)
       (when (and (not (:feed-set opts))
                  (seq feed-set))
         (add-history (:history @env) [(:kn @env) feed-set] (:history-size @env)))
       (swap! env update-in [:kn]
              (fn [cur]
-               (-> (stratifier/run-ruleset (:cleanup-rules @env) cur)
-                   (representation/tick)
-                   (representation/assert-facts all)
-                   (representation/tick)
-                   (tick (:tick-rules @env) (:rules @env) (:watchers @env) (:feeder-fn @env))
-                   (representation/retract-facts all)
-                   (representation/tick)
-                   (fixpoint-tick @env aurora-facts)
-                   (representation/retract-facts aurora-facts)
-                   (representation/tick))
+               (language/add-facts cur :pretended all)
+               (language/fixpoint! cur)
+               (tick-watchers cur (:watchers @env) (:feeder-fn @env))
+               (-> (language/tick&fixpoint plan cur)
+                   (fixpoint-tick cur-env aurora-facts))
                ))
       (when-let [rp (dom/$ "#run-perf")]
         (dom/html rp (.toFixed (- (now) start) 3)))
       ;(println "final: " (- (.getTime (js/Date.)) start) (:kn @env))
       (swap! env assoc :queued? false))))
 
-(defn replay-last [env to-merge num]
-  (let [hist (:history @env)
-        len (dec (.-length hist))
-        num (if (< len num)
-              len
-              num)
-        starting (-> (aget hist (- len num))
-                     (first)
-                     (representation/assert-facts to-merge)
-                     (representation/tick))]
-    (swap! env assoc :kn starting)
-    (doseq [x (reverse (range 0 num))
-            :let [feed-set (-> (aget hist (- len x))
-                               (last))]]
-      (handle-feed env {:force true
-                        :feed-set feed-set
-                        ;:feeder-fn (fn [x y])
-                        }))))
+;; (defn replay-last [env to-merge num]
+;;   (let [hist (:history @env)
+;;         len (dec (.-length hist))
+;;         num (if (< len num)
+;;               len
+;;               num)
+;;         starting (-> (aget hist (- len num))
+;;                      (first)
+;;                      (representation/assert-facts to-merge)
+;;                      (representation/tick))]
+;;     (swap! env assoc :kn starting)
+;;     (doseq [x (reverse (range 0 num))
+;;             :let [feed-set (-> (aget hist (- len x))
+;;                                (last))]]
+;;       (handle-feed env {:force true
+;;                         :feed-set feed-set
+;;                         ;:feeder-fn (fn [x y])
+;;                         }))))
 
 
 (defn run [env]
@@ -115,21 +113,19 @@
     env))
 
 (defn ->env [opts]
-  (let [kn (representation/->Knowledge (:kn opts #{}) #{} #{} (:kn opts #{}))
-        env (merge {:tick-rules []
-                    :cleanup-rules []
-                    :rules []
+  (let [kn (-> language/empty-flow-plan
+               (language/flow-plan->flow-state))
+        kn (do
+             (language/add-facts kn :known (:kn opts #{}))
+             (language/tick (language/rules->plan []) kn))
+        env (merge {:rules language/empty-flow-plan
                     :watchers @watchers
                     :history-size 20
                     :history (array [kn #{}])
                     :feed (array)
                     :queued? false}
                    opts
-                   {:kn kn})
-        env (-> env
-                (update-in [:cleanup-rules] stratifier/strata->ruleset)
-                (update-in [:rules] stratifier/strata->ruleset)
-                (update-in [:tick-rules] stratifier/strata->ruleset))]
+                   {:kn kn})]
     (atom env)))
 
 (defn run-env [opts]
@@ -143,28 +139,6 @@
 (defn unpause [env]
   (swap! env assoc :paused false)
   (handle-feed env))
-
-(def ui-cleanup-rules [(rule ^d {:ml :ui/text}
-                             (- d))
-                       (rule ^d {:ml :ui/elem}
-                             (- d))
-                       (rule ^d {:ml :ui/attr}
-                             (- d))
-                       (rule ^d {:ml :ui/style}
-                             (- d))
-                       (rule ^d {:ml :ui/child}
-                             (- d))
-                       (rule ^d {:ml :ui/event-listener}
-                             (- d))
-                       (rule ^d {:ml :ui/draw}
-                             (- d))
-                       ])
-
-(def timer-cleanup-rules [(rule ^t {:ml :timers/wait}
-                                (- t))])
-
-(def io-cleanup-rules [(rule ^get {:name :http-get}
-                             (- get))])
 
 (comment
 (defn go-to-do []
