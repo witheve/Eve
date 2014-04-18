@@ -86,9 +86,7 @@
    (assert (array? values) (pr-str values))
    (Fact. nil values nil))
   ([shape values]
-   (assert (instance? FactShape shape) (pr-str shape))
    (assert (array? values) (pr-str values))
-   (assert (= (alength values) (alength (.-keys shape))) (pr-str values shape))
    (Fact. shape values nil)))
 
 (defn fact-ix [fact ix]
@@ -367,7 +365,7 @@
         (Fact. shape sink)))))
 
 (defn pattern->deconstructor [pattern]
-  (let [id (.-id (.-shape pattern))
+  (let [shape (.-shape pattern)
         seen? (atom {})
         constant-values #js []
         constant-ixes #js []
@@ -387,7 +385,7 @@
           (apush constant-values value)
           (apush constant-ixes ix))))
     (fn [fact]
-      (when (= id (.-id (.-shape fact)))
+      (when (= shape (.-shape fact))
         (let [source (.-values fact)]
           (loop [i 0]
             (if (< i (alength constant-values))
