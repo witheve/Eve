@@ -527,7 +527,7 @@
         [plan index-b] (add-flow plan (->Index nodes-b key-ixes-b))
         [plan lookup-a] (add-flow plan (->Lookup [index-a] index-b key-ixes-a val-ixes-a))
         [plan lookup-b] (add-flow plan (->Lookup [index-b] index-a key-ixes-b val-ixes-b))]
-    [plan [lookup-a lookup-b] (distinct (concat vars-a vars-b))]))
+    [plan [lookup-a lookup-b] (vec (distinct (concat vars-a vars-b)))]))
 
 (comment
 
