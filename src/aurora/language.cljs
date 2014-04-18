@@ -618,6 +618,16 @@
   ;; 10 => 8 ms
   ;; 50 => 1093 ms
   ;; 100 => 11492 ms
+
+  (let [plan (add-rules empty-flow-plan
+                        [(Rule. [(Recall. :known&pretended (->edge 'x 'y))
+                                 (Compute. (->Let 'z '[x y] "x + y"))
+                                 (Output. :pretended (->connected 'z 'z))])])
+        state (flow-plan->flow-state plan)]
+    (apush* (aget (:node->facts state) 0) (into-array (for [i (range 100)]
+                                                        (->edge i (inc i)))))
+    (fixpoint! state)
+    (persistent! (aget (:node->state state) 1)))
   )
 
 ;; TIME AND CHANGE
