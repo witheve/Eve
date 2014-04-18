@@ -25,13 +25,6 @@
 (defmethod compile-clause "remember" [clause world]
   (compile-clause (assoc clause :type "add")))
 
-
-(defmethod compile-clause "all" [clause world]
-  (let [things (get clause "things")]
-    [(denotation/OutputMany. :assert (if (string? things)
-                                       (reader/read-string things)
-                                       (or things [])))]))
-
 (defmethod compile-clause "forget" [clause world]
   [(denotation/Output. :retract (dissoc clause :type))])
 
@@ -73,9 +66,7 @@
         ui-facts (try
                    (reader/read-string ui)
                    (catch :default e))]
-    [(denotation/OutputMany. :pretend (if-not ui-facts
-                                        []
-                                        `(cljs.core.hiccup ~ui-facts)))]
+    (mapv #(denotation/Output. :pretend %) (cljs.core.hiccup ui-facts))
     ))
 
 (defn compile-rule* [r world]
