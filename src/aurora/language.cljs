@@ -457,7 +457,7 @@
     Let (when (every? (set vars) (:vars pattern))
           (let [let-fun (expr->fun vars (:expr pattern))
                 filter-map-fun (fn [fact]
-                                 (let [new-value (.apply let-fun (.-values fact))
+                                 (let [new-value (.apply let-fun nil (.-values fact))
                                        new-values (aclone (.-values fact))]
                                    (apush new-values new-value)
                                    (Fact. nil new-values)))
@@ -466,7 +466,7 @@
     When (when (every? (set vars) (:vars pattern))
            (let [when-fun (expr->fun vars (:expr pattern))
                  filter-map-fun (fn [fact]
-                                  (when (.apply when-fun (.-values fact))
+                                  (when (.apply when-fun nil (.-values fact))
                                     fact))
                  [plan node] (add-flow plan (->FilterMap nodes filter-map-fun))]
              [plan [node] vars]))))
