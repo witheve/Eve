@@ -181,7 +181,6 @@
   (get x 1)
   (get x :b)
 
-
   (= eg (fact-shape ::eg "[a] has a [b] with a [c]"))
 
   (fact (fact-shape ::eg "[a] has a [b] with a [c]") #js ["a" "b" "c"])
@@ -202,9 +201,11 @@
 
 ;; FLOW STATE
 
-(defrecord FlowState [node->state node->out-nodes node->facts node->update!])
+(defrecord FlowState [node->state node->out-nodes node->facts node->update! trace])
 
-(defn fixpoint! [{:keys [node->state node->out-nodes node->facts node->update!] :as flow-state}]
+(def trace? true)
+
+(defn fixpoint! [{:keys [node->state node->out-nodes node->facts node->update! trace] :as flow-state}]
   (loop [node 0]
     (when (< node (alength node->facts))
       (let [in-facts (aget node->facts node)]
@@ -213,6 +214,7 @@
           (let [out-facts #js []]
             (.call (aget node->update! node) nil node node->state in-facts out-facts)
             (aset node->facts node #js [])
+            (when trace? (.push trace #js [node in-facts out-facts]))
             (if (> (alength out-facts) 0)
               (let [out-nodes (aget node->out-nodes node)
                     min-out-node (areduce out-nodes i min-out-node (+ node 1)
@@ -312,7 +314,8 @@
   (let [node->state (into-array (for [_ node->flow] nil))
         node->out-nodes (into-array (for [_ node->flow] #js []))
         node->facts (into-array (for [_ node->flow] #js []))
-        node->update! (into-array (for [_ node->flow] nil))]
+        node->update! (into-array (for [_ node->flow] nil))
+        trace #js []]
     (dotimes [node (count node->flow)]
       (let [flow (nth node->flow node)]
         (aset node->state node
@@ -329,7 +332,7 @@
                 FilterMap (filter-map-update! (apply (resolve (first (:fun&args flow))) (rest (:fun&args flow))))
                 Index (index-update! (:key-ixes flow))
                 Lookup (lookup-update! (:index-node flow) (:key-ixes flow) (:val-ixes flow))))))
-    (FlowState. node->state node->out-nodes node->facts node->update!)))
+    (FlowState. node->state node->out-nodes node->facts node->update! trace)))
 
 (defn memory->node [memory]
   (case memory
