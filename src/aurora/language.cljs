@@ -3,6 +3,58 @@
   (:require-macros [aurora.macros :refer [console-time set!! conj!! disj!! assoc!! apush apush* avec]]
                    [aurora.language :refer [deffact]]))
 
+;; CLJS UTILS
+
+(def munge-map
+  {"-" "_"
+   " " "_SPACE_"
+   "." "_DOT_"
+   ":" "_COLON_"
+   "+" "_PLUS_"
+   ">" "_GT_"
+   "<" "_LT_"
+   "=" "_EQ_"
+   "~" "_TILDE_"
+   "!" "_BANG_"
+   "@" "_CIRCA_"
+   "#" "_SHARP_"
+   "'" "_SINGLEQUOTE_"
+   "\"" "_DOUBLEQUOTE_"
+   "%" "_PERCENT_"
+   "^" "_CARET_"
+   "&" "_AMPERSAND_"
+   "*" "_STAR_"
+   "|" "_BAR_"
+   "{" "_LBRACE_"
+   "}" "_RBRACE_"
+   "[" "_LBRACK_"
+   "]" "_RBRACK_"
+   "/" "_SLASH_"
+   "\\" "_BSLASH_"
+   "?" "_QMARK_"})
+
+(def munge-regexes
+  (into-array
+   (for [find (keys munge-map)]
+     (js/RegExp. (str "\\" find) "gi"))))
+
+(def munge-replaces
+  (into-array (vals munge-map)))
+
+;; TODO doesn't handle reserved names or namespaced symbols
+(defn munge-part [part]
+  (areduce munge-regexes i part part
+           (.replace part (aget munge-regexes i) (aget munge-replaces i))))
+
+(defn munge [sym]
+  (let [parts (.split (name sym) ".")
+        last-part (.pop parts)]
+    (.push parts (munge-part last-part))
+    (.join parts ".")))
+
+(defn resolve [namespaced]
+  (js/eval (str (namespace namespaced) "." (munge (name namespaced)))))
+
 ;; TODO facts and plans need to be serializable
 
 ;; FACTS
@@ -73,9 +125,6 @@
                      (aget values i)
                      (recur (+ i 1)))))))))
 
-(defn id->fact-shape [id]
-  (js/eval (str (namespace id) "." (name id)))) ;; TODO assumes facts are created by deffact
-
 (defn fact-shape [id madlib&keys]
   (let [split-madlib&keys (clojure.string/split madlib&keys #"\[|\]")
         [madlib keys] [(take-nth 2 split-madlib&keys) (map keyword (take-nth 2 (rest split-madlib&keys)))]]
@@ -139,7 +188,7 @@
 
   (= x x)
   (= x (fact (fact-shape ::eg "[a] has a [b] with a [c]") #js ["a" "b" "c"]))
-  (= x (fact (id->fact-shape ::eg) #js ["a" "b" "c"]))
+  (= x (fact (resolve ::eg) #js ["a" "b" "c"]))
   (= x (fact eg #js ["a" "b" "c"]))
   (= x (->eg "a" "b" "c"))
   (= (Fact. nil #js ["a" "b" "c"]) (Fact. nil #js ["a" "b" "c"]))
@@ -245,140 +294,10 @@
 
   )
 
-;; IXES
-
-(defn ix-of [vector value]
-  (let [count (count vector)]
-    (loop [ix 0]
-      (if (< ix count)
-        (if (= value (nth vector ix))
-          ix
-          (recur (+ ix 1)))
-        (assert false (str (pr-str value) " is not contained in " (pr-str vector)))))))
-
-(defn ixes-of [vector values]
-  (into-array (map #(ix-of vector %) values)))
-
-;; EXPRS
-
-(defn expr->fun [vars expr]
-  (apply js/Function (conj (vec vars) (str "return " expr ";"))))
-
-;; PATTERNS
-
-(defn pattern->vars [pattern]
-  (vec (distinct (filter symbol? (.-values pattern)))))
-
-(defn pattern->constructor [pattern source-vars]
-  (let [shape (.-shape pattern)
-        values (.-values pattern)
-        source-ixes #js []
-        sink-ixes #js []]
-    (doseq [[value ix] (map vector (.-values pattern) (range))]
-      (when (symbol? value)
-        (do
-          (apush source-ixes (ix-of source-vars value))
-          (apush sink-ixes ix))))
-    (fn [fact]
-      (let [source (.-values fact)
-            sink (aclone values)]
-        (dotimes [i (alength source-ixes)]
-          (aset sink (aget sink-ixes i) (aget source (aget source-ixes i))))
-        (Fact. shape sink nil)))))
-
-(defn pattern->deconstructor [pattern]
-  (let [shape (.-shape pattern)
-        seen? (atom {})
-        constant-values #js []
-        constant-ixes #js []
-        var-ixes #js []
-        dup-value-ixes #js []
-        dup-var-ixes #js []]
-    (doseq [[value ix] (map vector (.-values pattern) (range))]
-      (if (symbol? value)
-        (if-let [dup-value-ix (@seen? value)]
-          (do
-            (apush dup-value-ixes dup-value-ix)
-            (apush dup-var-ixes ix))
-          (do
-            (apush var-ixes ix)
-            (swap! seen? assoc value ix)))
-        (do
-          (apush constant-values value)
-          (apush constant-ixes ix))))
-    (fn [fact]
-      (when (= shape (.-shape fact))
-        (let [source (.-values fact)]
-          (loop [i 0]
-            (if (< i (alength constant-values))
-              (when (= (aget constant-values i) (aget source (aget constant-ixes i)))
-                (recur (+ i 1)))
-              (loop [i 0]
-                (if (< i (alength dup-value-ixes))
-                  (when (= (aget source (aget dup-value-ixes i)) (aget source (aget dup-var-ixes i)))
-                    (recur (+ i 1)))
-                  (let [sink (make-array (alength var-ixes))]
-                    (dotimes [i (alength var-ixes)]
-                      (aset sink i (aget source (aget var-ixes i))))
-                    (Fact. nil sink nil)))))))))))
-
-(comment
-  (deffact eg "[a] has a [b] with a [c]")
-
-  (pattern->vars (->eg 'a "b" 'c))
-
-  ((pattern->constructor (->eg "a" "b" "c") '[a b c]) (->eg 0 1 2))
-  ((pattern->constructor (->eg 'a "b" "c") '[a b c]) (->eg 0 1 2))
-  ((pattern->constructor (->eg 'c "b" "a") '[a b c]) (->eg 0 1 2))
-  ((pattern->constructor (->eg 'c 'c 'c) '[a b c]) (->eg 0 1 2))
-
-  ((pattern->deconstructor (->eg 'a "b" 'c)) (->eg "a" "b" "c"))
-  ((pattern->deconstructor (->eg 'a "b" 'c)) (->eg "a" "B" "c"))
-  ((pattern->deconstructor (->eg 'a "b" "c")) (->eg "a" "b" "c"))
-  ((pattern->deconstructor (->eg "a" "b" "c")) (->eg "a" "b" "c"))
-  ((pattern->deconstructor (->eg 'a 'b 'c)) (->eg "a" "b" "c"))
-  ((pattern->deconstructor (->eg 'a 'b 'a)) (->eg "a" "b" "c"))
-  ((pattern->deconstructor (->eg 'a 'b 'a)) (->eg "a" "b" "a"))
-  ((pattern->deconstructor (->eg 'a 'a 'a)) (->eg "a" "b" "a"))
-  ((pattern->deconstructor (->eg 'a 'a 'a)) (->eg "a" "a" "a"))
-  )
-
-;; FUNLIKE
-
-(defrecord ShapeFun [shape])
-(defrecord ConstructorFun [vars pattern])
-(defrecord DeconstructorFun [pattern])
-(defrecord WhenFun [vars expr])
-(defrecord LetFun [vars expr])
-
-(defn funlike->fun [funlike]
-  (condp = (type funlike)
-    ShapeFun (let [{:keys [shape]} funlike]
-               (fn [x]
-                 (when (= shape (.-shape x))
-                   x)))
-    ConstructorFun (let [{:keys [vars pattern]} funlike]
-                     (pattern->constructor pattern vars))
-    DeconstructorFun (let [{:keys [pattern]} funlike]
-                       (pattern->deconstructor pattern))
-    WhenFun (let [{:keys [vars expr]} funlike
-                  when-fun (expr->fun vars expr)]
-              (fn [fact]
-                (when (.apply when-fun nil (.-values fact))
-                  fact)))
-    LetFun (let [{:keys [vars expr]} funlike
-                 let-fun (expr->fun vars expr)]
-             (fn [fact]
-               (let [values (.-values fact)
-                     new-value (.apply let-fun nil values)
-                     new-values (aclone values)]
-                 (apush new-values new-value)
-                 (Fact. nil new-values nil))))))
-
 ;; FLOWS
 
 (defrecord Union [nodes])
-(defrecord FilterMap [nodes funlike])
+(defrecord FilterMap [nodes fun&args])
 (defrecord Index [nodes key-ixes])
 (defrecord Lookup [nodes index-node key-ixes val-ixes])
 
@@ -407,7 +326,7 @@
         (aset node->update! node
               (condp = (type flow)
                 Union (union-update!)
-                FilterMap (filter-map-update! (funlike->fun (:funlike flow)))
+                FilterMap (filter-map-update! (apply (resolve (first (:fun&args flow))) (rest (:fun&args flow))))
                 Index (index-update! (:key-ixes flow))
                 Lookup (lookup-update! (:index-node flow) (:key-ixes flow) (:val-ixes flow))))))
     (FlowState. node->state node->out-nodes node->facts node->update!)))
@@ -441,24 +360,140 @@
           flow->node (assoc flow->node flow node)]
       [(FlowPlan. node->flow flow->node) node])))
 
+;; IXES
+
+(defn ix-of [vector value]
+  (let [count (count vector)]
+    (loop [ix 0]
+      (if (< ix count)
+        (if (= value (nth vector ix))
+          ix
+          (recur (+ ix 1)))
+        (assert false (str (pr-str value) " is not contained in " (pr-str vector)))))))
+
+(defn ixes-of [vector values]
+  (into-array (map #(ix-of vector %) values)))
+
+;; EXPRS
+
+(defn expr->fun [vars expr]
+  (apply js/Function (conj (vec vars) (str "return " expr ";"))))
+
+(defn when->fun [vars expr]
+  (let [when-fun (expr->fun vars expr)]
+    (fn [fact]
+      (let [values (.-values fact)]
+        (when (.apply when-fun nil values)
+          fact)))))
+
+(defn let->fun [vars expr]
+  (let [let-fun (expr->fun vars expr)]
+    (fn [fact]
+      (let [values (.-values fact)
+            new-values (aclone values)
+            new-value (.apply let-fun nil values)]
+        (apush new-values new-value)
+        (Fact. nil new-values nil)))))
+
+(defn when-let->fun [name-ix vars expr]
+  (let [let-fun (expr->fun vars expr)]
+    (fn [fact]
+      (let [values (.-values fact)
+            old-value (aget values name-ix)
+            new-value (.apply let-fun nil values)]
+        (when (= old-value new-value)
+          fact)))))
+
+;; PATTERNS
+
+(defn pattern->vars [pattern]
+  (vec (distinct (filter symbol? (.-values pattern)))))
+
+(defn pattern->filter [pattern]
+  `(pattern->filter* ~(.-shape pattern)))
+
+(defn pattern->filter* [shape]
+  (fn [fact]
+    (when (= shape (.-shape fact))
+      fact)))
+
+(defn pattern->constructor [source-vars pattern]
+  (let [shape (.-shape pattern)
+        values (.-values pattern)
+        source-ixes #js []
+        sink-ixes #js []]
+    (doseq [[value ix] (map vector (.-values pattern) (range))]
+      (when (symbol? value)
+        (do
+          (apush source-ixes (ix-of source-vars value))
+          (apush sink-ixes ix))))
+    `(pattern->constructor* ~shape ~values ~source-ixes ~sink-ixes)))
+
+(defn pattern->constructor* [shape values source-ixes sink-ixes]
+  (fn [fact]
+    (let [source (.-values fact)
+          sink (aclone values)]
+      (dotimes [i (alength source-ixes)]
+        (aset sink (aget sink-ixes i) (aget source (aget source-ixes i))))
+      (Fact. shape sink nil))))
+
+(defn pattern->deconstructor [pattern]
+  (let [shape (.-shape pattern)
+        seen? (atom {})
+        constant-values #js []
+        constant-ixes #js []
+        var-ixes #js []
+        dup-value-ixes #js []
+        dup-var-ixes #js []]
+    (doseq [[value ix] (map vector (.-values pattern) (range))]
+      (if (symbol? value)
+        (if-let [dup-value-ix (@seen? value)]
+          (do
+            (apush dup-value-ixes dup-value-ix)
+            (apush dup-var-ixes ix))
+          (do
+            (apush var-ixes ix)
+            (swap! seen? assoc value ix)))
+        (do
+          (apush constant-values value)
+          (apush constant-ixes ix))))
+    `(pattern->deconstructor* ~constant-values ~constant-ixes ~var-ixes ~dup-value-ixes ~dup-var-ixes)))
+
+(defn pattern->deconstructor* [constant-values constant-ixes var-ixes dup-value-ixes dup-var-ixes]
+  (fn [fact]
+    (let [source (.-values fact)]
+      (loop [i 0]
+        (if (< i (alength constant-values))
+          (when (= (aget constant-values i) (aget source (aget constant-ixes i)))
+            (recur (+ i 1)))
+          (loop [i 0]
+            (if (< i (alength dup-value-ixes))
+              (when (= (aget source (aget dup-value-ixes i)) (aget source (aget dup-var-ixes i)))
+                (recur (+ i 1)))
+              (let [sink (make-array (alength var-ixes))]
+                (dotimes [i (alength var-ixes)]
+                  (aset sink i (aget source (aget var-ixes i))))
+                (Fact. nil sink nil)))))))))
+
 (comment
-  (deffact edge "[x] has an edge to [y]")
-  (deffact connected "[x] is connected to [y]")
+  (deffact eg "[a] has a [b] with a [c]")
 
-  (def known&pretended [0 1])
+  (pattern->vars (->eg 'a "b" 'c))
 
-  (let [plan empty-flow-plan
-        [plan edges] (add-flow plan (FilterMap. known&pretended (ShapeFun. edge)))
-        [plan connecteds] (add-flow plan (FilterMap. known&pretended (ShapeFun. connected)))
-        [plan edges-index] (add-flow plan (Index. [edges] #js [1]))
-        [plan connecteds-index] (add-flow plan (Index. [connecteds] #js [0]))
-        [plan edges-lookup] (add-flow plan (Lookup. [edges-index] connecteds-index #js [1] #js [0 3]))
-        [plan connecteds-lookup] (add-flow plan (Lookup. [connecteds-index] edges-index #js [0] #js [2 1]))
-        [plan new-connecteds] (add-flow plan (FilterMap. [edges edges-lookup connecteds-lookup] (ConstructorFun. '[x z] (->connected 'x 'z))))
-        plan (add-output plan new-connecteds :pretended)
-        state (flow-plan->flow-state plan)]
-    (apush* (aget (:node->facts state) 0) #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
-    (-> (fixpoint! state) :node->state (aget 1) persistent!))
+  ((pattern->constructor (->eg "a" "b" "c") '[a b c]) (->eg 0 1 2))
+  ((pattern->constructor (->eg 'a "b" "c") '[a b c]) (->eg 0 1 2))
+  ((pattern->constructor (->eg 'c "b" "a") '[a b c]) (->eg 0 1 2))
+  ((pattern->constructor (->eg 'c 'c 'c) '[a b c]) (->eg 0 1 2))
+
+  ((pattern->deconstructor (->eg 'a "b" 'c)) (->eg "a" "b" "c"))
+  ((pattern->deconstructor (->eg 'a "b" 'c)) (->eg "a" "B" "c"))
+  ((pattern->deconstructor (->eg 'a "b" "c")) (->eg "a" "b" "c"))
+  ((pattern->deconstructor (->eg "a" "b" "c")) (->eg "a" "b" "c"))
+  ((pattern->deconstructor (->eg 'a 'b 'c)) (->eg "a" "b" "c"))
+  ((pattern->deconstructor (->eg 'a 'b 'a)) (->eg "a" "b" "c"))
+  ((pattern->deconstructor (->eg 'a 'b 'a)) (->eg "a" "b" "a"))
+  ((pattern->deconstructor (->eg 'a 'a 'a)) (->eg "a" "b" "a"))
+  ((pattern->deconstructor (->eg 'a 'a 'a)) (->eg "a" "a" "a"))
   )
 
 ;; CLAUSES
@@ -476,23 +511,23 @@
 (defn add-clause [plan nodes vars clause]
   (condp = (type clause)
     Recall (let [{:keys [memory pattern]} clause
-                 [plan node-a] (add-flow plan (FilterMap. (memory->nodes memory) (ShapeFun. (.-shape pattern))))
-                 [plan node-b] (add-flow plan (FilterMap. [node-a] (DeconstructorFun. pattern)))]
+                 [plan node-a] (add-flow plan (FilterMap. (memory->nodes memory) (pattern->filter pattern)))
+                 [plan node-b] (add-flow plan (FilterMap. [node-a] (pattern->deconstructor pattern)))]
              [plan [node-b] (pattern->vars pattern)])
     Compute (let [{:keys [pattern]} clause]
               (condp = (.-shape pattern)
                 Let (when (every? (set vars) (:vars pattern))
-                      (let [funlike (if (contains? (set vars) (:name pattern))
-                                      (WhenFun. vars (str "cljs.core.equals(" (:name pattern) "," (:expr pattern) ")"))
-                                      (LetFun. vars (:expr pattern)))
-                            [plan node] (add-flow plan (->FilterMap nodes funlike))]
+                      (let [fun&args (if (contains? (set vars) (:name pattern))
+                                       `(when-let->fun ~(ix-of vars (:name pattern)) ~vars ~(:expr pattern))
+                                       `(let->fun ~vars ~(:expr pattern)))
+                            [plan node] (add-flow plan (->FilterMap nodes fun&args))]
                         [plan [node] (conj vars (:name pattern))]))
                 When (when (every? (set vars) (:vars pattern))
-                       (let [[plan node] (add-flow plan (->FilterMap nodes (WhenFun. vars (:expr pattern))))]
+                       (let [[plan node] (add-flow plan (->FilterMap nodes `(when->fun ~vars ~(:expr pattern))))]
                          [plan [node] vars]))))
     Output (let [{:keys [memory pattern]} clause
                  _ (assert (every? (set vars) (pattern->vars pattern)))
-                 [plan output-node] (add-flow plan (FilterMap. nodes (ConstructorFun. vars pattern)))
+                 [plan output-node] (add-flow plan (FilterMap. nodes (pattern->constructor vars pattern)))
                  plan (add-output plan output-node memory)]
              [plan nodes vars])))
 
