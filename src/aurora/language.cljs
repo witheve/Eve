@@ -584,8 +584,10 @@
         val-ixes-a (ixes-of (concat vars-a vars-b) val-vars)
         val-ixes-b (ixes-of (concat vars-b vars-a) val-vars)
         [plan index-a] (add-flow plan (->Index nodes-a index-ixes-a))
-        [plan index-b] (add-flow plan (->Index nodes-b index-ixes-b))
+        index-b (inc (count (:node->flow plan))) ;; gross :(
         [plan lookup-a] (add-flow plan (->Lookup [index-a] index-b lookup-ixes-a val-ixes-a))
+        [plan index-b'] (add-flow plan (->Index nodes-b index-ixes-b))
+        _ (assert (= index-b index-b'))
         [plan lookup-b] (add-flow plan (->Lookup [index-b] index-a lookup-ixes-b val-ixes-b))]
     [plan [lookup-a lookup-b] (vec (distinct (concat vars-a vars-b)))]))
 
