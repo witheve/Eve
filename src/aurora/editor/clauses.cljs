@@ -16,6 +16,14 @@
         ks (filterv identity (map m (:madlib info)))]
     (language/fact (:ml m) (to-array ks))))
 
+(defn extract-vars [s vars]
+  (when s
+    (let [extracted (array)]
+      (doseq [var vars]
+        (when (> (.indexOf (str s) (str var)) -1)
+          (.push extracted var)))
+      (vec extracted))))
+
 (defmulti compile-clause (fn [clause vars]
                            (:type clause)))
 
@@ -23,7 +31,9 @@
   (compile-clause (assoc clause :type "find") vars))
 
 (defmethod compile-clause "find" [clause vars]
-  [(language/Recall. :known&pretended (map->fact clause))])
+  (condp = (:ml clause)
+    :aurora/let [(language/Compute. (language/->Let (symbol (get clause "x")) (extract-vars (get clause "y") vars) (get clause "y")))]
+    [(language/Recall. :known&pretended (map->fact clause))]))
 
 (defmethod compile-clause "add" [clause vars]
   [(language/Output. :remembered (map->fact clause))])
@@ -39,15 +49,7 @@
 
 (defmethod compile-clause "see" [clause vars]
   (let [exp (get clause "expression")]
-    [(language/Compute. (language/->Let (get clause "name" 'x) [] exp))]))
-
-(defn try-extract-vars [v]
-  (try
-    (let [vs (reader/read-string (str "[" v "]"))]
-      (filter #(and (symbol? %)
-                         (re-seq #"[a-zA-Z]+" (str %)))
-                   vs))
-    (catch :default e)))
+    [(language/Compute. (language/->Let (get clause "name" 'x) (extract-vars exp vars) exp))]))
 
 (defmethod compile-clause "change" [clause vars]
   (let [rule (get-in @state [:program :madlibs (:ml clause)])
@@ -58,7 +60,7 @@
         syms (into {} (for [k (keys (dissoc clause :ml))]
                         [k (gensym k)]))
         sees (for [[k v] (dissoc clause :ml)]
-               (language/Compute. (language/->Let (syms k) (into #{(placeholders k)} (try-extract-vars v)) v)))
+               (language/Compute. (language/->Let (syms k) (extract-vars v vars) v)))
         jsd (into clause (for [[k v] (dissoc clause :ml)]
                            [k (syms k)]))
         ]
@@ -89,7 +91,7 @@
     (set vars)))
 
 (defn compile-rule* [r world]
-  (let [vars (clauses->vars r)]
+  (let [vars (clauses->vars (:clauses r))]
     (mapcat #(compile-clause % vars) (:clauses r))))
 
 (defn compile-rule [r world]
@@ -147,12 +149,13 @@
 ;(language/get-facts (:kn @cur-env) :known)
 
 
+(comment
 (let [rules [(language/Rule. [
-                             (aurora.language.Recall. :known&pretended, (js/aurora.language.fact :http/response #js ['content "google"]))
+                             (aurora.language.Recall. :known&pretended, (js/aurora.language.fact :http/response #js ['content "google" 'tim]))
                              (aurora.language.Output. :remembered (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value74]))
                              (aurora.language.Output. :forgotten (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value]))
                              (aurora.language.Recall. :known&pretended, (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value]))
-                             (aurora.language.Compute. (language/->Let 'value74  #{'value} "value + \"hey\""))])]
+                             (aurora.language.Compute. (language/->Let 'value74  #{'value 'content} "value + \"hey\" + content"))])]
       plan (language/rules->plan rules)
       state (language/flow-plan->flow-state plan)]
   (language/add-facts state :known [(language/fact. "1df7454c_069e_40ab_b117_b8d43212b473" #js ["Click me"])])
@@ -162,8 +165,4 @@
       (language/get-facts :known))
   )
 
-
-#aurora.language.Output{:memory :remembered, :pattern #< 1df7454c_069e_40ab_b117_b8d43212b473 [_ = value74]>}
-#aurora.language.Output{:memory :forgotten, :pattern #< 1df7454c_069e_40ab_b117_b8d43212b473 [_ = value]>}
-#aurora.language.Recall{:memory :known&pretended, :pattern #< 1df7454c_069e_40ab_b117_b8d43212b473 [_ = value]>}
-#aurora.language.Compute{:pattern #<Let [name = value74] be the result of [vars = (value value)] [expr = "value + \"hey\""]>}
+  )

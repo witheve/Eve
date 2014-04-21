@@ -97,7 +97,7 @@ input { border:none; background:#f7f7f7; font-family: "Avenir"; color: #444; fon
 #root span { vertical-align:middle; display:inline-block; white-space:pre-wrap; }
 #root .CodeMirror span { display:inline; white-space:pre; }
 
-#canvas { flex:1; display:flex; flex-direction:row; position:relative; overflow:hidden; background:#e8e8e8; background:url(http://subtlepatterns.com/patterns/dark_fish_skin.png); padding:0 20px; margin-bottom:0px; }
+#canvas { flex:1; display:flex; flex-direction:row; position:relative; overflow:hidden; background:#e8e8e8; padding:0 20px; margin-bottom:0px; }
 
 #canvas-editor {flex:1; padding-top:20px; padding-left:20px; padding-bottom:250px;}
 
@@ -194,7 +194,7 @@ td.keyword { text-align:right; white-space:pre; padding-left:5px; }
 #pages-list li { margin-bottom:10px; cursor:default; color:#777; }
 #pages-list li:hover { color:#00aaaa; }
 
-#perf { background:none; color:#aaa; position:fixed; bottom: 0px; right:0px; padding:10px; border-top-left-radius:3px;}
+#perf { background:black; color:#fff; position:fixed; bottom: 0px; right:0px; padding:10px; border-top-left-radius:3px; z-index:1000;}
 #perf td:first-child { text-align:right; padding-right:8px; }
 
 .debug { position:fixed; right:0;}

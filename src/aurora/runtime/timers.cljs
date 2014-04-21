@@ -25,8 +25,8 @@
         waits (array)]
     (doseq [fact facts
             :let [[coll thing] (condp = (.-shape fact)
-                                 :timers/wait [waits {"waiting time" (get fact 0)}]
-                                 :aurora/refresh [refresh {"time" (get fact 0)
+                                 :aurora/refresh [refresh (get fact 0)]
+                                 :timers/wait [waits {"time" (get fact 0)
                                                            "timer" (get fact 1)}]
                                  nil)]
             :when coll]

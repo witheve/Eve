@@ -124,6 +124,10 @@
                                                    :type "string"}
                                              "time" {:order 2
                                                      :type "time"}}}
+              :aurora/let {:madlib ["x" " = " "y"]
+                           :madlib-str "[x] = [y]"
+                           :placeholders {"x" {:order 0}
+                                          "y" {:order 1}}}
               })
 
 (defn map->fact [m]
