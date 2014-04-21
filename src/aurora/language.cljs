@@ -574,15 +574,19 @@
 
 (defn join-clauses [plan nodes-a vars-a nodes-b vars-b]
   (let [key-vars (intersection (set vars-a) (set vars-b))
+        key-vars-a (sort-by #(ix-of vars-a %) key-vars)
+        key-vars-b (sort-by #(ix-of vars-b %) key-vars)
         val-vars (union (set vars-a) (set vars-b))
-        key-ixes-a (ixes-of vars-a key-vars)
-        key-ixes-b (ixes-of vars-b key-vars)
+        index-ixes-a (ixes-of vars-a key-vars-a)
+        index-ixes-b (ixes-of vars-b key-vars-b)
+        lookup-ixes-a (ixes-of vars-a key-vars-b)
+        lookup-ixes-b (ixes-of vars-b key-vars-a)
         val-ixes-a (ixes-of (concat vars-a vars-b) val-vars)
         val-ixes-b (ixes-of (concat vars-b vars-a) val-vars)
-        [plan index-a] (add-flow plan (->Index nodes-a key-ixes-a))
-        [plan index-b] (add-flow plan (->Index nodes-b key-ixes-b))
-        [plan lookup-a] (add-flow plan (->Lookup [index-a] index-b key-ixes-a val-ixes-a))
-        [plan lookup-b] (add-flow plan (->Lookup [index-b] index-a key-ixes-b val-ixes-b))]
+        [plan index-a] (add-flow plan (->Index nodes-a index-ixes-a))
+        [plan index-b] (add-flow plan (->Index nodes-b index-ixes-b))
+        [plan lookup-a] (add-flow plan (->Lookup [index-a] index-b lookup-ixes-a val-ixes-a))
+        [plan lookup-b] (add-flow plan (->Lookup [index-b] index-a lookup-ixes-b val-ixes-b))]
     [plan [lookup-a lookup-b] (vec (distinct (concat vars-a vars-b)))]))
 
 (comment
