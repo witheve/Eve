@@ -245,92 +245,6 @@
 
   )
 
-;; FLOWS
-
-(defrecord Union [nodes])
-(defrecord FilterMap [nodes fun])
-(defrecord Index [nodes key-ixes])
-(defrecord Lookup [nodes index-node key-ixes val-ixes])
-
-(defn flow->nodes [flow]
-  (:nodes flow))
-
-;; FLOW PLAN
-
-(defrecord FlowPlan [node->flow flow->node])
-
-(defn flow-plan->flow-state [{:keys [node->flow]}]
-  (let [node->state (into-array (for [_ node->flow] nil))
-        node->out-nodes (into-array (for [_ node->flow] #js []))
-        node->facts (into-array (for [_ node->flow] #js []))
-        node->update! (into-array (for [_ node->flow] nil))]
-    (dotimes [node (count node->flow)]
-      (let [flow (nth node->flow node)]
-        (aset node->state node
-              (condp = (type flow)
-                Union (transient #{})
-                FilterMap nil
-                Index (transient {})
-                Lookup nil))
-        (doseq [in-node (:nodes flow)]
-          (apush (aget node->out-nodes in-node) node))
-        (aset node->update! node
-              (condp = (type flow)
-                Union (union-update!)
-                FilterMap (filter-map-update! (:fun flow))
-                Index (index-update! (:key-ixes flow))
-                Lookup (lookup-update! (:index-node flow) (:key-ixes flow) (:val-ixes flow))))))
-    (FlowState. node->state node->out-nodes node->facts node->update!)))
-
-(defn memory->node [memory]
-  (case memory
-    :known 0
-    :pretended 1
-    :remembered 2
-    :forgotten 3))
-
-(defn memory->nodes [memory]
-  (case memory
-    :known [0]
-    :pretended [1]
-    :remembered [2]
-    :forgotten [3]
-    :known&pretended [0 1]))
-
-(def empty-flow-plan
-  (FlowPlan. [(Union. #{}) (Union. #{}) (Union. #{}) (Union. #{})] {}))
-
-(defn add-output [flow-plan node memory]
-  (update-in flow-plan [:node->flow (memory->node memory) :nodes] conj node))
-
-(defn add-flow [{:keys [node->flow flow->node] :as flow-plan} flow]
-  (if-let [node (flow->node flow)]
-    [flow-plan node]
-    (let [node (count node->flow)
-          node->flow (conj node->flow flow)
-          flow->node (assoc flow->node flow node)]
-      [(FlowPlan. node->flow flow->node) node])))
-
-(comment
-  (deffact edge "[x] has an edge to [y]")
-  (deffact connected "[x] is connected to [y]")
-
-  (def known&pretended [0 1])
-
-  (let [plan empty-flow-plan
-        [plan edges] (add-flow plan (FilterMap. known&pretended (fn [x] (when (= edge (.-shape x)) x))))
-        [plan connecteds] (add-flow plan (FilterMap. known&pretended (fn [x] (when (= connected (.-shape x)) x))))
-        [plan edges-index] (add-flow plan (Index. [edges] #js [1]))
-        [plan connecteds-index] (add-flow plan (Index. [connecteds] #js [0]))
-        [plan edges-lookup] (add-flow plan (Lookup. [edges-index] connecteds-index #js [1] #js [0 3]))
-        [plan connecteds-lookup] (add-flow plan (Lookup. [connecteds-index] edges-index #js [0] #js [2 1]))
-        [plan new-connecteds] (add-flow plan (FilterMap. [edges edges-lookup connecteds-lookup] (fn [x] (->connected (fact-ix x 0) (fact-ix x 1)))))
-        plan (add-output plan new-connecteds :pretended)
-        state (flow-plan->flow-state plan)]
-    (apush* (aget (:node->facts state) 0) #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
-    (-> (fixpoint! state) :node->state (aget 1) persistent!))
-  )
-
 ;; IXES
 
 (defn ix-of [vector value]
@@ -344,6 +258,11 @@
 
 (defn ixes-of [vector values]
   (into-array (map #(ix-of vector %) values)))
+
+;; EXPRS
+
+(defn expr->fun [vars expr]
+  (apply js/Function (conj (vec vars) (str "return " expr ";"))))
 
 ;; PATTERNS
 
@@ -424,10 +343,123 @@
   ((pattern->deconstructor (->eg 'a 'a 'a)) (->eg "a" "a" "a"))
   )
 
-;; EXPRS
+;; FUNLIKE
 
-(defn expr->fun [vars expr]
-  (apply js/Function (conj (vec vars) (str "return " expr ";"))))
+(defrecord ShapeFun [shape])
+(defrecord ConstructorFun [vars pattern])
+(defrecord DeconstructorFun [pattern])
+(defrecord WhenFun [vars expr])
+(defrecord LetFun [vars expr])
+
+(defn funlike->fun [funlike]
+  (condp = (type funlike)
+    ShapeFun (let [{:keys [shape]} funlike]
+               (fn [x]
+                 (when (= shape (.-shape x))
+                   x)))
+    ConstructorFun (let [{:keys [vars pattern]} funlike]
+                     (pattern->constructor pattern vars))
+    DeconstructorFun (let [{:keys [pattern]} funlike]
+                       (pattern->deconstructor pattern))
+    WhenFun (let [{:keys [vars expr]} funlike
+                  when-fun (expr->fun vars expr)]
+              (fn [fact]
+                (when (.apply when-fun nil (.-values fact))
+                  fact)))
+    LetFun (let [{:keys [vars expr]} funlike
+                 let-fun (expr->fun vars expr)]
+             (fn [fact]
+               (let [values (.-values fact)
+                     new-value (.apply let-fun nil values)
+                     new-values (aclone values)]
+                 (apush new-values new-value)
+                 (Fact. nil new-values nil))))))
+
+;; FLOWS
+
+(defrecord Union [nodes])
+(defrecord FilterMap [nodes funlike])
+(defrecord Index [nodes key-ixes])
+(defrecord Lookup [nodes index-node key-ixes val-ixes])
+
+(defn flow->nodes [flow]
+  (:nodes flow))
+
+;; FLOW PLAN
+
+(defrecord FlowPlan [node->flow flow->node])
+
+(defn flow-plan->flow-state [{:keys [node->flow]}]
+  (let [node->state (into-array (for [_ node->flow] nil))
+        node->out-nodes (into-array (for [_ node->flow] #js []))
+        node->facts (into-array (for [_ node->flow] #js []))
+        node->update! (into-array (for [_ node->flow] nil))]
+    (dotimes [node (count node->flow)]
+      (let [flow (nth node->flow node)]
+        (aset node->state node
+              (condp = (type flow)
+                Union (transient #{})
+                FilterMap nil
+                Index (transient {})
+                Lookup nil))
+        (doseq [in-node (:nodes flow)]
+          (apush (aget node->out-nodes in-node) node))
+        (aset node->update! node
+              (condp = (type flow)
+                Union (union-update!)
+                FilterMap (filter-map-update! (funlike->fun (:funlike flow)))
+                Index (index-update! (:key-ixes flow))
+                Lookup (lookup-update! (:index-node flow) (:key-ixes flow) (:val-ixes flow))))))
+    (FlowState. node->state node->out-nodes node->facts node->update!)))
+
+(defn memory->node [memory]
+  (case memory
+    :known 0
+    :pretended 1
+    :remembered 2
+    :forgotten 3))
+
+(defn memory->nodes [memory]
+  (case memory
+    :known [0]
+    :pretended [1]
+    :remembered [2]
+    :forgotten [3]
+    :known&pretended [0 1]))
+
+(def empty-flow-plan
+  (FlowPlan. [(Union. #{}) (Union. #{}) (Union. #{}) (Union. #{})] {}))
+
+(defn add-output [flow-plan node memory]
+  (update-in flow-plan [:node->flow (memory->node memory) :nodes] conj node))
+
+(defn add-flow [{:keys [node->flow flow->node] :as flow-plan} flow]
+  (if-let [node (flow->node flow)]
+    [flow-plan node]
+    (let [node (count node->flow)
+          node->flow (conj node->flow flow)
+          flow->node (assoc flow->node flow node)]
+      [(FlowPlan. node->flow flow->node) node])))
+
+(comment
+  (deffact edge "[x] has an edge to [y]")
+  (deffact connected "[x] is connected to [y]")
+
+  (def known&pretended [0 1])
+
+  (let [plan empty-flow-plan
+        [plan edges] (add-flow plan (FilterMap. known&pretended (ShapeFun. edge)))
+        [plan connecteds] (add-flow plan (FilterMap. known&pretended (ShapeFun. connected)))
+        [plan edges-index] (add-flow plan (Index. [edges] #js [1]))
+        [plan connecteds-index] (add-flow plan (Index. [connecteds] #js [0]))
+        [plan edges-lookup] (add-flow plan (Lookup. [edges-index] connecteds-index #js [1] #js [0 3]))
+        [plan connecteds-lookup] (add-flow plan (Lookup. [connecteds-index] edges-index #js [0] #js [2 1]))
+        [plan new-connecteds] (add-flow plan (FilterMap. [edges edges-lookup connecteds-lookup] (ConstructorFun. '[x z] (->connected 'x 'z))))
+        plan (add-output plan new-connecteds :pretended)
+        state (flow-plan->flow-state plan)]
+    (apush* (aget (:node->facts state) 0) #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
+    (-> (fixpoint! state) :node->state (aget 1) persistent!))
+  )
 
 ;; CLAUSES
 
@@ -444,37 +476,23 @@
 (defn add-clause [plan nodes vars clause]
   (condp = (type clause)
     Recall (let [{:keys [memory pattern]} clause
-                 [plan node] (add-flow plan (FilterMap. (memory->nodes memory) (pattern->deconstructor pattern)))]
-             [plan [node] (pattern->vars pattern)])
+                 [plan node-a] (add-flow plan (FilterMap. (memory->nodes memory) (ShapeFun. (.-shape pattern))))
+                 [plan node-b] (add-flow plan (FilterMap. [node-a] (DeconstructorFun. pattern)))]
+             [plan [node-b] (pattern->vars pattern)])
     Compute (let [{:keys [pattern]} clause]
               (condp = (.-shape pattern)
                 Let (when (every? (set vars) (:vars pattern))
-                      (let [let-fun (expr->fun vars (:expr pattern))
-                            filter-map-fun (if (contains? (set vars) (:name pattern))
-                                             ;; filter
-                                             (let [name-ix (ix-of vars (:name pattern))]
-                                               (fn [fact]
-                                                 (let [new-value (.apply let-fun nil (.-values fact))]
-                                                   (when (= new-value (aget (.-values fact) name-ix))
-                                                     fact))))
-                                             ;; define
-                                             (fn [fact]
-                                               (let [new-value (.apply let-fun nil (.-values fact))
-                                                     new-values (aclone (.-values fact))]
-                                                 (apush new-values new-value)
-                                                 (Fact. nil new-values nil))))
-                            [plan node] (add-flow plan (->FilterMap nodes filter-map-fun))]
+                      (let [funlike (if (contains? (set vars) (:name pattern))
+                                      (WhenFun. vars (str "cljs.core.equals(" (:name pattern) "," (:expr pattern) ")"))
+                                      (LetFun. vars (:expr pattern)))
+                            [plan node] (add-flow plan (->FilterMap nodes funlike))]
                         [plan [node] (conj vars (:name pattern))]))
                 When (when (every? (set vars) (:vars pattern))
-                       (let [when-fun (expr->fun vars (:expr pattern))
-                             filter-map-fun (fn [fact]
-                                              (when (.apply when-fun nil (.-values fact))
-                                                fact))
-                             [plan node] (add-flow plan (->FilterMap nodes filter-map-fun))]
+                       (let [[plan node] (add-flow plan (->FilterMap nodes (WhenFun. vars (:expr pattern))))]
                          [plan [node] vars]))))
     Output (let [{:keys [memory pattern]} clause
                  _ (assert (every? (set vars) (pattern->vars pattern)))
-                 [plan output-node] (add-flow plan (FilterMap. nodes (pattern->constructor pattern vars)))
+                 [plan output-node] (add-flow plan (FilterMap. nodes (ConstructorFun. vars pattern)))
                  plan (add-output plan output-node memory)]
              [plan nodes vars])))
 
