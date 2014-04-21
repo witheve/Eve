@@ -259,9 +259,9 @@
 
 ;; FLOW PLAN
 
-(defrecord FlowPlan [node->flow flow->node])
+(defrecord FlowPlan [node->flow flow->node memory->shape->node kind->shape])
 
-(defn flow-plan->flow-state [{:keys [node->flow]}]
+(defn flow-plan->flow-state [{:keys [node->flow] :as plan}]
   (let [node->state (into-array (for [_ node->flow] nil))
         node->out-nodes (into-array (for [_ node->flow] #js []))
         node->facts (into-array (for [_ node->flow] #js []))
@@ -285,34 +285,51 @@
                 Lookup (lookup-update! (:index-node flow) (:key-ixes flow) (:val-ixes flow))))))
     (FlowState. node->state node->out-nodes node->facts node->update! trace plan)))
 
-(defn memory->node [memory]
-  (case memory
-    :known 0
-    :pretended 1
-    :remembered 2
-    :forgotten 3))
-
-(defn memory->nodes [memory]
-  (case memory
-    :known [0]
-    :pretended [1]
-    :remembered [2]
-    :forgotten [3]
-    :known&pretended [0 1]))
-
 (def empty-flow-plan
-  (FlowPlan. [(Union. #{}) (Union. #{}) (Union. #{}) (Union. #{})] {}))
+  (FlowPlan. [] {} {} {}))
 
-(defn add-output [flow-plan node memory]
-  (update-in flow-plan [:node->flow (memory->node memory) :nodes] conj node))
+(defn add-flow-without-memo [{:keys [node->flow flow->node] :as flow-plan} flow]
+  (let [node (count node->flow)
+        node->flow (conj node->flow flow)
+        flow->node (assoc flow->node flow node)]
+    [(assoc flow-plan :node->flow node->flow :flow->node flow->node) node]))
 
 (defn add-flow [{:keys [node->flow flow->node] :as flow-plan} flow]
-  (if-let [node (flow->node flow)]
+  (if-let [node (get flow->node flow)]
     [flow-plan node]
-    (let [node (count node->flow)
-          node->flow (conj node->flow flow)
-          flow->node (assoc flow->node flow node)]
-      [(FlowPlan. node->flow flow->node) node])))
+    (add-flow-without-memo flow-plan flow)))
+
+(defn memory! [memory]
+  (assert (#{:known|pretended :remembered :forgotten} memory) (pr-str memory)))
+
+(defn add-memory [{:keys [node->flow memory->shape->node] :as flow-plan} memory shape]
+  (memory! memory)
+  (let [[flow-plan node] (add-flow-without-memo flow-plan (Union. #{}))
+        memory->shape->node (assoc-in memory->shape->node [memory shape] node)]
+    (assoc flow-plan :memory->shape->node memory->shape->node)))
+
+(defn add-shape [flow-plan kind shape]
+  (case kind
+    :pretended (-> flow-plan
+                   (add-memory :known|pretended shape)
+                   (update-in [:kind->shape kind] #(conj (or % #{}) shape)))
+    :known (-> flow-plan
+               (add-memory :known|pretended shape)
+               (add-memory :remembered shape)
+               (add-memory :forgotten shape)
+               (update-in [:kind->shape kind] #(conj (or % #{}) shape)))))
+
+(defn get-memory [{:keys [memory->shape->node]} memory shape]
+  (memory! memory)
+  (or (get-in memory->shape->node [memory shape])
+      (assert false (str "No node for " (pr-str memory) " " (pr-str shape)))))
+
+(defn add-input [flow-plan output-node memory shape]
+  (update-in flow-plan [:node->flow output-node :nodes] conj (get-memory flow-plan memory shape)))
+
+(defn add-output [flow-plan input-node memory shape]
+  (update-in flow-plan [:node->flow (get-memory flow-plan memory shape) :nodes] conj input-node))
+
 
 ;; IXES
 
@@ -452,7 +469,7 @@
 
 ;; CLAUSES
 
-(defrecord Recall [memory pattern]) ;; memory is one of :known :pretended :remembered :forgotten :known&pretended
+(defrecord Recall [memory pattern]) ;; memory is one of :known|pretended :remembered :forgotten
 (defrecord Compute [pattern])
 (defrecord Output [memory pattern]) ;; memory is one of :pretended :remembered :forgotten
 
@@ -465,9 +482,9 @@
 (defn add-clause [plan nodes vars clause]
   (condp = (type clause)
     Recall (let [{:keys [memory pattern]} clause
-                 [plan node-a] (add-flow plan (FilterMap. (memory->nodes memory) (pattern->filter pattern)))
-                 [plan node-b] (add-flow plan (FilterMap. [node-a] (pattern->deconstructor pattern)))]
-             [plan [node-b] (pattern->vars pattern)])
+                 [plan node] (add-flow plan (FilterMap. #{} (pattern->deconstructor pattern)))
+                 plan (add-input plan node memory (.-shape pattern))]
+             [plan [node] (pattern->vars pattern)])
     Compute (let [{:keys [pattern]} clause]
               (condp = (.-shape pattern)
                 Let (when (every? (set vars) (:vars pattern))
@@ -482,7 +499,11 @@
     Output (let [{:keys [memory pattern]} clause
                  _ (assert (every? (set vars) (pattern->vars pattern)))
                  [plan output-node] (add-flow plan (FilterMap. nodes (pattern->constructor vars pattern)))
-                 plan (add-output plan output-node memory)]
+                 output-memory (case memory
+                                 :pretended :known|pretended
+                                 :remembered :remembered
+                                 :forgotten :forgotten)
+                 plan (add-output plan output-node output-memory (.-shape pattern))]
              [plan nodes vars])))
 
 (comment
@@ -588,76 +609,87 @@
   (deffact edge "[x] has an edge to [y]")
   (deffact connected "[x] is connected to [y]")
 
-  (let [plan (add-rules empty-flow-plan
-                        [(Rule. [(Recall. :known&pretended (->edge 'x 'y))
-                                 (Output. :pretended (->connected 'x 'y))])
-                         (Rule. [(Recall. :known&pretended (->edge 'x 'y))
-                                 (Recall. :known&pretended (->connected 'y 'z))
-                                 (Output. :pretended (->connected 'x 'z))])])
+  (let [plan (-> empty-flow-plan
+                 (add-shape :known edge)
+                 (add-shape :pretended connected)
+                 (add-rules [(Rule. [(Recall. :known|pretended (->edge 'x 'y))
+                                     (Output. :pretended (->connected 'x 'y))])
+                             (Rule. [(Recall. :known|pretended (->edge 'x 'y))
+                                     (Recall. :known|pretended (->connected 'y 'z))
+                                     (Output. :pretended (->connected 'x 'z))])]))
         state (flow-plan->flow-state plan)]
-    (apush* (aget (:node->facts state) 0) #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
+    (add-facts state :known|pretended edge #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
     (time (fixpoint! state))
-    (persistent! (aget (:node->state state) 1)))
+    (get-facts state :known|pretended connected))
 
-  (let [plan (add-rules empty-flow-plan
-                        [(Rule. [(Recall. :known&pretended (->edge 'x 'y))
-                                 (Output. :pretended (->connected 'x 'y))])
-                         (Rule. [(Recall. :known&pretended (->edge 'x 'y))
-                                 (Recall. :known&pretended (->connected 'y 'z))
-                                 (Output. :pretended (->connected 'x 'z))])])
+  (enable-console-print!)
+
+  (let [plan (-> empty-flow-plan
+                 (add-shape :known edge)
+                 (add-shape :pretended connected)
+                 (add-rules [(Rule. [(Recall. :known|pretended (->edge 'x 'y))
+                                     (Output. :pretended (->connected 'x 'y))])
+                             (Rule. [(Recall. :known|pretended (->edge 'x 'y))
+                                     (Recall. :known|pretended (->connected 'y 'z))
+                                     (Output. :pretended (->connected 'x 'z))])]))
         state (flow-plan->flow-state plan)]
-    (apush* (aget (:node->facts state) 0) (into-array (for [i (range 100)]
-                                                        (->edge i (inc i)))))
+    (add-facts state :known|pretended edge (into-array (for [i (range 100)] (->edge i (inc i)))))
     (js/console.time "new")
     (fixpoint! state)
     (js/console.timeEnd "new")
-    (persistent! (aget (:node->state state) 1)))
+    (get-facts state :known|pretended connected))
   ;; 5 => 1 ms
   ;; 10 => 8 ms
   ;; 50 => 1093 ms
   ;; 100 => 11492 ms
 
-  (let [plan (add-rules empty-flow-plan
-                        [(Rule. [(Recall. :known&pretended (->edge 'x 'y))
-                                 (Compute. (->Let 'z '[x y] "x + y"))
-                                 (Output. :pretended (->connected 'z 'z))])])
+  (let [plan (-> empty-flow-plan
+                 (add-shape :known edge)
+                 (add-shape :pretended connected)
+                 (add-rules [(Rule. [(Recall. :known|pretended (->edge 'x 'y))
+                                     (Compute. (->Let 'z '[x y] "x + y"))
+                                     (Output. :pretended (->connected 'z 'z))])]))
         state (flow-plan->flow-state plan)]
-    (apush* (aget (:node->facts state) 0) (into-array (for [i (range 100)]
-                                                        (->edge i (inc i)))))
+    (add-facts state :known|pretended edge (into-array (for [i (range 100)]
+                                                         (->edge i (inc i)))))
     (fixpoint! state)
-    (persistent! (aget (:node->state state) 1)))
+    (get-facts state :known|pretended connected))
   )
 
 ;; TIME AND CHANGE
 
-(defn add-facts [state memory facts]
-  (let [arr (aget (:node->facts state) (memory->node memory))]
+(defn add-facts [state memory shape facts]
+  (memory! memory)
+  (let [node (get-memory (:plan state) memory shape)
+        arr (aget (:node->facts state) node)]
     (doseq [fact facts]
       (apush arr fact))
     state))
 
-(defn get-facts [state memory]
-  (if-let [facts (aget (:node->state state) (memory->node memory))]
-    (let [facts (persistent! facts)]
-      (aset (:node->state state) (memory->node memory) (transient facts))
-      facts)
-    #{}))
+(defn get-facts [state memory shape]
+  (memory! memory)
+  (let [node (get-memory (:plan state) memory shape)
+        facts (persistent! (aget (:node->state state) node))]
+    (aset (:node->state state) node (transient facts))
+    facts))
 
 ;; TODO make this incremental
+;; TODO wasteful to do the persistent/transient dance when there are no remembered/forgotten facts
 (defn tick
   ([plan] (tick plan (flow-plan->flow-state plan)))
   ([plan state]
-   (let [known (transient (get-facts state :known))
-         remembered (get-facts state :remembered)
-         forgotten (get-facts state :forgotten)
-         new-state (flow-plan->flow-state plan)]
-     (doseq [fact remembered]
-       (when (not (contains? forgotten fact))
-         (conj!! known fact)))
-     (doseq [fact forgotten]
-       (when (not (contains? remembered fact))
-         (disj!! known fact)))
-     (add-facts new-state :known (persistent! known))
+   (let [new-state (flow-plan->flow-state plan)]
+     (doseq [shape (get-in plan [:kind->shape :known])]
+       (let [known (transient (get-facts state :known|pretended shape))
+             remembered (get-facts state :remembered shape)
+             forgotten (get-facts state :forgotten shape)]
+         (doseq [fact remembered]
+           (when (not (contains? forgotten fact))
+             (conj!! known fact)))
+         (doseq [fact forgotten]
+           (when (not (contains? remembered fact))
+             (disj!! known fact)))
+         (add-facts new-state :known|pretended shape (persistent! known))))
      new-state)))
 
 (defn tick&fixpoint [plan state]
@@ -669,55 +701,24 @@
 (defn rules->plan [rules]
   (add-rules empty-flow-plan rules))
 
-
 (comment
   (deffact edge "[x] has an edge to [y]")
   (deffact connected "[x] is connected to [y]")
 
-  (let [plan (add-rules empty-flow-plan
-                        [(Rule. [(Recall. :known&pretended (->edge 'x 'y))
-                                 (Output. :remembered (->connected 'x 'y))])
-                         (Rule. [(Recall. :known&pretended (->edge 'x 'y))
-                                 (Recall. :known&pretended (->connected 'y 'z))
-                                 (Output. :remembered (->connected 'x 'z))])])
+  (let [plan (-> empty-flow-plan
+                 (add-shape :known edge)
+                 (add-shape :known connected)
+                 (add-rules
+                  [(Rule. [(Recall. :known|pretended (->edge 'x 'y))
+                           (Output. :remembered (->connected 'x 'y))])
+                   (Rule. [(Recall. :known|pretended (->edge 'x 'y))
+                           (Recall. :known|pretended (->connected 'y 'z))
+                           (Output. :remembered (->connected 'x 'z))])]))
         state-0 (flow-plan->flow-state plan)]
-    (add-facts state-0 :known #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
+    (add-facts state-0 :known|pretended edge #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
   (fixpoint! state-0)
   (for [state (take 5 (iterate #(tick&fixpoint plan %) state-0))]
-    (count (get-facts state :known))))
-
-  (let [rules [(Rule. [
-                       (aurora.language.Recall. :known&pretended, (js/aurora.language.fact :http/response #js ['content "google" 'some]))
-                       (aurora.language.Output. :remembered (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value74]))
-                       (aurora.language.Output. :forgotten (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value]))
-                       (aurora.language.Recall. :known&pretended, (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value]))
-                       (aurora.language.Compute. (->Let 'value74  #{'value} "value + \"hey\""))])]
-        plan (add-rules empty-flow-plan rules)
-        state (flow-plan->flow-state plan)]
-    (add-facts state :known [(fact. "1df7454c_069e_40ab_b117_b8d43212b473" #js ["Click me"])])
-    (add-facts state :pretended [(fact. :http/response #js ["yo" "google" 1234])])
-    (fixpoint! state)
-    (-> state
-        (get-facts :known)
-        first
-        (.-values))
-  )
-
-  (let [rules [(Rule. [
-                       (aurora.language.Recall. :known&pretended, (js/aurora.language.fact :http/response #js ['content "google" 'tim]))
-                       (aurora.language.Output. :remembered (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value74]))
-                       (aurora.language.Output. :forgotten (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value]))
-                       (aurora.language.Recall. :known&pretended, (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value]))
-                       (aurora.language.Compute. (->Let 'value74  #{'value 'content} "value + \" hey \" + content"))])]
-        plan (add-rules empty-flow-plan rules)
-        state (flow-plan->flow-state plan)]
-    (add-facts state :known [(fact. "1df7454c_069e_40ab_b117_b8d43212b473" #js ["Click me"])])
-    (add-facts state :pretended [(fact. :http/response #js ["yo" "google" 1234])])
-    (fixpoint! state)
-    (map #(.-values %)
-         (-> state
-             (get-facts :remembered)))
-    )
+    (count (get-facts state :known|pretended connected))))
   )
 
 ;; RESOLVE
