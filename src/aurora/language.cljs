@@ -729,5 +729,7 @@
        "pattern->constructor*" pattern->constructor*
        "pattern->deconstructor*" pattern->deconstructor*})
 
-(defn resolve [namespaced]
-  (aget symbol->fun (name namespaced)))
+(defn resolve [symbol]
+  (let [fun (aget symbol->fun (name symbol))]
+    (assert fun (str "Could not find " symbol))
+    fun))
