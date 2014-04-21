@@ -3,57 +3,7 @@
   (:require-macros [aurora.macros :refer [console-time set!! conj!! disj!! assoc!! apush apush* avec]]
                    [aurora.language :refer [deffact]]))
 
-;; CLJS UTILS
-
-(def munge-map
-  {"-" "_"
-   " " "_SPACE_"
-   "." "_DOT_"
-   ":" "_COLON_"
-   "+" "_PLUS_"
-   ">" "_GT_"
-   "<" "_LT_"
-   "=" "_EQ_"
-   "~" "_TILDE_"
-   "!" "_BANG_"
-   "@" "_CIRCA_"
-   "#" "_SHARP_"
-   "'" "_SINGLEQUOTE_"
-   "\"" "_DOUBLEQUOTE_"
-   "%" "_PERCENT_"
-   "^" "_CARET_"
-   "&" "_AMPERSAND_"
-   "*" "_STAR_"
-   "|" "_BAR_"
-   "{" "_LBRACE_"
-   "}" "_RBRACE_"
-   "[" "_LBRACK_"
-   "]" "_RBRACK_"
-   "/" "_SLASH_"
-   "\\" "_BSLASH_"
-   "?" "_QMARK_"})
-
-(def munge-regexes
-  (into-array
-   (for [find (keys munge-map)]
-     (js/RegExp. (str "\\" find) "gi"))))
-
-(def munge-replaces
-  (into-array (vals munge-map)))
-
-;; TODO doesn't handle reserved names or namespaced symbols
-(defn munge-part [part]
-  (areduce munge-regexes i part part
-           (.replace part (aget munge-regexes i) (aget munge-replaces i))))
-
-(defn munge [sym]
-  (let [parts (.split (name sym) ".")
-        last-part (.pop parts)]
-    (.push parts (munge-part last-part))
-    (.join parts ".")))
-
-(defn resolve [namespaced]
-  (js/eval (str (namespace namespaced) "." (munge (name namespaced)))))
+(declare resolve)
 
 ;; TODO facts and plans need to be serializable
 
@@ -768,3 +718,16 @@
              (get-facts :remembered)))
     )
   )
+
+;; RESOLVE
+
+(def symbol->fun
+  #js {"let->fun" let->fun
+       "when->fun" when->fun
+       "when-let->fun" when-let->fun
+       "pattern->filter*" pattern->filter*
+       "pattern->constructor*" pattern->constructor*
+       "pattern->deconstructor*" pattern->deconstructor*})
+
+(defn resolve [namespaced]
+  (aget symbol->fun (name namespaced)))
