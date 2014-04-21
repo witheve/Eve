@@ -151,11 +151,11 @@
 
 ;; FLOW STATE
 
-(defrecord FlowState [node->state node->out-nodes node->facts node->update! trace])
+(defrecord FlowState [node->state node->out-nodes node->facts node->update! trace plan])
 
 (def trace? true)
 
-(defn fixpoint! [{:keys [node->state node->out-nodes node->facts node->update! trace] :as flow-state}]
+(defn fixpoint! [{:keys [node->state node->out-nodes node->facts node->update! trace plan] :as flow-state}]
   (loop [node 0]
     (when (< node (alength node->facts))
       (let [in-facts (aget node->facts node)]
@@ -165,6 +165,7 @@
             (.call (aget node->update! node) nil node node->state in-facts out-facts)
             (aset node->facts node #js [])
             (when trace? (.push trace #js [node in-facts out-facts]))
+            ;; (prn node in-facts out-facts (nth (:node->flow plan) node))
             (if (> (alength out-facts) 0)
               (let [out-nodes (aget node->out-nodes node)
                     min-out-node (areduce out-nodes i min-out-node (+ node 1)
@@ -282,7 +283,7 @@
                 FilterMap (filter-map-update! (apply (resolve (first (:fun&args flow))) (rest (:fun&args flow))))
                 Index (index-update! (:key-ixes flow))
                 Lookup (lookup-update! (:index-node flow) (:key-ixes flow) (:val-ixes flow))))))
-    (FlowState. node->state node->out-nodes node->facts node->update! trace)))
+    (FlowState. node->state node->out-nodes node->facts node->update! trace plan)))
 
 (defn memory->node [memory]
   (case memory
