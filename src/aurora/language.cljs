@@ -156,6 +156,7 @@
 (def trace? true)
 
 (defn fixpoint! [{:keys [node->state node->out-nodes node->facts node->update! trace plan] :as flow-state}]
+  (js/console.time "fixpoint!")
   (loop [node 0]
     (when (< node (alength node->facts))
       (let [in-facts (aget node->facts node)]
@@ -174,6 +175,7 @@
                                             (min out-node min-out-node)))]
                 (recur min-out-node))
               (recur (+ node 1))))))))
+  (js/console.timeEnd "fixpoint!")
   flow-state)
 
 (defn filter-map-update! [fun]
@@ -678,7 +680,10 @@
 (defn tick
   ([plan] (tick plan (flow-plan->flow-state plan)))
   ([plan state]
+   (js/console.time "plan->state")
    (let [new-state (flow-plan->flow-state plan)]
+     (js/console.timeEnd "plan->state")
+     (js/console.time "tick")
      (doseq [shape (get-in state [:plan :kind->shape :known])] ;; using old plan here
        (let [known (transient (get-facts state :known|pretended shape))
              remembered (get-facts state :remembered shape)
@@ -690,6 +695,7 @@
            (when (not (contains? remembered fact))
              (disj!! known fact)))
          (add-facts new-state :known|pretended shape (persistent! known))))
+     (js/console.timeEnd "tick")
      new-state)))
 
 (defn tick&fixpoint [plan state]
@@ -790,9 +796,12 @@
 (defn rules->plan [rules]
   (shapes&kinds&rules->plan (rules->shapes&kinds rules) rules))
 
-(defn unchanged [old-state new-state]
-  (and (= (:plan old-state) (:plan new-state))
-       (every?
-        (fn [shape]
-          (= (get-facts old-state :known|pretended shape) (get-facts new-state :known|pretended shape)))
-        (get-in old-state [:plan :kind->shape :known]))))
+(defn unchanged? [old-state new-state]
+  (js/console.time "unchanged?")
+  (let [unchanged? (and (= (:plan old-state) (:plan new-state))
+                        (every?
+                         (fn [shape]
+                           (= (get-facts old-state :known|pretended shape) (get-facts new-state :known|pretended shape)))
+                         (get-in old-state [:plan :kind->shape :known])))]
+    (js/console.timeEnd "unchanged?")
+    unchanged?))
