@@ -200,11 +200,11 @@ td.keyword { text-align:right; white-space:pre; padding-left:5px; }
 
 .debugger {display:flex; }
 #debugger-controls { position:absolute; }
-#debugger-facts { flex:1; display:flex; flex-direction:row; justify-content:center; align-items:flex-start; }
+#debugger-facts { flex:1; display:flex; flex-direction:row; justify-content:center; align-items:center; }
 #debugger-facts > ul { background:#f7f7f7; height:auto; display:inline-block; padding:20px; }
 #debugger-middle { display:flex; flex:2; }
-#debugger-middle svg { margin-top:20px; }
-#debugger-middle ul { margin-top:20px; display:inline-block; margin-left:0px; margin-bottom:100px; flex:1; }
+#debugger-middle svg { margin-top:100px; }
+#debugger-middle ul { margin-top:100px; display:inline-block; margin-left:0px; margin-bottom:100px; flex:1; }
 #debugger-middle li { height:60px; }
 #debugger-middle li > div { margin-bottom:10px; background:#f7f7f7; padding:5px 15px; display:block; height:50px; overflow:hidden;}
 #debugger-middle li > div div { display:flex; background:none; height:auto; margin:0; padding:0; align-items:center; flex-direction:row; }
