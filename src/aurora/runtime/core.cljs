@@ -45,6 +45,7 @@
 (enable-console-print!)
 
 (defn quiescience [prev env init-facts]
+  (js/console.time "quiescience")
   (let [aurora-facts [(language/fact :aurora/time #js [(.getTime (js/Date.))])]]
     (let [cur (language/tick (:rules env) prev)]
       (language/add-facts-compat cur :known|pretended init-facts)
@@ -54,8 +55,8 @@
              prev prev
              i 0]
         (cond
-         (>= i 10) (do (println "Aborting!") cur)
-         (language/unchanged? prev cur) cur
+         (>= i 10) (do (js/console.timeEnd "quiescience") (println "Aborting!") cur)
+         (language/unchanged? prev cur) (do (js/console.timeEnd "quiescience") cur)
          :else (let [next (language/tick (:rules env) cur)]
                  (language/add-facts-compat next :known|pretended aurora-facts)
                  (language/fixpoint! next)
