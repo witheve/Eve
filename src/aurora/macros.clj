@@ -59,8 +59,11 @@
       :aurora/positional (fn [~@selects]
                            ~@body)}))
 
-(defmacro for! [& args]
-  `(vec (for ~@args)))
+(defmacro for! [bindings & body]
+  `(let [result# (make-array 0)]
+     (doseq ~bindings
+       (apush result# (do ~@body)))
+     result#))
 
 (defmacro check [& preds]
   `(do
