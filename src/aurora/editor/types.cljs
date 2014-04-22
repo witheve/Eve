@@ -68,7 +68,7 @@
   (default-parser v))
 
 (defmethod ->rep "duration" [rule-info rule v ph path]
-  [:span {:onClick (set-editing path)}
+  [:span.value {:onClick (set-editing path)}
    (cond
     (> v 60000) (str (/ v 60000) " minutes")
     (= v 60000) (str "1 minute")

@@ -109,6 +109,18 @@
                   {:madlib-str phrase}))
     id))
 
+
+(defn add-node [cur-path node]
+  (if-not cur-path
+    (swap! state update-in [:program :statements] conj node)
+    (swap! state update-in (conj cur-path :clauses) conj node))
+  (when (= (:type node) "rule")
+    (swap! state assoc-in [:matcher :path] [:program :statements (-> (get-in @state [:program :statements])
+                                                                     (count)
+                                                                     (dec))]))
+  (swap! state update-in [:matcher] dissoc :type)
+  (.setValue instance ""))
+
 (defn handle-submit [v]
   (when (and v (not= "" (.trim v)))
     (let [lookup (into {} (for [[k v] (get-in @state [:program :madlibs])]
@@ -137,17 +149,7 @@
                  {:type "rule"
                   :clauses [node]}
                  node)]
-      (if-not cur-path
-        (swap! state update-in [:program :statements] conj node)
-        (swap! state update-in (conj cur-path :clauses) conj node))
-      (when (= (:type node) "rule")
-        (swap! state assoc-in [:matcher :path] [:program :statements (-> (get-in @state [:program :statements])
-                                                                (count)
-                                                                (dec))])
-        )
-      (swap! state update-in [:matcher] dissoc :type)
-      (.setValue instance "")
-      )))
+      (add-node cur-path node))))
 
 (defn on-cm-keydown [e]
   (when (= (.-keyCode e) (:up key-codes))
