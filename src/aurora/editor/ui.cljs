@@ -306,15 +306,15 @@
 
 (defmulti node->ui type)
 
-(defmethod node->ui js/aurora.language.Union [f]
-  (list [:p "U"]
+(defmethod node->ui js/aurora.language.Union [f i]
+  (list [:p "U" i]
         [:table
          [:tr
           [:td "nodes"]
           [:td (pr-str (:nodes f))]]]))
 
-(defmethod node->ui js/aurora.language.Index [f]
-  (list [:p "I"]
+(defmethod node->ui js/aurora.language.Index [f i]
+  (list [:p "I" i]
         [:table
          [:tr
           [:td "nodes"]
@@ -323,8 +323,8 @@
           [:td "key-ixes"]
           [:td (pr-str (:key-ixes f))]]]))
 
-(defmethod node->ui js/aurora.language.Lookup [f]
-  (list [:p "L"]
+(defmethod node->ui js/aurora.language.Lookup [f i]
+  (list [:p "L" i]
         [:table
          [:tr
           [:td "nodes"]
@@ -341,8 +341,8 @@
           [:td (pr-str (:val-ixes f))]]]))
 
 
-(defmethod node->ui js/aurora.language.FilterMap [f]
-  (list [:p "F"]
+(defmethod node->ui js/aurora.language.FilterMap [f i]
+  (list [:p "F" i]
         [:table
          [:tr
           [:td "nodes"]
@@ -364,7 +364,7 @@
                         ;  (swap! state assoc-in [:editor :active-flow] i))
                         )}
         [:div
-         (node->ui flow)]]]
+         (node->ui flow i)]]]
   )
 
 (defcomponent debugger-path [iy cx cy y active?]
@@ -378,43 +378,45 @@
   )
 
 (defn debugger-middle [cur-state env node]
-  (let [flows (map-indexed vector (-> env :rules :node->flow))
+  (let [flows (vec (-> env :rules :node->flow))
         out-nodes (-> env :kn :node->out-nodes)
         cur-active (or node (get-in cur-state [:editor :active-flow]))
-        active-ins (when-let [cur (nth flows cur-active false)]
+        active-ins (when-let [cur (get flows cur-active false)]
                      (set (-> cur
-                              (second)
                               (language/flow->nodes))))
         active-outs (when-let [cur (aget out-nodes cur-active)]
-                      (set cur))]
+                      (set cur))
+        all (sort (concat active-outs active-ins [cur-active]))
+        n->i (into {} (map vector all (range)))
+        active-flows (for [node all]
+                       [node (get flows node)])
+        iy (+ 25 (* (n->i cur-active) 60))]
     [:div#debugger-middle
-     [:svg {:width 100 :height (* 60 (count flows))}
+     [:svg {:width 100 :height (* 60 (dec (count all)))}
       (concat
-       (for [[i flow] flows
-             :let [iy (+ 25 (* i 60))]
-             in (language/flow->nodes flow)
-             :let [y (+ 25 (* in 60))
+       (for [in active-ins
+             :let [in (n->i in)
+                   y (+ 25 (* in 60))
                    diff (js/Math.abs (- iy y))
-                   cx (- 100 (max 30 (min 100 (* 10 (js/Math.abs (- i in))))))
+                   cx (- 100 (max 30 (min 100 (* 10 (js/Math.abs (- (n->i cur-active) in))))))
                    cy (if (> iy y)
                         (+ y (/ diff 2))
                         (+ iy (/ diff 2)))]]
-         (debugger-path iy cx cy y (if (= i cur-active) :in))
+         (debugger-path iy cx cy y :in)
          )
-       (for [[i flow] flows
-             :let [iy (+ 25 (* i 60))]
-             in (aget out-nodes i)
-             :let [y (+ 25 (* in 60))
+       (for [in active-outs
+             :let [in (n->i in)
+                   y (+ 25 (* in 60))
                    diff (js/Math.abs (- iy y))
-                   cx (- 100 (max 30 (min 100 (* 10 (js/Math.abs (- i in))))))
+                   cx (- 100 (max 30 (min 100 (* 10 (js/Math.abs (- (n->i cur-active) in))))))
                    cy (if (> iy y)
                         (+ y (/ diff 2))
                         (+ iy (/ diff 2)))]]
-         (debugger-path iy cx cy y (if (= i cur-active) :out))
+         (debugger-path iy cx cy y :out)
          )
        )]
      [:ul
-      (for [[i flow] flows
+      (for [[i flow] active-flows
             :let [active? (cond
                            (get active-ins i false) :in
                            (get active-outs i false) :out
@@ -425,7 +427,7 @@
 
 (defn debugger-in [cur-state env in node]
   [:div#debugger-facts
-   [:ul {:style {:margin-top (max 15 (+ 15 (* node 60)))}}
+   [:ul
     (for [i in]
       [:li
        (rule-ui (fact->map i) nil nil)]
