@@ -224,7 +224,7 @@
     [:div#results
      [:div#ui-preview]
      [:ul
-      (for [fact (sort-by (comp str #(.-shape %)) (language/get-facts kn :known))]
+      (for [fact (sort-by (comp str #(.-shape %)) (language/get-facts-compat kn :known))]
         [:li {:onContextMenu (fn []
                                (swap! cur-env update-in [:kn] #(-> %
                                                                    (representation/retract-facts #{fact})

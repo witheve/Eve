@@ -36,8 +36,8 @@
 
 (defn on-bloom-tick [knowledge queue]
   (let [{:keys [waits refresh]} (collect (concat
-                                          (language/get-facts knowledge :known)
-                                          (language/get-facts knowledge :pretended)))]
+                                          (language/get-facts-compat knowledge :known)
+                                          (language/get-facts-compat knowledge :pretended)))]
     (doseq [[time id] waits]
       (println "setting up wait for: " time id)
       (wait time (fn []

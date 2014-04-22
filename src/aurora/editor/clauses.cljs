@@ -33,7 +33,7 @@
 (defmethod compile-clause "find" [clause vars]
   (condp = (:ml clause)
     :aurora/let [(language/Compute. (language/->Let (symbol (get clause "x")) (extract-vars (get clause "y") vars) (get clause "y")))]
-    [(language/Recall. :known&pretended (map->fact clause))]))
+    [(language/Recall. :known|pretended (map->fact clause))]))
 
 (defmethod compile-clause "add" [clause vars]
   [(language/Output. :remembered (map->fact clause))])
@@ -65,7 +65,7 @@
                            [k (syms k)]))
         ]
     (conj sees
-          (language/Recall. :known&pretended (map->fact (merge clause placeholders)))
+          (language/Recall. :known|pretended (map->fact (merge clause placeholders)))
           (language/Output. :forgotten (map->fact (merge clause placeholders)))
           (language/Output. :remembered (map->fact (merge placeholders clause jsd))))
     )
@@ -139,30 +139,30 @@
     (swap! cur-env assoc
            :rules rules
            :kn (language/tick rules (:kn @cur-env)))
-    (language/add-facts (:kn @cur-env) :known|pretended (:facts comped))
+    (language/add-facts-compat (:kn @cur-env) :known|pretended (:facts comped))
     (runtime/handle-feed cur-env {:force true})
     (when-not paused?
       (unpause cur-env))))
 
 (:rules (compile-state))
 
-;(language/get-facts (:kn @cur-env) :known)
+;(language/get-facts-compat (:kn @cur-env) :known)
 
 
 (comment
 (let [rules [(language/Rule. [
-                             (aurora.language.Recall. :known&pretended, (js/aurora.language.fact :http/response #js ['content "google" 'tim]))
+                             (aurora.language.Recall. :known|pretended, (js/aurora.language.fact :http/response #js ['content "google" 'tim]))
                              (aurora.language.Output. :remembered (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value74]))
                              (aurora.language.Output. :forgotten (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value]))
-                             (aurora.language.Recall. :known&pretended, (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value]))
+                             (aurora.language.Recall. :known|pretended, (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value]))
                              (aurora.language.Compute. (language/->Let 'value74  #{'value 'content} "value + \"hey\" + content"))])]
       plan (language/rules->plan rules)
       state (language/flow-plan->flow-state plan)]
-  (language/add-facts state :known|pretended [(language/fact. "1df7454c_069e_40ab_b117_b8d43212b473" #js ["Click me"])])
-  (language/add-facts state :known|pretended [(language/fact. :http/response #js ["yo" "google" 1234])])
+  (language/add-facts-compat state :known|pretended [(language/fact. "1df7454c_069e_40ab_b117_b8d43212b473" #js ["Click me"])])
+  (language/add-facts-compat state :known|pretended [(language/fact. :http/response #js ["yo" "google" 1234])])
   (language/fixpoint! state)
   (-> (language/tick&fixpoint plan state)
-      (language/get-facts :known))
+      (language/get-facts-compat :known))
   )
 
   )

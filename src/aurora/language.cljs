@@ -319,10 +319,10 @@
                (add-memory :forgotten shape)
                (update-in [:kind->shape kind] #(conj (or % #{}) shape)))))
 
-(defn get-memory [{:keys [memory->shape->node]} memory shape]
+(defn get-memory [{:keys [memory->shape->node] :as flow-plan} memory shape]
   (memory! memory)
   (or (get-in memory->shape->node [memory shape])
-      (assert false (str "No node for " (pr-str memory) " " (pr-str shape)))))
+      (assert false (str "No node for " (pr-str memory) " " (pr-str shape) " in " (pr-str flow-plan)))))
 
 (defn add-input [flow-plan output-node memory shape]
   (update-in flow-plan [:node->flow output-node :nodes] conj (get-memory flow-plan memory shape)))
@@ -508,22 +508,22 @@
 
 (comment
   (let [plan empty-flow-plan
-        [plan nodes-a vars-a] (add-clause plan nil nil (Recall. :known&pretended (->edge 'x 'y)))
+        [plan nodes-a vars-a] (add-clause plan nil nil (Recall. :known|pretended (->edge 'x 'y)))
         [plan nodes-b vars-b] (add-clause plan nil nil (Recall. :known (->connected 'x 0)))]
     [plan nodes-a nodes-b vars-a vars-b])
 
   (let [plan empty-flow-plan
-        [plan nodes-a vars-a] (add-clause plan nil nil (Recall. :known&pretended (->edge 'x 'y)))
+        [plan nodes-a vars-a] (add-clause plan nil nil (Recall. :known|pretended (->edge 'x 'y)))
         [plan nodes-b vars-b] (add-clause plan nodes-a vars-a (Compute. (->Let 'z '[x y] "x + y")))]
     [plan nodes-a nodes-b vars-a vars-b])
 
   (let [plan empty-flow-plan
-        [plan nodes-a vars-a] (add-clause plan nil nil (Recall. :known&pretended (->edge 'x 'y)))
+        [plan nodes-a vars-a] (add-clause plan nil nil (Recall. :known|pretended (->edge 'x 'y)))
         res (add-clause plan nodes-a vars-a (Compute. (->Let 'z '[w x y] "w + x + y")))]
     res)
 
   (let [plan empty-flow-plan
-        [plan nodes-a vars-a] (add-clause plan nil nil (Recall. :known&pretended (->edge 'x 'y)))
+        [plan nodes-a vars-a] (add-clause plan nil nil (Recall. :known|pretended (->edge 'x 'y)))
         [plan nodes-b vars-b] (add-clause plan nodes-a vars-a (Compute. (->When '[x y] "x > y")))]
     [plan nodes-a nodes-b vars-a vars-b])
   )
@@ -569,7 +569,7 @@
 (comment
 
   (let [plan empty-flow-plan
-        [plan nodes-a vars-a] (add-clause plan nil nil (Recall. :known&pretended (->edge 'x 'y)))
+        [plan nodes-a vars-a] (add-clause plan nil nil (Recall. :known|pretended (->edge 'x 'y)))
         [plan nodes-b vars-b] (add-clause plan nil nil (Recall. :known (->connected 'y 'z)))
         [plan nodes-c vars-c] (join-clauses plan nodes-a vars-a #{} nodes-b vars-b #{})]
     [plan nodes-c vars-c])
@@ -658,36 +658,20 @@
 
 ;; TIME AND CHANGE
 
-(defn add-facts
-  ([state memory facts]
-   (memory! memory)
-   (doseq [fact facts]
-     (let [shape (.-shape fact)
-           node (get-memory (:plan state) memory shape)
-           arr (aget (:node->facts state) node)]
-       (apush arr fact)))
-   state)
-  ([state memory shape facts]
-   (memory! memory)
-   (let [node (get-memory (:plan state) memory shape)
-         arr (aget (:node->facts state) node)]
-     (doseq [fact facts]
-       (apush arr fact))
-     state)))
+(defn add-facts [state memory shape facts]
+  (memory! memory)
+  (let [node (get-memory (:plan state) memory shape)
+        arr (aget (:node->facts state) node)]
+    (doseq [fact facts]
+      (apush arr fact))
+    state))
 
-(defn get-facts
-  ([state memory]
-   (let [facts (transient #{})]
-     (doseq [[shape node] (get-in state [:plan :memory->shape->node memory])
-             fact (get-facts state memory shape)]
-       (conj!! facts fact))
-     (persistent! facts)))
-  ([state memory shape]
-   (memory! memory)
-   (let [node (get-memory (:plan state) memory shape)
-         facts (persistent! (aget (:node->state state) node))]
-     (aset (:node->state state) node (transient facts))
-     facts)))
+(defn get-facts [state memory shape]
+  (memory! memory)
+  (let [node (get-memory (:plan state) memory shape)
+        facts (persistent! (aget (:node->state state) node))]
+    (aset (:node->state state) node (transient facts))
+    facts))
 
 ;; TODO make this incremental
 ;; TODO wasteful to do the persistent/transient dance when there are no remembered/forgotten facts
@@ -695,7 +679,7 @@
   ([plan] (tick plan (flow-plan->flow-state plan)))
   ([plan state]
    (let [new-state (flow-plan->flow-state plan)]
-     (doseq [shape (get-in plan [:kind->shape :known])]
+     (doseq [shape (get-in state [:plan :kind->shape :known])] ;; using old plan here
        (let [known (transient (get-facts state :known|pretended shape))
              remembered (get-facts state :remembered shape)
              forgotten (get-facts state :forgotten shape)]
@@ -713,9 +697,6 @@
 
 (defn clauses->rule [clauses]
   (Rule. clauses))
-
-(defn rules->plan [rules]
-  (add-rules empty-flow-plan rules))
 
 (comment
   (deffact edge "[x] has an edge to [y]")
@@ -751,3 +732,45 @@
   (let [fun (aget symbol->fun (name symbol))]
     (assert fun (str "Could not find " symbol))
     fun))
+
+;; TEMPORARY SHIMS
+
+(defn add-facts-compat [state memory facts]
+  (memory! memory)
+  (doseq [fact facts]
+    (let [shape (.-shape fact)
+          node (get-memory (:plan state) memory shape)
+          arr (aget (:node->facts state) node)]
+      (apush arr fact)))
+  state)
+
+(defn get-facts-compat [state memory]
+  (let [facts (transient #{})]
+    (doseq [[shape node] (get-in state [:plan :memory->shape->node memory])
+            fact (get-facts state memory shape)]
+      (conj!! facts fact))
+    (persistent! facts)))
+
+(defn shapes&kinds&rules->plan [shapes&kinds rules]
+  (add-rules (reduce (fn [plan [shape kind]] (add-shape plan kind shape)) empty-flow-plan shapes&kinds) rules))
+
+(def default-kind->shape
+  {:aurora/time :pretended})
+
+;; assume state is :pretended unless it is used in remember or forget
+(defn rules->shapes&kinds [rules]
+  (let [shape->kind (atom default-kind->shape)]
+    (doseq [rule rules
+            clause (:clauses rule)]
+      (when (= Recall (type clause))
+        (swap! shape->kind assoc (.-shape (:pattern clause)) :pretended)))
+    (doseq [rule rules
+            clause (:clauses rule)]
+      (when (= Output (type clause))
+        (if (= :pretended (:memory clause))
+          (swap! shape->kind assoc (.-shape (:pattern clause)) :pretended)
+          (swap! shape->kind assoc (.-shape (:pattern clause)) :known))))
+    @shape->kind))
+
+(defn rules->plan [rules]
+  (shapes&kinds&rules->plan (rules->shapes&kinds rules) rules))

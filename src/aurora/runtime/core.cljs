@@ -47,12 +47,12 @@
          prev nil
          i 0]
     (if (or (and kn prev
-                 (= (language/get-facts kn :known) (language/get-facts prev :known)))
+                 (= (language/get-facts-compat kn :known) (language/get-facts-compat prev :known)))
             (>= i 10))
       kn
       (recur
        (do
-        (language/add-facts kn :known|pretended aurora-facts)
+        (language/add-facts-compat kn :known|pretended aurora-facts)
         (language/fixpoint! kn)
         (tick-watchers kn (:watchers env) (:feeder-fn env))
         (language/tick&fixpoint (:rules env) kn))
@@ -75,7 +75,7 @@
         (add-history (:history @env) [(:kn @env) feed-set] (:history-size @env)))
       (swap! env update-in [:kn]
              (fn [cur]
-               (language/add-facts cur :known|pretended all)
+               (language/add-facts-compat cur :known|pretended all)
                (language/fixpoint! cur)
                (tick-watchers cur (:watchers @env) (:feeder-fn @env))
                (-> (language/tick&fixpoint plan cur)
@@ -113,12 +113,10 @@
     env))
 
 (defn ->env [opts]
-  (let [kn (-> language/empty-flow-plan
-               (language/flow-plan->flow-state))
-        kn (do
-             (language/add-facts kn :known|pretended (:kn opts #{}))
-             (language/tick (language/rules->plan []) kn))
-        env (merge {:rules language/empty-flow-plan
+  (let [kn (-> (language/rules->plan [])
+               (language/flow-plan->flow-state)
+               (language/add-facts-compat :known|pretended (:kn opts #{})))
+        env (merge {:rules (language/rules->plan [])
                     :watchers @watchers
                     :history-size 20
                     :history (array [kn #{}])
