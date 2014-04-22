@@ -801,37 +801,22 @@
 (defn shapes&kinds&rules->plan [shapes&kinds rules]
   (add-rules (reduce (fn [plan [shape kind]] (add-shape plan kind shape)) empty-flow-plan shapes&kinds) rules))
 
-(def default-kind->shape
-  (zipmap [:aurora/time
-           :ui/style
-           :ui/event-listener
-           :ui/text
-           :ui/elem
-           :ui/attr
-           :ui/child
-           :http/get
-           :http/response
-           :aurora/refresh
-           :aurora/refresh-tick
-           :timers/wait
-           :times/tick]
-          ;; ui events?
-          (repeat :pretended)))
-
-;; assume state is :pretended unless it is used in remember or forget
+;; assume state is :known unless it is used in pretend or is overridden in stdlib
 (defn rules->shapes&kinds [rules]
-  (let [shape->kind (atom default-kind->shape)]
+  (let [shape->kind (atom {})]
     (doseq [rule rules
             clause (:clauses rule)]
       (when (= Recall (type clause))
-        (swap! shape->kind assoc (.-shape (:pattern clause)) :pretended)))
+        (swap! shape->kind assoc (.-shape (:pattern clause)) :known)))
     (doseq [rule rules
             clause (:clauses rule)]
       (when (= Output (type clause))
         (if (= :pretended (:memory clause))
           (swap! shape->kind assoc (.-shape (:pattern clause)) :pretended)
           (swap! shape->kind assoc (.-shape (:pattern clause)) :known))))
-    @shape->kind))
+    (doseq [[shape _] aurora.runtime.stdlib/madlibs]
+      (swap! shape->kind assoc shape :pretended))
+    (merge @shape->kind default-shape->kind)))
 
 (defn rules->plan [rules]
   (shapes&kinds&rules->plan (rules->shapes&kinds rules) rules))
