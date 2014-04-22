@@ -144,11 +144,6 @@
     (when-not paused?
       (unpause cur-env))))
 
-(:rules (compile-state))
-
-;(language/get-facts-compat (:kn @cur-env) :known|pretended)
-
-
 (comment
 (let [rules [(language/Rule. [
                              (aurora.language.Recall. :known|pretended, (js/aurora.language.fact :http/response #js ['content "google" 'tim]))
@@ -164,5 +159,4 @@
   (-> (language/tick&fixpoint plan state)
       (language/get-facts-compat :known|pretended))
   )
-
-  )
+    )

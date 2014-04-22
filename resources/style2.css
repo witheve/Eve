@@ -197,6 +197,24 @@ td.keyword { text-align:right; white-space:pre; padding-left:5px; }
 #perf { background:black; color:#fff; position:fixed; bottom: 0px; right:0px; padding:10px; border-top-left-radius:3px; z-index:1000;}
 #perf td:first-child { text-align:right; padding-right:8px; }
 
+
+.debugger {display:flex; }
+#debugger-controls { position:absolute; }
+#debugger-facts { flex:1; display:flex; flex-direction:row; justify-content:center; align-items:flex-start; }
+#debugger-facts > ul { background:#f7f7f7; height:auto; display:inline-block; padding:20px; }
+#debugger-middle { display:flex; flex:2; }
+#debugger-middle svg { margin-top:20px; }
+#debugger-middle ul { margin-top:20px; display:inline-block; margin-left:0px; margin-bottom:100px; flex:1; }
+#debugger-middle li { height:60px; }
+#debugger-middle li > div { margin-bottom:10px; background:#f7f7f7; padding:5px 15px; display:block; height:50px; overflow:hidden;}
+#debugger-middle li > div div { display:flex; background:none; height:auto; margin:0; padding:0; align-items:center; flex-direction:row; }
+#debugger-middle li div.current { background:#fff; box-shadow:0 0 20px #666;}
+#debugger-middle li > div.active { background: #C7FFF7;}
+#debugger-middle li > div.active-out { background: #f7cFF7;}
+#debugger-middle li > div p { display:inline-block; font-size:20pt; vertical-align:middle; margin-right:10px; color:#999; }
+#debugger-middle li > div table { display:inline-block; flex:1; vertical-align:middle;}
+#debugger-middle li > div table td:first-child { text-align:right; color:#999; }
+
 .debug { position:fixed; right:0;}
 .debug button { background:none; color:#aaa; display:block; text-align:right; }
 .debug button:hover { background:#555; }
