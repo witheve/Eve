@@ -133,7 +133,7 @@
 
 (defn inject-compiled []
   (let [comped (compile-state)
-        rules (language/rules->plan (:rules comped))
+        rules (language/rules->plan (:rules comped) (:facts comped))
         paused? (:pause @cur-env)]
     (pause cur-env)
     (swap! cur-env assoc

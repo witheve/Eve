@@ -802,7 +802,7 @@
   (add-rules (reduce (fn [plan [shape kind]] (add-shape plan kind shape)) empty-flow-plan shapes&kinds) rules))
 
 ;; assume state is :known unless it is used in pretend or is overridden in stdlib
-(defn rules->shapes&kinds [rules]
+(defn rules->shapes&kinds [rules facts]
   (let [shape->kind (atom {})]
     (doseq [rule rules
             clause (:clauses rule)]
@@ -814,12 +814,14 @@
         (if (= :pretended (:memory clause))
           (swap! shape->kind assoc (.-shape (:pattern clause)) :pretended)
           (swap! shape->kind assoc (.-shape (:pattern clause)) :known))))
+    (doseq [fact facts]
+      (swap! shape->kind assoc (.-shape fact) :known))
     (doseq [[shape _] aurora.runtime.stdlib/madlibs]
       (swap! shape->kind assoc shape :pretended))
     (merge @shape->kind default-shape->kind)))
 
-(defn rules->plan [rules]
-  (shapes&kinds&rules->plan (rules->shapes&kinds rules) rules))
+(defn rules->plan [rules facts]
+  (shapes&kinds&rules->plan (rules->shapes&kinds rules facts) rules))
 
 (defn unchanged? [old-state new-state]
   (js/console.time "unchanged?")

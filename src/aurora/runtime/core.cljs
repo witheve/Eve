@@ -116,10 +116,10 @@
     env))
 
 (defn ->env [opts]
-  (let [kn (-> (language/rules->plan [])
+  (let [kn (-> (language/rules->plan [] [])
                (language/flow-plan->flow-state)
                (language/add-facts-compat :known|pretended (:kn opts #{})))
-        env (merge {:rules (language/rules->plan [])
+        env (merge {:rules (language/rules->plan [] [])
                     :watchers @watchers
                     :history-size 20
                     :history (array [kn #{}])
