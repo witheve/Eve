@@ -51,6 +51,7 @@
       (language/add-facts-compat cur :known|pretended init-facts)
       (language/add-facts-compat cur :known|pretended aurora-facts)
       (language/fixpoint! cur)
+      (tick-watchers cur (:watchers env) (:feeder-fn env))
       (loop [cur cur
              prev prev
              i 0]
