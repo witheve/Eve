@@ -9,22 +9,6 @@
 
 ;; FACTS
 
-(defn- hash-array [array]
-  (if (> (alength array) 0)
-    (loop [result (hash (aget array 0))
-           i 1]
-      (if (< i (alength array))
-        (recur (hash-combine result (hash (aget array i))) (+ i 1))
-        result))
-    0))
-
-(defn- hash-fact [fact]
-  (hash-array (.-values fact)))
-
-(comment
-  (= (hash-array #js [1 2 :c]) (hash [1 2 :c]))
-  )
-
 (deftype FactShape [id madlib keys]
   Object
   (toString [this]
@@ -55,7 +39,18 @@
                      false)))))
 
   IHash
-  (-hash [this] (caching-hash this hash-fact __hash))
+  (-hash [this]
+         (if __hash
+           __hash
+           (let [hash (if (> (alength values) 0)
+                        (loop [result (hash (aget values 0))
+                               i 1]
+                          (if (< i (alength values))
+                            (recur (hash-combine result (hash (aget values i))) (+ i 1))
+                            result))
+                        0)]
+             (set! __hash hash)
+             hash)))
 
   IIndexed
   (-nth [this n]
