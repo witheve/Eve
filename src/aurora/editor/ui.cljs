@@ -304,17 +304,20 @@
       )]]
   )
 
-(defn node->ui [flow node]
+(defn node->ui [flow stats i]
   (list [:p (condp = (type flow)
               language/Union "U"
               language/Index "I"
               language/Lookup "L"
-              language/FilterMap "F") node]
+              language/FilterMap "F") i]
         (apply vector :table
                (for [[k v] flow]
+                 [:tr [:td (str k)] [:td (pr-str v)]]))
+        (apply vector :table
+               (for [[k v] (js->clj stats)]
                  [:tr [:td (str k)] [:td (pr-str v)]]))))
 
-(defcomponent debugger-item [flow i active? current?]
+(defcomponent debugger-item [flow stats i active? current?]
   [:li [:div
         {:classes {:active (= :in active?)
                    :active-out (= :out active?)
@@ -324,7 +327,7 @@
                         ;  (swap! state assoc-in [:editor :active-flow] i))
                         )}
         [:div
-         (node->ui flow i)]]]
+         (node->ui flow stats i)]]]
   )
 
 (defcomponent debugger-path [iy cx cy y active?]
@@ -377,11 +380,12 @@
        )]
      [:ul
       (for [[i flow] active-flows
+            :let [stats (aget (get-in env [:kn :node->stats]) i)]
             :let [active? (cond
                            (get active-ins i false) :in
                            (get active-outs i false) :out
                            :else nil)]]
-        (debugger-item flow i active? (= i cur-active))
+        (debugger-item flow stats i active? (= i cur-active))
         )]
      ]))
 
