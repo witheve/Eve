@@ -9,12 +9,14 @@
                       :placeholders {"ui" {:order 0 :type "ui" "type" "ui"}}}
               })
 
-(def madlibs {:aurora/time {:madlib ["the current time is ", "time"]
+(def madlibs {:aurora/tick {}
+              :aurora/time {:madlib ["the current time is ", "time"]
                             :madlib-str "the current time is [time]"
                             :placeholders {"time" {:order 0
                                                    :type "time"}}}
               :aurora/refresh {:madlib ["refresh the time after ", "waiting time"]
                                :madlib-str "refresh the time after [waiting time]"
+                               :remembered true
                                :placeholders {"waiting time" {:order 0
                                                               :type "duration"}}}
               :timers/tick {:madlib ["timer", " ticked at ", "time"]
