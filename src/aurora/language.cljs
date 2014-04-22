@@ -149,11 +149,11 @@
 
 ;; FLOW STATE
 
-(defrecord FlowState [node->state node->out-nodes node->facts node->update! trace plan])
+(defrecord FlowState [node->state node->out-nodes node->facts node->update! node->stats trace plan])
 
 (def trace? true)
 
-(defn fixpoint! [{:keys [node->state node->out-nodes node->facts node->update! trace plan] :as flow-state}]
+(defn fixpoint! [{:keys [node->state node->out-nodes node->facts node->update! node->stats trace plan] :as flow-state}]
   (js/console.time "fixpoint!")
   (loop [node 0]
     (when (< node (alength node->facts))
@@ -161,7 +161,7 @@
         (if (== 0 (alength in-facts))
           (recur (+ node 1))
           (let [out-facts #js []]
-            (.call (aget node->update! node) nil node node->state in-facts out-facts)
+            (.call (aget node->update! node) nil node node->state node->stats in-facts out-facts)
             (aset node->facts node #js [])
             (when trace? (.push trace #js [node in-facts out-facts]))
             ;; (prn node in-facts out-facts (nth (:node->flow plan) node))
@@ -177,25 +177,27 @@
   flow-state)
 
 (defn filter-map-update! [fun]
-  (fn [node node->state in-facts out-facts]
+  (fn [node node->state node->stats in-facts out-facts]
     (dotimes [i (alength in-facts)]
       (let [fact (aget in-facts i)]
         (when-let [new-fact (.call fun nil fact)]
           (apush out-facts new-fact))))))
 
 (defn union-update! []
-  (fn [node node->state in-facts out-facts]
+  (fn [node node->state node->stats in-facts out-facts]
     (let [set (aget node->state node)]
       (dotimes [i (alength in-facts)]
         (let [fact (aget in-facts i)]
           ;; TODO this double lookup is a bottleneck
-          (when (not (contains? set fact))
-            (conj!! set fact)
-            (apush out-facts fact))))
+          (if (not (contains? set fact))
+            (do
+              (conj!! set fact)
+              (apush out-facts fact))
+            (aset node->stats node "dupes" (+ (aget node->stats node "dupes") 1)))))
       (aset node->state node set))))
 
 (defn index-update! [key-ixes]
-  (fn [node node->state in-facts out-facts]
+  (fn [node node->state node->stats in-facts out-facts]
     (let [index (aget node->state node)]
       (dotimes [i (alength in-facts)]
         (let [fact (aget in-facts i)
@@ -207,7 +209,7 @@
       (aset node->state node index))))
 
 (defn lookup-update! [index-node key-ixes val-ixes]
-  (fn [node node->state in-facts out-facts]
+  (fn [node node->state node->stats in-facts out-facts]
     (let [index (aget node->state index-node)]
       (dotimes [i (alength in-facts)]
         (let [left-fact (aget in-facts i)
@@ -266,6 +268,7 @@
         node->out-nodes (make-array (count node->flow))
         node->facts (make-array (count node->flow))
         node->update! (make-array (count node->flow))
+        node->stats (make-array (count node->flow))
         trace #js []]
     (dotimes [node (count node->flow)]
       (aset node->out-nodes node #js [])
@@ -285,8 +288,14 @@
                 Union (union-update!)
                 FilterMap (filter-map-update! (apply (resolve (first (:fun&args flow))) (rest (:fun&args flow))))
                 Index (index-update! (:key-ixes flow))
-                Lookup (lookup-update! (:index-node flow) (:key-ixes flow) (:val-ixes flow))))))
-    (FlowState. node->state node->out-nodes node->facts node->update! trace plan)))
+                Lookup (lookup-update! (:index-node flow) (:key-ixes flow) (:val-ixes flow))))
+        (aset node->stats node
+              (condp = (type flow)
+                Union #js {:dupes 0}
+                FilterMap nil
+                Index nil
+                Lookup nil))))
+    (FlowState. node->state node->out-nodes node->facts node->update! node->stats trace plan)))
 
 (defn empty-state-of [plan state]
   (if (= plan (:plan state))
@@ -295,6 +304,7 @@
           node->out-nodes (:node->out-nodes state)
           node->facts (make-array (count node->flow))
           node->update! (:node->update! state)
+          node->stats (make-array (count node->flow))
           trace #js []]
       (dotimes [node (alength node->out-nodes)]
         (aset node->facts node #js [])
@@ -304,8 +314,14 @@
                 Union (transient #{})
                 FilterMap nil
                 Index (transient {})
+                Lookup nil))
+          (aset node->stats node
+              (condp = (type flow)
+                Union #js {:dupes 0}
+                FilterMap nil
+                Index nil
                 Lookup nil))))
-      (FlowState. node->state node->out-nodes node->facts node->update! trace plan))
+      (FlowState. node->state node->out-nodes node->facts node->update! node->stats trace plan))
     (do (println "Rebuilding state!")
       (flow-plan->flow-state plan))))
 
@@ -328,7 +344,7 @@
 
 (defn add-memory [{:keys [node->flow memory->shape->node] :as flow-plan} memory shape]
   (memory! memory)
-  (let [[flow-plan node] (add-flow-without-memo flow-plan (Union. #{}))
+  (let [[flow-plan node] (add-flow-without-memo flow-plan (assoc (Union. #{}) :memory memory :shape shape))
         memory->shape->node (assoc-in memory->shape->node [memory shape] node)]
     (assoc flow-plan :memory->shape->node memory->shape->node)))
 
