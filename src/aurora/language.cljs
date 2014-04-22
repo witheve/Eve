@@ -264,11 +264,14 @@
 (defrecord FlowPlan [node->flow flow->node memory->shape->node kind->shape])
 
 (defn flow-plan->flow-state [{:keys [node->flow] :as plan}]
-  (let [node->state (into-array (for [_ node->flow] nil))
-        node->out-nodes (into-array (for [_ node->flow] #js []))
-        node->facts (into-array (for [_ node->flow] #js []))
-        node->update! (into-array (for [_ node->flow] nil))
+  (let [node->state (make-array (count node->flow))
+        node->out-nodes (make-array (count node->flow))
+        node->facts (make-array (count node->flow))
+        node->update! (make-array (count node->flow))
         trace #js []]
+    (dotimes [node (count node->flow)]
+      (aset node->out-nodes node #js [])
+      (aset node->facts node #js []))
     (dotimes [node (count node->flow)]
       (let [flow (nth node->flow node)]
         (aset node->state node
@@ -286,6 +289,27 @@
                 Index (index-update! (:key-ixes flow))
                 Lookup (lookup-update! (:index-node flow) (:key-ixes flow) (:val-ixes flow))))))
     (FlowState. node->state node->out-nodes node->facts node->update! trace plan)))
+
+(defn empty-state-of [plan state]
+  (if (= plan (:plan state))
+    (let [node->flow (:node->flow plan)
+          node->state (make-array (count node->flow))
+          node->out-nodes (:node->out-nodes state)
+          node->facts (make-array (count node->flow))
+          node->update! (:node->update! state)
+          trace #js []]
+      (dotimes [node (alength node->out-nodes)]
+        (aset node->facts node #js [])
+        (let [flow (nth node->flow node)]
+          (aset node->state node
+              (condp = (type flow)
+                Union (transient #{})
+                FilterMap nil
+                Index (transient {})
+                Lookup nil))))
+      (FlowState. node->state node->out-nodes node->facts node->update! trace plan))
+    (do (println "Rebuilding state!")
+      (flow-plan->flow-state plan))))
 
 (def empty-flow-plan
   (FlowPlan. [] {} {} {}))
@@ -681,7 +705,7 @@
   ([plan] (tick plan (flow-plan->flow-state plan)))
   ([plan state]
    (js/console.time "plan->state")
-   (let [new-state (flow-plan->flow-state plan)]
+   (let [new-state (empty-state-of plan state)]
      (js/console.timeEnd "plan->state")
      (js/console.time "tick")
      (doseq [shape (get-in state [:plan :kind->shape :known])] ;; using old plan here
