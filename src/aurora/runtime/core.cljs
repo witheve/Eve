@@ -55,8 +55,15 @@
              prev prev
              i 0]
         (cond
-         (>= i 10) (do (js/console.timeEnd "quiescience") (println "Aborting!") cur)
-         (language/unchanged? prev cur) (do (js/console.timeEnd "quiescience") cur)
+         (>= i 10) (do
+                     (js/console.timeEnd "quiescience")
+                     (println "Aborting!")
+                     (aurora.runtime.ui/on-bloom-tick cur (:feeder-fn env))
+                     cur)
+         (language/unchanged? prev cur) (do
+                                          (js/console.timeEnd "quiescience")
+                                          (aurora.runtime.ui/on-bloom-tick cur (:feeder-fn env))
+                                          cur)
          :else (let [next (language/tick (:rules env) cur)]
                  (language/add-facts-compat next :known|pretended aurora-facts)
                  (language/fixpoint! next)

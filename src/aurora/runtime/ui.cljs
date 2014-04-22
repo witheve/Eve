@@ -133,9 +133,6 @@
              )
            )))
 
-(swap! runtime/watchers conj (fn [knowledge queue]
-                               (on-bloom-tick knowledge queue)))
-
 (defn name|sym [s]
   (if (symbol? s)
     s
