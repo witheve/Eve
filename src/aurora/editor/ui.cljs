@@ -509,6 +509,7 @@
 (def queued? false)
 
 (defn render! []
+  (js/console.time "render!")
   (let [start (now)
         tree (root-ui)]
     (js/React.renderComponent (node tree) (dom/$ "#wrapper"))
@@ -527,6 +528,7 @@
     (when-let [rp (dom/$ "#render-perf")]
       (dom/html rp (.toFixed (- (now) start) 3)))
     (set! queued? false)
+    (js/console.timeEnd "render!")
     ))
 
 (defn queue-render []
