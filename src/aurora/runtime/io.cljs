@@ -19,7 +19,7 @@
 
 (defn on-bloom-tick [knowledge queue]
   (println "in io watcher")
-  (let [{:keys [gets]} (collect (language/get-facts-compat knowledge :pretended))]
+  (let [{:keys [gets]} (collect (language/get-facts-compat knowledge :known|pretended))]
     (doseq [[id url] gets]
     (println "firing query: " id url)
       (fetch/xhr [:get url] {}

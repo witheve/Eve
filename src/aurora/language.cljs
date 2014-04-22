@@ -745,6 +745,7 @@
   state)
 
 (defn get-facts-compat [state memory]
+  (memory! memory)
   (let [facts (transient #{})]
     (doseq [[shape node] (get-in state [:plan :memory->shape->node memory])
             fact (get-facts state memory shape)]
@@ -774,3 +775,10 @@
 
 (defn rules->plan [rules]
   (shapes&kinds&rules->plan (rules->shapes&kinds rules) rules))
+
+(defn unchanged [old-state new-state]
+  (and (= (:plan old-state) (:plan new-state))
+       (every?
+        (fn [shape]
+          (= (get-facts old-state :known|pretended shape) (get-facts new-state :known|pretended shape)))
+        (get-in old-state [:plan :kind->shape :known]))))

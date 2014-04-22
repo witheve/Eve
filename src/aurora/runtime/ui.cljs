@@ -108,7 +108,7 @@
     (array (keyword tag) el-attrs)))
 
 (defn rebuild-tree [knowledge queue]
-  (let [collected (collect (language/get-facts-compat knowledge :pretended))
+  (let [collected (collect (language/get-facts-compat knowledge :known|pretended))
         els (:elems collected)
         attrs (group-by :id (:attrs collected))
         styles (group-by :id (:styles collected))

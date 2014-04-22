@@ -146,7 +146,7 @@
 
 (:rules (compile-state))
 
-;(language/get-facts-compat (:kn @cur-env) :known)
+;(language/get-facts-compat (:kn @cur-env) :known|pretended)
 
 
 (comment
@@ -162,7 +162,7 @@
   (language/add-facts-compat state :known|pretended [(language/fact. :http/response #js ["yo" "google" 1234])])
   (language/fixpoint! state)
   (-> (language/tick&fixpoint plan state)
-      (language/get-facts-compat :known))
+      (language/get-facts-compat :known|pretended))
   )
 
   )
