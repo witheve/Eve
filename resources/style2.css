@@ -205,9 +205,9 @@ td.keyword { text-align:right; white-space:pre; padding-left:5px; }
 #debugger-middle { display:flex; flex:2; }
 #debugger-middle svg { margin-top:100px; }
 #debugger-middle ul { margin-top:100px; display:inline-block; margin-left:0px; margin-bottom:100px; flex:1; }
-#debugger-middle li { height:60px; }
-#debugger-middle li > div { margin-bottom:10px; background:#f7f7f7; padding:5px 15px; display:block; height:50px; overflow:hidden;}
-#debugger-middle li > div div { display:flex; background:none; height:auto; margin:0; padding:0; align-items:center; flex-direction:row; }
+#debugger-middle li { height:90px; }
+#debugger-middle li > div { margin-bottom:10px; background:#f7f7f7; padding:5px 15px; display:block; height:80px; overflow:hidden;}
+#debugger-middle li > div div { display:flex; background:none; height:100%; margin:0; padding:0; align-items:center; flex-direction:row; }
 #debugger-middle li div.current { background:#fff; box-shadow:0 0 20px #666;}
 #debugger-middle li > div.active { background: #C7FFF7;}
 #debugger-middle li > div.active-out { background: #f7cFF7;}

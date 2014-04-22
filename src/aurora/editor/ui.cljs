@@ -304,30 +304,28 @@
       )]]
   )
 
-(defn node->ui [flow stats i]
-  (list [:p (condp = (type flow)
-              language/Union "U"
-              language/Index "I"
-              language/Lookup "L"
-              language/FilterMap "F") i]
-        (apply vector :table
-               (for [[k v] flow]
-                 [:tr [:td (str k)] [:td (pr-str v)]]))
-        (apply vector :table
-               (for [[k v] (js->clj stats)]
-                 [:tr [:td (str k)] [:td (pr-str v)]]))))
-
 (defcomponent debugger-item [flow stats i active? current?]
-  [:li [:div
-        {:classes {:active (= :in active?)
-                   :active-out (= :out active?)
-                   :current current?}
-         :onMouseOver (fn []
-                        ;(when-not (= (get-in @state [:editor :active-flow]) i)
-                        ;  (swap! state assoc-in [:editor :active-flow] i))
-                        )}
-        [:div
-         (node->ui flow stats i)]]]
+  (let [stats (js->clj stats)]
+    [:li [:div
+          {:classes {:active (= :in active?)
+                     :active-out (= :out active?)
+                     :current current?}}
+          [:div
+           [:p (condp = (type flow)
+                 language/Union "U"
+                 language/Index "I"
+                 language/Lookup "L"
+                 language/FilterMap "F") i]
+           `[:table
+             [:tbody
+              ~@(for [[k v] flow]
+                  [:tr [:td (str k)] [:td (pr-str v)]])]]
+            (when (seq stats)
+              `[:table
+                [:tbody
+                 ~@(for [[k v] stats]
+                     [:tr [:td (str k)] [:td (pr-str v)]])]])
+           ]]])
   )
 
 (defcomponent debugger-path [iy cx cy y active?]
@@ -353,13 +351,13 @@
         n->i (into {} (map vector all (range)))
         active-flows (for [node all]
                        [node (get flows node)])
-        iy (+ 25 (* (n->i cur-active) 60))]
+        iy (+ 40 (* (n->i cur-active) 90))]
     [:div#debugger-middle
-     [:svg {:width 100 :height (* 60 (dec (count all)))}
+     [:svg {:width 100 :height (* 90 (dec (count all)))}
       (concat
        (for [in active-ins
              :let [in (n->i in)
-                   y (+ 25 (* in 60))
+                   y (+ 40 (* in 90))
                    diff (js/Math.abs (- iy y))
                    cx (- 100 (max 30 (min 100 (* 10 (js/Math.abs (- (n->i cur-active) in))))))
                    cy (if (> iy y)
@@ -369,7 +367,7 @@
          )
        (for [in active-outs
              :let [in (n->i in)
-                   y (+ 25 (* in 60))
+                   y (+ 40 (* in 90))
                    diff (js/Math.abs (- iy y))
                    cx (- 100 (max 30 (min 100 (* 10 (js/Math.abs (- (n->i cur-active) in))))))
                    cy (if (> iy y)
@@ -379,17 +377,19 @@
          )
        )]
      [:ul
-      (for [[i flow] active-flows
-            :let [stats (aget (get-in env [:kn :node->stats]) i)]
-            :let [active? (cond
-                           (get active-ins i false) :in
-                           (get active-outs i false) :out
-                           :else nil)]]
-        (debugger-item flow stats i active? (= i cur-active))
-        )]
+      (doall
+       (for [[i flow] active-flows
+             :let [stats [];(aget (get-in env [:kn :node->stats]) i)
+                   ]
+             :let [active? (cond
+                            (get active-ins i false) :in
+                            (get active-outs i false) :out
+                            :else nil)]]
+         (debugger-item flow stats i active? (= i cur-active))
+         ))]
      ]))
 
-(defn debugger-in [cur-state env in node]
+(defcomponent debugger-in [in node]
   [:div#debugger-facts
    [:ul
     (for [i in]
@@ -401,7 +401,7 @@
   (let [step (get-in cur-state [:editor :debugger-step] 0)
         trace (get-in env [:kn :trace])
         [node in out] (aget trace step)]
-    [:div#canvas.debugger {:tabindex 0
+    [:div#canvas.debugger {:tabIndex -1
                            :onKeyDown (fn [e]
                                         (println "key down")
                                         (when (= (.-keyCode e) (:right key-codes))
@@ -422,9 +422,9 @@
                            )}
        ">"]
       ]
-     (debugger-in cur-state env in node)
+     (debugger-in in node)
      (debugger-middle cur-state env node)
-     (debugger-in cur-state env out node)
+     (debugger-in out node)
      ]))
 
 (defn editor-ui []
