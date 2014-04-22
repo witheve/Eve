@@ -386,31 +386,28 @@
                               (second)
                               (language/flow->nodes))))
         active-outs (when-let [cur (aget out-nodes cur-active)]
-                      (set cur))]
+                      (set cur))
+        iy (+ 25 (* cur-active 60))]
     [:div#debugger-middle
      [:svg {:width 100 :height (* 60 (count flows))}
       (concat
-       (for [[i flow] flows
-             :let [iy (+ 25 (* i 60))]
-             in (language/flow->nodes flow)
+       (for [in active-ins
              :let [y (+ 25 (* in 60))
                    diff (js/Math.abs (- iy y))
-                   cx (- 100 (max 30 (min 100 (* 10 (js/Math.abs (- i in))))))
+                   cx (- 100 (max 30 (min 100 (* 10 (js/Math.abs (- cur-active in))))))
                    cy (if (> iy y)
                         (+ y (/ diff 2))
                         (+ iy (/ diff 2)))]]
-         (debugger-path iy cx cy y (if (= i cur-active) :in))
+         (debugger-path iy cx cy y :in)
          )
-       (for [[i flow] flows
-             :let [iy (+ 25 (* i 60))]
-             in (aget out-nodes i)
+       (for [in active-outs
              :let [y (+ 25 (* in 60))
                    diff (js/Math.abs (- iy y))
-                   cx (- 100 (max 30 (min 100 (* 10 (js/Math.abs (- i in))))))
+                   cx (- 100 (max 30 (min 100 (* 10 (js/Math.abs (- cur-active in))))))
                    cy (if (> iy y)
                         (+ y (/ diff 2))
                         (+ iy (/ diff 2)))]]
-         (debugger-path iy cx cy y (if (= i cur-active) :out))
+         (debugger-path iy cx cy y :out)
          )
        )]
      [:ul
