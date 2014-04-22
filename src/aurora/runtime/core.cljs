@@ -55,7 +55,7 @@
              i 0]
         (cond
          (>= i 10) (do (println "Aborting!") cur)
-         (language/unchanged? prev cur) (do (println "Done!") cur)
+         (language/unchanged? prev cur) cur
          :else (let [next (language/tick (:rules env) cur)]
                  (language/add-facts-compat next :known|pretended aurora-facts)
                  (language/fixpoint! next)
