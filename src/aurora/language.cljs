@@ -18,6 +18,9 @@
         result))
     0))
 
+(defn- hash-fact [fact]
+  (hash-array (.-values fact)))
+
 (comment
   (= (hash-array #js [1 2 :c]) (hash [1 2 :c]))
   )
@@ -52,7 +55,7 @@
                      false)))))
 
   IHash
-  (-hash [this] (caching-hash this hash-array __hash))
+  (-hash [this] (caching-hash this hash-fact __hash))
 
   IIndexed
   (-nth [this n]
