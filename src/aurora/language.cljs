@@ -203,9 +203,11 @@
         (let [fact (aget in-facts i)
               key (fact-ixes fact key-ixes)
               facts (or (get index key) #{})] ;; TODO transients are not seqable :(
-          (when-not (contains? facts fact)
-            (assoc!! index key (conj facts fact))
-            (apush out-facts fact))))
+          (if (not (contains? facts fact))
+            (do
+              (assoc!! index key (conj facts fact))
+              (apush out-facts fact))
+            (aset node->stats node "dupes" (+ (aget node->stats node "dupes") 1)))))
       (aset node->state node index))))
 
 (defn lookup-update! [index-node key-ixes val-ixes]
@@ -293,7 +295,7 @@
               (condp = (type flow)
                 Union #js {:dupes 0}
                 FilterMap nil
-                Index nil
+                Index #js {:dupes 0}
                 Lookup nil))))
     (FlowState. node->state node->out-nodes node->facts node->update! node->stats trace plan)))
 
@@ -319,7 +321,7 @@
               (condp = (type flow)
                 Union #js {:dupes 0}
                 FilterMap nil
-                Index nil
+                Index #js {:dupes 0}
                 Lookup nil))))
       (FlowState. node->state node->out-nodes node->facts node->update! node->stats trace plan))
     (do (println "Rebuilding state!")
