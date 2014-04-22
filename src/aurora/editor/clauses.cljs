@@ -137,10 +137,8 @@
         paused? (:pause @cur-env)]
     (pause cur-env)
     (swap! cur-env assoc
-           :rules rules
-           :kn (language/tick rules (:kn @cur-env)))
-    (language/add-facts-compat (:kn @cur-env) :known|pretended (:facts comped))
-    (runtime/handle-feed cur-env {:force true})
+           :rules rules)
+    (runtime/handle-feed cur-env (:facts comped) {:force true})
     (when-not paused?
       (unpause cur-env))))
 

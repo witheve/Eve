@@ -16,7 +16,7 @@
 
 (defn feeder [env fact]
   (when-not (:queued? @env)
-    (swap! env assoc :queued? (js/setTimeout (partial handle-feed env) 0)))
+    (swap! env assoc :queued? (js/setTimeout (partial handle-feed env nil) 0)))
   (.push (:feed @env) fact))
 
 (defn tick-inductive [kn tick-rules]
@@ -41,30 +41,32 @@
   (when (>= (.-length history) limit)
     (.shift history))
   (.push history point))
-(enable-console-print!)
-(defn fixpoint-tick [cur env aurora-facts]
-  (loop [kn cur
-         prev nil
-         i 0]
-    (if (or (and kn prev (language/unchanged? prev kn))
-            (>= i 10))
-      kn
-      (recur
-       (do
-        (language/add-facts-compat kn :known|pretended aurora-facts)
-        (language/fixpoint! kn)
-        (tick-watchers kn (:watchers env) (:feeder-fn env))
-        (language/tick&fixpoint (:rules env) kn))
-       kn
-       (inc i)))))
 
-(defn handle-feed [env & [opts]]
+(enable-console-print!)
+
+(defn quiescience [prev env init-facts]
+  (let [aurora-facts [(language/fact :aurora/time #js [(.getTime (js/Date.))])]]
+    (let [cur (language/tick (:rules env) prev)]
+      (language/add-facts-compat cur :known|pretended init-facts)
+      (language/add-facts-compat cur :known|pretended aurora-facts)
+      (language/fixpoint! cur)
+      (loop [cur cur
+             prev prev
+             i 0]
+        (cond
+         (>= i 10) (do (println "Aborting!") cur)
+         (language/unchanged? prev cur) (do (println "Done!") cur)
+         :else (let [next (language/tick (:rules env) cur)]
+                 (language/add-facts-compat next :known|pretended aurora-facts)
+                 (language/fixpoint! next)
+                 (tick-watchers next (:watchers env) (:feeder-fn env))
+                 (recur next cur (inc i))))))))
+
+(defn handle-feed [env init-facts opts]
   (when (or (:force opts)
             (not (:paused @env)))
     (let [start (now)
           feed-set (or (:feed-set opts) (vec (:feed @env)))
-          aurora-facts [(language/fact :aurora/time #js [(.getTime (js/Date.))])]
-          all (concat feed-set aurora-facts)
           feed-func (or (:feeder-fn opts) (:feeder-fn @env))
           cur-env @env
           plan (:rules cur-env)]
@@ -72,14 +74,7 @@
       (when (and (not (:feed-set opts))
                  (seq feed-set))
         (add-history (:history @env) [(:kn @env) feed-set] (:history-size @env)))
-      (swap! env update-in [:kn]
-             (fn [cur]
-               (language/add-facts-compat cur :known|pretended all)
-               (language/fixpoint! cur)
-               (tick-watchers cur (:watchers @env) (:feeder-fn @env))
-               (-> (language/tick&fixpoint plan cur)
-                   (fixpoint-tick cur-env aurora-facts))
-               ))
+      (swap! env update-in [:kn] #(quiescience % cur-env (concat init-facts feed-set)))
       (when-let [rp (dom/$ "#run-perf")]
         (dom/html rp (.toFixed (- (now) start) 3)))
       ;(println "final: " (- (.getTime (js/Date.)) start) (:kn @env))
@@ -108,7 +103,7 @@
 (defn run [env]
   (let [feeder-fn (partial feeder env)]
     (swap! env assoc :feeder-fn feeder-fn)
-    (handle-feed env)
+    (handle-feed env nil)
     env))
 
 (defn ->env [opts]
@@ -135,7 +130,7 @@
 
 (defn unpause [env]
   (swap! env assoc :paused false)
-  (handle-feed env))
+  (handle-feed env nil))
 
 (comment
 (defn go-to-do []
