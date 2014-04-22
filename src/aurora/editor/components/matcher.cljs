@@ -126,8 +126,12 @@
                  found
                  (create-madlib v)))
           cur-path (:path matcher)
-          node {:type (or keyword "add")
-                :ml id}
+          info (get-in @state [:program :madlibs id])
+          node (into {:type (or keyword "add")
+                      :ml id}
+                     (if (= keyword "when")
+                       (for [k (keys (:placeholders info))]
+                         [k (symbol (string/replace k " " "-"))])))
           node (if (and (not cur-path)
                         (not= keyword "remember"))
                  {:type "rule"
