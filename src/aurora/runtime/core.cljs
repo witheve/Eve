@@ -52,7 +52,7 @@
       kn
       (recur
        (do
-        (language/add-facts kn :pretended aurora-facts)
+        (language/add-facts kn :known|pretended aurora-facts)
         (language/fixpoint! kn)
         (tick-watchers kn (:watchers env) (:feeder-fn env))
         (language/tick&fixpoint (:rules env) kn))
@@ -75,7 +75,7 @@
         (add-history (:history @env) [(:kn @env) feed-set] (:history-size @env)))
       (swap! env update-in [:kn]
              (fn [cur]
-               (language/add-facts cur :pretended all)
+               (language/add-facts cur :known|pretended all)
                (language/fixpoint! cur)
                (tick-watchers cur (:watchers @env) (:feeder-fn @env))
                (-> (language/tick&fixpoint plan cur)
@@ -116,7 +116,7 @@
   (let [kn (-> language/empty-flow-plan
                (language/flow-plan->flow-state))
         kn (do
-             (language/add-facts kn :known (:kn opts #{}))
+             (language/add-facts kn :known|pretended (:kn opts #{}))
              (language/tick (language/rules->plan []) kn))
         env (merge {:rules language/empty-flow-plan
                     :watchers @watchers

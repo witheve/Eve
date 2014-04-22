@@ -139,7 +139,7 @@
     (swap! cur-env assoc
            :rules rules
            :kn (language/tick rules (:kn @cur-env)))
-    (language/add-facts (:kn @cur-env) :known (:facts comped))
+    (language/add-facts (:kn @cur-env) :known|pretended (:facts comped))
     (runtime/handle-feed cur-env {:force true})
     (when-not paused?
       (unpause cur-env))))
@@ -158,8 +158,8 @@
                              (aurora.language.Compute. (language/->Let 'value74  #{'value 'content} "value + \"hey\" + content"))])]
       plan (language/rules->plan rules)
       state (language/flow-plan->flow-state plan)]
-  (language/add-facts state :known [(language/fact. "1df7454c_069e_40ab_b117_b8d43212b473" #js ["Click me"])])
-  (language/add-facts state :pretended [(language/fact. :http/response #js ["yo" "google" 1234])])
+  (language/add-facts state :known|pretended [(language/fact. "1df7454c_069e_40ab_b117_b8d43212b473" #js ["Click me"])])
+  (language/add-facts state :known|pretended [(language/fact. :http/response #js ["yo" "google" 1234])])
   (language/fixpoint! state)
   (-> (language/tick&fixpoint plan state)
       (language/get-facts :known))

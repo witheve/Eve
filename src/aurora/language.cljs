@@ -658,20 +658,36 @@
 
 ;; TIME AND CHANGE
 
-(defn add-facts [state memory shape facts]
-  (memory! memory)
-  (let [node (get-memory (:plan state) memory shape)
-        arr (aget (:node->facts state) node)]
-    (doseq [fact facts]
-      (apush arr fact))
-    state))
+(defn add-facts
+  ([state memory facts]
+   (memory! memory)
+   (doseq [fact facts]
+     (let [shape (.-shape fact)
+           node (get-memory (:plan state) memory shape)
+           arr (aget (:node->facts state) node)]
+       (apush arr fact)))
+   state)
+  ([state memory shape facts]
+   (memory! memory)
+   (let [node (get-memory (:plan state) memory shape)
+         arr (aget (:node->facts state) node)]
+     (doseq [fact facts]
+       (apush arr fact))
+     state)))
 
-(defn get-facts [state memory shape]
-  (memory! memory)
-  (let [node (get-memory (:plan state) memory shape)
-        facts (persistent! (aget (:node->state state) node))]
-    (aset (:node->state state) node (transient facts))
-    facts))
+(defn get-facts
+  ([state memory]
+   (let [facts (transient #{})]
+     (doseq [[shape node] (get-in state [:plan :memory->shape->node memory])
+             fact (get-facts state memory shape)]
+       (conj!! facts fact))
+     (persistent! facts)))
+  ([state memory shape]
+   (memory! memory)
+   (let [node (get-memory (:plan state) memory shape)
+         facts (persistent! (aget (:node->state state) node))]
+     (aset (:node->state state) node (transient facts))
+     facts)))
 
 ;; TODO make this incremental
 ;; TODO wasteful to do the persistent/transient dance when there are no remembered/forgotten facts
