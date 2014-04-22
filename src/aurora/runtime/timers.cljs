@@ -6,7 +6,8 @@
             [aurora.language.representation :as representation]
             [aurora.language.operation :as operation]
             [aurora.language.denotation :as denotation])
-  (:require-macros [aurora.language.macros :refer [rule]]))
+  (:require-macros [aurora.language.macros :refer [rule]]
+                   [aurora.macros :refer [for!]]))
 
 (defn now []
   (.getTime (js/Date.)))
@@ -20,24 +21,15 @@
 ;; wait fact: {:name :wait :madlib "wait [time]ms with [id]" :time 500 :id 1}
 ;; tick fact {:name 12341234 :madlib "tick with [id]" :id 9}
 
-(defn collect [facts]
-  (let [refresh (array)
-        waits (array)]
-    (doseq [fact facts
-            :let [[coll thing] (condp = (.-shape fact)
-                                 :aurora/refresh [refresh (get fact 0)]
-                                 :timers/wait [waits {"time" (get fact 0)
-                                                           "timer" (get fact 1)}]
-                                 nil)]
-            :when coll]
-      (.push coll thing))
-    {:waits waits
-     :refresh refresh}))
+(defn collect [knowledge]
+  {:refresh (for! [fact (language/get-facts knowledge :known|pretended :aurora/refresh)]
+              (get fact 0))
+   :waits (for! [fact (language/get-facts knowledge :known|pretended :timers/wait)]
+              {"time" (get fact 0)
+               "timer" (get fact 1)})})
 
 (defn on-bloom-tick [knowledge queue]
-  (let [{:keys [waits refresh]} (collect (concat
-                                          (language/get-facts knowledge :known)
-                                          (language/get-facts knowledge :pretended)))]
+  (let [{:keys [waits refresh]} (collect knowledge)]
     (doseq [[time id] waits]
       (println "setting up wait for: " time id)
       (wait time (fn []

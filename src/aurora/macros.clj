@@ -60,7 +60,7 @@
                            ~@body)}))
 
 (defmacro for! [& args]
-  `(doall (for ~@args)))
+  `(vec (for ~@args)))
 
 (defmacro check [& preds]
   `(do
