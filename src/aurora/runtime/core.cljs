@@ -46,7 +46,7 @@
   (loop [kn cur
          prev nil
          i 0]
-    (if (or (and kn prev (or (prn :change (language/unchanged prev kn)) (language/unchanged prev kn)))
+    (if (or (and kn prev (language/unchanged prev kn))
             (>= i 10))
       kn
       (recur
