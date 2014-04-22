@@ -304,55 +304,15 @@
       )]]
   )
 
-(defmulti node->ui type)
-
-(defmethod node->ui js/aurora.language.Union [f i]
-  (list [:p "U" i]
-        [:table
-         [:tr
-          [:td "nodes"]
-          [:td (pr-str (:nodes f))]]]))
-
-(defmethod node->ui js/aurora.language.Index [f i]
-  (list [:p "I" i]
-        [:table
-         [:tr
-          [:td "nodes"]
-          [:td (pr-str (:nodes f))]]
-         [:tr
-          [:td "key-ixes"]
-          [:td (pr-str (:key-ixes f))]]]))
-
-(defmethod node->ui js/aurora.language.Lookup [f i]
-  (list [:p "L" i]
-        [:table
-         [:tr
-          [:td "nodes"]
-          [:td (pr-str (:nodes f))]]
-         [:tr
-          [:td "index-node"]
-          [:td (pr-str (:index-node f))]]]
-        [:table
-         [:tr
-          [:td "key-ixes"]
-          [:td (pr-str (:key-ixes f))]]
-         [:tr
-          [:td "val-ixes"]
-          [:td (pr-str (:val-ixes f))]]]))
-
-
-(defmethod node->ui js/aurora.language.FilterMap [f i]
-  (list [:p "F" i]
-        [:table
-         [:tr
-          [:td "nodes"]
-          [:td (pr-str (:nodes f))]]
-         [:tr
-          [:td "fn"]
-          [:td (pr-str (:fun&args f))]]]))
-
-(defmethod node->ui :default [n]
-  (pr-str n))
+(defn node->ui [flow node]
+  (list [:p (condp = (type flow)
+              language/Union "U"
+              language/Index "I"
+              language/Lookup "L"
+              language/FilterMap "F") node]
+        (apply vector :table
+               (for [[k v] flow]
+                 [:tr [:td (str k)] [:td (pr-str v)]]))))
 
 (defcomponent debugger-item [flow i active? current?]
   [:li [:div
