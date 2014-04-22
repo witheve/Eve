@@ -8,7 +8,8 @@
             [aurora.runtime.stdlib :as stdlib]
             [aurora.runtime.core :as runtime]
             [aurora.editor.ReactDommy :as dommy])
-  (:require-macros [aurora.language.macros :refer [rule]]))
+  (:require-macros [aurora.language.macros :refer [rule]]
+                   [aurora.macros :refer [for!]]))
 
 (def animation-frame
   (or (.-requestAnimationFrame js/self)
@@ -52,38 +53,26 @@
 ;; {:name :ui/style :id id :attr "background" :value "red"}
 ;; {:name :ui/child :id id :child id :pos i}
 
-(defn collect [facts]
-  (let [styles (array)
-        listeners (array)
-        text (array)
-        elems (array)
-        attrs (array)
-        children (array)]
-    (doseq [fact facts
-            :let [[coll thing] (condp = (.-shape fact)
-                                 :ui/style [styles {:id (get fact 0)
-                                                    :attr (get fact 1)
-                                                    :value (get fact 2)}]
-                                 :ui/event-listener [listeners {:id (get fact 1)
-                                                                :event (get fact 0)
-                                                                }]
-                                 :ui/text [text [(get fact 0) (get fact 1)]]
-                                 :ui/elem [elems [(get fact 0) (get fact 1)]]
-                                 :ui/attr [attrs {:id (get fact 0)
-                                                  :attr (get fact 1)
-                                                  :value (get fact 2)}]
-                                 :ui/child [children {:id (get fact 0)
-                                                      :child-id (get fact 1)
-                                                      :pos (get fact 2)}]
-                                 nil)]
-            :when coll]
-      (.push coll thing))
-    {:styles styles
-     :listeners listeners
-     :text text
-     :elems elems
-     :attrs attrs
-     :children children}))
+(defn collect [knowledge]
+  {:styles (for! [fact (language/get-facts knowledge :known|pretended :ui/style)]
+             {:id (get fact 0)
+              :attr (get fact 1)
+              :value (get fact 2)})
+   :listeners (for! [fact (language/get-facts knowledge :known|pretended :ui/event-listener)]
+                {:id (get fact 1)
+                 :event (get fact 0)})
+   :text (for! [fact (language/get-facts knowledge :known|pretended :ui/text)]
+           [(get fact 0) (get fact 1)])
+   :elems (for! [fact (language/get-facts knowledge :known|pretended :ui/elem)]
+            [(get fact 0) (get fact 1)])
+   :attrs (for! [fact (language/get-facts knowledge :known|pretended :ui/attr)]
+            {:id (get fact 0)
+             :attr (get fact 1)
+             :value (get fact 2)})
+   :children (for! [fact (language/get-facts knowledge :known|pretended :ui/child)]
+               {:id (get fact 0)
+                :child-id (get fact 1)
+                :pos (get fact 2)})})
 
 (defn handle-attr [v]
   (condp = v
@@ -108,7 +97,7 @@
     (array (keyword tag) el-attrs)))
 
 (defn rebuild-tree [knowledge queue]
-  (let [collected (collect (language/get-facts-compat knowledge :known|pretended))
+  (let [collected (collect knowledge)
         els (:elems collected)
         attrs (group-by :id (:attrs collected))
         styles (group-by :id (:styles collected))

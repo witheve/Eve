@@ -746,17 +746,31 @@
 
 (defn get-facts-compat [state memory]
   (memory! memory)
-  (let [facts (transient #{})]
+  (let [facts #js []]
     (doseq [[shape node] (get-in state [:plan :memory->shape->node memory])
             fact (get-facts state memory shape)]
-      (conj!! facts fact))
-    (persistent! facts)))
+      (apush facts fact))
+    facts))
 
 (defn shapes&kinds&rules->plan [shapes&kinds rules]
   (add-rules (reduce (fn [plan [shape kind]] (add-shape plan kind shape)) empty-flow-plan shapes&kinds) rules))
 
 (def default-kind->shape
-  {:aurora/time :pretended})
+  (zipmap [:aurora/time
+           :ui/style
+           :ui/event-listener
+           :ui/text
+           :ui/elem
+           :ui/attr
+           :ui/child
+           :http/get
+           :http/response
+           :aurora/refresh
+           :aurora/refresh-tick
+           :timers/wait
+           :times/tick]
+          ;; ui events?
+          (repeat :pretended)))
 
 ;; assume state is :pretended unless it is used in remember or forget
 (defn rules->shapes&kinds [rules]

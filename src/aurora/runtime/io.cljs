@@ -5,21 +5,16 @@
             [aurora.runtime.stdlib :as stdlib]
             [aurora.runtime.core :as runtime]
             [aurora.runtime.timers :refer [now]])
-  (:require-macros [aurora.language.macros :refer [rule]]))
+  (:require-macros [aurora.language.macros :refer [rule]]
+                   [aurora.macros :refer [for!]]))
 
-(defn collect [facts]
-  (let [gets (array)]
-    (doseq [fact facts
-            :let [[coll thing] (condp = (.-shape fact)
-                                 :http/get [gets [(get fact 1) (get fact 0)]]
-                                 nil)]
-            :when coll]
-      (.push coll thing))
-    {:gets gets}))
+(defn collect [knowledge]
+  {:gets (for! [fact (language/get-facts knowledge :known|pretended :http/get)]
+           [(get fact 1) (get fact 0)])})
 
 (defn on-bloom-tick [knowledge queue]
   (println "in io watcher")
-  (let [{:keys [gets]} (collect (language/get-facts-compat knowledge :known|pretended))]
+  (let [{:keys [gets]} (collect knowledge)]
     (doseq [[id url] gets]
     (println "firing query: " id url)
       (fetch/xhr [:get url] {}
