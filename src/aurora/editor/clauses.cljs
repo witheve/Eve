@@ -144,25 +144,20 @@
     (when-not paused?
       (unpause cur-env))))
 
-(:rules (compile-state))
+  (comment
+    (let [rules [(language/Rule. [
+                                  (aurora.language.Recall. :known&pretended, (js/aurora.language.fact :http/response #js ['content "google" 'tim]))
+                                  (aurora.language.Output. :remembered (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value74]))
+                                  (aurora.language.Output. :forgotten (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value]))
+                                  (aurora.language.Recall. :known&pretended, (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value]))
+                                  (aurora.language.Compute. (language/->Let 'value74  #{'value 'content} "value + \"hey\" + content"))])]
+          plan (language/rules->plan rules)
+          state (language/flow-plan->flow-state plan)]
+      (language/add-facts state :known [(language/fact. "1df7454c_069e_40ab_b117_b8d43212b473" #js ["Click me"])])
+      (language/add-facts state :pretended [(language/fact. :http/response #js ["yo" "google" 1234])])
+      (language/fixpoint! state)
+      (-> (language/tick&fixpoint plan state)
+          (language/get-facts :known))
+      )
 
-;(language/get-facts (:kn @cur-env) :known)
-
-
-(comment
-(let [rules [(language/Rule. [
-                             (aurora.language.Recall. :known&pretended, (js/aurora.language.fact :http/response #js ['content "google" 'tim]))
-                             (aurora.language.Output. :remembered (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value74]))
-                             (aurora.language.Output. :forgotten (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value]))
-                             (aurora.language.Recall. :known&pretended, (js/aurora.language.fact "1df7454c_069e_40ab_b117_b8d43212b473" #js ['value]))
-                             (aurora.language.Compute. (language/->Let 'value74  #{'value 'content} "value + \"hey\" + content"))])]
-      plan (language/rules->plan rules)
-      state (language/flow-plan->flow-state plan)]
-  (language/add-facts state :known [(language/fact. "1df7454c_069e_40ab_b117_b8d43212b473" #js ["Click me"])])
-  (language/add-facts state :pretended [(language/fact. :http/response #js ["yo" "google" 1234])])
-  (language/fixpoint! state)
-  (-> (language/tick&fixpoint plan state)
-      (language/get-facts :known))
-  )
-
-  )
+    ))

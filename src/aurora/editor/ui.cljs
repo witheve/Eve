@@ -18,7 +18,7 @@
             [clojure.set :as set]
             [clojure.walk :as walk]
             [clojure.string :as string]
-            [aurora.util.core :refer [now remove-index]])
+            [aurora.util.core :refer [now remove-index key-codes cycling-move]])
   (:require-macros [aurora.language.macros :refer [query rule]]
                    [aurora.macros :refer [defcomponent defmethodcomponent]]))
 
@@ -184,7 +184,9 @@
         placeholders (:placeholders rule-info)
          ]
     [:span (if-not placeholders
-             (seq (:madlib rule-info))
+             (if (= :unknown (:ml r))
+               [:span "Unknown: " (pr-str (:fact r))]
+               (seq (:madlib rule-info)))
              (for [part (:madlib rule-info)]
                (if-let [ph (placeholders part)]
                  (placeholder-ui rule-info r part path opts)
@@ -214,10 +216,11 @@
      ]))
 
 (defn fact->map [fact]
-  (when-let [ml (get-in @state [:program :madlibs (.-shape fact)])]
+  (if-let [ml (get-in @state [:program :madlibs (.-shape fact)])]
     (into {:ml (.-shape fact)}
           (for [[k v] (:placeholders ml)]
-            [k (get fact (:order v))]))))
+            [k (get fact (:order v))]))
+    (into {:ml :unknown} {:fact (.-values fact)})))
 
 (defn results [env world]
   (let [kn (:kn env)]
@@ -264,6 +267,13 @@
 (defcomponent controls [env]
   [:div#controls
    [:button {:onClick (fn []
+                        (let [cur (get-in @state [:editor :mode])]
+                          (swap! state assoc-in [:editor :mode] (if (= :debugger cur)
+                                                                  nil
+                                                                  :debugger)))
+                        )}
+    "debugger"]
+   [:button {:onClick (fn []
                         (if (:paused env)
                           (unpause cur-env)
                           (pause cur-env)))}
@@ -294,18 +304,178 @@
       )]]
   )
 
+(defmulti node->ui type)
+
+(defmethod node->ui js/aurora.language.Union [f]
+  (list [:p "U"]
+        [:table
+         [:tr
+          [:td "nodes"]
+          [:td (pr-str (:nodes f))]]]))
+
+(defmethod node->ui js/aurora.language.Index [f]
+  (list [:p "I"]
+        [:table
+         [:tr
+          [:td "nodes"]
+          [:td (pr-str (:nodes f))]]
+         [:tr
+          [:td "key-ixes"]
+          [:td (pr-str (:key-ixes f))]]]))
+
+(defmethod node->ui js/aurora.language.Lookup [f]
+  (list [:p "L"]
+        [:table
+         [:tr
+          [:td "nodes"]
+          [:td (pr-str (:nodes f))]]
+         [:tr
+          [:td "index-node"]
+          [:td (pr-str (:index-node f))]]]
+        [:table
+         [:tr
+          [:td "key-ixes"]
+          [:td (pr-str (:key-ixes f))]]
+         [:tr
+          [:td "val-ixes"]
+          [:td (pr-str (:val-ixes f))]]]))
+
+
+(defmethod node->ui js/aurora.language.FilterMap [f]
+  (list [:p "F"]
+        [:table
+         [:tr
+          [:td "nodes"]
+          [:td (pr-str (:nodes f))]]
+         [:tr
+          [:td "fn"]
+          [:td (pr-str (:fun&args f))]]]))
+
+(defmethod node->ui :default [n]
+  (pr-str n))
+
+(defcomponent debugger-item [flow i active? current?]
+  [:li [:div
+        {:classes {:active (= :in active?)
+                   :active-out (= :out active?)
+                   :current current?}
+         :onMouseOver (fn []
+                        ;(when-not (= (get-in @state [:editor :active-flow]) i)
+                        ;  (swap! state assoc-in [:editor :active-flow] i))
+                        )}
+        [:div
+         (node->ui flow)]]]
+  )
+
+(defcomponent debugger-path [iy cx cy y active?]
+  [:path {:d (str "M 100 " iy " Q " cx " " cy " 100 " y)
+                :stroke (condp = active?
+                          :in "#00aaaa"
+                          :out "#aa00aa"
+                          true "#00aaaa"
+                          "none")
+                :fill "none"}]
+  )
+
+(-> @cur-env :kn :trace (aget 9))
+
+(defn debugger-middle [cur-state env node]
+  (let [flows (map-indexed vector (-> env :rules :node->flow))
+        out-nodes (-> env :kn :node->out-nodes)
+        cur-active (or node (get-in cur-state [:editor :active-flow]))
+        active-ins (when-let [cur (nth flows cur-active false)]
+                     (set (-> cur
+                              (second)
+                              (language/flow->nodes))))
+        active-outs (when-let [cur (aget out-nodes cur-active)]
+                      (set cur))]
+    [:div#debugger-middle
+     [:svg {:width 100 :height (* 60 (count flows))}
+      (concat
+       (for [[i flow] flows
+             :let [iy (+ 25 (* i 60))]
+             in (language/flow->nodes flow)
+             :let [y (+ 25 (* in 60))
+                   diff (js/Math.abs (- iy y))
+                   cx (- 100 (max 30 (min 100 (* 10 (js/Math.abs (- i in))))))
+                   cy (if (> iy y)
+                        (+ y (/ diff 2))
+                        (+ iy (/ diff 2)))]]
+         (debugger-path iy cx cy y (if (= i cur-active) :in))
+         )
+       (for [[i flow] flows
+             :let [iy (+ 25 (* i 60))]
+             in (aget out-nodes i)
+             :let [y (+ 25 (* in 60))
+                   diff (js/Math.abs (- iy y))
+                   cx (- 100 (max 30 (min 100 (* 10 (js/Math.abs (- i in))))))
+                   cy (if (> iy y)
+                        (+ y (/ diff 2))
+                        (+ iy (/ diff 2)))]]
+         (debugger-path iy cx cy y (if (= i cur-active) :out))
+         )
+       )]
+     [:ul
+      (for [[i flow] flows
+            :let [active? (cond
+                           (get active-ins i false) :in
+                           (get active-outs i false) :out
+                           :else nil)]]
+        (debugger-item flow i active? (= i cur-active))
+        )]
+     ]))
+
+(defn debugger-in [cur-state env in node]
+  [:div#debugger-facts
+   [:ul {:style {:margin-top (max 15 (+ 15 (* node 60)))}}
+    (for [i in]
+      [:li
+       (rule-ui (fact->map i) nil nil)]
+      )]])
+
+(defn debugger [cur-state env]
+  (let [step (get-in cur-state [:editor :debugger-step] 0)
+        trace (get-in env [:kn :trace])
+        [node in out] (aget trace step)]
+    [:div#canvas.debugger {:tabindex 0
+                           :onKeyDown (fn [e]
+                                        (println "key down")
+                                        (when (= (.-keyCode e) (:right key-codes))
+                                          (swap! state update-in [:editor :debugger-step] cycling-move (alength trace) inc)
+                                          )
+                                        (when (= (.-keyCode e) (:left key-codes))
+                                          (swap! state update-in [:editor :debugger-step] cycling-move (alength trace) dec)
+                                          )
+                                        )}
+     [:div#debugger-controls
+      [:p "step: " (inc step) " of " (count trace)]
+      [:button {:onClick (fn []
+                           (swap! state update-in [:editor :debugger-step] cycling-move (alength trace) dec)
+                           )}
+       "<"]
+      [:button {:onClick (fn []
+                           (swap! state update-in [:editor :debugger-step] cycling-move (alength trace) inc)
+                           )}
+       ">"]
+      ]
+     (debugger-in cur-state env in node)
+     (debugger-middle cur-state env node)
+     (debugger-in cur-state env out node)
+     ]))
+
 (defn editor-ui []
   [:div#root
    (when-let [cur-menu (:menu @state)]
      (menu cur-menu))
    (header (:program @state))
-   [:div#canvas
-    (results @cur-env @state)
-    [:div#canvas-editor
-     (rules (get-in @state [:program]) @state)
-
-     ]
-    ]
+   (condp = (get-in @state [:editor :mode])
+     :debugger (debugger @state @cur-env)
+     nil [:div#canvas
+          (results @cur-env @state)
+          [:div#canvas-editor
+           (rules (get-in @state [:program]) @state)
+           ]]
+     )
    ])
 
 (defn page-list []
