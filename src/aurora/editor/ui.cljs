@@ -377,8 +377,6 @@
                 :fill "none"}]
   )
 
-(-> @cur-env :kn :trace (aget 9))
-
 (defn debugger-middle [cur-state env node]
   (let [flows (map-indexed vector (-> env :rules :node->flow))
         out-nodes (-> env :kn :node->out-nodes)
