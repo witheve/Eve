@@ -224,10 +224,13 @@
       (dotimes [i (alength in-facts)]
         (let [fact (aget in-facts i)
               key (fact-ixes fact key-ixes)
-              facts (or (get index key) #{})] ;; TODO transients are not seqable :(
+              facts (or (get index key)
+                        (let [facts (transient #{})]
+                          (assoc!! index key facts)
+                          facts))]
           (if (not (contains? facts fact))
             (do
-              (assoc!! index key (conj facts fact))
+              (conj!! facts fact)
               (apush out-facts fact))
             (aset node->stats node "dupes" (+ (aget node->stats node "dupes") 1)))))
       (aset node->state node index))))
