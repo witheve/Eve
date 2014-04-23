@@ -24,6 +24,15 @@
   (-seq [this]
         (keys (.-transient-map this))))
 
+(defn arr= [arr-a arr-b]
+  (and (== (alength arr-a) (alength arr-b))
+       (loop [i 0]
+         (if (>= i (alength arr-a))
+           true
+           (if (= (aget arr-a i) (aget arr-b i))
+             (recur (+ i 1))
+             false)))))
+
 ;; TODO facts and plans need to be serializable
 
 ;; FACTS
@@ -49,13 +58,7 @@
   (-equiv [this other]
           (and (instance? Fact other)
                (= shape (.-shape other))
-               (== (alength values) (alength (.-values other)))
-               (loop [i 0]
-                 (if (>= i (alength values))
-                   true
-                   (if (= (aget values i) (aget (.-values other) i))
-                     (recur (+ i 1))
-                     false)))))
+               (arr= values (.-values other))))
 
   IHash
   (-hash [this]
@@ -844,9 +847,9 @@
   (let [unchanged? (and (= (:plan old-state) (:plan new-state))
                         (every?
                          (fn [shape]
-                           (and (= (get-facts old-state :known|pretended shape) (get-facts new-state :known|pretended shape))
-                                (= (get-facts old-state :remembered shape) (get-facts new-state :remembered shape))
-                                (= (get-facts old-state :forgotten shape) (get-facts new-state :forgotten shape))))
+                           (and (arr= (get-facts old-state :known|pretended shape) (get-facts new-state :known|pretended shape))
+                                (arr= (get-facts old-state :remembered shape) (get-facts new-state :remembered shape))
+                                (arr= (get-facts old-state :forgotten shape) (get-facts new-state :forgotten shape))))
                          (get-in old-state [:plan :kind->shape :known])))]
     (js/console.timeEnd "unchanged?")
     unchanged?))
