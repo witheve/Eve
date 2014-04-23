@@ -5,6 +5,25 @@
 
 (declare resolve)
 
+(extend-protocol ISeqable
+  TransientArrayMap
+  (-seq [this]
+        (if (.-editable? this)
+          (persistent-array-map-seq (.-arr this) 0 nil)
+          (throw (js/Error. "seq after persistent"))))
+  TransientHashMap
+  (-seq [this]
+        (if (.-edit this)
+          (when (pos? (.-count this))
+            (let [s (if-not (nil? (.-root this)) (.inode-seq (.-root this)))]
+              (if (.-has-nil? this)
+                (cons [nil (.-nil-val this)] s)
+                s)))
+          (throw (js/Error. "seq after persistent"))))
+  TransientHashSet
+  (-seq [this]
+        (keys (.-transient-map this))))
+
 ;; TODO facts and plans need to be serializable
 
 ;; FACTS
@@ -710,13 +729,10 @@
 
 (defn get-facts [state memory shape]
   (memory! memory)
-  (let [node (get-memory (:plan state) memory shape)
-        facts (persistent! (aget (:node->state state) node))]
-    (aset (:node->state state) node (transient facts))
-    facts))
+  (let [node (get-memory (:plan state) memory shape)]
+    (into-array (aget (:node->state state) node))))
 
 ;; TODO make this incremental
-;; TODO wasteful to do the persistent/transient dance when there are no remembered/forgotten facts
 (defn tick
   ([plan] (tick plan (flow-plan->flow-state plan)))
   ([plan state]
@@ -725,16 +741,16 @@
      (js/console.timeEnd "plan->state")
      (js/console.time "tick")
      (doseq [shape (get-in state [:plan :kind->shape :known])] ;; using old plan here
-       (let [known (transient (get-facts state :known|pretended shape))
-             remembered (get-facts state :remembered shape)
-             forgotten (get-facts state :forgotten shape)]
+       (let [known (aget (:node->state state) (get-memory (:plan state) :known|pretended shape))
+             remembered (aget (:node->state state) (get-memory (:plan state) :remembered shape))
+             forgotten (aget (:node->state state) (get-memory (:plan state) :forgotten shape))
+             new-known (aget (:node->facts new-state) (get-memory (:plan new-state) :known|pretended shape))]
+         (doseq [fact known]
+           (when (or (not (contains? forgotten fact)) (contains? remembered fact))
+             (apush new-known fact)))
          (doseq [fact remembered]
-           (when (not (contains? forgotten fact))
-             (conj!! known fact)))
-         (doseq [fact forgotten]
-           (when (not (contains? remembered fact))
-             (disj!! known fact)))
-         (add-facts new-state :known|pretended shape (persistent! known))))
+           (when (and (not (contains? known fact)) (not (contains? forgotten fact)))
+             (apush new-known fact)))))
      (js/console.timeEnd "tick")
      new-state)))
 
@@ -818,7 +834,7 @@
       (swap! shape->kind assoc (.-shape fact) :known))
     (doseq [[shape _] aurora.runtime.stdlib/madlibs]
       (swap! shape->kind assoc shape :pretended))
-    (merge @shape->kind default-shape->kind)))
+    @shape->kind))
 
 (defn rules->plan [rules facts]
   (shapes&kinds&rules->plan (rules->shapes&kinds rules facts) rules))
