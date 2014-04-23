@@ -53,14 +53,14 @@
 
 (defmethod compile-clause "change" [clause vars]
   (let [rule (get-in @state [:program :madlibs (:ml clause)])
-        new-bound-syms (:aurora.editor.ui/new clause {})
+        new-bound-syms (get clause :aurora.editor.ui/new {})
         placeholders (into {} (for [k (keys (:placeholders rule))]
                                 [k (or (new-bound-syms k) (symbol k))]))
         clause (dissoc clause :type :aurora.editor.ui/new :aurora.editor.fake/new)
         syms (into {} (for [k (keys (dissoc clause :ml))]
                         [k (gensym k)]))
         sees (for [[k v] (dissoc clause :ml)]
-               (language/Compute. (language/->Let (syms k) (extract-vars v vars) v)))
+               (language/Compute. (language/->Let (syms k) (extract-vars v (into vars (vals placeholders))) v)))
         jsd (into clause (for [[k v] (dissoc clause :ml)]
                            [k (syms k)]))
         ]

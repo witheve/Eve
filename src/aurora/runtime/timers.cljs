@@ -43,7 +43,7 @@
             (js/clearTimeout (:timer aurora-refresh)))
           (set! aurora-refresh {:wait refresh
                                 :timer (js/setInterval (fn []
-                                                         (queue (stdlib/map->fact {:ml :aurora/refresh-tick})))
+                                                         (queue (stdlib/map->fact {:ml :aurora/tick})))
                                                        refresh)})))
       (do
         (js/clearTimeout (:timer aurora-refresh))

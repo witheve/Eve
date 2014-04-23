@@ -12,7 +12,7 @@
             [aurora.editor.core :refer [state cur-env aurora-state]]
             [aurora.editor.component]
             [aurora.editor.components.value-editor :refer [value-editor on-value-editor-show]]
-            [aurora.editor.components.matcher :refer [instance]]
+            [aurora.editor.components.matcher :refer [instance] :as matcher]
             [cljs.reader :as reader]
             [aurora.editor.dom :as dom]
             [clojure.set :as set]
@@ -226,14 +226,15 @@
   (let [kn (:kn env)]
     [:div#results
      [:div#ui-preview]
-     [:ul
-      (for [fact (sort-by (comp str #(.-shape %)) (language/get-facts-compat kn :known|pretended))]
-        [:li {:onContextMenu (fn []
-                               (swap! cur-env update-in [:kn] #(-> %
-                                                                   (representation/retract-facts #{fact})
-                                                                   (representation/tick))))}
-         [:div
-          (rule-ui (fact->map fact) nil nil)]])]
+       [:ul
+        (for [fact (take 20 (sort-by (comp str #(.-shape %)) (language/get-facts-compat kn :known|pretended)))]
+          [:li {:onContextMenu (fn []
+                                 (language/add-facts (:kn @cur-env) :forgotten (.-shape fact) [fact])
+                                 (language/fixpoint! (:kn @cur-env))
+                                 (runtime/handle-feed cur-env [] {})
+                                 )}
+           [:div
+            (rule-ui (fact->map fact) nil nil)]])]
      ]
     ))
 
@@ -248,7 +249,10 @@
        (for [[i m] (map-indexed vector ["when" "remember" "forget" "pretend" "draw" "change"])]
          [:li {:classes {:selected (= i (:selected matcher))}
                :onClick (fn []
-                          (swap! state assoc-in [:matcher :type] m)
+                          (condp = m
+                            "draw" (matcher/add-node (get-in @state [:matcher :path]) {:type "draw"
+                                                                                       "ui" nil})
+                           (swap! state assoc-in [:matcher :type] m))
                           )}
           m]
          )]]

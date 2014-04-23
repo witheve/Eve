@@ -9,12 +9,14 @@
                       :placeholders {"ui" {:order 0 :type "ui" "type" "ui"}}}
               })
 
-(def madlibs {:aurora/time {:madlib ["the current time is ", "time"]
+(def madlibs {:aurora/tick {}
+              :aurora/time {:madlib ["the current time is ", "time"]
                             :madlib-str "the current time is [time]"
                             :placeholders {"time" {:order 0
                                                    :type "time"}}}
               :aurora/refresh {:madlib ["refresh the time after ", "waiting time"]
                                :madlib-str "refresh the time after [waiting time]"
+                               :remembered true
                                :placeholders {"waiting time" {:order 0
                                                               :type "duration"}}}
               :timers/tick {:madlib ["timer", " ticked at ", "time"]
@@ -69,46 +71,40 @@
                                                           :type "html event"}
                                                  "id" {:order 1
                                                        :type "id"}}}
-              :ui/onClick {:madlib ["id", " is clicked, causing " "event" " on " "entity"]
-                           :madlib-str "[id] is clicked, causing [event] on [entity]"
+              :ui/onClick {:madlib ["id", " was clicked"]
+                           :madlib-str "[id] was clicked"
                            :placeholders {"id" {:order 0
-                                                :type "id"}
-                                          "event" {:order 1
-                                                   :type "string"}
-                                          "entity" {:order 2
-                                                    :type "string"}}}
-              :ui/onDoubleClick {:madlib ["id", " is double clicked raising ", "event", " on ", "entity"]
-                                 :madlib-str "[id] is double clicked raising [event] on [entity]"
+                                                :type "id"}}}
+
+              :ui/onDoubleClick {:madlib ["id", " was double clicked"]
+                                 :madlib-str "[id] was double clicked"
                                  :placeholders {"id" {:order 0
-                                                      :type "id"}
-                                                "event" {:order 1
-                                                         :type "string"}
-                                                "entity" {:order 2
-                                                          :type "id"}}}
-              :ui/onKeyDown {:madlib ["the ", "keyCode", " key is pressed in " "id" " on " "entity"]
+                                                      :type "id"}}}
+
+              :ui/onKeyDown {:madlib ["the ", "keyCode", " key is pressed in " "id"]
                              :madlib-str "the [keyCode] key is pressed in [id]"
                              :placeholders {"id" {:order 0
                                                   :type "id"}
                                             "keyCode" {:order 1
-                                                       :type "key"}
-                                            "entity" {:order 2
-                                                      :type "string"}}}
+                                                       :type "key"}}}
 
-              :ui/onBlur {:madlib ["id", " is blurred with ", "entity"]
+              :ui/onBlur {:madlib ["id", " is blurred"]
                           :madlib-str "[id] is blurred"
                           :placeholders {"id" {:order 0
-                                               :type "id"}
-                                         "entity" {:order 1
-                                                   :type "string"}}}
-              :ui/onChange {:madlib ["id", " changed to ", "value", " raising ", "event", " on ", "entity"]
-                            :madlib-str "[id] changed to [value] raising [event] on [entity]"
+                                               :type "id"}}}
+
+              :ui/onChange {:madlib ["id", " changed to ", "value"]
+                            :madlib-str "[id] changed to [value]"
                             :placeholders {"id" {:order 0
                                                  :type "id"}
                                            "value" {:order 1
+                                                    :type "string"}}}
+
+              :ui/custom {:madlib ["event", " called on ", "entity"]
+                            :madlib-str "[event] called on [entity]"
+                            :placeholders {"event" {:order 0
                                                     :type "string"}
-                                           "event" {:order 2
-                                                    :type "string"}
-                                           "entity" {:order 3
+                                           "entity" {:order 1
                                                      :type "id"}}}
               :http/get {:madlib ["fetch " "url" " and call it ", "id"]
                          :madlib-str "fetch [url] and call it [id]"

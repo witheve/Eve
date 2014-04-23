@@ -838,8 +838,10 @@
           (swap! shape->kind assoc (.-shape (:pattern clause)) :known))))
     (doseq [fact facts]
       (swap! shape->kind assoc (.-shape fact) :known))
-    (doseq [[shape _] aurora.runtime.stdlib/madlibs]
-      (swap! shape->kind assoc shape :pretended))
+    (doseq [[shape v] aurora.runtime.stdlib/madlibs]
+      (if-not (:remembered v)
+        (swap! shape->kind assoc shape :pretended)
+        (swap! shape->kind assoc shape :known)))
     @shape->kind))
 
 (defn rules->plan [rules facts]

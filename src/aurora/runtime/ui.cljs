@@ -90,7 +90,11 @@
                                                                             "event" event-key
                                                                             "id" id
                                                                             "entity" entity}
-                                                                           (event->params event e)))))]))
+                                                                           (event->params event e))))
+                                           (queue (stdlib/map->fact (merge {:ml :ui/custom
+                                                                            "event" event-key
+                                                                            "entity" entity})))
+                                           )]))
         el-attrs (if (seq el-styles)
                    (assoc el-attrs :style el-styles)
                    el-attrs)]
@@ -167,7 +171,8 @@
 
 (defn hiccup->facts [& hic]
   (let [facts (array)]
-    (doseq [h hic]
+    (doseq [h hic
+            :when h]
       (fact-walk h facts []))
     (vec facts)))
 
