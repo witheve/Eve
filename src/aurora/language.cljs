@@ -29,7 +29,7 @@
        (loop [i 0]
          (if (>= i (alength arr-a))
            true
-           (if (= (aget arr-a i) (aget arr-b i))
+           (if (== (aget arr-a i) (aget arr-b i))
              (recur (+ i 1))
              false)))))
 
