@@ -19,13 +19,13 @@
   `(~'js* ~(str (munge name) "= ~{}") ~val))
 
 (defmacro conj!! [name val]
-  `(set!! ~name (conj! ~name ~val)))
+  `(set!! ~name (cljs.core/-conj! ~name ~val)))
 
 (defmacro disj!! [name val]
-  `(set!! ~name (disj! ~name ~val)))
+  `(set!! ~name (cljs.core/-disj! ~name ~val)))
 
 (defmacro assoc!! [name key val]
-  `(set!! ~name (assoc! ~name ~key ~val)))
+  `(set!! ~name (cljs.core/-assoc! ~name ~key ~val)))
 
 (defmacro console-time [name group & body]
   `(do
