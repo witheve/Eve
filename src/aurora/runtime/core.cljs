@@ -58,7 +58,7 @@
         (cond
          (>= i 10) (do
                      (js/console.timeEnd "quiescience")
-                     (println "Aborting!")
+                     (js/alert "Aborting!")
                      (aurora.runtime.ui/on-bloom-tick cur (:feeder-fn env))
                      cur)
          (language/unchanged? prev cur) (do
