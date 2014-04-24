@@ -849,9 +849,7 @@
   (let [unchanged? (and (= (:plan old-state) (:plan new-state))
                         (every?
                          (fn [shape]
-                           (and (arr= (get-facts old-state :known|pretended shape) (get-facts new-state :known|pretended shape))
-                                (arr= (get-facts old-state :remembered shape) (get-facts new-state :remembered shape))
-                                (arr= (get-facts old-state :forgotten shape) (get-facts new-state :forgotten shape))))
+                           (arr= (get-facts old-state :known|pretended shape) (get-facts new-state :known|pretended shape)))
                          (get-in old-state [:plan :kind->shape :known])))]
     (js/console.timeEnd "unchanged?")
     unchanged?))
