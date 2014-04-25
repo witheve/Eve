@@ -9,7 +9,7 @@
   (assoc! [tcoll k v]
           (assert (not (nil? k)) "Nil key")
           (let [added-leaf? (Box. false)
-                node (.inode-assoc! root edit 0 (.-__hash k) k v added-leaf?)]
+                node (.inode-assoc! root false 0 (.hash k) k v added-leaf?)]
             (set! root node)
             (if ^boolean (.-val added-leaf?)
               (set! count (+ count 1)))
@@ -19,7 +19,7 @@
   (without! [tcoll k]
     (assert (not (nil? k)) "Nil key")
     (let [removed-leaf? (Box. false)
-          node (.inode-without! root edit 0 (.-__hash k) k removed-leaf?)]
+          node (.inode-without! root false 0 (.hash k) k removed-leaf?)]
       (set! root node)
       (if (aget removed-leaf? 0)
         (set! count (- count 1)))
@@ -30,11 +30,11 @@
 
   (lookup [tcoll k]
           (assert (not (nil? k)) "Nil key")
-          (.inode-lookup root 0 (.-__hash k) k))
+          (.inode-lookup root 0 (.hash k) k))
 
   (lookup [tcoll k not-found]
           (assert (not (nil? k)) "Nil key")
-          (.inode-lookup root 0 (.-__hash k) k not-found))
+          (.inode-lookup root 0 (.hash k) k not-found))
 
   ISeqable
   (-seq [this]

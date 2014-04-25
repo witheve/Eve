@@ -56,19 +56,6 @@
           (and (instance? FactShape other)
                (= id (.-id other)))))
 
-(defn fact-hash [values]
-  (if (> (alength values) 0)
-    (loop [result 0
-           i 0]
-      (if (< i (alength values))
-        (let [value (aget values i)
-              h (if (string? value)
-                  (js/goog.string.hashCode value)
-                  (js-mod (js/Math.floor value) 2147483647))]
-          (recur (hash-combine result h) (+ i 1)))
-        result))
-    0))
-
 ;; if given a shape behaves like a record, otherwise behaves like a vector
 (deftype Fact [shape values ^:mutable __hash]
   Object
@@ -76,6 +63,22 @@
             (if (and shape (instance? FactShape shape))
               (apply str (interleave (.-madlib shape) (map (fn [k v] (str "[" (name k) " = " (pr-str v) "]")) (.-keys shape) values)))
               (apply str (when shape (str " " shape " ")) (map (fn [v] (str "[_ = " (pr-str v) "]")) values))))
+  (hash [this]
+        (if __hash
+          __hash
+          (let [hash (if (> (alength values) 0)
+                       (loop [result 0
+                              i 0]
+                         (if (< i (alength values))
+                           (let [value (aget values i)
+                                 h (if (string? value)
+                                     (js/goog.string.hashCode value)
+                                     (js-mod (js/Math.floor value) 2147483647))]
+                             (recur (hash-combine result h) (+ i 1)))
+                           result))
+                       0)]
+            (set! __hash hash)
+            hash)))
 
   IEquiv
   (-equiv [this other]
@@ -85,7 +88,7 @@
 
   IHash
   (-hash [this]
-         __hash)
+         (.hash this))
 
   IIndexed
   (-nth [this n]
@@ -116,13 +119,13 @@
 (defn fact
   ([values]
    (assert (array? values) (pr-str values))
-   (Fact. nil values (fact-hash values)))
+   (Fact. nil values nil))
   ([shape values]
    (assert (or (instance? FactShape shape) (keyword? shape) (string? shape)) (pr-str shape))
    (assert (array? values) (pr-str values))
    (if (instance? FactShape shape)
      (assert (= (alength values) (alength (.-keys shape))) (pr-str values shape)))
-   (Fact. shape values (fact-hash values))))
+   (Fact. shape values nil)))
 
 (defn fact-ix [fact ix]
   (aget (.-values fact) ix))
@@ -132,11 +135,11 @@
         values (.-values fact)]
     (dotimes [i (count ixes)]
       (apush result (aget values (aget ixes i))))
-    (Fact. nil result (fact-hash result))))
+    (Fact. nil result nil)))
 
 (defn fact-join [left-fact right-fact]
   (let [values (.concat (.-values left-fact) (.-values right-fact))]
-    (Fact. nil values (fact-hash values))))
+    (Fact. nil values nil)))
 
 (comment
   (fact-shape ::eg "[a] has a [b] with a [c]")
@@ -397,7 +400,7 @@
             new-values (aclone values)
             new-value (.apply let-fun nil values)]
         (apush new-values new-value)
-        (Fact. nil new-values (fact-hash new-values))))))
+        (Fact. nil new-values nil)))))
 
 (defn when-let->fun [name-ix vars expr]
   (let [let-fun (expr->fun vars expr)]
@@ -442,7 +445,7 @@
           sink (aclone values)]
       (dotimes [i (alength source-ixes)]
         (aset sink (aget sink-ixes i) (aget source (aget source-ixes i))))
-      (Fact. shape sink (fact-hash sink)))))
+      (Fact. shape sink nil))))
 
 (defn pattern->deconstructor [pattern]
   (let [seen? (atom {})
