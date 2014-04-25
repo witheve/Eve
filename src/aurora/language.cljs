@@ -464,11 +464,11 @@
     (let [source (.-values fact)]
       (loop [i 0]
         (if (< i (alength constant-values))
-          (when (= (aget constant-values i) (aget source (aget constant-ixes i)))
+          (when (== (aget constant-values i) (aget source (aget constant-ixes i)))
             (recur (+ i 1)))
           (loop [i 0]
             (if (< i (alength dup-value-ixes))
-              (when (= (aget source (aget dup-value-ixes i)) (aget source (aget dup-var-ixes i)))
+              (when (== (aget source (aget dup-value-ixes i)) (aget source (aget dup-var-ixes i)))
                 (recur (+ i 1)))
               fact)))))))
 
