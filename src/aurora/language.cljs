@@ -1,6 +1,7 @@
 (ns aurora.language
-  (:require [clojure.set :refer [union intersection difference subset?]])
-  (:require-macros [aurora.macros :refer [console-time set!! conj!! disj!! assoc!! apush apush* avec]]
+  (:require [clojure.set :refer [union intersection difference subset?]]
+            [aurora.data :as data])
+  (:require-macros [aurora.macros :refer [console-time set!! conj!! disj!! assoc!! apush apush* avec aclear]]
                    [aurora.language :refer [deffact]]))
 
 (declare resolve)
@@ -55,6 +56,15 @@
           (and (instance? FactShape other)
                (= id (.-id other)))))
 
+(defn fact-hash [values]
+  (if (> (alength values) 0)
+    (loop [result (hash (aget values 0))
+           i 1]
+      (if (< i (alength values))
+        (recur (hash-combine result (hash (aget values i))) (+ i 1))
+        result))
+    0))
+
 ;; if given a shape behaves like a record, otherwise behaves like a vector
 (deftype Fact [shape values ^:mutable __hash]
   Object
@@ -71,17 +81,7 @@
 
   IHash
   (-hash [this]
-         (if __hash
-           __hash
-           (let [hash (if (> (alength values) 0)
-                        (loop [result (hash (aget values 0))
-                               i 1]
-                          (if (< i (alength values))
-                            (recur (hash-combine result (hash (aget values i))) (+ i 1))
-                            result))
-                        0)]
-             (set! __hash hash)
-             hash)))
+         __hash)
 
   IIndexed
   (-nth [this n]
@@ -112,13 +112,13 @@
 (defn fact
   ([values]
    (assert (array? values) (pr-str values))
-   (Fact. nil values nil))
+   (Fact. nil values (fact-hash values)))
   ([shape values]
    (assert (or (instance? FactShape shape) (keyword? shape) (string? shape)) (pr-str shape))
    (assert (array? values) (pr-str values))
    (if (instance? FactShape shape)
      (assert (= (alength values) (alength (.-keys shape))) (pr-str values shape)))
-   (Fact. shape values nil)))
+   (Fact. shape values (fact-hash values))))
 
 (defn fact-ix [fact ix]
   (aget (.-values fact) ix))
@@ -128,7 +128,7 @@
         values (.-values fact)]
     (dotimes [i (count ixes)]
       (apush result (aget values (aget ixes i))))
-    (Fact. nil result nil)))
+    (Fact. nil result (fact-hash result))))
 
 (defn fact-join-ixes [left-fact right-fact ixes]
   (let [result #js []
@@ -139,7 +139,7 @@
         (if (< ix (alength left-values))
           (apush result (aget left-values ix))
           (apush result (aget right-values (- ix (alength left-values)))))))
-    (Fact. nil result nil)))
+    (Fact. nil result (fact-hash result))))
 
 (comment
   (fact-shape ::eg "[a] has a [b] with a [c]")
@@ -216,16 +216,12 @@
 
 (defn union-update! []
   (fn [node node->state node->stats in-facts out-facts]
-    (let [set (aget node->state node)]
+    (let [facts (aget node->state node)]
       (dotimes [i (alength in-facts)]
         (let [fact (aget in-facts i)]
-          ;; TODO this double lookup is a bottleneck
-          (if (not (contains? set fact))
-            (do
-              (conj!! set fact)
-              (apush out-facts fact))
-            (aset node->stats node "dupes" (+ (aget node->stats node "dupes") 1)))))
-      (aset node->state node set))))
+          (if (.assoc! facts fact true)
+            (apush out-facts fact)
+            (aset node->stats node "dupes" (+ (aget node->stats node "dupes") 1))))))))
 
 (defn index-update! [key-ixes]
   (fn [node node->state node->stats in-facts out-facts]
@@ -233,13 +229,13 @@
       (dotimes [i (alength in-facts)]
         (let [fact (aget in-facts i)
               key (fact-ixes fact key-ixes)
-              facts (or (get index key) (transient #{}))]
-          (if (not (contains? facts fact))
-            (do
-              (assoc!! index key (conj! facts fact))
-              (apush out-facts fact))
-            (aset node->stats node "dupes" (+ (aget node->stats node "dupes") 1)))))
-      (aset node->state node index))))
+              facts (or (.lookup index key)
+                        (do (let [facts (data/fact-map)]
+                              (.assoc! index key facts)
+                              facts)))]
+          (if (.assoc! facts fact true)
+            (apush out-facts fact)
+            (aset node->stats node "dupes" (+ (aget node->stats node "dupes") 1))))))))
 
 (defn lookup-update! [index-node key-ixes val-ixes]
   (fn [node node->state node->stats in-facts out-facts]
@@ -247,40 +243,8 @@
       (dotimes [i (alength in-facts)]
         (let [left-fact (aget in-facts i)
               key (fact-ixes left-fact key-ixes)]
-          (doseq [right-fact (get index key)]
+          (doseq [right-fact (keys (.lookup index key))]
               (apush out-facts (fact-join-ixes left-fact right-fact val-ixes))))))))
-
-(comment
-
-  (deffact edge "[x] has an edge to [y]")
-  (deffact connected "[x] is connected to [y]")
-
-  ;; [x] has an edge to [y]
-  ;; + [x] is connected to [y]
-
-  ;; [x] has an edge to [y]
-  ;; [y] is connected to [z]
-  ;; + [x] is connected to [z]
-
-  (->
-   (->
-    (->FlowState #js [(transient #{}) nil nil (transient {}) (transient {}) nil nil]
-                 #js [#js [1 2] #js [3 7] #js [4] #js [5] #js [6] #js [7] #js [7] #js [0]]
-                   #js [#js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)] #js [] #js [] #js [] #js [] #js [] #js [] #js []]
-                   #js [(union-update!)
-                        (filter-map-update! (fn [x] (when (= edge (.-shape x)) x)))
-                        (filter-map-update! (fn [x] (when (= connected (.-shape x)) x)))
-                        (index-update! #js [1])
-                        (index-update! #js [0])
-                        (lookup-update! 4 #js [1] #js [0 3])
-                        (lookup-update! 3 #js [0] #js [2 1])
-                        (filter-map-update! (fn [x] (->connected (fact-ix x 0) (fact-ix x 1))))])
-    fixpoint!)
-   :node->state
-   (aget 0)
-   persistent!)
-
-  )
 
 ;; FLOWS
 
@@ -310,9 +274,9 @@
       (let [flow (nth node->flow node)]
         (aset node->state node
               (condp = (type flow)
-                Union (transient #{})
+                Union (data/fact-map)
                 FilterMap nil
-                Index (transient {})
+                Index (data/fact-map)
                 Lookup nil))
         (doseq [in-node (:nodes flow)]
           (apush (aget node->out-nodes in-node) node))
@@ -344,9 +308,9 @@
         (let [flow (nth node->flow node)]
           (aset node->state node
               (condp = (type flow)
-                Union (transient #{})
+                Union (data/fact-map)
                 FilterMap nil
-                Index (transient {})
+                Index (data/fact-map)
                 Lookup nil))
           (aset node->stats node
               (condp = (type flow)
@@ -403,7 +367,6 @@
 (defn add-output [flow-plan input-node memory shape]
   (update-in flow-plan [:node->flow (get-memory flow-plan memory shape) :nodes] conj input-node))
 
-
 ;; IXES
 
 (defn ix-of [vector value]
@@ -437,7 +400,7 @@
             new-values (aclone values)
             new-value (.apply let-fun nil values)]
         (apush new-values new-value)
-        (Fact. nil new-values nil)))))
+        (Fact. nil new-values (fact-hash new-values))))))
 
 (defn when-let->fun [name-ix vars expr]
   (let [let-fun (expr->fun vars expr)]
@@ -479,7 +442,7 @@
           sink (aclone values)]
       (dotimes [i (alength source-ixes)]
         (aset sink (aget sink-ixes i) (aget source (aget source-ixes i))))
-      (Fact. shape sink nil))))
+      (Fact. shape sink (fact-hash sink)))))
 
 (defn pattern->deconstructor [pattern]
   (let [shape (.-shape pattern)
@@ -517,28 +480,7 @@
               (let [sink (make-array (alength var-ixes))]
                 (dotimes [i (alength var-ixes)]
                   (aset sink i (aget source (aget var-ixes i))))
-                (Fact. nil sink nil)))))))))
-
-(comment
-  (deffact eg "[a] has a [b] with a [c]")
-
-  (pattern->vars (->eg 'a "b" 'c))
-
-  ((pattern->constructor (->eg "a" "b" "c") '[a b c]) (->eg 0 1 2))
-  ((pattern->constructor (->eg 'a "b" "c") '[a b c]) (->eg 0 1 2))
-  ((pattern->constructor (->eg 'c "b" "a") '[a b c]) (->eg 0 1 2))
-  ((pattern->constructor (->eg 'c 'c 'c) '[a b c]) (->eg 0 1 2))
-
-  ((pattern->deconstructor (->eg 'a "b" 'c)) (->eg "a" "b" "c"))
-  ((pattern->deconstructor (->eg 'a "b" 'c)) (->eg "a" "B" "c"))
-  ((pattern->deconstructor (->eg 'a "b" "c")) (->eg "a" "b" "c"))
-  ((pattern->deconstructor (->eg "a" "b" "c")) (->eg "a" "b" "c"))
-  ((pattern->deconstructor (->eg 'a 'b 'c)) (->eg "a" "b" "c"))
-  ((pattern->deconstructor (->eg 'a 'b 'a)) (->eg "a" "b" "c"))
-  ((pattern->deconstructor (->eg 'a 'b 'a)) (->eg "a" "b" "a"))
-  ((pattern->deconstructor (->eg 'a 'a 'a)) (->eg "a" "b" "a"))
-  ((pattern->deconstructor (->eg 'a 'a 'a)) (->eg "a" "a" "a"))
-  )
+                (Fact. nil sink (fact-hash sink))))))))))
 
 ;; CLAUSES
 
@@ -579,28 +521,6 @@
                  plan (add-output plan output-node output-memory (.-shape pattern))]
              [plan nodes vars])))
 
-(comment
-  (let [plan empty-flow-plan
-        [plan nodes-a vars-a] (add-clause plan nil nil (Recall. :known|pretended (->edge 'x 'y)))
-        [plan nodes-b vars-b] (add-clause plan nil nil (Recall. :known (->connected 'x 0)))]
-    [plan nodes-a nodes-b vars-a vars-b])
-
-  (let [plan empty-flow-plan
-        [plan nodes-a vars-a] (add-clause plan nil nil (Recall. :known|pretended (->edge 'x 'y)))
-        [plan nodes-b vars-b] (add-clause plan nodes-a vars-a (Compute. (->Let 'z '[x y] "x + y")))]
-    [plan nodes-a nodes-b vars-a vars-b])
-
-  (let [plan empty-flow-plan
-        [plan nodes-a vars-a] (add-clause plan nil nil (Recall. :known|pretended (->edge 'x 'y)))
-        res (add-clause plan nodes-a vars-a (Compute. (->Let 'z '[w x y] "w + x + y")))]
-    res)
-
-  (let [plan empty-flow-plan
-        [plan nodes-a vars-a] (add-clause plan nil nil (Recall. :known|pretended (->edge 'x 'y)))
-        [plan nodes-b vars-b] (add-clause plan nodes-a vars-a (Compute. (->When '[x y] "x > y")))]
-    [plan nodes-a nodes-b vars-a vars-b])
-  )
-
 ;; RULES
 
 (defrecord Rule [clauses])
@@ -639,15 +559,6 @@
         [plan lookup-b] (add-flow plan (->Lookup [index-b] index-a lookup-ixes-b val-ixes-b))]
     [plan [lookup-a lookup-b] (vec (distinct (concat vars-a vars-b)))]))
 
-(comment
-
-  (let [plan empty-flow-plan
-        [plan nodes-a vars-a] (add-clause plan nil nil (Recall. :known|pretended (->edge 'x 'y)))
-        [plan nodes-b vars-b] (add-clause plan nil nil (Recall. :known (->connected 'y 'z)))
-        [plan nodes-c vars-c] (join-clauses plan nodes-a vars-a #{} nodes-b vars-b #{})]
-    [plan nodes-c vars-c])
-  )
-
 (defn add-rule [plan rule]
   (let [recalls (filter #(= Recall (type %)) (:clauses rule))
         computes (set (filter #(= Compute (type %)) (:clauses rule)))
@@ -678,57 +589,6 @@
   ;; TODO stratify
   (reduce add-rule plan rules))
 
-(comment
-  (deffact edge "[x] has an edge to [y]")
-  (deffact connected "[x] is connected to [y]")
-
-  (let [plan (-> empty-flow-plan
-                 (add-shape :known edge)
-                 (add-shape :pretended connected)
-                 (add-rules [(Rule. [(Recall. :known|pretended (->edge 'x 'y))
-                                     (Output. :pretended (->connected 'x 'y))])
-                             (Rule. [(Recall. :known|pretended (->edge 'x 'y))
-                                     (Recall. :known|pretended (->connected 'y 'z))
-                                     (Output. :pretended (->connected 'x 'z))])]))
-        state (flow-plan->flow-state plan)]
-    (add-facts state :known|pretended edge #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
-    (time (fixpoint! state))
-    (get-facts state :known|pretended connected))
-
-  (enable-console-print!)
-
-  (let [plan (-> empty-flow-plan
-                 (add-shape :known edge)
-                 (add-shape :pretended connected)
-                 (add-rules [(Rule. [(Recall. :known|pretended (->edge 'x 'y))
-                                     (Output. :pretended (->connected 'x 'y))])
-                             (Rule. [(Recall. :known|pretended (->edge 'x 'y))
-                                     (Recall. :known|pretended (->connected 'y 'z))
-                                     (Output. :pretended (->connected 'x 'z))])]))
-        state (flow-plan->flow-state plan)]
-    (add-facts state :known|pretended edge (into-array (for [i (range 100)] (->edge i (inc i)))))
-    (js/console.time "new")
-    (fixpoint! state)
-    (js/console.timeEnd "new")
-    (get-facts state :known|pretended connected))
-  ;; 5 => 1 ms
-  ;; 10 => 8 ms
-  ;; 50 => 1093 ms
-  ;; 100 => 11492 ms
-
-  (let [plan (-> empty-flow-plan
-                 (add-shape :known edge)
-                 (add-shape :pretended connected)
-                 (add-rules [(Rule. [(Recall. :known|pretended (->edge 'x 'y))
-                                     (Compute. (->Let 'z '[x y] "x + y"))
-                                     (Output. :pretended (->connected 'z 'z))])]))
-        state (flow-plan->flow-state plan)]
-    (add-facts state :known|pretended edge (into-array (for [i (range 100)]
-                                                         (->edge i (inc i)))))
-    (fixpoint! state)
-    (get-facts state :known|pretended connected))
-  )
-
 ;; TIME AND CHANGE
 
 (defn add-facts [state memory shape facts]
@@ -742,7 +602,7 @@
 (defn get-facts [state memory shape]
   (memory! memory)
   (let [node (get-memory (:plan state) memory shape)]
-    (into-array (aget (:node->state state) node))))
+    (into-array (keys (aget (:node->state state) node)))))
 
 ;; TODO make this incremental
 (defn tick
@@ -757,11 +617,11 @@
              remembered (aget (:node->state state) (get-memory (:plan state) :remembered shape))
              forgotten (aget (:node->state state) (get-memory (:plan state) :forgotten shape))
              new-known (aget (:node->facts new-state) (get-memory (:plan new-state) :known|pretended shape))]
-         (doseq [fact known]
-           (when (or (not (contains? forgotten fact)) (contains? remembered fact))
+         (doseq [fact (keys known)]
+           (when (or (not (.lookup forgotten fact)) (.lookup remembered fact))
              (apush new-known fact)))
-         (doseq [fact remembered]
-           (when (and (not (contains? known fact)) (not (contains? forgotten fact)))
+         (doseq [fact (keys remembered)]
+           (when (and (not (.lookup known fact)) (not (.lookup forgotten fact)))
              (apush new-known fact)))))
      (js/console.timeEnd "tick")
      new-state)))
@@ -771,26 +631,6 @@
 
 (defn clauses->rule [clauses]
   (Rule. clauses))
-
-(comment
-  (deffact edge "[x] has an edge to [y]")
-  (deffact connected "[x] is connected to [y]")
-
-  (let [plan (-> empty-flow-plan
-                 (add-shape :known edge)
-                 (add-shape :known connected)
-                 (add-rules
-                  [(Rule. [(Recall. :known|pretended (->edge 'x 'y))
-                           (Output. :remembered (->connected 'x 'y))])
-                   (Rule. [(Recall. :known|pretended (->edge 'x 'y))
-                           (Recall. :known|pretended (->connected 'y 'z))
-                           (Output. :remembered (->connected 'x 'z))])]))
-        state-0 (flow-plan->flow-state plan)]
-    (add-facts state-0 :known|pretended edge #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
-  (fixpoint! state-0)
-  (for [state (take 5 (iterate #(tick&fixpoint plan %) state-0))]
-    (count (get-facts state :known|pretended connected))))
-  )
 
 ;; RESOLVE
 
@@ -862,3 +702,86 @@
                          (get-in old-state [:plan :kind->shape :known])))]
     (js/console.timeEnd "unchanged?")
     unchanged?))
+
+;; TESTS
+
+(comment
+  (deffact edge "[x] has an edge to [y]")
+  (deffact connected "[x] is connected to [y]")
+
+  (let [plan (-> empty-flow-plan
+                 (add-shape :known edge)
+                 (add-shape :pretended connected)
+                 (add-rules [(Rule. [(Recall. :known|pretended (->edge 'x 'y))
+                                     (Output. :pretended (->connected 'x 'y))])
+                             (Rule. [(Recall. :known|pretended (->edge 'x 'y))
+                                     (Recall. :known|pretended (->connected 'y 'z))
+                                     (Output. :pretended (->connected 'x 'z))])]))
+        state (flow-plan->flow-state plan)]
+    (add-facts state :known|pretended edge #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
+    (time (fixpoint! state))
+    (get-facts state :known|pretended connected))
+
+  (enable-console-print!)
+
+  (let [plan (-> empty-flow-plan
+                 (add-shape :known edge)
+                 (add-shape :pretended connected)
+                 (add-rules [(Rule. [(Recall. :known|pretended (->edge 'x 'y))
+                                     (Output. :pretended (->connected 'x 'y))])
+                             (Rule. [(Recall. :known|pretended (->edge 'x 'y))
+                                     (Recall. :known|pretended (->connected 'y 'z))
+                                     (Output. :pretended (->connected 'x 'z))])]))
+        state (flow-plan->flow-state plan)]
+    (add-facts state :known|pretended edge (into-array (for [i (range 100)] (->edge i (inc i)))))
+    (js/console.time "new")
+    (fixpoint! state)
+    (js/console.timeEnd "new")
+    (get-facts state :known|pretended connected))
+  ;; 5 => 1 ms
+  ;; 10 => 8 ms
+  ;; 50 => 1093 ms
+  ;; 100 => 11492 ms
+
+  (let [plan (-> empty-flow-plan
+                 (add-shape :known edge)
+                 (add-shape :pretended connected)
+                 (add-rules [(Rule. [(Recall. :known|pretended (->edge 'x 'y))
+                                     (Compute. (->Let 'z '[x y] "x + y"))
+                                     (Output. :pretended (->connected 'z 'z))])]))
+        state (flow-plan->flow-state plan)]
+    (add-facts state :known|pretended edge (into-array (for [i (range 100)]
+                                                         (->edge i (inc i)))))
+    (fixpoint! state)
+    (get-facts state :known|pretended connected))
+  )
+
+(comment
+  (deffact edge "[x] has an edge to [y]")
+  (deffact connected "[x] is connected to [y]")
+
+  (let [plan (-> empty-flow-plan
+                 (add-shape :known edge)
+                 (add-shape :known connected)
+                 (add-rules
+                  [(Rule. [(Recall. :known|pretended (->edge 'x 'y))
+                           (Output. :remembered (->connected 'x 'y))])
+                   (Rule. [(Recall. :known|pretended (->edge 'x 'y))
+                           (Recall. :known|pretended (->connected 'y 'z))
+                           (Output. :remembered (->connected 'x 'z))])]))
+        state-0 (flow-plan->flow-state plan)]
+    (add-facts state-0 :known|pretended edge #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
+  (fixpoint! state-0)
+  (for [state (take 5 (iterate #(tick&fixpoint plan %) state-0))]
+    (count (get-facts state :known|pretended connected))))
+  )
+
+(comment
+
+  (let [u (transient {})]
+    (time
+     (dotimes [i 1000000]
+       (let [fact (fact #js [(mod i 1000) (mod i 100) (mod i 10)])]
+         (assoc!! u fact fact)))))
+
+  )

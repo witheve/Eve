@@ -14,6 +14,12 @@
     (dotimes [i# (alength arr-b#)]
       (apush arr-a# (aget arr-b# i#)))))
 
+(defmacro aclear [arr]
+  (assert (symbol? arr))
+  `(do
+     (~'js* "while (~{}.length > 0) ~{}.pop()" ~arr ~arr)
+     nil))
+
 (defmacro set!! [name val]
   (assert (symbol? name) (str "Can't set!! " (pr-str name)))
   `(~'js* ~(str (munge name) "= ~{}") ~val))
