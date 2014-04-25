@@ -58,10 +58,14 @@
 
 (defn fact-hash [values]
   (if (> (alength values) 0)
-    (loop [result (hash (aget values 0))
-           i 1]
+    (loop [result 0
+           i 0]
       (if (< i (alength values))
-        (recur (hash-combine result (hash (aget values i))) (+ i 1))
+        (let [value (aget values i)
+              h (if (string? value)
+                  (js/goog.string.hashCode value)
+                  (js-mod (js/Math.floor value) 2147483647))]
+          (recur (hash-combine result h) (+ i 1)))
         result))
     0))
 
