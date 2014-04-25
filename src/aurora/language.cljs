@@ -50,7 +50,7 @@
 (deftype FactShape [id madlib keys]
   Object
   (toString [this]
-            (apply str (interleave madlib (map (fn [k] (str "[" (name k) "]")) keys))))
+            (apply str (interleave madlib (concat (map (fn [k] (str "[" (name k) "]")) keys) [""]))))
   IEquiv
   (-equiv [this other]
           (and (instance? FactShape other)
