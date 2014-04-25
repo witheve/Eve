@@ -23,10 +23,7 @@
              (fn [_]
                (let [node->stats (:node->stats (:kn @cur-env))]
                  (dotimes [node (count node->stats)]
-                   (when-let [stats (nth node->stats node)]
-                     (when-let [dupes (aget stats "dupes")]
-                       (when (> dupes 0)
-                         (prn :dupes node dupes (get-in @cur-env [:kn :plan :node->flow node])))))))))
+                   (prn :stats node (aget node->stats node) (get-in @cur-env [:kn :plan :node->flow node]))))))
 
   (assoc (aurora.language/FilterMap. #{} #{}))
 

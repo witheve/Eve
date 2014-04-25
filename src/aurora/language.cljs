@@ -194,6 +194,8 @@
           (let [out-facts #js []]
             (.call (aget node->update! node) nil node node->state node->stats in-facts out-facts)
             (aset node->facts node #js [])
+            (aset node->stats node "count-in" (+ (aget node->stats node "count-in") (alength in-facts)))
+            (aset node->stats node "count-out" (+ (aget node->stats node "count-out") (alength out-facts)))
             (when trace? (.push trace #js [node in-facts out-facts]))
             ;; (prn node in-facts out-facts (nth (:node->flow plan) node))
             (if (> (alength out-facts) 0)
@@ -288,10 +290,10 @@
                 Lookup (lookup-update! (:index-node flow) (:key-ixes flow) (:reverse? flow))))
         (aset node->stats node
               (condp = (type flow)
-                Union #js {:dupes 0}
-                FilterMap nil
-                Index #js {:dupes 0}
-                Lookup nil))))
+                Union #js {:count-in 0 :count-out 0 :dupes 0}
+                FilterMap #js {:count-in 0 :count-out 0 :dupes 0}
+                Index #js {:count-in 0 :count-out 0 :dupes 0}
+                Lookup #js {:count-in 0 :count-out 0 :dupes 0}))))
     (FlowState. node->state node->out-nodes node->facts node->update! node->stats trace plan)))
 
 (defn empty-state-of [plan state]
@@ -314,10 +316,10 @@
                 Lookup nil))
           (aset node->stats node
               (condp = (type flow)
-                Union #js {:dupes 0}
-                FilterMap nil
-                Index #js {:dupes 0}
-                Lookup nil))))
+                Union #js {:count-in 0 :count-out 0 :dupes 0}
+                FilterMap #js {:count-in 0 :count-out 0 :dupes 0}
+                Index #js {:count-in 0 :count-out 0 :dupes 0}
+                Lookup #js {:count-in 0 :count-out 0 :dupes 0}))))
       (FlowState. node->state node->out-nodes node->facts node->update! node->stats trace plan))
     (do (println "Rebuilding state!")
       (flow-plan->flow-state plan))))
