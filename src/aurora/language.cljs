@@ -414,7 +414,10 @@
 ;; PATTERNS
 
 (defn pattern->vars [pattern]
-  (vec (distinct (filter symbol? (.-values pattern)))))
+  (vec (for [value (.-values pattern)]
+         (if (symbol? value)
+           value
+           '_))))
 
 (defn pattern->filter [pattern]
   `(pattern->filter* ~(.-shape pattern)))
@@ -445,11 +448,9 @@
       (Fact. shape sink (fact-hash sink)))))
 
 (defn pattern->deconstructor [pattern]
-  (let [shape (.-shape pattern)
-        seen? (atom {})
+  (let [seen? (atom {})
         constant-values #js []
         constant-ixes #js []
-        var-ixes #js []
         dup-value-ixes #js []
         dup-var-ixes #js []]
     (doseq [[value ix] (map vector (.-values pattern) (range))]
@@ -458,15 +459,13 @@
           (do
             (apush dup-value-ixes dup-value-ix)
             (apush dup-var-ixes ix))
-          (do
-            (apush var-ixes ix)
-            (swap! seen? assoc value ix)))
+          (swap! seen? assoc value ix))
         (do
           (apush constant-values value)
           (apush constant-ixes ix))))
-    `(pattern->deconstructor* ~constant-values ~constant-ixes ~var-ixes ~dup-value-ixes ~dup-var-ixes)))
+    `(pattern->deconstructor* ~constant-values ~constant-ixes ~dup-value-ixes ~dup-var-ixes)))
 
-(defn pattern->deconstructor* [constant-values constant-ixes var-ixes dup-value-ixes dup-var-ixes]
+(defn pattern->deconstructor* [constant-values constant-ixes dup-value-ixes dup-var-ixes]
   (fn [fact]
     (let [source (.-values fact)]
       (loop [i 0]
@@ -477,10 +476,7 @@
             (if (< i (alength dup-value-ixes))
               (when (= (aget source (aget dup-value-ixes i)) (aget source (aget dup-var-ixes i)))
                 (recur (+ i 1)))
-              (let [sink (make-array (alength var-ixes))]
-                (dotimes [i (alength var-ixes)]
-                  (aset sink i (aget source (aget var-ixes i))))
-                (Fact. nil sink (fact-hash sink))))))))))
+              fact)))))))
 
 ;; CLAUSES
 
@@ -502,17 +498,17 @@
              [plan [node] (pattern->vars pattern)])
     Compute (let [{:keys [pattern]} clause]
               (condp = (.-shape pattern)
-                Let (when (every? (set vars) (:vars pattern))
+                Let (when (every? (conj (set vars) '_) (:vars pattern))
                       (let [fun&args (if (contains? (set vars) (:name pattern))
                                        `(when-let->fun ~(ix-of vars (:name pattern)) ~vars ~(:expr pattern))
                                        `(let->fun ~vars ~(:expr pattern)))
                             [plan node] (add-flow plan (->FilterMap nodes fun&args))]
                         [plan [node] (conj vars (:name pattern))]))
-                When (when (every? (set vars) (:vars pattern))
+                When (when (every? (conj (set vars) '_) (:vars pattern))
                        (let [[plan node] (add-flow plan (->FilterMap nodes `(when->fun ~vars ~(:expr pattern))))]
                          [plan [node] vars]))))
     Output (let [{:keys [memory pattern]} clause
-                 _ (assert (every? (set vars) (pattern->vars pattern)))
+                 _ (assert (every? (conj (set vars) '_) (pattern->vars pattern)))
                  [plan output-node] (add-flow plan (FilterMap. nodes (pattern->constructor vars pattern)))
                  output-memory (case memory
                                  :pretended :known|pretended
@@ -541,10 +537,10 @@
       (recur @plan&nodes&vars computes-skipped))))
 
 (defn join-clauses [plan nodes-a vars-a nodes-b vars-b]
-  (let [key-vars (intersection (set vars-a) (set vars-b))
+  (let [key-vars (disj (intersection (set vars-a) (set vars-b)) '_)
         key-vars-a (sort-by #(ix-of vars-a %) key-vars)
         key-vars-b (sort-by #(ix-of vars-b %) key-vars)
-        val-vars (union (set vars-a) (set vars-b))
+        val-vars (disj (union (set vars-a) (set vars-b)) '_)
         index-ixes-a (ixes-of vars-a key-vars-a)
         index-ixes-b (ixes-of vars-b key-vars-b)
         lookup-ixes-a (ixes-of vars-a key-vars-b)
@@ -557,7 +553,7 @@
         [plan index-b'] (add-flow plan (->Index nodes-b index-ixes-b))
         _ (assert (= index-b index-b'))
         [plan lookup-b] (add-flow plan (->Lookup [index-b] index-a lookup-ixes-b val-ixes-b))]
-    [plan [lookup-a lookup-b] (vec (distinct (concat vars-a vars-b)))]))
+    [plan [lookup-a lookup-b] (map #(nth (concat vars-a vars-b) %) val-ixes-a)]))
 
 (defn add-rule [plan rule]
   (let [recalls (filter #(= Recall (type %)) (:clauses rule))
@@ -754,6 +750,24 @@
                                                          (->edge i (inc i)))))
     (fixpoint! state)
     (get-facts state :known|pretended connected))
+
+  (deffact return "[x] is connected to 2")
+
+  (let [plan (-> empty-flow-plan
+                 (add-shape :known edge)
+                 (add-shape :pretended connected)
+                 (add-shape :pretended return)
+                 (add-rules [(Rule. [(Recall. :known|pretended (->edge 'x 'y))
+                                     (Output. :pretended (->connected 'x 'y))])
+                             (Rule. [(Recall. :known|pretended (->edge 'x 'y))
+                                     (Recall. :known|pretended (->connected 'y 'z))
+                                     (Output. :pretended (->connected 'x 'z))])
+                             (Rule. [(Recall. :known|pretended (->connected 'x 2))
+                                     (Output. :pretended (->return 'x))])]))
+        state (flow-plan->flow-state plan)]
+    (add-facts state :known|pretended edge #js [(->edge 0 1) (->edge 1 2) (->edge 2 3) (->edge 3 1)])
+    (time (fixpoint! state))
+    (get-facts state :known|pretended return))
   )
 
 (comment
