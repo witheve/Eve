@@ -53,7 +53,7 @@
       (language/fixpoint! cur)
       (tick-watchers cur (:watchers env) (:feeder-fn env))
       (loop [cur cur
-             prev prev
+             prev nil
              i 0]
         (cond
          (>= i 10) (do
@@ -61,10 +61,10 @@
                      (js/alert "Aborting!")
                      (aurora.runtime.ui/on-bloom-tick cur (:feeder-fn env))
                      cur)
-         (language/unchanged? prev cur) (do
-                                          (js/console.timeEnd "quiescience")
-                                          (aurora.runtime.ui/on-bloom-tick cur (:feeder-fn env))
-                                          cur)
+         (and prev (language/unchanged? prev cur)) (do
+                                                     (js/console.timeEnd "quiescience")
+                                                     (aurora.runtime.ui/on-bloom-tick cur (:feeder-fn env))
+                                                     cur)
          :else (let [next (language/tick (:rules env) cur)]
                  (language/add-facts-compat next :known|pretended aurora-facts)
                  (language/fixpoint! next)

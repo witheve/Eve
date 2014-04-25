@@ -24,12 +24,21 @@
   (-seq [this]
         (keys (.-transient-map this))))
 
-(defn arr= [arr-a arr-b]
+(defn arr== [arr-a arr-b]
   (and (== (alength arr-a) (alength arr-b))
        (loop [i 0]
          (if (>= i (alength arr-a))
            true
            (if (== (aget arr-a i) (aget arr-b i))
+             (recur (+ i 1))
+             false)))))
+
+(defn arr= [arr-a arr-b]
+  (and (== (alength arr-a) (alength arr-b))
+       (loop [i 0]
+         (if (>= i (alength arr-a))
+           true
+           (if (= (aget arr-a i) (aget arr-b i))
              (recur (+ i 1))
              false)))))
 
@@ -58,7 +67,7 @@
   (-equiv [this other]
           (and (instance? Fact other)
                (= shape (.-shape other))
-               (arr= values (.-values other))))
+               (arr== values (.-values other))))
 
   IHash
   (-hash [this]
