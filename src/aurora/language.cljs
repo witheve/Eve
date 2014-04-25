@@ -130,16 +130,9 @@
       (apush result (aget values (aget ixes i))))
     (Fact. nil result (fact-hash result))))
 
-(defn fact-join-ixes [left-fact right-fact ixes]
-  (let [result #js []
-        left-values (.-values left-fact)
-        right-values (.-values right-fact)]
-    (dotimes [i (count ixes)]
-      (let [ix (aget ixes i)]
-        (if (< ix (alength left-values))
-          (apush result (aget left-values ix))
-          (apush result (aget right-values (- ix (alength left-values)))))))
-    (Fact. nil result (fact-hash result))))
+(defn fact-join [left-fact right-fact]
+  (let [values (.concat (.-values left-fact) (.-values right-fact))]
+    (Fact. nil values (fact-hash values))))
 
 (comment
   (fact-shape ::eg "[a] has a [b] with a [c]")
@@ -237,21 +230,21 @@
             (apush out-facts fact)
             (aset node->stats node "dupes" (+ (aget node->stats node "dupes") 1))))))))
 
-(defn lookup-update! [index-node key-ixes val-ixes]
+(defn lookup-update! [index-node key-ixes reverse?]
   (fn [node node->state node->stats in-facts out-facts]
     (let [index (aget node->state index-node)]
       (dotimes [i (alength in-facts)]
         (let [left-fact (aget in-facts i)
               key (fact-ixes left-fact key-ixes)]
           (doseq [right-fact (keys (.lookup index key))]
-              (apush out-facts (fact-join-ixes left-fact right-fact val-ixes))))))))
+              (apush out-facts (if reverse? (fact-join right-fact left-fact) (fact-join left-fact right-fact)))))))))
 
 ;; FLOWS
 
 (defrecord Union [nodes])
 (defrecord FilterMap [nodes fun&args])
 (defrecord Index [nodes key-ixes])
-(defrecord Lookup [nodes index-node key-ixes val-ixes])
+(defrecord Lookup [nodes index-node key-ixes reverse?])
 
 (defn flow->nodes [flow]
   (:nodes flow))
@@ -285,7 +278,7 @@
                 Union (union-update!)
                 FilterMap (filter-map-update! (apply (resolve (first (:fun&args flow))) (rest (:fun&args flow))))
                 Index (index-update! (:key-ixes flow))
-                Lookup (lookup-update! (:index-node flow) (:key-ixes flow) (:val-ixes flow))))
+                Lookup (lookup-update! (:index-node flow) (:key-ixes flow) (:reverse? flow))))
         (aset node->stats node
               (condp = (type flow)
                 Union #js {:dupes 0}
@@ -548,15 +541,13 @@
         index-ixes-b (ixes-of vars-b key-vars-b)
         lookup-ixes-a (ixes-of vars-a key-vars-b)
         lookup-ixes-b (ixes-of vars-b key-vars-a)
-        val-ixes-a (ixes-of (concat vars-a vars-b) val-vars)
-        val-ixes-b (ixes-of (concat vars-b vars-a) val-vars)
         [plan index-a] (add-flow plan (->Index nodes-a index-ixes-a))
         index-b (inc (count (:node->flow plan))) ;; gross :(
-        [plan lookup-a] (add-flow plan (->Lookup [index-a] index-b lookup-ixes-a val-ixes-a))
+        [plan lookup-a] (add-flow plan (->Lookup [index-a] index-b lookup-ixes-a false))
         [plan index-b'] (add-flow plan (->Index nodes-b index-ixes-b))
         _ (assert (= index-b index-b'))
-        [plan lookup-b] (add-flow plan (->Lookup [index-b] index-a lookup-ixes-b val-ixes-b))]
-    [plan [lookup-a lookup-b] (map #(nth (concat vars-a vars-b) %) val-ixes-a)]))
+        [plan lookup-b] (add-flow plan (->Lookup [index-b] index-a lookup-ixes-b true))]
+    [plan [lookup-a lookup-b] (vec (concat vars-a vars-b))]))
 
 (defn add-rule [plan rule]
   (let [recalls (filter #(= Recall (type %)) (:clauses rule))
