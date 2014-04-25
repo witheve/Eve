@@ -227,7 +227,7 @@
     [:div#results
      [:div#ui-preview]
        [:ul
-        (for [fact (take 20 (sort-by (comp str #(.-shape %)) (language/get-facts-compat kn :known|pretended)))]
+        (for [fact (sort-by (comp str #(.-shape %)) (language/get-facts-compat kn :known|pretended))]
           [:li {:onContextMenu (fn []
                                  (language/add-facts (:kn @cur-env) :forgotten (.-shape fact) [fact])
                                  (language/fixpoint! (:kn @cur-env))

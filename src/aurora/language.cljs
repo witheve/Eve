@@ -463,7 +463,8 @@
         (do
           (apush constant-values value)
           (apush constant-ixes ix))))
-    `(pattern->deconstructor* ~constant-values ~constant-ixes ~dup-value-ixes ~dup-var-ixes)))
+    (when (or (seq constant-values) (seq dup-value-ixes))
+      `(pattern->deconstructor* ~constant-values ~constant-ixes ~dup-value-ixes ~dup-var-ixes))))
 
 (defn pattern->deconstructor* [constant-values constant-ixes dup-value-ixes dup-var-ixes]
   (fn [fact]
@@ -493,8 +494,10 @@
 (defn add-clause [plan nodes vars clause]
   (condp = (type clause)
     Recall (let [{:keys [memory pattern]} clause
-                 [plan node] (add-flow plan (FilterMap. #{} (pattern->deconstructor pattern)))
-                 plan (add-input plan node memory (.-shape pattern))]
+                 input-node (get-memory plan memory (.-shape pattern))
+                 [plan node] (if-let [deconstructor (pattern->deconstructor pattern)]
+                               (add-flow plan (FilterMap. #{input-node} deconstructor))
+                               [plan input-node])]
              [plan [node] (pattern->vars pattern)])
     Compute (let [{:keys [pattern]} clause]
               (condp = (.-shape pattern)
