@@ -76,7 +76,10 @@
         ui-facts (try
                    (reader/read-string ui)
                    (catch :default e))]
-    (mapv #(language/Output. :pretended (map->fact %)) (js/aurora.runtime.ui.hiccup->facts ui-facts))
+    (mapv #(if (:ml %)
+             (language/Output. :pretended (map->fact %))
+             %)
+          (js/aurora.runtime.ui.hiccup->facts ui-facts))
     ))
 
 (defn clauses->vars [clauses]

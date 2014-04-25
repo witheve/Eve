@@ -132,7 +132,8 @@
                  container (dom/$ "#ui-preview")]
              ;(println "UI Tree: " (pr-str tree))
              (when container
-               (js/React.renderComponent (dommy/node tree) container))
+               (js/React.renderComponent (dommy/node tree) container)
+               )
              ;
              )
            )))
@@ -165,8 +166,13 @@
       (if (vector? child)
         (fact-walk child facts [id i])
         (do
-          (.push facts {:ml :ui/text "id" (str id "-" i) "text" child})
-          (.push facts {:ml :ui/child "id" id "child" (str id "-" i) "pos" i})
+          (let [child-id (if (symbol? id)
+                           (gensym (str id))
+                           (str id "-" pos))]
+            (when (symbol? id)
+              (.push facts (language/Compute. (language/->Let child-id [id] (str id " + " i))) ))
+            (.push facts {:ml :ui/text "id" child-id "text" child})
+            (.push facts {:ml :ui/child "id" id "child" child-id "pos" i}))
           )))))
 
 (defn hiccup->facts [& hic]
