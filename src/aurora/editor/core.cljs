@@ -23,7 +23,9 @@
              (fn [_]
                (let [node->stats (:node->stats (:kn @cur-env))]
                  (dotimes [node (count node->stats)]
-                   (prn :stats node (aget node->stats node) (get-in @cur-env [:kn :plan :node->flow node]))))))
+                   (prn :stats node (aget node->stats node) (get-in @cur-env [:kn :plan :node->flow node])))
+                 (prn :total-in (reduce + (for [node (range (count node->stats))] (aget node->stats node "count-in"))))
+                 (prn :total-out (reduce + (for [node (range (count node->stats))] (aget node->stats node "count-out")))))))
 
   (assoc (aurora.language/FilterMap. #{} #{}))
 
@@ -31,6 +33,5 @@
   (def x (first (aurora.language/get-facts-compat (:kn @cur-env) :known|pretended)))
   (aurora.language/add-facts (:kn @cur-env) :forgotten (.-shape x) [x])
   (runtime/handle-feed cur-env [] {})
+  (aurora.editor.clauses/compile-state)
   )
-
-(get-in @state [:program :madlibs "e706d4c8_3bcb_4f47_af7c_62b8f48115c1"])
