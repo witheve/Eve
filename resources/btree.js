@@ -7,16 +7,19 @@
 
 
 // ========== Data structures ==========
+(function(window) {
 
 leaf = function () {
-	this.keyval = [];
-	this.recnum = [];
+  this.keyval = [];
+  this.recnum = [];
 	this.prevLf = null;
-	this.nextLf = null;}
+  this.nextLf = null;
+};
 
 node = function () {
 	this.keyval = [];
-	this.nodptr = [];}
+	this.nodptr = [];
+};
 
 tree = function (order) {
 	// Private
@@ -31,7 +34,8 @@ tree = function (order) {
 	this.recnum = -1;
 	this.length = 0;
 	this.eof = true;
-	this.found = false;}
+	this.found = false;
+};
 
 
 // ========== Method prototypes ==========
@@ -604,3 +608,8 @@ tree.prototype._fixNodes = function (stk, frKey, toKey) {
 		}
 	} while (mor && lvl>0);
 }
+
+
+window.btree = tree;
+
+})(window);
