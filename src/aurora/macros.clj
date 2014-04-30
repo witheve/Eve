@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [munge])
   (:require [cljs.compiler :refer [munge]]))
 
+
 (defmacro avec [arr]
   `(js/cljs.core.PersistentVector.fromArray ~arr true))
 
@@ -32,6 +33,14 @@
 
 (defmacro assoc!! [name key val]
   `(set!! ~name (cljs.core/-assoc! ~name ~key ~val)))
+
+
+(defmacro perf-time [& body]
+  `(let [start# (.performance.now js/window)
+         res# (do ~@body)]
+     (println (- (.performance.now js/window) start#))
+     res#
+     ))
 
 (defmacro console-time [name group & body]
   `(do
