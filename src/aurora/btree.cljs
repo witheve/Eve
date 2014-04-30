@@ -33,11 +33,16 @@
           (.into (aget children (alength keys)) result)))
   ;; TODO worth doing binary search here when nodes are large
   (seek [this key ix]
-        (let [len (alength keys)]
-          (loop [ix (max ix 0)]
-            (if (and (< ix len) (> key (aget keys ix)))
-              (recur (+ ix 1))
-              ix))))
+        (loop [lo (max ix 0)
+               hi (- (alength keys) 1)]
+          (if (< hi lo)
+            lo
+            (let [mid (+ lo (js/Math.floor (/ (- hi lo) 2)))
+                  mid-key (aget keys mid)]
+              (cond
+               (> mid-key key) (recur lo (- mid 1))
+               (< mid-key key) (recur (+ mid 1) hi)
+               :else mid)))))
   (assoc! [this key val max-keys]
           (let [ix (.seek this key 0)]
             (if (nil? children)
@@ -128,6 +133,15 @@
     tree))
 
 (comment
+  (let [node (Node. nil nil #js [0 1 2 3 4 5 6 7 8 9])]
+    (every? #(= % (.seek node % 0)) (range 10)))
+
+  (let [node (Node. nil nil #js [0 1 2 3 4 5 6 7 8 9])]
+    (every? #(= % (.seek node % %)) (range 10)))
+
+  (let [node (Node. nil nil #js [0 1 2 3 4 5 6 7 8 9])]
+    (every? #(= % (.seek node 0 %)) (range 10)))
+
   (let [tree (tree 1)]
     (seq tree))
 
