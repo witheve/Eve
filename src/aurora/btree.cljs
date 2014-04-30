@@ -47,8 +47,8 @@
                   (recur (+ mid 1) hi)
                   mid))))))
   (assoc! [this key val max-keys]
-          (set! lower (min lower key))
-          (set! upper (max upper key))
+          (set! lower (if (< lower key) lower key))
+          (set! upper (if (< upper key) key upper))
           (let [ix (.seek this key 0)]
             (if (nil? children)
               (if (== key (aget keys ix))
