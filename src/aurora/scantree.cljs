@@ -1,10 +1,12 @@
 (ns aurora.scantree
-  (:require-macros [aurora.macros :refer [apush]]))
+  (:require-macros [aurora.macros :refer [apush console-time]]))
 
 ;; NOTE iterators are not write-safe
 
 (deftype Tree [max-keys ^:mutable root aggregateFunc]
   Object
+  (toString [this]
+            (pr-str (into {} (map vec (seq this)))))
   (assoc! [this key val]
           (.assoc! root key val max-keys))
   (insert! [this ix key val right-child max-keys]
@@ -22,7 +24,7 @@
           (.into this result)
           (seq result))))
 
-(deftype Node [parent parent-ix keys vals children dirty? aggregateFunc aggregate]
+(deftype Node [parent parent-ix keys vals children ^:mutable dirty? aggregateFunc aggregate]
   Object
   (into [this result]
         (dotimes [ix (alength keys)]
@@ -44,8 +46,7 @@
                       (when (>= len 0)
                         (set! (.-aggregate this) (aggregateFunc (.-aggregate this) (.getAggregate (aget children len))))
                         (recur (dec len)))))
-                  (println (.-aggregate this))
-                  )
+                  (set! (.-dirty? this) false))
                 (.-aggregate this))
   ;; TODO worth doing binary search here when nodes are large
   (seek [this key ix]
@@ -60,6 +61,7 @@
                (< mid-key key) (recur (+ mid 1) hi)
                :else mid)))))
   (assoc! [this key val max-keys]
+          (set! (.-dirty? this) true)
           (let [ix (.seek this key 0)]
             (if (nil? children)
               (if (== key (aget keys ix))
@@ -71,6 +73,7 @@
                   false))
               (.assoc! (aget children ix) key val max-keys))))
   (insert! [this ix key val right-child max-keys]
+           (set! (.-dirty? this) true)
            (.splice keys ix 0 key)
            (.splice vals ix 0 val)
            (when-not (nil? children)
@@ -153,110 +156,103 @@
                    (.-root tree|node)
                    tree|node)))
 
+(defn collect [tree from to]
+  (let [itr (iterator tree)
+        coll (array (-> (.seek itr from)
+                        second))]
+    (loop [cur (.next itr)]
+      (when (and cur (<= (first cur) to))
+        (.push coll (second cur))
+        (recur (.next itr))
+        ))
+    coll))
+
+(defn contained? [nfrom nto from to]
+  (and (not (or (nil? nfrom)
+                (nil? nto)))
+       (<= from nfrom)
+       (>= to nto)))
+
+(defn down-until-contained [node nfrom nto from to result]
+  (let [keys (.-keys node)
+        keys-len (.-length keys)
+        vals (.-vals node)]
+    (if-let [children (.-children node)]
+      ;;internal node
+      (let [len (.-length children)]
+        (loop [child-i 0]
+          (when (<= child-i keys-len)
+            (let [child (aget children child-i)
+                  lower (if (== 0 child-i)
+                          nfrom
+                          (aget keys (dec child-i)))
+                  upper (if (> child-i keys-len)
+                          nto
+                          (aget keys child-i))]
+              (when (or (nil? upper) (>= upper from))
+                (if (contained? lower upper from to)
+                  (.push result (.getAggregate child))
+                  (when (<= lower to)
+                    ;;check if this node's value needs to go in
+                    (down-until-contained child lower upper from to result)))
+                (when (>= to upper)
+                  (.push result (aget vals child-i))))
+              (when (and (<= lower to)
+                         (<= upper to))
+                  (recur (inc child-i)))
+
+              ))))
+      ;;leaf node
+      (loop [i 0]
+        (when (< i keys-len)
+          (let [k (aget keys i)]
+            (when (and (>= k from)
+                       (<= k to))
+              (.push result (aget vals i)))
+            (when (<= k to)
+              (recur (inc i)))))))))
+
+(defn aggregate-range [tree from to]
+  (let [results (array)]
+    (down-until-contained (.-root tree) nil nil from to results)
+    (let [len (.-length results)
+          func (.-aggregateFunc tree)]
+      (loop [i 0
+             cur nil]
+        (if (< i len)
+          (recur (inc i) (func cur (aget results i)))
+          cur)))))
+
 (comment
-  (let [node (Node. nil nil #js [0 1 2 3 4 5 6 7 8 9])]
-    (every? #(= % (.seek node % 0)) (range 10)))
-
-  (let [node (Node. nil nil #js [0 1 2 3 4 5 6 7 8 9])]
-    (every? #(= % (.seek node % %)) (range 10)))
-
-  (let [node (Node. nil nil #js [0 1 2 3 4 5 6 7 8 9])]
-    (every? #(= % (.seek node 0 %)) (range 10)))
-
-  (let [tree (tree 1)]
-    (seq tree))
-
-  (let [tree (tree 1)]
-    (.assoc! tree :a 0)
-    (seq tree))
-
-  (let [tree (tree 1)]
-    (.assoc! tree :a 0)
-    (.assoc! tree :b 1)
-    (js/console.log tree)
-    (seq tree))
-
-  (let [tree (tree 1)]
-    (.assoc! tree :a 0)
-    (.assoc! tree :b 1)
-    (.assoc! tree :c 1)
-    (js/console.log tree)
-    (seq tree))
-
-  (let [tree (tree 1)]
-    (.assoc! tree :a 0)
-    (.assoc! tree :b 1)
-    (.assoc! tree :c 1)
-    (.assoc! tree :d 1)
-    (.assoc! tree :e 1)
-    (.assoc! tree :f 1)
-    (.assoc! tree :g 1)
-    (.assoc! tree :h 1)
-    (.assoc! tree :i 1)
-    (.assoc! tree :j 1)
-    (js/console.log tree)
-    (seq tree))
-
-  (let [tree (tree 3)]
-    (dotimes [i 1000]
-      (.assoc! tree i (* 2 i)))
-    (= (map #(.apply vector nil %) (seq tree)) (for [i (range 1000)] [i (* 2 i)])))
 
   (time
-   (let [tree (tree 1)]
-     (dotimes [i 100000]
-       (.assoc! tree i (* 2 i)))))
+   (let [tree (tree 3 min)]
+     (dotimes [i 10]
+       (.assoc! tree i (* 2 i)))
+     (println "agg: " (aggregate tree))
+     (println "agg: " (aggregate tree))
+     (println "agg: " (aggregate tree))
+     (dotimes [i 2]
+       (.assoc! tree (+ 10 i) (* 2 i)))
+     (println tree)
+     (println "agg: " (aggregate tree))
+     ))
 
   (time
    (let [tree (tree 3 +)]
      (dotimes [i 10]
        (.assoc! tree i (* 2 i)))
-     (aggregate tree)))
+     (aggregate (.-root tree))
+     ))
 
-  (time
-   (let [tree (tree 10)]
-     (dotimes [i 100000]
-       (.assoc! tree i (* 2 i)))))
+   (let [tree (tree 3 +)]
+     (dotimes [i 100]
+       (.assoc! tree i (* 2 i)))
+     ;(collect tree 3 7)
+     ;(.seek (iterator tree) 4)
+     (.log js/console tree)
+     (console-time "foo"
+      (aggregate-range tree 5 15))
+     )
 
-  (time
-   (let [tree (tree 1000)]
-     (dotimes [i 100000]
-       (.assoc! tree i (* 2 i)))))
-
-  (time
-   (let [tree (tree 100)]
-     (dotimes [i 500000]
-       (.assoc! tree i (* 2 i)))))
-
-  (let [tree (tree 3)
-        iterator (iterator tree)]
-    (take 2000 (take-while identity (repeatedly #(.next iterator)))))
-
-  (let [tree (tree 3)
-        _ (.assoc! tree :a 0)
-        iterator (iterator tree)]
-    (take 2000 (take-while identity (repeatedly #(.next iterator)))))
-
-  (let [tree (tree 3)
-        _ (dotimes [i 1000]
-            (.assoc! tree i (* 2 i)))
-        iterator (iterator tree)]
-    (take 2000 (take-while identity (repeatedly #(.next iterator)))))
-
-  (let [tree (tree 3)
-        _ (dotimes [i 1000]
-            (.assoc! tree i (* 2 i)))
-        iterator (iterator tree)]
-    [(.seek iterator -100) (.seek iterator 9.34) (.seek iterator 0) (.seek iterator 500) (.seek iterator 2000) (.seek iterator 2000)])
-
-  (def t (let [tree (tree 10)
-        _ (dotimes [i 10000000]
-            (.assoc! tree i (* 2 i)))
-        iterator (iterator tree)]
-    iterator))
-
-  (let [ iterator t]
-    (time
-     (dotimes [i 10000000]
-       [(.seek iterator -100) (.seek iterator 9.34) (.seek iterator 0) (.seek iterator 500) (.seek iterator 2000) (.seek iterator 2000)])))
   )
