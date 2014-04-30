@@ -36,16 +36,16 @@
         (when-not (nil? children)
           (.into (aget children (alength keys)) result)))
   (seek [this key ix]
-        (loop [lo (max ix 0)
+        (loop [lo (if (> ix 0) ix 0)
                hi (- (alength keys) 1)]
           (if (< hi lo)
             lo
             (let [mid (+ lo (js/Math.floor (/ (- hi lo) 2)))
                   mid-key (aget keys mid)]
-              (cond
-               (> mid-key key) (recur lo (- mid 1))
-               (< mid-key key) (recur (+ mid 1) hi)
-               :else mid)))))
+              (if (> mid-key key) (recur lo (- mid 1))
+                (if (< mid-key key)
+                  (recur (+ mid 1) hi)
+                  mid))))))
   (assoc! [this key val max-keys]
           (set! lower (min lower key))
           (set! upper (max upper key))
@@ -217,6 +217,18 @@
     (js/console.log tree)
     (.valid! tree)
     tree)
+
+  (let [tree (tree 1)]
+    (dotimes [i 1000]
+      (.assoc! tree i (* 2 i)))
+    (.valid! tree)
+    (= (map #(.apply vector nil %) tree) (for [i (range 1000)] [i (* 2 i)])))
+
+  (let [tree (tree 2)]
+    (dotimes [i 1000]
+      (.assoc! tree i (* 2 i)))
+    (.valid! tree)
+    (= (map #(.apply vector nil %) tree) (for [i (range 1000)] [i (* 2 i)])))
 
   (let [tree (tree 3)]
     (dotimes [i 1000]
