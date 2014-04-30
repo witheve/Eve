@@ -5,6 +5,8 @@
 
 (deftype Tree [max-keys ^:mutable root]
   Object
+  (toString [this]
+            (pr-str (into {} (map vec (seq this)))))
   (assoc! [this key val]
           (.assoc! root key val max-keys))
   (insert! [this ix key val right-child max-keys]
@@ -143,24 +145,24 @@
     (every? #(= % (.seek node 0 %)) (range 10)))
 
   (let [tree (tree 1)]
-    (seq tree))
+    tree)
 
   (let [tree (tree 1)]
     (.assoc! tree :a 0)
-    (seq tree))
+    tree)
 
   (let [tree (tree 1)]
     (.assoc! tree :a 0)
     (.assoc! tree :b 1)
     (js/console.log tree)
-    (seq tree))
+    tree)
 
   (let [tree (tree 1)]
     (.assoc! tree :a 0)
     (.assoc! tree :b 1)
     (.assoc! tree :c 1)
     (js/console.log tree)
-    (seq tree))
+    tree)
 
   (let [tree (tree 1)]
     (.assoc! tree :a 0)
@@ -174,12 +176,12 @@
     (.assoc! tree :i 1)
     (.assoc! tree :j 1)
     (js/console.log tree)
-    (seq tree))
+    tree)
 
   (let [tree (tree 3)]
     (dotimes [i 1000]
       (.assoc! tree i (* 2 i)))
-    (= (map #(.apply vector nil %) (seq tree)) (for [i (range 1000)] [i (* 2 i)])))
+    (= (map #(.apply vector nil %) tree) (for [i (range 1000)] [i (* 2 i)])))
 
   (time
    (let [tree (tree 1)]
