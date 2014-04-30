@@ -102,8 +102,8 @@
           (assert (= (count keys)) (inc (count children)))
           (assert (= (count keys) (count (set keys))))
           (assert (= (seq keys) (sort keys)))
-          (assert (every? #(<= lower %) keys))
-          (assert (every? #(>= upper %) keys))
+          (assert (every? #(<= lower %) keys) (pr-str lower keys))
+          (assert (every? #(>= upper %) keys) (pr-str upper keys))
           (if (nil? children)
             (do
               (assert (= lower (aget keys 0)) (pr-str lower keys))
@@ -261,6 +261,14 @@
    (let [tree (tree 100)]
      (dotimes [i 500000]
        (.assoc! tree i (* 2 i)))))
+
+  (defn f []
+    (time
+     (let [tree (tree 100)]
+       (dotimes [i 500000]
+         (.assoc! tree i (* 2 i))))))
+
+  (f)
 
   (let [tree (tree 3)
         iterator (iterator tree)]
