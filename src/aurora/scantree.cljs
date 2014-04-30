@@ -5,6 +5,8 @@
 
 (deftype Tree [max-keys ^:mutable root aggregateFunc]
   Object
+  (toString [this]
+            (pr-str (into {} (map vec (seq this)))))
   (assoc! [this key val]
           (.assoc! root key val max-keys))
   (insert! [this ix key val right-child max-keys]
@@ -22,7 +24,7 @@
           (.into this result)
           (seq result))))
 
-(deftype Node [parent parent-ix keys vals children dirty? aggregateFunc aggregate]
+(deftype Node [parent parent-ix keys vals children ^:mutable dirty? aggregateFunc aggregate]
   Object
   (into [this result]
         (dotimes [ix (alength keys)]
@@ -33,18 +35,22 @@
           (.into (aget children (alength keys)) result)))
   (getAggregate [this]
                 (when dirty?
+                  (println "**** node ****")
                   (set! (.-aggregate this) nil)
                   (when keys
                     (loop [len (dec (.-length vals))]
                       (when (>= len 0)
+                        (println "Value: " len (aget vals len))
                         (set! (.-aggregate this) (aggregateFunc (.-aggregate this) (aget vals len)))
                         (recur (dec len)))))
                   (when children
                     (loop [len (dec (.-length children))]
                       (when (>= len 0)
+                        (println "Child: " len (.getAggregate (aget children len)))
                         (set! (.-aggregate this) (aggregateFunc (.-aggregate this) (.getAggregate (aget children len))))
                         (recur (dec len)))))
-                  (println (.-aggregate this))
+                  (set! (.-dirty? this) false)
+                  (println "finished agg: " (.-aggregate this))
                   )
                 (.-aggregate this))
   ;; TODO worth doing binary search here when nodes are large
@@ -60,6 +66,7 @@
                (< mid-key key) (recur (+ mid 1) hi)
                :else mid)))))
   (assoc! [this key val max-keys]
+          (set! (.-dirty? this) true)
           (let [ix (.seek this key 0)]
             (if (nil? children)
               (if (== key (aget keys ix))
@@ -71,6 +78,7 @@
                   false))
               (.assoc! (aget children ix) key val max-keys))))
   (insert! [this ix key val right-child max-keys]
+           (set! (.-dirty? this) true)
            (.splice keys ix 0 key)
            (.splice vals ix 0 val)
            (when-not (nil? children)
@@ -211,7 +219,14 @@
    (let [tree (tree 3 +)]
      (dotimes [i 10]
        (.assoc! tree i (* 2 i)))
-     (aggregate tree)))
+     (println "agg: " (aggregate tree))
+     (println "agg: " (aggregate tree))
+     (println "agg: " (aggregate tree))
+     (dotimes [i 2]
+       (.assoc! tree (+ 10 i) (* 2 i)))
+     (println tree)
+     (println "agg: " (aggregate tree))
+     ))
 
   (time
    (let [tree (tree 10)]
