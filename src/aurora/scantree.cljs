@@ -35,23 +35,18 @@
           (.into (aget children (alength keys)) result)))
   (getAggregate [this]
                 (when dirty?
-                  (println "**** node ****")
                   (set! (.-aggregate this) nil)
                   (when keys
                     (loop [len (dec (.-length vals))]
                       (when (>= len 0)
-                        (println "Value: " len (aget vals len))
                         (set! (.-aggregate this) (aggregateFunc (.-aggregate this) (aget vals len)))
                         (recur (dec len)))))
                   (when children
                     (loop [len (dec (.-length children))]
                       (when (>= len 0)
-                        (println "Child: " len (.getAggregate (aget children len)))
                         (set! (.-aggregate this) (aggregateFunc (.-aggregate this) (.getAggregate (aget children len))))
                         (recur (dec len)))))
-                  (set! (.-dirty? this) false)
-                  (println "finished agg: " (.-aggregate this))
-                  )
+                  (set! (.-dirty? this) false))
                 (.-aggregate this))
   ;; TODO worth doing binary search here when nodes are large
   (seek [this key ix]
