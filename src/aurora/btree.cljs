@@ -19,7 +19,7 @@
   (into [this result]
         (.into root result))
   (valid! [this]
-          (.valid! root))
+          (.valid! root (js/Math.floor (/ max-keys 2)) max-keys))
   ISeqable
   (-seq [this]
         (let [result #js []]
@@ -81,20 +81,24 @@
                 (set! (.-lower right-node) (.-lower (aget children (+ median 1))))))
             (set! (.-keys right-node) (.slice keys (+ median 1)))
             (set! (.-vals right-node) (.slice vals (+ median 1)))
-            (.splice keys median (+ median 1))
-            (.splice vals median (+ median 1))
+            (.splice keys median (alength keys))
+            (.splice vals median (alength vals))
             (when-not (nil? children)
               (let [right-children (.slice children (+ median 1))]
                 (dotimes [ix (alength right-children)]
                   (let [child (aget right-children ix)]
-                    (set (.-parent child) right-node)
-                    (set (.-parent-ix child) ix)))
+                    (set! (.-parent child) right-node)
+                    (set! (.-parent-ix child) ix)))
                 (set! (.-children right-node) right-children)
-                (.splice children median (+ median 2))))
-            #_(assert (= (alength keys) (alength vals) (if children (dec (alength children)) (alength keys))))
-            #_(assert (= (alength (.-keys right-node)) (alength (.-vals right-node)) (if (.-children right-node) (dec (alength (.-children right-node))) (alength (.-keys right-node)))))
-            (.insert! parent parent-ix median-key median-val right-node)))
-  (valid! [this]
+                (.splice children (+ median 1) (alength children))))
+            #_(.valid! this (js/Math.floor (/ max-keys 2)) max-keys)
+            #_(.valid! right-node (js/Math.floor (/ max-keys 2)) max-keys)
+            (.insert! parent parent-ix median-key median-val right-node max-keys)))
+  (valid! [this min-keys max-keys]
+          (when (instance? Node parent) ;; root is allowed to have less keys
+            (assert (>= (count keys) min-keys) (pr-str keys min-keys)))
+          (assert (<= (count keys) max-keys) (pr-str keys max-keys))
+          (assert (= (count keys)) (inc (count children)))
           (assert (= (count keys) (count (set keys))))
           (assert (= (seq keys) (sort keys)))
           (assert (every? #(<= lower %) keys))
@@ -104,11 +108,11 @@
               (assert (= lower (aget keys 0)) (pr-str lower keys))
               (assert (= upper (aget keys (- (alength keys) 1)))))
             (do
-              (assert (= lower (.-lower (aget children 0))))
-              (assert (= upper (.-upper (aget children (- (alength children) 1)))))
+              (assert (= lower (.-lower (aget children 0))) (pr-str lower (.-lower (aget children 0))))
+              (assert (= upper (.-upper (aget children (- (alength children) 1)))) (pr-str upper (.-upper (aget children (- (alength children) 1)))))
               (assert (every? #(> (aget keys %) (.-upper (aget children %))) (range (count keys))))
               (assert (every? #(< (aget keys %) (.-lower (aget children (inc %)))) (range (count keys))))
-              (dotimes [i (count children)] (.valid! (aget children i)))))))
+              (dotimes [i (count children)] (.valid! (aget children i) min-keys max-keys))))))
 
 (deftype Iterator [max-keys ^:mutable node ^:mutable ix ^:mutable end?]
   Object
@@ -210,9 +214,6 @@
     (.assoc! tree :e 1)
     (.assoc! tree :f 1)
     (.assoc! tree :g 1)
-    (.assoc! tree :h 1)
-    (.assoc! tree :i 1)
-    (.assoc! tree :j 1)
     (js/console.log tree)
     (.valid! tree)
     tree)
