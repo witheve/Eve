@@ -110,43 +110,48 @@
               (assert (every? #(< (aget keys %) (.-lower (aget children (inc %)))) (range (count keys))))
               (dotimes [i (count children)] (.valid! (aget children i)))))))
 
-(deftype Iterator [max-keys ^:mutable node ^:mutable ix]
-  ;; always points to before a valid key or to the tree wrapper
+(deftype Iterator [max-keys ^:mutable node ^:mutable ix ^:mutable end?]
   Object
   (next [this]
-        (when (instance? Node node)
+        (when-not end?
           (if (nil? (.-children node))
             (do
               (set! ix (+ ix 1))
               (loop []
-                (when (and (instance? Node node) (>= ix (alength (.-keys node))))
-                  (set! ix (.-parent-ix node))
-                  (set! node (.-parent node))
-                  (recur))))
+                (if (>= ix (alength (.-keys node)))
+                  (if (instance? Node (.-parent node))
+                    (do
+                      (set! ix (.-parent-ix node))
+                      (set! node (.-parent node))
+                      (recur))
+                    (do
+                      (set! end? true)
+                      nil))
+                  #js [(aget (.-keys node) ix) (aget (.-vals node) ix)])))
             (do
               (set! node (aget (.-children node) (+ ix 1)))
-              (set! ix 0)))
-          (when (instance? Node node)
-            #js [(aget (.-keys node) ix) (aget (.-vals node) ix)])))
-  (seek [this key] ;; move the iterator forwards until it reaches a key greater than this one
-        ;; head across and upwards until we reach a greater key
-        (loop []
-          (when (instance? Node node)
-            (set! ix (.seek node key ix))
-            (when (and (>= ix (alength (.-keys node))) (instance? Node (.-parent node)))
-              (set! ix (.-parent-ix node))
-              (set! node (.-parent node))
-              (recur))))
-        ;; head downwards and across until we reach the least greater key
-        (loop []
-          (when (instance? Node node)
-            (when-not (or (nil? (.-children node)) (== key (aget (.-keys node) ix)))
-              (set! node (aget (.-children node) ix))
-              (set! ix (.seek node key 0))
-              (recur))))
-        ;; if we aren't now at the tree wrapper we can return a result
-        (when (and (instance? Node node) (< ix (alength (.-keys node))))
-          #js [(aget (.-keys node) ix) (aget (.-vals node) ix)])))
+              (set! ix 0)
+              #js [(aget (.-keys node) ix) (aget (.-vals node) ix)]))))
+  (seek [this key]
+        (when-not end?
+          (loop []
+            (if (> key (.-upper node))
+              (if (instance? Node (.-parent node))
+                (do
+                  (set! ix (.-parent-ix node))
+                  (set! node (.-parent node))
+                  (recur))
+                (do
+                  (set! end? true)
+                  nil))
+              (do
+                (set! ix (.seek node key ix))
+                (if (and (not (nil? (.-children node))) (< key (aget (.-keys node) ix)))
+                  (do
+                    (set! node (aget (.-children node) ix))
+                    (set! ix 0)
+                    (recur))
+                  #js [(aget (.-keys node) ix) (aget (.-vals node) ix)])))))))
 
 (defn iterator [tree]
   (loop [node (.-root tree)]
@@ -162,6 +167,9 @@
     tree))
 
 (comment
+  (let [node (Node. nil nil #js [])]
+    (.seek node 0 0))
+
   (let [node (Node. nil nil #js [0])]
     (.seek node 0 0))
 
@@ -242,6 +250,10 @@
 
   (let [tree (tree 3)
         iterator (iterator tree)]
+    (.next iterator))
+
+  (let [tree (tree 3)
+        iterator (iterator tree)]
     (take 2000 (take-while identity (repeatedly #(.next iterator)))))
 
   (let [tree (tree 3)
@@ -253,7 +265,11 @@
         _ (dotimes [i 1000]
             (.assoc! tree i (* 2 i)))
         iterator (iterator tree)]
-    (take 2000 (take-while identity (repeatedly #(.next iterator)))))
+    (= (for [i (range 1000)] [i (* 2 i)]) (map #(.apply vector nil %) (take 2000 (take-while identity (repeatedly #(.next iterator)))))))
+
+  (let [tree (tree 3)
+        iterator (iterator tree)]
+    (.seek iterator -100))
 
   (let [tree (tree 3)
         _ (dotimes [i 1000]
