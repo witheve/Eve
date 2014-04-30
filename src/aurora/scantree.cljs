@@ -48,7 +48,7 @@
                       (when (>= len 0)
                         (set! (.-aggregate this) (aggregateFunc (.-aggregate this) (.getAggregate (aget children len))))
                         (recur (dec len)))))
-                  (set! (.-dirty? this) false))
+                  (set! dirty? false))
                 (.-aggregate this))
   (seek [this key ix]
         (loop [lo (max ix 0)
@@ -83,9 +83,9 @@
              (.splice children (+ ix 1) 0 right-child))
            (when (> (alength keys) max-keys)
              (.split! this max-keys)))
-  (split! [this max-keys]
+    (split! [this max-keys]
           ;; TODO try using push/pop instead of splice/slice
-          (let [median (js/Math.floor (/ max-keys 2))
+          (let [median (js/Math.floor (/ (alength keys) 2))
                 median-key (aget keys median)
                 median-val (aget vals median)
                 right-node (Node. parent (+ parent-ix 1) nil nil nil nil upper true aggregateFunc nil)]
@@ -98,20 +98,24 @@
                 (set! (.-lower right-node) (.-lower (aget children (+ median 1))))))
             (set! (.-keys right-node) (.slice keys (+ median 1)))
             (set! (.-vals right-node) (.slice vals (+ median 1)))
-            (.splice keys median (+ median 1))
-            (.splice vals median (+ median 1))
+            (.splice keys median (alength keys))
+            (.splice vals median (alength vals))
             (when-not (nil? children)
               (let [right-children (.slice children (+ median 1))]
                 (dotimes [ix (alength right-children)]
                   (let [child (aget right-children ix)]
-                    (set (.-parent child) right-node)
-                    (set (.-parent-ix child) ix)))
+                    (set! (.-parent child) right-node)
+                    (set! (.-parent-ix child) ix)))
                 (set! (.-children right-node) right-children)
-                (.splice children median (+ median 2))))
-            #_(assert (= (alength keys) (alength vals) (if children (dec (alength children)) (alength keys))))
-            #_(assert (= (alength (.-keys right-node)) (alength (.-vals right-node)) (if (.-children right-node) (dec (alength (.-children right-node))) (alength (.-keys right-node)))))
-            (.insert! parent parent-ix median-key median-val right-node)))
-  (valid! [this]
+                (.splice children (+ median 1) (alength children))))
+            #_(.valid! this (js/Math.floor (/ max-keys 2)) max-keys)
+            #_(.valid! right-node (js/Math.floor (/ max-keys 2)) max-keys)
+            (.insert! parent parent-ix median-key median-val right-node max-keys)))
+  (valid! [this min-keys max-keys]
+          (when (instance? Node parent) ;; root is allowed to have less keys
+            (assert (>= (count keys) min-keys) (pr-str keys min-keys)))
+          (assert (<= (count keys) max-keys) (pr-str keys max-keys))
+          (assert (= (count keys)) (inc (count children)))
           (assert (= (count keys) (count (set keys))))
           (assert (= (seq keys) (sort keys)))
           (assert (every? #(<= lower %) keys))
@@ -121,11 +125,11 @@
               (assert (= lower (aget keys 0)) (pr-str lower keys))
               (assert (= upper (aget keys (- (alength keys) 1)))))
             (do
-              (assert (= lower (.-lower (aget children 0))))
-              (assert (= upper (.-upper (aget children (- (alength children) 1)))))
+              (assert (= lower (.-lower (aget children 0))) (pr-str lower (.-lower (aget children 0))))
+              (assert (= upper (.-upper (aget children (- (alength children) 1)))) (pr-str upper (.-upper (aget children (- (alength children) 1)))))
               (assert (every? #(> (aget keys %) (.-upper (aget children %))) (range (count keys))))
               (assert (every? #(< (aget keys %) (.-lower (aget children (inc %)))) (range (count keys))))
-              (dotimes [i (count children)] (.valid! (aget children i)))))))
+              (dotimes [i (count children)] (.valid! (aget children i) min-keys max-keys))))))
 
 (deftype Iterator [max-keys ^:mutable node ^:mutable ix ^:mutable end?]
   Object
@@ -191,10 +195,10 @@
 (defn collect [tree from to]
   (let [itr (iterator tree)
         coll (array (-> (.seek itr from)
-                        second))]
+                        (aget 1)))]
     (loop [cur (.next itr)]
-      (when (and cur (<= (first cur) to))
-        (.push coll (second cur))
+      (when (and cur (<= (aget cur 0) to))
+        (.push coll (aget cur 1))
         (recur (.next itr))
         ))
     coll))
@@ -202,7 +206,7 @@
 (defn contained? [from to container-from container-to]
   (and (not (or (nil? from)
                 (nil? to)))
-       (<= contrainer-from from)
+       (<= container-from from)
        (>= container-to to)))
 
 (defn down-until-contained [node nfrom nto from to result]
@@ -222,7 +226,8 @@
                         (aget keys child-i))]
             (when (or (== nil upper) (>= upper from))
               (if (contained? lower upper from to)
-                (.push result (.getAggregate child))
+                (do
+                  (.push result (.getAggregate child)))
                 (when (<= lower to)
                   ;;check if this node's value needs to go in
                   (down-until-contained child lower upper from to result)))
@@ -281,15 +286,16 @@
      (dotimes [i 10000]
        (.assoc! tree i (* 2 i)))
      (perf-time
-      (collect tree 5000 9010))
+      (dotimes [x 10000]
+        (collect tree 5000 9020)))
      )
 
    (let [tree (tree 10 +)]
      (dotimes [i 10000]
        (.assoc! tree i (* 2 i)))
-     (aggregate-range tree 5000 9010)
+      (aggregate-range tree 5000 9020)
      (perf-time
-        (aggregate-range tree 5000 9010)))
-
+      (dotimes [x 10000]
+        (aggregate-range tree 5000 9020))))
 
   )
