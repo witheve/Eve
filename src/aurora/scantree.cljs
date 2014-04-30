@@ -1,5 +1,5 @@
 (ns aurora.scantree
-  (:require-macros [aurora.macros :refer [apush]]))
+  (:require-macros [aurora.macros :refer [apush console-time]]))
 
 ;; NOTE iterators are not write-safe
 
@@ -170,40 +170,41 @@
 (defn contained? [nfrom nto from to]
   (and (not (or (nil? nfrom)
                 (nil? nto)))
-       (<= nfrom from)
-       (>= nto to)))
+       (<= from nfrom)
+       (>= to nto)))
 
 (defn down-until-contained [node nfrom nto from to result]
   (let [keys (.-keys node)
         keys-len (.-length keys)
         vals (.-vals node)]
-    (println "checking node: " nfrom nto)
     (if-let [children (.-children node)]
       ;;internal node
       (let [len (.-length children)]
-        (doseq [child-i (range len)
-                :let [child (aget children child-i)
-                      lower (if (== 0 child-i)
-                              nfrom
-                              (aget keys (dec child-i)))
-                      upper (if (> child-i keys-len)
-                              nto
-                              (aget keys child-i))]]
-          (println "looking at child: " lower upper)
-          (if (contained? lower upper from to)
-            (.push result (.getAggregate child))
-            (when (<= lower to)
-              ;;check if this node's value needs to go in
-              (when (and (>= upper from)
+        (loop [child-i 0]
+          (when (<= child-i keys-len)
+            (let [child (aget children child-i)
+                  lower (if (== 0 child-i)
+                          nfrom
+                          (aget keys (dec child-i)))
+                  upper (if (> child-i keys-len)
+                          nto
+                          (aget keys child-i))]
+              (when (or (nil? upper) (>= upper from))
+                (if (contained? lower upper from to)
+                  (.push result (.getAggregate child))
+                  (when (<= lower to)
+                    ;;check if this node's value needs to go in
+                    (down-until-contained child lower upper from to result)))
+                (when (>= to upper)
+                  (.push result (aget vals child-i))))
+              (when (and (<= lower to)
                          (<= upper to))
-                (.push result (aget vals child-i)))
-              (down-until-contained child lower upper from to result))
-            )
-          ))
+                  (recur (inc child-i)))
+
+              ))))
       ;;leaf node
       (loop [i 0]
         (when (< i keys-len)
-          (println "checking key: " i (aget keys i))
           (let [k (aget keys i)]
             (when (and (>= k from)
                        (<= k to))
@@ -214,7 +215,6 @@
 (defn aggregate-range [tree from to]
   (let [results (array)]
     (down-until-contained (.-root tree) nil nil from to results)
-    (println results)
     (let [len (.-length results)
           func (.-aggregateFunc tree)]
       (loop [i 0
@@ -242,12 +242,17 @@
    (let [tree (tree 3 +)]
      (dotimes [i 10]
        (.assoc! tree i (* 2 i)))
+     (aggregate (.-root tree))
+     ))
+
+   (let [tree (tree 3 +)]
+     (dotimes [i 100]
+       (.assoc! tree i (* 2 i)))
      ;(collect tree 3 7)
      ;(.seek (iterator tree) 4)
      (.log js/console tree)
-     (aggregate-range tree 2 5)
-     ))
-
-  4 + 6 + 8 +10
+     (console-time "foo"
+      (aggregate-range tree 5 15))
+     )
 
   )
