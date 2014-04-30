@@ -68,7 +68,7 @@
              (.split! this max-keys)))
   (split! [this max-keys]
           ;; TODO try using push/pop instead of splice/slice
-          (let [median (js/Math.floor (/ max-keys 2))
+          (let [median (js/Math.floor (/ (alength keys) 2))
                 median-key (aget keys median)
                 median-val (aget vals median)
                 right-node (Node. parent (+ parent-ix 1) nil nil nil nil upper)]
