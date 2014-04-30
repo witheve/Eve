@@ -34,14 +34,14 @@
   ;; TODO worth doing binary search here when nodes are large
   (seek [this key ix]
         (let [len (alength keys)]
-          (loop [ix ix]
+          (loop [ix (max ix 0)]
             (if (and (< ix len) (> key (aget keys ix)))
               (recur (+ ix 1))
               ix))))
   (assoc! [this key val max-keys]
           (let [ix (.seek this key 0)]
             (if (nil? children)
-              (if (= key (aget keys ix))
+              (if (== key (aget keys ix))
                 (do
                   (aset vals ix val)
                   true)
@@ -57,6 +57,7 @@
            (when (> (alength keys) max-keys)
              (.split! this max-keys)))
   (split! [this max-keys]
+          ;; TODO try using push/pop instead of splice/slice
           (let [median (js/Math.floor (/ max-keys 2))
                 right-node (Node. parent (+ parent-ix 1) nil nil nil)]
             (.insert! parent parent-ix (aget keys median) (aget vals median) right-node)
@@ -72,11 +73,11 @@
                   (let [child (aget right-children ix)]
                     (set (.-parent child) right-node)
                     (set (.-parent-ix child) ix)))))
-            (assert (= (alength keys) (alength vals) (if children (dec (alength children)) (alength keys))))
-            (assert (= (alength (.-keys right-node)) (alength (.-vals right-node)) (if (.-children right-node) (dec (alength (.-children right-node))) (alength (.-keys right-node))))))))
+            #_(assert (= (alength keys) (alength vals) (if children (dec (alength children)) (alength keys))))
+            #_(assert (= (alength (.-keys right-node)) (alength (.-vals right-node)) (if (.-children right-node) (dec (alength (.-children right-node))) (alength (.-keys right-node))))))))
 
 (deftype Iterator [max-keys ^:mutable node ^:mutable ix]
-  ;; always points to before a valid key or to the root node
+  ;; always points to before a valid key or to the tree wrapper
   Object
   (next [this]
         (when (instance? Node node)
@@ -96,45 +97,22 @@
   (seek [this key] ;; move the iterator forwards until it reaches a key greater than this one
         ;; head across and upwards until we reach a greater key
         (loop []
-          (if (< ix (alength (.-keys node)))
-            (if (<= key (aget (.-keys node) ix))
-              ;; done
-              nil
-              ;; move along
-              (do
-                (set! ix (+ ix 1))
-                (recur)))
-            (let [parent (.-parent node)]
-              (if (instance? Node parent)
-                ;; jump into parent and start again
-                (do
-                  (set! ix (+ (.-parent-ix node) 1))
-                  (set! node parent)
-                  (recur))
-                ;; end of tree
-                nil))))
+          (when (instance? Node node)
+            (set! ix (.seek node key ix))
+            (when (>= ix (alength (.-keys node)))
+              (set! ix (+ (.-parent-ix node) 1))
+              (set! node (.-parent node))
+              (recur))))
         ;; head downwards and across until we reach the least greater key
         (loop []
-          (if (< ix (alength (.-keys node)))
-            (if (<= key (aget (.-keys node) ix))
-              ;; check for a child
-              (if-let [child (and (.-children node) (> ix 0) (aget (.-children node) (- ix 1)))]
-                ;; jump into child and start again (child cannot be empty if tree is correctly balanced)
-                (do
-                  (set! node child)
-                  (set! ix 0)
-                  (recur))
-                ;; done
-                nil)
-              ;; move along
-              (do
-                (set! ix (+ ix 1))
-                (recur)))
-            ;; end of tree
-            nil))
-        (if (< ix (alength (.-keys node)))
-          #js [(aget (.-keys node) ix) (aget (.-vals node) ix)]
-          nil)))
+          (when (instance? Node node)
+            (when-not (nil? (.-children node))
+              (set! node (aget (.-children node) ix))
+              (set! ix (.seek node key 0))
+              (recur))))
+        ;; if we aren't now at the tree wrapper we can return a result
+        (when (instance? Node node)
+          #js [(aget (.-keys node) ix) (aget (.-vals node) ix)])))
 
 (defn iterator [tree]
   (loop [node (.-root tree)]
@@ -209,6 +187,11 @@
      (dotimes [i 100000]
        (.assoc! tree i (* 2 i)))))
 
+  (time
+   (let [tree (tree 100)]
+     (dotimes [i 500000]
+       (.assoc! tree i (* 2 i)))))
+
   (let [tree (tree 3)
         iterator (iterator tree)]
     (take 2000 (take-while identity (repeatedly #(.next iterator)))))
@@ -223,4 +206,10 @@
             (.assoc! tree i (* 2 i)))
         iterator (iterator tree)]
     (take 2000 (take-while identity (repeatedly #(.next iterator)))))
+
+  (let [tree (tree 3)
+        _ (dotimes [i 1000]
+            (.assoc! tree i (* 2 i)))
+        iterator (iterator tree)]
+    [(.seek iterator -100) (.seek iterator 9.34) (.seek iterator 0) (.seek iterator 500) (.seek iterator 2000) (.seek iterator 2000)])
   )
