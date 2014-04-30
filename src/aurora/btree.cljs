@@ -45,7 +45,7 @@
               (cond
                (> mid-key key) (recur lo (- mid 1))
                (< mid-key key) (recur (+ mid 1) hi)
-               :else (do (prn keys key mid) mid))))))
+               :else mid)))))
   (assoc! [this key val max-keys]
           (set! lower (min lower key))
           (set! upper (max upper key))
