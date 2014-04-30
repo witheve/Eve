@@ -19,7 +19,7 @@
   (into [this result]
         (.into root result))
   (valid! [this]
-          (.valid! root))
+          (.valid! root (js/Math.floor (/ max-keys 2)) max-keys))
   ISeqable
   (-seq [this]
         (let [result #js []]
@@ -87,14 +87,17 @@
               (let [right-children (.slice children (+ median 1))]
                 (dotimes [ix (alength right-children)]
                   (let [child (aget right-children ix)]
-                    (set (.-parent child) right-node)
-                    (set (.-parent-ix child) ix)))
+                    (set! (.-parent child) right-node)
+                    (set! (.-parent-ix child) ix)))
                 (set! (.-children right-node) right-children)
                 (.splice children median (+ median 2))))
-            #_(assert (= (alength keys) (alength vals) (if children (dec (alength children)) (alength keys))))
-            #_(assert (= (alength (.-keys right-node)) (alength (.-vals right-node)) (if (.-children right-node) (dec (alength (.-children right-node))) (alength (.-keys right-node)))))
-            (.insert! parent parent-ix median-key median-val right-node)))
-  (valid! [this]
+            (.valid! this (js/Math.floor (/ max-keys 2)) max-keys)
+            (.valid! right-node (js/Math.floor (/ max-keys 2)) max-keys)
+            (.insert! parent parent-ix median-key median-val right-node max-keys)))
+  (valid! [this min-keys max-keys]
+          (assert (>= (count keys) min-keys) (pr-str keys min-keys))
+          (assert (<= (count keys) max-keys) (pr-str keys max-keys))
+          (assert (= (count keys)) (inc (count children)))
           (assert (= (count keys) (count (set keys))))
           (assert (= (seq keys) (sort keys)))
           (assert (every? #(<= lower %) keys))
@@ -108,7 +111,7 @@
               (assert (= upper (.-upper (aget children (- (alength children) 1)))))
               (assert (every? #(> (aget keys %) (.-upper (aget children %))) (range (count keys))))
               (assert (every? #(< (aget keys %) (.-lower (aget children (inc %)))) (range (count keys))))
-              (dotimes [i (count children)] (.valid! (aget children i)))))))
+              (dotimes [i (count children)] (.valid! (aget children i) min-keys max-keys))))))
 
 (deftype Iterator [max-keys ^:mutable node ^:mutable ix ^:mutable end?]
   Object
