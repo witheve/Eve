@@ -226,4 +226,12 @@
             (.assoc! tree i (* 2 i)))
         iterator (iterator tree)]
     [(.seek iterator -100) (.seek iterator 9.34) (.seek iterator 0) (.seek iterator 500) (.seek iterator 2000) (.seek iterator 2000)])
+
+  (let [tree (tree 3)
+        _ (dotimes [i 1000]
+            (.assoc! tree i (* 2 i)))
+        iterator (iterator tree)]
+    (time
+     (dotimes [i 10000000]
+       [(.seek iterator -100) (.seek iterator 9.34) (.seek iterator 0) (.seek iterator 500) (.seek iterator 2000) (.seek iterator 2000)])))
   )
