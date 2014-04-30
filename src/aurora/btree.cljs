@@ -42,7 +42,8 @@
             lo
             (let [mid (+ lo (js/Math.floor (/ (- hi lo) 2)))
                   mid-key (aget keys mid)]
-              (if (> mid-key key) (recur lo (- mid 1))
+              (if (> mid-key key)
+                (recur lo (- mid 1))
                 (if (< mid-key key)
                   (recur (+ mid 1) hi)
                   mid))))))
