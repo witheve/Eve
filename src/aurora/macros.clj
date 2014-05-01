@@ -2,6 +2,33 @@
   (:refer-clojure :exclude [munge])
   (:require [cljs.compiler :refer [munge]]))
 
+(defmacro lt [a b]
+  `(let [a# ~a
+         b# ~b]
+     (or (< (.-constructor a#) (.-constructor b#))
+         (and (== (.-constructor a#) (.-constructor b#))
+              (< a# b#)))))
+
+(defmacro lte [a b]
+  `(let [a# ~a
+         b# ~b]
+     (or (< (.-constructor a#) (.-constructor b#))
+         (and (== (.-constructor a#) (.-constructor b#))
+              (<= a# b#)))))
+
+(defmacro gt [a b]
+  `(let [a# ~a
+         b# ~b]
+     (or (> (.-constructor a#) (.-constructor b#))
+         (and (== (.-constructor a#) (.-constructor b#))
+              (> a# b#)))))
+
+(defmacro gte [a b]
+  `(let [a# ~a
+         b# ~b]
+     (or (> (.-constructor a#) (.-constructor b#))
+         (and (== (.-constructor a#) (.-constructor b#))
+              (>= a# b#)))))
 
 (defmacro avec [arr]
   `(js/cljs.core.PersistentVector.fromArray ~arr true))

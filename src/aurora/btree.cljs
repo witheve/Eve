@@ -1,5 +1,5 @@
 (ns aurora.btree
-  (:require-macros [aurora.macros :refer [apush]]))
+  (:require-macros [aurora.macros :refer [apush lt lte gt gte]]))
 
 ;; NOTE iterators are not write-safe
 
@@ -172,6 +172,46 @@
     tree))
 
 (comment
+  (let [types [(type "foo") (type 1) (type :foo) (type js/Infinity)]]
+    [(every? true? (for [type-a types]
+                     (and (<= type-a type-a)
+                          (not (< type-a type-a)))))
+     (every? true? (for [type-a types
+                         type-b types]
+                     (or(< type-a type-b) (< type-b type-a) (== type-a type-b))))
+     (every? true? (for [type-a types
+                         type-b types]
+                     (not (and (< type-a type-b) (< type-b type-a)))))
+     (every? true? (for [type-a types
+                         type-b types
+                         type-c types]
+                     (if (and (< type-a type-b) (< type-b type-c))
+                       (< type-a type-c)
+                       true)))])
+
+  (let [things [(- js/Infinity) (- 0) 0 1 4.5 js/Infinity "1" "-1" "a" :1 :-1 :a]]
+    [(every? true? (for [thing-a things]
+                     (and (lte thing-a thing-a)
+                          (not (lt thing-a thing-a)))))
+     (every? true? (for [thing-a things
+                         thing-b things]
+                     (or (lt thing-a thing-b) (lt thing-b thing-a) (== thing-a thing-b))))
+     (every? true? (for [thing-a things
+                         thing-b things]
+                     (not (and (lt thing-a thing-b) (lt thing-b thing-a)))))
+     (every? true? (for [thing-a things
+                         thing-b things
+                         thing-c things]
+                     (if (and (lt thing-a thing-b) (lt thing-b thing-c))
+                       (lt thing-a thing-c)
+                       true)))
+     (every? true? (for [thing-a things
+                         thing-b things
+                         thing-c things]
+                     (if (and (lte thing-a thing-b) (lte thing-b thing-c))
+                       (lte thing-a thing-c)
+                       true)))])
+
   (let [node (Node. nil nil #js [])]
     (.seek node 0 0))
 
@@ -215,6 +255,18 @@
     (.assoc! tree :e 1)
     (.assoc! tree :f 1)
     (.assoc! tree :g 1)
+    (js/console.log tree)
+    (.valid! tree)
+    tree)
+
+  (let [tree (tree 1)]
+    (.assoc! tree :a 0)
+    (.assoc! tree 1 :b)
+    (.assoc! tree :c 2)
+    (.assoc! tree 3 :d)
+    (.assoc! tree :e 4)
+    (.assoc! tree 5 :f)
+    (.assoc! tree :g 6)
     (js/console.log tree)
     (.valid! tree)
     tree)
