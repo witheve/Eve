@@ -26,7 +26,8 @@
   (into [this result]
         (.into root result))
   (valid! [this]
-          (.valid! root max-keys))
+          (.valid! root max-keys)
+          true)
   (pretty-print [this]
                 (prn :root)
                 (loop [nodes [root]]
@@ -282,6 +283,46 @@
     (set! (.-parent node) tree)
     (set! (.-parent-ix node) 0)
     tree))
+
+;; TESTS
+
+(def gen-key
+  (gen/one-of [gen/int gen/string-ascii]))
+
+(def gen-assoc
+  (gen/tuple (gen/return :assoc!) gen-key gen/any-printable))
+
+(def gen-dissoc
+  (gen/tuple (gen/return :dissoc!) gen-key))
+
+(def gen-action
+  (gen/one-of [gen-assoc gen-dissoc]))
+
+(defn apply-to-tree [tree actions]
+  (doseq [action actions]
+    (case (nth action 0)
+      :assoc! (.assoc! tree (nth action 1) (nth action 2))
+      :dissoc! (.dissoc! tree (nth action 1))))
+  tree)
+
+(defn apply-to-sorted-map [map actions]
+  (reduce
+   (fn [map action]
+     (case (nth action 0)
+       :assoc! (assoc map (nth action 1) (nth action 2))
+       :dissoc! (dissoc map (nth action 1))))
+   map actions))
+
+(defn the-prop [gen]
+  (prop/for-all [min-keys gen/s-pos-int
+                 actions (gen/vector gen)]
+                (let [tree (apply-to-tree (tree min-keys) actions)
+                      sorted-map (apply-to-sorted-map (sorted-map-by #(cond (== %1 %2) 0 (lt %1 %2) -1 (gt %1 %2) 1)) actions)]
+                  (and (= (seq (map vec tree)) (seq sorted-map))
+                       (or (empty? tree) (.valid! tree))))))
+
+;; (dc/quick-check 100 (the-prop gen-assoc))
+;; (dc/quick-check 100 (the-prop gen-action))
 
 (comment
   (let [types [(type "foo") (type 1) (type :foo) (type js/Infinity)]]
