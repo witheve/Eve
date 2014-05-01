@@ -313,6 +313,46 @@
        :dissoc! (dissoc map (nth action 1))))
    map actions))
 
+(def least-prop
+  (prop/for-all [key gen-key]
+                (and (lt least key) (lte least key) (gt key least) (gte key least))))
+
+(def greatest-prop
+  (prop/for-all [key gen-key]
+                (and (gt greatest key) (gte greatest key) (lt key greatest) (lte key greatest))))
+
+(def equality-prop
+  (prop/for-all [key-a gen-key
+                 key-b gen-key]
+                (== (== key-a key-b)
+                    (and (lte key-a key-b) (not (lt key-a key-b)))
+                    (and (gte key-a key-b) (not (gt key-a key-b))))))
+
+(def reflexive-prop
+  (prop/for-all [key gen-key]
+                (and (lte key key) (gte key key) (not (lt key key)) (not (gt key key)))))
+
+(def transitive-prop
+  (prop/for-all [key-a gen-key
+                 key-b gen-key
+                 key-c gen-key]
+                (and (if (and (lt key-a key-b) (lt key-b key-c)) (lt key-a key-c) true)
+                     (if (and (lte key-a key-b) (lte key-b key-c)) (lte key-a key-c) true)
+                     (if (and (gt key-a key-b) (gt key-b key-c)) (gt key-a key-c) true)
+                     (if (and (gte key-a key-b) (gte key-b key-c)) (gte key-a key-c) true))))
+
+(def anti-symmetric-prop
+  (prop/for-all [key-a gen-key
+                 key-b gen-key]
+                (and (not (and (lt key-a key-b) (lt key-b key-a)))
+                     (not (and (gt key-a key-b) (gt key-b key-a))))))
+
+(def total-prop
+  (prop/for-all [key-a gen-key
+                 key-b gen-key]
+                (and (or (lt key-a key-b) (gte key-a key-b))
+                     (or (gt key-a key-b) (lte key-a key-b)))))
+
 (defn run-the-prop [min-keys actions]
   (let [tree (apply-to-tree (tree min-keys) actions)
         sorted-map (apply-to-sorted-map (sorted-map-by #(cond (== %1 %2) 0 (lt %1 %2) -1 (gt %1 %2) 1)) actions)]
@@ -326,268 +366,18 @@
 
 (apply run-the-prop [1 [[:assoc! 19 0] [:assoc! "" 0] [:assoc! 0 0] [:assoc! 19 0]]])
 
-;; (dc/quick-check 100 (the-prop gen-assoc))
-;; (dc/quick-check 100 (the-prop gen-action))
+;; TODO iterator tests
 
 (comment
-  (let [types [(type "foo") (type 1) (type :foo) (type js/Infinity)]]
-    [(every? true? (for [type-a types]
-                     (and (<= type-a type-a)
-                          (not (< type-a type-a)))))
-     (every? true? (for [type-a types
-                         type-b types]
-                     (or(< type-a type-b) (< type-b type-a) (== type-a type-b))))
-     (every? true? (for [type-a types
-                         type-b types]
-                     (not (and (< type-a type-b) (< type-b type-a)))))
-     (every? true? (for [type-a types
-                         type-b types
-                         type-c types]
-                     (if (and (< type-a type-b) (< type-b type-c))
-                       (< type-a type-c)
-                       true)))])
-
-  (let [things [(- js/Infinity) (- 0) 0 1 4.5 js/Infinity "1" "-1" "a"]]
-    [(every? true? (for [thing-a things]
-                     (lt least thing-a)))
-     (every? true? (for [thing-a things]
-                     (gt greatest thing-a)))
-     (every? true? (for [thing-a things]
-                     (and (lte thing-a thing-a)
-                          (not (lt thing-a thing-a)))))
-     (every? true? (for [thing-a things
-                         thing-b things]
-                     (or (lt thing-a thing-b) (lt thing-b thing-a) (== thing-a thing-b))))
-     (every? true? (for [thing-a things
-                         thing-b things]
-                     (not (and (lt thing-a thing-b) (lt thing-b thing-a)))))
-     (every? true? (for [thing-a things
-                         thing-b things
-                         thing-c things]
-                     (if (and (lt thing-a thing-b) (lt thing-b thing-c))
-                       (lt thing-a thing-c)
-                       true)))
-     (every? true? (for [thing-a things
-                         thing-b things
-                         thing-c things]
-                     (if (and (lte thing-a thing-b) (lte thing-b thing-c))
-                       (lte thing-a thing-c)
-                       true)))])
-
-  (let [node (Node. nil nil #js [])]
-    (.seek node 0 0))
-
-  (let [node (Node. nil nil #js [0])]
-    (.seek node 0 0))
-
-  (let [node (Node. nil nil #js [0 1 2 3 4 5 6 7 8 9])]
-    (every? #(= % (.seek node % 0)) (range 10)))
-
-  (let [node (Node. nil nil #js [0 1 2 3 4 5 6 7 8 9])]
-    (every? #(= % (.seek node % %)) (range 10)))
-
-  (let [node (Node. nil nil #js [0 1 2 3 4 5 6 7 8 9])]
-    (every? #(= % (.seek node 0 %)) (range 10)))
-
-  (let [tree (tree 1)]
-    (.valid! tree)
-    tree)
-
-  (let [tree (tree 1)]
-    (.assoc! tree "a" 0)
-    (.valid! tree)
-    tree)
-
-  (let [tree (tree 1)]
-    (.assoc! tree "a" 0)
-    (.assoc! tree "b" 1)
-    (js/console.log tree)
-    tree)
-
-  (let [tree (tree 1)]
-    (.assoc! tree "a" 0)
-    (.assoc! tree "b" 1)
-    (.assoc! tree "c" 1)
-    (js/console.log tree)
-    tree)
-
-  (let [tree (tree 1)]
-    (.assoc! tree "a" 0)
-    (.pretty-print tree)
-    (.assoc! tree "b" 1)
-    (.pretty-print tree)
-    (.assoc! tree "c" 1)
-    (.pretty-print tree)
-    (.assoc! tree "d" 1)
-    (.pretty-print tree)
-    (.assoc! tree "e" 1)
-    (.pretty-print tree)
-    (.assoc! tree "f" 1)
-    (.pretty-print tree)
-    (.assoc! tree "g" 1)
-    (.pretty-print tree)
-    (js/console.log tree)
-    (.valid! tree)
-    tree)
-
-  (let [tree (tree 1)]
-    (.assoc! tree "a" 0)
-    (.pretty-print tree)
-    (.assoc! tree 1 "b")
-    (.pretty-print tree)
-    (.assoc! tree "c" 2)
-    (.pretty-print tree)
-    (.assoc! tree 3 "d")
-    (.pretty-print tree)
-    (.assoc! tree "e" 4)
-    (.pretty-print tree)
-    (.assoc! tree 5 "f")
-    (.pretty-print tree)
-    (.assoc! tree "g" 6)
-    (.pretty-print tree)
-    (js/console.log tree)
-    (.valid! tree)
-    tree)
-
-  (let [tree (tree 1)]
-    (dotimes [i 1000]
-      (.assoc! tree i (* 2 i)))
-    (.valid! tree)
-    (= (map #(.apply vector nil %) tree) (for [i (range 1000)] [i (* 2 i)])))
-
-  (let [tree (tree 1)]
-    (dotimes [i 1000]
-      (.assoc! tree (js/Math.sin i) (* 2 i)))
-    (.valid! tree)
-    (= (map #(.apply vector nil %) tree) (sort (for [i (range 1000)] [(js/Math.sin i) (* 2 i)]))))
-
-  (let [tree (tree 2)]
-    (dotimes [i 1000]
-      (.assoc! tree i (* 2 i)))
-    (.valid! tree)
-    (= (map #(.apply vector nil %) tree) (for [i (range 1000)] [i (* 2 i)])))
-
-  (let [tree (tree 3)]
-    (dotimes [i 1000]
-      (.assoc! tree i (* 2 i)))
-    (.valid! tree)
-    (= (map #(.apply vector nil %) tree) (for [i (range 1000)] [i (* 2 i)])))
-
-  (time
-   (let [tree (tree 1)]
-     (dotimes [i 100000]
-       (.assoc! tree i (* 2 i)))))
-
-  (time
-   (let [tree (tree 3)]
-     (dotimes [i 100000]
-       (.assoc! tree i (* 2 i)))))
-
-  (time
-   (let [tree (tree 10)]
-     (dotimes [i 100000]
-       (.assoc! tree i (* 2 i)))))
-
-  (time
-   (let [tree (tree 1000)]
-     (dotimes [i 100000]
-       (.assoc! tree i (* 2 i)))))
-
-  (time
-   (let [tree (tree 100)]
-     (dotimes [i 500000]
-       (.assoc! tree i (* 2 i)))))
-
-  (defn f []
-    (time
-     (let [tree (tree 100)]
-       (dotimes [i 500000]
-         (.assoc! tree i (* 2 i))))))
-
-  (f)
-
-  (let [tree (tree 3)
-        iterator (iterator tree)]
-    (.next iterator))
-
-  (let [tree (tree 3)
-        iterator (iterator tree)]
-    (take 2000 (take-while identity (repeatedly #(.next iterator)))))
-
-  (let [tree (tree 3)
-        _ (.assoc! tree :a 0)
-        iterator (iterator tree)]
-    (take 2000 (take-while identity (repeatedly #(.next iterator)))))
-
-  (let [tree (tree 3)
-        _ (dotimes [i 1000]
-            (.assoc! tree i (* 2 i)))
-        iterator (iterator tree)]
-    (= (for [i (range 1000)] [i (* 2 i)]) (map #(.apply vector nil %) (take 2000 (take-while identity (repeatedly #(.next iterator)))))))
-
-  (let [tree (tree 3)
-        iterator (iterator tree)]
-    (.seek iterator -100))
-
-  (let [tree (tree 3)
-        _ (dotimes [i 1000]
-            (.assoc! tree i (* 2 i)))
-        iterator (iterator tree)]
-    [(.seek iterator -100) (.seek iterator 9.34) (.seek iterator 0) (.seek iterator 500) (.seek iterator 2000) (.seek iterator 0)])
-
-  (let [tree (tree 3)
-        _ (dotimes [i 1000]
-            (.assoc! tree i (* 2 i)))
-        iterator (iterator tree)]
-    (time
-     (dotimes [i 10000000]
-       [(.seek iterator -100) (.seek iterator 9.34) (.seek iterator 0) (.seek iterator 500) (.seek iterator 2000) (.seek iterator 2000)])))
-
-  (time
-   (let [tree (tree 3)]
-     (dotimes [i 10]
-       (.assoc! tree i (* 2 i)))
-     ;(collect tree 3 7)
-     (js/console.log tree)
-     (for [i (range 10)] (.seek (iterator tree) i))
-     ))
-
-  (let [tree (tree 1)]
-    (.assoc! tree "foo")
-    (.dissoc! tree "bar")
-    (.valid! tree)
-    tree)
-
-  (let [tree (tree 1)]
-    (.assoc! tree "foo")
-    (.assoc! tree "bar")
-    (.dissoc! tree "bar")
-    #_(.valid! tree)
-    tree)
-
   (do
-    (def t (tree 1))
-    (.assoc! t "a" 0)
-    (.assoc! t 1 "b")
-    (.assoc! t "c" 2)
-    (.assoc! t 3 "d")
-    (.assoc! t "e" 4)
-    (.assoc! t 5 "f")
-    (.assoc! t "g" 6)
-    (.pretty-print t)
-    (.dissoc! t "a")
-    (.pretty-print t)
-    (js/console.log t)
-    (.valid! t)
-    t)
+    (dc/quick-check 1000 least-prop)
+    (dc/quick-check 1000 greatest-prop)
+    (dc/quick-check 1000 equality-prop)
+    (dc/quick-check 1000 reflexive-prop)
+    (dc/quick-check 1000 transitive-prop)
+    (dc/quick-check 1000 anti-symmetric-prop)
+    (dc/quick-check 1000 total-prop)
+    (dc/quick-check 100 (the-prop gen-assoc))
+    (dc/quick-check 100 (the-prop gen-action)))
+ )
 
-  (let [tree (tree 1)]
-    (dotimes [i 1000]
-      (.assoc! tree (js/Math.sin i) (* 2 i)))
-    (dotimes [i 1000]
-      (print i)
-      (.valid! tree)
-      (.dissoc! tree (js/Math.sin i) (* 2 i)))
-    #_(.valid! tree)
-    (= (map #(.apply vector nil %) tree) (sort (for [i (range 1000)] [(js/Math.sin i) (* 2 i)]))))
-  )
