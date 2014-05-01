@@ -10,6 +10,9 @@
   (assoc! [this key val]
           (assert (or (number? key) (string? key)))
           (.assoc! root key val max-keys))
+  (dissoc! [this key]
+           (assert (or (number? key) (string? key)))
+           (.dissoc! root key (js/Math.floor (/ max-keys 2))))
   (insert! [this ix key val right-child max-keys]
            (let [left-child root]
              (set! root (Node. this 0 #js [key] #js [val] #js [left-child right-child] (.-lower left-child) (.-upper right-child)))
@@ -67,16 +70,6 @@
                   (.insert! this ix key val nil max-keys)
                   false))
               (.assoc! (aget children ix) key val max-keys))))
-  (dissoc! [this key max-keys]
-           (let [ix (.seek this key 0)]
-             (if (nil? children)
-               (if (== key (aget keys ix))
-                 (do
-                   (.remove this ix key max-keys)
-                   true)
-                 (do
-                   false))
-               (.dissoc! (aget children ix) key max-keys))))
   (insert! [this ix key val right-child max-keys]
            (.splice keys ix 0 key)
            (.splice vals ix 0 val)
@@ -118,6 +111,56 @@
             #_(.valid! this max-keys)
             #_(.valid! right-node max-keys)
             (.insert! parent parent-ix median-key median-val right-node max-keys)))
+  (dissoc! [this key min-keys]
+           ;; TODO update ranges
+           (let [ix (.seek this key 0)
+                 result (== key (aget keys ix))]
+             (if result
+               (if (nil? children)
+                 (.remove! this ix min-keys)
+                 (loop [node (aget children (+ ix 1))]
+                   (if (.-children node)
+                     (recur (aget (.-children node) 0))
+                     (do
+                       (aset keys ix (aget (.-keys node) 0))
+                       (aset vals ix (aget (.-vals node) 0))
+                       (.remove! node 0 min-keys)))))
+               (if (nil? children)
+                 nil
+                 (.dissoc! (aget children ix) key min-keys)))
+             result))
+  (remove! [this ix min-keys]
+           (assert (nil? children))
+           (.splice keys ix 1)
+           (.splice vals ix 1)
+           (when (< (alength keys) min-keys)
+             (.rotate-left! this min-keys)))
+  (rotate-left! [this min-keys]
+                (if (> parent-ix 0)
+                  (let [left-node (aget (.-children parent) (- parent-ix 1))
+                        left-keys (.-keys left-node)
+                        left-vals (.-vals left-node)]
+                    (if (> (alength left-keys) min-keys)
+                      (do
+                        (.unshift keys (.pop left-keys))
+                        (.unshift vals (.pop left-vals))
+                        (set! lower (aget keys 0))
+                        (set! (.-upper left-node) (aget left-keys (- (alength left-keys) 1))))
+                      (.rotate-right! this min-keys)))
+                  (.rotate-right! this min-keys)))
+  (rotate-right! [this min-keys]
+                 (if (< parent-ix (- (alength (.-children parent)) 1))
+                   (let [right-node (aget (.-children parent) (+ parent-ix 1))
+                         right-keys (.-keys right-node)
+                         right-vals (.-vals right-node)]
+                     (if (> (alength right-keys) min-keys)
+                       (do
+                         (.push keys (.shift right-keys))
+                         (.push vals (.shift right-vals))
+                         (set! upper (aget keys (- (alength keys) 1)))
+                         (set! (.-lower right-node) (aget right-keys 0)))
+                       (.merge! this)))
+                   (.merge! this)))
   (valid! [this max-keys]
           (let [min-keys (js/Math.floor (/ max-keys 2))]
             (when (instance? Node parent) ;; root is allowed to have less keys
