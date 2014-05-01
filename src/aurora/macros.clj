@@ -2,33 +2,36 @@
   (:refer-clojure :exclude [munge])
   (:require [cljs.compiler :refer [munge]]))
 
+(defmacro typeof [a]
+  `(~'js* "(typeof ~{})" ~a))
+
 (defmacro lt [a b]
-  `(let [a# ~a
-         b# ~b]
-     (or (< (.-constructor a#) (.-constructor b#))
-         (and (== (.-constructor a#) (.-constructor b#))
-              (< a# b#)))))
+  (assert (not (coll? a)) (pr-str a))
+  (assert (not (coll? b)) (pr-str b))
+  `(or (and (== (typeof ~a) (typeof ~b))
+            (< ~a ~b))
+       (< (typeof ~a) (typeof ~b))))
 
 (defmacro lte [a b]
-  `(let [a# ~a
-         b# ~b]
-     (or (< (.-constructor a#) (.-constructor b#))
-         (and (== (.-constructor a#) (.-constructor b#))
-              (<= a# b#)))))
+  (assert (not (coll? a)) (pr-str a))
+  (assert (not (coll? b)) (pr-str b))
+  `(or (and (== (typeof ~a) (typeof ~b))
+            (<= ~a ~b))
+       (< (typeof ~a) (typeof ~b))))
 
 (defmacro gt [a b]
-  `(let [a# ~a
-         b# ~b]
-     (or (> (.-constructor a#) (.-constructor b#))
-         (and (== (.-constructor a#) (.-constructor b#))
-              (> a# b#)))))
+  (assert (not (coll? a)) (pr-str a))
+  (assert (not (coll? b)) (pr-str b))
+  `(or (and (== (typeof ~a) (typeof ~b))
+            (> ~a ~b))
+       (> (typeof ~a) (typeof ~b))))
 
 (defmacro gte [a b]
-  `(let [a# ~a
-         b# ~b]
-     (or (> (.-constructor a#) (.-constructor b#))
-         (and (== (.-constructor a#) (.-constructor b#))
-              (>= a# b#)))))
+  (assert (not (coll? a)) (pr-str a))
+  (assert (not (coll? b)) (pr-str b))
+  `(or (and (== (typeof ~a) (typeof ~b))
+            (>= ~a ~b))
+       (> (typeof ~a) (typeof ~b))))
 
 (defmacro avec [arr]
   `(js/cljs.core.PersistentVector.fromArray ~arr true))
