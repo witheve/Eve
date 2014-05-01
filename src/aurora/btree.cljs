@@ -313,13 +313,18 @@
        :dissoc! (dissoc map (nth action 1))))
    map actions))
 
+(defn run-the-prop [min-keys actions]
+  (let [tree (apply-to-tree (tree min-keys) actions)
+        sorted-map (apply-to-sorted-map (sorted-map-by #(cond (== %1 %2) 0 (lt %1 %2) -1 (gt %1 %2) 1)) actions)]
+    (and (= (seq (map vec tree)) (seq sorted-map))
+         (or (empty? tree) (.valid! tree)))))
+
 (defn the-prop [gen]
   (prop/for-all [min-keys gen/s-pos-int
                  actions (gen/vector gen)]
-                (let [tree (apply-to-tree (tree min-keys) actions)
-                      sorted-map (apply-to-sorted-map (sorted-map-by #(cond (== %1 %2) 0 (lt %1 %2) -1 (gt %1 %2) 1)) actions)]
-                  (and (= (seq (map vec tree)) (seq sorted-map))
-                       (or (empty? tree) (.valid! tree))))))
+                (run-the-prop min-keys actions)))
+
+(apply run-the-prop [1 [[:assoc! 19 0] [:assoc! "" 0] [:assoc! 0 0] [:assoc! 19 0]]])
 
 ;; (dc/quick-check 100 (the-prop gen-assoc))
 ;; (dc/quick-check 100 (the-prop gen-action))
