@@ -64,16 +64,14 @@
   (assoc! [this key val max-keys]
           (when (lt key lower) (set! lower key))
           (when (gt key upper) (set! upper key))
-          (let [ix (.seek this key 0)]
-            (if (nil? children)
-              (if (== key (aget keys ix))
-                (do
-                  (aset vals ix val)
-                  true)
-                (do
-                  (.insert! this ix key val nil max-keys)
-                  false))
-              (.assoc! (aget children ix) key val max-keys))))
+          (let [ix (.seek this key 0)
+                result (== key (aget keys ix))]
+            (if result
+              (aset vals ix val)
+              (if (nil? children)
+                (.insert! this ix key val nil max-keys)
+                (.assoc! (aget children ix) key val max-keys)))
+            result))
   (insert! [this ix key val right-child max-keys]
            (.splice keys ix 0 key)
            (.splice vals ix 0 val)
@@ -353,18 +351,16 @@
                 (and (or (lt key-a key-b) (gte key-a key-b))
                      (or (gt key-a key-b) (lte key-a key-b)))))
 
-(defn run-the-prop [min-keys actions]
+(defn run-denotational-prop [min-keys actions]
   (let [tree (apply-to-tree (tree min-keys) actions)
         sorted-map (apply-to-sorted-map (sorted-map-by #(cond (== %1 %2) 0 (lt %1 %2) -1 (gt %1 %2) 1)) actions)]
     (and (= (seq (map vec tree)) (seq sorted-map))
          (or (empty? tree) (.valid! tree)))))
 
-(defn the-prop [gen]
+(defn denotational-prop [gen]
   (prop/for-all [min-keys gen/s-pos-int
                  actions (gen/vector gen)]
-                (run-the-prop min-keys actions)))
-
-(apply run-the-prop [1 [[:assoc! 19 0] [:assoc! "" 0] [:assoc! 0 0] [:assoc! 19 0]]])
+                (run-denotational-prop min-keys actions)))
 
 ;; TODO iterator tests
 
@@ -377,7 +373,7 @@
     (dc/quick-check 1000 transitive-prop)
     (dc/quick-check 1000 anti-symmetric-prop)
     (dc/quick-check 1000 total-prop)
-    (dc/quick-check 100 (the-prop gen-assoc))
-    (dc/quick-check 100 (the-prop gen-action)))
+    (dc/quick-check 100 (denotational-prop gen-assoc))
+    (dc/quick-check 100 (denotational-prop gen-action)))
  )
 
