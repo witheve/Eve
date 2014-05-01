@@ -49,11 +49,11 @@
             lo
             (let [mid (+ lo (js/Math.floor (/ (- hi lo) 2)))
                   mid-key (aget keys mid)]
-              (if (gt mid-key key)
-                (recur lo (- mid 1))
-                (if (lt mid-key key)
-                  (recur (+ mid 1) hi)
-                  mid))))))
+              (if (lt mid-key key)
+                (recur (+ mid 1) hi)
+                (if (== mid-key key)
+                  mid
+                  (recur lo (- mid 1))))))))
   (assoc! [this key val max-keys]
           (set! lower (if (lt lower key) lower key))
           (set! upper (if (lt key upper) upper key))
