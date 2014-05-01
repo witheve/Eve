@@ -1,5 +1,5 @@
 (ns aurora.btree
-  (:require [cemerick.double-check.core :as sc]
+  (:require [cemerick.double-check :as dc]
             [cemerick.double-check.generators :as gen]
             [cemerick.double-check.properties :as prop :include-macros true])
   (:require-macros [aurora.macros :refer [apush apush* lt lte gt gte set!!]]))

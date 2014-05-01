@@ -41,5 +41,5 @@
                  [org.clojure/tools.reader "0.8.3"]
                  [com.cemerick/double-check "0.5.7-SNAPSHOT"]]
   :source-paths ["src/"]
-  :plugins [[lein-cljsbuild "1.0.2"] [com.keminglabs/cljx "0.3.2"]]
+  :plugins [[lein-cljsbuild "1.0.2"]]
   )
