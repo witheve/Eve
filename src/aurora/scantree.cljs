@@ -50,20 +50,22 @@
                         (recur (dec len)))))
                   (set! dirty? false))
                 (.-aggregate this))
+
   (seek [this key ix]
-        (loop [lo (max ix 0)
+        (loop [lo (if (> ix 0) ix 0)
                hi (- (alength keys) 1)]
           (if (< hi lo)
             lo
             (let [mid (+ lo (js/Math.floor (/ (- hi lo) 2)))
                   mid-key (aget keys mid)]
-              (cond
-               (> mid-key key) (recur lo (- mid 1))
-               (< mid-key key) (recur (+ mid 1) hi)
-               :else mid)))))
+              (if (> mid-key key)
+                (recur lo (- mid 1))
+                (if (< mid-key key)
+                  (recur (+ mid 1) hi)
+                  mid))))))
   (assoc! [this key val max-keys]
-          (set! lower (min lower key))
-          (set! upper (max upper key))
+          (set! lower (if (< lower key) lower key))
+          (set! upper (if (< key upper) upper key))
           (set! dirty? true)
           (let [ix (.seek this key 0)]
             (if (nil? children)
@@ -209,7 +211,7 @@
        (<= container-from from)
        (>= container-to to)))
 
-(defn down-until-contained [node nfrom nto from to result]
+(defn down-until-contained [node from to result]
   (let [keys (.-keys node)
         keys-len (.-length keys)
         vals (.-vals node)]
@@ -218,20 +220,16 @@
       (loop [child-i 0]
         (when (<= child-i keys-len)
           (let [child (aget children child-i)
-                lower (if (== 0 child-i)
-                        nfrom
-                        (aget keys (dec child-i)))
-                upper (if (> child-i keys-len)
-                        nto
-                        (aget keys child-i))]
+                lower (.-lower child)
+                upper (.-upper child)]
             (when (or (== nil upper) (>= upper from))
               (if (contained? lower upper from to)
                 (do
                   (.push result (.getAggregate child)))
                 (when (<= lower to)
                   ;;check if this node's value needs to go in
-                  (down-until-contained child lower upper from to result)))
-              (when (>= to upper)
+                  (down-until-contained2 child from to result)))
+              (when (>= to (aget keys child-i))
                 (.push result (aget vals child-i))))
             (when (and (<= lower to)
                        (<= upper to))
@@ -250,7 +248,7 @@
 
 (defn aggregate-range [tree from to]
   (let [results (array)]
-    (down-until-contained (.-root tree) nil nil from to results)
+    (down-until-contained2 (.-root tree) from to results)
     (let [len (.-length results)
           func (.-aggregateFunc tree)]
       (loop [i 0
@@ -290,12 +288,19 @@
         (collect tree 5000 9020)))
      )
 
+  (let [tree (tree 10 +)]
+     (dotimes [i 10000]
+       (.assoc! tree i (* 2 i)))
+    (aggregate-range tree 5000 9020)
+    )
+
    (let [tree (tree 10 +)]
      (dotimes [i 10000]
        (.assoc! tree i (* 2 i)))
       (aggregate-range tree 5000 9020)
-     (perf-time
-      (dotimes [x 10000]
-        (aggregate-range tree 5000 9020))))
+      (perf-time
+       (dotimes [x 10000]
+         (aggregate-range tree 5000 9020)))
+     )
 
   )
