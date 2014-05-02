@@ -149,24 +149,34 @@
                 (if (> parent-ix 0)
                   (let [left-node (aget (.-children parent) (- parent-ix 1))
                         left-keys (.-keys left-node)
-                        left-vals (.-vals left-node)]
+                        left-vals (.-vals left-node)
+                        left-children (.-children left-node)]
                     (if (> (alength left-keys) min-keys)
                       (do
-                        (.unshift keys (.pop left-keys))
-                        (.unshift vals (.pop left-vals))
+                        (.unshift keys (aget (.-keys parent) parent-ix))
+                        (.unshift vals (aget (.-vals parent) parent-ix))
+                        (aset (.-keys parent) parent-ix (.pop left-keys))
+                        (aset (.-vals parent) parent-ix (.pop left-vals))
+                        (when children
+                          (.unshift children (.pop left-children)))
                         (set! lower (aget keys 0))
                         (set! (.-upper left-node) (aget left-keys (- (alength left-keys) 1))))
                       (.rotate-right! this min-keys)))
                   (.rotate-right! this min-keys)))
   (rotate-right! [this min-keys]
-                 (if (< parent-ix (- (alength (.-children parent)) 1))
+                 (if (< parent-ix (- (alength (.-children parent)) 2))
                    (let [right-node (aget (.-children parent) (+ parent-ix 1))
                          right-keys (.-keys right-node)
-                         right-vals (.-vals right-node)]
+                         right-vals (.-vals right-node)
+                         right-children (.-children right-node)]
                      (if (> (alength right-keys) min-keys)
                        (do
-                         (.push keys (.shift right-keys))
-                         (.push vals (.shift right-vals))
+                         (.push keys (aget (.-keys parent) (+ parent-ix 1)))
+                         (.push vals (aget (.-vals parent) (+ parent-ix 1)))
+                         (aset (.-keys parent) (+ parent-ix 1) (.shift right-keys))
+                         (aset (.-vals parent) (+ parent-ix 1) (.shift right-vals))
+                         (when children
+                           (.push children (.shift right-children)))
                          (set! upper (aget keys (- (alength keys) 1)))
                          (set! (.-lower right-node) (aget right-keys 0)))
                        (.merge! this min-keys)))
@@ -283,30 +293,6 @@
 (def gen-key
   (gen/one-of [gen/int gen/string-ascii]))
 
-(def gen-assoc
-  (gen/tuple (gen/return :assoc!) gen-key gen-key))
-
-(def gen-dissoc
-  (gen/tuple (gen/return :dissoc!) gen-key))
-
-(def gen-action
-  (gen/one-of [gen-assoc gen-dissoc]))
-
-(defn apply-to-tree [tree actions]
-  (doseq [action actions]
-    (case (nth action 0)
-      :assoc! (.assoc! tree (nth action 1) (nth action 2))
-      :dissoc! (.dissoc! tree (nth action 1))))
-  tree)
-
-(defn apply-to-sorted-map [map actions]
-  (reduce
-   (fn [map action]
-     (case (nth action 0)
-       :assoc! (assoc map (nth action 1) (nth action 2))
-       :dissoc! (dissoc map (nth action 1))))
-   map actions))
-
 (def least-prop
   (prop/for-all [key gen-key]
                 (and (lt least key) (lte least key) (gt key least) (gte key least))))
@@ -346,6 +332,33 @@
                  key-b gen-key]
                 (and (or (lt key-a key-b) (gte key-a key-b))
                      (or (gt key-a key-b) (lte key-a key-b)))))
+
+(def gen-assoc
+  (gen/tuple (gen/return :assoc!) gen-key gen-key))
+
+(def gen-dissoc
+  (gen/tuple (gen/return :dissoc!) gen-key))
+
+(def gen-action
+  (gen/one-of [gen-assoc gen-dissoc]))
+
+(defn apply-to-tree [tree actions]
+  (doseq [action actions]
+    (prn action)
+    (case (nth action 0)
+      :assoc! (.assoc! tree (nth action 1) (nth action 2))
+      :dissoc! (.dissoc! tree (nth action 1)))
+    (.pretty-print tree)
+    (prn tree))
+  tree)
+
+(defn apply-to-sorted-map [map actions]
+  (reduce
+   (fn [map action]
+     (case (nth action 0)
+       :assoc! (assoc map (nth action 1) (nth action 2))
+       :dissoc! (dissoc map (nth action 1))))
+   map actions))
 
 (defn run-denotational-prop [min-keys actions]
   (let [tree (apply-to-tree (tree min-keys) actions)
