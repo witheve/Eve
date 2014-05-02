@@ -171,10 +171,10 @@
                          right-children (.-children right-node)]
                      (if (> (alength right-keys) min-keys)
                        (do
-                         (.push keys (aget (.-keys parent) (+ parent-ix 1)))
-                         (.push vals (aget (.-vals parent) (+ parent-ix 1)))
-                         (aset (.-keys parent) (+ parent-ix 1) (.shift right-keys))
-                         (aset (.-vals parent) (+ parent-ix 1) (.shift right-vals))
+                         (.push keys (aget (.-keys parent) parent-ix))
+                         (.push vals (aget (.-vals parent) parent-ix))
+                         (aset (.-keys parent) parent-ix (.shift right-keys))
+                         (aset (.-vals parent) parent-ix (.shift right-vals))
                          (when children
                            (.push children (.shift right-children)))
                          (set! upper (aget keys (- (alength keys) 1)))
@@ -349,7 +349,8 @@
       :assoc! (.assoc! tree (nth action 1) (nth action 2))
       :dissoc! (.dissoc! tree (nth action 1)))
     (.pretty-print tree)
-    (prn tree))
+    (prn tree)
+    (.valid! tree))
   tree)
 
 (defn apply-to-sorted-map [map actions]
