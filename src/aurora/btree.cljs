@@ -192,6 +192,8 @@
             (apush* (.-keys left-node) (.-keys right-node))
             (apush* (.-vals left-node) (.-vals right-node))
             (when-not (nil? children)
+              (dotimes [ix (alength (.-children right-node))]
+                (set! (.-parent-ix (aget (.-children right-node) ix)) (+ ix (alength children))))
               (apush* (.-children left-node) (.-children right-node)))
             (set! (.-upper left-node) (.-upper right-node))
             (.remove! parent separator-ix min-keys)))
@@ -217,6 +219,8 @@
                 #_(assert (= lower (aget keys 0)) (pr-str lower keys))
                 #_(assert (= upper (aget keys (- (alength keys) 1))) (pr-str upper keys)))
               (do
+                (dotimes [ix (count children)]
+                  (assert (= ix (.-parent-ix (aget children ix)))))
                 (assert (= (count keys) (count vals) (dec (count children))) (pr-str keys vals children))
                 #_(assert (= lower (.-lower (aget children 0))) (pr-str lower (.-lower (aget children 0))))
                 #_(assert (= upper (.-upper (aget children (- (alength children) 1)))) (pr-str upper (.-upper (aget children (- (alength children) 1)))))
@@ -344,13 +348,14 @@
 
 (defn apply-to-tree [tree actions]
   (doseq [action actions]
-    (prn action)
     (case (nth action 0)
       :assoc! (.assoc! tree (nth action 1) (nth action 2))
       :dissoc! (.dissoc! tree (nth action 1)))
-    (.pretty-print tree)
-    (prn tree)
-    (.valid! tree))
+    (do
+      (prn action)
+      (.pretty-print tree)
+      (prn tree)
+      (.valid! tree)))
   tree)
 
 (defn apply-to-sorted-map [map actions]
@@ -373,6 +378,8 @@
                 (run-denotational-prop min-keys actions)))
 
 ;; TODO iterator tests
+
+(apply run-denotational-prop [1 [[:assoc! 0 0] [:assoc! 1 0] [:assoc! 4 0] [:assoc! 2 0] [:assoc! -1 0] [:assoc! 3 0] [:assoc! -2 0] [:dissoc! 0] [:assoc! 0 0]]])
 
 (comment
   (do
