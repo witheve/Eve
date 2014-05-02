@@ -132,7 +132,6 @@
                  (.dissoc! (aget children ix) key min-keys)))
              result))
   (remove! [this ix min-keys]
-           (prn "remove")
            (.splice keys ix 1)
            (.splice vals ix 1)
            (when-not (nil? children)
@@ -145,7 +144,7 @@
            (when (< (alength keys) min-keys)
              (cond
               (instance? Node parent) (.rotate-left! this min-keys)
-              (== (alength keys) 0) (set! (.-root parent) (aget children 0)))))
+              (and (== (alength keys) 0) (not (nil? children))) (set! (.-root parent) (aget children 0)))))
   (rotate-left! [this min-keys]
                 (if (> parent-ix 0)
                   (let [left-node (aget (.-children parent) (- parent-ix 1))
@@ -153,7 +152,6 @@
                         left-vals (.-vals left-node)]
                     (if (> (alength left-keys) min-keys)
                       (do
-                        (prn "rotate-left")
                         (.unshift keys (.pop left-keys))
                         (.unshift vals (.pop left-vals))
                         (set! lower (aget keys 0))
@@ -167,7 +165,6 @@
                          right-vals (.-vals right-node)]
                      (if (> (alength right-keys) min-keys)
                        (do
-                         (prn "rotate-right")
                          (.push keys (.shift right-keys))
                          (.push vals (.shift right-vals))
                          (set! upper (aget keys (- (alength keys) 1)))
@@ -175,7 +172,6 @@
                        (.merge! this min-keys)))
                    (.merge! this min-keys)))
   (merge! [this min-keys]
-          (prn "merge")
           (let [separator-ix (if (> parent-ix 0) (- parent-ix 1) parent-ix)
                 left-node (aget (.-children parent) separator-ix)
                 right-node (aget (.-children parent) (+ separator-ix 1))
@@ -288,7 +284,7 @@
   (gen/one-of [gen/int gen/string-ascii]))
 
 (def gen-assoc
-  (gen/tuple (gen/return :assoc!) gen-key gen/any-printable))
+  (gen/tuple (gen/return :assoc!) gen-key gen-key))
 
 (def gen-dissoc
   (gen/tuple (gen/return :dissoc!) gen-key))
@@ -375,5 +371,29 @@
     (dc/quick-check 1000 total-prop)
     (dc/quick-check 100 (denotational-prop gen-assoc))
     (dc/quick-check 100 (denotational-prop gen-action)))
+
+  (defn f []
+    (time
+     (let [tree (tree 100)]
+       (dotimes [i 500000]
+         (.assoc! tree i (* 2 i))))))
+
+  (f)
+
+  (defn g []
+    (time
+     (let [tree (tree 100)]
+       (dotimes [i 500000]
+         (.assoc! tree (if (even? i) i (str i)) (* 2 i))))))
+
+  (g)
+
+  (defn h []
+    (time
+     (let [tree (tree 100)]
+       (dotimes [i 500000]
+         (.assoc! tree (js/Math.sin i) (* 2 i))))))
+
+  (h)
  )
 
