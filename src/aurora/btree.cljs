@@ -158,7 +158,11 @@
                         (aset (.-keys parent) parent-ix (.pop left-keys))
                         (aset (.-vals parent) parent-ix (.pop left-vals))
                         (when children
-                          (.unshift children (.pop left-children)))
+                          (let [stray-child (.pop left-children)]
+                            (.unshift children stray-child)
+                            (set! (.-parent stray-child) this)
+                            (dotimes [ix (alength children)]
+                              (set! (.-parent-ix (aget children ix)) ix))))
                         (set! lower (aget keys 0))
                         (set! (.-upper left-node) (aget left-keys (- (alength left-keys) 1))))
                       (.rotate-right! this min-keys)))
@@ -176,7 +180,10 @@
                          (aset (.-keys parent) parent-ix (.shift right-keys))
                          (aset (.-vals parent) parent-ix (.shift right-vals))
                          (when children
-                           (.push children (.shift right-children)))
+                           (let [stray-child (.shift right-children)]
+                             (.push children stray-child)
+                             (set! (.-parent stray-child) this)
+                             (set! (.-parent-ix stray-child) (- (alength children) 1))))
                          (set! upper (aget keys (- (alength keys) 1)))
                          (set! (.-lower right-node) (aget right-keys 0)))
                        (.merge! this min-keys)))
@@ -379,6 +386,7 @@
 
 ;; TODO iterator tests
 
+;; root is getting lost somehow
 (apply run-denotational-prop [1 [[:assoc! 0 0] [:assoc! 1 0] [:assoc! 4 0] [:assoc! 2 0] [:assoc! -1 0] [:assoc! 3 0] [:assoc! -2 0] [:dissoc! 0] [:assoc! 0 0]]])
 
 (comment
