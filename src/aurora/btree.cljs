@@ -369,8 +369,7 @@
                       :assoc! (.assoc! tree (nth action 1) (nth action 2))
                       :dissoc! (.dissoc! tree (nth action 1)))
         sorted-map-result (contains? sorted-map (nth action 1))]
-    (and (= tree-result sorted-map-result)
-         (or (empty? tree) (.valid! tree)))))
+    (= tree-result sorted-map-result)))
 
 (defn lookup-prop [gen]
   (prop/for-all [min-keys gen/s-pos-int
@@ -378,7 +377,45 @@
                  action gen]
                 (run-lookup-prop min-keys actions action)))
 
-;; TODO test assoc!/dissoc! results
+(def gen-next
+  (gen/tuple (gen/return :next)))
+
+(def gen-seek
+  (gen/tuple (gen/return :seek) gen-key))
+
+(def gen-movement
+  (gen/one-of [gen-next gen-seek]))
+
+(defn apply-to-iterator [iterator movements]
+  (for [movement movements]
+    (case (nth movement 0)
+      :next (.next iterator)
+      :seek (.seek iterator (nth movement 1)))))
+
+(defn apply-to-elems [elems movements]
+  (let [elems (atom elems)]
+    (for [movement movements]
+      (case (nth movement 0)
+        :next (let [result (first @elems)]
+                (swap! elems rest)
+                result)
+        :seek (do
+                (swap! elems (fn [elems] (drop-while #((fn [a b] (lt a b)) (nth % 0) (nth movement 1)) elems)))
+                (first @elems)))))) ;; TODO should seek consume the elem?
+
+(defn run-iterator-prop [min-keys actions movements]
+  (let [tree (apply-to-tree (tree min-keys) actions)
+        sorted-map (apply-to-sorted-map (sorted-map-by #(cond (== %1 %2) 0 (lt %1 %2) -1 (gt %1 %2) 1)) actions)
+        iterator-results (apply-to-iterator (iterator tree) movements)
+        elems-results (apply-to-elems (seq sorted-map) movements)]
+    (= iterator-results elems-results)))
+
+(def iterator-prop
+  (prop/for-all [min-keys gen/s-pos-int
+                 actions (gen/vector gen-action)
+                 movements (gen/vector gen-movement)]
+                (run-iterator-prop min-keys actions movements)))
+
 ;; TODO iterator tests
 
 (comment
@@ -391,6 +428,8 @@
   (dc/quick-check 1000 total-prop)
   (dc/quick-check 100 (building-prop gen-assoc))
   (dc/quick-check 100 (building-prop gen-action))
+  (dc/quick-check 100 (lookup-prop gen-action))
+  (dc/quick-check 100 iterator-prop)
 
   (defn f []
     (time
