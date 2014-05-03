@@ -351,16 +351,32 @@
        :dissoc! (dissoc map (nth action 1))))
    map actions))
 
-(defn run-denotational-prop [min-keys actions]
+(defn run-building-prop [min-keys actions]
   (let [tree (apply-to-tree (tree min-keys) actions)
         sorted-map (apply-to-sorted-map (sorted-map-by #(cond (== %1 %2) 0 (lt %1 %2) -1 (gt %1 %2) 1)) actions)]
     (and (= (seq (map vec tree)) (seq sorted-map))
          (or (empty? tree) (.valid! tree)))))
 
-(defn denotational-prop [gen]
+(defn building-prop [gen]
   (prop/for-all [min-keys gen/s-pos-int
                  actions (gen/vector gen)]
-                (run-denotational-prop min-keys actions)))
+                (run-building-prop min-keys actions)))
+
+(defn run-lookup-prop [min-keys actions action]
+  (let [tree (apply-to-tree (tree min-keys) actions)
+        sorted-map (apply-to-sorted-map (sorted-map-by #(cond (== %1 %2) 0 (lt %1 %2) -1 (gt %1 %2) 1)) actions)
+        tree-result (case (nth action 0)
+                      :assoc! (.assoc! tree (nth action 1) (nth action 2))
+                      :dissoc! (.dissoc! tree (nth action 1)))
+        sorted-map-result (contains? sorted-map (nth action 1))]
+    (and (= tree-result sorted-map-result)
+         (or (empty? tree) (.valid! tree)))))
+
+(defn lookup-prop [gen]
+  (prop/for-all [min-keys gen/s-pos-int
+                 actions (gen/vector gen)
+                 action gen]
+                (run-lookup-prop min-keys actions action)))
 
 ;; TODO test assoc!/dissoc! results
 ;; TODO iterator tests
@@ -373,8 +389,8 @@
   (dc/quick-check 1000 transitive-prop)
   (dc/quick-check 1000 anti-symmetric-prop)
   (dc/quick-check 1000 total-prop)
-  (dc/quick-check 100 (denotational-prop gen-assoc))
-  (dc/quick-check 100 (denotational-prop gen-action))
+  (dc/quick-check 100 (building-prop gen-assoc))
+  (dc/quick-check 100 (building-prop gen-action))
 
   (defn f []
     (time
