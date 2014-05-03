@@ -2,9 +2,12 @@
   (:require [cemerick.double-check :as dc]
             [cemerick.double-check.generators :as gen]
             [cemerick.double-check.properties :as prop :include-macros true])
-  (:require-macros [aurora.macros :refer [apush apush* lt lte gt gte set!!]]))
+  (:require-macros [aurora.macros :refer [apush apush* lt lte gt gte set!! dofrom]]))
 
 ;; NOTE iterators are not write-safe
+
+(def left-child 0)
+(def right-child 1)
 
 (deftype Tree [max-keys ^:mutable root]
   Object
@@ -15,14 +18,16 @@
           (.assoc! root key val max-keys))
   (dissoc! [this key]
            (assert (or (number? key) (string? key)))
-           (.dissoc! root key (js/Math.floor (/ max-keys 2))))
-  (insert! [this ix key val right-child max-keys]
-           (let [left-child root]
-             (set! root (Node. this 0 #js [key] #js [val] #js [left-child right-child] (.-lower left-child) (.-upper right-child)))
+           (.dissoc! root key max-keys))
+  (push! [this ix key&val&child which-child]
+           (let [left-child (if (== which-child left-child) (aget key&val&child 2) root)
+                 right-child (if (== which-child right-child) (aget key&val&child 2) root)]
+             (set! root (Node. this 0 #js [(aget key&val&child 0)] #js [(aget key&val&child 1)] #js [left-child right-child] (.-lower left-child) (.-upper right-child)))
              (set! (.-parent left-child) root)
              (set! (.-parent-ix left-child) 0)
              (set! (.-parent right-child) root)
              (set! (.-parent-ix right-child) 1)))
+  (maintain! [this])
   (into [this result]
         (.into root result))
   (valid! [this]
@@ -62,155 +67,135 @@
                   mid
                   (recur lo (- mid 1))))))))
   (assoc! [this key val max-keys]
-          (when (lt key lower) (set! lower key))
-          (when (gt key upper) (set! upper key))
-          (let [ix (.seek this key 0)
-                result (== key (aget keys ix))]
-            (if result
-              (aset vals ix val)
+          (let [ix (.seek this key 0)]
+            (if (== key (aget keys ix))
+              (do
+                (aset vals ix val)
+                true)
               (if (nil? children)
-                (.insert! this ix key val nil max-keys)
-                (.assoc! (aget children ix) key val max-keys)))
-            result))
-  (insert! [this ix key val right-child max-keys]
-           (.splice keys ix 0 key)
-           (.splice vals ix 0 val)
-           (when-not (nil? children)
-             (.splice children (+ ix 1) 0 right-child)
-             (loop [jx (+ ix 2)]
-               (when (< jx (alength children))
-                 (let [child (aget children jx)]
-                   (set! (.-parent-ix child) (+ (.-parent-ix child) 1)))
-                 (recur (+ jx 1)))))
-           (if (> (alength keys) max-keys)
-             (.split! this max-keys)
-             #_(.valid! this max-keys)))
-  (split! [this max-keys]
-          ;; TODO try using push/pop instead of splice/slice
-          (let [median (js/Math.floor (/ (alength keys) 2))
-                median-key (aget keys median)
-                median-val (aget vals median)
-                right-node (Node. parent (+ parent-ix 1) nil nil nil nil upper)]
-            (if (nil? children)
-              (do
-                (set! upper (aget keys (- median 1)))
-                (set! (.-lower right-node) (aget keys (+ median 1))))
-              (do
-                (set! upper (.-upper (aget children median)))
-                (set! (.-lower right-node) (.-lower (aget children (+ median 1))))))
-            (set! (.-keys right-node) (.slice keys (+ median 1)))
-            (set! (.-vals right-node) (.slice vals (+ median 1)))
-            (.splice keys median (alength keys))
-            (.splice vals median (alength vals))
-            (when-not (nil? children)
-              (let [right-children (.slice children (+ median 1))]
-                (dotimes [ix (alength right-children)]
-                  (let [child (aget right-children ix)]
-                    (set! (.-parent child) right-node)
-                    (set! (.-parent-ix child) ix)))
-                (set! (.-children right-node) right-children)
-                (.splice children (+ median 1) (alength children))))
-            #_(.valid! this max-keys)
-            #_(.valid! right-node max-keys)
-            (.insert! parent parent-ix median-key median-val right-node max-keys)))
-  (dissoc! [this key min-keys]
-           ;; TODO update ranges
-           (let [ix (.seek this key 0)
-                 result (== key (aget keys ix))]
-             (if result
+                (do
+                  (.push! this ix #js [key val])
+                  (.maintain! this max-keys)
+                  false)
+                (.assoc! (aget children ix) key val max-keys)))))
+  (dissoc! [this key max-keys]
+           (let [ix (.seek this key 0)]
+             (if (== key (aget keys ix))
                (if (nil? children)
-                 (.remove! this ix min-keys)
+                 (do
+                   (.pop! this ix)
+                   (.maintain! this max-keys)
+                   true)
                  (loop [node (aget children (+ ix 1))]
                    (if (.-children node)
                      (recur (aget (.-children node) 0))
                      (do
                        (aset keys ix (aget (.-keys node) 0))
                        (aset vals ix (aget (.-vals node) 0))
-                       (.remove! node 0 min-keys)))))
+                       (.pop! node 0)
+                       (.maintain! node max-keys)
+                       (.maintain! this max-keys)
+                       true))))
                (if (nil? children)
-                 nil
-                 (.dissoc! (aget children ix) key min-keys)))
-             result))
-  (remove! [this ix min-keys]
-           (.splice keys ix 1)
-           (.splice vals ix 1)
-           (when-not (nil? children)
-             (.splice children (+ ix 1) 1) ;; remove right child
-             (loop [jx (+ ix 1)]
-               (when (< jx (alength children))
-                 (let [child (aget children jx)]
-                   (set! (.-parent-ix child) (- (.-parent-ix child) 1)))
-                 (recur (+ jx 1)))))
-           (when (< (alength keys) min-keys)
-             (cond
-              (instance? Node parent) (.rotate-left! this min-keys)
-              (and (== (alength keys) 0) (not (nil? children))) (set! (.-root parent) (aget children 0)))))
-  (rotate-left! [this min-keys]
+                 false ;; done
+                 (.dissoc! (aget children ix) key max-keys)))))
+  (push! [this ix key&val&child which-child]
+         (.splice keys ix 0 (aget key&val&child 0))
+         (.splice vals ix 0 (aget key&val&child 1))
+         (when-not (nil? children)
+           (let [child-ix (+ ix which-child)]
+             (.splice children child-ix 0 (aget key&val&child 2)))))
+  (pop! [this ix which-child]
+        (let [key (aget keys ix)
+              val (aget vals ix)
+              child nil]
+          (.splice keys ix 1)
+          (.splice vals ix 1)
+          (if-not (nil? children)
+            (let [child-ix (+ ix which-child)
+                  child (aget children child-ix)]
+              (.splice children child-ix 1)
+              (set! (.-parent child) nil)
+              #js [key val child])
+            #js [key val])))
+  (maintain! [this max-keys]
+             (assert max-keys)
+             (when-not (nil? parent)
+               (println "maintain!")
+               ;; TODO update ranges (.update-lower this)
+               (let [min-keys (js/Math.floor (/ max-keys 2))]
+                 (when-not (nil? children)
+                   (dotimes [ix (alength children)]
+                     (let [child (aget children ix)]
+                       (set! (.-parent-ix child) ix)
+                       (set! (.-parent child) this))))
+                 (if (> (alength keys) max-keys)
+                   (.split! this max-keys)
+                   (when (and (< (alength keys) min-keys) (instance? Node parent))
+                     (.rotate-left! this max-keys))))))
+  (split! [this max-keys]
+          (println "split!" (.pretty-print this))
+          (let [median (js/Math.floor (/ (alength keys) 2))
+                right-node (Node. parent (+ parent-ix 1) #js [] #js [] (when-not (nil? children) #js []) nil nil)]
+            (while (> (alength keys) (+ median 1))
+              (.push! right-node 0 (.pop! this (- (alength keys) 1) right-child) left-child))
+            (when-not (nil? children)
+              (.unshift (.-children right-node) (.pop children)))
+            (.push! parent parent-ix #js [(.pop keys) (.pop vals) right-node] right-child)
+            (println "splitting!" (.pretty-print this) (.pretty-print right-node))
+            (.maintain! this max-keys)
+            (.maintain! right-node max-keys)
+            (.maintain! parent max-keys)
+            (println "splitted!" (.pretty-print this) (.pretty-print right-node))
+            #_(.valid! this max-keys)
+            #_(.valid! right-node max-keys)))
+  (rotate-left! [this max-keys]
                 (if (> parent-ix 0)
                   (let [left-node (aget (.-children parent) (- parent-ix 1))
-                        left-keys (.-keys left-node)
-                        left-vals (.-vals left-node)
-                        left-children (.-children left-node)]
-                    (if (> (alength left-keys) min-keys)
-                      (do
-                        (.unshift keys (aget (.-keys parent) parent-ix))
-                        (.unshift vals (aget (.-vals parent) parent-ix))
-                        (aset (.-keys parent) parent-ix (.pop left-keys))
-                        (aset (.-vals parent) parent-ix (.pop left-vals))
-                        (when children
-                          (let [stray-child (.pop left-children)]
-                            (.unshift children stray-child)
-                            (set! (.-parent stray-child) this)
-                            (dotimes [ix (alength children)]
-                              (set! (.-parent-ix (aget children ix)) ix))))
-                        (set! lower (aget keys 0))
-                        (set! (.-upper left-node) (aget left-keys (- (alength left-keys) 1))))
-                      (.rotate-right! this min-keys)))
-                  (.rotate-right! this min-keys)))
-  (rotate-right! [this min-keys]
+                        min-keys (js/Math.floor (/ max-keys 2))]
+                    (if (> (alength (.-keys left-node)) min-keys)
+                      (let [key&val&child (.pop! left-node (- (alength (.-keys left-node)) 1) right-child)]
+                        (println ".rotate-left!")
+                        (.push! this 0 #js [(aget (.-keys parent) parent-ix) (aget (.-vals parent) parent-ix) (aget key&val&child 2)] left-child)
+                        (aset (.-keys parent) parent-ix (aget key&val&child 0))
+                        (aset (.-vals parent) parent-ix (aget key&val&child 1))
+                        (.maintain! this max-keys)
+                        (.maintain! left-node max-keys)
+                        (.maintain! parent max-keys))
+                      (.rotate-right! this max-keys)))
+                  (.rotate-right! this max-keys)))
+  (rotate-right! [this max-keys]
                  (if (< parent-ix (- (alength (.-children parent)) 2))
                    (let [right-node (aget (.-children parent) (+ parent-ix 1))
-                         right-keys (.-keys right-node)
-                         right-vals (.-vals right-node)
-                         right-children (.-children right-node)]
-                     (if (> (alength right-keys) min-keys)
-                       (do
-                         (.push keys (aget (.-keys parent) parent-ix))
-                         (.push vals (aget (.-vals parent) parent-ix))
-                         (aset (.-keys parent) parent-ix (.shift right-keys))
-                         (aset (.-vals parent) parent-ix (.shift right-vals))
-                         (when children
-                           (let [stray-child (.shift right-children)]
-                             (.push children stray-child)
-                             (set! (.-parent stray-child) this)
-                             (set! (.-parent-ix stray-child) (- (alength children) 1))))
-                         (set! upper (aget keys (- (alength keys) 1)))
-                         (set! (.-lower right-node) (aget right-keys 0)))
-                       (.merge! this min-keys)))
-                   (.merge! this min-keys)))
-  (merge! [this min-keys]
-          (let [separator-ix (if (> parent-ix 0) (- parent-ix 1) parent-ix)
+                         min-keys (js/Math.floor (/ max-keys 2))]
+                     (if (> (alength (.-keys right-node)) min-keys)
+                       (let [key&val&child (.pop! right-node 0 left-child)]
+                         (println ".rotate-left!")
+                         (.push! this (alength keys) #js [(aget (.-keys parent) parent-ix) (aget (.-vals parent) parent-ix) (aget key&val&child 2)] right-child)
+                         (aset (.-keys parent) parent-ix (aget key&val&child 0))
+                         (aset (.-vals parent) parent-ix (aget key&val&child 1))
+                         (.maintain! this max-keys)
+                         (.maintain! right-node max-keys)
+                         (.maintain! parent max-keys))
+                       (.merge! this max-keys)))
+                   (.merge! this max-keys)))
+  (merge! [this max-keys]
+          (println "merge")
+          (let [parent parent ;; in case it gets nulled out by .pop!
+                separator-ix (if (> parent-ix 0) (- parent-ix 1) parent-ix)
+                key&val&child (.pop! parent separator-ix right-child)
                 left-node (aget (.-children parent) separator-ix)
-                right-node (aget (.-children parent) (+ separator-ix 1))
-                median-key (aget (.-keys parent) separator-ix)
-                median-val (aget (.-vals parent) separator-ix)]
-            (apush (.-keys left-node) median-key)
-            (apush (.-vals left-node) median-val)
-            (apush* (.-keys left-node) (.-keys right-node))
-            (apush* (.-vals left-node) (.-vals right-node))
-            (when-not (nil? children)
-              (dotimes [ix (alength (.-children right-node))]
-                (set! (.-parent-ix (aget (.-children right-node) ix)) (+ ix (alength children))))
-              (apush* (.-children left-node) (.-children right-node)))
-            (set! (.-upper left-node) (.-upper right-node))
-            (.remove! parent separator-ix min-keys)))
-  (update-ranges! [this new-lower new-upper]
-                  ;; TODO this is wrong
-                  (when (lt new-lower lower) (set! lower new-lower))
-                  (when (gt new-upper upper) (set! upper new-upper))
-                  (if (and parent
-                           (or (== lower new-lower) (== upper new-upper)))
-                    (update-ranges! parent new-lower new-upper)))
+                right-node (aget key&val&child 2)]
+            (.push! left-node (alength (.-keys left-node))
+                    #js [(aget key&val&child 0)
+                         (aget key&val&child 1)
+                         (when-not (nil? (.-children right-node)) (.shift (.-children right-node)))]
+                    right-child)
+            (while (> (alength (.-keys right-node)) 0)
+              (.push! left-node (alength (.-keys left-node)) (.pop! right-node 0 left-child) right-child))
+            (.maintain! left-node max-keys)
+            (.maintain! right-node max-keys)
+            (.maintain! parent max-keys)))
   (valid! [this max-keys]
           (let [min-keys (js/Math.floor (/ max-keys 2))]
             (when (instance? Node parent) ;; root is allowed to have less keys
@@ -384,10 +369,8 @@
                  actions (gen/vector gen)]
                 (run-denotational-prop min-keys actions)))
 
+;; TODO test assoc!/dissoc! results
 ;; TODO iterator tests
-
-;; root is getting lost somehow
-(apply run-denotational-prop [1 [[:assoc! 0 0] [:assoc! 1 0] [:assoc! 4 0] [:assoc! 2 0] [:assoc! -1 0] [:assoc! 3 0] [:assoc! -2 0] [:dissoc! 0] [:assoc! 0 0]]])
 
 (comment
   (do
