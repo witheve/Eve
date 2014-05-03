@@ -121,7 +121,6 @@
   (maintain! [this max-keys]
              (assert max-keys)
              (when-not (nil? parent)
-               (println "maintain!")
                ;; TODO update ranges (.update-lower this)
                (let [min-keys (js/Math.floor (/ max-keys 2))]
                  (when-not (nil? children)
@@ -134,7 +133,6 @@
                    (when (and (< (alength keys) min-keys) (instance? Node parent))
                      (.rotate-left! this max-keys))))))
   (split! [this max-keys]
-          (println "split!" (.pretty-print this))
           (let [median (js/Math.floor (/ (alength keys) 2))
                 right-node (Node. parent (+ parent-ix 1) #js [] #js [] (when-not (nil? children) #js []) nil nil)]
             (while (> (alength keys) (+ median 1))
@@ -142,11 +140,9 @@
             (when-not (nil? children)
               (.unshift (.-children right-node) (.pop children)))
             (.push! parent parent-ix #js [(.pop keys) (.pop vals) right-node] right-child)
-            (println "splitting!" (.pretty-print this) (.pretty-print right-node))
             (.maintain! this max-keys)
             (.maintain! right-node max-keys)
             (.maintain! parent max-keys)
-            (println "splitted!" (.pretty-print this) (.pretty-print right-node))
             #_(.valid! this max-keys)
             #_(.valid! right-node max-keys)))
   (rotate-left! [this max-keys]
@@ -155,7 +151,6 @@
                         min-keys (js/Math.floor (/ max-keys 2))]
                     (if (> (alength (.-keys left-node)) min-keys)
                       (let [key&val&child (.pop! left-node (- (alength (.-keys left-node)) 1) right-child)]
-                        (println ".rotate-left!")
                         (.push! this 0 #js [(aget (.-keys parent) parent-ix) (aget (.-vals parent) parent-ix) (aget key&val&child 2)] left-child)
                         (aset (.-keys parent) parent-ix (aget key&val&child 0))
                         (aset (.-vals parent) parent-ix (aget key&val&child 1))
@@ -170,7 +165,6 @@
                          min-keys (js/Math.floor (/ max-keys 2))]
                      (if (> (alength (.-keys right-node)) min-keys)
                        (let [key&val&child (.pop! right-node 0 left-child)]
-                         (println ".rotate-left!")
                          (.push! this (alength keys) #js [(aget (.-keys parent) parent-ix) (aget (.-vals parent) parent-ix) (aget key&val&child 2)] right-child)
                          (aset (.-keys parent) parent-ix (aget key&val&child 0))
                          (aset (.-vals parent) parent-ix (aget key&val&child 1))
@@ -180,7 +174,6 @@
                        (.merge! this max-keys)))
                    (.merge! this max-keys)))
   (merge! [this max-keys]
-          (println "merge")
           (let [parent parent ;; in case it gets nulled out by .pop!
                 separator-ix (if (> parent-ix 0) (- parent-ix 1) parent-ix)
                 key&val&child (.pop! parent separator-ix right-child)
@@ -343,7 +336,7 @@
     (case (nth action 0)
       :assoc! (.assoc! tree (nth action 1) (nth action 2))
       :dissoc! (.dissoc! tree (nth action 1)))
-    (do
+    #_(do
       (prn action)
       (.pretty-print tree)
       (prn tree)
@@ -373,16 +366,15 @@
 ;; TODO iterator tests
 
 (comment
-  (do
-    (dc/quick-check 1000 least-prop)
-    (dc/quick-check 1000 greatest-prop)
-    (dc/quick-check 1000 equality-prop)
-    (dc/quick-check 1000 reflexive-prop)
-    (dc/quick-check 1000 transitive-prop)
-    (dc/quick-check 1000 anti-symmetric-prop)
-    (dc/quick-check 1000 total-prop)
-    (dc/quick-check 100 (denotational-prop gen-assoc))
-    (dc/quick-check 100 (denotational-prop gen-action)))
+  (dc/quick-check 1000 least-prop)
+  (dc/quick-check 1000 greatest-prop)
+  (dc/quick-check 1000 equality-prop)
+  (dc/quick-check 1000 reflexive-prop)
+  (dc/quick-check 1000 transitive-prop)
+  (dc/quick-check 1000 anti-symmetric-prop)
+  (dc/quick-check 1000 total-prop)
+  (dc/quick-check 100 (denotational-prop gen-assoc))
+  (dc/quick-check 100 (denotational-prop gen-action))
 
   (defn f []
     (time
