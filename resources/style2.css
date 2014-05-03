@@ -66,7 +66,7 @@ a img { border: none; }
 
 * { box-sizing:border-box !important; }
 html, body { height:100%; overflow:none; }
-body { background: #f7f7f7; color: #666; font-family: "Nunito"; font-weight:300; font-size: 10pt; padding:20px 0px; }
+body { background: #fff; color: #666; font-family: "Nunito"; font-weight:300; font-size: 10pt; padding:20px 0px; }
 ul { list-style:none; }
 input { border:none; background:#f7f7f7; font-family: "Avenir"; color: #444; font-size:10pt; border-radius:2px; padding:5px 10px; }
 
@@ -97,17 +97,18 @@ input { border:none; background:#f7f7f7; font-family: "Avenir"; color: #444; fon
 #root span { vertical-align:middle; display:inline-block; white-space:pre-wrap; }
 #root .CodeMirror span { display:inline; white-space:pre; }
 
-#canvas { flex:1; display:flex; flex-direction:row; position:relative; overflow:hidden; background:#e8e8e8; padding:0 20px; margin-bottom:0px; }
+#canvas { flex:1; display:flex; flex-direction:row; position:relative; overflow:hidden; background:#fff; padding:0 20px; margin-bottom:0px; }
 
 #canvas-editor {flex:1; padding-top:20px; padding-left:20px; padding-bottom:250px;}
 
-#rules { font-size:12pt; width:100%; min-width:380px; display:inline-block; }
-#rules > li { margin-bottom:8px; }
+#rules { font-size:12pt; width:auto; min-width:380px; display:inline-block; margin-left:20px; }
+#rules > li { margin-bottom:20px; }
 
-.statement { background:#f7f7f7; border:1px solid #ddd; box-shadow: 0 0 0px #ccc; padding:15px 20px; padding-right:40px; border-radius:4px;}
+.statement { background:none; border-top:0px solid #ddd; border-left:0px solid #ddd; box-shadow: 0 0 0px #ccc; padding:0px 0px; padding-right:0px; border-radius:0px;}
+.statement + .statement { border-top:0px solid #ddd; }
 .statement .statement { padding:0; box-shadow:none; border:none; display:block; }
 
-#root .statement-item { display:flex; flex-direction:row; width:100%; }
+#root .statement-item { display:flex; flex-direction:row; width:auto; }
 
 .sub { margin-left:0px; padding-left: 0px; padding-top:0px; margin-top:8px; border-left:0px solid #ddd; padding-bottom:0px;}
 .sub li {margin-bottom:8px;}
@@ -132,15 +133,20 @@ input { border:none; background:#f7f7f7; font-family: "Avenir"; color: #444; fon
 
 .keyboard-key { background: #e5e5e5; border:5px solid #d5d5d5; border-top-width:2px; border-left-width:3px; border-radius:2px; color:#555; padding:2px 5px; }
 
+#root .statement table { width:; }
+#root .whens { padding-right:10px; background:#eef; border-right:2px solid #fff; width:50%; border-radius:5px 0 0 5px; }
+#root .dos { padding-right:10px; background: #eee; width:50%; border-radius: 0 5px 5px 0;  }
+#root .whens .keyword {  }
+
 td { padding-left:12px; }
 td.keyword { text-align:right; white-space:pre; padding-left:5px; }
 
-.keyword { color:#CC5A8D; color:#bbb; width:90px; vertical-align:top; text-align:right; border-right: 1px solid #ddd; border-radius:0px; background:none; padding: 0 5px; margin-right:12px; }
+.keyword { color:#CC5A8D; color:#9b9b9b; width:auto; vertical-align:top; text-align:right; border-right: 1px solid #ccc; border-radius:0px; background:none; padding: 0 5px; margin-right:12px; }
 /* .keyword.condition { background:#BEEAF7 ; color:#5BB8D4; } */
 
 .add-rule:before { content:"\f1c9"; font-family:"Ionicons"; font-size:24px; margin-left:0px; }
 
-#header { margin-bottom:0px; vertical-align:middle; border-bottom:1px solid #ddd; padding:0 40px; padding-bottom:10px; }
+#header { margin-bottom:0px; vertical-align:middle; border-bottom:0px solid #ddd; padding:0 40px; padding-bottom:10px; }
 #header h1 { display:inline-block; float:left; font-size:18pt; cursor:default; }
 
 #controls { float:right; position:static; padding:0px; display:inline-block; }
@@ -179,7 +185,7 @@ td.keyword { text-align:right; white-space:pre; padding-left:5px; }
 
 #menu { position:absolute; z-index:1000; }
 
-#results { text-align:left; width:60%; overflow-y:auto; position:static; min-width:0px; margin:20px 0px; margin-right:5px; border-left:0px solid #ddd; padding-left:10px; }
+#results { text-align:left; width:40%; overflow-y:auto; position:static; min-width:0px; margin:20px 0px; margin-right:5px; border-left:0px solid #ddd; padding-left:10px; }
 #results ul { margin-top:0px; }
 #results li { font-size:10pt; padding:0px 0; }
 #results li div { text-align:left; display:inline-block; }
