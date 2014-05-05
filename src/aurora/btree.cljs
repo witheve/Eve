@@ -31,7 +31,8 @@
   (into [this result]
         (.into root result))
   (valid! [this]
-          (.valid! root max-keys)
+          (when (> (alength (.-keys root)) 0) ;; the empty tree does not obey most invariants
+            (.valid! root max-keys))
           true)
   (pretty-print [this]
                 (prn :root)
@@ -370,7 +371,7 @@
   (let [tree (apply-to-tree (tree min-keys) actions)
         sorted-map (apply-to-sorted-map (sorted-map-by #(cond (== %1 %2) 0 (lt %1 %2) -1 (gt %1 %2) 1)) actions)]
     (and (= (seq (map vec tree)) (seq sorted-map))
-         (or (empty? tree) (.valid! tree)))))
+         (.valid! tree))))
 
 (defn building-prop [gen]
   (prop/for-all [min-keys gen/s-pos-int
