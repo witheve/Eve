@@ -9,6 +9,15 @@
 (def left-child 0)
 (def right-child 1)
 
+(defn compare-keys [x y]
+  (cond (== x y) 0 (lt x y) -1 (gt x y) 1))
+
+(defn lt-fun [a b]
+  (lt a b))
+
+(defn gt-fun [a b]
+  (gt a b))
+
 (deftype Tree [max-keys ^:mutable root]
   Object
   (toString [this]
@@ -211,7 +220,7 @@
               (assert (>= (count keys) min-keys) (pr-str keys min-keys)))
             (assert (<= (count keys) max-keys) (pr-str keys max-keys))
             (assert (= (count keys) (count (set keys))))
-            (assert (= (seq keys) (seq (sort-by identity #(cond (== %1 %2) 0 (lt %1 %2) -1 (gt %1 %2) 1) keys))))
+            (assert (= (seq keys) (seq (sort-by identity compare-keys keys))))
             (assert (every? #(lte lower %) keys) (pr-str lower keys))
             (assert (every? #(gte upper %) keys) (pr-str upper keys))
             (if (nil? children)
@@ -225,11 +234,22 @@
                 (assert (= (count keys) (count vals) (dec (count children))) (pr-str keys vals children))
                 (assert (= lower (.-lower (aget children 0))) (pr-str lower (.-lower (aget children 0))))
                 (assert (= upper (.-upper (aget children (- (alength children) 1)))) (pr-str upper (.-upper (aget children (- (alength children) 1)))))
-                (assert (every? #((fn [a b] (gt a b)) (aget keys %) (.-upper (aget children %))) (range (count keys))))
-                (assert (every? #((fn [a b] (lt a b)) (aget keys %) (.-lower (aget children (inc %)))) (range (count keys))))
+                (assert (every? #(gt-fun (aget keys %) (.-upper (aget children %))) (range (count keys))))
+                (assert (every? #(lt-fun (aget keys %) (.-lower (aget children (inc %)))) (range (count keys))))
                 (dotimes [i (count children)] (.valid! (aget children i) max-keys))))))
   (pretty-print [this]
                 (str "(" parent-ix ")" "|" (pr-str lower) " " (pr-str (vec keys)) " " (pr-str upper) "|")))
+
+;; 'bool' < 'number' < 'string' < 'undefined'
+(def least false)
+(def greatest js/undefined)
+
+(defn tree [min-keys]
+  (let [node (Node. nil nil #js [] #js [] nil greatest least)
+        tree (Tree. (* 2 min-keys) node)]
+    (set! (.-parent node) tree)
+    (set! (.-parent-ix node) 0)
+    tree))
 
 (deftype Iterator [max-keys ^:mutable node ^:mutable ix ^:mutable end?]
   Object
@@ -290,19 +310,12 @@
 (defn iterator [tree]
   (loop [node (.-root tree)]
     (if (nil? (.-children node))
-      (Iterator. (.-max-keys tree) node -1 false)
+      (if (> (alength (.-keys node)) 0)
+        (Iterator. (.-max-keys tree) node -1 false)
+        (Iterator. (.-max-keys tree) node -1 true))
       (recur (aget (.-children node) 0)))))
 
-;; these types bound 'number' and 'string'
-(def least false)
-(def greatest js/undefined)
 
-(defn tree [min-keys]
-  (let [node (Node. nil nil #js [] #js [] nil greatest least)
-        tree (Tree. (* 2 min-keys) node)]
-    (set! (.-parent node) tree)
-    (set! (.-parent-ix node) 0)
-    tree))
 
 ;; TESTS
 
@@ -380,7 +393,7 @@
 
 (defn run-building-prop [min-keys actions]
   (let [tree (apply-to-tree (tree min-keys) actions)
-        sorted-map (apply-to-sorted-map (sorted-map-by #(cond (== %1 %2) 0 (lt %1 %2) -1 (gt %1 %2) 1)) actions)]
+        sorted-map (apply-to-sorted-map (sorted-map-by compare-keys) actions)]
     (and (= (seq (map vec tree)) (seq sorted-map))
          (.valid! tree))))
 
@@ -391,7 +404,7 @@
 
 (defn run-lookup-prop [min-keys actions action]
   (let [tree (apply-to-tree (tree min-keys) actions)
-        sorted-map (apply-to-sorted-map (sorted-map-by #(cond (== %1 %2) 0 (lt %1 %2) -1 (gt %1 %2) 1)) actions)
+        sorted-map (apply-to-sorted-map (sorted-map-by compare-keys) actions)
         tree-result (case (nth action 0)
                       :assoc! (.assoc! tree (nth action 1) (nth action 2))
                       :dissoc! (.dissoc! tree (nth action 1)))
@@ -431,12 +444,12 @@
                 (swap! elems rest)
                 (first (first @elems)))
         :seek (do
-                (swap! elems (fn [elems] (drop-while #((fn [a b] (lt a b)) (nth % 0) (nth movement 1)) elems)))
+                (swap! elems (fn [elems] (drop-while #(lt-fun (nth % 0) (nth movement 1)) elems)))
                 (first (first @elems)))))))
 
 (defn run-iterator-prop [min-keys actions movements]
   (let [tree (apply-to-tree (tree min-keys) actions)
-        sorted-map (apply-to-sorted-map (sorted-map-by #(cond (== %1 %2) 0 (lt %1 %2) -1 (gt %1 %2) 1)) actions)
+        sorted-map (apply-to-sorted-map (sorted-map-by compare-keys) actions)
         iterator-results (apply-to-iterator (iterator tree) movements)
         elems-results (apply-to-elems (seq sorted-map) movements)]
     (= iterator-results elems-results)))
@@ -496,4 +509,3 @@
      (doseq [[tree movements] benches]
        (apply-to-iterator (iterator tree) movements))))
  )
-
