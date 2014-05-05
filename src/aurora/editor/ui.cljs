@@ -80,6 +80,7 @@
                            [:li.statement (matches (:matcher @state))]
                            )
                          ]]
+                       [:td.between.ion-ios7-arrow-right "\f280"]
                        [:td.dos
                         [:ul.sub
                          (for [[i c] dos
