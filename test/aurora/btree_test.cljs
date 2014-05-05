@@ -196,4 +196,6 @@
   500
   iterator-prop)
 
-(run-all-tests)
+(comment
+  (run-all-tests)
+  )
