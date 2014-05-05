@@ -254,7 +254,7 @@
               (set! ix 0)
               #js [(aget (.-keys node) ix) (aget (.-vals node) ix)]))))
   (seek [this key]
-        (when-not (false? end?)
+        (when (false? end?)
           (loop []
             (let [upper (.-upper node)]
               (if (gt key upper)
@@ -279,7 +279,7 @@
 (defn iterator [tree]
   (loop [node (.-root tree)]
     (if (nil? (.-children node))
-      (Iterator. (.-max-keys tree) node -1)
+      (Iterator. (.-max-keys tree) node -1 false)
       (recur (aget (.-children node) 0)))))
 
 ;; these types bound 'number' and 'string'
@@ -405,19 +405,19 @@
 (defn apply-to-iterator [iterator movements]
   (for [movement movements]
     (case (nth movement 0)
-      :next (.next iterator)
-      :seek (.seek iterator (nth movement 1)))))
+      :next (vec (.next iterator))
+      :seek (vec (.seek iterator (nth movement 1))))))
 
 (defn apply-to-elems [elems movements]
-  (let [elems (atom elems)]
+  (let [elems (atom (cons [least nil] elems))]
     (for [movement movements]
       (case (nth movement 0)
-        :next (let [result (first @elems)]
+        :next (do
                 (swap! elems rest)
-                result)
+                (vec (first @elems)))
         :seek (do
                 (swap! elems (fn [elems] (drop-while #((fn [a b] (lt a b)) (nth % 0) (nth movement 1)) elems)))
-                (first @elems)))))) ;; TODO should seek consume the elem?
+                (vec (first @elems))))))) ;; TODO should seek consume the elem?
 
 (defn run-iterator-prop [min-keys actions movements]
   (let [tree (apply-to-tree (tree min-keys) actions)
