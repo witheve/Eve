@@ -254,10 +254,10 @@
               (set! ix 0)
               #js [(aget (.-keys node) ix) (aget (.-vals node) ix)]))))
   (seek [this key]
-        (when (false? end?)
-          (loop []
+        (loop []
+          (when (false? end?)
             (let [upper (.-upper node)]
-              (if (gt key upper)
+              (if (lt upper key)
                 (if (instance? Node (.-parent node))
                   (do
                     (set! ix (.-parent-ix node))
@@ -266,15 +266,22 @@
                   (do
                     (set! end? true)
                     nil))
-                (do
+                (loop []
                   (set! ix (.seek node key ix))
-                  (let [ix-key (aget (.-keys node) ix)]
-                    (if (and (not (nil? (.-children node))) (lt key ix-key))
+                  (if (>= ix (alength (.-keys node)))
+                    (do
+                      (set! node (aget (.-children node) ix))
+                      (set! ix 0)
+                      (recur))
+                    (if (or (== key (aget (.-keys node) ix))
+                            (nil? (.-children node))
+                            (let [lower (.-upper (aget (.-children node) ix))]
+                              (lt lower key)))
+                      #js [(aget (.-keys node) ix) (aget (.-vals node) ix)]
                       (do
                         (set! node (aget (.-children node) ix))
                         (set! ix 0)
-                        (recur))
-                      #js [(aget (.-keys node) ix) (aget (.-vals node) ix)])))))))))
+                        (recur)))))))))))
 
 (defn iterator [tree]
   (loop [node (.-root tree)]
@@ -432,6 +439,10 @@
                  movements (gen/vector gen-movement)]
                 (run-iterator-prop min-keys actions movements)))
 
+(run-iterator-prop 1 [[:assoc! 0 0] [:assoc! 1 0] [:assoc! "" 0]] [[:next] [:next] [:seek 0]])
+
+;; (run-iterator-prop 4 [[:dissoc! 42] [:dissoc! 5] [:assoc! "ls-[`6aH|B" 42] [:assoc! "U?cj$9\\z)#oM34=^q~{C!^2=,|9+`er<^.;&" 28] [:assoc! 39 -24] [:assoc! 35 "<hlNVmw$iuLQ\\OoTocIj1$0ey<gI]MFe{~QL}j4sA"] [:assoc! "<~2zx)<'`=:W^" "k6+h%O!hprN66}~:2w"] [:dissoc! -19] [:assoc! -8 "p"] [:dissoc! "M/oCnKtZ4da<kZ.:!9"] [:assoc! -43 ".P(t8Qrw&vkf!b=XVZRmQHO#s/`*gp<ptU ZJ;O`HCDs _Z7tKCj/pU"] [:dissoc! "P&gv~dExsi8!oC!k}%,Kp=3^F;M1xv\\jUJADsE/N+3P/- ]7\\2-x8Tg4q7gQ>O(_"] [:assoc! 46 "G-vqh1ho1rP V}|U`QIfd$^S8eqUOa+\"_]^"] [:assoc! -21 "z$mOg%pS!K+*1c83?I$]dt>t{}:`5LXIfh|c#rHD,0n0;J^n{k"] [:dissoc! -25] [:dissoc! "k1n!Tk|'<Vd`hh<LDg6b*W'yy\\8/*D8:|bC-$ZT:"] [:dissoc! -53] [:assoc! 5 "1YxP6gc~2z"] [:dissoc! "=B.N\\MGcrb]xmG=E6tl6uRuL$L"] [:assoc! -23 "d7)>77Y5!w*/o5ZzrkKRh@Y\\<LS%Lx1`P(mi^g;CtKwq=m3otO@?((Ts'Z+~"] [:assoc! -9 -50] [:dissoc! 35] [:assoc! -49 "XBtp;FwWolcsLFP=xqKH28{er7Pe: b"] [:dissoc! "xtv<<Ox@PuHA(Bxp1nz{B.pE"]] [[:seek -18] [:seek -10] [:seek 37] [:seek "/Bpk}b*\\ubgU4ygT(P.Dw{(g(+# 2M2{(A5,}L]^KVTmS{:qT3}&<`1,j<9Ino"] [:seek 0] [:seek "<$?Oj'&Z$%I45PQ_d"] [:next] [:seek "C\"|LbCx)Nfq]_=rpHOQlL;L$"] [:next] [:seek "JV\"WZVE,`"] [:seek "3<sb\\l5rj'Prv,E]|f=GADJTFl{37P9Hd9~ vaG^YJwWk9At):yzo'DW}Q.z8?"] [:next] [:next] [:next] [:seek ")U+owBxdsR}^{65[?ovtiQO.A<,S@Y1EIxJH_`!@A2%"] [:next] [:seek -9] [:next] [:next] [:seek "^FGwOMy0\"_5vT(--dv`;:kywuKD8SMG_9)X'pX6w"] [:next] [:seek -52] [:seek -25] [:seek 34] [:next] [:seek "hz^rHA%v! (g~b3eL|XHB>'2mY9A\"uMa9$z'3.X_s9faCq["] [:seek "Wzyzi.uuK?rp#k[|M^NI:L)nh&"] [:seek -63] [:next] [:next] [:seek "P$I'|"] [:next] [:seek "A@:N^g]\\qXB:."] [:seek -2] [:next] [:seek "uH6<0u[rpc]8oUcmED"] [:seek -36] [:next] [:seek "<2%43s;qEJSN^WfQ5=b03/.<?E_SA5Cd~ZHp}jCVWR$q\"E:/?Om,]{D-n"] [:next]])
+
 (comment
   (dc/quick-check 1000 least-prop)
   (dc/quick-check 1000 greatest-prop)
@@ -441,9 +452,10 @@
   (dc/quick-check 1000 anti-symmetric-prop)
   (dc/quick-check 1000 total-prop)
   (dc/quick-check 100 (building-prop gen-assoc))
-  (dc/quick-check 1000 (building-prop gen-action))
+  (dc/quick-check 100 (building-prop gen-action))
   (dc/quick-check 100 (lookup-prop gen-action))
   (dc/quick-check 100 iterator-prop)
+
 
   (defn f []
     (time
@@ -468,5 +480,14 @@
          (.assoc! tree (js/Math.sin i) (* 2 i))))))
 
   (h)
+
+  (do
+    (def samples (gen/sample (gen/tuple gen/s-pos-int (gen/vector gen-action) (gen/vector gen-movement)) 100))
+    (def trees (for [[min-keys actions _] samples]
+                 (apply-to-tree (tree min-keys) actions)))
+    (def benches (mapv vector trees (map #(nth % 2) samples)))
+    (time
+     (doseq [[tree movements] benches]
+       (apply-to-iterator (iterator tree) movements))))
  )
 
