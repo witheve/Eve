@@ -315,7 +315,7 @@
         (Iterator. (.-max-keys tree) node -1 true))
       (recur (aget (.-children node) 0)))))
 
-(deftype Intersection [iterators end?]
+(deftype Intersection [iterators ^:mutable end?]
   Object
   (key [this]
        (when (false? end?)
