@@ -50,6 +50,7 @@
 
               :test-commands {"unit-tests" ["phantomjs" :runner "resources/test.js"]}
               }
+  :jvm-opts ["-Xmx1g"]
   :hooks [leiningen.cljsbuild]
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [org.clojure/clojurescript "0.0-2156"]
