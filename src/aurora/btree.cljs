@@ -130,8 +130,21 @@
                        (set! (.-parent child) this))))
                  (if (> (alength keys) max-keys)
                    (.split! this max-keys)
-                   (when (and (< (alength keys) min-keys) (instance? Node parent))
-                     (.rotate-left! this max-keys))))))
+                   (if (and (< (alength keys) min-keys) (instance? Node parent))
+                     (.rotate-left! this max-keys)
+                     (do
+                       (.update-lower! this (if (nil? children) (aget keys 0) (.-lower (aget children 0))))
+                       (.update-upper! this (if (nil? children) (aget keys (- (alength keys) 1)) (.-upper (aget children (- (alength children) 1)))))))))))
+  (update-lower! [this new-lower]
+                 (when-not (== lower new-lower)
+                   (set! lower new-lower)
+                   (when (and (instance? Node parent) (== parent-ix 0))
+                     (.update-lower! parent new-lower))))
+  (update-upper! [this new-upper]
+                 (when-not (== upper new-upper)
+                   (set! upper new-upper)
+                   (when (and (instance? Node parent) (== parent-ix (- (alength (.-children parent)) 1)))
+                     (.update-upper! parent new-upper))))
   (split! [this max-keys]
           (let [median (js/Math.floor (/ (alength keys) 2))
                 right-node (Node. parent (+ parent-ix 1) #js [] #js [] (when-not (nil? children) #js []) nil nil)]
@@ -196,21 +209,21 @@
             (assert (<= (count keys) max-keys) (pr-str keys max-keys))
             (assert (= (count keys) (count (set keys))))
             (assert (= (seq keys) (seq (sort-by identity #(cond (== %1 %2) 0 (lt %1 %2) -1 (gt %1 %2) 1) keys))))
-            #_(assert (every? #(lte lower %) keys) (pr-str lower keys))
-            #_(assert (every? #(gte upper %) keys) (pr-str upper keys))
+            (assert (every? #(lte lower %) keys) (pr-str lower keys))
+            (assert (every? #(gte upper %) keys) (pr-str upper keys))
             (if (nil? children)
               (do
                 (assert (= (count keys) (count vals)) (pr-str keys vals))
-                #_(assert (= lower (aget keys 0)) (pr-str lower keys))
-                #_(assert (= upper (aget keys (- (alength keys) 1))) (pr-str upper keys)))
+                (assert (= lower (aget keys 0)) (pr-str lower keys))
+                (assert (= upper (aget keys (- (alength keys) 1))) (pr-str upper keys)))
               (do
                 (dotimes [ix (count children)]
                   (assert (= ix (.-parent-ix (aget children ix)))))
                 (assert (= (count keys) (count vals) (dec (count children))) (pr-str keys vals children))
-                #_(assert (= lower (.-lower (aget children 0))) (pr-str lower (.-lower (aget children 0))))
-                #_(assert (= upper (.-upper (aget children (- (alength children) 1)))) (pr-str upper (.-upper (aget children (- (alength children) 1)))))
-                #_(assert (every? #((fn [a b] (gt a b)) (aget keys %) (.-upper (aget children %))) (range (count keys))))
-                #_(assert (every? #((fn [a b] (lt a b)) (aget keys %) (.-lower (aget children (inc %)))) (range (count keys))))
+                (assert (= lower (.-lower (aget children 0))) (pr-str lower (.-lower (aget children 0))))
+                (assert (= upper (.-upper (aget children (- (alength children) 1)))) (pr-str upper (.-upper (aget children (- (alength children) 1)))))
+                (assert (every? #((fn [a b] (gt a b)) (aget keys %) (.-upper (aget children %))) (range (count keys))))
+                (assert (every? #((fn [a b] (lt a b)) (aget keys %) (.-lower (aget children (inc %)))) (range (count keys))))
                 (dotimes [i (count children)] (.valid! (aget children i) max-keys))))))
   (pretty-print [this]
                 (str "(" parent-ix ")" "|" (pr-str lower) " " (pr-str (vec keys)) " " (pr-str upper) "|")))
@@ -416,7 +429,11 @@
                  movements (gen/vector gen-movement)]
                 (run-iterator-prop min-keys actions movements)))
 
-;; TODO iterator tests
+(run-building-prop 1
+                   [[:assoc! 90 0] [:assoc! 0 0] [:assoc! 1 0]
+                    [:assoc! 2 0] [:assoc! -1 0] [:assoc! -2 0]
+                    [:assoc! "" 0] [:assoc! 91 0] [:assoc! " " 0]
+                    [:assoc! 3 0] [:dissoc! 90]])
 
 (comment
   (dc/quick-check 1000 least-prop)
@@ -427,7 +444,7 @@
   (dc/quick-check 1000 anti-symmetric-prop)
   (dc/quick-check 1000 total-prop)
   (dc/quick-check 100 (building-prop gen-assoc))
-  (dc/quick-check 100 (building-prop gen-action))
+  (dc/quick-check 1000 (building-prop gen-action))
   (dc/quick-check 100 (lookup-prop gen-action))
   (dc/quick-check 100 iterator-prop)
 
