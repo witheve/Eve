@@ -34,12 +34,29 @@
                                    :output-dir "resources/cljs/runtime/"
                                    :pretty-print true
                                    :libs [""]}}
-                       ]}
+                       {:id "test"
+                        :source-paths [
+                                       "src/aurora/"
+                                       "test/aurora/"
+                                       ]
+                        :compiler {:optimizations :simple
+                                   :externs []
+                                   :source-map "resources/test.js.map"
+                                   :output-to "resources/test.js"
+                                   :output-dir "resources/cljs/test/"
+                                   :pretty-print true
+                                   :libs [""]}}
+                       ]
+
+              :test-commands {"unit-tests" ["phantomjs" :runner "resources/test.js"]}
+              }
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [org.clojure/clojurescript "0.0-2156"]
                  [fetch "0.1.1"]
                  [org.clojure/tools.reader "0.8.3"]
                  [com.cemerick/double-check "0.5.7-SNAPSHOT"]]
   :source-paths ["src/"]
-  :plugins [[lein-cljsbuild "1.0.2"]]
+  :plugins [[lein-cljsbuild "1.0.2"]
+            [com.cemerick/clojurescript.test "0.3.0"]]
+
   )
