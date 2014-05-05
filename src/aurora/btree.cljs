@@ -233,6 +233,12 @@
 
 (deftype Iterator [max-keys ^:mutable node ^:mutable ix ^:mutable end?]
   Object
+  (key [this]
+       (when (false? end?)
+         (aget (.-keys node) ix)))
+  (val [this]
+       (when (false? end?)
+         (aget (.-vals node) ix)))
   (next [this]
         (when (false? end?)
           (if (nil? (.-children node))
@@ -245,14 +251,11 @@
                       (set! ix (.-parent-ix node))
                       (set! node (.-parent node))
                       (recur))
-                    (do
-                      (set! end? true)
-                      nil))
-                  #js [(aget (.-keys node) ix) (aget (.-vals node) ix)])))
+                    (set! end? true))
+                  nil)))
             (do
               (set! node (aget (.-children node) (+ ix 1)))
-              (set! ix 0)
-              #js [(aget (.-keys node) ix) (aget (.-vals node) ix)]))))
+              (set! ix 0)))))
   (seek [this key]
         (loop [moved? false]
           (when (false? end?)
@@ -278,7 +281,7 @@
                             (nil? (.-children node))
                             (let [lower (.-upper (aget (.-children node) ix))]
                               (lt lower key)))
-                      #js [(aget (.-keys node) ix) (aget (.-vals node) ix)]
+                      nil
                       (do
                         (set! node (aget (.-children node) ix))
                         (set! ix 0)
@@ -413,8 +416,12 @@
 (defn apply-to-iterator [iterator movements]
   (for [movement movements]
     (case (nth movement 0)
-      :next (vec (.next iterator))
-      :seek (vec (.seek iterator (nth movement 1))))))
+      :next (do
+              (.next iterator)
+              (.key iterator))
+      :seek (do
+              (.seek iterator (nth movement 1))
+              (.key iterator)))))
 
 (defn apply-to-elems [elems movements]
   (let [elems (atom (cons [least nil] elems))]
@@ -422,10 +429,10 @@
       (case (nth movement 0)
         :next (do
                 (swap! elems rest)
-                (vec (first @elems)))
+                (first (first @elems)))
         :seek (do
                 (swap! elems (fn [elems] (drop-while #((fn [a b] (lt a b)) (nth % 0) (nth movement 1)) elems)))
-                (vec (first @elems))))))) ;; TODO should seek consume the elem?
+                (first (first @elems)))))))
 
 (defn run-iterator-prop [min-keys actions movements]
   (let [tree (apply-to-tree (tree min-keys) actions)
