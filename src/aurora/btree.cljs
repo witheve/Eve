@@ -275,47 +275,52 @@
                   nil)))
             (do
               (set! node (aget (.-children node) (+ ix 1)))
-              (set! ix 0)))))
+              (set! ix 0)
+              (loop []
+                (when-not (nil? (.-children node))
+                  (set! node (aget (.-children node) 0))
+                  (recur)))))))
   (seek [this key]
-        (loop [moved? false]
+        (.next this)
+        (let [start-node node
+              start-ix ix]
           (when (false? end?)
-            (let [upper (.-upper node)]
-              (if (lt upper key)
-                (if (instance? Node (.-parent node))
-                  (do
-                    (set! ix (.-parent-ix node))
-                    (set! node (.-parent node))
-                    (recur true))
-                  (do
-                    (set! end? true)
-                    nil))
-                (loop [moved? moved?]
-                  (set! ix (.seek node key ix))
-                  (if (>= ix (alength (.-keys node)))
+            (loop []
+              (let [upper (.-upper node)]
+                (if (lt upper key)
+                  (if (instance? Node (.-parent node))
                     (do
-                      (set! node (aget (.-children node) ix))
-                      (set! ix 0)
-                      (recur true))
-                    (if (or (not moved?)
-                            (== key (aget (.-keys node) ix))
-                            (nil? (.-children node))
-                            (let [lower (.-upper (aget (.-children node) ix))]
-                              (lt lower key)))
-                      nil
+                      (set! ix (.-parent-ix node))
+                      (set! node (.-parent node))
+                      (recur))
+                    (set! end? true))
+                  (loop []
+                    (set! ix (.seek node key ix))
+                    (if (>= ix (alength (.-keys node)))
                       (do
                         (set! node (aget (.-children node) ix))
                         (set! ix 0)
-                        (recur true)))))))))))
+                        (recur))
+                      (if (or (and (identical? node start-node) (== ix start-ix))
+                              (== key (aget (.-keys node) ix))
+                              (nil? (.-children node))
+                              (let [lower (.-upper (aget (.-children node) ix))]
+                                (lt lower key)))
+                        nil
+                        (do
+                          (set! node (aget (.-children node) ix))
+                          (set! ix 0)
+                          (recur))))))))))))
 
 (defn iterator [tree]
   (loop [node (.-root tree)]
     (if (nil? (.-children node))
       (if (> (alength (.-keys node)) 0)
-        (Iterator. (.-max-keys tree) node -1 false)
-        (Iterator. (.-max-keys tree) node -1 true))
+        (Iterator. (.-max-keys tree) node 0 false)
+        (Iterator. (.-max-keys tree) node 0 true))
       (recur (aget (.-children node) 0)))))
 
-(deftype Intersection [iterators end?]
+(deftype Intersection [iterators ^:mutable end?]
   Object
   (key [this]
        (when (false? end?)
@@ -335,13 +340,13 @@
           (.next (aget iterators 0))
           (if (.-end? (aget iterators 0))
             (set! end? true)
-            (.search (+ current 1)))))
+            (.search this 1))))
   (seek [this key]
         (when (false? end?)
           (.seek (aget iterators 0) key)
           (if (.-end? (aget iterators 0))
             (set! end? true)
-            (.search (+ current 1))))))
+            (.search this 1)))))
 
 (defn intersection [iterators]
   (if (> (alength iterators) 1)
@@ -470,13 +475,14 @@
               (.key iterator)))))
 
 (defn apply-to-elems [elems movements]
-  (let [elems (atom (cons [least nil] elems))]
+  (let [elems (atom elems)]
     (for [movement movements]
       (case (nth movement 0)
         :next (do
                 (swap! elems rest)
                 (first (first @elems)))
         :seek (do
+                (swap! elems rest)
                 (swap! elems (fn [elems] (drop-while #(lt-fun (nth % 0) (nth movement 1)) elems)))
                 (first (first @elems)))))))
 
@@ -485,6 +491,7 @@
         sorted-map (apply-to-sorted-map (sorted-map-by compare-keys) actions)
         iterator-results (apply-to-iterator (iterator tree) movements)
         elems-results (apply-to-elems (seq sorted-map) movements)]
+    #_(.pretty-print tree)
     (= iterator-results elems-results)))
 
 (def iterator-prop
