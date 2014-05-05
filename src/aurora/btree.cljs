@@ -315,7 +315,40 @@
         (Iterator. (.-max-keys tree) node -1 true))
       (recur (aget (.-children node) 0)))))
 
+(deftype Intersection [iterators end?]
+  Object
+  (key [this]
+       (when (false? end?)
+         (.key (aget iterators 0))))
+  (search [this current]
+          (when (false? end?)
+            (loop [current current]
+              (let [max-key (.key (aget iterators (mod (- current 1) (alength iterators))))
+                    min-key (.key (aget iterators current))]
+                (when-not (== min-key max-key)
+                  (.seek (aget iterators current))
+                  (if (.-end? (aget iterators current))
+                    (set! end? true)
+                    (recur (mod (+ current 1) (alength iterators)))))))))
+  (next [this]
+        (when (false? end?)
+          (.next (aget iterators 0))
+          (if (.-end? (aget iterators 0))
+            (set! end? true)
+            (.search (+ current 1)))))
+  (seek [this key]
+        (when (false? end?)
+          (.seek (aget iterators 0) key)
+          (if (.-end? (aget iterators 0))
+            (set! end? true)
+            (.search (+ current 1))))))
 
+(defn intersection [iterators]
+  (if (> (alength iterators) 1)
+    (if (some #(.-end? %) iterators)
+      (Intersection. iterators true)
+      (Intersection. (into-array (sort-by #(.key %) compare-keys iterators)) false))
+    (aget iterators 0)))
 
 ;; TESTS
 
