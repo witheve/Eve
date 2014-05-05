@@ -163,10 +163,11 @@
                   (let [left-node (aget (.-children parent) (- parent-ix 1))
                         min-keys (js/Math.floor (/ max-keys 2))]
                     (if (> (alength (.-keys left-node)) min-keys)
-                      (let [key&val&child (.pop! left-node (- (alength (.-keys left-node)) 1) right-child)]
-                        (.push! this 0 #js [(aget (.-keys parent) parent-ix) (aget (.-vals parent) parent-ix) (aget key&val&child 2)] left-child)
-                        (aset (.-keys parent) parent-ix (aget key&val&child 0))
-                        (aset (.-vals parent) parent-ix (aget key&val&child 1))
+                      (let [key&val&child (.pop! left-node (- (alength (.-keys left-node)) 1) right-child)
+                            separator-ix (- parent-ix 1)]
+                        (.push! this 0 #js [(aget (.-keys parent) separator-ix) (aget (.-vals parent) separator-ix) (aget key&val&child 2)] left-child)
+                        (aset (.-keys parent) separator-ix (aget key&val&child 0))
+                        (aset (.-vals parent) separator-ix (aget key&val&child 1))
                         (.maintain! this max-keys)
                         (.maintain! left-node max-keys)
                         (.maintain! parent max-keys))
@@ -177,10 +178,11 @@
                    (let [right-node (aget (.-children parent) (+ parent-ix 1))
                          min-keys (js/Math.floor (/ max-keys 2))]
                      (if (> (alength (.-keys right-node)) min-keys)
-                       (let [key&val&child (.pop! right-node 0 left-child)]
-                         (.push! this (alength keys) #js [(aget (.-keys parent) parent-ix) (aget (.-vals parent) parent-ix) (aget key&val&child 2)] right-child)
-                         (aset (.-keys parent) parent-ix (aget key&val&child 0))
-                         (aset (.-vals parent) parent-ix (aget key&val&child 1))
+                       (let [key&val&child (.pop! right-node 0 left-child)
+                             separator-ix parent-ix]
+                         (.push! this (alength keys) #js [(aget (.-keys parent) separator-ix) (aget (.-vals parent) separator-ix) (aget key&val&child 2)] right-child)
+                         (aset (.-keys parent) separator-ix (aget key&val&child 0))
+                         (aset (.-vals parent) separator-ix (aget key&val&child 1))
                          (.maintain! this max-keys)
                          (.maintain! right-node max-keys)
                          (.maintain! parent max-keys))
@@ -428,12 +430,6 @@
                  actions (gen/vector gen-action)
                  movements (gen/vector gen-movement)]
                 (run-iterator-prop min-keys actions movements)))
-
-(run-building-prop 1
-                   [[:assoc! 90 0] [:assoc! 0 0] [:assoc! 1 0]
-                    [:assoc! 2 0] [:assoc! -1 0] [:assoc! -2 0]
-                    [:assoc! "" 0] [:assoc! 91 0] [:assoc! " " 0]
-                    [:assoc! 3 0] [:dissoc! 90]])
 
 (comment
   (dc/quick-check 1000 least-prop)
