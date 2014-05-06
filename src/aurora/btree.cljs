@@ -352,7 +352,9 @@
   (if (> (alength iterators) 1)
     (if (some #(.-end? %) iterators)
       (Intersection. iterators true)
-      (Intersection. (into-array (sort-by #(.key %) compare-keys iterators)) false))
+      (let [intersection (Intersection. (into-array (sort-by #(.key %) compare-keys iterators)) false)]
+        (.search intersection 0)
+        intersection))
     (aget iterators 0)))
 
 (defn iter-seq [iterator]
