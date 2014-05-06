@@ -424,13 +424,13 @@
    (fn [rnd size]
      (let [key (make-simple-key rnd size)
            val (make-simple-key rnd size)]
-       #js [#js [:assoc! key key] nil]))))
+       [[:assoc! key key] nil]))))
 
 (def gen-dissoc
   (gen/make-gen
    (fn [rnd size]
      (let [key (make-simple-key rnd size)]
-       #js [#js [:dissoc! key] nil]))))
+       [[:dissoc! key] nil]))))
 
 (def gen-action
   (gen/make-gen
@@ -438,8 +438,8 @@
      (let [key (make-simple-key rnd size)
            val (make-simple-key rnd size)]
        (if (pprng/boolean rnd)
-         #js [#js [:assoc! key val] nil]
-         #js [#js [:dissoc! key] nil])))))
+         [[:assoc! key val] nil]
+         [[:dissoc! key] nil])))))
 
 (defn apply-to-tree [tree actions]
   (doseq [action actions]
@@ -488,13 +488,23 @@
                 (run-lookup-prop min-keys actions action)))
 
 (def gen-next
-  (gen/tuple (gen/return :next)))
+  (gen/make-gen
+   (fn [rnd size]
+     [[:next] nil])))
 
 (def gen-seek
-  (gen/tuple (gen/return :seek) gen-key))
+  (gen/make-gen
+   (fn [rnd size]
+     (let [key (make-simple-key rnd size)]
+       [[:seek key] nil]))))
 
 (def gen-movement
-  (gen/one-of [gen-next gen-seek]))
+  (gen/make-gen
+   (fn [rnd size]
+     (let [key (make-simple-key rnd size)]
+       (if (pprng/boolean rnd)
+         [[:next] nil]
+         [[:seek key] nil])))))
 
 (defn apply-to-iterator [iterator movements]
   (for [movement movements]
@@ -554,13 +564,13 @@
   (dc/quick-check 1000 transitive-prop)
   (dc/quick-check 1000 anti-symmetric-prop)
   (dc/quick-check 1000 total-prop)
-  (dc/quick-check 500 (building-prop gen-assoc))
-  (dc/quick-check 500 (building-prop gen-action))
+  (dc/quick-check 1000 (building-prop gen-assoc))
+  (dc/quick-check 10000 (building-prop gen-action))
   ;; cljs.core.pr_str(cemerick.double_check.quick_check(1000, aurora.btree.building_prop(aurora.btree.gen_action)))
-  (dc/quick-check 500 (lookup-prop gen-action))
-  (dc/quick-check 500 iterator-prop)
+  (dc/quick-check 10000 (lookup-prop gen-action))
+  (dc/quick-check 10000 iterator-prop)
   ;; cljs.core.pr_str(cemerick.double_check.quick_check(1000, aurora.btree.iterator_prop)
-  (dc/quick-check 100 intersection-prop)
+  (dc/quick-check 1000 intersection-prop)
   ;; cljs.core.pr_str(cemerick.double_check.quick_check(1000, aurora.btree.intersection_prop))
 
 
