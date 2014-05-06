@@ -355,6 +355,13 @@
       (Intersection. (into-array (sort-by #(.key %) compare-keys iterators)) false))
     (aget iterators 0)))
 
+(defn iter-seq [iterator]
+  (let [results #js []]
+    (while (false? (.-end? iterator))
+      (.push results (.key iterator))
+      (.next iterator))
+    results))
+
 ;; TESTS
 
 (def gen-key
@@ -500,6 +507,20 @@
                  movements (gen/vector gen-movement)]
                 (run-iterator-prop min-keys actions movements)))
 
+(defn run-intersection-prop [min-keys actionss movements]
+  (let [trees (map #(apply-to-tree (tree min-keys) %) actionss)
+        elems (apply clojure.set/intersection (map #(set (map vec %)) trees))
+        sorted-map (into (sorted-map-by compare-keys) elems)
+        iterator-results (apply-to-iterator (intersection (into-array (map iterator trees))) movements)
+        elems-results (apply-to-elems (seq sorted-map) movements)]
+    (= iterator-results elems-results)))
+
+(def intersection-prop
+  (prop/for-all [min-keys gen/s-pos-int
+                 actionss (gen/not-empty (gen/vector (gen/vector gen-action)))
+                 movements (gen/vector gen-movement)]
+                (run-intersection-prop min-keys actionss movements)))
+
 (comment
   (dc/quick-check 1000 least-prop)
   (dc/quick-check 1000 greatest-prop)
@@ -514,6 +535,8 @@
   (dc/quick-check 500 (lookup-prop gen-action))
   (dc/quick-check 500 iterator-prop)
   ;; cljs.core.pr_str(cemerick.double_check.quick_check(1000, aurora.btree.iterator_prop)
+  (dc/quick-check 100 intersection-prop)
+  ;; cljs.core.pr_str(cemerick.double_check.quick_check(1000, aurora.btree.intersection_prop))
 
 
   (defn f []
