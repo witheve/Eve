@@ -1,7 +1,8 @@
 (ns aurora.btree
   (:require [cemerick.double-check :as dc]
             [cemerick.double-check.generators :as gen]
-            [cemerick.double-check.properties :as prop :include-macros true])
+            [cemerick.double-check.properties :as prop :include-macros true]
+            clojure.set)
   (:require-macros [aurora.macros :refer [apush apush* lt lte gt gte set!! dofrom]]))
 
 ;; NOTE iterators are not write-safe
@@ -380,9 +381,9 @@
 (def equality-prop
   (prop/for-all [key-a gen-key
                  key-b gen-key]
-                (== (== key-a key-b)
-                    (and (lte key-a key-b) (not (lt key-a key-b)))
-                    (and (gte key-a key-b) (not (gt key-a key-b))))))
+                (= (== key-a key-b)
+                   (and (lte key-a key-b) (not (lt key-a key-b)))
+                   (and (gte key-a key-b) (not (gt key-a key-b))))))
 
 (def reflexive-prop
   (prop/for-all [key gen-key]

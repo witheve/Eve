@@ -79,6 +79,7 @@
   :source-paths ["src/"]
   :plugins [[lein-cljsbuild "1.0.2"]
             [lein-pprint "1.1.1"]
-            [com.cemerick/clojurescript.test "0.3.0"]]
+            [com.cemerick/clojurescript.test "0.3.0"]
+            [lein-midje "3.0.0"]]
 
   )
