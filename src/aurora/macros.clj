@@ -2,6 +2,14 @@
   (:refer-clojure :exclude [munge])
   (:require [cljs.compiler :refer [munge]]))
 
+(defmacro dofrom [[ix lo hi] & body]
+  `(let [lo# ~lo
+         hi# ~hi]
+     (loop [~ix lo#]
+       (when (< ~ix hi#)
+         ~@body
+         (recur (+ ~ix 1))))))
+
 (defmacro typeof [a]
   `(~'js* "(typeof ~{})" ~a))
 
