@@ -30,27 +30,27 @@
   aurora.btree/anti-symmetric-prop)
 
 (defspec total-prop-test
-  10000
+  5000
   aurora.btree/total-prop)
 
 (defspec building-assoc-test
-  10000
+  5000
   (aurora.btree/building-prop aurora.btree/gen-assoc))
 
 (defspec building-action-test
-  10000
+  5000
   (aurora.btree/building-prop aurora.btree/gen-action))
 
 (defspec lookup-action-test
-  10000
+  5000
   (aurora.btree/lookup-prop aurora.btree/gen-action))
 
 (defspec iterator-prop-test
-  10000
+  5000
   aurora.btree/iterator-prop)
 
 (defspec intersection-prop-test
-  1000
+  500
   aurora.btree/intersection-prop)
 
 (comment
