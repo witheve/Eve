@@ -2,6 +2,7 @@
   (:require [cemerick.double-check :as dc]
             [cemerick.double-check.generators :as gen]
             [cemerick.double-check.properties :as prop :include-macros true]
+            [cemerick.pprng :as pprng]
             clojure.set)
   (:require-macros [aurora.macros :refer [apush apush* lt lte gt gte set!! dofrom]]))
 
@@ -410,14 +411,35 @@
                 (and (or (lt key-a key-b) (gte key-a key-b))
                      (or (gt key-a key-b) (lte key-a key-b)))))
 
+;; fast gens with no shrinking and no long strings. good enough for government work
+
+(defn make-simple-key [rnd size]
+  (let [value (gen/rand-range rnd (- size) size)]
+    (if (pprng/boolean rnd)
+      value
+      (str value))))
+
 (def gen-assoc
-  (gen/tuple (gen/return :assoc!) gen-key gen-key))
+  (gen/make-gen
+   (fn [rnd size]
+     (let [key (make-simple-key rnd size)
+           val (make-simple-key rnd size)]
+       #js [#js [:assoc! key key] nil]))))
 
 (def gen-dissoc
-  (gen/tuple (gen/return :dissoc!) gen-key))
+  (gen/make-gen
+   (fn [rnd size]
+     (let [key (make-simple-key rnd size)]
+       #js [#js [:dissoc! key] nil]))))
 
 (def gen-action
-  (gen/one-of [gen-assoc gen-dissoc]))
+  (gen/make-gen
+   (fn [rnd size]
+     (let [key (make-simple-key rnd size)
+           val (make-simple-key rnd size)]
+       (if (pprng/boolean rnd)
+         #js [#js [:assoc! key val] nil]
+         #js [#js [:dissoc! key] nil])))))
 
 (defn apply-to-tree [tree actions]
   (doseq [action actions]
