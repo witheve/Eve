@@ -185,10 +185,16 @@
                    (.split! this max-keys)
                    (if (and (< (alength keys) min-keys) (instance? Node parent))
                      (.rotate-left! this max-keys)
-                     (if (== 0 (alength keys))
-                       (do
-                         (set! lower nil)
-                         (set! upper nil))
+                     (if (== (alength keys) 0)
+                       (if (nil? children)
+                         (do
+                           (set! lower nil)
+                           (set! upper nil))
+                         (do
+                           (assert (= 1 (alength children)))
+                           (assert (instance? Tree parent))
+                           (set! (.-parent (aget children 0)) parent)
+                           (set! (.-root parent) (aget children 0))))
                        (do
                          (.update-lower! this (if (nil? children) (aget keys 0) (.-lower (aget children 0))))
                          (.update-upper! this (if (nil? children) (aget keys (- (alength keys) 1)) (.-upper (aget children (- (alength children) 1))))))))))))
@@ -270,12 +276,13 @@
             (assert (= (seq keys) (seq (sort-by identity key-compare keys))))
             (assert (every? #(key-lte lower %) keys) (pr-str lower keys))
             (assert (every? #(key-gte upper %) keys) (pr-str upper keys))
-            (if (nil? children)
+            (if (= 0 (count children))
               (do
                 (assert (= (count keys) (count vals)) (pr-str keys vals))
                 (assert (= lower (aget keys 0)) (pr-str lower keys))
                 (assert (= upper (aget keys (- (alength keys) 1))) (pr-str upper keys)))
               (do
+                (assert (> (count keys) 0))
                 (dotimes [ix (count children)]
                   (assert (= ix (.-parent-ix (aget children ix)))))
                 (assert (= (count keys) (count vals) (dec (count children))) (pr-str keys vals children))
@@ -629,8 +636,8 @@
   (dc/quick-check 10000 (building-prop gen-assoc 1))
   (dc/quick-check 10000 (building-prop gen-action 1))
   ;; cljs.core.pr_str(cemerick.double_check.quick_check(1000, aurora.btree.building_prop(aurora.btree.gen_action)))
-  (dc/quick-check 10000 (lookup-prop gen-action))
-  (dc/quick-check 10000 iterator-prop)
+  (dc/quick-check 10000 (lookup-prop gen-action 1))
+  (dc/quick-check 10000 (iterator-prop 1))
   ;; cljs.core.pr_str(cemerick.double_check.quick_check(1000, aurora.btree.iterator_prop)
   (dc/quick-check 1000 intersection-prop)
   ;; cljs.core.pr_str(cemerick.double_check.quick_check(1000, aurora.btree.intersection_prop))
