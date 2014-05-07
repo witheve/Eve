@@ -4,21 +4,59 @@
             [cemerick.double-check.properties :as prop :include-macros true]
             [cemerick.pprng :as pprng]
             clojure.set)
-  (:require-macros [aurora.macros :refer [apush apush* lt lte gt gte set!! dofrom]]))
+  (:require-macros [aurora.macros :refer [apush apush* key-lt key-lte key-gt key-gte set!! dofrom]]))
 
-;; NOTE iterators are not write-safe
+;; COMPARISONS
+
+;; 'bool' < 'number' < 'string' < 'undefined'
+(def least false)
+(def greatest js/undefined)
+
+(defn least-key [key-len]
+  (let [result #js []]
+    (dotimes [_ key-len]
+      (.push result least))
+    result))
+
+(defn greatest-key [key-len]
+  (let [result #js []]
+    (dotimes [_ key-len]
+      (.push result greatest))
+    result))
+
+(defn key-compare [as bs]
+  (let [as-len (alength as)
+        bs-len (alength bs)]
+    (assert (== as-len bs-len) (pr-str as bs))
+    (loop [i 0]
+      (if (< i a-len)
+        (let [a (aget as i)
+              b (aget bs i)]
+          (if (identical? a b)
+            (recur (+ i 1))
+            (if (or (and (identical? (typeof a) (typeof b))
+                         (< a b))
+                    (< (typeof a) (typeof b)))
+              -1
+              1)))
+        0))))
+
+(defn key-lt [as bs]
+  (== -1 (key-compare as bs)))
+
+(defn key-gt [as bs]
+  (== 1 (key-compare as bs)))
+
+(defn key-lte [as bs]
+  (not (== 1 (key-compare as bs))))
+
+(defn key-gte [as bs]
+  (not (== -1 (key-compare as bs))))
+
+;; TREES
 
 (def left-child 0)
 (def right-child 1)
-
-(defn compare-keys [x y]
-  (cond (== x y) 0 (lt x y) -1 (gt x y) 1))
-
-(defn lt-fun [a b]
-  (lt a b))
-
-(defn gt-fun [a b]
-  (gt a b))
 
 (deftype Tree [max-keys ^:mutable root]
   Object
@@ -39,8 +77,8 @@
              (set! (.-parent right-child) root)
              (set! (.-parent-ix right-child) 1)))
   (maintain! [this])
-  (into [this result]
-        (.into root result))
+  (into [this resukey-lt]
+        (.into root resukey-lt))
   (valid! [this]
           (when (> (alength (.-keys root)) 0) ;; the empty tree does not obey most invariants
             (.valid! root max-keys))
@@ -53,19 +91,19 @@
                     (recur (mapcat #(.-children %) nodes)))))
   ISeqable
   (-seq [this]
-        (let [result #js []]
-          (.into this result)
-          (seq result))))
+        (let [resukey-lt #js []]
+          (.into this resukey-lt)
+          (seq resukey-lt))))
 
 (deftype Node [parent parent-ix keys vals children ^:mutable lower ^:mutable upper]
   Object
-  (into [this result]
+  (into [this resukey-lt]
         (dotimes [ix (alength keys)]
           (when-not (nil? children)
-            (.into (aget children ix) result))
-          (apush result #js [(aget keys ix) (aget vals ix)]))
+            (.into (aget children ix) resukey-lt))
+          (apush resukey-lt #js [(aget keys ix) (aget vals ix)]))
         (when-not (nil? children)
-          (.into (aget children (alength keys)) result)))
+          (.into (aget children (alength keys)) resukey-lt)))
   (seek [this key ix]
         (loop [lo (if (> ix 0) ix 0)
                hi (- (alength keys) 1)]
@@ -73,7 +111,7 @@
             lo
             (let [mid (+ lo (js/Math.floor (/ (- hi lo) 2)))
                   mid-key (aget keys mid)]
-              (if (lt mid-key key)
+              (if (key-lt mid-key key)
                 (recur (+ mid 1) hi)
                 (if (== mid-key key)
                   mid
@@ -223,8 +261,8 @@
             (assert (<= (count keys) max-keys) (pr-str keys max-keys))
             (assert (= (count keys) (count (set keys))))
             (assert (= (seq keys) (seq (sort-by identity compare-keys keys))))
-            (assert (every? #(lte lower %) keys) (pr-str lower keys))
-            (assert (every? #(gte upper %) keys) (pr-str upper keys))
+            (assert (every? #(key-lte lower %) keys) (pr-str lower keys))
+            (assert (every? #(key-gte upper %) keys) (pr-str upper keys))
             (if (nil? children)
               (do
                 (assert (= (count keys) (count vals)) (pr-str keys vals))
@@ -236,15 +274,11 @@
                 (assert (= (count keys) (count vals) (dec (count children))) (pr-str keys vals children))
                 (assert (= lower (.-lower (aget children 0))) (pr-str lower (.-lower (aget children 0))))
                 (assert (= upper (.-upper (aget children (- (alength children) 1)))) (pr-str upper (.-upper (aget children (- (alength children) 1)))))
-                (assert (every? #(gt-fun (aget keys %) (.-upper (aget children %))) (range (count keys))))
-                (assert (every? #(lt-fun (aget keys %) (.-lower (aget children (inc %)))) (range (count keys))))
+                (assert (every? #(key-gt (aget keys %) (.-upper (aget children %))) (range (count keys))))
+                (assert (every? #(key-lt (aget keys %) (.-lower (aget children (inc %)))) (range (count keys))))
                 (dotimes [i (count children)] (.valid! (aget children i) max-keys))))))
   (pretty-print [this]
                 (str "(" parent-ix ")" "|" (pr-str lower) " " (pr-str (vec keys)) " " (pr-str upper) "|")))
-
-;; 'bool' < 'number' < 'string' < 'undefined'
-(def least false)
-(def greatest js/undefined)
 
 (defn tree [min-keys]
   (let [node (Node. nil nil #js [] #js [] nil greatest least)
@@ -252,6 +286,8 @@
     (set! (.-parent node) tree)
     (set! (.-parent-ix node) 0)
     tree))
+
+;; NOTE iterators are not write-safe
 
 (deftype Iterator [max-keys ^:mutable node ^:mutable ix ^:mutable end?]
   Object
@@ -289,7 +325,7 @@
           (when (false? end?)
             (loop []
               (let [upper (.-upper node)]
-                (if (lt upper key)
+                (if (key-lt upper key)
                   (if (instance? Node (.-parent node))
                     (do
                       (set! ix (.-parent-ix node))
@@ -307,7 +343,7 @@
                               (== key (aget (.-keys node) ix))
                               (nil? (.-children node))
                               (let [lower (.-upper (aget (.-children node) ix))]
-                                (lt lower key)))
+                                (key-lt lower key)))
                         nil
                         (do
                           (set! node (aget (.-children node) ix))
@@ -360,56 +396,72 @@
     (aget iterators 0)))
 
 (defn iter-seq [iterator]
-  (let [results #js []]
+  (let [resukey-lts #js []]
     (while (false? (.-end? iterator))
-      (.push results (.key iterator))
+      (.push resukey-lts (.key iterator))
       (.next iterator))
-    results))
+    resukey-lts))
 
 ;; TESTS
 
-(def gen-key
-  (gen/one-of [gen/int gen/string-ascii]))
+(defn gen-key [key-len]
+  (gen/fmap into-array (gen/vector (gen/one-of [gen/int gen/string-ascii]) key-len)))
 
 (def least-prop
-  (prop/for-all [key gen-key]
-                (and (lt least key) (lte least key) (gt key least) (gte key least))))
+  (prop/for-all [key-len gen/s-pos-int]
+                (prop/for-all [key (gen-key key-len)]
+                              (and (key-lt (least-key key-len) key)
+                                   (key-lte (least-key key-len) key)
+                                   (key-gt key (least-key key-len))
+                                   (key-gte key (least-key key-len))))))
 
 (def greatest-prop
-  (prop/for-all [key gen-key]
-                (and (gt greatest key) (gte greatest key) (lt key greatest) (lte key greatest))))
+  (prop/for-all [key-len gen/s-pos-int]
+                (prop/for-all [key (gen-key key-len)]
+                              (and (key-gt (greatest-key key-len) key)
+                                   (key-gte (greatest-key key-len) key)
+                                   (key-lt key (greatest-key key-len))
+                                   (key-lte key (greatest-key key-len))))))
 
 (def equality-prop
-  (prop/for-all [key-a gen-key
-                 key-b gen-key]
-                (= (== key-a key-b)
-                   (and (lte key-a key-b) (not (lt key-a key-b)))
-                   (and (gte key-a key-b) (not (gt key-a key-b))))))
+
+  (prop/for-all [key-len gen/s-pos-int]
+                (prop/for-all [key-a (gen-key key-len)
+                               key-b (gen-key key-len)]
+                              (= (== key-a key-b)
+                                 (and (key-lte key-a key-b) (not (key-lt key-a key-b)))
+                                 (and (key-gte key-a key-b) (not (key-gt key-a key-b)))))))
 
 (def reflexive-prop
-  (prop/for-all [key gen-key]
-                (and (lte key key) (gte key key) (not (lt key key)) (not (gt key key)))))
+  (prop/for-all [key-len gen/s-pos-int]
+                (prop/for-all [key (gen-key key-len)]
+                              (and (key-lte key key) (key-gte key key) (not (key-lt key key)) (not (key-gt key key))))))
 
 (def transitive-prop
-  (prop/for-all [key-a gen-key
-                 key-b gen-key
-                 key-c gen-key]
-                (and (if (and (lt key-a key-b) (lt key-b key-c)) (lt key-a key-c) true)
-                     (if (and (lte key-a key-b) (lte key-b key-c)) (lte key-a key-c) true)
-                     (if (and (gt key-a key-b) (gt key-b key-c)) (gt key-a key-c) true)
-                     (if (and (gte key-a key-b) (gte key-b key-c)) (gte key-a key-c) true))))
+
+  (prop/for-all [key-len gen/s-pos-int]
+                (prop/for-all [key-a (gen-key key-len)
+                               key-b (gen-key key-len)
+                               key-c (gen-key key-len)]
+                              (and (if (and (key-lt key-a key-b) (key-lt key-b key-c)) (key-lt key-a key-c) true)
+                                   (if (and (key-lte key-a key-b) (key-lte key-b key-c)) (key-lte key-a key-c) true)
+                                   (if (and (key-gt key-a key-b) (key-gt key-b key-c)) (key-gt key-a key-c) true)
+                                   (if (and (key-gte key-a key-b) (key-gte key-b key-c)) (key-gte key-a key-c) true)))))
 
 (def anti-symmetric-prop
-  (prop/for-all [key-a gen-key
-                 key-b gen-key]
-                (and (not (and (lt key-a key-b) (lt key-b key-a)))
-                     (not (and (gt key-a key-b) (gt key-b key-a))))))
+
+  (prop/for-all [key-len gen/s-pos-int]
+                (prop/for-all [key-a (gen-key key-len)
+                               key-b (gen-key key-len)]
+                              (and (not (and (key-lt key-a key-b) (key-lt key-b key-a)))
+                                   (not (and (key-gt key-a key-b) (key-gt key-b key-a)))))))
 
 (def total-prop
-  (prop/for-all [key-a gen-key
-                 key-b gen-key]
-                (and (or (lt key-a key-b) (gte key-a key-b))
-                     (or (gt key-a key-b) (lte key-a key-b)))))
+  (prop/for-all [key-len gen/s-pos-int]
+                (prop/for-all [key-a (gen-key key-len)
+                               key-b (gen-key key-len)]
+                              (and (or (key-lt key-a key-b) (key-gte key-a key-b))
+                                   (or (key-gt key-a key-b) (key-lte key-a key-b))))))
 
 ;; fast gens with no shrinking and no long strings. good enough for government work
 
@@ -475,11 +527,11 @@
 (defn run-lookup-prop [min-keys actions action]
   (let [tree (apply-to-tree (tree min-keys) actions)
         sorted-map (apply-to-sorted-map (sorted-map-by compare-keys) actions)
-        tree-result (case (nth action 0)
+        tree-resukey-lt (case (nth action 0)
                       :assoc! (.assoc! tree (nth action 1) (nth action 2))
                       :dissoc! (.dissoc! tree (nth action 1)))
-        sorted-map-result (contains? sorted-map (nth action 1))]
-    (= tree-result sorted-map-result)))
+        sorted-map-resukey-lt (contains? sorted-map (nth action 1))]
+    (= tree-resukey-lt sorted-map-resukey-lt)))
 
 (defn lookup-prop [gen]
   (prop/for-all [min-keys gen/s-pos-int
@@ -525,16 +577,16 @@
                 (first (first @elems)))
         :seek (do
                 (swap! elems rest)
-                (swap! elems (fn [elems] (drop-while #(lt-fun (nth % 0) (nth movement 1)) elems)))
+                (swap! elems (fn [elems] (drop-while #(key-lt (nth % 0) (nth movement 1)) elems)))
                 (first (first @elems)))))))
 
 (defn run-iterator-prop [min-keys actions movements]
   (let [tree (apply-to-tree (tree min-keys) actions)
         sorted-map (apply-to-sorted-map (sorted-map-by compare-keys) actions)
-        iterator-results (apply-to-iterator (iterator tree) movements)
-        elems-results (apply-to-elems (seq sorted-map) movements)]
+        iterator-resukey-lts (apply-to-iterator (iterator tree) movements)
+        elems-resukey-lts (apply-to-elems (seq sorted-map) movements)]
     #_(.pretty-print tree)
-    (= iterator-results elems-results)))
+    (= iterator-resukey-lts elems-resukey-lts)))
 
 (def iterator-prop
   (prop/for-all [min-keys gen/s-pos-int
@@ -546,9 +598,9 @@
   (let [trees (map #(apply-to-tree (tree min-keys) %) actionss)
         elems (apply clojure.set/intersection (map #(set (map vec %)) trees))
         sorted-map (into (sorted-map-by compare-keys) elems)
-        iterator-results (apply-to-iterator (intersection (into-array (map iterator trees))) movements)
-        elems-results (apply-to-elems (seq sorted-map) movements)]
-    (= iterator-results elems-results)))
+        iterator-resukey-lts (apply-to-iterator (intersection (into-array (map iterator trees))) movements)
+        elems-resukey-lts (apply-to-elems (seq sorted-map) movements)]
+    (= iterator-resukey-lts elems-resukey-lts)))
 
 (def intersection-prop
   (prop/for-all [min-keys gen/s-pos-int

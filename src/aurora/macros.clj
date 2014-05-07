@@ -13,34 +13,6 @@
 (defmacro typeof [a]
   `(~'js* "(typeof ~{})" ~a))
 
-(defmacro lt [a b]
-  (assert (not (coll? a)) (pr-str a))
-  (assert (not (coll? b)) (pr-str b))
-  `(or (and (== (typeof ~a) (typeof ~b))
-            (< ~a ~b))
-       (< (typeof ~a) (typeof ~b))))
-
-(defmacro lte [a b]
-  (assert (not (coll? a)) (pr-str a))
-  (assert (not (coll? b)) (pr-str b))
-  `(or (and (== (typeof ~a) (typeof ~b))
-            (<= ~a ~b))
-       (< (typeof ~a) (typeof ~b))))
-
-(defmacro gt [a b]
-  (assert (not (coll? a)) (pr-str a))
-  (assert (not (coll? b)) (pr-str b))
-  `(or (and (== (typeof ~a) (typeof ~b))
-            (> ~a ~b))
-       (> (typeof ~a) (typeof ~b))))
-
-(defmacro gte [a b]
-  (assert (not (coll? a)) (pr-str a))
-  (assert (not (coll? b)) (pr-str b))
-  `(or (and (== (typeof ~a) (typeof ~b))
-            (>= ~a ~b))
-       (> (typeof ~a) (typeof ~b))))
-
 (defmacro avec [arr]
   `(js/cljs.core.PersistentVector.fromArray ~arr true))
 
