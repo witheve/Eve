@@ -44,6 +44,9 @@
 (defn key= [as bs]
   (== 0 (key-compare as bs)))
 
+(defn key-not= [as bs]
+  (not (== 0 (key-compare as bs))))
+
 (defn key-lt [as bs]
   (== -1 (key-compare as bs)))
 
@@ -66,10 +69,8 @@
   (toString [this]
             (pr-str (into {} (map vec (seq this)))))
   (assoc! [this key val]
-          (assert (or (number? key) (string? key)))
           (.assoc! root key val max-keys))
   (dissoc! [this key]
-           (assert (or (number? key) (string? key)))
            (.dissoc! root key max-keys))
   (push! [this ix key&val&child which-child]
            (let [left-child (if (== which-child left-child) (aget key&val&child 2) root)
@@ -116,12 +117,12 @@
                   mid-key (aget keys mid)]
               (if (key-lt mid-key key)
                 (recur (+ mid 1) hi)
-                (if (== mid-key key)
+                (if (key= mid-key key)
                   mid
                   (recur lo (- mid 1))))))))
   (assoc! [this key val max-keys]
           (let [ix (.seek this key 0)]
-            (if (== key (aget keys ix))
+            (if (and (< ix (alength keys)) (key= key (aget keys ix)))
               (do
                 (aset vals ix val)
                 true)
@@ -133,7 +134,7 @@
                 (.assoc! (aget children ix) key val max-keys)))))
   (dissoc! [this key max-keys]
            (let [ix (.seek this key 0)]
-             (if (== key (aget keys ix))
+             (if (and (< ix (alength keys)) (key= key (aget keys ix)))
                (if (nil? children)
                  (do
                    (.pop! this ix)
@@ -188,12 +189,12 @@
                        (.update-lower! this (if (nil? children) (aget keys 0) (.-lower (aget children 0))))
                        (.update-upper! this (if (nil? children) (aget keys (- (alength keys) 1)) (.-upper (aget children (- (alength children) 1)))))))))))
   (update-lower! [this new-lower]
-                 (when-not (== lower new-lower)
+                 (when (or (nil? lower) (key-not= lower new-lower))
                    (set! lower new-lower)
                    (when (and (instance? Node parent) (== parent-ix 0))
                      (.update-lower! parent new-lower))))
   (update-upper! [this new-upper]
-                 (when-not (== upper new-upper)
+                 (when (or (nil? upper) (key-not= upper new-upper))
                    (set! upper new-upper)
                    (when (and (instance? Node parent) (== parent-ix (- (alength (.-children parent)) 1)))
                      (.update-upper! parent new-upper))))
@@ -262,7 +263,7 @@
               (assert (>= (count keys) min-keys) (pr-str keys min-keys)))
             (assert (<= (count keys) max-keys) (pr-str keys max-keys))
             (assert (= (count keys) (count (set keys))))
-            (assert (= (seq keys) (seq (sort-by identity compare-keys keys))))
+            (assert (= (seq keys) (seq (sort-by identity key-compare keys))))
             (assert (every? #(key-lte lower %) keys) (pr-str lower keys))
             (assert (every? #(key-gte upper %) keys) (pr-str upper keys))
             (if (nil? children)
@@ -342,7 +343,7 @@
                         (set! ix 0)
                         (recur))
                       (if (or (and (identical? node start-node) (== ix start-ix))
-                              (== key (aget (.-keys node) ix))
+                              (key= key (aget (.-keys node) ix))
                               (nil? (.-children node))
                               (let [lower (.-upper (aget (.-children node) ix))]
                                 (key-lt lower key)))
@@ -370,7 +371,7 @@
             (loop [current current]
               (let [max-key (.key (aget iterators (mod (- current 1) (alength iterators))))
                     min-key (.key (aget iterators current))]
-                (when-not (== min-key max-key)
+                (when-not (key= min-key max-key)
                   (.seek (aget iterators current))
                   (if (.-end? (aget iterators current))
                     (set! end? true)
@@ -392,7 +393,7 @@
   (if (> (alength iterators) 1)
     (if (some #(.-end? %) iterators)
       (Intersection. iterators true)
-      (let [intersection (Intersection. (into-array (sort-by #(.key %) compare-keys iterators)) false)]
+      (let [intersection (Intersection. (into-array (sort-by #(.key %) key-compare iterators)) false)]
         (.search intersection 0)
         intersection))
     (aget iterators 0)))
@@ -513,7 +514,7 @@
 
 (defn run-building-prop [min-keys key-len actions]
   (let [tree (apply-to-tree (tree min-keys key-len) actions)
-        sorted-map (apply-to-sorted-map (sorted-map-by compare-keys) actions)]
+        sorted-map (apply-to-sorted-map (sorted-map-by key-compare) actions)]
     (and (= (seq (map vec tree)) (seq sorted-map))
          (.valid! tree))))
 
@@ -524,7 +525,7 @@
 
 (defn run-lookup-prop [min-keys key-len actions action]
   (let [tree (apply-to-tree (tree min-keys key-len) actions)
-        sorted-map (apply-to-sorted-map (sorted-map-by compare-keys) actions)
+        sorted-map (apply-to-sorted-map (sorted-map-by key-compare) actions)
         tree-result (case (nth action 0)
                       :assoc! (.assoc! tree (nth action 1) (nth action 2))
                       :dissoc! (.dissoc! tree (nth action 1)))
@@ -580,7 +581,7 @@
 
 (defn run-iterator-prop [min-keys key-len actions movements]
   (let [tree (apply-to-tree (tree min-keys key-len) actions)
-        sorted-map (apply-to-sorted-map (sorted-map-by compare-keys) actions)
+        sorted-map (apply-to-sorted-map (sorted-map-by key-compare) actions)
         iterator-results (apply-to-iterator (iterator tree) movements)
         elems-results (apply-to-elems (seq sorted-map) movements)]
     #_(.pretty-print tree)
@@ -595,7 +596,7 @@
 (defn run-intersection-prop [min-keys key-len actionss movements]
   (let [trees (map #(apply-to-tree (tree min-keys key-len) %) actionss)
         elems (apply clojure.set/intersection (map #(set (map vec %)) trees))
-        sorted-map (into (sorted-map-by compare-keys) elems)
+        sorted-map (into (sorted-map-by key-compare) elems)
         iterator-results (apply-to-iterator (intersection (into-array (map iterator trees))) movements)
         elems-results (apply-to-elems (seq sorted-map) movements)]
     (= iterator-results elems-results)))
@@ -605,6 +606,7 @@
                  actionss (gen/not-empty (gen/vector (gen/vector (gen-action key-len))))
                  movements (gen/vector (gen-movement key-len))]
                 false))
+
 (comment
   (dc/quick-check 1000 (least-prop 1))
   (dc/quick-check 1000 (least-prop 2))
@@ -620,7 +622,7 @@
   (dc/quick-check 1000 (anti-symmetric-prop 2))
   (dc/quick-check 1000 (total-prop 1))
   (dc/quick-check 1000 (total-prop 2))
-  (dc/quick-check 1000 (building-prop gen-assoc))
+  (dc/quick-check 1000 (building-prop gen-assoc 1))
   (dc/quick-check 10000 (building-prop gen-action))
   ;; cljs.core.pr_str(cemerick.double_check.quick_check(1000, aurora.btree.building_prop(aurora.btree.gen_action)))
   (dc/quick-check 10000 (lookup-prop gen-action))
