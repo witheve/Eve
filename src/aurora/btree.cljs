@@ -185,9 +185,13 @@
                    (.split! this max-keys)
                    (if (and (< (alength keys) min-keys) (instance? Node parent))
                      (.rotate-left! this max-keys)
-                     (do
-                       (.update-lower! this (if (nil? children) (aget keys 0) (.-lower (aget children 0))))
-                       (.update-upper! this (if (nil? children) (aget keys (- (alength keys) 1)) (.-upper (aget children (- (alength children) 1)))))))))))
+                     (if (== 0 (alength keys))
+                       (do
+                         (set! lower nil)
+                         (set! upper nil))
+                       (do
+                         (.update-lower! this (if (nil? children) (aget keys 0) (.-lower (aget children 0))))
+                         (.update-upper! this (if (nil? children) (aget keys (- (alength keys) 1)) (.-upper (aget children (- (alength children) 1))))))))))))
   (update-lower! [this new-lower]
                  (when (or (nil? lower) (key-not= lower new-lower))
                    (set! lower new-lower)
@@ -284,7 +288,7 @@
                 (str "(" parent-ix ")" "|" (pr-str lower) " " (pr-str (vec keys)) " " (pr-str upper) "|")))
 
 (defn tree [min-keys key-len]
-  (let [node (Node. nil nil #js [] #js [] nil (greatest-key key-len) (least-key key-len))
+  (let [node (Node. nil nil #js [] #js [] nil nil nil)
         tree (Tree. (* 2 min-keys) key-len node)]
     (set! (.-parent node) tree)
     (set! (.-parent-ix node) 0)
@@ -622,8 +626,8 @@
   (dc/quick-check 1000 (anti-symmetric-prop 2))
   (dc/quick-check 1000 (total-prop 1))
   (dc/quick-check 1000 (total-prop 2))
-  (dc/quick-check 1000 (building-prop gen-assoc 1))
-  (dc/quick-check 10000 (building-prop gen-action))
+  (dc/quick-check 10000 (building-prop gen-assoc 1))
+  (dc/quick-check 10000 (building-prop gen-action 1))
   ;; cljs.core.pr_str(cemerick.double_check.quick_check(1000, aurora.btree.building_prop(aurora.btree.gen_action)))
   (dc/quick-check 10000 (lookup-prop gen-action))
   (dc/quick-check 10000 iterator-prop)
