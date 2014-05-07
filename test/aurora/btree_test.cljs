@@ -7,51 +7,75 @@
 
 (defspec least-prop-test
   1000
-  aurora.btree/least-prop)
+  (aurora.btree/least-prop 1))
+
+(defspec least-prop-test
+  1000
+  (aurora.btree/least-prop 2))
 
 (defspec greatest-prop-test
   1000
-  aurora.btree/greatest-prop)
+  (aurora.btree/greatest-prop 1))
+
+(defspec greatest-prop-test
+  1000
+  (aurora.btree/greatest-prop 2))
 
 (defspec equality-prop-test
   1000
-  aurora.btree/equality-prop)
+  (aurora.btree/equality-prop 1))
+
+(defspec equality-prop-test
+  1000
+  (aurora.btree/equality-prop 2))
 
 (defspec reflexive-prop-test
   1000
-  aurora.btree/reflexive-prop)
+  (aurora.btree/reflexive-prop 1))
+
+(defspec reflexive-prop-test
+  1000
+  (aurora.btree/reflexive-prop 2))
 
 (defspec transitive-prop-test
   1000
-  aurora.btree/transitive-prop)
+  (aurora.btree/transitive-prop 1))
+
+(defspec transitive-prop-test
+  1000
+  (aurora.btree/transitive-prop 2))
 
 (defspec anti-symmetric-prop-test
   1000
-  aurora.btree/anti-symmetric-prop)
+  (aurora.btree/anti-symmetric-prop 1))
+
+(defspec anti-symmetric-prop-test
+  1000
+  (aurora.btree/anti-symmetric-prop 2))
 
 (defspec total-prop-test
   5000
-  aurora.btree/total-prop)
+  (aurora.btree/total-prop 1))
 
 (defspec building-assoc-test
   5000
-  (aurora.btree/building-prop aurora.btree/gen-assoc))
+  (aurora.btree/building-prop aurora.btree/gen-assoc 1))
 
 (defspec building-action-test
   5000
-  (aurora.btree/building-prop aurora.btree/gen-action))
+  (aurora.btree/building-prop aurora.btree/gen-action 1))
 
 (defspec lookup-action-test
   5000
-  (aurora.btree/lookup-prop aurora.btree/gen-action))
+  (aurora.btree/lookup-prop aurora.btree/gen-action 1))
 
 (defspec iterator-prop-test
   5000
-  aurora.btree/iterator-prop)
+  (aurora.btree/iterator-prop 1))
 
 (defspec intersection-prop-test
   500
-  aurora.btree/intersection-prop)
+  (aurora.btree/intersection-prop 1))
 
 (comment
   (run-all-tests)
