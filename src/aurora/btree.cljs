@@ -191,8 +191,8 @@
                            (set! lower nil)
                            (set! upper nil))
                          (do
-                           (assert (= 1 (alength children)))
-                           (assert (instance? Tree parent))
+                           #_(assert (== 1 (alength children)))
+                           #_(assert (instance? Tree parent))
                            (set! (.-parent (aget children 0)) parent)
                            (set! (.-root parent) (aget children 0))))
                        (do
@@ -383,7 +383,7 @@
               (let [max-key (.key (aget iterators (mod (- current 1) (alength iterators))))
                     min-key (.key (aget iterators current))]
                 (when-not (key= min-key max-key)
-                  (.seek (aget iterators current))
+                  (.seek (aget iterators current) max-key)
                   (if (.-end? (aget iterators current))
                     (set! end? true)
                     (recur (mod (+ current 1) (alength iterators)))))))))
@@ -606,17 +606,21 @@
 
 (defn run-intersection-prop [min-keys key-len actionss movements]
   (let [trees (map #(apply-to-tree (tree min-keys key-len) %) actionss)
-        elems (apply clojure.set/intersection (map #(set (map vec %)) trees))
-        sorted-map (into (sorted-map-by key-compare) elems)
+        keys (apply clojure.set/intersection (map #(set (map (fn [[k v]] (vec k)) %)) trees))
+        sorted-map (into (sorted-map-by key-compare)
+                         (for [tree trees
+                               [k v :as elem] tree
+                               :when (contains? keys (vec k))]
+                           (vec elem)))
         iterator-results (apply-to-iterator (intersection (into-array (map iterator trees))) movements)
         elems-results (apply-to-elems (seq sorted-map) movements)]
-    (= iterator-results elems-results)))
+    (= (map vec iterator-results) (map vec elems-results))))
 
 (defn intersection-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
-                 actionss (gen/not-empty (gen/vector (gen/vector (gen-action key-len))))
+                 actionss (gen/vector (gen/vector (gen-action key-len)) 1 4)
                  movements (gen/vector (gen-movement key-len))]
-                false))
+                (run-intersection-prop min-keys key-len actionss movements)))
 
 (comment
   (dc/quick-check 1000 (least-prop 1))
@@ -639,7 +643,7 @@
   (dc/quick-check 10000 (lookup-prop gen-action 1))
   (dc/quick-check 10000 (iterator-prop 1))
   ;; cljs.core.pr_str(cemerick.double_check.quick_check(1000, aurora.btree.iterator_prop)
-  (dc/quick-check 1000 intersection-prop)
+  (dc/quick-check 5000 (intersection-prop 1))
   ;; cljs.core.pr_str(cemerick.double_check.quick_check(1000, aurora.btree.intersection_prop))
 
 
