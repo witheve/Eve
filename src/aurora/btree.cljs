@@ -431,18 +431,23 @@
     (.maintain trieterator)
     trieterator))
 
-;; works on trees
+;; works on one level of a trie
 (deftype Intersection [iterators ^:mutable end? key-len]
   Object
   (key [this]
        (when (false? end?)
          (.key (aget iterators 0))))
+  (maintain [this]
+            (set! end? false)
+            (dotimes [i (alength iterators)]
+              (if (.-end? (aget iterators i))
+                (set! end? true))))
   (search [this current]
           (when (false? end?)
             (loop [current current]
               (let [max-key (.key (aget iterators (mod (- current 1) (alength iterators))))
                     min-key (.key (aget iterators current))]
-                (when-not (key= min-key max-key)
+                (when-not (== min-key max-key)
                   (.seek (aget iterators current) max-key)
                   (if (true? (.-end? (aget iterators current)))
                     (set! end? true)
@@ -494,6 +499,7 @@
         (assert (false? end?)) ;; have to be at a key to descend
         (assert (< key-ix (- (alength key-ix->intersection) 1)))
         (set! key-ix (+ key-ix 1))
+        (.maintain (aget key-ix->intersection key-ix))
         (let [iterator->present? (aget key-ix->iterator->present? key-ix)]
           (dotimes [i (alength iterator->present?)]
             (if (aget iterator->present? i)
@@ -503,6 +509,7 @@
   (up [this]
       (assert (> key-ix 0))
       (set! key-ix (- key-ix 1))
+      (.maintain (aget key-ix->intersection key-ix))
       (let [iterator->present? (aget key-ix->iterator->present? key-ix)]
         (dotimes [i (alength iterator->present?)]
           (if (aget iterator->present? i)
@@ -777,6 +784,7 @@
                  movements (gen/vector (gen-movement key-len))]
                 (run-iterator-prop min-keys key-len actions movements)))
 
+;; BROKEN by changing Intersection to work on values instead of arrays
 (defn run-intersection-prop [min-keys key-len actionss movements]
   (let [trees (map #(apply-to-tree (tree min-keys key-len) %) actionss)
         keys (apply clojure.set/intersection (map #(set (map (fn [[k v]] (vec k)) %)) trees))
@@ -816,13 +824,14 @@
         join-results (apply-to-iterator
                       (treeterator (join #js [iterator-a iterator-b] key-len #js [(into-array (range key-len)) (into-array (range key-len))]))
                       movements)]
-    (= iterator-results join-results)))
+    (= (map vec iterator-results) (map vec join-results))))
 
 (defn self-join-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
                  actions (gen/vector (gen-action key-len))
                  movements (gen/vector (gen-next key-len))] ;; TODO use gen-movement once Treeterator supports seek
                 (run-self-join-prop min-keys key-len actions movements)))
+
 
 (comment
   (dc/quick-check 1000 (least-prop 1))
@@ -850,7 +859,7 @@
   (dc/quick-check 10000 (trie-tree-prop 1))
   (dc/quick-check 10000 (trie-tree-prop 2))
   (dc/quick-check 10000 (trie-tree-prop 3))
-  (dc/quick-check 100 (self-join-prop 1))
+  (dc/quick-check 10000 (self-join-prop 1))
   (dc/quick-check 100 (self-join-prop 2))
   (dc/quick-check 100 (self-join-prop 3))
 
