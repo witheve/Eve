@@ -384,18 +384,24 @@
 (deftype Trieterator [iterator seek-key ^:mutable pinned-key ^:mutable pinned-key-ix ^:mutable moving-key-ix ^:mutable end? key-len]
   Object
   (key [this]
-       (aget (.key iterator) moving-key-ix))
+       (when (false? end?)
+         (aget (.key iterator) moving-key-ix)))
   (val [this]
-       (.val iterator))
+       (when (false? end?)
+         (.val iterator)))
   (maintain [this]
-             (if (or (.-end? iterator)
-                     (not (or (< pinned-key-ix 0) ;; nothing to pin
-                              (identical? pinned-key (aget (.key iterator) pinned-key-ix)))))
-               (set! end? true)
-               (set! end? false)))
+            (if (or (true? (.-end? iterator))
+                    (not (or (< pinned-key-ix 0) ;; nothing to pin
+                             (identical? pinned-key (aget (.key iterator) pinned-key-ix)))))
+              (set! end? true)
+              (do
+                (set! end? false)
+                (aset seek-key moving-key-ix (.key this)))))
   (next [this]
         (when (false? end?)
-          (.next iterator)
+          (prn :seek (.key iterator) seek-key)
+          (.seek iterator seek-key)
+          (prn :sook (.key iterator))
           (.maintain this)))
   (seek [this key]
         (when (false? end?)
@@ -405,24 +411,27 @@
   (down [this]
         (assert (false? end?))
         (assert (< moving-key-ix (- (alength seek-key) 1)))
-        (let [moving-key (.key this)]
-          (aset seek-key moving-key-ix moving-key)
-          (set! pinned-key moving-key)
-          (set! pinned-key-ix moving-key-ix)
-          (set! moving-key-ix (+ moving-key-ix 1))))
+        (set! pinned-key (.key this))
+        (set! pinned-key-ix moving-key-ix)
+        (set! moving-key-ix (+ moving-key-ix 1))
+        (aset seek-key moving-key-ix (.key this))
+        (.maintain this))
   (up [this]
       (assert (> moving-key-ix 0))
+      (aset seek-key moving-key-ix greatest)
       (set! moving-key-ix pinned-key-ix)
       (set! pinned-key-ix (- pinned-key-ix 1))
-      (set! pinned-key (aget seek-key pinned-key-ix))
-      (aset seek-key moving-key-ix least))
+      (set! pinned-key (when (>= pinned-key-ix 0) (aget seek-key pinned-key-ix)))
+      (.maintain this))
   (mark [this]
         (.mark iterator))
   (reset [this]
          (.reset iterator)))
 
 (defn trieterator [iterator]
-  (Trieterator. iterator (least-key (.-key-len iterator)) nil -1 0 (.-end? iterator) (.-key-len iterator)))
+  (let [trieterator (Trieterator. iterator (greatest-key (.-key-len iterator)) nil -1 0 false (.-key-len iterator))]
+    (.maintain trieterator)
+    trieterator))
 
 ;; works on trees
 (deftype Intersection [iterators ^:mutable end? key-len]
