@@ -452,7 +452,7 @@
             (set! end? true)
             (.search this 1)))))
 
-;; TODO treeterator (key-ix->take?)
+;; TODO treeterator (key-ix->needed? , key-ix->produced?)
 
 (defn intersection [iterators]
   (if (> (alength iterators) 1)
@@ -470,7 +470,7 @@
       (.next iterator))
     results))
 
-(deftype Join [^:mutable key-ix iterators key-ix->iterators key-ix->intersection key-ix->iterator->present? ^:mutable end?]
+(deftype Join [^:mutable key-ix iterators key-ix->intersection key-ix->iterator->present? ^:mutable end?]
   Object
   (key [this]
        (when (false? end?)
@@ -486,7 +486,8 @@
           (.seek (aget key-ix->intersection key-ix) key)
           (.maintain this)))
   (down [this]
-        (assert (< key-ix (- (alength key-ix->iterators) 1)))
+        (assert (false? end?)) ;; have to be at a key to descend
+        (assert (< key-ix (- (alength key-ix->intersection) 1)))
         (set! key-ix (+ key-ix 1))
         (let [iterator->present? (aget key-ix->iterator->present? key-ix)]
           (dotimes [i (alength iterator->present?)]
@@ -503,6 +504,35 @@
             (.up (aget iterators i))
             (.reset (aget iterators i))))
         (.maintain this))))
+
+(defn join [trees num-vars tree->vars]
+  (assert (> num-vars 0))
+  (dotimes [i (alength trees)]
+    (let [tree-vars (aget tree->vars i)]
+      (assert (== (alength tree-vars) (.key-len (aget trees i))))
+      (dotimes [j (alength tree-vars)]
+        (assert (< (aget tree-vars j) num-vars)))))
+  (let [iterators (amap trees i _ (iterator (aget trees i)))
+        var->trees #js []
+        var->tree->present? #js []
+        var->intersection #js []]
+    (dotimes [i num-vars]
+      (.push var->trees #js [])
+      (let [tree->present? #js []]
+        (.push var->tree->present? tree->present?)
+        (dotimes [j (alength trees)]
+          (.push tree->present? false))))
+    (dotimes [tree (alength trees)]
+      (let [tree-vars (aget trees tree)]
+        (dotimes [j (alength tree-vars)]
+          (let [var (aget tree-vars j)]
+            (.push (aget var->trees var) tree)
+            (aset var->tree->present? var tree true)))))
+    (dotimes [i num-vars]
+      (.push var->intersection i (intersection (aget var->trees i))))
+    (let [join (Join. 0 iterators var->intersection var->tree->present? false)]
+      (.maintain join)
+      join)))
 
 ;; TESTS
 
