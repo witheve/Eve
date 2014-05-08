@@ -399,9 +399,7 @@
                 (aset seek-key moving-key-ix (.key this)))))
   (next [this]
         (when (false? end?)
-          (prn :seek (.key iterator) seek-key)
           (.seek iterator seek-key)
-          (prn :sook (.key iterator))
           (.maintain this)))
   (seek [this key]
         (when (false? end?)
@@ -834,8 +832,8 @@
   ;; cljs.core.pr_str(cemerick.double_check.quick_check(1000, aurora.btree.iterator_prop)
   (dc/quick-check 5000 (intersection-prop 1))
   ;; cljs.core.pr_str(cemerick.double_check.quick_check(1000, aurora.btree.intersection_prop))
-  (dc/quick-check 1000 (trie-tree-prop 1))
-  (dc/quick-check 1000 (trie-tree-prop 2))
+  (dc/quick-check 10000 (trie-tree-prop 1))
+  (dc/quick-check 10000 (trie-tree-prop 2))
 
 
   (defn f []
