@@ -415,12 +415,13 @@
         (aset seek-key moving-key-ix (.key this))
         (.maintain this))
   (up [this]
-      (assert (true? end?)) ;; ?
       (assert (> moving-key-ix 0))
       (aset seek-key moving-key-ix greatest)
       (set! moving-key-ix pinned-key-ix)
       (set! pinned-key-ix (- pinned-key-ix 1))
       (set! pinned-key (when (>= pinned-key-ix 0) (aget seek-key pinned-key-ix)))
+      (when (false? end?)
+        (.seek iterator seek-key))
       (.maintain this))
   (mark [this]
         (.mark iterator))
@@ -515,7 +516,7 @@
   (assert (> num-vars 0))
   (dotimes [i (alength iterators)]
     (let [iterator-vars (aget iterator->vars i)]
-      (assert (== (alength iterator-vars) (.key-len (aget iterators i))))
+      (assert (== (alength iterator-vars) (.-key-len (aget iterators i))))
       (dotimes [j (alength iterator-vars)]
         (assert (< (aget iterator-vars j) num-vars)))))
   (let [var->iterators #js []
@@ -528,14 +529,14 @@
         (dotimes [j (alength iterators)]
           (.push iterator->present? false))))
     (dotimes [iterator (alength iterators)]
-      (let [iterator-vars (aget iterators iterator)]
+      (let [iterator-vars (aget iterator->vars iterator)]
         (dotimes [j (alength iterator-vars)]
           (let [var (aget iterator-vars j)]
-            (.push (aget var->iterators var) iterator)
+            (.push (aget var->iterators var) (aget iterators iterator))
             (aset var->iterator->present? var iterator true)))))
     (dotimes [i num-vars]
       (assert (> (alength (aget var->iterators i)) 0))
-      (.push var->intersection i (intersection (aget var->iterators i))))
+      (.push var->intersection (intersection (aget var->iterators i))))
     (let [join (Join. 0 iterators var->intersection var->iterator->present? false num-vars)]
       (.maintain join)
       join)))
@@ -809,6 +810,24 @@
                  movements (gen/vector (gen-next key-len))] ;; TODO use gen-movement once Treeterator supports seek
                 (run-trie-tree-prop min-keys key-len actions movements)))
 
+(defn run-self-join-prop [min-keys key-len actions movements]
+  (let [tree (apply-to-tree (tree min-keys key-len) actions)
+        iterator-results (apply-to-iterator (iterator tree) movements)
+        iterator-a (trieterator (iterator tree))
+        iterator-b (trieterator (iterator tree))
+        join-results (apply-to-iterator
+                      (treeterator (join #js [iterator-a iterator-b] key-len #js [(into-array (range key-len)) (into-array (range key-len))]))
+                      movements)]
+    (= iterator-results join-results)))
+
+(defn self-join-prop [key-len]
+  (prop/for-all [min-keys gen/s-pos-int
+                 actions (gen/vector (gen-action key-len))
+                 movements (gen/vector (gen-next key-len))] ;; TODO use gen-movement once Treeterator supports seek
+                (run-self-join-prop min-keys key-len actions movements)))
+
+(run-trie-tree-prop 1 3 [[:assoc! #js [-86 90 "-9"] #js [-77 20 -16]] [:assoc! #js [-64 90 -44] #js [7 -8 -47]]] [[:next]])
+
 (comment
   (dc/quick-check 1000 (least-prop 1))
   (dc/quick-check 1000 (least-prop 2))
@@ -834,6 +853,10 @@
   ;; cljs.core.pr_str(cemerick.double_check.quick_check(1000, aurora.btree.intersection_prop))
   (dc/quick-check 10000 (trie-tree-prop 1))
   (dc/quick-check 10000 (trie-tree-prop 2))
+  (dc/quick-check 10000 (trie-tree-prop 3))
+  (dc/quick-check 100 (self-join-prop 1))
+  (dc/quick-check 100 (self-join-prop 2))
+  (dc/quick-check 100 (self-join-prop 3))
 
 
   (defn f []
