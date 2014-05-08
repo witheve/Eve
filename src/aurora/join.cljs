@@ -174,7 +174,9 @@
          magic (MagicIterator. itr map nil-ixs (alength map) (array) (array) (.key itr) marked-nodes marked-ixs)]
      (dotimes [ix (alength map)]
        (when (identical? nil (aget map ix))
-         (.push nil-ixs ix)))
+         (.push nil-ixs ix)
+         (aset marked-nodes ix (.-node itr))
+         (aset marked-ixs ix (.-ix itr))))
      (.set-key magic)
      magic)))
 
@@ -300,6 +302,107 @@
     )
 
 
+
+;; [1 0 1] [1 2 3] [1 3 1] [1 4 4]
+;; [1 nil 1] [1 nil 3] [1 nil 4]
+;; [nil 2 3] [nil 4 4]
+;; [1 2 1 3] [1 2 2 5] [1 2 3 3]
+;; [nil 2 nil 3] [nil 2 nil 5] [nil 4 nil 4]
+
+  (let [tree1 (tree 10)
+        _ (doseq [x [#js [1 0 1]
+                     #js [1 2 3]
+                     #js [1 3 1]
+                     #js [1 4 4]
+                     ]]
+            (.assoc! tree1 x 0))
+        tree2 (tree 10)
+        _ (doseq [x [#js [1 1]
+                     #js [1 3]
+                     #js [1 4]]]
+            (.assoc! tree2 x 0))
+        itr1 (magic-iterator tree1)
+        itr2 (magic-iterator tree2 #js [0 nil 1])
+        ]
+    ;(.seek itr2 #js [0 0 0])
+    ;(.key itr2)
+    (println tree1)
+    (println tree2)
+    (join #js [itr1 itr2])
+    )
+
+  (let [tree1 (tree 10)
+        _ (doseq [x [#js [1 0 1]
+                     #js [1 2 3]
+                     #js [1 3 1]
+                     #js [1 4 4]
+                     #js [2 2 3]
+                     ]]
+            (.assoc! tree1 x 0))
+        tree2 (tree 10)
+        _ (doseq [x [#js [2 3]
+                     #js [4 4]]]
+            (.assoc! tree2 x 0))
+        itr1 (magic-iterator tree1)
+        itr2 (magic-iterator tree2 #js [nil 0 1])
+        ]
+    ;(.seek itr2 #js [0 0 0])
+    ;(.key itr2)
+    (println tree1)
+    (println tree2)
+    (join #js [itr1 itr2])
+    )
+
+  (let [tree1 (tree 10)
+        _ (doseq [x [#js [1 0 1]
+                     #js [1 2 3]
+                     #js [1 3 1]
+                     #js [1 4 4]
+                     #js [2 2 3]
+                     ]]
+            (.assoc! tree1 x 0))
+        tree2 (tree 10)
+        _ (doseq [x [#js [2 3]
+                     #js [4 4]]]
+            (.assoc! tree2 x 0))
+        tree3 (tree 10)
+        _ (doseq [x [#js [1 1]
+                     #js [1 3]
+                     #js [1 4]]]
+            (.assoc! tree3 x 0))
+        itr1 (magic-iterator tree1)
+        itr2 (magic-iterator tree2 #js [nil 0 1])
+        itr3 (magic-iterator tree3 #js [0 nil 1])
+        ]
+    ;(.seek itr2 #js [0 0 0])
+    ;(.key itr2)
+    (println tree1)
+    (println tree2)
+    (println tree3)
+    (join #js [itr1 itr2 itr3])
+    )
+
+  (let [tree1 (tree 10)
+        _ (doseq [x [#js [1 2 1 3]
+                     #js [1 2 2 5]
+                     #js [1 2 3 3]
+                     ]]
+            (.assoc! tree1 x 0))
+        tree2 (tree 10)
+        _ (doseq [x [#js [2 3]
+                     #js [2 6]
+                     #js [4 4]
+                     ]]
+            (.assoc! tree2 x 0))
+        itr1 (magic-iterator tree1)
+        itr2 (magic-iterator tree2 #js [nil 0 nil 1])
+        ]
+    ;(.seek itr2 #js [0 0 0])
+    ;(.key itr2)
+    (println tree1)
+    (println tree2)
+    (join #js [itr1 itr2])
+    )
 
 
   )
