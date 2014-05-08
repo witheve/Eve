@@ -416,7 +416,7 @@
       (assert (> moving-key-ix 0))
       (when (false? end?)
         (.seek iterator pinned-key))
-      (aset seek-key moving-key-ix greatest)
+      (aset seek-key moving-key-ix least)
       (set! moving-key-ix (- moving-key-ix 1))
       (when (>= moving-key-ix 0)
         (aset pinned-key moving-key-ix greatest))
@@ -427,7 +427,7 @@
          (.reset iterator)))
 
 (defn trieterator [iterator]
-  (let [trieterator (Trieterator. iterator (greatest-key (.-key-len iterator)) (greatest-key (.-key-len iterator)) 0 false (.-key-len iterator))]
+  (let [trieterator (Trieterator. iterator (least-key (.-key-len iterator)) (greatest-key (.-key-len iterator)) 0 false (.-key-len iterator))]
     (.maintain trieterator)
     trieterator))
 
@@ -445,6 +445,7 @@
   (search [this current]
           (when (false? end?)
             (loop [current current]
+              (prn :current current (.key this))
               (let [max-key (.key (aget iterators (mod (- current 1) (alength iterators))))
                     min-key (.key (aget iterators current))]
                 (when-not (== min-key max-key)
@@ -499,22 +500,22 @@
         (assert (false? end?)) ;; have to be at a key to descend
         (assert (< key-ix (- (alength key-ix->intersection) 1)))
         (set! key-ix (+ key-ix 1))
-        (.maintain (aget key-ix->intersection key-ix))
         (let [iterator->present? (aget key-ix->iterator->present? key-ix)]
           (dotimes [i (alength iterator->present?)]
             (if (aget iterator->present? i)
               (.down (aget iterators i))
               (.mark (aget iterators i))))
+          (.maintain (aget key-ix->intersection key-ix))
           (.maintain this)))
   (up [this]
       (assert (> key-ix 0))
       (set! key-ix (- key-ix 1))
-      (.maintain (aget key-ix->intersection key-ix))
       (let [iterator->present? (aget key-ix->iterator->present? key-ix)]
         (dotimes [i (alength iterator->present?)]
           (if (aget iterator->present? i)
             (.up (aget iterators i))
             (.reset (aget iterators i))))
+        (.maintain (aget key-ix->intersection key-ix))
         (.maintain this))))
 
 (defn join [iterators num-vars iterator->vars]
@@ -832,7 +833,6 @@
                  movements (gen/vector (gen-next key-len))] ;; TODO use gen-movement once Treeterator supports seek
                 (run-self-join-prop min-keys key-len actions movements)))
 
-
 (comment
   (dc/quick-check 1000 (least-prop 1))
   (dc/quick-check 1000 (least-prop 2))
@@ -860,8 +860,8 @@
   (dc/quick-check 10000 (trie-tree-prop 2))
   (dc/quick-check 10000 (trie-tree-prop 3))
   (dc/quick-check 10000 (self-join-prop 1))
-  (dc/quick-check 100 (self-join-prop 2))
-  (dc/quick-check 100 (self-join-prop 3))
+  (dc/quick-check 10000 (self-join-prop 2))
+  (dc/quick-check 10000 (self-join-prop 3))
 
 
   (defn f []
