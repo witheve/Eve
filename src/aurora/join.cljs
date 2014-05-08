@@ -24,7 +24,7 @@
                     (< (typeof a) (typeof b)))
               bs
               as)))
-        as))))
+        nil))))
 
 (defn fill! [as fill]
   (dotimes [ix (alength as)]
@@ -83,6 +83,14 @@
   (seek [this key]
         (.seek iterator key)))
 
+(defn magic-iterator
+  ([tree] (let [itr (iterator tree)]
+            (MagicIteratorWrapper. itr (.key itr) (.-root tree))))
+  ([tree map]
+   (let [itr (MagicIterator. (iterator tree) map (alength map) (array) (array) (.-root tree))]
+     (.set-key itr)
+     itr)))
+
 (defn ->keys [iterators keys len]
   (dotimes [x len]
     (aset keys x (.key (aget iterators x)))))
@@ -110,36 +118,31 @@
   fill)
 
 (defn find-greatest [iterators keys len results min-fill]
-  (loop [ix 1
+  (loop [ix 0
          greatest (aget keys 0)
          found? true]
     (if (>= ix len)
       (if found?
         (let [root (aget iterators 0)]
-          (.push results (.slice (fill! greatest min-fill) 0))
+          (.push results (fill! (.slice greatest 0) min-fill))
           (.next root)
           (.key root))
-        (fill! greatest min-fill))
-      (let [comped (filled-key-compare greatest (aget keys ix) min-fill)]
-        (println "greatest: " comped (identical? comped greatest))
-        (recur (inc ix) comped (and found? (identical? comped greatest)))))))
+        (fill! (.slice greatest 0) min-fill))
+      (let [comped (filled-key-compare greatest (aget keys ix) min-fill)
+            comped-v (or comped greatest)]
+        (println "greatest: " comped-v comped (and found? (not comped)))
+        (recur (inc ix) comped-v (and found? (not comped)))))))
 
-(defn magic-iterator
-  ([tree] (let [itr (iterator tree)]
-            (MagicIteratorWrapper. itr (.key itr) (.-root tree))))
-  ([tree map]
-   (let [itr (MagicIterator. (iterator tree) map (alength map) (array) (array) (.-root tree))]
-     (.set-key itr)
-     itr)))
+
 
 (defn seek-all [iterators len key]
   (loop [ix 0]
     (if (< ix len)
       (let [cur (aget iterators ix)
             cur-key (.key cur)]
-        (when (key-lt cur-key key)
+        (when (key-lt (fill! (.slice cur-key 0) key) key)
           (.seek cur key))
-        (when-not (.-end? cur)
+        (when-not (.-iterator.end? cur)
           (recur (inc ix))))
       true)))
 
@@ -155,15 +158,16 @@
                 (dotimes [x tuple-len]
                   (.push arr false))
                 arr)]
-    (loop [key start]
-      (when key
+    (loop [key start
+           i 10]
+      (when (and key (> i 0))
         (println "key: " key)
         (when (seek-all iterators len key)
           (->keys iterators keys len)
           (println keys)
           (find-least keys len tuple-len min-fill)
           (println "Min: " min-fill)
-          (recur (find-greatest iterators keys len results min-fill)))))
+          (recur (find-greatest iterators keys len results min-fill) (dec i)))))
     results
     ))
 
@@ -191,5 +195,33 @@
     (println tree2)
     (println tree3)
     (join #js [itr1 itr2 itr3])
-    ))
+    )
+
+  (let [tree1 (tree 10)
+        _ (doseq [x [#js [0 1 4]
+                     #js [0 1 6]
+                     #js [1 1 7]
+                     #js [1 2 7]
+                     #js [1 3 3]
+                     ]]
+            (.assoc! tree1 x 0))
+        tree2 (tree 10)
+        _ (doseq [x [#js [0 3]
+                     #js [0 6]
+                     #js [1 7]]]
+            (.assoc! tree2 x 0))
+        itr1 (magic-iterator tree1)
+        itr2 (magic-iterator tree2 #js [0 nil 1])
+        ]
+    ;(.seek itr2 #js [0 0 0])
+    ;(.key itr2)
+    (println tree1)
+    (println tree2)
+    (join #js [itr1 itr2])
+    )
+
+
+
+
+  )
 
