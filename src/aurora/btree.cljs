@@ -372,6 +372,46 @@
         (Iterator. (.-max-keys tree) node 0 true))
       (recur (aget (.-children node) 0)))))
 
+(deftype Trieterator [iterator seek-key ^:mutable pinned-key ^:mutable pinned-key-ix ^:mutable moving-key-ix ^:mutable end?]
+  Object
+  (key [this]
+       (aget (.key iterator) moving-key-ix))
+  (val [this]
+       (.val iterator))
+  (maintain [this]
+             (if (or (.-end? iterator)
+                     (not (or (< pinned-key-ix 0) ;; nothing to pin
+                              (identical? pinned-key (aget (.key iterator) pinned-key-ix)))))
+               (set! end? true)
+               (set! end? false)))
+  (next [this]
+        (when (false? end?)
+          (.next iterator)
+          (.maintain this)))
+  (seek [this key]
+        (when (false? end?)
+          (aset seek-key moving-key-ix key)
+          (.seek iterator seek-key)
+          (.maintain this)))
+  (down [this]
+        (assert (false? end?))
+        (assert (< moving-key-ix (alength seek-key)))
+        (let [moving-key (.key this)]
+          (aset seek-key moving-key-ix moving-key)
+          (set! pinned-key moving-key)
+          (set! pinned-key-ix moving-key-ix)
+          (set! moving-key-ix (+ moving-key-ix 1))))
+  (up [this]
+      (assert (> moving-key-ix 0))
+      (set! moving-key-ix pinned-key-ix)
+      (set! pinned-key-ix (- pinned-key-ix 1))
+      (set! pinned-key (aget seek-key pinned-key-ix))
+      (aset seek-key moving-key-ix least)))
+
+(defn trieterator [tree]
+  (let [it (iterator tree)]
+    (Trieterator. it (least-key (.-key-len tree)) nil -1 0 (.-end? it))))
+
 (deftype Intersection [iterators ^:mutable end?]
   Object
   (key [this]
