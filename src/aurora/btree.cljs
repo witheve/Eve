@@ -303,7 +303,7 @@
 
 ;; NOTE iterators are not write-safe
 
-(deftype Iterator [max-keys ^:mutable node ^:mutable ix marked-nodes marked-ixes ^:mutable end?]
+(deftype Iterator [max-keys ^:mutable node ^:mutable ix marked-nodes marked-ixes ^:mutable end? key-len]
   Object
   (key [this]
        (when (false? end?)
@@ -376,11 +376,12 @@
   (loop [node (.-root tree)]
     (if (nil? (.-children node))
       (if (> (alength (.-keys node)) 0)
-        (Iterator. (.-max-keys tree) node 0 #js [] #js [] false)
-        (Iterator. (.-max-keys tree) node 0 #js [] #js [] true))
+        (Iterator. (.-max-keys tree) node 0 #js [] #js [] false (.-key-len tree))
+        (Iterator. (.-max-keys tree) node 0 #js [] #js [] true (.-key-len tree)))
       (recur (aget (.-children node) 0)))))
 
-(deftype Trieterator [iterator seek-key ^:mutable pinned-key ^:mutable pinned-key-ix ^:mutable moving-key-ix ^:mutable end?]
+;; trie view of a tree
+(deftype Trieterator [iterator seek-key ^:mutable pinned-key ^:mutable pinned-key-ix ^:mutable moving-key-ix ^:mutable end? key-len]
   Object
   (key [this]
        (aget (.key iterator) moving-key-ix))
@@ -420,11 +421,11 @@
   (reset [this]
          (.reset iterator)))
 
-(defn trieterator [tree]
-  (let [it (iterator tree)]
-    (Trieterator. it (least-key (.-key-len tree)) nil -1 0 (.-end? it))))
+(defn trieterator [iterator]
+  (Trieterator. iterator (least-key (.-key-len iterator)) nil -1 0 (.-end? it) (.-key-len iterator)))
 
-(deftype Intersection [iterators ^:mutable end?]
+;; works on trees
+(deftype Intersection [iterators ^:mutable end? key-len]
   Object
   (key [this]
        (when (false? end?)
@@ -452,29 +453,26 @@
             (set! end? true)
             (.search this 1)))))
 
-;; TODO treeterator (key-ix->needed? , key-ix->produced?)
-
 (defn intersection [iterators]
+  (assert (> (alength iterators) 0))
+  (assert (every? #(= (.-key-len (aget iterators 0)) (.-key-len %)) iterators))
   (if (> (alength iterators) 1)
     (if (some #(.-end? %) iterators)
       (Intersection. iterators true)
-      (let [intersection (Intersection. (into-array (sort-by #(.key %) key-compare iterators)) false)]
+      (let [intersection (Intersection. (into-array (sort-by #(.key %) key-compare iterators)) false (.-key-len (aget iterators 0)))]
         (.search intersection 0)
         intersection))
     (aget iterators 0)))
 
-(defn iter-seq [iterator]
-  (let [results #js []]
-    (while (false? (.-end? iterator))
-      (.push results (.key iterator))
-      (.next iterator))
-    results))
-
-(deftype Join [^:mutable key-ix iterators key-ix->intersection key-ix->iterator->present? ^:mutable end?]
+;; works on tries
+(deftype Join [^:mutable key-ix iterators key-ix->intersection key-ix->iterator->present? ^:mutable end? key-len]
   Object
   (key [this]
        (when (false? end?)
          (.key (aget key-ix->intersection key-ix))))
+  (val [this]
+       (when (false? end?)
+         (.val (aget key-ix->intersection key-ix))))
   (maintain [this]
             (set! end? (.-end? (aget key-ix->intersection key-ix))))
   (next [this]
@@ -505,34 +503,83 @@
             (.reset (aget iterators i))))
         (.maintain this))))
 
-(defn join [trees num-vars tree->vars]
+(defn join [iterators num-vars iterator->vars]
   (assert (> num-vars 0))
-  (dotimes [i (alength trees)]
-    (let [tree-vars (aget tree->vars i)]
-      (assert (== (alength tree-vars) (.key-len (aget trees i))))
-      (dotimes [j (alength tree-vars)]
-        (assert (< (aget tree-vars j) num-vars)))))
-  (let [iterators (amap trees i _ (iterator (aget trees i)))
-        var->trees #js []
-        var->tree->present? #js []
+  (dotimes [i (alength iterators)]
+    (let [iterator-vars (aget iterator->vars i)]
+      (assert (== (alength iterator-vars) (.key-len (aget iterators i))))
+      (dotimes [j (alength iterator-vars)]
+        (assert (< (aget iterator-vars j) num-vars)))))
+  (let [var->iterators #js []
+        var->iterator->present? #js []
         var->intersection #js []]
     (dotimes [i num-vars]
-      (.push var->trees #js [])
-      (let [tree->present? #js []]
-        (.push var->tree->present? tree->present?)
-        (dotimes [j (alength trees)]
-          (.push tree->present? false))))
-    (dotimes [tree (alength trees)]
-      (let [tree-vars (aget trees tree)]
-        (dotimes [j (alength tree-vars)]
-          (let [var (aget tree-vars j)]
-            (.push (aget var->trees var) tree)
-            (aset var->tree->present? var tree true)))))
+      (.push var->iterators #js [])
+      (let [iterator->present? #js []]
+        (.push var->iterator->present? iterator->present?)
+        (dotimes [j (alength iterators)]
+          (.push iterator->present? false))))
+    (dotimes [iterator (alength iterators)]
+      (let [iterator-vars (aget iterators iterator)]
+        (dotimes [j (alength iterator-vars)]
+          (let [var (aget iterator-vars j)]
+            (.push (aget var->iterators var) iterator)
+            (aset var->iterator->present? var iterator true)))))
     (dotimes [i num-vars]
-      (.push var->intersection i (intersection (aget var->trees i))))
-    (let [join (Join. 0 iterators var->intersection var->tree->present? false)]
+      (assert (> (alength (aget var->iterators i)) 0))
+      (.push var->intersection i (intersection (aget var->iterators i))))
+    (let [join (Join. 0 iterators var->intersection var->iterator->present? false num-vars)]
       (.maintain join)
       join)))
+
+;; tree view of a trie
+(deftype Treeterator [iterator key ^:mutable key-ix ^:mutable end? key-len]
+  Object
+  (key [this]
+       (when (false? end?)
+         (aclone key)))
+  (val [this]
+       (when (false? end?)
+         (.val iterator)))
+  (walk-up [this]
+           (loop []
+             (when (false? end?)
+               (if (.-end? iterator)
+                 (if (<= key-ix 0)
+                   (set! end? true)
+                   (do
+                     (set! key-ix (- key-ix 1))
+                     (.up iterator)
+                     (recur)))))))
+  (walk-down [this]
+             (loop []
+               (when (and (false? end?) (< key-ix (- (alength key) 1)))
+                 (do
+                   (set! key-ix (+ key-ix 1))
+                   (.down iterator)
+                   (aset key key-ix (.key iterator))))))
+  (next [this]
+        (.walk-up this)
+        (when (false? end?)
+          (.next iterator)
+          (if (false? (.-end? iterator))
+            (aset key key-ix (.key iterator))
+            (set! end? true)))
+        (.walk-down this))
+  (seek [this key]
+        (assert false "TODO")))
+
+(defn treeterator [iterator]
+  (let [treeterator (Treeterator. iterator (least-key (.-key-len iterator)) 0 (.-key-len iterator))]
+    (.walk-down treeterator)
+    treeterator))
+
+(defn iter-seq [iterator]
+  (let [results #js []]
+    (while (false? (.-end? iterator))
+      (.push results (.key iterator))
+      (.next iterator))
+    results))
 
 ;; TESTS
 
