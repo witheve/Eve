@@ -303,7 +303,7 @@
 
 ;; NOTE iterators are not write-safe
 
-(deftype Iterator [max-keys ^:mutable node ^:mutable ix ^:mutable end?]
+(deftype Iterator [max-keys ^:mutable node ^:mutable ix marked-nodes marked-ixes ^:mutable end?]
   Object
   (key [this]
        (when (false? end?)
@@ -362,14 +362,22 @@
                         (do
                           (set! node (aget (.-children node) ix))
                           (set! ix 0)
-                          (recur))))))))))))
+                          (recur)))))))))))
+  (mark [this]
+        (apush marked-nodes node)
+        (apush marked-ixes ix))
+  (reset [this]
+         (assert (> (alength marked-nodes) 0))
+         (assert (> (alength marked-ixes) 0))
+         (set! node (.pop nodes))
+         (set! ix (.pop marked-ixes))))
 
 (defn iterator [tree]
   (loop [node (.-root tree)]
     (if (nil? (.-children node))
       (if (> (alength (.-keys node)) 0)
-        (Iterator. (.-max-keys tree) node 0 false)
-        (Iterator. (.-max-keys tree) node 0 true))
+        (Iterator. (.-max-keys tree) node 0 #js [] #js [] false)
+        (Iterator. (.-max-keys tree) node 0 #js [] #js [] true))
       (recur (aget (.-children node) 0)))))
 
 (deftype Trieterator [iterator seek-key ^:mutable pinned-key ^:mutable pinned-key-ix ^:mutable moving-key-ix ^:mutable end?]
@@ -395,7 +403,7 @@
           (.maintain this)))
   (down [this]
         (assert (false? end?))
-        (assert (< moving-key-ix (alength seek-key)))
+        (assert (< moving-key-ix (- (alength seek-key) 1)))
         (let [moving-key (.key this)]
           (aset seek-key moving-key-ix moving-key)
           (set! pinned-key moving-key)
@@ -406,7 +414,11 @@
       (set! moving-key-ix pinned-key-ix)
       (set! pinned-key-ix (- pinned-key-ix 1))
       (set! pinned-key (aget seek-key pinned-key-ix))
-      (aset seek-key moving-key-ix least)))
+      (aset seek-key moving-key-ix least))
+  (mark [this]
+        (.mark iterator))
+  (reset [this]
+         (.reset iterator)))
 
 (defn trieterator [tree]
   (let [it (iterator tree)]
@@ -440,6 +452,8 @@
             (set! end? true)
             (.search this 1)))))
 
+;; TODO treeterator (key-ix->take?)
+
 (defn intersection [iterators]
   (if (> (alength iterators) 1)
     (if (some #(.-end? %) iterators)
@@ -455,6 +469,40 @@
       (.push results (.key iterator))
       (.next iterator))
     results))
+
+(deftype Join [^:mutable key-ix iterators key-ix->iterators key-ix->intersection key-ix->iterator->present? ^:mutable end?]
+  Object
+  (key [this]
+       (when (false? end?)
+         (.key (aget key-ix->intersection key-ix))))
+  (maintain [this]
+            (set! end? (.-end? (aget key-ix->intersection key-ix))))
+  (next [this]
+        (when (false? end)
+          (.next (aget key-ix->intersection key-ix))
+          (.maintain this)))
+  (seek [this key]
+        (when (false? end)
+          (.seek (aget key-ix->intersection key-ix) key)
+          (.maintain this)))
+  (down [this]
+        (assert (< key-ix (- (alength key-ix->iterators) 1)))
+        (set! key-ix (+ key-ix 1))
+        (let [iterator->present? (aget key-ix->iterator->present? key-ix)]
+          (dotimes [i (alength iterator->present?)]
+            (if (aget iterator->present? i)
+              (.down (aget iterators i))
+              (.mark (aget iterators i))))
+          (.maintain this)))
+  (up [this]
+      (assert (> key-ix 0))
+      (set! key-ix (- key-ix 1))
+      (let [iterator->present? (aget key-ix->iterator->present? key-ix)]
+        (dotimes [i (alength iterator->present?)]
+          (if (aget iterator->present? i)
+            (.up (aget iterators i))
+            (.reset (aget iterators i))))
+        (.maintain this))))
 
 ;; TESTS
 
