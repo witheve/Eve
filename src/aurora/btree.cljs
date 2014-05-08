@@ -445,7 +445,6 @@
   (search [this current]
           (when (false? end?)
             (loop [current current]
-              (prn :current current (.key this))
               (let [max-key (.key (aget iterators (mod (- current 1) (alength iterators))))
                     min-key (.key (aget iterators current))]
                 (when-not (== min-key max-key)
