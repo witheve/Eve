@@ -15,14 +15,8 @@
     (assert (== as-len bs-len) (pr-str as bs))
     (loop [i 0]
       (if (< i as-len)
-        (let [a (aget as i)
-              b (aget bs i)
-              a (if (nil? a)
-                  (aget fill i)
-                  a)
-              b (if (nil? b)
-                  (aget fill i)
-                  b)]
+        (let [a (or (aget as i) (aget fill i))
+              b (or (aget bs i) (aget fill i))]
           (if (identical? a b)
             (recur (+ i 1))
             (if (or (and (identical? (typeof a) (typeof b))
@@ -122,10 +116,10 @@
     (if (>= ix len)
       (if found?
         (let [root (aget iterators 0)]
-          (.push results (.slice greatest 0))
+          (.push results (.slice (fill! greatest min-fill) 0))
           (.next root)
           (.key root))
-        greatest)
+        (fill! greatest min-fill))
       (let [comped (filled-key-compare greatest (aget keys ix) min-fill)]
         (println "greatest: " comped (identical? comped greatest))
         (recur (inc ix) comped (and found? (identical? comped greatest)))))))
