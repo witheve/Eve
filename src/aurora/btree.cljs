@@ -369,7 +369,7 @@
   (reset [this]
          (assert (> (alength marked-nodes) 0))
          (assert (> (alength marked-ixes) 0))
-         (set! node (.pop nodes))
+         (set! node (.pop marked-nodes))
          (set! ix (.pop marked-ixes))))
 
 (defn iterator [tree]
@@ -422,7 +422,7 @@
          (.reset iterator)))
 
 (defn trieterator [iterator]
-  (Trieterator. iterator (least-key (.-key-len iterator)) nil -1 0 (.-end? it) (.-key-len iterator)))
+  (Trieterator. iterator (least-key (.-key-len iterator)) nil -1 0 (.-end? iterator) (.-key-len iterator)))
 
 ;; works on trees
 (deftype Intersection [iterators ^:mutable end? key-len]
@@ -458,7 +458,7 @@
   (assert (every? #(= (.-key-len (aget iterators 0)) (.-key-len %)) iterators))
   (if (> (alength iterators) 1)
     (if (some #(.-end? %) iterators)
-      (Intersection. iterators true)
+      (Intersection. iterators true (.-key-len (aget iterators 0)))
       (let [intersection (Intersection. (into-array (sort-by #(.key %) key-compare iterators)) false (.-key-len (aget iterators 0)))]
         (.search intersection 0)
         intersection))
@@ -476,11 +476,11 @@
   (maintain [this]
             (set! end? (.-end? (aget key-ix->intersection key-ix))))
   (next [this]
-        (when (false? end)
+        (when (false? end?)
           (.next (aget key-ix->intersection key-ix))
           (.maintain this)))
   (seek [this key]
-        (when (false? end)
+        (when (false? end?)
           (.seek (aget key-ix->intersection key-ix) key)
           (.maintain this)))
   (down [this]
@@ -570,7 +570,7 @@
         (assert false "TODO")))
 
 (defn treeterator [iterator]
-  (let [treeterator (Treeterator. iterator (least-key (.-key-len iterator)) 0 (.-key-len iterator))]
+  (let [treeterator (Treeterator. iterator (least-key (.-key-len iterator)) 0 (.-end? iterator) (.-key-len iterator))]
     (.walk-down treeterator)
     treeterator))
 
