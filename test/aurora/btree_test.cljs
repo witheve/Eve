@@ -1,8 +1,9 @@
 (ns aurora.btree-test
-  (:require aurora.btree
+  (:require [aurora.btree :refer [tree]]
+            [aurora.join :refer [magic-iterator join-iterator all-join-results]]
             [cemerick.cljs.test :refer [run-all-tests]])
   (:require-macros [aurora.macros :refer [apush apush* lt lte gt gte set!! dofrom]]
-                   [cemerick.cljs.test :refer [deftest]]
+                   [cemerick.cljs.test :refer [deftest is]]
                    [cemerick.double-check.clojure-test :refer [defspec]]))
 
 
@@ -118,30 +119,31 @@
 
 
 (defspec magic-self-join-prop-test-1
-  5000
+  100
   (aurora.btree/magic-self-join-prop 1))
 
 (defspec magic-self-join-prop-test-2
-  5000
+  100
   (aurora.btree/magic-self-join-prop 2))
 
 (defspec magic-self-join-prop-test-3
-  5000
+  100
   (aurora.btree/magic-self-join-prop 3))
 
 (defspec magic-product-join-prop-test-1
-  5000
+  100
   (aurora.btree/magic-product-join-prop 1))
 
 (defspec magic-product-join-prop-test-2
-  5000
+  100
   (aurora.btree/magic-product-join-prop 2))
 
 (defspec magic-product-join-prop-test-3
-  5000
+  100
   (aurora.btree/magic-product-join-prop 3))
 
 (deftest join-3-2
+  (println "testing: join-3-2")
   (let [tree1 (tree 10)
         _ (doseq [x [#js [0 1 4]
                      #js [0 1 6]
@@ -166,6 +168,7 @@
     ))
 
 (deftest join-3-2-again
+  (println "testing: join-3-2-again")
   (let [tree1 (tree 10)
         _ (doseq [x [#js [1 0 1]
                      #js [1 2 3]
@@ -189,6 +192,7 @@
     ))
 
 (deftest join-3-2-again2
+  (println "testing: join-3-2-again2")
   (let [tree1 (tree 10)
         _ (doseq [x [#js [1 0 1]
                      #js [1 2 3]
@@ -211,6 +215,7 @@
     ))
 
 (deftest join-3-2-2
+  (println "testing: join-3-2-2")
   (let [tree1 (tree 10)
         _ (doseq [x [#js [1 0 1]
                      #js [1 2 3]
@@ -240,6 +245,7 @@
     ))
 
 (deftest join-product
+  (println "testing: join-product")
   (let [tree1 (tree 10)
         _ (doseq [x [#js ["3"]
                      #js [-3]
@@ -260,6 +266,7 @@
     ))
 
 (deftest self-join
+  (println "testing: self-join")
   (let [tree1 (tree 10)
         _ (doseq [x [#js [1]
                      #js [4]
@@ -282,6 +289,7 @@
     ))
 
 (deftest join-product-2
+  (println "testing: join-product-2")
   (let [tree1 (tree 10)
         _ (doseq [x [#js [1]
                      #js [4]
@@ -304,6 +312,7 @@
     ))
 
 (deftest join-4-2-offest
+  (println "testing: join-4-2-offset")
   (let [tree1 (tree 10)
         _ (doseq [x [#js [1 2 1 3]
                      #js [1 2 2 5]
