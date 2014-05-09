@@ -13,6 +13,15 @@
 (defmacro typeof [a]
   `(~'js* "(typeof ~{})" ~a))
 
+(defmacro ainto [a b]
+  `(let [a# ~a
+         b# ~b
+         len# (alength b#)]
+     (loop [ix# 0]
+       (when (< ix# len#)
+         (aset a# ix# (aget b# ix#))
+         (recur (+ 1 ix#))))))
+
 (defmacro avec [arr]
   `(js/cljs.core.PersistentVector.fromArray ~arr true))
 

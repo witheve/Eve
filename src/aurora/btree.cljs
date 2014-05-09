@@ -858,9 +858,12 @@
                 (run-product-join-prop min-keys key-len actions movements)))
 
 
-(defn run-magic-product-join-prop [min-keys key-len actions movements]
+(defn magic-run-product-join-prop [min-keys key-len actions]
   (let [tree (apply-to-tree (tree min-keys key-len) actions)
-        iterator-results (apply-to-iterator (iterator tree) movements)
+        itr1 (iter-seq (iterator tree))
+        iterator-results (for [i1 itr1
+                               i2 itr1]
+                           (vec (concat i1 i2)))
         iterator-a (js/aurora.join.magic-iterator tree (let [arr (array)]
                                                          (dotimes [x key-len]
                                                            (.push arr x))
@@ -872,18 +875,33 @@
                                                          (dotimes [x key-len]
                                                            (.push arr nil))
                                                          (dotimes [x key-len]
-                                                           (.push arr (+ key-len x)))
+                                                           (.push arr x))
                                                          arr
                                                          ))
+        join-itr (js/aurora.join.join-iterator #js [iterator-a iterator-b])
+        join-results (js/aurora.join.all-join-results join-itr)]
+    (= iterator-results (map vec join-results))))
+
+(defn magic-product-join-prop [key-len]
+  (prop/for-all [min-keys gen/s-pos-int
+                 actions (gen/vector (gen-action key-len))]
+                (magic-run-product-join-prop min-keys key-len actions)))
+
+(defn magic-run-self-join-prop [min-keys key-len actions movements]
+  (let [tree (apply-to-tree (tree min-keys key-len) actions)
+        iterator-results (apply-to-iterator (iterator tree) movements)
+
+        iterator-a (js/aurora.join.magic-iterator tree)
+        iterator-b (js/aurora.join.magic-iterator tree )
         join-itr (js/aurora.join.join-iterator #js [iterator-a iterator-b])
         join-results (apply-to-iterator join-itr movements)]
     (= (map vec iterator-results) (map vec join-results))))
 
-(defn magic-product-join-prop [key-len]
+(defn magic-self-join-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
                  actions (gen/vector (gen-action key-len))
                  movements (gen/vector (gen-next key-len))] ;; TODO use gen-movement once Treeterator supports seek
-                (run-magic-product-join-prop min-keys key-len actions movements)))
+                (magic-run-self-join-prop min-keys key-len actions movements)))
 
 (comment
   (dc/quick-check 1000 (least-prop 1))
