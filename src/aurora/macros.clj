@@ -2,6 +2,12 @@
   (:refer-clojure :exclude [munge])
   (:require [cljs.compiler :refer [munge]]))
 
+(defmacro amake [[ix size] & body]
+  `(let [arr# #js []]
+     (dotimes [~ix ~size]
+       (.push arr# (do ~@body)))
+     arr#))
+
 (defmacro dofrom [[ix lo hi] & body]
   `(let [lo# ~lo
          hi# ~hi]

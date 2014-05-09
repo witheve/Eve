@@ -4,7 +4,7 @@
             [cemerick.double-check.properties :as prop :include-macros true]
             [cemerick.pprng :as pprng]
             clojure.set)
-  (:require-macros [aurora.macros :refer [apush apush* typeof set!! dofrom]]))
+  (:require-macros [aurora.macros :refer [apush apush* amake typeof set!! dofrom]]))
 
 ;; COMPARISONS
 
@@ -303,7 +303,7 @@
 
 ;; NOTE iterators are not write-safe
 
-(deftype Iterator [max-keys ^:mutable node ^:mutable ix marked-nodes marked-ixes ^:mutable end? key-len]
+(deftype Iterator [max-keys ^:mutable node ^:mutable ix marked-nodes marked-ixes marked-end?s ^:mutable end? key-len]
   Object
   (key [this]
        (when (false? end?)
@@ -365,20 +365,22 @@
                           (recur)))))))))))
   (mark [this]
         (apush marked-nodes node)
-        (apush marked-ixes ix))
+        (apush marked-ixes ix)
+        (apush marked-end?s end?))
   (reset [this]
          (assert (> (alength marked-nodes) 0))
          (assert (> (alength marked-ixes) 0))
+         (assert (> (alength marked-end?s) 0))
          (set! node (.pop marked-nodes))
          (set! ix (.pop marked-ixes))
-         (.maintain this)))
+         (set! end? (.pop marked-end?s))))
 
 (defn iterator [tree]
   (loop [node (.-root tree)]
     (if (nil? (.-children node))
       (if (> (alength (.-keys node)) 0)
-        (Iterator. (.-max-keys tree) node 0 #js [] #js [] false (.-key-len tree))
-        (Iterator. (.-max-keys tree) node 0 #js [] #js [] true (.-key-len tree)))
+        (Iterator. (.-max-keys tree) node 0 #js [] #js [] #js [] false (.-key-len tree))
+        (Iterator. (.-max-keys tree) node 0 #js [] #js [] #js [] true (.-key-len tree)))
       (recur (aget (.-children node) 0)))))
 
 ;; trie view of a tree
@@ -483,7 +485,7 @@
     (aget iterators 0)))
 
 ;; works on tries
-(deftype Join [^:mutable key-ix iterators key-ix->intersection key-ix->iterator->present? ^:mutable end? key-len]
+(deftype Join [^:mutable key-ix iterators key-ix->intersection key-ix->iterator->up-down? key-ix->iterator->mark-reset? ^:mutable end? key-len]
   Object
   (key [this]
        (when (false? end?)
@@ -505,50 +507,58 @@
         (assert (false? end?)) ;; have to be at a key to descend
         (assert (< key-ix (- (alength key-ix->intersection) 1)))
         (set! key-ix (+ key-ix 1))
-        (let [iterator->present? (aget key-ix->iterator->present? key-ix)]
-          (dotimes [i (alength iterator->present?)]
-            (if (aget iterator->present? i)
-              (.down (aget iterators i))
-              (.mark (aget iterators i))))
+        (let [iterator->up-down? (aget key-ix->iterator->up-down? key-ix)
+              iterator->mark-reset? (aget key-ix->iterator->mark-reset? key-ix)]
+          (dotimes [i (alength iterators)]
+            (when (true? (aget iterator->mark-reset? i))
+              (.mark (aget iterators i)))
+            (when (true? (aget iterator->up-down? i))
+              (.down (aget iterators i))))
           (.maintain (aget key-ix->intersection key-ix))
           (.maintain this)))
   (up [this]
       (assert (> key-ix 0))
-      (set! key-ix (- key-ix 1))
-      (let [iterator->present? (aget key-ix->iterator->present? key-ix)]
-        (dotimes [i (alength iterator->present?)]
-          (if (aget iterator->present? i)
-            (.up (aget iterators i))
+      (let [iterator->up-down? (aget key-ix->iterator->up-down? key-ix)
+            iterator->mark-reset? (aget key-ix->iterator->mark-reset? key-ix)]
+        (dotimes [i (alength iterators)]
+          (when (true? (aget iterator->up-down? i))
+            (.up (aget iterators i)))
+          (when (true? (aget iterator->mark-reset? i))
             (.reset (aget iterators i))))
+        (set! key-ix (- key-ix 1))
         (.maintain (aget key-ix->intersection key-ix))
+        (.next (aget key-ix->intersection key-ix))
         (.maintain this))))
 
-(defn join [iterators num-vars iterator->vars]
+(defn join [iterators num-vars iterator->var->present?]
   (assert (> num-vars 0))
-  (dotimes [i (alength iterators)]
-    (let [iterator-vars (aget iterator->vars i)]
-      (assert (== (alength iterator-vars) (.-key-len (aget iterators i))))
-      (dotimes [j (alength iterator-vars)]
-        (assert (< (aget iterator-vars j) num-vars)))))
-  (let [var->iterators #js []
-        var->iterator->present? #js []
-        var->intersection #js []]
-    (dotimes [i num-vars]
-      (.push var->iterators #js [])
-      (let [iterator->present? #js []]
-        (.push var->iterator->present? iterator->present?)
-        (dotimes [j (alength iterators)]
-          (.push iterator->present? false))))
+  (assert (== (alength iterator->var->present?) (alength iterators)))
+  (dotimes [iterator (alength iterators)]
+    (assert (== (alength (aget iterator->var->present? iterator)) num-vars)))
+  (let [var->intersection (amake [var num-vars]
+                              (let [var-iterators #js []]
+                                (dotimes [iterator (alength iterators)]
+                                  (when (true? (aget iterator->var->present? iterator var))
+                                    (apush var-iterators (aget iterators iterator))))
+                                (intersection var-iterators)))
+        var->iterator->up-down? (amake [var num-vars]
+                                       (amake [iterator (alength iterator->var->present?)]
+                                              false))
+        var->iterator->mark-reset? (amake [var num-vars]
+                                          (amake [iterator (alength iterator->var->present?)]
+                                                 false))]
     (dotimes [iterator (alength iterators)]
-      (let [iterator-vars (aget iterator->vars iterator)]
-        (dotimes [j (alength iterator-vars)]
-          (let [var (aget iterator-vars j)]
-            (.push (aget var->iterators var) (aget iterators iterator))
-            (aset var->iterator->present? var iterator true)))))
-    (dotimes [i num-vars]
-      (assert (> (alength (aget var->iterators i)) 0))
-      (.push var->intersection (intersection (aget var->iterators i))))
-    (let [join (Join. 0 iterators var->intersection var->iterator->present? false num-vars)]
+      (loop [var 0
+             need-up-down? false
+             need-mark-reset? false]
+        (when (< var num-vars)
+          (if (true? (aget iterator->var->present? iterator var))
+            (do
+              (aset var->iterator->up-down? var iterator need-up-down?)
+              (aset var->iterator->mark-reset? var iterator need-mark-reset?)
+              (recur (+ var 1) true false))
+            (recur (+ var 1) need-up-down? true)))))
+    (let [join (Join. 0 iterators var->intersection var->iterator->up-down? var->iterator->mark-reset? false num-vars)]
       (.maintain join)
       join)))
 
