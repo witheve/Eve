@@ -857,6 +857,34 @@
                  movements (gen/vector (gen-next key-len))] ;; TODO use gen-movement once Treeterator supports seek
                 (run-product-join-prop min-keys key-len actions movements)))
 
+
+(defn run-magic-product-join-prop [min-keys key-len actions movements]
+  (let [tree (apply-to-tree (tree min-keys key-len) actions)
+        iterator-results (apply-to-iterator (iterator tree) movements)
+        iterator-a (js/aurora.join.magic-iterator tree (let [arr (array)]
+                                                         (dotimes [x key-len]
+                                                           (.push arr x))
+                                                         (dotimes [x key-len]
+                                                           (.push arr nil))
+                                                         arr
+                                                         ))
+        iterator-b (js/aurora.join.magic-iterator tree (let [arr (array)]
+                                                         (dotimes [x key-len]
+                                                           (.push arr nil))
+                                                         (dotimes [x key-len]
+                                                           (.push arr (+ key-len x)))
+                                                         arr
+                                                         ))
+        join-itr (js/aurora.join.join-iterator #js [iterator-a iterator-b])
+        join-results (apply-to-iterator join-itr movements)]
+    (= (map vec iterator-results) (map vec join-results))))
+
+(defn magic-product-join-prop [key-len]
+  (prop/for-all [min-keys gen/s-pos-int
+                 actions (gen/vector (gen-action key-len))
+                 movements (gen/vector (gen-next key-len))] ;; TODO use gen-movement once Treeterator supports seek
+                (run-magic-product-join-prop min-keys key-len actions movements)))
+
 (comment
   (dc/quick-check 1000 (least-prop 1))
   (dc/quick-check 1000 (least-prop 2))
