@@ -75,7 +75,7 @@
 
 (defspec intersection-prop-test
   500
-  (aurora.btree/intersection-prop 1))
+  aurora.btree/intersection-prop)
 
 (defspec trie-tree-prop-test
   5000
