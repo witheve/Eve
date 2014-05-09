@@ -370,7 +370,8 @@
          (assert (> (alength marked-nodes) 0))
          (assert (> (alength marked-ixes) 0))
          (set! node (.pop marked-nodes))
-         (set! ix (.pop marked-ixes))))
+         (set! ix (.pop marked-ixes))
+         (.maintain this)))
 
 (defn iterator [tree]
   (loop [node (.-root tree)]
@@ -381,7 +382,7 @@
       (recur (aget (.-children node) 0)))))
 
 ;; trie view of a tree
-(deftype Trieterator [iterator seek-key pinned-key ^:mutable moving-key-ix ^:mutable end? key-len]
+(deftype Trieterator [iterator ^:mutable seek-key ^:mutable pinned-key marked-seek-keys marked-pinned-keys ^:mutable moving-key-ix ^:mutable end? key-len]
   Object
   (key [this]
        (when (false? end?)
@@ -390,20 +391,18 @@
        (when (false? end?)
          (.val iterator)))
   (maintain [this]
-            (if (or (true? (.-end? iterator))
-                    (not (key-lt (.key iterator) pinned-key)))
-              (set! end? true)
-              (do
-                (set! end? false)
-                (aset seek-key moving-key-ix (.key this))))) ;; is this needed?
+            (set! end? (or (true? (.-end? iterator))
+                           (not (key-lt (.key iterator) pinned-key)))))
   (next [this]
         (when (false? end?)
           (.seek iterator seek-key)
+          (aset seek-key moving-key-ix (.key this))
           (.maintain this)))
   (seek [this key]
         (when (false? end?)
           (aset seek-key moving-key-ix key)
           (.seek iterator seek-key)
+          (aset seek-key moving-key-ix (.key this))
           (.maintain this)))
   (down [this]
         (assert (false? end?))
@@ -422,12 +421,17 @@
         (aset pinned-key moving-key-ix greatest))
       (.maintain this))
   (mark [this]
-        (.mark iterator))
+        (.mark iterator)
+        (apush marked-seek-keys seek-key)
+        (apush marked-pinned-keys pinned-key))
   (reset [this]
-         (.reset iterator)))
+         (.reset iterator)
+         (set! seek-key (.pop marked-seek-keys))
+         (set! pinned-key (.pop marked-pinned-keys))
+         (.maintain this)))
 
 (defn trieterator [iterator]
-  (let [trieterator (Trieterator. iterator (least-key (.-key-len iterator)) (greatest-key (.-key-len iterator)) 0 false (.-key-len iterator))]
+  (let [trieterator (Trieterator. iterator (least-key (.-key-len iterator)) (greatest-key (.-key-len iterator)) #js [] #js [] 0 false (.-key-len iterator))]
     (.maintain trieterator)
     trieterator))
 
@@ -832,6 +836,22 @@
                  movements (gen/vector (gen-next key-len))] ;; TODO use gen-movement once Treeterator supports seek
                 (run-self-join-prop min-keys key-len actions movements)))
 
+(defn run-product-join-prop [min-keys key-len actions movements]
+  (let [tree (apply-to-tree (tree min-keys key-len) actions)
+        iterator-results (apply-to-iterator (iterator tree) movements)
+        iterator-a (trieterator (iterator tree))
+        iterator-b (trieterator (iterator tree))
+        join-results (apply-to-iterator
+                      (treeterator (join #js [iterator-a iterator-b] (* 2 key-len) #js [(into-array (range key-len)) (into-array (range key-len (* 2 key-len)))]))
+                      movements)]
+    (= (map vec iterator-results) (map vec join-results))))
+
+(defn product-join-prop [key-len]
+  (prop/for-all [min-keys gen/s-pos-int
+                 actions (gen/vector (gen-action key-len))
+                 movements (gen/vector (gen-next key-len))] ;; TODO use gen-movement once Treeterator supports seek
+                (run-product-join-prop min-keys key-len actions movements)))
+
 (comment
   (dc/quick-check 1000 (least-prop 1))
   (dc/quick-check 1000 (least-prop 2))
@@ -861,6 +881,7 @@
   (dc/quick-check 10000 (self-join-prop 1))
   (dc/quick-check 10000 (self-join-prop 2))
   (dc/quick-check 10000 (self-join-prop 3))
+  (dc/quick-check 10000 (product-join-prop 1))
 
 
   (defn f []
