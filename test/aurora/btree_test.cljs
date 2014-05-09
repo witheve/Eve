@@ -77,6 +77,42 @@
     500
     (aurora.btree/intersection-prop 1))
 
+(defspec trie-tree-prop-test
+  5000
+  (aurora.btree/trie-tree-prop 1))
+
+(defspec trie-tree-prop-test
+  5000
+  (aurora.btree/trie-tree-prop 2))
+
+(defspec trie-tree-prop-test
+  5000
+  (aurora.btree/trie-tree-prop 3))
+
+(defspec self-join-prop-test
+  5000
+  (aurora.btree/self-join-prop 1))
+
+(defspec self-join-prop-test
+  5000
+  (aurora.btree/self-join-prop 2))
+
+(defspec self-join-prop-test
+  5000
+  (aurora.btree/self-join-prop 3))
+
+(defspec product-join-prop-test
+  5000
+  (aurora.btree/product-join-prop 1))
+
+(defspec product-join-prop-test
+  5000
+  (aurora.btree/product-join-prop 2))
+
+(defspec product-join-prop-test
+  5000
+  (aurora.btree/product-join-prop 3))
+
 (comment
   (run-all-tests)
 
