@@ -73,9 +73,9 @@
   5000
   (aurora.btree/iterator-prop 1))
 
-#_(defspec intersection-prop-test
-    500
-    (aurora.btree/intersection-prop 1))
+(defspec intersection-prop-test
+  500
+  (aurora.btree/intersection-prop 1))
 
 (defspec trie-tree-prop-test
   5000

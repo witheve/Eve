@@ -396,14 +396,16 @@
   (next [this]
         (when (false? end?)
           (.seek iterator seek-key)
-          (aset seek-key moving-key-ix (.key this))
-          (.maintain this)))
+          (.maintain this)
+          (when (false? end?)
+            (aset seek-key moving-key-ix (.key this)))))
   (seek [this key]
         (when (false? end?)
           (aset seek-key moving-key-ix key)
           (.seek iterator seek-key)
-          (aset seek-key moving-key-ix (.key this))
-          (.maintain this)))
+          (.maintain this)
+          (when (false? end?)
+            (aset seek-key moving-key-ix (.key this)))))
   (down [this]
         (assert (false? end?))
         (assert (< moving-key-ix (- (alength seek-key) 1)))
@@ -475,7 +477,7 @@
   (if (> (alength iterators) 1)
     (if (some #(true? (.-end? %)) iterators)
       (Intersection. iterators true (.-key-len (aget iterators 0)))
-      (let [intersection (Intersection. (into-array (sort-by #(.key %) key-compare iterators)) false (.-key-len (aget iterators 0)))]
+      (let [intersection (Intersection. (into-array (sort-by (fn [it] #js [(.key it)]) key-compare iterators)) false (.-key-len (aget iterators 0)))]
         (.search intersection 0)
         intersection))
     (aget iterators 0)))
@@ -788,24 +790,27 @@
                  movements (gen/vector (gen-movement key-len))]
                 (run-iterator-prop min-keys key-len actions movements)))
 
-;; BROKEN by changing Intersection to work on values instead of arrays
-(defn run-intersection-prop [min-keys key-len actionss movements]
-  (let [trees (map #(apply-to-tree (tree min-keys key-len) %) actionss)
+(defn run-intersection-prop [min-keys actionss movements]
+  (let [trees (map #(apply-to-tree (tree min-keys 1) %) actionss)
         keys (apply clojure.set/intersection (map #(set (map (fn [[k v]] (vec k)) %)) trees))
         sorted-map (into (sorted-map-by key-compare)
                          (for [tree trees
                                [k v :as elem] tree
                                :when (contains? keys (vec k))]
                            (vec elem)))
-        iterator-results (apply-to-iterator (intersection (into-array (map iterator trees))) movements)
+        iterator-results (apply-to-iterator (intersection (into-array (map trieterator (map iterator trees))))
+                                            (for [movement movements]
+                                              (case (count movement)
+                                                1 movement
+                                                2 [(nth movement 0) (first (nth movement 1))])))
         elems-results (apply-to-elems (seq sorted-map) movements)]
-    (= (map vec iterator-results) (map vec elems-results))))
+    (= iterator-results (map first elems-results))))
 
-(defn intersection-prop [key-len]
+(def intersection-prop
   (prop/for-all [min-keys gen/s-pos-int
-                 actionss (gen/vector (gen/vector (gen-action key-len)) 1 4)
-                 movements (gen/vector (gen-movement key-len))]
-                (run-intersection-prop min-keys key-len actionss movements)))
+                 actionss (gen/vector (gen/vector (gen-action 1)) 1 4)
+                 movements (gen/vector (gen-movement 1))]
+                (run-intersection-prop min-keys actionss movements)))
 
 (defn run-trie-tree-prop [min-keys key-len actions movements]
   (let [tree (apply-to-tree (tree min-keys key-len) actions)
@@ -873,7 +878,7 @@
   (dc/quick-check 10000 (lookup-prop gen-action 1))
   (dc/quick-check 10000 (iterator-prop 1))
   ;; cljs.core.pr_str(cemerick.double_check.quick_check(1000, aurora.btree.iterator_prop)
-  (dc/quick-check 5000 (intersection-prop 1))
+  (dc/quick-check 5000 intersection-prop)
   ;; cljs.core.pr_str(cemerick.double_check.quick_check(1000, aurora.btree.intersection_prop))
   (dc/quick-check 10000 (trie-tree-prop 1))
   (dc/quick-check 10000 (trie-tree-prop 2))
@@ -882,6 +887,9 @@
   (dc/quick-check 10000 (self-join-prop 2))
   (dc/quick-check 10000 (self-join-prop 3))
   (dc/quick-check 10000 (product-join-prop 1))
+  (dc/quick-check 10000 (product-join-prop 2))
+  (dc/quick-check 10000 (product-join-prop 3))
+
 
 
   (defn f []
