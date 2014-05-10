@@ -393,17 +393,24 @@
     iterator))
 
 ;; used only inside Join
-(deftype JoinIterator [iterator outer->inner inner->outer inner-key key-len]
+(deftype JoinIterator [iterator outer->inner inner->outer seek-key key-len]
   Object
   (reset [this]
          (.reset iterator))
-  (key [this]
-       (when (false? (.-end? iterator))
-         (let [inner-key (.key iterator)
-               outer-key (make-array key-len)]
-           (dotimes [i (alength inner->outer)]
-             (aset outer-key (aget inner->outer i) (aget inner-key i)))
-           outer-key)))
+  (outer-key [this]
+             (when (false? (.-end? iterator))
+               (let [inner-key (.key iterator)
+                     outer-key (make-array key-len)]
+                 (dotimes [i (alength inner->outer)]
+                   (aset outer-key (aget inner->outer i) (aget inner-key i)))
+                 outer-key)))
+  (inner-key [this]
+             (when (false? (.-end? iterator))
+               (let [inner-key (.key iterator)
+                     outer-key (make-array key-len)]
+                 (dotimes [i (alength inner->outer)]
+                   (aset outer-key (aget inner->outer i) (aget inner-key i)))
+                 outer-key)))
   (key-at [this outer-ix]
           (when (false? (.-end? iterator))
             (let [inner-key (.key iterator)]
@@ -412,8 +419,8 @@
         (.next iterator))
   (seek [this outer-key]
         (dotimes [inner-ix (alength inner->outer)]
-          (aset inner-key inner-ix (aget outer-key (aget inner->outer inner-ix))))
-        (.seek iterator inner-key))
+          (aset seek-key inner-ix (aget outer-key (aget inner->outer inner-ix))))
+        (.seek iterator seek-key))
   (undo [this]
         (.undo iterator))
   (end? [this]
@@ -468,7 +475,7 @@
         ;; assumes prefixes all equal, nothing at end
         (prn :down old-var old-key)
         (if (== old-var (- (alength var->iterators) 1))
-          nil ;; done
+          (aset seek-key old-var old-key) ;; done
           (let [new-var (+ old-var 1)
                 iterators (aget var->iterators new-var)]
             (dotimes [i (alength iterators)]
