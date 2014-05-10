@@ -354,7 +354,6 @@
   (seek [this key]
         (set! old-node node)
         (set! old-ix ix)
-        (.next this)
         (let [start-node node
               start-ix ix]
           (when (false? end?)
@@ -414,42 +413,45 @@
   (end? [this]
         (.-end? iterator)))
 
-(deftype Join [seek-key iterators var->iterators end?]
+(deftype Join [seek-key iterators var->iterators ^:mutable end?]
   Object
   (key [this]
-       seek-key)
+       (when (false? end?)
+         seek-key))
   (search [this var]
           ;; assumes prefixes all equal, keys not all equal, iterators sorted by ascending key, nothing at end
-          (when (false? end?)
-            (let [iterators (aget var->iterators var)
-                  num-iterators (alength iterators)]
-              (loop [max-key (.key-at (aget iterators (- num-iterators 1)) var)
-                     current 0]
-                (let [iterator (aget iterators current)
-                      min-key (.key-at iterator var)]
-                  (aset seek-key var max-key)
-                  (let [old-key (.inner-key iterator)]
-                    (.seek iterator seek-key)
-                    (if (.end? iterator)
-                      (do
-                        (.undo iterator)
-                        (.up this var))
-                      (let [new-key (.inner-key iterator)]
-                        (if (prefix-not= old-key new-key var)
-                          (do
-                            (.undo iterator)
-                            (.up this var))
-                          (if (== (.key-at iterator var) max-key)
-                            (.down this var max-key)
-                            (recur min-key (mod (+ current 1) num-iterators)))))))))))))
+          (let [iterators (aget var->iterators var)
+                num-iterators (alength iterators)]
+            (loop [max-key (.key-at (aget iterators (- num-iterators 1)) var)
+                   current 0]
+              (prn :search max-key current)
+              (let [iterator (aget iterators current)
+                    min-key (.key-at iterator var)]
+                (aset seek-key var max-key)
+                (let [old-key (.inner-key iterator)]
+                  (.seek iterator seek-key)
+                  (if (.end? iterator)
+                    (do
+                      (.undo iterator)
+                      (.up this var))
+                    (let [new-key (.inner-key iterator)]
+                      (if (prefix-not= old-key new-key var)
+                        (do
+                          (.undo iterator)
+                          (.up this var))
+                        (if (== (.key-at iterator var) max-key)
+                          (.down this var max-key)
+                          (recur min-key (mod (+ current 1) num-iterators)))))))))))
   (up [this old-var]
       ;; assumes prefixes and keys all equal, nothing at end
+      (prn :up old-var)
       (if (== old-var 0)
-        (set end? true)
+        (set! end? true)
         (let [new-var (- old-var 1)
               iterators (aget var->iterators new-var)
               iterator (aget iterators (- (alength iterators) 1))]
-          (aset seek-key old-var least)
+          (when (< old-var (- (alength var->iterators) 1))
+            (aset seek-key old-var least))
           (.next iterator)
           (if (.end? iterator)
             (do
@@ -458,24 +460,29 @@
             (.search this new-var)))))
   (down [this old-var old-key]
         ;; assumes prefixes all equal, nothing at end
+        (prn :down old-var old-key)
         (if (== old-var (- (alength var->iterators) 1))
           nil ;; done
           (let [new-var (+ old-var 1)
                 iterators (aget var->iterators new-var)]
+            (when (>= old-var 0)
+              (aset seek-key old-var old-key))
+            (dotimes [i (alength iterators)]
+              (doto (aget iterators i) (.reset) (.seek seek-key))) ;; TODO this could be implemented more efficiently
+            (assert (every? #(not (.end? %)) iterators) (js/console.log iterators)) ;; TODO remove this when debugged
             (js/goog.array.sort iterators (fn [i0 i1] (compare (.key-at i0 new-var) (.key-at i1 new-var))))
-            (aset seek-key old-var old-key)
             (if (== (.key-at (aget iterators 0) new-var) (.key-at (aget iterators (- (alength iterators) 1)) new-var))
               (.down this new-var (.key-at (aget iterators 0) new-var))
-              (.search this new-var))))
+              (.search this new-var)))))
   (next [this]
         (let [iterators (aget var->iterators (- (alength var->iterators) 1))
               iterator (aget iterators (- (alength var->iterators) 1))]
-          (.next iterator)
-          (if (.end? iterator)
-            (do
-              (.undo iterator)
-              (.up this new-var))
-            (.search this new-var)))))
+          (.up this (alength var->iterators)))))
+
+(defn join []
+  ;; TODO check if at end in constructor
+  )
+
 
 (defn iter-seq
   ([iterator]
