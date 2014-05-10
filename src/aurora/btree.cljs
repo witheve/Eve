@@ -428,6 +428,15 @@
 
 (deftype Join [seek-key iterators var->iterators ^:mutable end?]
   Object
+  (reset [this]
+         (prn)
+         (prn :reset)
+         (dotimes [i (alength iterators)]
+           (.reset (aget iterators i)))
+         (dotimes [i (alength seek-key)]
+           (aset seek-key i least))
+         (set! end? false)
+         (.down this -1))
   (key [this]
        (when (false? end?)
          seek-key))
@@ -437,7 +446,7 @@
                 num-iterators (alength iterators)]
             (loop [max-key (.key-at (aget iterators (- num-iterators 1)) var)
                    current 0]
-              (prn :search max-key current)
+              (prn :search max-key current seek-key)
               (let [iterator (aget iterators current)
                     min-key (.key-at iterator var)]
                 (aset seek-key var max-key)
@@ -457,13 +466,13 @@
                           (recur min-key (mod (+ current 1) num-iterators)))))))))))
   (up [this old-var]
       ;; assumes prefixes and keys all equal, nothing at end
-      (prn :up old-var)
+      (prn :up old-var seek-key)
       (if (== old-var 0)
         (set! end? true)
         (let [new-var (- old-var 1)
               iterators (aget var->iterators new-var)
               iterator (aget iterators (- (alength iterators) 1))]
-          (when (< old-var (- (alength var->iterators) 1))
+          (when (< old-var (alength var->iterators))
             (aset seek-key old-var least))
           (.next iterator)
           (if (.end? iterator)
@@ -473,7 +482,7 @@
             (.search this new-var)))))
   (down [this old-var old-key]
         ;; assumes prefixes all equal, nothing at end
-        (prn :down old-var old-key)
+        (prn :down old-var old-key seek-key)
         (if (== old-var (- (alength var->iterators) 1))
           (aset seek-key old-var old-key) ;; done
           (let [new-var (+ old-var 1)
