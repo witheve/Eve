@@ -397,11 +397,17 @@
   Object
   (reset [this]
          (.reset iterator))
-  (inner-key [this]
-       (.key iterator))
+  (key [this]
+       (when (false? (.-end? iterator))
+         (let [inner-key (.key iterator)
+               outer-key (make-array key-len)]
+           (dotimes [i (alength inner->outer)]
+             (aset outer-key (aget inner->outer i) (aget inner-key i)))
+           outer-key)))
   (key-at [this outer-ix]
-              (let [inner-key (.key iterator)]
-                (aget inner-key (aget outer->inner outer-ix))))
+          (when (false? (.-end? iterator))
+            (let [inner-key (.key iterator)]
+              (aget inner-key (aget outer->inner outer-ix)))))
   (next [this]
         (.next iterator))
   (seek [this outer-key]
@@ -465,10 +471,10 @@
           nil ;; done
           (let [new-var (+ old-var 1)
                 iterators (aget var->iterators new-var)]
-            (when (>= old-var 0)
-              (aset seek-key old-var old-key))
             (dotimes [i (alength iterators)]
               (doto (aget iterators i) (.reset) (.seek seek-key))) ;; TODO this could be implemented more efficiently
+            (when (>= old-var 0)
+              (aset seek-key old-var old-key))
             (assert (every? #(not (.end? %)) iterators) (js/console.log iterators)) ;; TODO remove this when debugged
             (js/goog.array.sort iterators (fn [i0 i1] (compare (.key-at i0 new-var) (.key-at i1 new-var))))
             (if (== (.key-at (aget iterators 0) new-var) (.key-at (aget iterators (- (alength iterators) 1)) new-var))
