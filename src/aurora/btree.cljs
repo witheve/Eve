@@ -4,7 +4,7 @@
             [cemerick.double-check.properties :as prop :include-macros true]
             [cemerick.pprng :as pprng]
             clojure.set)
-  (:require-macros [aurora.macros :refer [apush apush* amake typeof set!! dofrom]]))
+  (:require-macros [aurora.macros :refer [debug apush apush* amake typeof set!! dofrom]]))
 
 ;; COMPARISONS
 
@@ -429,13 +429,13 @@
 (deftype Join [seek-key iterators var->iterators ^:mutable end?]
   Object
   (reset [this]
-         (prn)
-         (prn :reset)
+         (debug)
+         (debug :reset)
          (dotimes [i (alength iterators)]
            (.reset (aget iterators i)))
          (dotimes [i (alength seek-key)]
            (aset seek-key i least))
-         (set! end? false)
+         (set! end? (every? #(false? (.-end? %)) iterators))
          (.down this -1))
   (key [this]
        (when (false? end?)
@@ -446,7 +446,7 @@
                 num-iterators (alength iterators)]
             (loop [max-key (.key-at (aget iterators (- num-iterators 1)) var)
                    current 0]
-              (prn :search max-key current seek-key)
+              (debug :search max-key current seek-key)
               (let [iterator (aget iterators current)
                     min-key (.key-at iterator var)]
                 (aset seek-key var max-key)
@@ -466,7 +466,7 @@
                           (recur min-key (mod (+ current 1) num-iterators)))))))))))
   (up [this old-var]
       ;; assumes prefixes and keys all equal, nothing at end
-      (prn :up old-var seek-key)
+      (debug :up old-var seek-key)
       (if (== old-var 0)
         (set! end? true)
         (let [new-var (- old-var 1)
@@ -482,7 +482,7 @@
             (.search this new-var)))))
   (down [this old-var old-key]
         ;; assumes prefixes all equal, nothing at end
-        (prn :down old-var old-key seek-key)
+        (debug :down old-var old-key seek-key)
         (if (== old-var (- (alength var->iterators) 1))
           (aset seek-key old-var old-key) ;; done
           (let [new-var (+ old-var 1)

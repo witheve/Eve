@@ -2,6 +2,12 @@
   (:refer-clojure :exclude [munge])
   (:require [cljs.compiler :refer [munge]]))
 
+(def debug? false)
+
+(defmacro debug [& args]
+  (when debug?
+    `(cljs.core.prn ~@args)))
+
 (defmacro amake [[ix size] & body]
   `(let [arr# #js []]
      (dotimes [~ix ~size]
