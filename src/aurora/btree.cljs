@@ -818,7 +818,6 @@
                  movements (gen/vector (gen-next key-len))] ;; TODO use gen-movement once Treeterator supports seek
                 (magic-run-self-join-prop min-keys key-len actions movements)))
 
-
 (comment
   (dc/quick-check 1000 (least-prop 1))
   (dc/quick-check 1000 (least-prop 2))
@@ -847,6 +846,8 @@
   (dc/quick-check 10000 (product-join-prop 2))
   (dc/quick-check 10000 (product-join-prop 3))
 
+
+  (dc/quick-check 100 (magic-product-join-prop 3))
 
 
   (defn f []
