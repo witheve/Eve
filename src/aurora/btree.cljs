@@ -735,35 +735,37 @@
 (defn run-self-join-prop [min-keys key-len actions movements]
   (let [tree (apply-to-tree (tree min-keys key-len) actions)
         iterator-results (apply-to-iterator (iterator tree) movements)
-        iterator-a (iterator tree)
-        iterator-b (iterator tree)
         join-results (apply-to-iterator
-                      (join #js [iterator-a iterator-b] key-len #js [(into-array (repeat key-len true)) (into-array (repeat key-len true))])
+                      (join #js [(iterator tree) (iterator tree)] key-len #js [(into-array (repeat key-len true)) (into-array (repeat key-len true))])
                       movements)]
     (= (map vec iterator-results) (map vec join-results))))
 
 (defn self-join-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
                  actions (gen/vector (gen-action key-len))
-                 movements (gen/vector (gen-next key-len))] ;; TODO use gen-movement once Treeterator supports seek
+                 movements (gen/vector (gen-next key-len))] ;; TODO implement Join.seek
                 (run-self-join-prop min-keys key-len actions movements)))
 
 (defn run-product-join-prop [min-keys key-len actions movements]
-  (let [tree (apply-to-tree (tree min-keys key-len) actions)
-        iterator-results (apply-to-iterator (iterator tree) movements)
-        iterator-a (trieterator (iterator tree))
-        iterator-b (trieterator (iterator tree))
+  (let [product-tree (tree min-keys key-len)
+        tree (apply-to-tree (tree min-keys key-len) actions)
+        elems #js []
+        _ (.into tree elems)
+        _ (dotimes [i (alength elems)]
+            (dotimes [j (alength elems)]
+              (.assoc! product-tree (.concat (aget elems i 0) (aget elems j 0)) nil)))
+        iterator-results (apply-to-iterator (iterator product-tree) movements)
         join-results (apply-to-iterator
-                      (treeterator (join #js [iterator-a iterator-b] (* 2 key-len) #js [(into-array (range key-len)) (into-array (range key-len (* 2 key-len)))]))
+                      (join #js [(iterator tree) (iterator tree)] (* 2 key-len) #js [(into-array (concat (repeat key-len true) (repeat key-len false)))
+                                                                                     (into-array (concat (repeat key-len false) (repeat key-len true)))])
                       movements)]
     (= (map vec iterator-results) (map vec join-results))))
 
 (defn product-join-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
                  actions (gen/vector (gen-action key-len))
-                 movements (gen/vector (gen-next key-len))] ;; TODO use gen-movement once Treeterator supports seek
+                 movements (gen/vector (gen-next key-len))] ;; TODO implement Join.seek
                 (run-product-join-prop min-keys key-len actions movements)))
-
 
 (defn magic-run-product-join-prop [min-keys key-len actions]
   (let [tree (apply-to-tree (tree min-keys key-len) actions)
