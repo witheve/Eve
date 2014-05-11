@@ -41,7 +41,7 @@
               1)))
         0))))
 
-(defn prefix-not= [as bs max-len]
+(defn ^boolean prefix-not= [as bs max-len]
   (loop [i 0]
     (if (< i max-len)
       (let [a (aget as i)
@@ -51,22 +51,22 @@
           true))
       false)))
 
-(defn key= [as bs]
+(defn ^boolean key= [as bs]
   (== 0 (key-compare as bs)))
 
-(defn key-not= [as bs]
+(defn ^boolean key-not= [as bs]
   (not (== 0 (key-compare as bs))))
 
-(defn key-lt [as bs]
+(defn ^boolean key-lt [as bs]
   (== -1 (key-compare as bs)))
 
-(defn key-gt [as bs]
+(defn ^boolean key-gt [as bs]
   (== 1 (key-compare as bs)))
 
-(defn key-lte [as bs]
+(defn ^boolean key-lte [as bs]
   (not (== 1 (key-compare as bs))))
 
-(defn key-gte [as bs]
+(defn ^boolean key-gte [as bs]
   (not (== -1 (key-compare as bs))))
 
 ;; TREES
@@ -360,31 +360,29 @@
               start-ix ix]
           (when (false? end?)
             (loop []
-              (let [upper (.-upper node)]
-                (if (key-lt upper key)
-                  (if (instance? Node (.-parent node))
+              (if (key-lt (.-upper node) key)
+                (if (instance? Node (.-parent node))
+                  (do
+                    (set! ix (.-parent-ix node))
+                    (set! node (.-parent node))
+                    (recur))
+                  (set! end? true))
+                (loop []
+                  (set! ix (.seek node key ix))
+                  (if (>= ix (alength (.-keys node)))
                     (do
-                      (set! ix (.-parent-ix node))
-                      (set! node (.-parent node))
+                      (set! node (aget (.-children node) ix))
+                      (set! ix 0)
                       (recur))
-                    (set! end? true))
-                  (loop []
-                    (set! ix (.seek node key ix))
-                    (if (>= ix (alength (.-keys node)))
+                    (if (or (and (identical? node start-node) (== ix start-ix))
+                            (key= key (aget (.-keys node) ix))
+                            (nil? (.-children node))
+                            (key-lt (.-upper (aget (.-children node) ix)) key))
+                      nil
                       (do
                         (set! node (aget (.-children node) ix))
                         (set! ix 0)
-                        (recur))
-                      (if (or (and (identical? node start-node) (== ix start-ix))
-                              (key= key (aget (.-keys node) ix))
-                              (nil? (.-children node))
-                              (let [lower (.-upper (aget (.-children node) ix))]
-                                (key-lt lower key)))
-                        nil
-                        (do
-                          (set! node (aget (.-children node) ix))
-                          (set! ix 0)
-                          (recur)))))))))))
+                        (recur))))))))))
   (undo [this]
         (set! node old-node)
         (set! ix old-ix)
