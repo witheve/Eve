@@ -9,7 +9,7 @@
     `(cljs.core.prn ~@args)))
 
 (defmacro amake [[ix size] & body]
-  `(let [arr# #js []]
+  `(let [arr# (make-array 0)]
      (dotimes [~ix ~size]
        (.push arr# (do ~@body)))
      arr#))
