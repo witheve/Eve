@@ -1,5 +1,5 @@
 (ns aurora.join
-  (:require [aurora.btree :refer [tree iterator key-lt key-lte key-gt key-gte]])
+  (:require [aurora.btree :refer [tree iterator key-lt key-lte key-gt key-gte key-compare]])
   (:require-macros [aurora.macros :refer [typeof ainto]]))
 
 (defn nilless-lt [a b]
@@ -48,10 +48,10 @@
     (loop [ix 0]
       (if (< ix len)
         (let [cur (aget nil-ixs ix)
-              rewind? (gt (aget as cur) (aget bs cur))]
+              rewind? (not= (aget as cur) (aget bs cur))]
           (cond
            (and (identical? cur 0) rewind?) #js [0 false rewind?]
-           (> cur 0) (let [store? (gt (aget as (- cur 1)) (aget bs (- cur 1)))]
+           (> cur 0) (let [store? (not= (aget as (- cur 1)) (aget bs (- cur 1)))]
                        (if store?
                          #js [cur store? false]
                          (if (and rewind? (not (== (+ cur 1) map-len)))
@@ -181,7 +181,8 @@
         (.next iterator)
         (set! end? (.-end? iterator)))
   (seek [this key]
-        (when (key-lt (.key iterator) key)
+        (when (and (not end?)
+                   (key-lt (.key iterator) key))
           (.seek iterator key)
           (set! end? (.-end? iterator)))))
 
@@ -224,6 +225,19 @@
                               cur
                               least))))))
 
+(defn iters-next [iterators len min-fill]
+  (let [last (aget iterators (- len 1))]
+    (.next last)
+    (if-not (.-end? last)
+      (reverse-fill! (.key last) min-fill)
+      (loop [ix (- len 2)]
+        (when (>= ix 0)
+          (let [cur (aget iterators ix)]
+            (.next cur)
+            (if (.-end? cur)
+              (recur (- ix 1))
+              (reverse-fill-with! (.key cur) min-fill false))))))))
+
 (defn find-greatest [iterators keys len min-fill]
   ;(println "GREATEST: " keys min-fill)
   (loop [ix 1
@@ -231,18 +245,9 @@
          found? true]
     (if (>= ix len)
       (if found?
-        (let [root (aget iterators 0)
-              last (aget iterators (- ix 1))
-              greatest (fill! (.slice greatest 0) min-fill)
-              _ (.next last)
-              ]
-          (if (identical? (.-iterator.end? last) true)
-            (do
-              (.next root)
-              #js [greatest (when-let [k (.key root)]
-                              (reverse-fill-with! (.key root) min-fill false))])
-            (do
-              #js [greatest (reverse-fill! (.key last) min-fill)])))
+        (let [greatest (fill! (.slice greatest 0) min-fill)]
+          (iters-next iterators len min-fill)
+          #js [greatest min-fill])
         #js [nil (reverse-fill! greatest min-fill)])
       (let [comped (filled-key-compare greatest (aget keys ix) min-fill)
             comped-v (or comped greatest)]
@@ -323,7 +328,7 @@
 
 (defn all-join-results [join-itr]
   (let [results (array)]
-    (while (not (.-end? join-itr))
+    (while (and (not (.-end? join-itr)))
       (.push results (.key join-itr))
       (.next join-itr))
     (when-not (or (== nil (.key join-itr))
@@ -357,14 +362,16 @@
 
 
   (let [tree (tree 10)
-        _ (dotimes [i 10]
+        _ (dotimes [i 2]
             (let [i (+ i 0)]
               (.assoc! tree #js [i i] (* 2 i))))
         j (time (join-iterator #js [(magic-iterator tree #js [0 nil nil 1 nil nil])
                                     (magic-iterator tree #js [nil 0 nil nil 1 nil])
                                     (magic-iterator tree #js [nil nil 0 nil nil 1])]))
         ]
-    (time (all-join-results j))
+    (assert
+     (= (map vec (time (all-join-results j)))
+        (map vec #js [#js [0 0 0 0 0 0] #js [0 0 1 0 0 1] #js [0 1 0 0 1 0] #js [0 1 1 0 1 1] #js [1 0 0 1 0 0] #js [1 0 1 1 0 1] #js [1 1 0 1 1 0] #js [1 1 1 1 1 1]])))
   )
 
   (let [tree (tree 10)
@@ -568,4 +575,5 @@
 
 
   )
+
 
