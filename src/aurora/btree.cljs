@@ -880,5 +880,22 @@
     (time
      (doseq [[tree movements] benches]
        (apply-to-iterator (iterator tree) movements))))
+
+  (let [tree1 (tree 10)
+        _ (dotimes [i 10000]
+            (let [i (+ i 0)]
+              (.assoc! tree1 #js [i (+ i 1) (+ i 2)] (* 2 i))))
+        tree2 (tree 10)
+        _ (dotimes [i 1000]
+            (let [i (+ i 1)]
+              (.assoc! tree2 #js [i (+ i 2)] (* 2 i))))
+        tree3 (tree 10)
+        _ (dotimes [i 100000]
+            (let [i (+ i 2)]
+              (.assoc! tree3 #js [(+ i 1) (+ i 2)] (* 2 i))))
+        j (time (join #js [(iterator tree1) (iterator tree2) (iterator tree3)] 3 #js [#js [true true true] #js [true false true] #js [false true true]]))
+        ]
+    (time (iter-seq j))
+  )
  )
 
