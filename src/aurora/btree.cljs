@@ -388,7 +388,7 @@
         (set! ix old-ix)))
 
 (defn iterator [tree]
-  (let [iterator (Iterator. (.-max-keys tree) (.-root tree) 0 false (.-key-len tree))]
+  (let [iterator (Iterator. (.-max-keys tree) (.-root tree) 0 nil nil false (.-key-len tree))]
     (.reset iterator)
     iterator))
 
@@ -442,7 +442,7 @@
          (.down this -1))
   (key [this]
        (when (false? end?)
-         seek-key))
+         (aclone seek-key)))
   (search [this var]
           ;; assumes prefixes all equal, keys not all equal, iterators sorted by ascending key, nothing at end
           (let [iterators (aget var->iterators var)
@@ -494,7 +494,6 @@
               (doto (aget iterators i) (.reset) (.seek seek-key))) ;; TODO this could be implemented more efficiently
             (when (>= old-var 0)
               (aset seek-key old-var old-key))
-            (assert (every? #(not (.end? %)) iterators) (js/console.log iterators)) ;; TODO remove this when debugged
             (js/goog.array.sort iterators (fn [i0 i1] (compare (.key-at i0 new-var) (.key-at i1 new-var))))
             (if (== (.key-at (aget iterators 0) new-var) (.key-at (aget iterators (- (alength iterators) 1)) new-var))
               (.down this new-var (.key-at (aget iterators 0) new-var))
@@ -736,10 +735,11 @@
 (defn run-self-join-prop [min-keys key-len actions movements]
   (let [tree (apply-to-tree (tree min-keys key-len) actions)
         iterator-results (apply-to-iterator (iterator tree) movements)
-        iterator-a (trieterator (iterator tree))
-        iterator-b (trieterator (iterator tree))
+        iterator-a (iterator tree)
+        iterator-b (iterator tree)
+        _ (iter-seq 10 (join #js [iterator-a iterator-b] key-len #js [(into-array (repeat key-len true)) (into-array (repeat key-len true))]))
         join-results (apply-to-iterator
-                      (treeterator (join #js [iterator-a iterator-b] key-len #js [(into-array (repeat key-len true)) (into-array (repeat key-len true))]))
+                      (join #js [iterator-a iterator-b] key-len #js [(into-array (repeat key-len true)) (into-array (repeat key-len true))])
                       movements)]
     (= (map vec iterator-results) (map vec join-results))))
 
