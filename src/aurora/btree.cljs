@@ -737,7 +737,6 @@
         iterator-results (apply-to-iterator (iterator tree) movements)
         iterator-a (iterator tree)
         iterator-b (iterator tree)
-        _ (iter-seq 10 (join #js [iterator-a iterator-b] key-len #js [(into-array (repeat key-len true)) (into-array (repeat key-len true))]))
         join-results (apply-to-iterator
                       (join #js [iterator-a iterator-b] key-len #js [(into-array (repeat key-len true)) (into-array (repeat key-len true))])
                       movements)]
