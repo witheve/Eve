@@ -526,7 +526,7 @@
                                   (when (true? (aget iterator->var->present? i j))
                                     (apush var-iterators (aget join-iterators i))))
                                 var-iterators))
-        join (Join. seek-key join-iterators var->iterators)]
+        join (Join. seek-key join-iterators var->iterators false)]
     (.reset join)
     join))
 
