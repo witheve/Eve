@@ -500,14 +500,36 @@
               (.down this new-var (.key-at (aget iterators 0) new-var))
               (.search this new-var)))))
   (next [this]
-        (let [iterators (aget var->iterators (- (alength var->iterators) 1))
-              iterator (aget iterators (- (alength var->iterators) 1))]
-          (.up this (alength var->iterators)))))
+        (debug)
+        (debug :next seek-key)
+        (when (false? end?)
+          (let [iterators (aget var->iterators (- (alength var->iterators) 1))
+                iterator (aget iterators (- (alength var->iterators) 1))]
+            (.up this (alength var->iterators))))))
 
-(defn join []
-  ;; TODO check if at end in constructor
-  )
-
+(defn join [iterators num-vars iterator->var->present?]
+  (let [seek-key (least-key num-vars)
+        join-iterators (amake [i (alength iterators)]
+                              (let [iterator (aget iterators i)
+                                    var->present? (aget iterator->var->present? i)
+                                    inner->outer (make-array (.-key-len iterator))
+                                    outer->inner (make-array num-vars)
+                                    var 0]
+                                (dotimes [j num-vars]
+                                  (when (true? (aget var->present? j))
+                                    (aset inner->outer var j)
+                                    (aset outer->inner j var)
+                                    (set!! var (+ var 1))))
+                                (JoinIterator. iterator outer->inner inner->outer (make-array (.-key-len iterator)) num-vars)))
+        var->iterators (amake [j num-vars]
+                              (let [var-iterators #js []]
+                                (dotimes [i (alength iterators)]
+                                  (when (true? (aget iterator->var->present? i j))
+                                    (apush var-iterators (aget join-iterators i))))
+                                var-iterators))
+        join (Join. seek-key join-iterators var->iterators)]
+    (.reset join)
+    join))
 
 (defn iter-seq
   ([iterator]
