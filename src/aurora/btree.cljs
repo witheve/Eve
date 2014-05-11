@@ -151,7 +151,7 @@
                    (.maintain! this max-keys)
                    true)
                  (loop [node (aget children (+ ix 1))]
-                   (if (.-children node)
+                   (if (not (nil? (.-children node)))
                      (recur (aget (.-children node) 0))
                      (do
                        (aset keys ix (aget (.-keys node) 0))
@@ -183,7 +183,7 @@
               #js [key val child])
             #js [key val])))
   (maintain! [this max-keys]
-             (assert max-keys)
+             (assert (not (nil? max-keys)))
              (when-not (nil? parent)
                (let [min-keys (js/Math.floor (/ max-keys 2))]
                  (when-not (nil? children)
@@ -448,7 +448,7 @@
          (dotimes [i (alength iterators)]
            (let [iterator (aget iterators i)]
              (.reset iterator)
-             (when (.end? iterator)
+             (when (true? (.end? iterator))
                (set! end? true))))
          (dotimes [i (alength seek-key)]
            (aset seek-key i least))
@@ -471,7 +471,7 @@
              (debug :search max-key current seek-key)
              (aset seek-key new-var max-key)
              (.seek iterator seek-key)
-             (if (.end? iterator)
+             (if (true? (.end? iterator))
                (do
                  (.undo iterator)
                  (recur new-var (- new-var 1) 0))
@@ -503,7 +503,7 @@
                        (.pop (aget iterators i))))))
                (let [old-key (.inner-key iterator)]
                  (.next iterator)
-                 (if (.end? iterator)
+                 (if (true? (.end? iterator))
                    (do
                      (.undo iterator)
                      (recur new-var (- new-var 1) 0))
