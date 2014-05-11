@@ -477,12 +477,18 @@
               iterator (aget iterators (- (alength iterators) 1))]
           (when (< old-var (alength var->iterators))
             (aset seek-key old-var least))
-          (.next iterator)
-          (if (.end? iterator)
-            (do
-              (.undo iterator)
-              (.up this new-var))
-            (.search this new-var)))))
+          (let [old-key (.inner-key iterator)]
+            (.next iterator)
+            (if (.end? iterator)
+              (do
+                (.undo iterator)
+                (.up this new-var))
+              (let [new-key (.inner-key iterator)]
+                (if (prefix-not= old-key new-key new-var)
+                  (do
+                    (.undo iterator)
+                    (.up this new-var))
+                  (.search this new-var))))))))
   (down [this old-var old-key]
         ;; assumes prefixes all equal, nothing at end
         (debug :down old-var old-key seek-key)
