@@ -426,7 +426,7 @@
   (end? [this]
         (.-end? iterator)))
 
-(deftype Join [seek-key iterators var->iterators ^:mutable end?]
+(deftype Join [seek-key iterators var->iterators var->iterator->reset? ^:mutable end?]
   Object
   (reset [this]
          (debug)
@@ -448,11 +448,11 @@
 
            (== old-var new-var)
            ;; ACROSS: assumes prefixes all equal, keys not all equal, iterators sorted by ascending key, nothing at end
-           (let [iterators (aget var->iterators new-var)
-                 num-iterators (alength iterators)
-                 previous (mod (- current 1) num-iterators)
-                 max-key (.key-at (aget iterators previous) new-var)
-                 iterator (aget iterators current)
+           (let [var-iterators (aget var->iterators new-var)
+                 num-var-iterators (alength var-iterators)
+                 previous (mod (- current 1) num-var-iterators)
+                 max-key (.key-at (aget var-iterators previous) new-var)
+                 iterator (aget var-iterators current)
                  min-key (.key-at iterator new-var)
                  old-key (.inner-key iterator)]
              (debug :search max-key current seek-key)
@@ -471,15 +471,15 @@
                      (do
                        (aset seek-key new-var max-key)
                        (recur new-var (+ new-var 1) 0))
-                     (recur new-var new-var (mod (+ current 1) num-iterators)))))))
+                     (recur new-var new-var (mod (+ current 1) num-var-iterators)))))))
 
            (< new-var old-var)
            ;; UP: assumes prefixes and keys all equal, nothing at end
            (if (== old-var 0)
              (set! end? true)
              (let [new-var (- old-var 1)
-                   iterators (aget var->iterators new-var)
-                   iterator (aget iterators (- (alength iterators) 1))]
+                   var-iterators (aget var->iterators new-var)
+                   iterator (aget var-iterators (- (alength var-iterators) 1))]
                (debug :up old-var seek-key)
                (when (< old-var (alength var->iterators))
                  (aset seek-key old-var least))
@@ -501,14 +501,18 @@
            (if (== old-var (- (alength var->iterators) 1))
              nil ;; done
              (let [new-var (+ old-var 1)
-                   iterators (aget var->iterators new-var)]
+                   var-iterators (aget var->iterators new-var)
+                   iterator->reset? (aget var->iterator->reset? new-var)]
                (debug :down old-var old-key seek-key)
                (dotimes [i (alength iterators)]
-                 (doto (aget iterators i) (.reset) (.seek seek-key))) ;; TODO this could be implemented more efficiently
-               (js/goog.array.sort iterators (fn [i0 i1] (compare (.key-at i0 new-var) (.key-at i1 new-var))))
-               (if (== (.key-at (aget iterators 0) new-var) (.key-at (aget iterators (- (alength iterators) 1)) new-var))
+                 (debug :resets iterator->reset? :for new-var)
+                 (when (true? (aget iterator->reset? i))
+                   (debug :resetting i :to seek-key :at new-var)
+                   (doto (aget iterators i) (.reset) (.seek seek-key)))) ;; TODO this could be implemented more efficiently
+               (js/goog.array.sort var-iterators (fn [i0 i1] (compare (.key-at i0 new-var) (.key-at i1 new-var))))
+               (if (== (.key-at (aget var-iterators 0) new-var) (.key-at (aget var-iterators (- (alength var-iterators) 1)) new-var))
                  (do
-                   (aset seek-key new-var (.key-at (aget iterators 0) new-var))
+                   (aset seek-key new-var (.key-at (aget var-iterators 0) new-var))
                    (recur new-var (+ new-var 1) 0))
                  (recur new-var new-var 0))))))
   (next [this]
@@ -539,7 +543,12 @@
                                   (when (true? (aget iterator->var->present? i j))
                                     (apush var-iterators (aget join-iterators i))))
                                 var-iterators))
-        join (Join. seek-key join-iterators var->iterators false)]
+        var->iterator->reset? (amake [j num-vars]
+                                     (amake [i (alength iterators)]
+                                            (and (> j 0)
+                                                 (true? (aget iterator->var->present? i j))
+                                                 (false? (aget iterator->var->present? i (- j 1))))))
+        join (Join. seek-key join-iterators var->iterators var->iterator->reset? false)]
     (.reset join)
     join))
 
