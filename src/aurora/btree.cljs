@@ -431,11 +431,14 @@
   (reset [this]
          (debug)
          (debug :reset)
+         (set! end? false)
          (dotimes [i (alength iterators)]
-           (.reset (aget iterators i)))
+           (let [iterator (aget iterators i)]
+             (.reset iterator)
+             (when (.end? iterator)
+               (set! end? true))))
          (dotimes [i (alength seek-key)]
            (aset seek-key i least))
-         (set! end? (every? #(false? (.-end? %)) iterators))
          (.down this -1))
   (key [this]
        (when (false? end?)
