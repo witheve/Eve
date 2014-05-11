@@ -354,6 +354,17 @@
       (alength (time(all-join-results join-itr)))
       ))
 
+  (let [tree (tree 10)
+        _ (dotimes [i 10]
+            (let [i (+ i 0)]
+              (.assoc! tree #js [i i] (* 2 i))))
+        j (time (join-iterator #js [(magic-iterator tree #js [0 nil nil 1 nil nil])
+                                    (magic-iterator tree #js [nil 0 nil nil 1 nil])
+                                    (magic-iterator tree #js [nil nil 0 nil nil 1])]))
+        ]
+    (time (all-join-results j))
+  )
+
   (let [tree1 (tree 10)
         _ (doseq [x [#js [0 1 4]
                      #js [0 1 6]
