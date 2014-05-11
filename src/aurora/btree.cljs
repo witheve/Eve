@@ -895,7 +895,20 @@
               (.assoc! tree3 #js [(+ i 1) (+ i 2)] (* 2 i))))
         j (time (join #js [(iterator tree1) (iterator tree2) (iterator tree3)] 3 #js [#js [true true true] #js [true false true] #js [false true true]]))
         ]
-    (time (iter-seq j))
+    (alength (time (iter-seq j)))
+  )
+
+
+
+  (let [tree (tree 10)
+        _ (dotimes [i 10]
+            (let [i (+ i 0)]
+              (.assoc! tree #js [i i i] (* 2 i))))
+        j (time (join #js [(iterator tree) (iterator tree) (iterator tree)] 4 #js [#js [true false false true false false]
+                                                                                   #js [false true false false true false]
+                                                                                   #js [false false true false false true]]))
+        ]
+    (alength (time (iter-seq j)))
   )
  )
 
