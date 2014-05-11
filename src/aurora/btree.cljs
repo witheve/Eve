@@ -928,9 +928,11 @@
         _ (dotimes [i 100000]
             (let [i (+ i 2)]
               (.assoc! tree3 #js [(+ i 1) (+ i 2)] (* 2 i))))
-        j (join #js [(iterator tree1) (iterator tree2) (iterator tree3)] 3 #js [#js [true true true] #js [true false true] #js [false true true]])
         ]
-    (alength (time (iter-seq j)))
+    (time
+     (dotimes [i 100]
+       (let [j (join #js [(iterator tree1) (iterator tree2) (iterator tree3)] 3 #js [#js [true true true] #js [true false true] #js [false true true]])]
+         (iter-seq j))))
   )
 
   (let [tree (tree 10)

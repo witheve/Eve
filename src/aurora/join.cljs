@@ -346,13 +346,15 @@
           _ (dotimes [i 100000]
               (let [i (+ i 2)]
                 (.assoc! tree3 #js [(+ i 1) (+ i 2)] (* 2 i))))
-          itr1 (magic-iterator tree1 #js [0 1 2])
-          itr2 (magic-iterator tree2 #js [0 nil 1])
-          itr3 (magic-iterator tree3 #js [nil 0 1])
-          join-itr (join-iterator #js [itr1 itr2 itr3])
           ]
-      (alength (time(all-join-results join-itr)))
-      ))
+      (time
+       (dotimes [i 100]
+         (let [itr1 (magic-iterator tree1 #js [0 1 2])
+               itr2 (magic-iterator tree2 #js [0 nil 1])
+               itr3 (magic-iterator tree3 #js [nil 0 1])
+               join-itr (join-iterator #js [itr1 itr2 itr3])]
+           (all-join-results join-itr)))))
+
 
   (let [tree (tree 10)
         _ (dotimes [i 10]
