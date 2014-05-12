@@ -125,18 +125,17 @@
                   (loop [ix 0]
                     (if (< ix len)
                       (let [cur (aget nil-ixs ix)
-                            rewind? (and (not= nil (aget prev-seek cur))
-                                         (not= (aget key cur) (aget prev-seek cur)))]
+                            rewind? (and (not (identical? nil (aget prev-seek cur)))
+                                         (not (identical? (aget key cur) (aget prev-seek cur))))]
                         (cond
                          (and (identical? cur 0) rewind?) (.rewind this cur)
-                         (> cur 0) (let [store? (not= (aget key (- cur 1)) (aget prev-seek (- cur 1)))]
+                         (> cur 0) (let [store? (not (identical? (aget key (- cur 1)) (aget prev-seek (- cur 1))))]
                                      (if store?
                                        (.seek-and-mark this cur key)
                                        (if (and rewind? (not (== (+ cur 1) map-len)))
                                          (.rewind this cur)
                                          (recur (+ 1 ix)))))
-                         :else (recur (+ 1 ix))))
-                      #js [0 false false])))
+                         :else (recur (+ 1 ix)))))))
                 )
   (seek [this key]
         ;(println "SEEK KEY: " key prev-seek)
@@ -187,109 +186,110 @@
      (ainto (.-prev-seek magic) (.key magic))
      magic)))
 
-(defn ->keys [iterators keys len]
-  (dotimes [x len]
-    (aset keys x (.key (aget iterators x)))))
-
-(defn find-least [keys len tuple-len min-fill]
-  (loop [ix 1
-         col 0
-         least (-> (aget keys 0)
-                   (aget 0))]
-    (if (>= ix len)
-      (do
-        (aset min-fill col least)
-        (let [next (+ 1 col)]
-          (if (< next tuple-len)
-            (recur 0 next nil))))
-      (let [cur (-> (aget keys ix)
-                    (aget col))]
-        (recur (+ 1 ix) col (if (nilless-lt cur least)
-                              cur
-                              least))))))
-
-(defn iters-next [iterators len min-fill]
-  (let [last (aget iterators (- len 1))]
-    (.next last)
-    (if-not (.-end? last)
-      (reverse-fill! (.key last) min-fill)
-      (loop [ix (- len 2)]
-        (when (>= ix 0)
-          (let [cur (aget iterators ix)]
-            (.next cur)
-            (if (.-end? cur)
-              (recur (- ix 1))
-              (reverse-fill-with! (.key cur) min-fill false))))))))
-
-(defn find-greatest [iterators keys len min-fill]
-  ;(println "GREATEST: " keys min-fill)
-  (loop [ix 1
-         greatest (aget keys 0)
-         found? true]
-    (if (>= ix len)
-      (if found?
-        (let [greatest (fill! (.slice greatest 0) min-fill)]
-          (iters-next iterators len min-fill)
-          #js [greatest min-fill])
-        #js [nil (reverse-fill! greatest min-fill)])
-      (let [comped (filled-key-compare greatest (aget keys ix) min-fill)
-            comped-v (or comped greatest)]
-        ;(println "g: " comped (and found? (not comped)) min-fill)
-        (recur (+ 1 ix) comped-v (and found? (not comped)))))))
-
-
-
-(defn seek-all [iterators len okey]
-  (loop [ix 0]
-    (if (< ix len)
-      (let [cur (aget iterators ix)
-            cur-key (.key cur)]
-        ;(println "searching for: " okey)
-        ;(println "    iterator " ix ": " cur-key)
-        (.seek cur okey)
-        ;(println "    post iterator " ix ": " (.key cur))
-        (when-not (.-iterator.end? cur)
-          (reverse-fill! (.key cur) okey)
-          (recur (+ 1 ix))))
-      (do
-        ;(println "    final search key: " okey)
-        true))))
-
-(defn join-with-start [iterators start-key len tuple-len keys min-fill]
-  (loop [key start-key]
-    (if (or (identical? (aget key 1) nil)
-            (not (identical? (aget key 0) nil)))
-      key
-      (if-not (seek-all iterators len (aget key 1))
-        #js [nil nil]
-        (do
-          (->keys iterators keys len)
-          (find-least keys len tuple-len min-fill)
-          ;(println "MIN FILL: " min-fill)
-          (recur (find-greatest iterators keys len min-fill)))))))
-
-(defn join [iterators len tuple-len keys min-fill]
-  (->keys iterators keys len)
-  (find-least keys len tuple-len min-fill)
-  (join-with-start iterators (find-greatest iterators keys len min-fill) len tuple-len keys min-fill))
-
 (deftype JoinIterator [iterators ^:mutable cur-key ^:mutable next-key ^:mutable end? len tuple-len keys min-fill]
   Object
   (key [this]
        cur-key)
+
+  (fillkeys [this]
+          (dotimes [x len]
+            (aset keys x (.key (aget iterators x)))))
+
+  (find-least [this]
+              (loop [ix 1
+                     col 0
+                     least (-> (aget keys 0)
+                               (aget 0))]
+                (if (>= ix len)
+                  (do
+                    (aset min-fill col least)
+                    (let [next (+ 1 col)]
+                      (if (< next tuple-len)
+                        (recur 0 next nil))))
+                  (let [cur (-> (aget keys ix)
+                                (aget col))]
+                    (recur (+ 1 ix) col (if (nilless-lt cur least)
+                                          cur
+                                          least))))))
+  (iters-next [this]
+              (let [last (aget iterators (- len 1))]
+                (.next last)
+                (if-not (.-end? last)
+                  (reverse-fill! (.key last) min-fill)
+                  (loop [ix (- len 2)]
+                    (when (>= ix 0)
+                      (let [cur (aget iterators ix)]
+                        (.next cur)
+                        (if (.-end? cur)
+                          (recur (- ix 1))
+                          (reverse-fill-with! (.key cur) min-fill false))))))))
+  (find-greatest ^:boolean [this]
+                 ;(println keys)
+                 (loop [ix 1
+                        greatest (aget keys 0)
+                        found? true]
+                   (if (>= ix len)
+                     (if found?
+                       (let [greatest (fill! (.slice greatest 0) min-fill)]
+                        ;(println "    ***setting greatest: " greatest)
+                         (.iters-next this)
+                         (set! cur-key greatest)
+                         (ainto next-key min-fill)
+                         false)
+                       (do
+                         (ainto next-key (reverse-fill! greatest min-fill))
+                         true))
+                     (let [comped (filled-key-compare greatest (aget keys ix) min-fill)
+                           comped-v (or comped greatest)]
+                      ;(println "g: " comped (and found? (not comped)) min-fill)
+                       (recur (+ 1 ix) comped-v (and found? (not comped))))))
+                )
+  (seek-all [this]
+            (loop [ix 0]
+              (if (< ix len)
+                (let [cur (aget iterators ix)
+                      cur-key (.key cur)]
+                 ;(println "searching for: " next-key)
+                 ;(println "    iterator " ix ": " cur-key)
+                  (.seek cur next-key)
+                 ;(println "    post iterator " ix ": " (.key cur))
+                  (if-not (.-iterator.end? cur)
+                    (do
+                      (reverse-fill! (.key cur) next-key)
+                      (recur (+ 1 ix)))
+                    (do
+                      (set! end? true)
+                      false)))
+                (do
+                 ;(println "    final search key: " okey)
+                  true)))
+            )
+  (init-join [this]
+             (.fillkeys this)
+             (.find-least this)
+             (when (identical? true (.find-greatest this))
+               (.seek-join this)))
+
+  (seek-join [this]
+             (loop [continue? true]
+               (when (identical? true continue?)
+                 (when (.seek-all this)
+                   (.fillkeys this)
+                   (.find-least this)
+                  ;(println "MIN FILL: " min-fill)
+                   (recur (.find-greatest this))
+                   )))
+             )
+
   (next [this]
         (if end?
           (set! cur-key nil)
-          (let [val (join-with-start iterators next-key len tuple-len keys min-fill)]
-            ;(println val)
-            (when (identical? (aget val 1) nil)
-              (set! end? true))
-            (set! cur-key (aget val 0))
-            (aset val 0 nil)
-            (ainto next-key val))))
+          (.seek-join this)
+          ))
+
   (seek [this key]
         (when (key-lt cur-key key)
-          (aset next-key 1 key)
+          (ainto next-key key)
           (.next this))))
 
 (defn join-iterator [iterators]
@@ -306,17 +306,16 @@
       (do
         (.next root)
         root)
-      (let [key-and-next (join iterators len tuple-len keys min-fill)]
-        (JoinIterator. iterators (aget key-and-next 0) #js [nil (aget key-and-next 1)] (identical? (aget key-and-next 1) nil)  len tuple-len keys min-fill)))))
+      (let [itr (JoinIterator. iterators (array) (array) false len tuple-len keys min-fill)]
+        (.init-join itr)
+        itr
+        ))))
 
 (defn all-join-results [join-itr]
   (let [results (array)]
     (while (and (not (.-end? join-itr)))
       (.push results (.key join-itr))
       (.next join-itr))
-    (when-not (or (== nil (.key join-itr))
-                  (== 0 (alength (.key join-itr))))
-      (.push results (.key join-itr)))
     results))
 
 (comment
