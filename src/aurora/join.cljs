@@ -334,13 +334,15 @@
           _ (dotimes [i 100000]
               (let [i (+ i 2)]
                 (.assoc! tree3 #js [(+ i 1) (+ i 2)] (* 2 i))))
-          itr1 (magic-iterator tree1)
-          itr2 (magic-iterator tree2 #js [0 nil 1])
-          itr3 (magic-iterator tree3 #js [nil 0 1])
-          join-itr (join-iterator #js [itr1 itr2 itr3])
           ]
-      (alength (time(all-join-results join-itr)))
-      ))
+      (time
+       (dotimes [i 100]
+         (let [itr1 (magic-iterator tree1 #js [0 1 2])
+               itr2 (magic-iterator tree2 #js [0 nil 1])
+               itr3 (magic-iterator tree3 #js [nil 0 1])
+               join-itr (join-iterator #js [itr1 itr2 itr3])]
+           (all-join-results join-itr)))))
+
 
   (let [tree (tree 10)
         _ (dotimes [i 2]
@@ -353,6 +355,17 @@
     (assert
      (= (map vec (time (all-join-results j)))
         (map vec #js [#js [0 0 0 0 0 0] #js [0 0 1 0 0 1] #js [0 1 0 0 1 0] #js [0 1 1 0 1 1] #js [1 0 0 1 0 0] #js [1 0 1 1 0 1] #js [1 1 0 1 1 0] #js [1 1 1 1 1 1]])))
+  )
+
+  (let [tree (tree 10)
+        _ (dotimes [i 10]
+            (let [i (+ i 0)]
+              (.assoc! tree #js [i i] (* 2 i))))
+        j (time (join-iterator #js [(magic-iterator tree #js [0 nil nil nil nil 1])
+                                    (magic-iterator tree #js [nil 0 nil nil 1 nil])
+                                    (magic-iterator tree #js [nil nil 0 1 nil nil])]))
+        ]
+    (time (all-join-results j))
   )
 
   (let [tree1 (tree 10)
