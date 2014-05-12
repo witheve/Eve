@@ -341,7 +341,7 @@
                itr2 (magic-iterator tree2 #js [0 nil 1])
                itr3 (magic-iterator tree3 #js [nil 0 1])
                join-itr (join-iterator #js [itr1 itr2 itr3])]
-           (all-join-results join-itr)))))
+           (all-join-results join-itr))))))
 
 
   (let [tree (tree 10)
@@ -571,6 +571,6 @@
     )
 
 
-  )
+)
 
 
