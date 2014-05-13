@@ -361,16 +361,16 @@
            (all-join-results join-itr))))))
 
   (let [tree1 (tree 10)
-          _ (dotimes [i 10000]
+          _ (dotimes [i 100000]
               (let [i (+ i 0)]
                 (.assoc! tree1 #js [i] (* 2 i))))
           tree2 (tree 10)
-          _ (dotimes [i 1000]
-              (let [i (+ i 1000)]
+          _ (dotimes [i 100000]
+              (let [i (+ i 100000)]
                 (.assoc! tree2 #js [i] (* 2 i))))
           tree3 (tree 10)
-          _ (dotimes [i 1000]
-              (let [i (+ i 500)]
+          _ (dotimes [i 100000]
+              (let [i (+ i 50000)]
                 (.assoc! tree3 #js [i] (* 2 i))))
           ]
       (time
