@@ -318,6 +318,35 @@
         (map vec #js [#js [1 2 1 3] #js [1 2 3 3] ])))
     ))
 
+(deftest join-join
+  (println "testing: join-join")
+  (let [tree1 (tree 10)
+        _ (doseq [x [#js [1]
+                     #js [4]
+                     #js [2]
+                     #js [7]
+                     #js [9]
+                     ]]
+            (.assoc! tree1 x 0))
+        tree2 (tree 10)
+        _ (doseq [x [#js [3]
+                     #js [6]
+                     #js [4]
+                     #js [8]
+                     #js [9]
+                     ]]
+            (.assoc! tree2 x 0))
+        itr1 (magic-iterator tree1 #js [0])
+        itr2 (magic-iterator tree2 #js [0])
+        itr3 (magic-iterator tree1 #js [0])
+        join-itr (join-iterator #js [itr1 itr2])
+        join-itr2 (join-iterator #js [join-itr itr3])
+        ]
+    (assert
+     (= (map vec (all-join-results join-itr2))
+        (map vec #js [#js [4] #js [9] ])))
+    ))
+
 
 (comment
   (run-all-tests)
