@@ -935,6 +935,24 @@
          (iter-seq j))))
   )
 
+  (let [tree1 (tree 10)
+          _ (dotimes [i 100000]
+              (let [i (+ i 0)]
+                (.assoc! tree1 #js [i i i] (* 2 i))))
+          tree2 (tree 10)
+          _ (dotimes [i 100000]
+              (let [i (+ i 100000)]
+                (.assoc! tree2 #js [i i i] (* 2 i))))
+          tree3 (tree 10)
+          _ (dotimes [i 100000]
+              (let [i (+ i 50000)]
+                (.assoc! tree3 #js [i i i] (* 2 i))))
+          ]
+      (time
+       (dotimes [i 100]
+         (let [j (join #js [(iterator tree1) (iterator tree2) (iterator tree3)] 3 #js [#js [true true true] #js [true true true] #js [true true true]])]
+           (iter-seq j)))))
+
   (let [tree (tree 10)
         _ (dotimes [i 10]
             (let [i (+ i 0)]
