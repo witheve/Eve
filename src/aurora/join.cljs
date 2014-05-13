@@ -103,28 +103,7 @@
         (.set-key this)
         ))
 
-(deftype MagicIteratorWrapper [iterator map ^:mutable end?]
-  Object
-  (key [this]
-       (.key iterator))
-
-  (val [this]
-       (.val iterator))
-  (make-min [this]
-            (.key this))
-  (next [this]
-        (.next iterator)
-        (set! end? (.-end? iterator)))
-  (seek [this key]
-        (when (and (not end?)
-                   (key-lt (.key iterator) key))
-          (.seek iterator key)
-          (set! end? (.-end? iterator)))))
-
-(defn magic-iterator
-  ([tree] (let [itr (iterator tree)]
-            (MagicIteratorWrapper. itr (or (.key itr) #js []) false)))
-  ([tree map]
+(defn magic-iterator [tree map]
    (let [nil-ixs (array)
          itr (iterator tree)
          marked-nodes (js-obj 0 (.-node itr))
@@ -139,7 +118,7 @@
      (.make-min magic)
      (when (identical? (.-end? magic) false)
        (ainto (.-prev-seek magic) (.key magic)))
-     magic)))
+     magic))
 
 (deftype JoinIterator [iterators ^:mutable cur-key ^:mutable next-key ^:mutable end? len tuple-len]
   Object
@@ -245,7 +224,7 @@
                 (.assoc! tree3 #js [(+ i 1) (+ i 2)] (* 2 i))))
           ]
       (time
-       (dotimes [i 100]
+       (dotimes [i 1000]
          (let [itr1 (magic-iterator tree1 #js [0 1 2])
                itr2 (magic-iterator tree2 #js [0 nil 1])
                itr3 (magic-iterator tree3 #js [nil 0 1])
@@ -311,7 +290,7 @@
                      #js [1 3]
                      #js [1 7]]]
             (.assoc! tree2 x 0))
-        itr1 (magic-iterator tree1)
+        itr1 (magic-iterator tree1 #js [0 1 2])
         itr2 (magic-iterator tree2 #js [0 nil 1])
         join-itr (join-iterator #js [itr1 itr2])
         ]
@@ -341,7 +320,7 @@
                      #js [1 3]
                      #js [1 4]]]
             (.assoc! tree2 x 0))
-        itr1 (magic-iterator tree1)
+        itr1 (magic-iterator tree1 #js [0 1 2])
         itr2 (magic-iterator tree2 #js [0 nil 1])
         join-itr (join-iterator #js [itr1 itr2])
         ]
@@ -363,7 +342,7 @@
         _ (doseq [x [#js [2 3]
                      #js [4 4]]]
             (.assoc! tree2 x 0))
-        itr1 (magic-iterator tree1)
+        itr1 (magic-iterator tree1 #js [0 1 2])
         itr2 (magic-iterator tree2 #js [nil 0 1])
         join-itr (join-iterator #js [itr1 itr2])
         ]
@@ -389,7 +368,7 @@
                      #js [1 3]
                      #js [1 4]]]
             (.assoc! tree3 x 0))
-        itr1 (magic-iterator tree1)
+        itr1 (magic-iterator tree1 #js [0 1 2])
         itr2 (magic-iterator tree2 #js [nil 0 1])
         itr3 (magic-iterator tree3 #js [0 nil 1])
         join-itr (join-iterator #js [itr1 itr2 itr3])
@@ -447,8 +426,8 @@
                      #js [4]
                      ]]
             (.assoc! tree2 x 0))
-        itr1 (magic-iterator tree1)
-        itr2 (magic-iterator tree2)
+        itr1 (magic-iterator tree1 #js [0])
+        itr2 (magic-iterator tree2 #js [0])
         join-itr (join-iterator #js [itr1 itr2])
         ]
     (assert
@@ -490,7 +469,7 @@
                      #js [4 4]
                      ]]
             (.assoc! tree2 x 0))
-        itr1 (magic-iterator tree1)
+        itr1 (magic-iterator tree1 #js [0 1 2 3])
         itr2 (magic-iterator tree2 #js [nil 0 nil 1])
         join-itr (join-iterator #js [itr1 itr2])
         ]
