@@ -838,8 +838,16 @@
   (let [tree (apply-to-tree (tree min-keys key-len) actions)
         iterator-results (apply-to-iterator (iterator tree) movements)
 
-        iterator-a (js/aurora.join.magic-iterator tree)
-        iterator-b (js/aurora.join.magic-iterator tree )
+        iterator-a (js/aurora.join.magic-iterator tree (let [arr (array)]
+                                                         (dotimes [x key-len]
+                                                           (.push arr x))
+                                                         arr
+                                                         ))
+        iterator-b (js/aurora.join.magic-iterator tree (let [arr (array)]
+                                                         (dotimes [x key-len]
+                                                           (.push arr x))
+                                                         arr
+                                                         ))
         join-itr (js/aurora.join.join-iterator #js [iterator-a iterator-b])
         join-results (apply-to-iterator join-itr movements)]
     (= (map vec iterator-results) (map vec join-results))))
