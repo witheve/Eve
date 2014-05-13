@@ -753,7 +753,6 @@
                 (swap! elems rest)
                 (first (first @elems)))
         :seek (do
-                (swap! elems rest)
                 (swap! elems (fn [elems] (drop-while #(key-lt (nth % 0) (nth movement 1)) elems)))
                 (first (first @elems)))))))
 
