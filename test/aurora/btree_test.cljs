@@ -158,7 +158,7 @@
                      #js [1 3]
                      #js [1 7]]]
             (.assoc! tree2 x 0))
-        itr1 (magic-iterator tree1)
+        itr1 (magic-iterator tree1 #js [0 1 2])
         itr2 (magic-iterator tree2 #js [0 nil 1])
         join-itr (join-iterator #js [itr1 itr2])
         ]
@@ -181,7 +181,7 @@
                      #js [1 3]
                      #js [1 4]]]
             (.assoc! tree2 x 0))
-        itr1 (magic-iterator tree1)
+        itr1 (magic-iterator tree1 #js [0 1 2])
         itr2 (magic-iterator tree2 #js [0 nil 1])
         join-itr (join-iterator #js [itr1 itr2])
         ]
@@ -205,7 +205,7 @@
         _ (doseq [x [#js [2 3]
                      #js [4 4]]]
             (.assoc! tree2 x 0))
-        itr1 (magic-iterator tree1)
+        itr1 (magic-iterator tree1 #js [0 1 2])
         itr2 (magic-iterator tree2 #js [nil 0 1])
         join-itr (join-iterator #js [itr1 itr2])
         ]
@@ -233,7 +233,7 @@
                      #js [1 3]
                      #js [1 4]]]
             (.assoc! tree3 x 0))
-        itr1 (magic-iterator tree1)
+        itr1 (magic-iterator tree1 #js [0 1 2])
         itr2 (magic-iterator tree2 #js [nil 0 1])
         itr3 (magic-iterator tree3 #js [0 nil 1])
         join-itr (join-iterator #js [itr1 itr2 itr3])
@@ -279,8 +279,8 @@
                      #js [4]
                      ]]
             (.assoc! tree2 x 0))
-        itr1 (magic-iterator tree1)
-        itr2 (magic-iterator tree2)
+        itr1 (magic-iterator tree1 #js [0])
+        itr2 (magic-iterator tree2 #js [0])
         join-itr (join-iterator #js [itr1 itr2])
         ]
     (is
@@ -325,7 +325,7 @@
                      #js [4 4]
                      ]]
             (.assoc! tree2 x 0))
-        itr1 (magic-iterator tree1)
+        itr1 (magic-iterator tree1 #js [0 1 2 3])
         itr2 (magic-iterator tree2 #js [nil 0 nil 1])
         join-itr (join-iterator #js [itr1 itr2])
         ]
