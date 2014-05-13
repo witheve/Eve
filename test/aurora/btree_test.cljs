@@ -75,22 +75,6 @@
   5000
   (aurora.btree/iterator-prop 1))
 
-(defspec intersection-prop-test
-  1000
-  aurora.btree/intersection-prop)
-
-(defspec trie-tree-prop-test
-  5000
-  (aurora.btree/trie-tree-prop 1))
-
-(defspec trie-tree-prop-test
-  5000
-  (aurora.btree/trie-tree-prop 2))
-
-(defspec trie-tree-prop-test
-  5000
-  (aurora.btree/trie-tree-prop 3))
-
 (defspec self-join-prop-test
   5000
   (aurora.btree/self-join-prop 1))
