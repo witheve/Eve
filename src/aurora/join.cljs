@@ -1,15 +1,6 @@
 (ns aurora.join
-  (:require [aurora.btree :refer [tree iterator key-lt key-lte key-gt key-gte key-compare]])
+  (:require [aurora.btree :refer [tree iterator least key-lt key-lte key-gt key-gte key-compare key=]])
   (:require-macros [aurora.macros :refer [typeof ainto]]))
-
-(defn nilless-lt [a b]
-  (if (== a nil)
-    false
-    (if (== b nil)
-      true
-      (or (and (identical? (typeof a) (typeof b))
-               (< a b))
-          (< (typeof a) (typeof b))))))
 
 (defn gt [a b]
   (and (not (identical? a b))
@@ -17,148 +8,110 @@
                 (> a b))
            (> (typeof a) (typeof b)))))
 
-(defn lt [a b]
-  (and (not (identical? a b))
-       (or (and (identical? (typeof a) (typeof b))
-                (< a b))
-           (< (typeof a) (typeof b)))))
-
-(defn nilless-key-compare [as bs]
-  (let [as-len (alength as)
-        bs-len (alength bs)]
-    (assert (== as-len bs-len) (pr-str as bs))
-    (loop [i 0]
-      (if (< i as-len)
-        (let [a (aget as i)
-              b (aget bs i)]
-          (if (or (identical? a nil)
-                  (identical? b nil))
-            (recur (+ i 1))
-            (if (identical? a b)
-              (recur (+ i 1))
-              (if (lt a b)
-                -1
-                1))))
-        0))))
-
-(defn filled-key-compare [as bs fill]
-  (let [as-len (alength as)
-        bs-len (alength bs)]
-    (assert (== as-len bs-len) (pr-str as bs))
-    (loop [i 0]
-      (if (< i as-len)
-        (let [a (or (aget as i) (aget fill i))
-              b (or (aget bs i) (aget fill i))]
-          (if (identical? a b)
-            (recur (+ i 1))
-            (if (or (and (identical? (typeof a) (typeof b))
-                         (< a b))
-                    (< (typeof a) (typeof b)))
-              bs
-              as)))
-        nil))))
-
-(defn fill! [as fill]
-  (dotimes [ix (alength as)]
-    (aset as ix (or (aget as ix) (aget fill ix))))
-  as)
-
-(defn reverse-fill! [as fill]
-  (dotimes [ix (alength as)]
-    (aset fill ix (or (aget as ix) (aget fill ix))))
-  fill)
-
-(defn reverse-fill-with! [as fill val]
-  (dotimes [ix (alength as)]
-    (aset fill ix (or (aget as ix) val)))
-  fill)
-
-
 (deftype MagicIterator [iterator map nil-ixs map-len ^:mutable cur-key ^:mutable cur-seek ^:mutable prev-seek ^:mutable marked-nodes ^:mutable marked-ixs ^:mutable end?]
   Object
   (mark [this i]
         (aset marked-nodes i (.-node iterator))
-        (aset marked-ixs i (.-ix iterator))
-        )
+        (aset marked-ixs i (.-ix iterator)))
+
   (rewind [this i]
-          ;(println "rewinding: " i)
           (set! (.-node iterator) (aget marked-nodes i))
           (set! (.-ix iterator) (aget marked-ixs i))
           (set! (.-end? iterator) false)
-          (.set-key this))
+          (set! end? false)
+          (.set-key this)
+          ;(println "rewinding: " i (.-cur-key this))
+          )
+
   (key [this]
-       (.-cur-key this))
+       (when (identical? end? false)
+         (.-cur-key this)))
+
   (val [this]
        (.val iterator))
+
   (next [this]
         (.next iterator)
         (set! end? (.-end? iterator))
         (.set-key this))
-  (set-key [this ]
+
+  (make-min [this]
+            (when cur-key
+              ;;fill the unknown values with least
+              (dotimes [ix (alength nil-ixs)]
+                (aset cur-key (aget nil-ixs ix) least))
+              cur-key))
+
+  (set-key [this]
            (if-let [found (.key iterator)]
-             (loop [ix 0]
-               (when (< ix map-len)
-                 (let [map-ix (aget map ix)]
+             (dotimes [ix map-len]
+               (let [map-ix (aget map ix)]
                    (if-not (nil? map-ix)
                      (aset cur-key ix (aget found map-ix))
-                     (aset cur-key ix nil)))
-                 (recur (+ 1 ix))))))
+                     (aset cur-key ix (aget prev-seek ix)))))
+             (set! end? true)))
 
-  (seek-and-mark [this ros-ix key]
-                 (let [key-ros-ix (aget key ros-ix)
-                       adjusted-ros-ix (aget map (- ros-ix 1))
-                       cur-ros-ix (aget (.-cur-key this) adjusted-ros-ix)]
-                   (when (and (identical? -1 (nilless-key-compare (.-cur-key this) key))
-                              (lt key-ros-ix cur-ros-ix))
+  (seek-and-mark [this ix key]
+                 (let [prev-key (- ix 1)
+                       key-value (aget key prev-key)
+                       cur-value (aget cur-key prev-key)]
+                   ;;when the value previous to the placeholder has increased
+                   ;;we need to seek to the first value that matches it and
+                   ;;store that
+                   (when (gt key-value cur-value)
                      (dotimes [x (alength cur-seek)]
                        (aset cur-seek x false))
-                     (aset cur-seek adjusted-ros-ix key-ros-ix)
+                     (aset cur-seek (aget map prev-key) key-value)
                      ;(println "        storing seek: " cur-seek)
                      (.seek iterator cur-seek)
                      ;(println "        STORING: " (.key iterator))
                      (.set-key this))
-                   (.mark this cur))
-                 )
+                   (.mark this cur)))
 
   (check-rewind [this key]
                 (let [len (alength nil-ixs)]
                   (loop [ix 0]
                     (if (< ix len)
                       (let [cur (aget nil-ixs ix)
-                            rewind? (and (not (identical? nil (aget prev-seek cur)))
-                                         (not (identical? (aget key cur) (aget prev-seek cur))))]
+                            rewind? (not (identical? (aget key cur) (aget prev-seek cur)))]
                         (cond
+                         ;; we can't store anything if we're at the root value, so just rewind if we need
                          (and (identical? cur 0) rewind?) (.rewind this cur)
+                         ;; check if we need to store based on a new value before our placeholder
                          (> cur 0) (let [store? (not (identical? (aget key (- cur 1)) (aget prev-seek (- cur 1))))]
                                      (if store?
                                        (.seek-and-mark this cur key)
+                                       ;;if we need to rewind and we're not looking at the last index
+                                       ;;because it doesn't make sense to rewind if there's no value to be rewound
                                        (if (and rewind? (not (== (+ cur 1) map-len)))
                                          (.rewind this cur)
                                          (recur (+ 1 ix)))))
                          :else (recur (+ 1 ix)))))))
                 )
   (seek [this key]
-        ;(println "SEEK KEY: " key prev-seek)
+        ;;see if our placeholders have changed such that we need to rewind
         (.check-rewind this key)
-        (when (identical? -1 (nilless-key-compare (.-cur-key this) key))
+        (ainto prev-seek key)
+        (when (key-lt cur-key key)
           (loop [ix 0]
             (when (< ix map-len)
               (let [map-ix (aget map ix)]
                 (when-not (== map-ix nil)
                   (aset cur-seek map-ix (aget key ix))))
               (recur (+ 1 ix))))
-          (.seek iterator cur-seek)
-          (.set-key this))
-        (ainto prev-seek key))
-
-        )
+          (.seek iterator cur-seek))
+        (.set-key this)
+        ))
 
 (deftype MagicIteratorWrapper [iterator map ^:mutable end?]
   Object
   (key [this]
        (.key iterator))
+
   (val [this]
        (.val iterator))
+  (make-min [this]
+            (.key this))
   (next [this]
         (.next iterator)
         (set! end? (.-end? iterator)))
@@ -183,131 +136,88 @@
          (aset marked-nodes ix (.-node itr))
          (aset marked-ixs ix (.-ix itr))))
      (.set-key magic)
-     (ainto (.-prev-seek magic) (.key magic))
+     (.make-min magic)
+     (when (identical? (.-end? magic) false)
+       (ainto (.-prev-seek magic) (.key magic)))
      magic)))
 
-(deftype JoinIterator [iterators ^:mutable cur-key ^:mutable next-key ^:mutable end? len tuple-len keys min-fill]
+(deftype JoinIterator [iterators ^:mutable cur-key ^:mutable next-key ^:mutable end? len tuple-len]
   Object
+  (make-min [this]
+            (.key this))
+
   (key [this]
-       cur-key)
+       (when (identical? end? false)
+         cur-key))
 
-  (fillkeys [this]
-          (dotimes [x len]
-            (aset keys x (.key (aget iterators x)))))
-
-  (find-least [this]
-              (loop [ix 1
-                     col 0
-                     least (-> (aget keys 0)
-                               (aget 0))]
-                (if (>= ix len)
-                  (do
-                    (aset min-fill col least)
-                    (let [next (+ 1 col)]
-                      (if (< next tuple-len)
-                        (recur 0 next nil))))
-                  (let [cur (-> (aget keys ix)
-                                (aget col))]
-                    (recur (+ 1 ix) col (if (nilless-lt cur least)
-                                          cur
-                                          least))))))
   (iters-next [this]
+              ;;try next on the last iterator
               (let [last (aget iterators (- len 1))]
                 (.next last)
                 (if-not (.-end? last)
-                  (reverse-fill! (.key last) min-fill)
+                  (ainto next-key (.key last))
+                  ;;otherwise walk up and get the min next value
                   (loop [ix (- len 2)]
                     (when (>= ix 0)
                       (let [cur (aget iterators ix)]
                         (.next cur)
                         (if (.-end? cur)
                           (recur (- ix 1))
-                          (reverse-fill-with! (.key cur) min-fill false))))))))
-  (find-greatest ^:boolean [this]
-                 ;(println keys)
-                 (loop [ix 1
-                        greatest (aget keys 0)
-                        found? true]
-                   (if (>= ix len)
-                     (if found?
-                       (let [greatest (fill! (.slice greatest 0) min-fill)]
-                        ;(println "    ***setting greatest: " greatest)
-                         (.iters-next this)
-                         (set! cur-key greatest)
-                         (ainto next-key min-fill)
-                         false)
-                       (do
-                         (ainto next-key (reverse-fill! greatest min-fill))
-                         true))
-                     (let [comped (filled-key-compare greatest (aget keys ix) min-fill)
-                           comped-v (or comped greatest)]
-                      ;(println "g: " comped (and found? (not comped)) min-fill)
-                       (recur (+ 1 ix) comped-v (and found? (not comped))))))
-                )
-  (seek-all [this]
-            (loop [ix 0]
-              (if (< ix len)
-                (let [cur (aget iterators ix)
-                      cur-key (.key cur)]
-                 ;(println "searching for: " next-key)
-                 ;(println "    iterator " ix ": " cur-key)
-                  (.seek cur next-key)
-                 ;(println "    post iterator " ix ": " (.key cur))
-                  (if-not (.-iterator.end? cur)
-                    (do
-                      (reverse-fill! (.key cur) next-key)
-                      (recur (+ 1 ix)))
-                    (do
-                      (set! end? true)
-                      false)))
-                (do
-                 ;(println "    final search key: " okey)
-                  true)))
-            )
-  (init-join [this]
-             (.fillkeys this)
-             (.find-least this)
-             (when (identical? true (.find-greatest this))
-               (.seek-join this)))
+                          (ainto next-key (.make-min cur)))))))))
 
   (seek-join [this]
-             (loop [continue? true]
-               (when (identical? true continue?)
-                 (when (.seek-all this)
-                   (.fillkeys this)
-                   (.find-least this)
-                  ;(println "MIN FILL: " min-fill)
-                   (recur (.find-greatest this))
-                   )))
-             )
+             ;;while we haven't found a match
+             (loop []
+               ;;seek each iterator
+               (loop [ix 0]
+                 (if (< ix len)
+                   (let [cur (aget iterators ix)
+                         cur-key (.key cur)]
+                     (.seek cur next-key)
+                     (if-not (.-end? cur)
+                       (do
+                         (ainto next-key (.key cur))
+                         (recur (+ 1 ix)))
+                       (set! end? true)))))
+               (when (identical? end? false)
+                 (let [root-key (.key (aget iterators 0))
+                       last-key (.key (aget iterators (- len 1)))]
+                   ;;when the first and last keys are the same, we have a match
+                   (if (key= root-key last-key)
+                     (do
+                       (set! cur-key (.slice last-key 0))
+                       (.iters-next this))
+                     ;;otherwise recur
+                     (do
+                       (ainto next-key last-key)
+                       (recur))
+                     )))))
 
   (next [this]
-        (if end?
-          (set! cur-key nil)
-          (.seek-join this)
-          ))
+        (.seek-join this))
 
   (seek [this key]
         (when (key-lt cur-key key)
           (ainto next-key key)
-          (.next this))))
+          (.seek-join this))))
 
 (defn join-iterator [iterators]
   ;(println iterators)
   (let [len (alength iterators)
         results (array)
-        keys (array)
-        min-fill (array)
         root (aget iterators 0)
-        tuple-len (alength (.-map root))]
+        tuple-len (alength (.-map root))
+        next-key (array)]
     (if (or (== tuple-len 0)
             (not (.key root))
             (== 0 (alength (.key root))))
       (do
         (.next root)
         root)
-      (let [itr (JoinIterator. iterators (array) (array) false len tuple-len keys min-fill)]
-        (.init-join itr)
+      (let [itr (JoinIterator. iterators (array) next-key false len tuple-len)]
+        (dotimes [ix tuple-len]
+          (aset next-key ix false))
+        (.seek-join itr)
         itr
         ))))
 
@@ -351,9 +261,9 @@
                                     (magic-iterator tree #js [nil 0 nil nil 1 nil])
                                     (magic-iterator tree #js [nil nil 0 nil nil 1])]))
         ]
-    (assert
-     (= (map vec (time (all-join-results j)))
-        (map vec #js [#js [0 0 0 0 0 0] #js [0 0 1 0 0 1] #js [0 1 0 0 1 0] #js [0 1 1 0 1 1] #js [1 0 0 1 0 0] #js [1 0 1 1 0 1] #js [1 1 0 1 1 0] #js [1 1 1 1 1 1]])))
+     (assert
+      (= (map vec (time (all-join-results j)))
+         (map vec #js [#js [0 0 0 0 0 0] #js [0 0 1 0 0 1] #js [0 1 0 0 1 0] #js [0 1 1 0 1 1] #js [1 0 0 1 0 0] #js [1 0 1 1 0 1] #js [1 1 0 1 1 0] #js [1 1 1 1 1 1]])))
   )
 
   (let [tree (tree 10)
