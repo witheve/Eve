@@ -223,7 +223,7 @@
           (max-func cur-key))
         ))
 
-(defn inifinirator [size func initial-func max-func]
+(defn infinirator [size func initial-func max-func]
   (let [cur-key (array)]
     (dotimes [x size]
       (.push cur-key least))
@@ -231,7 +231,7 @@
     (Infinirator. false func max-func cur-key size)))
 
 (defn constant-filter [size i v]
-  (inifinirator size
+  (infinirator size
                 (fn [cur key]
                   (aset cur i v))
                 (fn [cur]
