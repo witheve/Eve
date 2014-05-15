@@ -129,14 +129,21 @@
        (when (identical? end? false)
          cur-key))
 
+
   (iters-next [this]
-              (loop [ix (- len 1)]
-                (when (>= ix 0)
-                  (let [cur (aget iterators ix)]
-                    (.next cur)
-                    (if (.-end? cur)
-                      (recur (- ix 1))
-                      (ainto next-key (.make-min cur)))))))
+              ;;try next on the last iterator
+              (let [last (aget iterators (- len 1))]
+                (.next last)
+                (if-not (.-end? last)
+                  (ainto next-key (.key last))
+                  ;;otherwise walk up and get the min next value
+                  (loop [ix (- len 2)]
+                    (when (>= ix 0)
+                      (let [cur (aget iterators ix)]
+                        (.next cur)
+                        (if (.-end? cur)
+                          (recur (- ix 1))
+                          (ainto next-key (.make-min cur)))))))))
 
   (seek-join [this]
              ;;while we haven't found a match
