@@ -187,7 +187,7 @@
       (do
         (.next root)
         root)
-      (let [itr (JoinIterator. iterators (array) (make-array tuple-len) next-key false len tuple-len)]
+      (let [itr (JoinIterator. iterators (array) next-key false len tuple-len)]
         (dotimes [ix tuple-len]
           (aset next-key ix false))
         (.seek-join itr)
