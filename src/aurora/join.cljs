@@ -1,5 +1,5 @@
 (ns aurora.join
-  (:require [aurora.btree :refer [tree iterator least key-lt key-lte key-gt key-gte key-compare key=]])
+  (:require [aurora.btree :refer [tree iterator least greatest key-lt key-lte key-gt key-gte key-compare key=]])
   (:require-macros [aurora.macros :refer [typeof ainto]]))
 
 (defn gt [a b]
@@ -130,19 +130,13 @@
          cur-key))
 
   (iters-next [this]
-              ;;try next on the last iterator
-              (let [last (aget iterators (- len 1))]
-                (.next last)
-                (if-not (.-end? last)
-                  (ainto next-key (.key last))
-                  ;;otherwise walk up and get the min next value
-                  (loop [ix (- len 2)]
-                    (when (>= ix 0)
-                      (let [cur (aget iterators ix)]
-                        (.next cur)
-                        (if (.-end? cur)
-                          (recur (- ix 1))
-                          (ainto next-key (.make-min cur)))))))))
+              (loop [ix (- len 1)]
+                (when (>= ix 0)
+                  (let [cur (aget iterators ix)]
+                    (.next cur)
+                    (if (.-end? cur)
+                      (recur (- ix 1))
+                      (ainto next-key (.make-min cur)))))))
 
   (seek-join [this]
              ;;while we haven't found a match
@@ -169,8 +163,8 @@
                      ;;otherwise recur
                      (do
                        (ainto next-key last-key)
-                       (recur))
-                     )))))
+                       (recur )))
+                       ))))
 
   (next [this]
         (.seek-join this))
@@ -181,7 +175,6 @@
           (.seek-join this))))
 
 (defn join-iterator [iterators]
-  ;(println iterators)
   (let [len (alength iterators)
         results (array)
         root (aget iterators 0)
@@ -194,7 +187,7 @@
       (do
         (.next root)
         root)
-      (let [itr (JoinIterator. iterators (array) next-key false len tuple-len)]
+      (let [itr (JoinIterator. iterators (array) (make-array tuple-len) next-key false len tuple-len)]
         (dotimes [ix tuple-len]
           (aset next-key ix false))
         (.seek-join itr)
@@ -207,6 +200,44 @@
       (.push results (.key join-itr))
       (.next join-itr))
     results))
+
+(deftype Infinirator [^:mutable end? func max-func ^:mutable cur-key map]
+  Object
+  (reset [this])
+
+  (key [this]
+       (when (identical? end? false)
+         cur-key))
+
+  (val [this]
+       nil)
+
+  (next [this]
+        (set! end? true)
+        )
+  (seek [this key]
+        (set! end? false)
+        (ainto cur-key key)
+        (func cur-key key)
+        (when (key-gt key cur-key)
+          (max-func cur-key))
+        ))
+
+(defn inifinirator [size func initial-func max-func]
+  (let [cur-key (array)]
+    (dotimes [x size]
+      (.push cur-key least))
+    (initial-func cur-key)
+    (Infinirator. false func max-func cur-key size)))
+
+(defn constant-filter [size i v]
+  (inifinirator size
+                (fn [cur key]
+                  (aset cur i v))
+                (fn [cur]
+                  (aset cur i v))
+                (fn [cur]
+                  (aset cur i greatest))))
 
 (comment
 
@@ -401,6 +432,22 @@
     )
 
   (let [tree1 (tree 10)
+        _ (dotimes [i 10]
+            (.assoc! tree1 #js [(js/Math.sin i) (js/Math.cos i) (js/Math.tan i)] i))
+        _ (println tree1)
+        itr1 (magic-iterator tree1 #js [0 1 2])
+        itr2 (magic-iterator tree1 #js [0 1 2])
+        _ (.clear js/console)
+        join-itr (join-iterator #js [itr1 itr2])
+        ]
+    (assert
+     (= (alength (all-join-results join-itr))
+        10
+        ))
+    )
+
+
+  (let [tree1 (tree 10)
         _ (doseq [x [#js [0 "-1" "1"]
                      ]]
             (.assoc! tree1 x 0))
@@ -506,6 +553,64 @@
         (map vec #js [#js [1 2 1 3] #js [1 2 3 3] ])))
     )
 
+
+
+  (let [tree1 (tree 10)
+        _ (doseq [x [#js [1 "get books" "active"]
+                     #js [2 "buy milk" "active"]
+                     #js [3 "learn spanish" "completed"]
+                     ]]
+            (.assoc! tree1 x 0))
+        itr1 (magic-iterator tree1 #js [0 1 2])
+        join-itr (join-iterator #js [itr1])
+        ]
+    (assert
+      (= (map vec (all-join-results join-itr))
+         (map vec #js [#js [1 "get books" "active"] #js [2 "buy milk" "active"] #js [3 "learn spanish" "completed"]])))
+
+    )
+
+    (let [tree1 (tree 10)
+        _ (doseq [x [#js [1 "get books" "active"]
+                     #js [2 "buy milk" "active"]
+                     #js [3 "learn spanish" "completed"]
+                     ]]
+            (.assoc! tree1 x 0))
+        itr1 (magic-iterator tree1 #js [0 1 2])
+          filter (constant-filter 3 2 "completed")
+        join-itr (join-iterator #js [itr1 filter])
+        ]
+     (assert
+      (= (map vec (all-join-results join-itr))
+         (map vec #js [#js [3 "learn spanish" "completed"]])))
+
+    )
+
+
+    (let [tree1 (tree 10)
+        _ (doseq [x [#js [1 "get books" "active"]
+                     #js [2 "buy milk" "active"]
+                     #js [3 "learn spanish" "completed"]
+                     #js [4 "learn something" "active"]
+                     ]]
+            (.assoc! tree1 x 0))
+        tree2 (tree 10)
+        _ (doseq [x [#js [1 "editing"]
+                     #js [2 "editing"]
+                     #js [3 "editing"]
+                     #js [4 "editing"]
+                     ]]
+            (.assoc! tree2 x 0))
+        itr1 (magic-iterator tree1 #js [0 1 2 nil])
+        itr2 (magic-iterator tree2 #js [0 nil nil 1])
+          filter (constant-filter 4 2 "active")
+        join-itr (join-iterator #js [itr1 itr2 filter])
+        ]
+     (assert
+      (= (map vec (all-join-results join-itr))
+         (map vec #js [#js [1 "get books" "active" "editing"] #js [2 "buy milk" "active" "editing"] #js [4 "learn something" "active" "editing"]])))
+
+    )
 
 )
 

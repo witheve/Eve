@@ -1,6 +1,6 @@
 (ns aurora.btree-test
   (:require [aurora.btree :refer [tree]]
-            [aurora.join :refer [magic-iterator join-iterator all-join-results]]
+            [aurora.join :refer [magic-iterator join-iterator all-join-results constant-filter]]
             [cemerick.cljs.test :refer [run-all-tests]])
   (:require-macros [aurora.macros :refer [apush apush* lt lte gt gte set!! dofrom]]
                    [cemerick.cljs.test :refer [deftest is]]
@@ -342,10 +342,73 @@
         join-itr (join-iterator #js [itr1 itr2])
         join-itr2 (join-iterator #js [join-itr itr3])
         ]
-    (assert
+    (is
      (= (map vec (all-join-results join-itr2))
         (map vec #js [#js [4] #js [9] ])))
     ))
+
+(deftest one-itr-join
+  (println "testing: one-itr-join")
+  (let [tree1 (tree 10)
+        _ (doseq [x [#js [1 "get books" "active"]
+                     #js [2 "buy milk" "active"]
+                     #js [3 "learn spanish" "completed"]
+                     ]]
+            (.assoc! tree1 x 0))
+        itr1 (magic-iterator tree1 #js [0 1 2])
+        join-itr (join-iterator #js [itr1])
+        ]
+    (is
+     (= (map vec (all-join-results join-itr))
+        (map vec #js [#js [1 "get books" "active"] #js [2 "buy milk" "active"] #js [3 "learn spanish" "completed"]])))
+
+    ))
+
+  (deftest simple-filter
+    (println "testing: simple-filter")
+    (let [tree1 (tree 10)
+          _ (doseq [x [#js [1 "get books" "active"]
+                       #js [2 "buy milk" "active"]
+                       #js [3 "learn spanish" "completed"]
+                       ]]
+              (.assoc! tree1 x 0))
+          itr1 (magic-iterator tree1 #js [0 1 2])
+          filter (constant-filter 3 2 "completed")
+          join-itr (join-iterator #js [itr1 filter])
+          ]
+      (is
+       (= (map vec (all-join-results join-itr))
+          (map vec #js [#js [3 "learn spanish" "completed"]])))
+
+      ))
+
+
+  (deftest todomvc-filter
+    (println "testing: todomvc-filter")
+    (let [tree1 (tree 10)
+          _ (doseq [x [#js [1 "get books" "active"]
+                       #js [2 "buy milk" "active"]
+                       #js [3 "learn spanish" "completed"]
+                       #js [4 "learn something" "active"]
+                       ]]
+              (.assoc! tree1 x 0))
+          tree2 (tree 10)
+          _ (doseq [x [#js [1 "editing"]
+                       #js [2 "editing"]
+                       #js [3 "editing"]
+                       #js [4 "editing"]
+                       ]]
+              (.assoc! tree2 x 0))
+          itr1 (magic-iterator tree1 #js [0 1 2 nil])
+          itr2 (magic-iterator tree2 #js [0 nil nil 1])
+          filter (constant-filter 4 2 "active")
+          join-itr (join-iterator #js [itr1 itr2 filter])
+          ]
+      (is
+       (= (map vec (all-join-results join-itr))
+          (map vec #js [#js [1 "get books" "active" "editing"] #js [2 "buy milk" "active" "editing"] #js [4 "learn something" "active" "editing"]])))
+
+      ))
 
 
 (comment
