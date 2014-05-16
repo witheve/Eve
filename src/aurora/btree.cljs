@@ -894,7 +894,7 @@
     (time
      (let [tree (tree 100)]
        (dotimes [i 500000]
-         (.assoc! tree i (* 2 i))))))
+         (.assoc! tree #js [i i i] (* 2 i))))))
 
   (f)
 
@@ -902,7 +902,7 @@
     (time
      (let [tree (tree 100)]
        (dotimes [i 500000]
-         (.assoc! tree (if (even? i) i (str i)) (* 2 i))))))
+         (.assoc! tree (if (even? i) #js [i i i] #js [(str i) (str i) (str i)]) (* 2 i))))))
 
   (g)
 
@@ -910,9 +910,9 @@
     (time
      (let [tree (tree 100)]
        (dotimes [i 500000]
-         (.assoc! tree (js/Math.sin i) (* 2 i))))))
+         (.assoc! tree #js [(js/Math.sin i) (js/Math.cos i) (js/Math.tan i)] (* 2 i))))))
 
-  (h)
+  (time (dotimes [_ 10] (h)))
 
   (do
     (def samples (gen/sample (gen/tuple gen/s-pos-int (gen/vector gen-action) (gen/vector gen-movement)) 100))
