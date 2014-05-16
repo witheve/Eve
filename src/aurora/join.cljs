@@ -226,7 +226,7 @@
         (set! end? false)
         (ainto cur-key key)
         (func cur-key key)
-        (when (key-gt key cur-key)
+        (when (key-lt cur-key key)
           (max-func cur-key))
         ))
 
