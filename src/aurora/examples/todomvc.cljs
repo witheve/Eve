@@ -156,7 +156,7 @@
 (defn remove-todo [env]
   (let [itr1 (magic-iterator (index env :todo-removed) #js [0 nil nil nil nil])
         itr2 (magic-iterator (index env :todo) #js [nil 0 1 nil nil])
-        itr3 (magic-iterator (index env :todo-editing) #js [nil 0 nil 1])
+        itr3 (magic-iterator (index env :todo-editing) #js [nil 0 nil 1 nil])
         itr4 (magic-iterator (index env :todo-completed) #js [nil 0 nil nil 1])
         join-itr (join-iterator #js [itr1 itr2 itr3 itr4])]
     (transform (aget env "ctx") join-itr (fn [cur remember! forget! pretend!]
@@ -254,6 +254,93 @@
                                            (pretend! "elem-event" #js [(str (aget cur 3) "-1") "onClick" nil nil])
                                            ))))
 
+(defn draw-todo-item-editing [env]
+  (let [itr1 (magic-iterator (index env :todo-displayed) #js [0 nil nil nil nil])
+        itr2 (magic-iterator (index env :todo) #js [0 1 nil nil nil])
+        itr3 (magic-iterator (index env :todo-editing) #js [0 nil 1 nil nil])
+        filter (constant-filter 5 2 "editing")
+        join-itr (join-iterator #js [itr1 itr2 itr3 filter])]
+    (transform (aget env "ctx") join-itr (fn [cur remember! forget! pretend!]
+                                           (pretend! "elem-child" #js ["todo-list" "todo-editor" (aget cur 0)])
+                                           (pretend! "elem" #js ["todo-editor" "input"])
+                                           (pretend! "elem-attr" #js ["todo-editor" "defaultValue" (aget cur 1)])
+                                           (pretend! "elem-event" #js ["todo-editor" "onChange" "todo-editor" (aget cur 0)])
+                                           (pretend! "elem-event" #js ["todo-editor" "onBlur" "todo-editor" (aget cur 0)])
+                                           (pretend! "elem-event" #js ["todo-editor" "onKeyDown" "todo-editor" (aget cur 0)])
+                                           ))))
+
+
+(defn draw-todo-to-add [env]
+  (let [itr1 (magic-iterator (index env :todo-to-add) #js [0])
+        join-itr (join-iterator #js [itr1])]
+    (transform (aget env "ctx") join-itr (fn [cur remember! forget! pretend!]
+                                           (pretend! "elem-child" #js ["app" "todo-input" 1])
+                                           (pretend! "elem" #js ["todo-input" "input"])
+                                           (pretend! "elem-attr" #js ["todo-input" "defaultValue" (aget cur 0)])
+                                           (pretend! "elem-event" #js ["todo-input" "onChange" nil nil])
+                                           (pretend! "elem-event" #js ["todo-input" "onKeyDown" nil nil])
+                                           ))))
+
+(defn draw-interface [env]
+  (let [itr1 (magic-iterator (index env :current-toggle) #js [0])
+        join-itr (join-iterator #js [itr1])]
+    (transform (aget env "ctx") join-itr (fn [cur remember! forget! pretend!]
+                                           (pretend! "elem" #js ["app" "div"])
+
+                                           (pretend! "elem-child" #js ["app" "todo-header" 0])
+                                           (pretend! "elem" #js ["todo-header" "h1"])
+                                           (pretend! "elem-child" #js ["todo-header" "todo-header-0" 0])
+                                           (pretend! "elem-text" #js ["todo-header-0" "Todos"])
+
+                                           (pretend! "elem-child" #js ["app" "toggle-all" 1])
+                                           (pretend! "elem" #js ["toggle-all" "input"])
+                                           (pretend! "elem-attr" #js ["toggle-all" "type" "checkbox"])
+                                           (pretend! "elem-attr" #js ["toggle-all" "checked" (aget cur 0)])
+                                           (pretend! "elem-event" #js ["toggle-all" "onChange" nil nil])
+                                           (pretend! "elem-event" #js ["toggle-all" "onKeyDown" nil nil])
+
+                                           (pretend! "elem-child" #js ["app" "add-todo" 2])
+                                           (pretend! "elem" #js ["add-todo" "button"])
+                                           (pretend! "elem-event" #js ["add-todo" "onClick" "add-todo" nil])
+                                           (pretend! "elem-child" #js ["add-todo" "add-todo-0" 0])
+                                           (pretend! "elem-text" #js ["add-todo" "add"])
+
+                                           (pretend! "elem-child" #js ["app" "todo-list" 3])
+                                           (pretend! "elem" #js ["todo-list" "ul"])
+
+
+                                           (pretend! "elem-child" #js ["app" "filter-all" 4])
+                                           (pretend! "elem" #js ["filter-all" "button"])
+                                           (pretend! "elem-event" #js ["filter-all" "onClick" "filter-all" nil])
+                                           (pretend! "elem-child" #js ["filter-all" "filter-all-0" 0])
+                                           (pretend! "elem-text" #js ["filter-all" "all"])
+
+                                           (pretend! "elem-child" #js ["app" "filter-active" 4])
+                                           (pretend! "elem" #js ["filter-active" "button"])
+                                           (pretend! "elem-event" #js ["filter-active" "onClick" "filter-active" nil])
+                                           (pretend! "elem-child" #js ["filter-active" "filter-active-0" 0])
+                                           (pretend! "elem-text" #js ["filter-active" "active"])
+
+                                           (pretend! "elem-child" #js ["app" "filter-completed" 4])
+                                           (pretend! "elem" #js ["filter-completed" "button"])
+                                           (pretend! "elem-event" #js ["filter-completed" "onClick" "filter-completed" nil])
+                                           (pretend! "elem-child" #js ["filter-completed" "filter-completed-0" 0])
+                                           (pretend! "elem-text" #js ["filter-completed" "completed"])
+
+                                           ))))
+
+(defn add-todo [env]
+  (let [itr1 (magic-iterator (index env :todo-added) #js [0 nil nil])
+        itr2 (magic-iterator (index env :time) #js [nil 0 nil])
+        itr3 (magic-iterator (index env :todo-to-add) #js [nil nil 0])
+        join-itr (join-iterator #js [itr1 itr2 itr3])]
+    (transform (aget env "ctx") join-itr (fn [cur remember! forget! pretend!]
+                                           (remember! "todo" #js [(aget cur 1) (aget cur 2)])
+                                           (remember! "todo-editing" #js [(aget cur 1) "saved"])
+                                           (remember! "todo-completed" #js [(aget cur 1) "active"])
+                                           ))))
+
+
 (defn run []
   (let [env (init)]
     (defaults env)
@@ -273,6 +360,10 @@
                      (filter-not-all-display env)
                      (draw-checkbox env)
                      (draw-todo-item env)
+                     (draw-todo-item-editing env)
+                     (draw-todo-to-add env)
+                     (draw-interface env)
+                     (add-todo env)
                      ))
     (aget env "indexes"))
   )
