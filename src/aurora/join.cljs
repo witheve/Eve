@@ -246,6 +246,120 @@
                 (fn [cur]
                   (aset cur i greatest))))
 
+(defn context [indexes]
+  (let [update-indexes #js {}
+        do-update (fn [index content]
+                    (let [ix (aget update-indexes index)
+                          ix (if (nil? ix)
+                               (let [neue (tree 10)]
+                                 (aset update-indexes index neue)
+                                 neue)
+                               ix)]
+                      (when (false? (.assoc! ix content nil))
+                        (set! (.-dirty? ix) true))
+                      ix
+                      ))]
+    #js {:update-indexes update-indexes
+         :remember! #(do-update % %2)
+         :forget! #(do-update (str % "-rem") %2)
+         :pretend! #(.assoc! (aget indexes %) %2 nil)}))
+
+(defn transform [ctx itr func]
+  (while (and (not (.-end? itr)))
+    (func (.key itr) (aget ctx "remember!") (aget ctx "forget!") (aget ctx "pretend!"))
+    (.next itr))
+  ctx)
+
+(defn pretend-tree [x]
+  (let [t (tree x)]
+    (aset t "pretend?" true)
+    t))
+
+(defn reconcile [env]
+  (let [indexes (aget env "indexes")
+        ctx (aget env "ctx")
+        keys (js/Object.keys indexes)
+        len (alength keys)
+        updates (aget ctx "update-indexes")]
+    (loop [ix 0]
+      (when (< ix len)
+        (let [cur-index-key (aget keys ix)
+              cur-index (aget indexes cur-index-key)
+              rem (aget updates (str cur-index-key "-rem"))
+              add (aget updates cur-index-key)]
+          (when rem
+            (let [itr (iterator rem)]
+              (while (not (.-end? itr))
+                (when (.dissoc! cur-index (.key itr))
+                  (set! (.-dirty? cur-index) true))
+                (.next itr))))
+          (when add
+            (let [itr (iterator add)]
+              (while (not (.-end? itr))
+                (when-not (.assoc! cur-index (.key itr) nil)
+                  (set! (.-dirty? cur-index) true))
+                (.next itr))))
+          (recur (+ ix 1))))
+      )
+    (aset env ctx (context indexes))
+    env))
+
+(defn check-dirty [indexes keys ^:boolean check-pretend?]
+  (let [len (alength keys)]
+    (loop [ix 0]
+      (when (< ix len)
+        (let [key (aget keys ix)
+              index (aget indexes key)]
+          (if-not (nil? (.-dirty? index))
+            (if check-pretend?
+              true
+              (if (true? (aget index "pretend?"))
+                (recur (+ ix 1))
+                true))
+            (recur (+ ix 1))))))))
+
+(defn set-dirty [indexes keys v]
+  (dotimes [x (alength keys)]
+    (let [key (aget keys x)
+          index (aget indexes key)]
+      (set! (.-dirty? index) v))))
+
+(defn clear-pretends [indexes keys]
+  (dotimes [x (alength keys)]
+    (let [key (aget keys x)
+          index (aget indexes key)]
+      (when (aget index "pretend?")
+        (aset indexes key (pretend-tree 20))))))
+
+(defn fixpoint-tick [env func]
+  (func env)
+  (reconcile env)
+  (let [indexes (aget env "indexes")
+        keys (js/Object.keys indexes)]
+    (loop [ix 0]
+      (when (and (check-dirty indexes keys)
+                 (< ix 3))
+
+        (set-dirty indexes keys nil)
+        (clear-pretends indexes keys)
+        (func env)
+        (reconcile env)
+        (recur (+ ix 1))))))
+
+(defn fixpoint-inner [env func]
+  (func env)
+  (let [ctx (aget env "ctx")
+        indexes (aget ctx "update-indexes")
+        keys (js/Object.keys indexes)]
+    (loop [ix 0]
+      (when (and (check-dirty indexes keys true)
+                 (< ix 10))
+        (set-dirty indexes keys nil true)
+        (func env)
+        (recur (+ ix 1))))))
+
+
+
 (comment
 
   (comment
@@ -659,6 +773,28 @@
          (map vec #js [#js [1 "get books" "active" "editing"] #js [2 "buy milk" "active" "editing"] #js [4 "learn something" "active" "editing"]])))
 
     )
+
+  (time (let [tree1 (tree 10)
+             _ (dotimes [x 200]
+                 (.assoc! tree1 #js [x (str "foo" x) "active"] x))
+             tree2 (tree 10)
+             _ (dotimes [x 200]
+                 (.assoc! tree2 #js [x "editing"] x))
+             tree3 (tree 10)
+             _ (dotimes [x 200]
+                 (.assoc! tree3 #js [x "asdf"] x))
+             itr1 (magic-iterator tree1 #js [0 1 2 nil nil])
+             itr2 (magic-iterator tree2 #js [0 nil nil 1 nil])
+             itr3 (magic-iterator tree3 #js [0 nil nil nil 1])
+             filter (constant-filter 5 2 "active")
+             join-itr (join-iterator #js [itr1 itr2 itr3 filter])
+             ]
+         (transform join-itr (fn [cur remember! pretend! forget!]
+                               (remember! #js [(aget cur 0) (aget cur 1) "completed"])
+                               ))
+
+
+         ))
 
 )
 
