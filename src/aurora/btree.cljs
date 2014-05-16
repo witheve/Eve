@@ -85,11 +85,9 @@
       (if (< i as-len)
         (let [a (aget as i)
               b (aget bs i)]
-          (if (or (and (identical? (typeof a) (typeof b))
-                       (< a b))
-                  (< (typeof a) (typeof b)))
-            true
-            false))
+          (or (and (identical? (typeof a) (typeof b))
+                   (< a b))
+              (< (typeof a) (typeof b))))
         false))))
 
 (defn ^boolean key-gt [as bs]
@@ -100,11 +98,9 @@
       (if (< i as-len)
         (let [a (aget as i)
               b (aget bs i)]
-          (if (or (and (identical? (typeof a) (typeof b))
-                       (> a b))
-                  (> (typeof a) (typeof b)))
-            true
-            false))
+          (or (and (identical? (typeof a) (typeof b))
+                   (> a b))
+              (> (typeof a) (typeof b))))
         false))))
 
 (defn ^boolean key-lte [as bs]
@@ -940,7 +936,7 @@
        (dotimes [i 500000]
          (.assoc! tree #js [i i i] (* 2 i))))))
 
-  (f)
+  (time (dotimes [_ 10] (f)))
 
   (defn g []
     (time
@@ -948,7 +944,7 @@
        (dotimes [i 500000]
          (.assoc! tree (if (even? i) #js [i i i] #js [(str i) (str i) (str i)]) (* 2 i))))))
 
-  (g)
+  (time (dotimes [_ 10] (g)))
 
   (defn h []
     (time
