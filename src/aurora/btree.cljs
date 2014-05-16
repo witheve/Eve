@@ -89,7 +89,8 @@
                        (< a b))
                   (< (typeof a) (typeof b)))
             true
-            false))))))
+            false))
+        false))))
 
 (defn ^boolean key-gt [as bs]
   (== 1 (key-compare as bs)))
