@@ -216,7 +216,7 @@
                                      (aset cur 5 nil)))
         join-itr (join-iterator #js [itr1 itr2 itr3 active?-itr child-id-itr parent-id-itr])]
     (transform (aget env "ctx") join-itr (fn [cur remember! forget! pretend!]
-                                           (pretend! "elem-child" #js [(aget cur 5) (aget cur 4) -1])
+                                           (pretend! "elem-child" #js [(aget cur 5) -1 (aget cur 4)])
                                            (pretend! "elem" #js [(aget cur 4) "input"])
                                            (pretend! "elem-attr" #js [(aget cur 4) "type" "checkbox"])
                                            (pretend! "elem-attr" #js [(aget cur 4) "checked" (aget cur 3)])
@@ -244,14 +244,14 @@
                                      (aset cur 4 nil)))
         join-itr (join-iterator #js [itr1 itr2 itr3 filter child-id-itr remove-id-itr])]
     (transform (aget env "ctx") join-itr (fn [cur remember! forget! pretend!]
-                                           (pretend! "elem-child" #js ["todo-list" (aget cur 3) -1])
+                                           (pretend! "elem-child" #js ["todo-list" (aget cur 0) (aget cur 3)])
                                            (pretend! "elem" #js [(aget cur 3) "li"])
                                            (pretend! "elem-event" #js [(aget cur 3) "onDoubleClick" (aget cur 3) nil])
-                                           (pretend! "elem-child" #js [(aget cur 3) (str (aget cur 3) "-0") 0])
+                                           (pretend! "elem-child" #js [(aget cur 3) 0 (str (aget cur 3) "-0")])
                                            (pretend! "elem-text" #js [(str (aget cur 3) "-0") (aget cur 1)])
-                                           (pretend! "elem-child" #js [(aget cur 3) (aget cur 4) 1])
+                                           (pretend! "elem-child" #js [(aget cur 3) 1 (aget cur 4)])
                                            (pretend! "elem" #js [(aget cur 4) "button"])
-                                           (pretend! "elem-child" #js [(aget cur 4) (str (aget cur 4) "-0") 0])
+                                           (pretend! "elem-child" #js [(aget cur 4) 0 (str (aget cur 4) "-0")])
                                            (pretend! "elem-text" #js [(str (aget cur 4) "-0") "x"])
                                            (pretend! "elem-event" #js [(aget cur 4) "onClick" nil nil])
                                            ))))
@@ -263,7 +263,7 @@
         filter (constant-filter 5 2 "editing")
         join-itr (join-iterator #js [itr1 itr2 itr3 filter])]
     (transform (aget env "ctx") join-itr (fn [cur remember! forget! pretend!]
-                                           (pretend! "elem-child" #js ["todo-list" "todo-editor" (aget cur 0)])
+                                           (pretend! "elem-child" #js ["todo-list" (aget cur 0) "todo-editor"])
                                            (pretend! "elem" #js ["todo-editor" "input"])
                                            (pretend! "elem-attr" #js ["todo-editor" "defaultValue" (aget cur 1)])
                                            (pretend! "elem-event" #js ["todo-editor" "onChange" "todo-editor" (aget cur 0)])
@@ -276,7 +276,7 @@
   (let [itr1 (magic-iterator (index env :todo-to-add) #js [0])
         join-itr (join-iterator #js [itr1])]
     (transform (aget env "ctx") join-itr (fn [cur remember! forget! pretend!]
-                                           (pretend! "elem-child" #js ["app" "todo-input" 1])
+                                           (pretend! "elem-child" #js ["app" 1 "todo-input"])
                                            (pretend! "elem" #js ["todo-input" "input"])
                                            (pretend! "elem-attr" #js ["todo-input" "defaultValue" (aget cur 0)])
                                            (pretend! "elem-event" #js ["todo-input" "onChange" nil nil])
@@ -289,44 +289,44 @@
     (transform (aget env "ctx") join-itr (fn [cur remember! forget! pretend!]
                                            (pretend! "elem" #js ["app" "div"])
 
-                                           (pretend! "elem-child" #js ["app" "todo-header" 0])
+                                           (pretend! "elem-child" #js ["app" 0 "todo-header"])
                                            (pretend! "elem" #js ["todo-header" "h1"])
-                                           (pretend! "elem-child" #js ["todo-header" "todo-header-0" 0])
+                                           (pretend! "elem-child" #js ["todo-header" 0 "todo-header-0"])
                                            (pretend! "elem-text" #js ["todo-header-0" "Todos"])
 
-                                           (pretend! "elem-child" #js ["app" "toggle-all" 1])
+                                           (pretend! "elem-child" #js ["app" 1 "toggle-all"])
                                            (pretend! "elem" #js ["toggle-all" "input"])
                                            (pretend! "elem-attr" #js ["toggle-all" "type" "checkbox"])
                                            (pretend! "elem-attr" #js ["toggle-all" "checked" (aget cur 0)])
                                            (pretend! "elem-event" #js ["toggle-all" "onChange" nil nil])
                                            (pretend! "elem-event" #js ["toggle-all" "onKeyDown" nil nil])
 
-                                           (pretend! "elem-child" #js ["app" "add-todo" 2])
+                                           (pretend! "elem-child" #js ["app" 2 "add-todo"])
                                            (pretend! "elem" #js ["add-todo" "button"])
                                            (pretend! "elem-event" #js ["add-todo" "onClick" "add-todo" nil])
-                                           (pretend! "elem-child" #js ["add-todo" "add-todo-0" 0])
+                                           (pretend! "elem-child" #js ["add-todo" 0 "add-todo-0"])
                                            (pretend! "elem-text" #js ["add-todo-0" "add"])
 
-                                           (pretend! "elem-child" #js ["app" "todo-list" 3])
+                                           (pretend! "elem-child" #js ["app" 3 "todo-list"])
                                            (pretend! "elem" #js ["todo-list" "ul"])
 
 
-                                           (pretend! "elem-child" #js ["app" "filter-all" 4])
+                                           (pretend! "elem-child" #js ["app" 4 "filter-all"])
                                            (pretend! "elem" #js ["filter-all" "button"])
                                            (pretend! "elem-event" #js ["filter-all" "onClick" "filter-all" nil])
-                                           (pretend! "elem-child" #js ["filter-all" "filter-all-0" 0])
+                                           (pretend! "elem-child" #js ["filter-all" 0 "filter-all-0"])
                                            (pretend! "elem-text" #js ["filter-all-0" "all"])
 
-                                           (pretend! "elem-child" #js ["app" "filter-active" 4])
+                                           (pretend! "elem-child" #js ["app" 4 "filter-active"])
                                            (pretend! "elem" #js ["filter-active" "button"])
                                            (pretend! "elem-event" #js ["filter-active" "onClick" "filter-active" nil])
-                                           (pretend! "elem-child" #js ["filter-active" "filter-active-0" 0])
+                                           (pretend! "elem-child" #js ["filter-active" 0 "filter-active-0"])
                                            (pretend! "elem-text" #js ["filter-active-0" "active"])
 
-                                           (pretend! "elem-child" #js ["app" "filter-completed" 4])
+                                           (pretend! "elem-child" #js ["app" 4 "filter-completed"])
                                            (pretend! "elem" #js ["filter-completed" "button"])
                                            (pretend! "elem-event" #js ["filter-completed" "onClick" "filter-completed" nil])
-                                           (pretend! "elem-child" #js ["filter-completed" "filter-completed-0" 0])
+                                           (pretend! "elem-child" #js ["filter-completed" 0 "filter-completed-0"])
                                            (pretend! "elem-text" #js ["filter-completed-0" "completed"])
 
                                            ))))
@@ -468,8 +468,8 @@
     (while (.key all-children)
       (let [cur (.key all-children)
             parent (aget cur 0)
-            child (aget cur 1)
-            pos (aget cur 2)
+            child (aget cur 2)
+            pos (aget cur 1)
             parent-el (aget built-els parent)
             child-el (aget built-els child)]
         (.push (.-props.children parent-el) child-el)
