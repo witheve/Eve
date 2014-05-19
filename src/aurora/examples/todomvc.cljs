@@ -370,9 +370,13 @@
                                   ))))
     (let [tree (perf-time (rebuild-tree env (fn [])))
           container (dom/$ "#ui-preview")
-          dommied (perf-time (dommy/node tree))]
+          dommied (perf-time (dommy/node tree))
+          ]
              (when container
                (js/React.renderComponent dommied container)
+               ;(perf-time (do
+               ;             (dom/empty container)
+               ;             (dom/append container tree)))
                )
              ;
              )
@@ -484,6 +488,94 @@
     final))
 
 
+(defn build-element-dom [id tag attrs-itr styles-itr events-itr queue]
+  (let [elem (js/document.createElement tag)
+        el-attrs (js-obj "eve-id" id)
+        el-styles (js-obj)]
+    ;;attrs
+    (while (and (.key attrs-itr)
+            (== (aget (.key attrs-itr) 0) id))
+      (let [cur (.key attrs-itr)]
+        (dom/attr* elem (aget cur 1) (handle-attr (aget cur 2)))
+        (.next attrs-itr)))
+
+    ;;styles
+    (aset el-attrs "styles" el-styles)
+    (while (and (.key styles-itr)
+            (== (aget (.key styles-itr) 0) id))
+      (let [cur (.key styles-itr)]
+        (aset el-styles (aget cur 1) (aget cur 2))
+        (.next styles-itr)))
+
+    ;;events
+    (while (and (.key events-itr)
+            (== (aget (.key events-itr) 0) id))
+      (let [cur (.key events-itr)
+            event (aget cur 1)
+            event-key (aget cur 2)
+            entity (aget cur 3)]
+        (dom/on elem event (fn [e]
+                               (comment
+                                 (queue (stdlib/map->fact (merge {:ml (keyword "ui" event)
+                                                                  "event" event-key
+                                                                  "id" id
+                                                                  "entity" entity}
+                                                                 (event->params event e))))
+                                 (queue (stdlib/map->fact (merge {:ml :ui/custom
+                                                                  "event" event-key
+                                                                  "entity" entity}))))
+                               )))
+      (.next events-itr))
+
+    elem))
+
+
+(defn rebuild-tree-dom [env queue]
+  (let [els (iterator (index env :elem))
+        attrs (iterator (index env :elem-attr))
+        styles (iterator (index env :elem-style))
+        events (iterator (index env :elem-event))
+        text (iterator (index env :elem-text))
+        all-children (iterator (index env :elem-child))
+        built-els (js-obj)
+        roots (js-obj)
+        ]
+
+    (while (.key els)
+      (let [cur (.key els)
+            id (aget cur 0)
+            tag (aget cur 1)]
+        (aset roots id true)
+        (aset built-els id (build-element-dom id tag attrs styles events queue))
+        (.next els)))
+
+
+    (while (.key text)
+      (let [cur (.key text)
+            id (aget cur 0)
+            content (aget cur 1)]
+        (aset built-els id (js/document.createTextNode content))
+        (.next text)))
+
+    (while (.key all-children)
+      (let [cur (.key all-children)
+            parent (aget cur 0)
+            child (aget cur 2)
+            pos (aget cur 1)
+            parent-el (aget built-els parent)
+            child-el (aget built-els child)]
+        ;(.push (.-props.children parent-el) child-el)
+        (dom/append parent-el child-el)
+        (js-delete roots child)
+        (.next all-children)))
+
+
+    (let [root-els (js/Object.keys roots)
+          frag (dom/fragment)]
+      (dotimes [x (alength root-els)]
+        (dom/append frag (aget built-els (aget root-els x))))
+
+      frag)))
 
 (comment
   (perf-time (run))

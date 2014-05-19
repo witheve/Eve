@@ -74,7 +74,8 @@
   "element with either attrs or nested children [:div [:span \"Hello\"]]"
   [[tag-name maybe-attrs & children]]
   (let [[tag tag-attrs] (base-element tag-name)
-        is-attrs? (and (or (map? maybe-attrs) (aget maybe-attrs "eve-id"))
+        is-attrs? (and (not (nil? maybe-attrs))
+                       (or (map? maybe-attrs) (aget maybe-attrs "eve-id"))
                        (not (satisfies? PElement maybe-attrs)))
         attrs (if is-attrs?
                 (clj->js maybe-attrs)

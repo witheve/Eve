@@ -86,6 +86,10 @@
   (doseq [[k v] things]
     (.setAttribute elem (name k) (if (keyword? v) (name v) v))))
 
+
+(defn attr* [elem k v]
+  (.setAttribute elem k v))
+
 (defn attr [elem things]
   (if (map? things)
     (set-attr elem things)
@@ -102,8 +106,10 @@
     (.removeChild p elem)))
 
 (defn empty [elem]
-  (while (seq (.-children elem))
-    (.removeChild elem (aget (.-children elem) 0))))
+  (while (.-lastChild elem)
+    (.removeChild elem (.-lastChild elem)))
+  (set! (.-textContent elem) "")
+  elem)
 
 (defn val [elem & [v]]
   (if-not v
