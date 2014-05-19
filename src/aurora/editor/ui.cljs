@@ -60,19 +60,37 @@
 
 (defmethodcomponent draw-statement "rule" [rule path matcher? edit-path?]
   (let [clauses (map-indexed vector (:clauses rule))
-        edit-seg (get edit-path? 4)]
+        edit-seg (get edit-path? 4)
+        whens (filter #(#{"when" "find"  "see" "compute"} (-> (last %) :type)) clauses)
+        dos (filter #(not (#{"when" "find" "see" "compute"} (-> (last %) :type))) clauses)
+        ]
     (statement-item path
-      [:ul.sub
-       (for [[i c] clauses
-             :let [path (conj path :clauses i)]]
-         (statement-item path
-          (draw-clause c path (if (= edit-seg i)
-                                        edit-path?)))
-         )
-       (if matcher?
-         [:li.statement (matches (:matcher @state))]
-         )
-       ])))
+                    [:table
+                     [:tbody
+                      [:tr
+                       [:td.whens
+                        [:ul.sub
+                         (for [[i c] whens
+                               :let [path (conj path :clauses i)]]
+                           (statement-item path
+                                           (draw-clause c path (if (= edit-seg i)
+                                                                 edit-path?)))
+                           )
+                         (if matcher?
+                           [:li.statement (matches (:matcher @state))]
+                           )
+                         ]]
+                       [:td.between.ion-ios7-arrow-right "\f280"]
+                       [:td.dos
+                        [:ul.sub
+                         (for [[i c] dos
+                               :let [path (conj path :clauses i)]]
+                           (statement-item path
+                                           (draw-clause c path (if (= edit-seg i)
+                                                                 edit-path?)))
+                           )
+                         ]
+                        ]]]])))
 
 (defmethodcomponent draw-statement "add" [rule path matcher? edit-path?]
   (statement-item path
