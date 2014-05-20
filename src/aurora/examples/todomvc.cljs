@@ -529,7 +529,6 @@
 
     elem))
 
-
 (defn rebuild-tree-dom [env queue]
   (let [els (iterator (index env :elem))
         attrs (iterator (index env :elem-attr))

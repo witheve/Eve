@@ -168,7 +168,7 @@
         (do
           (let [child-id (if (symbol? id)
                            (gensym (str id))
-                           (str id "-" pos))]
+                           (str id "-" i))]
             (when (symbol? id)
               (.push facts (language/Compute. (language/->Let child-id [id] (str id " + " i))) ))
             (.push facts {:ml :ui/text "id" child-id "text" child})
