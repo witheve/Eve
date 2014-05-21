@@ -126,10 +126,6 @@
           (.assoc! root key val max-keys))
   (dissoc! [this key]
            (.dissoc! root key max-keys))
-  (range [this lower-key upper-key]
-         (let [results #js []]
-           (.range root lower-key upper-key results)
-           results))
   (push! [this ix key&val&child which-child]
            (let [left-child (if (== which-child left-child) (aget key&val&child 2) root)
                  right-child (if (== which-child right-child) (aget key&val&child 2) root)]
@@ -211,15 +207,6 @@
                (if (nil? children)
                  false ;; done
                  (.dissoc! (aget children ix) key max-keys)))))
-  (range [this lower-key upper-key results]
-         (let [lower-ix (.seek this lower-key 0)
-               upper-ix (.seek this upper-key lower-ix)]
-           (dofrom [ix lower-ix upper-ix]
-                   (when-not (nil? children)
-                     (.range (aget children ix) lower-key upper-key results))
-                   (apush results (aget keys ix)))
-           (when-not (nil? children)
-                     (.range (aget children upper-ix) lower-key upper-key results))))
   (push! [this ix key&val&child which-child]
          (.splice keys ix 0 (aget key&val&child 0))
          (.splice vals ix 0 (aget key&val&child 1))
@@ -773,23 +760,6 @@
                  action (gen key-len)]
                 (run-lookup-prop min-keys key-len actions action)))
 
-(defn run-range-prop [min-keys key-len actions lower-key upper-key]
-  (let [tree (apply-to-tree (tree min-keys key-len) actions)
-        sorted-map (apply-to-sorted-map (sorted-map-by key-compare) actions)
-        tree-result (.range tree lower-key upper-key)
-        sorted-map-result (for [[k v] sorted-map
-                                :when (key-lte lower-key k)
-                                :when (key-lt k upper-key)]
-                            k)]
-    (= (seq tree-result) (seq sorted-map-result))))
-
-(defn range-prop [key-len]
-  (prop/for-all [min-keys gen/s-pos-int
-                 actions (gen/vector (gen-action key-len))
-                 lower-key (gen-key key-len)
-                 upper-key (gen-key key-len)]
-                (run-range-prop min-keys key-len actions lower-key upper-key)))
-
 (defn gen-next [key-len]
   (gen/make-gen
    (fn [rnd size]
@@ -951,7 +921,6 @@
   (dc/quick-check 10000 (building-prop gen-action 1))
   ;; cljs.core.pr_str(cemerick.double_check.quick_check(1000, aurora.btree.building_prop(aurora.btree.gen_action)))
   (dc/quick-check 10000 (lookup-prop gen-action 1))
-  (dc/quick-check 10000 (range-prop 1))
   (dc/quick-check 10000 (iterator-prop 1))
   ;; cljs.core.pr_str(cemerick.double_check.quick_check(1000, aurora.btree.iterator_prop)
   (dc/quick-check 10000 (self-join-prop 1))
