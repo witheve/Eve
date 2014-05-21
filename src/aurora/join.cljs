@@ -174,12 +174,14 @@
                          (recur))))))
 
   (next [this]
-        (.seek-join this))
+        (.seek-join this)
+        (false? end?))
 
   (seek [this key]
         (when (key-lt cur-key key)
           (ainto next-key key)
-          (.seek-join this))))
+          (.seek-join this))
+        (key= cur-key key)))
 
 (defn join-iterator [iterators]
   (let [len (alength iterators)

@@ -121,7 +121,7 @@
 (deftype Tree [max-keys key-len ^:mutable root]
   Object
   (toString [this]
-            (pr-str (into {} (map vec (seq this)))))
+            (pr-str (into {} (map vec (iterator->elems (iterator this))))))
   (assoc! [this key val]
           (.assoc! root key val max-keys))
   (dissoc! [this key]
@@ -135,8 +135,6 @@
              (set! (.-parent right-child) root)
              (set! (.-parent-ix right-child) 1)))
   (maintain! [this])
-  (into [this result]
-        (.into root result))
   (valid! [this]
           (when (> (alength (.-keys root)) 0) ;; the empty tree does not obey most invariants
             (.valid! root max-keys))
@@ -149,19 +147,10 @@
                     (recur (mapcat #(.-children %) nodes)))))
   ISeqable
   (-seq [this]
-        (let [result #js []]
-          (.into this result)
-          (seq result))))
+        (seq (iterator->elems (iterator this)))))
 
 (deftype Node [parent parent-ix keys vals children ^:mutable lower ^:mutable upper]
   Object
-  (into [this result]
-        (dotimes [ix (alength keys)]
-          (when-not (nil? children)
-            (.into (aget children ix) result))
-          (apush result #js [(aget keys ix) (aget vals ix)]))
-        (when-not (nil? children)
-          (.into (aget children (alength keys)) result)))
   (seek [this key ix]
         (loop [lo (if (> ix 0) ix 0)
                hi (- (alength keys) 1)]
@@ -454,6 +443,22 @@
     (.reset iterator)
     iterator))
 
+(deftype ArrayIterator [array ^:mutable ix ^:mutable end?]
+  Object
+  (key [this]
+       (when (false? end?)
+         (aget array ix)))
+  (next [this]
+        (set! ix (+ ix 1))
+        (if (>= ix (alength array))
+          (do
+            (set! end? true?)
+            false)
+          true)))
+
+(defn array-iterator [array]
+  (ArrayIterator. array 0 false))
+
 ;; used only inside Join
 (deftype JoinIterator [iterator outer->inner inner->outer seek-key key-len]
   Object
@@ -591,7 +596,8 @@
         (when (false? end?)
           (let [iterators (aget var->iterators (- (alength var->iterators) 1))
                 iterator (aget iterators (- (alength var->iterators) 1))]
-            (.search this (alength var->iterators) (- (alength var->iterators) 1) 0)))))
+            (.search this (alength var->iterators) (- (alength var->iterators) 1) 0)))
+        (false? end?)))
 
 (defn join [iterators num-vars iterator->var->present?]
   (let [seek-key (least-key num-vars)
@@ -622,17 +628,23 @@
     (.reset join)
     join))
 
-(defn iter-seq
+(defn iterator->keys
   ([iterator]
-   (let [results #js []]
-     (while (false? (.-end? iterator))
-       (.push results (.key iterator))
-       (.next iterator))
-     results))
+   (iterator->keys js/Infinity iterator))
   ([n iterator]
    (let [results #js []]
      (while (and (false? (.-end? iterator)) (< (alength results) n))
        (.push results (.key iterator))
+       (.next iterator))
+     results)))
+
+(defn iterator->elems
+  ([iterator]
+   (iterator->elems js/Infinity iterator))
+  ([n iterator]
+   (let [results #js []]
+     (while (and (false? (.-end? iterator)) (< (alength results) n))
+       (.push results #js [(.key iterator) (.val iterator)])
        (.next iterator))
      results)))
 
@@ -836,8 +848,7 @@
 (defn run-product-join-prop [min-keys key-len actions movements]
   (let [product-tree (tree min-keys key-len)
         tree (apply-to-tree (tree min-keys key-len) actions)
-        elems #js []
-        _ (.into tree elems)
+        elems (iterator->keys (iterator tree))
         _ (dotimes [i (alength elems)]
             (dotimes [j (alength elems)]
               (.assoc! product-tree (.concat (aget elems i 0) (aget elems j 0)) nil)))
@@ -856,7 +867,7 @@
 
 (defn magic-run-product-join-prop [min-keys key-len actions]
   (let [tree (apply-to-tree (tree min-keys key-len) actions)
-        itr1 (iter-seq (iterator tree))
+        itr1 (iterator->keys (iterator tree))
         iterator-results (for [i1 itr1
                                i2 itr1]
                            (vec (concat i1 i2)))
@@ -988,7 +999,7 @@
     (time
      (dotimes [i 100]
        (let [j (join #js [(iterator tree1) (iterator tree2) (iterator tree3)] 3 #js [#js [true true true] #js [true false true] #js [false true true]])]
-         (iter-seq j))))
+         (iterator->keys j))))
   )
 
   (let [tree1 (tree 10)
@@ -1007,7 +1018,7 @@
       (time
        (dotimes [i 100]
          (let [j (join #js [(iterator tree1) (iterator tree2) (iterator tree3)] 3 #js [#js [true true true] #js [true true true] #js [true true true]])]
-           (iter-seq j)))))
+           (iterator->keys j)))))
 
   (let [tree (tree 10)
         _ (dotimes [i 10]
@@ -1016,7 +1027,7 @@
         j (time (join #js [(iterator tree) (iterator tree)] 3 #js [#js [true true false]
                                                                    #js [false true true]]))
         ]
-    (alength (time (iter-seq j)))
+    (alength (time (iterator->keys j)))
     )
 
   (let [tree (tree 10)
@@ -1027,7 +1038,7 @@
                                                                                    #js [false true false false true false]
                                                                                    #js [false false true false false true]]))
         ]
-    (alength (time (iter-seq j)))
+    (alength (time (iterator->keys j)))
   )
 
   (let [tree (tree 10)
@@ -1038,7 +1049,7 @@
                                                                                    #js [false true false false true false]
                                                                                    #js [false false true true false false]]))
         ]
-    (alength (time (iter-seq j)))
+    (alength (time (iterator->keys j)))
   )
  )
 
