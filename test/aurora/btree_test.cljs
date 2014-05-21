@@ -71,6 +71,10 @@
   5000
   (aurora.btree/lookup-prop aurora.btree/gen-action 1))
 
+(defspec range-action-test
+  5000
+  (aurora.btree/range-prop 1))
+
 (defspec iterator-prop-test
   5000
   (aurora.btree/iterator-prop 1))
