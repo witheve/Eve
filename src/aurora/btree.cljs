@@ -448,6 +448,8 @@
   (key [this]
        (when (false? end?)
          (aget array ix)))
+  (val [this]
+       nil)
   (next [this]
         (set! ix (+ ix 1))
         (if (>= ix (alength array))
@@ -837,7 +839,8 @@
         join-results (apply-to-iterator
                       (join #js [(iterator tree) (iterator tree)] key-len #js [(into-array (repeat key-len true)) (into-array (repeat key-len true))])
                       movements)]
-    (= (map vec iterator-results) (map vec join-results))))
+    (= (map (fn [[b k]] [b (vec k)]) iterator-results)
+       (map (fn [[b k]] [b (vec k)]) join-results))))
 
 (defn self-join-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
@@ -851,13 +854,14 @@
         elems (iterator->keys (iterator tree))
         _ (dotimes [i (alength elems)]
             (dotimes [j (alength elems)]
-              (.assoc! product-tree (.concat (aget elems i 0) (aget elems j 0)) nil)))
+              (.assoc! product-tree (.concat (aget elems i) (aget elems j)) nil)))
         iterator-results (apply-to-iterator (iterator product-tree) movements)
         join-results (apply-to-iterator
                       (join #js [(iterator tree) (iterator tree)] (* 2 key-len) #js [(into-array (concat (repeat key-len true) (repeat key-len false)))
                                                                                      (into-array (concat (repeat key-len false) (repeat key-len true)))])
                       movements)]
-    (= (map vec iterator-results) (map vec join-results))))
+    (= (map (fn [[b k]] [b (vec k)]) iterator-results)
+       (map (fn [[b k]] [b (vec k)]) join-results))))
 
 (defn product-join-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
