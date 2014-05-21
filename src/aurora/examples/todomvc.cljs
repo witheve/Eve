@@ -1,6 +1,7 @@
 (ns aurora.examples.todomvc
   (:require [aurora.btree :refer [tree iterator least greatest key-lt key-lte key-gt key-gte key-compare key=]]
             [aurora.join :refer [magic-iterator join-iterator all-join-results transform constant-filter context pretend-tree fixpoint-tick infinirator]]
+            [aurora.util.core :refer [now]]
             [aurora.editor.dom :as dom]
             [aurora.editor.ReactDommy :as dommy])
   (:require-macros [aurora.macros :refer [typeof ainto perf-time]]))
@@ -10,6 +11,8 @@
 
 (defn init []
   (let [env #js {}
+        input #js {}
+        current-queue #js []
         indexes #js {:todo (tree 20)
                      :todo-editing (tree 20)
                      :todo-completed (tree 20)
@@ -22,17 +25,31 @@
                      :current-toggle (tree 20)
 
                      ;;StdLib
-                     :clicked (pretend-tree 20)
-                     :changed (pretend-tree 20)
-                     :blurred (pretend-tree 20)
+                     "ui/onClick" (pretend-tree 20)
+                     "ui/onKeyDown" (pretend-tree 20)
+                     "ui/onChange" (pretend-tree 20)
+                     "ui/onBlur" (pretend-tree 20)
+                     "ui/onDoubleClick" (pretend-tree 20)
+                     "ui/custom" (pretend-tree 20)
                      :elem (pretend-tree 20)
                      :elem-child (pretend-tree 20)
                      :elem-attr (pretend-tree 20)
                      :elem-text (pretend-tree 20)
                      :elem-style (pretend-tree 20)
                      :elem-event (pretend-tree 20)
-                     :time (pretend-tree 20)}]
-    (aset env "ctx" (context indexes))
+                     :time (pretend-tree 20)}
+        ctx (context indexes)
+        pretend! (aget ctx "pretend!")]
+    (aset input "queued" false)
+    (aset input "current-queue" current-queue)
+    (aset input "queue!" (fn [index fact]
+                           (println "QUEUING: " index fact)
+                           ;;TODO: this doesn't store any history
+                           (when (false? (aget input "queued"))
+                             (aset input "queued" (js/setTimeout (partial re-run env) 0)))
+                           (pretend! index fact)))
+    (aset env "input" input)
+    (aset env "ctx" ctx)
     (aset env "indexes" indexes)
     env))
 
@@ -45,22 +62,23 @@
     (.assoc! (index env "todo-completed") #js [x "asdf"] x)))
 
 (defn click! [env elem]
-  (.assoc! (index env :clicked) #js[elem] 0))
+  (.assoc! (index env "ui/onClick") #js[elem] 0))
 
 (defn change! [env elem ]
-  (.assoc! (index env :changed) #js[elem "foo bar"] 0))
+  (.assoc! (index env "ui/onChange") #js[elem "foo bar"] 0))
 
 (defn blur! [elem]
-  (.assoc! (index env :blurred) #js[elem] 0))
+  (.assoc! (index env "ui/onBlur") #js[elem] 0))
 
 (defn defaults [env]
-  ((aget (aget env "ctx") "remember!") "todo-to-add" #js ["hey"])
+  ;((aget (aget env "ctx") "remember!") "todo-to-add" #js ["hey"])
+  (.assoc! (index env :todo-to-add) #js ["hey"] nil)
   (.assoc! (index env :current-toggle) #js ["false"] nil)
   (.assoc! (index env :todo-to-edit) #js ["hi"] nil)
   (.assoc! (index env :filter) #js ["all"] nil))
 
 (defn todo-input-changes [env]
-  (let [itr1 (magic-iterator (index env :changed) #js [0 1 nil])
+  (let [itr1 (magic-iterator (index env "ui/onChange") #js [0 1 nil])
         itr2 (magic-iterator (index env :todo-to-add) #js [nil nil 0])
         filter (constant-filter 3 0 "todo-input")
         join-itr (join-iterator #js [itr1 filter itr2])]
@@ -71,7 +89,7 @@
   )
 
 (defn add-todo-clicked [env]
-  (let [itr1 (magic-iterator (index env :clicked) #js [0])
+  (let [itr1 (magic-iterator (index env "ui/onClick") #js [0])
         filter (constant-filter 1 0 "add-todo")
         join-itr (join-iterator #js [itr1 filter])]
     (transform (aget env "ctx") join-itr (fn [cur remember! forget! pretend!]
@@ -80,7 +98,7 @@
   )
 
 (defn filter-active-clicked [env]
-  (let [itr1 (magic-iterator (index env :clicked) #js [0 nil])
+  (let [itr1 (magic-iterator (index env "ui/onClick") #js [0 nil])
         itr2 (magic-iterator (index env :filter) #js [nil 0])
         filter (constant-filter 2 0 "filter-active")
         join-itr (join-iterator #js [itr1 filter itr2])]
@@ -92,7 +110,7 @@
 
 
 (defn filter-completed-clicked [env]
-  (let [itr1 (magic-iterator (index env :clicked) #js [0 nil])
+  (let [itr1 (magic-iterator (index env "ui/onClick") #js [0 nil])
         itr2 (magic-iterator (index env :filter) #js [nil 0])
         filter (constant-filter 2 0 "filter-completed")
         join-itr (join-iterator #js [itr1 filter itr2])]
@@ -104,7 +122,7 @@
 
 
 (defn filter-all-clicked [env]
-  (let [itr1 (magic-iterator (index env :clicked) #js [0 nil])
+  (let [itr1 (magic-iterator (index env "ui/onClick") #js [0 nil])
         itr2 (magic-iterator (index env :filter) #js [nil 0])
         filter (constant-filter 2 0 "filter-all")
         join-itr (join-iterator #js [itr1 filter itr2])]
@@ -116,7 +134,7 @@
 
 
 (defn toggle-all-changed-track [env]
-  (let [itr1 (magic-iterator (index env :changed) #js [0 1 nil])
+  (let [itr1 (magic-iterator (index env "ui/onChange") #js [0 1 nil])
         itr2 (magic-iterator (index env :current-toggle) #js [nil nil 0])
         filter (constant-filter 3 0 "toggle-all")
         join-itr (join-iterator #js [itr1 filter itr2])]
@@ -126,7 +144,7 @@
                                            ))))
 
 (defn toggle-all-changed-update [env]
-  (let [itr1 (magic-iterator (index env "changed") #js [0 1 nil nil nil])
+  (let [itr1 (magic-iterator (index env "ui/onChange") #js [0 1 nil nil nil])
         itr2 (magic-iterator (index env :todo-completed) #js [nil nil nil 0 1])
         filter (constant-filter 5 0 "toggle-all")
         if-value (infinirator 5
@@ -147,7 +165,7 @@
                                            ))))
 
 (defn clear-completed-clicked [env]
-  (let [itr1 (magic-iterator (index env :clicked) #js [0 nil nil])
+  (let [itr1 (magic-iterator (index env "ui/onClick") #js [0 nil nil])
         itr2 (magic-iterator (index env :todo-completed) #js [nil 0 1])
         filter (constant-filter 3 2 "completed")
         join-itr (join-iterator #js [itr1 filter itr2])]
@@ -343,6 +361,8 @@
                                            ))))
 
 
+
+
 (defn run []
   (let [env (init)]
     (perf-time (do
@@ -368,7 +388,7 @@
                                   (draw-interface env)
                                   (add-todo env)
                                   ))))
-    (let [tree (perf-time (rebuild-tree env (fn [])))
+    (let [tree (perf-time (rebuild-tree env (aget (aget env "input") "queue!")))
           container (dom/$ "#ui-preview")
           dommied (perf-time (dommy/node tree))
           ]
@@ -382,6 +402,37 @@
              )
     )
   )
+
+
+(defn re-run [env]
+    (perf-time (do
+                 (.assoc! (index env :time) #js [(now)])
+                 (fixpoint-tick env
+                                (fn [env]
+                                  (todo-input-changes env)
+                                  (add-todo-clicked env)
+                                  (filter-active-clicked env)
+                                  (filter-completed-clicked env)
+                                  (filter-all-clicked env)
+                                  (toggle-all-changed-track env)
+                                  (toggle-all-changed-update env)
+                                  (clear-completed-clicked env)
+                                  (remove-todo env)
+                                  (filter-all-display env)
+                                  (filter-not-all-display env)
+                                  (draw-checkbox env)
+                                  (draw-todo-item env)
+                                  (draw-todo-item-editing env)
+                                  (draw-todo-to-add env)
+                                  (draw-interface env)
+                                  (add-todo env)
+                                  ))))
+  (let [tree (perf-time (rebuild-tree env (aget (aget env "input") "queue!")))
+        container (dom/$ "#ui-preview")
+        dommied (perf-time (dommy/node tree))]
+    (when container
+      (js/React.renderComponent dommied container)
+      (aset (aget env "input") "queued" false))))
 
 
 (defn handle-attr [v]
@@ -432,16 +483,10 @@
             event-key (aget cur 2)
             entity (aget cur 3)]
         (aset el-attrs event (fn [e]
-                               (comment
-                                 (queue (stdlib/map->fact (merge {:ml (keyword "ui" event)
-                                                                  "event" event-key
-                                                                  "id" id
-                                                                  "entity" entity}
-                                                                 (event->params event e))))
-                                 (queue (stdlib/map->fact (merge {:ml :ui/custom
-                                                                  "event" event-key
-                                                                  "entity" entity}))))
-                               )))
+                               (println "attached handler")
+                               (queue (str "ui/" event) #js [id (js/aurora.runtime.ui.event->params2 event e)])
+                               (queue (str "ui/custom") #js [id event-key entity (js/aurora.runtime.ui.event->params2 event e)]))
+                               ))
       (.next events-itr))
 
     ((aget js/React.DOM (name tag)) el-attrs (array))))
