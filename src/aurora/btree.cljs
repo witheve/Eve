@@ -78,10 +78,34 @@
         false))))
 
 (defn ^boolean key-lt [as bs]
-  (== -1 (key-compare as bs)))
+  (let [as-len (alength as)
+        bs-len (alength bs)]
+    (assert (== as-len bs-len) (pr-str as bs))
+    (loop [i 0]
+      (if (< i as-len)
+        (let [a (aget as i)
+              b (aget bs i)]
+          (if (identical? a b)
+            (recur (+ i 1))
+            (or (and (identical? (typeof a) (typeof b))
+                         (< a b))
+                    (< (typeof a) (typeof b)))))
+        false))))
 
 (defn ^boolean key-gt [as bs]
-  (== 1 (key-compare as bs)))
+  (let [as-len (alength as)
+        bs-len (alength bs)]
+    (assert (== as-len bs-len) (pr-str as bs))
+    (loop [i 0]
+      (if (< i as-len)
+        (let [a (aget as i)
+              b (aget bs i)]
+          (if (identical? a b)
+            (recur (+ i 1))
+            (or (and (identical? (typeof a) (typeof b))
+                         (> a b))
+                    (> (typeof a) (typeof b)))))
+        false))))
 
 (defn ^boolean key-lte [as bs]
   (not (== 1 (key-compare as bs))))

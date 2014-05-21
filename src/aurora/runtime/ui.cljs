@@ -38,6 +38,24 @@
       "onKeyDown" {"keyCode" (.-keyCode e)}
       {})))
 
+
+(defn event->params2 [ev e]
+  (let [tag (.-target.tagName e)
+        type (.-target.type e)]
+    (condp = ev
+      "onChange" (cond
+                          (= type "checkbox") (if (.-target.checked e)
+                                                "true"
+                                                "false")
+                          (= type "radio") (if (.-target.checked e)
+                                             "true"
+                                             "false")
+                          (= tag "option") (.-target.selected e)
+                          :else (.-target.value e))
+      "onKeyDown" (.-keyCode e)
+      nil)))
+
+
 ;; every bloom tick queue up all the UI changes we should do
 ;; each animation-frame resolve the queue of changes against the UI
 ;;     - are we tracking this id yet? resolve attr/style/child
@@ -168,7 +186,7 @@
         (do
           (let [child-id (if (symbol? id)
                            (gensym (str id))
-                           (str id "-" pos))]
+                           (str id "-" i))]
             (when (symbol? id)
               (.push facts (language/Compute. (language/->Let child-id [id] (str id " + " i))) ))
             (.push facts {:ml :ui/text "id" child-id "text" child})

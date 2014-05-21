@@ -1,6 +1,9 @@
 (ns aurora.examples.todomvc
   (:require [aurora.btree :refer [tree iterator least greatest key-lt key-lte key-gt key-gte key-compare key=]]
-            [aurora.join :refer [magic-iterator join-iterator all-join-results transform constant-filter context pretend-tree fixpoint-tick infinirator]])
+            [aurora.join :refer [magic-iterator join-iterator all-join-results transform constant-filter context pretend-tree fixpoint-tick infinirator]]
+            [aurora.util.core :refer [now]]
+            [aurora.editor.dom :as dom]
+            [aurora.editor.ReactDommy :as dommy])
   (:require-macros [aurora.macros :refer [typeof ainto perf-time]]))
 
 (defn index [env n]
@@ -8,6 +11,8 @@
 
 (defn init []
   (let [env #js {}
+        input #js {}
+        current-queue #js []
         indexes #js {:todo (tree 20)
                      :todo-editing (tree 20)
                      :todo-completed (tree 20)
@@ -20,17 +25,31 @@
                      :current-toggle (tree 20)
 
                      ;;StdLib
-                     :clicked (pretend-tree 20)
-                     :changed (pretend-tree 20)
-                     :blurred (pretend-tree 20)
+                     "ui/onClick" (pretend-tree 20)
+                     "ui/onKeyDown" (pretend-tree 20)
+                     "ui/onChange" (pretend-tree 20)
+                     "ui/onBlur" (pretend-tree 20)
+                     "ui/onDoubleClick" (pretend-tree 20)
+                     "ui/custom" (pretend-tree 20)
                      :elem (pretend-tree 20)
                      :elem-child (pretend-tree 20)
                      :elem-attr (pretend-tree 20)
                      :elem-text (pretend-tree 20)
                      :elem-style (pretend-tree 20)
                      :elem-event (pretend-tree 20)
-                     :time (pretend-tree 20)}]
-    (aset env "ctx" (context indexes))
+                     :time (pretend-tree 20)}
+        ctx (context indexes)
+        pretend! (aget ctx "pretend!")]
+    (aset input "queued" false)
+    (aset input "current-queue" current-queue)
+    (aset input "queue!" (fn [index fact]
+                           (println "QUEUING: " index fact)
+                           ;;TODO: this doesn't store any history
+                           (when (false? (aget input "queued"))
+                             (aset input "queued" (js/setTimeout (partial re-run env) 0)))
+                           (pretend! index fact)))
+    (aset env "input" input)
+    (aset env "ctx" ctx)
     (aset env "indexes" indexes)
     env))
 
@@ -43,22 +62,23 @@
     (.assoc! (index env "todo-completed") #js [x "asdf"] x)))
 
 (defn click! [env elem]
-  (.assoc! (index env :clicked) #js[elem] 0))
+  (.assoc! (index env "ui/onClick") #js[elem] 0))
 
 (defn change! [env elem ]
-  (.assoc! (index env :changed) #js[elem "foo bar"] 0))
+  (.assoc! (index env "ui/onChange") #js[elem "foo bar"] 0))
 
 (defn blur! [elem]
-  (.assoc! (index env :blurred) #js[elem] 0))
+  (.assoc! (index env "ui/onBlur") #js[elem] 0))
 
 (defn defaults [env]
-  ((aget (aget env "ctx") "remember!") "todo-to-add" #js ["hey"])
+  ;((aget (aget env "ctx") "remember!") "todo-to-add" #js ["hey"])
+  (.assoc! (index env :todo-to-add) #js ["hey"] nil)
   (.assoc! (index env :current-toggle) #js ["false"] nil)
   (.assoc! (index env :todo-to-edit) #js ["hi"] nil)
   (.assoc! (index env :filter) #js ["all"] nil))
 
 (defn todo-input-changes [env]
-  (let [itr1 (magic-iterator (index env :changed) #js [0 1 nil])
+  (let [itr1 (magic-iterator (index env "ui/onChange") #js [0 1 nil])
         itr2 (magic-iterator (index env :todo-to-add) #js [nil nil 0])
         filter (constant-filter 3 0 "todo-input")
         join-itr (join-iterator #js [itr1 filter itr2])]
@@ -69,7 +89,7 @@
   )
 
 (defn add-todo-clicked [env]
-  (let [itr1 (magic-iterator (index env :clicked) #js [0])
+  (let [itr1 (magic-iterator (index env "ui/onClick") #js [0])
         filter (constant-filter 1 0 "add-todo")
         join-itr (join-iterator #js [itr1 filter])]
     (transform (aget env "ctx") join-itr (fn [cur remember! forget! pretend!]
@@ -78,7 +98,7 @@
   )
 
 (defn filter-active-clicked [env]
-  (let [itr1 (magic-iterator (index env :clicked) #js [0 nil])
+  (let [itr1 (magic-iterator (index env "ui/onClick") #js [0 nil])
         itr2 (magic-iterator (index env :filter) #js [nil 0])
         filter (constant-filter 2 0 "filter-active")
         join-itr (join-iterator #js [itr1 filter itr2])]
@@ -90,7 +110,7 @@
 
 
 (defn filter-completed-clicked [env]
-  (let [itr1 (magic-iterator (index env :clicked) #js [0 nil])
+  (let [itr1 (magic-iterator (index env "ui/onClick") #js [0 nil])
         itr2 (magic-iterator (index env :filter) #js [nil 0])
         filter (constant-filter 2 0 "filter-completed")
         join-itr (join-iterator #js [itr1 filter itr2])]
@@ -102,7 +122,7 @@
 
 
 (defn filter-all-clicked [env]
-  (let [itr1 (magic-iterator (index env :clicked) #js [0 nil])
+  (let [itr1 (magic-iterator (index env "ui/onClick") #js [0 nil])
         itr2 (magic-iterator (index env :filter) #js [nil 0])
         filter (constant-filter 2 0 "filter-all")
         join-itr (join-iterator #js [itr1 filter itr2])]
@@ -114,7 +134,7 @@
 
 
 (defn toggle-all-changed-track [env]
-  (let [itr1 (magic-iterator (index env :changed) #js [0 1 nil])
+  (let [itr1 (magic-iterator (index env "ui/onChange") #js [0 1 nil])
         itr2 (magic-iterator (index env :current-toggle) #js [nil nil 0])
         filter (constant-filter 3 0 "toggle-all")
         join-itr (join-iterator #js [itr1 filter itr2])]
@@ -124,7 +144,7 @@
                                            ))))
 
 (defn toggle-all-changed-update [env]
-  (let [itr1 (magic-iterator (index env "changed") #js [0 1 nil nil nil])
+  (let [itr1 (magic-iterator (index env "ui/onChange") #js [0 1 nil nil nil])
         itr2 (magic-iterator (index env :todo-completed) #js [nil nil nil 0 1])
         filter (constant-filter 5 0 "toggle-all")
         if-value (infinirator 5
@@ -145,7 +165,7 @@
                                            ))))
 
 (defn clear-completed-clicked [env]
-  (let [itr1 (magic-iterator (index env :clicked) #js [0 nil nil])
+  (let [itr1 (magic-iterator (index env "ui/onClick") #js [0 nil nil])
         itr2 (magic-iterator (index env :todo-completed) #js [nil 0 1])
         filter (constant-filter 3 2 "completed")
         join-itr (join-iterator #js [itr1 filter itr2])]
@@ -214,7 +234,7 @@
                                      (aset cur 5 nil)))
         join-itr (join-iterator #js [itr1 itr2 itr3 active?-itr child-id-itr parent-id-itr])]
     (transform (aget env "ctx") join-itr (fn [cur remember! forget! pretend!]
-                                           (pretend! "elem-child" #js [(aget cur 5) (aget cur 4) -1])
+                                           (pretend! "elem-child" #js [(aget cur 5) -1 (aget cur 4)])
                                            (pretend! "elem" #js [(aget cur 4) "input"])
                                            (pretend! "elem-attr" #js [(aget cur 4) "type" "checkbox"])
                                            (pretend! "elem-attr" #js [(aget cur 4) "checked" (aget cur 3)])
@@ -242,16 +262,16 @@
                                      (aset cur 4 nil)))
         join-itr (join-iterator #js [itr1 itr2 itr3 filter child-id-itr remove-id-itr])]
     (transform (aget env "ctx") join-itr (fn [cur remember! forget! pretend!]
-                                           (pretend! "elem-child" #js ["todo-list" (aget cur 3) -1])
-                                           (pretend! "elem" #js [(aget cur 4) "li"])
-                                           (pretend! "elem-event" #js [(aget cur 4) "onDoubleClick" (aget cur 3) nil])
-                                           (pretend! "elem-child" #js [(aget cur 3) (str (aget cur 3) "-0") 0])
+                                           (pretend! "elem-child" #js ["todo-list" (aget cur 0) (aget cur 3)])
+                                           (pretend! "elem" #js [(aget cur 3) "li"])
+                                           (pretend! "elem-event" #js [(aget cur 3) "onDoubleClick" (aget cur 3) nil])
+                                           (pretend! "elem-child" #js [(aget cur 3) 0 (str (aget cur 3) "-0")])
                                            (pretend! "elem-text" #js [(str (aget cur 3) "-0") (aget cur 1)])
-                                           (pretend! "elem-child" #js [(aget cur 3) (str (aget cur 3) "-1") 1])
-                                           (pretend! "elem" #js [(str (aget cur 3) "-1") "button"])
-                                           (pretend! "elem-child" #js [(str (aget cur 3) "-1") (str (aget cur 3) "-1-0") 0])
-                                           (pretend! "elem-text" #js [(str (aget cur 3) "-1-0") "x"])
-                                           (pretend! "elem-event" #js [(str (aget cur 3) "-1") "onClick" nil nil])
+                                           (pretend! "elem-child" #js [(aget cur 3) 1 (aget cur 4)])
+                                           (pretend! "elem" #js [(aget cur 4) "button"])
+                                           (pretend! "elem-child" #js [(aget cur 4) 0 (str (aget cur 4) "-0")])
+                                           (pretend! "elem-text" #js [(str (aget cur 4) "-0") "x"])
+                                           (pretend! "elem-event" #js [(aget cur 4) "onClick" nil nil])
                                            ))))
 
 (defn draw-todo-item-editing [env]
@@ -261,7 +281,7 @@
         filter (constant-filter 5 2 "editing")
         join-itr (join-iterator #js [itr1 itr2 itr3 filter])]
     (transform (aget env "ctx") join-itr (fn [cur remember! forget! pretend!]
-                                           (pretend! "elem-child" #js ["todo-list" "todo-editor" (aget cur 0)])
+                                           (pretend! "elem-child" #js ["todo-list" (aget cur 0) "todo-editor"])
                                            (pretend! "elem" #js ["todo-editor" "input"])
                                            (pretend! "elem-attr" #js ["todo-editor" "defaultValue" (aget cur 1)])
                                            (pretend! "elem-event" #js ["todo-editor" "onChange" "todo-editor" (aget cur 0)])
@@ -274,7 +294,7 @@
   (let [itr1 (magic-iterator (index env :todo-to-add) #js [0])
         join-itr (join-iterator #js [itr1])]
     (transform (aget env "ctx") join-itr (fn [cur remember! forget! pretend!]
-                                           (pretend! "elem-child" #js ["app" "todo-input" 1])
+                                           (pretend! "elem-child" #js ["app" 1 "todo-input"])
                                            (pretend! "elem" #js ["todo-input" "input"])
                                            (pretend! "elem-attr" #js ["todo-input" "defaultValue" (aget cur 0)])
                                            (pretend! "elem-event" #js ["todo-input" "onChange" nil nil])
@@ -287,45 +307,45 @@
     (transform (aget env "ctx") join-itr (fn [cur remember! forget! pretend!]
                                            (pretend! "elem" #js ["app" "div"])
 
-                                           (pretend! "elem-child" #js ["app" "todo-header" 0])
+                                           (pretend! "elem-child" #js ["app" 0 "todo-header"])
                                            (pretend! "elem" #js ["todo-header" "h1"])
-                                           (pretend! "elem-child" #js ["todo-header" "todo-header-0" 0])
+                                           (pretend! "elem-child" #js ["todo-header" 0 "todo-header-0"])
                                            (pretend! "elem-text" #js ["todo-header-0" "Todos"])
 
-                                           (pretend! "elem-child" #js ["app" "toggle-all" 1])
+                                           (pretend! "elem-child" #js ["app" 1 "toggle-all"])
                                            (pretend! "elem" #js ["toggle-all" "input"])
                                            (pretend! "elem-attr" #js ["toggle-all" "type" "checkbox"])
                                            (pretend! "elem-attr" #js ["toggle-all" "checked" (aget cur 0)])
                                            (pretend! "elem-event" #js ["toggle-all" "onChange" nil nil])
                                            (pretend! "elem-event" #js ["toggle-all" "onKeyDown" nil nil])
 
-                                           (pretend! "elem-child" #js ["app" "add-todo" 2])
+                                           (pretend! "elem-child" #js ["app" 2 "add-todo"])
                                            (pretend! "elem" #js ["add-todo" "button"])
                                            (pretend! "elem-event" #js ["add-todo" "onClick" "add-todo" nil])
-                                           (pretend! "elem-child" #js ["add-todo" "add-todo-0" 0])
-                                           (pretend! "elem-text" #js ["add-todo" "add"])
+                                           (pretend! "elem-child" #js ["add-todo" 0 "add-todo-0"])
+                                           (pretend! "elem-text" #js ["add-todo-0" "add"])
 
-                                           (pretend! "elem-child" #js ["app" "todo-list" 3])
+                                           (pretend! "elem-child" #js ["app" 3 "todo-list"])
                                            (pretend! "elem" #js ["todo-list" "ul"])
 
 
-                                           (pretend! "elem-child" #js ["app" "filter-all" 4])
+                                           (pretend! "elem-child" #js ["app" 4 "filter-all"])
                                            (pretend! "elem" #js ["filter-all" "button"])
                                            (pretend! "elem-event" #js ["filter-all" "onClick" "filter-all" nil])
-                                           (pretend! "elem-child" #js ["filter-all" "filter-all-0" 0])
-                                           (pretend! "elem-text" #js ["filter-all" "all"])
+                                           (pretend! "elem-child" #js ["filter-all" 0 "filter-all-0"])
+                                           (pretend! "elem-text" #js ["filter-all-0" "all"])
 
-                                           (pretend! "elem-child" #js ["app" "filter-active" 4])
+                                           (pretend! "elem-child" #js ["app" 4 "filter-active"])
                                            (pretend! "elem" #js ["filter-active" "button"])
                                            (pretend! "elem-event" #js ["filter-active" "onClick" "filter-active" nil])
-                                           (pretend! "elem-child" #js ["filter-active" "filter-active-0" 0])
-                                           (pretend! "elem-text" #js ["filter-active" "active"])
+                                           (pretend! "elem-child" #js ["filter-active" 0 "filter-active-0"])
+                                           (pretend! "elem-text" #js ["filter-active-0" "active"])
 
-                                           (pretend! "elem-child" #js ["app" "filter-completed" 4])
+                                           (pretend! "elem-child" #js ["app" 4 "filter-completed"])
                                            (pretend! "elem" #js ["filter-completed" "button"])
                                            (pretend! "elem-event" #js ["filter-completed" "onClick" "filter-completed" nil])
-                                           (pretend! "elem-child" #js ["filter-completed" "filter-completed-0" 0])
-                                           (pretend! "elem-text" #js ["filter-completed" "completed"])
+                                           (pretend! "elem-child" #js ["filter-completed" 0 "filter-completed-0"])
+                                           (pretend! "elem-text" #js ["filter-completed-0" "completed"])
 
                                            ))))
 
@@ -341,32 +361,265 @@
                                            ))))
 
 
+
+
 (defn run []
   (let [env (init)]
-    (defaults env)
-    (fill-todos env 200)
-    (fixpoint-tick env
-                   (fn [env]
-                     (todo-input-changes env)
-                     (add-todo-clicked env)
-                     (filter-active-clicked env)
-                     (filter-completed-clicked env)
-                     (filter-all-clicked env)
-                     (toggle-all-changed-track env)
-                     (toggle-all-changed-update env)
-                     (clear-completed-clicked env)
-                     (remove-todo env)
-                     (filter-all-display env)
-                     (filter-not-all-display env)
-                     (draw-checkbox env)
-                     (draw-todo-item env)
-                     (draw-todo-item-editing env)
-                     (draw-todo-to-add env)
-                     (draw-interface env)
-                     (add-todo env)
-                     ))
-    (aget env "indexes"))
+    (perf-time (do
+                 (defaults env)
+                 (fill-todos env 200)
+                 (fixpoint-tick env
+                                (fn [env]
+                                  (todo-input-changes env)
+                                  (add-todo-clicked env)
+                                  (filter-active-clicked env)
+                                  (filter-completed-clicked env)
+                                  (filter-all-clicked env)
+                                  (toggle-all-changed-track env)
+                                  (toggle-all-changed-update env)
+                                  (clear-completed-clicked env)
+                                  (remove-todo env)
+                                  (filter-all-display env)
+                                  (filter-not-all-display env)
+                                  (draw-checkbox env)
+                                  (draw-todo-item env)
+                                  (draw-todo-item-editing env)
+                                  (draw-todo-to-add env)
+                                  (draw-interface env)
+                                  (add-todo env)
+                                  ))))
+    (let [tree (perf-time (rebuild-tree env (aget (aget env "input") "queue!")))
+          container (dom/$ "#ui-preview")
+          dommied (perf-time (dommy/node tree))
+          ]
+             (when container
+               (js/React.renderComponent dommied container)
+               ;(perf-time (do
+               ;             (dom/empty container)
+               ;             (dom/append container tree)))
+               )
+             ;
+             )
+    )
   )
+
+
+(defn re-run [env]
+    (perf-time (do
+                 (.assoc! (index env :time) #js [(now)])
+                 (fixpoint-tick env
+                                (fn [env]
+                                  (todo-input-changes env)
+                                  (add-todo-clicked env)
+                                  (filter-active-clicked env)
+                                  (filter-completed-clicked env)
+                                  (filter-all-clicked env)
+                                  (toggle-all-changed-track env)
+                                  (toggle-all-changed-update env)
+                                  (clear-completed-clicked env)
+                                  (remove-todo env)
+                                  (filter-all-display env)
+                                  (filter-not-all-display env)
+                                  (draw-checkbox env)
+                                  (draw-todo-item env)
+                                  (draw-todo-item-editing env)
+                                  (draw-todo-to-add env)
+                                  (draw-interface env)
+                                  (add-todo env)
+                                  ))))
+  (let [tree (perf-time (rebuild-tree env (aget (aget env "input") "queue!")))
+        container (dom/$ "#ui-preview")
+        dommied (perf-time (dommy/node tree))]
+    (when container
+      (js/React.renderComponent dommied container)
+      (aset (aget env "input") "queued" false))))
+
+
+(defn handle-attr [v]
+  (condp = v
+    "true" true
+    "false" false
+    v))
+
+(defn into-obj [obj vs]
+  (dotimes [x (alength vs)]
+    (let [cur (aget vs x)]
+      (aset obj (aget cur 0) (aget cur 1)))))
+
+(defn iter-take-while [itr cond]
+  (let [results (array)]
+    (while (cond (.key itr))
+      (.push results (.key itr))
+      (.next itr))
+    (when (> (alength results) 0)
+      results)))
+
+
+
+
+(defn build-element [id tag attrs-itr styles-itr events-itr queue]
+  (let [el-attrs (js-obj "eve-id" id)
+        el-styles (js-obj)]
+    ;;attrs
+    (while (and (.key attrs-itr)
+            (== (aget (.key attrs-itr) 0) id))
+      (let [cur (.key attrs-itr)]
+        (aset el-attrs (aget cur 1) (handle-attr (aget cur 2)))
+        (.next attrs-itr)))
+
+    ;;styles
+    (aset el-attrs "styles" el-styles)
+    (while (and (.key styles-itr)
+            (== (aget (.key styles-itr) 0) id))
+      (let [cur (.key styles-itr)]
+        (aset el-styles (aget cur 1) (aget cur 2))
+        (.next styles-itr)))
+
+    ;;events
+    (while (and (.key events-itr)
+            (== (aget (.key events-itr) 0) id))
+      (let [cur (.key events-itr)
+            event (aget cur 1)
+            event-key (aget cur 2)
+            entity (aget cur 3)]
+        (aset el-attrs event (fn [e]
+                               (println "attached handler")
+                               (queue (str "ui/" event) #js [id (js/aurora.runtime.ui.event->params2 event e)])
+                               (queue (str "ui/custom") #js [id event-key entity (js/aurora.runtime.ui.event->params2 event e)]))
+                               ))
+      (.next events-itr))
+
+    ((aget js/React.DOM (name tag)) el-attrs (array))))
+
+(defn rebuild-tree [env queue]
+  (let [els (iterator (index env :elem))
+        attrs (iterator (index env :elem-attr))
+        styles (iterator (index env :elem-style))
+        events (iterator (index env :elem-event))
+        text (iterator (index env :elem-text))
+        all-children (iterator (index env :elem-child))
+        built-els (js-obj)
+        roots (js-obj)
+        final (array :div)
+        ]
+
+    (while (.key els)
+      (let [cur (.key els)
+            id (aget cur 0)
+            tag (aget cur 1)]
+        (aset roots id true)
+        (aset built-els id (build-element id tag attrs styles events queue))
+        (.next els)))
+
+    (into-obj built-els (all-join-results text))
+
+
+    (while (.key all-children)
+      (let [cur (.key all-children)
+            parent (aget cur 0)
+            child (aget cur 2)
+            pos (aget cur 1)
+            parent-el (aget built-els parent)
+            child-el (aget built-els child)]
+        (.push (.-props.children parent-el) child-el)
+        (js-delete roots child)
+        (.next all-children)))
+
+
+    (let [root-els (js/Object.keys roots)]
+      (dotimes [x (alength root-els)]
+        (.push final (aget built-els (aget root-els x)))))
+
+    final))
+
+
+(defn build-element-dom [id tag attrs-itr styles-itr events-itr queue]
+  (let [elem (js/document.createElement tag)
+        el-attrs (js-obj "eve-id" id)
+        el-styles (js-obj)]
+    ;;attrs
+    (while (and (.key attrs-itr)
+            (== (aget (.key attrs-itr) 0) id))
+      (let [cur (.key attrs-itr)]
+        (dom/attr* elem (aget cur 1) (handle-attr (aget cur 2)))
+        (.next attrs-itr)))
+
+    ;;styles
+    (aset el-attrs "styles" el-styles)
+    (while (and (.key styles-itr)
+            (== (aget (.key styles-itr) 0) id))
+      (let [cur (.key styles-itr)]
+        (aset el-styles (aget cur 1) (aget cur 2))
+        (.next styles-itr)))
+
+    ;;events
+    (while (and (.key events-itr)
+            (== (aget (.key events-itr) 0) id))
+      (let [cur (.key events-itr)
+            event (aget cur 1)
+            event-key (aget cur 2)
+            entity (aget cur 3)]
+        (dom/on elem event (fn [e]
+                               (comment
+                                 (queue (stdlib/map->fact (merge {:ml (keyword "ui" event)
+                                                                  "event" event-key
+                                                                  "id" id
+                                                                  "entity" entity}
+                                                                 (event->params event e))))
+                                 (queue (stdlib/map->fact (merge {:ml :ui/custom
+                                                                  "event" event-key
+                                                                  "entity" entity}))))
+                               )))
+      (.next events-itr))
+
+    elem))
+
+(defn rebuild-tree-dom [env queue]
+  (let [els (iterator (index env :elem))
+        attrs (iterator (index env :elem-attr))
+        styles (iterator (index env :elem-style))
+        events (iterator (index env :elem-event))
+        text (iterator (index env :elem-text))
+        all-children (iterator (index env :elem-child))
+        built-els (js-obj)
+        roots (js-obj)
+        ]
+
+    (while (.key els)
+      (let [cur (.key els)
+            id (aget cur 0)
+            tag (aget cur 1)]
+        (aset roots id true)
+        (aset built-els id (build-element-dom id tag attrs styles events queue))
+        (.next els)))
+
+
+    (while (.key text)
+      (let [cur (.key text)
+            id (aget cur 0)
+            content (aget cur 1)]
+        (aset built-els id (js/document.createTextNode content))
+        (.next text)))
+
+    (while (.key all-children)
+      (let [cur (.key all-children)
+            parent (aget cur 0)
+            child (aget cur 2)
+            pos (aget cur 1)
+            parent-el (aget built-els parent)
+            child-el (aget built-els child)]
+        ;(.push (.-props.children parent-el) child-el)
+        (dom/append parent-el child-el)
+        (js-delete roots child)
+        (.next all-children)))
+
+
+    (let [root-els (js/Object.keys roots)
+          frag (dom/fragment)]
+      (dotimes [x (alength root-els)]
+        (dom/append frag (aget built-els (aget root-els x))))
+
+      frag)))
 
 (comment
   (perf-time (run))
