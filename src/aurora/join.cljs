@@ -230,10 +230,10 @@
   Object
   (reset [this]
          (set! cur-key (array))
+         (set! end? false)
          (dotimes [_ size]
            (.push cur-key least))
-         (initial-func cur-key)
-         (set! end? false))
+         (initial-func cur-key))
 
   (key [this]
        (when (false? end?)
@@ -253,7 +253,7 @@
           (max-func cur-key))))
 
 (defn infinirator [size func initial-func max-func]
-  (let [itr (Infinirator. func initital max-func size)]
+  (let [itr (Infinirator. func initial-func max-func size)]
     (.reset itr)
     itr))
 
