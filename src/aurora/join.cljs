@@ -1,5 +1,8 @@
 (ns aurora.join
-  (:require [aurora.btree :refer [tree iterator least greatest key-lt key-lte key-gt key-gte key-compare key=]])
+  (:require [aurora.btree :refer [tree iterator least greatest key-lt key-lte key-gt key-gte key-compare key= iterator->keys gen-key gen-action gen-next gen-movement apply-to-tree]]
+            [cemerick.double-check :as dc]
+            [cemerick.double-check.generators :as gen]
+            [cemerick.double-check.properties :as prop :include-macros true])
   (:require-macros [aurora.macros :refer [typeof ainto]]))
 
 (defn gt [a b]
@@ -361,9 +364,68 @@
         (func env)
         (recur (+ ix 1))))))
 
+;; TESTS
 
+(defn magic-run-product-join-prop [min-keys key-len actions]
+  (let [tree (apply-to-tree (tree min-keys key-len) actions)
+        itr1 (iterator->keys (iterator tree))
+        iterator-results (for [i1 itr1
+                               i2 itr1]
+                           (vec (concat i1 i2)))
+        iterator-a (js/aurora.join.magic-iterator tree (let [arr (array)]
+                                                         (dotimes [x key-len]
+                                                           (.push arr x))
+                                                         (dotimes [x key-len]
+                                                           (.push arr nil))
+                                                         arr
+                                                         ))
+        iterator-b (js/aurora.join.magic-iterator tree (let [arr (array)]
+                                                         (dotimes [x key-len]
+                                                           (.push arr nil))
+                                                         (dotimes [x key-len]
+                                                           (.push arr x))
+                                                         arr
+                                                         ))
+        join-itr (js/aurora.join.join-iterator #js [iterator-a iterator-b])
+        join-results (js/aurora.join.all-join-results join-itr)]
+    (= iterator-results (map vec join-results))))
+
+(defn magic-product-join-prop [key-len]
+  (prop/for-all [min-keys gen/s-pos-int
+                 actions (gen/vector (gen-action key-len))]
+                (magic-run-product-join-prop min-keys key-len actions)))
+
+(defn magic-run-self-join-prop [min-keys key-len actions movements]
+  (let [tree (apply-to-tree (tree min-keys key-len) actions)
+        iterator-results (iterator->keys (iterator tree))
+
+        iterator-a (js/aurora.join.magic-iterator tree (let [arr (array)]
+                                                         (dotimes [x key-len]
+                                                           (.push arr x))
+                                                         arr
+                                                         ))
+        iterator-b (js/aurora.join.magic-iterator tree (let [arr (array)]
+                                                         (dotimes [x key-len]
+                                                           (.push arr x))
+                                                         arr
+                                                         ))
+        join-itr (js/aurora.join.join-iterator #js [iterator-a iterator-b])
+        join-results (iterator->keys join-itr)]
+    (= (map vec iterator-results) (map vec join-results))))
+
+(defn magic-self-join-prop [key-len]
+  (prop/for-all [min-keys gen/s-pos-int
+                 actions (gen/vector (gen-action key-len))
+                 movements (gen/vector (gen-next key-len))] ;; TODO use gen-movement once Treeterator supports seek
+                (magic-run-self-join-prop min-keys key-len actions movements)))
 
 (comment
+  (dc/quick-check 10000 (magic-self-join-prop 1))
+  (dc/quick-check 10000 (magic-self-join-prop 2))
+  (dc/quick-check 10000 (magic-self-join-prop 3))
+  (dc/quick-check 10000 (magic-product-join-prop 1))
+  (dc/quick-check 10000 (magic-product-join-prop 2))
+  (dc/quick-check 10000 (magic-product-join-prop 3))
 
   (comment
     (let [tree1 (tree 10)

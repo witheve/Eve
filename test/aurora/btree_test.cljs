@@ -75,56 +75,32 @@
   5000
   (aurora.btree/iterator-prop 1))
 
-(defspec self-join-prop-test
-  5000
-  (aurora.btree/self-join-prop 1))
-
-(defspec self-join-prop-test
-  5000
-  (aurora.btree/self-join-prop 2))
-
-(defspec self-join-prop-test
-  5000
-  (aurora.btree/self-join-prop 3))
-
-(defspec product-join-prop-test
-  5000
-  (aurora.btree/product-join-prop 1))
-
-(defspec product-join-prop-test
-  5000
-  (aurora.btree/product-join-prop 2))
-
-(defspec product-join-prop-test
-  5000
-  (aurora.btree/product-join-prop 3))
-
 ;;; MAGIC!
 
 
 (defspec magic-self-join-prop-test-1
-  100
-  (aurora.btree/magic-self-join-prop 1))
+  3000
+  (aurora.join/magic-self-join-prop 1))
 
 (defspec magic-self-join-prop-test-2
-  100
-  (aurora.btree/magic-self-join-prop 2))
+  3000
+  (aurora.join/magic-self-join-prop 2))
 
 (defspec magic-self-join-prop-test-3
-  100
-  (aurora.btree/magic-self-join-prop 3))
+  3000
+  (aurora.join/magic-self-join-prop 3))
 
 (defspec magic-product-join-prop-test-1
-  100
-  (aurora.btree/magic-product-join-prop 1))
+  3000
+  (aurora.join/magic-product-join-prop 1))
 
 (defspec magic-product-join-prop-test-2
-  100
-  (aurora.btree/magic-product-join-prop 2))
+  3000
+  (aurora.join/magic-product-join-prop 2))
 
 (defspec magic-product-join-prop-test-3
-  100
-  (aurora.btree/magic-product-join-prop 3))
+  3000
+  (aurora.join/magic-product-join-prop 3))
 
 (deftest join-3-2
   (println "testing: join-3-2")
