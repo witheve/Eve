@@ -660,7 +660,8 @@
 
 (defn add-rule [results clauses]
   (let [rule (new-id)]
-    (doseq [[type name fact] clauses]
+    (doseq [cs clauses
+            [type name fact] cs]
       (let [clause (new-id)]
         (.push (aget results "clauses") #js [rule clause name type])
         (dotimes [x (alength fact)]
@@ -669,15 +670,17 @@
               (.push (aget results "clause-vars") #js [clause x (str cur)])
               (.push (aget results "clause-constants") #js [clause x cur]))))))))
 
+(def draw js/aurora.runtime.ui.hiccup->facts-eve)
+
 (comment
 
   (-> (rules (env)
 
              (rule this-is-awesome
-                   (when "foo" 1)
-                   (when "bar" 2)
-                   (pretend "zomg" 2)
-                   (pretend "nowai" 1))
+                   (when "counter" 'counter)
+                   (draw [:div {:id "root"}
+                          [:span {:id "foo"} 'counter]])
+                   )
 
              )
 

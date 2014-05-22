@@ -69,8 +69,10 @@
   `(aurora.examples.todomvc.add-rules
     ~env
     ~(vec (for [[_ name & clauses] rules]
-            (vec (for [[type name & r] clauses]
-                   `[~(str type) ~(str name) (cljs.core.array ~@r)]))
+            (vec (for [[type name & r :as clause] clauses]
+                   (if (#{'when 'pretend 'remember 'forget} type)
+                     `[[~(str type) ~(str name) (cljs.core.array ~@r)]]
+                     clause)))
             ))))
 
 
