@@ -11,8 +11,42 @@
                 (> a b))
            (> (typeof a) (typeof b)))))
 
-(deftype MagicIterator [iterator map nil-ixs rewindable map-len ^:mutable cur-key ^:mutable cur-seek ^:mutable prev-seek ^:mutable marked-nodes ^:mutable marked-ixs ^:mutable end?]
+(deftype MagicIterator [iterator map ^:mutable nil-ixs ^:mutable rewindable ^:mutable map-len ^:mutable cur-key ^:mutable cur-seek ^:mutable prev-seek ^:mutable marked-nodes ^:mutable marked-ixs ^:mutable end?]
   Object
+  (reset [this i]
+         (.reset iterator)
+
+         ;; TODO some of this can be done on construction only
+         (set! nil-ixs (array))
+         (set! rewindable (array))
+         (set! map-len (alength map))
+         (set! cur-key (array))
+         (set! cur-seek (.slice (or (.key iterator) (array)) 0))
+         (set! prev-seek (array))
+         (set! marked-nodes (js-obj 0 (.-node iterator)))
+         (set! marked-ixs (js-obj 0 0))
+         (set! end? false)
+
+         (loop [ix 0
+                potential (array)]
+           (when (< ix map-len)
+             (if (identical? nil (aget map ix))
+               (do
+                 (.push nil-ixs ix)
+                 (.push potential ix)
+                 (aset marked-nodes ix (.-node iterator))
+                 (aset marked-ixs ix (.-ix iterator))
+                 (recur (+ ix 1) potential))
+               (do
+                 (dotimes [x (alength potential)]
+                   (.push rewindable (aget potential x)))
+                 (recur (+ ix 1) (array))))))
+
+         (.set-key this)
+         (.make-min this)
+         (when (false? end?)
+           (ainto prev-seek (.key this))))
+
   (mark [this i]
         (aset marked-nodes i (.-node iterator))
         (aset marked-ixs i (.-ix iterator)))
@@ -107,31 +141,8 @@
         ))
 
 (defn magic-iterator [tree map]
-   (let [nil-ixs (array)
-         itr (iterator tree)
-         map-len (alength map)
-         rewindable (array)
-         marked-nodes (js-obj 0 (.-node itr))
-         marked-ixs (js-obj 0 0)
-         magic (MagicIterator. itr map nil-ixs rewindable map-len (array) (.slice (or (.key itr) (array)) 0) (array) marked-nodes marked-ixs false)]
-     (loop [ix 0
-            potential (array)]
-       (when (< ix map-len)
-         (if (identical? nil (aget map ix))
-           (do
-             (.push nil-ixs ix)
-             (.push potential ix)
-             (aset marked-nodes ix (.-node itr))
-             (aset marked-ixs ix (.-ix itr))
-             (recur (+ ix 1) potential))
-           (do
-             (dotimes [x (alength potential)]
-               (.push rewindable (aget potential x)))
-             (recur (+ ix 1) (array))))))
-     (.set-key magic)
-     (.make-min magic)
-     (when (identical? (.-end? magic) false)
-       (ainto (.-prev-seek magic) (.key magic)))
+   (let [magic (MagicIterator. (iterator tree) map)]
+     (.reset magic)
      magic))
 
 (deftype JoinIterator [iterators ^:mutable cur-key ^:mutable next-key ^:mutable end? len tuple-len]

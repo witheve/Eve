@@ -353,14 +353,13 @@
 ;; On pop, pop last position from the stack
 ;; NOTE iterators are not write-safe
 
-(deftype Iterator [max-keys ^:mutable node ^:mutable ix ^:mutable end? pushed-nodes pushed-ixes pushed-end?s key-len]
+(deftype Iterator [tree ^:mutable node ^:mutable ix ^:mutable end? pushed-nodes pushed-ixes pushed-end?s key-len]
   Object
   (reset [this]
-         (while (instance? Node (.-parent node))
-           (set! node (.-parent node)))
+         (set! node (.-root tree))
+         (set! ix 0)
          (while (not (nil? (.-children node)))
            (set! node (aget (.-children node) 0)))
-         (set! ix 0)
          (set! end? (<= (alength (.-keys node)) 0)))
   (key [this]
        (when (false? end?)
@@ -436,27 +435,9 @@
        (set! end? (.pop pushed-end?s))))
 
 (defn iterator [tree]
-  (let [iterator (Iterator. (.-max-keys tree) (.-root tree) 0 false #js [] #js [] #js [] (.-key-len tree))]
+  (let [iterator (Iterator. tree nil 0 false #js [] #js [] #js [] (.-key-len tree))]
     (.reset iterator)
     iterator))
-
-(deftype ArrayIterator [array ^:mutable ix ^:mutable end?]
-  Object
-  (key [this]
-       (when (false? end?)
-         (aget array ix)))
-  (val [this]
-       nil)
-  (next [this]
-        (set! ix (+ ix 1))
-        (if (>= ix (alength array))
-          (do
-            (set! end? true?)
-            false)
-          true)))
-
-(defn array-iterator [array]
-  (ArrayIterator. array 0 false))
 
 (defn iterator->keys
   ([iterator]
