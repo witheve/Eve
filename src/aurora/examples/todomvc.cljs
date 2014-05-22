@@ -1,10 +1,11 @@
 (ns aurora.examples.todomvc
   (:require [aurora.btree :refer [tree iterator least greatest key-lt key-lte key-gt key-gte key-compare key=]]
             [aurora.join :refer [magic-iterator join-iterator all-join-results transform constant-filter context pretend-tree fixpoint-tick infinirator]]
+            [aurora.language :refer [knowledge]]
             [aurora.util.core :refer [now]]
             [aurora.editor.dom :as dom]
             [aurora.editor.ReactDommy :as dommy])
-  (:require-macros [aurora.macros :refer [typeof ainto perf-time]]))
+  (:require-macros [aurora.macros :refer [typeof ainto perf-time rules]]))
 
 (defn index [env n]
   (aget (aget env "indexes") (name n)))
@@ -627,5 +628,59 @@
                (run)))
 
 
+
+  )
+
+(let [next (atom 0)]
+   (defn new-id []
+     (if js/window.uuid
+       (.replace (js/uuid) (js/RegExp. "-" "gi") "_")
+       (swap! next inc))))
+
+(defn env []
+  (let [kn (knowledge)]
+    (.get-or-create-index kn "know" "clauses" ["rule-id" "clause-id" "name" "type"])
+    (.get-or-create-index kn "know" "clause-vars" ["clause-id" "key" "var"])
+    (.get-or-create-index kn "know" "clause-constants" ["clause-id" "key" "constant"])
+    kn
+    ))
+
+(defn add-rules [env rs]
+  (let [results #js {:clauses (array)
+                     :clause-vars (array)
+                     :clause-constants (array)}]
+    (doseq [r rs]
+      (add-rule results r))
+    (.add-facts env "know" "clauses" #js ["rule-id" "clause-id" "name" "type"] (aget results "clauses"))
+    (.add-facts env "know" "clause-vars" #js ["clause-id" "key" "var"] (aget results "clause-vars"))
+    (.add-facts env "know" "clause-constants" #js ["clause-id" "key" "constant"] (aget results "clause-constants"))
+    env))
+
+
+
+(defn add-rule [results clauses]
+  (let [rule (new-id)]
+    (doseq [[type name fact] clauses]
+      (let [clause (new-id)]
+        (.push (aget results "clauses") #js [rule clause name type])
+        (dotimes [x (alength fact)]
+          (let [cur (aget fact x)]
+            (if (symbol? cur)
+              (.push (aget results "clause-vars") #js [clause x (str cur)])
+              (.push (aget results "clause-constants") #js [clause x cur]))))))))
+
+(comment
+
+  (-> (rules (env)
+
+             (rule this-is-awesome
+                   (when "foo" 1)
+                   (when "bar" 2)
+                   (pretend "zomg" 2)
+                   (pretend "nowai" 1))
+
+             )
+
+      (.-kind->name->fields->index))
 
   )
