@@ -900,7 +900,7 @@
 
 (defn magic-run-self-join-prop [min-keys key-len actions movements]
   (let [tree (apply-to-tree (tree min-keys key-len) actions)
-        iterator-results (apply-to-iterator (iterator tree) movements)
+        iterator-results (iterator->keys (iterator tree))
 
         iterator-a (js/aurora.join.magic-iterator tree (let [arr (array)]
                                                          (dotimes [x key-len]
@@ -913,7 +913,7 @@
                                                          arr
                                                          ))
         join-itr (js/aurora.join.join-iterator #js [iterator-a iterator-b])
-        join-results (apply-to-iterator join-itr movements)]
+        join-results (iterator->keys join-itr)]
     (= (map vec iterator-results) (map vec join-results))))
 
 (defn magic-self-join-prop [key-len]
@@ -951,6 +951,7 @@
   (dc/quick-check 10000 (product-join-prop 3))
 
 
+  (dc/quick-check 100 (magic-self-join-prop 1))
   (dc/quick-check 100 (magic-product-join-prop 3))
 
 
