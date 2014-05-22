@@ -2,8 +2,6 @@
   (:require [aurora.btree :as btree])
   (:require-macros [aurora.macros :refer [apush set!!]]))
 
-;; TODO what do we do if `fields` is not the same set of fields as the fact?
-
 (defn keymap [from-fields to-fields]
   (let [keymap (make-array (alength to-fields))]
     (dotimes [i (alength from-fields)]
@@ -60,20 +58,20 @@
 
   (def kn (knowledge))
 
-  (.get-or-create-index kn "known" "heights" #js ["name" "height"])
+  (.get-or-create-index kn "know" "heights" #js ["name" "height"])
 
-  (.add-facts kn "known" "heights" #js ["name" "height"] #js [#js ["chris" "short"] #js ["rob" "spade hands"]])
+  (.add-facts kn "know" "heights" #js ["name" "height"] #js [#js ["chris" "short"] #js ["rob" "spade hands"]])
 
-  (.get-or-create-index kn "known" "heights" #js ["name" "height"])
+  (.get-or-create-index kn "know" "heights" #js ["name" "height"])
 
-  (.get-or-create-index kn "known" "heights" #js ["height" "name"])
+  (.get-or-create-index kn "know" "heights" #js ["height" "name"])
 
   (.-kind->name->fields->index kn)
 
-  (.add-facts kn "known" "heights" #js ["name" "height"] #js [#js ["jamie" "just right"]])
+  (.add-facts kn "know" "heights" #js ["name" "height"] #js [#js ["jamie" "just right"]])
 
-  (.get-or-create-index kn "known" "heights" #js ["name" "height"])
+  (.get-or-create-index kn "know" "heights" #js ["name" "height"])
 
-  (.get-or-create-index kn "known" "heights" #js ["height" "name"])
+  (.get-or-create-index kn "know" "heights" #js ["height" "name"])
 
   )
