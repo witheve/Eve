@@ -369,9 +369,10 @@
 (defn magic-run-product-join-prop [min-keys key-len actions]
   (let [tree (apply-to-tree (tree min-keys key-len) actions)
         itr1 (iterator->keys (iterator tree))
-        iterator-results (for [i1 itr1
-                               i2 itr1]
-                           (vec (concat i1 i2)))
+        iterator-results #js []
+        _ (dotimes [i (alength itr1)]
+            (dotimes [j (alength itr1)]
+              (.push iterator-results (.concat (aget itr1 i) (aget itr1 j)))))
         iterator-a (js/aurora.join.magic-iterator tree (let [arr (array)]
                                                          (dotimes [x key-len]
                                                            (.push arr x))
@@ -388,7 +389,7 @@
                                                          ))
         join-itr (js/aurora.join.join-iterator #js [iterator-a iterator-b])
         join-results (js/aurora.join.all-join-results join-itr)]
-    (= iterator-results (map vec join-results))))
+    (= (map vec iterator-results) (map vec join-results))))
 
 (defn magic-product-join-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
