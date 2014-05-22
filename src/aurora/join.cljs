@@ -145,15 +145,31 @@
      (.reset magic)
      magic))
 
-(deftype JoinIterator [iterators ^:mutable cur-key ^:mutable next-key ^:mutable end? len tuple-len]
+(deftype JoinIterator [iterators ^:mutable cur-key ^:mutable next-key ^:mutable end? ^:mutable len ^:mutable tuple-len]
   Object
+  (reset [this]
+         (dotimes [i (alength iterators)]
+           (.reset (aget iterators i)))
+
+         (set! cur-key (array))
+         (set! next-key (array))
+         (set! end? false)
+         (set! len (alength iterators))
+
+         (if (true? (.-end? (aget iterators 0)))
+           (set! end? true)
+           (do
+             (set! tuple-len (alength (.key (aget iterators 0))))
+             (dotimes [ix tuple-len]
+               (aset next-key ix false))
+             (.seek-join this))))
+
   (make-min [this]
             (.key this))
 
   (key [this]
        (when (identical? end? false)
          cur-key))
-
 
   (iters-next [this]
               (loop [ix (- len 1)]
@@ -199,24 +215,9 @@
         (key= cur-key key)))
 
 (defn join-iterator [iterators]
-  (let [len (alength iterators)
-        results (array)
-        root (aget iterators 0)
-        tuple-len (when (.key root)
-                    (alength (.key root)))
-        next-key (array)]
-    (if (or (== tuple-len 0)
-            (not (.key root))
-            (== 0 (alength (.key root))))
-      (do
-        (.next root)
-        root)
-      (let [itr (JoinIterator. iterators (array) next-key false len tuple-len)]
-        (dotimes [ix tuple-len]
-          (aset next-key ix false))
-        (.seek-join itr)
-        itr
-        ))))
+  (let [itr (JoinIterator. iterators)]
+    (.reset itr)
+    itr))
 
 (defn all-join-results [join-itr]
   (let [results (array)]

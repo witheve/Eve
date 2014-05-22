@@ -77,7 +77,6 @@
 
 ;;; MAGIC!
 
-
 (defspec magic-self-join-prop-test-1
   3000
   (aurora.join/magic-self-join-prop 1))
