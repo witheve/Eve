@@ -65,6 +65,16 @@
 (defmacro assoc!! [name key val]
   `(set!! ~name (cljs.core/-assoc! ~name ~key ~val)))
 
+(defmacro rules [env & rules]
+  `(aurora.examples.todomvc.add-rules
+    ~env
+    ~(vec (for [[_ name & clauses] rules]
+            (vec (for [[type name & r :as clause] clauses]
+                   (if (#{'when 'pretend 'remember 'forget} type)
+                     `[[~(str type) ~(str name) (cljs.core.array ~@r)]]
+                     clause)))
+            ))))
+
 
 (defmacro perf-time [& body]
   `(let [start# (.performance.now js/window)

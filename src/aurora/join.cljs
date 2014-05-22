@@ -32,7 +32,8 @@
   (next [this]
         (.next iterator)
         (set! end? (.-end? iterator))
-        (.set-key this))
+        (.set-key this)
+        (false? end?))
 
   (make-min [this]
             (when cur-key

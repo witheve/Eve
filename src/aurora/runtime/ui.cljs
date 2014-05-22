@@ -200,6 +200,45 @@
       (fact-walk h facts []))
     (vec facts)))
 
+(defn fact-walk-eve [hic facts [parent pos]]
+  (let [[el args & children] hic
+        args (if (map? args)
+               args
+               (js->clj args :keywordize-keys true))
+        id (or (:id args) (get args "id"))
+        entity (:entity args)
+        key (:event_key args)
+        real-args (dissoc args "id" :id :style :events :event_key :entity)
+        ]
+    (when parent
+      (.push facts ["pretend" "ui/child" #js [parent pos id]]))
+    (.push facts ["pretend" "ui/elem" #js [id (name|sym el)]])
+    (doseq [[k v] real-args]
+      (.push facts ["pretend" "ui/attr" #js [id (name|sym k) v]]))
+    (doseq [[k v] (:style args)]
+      (.push facts ["pretend" "ui/style" #js [id (name|sym k) v]]))
+    (doseq [ev (:events args)]
+      (.push facts ["pretend" "ui/event-listener" #js [id (name|sym ev) (or key "") (or entity "")]]))
+    (doseq [[i child] (map-indexed vector children)]
+      (if (vector? child)
+        (fact-walk-eve child facts [id i])
+        (do
+          (let [child-id (if (symbol? id)
+                           (gensym (str id))
+                           (str id "-" i))]
+            (when (symbol? id)
+              (.push facts ["when" "eve/compute" #js [child-id (str id " + " i)]]))
+            (.push facts ["pretend" "ui/text" #js [child-id child]])
+            (.push facts ["pretend" "ui/child" #js [id i child-id]]))
+          )))))
+
+(defn hiccup->facts-eve [& hic]
+  (let [facts (array)]
+    (doseq [h hic
+            :when h]
+      (fact-walk-eve h facts []))
+    (vec facts)))
+
 (comment
 
 (def test-kn (representation/->Knowledge #{{:name :ui/elem, :id "counter-ui", :tag "p"}
