@@ -57,11 +57,19 @@
 
 ;; FLOWS
 
-(deftype Join [input-types input-args output-kinds output-names output-fields]
+(deftype MagicIterator [kind name fields index vars]
+  Object
+  (iter [this]
+        (join/magic-iterator index vars)))
+
+(defn magic-iterator [kn kind name fields vars]
+  (let [index (.get-or-create-index kn kind name fields)]
+    (MagicIterator. kind name fields index vars)))
+
+(deftype Join [input-iterables output-kinds output-names output-fields]
   Object
   (run [this kn]
-       (let [input-iters (amap input-types i _
-                               (.apply (aget js/aurora.join (aget input-types i)) nil (aget input-args i)))
+       (let [input-iters (amap input-iterables i _ (.iter (aget input-iterables i)))
              join-iter (join/join-iterator input-iters)
              facts (btree/iterator->keys join-iter)]
          (dotimes [i (alength output-kinds)]
@@ -109,12 +117,12 @@
   (.add-facts kn "know" "edge" #js ["x" "y"] #js [#js ["a" "b"] #js ["b" "c"] #js ["c" "d"] #js ["d" "b"]])
 
   (def edge-flow
-    (Join. #js ["magic_iterator"] #js [#js [(.get-or-create-index kn "know" "edge" #js ["x" "y"]) #js [0 1]]]
+    (Join. #js [(magic-iterator kn "know" "edge" #js ["x" "y"] #js [0 1])]
            #js ["know"] #js ["connected"] #js [#js ["x" "y"]]))
 
   (def connected-flow
-    (Join. #js ["magic_iterator" "magic_iterator"] #js [#js [(.get-or-create-index kn "know" "edge" #js ["x" "y"]) #js [0 1 nil]]
-                                                        #js [(.get-or-create-index kn "know" "connected" #js ["x" "y"]) #js [nil 0 1]]]
+    (Join. #js [(magic-iterator kn "know" "edge" #js ["x" "y"] #js [0 1 nil])
+                (magic-iterator kn "know" "connected" #js ["x" "y"] #js [nil 0 1])]
            #js ["know"] #js ["connected"] #js [#js ["x" nil "y"]]))
 
   (def transitive-flow
