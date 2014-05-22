@@ -1,6 +1,9 @@
 (ns aurora.language
-  (:require [aurora.btree :as btree])
+  (:require [aurora.btree :as btree]
+            [aurora.join :as join])
   (:require-macros [aurora.macros :refer [apush set!!]]))
+
+;; KNOWLEDGE
 
 (defn keymap [from-fields to-fields]
   (let [keymap (make-array (alength to-fields))]
@@ -13,8 +16,7 @@
     keymap))
 
 (defn with-keymap [keymap key]
-  (assert (== (alength keymap) (alength key)))
-  (let [new-key (make-array (alength key))]
+  (let [new-key (make-array (alength keymap))]
     (dotimes [i (alength keymap)]
       (aset new-key i (aget key (aget keymap i))))
     new-key))
@@ -53,6 +55,32 @@
 (defn knowledge []
   (Knowledge. {} 0))
 
+;; FLOWS
+
+(deftype Join [input-types input-args output-kinds output-names output-fields]
+  Object
+  (run [this kn]
+       (let [input-iters (amap input-types i _
+                               (.apply (aget js/aurora.join (aget input-types i)) nil (aget input-args i)))
+             join-iter (join/join-iterator input-iters)
+             facts (btree/iterator->keys join-iter)]
+         (dotimes [i (alength output-kinds)]
+           (.add-facts kn (aget output-kinds i) (aget output-names i) (aget output-fields i) facts)))))
+
+(deftype Chain [flows]
+  Object
+  (run [this kn]
+       (dotimes [i (alength flows)]
+         (.run (aget flows i) kn))))
+
+(deftype Fixpoint [flow]
+  Object
+  (run [this kn]
+       (loop [old-version (.-version kn)]
+         (.run flow kn)
+         (let [new-version (.-version kn)]
+           (when (not (== old-version new-version))
+             (recur new-version))))))
 
 (comment
 
@@ -74,4 +102,25 @@
 
   (.get-or-create-index kn "know" "heights" #js ["height" "name"])
 
+  (.get-or-create-index kn "know" "edge" #js ["x" "y"])
+
+  (.get-or-create-index kn "know" "connected" #js ["x" "y"])
+
+  (.add-facts kn "know" "edge" #js ["x" "y"] #js [#js ["a" "b"] #js ["b" "c"] #js ["c" "d"] #js ["d" "b"]])
+
+  (def edge-flow
+    (Join. #js ["magic_iterator"] #js [#js [(.get-or-create-index kn "know" "edge" #js ["x" "y"]) #js [0 1]]]
+           #js ["know"] #js ["connected"] #js [#js ["x" "y"]]))
+
+  (def connected-flow
+    (Join. #js ["magic_iterator" "magic_iterator"] #js [#js [(.get-or-create-index kn "know" "edge" #js ["x" "y"]) #js [0 1 nil]]
+                                                        #js [(.get-or-create-index kn "know" "connected" #js ["x" "y"]) #js [nil 0 1]]]
+           #js ["know"] #js ["connected"] #js [#js ["x" nil "y"]]))
+
+  (def transitive-flow
+    (Chain. #js [edge-flow (Fixpoint. connected-flow)]))
+
+  (.run transitive-flow kn)
+
+  (.get-or-create-index kn "know" "connected" #js ["x" "y"])
   )
