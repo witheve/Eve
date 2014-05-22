@@ -226,34 +226,36 @@
       (.next join-itr))
     results))
 
-(deftype Infinirator [^:mutable end? func max-func ^:mutable cur-key map]
+(deftype Infinirator [func initial-func max-func size ^:mutable cur-key ^:mutable end?]
   Object
-  (reset [this])
+  (reset [this]
+         (set! cur-key (array))
+         (dotimes [_ size]
+           (.push cur-key least))
+         (initial-func cur-key)
+         (set! end? false))
 
   (key [this]
-       (when (identical? end? false)
+       (when (false? end?)
          cur-key))
 
   (val [this]
        nil)
 
   (next [this]
-        (set! end? true)
-        )
+        (set! end? true))
+
   (seek [this key]
         (set! end? false)
         (ainto cur-key key)
         (func cur-key key)
         (when (key-gt key cur-key)
-          (max-func cur-key))
-        ))
+          (max-func cur-key))))
 
 (defn infinirator [size func initial-func max-func]
-  (let [cur-key (array)]
-    (dotimes [x size]
-      (.push cur-key least))
-    (initial-func cur-key)
-    (Infinirator. false func max-func cur-key size)))
+  (let [itr (Infinirator. func initital max-func size)]
+    (.reset itr)
+    itr))
 
 (defn constant-filter [size i v]
   (infinirator size
