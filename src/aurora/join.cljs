@@ -266,6 +266,20 @@
                 (fn [cur]
                   (aset cur i greatest))))
 
+(defn variable-filter [size i j]
+  (infinirator size
+               (fn [cur key]
+                 (let [key-i (aget key i)
+                       key-j (aget key j)]
+                   (if (gt key-i key-j)
+                     (aset key j key-i)
+                     (aset key i key-j))))
+               (fn [cur]
+                 (aset key i least)
+                 (aset key j least))
+               (fn [cur]
+                 nil)))
+
 (defn context [indexes]
   (let [update-indexes #js {}
         do-update (fn [index content]

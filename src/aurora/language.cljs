@@ -90,6 +90,98 @@
            (when (not (== old-version new-version))
              (recur new-version))))))
 
+;; COMPILER
+
+(let [next (atom 0)]
+   (defn new-id []
+     (if js/window.uuid
+       (.replace (js/uuid) (js/RegExp. "-" "gi") "_")
+       (str "id-" (swap! next inc)))))
+
+
+;; NOTE can't handle missing keys yet - requires a schema
+(defn compile [kn]
+  (let [clauses (btree/iterator->keys (btree/iterator (.get-or-create-index kn "know" "clauses" ["rule-id" "when|pretend|remember|forget" "clause-id" "name"])))
+        fields (btree/iterator->keys (btree/iterator (.get-or-create-index kn "know" "clause-fields" ["clause-id" "constant|variable" "key" "val"])))
+        rule-id->clauses (atom (into {} (for [[k vs] (group-by #(nth % 0) clauses)] [k (set (map vec vs))])))
+        clause-id->fields (atom (into {} (for [[k vs] (group-by #(nth % 0) fields)] [k (set (map vec vs))])))]
+
+    ;; rewrite clauses
+    (doseq [[rule-id clauses] @rule-id->clauses]
+      (doseq [[_ clause-type clause-id name] clauses]
+        (let [fields (get @clause-id->fields clause-id)
+              var->key (atom {})]
+          (doseq [[_ field-type key val] fields]
+            (if (= field-type "constant")
+              ;; rewrite (foo 1) to (foo x) (constant= x 1)
+              (let [new-var (new-id)
+                    new-clause-id (new-id)]
+                (swap! clause-id->fields update-in [clause-id] disj [clause-id "constant" key val])
+                (swap! clause-id->fields update-in [clause-id] conj [clause-id "variable" key new-var])
+                (swap! clause-id->fields assoc new-clause-id #{[new-clause-id "variable" "variable" new-var]
+                                                               [new-clause-id "constant" "constant" val]})
+                (swap! rule-id->clauses update-in [rule-id] conj [rule-id "when" new-clause-id "=constant"]))
+              (if (get @var->key val)
+                ;; rewrite (foo x x) to (foo x y) (variable= x y)
+                (let [new-var (new-id)
+                      new-clause-id (new-id)]
+                  (swap! clause-id->fields update-in [clause-id] disj [clause-id "variable" key val])
+                  (swap! clause-id->fields update-in [clause-id] conj [clause-id "variable" key new-var])
+                  (swap! clause-id->fields assoc new-clause-id #{[new-clause-id "variable-a" "variable" new-var]
+                                                                 [new-clause-id "variable-b" "variable" val]})
+                  (swap! rule-id->clauses update-in [rule-id] conj [rule-id "when" new-clause-id "=variable"]))
+                (swap! var->key assoc val key)))))))
+
+    (for [[rule-id clauses] @rule-id->clauses]
+      (let [vars (atom #{})]
+
+        ;; collect vars
+        (doseq [[_ _ clause-id _] clauses
+                (get @clause-id->fields clause-id)]
+          (let [fields (get @clause-id->fields clause-id)]
+            (doseq [[_ field-type key val] fields]
+              (when (= field-type "variable")
+                (swap! vars conj val)))))
+
+        ;; make ruleset
+        (let [var->ix (zipmap @vars (range))
+              num-vars (count @vars)
+              iters (for [[_ clause-type clause-id name] clauses
+                          :when (= clause-type "when")]
+                      (let [fields (get @clause-id->fields clause-id)]
+                        (case name
+                          "=constant" (let [variable (first (for [[_ field-type key val] fields
+                                                                  :when (= key "variable")]
+                                                              val))
+                                            constant (first (for [[_ field-type key val] fields
+                                                                  :when (= key "constant")]
+                                                              val))
+                                            ix (get var->ix variable)]
+                                        (join/constant-filter num-vars ix constant))
+                          "=variable" (let [variable-a (first (for [[_ field-type key val] fields
+                                                                    :when (= key "variable-a")]
+                                                                val))
+                                            variable-b (first (for [[_ field-type key val] fields
+                                                                    :when (= key "variable-b")]
+                                                                val))
+                                            ix-a (get var->ix variable-a)
+                                            ix-b (get var->ix variable-b)]
+                                        (join/variable-filter num-vars ix-a ix-b))
+                          (let [clause-vars (for [[_ field-type key val] fields]
+                                              val)
+                                clause-vars (sort-by var->ix clause-vars)
+                                clause-vars->ix (zipmap clause-vars (range))
+                                var-map (map clause-vars->ix @vars)
+                                clause-keys (for [[_ field-type key val] fields]
+                                              key)
+                                index (.get-or-create-index kn "know" name clause-keys)]
+                            (join/magic-iterator index (into-array var-map))))))
+              join-iter (join/join-iterator (into-array iterators))]
+
+          ;; TODO outputs, ruleset
+          )
+    ))
+
 (comment
 
   (def kn (knowledge))
