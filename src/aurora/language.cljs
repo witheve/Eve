@@ -3,6 +3,16 @@
             [aurora.join :as join])
   (:require-macros [aurora.macros :refer [apush set!!]]))
 
+;; FLOWS
+
+(deftype Flow [input-iter output-kinds output-names output-fields]
+  Object
+  (run [this kn]
+       (.reset input-iter)
+       (let [facts (btree/iterator->keys input-iter)]
+         (dotimes [i (alength output-kinds)]
+           (.add-facts kn (aget output-kinds i) (aget output-names i) (aget output-fields i) facts)))))
+
 ;; KNOWLEDGE
 
 (defn keymap [from-fields to-fields]
@@ -50,45 +60,11 @@
                (when changed?
                  (set! version (+ version 1)))))
   (tick [this])
+  ;; TODO Knowledge.tick using array of flows, needs dirty tracking per flow (requires map from index to flow)
   (tock [this]))
 
 (defn knowledge []
   (Knowledge. {} 0))
-
-;; FLOWS
-
-(deftype MagicIterator [kind name fields index vars]
-  Object
-  (iter [this]
-        (join/magic-iterator index vars)))
-
-(defn magic-iterator [kn kind name fields vars]
-  (let [index (.get-or-create-index kn kind name fields)]
-    (MagicIterator. kind name fields index vars)))
-
-(deftype Join [input-iterables output-kinds output-names output-fields]
-  Object
-  (run [this kn]
-       (let [input-iters (amap input-iterables i _ (.iter (aget input-iterables i)))
-             join-iter (join/join-iterator input-iters)
-             facts (btree/iterator->keys join-iter)]
-         (dotimes [i (alength output-kinds)]
-           (.add-facts kn (aget output-kinds i) (aget output-names i) (aget output-fields i) facts)))))
-
-(deftype Chain [flows]
-  Object
-  (run [this kn]
-       (dotimes [i (alength flows)]
-         (.run (aget flows i) kn))))
-
-(deftype Fixpoint [flow]
-  Object
-  (run [this kn]
-       (loop [old-version (.-version kn)]
-         (.run flow kn)
-         (let [new-version (.-version kn)]
-           (when (not (== old-version new-version))
-             (recur new-version))))))
 
 ;; COMPILER
 
@@ -98,11 +74,10 @@
        (.replace (js/uuid) (js/RegExp. "-" "gi") "_")
        (str "id-" (swap! next inc)))))
 
-
 ;; NOTE can't handle missing keys yet - requires a schema
 (defn compile [kn]
-  (let [clauses (btree/iterator->keys (btree/iterator (.get-or-create-index kn "know" "clauses" ["rule-id" "when|pretend|remember|forget" "clause-id" "name"])))
-        fields (btree/iterator->keys (btree/iterator (.get-or-create-index kn "know" "clause-fields" ["clause-id" "constant|variable" "key" "val"])))
+  (let [clauses (btree/iterator->keys (btree/iterator (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|pretend|remember|forget" "clause-id" "name"])))
+        fields (btree/iterator->keys (btree/iterator (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])))
         rule-id->clauses (atom (into {} (for [[k vs] (group-by #(nth % 0) clauses)] [k (set (map vec vs))])))
         clause-id->fields (atom (into {} (for [[k vs] (group-by #(nth % 0) fields)] [k (set (map vec vs))])))]
 
@@ -136,16 +111,16 @@
       (let [vars (atom #{})]
 
         ;; collect vars
-        (doseq [[_ _ clause-id _] clauses
-                (get @clause-id->fields clause-id)]
+        (doseq [[_ _ clause-id _] clauses]
           (let [fields (get @clause-id->fields clause-id)]
             (doseq [[_ field-type key val] fields]
               (when (= field-type "variable")
                 (swap! vars conj val)))))
 
-        ;; make ruleset
         (let [var->ix (zipmap @vars (range))
               num-vars (count @vars)
+
+              ;; make input iter
               iters (for [[_ clause-type clause-id name] clauses
                           :when (= clause-type "when")]
                       (let [fields (get @clause-id->fields clause-id)]
@@ -176,11 +151,49 @@
                                               key)
                                 index (.get-or-create-index kn "know" name clause-keys)]
                             (join/magic-iterator index (into-array var-map))))))
-              join-iter (join/join-iterator (into-array iterators))]
+              join-iter (join/join-iterator (into-array iterators))
 
-          ;; TODO outputs, ruleset
-          )
-    ))
+              ;; make output specs
+              output-kinds (into-array
+                            (for [[_ clause-type clause-id name] clauses
+                                  :when (not= clause-type "when")]
+                              clause-type))
+              output-names (into-array
+                            (for [[_ clause-type clause-id name] clauses
+                                  :when (not= clause-type "when")]
+                              name))
+              output-fields (into-array
+                             (for [[_ clause-type clause-id name] clauses
+                                   :when (not= clause-type "when")]
+                               (let [clause-fields (get @clause-id->fields clause-id)
+                                     output-fields (make-array num-vars)]
+                                 (doseq [[_ field-type key val] fields]
+                                   (assert (= field-type "variable"))
+                                   (aset output-fields (var->ix val) key)))))]
+
+          (Flow. join-iter output-kinds output-names output-fields))))))
+
+(def kn (knowledge))
+
+(.get-or-create-index kn "know" "edge" #js ["x" "y"])
+
+(.get-or-create-index kn "know" "connected" #js ["x" "y"])
+
+(.add-facts kn "know" "edge" #js ["x" "y"] #js [#js ["a" "b"] #js ["b" "c"] #js ["c" "d"] #js ["d" "b"]])
+
+(.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|pretend|remember|forget" "clause-id" "name"])
+
+(.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
+
+(.add-facts kn "know" "clauses" #js ["rule-id" "when|pretend|remember|forget" "clause-id" "name"] #js [#js ["edge->connected" "when" "get-edges" "edge"]
+                                                                                                       #js ["edge->connected" "pretend" "output-connected" "edge"]])
+
+(.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-edges" "variable" "x" "xx"]
+                                                                                             #js ["get-edges" "variable" "y" "yy"]
+                                                                                             #js ["output-connected" "variable" "x" "xx"]
+                                                                                             #js ["output-connected" "variable" "y" "yy"]])
+
+(compile kn)
 
 (comment
 
