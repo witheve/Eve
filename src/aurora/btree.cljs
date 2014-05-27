@@ -4,7 +4,7 @@
             [cemerick.double-check.properties :as prop :include-macros true]
             [cemerick.pprng :as pprng]
             clojure.set)
-  (:require-macros [aurora.macros :refer [debug apush apush* amake typeof set!! dofrom]]))
+  (:require-macros [aurora.macros :refer [debug apush apush* amake aclear typeof set!! dofrom]]))
 
 ;; COMPARISONS
 
@@ -353,14 +353,17 @@
 ;; On pop, pop last position from the stack
 ;; NOTE iterators are not write-safe
 
-(deftype Iterator [tree ^:mutable node ^:mutable ix ^:mutable end? pushed-nodes pushed-ixes pushed-end?s key-len]
+(deftype Iterator [tree ^:mutable node ^:mutable ix ^:mutable end? ^:mutable old-node ^:mutable old-ix ^:mutable old-end? pushed-nodes pushed-ixes pushed-end?s key-len]
   Object
   (reset [this]
          (set! node (.-root tree))
          (set! ix 0)
          (while (not (nil? (.-children node)))
            (set! node (aget (.-children node) 0)))
-         (set! end? (<= (alength (.-keys node)) 0)))
+         (set! end? (<= (alength (.-keys node)) 0))
+         (aclear pushed-nodes)
+         (aclear pushed-ixes)
+         (aclear pushed-end?s))
   (key [this]
        (when (false? end?)
          (aget (.-keys node) ix)))
@@ -368,6 +371,9 @@
        (when (false? end?)
          (aget (.-vals node) ix)))
   (next [this]
+        (set! old-node node)
+        (set! old-ix ix)
+        (set! old-end? end?)
         (if (true? end?)
           false
           (if (nil? (.-children node))
@@ -394,6 +400,9 @@
                     (set! node (aget (.-children node) 0))
                     (recur))))))))
   (seek [this key]
+        (set! old-node node)
+        (set! old-ix ix)
+        (set! old-end? end?)
         (let [start-node node
               start-ix ix]
           (if (true? end?)
@@ -425,6 +434,10 @@
                           (set! node (aget (.-children node) ix))
                           (set! ix 0)
                           (recur)))))))))))
+  (undo [this]
+        (set! node old-node)
+        (set! ix old-ix)
+        (set! end? old-end?))
   (push [this]
         (apush pushed-nodes node)
         (apush pushed-ixes ix)
@@ -435,9 +448,178 @@
        (set! end? (.pop pushed-end?s))))
 
 (defn iterator [tree]
-  (let [iterator (Iterator. tree nil 0 false #js [] #js [] #js [] (.-key-len tree))]
+  (let [iterator (Iterator. tree (.-root tree) 0 false nil nil nil #js [] #js [] #js [] (.-key-len tree))]
     (.reset iterator)
     iterator))
+
+;; used only inside Join
+(deftype JoinIterator [iterator outer->inner inner->outer seek-key key-len]
+  Object
+  (reset [this]
+         (.reset iterator))
+  (outer-key [this]
+             (when (false? (.-end? iterator))
+               (let [inner-key (.key iterator)
+                     outer-key (make-array key-len)]
+                 (dotimes [i (alength inner->outer)]
+                   (aset outer-key (aget inner->outer i) (aget inner-key i)))
+                 outer-key)))
+  (inner-key [this]
+             (when (false? (.-end? iterator))
+               (let [inner-key (.key iterator)
+                     outer-key (make-array key-len)]
+                 (dotimes [i (alength inner->outer)]
+                   (aset outer-key (aget inner->outer i) (aget inner-key i)))
+                 outer-key)))
+  (key-at [this outer-ix]
+          (when (false? (.-end? iterator))
+            (let [inner-key (.key iterator)]
+              (aget inner-key (aget outer->inner outer-ix)))))
+  (next [this]
+        (.next iterator))
+  (seek [this outer-key]
+        (dotimes [inner-ix (alength inner->outer)]
+          (aset seek-key inner-ix (aget outer-key (aget inner->outer inner-ix))))
+        (.seek iterator seek-key))
+  (undo [this]
+        (.undo iterator))
+  (push [this]
+        (.push iterator))
+  (pop [this]
+       (.pop iterator))
+  (end? [this]
+        (.-end? iterator)))
+
+(deftype Join [seek-key iterators var->iterators var->iterator->push|pop? ^:mutable end?]
+  Object
+  (reset [this]
+         (debug)
+         (debug :reset)
+         (set! end? false)
+         (dotimes [i (alength iterators)]
+           (let [iterator (aget iterators i)]
+             (.reset iterator)
+             (when (true? (.end? iterator))
+               (set! end? true))))
+         (dotimes [i (alength seek-key)]
+           (aset seek-key i least))
+         (.search this -1 0 0))
+  (key [this]
+       (when (false? end?)
+         (aclone seek-key)))
+  (search [this old-var new-var current]
+          (cond
+
+           (== old-var new-var)
+           ;; ACROSS: assumes prefixes all equal, keys not all equal, iterators sorted by ascending key, nothing at end
+           (let [var-iterators (aget var->iterators new-var)
+                 num-var-iterators (alength var-iterators)
+                 previous (mod (- current 1) num-var-iterators)
+                 max-key (.key-at (aget var-iterators previous) new-var)
+                 iterator (aget var-iterators current)
+                 min-key (.key-at iterator new-var)
+                 old-key (.inner-key iterator)]
+             (debug :search max-key current seek-key)
+             (aset seek-key new-var max-key)
+             (.seek iterator seek-key)
+             (if (true? (.end? iterator))
+               (do
+                 (.undo iterator)
+                 (recur new-var (- new-var 1) 0))
+               (let [new-key (.inner-key iterator)]
+                 (if (prefix-not= old-key new-key new-var)
+                   (do
+                     (.undo iterator)
+                     (recur new-var (- new-var 1) 0))
+                   (if (== (.key-at iterator new-var) max-key)
+                     (do
+                       (aset seek-key new-var max-key)
+                       (recur new-var (+ new-var 1) 0))
+                     (recur new-var new-var (mod (+ current 1) num-var-iterators)))))))
+
+           (< new-var old-var)
+           ;; UP: assumes prefixes and keys all equal, nothing at end
+           (if (== old-var 0)
+             (set! end? true)
+             (let [new-var (- old-var 1)
+                   var-iterators (aget var->iterators new-var)
+                   iterator (aget var-iterators (- (alength var-iterators) 1))]
+               (debug :up old-var seek-key)
+               (when (< old-var (alength var->iterators))
+                 (aset seek-key old-var least)
+                 (let [iterator->push|pop? (aget var->iterator->push|pop? old-var)]
+                   (dotimes [i (alength iterators)]
+                     (when (true? (aget iterator->push|pop? i))
+                       (debug :popping i :at old-var)
+                       (.pop (aget iterators i))))))
+               (let [old-key (.inner-key iterator)]
+                 (.next iterator)
+                 (if (true? (.end? iterator))
+                   (do
+                     (.undo iterator)
+                     (recur new-var (- new-var 1) 0))
+                   (let [new-key (.inner-key iterator)]
+                     (if (prefix-not= old-key new-key new-var)
+                       (do
+                         (.undo iterator)
+                         (recur new-var (- new-var 1) 0))
+                       (recur new-var new-var 0)))))))
+
+           (> new-var old-var)
+           ;; DOWN: assumes prefixes all equal, nothing at end
+           (if (== old-var (- (alength var->iterators) 1))
+             nil ;; done
+             (let [new-var (+ old-var 1)
+                   var-iterators (aget var->iterators new-var)
+                   iterator->push|pop? (aget var->iterator->push|pop? new-var)]
+               (debug :down old-var old-key seek-key)
+               (dotimes [i (alength iterators)]
+                 (when (true? (aget iterator->push|pop? i))
+                   (debug :pushing i :at new-var)
+                   (.push (aget iterators i))))
+               (js/goog.array.sort var-iterators (fn [i0 i1] (compare (.key-at i0 new-var) (.key-at i1 new-var))))
+               (if (== (.key-at (aget var-iterators 0) new-var) (.key-at (aget var-iterators (- (alength var-iterators) 1)) new-var))
+                 (do
+                   (aset seek-key new-var (.key-at (aget var-iterators 0) new-var))
+                   (recur new-var (+ new-var 1) 0))
+                 (recur new-var new-var 0))))))
+  (next [this]
+        (debug)
+        (debug :next seek-key)
+        (when (false? end?)
+          (let [iterators (aget var->iterators (- (alength var->iterators) 1))
+                iterator (aget iterators (- (alength var->iterators) 1))]
+            (.search this (alength var->iterators) (- (alength var->iterators) 1) 0)))
+        (false? end?)))
+
+(defn join [iterators num-vars iterator->var->present?]
+  (let [seek-key (least-key num-vars)
+        join-iterators (amake [i (alength iterators)]
+                              (let [iterator (aget iterators i)
+                                    var->present? (aget iterator->var->present? i)
+                                    inner->outer (make-array (.-key-len iterator))
+                                    outer->inner (make-array num-vars)
+                                    var 0]
+                                (dotimes [j num-vars]
+                                  (when (true? (aget var->present? j))
+                                    (aset inner->outer var j)
+                                    (aset outer->inner j var)
+                                    (set!! var (+ var 1))))
+                                (JoinIterator. iterator outer->inner inner->outer (make-array (.-key-len iterator)) num-vars)))
+        var->iterators (amake [j num-vars]
+                              (let [var-iterators #js []]
+                                (dotimes [i (alength iterators)]
+                                  (when (true? (aget iterator->var->present? i j))
+                                    (apush var-iterators (aget join-iterators i))))
+                                var-iterators))
+        var->iterator->push|pop? (amake [j num-vars]
+                                     (amake [i (alength iterators)]
+                                            (and (true? (aget iterator->var->present? i j))
+                                                 (and (> j 0)
+                                                      (false? (aget iterator->var->present? i (- j 1)))))))
+        join (Join. seek-key join-iterators var->iterators var->iterator->push|pop? false)]
+    (.reset join)
+    join))
 
 (defn iterator->keys
   ([iterator]
@@ -642,6 +824,66 @@
                  movements (gen/vector (gen-movement key-len))]
                 (run-iterator-prop min-keys key-len actions movements)))
 
+(defn run-self-join-prop [min-keys key-len actions movements]
+  (let [tree (apply-to-tree (tree min-keys key-len) actions)
+        iterator-results (apply-to-iterator (iterator tree) movements)
+        join-results (apply-to-iterator
+                      (join #js [(iterator tree) (iterator tree)] key-len #js [(into-array (repeat key-len true)) (into-array (repeat key-len true))])
+                      movements)]
+    (= (map (fn [[b k]] [b (vec k)]) iterator-results)
+       (map (fn [[b k]] [b (vec k)]) join-results))))
+
+(defn self-join-prop [key-len]
+  (prop/for-all [min-keys gen/s-pos-int
+                 actions (gen/vector (gen-action key-len))
+                 movements (gen/vector (gen-next key-len))] ;; TODO implement Join.seek
+                (run-self-join-prop min-keys key-len actions movements)))
+
+(defn run-product-join-prop [min-keys key-len actions movements]
+  (let [product-tree (tree min-keys key-len)
+        tree (apply-to-tree (tree min-keys key-len) actions)
+        elems (iterator->keys (iterator tree))
+        _ (dotimes [i (alength elems)]
+            (dotimes [j (alength elems)]
+              (.assoc! product-tree (.concat (aget elems i) (aget elems j)) nil)))
+        iterator-results (apply-to-iterator (iterator product-tree) movements)
+        join-results (apply-to-iterator
+                      (join #js [(iterator tree) (iterator tree)] (* 2 key-len) #js [(into-array (concat (repeat key-len true) (repeat key-len false)))
+                                                                                     (into-array (concat (repeat key-len false) (repeat key-len true)))])
+                      movements)]
+    (= (map (fn [[b k]] [b (vec k)]) iterator-results)
+       (map (fn [[b k]] [b (vec k)]) join-results))))
+
+(defn product-join-prop [key-len]
+  (prop/for-all [min-keys gen/s-pos-int
+                 actions (gen/vector (gen-action key-len))
+                 movements (gen/vector (gen-next key-len))] ;; TODO implement Join.seek
+                (run-product-join-prop min-keys key-len actions movements)))
+
+(defn magic-run-product-join-prop [min-keys key-len actions]
+  (let [tree (apply-to-tree (tree min-keys key-len) actions)
+        itr1 (iterator->keys (iterator tree))
+        iterator-results (for [i1 itr1
+                               i2 itr1]
+                           (vec (concat i1 i2)))
+        iterator-a (js/aurora.join.magic-iterator tree (let [arr (array)]
+                                                         (dotimes [x key-len]
+                                                           (.push arr x))
+                                                         (dotimes [x key-len]
+                                                           (.push arr nil))
+                                                         arr
+                                                         ))
+        iterator-b (js/aurora.join.magic-iterator tree (let [arr (array)]
+                                                         (dotimes [x key-len]
+                                                           (.push arr nil))
+                                                         (dotimes [x key-len]
+                                                           (.push arr x))
+                                                         arr
+                                                         ))
+        join-itr (js/aurora.join.join-iterator #js [iterator-a iterator-b])
+        join-results (js/aurora.join.all-join-results join-itr)]
+    (= iterator-results (map vec join-results))))
+
 (comment
   (dc/quick-check 1000 (least-prop 1))
   (dc/quick-check 1000 (least-prop 2))
@@ -661,7 +903,12 @@
   (dc/quick-check 10000 (building-prop gen-action 1))
   (dc/quick-check 10000 (lookup-prop gen-action 1))
   (dc/quick-check 10000 (iterator-prop 1))
-
+  (dc/quick-check 10000 (self-join-prop 1))
+  (dc/quick-check 10000 (self-join-prop 2))
+  (dc/quick-check 10000 (self-join-prop 3))
+  (dc/quick-check 10000 (product-join-prop 1))
+  (dc/quick-check 10000 (product-join-prop 2))
+  (dc/quick-check 10000 (product-join-prop 3))
 
   (defn f []
     (time
@@ -686,6 +933,97 @@
          (.assoc! tree #js [(js/Math.sin i) (js/Math.cos i) (js/Math.tan i)] (* 2 i))))))
 
   (time (dotimes [_ 10] (h)))
+
+  (do
+    (def samples (gen/sample (gen/tuple gen/s-pos-int (gen/vector gen-action) (gen/vector gen-movement)) 100))
+    (def trees (for [[min-keys actions _] samples]
+                 (apply-to-tree (tree min-keys) actions)))
+    (def benches (mapv vector trees (map #(nth % 2) samples)))
+    (time
+     (doseq [[tree movements] benches]
+       (apply-to-iterator (iterator tree) movements))))
+
+  (let [tree1 (tree 10)
+        _ (dotimes [i 10000]
+            (let [i (+ i 0)]
+              (.assoc! tree1 #js [i (+ i 1) (+ i 2)] (* 2 i))))
+        tree2 (tree 10)
+        _ (dotimes [i 1000]
+            (let [i (+ i 1)]
+              (.assoc! tree2 #js [i (+ i 2)] (* 2 i))))
+        tree3 (tree 10)
+        _ (dotimes [i 100000]
+            (let [i (+ i 2)]
+              (.assoc! tree3 #js [(+ i 1) (+ i 2)] (* 2 i))))
+        ]
+    (time
+     (dotimes [i 100]
+       (let [j (join #js [(iterator tree1) (iterator tree2) (iterator tree3)] 3 #js [#js [true true true] #js [true false true] #js [false true true]])]
+         (iterator->keys j))))
+  )
+
+  (let [tree1 (tree 10)
+          _ (dotimes [i 100000]
+              (let [i (+ i 0)]
+                (.assoc! tree1 #js [i i i] (* 2 i))))
+          tree2 (tree 10)
+          _ (dotimes [i 100000]
+              (let [i (+ i 100000)]
+                (.assoc! tree2 #js [i i i] (* 2 i))))
+          tree3 (tree 10)
+          _ (dotimes [i 100000]
+              (let [i (+ i 50000)]
+                (.assoc! tree3 #js [i i i] (* 2 i))))
+          ]
+      (time
+       (dotimes [i 100]
+         (let [j (join #js [(iterator tree1) (iterator tree2) (iterator tree3)] 3 #js [#js [true true true] #js [true true true] #js [true true true]])]
+           (iterator->keys j)))))
+
+  (let [tree (tree 10)
+        _ (dotimes [i 10]
+            (let [i (+ i 0)]
+              (.assoc! tree #js [i i] (* 2 i))))
+        j (time (join #js [(iterator tree) (iterator tree)] 3 #js [#js [true true false]
+                                                                   #js [false true true]]))
+        ]
+    (alength (time (iterator->keys j)))
+    )
+
+  (let [tree (tree 10)
+        _ (dotimes [i 10]
+            (let [i (+ i 0)]
+              (.assoc! tree #js [i i] (* 2 i))))
+        j (time (join #js [(iterator tree) (iterator tree) (iterator tree)] 6 #js [#js [true false false true false false]
+                                                                                   #js [false true false false true false]
+                                                                                   #js [false false true false false true]]))
+        ]
+    (alength (time (iterator->keys j)))
+  )
+
+  (let [tree (tree 10)
+        _ (dotimes [i 10]
+            (let [i (+ i 0)]
+              (.assoc! tree #js [i i] (* 2 i))))
+        j (time (join #js [(iterator tree) (iterator tree) (iterator tree)] 6 #js [#js [true false false false false true]
+                                                                                   #js [false true false false true false]
+                                                                                   #js [false false true true false false]]))
+        ]
+    (alength (time (iterator->keys j)))
+  )
+
+  (let [tree1 (tree 10)
+        _ (.assoc! tree1 #js ["a" "b"] 0)
+        _ (.assoc! tree1 #js ["b" "c"] 0)
+        tree2 (tree 10)
+        _ (.assoc! tree2 #js ["b" "d"] 0)
+        _ (.assoc! tree2 #js ["c" "b"] 0)
+        join-itr (join #js [(iterator tree1) (iterator tree2)] 3 #js [#js [true false true]
+                                                                      #js [false true true]])
+        ]
+     (map vec (iterator->keys join-itr))
+     ;["a" "c" "b"]
+    )
 
  )
 

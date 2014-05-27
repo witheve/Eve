@@ -75,6 +75,30 @@
   5000
   (aurora.btree/iterator-prop 1))
 
+(defspec self-join-prop-test
+  5000
+  (aurora.btree/self-join-prop 1))
+
+(defspec self-join-prop-test
+  5000
+  (aurora.btree/self-join-prop 2))
+
+(defspec self-join-prop-test
+  5000
+  (aurora.btree/self-join-prop 3))
+
+(defspec product-join-prop-test
+  5000
+  (aurora.btree/product-join-prop 1))
+
+(defspec product-join-prop-test
+  5000
+  (aurora.btree/product-join-prop 2))
+
+(defspec product-join-prop-test
+  5000
+  (aurora.btree/product-join-prop 3))
+
 ;;; MAGIC!
 
 (defspec magic-self-join-prop-test-1
