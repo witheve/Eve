@@ -348,10 +348,10 @@
 ;; .key / .val return key and val currently pointed at
 ;; On creation/reset, points to first key
 ;; On next, either point to next key or set .-end? true. Return (not .-end?)
-;; On seek, point to first key greater than seek-key. Return (key= (.key this) seek-key)
+;; On seek, point to first key greater than or equal to seek-key. Return (key= (.key this) seek-key)
 ;; On push, push current position onto a stack
 ;; On pop, pop last position from the stack
-;; NOTE iterators are not write-safe
+;; NOTE iterators are not write-safe unless reset after writing
 
 (deftype Iterator [tree ^:mutable node ^:mutable ix ^:mutable end? ^:mutable old-node ^:mutable old-ix ^:mutable old-end? pushed-nodes pushed-ixes pushed-end?s key-len]
   Object
