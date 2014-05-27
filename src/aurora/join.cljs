@@ -452,12 +452,12 @@
                 (magic-run-self-join-prop min-keys key-len actions movements)))
 
 (comment
-  (dc/quick-check 10000 (magic-self-join-prop 1))
-  (dc/quick-check 10000 (magic-self-join-prop 2))
-  (dc/quick-check 10000 (magic-self-join-prop 3))
-  (dc/quick-check 10000 (magic-product-join-prop 1))
-  (dc/quick-check 10000 (magic-product-join-prop 2))
-  (dc/quick-check 10000 (magic-product-join-prop 3))
+  (dc/quick-check 1000 (magic-self-join-prop 1))
+  (dc/quick-check 1000 (magic-self-join-prop 2))
+  (dc/quick-check 1000 (magic-self-join-prop 3))
+  (dc/quick-check 1000 (magic-product-join-prop 1))
+  (dc/quick-check 1000 (magic-product-join-prop 2))
+  (dc/quick-check 1000 (magic-product-join-prop 3))
 
   (comment
     (let [tree1 (tree 10)

@@ -12,6 +12,24 @@
 (def least false)
 (def greatest js/undefined)
 
+(defn val? [a]
+  (or (string? a) (number? a)))
+
+(defn val-compare [a b]
+  (if (identical? a b)
+    0
+    (if (or (and (identical? (typeof a) (typeof b))
+                 (< a b))
+            (< (typeof a) (typeof b)))
+      -1
+      1)))
+
+(defn val-lt [a b]
+  (== -1 (val-compare a b)))
+
+(defn val-lte [a b]
+  (not (== 1 (val-compare a b))))
+
 (defn least-key [key-len]
   (let [result #js []]
     (dotimes [_ key-len]
@@ -485,17 +503,14 @@
   (end? [this]
         (.-end? iterator)))
 
-(deftype Join [seek-key iterators var->iterators var->iterator->push|pop? ^:mutable end?]
+(deftype Join [seek-key iterators var->iterators var->nextable var->iterator->push|pop? ^:mutable end?]
   Object
   (reset [this]
          (debug)
          (debug :reset)
          (set! end? false)
          (dotimes [i (alength iterators)]
-           (let [iterator (aget iterators i)]
-             (.reset iterator)
-             (when (true? (.end? iterator))
-               (set! end? true))))
+           (.reset (aget iterators i)))
          (dotimes [i (alength seek-key)]
            (aset seek-key i least))
          (.search this -1 0 0))
@@ -522,7 +537,7 @@
                  (.undo iterator)
                  (recur new-var (- new-var 1) 0))
                (let [new-key (.outer-key iterator)]
-                 (if (prefix-not= old-key new-key new-var)
+                 (if (and (not (nil? old-key)) (prefix-not= old-key new-key new-var))
                    (do
                      (.undo iterator)
                      (recur new-var (- new-var 1) 0))
@@ -538,7 +553,7 @@
              (set! end? true)
              (let [new-var (- old-var 1)
                    var-iterators (aget var->iterators new-var)
-                   iterator (aget var-iterators (- (alength var-iterators) 1))]
+                   iterator (aget var->nextable (- (alength var-iterators) 1))]
                (debug :up old-var seek-key)
                (when (< old-var (alength var->iterators))
                  (aset seek-key old-var least)
@@ -563,7 +578,7 @@
            (> new-var old-var)
            ;; DOWN: assumes prefixes all equal, nothing at end
            (if (== old-var (- (alength var->iterators) 1))
-             nil ;; done
+             (debug :done seek-key)
              (let [new-var (+ old-var 1)
                    var-iterators (aget var->iterators new-var)
                    iterator->push|pop? (aget var->iterator->push|pop? new-var)]
@@ -585,7 +600,7 @@
           (.search this (alength var->iterators) (- (alength var->iterators) 1) 0))
         (false? end?)))
 
-(defn join [iterators num-vars iterator->var->present?]
+(defn join [iterators num-vars iterator->var->nextable? iterator->var->present?]
   (let [seek-key (least-key num-vars)
         join-iterators (amake [i (alength iterators)]
                               (let [iterator (aget iterators i)
@@ -601,8 +616,12 @@
                                 (JoinIterator. iterator outer->inner inner->outer (make-array (.-key-len iterator)) num-vars)))
         var->iterators (amake [j num-vars]
                               (let [var-iterators #js []]
+                                ;; ensure non-nextable iterators are sorted first
                                 (dotimes [i (alength iterators)]
-                                  (when (true? (aget iterator->var->present? i j))
+                                  (when (and (true? (aget iterator->var->present? i j)) (false? (aget iterator->var->nextable? i j)))
+                                    (apush var-iterators (aget join-iterators i))))
+                                (dotimes [i (alength iterators)]
+                                  (when (and (true? (aget iterator->var->present? i j)) (true? (aget iterator->var->nextable? i j)))
                                     (apush var-iterators (aget join-iterators i))))
                                 var-iterators))
         var->iterator->push|pop? (amake [j num-vars]
@@ -613,6 +632,52 @@
         join (Join. seek-key join-iterators var->iterators var->iterator->push|pop? false)]
     (.reset join)
     join))
+
+(deftype FunctionIterator [f num-args ^:mutable saved-key ^:mutable end? ^:mutable old-saved-key ^:mutable old-end? pushed-saved-keys pushed-end?s]
+  Object
+  (reset [this]
+         (set! saved-key (least-key (+ num-args 1)))
+         (set! end? true)
+         (set! old-saved-key saved-key)
+         (set! old-end? end?)
+         (aclear pushed-saved-keys)
+         (aclear pushed-end?s))
+  (key [this]
+       (when (false? end?)
+         saved-key))
+  (next [this]
+        (assert false ".next on FunctionIterator"))
+  (seek [this key]
+        (if (not (== least (aget key (- num-args 1)))) ;; ie all input vars are defined
+          (let [old-result (aget key num-args)
+                new-result (.apply f nil key)]
+            (assert (val? new-result) (pr-str new-result))
+            (if (val-lte old-result new-result)
+              (do
+                (set! old-saved-key saved-key)
+                (set! old-end? end?)
+                (set! saved-key (aclone key))
+                (aset saved-key num-args new-result)
+                (set! end? false)
+                (== old-result new-result))
+              (do
+                (set! end? true)
+                false)))
+          (do
+            (set! end? true)
+            false)))
+  (undo [this]
+        (set! saved-key old-saved-key)
+        (set! end? old-end?))
+  (push [this]
+        (apush pushed-saved-keys saved-key)
+        (apush pushed-end?s end?))
+  (pop [this]
+       (set! saved-key (.pop pushed-saved-keys))
+       (set! end? (.pop pushed-end?s))))
+
+(defn function-iterator [f num-args]
+  (FunctionIterator. f num-args (least-key (+ num-args 1)) true (least-key (+ num-args 1)) true #js [] #js []))
 
 (defn iterator->keys
   ([iterator]
@@ -821,7 +886,10 @@
   (let [tree (apply-to-tree (tree min-keys key-len) actions)
         iterator-results (apply-to-iterator (iterator tree) movements)
         join-results (apply-to-iterator
-                      (join #js [(iterator tree) (iterator tree)] key-len #js [(into-array (repeat key-len true)) (into-array (repeat key-len true))])
+                      (join #js [(iterator tree) (iterator tree)]
+                            key-len
+                            #js [(into-array (repeat key-len true)) (into-array (repeat key-len true))]
+                            #js [(into-array (repeat key-len true)) (into-array (repeat key-len true))])
                       movements)]
     (= (map (fn [[b k]] [b (vec k)]) iterator-results)
        (map (fn [[b k]] [b (vec k)]) join-results))))
@@ -841,8 +909,12 @@
               (.assoc! product-tree (.concat (aget elems i) (aget elems j)) nil)))
         iterator-results (apply-to-iterator (iterator product-tree) movements)
         join-results (apply-to-iterator
-                      (join #js [(iterator tree) (iterator tree)] (* 2 key-len) #js [(into-array (concat (repeat key-len true) (repeat key-len false)))
-                                                                                     (into-array (concat (repeat key-len false) (repeat key-len true)))])
+                      (join #js [(iterator tree) (iterator tree)]
+                            (* 2 key-len)
+                            #js [(into-array (concat (repeat key-len true) (repeat key-len false)))
+                                 (into-array (concat (repeat key-len false) (repeat key-len true)))]
+                            #js [(into-array (concat (repeat key-len true) (repeat key-len false)))
+                                 (into-array (concat (repeat key-len false) (repeat key-len true)))])
                       movements)]
     (= (map (fn [[b k]] [b (vec k)]) iterator-results)
        (map (fn [[b k]] [b (vec k)]) join-results))))
@@ -1008,15 +1080,41 @@
   (let [tree1 (tree 10)
         _ (.assoc! tree1 #js ["a" "b"] 0)
         _ (.assoc! tree1 #js ["b" "c"] 0)
+        _ (.assoc! tree1 #js ["c" "d"] 0)
+        _ (.assoc! tree1 #js ["d" "b"] 0)
         tree2 (tree 10)
-        _ (.assoc! tree2 #js ["b" "d"] 0)
+        _ (.assoc! tree2 #js ["b" "a"] 0)
         _ (.assoc! tree2 #js ["c" "b"] 0)
+        _ (.assoc! tree2 #js ["d" "c"] 0)
+        _ (.assoc! tree2 #js ["b" "d"] 0)
         join-itr (join #js [(iterator tree1) (iterator tree2)] 3 #js [#js [true false true]
                                                                       #js [false true true]])
         ]
      (map vec (iterator->keys join-itr))
-     ;["a" "c" "b"]
     )
+
+
 
  )
 
+(let [tree1 (tree 10)
+        _ (.assoc! tree1 #js ["a" "b"] 0)
+        _ (.assoc! tree1 #js ["b" "c"] 0)
+        _ (.assoc! tree1 #js ["c" "d"] 0)
+        _ (.assoc! tree1 #js ["d" "b"] 0)
+        tree2 (tree 10)
+        _ (.assoc! tree2 #js ["b" "a"] 0)
+        _ (.assoc! tree2 #js ["c" "b"] 0)
+        _ (.assoc! tree2 #js ["d" "c"] 0)
+        _ (.assoc! tree2 #js ["b" "d"] 0)
+        join-itr (join #js [(iterator tree1) (iterator tree2) (function-iterator identity 1)]
+                       4
+                       #js [#js [true true false false]
+                            #js [false false true true]
+                            #js [false false false true]]
+                       #js [#js [true true false false]
+                            #js [false false true true]
+                            #js [false true false true]])]
+  (js/console.log join-itr)
+  (iterator->keys join-itr)
+  )

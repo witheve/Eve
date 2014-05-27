@@ -120,6 +120,9 @@
         (let [var->ix (zipmap @vars (range))
               num-vars (count @vars)
 
+              ;; order clause vars
+
+
               ;; make input iter
               iters (for [[_ clause-type clause-id name] clauses
                           :when (= clause-type "when")]
@@ -174,7 +177,7 @@
 
           (Flow. join-iter output-kinds output-names output-fields))))))
 
-(comment
+
 
   (def kn (knowledge))
 
@@ -216,13 +219,3 @@
   (.run (second (compile kn)) kn)
 
   (.get-or-create-index kn "know" "connected" #js ["x" "y"])
-
-  (.run (second (compile kn)) kn)
-
-  (.get-or-create-index kn "know" "connected" #js ["x" "y"])
-
-  (.run (second (compile kn)) kn)
-
-  (.get-or-create-index kn "know" "connected" #js ["x" "y"])
-
-  )
