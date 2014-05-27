@@ -893,6 +893,38 @@
 
          ))
 
+  (let [tree1 (tree 10)
+        _ (.assoc! tree1 #js ["a" "b"] 0)
+        _ (.assoc! tree1 #js ["b" "c"] 0)
+        _ (.assoc! tree1 #js ["c" "d"] 0)
+        tree2 (tree 10)
+        _ (.assoc! tree2 #js ["b" "a"])
+        _ (.assoc! tree2 #js ["c" "b"])
+        _ (.assoc! tree2 #js ["d" "c"])
+        itr1 (magic-iterator tree1 #js [0 nil 1])
+        itr2 (magic-iterator tree2 #js [nil 0 1])
+        join-itr (join-iterator #js [itr1 itr2])
+        ]
+     (map vec (all-join-results join-itr))
+    )
+
+  (let [tree1 (tree 10)
+        _ (.assoc! tree1 #js ["a" "b"] 0)
+        _ (.assoc! tree1 #js ["b" "c"] 0)
+        _ (.assoc! tree1 #js ["c" "d"] 0)
+        _ (.assoc! tree1 #js ["d" "b"] 0)
+        tree2 (tree 10)
+        _ (.assoc! tree2 #js ["b" "a"])
+        _ (.assoc! tree2 #js ["c" "b"])
+        _ (.assoc! tree2 #js ["d" "c"])
+        _ (.assoc! tree2 #js ["b" "d"])
+        itr1 (magic-iterator tree1 #js [0 nil 1])
+        itr2 (magic-iterator tree2 #js [nil 0 1])
+        join-itr (join-iterator #js [itr1 itr2])
+        ]
+     (map vec (all-join-results join-itr))
+    )
+
 )
 
 
