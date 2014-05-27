@@ -76,7 +76,7 @@
 
 ;; NOTE can't handle missing keys yet - requires a schema
 (defn compile [kn]
-  (let [clauses (btree/iterator->keys (btree/iterator (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|pretend|remember|forget" "clause-id" "name"])))
+  (let [clauses (btree/iterator->keys (btree/iterator (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])))
         fields (btree/iterator->keys (btree/iterator (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])))
         rule-id->clauses (atom (into {} (for [[k vs] (group-by #(nth % 0) clauses)] [k (set (map vec vs))])))
         clause-id->fields (atom (into {} (for [[k vs] (group-by #(nth % 0) fields)] [k (set (map vec vs))])))]
@@ -142,16 +142,16 @@
                                             ix-a (get var->ix variable-a)
                                             ix-b (get var->ix variable-b)]
                                         (join/variable-filter num-vars ix-a ix-b))
-                          (let [clause-vars (for [[_ field-type key val] fields]
-                                              val)
-                                clause-vars (sort-by var->ix clause-vars)
+                          (let [clause-vars&keys (sort-by (fn [[val key]] (var->ix val))
+                                                          (for [[_ field-type key val] fields]
+                                                            [val key]))
+                                clause-vars (map first clause-vars&keys)
                                 clause-vars->ix (zipmap clause-vars (range))
                                 var-map (map clause-vars->ix @vars)
-                                clause-keys (for [[_ field-type key val] fields]
-                                              key)
-                                index (.get-or-create-index kn "know" name clause-keys)]
+                                clause-keys (map second clause-vars&keys)
+                                index (.get-or-create-index kn "know" name (into-array clause-keys))]
                             (join/magic-iterator index (into-array var-map))))))
-              join-iter (join/join-iterator (into-array iterators))
+              join-iter (join/join-iterator (into-array iters))
 
               ;; make output specs
               output-kinds (into-array
@@ -167,53 +167,16 @@
                                    :when (not= clause-type "when")]
                                (let [clause-fields (get @clause-id->fields clause-id)
                                      output-fields (make-array num-vars)]
-                                 (doseq [[_ field-type key val] fields]
+                                 (doseq [[_ field-type key val] clause-fields]
                                    (assert (= field-type "variable"))
-                                   (aset output-fields (var->ix val) key)))))]
+                                   (aset output-fields (var->ix val) key))
+                                 output-fields)))]
 
           (Flow. join-iter output-kinds output-names output-fields))))))
-
-(def kn (knowledge))
-
-(.get-or-create-index kn "know" "edge" #js ["x" "y"])
-
-(.get-or-create-index kn "know" "connected" #js ["x" "y"])
-
-(.add-facts kn "know" "edge" #js ["x" "y"] #js [#js ["a" "b"] #js ["b" "c"] #js ["c" "d"] #js ["d" "b"]])
-
-(.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|pretend|remember|forget" "clause-id" "name"])
-
-(.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
-
-(.add-facts kn "know" "clauses" #js ["rule-id" "when|pretend|remember|forget" "clause-id" "name"] #js [#js ["edge->connected" "when" "get-edges" "edge"]
-                                                                                                       #js ["edge->connected" "pretend" "output-connected" "edge"]])
-
-(.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-edges" "variable" "x" "xx"]
-                                                                                             #js ["get-edges" "variable" "y" "yy"]
-                                                                                             #js ["output-connected" "variable" "x" "xx"]
-                                                                                             #js ["output-connected" "variable" "y" "yy"]])
-
-(compile kn)
 
 (comment
 
   (def kn (knowledge))
-
-  (.get-or-create-index kn "know" "heights" #js ["name" "height"])
-
-  (.add-facts kn "know" "heights" #js ["name" "height"] #js [#js ["chris" "short"] #js ["rob" "spade hands"]])
-
-  (.get-or-create-index kn "know" "heights" #js ["name" "height"])
-
-  (.get-or-create-index kn "know" "heights" #js ["height" "name"])
-
-  (.-kind->name->fields->index kn)
-
-  (.add-facts kn "know" "heights" #js ["name" "height"] #js [#js ["jamie" "just right"]])
-
-  (.get-or-create-index kn "know" "heights" #js ["name" "height"])
-
-  (.get-or-create-index kn "know" "heights" #js ["height" "name"])
 
   (.get-or-create-index kn "know" "edge" #js ["x" "y"])
 
@@ -221,19 +184,45 @@
 
   (.add-facts kn "know" "edge" #js ["x" "y"] #js [#js ["a" "b"] #js ["b" "c"] #js ["c" "d"] #js ["d" "b"]])
 
-  (def edge-flow
-    (Join. #js [(magic-iterator kn "know" "edge" #js ["x" "y"] #js [0 1])]
-           #js ["know"] #js ["connected"] #js [#js ["x" "y"]]))
+  (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
 
-  (def connected-flow
-    (Join. #js [(magic-iterator kn "know" "edge" #js ["x" "y"] #js [0 1 nil])
-                (magic-iterator kn "know" "connected" #js ["x" "y"] #js [nil 0 1])]
-           #js ["know"] #js ["connected"] #js [#js ["x" nil "y"]]))
+  (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
 
-  (def transitive-flow
-    (Chain. #js [edge-flow (Fixpoint. connected-flow)]))
+  (.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["single-edge" "when" "get-edges" "edge"]
+                                                                                                      #js ["single-edge" "know" "output-connected" "connected"]])
 
-  (.run transitive-flow kn)
+  (.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-edges" "variable" "x" "xx"]
+                                                                                               #js ["get-edges" "variable" "y" "yy"]
+                                                                                               #js ["output-connected" "variable" "x" "xx"]
+                                                                                               #js ["output-connected" "variable" "y" "yy"]])
+
+  (.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["transitive-edge" "when" "get-left-edge" "edge"]
+                                                                                                      #js ["transitive-edge" "when" "get-right-connected" "connected"]
+                                                                                                      #js ["transitive-edge" "know" "output-transitive-connected" "connected"]])
+
+  (.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-left-edge" "variable" "x" "xx"]
+                                                                                               #js ["get-left-edge" "variable" "y" "yy"]
+                                                                                               #js ["get-right-connected" "variable" "x" "yy"]
+                                                                                               #js ["get-right-connected" "variable" "y" "zz"]
+                                                                                               #js ["output-transitive-connected" "variable" "x" "xx"]
+                                                                                               #js ["output-transitive-connected" "variable" "y" "zz"]])
+
+  (compile kn)
+
+  (.run (first (compile kn)) kn)
 
   (.get-or-create-index kn "know" "connected" #js ["x" "y"])
+
+  (.run (second (compile kn)) kn)
+
+  (.get-or-create-index kn "know" "connected" #js ["x" "y"])
+
+  (.run (second (compile kn)) kn)
+
+  (.get-or-create-index kn "know" "connected" #js ["x" "y"])
+
+  (.run (second (compile kn)) kn)
+
+  (.get-or-create-index kn "know" "connected" #js ["x" "y"])
+
   )

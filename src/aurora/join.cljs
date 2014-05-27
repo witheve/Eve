@@ -11,7 +11,7 @@
                 (> a b))
            (> (typeof a) (typeof b)))))
 
-(deftype MagicIterator [iterator map ^:mutable nil-ixs ^:mutable rewindable ^:mutable map-len ^:mutable cur-key ^:mutable cur-seek ^:mutable prev-seek ^:mutable marked-nodes ^:mutable marked-ixs ^:mutable end?]
+(deftype MagicIterator [iterator map ^:mutable nil-ixs ^:mutable rewindable ^:mutable map-len ^:mutable cur-key ^:mutable cur-seek ^:mutable prev-seek ^:mutable marked-nodes ^:mutable marked-ixs ^:mutable end? ^:mutable empty?]
   Object
   (reset [this i]
          (.reset iterator)
@@ -26,6 +26,7 @@
          (set! marked-nodes (js-obj 0 (.-node iterator)))
          (set! marked-ixs (js-obj 0 0))
          (set! end? false)
+         (set! empty? false)
 
          (loop [ix 0
                 potential (array)]
@@ -86,7 +87,9 @@
                    (if-not (nil? map-ix)
                      (aset cur-key ix (aget found map-ix))
                      (aset cur-key ix (aget prev-seek ix)))))
-             (set! end? true)))
+             (do
+               (set! end? true)
+               (set! empty? true))))
 
   (seek-and-mark [this ix key]
                  (let [prev-key (- ix 1)
@@ -127,18 +130,19 @@
                 )
   (seek [this key]
         ;;see if our placeholders have changed such that we need to rewind
-        (.check-rewind this key)
-        (ainto prev-seek key)
-        (when (key-lt cur-key key)
-          (loop [ix 0]
-            (when (< ix map-len)
-              (let [map-ix (aget map ix)]
-                (when-not (== map-ix nil)
-                  (aset cur-seek map-ix (aget key ix))))
-              (recur (+ 1 ix))))
-          (.seek iterator cur-seek))
-        (.set-key this)
-        ))
+        (when (false? empty?)
+          (.check-rewind this key)
+          (ainto prev-seek key)
+          (when (key-lt cur-key key)
+            (loop [ix 0]
+              (when (< ix map-len)
+                (let [map-ix (aget map ix)]
+                  (when-not (== map-ix nil)
+                    (aset cur-seek map-ix (aget key ix))))
+                (recur (+ 1 ix))))
+            (.seek iterator cur-seek))
+          (.set-key this)))
+  )
 
 (defn magic-iterator [tree map]
    (let [magic (MagicIterator. (iterator tree) map)]
