@@ -587,9 +587,7 @@
         (debug)
         (debug :next seek-key)
         (when (false? end?)
-          (let [iterators (aget var->iterators (- (alength var->iterators) 1))
-                iterator (aget iterators (- (alength var->iterators) 1))]
-            (.search this (alength var->iterators) (- (alength var->iterators) 1) 0)))
+          (.search this (alength var->iterators) (- (alength var->iterators) 1) 0))
         (false? end?)))
 
 (defn join [iterators num-vars iterator->var->present?]
