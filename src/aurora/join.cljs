@@ -26,7 +26,7 @@
          (set! marked-nodes (js-obj 0 (.-node iterator)))
          (set! marked-ixs (js-obj 0 0))
          (set! end? false)
-         (set! empty? false)
+         (set! empty? (nil? (.key iterator)))
 
          (loop [ix 0
                 potential (array)]
@@ -87,9 +87,8 @@
                    (if-not (nil? map-ix)
                      (aset cur-key ix (aget found map-ix))
                      (aset cur-key ix (aget prev-seek ix)))))
-             (do
                (set! end? true)
-               (set! empty? true))))
+               ))
 
   (seek-and-mark [this ix key]
                  (let [prev-key (- ix 1)
