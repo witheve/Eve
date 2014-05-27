@@ -465,12 +465,7 @@
                    (aset outer-key (aget inner->outer i) (aget inner-key i)))
                  outer-key)))
   (inner-key [this]
-             (when (false? (.-end? iterator))
-               (let [inner-key (.key iterator)
-                     outer-key (make-array key-len)]
-                 (dotimes [i (alength inner->outer)]
-                   (aset outer-key (aget inner->outer i) (aget inner-key i)))
-                 outer-key)))
+             (.key iterator))
   (key-at [this outer-ix]
           (when (false? (.-end? iterator))
             (let [inner-key (.key iterator)]
@@ -518,15 +513,15 @@
                  max-key (.key-at (aget var-iterators previous) new-var)
                  iterator (aget var-iterators current)
                  min-key (.key-at iterator new-var)
-                 old-key (.inner-key iterator)]
-             (debug :search max-key current seek-key)
+                 old-key (.outer-key iterator)]
+             (debug :across max-key current seek-key)
              (aset seek-key new-var max-key)
              (.seek iterator seek-key)
              (if (true? (.end? iterator))
                (do
                  (.undo iterator)
                  (recur new-var (- new-var 1) 0))
-               (let [new-key (.inner-key iterator)]
+               (let [new-key (.outer-key iterator)]
                  (if (prefix-not= old-key new-key new-var)
                    (do
                      (.undo iterator)
