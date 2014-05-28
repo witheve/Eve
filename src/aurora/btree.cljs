@@ -363,12 +363,13 @@
     tree))
 
 ;; ITERATORS
-;; .key / .val return key and val currently pointed at
+;; .key / .val return key and val currently pointed at. key may be aliased
 ;; On creation/reset, points to first key
 ;; On next, either point to next key or set .-end? true. Return (not .-end?)
 ;; On seek, point to first key greater than or equal to seek-key. Return (key= (.key this) seek-key)
 ;; NOTE iterators are not write-safe unless reset after writing
 
+;; TODO think we might need to be able to get last key on end
 (deftype Iterator [tree ^:mutable node ^:mutable ix ^:mutable end? key-len]
   Object
   (reset [this]
@@ -480,100 +481,32 @@
 
 (deftype Join [current-key iterators ^:mutable end?]
   Object
+  (maintain [this]
+            ;; if all equal, done
+            ;; if all blocked but max, .next on max
+            ;; if all blocked, set end? true
+            ;; otherwise seek smallest non-blocked to max, recur
+            )
   (reset [this]
          (debug)
          (debug :reset)
-         (set! end? false)
+         (dotimes [i (alength current-key)]
+           (aset current-key i least))
          (dotimes [i (alength iterators)]
            (.reset (aget iterators i)))
-         (dotimes [i (alength seek-key)]
-           (aset seek-key i least))
-         (.search this -1 0 0))
+         (set! end? false)
+         (.maintain this))
   (key [this]
        (when (false? end?)
-         (aclone seek-key)))
-  (search [this old-var new-var current]
-          (cond
-
-           (== old-var new-var)
-           ;; ACROSS: assumes prefixes all equal, keys not all equal, iterators sorted by ascending key, nothing at end
-           (let [var-iterators (aget var->iterators new-var)
-                 num-var-iterators (alength var-iterators)
-                 previous (mod (- current 1) num-var-iterators)
-                 max-key (.key-at (aget var-iterators previous) new-var)
-                 iterator (aget var-iterators current)
-                 min-key (.key-at iterator new-var)
-                 old-key (.outer-key iterator)]
-             (debug :across max-key current seek-key)
-             (aset seek-key new-var max-key)
-             (.seek iterator seek-key)
-             (if (true? (.end? iterator))
-               (do
-                 (.undo iterator)
-                 (recur new-var (- new-var 1) 0))
-               (let [new-key (.outer-key iterator)]
-                 (if (and (not (nil? old-key)) (prefix-not= old-key new-key new-var))
-                   (do
-                     (.undo iterator)
-                     (recur new-var (- new-var 1) 0))
-                   (if (== (.key-at iterator new-var) max-key)
-                     (do
-                       (aset seek-key new-var max-key)
-                       (recur new-var (+ new-var 1) 0))
-                     (recur new-var new-var (mod (+ current 1) num-var-iterators)))))))
-
-           (< new-var old-var)
-           ;; UP: assumes prefixes and keys all equal, nothing at end
-           (if (== old-var 0)
-             (set! end? true)
-             (let [new-var (- old-var 1)
-                   var-iterators (aget var->iterators new-var)
-                   iterator (aget var->nextable (- (alength var-iterators) 1))]
-               (debug :up old-var seek-key)
-               (when (< old-var (alength var->iterators))
-                 (aset seek-key old-var least)
-                 (let [iterator->push|pop? (aget var->iterator->push|pop? old-var)]
-                   (dotimes [i (alength iterators)]
-                     (when (true? (aget iterator->push|pop? i))
-                       (debug :popping i :at old-var)
-                       (.pop (aget iterators i))))))
-               (let [old-key (.inner-key iterator)]
-                 (.next iterator)
-                 (if (true? (.end? iterator))
-                   (do
-                     (.undo iterator)
-                     (recur new-var (- new-var 1) 0))
-                   (let [new-key (.inner-key iterator)]
-                     (if (prefix-not= old-key new-key new-var)
-                       (do
-                         (.undo iterator)
-                         (recur new-var (- new-var 1) 0))
-                       (recur new-var new-var 0)))))))
-
-           (> new-var old-var)
-           ;; DOWN: assumes prefixes all equal, nothing at end
-           (if (== old-var (- (alength var->iterators) 1))
-             (debug :done seek-key)
-             (let [new-var (+ old-var 1)
-                   var-iterators (aget var->iterators new-var)
-                   iterator->push|pop? (aget var->iterator->push|pop? new-var)]
-               (debug :down old-var old-key seek-key)
-               (dotimes [i (alength iterators)]
-                 (when (true? (aget iterator->push|pop? i))
-                   (debug :pushing i :at new-var)
-                   (.push (aget iterators i))))
-               (js/goog.array.sort var-iterators (fn [i0 i1] (compare (.key-at i0 new-var) (.key-at i1 new-var))))
-               (if (== (.key-at (aget var-iterators 0) new-var) (.key-at (aget var-iterators (- (alength var-iterators) 1)) new-var))
-                 (do
-                   (aset seek-key new-var (.key-at (aget var-iterators 0) new-var))
-                   (recur new-var (+ new-var 1) 0))
-                 (recur new-var new-var 0))))))
+         current-key))
   (next [this]
-        (debug)
-        (debug :next seek-key)
-        (when (false? end?)
-          (.search this (alength var->iterators) (- (alength var->iterators) 1) 0))
-        (false? end?)))
+        ;; .next on smallest non-blocked iter
+        ;; maintain
+        )
+  (seek [this key]
+        ;; .seek on all iters
+        ;; maintain
+        ))
 
 (defn join [iterators num-vars iterator->var->nextable? iterator->var->present?]
   (let [seek-key (least-key num-vars)
@@ -660,7 +593,7 @@
   ([n iterator]
    (let [results #js []]
      (while (and (false? (.-end? iterator)) (< (alength results) n))
-       (.push results (.key iterator))
+       (.push results (aclone (.key iterator)))
        (.next iterator))
      results)))
 
