@@ -367,21 +367,16 @@
 ;; On creation/reset, points to first key
 ;; On next, either point to next key or set .-end? true. Return (not .-end?)
 ;; On seek, point to first key greater than or equal to seek-key. Return (key= (.key this) seek-key)
-;; On push, push current position onto a stack
-;; On pop, pop last position from the stack
 ;; NOTE iterators are not write-safe unless reset after writing
 
-(deftype Iterator [tree ^:mutable node ^:mutable ix ^:mutable end? ^:mutable old-node ^:mutable old-ix ^:mutable old-end? pushed-nodes pushed-ixes pushed-end?s key-len]
+(deftype Iterator [tree ^:mutable node ^:mutable ix ^:mutable end? key-len]
   Object
   (reset [this]
          (set! node (.-root tree))
          (set! ix 0)
          (while (not (nil? (.-children node)))
            (set! node (aget (.-children node) 0)))
-         (set! end? (<= (alength (.-keys node)) 0))
-         (aclear pushed-nodes)
-         (aclear pushed-ixes)
-         (aclear pushed-end?s))
+         (set! end? (<= (alength (.-keys node)) 0)))
   (key [this]
        (when (false? end?)
          (aget (.-keys node) ix)))
@@ -389,9 +384,6 @@
        (when (false? end?)
          (aget (.-vals node) ix)))
   (next [this]
-        (set! old-node node)
-        (set! old-ix ix)
-        (set! old-end? end?)
         (if (true? end?)
           false
           (if (nil? (.-children node))
@@ -418,11 +410,13 @@
                     (set! node (aget (.-children node) 0))
                     (recur))))))))
   (seek [this key]
-        (set! old-node node)
-        (set! old-ix ix)
-        (set! old-end? end?)
         (let [start-node node
               start-ix ix]
+          ;; TODO seek backwards instead of resetting and seeking forwards
+          (when (key-lt key (.key this))
+            (set! node (.-root tree))
+            (set! ix 0)
+            (set! end? false))
           (if (true? end?)
             false
             (loop []
@@ -451,19 +445,7 @@
                         (do
                           (set! node (aget (.-children node) ix))
                           (set! ix 0)
-                          (recur)))))))))))
-  (undo [this]
-        (set! node old-node)
-        (set! ix old-ix)
-        (set! end? old-end?))
-  (push [this]
-        (apush pushed-nodes node)
-        (apush pushed-ixes ix)
-        (apush pushed-end?s end?))
-  (pop [this]
-       (set! node (.pop pushed-nodes))
-       (set! ix (.pop pushed-ixes))
-       (set! end? (.pop pushed-end?s))))
+                          (recur))))))))))))
 
 (defn iterator [tree]
   (let [iterator (Iterator. tree (.-root tree) 0 false nil nil nil #js [] #js [] #js [] (.-key-len tree))]
@@ -471,39 +453,32 @@
     iterator))
 
 ;; used only inside Join
-(deftype JoinIterator [iterator outer->inner inner->outer seek-key key-len]
+(deftype JoinIterator [iterator inner->outer inner-key outer-key key-len blocked?]
   Object
+  (maintain [this]
+            (if (.-end? iterator)
+              (set! blocked? true)
+              (let [new-key (.key iterator)]
+                (set! blocked? false)
+                (dotimes [inner-ix (alength inner->outer)]
+                  (aset outer-key (aget inner->outer inner-ix) (aget new-key inner-ix))))))
   (reset [this]
-         (.reset iterator))
-  (outer-key [this]
-             (when (false? (.-end? iterator))
-               (let [inner-key (.key iterator)
-                     outer-key (make-array key-len)]
-                 (dotimes [i (alength inner->outer)]
-                   (aset outer-key (aget inner->outer i) (aget inner-key i)))
-                 outer-key)))
-  (inner-key [this]
-             (.key iterator))
-  (key-at [this outer-ix]
-          (when (false? (.-end? iterator))
-            (let [inner-key (.key iterator)]
-              (aget inner-key (aget outer->inner outer-ix)))))
+         (.reset iterator)
+         (.maintain this))
+  (key [this]
+       outer-key)
   (next [this]
-        (.next iterator))
-  (seek [this outer-key]
+        (.next iterator)
+        (.maintain this))
+  (seek [this key]
         (dotimes [inner-ix (alength inner->outer)]
-          (aset seek-key inner-ix (aget outer-key (aget inner->outer inner-ix))))
-        (.seek iterator seek-key))
-  (undo [this]
-        (.undo iterator))
-  (push [this]
-        (.push iterator))
-  (pop [this]
-       (.pop iterator))
-  (end? [this]
-        (.-end? iterator)))
+          (aset inner-key inner-ix (aget outer-key (aget inner->outer inner-ix))))
+        (.seek iterator seek-key)
+        (dotimes [outer-ix (alength outer->inner)]
+          (aset outer-key outer-ix (aget key outer-ix)))
+        (.maintain this)))
 
-(deftype Join [seek-key iterators var->iterators var->nextable var->iterator->push|pop? ^:mutable end?]
+(deftype Join [current-key iterators ^:mutable end?]
   Object
   (reset [this]
          (debug)
