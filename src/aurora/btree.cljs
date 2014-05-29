@@ -131,6 +131,19 @@
 (defn ^boolean key-gte [as bs]
   (not (== -1 (key-compare as bs))))
 
+(defn key-find [keys key]
+  (loop [lo 0
+         hi (- (alength keys) 1)]
+    (if (< hi lo)
+      lo
+      (let [mid (+ lo (js/Math.floor (/ (- hi lo) 2)))
+            mid-key (aget keys mid)]
+        (if (key-lt mid-key key)
+          (recur (+ mid 1) hi)
+          (if (key= mid-key key)
+            mid
+            (recur lo (- mid 1))))))))
+
 ;; TREES
 
 (def left-child 0)
@@ -169,20 +182,8 @@
 
 (deftype Node [parent parent-ix keys vals children ^:mutable lower ^:mutable upper]
   Object
-  (seek [this key ix]
-        (loop [lo (if (> ix 0) ix 0)
-               hi (- (alength keys) 1)]
-          (if (< hi lo)
-            lo
-            (let [mid (+ lo (js/Math.floor (/ (- hi lo) 2)))
-                  mid-key (aget keys mid)]
-              (if (key-lt mid-key key)
-                (recur (+ mid 1) hi)
-                (if (key= mid-key key)
-                  mid
-                  (recur lo (- mid 1))))))))
   (assoc! [this key val max-keys]
-          (let [ix (.seek this key 0)]
+          (let [ix (key-find keys key)]
             (if (and (< ix (alength keys)) (key= key (aget keys ix)))
               (do
                 (aset vals ix val)
@@ -194,7 +195,7 @@
                   false)
                 (.assoc! (aget children ix) key val max-keys)))))
   (dissoc! [this key max-keys]
-           (let [ix (.seek this key 0)]
+           (let [ix (key-find keys key)]
              (if (and (< ix (alength keys)) (key= key (aget keys ix)))
                (if (nil? children)
                  (do
@@ -369,7 +370,6 @@
 ;; On seek, point to first key greater than or equal to seek-key, or otherwise the last key
 ;; NOTE iterators are not write-safe unless reset after writing
 
-;; TODO think we might need to be able to get last key on end
 (deftype Iterator [tree ^:mutable node ^:mutable ix ^:mutable end? key-len]
   Object
   (reset [this]
@@ -423,7 +423,7 @@
               (loop []
                 (.-keys node)
                 key
-                (set! ix (.seek node key 0))
+                (set! ix (key-find (.-keys node) key))
                 (if (>= ix (alength (.-keys node)))
                   (if (nil? (.-children node))
                     (do
@@ -459,6 +459,8 @@
                   (aset outer-key (aget inner->outer inner-ix) (aget new-key inner-ix))))))
   (reset [this]
          (.reset iterator)
+         (dotimes [i (alength outer-key)]
+           (aset outer-key i least))
          (.maintain this))
   (key [this]
        outer-key)
@@ -466,14 +468,25 @@
         (.next iterator)
         (.maintain this))
   (seek [this key]
-        (dotimes [inner-ix (alength inner->outer)]
-          (aset inner-key inner-ix (aget outer-key (aget inner->outer inner-ix))))
-        (.seek iterator seek-key)
-        (dotimes [outer-ix (alength outer->inner)]
+        (dotimes [inner-ix (alength inner-key)]
+          (aset inner-key inner-ix (aget key (aget inner->outer inner-ix))))
+        (.seek iterator inner-key)
+        (dotimes [outer-ix (alength outer-key)]
           (aset outer-key outer-ix (aget key outer-ix)))
         (.maintain this)))
 
-(deftype Join [iterators ^:mutable end?]
+(defn join-iterator [iterator var->present?]
+  (let [inner->outer (make-array (.-key-len iterator))
+        inner-var 0]
+    (dotimes [outer-var (alength var->present?)]
+      (when (true? (aget var->present? outer-var))
+        (aset inner->outer inner-var outer-var)
+        (set!! inner-var (+ inner-var 1))))
+    (let [itr (JoinIterator. iterator inner->outer (make-array (.-key-len iterator)) (make-array (alength var->present?)) num-vars false)]
+      (.maintain itr)
+      itr)))
+
+(deftype Join [iterators keys ^:mutable end?]
   Object
   (maintain [this]
             (loop [i -1]
@@ -484,7 +497,11 @@
                (let [min-key (.key (aget iterators 0))
                      max-key (.key (aget iterators (- (alength iterators) 1)))]
                  (if (key= min-key max-key)
-                   (debug :found min-key)
+                   (if (true? (.-blocked? (aget iterators (- (alength iterators) 1))))
+                     (do
+                       (set! end? true)
+                       (debug :end/found))
+                     (debug :found min-key))
                    (recur 0)))
 
                ;; find the minimum non-blocked iter and seek it
@@ -492,9 +509,12 @@
                (let [iterator (aget iterators i)]
                  (if (false? (.-blocked? iterator))
                    (do
+                     (debug :seeking i (map #(.key %) iterators) (map #(.key (.-iterator %)) iterators))
                      (.splice iterators i 1)
                      (.seek iterator (.key (aget iterators (- (alength iterators) 1))))
-                     (js/goog.array.binaryInsert iterators iterator (fn [i0 i1] (key-compare (.key i0) (.key i1))))
+                     (dotimes [i (alength iterators)]
+                       (aset keys i (.key (aget iterators i))))
+                     (.splice iterators (key-find keys (.key iterator)) 0 iterator)
                      (recur -1))
                    (recur (+ i 1))))
 
@@ -522,48 +542,25 @@
   (key [this]
        (.key (aget iterators 0)))
   (next [this]
+        (debug :next)
         (when (false? end?)
           (let [max-iterator (aget iterators (- (alength iterators) 1))]
             (assert (false? (.-blocked? max-iterator)))
             (.next max-iterator)
             (.maintain this))))
   (seek [this key]
+        (debug :seek)
         (when (false? end?)
           (let [max-iterator (aget iterators (- (alength iterators) 1))]
             (assert (false? (.-blocked? max-iterator)))
             (.seek max-iterator key)
             (.maintain this)))))
 
-(defn join [iterators num-vars iterator->var->nextable? iterator->var->present?]
-  (let [seek-key (least-key num-vars)
-        join-iterators (amake [i (alength iterators)]
-                              (let [iterator (aget iterators i)
-                                    var->present? (aget iterator->var->present? i)
-                                    inner->outer (make-array (.-key-len iterator))
-                                    outer->inner (make-array num-vars)
-                                    var 0]
-                                (dotimes [j num-vars]
-                                  (when (true? (aget var->present? j))
-                                    (aset inner->outer var j)
-                                    (aset outer->inner j var)
-                                    (set!! var (+ var 1))))
-                                (JoinIterator. iterator outer->inner inner->outer (make-array (.-key-len iterator)) num-vars)))
-        var->iterators (amake [j num-vars]
-                              (let [var-iterators #js []]
-                                ;; ensure non-nextable iterators are sorted first
-                                (dotimes [i (alength iterators)]
-                                  (when (and (true? (aget iterator->var->present? i j)) (false? (aget iterator->var->nextable? i j)))
-                                    (apush var-iterators (aget join-iterators i))))
-                                (dotimes [i (alength iterators)]
-                                  (when (and (true? (aget iterator->var->present? i j)) (true? (aget iterator->var->nextable? i j)))
-                                    (apush var-iterators (aget join-iterators i))))
-                                var-iterators))
-        var->iterator->push|pop? (amake [j num-vars]
-                                     (amake [i (alength iterators)]
-                                            (and (true? (aget iterator->var->present? i j))
-                                                 (and (> j 0)
-                                                      (false? (aget iterator->var->present? i (- j 1)))))))
-        join (Join. seek-key join-iterators var->iterators var->iterator->push|pop? false)]
+(defn join [iterators num-vars iterator->var->present?]
+  (let [join-iterators (amake [i (alength iterators)]
+                              (join-iterator (aget iterators i) (aget iterator->var->present? i)))
+        keys (make-array (- (alength iterators) 1))
+        join (Join. join-iterators keys false)]
     (.reset join)
     join))
 
