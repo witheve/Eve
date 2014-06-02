@@ -176,13 +176,9 @@
                   (when (seq nodes)
                     (apply println (map #(.pretty-print %) nodes))
                     (recur (mapcat #(.-children %) nodes)))))
-  (foreach [this f]
-           (.foreach root f))
   ISeqable
   (-seq [this]
-        (let [results #js []]
-          (.foreach this #(apush results #js [%1 %2]))
-          (seq results))))
+        (seq (iterator->elems (iterator this)))))
 
 (deftype Node [parent parent-ix keys vals children ^:mutable lower ^:mutable upper]
   Object
@@ -358,14 +354,7 @@
                 (assert (every? #(key-lt (aget keys %) (.-lower (aget children (inc %)))) (range (count keys))))
                 (dotimes [i (count children)] (.valid! (aget children i) max-keys))))))
   (pretty-print [this]
-                (str "(" parent-ix ")" "|" (pr-str lower) " " (pr-str (vec keys)) " " (pr-str upper) "|"))
-  (foreach [this f]
-           (dotimes [i (alength keys)]
-             (when (not (nil? children))
-               (.foreach (aget children i) f))
-             (f (aget keys i) (aget vals i)))
-           (when (not (nil? children))
-             (.foreach (aget children (alength keys)) f))))
+                (str "(" parent-ix ")" "|" (pr-str lower) " " (pr-str (vec keys)) " " (pr-str upper) "|")))
 
 (defn tree [min-keys key-len]
   (let [node (Node. nil nil #js [] #js [] nil nil nil)
@@ -375,20 +364,47 @@
     tree))
 
 ;; ITERATORS
-;; .key / .val return key and val currently pointed at. key may be aliased
-;; On creation/reset, points to first key
-;; On next, either point to next key or set .-end? true.
-;; On seek, point to first key greater than or equal to seek-key, or otherwise the last key
+;; On seek, point to first key greater than or equal to seek-key, or return nil if there is no such key
+;; On next, point to next key, or return nil if there is no such key
 ;; NOTE iterators are not write-safe unless reset after writing
 
-(deftype Iterator [tree ^:mutable node ^:mutable ix]
+(deftype Iterator [tree ^:mutable node ^:mutable ix ^:mutable end?]
   Object
-  (reset [this]
-         (set! node (.-root tree))
-         (while (not (nil? (.-children node)))
-           (set! node (aget (.-children node) 0)))
-         (set! ix 0)
-         (set! end? (<= (alength (.-keys node)) 0)))
+  (reset [this key]
+         (set node (.-root tree))
+         (set ix 0)
+         (set end? (> (alength (.-keys node)) 0)))
+  (next [this]
+        (if (nil? (.-children node))
+          (let [old-node node
+                old-ix ix]
+            (set! ix (+ ix 1))
+            (loop []
+              (if (>= ix (alength (.-keys node)))
+                (if (instance? Node (.-parent node))
+                  (do
+                    (set! ix (.-parent-ix node))
+                    (set! node (.-parent node))
+                    (recur))
+                  (do
+                    (set! node old-node)
+                    (set! ix old-ix)
+                    (set! end? true)
+                    nil))
+                (do
+                  (set! end? true)
+                  nil))))
+          (do
+            (set! node (aget (.-children node) (+ ix 1)))
+            (set! ix 0)
+            (loop []
+              (if (nil? (.-children node))
+                (do
+                  (set! end? true)
+                  nil)
+                (do
+                  (set! node (aget (.-children node) 0))
+                  (recur)))))))
   (seek [this key]
         (let [start-node node
               start-ix ix]
@@ -588,11 +604,24 @@
                  action (gen key-len)]
                 (run-lookup-prop min-keys key-len actions action)))
 
+(defn gen-next [key-len]
+  (gen/make-gen
+   (fn [rnd size]
+     [[:next] nil])))
+
 (defn gen-seek [key-len]
   (gen/make-gen
    (fn [rnd size]
      (let [key (make-simple-key rnd size key-len)]
        [[:seek key] nil]))))
+
+(defn gen-movement [key-len]
+  (gen/make-gen
+   (fn [rnd size]
+     (let [key (make-simple-key rnd size key-len)]
+       (if (pprng/boolean rnd)
+         [[:next] nil]
+         [[:seek key] nil])))))
 
 (defn apply-to-iterator [iterator movements]
   (for [movement movements]
@@ -622,7 +651,7 @@
 (defn iterator-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
                  actions (gen/vector (gen-action key-len))
-                 movements (gen/vector (gen-seek key-len))]
+                 movements (gen/vector (gen-movement key-len))]
                 (run-iterator-prop min-keys key-len actions movements)))
 
 (defn run-self-join-prop [min-keys key-len actions movements]
@@ -640,7 +669,7 @@
 (defn self-join-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
                  actions (gen/vector (gen-action key-len))
-                 movements (gen/vector (gen-seek key-len))]
+                 movements (gen/vector (gen-movement key-len))]
                 (run-self-join-prop min-keys key-len actions movements)))
 
 (defn run-product-join-prop [min-keys key-len actions movements]
@@ -665,7 +694,7 @@
 (defn product-join-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
                  actions (gen/vector (gen-action key-len))
-                 movements (gen/vector (gen-seek key-len))]
+                 movements (gen/vector (gen-movement key-len))]
                 (run-product-join-prop min-keys key-len actions movements)))
 
 (comment
@@ -719,7 +748,7 @@
   (time (dotimes [_ 10] (h)))
 
   (do
-    (def samples (gen/sample (gen/tuple gen/s-pos-int (gen/vector gen-action) (gen/vector gen-seek)) 100))
+    (def samples (gen/sample (gen/tuple gen/s-pos-int (gen/vector gen-action) (gen/vector gen-movement)) 100))
     (def trees (for [[min-keys actions _] samples]
                  (apply-to-tree (tree min-keys) actions)))
     (def benches (mapv vector trees (map #(nth % 2) samples)))
