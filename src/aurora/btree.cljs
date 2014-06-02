@@ -152,7 +152,7 @@
 (deftype Tree [max-keys key-len ^:mutable root]
   Object
   (toString [this]
-            (pr-str (into {} (map vec (iterator->elems (iterator this))))))
+            (pr-str (into {} (map vec this))))
   (assoc! [this key val]
           (.assoc! root key val max-keys))
   (dissoc! [this key]
@@ -176,9 +176,13 @@
                   (when (seq nodes)
                     (apply println (map #(.pretty-print %) nodes))
                     (recur (mapcat #(.-children %) nodes)))))
+  (foreach [this f]
+           (.foreach root f))
   ISeqable
   (-seq [this]
-        (seq (iterator->elems (iterator this)))))
+        (let [results #js []]
+          (.foreach this #(apush results #js [%1 %2]))
+          (seq results))))
 
 (deftype Node [parent parent-ix keys vals children ^:mutable lower ^:mutable upper]
   Object
@@ -354,7 +358,14 @@
                 (assert (every? #(key-lt (aget keys %) (.-lower (aget children (inc %)))) (range (count keys))))
                 (dotimes [i (count children)] (.valid! (aget children i) max-keys))))))
   (pretty-print [this]
-                (str "(" parent-ix ")" "|" (pr-str lower) " " (pr-str (vec keys)) " " (pr-str upper) "|")))
+                (str "(" parent-ix ")" "|" (pr-str lower) " " (pr-str (vec keys)) " " (pr-str upper) "|"))
+  (foreach [this f]
+           (dotimes [i (alength keys)]
+             (when (not (nil? children))
+               (.foreach (aget children i) f))
+             (f (aget keys i) (aget vals i)))
+           (when (not (nil? children))
+             (.foreach (aget children (alength keys)) f))))
 
 (defn tree [min-keys key-len]
   (let [node (Node. nil nil #js [] #js [] nil nil nil)
@@ -370,45 +381,14 @@
 ;; On seek, point to first key greater than or equal to seek-key, or otherwise the last key
 ;; NOTE iterators are not write-safe unless reset after writing
 
-(deftype Iterator [tree ^:mutable node ^:mutable ix ^:mutable end? key-len]
+(deftype Iterator [tree ^:mutable node ^:mutable ix]
   Object
   (reset [this]
          (set! node (.-root tree))
-         (set! ix 0)
          (while (not (nil? (.-children node)))
            (set! node (aget (.-children node) 0)))
+         (set! ix 0)
          (set! end? (<= (alength (.-keys node)) 0)))
-  (key [this]
-       (aget (.-keys node) ix))
-  (val [this]
-       (aget (.-vals node) ix))
-  (next [this]
-        (when (false? end?)
-          (if (nil? (.-children node))
-            (let [old-node node
-                  old-ix ix]
-              (set! ix (+ ix 1))
-              (loop []
-                (if (>= ix (alength (.-keys node)))
-                  (if (instance? Node (.-parent node))
-                    (do
-                      (set! ix (.-parent-ix node))
-                      (set! node (.-parent node))
-                      (recur))
-                    (do
-                      (set! node old-node)
-                      (set! ix old-ix)
-                      (set! end? true)))
-                  nil)))
-            (do
-              (set! node (aget (.-children node) (+ ix 1)))
-              (set! ix 0)
-              (loop []
-                (if (nil? (.-children node))
-                  nil
-                  (do
-                    (set! node (aget (.-children node) 0))
-                    (recur))))))))
   (seek [this key]
         (let [start-node node
               start-ix ix]
@@ -421,214 +401,59 @@
                 (set! node (.-parent node))
                 (recur))
               (loop []
-                (.-keys node)
-                key
                 (set! ix (key-find (.-keys node) key))
-                (if (>= ix (alength (.-keys node)))
-                  (if (nil? (.-children node))
-                    (do
-                      (set! ix (- ix 1)) ;; point to last key
-                      (set! end? true))
-                    (do
-                      (set! node (aget (.-children node) ix))
-                      (set! ix 0)
-                      (recur)))
-                  (if (or (nil? (.-children node))
-                          (key= key (aget (.-keys node) ix))
-                          (key-lt (.-upper (aget (.-children node) ix)) key))
-                    (set! end? false)
+                (if (nil? (.-children node))
+                  (if (< ix (alength (.-keys node)))
+                    (aget (.-keys node) ix)
+                    nil)
+                  (if (key-lt (.-upper (aget (.-children node) ix)) key)
+                    (aget (.-keys node) ix)
                     (do
                       (set! node (aget (.-children node) ix))
                       (set! ix 0)
                       (recur))))))))))
 
 (defn iterator [tree]
-  (let [iterator (Iterator. tree (.-root tree) 0 false (.-key-len tree))]
+  (let [iterator (Iterator. tree (.-root tree) 0)]
     (.reset iterator)
     iterator))
 
-;; used only inside Join
-(deftype JoinIterator [iterator inner->outer inner-key outer-key key-len ^:mutable blocked?]
+;; CONSTRAINTS
+
+;; los and his are inclusive
+;; propagate may assume that los and his are within its current bounds
+
+(def unchanged 0)
+(def changed 1)
+(def failed 2)
+
+(deftype Contains [iterator seek-key ^:mutable lower upper ixes pushed|split pushed-nodes pushed-ixes split-keys]
   Object
-  (maintain [this]
-            (if (.-end? iterator)
-              (set! blocked? true)
-              (let [new-key (.key iterator)]
-                (set! blocked? false)
-                (dotimes [inner-ix (alength inner->outer)]
-                  (aset outer-key (aget inner->outer inner-ix) (aget new-key inner-ix))))))
-  (reset [this]
-         (.reset iterator)
-         (dotimes [i (alength outer-key)]
-           (aset outer-key i least))
-         (.maintain this))
-  (key [this]
-       outer-key)
-  (next [this]
-        (.next iterator)
-        (.maintain this))
-  (seek [this key]
-        (dotimes [inner-ix (alength inner-key)]
-          (aset inner-key inner-ix (aget key (aget inner->outer inner-ix))))
-        (.seek iterator inner-key)
-        (dotimes [outer-ix (alength outer-key)]
-          (aset outer-key outer-ix (aget key outer-ix)))
-        (.maintain this)))
-
-(defn join-iterator [iterator var->present?]
-  (let [inner->outer (make-array (.-key-len iterator))
-        inner-var 0]
-    (dotimes [outer-var (alength var->present?)]
-      (when (true? (aget var->present? outer-var))
-        (aset inner->outer inner-var outer-var)
-        (set!! inner-var (+ inner-var 1))))
-    (let [itr (JoinIterator. iterator inner->outer (make-array (.-key-len iterator)) (make-array (alength var->present?)) num-vars false)]
-      (.maintain itr)
-      itr)))
-
-(deftype Join [iterators keys ^:mutable end?]
-  Object
-  (maintain [this]
-            (loop [i -1]
-              (cond
-
-               ;; see if we need to do anything
-               (== i -1)
-               (let [min-key (.key (aget iterators 0))
-                     max-key (.key (aget iterators (- (alength iterators) 1)))]
-                 (if (key= min-key max-key)
-                   (if (true? (.-blocked? (aget iterators (- (alength iterators) 1))))
-                     (do
-                       (set! end? true)
-                       (debug :end/found))
-                     (debug :found min-key))
-                   (recur 0)))
-
-               ;; find the minimum non-blocked iter and seek it
-               (< i (- (alength iterators) 1))
-               (let [iterator (aget iterators i)]
-                 (if (false? (.-blocked? iterator))
-                   (do
-                     (debug :seeking i (map #(.key %) iterators) (map #(.key (.-iterator %)) iterators))
-                     (.splice iterators i 1)
-                     (.seek iterator (.key (aget iterators (- (alength iterators) 1))))
-                     (dotimes [i (alength iterators)]
-                       (aset keys i (.key (aget iterators i))))
-                     (.splice iterators (key-find keys (.key iterator)) 0 iterator)
-                     (recur -1))
-                   (recur (+ i 1))))
-
-               ;; otherwise see if we can bump the max iterator along
-               (== i (- (alength iterators) 1))
-               (let [max-iterator (aget iterators (- (alength iterators) 1))]
-                 (if (false? (.-blocked? max))
-                   (do
-                     (.next max-iterator)
-                     (debug :bump-max max-key)
-                     (recur 0))
-                   (do
-                     (set! end? true)
-                     (debug :end))))
-
-               )))
-  (reset [this]
-         (debug)
-         (debug :reset)
-         (dotimes [i (alength iterators)]
-           (.reset (aget iterators i)))
-         (js/goog.array.sort iterators (fn [i0 i1] (key-compare (.key i0) (.key i1))))
-         (set! end? false)
-         (.maintain this))
-  (key [this]
-       (.key (aget iterators 0)))
-  (next [this]
-        (debug :next)
-        (when (false? end?)
-          (let [max-iterator (aget iterators (- (alength iterators) 1))]
-            (assert (false? (.-blocked? max-iterator)))
-            (.next max-iterator)
-            (.maintain this))))
-  (seek [this key]
-        (debug :seek)
-        (when (false? end?)
-          (let [max-iterator (aget iterators (- (alength iterators) 1))]
-            (assert (false? (.-blocked? max-iterator)))
-            (.seek max-iterator key)
-            (.maintain this)))))
-
-(defn join [iterators num-vars iterator->var->present?]
-  (let [join-iterators (amake [i (alength iterators)]
-                              (join-iterator (aget iterators i) (aget iterator->var->present? i)))
-        keys (make-array (- (alength iterators) 1))
-        join (Join. join-iterators keys false)]
-    (.reset join)
-    join))
-
-(deftype FunctionIterator [f num-args ^:mutable saved-key ^:mutable end? ^:mutable old-saved-key ^:mutable old-end? pushed-saved-keys pushed-end?s]
-  Object
-  (reset [this]
-         (set! saved-key (least-key (+ num-args 1)))
-         (set! end? true)
-         (set! old-saved-key saved-key)
-         (set! old-end? end?)
-         (aclear pushed-saved-keys)
-         (aclear pushed-end?s))
-  (key [this]
-       (when (false? end?)
-         saved-key))
-  (next [this]
-        (assert false ".next on FunctionIterator"))
-  (seek [this key]
-        (if (not (== least (aget key (- num-args 1)))) ;; ie all input vars are defined
-          (let [old-result (aget key num-args)
-                new-result (.apply f nil key)]
-            (assert (val? new-result) (pr-str new-result))
-            (if (val-lte old-result new-result)
-              (do
-                (set! old-saved-key saved-key)
-                (set! old-end? end?)
-                (set! saved-key (aclone key))
-                (aset saved-key num-args new-result)
-                (set! end? false)
-                (== old-result new-result))
-              (do
-                (set! end? true)
-                false)))
-          (do
-            (set! end? true)
-            false)))
-  (undo [this]
-        (set! saved-key old-saved-key)
-        (set! end? old-end?))
+  (propagate [this los his]
+             (dotimes [i (alength ixes)]
+               (aset seek-key i (aget los (aget ixes i)))
+               (aset upper i (aget his (aget ixes i))))
+             (when (key-lt lower seek-key)
+               (.seek iterator seek-key)
+               (if (true? (.-end? iterator))
+                 failed
+                 (let [key (.key iterator)]
+                   (if (key-lt upper lower)
+                     failed
+                     (let [changed? false]
+                       (set! lower (.key iterator))
+                       (dotimes [i (alength ixes)]
+                         (let [ix (aget ixes i)
+                               new-lo (aget lower i)]
+                           (when (val-lt (aget los ix) new-lo)
+                             (aset los ix new-lo)
+                             (set!! changed? true))))
+                       (if (true? changed?)
+                         changed
+                         unchanged)))))))
   (push [this]
-        (apush pushed-saved-keys saved-key)
-        (apush pushed-end?s end?))
-  (pop [this]
-       (set! saved-key (.pop pushed-saved-keys))
-       (set! end? (.pop pushed-end?s))))
-
-(defn function-iterator [f num-args]
-  (FunctionIterator. f num-args (least-key (+ num-args 1)) true (least-key (+ num-args 1)) true #js [] #js []))
-
-(defn iterator->keys
-  ([iterator]
-   (iterator->keys js/Infinity iterator))
-  ([n iterator]
-   (let [results #js []]
-     (while (and (false? (.-end? iterator)) (< (alength results) n))
-       (.push results (aclone (.key iterator)))
-       (.next iterator))
-     results)))
-
-(defn iterator->elems
-  ([iterator]
-   (iterator->elems js/Infinity iterator))
-  ([n iterator]
-   (let [results #js []]
-     (while (and (false? (.-end? iterator)) (< (alength results) n))
-       (.push results #js [(.key iterator) (.val iterator)])
-       (.next iterator))
-     results)))
+        (apush pushed-nodes (.-node iterator))
+        (apush pushed-ixes (.-ix iterator))))
 
 ;; TESTS
 
@@ -763,34 +588,17 @@
                  action (gen key-len)]
                 (run-lookup-prop min-keys key-len actions action)))
 
-(defn gen-next [key-len]
-  (gen/make-gen
-   (fn [rnd size]
-     [[:next] nil])))
-
 (defn gen-seek [key-len]
   (gen/make-gen
    (fn [rnd size]
      (let [key (make-simple-key rnd size key-len)]
        [[:seek key] nil]))))
 
-(defn gen-movement [key-len]
-  (gen/make-gen
-   (fn [rnd size]
-     (let [key (make-simple-key rnd size key-len)]
-       (if (pprng/boolean rnd)
-         [[:next] nil]
-         [[:seek key] nil])))))
-
 (defn apply-to-iterator [iterator movements]
   (for [movement movements]
     (case (nth movement 0)
-      :next (do
-              (.next iterator)
-              (.key iterator))
-      :seek (do
-              (.seek iterator (nth movement 1))
-              (.key iterator)))))
+      :next (.next iterator)
+      :seek (.seek iterator (nth movement 1)))))
 
 (defn apply-to-elems [elems movements]
   (let [cur-elems (atom elems)]
@@ -798,10 +606,10 @@
       (case (nth movement 0)
         :next (do
                 (swap! cur-elems rest)
-                (or (first (first @cur-elems)) (first (last elems))))
+                (first (first @cur-elems)))
         :seek (do
                 (reset! cur-elems (drop-while #(key-lt (nth % 0) (nth movement 1)) elems))
-                (or (first (first @cur-elems)) (first (last elems))))))))
+                (first (first @cur-elems)))))))
 
 (defn run-iterator-prop [min-keys key-len actions movements]
   (let [tree (apply-to-tree (tree min-keys key-len) actions)
@@ -814,7 +622,7 @@
 (defn iterator-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
                  actions (gen/vector (gen-action key-len))
-                 movements (gen/vector (gen-movement key-len))]
+                 movements (gen/vector (gen-seek key-len))]
                 (run-iterator-prop min-keys key-len actions movements)))
 
 (defn run-self-join-prop [min-keys key-len actions movements]
@@ -832,7 +640,7 @@
 (defn self-join-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
                  actions (gen/vector (gen-action key-len))
-                 movements (gen/vector (gen-movement key-len))]
+                 movements (gen/vector (gen-seek key-len))]
                 (run-self-join-prop min-keys key-len actions movements)))
 
 (defn run-product-join-prop [min-keys key-len actions movements]
@@ -857,7 +665,7 @@
 (defn product-join-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
                  actions (gen/vector (gen-action key-len))
-                 movements (gen/vector (gen-movement key-len))]
+                 movements (gen/vector (gen-seek key-len))]
                 (run-product-join-prop min-keys key-len actions movements)))
 
 (comment
@@ -911,7 +719,7 @@
   (time (dotimes [_ 10] (h)))
 
   (do
-    (def samples (gen/sample (gen/tuple gen/s-pos-int (gen/vector gen-action) (gen/vector gen-movement)) 100))
+    (def samples (gen/sample (gen/tuple gen/s-pos-int (gen/vector gen-action) (gen/vector gen-seek)) 100))
     (def trees (for [[min-keys actions _] samples]
                  (apply-to-tree (tree min-keys) actions)))
     (def benches (mapv vector trees (map #(nth % 2) samples)))
