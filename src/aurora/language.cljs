@@ -175,7 +175,11 @@
                                    (aset output-fields (var->ix val) key))
                                  output-fields)))]
 
-          (Flow. solver output-kinds output-names output-fields))))))
+          ;; ensure at least one index per output
+          (dotimes [i (alength output-kinds)]
+            (.get-or-create-index kn (aget output-kinds i) (aget output-names i) (filter #(not (nil? %)) (aget output-fields i))))
+
+          (Flow. solver output-kinds output-names output-fields))))
 
 ;; TESTS
 
