@@ -75,7 +75,8 @@
 
 ;; NOTE can't handle missing keys yet - requires a schema
 (defn compile [kn]
-  (let [clauses (.keys (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"]))
+  (let [rule-id->flow #js {}
+        clauses (.keys (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"]))
         fields (.keys (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"]))
         rule-id->clauses (atom (into {} (for [[k vs] (group-by #(nth % 0) clauses)] [k (set (map vec vs))])))
         clause-id->fields (atom (into {} (for [[k vs] (group-by #(nth % 0) fields)] [k (set (map vec vs))])))]
@@ -107,7 +108,7 @@
                   (swap! rule-id->clauses update-in [rule-id] conj [rule-id "when" new-clause-id "=variable"]))
                 (swap! var->key assoc val key)))))))
 
-    (for [[rule-id clauses] @rule-id->clauses]
+    (doseq [[rule-id clauses] @rule-id->clauses]
       (let [vars (atom #{})]
 
         ;; collect vars
@@ -193,7 +194,10 @@
           (dotimes [i (alength output-kinds)]
             (.get-or-create-index kn (aget output-kinds i) (aget output-names i) (into-array (filter #(not (nil? %)) (aget output-fields i)))))
 
-          (Flow. solver output-kinds output-names output-fields))))))
+          (aset rule-id->flow rule-id
+                (Flow. solver output-kinds output-names output-fields)))))
+
+    rule-id->flow))
 
 ;; TESTS
 
@@ -228,29 +232,9 @@
                                                                                              #js ["output-transitive-connected" "variable" "x" "xx"]
                                                                                              #js ["output-transitive-connected" "variable" "y" "zz"]])
 
-(compile kn)
-
-(.run (first (compile kn)) kn)
-
-(.get-or-create-index kn "know" "connected" #js ["x" "y"])
-
-(def f2 (second (compile kn)))
-
-(.run f2 kn)
-
-(.get-or-create-index kn "know" "connected" #js ["x" "y"])
-
-(.run f2 kn)
-
-(.get-or-create-index kn "know" "connected" #js ["x" "y"])
-
-(.run f2 kn)
-
-(.get-or-create-index kn "know" "connected" #js ["x" "y"])
-
-(.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["x-function-edge" "when" "get-function-edge" "edge"]
-                                                                                                    #js ["x-function-edge" "when" "make-str" "=function"]
-                                                                                                    #js ["x-function-edge" "know" "know-str" "str-edge"]])
+(.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["function-edge" "when" "get-function-edge" "edge"]
+                                                                                                    #js ["function-edge" "when" "make-str" "=function"]
+                                                                                                    #js ["function-edge" "know" "know-str" "str-edge"]])
 
 (.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-function-edge" "variable" "x" "xx"]
                                                                                              #js ["get-function-edge" "variable" "y" "yy"]
@@ -258,6 +242,26 @@
                                                                                              #js ["make-str" "constant" "js" "\"edge \" + xx + \" \" + yy"]
                                                                                              #js ["know-str" "variable" "name" "zz"]])
 
-(.run (nth (compile kn) 2) kn)
+(def rule-id->flow (compile kn))
+
+rule-id->flow
+
+(.run (aget rule-id->flow "single-edge") kn)
+
+(.get-or-create-index kn "know" "connected" #js ["x" "y"])
+
+(.run (aget rule-id->flow "transitive-edge") kn)
+
+(.get-or-create-index kn "know" "connected" #js ["x" "y"])
+
+(.run (aget rule-id->flow "transitive-edge") kn)
+
+(.get-or-create-index kn "know" "connected" #js ["x" "y"])
+
+(.run (aget rule-id->flow "transitive-edge") kn)
+
+(.get-or-create-index kn "know" "connected" #js ["x" "y"])
+
+(.run (aget rule-id->flow "function-edge") kn)
 
 (.get-or-create-index kn "know" "str-edge" #js ["name"])
