@@ -190,7 +190,7 @@
              (when "ui/onChange" "toggle-all" 'value)
              (when "eve/compute" 'final "value == \"true\" ? \"completed\" : \"active\" ")
              (change ["todo-completed" 'todo 'complete?]
-                     ["current-toggle" 'todo 'final]))
+                     ["current-toggle" 'final]))
 
        (rule clear-completed-clicked
              (when "ui/onClick" "clear-completed")
