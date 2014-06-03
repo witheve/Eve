@@ -558,7 +558,10 @@
                      (when (val-lt new-hi (aget his ix))
                        (set!! changed? true)
                        (aset his ix new-hi))
-                     (when (val-lt (aget his ix) (aget los ix))
+                     ;; TODO need a better way to indicate failure
+                     (when (or (identical? greatest (aget los ix))
+                               (identical? least (aget his ix))
+                               (val-lt (aget his ix) (aget los ix)))
                        (set! failed? true))))
                  changed?))
   (split [this current]
@@ -580,14 +583,14 @@
              (set! los (.pop pushed-los))
              (set! his (.pop pushed-his))
              (set! depth (- depth 1))
+             (set! failed? false)
              (let [splitter (.pop pushed-splitters)]
                (debug :backtracked los his splitter)
                (.write-bounds this splitter)
                (debug :splitting-right los his splitter)
                (.split-right (aget constraints splitter) (aget constraint->los splitter) (aget constraint->his splitter))
                (.read-bounds this splitter)
-               (debug :split-right los his splitter)
-               (set! failed? false)))
+               (debug :split-right los his splitter failed?)))
   (next [this]
         (debug :next los his pushed-los pushed-his)
         (loop [current 0
@@ -966,15 +969,7 @@
     (alength (time (iterator->keys j)))
   )
 
-
-
-
-
- )
-
-(enable-console-print!)
-
-(let [tree1 (tree 10)
+  (let [tree1 (tree 10)
       _ (.assoc! tree1 #js ["a" "b"] 0)
       _ (.assoc! tree1 #js ["b" "c"] 0)
       _ (.assoc! tree1 #js ["c" "d"] 0)
@@ -993,3 +988,39 @@
   [(.next s) (.next s) (.next s)]
   )
 
+  (let [tree1 (tree 10)
+      _ (.assoc! tree1 #js ["a" "b"] 0)
+      _ (.assoc! tree1 #js ["b" "c"] 0)
+      _ (.assoc! tree1 #js ["c" "d"] 0)
+      _ (.assoc! tree1 #js ["d" "b"] 0)
+      s (solver 4
+                #js [(contains (iterator tree1))
+                     (contains (iterator tree1))]
+                #js [#js [0 1]
+                     #js [2 3]])
+      ]
+  (take 100 (take-while identity (repeatedly #(.next s))))
+  )
+
+  (let [tree1 (tree 10)
+      _ (.assoc! tree1 #js ["a" "b"] 0)
+      _ (.assoc! tree1 #js ["b" "c"] 0)
+      _ (.assoc! tree1 #js ["c" "d"] 0)
+      _ (.assoc! tree1 #js ["d" "b"] 0)
+      tree2 (tree 10)
+      _ (.assoc! tree2 #js ["b" "a"] 0)
+      _ (.assoc! tree2 #js ["c" "b"] 0)
+      _ (.assoc! tree2 #js ["d" "c"] 0)
+      _ (.assoc! tree2 #js ["b" "d"] 0)
+      s (solver 3
+                #js [(contains (iterator tree1))
+                     (contains (iterator tree2))]
+                #js [#js [0 2]
+                     #js [1 2]])
+      ]
+  [(.next s) (.next s) (.next s) (.next s) (.next s)]
+  )
+
+ )
+
+(enable-console-print!)
