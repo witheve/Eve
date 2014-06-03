@@ -8,6 +8,12 @@
   (when debug?
     `(cljs.core.prn ~@args)))
 
+(def check? false)
+
+(defmacro check [& args]
+  (when check?
+    `(assert ~@args)))
+
 (defmacro amake [[ix size] & body]
   `(let [arr# (make-array 0)]
      (dotimes [~ix ~size]
@@ -120,20 +126,6 @@
      (doseq ~bindings
        (apush result# (do ~@body)))
      result#))
-
-(defmacro check [& preds]
-  `(do
-     ~@(for [pred preds]
-         `(when-not ~pred
-            (throw (aurora.util.core.FailedCheck. '~pred ~(:line (meta &form)) ~*file* []))))
-     true))
-
-(defmacro deftraced [name args traced-args & body]
-  `(defn ~name ~args
-     (try
-       ~@body
-       (catch aurora.util.core.FailedCheck e#
-         (throw (update-in e# [:trace] conj (list '~name ~@traced-args)))))))
 
 (defmacro catch [& body]
   `(try
