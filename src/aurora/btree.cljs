@@ -1024,3 +1024,33 @@
  )
 
 (enable-console-print!)
+
+(let [tree1 (tree 10)
+      _ (dotimes [i 100]
+          (.assoc! tree1 #js [i i]))
+      tree2 (tree 10)
+      _ (.assoc! tree2 #js [0 0])
+      _ (.assoc! tree2 #js [99 99])
+      s (solver 3
+                #js [(contains (iterator tree1))
+                     (contains (iterator tree2))]
+                #js [#js [0 1]
+                     #js [0 2]])
+      ]
+  (take-while identity (repeatedly #(.next s)))
+  )
+
+(let [tree1 (tree 10)
+      _ (dotimes [i 100]
+          (.assoc! tree1 #js [i i]))
+      tree2 (tree 10)
+      _ (.assoc! tree2 #js [0 0])
+      _ (.assoc! tree2 #js [99 99])
+      s (solver 3
+                #js [(contains (iterator tree1))
+                     (contains (iterator tree2))]
+                #js [#js [0 1]
+                     #js [1 2]])
+      ]
+  (take-while identity (repeatedly #(.next s)))
+  )
