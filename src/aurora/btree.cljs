@@ -388,10 +388,8 @@
     tree))
 
 ;; ITERATORS
-;; .key / .val return key and val currently pointed at. key may be aliased
-;; On creation/reset, points to first key
-;; On next, either point to next key or set .-end? true.
-;; On seek, point to first key greater than or equal to seek-key, or otherwise the last key
+;; on seek-gt, return first key greater than seek-key, or nil if there is no such key
+;; on seek-gte, return first key greater than or equal to seek-key, or nil if there is no such key
 ;; NOTE iterators are not write-safe unless reset after writing
 
 (deftype Iterator [tree ^:mutable node ^:mutable ix]
@@ -520,6 +518,8 @@
     (Contains. iterator (make-array key-len) (greatest-key key-len))))
 
 ;; SOLVER
+
+;; los and his are inclusive
 
 ;; TODO replace last-changed with dirty tracking
 (deftype Solver [constraints constraint->ixes constraint->los constraint->his ^:mutable los ^:mutable his ^:mutable depth pushed-los pushed-his pushed-splitters ^:mutable failed?]
