@@ -37,7 +37,7 @@
     (doseq [cs clauses
             [type name fact] cs]
       (let [clause (new-id)]
-        (.push (aget results "clauses") #js [rule clause name type])
+        (.push (aget results "clauses") #js [rule type clause name])
         (dotimes [x (alength fact)]
           (let [cur (aget fact x)
                 var? (symbol? cur)
@@ -86,6 +86,36 @@
                      :time (pretend-tree 20)}
         ctx (context indexes)
         pretend! (aget ctx "pretend!")]
+
+    (.get-or-create-index kn "know" "todo" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
+    (.get-or-create-index kn "know" "todo-editing" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "todo-completed" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "todo-added" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "todo-removed" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "todo-to-add" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "todo-to-edit" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "filter" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "todo-displayed" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
+
+
+    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
+
+    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
+
     (aset input "queued" false)
     (aset input "current-queue" current-queue)
     (aset input "queue!" (fn [index fact]
@@ -528,7 +558,10 @@
   (perf-time (dotimes [x 30]
                (run)))
 
+  (first (compile program))
+
 (doseq [x (compile program)]
+  (println "foo")
   (.run x program))
 
   )

@@ -77,7 +77,9 @@
     ~(vec (for [[_ name & clauses] rules]
             (vec (for [[type name & r :as clause] clauses]
                    (if (#{'when 'pretend 'remember 'forget} type)
-                     `[[~(str type) ~(str name) (cljs.core.array ~@r)]]
+                     `[[~(if (= 'pretend type)
+                           "know"
+                           (str type)) ~(str name) (cljs.core.array ~@r)]]
                      clause)))
             ))))
 
