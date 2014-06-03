@@ -506,6 +506,7 @@
                        (when (< i (alength right-los))
                          (aset right-los i greatest)
                          (recur (+ i 1)))))))
+               (debug :right-los right-los)
                ;; ...and then seek past it
                (let [new-los (or (.seek-gt iterator right-los) failed-los)]
                  (loop [i 0]
@@ -561,7 +562,7 @@
                        (set! failed? true))))
                  changed?))
   (split [this current]
-         (debug :splitting los his (map #(.-lower %) constraints) (map #(.-upper %) constraints))
+         (debug :splitting-left los his current)
          (apush pushed-los (aclone los))
          (apush pushed-his (aclone his))
          (set! depth (+ depth 1))
@@ -569,7 +570,8 @@
            (.write-bounds this splitter)
            (.split-left (aget constraints splitter) (aget constraint->los splitter) (aget constraint->his splitter))
            (if (true? (.read-bounds this splitter))
-             (apush pushed-splitters splitter)
+             (do (apush pushed-splitters splitter)
+               (debug :split-left los his splitter))
              (let [new-splitter (mod (+ splitter 1) (alength constraints))]
                (if (identical? new-splitter current)
                  (assert false "Can't split anything!")
@@ -579,20 +581,27 @@
              (set! his (.pop pushed-his))
              (set! depth (- depth 1))
              (let [splitter (.pop pushed-splitters)]
+               (debug :backtracked los his splitter)
                (.write-bounds this splitter)
+               (debug :splitting-right los his splitter)
                (.split-right (aget constraints splitter) (aget constraint->los splitter) (aget constraint->his splitter))
-               (.read-bounds this splitter)))
+               (.read-bounds this splitter)
+               (debug :split-right los his splitter)
+               (set! failed? false)))
   (next [this]
         (debug :next los his pushed-los pushed-his)
         (loop [current 0
                last-changed (- (alength constraints) 1)]
+          (debug :next-loop los his current last-changed failed?)
           (if (true? failed?)
             (when (> depth 0)
               (.backtrack this)
               (recur current (- (alength constraints) 1)))
             (do
               (.write-bounds this current)
+              (debug :propagating current (aget constraint->los current) (aget constraint->his current))
               (.propagate (aget constraints current) (aget constraint->los current) (aget constraint->his current))
+              (debug :propagated current (aget constraint->los current) (aget constraint->his current))
               (if (.read-bounds this current)
                 (recur (mod (+ current 1) (alength constraints)) current)
                 (if (== current last-changed)
