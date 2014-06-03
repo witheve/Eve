@@ -177,7 +177,7 @@
 
           ;; ensure at least one index per output
           (dotimes [i (alength output-kinds)]
-            (.get-or-create-index kn (aget output-kinds i) (aget output-names i) (filter #(not (nil? %)) (aget output-fields i))))
+            (.get-or-create-index kn (aget output-kinds i) (aget output-names i) (into-array (filter #(not (nil? %)) (aget output-fields i)))))
 
           (Flow. solver output-kinds output-names output-fields))))))
 
