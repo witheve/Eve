@@ -588,7 +588,7 @@
          (aclear pushed-los)
          (aclear pushed-his)
          (aclear pushed-splitters)
-         (set! end? false))
+         (set! failed? false))
   (write-bounds [this current]
                 (let [current-ixes (aget constraint->ixes current)
                       current-los (aget constraint->los current)
