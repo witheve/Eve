@@ -82,7 +82,8 @@
 
     ;; rewrite clauses
     (doseq [[rule-id clauses] @rule-id->clauses]
-      (doseq [[_ clause-type clause-id name] clauses]
+      (doseq [[_ clause-type clause-id name] clauses
+              :when (not #{"constant=" "variable=" "function="} name)]
         (let [fields (get @clause-id->fields clause-id)
               var->key (atom {})]
           (doseq [[_ field-type key val] fields]
@@ -144,6 +145,19 @@
                                                        ix-a (get var->ix variable-a)
                                                        ix-b (get var->ix variable-b)]
                                                    [(btree/equal) #js [ix-a ix-b]])
+                                     "=function" (let [variable (first (for [[_ field-type key val] fields
+                                                                             :when (= key "variable")]
+                                                                         val))
+                                                       js (first (for [[_ field-type key val] fields
+                                                                       :when (= key "js")]
+                                                                   val))
+                                                       ix (get var->ix variable)
+                                                       args (for [var @vars
+                                                                  :when (>= (.indexOf js var) 0)]
+                                                              var)
+                                                       arg-ixes (map var->ix args)
+                                                       fun (apply js/Function (conj (vec args) (str "return (" js ");")))]
+                                                   [(btree/function fun) (into-array (conj (vec arg-ixes) ix))])
                                      (let [clause-vars&keys (sort-by (fn [[val key]] (var->ix val))
                                                                      (for [[_ field-type key val] fields]
                                                                        [val key]))
@@ -234,3 +248,16 @@
 
 (.get-or-create-index kn "know" "connected" #js ["x" "y"])
 
+(.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["x-function-edge" "when" "get-function-edge" "edge"]
+                                                                                                    #js ["x-function-edge" "when" "make-str" "=function"]
+                                                                                                    #js ["x-function-edge" "know" "know-str" "str-edge"]])
+
+(.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-function-edge" "variable" "x" "xx"]
+                                                                                             #js ["get-function-edge" "variable" "y" "yy"]
+                                                                                             #js ["make-str" "variable" "variable" "zz"]
+                                                                                             #js ["make-str" "constant" "js" "\"edge \" + xx + \" \" + yy"]
+                                                                                             #js ["know-str" "variable" "name" "zz"]])
+
+(.run (nth (compile kn) 2) kn)
+
+(.get-or-create-index kn "know" "str-edge" #js ["name"])
