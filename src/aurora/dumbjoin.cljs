@@ -8,7 +8,6 @@
         itrs (next itrs)]
     (.reset itr)
     (while (not (.-end? itr))
-      (println itr map)
       (let [filled (aclone cur-search)
             cur-key (.key itr)
             valid? (loop [ix 0]
@@ -21,7 +20,6 @@
                          (when (or (= :u cur-search-val)
                                    (== cur-search-val cur-val))
                            (recur (inc ix))))))]
-        (println cur-search cur-key valid? filled)
         (if valid?
           (if itrs
             (check-next itrs filled results)
