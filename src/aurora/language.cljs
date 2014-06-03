@@ -1,15 +1,14 @@
 (ns aurora.language
-  (:require [aurora.btree :as btree]
-            [aurora.join :as join])
+  (:require [aurora.btree :as btree])
   (:require-macros [aurora.macros :refer [apush set!!]]))
 
 ;; FLOWS
 
-(deftype Flow [input-iter output-kinds output-names output-fields]
+(deftype Flow [solver output-kinds output-names output-fields]
   Object
   (run [this kn]
-       (.reset input-iter)
-       (let [facts (btree/iterator->keys input-iter)]
+       (.reset solver)
+       (let [facts (.keys solver)]
          (dotimes [i (alength output-kinds)]
            (.add-facts kn (aget output-kinds i) (aget output-names i) (aget output-fields i) facts)))))
 
@@ -46,7 +45,7 @@
                        (or (get-in kind->name->fields->index [kind name (vec fields)])
                            (let [index (btree/tree 10 (alength fields))]
                              (when-let [[other-fields other-index] (first (get-in kind->name->fields->index [kind name]))]
-                               (-add-facts (btree/iterator->keys (btree/iterator other-index)) (into-array other-fields) index fields))
+                               (-add-facts (.keys other-index) (into-array other-fields) index fields))
                              (set! kind->name->fields->index (assoc-in kind->name->fields->index [kind name (vec fields)] index))
                              index)))
   (add-facts [this kind name fields facts]
@@ -76,8 +75,8 @@
 
 ;; NOTE can't handle missing keys yet - requires a schema
 (defn compile [kn]
-  (let [clauses (btree/iterator->keys (btree/iterator (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])))
-        fields (btree/iterator->keys (btree/iterator (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])))
+  (let [clauses (.keys (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"]))
+        fields (.keys (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"]))
         rule-id->clauses (atom (into {} (for [[k vs] (group-by #(nth % 0) clauses)] [k (set (map vec vs))])))
         clause-id->fields (atom (into {} (for [[k vs] (group-by #(nth % 0) fields)] [k (set (map vec vs))])))]
 
@@ -123,38 +122,39 @@
               ;; order clause vars
 
 
-              ;; make input iter
-              iters (for [[_ clause-type clause-id name] clauses
-                          :when (= clause-type "when")]
-                      (let [fields (get @clause-id->fields clause-id)]
-                        (case name
-                          "=constant" (let [variable (first (for [[_ field-type key val] fields
-                                                                  :when (= key "variable")]
-                                                              val))
-                                            constant (first (for [[_ field-type key val] fields
-                                                                  :when (= key "constant")]
-                                                              val))
-                                            ix (get var->ix variable)]
-                                        (join/constant-filter num-vars ix constant))
-                          "=variable" (let [variable-a (first (for [[_ field-type key val] fields
-                                                                    :when (= key "variable-a")]
-                                                                val))
-                                            variable-b (first (for [[_ field-type key val] fields
-                                                                    :when (= key "variable-b")]
-                                                                val))
-                                            ix-a (get var->ix variable-a)
-                                            ix-b (get var->ix variable-b)]
-                                        (join/variable-filter num-vars ix-a ix-b))
-                          (let [clause-vars&keys (sort-by (fn [[val key]] (var->ix val))
-                                                          (for [[_ field-type key val] fields]
-                                                            [val key]))
-                                clause-vars (map first clause-vars&keys)
-                                clause-vars->ix (zipmap clause-vars (range))
-                                var-map (map clause-vars->ix @vars)
-                                clause-keys (map second clause-vars&keys)
-                                index (.get-or-create-index kn "know" name (into-array clause-keys))]
-                            (join/magic-iterator index (into-array var-map))))))
-              join-iter (join/join-iterator (into-array iters))
+              ;; make inputs
+              constraints&ixes (for [[_ clause-type clause-id name] clauses
+                                     :when (= clause-type "when")]
+                                 (let [fields (get @clause-id->fields clause-id)]
+                                   (case name
+                                     "=constant" (let [variable (first (for [[_ field-type key val] fields
+                                                                             :when (= key "variable")]
+                                                                         val))
+                                                       constant (first (for [[_ field-type key val] fields
+                                                                             :when (= key "constant")]
+                                                                         val))
+                                                       ix (get var->ix variable)]
+                                                   [(btree/constant constant) #js [ix]])
+                                     "=variable" (let [variable-a (first (for [[_ field-type key val] fields
+                                                                               :when (= key "variable-a")]
+                                                                           val))
+                                                       variable-b (first (for [[_ field-type key val] fields
+                                                                               :when (= key "variable-b")]
+                                                                           val))
+                                                       ix-a (get var->ix variable-a)
+                                                       ix-b (get var->ix variable-b)]
+                                                   [(btree/equal) #js [ix-a ix-b]])
+                                     (let [clause-vars&keys (sort-by (fn [[val key]] (var->ix val))
+                                                                     (for [[_ field-type key val] fields]
+                                                                       [val key]))
+                                           clause-vars (map first clause-vars&keys)
+                                           clause-vars-ixes (map var->ix clause-vars)
+                                           clause-keys (map second clause-vars&keys)
+                                           index (.get-or-create-index kn "know" name (into-array clause-keys))]
+                                       [(btree/contains (btree/iterator index)) (into-array clause-vars-ixes)]))))
+
+              ;; make solver
+              solver (btree/solver num-vars (into-array (map first constraints&ixes)) (into-array (map second constraints&ixes)))
 
               ;; make output specs
               output-kinds (into-array
@@ -175,26 +175,26 @@
                                    (aset output-fields (var->ix val) key))
                                  output-fields)))]
 
-          (Flow. join-iter output-kinds output-names output-fields))))))
+          (Flow. solver output-kinds output-names output-fields))))))
 
+;; TESTS
 
+(def kn (knowledge))
 
-  (def kn (knowledge))
+(.get-or-create-index kn "know" "edge" #js ["x" "y"])
 
-  (.get-or-create-index kn "know" "edge" #js ["x" "y"])
+(.get-or-create-index kn "know" "connected" #js ["x" "y"])
 
-  (.get-or-create-index kn "know" "connected" #js ["x" "y"])
+(.add-facts kn "know" "edge" #js ["x" "y"] #js [#js ["a" "b"] #js ["b" "c"] #js ["c" "d"] #js ["d" "b"]])
 
-  (.add-facts kn "know" "edge" #js ["x" "y"] #js [#js ["a" "b"] #js ["b" "c"] #js ["c" "d"] #js ["d" "b"]])
+(.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
 
-  (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
+(.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
 
-  (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
+(.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["single-edge" "when" "get-edges" "edge"]
+                                                                                                    #js ["single-edge" "know" "output-connected" "connected"]])
 
-  (.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["single-edge" "when" "get-edges" "edge"]
-                                                                                                      #js ["single-edge" "know" "output-connected" "connected"]])
-
-  (.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-edges" "variable" "x" "xx"]
+(.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-edges" "variable" "x" "xx"]
                                                                                                #js ["get-edges" "variable" "y" "yy"]
                                                                                                #js ["output-connected" "variable" "x" "xx"]
                                                                                                #js ["output-connected" "variable" "y" "yy"]])
@@ -217,5 +217,11 @@
   (.get-or-create-index kn "know" "connected" #js ["x" "y"])
 
   (.run (second (compile kn)) kn)
+
+  (.get-or-create-index kn "know" "connected" #js ["x" "y"])
+ (.run (second (compile kn)) kn)
+
+  (.get-or-create-index kn "know" "connected" #js ["x" "y"])
+ (.run (second (compile kn)) kn)
 
   (.get-or-create-index kn "know" "connected" #js ["x" "y"])

@@ -191,11 +191,17 @@
                     (recur (mapcat #(.-children %) nodes)))))
   (foreach [this f]
            (.foreach root f))
+  (elems [this]
+       (let [results #js []]
+         (.foreach this #(apush results #js [%1 %2]))
+         results))
+  (keys [this]
+        (let [results #js []]
+          (.foreach this #(apush results %1))
+          results))
   ISeqable
   (-seq [this]
-        (let [results #js []]
-          (.foreach this #(apush results #js [%1 %2]))
-          (seq results))))
+        (seq (.elems this))))
 
 (deftype Node [parent parent-ix keys vals children ^:mutable lower ^:mutable upper]
   Object
@@ -517,6 +523,8 @@
   (let [key-len (.-key-len (.-tree iterator))]
     (Contains. iterator (make-array key-len) (greatest-key key-len))))
 
+;; TODO for these constraints would be useful to be able to disable the constraints once they run succesfully
+
 (deftype Constant [c]
   Object
   (reset [this])
@@ -528,6 +536,23 @@
 
 (defn constant [c]
   (Constant. c))
+
+(deftype Equal []
+  Object
+  (reset [this])
+  (split-left [this los his])
+  (split-right [this los his])
+  (propagate [this los his]
+             (loop [i 0]
+               (when (< i (alength los))
+                 (if (identical? (aget los i) (aget his i))
+                   (dotimes [j (alength los)]
+                     (aset los j (aget los i))
+                     (aset his j (aget his i)))
+                   (recur (+ i 1)))))))
+
+(defn equal []
+  (Equal.))
 
 (deftype Function [f]
   Object
@@ -646,7 +671,7 @@
                       (.split this current)
                       (recur 0 (- (alength constraints) 1))))
                   (recur (mod (+ current 1) (alength constraints)) last-changed)))))))
-  (all [this]
+  (keys [this]
        (let [results #js []]
          (loop []
            (let [result (.next this)]
@@ -656,7 +681,7 @@
          results))
   ISeqable
   (-seq [this]
-        (seq (.all this))))
+        (seq (.keys this))))
 
 (defn solver [num-vars constraints constraint->ixes]
   (let [constraint->los (amake [i (alength constraint->ixes)]
@@ -1067,6 +1092,27 @@
                 #js [(contains (iterator tree1))
                      (contains (iterator tree2))
                      (function identity)]
+                #js [#js [0 1]
+                     #js [2 3]
+                     #js [1 3]])
+      ]
+  [(.next s) (.next s) (.next s) (.next s) (.next s)]
+  )
+
+  (let [tree1 (tree 10)
+      _ (.assoc! tree1 #js ["a" "b"] 0)
+      _ (.assoc! tree1 #js ["b" "c"] 0)
+      _ (.assoc! tree1 #js ["c" "d"] 0)
+      _ (.assoc! tree1 #js ["d" "b"] 0)
+      tree2 (tree 10)
+      _ (.assoc! tree2 #js ["b" "a"] 0)
+      _ (.assoc! tree2 #js ["c" "b"] 0)
+      _ (.assoc! tree2 #js ["d" "c"] 0)
+      _ (.assoc! tree2 #js ["b" "d"] 0)
+      s (solver 4
+                #js [(contains (iterator tree1))
+                     (contains (iterator tree2))
+                     (equal)]
                 #js [#js [0 1]
                      #js [2 3]
                      #js [1 3]])
