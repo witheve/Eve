@@ -517,6 +517,35 @@
   (let [key-len (.-key-len (.-tree iterator))]
     (Contains. iterator (make-array key-len) (greatest-key key-len))))
 
+(deftype Constant [c]
+  Object
+  (reset [this])
+  (split-left [this los his])
+  (split-right [this los his])
+  (propagate [this los his]
+             (aset los 0 c)
+             (aset his 0 c)))
+
+(defn constant [c]
+  (Constant. c))
+
+(deftype Function [f]
+  Object
+  (reset [this])
+  (split-left [this los his])
+  (split-right [this los his])
+  (propagate [this los his]
+             (loop [i 0]
+               (if (< i (- (alength los) 1))
+                 (when (identical? (aget los i) (aget his i))
+                   (recur (+ i 1)))
+                 (let [val (.apply f nil los)]
+                   (aset los (- (alength los) 1) val)
+                   (aset his (- (alength his) 1) val))))))
+
+(defn function [f]
+  (Function. f))
+
 ;; SOLVER
 
 ;; los and his are inclusive
@@ -1020,6 +1049,27 @@
                      (contains (iterator tree2))]
                 #js [#js [0 2]
                      #js [1 2]])
+      ]
+  [(.next s) (.next s) (.next s) (.next s) (.next s)]
+  )
+
+  (let [tree1 (tree 10)
+      _ (.assoc! tree1 #js ["a" "b"] 0)
+      _ (.assoc! tree1 #js ["b" "c"] 0)
+      _ (.assoc! tree1 #js ["c" "d"] 0)
+      _ (.assoc! tree1 #js ["d" "b"] 0)
+      tree2 (tree 10)
+      _ (.assoc! tree2 #js ["b" "a"] 0)
+      _ (.assoc! tree2 #js ["c" "b"] 0)
+      _ (.assoc! tree2 #js ["d" "c"] 0)
+      _ (.assoc! tree2 #js ["b" "d"] 0)
+      s (solver 4
+                #js [(contains (iterator tree1))
+                     (contains (iterator tree2))
+                     (function identity)]
+                #js [#js [0 1]
+                     #js [2 3]
+                     #js [1 3]])
       ]
   [(.next s) (.next s) (.next s) (.next s) (.next s)]
   )
