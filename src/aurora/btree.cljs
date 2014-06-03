@@ -616,7 +616,18 @@
                     (do
                       (.split this current)
                       (recur 0 (- (alength constraints) 1))))
-                  (recur (mod (+ current 1) (alength constraints)) last-changed))))))))
+                  (recur (mod (+ current 1) (alength constraints)) last-changed)))))))
+  (all [this]
+       (let [results #js []]
+         (loop []
+           (let [result (.next this)]
+             (when-not (nil? result)
+               (apush results result)
+               (recur))))
+         results))
+  ISeqable
+  (-seq [this]
+        (seq (.all this))))
 
 (defn solver [num-vars constraints constraint->ixes]
   (let [constraint->los (amake [i (alength constraint->ixes)]
@@ -799,23 +810,21 @@
                  movements (gen/vector (gen-movement key-len))]
                 (run-iterator-prop min-keys key-len actions movements)))
 
-(defn run-self-join-prop [min-keys key-len actions movements]
+(defn run-self-join-prop [min-keys key-len actions]
   (let [tree (apply-to-tree (tree min-keys key-len) actions)
-        iterator-results (apply-to-iterator (iterator tree) movements)
-        join-results (apply-to-iterator
-                      (join #js [(iterator tree) (iterator tree)]
-                            key-len
-                            #js [(into-array (repeat key-len true)) (into-array (repeat key-len true))]
-                            #js [(into-array (repeat key-len true)) (into-array (repeat key-len true))])
-                      movements)]
-    (= (map (fn [[b k]] [b (vec k)]) iterator-results)
-       (map (fn [[b k]] [b (vec k)]) join-results))))
+        solver (solver
+                key-len
+                #js [(contains (iterator tree))
+                     (contains (iterator tree))]
+                #js [(into-array (range key-len))
+                     (into-array (range key-len))])]
+    (= (map vec (map first tree))
+       (map vec solver))))
 
 (defn self-join-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
-                 actions (gen/vector (gen-action key-len))
-                 movements (gen/vector (gen-movement key-len))]
-                (run-self-join-prop min-keys key-len actions movements)))
+                 actions (gen/vector (gen-action key-len))]
+                (run-self-join-prop min-keys key-len actions)))
 
 (defn run-product-join-prop [min-keys key-len actions movements]
   (let [product-tree (tree min-keys key-len)
@@ -901,21 +910,22 @@
      (doseq [[tree movements] benches]
        (apply-to-iterator (iterator tree) movements))))
 
-  (let [tree1 (tree 10)
-        _ (dotimes [i 10000]
-            (let [i (+ i 0)]
-              (.assoc! tree1 #js [i (+ i 1) (+ i 2)] (* 2 i))))
-        tree2 (tree 10)
-        _ (dotimes [i 1000]
-            (let [i (+ i 1)]
-              (.assoc! tree2 #js [i (+ i 2)] (* 2 i))))
-        tree3 (tree 10)
-        _ (dotimes [i 100000]
-            (let [i (+ i 2)]
-              (.assoc! tree3 #js [(+ i 1) (+ i 2)] (* 2 i))))
-        ]
-     (let [s (solver 3 #js [(contains (iterator tree1)) (contains (iterator tree2)) (contains (iterator tree3))] #js [#js [0 1 2] #js [0 2] #js [1 2]])]
-       (while (not (nil? (.next s))))))
+   (let [tree1 (tree 10)
+         _ (dotimes [i 10000]
+             (let [i (+ i 0)]
+               (.assoc! tree1 #js [i (+ i 1) (+ i 2)] (* 2 i))))
+         tree2 (tree 10)
+         _ (dotimes [i 1000]
+             (let [i (+ i 1)]
+               (.assoc! tree2 #js [i (+ i 2)] (* 2 i))))
+         tree3 (tree 10)
+         _ (dotimes [i 100000]
+             (let [i (+ i 2)]
+               (.assoc! tree3 #js [(+ i 1) (+ i 2)] (* 2 i))))
+         ]
+     (perf-time
+      (let [s (solver 3 #js [(contains (iterator tree1)) (contains (iterator tree2)) (contains (iterator tree3))] #js [#js [0 1 2] #js [0 2] #js [1 2]])]
+        (while (not (nil? (.next s)))))))
 
   (let [tree1 (tree 10)
           _ (dotimes [i 100000]
@@ -1020,27 +1030,3 @@
   )
 
  )
-
-(enable-console-print!)
-
-(let [tree1 (tree 10 3)
-      _ (dotimes [i 10]
-          (.assoc! tree1 #js [i i i]))
-      tree2 (tree 10 2)
-      _ (dotimes [i 10]
-          (.assoc! tree2 #js [i i]))
-      tree3 (tree 10 2)
-      _ (dotimes [i 10]
-          (.assoc! tree3 #js [i i]))
-      s (solver 3
-                #js [(contains (iterator tree1))
-                     (contains (iterator tree2))
-                     (contains (iterator tree3))]
-                #js [#js [0 1 2]
-                     #js [0 2]
-                     #js [1 2]])
-      ]
-  (perf-time
-   (dotimes [i 2]
-     (.next s)
-     )))
