@@ -397,9 +397,9 @@
 (deftype Iterator [tree ^:mutable node ^:mutable ix]
   Object
   (reset [this key]
-         (set node (.-root tree))
-         (set ix 0)
-         (set end? (> (alength (.-keys node)) 0)))
+         (set! node (.-root tree))
+         (set! ix 0)
+         (set! end? (> (alength (.-keys node)) 0)))
   (seek-gt [this key]
            (loop []
              (if (and (instance? Node (.-parent node))
@@ -605,7 +605,7 @@
               (debug :propagating current (aget constraint->los current) (aget constraint->his current))
               (.propagate (aget constraints current) (aget constraint->los current) (aget constraint->his current))
               (debug :propagated current (aget constraint->los current) (aget constraint->his current))
-              (if (.read-bounds this current)
+              (if (true? (.read-bounds this current))
                 (recur (mod (+ current 1) (alength constraints)) current)
                 (if (== current last-changed)
                   (if (key= los his)
