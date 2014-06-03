@@ -4,7 +4,7 @@
             [cemerick.double-check.properties :as prop :include-macros true]
             [cemerick.pprng :as pprng]
             clojure.set)
-  (:require-macros [aurora.macros :refer [debug check apush apush* amake aclear typeof set!! dofrom]]))
+  (:require-macros [aurora.macros :refer [debug check apush apush* amake aclear typeof set!! dofrom perf-time]]))
 
 ;; COMPARISONS
 
@@ -564,21 +564,22 @@
                                (val-lt (aget his ix) (aget los ix)))
                        (set! failed? true))))
                  changed?))
-  (split [this current]
-         (debug :splitting-left los his current)
+  (split [this]
+         (debug :splitting-left los his)
          (apush pushed-los (aclone los))
          (apush pushed-his (aclone his))
          (set! depth (+ depth 1))
-         (loop [splitter current]
-           (.write-bounds this splitter)
-           (.split-left (aget constraints splitter) (aget constraint->los splitter) (aget constraint->his splitter))
-           (if (true? (.read-bounds this splitter))
-             (do (apush pushed-splitters splitter)
-               (debug :split-left los his splitter))
-             (let [new-splitter (mod (+ splitter 1) (alength constraints))]
-               (if (identical? new-splitter current)
-                 (assert false "Can't split anything!")
-                 (recur new-splitter))))))
+         (loop [splitter 0]
+           (if (< splitter (alength constraints))
+             (do
+               (.write-bounds this splitter)
+               (.split-left (aget constraints splitter) (aget constraint->los splitter) (aget constraint->his splitter))
+               (if (true? (.read-bounds this splitter))
+                 (do
+                   (apush pushed-splitters splitter)
+                   (debug :split-left los his splitter))
+                 (recur (+ splitter 1))))
+             (assert false "Can't split anything!"))))
   (backtrack [this]
              (set! los (.pop pushed-los))
              (set! his (.pop pushed-his))
@@ -913,11 +914,8 @@
             (let [i (+ i 2)]
               (.assoc! tree3 #js [(+ i 1) (+ i 2)] (* 2 i))))
         ]
-    (time
-     (dotimes [i 100]
-       (let [j (join #js [(iterator tree1) (iterator tree2) (iterator tree3)] 3 #js [#js [true true true] #js [true false true] #js [false true true]])]
-         (iterator->keys j))))
-  )
+     (let [s (solver 3 #js [(contains (iterator tree1)) (contains (iterator tree2)) (contains (iterator tree3))] #js [#js [0 1 2] #js [0 2] #js [1 2]])]
+       (while (not (nil? (.next s))))))
 
   (let [tree1 (tree 10)
           _ (dotimes [i 100000]
@@ -1025,32 +1023,24 @@
 
 (enable-console-print!)
 
-(let [tree1 (tree 10)
-      _ (dotimes [i 100]
-          (.assoc! tree1 #js [i i]))
-      tree2 (tree 10)
-      _ (.assoc! tree2 #js [0 0])
-      _ (.assoc! tree2 #js [99 99])
+(let [tree1 (tree 10 3)
+      _ (dotimes [i 10]
+          (.assoc! tree1 #js [i i i]))
+      tree2 (tree 10 2)
+      _ (dotimes [i 10]
+          (.assoc! tree2 #js [i i]))
+      tree3 (tree 10 2)
+      _ (dotimes [i 10]
+          (.assoc! tree3 #js [i i]))
       s (solver 3
                 #js [(contains (iterator tree1))
-                     (contains (iterator tree2))]
-                #js [#js [0 1]
-                     #js [0 2]])
-      ]
-  (take-while identity (repeatedly #(.next s)))
-  )
-
-(let [tree1 (tree 10)
-      _ (dotimes [i 100]
-          (.assoc! tree1 #js [i i]))
-      tree2 (tree 10)
-      _ (.assoc! tree2 #js [0 0])
-      _ (.assoc! tree2 #js [99 99])
-      s (solver 3
-                #js [(contains (iterator tree1))
-                     (contains (iterator tree2))]
-                #js [#js [0 1]
+                     (contains (iterator tree2))
+                     (contains (iterator tree3))]
+                #js [#js [0 1 2]
+                     #js [0 2]
                      #js [1 2]])
       ]
-  (take-while identity (repeatedly #(.next s)))
-  )
+  (perf-time
+   (dotimes [i 2]
+     (.next s)
+     )))
