@@ -826,30 +826,25 @@
                  actions (gen/vector (gen-action key-len))]
                 (run-self-join-prop min-keys key-len actions)))
 
-(defn run-product-join-prop [min-keys key-len actions movements]
+(defn run-product-join-prop [min-keys key-len actions]
   (let [product-tree (tree min-keys key-len)
         tree (apply-to-tree (tree min-keys key-len) actions)
-        elems (iterator->keys (iterator tree))
+        elems (into-array (map first tree))
         _ (dotimes [i (alength elems)]
             (dotimes [j (alength elems)]
               (.assoc! product-tree (.concat (aget elems i) (aget elems j)) nil)))
-        iterator-results (apply-to-iterator (iterator product-tree) movements)
-        join-results (apply-to-iterator
-                      (join #js [(iterator tree) (iterator tree)]
-                            (* 2 key-len)
-                            #js [(into-array (concat (repeat key-len true) (repeat key-len false)))
-                                 (into-array (concat (repeat key-len false) (repeat key-len true)))]
-                            #js [(into-array (concat (repeat key-len true) (repeat key-len false)))
-                                 (into-array (concat (repeat key-len false) (repeat key-len true)))])
-                      movements)]
-    (= (map (fn [[b k]] [b (vec k)]) iterator-results)
-       (map (fn [[b k]] [b (vec k)]) join-results))))
+        solver (solver
+                (* 2 key-len)
+                #js [(contains (iterator tree)) (contains (iterator tree))]
+                #js [(into-array (range 0 key-len))
+                     (into-array (range key-len (* 2 key-len)))])]
+    (= (map vec (map first product-tree))
+       (map vec solver))))
 
 (defn product-join-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
-                 actions (gen/vector (gen-action key-len))
-                 movements (gen/vector (gen-movement key-len))]
-                (run-product-join-prop min-keys key-len actions movements)))
+                 actions (gen/vector (gen-action key-len))]
+                (run-product-join-prop min-keys key-len actions)))
 
 (comment
   (dc/quick-check 1000 (least-prop 1))
