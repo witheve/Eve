@@ -72,7 +72,7 @@
   `(set!! ~name (cljs.core/-assoc! ~name ~key ~val)))
 
 (defmacro rules [env & rules]
-  `(aurora.examples.todomvc.add-rules
+  `(aurora.examples.todomvc2.add-rules
     ~env
     ~(vec (for [[_ name & clauses] rules]
             (vec (for [[type name & r :as clause] clauses]

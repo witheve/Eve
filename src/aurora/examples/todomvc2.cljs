@@ -1,7 +1,7 @@
-(ns aurora.examples.todomvc
+(ns aurora.examples.todomvc2
   (:require [aurora.btree :refer [tree iterator least greatest key-lt key-lte key-gt key-gte key-compare key=]]
             [aurora.join :refer [magic-iterator join-iterator all-join-results transform constant-filter context pretend-tree fixpoint-tick infinirator]]
-            [aurora.language :refer [knowledge]]
+            [aurora.language :refer [knowledge compile]]
             [aurora.util.core :refer [now]]
             [aurora.editor.dom :as dom]
             [aurora.editor.ReactDommy :as dommy])
@@ -16,21 +16,18 @@
 
 (defn env []
   (let [kn (knowledge)]
-    (.get-or-create-index kn "know" "clauses" ["rule-id" "clause-id" "name" "type"])
-    (.get-or-create-index kn "know" "clause-vars" ["clause-id" "key" "var"])
-    (.get-or-create-index kn "know" "clause-constants" ["clause-id" "key" "constant"])
+    (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
+    (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
     kn
     ))
 
 (defn add-rules [env rs]
   (let [results #js {:clauses (array)
-                     :clause-vars (array)
-                     :clause-constants (array)}]
+                     :clause-fields (array)}]
     (doseq [r rs]
       (add-rule results r))
-    (.add-facts env "know" "clauses" #js ["rule-id" "clause-id" "name" "type"] (aget results "clauses"))
-    (.add-facts env "know" "clause-vars" #js ["clause-id" "key" "var"] (aget results "clause-vars"))
-    (.add-facts env "know" "clause-constants" #js ["clause-id" "key" "constant"] (aget results "clause-constants"))
+    (.add-facts env "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] (aget results "clauses"))
+    (.add-facts env "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] (aget results "clause-fields"))
     env))
 
 
@@ -42,10 +39,13 @@
       (let [clause (new-id)]
         (.push (aget results "clauses") #js [rule clause name type])
         (dotimes [x (alength fact)]
-          (let [cur (aget fact x)]
-            (if (symbol? cur)
-              (.push (aget results "clause-vars") #js [clause x (str cur)])
-              (.push (aget results "clause-constants") #js [clause x cur]))))))))
+          (let [cur (aget fact x)
+                var? (symbol? cur)
+                v (if var?
+                    (str cur)
+                    cur)]
+            (.push (aget results "clause-fields") #js [clause (if var? "variable" "constant") x v])
+            ))))))
 
 (def draw js/aurora.runtime.ui.hiccup->facts-eve)
 
@@ -521,12 +521,15 @@
 
       frag)))
 
+
+
 (comment
   (perf-time (run))
   (perf-time (dotimes [x 30]
                (run)))
 
-
+(doseq [x (compile program)]
+  (.run x program))
 
   )
 
