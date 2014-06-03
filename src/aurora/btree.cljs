@@ -165,7 +165,7 @@
 (deftype Tree [max-keys key-len ^:mutable root]
   Object
   (toString [this]
-            (pr-str (into {} (map vec this))))
+            (pr-str (into (sorted-map-by key-compare) (map vec this))))
   (assoc! [this key val]
           (.assoc! root key val max-keys))
   (dissoc! [this key]
