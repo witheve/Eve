@@ -454,123 +454,74 @@
 ;;   failed (no possible solutions)
 ;;   changed (possible solutions, los/his changed)
 ;;   unchanged (possible solutions, los/his unchanged)
-;; propagate may assume that los and his are within its current bounds
-;; push stores the current state of the constraint
-;; split either:
-;;   breaks the solutions into two branches, sets one branch and stores the other, returns true
+;; split-left either:
+;;   breaks the solutions into two branches, sets the left branch, returns true
 ;;   has only one possible solution, does nothing, returns false
-;; pop restores the last push/split state
+;; split-right:
+;;   breaks the solutions into two branches, sets the right branch
 
-(def unchanged 0)
-(def changed 1)
-(def failed 2)
+;; solver remembers ixes, handles copying los/his
+;; solver push los/his when splitting and remembers who split
+;; solver checks changed/failed, sets dirty
 
-;; lower and upper are inclusive
-(deftype Contains [iterator ^:mutable lower ^:mutable upper ixes pushed|split pushed-nodes pushed-ixes split-lowers split-uppers]
+(deftype Contains [iterator right-los failed-los]
   Object
   (reset [this]
-         (.reset iterator)
-         (dotimes [i (alength lower)]
-           (aset lower i least)
-           (aset upper i greatest))
-         (let [key (.seek-gte iterator lower)]
-           (aset lower 0 (aget key 0)))
-         (aclear pushed-nodes)
-         (aclear pushed-ixes)
-         (aclear split-lowers)
-         (aclear split-uppers))
+         (.reset iterator))
   (propagate [this los his]
-             (check (key-lte los his) (pr-str los his))
-             (check (key-lte lower upper) (pr-str lower upper))
-             (debug :before-propagate lower upper los his)
-             (let [this-changed? false]
+             ;; widen los/his to just the bounds we can use here
+             (loop [i 0]
+               (when (< i (alength los))
+                 (if (identical? (aget los i) (aget his i))
+                   (recur (+ i 1))
+                   (loop [i (+ i 1)]
+                     (when (< i (alength los))
+                       (aset los i least)
+                       (aset his i greatest)
+                       (recur (+ i 1)))))))
+             ;; update los
+             (let [new-los (or (.seek-gte iterator los) failed-los)]
                (loop [i 0]
-                 (when (< i (alength ixes))
-                   (let [ix (aget ixes i)
-                         old-lo (aget lower i)
-                         old-hi (aget upper i)
-                         new-lo (aget los ix)
-                         new-hi (aget his ix)]
-                     (when (val-lt old-lo new-lo)
-                       (aset lower i new-lo)
-                       (set!! this-changed? true))
-                     (when (val-lt new-hi old-hi)
-                       (aset upper i new-hi)
-                       (set!! this-changed? true))
-                     (when (identical? new-lo new-hi)
-                       (recur (+ i 1))))))
-               ;; TODO only seek on change, including split as change
-               (let [key (.seek-gte iterator lower)
-                     that-changed? false]
-                 (debug :propagate-with key)
-                 (if (or (nil? key)
-                         (key-lt upper key))
-                   failed
-                   (loop [i 0]
-                     (let [ix (aget ixes i)
-                           old-lo (aget los ix)
-                           old-hi (aget his ix)
-                           new-lo (aget key i)
-                           new-hi (aget upper i)]
-                       (if (val-lt old-hi new-lo)
-                         failed
-                         (do
-                           (aset lower i new-lo)
-                           (when (val-lt old-lo new-lo)
-                             (aset los ix new-lo)
-                             (set!! that-changed? true))
-                           (when (val-lt new-hi old-hi)
-                             (aset his ix new-hi)
-                             (set!! that-changed? true))
-                           (if (and (< (+ i 1) (alength ixes)) (identical? new-lo new-hi))
-                             (recur (+ i 1))
-                             (do
-                               (debug :after-propagate lower upper los his)
-                               (check (key-lte los his) (pr-str los his))
-                               (check (key-lte lower upper) (pr-str lower upper))
-                               (if (true? that-changed?)
-                                 changed
-                                 unchanged)))))))))))
-  (push [this]
-        (apush pushed|split true)
-        (apush pushed-nodes (.-node iterator))
-        (apush pushed-ixes (.-ix iterator)))
-  (split [this]
-         ;; split by value of next unset var
-         (loop [i 0]
-           (if (< i (alength ixes))
-             (if (identical? (aget lower i) (aget upper i))
-               (recur (+ i 1))
-               (do
-                 (apush pushed|split false)
-                 (apush split-uppers (aclone upper))
-                 (let [old-lo (aget lower i)
-                       new-lo (aget (.seek-gte iterator lower) i)]
-                   (if (val-lt new-lo old-lo)
-                     (aset upper i old-lo)
-                     (aset upper i new-lo)))
-                 (apush split-lowers (aclone upper)) ;; the lower for right-hand branch is the next key after the upper for the left-hand branch
-                 true))
-             false)))
-  (pop [this]
-       (if (true? (.pop pushed|split))
-         (do
-           (set! (.-node iterator) (.pop pushed-nodes))
-           (set! (.-ix iterator) (.pop pushed-ixes)))
-         (do
-           (set! lower (.seek-gt iterator (.pop split-lowers)))
-           (set! upper (.pop split-uppers))))))
+                 (when (< i (alength los))
+                   (aset los i (aget new-los i))
+                   (if (identical? (aget new-los i) (aget his i))
+                     (recur (+ i 1)))))))
+  (split-left [this los his]
+              ;; fix the value of the first non-fixed var
+              (loop [i 0]
+                (when (< i (alength los))
+                  (if (identical? (aget los i) (aget his i))
+                    (recur (+ i 1))
+                    (aset his i (aget los i))))))
+  (split-right [this los his]
+               ;; copy the los
+               (dotimes [i (alength los)]
+                 (aset right-los i (aget los i)))
+               ;; find the his for the left branch...
+               (loop [i 0]
+                 (when (< i (alength right-los))
+                   (if (identical? (aget right-los i) (aget his i))
+                     (recur (+ i 1))
+                     (loop [i (+ i 1)]
+                       (when (< i (alength right-los))
+                         (aset right-los i greatest)
+                         (recur (+ i 1)))))))
+               ;; ...and then seek past it
+               (let [new-los (or (.seek-gt iterator right-los) failed-los)]
+                 (loop [i 0]
+                   (when (< i (alength los))
+                     (aset los i (aget new-los i))
+                     (if (identical? (aget new-los i) (aget his i))
+                       (recur (+ i 1))))))))
 
-(defn contains [iterator ixes]
-  (let [lower (least-key (alength ixes))
-        upper (greatest-key (alength ixes))
-        key (.seek-gte iterator lower)]
-    (aset lower 0 (aget key 0))
-    (Contains. iterator lower upper ixes #js [] #js [] #js [] #js [] #js [])))
+(defn contains [iterator]
+  (let [key-len (.-key-len (.-tree iterator))]
+    (Contains. iterator (make-array key-len) (greatest-key key-len))))
 
 ;; SOLVER
 
-(deftype Solver [constraints ^:mutable los ^:mutable his ^:mutable depth pushed-los pushed-his ^:mutable end?]
+;; TODO replace last-changed with dirty tracking
+(deftype Solver [constraints constraint->ixes constraint->los constraint->his ^:mutable los ^:mutable his ^:mutable depth pushed-los pushed-his pushed-splitters ^:mutable failed?]
   Object
   (reset [this]
          (dotimes [i (alength constraints)]
@@ -581,58 +532,87 @@
          (set! depth 0)
          (aclear pushed-los)
          (aclear pushed-his)
+         (aclear pushed-splitters)
          (set! end? false))
+  (write-bounds [this current]
+                (let [current-ixes (aget constraint->ixes current)
+                      current-los (aget constraint->los current)
+                      current-his (aget constraint->his current)]
+                 (dotimes [i (alength current-ixes)]
+                   (let [ix (aget current-ixes i)]
+                     (aset current-los i (aget los ix))
+                     (aset current-his i (aget his ix))))))
+  (read-bounds [this current]
+               (let [current-ixes (aget constraint->ixes current)
+                     current-los (aget constraint->los current)
+                     current-his (aget constraint->his current)
+                     changed? false]
+                 (dotimes [i (alength current-ixes)]
+                   (let [ix (aget current-ixes i)
+                         new-lo (aget current-los i)
+                         new-hi (aget current-his i)]
+                     (when (val-lt (aget los ix) new-lo)
+                       (set!! changed? true)
+                       (aset los ix new-lo))
+                     (when (val-lt new-hi (aget his ix))
+                       (set!! changed? true)
+                       (aset his ix new-hi))
+                     (when (val-lt (aget his ix) (aget los ix))
+                       (set! failed? true))))
+                 changed?))
   (split [this current]
-         (debug :splitting los his)
+         (debug :splitting los his (map #(.-lower %) constraints) (map #(.-upper %) constraints))
+         (apush pushed-los (aclone los))
+         (apush pushed-his (aclone his))
+         (set! depth (+ depth 1))
          (loop [splitter current]
-           (if (true? (.split (aget constraints splitter)))
-             (do
-               (apush pushed-los (aclone los))
-               (apush pushed-his (aclone his))
-               (set! depth (+ depth 1))
-               (dotimes [i (alength constraints)
-                         :when (not (identical? i splitter))]
-                 (.push (aget constraints i)))
-               splitter)
+           (.write-bounds this splitter)
+           (.split-left (aget constraints splitter) (aget constraint->los splitter) (aget constraint->his splitter))
+           (if (true? (.read-bounds this splitter))
+             (apush pushed-splitters splitter)
              (let [new-splitter (mod (+ splitter 1) (alength constraints))]
                (if (identical? new-splitter current)
                  (assert false "Can't split anything!")
                  (recur new-splitter))))))
-  (pop [this]
-       (set! los (.pop pushed-los))
-       (set! his (.pop pushed-his))
-       (set! depth (- depth 1))
-       (dotimes [i (alength constraints)]
-         (.pop (aget constraints i))))
+  (backtrack [this]
+             (set! los (.pop pushed-los))
+             (set! his (.pop pushed-his))
+             (set! depth (- depth 1))
+             (let [splitter (.pop pushed-splitters)]
+               (.write-bounds this splitter)
+               (.split-right (aget constraints splitter) (aget constraint->los splitter) (aget constraint->his splitter))
+               (.read-bounds this splitter)))
   (next [this]
         (debug :next los his pushed-los pushed-his)
-        (when (false? end?)
-          (loop [current 0
-                 last-changed (- (alength constraints) 1)]
-            (let [result (.propagate (aget constraints current) los his)]
-              (debug :next-loop current result los his pushed-los pushed-his)
-              (condp identical? result
-                changed (recur (mod (+ current 1) (alength constraints)) current)
-                unchanged (if (not (identical? current last-changed))
-                            (recur (mod (+ current 1) (alength constraints)) last-changed)
-                            (if (key= los his)
-                              (let [result (aclone los)]
-                                (if (> depth 0)
-                                  (.pop this)
-                                  (set! end? true))
-                                result)
-                              (let [splitter (.split this current)]
-                                (recur splitter (mod (+ splitter 1) (alength constraints))))))
-                failed (if (> depth 0)
-                         (do
-                           (.pop this)
-                           (recur current (mod (- current 1) (alength constraints))))
-                         (do
-                           (set! end? true)
-                           nil))))))))
+        (loop [current 0
+               last-changed (- (alength constraints) 1)]
+          (if (true? failed?)
+            (when (> depth 0)
+              (.backtrack this)
+              (recur current (- (alength constraints) 1)))
+            (do
+              (.write-bounds this current)
+              (.propagate (aget constraints current) (aget constraint->los current) (aget constraint->his current))
+              (if (.read-bounds this current)
+                (recur (mod (+ current 1) (alength constraints)) current)
+                (if (== current last-changed)
+                  (if (key= los his)
+                    (do
+                      (set! failed? true) ;; force solver to backtrack next time
+                      (aclone los))
+                    (do
+                      (.split this current)
+                      (recur 0 (- (alength constraints) 1))))
+                  (recur (mod (+ current 1) (alength constraints)) last-changed))))))))
 
-(defn solver [constraints num-vars]
-  (Solver. constraints (least-key num-vars) (greatest-key num-vars) 0 #js [] #js [] false))
+(defn solver [num-vars constraints constraint->ixes]
+  (let [constraint->los (amake [i (alength constraint->ixes)]
+                               (make-array (alength (aget constraint->ixes i))))
+        constraint->his (amake [i (alength constraint->ixes)]
+                               (make-array (alength (aget constraint->ixes i))))
+        los (least-key num-vars)
+        his (greatest-key num-vars)]
+    (Solver. constraints constraint->ixes constraint->los constraint->his los his 0 #js [] #js [] #js [] false)))
 
 ;; TESTS
 
@@ -995,9 +975,11 @@
       _ (.assoc! tree2 #js ["c" "b"] 0)
       _ (.assoc! tree2 #js ["d" "c"] 0)
       _ (.assoc! tree2 #js ["b" "d"] 0)
-      s (solver #js [(contains (iterator tree1) #js [0 2])
-                     (contains (iterator tree2) #js [1 2])]
-                3)
+      s (solver 3
+                #js [(contains (iterator tree1))
+                     (contains (iterator tree2))]
+                #js [#js [0 2]
+                     #js [1 2]])
       ]
   [(.next s) (.next s) (.next s)]
   )
