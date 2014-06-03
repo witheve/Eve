@@ -4,7 +4,7 @@
             [cemerick.double-check.properties :as prop :include-macros true]
             [cemerick.pprng :as pprng]
             clojure.set)
-  (:require-macros [aurora.macros :refer [debug apush apush* amake aclear typeof set!! dofrom]]))
+  (:require-macros [aurora.macros :refer [debug check apush apush* amake aclear typeof set!! dofrom]]))
 
 ;; COMPARISONS
 
@@ -401,7 +401,6 @@
          (set ix 0)
          (set end? (> (alength (.-keys node)) 0)))
   (seek-gt [this key]
-           tree
            (loop []
              (if (and (instance? Node (.-parent node))
                       (or (key-lte (.-upper node) key)
@@ -467,48 +466,71 @@
 (def failed 2)
 
 ;; lower and upper are inclusive
-;; lower is aliased to iterator, must not be mutated
-(deftype Contains [iterator seek-key ^:mutable lower ^:mutable upper ixes pushed|split pushed-nodes pushed-ixes split-lowers split-uppers]
+(deftype Contains [iterator ^:mutable lower ^:mutable upper ixes pushed|split pushed-nodes pushed-ixes split-lowers split-uppers]
   Object
   (reset [this]
          (.reset iterator)
-         (dotimes [i (alength seek-key)]
-           (aset seek-key i least))
-         (set! lower (.seek-gte iterator seek-key))
-         (dotimes [i (alength upper)]
+         (dotimes [i (alength lower)]
+           (aset lower i least)
            (aset upper i greatest))
+         (let [key (.seek-gte iterator lower)]
+           (aset lower 0 (aget key 0)))
          (aclear pushed-nodes)
          (aclear pushed-ixes)
          (aclear split-lowers)
          (aclear split-uppers))
   (propagate [this los his]
-             (if (nil? lower)
-               failed
-               (do
-                 (dotimes [i (alength ixes)]
-                   (aset seek-key i (aget los (aget ixes i))))
-                 (when (key-lt lower seek-key)
-                   (set! lower (.seek-gte iterator seek-key)))
-                 (if (or (nil? lower)
-                         (key-lt upper lower))
+             (check (key-lte los his) (pr-str los his))
+             (check (key-lte lower upper) (pr-str lower upper))
+             (debug :before-propagate lower upper los his)
+             (let [this-changed? false]
+               (loop [i 0]
+                 (when (< i (alength ixes))
+                   (let [ix (aget ixes i)
+                         old-lo (aget lower i)
+                         old-hi (aget upper i)
+                         new-lo (aget los ix)
+                         new-hi (aget his ix)]
+                     (when (val-lt old-lo new-lo)
+                       (aset lower i new-lo)
+                       (set!! this-changed? true))
+                     (when (val-lt new-hi old-hi)
+                       (aset upper i new-hi)
+                       (set!! this-changed? true))
+                     (when (identical? new-lo new-hi)
+                       (recur (+ i 1))))))
+               ;; TODO only seek on change, including split as change
+               (let [key (.seek-gte iterator lower)
+                     that-changed? false]
+                 (debug :propagate-with key)
+                 (if (or (nil? key)
+                         (key-lt upper key))
                    failed
-                   (let [changed? false]
-                     (dotimes [i (alength ixes)]
-                       (let [ix (aget ixes i)
-                             new-lo (aget lower i)
-                             old-hi (aget his ix)
-                             new-hi (aget upper i)]
-                         (when (val-lt (aget los ix) new-lo)
-                           (aset los ix new-lo)
-                           (set!! changed? true))
-                         (if (val-lt new-hi old-hi)
-                           (do
+                   (loop [i 0]
+                     (let [ix (aget ixes i)
+                           old-lo (aget los ix)
+                           old-hi (aget his ix)
+                           new-lo (aget key i)
+                           new-hi (aget upper i)]
+                       (if (val-lt old-hi new-lo)
+                         failed
+                         (do
+                           (aset lower i new-lo)
+                           (when (val-lt old-lo new-lo)
+                             (aset los ix new-lo)
+                             (set!! that-changed? true))
+                           (when (val-lt new-hi old-hi)
                              (aset his ix new-hi)
-                             (set!! changed? true))
-                           (aset upper i old-hi))))
-                     (if (true? changed?)
-                       changed
-                       unchanged))))))
+                             (set!! that-changed? true))
+                           (if (and (< (+ i 1) (alength ixes)) (identical? new-lo new-hi))
+                             (recur (+ i 1))
+                             (do
+                               (debug :after-propagate lower upper los his)
+                               (check (key-lte los his) (pr-str los his))
+                               (check (key-lte lower upper) (pr-str lower upper))
+                               (if (true? that-changed?)
+                                 changed
+                                 unchanged)))))))))))
   (push [this]
         (apush pushed|split true)
         (apush pushed-nodes (.-node iterator))
@@ -516,13 +538,17 @@
   (split [this]
          ;; split by value of next unset var
          (loop [i 0]
-           (if (< i (alength upper))
+           (if (< i (alength ixes))
              (if (identical? (aget lower i) (aget upper i))
                (recur (+ i 1))
                (do
                  (apush pushed|split false)
                  (apush split-uppers (aclone upper))
-                 (aset upper i (aget lower i))
+                 (let [old-lo (aget lower i)
+                       new-lo (aget (.seek-gte iterator lower) i)]
+                   (if (val-lt new-lo old-lo)
+                     (aset upper i old-lo)
+                     (aset upper i new-lo)))
                  (apush split-lowers (aclone upper)) ;; the lower for right-hand branch is the next key after the upper for the left-hand branch
                  true))
              false)))
@@ -536,10 +562,77 @@
            (set! upper (.pop split-uppers))))))
 
 (defn contains [iterator ixes]
-  (let [seek-key (least-key (alength ixes))
-        lower (.seek-gte iterator seek-key)
-        upper (greatest-key (alength ixes))]
-    (Contains. iterator seek-key lower upper ixes #js [] #js [] #js [] #js [] #js [])))
+  (let [lower (least-key (alength ixes))
+        upper (greatest-key (alength ixes))
+        key (.seek-gte iterator lower)]
+    (aset lower 0 (aget key 0))
+    (Contains. iterator lower upper ixes #js [] #js [] #js [] #js [] #js [])))
+
+;; SOLVER
+
+(deftype Solver [constraints ^:mutable los ^:mutable his ^:mutable depth pushed-los pushed-his ^:mutable end?]
+  Object
+  (reset [this]
+         (dotimes [i (alength constraints)]
+           (.reset (aget constraints i)))
+         (dotimes [i (alength los)]
+           (aset los i least)
+           (aset his i greatest))
+         (set! depth 0)
+         (aclear pushed-los)
+         (aclear pushed-his)
+         (set! end? false))
+  (split [this current]
+         (debug :splitting los his)
+         (loop [splitter current]
+           (if (true? (.split (aget constraints splitter)))
+             (do
+               (apush pushed-los (aclone los))
+               (apush pushed-his (aclone his))
+               (set! depth (+ depth 1))
+               (dotimes [i (alength constraints)
+                         :when (not (identical? i splitter))]
+                 (.push (aget constraints i)))
+               splitter)
+             (let [new-splitter (mod (+ splitter 1) (alength constraints))]
+               (if (identical? new-splitter current)
+                 (assert false "Can't split anything!")
+                 (recur new-splitter))))))
+  (pop [this]
+       (set! los (.pop pushed-los))
+       (set! his (.pop pushed-his))
+       (set! depth (- depth 1))
+       (dotimes [i (alength constraints)]
+         (.pop (aget constraints i))))
+  (next [this]
+        (debug :next los his pushed-los pushed-his)
+        (when (false? end?)
+          (loop [current 0
+                 last-changed (- (alength constraints) 1)]
+            (let [result (.propagate (aget constraints current) los his)]
+              (debug :next-loop current result los his pushed-los pushed-his)
+              (condp identical? result
+                changed (recur (mod (+ current 1) (alength constraints)) current)
+                unchanged (if (not (identical? current last-changed))
+                            (recur (mod (+ current 1) (alength constraints)) last-changed)
+                            (if (key= los his)
+                              (let [result (aclone los)]
+                                (if (> depth 0)
+                                  (.pop this)
+                                  (set! end? true))
+                                result)
+                              (let [splitter (.split this current)]
+                                (recur splitter (mod (+ splitter 1) (alength constraints))))))
+                failed (if (> depth 0)
+                         (do
+                           (.pop this)
+                           (recur current (mod (- current 1) (alength constraints))))
+                         (do
+                           (set! end? true)
+                           nil))))))))
+
+(defn solver [constraints num-vars]
+  (Solver. constraints (least-key num-vars) (greatest-key num-vars) 0 #js [] #js [] false))
 
 ;; TESTS
 
@@ -884,20 +977,28 @@
     (alength (time (iterator->keys j)))
   )
 
-  (let [tree1 (tree 10)
-        _ (.assoc! tree1 #js ["a" "b"] 0)
-        _ (.assoc! tree1 #js ["b" "c"] 0)
-        _ (.assoc! tree1 #js ["c" "d"] 0)
-        _ (.assoc! tree1 #js ["d" "b"] 0)
-        tree2 (tree 10)
-        _ (.assoc! tree2 #js ["b" "a"] 0)
-        _ (.assoc! tree2 #js ["c" "b"] 0)
-        _ (.assoc! tree2 #js ["d" "c"] 0)
-        _ (.assoc! tree2 #js ["b" "d"] 0)
-        join-itr (join #js [(iterator tree1) (iterator tree2)] 3 #js [#js [true false true]
-                                                                      #js [false true true]])
-        ]
-     (map vec (iterator->keys join-itr))
-    )
+
+
+
 
  )
+
+(enable-console-print!)
+
+(let [tree1 (tree 10)
+      _ (.assoc! tree1 #js ["a" "b"] 0)
+      _ (.assoc! tree1 #js ["b" "c"] 0)
+      _ (.assoc! tree1 #js ["c" "d"] 0)
+      _ (.assoc! tree1 #js ["d" "b"] 0)
+      tree2 (tree 10)
+      _ (.assoc! tree2 #js ["b" "a"] 0)
+      _ (.assoc! tree2 #js ["c" "b"] 0)
+      _ (.assoc! tree2 #js ["d" "c"] 0)
+      _ (.assoc! tree2 #js ["b" "d"] 0)
+      s (solver #js [(contains (iterator tree1) #js [0 2])
+                     (contains (iterator tree2) #js [1 2])]
+                3)
+      ]
+  [(.next s) (.next s) (.next s)]
+  )
+
