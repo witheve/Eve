@@ -68,10 +68,10 @@
 ;; COMPILER
 
 (let [next (atom 0)]
-   (defn new-id []
-     (if js/window.uuid
-       (.replace (js/uuid) (js/RegExp. "-" "gi") "_")
-       (str "id-" (swap! next inc)))))
+  (defn new-id []
+    (if js/window.uuid
+      (.replace (js/uuid) (js/RegExp. "-" "gi") "_")
+      (str "id-" (swap! next inc)))))
 
 ;; NOTE can't handle missing keys yet - requires a schema
 (defn compile [kn]
@@ -195,33 +195,38 @@
                                                                                                     #js ["single-edge" "know" "output-connected" "connected"]])
 
 (.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-edges" "variable" "x" "xx"]
-                                                                                               #js ["get-edges" "variable" "y" "yy"]
-                                                                                               #js ["output-connected" "variable" "x" "xx"]
-                                                                                               #js ["output-connected" "variable" "y" "yy"]])
+                                                                                             #js ["get-edges" "variable" "y" "yy"]
+                                                                                             #js ["output-connected" "variable" "x" "xx"]
+                                                                                             #js ["output-connected" "variable" "y" "yy"]])
 
-  (.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["transitive-edge" "when" "get-left-edge" "edge"]
-                                                                                                      #js ["transitive-edge" "when" "get-right-connected" "connected"]
-                                                                                                      #js ["transitive-edge" "know" "output-transitive-connected" "connected"]])
+(.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["transitive-edge" "when" "get-left-edge" "edge"]
+                                                                                                    #js ["transitive-edge" "when" "get-right-connected" "connected"]
+                                                                                                    #js ["transitive-edge" "know" "output-transitive-connected" "connected"]])
 
-  (.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-left-edge" "variable" "x" "xx"]
-                                                                                               #js ["get-left-edge" "variable" "y" "yy"]
-                                                                                               #js ["get-right-connected" "variable" "x" "yy"]
-                                                                                               #js ["get-right-connected" "variable" "y" "zz"]
-                                                                                               #js ["output-transitive-connected" "variable" "x" "xx"]
-                                                                                               #js ["output-transitive-connected" "variable" "y" "zz"]])
+(.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-left-edge" "variable" "x" "xx"]
+                                                                                             #js ["get-left-edge" "variable" "y" "yy"]
+                                                                                             #js ["get-right-connected" "variable" "x" "yy"]
+                                                                                             #js ["get-right-connected" "variable" "y" "zz"]
+                                                                                             #js ["output-transitive-connected" "variable" "x" "xx"]
+                                                                                             #js ["output-transitive-connected" "variable" "y" "zz"]])
 
-  (compile kn)
+(compile kn)
 
-  (.run (first (compile kn)) kn)
+(.run (first (compile kn)) kn)
 
-  (.get-or-create-index kn "know" "connected" #js ["x" "y"])
+(.get-or-create-index kn "know" "connected" #js ["x" "y"])
 
-  (.run (second (compile kn)) kn)
+(def f2 (second (compile kn)))
 
-  (.get-or-create-index kn "know" "connected" #js ["x" "y"])
- (.run (second (compile kn)) kn)
+(.run f2 kn)
 
-  (.get-or-create-index kn "know" "connected" #js ["x" "y"])
- (.run (second (compile kn)) kn)
+(.get-or-create-index kn "know" "connected" #js ["x" "y"])
 
-  (.get-or-create-index kn "know" "connected" #js ["x" "y"])
+(.run f2 kn)
+
+(.get-or-create-index kn "know" "connected" #js ["x" "y"])
+
+(.run f2 kn)
+
+(.get-or-create-index kn "know" "connected" #js ["x" "y"])
+
