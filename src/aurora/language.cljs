@@ -6,11 +6,35 @@
 
 (deftype Flow [solver output-kinds output-names output-fields]
   Object
-  (run [this kn]
+  (run [this kn rule->dirty? kind->name->rules]
        (.reset solver)
        (let [facts (.keys solver)]
          (dotimes [i (alength output-kinds)]
-           (.add-facts kn (aget output-kinds i) (aget output-names i) (aget output-fields i) facts)))))
+           (let [kind (aget output-kinds i)
+                 name (aget output-names i)
+                 fields (aget output-fields i)]
+             (when (true? (.add-facts kn kind name fields facts))
+               (let [dirtied-rules (aget kind->name->rules kind name)]
+                 (dotimes [j (alength dirtied-rules)]
+                   (aset rule->dirty? (aget dirtied-rules i) true)))))))))
+
+(deftype Flows [rules rule->flow rule->dirty? kind->name->rules]
+  Object
+  (run [this kn]
+       ;; assume everything is dirty at the start
+       (dotimes [i (alength rules)]
+         (aset rule->dirty? (aget rules i) true))
+
+       (loop [i 0]
+         (prn :loop i)
+         (when (< i (alength rules))
+           (let [rule (aget rules i)]
+             (if (true? (aget rule->dirty? rule))
+               (do
+                 (aset rule->dirty? rule false)
+                 (.run (aget rule->flow rule) kn rule->dirty? kind->name->rules)
+                 (recur 0))
+               (recur (+ i 1))))))))
 
 ;; KNOWLEDGE
 
@@ -38,7 +62,7 @@
         (set!! changed? true)))
     changed?))
 
-(deftype Knowledge [^:mutable kind->name->fields->index ^:mutable version]
+(deftype Knowledge [^:mutable kind->name->fields->index]
   Object
   (get-or-create-index [this kind name fields]
                        (assert (or (= kind "know") (= kind "remember") (= kind "forget")) (pr-str kind))
@@ -56,14 +80,13 @@
                (doseq [[other-fields other-index] indexes]
                  (when (-add-facts facts fields other-index (into-array other-fields))
                    (set!! changed? true)))
-               (when changed?
-                 (set! version (+ version 1)))))
+               changed?))
   (tick [this])
   ;; TODO Knowledge.tick using array of flows, needs dirty tracking per flow (requires map from index to flow)
   (tock [this]))
 
 (defn knowledge []
-  (Knowledge. {} 0))
+  (Knowledge. {}))
 
 ;; COMPILER
 
@@ -75,7 +98,8 @@
 
 ;; NOTE can't handle missing keys yet - requires a schema
 (defn compile [kn]
-  (let [rule-id->flow #js {}
+  (let [rule->flow (atom {})
+        kind->name->rules (atom {})
         clauses (.keys (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"]))
         fields (.keys (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"]))
         rule-id->clauses (atom (into {} (for [[k vs] (group-by #(nth % 0) clauses)] [k (set (map vec vs))])))
@@ -84,7 +108,7 @@
     ;; rewrite clauses
     (doseq [[rule-id clauses] @rule-id->clauses]
       (doseq [[_ clause-type clause-id name] clauses
-              :when (not (#{"constant=" "variable=" "function="} name))]
+              :when (not (#{"=constant" "=variable" "=function"} name))]
         (let [fields (get @clause-id->fields clause-id)
               var->key (atom {})]
           (doseq [[_ field-type key val] fields]
@@ -166,6 +190,7 @@
                                            clause-vars-ixes (map var->ix clause-vars)
                                            clause-keys (map second clause-vars&keys)
                                            index (.get-or-create-index kn "know" name (into-array clause-keys))]
+                                       (swap! kind->name->rules update-in ["know" name] #(conj (or % #{}) rule-id))
                                        [(btree/contains (btree/iterator index)) (into-array clause-vars-ixes)]))))
 
               ;; make solver
@@ -192,12 +217,13 @@
 
           ;; ensure at least one index per output
           (dotimes [i (alength output-kinds)]
+            (swap! kind->name->rules update-in [(aget output-kinds i) (aget output-names i)] #(or % #{}))
             (.get-or-create-index kn (aget output-kinds i) (aget output-names i) (into-array (filter #(not (nil? %)) (aget output-fields i)))))
 
-          (aset rule-id->flow rule-id
-                (Flow. solver output-kinds output-names output-fields)))))
+          (swap! rule->flow assoc rule-id (Flow. solver output-kinds output-names output-fields)))))
 
-    rule-id->flow))
+    ;; TODO stratify
+    (Flows. (clj->js (map first @rule->flow)) (clj->js @rule->flow) #js {} (clj->js @kind->name->rules))))
 
 ;; TESTS
 
@@ -242,26 +268,14 @@
                                                                                              #js ["make-str" "constant" "js" "\"edge \" + xx + \" \" + yy"]
                                                                                              #js ["know-str" "variable" "name" "zz"]])
 
-(def rule-id->flow (compile kn))
+(def flows (compile kn))
 
-rule-id->flow
+(set! (.-rules flows) #js ["single-edge" "transitive-edge" "function-edge"])
 
-(.run (aget rule-id->flow "single-edge") kn)
+(enable-console-print!)
 
-(.get-or-create-index kn "know" "connected" #js ["x" "y"])
-
-(.run (aget rule-id->flow "transitive-edge") kn)
+(.run flows kn)
 
 (.get-or-create-index kn "know" "connected" #js ["x" "y"])
-
-(.run (aget rule-id->flow "transitive-edge") kn)
-
-(.get-or-create-index kn "know" "connected" #js ["x" "y"])
-
-(.run (aget rule-id->flow "transitive-edge") kn)
-
-(.get-or-create-index kn "know" "connected" #js ["x" "y"])
-
-(.run (aget rule-id->flow "function-edge") kn)
 
 (.get-or-create-index kn "know" "str-edge" #js ["name"])
