@@ -58,6 +58,9 @@
      (~'js* "while (~{}.length > 0) ~{}.pop()" ~arr ~arr)
      nil))
 
+(defmacro deftraced [& body]
+  `(def ~(first body) (fn [])))
+
 (defmacro set!! [name val]
   (assert (symbol? name) (str "Can't set!! " (pr-str name)))
   `(~'js* ~(str (munge name) "= ~{}") ~val))
