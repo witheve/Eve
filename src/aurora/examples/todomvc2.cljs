@@ -148,11 +148,11 @@
 
 (defn fill-todos [env num]
   (dotimes [x num]
-    (.assoc! (index env "todo") #js [x (str "foo" x)] x))
+    (know env "todo" #js ["todo-id" "text"] #js [x (str "foo" x)]))
   (dotimes [x num]
-    (.assoc! (index env "todo-editing") #js [x "saved"] x))
+    (know env "todo-editing" #js ["todo-id" "editing?"] #js [x "saved"]))
   (dotimes [x num]
-    (.assoc! (index env "todo-completed") #js [x "asdf"] x)))
+    (know env "todo-completed" #js ["todo-id" "completed?"] #js [x "active"])))
 
 (defn click! [env elem]
   (.assoc! (index env "ui/onClick") #js[elem] 0))
@@ -165,84 +165,79 @@
 
 (defn defaults [env]
   ;((aget (aget env "ctx") "remember!") "todo-to-add" #js ["hey"])
-  (.assoc! (index env :todo-to-add) #js ["hey"] nil)
-  (.assoc! (index env :current-toggle) #js ["false"] nil)
-  (.assoc! (index env :todo-to-edit) #js ["hi"] nil)
-  (.assoc! (index env :filter) #js ["all"] nil))
+  (know env "todo-to-add" #js ["value"] #js ["hey"])
+  (know env "current-toggle" #js ["value"] #js ["false"])
+  (know env "todo-to-edit" #js ["value"] #js ["hi"])
+  (know env "filter" #js ["filter"] #js ["all"])
+  )
 
-(def program (env))
+(def todomvc (env))
 
-(comment
-(rules program
+(rules todomvc
 
        (rule todo-input-changes
-             (when "ui/onChange" "todo-input" 'neue)
-             (change ["todo-to-add" 'v]
-                     ["todo-to-add" 'neue]))
+             (when "ui/onChange" {:elem-id "todo-input" :value neue})
+             (change "todo-to-add" {:value v} {:value neue}))
 
        (rule add-todo-clicked
-             (when "ui/onClick" "add-todo")
-             (pretend "todo-added" 0))
+             (when "ui/onClick" {:elem-id "add-todo"})
+             (pretend "todo-added" {:x 0}))
 
        (rule filter-active-clicked
-             (when "ui/onClick" "filter-active")
-             (change ["filter" 'v]
-                     ["filter" "active"]))
+             (when "ui/onClick" {:elem-id "filter-active"})
+             (change "filter" {:filter 'v} {:filter "active"}))
 
        (rule filter-completed-clicked
-             (when "ui/onClick" "filter-completed")
-             (change ["filter" 'v]
-                     ["filter" "completed"]))
+             (when "ui/onClick" {:elem-id "filter-completed"})
+             (change "filter" {:filter 'v} {:filter "completed"}))
 
        (rule filter-all-clicked
-             (when "ui/onClick" "filter-all")
-             (change ["filter" 'v]
-                     ["filter" "all"]))
+             (when "ui/onClick" {:elem-id "filter-all"})
+             (change "filter" {:filter 'v} {:filter "all"}))
 
        (rule toggle-all-changed-track
-             (when "ui/onChange" "toggle-all" 'value)
-             (change ["current-toggle" 'v]
-                     ["current-toggle" 'value]))
+             (when "ui/onChange" {:elem-id "toggle-all" :value 'value})
+             (change "current-toggle" {:value 'v} {:value 'value}))
 
        (rule toggle-all-changed-update
-             (when "ui/onChange" "toggle-all" 'value)
-             (when "eve/compute" 'final "value == \"true\" ? \"completed\" : \"active\" ")
-             (change ["todo-completed" 'todo 'complete?]
-                     ["current-toggle" 'final]))
+             (when "ui/onChange" {:elem-id "toggle-all" :value 'value})
+             (func 'final "value == \"true\" ? \"completed\" : \"active\" ")
+             (change "todo-completed"
+                     {:todo-id 'todo :completed? 'complete?}
+                     {:todo-id 'todo :completed? 'final}))
 
        (rule clear-completed-clicked
-             (when "ui/onClick" "clear-completed")
-             (when "todo-completed" 'todo "completed")
-             (pretend "todo-removed" 'todo)
-             )
+             (when "ui/onClick" {:elem-id "clear-completed"})
+             (when "todo-completed" {:todo-id 'todo :completed? "completed"})
+             (pretend "todo-removed" {:todo-id 'todo}))
 
        (rule remove-todo
-             (when "todo-removed" 'todo)
-             (when "todo" 'todo 'text)
-             (when "todo-editing" 'todo 'editing)
-             (when "todo-completed" 'todo 'complete?)
-             (forget "todo" 'todo 'text)
-             (forget "todo-editing" 'todo 'editing)
-             (forget "todo-completed" 'todo 'complete?))
+             (when "todo-removed" {:todo-id 'todo})
+             (when "todo" {:todo-id 'todo :text 'text})
+             (when "todo-editing" {:todo-id 'todo :editing? 'editing})
+             (when "todo-completed" {:todo-id 'todo :completed? 'complete?})
+             (forget "todo" {:todo-id 'todo :text 'text})
+             (forget "todo-editing" {:todo-id 'todo :editing? 'editing})
+             (forget "todo-completed" {:todo-id 'todo :completed? 'complete?}))
 
        (rule filter-all-display
-             (when "todo" 'todo 'text)
-             (when "filter" "all")
-             (pretend "todo-displayed" 'todo))
+             (when "todo" {:todo-id 'todo :text 'text})
+             (when "filter" {:filter "all"})
+             (pretend "todo-displayed" {:todo-id 'todo}))
 
        (rule filter-all-display
-             (when "todo" 'todo 'text)
-             (when "todo-completed" 'todo 'complete?)
-             (when "filter" 'complete?)
-             (pretend "todo-displayed" 'todo))
+             (when "todo" {:todo-id 'todo :text 'text})
+             (when "todo-completed" {:todo-id 'todo :completed? 'complete?})
+             (when "filter" {:filter 'complete?})
+             (pretend "todo-displayed" {:todo-id 'todo}))
 
        (rule draw-checkbox
-             (when "todo-displayed" 'todo)
-             (when "todo-completed" 'todo 'complete)
-             (when "compute" 'active? "complete == \"completed\" ? \"checked\" : \"\"")
-             (when "compute" 'child-id "\"todo-checkbox\" + todo")
-             (when "compute" 'parent-id "\"todo\" + todo")
-             (pretend "ui/child" 'parent-id -1 'child-id)
+             (when "todo-displayed" {:todo-id 'todo})
+             (when "todo-completed" {:todo-id 'todo :completed? 'complete})
+             (func 'active?  "complete == \"completed\" ? \"checked\" : \"\"")
+             (func 'child-id "\"todo-checkbox\" + todo")
+             (func 'parent-id "\"todo\" + todo")
+             (pretend "ui/child" {:parent-id 'parent-id :pos -1 :child-id 'child-id})
              (draw [:input {:id 'child-id
                             :type "checkbox"
                             :checked active?
@@ -251,28 +246,28 @@
                             :events ["onChange"]}]))
 
        (rule draw-todo-item
-             (when "todo-displayed" 'todo)
-             (when "todo" 'todo 'text)
-             (when "todo-editing" 'todo "saved")
-             (when "compute" 'remove-id "\"todo-remove\" + todo")
-             (when "compute" 'todo-id "\"todo\" + todo")
-             (pretend "ui/child" "todo-list" 'todo 'child-id)
-             (draw [:li {:id 'todo-id
+             (when "todo-displayed" {:todo-id 'todo})
+             (when "todo" {:todo-id 'todo :text 'text})
+             (when "todo-editing" {:todo-id 'todo :editing? "saved"})
+             (func 'removeId "\"todo-remove\" + todo")
+             (func 'todoId "\"todo\" + todo")
+             (pretend "ui/child" {:parent-id "todo-list" :pos 'todo :child-id 'child-id})
+             (draw [:li {:id 'todoId
                          :event-key "edit-todo"
                          :entity 'todo
                          :events ["onDoubleClick"]}
                     'text
-                    [:button {:id 'remove-id
+                    [:button {:id 'removeId
                               :event-key "remove-todo"
                               :entity 'todo
                               :events ["onClick"]}
                      "x"]]))
 
        (rule draw-todo-item
-             (when "todo-displayed" 'todo)
-             (when "todo" 'todo 'cur)
-             (when "todo-editing" 'todo "editing")
-             (pretend "ui/child" "todo-list" 'todo "todo-editor")
+             (when "todo-displayed" {:todo-id 'todo})
+             (when "todo" {:todo-id 'todo :text 'cur})
+             (when "todo-editing" {:todo-id 'todo :editing? "editing"})
+             (pretend "ui/child" {:parent-id "todo-list" :pos 'todo :child-id "todo-editor"})
              (draw [:input {:id "todo-editor"
                             :type "text"
                             :defaultValue 'cur
@@ -281,15 +276,15 @@
                             :events ["onBlur" "onChange" "onKeyDown"]}]))
 
        (rule draw-todo-item
-             (when "todo-to-add" 'cur)
-             (pretend "ui/child" "app" 1 "todo-input")
+             (when "todo-to-add" {:value 'cur})
+             (pretend "ui/child" {:parent-id "app" :pos 1 :child-id "todo-input"})
              (draw [:input {:id "todo-input"
                             :type "text"
                             :defaultValue 'cur
                             :events ["onChange" "onKeyDown"]}]))
 
        (rule draw-interface
-             (when "curren-toggle" 'toggle)
+             (when "curren-toggle" {:value 'toggle})
              (draw [:div {:id "app"}
                     [:h1 {:id "todo-header"} "Todos"]
                     [:input {:id "toggle-all"
@@ -304,55 +299,12 @@
                     [:button {:id "filter-completed" :event-key "filter-completed" :events ["onClick"]} "completed"]]))
 
        (rule add-todo
-             (when "todo-added" '_)
-             (when "time" 'time)
-             (when "todo-to-add" 'to-add)
-             (remember "todo" 'time 'to-add)
-             (remember "todo-editing" 'time "saved")
-             (remember "todo-completed" 'time "acitve")))
-
-  )
-
-(defn run []
-  (let [env (init)]
-    (perf-time (do
-                 (defaults env)
-                 (fill-todos env 200)
-                 (fixpoint-tick env
-                                (fn [env]
-                                  (todo-input-changes env)
-                                  (add-todo-clicked env)
-                                  (filter-active-clicked env)
-                                  (filter-completed-clicked env)
-                                  (filter-all-clicked env)
-                                  (toggle-all-changed-track env)
-                                  (toggle-all-changed-update env)
-                                  (clear-completed-clicked env)
-                                  (remove-todo env)
-                                  (filter-all-display env)
-                                  (filter-not-all-display env)
-                                  (draw-checkbox env)
-                                  (draw-todo-item env)
-                                  (draw-todo-item-editing env)
-                                  (draw-todo-to-add env)
-                                  (draw-interface env)
-                                  (add-todo env)
-                                  ))))
-    (let [tree (perf-time (rebuild-tree env (aget (aget env "input") "queue!")))
-          container (dom/$ "#ui-preview")
-          dommied (perf-time (dommy/node tree))
-          ]
-      (when container
-        (js/React.renderComponent dommied container)
-        ;(perf-time (do
-        ;             (dom/empty container)
-        ;             (dom/append container tree)))
-        )
-      ;
-      )
-    )
-  )
-
+             (when "todo-added" {:x '_})
+             (when "time" {:time 'time})
+             (when "todo-to-add" {:value 'to-add})
+             (remember "todo" {:todo-id 'time :text 'to-add})
+             (remember "todo-editing" {:todo-id 'time :editing? "saved"})
+             (remember "todo-completed" {:todo-id 'time :completed? "acitve"})))
 
 
 
@@ -581,12 +533,13 @@
   )
 
 
+
+
 (defn re-run [program]
   (let [compiled (compile program)]
     (perf-time
      (do
        (.run compiled program)
-       (.tick compiled program)
        (let [tree (perf-time (rebuild-tree program (aget (.-state program) "queue!")))
              container (dom/$ "body")
              dommied (perf-time (dommy/node tree))
@@ -607,6 +560,11 @@
 
 
 (comment
+
+  ;;Try to run todomvc and it blows up with "Can't split anything"
+  (do (defaults todomvc)
+    (fill-todos todomvc 5)
+    (re-run todomvc))
 
   ;;Trying to get the thing to run CRAZINESS, queued events cause re-run to be called
   ;;if I .quiesce the ui disappears, just calling .run is fine though

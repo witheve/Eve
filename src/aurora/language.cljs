@@ -11,7 +11,7 @@
         (when (= (aget from-fields i) (aget to-fields j))
           (aset keymap j i))))
     (dotimes [j (alength keymap)]
-      (assert (not (nil? (aget keymap j))))) ;; ie every to-field is in from-fields somewhere
+      (assert (not (nil? (aget keymap j))) (str "Fields mismatch: " from-fields " :: " to-fields))) ;; ie every to-field is in from-fields somewhere
     keymap))
 
 (defn with-keymap [keymap key]
