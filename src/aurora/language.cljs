@@ -64,8 +64,8 @@
                  (when (-del-facts facts fields other-index (into-array other-fields))
                    (set!! changed? true)))
                changed?))
-  (clear-facts [this name]
-               (doseq [[_ index] (get-in kind->name->fields->index ["know" name])]
+  (clear-facts [this kind name]
+               (doseq [[_ index] (concat (get-in kind->name->fields->index [kind name]))]
                  (.reset index)))
   (update-facts [this name]
                 (let [[fields remember-index] (first (get-in kind->name->fields->index ["remember" name]))]
@@ -86,20 +86,18 @@
                                 (let [remember (.seek-gte remember-iter key)]
                                   (when (or (nil? remember) (btree/key-not= key remember))
                                     (.push forgets key)))))
-                    (doseq [[_ index] (get-in kind->name->fields->index ["remember" name])]
-                      (.reset index))
-                    (doseq [[_ index] (get-in kind->name->fields->index ["forget" name])]
-                      (.reset index))
+                    (.clear-facts this "remember" name)
+                    (.clear-facts this "forget" name)
                     (let [added (.add-facts this "know" name fields remembers)
-                          remmed (.del-facts this "know" name fields forgets)]
-                      (or added remmed)))))
+                          deled (.del-facts this "know" name fields forgets)]
+                      (or added deled)))))
   (tick [this name->transient?]
         (let [names (js/Object.keys name->transient?)
               changed? false]
           (dotimes [i (alength names)]
             (let [name (aget names i)]
               (if (true? (aget name->transient? name))
-                (.clear-facts this name)
+                (.clear-facts this "know" name)
                 (when (true? (.update-facts this name))
                   (set!! changed? true)))))
           changed?)))
