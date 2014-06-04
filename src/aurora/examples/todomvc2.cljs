@@ -14,10 +14,36 @@
       (.replace (js/uuid) (js/RegExp. "-" "gi") "_")
       (swap! next inc))))
 
+(defn init-std-lib [kn]
+  (.get-or-create-index kn "know" "ui/onClick" #js ["elem-id"])
+  (.get-or-create-index kn "know" "ui/onKeyDown" #js ["elem-id" "key"])
+  (.get-or-create-index kn "know" "ui/onChange" #js ["elem-id" "value"])
+  (.get-or-create-index kn "know" "ui/onBlur" #js ["elem-id"])
+  (.get-or-create-index kn "know" "ui/onDoubleClick" #js ["elem-id"])
+  (.get-or-create-index kn "know" "ui/custom" #js ["event-key" "entity"])
+  (.get-or-create-index kn "know" "ui/elem" #js ["elem-id" "tag"])
+  (.get-or-create-index kn "know" "ui/child" #js ["parent-id" "pos" "child-id"])
+  (.get-or-create-index kn "know" "ui/attr" #js ["elem-id" "attr" "value"])
+  (.get-or-create-index kn "know" "ui/text" #js ["elem-id" "text"])
+  (.get-or-create-index kn "know" "ui/style" #js ["elem-id" "attr" "value"])
+  (.get-or-create-index kn "know" "ui/event-listener" #js ["elem-id" "event" "event-key" "entity"])
+  (.get-or-create-index kn "know" "time" #js ["time"]))
+
 (defn env []
-  (let [kn (knowledge)]
+  (let [kn (knowledge)
+        state (.-state kn)
+        queue (array)]
     (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
     (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
+    (init-std-lib kn)
+    (aset state "queued" false)
+    (aset state "current-queue" queue)
+    (aset state "queue!" (fn [index order fact]
+                           (println "QUEUING: " index order fact)
+                           ;;TODO: this doesn't store any history
+                           (when (false? (aget state "queued"))
+                             (aset state "queued" (js/setTimeout (partial re-run kn) 0)))
+                           (know kn index order fact)))
     kn
     ))
 
@@ -36,11 +62,9 @@
   (let [rule (new-id)]
     (doseq [cs clauses
             [type name fact] cs]
-      (println [type name fact])
       (let [clause (new-id)]
         (.push (aget results "clauses") #js [rule type clause name])
         (doseq [[k v] fact]
-          (println [k v])
           (let [var? (symbol? v)
                 v (if var?
                     (str v)
@@ -62,20 +86,7 @@
 (defn func [var js]
   [["when" "=function" {:variable var :js js}]])
 
-(defn init-std-lib [kn]
-  (.get-or-create-index kn "know" "ui/onClick" #js ["elem-id"])
-  (.get-or-create-index kn "know" "ui/onKeyDown" #js ["elem-id" "key"])
-  (.get-or-create-index kn "know" "ui/onChange" #js ["elem-id" "value"])
-  (.get-or-create-index kn "know" "ui/onBlur" #js ["elem-id"])
-  (.get-or-create-index kn "know" "ui/onDoubleClick" #js ["elem-id"])
-  (.get-or-create-index kn "know" "ui/custom" #js ["event-key" "entity"])
-  (.get-or-create-index kn "know" "ui/elem" #js ["elem-id" "tag"])
-  (.get-or-create-index kn "know" "ui/child" #js ["parent-id" "pos" "child-id"])
-  (.get-or-create-index kn "know" "ui/attr" #js ["elem-id" "attr" "value"])
-  (.get-or-create-index kn "know" "ui/text" #js ["elem-id" "text"])
-  (.get-or-create-index kn "know" "ui/style" #js ["elem-id" "attr" "value"])
-  (.get-or-create-index kn "know" "ui/event-listener" #js ["elem-id" "event" "event-key" "entity"])
-  (.get-or-create-index kn "know" "time" #js ["time"]))
+
 
 (defn init []
   (let [env #js {}
@@ -343,35 +354,7 @@
   )
 
 
-(defn re-run [env]
-  (perf-time (do
-               (.assoc! (index env :time) #js [(now)])
-               (fixpoint-tick env
-                              (fn [env]
-                                (todo-input-changes env)
-                                (add-todo-clicked env)
-                                (filter-active-clicked env)
-                                (filter-completed-clicked env)
-                                (filter-all-clicked env)
-                                (toggle-all-changed-track env)
-                                (toggle-all-changed-update env)
-                                (clear-completed-clicked env)
-                                (remove-todo env)
-                                (filter-all-display env)
-                                (filter-not-all-display env)
-                                (draw-checkbox env)
-                                (draw-todo-item env)
-                                (draw-todo-item-editing env)
-                                (draw-todo-to-add env)
-                                (draw-interface env)
-                                (add-todo env)
-                                ))))
-  (let [tree (perf-time (rebuild-tree env (aget (aget env "input") "queue!")))
-        container (dom/$ "#ui-preview")
-        dommied (perf-time (dommy/node tree))]
-    (when container
-      (js/React.renderComponent dommied container)
-      (aset (aget env "input") "queued" false))))
+
 
 
 (defn handle-attr [v]
@@ -433,9 +416,12 @@
             event-key (aget cur 2)
             entity (aget cur 3)]
         (aset el-attrs event (fn [e]
-                               (println "attached handler")
-                               (queue (str "ui/" event) #js [id (js/aurora.runtime.ui.event->params2 event e)])
-                               (queue (str "ui/custom") #js [id event-key entity (js/aurora.runtime.ui.event->params2 event e)]))
+                               (println "attached handler now")
+                               ;(queue (str "ui/" event) #js ["elem-id"] #js [id (js/aurora.runtime.ui.event->params2 event e)])
+                               ;(queue (str "ui/custom") #js ["event-key" "entity"] #js [id event-key entity (js/aurora.runtime.ui.event->params2 event e)])
+                               (queue (str "ui/" event) #js ["elem-id"] #js [id])
+                               (queue (str "ui/custom") #js ["event-key" "entity"] #js [event-key entity])
+                               )
               ))
       (.next events-itr))
 
@@ -589,20 +575,53 @@
   (.add-facts env "know" key (to-array order) (array (to-array fact)))
   )
 
+(defn remember [env key order fact]
+  (.get-or-create-index env "remember" key (to-array order))
+  (.add-facts env "remember" key (to-array order) (array (to-array fact)))
+  )
+
+
+(defn re-run [program]
+  (let [compiled (compile program)]
+    (perf-time
+     (do
+       (.run compiled program)
+       (.tick compiled program)
+       (let [tree (perf-time (rebuild-tree program (aget (.-state program) "queue!")))
+             container (dom/$ "body")
+             dommied (perf-time (dommy/node tree))
+             ]
+         (when container
+           (js/React.renderComponent dommied container)
+           ;(perf-time (do
+           ;             (dom/empty container)
+           ;             (dom/append container tree)))
+           )
+         ;
+         (println (index program "incr"))
+         (println (get-in (.-kind->name->fields->index program) ["remember" "incr"]))
+         (aset (.-state program) "queued" false)
+         ))))
+
+  )
+
+
+(comment
+
+  ;;Trying to get the thing to run CRAZINESS, queued events cause re-run to be called
+  ;;if I .quiesce the ui disappears, just calling .run is fine though
 
 (let [program (env)]
-  (init-std-lib program)
-  (know program "incr" ["value"] [0])
   (rules program
 
          (rule draw-incr
                (when "incr" {:value value})
                (draw [:button {:id "incr" :events ["onClick"]} "increment: " 'value]))
 
-                      (rule clicked
-                            (when "ui/onClick" {:elem-id "incr"})
-                            (func 'new-val "value + 1")
-                            (change "incr" {:value 'value} {:value 'new-val}))
+         (rule clicked
+               (when "ui/onClick" {:elem-id "incr"})
+               (func 'new-val "value + 1")
+               (change "incr" {:value 'value} {:value 'new-val}))
 
 ;;                       (rule this-is-awesome
 ;;                             (func 'x "1 + 2")
@@ -610,72 +629,31 @@
 ;;                             )
 
          )
-  (.run (compile program) program)
-  (let [tree (perf-time (rebuild-tree program (fn [ev thing]
-                                                (println "queued! " ev thing))))
-          container (dom/$ "body")
-          dommied (perf-time (dommy/node tree))
-          ]
-      (when container
-        (js/React.renderComponent dommied container)
-        ;(perf-time (do
-        ;             (dom/empty container)
-        ;             (dom/append container tree)))
-        )
-      ;
-      )
-  (index program "ui/child")
-  )
-
-
-(comment
-
-  (let [program (env)]
-    (init-std-lib env)
-    (rules program
-
-           (rule draw-incr
-                 (draw [:button {:id "incr" :events ["onClick"]} "increment: "]))
-
-           (rule clicked
-                 (when "ui/onClick" "incr")
-                 (func 'new-val "value + 1")
-                 (change ["incr" 'value]
-                         ["incr" 'new-val]))
-
-           (rule this-is-awesome
-                 (func 'x "1 + 2")
-                 (pretend "x-val" {:val 'x})
-                 )
-
+  (let [compiled (compile program)]
+    ;; I seem to need both of these in order to get things to trigger as a default value
+    (remember program "incr" ["value"] [0])
+    (know program "incr" ["value"] [0])
+    (perf-time
+     (do
+       (.run compiled program)
+       (let [tree (perf-time (rebuild-tree program (aget (.-state program) "queue!")))
+             container (dom/$ "body")
+             dommied (perf-time (dommy/node tree))
+             ]
+         (when container
+           (js/React.renderComponent dommied container)
+           ;(perf-time (do
+           ;             (dom/empty container)
+           ;             (dom/append container tree)))
            )
-  (.run (compile program) program)
-    (let [tree (perf-time (rebuild-tree env (fn [thing]
-                                              (println "got queue! " thing)
-                                              )))
-          container (dom/$ "#ui-preview")
-          dommied (perf-time (dommy/node tree))
-          ]
-      (when container
-        (js/React.renderComponent dommied container)
-        ;(perf-time (do
-        ;             (dom/empty container)
-        ;             (dom/append container tree)))
-        )
-      ;
-      )
-  (.-kind->name->fields->index program)
+         ;
+         ))))
+
+  (get-in (.-kind->name->fields->index program) ["remember" "incr"])
+  (index program "ui/elem")
   )
 
-  (-> (rules (env)
 
-             (rule this-is-awesome
-                   (func 'x "1 + 2")
-                   (pretend "x-val" 'x)
-                   )
 
-             )
-
-      (.-kind->name->fields->index))
 
   )

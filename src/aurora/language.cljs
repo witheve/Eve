@@ -36,7 +36,7 @@
         (set!! changed? true)))
     changed?))
 
-(deftype Knowledge [^:mutable kind->name->fields->index]
+(deftype Knowledge [^:mutable kind->name->fields->index ^:mutable state]
   Object
   (get-or-create-index [this kind name fields]
                        (assert (or (= kind "know") (= kind "remember") (= kind "forget")) (pr-str kind))
@@ -95,15 +95,15 @@
           (dotimes [i (alength names)]
             (let [name (aget names i)]
               (if (true? (aget name->transient? name))
-                (.clear-facts kn name)
-                (when (true? (.update-facts kn name))
+                (.clear-facts this name)
+                (when (true? (.update-facts this name))
                   (set!! changed? true)))))
           changed?))
   (quiesce [this name->transient?]
            (while (true? (.tick this name->transient?)))))
 
 (defn knowledge []
-  (Knowledge. {}))
+  (Knowledge. {} (js-obj)))
 
 ;; FLOWS
 
@@ -289,6 +289,8 @@
 
 ;; TESTS
 
+(comment
+
 (def kn (knowledge))
 
 (.get-or-create-index kn "know" "edge" #js ["x" "y"])
@@ -361,3 +363,6 @@
 (.get-or-create-index kn "know" "connected" #js ["x" "y"])
 
 (.get-or-create-index kn "know" "str-edge" #js ["name"])
+
+
+  )
