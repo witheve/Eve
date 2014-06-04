@@ -35,7 +35,7 @@
 (defn add-rule [results clauses]
   (let [rule (new-id)]
     (doseq [cs clauses
-            [type name fact] cs]
+            [type name fact vars] cs]
       (let [clause (new-id)]
         (.push (aget results "clauses") #js [rule type clause name])
         (dotimes [x (alength fact)]
@@ -43,8 +43,11 @@
                 var? (symbol? cur)
                 v (if var?
                     (str cur)
-                    cur)]
-            (.push (aget results "clause-fields") #js [clause (if var? "variable" "constant") x v])
+                    cur)
+                key (if vars
+                      (aget vars x)
+                      x)]
+            (.push (aget results "clause-fields") #js [clause (if var? "variable" "constant") key v])
             ))))))
 
 (def draw js/aurora.runtime.ui.hiccup->facts-eve)
@@ -54,6 +57,9 @@
    ["forget" (first old) (to-array (rest old))]
    ["remember" (first neue) (to-array (rest neue))]
    ])
+
+(defn func [var js]
+  [["when" "=function" (array var js) (array "variable" "js")]])
 
 (defn init []
   (let [env #js {}
@@ -567,14 +573,39 @@
   )
 
 
+
+
 (comment
+
+  (let [program (env)]
+  (-> (rules program
+
+             (rule draw-incr
+                   (when "incr" 'value)
+                   (draw [:button {:id "incr" :events ["onClick"]} "increment: " 'value]))
+
+;;              (rule clicked
+;;                    (when "ui/onClick" "incr")
+;;                    (func 'new-val "value + 1")
+;;                    (change ["incr" 'value]
+;;                            ["incr" 'new-val]))
+
+;;              (rule this-is-awesome
+;;                    (func 'x "1 + 2")
+;;                    (pretend "x-val" 'x)
+;;                    )
+
+             ))
+  ;(doseq [x (compile program)]
+  ;  (.run x program))
+  (.-kind->name->fields->index program)
+  )
 
   (-> (rules (env)
 
              (rule this-is-awesome
-                   (when "counter" 'counter)
-                   (draw [:div {:id "root"}
-                          [:span {:id "foo"} 'counter]])
+                   (func 'x "1 + 2")
+                   (pretend "x-val" 'x)
                    )
 
              )

@@ -8,8 +8,7 @@
             [aurora.runtime.stdlib :as stdlib]
             [aurora.runtime.core :as runtime]
             [aurora.editor.ReactDommy :as dommy])
-  (:require-macros [aurora.language.macros :refer [rule]]
-                   [aurora.macros :refer [for!]]))
+  (:require-macros [aurora.macros :refer [for!]]))
 
 (def animation-frame
   (or (.-requestAnimationFrame js/self)

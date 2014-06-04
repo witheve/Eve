@@ -185,7 +185,7 @@
                                (let [clause-fields (get @clause-id->fields clause-id)
                                      output-fields (make-array num-vars)]
                                  (doseq [[_ field-type key val] clause-fields]
-                                   (assert (= field-type "variable"))
+                                   (assert (= field-type "variable") [rule-id clause-id clause-fields])
                                    (aset output-fields (var->ix val) key))
                                  output-fields)))]
 
@@ -222,7 +222,7 @@
                                                                                                     #js ["transitive-edge" "know" "output-transitive-connected" "connected"]])
 
 (.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-left-edge" "variable" "x" "xx"]
-                                                                                             #js ["get-left-edge" "variable" "y" "yy"]
+                           null                                                                  #js ["get-left-edge" "variable" "y" "yy"]
                                                                                              #js ["get-right-connected" "variable" "x" "yy"]
                                                                                              #js ["get-right-connected" "variable" "y" "zz"]
                                                                                              #js ["output-transitive-connected" "variable" "x" "xx"]
