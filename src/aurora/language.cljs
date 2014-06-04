@@ -87,14 +87,20 @@
                                   (when (or (nil? remember) (btree/key-not= key remember))
                                     (.push forgets key)))))
                     (.add-facts this "know" name fields remembers)
-                    (.del-facts this "know" name fields forgets))))
+                    (.del-facts this "know" name fields forgets)
+                    (or (> (alength remembers) 0) (> (alength forgets) 0)))))
   (tick [this name->transient?]
-        (let [names (js/Object.keys name->transient?)]
+        (let [names (js/Object.keys name->transient?)
+              changed? false]
           (dotimes [i (alength names)]
             (let [name (aget names i)]
               (if (true? (aget name->transient? name))
                 (.clear-facts kn name)
-                (.update-facts kn name)))))))
+                (when (true? (.update-facts kn name))
+                  (set!! changed? true)))))
+          changed?))
+  (quiesce [this name->transient?]
+           (while (true? (.tick this name->transient?)))))
 
 (defn knowledge []
   (Knowledge. {}))
@@ -132,7 +138,9 @@
                  (recur 0))
                (recur (+ i 1)))))))
   (tick [this kn]
-        (.tick kn name->transient?)))
+        (.tick kn name->transient?))
+  (quiesce [this kn]
+           (.quiesce kn name->transient?)))
 
 ;; COMPILER
 
@@ -346,7 +354,7 @@
 
 (.get-or-create-index kn "forget" "str-edge" #js ["name"])
 
-(.tick flows kn)
+(.quiesce flows kn)
 
 (.get-or-create-index kn "know" "edge" #js ["x" "y"])
 
