@@ -86,9 +86,13 @@
                                 (let [remember (.seek-gte remember-iter key)]
                                   (when (or (nil? remember) (btree/key-not= key remember))
                                     (.push forgets key)))))
-                    (or
-                     (.add-facts this "know" name fields remembers)
-                     (.del-facts this "know" name fields forgets)))))
+                    (doseq [[_ index] (get-in kind->name->fields->index ["remember" name])]
+                      (.reset index))
+                    (doseq [[_ index] (get-in kind->name->fields->index ["forget" name])]
+                      (.reset index))
+                    (let [added (.add-facts this "know" name fields remembers)
+                          remmed (.del-facts this "know" name fields forgets)]
+                      (or added remmed)))))
   (tick [this name->transient?]
         (let [names (js/Object.keys name->transient?)
               changed? false]

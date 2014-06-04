@@ -29,6 +29,21 @@
   (.get-or-create-index kn "know" "ui/event-listener" #js ["elem-id" "event" "event-key" "entity"])
   (.get-or-create-index kn "know" "time" #js ["time"]))
 
+(defn prep-compiled [compiled]
+  (let [trans? (.-name->transient? compiled)]
+    (aset trans? "ui/onClick" true)
+    (aset trans? "ui/onKeyDown" true)
+    (aset trans? "ui/onChange" true)
+    (aset trans? "ui/onDoubleClick" true)
+    (aset trans? "ui/custom" true)
+    (aset trans? "ui/elem" true)
+    (aset trans? "ui/child" true)
+    (aset trans? "ui/attr" true)
+    (aset trans? "ui/text" true)
+    (aset trans? "ui/style" true)
+    (aset trans? "ui/event-listener" true)
+    (aset trans? "time" true)))
+
 (defn env []
   (let [kn (knowledge)
         state (.-state kn)
@@ -537,24 +552,26 @@
 
 (defn re-run [program]
   (let [compiled (compile program)]
+    (prep-compiled compiled)
     (perf-time
      (do
-       (.run compiled program)
-       (let [tree (perf-time (rebuild-tree program (aget (.-state program) "queue!")))
-             container (dom/$ "body")
-             dommied (perf-time (dommy/node tree))
-             ]
-         (when container
-           (js/React.renderComponent dommied container)
-           ;(perf-time (do
-           ;             (dom/empty container)
-           ;             (dom/append container tree)))
-           )
-         ;
-         (println (index program "incr"))
-         (println (get-in (.-kind->name->fields->index program) ["remember" "incr"]))
-         (aset (.-state program) "queued" false)
-         ))))
+       (.quiesce compiled program (fn [kn]
+
+                                    (let [tree (perf-time (rebuild-tree program (aget (.-state program) "queue!")))
+                                          container (dom/$ "body")
+                                          dommied (perf-time (dommy/node tree))
+                                          ]
+                                      (when container
+                                        (js/React.renderComponent dommied container)
+                                        ;(perf-time (do
+                                        ;             (dom/empty container)
+                                        ;             (dom/append container tree)))
+                                        )
+                                      ;
+                                      )
+                                    ))
+       (aset (.-state program) "queued" false)
+       )))
 
   )
 
@@ -588,24 +605,28 @@
 
          )
   (let [compiled (compile program)]
+    (prep-compiled compiled)
     ;; I seem to need both of these in order to get things to trigger as a default value
     (remember program "incr" ["value"] [0])
     (know program "incr" ["value"] [0])
+
     (perf-time
      (do
-       (.run compiled program)
-       (let [tree (perf-time (rebuild-tree program (aget (.-state program) "queue!")))
-             container (dom/$ "body")
-             dommied (perf-time (dommy/node tree))
-             ]
-         (when container
-           (js/React.renderComponent dommied container)
-           ;(perf-time (do
-           ;             (dom/empty container)
-           ;             (dom/append container tree)))
-           )
-         ;
-         ))))
+       (.quiesce compiled program (fn [kn]
+                                    (let [tree (perf-time (rebuild-tree program (aget (.-state program) "queue!")))
+                                          container (dom/$ "body")
+                                          dommied (perf-time (dommy/node tree))
+                                          ]
+                                      (when container
+                                        (js/React.renderComponent dommied container)
+                                        ;(perf-time (do
+                                        ;             (dom/empty container)
+                                        ;             (dom/append container tree)))
+                                        )
+                                      ;
+                                      )
+                                    ))
+       )))
 
   (get-in (.-kind->name->fields->index program) ["remember" "incr"])
   (index program "ui/elem")
