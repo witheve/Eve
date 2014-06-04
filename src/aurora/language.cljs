@@ -86,9 +86,9 @@
                                 (let [remember (.seek-gte remember-iter key)]
                                   (when (or (nil? remember) (btree/key-not= key remember))
                                     (.push forgets key)))))
-                    (.add-facts this "know" name fields remembers)
-                    (.del-facts this "know" name fields forgets)
-                    (or (> (alength remembers) 0) (> (alength forgets) 0)))))
+                    (or
+                     (.add-facts this "know" name fields remembers)
+                     (.del-facts this "know" name fields forgets)))))
   (tick [this name->transient?]
         (let [names (js/Object.keys name->transient?)
               changed? false]
