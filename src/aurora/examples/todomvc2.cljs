@@ -1,5 +1,5 @@
 (ns aurora.examples.todomvc2
-  (:require [aurora.btree :refer [tree iterator least greatest key-lt key-lte key-gt key-gte key-compare key=]]
+  (:require [aurora.btree :as btree :refer [tree iterator least greatest key-lt key-lte key-gt key-gte key-compare key=]]
             [aurora.join :refer [magic-iterator join-iterator all-join-results transform constant-filter context pretend-tree fixpoint-tick infinirator]]
             [aurora.language :refer [knowledge compile]]
             [aurora.util.core :refer [now]]
@@ -163,11 +163,10 @@
 
 (defn fill-todos [env num]
   (dotimes [x num]
-    (know env "todo" #js ["todo-id" "text"] #js [x (str "foo" x)]))
-  (dotimes [x num]
-    (know env "todo-editing" #js ["todo-id" "editing?"] #js [x "saved"]))
-  (dotimes [x num]
-    (know env "todo-completed" #js ["todo-id" "completed?"] #js [x "active"])))
+    (know env "todo" #js ["todo-id" "text"] #js [x (str "foo" x)])
+    (know env "todo-editing" #js ["todo-id" "editing?"] #js [x "saved"])
+    (know env "todo-completed" #js ["todo-id" "completed?"] #js [x "active"]))
+  )
 
 (defn click! [env elem]
   (.assoc! (index env "ui/onClick") #js[elem] 0))
@@ -184,6 +183,11 @@
   (know env "current-toggle" #js ["value"] #js ["false"])
   (know env "todo-to-edit" #js ["value"] #js ["hi"])
   (know env "filter" #js ["filter"] #js ["all"])
+
+  (remember env "todo-to-add" #js ["value"] #js ["hey"])
+  (remember env "current-toggle" #js ["value"] #js ["false"])
+  (remember env "todo-to-edit" #js ["value"] #js ["hi"])
+  (remember env "filter" #js ["filter"] #js ["all"])
   )
 
 (def todomvc (env))
@@ -240,7 +244,7 @@
              (when "filter" {:filter "all"})
              (pretend "todo-displayed" {:todo-id 'todo}))
 
-       (rule filter-all-display
+       (rule filter-display
              (when "todo" {:todo-id 'todo :text 'text})
              (when "todo-completed" {:todo-id 'todo :completed? 'complete?})
              (when "filter" {:filter 'complete?})
@@ -250,8 +254,8 @@
              (when "todo-displayed" {:todo-id 'todo})
              (when "todo-completed" {:todo-id 'todo :completed? 'complete})
              (func 'active?  "complete == \"completed\" ? \"checked\" : \"\"")
-             (func 'child-id "\"todo-checkbox\" + todo")
-             (func 'parent-id "\"todo\" + todo")
+             (func 'child-id "\"todo-checkbox-\" + todo")
+             (func 'parent-id "\"todo-\" + todo")
              (pretend "ui/child" {:parent-id 'parent-id :pos -1 :child-id 'child-id})
              (draw [:input {:id 'child-id
                             :type "checkbox"
@@ -264,9 +268,9 @@
              (when "todo-displayed" {:todo-id 'todo})
              (when "todo" {:todo-id 'todo :text 'text})
              (when "todo-editing" {:todo-id 'todo :editing? "saved"})
-             (func 'removeId "\"todo-remove\" + todo")
-             (func 'todoId "\"todo\" + todo")
-             (pretend "ui/child" {:parent-id "todo-list" :pos 'todo :child-id 'child-id})
+             (func 'removeId "\"todo-remove-\" + todo")
+             (func 'todoId "\"todo-\" + todo")
+             (pretend "ui/child" {:parent-id "todo-list" :pos 'todo :child-id 'todoId})
              (draw [:li {:id 'todoId
                          :event-key "edit-todo"
                          :entity 'todo
@@ -276,9 +280,10 @@
                               :event-key "remove-todo"
                               :entity 'todo
                               :events ["onClick"]}
-                     "x"]]))
+                     "x"]])
+             )
 
-       (rule draw-todo-item
+       (rule draw-todo-item-editor
              (when "todo-displayed" {:todo-id 'todo})
              (when "todo" {:todo-id 'todo :text 'cur})
              (when "todo-editing" {:todo-id 'todo :editing? "editing"})
@@ -290,7 +295,7 @@
                             :entity 'todo
                             :events ["onBlur" "onChange" "onKeyDown"]}]))
 
-       (rule draw-todo-item
+       (rule draw-todo-input
              (when "todo-to-add" {:value 'cur})
              (pretend "ui/child" {:parent-id "app" :pos 1 :child-id "todo-input"})
              (draw [:input {:id "todo-input"
@@ -299,7 +304,7 @@
                             :events ["onChange" "onKeyDown"]}]))
 
        (rule draw-interface
-             (when "curren-toggle" {:value 'toggle})
+             (when "current-toggle" {:value 'toggle})
              (draw [:div {:id "app"}
                     [:h1 {:id "todo-header"} "Todos"]
                     [:input {:id "toggle-all"
@@ -422,7 +427,10 @@
             pos (aget cur 1)
             parent-el (aget built-els parent)
             child-el (aget built-els child)]
-        (.push (.-props.children parent-el) child-el)
+        (if (and parent-el (.-props parent-el))
+          (.push (.-props.children parent-el) child-el)
+          ;(println "UI FAIL: " x parent child pos)
+          )
         (js-delete roots child)))
 
 
@@ -551,7 +559,7 @@
 
 
 (defn re-run [program]
-  (let [compiled (compile program)]
+  (let [compiled (perf-time (compile program))]
     (prep-compiled compiled)
     (perf-time
      (do
@@ -562,7 +570,7 @@
                                           dommied (perf-time (dommy/node tree))
                                           ]
                                       (when container
-                                        (js/React.renderComponent dommied container)
+                                        (perf-time (js/React.renderComponent dommied container))
                                         ;(perf-time (do
                                         ;             (dom/empty container)
                                         ;             (dom/append container tree)))
@@ -578,10 +586,15 @@
 
 (comment
 
+  (.-kind->name->fields->index todomvc)
+  (index todomvc "todo-displayed")
+
   ;;Try to run todomvc and it blows up with "Can't split anything"
-  (do (defaults todomvc)
-    (fill-todos todomvc 5)
-    (re-run todomvc))
+  (perf-time
+   (do (defaults todomvc)
+     (init-std-lib todomvc)
+     (fill-todos todomvc 10)
+     (re-run todomvc)))
 
   ;;Trying to get the thing to run CRAZINESS, queued events cause re-run to be called
   ;;if I .quiesce the ui disappears, just calling .run is fine though
@@ -589,19 +602,19 @@
 (let [program (env)]
   (rules program
 
-         (rule draw-incr
-               (when "incr" {:value value})
-               (draw [:button {:id "incr" :events ["onClick"]} "increment: " 'value]))
+;;          (rule draw-incr
+;;                (when "incr" {:value value})
+;;                (draw [:button {:id "incr" :events ["onClick"]} "increment: " 'value]))
 
-         (rule clicked
-               (when "ui/onClick" {:elem-id "incr"})
-               (func 'new-val "value + 1")
-               (change "incr" {:value 'value} {:value 'new-val}))
+;;          (rule clicked
+;;                (when "ui/onClick" {:elem-id "incr"})
+;;                (func 'new-val "value + 1")
+;;                (change "incr" {:value 'value} {:value 'new-val}))
 
-;;                       (rule this-is-awesome
-;;                             (func 'x "1 + 2")
-;;                             (pretend "x-val" {:val x})
-;;                             )
+                      (rule this-is-awesome
+                            (func 'cur "cur > -1 ? (cur < 10 ? cur + 1 : 10) : 0")
+                            (remember "x-val" {:val 'x})
+                            )
 
          )
   (let [compiled (compile program)]
@@ -629,7 +642,8 @@
        )))
 
   (get-in (.-kind->name->fields->index program) ["remember" "incr"])
-  (index program "ui/elem")
+  (index program "x-val")
+  (.-kind->name->fields->index program)
   )
 
 
