@@ -46,6 +46,10 @@
                                (-add-facts (.keys other-index) (into-array other-fields) index fields))
                              (set! kind->name->fields->index (assoc-in kind->name->fields->index [kind name (vec fields)] index))
                              index)))
+  (ensure-index [this kind name default-fields]
+                (assert (or (= kind "know") (= kind "remember") (= kind "forget")) (pr-str kind))
+                (when (empty? (get-in kind->name->fields->index [kind name]))
+                  (.get-or-create-index this kind name default-fields)))
   (add-facts [this kind name fields facts]
              (assert (or (= kind "know") (= kind "remember") (= kind "forget")) (pr-str kind))
              (let [changed? false
@@ -275,15 +279,16 @@
             (let [kind (aget output-kinds i)
                   name (aget output-names i)
                   fields (aget output-fields i)
+                  filtered-fields (into-array (filter #(not (nil? %)) fields))
                   transient? (identical? kind "know")]
               ;; TODO get transient? from schema instead
               (assert (not= (not transient?) (get @name->transient? name)) name)
               (swap! name->transient? assoc name transient?)
               (swap! kind->name->rules update-in [kind name] #(or % #{}))
-              (.get-or-create-index kn "know" name (into-array (filter #(not (nil? %)) (aget output-fields i))))
+              (.ensure-index kn "know" name filtered-fields)
               (when (false? transient?)
-                (.get-or-create-index kn "forget" name (into-array (filter #(not (nil? %)) (aget output-fields i))))
-                (.get-or-create-index kn "remember" name (into-array (filter #(not (nil? %)) (aget output-fields i)))))))
+                (.ensure-index kn "forget" name filtered-fields)
+                (.ensure-index kn "remember" name filtered-fields))))
 
           (swap! rule->flow assoc rule-id (Flow. solver output-kinds output-names output-fields)))))
 
