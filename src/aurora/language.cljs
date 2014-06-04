@@ -98,9 +98,7 @@
                 (.clear-facts kn name)
                 (when (true? (.update-facts kn name))
                   (set!! changed? true)))))
-          changed?))
-  (quiesce [this name->transient?]
-           (while (true? (.tick this name->transient?)))))
+          changed?)))
 
 (defn knowledge []
   (Knowledge. {}))
@@ -137,10 +135,13 @@
                  (.run (aget rule->flow rule) kn rule->dirty? kind->name->rules)
                  (recur 0))
                (recur (+ i 1)))))))
-  (tick [this kn]
+  (tick [this kn watch]
+        (.run this kn)
+        (when watch
+          (watch kn))
         (.tick kn name->transient?))
-  (quiesce [this kn]
-           (.quiesce kn name->transient?)))
+  (quiesce [this kn watch]
+           (while (true? (.tick this kn watch)))))
 
 ;; COMPILER
 
@@ -346,15 +347,14 @@
 
 (enable-console-print!)
 
-(.run flows kn)
-
 (.get-or-create-index kn "know" "connected" #js ["x" "y"])
 
 (.get-or-create-index kn "remember" "str-edge" #js ["name"])
 
 (.get-or-create-index kn "forget" "str-edge" #js ["name"])
 
-(.quiesce flows kn)
+(prn :running)
+(.quiesce flows kn (fn [kn] (prn :ticked kn)))
 
 (.get-or-create-index kn "know" "edge" #js ["x" "y"])
 
