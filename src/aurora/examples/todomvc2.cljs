@@ -589,15 +589,11 @@
   (.-kind->name->fields->index todomvc)
   (index todomvc "todo-displayed")
 
-  ;;Try to run todomvc and it blows up with "Can't split anything"
   (perf-time
    (do (defaults todomvc)
      (init-std-lib todomvc)
      (fill-todos todomvc 10)
      (re-run todomvc)))
-
-  ;;Trying to get the thing to run CRAZINESS, queued events cause re-run to be called
-  ;;if I .quiesce the ui disappears, just calling .run is fine though
 
 (let [program (env)]
   (rules program
