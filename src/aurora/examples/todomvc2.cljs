@@ -35,31 +35,47 @@
 (defn add-rule [results clauses]
   (let [rule (new-id)]
     (doseq [cs clauses
-            [type name fact vars] cs]
+            [type name fact] cs]
+      (println [type name fact])
       (let [clause (new-id)]
         (.push (aget results "clauses") #js [rule type clause name])
-        (dotimes [x (alength fact)]
-          (let [cur (aget fact x)
-                var? (symbol? cur)
+        (doseq [[k v] fact]
+          (println [k v])
+          (let [var? (symbol? v)
                 v (if var?
-                    (str cur)
-                    cur)
-                key (if vars
-                      (aget vars x)
-                      x)]
-            (.push (aget results "clause-fields") #js [clause (if var? "variable" "constant") key v])
+                    (str v)
+                    v)]
+            (.push (aget results "clause-fields") #js [clause (if var? "variable" "constant") (cljs.core.name k) v])
             ))))))
+
+(defn index [env ix]
+  (get-in (.-kind->name->fields->index env) ["know" (name ix)]))
 
 (def draw js/aurora.runtime.ui.hiccup->facts-eve)
 
-(defn change [old neue]
-  [["when" (first old) (to-array (rest old))]
-   ["forget" (first old) (to-array (rest old))]
-   ["remember" (first neue) (to-array (rest neue))]
+(defn change [name old neue]
+  [["when" name old]
+   ["forget" name old]
+   ["remember" name neue]
    ])
 
 (defn func [var js]
-  [["when" "=function" (array var js) (array "variable" "js")]])
+  [["when" "=function" {:variable var :js js}]])
+
+(defn init-std-lib [kn]
+  (.get-or-create-index kn "know" "ui/onClick" #js ["elem-id"])
+  (.get-or-create-index kn "know" "ui/onKeyDown" #js ["elem-id" "key"])
+  (.get-or-create-index kn "know" "ui/onChange" #js ["elem-id" "value"])
+  (.get-or-create-index kn "know" "ui/onBlur" #js ["elem-id"])
+  (.get-or-create-index kn "know" "ui/onDoubleClick" #js ["elem-id"])
+  (.get-or-create-index kn "know" "ui/custom" #js ["event-key" "entity"])
+  (.get-or-create-index kn "know" "ui/elem" #js ["elem-id" "tag"])
+  (.get-or-create-index kn "know" "ui/child" #js ["parent-id" "pos" "child-id"])
+  (.get-or-create-index kn "know" "ui/attr" #js ["elem-id" "attr" "value"])
+  (.get-or-create-index kn "know" "ui/text" #js ["elem-id" "text"])
+  (.get-or-create-index kn "know" "ui/style" #js ["elem-id" "attr" "value"])
+  (.get-or-create-index kn "know" "ui/event-listener" #js ["elem-id" "event" "event-key" "entity"])
+  (.get-or-create-index kn "know" "time" #js ["time"]))
 
 (defn init []
   (let [env #js {}
@@ -93,34 +109,18 @@
         ctx (context indexes)
         pretend! (aget ctx "pretend!")]
 
-    (.get-or-create-index kn "know" "todo" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
-    (.get-or-create-index kn "know" "todo-editing" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "todo-completed" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "todo-added" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "todo-removed" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "todo-to-add" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "todo-to-edit" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "filter" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "todo-displayed" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "todo" #js ["todo-id" "text"])
+    (.get-or-create-index kn "know" "todo-editing" #js ["todo-id" "editing?"])
+    (.get-or-create-index kn "know" "todo-completed" #js ["todo-id" "completed?"])
+    (.get-or-create-index kn "know" "todo-added" #js ["x"])
+    (.get-or-create-index kn "know" "todo-removed" #js ["todo-id"])
+    (.get-or-create-index kn "know" "todo-to-add" #js ["value"])
+    (.get-or-create-index kn "know" "todo-to-edit" #js ["value"])
+    (.get-or-create-index kn "know" "filter" #js ["filter"])
+    (.get-or-create-index kn "know" "todo-displayed" #js ["todo-id"])
+    (.get-or-create-index kn "know" "current-toggle" #js ["value"])
 
 
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
 
     (aset input "queued" false)
     (aset input "current-queue" current-queue)
@@ -161,6 +161,7 @@
 
 (def program (env))
 
+(comment
 (rules program
 
        (rule todo-input-changes
@@ -230,7 +231,7 @@
              (when "compute" 'active? "complete == \"completed\" ? \"checked\" : \"\"")
              (when "compute" 'child-id "\"todo-checkbox\" + todo")
              (when "compute" 'parent-id "\"todo\" + todo")
-             (pretend "elem-child" 'parent-id -1 'child-id)
+             (pretend "ui/child" 'parent-id -1 'child-id)
              (draw [:input {:id 'child-id
                             :type "checkbox"
                             :checked active?
@@ -244,7 +245,7 @@
              (when "todo-editing" 'todo "saved")
              (when "compute" 'remove-id "\"todo-remove\" + todo")
              (when "compute" 'todo-id "\"todo\" + todo")
-             (pretend "elem-child" "todo-list" 'todo 'child-id)
+             (pretend "ui/child" "todo-list" 'todo 'child-id)
              (draw [:li {:id 'todo-id
                          :event-key "edit-todo"
                          :entity 'todo
@@ -260,7 +261,7 @@
              (when "todo-displayed" 'todo)
              (when "todo" 'todo 'cur)
              (when "todo-editing" 'todo "editing")
-             (pretend "elem-child" "todo-list" 'todo "todo-editor")
+             (pretend "ui/child" "todo-list" 'todo "todo-editor")
              (draw [:input {:id "todo-editor"
                             :type "text"
                             :defaultValue 'cur
@@ -270,7 +271,7 @@
 
        (rule draw-todo-item
              (when "todo-to-add" 'cur)
-             (pretend "elem-child" "app" 1 "todo-input")
+             (pretend "ui/child" "app" 1 "todo-input")
              (draw [:input {:id "todo-input"
                             :type "text"
                             :defaultValue 'cur
@@ -298,6 +299,8 @@
              (remember "todo" 'time 'to-add)
              (remember "todo-editing" 'time "saved")
              (remember "todo-completed" 'time "acitve")))
+
+  )
 
 (defn run []
   (let [env (init)]
@@ -391,7 +394,18 @@
       results)))
 
 
+(deftype ArrayIterator [ar len ^:mutable ix]
+  Object
+  (key [this]
+       (when (< ix len)
+         (aget ar ix)))
 
+  (next [this]
+        (set! ix (+ 1 ix))
+        ))
+
+(defn array-iterator [ar]
+  (ArrayIterator. ar (alength ar) 0))
 
 (defn build-element [id tag attrs-itr styles-itr events-itr queue]
   (let [el-attrs (js-obj "eve-id" id)
@@ -428,38 +442,35 @@
     ((aget js/React.DOM (name tag)) el-attrs (array))))
 
 (defn rebuild-tree [env queue]
-  (let [els (iterator (index env :elem))
-        attrs (iterator (index env :elem-attr))
-        styles (iterator (index env :elem-style))
-        events (iterator (index env :elem-event))
-        text (iterator (index env :elem-text))
-        all-children (iterator (index env :elem-child))
+  (let [els (.keys (get (index env "ui/elem") ["elem-id" "tag"]))
+        attrs (array-iterator (.keys (get (index env "ui/attr") ["elem-id" "attr" "value"])))
+        styles (array-iterator (.keys (get (index env "ui/style") ["elem-id" "attr" "value"])))
+        events (array-iterator (.keys (get (index env "ui/event-listener") ["elem-id" "event" "event-key" "entity"])))
+        text (.keys (get (index env "ui/text") ["elem-id" "text"]))
+        all-children (.keys (get (index env "ui/child") ["parent-id" "pos" "child-id"]))
         built-els (js-obj)
         roots (js-obj)
         final (array :div)
         ]
 
-    (while (.key els)
-      (let [cur (.key els)
+    (dotimes [x (alength els)]
+      (let [cur (aget els x)
             id (aget cur 0)
             tag (aget cur 1)]
         (aset roots id true)
-        (aset built-els id (build-element id tag attrs styles events queue))
-        (.next els)))
+        (aset built-els id (build-element id tag attrs styles events queue))))
 
-    (into-obj built-els (all-join-results text))
+    (into-obj built-els text)
 
-
-    (while (.key all-children)
-      (let [cur (.key all-children)
+    (dotimes [x (alength all-children)]
+      (let [cur (aget all-children x)
             parent (aget cur 0)
             child (aget cur 2)
             pos (aget cur 1)
             parent-el (aget built-els parent)
             child-el (aget built-els child)]
         (.push (.-props.children parent-el) child-el)
-        (js-delete roots child)
-        (.next all-children)))
+        (js-delete roots child)))
 
 
     (let [root-els (js/Object.keys roots)]
@@ -573,31 +584,86 @@
   )
 
 
+(defn know [env key order fact]
+  (.get-or-create-index env "know" key (to-array order))
+  (.add-facts env "know" key (to-array order) (array (to-array fact)))
+  )
+
+
+(let [program (env)]
+  (init-std-lib program)
+  (know program "incr" ["value"] [0])
+  (rules program
+
+         (rule draw-incr
+               (when "incr" {:value value})
+               (draw [:button {:id "incr" :events ["onClick"]} "increment: " 'value]))
+
+                      (rule clicked
+                            (when "ui/onClick" {:elem-id "incr"})
+                            (func 'new-val "value + 1")
+                            (change "incr" {:value 'value} {:value 'new-val}))
+
+;;                       (rule this-is-awesome
+;;                             (func 'x "1 + 2")
+;;                             (pretend "x-val" {:val x})
+;;                             )
+
+         )
+  (.run (compile program) program)
+  (let [tree (perf-time (rebuild-tree program (fn [ev thing]
+                                                (println "queued! " ev thing))))
+          container (dom/$ "body")
+          dommied (perf-time (dommy/node tree))
+          ]
+      (when container
+        (js/React.renderComponent dommied container)
+        ;(perf-time (do
+        ;             (dom/empty container)
+        ;             (dom/append container tree)))
+        )
+      ;
+      )
+  (index program "ui/child")
+  )
 
 
 (comment
 
   (let [program (env)]
-  (-> (rules program
+    (init-std-lib env)
+    (rules program
 
-             (rule draw-incr
-                   (when "incr" 'value)
-                   (draw [:button {:id "incr" :events ["onClick"]} "increment: " 'value]))
+           (rule draw-incr
+                 (draw [:button {:id "incr" :events ["onClick"]} "increment: "]))
 
-;;              (rule clicked
-;;                    (when "ui/onClick" "incr")
-;;                    (func 'new-val "value + 1")
-;;                    (change ["incr" 'value]
-;;                            ["incr" 'new-val]))
+           (rule clicked
+                 (when "ui/onClick" "incr")
+                 (func 'new-val "value + 1")
+                 (change ["incr" 'value]
+                         ["incr" 'new-val]))
 
-;;              (rule this-is-awesome
-;;                    (func 'x "1 + 2")
-;;                    (pretend "x-val" 'x)
-;;                    )
+           (rule this-is-awesome
+                 (func 'x "1 + 2")
+                 (pretend "x-val" {:val 'x})
+                 )
 
-             ))
-  ;(doseq [x (compile program)]
-  ;  (.run x program))
+           )
+  (.run (compile program) program)
+    (let [tree (perf-time (rebuild-tree env (fn [thing]
+                                              (println "got queue! " thing)
+                                              )))
+          container (dom/$ "#ui-preview")
+          dommied (perf-time (dommy/node tree))
+          ]
+      (when container
+        (js/React.renderComponent dommied container)
+        ;(perf-time (do
+        ;             (dom/empty container)
+        ;             (dom/append container tree)))
+        )
+      ;
+      )
   (.-kind->name->fields->index program)
   )
 
