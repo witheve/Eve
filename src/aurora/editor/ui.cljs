@@ -590,7 +590,7 @@
                                                      )))
 
 
-(init)
+;(init)
 
 (comment
   (swap! aurora-state update-in [:pages] conj "foo")

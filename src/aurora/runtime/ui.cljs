@@ -210,14 +210,14 @@
         real-args (dissoc args "id" :id :style :events :event_key :entity)
         ]
     (when parent
-      (.push facts ["know" "ui/child" #js [parent pos id]]))
-    (.push facts ["know" "ui/elem" #js [id (name|sym el)]])
+      (.push facts ["know" "ui/child" {:parent-id parent :pos pos :child-id id}]))
+    (.push facts ["know" "ui/elem" {:elem-id id :tag (name|sym el)}])
     (doseq [[k v] real-args]
-      (.push facts ["know" "ui/attr" #js [id (name|sym k) v]]))
+      (.push facts ["know" "ui/attr" {:elem-id id :attr (name|sym k) :value v}]))
     (doseq [[k v] (:style args)]
-      (.push facts ["know" "ui/style" #js [id (name|sym k) v]]))
+      (.push facts ["know" "ui/style" {:elem-id id :attr (name|sym k) :value v}]))
     (doseq [ev (:events args)]
-      (.push facts ["know" "ui/event-listener" #js [id (name|sym ev) (or key "") (or entity "")]]))
+      (.push facts ["know" "ui/event-listener" {:elem-id id :event (name|sym ev) :event-key (or key "") :entity (or entity "")}]))
     (doseq [[i child] (map-indexed vector children)]
       (if (vector? child)
         (fact-walk-eve child facts [id i])
@@ -226,9 +226,9 @@
                            (gensym (str id))
                            (str id "-" i))]
             (when (symbol? id)
-              (.push facts ["when" "eve/compute" #js [child-id (str id " + " i)]]))
-            (.push facts ["know" "ui/text" #js [child-id child]])
-            (.push facts ["know" "ui/child" #js [id i child-id]]))
+              (.push facts ["when" "=function" {:variable child-id :js (str id " + " i)}]))
+            (.push facts ["know" "ui/text" {:elem-id child-id :text child}])
+            (.push facts ["know" "ui/child" {:parent-id id :pos i :child-id child-id}]))
           )))))
 
 (defn hiccup->facts-eve [& hic]

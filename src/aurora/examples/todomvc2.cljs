@@ -14,10 +14,36 @@
       (.replace (js/uuid) (js/RegExp. "-" "gi") "_")
       (swap! next inc))))
 
+(defn init-std-lib [kn]
+  (.get-or-create-index kn "know" "ui/onClick" #js ["elem-id"])
+  (.get-or-create-index kn "know" "ui/onKeyDown" #js ["elem-id" "key"])
+  (.get-or-create-index kn "know" "ui/onChange" #js ["elem-id" "value"])
+  (.get-or-create-index kn "know" "ui/onBlur" #js ["elem-id"])
+  (.get-or-create-index kn "know" "ui/onDoubleClick" #js ["elem-id"])
+  (.get-or-create-index kn "know" "ui/custom" #js ["event-key" "entity"])
+  (.get-or-create-index kn "know" "ui/elem" #js ["elem-id" "tag"])
+  (.get-or-create-index kn "know" "ui/child" #js ["parent-id" "pos" "child-id"])
+  (.get-or-create-index kn "know" "ui/attr" #js ["elem-id" "attr" "value"])
+  (.get-or-create-index kn "know" "ui/text" #js ["elem-id" "text"])
+  (.get-or-create-index kn "know" "ui/style" #js ["elem-id" "attr" "value"])
+  (.get-or-create-index kn "know" "ui/event-listener" #js ["elem-id" "event" "event-key" "entity"])
+  (.get-or-create-index kn "know" "time" #js ["time"]))
+
 (defn env []
-  (let [kn (knowledge)]
+  (let [kn (knowledge)
+        state (.-state kn)
+        queue (array)]
     (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
     (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
+    (init-std-lib kn)
+    (aset state "queued" false)
+    (aset state "current-queue" queue)
+    (aset state "queue!" (fn [index order fact]
+                           (println "QUEUING: " index order fact)
+                           ;;TODO: this doesn't store any history
+                           (when (false? (aget state "queued"))
+                             (aset state "queued" (js/setTimeout (partial re-run kn) 0)))
+                           (know kn index order fact)))
     kn
     ))
 
@@ -35,31 +61,32 @@
 (defn add-rule [results clauses]
   (let [rule (new-id)]
     (doseq [cs clauses
-            [type name fact vars] cs]
+            [type name fact] cs]
       (let [clause (new-id)]
         (.push (aget results "clauses") #js [rule type clause name])
-        (dotimes [x (alength fact)]
-          (let [cur (aget fact x)
-                var? (symbol? cur)
+        (doseq [[k v] fact]
+          (let [var? (symbol? v)
                 v (if var?
-                    (str cur)
-                    cur)
-                key (if vars
-                      (aget vars x)
-                      x)]
-            (.push (aget results "clause-fields") #js [clause (if var? "variable" "constant") key v])
+                    (str v)
+                    v)]
+            (.push (aget results "clause-fields") #js [clause (if var? "variable" "constant") (cljs.core.name k) v])
             ))))))
+
+(defn index [env ix]
+  (get-in (.-kind->name->fields->index env) ["know" (name ix)]))
 
 (def draw js/aurora.runtime.ui.hiccup->facts-eve)
 
-(defn change [old neue]
-  [["when" (first old) (to-array (rest old))]
-   ["forget" (first old) (to-array (rest old))]
-   ["remember" (first neue) (to-array (rest neue))]
+(defn change [name old neue]
+  [["when" name old]
+   ["forget" name old]
+   ["remember" name neue]
    ])
 
 (defn func [var js]
-  [["when" "=function" (array var js) (array "variable" "js")]])
+  [["when" "=function" {:variable var :js js}]])
+
+
 
 (defn init []
   (let [env #js {}
@@ -93,34 +120,18 @@
         ctx (context indexes)
         pretend! (aget ctx "pretend!")]
 
-    (.get-or-create-index kn "know" "todo" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
-    (.get-or-create-index kn "know" "todo-editing" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "todo-completed" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "todo-added" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "todo-removed" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "todo-to-add" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "todo-to-edit" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "filter" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "todo-displayed" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "todo" #js ["todo-id" "text"])
+    (.get-or-create-index kn "know" "todo-editing" #js ["todo-id" "editing?"])
+    (.get-or-create-index kn "know" "todo-completed" #js ["todo-id" "completed?"])
+    (.get-or-create-index kn "know" "todo-added" #js ["x"])
+    (.get-or-create-index kn "know" "todo-removed" #js ["todo-id"])
+    (.get-or-create-index kn "know" "todo-to-add" #js ["value"])
+    (.get-or-create-index kn "know" "todo-to-edit" #js ["value"])
+    (.get-or-create-index kn "know" "filter" #js ["filter"])
+    (.get-or-create-index kn "know" "todo-displayed" #js ["todo-id"])
+    (.get-or-create-index kn "know" "current-toggle" #js ["value"])
 
 
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "current-toggle" #js ["clause-id" "constant|variable" "key" "val"])
 
     (aset input "queued" false)
     (aset input "current-queue" current-queue)
@@ -137,11 +148,11 @@
 
 (defn fill-todos [env num]
   (dotimes [x num]
-    (.assoc! (index env "todo") #js [x (str "foo" x)] x))
+    (know env "todo" #js ["todo-id" "text"] #js [x (str "foo" x)]))
   (dotimes [x num]
-    (.assoc! (index env "todo-editing") #js [x "saved"] x))
+    (know env "todo-editing" #js ["todo-id" "editing?"] #js [x "saved"]))
   (dotimes [x num]
-    (.assoc! (index env "todo-completed") #js [x "asdf"] x)))
+    (know env "todo-completed" #js ["todo-id" "completed?"] #js [x "active"])))
 
 (defn click! [env elem]
   (.assoc! (index env "ui/onClick") #js[elem] 0))
@@ -154,83 +165,79 @@
 
 (defn defaults [env]
   ;((aget (aget env "ctx") "remember!") "todo-to-add" #js ["hey"])
-  (.assoc! (index env :todo-to-add) #js ["hey"] nil)
-  (.assoc! (index env :current-toggle) #js ["false"] nil)
-  (.assoc! (index env :todo-to-edit) #js ["hi"] nil)
-  (.assoc! (index env :filter) #js ["all"] nil))
+  (know env "todo-to-add" #js ["value"] #js ["hey"])
+  (know env "current-toggle" #js ["value"] #js ["false"])
+  (know env "todo-to-edit" #js ["value"] #js ["hi"])
+  (know env "filter" #js ["filter"] #js ["all"])
+  )
 
-(def program (env))
+(def todomvc (env))
 
-(rules program
+(rules todomvc
 
        (rule todo-input-changes
-             (when "ui/onChange" "todo-input" 'neue)
-             (change ["todo-to-add" 'v]
-                     ["todo-to-add" 'neue]))
+             (when "ui/onChange" {:elem-id "todo-input" :value neue})
+             (change "todo-to-add" {:value v} {:value neue}))
 
        (rule add-todo-clicked
-             (when "ui/onClick" "add-todo")
-             (pretend "todo-added" 0))
+             (when "ui/onClick" {:elem-id "add-todo"})
+             (pretend "todo-added" {:x 0}))
 
        (rule filter-active-clicked
-             (when "ui/onClick" "filter-active")
-             (change ["filter" 'v]
-                     ["filter" "active"]))
+             (when "ui/onClick" {:elem-id "filter-active"})
+             (change "filter" {:filter 'v} {:filter "active"}))
 
        (rule filter-completed-clicked
-             (when "ui/onClick" "filter-completed")
-             (change ["filter" 'v]
-                     ["filter" "completed"]))
+             (when "ui/onClick" {:elem-id "filter-completed"})
+             (change "filter" {:filter 'v} {:filter "completed"}))
 
        (rule filter-all-clicked
-             (when "ui/onClick" "filter-all")
-             (change ["filter" 'v]
-                     ["filter" "all"]))
+             (when "ui/onClick" {:elem-id "filter-all"})
+             (change "filter" {:filter 'v} {:filter "all"}))
 
        (rule toggle-all-changed-track
-             (when "ui/onChange" "toggle-all" 'value)
-             (change ["current-toggle" 'v]
-                     ["current-toggle" 'value]))
+             (when "ui/onChange" {:elem-id "toggle-all" :value 'value})
+             (change "current-toggle" {:value 'v} {:value 'value}))
 
        (rule toggle-all-changed-update
-             (when "ui/onChange" "toggle-all" 'value)
-             (when "eve/compute" 'final "value == \"true\" ? \"completed\" : \"active\" ")
-             (change ["todo-completed" 'todo 'complete?]
-                     ["current-toggle" 'final]))
+             (when "ui/onChange" {:elem-id "toggle-all" :value 'value})
+             (func 'final "value == \"true\" ? \"completed\" : \"active\" ")
+             (change "todo-completed"
+                     {:todo-id 'todo :completed? 'complete?}
+                     {:todo-id 'todo :completed? 'final}))
 
        (rule clear-completed-clicked
-             (when "ui/onClick" "clear-completed")
-             (when "todo-completed" 'todo "completed")
-             (pretend "todo-removed" 'todo)
-             )
+             (when "ui/onClick" {:elem-id "clear-completed"})
+             (when "todo-completed" {:todo-id 'todo :completed? "completed"})
+             (pretend "todo-removed" {:todo-id 'todo}))
 
        (rule remove-todo
-             (when "todo-removed" 'todo)
-             (when "todo" 'todo 'text)
-             (when "todo-editing" 'todo 'editing)
-             (when "todo-completed" 'todo 'complete?)
-             (forget "todo" 'todo 'text)
-             (forget "todo-editing" 'todo 'editing)
-             (forget "todo-completed" 'todo 'complete?))
+             (when "todo-removed" {:todo-id 'todo})
+             (when "todo" {:todo-id 'todo :text 'text})
+             (when "todo-editing" {:todo-id 'todo :editing? 'editing})
+             (when "todo-completed" {:todo-id 'todo :completed? 'complete?})
+             (forget "todo" {:todo-id 'todo :text 'text})
+             (forget "todo-editing" {:todo-id 'todo :editing? 'editing})
+             (forget "todo-completed" {:todo-id 'todo :completed? 'complete?}))
 
        (rule filter-all-display
-             (when "todo" 'todo 'text)
-             (when "filter" "all")
-             (pretend "todo-displayed" 'todo))
+             (when "todo" {:todo-id 'todo :text 'text})
+             (when "filter" {:filter "all"})
+             (pretend "todo-displayed" {:todo-id 'todo}))
 
        (rule filter-all-display
-             (when "todo" 'todo 'text)
-             (when "todo-completed" 'todo 'complete?)
-             (when "filter" 'complete?)
-             (pretend "todo-displayed" 'todo))
+             (when "todo" {:todo-id 'todo :text 'text})
+             (when "todo-completed" {:todo-id 'todo :completed? 'complete?})
+             (when "filter" {:filter 'complete?})
+             (pretend "todo-displayed" {:todo-id 'todo}))
 
        (rule draw-checkbox
-             (when "todo-displayed" 'todo)
-             (when "todo-completed" 'todo 'complete)
-             (when "compute" 'active? "complete == \"completed\" ? \"checked\" : \"\"")
-             (when "compute" 'child-id "\"todo-checkbox\" + todo")
-             (when "compute" 'parent-id "\"todo\" + todo")
-             (pretend "elem-child" 'parent-id -1 'child-id)
+             (when "todo-displayed" {:todo-id 'todo})
+             (when "todo-completed" {:todo-id 'todo :completed? 'complete})
+             (func 'active?  "complete == \"completed\" ? \"checked\" : \"\"")
+             (func 'child-id "\"todo-checkbox\" + todo")
+             (func 'parent-id "\"todo\" + todo")
+             (pretend "ui/child" {:parent-id 'parent-id :pos -1 :child-id 'child-id})
              (draw [:input {:id 'child-id
                             :type "checkbox"
                             :checked active?
@@ -239,28 +246,28 @@
                             :events ["onChange"]}]))
 
        (rule draw-todo-item
-             (when "todo-displayed" 'todo)
-             (when "todo" 'todo 'text)
-             (when "todo-editing" 'todo "saved")
-             (when "compute" 'remove-id "\"todo-remove\" + todo")
-             (when "compute" 'todo-id "\"todo\" + todo")
-             (pretend "elem-child" "todo-list" 'todo 'child-id)
-             (draw [:li {:id 'todo-id
+             (when "todo-displayed" {:todo-id 'todo})
+             (when "todo" {:todo-id 'todo :text 'text})
+             (when "todo-editing" {:todo-id 'todo :editing? "saved"})
+             (func 'removeId "\"todo-remove\" + todo")
+             (func 'todoId "\"todo\" + todo")
+             (pretend "ui/child" {:parent-id "todo-list" :pos 'todo :child-id 'child-id})
+             (draw [:li {:id 'todoId
                          :event-key "edit-todo"
                          :entity 'todo
                          :events ["onDoubleClick"]}
                     'text
-                    [:button {:id 'remove-id
+                    [:button {:id 'removeId
                               :event-key "remove-todo"
                               :entity 'todo
                               :events ["onClick"]}
                      "x"]]))
 
        (rule draw-todo-item
-             (when "todo-displayed" 'todo)
-             (when "todo" 'todo 'cur)
-             (when "todo-editing" 'todo "editing")
-             (pretend "elem-child" "todo-list" 'todo "todo-editor")
+             (when "todo-displayed" {:todo-id 'todo})
+             (when "todo" {:todo-id 'todo :text 'cur})
+             (when "todo-editing" {:todo-id 'todo :editing? "editing"})
+             (pretend "ui/child" {:parent-id "todo-list" :pos 'todo :child-id "todo-editor"})
              (draw [:input {:id "todo-editor"
                             :type "text"
                             :defaultValue 'cur
@@ -269,15 +276,15 @@
                             :events ["onBlur" "onChange" "onKeyDown"]}]))
 
        (rule draw-todo-item
-             (when "todo-to-add" 'cur)
-             (pretend "elem-child" "app" 1 "todo-input")
+             (when "todo-to-add" {:value 'cur})
+             (pretend "ui/child" {:parent-id "app" :pos 1 :child-id "todo-input"})
              (draw [:input {:id "todo-input"
                             :type "text"
                             :defaultValue 'cur
                             :events ["onChange" "onKeyDown"]}]))
 
        (rule draw-interface
-             (when "curren-toggle" 'toggle)
+             (when "curren-toggle" {:value 'toggle})
              (draw [:div {:id "app"}
                     [:h1 {:id "todo-header"} "Todos"]
                     [:input {:id "toggle-all"
@@ -292,83 +299,14 @@
                     [:button {:id "filter-completed" :event-key "filter-completed" :events ["onClick"]} "completed"]]))
 
        (rule add-todo
-             (when "todo-added" '_)
-             (when "time" 'time)
-             (when "todo-to-add" 'to-add)
-             (remember "todo" 'time 'to-add)
-             (remember "todo-editing" 'time "saved")
-             (remember "todo-completed" 'time "acitve")))
-
-(defn run []
-  (let [env (init)]
-    (perf-time (do
-                 (defaults env)
-                 (fill-todos env 200)
-                 (fixpoint-tick env
-                                (fn [env]
-                                  (todo-input-changes env)
-                                  (add-todo-clicked env)
-                                  (filter-active-clicked env)
-                                  (filter-completed-clicked env)
-                                  (filter-all-clicked env)
-                                  (toggle-all-changed-track env)
-                                  (toggle-all-changed-update env)
-                                  (clear-completed-clicked env)
-                                  (remove-todo env)
-                                  (filter-all-display env)
-                                  (filter-not-all-display env)
-                                  (draw-checkbox env)
-                                  (draw-todo-item env)
-                                  (draw-todo-item-editing env)
-                                  (draw-todo-to-add env)
-                                  (draw-interface env)
-                                  (add-todo env)
-                                  ))))
-    (let [tree (perf-time (rebuild-tree env (aget (aget env "input") "queue!")))
-          container (dom/$ "#ui-preview")
-          dommied (perf-time (dommy/node tree))
-          ]
-      (when container
-        (js/React.renderComponent dommied container)
-        ;(perf-time (do
-        ;             (dom/empty container)
-        ;             (dom/append container tree)))
-        )
-      ;
-      )
-    )
-  )
+             (when "todo-added" {:x '_})
+             (when "time" {:time 'time})
+             (when "todo-to-add" {:value 'to-add})
+             (remember "todo" {:todo-id 'time :text 'to-add})
+             (remember "todo-editing" {:todo-id 'time :editing? "saved"})
+             (remember "todo-completed" {:todo-id 'time :completed? "acitve"})))
 
 
-(defn re-run [env]
-  (perf-time (do
-               (.assoc! (index env :time) #js [(now)])
-               (fixpoint-tick env
-                              (fn [env]
-                                (todo-input-changes env)
-                                (add-todo-clicked env)
-                                (filter-active-clicked env)
-                                (filter-completed-clicked env)
-                                (filter-all-clicked env)
-                                (toggle-all-changed-track env)
-                                (toggle-all-changed-update env)
-                                (clear-completed-clicked env)
-                                (remove-todo env)
-                                (filter-all-display env)
-                                (filter-not-all-display env)
-                                (draw-checkbox env)
-                                (draw-todo-item env)
-                                (draw-todo-item-editing env)
-                                (draw-todo-to-add env)
-                                (draw-interface env)
-                                (add-todo env)
-                                ))))
-  (let [tree (perf-time (rebuild-tree env (aget (aget env "input") "queue!")))
-        container (dom/$ "#ui-preview")
-        dommied (perf-time (dommy/node tree))]
-    (when container
-      (js/React.renderComponent dommied container)
-      (aset (aget env "input") "queued" false))))
 
 
 (defn handle-attr [v]
@@ -391,7 +329,18 @@
       results)))
 
 
+(deftype ArrayIterator [ar len ^:mutable ix]
+  Object
+  (key [this]
+       (when (< ix len)
+         (aget ar ix)))
 
+  (next [this]
+        (set! ix (+ 1 ix))
+        ))
+
+(defn array-iterator [ar]
+  (ArrayIterator. ar (alength ar) 0))
 
 (defn build-element [id tag attrs-itr styles-itr events-itr queue]
   (let [el-attrs (js-obj "eve-id" id)
@@ -419,47 +368,47 @@
             event-key (aget cur 2)
             entity (aget cur 3)]
         (aset el-attrs event (fn [e]
-                               (println "attached handler")
-                               (queue (str "ui/" event) #js [id (js/aurora.runtime.ui.event->params2 event e)])
-                               (queue (str "ui/custom") #js [id event-key entity (js/aurora.runtime.ui.event->params2 event e)]))
+                               (println "attached handler now")
+                               ;(queue (str "ui/" event) #js ["elem-id"] #js [id (js/aurora.runtime.ui.event->params2 event e)])
+                               ;(queue (str "ui/custom") #js ["event-key" "entity"] #js [id event-key entity (js/aurora.runtime.ui.event->params2 event e)])
+                               (queue (str "ui/" event) #js ["elem-id"] #js [id])
+                               (queue (str "ui/custom") #js ["event-key" "entity"] #js [event-key entity])
+                               )
               ))
       (.next events-itr))
 
     ((aget js/React.DOM (name tag)) el-attrs (array))))
 
 (defn rebuild-tree [env queue]
-  (let [els (iterator (index env :elem))
-        attrs (iterator (index env :elem-attr))
-        styles (iterator (index env :elem-style))
-        events (iterator (index env :elem-event))
-        text (iterator (index env :elem-text))
-        all-children (iterator (index env :elem-child))
+  (let [els (.keys (get (index env "ui/elem") ["elem-id" "tag"]))
+        attrs (array-iterator (.keys (get (index env "ui/attr") ["elem-id" "attr" "value"])))
+        styles (array-iterator (.keys (get (index env "ui/style") ["elem-id" "attr" "value"])))
+        events (array-iterator (.keys (get (index env "ui/event-listener") ["elem-id" "event" "event-key" "entity"])))
+        text (.keys (get (index env "ui/text") ["elem-id" "text"]))
+        all-children (.keys (get (index env "ui/child") ["parent-id" "pos" "child-id"]))
         built-els (js-obj)
         roots (js-obj)
         final (array :div)
         ]
 
-    (while (.key els)
-      (let [cur (.key els)
+    (dotimes [x (alength els)]
+      (let [cur (aget els x)
             id (aget cur 0)
             tag (aget cur 1)]
         (aset roots id true)
-        (aset built-els id (build-element id tag attrs styles events queue))
-        (.next els)))
+        (aset built-els id (build-element id tag attrs styles events queue))))
 
-    (into-obj built-els (all-join-results text))
+    (into-obj built-els text)
 
-
-    (while (.key all-children)
-      (let [cur (.key all-children)
+    (dotimes [x (alength all-children)]
+      (let [cur (aget all-children x)
             parent (aget cur 0)
             child (aget cur 2)
             pos (aget cur 1)
             parent-el (aget built-els parent)
             child-el (aget built-els child)]
         (.push (.-props.children parent-el) child-el)
-        (js-delete roots child)
-        (.next all-children)))
+        (js-delete roots child)))
 
 
     (let [root-els (js/Object.keys roots)]
@@ -573,43 +522,96 @@
   )
 
 
+(defn know [env key order fact]
+  (.get-or-create-index env "know" key (to-array order))
+  (.add-facts env "know" key (to-array order) (array (to-array fact)))
+  )
+
+(defn remember [env key order fact]
+  (.get-or-create-index env "remember" key (to-array order))
+  (.add-facts env "remember" key (to-array order) (array (to-array fact)))
+  )
+
+
+
+
+(defn re-run [program]
+  (let [compiled (compile program)]
+    (perf-time
+     (do
+       (.run compiled program)
+       (let [tree (perf-time (rebuild-tree program (aget (.-state program) "queue!")))
+             container (dom/$ "body")
+             dommied (perf-time (dommy/node tree))
+             ]
+         (when container
+           (js/React.renderComponent dommied container)
+           ;(perf-time (do
+           ;             (dom/empty container)
+           ;             (dom/append container tree)))
+           )
+         ;
+         (println (index program "incr"))
+         (println (get-in (.-kind->name->fields->index program) ["remember" "incr"]))
+         (aset (.-state program) "queued" false)
+         ))))
+
+  )
 
 
 (comment
 
-  (let [program (env)]
-  (-> (rules program
+  ;;Try to run todomvc and it blows up with "Can't split anything"
+  (do (defaults todomvc)
+    (fill-todos todomvc 5)
+    (re-run todomvc))
 
-             (rule draw-incr
-                   (when "incr" 'value)
-                   (draw [:button {:id "incr" :events ["onClick"]} "increment: " 'value]))
+  ;;Trying to get the thing to run CRAZINESS, queued events cause re-run to be called
+  ;;if I .quiesce the ui disappears, just calling .run is fine though
 
-;;              (rule clicked
-;;                    (when "ui/onClick" "incr")
-;;                    (func 'new-val "value + 1")
-;;                    (change ["incr" 'value]
-;;                            ["incr" 'new-val]))
+(let [program (env)]
+  (rules program
 
-;;              (rule this-is-awesome
-;;                    (func 'x "1 + 2")
-;;                    (pretend "x-val" 'x)
-;;                    )
+         (rule draw-incr
+               (when "incr" {:value value})
+               (draw [:button {:id "incr" :events ["onClick"]} "increment: " 'value]))
 
-             ))
-  ;(doseq [x (compile program)]
-  ;  (.run x program))
-  (.-kind->name->fields->index program)
+         (rule clicked
+               (when "ui/onClick" {:elem-id "incr"})
+               (func 'new-val "value + 1")
+               (change "incr" {:value 'value} {:value 'new-val}))
+
+;;                       (rule this-is-awesome
+;;                             (func 'x "1 + 2")
+;;                             (pretend "x-val" {:val x})
+;;                             )
+
+         )
+  (let [compiled (compile program)]
+    ;; I seem to need both of these in order to get things to trigger as a default value
+    (remember program "incr" ["value"] [0])
+    (know program "incr" ["value"] [0])
+    (perf-time
+     (do
+       (.run compiled program)
+       (let [tree (perf-time (rebuild-tree program (aget (.-state program) "queue!")))
+             container (dom/$ "body")
+             dommied (perf-time (dommy/node tree))
+             ]
+         (when container
+           (js/React.renderComponent dommied container)
+           ;(perf-time (do
+           ;             (dom/empty container)
+           ;             (dom/append container tree)))
+           )
+         ;
+         ))))
+
+  (get-in (.-kind->name->fields->index program) ["remember" "incr"])
+  (index program "ui/elem")
   )
 
-  (-> (rules (env)
 
-             (rule this-is-awesome
-                   (func 'x "1 + 2")
-                   (pretend "x-val" 'x)
-                   )
 
-             )
-
-      (.-kind->name->fields->index))
 
   )

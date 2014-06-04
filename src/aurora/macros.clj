@@ -58,6 +58,9 @@
      (~'js* "while (~{}.length > 0) ~{}.pop()" ~arr ~arr)
      nil))
 
+(defmacro deftraced [& body]
+  `(def ~(first body) (fn [])))
+
 (defmacro set!! [name val]
   (assert (symbol? name) (str "Can't set!! " (pr-str name)))
   `(~'js* ~(str (munge name) "= ~{}") ~val))
@@ -75,14 +78,18 @@
   `(aurora.examples.todomvc2.add-rules
     ~env
     ~(vec (for [[_ name & clauses] rules]
-            (vec (for [[type name & r :as clause] clauses]
+            (vec (for [[type name r :as clause] clauses]
                    (if (#{'when 'pretend 'remember 'forget} type)
-                     `[[~(if (= 'pretend type)
-                           "know"
-                           (str type)) ~(str name) (cljs.core.array ~@r)]]
+                     (do
+                       (assert (map? r) (str "Non-map clause: " clause))
+                       `[[~(if (= 'pretend type)
+                             "know"
+                             (str type)) ~(str name) ~(into {} (for [[k v] r]
+                                                                 [k (if (symbol? v)
+                                                                      `(quote ~v)
+                                                                      v)]))]])
                      clause)))
             ))))
-
 
 (defmacro perf-time [& body]
   `(let [start# (.performance.now js/window)
