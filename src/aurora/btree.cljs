@@ -164,6 +164,8 @@
 
 (deftype Tree [max-keys key-len ^:mutable root]
   Object
+  (reset [this]
+         (set! root (Node. nil nil #js [] #js [] nil nil nil)))
   (toString [this]
             (pr-str (into (sorted-map-by key-compare) (map vec this))))
   (assoc! [this key val]
