@@ -84,7 +84,7 @@
     ;; rewrite clauses
     (doseq [[rule-id clauses] @rule-id->clauses]
       (doseq [[_ clause-type clause-id name] clauses
-              :when (not #{"constant=" "variable=" "function="} name)]
+              :when (not (#{"constant=" "variable=" "function="} name))]
         (let [fields (get @clause-id->fields clause-id)
               var->key (atom {})]
           (doseq [[_ field-type key val] fields]
