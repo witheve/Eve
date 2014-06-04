@@ -113,7 +113,7 @@
              (when (true? (.add-facts kn kind name fields facts))
                (let [dirtied-rules (aget kind->name->rules kind name)]
                  (dotimes [j (alength dirtied-rules)]
-                   (aset rule->dirty? (aget dirtied-rules i) true)))))))))
+                   (aset rule->dirty? (aget dirtied-rules j) true)))))))))
 
 (deftype Flows [rules rule->flow rule->dirty? kind->name->rules name->transient?]
   Object
