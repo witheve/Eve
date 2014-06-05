@@ -48,7 +48,8 @@
                              index)))
   (ensure-index [this kind name default-fields]
                 (assert (or (= kind "know") (= kind "remember") (= kind "forget")) (pr-str kind))
-                (when (empty? (get-in kind->name->fields->index [kind name]))
+                (if-let [fields->index (get-in kind->name->fields->index [kind name])]
+                  (assert (= (set default-fields) (set (first (keys fields->index)))))
                   (.get-or-create-index this kind name default-fields)))
   (add-facts [this kind name fields facts]
              (assert (or (= kind "know") (= kind "remember") (= kind "forget")) (pr-str kind))
