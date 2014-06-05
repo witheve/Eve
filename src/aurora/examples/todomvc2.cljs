@@ -15,15 +15,6 @@
     (know env "todo-completed" #js ["todo-id" "completed?"] #js [x "active"]))
   )
 
-(defn click! [env elem]
-  (.assoc! (index env "ui/onClick") #js[elem] 0))
-
-(defn change! [env elem ]
-  (.assoc! (index env "ui/onChange") #js[elem "foo bar"] 0))
-
-(defn blur! [elem]
-  (.assoc! (index env "ui/onBlur") #js[elem] 0))
-
 (defn defaults [env]
   ;((aget (aget env "ctx") "remember!") "todo-to-add" #js ["hey"])
   (know env "todo-to-add" #js ["value"] #js [""])
@@ -233,7 +224,7 @@
              (change "todo-to-add" {:value 'to-add} {:value ""})
              (remember "todo" {:todo-id 'time :text 'to-add})
              (remember "todo-editing" {:todo-id 'time :editing? "saved"})
-             (remember "todo-completed" {:todo-id 'time :completed? "acitve"})))
+             (remember "todo-completed" {:todo-id 'time :completed? "active"})))
 
 
 (defn run []
@@ -242,6 +233,7 @@
      (do (defaults todomvc)
        (fill-todos todomvc 10)
        (re-run todomvc)))))
+
 
 (comment
 
