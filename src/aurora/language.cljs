@@ -8,7 +8,7 @@
   (let [keymap (make-array (alength to-fields))]
     (dotimes [i (alength from-fields)]
       (dotimes [j (alength to-fields)]
-        (when (= (aget from-fields i) (aget to-fields j))
+        (when (identical? (aget from-fields i) (aget to-fields j))
           (aset keymap j i))))
     (dotimes [j (alength keymap)]
       (assert (not (nil? (aget keymap j))) (str "Fields mismatch: " from-fields " :: " to-fields))) ;; ie every to-field is in from-fields somewhere
