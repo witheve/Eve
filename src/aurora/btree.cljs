@@ -531,7 +531,7 @@
                      (loop [i 0]
                        (when (< i (alength vars))
                          (let [var (aget vars i)]
-                           (aset los var (aget new-los i))
+                           (.set-lo solver var (aget new-los i))
                            (if (identical? (aget new-los i) (aget his var))
                              (recur (+ i 1)))))))))))
 
@@ -596,8 +596,6 @@
                  pushed-los pushed-his pushed-var->constraint->watching? pushed-constraint->dirty? pushed-splitters]
   Object
   (reset [this]
-         (dotimes [i (alength constraints)]
-           (.reset (aget constraints i)))
          (set! depth 0)
          (set! failed? false)
          (dotimes [i (alength los)]
@@ -611,7 +609,9 @@
          (aclear pushed-his)
          (aclear pushed-var->constraint->watching?)
          (aclear pushed-constraint->dirty?)
-         (aclear pushed-splitters))
+         (aclear pushed-splitters)
+         (dotimes [constraint (alength constraints)]
+           (.reset (aget constraints constraint) constraint)))
   (set-lo [this var new-lo]
           (when-not (identical? (aget los var) new-lo)
             (if (val-lt (aget his var) new-lo)
