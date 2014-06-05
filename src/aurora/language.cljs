@@ -209,7 +209,7 @@
               num-vars (count @vars)
 
               ;; make inputs
-              constraints&ixes (for [[_ clause-type clause-id name] clauses
+              constraints (for [[_ clause-type clause-id name] clauses
                                      :when (= clause-type "when")]
                                  (let [fields (get @clause-id->fields clause-id)]
                                    (case name
@@ -220,7 +220,7 @@
                                                                              :when (= key "constant")]
                                                                          val))
                                                        ix (get var->ix variable)]
-                                                   [(btree/constant constant) #js [ix]])
+                                                   (btree/constant constant ix))
                                      "=variable" (let [variable-a (first (for [[_ field-type key val] fields
                                                                                :when (= key "variable-a")]
                                                                            val))
@@ -229,20 +229,20 @@
                                                                            val))
                                                        ix-a (get var->ix variable-a)
                                                        ix-b (get var->ix variable-b)]
-                                                   [(btree/equal) #js [ix-a ix-b]])
+                                                   (btree/equal #js [ix-a ix-b]))
                                      "=function" (let [variable (first (for [[_ field-type key val] fields
                                                                              :when (= key "variable")]
                                                                          val))
                                                        js (first (for [[_ field-type key val] fields
                                                                        :when (= key "js")]
                                                                    val))
-                                                       ix (get var->ix variable)
+                                                       result-ix (get var->ix variable)
                                                        args (for [var @vars
                                                                   :when (>= (.indexOf js var) 0)]
                                                               var)
                                                        arg-ixes (map var->ix args)
                                                        fun (apply js/Function (conj (vec args) (str "return (" js ");")))]
-                                                   [(btree/function fun) (into-array (conj (vec arg-ixes) ix))])
+                                                   (btree/function fun result-ix (into-array arg-ixes)))
                                      (let [clause-vars&keys (sort-by (fn [[val key]] (var->ix val))
                                                                      (for [[_ field-type key val] fields]
                                                                        [val key]))
@@ -251,10 +251,10 @@
                                            clause-keys (map second clause-vars&keys)
                                            index (.get-or-create-index kn "know" name (into-array clause-keys))]
                                        (swap! kind->name->rules update-in ["know" name] #(conj (or % #{}) rule-id))
-                                       [(btree/contains (btree/iterator index)) (into-array clause-vars-ixes)]))))
+                                       (btree/contains (btree/iterator index) (into-array clause-vars-ixes))))))
 
               ;; make solver
-              solver (btree/solver num-vars (into-array (map first constraints&ixes)) (into-array (map second constraints&ixes)))
+              solver (btree/solver num-vars (into-array constraints))
 
               ;; make output specs
               output-kinds (into-array
@@ -371,6 +371,4 @@
 (.get-or-create-index kn "know" "connected" #js ["x" "y"])
 
 (.get-or-create-index kn "know" "str-edge" #js ["name"])
-
-
-  )
+)

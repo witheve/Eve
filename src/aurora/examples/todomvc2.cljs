@@ -3,7 +3,7 @@
             [aurora.language :refer [knowledge compile]]
             [aurora.util.core :refer [now]]
             [aurora.syntax :refer [know remember draw func change index]]
-            [aurora.runtime :refer [pre-compile re-run env]]
+            [aurora.runtime :refer [pre-compile re-run env] :as runtime]
             [aurora.editor.dom :as dom]
             [aurora.editor.ReactDommy :as dommy])
   (:require-macros [aurora.macros :refer [typeof ainto perf-time rules]]))
@@ -191,17 +191,17 @@
 
   (do
     (defaults todomvc)
-    (init-std-lib todomvc)
+    (runtime/init-std-lib todomvc)
     (fill-todos todomvc 200)
     (def compiled (perf-time (compile todomvc)))
     (prep-compiled compiled)
     (perf-time
      (js/console.profile)
-     (dotimes [i 1000]
+     (dotimes [i 1]
        (do
          (perf-time
           (.quiesce compiled todomvc (fn [kn]
-                                       (let [tree (perf-time (rebuild-tree todomvc (aget (.-state todomvc) "queue!")))
+                                       (let [tree (perf-time (runtime/rebuild-tree todomvc (aget (.-state todomvc) "queue!")))
                                              container (dom/$ "body")
                                              dommied (perf-time (dommy/node tree))
                                              ]

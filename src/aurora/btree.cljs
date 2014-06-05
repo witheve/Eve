@@ -644,9 +644,9 @@
               (if (or (val-lt new-val old-lo) (val-lt old-hi new-val))
                 (set! failed? true)
                 (do
-                  (aset los var new-val))
+                  (aset los var new-val)
                   (aset his var new-val)
-                  (.set-dirty this var)))))
+                  (.set-dirty this var))))))
   (set-watch [this var constraint value]
              (aset var->constraint->watching? (+ (* (alength constraints) var) constraint) value))
   (set-dirty [this var]
