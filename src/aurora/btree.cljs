@@ -903,10 +903,8 @@
   (let [tree (apply-to-tree (tree min-keys key-len) actions)
         solver (solver
                 key-len
-                #js [(contains (iterator tree))
-                     (contains (iterator tree))]
-                #js [(into-array (range key-len))
-                     (into-array (range key-len))])]
+                #js [(contains (iterator tree) (into-array (range key-len)))
+                     (contains (iterator tree) (into-array (range key-len)))])]
     (= (map vec (map first tree))
        (map vec solver))))
 
@@ -924,9 +922,8 @@
               (.assoc! product-tree (.concat (aget elems i) (aget elems j)) nil)))
         solver (solver
                 (* 2 key-len)
-                #js [(contains (iterator tree)) (contains (iterator tree))]
-                #js [(into-array (range 0 key-len))
-                     (into-array (range key-len (* 2 key-len)))])]
+                #js [(contains (iterator tree) (into-array (range 0 key-len)))
+                     (contains (iterator tree) (into-array (range key-len (* 2 key-len))))])]
     (= (map vec (map first product-tree))
        (map vec solver))))
 
@@ -1008,7 +1005,9 @@
                (.assoc! tree3 #js [(+ i 1) (+ i 2)] (* 2 i))))
          ]
      (perf-time
-      (let [s (solver 3 #js [(contains (iterator tree1)) (contains (iterator tree2)) (contains (iterator tree3))] #js [#js [0 1 2] #js [0 2] #js [1 2]])]
+      (let [s (solver 3 #js [(contains (iterator tree1) #js [0 1 2])
+                             (contains (iterator tree2) #js [0 2])
+                             (contains (iterator tree3) #js [1 2])])]
         (while (not (nil? (.next s)))))))
 
   (let [tree1 (tree 10)
