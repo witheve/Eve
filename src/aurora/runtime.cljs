@@ -11,6 +11,7 @@
   (.get-or-create-index kn "know" "ui/onClick" #js ["elem-id"])
   (.get-or-create-index kn "know" "ui/onKeyDown" #js ["elem-id" "key"])
   (.get-or-create-index kn "know" "ui/onChange" #js ["elem-id" "value"])
+  (.get-or-create-index kn "know" "ui/onChecked" #js ["elem-id" "value"])
   (.get-or-create-index kn "know" "ui/onBlur" #js ["elem-id"])
   (.get-or-create-index kn "know" "ui/onDoubleClick" #js ["elem-id"])
   (.get-or-create-index kn "know" "ui/custom" #js ["event-key" "entity"])
@@ -79,6 +80,11 @@
 (defn array-iterator [ar]
   (ArrayIterator. ar (alength ar) 0))
 
+(defn event->params [ev event id]
+  (condp = event
+   "onChange" [#js ["elem-id" "value"] #js [id (.-target.value ev)]]
+   "onKeyDown" [#js ["elem-id" "key"] #js [id (.-keyCode ev)]]
+   [#js ["elem-id"] #js [id]]))
 
 
 (defn build-element [id tag attrs-itr styles-itr events-itr queue]
@@ -110,8 +116,9 @@
                                (println "attached handler now")
                                ;(queue (str "ui/" event) #js ["elem-id"] #js [id (js/aurora.runtime.ui.event->params2 event e)])
                                ;(queue (str "ui/custom") #js ["event-key" "entity"] #js [id event-key entity (js/aurora.runtime.ui.event->params2 event e)])
-                               (queue (str "ui/" event) #js ["elem-id"] #js [id])
-                               (queue (str "ui/custom") #js ["event-key" "entity"] #js [event-key entity])
+                               (let [[order vals] (event->params e event id)]
+                                 (queue (str "ui/" event) order vals)
+                                 (queue (str "ui/custom") #js ["event-key" "entity"] #js [event-key entity]))
                                )
               ))
       (.next events-itr))
@@ -255,6 +262,7 @@
 
 (defn re-run [program]
   (let [compiled (aget (.-state program) "compiled")]
+    (know program "time" #js ["time"] #js [(now)])
     (perf-time
      (do
        (.quiesce compiled program (fn [kn]

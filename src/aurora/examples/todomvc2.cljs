@@ -2,7 +2,7 @@
   (:require [aurora.btree :as btree :refer [tree iterator least greatest key-lt key-lte key-gt key-gte key-compare key=]]
             [aurora.language :refer [knowledge compile]]
             [aurora.util.core :refer [now]]
-            [aurora.syntax :refer [know remember draw func change index]]
+            [aurora.syntax :refer [know remember draw func change index forget-when]]
             [aurora.runtime :refer [pre-compile re-run env] :as runtime]
             [aurora.editor.dom :as dom]
             [aurora.editor.ReactDommy :as dommy])
@@ -26,14 +26,14 @@
 
 (defn defaults [env]
   ;((aget (aget env "ctx") "remember!") "todo-to-add" #js ["hey"])
-  (know env "todo-to-add" #js ["value"] #js ["hey"])
+  (know env "todo-to-add" #js ["value"] #js [""])
   (know env "current-toggle" #js ["value"] #js ["false"])
-  (know env "todo-to-edit" #js ["value"] #js ["hi"])
+  (know env "todo-to-edit" #js ["value"] #js [""])
   (know env "filter" #js ["filter"] #js ["all"])
 
-  (remember env "todo-to-add" #js ["value"] #js ["hey"])
+  (remember env "todo-to-add" #js ["value"] #js [""])
   (remember env "current-toggle" #js ["value"] #js ["false"])
-  (remember env "todo-to-edit" #js ["value"] #js ["hi"])
+  (remember env "todo-to-edit" #js ["value"] #js [""])
   (remember env "filter" #js ["filter"] #js ["all"])
   )
 
@@ -42,12 +42,8 @@
 (rules todomvc
 
        (rule todo-input-changes
-             (when "ui/onChange" {:elem-id "todo-input" :value neue})
-             (change "todo-to-add" {:value v} {:value neue}))
-
-       (rule add-todo-clicked
-             (when "ui/onClick" {:elem-id "add-todo"})
-             (pretend "todo-added" {:x 0}))
+             (when "ui/onChange" {:elem-id "todo-input" :value 'neue})
+             (change "todo-to-add" {:value 'v} {:value 'neue}))
 
        (rule filter-active-clicked
              (when "ui/onClick" {:elem-id "filter-active"})
@@ -63,11 +59,13 @@
 
        (rule toggle-all-changed-track
              (when "ui/onChange" {:elem-id "toggle-all" :value 'value})
-             (change "current-toggle" {:value 'v} {:value 'value}))
+             (func 'final "v == \"false\" ? \"true\" : \"false\" ")
+             (change "current-toggle" {:value 'v} {:value 'final}))
 
        (rule toggle-all-changed-update
              (when "ui/onChange" {:elem-id "toggle-all" :value 'value})
-             (func 'final "value == \"true\" ? \"completed\" : \"active\" ")
+             (when "current-toggle" {:value 'v})
+             (func 'final "v == \"false\" ? \"completed\" : \"active\" ")
              (change "todo-completed"
                      {:todo-id 'todo :completed? 'complete?}
                      {:todo-id 'todo :completed? 'final}))
@@ -106,7 +104,7 @@
              (pretend "ui/child" {:parent-id 'parent-id :pos -1 :child-id 'child-id})
              (draw [:input {:id 'child-id
                             :type "checkbox"
-                            :checked active?
+                            :checked 'active?
                             :event-key "todo-checkbox"
                             :entity 'todo
                             :events ["onChange"]}]))
@@ -115,67 +113,139 @@
              (when "todo-displayed" {:todo-id 'todo})
              (when "todo" {:todo-id 'todo :text 'text})
              (when "todo-editing" {:todo-id 'todo :editing? "saved"})
+             (when "todo-completed" {:todo-id 'todo :completed? 'complete})
              (func 'removeId "\"todo-remove-\" + todo")
              (func 'todoId "\"todo-\" + todo")
+             (func 'todoLabelId "\"todolabel-\" + todo")
              (pretend "ui/child" {:parent-id "todo-list" :pos 'todo :child-id 'todoId})
              (draw [:li {:id 'todoId
+                         :className 'complete
                          :event-key "edit-todo"
                          :entity 'todo
                          :events ["onDoubleClick"]}
-                    'text
+                    [:label {:id 'todoLabelId} 'text]
                     [:button {:id 'removeId
                               :event-key "remove-todo"
                               :entity 'todo
                               :events ["onClick"]}
-                     "x"]])
+                     ]])
              )
+
+       (rule remove-todo-on-click
+             (when "ui/custom" {:event-key "remove-todo" :entity 'todo})
+             (forget-when "todo" {:todo-id 'todo :text :any})
+             (forget-when "todo-editing" {:todo-id 'todo :editing? :any})
+             (forget-when "todo-completed" {:todo-id 'todo :completed? :any}))
+
+       (rule todo-item-checkbox-change
+             (when "ui/custom" {:event-key "todo-checkbox" :entity 'todo})
+             (func 'neueComplete  "complete == \"completed\" ? \"active\" : \"completed\"")
+             (change "todo-completed" {:todo-id 'todo :completed? 'complete}
+                     {:todo-id 'todo :completed? 'neueComplete}))
 
        (rule draw-todo-item-editor
              (when "todo-displayed" {:todo-id 'todo})
              (when "todo" {:todo-id 'todo :text 'cur})
              (when "todo-editing" {:todo-id 'todo :editing? "editing"})
-             (pretend "ui/child" {:parent-id "todo-list" :pos 'todo :child-id "todo-editor"})
-             (draw [:input {:id "todo-editor"
-                            :type "text"
-                            :defaultValue 'cur
-                            :event-key "todo-editor"
-                            :entity 'todo
-                            :events ["onBlur" "onChange" "onKeyDown"]}]))
+             (when "todo-to-edit" {:value 'value})
+             (pretend "ui/child" {:parent-id "todo-list" :pos 'todo :child-id "todo-editor-wrapper"})
+             (draw [:li {:id "todo-editor-wrapper"}
+                    [:input {:id "todo-editor"
+                             :className "todo-editor"
+                             :type "text"
+                             :value 'value
+                             :placeholder "What needs to be done?"
+                             :event-key "todo-editor"
+                             :entity 'todo
+                             :events ["onBlur" "onChange" "onKeyDown"]}]]))
 
        (rule draw-todo-input
              (when "todo-to-add" {:value 'cur})
-             (pretend "ui/child" {:parent-id "app" :pos 1 :child-id "todo-input"})
+             (pretend "ui/child" {:parent-id "input-header" :pos 1 :child-id "todo-input"})
              (draw [:input {:id "todo-input"
+                            :className "new-todo"
+                            :placeholder "What needs to be done?"
                             :type "text"
-                            :defaultValue 'cur
+                            :value 'cur
                             :events ["onChange" "onKeyDown"]}]))
+
+       (rule filter-active
+             (when "filter" {:filter 'filter})
+             (func 'elem "\"filter-\" + filter")
+             (pretend "ui/attr" {:elem-id 'elem :attr "className" :value "active"})
+             )
 
        (rule draw-interface
              (when "current-toggle" {:value 'toggle})
-             (draw [:div {:id "app"}
-                    [:h1 {:id "todo-header"} "Todos"]
-                    [:input {:id "toggle-all"
-                             :event-key "toggle-all"
-                             :checked 'toggle
-                             :events ["onChange"]
-                             :type "checkbox"}]
-                    [:button {:id "add-todo" :event-key "add-todo" :events ["onClick"]} "add"]
-                    [:ul {:id "todo-list"}]
-                    [:button {:id "filter-all" :event-key "filter all" :events ["onClick"]} "all"]
-                    [:button {:id "filter-active" :event-key "filter-active" :events ["onClick"]} "active"]
-                    [:button {:id "filter-completed" :event-key "filter-completed" :events ["onClick"]} "completed"]]))
+             (draw [:div {:id "running-wrapper" :className "running-wrapper"}
+                    [:div {:id "app" :className "todoapp"}
+                     [:h1 {:id "todo-header"} "Todos"]
+                     [:header {:id "input-header"}
+                      [:input {:id "toggle-all"
+                               :className "toggle-all"
+                               :event-key "toggle-all"
+                               :checked 'toggle
+                               :events ["onChange"]
+                               :type "checkbox"}]]
+                     [:ul {:id "todo-list" :className "todo-list"}]
+                     [:div {:id "footer" :className "footer"}
+                      [:ul {:id "filters" :className "filters"}
+                       [:li {:id "filter1"} [:button {:id "filter-all" :event-key "filter-all" :events ["onClick"]} "all"]]
+                       [:li {:id "filter2"} [:button {:id "filter-active" :event-key "filter-active" :events ["onClick"]} "active"]]
+                       [:li {:id "filter3"} [:button {:id "filter-completed" :event-key "filter-completed" :events ["onClick"]} "completed"]]]]]]))
+
+       (rule enter-todo-input
+             (when "ui/onKeyDown" {:elem-id "todo-input" :key 13})
+             (pretend "todo-added" {:x 0}))
+
+       (rule double-click-to-edit
+             (when "ui/custom" {:event-key "edit-todo" :entity 'todo})
+             (when "todo" {:todo-id 'todo :text 'text})
+             (change "todo-to-edit" {:value '_} {:value 'text})
+             (change "todo-editing" {:todo-id 'todo :editing? 'v} {:todo-id 'todo :editing? "editing"}))
+
+       (rule todo-editing
+             (when "ui/onChange" {:elem-id "todo-editor" :value 'text})
+             (change "todo-to-edit" {:value '_} {:value 'text}))
+
+       (rule enter-todo-editor
+             (when "ui/onKeyDown" {:elem-id "todo-editor" :key 13})
+             (pretend "commit-todo" {:x 0}))
+
+       (rule blur-todo-editor
+             (when "ui/onBlur" {:elem-id "todo-editor"})
+             (pretend "commit-todo" {:x 0}))
+
+       (rule commit-todo
+             (when "commit-todo" {:x 0})
+             (when "todo-to-edit" {:value 'value})
+             (change "todo-editing"
+                     {:todo-id 'todo :editing? "editing"}
+                     {:todo-id 'todo :editing? "saved"})
+             (change "todo"
+                     {:todo-id 'todo :text 'text}
+                     {:todo-id 'todo :text 'value}))
 
        (rule add-todo
              (when "todo-added" {:x '_})
              (when "time" {:time 'time})
              (when "todo-to-add" {:value 'to-add})
+             (change "todo-to-add" {:value 'to-add} {:value ""})
              (remember "todo" {:todo-id 'time :text 'to-add})
              (remember "todo-editing" {:todo-id 'time :editing? "saved"})
              (remember "todo-completed" {:todo-id 'time :completed? "acitve"})))
 
 
+(defn run []
+  (let [todomvc (pre-compile todomvc)]
+    (perf-time
+     (do (defaults todomvc)
+       (fill-todos todomvc 10)
+       (re-run todomvc)))))
 
 (comment
+
+  (run)
 
   (.-kind->name->fields->index todomvc)
   (index todomvc "todo-displayed")

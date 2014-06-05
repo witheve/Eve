@@ -37,6 +37,14 @@
 (defn func [var js]
   [["when" "=function" {:variable var :js js}]])
 
+(defn forget-when [table attrs]
+  (let [params (into {} (for [[k v] attrs]
+                          (if (symbol? v)
+                            [k v]
+                            [k (symbol (name k))])))]
+    [["when" table params]
+     ["forget" table params]]))
+
 (defn name|sym [s]
   (if (symbol? s)
     s
@@ -49,8 +57,8 @@
                (js->clj args :keywordize-keys true))
         id (or (:id args) (get args "id"))
         entity (:entity args)
-        key (:event_key args)
-        real-args (dissoc args "id" :id :style :events :event_key :entity)
+        key (:event-key args)
+        real-args (dissoc args "id" :id :style :events :event-key :entity)
         ]
     (when parent
       (.push facts ["know" "ui/child" {:parent-id parent :pos pos :child-id id}]))
