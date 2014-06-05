@@ -464,7 +464,7 @@
 
 (deftype Contains [iterator vars scratch-key]
   Object
-  (reset [this solver]
+  (reset [this solver constraint]
          (.reset iterator))
   (propagate [this solver constraint]
              (let [los (.-los solver)
@@ -490,7 +490,7 @@
                          (.set-lo solver var (aget new-los i))
                          (if (identical? (aget new-los i) (aget his var))
                            (recur (+ i 1))
-                           (.set-watch solver constraint var true)))))))))
+                           (.set-watch solver var constraint true)))))))))
   (split-left [this solver constraint]
               ;; fix the value of the first non-fixed var
              (let [los (.-los solver)
@@ -503,7 +503,7 @@
                        (do
                          (.set-hi solver var (aget los var))
                          (when (< (+ i 1) (alength vars))
-                           (.set-watch solver constraint (aget vars (+ i 1)) true))
+                           (.set-watch solver (aget vars (+ i 1)) constraint true))
                          true)))
                    false))))
   (split-right [this solver constraint]
@@ -539,53 +539,64 @@
   (let [key-len (.-key-len (.-tree iterator))]
     (Contains. iterator vars (make-array key-len))))
 
-;; TODO for these constraints would be useful to be able to disable the constraints once they run succesfully
-
-(deftype Constant [c]
+(deftype Constant [c var]
   Object
-  (reset [this])
-  (split-left [this los his])
-  (split-right [this los his])
-  (propagate [this los his]
-             (aset los 0 c)
-             (aset his 0 c)))
+  (reset [this solver constraint])
+  (split-left [this solver constraint]
+              false)
+  (split-right [this solver constraint])
+  (propagate [this solver constraint]
+             (.set-eq solver var c)))
 
-(defn constant [c]
-  (Constant. c))
+(defn constant [c var]
+  (Constant. c var))
 
-(deftype Equal []
+(deftype Equal [vars]
   Object
-  (reset [this])
-  (split-left [this los his])
-  (split-right [this los his])
-  (propagate [this los his]
-             (loop [i 0]
-               (when (< i (alength los))
-                 (if (identical? (aget los i) (aget his i))
-                   (dotimes [j (alength los)]
-                     (aset los j (aget los i))
-                     (aset his j (aget his i)))
-                   (recur (+ i 1)))))))
+  (reset [this solver constraint]
+         (dotimes [i (alength vars)]
+           (.set-watch solver (aget vars i) constraint true)))
+  (split-left [this solver constraint]
+              false)
+  (split-right [this solver constraint])
+  (propagate [this solver constraint]
+             (let [los (.-los solver)
+                   his (.-his solver)]
+               (loop [i 0]
+                 (when (< i (alength vars))
+                   (let [var (aget vars i)]
+                     (if (identical? (aget los var) (aget his var))
+                       (do
+                         (dotimes [j (alength vars)]
+                           (.set-eq solver (aget vars j) (aget los var)))
+                         (aset (.-constraint->dirty? solver) constraint false))
+                       (recur (+ i 1)))))))))
 
-(defn equal []
-  (Equal.))
+(defn equal [vars]
+  (Equal. vars))
 
-(deftype Function [f]
+(deftype Function [f var vars scratch]
   Object
-  (reset [this])
-  (split-left [this los his])
-  (split-right [this los his])
-  (propagate [this los his]
-             (loop [i 0]
-               (if (< i (- (alength los) 1))
-                 (when (identical? (aget los i) (aget his i))
-                   (recur (+ i 1)))
-                 (let [val (.apply f nil los)]
-                   (aset los (- (alength los) 1) val)
-                   (aset his (- (alength his) 1) val))))))
+  (reset [this solver constraint]
+         (dotimes [i (alength vars)]
+           (.set-watch solver (aget vars i) constraint true)))
+  (split-left [this solver constraint]
+              false)
+  (split-right [this solver constraint])
+  (propagate [this solver constraint]
+             (let [los (.-los solver)
+                   his (.-his solver)]
+               (loop [i 0]
+                 (if (< i (alength vars))
+                   (let [var (aget vars i)]
+                     (when (identical? (aget los var) (aget his var))
+                       (aset scratch i (aget los var))
+                       (recur (+ i 1))))
+                   (let [val (.apply f nil scratch)]
+                     (.set-eq solver var val)))))))
 
-(defn function [f]
-  (Function. f))
+(defn function [f var vars]
+  (Function. f var vars (make-array (alength vars))))
 
 ;; SOLVER
 
@@ -611,7 +622,7 @@
          (aclear pushed-constraint->dirty?)
          (aclear pushed-splitters)
          (dotimes [constraint (alength constraints)]
-           (.reset (aget constraints constraint) constraint)))
+           (.reset (aget constraints constraint) this constraint)))
   (set-lo [this var new-lo]
           (when-not (identical? (aget los var) new-lo)
             (if (val-lt (aget his var) new-lo)
@@ -630,13 +641,13 @@
           (let [old-lo (aget los var)
                 old-hi (aget his var)]
             (when-not (and (identical? old-lo new-val) (identical? old-hi new-val))
-              (if (or (val-lt new-val old-hi) (val-lt old-hi new-val))
+              (if (or (val-lt new-val old-lo) (val-lt old-hi new-val))
                 (set! failed? true)
                 (do
                   (aset los var new-val))
                   (aset his var new-val)
                   (.set-dirty this var)))))
-  (set-watch [this constraint var value]
+  (set-watch [this var constraint value]
              (aset var->constraint->watching? (+ (* (alength constraints) var) constraint) value))
   (set-dirty [this var]
              (let [start (* (alength constraints) var)]
@@ -1095,9 +1106,10 @@
       _ (.assoc! tree2 #js ["b" "d"] 0)
       s (solver 3
                 #js [(contains (iterator tree1) #js [0 2])
-                     (contains (iterator tree2)) #js [1 2]])
+                     (contains (iterator tree2) #js [1 2])])
       ]
-  [(.next s) (.next s) (.next s) (.next s) (.next s)]
+    (.reset s)
+  (take 100 (take-while identity (repeatedly #(.next s))))
   )
 
   (let [tree1 (tree 10)
@@ -1111,14 +1123,12 @@
       _ (.assoc! tree2 #js ["d" "c"] 0)
       _ (.assoc! tree2 #js ["b" "d"] 0)
       s (solver 4
-                #js [(contains (iterator tree1))
-                     (contains (iterator tree2))
-                     (function identity)]
-                #js [#js [0 1]
-                     #js [2 3]
-                     #js [1 3]])
+                #js [(contains (iterator tree1) #js [0 1])
+                     (contains (iterator tree2) #js [2 3])
+                     (function identity 1 #js [3])])
       ]
-  [(.next s) (.next s) (.next s) (.next s) (.next s)]
+    (.reset s)
+  (take 100 (take-while identity (repeatedly #(.next s))))
   )
 
   (let [tree1 (tree 10)
@@ -1132,14 +1142,12 @@
       _ (.assoc! tree2 #js ["d" "c"] 0)
       _ (.assoc! tree2 #js ["b" "d"] 0)
       s (solver 4
-                #js [(contains (iterator tree1))
-                     (contains (iterator tree2))
-                     (equal)]
-                #js [#js [0 1]
-                     #js [2 3]
-                     #js [1 3]])
+                #js [(contains (iterator tree1) #js [0 1])
+                     (contains (iterator tree2) #js [2 3])
+                     (equal #js [1 3])])
       ]
-  [(.next s) (.next s) (.next s) (.next s) (.next s)]
+    (.reset s)
+  (take 100 (take-while identity (repeatedly #(.next s))))
   )
 
  )
