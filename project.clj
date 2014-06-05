@@ -12,16 +12,6 @@
                                                     :output-dir "resources/cljs/editor/"
                                                     :pretty-print true
                                                     :libs [""]}}
-                                        {:id "language"
-                                         :source-paths ["src/aurora/language/"
-                                                        "src/aurora/util/"]
-                                         :compiler {:optimizations :simple
-                                                    :externs []
-                                                    :source-map "resources/language.js.map"
-                                                    :output-to "resources/language.js"
-                                                    :output-dir "resources/cljs/language/"
-                                                    :pretty-print true
-                                                    :libs [""]}}
                                         {:id "runtime"
                                          :source-paths [
                                                         "src/aurora/runtime/"

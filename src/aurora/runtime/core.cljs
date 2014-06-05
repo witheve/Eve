@@ -7,8 +7,7 @@
             [aurora.util.core :refer [now]]
             [aurora.editor.dom :as dom]
             [clojure.set :as set]
-            [aurora.editor.ReactDommy :as dommy])
-  (:require-macros [aurora.language.macros :refer [query rule]]))
+            [aurora.editor.ReactDommy :as dommy]))
 
 (def watchers (atom []))
 

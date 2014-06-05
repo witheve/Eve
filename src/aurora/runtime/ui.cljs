@@ -1,8 +1,5 @@
 (ns aurora.runtime.ui
   (:require [aurora.util.core :as util]
-            [aurora.language :as language]
-            [aurora.language.representation :as representation]
-            [aurora.language.operation :as operation]
             [clojure.set :as set]
             [aurora.editor.dom :as dom]
             [aurora.runtime.stdlib :as stdlib]
