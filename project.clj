@@ -12,18 +12,6 @@
                                                     :output-dir "resources/cljs/editor/"
                                                     :pretty-print true
                                                     :libs [""]}}
-                                        {:id "runtime"
-                                         :source-paths [
-                                                        "src/aurora/runtime/"
-                                                        "src/aurora/util/"
-                                                        ]
-                                         :compiler {:optimizations :simple
-                                                    :externs []
-                                                    :source-map "resources/runtime.js.map"
-                                                    :output-to "resources/runtime.js"
-                                                    :output-dir "resources/cljs/runtime/"
-                                                    :pretty-print true
-                                                    :libs [""]}}
                                         {:id "test"
                                          :source-paths [
                                                         "src/aurora/"

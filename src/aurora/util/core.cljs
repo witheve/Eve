@@ -35,6 +35,12 @@
 (defn remove-index [v i]
   (vec (concat (subvec v 0 i) (subvec v (inc i)))))
 
+(let [next (atom 0)]
+  (defn new-id []
+    (if js/window.uuid
+      (.replace (js/uuid) (js/RegExp. "-" "gi") "_")
+      (swap! next inc))))
+
 (def key-codes {:up 38
                 :down 40
                 :left 37

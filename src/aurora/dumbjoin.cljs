@@ -1,6 +1,5 @@
 (ns aurora.dumbjoin
-  (:require [aurora.btree :refer [tree iterator]]
-            [aurora.join :refer [constant-filter]]))
+  (:require [aurora.btree :refer [tree iterator]]))
 
 (defn check-next [itrs cur-search results]
   (let [[itr map] (first itrs)
