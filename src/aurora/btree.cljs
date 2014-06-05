@@ -404,8 +404,7 @@
   Object
   (reset [this key]
          (set! node (.-root tree))
-         (set! ix 0)
-         (set! end? (> (alength (.-keys node)) 0)))
+         (set! ix 0))
   (seek-gt [this key]
            (loop []
              (if (and (instance? Node (.-parent node))
@@ -456,74 +455,89 @@
 
 ;; los and his are inclusive
 
-;; propagate updates the current lo/hi for each var and returns one of:
-;;   failed (no possible solutions)
-;;   changed (possible solutions, los/his changed)
-;;   unchanged (possible solutions, los/his unchanged)
+;; propagate updates the current lo/hi for each var and set the solver to failed
 ;; split-left either:
 ;;   breaks the solutions into two branches, sets the left branch, returns true
 ;;   has only one possible solution, does nothing, returns false
 ;; split-right:
 ;;   breaks the solutions into two branches, sets the right branch
 
-;; solver remembers ixes, handles copying los/his
-;; solver push los/his when splitting and remembers who split
-;; solver checks changed/failed, sets dirty
-
-(deftype Contains [iterator right-los failed-los]
+(deftype Contains [iterator vars scratch-key]
   Object
-  (reset [this]
+  (reset [this solver]
          (.reset iterator))
-  (propagate [this los his]
-             ;; widen los/his to just the bounds we can use here
-             (loop [i 0]
-               (when (< i (alength los))
-                 (if (identical? (aget los i) (aget his i))
-                   (recur (+ i 1))
-                   (loop [i (+ i 1)]
-                     (when (< i (alength los))
-                       (aset los i least)
-                       (aset his i greatest)
-                       (recur (+ i 1)))))))
-             ;; update los
-             (let [new-los (or (.seek-gte iterator los) failed-los)]
+  (propagate [this solver constraint]
+             (let [los (.-los solver)
+                   his (.-his solver)]
+               ;; derive a lower bound for the iterator
                (loop [i 0]
-                 (when (< i (alength los))
-                   (aset los i (aget new-los i))
-                   (if (identical? (aget new-los i) (aget his i))
-                     (recur (+ i 1)))))))
-  (split-left [this los his]
+                 (when (< i (alength vars))
+                   (let [var (aget vars i)]
+                     (aset scratch-key i (aget los var))
+                     (if (identical? (aget los var) (aget his var))
+                       (recur (+ i 1))
+                       (loop [i (+ i 1)]
+                         (when (< i (alength vars))
+                           (aset scratch-key i least)
+                           (recur (+ i 1))))))))
+               ;; find a new lower bound
+               (let [new-los (.seek-gte iterator scratch-key)]
+                 (if (nil? new-los)
+                   (set! (.-failed? solver) true)
+                   (loop [i 0]
+                     (when (< i (alength vars))
+                       (let [var (aget vars i)]
+                         (.set-lo solver var (aget new-los i))
+                         (if (identical? (aget new-los i) (aget his var))
+                           (recur (+ i 1))
+                           (.set-watch solver constraint var true)))))))))
+  (split-left [this solver constraint]
               ;; fix the value of the first non-fixed var
-              (loop [i 0]
-                (when (< i (alength los))
-                  (if (identical? (aget los i) (aget his i))
-                    (recur (+ i 1))
-                    (aset his i (aget los i))))))
-  (split-right [this los his]
-               ;; copy the los
-               (dotimes [i (alength los)]
-                 (aset right-los i (aget los i)))
-               ;; find the his for the left branch...
+             (let [los (.-los solver)
+                   his (.-his solver)]
                (loop [i 0]
-                 (when (< i (alength right-los))
-                   (if (identical? (aget right-los i) (aget his i))
-                     (recur (+ i 1))
-                     (loop [i (+ i 1)]
-                       (when (< i (alength right-los))
-                         (aset right-los i greatest)
-                         (recur (+ i 1)))))))
-               (debug :right-los right-los)
-               ;; ...and then seek past it
-               (let [new-los (or (.seek-gt iterator right-los) failed-los)]
+                 (if (< i (alength vars))
+                   (let [var (aget vars i)]
+                     (if (identical? (aget los var) (aget his var))
+                       (recur (+ i 1))
+                       (do
+                         (.set-hi solver var (aget los var))
+                         (when (< (+ i 1) (alength vars))
+                           (.set-watch solver constraint (aget vars (+ i 1)) true))
+                         true)))
+                   false))))
+  (split-right [this solver constraint]
+               (let [los (.-los solver)
+                     his (.-his solver)]
+                 ;; copy the los
+                 (dotimes [i (alength vars)]
+                   (let [var (aget vars i)]
+                     (aset scratch-key i (aget los var))))
+                 ;; find the upper bound for the left branch...
                  (loop [i 0]
-                   (when (< i (alength los))
-                     (aset los i (aget new-los i))
-                     (if (identical? (aget new-los i) (aget his i))
-                       (recur (+ i 1))))))))
+                   (when (< i (alength vars))
+                     (let [var (aget vars i)]
+                       (if (identical? (aget scratch-key i) (aget his var))
+                         (recur (+ i 1))
+                         (loop [i (+ i 1)]
+                           (when (< i (alength vars))
+                             (aset scratch-key i greatest)
+                             (recur (+ i 1))))))))
+                 ;; ...and then seek past it
+                 (let [new-los (.seek-gt iterator scratch-key)]
+                   (debug :seeking-past scratch-key new-los)
+                   (if (nil? new-los)
+                     (set! (.-failed? solver) true)
+                     (loop [i 0]
+                       (when (< i (alength vars))
+                         (let [var (aget vars i)]
+                           (aset los var (aget new-los i))
+                           (if (identical? (aget new-los i) (aget his var))
+                             (recur (+ i 1)))))))))))
 
-(defn contains [iterator]
+(defn contains [iterator vars]
   (let [key-len (.-key-len (.-tree iterator))]
-    (Contains. iterator (make-array key-len) (greatest-key key-len))))
+    (Contains. iterator vars (make-array key-len))))
 
 ;; TODO for these constraints would be useful to be able to disable the constraints once they run succesfully
 
@@ -577,102 +591,110 @@
 
 ;; los and his are inclusive
 
-;; TODO replace last-changed with dirty tracking
-(deftype Solver [constraints constraint->ixes constraint->los constraint->his ^:mutable los ^:mutable his ^:mutable depth pushed-los pushed-his pushed-splitters ^:mutable failed?]
+(deftype Solver [constraints ^:mutable failed? ^:mutable depth
+                 ^:mutable los ^:mutable his ^:mutable var->constraint->watching? ^:mutable constraint->dirty?
+                 pushed-los pushed-his pushed-var->constraint->watching? pushed-constraint->dirty? pushed-splitters]
   Object
   (reset [this]
          (dotimes [i (alength constraints)]
            (.reset (aget constraints i)))
+         (set! depth 0)
+         (set! failed? false)
          (dotimes [i (alength los)]
            (aset los i least)
            (aset his i greatest))
-         (set! depth 0)
+         (dotimes [i (alength var->constraint->watching?)]
+           (aset var->constraint->watching? i false))
+         (dotimes [i (alength constraint->dirty?)]
+           (aset constraint->dirty? i true))
          (aclear pushed-los)
          (aclear pushed-his)
-         (aclear pushed-splitters)
-         (set! failed? false))
-  (write-bounds [this current]
-                (let [current-ixes (aget constraint->ixes current)
-                      current-los (aget constraint->los current)
-                      current-his (aget constraint->his current)]
-                 (dotimes [i (alength current-ixes)]
-                   (let [ix (aget current-ixes i)]
-                     (aset current-los i (aget los ix))
-                     (aset current-his i (aget his ix))))))
-  (read-bounds [this current]
-               (let [current-ixes (aget constraint->ixes current)
-                     current-los (aget constraint->los current)
-                     current-his (aget constraint->his current)
-                     changed? false]
-                 (dotimes [i (alength current-ixes)]
-                   (let [ix (aget current-ixes i)
-                         new-lo (aget current-los i)
-                         new-hi (aget current-his i)]
-                     (when (val-lt (aget los ix) new-lo)
-                       (set!! changed? true)
-                       (aset los ix new-lo))
-                     (when (val-lt new-hi (aget his ix))
-                       (set!! changed? true)
-                       (aset his ix new-hi))
-                     ;; TODO need a better way to indicate failure
-                     (when (or (identical? greatest (aget los ix))
-                               (identical? least (aget his ix))
-                               (val-lt (aget his ix) (aget los ix)))
-                       (set! failed? true))))
-                 changed?))
+         (aclear pushed-var->constraint->watching?)
+         (aclear pushed-constraint->dirty?)
+         (aclear pushed-splitters))
+  (set-lo [this var new-lo]
+          (when-not (identical? (aget los var) new-lo)
+            (if (val-lt (aget his var) new-lo)
+              (set! failed? true)
+              (do
+                (aset los var new-lo)
+                (.set-dirty this var)))))
+  (set-hi [this var new-hi]
+          (when-not (identical? (aget his var) new-hi)
+            (if (val-lt new-hi (aget los var))
+              (set! failed? true)
+              (do
+                (aset his var new-hi)
+                (.set-dirty this var)))))
+  (set-eq [this var new-val]
+          (let [old-lo (aget los var)
+                old-hi (aget his var)]
+            (when-not (and (identical? old-lo new-val) (identical? old-hi new-val))
+              (if (or (val-lt new-val old-hi) (val-lt old-hi new-val))
+                (set! failed? true)
+                (do
+                  (aset los var new-val))
+                  (aset his var new-val)
+                  (.set-dirty this var)))))
+  (set-watch [this constraint var value]
+             (aset var->constraint->watching? (+ (* (alength constraints) var) constraint) value))
+  (set-dirty [this var]
+             (let [start (* (alength constraints) var)]
+               (dotimes [constraint (alength constraints)]
+                 (when (true? (aget var->constraint->watching? (+ start constraint)))
+                   (aset constraint->dirty? constraint true)))))
   (split [this]
          (debug :splitting-left los his)
+         (set! depth (+ depth 1))
          (apush pushed-los (aclone los))
          (apush pushed-his (aclone his))
-         (set! depth (+ depth 1))
+         (apush pushed-var->constraint->watching? (aclone var->constraint->watching?))
+         (apush pushed-constraint->dirty? (aclone constraint->dirty?))
          (loop [splitter 0]
            (if (< splitter (alength constraints))
-             (do
-               (.write-bounds this splitter)
-               (.split-left (aget constraints splitter) (aget constraint->los splitter) (aget constraint->his splitter))
-               (if (true? (.read-bounds this splitter))
-                 (do
-                   (apush pushed-splitters splitter)
-                   (debug :split-left los his splitter))
-                 (recur (+ splitter 1))))
+             (if (.split-left (aget constraints splitter) this splitter)
+               (do
+                 (apush pushed-splitters splitter)
+                 (debug :split-left los his splitter))
+               (recur (+ splitter 1)))
              (assert false "Can't split anything!"))))
   (backtrack [this]
+             (set! failed? false)
+             (set! depth (- depth 1))
              (set! los (.pop pushed-los))
              (set! his (.pop pushed-his))
-             (set! depth (- depth 1))
-             (set! failed? false)
+             (set! var->constraint->watching? (.pop pushed-var->constraint->watching?))
+             (set! constraint->dirty? (.pop pushed-constraint->dirty?))
              (let [splitter (.pop pushed-splitters)]
-               (debug :backtracked los his splitter)
-               (.write-bounds this splitter)
                (debug :splitting-right los his splitter)
-               (.split-right (aget constraints splitter) (aget constraint->los splitter) (aget constraint->his splitter))
-               (.read-bounds this splitter)
+               (.split-right (aget constraints splitter) this splitter)
                (debug :split-right los his splitter failed?)))
   (next [this]
         (debug :next los his pushed-los pushed-his)
-        (loop [current 0
-               last-changed (- (alength constraints) 1)]
-          (debug :next-loop los his current last-changed failed?)
+        (loop [constraint 0]
           (if (true? failed?)
-            (when (> depth 0)
-              (.backtrack this)
-              (recur current (- (alength constraints) 1)))
             (do
-              (.write-bounds this current)
-              (debug :propagating current (aget constraint->los current) (aget constraint->his current))
-              (.propagate (aget constraints current) (aget constraint->los current) (aget constraint->his current))
-              (debug :propagated current (aget constraint->los current) (aget constraint->his current))
-              (if (true? (.read-bounds this current))
-                (recur (mod (+ current 1) (alength constraints)) current)
-                (if (== current last-changed)
-                  (if (key= los his)
-                    (do
-                      (set! failed? true) ;; force solver to backtrack next time
-                      (aclone los))
-                    (do
-                      (.split this current)
-                      (recur 0 (- (alength constraints) 1))))
-                  (recur (mod (+ current 1) (alength constraints)) last-changed)))))))
+              (debug :failed)
+              (when (> depth 0)
+                (.backtrack this)
+                (recur 0)))
+            (if (< constraint (alength constraints))
+              (if (false? (aget constraint->dirty? constraint))
+                (recur (+ constraint 1))
+                (do
+                  (debug :propagating constraint los his)
+                  (aset constraint->dirty? constraint false)
+                  (.propagate (aget constraints constraint) this constraint)
+                  (debug :propagated constraint los his)
+                  (recur 0)))
+              (if (key= los his)
+                (do
+                  (set! failed? true) ;; force solver to backtrack next time
+                  (debug :done los)
+                  (aclone los))
+                (do
+                  (.split this)
+                  (recur 0)))))))
   (keys [this]
        (let [results #js []]
          (loop []
@@ -685,14 +707,14 @@
   (-seq [this]
         (seq (.keys this))))
 
-(defn solver [num-vars constraints constraint->ixes]
-  (let [constraint->los (amake [i (alength constraint->ixes)]
-                               (make-array (alength (aget constraint->ixes i))))
-        constraint->his (amake [i (alength constraint->ixes)]
-                               (make-array (alength (aget constraint->ixes i))))
-        los (least-key num-vars)
-        his (greatest-key num-vars)]
-    (Solver. constraints constraint->ixes constraint->los constraint->his los his 0 #js [] #js [] #js [] false)))
+(defn solver [num-vars constraints]
+  (let [los (least-key num-vars)
+        his (greatest-key num-vars)
+        var->constraint->watching? (amake [_ (* num-vars (alength constraints))] false)
+        constraint->dirty? (amake [_ (alength constraints)] true)]
+    (Solver. constraints false 0
+             los his var->constraint->watching? constraint->dirty?
+             #js [] #js [] #js [] #js [] #js [])))
 
 ;; TESTS
 
@@ -1072,10 +1094,8 @@
       _ (.assoc! tree2 #js ["d" "c"] 0)
       _ (.assoc! tree2 #js ["b" "d"] 0)
       s (solver 3
-                #js [(contains (iterator tree1))
-                     (contains (iterator tree2))]
-                #js [#js [0 2]
-                     #js [1 2]])
+                #js [(contains (iterator tree1) #js [0 2])
+                     (contains (iterator tree2)) #js [1 2]])
       ]
   [(.next s) (.next s) (.next s) (.next s) (.next s)]
   )
