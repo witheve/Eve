@@ -592,8 +592,45 @@
   (perf-time
    (do (defaults todomvc)
      (init-std-lib todomvc)
-     (fill-todos todomvc 10)
+     (fill-todos todomvc 200)
      (re-run todomvc)))
+
+  (perf-time (re-run todomvc))
+
+  (do
+    (defaults todomvc)
+    (init-std-lib todomvc)
+    (fill-todos todomvc 200)
+    (def compiled (perf-time (compile todomvc)))
+    (prep-compiled compiled)
+    (perf-time
+     (js/console.profile)
+     (dotimes [i 1000]
+       (do
+         (perf-time
+          (.quiesce compiled todomvc (fn [kn]
+                                       (let [tree (perf-time (rebuild-tree todomvc (aget (.-state todomvc) "queue!")))
+                                             container (dom/$ "body")
+                                             dommied (perf-time (dommy/node tree))
+                                             ]
+                                         (when container
+                                           (perf-time (js/React.renderComponent dommied container))
+                                           ;(perf-time (do
+                                           ;             (dom/empty container)
+                                           ;             (dom/append container tree)))
+                                           )
+                                         ;
+                                         )
+                                       )))
+         (aset (.-state todomvc) "queued" false)
+         ))
+     (js/console.profileEnd)))
+
+  (for [[_ x] (.-kind->name->fields->index todomvc)
+        [name indexes] x]
+    [name (count indexes)])
+
+  (get-in (.-kind->name->fields->index todomvc) ["know" ""])
 
 (let [program (env)]
   (rules program
