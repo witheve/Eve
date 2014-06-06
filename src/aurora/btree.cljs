@@ -504,6 +504,7 @@
                          (.set-hi solver var (aget los var))
                          (when (< (+ i 1) (alength vars))
                            (.set-watch solver (aget vars (+ i 1)) constraint true))
+                         (.propagate this solver constraint)
                          true)))
                    false))))
   (split-right [this solver constraint]
@@ -566,10 +567,8 @@
                  (when (< i (alength vars))
                    (let [var (aget vars i)]
                      (if (identical? (aget los var) (aget his var))
-                       (do
-                         (dotimes [j (alength vars)]
-                           (.set-eq solver (aget vars j) (aget los var)))
-                         (aset (.-constraint->dirty? solver) constraint false))
+                       (dotimes [j (alength vars)]
+                         (.set-eq solver (aget vars j) (aget los var)))
                        (recur (+ i 1)))))))))
 
 (defn equal [vars]
@@ -694,8 +693,8 @@
                 (recur (+ constraint 1))
                 (do
                   (debug :propagating constraint los his)
-                  (aset constraint->dirty? constraint false)
                   (.propagate (aget constraints constraint) this constraint)
+                  (aset constraint->dirty? constraint false) ;; constraint is responsible for detecting if it causes itself more work
                   (debug :propagated constraint los his)
                   (recur 0)))
               (if (key= los his)
