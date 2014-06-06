@@ -5,12 +5,13 @@
             [aurora.syntax :refer [know remember draw func change index]]
             [aurora.editor.dom :as dom]
             [aurora.editor.ReactDommy :as dommy])
-  (:require-macros [aurora.macros :refer [typeof ainto perf-time rules]]))
+  (:require-macros [aurora.macros :refer [typeof ainto perf-time perf-time-named rules]]))
 
 (defn init-std-lib [kn]
   (.get-or-create-index kn "know" "ui/onClick" #js ["elem-id"])
   (.get-or-create-index kn "know" "ui/onKeyDown" #js ["elem-id" "key"])
   (.get-or-create-index kn "know" "ui/onChange" #js ["elem-id" "value"])
+  (.get-or-create-index kn "know" "ui/onChecked" #js ["elem-id" "value"])
   (.get-or-create-index kn "know" "ui/onBlur" #js ["elem-id"])
   (.get-or-create-index kn "know" "ui/onDoubleClick" #js ["elem-id"])
   (.get-or-create-index kn "know" "ui/custom" #js ["event-key" "entity"])
@@ -79,6 +80,11 @@
 (defn array-iterator [ar]
   (ArrayIterator. ar (alength ar) 0))
 
+(defn event->params [ev event id]
+  (condp = event
+   "onChange" [#js ["elem-id" "value"] #js [id (.-target.value ev)]]
+   "onKeyDown" [#js ["elem-id" "key"] #js [id (.-keyCode ev)]]
+   [#js ["elem-id"] #js [id]]))
 
 
 (defn build-element [id tag attrs-itr styles-itr events-itr queue]
@@ -110,8 +116,9 @@
                                (println "attached handler now")
                                ;(queue (str "ui/" event) #js ["elem-id"] #js [id (js/aurora.runtime.ui.event->params2 event e)])
                                ;(queue (str "ui/custom") #js ["event-key" "entity"] #js [id event-key entity (js/aurora.runtime.ui.event->params2 event e)])
-                               (queue (str "ui/" event) #js ["elem-id"] #js [id])
-                               (queue (str "ui/custom") #js ["event-key" "entity"] #js [event-key entity])
+                               (let [[order vals] (event->params e event id)]
+                                 (queue (str "ui/" event) order vals)
+                                 (queue (str "ui/custom") #js ["event-key" "entity"] #js [event-key entity]))
                                )
               ))
       (.next events-itr))
@@ -255,17 +262,17 @@
 
 (defn re-run [program]
   (let [compiled (aget (.-state program) "compiled")]
-    (perf-time
+    (know program "time" #js ["time"] #js [(now)])
+    (perf-time-named "quiesce"
      (do
        (.quiesce compiled program (fn [kn]
-                                    (println "here")
-                                    (let [tree (perf-time (rebuild-tree program (aget (.-state program) "queue!")))
+                                    (let [tree (perf-time-named "rebuild tree" (rebuild-tree program (aget (.-state program) "queue!")))
                                           container (dom/$ "body")
-                                          dommied (identity (dommy/node tree))
+                                          dommied (dommy/node tree)
                                           ]
                                       (when container
-                                        (perf-time (js/React.renderComponent dommied container))
-;;                                         (perf-time (do
+                                        (perf-time-named "append tree" (js/React.renderComponent dommied container))
+;;                                         (perf-time-named "append tree" (do
 ;;                                                      ;(dom/empty container)
 ;;                                                      (dom/append container tree)))
                                         )

@@ -91,6 +91,13 @@
                      clause)))
             ))))
 
+(defmacro perf-time-named [name & body]
+  `(let [start# (.performance.now js/window)
+         res# (do ~@body)]
+     (println ~name " took: " (- (.performance.now js/window) start#))
+     res#
+     ))
+
 (defmacro perf-time [& body]
   `(let [start# (.performance.now js/window)
          res# (do ~@body)]
