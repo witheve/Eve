@@ -6,13 +6,23 @@
             [aurora.runtime :refer [pre-compile re-run env] :as runtime]
             [aurora.editor.dom :as dom]
             [aurora.editor.ReactDommy :as dommy])
-  (:require-macros [aurora.macros :refer [typeof ainto perf-time rules]]))
+  (:require-macros [aurora.macros :refer [typeof ainto perf-time perf-time-named rules]]))
 
 (defn fill-todos [env num]
-  (dotimes [x num]
-    (know env "todo" #js ["todo-id" "text"] #js [x (str "foo" x)])
-    (know env "todo-editing" #js ["todo-id" "editing?"] #js [x "saved"])
-    (know env "todo-completed" #js ["todo-id" "completed?"] #js [x "active"]))
+  (let [todos (array)
+        todo-editing (array)
+        todo-completed (array)]
+    (.get-or-create-index env "know" "todo" #js ["todo-id" "text"])
+    (.get-or-create-index env "know" "todo-editing" #js ["todo-id" "editing?"])
+    (.get-or-create-index env "know" "todo-completed" #js ["todo-id" "completed?"])
+    (dotimes [x num]
+      (.push todos #js [x (str "foo" x)])
+      (.push todo-editing #js [x "saved"])
+      (.push todo-completed #js [x "active"]))
+    (.add-facts env "know" "todo" #js ["todo-id" "text"] todos)
+    (.add-facts env "know" "todo-editing" #js ["todo-id" "editing?"] todo-editing)
+    (.add-facts env "know" "todo-completed" #js ["todo-id" "completed?"] todo-completed)
+    )
   )
 
 (defn defaults [env]
@@ -229,15 +239,19 @@
 
 (defn run []
   (let [todomvc (pre-compile todomvc)]
-    (perf-time
+    (perf-time-named "full run"
      (do (defaults todomvc)
-       (fill-todos todomvc 10)
+       (perf-time-named "fill" (fill-todos todomvc 200))
        (re-run todomvc)))))
-
 
 (comment
 
-  (run)
+(run)
+
+  (do
+    (js/console.profile)
+    (run)
+    (js/console.profileEnd))
 
   (.-kind->name->fields->index todomvc)
   (index todomvc "todo-displayed")

@@ -89,12 +89,15 @@
       (fact-walk-eve h facts []))
     (vec facts)))
 
+(defn know* [env key order fact]
+  (.add-facts env "know" key order fact))
+
 (defn know [env key order fact]
-  (.get-or-create-index env "know" key (to-array order))
-  (.add-facts env "know" key (to-array order) (array (to-array fact)))
+  (.get-or-create-index env "know" key order)
+  (.add-facts env "know" key order #js [fact])
   )
 
 (defn remember [env key order fact]
-  (.get-or-create-index env "remember" key (to-array order))
-  (.add-facts env "remember" key (to-array order) (array (to-array fact)))
+  (.get-or-create-index env "remember" key order)
+  (.add-facts env "remember" key order #js [fact])
   )

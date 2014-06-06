@@ -5,7 +5,7 @@
             [aurora.syntax :refer [know remember draw func change index]]
             [aurora.editor.dom :as dom]
             [aurora.editor.ReactDommy :as dommy])
-  (:require-macros [aurora.macros :refer [typeof ainto perf-time rules]]))
+  (:require-macros [aurora.macros :refer [typeof ainto perf-time perf-time-named rules]]))
 
 (defn init-std-lib [kn]
   (.get-or-create-index kn "know" "ui/onClick" #js ["elem-id"])
@@ -263,17 +263,16 @@
 (defn re-run [program]
   (let [compiled (aget (.-state program) "compiled")]
     (know program "time" #js ["time"] #js [(now)])
-    (perf-time
+    (perf-time-named "quiesce"
      (do
        (.quiesce compiled program (fn [kn]
-                                    (println "here")
-                                    (let [tree (perf-time (rebuild-tree program (aget (.-state program) "queue!")))
+                                    (let [tree (perf-time-named "rebuild tree" (rebuild-tree program (aget (.-state program) "queue!")))
                                           container (dom/$ "body")
-                                          dommied (identity (dommy/node tree))
+                                          dommied (dommy/node tree)
                                           ]
                                       (when container
-                                        (perf-time (js/React.renderComponent dommied container))
-;;                                         (perf-time (do
+                                        (perf-time-named "append tree" (js/React.renderComponent dommied container))
+;;                                         (perf-time-named "append tree" (do
 ;;                                                      ;(dom/empty container)
 ;;                                                      (dom/append container tree)))
                                         )
