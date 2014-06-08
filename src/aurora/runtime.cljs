@@ -44,6 +44,9 @@
         queue (array)]
     (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
     (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "editor rules" #js ["rule-id"])
+    (.get-or-create-index kn "know" "editor clauses" #js ["rule-id" "type" "clause-id" "madlib-id"])
+    (.get-or-create-index kn "know" "editor clause fields" #js ["clause-id" "constant|variable|expression" "key" "val"])
     (init-std-lib kn)
     (aset state "queued" false)
     (aset state "current-queue" queue)
@@ -98,7 +101,7 @@
         (.next attrs-itr)))
 
     ;;styles
-    (aset el-attrs "styles" el-styles)
+    (aset el-attrs "style" el-styles)
     (while (and (.key styles-itr)
                 (== (aget (.key styles-itr) 0) id))
       (let [cur (.key styles-itr)]
@@ -179,7 +182,7 @@
         (.next attrs-itr)))
 
     ;;styles
-    (aset el-attrs "styles" el-styles)
+    (aset el-attrs "style" el-styles)
     (while (and (.key styles-itr)
                 (== (aget (.key styles-itr) 0) id))
       (let [cur (.key styles-itr)]
@@ -256,7 +259,11 @@
 (defn pre-compile [program]
   (let [compiled (compile program)]
     (prep-compiled compiled)
-    (aset (.-state program) "compiled" compiled)
+    (.quiesce compiled program (fn [kn]
+                                 (let [final-compiled (compile kn)]
+                                   (prep-compiled final-compiled)
+                                   (aset (.-state program) "compiled" final-compiled))
+                                 ))
     program))
 
 

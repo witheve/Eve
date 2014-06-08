@@ -1,18 +1,12 @@
 (ns aurora.syntax
   (:require [aurora.util.core :refer [new-id]]))
 
-(defn add-rules [env rs]
-  (let [results #js {:clauses (array)
-                     :clause-fields (array)}]
-    (doseq [r rs]
-      (add-rule results r))
-    (.add-facts env "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] (aget results "clauses"))
-    (.add-facts env "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] (aget results "clause-fields"))
-    env))
 
-(defn add-rule [results clauses]
-  (let [rule (new-id)]
-    (doseq [cs clauses
+
+(defn add-rule* [results rule-map]
+  (let [rule (or (:name rule-map) (new-id))
+        rule (str rule)]
+    (doseq [cs (:clauses rule-map)
             [type name fact] cs]
       (let [clause (new-id)]
         (.push (aget results "clauses") #js [rule type clause name])
@@ -23,6 +17,43 @@
                     v)]
             (.push (aget results "clause-fields") #js [clause (if var? "variable" "constant") (cljs.core.name k) v])
             ))))))
+
+(defn add-rules* [env rs]
+  (let [results #js {:clauses (array)
+                     :clause-fields (array)}]
+    (doseq [r rs]
+      (add-rule* results r))
+    (.add-facts env "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] (aget results "clauses"))
+    (.add-facts env "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] (aget results "clause-fields"))
+    env))
+
+
+(defn add-rule [results rule-map]
+  (let [rule (or (:name rule-map) (new-id))
+        rule (str rule)]
+    (.push (aget results "rules") #js [(:name rule-map)])
+    (doseq [cs (:clauses rule-map)
+            [type name fact] cs]
+      (let [clause (new-id)]
+        (.push (aget results "clauses") #js [rule type clause name])
+        (doseq [[k v] fact]
+          (let [var? (symbol? v)
+                v (if var?
+                    (str v)
+                    v)]
+            (.push (aget results "clause-fields") #js [clause (if var? "variable" "constant") (cljs.core.name k) v])
+            ))))))
+
+(defn add-rules [env rs]
+  (let [results #js {:rules (array)
+                     :clauses (array)
+                     :clause-fields (array)}]
+    (doseq [r rs]
+      (add-rule results r))
+    (.add-facts env "know" "editor rules" #js ["rule-id"] (aget results "rules"))
+    (.add-facts env "know" "editor clauses" #js ["rule-id" "type" "clause-id" "madlib-id"] (aget results "clauses"))
+    (.add-facts env "know" "editor clause fields" #js ["clause-id" "constant|variable|expression" "key" "val"] (aget results "clause-fields"))
+    env))
 
 (defn index [env ix]
   (get-in (.-kind->name->fields->index env) ["know" (name ix)]))
@@ -56,6 +87,14 @@
                args
                (js->clj args :keywordize-keys true))
         id (or (:id args) (get args "id"))
+        id (if (not id)
+             (cond
+              (symbol? parent) (let [cur-id (symbol (str parent "_" pos))]
+                                 (.push facts ["when" "=function" {:variable cur-id :js (str parent " + \"-\" + " pos)}])
+                                 cur-id)
+              parent (str parent "-" pos)
+              :else (str (gensym "element")))
+             id)
         entity (:entity args)
         key (:event-key args)
         real-args (dissoc args "id" :id :style :events :event-key :entity)

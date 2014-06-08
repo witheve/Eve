@@ -74,21 +74,40 @@
 (defmacro assoc!! [name key val]
   `(set!! ~name (cljs.core/-assoc! ~name ~key ~val)))
 
+(defmacro rules* [env & rules]
+  `(aurora.syntax.add-rules*
+    ~env
+    ~(vec (for [[_ name & clauses] rules]
+            {:name name
+             :clauses
+             (vec (for [[type name r :as clause] clauses]
+                    (if (#{'when 'pretend 'remember 'forget} type)
+                      (do
+                        (assert (map? r) (str "Non-map clause: " clause))
+                        `[[~(if (= 'pretend type)
+                              "know"
+                              (str type)) ~(str name) ~(into {} (for [[k v] r]
+                                                                  [k (if (symbol? v)
+                                                                       `(quote ~v)
+                                                                       v)]))]])
+                      clause)))}
+            ))))
+
 (defmacro rules [env & rules]
   `(aurora.syntax.add-rules
     ~env
     ~(vec (for [[_ name & clauses] rules]
-            (vec (for [[type name r :as clause] clauses]
-                   (if (#{'when 'pretend 'remember 'forget} type)
-                     (do
-                       (assert (map? r) (str "Non-map clause: " clause))
-                       `[[~(if (= 'pretend type)
-                             "know"
-                             (str type)) ~(str name) ~(into {} (for [[k v] r]
-                                                                 [k (if (symbol? v)
-                                                                      `(quote ~v)
-                                                                      v)]))]])
-                     clause)))
+            {:name name
+             :clauses
+             (vec (for [[type name r :as clause] clauses]
+                    (if (#{'when 'pretend 'remember 'forget} type)
+                      (do
+                        (assert (map? r) (str "Non-map clause: " clause))
+                        `[[~(str type) ~(str name) ~(into {} (for [[k v] r]
+                                                               [k (if (symbol? v)
+                                                                    `(quote ~v)
+                                                                    v)]))]])
+                      clause)))}
             ))))
 
 (defmacro perf-time-named [name & body]
