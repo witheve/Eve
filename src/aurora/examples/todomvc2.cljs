@@ -6,7 +6,7 @@
             [aurora.runtime :refer [pre-compile re-run env] :as runtime]
             [aurora.editor.dom :as dom]
             [aurora.editor.ReactDommy :as dommy])
-  (:require-macros [aurora.macros :refer [typeof ainto perf-time perf-time-named rules]]))
+  (:require-macros [aurora.macros :refer [typeof ainto perf-time perf-time-named rules rules*]]))
 
 (defn fill-todos [env num]
   (let [todos (array)
@@ -40,7 +40,7 @@
 
 (def todomvc (env))
 
-(rules todomvc
+(rules* todomvc
 
        (rule todo-input-changes
              (when "ui/onChange" {:elem-id "todo-input" :value 'neue})
