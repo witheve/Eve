@@ -187,17 +187,19 @@
        (rule "draw draw preview elem"
              (when "ui/editor-elem" {:clause-id 'clause})
              (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'tag :key "tag"})
-             (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'id :key "elem-id"})
+             (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv2 :val 'id :key "elem-id"})
              (func 'pid "\"tag\" + id")
              (draw [:div {:id 'id :className "preview-elem"}
                     [:span {:id 'pid :className "preview-elem-tag"} 'tag]
                     ])
               )
 
+
+
        (rule "draw draw preview text"
              (when "ui/editor-text" {:clause-id 'clause})
              (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'text :key "text"})
-             (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'id :key "elem-id"})
+             (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv2 :val 'id :key "elem-id"})
              (draw [:span {:id 'id :className 'cv} 'text])
 
               )
@@ -205,8 +207,8 @@
          (rule "translate draw preview child"
              (when "ui/editor-child" {:clause-id 'clause})
              (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'pos :key "pos"})
-             (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'pid :key "parent-id"})
-             (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'cid :key "child-id"})
+             (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv2 :val 'pid :key "parent-id"})
+             (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv3 :val 'cid :key "child-id"})
              (pretend "ui/child" {:parent-id 'pid :pos 'pos :child-id 'cid})
 
               )
@@ -225,6 +227,7 @@
      (do (defaults editor)
        (re-run editor)))))
 
+(run)
 
 (comment
 
