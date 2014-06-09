@@ -4,7 +4,7 @@
             [cemerick.double-check.properties :as prop :include-macros true]
             [cemerick.pprng :as pprng]
             clojure.set)
-  (:require-macros [aurora.macros :refer [debug check apush apush* amake aclear typeof set!! dofrom perf-time]]))
+  (:require-macros [aurora.macros :refer [debug check apush apush-into apop-from amake aclear typeof set!! dofrom perf-time]]))
 
 ;; COMPARISONS
 
@@ -449,7 +449,7 @@
                         (recur)))))))))
 
 (defn iterator [tree]
-  (Iterator. tree (.-root tree) 0 (> (alength (.-keys (.-root tree))) 0)))
+  (Iterator. tree (.-root tree) 0))
 
 ;; CONSTRAINTS
 
@@ -597,12 +597,35 @@
 (defn function [f var vars]
   (Function. f var vars (make-array (alength vars))))
 
+(deftype Filter [f vars scratch]
+  Object
+  (reset [this solver constraint]
+         (dotimes [i (alength vars)]
+           (.set-watch solver (aget vars i) constraint true)))
+  (split-left [this solver constraint]
+              false)
+  (split-right [this solver constraint])
+  (propagate [this solver constraint]
+             (let [los (.-los solver)
+                   his (.-his solver)]
+               (loop [i 0]
+                 (if (< i (alength vars))
+                   (let [var (aget vars i)]
+                     (when (identical? (aget los var) (aget his var))
+                       (aset scratch i (aget los var))
+                       (recur (+ i 1))))
+                   (when (false? (.apply f nil scratch))
+                     (set! (.-failed? solver) true)))))))
+
+(defn filter [f vars]
+  (Filter. f vars (make-array (alength vars))))
+
 ;; SOLVER
 
 ;; los and his are inclusive
 
 (deftype Solver [constraints ^:mutable failed? ^:mutable depth
-                 ^:mutable los ^:mutable his ^:mutable var->constraint->watching? ^:mutable constraint->dirty?
+                 los his var->constraint->watching? constraint->dirty?
                  pushed-los pushed-his pushed-var->constraint->watching? pushed-constraint->dirty? pushed-splitters]
   Object
   (reset [this]
@@ -655,14 +678,14 @@
                    (aset constraint->dirty? constraint true)))))
   (split [this]
          (debug :splitting-left los his)
+         (apush-into depth los pushed-los)
+         (apush-into depth his pushed-his)
+         (apush-into depth var->constraint->watching? pushed-var->constraint->watching?)
+         (apush-into depth constraint->dirty? pushed-constraint->dirty?)
          (set! depth (+ depth 1))
-         (apush pushed-los (aclone los))
-         (apush pushed-his (aclone his))
-         (apush pushed-var->constraint->watching? (aclone var->constraint->watching?))
-         (apush pushed-constraint->dirty? (aclone constraint->dirty?))
          (loop [splitter 0]
            (if (< splitter (alength constraints))
-             (if (.split-left (aget constraints splitter) this splitter)
+             (if (true? (.split-left (aget constraints splitter) this splitter))
                (do
                  (apush pushed-splitters splitter)
                  (debug :split-left los his splitter))
@@ -671,10 +694,10 @@
   (backtrack [this]
              (set! failed? false)
              (set! depth (- depth 1))
-             (set! los (.pop pushed-los))
-             (set! his (.pop pushed-his))
-             (set! var->constraint->watching? (.pop pushed-var->constraint->watching?))
-             (set! constraint->dirty? (.pop pushed-constraint->dirty?))
+             (apop-from depth los pushed-los)
+             (apop-from depth his pushed-his)
+             (apop-from depth var->constraint->watching? pushed-var->constraint->watching?)
+             (apop-from depth constraint->dirty? pushed-constraint->dirty?)
              (let [splitter (.pop pushed-splitters)]
                (debug :splitting-right los his splitter)
                (.split-right (aget constraints splitter) this splitter)
@@ -1143,6 +1166,25 @@
                 #js [(contains (iterator tree1) #js [0 1])
                      (contains (iterator tree2) #js [2 3])
                      (equal #js [1 3])])
+      ]
+    (.reset s)
+  (take 100 (take-while identity (repeatedly #(.next s))))
+  )
+
+  (let [tree1 (tree 10)
+      _ (.assoc! tree1 #js ["a" "b"] 0)
+      _ (.assoc! tree1 #js ["b" "c"] 0)
+      _ (.assoc! tree1 #js ["c" "d"] 0)
+      _ (.assoc! tree1 #js ["d" "b"] 0)
+      tree2 (tree 10)
+      _ (.assoc! tree2 #js ["b" "a"] 0)
+      _ (.assoc! tree2 #js ["c" "b"] 0)
+      _ (.assoc! tree2 #js ["d" "c"] 0)
+      _ (.assoc! tree2 #js ["b" "d"] 0)
+      s (solver 4
+                #js [(contains (iterator tree1) #js [0 1])
+                     (contains (iterator tree2) #js [2 3])
+                     (filter = #js [1 3])])
       ]
     (.reset s)
   (take 100 (take-while identity (repeatedly #(.next s))))

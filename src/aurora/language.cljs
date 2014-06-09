@@ -171,7 +171,7 @@
     ;; rewrite clauses
     (doseq [[rule-id clauses] @rule-id->clauses]
       (doseq [[_ clause-type clause-id name] clauses
-              :when (not (#{"=constant" "=variable" "=function"} name))]
+              :when (not (#{"=constant" "=variable" "=function" "filter"} name))]
         (let [fields (get @clause-id->fields clause-id)
               var->key (atom {})]
           (doseq [[_ field-type key val] fields]
@@ -243,6 +243,15 @@
                                                        arg-ixes (map var->ix args)
                                                        fun (apply js/Function (conj (vec args) (str "return (" js ");")))]
                                                    (btree/function fun result-ix (into-array arg-ixes)))
+                                     "filter" (let [js (first (for [[_ field-type key val] fields
+                                                                    :when (= key "js")]
+                                                                val))
+                                                    args (for [var @vars
+                                                               :when (>= (.indexOf js var) 0)]
+                                                           var)
+                                                    arg-ixes (map var->ix args)
+                                                    fun (apply js/Function (conj (vec args) (str "return (" js ");")))]
+                                                (btree/filter fun (into-array arg-ixes)))
                                      (let [clause-vars&keys (sort-by (fn [[val key]] (var->ix val))
                                                                      (for [[_ field-type key val] fields]
                                                                        [val key]))
@@ -332,11 +341,13 @@
                                                                                              #js ["output-transitive-connected" "variable" "y" "zz"]])
 
 (.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["function-edge" "when" "get-function-edge" "connected"]
+                                                                                                    #js ["function-edge" "when" "filter-edge" "filter"]
                                                                                                     #js ["function-edge" "when" "make-str" "=function"]
                                                                                                     #js ["function-edge" "remember" "know-str" "str-edge"]])
 
 (.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-function-edge" "variable" "x" "xx"]
                                                                                              #js ["get-function-edge" "variable" "y" "yy"]
+                                                                                             #js ["filter-edge" "constant" "js" "xx == \"a\""]
                                                                                              #js ["make-str" "variable" "variable" "zz"]
                                                                                              #js ["make-str" "constant" "js" "\"edge \" + xx + \" \" + yy"]
                                                                                              #js ["know-str" "variable" "name" "zz"]])

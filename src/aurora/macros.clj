@@ -46,11 +46,19 @@
 (defmacro apush [arr val]
   `(js/Array.prototype.push.call ~arr ~val))
 
-(defmacro apush* [arr-a arr-b]
+(defmacro apush-into [depth arr-a arr-b]
   `(let [arr-a# ~arr-a
-        arr-b# ~arr-b]
-    (dotimes [i# (alength arr-b#)]
-      (apush arr-a# (aget arr-b# i#)))))
+         arr-b# ~arr-b
+         start# (* ~depth (alength arr-a#))]
+    (dotimes [i# (alength arr-a#)]
+      (aset arr-b# (+ start# i#) (aget arr-a# i#)))))
+
+(defmacro apop-from [depth arr-a arr-b]
+  `(let [arr-a# ~arr-a
+         arr-b# ~arr-b
+         start# (* ~depth (alength arr-a#))]
+     (dotimes [i# (alength arr-a#)]
+      (aset arr-a# i# (aget arr-b# (+ start# i#))))))
 
 (defmacro aclear [arr]
   (assert (symbol? arr))
