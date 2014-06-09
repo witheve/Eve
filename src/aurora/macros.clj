@@ -77,8 +77,8 @@
 (defmacro rules* [env & rules]
   `(aurora.syntax.add-rules*
     ~env
-    ~(vec (for [[_ name & clauses] rules]
-            {:name name
+    ~(vec (for [[_ rule-name & clauses] rules]
+            {:name rule-name
              :clauses
              (vec (for [[type name r :as clause] clauses]
                     (if (#{'when 'pretend 'remember 'forget} type)
@@ -90,14 +90,14 @@
                                                                   [k (if (symbol? v)
                                                                        `(quote ~v)
                                                                        v)]))]])
-                      clause)))}
+                      `((first clause) ~env ~rule-name ~@(rest clause)))))}
             ))))
 
 (defmacro rules [env & rules]
   `(aurora.syntax.add-rules
     ~env
-    ~(vec (for [[_ name & clauses] rules]
-            {:name name
+    ~(vec (for [[_ rule-name & clauses] rules]
+            {:name rule-name
              :clauses
              (vec (for [[type name r :as clause] clauses]
                     (if (#{'when 'pretend 'remember 'forget} type)
@@ -107,7 +107,7 @@
                                                                [k (if (symbol? v)
                                                                     `(quote ~v)
                                                                     v)]))]])
-                      clause)))}
+                      `(~(first clause) ~env ~rule-name ~@(rest clause)))))}
             ))))
 
 (defmacro perf-time-named [name & body]

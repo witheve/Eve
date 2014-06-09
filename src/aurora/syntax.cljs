@@ -2,6 +2,15 @@
   (:require [aurora.util.core :refer [new-id]]))
 
 
+(defn map->clause-fields [clause-fields clause map]
+  (doseq [[k v] map]
+          (let [var? (symbol? v)
+                v (if var?
+                    (str v)
+                    v)]
+            (.push clause-fields #js [clause (if var? "variable" "constant") (cljs.core.name k) v])
+            )))
+
 
 (defn add-rule* [results rule-map]
   (let [rule (or (:name rule-map) (new-id))
@@ -10,13 +19,7 @@
             [type name fact] cs]
       (let [clause (new-id)]
         (.push (aget results "clauses") #js [rule type clause name])
-        (doseq [[k v] fact]
-          (let [var? (symbol? v)
-                v (if var?
-                    (str v)
-                    v)]
-            (.push (aget results "clause-fields") #js [clause (if var? "variable" "constant") (cljs.core.name k) v])
-            ))))))
+        (map->clause-fields (aget results "clause-fields") clause fact)))))
 
 (defn add-rules* [env rs]
   (let [results #js {:clauses (array)
@@ -36,13 +39,8 @@
             [type name fact] cs]
       (let [clause (new-id)]
         (.push (aget results "clauses") #js [rule type clause name])
-        (doseq [[k v] fact]
-          (let [var? (symbol? v)
-                v (if var?
-                    (str v)
-                    v)]
-            (.push (aget results "clause-fields") #js [clause (if var? "variable" "constant") (cljs.core.name k) v])
-            ))))))
+        (map->clause-fields (aget results "clause-fields") clause fact)
+        ))))
 
 (defn add-rules [env rs]
   (let [results #js {:rules (array)
@@ -59,16 +57,16 @@
   (get-in (.-kind->name->fields->index env) ["know" (name ix)]))
 
 
-(defn change [name old neue]
+(defn change [env rule name old neue]
   [["when" name old]
    ["forget" name old]
    ["remember" name neue]
    ])
 
-(defn func [var js]
+(defn func [env rule var js]
   [["when" "=function" {:variable var :js js}]])
 
-(defn forget-when [table attrs]
+(defn forget-when [env rule table attrs]
   (let [params (into {} (for [[k v] attrs]
                           (if (symbol? v)
                             [k v]
@@ -121,7 +119,7 @@
             (.push facts ["know" "ui/child" {:parent-id id :pos i :child-id child-id}]))
           )))))
 
-(defn draw [& hic]
+(defn draw [env rule & hic]
   (let [facts (array)]
     (doseq [h hic
             :when h]

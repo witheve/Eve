@@ -47,6 +47,7 @@
     (.get-or-create-index kn "know" "editor rules" #js ["rule-id"])
     (.get-or-create-index kn "know" "editor clauses" #js ["rule-id" "type" "clause-id" "madlib-id"])
     (.get-or-create-index kn "know" "editor clause fields" #js ["clause-id" "constant|variable|expression" "key" "val"])
+    (.get-or-create-index kn "know" "change clauses" #js ["rule-id" "clause-id" "from|to" "table" "sub-clause-id"])
     (init-std-lib kn)
     (aset state "queued" false)
     (aset state "current-queue" queue)
