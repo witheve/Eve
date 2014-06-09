@@ -196,17 +196,18 @@
                 (swap! var->key assoc val key)))))))
 
     (doseq [[rule-id clauses] @rule-id->clauses]
-      (let [vars (atom #{})]
+      (let [var->when-count (atom {})]
 
         ;; collect vars
-        (doseq [[_ _ clause-id _] clauses]
+        (doseq [[_ clause-type clause-id _] clauses]
           (let [fields (get @clause-id->fields clause-id)]
             (doseq [[_ field-type key val] fields]
               (when (= field-type "variable")
-                (swap! vars conj val)))))
+                (swap! var->when-count update-in [val] #(+ (or % 0) (if (= clause-type "when") 1 0)))))))
 
-        (let [var->ix (zipmap @vars (range))
-              num-vars (count @vars)
+        (let [vars (map first (reverse (sort-by val @var->when-count)))
+              var->ix (zipmap vars (range))
+              num-vars (count vars)
 
               ;; make inputs
               constraints (for [[_ clause-type clause-id name] clauses
@@ -237,7 +238,7 @@
                                                                        :when (= key "js")]
                                                                    val))
                                                        result-ix (get var->ix variable)
-                                                       args (for [var @vars
+                                                       args (for [var vars
                                                                   :when (>= (.indexOf js var) 0)]
                                                               var)
                                                        arg-ixes (map var->ix args)
@@ -246,7 +247,7 @@
                                      "filter" (let [js (first (for [[_ field-type key val] fields
                                                                     :when (= key "js")]
                                                                 val))
-                                                    args (for [var @vars
+                                                    args (for [var vars
                                                                :when (>= (.indexOf js var) 0)]
                                                            var)
                                                     arg-ixes (map var->ix args)
