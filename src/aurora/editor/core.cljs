@@ -2,7 +2,7 @@
   (:require [aurora.btree :as btree :refer [tree iterator least greatest key-lt key-lte key-gt key-gte key-compare key=]]
             [aurora.language :refer [knowledge compile]]
             [aurora.util.core :refer [now new-id]]
-            [aurora.syntax :as syntax :refer [know remember draw func change index forget-when]]
+            [aurora.syntax :as syntax :refer [know remember draw draw* func change index forget-when]]
             [aurora.runtime :refer [pre-compile re-run env] :as runtime]
             [aurora.editor.dom :as dom]
             [aurora.editor.ReactDommy :as dommy])
@@ -171,11 +171,51 @@
              (pretend "draw madlib" {:container 'toCid :madlib-id 'table :clause-id 'toId})
               )
 
+       (rule "draw draw clauses"
+             (when "ui/editor-root" {:rule-id 'rule :clause-id 'clause :root 'root})
+             (func 'rid "\"rule-do-\" + rule")
+             (func 'cid "\"clause-\" + clause")
+             (func 'did "\"draw-preview-\" + clause")
+             (pretend "ui/child" {:parent-id 'rid :pos "draw" :child-id 'cid})
+             (pretend "ui/child" {:parent-id 'did :pos 0 :child-id 'root})
+             (draw [:div {:id 'cid :className "clause"}
+                    [:span {:className "keyword"} "draw"]
+                    [:div {:className "draw-preview" :id 'did}]
+                    ])
+              )
+
+       (rule "draw draw preview elem"
+             (when "ui/editor-elem" {:clause-id 'clause})
+             (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'tag :key "tag"})
+             (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'id :key "elem-id"})
+             (func 'pid "\"tag\" + id")
+             (draw [:div {:id 'id :className "preview-elem"}
+                    [:span {:id 'pid :className "preview-elem-tag"} 'tag]
+                    ])
+              )
+
+       (rule "draw draw preview text"
+             (when "ui/editor-text" {:clause-id 'clause})
+             (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'text :key "text"})
+             (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'id :key "elem-id"})
+             (draw [:span {:id 'id :className 'cv} 'text])
+
+              )
+
+         (rule "translate draw preview child"
+             (when "ui/editor-child" {:clause-id 'clause})
+             (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'pos :key "pos"})
+             (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'pid :key "parent-id"})
+             (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'cid :key "child-id"})
+             (pretend "ui/child" {:parent-id 'pid :pos 'pos :child-id 'cid})
+
+              )
 
        (rule "change example"
-             (when "foo" {:foo 0})
+             (when "foo" {:foo 'foo})
              (change* "bar" {:bar 'b} {:bar 3})
-             (pretend "foo" {:foo "yep"}))
+             (draw* [:p {:id "foo"} 'foo [:span {} "no wai"]])
+             )
 
        )
 
@@ -185,15 +225,20 @@
      (do (defaults editor)
        (re-run editor)))))
 
-(run)
 
 (comment
 
+(run)
+(re-run editor)
 
 (enable-console-print!)
 (run)
 (.-kind->name->fields->index editor)
-(index editor "editor clauses")
+(index editor "editor clause fields")
+
+  (for [[_ x] (.-kind->name->fields->index editor)
+        [name indexes] x]
+    [name (count indexes)])
 
 (run)
 

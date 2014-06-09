@@ -98,7 +98,7 @@
                                                                   [k (if (symbol? v)
                                                                        `(quote ~v)
                                                                        v)]))]])
-                      `((first clause) ~env ~rule-name ~@(rest clause)))))}
+                      `(~(first clause) ~env ~rule-name ~@(rest clause)))))}
             ))))
 
 (defmacro rules [env & rules]

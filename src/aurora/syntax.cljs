@@ -79,6 +79,88 @@
     s
     (name s)))
 
+(defn fact-walk-eve* [env clause rule hic facts [parent pos]]
+  (let [[el args & children] hic
+        args (if (map? args)
+               args
+               (js->clj args :keywordize-keys true))
+        id (or (:id args) (get args "id"))
+        id (if (not id)
+             (cond
+              (symbol? parent) (let [cur-id (symbol (str parent "_" pos))]
+                                 (.push (aget facts "computed-id") #js [cur-id parent pos])
+                                 cur-id)
+              parent (str parent "-" pos)
+              :else (str (gensym "element")))
+             id)
+        entity (:entity args)
+        key (:event-key args)
+        real-args (dissoc args "id" :id :style :events :event-key :entity)
+        elem-clause (new-id)
+        ]
+    (if parent
+      (let [clause (new-id)]
+        (.push (aget facts "child") #js [clause])
+        (map->clause-fields (aget facts "fields") clause {:parent-id parent :pos pos :child-id id}))
+      (.push (aget facts "root") #js [rule clause id]))
+    (.push (aget facts "elem") #js [elem-clause])
+    (map->clause-fields (aget facts "fields") elem-clause {:elem-id id :tag (name|sym el)})
+    (doseq [[k v] real-args]
+      (let [clause (new-id)]
+        (.push (aget facts "attr") #js [clause])
+        (map->clause-fields (aget facts "fields") clause {:elem-id id :attr (name|sym k) :value v})))
+    (doseq [[k v] (:style args)]
+      (let [clause (new-id)]
+        (.push (aget facts "style") #js [clause])
+        (map->clause-fields (aget facts "fields") clause {:elem-id id :attr (name|sym k) :value v})))
+    (doseq [ev (:events args)]
+      (let [clause (new-id)]
+        (.push (aget facts "event") #js [clause])
+        (map->clause-fields (aget facts "fields") clause {:elem-id id :event (name|sym ev) :event-key (or key "") :entity (or entity "")})))
+    (doseq [[i child] (map-indexed vector children)]
+      (if (vector? child)
+        (fact-walk-eve* env clause rule child facts [id i])
+        (do
+          (let [child-id (if (symbol? id)
+                           (gensym (str id))
+                           (str id "-" i))]
+            (when (symbol? id)
+              (.push (aget facts "computed-id") #js [child-id id i]))
+            (let [clause (new-id)]
+              (.push (aget facts "text") #js [clause])
+              (map->clause-fields (aget facts "fields") clause {:elem-id child-id :text child}))
+            (let [clause (new-id)]
+              (.push (aget facts "child") #js [clause])
+              (map->clause-fields (aget facts "fields") clause {:parent-id id :pos i :child-id child-id}))
+            )
+          )))))
+
+(defn draw* [env rule & hic]
+  (let [clause (new-id)
+        facts #js {:child (array)
+                   :root (array)
+                   :text (array)
+                   :elem (array)
+                   :style (array)
+                   :attr (array)
+                   :event (array)
+                   :fields (array)
+                   :computed-id (array)}]
+    (doseq [h hic
+            :when h]
+      (fact-walk-eve* env clause rule h facts []))
+    (.add-facts env "know" "ui/editor-root" #js ["rule-id" "clause-id" "root"] (aget facts "root"))
+    (.add-facts env "know" "ui/editor-elem" #js ["clause-id"] (aget facts "elem"))
+    (.add-facts env "know" "ui/editor-child" #js ["clause-id"] (aget facts "child"))
+    (.add-facts env "know" "ui/editor-attr" #js ["clause-id"] (aget facts "attr"))
+    (.add-facts env "know" "ui/editor-text" #js ["clause-id"] (aget facts "text"))
+    (.add-facts env "know" "ui/editor-style" #js ["clause-id"] (aget facts "style"))
+    (.add-facts env "know" "ui/editor-event-listener" #js ["clause-id"] (aget facts "event"))
+    (.add-facts env "know" "ui/editor-computed-id" #js ["id" "parent" "pos"] (aget facts "computed-id"))
+    (.add-facts env "know" "editor clause fields" #js ["clause-id" "constant|variable|expression" "key" "val"] (aget facts "fields"))
+    []
+    ))
+
 (defn fact-walk-eve [hic facts [parent pos]]
   (let [[el args & children] hic
         args (if (map? args)
