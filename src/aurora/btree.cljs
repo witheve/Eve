@@ -597,6 +597,29 @@
 (defn function [f var vars]
   (Function. f var vars (make-array (alength vars))))
 
+(deftype Filter [f vars scratch]
+  Object
+  (reset [this solver constraint]
+         (dotimes [i (alength vars)]
+           (.set-watch solver (aget vars i) constraint true)))
+  (split-left [this solver constraint]
+              false)
+  (split-right [this solver constraint])
+  (propagate [this solver constraint]
+             (let [los (.-los solver)
+                   his (.-his solver)]
+               (loop [i 0]
+                 (if (< i (alength vars))
+                   (let [var (aget vars i)]
+                     (when (identical? (aget los var) (aget his var))
+                       (aset scratch i (aget los var))
+                       (recur (+ i 1))))
+                   (when (false? (.apply f nil scratch))
+                     (set! (.-failed? solver) true)))))))
+
+(defn filter [f vars]
+  (Filter. f vars (make-array (alength vars))))
+
 ;; SOLVER
 
 ;; los and his are inclusive
@@ -1143,6 +1166,25 @@
                 #js [(contains (iterator tree1) #js [0 1])
                      (contains (iterator tree2) #js [2 3])
                      (equal #js [1 3])])
+      ]
+    (.reset s)
+  (take 100 (take-while identity (repeatedly #(.next s))))
+  )
+
+  (let [tree1 (tree 10)
+      _ (.assoc! tree1 #js ["a" "b"] 0)
+      _ (.assoc! tree1 #js ["b" "c"] 0)
+      _ (.assoc! tree1 #js ["c" "d"] 0)
+      _ (.assoc! tree1 #js ["d" "b"] 0)
+      tree2 (tree 10)
+      _ (.assoc! tree2 #js ["b" "a"] 0)
+      _ (.assoc! tree2 #js ["c" "b"] 0)
+      _ (.assoc! tree2 #js ["d" "c"] 0)
+      _ (.assoc! tree2 #js ["b" "d"] 0)
+      s (solver 4
+                #js [(contains (iterator tree1) #js [0 1])
+                     (contains (iterator tree2) #js [2 3])
+                     (filter = #js [1 3])])
       ]
     (.reset s)
   (take 100 (take-while identity (repeatedly #(.next s))))
