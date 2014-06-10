@@ -39,7 +39,7 @@
 (deftype Knowledge [^:mutable kind->name->fields->index ^:mutable state]
   Object
   (get-or-create-index [this kind name fields]
-                       (assert (or (= kind "know") (= kind "remember") (= kind "forget")) (pr-str kind))
+                       (assert (or (identical? kind "know") (identical? kind "remember") (identical? kind "forget")) (pr-str kind))
                        (or (get-in kind->name->fields->index [kind name (vec fields)])
                            (let [index (btree/tree 10 (alength fields))]
                              (when-let [[other-fields other-index] (first (get-in kind->name->fields->index [kind name]))]
@@ -47,12 +47,12 @@
                              (set! kind->name->fields->index (assoc-in kind->name->fields->index [kind name (vec fields)] index))
                              index)))
   (ensure-index [this kind name default-fields]
-                (assert (or (= kind "know") (= kind "remember") (= kind "forget")) (pr-str kind))
+                (assert (or (identical? kind "know") (identical? kind "remember") (identical? kind "forget")) (pr-str kind))
                 (if-let [fields->index (get-in kind->name->fields->index [kind name])]
                   (assert (= (set default-fields) (set (first (keys fields->index)))))
                   (.get-or-create-index this kind name default-fields)))
   (add-facts [this kind name fields facts]
-             (assert (or (= kind "know") (= kind "remember") (= kind "forget")) (pr-str kind))
+             (assert (or (identical? kind "know") (identical? kind "remember") (identical? kind "forget")) (pr-str kind))
              (let [changed? false
                    indexes (get-in kind->name->fields->index [kind name])]
                (assert (seq indexes) (pr-str kind name))
@@ -61,7 +61,7 @@
                    (set!! changed? true)))
                changed?))
   (del-facts [this kind name fields facts]
-             (assert (or (= kind "know") (= kind "remember") (= kind "forget")) (pr-str kind))
+             (assert (or (identical? kind "know") (identical? kind "remember") (identical? kind "forget")) (pr-str kind))
              (let [changed? false
                    indexes (get-in kind->name->fields->index [kind name])]
                (assert (seq indexes) (pr-str kind name))
