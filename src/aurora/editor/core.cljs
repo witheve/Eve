@@ -48,6 +48,10 @@
                    "bar" ["bar" :bar]
 
                    })
+
+
+    (.get-or-create-index env "know" "editing" #js ["id"])
+    (.add-facts env "know" "editing" #js ["id"] (array (array "")))
   )
 
 
@@ -139,7 +143,7 @@
              (func 'rid "\"rule-\" + rule")
              (func 'rwid "\"rule-when-\" + rule")
              (func 'rdid "\"rule-do-\" + rule")
-             (draw* [:table {:id 'rid :className "rule"}
+             (draw*[:table {:id 'rid :className "rule"}
                     [:tbody {}
                      [:tr {}
                       [:td {:id 'rwid :className "whens"}]
@@ -166,15 +170,33 @@
               (when "madlib strings" {:madlib-id name :pos pos :value value})
               (func 'childId "container + \"-pc-\" + pos")
               (pretend "ui/child" {:parent-id 'container :pos pos :child-id childId})
-              (draw* [:span {:id 'childId :style {:color "#444" :margin "3px"}} 'value]))
+              (draw* [:span {:id 'childId :style {:color "#444"}} 'value]))
 
        (rule "draw clause madlib placholders"
              (when "draw madlib" {:container 'container :madlib-id 'name :clause-id 'clause})
              (when "madlib placeholders" {:madlib-id name :pos pos :field field})
              (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'val :key field})
+             (when "editing" {:id 'editing})
+             (func 'context "clause + \"_\" + field")
+             (when "filter" {:js "context != editing"})
              (func 'childId "container + \"-pc-\" + pos")
              (pretend "ui/child" {:parent-id 'container :pos pos :child-id childId})
-             (draw* [:span {:id 'childId :className 'cv} 'val]))
+             (draw* [:span {:id 'childId :className 'cv :events ["onClick"] :event-key "madlib placeholder click" :entity 'context} 'val]))
+
+       (rule "draw clause madlib editing placeholder"
+             (when "draw madlib" {:container 'container :madlib-id 'name :clause-id 'clause})
+             (when "madlib placeholders" {:madlib-id name :pos pos :field field})
+             (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'val :key field})
+             (func 'context "clause + \"_\" + field")
+             (when "editing" {:id 'context})
+             (func 'childId "container + \"-pc-\" + pos")
+             (pretend "ui/child" {:parent-id 'container :pos pos :child-id childId})
+             (draw* [:input {:id 'childId :className 'cv :events ["onKeyDown"] :event-key "madlib placeholder editor" :entity 'context :defaultValue 'val}]))
+
+       (rule "madlib placeholder clicked"
+             (when "ui/custom" {:event-key "madlib placeholder click" :entity 'ctx})
+             (change "editing" {:id 'old} {:id 'ctx})
+             )
 
        (rule "draw change clauses"
              (when "change clauses" {:rule-id 'rule :clause-id 'clause :from|to "from" :table 'table :sub-clause-id 'fromId})
@@ -263,7 +285,7 @@
 (enable-console-print!)
 (run)
 (.-kind->name->fields->index editor)
-(index editor "editor clause fields")
+(index editor "editing")
 
   (for [[_ x] (.-kind->name->fields->index editor)
         [name indexes] x]

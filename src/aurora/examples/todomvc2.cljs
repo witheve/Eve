@@ -30,12 +30,12 @@
   (know env "todo-to-add" #js ["value"] #js [""])
   (know env "current-toggle" #js ["value"] #js ["false"])
   (know env "todo-to-edit" #js ["value"] #js [""])
-  (know env "filter" #js ["filter"] #js ["all"])
+  (know env "todo-filter" #js ["filter"] #js ["all"])
 
   (remember env "todo-to-add" #js ["value"] #js [""])
   (remember env "current-toggle" #js ["value"] #js ["false"])
   (remember env "todo-to-edit" #js ["value"] #js [""])
-  (remember env "filter" #js ["filter"] #js ["all"])
+  (remember env "todo-filter" #js ["filter"] #js ["all"])
   )
 
 (def todomvc (env))
@@ -48,15 +48,15 @@
 
        (rule filter-active-clicked
              (when "ui/onClick" {:elem-id "filter-active"})
-             (change "filter" {:filter 'v} {:filter "active"}))
+             (change "todo-filter" {:filter 'v} {:filter "active"}))
 
        (rule filter-completed-clicked
              (when "ui/onClick" {:elem-id "filter-completed"})
-             (change "filter" {:filter 'v} {:filter "completed"}))
+             (change "todo-filter" {:filter 'v} {:filter "completed"}))
 
        (rule filter-all-clicked
              (when "ui/onClick" {:elem-id "filter-all"})
-             (change "filter" {:filter 'v} {:filter "all"}))
+             (change "todo-filter" {:filter 'v} {:filter "all"}))
 
        (rule toggle-all-changed-track
              (when "ui/onChange" {:elem-id "toggle-all" :value 'value})
@@ -87,23 +87,23 @@
 
        (rule filter-all-display
              (when "todo" {:todo-id 'todo :text 'text})
-             (when "filter" {:filter "all"})
+             (when "todo-filter" {:filter "all"})
              (pretend "todo-displayed" {:todo-id 'todo}))
 
        (rule filter-display
              (when "todo" {:todo-id 'todo :text 'text})
              (when "todo-completed" {:todo-id 'todo :completed? 'complete?})
-             (when "filter" {:filter 'complete?})
+             (when "todo-filter" {:filter 'complete?})
              (pretend "todo-displayed" {:todo-id 'todo}))
 
        (rule draw-checkbox
              (when "todo-displayed" {:todo-id 'todo})
              (when "todo-completed" {:todo-id 'todo :completed? 'complete})
              (func 'active?  "complete == \"completed\" ? \"checked\" : \"\"")
-             (func 'child-id "\"todo-checkbox-\" + todo")
-             (func 'parent-id "\"todo-\" + todo")
-             (pretend "ui/child" {:parent-id 'parent-id :pos -1 :child-id 'child-id})
-             (draw [:input {:id 'child-id
+             (func 'childId "\"todo-checkbox-\" + todo")
+             (func 'parentId "\"todo-\" + todo")
+             (pretend "ui/child" {:parent-id 'parentId :pos -1 :child-id 'childId})
+             (draw [:input {:id 'childId
                             :type "checkbox"
                             :checked 'active?
                             :event-key "todo-checkbox"
@@ -171,7 +171,7 @@
                             :events ["onChange" "onKeyDown"]}]))
 
        (rule filter-active
-             (when "filter" {:filter 'filter})
+             (when "todo-filter" {:filter 'filter})
              (func 'elem "\"filter-\" + filter")
              (pretend "ui/attr" {:elem-id 'elem :attr "className" :value "active"})
              )
@@ -243,6 +243,11 @@
      (do (defaults todomvc)
        (perf-time-named "fill" (fill-todos todomvc 200))
        (re-run todomvc)))))
+
+(enable-console-print!)
+
+(run)
+
 
 (comment
 

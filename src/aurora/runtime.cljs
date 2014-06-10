@@ -178,6 +178,7 @@
 
     final))
 
+(def mappings {"className" "class"})
 
 (defn build-element-dom [id tag attrs-itr styles-itr events-itr queue]
   (let [elem (js/document.createElement tag)
@@ -186,8 +187,9 @@
     ;;attrs
     (while (and (.key attrs-itr)
                 (== (aget (.key attrs-itr) 0) id))
-      (let [cur (.key attrs-itr)]
-        (dom/attr* elem (aget cur 1) (handle-attr (aget cur 2)))
+      (let [cur (.key attrs-itr)
+            key (aget cur 1)]
+        (dom/attr* elem (or (mappings key) key) (handle-attr (aget cur 2)))
         (.next attrs-itr)))
 
     ;;styles
