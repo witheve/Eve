@@ -177,7 +177,7 @@
              (when "madlib placeholders" {:madlib-id name :pos pos :field field})
              (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'val :key field})
              (when "editing" {:id 'editing})
-             (func 'context "clause + \"_\" + field")
+             (func 'context "clause + \"|\" + field")
              (when "filter" {:js "context != editing"})
              (func 'childId "container + \"-pc-\" + pos")
              (pretend "ui/child" {:parent-id 'container :pos pos :child-id childId})
@@ -187,11 +187,27 @@
              (when "draw madlib" {:container 'container :madlib-id 'name :clause-id 'clause})
              (when "madlib placeholders" {:madlib-id name :pos pos :field field})
              (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'val :key field})
-             (func 'context "clause + \"_\" + field")
+             (func 'context "clause + \"|\" + field")
              (when "editing" {:id 'context})
              (func 'childId "container + \"-pc-\" + pos")
              (pretend "ui/child" {:parent-id 'container :pos pos :child-id childId})
-             (draw* [:input {:id 'childId :className 'cv :events ["onKeyDown"] :event-key "madlib placeholder editor" :entity 'context :defaultValue 'val}]))
+             (draw* [:input {:id 'childId :className 'cv :events ["onKeyDown" "onChange"] :event-key "madlib placeholder editor" :entity 'context :defaultValue 'val}]))
+
+       (rule "madlib placeholder editor change"
+             (when "ui/onChange" {:elem-id 'a :value 'v})
+             (when "ui/custom" {:event-key "madlib placeholder editor" :entity 'ctx})
+             (func 'clause "ctx.split('|')[0]")
+             (func 'field "ctx.split('|')[1]")
+             (change "editor clause fields"
+                     {:clause-id 'clause :constant|variable|expression 'cv :val 'val :key 'field}
+                     {:clause-id 'clause :constant|variable|expression 'cv :val 'v :key 'field})
+             )
+
+       (rule "madlib placeholder editor submit"
+             (when "ui/onKeyDown" {:elem-id 'a :key 13})
+             (when "ui/custom" {:event-key "madlib placeholder editor" :entity 'ctx})
+             (change "editing" {:id 'editing} {:id ""})
+             )
 
        (rule "madlib placeholder clicked"
              (when "ui/custom" {:event-key "madlib placeholder click" :entity 'ctx})
