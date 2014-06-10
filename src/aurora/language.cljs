@@ -209,8 +209,17 @@
               var->ix (zipmap vars (range))
               num-vars (count vars)
 
+              clause->min-var (atom {})
+
+              _ (doseq [[_ clause-type clause-id name] clauses
+                        [_ field-type key val] (get @clause-id->fields clause-id)
+                        :when (= field-type "variable")]
+                  (swap! clause->min-var update-in [clause-id] #(min (or % js/Infinity) (var->ix val))))
+
+              sorted-clauses (sort-by (fn [[_ clause-type clause-id name]] (or (@clause->min-var clause-id) js/Infinity)) clauses)
+
               ;; make inputs
-              constraints (for [[_ clause-type clause-id name] clauses
+              constraints (for [[_ clause-type clause-id name] sorted-clauses
                                      :when (= clause-type "when")]
                                  (let [fields (get @clause-id->fields clause-id)]
                                    (case name
