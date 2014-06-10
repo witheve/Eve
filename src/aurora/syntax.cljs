@@ -88,7 +88,7 @@
         id (if (not id)
              (cond
               (symbol? parent) (let [cur-id (symbol (str parent "_" pos))]
-                                 (.push (aget facts "computed-id") #js [cur-id parent pos])
+                                 (.push (aget facts "computed-id") #js [rule (str cur-id) (str parent) pos])
                                  cur-id)
               parent (str parent "-" pos)
               :else (str (gensym "element")))
@@ -100,22 +100,22 @@
         ]
     (if parent
       (let [clause (new-id)]
-        (.push (aget facts "child") #js [clause])
+        (.push (aget facts "child") #js [rule clause])
         (map->clause-fields (aget facts "fields") clause {:parent-id parent :pos pos :child-id id}))
       (.push (aget facts "root") #js [rule clause id]))
-    (.push (aget facts "elem") #js [elem-clause])
+    (.push (aget facts "elem") #js [rule elem-clause])
     (map->clause-fields (aget facts "fields") elem-clause {:elem-id id :tag (name|sym el)})
     (doseq [[k v] real-args]
       (let [clause (new-id)]
-        (.push (aget facts "attr") #js [clause])
+        (.push (aget facts "attr") #js [rule clause])
         (map->clause-fields (aget facts "fields") clause {:elem-id id :attr (name|sym k) :value v})))
     (doseq [[k v] (:style args)]
       (let [clause (new-id)]
-        (.push (aget facts "style") #js [clause])
+        (.push (aget facts "style") #js [rule clause])
         (map->clause-fields (aget facts "fields") clause {:elem-id id :attr (name|sym k) :value v})))
     (doseq [ev (:events args)]
       (let [clause (new-id)]
-        (.push (aget facts "event") #js [clause])
+        (.push (aget facts "event") #js [rule clause])
         (map->clause-fields (aget facts "fields") clause {:elem-id id :event (name|sym ev) :event-key (or key "") :entity (or entity "")})))
     (doseq [[i child] (map-indexed vector children)]
       (if (vector? child)
@@ -125,12 +125,12 @@
                            (gensym (str id))
                            (str id "-" i))]
             (when (symbol? id)
-              (.push (aget facts "computed-id") #js [child-id id i]))
+              (.push (aget facts "computed-id") #js [rule (str child-id) (str id) i]))
             (let [clause (new-id)]
-              (.push (aget facts "text") #js [clause])
+              (.push (aget facts "text") #js [rule clause])
               (map->clause-fields (aget facts "fields") clause {:elem-id child-id :text child}))
             (let [clause (new-id)]
-              (.push (aget facts "child") #js [clause])
+              (.push (aget facts "child") #js [rule clause])
               (map->clause-fields (aget facts "fields") clause {:parent-id id :pos i :child-id child-id}))
             )
           )))))
@@ -150,16 +150,30 @@
             :when h]
       (fact-walk-eve* env clause rule h facts []))
     (.add-facts env "know" "ui/editor-root" #js ["rule-id" "clause-id" "root"] (aget facts "root"))
-    (.add-facts env "know" "ui/editor-elem" #js ["clause-id"] (aget facts "elem"))
-    (.add-facts env "know" "ui/editor-child" #js ["clause-id"] (aget facts "child"))
-    (.add-facts env "know" "ui/editor-attr" #js ["clause-id"] (aget facts "attr"))
-    (.add-facts env "know" "ui/editor-text" #js ["clause-id"] (aget facts "text"))
-    (.add-facts env "know" "ui/editor-style" #js ["clause-id"] (aget facts "style"))
-    (.add-facts env "know" "ui/editor-event-listener" #js ["clause-id"] (aget facts "event"))
-    (.add-facts env "know" "ui/editor-computed-id" #js ["id" "parent" "pos"] (aget facts "computed-id"))
+    (.add-facts env "know" "ui/editor-elem" #js ["rule-id" "clause-id"] (aget facts "elem"))
+    (.add-facts env "know" "ui/editor-child" #js ["rule-id" "clause-id"] (aget facts "child"))
+    (.add-facts env "know" "ui/editor-attr" #js ["rule-id" "clause-id"] (aget facts "attr"))
+    (.add-facts env "know" "ui/editor-text" #js ["rule-id" "clause-id"] (aget facts "text"))
+    (.add-facts env "know" "ui/editor-style" #js ["rule-id" "clause-id"] (aget facts "style"))
+    (.add-facts env "know" "ui/editor-event-listener" #js ["rule-id" "clause-id"] (aget facts "event"))
+    (.add-facts env "know" "ui/editor-computed-id" #js [ "rule-id" "id" "parent" "pos"] (aget facts "computed-id"))
     (.add-facts env "know" "editor clause fields" #js ["clause-id" "constant|variable|expression" "key" "val"] (aget facts "fields"))
     []
     ))
+
+(defn change* [env rule table old neue]
+  (let [fields (array)
+        clause (new-id)
+        from-id (new-id)
+        to-id (new-id)
+        ]
+    (map->clause-fields fields id old)
+    (map->clause-fields fields from-id old)
+    (map->clause-fields fields to-id neue)
+    (.add-facts env "know" "change clauses" #js ["rule-id" "clause-id" "from|to" "table" "sub-clause-id"] #js [#js [rule clause "from" table from-id]
+                                                                                                       #js [rule clause "to" table to-id]])
+    (.add-facts env "know" "editor clause fields" #js ["clause-id" "constant|variable|expression" "key" "val"] fields)
+    []))
 
 (defn fact-walk-eve [hic facts [parent pos]]
   (let [[el args & children] hic

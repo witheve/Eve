@@ -2,7 +2,7 @@
   (:require [aurora.btree :as btree :refer [tree iterator least greatest key-lt key-lte key-gt key-gte key-compare key=]]
             [aurora.language :refer [knowledge compile]]
             [aurora.util.core :refer [now new-id]]
-            [aurora.syntax :as syntax :refer [know remember draw draw* func change index forget-when]]
+            [aurora.syntax :as syntax :refer [know remember draw draw* change* func change index forget-when]]
             [aurora.runtime :refer [pre-compile re-run env] :as runtime]
             [aurora.editor.dom :as dom]
             [aurora.editor.ReactDommy :as dommy])
@@ -50,20 +50,7 @@
                    })
   )
 
-(defn change* [env rule table old neue]
-  (println env rule table)
-  (let [fields (array)
-        clause (new-id)
-        from-id (new-id)
-        to-id (new-id)
-        ]
-    (syntax/map->clause-fields fields id old)
-    (syntax/map->clause-fields fields from-id old)
-    (syntax/map->clause-fields fields to-id neue)
-    (.add-facts env "know" "change clauses" #js ["rule-id" "clause-id" "from|to" "table" "sub-clause-id"] #js [#js [rule clause "from" table from-id]
-                                                                                                       #js [rule clause "to" table to-id]])
-    (.add-facts env "know" "editor clause fields" #js ["clause-id" "constant|variable|expression" "key" "val"] fields)
-    []))
+
 
 (def editor (env))
 
@@ -108,6 +95,40 @@
               (pretend "clauses" {:rule-id 'rule :when|know|remember|forget "remember" :clause-id 'to-id :name 'table})
               )
 
+        (rule "translate ui/editor-elem"
+             (when "ui/editor-elem" {:rule-id 'rule :clause-id 'clause})
+             (pretend "clauses" {:rule-id rule :when|know|remember|forget "know" :clause-id clause :name "ui/elem"}))
+
+        (rule "translate ui/editor-child"
+             (when "ui/editor-child" {:rule-id 'rule :clause-id 'clause})
+             (pretend "clauses" {:rule-id 'rule :when|know|remember|forget "know" :clause-id 'clause :name "ui/child"}))
+
+        (rule "translate ui/editor-text"
+             (when "ui/editor-text" {:rule-id 'rule :clause-id 'clause})
+             (pretend "clauses" {:rule-id rule :when|know|remember|forget "know" :clause-id clause :name "ui/text"}))
+
+        (rule "translate ui/editor-attr"
+             (when "ui/editor-attr" {:rule-id 'rule :clause-id 'clause})
+             (pretend "clauses" {:rule-id rule :when|know|remember|forget "know" :clause-id clause :name "ui/attr"}))
+
+        (rule "translate ui/editor-style"
+             (when "ui/editor-style" {:rule-id 'rule :clause-id 'clause})
+             (pretend "clauses" {:rule-id rule :when|know|remember|forget "know" :clause-id clause :name "ui/style"}))
+
+        (rule "translate ui/editor-event-listener"
+             (when "ui/editor-event-listener" {:rule-id 'rule :clause-id 'clause})
+             (pretend "clauses" {:rule-id rule :when|know|remember|forget "know" :clause-id clause :name "ui/event-listener"}))
+
+
+        (rule "translate ui/editor-computed-id"
+              (when "ui/editor-computed-id" {:rule-id 'rule :id 'id :parent 'parent :pos 'pos})
+              (func 'neue "parent + \" + \\\"-\\\" + \" + pos")
+              (func 'clause "aurora.util.core.new_id()")
+              (pretend "clauses" {:rule-id 'rule :when|know|remember|forget "when" :clause-id 'clause :name "=function"})
+              (pretend "clause-fields" {:clause-id 'clause :constant|variable "variable" :val 'id :key "variable"})
+              (pretend "clause-fields" {:clause-id 'clause :constant|variable "constant" :val 'neue :key "js"})
+              )
+
         )
 
 
@@ -118,7 +139,7 @@
              (func 'rid "\"rule-\" + rule")
              (func 'rwid "\"rule-when-\" + rule")
              (func 'rdid "\"rule-do-\" + rule")
-             (draw [:table {:id 'rid :className "rule"}
+             (draw* [:table {:id 'rid :className "rule"}
                     [:tbody {}
                      [:tr {}
                       [:td {:id 'rwid :className "whens"}]
@@ -131,7 +152,7 @@
              (func 'cid "\"clause-\" + clause")
              (func 'rid "(type == \"when\" ? \"rule-when-\" : \"rule-do-\") + rule")
              (pretend "ui/child" {:parent-id rid :pos 'name :child-id cid})
-             (draw [:div {:id 'cid :className "clause"}
+             (draw* [:div {:id 'cid :className "clause"}
                     [:span {:className "keyword"} 'type " "]
                     ]))
 
@@ -145,7 +166,7 @@
               (when "madlib strings" {:madlib-id name :pos pos :value value})
               (func 'childId "container + \"-pc-\" + pos")
               (pretend "ui/child" {:parent-id 'container :pos pos :child-id childId})
-              (draw [:span {:id 'childId :style {:color "#444" :margin "3px"}} 'value]))
+              (draw* [:span {:id 'childId :style {:color "#444" :margin "3px"}} 'value]))
 
        (rule "draw clause madlib placholders"
              (when "draw madlib" {:container 'container :madlib-id 'name :clause-id 'clause})
@@ -153,7 +174,7 @@
              (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'val :key field})
              (func 'childId "container + \"-pc-\" + pos")
              (pretend "ui/child" {:parent-id 'container :pos pos :child-id childId})
-             (draw [:span {:id 'childId :className 'cv :style {:margin "3px"}} 'val]))
+             (draw* [:span {:id 'childId :className 'cv} 'val]))
 
        (rule "draw change clauses"
              (when "change clauses" {:rule-id 'rule :clause-id 'clause :from|to "from" :table 'table :sub-clause-id 'fromId})
@@ -163,7 +184,7 @@
              (func 'toCid "\"clause-\" + toId")
              (func 'rid "\"rule-do-\" + rule")
              (pretend "ui/child" {:parent-id 'rid :pos 'table :child-id 'cid})
-             (draw [:div {:id 'cid :className "clause"}
+             (draw* [:div {:id 'cid :className "clause"}
                     [:p {:id 'fromCid } [:span {:className "keyword"} "change " ]]
                     [:p {:id 'toCid} [:span {:className "keyword to"} "to "]]
                     ])
@@ -176,20 +197,22 @@
              (func 'rid "\"rule-do-\" + rule")
              (func 'cid "\"clause-\" + clause")
              (func 'did "\"draw-preview-\" + clause")
+             (func 'elemId "\"preview-\" + rule + root")
              (pretend "ui/child" {:parent-id 'rid :pos "draw" :child-id 'cid})
-             (pretend "ui/child" {:parent-id 'did :pos 0 :child-id 'root})
-             (draw [:div {:id 'cid :className "clause"}
+             (pretend "ui/child" {:parent-id 'did :pos 0 :child-id 'elemId})
+             (draw* [:div {:id 'cid :className "clause"}
                     [:span {:className "keyword"} "draw"]
                     [:div {:className "draw-preview" :id 'did}]
                     ])
               )
 
        (rule "draw draw preview elem"
-             (when "ui/editor-elem" {:clause-id 'clause})
+             (when "ui/editor-elem" {:rule-id 'rule :clause-id 'clause})
              (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'tag :key "tag"})
              (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv2 :val 'id :key "elem-id"})
-             (func 'pid "\"tag\" + id")
-             (draw [:div {:id 'id :className "preview-elem"}
+             (func 'elemId "\"preview-\" + rule + id")
+             (func 'pid "\"tag\" + elemId")
+             (draw* [:div {:id 'elemId :className "preview-elem"}
                     [:span {:id 'pid :className "preview-elem-tag"} 'tag]
                     ])
               )
@@ -197,19 +220,22 @@
 
 
        (rule "draw draw preview text"
-             (when "ui/editor-text" {:clause-id 'clause})
+             (when "ui/editor-text" {:rule-id 'rule :clause-id 'clause})
              (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'text :key "text"})
              (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv2 :val 'id :key "elem-id"})
-             (draw [:span {:id 'id :className 'cv} 'text])
+             (func 'elemId "\"preview-\" + rule + id")
+             (draw* [:span {:id 'elemId :className 'cv} 'text])
 
               )
 
          (rule "translate draw preview child"
-             (when "ui/editor-child" {:clause-id 'clause})
+             (when "ui/editor-child" {:rule-id 'rule :clause-id 'clause})
              (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv :val 'pos :key "pos"})
              (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv2 :val 'pid :key "parent-id"})
              (when "editor clause fields" {:clause-id clause :constant|variable|expression 'cv3 :val 'cid :key "child-id"})
-             (pretend "ui/child" {:parent-id 'pid :pos 'pos :child-id 'cid})
+             (func 'childElemId "\"preview-\" + rule + cid")
+             (func 'parentElemId "\"preview-\" + rule + pid")
+             (pretend "ui/child" {:parent-id 'parentElemId :pos 'pos :child-id 'childElemId})
 
               )
 
