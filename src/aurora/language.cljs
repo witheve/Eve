@@ -247,7 +247,6 @@
                                                                        :when (= key "js")]
                                                                    val))
                                                        result-ix (get var->ix variable)
-                                                       _
                                                        args (for [var vars
                                                                   :when (>= (.indexOf js var) 0)]
                                                               var)
