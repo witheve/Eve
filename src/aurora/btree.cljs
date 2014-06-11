@@ -4,7 +4,7 @@
             [cemerick.double-check.properties :as prop :include-macros true]
             [cemerick.pprng :as pprng]
             clojure.set)
-  (:require-macros [aurora.macros :refer [debug check apush apush-into apop-from amake aclear typeof set!! dofrom perf-time]]))
+  (:require-macros [aurora.macros :refer [debug check apush apush-into apop-from amake aclear typeof set!! dofrom perf-time for!]]))
 
 ;; COMPARISONS
 
@@ -157,6 +157,17 @@
             mid
             (recur lo (- mid 1))))))))
 
+(defn prim= [a b]
+  (or (== a b)
+      (and (array? a) (array? b)
+           (== (alength a) (alength b))
+           (loop [i 0]
+             (if (< i (alength a))
+               (if (prim= (aget a i) (aget b i))
+                 (recur (+ i 1))
+                 false)
+               true)))))
+
 ;; TREES
 
 ;; update adds the delta to the current value for the key and returns either:
@@ -203,7 +214,7 @@
            (.foreach root f))
   (elems [this]
        (let [results #js []]
-         (.foreach this #(apush results #js [%1 %2]))
+         (.foreach this #(do (apush results %1) (apush results %2)))
          results))
   (keys [this]
         (let [results #js []]
@@ -211,7 +222,7 @@
           results))
   ISeqable
   (-seq [this]
-        (seq (.elems this))))
+        (seq (map vec (partition 2 (.elems this))))))
 
 (deftype Node [parent parent-ix keys vals children ^:mutable lower ^:mutable upper]
   Object
@@ -414,6 +425,8 @@
   (reset [this key]
          (set! node (.-root tree))
          (set! ix 0))
+  (val [this]
+       (aget (.-vals node) ix))
   (seek-gt [this key]
            (loop []
              (if (and (instance? Node (.-parent node))
@@ -464,17 +477,23 @@
 
 ;; los and his are inclusive
 
-;; propagate updates the current lo/hi for each var and set the solver to failed
+;; propagate updates the current lo/hi for each var and may set the solver to failed
+;;   returns the val of the current key (only has to be correct when all its vars are fixed)
 ;; split-left either:
 ;;   breaks the solutions into two branches, sets the left branch, returns true
 ;;   has only one possible solution, does nothing, returns false
 ;; split-right:
 ;;   breaks the solutions into two branches, sets the right branch
+;; val returns the number of solutions with this key (assumes all vars are fixed)
 
 (deftype Contains [iterator vars scratch-key]
   Object
   (reset [this solver constraint]
          (.reset iterator))
+  (val [this solver constraints]
+       ;; TODO somewhat uncomfortable with the fact that this is stateful
+       ;; could store current key and check key= instead
+       (.val iterator))
   (propagate [this solver constraint]
              (let [los (.-los solver)
                    his (.-his solver)]
@@ -552,6 +571,8 @@
 (deftype Constant [c var]
   Object
   (reset [this solver constraint])
+  (val [this solver constraint]
+       1)
   (split-left [this solver constraint]
               false)
   (split-right [this solver constraint])
@@ -566,6 +587,8 @@
   (reset [this solver constraint]
          (dotimes [i (alength vars)]
            (.set-watch solver (aget vars i) constraint true)))
+  (val [this solver constraint]
+       1)
   (split-left [this solver constraint]
               false)
   (split-right [this solver constraint])
@@ -588,6 +611,8 @@
   (reset [this solver constraint]
          (dotimes [i (alength vars)]
            (.set-watch solver (aget vars i) constraint true)))
+  (val [this solver constraint]
+       1)
   (split-left [this solver constraint]
               false)
   (split-right [this solver constraint])
@@ -611,6 +636,8 @@
   (reset [this solver constraint]
          (dotimes [i (alength vars)]
            (.set-watch solver (aget vars i) constraint true)))
+  (val [this solver constraint]
+       1)
   (split-left [this solver constraint]
               false)
   (split-right [this solver constraint])
@@ -737,17 +764,23 @@
                 (do
                   (.split this)
                   (recur 0)))))))
-  (keys [this]
-       (let [results #js []]
-         (loop []
-           (let [result (.next this)]
-             (when-not (nil? result)
-               (apush results result)
-               (recur))))
+  (val [this]
+       (let [result 1]
+         (dotimes [constraint (alength constraints)]
+           (set!! result (* result (.val (aget constraints constraint) solver constraint))))
+         result))
+  (elems [this]
+         (let [results #js []]
+           (loop []
+             (let [result (.next this)]
+               (when-not (nil? result)
+                 (apush results result)
+                 (apush results (.val this))
+                 (recur))))
          results))
   ISeqable
   (-seq [this]
-        (seq (.keys this))))
+        (seq (map vec (partition 2 (.elems this))))))
 
 (defn solver [num-vars constraints]
   (let [los (least-key num-vars)
@@ -838,29 +871,31 @@
 
 (defn apply-to-tree [tree updates]
   [tree
-   (for [update updates]
-     (.update tree (nth update 1) (nth update 2)))])
+   (doall
+    (for [update updates]
+      (.update tree (nth update 1) (nth update 2))))])
 
 (defn apply-to-sorted-map [map updates]
   (let [map (atom map)
-        results (for [update updates]
-                  (let [key (nth update 1)
-                        delta (nth update 2)
-                        old-val (get @map key 0)
-                        new-val (+ old-val delta)]
-                    (if (== new-val 0)
-                      (swap! map dissoc key)
-                      (swap! map assoc key new-val))
-                    (cond
-                     (and (== old-val 0) (not (== new-val 0))) added
-                     (and (not (== old-val 0)) (not (== new-val 0))) changed
-                     (and (not (== old-val 0)) (== new-val 0)) deled)))]
+        results (doall
+                 (for [update updates]
+                   (let [key (nth update 1)
+                         delta (nth update 2)
+                         old-val (get @map key 0)
+                         new-val (+ old-val delta)]
+                     (if (== new-val 0)
+                       (swap! map dissoc key)
+                       (swap! map assoc key new-val))
+                     (cond
+                      (and (== old-val 0) (not (== new-val 0))) added
+                      (and (not (== old-val 0)) (not (== new-val 0))) changed
+                      (and (not (== old-val 0)) (== new-val 0)) deled))))]
     [@map results]))
 
 (defn run-building-prop [min-keys key-len updates]
   (let [[tree tree-results] (apply-to-tree (tree min-keys key-len) updates)
         [sorted-map sorted-map-results] (apply-to-sorted-map (sorted-map-by key-compare) updates)]
-    (and (= (seq (map vec tree)) (seq sorted-map))
+    (and (= (seq tree) (seq sorted-map))
          (= tree-results sorted-map-results)
          (.valid! tree))))
 
@@ -909,13 +944,17 @@
                 (run-iterator-prop min-keys key-len updates movements)))
 
 (defn run-self-join-prop [min-keys key-len updates]
-  (let [tree (apply-to-tree (tree min-keys key-len) updates)
+  (let [[tree _] (apply-to-tree (tree min-keys key-len) updates)
         solver (solver
                 key-len
                 #js [(contains (iterator tree) (into-array (range key-len)))
-                     (contains (iterator tree) (into-array (range key-len)))])]
-    (= (map vec (map first tree))
-       (map vec solver))))
+                     (contains (iterator tree) (into-array (range key-len)))])
+        tree-elems (.elems tree)]
+    (dotimes [i (alength tree-elems)]
+      (let [elem (aget tree-elems i)]
+        (when (number? elem)
+          (aset tree-elems i (* elem elem)))))
+    (prim= tree-elems (.elems solver))))
 
 (defn self-join-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
@@ -924,24 +963,22 @@
 
 (defn run-product-join-prop [min-keys key-len updates]
   (let [product-tree (tree min-keys key-len)
-        tree (apply-to-tree (tree min-keys key-len) updates)
-        elems (into-array (map first tree))
+        [tree _] (apply-to-tree (tree min-keys key-len) updates)
+        elems (.elems tree)
         _ (dotimes [i (alength elems)]
             (dotimes [j (alength elems)]
-              (.assoc! product-tree (.concat (aget elems i) (aget elems j)) nil)))
+              (when (and (== 0 (mod i 2)) (== 0 (mod j 2)))
+                (.update product-tree (.concat (aget elems i) (aget elems j)) (* (aget elems (+ i 1)) (aget elems (+ j 1)))))))
         solver (solver
                 (* 2 key-len)
                 #js [(contains (iterator tree) (into-array (range 0 key-len)))
                      (contains (iterator tree) (into-array (range key-len (* 2 key-len))))])]
-    (= (map vec (map first product-tree))
-       (map vec solver))))
+    (prim= (.elems product-tree) (.elems solver))))
 
 (defn product-join-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
                  updates (gen/vector (gen-update key-len))]
                 (run-product-join-prop min-keys key-len updates)))
-
-(run-building-prop 1 1 [[:update #js [0] -5] [:update #js [0] 5]])
 
 (comment
   (dc/quick-check 1000 (least-prop 1))
