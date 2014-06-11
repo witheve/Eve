@@ -212,14 +212,14 @@
                     (recur (mapcat #(.-children %) nodes)))))
   (foreach [this f]
            (.foreach root f))
-  (elems [this]
-       (let [results #js []]
-         (.foreach this #(do (apush results %1) (apush results %2)))
-         results))
   (keys [this]
         (let [results #js []]
           (.foreach this #(apush results %1))
           results))
+  (elems [this]
+       (let [results #js []]
+         (.foreach this #(do (apush results %1) (apush results %2)))
+         results))
   ISeqable
   (-seq [this]
         (seq (map vec (partition 2 (.elems this))))))
@@ -468,7 +468,11 @@
                       (do
                         (set! node (aget (.-children node) ix))
                         (set! ix 0)
-                        (recur)))))))))
+                        (recur))))))))
+  (contains? [this key]
+             (let [found-key (.seek-gte this key)]
+               (and (not (nil? found-key))
+                    (key= found-key key)))))
 
 (defn iterator [tree]
   (Iterator. tree (.-root tree) 0))

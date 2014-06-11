@@ -20,20 +20,13 @@
       (aset new-key i (aget key (aget keymap i))))
     new-key))
 
-(defn -add-facts [from-array from-fields to-index to-fields]
+(defn -update-facts [from-facts&vals from-fields to-index to-fields]
   (let [changed? false
         keymap (keymap from-fields to-fields)]
-    (dotimes [i (alength from-array)]
-      (when (false? (.assoc! to-index (with-keymap keymap (aget from-array i)) nil))
-        (set!! changed? true)))
-    changed?))
-
-(defn -del-facts [from-array from-fields to-index to-fields]
-  (let [changed? false
-        keymap (keymap from-fields to-fields)]
-    (dotimes [i (alength from-array)]
-      (when (true? (.dissoc! to-index (with-keymap keymap (aget from-array i))))
-        (set!! changed? true)))
+    (dotimes [i (alength from-facts&vals)]
+      (when (== 0 (mod i 2))
+        (when (not (== 0 (.update to-index (with-keymap keymap (aget from-facts&vals i)) (aget from-facts&vals (+ i 1)))))
+          (set!! changed? true))))
     changed?))
 
 (deftype Knowledge [^:mutable kind->name->fields->index ^:mutable state]
@@ -43,7 +36,7 @@
                        (or (get-in kind->name->fields->index [kind name (vec fields)])
                            (let [index (btree/tree 10 (alength fields))]
                              (when-let [[other-fields other-index] (first (get-in kind->name->fields->index [kind name]))]
-                               (-add-facts (.keys other-index) (into-array other-fields) index fields))
+                               (-update-facts (.elems other-index) (into-array other-fields) index fields))
                              (set! kind->name->fields->index (assoc-in kind->name->fields->index [kind name (vec fields)] index))
                              index)))
   (ensure-index [this kind name default-fields]
@@ -51,51 +44,51 @@
                 (if-let [fields->index (get-in kind->name->fields->index [kind name])]
                   (assert (= (set default-fields) (set (first (keys fields->index)))))
                   (.get-or-create-index this kind name default-fields)))
+  (update-facts [this kind name fields facts&vals]
+                (assert (or (identical? kind "know") (identical? kind "remember") (identical? kind "forget")) (pr-str kind))
+                (let [changed? false
+                      indexes (get-in kind->name->fields->index [kind name])]
+                  (assert (seq indexes) (pr-str kind name))
+                  (doseq [[other-fields other-index] indexes]
+                    (when (true? (-update-facts facts&vals fields other-index (into-array other-fields)))
+                      (set!! changed? true)))
+                  changed?))
   (add-facts [this kind name fields facts]
-             (assert (or (identical? kind "know") (identical? kind "remember") (identical? kind "forget")) (pr-str kind))
-             (let [changed? false
-                   indexes (get-in kind->name->fields->index [kind name])]
-               (assert (seq indexes) (pr-str kind name))
-               (doseq [[other-fields other-index] indexes]
-                 (when (-add-facts facts fields other-index (into-array other-fields))
-                   (set!! changed? true)))
-               changed?))
+             (let [facts&vals #js []]
+               (dotimes [i (alength facts)]
+                 (apush facts&vals (aget facts i))
+                 (apush facts&vals 1))
+               (.update-facts this kind name fields facts&vals)))
   (del-facts [this kind name fields facts]
-             (assert (or (identical? kind "know") (identical? kind "remember") (identical? kind "forget")) (pr-str kind))
-             (let [changed? false
-                   indexes (get-in kind->name->fields->index [kind name])]
-               (assert (seq indexes) (pr-str kind name))
-               (doseq [[other-fields other-index] indexes]
-                 (when (-del-facts facts fields other-index (into-array other-fields))
-                   (set!! changed? true)))
-               changed?))
+             (let [facts&vals #js []]
+               (dotimes [i (alength facts)]
+                 (apush facts&vals (aget facts i))
+                 (apush facts&vals -1))
+               (.update-facts this kind name fields facts&vals)))
   (clear-facts [this kind name]
                (doseq [[_ index] (concat (get-in kind->name->fields->index [kind name]))]
                  (.reset index)))
-  (update-facts [this name]
-                (let [[fields remember-index] (first (get-in kind->name->fields->index ["remember" name]))]
-                  (assert (not (nil? fields)) name)
-                  (let [fields (into-array fields)
-                        forget-index (.get-or-create-index this "forget" name fields)
-                        remember-iter (btree/iterator remember-index)
-                        forget-iter (btree/iterator forget-index)
-                        remembers #js []
-                        forgets #js []]
-                    (.foreach remember-index
-                              (fn [key]
-                                (let [forget (.seek-gte forget-iter key)]
-                                  (when (or (nil? forget) (btree/key-not= key forget))
-                                    (.push remembers key)))))
-                    (.foreach forget-index
-                              (fn [key]
-                                (let [remember (.seek-gte remember-iter key)]
-                                  (when (or (nil? remember) (btree/key-not= key remember))
-                                    (.push forgets key)))))
-                    (.clear-facts this "remember" name)
-                    (.clear-facts this "forget" name)
-                    (let [added (.add-facts this "know" name fields remembers)
-                          deled (.del-facts this "know" name fields forgets)]
-                      (or added deled)))))
+  (tick-facts [this name]
+              (let [[fields know-index] (first (get-in kind->name->fields->index ["know" name]))]
+                (assert (not (nil? fields)) name)
+                (let [fields (into-array fields)
+                      remember-index (.get-or-create-index this "remember" name fields)
+                      forget-index (.get-or-create-index this "forget" name fields)
+                      know-iter (btree/iterator know-index)
+                      remember-iter (btree/iterator remember-index)
+                      forget-iter (btree/iterator forget-index)
+                      facts&vals #js []]
+                  (.foreach remember-index
+                            (fn [key val]
+                              (when (and (not (.contains? know-iter key)) (not (.contains? forget-iter key)))
+                                (.push facts&vals key 1))))
+                  (.foreach forget-index
+                            (fn [key val]
+                              (when (and (.contains? know-iter key) (not (.contains? remember-iter key)))
+                                (.push facts&vals key -1))))
+                  (.clear-facts this "remember" name)
+                  (.clear-facts this "forget" name)
+                  (.update-facts this "know" name fields facts&vals))))
   (tick [this name->transient?]
         (let [names (js/Object.keys name->transient?)
               changed? false]
@@ -103,7 +96,7 @@
             (let [name (aget names i)]
               (if (true? (aget name->transient? name))
                 (.clear-facts this "know" name)
-                (when (true? (.update-facts this name))
+                (when (true? (.tick-facts this name))
                   (set!! changed? true)))))
           changed?)))
 
@@ -116,12 +109,12 @@
   Object
   (run [this kn rule->dirty? kind->name->rules]
        (.reset solver)
-       (let [facts (.keys solver)]
+       (let [facts&vals (.elems solver)]
          (dotimes [i (alength output-kinds)]
            (let [kind (aget output-kinds i)
                  name (aget output-names i)
                  fields (aget output-fields i)]
-             (when (true? (.add-facts kn kind name fields facts))
+             (when (true? (.update-facts kn kind name fields facts&vals))
                (let [dirtied-rules (aget kind->name->rules kind name)]
                  (dotimes [j (alength dirtied-rules)]
                    (aset rule->dirty? (aget dirtied-rules j) true)))))))))
