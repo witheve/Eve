@@ -78,13 +78,13 @@
   (aurora.btree/self-join-prop 3))
 
 (defspec product-join-prop-test
-  5000
+  1000
   (aurora.btree/product-join-prop 1))
 
 (defspec product-join-prop-test
-  5000
+  1000
   (aurora.btree/product-join-prop 2))
 
 (defspec product-join-prop-test
-  5000
+  1000
   (aurora.btree/product-join-prop 3))
