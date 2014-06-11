@@ -934,8 +934,8 @@
                     (first (first @cur-elems)))))))
 
 (defn run-iterator-prop [min-keys key-len updates movements]
-  (let [tree (apply-to-tree (tree min-keys key-len) updates)
-        sorted-map (apply-to-sorted-map (sorted-map-by key-compare) updates)
+  (let [[tree _] (apply-to-tree (tree min-keys key-len) updates)
+        [sorted-map _] (apply-to-sorted-map (sorted-map-by key-compare) updates)
         iterator-results (apply-to-iterator (iterator tree) movements)
         elems-results (apply-to-elems (seq sorted-map) movements)]
     #_(.pretty-print tree)
