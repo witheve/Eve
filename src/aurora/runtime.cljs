@@ -44,7 +44,7 @@
         queue (array)]
     (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
     (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "editor rules" #js ["rule-id"])
+    (.get-or-create-index kn "know" "editor rules" #js ["rule-id" "project-id"])
     (.get-or-create-index kn "know" "editor clauses" #js ["rule-id" "type" "clause-id" "madlib-id"])
     (.get-or-create-index kn "know" "editor clause fields" #js ["clause-id" "constant|variable|expression" "key" "val"])
     (.get-or-create-index kn "know" "change clauses" #js ["rule-id" "clause-id" "from|to" "table" "sub-clause-id"])

@@ -101,9 +101,10 @@
                       `(~(first clause) ~env ~rule-name ~@(rest clause)))))}
             ))))
 
-(defmacro rules [env & rules]
+(defmacro rules [env project & rules]
   `(aurora.syntax.add-rules
     ~env
+    ~project
     ~(vec (for [[_ rule-name & clauses] rules]
             {:name rule-name
              :clauses

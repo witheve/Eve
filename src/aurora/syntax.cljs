@@ -31,10 +31,10 @@
     env))
 
 
-(defn add-rule [results rule-map]
+(defn add-rule [results project rule-map]
   (let [rule (or (:name rule-map) (new-id))
         rule (str rule)]
-    (.push (aget results "rules") #js [(:name rule-map)])
+    (.push (aget results "rules") #js [(:name rule-map) project])
     (doseq [cs (:clauses rule-map)
             [type name fact] cs]
       (let [clause (new-id)]
@@ -42,13 +42,13 @@
         (map->clause-fields (aget results "clause-fields") clause fact)
         ))))
 
-(defn add-rules [env rs]
+(defn add-rules [env project rs]
   (let [results #js {:rules (array)
                      :clauses (array)
                      :clause-fields (array)}]
     (doseq [r rs]
-      (add-rule results r))
-    (.add-facts env "know" "editor rules" #js ["rule-id"] (aget results "rules"))
+      (add-rule results project r))
+    (.add-facts env "know" "editor rules" #js ["rule-id" "project-id"] (aget results "rules"))
     (.add-facts env "know" "editor clauses" #js ["rule-id" "type" "clause-id" "madlib-id"] (aget results "clauses"))
     (.add-facts env "know" "editor clause fields" #js ["clause-id" "constant|variable|expression" "key" "val"] (aget results "clause-fields"))
     env))
