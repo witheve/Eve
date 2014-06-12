@@ -201,7 +201,10 @@
 
 (rules editor "editor ui"
 
-
+       (rule "ui root"
+             (when "active project" {:project-id 'project})
+             (func 'class "project == '' ? 'root root-list' : 'root root-editor'")
+             (draw* [:div {:id "ui-root" :className 'class}]))
 
        (rule "back button click"
              (when "ui/onClick" {:elem-id "back-button"})
@@ -211,7 +214,8 @@
 
        (rule "project list"
              (when "active project" {:project-id ""})
-             (draw* [:div {:id "project-selection"}
+             (pretend "ui/child" {:parent-id "ui-root" :pos 0 :child-id "project-selection"})
+             (draw* [:div {:id "project-selection" :className "project-selection"}
                      [:ul {:id "project-list"}]
                      [:input {:id "create-project" :className "create-project" :events ["onKeyDown"] :placeholder "new project"}]]))
 
@@ -249,10 +253,12 @@
        (rule "editor area"
              (when "active project" {:project-id 'project})
              (when "filter" {:js "project != ''"})
-             (draw* [:div {:id "editor"}
-                     [:button {:id "back-button" :events ["onClick"]} "back"]
+             (pretend "ui/child" {:parent-id "ui-root" :pos 0 :child-id "editor"})
+             (draw* [:div {:id "editor" :className "editor"}
+                     [:div {:id "controls" :className "controls"}
+                      [:button {:id "back-button" :events ["onClick"] :className "ion-ios7-arrow-thin-left"}]]
                      [:div {:id "program-preview" :className "program-preview"}]
-                     [:div {:id "rules"}]
+                     [:div {:id "rules" :className "rules"}]
                      ])
 
              )
@@ -590,7 +596,7 @@
                       [:input {:id "toggle-all"
                                :className "toggle-all"
                                :event-key "toggle-all"
-                               :checked "false"
+                               :checked 'toggle
                                :events ["onChange"]
                                :type "checkbox"}]]
                      [:ul {:id "todo-list" :className "todo-list"}]

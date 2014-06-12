@@ -244,11 +244,6 @@
        (perf-time-named "fill" (fill-todos todomvc 0))
        (re-run todomvc)))))
 
-(enable-console-print!)
-
-(run)
-
-
 (comment
 
 (run)
