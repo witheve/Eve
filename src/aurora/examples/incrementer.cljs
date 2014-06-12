@@ -1,6 +1,6 @@
 (ns aurora.examples.incrementer
   (:require [aurora.syntax :refer [know remember draw* change* func change index]]
-            [aurora.runtime :refer [pre-compile re-run env]]
+            [aurora.runtime :as runtime :refer [pre-compile re-run env]]
             )
   (:require-macros [aurora.macros :refer [typeof ainto perf-time rules rules*]]))
 
@@ -81,23 +81,29 @@
         )
 
 
-    (rules program
+    (rules program "blah"
+           (rule "foo"
+                 (when "incr" {:value 'value})
+                 (func 'baz "value")
+                 (draw* [:p {:id 'value :events ["onClick"] :event-key "foo" :entity 'baz}]))
 
-           (rule "draw-incr"
-                 (when "incr" {:value value})
-                 (draw* [:button {:id "incr" :events ["onClick"]} "increment: " 'value]))
+;;            (rule "draw-incr"
+;;                  (when "incr" {:value value})
+;;                  (draw* [:button {:id "incr" :events ["onclick"]} "increment: " 'value]))
 
-           (rule "clicked"
-                 (when "ui/onClick" {:elem-id "incr"})
-                 (func 'new-val "value + 1")
-                 (change* "incr" {:value 'value} {:value 'new-val}))
+;;            (rule "clicked"
+;;                  (when "ui/onclick" {:elem-id "incr"})
+;;                  (func 'new-val "value + 1")
+;;                  (change* "incr" {:value 'value} {:value 'new-val}))
            )
-    (pre-compile program)
+    (pre-compile program [(runtime/create-react-renderer "body")])
     (remember program "incr" #js ["value"] #js [0])
     (know program "incr" #js ["value"] #js [0])
     (re-run program)
     program
     ))
+
+(run)
 
 (comment
 

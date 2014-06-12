@@ -8,6 +8,7 @@
   (:require-macros [aurora.macros :refer [typeof ainto perf-time perf-time-named rules]]))
 
 (defn init-std-lib [kn]
+  (.get-or-create-index kn "know" "defaults" #js ["defaults"])
   (.get-or-create-index kn "know" "ui/onClick" #js ["elem-id"])
   (.get-or-create-index kn "know" "ui/onKeyDown" #js ["elem-id" "key"])
   (.get-or-create-index kn "know" "ui/onChange" #js ["elem-id" "value"])
@@ -25,6 +26,7 @@
 
 (defn prep-compiled [compiled]
   (let [trans? (.-name->transient? compiled)]
+    (aset trans? "defaults" true)
     (aset trans? "ui/onClick" true)
     (aset trans? "ui/onKeyDown" true)
     (aset trans? "ui/onChange" true)
@@ -44,6 +46,8 @@
         queue (array)]
     (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
     (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "compiled clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
+    (.get-or-create-index kn "know" "compiled clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
     (.get-or-create-index kn "know" "editor rules" #js ["rule-id" "project-id"])
     (.get-or-create-index kn "know" "editor clauses" #js ["rule-id" "type" "clause-id" "madlib-id"])
     (.get-or-create-index kn "know" "editor clause fields" #js ["clause-id" "constant|variable|expression" "key" "val"])
@@ -267,7 +271,7 @@
 
       frag)))
 
-(defn pre-compile [program]
+(defn pre-compile [program watchers]
   (let [compiled (compile program)]
     (prep-compiled compiled)
     (.quiesce compiled program (fn [kn]
@@ -275,28 +279,38 @@
                                    (prep-compiled final-compiled)
                                    (aset (.-state program) "compiled" final-compiled))
                                  ))
+    (aset (.-state program) "watchers" watchers)
     program))
 
+(defn create-direct-renderer [root]
+  (fn [kn]
+    (let [tree (perf-time-named "rebuild tree" (rebuild-tree-dom kn queue))
+          container (dom/$ root)
+          ]
+      (when container
+        (perf-time-named "append tree" (do
+                                         ;(dom/empty container)
+                                         (dom/append container tree)))))))
+
+(defn create-react-renderer [root]
+  (fn [kn queue]
+    (let [tree (perf-time-named "rebuild tree" (rebuild-tree kn queue))
+          container (dom/$ root)
+          dommied (dommy/node tree)
+          ]
+      (when container
+        (perf-time-named "append tree" (js/React.renderComponent dommied container))))))
 
 (defn re-run [program]
-  (let [compiled (aget (.-state program) "compiled")]
+  (let [compiled (aget (.-state program) "compiled")
+        watchers (aget (.-state program) "watchers")]
     (know program "time" #js ["time"] #js [(now)])
     (perf-time-named "quiesce"
      (do
        (.quiesce compiled program (fn [kn]
-                                    (let [tree (perf-time-named "rebuild tree" (rebuild-tree program (aget (.-state program) "queue!")))
-                                          container (dom/$ "body")
-                                          dommied (dommy/node tree)
-                                          ]
-                                      (when container
-                                        (perf-time-named "append tree" (js/React.renderComponent dommied container))
-;;                                         (perf-time-named "append tree" (do
-;;                                                      ;(dom/empty container)
-;;                                                      (dom/append container tree)))
-                                        )
-                                      ;
-                                      )
-                                    ))
+                                    (when watchers
+                                      (doseq [w watchers]
+                                        (w kn (aget (.-state program) "queue!"))))))
        (aset (.-state program) "queued" false)
        )))
 

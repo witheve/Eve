@@ -4,6 +4,7 @@
             [aurora.util.core :refer [now new-id]]
             [aurora.syntax :as syntax :refer [know remember draw draw* change* func change index forget-when]]
             [aurora.runtime :refer [pre-compile re-run env] :as runtime]
+            [aurora.editor.kn-manager :as manager]
             [aurora.editor.dom :as dom]
             [aurora.editor.ReactDommy :as dommy])
   (:require-macros [aurora.macros :refer [typeof ainto perf-time perf-time-named rules rules*]]))
@@ -44,11 +45,39 @@
                    "ui/event-listener" [:elem-id "is listening for" :event "events with key" :event-key "and entity" :entity]
                    "ui/text" [:elem-id "is a text node containing" :text]
 
+                   :defaults ["setting defaults"]
+                   "time" ["the current time is" :time]
+
+                   "ui/onClick" [:elem-id "is clicked"]
+                   "ui/onChange" [:elem-id "is changed to" :value]
+                   "ui/onBlur" [:elem-id "is blurred"]
+                   "ui/onKeyDown" [:key "is pressed in" :elem-id]
+
+                   "ui/custom" [:event-key "happens on" :entity]
+
+                   ;;todomvc
+                   "todo-to-add" ["the todo to add is" :value]
+                   "todo-to-edit" ["the todo being edited is" :value]
+                   "todo-filter" ["Filter the todos by" :filter]
+                   "todo" [:todo-id "has text" :text]
+                   "todo-completed" ["the" :todo-id "is" :completed?]
+                   "todo-editing" ["the" :todo-id "is being" :editing?]
+                   "current-toggle" ["the master toggle is" :value]
+                   "todo-added" ["add a new todo"]
+                   "todo-removed" ["forget todo" :todo-id]
+                   "todo-displayed" [:todo-id "is displayed"]
+                   "commit-todo" ["save changes to the todo"]
+
+                   ;;incrementer
+                   "incr" ["The counter is " :value]
+
                    "foo" ["foo" :foo]
                    "bar" ["bar" :bar]
 
                    })
 
+    (.get-or-create-index env "know" "compile project" #js ["project-id"])
+    (.get-or-create-index env "know" "control external" #js ["action" "id"])
 
     (.get-or-create-index env "know" "editing" #js ["id"])
     (.add-facts env "know" "editing" #js ["id"] (array (array "")))
@@ -73,74 +102,98 @@
 ;;editor clause fields {:clause-id clause :constant|variable|expression 'cv :val 'val :key field}
 
 (rules* editor
+
+        (rule "should compile?"
+              (when "compile project" {:project-id 'project})
+              (when "editor rules" {:project-id 'project :rule-id 'rule})
+              (pretend "compile rule" {:rule-id 'rule}))
+
         (rule "when editor clauses"
+              (when "compile rule" {:rule-id 'rule})
              (when "editor clauses" {:rule-id rule :clause-id clause :type "when" :madlib-id madlib})
-             (pretend "clauses" {:rule-id rule :when|know|remember|forget "when" :clause-id clause :name madlib}))
+             (pretend "compiled clauses" {:rule-id rule :when|know|remember|forget "when" :clause-id clause :name madlib}))
 
        (rule "pretend editor clauses"
+              (when "compile rule" {:rule-id 'rule})
              (when "editor clauses" {:rule-id rule :clause-id clause :type "pretend" :madlib-id madlib})
-             (pretend "clauses" {:rule-id rule :when|know|remember|forget "know" :clause-id clause :name madlib}))
+             (pretend "compiled clauses" {:rule-id rule :when|know|remember|forget "know" :clause-id clause :name madlib}))
 
         (rule "know editor clauses"
+              (when "compile rule" {:rule-id 'rule})
              (when "editor clauses" {:rule-id rule :clause-id clause :type "know" :madlib-id madlib})
-             (pretend "clauses" {:rule-id rule :when|know|remember|forget "know" :clause-id clause :name madlib}))
+             (pretend "compiled clauses" {:rule-id rule :when|know|remember|forget "know" :clause-id clause :name madlib}))
 
        (rule "remember editor clauses"
+              (when "compile rule" {:rule-id 'rule})
              (when "editor clauses" {:rule-id rule :clause-id clause :type "remember" :madlib-id madlib})
-             (pretend "clauses" {:rule-id rule :when|know|remember|forget "remember" :clause-id clause :name madlib}))
+             (pretend "compiled clauses" {:rule-id rule :when|know|remember|forget "remember" :clause-id clause :name madlib}))
 
        (rule "forget editor clauses"
+              (when "compile rule" {:rule-id 'rule})
              (when "editor clauses" {:rule-id rule :clause-id clause :type "forget" :madlib-id madlib})
-             (pretend "clauses" {:rule-id rule :when|know|remember|forget "forget" :clause-id clause :name madlib}))
+             (pretend "compiled clauses" {:rule-id rule :when|know|remember|forget "forget" :clause-id clause :name madlib}))
 
        (rule "variable editor clause fields"
+             ;;TODO/FIXME: ui clauses don't have a way to get back to the rule, so we just let all clause-fields through
+;;              (when "compile rule" {:rule-id 'rule})
+;;              (when "editor clauses" {:rule-id rule :clause-id clause :type type :madlib-id madlib})
              (when "editor clause fields" {:clause-id clause :constant|variable|expression "variable" :val 'val :key field})
-             (pretend "clause-fields" {:clause-id clause :constant|variable "variable" :val 'val :key field}))
+             (pretend "compiled clause-fields" {:clause-id clause :constant|variable "variable" :val 'val :key field}))
 
        (rule "constant editor clause fields"
+             ;;TODO/FIXME: ui clauses don't have a way to get back to the rule, so we just let all clause-fields through
+;;              (when "compile rule" {:rule-id 'rule})
+;;              (when "editor clauses" {:rule-id rule :clause-id clause :type 'type :madlib-id madlib})
              (when "editor clause fields" {:clause-id clause :constant|variable|expression "constant" :val 'val :key field})
-             (pretend "clause-fields" {:clause-id clause :constant|variable "constant" :val 'val :key field}))
+             (pretend "compiled clause-fields" {:clause-id clause :constant|variable "constant" :val 'val :key field}))
 
         (rule "change clause"
+              (when "compile rule" {:rule-id 'rule})
               (when "change clauses" {:rule-id 'rule :clause-id 'clause :from|to "from" :table 'table :sub-clause-id 'from-id})
               (when "change clauses" {:rule-id 'rule :clause-id 'clause :from|to "to" :table 'table :sub-clause-id 'to-id})
-              (pretend "clauses" {:rule-id 'rule :when|know|remember|forget "when" :clause-id 'from-id :name 'table})
-              (pretend "clauses" {:rule-id 'rule :when|know|remember|forget "forget" :clause-id 'from-id :name 'table})
-              (pretend "clauses" {:rule-id 'rule :when|know|remember|forget "remember" :clause-id 'to-id :name 'table})
+              (pretend "compiled clauses" {:rule-id 'rule :when|know|remember|forget "when" :clause-id 'from-id :name 'table})
+              (pretend "compiled clauses" {:rule-id 'rule :when|know|remember|forget "forget" :clause-id 'from-id :name 'table})
+              (pretend "compiled clauses" {:rule-id 'rule :when|know|remember|forget "remember" :clause-id 'to-id :name 'table})
               )
 
         (rule "translate ui/editor-elem"
+              (when "compile rule" {:rule-id 'rule})
              (when "ui/editor-elem" {:rule-id 'rule :clause-id 'clause})
-             (pretend "clauses" {:rule-id rule :when|know|remember|forget "know" :clause-id clause :name "ui/elem"}))
+             (pretend "compiled clauses" {:rule-id rule :when|know|remember|forget "know" :clause-id clause :name "ui/elem"}))
 
         (rule "translate ui/editor-child"
+              (when "compile rule" {:rule-id 'rule})
              (when "ui/editor-child" {:rule-id 'rule :clause-id 'clause})
-             (pretend "clauses" {:rule-id 'rule :when|know|remember|forget "know" :clause-id 'clause :name "ui/child"}))
+             (pretend "compiled clauses" {:rule-id 'rule :when|know|remember|forget "know" :clause-id 'clause :name "ui/child"}))
 
         (rule "translate ui/editor-text"
+              (when "compile rule" {:rule-id 'rule})
              (when "ui/editor-text" {:rule-id 'rule :clause-id 'clause})
-             (pretend "clauses" {:rule-id rule :when|know|remember|forget "know" :clause-id clause :name "ui/text"}))
+             (pretend "compiled clauses" {:rule-id rule :when|know|remember|forget "know" :clause-id clause :name "ui/text"}))
 
         (rule "translate ui/editor-attr"
+              (when "compile rule" {:rule-id 'rule})
              (when "ui/editor-attr" {:rule-id 'rule :clause-id 'clause})
-             (pretend "clauses" {:rule-id rule :when|know|remember|forget "know" :clause-id clause :name "ui/attr"}))
+             (pretend "compiled clauses" {:rule-id rule :when|know|remember|forget "know" :clause-id clause :name "ui/attr"}))
 
         (rule "translate ui/editor-style"
+              (when "compile rule" {:rule-id 'rule})
              (when "ui/editor-style" {:rule-id 'rule :clause-id 'clause})
-             (pretend "clauses" {:rule-id rule :when|know|remember|forget "know" :clause-id clause :name "ui/style"}))
+             (pretend "compiled clauses" {:rule-id rule :when|know|remember|forget "know" :clause-id clause :name "ui/style"}))
 
         (rule "translate ui/editor-event-listener"
+              (when "compile rule" {:rule-id 'rule})
              (when "ui/editor-event-listener" {:rule-id 'rule :clause-id 'clause})
-             (pretend "clauses" {:rule-id rule :when|know|remember|forget "know" :clause-id clause :name "ui/event-listener"}))
-
+             (pretend "compiled clauses" {:rule-id rule :when|know|remember|forget "know" :clause-id clause :name "ui/event-listener"}))
 
         (rule "translate ui/editor-computed-id"
+              (when "compile rule" {:rule-id 'rule})
               (when "ui/editor-computed-id" {:rule-id 'rule :id 'id :parent 'parent :pos 'pos})
               (func 'neue "parent + \" + \\\"-\\\" + \" + pos")
               (func 'clause "aurora.util.core.new_id()")
-              (pretend "clauses" {:rule-id 'rule :when|know|remember|forget "when" :clause-id 'clause :name "=function"})
-              (pretend "clause-fields" {:clause-id 'clause :constant|variable "variable" :val 'id :key "variable"})
-              (pretend "clause-fields" {:clause-id 'clause :constant|variable "constant" :val 'neue :key "js"})
+              (pretend "compiled clauses" {:rule-id 'rule :when|know|remember|forget "when" :clause-id 'clause :name "=function"})
+              (pretend "compiled clause-fields" {:clause-id 'clause :constant|variable "variable" :val 'id :key "variable"})
+              (pretend "compiled clause-fields" {:clause-id 'clause :constant|variable "constant" :val 'neue :key "js"})
               )
 
         )
@@ -148,15 +201,11 @@
 
 (rules editor "editor ui"
 
-       (rule "back button"
-             (when "active project" {:project-id 'project})
-             (when "filter" {:js "project != ''"})
-             (draw* [:button {:id "back-button" :events ["onClick"]} "back"])
 
-             )
 
        (rule "back button click"
              (when "ui/onClick" {:elem-id "back-button"})
+             (pretend "control external" {:action "pause" :id 'project})
              (change* "active project" {:project-id 'project} {:project-id ""}))
 
 
@@ -177,7 +226,10 @@
 
        (rule "project item click"
              (when "ui/custom" {:event-key "project item" :entity 'project})
-             (change* "active project" {:project-id '_} {:project-id 'project}))
+             (change* "active project" {:project-id '_} {:project-id 'project})
+             (pretend "compile project" {:project-id 'project})
+             (pretend "control external" {:action "compile" :id 'project})
+             )
 
        (rule "submit project item"
              (when "ui/onKeyDown" {:elem-id "create-project" :key 13})
@@ -194,18 +246,30 @@
              (pretend "editor rule active" {:rule-id 'rule}))
 
 
+       (rule "editor area"
+             (when "active project" {:project-id 'project})
+             (when "filter" {:js "project != ''"})
+             (draw* [:div {:id "editor"}
+                     [:button {:id "back-button" :events ["onClick"]} "back"]
+                     [:div {:id "program-preview" :className "program-preview"}]
+                     [:div {:id "rules"}]
+                     ])
+
+             )
+
        (rule "draw rule"
              (when "editor rule active" {:rule-id rule})
              (when "editor rules" {:rule-id rule :project-id 'project-id})
              (func 'rid "\"rule-\" + rule")
              (func 'rwid "\"rule-when-\" + rule")
              (func 'rdid "\"rule-do-\" + rule")
-             (draw*[:table {:id 'rid :className "rule"}
-                    [:tbody {}
-                     [:tr {}
-                      [:td {:id 'rwid :className "whens"}]
-                      [:td {:className "between"}]
-                      [:td {:id 'rdid :className "dos"}]]]])
+             (pretend "ui/child" {:parent-id "rules" :pos 0 :child-id 'rid})
+             (draw* [:table {:id 'rid :className "rule"}
+                     [:tbody {}
+                      [:tr {}
+                       [:td {:id 'rwid :className "whens"}]
+                       [:td {:className "between"}]
+                       [:td {:id 'rdid :className "dos"}]]]])
              )
 
        (rule "draw clause"
@@ -229,7 +293,7 @@
               (when "madlib strings" {:madlib-id name :pos pos :value value})
               (func 'childId "container + \"-pc-\" + pos")
               (pretend "ui/child" {:parent-id 'container :pos pos :child-id childId})
-              (draw* [:span {:id 'childId :style {:color "#444"}} 'value]))
+              (draw* [:span {:id 'childId} 'value]))
 
        (rule "draw clause madlib placholders"
              (when "draw madlib" {:container 'container :madlib-id 'name :clause-id 'clause})
@@ -265,7 +329,11 @@
        (rule "madlib placeholder editor submit"
              (when "ui/onKeyDown" {:elem-id 'a :key 13})
              (when "ui/custom" {:event-key "madlib placeholder editor" :entity 'ctx})
+             (when "active project" {:project-id 'project})
              (change "editing" {:id 'editing} {:id ""})
+             ;;compile the program
+             (pretend "compile project" {:project-id 'project})
+             (pretend "control external" {:action "compile" :id 'project})
              )
 
        (rule "madlib placeholder clicked"
@@ -354,45 +422,57 @@
 
 (rules editor "incrementer"
 
-           (rule "draw-incr"
-                 (when "incr" {:value value})
-                 (draw* [:button {:id "incr" :events ["onClick"]} "increment: " 'value]))
+       (rule "incr defaults"
+             (when "defaults" {:defaults '_})
+             (remember "incr" {:value 0}))
 
-           (rule "clicked"
-                 (when "ui/onClick" {:elem-id "incr"})
-                 (func 'new-val "value + 1")
-                 (change* "incr" {:value 'value} {:value 'new-val}))
+       (rule "draw-incr"
+             (when "incr" {:value value})
+             (draw* [:button {:id "incr" :events ["onClick"]} "increment: " 'value]))
+
+       (rule "clicked"
+             (when "ui/onClick" {:elem-id "incr"})
+             (func 'new-val "value + 1")
+             (change* "incr" {:value 'value} {:value 'new-val}))
            )
 
 
 (rules editor "todomvc"
 
+       (rule "defaults"
+             (when "defaults" {:defaults '_})
+             (remember "todo-to-add" {:value ""})
+             (remember "todo-to-edit" {:value ""})
+             (remember "current-toggle" {:value "false"})
+             (remember "todo-filter" {:filter "all"})
+             )
+
        (rule "todo-input-changes"
              (when "ui/onChange" {:elem-id "todo-input" :value 'neue})
-             (change*"todo-to-add" {:value 'v} {:value 'neue}))
+             (change* "todo-to-add" {:value 'v} {:value 'neue}))
 
        (rule "filter-active-clicked"
              (when "ui/onClick" {:elem-id "filter-active"})
-             (change*"todo-filter" {:filter 'v} {:filter "active"}))
+             (change* "todo-filter" {:filter 'v} {:filter "active"}))
 
        (rule "filter-completed-clicked"
              (when "ui/onClick" {:elem-id "filter-completed"})
-             (change*"todo-filter" {:filter 'v} {:filter "completed"}))
+             (change* "todo-filter" {:filter 'v} {:filter "completed"}))
 
        (rule "filter-all-clicked"
              (when "ui/onClick" {:elem-id "filter-all"})
-             (change*"todo-filter" {:filter 'v} {:filter "all"}))
+             (change* "todo-filter" {:filter 'v} {:filter "all"}))
 
        (rule "toggle-all-changed-track"
              (when "ui/onChange" {:elem-id "toggle-all" :value 'value})
              (func 'final "v == \"false\" ? \"true\" : \"false\" ")
-             (change*"current-toggle" {:value 'v} {:value 'final}))
+             (change* "current-toggle" {:value 'v} {:value 'final}))
 
        (rule "toggle-all-changed-update"
              (when "ui/onChange" {:elem-id "toggle-all" :value 'value})
              (when "current-toggle" {:value 'v})
              (func 'final "v == \"false\" ? \"completed\" : \"active\" ")
-             (change*"todo-completed"
+             (change* "todo-completed"
                      {:todo-id 'todo :completed? 'complete?}
                      {:todo-id 'todo :completed? 'final}))
 
@@ -428,7 +508,7 @@
              (func 'childId "\"todo-checkbox-\" + todo")
              (func 'parentId "\"todo-\" + todo")
              (pretend "ui/child" {:parent-id 'parentId :pos -1 :child-id 'childId})
-             (draw*[:input {:id 'childId
+             (draw* [:input {:id 'childId
                             :type "checkbox"
                             :checked 'active?
                             :event-key "todo-checkbox"
@@ -444,7 +524,7 @@
              (func 'todoId "\"todo-\" + todo")
              (func 'todoLabelId "\"todolabel-\" + todo")
              (pretend "ui/child" {:parent-id "todo-list" :pos 'todo :child-id 'todoId})
-             (draw*[:li {:id 'todoId
+             (draw* [:li {:id 'todoId
                          :className 'complete
                          :event-key "edit-todo"
                          :entity 'todo
@@ -466,7 +546,7 @@
        (rule "todo-item-checkbox-change"
              (when "ui/custom" {:event-key "todo-checkbox" :entity 'todo})
              (func 'neueComplete  "complete == \"completed\" ? \"active\" : \"completed\"")
-             (change*"todo-completed" {:todo-id 'todo :completed? 'complete}
+             (change* "todo-completed" {:todo-id 'todo :completed? 'complete}
                      {:todo-id 'todo :completed? 'neueComplete}))
 
        (rule "draw-todo-item-editor"
@@ -475,7 +555,7 @@
              (when "todo-editing" {:todo-id 'todo :editing? "editing"})
              (when "todo-to-edit" {:value 'value})
              (pretend "ui/child" {:parent-id "todo-list" :pos 'todo :child-id "todo-editor-wrapper"})
-             (draw*[:li {:id "todo-editor-wrapper"}
+             (draw* [:li {:id "todo-editor-wrapper"}
                     [:input {:id "todo-editor"
                              :className "todo-editor"
                              :type "text"
@@ -488,7 +568,7 @@
        (rule "draw-todo-input"
              (when "todo-to-add" {:value 'cur})
              (pretend "ui/child" {:parent-id "input-header" :pos 1 :child-id "todo-input"})
-             (draw*[:input {:id "todo-input"
+             (draw* [:input {:id "todo-input"
                             :className "new-todo"
                             :placeholder "What needs to be done?"
                             :type "text"
@@ -503,14 +583,14 @@
 
        (rule "draw-interface"
              (when "current-toggle" {:value 'toggle})
-             (draw*[:div {:id "running-wrapper" :className "running-wrapper"}
+             (draw* [:div {:id "running-wrapper" :className "running-wrapper"}
                     [:div {:id "app" :className "todoapp"}
                      [:h1 {:id "todo-header"} "Todos"]
                      [:header {:id "input-header"}
                       [:input {:id "toggle-all"
                                :className "toggle-all"
                                :event-key "toggle-all"
-                               :checked 'toggle
+                               :checked "false"
                                :events ["onChange"]
                                :type "checkbox"}]]
                      [:ul {:id "todo-list" :className "todo-list"}]
@@ -527,12 +607,12 @@
        (rule "double-click-to-edit"
              (when "ui/custom" {:event-key "edit-todo" :entity 'todo})
              (when "todo" {:todo-id 'todo :text 'text})
-             (change*"todo-to-edit" {:value '_} {:value 'text})
-             (change*"todo-editing" {:todo-id 'todo :editing? 'v} {:todo-id 'todo :editing? "editing"}))
+             (change* "todo-to-edit" {:value '_} {:value 'text})
+             (change* "todo-editing" {:todo-id 'todo :editing? 'v} {:todo-id 'todo :editing? "editing"}))
 
        (rule "todo-editing"
              (when "ui/onChange" {:elem-id "todo-editor" :value 'text})
-             (change*"todo-to-edit" {:value '_} {:value 'text}))
+             (change* "todo-to-edit" {:value '_} {:value 'text}))
 
        (rule "enter-todo-editor"
              (when "ui/onKeyDown" {:elem-id "todo-editor" :key 13})
@@ -545,10 +625,10 @@
        (rule "commit-todo"
              (when "commit-todo" {:x 0})
              (when "todo-to-edit" {:value 'value})
-             (change*"todo-editing"
+             (change* "todo-editing"
                      {:todo-id 'todo :editing? "editing"}
                      {:todo-id 'todo :editing? "saved"})
-             (change*"todo"
+             (change* "todo"
                      {:todo-id 'todo :text 'text}
                      {:todo-id 'todo :text 'value}))
 
@@ -556,13 +636,30 @@
              (when "todo-added" {:x '_})
              (when "time" {:time 'time})
              (when "todo-to-add" {:value 'to-add})
-             (change*"todo-to-add" {:value 'to-add} {:value ""})
+             (change* "todo-to-add" {:value 'to-add} {:value ""})
              (remember "todo" {:todo-id 'time :text 'to-add})
              (remember "todo-editing" {:todo-id 'time :editing? "saved"})
              (remember "todo-completed" {:todo-id 'time :completed? "active"})))
 
+(defn compile-editor [program watchers]
+  (let [compiled (compile program)]
+    (runtime/prep-compiled compiled)
+    (syntax/know program "compile project" #js ["project-id"] #js ["editor ui"])
+    (.quiesce compiled program (fn [kn]
+                                 (.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] (.keys (get (syntax/index kn "compiled clauses") ["rule-id" "when|know|remember|forget" "clause-id" "name"])))
+                                 (.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] (.keys (get (syntax/index kn "compiled clause-fields") ["clause-id" "constant|variable" "key" "val"])))
+                                 (let [final-compiled (compile kn)]
+                                   (runtime/prep-compiled final-compiled)
+                                   (aset (.-state program) "compiled" final-compiled))
+                                 ))
+    ;(.clear-facts program "know" "compile project")
+    (aset (.-name->transient? compiled) "compile project" true)
+    (aset (.-state program) "watchers" watchers)
+    program))
+
 (defn run []
-  (let [editor (pre-compile editor)]
+  (let [editor (compile-editor editor [(runtime/create-react-renderer "body")
+                                       manager/watcher])]
     (perf-time-named "full run"
      (do (defaults editor)
        (re-run editor)))))

@@ -238,10 +238,10 @@
 
 
 (defn run []
-  (let [todomvc (pre-compile todomvc)]
+  (let [todomvc (pre-compile todomvc [(runtime/create-react-renderer "body")])]
     (perf-time-named "full run"
      (do (defaults todomvc)
-       (perf-time-named "fill" (fill-todos todomvc 200))
+       (perf-time-named "fill" (fill-todos todomvc 0))
        (re-run todomvc)))))
 
 (enable-console-print!)
