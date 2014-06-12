@@ -57,17 +57,9 @@
   5000
   (aurora.btree/total-prop 1))
 
-(defspec building-assoc-test
+(defspec building-prop-test
   5000
-  (aurora.btree/building-prop aurora.btree/gen-assoc 1))
-
-(defspec building-action-test
-  5000
-  (aurora.btree/building-prop aurora.btree/gen-action 1))
-
-(defspec lookup-action-test
-  5000
-  (aurora.btree/lookup-prop aurora.btree/gen-action 1))
+  (aurora.btree/building-prop 1))
 
 (defspec iterator-prop-test
   5000
@@ -86,13 +78,13 @@
   (aurora.btree/self-join-prop 3))
 
 (defspec product-join-prop-test
-  5000
+  500
   (aurora.btree/product-join-prop 1))
 
 (defspec product-join-prop-test
-  5000
+  500
   (aurora.btree/product-join-prop 2))
 
 (defspec product-join-prop-test
-  5000
+  500
   (aurora.btree/product-join-prop 3))

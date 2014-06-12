@@ -4,7 +4,7 @@
             [cemerick.double-check.properties :as prop :include-macros true]
             [cemerick.pprng :as pprng]
             clojure.set)
-  (:require-macros [aurora.macros :refer [debug check apush apush-into apop-from amake aclear typeof set!! dofrom perf-time]]))
+  (:require-macros [aurora.macros :refer [debug check apush apush-into apop-from amake aclear typeof set!! dofrom perf-time for!]]))
 
 ;; COMPARISONS
 
@@ -157,7 +157,27 @@
             mid
             (recur lo (- mid 1))))))))
 
+(defn prim= [a b]
+  (or (== a b)
+      (and (array? a) (array? b)
+           (== (alength a) (alength b))
+           (loop [i 0]
+             (if (< i (alength a))
+               (if (prim= (aget a i) (aget b i))
+                 (recur (+ i 1))
+                 false)
+               true)))))
+
 ;; TREES
+
+;; update adds the delta to the current value for the key and returns either:
+;;   added if the value went from zero to non-zero
+;;   changed if the value went from non-zero to non-zero
+;;   deled if the value went from non-zero to zero
+
+(def added 1)
+(def changed 0)
+(def deled -1)
 
 (def left-child 0)
 (def right-child 1)
@@ -168,10 +188,9 @@
          (set! root (Node. nil nil #js [] #js [] nil nil nil)))
   (toString [this]
             (pr-str (into (sorted-map-by key-compare) (map vec this))))
-  (assoc! [this key val]
-          (.assoc! root key val max-keys))
-  (dissoc! [this key]
-           (.dissoc! root key max-keys))
+  (update [this key delta]
+          (assert (not (== delta 0)))
+          (.update root key delta max-keys))
   (push! [this ix key&val&child which-child]
            (let [left-child (if (== which-child left-child) (aget key&val&child 2) root)
                  right-child (if (== which-child right-child) (aget key&val&child 2) root)]
@@ -193,54 +212,55 @@
                     (recur (mapcat #(.-children %) nodes)))))
   (foreach [this f]
            (.foreach root f))
-  (elems [this]
-       (let [results #js []]
-         (.foreach this #(apush results #js [%1 %2]))
-         results))
   (keys [this]
         (let [results #js []]
           (.foreach this #(apush results %1))
           results))
+  (elems [this]
+       (let [results #js []]
+         (.foreach this #(do (apush results %1) (apush results %2)))
+         results))
   ISeqable
   (-seq [this]
-        (seq (.elems this))))
+        (seq (map vec (partition 2 (.elems this))))))
 
 (deftype Node [parent parent-ix keys vals children ^:mutable lower ^:mutable upper]
   Object
-  (assoc! [this key val max-keys]
+  (update [this key delta max-keys]
           (let [ix (key-find-gte keys key)]
             (if (and (< ix (alength keys)) (key= key (aget keys ix)))
-              (do
-                (aset vals ix val)
-                true)
+              (let [old-val (aget vals ix)
+                    new-val (+ old-val delta)]
+                (if (== 0 new-val)
+                  ;; del
+                  (if (nil? children)
+                    (do
+                      (.pop! this ix)
+                      (.maintain! this max-keys)
+                      deled)
+                    (loop [node (aget children (+ ix 1))]
+                      (if (not (nil? (.-children node)))
+                        (recur (aget (.-children node) 0))
+                        (do
+                          (aset keys ix (aget (.-keys node) 0))
+                          (aset vals ix (aget (.-vals node) 0))
+                          (.pop! node 0)
+                          (.maintain! node max-keys)
+                          (.maintain! this max-keys)
+                          deled))))
+                  ;; change
+                  (do
+                    (aset vals ix new-val)
+                    changed)))
               (if (nil? children)
+                ;; add
                 (do
-                  (.push! this ix #js [key val])
+                  (.push! this ix #js [key delta])
                   (.maintain! this max-keys)
-                  false)
-                (.assoc! (aget children ix) key val max-keys)))))
-  (dissoc! [this key max-keys]
-           (let [ix (key-find-gte keys key)]
-             (if (and (< ix (alength keys)) (key= key (aget keys ix)))
-               (if (nil? children)
-                 (do
-                   (.pop! this ix)
-                   (.maintain! this max-keys)
-                   true)
-                 (loop [node (aget children (+ ix 1))]
-                   (if (not (nil? (.-children node)))
-                     (recur (aget (.-children node) 0))
-                     (do
-                       (aset keys ix (aget (.-keys node) 0))
-                       (aset vals ix (aget (.-vals node) 0))
-                       (.pop! node 0)
-                       (.maintain! node max-keys)
-                       (.maintain! this max-keys)
-                       true))))
-               (if (nil? children)
-                 false ;; done
-                 (.dissoc! (aget children ix) key max-keys)))))
-  (push! [this ix key&val&child which-child]
+                  added)
+                ;; recur
+                (.update (aget children ix) key delta max-keys)))))
+  (push! [this ix key&val&child which-child] ;; on leaves, child and which-child are not required
          (.splice keys ix 0 (aget key&val&child 0))
          (.splice vals ix 0 (aget key&val&child 1))
          (when-not (nil? children)
@@ -405,6 +425,8 @@
   (reset [this key]
          (set! node (.-root tree))
          (set! ix 0))
+  (val [this]
+       (aget (.-vals node) ix))
   (seek-gt [this key]
            (loop []
              (if (and (instance? Node (.-parent node))
@@ -415,17 +437,17 @@
                  (set! node (.-parent node))
                  (recur))
                (loop []
-                  (set! ix (key-find-gt (.-keys node) key))
-                  (if (nil? (.-children node))
-                    (if (< ix (alength (.-keys node)))
-                      (aget (.-keys node) ix)
-                      nil)
-                    (if (key-lte (.-upper (aget (.-children node) ix)) key)
-                      (aget (.-keys node) ix)
-                      (do
-                        (set! node (aget (.-children node) ix))
-                        (set! ix 0)
-                        (recur))))))))
+                 (set! ix (key-find-gt (.-keys node) key))
+                 (if (nil? (.-children node))
+                   (if (< ix (alength (.-keys node)))
+                     (aget (.-keys node) ix)
+                     nil)
+                   (if (key-lte (.-upper (aget (.-children node) ix)) key)
+                     (aget (.-keys node) ix)
+                     (do
+                       (set! node (aget (.-children node) ix))
+                       (set! ix 0)
+                       (recur))))))))
   (seek-gte [this key]
             (loop []
               (if (and (instance? Node (.-parent node))
@@ -446,7 +468,11 @@
                       (do
                         (set! node (aget (.-children node) ix))
                         (set! ix 0)
-                        (recur)))))))))
+                        (recur))))))))
+  (contains? [this key]
+             (let [found-key (.seek-gte this key)]
+               (and (not (nil? found-key))
+                    (key= found-key key)))))
 
 (defn iterator [tree]
   (Iterator. tree (.-root tree) 0))
@@ -455,17 +481,23 @@
 
 ;; los and his are inclusive
 
-;; propagate updates the current lo/hi for each var and set the solver to failed
+;; propagate updates the current lo/hi for each var and may set the solver to failed
+;;   returns the val of the current key (only has to be correct when all its vars are fixed)
 ;; split-left either:
 ;;   breaks the solutions into two branches, sets the left branch, returns true
 ;;   has only one possible solution, does nothing, returns false
 ;; split-right:
 ;;   breaks the solutions into two branches, sets the right branch
+;; val returns the number of solutions with this key (assumes all vars are fixed)
 
 (deftype Contains [iterator vars scratch-key]
   Object
   (reset [this solver constraint]
          (.reset iterator))
+  (val [this solver constraints]
+       ;; TODO somewhat uncomfortable with the fact that this is stateful
+       ;; could store current key and check key= instead
+       (.val iterator))
   (propagate [this solver constraint]
              (let [los (.-los solver)
                    his (.-his solver)]
@@ -493,20 +525,20 @@
                            (.set-watch solver var constraint true)))))))))
   (split-left [this solver constraint]
               ;; fix the value of the first non-fixed var
-             (let [los (.-los solver)
-                   his (.-his solver)]
-               (loop [i 0]
-                 (if (< i (alength vars))
-                   (let [var (aget vars i)]
-                     (if (identical? (aget los var) (aget his var))
-                       (recur (+ i 1))
-                       (do
-                         (.set-hi solver var (aget los var))
-                         (when (< (+ i 1) (alength vars))
-                           (.set-watch solver (aget vars (+ i 1)) constraint true))
-                         (.propagate this solver constraint)
-                         true)))
-                   false))))
+              (let [los (.-los solver)
+                    his (.-his solver)]
+                (loop [i 0]
+                  (if (< i (alength vars))
+                    (let [var (aget vars i)]
+                      (if (identical? (aget los var) (aget his var))
+                        (recur (+ i 1))
+                        (do
+                          (.set-hi solver var (aget los var))
+                          (when (< (+ i 1) (alength vars))
+                            (.set-watch solver (aget vars (+ i 1)) constraint true))
+                          (.propagate this solver constraint)
+                          true)))
+                    false))))
   (split-right [this solver constraint]
                (let [los (.-los solver)
                      his (.-his solver)]
@@ -543,6 +575,8 @@
 (deftype Constant [c var]
   Object
   (reset [this solver constraint])
+  (val [this solver constraint]
+       1)
   (split-left [this solver constraint]
               false)
   (split-right [this solver constraint])
@@ -557,6 +591,8 @@
   (reset [this solver constraint]
          (dotimes [i (alength vars)]
            (.set-watch solver (aget vars i) constraint true)))
+  (val [this solver constraint]
+       1)
   (split-left [this solver constraint]
               false)
   (split-right [this solver constraint])
@@ -579,6 +615,8 @@
   (reset [this solver constraint]
          (dotimes [i (alength vars)]
            (.set-watch solver (aget vars i) constraint true)))
+  (val [this solver constraint]
+       1)
   (split-left [this solver constraint]
               false)
   (split-right [this solver constraint])
@@ -602,6 +640,8 @@
   (reset [this solver constraint]
          (dotimes [i (alength vars)]
            (.set-watch solver (aget vars i) constraint true)))
+  (val [this solver constraint]
+       1)
   (split-left [this solver constraint]
               false)
   (split-right [this solver constraint])
@@ -619,6 +659,37 @@
 
 (defn filter [f vars]
   (Filter. f vars (make-array (alength vars))))
+
+(deftype Interval [in-var lo-var hi-var]
+  Object
+  (reset [this solver constraint]
+         (.set-watch solver lo-var constraint true)
+         (.set-watch solver hi-var constraint true))
+  (val [this solver constraint]
+       1)
+  (split-left [this solver constraint]
+              (let [los (.-los solver)
+                    his (.-his solver)
+                    lo-lo (aget los lo-var)
+                    hi-lo (aget his lo-var)
+                    lo-hi (aget los hi-var)
+                    hi-hi (aget his hi-var)
+                    in-lo (aget los in-var)
+                    in-hi (aget his in-var)]
+                (if (and (== lo-lo hi-lo) (== lo-hi hi-hi) (not (== in-lo in-hi)))
+                  (do
+                    (.set-hi solver in-var (js/Math.ceil in-lo))
+                    true)
+                  false)))
+  (split-right [this solver constraint]
+               (let [in-lo (aget (.-los solver) in-var)]
+                 (.set-lo solver in-var (+ (js/Math.ceil in-lo) 1))))
+  (propagate [this solver constraint]
+             (.set-lo solver in-var (aget (.-los solver) lo-var))
+             (.set-hi solver in-var (aget (.-his solver) hi-var))))
+
+(defn interval [in-var lo-var hi-var]
+  (Interval. in-var lo-var hi-var))
 
 ;; SOLVER
 
@@ -728,17 +799,23 @@
                 (do
                   (.split this)
                   (recur 0)))))))
-  (keys [this]
-       (let [results #js []]
-         (loop []
-           (let [result (.next this)]
-             (when-not (nil? result)
-               (apush results result)
-               (recur))))
+  (val [this]
+       (let [result 1]
+         (dotimes [constraint (alength constraints)]
+           (set!! result (* result (.val (aget constraints constraint) this constraint))))
+         result))
+  (elems [this]
+         (let [results #js []]
+           (loop []
+             (let [result (.next this)]
+               (when-not (nil? result)
+                 (apush results result)
+                 (apush results (.val this))
+                 (recur))))
          results))
   ISeqable
   (-seq [this]
-        (seq (.keys this))))
+        (seq (map vec (partition 2 (.elems this))))))
 
 (defn solver [num-vars constraints]
   (let [los (least-key num-vars)
@@ -814,73 +891,53 @@
       (.push result (make-simple-key-elem rnd size)))
     result))
 
-(defn gen-assoc [key-len]
+(defn make-simple-delta [rnd size]
+  (let [delta (gen/rand-range rnd (- size) size)]
+    (if (== delta 0)
+      (+ delta 1)
+      delta)))
+
+(defn gen-update [key-len]
   (gen/make-gen
    (fn [rnd size]
      (let [key (make-simple-key rnd size key-len)
-           val (make-simple-key rnd size key-len)]
-       [[:assoc! key key] nil]))))
+           delta (make-simple-delta rnd size)]
+         [[:update key delta] nil]))))
 
-(defn gen-dissoc [key-len]
-  (gen/make-gen
-   (fn [rnd size]
-     (let [key (make-simple-key rnd size key-len)]
-       [[:dissoc! key] nil]))))
+(defn apply-to-tree [tree updates]
+  [tree
+   (doall
+    (for [update updates]
+      (.update tree (nth update 1) (nth update 2))))])
 
-(defn gen-action [key-len]
-  (gen/make-gen
-   (fn [rnd size]
-     (let [key (make-simple-key rnd size key-len)
-           val (make-simple-key rnd size key-len)]
-       (if (pprng/boolean rnd)
-         [[:assoc! key val] nil]
-         [[:dissoc! key] nil])))))
+(defn apply-to-sorted-map [map updates]
+  (let [map (atom map)
+        results (doall
+                 (for [update updates]
+                   (let [key (nth update 1)
+                         delta (nth update 2)
+                         old-val (get @map key 0)
+                         new-val (+ old-val delta)]
+                     (if (== new-val 0)
+                       (swap! map dissoc key)
+                       (swap! map assoc key new-val))
+                     (cond
+                      (and (== old-val 0) (not (== new-val 0))) added
+                      (and (not (== old-val 0)) (not (== new-val 0))) changed
+                      (and (not (== old-val 0)) (== new-val 0)) deled))))]
+    [@map results]))
 
-(defn apply-to-tree [tree actions]
-  (doseq [action actions]
-    (case (nth action 0)
-      :assoc! (.assoc! tree (nth action 1) (nth action 2))
-      :dissoc! (.dissoc! tree (nth action 1)))
-    #_(do
-      (prn action)
-      (.pretty-print tree)
-      (prn tree)
-      (.valid! tree)))
-  tree)
-
-(defn apply-to-sorted-map [map actions]
-  (reduce
-   (fn [map action]
-     (case (nth action 0)
-       :assoc! (assoc map (nth action 1) (nth action 2))
-       :dissoc! (dissoc map (nth action 1))))
-   map actions))
-
-(defn run-building-prop [min-keys key-len actions]
-  (let [tree (apply-to-tree (tree min-keys key-len) actions)
-        sorted-map (apply-to-sorted-map (sorted-map-by key-compare) actions)]
-    (and (= (seq (map vec tree)) (seq sorted-map))
+(defn run-building-prop [min-keys key-len updates]
+  (let [[tree tree-results] (apply-to-tree (tree min-keys key-len) updates)
+        [sorted-map sorted-map-results] (apply-to-sorted-map (sorted-map-by key-compare) updates)]
+    (and (= (seq tree) (seq sorted-map))
+         (= tree-results sorted-map-results)
          (.valid! tree))))
 
-(defn building-prop [gen key-len]
+(defn building-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
-                 actions (gen/vector (gen key-len))]
-                (run-building-prop min-keys key-len actions)))
-
-(defn run-lookup-prop [min-keys key-len actions action]
-  (let [tree (apply-to-tree (tree min-keys key-len) actions)
-        sorted-map (apply-to-sorted-map (sorted-map-by key-compare) actions)
-        tree-result (case (nth action 0)
-                      :assoc! (.assoc! tree (nth action 1) (nth action 2))
-                      :dissoc! (.dissoc! tree (nth action 1)))
-        sorted-map-result (contains? sorted-map (nth action 1))]
-    (= tree-result sorted-map-result)))
-
-(defn lookup-prop [gen key-len]
-  (prop/for-all [min-keys gen/s-pos-int
-                 actions (gen/vector (gen key-len))
-                 action (gen key-len)]
-                (run-lookup-prop min-keys key-len actions action)))
+                 updates (gen/vector (gen-update key-len))]
+                (run-building-prop min-keys key-len updates)))
 
 (defn gen-movement [key-len]
   (gen/make-gen
@@ -907,9 +964,9 @@
                     (reset! cur-elems (drop-while #(key-lt (nth % 0) (nth movement 1)) elems))
                     (first (first @cur-elems)))))))
 
-(defn run-iterator-prop [min-keys key-len actions movements]
-  (let [tree (apply-to-tree (tree min-keys key-len) actions)
-        sorted-map (apply-to-sorted-map (sorted-map-by key-compare) actions)
+(defn run-iterator-prop [min-keys key-len updates movements]
+  (let [[tree _] (apply-to-tree (tree min-keys key-len) updates)
+        [sorted-map _] (apply-to-sorted-map (sorted-map-by key-compare) updates)
         iterator-results (apply-to-iterator (iterator tree) movements)
         elems-results (apply-to-elems (seq sorted-map) movements)]
     #_(.pretty-print tree)
@@ -917,42 +974,46 @@
 
 (defn iterator-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
-                 actions (gen/vector (gen-action key-len))
+                 updates (gen/vector (gen-update key-len))
                  movements (gen/vector (gen-movement key-len))]
-                (run-iterator-prop min-keys key-len actions movements)))
+                (run-iterator-prop min-keys key-len updates movements)))
 
-(defn run-self-join-prop [min-keys key-len actions]
-  (let [tree (apply-to-tree (tree min-keys key-len) actions)
+(defn run-self-join-prop [min-keys key-len updates]
+  (let [[tree _] (apply-to-tree (tree min-keys key-len) updates)
         solver (solver
                 key-len
                 #js [(contains (iterator tree) (into-array (range key-len)))
-                     (contains (iterator tree) (into-array (range key-len)))])]
-    (= (map vec (map first tree))
-       (map vec solver))))
+                     (contains (iterator tree) (into-array (range key-len)))])
+        tree-elems (.elems tree)]
+    (dotimes [i (alength tree-elems)]
+      (let [elem (aget tree-elems i)]
+        (when (number? elem)
+          (aset tree-elems i (* elem elem)))))
+    (prim= tree-elems (.elems solver))))
 
 (defn self-join-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
-                 actions (gen/vector (gen-action key-len))]
-                (run-self-join-prop min-keys key-len actions)))
+                 updates (gen/vector (gen-update key-len))]
+                (run-self-join-prop min-keys key-len updates)))
 
-(defn run-product-join-prop [min-keys key-len actions]
+(defn run-product-join-prop [min-keys key-len updates]
   (let [product-tree (tree min-keys key-len)
-        tree (apply-to-tree (tree min-keys key-len) actions)
-        elems (into-array (map first tree))
+        [tree _] (apply-to-tree (tree min-keys key-len) updates)
+        elems (.elems tree)
         _ (dotimes [i (alength elems)]
             (dotimes [j (alength elems)]
-              (.assoc! product-tree (.concat (aget elems i) (aget elems j)) nil)))
+              (when (and (== 0 (mod i 2)) (== 0 (mod j 2)))
+                (.update product-tree (.concat (aget elems i) (aget elems j)) (* (aget elems (+ i 1)) (aget elems (+ j 1)))))))
         solver (solver
                 (* 2 key-len)
                 #js [(contains (iterator tree) (into-array (range 0 key-len)))
                      (contains (iterator tree) (into-array (range key-len (* 2 key-len))))])]
-    (= (map vec (map first product-tree))
-       (map vec solver))))
+    (prim= (.elems product-tree) (.elems solver))))
 
 (defn product-join-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int
-                 actions (gen/vector (gen-action key-len))]
-                (run-product-join-prop min-keys key-len actions)))
+                 updates (gen/vector (gen-update key-len))]
+                (run-product-join-prop min-keys key-len updates)))
 
 (comment
   (dc/quick-check 1000 (least-prop 1))
@@ -969,9 +1030,7 @@
   (dc/quick-check 1000 (anti-symmetric-prop 2))
   (dc/quick-check 1000 (total-prop 1))
   (dc/quick-check 1000 (total-prop 2))
-  (dc/quick-check 10000 (building-prop gen-assoc 1))
-  (dc/quick-check 10000 (building-prop gen-action 1))
-  (dc/quick-check 10000 (lookup-prop gen-action 1))
+  (dc/quick-check 10000 (building-prop 1))
   (dc/quick-check 10000 (iterator-prop 1))
   (dc/quick-check 10000 (self-join-prop 1))
   (dc/quick-check 10000 (self-join-prop 2))
@@ -1005,9 +1064,9 @@
   (time (dotimes [_ 10] (h)))
 
   (do
-    (def samples (gen/sample (gen/tuple gen/s-pos-int (gen/vector gen-action) (gen/vector gen-movement)) 100))
-    (def trees (for [[min-keys actions _] samples]
-                 (apply-to-tree (tree min-keys) actions)))
+    (def samples (gen/sample (gen/tuple gen/s-pos-int (gen/vector gen-update) (gen/vector gen-movement)) 100))
+    (def trees (for [[min-keys updates _] samples]
+                 (apply-to-tree (tree min-keys) updates)))
     (def benches (mapv vector trees (map #(nth % 2) samples)))
     (time
      (doseq [[tree movements] benches]
@@ -1185,6 +1244,15 @@
                 #js [(contains (iterator tree1) #js [0 1])
                      (contains (iterator tree2) #js [2 3])
                      (filter = #js [1 3])])
+      ]
+    (.reset s)
+  (take 100 (take-while identity (repeatedly #(.next s))))
+  )
+
+  (let [s (solver 3
+                  #js [(interval 0 1 2)
+                       (constant 0 1)
+                       (constant 10 2)])
       ]
     (.reset s)
   (take 100 (take-while identity (repeatedly #(.next s))))
