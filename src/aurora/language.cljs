@@ -255,6 +255,19 @@
                                                     arg-ixes (map var->ix args)
                                                     fun (apply js/Function (conj (vec args) (str "return (" js ");")))]
                                                 (btree/filter fun (into-array arg-ixes)))
+                                     "interval" (let [in (first (for [[_ field-type key val] fields
+                                                                      :when (= key "in")]
+                                                                  val))
+                                                      in-ix (get var->ix in)
+                                                      lo (first (for [[_ field-type key val] fields
+                                                                      :when (= key "lo")]
+                                                                  val))
+                                                      lo-ix (get var->ix lo)
+                                                      hi (first (for [[_ field-type key val] fields
+                                                                      :when (= key "hi")]
+                                                                  val))
+                                                      hi-ix (get var->ix hi)]
+                                                  (btree/interval in-ix lo-ix hi-ix))
                                      (let [clause-vars&keys (sort-by (fn [[val key]] (var->ix val))
                                                                      (for [[_ field-type key val] fields]
                                                                        [val key]))
@@ -311,6 +324,7 @@
 ;; TESTS
 
 (comment
+(enable-console-print!)
 
 (def kn (knowledge))
 
@@ -365,9 +379,26 @@
                                                                                              #js ["-make-str" "constant" "js" "\"edge \" + xx + \" \" + yy"]
                                                                                              #js ["-know-str" "variable" "name" "zz"]])
 
+(.get-or-create-index kn "know" "foo" #js ["x" "y"])
+
+(.get-or-create-index kn "know" "bar" #js ["z"])
+
+(.add-facts kn "know" "foo" #js ["x" "y"] #js [#js [1 5] #js [10 10] #js [20 15]])
+
+(.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["overlap" "when" "get-foos" "foo"]
+                                                                                                    #js ["overlap" "when" "some-interval" "interval"]
+                                                                                                    #js ["overlap" "remember" "rem-bar" "bar"]])
+
+(.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-foos" "variable" "x" "xx"]
+                                                                                             #js ["get-foos" "variable" "y" "yy"]
+                                                                                             #js ["some-interval" "variable" "lo" "xx"]
+                                                                                             #js ["some-interval" "variable" "hi" "yy"]
+                                                                                             #js ["some-interval" "variable" "in" "zz"]
+                                                                                             #js ["rem-bar" "variable" "z" "zz"]])
+
 (def flows (compile kn))
 
-(set! (.-rules flows) #js ["single-edge" "transitive-edge" "function-edge" "-function-edge"])
+(set! (.-rules flows) #js ["single-edge" "transitive-edge" "function-edge" "-function-edge" "overlap"])
 
 (enable-console-print!)
 
@@ -385,4 +416,8 @@
 (.get-or-create-index kn "know" "connected" #js ["x" "y"])
 
 (.get-or-create-index kn "know" "str-edge" #js ["name"])
+
+(.get-or-create-index kn "know" "foo" #js ["x" "y"])
+
+(.get-or-create-index kn "know" "bar" #js ["z"])
 )

@@ -660,6 +660,37 @@
 (defn filter [f vars]
   (Filter. f vars (make-array (alength vars))))
 
+(deftype Interval [in-var lo-var hi-var]
+  Object
+  (reset [this solver constraint]
+         (.set-watch solver lo-var constraint true)
+         (.set-watch solver hi-var constraint true))
+  (val [this solver constraint]
+       1)
+  (split-left [this solver constraint]
+              (let [los (.-los solver)
+                    his (.-his solver)
+                    lo-lo (aget los lo-var)
+                    hi-lo (aget his lo-var)
+                    lo-hi (aget los hi-var)
+                    hi-hi (aget his hi-var)
+                    in-lo (aget los in-var)
+                    in-hi (aget his in-var)]
+                (if (and (== lo-lo hi-lo) (== lo-hi hi-hi) (not (== in-lo in-hi)))
+                  (do
+                    (.set-hi solver in-var (js/Math.ceil in-lo))
+                    true)
+                  false)))
+  (split-right [this solver constraint]
+               (let [in-lo (aget (.-los solver) in-var)]
+                 (.set-lo solver in-var (+ (js/Math.ceil in-lo) 1))))
+  (propagate [this solver constraint]
+             (.set-lo solver in-var (aget (.-los solver) lo-var))
+             (.set-hi solver in-var (aget (.-his solver) hi-var))))
+
+(defn interval [in-var lo-var hi-var]
+  (Interval. in-var lo-var hi-var))
+
 ;; SOLVER
 
 ;; los and his are inclusive
@@ -771,7 +802,7 @@
   (val [this]
        (let [result 1]
          (dotimes [constraint (alength constraints)]
-           (set!! result (* result (.val (aget constraints constraint) solver constraint))))
+           (set!! result (* result (.val (aget constraints constraint) this constraint))))
          result))
   (elems [this]
          (let [results #js []]
@@ -1213,6 +1244,15 @@
                 #js [(contains (iterator tree1) #js [0 1])
                      (contains (iterator tree2) #js [2 3])
                      (filter = #js [1 3])])
+      ]
+    (.reset s)
+  (take 100 (take-while identity (repeatedly #(.next s))))
+  )
+
+  (let [s (solver 3
+                  #js [(interval 0 1 2)
+                       (constant 0 1)
+                       (constant 10 2)])
       ]
     (.reset s)
   (take 100 (take-while identity (repeatedly #(.next s))))
