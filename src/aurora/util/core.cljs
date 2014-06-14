@@ -15,6 +15,11 @@
   (set! (.-onerror js/window) #())
   (.on js/process "uncaughtException" #()))
 
+(when-not (.-performance js/self)
+  (aset js/self "performance" (js-obj "now" (fn []
+                                              (.getTime (new js/Date))
+                                              ))))
+
 (defrecord FailedCheck [message line file trace])
 
 (defn map! [f xs]

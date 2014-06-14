@@ -46,20 +46,6 @@
         queue (array)]
     (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
     (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "compiled clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
-    (.get-or-create-index kn "know" "compiled clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
-    (.get-or-create-index kn "know" "editor rules" #js ["rule-id" "project-id"])
-    (.get-or-create-index kn "know" "editor clauses" #js ["rule-id" "type" "clause-id" "madlib-id"])
-    (.get-or-create-index kn "know" "editor clause fields" #js ["clause-id" "constant|variable|expression" "key" "val"])
-    (.get-or-create-index kn "know" "change clauses" #js ["rule-id" "clause-id" "from|to" "table" "sub-clause-id"])
-    (.get-or-create-index kn "know" "ui/editor-root" #js ["rule-id" "clause-id" "root"])
-    (.get-or-create-index kn "know" "ui/editor-elem" #js ["rule-id" "clause-id"])
-    (.get-or-create-index kn "know" "ui/editor-child" #js ["rule-id" "clause-id"])
-    (.get-or-create-index kn "know" "ui/editor-attr" #js ["rule-id" "clause-id"])
-    (.get-or-create-index kn "know" "ui/editor-text" #js ["rule-id" "clause-id"])
-    (.get-or-create-index kn "know" "ui/editor-style" #js ["rule-id" "clause-id"])
-    (.get-or-create-index kn "know" "ui/editor-event-listener" #js ["rule-id" "clause-id"])
-    (.get-or-create-index kn "know" "ui/editor-computed-id" #js ["rule-id" "id" "parent" "pos"])
     (init-std-lib kn)
     (aset state "queued" false)
     (aset state "current-queue" queue)
@@ -182,7 +168,15 @@
 
     final))
 
-(def mappings {"className" "class"})
+(def mappings {"className" "class"
+               "onClick" "click"
+               "click" "onClick"
+               "onKeyDown" "keydown"
+               "keydown" "onKeyDown"
+               "onBlur" "blur"
+               "blur" "onBlur"
+               "onChange" "change"
+               "change" "onChange"})
 
 (defn build-element-dom [id tag attrs-itr styles-itr events-itr queue]
   (let [elem (js/document.createElement tag)
@@ -211,17 +205,12 @@
             event (aget cur 1)
             event-key (aget cur 2)
             entity (aget cur 3)]
-        (dom/on elem event (fn [e]
-                             (comment
-                               (queue (stdlib/map->fact (merge {:ml (keyword "ui" event)
-                                                                "event" event-key
-                                                                "id" id
-                                                                "entity" entity}
-                                                               (event->params event e))))
-                               (queue (stdlib/map->fact (merge {:ml :ui/custom
-                                                                "event" event-key
-                                                                "entity" entity}))))
-                             )))
+        (dom/on elem (or (mappings event) event)
+                (fn [e]
+                  (let [[order vals] (event->params e event id)]
+                    (queue (str "ui/" event) order vals)
+                    (queue (str "ui/custom") #js ["event-key" "entity"] #js [event-key entity]))
+                  )))
       (.next events-itr))
 
     elem))
@@ -283,7 +272,7 @@
     program))
 
 (defn create-direct-renderer [root]
-  (fn [kn]
+  (fn [kn queue]
     (let [tree (perf-time-named "rebuild tree" (rebuild-tree-dom kn queue))
           container (dom/$ root)
           ]

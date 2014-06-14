@@ -1,4 +1,4 @@
-.todoapp button {
+.todo-list button, .footer button {
 	margin: 0;
 	padding: 0;
 	border: 0;
@@ -14,12 +14,15 @@
 	appearance: none;
 }
 
+.performance { position:absolute; top: -100px; }
+
 .running-wrapper {
 	font: 14px 'Helvetica Neue', Helvetica, Arial, sans-serif;
 	background: #eaeaea;
 	color: #4d4d4d;
 	-webkit-font-smoothing: antialiased;
   padding:20px;
+  min-height:100%;
 }
 
 .running-wrapper .todoapp input,
