@@ -282,39 +282,30 @@
               solver (btree/solver num-vars (into-array constraints))
 
               ;; make output specs
-              output-kinds (into-array
-                            (for [[_ clause-type clause-id name] clauses
-                                  :when (not= clause-type "when")]
-                              clause-type))
-              output-names (into-array
-                            (for [[_ clause-type clause-id name] clauses
-                                  :when (not= clause-type "when")]
-                              name))
-              output-fields (into-array
-                             (for [[_ clause-type clause-id name] clauses
-                                   :when (not= clause-type "when")]
-                               (let [clause-fields (get @clause-id->fields clause-id)
-                                     output-fields (make-array num-vars)]
-                                 (doseq [[_ field-type key val] clause-fields]
-                                   (assert (= field-type "variable") [rule-id clause-id clause-fields])
-                                   (aset output-fields (var->ix val) key))
-                                 output-fields)))]
+              output-kinds #js []
+              output-names #js []
+              output-fields #js []]
 
-          ;; set up state for outputs
-          (dotimes [i (alength output-kinds)]
-            (let [kind (aget output-kinds i)
-                  name (aget output-names i)
-                  fields (aget output-fields i)
-                  filtered-fields (into-array (filter #(not (nil? %)) fields))
-                  transient? (identical? kind "know")]
-              ;; TODO get transient? from schema instead
-              (assert (not= (not transient?) (get @name->transient? name)) name)
-              (swap! name->transient? assoc name transient?)
-              (swap! kind->name->rules update-in [kind name] #(or % #{}))
-              (.ensure-index kn "know" name filtered-fields)
-              (when (false? transient?)
-                (.ensure-index kn "forget" name filtered-fields)
-                (.ensure-index kn "remember" name filtered-fields))))
+          (doseq [[_ clause-type clause-id name] clauses
+                  :when (not= clause-type "when")]
+            (let [clause-fields (get @clause-id->fields clause-id)
+                  fields (make-array num-vars)]
+              (doseq [[_ field-type key val] clause-fields]
+                (assert (= field-type "variable") [rule-id clause-id clause-fields])
+                (aset fields (var->ix val) key))
+              (apush output-kinds clause-type)
+              (apush output-names name)
+              (apush output-fields fields)
+              (let [filtered-fields (into-array (filter #(not (nil? %)) fields))
+                    ;; TODO get transient? from schema instead
+                    transient? (identical? clause-type "know")]
+                (assert (not= (not transient?) (get @name->transient? name)) name)
+                (swap! name->transient? assoc name transient?)
+                (swap! kind->name->rules update-in [clause-type name] #(or % #{}))
+                (.ensure-index kn "know" name filtered-fields)
+                (when (false? transient?)
+                  (.ensure-index kn "forget" name filtered-fields)
+                  (.ensure-index kn "remember" name filtered-fields)))))
 
           (swap! rule->flow assoc rule-id (Flow. solver output-kinds output-names output-fields)))))
 
