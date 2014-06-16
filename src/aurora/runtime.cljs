@@ -9,6 +9,7 @@
 
 (defn init-std-lib [kn]
   (.get-or-create-index kn "know" "defaults" #js ["defaults"])
+  (.get-or-create-index kn "know" "ui/key-modifier" #js ["key"])
   (.get-or-create-index kn "know" "ui/onClick" #js ["elem-id"])
   (.get-or-create-index kn "know" "ui/onKeyDown" #js ["elem-id" "key"])
   (.get-or-create-index kn "know" "ui/onChange" #js ["elem-id" "value"])
@@ -27,6 +28,7 @@
 (defn prep-compiled [compiled]
   (let [trans? (.-name->transient? compiled)]
     (aset trans? "defaults" true)
+    (aset trans? "ui/key-modifier" true)
     (aset trans? "ui/onClick" true)
     (aset trans? "ui/onKeyDown" true)
     (aset trans? "ui/onChange" true)
@@ -118,9 +120,25 @@
                                (println "attached handler now")
                                ;(queue (str "ui/" event) #js ["elem-id"] #js [id (js/aurora.runtime.ui.event->params2 event e)])
                                ;(queue (str "ui/custom") #js ["event-key" "entity"] #js [id event-key entity (js/aurora.runtime.ui.event->params2 event e)])
-                               (let [[order vals] (event->params e event id)]
+                               (let [[order vals] (event->params e event id)
+                                     modified? (atom false)]
+                                 (when (.-shiftKey e)
+                                   (reset! modified? true)
+                                   (queue "ui/key-modifier" #js ["key"] #js ["shift"]))
+                                 (when (.-ctrlKey e)
+                                   (reset! modified? true)
+                                   (queue "ui/key-modifier" #js ["key"] #js ["ctrl"]))
+                                 (when (.-altKey e)
+                                   (reset! modified? true)
+                                   (queue "ui/key-modifier" #js ["key"] #js ["alt"]))
+                                 (when (.-metaKey e)
+                                   (reset! modified? true)
+                                   (queue "ui/key-modifier" #js ["key"] #js ["meta"]))
+                                 (when-not @modified?
+                                   (queue "ui/key-modifier" #js ["key"] #js ["none"]))
                                  (queue (str "ui/" event) order vals)
                                  (queue (str "ui/custom") #js ["event-key" "entity"] #js [event-key entity]))
+                               true
                                )
               ))
       (.next events-itr))

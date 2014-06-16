@@ -151,6 +151,10 @@ var stringScore = function(string, abbreviation) {
     return score;
   };
 
+  window.stringMatch = function(string, query) {
+    return basenameScore(string, query, stringScore(string, query));
+  }
+
    window.fuzzaldrin = function(candidates, query, _arg) {
     var candidate, key, maxResults, queryHasNoSlashes, score, scoredCandidate, scoredCandidates, string, _i, _len, _ref;
     _ref = _arg != null ? _arg : {}, key = _ref.key, maxResults = _ref.maxResults;

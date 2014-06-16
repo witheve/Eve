@@ -2,13 +2,16 @@
   (:require [aurora.util.core :refer [new-id now]]))
 
 
-(defn map->clause-fields [clause-fields clause map]
+(defn map->clause-fields [clause-fields clause map rule?]
   (doseq [[k v] map]
-          (let [var? (symbol? v)
-                v (if var?
-                    (str v)
-                    v)]
-            (.push clause-fields #js [clause (if var? "variable" "constant") (cljs.core.name k) v])
+          (let [[type value] (cond
+                              (symbol? v) ["variable" (str v)]
+                              (coll? v) ["expression" (first v)]
+                              :else ["constant" v]
+                              )]
+            (if-not rule?
+              (.push clause-fields #js [clause type (cljs.core.name k) value])
+              (.push clause-fields #js [rule? clause type (cljs.core.name k) value]))
             )))
 
 
@@ -40,7 +43,7 @@
             [type name fact] cs]
       (let [clause (new-id)]
         (.push (aget results "clauses") #js [rule type clause name ts])
-        (map->clause-fields (aget results "clause-fields") clause fact)
+        (map->clause-fields (aget results "clause-fields") clause fact rule)
         ))))
 
 (defn add-rules [env project rs]
@@ -51,7 +54,7 @@
       (add-rule results project r))
     (.add-facts env "know" "editor rules" #js ["rule-id" "project-id" "timestamp"] (aget results "rules"))
     (.add-facts env "know" "editor clauses" #js ["rule-id" "type" "clause-id" "madlib-id" "timestamp"] (aget results "clauses"))
-    (.add-facts env "know" "editor clause fields" #js ["clause-id" "constant|variable|expression" "key" "val"] (aget results "clause-fields"))
+    (.add-facts env "know" "editor clause fields" #js ["rule-id" "clause-id" "constant|variable|expression" "key" "val"] (aget results "clause-fields"))
     env))
 
 (defn index [env ix]
@@ -102,22 +105,22 @@
     (if parent
       (let [clause (new-id)]
         (.push (aget facts "child") #js [rule root-clause clause])
-        (map->clause-fields (aget facts "fields") clause {:parent-id parent :pos pos :child-id id}))
+        (map->clause-fields (aget facts "fields") clause {:parent-id parent :pos pos :child-id id} rule))
       (.push (aget facts "root") #js [rule root-clause id (now)]))
     (.push (aget facts "elem") #js [rule root-clause elem-clause])
-    (map->clause-fields (aget facts "fields") elem-clause {:elem-id id :tag (name|sym el)})
+    (map->clause-fields (aget facts "fields") elem-clause {:elem-id id :tag (name|sym el)} rule)
     (doseq [[k v] real-args]
       (let [clause (new-id)]
         (.push (aget facts "attr") #js [rule root-clause clause])
-        (map->clause-fields (aget facts "fields") clause {:elem-id id :attr (name|sym k) :value v})))
+        (map->clause-fields (aget facts "fields") clause {:elem-id id :attr (name|sym k) :value v} rule)))
     (doseq [[k v] (:style args)]
       (let [clause (new-id)]
         (.push (aget facts "style") #js [rule root-clause clause])
-        (map->clause-fields (aget facts "fields") clause {:elem-id id :attr (name|sym k) :value v})))
+        (map->clause-fields (aget facts "fields") clause {:elem-id id :attr (name|sym k) :value v} rule)))
     (doseq [ev (:events args)]
       (let [clause (new-id)]
         (.push (aget facts "event") #js [rule root-clause clause])
-        (map->clause-fields (aget facts "fields") clause {:elem-id id :event (name|sym ev) :event-key (or key "") :entity (or entity "")})))
+        (map->clause-fields (aget facts "fields") clause {:elem-id id :event (name|sym ev) :event-key (or key "") :entity (or entity "")} rule)))
     (doseq [[i child] (map-indexed vector children)]
       (if (vector? child)
         (fact-walk-eve* env root-clause rule child facts [id i])
@@ -129,10 +132,10 @@
               (.push (aget facts "computed-id") #js [rule root-clause (str child-id) (str id) i]))
             (let [clause (new-id)]
               (.push (aget facts "text") #js [rule root-clause clause])
-              (map->clause-fields (aget facts "fields") clause {:elem-id child-id :text child}))
+              (map->clause-fields (aget facts "fields") clause {:elem-id child-id :text child} rule))
             (let [clause (new-id)]
               (.push (aget facts "child") #js [rule root-clause clause])
-              (map->clause-fields (aget facts "fields") clause {:parent-id id :pos i :child-id child-id}))
+              (map->clause-fields (aget facts "fields") clause {:parent-id id :pos i :child-id child-id} rule))
             )
           )))))
 
@@ -158,7 +161,7 @@
     (.add-facts env "know" "ui/editor-style" #js ["rule-id" "root-clause-id" "clause-id"] (aget facts "style"))
     (.add-facts env "know" "ui/editor-event-listener" #js ["rule-id" "root-clause-id" "clause-id"] (aget facts "event"))
     (.add-facts env "know" "ui/editor-computed-id" #js [ "rule-id" "root-clause-id" "id" "parent" "pos"] (aget facts "computed-id"))
-    (.add-facts env "know" "editor clause fields" #js ["clause-id" "constant|variable|expression" "key" "val"] (aget facts "fields"))
+    (.add-facts env "know" "editor clause fields" #js ["rule-id" "clause-id" "constant|variable|expression" "key" "val"] (aget facts "fields"))
     []
     ))
 
@@ -169,12 +172,12 @@
         to-id (new-id)
         ts (now)
         ]
-    (map->clause-fields fields id old)
-    (map->clause-fields fields from-id old)
-    (map->clause-fields fields to-id neue)
+    (map->clause-fields fields id old rule)
+    (map->clause-fields fields from-id old rule)
+    (map->clause-fields fields to-id neue rule)
     (.add-facts env "know" "change clauses" #js ["rule-id" "clause-id" "from|to" "table" "sub-clause-id" "timestamp"] #js [#js [rule clause "from" table from-id ts]
                                                                                                        #js [rule clause "to" table to-id ts]])
-    (.add-facts env "know" "editor clause fields" #js ["clause-id" "constant|variable|expression" "key" "val"] fields)
+    (.add-facts env "know" "editor clause fields" #js ["rule-id" "clause-id" "constant|variable|expression" "key" "val"] fields)
     []))
 
 (defn fact-walk-eve [hic facts [parent pos]]
