@@ -136,7 +136,7 @@
                          (apush output-facts&vals 1)
                          (set!! current-key key)
                          (aclear inputs)))
-                     (apush inputs (aget key prefix-len))))
+                     (apush inputs (.slice key prefix-len))))
          (when (> (alength inputs) 0)
            (let [output-key (aclone current-key)]
              (aset output-key prefix-len (aggregate-function inputs))
@@ -355,7 +355,11 @@
               (apush output-fields fields)
 
               ;; ensure indexes exist
-              (let [filtered-fields (into-array (filter #(not (or (nil? %) (= aggregate-key %))) fields))
+              (let [filtered-fields (make-array num-vars)
+                    _ (doseq [[_ field-type key val] clause-fields
+                              :when (= field-type "variable")]
+                        (aset filtered-fields (var->ix val) key))
+                    filtered-fields (into-array (filter #(not (nil? %)) filtered-fields))
                     ;; make sure aggregate-variables are last
                     _ (when-not (nil? aggregate-key)
                         (doseq [[ix [key var]] ix->aggregate-keys&vars]
