@@ -212,6 +212,8 @@
                     (recur (mapcat #(.-children %) nodes)))))
   (foreach [this f]
            (.foreach root f))
+  (foreach-reverse [this f]
+                   (.foreach-reverse root f))
   (keys [this]
         (let [results #js []]
           (.foreach this #(apush results %1))
@@ -406,7 +408,15 @@
                (.foreach (aget children i) f))
              (f (aget keys i) (aget vals i)))
            (when (not (nil? children))
-             (.foreach (aget children (alength keys)) f))))
+             (.foreach (aget children (alength keys)) f)))
+  (foreach-reverse [this f]
+           (when (not (nil? children))
+             (.foreach (aget children (alength keys)) f))
+           (dotimes [i (alength keys)]
+             (let [j (- (alength keys) i 1)]
+               (when (not (nil? children))
+                 (.foreach (aget children j) f))
+               (f (aget keys j) (aget vals j))))))
 
 (defn tree [min-keys key-len]
   (let [node (Node. nil nil #js [] #js [] nil nil nil)
