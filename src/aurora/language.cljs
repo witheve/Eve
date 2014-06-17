@@ -481,7 +481,8 @@
 
 (.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["count-overlap" "when" "get-more-foos" "foo"]
                                                                                                     #js ["count-overlap" "when" "some-more-interval" "interval"]
-                                                                                                    #js ["count-overlap" "remember" "rem-quux" "quux"]])
+                                                                                                    #js ["count-overlap" "remember" "rem-quux" "quux"]
+                                                                                                    #js ["count-overlap" "remember" "rem-frip" "frip"]])
 
 (.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable|aggregate" "key" "val"] #js [#js ["get-more-foos" "variable" "x" "xx"]
                                                                                              #js ["get-more-foos" "variable" "y" "yy"]
@@ -490,11 +491,17 @@
                                                                                              #js ["some-more-interval" "variable" "in" "zz"]
                                                                                              #js ["rem-quux" "variable" "x" "xx"]
                                                                                              #js ["rem-quux" "variable" "y" "yy"]
-                                                                                             #js ["rem-quux" "aggregate" "z" "count-zz"]])
+                                                                                             #js ["rem-quux" "aggregate" "z" "count-zz"]
+                                                                                             #js ["rem-frip" "variable" "x" "xx"]
+                                                                                             #js ["rem-frip" "variable" "y" "yy"]
+                                                                                             #js ["rem-frip" "aggregate" "z" "top-3-zz"]])
 
-(.add-facts kn "know" "clause-aggregate-vars" #js ["aggregate-id" "ix" "var"] #js [#js ["count-zz" 0 "zz"]])
+(.add-facts kn "know" "clause-aggregate-vars" #js ["aggregate-id" "ix" "var"] #js [#js ["count-zz" 0 "zz"]
+                                                                                   #js ["top-3-zz" 0 "zz"]
+                                                                                   #js ["top-3-zz" 1 "zz"]])
 
-(.add-facts kn "know" "clause-aggregate-funs" #js ["aggregate-id" "js"] #js [#js ["count-zz" "count"]])
+(.add-facts kn "know" "clause-aggregate-funs" #js ["aggregate-id" "js"] #js [#js ["count-zz" "count"]
+                                                                             #js ["top-3-zz" "top-3"]])
 
 (def flows (compile kn))
 
