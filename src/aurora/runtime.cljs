@@ -47,7 +47,7 @@
         state (.-state kn)
         queue (array)]
     (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
-    (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable|aggregate" "key" "val"])
     (init-std-lib kn)
     (aset state "queued" false)
     (aset state "current-queue" queue)

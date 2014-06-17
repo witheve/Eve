@@ -37,7 +37,7 @@
   (madlibs->facts env
                   {
                    :clauses ["Rule" :rule-id "has a" :when|know|remember|forget "clause for" :name "with ID" :clause-id]
-                   :clause-fields ["Clause" :clause-id "has a" :constant|variable "placeholder for" :key "with value" :val]
+                   :clause-fields ["Clause" :clause-id "has a" :constant|variable|aggregate"placeholder for" :key "with value" :val]
                    "editor rules" ["Project" :project-id "has rule with ID" :rule-id ]
                    "editor clauses" ["Editor Rule" :rule-id "has a" :type "clause for" :madlib-id "with ID" :clause-id]
                    "editor clause fields" ["Editor Clause" :clause-id "has a" :constant|variable|expression "placeholder for" :key "with value" :val]
@@ -88,7 +88,7 @@
 
 
     (.get-or-create-index env "know" "compiled clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
-    (.get-or-create-index env "know" "compiled clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index env "know" "compiled clause-fields" #js ["clause-id" "constant|variable|aggregate" "key" "val"])
     (.get-or-create-index env "know" "editor rules" #js ["rule-id" "project-id" "timestamp"])
     (.get-or-create-index env "know" "editor clauses" #js ["rule-id" "type" "clause-id" "madlib-id" "timestamp"])
     (.get-or-create-index env "know" "editor clause fields" #js ["rule-id" "clause-id" "constant|variable|expression" "key" "val"])
@@ -174,12 +174,12 @@
        (rule "variable editor clause fields"
              (when "compile rule" {:rule-id 'rule})
              (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression "variable" :val 'val :key field})
-             (pretend "compiled clause-fields" {:clause-id clause :constant|variable "variable" :val 'val :key field}))
+             (pretend "compiled clause-fields" {:clause-id clause :constant|variable|aggregate "variable" :val 'val :key field}))
 
        (rule "constant editor clause fields"
              (when "compile rule" {:rule-id 'rule})
              (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression "constant" :val 'val :key field})
-             (pretend "compiled clause-fields" {:clause-id clause :constant|variable "constant" :val 'val :key field}))
+             (pretend "compiled clause-fields" {:clause-id clause :constant|variable|aggregate "constant" :val 'val :key field}))
 
         (rule "expression editor clause fields"
               (when "compile rule" {:rule-id 'rule})
@@ -187,9 +187,9 @@
               (func 'newId "clause + '_' + field")
               (func 'fieldId "'calculated_' + field")
               (pretend "compiled clauses" {:rule-id rule :clause-id newId :when|know|remember|forget "when" :name "=function"})
-              (pretend "compiled clause-fields" {:clause-id newId :constant|variable "constant" :val 'val :key "js"})
-              (pretend "compiled clause-fields" {:clause-id newId :constant|variable "constant" :val 'fieldId :key "variable"})
-              (pretend "compiled clause-fields" {:clause-id clause :constant|variable "variable" :val 'fieldId :key field})
+              (pretend "compiled clause-fields" {:clause-id newId :constant|variable|aggregate "constant" :val 'val :key "js"})
+              (pretend "compiled clause-fields" {:clause-id newId :constant|variable|aggregate "constant" :val 'fieldId :key "variable"})
+              (pretend "compiled clause-fields" {:clause-id clause :constant|variable|aggregate "variable" :val 'fieldId :key field})
               )
 
         (rule "change clause"
@@ -237,8 +237,8 @@
               (func 'neue "parent + \" + \\\"-\\\" + \" + pos")
               (func 'clause "aurora.util.core.new_id()")
               (pretend "compiled clauses" {:rule-id 'rule :when|know|remember|forget "when" :clause-id 'clause :name "=function"})
-              (pretend "compiled clause-fields" {:clause-id 'clause :constant|variable "variable" :val 'id :key "variable"})
-              (pretend "compiled clause-fields" {:clause-id 'clause :constant|variable "constant" :val 'neue :key "js"})
+              (pretend "compiled clause-fields" {:clause-id 'clause :constant|variable|aggregate "variable" :val 'id :key "variable"})
+              (pretend "compiled clause-fields" {:clause-id 'clause :constant|variable|aggregate "constant" :val 'neue :key "js"})
               )
 
         )
@@ -1151,7 +1151,7 @@
     (syntax/know program "compile project" #js ["project-id"] #js ["editor ui"])
     (.quiesce compiled program (fn [kn]
                                  (.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] (.keys (get (syntax/index kn "compiled clauses") ["rule-id" "when|know|remember|forget" "clause-id" "name"])))
-                                 (.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] (.keys (get (syntax/index kn "compiled clause-fields") ["clause-id" "constant|variable" "key" "val"])))
+                                 (.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable|aggregate" "key" "val"] (.keys (get (syntax/index kn "compiled clause-fields") ["clause-id" "constant|variable|aggregate" "key" "val"])))
                                  (let [final-compiled (compile kn)]
                                    (runtime/prep-compiled final-compiled)
                                    (aset (.-state program) "compiled" final-compiled))
