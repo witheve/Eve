@@ -42,7 +42,7 @@
   (ensure-index [this kind name default-fields]
                 (assert (or (identical? kind "know") (identical? kind "remember") (identical? kind "forget")) (pr-str [kind name default-fields]))
                 (if-let [fields->index (get-in kind->name->fields->index [kind name])]
-                  (assert (= (set default-fields) (set (first (keys fields->index)))) (pr-str [kind name default-fields]))
+                  (assert (= (set default-fields) (set (first (keys fields->index)))) (pr-str [kind name default-fields (first (keys fields->index))]))
                   (.get-or-create-index this kind name default-fields)))
   (update-facts [this kind name fields facts&vals]
                 (assert (or (identical? kind "know") (identical? kind "remember") (identical? kind "forget")) (pr-str kind))
@@ -189,11 +189,13 @@
         fields (.keys (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"]))
         has-aggs (.keys (.get-or-create-index kn "know" "has-agg" #js ["rule-id"]))
         group-bys (.keys (.get-or-create-index kn "know" "group-by" #js ["rule-id" "var"]))
+        sort-bys (.keys (.get-or-create-index kn "know" "sort-by" #js ["rule-id" "ix" "var"]))
         agg-overs (.keys (.get-or-create-index kn "know" "agg-over" #js ["rule-id" "in-var" "agg-fun" "out-var"]))
         rule-id->clauses (atom (into {} (for [[k vs] (group-by #(nth % 0) clauses)] [k (set (map vec vs))])))
         clause-id->fields (atom (into {} (for [[k vs] (group-by #(nth % 0) fields)] [k (set (map vec vs))])))
         rule-id->has-agg (atom (into {} (for [[k vs] (group-by #(nth % 0) has-aggs)] [k (set (map vec vs))])))
         rule-id->group-by (atom (into {} (for [[k vs] (group-by #(nth % 0) group-bys)] [k (set (map vec vs))])))
+        rule-id->sort-by (atom (into {} (for [[k vs] (group-by #(nth % 0) sort-bys)] [k (set (map vec vs))])))
         rule-id->agg-over (atom (into {} (for [[k vs] (group-by #(nth % 0) agg-overs)] [k (set (map vec vs))])))
         sink-of (fn [rule-id clause-type clause-id name var->ix]
                   (let [fields (make-array (count var->ix))]
@@ -245,18 +247,23 @@
           (swap! rule-id->clauses update-in [rule-id] conj [rule-id "know" agg-clause-id agg-index-id])
           (doseq [[_ var] (@rule-id->group-by rule-id)]
             (swap! clause-id->fields update-in [agg-clause-id] conj [agg-clause-id "variable" var var]))
+          (doseq [[_ ix var] (@rule-id->sort-by rule-id)]
+            (swap! clause-id->fields update-in [agg-clause-id] conj [agg-clause-id "variable" var var]))
           (doseq [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
             (swap! clause-id->fields update-in [agg-clause-id] conj [agg-clause-id "variable" in-var in-var]))
 
           ;; create an aggregate flow to read from agg-index-id
           (let [group-by-vars (for [[_ var] (@rule-id->group-by rule-id)]
                                 var)
+                sort-by-vars (into (sorted-map)
+                                   (for [[_ ix var] (@rule-id->sort-by rule-id)]
+                                     [ix var]))
                 agg-in-vars (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
                               in-var)
                 agg-out-vars (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
                                out-var)
-                in-vars (into-array (concat group-by-vars agg-in-vars))
-                out-vars (into-array (concat group-by-vars agg-in-vars agg-out-vars))
+                in-vars (into-array (concat group-by-vars (vals sort-by-vars) agg-in-vars))
+                out-vars (into-array (concat group-by-vars (vals sort-by-vars) agg-in-vars agg-out-vars))
                 var->ix (into {}
                               (for [i (range (alength out-vars))]
                                 [(aget out-vars i) i]))
@@ -407,6 +414,7 @@
 (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
 (.get-or-create-index kn "know" "has-agg" #js ["rule-id"])
 (.get-or-create-index kn "know" "group-by" #js ["rule-id" "var"])
+(.get-or-create-index kn "know" "sort-by" #js ["rule-id" "ix" "var"])
 (.get-or-create-index kn "know" "agg-over" #js ["rule-id" "in-var" "agg-fun" "out-var"])
 
 (.get-or-create-index kn "know" "edge" #js ["x" "y"])
@@ -481,12 +489,37 @@
                                                                                              #js ["count-rem-frip" "variable" "x" "xx"]
                                                                                              #js ["count-rem-frip" "variable" "w" "ww"]])
 
-
 (.add-facts kn "know" "has-agg" #js ["rule-id"] #js [#js ["count-overlap"]])
 
 (.add-facts kn "know" "group-by" #js ["rule-id" "var"] #js [#js ["count-overlap" "xx"]])
 
 (.add-facts kn "know" "agg-over" #js ["rule-id" "in-var" "agg-fun" "out-var"] #js [#js ["count-overlap" "zz" "count" "ww"]])
+
+
+(.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["concat-overlap" "when" "concat-get-foos" "foo"]
+                                                                                                    #js ["concat-overlap" "when" "concat-some-interval" "interval"]
+                                                                                                    #js ["concat-overlap" "when" "concat-negate" "=function"]
+                                                                                                    #js ["concat-overlap" "remember" "concat-rem-frop" "frop"]])
+
+(.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["concat-get-foos" "variable" "x" "xx"]
+                                                                                             #js ["concat-get-foos" "variable" "y" "yy"]
+                                                                                             #js ["concat-some-interval" "variable" "lo" "xx"]
+                                                                                             #js ["concat-some-interval" "variable" "hi" "yy"]
+                                                                                             #js ["concat-some-interval" "variable" "in" "zz"]
+                                                                                             #js ["concat-negate" "variable" "variable" "nzz"]
+                                                                                             #js ["concat-negate" "constant" "js" "-zz"]
+                                                                                             #js ["concat-rem-frop" "variable" "x" "xx"]
+                                                                                             #js ["concat-rem-frop" "variable" "w" "ww"]])
+
+
+(.add-facts kn "know" "has-agg" #js ["rule-id"] #js [#js ["concat-overlap"]])
+
+(.add-facts kn "know" "group-by" #js ["rule-id" "var"] #js [#js ["concat-overlap" "xx"]])
+
+(.add-facts kn "know" "sort-by" #js ["rule-id" "ix" "var"] #js [#js ["concat-overlap" 0 "nzz"]])
+
+(.add-facts kn "know" "agg-over" #js ["rule-id" "in-var" "agg-fun" "out-var"] #js [#js ["concat-overlap" "zz" "str" "ww"]])
+
 
 (def flows (compile kn))
 
@@ -505,4 +538,6 @@
 (.get-or-create-index kn "know" "bar" #js ["z"])
 
 (.get-or-create-index kn "know" "frip" #js ["x" "w"])
+
+(.get-or-create-index kn "know" "frop" #js ["x" "w"])
 )
