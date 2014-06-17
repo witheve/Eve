@@ -130,18 +130,22 @@
                      (when (nil? current-key)
                        (set!! current-key key))
                      (when (btree/prefix-not= key current-key prefix-len)
-                       (let [output-key (aclone current-key)]
-                         (aset output-key prefix-len (aggregate-function inputs))
-                         (apush output-facts&vals output-key)
-                         (apush output-facts&vals 1)
+                       (let [outputs (aggregate-function inputs)]
+                         (dotimes [i (alength outputs)]
+                           (let [output-key (.slice current-key 0 prefix-len)]
+                             (aset output-key prefix-len (aget outputs i))
+                             (apush output-facts&vals output-key)
+                             (apush output-facts&vals 1)))
                          (set!! current-key key)
                          (aclear inputs)))
                      (apush inputs (.slice key prefix-len))))
          (when (> (alength inputs) 0)
-           (let [output-key (aclone current-key)]
-             (aset output-key prefix-len (aggregate-function inputs))
-             (apush output-facts&vals output-key)
-             (apush output-facts&vals 1)
+           (let [outputs (aggregate-function inputs)]
+             (dotimes [i (alength outputs)]
+               (let [output-key (.slice current-key 0 prefix-len)]
+                 (aset output-key prefix-len (aget outputs i))
+                 (apush output-facts&vals output-key)
+                 (apush output-facts&vals 1)))
              (set!! current-key key)
              (aclear inputs)))
          (when (true? (.update-facts kn output-kind output-name output-fields output-facts&vals))
@@ -384,7 +388,7 @@
                 ;; create aggregate flow if needed
                 (when-not (nil? aggregate-key)
                   (let [input-index (.get-or-create-index kn "know" output-name filtered-fields)
-                        aggregate-function (js/eval aggregate-fun)
+                        aggregate-function (aget js/aurora.aggregates aggregate-fun)
                         prefix-len (- (count final-fields) 1)]
                     (swap! name->transient? assoc output-name true)
                     (swap! kind->name->rules update-in ["know" output-name] #(conj (or % #{}) output-name))
@@ -474,6 +478,7 @@
                                                                                              #js ["some-interval" "variable" "in" "zz"]
                                                                                              #js ["rem-bar" "variable" "z" "zz"]])
 
+
 (.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["count-overlap" "when" "get-more-foos" "foo"]
                                                                                                     #js ["count-overlap" "when" "some-more-interval" "interval"]
                                                                                                     #js ["count-overlap" "remember" "rem-quux" "quux"]])
@@ -489,7 +494,7 @@
 
 (.add-facts kn "know" "clause-aggregate-vars" #js ["aggregate-id" "ix" "var"] #js [#js ["count-zz" 0 "zz"]])
 
-(.add-facts kn "know" "clause-aggregate-funs" #js ["aggregate-id" "js"] #js [#js ["count-zz" "cljs.core.count"]])
+(.add-facts kn "know" "clause-aggregate-funs" #js ["aggregate-id" "js"] #js [#js ["count-zz" "count"]])
 
 (def flows (compile kn))
 
