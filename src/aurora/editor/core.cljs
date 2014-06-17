@@ -654,6 +654,7 @@
              (when "filter" {:js "rule != ''"})
              (func 'rwid "\"rule-when-\" + rule")
              (pretend "ui/child" {:parent-id 'rwid :pos 1000000000000 :child-id "matcher"})
+             (pretend "ui/focus" {:elem-id "matcher-input"})
              (draw* [:div {:id "matcher" :className "matcher"}
                      [:input {:id "matcher-input" :className "matcher-input" :type "text" :defaultValue "" :events ["onKeyDown" "onChange"]}]
                      [:ul {:id "matcher-list" :className "matcher-list"}]]))
@@ -733,6 +734,7 @@
              (when "rule editor active" {:rule-id 'rule})
              (when "found matcher madlib" {:madlib-id 'name})
              (when "matcher clause" {:clause-type type})
+             (change "matcher filter" {:filter 'f} {:filter ""})
              (pretend "add clause" {:rule-id 'rule :madlib-id 'name :type type})
              )
 
@@ -743,7 +745,7 @@
              (when "found matcher clause type" {:clause-type 'type})
              (remember "matcher clause" {:clause-type 'type})
              (change "matcher filter" {:filter 'f} {:filter ""})
-             (change "matcher state" {:active 'active :state 'state} {:active 'active :state "madlib"})
+             (change "matcher state" {:active 'active :state "clause"} {:active 'active :state "madlib"})
              )
 
        (rule "on submit draw clause matcher"
