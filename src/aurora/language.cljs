@@ -1,6 +1,6 @@
 (ns aurora.language
   (:require [aurora.btree :as btree])
-  (:require-macros [aurora.macros :refer [apush set!!]]))
+  (:require-macros [aurora.macros :refer [apush aclear set!!]]))
 
 ;; KNOWLEDGE
 
@@ -105,7 +105,7 @@
 
 ;; FLOWS
 
-(deftype Flow [solver output-kinds output-names output-fields]
+(deftype SolverFlow [solver output-kinds output-names output-fields]
   Object
   (run [this kn rule->dirty? kind->name->rules]
        (.reset solver)
@@ -118,6 +118,38 @@
                (let [dirtied-rules (aget kind->name->rules kind name)]
                  (dotimes [j (alength dirtied-rules)]
                    (aset rule->dirty? (aget dirtied-rules j) true)))))))))
+
+(deftype AggregateFlow [input-index output-kind output-name output-fields aggregate-function]
+  Object
+  (run [this kn rule->dirty? kind->name->rules]
+       (prn :input input-index)
+       (let [prefix-len (- (.-key-len input-index) 1)
+             current-key nil
+             inputs #js []
+             output-facts&vals #js []]
+         (.foreach input-index
+                   (fn [key]
+                     (when (nil? current-key)
+                       (set!! current-key key))
+                     (when (btree/prefix-not= key current-key prefix-len)
+                       (let [output-key (aclone current-key)]
+                         (aset output-key prefix-len (aggregate-function inputs))
+                         (apush output-facts&vals output-key)
+                         (apush output-facts&vals 1)
+                         (set!! current-key key)
+                         (aclear inputs)))
+                     (apush inputs (aget key prefix-len))))
+         (when (> (alength inputs) 0)
+           (let [output-key (aclone current-key)]
+             (aset output-key prefix-len (aggregate-function inputs))
+             (apush output-facts&vals output-key)
+             (apush output-facts&vals 1)
+             (set!! current-key key)
+             (aclear inputs)))
+         (when (true? (.update-facts kn output-kind output-name output-fields output-facts&vals))
+           (let [dirtied-rules (aget kind->name->rules output-kind output-name)]
+             (dotimes [j (alength dirtied-rules)]
+               (aset rule->dirty? (aget dirtied-rules j) true)))))))
 
 (deftype Flows [rules rule->flow rule->dirty? kind->name->rules name->transient?]
   Object
@@ -167,7 +199,8 @@
               :when (not (#{"=constant" "=variable" "=function" "filter"} name))]
         (let [fields (get @clause-id->fields clause-id)
               var->key (atom {})]
-          (doseq [[_ field-type key val] fields]
+          (doseq [[_ field-type key val] fields
+                  :when (not (#{"aggregate-variable" "aggregate-function"} key))]
             (if (= field-type "constant")
               ;; rewrite (foo 1) to (foo x) (constant= x 1)
               (let [new-var (new-id)
@@ -282,41 +315,60 @@
               solver (btree/solver num-vars (into-array constraints))
 
               ;; make output specs
-              output-kinds (into-array
-                            (for [[_ clause-type clause-id name] clauses
-                                  :when (not= clause-type "when")]
-                              clause-type))
-              output-names (into-array
-                            (for [[_ clause-type clause-id name] clauses
-                                  :when (not= clause-type "when")]
-                              name))
-              output-fields (into-array
-                             (for [[_ clause-type clause-id name] clauses
-                                   :when (not= clause-type "when")]
-                               (let [clause-fields (get @clause-id->fields clause-id)
-                                     output-fields (make-array num-vars)]
-                                 (doseq [[_ field-type key val] clause-fields]
-                                   (assert (= field-type "variable") [rule-id clause-id clause-fields])
-                                   (aset output-fields (var->ix val) key))
-                                 output-fields)))]
+              output-kinds #js []
+              output-names #js []
+              output-fields #js []]
 
-          ;; set up state for outputs
-          (dotimes [i (alength output-kinds)]
-            (let [kind (aget output-kinds i)
-                  name (aget output-names i)
-                  fields (aget output-fields i)
-                  filtered-fields (into-array (filter #(not (nil? %)) fields))
-                  transient? (identical? kind "know")]
-              ;; TODO get transient? from schema instead
-              (assert (not= (not transient?) (get @name->transient? name)) name)
-              (swap! name->transient? assoc name transient?)
-              (swap! kind->name->rules update-in [kind name] #(or % #{}))
-              (.ensure-index kn "know" name filtered-fields)
-              (when (false? transient?)
-                (.ensure-index kn "forget" name filtered-fields)
-                (.ensure-index kn "remember" name filtered-fields))))
+          (doseq [[_ clause-type clause-id clause-name] clauses
+                  :when (not= clause-type "when")]
+            (let [clause-fields (get @clause-id->fields clause-id)
+                  fields (make-array num-vars)
+                  aggregate-variable (first (for [[_ field-type key val] clause-fields
+                                                  :when (= key "aggregate-variable")]
+                                              val))
 
-          (swap! rule->flow assoc rule-id (Flow. solver output-kinds output-names output-fields)))))
+                  aggregate-function (first (for [[_ field-type key val] clause-fields
+                                                  :when (= key "aggregate-function")]
+                                              val))
+                  output-name (if (nil? aggregate-variable)
+                                clause-name
+                                (str "aggregate-" rule-id))
+                  output-type (if (nil? aggregate-variable)
+                                clause-type
+                                "know")]
+
+              ;; add to rule outputs
+              (doseq [[_ field-type key val] clause-fields
+                      :when (= field-type "variable")]
+                (aset fields (var->ix val) key))
+              (apush output-kinds output-type)
+              (apush output-names output-name)
+              (apush output-fields fields)
+
+              ;; ensure indexes exist
+              (let [filtered-fields (into-array (filter #(not (or (nil? %) (= aggregate-variable %))) fields))
+                    ;; make sure aggregate-variable is last if it exists
+                    _ (when-not (nil? aggregate-variable)
+                        (apush filtered-fields aggregate-variable))
+                    ;; TODO get transient? from schema instead
+                    transient? (identical? clause-type "know")]
+                (assert (not= (not transient?) (get @name->transient? clause-name)) clause-name)
+                (swap! name->transient? assoc clause-name transient?)
+                (swap! kind->name->rules update-in [clause-type clause-name] #(or % #{}))
+                (.ensure-index kn "know" clause-name filtered-fields)
+                (when (false? transient?)
+                  (.ensure-index kn "forget" clause-name filtered-fields)
+                  (.ensure-index kn "remember" clause-name filtered-fields))
+
+                ;; create aggregate flow if needed
+                (when-not (nil? aggregate-variable)
+                  (let [input-index (.get-or-create-index kn "know" output-name filtered-fields)
+                        aggregate-function (aget js/aurora.aggregates aggregate-function)]
+                    (swap! name->transient? assoc output-name true)
+                    (swap! kind->name->rules update-in ["know" output-name] #(conj (or % #{}) output-name))
+                    (swap! rule->flow assoc output-name (AggregateFlow. input-index clause-type clause-name filtered-fields aggregate-function)))))))
+
+          (swap! rule->flow assoc rule-id (SolverFlow. solver output-kinds output-names output-fields)))))
 
     ;; TODO stratify
     (Flows. (clj->js (map first @rule->flow)) (clj->js @rule->flow) #js {} (clj->js @kind->name->rules) (clj->js @name->transient?))))
@@ -396,9 +448,22 @@
                                                                                              #js ["some-interval" "variable" "in" "zz"]
                                                                                              #js ["rem-bar" "variable" "z" "zz"]])
 
-(def flows (compile kn))
+(.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["count-overlap" "when" "get-more-foos" "foo"]
+                                                                                                    #js ["count-overlap" "when" "some-more-interval" "interval"]
+                                                                                                    #js ["count-overlap" "remember" "rem-quux" "quux"]])
 
-(set! (.-rules flows) #js ["single-edge" "transitive-edge" "function-edge" "-function-edge" "overlap"])
+(.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-more-foos" "variable" "x" "xx"]
+                                                                                             #js ["get-more-foos" "variable" "y" "yy"]
+                                                                                             #js ["some-more-interval" "variable" "lo" "xx"]
+                                                                                             #js ["some-more-interval" "variable" "hi" "yy"]
+                                                                                             #js ["some-more-interval" "variable" "in" "zz"]
+                                                                                             #js ["rem-quux" "variable" "x" "xx"]
+                                                                                             #js ["rem-quux" "variable" "y" "yy"]
+                                                                                             #js ["rem-quux" "variable" "z" "zz"]
+                                                                                             #js ["rem-quux" "constant" "aggregate-variable" "z"]
+                                                                                             #js ["rem-quux" "constant" "aggregate-function" "count"]])
+
+(def flows (compile kn))
 
 (enable-console-print!)
 
@@ -420,4 +485,6 @@
 (.get-or-create-index kn "know" "foo" #js ["x" "y"])
 
 (.get-or-create-index kn "know" "bar" #js ["z"])
+
+(.get-or-create-index kn "know" "quux" #js ["x" "y" "z"])
 )
