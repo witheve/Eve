@@ -500,12 +500,38 @@
              (when "editor clause fields" {:rule-id rule :clause-id sub :constant|variable|expression 'cv :val 'val :key field})
              (forget "editor clause fields" {:rule-id rule :clause-id sub :constant|variable|expression 'cv :val 'val :key field}))
 
-       (rule "add clause"
+       (rule "add base clause"
              (when "add clause" {:rule-id 'rule :madlib-id 'madlib :type 'type})
+             (when "editor base clause types" {:clause-type 'type})
              (when "time" {:time 'timestamp})
              (func 'clause "aurora.util.core.new_id()")
              (remember "editor clauses" {:rule-id rule :type 'type :clause-id clause :madlib-id 'madlib :timestamp 'timestamp})
              (pretend "add clause placeholders" {:rule-id 'rule :madlib-id 'madlib :clause-id clause})
+             )
+
+       (rule "add change clause"
+             (when "add clause" {:rule-id 'rule :madlib-id 'madlib :type "change"})
+             (when "time" {:time 'timestamp})
+             (func 'rootClause "aurora.util.core.new_id()")
+             (func 'toClause "aurora.util.core.new_id()")
+             (func 'fromClause "aurora.util.core.new_id()")
+             (remember "change clauses" {:rule-id 'rule :clause-id 'rootClause :from|to "from" :table 'madlib :sub-clause-id 'fromClause :timestamp 'timestamp})
+             (remember "change clauses" {:rule-id 'rule :clause-id 'rootClause :from|to "to" :table 'madlib :sub-clause-id 'toClause :timestamp 'timestamp})
+             (pretend "add clause placeholders" {:rule-id 'rule :madlib-id 'madlib :clause-id rootClause})
+             (pretend "add clause placeholders" {:rule-id 'rule :madlib-id 'madlib :clause-id fromClause})
+             (pretend "add clause placeholders" {:rule-id 'rule :madlib-id 'madlib :clause-id toClause})
+             )
+
+       (rule "add draw clause"
+             (when "add clause" {:rule-id 'rule :madlib-id 'madlib :type "draw"})
+             (when "time" {:time 'timestamp})
+             (func 'rootClause "aurora.util.core.new_id()")
+             (func 'elemClause "aurora.util.core.new_id()")
+             (func 'elemClause2 "elemClause")
+             (remember "ui/editor-root" {:rule-id 'rule :clause-id rootClause :root elemClause :timestamp 'timestamp})
+             (remember "ui/editor-elem" {:rule-id 'rule :root-clause-id rootClause :clause-id 'elemClause})
+             (remember "editor clause fields" {:rule-id 'rule :clause-id 'elemClause :constant|variable|expression "constant" :val 'elemClause2 :key "elem-id"})
+             (remember "editor clause fields" {:rule-id 'rule :clause-id 'elemClause :constant|variable|expression "constant" :val "div" :key "tag"})
              )
 
        (rule "add clause fields"
@@ -581,6 +607,10 @@
        (rule "matcher defaults"
              (when "defaults" {:defaults 'default})
              (remember "matcher state" {:active "true" :state "clause"})
+             (remember "editor base clause types" {:clause-type "when"})
+             (remember "editor base clause types" {:clause-type "pretend"})
+             (remember "editor base clause types" {:clause-type "remember"})
+             (remember "editor base clause types" {:clause-type "forget"})
              (remember "editor clause types" {:clause-type "when"})
              (remember "editor clause types" {:clause-type "draw"})
              (remember "editor clause types" {:clause-type "change"})
@@ -598,6 +628,11 @@
              (draw* [:div {:id "matcher" :className "matcher"}
                      [:input {:id "matcher-input" :className "matcher-input" :type "text" :defaultValue "" :events ["onKeyDown" "onChange"]}]
                      [:ul {:id "matcher-list" :className "matcher-list"}]]))
+
+       (rule "draw matcher clause type"
+             (when "matcher clause" {:clause-type 'type})
+             (pretend "ui/child" {:parent-id "matcher" :pos -1 :child-id "matcher-clause-type"})
+             (draw* [:span {:id "matcher-clause-type"} 'type]))
 
        ;;Clauses
 
@@ -656,12 +691,20 @@
              (when "ui/onChange" {:elem-id "matcher-input" :value 'val})
              (change "matcher filter" {:filter 'old} {:filter 'val}))
 
+       (rule "on backspace set clause matcher"
+             (when "ui/onKeyDown" {:elem-id "matcher-input" :key 8})
+             (when "matcher state" {:active 'active :state "madlib"})
+             (when "matcher clause" {:clause-type 'type})
+             (when "matcher filter" {:filter ""})
+             (forget "matcher clause" {:clause-type 'type})
+             (change "matcher state" {:active 'active :state 'state} {:active 'active :state "clause"})
+             )
+
        (rule "on submit madlib matcher"
              (when "ui/onKeyDown" {:elem-id "matcher-input" :key 13})
              (when "rule editor active" {:rule-id 'rule})
              (when "found matcher madlib" {:madlib-id 'name})
              (when "matcher clause" {:clause-type type})
-             (forget "matcher clause" {:clause-type 'type})
              (pretend "add clause" {:rule-id 'rule :madlib-id 'name :type type})
              )
 
@@ -670,7 +713,19 @@
              (when "rule editor active" {:rule-id 'rule})
              (when "found matcher clause type" {:clause-type 'type})
              (remember "matcher clause" {:clause-type 'type})
+             (change "matcher filter" {:filter 'f} {:filter ""})
              (change "matcher state" {:active 'active :state 'state} {:active 'active :state "madlib"})
+             )
+
+       (rule "on submit draw clause matcher"
+             (when "ui/onKeyDown" {:elem-id "matcher-input" :key 13})
+             (when "rule editor active" {:rule-id 'rule})
+             (when "found matcher clause type" {:clause-type "draw"})
+             (func 'foo "console.log('here!')")
+             (forget "matcher clause" {:clause-type "draw"})
+             (forget "matcher state" {:active "true" :state "madlib"})
+             (remember "matcher state" {:active "true" :state "clause"})
+             (pretend "add clause" {:rule-id 'rule :madlib-id "" :type "draw"})
              )
 
 

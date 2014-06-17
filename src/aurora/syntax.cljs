@@ -172,7 +172,7 @@
         to-id (new-id)
         ts (now)
         ]
-    (map->clause-fields fields id old rule)
+    (map->clause-fields fields clause old rule)
     (map->clause-fields fields from-id old rule)
     (map->clause-fields fields to-id neue rule)
     (.add-facts env "know" "change clauses" #js ["rule-id" "clause-id" "from|to" "table" "sub-clause-id" "timestamp"] #js [#js [rule clause "from" table from-id ts]
