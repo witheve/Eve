@@ -320,7 +320,7 @@
                                            (try
                                              (.. to-focus (getDOMNode) (focus))
                                              (catch :default e
-                                               (js/console.log "failed to focus: " + e))))
+                                               (js/console.log (str "failed to focus: " e)))))
                                          ))))))
 
 (defn re-run [program]

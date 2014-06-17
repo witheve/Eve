@@ -635,6 +635,7 @@
 
        (rule "matcher defaults"
              (when "defaults" {:defaults 'default})
+             (remember "matcher filter" {:filter ""})
              (remember "matcher state" {:active "true" :state "clause"})
              (remember "editor base clause types" {:clause-type "when"})
              (remember "editor base clause types" {:clause-type "pretend"})
@@ -670,7 +671,7 @@
              (when "matcher state" {:active "true" :state "clause"})
              (when "editor clause types" {:clause-type 'type})
              (when "matcher filter" {:filter 'filter})
-             (when "filter" {:js "window.stringMatch(type, filter) > 0"})
+             (when "filter" {:js "filter == '' || window.stringMatch(type, filter) > 0"})
              (pretend "found matcher clause type" {:clause-type 'type}))
 
 
@@ -687,7 +688,7 @@
              (when "matcher state" {:active "true" :state "madlib"})
              (when "madlib placeholder counts" {:madlib-id 'name :full-string 'full :count 'count})
              (when "matcher filter" {:filter 'filter})
-             (when "filter" {:js "window.stringMatch(full, filter) > 0.07"})
+             (when "filter" {:js "filter == '' || window.stringMatch(full, filter) > 0.07"})
              (pretend "found matcher madlib" {:madlib-id name}))
 
        (rule "draw matcher items"
