@@ -541,6 +541,35 @@
              (remember "editor clause fields" {:rule-id rule :clause-id 'clause :constant|variable|expression "variable" :val 'field :key 'field2})
              )
 
+       (rule "add new madlib placeholders"
+             (when "add madlib" {:rule-id 'rule :neue-id 'neue :text 'text :clause-type 'type})
+             (func 'cur "text.match(/(\\[.+?\\]|[^\\[\\]]+)/g).length - 1")
+             (when "interval" {:in 'index :lo 0 :hi 'cur})
+             (func 'found "text.match(/(\\[.+?\\]|[^\\[\\]]+)/g)[index]")
+             (when "filter" {:js "found[0] == '['"})
+             (func 'final "found.substring(1, found.length - 1)")
+             (remember "madlib placeholders" {:madlib-id 'neue :pos 'index :field 'final :placeholder-pos 0})
+             )
+
+       (rule "add new madlib strings"
+             (when "add madlib" {:rule-id 'rule :neue-id 'neue :text 'text :clause-type 'type})
+             (func 'cur "text.match(/(\\[.+?\\]|[^\\[\\]]+)/g).length - 1")
+             (when "interval" {:in 'index :lo 0 :hi 'cur})
+             (func 'found "text.match(/(\\[.+?\\]|[^\\[\\]]+)/g)[index]")
+             (when "filter" {:js "found[0] != '['"})
+             (remember "madlib strings" {:madlib-id 'neue :pos 'index :value 'found}))
+
+       (rule "add new madlib full string"
+             (when "add madlib" {:rule-id 'rule :neue-id 'neue :text 'text :clause-type 'type})
+             (func 'count "text.match(/(\\[.+?\\])/g).length")
+             (remember "madlib placeholder counts" {:madlib-id 'neue :full-string 'text :count 'count}))
+
+       (rule "add new madlib clause"
+             (when "add new clause for madlib" {:rule-id 'rule :madlib-id 'neue :clause-type 'type})
+             (forget "add new clause for madlib" {:rule-id 'rule :madlib-id 'neue :clause-type 'type})
+             (pretend "add clause" {:rule-id 'rule :madlib-id 'neue :type 'type})
+             )
+
        ;;******************************************************************************
        ;; Cursor
        ;;******************************************************************************
@@ -638,7 +667,6 @@
 
        (rule "filter matcher items by clause type"
              (when "matcher state" {:active "true" :state "clause"})
-             (func 'sdf "console.log('type: ' + type)")
              (when "editor clause types" {:clause-type 'type})
              (when "matcher filter" {:filter 'filter})
              (when "filter" {:js "window.stringMatch(type, filter) > 0"})
@@ -647,7 +675,6 @@
 
        (rule "draw matcher clause items"
              (when "found matcher clause type" {:clause-type 'name})
-             (func 'sdf "console.log('item: ' + name)")
              (func 'childId "'matcher-item-' + name")
              (pretend "ui/child" {:parent-id "matcher-list" :pos name :child-id childId})
              (draw* [:li {:id 'childId} 'name])
@@ -702,6 +729,7 @@
 
        (rule "on submit madlib matcher"
              (when "ui/onKeyDown" {:elem-id "matcher-input" :key 13})
+             (when "ui/key-modifier" {:key "none"})
              (when "rule editor active" {:rule-id 'rule})
              (when "found matcher madlib" {:madlib-id 'name})
              (when "matcher clause" {:clause-type type})
@@ -710,6 +738,7 @@
 
        (rule "on submit clause matcher"
              (when "ui/onKeyDown" {:elem-id "matcher-input" :key 13})
+             (when "ui/key-modifier" {:key "none"})
              (when "rule editor active" {:rule-id 'rule})
              (when "found matcher clause type" {:clause-type 'type})
              (remember "matcher clause" {:clause-type 'type})
@@ -719,6 +748,7 @@
 
        (rule "on submit draw clause matcher"
              (when "ui/onKeyDown" {:elem-id "matcher-input" :key 13})
+             (when "ui/key-modifier" {:key "none"})
              (when "rule editor active" {:rule-id 'rule})
              (when "found matcher clause type" {:clause-type "draw"})
              (func 'foo "console.log('here!')")
@@ -726,6 +756,17 @@
              (forget "matcher state" {:active "true" :state "madlib"})
              (remember "matcher state" {:active "true" :state "clause"})
              (pretend "add clause" {:rule-id 'rule :madlib-id "" :type "draw"})
+             )
+
+       (rule "on submit new madlib"
+             (when "ui/onKeyDown" {:elem-id "matcher-input" :key 13})
+             (when "ui/key-modifier" {:key "alt"})
+             (when "rule editor active" {:rule-id 'rule})
+             (when "matcher filter" {:filter 'text})
+             (when "matcher clause" {:clause-type type})
+             (func 'neue "aurora.util.core.new_id()")
+             (pretend "add madlib" {:rule-id 'rule :neue-id 'neue :text 'text :clause-type 'type})
+             (remember "add new clause for madlib" {:rule-id 'rule :madlib-id 'neue :clause-type 'type})
              )
 
 

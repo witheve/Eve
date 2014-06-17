@@ -40,7 +40,7 @@
     (aset trans? "ui/text" true)
     (aset trans? "ui/style" true)
     (aset trans? "ui/event-listener" true)
-    (aset trans? "time" true)))
+    (aset trans? "time" false)))
 
 (defn env []
   (let [kn (knowledge)
@@ -310,8 +310,9 @@
 
 (defn re-run [program]
   (let [compiled (aget (.-state program) "compiled")
-        watchers (aget (.-state program) "watchers")]
-    (know program "time" #js ["time"] #js [(now)])
+        watchers (aget (.-state program) "watchers")
+        cur-time (now)]
+    (know program "time" #js ["time"] #js [cur-time])
     (perf-time-named "quiesce"
      (do
        (.quiesce compiled program (fn [kn]
@@ -319,6 +320,7 @@
                                       (doseq [w watchers]
                                         (w kn (aget (.-state program) "queue!"))))))
        (aset (.-state program) "queued" false)
+       (.clear-facts program "know" "time")
        )))
 
   )
