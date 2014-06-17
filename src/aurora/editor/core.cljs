@@ -37,7 +37,7 @@
   (madlibs->facts env
                   {
                    :clauses ["Rule" :rule-id "has a" :when|know|remember|forget "clause for" :name "with ID" :clause-id]
-                   :clause-fields ["Clause" :clause-id "has a" :constant|variable "placeholder for" :key "with value" :val]
+                   :clause-fields ["Clause" :clause-id "has a" :constant|variable|aggregate"placeholder for" :key "with value" :val]
                    "editor rules" ["Project" :project-id "has rule with ID" :rule-id ]
                    "editor clauses" ["Editor Rule" :rule-id "has a" :type "clause for" :madlib-id "with ID" :clause-id]
                    "editor clause fields" ["Editor Clause" :clause-id "has a" :constant|variable|expression "placeholder for" :key "with value" :val]
@@ -88,7 +88,7 @@
 
 
     (.get-or-create-index env "know" "compiled clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
-    (.get-or-create-index env "know" "compiled clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index env "know" "compiled clause-fields" #js ["clause-id" "constant|variable|aggregate" "key" "val"])
     (.get-or-create-index env "know" "editor rules" #js ["rule-id" "project-id" "timestamp"])
     (.get-or-create-index env "know" "editor clauses" #js ["rule-id" "type" "clause-id" "madlib-id" "timestamp"])
     (.get-or-create-index env "know" "editor clause fields" #js ["rule-id" "clause-id" "constant|variable|expression" "key" "val"])
@@ -174,12 +174,12 @@
        (rule "variable editor clause fields"
              (when "compile rule" {:rule-id 'rule})
              (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression "variable" :val 'val :key field})
-             (pretend "compiled clause-fields" {:clause-id clause :constant|variable "variable" :val 'val :key field}))
+             (pretend "compiled clause-fields" {:clause-id clause :constant|variable|aggregate "variable" :val 'val :key field}))
 
        (rule "constant editor clause fields"
              (when "compile rule" {:rule-id 'rule})
              (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression "constant" :val 'val :key field})
-             (pretend "compiled clause-fields" {:clause-id clause :constant|variable "constant" :val 'val :key field}))
+             (pretend "compiled clause-fields" {:clause-id clause :constant|variable|aggregate "constant" :val 'val :key field}))
 
         (rule "expression editor clause fields"
               (when "compile rule" {:rule-id 'rule})
@@ -187,9 +187,9 @@
               (func 'newId "clause + '_' + field")
               (func 'fieldId "'calculated_' + field")
               (pretend "compiled clauses" {:rule-id rule :clause-id newId :when|know|remember|forget "when" :name "=function"})
-              (pretend "compiled clause-fields" {:clause-id newId :constant|variable "constant" :val 'val :key "js"})
-              (pretend "compiled clause-fields" {:clause-id newId :constant|variable "constant" :val 'fieldId :key "variable"})
-              (pretend "compiled clause-fields" {:clause-id clause :constant|variable "variable" :val 'fieldId :key field})
+              (pretend "compiled clause-fields" {:clause-id newId :constant|variable|aggregate "constant" :val 'val :key "js"})
+              (pretend "compiled clause-fields" {:clause-id newId :constant|variable|aggregate "constant" :val 'fieldId :key "variable"})
+              (pretend "compiled clause-fields" {:clause-id clause :constant|variable|aggregate "variable" :val 'fieldId :key field})
               )
 
         (rule "change clause"
@@ -237,8 +237,8 @@
               (func 'neue "parent + \" + \\\"-\\\" + \" + pos")
               (func 'clause "aurora.util.core.new_id()")
               (pretend "compiled clauses" {:rule-id 'rule :when|know|remember|forget "when" :clause-id 'clause :name "=function"})
-              (pretend "compiled clause-fields" {:clause-id 'clause :constant|variable "variable" :val 'id :key "variable"})
-              (pretend "compiled clause-fields" {:clause-id 'clause :constant|variable "constant" :val 'neue :key "js"})
+              (pretend "compiled clause-fields" {:clause-id 'clause :constant|variable|aggregate "variable" :val 'id :key "variable"})
+              (pretend "compiled clause-fields" {:clause-id 'clause :constant|variable|aggregate "constant" :val 'neue :key "js"})
               )
 
         )
@@ -541,6 +541,35 @@
              (remember "editor clause fields" {:rule-id rule :clause-id 'clause :constant|variable|expression "variable" :val 'field :key 'field2})
              )
 
+       (rule "add new madlib placeholders"
+             (when "add madlib" {:rule-id 'rule :neue-id 'neue :text 'text :clause-type 'type})
+             (func 'cur "text.match(/(\\[.+?\\]|[^\\[\\]]+)/g).length - 1")
+             (when "interval" {:in 'index :lo 0 :hi 'cur})
+             (func 'found "text.match(/(\\[.+?\\]|[^\\[\\]]+)/g)[index]")
+             (when "filter" {:js "found[0] == '['"})
+             (func 'final "found.substring(1, found.length - 1)")
+             (remember "madlib placeholders" {:madlib-id 'neue :pos 'index :field 'final :placeholder-pos 0})
+             )
+
+       (rule "add new madlib strings"
+             (when "add madlib" {:rule-id 'rule :neue-id 'neue :text 'text :clause-type 'type})
+             (func 'cur "text.match(/(\\[.+?\\]|[^\\[\\]]+)/g).length - 1")
+             (when "interval" {:in 'index :lo 0 :hi 'cur})
+             (func 'found "text.match(/(\\[.+?\\]|[^\\[\\]]+)/g)[index]")
+             (when "filter" {:js "found[0] != '['"})
+             (remember "madlib strings" {:madlib-id 'neue :pos 'index :value 'found}))
+
+       (rule "add new madlib full string"
+             (when "add madlib" {:rule-id 'rule :neue-id 'neue :text 'text :clause-type 'type})
+             (func 'count "text.match(/(\\[.+?\\])/g).length")
+             (remember "madlib placeholder counts" {:madlib-id 'neue :full-string 'text :count 'count}))
+
+       (rule "add new madlib clause"
+             (when "add new clause for madlib" {:rule-id 'rule :madlib-id 'neue :clause-type 'type})
+             (forget "add new clause for madlib" {:rule-id 'rule :madlib-id 'neue :clause-type 'type})
+             (pretend "add clause" {:rule-id 'rule :madlib-id 'neue :type 'type})
+             )
+
        ;;******************************************************************************
        ;; Cursor
        ;;******************************************************************************
@@ -625,6 +654,7 @@
              (when "filter" {:js "rule != ''"})
              (func 'rwid "\"rule-when-\" + rule")
              (pretend "ui/child" {:parent-id 'rwid :pos 1000000000000 :child-id "matcher"})
+             (pretend "ui/focus" {:elem-id "matcher-input"})
              (draw* [:div {:id "matcher" :className "matcher"}
                      [:input {:id "matcher-input" :className "matcher-input" :type "text" :defaultValue "" :events ["onKeyDown" "onChange"]}]
                      [:ul {:id "matcher-list" :className "matcher-list"}]]))
@@ -638,7 +668,6 @@
 
        (rule "filter matcher items by clause type"
              (when "matcher state" {:active "true" :state "clause"})
-             (func 'sdf "console.log('type: ' + type)")
              (when "editor clause types" {:clause-type 'type})
              (when "matcher filter" {:filter 'filter})
              (when "filter" {:js "window.stringMatch(type, filter) > 0"})
@@ -647,7 +676,6 @@
 
        (rule "draw matcher clause items"
              (when "found matcher clause type" {:clause-type 'name})
-             (func 'sdf "console.log('item: ' + name)")
              (func 'childId "'matcher-item-' + name")
              (pretend "ui/child" {:parent-id "matcher-list" :pos name :child-id childId})
              (draw* [:li {:id 'childId} 'name])
@@ -702,23 +730,27 @@
 
        (rule "on submit madlib matcher"
              (when "ui/onKeyDown" {:elem-id "matcher-input" :key 13})
+             (when "ui/key-modifier" {:key "none"})
              (when "rule editor active" {:rule-id 'rule})
              (when "found matcher madlib" {:madlib-id 'name})
              (when "matcher clause" {:clause-type type})
+             (change "matcher filter" {:filter 'f} {:filter ""})
              (pretend "add clause" {:rule-id 'rule :madlib-id 'name :type type})
              )
 
        (rule "on submit clause matcher"
              (when "ui/onKeyDown" {:elem-id "matcher-input" :key 13})
+             (when "ui/key-modifier" {:key "none"})
              (when "rule editor active" {:rule-id 'rule})
              (when "found matcher clause type" {:clause-type 'type})
              (remember "matcher clause" {:clause-type 'type})
              (change "matcher filter" {:filter 'f} {:filter ""})
-             (change "matcher state" {:active 'active :state 'state} {:active 'active :state "madlib"})
+             (change "matcher state" {:active 'active :state "clause"} {:active 'active :state "madlib"})
              )
 
        (rule "on submit draw clause matcher"
              (when "ui/onKeyDown" {:elem-id "matcher-input" :key 13})
+             (when "ui/key-modifier" {:key "none"})
              (when "rule editor active" {:rule-id 'rule})
              (when "found matcher clause type" {:clause-type "draw"})
              (func 'foo "console.log('here!')")
@@ -726,6 +758,17 @@
              (forget "matcher state" {:active "true" :state "madlib"})
              (remember "matcher state" {:active "true" :state "clause"})
              (pretend "add clause" {:rule-id 'rule :madlib-id "" :type "draw"})
+             )
+
+       (rule "on submit new madlib"
+             (when "ui/onKeyDown" {:elem-id "matcher-input" :key 13})
+             (when "ui/key-modifier" {:key "alt"})
+             (when "rule editor active" {:rule-id 'rule})
+             (when "matcher filter" {:filter 'text})
+             (when "matcher clause" {:clause-type type})
+             (func 'neue "aurora.util.core.new_id()")
+             (pretend "add madlib" {:rule-id 'rule :neue-id 'neue :text 'text :clause-type 'type})
+             (remember "add new clause for madlib" {:rule-id 'rule :madlib-id 'neue :clause-type 'type})
              )
 
 
@@ -1110,7 +1153,7 @@
     (syntax/know program "compile project" #js ["project-id"] #js ["editor ui"])
     (.quiesce compiled program (fn [kn]
                                  (.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] (.keys (get (syntax/index kn "compiled clauses") ["rule-id" "when|know|remember|forget" "clause-id" "name"])))
-                                 (.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] (.keys (get (syntax/index kn "compiled clause-fields") ["clause-id" "constant|variable" "key" "val"])))
+                                 (.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable|aggregate" "key" "val"] (.keys (get (syntax/index kn "compiled clause-fields") ["clause-id" "constant|variable|aggregate" "key" "val"])))
                                  (let [final-compiled (compile kn)]
                                    (runtime/prep-compiled final-compiled)
                                    (aset (.-state program) "compiled" final-compiled))

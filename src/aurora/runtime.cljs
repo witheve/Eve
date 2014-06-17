@@ -11,6 +11,7 @@
   (.get-or-create-index kn "know" "defaults" #js ["defaults"])
   (.get-or-create-index kn "know" "ui/key-modifier" #js ["key"])
   (.get-or-create-index kn "know" "ui/onClick" #js ["elem-id"])
+  (.get-or-create-index kn "know" "ui/focus" #js ["elem-id"])
   (.get-or-create-index kn "know" "ui/onKeyDown" #js ["elem-id" "key"])
   (.get-or-create-index kn "know" "ui/onChange" #js ["elem-id" "value"])
   (.get-or-create-index kn "know" "ui/onChecked" #js ["elem-id" "value"])
@@ -29,6 +30,7 @@
   (let [trans? (.-name->transient? compiled)]
     (aset trans? "defaults" true)
     (aset trans? "ui/key-modifier" true)
+    (aset trans? "ui/focus" true)
     (aset trans? "ui/onClick" true)
     (aset trans? "ui/onKeyDown" true)
     (aset trans? "ui/onChange" true)
@@ -40,14 +42,14 @@
     (aset trans? "ui/text" true)
     (aset trans? "ui/style" true)
     (aset trans? "ui/event-listener" true)
-    (aset trans? "time" true)))
+    (aset trans? "time" false)))
 
 (defn env []
   (let [kn (knowledge)
         state (.-state kn)
         queue (array)]
     (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
-    (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable|aggregate" "key" "val"])
     (init-std-lib kn)
     (aset state "queued" false)
     (aset state "current-queue" queue)
@@ -184,7 +186,7 @@
       (dotimes [x (alength root-els)]
         (.push final (aget built-els (aget root-els x)))))
 
-    final))
+    #js {:tree final :elems built-els}))
 
 (def mappings {"className" "class"
                "onClick" "click"
@@ -301,17 +303,31 @@
 
 (defn create-react-renderer [root]
   (fn [kn queue]
-    (let [tree (perf-time-named "rebuild tree" (rebuild-tree kn queue))
+    (let [tree-and-els (perf-time-named "rebuild tree" (rebuild-tree kn queue))
+          tree (aget tree-and-els "tree")
+          els (aget tree-and-els "elems")
+          focuses (get (index kn "ui/focus") ["elem-id"])
+          to-focus (when focuses
+                     (when-let [focus (last (.keys focuses))]
+                       (aget els (aget focus 0))))
           container (dom/$ root)
           dommied (dommy/node tree)
           ]
       (when container
-        (perf-time-named "append tree" (js/React.renderComponent dommied container))))))
+        (perf-time-named "append tree" (do
+                                         (js/React.renderComponent dommied container)
+                                         (when to-focus
+                                           (try
+                                             (.. to-focus (getDOMNode) (focus))
+                                             (catch :default e
+                                               (js/console.log "failed to focus: " + e))))
+                                         ))))))
 
 (defn re-run [program]
   (let [compiled (aget (.-state program) "compiled")
-        watchers (aget (.-state program) "watchers")]
-    (know program "time" #js ["time"] #js [(now)])
+        watchers (aget (.-state program) "watchers")
+        cur-time (now)]
+    (know program "time" #js ["time"] #js [cur-time])
     (perf-time-named "quiesce"
      (do
        (.quiesce compiled program (fn [kn]
@@ -319,6 +335,7 @@
                                       (doseq [w watchers]
                                         (w kn (aget (.-state program) "queue!"))))))
        (aset (.-state program) "queued" false)
+       (.clear-facts program "know" "time")
        )))
 
   )
