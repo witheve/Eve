@@ -1,6 +1,6 @@
 (ns aurora.language
   (:require [aurora.btree :as btree])
-  (:require-macros [aurora.macros :refer [apush set!!]]))
+  (:require-macros [aurora.macros :refer [apush aclear set!!]]))
 
 ;; KNOWLEDGE
 
@@ -36,13 +36,14 @@
                        (or (get-in kind->name->fields->index [kind name (vec fields)])
                            (let [index (btree/tree 10 (alength fields))]
                              (when-let [[other-fields other-index] (first (get-in kind->name->fields->index [kind name]))]
+                               (assert (= (set fields) (set other-fields)) [kind name fields other-fields])
                                (-update-facts (.elems other-index) (into-array other-fields) index fields))
                              (set! kind->name->fields->index (assoc-in kind->name->fields->index [kind name (vec fields)] index))
                              index)))
   (ensure-index [this kind name default-fields]
                 (assert (or (identical? kind "know") (identical? kind "remember") (identical? kind "forget")) (pr-str [kind name default-fields]))
                 (if-let [fields->index (get-in kind->name->fields->index [kind name])]
-                  (assert (= (set default-fields) (set (first (keys fields->index)))) (pr-str [kind name default-fields]))
+                  (assert (= (set default-fields) (set (first (keys fields->index)))) (pr-str [kind name default-fields (first (keys fields->index))]))
                   (.get-or-create-index this kind name default-fields)))
   (update-facts [this kind name fields facts&vals]
                 (assert (or (identical? kind "know") (identical? kind "remember") (identical? kind "forget")) (pr-str kind))
@@ -105,19 +106,59 @@
 
 ;; FLOWS
 
-(deftype Flow [solver output-kinds output-names output-fields]
+(deftype Sink [kind name fields]
+  Object
+  (run [this kn rule->dirty? kind->name->rules facts&vals]
+       (when (true? (.update-facts kn kind name fields facts&vals))
+         (let [dirtied-rules (aget kind->name->rules kind name)]
+           (dotimes [j (alength dirtied-rules)]
+             (aset rule->dirty? (aget dirtied-rules j) true))))))
+
+(deftype SolverFlow [solver sinks]
   Object
   (run [this kn rule->dirty? kind->name->rules]
        (.reset solver)
        (let [facts&vals (.elems solver)]
-         (dotimes [i (alength output-kinds)]
-           (let [kind (aget output-kinds i)
-                 name (aget output-names i)
-                 fields (aget output-fields i)]
-             (when (true? (.update-facts kn kind name fields facts&vals))
-               (let [dirtied-rules (aget kind->name->rules kind name)]
-                 (dotimes [j (alength dirtied-rules)]
-                   (aset rule->dirty? (aget dirtied-rules j) true)))))))))
+         (dotimes [i (alength sinks)]
+           (.run (aget sinks i) kn rule->dirty? kind->name->rules facts&vals)))))
+
+(deftype AggregateFlow [index group-len limit-ix ascending? agg-ixes agg-funs sinks]
+  Object
+  (run [this kn rule->dirty? kind->name->rules]
+       (let [current-key nil
+             current-limit nil
+             current-index 1
+             inputs #js []
+             aggs (make-array (alength agg-ixes))
+             facts&vals #js []
+             push-input (fn [key]
+                          (when (nil? current-key)
+                            (set!! current-key key)
+                            (set!! current-limit (aget key limit-ix)))
+                          (when (btree/prefix-not= key current-key group-len)
+                            (dotimes [i (alength aggs)]
+                              (aset aggs i ((aget agg-funs i) (aget agg-ixes i) inputs)))
+                            (dotimes [i (alength inputs)]
+                              (let [output (aget inputs i)]
+                                (dotimes [j (alength aggs)]
+                                  (apush output (aget aggs j)))
+                                (apush facts&vals output)
+                                (apush facts&vals 1)))
+                            (aclear inputs)
+                            (set!! current-key key)
+                            (set!! current-limit (aget key limit-ix))
+                            (set!! current-index 1))
+                          (when (<= current-index current-limit)
+                            (let [input (aclone key)]
+                              (apush input current-index)
+                              (set!! current-index (+ current-index 1))
+                              (apush inputs input))))]
+         (if (true? ascending?)
+           (.foreach index push-input)
+           (.foreach-reverse index push-input))
+         (push-input (btree/greatest-key group-len))
+         (dotimes [i (alength sinks)]
+           (.run (aget sinks i) kn rule->dirty? kind->name->rules facts&vals)))))
 
 (deftype Flows [rules rule->flow rule->dirty? kind->name->rules name->transient?]
   Object
@@ -158,8 +199,22 @@
         name->transient? (atom {})
         clauses (.keys (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"]))
         fields (.keys (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"]))
+        has-aggs (.keys (.get-or-create-index kn "know" "has-agg" #js ["rule-id" "limit-variable|constant" "limit" "ordinal" "ascending|descending"]))
+        group-bys (.keys (.get-or-create-index kn "know" "group-by" #js ["rule-id" "var"]))
+        sort-bys (.keys (.get-or-create-index kn "know" "sort-by" #js ["rule-id" "ix" "var"]))
+        agg-overs (.keys (.get-or-create-index kn "know" "agg-over" #js ["rule-id" "in-var" "agg-fun" "out-var"]))
         rule-id->clauses (atom (into {} (for [[k vs] (group-by #(nth % 0) clauses)] [k (set (map vec vs))])))
-        clause-id->fields (atom (into {} (for [[k vs] (group-by #(nth % 0) fields)] [k (set (map vec vs))])))]
+        clause-id->fields (atom (into {} (for [[k vs] (group-by #(nth % 0) fields)] [k (set (map vec vs))])))
+        rule-id->has-agg (atom (into {} (for [[k vs] (group-by #(nth % 0) has-aggs)] [k (set (map vec vs))])))
+        rule-id->group-by (atom (into {} (for [[k vs] (group-by #(nth % 0) group-bys)] [k (set (map vec vs))])))
+        rule-id->sort-by (atom (into {} (for [[k vs] (group-by #(nth % 0) sort-bys)] [k (set (map vec vs))])))
+        rule-id->agg-over (atom (into {} (for [[k vs] (group-by #(nth % 0) agg-overs)] [k (set (map vec vs))])))
+        sink-of (fn [rule-id clause-type clause-id name var->ix]
+                  (let [fields (make-array (count var->ix))]
+                    (doseq [[_ field-type key val] (@clause-id->fields clause-id)]
+                      (assert (= field-type "variable") [rule-id clause-id key val])
+                      (aset fields (var->ix val) key))
+                    (Sink. clause-type name fields)))]
 
     ;; rewrite clauses
     (doseq [[rule-id clauses] @rule-id->clauses]
@@ -169,7 +224,7 @@
               var->key (atom {})]
           (doseq [[_ field-type key val] fields]
             (if (= field-type "constant")
-              ;; rewrite (foo 1) to (foo x) (constant= x 1)
+              ;; rewrite (foo 1) to (foo x) (=constant x 1)
               (let [new-var (new-id)
                     new-clause-id (new-id)]
                 (swap! clause-id->fields update-in [clause-id] disj [clause-id "constant" key val])
@@ -178,7 +233,7 @@
                                                                [new-clause-id "constant" "constant" val]})
                 (swap! rule-id->clauses update-in [rule-id] conj [rule-id "when" new-clause-id "=constant"]))
               (if (get @var->key val)
-                ;; rewrite (foo x x) to (foo x y) (variable= x y)
+                ;; rewrite (foo x x) to (foo x y) (=variable x y)
                 (let [new-var (new-id)
                       new-clause-id (new-id)]
                   (swap! clause-id->fields update-in [clause-id] disj [clause-id "variable" key val])
@@ -187,6 +242,78 @@
                                                                  [new-clause-id "variable-b" "variable" val]})
                   (swap! rule-id->clauses update-in [rule-id] conj [rule-id "when" new-clause-id "=variable"]))
                 (swap! var->key assoc val key)))))))
+
+    ;; rewrite (limit 1) to (limit x) (=constant x 1)
+    (doseq [[rule-id clauses] @rule-id->clauses]
+      (when (seq (@rule-id->has-agg rule-id))
+        (let [has-aggs (@rule-id->has-agg rule-id)
+              _ (assert (= (count has-aggs) 1))
+              [_ limit-variable|constant limit ordinal ascending|descending] (first has-aggs)]
+          (when (= "constant" limit-variable|constant)
+            (let [new-var (new-id)
+                  new-clause-id (new-id)]
+              (swap! rule-id->has-agg update-in [rule-id] disj [rule-id "constant" limit ordinal ascending|descending])
+              (swap! rule-id->has-agg update-in [rule-id] conj [rule-id "variable" new-var ordinal ascending|descending])
+              (swap! clause-id->fields assoc new-clause-id #{[new-clause-id "variable-a" "variable" new-var]
+                                                             [new-clause-id "variable-b" "constant" limit]})
+              (swap! rule-id->clauses update-in [rule-id] conj [rule-id "when" new-clause-id "=constant"]))))))
+
+    ;; rewrite aggregates
+    (doseq [[rule-id clauses] @rule-id->clauses]
+      (when (seq (@rule-id->has-agg rule-id))
+        (let [agg-rule-id (str rule-id "-agg-rule")
+              agg-clause-id (str rule-id "-agg-clause")
+              agg-index-id (str rule-id "-agg-index")
+              has-aggs (@rule-id->has-agg rule-id)
+              _ (assert (= (count has-aggs) 1))
+              [_ _ limit ordinal ascending|descending] (first has-aggs)]
+
+          ;; remove output clauses
+          (doseq [[_ clause-type clause-id name] clauses
+                  :when (not= clause-type "when")]
+            (swap! rule-id->clauses update-in [rule-id] disj [rule-id clause-type clause-id name]))
+
+          ;; add a clause to output used vars to agg-index-ix
+          (swap! rule-id->clauses update-in [rule-id] conj [rule-id "know" agg-clause-id agg-index-id])
+          (swap! clause-id->fields update-in [agg-clause-id] conj [agg-clause-id "variable" limit limit])
+          (doseq [[_ var] (@rule-id->group-by rule-id)]
+            (swap! clause-id->fields update-in [agg-clause-id] conj [agg-clause-id "variable" var var]))
+          (doseq [[_ ix var] (@rule-id->sort-by rule-id)]
+            (swap! clause-id->fields update-in [agg-clause-id] conj [agg-clause-id "variable" var var]))
+          (doseq [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
+            (swap! clause-id->fields update-in [agg-clause-id] conj [agg-clause-id "variable" in-var in-var]))
+
+          ;; create an aggregate flow to read from agg-index-id
+          (let [group-by-vars (for [[_ var] (@rule-id->group-by rule-id)]
+                                var)
+                sort-by-vars (into (sorted-map)
+                                   (for [[_ ix var] (@rule-id->sort-by rule-id)]
+                                     [ix var]))
+                agg-in-vars (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
+                              in-var)
+                agg-out-vars (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
+                               out-var)
+                in-vars (into-array (distinct (concat group-by-vars [limit] (vals sort-by-vars) agg-in-vars)))
+                out-vars (into-array (distinct (concat group-by-vars [limit] (vals sort-by-vars) agg-in-vars [ordinal] agg-out-vars)))
+                var->ix (into {}
+                              (for [i (range (alength out-vars))]
+                                [(aget out-vars i) i]))
+                index (.get-or-create-index kn "know" agg-index-id in-vars)
+                group-len (count (conj (set group-by-vars) limit))
+                limit-ix (var->ix limit)
+                ascending? (= ascending|descending "ascending")
+                agg-ixes (into-array
+                          (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
+                            (var->ix in-var)))
+                agg-funs (into-array
+                          (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
+                            (aget js/aurora.aggregates agg-fun)))
+                sinks (into-array
+                       (for [[_ clause-type clause-id name] clauses
+                             :when (not= clause-type "when")]
+                         (sink-of rule-id clause-type clause-id name var->ix)))]
+            (swap! rule->flow assoc agg-rule-id (AggregateFlow. index group-len limit-ix ascending? agg-ixes agg-funs sinks))
+            (swap! kind->name->rules update-in ["know" agg-index-id] conj agg-rule-id)))))
 
     (doseq [[rule-id clauses] @rule-id->clauses]
       (let [var->when-count (atom {})]
@@ -281,62 +408,50 @@
               ;; make solver
               solver (btree/solver num-vars (into-array constraints))
 
-              ;; make output specs
-              output-kinds (into-array
-                            (for [[_ clause-type clause-id name] clauses
-                                  :when (not= clause-type "when")]
-                              clause-type))
-              output-names (into-array
-                            (for [[_ clause-type clause-id name] clauses
-                                  :when (not= clause-type "when")]
-                              name))
-              output-fields (into-array
-                             (for [[_ clause-type clause-id name] clauses
-                                   :when (not= clause-type "when")]
-                               (let [clause-fields (get @clause-id->fields clause-id)
-                                     output-fields (make-array num-vars)]
-                                 (doseq [[_ field-type key val] clause-fields]
-                                   (assert (= field-type "variable") [rule-id clause-id clause-fields])
-                                   (aset output-fields (var->ix val) key))
-                                 output-fields)))]
+              ;; make sinks
+              sinks (into-array
+                     (for [[_ clause-type clause-id name] clauses
+                           :when (not= clause-type "when")]
+                       (sink-of rule-id clause-type clause-id name var->ix)))]
 
-          ;; set up state for outputs
-          (dotimes [i (alength output-kinds)]
-            (let [kind (aget output-kinds i)
-                  name (aget output-names i)
-                  fields (aget output-fields i)
-                  filtered-fields (into-array (filter #(not (nil? %)) fields))
-                  transient? (identical? kind "know")]
-              ;; TODO get transient? from schema instead
-              (assert (not= (not transient?) (get @name->transient? name)) name)
-              (swap! name->transient? assoc name transient?)
-              (swap! kind->name->rules update-in [kind name] #(or % #{}))
-              (.ensure-index kn "know" name filtered-fields)
-              (when (false? transient?)
-                (.ensure-index kn "forget" name filtered-fields)
-                (.ensure-index kn "remember" name filtered-fields))))
+          (swap! rule->flow assoc rule-id (SolverFlow. solver sinks)))))
 
-          (swap! rule->flow assoc rule-id (Flow. solver output-kinds output-names output-fields)))))
+    ;; set up state for outputs
+    (doseq [[rule flow] @rule->flow
+            sink (.-sinks flow)]
+      (let [kind (.-kind sink)
+            name (.-name sink)
+            fields (.-fields sink)
+            filtered-fields (into-array (filter #(not (nil? %)) fields))
+            transient? (identical? kind "know")]
+        ;; TODO get transient? from schema instead
+        (assert (not= (not transient?) (get @name->transient? name)) name)
+        (swap! name->transient? assoc name transient?)
+        (swap! kind->name->rules update-in [kind name] #(or % #{}))
+        (.ensure-index kn "know" name filtered-fields)
+        (when (false? transient?)
+          (.ensure-index kn "forget" name filtered-fields)
+          (.ensure-index kn "remember" name filtered-fields))))
 
     ;; TODO stratify
     (Flows. (clj->js (map first @rule->flow)) (clj->js @rule->flow) #js {} (clj->js @kind->name->rules) (clj->js @name->transient?))))
 
 ;; TESTS
-
 (comment
 (enable-console-print!)
 
 (def kn (knowledge))
 
-(.get-or-create-index kn "know" "edge" #js ["x" "y"])
-
-(.get-or-create-index kn "know" "connected" #js ["x" "y"])
-
-(.add-facts kn "know" "edge" #js ["x" "y"] #js [#js ["a" "b"] #js ["b" "c"] #js ["c" "d"] #js ["d" "b"]])
-
 (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
-
 (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
+(.get-or-create-index kn "know" "has-agg" #js ["rule-id" "limit-variable|constant" "limit" "ordinal" "ascending|descending"])
+(.get-or-create-index kn "know" "group-by" #js ["rule-id" "var"])
+(.get-or-create-index kn "know" "sort-by" #js ["rule-id" "ix" "var"])
+(.get-or-create-index kn "know" "agg-over" #js ["rule-id" "in-var" "agg-fun" "out-var"])
+
+(.get-or-create-index kn "know" "edge" #js ["x" "y"])
+(.get-or-create-index kn "know" "connected" #js ["x" "y"])
+(.add-facts kn "know" "edge" #js ["x" "y"] #js [#js ["a" "b"] #js ["b" "c"] #js ["c" "d"] #js ["d" "b"]])
 
 (.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["single-edge" "when" "get-edges" "edge"]
                                                                                                     #js ["single-edge" "know" "output-connected" "connected"]])
@@ -380,9 +495,7 @@
                                                                                              #js ["-know-str" "variable" "name" "zz"]])
 
 (.get-or-create-index kn "know" "foo" #js ["x" "y"])
-
 (.get-or-create-index kn "know" "bar" #js ["z"])
-
 (.add-facts kn "know" "foo" #js ["x" "y"] #js [#js [1 5] #js [10 10] #js [20 15]])
 
 (.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["overlap" "when" "get-foos" "foo"]
@@ -396,18 +509,52 @@
                                                                                              #js ["some-interval" "variable" "in" "zz"]
                                                                                              #js ["rem-bar" "variable" "z" "zz"]])
 
+(.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["count-overlap" "when" "count-get-foos" "foo"]
+                                                                                                    #js ["count-overlap" "when" "count-some-interval" "interval"]
+                                                                                                    #js ["count-overlap" "remember" "count-rem-frip" "frip"]])
+
+(.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["count-get-foos" "variable" "x" "xx"]
+                                                                                             #js ["count-get-foos" "variable" "y" "yy"]
+                                                                                             #js ["count-some-interval" "variable" "lo" "xx"]
+                                                                                             #js ["count-some-interval" "variable" "hi" "yy"]
+                                                                                             #js ["count-some-interval" "variable" "in" "zz"]
+                                                                                             #js ["count-rem-frip" "variable" "x" "xx"]
+                                                                                             #js ["count-rem-frip" "variable" "w" "ww"]])
+
+(.add-facts kn "know" "has-agg" #js ["rule-id" "limit-variable|constant" "limit" "ordinal" "ascending|descending"] #js [#js ["count-overlap" "constant" js/Infinity "ord" "ascending"]])
+
+(.add-facts kn "know" "group-by" #js ["rule-id" "var"] #js [#js ["count-overlap" "xx"]])
+
+(.add-facts kn "know" "agg-over" #js ["rule-id" "in-var" "agg-fun" "out-var"] #js [#js ["count-overlap" "zz" "count" "ww"]])
+
+
+(.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["concat-overlap" "when" "concat-get-foos" "foo"]
+                                                                                                    #js ["concat-overlap" "when" "concat-some-interval" "interval"]
+                                                                                                    #js ["concat-overlap" "remember" "concat-rem-frop" "frop"]])
+
+(.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["concat-get-foos" "variable" "x" "xx"]
+                                                                                             #js ["concat-get-foos" "variable" "y" "yy"]
+                                                                                             #js ["concat-some-interval" "variable" "lo" "xx"]
+                                                                                             #js ["concat-some-interval" "variable" "hi" "yy"]
+                                                                                             #js ["concat-some-interval" "variable" "in" "zz"]
+                                                                                             #js ["concat-rem-frop" "variable" "x" "xx"]
+                                                                                             #js ["concat-rem-frop" "variable" "o" "ord"]
+                                                                                             #js ["concat-rem-frop" "variable" "z" "zz"]
+                                                                                             #js ["concat-rem-frop" "variable" "w" "ww"]])
+
+
+(.add-facts kn "know" "has-agg" #js ["rule-id" "limit-variable|constant" "limit" "ordinal" "ascending|descending"] #js [#js ["concat-overlap" "constant" 3 "ord" "descending"]])
+
+(.add-facts kn "know" "group-by" #js ["rule-id" "var"] #js [#js ["concat-overlap" "xx"]])
+
+(.add-facts kn "know" "sort-by" #js ["rule-id" "ix" "var"] #js [#js ["concat-overlap" 0 "zz"]])
+
+(.add-facts kn "know" "agg-over" #js ["rule-id" "in-var" "agg-fun" "out-var"] #js [#js ["concat-overlap" "zz" "str" "ww"]])
+
+
 (def flows (compile kn))
 
-(set! (.-rules flows) #js ["single-edge" "transitive-edge" "function-edge" "-function-edge" "overlap"])
-
 (enable-console-print!)
-
-(.get-or-create-index kn "know" "connected" #js ["x" "y"])
-
-(.get-or-create-index kn "remember" "str-edge" #js ["name"])
-
-(.get-or-create-index kn "forget" "str-edge" #js ["name"])
-
 (prn :running)
 (.quiesce flows kn (fn [kn] (prn :ticked kn)))
 
@@ -420,4 +567,8 @@
 (.get-or-create-index kn "know" "foo" #js ["x" "y"])
 
 (.get-or-create-index kn "know" "bar" #js ["z"])
+
+(.get-or-create-index kn "know" "frip" #js ["x" "w"])
+
+(.get-or-create-index kn "know" "frop" #js ["x" "o" "z" "w"])
 )
