@@ -127,7 +127,7 @@
   (run [this kn rule->dirty? kind->name->rules]
        (let [current-key nil
              current-limit nil
-             current-index 0
+             current-index 1
              inputs #js []
              aggs (make-array (alength agg-ixes))
              facts&vals #js []
@@ -147,8 +147,8 @@
                             (aclear inputs)
                             (set!! current-key key)
                             (set!! current-limit (aget key limit-ix))
-                            (set!! current-index 0))
-                          (when (< current-index current-limit)
+                            (set!! current-index 1))
+                          (when (<= current-index current-limit)
                             (let [input (aclone key)]
                               (apush input current-index)
                               (set!! current-index (+ current-index 1))
@@ -293,14 +293,13 @@
                               in-var)
                 agg-out-vars (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
                                out-var)
-                ;; TODO should these be distinct-ified?
-                in-vars (into-array (concat group-by-vars (vals sort-by-vars) agg-in-vars [limit]))
-                out-vars (into-array (concat group-by-vars (vals sort-by-vars) agg-in-vars [limit ordinal] agg-out-vars))
+                in-vars (into-array (distinct (concat group-by-vars [limit] (vals sort-by-vars) agg-in-vars)))
+                out-vars (into-array (distinct (concat group-by-vars [limit] (vals sort-by-vars) agg-in-vars [ordinal] agg-out-vars)))
                 var->ix (into {}
                               (for [i (range (alength out-vars))]
                                 [(aget out-vars i) i]))
                 index (.get-or-create-index kn "know" agg-index-id in-vars)
-                group-len (count group-by-vars)
+                group-len (count (conj (set group-by-vars) limit))
                 limit-ix (var->ix limit)
                 ascending? (= ascending|descending "ascending")
                 agg-ixes (into-array
