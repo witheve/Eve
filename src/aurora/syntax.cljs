@@ -30,7 +30,7 @@
     (doseq [r rs]
       (add-rule* results r))
     (.add-facts env "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] (aget results "clauses"))
-    (.add-facts env "know" "clause-fields" #js ["clause-id" "constant|variable|aggregate" "key" "val"] (aget results "clause-fields"))
+    (.add-facts env "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] (aget results "clause-fields"))
     env))
 
 

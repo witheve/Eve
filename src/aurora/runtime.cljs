@@ -10,6 +10,8 @@
 (defn init-std-lib [kn]
   (.get-or-create-index kn "know" "defaults" #js ["defaults"])
   (.get-or-create-index kn "know" "ui/key-modifier" #js ["key"])
+  (.get-or-create-index kn "know" "ui/directCustom" #js ["event-key" "entity"])
+  (.get-or-create-index kn "know" "ui/onDirectClick" #js ["elem-id"])
   (.get-or-create-index kn "know" "ui/onClick" #js ["elem-id"])
   (.get-or-create-index kn "know" "ui/focus" #js ["elem-id"])
   (.get-or-create-index kn "know" "ui/onKeyDown" #js ["elem-id" "key"])
@@ -29,6 +31,8 @@
 (defn prep-compiled [compiled]
   (let [trans? (.-name->transient? compiled)]
     (aset trans? "defaults" true)
+    (aset trans? "ui/directCustom" true)
+    (aset trans? "ui/onDirectClick" true)
     (aset trans? "ui/key-modifier" true)
     (aset trans? "ui/focus" true)
     (aset trans? "ui/onClick" true)
@@ -49,7 +53,7 @@
         state (.-state kn)
         queue (array)]
     (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
-    (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable|aggregate" "key" "val"])
+    (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
     (init-std-lib kn)
     (aset state "queued" false)
     (aset state "current-queue" queue)
@@ -92,6 +96,7 @@
    "onKeyDown" [#js ["elem-id" "key"] #js [id (.-keyCode ev)]]
    [#js ["elem-id"] #js [id]]))
 
+(def react-mappings {"onDirectClick" "onClick"})
 
 (defn build-element [id tag attrs-itr styles-itr events-itr queue]
   (let [el-attrs (js-obj "eve-id" id)
@@ -115,11 +120,12 @@
     (while (and (.key events-itr)
                 (== (aget (.key events-itr) 0) id))
       (let [cur (.key events-itr)
-            event (aget cur 1)
+            original-event (aget cur 1)
+            event (or (react-mappings original-event) original-event)
             event-key (aget cur 2)
             entity (aget cur 3)]
         (aset el-attrs event (fn [e]
-                               (println "attached handler now")
+                               (js/console.log event (.-eventPhase e) (.-currentTarget e) (.-target e))
                                ;(queue (str "ui/" event) #js ["elem-id"] #js [id (js/aurora.runtime.ui.event->params2 event e)])
                                ;(queue (str "ui/custom") #js ["event-key" "entity"] #js [id event-key entity (js/aurora.runtime.ui.event->params2 event e)])
                                (let [[order vals] (event->params e event id)
@@ -138,6 +144,11 @@
                                    (queue "ui/key-modifier" #js ["key"] #js ["meta"]))
                                  (when-not @modified?
                                    (queue "ui/key-modifier" #js ["key"] #js ["none"]))
+                                 (when (and (== "onDirectClick" original-event)
+                                            (not (.isDefaultPrevented e)))
+                                   (.preventDefault e)
+                                   (queue "ui/onDirectClick" order vals)
+                                   (queue "ui/directCustom" #js ["event-key" "entity"] #js [event-key entity]))
                                  (queue (str "ui/" event) order vals)
                                  (queue (str "ui/custom") #js ["event-key" "entity"] #js [event-key entity]))
                                true
@@ -318,7 +329,8 @@
                                          (js/React.renderComponent dommied container)
                                          (when to-focus
                                            (try
-                                             (.. to-focus (getDOMNode) (focus))
+                                             (when (.isMounted to-focus)
+                                               (.. to-focus (getDOMNode) (focus)))
                                              (catch :default e
                                                (js/console.log (str "failed to focus: " e)))))
                                          ))))))
