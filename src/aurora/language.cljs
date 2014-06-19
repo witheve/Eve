@@ -216,6 +216,10 @@
                       (aset fields (var->ix val) key))
                     (Sink. clause-type name fields)))]
 
+    (doseq [[clause-id field-type key val] fields
+            :when (= "variable" field-type)]
+      (assert (string? val) [clause-id key val]))
+
     ;; rewrite clauses
     (doseq [[rule-id clauses] @rule-id->clauses]
       (doseq [[_ clause-type clause-id name] clauses
