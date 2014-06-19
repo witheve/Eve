@@ -28,6 +28,12 @@
     (.get-or-create-index env "know" "madlib placeholders" #js ["madlib-id" "pos" "field" "placeholder-pos"])
     (.get-or-create-index env "know" "madlib placeholder counts" #js ["madlib-id" "full-string" "count"])
 
+    (js/console.log env)
+
+    (aset (.. env -state -compiled -name->lifetime) "madlib strings" "persistent")
+    (aset (.. env -state -compiled -name->lifetime) "madlib placeholders" "persistent")
+    (aset (.. env -state -compiled -name->lifetime) "madlib placeholder counts" "persistent")
+
     (.add-facts env "know" "madlib strings" #js ["madlib-id" "pos" "value"] strs)
     (.add-facts env "know" "madlib placeholders" #js ["madlib-id" "pos" "field" "placeholder-pos"] vars)
     (.add-facts env "know" "madlib placeholder counts" #js ["madlib-id" "full-string" "count"] counts)
@@ -106,22 +112,28 @@
     (.get-or-create-index env "know" "control external" #js ["action" "id"])
 
     (.get-or-create-index env "know" "editing" #js ["id"])
+  (aset (.. env -state -compiled -name->lifetime) "editing" "persistent")
     (.add-facts env "know" "editing" #js ["id"] (array (array "")))
 
 
     (.get-or-create-index env "know" "cursor" #js ["clause-id"])
+  (aset (.. env -state -compiled -name->lifetime) "cursor" "persistent")
     (.add-facts env "know" "cursor" #js ["clause-id"] (array (array "")))
 
     (.get-or-create-index env "know" "cursor placeholder pos" #js ["placeholder-pos"])
+  (aset (.. env -state -compiled -name->lifetime) "cursor placeholder pos" "persistent")
     (.add-facts env "know" "cursor placeholder pos" #js ["placeholder-pos"] (array (array "")))
 
     (.get-or-create-index env "know" "rule editor active" #js ["rule-id"])
+  (aset (.. env -state -compiled -name->lifetime) "rule editor active" "persistent")
     (.add-facts env "know" "rule editor active" #js ["rule-id"] (array (array "")))
 
     (.get-or-create-index env "know" "active project" #js ["project-id"])
+  (aset (.. env -state -compiled -name->lifetime) "active project" "persistent")
     (.add-facts env "know" "active project" #js ["project-id"] (array (array "")))
 
     (.get-or-create-index env "know" "projects" #js ["project-id" "name"])
+  (aset (.. env -state -compiled -name->lifetime) "projects" "persistent")
     (.add-facts env "know" "projects" #js ["project-id" "name"] (array (array "editor ui" "editor ui")
                                                        (array "example" "example")
                                                        (array "incrementer" "incrementer")
@@ -129,8 +141,7 @@
                                                        ))
   env)
 
-(def editor (-> (env)
-                (defaults)))
+(def editor (-> (env)))
 
 ;;editor rules {:rule-id rule}
 ;;editor clauses {:rule-id rule :clause-id clause :type type :madlib-id madlib}
@@ -1242,8 +1253,8 @@
     (runtime/prep-compiled compiled)
     (syntax/know program "compile project" #js ["project-id"] #js ["editor ui"])
     (.quiesce compiled program (fn [kn]
-                                 (.directly-insert-facts! kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] (.keys (get (syntax/index kn "compiled clauses") ["rule-id" "when|know|remember|forget" "clause-id" "name"])))
-                                 (.directly-insert-facts! kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] (.keys (get (syntax/index kn "compiled clause-fields") ["clause-id" "constant|variable" "key" "val"])))
+                                 (.directly-insert-facts! kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] (.keys (.get-or-create-index kn "know" "compiled clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])))
+                                 (.directly-insert-facts! kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] (.keys (.get-or-create-index kn "know" "compiled clause-fields" #js ["clause-id" "constant|variable" "key" "val"])))
                                  (let [final-compiled (compile kn)]
                                    (prn :final-compiled final-compiled)
                                    (runtime/prep-compiled final-compiled)
@@ -1257,6 +1268,7 @@
 (defn run []
   (let [editor (compile-editor editor [(runtime/create-react-renderer "body")
                                        manager/watcher])]
+    (defaults editor)
     (perf-time-named "full run"
      (do
        (know editor "defaults" #js ["defaults"] #js [""])

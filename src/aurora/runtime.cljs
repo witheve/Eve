@@ -2,7 +2,7 @@
   (:require [aurora.btree :as btree :refer [tree iterator least greatest key-lt key-lte key-gt key-gte key-compare key=]]
             [aurora.language :refer [knowledge compile]]
             [aurora.util.core :refer [now new-id]]
-            [aurora.syntax :refer [know remember draw func change index]]
+            [aurora.syntax :refer [know remember draw func change]]
             [aurora.editor.dom :as dom]
             [aurora.editor.ReactDommy :as dommy])
   (:require-macros [aurora.macros :refer [typeof ainto perf-time perf-time-named rules]]))
@@ -162,13 +162,13 @@
     ((aget js/React.DOM (name tag)) el-attrs (array))))
 
 (defn rebuild-tree [env queue]
-  (prn :ui/elem (get (index env "ui/elem") ["elem-id" "tag"]))
-  (let [els (.keys (get (index env "ui/elem") ["elem-id" "tag"]))
-        attrs (array-iterator (.keys (get (index env "ui/attr") ["elem-id" "attr" "value"])))
-        styles (array-iterator (.keys (get (index env "ui/style") ["elem-id" "attr" "value"])))
-        events (array-iterator (.keys (get (index env "ui/event-listener") ["elem-id" "event" "event-key" "entity"])))
-        text (.keys (get (index env "ui/text") ["elem-id" "text"]))
-        all-children (.keys (get (index env "ui/child") ["parent-id" "pos" "child-id"]))
+  (prn :ui/elem (.get-or-create-index env "know" "ui/elem" #js ["elem-id" "tag"]))
+  (let [els (.keys (.get-or-create-index env "know" "ui/elem" #js ["elem-id" "tag"]))
+        attrs (array-iterator (.keys (.get-or-create-index env "know" "ui/attr" #js ["elem-id" "attr" "value"])))
+        styles (array-iterator (.keys (.get-or-create-index env "know" "ui/style" #js ["elem-id" "attr" "value"])))
+        events (array-iterator (.keys (.get-or-create-index env "know" "ui/event-listener" #js ["elem-id" "event" "event-key" "entity"])))
+        text (.keys (.get-or-create-index env "know" "ui/text" #js ["elem-id" "text"]))
+        all-children (.keys (.get-or-create-index env "know" "ui/child" #js ["parent-id" "pos" "child-id"]))
         built-els (js-obj)
         roots (js-obj)
         final (array :div)
@@ -251,12 +251,12 @@
     elem))
 
 (defn rebuild-tree-dom [env queue]
-  (let [els (.keys (get (index env "ui/elem") ["elem-id" "tag"]))
-        attrs (array-iterator (.keys (get (index env "ui/attr") ["elem-id" "attr" "value"])))
-        styles (array-iterator (.keys (get (index env "ui/style") ["elem-id" "attr" "value"])))
-        events (array-iterator (.keys (get (index env "ui/event-listener") ["elem-id" "event" "event-key" "entity"])))
-        text (.keys (get (index env "ui/text") ["elem-id" "text"]))
-        all-children (.keys (get (index env "ui/child") ["parent-id" "pos" "child-id"]))
+  (let [els (.keys (.get-or-create-index env "know" "ui/elem" #js ["elem-id" "tag"]))
+        attrs (array-iterator (.keys (.get-or-create-index env "know" "ui/attr" #js ["elem-id" "attr" "value"])))
+        styles (array-iterator (.keys (.get-or-create-index env "know" "ui/style" #js ["elem-id" "attr" "value"])))
+        events (array-iterator (.keys (.get-or-create-index env "know" "ui/event-listener" #js ["elem-id" "event" "event-key" "entity"])))
+        text (.keys (.get-or-create-index env "know" "ui/text" #js ["elem-id" "text"]))
+        all-children (.keys (.get-or-create-index env "know" "ui/child" #js["parent-id" "pos" "child-id"]))
         built-els (js-obj)
         roots (js-obj)
         ]
@@ -323,7 +323,7 @@
     (let [tree-and-els (perf-time-named "rebuild tree" (rebuild-tree kn queue))
           tree (aget tree-and-els "tree")
           els (aget tree-and-els "elems")
-          focuses (get (index kn "ui/focus") ["elem-id"])
+          focuses (.get-or-create-index kn "know" "ui/focus" #js ["elem-id"])
           to-focus (when focuses
                      (when-let [focus (last (.keys focuses))]
                        (aget els (aget focus 0))))

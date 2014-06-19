@@ -57,9 +57,6 @@
     (.directly-insert-facts! env "know" "editor clause fields" #js ["rule-id" "clause-id" "constant|variable|expression" "key" "val"] (aget results "clause-fields"))
     env))
 
-(defn index [env ix]
-  (get-in (.-kind->name->fields->index env) ["know" (name ix)]))
-
 
 (defn change [env rule name old neue]
   [["when" name old]

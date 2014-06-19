@@ -51,11 +51,11 @@
   (unpause name))
 
 (defn extract-compile-ixs [kn]
-  #js [#js ["clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] (.keys (get (syntax/index kn "compiled clauses") ["rule-id" "when|know|remember|forget" "clause-id" "name"]))]
-       #js ["clause-fields" #js ["clause-id" "constant|variable" "key" "val"] (.keys (get (syntax/index kn "compiled clause-fields") ["clause-id" "constant|variable" "key" "val"]))]])
+  #js [#js ["clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] (.keys (.get-or-create-index kn "know" "compiled clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"]))]
+       #js ["clause-fields" #js ["clause-id" "constant|variable" "key" "val"] (.keys (.get-or-create-index kn "know" "compiled clause-fields" #js ["clause-id" "constant|variable" "key" "val"]))]])
 
 (defn watcher [kn]
-  (let [ext (.keys (get (syntax/index kn "control external") ["action" "id"]))]
+  (let [ext (.keys (.get-or-create-index kn "know" "control external" #js ["action" "id"]))]
     (doseq [e ext
             :let [action (aget e 0)
                   id (aget e 1)]]
