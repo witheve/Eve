@@ -41,19 +41,15 @@
                                (-update-facts (.elems other-index) (into-array other-fields) index fields))
                              (set! kind->name->fields->index (assoc-in kind->name->fields->index [kind name (vec fields)] index))
                              index)))
-  (ensure-index [this kind name default-fields]
-                (assert (array? default-fields))
-                (assert (or (identical? kind "know") (identical? kind "remember") (identical? kind "forget")) (pr-str [kind name default-fields]))
-                (if-let [fields->index (get-in kind->name->fields->index [kind name])]
-                  (assert (= (set default-fields) (set (first (keys fields->index)))) (pr-str [kind name default-fields (first (keys fields->index))]))
-                  (.get-or-create-index this kind name default-fields)))
   (update-facts [this kind name fields facts&vals]
-                #_(prn :updating kind name fields (alength facts&vals))
+                #_(when (> (alength facts&vals) 0)
+                  (prn :updating kind name fields (alength facts&vals)))
                 (assert (array? fields))
                 (assert (or (identical? kind "know") (identical? kind "remember") (identical? kind "forget")) (pr-str kind))
-                (.ensure-index this kind name (into-array (filter #(not (nil? %)) fields)))
                 (let [changed? false
-                      indexes (get-in kind->name->fields->index [kind name])]
+                      indexes (or (get-in kind->name->fields->index [kind name])
+                                  (let [filtered-fields (into-array (filter #(not (nil? %)) fields))]
+                                    [[(vec filtered-fields) (.get-or-create-index this kind name filtered-fields)]]))]
                   (assert (seq indexes) (pr-str kind name))
                   (doseq [[other-fields other-index] indexes]
                     (when (true? (-update-facts facts&vals fields other-index (into-array other-fields)))
