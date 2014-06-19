@@ -162,7 +162,6 @@
     ((aget js/React.DOM (name tag)) el-attrs (array))))
 
 (defn rebuild-tree [env queue]
-  (prn :ui/elem (.get-or-create-index env "know" "ui/elem" #js ["elem-id" "tag"]))
   (let [els (.keys (.get-or-create-index env "know" "ui/elem" #js ["elem-id" "tag"]))
         attrs (array-iterator (.keys (.get-or-create-index env "know" "ui/attr" #js ["elem-id" "attr" "value"])))
         styles (array-iterator (.keys (.get-or-create-index env "know" "ui/style" #js ["elem-id" "attr" "value"])))

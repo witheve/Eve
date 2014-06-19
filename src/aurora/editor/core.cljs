@@ -28,8 +28,6 @@
     (.get-or-create-index env "know" "madlib placeholders" #js ["madlib-id" "pos" "field" "placeholder-pos"])
     (.get-or-create-index env "know" "madlib placeholder counts" #js ["madlib-id" "full-string" "count"])
 
-    (js/console.log env)
-
     (aset (.. env -state -compiled -name->lifetime) "madlib strings" "persistent")
     (aset (.. env -state -compiled -name->lifetime) "madlib placeholders" "persistent")
     (aset (.. env -state -compiled -name->lifetime) "madlib placeholder counts" "persistent")
