@@ -180,6 +180,30 @@
     (.add-facts env "know" "editor clause fields" #js ["rule-id" "clause-id" "constant|variable|expression" "key" "val"] fields)
     []))
 
+(defn limit* [env rule limit ord dir]
+  (let [[type limit] (if (symbol? limit)
+                       ["variable" (str limit)]
+                       ["constant" limit])
+        ord (str ord)]
+    (.add-facts env "know" "has-agg" #js ["rule-id" "limit-variable|constant" "limit" "ordinal" "ascending|descending"] #js [#js [rule type limit ord dir]]))
+  [])
+
+(defn aggregate* [env rule in agg out]
+  (.add-facts env "know" "agg-over" #js ["rule-id" "in-var" "agg-fun" "out-var"] #js [#js [rule (str in) (str agg) (str out)]])
+  [])
+
+(defn group* [env rule by]
+  (.add-facts env "know" "group-by" #js ["rule-id" "var"] #js [#js [rule (str by)]])
+  [])
+
+(defn sort* [env rule by]
+  (let [by (if (coll? by)
+             by
+             [by])]
+    (doseq [[i by] (map-indexed vector by)]
+      (.add-facts env "know" "sort-by" #js ["rule-id" "ix" "var"] #js [#js [rule i by]])))
+  [])
+
 (defn fact-walk-eve [hic facts [parent pos]]
   (let [[el args & children] hic
         args (if (map? args)

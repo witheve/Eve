@@ -57,6 +57,10 @@
         queue (array)]
     (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
     (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "has-agg" #js ["rule-id" "limit-variable|constant" "limit" "ordinal" "ascending|descending"])
+    (.get-or-create-index kn "know" "group-by" #js ["rule-id" "var"])
+    (.get-or-create-index kn "know" "sort-by" #js ["rule-id" "ix" "var"])
+    (.get-or-create-index kn "know" "agg-over" #js ["rule-id" "in-var" "agg-fun" "out-var"])
     (init-std-lib kn)
     (aset state "queued" false)
     (aset state "current-queue" queue)
@@ -319,26 +323,29 @@
 
 (defn create-react-renderer [root]
   (fn [kn queue]
-    (let [tree-and-els (perf-time-named "rebuild tree" (rebuild-tree kn queue))
-          tree (aget tree-and-els "tree")
-          els (aget tree-and-els "elems")
-          focuses (get (index kn "ui/focus") ["elem-id"])
-          to-focus (when focuses
-                     (last (.keys focuses)))
-          container (dom/$ root)
-          dommied (dommy/node tree)
-          ]
-      (when container
-        (perf-time-named "append tree" (do
-                                         (js/React.renderComponent dommied container)
-                                         (when to-focus
-                                           (try
-                                             (println "trying to focus")
-                                             (js/console.log to-focus)
-                                             (.focus (js/document.querySelector (str "." (aget to-focus 0))))
-                                             (catch :default e
-                                               (js/console.log (str "failed to focus: " e)))))
-                                         ))))))
+    (try
+      (let [tree-and-els (perf-time-named "rebuild tree" (rebuild-tree kn queue))
+            tree (aget tree-and-els "tree")
+            els (aget tree-and-els "elems")
+            focuses (get (index kn "ui/focus") ["elem-id"])
+            to-focus (when focuses
+                       (last (.keys focuses)))
+            container (dom/$ root)
+            dommied (dommy/node tree)
+            ]
+        (when container
+          (perf-time-named "append tree" (do
+                                           (js/React.renderComponent dommied container)
+                                           (when to-focus
+                                             (try
+                                               (println "trying to focus")
+                                               (js/console.log to-focus)
+                                               (.focus (js/document.querySelector (str "." (aget to-focus 0))))
+                                               (catch :default e
+                                                 (js/console.log (str "failed to focus: " e)))))
+                                           ))))
+      (catch :default e
+        (js/console.log (str "FAILED UI: " e))))))
 
 
 

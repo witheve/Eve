@@ -2,7 +2,7 @@
   (:require [aurora.btree :as btree :refer [tree iterator least greatest key-lt key-lte key-gt key-gte key-compare key=]]
             [aurora.language :refer [knowledge compile]]
             [aurora.util.core :refer [now new-id]]
-            [aurora.syntax :as syntax :refer [know remember draw draw* change* func change index forget-when]]
+            [aurora.syntax :as syntax :refer [know remember draw draw* change* func change index forget-when limit* aggregate* group* sort*]]
             [aurora.runtime :refer [pre-compile re-run env] :as runtime]
             [aurora.editor.kn-manager :as manager]
             [aurora.editor.dom :as dom]
@@ -762,8 +762,10 @@
              (when "rule editor active" {:rule-id 'rule})
              (when "found matcher madlib" {:madlib-id 'name})
              (when "matcher clause" {:clause-type type})
-             (change "matcher filter" {:filter 'f} {:filter ""})
-             (change "matcher state" {:active 'active :state 'state} {:active "false" :state 'state})
+             (when "filter" {:js "text.indexOf('[') == -1"})
+             (forget "matcher clause" {:clause-type 'type})
+             (change "matcher filter" {:filter 'text} {:filter ""})
+             (change "matcher state" {:active 'active :state 'state} {:active "false" :state "clause"})
              (change "editor focus" {:elem-id 'old} {:elem-id "rules-list"})
              (pretend "add clause" {:rule-id 'rule :madlib-id 'name :type type})
              )
@@ -786,17 +788,23 @@
              (func 'foo "console.log('here!')")
              (forget "matcher clause" {:clause-type "draw"})
              (forget "matcher state" {:active "true" :state "madlib"})
-             (remember "matcher state" {:active "true" :state "clause"})
+             (remember "matcher state" {:active "false" :state "clause"})
              (pretend "add clause" {:rule-id 'rule :madlib-id "" :type "draw"})
+             (change "editor focus" {:elem-id 'old} {:elem-id "rules-list"})
              )
 
        (rule "on submit new madlib"
              (when "ui/onKeyDown" {:elem-id "matcher-input" :key 13})
-             (when "ui/key-modifier" {:key "alt"})
+             (when "ui/key-modifier" {:key "none"})
              (when "rule editor active" {:rule-id 'rule})
              (when "matcher filter" {:filter 'text})
+             (when "filter" {:js "text.indexOf('[') > -1"})
              (when "matcher clause" {:clause-type type})
              (func 'neue "aurora.util.core.new_id()")
+             (forget "matcher clause" {:clause-type 'type})
+             (change "matcher filter" {:filter 'text} {:filter ""})
+             (change "matcher state" {:active 'active :state 'state} {:active "false" :state "clause"})
+             (change "editor focus" {:elem-id 'old} {:elem-id "rules-list"})
              (pretend "add madlib" {:rule-id 'rule :neue-id 'neue :text 'text :clause-type 'type})
              (remember "add new clause for madlib" {:rule-id 'rule :madlib-id 'neue :clause-type 'type})
              )
@@ -915,12 +923,13 @@
 
        (rule "draw draw preview elem"
              (when "rule is visible" {:rule-id rule})
+             (when "rule editor active" {:rule-id 'editingRule})
              (when "ui/editor-root" {:rule-id 'rule :clause-id '__ :root 'root  :timestamp '_})
              (when "ui/editor-elem" {:rule-id 'rule :clause-id 'clause  :root-clause-id 'root-clause})
              (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression 'cv :val 'tag :key "tag"})
              (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression 'cv2 :val 'id :key "elem-id"})
              (when "draw editor active elem" {:elem-id 'active})
-             (func 'className "(active == id ? 'active' : '') + ' preview-elem'")
+             (func 'className "(active == id && rule == editingRule ? 'active' : '') + ' preview-elem'")
              (func 'elemId "\"preview-\" + rule + id")
              (func 'pid "\"tag\" + elemId")
              (draw* [:div {:id 'elemId :className 'className :events ["onDirectClick"] :event-key "select draw elem" :entity 'id}
@@ -1059,6 +1068,7 @@
              (func 'elemClause "aurora.util.core.new_id()")
              (func 'elemClause2 "elemClause")
              (func 'childClause "aurora.util.core.new_id()")
+             (func 'ctx "elemClause + '|text'")
              (remember "ui/editor-text" {:rule-id 'rule :root-clause-id 'rid :clause-id 'elemClause})
              (remember "editor clause fields" {:rule-id 'rule :clause-id 'elemClause :constant|variable|expression "constant" :val 'elemClause2 :key "elem-id"})
              (remember "editor clause fields" {:rule-id 'rule :clause-id 'elemClause :constant|variable|expression "constant" :val "fill me in" :key "text"})
@@ -1066,6 +1076,9 @@
              (remember "editor clause fields" {:rule-id 'rule :clause-id 'childClause :constant|variable|expression "constant" :val 'elemClause :key "child-id"})
              (remember "editor clause fields" {:rule-id 'rule :clause-id 'childClause :constant|variable|expression "constant" :val 'elem :key "parent-id"})
              (remember "editor clause fields" {:rule-id 'rule :clause-id 'childClause :constant|variable|expression "constant" :val 'time :key "pos"})
+             ;;focus the element
+             (change "editing" {:id 'old} {:id 'ctx})
+             (change "editor focus" {:elem-id 'focused} {:elem-id "placeholder-editor"})
              )
 
        (rule "direct click preview elem set active"
