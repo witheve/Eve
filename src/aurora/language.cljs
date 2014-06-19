@@ -266,7 +266,43 @@
               agg-index-id (str rule-id "-agg-index")
               has-aggs (@rule-id->has-agg rule-id)
               _ (assert (= (count has-aggs) 1))
-              [_ _ limit ordinal ascending|descending] (first has-aggs)]
+              [_ _ limit ordinal ascending|descending] (first has-aggs)
+              group-by-vars (for [[_ var] (@rule-id->group-by rule-id)]
+                              var)
+              sort-by-vars (into (sorted-map)
+                                 (for [[_ ix var] (@rule-id->sort-by rule-id)]
+                                   [ix var]))
+              agg-in-vars (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
+                            in-var)
+              agg-out-vars (set
+                            (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
+                              out-var))
+              pass-through-vars (for [[_ clause-type clause-id name] clauses
+                                      :when (not= clause-type "know")
+                                      [_ field-type key val] (@clause-id->fields clause-id)
+                                      :when (= field-type "variable")
+                                      :when (not= ordinal val)
+                                      :when (not (agg-out-vars val))]
+                                  val)
+              in-vars (into-array (distinct (concat group-by-vars [limit] (vals sort-by-vars) agg-in-vars pass-through-vars)))
+              out-vars (into-array (distinct (concat group-by-vars [limit] (vals sort-by-vars) agg-in-vars pass-through-vars [ordinal] agg-out-vars)))
+              var->ix (into {}
+                            (for [i (range (alength out-vars))]
+                              [(aget out-vars i) i]))
+              index (.get-or-create-index kn "know" agg-index-id in-vars)
+              group-len (count (conj (set group-by-vars) limit))
+              limit-ix (var->ix limit)
+              ascending? (= ascending|descending "ascending")
+              agg-ixes (into-array
+                        (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
+                          (var->ix in-var)))
+              agg-funs (into-array
+                        (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
+                          (aget js/aurora.aggregates agg-fun)))
+              sinks (into-array
+                     (for [[_ clause-type clause-id name] clauses
+                           :when (not= clause-type "when")]
+                       (sink-of rule-id clause-type clause-id name var->ix)))]
 
           ;; remove output clauses
           (doseq [[_ clause-type clause-id name] clauses
@@ -275,45 +311,12 @@
 
           ;; add a clause to output used vars to agg-index-ix
           (swap! rule-id->clauses update-in [rule-id] conj [rule-id "know" agg-clause-id agg-index-id])
-          (swap! clause-id->fields update-in [agg-clause-id] conj [agg-clause-id "variable" limit limit])
-          (doseq [[_ var] (@rule-id->group-by rule-id)]
+          (doseq [var in-vars]
             (swap! clause-id->fields update-in [agg-clause-id] conj [agg-clause-id "variable" var var]))
-          (doseq [[_ ix var] (@rule-id->sort-by rule-id)]
-            (swap! clause-id->fields update-in [agg-clause-id] conj [agg-clause-id "variable" var var]))
-          (doseq [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
-            (swap! clause-id->fields update-in [agg-clause-id] conj [agg-clause-id "variable" in-var in-var]))
 
           ;; create an aggregate flow to read from agg-index-id
-          (let [group-by-vars (for [[_ var] (@rule-id->group-by rule-id)]
-                                var)
-                sort-by-vars (into (sorted-map)
-                                   (for [[_ ix var] (@rule-id->sort-by rule-id)]
-                                     [ix var]))
-                agg-in-vars (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
-                              in-var)
-                agg-out-vars (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
-                               out-var)
-                in-vars (into-array (distinct (concat group-by-vars [limit] (vals sort-by-vars) agg-in-vars)))
-                out-vars (into-array (distinct (concat group-by-vars [limit] (vals sort-by-vars) agg-in-vars [ordinal] agg-out-vars)))
-                var->ix (into {}
-                              (for [i (range (alength out-vars))]
-                                [(aget out-vars i) i]))
-                index (.get-or-create-index kn "know" agg-index-id in-vars)
-                group-len (count (conj (set group-by-vars) limit))
-                limit-ix (var->ix limit)
-                ascending? (= ascending|descending "ascending")
-                agg-ixes (into-array
-                          (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
-                            (var->ix in-var)))
-                agg-funs (into-array
-                          (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
-                            (aget js/aurora.aggregates agg-fun)))
-                sinks (into-array
-                       (for [[_ clause-type clause-id name] clauses
-                             :when (not= clause-type "when")]
-                         (sink-of rule-id clause-type clause-id name var->ix)))]
-            (swap! rule->flow assoc agg-rule-id (AggregateFlow. index group-len limit-ix ascending? agg-ixes agg-funs sinks))
-            (swap! kind->name->rules update-in ["know" agg-index-id] conj agg-rule-id)))))
+          (swap! rule->flow assoc agg-rule-id (AggregateFlow. index group-len limit-ix ascending? agg-ixes agg-funs sinks))
+          (swap! kind->name->rules update-in ["know" agg-index-id] conj agg-rule-id))))
 
     (doseq [[rule-id clauses] @rule-id->clauses]
       (let [var->when-count (atom {})]
@@ -340,70 +343,70 @@
 
               ;; make inputs
               constraints (for [[_ clause-type clause-id name] sorted-clauses
-                                     :when (= clause-type "when")]
-                                 (let [fields (get @clause-id->fields clause-id)]
-                                   (case name
-                                     "=constant" (let [variable (first (for [[_ field-type key val] fields
-                                                                             :when (= key "variable")]
-                                                                         val))
-                                                       constant (first (for [[_ field-type key val] fields
-                                                                             :when (= key "constant")]
-                                                                         val))
-                                                       ix (get var->ix variable)]
-                                                   (btree/constant constant ix))
-                                     "=variable" (let [variable-a (first (for [[_ field-type key val] fields
-                                                                               :when (= key "variable-a")]
-                                                                           val))
-                                                       variable-b (first (for [[_ field-type key val] fields
-                                                                               :when (= key "variable-b")]
-                                                                           val))
-                                                       ix-a (get var->ix variable-a)
-                                                       ix-b (get var->ix variable-b)]
-                                                   (btree/equal #js [ix-a ix-b]))
-                                     "=function" (let [variable (first (for [[_ field-type key val] fields
-                                                                             :when (= key "variable")]
-                                                                         val))
-                                                       js (first (for [[_ field-type key val] fields
-                                                                       :when (= key "js")]
-                                                                   val))
-                                                       result-ix (get var->ix variable)
-                                                       args (for [var vars
-                                                                  :when (>= (.indexOf js var) 0)]
-                                                              var)
-                                                       arg-ixes (map var->ix args)
-                                                       fun (apply js/Function (conj (vec args) (str "return (" js ");")))]
-                                                   (btree/function fun result-ix (into-array arg-ixes)))
-                                     "filter" (let [js (first (for [[_ field-type key val] fields
-                                                                    :when (= key "js")]
-                                                                val))
-                                                    args (for [var vars
-                                                               :when (>= (.indexOf js var) 0)]
-                                                           var)
-                                                    arg-ixes (map var->ix args)
-                                                    fun (apply js/Function (conj (vec args) (str "return (" js ");")))]
-                                                (btree/filter fun (into-array arg-ixes)))
-                                     "interval" (let [in (first (for [[_ field-type key val] fields
-                                                                      :when (= key "in")]
-                                                                  val))
-                                                      in-ix (get var->ix in)
-                                                      lo (first (for [[_ field-type key val] fields
-                                                                      :when (= key "lo")]
-                                                                  val))
-                                                      lo-ix (get var->ix lo)
-                                                      hi (first (for [[_ field-type key val] fields
-                                                                      :when (= key "hi")]
-                                                                  val))
-                                                      hi-ix (get var->ix hi)]
-                                                  (btree/interval in-ix lo-ix hi-ix))
-                                     (let [clause-vars&keys (sort-by (fn [[val key]] (var->ix val))
-                                                                     (for [[_ field-type key val] fields]
-                                                                       [val key]))
-                                           clause-vars (map first clause-vars&keys)
-                                           clause-vars-ixes (map var->ix clause-vars)
-                                           clause-keys (map second clause-vars&keys)
-                                           index (.get-or-create-index kn "know" name (into-array clause-keys))]
-                                       (swap! kind->name->rules update-in ["know" name] #(conj (or % #{}) rule-id))
-                                       (btree/contains (btree/iterator index) (into-array clause-vars-ixes))))))
+                                :when (= clause-type "when")]
+                            (let [fields (get @clause-id->fields clause-id)]
+                              (case name
+                                "=constant" (let [variable (first (for [[_ field-type key val] fields
+                                                                        :when (= key "variable")]
+                                                                    val))
+                                                  constant (first (for [[_ field-type key val] fields
+                                                                        :when (= key "constant")]
+                                                                    val))
+                                                  ix (get var->ix variable)]
+                                              (btree/constant constant ix))
+                                "=variable" (let [variable-a (first (for [[_ field-type key val] fields
+                                                                          :when (= key "variable-a")]
+                                                                      val))
+                                                  variable-b (first (for [[_ field-type key val] fields
+                                                                          :when (= key "variable-b")]
+                                                                      val))
+                                                  ix-a (get var->ix variable-a)
+                                                  ix-b (get var->ix variable-b)]
+                                              (btree/equal #js [ix-a ix-b]))
+                                "=function" (let [variable (first (for [[_ field-type key val] fields
+                                                                        :when (= key "variable")]
+                                                                    val))
+                                                  js (first (for [[_ field-type key val] fields
+                                                                  :when (= key "js")]
+                                                              val))
+                                                  result-ix (get var->ix variable)
+                                                  args (for [var vars
+                                                             :when (>= (.indexOf js var) 0)]
+                                                         var)
+                                                  arg-ixes (map var->ix args)
+                                                  fun (apply js/Function (conj (vec args) (str "return (" js ");")))]
+                                              (btree/function fun result-ix (into-array arg-ixes)))
+                                "filter" (let [js (first (for [[_ field-type key val] fields
+                                                               :when (= key "js")]
+                                                           val))
+                                               args (for [var vars
+                                                          :when (>= (.indexOf js var) 0)]
+                                                      var)
+                                               arg-ixes (map var->ix args)
+                                               fun (apply js/Function (conj (vec args) (str "return (" js ");")))]
+                                           (btree/filter fun (into-array arg-ixes)))
+                                "interval" (let [in (first (for [[_ field-type key val] fields
+                                                                 :when (= key "in")]
+                                                             val))
+                                                 in-ix (get var->ix in)
+                                                 lo (first (for [[_ field-type key val] fields
+                                                                 :when (= key "lo")]
+                                                             val))
+                                                 lo-ix (get var->ix lo)
+                                                 hi (first (for [[_ field-type key val] fields
+                                                                 :when (= key "hi")]
+                                                             val))
+                                                 hi-ix (get var->ix hi)]
+                                             (btree/interval in-ix lo-ix hi-ix))
+                                (let [clause-vars&keys (sort-by (fn [[val key]] (var->ix val))
+                                                                (for [[_ field-type key val] fields]
+                                                                  [val key]))
+                                      clause-vars (map first clause-vars&keys)
+                                      clause-vars-ixes (map var->ix clause-vars)
+                                      clause-keys (map second clause-vars&keys)
+                                      index (.get-or-create-index kn "know" name (into-array clause-keys))]
+                                  (swap! kind->name->rules update-in ["know" name] #(conj (or % #{}) rule-id))
+                                  (btree/contains (btree/iterator index) (into-array clause-vars-ixes))))))
 
               ;; make solver
               solver (btree/solver num-vars (into-array constraints))
@@ -437,6 +440,7 @@
     (Flows. (clj->js (map first @rule->flow)) (clj->js @rule->flow) #js {} (clj->js @kind->name->rules) (clj->js @name->transient?))))
 
 ;; TESTS
+
 (comment
 (enable-console-print!)
 
@@ -551,6 +555,22 @@
 
 (.add-facts kn "know" "agg-over" #js ["rule-id" "in-var" "agg-fun" "out-var"] #js [#js ["concat-overlap" "zz" "str" "ww"]])
 
+(.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["limit-overlap" "when" "limit-get-foos" "foo"]
+                                                                                                    #js ["limit-overlap" "when" "limit-some-interval" "interval"]
+                                                                                                    #js ["limit-overlap" "remember" "limit-rem-frep" "frep"]])
+
+(.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["limit-get-foos" "variable" "x" "xx"]
+                                                                                             #js ["limit-get-foos" "variable" "y" "yy"]
+                                                                                             #js ["limit-some-interval" "variable" "lo" "xx"]
+                                                                                             #js ["limit-some-interval" "variable" "hi" "yy"]
+                                                                                             #js ["limit-some-interval" "variable" "in" "zz"]
+                                                                                             #js ["limit-rem-frep" "variable" "x" "xx"]
+                                                                                             #js ["limit-rem-frep" "variable" "o" "ord"]
+                                                                                             #js ["limit-rem-frep" "variable" "z" "zz"]])
+
+
+(.add-facts kn "know" "has-agg" #js ["rule-id" "limit-variable|constant" "limit" "ordinal" "ascending|descending"] #js [#js ["limit-overlap" "constant" 3 "ord" "descending"]])
+
 
 (def flows (compile kn))
 
@@ -571,4 +591,6 @@
 (.get-or-create-index kn "know" "frip" #js ["x" "w"])
 
 (.get-or-create-index kn "know" "frop" #js ["x" "o" "z" "w"])
+
+(.get-or-create-index kn "know" "frep" #js ["x" "o" "z"])
 )
