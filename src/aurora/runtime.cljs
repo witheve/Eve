@@ -29,24 +29,27 @@
   (.get-or-create-index kn "know" "time" #js ["time"]))
 
 (defn prep-compiled [compiled]
-  (let [trans? (.-name->transient? compiled)]
-    (aset trans? "defaults" true)
-    (aset trans? "ui/directCustom" true)
-    (aset trans? "ui/onDirectClick" true)
-    (aset trans? "ui/key-modifier" true)
-    (aset trans? "ui/focus" true)
-    (aset trans? "ui/onClick" true)
-    (aset trans? "ui/onKeyDown" true)
-    (aset trans? "ui/onChange" true)
-    (aset trans? "ui/onDoubleClick" true)
-    (aset trans? "ui/custom" true)
-    (aset trans? "ui/elem" true)
-    (aset trans? "ui/child" true)
-    (aset trans? "ui/attr" true)
-    (aset trans? "ui/text" true)
-    (aset trans? "ui/style" true)
-    (aset trans? "ui/event-listener" true)
-    (aset trans? "time" false)))
+  (let [name->lifetime (.-name->lifetime compiled)]
+    (aset name->lifetime "defaults" "external")
+    (aset name->lifetime "ui/directCustom" "external")
+    (aset name->lifetime "ui/onDirectClick" "external")
+    (aset name->lifetime "ui/key-modifier" "external")
+    (aset name->lifetime "ui/focus" "external")
+    (aset name->lifetime "ui/onClick" "external")
+    (aset name->lifetime "ui/onKeyDown" "external")
+    (aset name->lifetime "ui/onChange" "external")
+    (aset name->lifetime "ui/onDoubleClick" "external")
+    (aset name->lifetime "ui/custom" "external")
+    (aset name->lifetime "ui/onBlur" "external")
+
+    (aset name->lifetime "ui/elem" "transient")
+    (aset name->lifetime "ui/child" "transient")
+    (aset name->lifetime "ui/attr" "transient")
+    (aset name->lifetime "ui/text" "transient")
+    (aset name->lifetime "ui/style" "transient")
+    (aset name->lifetime "ui/event-listener" "transient")
+
+    (aset name->lifetime "time" "external")))
 
 (defn env []
   (let [kn (knowledge)
@@ -159,6 +162,7 @@
     ((aget js/React.DOM (name tag)) el-attrs (array))))
 
 (defn rebuild-tree [env queue]
+  (prn :ui/elem (get (index env "ui/elem") ["elem-id" "tag"]))
   (let [els (.keys (get (index env "ui/elem") ["elem-id" "tag"]))
         attrs (array-iterator (.keys (get (index env "ui/attr") ["elem-id" "attr" "value"])))
         styles (array-iterator (.keys (get (index env "ui/style") ["elem-id" "attr" "value"])))
@@ -293,9 +297,11 @@
 
 (defn pre-compile [program watchers]
   (let [compiled (compile program)]
+    (prn :compiled compiled)
     (prep-compiled compiled)
     (.quiesce compiled program (fn [kn]
                                  (let [final-compiled (compile kn)]
+                                   (prn :final-compiled final-compiled)
                                    (prep-compiled final-compiled)
                                    (aset (.-state program) "compiled" final-compiled))
                                  ))

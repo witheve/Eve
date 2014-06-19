@@ -29,8 +29,8 @@
                      :clause-fields (array)}]
     (doseq [r rs]
       (add-rule* results r))
-    (.add-facts env "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] (aget results "clauses"))
-    (.add-facts env "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] (aget results "clause-fields"))
+    (.directly-insert-facts! env "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] (aget results "clauses"))
+    (.directly-insert-facts! env "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] (aget results "clause-fields"))
     env))
 
 
@@ -52,9 +52,9 @@
                      :clause-fields (array)}]
     (doseq [r rs]
       (add-rule results project r))
-    (.add-facts env "know" "editor rules" #js ["rule-id" "project-id" "timestamp"] (aget results "rules"))
-    (.add-facts env "know" "editor clauses" #js ["rule-id" "type" "clause-id" "madlib-id" "timestamp"] (aget results "clauses"))
-    (.add-facts env "know" "editor clause fields" #js ["rule-id" "clause-id" "constant|variable|expression" "key" "val"] (aget results "clause-fields"))
+    (.directly-insert-facts! env "know" "editor rules" #js ["rule-id" "project-id" "timestamp"] (aget results "rules"))
+    (.directly-insert-facts! env "know" "editor clauses" #js ["rule-id" "type" "clause-id" "madlib-id" "timestamp"] (aget results "clauses"))
+    (.directly-insert-facts! env "know" "editor clause fields" #js ["rule-id" "clause-id" "constant|variable|expression" "key" "val"] (aget results "clause-fields"))
     env))
 
 (defn index [env ix]
@@ -227,15 +227,8 @@
       (fact-walk-eve h facts []))
     (vec facts)))
 
-(defn know* [env key order fact]
-  (.add-facts env "know" key order fact))
-
 (defn know [env key order fact]
-  (.get-or-create-index env "know" key order)
-  (.add-facts env "know" key order #js [fact])
-  )
+  (.add-facts env "know" key order #js [fact]))
 
 (defn remember [env key order fact]
-  (.get-or-create-index env "remember" key order)
-  (.add-facts env "remember" key order #js [fact])
-  )
+  (.add-facts env "remember" key order #js [fact]))

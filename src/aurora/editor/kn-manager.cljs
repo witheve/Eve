@@ -33,7 +33,7 @@
             remote-index (.get-or-create-index kn "know" ix-name order)]
         (when clear?
           (.clear-facts kn "know" ix-name))
-        (.add-facts kn "know" ix-name order facts)))))
+        (.directly-insert-facts! kn "know" ix-name order facts)))))
 
 (defn compile [name]
   (let [kn (get-kn name)

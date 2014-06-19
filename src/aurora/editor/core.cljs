@@ -1238,17 +1238,19 @@
 
 (defn compile-editor [program watchers]
   (let [compiled (compile program)]
+    (prn :compiled compiled)
     (runtime/prep-compiled compiled)
     (syntax/know program "compile project" #js ["project-id"] #js ["editor ui"])
     (.quiesce compiled program (fn [kn]
-                                 (.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] (.keys (get (syntax/index kn "compiled clauses") ["rule-id" "when|know|remember|forget" "clause-id" "name"])))
-                                 (.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] (.keys (get (syntax/index kn "compiled clause-fields") ["clause-id" "constant|variable" "key" "val"])))
+                                 (.directly-insert-facts! kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] (.keys (get (syntax/index kn "compiled clauses") ["rule-id" "when|know|remember|forget" "clause-id" "name"])))
+                                 (.directly-insert-facts! kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] (.keys (get (syntax/index kn "compiled clause-fields") ["clause-id" "constant|variable" "key" "val"])))
                                  (let [final-compiled (compile kn)]
+                                   (prn :final-compiled final-compiled)
                                    (runtime/prep-compiled final-compiled)
                                    (aset (.-state program) "compiled" final-compiled))
                                  ))
     ;(.clear-facts program "know" "compile project")
-    (aset (.-name->transient? compiled) "compile project" true)
+    (aset (.-name->lifetime compiled) "compile project" "external")
     (aset (.-state program) "watchers" watchers)
     program))
 
@@ -1260,9 +1262,11 @@
        (know editor "defaults" #js ["defaults"] #js [""])
        (re-run editor)))))
 
+(enable-console-print!)
+
 (run)
 
-(enable-console-print!)
+
 
 (comment
 

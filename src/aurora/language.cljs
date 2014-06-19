@@ -32,6 +32,7 @@
 (deftype Knowledge [^:mutable kind->name->fields->index ^:mutable state]
   Object
   (get-or-create-index [this kind name fields]
+                       (assert (array? fields))
                        (assert (or (identical? kind "know") (identical? kind "remember") (identical? kind "forget")) (pr-str kind))
                        (or (get-in kind->name->fields->index [kind name (vec fields)])
                            (let [index (btree/tree 10 (alength fields))]
@@ -41,12 +42,16 @@
                              (set! kind->name->fields->index (assoc-in kind->name->fields->index [kind name (vec fields)] index))
                              index)))
   (ensure-index [this kind name default-fields]
+                (assert (array? default-fields))
                 (assert (or (identical? kind "know") (identical? kind "remember") (identical? kind "forget")) (pr-str [kind name default-fields]))
                 (if-let [fields->index (get-in kind->name->fields->index [kind name])]
                   (assert (= (set default-fields) (set (first (keys fields->index)))) (pr-str [kind name default-fields (first (keys fields->index))]))
                   (.get-or-create-index this kind name default-fields)))
   (update-facts [this kind name fields facts&vals]
+                #_(prn :updating kind name fields (alength facts&vals))
+                (assert (array? fields))
                 (assert (or (identical? kind "know") (identical? kind "remember") (identical? kind "forget")) (pr-str kind))
+                (.ensure-index this kind name (into-array (filter #(not (nil? %)) fields)))
                 (let [changed? false
                       indexes (get-in kind->name->fields->index [kind name])]
                   (assert (seq indexes) (pr-str kind name))
@@ -59,20 +64,43 @@
                (dotimes [i (alength facts)]
                  (apush facts&vals (aget facts i))
                  (apush facts&vals 1))
-               (.update-facts this kind name fields facts&vals)))
+               (.update-facts this kind (str "delta-" name) fields facts&vals)))
   (del-facts [this kind name fields facts]
              (let [facts&vals #js []]
                (dotimes [i (alength facts)]
                  (apush facts&vals (aget facts i))
                  (apush facts&vals -1))
-               (.update-facts this kind name fields facts&vals)))
+               (.update-facts this kind (str "delta-" name) fields facts&vals)))
+  (directly-insert-facts! [this kind name fields facts]
+                          (let [facts&vals #js []]
+                            (dotimes [i (alength facts)]
+                              (apush facts&vals (aget facts i))
+                              (apush facts&vals 1))
+                            (.update-facts this kind name fields facts&vals)))
   (clear-facts [this kind name]
                (doseq [[_ index] (concat (get-in kind->name->fields->index [kind name]))]
                  (.reset index)))
+  (unknow-facts [this kind name]
+                (let [[fields know-index] (first (get-in kind->name->fields->index ["know" name]))]
+                  (when (not (nil? know-index))
+                    (let [facts&vals (.elems know-index)]
+                      (dotimes [i (alength facts&vals)]
+                        (when (== 1 (mod i 2))
+                          (aset facts&vals i (- (aget facts&vals i)))))
+                      (.update-facts this kind name (into-array fields) facts&vals)))))
+  (merge-facts [this name]
+               (let [[fields delta-know-index] (first (get-in kind->name->fields->index ["know" (str "delta-" name)]))]
+                 #_(prn :merging name (when delta-know-index (alength (.elems delta-know-index))))
+                 (when (not (nil? delta-know-index))
+                   (.update-facts this "know" name (into-array fields) (.elems delta-know-index))
+                   (.clear-facts this "know" (str "delta-" name)))))
   (tick-facts [this name]
-              (let [[fields know-index] (first (get-in kind->name->fields->index ["know" name]))]
+              (let [fields (or (first (first (get-in kind->name->fields->index ["know" name])))
+                               (first (first (get-in kind->name->fields->index ["remember" name])))
+                               (first (first (get-in kind->name->fields->index ["forget" name]))))]
                 (assert (not (nil? fields)) name)
                 (let [fields (into-array fields)
+                      know-index (.get-or-create-index this "know" name fields)
                       remember-index (.get-or-create-index this "remember" name fields)
                       forget-index (.get-or-create-index this "forget" name fields)
                       know-iter (btree/iterator know-index)
@@ -89,18 +117,22 @@
                                 (.push facts&vals key -1))))
                   (.clear-facts this "remember" name)
                   (.clear-facts this "forget" name)
-                  (.update-facts this "know" name fields facts&vals))))
-  (tick [this name->transient?]
-        (let [names (js/Object.keys name->transient?)
+                  (.update-facts this "know" (str "delta-" name) fields facts&vals))))
+  (merge [this]
+         (doseq [[name _] (kind->name->fields->index "know")]
+           (.merge-facts this name)))
+  (tick [this name->lifetime]
+        (let [names (js/Object.keys name->lifetime)
               changed? false]
           (dotimes [i (alength names)]
-            (let [name (aget names i)]
-              (if (true? (aget name->transient? name))
-                (.clear-facts this "know" name)
+            (let [name (aget names i)
+                  lifetime (aget name->lifetime name)]
+              (when (= "persistent" lifetime)
                 (when (true? (.tick-facts this name))
-                  (set!! changed? true)))))
+                  (set!! changed? true)))
+              (when (= "external" lifetime)
+                (.unknow-facts this "know" name))))
           changed?)))
-
 (defn knowledge []
   (Knowledge. {} (js-obj)))
 
@@ -160,7 +192,7 @@
          (dotimes [i (alength sinks)]
            (.run (aget sinks i) kn rule->dirty? kind->name->rules facts&vals)))))
 
-(deftype Flows [rules rule->flow rule->dirty? kind->name->rules name->transient?]
+(deftype Flows [rules rule->flow rule->dirty? kind->name->rules name->lifetime]
   Object
   (run [this kn]
        ;; assume everything is dirty at the start
@@ -172,15 +204,17 @@
            (let [rule (aget rules i)]
              (if (true? (aget rule->dirty? rule))
                (do
+                 #_(prn :running rule)
                  (aset rule->dirty? rule false)
                  (.run (aget rule->flow rule) kn rule->dirty? kind->name->rules)
                  (recur 0))
                (recur (+ i 1)))))))
   (tick [this kn watch]
         (.run this kn)
+        (.merge kn)
         (when watch
           (watch kn))
-        (.tick kn name->transient?))
+        (.tick kn name->lifetime))
   (quiesce [this kn watch]
            (while (true? (.tick this kn watch)))))
 
@@ -196,7 +230,7 @@
 (defn compile [kn]
   (let [rule->flow (atom {})
         kind->name->rules (atom {})
-        name->transient? (atom {})
+        name->lifetime (atom {})
         clauses (.keys (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"]))
         fields (.keys (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"]))
         has-aggs (.keys (.get-or-create-index kn "know" "has-agg" #js ["rule-id" "limit-variable|constant" "limit" "ordinal" "ascending|descending"]))
@@ -313,7 +347,40 @@
                              :when (not= clause-type "when")]
                          (sink-of rule-id clause-type clause-id name var->ix)))]
             (swap! rule->flow assoc agg-rule-id (AggregateFlow. index group-len limit-ix ascending? agg-ixes agg-funs sinks))
-            (swap! kind->name->rules update-in ["know" agg-index-id] conj agg-rule-id)))))
+            (swap! kind->name->rules update-in ["know" (str "delta-" agg-index-id)] conj agg-rule-id)))))
+
+    ;; rewrite (foo x y) (bar y z) to (delta-foo x y) (bar y z) + (foo x y) (delta-bar y z) + (delta-foo x y) (delta-bar y z)
+    (doseq [[rule-id clauses] @rule-id->clauses]
+
+      ;; remove current rule
+      (swap! rule-id->clauses dissoc rule-id)
+
+      ;; add derivative rules
+      (let [db-clauses (for [[_ clause-type clause-id name] clauses
+                             :when (and (= clause-type "when")
+                                        (not (#{"=constant" "=variable" "=function" "filter" "interval"} name)))]
+                         [rule-id clause-type clause-id name])
+            other-clauses (for [[_ clause-type clause-id name] clauses
+                                :when (or (not= clause-type "when")
+                                          (#{"=constant" "=variable" "=function" "filter" "interval"} name))]
+                            [rule-id clause-type clause-id name])
+            num-db-clauses (count db-clauses)
+            num-derivatives (js/Math.pow 2 num-db-clauses)]
+        (dotimes [derivative num-derivatives]
+          (when (> derivative 0) ;; skip the case where no deltas are present
+            (let [derivative-rule-id (str rule-id "-deriv-" derivative)]
+              (swap! rule-id->clauses assoc derivative-rule-id #{})
+              (doseq [[clause [_ clause-type clause-id name]] (map vector (range) db-clauses)]
+                ;; TODO do we need to keep the clause-ids unique?
+                (swap! rule-id->clauses update-in [derivative-rule-id] conj
+                       (if (= 1 (mod (bit-shift-right derivative clause) 2))
+                         [derivative-rule-id clause-type clause-id (str "delta-" name)]
+                         [derivative-rule-id clause-type clause-id name])))
+              (doseq [[_ clause-type clause-id name] other-clauses]
+                (swap! rule-id->clauses update-in [derivative-rule-id] conj
+                       (if (= clause-type "know")
+                         [derivative-rule-id clause-type clause-id (str "delta-" name)]
+                         [derivative-rule-id clause-type clause-id name]))))))))
 
     (doseq [[rule-id clauses] @rule-id->clauses]
       (let [var->when-count (atom {})]
@@ -423,20 +490,19 @@
             name (.-name sink)
             fields (.-fields sink)
             filtered-fields (into-array (filter #(not (nil? %)) fields))
-            transient? (identical? kind "know")]
-        ;; TODO get transient? from schema instead
-        (assert (not= (not transient?) (get @name->transient? name)) name)
-        (swap! name->transient? assoc name transient?)
-        (swap! kind->name->rules update-in [kind name] #(or % #{}))
-        (.ensure-index kn "know" name filtered-fields)
-        (when (false? transient?)
-          (.ensure-index kn "forget" name filtered-fields)
-          (.ensure-index kn "remember" name filtered-fields))))
+            old-lifetime (@name->lifetime name)
+            new-lifetime (if (= kind "know") "transient" "persistent")]
+        ;; TODO get lifetime from schema instead
+        (if old-lifetime
+          (assert (= old-lifetime new-lifetime) [name old-lifetime new-lifetime])
+          (swap! name->lifetime assoc name new-lifetime))
+        (swap! kind->name->rules update-in [kind name] #(or % #{}))))
 
     ;; TODO stratify
-    (Flows. (clj->js (map first @rule->flow)) (clj->js @rule->flow) #js {} (clj->js @kind->name->rules) (clj->js @name->transient?))))
+    (Flows. (clj->js (map first @rule->flow)) (clj->js @rule->flow) #js {} (clj->js @kind->name->rules) (clj->js @name->lifetime))))
 
 ;; TESTS
+
 (comment
 (enable-console-print!)
 
@@ -449,71 +515,71 @@
 (.get-or-create-index kn "know" "sort-by" #js ["rule-id" "ix" "var"])
 (.get-or-create-index kn "know" "agg-over" #js ["rule-id" "in-var" "agg-fun" "out-var"])
 
-(.get-or-create-index kn "know" "edge" #js ["x" "y"])
-(.get-or-create-index kn "know" "connected" #js ["x" "y"])
+(.get-or-create-index kn "know" "delta-edge" #js ["x" "y"])
+(.get-or-create-index kn "know" "delta-connected" #js ["x" "y"])
 (.add-facts kn "know" "edge" #js ["x" "y"] #js [#js ["a" "b"] #js ["b" "c"] #js ["c" "d"] #js ["d" "b"]])
 
-(.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["single-edge" "when" "get-edges" "edge"]
+(.directly-insert-facts! kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["single-edge" "when" "get-edges" "edge"]
                                                                                                     #js ["single-edge" "know" "output-connected" "connected"]])
 
-(.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-edges" "variable" "x" "xx"]
+(.directly-insert-facts! kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-edges" "variable" "x" "xx"]
                                                                                              #js ["get-edges" "variable" "y" "yy"]
                                                                                              #js ["output-connected" "variable" "x" "xx"]
                                                                                              #js ["output-connected" "variable" "y" "yy"]])
 
-(.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["transitive-edge" "when" "get-left-edge" "edge"]
+(.directly-insert-facts! kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["transitive-edge" "when" "get-left-edge" "edge"]
                                                                                                     #js ["transitive-edge" "when" "get-right-connected" "connected"]
                                                                                                     #js ["transitive-edge" "know" "output-transitive-connected" "connected"]])
 
-(.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-left-edge" "variable" "x" "xx"]
+(.directly-insert-facts! kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-left-edge" "variable" "x" "xx"]
                                                                                              #js ["get-left-edge" "variable" "y" "yy"]
                                                                                              #js ["get-right-connected" "variable" "x" "yy"]
                                                                                              #js ["get-right-connected" "variable" "y" "zz"]
                                                                                              #js ["output-transitive-connected" "variable" "x" "xx"]
                                                                                              #js ["output-transitive-connected" "variable" "y" "zz"]])
 
-(.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["function-edge" "when" "get-function-edge" "connected"]
+(.directly-insert-facts! kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["function-edge" "when" "get-function-edge" "connected"]
                                                                                                     #js ["function-edge" "when" "filter-edge" "filter"]
                                                                                                     #js ["function-edge" "when" "make-str" "=function"]
                                                                                                     #js ["function-edge" "remember" "know-str" "str-edge"]])
 
-(.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-function-edge" "variable" "x" "xx"]
+(.directly-insert-facts! kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-function-edge" "variable" "x" "xx"]
                                                                                              #js ["get-function-edge" "variable" "y" "yy"]
                                                                                              #js ["filter-edge" "constant" "js" "xx == \"a\""]
                                                                                              #js ["make-str" "variable" "variable" "zz"]
                                                                                              #js ["make-str" "constant" "js" "\"edge \" + xx + \" \" + yy"]
                                                                                              #js ["know-str" "variable" "name" "zz"]])
 
-(.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["-function-edge" "when" "-get-function-edge" "edge"]
+(.directly-insert-facts! kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["-function-edge" "when" "-get-function-edge" "edge"]
                                                                                                     #js ["-function-edge" "when" "-make-str" "=function"]
                                                                                                     #js ["-function-edge" "forget" "-know-str" "str-edge"]])
 
-(.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["-get-function-edge" "variable" "x" "xx"]
+(.directly-insert-facts! kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["-get-function-edge" "variable" "x" "xx"]
                                                                                              #js ["-get-function-edge" "variable" "y" "yy"]
                                                                                              #js ["-make-str" "variable" "variable" "zz"]
                                                                                              #js ["-make-str" "constant" "js" "\"edge \" + xx + \" \" + yy"]
                                                                                              #js ["-know-str" "variable" "name" "zz"]])
 
-(.get-or-create-index kn "know" "foo" #js ["x" "y"])
-(.get-or-create-index kn "know" "bar" #js ["z"])
+(.get-or-create-index kn "know" "delta-foo" #js ["x" "y"])
+(.get-or-create-index kn "know" "delta-bar" #js ["z"])
 (.add-facts kn "know" "foo" #js ["x" "y"] #js [#js [1 5] #js [10 10] #js [20 15]])
 
-(.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["overlap" "when" "get-foos" "foo"]
+(.directly-insert-facts! kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["overlap" "when" "get-foos" "foo"]
                                                                                                     #js ["overlap" "when" "some-interval" "interval"]
                                                                                                     #js ["overlap" "remember" "rem-bar" "bar"]])
 
-(.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-foos" "variable" "x" "xx"]
+(.directly-insert-facts! kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["get-foos" "variable" "x" "xx"]
                                                                                              #js ["get-foos" "variable" "y" "yy"]
                                                                                              #js ["some-interval" "variable" "lo" "xx"]
                                                                                              #js ["some-interval" "variable" "hi" "yy"]
                                                                                              #js ["some-interval" "variable" "in" "zz"]
                                                                                              #js ["rem-bar" "variable" "z" "zz"]])
 
-(.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["count-overlap" "when" "count-get-foos" "foo"]
+(.directly-insert-facts! kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["count-overlap" "when" "count-get-foos" "foo"]
                                                                                                     #js ["count-overlap" "when" "count-some-interval" "interval"]
                                                                                                     #js ["count-overlap" "remember" "count-rem-frip" "frip"]])
 
-(.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["count-get-foos" "variable" "x" "xx"]
+(.directly-insert-facts! kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["count-get-foos" "variable" "x" "xx"]
                                                                                              #js ["count-get-foos" "variable" "y" "yy"]
                                                                                              #js ["count-some-interval" "variable" "lo" "xx"]
                                                                                              #js ["count-some-interval" "variable" "hi" "yy"]
@@ -521,18 +587,18 @@
                                                                                              #js ["count-rem-frip" "variable" "x" "xx"]
                                                                                              #js ["count-rem-frip" "variable" "w" "ww"]])
 
-(.add-facts kn "know" "has-agg" #js ["rule-id" "limit-variable|constant" "limit" "ordinal" "ascending|descending"] #js [#js ["count-overlap" "constant" js/Infinity "ord" "ascending"]])
+(.directly-insert-facts! kn "know" "has-agg" #js ["rule-id" "limit-variable|constant" "limit" "ordinal" "ascending|descending"] #js [#js ["count-overlap" "constant" js/Infinity "ord" "ascending"]])
 
-(.add-facts kn "know" "group-by" #js ["rule-id" "var"] #js [#js ["count-overlap" "xx"]])
+(.directly-insert-facts! kn "know" "group-by" #js ["rule-id" "var"] #js [#js ["count-overlap" "xx"]])
 
-(.add-facts kn "know" "agg-over" #js ["rule-id" "in-var" "agg-fun" "out-var"] #js [#js ["count-overlap" "zz" "count" "ww"]])
+(.directly-insert-facts! kn "know" "agg-over" #js ["rule-id" "in-var" "agg-fun" "out-var"] #js [#js ["count-overlap" "zz" "count" "ww"]])
 
 
-(.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["concat-overlap" "when" "concat-get-foos" "foo"]
+(.directly-insert-facts! kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["concat-overlap" "when" "concat-get-foos" "foo"]
                                                                                                     #js ["concat-overlap" "when" "concat-some-interval" "interval"]
                                                                                                     #js ["concat-overlap" "remember" "concat-rem-frop" "frop"]])
 
-(.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["concat-get-foos" "variable" "x" "xx"]
+(.directly-insert-facts! kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["concat-get-foos" "variable" "x" "xx"]
                                                                                              #js ["concat-get-foos" "variable" "y" "yy"]
                                                                                              #js ["concat-some-interval" "variable" "lo" "xx"]
                                                                                              #js ["concat-some-interval" "variable" "hi" "yy"]
@@ -543,13 +609,13 @@
                                                                                              #js ["concat-rem-frop" "variable" "w" "ww"]])
 
 
-(.add-facts kn "know" "has-agg" #js ["rule-id" "limit-variable|constant" "limit" "ordinal" "ascending|descending"] #js [#js ["concat-overlap" "constant" 3 "ord" "descending"]])
+(.directly-insert-facts! kn "know" "has-agg" #js ["rule-id" "limit-variable|constant" "limit" "ordinal" "ascending|descending"] #js [#js ["concat-overlap" "constant" 3 "ord" "descending"]])
 
-(.add-facts kn "know" "group-by" #js ["rule-id" "var"] #js [#js ["concat-overlap" "xx"]])
+(.directly-insert-facts! kn "know" "group-by" #js ["rule-id" "var"] #js [#js ["concat-overlap" "xx"]])
 
-(.add-facts kn "know" "sort-by" #js ["rule-id" "ix" "var"] #js [#js ["concat-overlap" 0 "zz"]])
+(.directly-insert-facts! kn "know" "sort-by" #js ["rule-id" "ix" "var"] #js [#js ["concat-overlap" 0 "zz"]])
 
-(.add-facts kn "know" "agg-over" #js ["rule-id" "in-var" "agg-fun" "out-var"] #js [#js ["concat-overlap" "zz" "str" "ww"]])
+(.directly-insert-facts! kn "know" "agg-over" #js ["rule-id" "in-var" "agg-fun" "out-var"] #js [#js ["concat-overlap" "zz" "str" "ww"]])
 
 
 (def flows (compile kn))
@@ -562,13 +628,15 @@
 
 (.get-or-create-index kn "know" "connected" #js ["x" "y"])
 
+(.get-or-create-index kn "know" "delta-connected" #js ["x" "y"])
+
 (.get-or-create-index kn "know" "str-edge" #js ["name"])
 
-(.get-or-create-index kn "know" "foo" #js ["x" "y"])
+(.get-or-create-index kn "know" "delta-foo" #js ["x" "y"])
 
-(.get-or-create-index kn "know" "bar" #js ["z"])
+(.get-or-create-index kn "know" "delta-bar" #js ["z"])
 
-(.get-or-create-index kn "know" "frip" #js ["x" "w"])
+(.get-or-create-index kn "know" "delta-frip" #js ["x" "w"])
 
-(.get-or-create-index kn "know" "frop" #js ["x" "o" "z" "w"])
+(.get-or-create-index kn "know" "delta-frop" #js ["x" "o" "z" "w"])
 )
