@@ -131,7 +131,8 @@ input.expression, .expression:hover { color:#008EED;  border-color:transparent; 
 .rule-editor-actions .ion-ios7-checkmark-empty { font-size: 24pt; }
 
 .matcher { }
-.editor .rules .matcher-input { padding:0 0px; background:none; }
+.editor .rules .matcher-input { padding:0 0px; background:none; font-size:11pt; color:#555; }
+.editor .rules .matcher-input-clause { padding:0 0px; background:none; color: #9b9b9b; padding-left:10px; }
 .matcher-list { padding:10px; margin-top:10px; border-radius:3px; box-shadow:0 0 10px #222; z-index:100; position:absolute; background:#f7f7f7; max-height:200px; overflow:auto; max-width:auto;  }
 .matcher-list li { margin-bottom:2px; padding:0 5px; border-radius:3px; }
 .matcher-list li:hover, .matcher-list li.active { background: #5e6164; color: #ddd; }

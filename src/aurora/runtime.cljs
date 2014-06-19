@@ -311,6 +311,28 @@
     (aset (.-state program) "watchers" watchers)
     program))
 
+(def render-queue #js {:queued false})
+
+(def animation-frame
+  (or (.-requestAnimationFrame js/self)
+      (.-webkitRequestAnimationFrame js/self)
+      (.-mozRequestAnimationFrame js/self)
+      (.-oRequestAnimationFrame js/self)
+      (.-msRequestAnimationFrame js/self)
+      (fn [callback] (js/setTimeout callback 17))))
+
+(defn queue-render! [kn func]
+  (let [render-queue (or (.-state.render-queue kn)
+                         (let [queue #js {:queued false}]
+                           (set! (.-state.render-queue kn) queue)
+                           queue))]
+    (set! (.-func render-queue) func)
+    (when-not (.-queued render-queue)
+      (set! (.-queued render-queue) true)
+      (animation-frame #(do
+                          ((.-func render-queue))
+                          (set! (.-queued render-queue) false))))))
+
 (defn create-direct-renderer [root]
   (fn [kn queue]
     (let [tree (perf-time-named "rebuild tree" (rebuild-tree-dom kn queue))
@@ -334,16 +356,23 @@
             dommied (dommy/node tree)
             ]
         (when container
-          (perf-time-named "append tree" (do
-                                           (js/React.renderComponent dommied container)
-                                           (when to-focus
-                                             (try
-                                               (println "trying to focus")
-                                               (js/console.log to-focus)
-                                               (.focus (js/document.querySelector (str "." (aget to-focus 0))))
-                                               (catch :default e
-                                                 (js/console.log (str "failed to focus: " e)))))
-                                           ))))
+          (queue-render! kn
+                         (fn []
+                           (perf-time-named "append tree" (do
+                                                            (js/React.renderComponent dommied container)
+                                                            (when to-focus
+                                                              (try
+                                                                (println "trying to focus")
+                                                                (let [elem (js/document.querySelector (str "." (aget to-focus 0)))]
+                                                                  (js/console.log elem js/document.activeElement (= elem js/document.activeElement))
+                                                                  (when (and elem
+                                                                             (not (= elem js/document.activeElement)))
+                                                                    (println "FOCUSING: " elem)
+                                                                    (.focus elem)
+                                                                    ))
+                                                                (catch :default e
+                                                                  (js/console.log (str "failed to focus: " e)))))
+                                                            ))))))
       (catch :default e
         (js/console.log (str "FAILED UI: " e))))))
 
