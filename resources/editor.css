@@ -94,10 +94,24 @@ input.expression, .expression:hover { color:#008EED;  border-color:transparent; 
 .dos { display:inline-block; padding:10px 0; padding-right:20px; background:#f7f7f7; border:0px solid #f0f0f0; width:auto; border-radius: 0 5px 5px 0;  }
 
 .draw-preview { display:inline-block; }
-.preview-elem { position:relative; border:1px solid #bbb; padding:5px; margin:5px; border-radius:3px; }
-.preview-elem-tag  { position:absolute; top:-8px; left:4px;  background:#f7f7f7; font-size:8pt; color:#99d; }
+.preview-elem { position:relative; border:1px solid #bbb; padding:8px; margin:5px; border-radius:3px; background:#f7f7f7; }
+.preview-elem-tag  { border-radius:3px; position:absolute; top:-8px; left:4px;  background:#f7f7f7; font-size:8pt; color:#99d; }
 
-.preview-elem-editor { display:inline-block; vertical-align:top; margin-left:5px; position:static; background:#f7f7f7; padding:10px 15px; box-shadow:0 0 10px #222; }
+.preview-elem.active { border-color:#99d; background:#eef; }
+.preview-elem.active > .preview-elem-tag { color:#55a; background:#eef; }
+
+.preview-elem-editor { display:inline-block; max-width:200px; vertical-align:top; margin-left:5px; position:static; background:#f7f7f7; padding:10px 15px; box-shadow:0 0 0px #aaa; border-radius:3px; }
+.preview-elem-editor td { padding-bottom:3px; }
+.preview-elem-editor td:first-child { padding-right:5px; text-align:right; }
+.preview-elem-editor td:nth-child(2) input { background:#eee; color:#444; border:1px solid #ccc; padding:2px 7px; border-radius:3px; }
+.preview-elem-editor .pill.active { font-size:10pt; display:inline-block; margin:0 3px; background:#eef; color:#55a; border:1px solid #99d; padding:2px 7px; border-radius:3px; }
+.preview-elem-editor .pill { font-size:10pt; display:inline-block; margin:0 3px; background:#eee; color:#444; border:1px solid #ccc; padding:2px 7px; border-radius:3px; }
+.preview-elem-editor .top td:first-child { vertical-align:top; }
+.preview-elem-editor .events-editor .pill { margin:0 3px; margin-bottom:3px;  }
+
+.preview-elem-editor-child-buttons { text-align:right; margin-top:5px; }
+.preview-elem-editor-child-buttons button { margin:0; background:none; border:none; transition:background 0.2s ease-in-out, color 0.2s ease-in-out; font-size:14pt; border-radius:3px; }
+.preview-elem-editor-child-buttons button:hover {  background:#ddd; color:#222; }
 
 .project-selection { padding:0 30px; }
 .project-selection input { display:none; }
@@ -117,6 +131,7 @@ input.expression, .expression:hover { color:#008EED;  border-color:transparent; 
 .rule-editor-actions .ion-ios7-checkmark-empty { font-size: 24pt; }
 
 .matcher { }
+.editor .rules .matcher-input { padding:0 0px; background:none; }
 .matcher-list { padding:10px; margin-top:10px; border-radius:3px; box-shadow:0 0 10px #222; z-index:100; position:absolute; background:#f7f7f7; max-height:200px; overflow:auto; max-width:auto;  }
 .matcher-list li { margin-bottom:2px; padding:0 5px; border-radius:3px; }
 .matcher-list li:hover, .matcher-list li.active { background: #5e6164; color: #ddd; }

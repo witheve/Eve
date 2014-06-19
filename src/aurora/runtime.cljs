@@ -12,6 +12,7 @@
   (.get-or-create-index kn "know" "ui/key-modifier" #js ["key"])
   (.get-or-create-index kn "know" "ui/directCustom" #js ["event-key" "entity"])
   (.get-or-create-index kn "know" "ui/onDirectClick" #js ["elem-id"])
+  (.get-or-create-index kn "know" "ui/onDirectKeyDown" #js ["elem-id" "key"])
   (.get-or-create-index kn "know" "ui/onClick" #js ["elem-id"])
   (.get-or-create-index kn "know" "ui/focus" #js ["elem-id"])
   (.get-or-create-index kn "know" "ui/onKeyDown" #js ["elem-id" "key"])
@@ -33,8 +34,10 @@
     (aset trans? "defaults" true)
     (aset trans? "ui/directCustom" true)
     (aset trans? "ui/onDirectClick" true)
+    (aset trans? "ui/onDirectKeyDown" true)
     (aset trans? "ui/key-modifier" true)
     (aset trans? "ui/focus" true)
+    (aset trans? "ui/onBlur" true)
     (aset trans? "ui/onClick" true)
     (aset trans? "ui/onKeyDown" true)
     (aset trans? "ui/onChange" true)
@@ -96,7 +99,8 @@
    "onKeyDown" [#js ["elem-id" "key"] #js [id (.-keyCode ev)]]
    [#js ["elem-id"] #js [id]]))
 
-(def react-mappings {"onDirectClick" "onClick"})
+(def react-mappings {"onDirectClick" "onClick"
+                     "onDirectKeyDown" "onKeyDown"})
 
 (defn build-element [id tag attrs-itr styles-itr events-itr queue]
   (let [el-attrs (js-obj "eve-id" id)
@@ -125,7 +129,7 @@
             event-key (aget cur 2)
             entity (aget cur 3)]
         (aset el-attrs event (fn [e]
-                               (js/console.log event (.-eventPhase e) (.-currentTarget e) (.-target e))
+                               (js/console.log event original-event (react-mappings original-event))
                                ;(queue (str "ui/" event) #js ["elem-id"] #js [id (js/aurora.runtime.ui.event->params2 event e)])
                                ;(queue (str "ui/custom") #js ["event-key" "entity"] #js [id event-key entity (js/aurora.runtime.ui.event->params2 event e)])
                                (let [[order vals] (event->params e event id)
@@ -144,11 +148,12 @@
                                    (queue "ui/key-modifier" #js ["key"] #js ["meta"]))
                                  (when-not @modified?
                                    (queue "ui/key-modifier" #js ["key"] #js ["none"]))
-                                 (when (and (== "onDirectClick" original-event)
+                                 (when (and (react-mappings original-event)
                                             (not (.isDefaultPrevented e)))
-                                   (.preventDefault e)
-                                   (queue "ui/onDirectClick" order vals)
-                                   (queue "ui/directCustom" #js ["event-key" "entity"] #js [event-key entity]))
+                                   (when-not (#{"PASSWORD" "INPUT" "TEXTAREA"} (.-target.nodeName e))
+                                     (.preventDefault e)
+                                     (queue (str "ui/" original-event) order vals)
+                                     (queue "ui/directCustom" #js ["event-key" "entity"] #js [event-key entity])))
                                  (queue (str "ui/" event) order vals)
                                  (queue (str "ui/custom") #js ["event-key" "entity"] #js [event-key entity]))
                                true
@@ -319,8 +324,7 @@
           els (aget tree-and-els "elems")
           focuses (get (index kn "ui/focus") ["elem-id"])
           to-focus (when focuses
-                     (when-let [focus (last (.keys focuses))]
-                       (aget els (aget focus 0))))
+                     (last (.keys focuses)))
           container (dom/$ root)
           dommied (dommy/node tree)
           ]
@@ -329,16 +333,19 @@
                                          (js/React.renderComponent dommied container)
                                          (when to-focus
                                            (try
-                                             (when (.isMounted to-focus)
-                                               (.. to-focus (getDOMNode) (focus)))
+                                             (println "trying to focus")
+                                             (js/console.log to-focus)
+                                             (.focus (js/document.querySelector (str "." (aget to-focus 0))))
                                              (catch :default e
                                                (js/console.log (str "failed to focus: " e)))))
                                          ))))))
 
+
+
 (defn re-run [program]
   (let [compiled (aget (.-state program) "compiled")
         watchers (aget (.-state program) "watchers")
-        cur-time (now)]
+        cur-time (.getTime (js/Date.))]
     (know program "time" #js ["time"] #js [cur-time])
     (perf-time-named "quiesce"
      (do
