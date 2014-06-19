@@ -669,6 +669,7 @@
              (when "defaults" {:defaults 'default})
              (remember "editor focus" {:elem-id "rules-list"})
              (remember "matcher filter" {:filter ""})
+             (remember "matcher selected" {:selected 1})
              (remember "matcher state" {:active "false" :state "clause"})
              (remember "editor base clause types" {:clause-type "when"})
              (remember "editor base clause types" {:clause-type "pretend"})
@@ -707,15 +708,20 @@
              (when "matcher state" {:active "true" :state "clause"})
              (when "editor clause types" {:clause-type 'type})
              (when "matcher filter" {:filter 'filter})
-             (when "filter" {:js "filter == '' || window.stringMatch(type, filter) > 0"})
-             (pretend "found matcher clause type" {:clause-type 'type}))
+             (func 'match "filter == '' ? 1 : window.stringMatch(type, filter)")
+             (when "filter" {:js "match > 0"})
+             (limit* js/Infinity 'ord "descending")
+             (sort* ['match 'type])
+             (pretend "found matcher clause type" {:clause-type 'type :pos 'ord}))
 
 
        (rule "draw matcher clause items"
-             (when "found matcher clause type" {:clause-type 'name})
+             (when "found matcher clause type" {:clause-type 'name :pos 'pos})
+             (when "matcher selected" {:selected 'sel})
              (func 'childId "'matcher-item-' + name")
-             (pretend "ui/child" {:parent-id "matcher-list" :pos name :child-id childId})
-             (draw* [:li {:id 'childId} 'name])
+             (func 'className "sel == pos ? 'selected' : ''")
+             (pretend "ui/child" {:parent-id "matcher-list" :pos pos :child-id childId})
+             (draw* [:li {:id 'childId :className 'className} 'name])
              )
 
        ;;Madlibs
@@ -724,18 +730,23 @@
              (when "matcher state" {:active "true" :state "madlib"})
              (when "madlib placeholder counts" {:madlib-id 'name :full-string 'full :count 'count})
              (when "matcher filter" {:filter 'filter})
-             (when "filter" {:js "filter == '' || window.stringMatch(full, filter) > 0.07"})
-             (pretend "found matcher madlib" {:madlib-id name}))
+             (func 'match "filter == '' ? 1 : window.stringMatch(full, filter)")
+             (when "filter" {:js "match > 0"})
+             (limit* 8 'ord "descending")
+             (sort* ['match 'name])
+             (pretend "found matcher madlib" {:madlib-id name :pos 'ord}))
 
        (rule "draw matcher items"
-             (when "found matcher madlib" {:madlib-id 'name})
+             (when "found matcher madlib" {:madlib-id 'name :pos 'pos})
+             (when "matcher selected" {:selected 'sel})
+             (func 'className "sel == pos ? 'selected' : ''")
              (func 'childId "'matcher-item-' + name")
-             (pretend "ui/child" {:parent-id "matcher-list" :pos 0 :child-id childId})
-             (draw* [:li {:id 'childId}])
+             (pretend "ui/child" {:parent-id "matcher-list" :pos 'pos :child-id childId})
+             (draw* [:li {:id 'childId :className 'className}])
              )
 
        (rule "draw matcher clause madlib strings"
-             (when "found matcher madlib" {:madlib-id 'name})
+             (when "found matcher madlib" {:madlib-id 'name :pos '_})
              (when "madlib strings" {:madlib-id name :pos pos :value value})
              (func 'parentId "'matcher-item-' + name")
              (func 'childId "parentId + \"-pc-\" + pos")
@@ -743,7 +754,7 @@
              (draw* [:span {:id 'childId} 'value]))
 
        (rule "draw matcher clause madlib placholders"
-             (when "found matcher madlib" {:madlib-id 'name})
+             (when "found matcher madlib" {:madlib-id 'name :pos '_})
              (when "madlib placeholders" {:madlib-id name :pos pos :field field :placeholder-pos 'ppos})
              (func 'parentId "'matcher-item-' + name")
              (func 'childId "parentId + \"-pc-\" + pos")
@@ -755,6 +766,7 @@
        (rule "on change update filter"
              (when "ui/onChange" {:elem-id "matcher-input" :value 'val})
              (change "matcher filter" {:filter 'old} {:filter 'val})
+             (change "matcher selected" {:selected 'sel} {:selected 1})
              )
 
        (rule "on backspace set clause matcher"
@@ -774,6 +786,39 @@
              (change "editor focus" {:elem-id 'old} {:elem-id "rules-list"})
              )
 
+       (rule "on up move selected lower"
+             (when "ui/onKeyDown" {:elem-id "matcher-input" :key 38})
+             (pretend "move matcher selection" {:dir -1})
+             )
+
+       (rule "on down move selected higher"
+             (when "ui/onKeyDown" {:elem-id "matcher-input" :key 40})
+             (pretend "move matcher selection" {:dir 1})
+             )
+
+       (rule "total clause matches"
+             (when "matcher state" {:active "true" :state "clause"})
+             (when "found matcher clause type" {:clause-type 'clause :pos 'pos})
+             (limit* js/Infinity 'ord "descending")
+             (aggregate* 'clause "count" 'total)
+             (pretend "total matches" {:total 'total}))
+
+       (rule "total madlib matches"
+             (when "matcher state" {:active "true" :state "madlib"})
+             (when "found matcher madlib" {:madlib-id 'madlib :pos 'pos})
+             (limit* js/Infinity 'ord "descending")
+             (aggregate* 'madlib "count" 'total)
+             (pretend "total matches" {:total 'total}))
+
+       (rule "move matcher selection"
+             (when "move matcher selection" {:dir 'dir})
+             (when "matcher selected" {:selected 'sel})
+             (when "total matches" {:total total})
+             (func 'asdf "console.log(total, sel, dir)")
+             (func 'moved "sel + dir")
+             (func 'neue "moved > total ? 1 : (moved < 1 ? total : moved)")
+             (change "matcher selected" {:selected 'sel} {:selected 'neue}))
+
        (rule "on escape hide matcher"
              (when "ui/onKeyDown" {:elem-id "matcher-input" :key 27})
              (change "matcher state" {:active 'active :state 'state} {:active "false" :state 'state})
@@ -790,7 +835,8 @@
              (when "ui/onKeyDown" {:elem-id "matcher-input" :key 13})
              (when "ui/key-modifier" {:key "none"})
              (when "rule editor active" {:rule-id 'rule})
-             (when "found matcher madlib" {:madlib-id 'name})
+             (when "matcher selected" {:selected 'pos})
+             (when "found matcher madlib" {:madlib-id 'name :pos 'pos})
              (when "matcher clause" {:clause-type type})
              (when "filter" {:js "text.indexOf('[') == -1"})
              (forget "matcher clause" {:clause-type 'type})
@@ -804,7 +850,8 @@
              (when "ui/onKeyDown" {:elem-id "matcher-input" :key 13})
              (when "ui/key-modifier" {:key "none"})
              (when "rule editor active" {:rule-id 'rule})
-             (when "found matcher clause type" {:clause-type 'type})
+             (when "matcher selected" {:selected 'pos})
+             (when "found matcher clause type" {:clause-type 'type :pos 'pos})
              (when "filter" {:js "type != 'draw'"})
              (remember "matcher clause" {:clause-type 'type})
              (change "matcher filter" {:filter 'f} {:filter ""})
@@ -815,7 +862,8 @@
              (when "ui/onKeyDown" {:elem-id "matcher-input" :key 13})
              (when "ui/key-modifier" {:key "none"})
              (when "rule editor active" {:rule-id 'rule})
-             (when "found matcher clause type" {:clause-type "draw"})
+             (when "matcher selected" {:selected 'pos})
+             (when "found matcher clause type" {:clause-type "draw" :pos 'pos})
              (forget "matcher state" {:active "true" :state "madlib"})
              (change "matcher filter" {:filter 'f} {:filter ""})
              (change "matcher state" {:active 'active :state "clause"} {:active "false" :state "clause"})

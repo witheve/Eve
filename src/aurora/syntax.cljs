@@ -201,7 +201,7 @@
              by
              [by])]
     (doseq [[i by] (map-indexed vector by)]
-      (.add-facts env "know" "sort-by" #js ["rule-id" "ix" "var"] #js [#js [rule i by]])))
+      (.add-facts env "know" "sort-by" #js ["rule-id" "ix" "var"] #js [#js [rule i (str by)]])))
   [])
 
 (defn fact-walk-eve [hic facts [parent pos]]

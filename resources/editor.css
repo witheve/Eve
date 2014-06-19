@@ -135,7 +135,7 @@ input.expression, .expression:hover { color:#008EED;  border-color:transparent; 
 .editor .rules .matcher-input-clause { padding:0 0px; background:none; color: #9b9b9b; padding-left:10px; }
 .matcher-list { padding:10px; margin-top:10px; border-radius:3px; box-shadow:0 0 10px #222; z-index:100; position:absolute; background:#f7f7f7; max-height:200px; overflow:auto; max-width:auto;  }
 .matcher-list li { margin-bottom:2px; padding:0 5px; border-radius:3px; }
-.matcher-list li:hover, .matcher-list li.active { background: #5e6164; color: #ddd; }
+.matcher-list li:hover, .matcher-list li.selected { background: #ddd; }
 
 .program-preview { position:relative; background:#f7f7f7; max-height:calc(100% - 60px); max-width:50%; border-radius:5px;  margin:0 30px 0 20px; flex:2; overflow:auto; box-shadow:0 0 0px #bbb; }
 .program-preview > * { padding:0px; }
