@@ -375,7 +375,7 @@
                 sinks (into-array
                        (for [[_ clause-type clause-id name] clauses
                              :when (not= clause-type "when")]
-                         (sink-of rule-id clause-type clause-id (str "delta-" name) var->ix)))]
+                         (sink-of rule-id clause-type clause-id (if (= clause-type "know") (str "delta-" name) name) var->ix)))]
             (swap! rule->flow assoc agg-rule-id (AggregateFlow. index delta-index group-len limit-ix ascending? agg-ixes agg-funs sinks))
             (swap! kind->name->rules update-in ["know" (str "delta-" agg-index-id)] conj agg-rule-id)))))
 
@@ -655,11 +655,11 @@
 
 (.get-or-create-index kn "know" "str-edge" #js ["name"])
 
-(.get-or-create-index kn "know" "delta-foo" #js ["x" "y"])
+(.get-or-create-index kn "know" "foo" #js ["x" "y"])
 
-(.get-or-create-index kn "know" "delta-bar" #js ["z"])
+(.get-or-create-index kn "know" "bar" #js ["z"])
 
-(.get-or-create-index kn "know" "delta-frip" #js ["x" "w"])
+(.get-or-create-index kn "know" "frip" #js ["x" "w"])
 
-(.get-or-create-index kn "know" "delta-frop" #js ["x" "o" "z" "w"])
+(.get-or-create-index kn "know" "frop" #js ["x" "o" "z" "w"])
 )
