@@ -87,11 +87,12 @@
                           (aset facts&vals i (- (aget facts&vals i)))))
                       (.update-facts this kind (str "delta-" name) (into-array fields) facts&vals)))))
   (merge-facts [this name]
-               (let [[fields delta-know-index] (first (get-in kind->name->fields->index ["know" (str "delta-" name)]))]
-                 #_(prn :merging name (when delta-know-index (alength (.elems delta-know-index))))
-                 (when (not (nil? delta-know-index))
-                   (.update-facts this "know" name (into-array fields) (.elems delta-know-index))
-                   (.clear-facts this "know" (str "delta-" name)))))
+               (when (== 0 (.lastIndexOf name "delta-" 0))
+                 (let [[fields delta-know-index] (first (get-in kind->name->fields->index ["know" name]))]
+                   #_(prn :merging name (when delta-know-index (alength (.elems delta-know-index))))
+                   (when (not (nil? delta-know-index))
+                     (.update-facts this "know" (.replace name #"^delta-" "") (into-array fields) (.elems delta-know-index))
+                     (.clear-facts this "know" name)))))
   (tick-facts [this name]
               (let [fields (or (first (first (get-in kind->name->fields->index ["know" name])))
                                (first (first (get-in kind->name->fields->index ["remember" name])))
