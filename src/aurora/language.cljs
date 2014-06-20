@@ -186,7 +186,6 @@
                             (let [input (aclone key)]
                               (apush input current-index)
                               (set!! current-index (+ current-index 1))
-                              u
                               (apush inputs input))))]
          (if (true? ascending?)
            (.foreach index push-input)
