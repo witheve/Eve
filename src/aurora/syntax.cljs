@@ -52,9 +52,9 @@
                      :clause-fields (array)}]
     (doseq [r rs]
       (add-rule results project r))
-    (.directly-insert-facts! env "know" "editor rules" #js ["rule-id" "project-id" "timestamp"] (aget results "rules"))
-    (.directly-insert-facts! env "know" "editor clauses" #js ["rule-id" "type" "clause-id" "madlib-id" "timestamp"] (aget results "clauses"))
-    (.directly-insert-facts! env "know" "editor clause fields" #js ["rule-id" "clause-id" "constant|variable|expression" "key" "val"] (aget results "clause-fields"))
+    (.add-facts env "know" "editor rules" #js ["rule-id" "project-id" "timestamp"] (aget results "rules"))
+    (.add-facts env "know" "editor clauses" #js ["rule-id" "type" "clause-id" "madlib-id" "timestamp"] (aget results "clauses"))
+    (.add-facts env "know" "editor clause fields" #js ["rule-id" "clause-id" "constant|variable|expression" "key" "val"] (aget results "clause-fields"))
     env))
 
 

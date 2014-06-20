@@ -296,11 +296,9 @@
 
 (defn pre-compile [program watchers]
   (let [compiled (compile program)]
-    (prn :compiled compiled)
     (prep-compiled compiled)
     (.quiesce compiled program (fn [kn]
                                  (let [final-compiled (compile kn)]
-                                   (prn :final-compiled final-compiled)
                                    (prep-compiled final-compiled)
                                    (aset (.-state program) "compiled" final-compiled))
                                  ))

@@ -438,7 +438,8 @@
                                     (range))
 
               _ (doseq [[_ clause-type clause-id name] stateful-clauses]
-                  (swap! kind->name->rules update-in ["know" name] #(conj (or % #{}) rule-id)))
+                  (swap! kind->name->rules update-in ["know" name] #(conj (or % #{}) rule-id))
+                  (swap! kind->name->rules update-in ["know" (str "delta-" name)] #(conj (or % #{}) rule-id)))
 
               ->stateful-constraint (fn [clause-id name]
                                       (let [fields (get @clause-id->fields clause-id)

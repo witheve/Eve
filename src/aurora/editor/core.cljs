@@ -137,6 +137,10 @@
                                                        (array "incrementer" "incrementer")
                                                        (array "todomvc" "TodoMVC")
                                                        ))
+
+  (aset (.. env -state -compiled -name->lifetime) "editor rules" "persistent")
+  (aset (.. env -state -compiled -name->lifetime) "editor clauses" "persistent")
+  (aset (.. env -state -compiled -name->lifetime) "editor clause fields" "persistent")
   env)
 
 (def editor (-> (env)))
@@ -1247,14 +1251,12 @@
 
 (defn compile-editor [program watchers]
   (let [compiled (compile program)]
-    (prn :compiled compiled)
     (runtime/prep-compiled compiled)
     (syntax/know program "compile project" #js ["project-id"] #js ["editor ui"])
     (.quiesce compiled program (fn [kn]
                                  (.directly-insert-facts! kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] (.keys (.get-or-create-index kn "know" "compiled clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])))
                                  (.directly-insert-facts! kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] (.keys (.get-or-create-index kn "know" "compiled clause-fields" #js ["clause-id" "constant|variable" "key" "val"])))
                                  (let [final-compiled (compile kn)]
-                                   (prn :final-compiled final-compiled)
                                    (runtime/prep-compiled final-compiled)
                                    (aset (.-state program) "compiled" final-compiled))
                                  ))
@@ -1275,8 +1277,6 @@
 (enable-console-print!)
 
 (run)
-
-
 
 (comment
 
