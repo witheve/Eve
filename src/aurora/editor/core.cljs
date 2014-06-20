@@ -1166,7 +1166,7 @@
 
        (rule "draw editor id updated"
              (when "ui/onChange" {:elem-id "draw-id-editor" :value 'value})
-             (when "rule is visible" {:rule-id 'rule})
+             (when "rule editor active" {:rule-id 'rule})
              (change "draw editor active elem" {:elem-id 'elem} {:elem-id 'value})
              (change "editor clause fields"
                      {:rule-id 'rule :clause-id 'clause :constant|variable|expression 'cv :val 'elem :key "elem-id"}
@@ -1174,7 +1174,7 @@
               )
        (rule "draw editor id updated, modify root"
              (when "ui/onChange" {:elem-id "draw-id-editor" :value 'value})
-             (when "rule is visible" {:rule-id 'rule})
+             (when "rule editor active" {:rule-id 'rule})
              (when "draw editor active elem" {:elem-id 'elem})
              (change "ui/editor-root"
                      {:rule-id 'rule :clause-id 'rid :root 'elem  :timestamp '_}
@@ -1182,7 +1182,7 @@
 
        (rule "draw editor id updated, modify parents"
              (when "ui/onChange" {:elem-id "draw-id-editor" :value 'value})
-             (when "rule is visible" {:rule-id 'rule})
+             (when "rule editor active" {:rule-id 'rule})
              (when "draw editor active elem" {:elem-id 'elem})
              (change "editor clause fields"
                      {:rule-id 'rule :clause-id 'clause :constant|variable|expression 'cv :val 'elem :key "parent-id"}
@@ -1190,7 +1190,7 @@
 
        (rule "draw editor id updated, modify children"
              (when "ui/onChange" {:elem-id "draw-id-editor" :value 'value})
-             (when "rule is visible" {:rule-id 'rule})
+             (when "rule editor active" {:rule-id 'rule})
              (when "draw editor active elem" {:elem-id 'elem})
              (change "editor clause fields"
                      {:rule-id 'rule :clause-id 'clause :constant|variable|expression 'cv :val 'elem :key "child-id"}
@@ -1198,7 +1198,7 @@
 
        (rule "draw editor tag updated"
              (when "ui/onChange" {:elem-id "draw-tag-editor" :value 'value})
-             (when "rule is visible" {:rule-id 'rule})
+             (when "rule editor active" {:rule-id 'rule})
              (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression 'cv2 :val 'elem :key "elem-id"})
              (when "draw editor active elem" {:elem-id 'elem})
              (change "editor clause fields"
