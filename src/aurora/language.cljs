@@ -249,7 +249,8 @@
                     (doseq [[_ field-type key val] (@clause-id->fields clause-id)]
                       (assert (= field-type "variable") [rule-id clause-id key val])
                       (aset fields (var->ix val) key))
-                    (Sink. clause-type name fields)))]
+                    (Sink. clause-type name fields)))
+        rule-id->var->constant? (atom {})]
 
     ;; rewrite clauses
     (doseq [[rule-id clauses] @rule-id->clauses]
@@ -262,6 +263,7 @@
               ;; rewrite (foo 1) to (foo x) (=constant x 1)
               (let [new-var (new-id)
                     new-clause-id (new-id)]
+                (swap! rule-id->var->constant? assoc-in [clause-id val] true)
                 (swap! clause-id->fields update-in [clause-id] disj [clause-id "constant" key val])
                 (swap! clause-id->fields update-in [clause-id] conj [clause-id "variable" key new-var])
                 (swap! clause-id->fields assoc new-clause-id #{[new-clause-id "variable" "variable" new-var]
@@ -360,7 +362,11 @@
               (when (= field-type "variable")
                 (swap! var->when-count update-in [val] #(+ (or % 0) (if (= clause-type "when") 1 0)))))))
 
-        (let [vars (map first (reverse (sort-by val @var->when-count)))
+        (let [var->priority (for [[var when-count] @var->when-count]
+                              (if (get-in @rule-id->var->constant? [rule-id var])
+                                js/Infinity
+                                when-count))
+              vars (map first (reverse (sort-by val @var->when-count)))
               var->ix (zipmap vars (range))
               num-vars (count vars)
 
