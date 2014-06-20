@@ -86,13 +86,13 @@
                         (when (== 1 (mod i 2))
                           (aset facts&vals i (- (aget facts&vals i)))))
                       (.update-facts this kind (str "delta-" name) (into-array fields) facts&vals)))))
-  (merge-facts [this name]
+  (merge-facts [this kind name]
                (when (== 0 (.lastIndexOf name "delta-" 0))
-                 (let [[fields delta-know-index] (first (get-in kind->name->fields->index ["know" name]))]
+                 (let [[fields delta-know-index] (first (get-in kind->name->fields->index [kind name]))]
                    #_(prn :merging name (when delta-know-index (alength (.elems delta-know-index))))
                    (when (not (nil? delta-know-index))
-                     (.update-facts this "know" (.replace name #"^delta-" "") (into-array fields) (.elems delta-know-index))
-                     (.clear-facts this "know" name)))))
+                     (.update-facts this kind (.replace name #"^delta-" "") (into-array fields) (.elems delta-know-index))
+                     (.clear-facts this kind name)))))
   (tick-facts [this name]
               (let [fields (or (first (first (get-in kind->name->fields->index ["know" name])))
                                (first (first (get-in kind->name->fields->index ["remember" name])))
@@ -114,12 +114,11 @@
                               (fn [key val]
                                 (when (and (.contains? know-iter key) (not (.contains? remember-iter key)))
                                   (.push facts&vals key -1))))
-                    (.clear-facts this "remember" name)
-                    (.clear-facts this "forget" name)
                     (.update-facts this "know" (str "delta-" name) fields facts&vals)))))
   (merge [this]
-         (doseq [[name _] (kind->name->fields->index "know")]
-           (.merge-facts this name)))
+         (doseq [[kind name->fields->index] kind->name->fields->index
+                 [name _] name->fields->index]
+           (.merge-facts this kind name)))
   (tick [this name->lifetime]
         (let [names (js/Object.keys name->lifetime)
               changed? false]
@@ -375,7 +374,7 @@
                 sinks (into-array
                        (for [[_ clause-type clause-id name] clauses
                              :when (not= clause-type "when")]
-                         (sink-of rule-id clause-type clause-id (if (= clause-type "know") (str "delta-" name) name) var->ix)))]
+                         (sink-of rule-id clause-type clause-id (str "delta-" name) var->ix)))]
             (swap! rule->flow assoc agg-rule-id (AggregateFlow. index delta-index group-len limit-ix ascending? agg-ixes agg-funs sinks))
             (swap! kind->name->rules update-in ["know" (str "delta-" agg-index-id)] conj agg-rule-id)))))
 
@@ -502,7 +501,7 @@
               sinks (into-array
                      (for [[_ clause-type clause-id name] clauses
                            :when (not= clause-type "when")]
-                       (sink-of rule-id clause-type clause-id (if (= clause-type "know") (str "delta-" name) name) var->ix)))]
+                       (sink-of rule-id clause-type clause-id (str "delta-" name) var->ix)))]
 
           (swap! rule->flow assoc rule-id (SolverFlow. solvers sinks)))))
 
@@ -511,14 +510,15 @@
             sink (.-sinks flow)]
       (let [kind (.-kind sink)
             name (.-name sink)
+            base-name (.replace name #"^delta-" "")
             fields (.-fields sink)
             filtered-fields (into-array (filter #(not (nil? %)) fields))
-            old-lifetime (@name->lifetime name)
+            old-lifetime (@name->lifetime base-name)
             new-lifetime (if (= kind "know") "transient" "persistent")]
         ;; TODO get lifetime from schema instead
         (if old-lifetime
           (assert (= old-lifetime new-lifetime) [name old-lifetime new-lifetime])
-          (swap! name->lifetime assoc name new-lifetime))
+          (swap! name->lifetime assoc base-name new-lifetime))
         (swap! kind->name->rules update-in [kind name] #(or % #{}))))
 
     ;; TODO stratify
@@ -619,7 +619,7 @@
 
 (.directly-insert-facts! kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["concat-overlap" "when" "concat-get-foos" "foo"]
                                                                                                     #js ["concat-overlap" "when" "concat-some-interval" "interval"]
-                                                                                                    #js ["concat-overlap" "remember" "concat-rem-frop" "frop"]])
+                                                                                                    #js ["concat-overlap" "know" "concat-rem-frop" "frop"]])
 
 (.directly-insert-facts! kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["concat-get-foos" "variable" "x" "xx"]
                                                                                              #js ["concat-get-foos" "variable" "y" "yy"]
@@ -656,6 +656,18 @@
 (.get-or-create-index kn "know" "str-edge" #js ["name"])
 
 (.get-or-create-index kn "know" "foo" #js ["x" "y"])
+
+(.get-or-create-index kn "know" "bar" #js ["z"])
+
+(.get-or-create-index kn "know" "frip" #js ["x" "w"])
+
+(.get-or-create-index kn "know" "frop" #js ["x" "o" "z" "w"])
+
+(.del-facts kn "know" "foo" #js ["x" "y"] #js [#js [1 5]])
+(.add-facts kn "know" "foo" #js ["x" "y"] #js [#js [1 3]])
+(.quiesce flows kn (fn [kn]
+                     (prn :ticked kn)
+                     (prn :rem-frop (.get-or-create-index kn "remember" "frop" #js ["x" "o" "z" "w"]))))
 
 (.get-or-create-index kn "know" "bar" #js ["z"])
 
