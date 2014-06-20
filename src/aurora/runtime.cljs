@@ -316,12 +316,12 @@
     elem))
 
 (defn rebuild-tree-dom [env queue]
-  (let [els (.keys (.get-or-create-index env "know" "ui/elem" #js ["elem-id" "tag"]))
-        attrs (array-iterator (.keys (.get-or-create-index env "know" "ui/attr" #js ["elem-id" "attr" "value"])))
-        styles (array-iterator (.keys (.get-or-create-index env "know" "ui/style" #js ["elem-id" "attr" "value"])))
-        events (array-iterator (.keys (.get-or-create-index env "know" "ui/event-listener" #js ["elem-id" "event" "event-key" "entity"])))
-        text (.keys (.get-or-create-index env "know" "ui/text" #js ["elem-id" "text"]))
-        all-children (.keys (.get-or-create-index env "know" "ui/child" #js["parent-id" "pos" "child-id"]))
+  (let [els (.keys (.get-or-create-index env "know" "delta-ui/elem" #js ["elem-id" "tag"]))
+        attrs (array-iterator (.keys (.get-or-create-index env "know" "delta-ui/attr" #js ["elem-id" "attr" "value"])))
+        styles (array-iterator (.keys (.get-or-create-index env "know" "delta-ui/style" #js ["elem-id" "attr" "value"])))
+        events (array-iterator (.keys (.get-or-create-index env "know" "delta-ui/event-listener" #js ["elem-id" "event" "event-key" "entity"])))
+        text (.keys (.get-or-create-index env "know" "delta-ui/text" #js ["elem-id" "text"]))
+        all-children (.keys (.get-or-create-index env "know" "delta-ui/child" #js["parent-id" "pos" "child-id"]))
         built-els (js-obj)
         roots (js-obj)
         ]

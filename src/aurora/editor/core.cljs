@@ -330,7 +330,8 @@
              (when "time" {:time 'time})
              (func 'ruleId "aurora.util.core.new_id()")
              (remember "editor rules" {:rule-id 'ruleId :project-id 'project :timestamp time})
-             (change "rule editor active" {:rule-id 'prev} {:rule-id 'ruleId}))
+             ;(change "rule editor active" {:rule-id 'prev} {:rule-id 'ruleId})
+             )
 
        (rule "remove rule"
              (when "ui/onClick" {:elem-id "remove-rule"})
@@ -1251,12 +1252,19 @@
 
 (defn compile-editor [program watchers]
   (let [compiled (compile program)]
+    (js/console.log compiled)
+    (.get-or-create-index program "know" "compiled clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
+    (.get-or-create-index program "know" "compiled clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
     (runtime/prep-compiled compiled)
     (syntax/know program "compile project" #js ["project-id"] #js ["editor ui"])
     (.quiesce compiled program (fn [kn]
                                  (.directly-insert-facts! kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] (.keys (.get-or-create-index kn "know" "compiled clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])))
                                  (.directly-insert-facts! kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] (.keys (.get-or-create-index kn "know" "compiled clause-fields" #js ["clause-id" "constant|variable" "key" "val"])))
+                                 (println (count (.keys (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"]))))
+                                 (println (.get-or-create-index kn "know" "compile project" #js ["project-id"]))
+                                 (println (.get-or-create-index kn "know" "delta-compiled clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"]))
                                  (let [final-compiled (compile kn)]
+                                   (js/console.log final-compiled)
                                    (runtime/prep-compiled final-compiled)
                                    (aset (.-state program) "compiled" final-compiled))
                                  ))
@@ -1265,18 +1273,29 @@
     (aset (.-state program) "watchers" watchers)
     program))
 
-(defn run []
-  (let [editor (compile-editor editor [(runtime/create-react-renderer "body")
+;;(set! js/window.globaldebug true)
+
+(defn run-first-time []
+  (let [editor (compile-editor editor [
+                                       (fn [kn queue]
+                                         (println (.get-or-create-index kn "know" "editor rule active" #js ["rule-id"]))
+                                         (println (.get-or-create-index kn "know" "ui/onClick" #js ["elem-id"]))
+                                         (println (.get-or-create-index kn "know" "active project" #js ["project-id"]))
+                                         (println (.get-or-create-index kn "know" "time" #js ["time"]))
+                                         )
+                                       (runtime/create-react-renderer "body")
                                        manager/watcher])]
     (defaults editor)
     (perf-time-named "full run"
      (do
        (know editor "defaults" #js ["defaults"] #js [""])
-       (re-run editor)))))
+       (re-run editor))))
+  )
 
 (enable-console-print!)
 
-(run)
+(run-first-time)
+;;(recompile-and-run)
 
 (comment
 
