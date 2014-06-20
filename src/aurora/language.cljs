@@ -85,7 +85,7 @@
                       (dotimes [i (alength facts&vals)]
                         (when (== 1 (mod i 2))
                           (aset facts&vals i (- (aget facts&vals i)))))
-                      (.update-facts this kind name (into-array fields) facts&vals)))))
+                      (.update-facts this kind (str "delta-" name) (into-array fields) facts&vals)))))
   (merge-facts [this name]
                (let [[fields delta-know-index] (first (get-in kind->name->fields->index ["know" (str "delta-" name)]))]
                  #_(prn :merging name (when delta-know-index (alength (.elems delta-know-index))))
