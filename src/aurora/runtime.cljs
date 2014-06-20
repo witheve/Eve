@@ -298,9 +298,10 @@
   (let [compiled (compile program)]
     (prep-compiled compiled)
     (.quiesce compiled program (fn [kn]
-                                 (let [final-compiled (compile kn)]
-                                   (prep-compiled final-compiled)
-                                   (aset (.-state program) "compiled" final-compiled))
+                                 (perf-time-named "watcher"
+                                                  (let [final-compiled (compile kn)]
+                                                    (prep-compiled final-compiled)
+                                                    (aset (.-state program) "compiled" final-compiled)))
                                  ))
     (aset (.-state program) "watchers" watchers)
     program))
@@ -346,9 +347,10 @@
     (perf-time-named "quiesce"
      (do
        (.quiesce compiled program (fn [kn]
-                                    (when watchers
-                                      (doseq [w watchers]
-                                        (w kn (aget (.-state program) "queue!"))))))
+                                    (perf-time-named "watchers"
+                                                     (when watchers
+                                                       (doseq [w watchers]
+                                                         (w kn (aget (.-state program) "queue!")))))))
        (aset (.-state program) "queued" false)
        (.clear-facts program "know" "time")
        )))

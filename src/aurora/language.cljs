@@ -213,11 +213,11 @@
   (tick [this kn watch]
         (.run this kn)
         (.merge kn)
-        (when watch
-          (watch kn))
         (.tick kn name->lifetime))
   (quiesce [this kn watch]
-           (while (true? (.tick this kn watch)))))
+           (while (true? (.tick this kn watch)))
+           (when watch
+             (watch kn))))
 
 ;; COMPILER
 
