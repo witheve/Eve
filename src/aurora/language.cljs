@@ -42,19 +42,21 @@
                              (set! kind->name->fields->index (assoc-in kind->name->fields->index [kind name (vec fields)] index))
                              index)))
   (update-facts [this kind name fields facts&vals]
-                #_(when (> (alength facts&vals) 0)
-                  (prn :updating kind name fields (alength facts&vals)))
-                (assert (array? fields))
-                (assert (or (identical? kind "know") (identical? kind "remember") (identical? kind "forget")) (pr-str kind))
-                (let [changed? false
-                      indexes (or (get-in kind->name->fields->index [kind name])
-                                  (let [filtered-fields (into-array (filter #(not (nil? %)) fields))]
-                                    [[(vec filtered-fields) (.get-or-create-index this kind name filtered-fields)]]))]
-                  (assert (seq indexes) (pr-str kind name))
-                  (doseq [[other-fields other-index] indexes]
-                    (when (true? (-update-facts facts&vals fields other-index (into-array other-fields)))
-                      (set!! changed? true)))
-                  changed?))
+                (if (> (alength facts&vals) 0)
+                  (do
+                    #_(prn :updating kind name fields (alength facts&vals))
+                    (assert (array? fields))
+                    (assert (or (identical? kind "know") (identical? kind "remember") (identical? kind "forget")) (pr-str kind))
+                    (let [changed? false
+                          indexes (or (get-in kind->name->fields->index [kind name])
+                                      (let [filtered-fields (into-array (filter #(not (nil? %)) fields))]
+                                        [[(vec filtered-fields) (.get-or-create-index this kind name filtered-fields)]]))]
+                      (assert (seq indexes) (pr-str kind name))
+                      (doseq [[other-fields other-index] indexes]
+                        (when (true? (-update-facts facts&vals fields other-index (into-array other-fields)))
+                          (set!! changed? true)))
+                      changed?))
+                  false))
   (add-facts [this kind name fields facts]
              (let [facts&vals #js []]
                (dotimes [i (alength facts)]
@@ -94,26 +96,26 @@
               (let [fields (or (first (first (get-in kind->name->fields->index ["know" name])))
                                (first (first (get-in kind->name->fields->index ["remember" name])))
                                (first (first (get-in kind->name->fields->index ["forget" name]))))]
-                (assert (not (nil? fields)) name)
-                (let [fields (into-array fields)
-                      know-index (.get-or-create-index this "know" name fields)
-                      remember-index (.get-or-create-index this "remember" name fields)
-                      forget-index (.get-or-create-index this "forget" name fields)
-                      know-iter (btree/iterator know-index)
-                      remember-iter (btree/iterator remember-index)
-                      forget-iter (btree/iterator forget-index)
-                      facts&vals #js []]
-                  (.foreach remember-index
-                            (fn [key val]
-                              (when (and (not (.contains? know-iter key)) (not (.contains? forget-iter key)))
-                                (.push facts&vals key 1))))
-                  (.foreach forget-index
-                            (fn [key val]
-                              (when (and (.contains? know-iter key) (not (.contains? remember-iter key)))
-                                (.push facts&vals key -1))))
-                  (.clear-facts this "remember" name)
-                  (.clear-facts this "forget" name)
-                  (.update-facts this "know" (str "delta-" name) fields facts&vals))))
+                (when-not (nil? fields)
+                  (let [fields (into-array fields)
+                        know-index (.get-or-create-index this "know" name fields)
+                        remember-index (.get-or-create-index this "remember" name fields)
+                        forget-index (.get-or-create-index this "forget" name fields)
+                        know-iter (btree/iterator know-index)
+                        remember-iter (btree/iterator remember-index)
+                        forget-iter (btree/iterator forget-index)
+                        facts&vals #js []]
+                    (.foreach remember-index
+                              (fn [key val]
+                                (when (and (not (.contains? know-iter key)) (not (.contains? forget-iter key)))
+                                  (.push facts&vals key 1))))
+                    (.foreach forget-index
+                              (fn [key val]
+                                (when (and (.contains? know-iter key) (not (.contains? remember-iter key)))
+                                  (.push facts&vals key -1))))
+                    (.clear-facts this "remember" name)
+                    (.clear-facts this "forget" name)
+                    (.update-facts this "know" (str "delta-" name) fields facts&vals)))))
   (merge [this]
          (doseq [[name _] (kind->name->fields->index "know")]
            (.merge-facts this name)))
