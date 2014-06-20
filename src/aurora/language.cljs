@@ -156,15 +156,24 @@
          (dotimes [i (alength sinks)]
            (.run (aget sinks i) kn rule->dirty? kind->name->rules facts&vals)))))
 
-(deftype AggregateFlow [index group-len limit-ix ascending? agg-ixes agg-funs sinks]
+(deftype AggregateFlow [index delta-index group-len limit-ix ascending? agg-ixes agg-funs sinks]
   Object
   (run [this kn rule->dirty? kind->name->rules]
+       ;; TODO this is kind of hacky - we shouldn't be directly messing with input state or storing things in anon fields
+
+       ;; update input
+       (.foreach delta-index
+                 (fn [k v]
+                   (.update index k v)))
+       (.reset delta-index)
+
+       ;; figure out new output
        (let [current-key nil
              current-limit nil
              current-index 1
              inputs #js []
              aggs (make-array (alength agg-ixes))
-             facts&vals #js []
+             new-output (btree/tree 10 (+ group-len 1 (alength aggs)))
              push-input (fn [key]
                           (when (nil? current-key)
                             (set!! current-key key)
@@ -176,8 +185,7 @@
                               (let [output (aget inputs i)]
                                 (dotimes [j (alength aggs)]
                                   (apush output (aget aggs j)))
-                                (apush facts&vals output)
-                                (apush facts&vals 1)))
+                                (.update new-output output 1)))
                             (aclear inputs)
                             (set!! current-key key)
                             (set!! current-limit (aget key limit-ix))
@@ -191,8 +199,24 @@
            (.foreach index push-input)
            (.foreach-reverse index push-input))
          (push-input (btree/greatest-key group-len))
-         (dotimes [i (alength sinks)]
-           (.run (aget sinks i) kn rule->dirty? kind->name->rules facts&vals)))))
+
+         ;; diff against old output
+         (let [old-output (or (.-facts&vals index) (btree/tree 10 (+ group-len 1 (alength aggs))))
+               delta-output (btree/tree 10 (+ group-len 1 (alength aggs)))]
+           (.foreach old-output
+                     (fn [k v]
+                       (.update delta-output k (- v))))
+           (.foreach new-output
+                     (fn [k v]
+                       (.update delta-output k v)))
+
+           ;; save new output
+           (set! (.-facts&vals index) new-output)
+
+           ;; send deltas to sinks
+           (let [facts&vals (.elems delta-output)]
+             (dotimes [i (alength sinks)]
+               (.run (aget sinks i) kn rule->dirty? kind->name->rules facts&vals)))))))
 
 (deftype Flows [rules rule->flow rule->dirty? kind->name->rules name->lifetime]
   Object
@@ -338,6 +362,7 @@
                               (for [i (range (alength out-vars))]
                                 [(aget out-vars i) i]))
                 index (.get-or-create-index kn "know" agg-index-id in-vars)
+                delta-index (.get-or-create-index kn "know" (str "delta-" agg-index-id) in-vars)
                 group-len (count (conj (set group-by-vars) limit))
                 limit-ix (var->ix limit)
                 ascending? (= ascending|descending "ascending")
@@ -350,8 +375,8 @@
                 sinks (into-array
                        (for [[_ clause-type clause-id name] clauses
                              :when (not= clause-type "when")]
-                         (sink-of rule-id clause-type clause-id name var->ix)))]
-            (swap! rule->flow assoc agg-rule-id (AggregateFlow. index group-len limit-ix ascending? agg-ixes agg-funs sinks))
+                         (sink-of rule-id clause-type clause-id (str "delta-" name) var->ix)))]
+            (swap! rule->flow assoc agg-rule-id (AggregateFlow. index delta-index group-len limit-ix ascending? agg-ixes agg-funs sinks))
             (swap! kind->name->rules update-in ["know" (str "delta-" agg-index-id)] conj agg-rule-id)))))
 
     (doseq [[rule-id clauses] @rule-id->clauses]
