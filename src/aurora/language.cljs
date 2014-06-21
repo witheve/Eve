@@ -277,6 +277,10 @@
                     (Sink. clause-type name fields)))
         rule-id->var->constant? (atom {})]
 
+    (doseq [[clause-id field-type key val] fields
+            :when (= "variable" field-type)]
+      (assert (string? val) [clause-id key val]))
+
     ;; rewrite clauses
     (doseq [[rule-id clauses] @rule-id->clauses]
       (doseq [[_ clause-type clause-id name] clauses
@@ -328,7 +332,43 @@
               agg-index-id (str rule-id "-agg-index")
               has-aggs (@rule-id->has-agg rule-id)
               _ (assert (= (count has-aggs) 1))
-              [_ _ limit ordinal ascending|descending] (first has-aggs)]
+              [_ _ limit ordinal ascending|descending] (first has-aggs)
+              group-by-vars (for [[_ var] (@rule-id->group-by rule-id)]
+                              var)
+              sort-by-vars (into (sorted-map)
+                                 (for [[_ ix var] (@rule-id->sort-by rule-id)]
+                                   [ix var]))
+              agg-in-vars (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
+                            in-var)
+              agg-out-vars (set
+                            (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
+                              out-var))
+              pass-through-vars (for [[_ clause-type clause-id name] clauses
+                                      :when (not= clause-type "know")
+                                      [_ field-type key val] (@clause-id->fields clause-id)
+                                      :when (= field-type "variable")
+                                      :when (not= ordinal val)
+                                      :when (not (agg-out-vars val))]
+                                  val)
+              in-vars (into-array (distinct (concat group-by-vars [limit] (vals sort-by-vars) agg-in-vars pass-through-vars)))
+              out-vars (into-array (distinct (concat group-by-vars [limit] (vals sort-by-vars) agg-in-vars pass-through-vars [ordinal] agg-out-vars)))
+              var->ix (into {}
+                            (for [i (range (alength out-vars))]
+                              [(aget out-vars i) i]))
+              index (.get-or-create-index kn "know" agg-index-id in-vars)
+              group-len (count (conj (set group-by-vars) limit))
+              limit-ix (var->ix limit)
+              ascending? (= ascending|descending "ascending")
+              agg-ixes (into-array
+                        (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
+                          (var->ix in-var)))
+              agg-funs (into-array
+                        (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
+                          (aget js/aurora.aggregates agg-fun)))
+              sinks (into-array
+                     (for [[_ clause-type clause-id name] clauses
+                           :when (not= clause-type "when")]
+                       (sink-of rule-id clause-type clause-id name var->ix)))]
 
           ;; remove output clauses
           (doseq [[_ clause-type clause-id name] clauses
@@ -337,13 +377,8 @@
 
           ;; add a clause to output used vars to agg-index-ix
           (swap! rule-id->clauses update-in [rule-id] conj [rule-id "know" agg-clause-id agg-index-id])
-          (swap! clause-id->fields update-in [agg-clause-id] conj [agg-clause-id "variable" limit limit])
-          (doseq [[_ var] (@rule-id->group-by rule-id)]
+          (doseq [var in-vars]
             (swap! clause-id->fields update-in [agg-clause-id] conj [agg-clause-id "variable" var var]))
-          (doseq [[_ ix var] (@rule-id->sort-by rule-id)]
-            (swap! clause-id->fields update-in [agg-clause-id] conj [agg-clause-id "variable" var var]))
-          (doseq [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
-            (swap! clause-id->fields update-in [agg-clause-id] conj [agg-clause-id "variable" in-var in-var]))
 
           ;; create an aggregate flow to read from agg-index-id
           (let [group-by-vars (for [[_ var] (@rule-id->group-by rule-id)]
@@ -353,10 +388,18 @@
                                      [ix var]))
                 agg-in-vars (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
                               in-var)
-                agg-out-vars (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
-                               out-var)
-                in-vars (into-array (distinct (concat group-by-vars [limit] (vals sort-by-vars) agg-in-vars)))
-                out-vars (into-array (distinct (concat group-by-vars [limit] (vals sort-by-vars) agg-in-vars [ordinal] agg-out-vars)))
+                agg-out-vars (set
+                              (for [[_ in-var agg-fun out-var] (@rule-id->agg-over rule-id)]
+                                out-var))
+                pass-through-vars (for [[_ clause-type clause-id name] clauses
+                                        :when (not= clause-type "know")
+                                        [_ field-type key val] (@clause-id->fields clause-id)
+                                        :when (= field-type "variable")
+                                        :when (not= ordinal val)
+                                        :when (not (agg-out-vars val))]
+                                    val)
+                in-vars (into-array (distinct (concat group-by-vars [limit] (vals sort-by-vars) agg-in-vars pass-through-vars)))
+                out-vars (into-array (distinct (concat group-by-vars [limit] (vals sort-by-vars) agg-in-vars pass-through-vars [ordinal] agg-out-vars)))
                 var->ix (into {}
                               (for [i (range (alength out-vars))]
                                 [(aget out-vars i) i]))
@@ -640,6 +683,22 @@
 
 (.directly-insert-facts! kn "know" "agg-over" #js ["rule-id" "in-var" "agg-fun" "out-var"] #js [#js ["concat-overlap" "zz" "str" "ww"]])
 
+(.add-facts kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"] #js [#js ["limit-overlap" "when" "limit-get-foos" "foo"]
+                                                                                                    #js ["limit-overlap" "when" "limit-some-interval" "interval"]
+                                                                                                    #js ["limit-overlap" "remember" "limit-rem-frep" "frep"]])
+
+(.add-facts kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"] #js [#js ["limit-get-foos" "variable" "x" "xx"]
+                                                                                             #js ["limit-get-foos" "variable" "y" "yy"]
+                                                                                             #js ["limit-some-interval" "variable" "lo" "xx"]
+                                                                                             #js ["limit-some-interval" "variable" "hi" "yy"]
+                                                                                             #js ["limit-some-interval" "variable" "in" "zz"]
+                                                                                             #js ["limit-rem-frep" "variable" "x" "xx"]
+                                                                                             #js ["limit-rem-frep" "variable" "o" "ord"]
+                                                                                             #js ["limit-rem-frep" "variable" "z" "zz"]])
+
+
+(.add-facts kn "know" "has-agg" #js ["rule-id" "limit-variable|constant" "limit" "ordinal" "ascending|descending"] #js [#js ["limit-overlap" "constant" 3 "ord" "descending"]])
+
 
 (def flows (compile kn))
 
@@ -663,6 +722,8 @@
 
 (.get-or-create-index kn "know" "frop" #js ["x" "o" "z" "w"])
 
+(.get-or-create-index kn "know" "frep" #js ["x" "o" "z"])
+
 (.del-facts kn "know" "foo" #js ["x" "y"] #js [#js [1 5]])
 (.add-facts kn "know" "foo" #js ["x" "y"] #js [#js [1 3]])
 (.quiesce flows kn (fn [kn]
@@ -674,4 +735,5 @@
 (.get-or-create-index kn "know" "frip" #js ["x" "w"])
 
 (.get-or-create-index kn "know" "frop" #js ["x" "o" "z" "w"])
+
 )

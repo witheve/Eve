@@ -2,7 +2,7 @@
   (:require [aurora.btree :as btree :refer [tree iterator least greatest key-lt key-lte key-gt key-gte key-compare key=]]
             [aurora.language :refer [knowledge compile]]
             [aurora.util.core :refer [now new-id]]
-            [aurora.syntax :as syntax :refer [know remember draw draw* change* func change index forget-when]]
+            [aurora.syntax :as syntax :refer [know remember draw draw* change* func change index forget-when limit* aggregate* group* sort*]]
             [aurora.runtime :refer [pre-compile re-run env] :as runtime]
             [aurora.editor.kn-manager :as manager]
             [aurora.editor.dom :as dom]
@@ -57,7 +57,7 @@
                    "ui/event-listener" [:elem-id "is listening for" :event "events with key" :event-key "and entity" :entity]
                    "ui/text" [:elem-id "is a text node containing" :text]
 
-                   :defaults ["setting defaults"]
+                   :defaults ["setting" :defaults]
                    "time" ["the current time is" :time]
 
                    "interval" [:in "is a number between" :lo "and" :hi]
@@ -83,7 +83,7 @@
                    "commit-todo" ["save changes to the todo"]
 
                    ;;incrementer
-                   "incr" ["The counter is " :value]
+                   "incr" ["The counter is" :value]
 
                    "foo" ["foo" :foo]
                    "bar" ["bar" :bar]
@@ -243,9 +243,9 @@
 
         (rule "translate ui/editor-computed-id"
               (when "compile rule" {:rule-id 'rule})
-              (when "ui/editor-computed-id" {:rule-id 'rule :id 'id :parent 'parent :pos 'pos :root-clause-id '_})
+              (when "ui/editor-computed-id" {:rule-id 'rule :id 'id :parent 'parent :pos 'pos :root-clause-id 'rootClause})
               (func 'neue "parent + \" + \\\"-\\\" + \" + pos")
-              (func 'clause "aurora.util.core.new_id()")
+              (func 'clause "'computedid' + rootClause + pos + id + rule")
               (pretend "compiled clauses" {:rule-id 'rule :when|know|remember|forget "when" :clause-id 'clause :name "=function"})
               (pretend "compiled clause-fields" {:clause-id 'clause :constant|variable "variable" :val 'id :key "variable"})
               (pretend "compiled clause-fields" {:clause-id 'clause :constant|variable "constant" :val 'neue :key "js"})
@@ -292,9 +292,10 @@
 
        (rule "submit project item"
              (when "ui/onKeyDown" {:elem-id "create-project" :key 13})
+             (when "time" {:time "time"})
              (func 'newName "document.querySelector('.create-project').value")
              (when "filter" {:js "newName != ''"})
-             (func 'newId "aurora.util.core.new_id()")
+             (func 'newId "'project' + newName + time")
              (remember "projects" {:project-id 'newId :name 'newName})
              )
 
@@ -302,7 +303,7 @@
        (rule "active rules"
              (when "active project" {:project-id 'project})
              (when "editor rules" {:rule-id 'rule :project-id 'project :timestamp ts})
-             (pretend "editor rule active" {:rule-id 'rule}))
+             (pretend "rule is visible" {:rule-id 'rule}))
 
 
        (rule "editor area"
@@ -313,7 +314,7 @@
                      [:div {:id "controls" :className "controls"}
                       [:button {:id "back-button" :events ["onClick"] :className "ion-ios7-arrow-thin-left"}]]
                      [:div {:id "program-preview" :className "program-preview"}]
-                     [:div {:id "rule-list" :className "rules-list" :tabIndex 0 :events ["onKeyDown"]}
+                     [:div {:id "rules-list" :className "rules-list" :tabIndex 0 :events ["onDirectKeyDown" "onFocus"]}
                       [:div {:id "rules" :className "rules"}]
                       [:div {:className "rule-controls"}
                        [:button {:id "addrule" :events ["onClick"] :className "ion-ios7-plus-empty"}]]
@@ -328,10 +329,10 @@
              (when "ui/onClick" {:elem-id "addrule"})
              (when "active project" {:project-id 'project})
              (when "time" {:time 'time})
-             (func 'ruleId "aurora.util.core.new_id()")
+             (func 'ruleId "'rule' + project + time")
              (remember "editor rules" {:rule-id 'ruleId :project-id 'project :timestamp time})
-             ;(change "rule editor active" {:rule-id 'prev} {:rule-id 'ruleId})
-             )
+             (change "matcher state" {:active 'active :state 'state} {:active "true" :state 'state})
+             (change "rule editor active" {:rule-id 'prev} {:rule-id 'ruleId}))
 
        (rule "remove rule"
              (when "ui/onClick" {:elem-id "remove-rule"})
@@ -359,7 +360,7 @@
 
        (rule "draw rule editor"
              (when "rule editor active" {:rule-id rule})
-             (when "editor rule active" {:rule-id rule})
+             (when "rule is visible" {:rule-id rule})
              (when "editor rules" {:rule-id 'rule :project-id 'project :timestamp 'ts})
              (func 'rid "\"rule-\" + rule")
              (func 'rwid "\"rule-when-\" + rule")
@@ -369,8 +370,6 @@
                      [:tbody {}
                       [:tr {}
                        [:td {:id 'rwid :className "whens"}
-                        [:button {:id "add-clause-button" :events ["onClick"]} "+"]
-                        [:button {:id "remove-clause-button" :events ["onClick"]} "-"]
                         ]
                        [:td {:className "between"}]
                        [:td {:id 'rdid :className "dos"}]
@@ -382,10 +381,15 @@
                       ]])
              )
 
+       (rule "add clause click"
+             (when "ui/onClick" {:elem-id "add-clause-button"})
+             (when "cursor" {:clause-id 'clause})
+             (change "matcher state" {:active 'active :state 'state} {:active "true" :state 'state})
+             )
+
        (rule "remove clause click"
              (when "ui/onClick" {:elem-id "remove-clause-button"})
              (when "cursor" {:clause-id 'clause})
-             (func 'foo "console.log('remove: ' + clause)")
              (pretend "remove clause" {:clause-id 'clause}))
 
        (rule "set rule editor"
@@ -399,7 +403,7 @@
 
        (rule "draw rule"
              (when "rule editor active" {:rule-id editingRule})
-             (when "editor rule active" {:rule-id rule})
+             (when "rule is visible" {:rule-id rule})
              (when "filter" {:js "rule != editingRule"})
              (when "editor rules" {:rule-id rule :project-id 'project-id :timestamp ts})
              (func 'rid "\"rule-\" + rule")
@@ -415,13 +419,13 @@
              )
 
        (rule "draw clause"
-             (when "editor rule active" {:rule-id rule})
+             (when "rule is visible" {:rule-id rule})
              (when "editor clauses" {:rule-id rule :type type :clause-id clause :madlib-id name  :timestamp 'timestamp})
              (func 'cid "\"clause-\" + clause")
              (func 'rid "(type == \"when\" ? \"rule-when-\" : \"rule-do-\") + rule")
              (pretend "ui/child" {:parent-id rid :pos 'timestamp :child-id cid})
              (draw* [:div {:id 'cid :className "clause" :events ["onClick"] :event-key "activate clause" :entity 'clause}
-                    [:span {:className "keyword"} 'type " "]
+                    [:span {:className "keyword"} 'type]
                     ]))
 
 
@@ -515,34 +519,38 @@
              (when "add clause" {:rule-id 'rule :madlib-id 'madlib :type 'type})
              (when "editor base clause types" {:clause-type 'type})
              (when "time" {:time 'timestamp})
-             (func 'clause "aurora.util.core.new_id()")
+             (func 'clause "'claus' + rule + madlib + timestamp + type")
              (remember "editor clauses" {:rule-id rule :type 'type :clause-id clause :madlib-id 'madlib :timestamp 'timestamp})
              (pretend "add clause placeholders" {:rule-id 'rule :madlib-id 'madlib :clause-id clause})
+             (change "cursor" {:clause-id 'old} {:clause-id 'clause})
              )
 
        (rule "add change clause"
              (when "add clause" {:rule-id 'rule :madlib-id 'madlib :type "change"})
              (when "time" {:time 'timestamp})
-             (func 'rootClause "aurora.util.core.new_id()")
-             (func 'toClause "aurora.util.core.new_id()")
-             (func 'fromClause "aurora.util.core.new_id()")
+             (func 'rootClause "'root change' + timestamp + madlib + rule")
+             (func 'toClause "'to change' + timestamp + madlib + rule")
+             (func 'fromClause "'from change' + timestamp + madlib + rule")
              (remember "change clauses" {:rule-id 'rule :clause-id 'rootClause :from|to "from" :table 'madlib :sub-clause-id 'fromClause :timestamp 'timestamp})
              (remember "change clauses" {:rule-id 'rule :clause-id 'rootClause :from|to "to" :table 'madlib :sub-clause-id 'toClause :timestamp 'timestamp})
              (pretend "add clause placeholders" {:rule-id 'rule :madlib-id 'madlib :clause-id rootClause})
              (pretend "add clause placeholders" {:rule-id 'rule :madlib-id 'madlib :clause-id fromClause})
              (pretend "add clause placeholders" {:rule-id 'rule :madlib-id 'madlib :clause-id toClause})
+             (change "cursor" {:clause-id 'old} {:clause-id 'rootClause})
              )
 
        (rule "add draw clause"
              (when "add clause" {:rule-id 'rule :madlib-id 'madlib :type "draw"})
              (when "time" {:time 'timestamp})
-             (func 'rootClause "aurora.util.core.new_id()")
-             (func 'elemClause "aurora.util.core.new_id()")
+             (func 'rootClause "'draw root' + rule + madlib + timestamp")
+             (func 'elemClause "'elem clause' + rule + madlib + timestamp")
              (func 'elemClause2 "elemClause")
              (remember "ui/editor-root" {:rule-id 'rule :clause-id rootClause :root elemClause :timestamp 'timestamp})
              (remember "ui/editor-elem" {:rule-id 'rule :root-clause-id rootClause :clause-id 'elemClause})
              (remember "editor clause fields" {:rule-id 'rule :clause-id 'elemClause :constant|variable|expression "constant" :val 'elemClause2 :key "elem-id"})
              (remember "editor clause fields" {:rule-id 'rule :clause-id 'elemClause :constant|variable|expression "constant" :val "div" :key "tag"})
+             (change "cursor" {:clause-id 'old} {:clause-id 'rootClause})
+             (change "draw editor active elem" {:elem-id 'oldelem} {:elem-id 'elemClause})
              )
 
        (rule "add clause fields"
@@ -566,7 +574,7 @@
              (when "add madlib" {:rule-id 'rule :neue-id 'neue :text 'text :clause-type 'type})
              (func 'cur "text.match(/(\\[.+?\\]|[^\\[\\]]+)/g).length - 1")
              (when "interval" {:in 'index :lo 0 :hi 'cur})
-             (func 'found "text.match(/(\\[.+?\\]|[^\\[\\]]+)/g)[index]")
+             (func 'found "text.match(/(\\[.+?\\]|[^\\[\\]]+)/g)[index].trim()")
              (when "filter" {:js "found[0] != '['"})
              (remember "madlib strings" {:madlib-id 'neue :pos 'index :value 'found}))
 
@@ -592,43 +600,45 @@
              (draw* [:span {:id "cursor" :className "cursor"} ""]))
 
        (rule "report key"
-             (when "ui/onKeyDown" {:elem-id "rule-list" :key 'key})
+             (when "ui/onKeyDown" {:elem-id "rules-list" :key 'key})
              (func 'woo "console.log('GOT KEY: ' + key)")
              (pretend "foo" {:foo 0}))
 
        (rule "move cursor left"
-             (when "ui/onKeyDown" {:elem-id "rule-list" :key '37})
+             (when "ui/onKeyDown" {:elem-id "rules-list" :key '37})
              (func 'woo "console.log('move left')")
              )
 
        (rule "move cursor right"
-             (when "ui/onKeyDown" {:elem-id "rule-list" :key '39})
+             (when "ui/onKeyDown" {:elem-id "rules-list" :key '39})
              (func 'woo "console.log('move left')")
              )
 
        (rule "move cursor up"
-             (when "ui/onKeyDown" {:elem-id "rule-list" :key '38})
+             (when "ui/onKeyDown" {:elem-id "rules-list" :key '38})
              (func 'woo "console.log('move left')")
              )
 
        (rule "move cursor down"
-             (when "ui/onKeyDown" {:elem-id "rule-list" :key '40})
+             (when "ui/onKeyDown" {:elem-id "rules-list" :key '40})
              (func 'woo "console.log('move left')")
              )
 
        (rule "new clause below cursor"
-             (when "ui/onKeyDown" {:elem-id "rule-list" :key '13})
+             (when "ui/onDirectKeyDown" {:elem-id "rules-list" :key '13})
              (when "ui/key-modifier" {:key "none"})
-             (func 'woo "console.log('insert below')")
+             (change "matcher state" {:active 'active :state 'state} {:active "true" :state 'state})
              )
 
        (rule "remove clause at cursor"
-             (when "ui/onKeyDown" {:elem-id "rule-list" :key '8})
-             (func 'woo "console.log('move left')")
+             (when "ui/onDirectKeyDown" {:elem-id "rules-list" :key '8})
+             (when "cursor" {:clause-id 'clause})
+             (pretend "remove clause" {:clause-id 'clause})
+             (change "cursor" {:clause-id 'clause} {:clause-id ""})
              )
 
        (rule "submit cursor rule"
-             (when "ui/onKeyDown" {:elem-id "rule-list" :key '13})
+             (when "ui/onKeyDown" {:elem-id "rules-list" :key '13})
              (when "ui/key-modifier" {:key "meta"})
              (when "rule editor active" {:rule-id 'rule})
              (pretend "submit rule" {:rule-id 'rule})
@@ -639,6 +649,31 @@
              (change "cursor" {:clause-id 'prev} {:clause-id 'clause})
              )
 
+       (rule "cursor side"
+             (when "cursor" {:clause-id 'clause})
+             (when "editor clauses" {:rule-id rule :type type :clause-id clause :madlib-id name  :timestamp 'timestamp})
+             (func 'side "type == 'when' ? 'when' : 'do'")
+             (pretend "cursor side" {:side 'side})
+             )
+
+       (rule "cursor empty side"
+             (when "cursor" {:clause-id 'clause})
+             (when "filter" {:js "clause == ''"})
+             (pretend "cursor side" {:side "when"})
+             )
+
+       (rule "cursor side change clause"
+             (when "cursor" {:clause-id 'clause})
+             (when "change clauses" {:rule-id 'rule :clause-id 'clause :from|to "from" :table 'table :sub-clause-id 'fromId :timestamp '_})
+             (pretend "cursor side" {:side "do"})
+             )
+
+       (rule "cursor side draw clause"
+             (when "cursor" {:clause-id 'clause})
+             (when "ui/editor-root" {:rule-id 'rule :clause-id 'clause :root 'root :timestamp 'ts})
+             (pretend "cursor side" {:side "do"})
+             )
+
 
        ;;******************************************************************************
        ;; Matcher
@@ -646,8 +681,10 @@
 
        (rule "matcher defaults"
              (when "defaults" {:defaults 'default})
+             (remember "editor focus" {:elem-id "rules-list"})
              (remember "matcher filter" {:filter ""})
-             (remember "matcher state" {:active "true" :state "clause"})
+             (remember "matcher selected" {:selected 1})
+             (remember "matcher state" {:active "false" :state "clause"})
              (remember "editor base clause types" {:clause-type "when"})
              (remember "editor base clause types" {:clause-type "pretend"})
              (remember "editor base clause types" {:clause-type "remember"})
@@ -662,20 +699,22 @@
 
        (rule "draw matcher"
              (when "matcher state" {:active "true" :state 'state})
+             (when "cursor side" {:side 'side})
              (when "rule editor active" {:rule-id 'rule})
              (when "matcher filter" {:filter 'filter})
              (when "filter" {:js "rule != ''"})
-             (func 'rwid "\"rule-when-\" + rule")
-             (pretend "ui/child" {:parent-id 'rwid :pos 1000000000000 :child-id "matcher"})
-             (pretend "ui/focus" {:elem-id "matcher-input"})
-             (draw* [:div {:id "matcher" :className "matcher"}
-                     [:input {:id "matcher-input" :className "matcher-input" :type "text" :value 'filter :events ["onKeyDown" "onChange"]}]
+             (func 'rwid "'rule-' + side + '-' + rule")
+             (func 'className "'matcher-input matcher-input-' + state")
+             (pretend "ui/child" {:parent-id 'rwid :pos "foo" :child-id "matcher"})
+             (change "editor focus" {:elem-id 'old} {:elem-id "matcher-input"})
+             (draw* [:div {:id "matcher" :className "matcher clause"}
+                     [:input {:id "matcher-input" :className 'className :type "text" :events ["onKeyDown" "onChange" "onBlur"]}]
                      [:ul {:id "matcher-list" :className "matcher-list"}]]))
 
        (rule "draw matcher clause type"
              (when "matcher clause" {:clause-type 'type})
              (pretend "ui/child" {:parent-id "matcher" :pos -1 :child-id "matcher-clause-type"})
-             (draw* [:span {:id "matcher-clause-type"} 'type]))
+             (draw* [:span {:id "matcher-clause-type" :className "keyword"} 'type]))
 
        ;;Clauses
 
@@ -683,15 +722,20 @@
              (when "matcher state" {:active "true" :state "clause"})
              (when "editor clause types" {:clause-type 'type})
              (when "matcher filter" {:filter 'filter})
-             (when "filter" {:js "filter == '' || window.stringMatch(type, filter) > 0"})
-             (pretend "found matcher clause type" {:clause-type 'type}))
+             (func 'match "filter == '' ? 1 : window.stringMatch(type, filter)")
+             (when "filter" {:js "match > 0"})
+             (limit* js/Infinity 'ord "descending")
+             (sort* ['match 'type])
+             (pretend "found matcher clause type" {:clause-type 'type :pos 'ord}))
 
 
        (rule "draw matcher clause items"
-             (when "found matcher clause type" {:clause-type 'name})
+             (when "found matcher clause type" {:clause-type 'name :pos 'pos})
+             (when "matcher selected" {:selected 'sel})
              (func 'childId "'matcher-item-' + name")
-             (pretend "ui/child" {:parent-id "matcher-list" :pos name :child-id childId})
-             (draw* [:li {:id 'childId} 'name])
+             (func 'className "sel == pos ? 'selected' : ''")
+             (pretend "ui/child" {:parent-id "matcher-list" :pos pos :child-id childId})
+             (draw* [:li {:id 'childId :className 'className} 'name])
              )
 
        ;;Madlibs
@@ -700,18 +744,23 @@
              (when "matcher state" {:active "true" :state "madlib"})
              (when "madlib placeholder counts" {:madlib-id 'name :full-string 'full :count 'count})
              (when "matcher filter" {:filter 'filter})
-             (when "filter" {:js "filter == '' || window.stringMatch(full, filter) > 0.07"})
-             (pretend "found matcher madlib" {:madlib-id name}))
+             (func 'match "filter == '' ? 1 : window.stringMatch(full, filter)")
+             (when "filter" {:js "match > 0"})
+             (limit* 8 'ord "descending")
+             (sort* ['match 'name])
+             (pretend "found matcher madlib" {:madlib-id name :pos 'ord}))
 
        (rule "draw matcher items"
-             (when "found matcher madlib" {:madlib-id 'name})
+             (when "found matcher madlib" {:madlib-id 'name :pos 'pos})
+             (when "matcher selected" {:selected 'sel})
+             (func 'className "sel == pos ? 'selected' : ''")
              (func 'childId "'matcher-item-' + name")
-             (pretend "ui/child" {:parent-id "matcher-list" :pos 0 :child-id childId})
-             (draw* [:li {:id 'childId}])
+             (pretend "ui/child" {:parent-id "matcher-list" :pos 'pos :child-id childId})
+             (draw* [:li {:id 'childId :className 'className}])
              )
 
        (rule "draw matcher clause madlib strings"
-             (when "found matcher madlib" {:madlib-id 'name})
+             (when "found matcher madlib" {:madlib-id 'name :pos '_})
              (when "madlib strings" {:madlib-id name :pos pos :value value})
              (func 'parentId "'matcher-item-' + name")
              (func 'childId "parentId + \"-pc-\" + pos")
@@ -719,7 +768,7 @@
              (draw* [:span {:id 'childId} 'value]))
 
        (rule "draw matcher clause madlib placholders"
-             (when "found matcher madlib" {:madlib-id 'name})
+             (when "found matcher madlib" {:madlib-id 'name :pos '_})
              (when "madlib placeholders" {:madlib-id name :pos pos :field field :placeholder-pos 'ppos})
              (func 'parentId "'matcher-item-' + name")
              (func 'childId "parentId + \"-pc-\" + pos")
@@ -730,7 +779,9 @@
 
        (rule "on change update filter"
              (when "ui/onChange" {:elem-id "matcher-input" :value 'val})
-             (change "matcher filter" {:filter 'old} {:filter 'val}))
+             (change "matcher filter" {:filter 'old} {:filter 'val})
+             (change "matcher selected" {:selected 'sel} {:selected 1})
+             )
 
        (rule "on backspace set clause matcher"
              (when "ui/onKeyDown" {:elem-id "matcher-input" :key 8})
@@ -741,13 +792,71 @@
              (change "matcher state" {:active 'active :state 'state} {:active 'active :state "clause"})
              )
 
+       (rule "on clause backspace hide matcher"
+             (when "ui/onKeyDown" {:elem-id "matcher-input" :key 8})
+             (when "matcher state" {:active 'active :state "clause"})
+             (when "matcher filter" {:filter ""})
+             (change "matcher state" {:active 'active :state 'state} {:active "false" :state 'state})
+             (change "editor focus" {:elem-id 'old} {:elem-id "rules-list"})
+             )
+
+       (rule "on up move selected lower"
+             (when "ui/onKeyDown" {:elem-id "matcher-input" :key 38})
+             (pretend "move matcher selection" {:dir -1})
+             )
+
+       (rule "on down move selected higher"
+             (when "ui/onKeyDown" {:elem-id "matcher-input" :key 40})
+             (pretend "move matcher selection" {:dir 1})
+             )
+
+       (rule "total clause matches"
+             (when "matcher state" {:active "true" :state "clause"})
+             (when "found matcher clause type" {:clause-type 'clause :pos 'pos})
+             (limit* js/Infinity 'ord "descending")
+             (aggregate* 'clause "count" 'total)
+             (pretend "total matches" {:total 'total}))
+
+       (rule "total madlib matches"
+             (when "matcher state" {:active "true" :state "madlib"})
+             (when "found matcher madlib" {:madlib-id 'madlib :pos 'pos})
+             (limit* js/Infinity 'ord "descending")
+             (aggregate* 'madlib "count" 'total)
+             (pretend "total matches" {:total 'total}))
+
+       (rule "move matcher selection"
+             (when "move matcher selection" {:dir 'dir})
+             (when "matcher selected" {:selected 'sel})
+             (when "total matches" {:total total})
+             (func 'asdf "console.log(total, sel, dir)")
+             (func 'moved "sel + dir")
+             (func 'neue "moved > total ? 1 : (moved < 1 ? total : moved)")
+             (change "matcher selected" {:selected 'sel} {:selected 'neue}))
+
+       (rule "on escape hide matcher"
+             (when "ui/onKeyDown" {:elem-id "matcher-input" :key 27})
+             (change "matcher state" {:active 'active :state 'state} {:active "false" :state 'state})
+             (change "editor focus" {:elem-id 'old} {:elem-id "rules-list"})
+             )
+
+       (rule "on blur hide matcher"
+             (when "ui/onBlur" {:elem-id "matcher-input"})
+             (change "matcher state" {:active 'active :state 'state} {:active "false" :state 'state})
+             ;(change "editor focus" {:elem-id 'old} {:elem-id "rules-list"})
+             )
+
        (rule "on submit madlib matcher"
              (when "ui/onKeyDown" {:elem-id "matcher-input" :key 13})
              (when "ui/key-modifier" {:key "none"})
              (when "rule editor active" {:rule-id 'rule})
-             (when "found matcher madlib" {:madlib-id 'name})
+             (when "matcher selected" {:selected 'pos})
+             (when "found matcher madlib" {:madlib-id 'name :pos 'pos})
              (when "matcher clause" {:clause-type type})
-             (change "matcher filter" {:filter 'f} {:filter ""})
+             (when "filter" {:js "text.indexOf('[') == -1"})
+             (forget "matcher clause" {:clause-type 'type})
+             (change "matcher filter" {:filter 'text} {:filter ""})
+             (change "matcher state" {:active 'active :state 'state} {:active "false" :state "clause"})
+             (change "editor focus" {:elem-id 'old} {:elem-id "rules-list"})
              (pretend "add clause" {:rule-id 'rule :madlib-id 'name :type type})
              )
 
@@ -755,7 +864,9 @@
              (when "ui/onKeyDown" {:elem-id "matcher-input" :key 13})
              (when "ui/key-modifier" {:key "none"})
              (when "rule editor active" {:rule-id 'rule})
-             (when "found matcher clause type" {:clause-type 'type})
+             (when "matcher selected" {:selected 'pos})
+             (when "found matcher clause type" {:clause-type 'type :pos 'pos})
+             (when "filter" {:js "type != 'draw'"})
              (remember "matcher clause" {:clause-type 'type})
              (change "matcher filter" {:filter 'f} {:filter ""})
              (change "matcher state" {:active 'active :state "clause"} {:active 'active :state "madlib"})
@@ -765,21 +876,28 @@
              (when "ui/onKeyDown" {:elem-id "matcher-input" :key 13})
              (when "ui/key-modifier" {:key "none"})
              (when "rule editor active" {:rule-id 'rule})
-             (when "found matcher clause type" {:clause-type "draw"})
-             (func 'foo "console.log('here!')")
-             (forget "matcher clause" {:clause-type "draw"})
+             (when "matcher selected" {:selected 'pos})
+             (when "found matcher clause type" {:clause-type "draw" :pos 'pos})
              (forget "matcher state" {:active "true" :state "madlib"})
-             (remember "matcher state" {:active "true" :state "clause"})
+             (change "matcher filter" {:filter 'f} {:filter ""})
+             (change "matcher state" {:active 'active :state "clause"} {:active "false" :state "clause"})
+             (change "editor focus" {:elem-id 'oldfocus} {:elem-id "draw-id-editor"})
              (pretend "add clause" {:rule-id 'rule :madlib-id "" :type "draw"})
              )
 
        (rule "on submit new madlib"
              (when "ui/onKeyDown" {:elem-id "matcher-input" :key 13})
-             (when "ui/key-modifier" {:key "alt"})
+             (when "ui/key-modifier" {:key "none"})
              (when "rule editor active" {:rule-id 'rule})
              (when "matcher filter" {:filter 'text})
+             (when "filter" {:js "text.indexOf('[') > -1"})
              (when "matcher clause" {:clause-type type})
-             (func 'neue "aurora.util.core.new_id()")
+             (when "time" {:time 'time})
+             (func 'neue "'madlib' + rule + time")
+             (forget "matcher clause" {:clause-type 'type})
+             (change "matcher filter" {:filter 'text} {:filter ""})
+             (change "matcher state" {:active 'active :state 'state} {:active "false" :state "clause"})
+             (change "editor focus" {:elem-id 'old} {:elem-id "rules-list"})
              (pretend "add madlib" {:rule-id 'rule :neue-id 'neue :text 'text :clause-type 'type})
              (remember "add new clause for madlib" {:rule-id 'rule :madlib-id 'neue :clause-type 'type})
              )
@@ -791,7 +909,7 @@
        ;;******************************************************************************
 
        (rule "draw clause madlibs"
-             (when "editor rule active" {:rule-id rule})
+             (when "rule is visible" {:rule-id rule})
              (when "editor clauses" {:rule-id rule :type type :clause-id clause :madlib-id name :timestamp '_})
              (func 'cid "\"clause-\" + clause")
              (pretend "draw madlib" {:container 'cid :madlib-id 'name :clause-id 'clause}))
@@ -842,26 +960,37 @@
        (rule "madlib placeholder editor submit"
              (when "ui/onKeyDown" {:elem-id "placeholder-editor" :key 13})
              (change "editing" {:id 'editing} {:id ""})
+             (change "editor focus" {:elem-id '_} {:elem-id "rules-list"})
              )
 
        (rule "madlib placeholder clicked"
              (when "ui/custom" {:event-key "madlib placeholder click" :entity 'ctx})
              (change "editing" {:id 'old} {:id 'ctx})
+             (change "editor focus" {:elem-id '_} {:elem-id "placeholder-editor"})
              )
 
        (rule "draw defaults"
-             (when "defaults" {:defaults '_})
-             (remember "draw editor active elem" {:elem-id ""}))
+             (when "defaults" {:defaults 'defaults})
+             (remember "draw editor active elem" {:elem-id ""})
+             (remember "possible ui events" {:event-name "Click" :event "onClick"})
+             (remember "possible ui events" {:event-name "Blur" :event "onBlur"})
+             (remember "possible ui events" {:event-name "Focus" :event "onFocus"})
+             (remember "possible ui events" {:event-name "Key down" :event "onKeyDown"})
+             (remember "possible ui events" {:event-name "Key up" :event "onKeyUp"})
+             (remember "possible ui events" {:event-name "Change" :event "onChange"})
+             (remember "possible ui events" {:event-name "Double click" :event "onDoubleClick"})
+             (remember "possible ui events" {:event-name "Checked" :event "onChecked"})
+             )
 
        (rule "draw change clauses"
-             (when "editor rule active" {:rule-id rule})
-             (when "change clauses" {:rule-id 'rule :clause-id 'clause :from|to "from" :table 'table :sub-clause-id 'fromId :timestamp '_})
-             (when "change clauses" {:rule-id 'rule :clause-id 'clause :from|to "to" :table 'table :sub-clause-id 'toId :timestamp '_})
+             (when "rule is visible" {:rule-id rule})
+             (when "change clauses" {:rule-id 'rule :clause-id 'clause :from|to "from" :table 'table :sub-clause-id 'fromId :timestamp 'ts})
+             (when "change clauses" {:rule-id 'rule :clause-id 'clause :from|to "to" :table 'table :sub-clause-id 'toId :timestamp 'ts2})
              (func 'cid "\"clause-\" + clause")
              (func 'fromCid "\"clause-\" + fromId")
              (func 'toCid "\"clause-\" + toId")
              (func 'rid "\"rule-do-\" + rule")
-             (pretend "ui/child" {:parent-id 'rid :pos 'table :child-id 'cid})
+             (pretend "ui/child" {:parent-id 'rid :pos 'ts :child-id 'cid})
              (draw* [:div {:id 'cid :className "clause" :events ["onClick"] :event-key "activate clause" :entity 'clause}
                     [:p {:id 'fromCid } [:span {:className "keyword"} "change " ]]
                     [:p {:id 'toCid} [:span {:className "keyword to"} "to "]]
@@ -871,13 +1000,13 @@
               )
 
        (rule "draw draw clauses"
-             (when "editor rule active" {:rule-id rule})
-             (when "ui/editor-root" {:rule-id 'rule :clause-id 'clause :root 'root  :timestamp '_})
+             (when "rule is visible" {:rule-id rule})
+             (when "ui/editor-root" {:rule-id 'rule :clause-id 'clause :root 'root  :timestamp 'ts})
              (func 'rid "\"rule-do-\" + rule")
              (func 'cid "\"clause-\" + clause")
              (func 'did "\"draw-preview-\" + clause")
              (func 'elemId "\"preview-\" + rule + root")
-             (pretend "ui/child" {:parent-id 'rid :pos "draw" :child-id 'cid})
+             (pretend "ui/child" {:parent-id 'rid :pos ts :child-id 'cid})
              (pretend "ui/child" {:parent-id 'did :pos 0 :child-id 'elemId})
              (draw* [:div {:id 'cid :className "clause" :events ["onClick"] :event-key "activate clause" :entity 'clause}
                     [:span {:className "keyword"} "draw"]
@@ -886,47 +1015,106 @@
               )
 
        (rule "draw draw preview elem"
-             (when "editor rule active" {:rule-id rule})
+             (when "rule is visible" {:rule-id rule})
+             (when "rule editor active" {:rule-id 'editingRule})
              (when "ui/editor-root" {:rule-id 'rule :clause-id '__ :root 'root  :timestamp '_})
              (when "ui/editor-elem" {:rule-id 'rule :clause-id 'clause  :root-clause-id 'root-clause})
              (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression 'cv :val 'tag :key "tag"})
              (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression 'cv2 :val 'id :key "elem-id"})
+             (when "draw editor active elem" {:elem-id 'active})
+             (func 'className "(active == id && rule == editingRule ? 'active' : '') + ' preview-elem'")
              (func 'elemId "\"preview-\" + rule + id")
              (func 'pid "\"tag\" + elemId")
-             (draw* [:div {:id 'elemId :className "preview-elem" :events ["onDirectClick"] :event-key "select draw elem" :entity 'id}
+             (draw* [:div {:id 'elemId :className 'className :events ["onDirectClick"] :event-key "select draw elem" :entity 'id}
                     [:span {:id 'pid :className "preview-elem-tag"} 'tag]
                     ])
               )
 
        (rule "draw draw editor"
-             (when "editor rule active" {:rule-id rule})
+             (when "rule is visible" {:rule-id rule})
              (when "ui/editor-root" {:rule-id 'rule :clause-id 'rid :root 'root  :timestamp '_})
              (when "cursor" {:clause-id 'rid})
              (func 'cid "'clause-' + rid")
              (pretend "ui/child" {:parent-id 'cid :pos 10000 :child-id "preview-elem-editor"})
-             (draw* [:div {:id "preview-elem-editor" :className "preview-elem-editor"}
-                    ])
+             (draw* [:table {:id "preview-elem-editor" :className "preview-elem-editor"}
+                     [:tbody {:id "preview-elem-editor-body"}
+                      ]])
               )
 
        (rule "draw id editor"
-             (when "editor rule active" {:rule-id rule})
+             (when "rule is visible" {:rule-id rule})
              (when "cursor" {:clause-id 'rid})
              (when "ui/editor-root" {:rule-id 'rule :clause-id 'rid :root 'root  :timestamp '_})
              (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression 'cv2 :val 'elem :key "elem-id"})
              (when "draw editor active elem" {:elem-id 'elem})
-             (pretend "ui/child" {:parent-id "preview-elem-editor" :pos 10000 :child-id "draw-id-editor-row"})
-             (draw* [:div {:id "draw-id-editor-row"} [:label {} "id"] [:input {:id "draw-id-editor" :events ["onChange"] :value 'elem} ""]])
+             (func 'final "elem.length > 30 && elem.substring(0,11) == 'elem clause' ? '' : elem")
+             (pretend "ui/child" {:parent-id "preview-elem-editor-body" :pos 0 :child-id "draw-id-editor-row"})
+             (draw* [:tr {:id "draw-id-editor-row"} [:td {} "name"] [:td {} [:input {:id "draw-id-editor" :className "draw-id-editor" :events ["onChange" "onClick"] :value 'final}]]])
              )
 
+       (rule "id editor focus"
+             (when "ui/onClick" {:elem-id "draw-id-editor"})
+             (change "editor focus" {:elem-id 'old} {:elem-id ""}))
+
        (rule "draw tag editor"
-             (when "editor rule active" {:rule-id rule})
+             (when "rule editor active" {:rule-id rule})
              (when "cursor" {:clause-id 'rid})
              (when "ui/editor-root" {:rule-id 'rule :clause-id 'rid :root 'root  :timestamp '_})
              (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression 'cv :val 'tag :key "tag"})
              (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression 'cv2 :val 'elem :key "elem-id"})
              (when "draw editor active elem" {:elem-id 'elem})
-             (pretend "ui/child" {:parent-id "preview-elem-editor" :pos 10000 :child-id "draw-tag-editor-row"})
-             (draw* [:div {:id "draw-tag-editor-row"} [:label {} "tag"] [:input {:id "draw-tag-editor" :events ["onChange"] :value 'tag} ""]])
+             (pretend "ui/child" {:parent-id "preview-elem-editor-body" :pos 1 :child-id "draw-tag-editor-row"})
+             (draw* [:tr {:id "draw-tag-editor-row"} [:td {} [:label {} "tag"]] [:td {}[:input {:id "draw-tag-editor" :className "draw-tag-editor" :events ["onChange" "onClick"] :value 'tag} ""]]])
+             )
+
+       (rule "tag editor focus"
+             (when "ui/onClick" {:elem-id "draw-tag-editor"})
+             (change "editor focus" {:elem-id 'old} {:elem-id ""}))
+
+       (rule "draw events editor"
+             (when "rule editor active" {:rule-id rule})
+             (when "cursor" {:clause-id 'rid})
+             (when "ui/editor-root" {:rule-id 'rule :clause-id 'rid :root 'root  :timestamp '_})
+             (when "draw editor active elem" {:elem-id 'elem})
+             (when "filter" {:js "elem != ''"})
+             (pretend "ui/child" {:parent-id "preview-elem-editor-body" :pos 2 :child-id "draw-events-editor-row"})
+             (draw* [:tr {:id "draw-events-editor-row" :className "top"} [:td {} "events"] [:td {} [:ul {:id "draw-events-editor" :className "events-editor"}]]])
+             )
+
+       (rule "draw events editor items"
+             (when "rule editor active" {:rule-id rule})
+             (when "cursor" {:clause-id 'rid})
+             (when "ui/editor-root" {:rule-id 'rule :clause-id 'rid :root 'root  :timestamp '_})
+             (when "draw editor active elem" {:elem-id 'elem})
+             (when "filter" {:js "elem != ''"})
+             (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression 'cv :val 'event :key "event"})
+             (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression 'cv2 :val 'elem :key "elem-id"})
+             (func 'cid "event + 'event-item'")
+             (pretend "ui/attr" {:elem-id 'cid :attr "className" :value "pill active"})
+             )
+
+       (rule "draw events editor items all"
+             (when "rule editor active" {:rule-id rule})
+             (when "cursor" {:clause-id 'rid})
+             (when "ui/editor-root" {:rule-id 'rule :clause-id 'rid :root 'root  :timestamp '_})
+             (when "draw editor active elem" {:elem-id 'elem})
+             (when "possible ui events" {:event-name 'name :event 'event})
+             (func 'cid "event + 'event-item'")
+             (pretend "ui/child" {:parent-id "draw-events-editor" :pos 'event  :child-id 'cid})
+             (draw* [:li {:id 'cid :className "pill" :events ["onClick"] :event-key "add event" :entity 'event} 'name])
+             )
+
+       (rule "add event item"
+             (when "ui/custom" {:event-key "add event" :entity 'event})
+             (when "rule editor active" {:rule-id rule})
+             (when "cursor" {:clause-id 'rid})
+             (when "draw editor active elem" {:elem-id 'elem})
+             (func 'clause "'event' + rule + rid + elem + event")
+             (remember "ui/editor-event-listener" {:rule-id 'rule :clause-id 'clause :root-clause-id 'rid})
+             (remember "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression "constant" :val "" :key "entity"})
+             (remember "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression "constant" :val "" :key "event-key"})
+             (remember "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression "constant" :val 'event :key "event"})
+             (remember "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression "constant" :val 'elem :key "elem-id"})
              )
 
        (rule "draw add child button"
@@ -935,24 +1123,98 @@
              (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression 'cv2 :val 'elem :key "elem-id"})
              (when "draw editor active elem" {:elem-id 'elem})
              (func 'elemId "\"preview-\" + rule + elem")
-             (pretend "ui/child" {:parent-id 'elemId :pos 10000 :child-id "add-child-button"})
-             (draw* [:button {:id "add-child-button" :events ["onClick"] :className "add-child-button"} "+"])
+             (pretend "ui/child" {:parent-id "preview-elem-editor" :pos 10000000000000 :child-id "child-buttons"})
+             (draw* [:tr {:id "child-buttons" :className "preview-elem-editor-child-buttons"}
+                     [:td {}]
+                     [:td {}
+                      [:button {:id "add-text-button" :events ["onClick"] :className "add-text-button ion-ios7-compose-outline"}]
+                      [:button {:id "add-child-button" :events ["onClick"] :className "add-child-button ion-ios7-plus-empty"}]
+                      [:button {:id "remove-child-button" :events ["onClick"] :className "add-child-button ion-ios7-trash-outline"}]]])
              )
 
-       (rule "monitor"
+       (rule "add child button click"
+             (when "ui/onClick" {:elem-id "add-child-button"})
+             (when "rule editor active" {:rule-id rule})
+             (when "ui/editor-root" {:rule-id 'rule :clause-id 'rid :root 'root  :timestamp '_})
+             (when "time" {:time 'time})
+             (when "cursor" {:clause-id 'rid})
+             (when "draw editor active elem" {:elem-id 'elem})
+             (func 'elemClause "'added child elem' + rule + rid +  time")
+             (func 'elemClause2 "elemClause")
+             (func 'childClause "'added child child elem' + rule + rid +  time")
+             (change "draw editor active elem" {:elem-id 'elem} {:elem-id 'elemClause})
+             (remember "ui/editor-elem" {:rule-id 'rule :root-clause-id 'rid :clause-id 'elemClause})
+             (remember "editor clause fields" {:rule-id 'rule :clause-id 'elemClause :constant|variable|expression "constant" :val 'elemClause2 :key "elem-id"})
+             (remember "editor clause fields" {:rule-id 'rule :clause-id 'elemClause :constant|variable|expression "constant" :val "div" :key "tag"})
+             (remember "ui/editor-child" {:rule-id 'rule :root-clause-id 'rid :clause-id 'childClause})
+             (remember "editor clause fields" {:rule-id 'rule :clause-id 'childClause :constant|variable|expression "constant" :val 'elemClause :key "child-id"})
+             (remember "editor clause fields" {:rule-id 'rule :clause-id 'childClause :constant|variable|expression "constant" :val 'elem :key "parent-id"})
+             (remember "editor clause fields" {:rule-id 'rule :clause-id 'childClause :constant|variable|expression "constant" :val 0 :key "pos"})
+             )
 
-             (func 'asdf "console.log('active elems ' + elem)")
-             (when "draw editor active elem" {:elem-id 'elem}))
+       (rule "add text button click"
+             (when "ui/onClick" {:elem-id "add-text-button"})
+             (when "rule editor active" {:rule-id rule})
+             (when "ui/editor-root" {:rule-id 'rule :clause-id 'rid :root 'root  :timestamp '_})
+             (when "cursor" {:clause-id 'rid})
+             (when "draw editor active elem" {:elem-id 'elem})
+             (when "time" {:time 'time})
+             (func 'elemClause "'text' + time + rule + rid")
+             (func 'elemClause2 "elemClause")
+             (func 'childClause "'text child' + time + rule + rid")
+             (func 'ctx "elemClause + '|text'")
+             (remember "ui/editor-text" {:rule-id 'rule :root-clause-id 'rid :clause-id 'elemClause})
+             (remember "editor clause fields" {:rule-id 'rule :clause-id 'elemClause :constant|variable|expression "constant" :val 'elemClause2 :key "elem-id"})
+             (remember "editor clause fields" {:rule-id 'rule :clause-id 'elemClause :constant|variable|expression "constant" :val "fill me in" :key "text"})
+             (remember "ui/editor-child" {:rule-id 'rule :root-clause-id 'rid :clause-id 'childClause})
+             (remember "editor clause fields" {:rule-id 'rule :clause-id 'childClause :constant|variable|expression "constant" :val 'elemClause :key "child-id"})
+             (remember "editor clause fields" {:rule-id 'rule :clause-id 'childClause :constant|variable|expression "constant" :val 'elem :key "parent-id"})
+             (remember "editor clause fields" {:rule-id 'rule :clause-id 'childClause :constant|variable|expression "constant" :val 'time :key "pos"})
+             ;;focus the element
+             (change "editing" {:id 'old} {:id 'ctx})
+             (change "editor focus" {:elem-id 'focused} {:elem-id "placeholder-editor"})
+             )
 
        (rule "direct click preview elem set active"
              (when "ui/directCustom" {:event-key "select draw elem" :entity 'elem})
-             (func 'asdf "console.log('changing active to: ' + elem)")
              (change "draw editor active elem" {:elem-id 'prev} {:elem-id 'elem}))
 
 
+       (rule "draw editor id updated"
+             (when "ui/onChange" {:elem-id "draw-id-editor" :value 'value})
+             (when "rule editor active" {:rule-id 'rule})
+             (change "draw editor active elem" {:elem-id 'elem} {:elem-id 'value})
+             (change "editor clause fields"
+                     {:rule-id 'rule :clause-id 'clause :constant|variable|expression 'cv :val 'elem :key "elem-id"}
+                     {:rule-id 'rule :clause-id 'clause :constant|variable|expression 'cv :val 'value :key "elem-id"})
+              )
+       (rule "draw editor id updated, modify root"
+             (when "ui/onChange" {:elem-id "draw-id-editor" :value 'value})
+             (when "rule editor active" {:rule-id 'rule})
+             (when "draw editor active elem" {:elem-id 'elem})
+             (change "ui/editor-root"
+                     {:rule-id 'rule :clause-id 'rid :root 'elem  :timestamp '_}
+                     {:rule-id 'rule :clause-id 'rid :root 'value  :timestamp '_}))
+
+       (rule "draw editor id updated, modify parents"
+             (when "ui/onChange" {:elem-id "draw-id-editor" :value 'value})
+             (when "rule editor active" {:rule-id 'rule})
+             (when "draw editor active elem" {:elem-id 'elem})
+             (change "editor clause fields"
+                     {:rule-id 'rule :clause-id 'clause :constant|variable|expression 'cv :val 'elem :key "parent-id"}
+                     {:rule-id 'rule :clause-id 'clause :constant|variable|expression 'cv :val 'value :key "parent-id"}))
+
+       (rule "draw editor id updated, modify children"
+             (when "ui/onChange" {:elem-id "draw-id-editor" :value 'value})
+             (when "rule editor active" {:rule-id 'rule})
+             (when "draw editor active elem" {:elem-id 'elem})
+             (change "editor clause fields"
+                     {:rule-id 'rule :clause-id 'clause :constant|variable|expression 'cv :val 'elem :key "child-id"}
+                     {:rule-id 'rule :clause-id 'clause :constant|variable|expression 'cv :val 'value :key "child-id"}))
+
        (rule "draw editor tag updated"
              (when "ui/onChange" {:elem-id "draw-tag-editor" :value 'value})
-             (when "editor rule active" {:rule-id 'rule})
+             (when "rule editor active" {:rule-id 'rule})
              (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression 'cv2 :val 'elem :key "elem-id"})
              (when "draw editor active elem" {:elem-id 'elem})
              (change "editor clause fields"
@@ -962,17 +1224,36 @@
 
 
        (rule "draw draw preview text"
-             (when "editor rule active" {:rule-id rule})
+             (when "rule is visible" {:rule-id rule})
              (when "ui/editor-text" {:rule-id 'rule :clause-id 'clause  :root-clause-id 'root-clause})
              (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression 'cv :val 'text :key "text"})
              (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression 'cv2 :val 'id :key "elem-id"})
+             (when "editing" {:id 'editing})
+             (when "filter" {:js "context != editing"})
+             (func 'context "clause + '|text'")
              (func 'elemId "\"preview-\" + rule + id")
-             (draw* [:span {:id 'elemId :className 'cv} 'text])
+             (draw* [:span {:id 'elemId :className 'cv :events ["onClick"] :event-key "madlib placeholder click" :entity 'context} 'text])
 
               )
 
+       (rule "draw editable preview text"
+             (when "rule is visible" {:rule-id rule})
+             (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression 'cv :val 'val :key "text"})
+             (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression 'cv2 :val 'elem :key "elem-id"})
+             (when "editor clause fields" {:rule-id rule :clause-id childClause :constant|variable|expression 'cv3 :val 'elem :key "child-id"})
+             (when "editor clause fields" {:rule-id rule :clause-id childClause :constant|variable|expression 'cv4 :val 'pos :key "pos"})
+             (when "draw editor active elem" {:elem-id 'active})
+             (when "editing" {:id 'context})
+             (func 'clause "context.split('|')[0]")
+             (func 'cur "cv == 'variable' ? '*' + val : cv == 'expression' ? '=' + val : val")
+             (func 'context "clause + '|text'")
+             (func 'elemId "\"preview-\" + rule + active")
+             (func 'curClass "'placeholder-editor ' + cv")
+             (pretend "ui/child" {:parent-id 'elemId :pos 'pos :child-id "placeholder-editor"})
+             (draw* [:input {:id "placeholder-editor" :className 'curClass :events ["onKeyDown" "onChange"] :event-key "madlib placeholder editor" :entity 'context :defaultValue 'cur}]))
+
          (rule "translate draw preview child"
-             (when "editor rule active" {:rule-id rule})
+             (when "rule is visible" {:rule-id rule})
              (when "ui/editor-child" {:rule-id 'rule :clause-id 'clause  :root-clause-id 'root-clause})
              (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression 'cv :val 'pos :key "pos"})
              (when "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression 'cv2 :val 'pid :key "parent-id"})
@@ -980,8 +1261,14 @@
              (func 'childElemId "\"preview-\" + rule + cid")
              (func 'parentElemId "\"preview-\" + rule + pid")
              (pretend "ui/child" {:parent-id 'parentElemId :pos 'pos :child-id 'childElemId})
-
               )
+
+
+       (rule "handle focus"
+             (when "editor focus" {:elem-id 'el})
+             (when "filter" {:js "el != ''"})
+             (pretend "ui/focus" {:elem-id 'el})
+             )
 
        )
 
@@ -997,7 +1284,7 @@
 (rules editor "incrementer"
 
        (rule "incr defaults"
-             (when "defaults" {:defaults '_})
+             (when "defaults" {:defaults 'defaults})
              (remember "incr" {:value 0}))
 
        (rule "draw-incr"
@@ -1013,7 +1300,7 @@
 (rules editor "todomvc"
 
        (rule "defaults"
-             (when "defaults" {:defaults '_})
+             (when "defaults" {:defaults 'defaults})
              (remember "todo-to-add" {:value ""})
              (remember "todo-to-edit" {:value ""})
              (remember "current-toggle" {:value "false"})

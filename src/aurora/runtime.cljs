@@ -12,6 +12,7 @@
   (.get-or-create-index kn "know" "ui/key-modifier" #js ["key"])
   (.get-or-create-index kn "know" "ui/directCustom" #js ["event-key" "entity"])
   (.get-or-create-index kn "know" "ui/onDirectClick" #js ["elem-id"])
+  (.get-or-create-index kn "know" "ui/onDirectKeyDown" #js ["elem-id" "key"])
   (.get-or-create-index kn "know" "ui/onClick" #js ["elem-id"])
   (.get-or-create-index kn "know" "ui/focus" #js ["elem-id"])
   (.get-or-create-index kn "know" "ui/onKeyDown" #js ["elem-id" "key"])
@@ -123,6 +124,10 @@
         queue (array)]
     (.get-or-create-index kn "know" "clauses" #js ["rule-id" "when|know|remember|forget" "clause-id" "name"])
     (.get-or-create-index kn "know" "clause-fields" #js ["clause-id" "constant|variable" "key" "val"])
+    (.get-or-create-index kn "know" "has-agg" #js ["rule-id" "limit-variable|constant" "limit" "ordinal" "ascending|descending"])
+    (.get-or-create-index kn "know" "group-by" #js ["rule-id" "var"])
+    (.get-or-create-index kn "know" "sort-by" #js ["rule-id" "ix" "var"])
+    (.get-or-create-index kn "know" "agg-over" #js ["rule-id" "in-var" "agg-fun" "out-var"])
     (init-std-lib kn)
     (aset state "queued" false)
     (aset state "current-queue" queue)
@@ -165,7 +170,8 @@
    "onKeyDown" [#js ["elem-id" "key"] #js [id (.-keyCode ev)]]
    [#js ["elem-id"] #js [id]]))
 
-(def react-mappings {"onDirectClick" "onClick"})
+(def react-mappings {"onDirectClick" "onClick"
+                     "onDirectKeyDown" "onKeyDown"})
 
 (defn build-element [id tag attrs-itr styles-itr events-itr queue]
   (let [el-attrs (js-obj "eve-id" id)
@@ -194,7 +200,7 @@
             event-key (aget cur 2)
             entity (aget cur 3)]
         (aset el-attrs event (fn [e]
-                               (js/console.log event (.-eventPhase e) (.-currentTarget e) (.-target e))
+                               (js/console.log event original-event (react-mappings original-event))
                                ;(queue (str "ui/" event) #js ["elem-id"] #js [id (js/aurora.runtime.ui.event->params2 event e)])
                                ;(queue (str "ui/custom") #js ["event-key" "entity"] #js [id event-key entity (js/aurora.runtime.ui.event->params2 event e)])
                                (let [[order vals] (event->params e event id)
@@ -213,11 +219,12 @@
                                    (queue "ui/key-modifier" #js ["key"] #js ["meta"]))
                                  (when-not @modified?
                                    (queue "ui/key-modifier" #js ["key"] #js ["none"]))
-                                 (when (and (== "onDirectClick" original-event)
+                                 (when (and (react-mappings original-event)
                                             (not (.isDefaultPrevented e)))
-                                   (.preventDefault e)
-                                   (queue "ui/onDirectClick" order vals)
-                                   (queue "ui/directCustom" #js ["event-key" "entity"] #js [event-key entity]))
+                                   (when-not (#{"PASSWORD" "INPUT" "TEXTAREA"} (.-target.nodeName e))
+                                     (.preventDefault e)
+                                     (queue (str "ui/" original-event) order vals)
+                                     (queue "ui/directCustom" #js ["event-key" "entity"] #js [event-key entity])))
                                  (queue (str "ui/" event) order vals)
                                  (queue (str "ui/custom") #js ["event-key" "entity"] #js [event-key entity]))
                                true
@@ -372,6 +379,28 @@
     (aset (.-state program) "watchers" watchers)
     program))
 
+(def render-queue #js {:queued false})
+
+(def animation-frame
+  (or (.-requestAnimationFrame js/self)
+      (.-webkitRequestAnimationFrame js/self)
+      (.-mozRequestAnimationFrame js/self)
+      (.-oRequestAnimationFrame js/self)
+      (.-msRequestAnimationFrame js/self)
+      (fn [callback] (js/setTimeout callback 17))))
+
+(defn queue-render! [kn func]
+  (let [render-queue (or (.-state.render-queue kn)
+                         (let [queue #js {:queued false}]
+                           (set! (.-state.render-queue kn) queue)
+                           queue))]
+    (set! (.-func render-queue) func)
+    (when-not (.-queued render-queue)
+      (set! (.-queued render-queue) true)
+      (animation-frame #(do
+                          ((.-func render-queue))
+                          (set! (.-queued render-queue) false))))))
+
 (defn create-direct-renderer [root]
   (fn [kn queue]
     (let [tree (perf-time-named "rebuild tree" (rebuild-tree-dom kn queue))
@@ -384,31 +413,41 @@
 
 (defn create-react-renderer [root]
   (fn [kn queue]
-    (let [tree-and-els (perf-time-named "rebuild tree" (rebuild-tree kn queue))
-          tree (aget tree-and-els "tree")
-          els (aget tree-and-els "elems")
-          focuses (.get-or-create-index kn "know" "ui/focus" #js ["elem-id"])
-          to-focus (when focuses
-                     (when-let [focus (last (.keys focuses))]
-                       (aget els (aget focus 0))))
-          container (dom/$ root)
-          dommied (dommy/node tree)
-          ]
-      (when container
-        (perf-time-named "append tree" (do
-                                         (js/React.renderComponent dommied container)
-                                         (when to-focus
-                                           (try
-                                             (when (.isMounted to-focus)
-                                               (.. to-focus (getDOMNode) (focus)))
-                                             (catch :default e
-                                               (js/console.log (str "failed to focus: " e)))))
-                                         ))))))
+    (try
+      (let [tree-and-els (perf-time-named "rebuild tree" (rebuild-tree kn queue))
+            tree (aget tree-and-els "tree")
+            els (aget tree-and-els "elems")
+            focuses (.get-or-create-index kn "know" "ui/focus" #js ["elem-id"])
+            to-focus (when focuses
+                       (last (.keys focuses)))
+            container (dom/$ root)
+            dommied (dommy/node tree)
+            ]
+        (when container
+          (queue-render! kn
+                         (fn []
+                           (perf-time-named "append tree" (do
+                                                            (js/React.renderComponent dommied container)
+                                                            (when to-focus
+                                                              (try
+                                                                (println "trying to focus")
+                                                                (let [elem (js/document.querySelector (str "." (aget to-focus 0)))]
+                                                                  (js/console.log elem js/document.activeElement (= elem js/document.activeElement))
+                                                                  (when (and elem
+                                                                             (not (= elem js/document.activeElement)))
+                                                                    (println "FOCUSING: " elem)
+                                                                    (.focus elem)
+                                                                    ))
+                                                                (catch :default e
+                                                                  (js/console.log (str "failed to focus: " e)))))
+                                                            ))))))
+      (catch :default e
+        (js/console.log (str "FAILED UI: " e))))))
 
 (defn re-run [program]
   (let [compiled (aget (.-state program) "compiled")
         watchers (aget (.-state program) "watchers")
-        cur-time (now)]
+        cur-time (.getTime (js/Date.))]
     (know program "time" #js ["time"] #js [cur-time])
     (perf-time-named "quiesce"
      (do
