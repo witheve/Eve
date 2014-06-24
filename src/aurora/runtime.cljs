@@ -116,7 +116,7 @@
     (aset name->lifetime "ui/style" "transient")
     (aset name->lifetime "ui/event-listener" "transient")
 
-    (aset name->lifetime "time" "external")))
+    (aset name->lifetime "time" "transient")))
 
 (defn env []
   (let [kn (knowledge)
