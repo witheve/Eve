@@ -17,16 +17,14 @@ var keymap = function (fromKeys, toKeys) {
   return keymap;
 };
 
-var Source = function (name, action, keys, index) {
+var Source = function (name, keys, index) {
   this.name = name;
-  this.action = action;
   this.keys = keys;
   this.index = index;
 };
 
-var Sink = function (name, action, keys, indexes, keymaps) {
+var Sink = function (name, keys, indexes, keymaps) {
   this.name = name;
-  this.action = action;
   this.keys = keys;
   this.indexes = indexes;
   this.keymaps = keymaps;
@@ -34,7 +32,7 @@ var Sink = function (name, action, keys, indexes, keymaps) {
 
 Sink.prototype.updateFacts = function (factsAndVals) {
   if (this.indexes.length === 0) {
-    throw ("No indexes for " + this.name + " " + this.action);
+    throw ("No indexes for " + this.name);
   }
   // TODO when we stop doing counting, we can maybe use the return result of assoc to avoid checking all indexes
   for (var i = 0; i < this.indexes.length; i++) {
@@ -64,33 +62,33 @@ var memory = function () {
   return new Memory([], []);
 };
 
-Memory.prototype.getSource = function (name, action, keys) {
-  if ((action !== "know") && (action !== "remember") && (action !== "forget")) {
-    throw ("Bad action " + action);
-  }
+Memory.prototype.getSource = function (name, keys) {
   var source;
   for (var i = 0; i < this.sources.length; i++) {
-    if ((name === this.sources[i].name) && (action === this.sources[i].action) && btree.prim_EQ_(keys, this.sources[i].keys)) {
+    if (btree.prim_EQ_(name, this.sources[i].name) && btree.prim_EQ_(keys, this.sources[i].keys)) {
       source = this.sources[i];
       break;
     }
   }
   if (source === undefined) {
-    source = new Source(name, action, keys, btree.tree(10, keys.length));
+    source = new Source(name, keys, btree.tree(10, keys.length));
     this.sources.push(source);
-    // TODO add to sinks
+    for (var j = 0; j < this.sinks.length; j++) {
+      var sink = this.sinks[j];
+      if (btree.prim_EQ_(name, sink.name)) {
+        sink.indexes.push(source.index);
+        sink.keymaps.push(keymap(sink.keys, keys));
+      }
+    }
     // TODO for remember/forget add a sink to know
   }
   return source;
 };
 
-Memory.prototype.getSink = function (name, action, keys) {
-  if ((action !== "know") && (action !== "remember") && (action !== "forget")) {
-    throw ("Bad action " + action);
-  }
+Memory.prototype.getSink = function (name, keys) {
   var sink;
   for (var i = 0; i < this.sinks.length; i++) {
-    if ((name === this.sinks[i].name) && (action === this.sinks[i].action) && btree.prim_EQ_(keys, this.sinks[i].keys)) {
+    if (btree.prim_EQ_(name, this.sinks[i].name) && btree.prim_EQ_(keys, this.sinks[i].keys)) {
       sink = this.sinks[i];
     }
   }
@@ -98,24 +96,26 @@ Memory.prototype.getSink = function (name, action, keys) {
     var indexes = [];
     var keymaps = [];
     for (var j = 0; j < this.sources.length; j++) {
-      if ((name === this.sources[j].name) && (action === this.sources[j].action)) {
+      if (btree.prim_EQ_(name, this.sources[j].name)) {
         indexes.push(this.sources[j].index);
         keymaps.push(keymap(keys, this.sources[j].keys));
       }
     }
-    sink = new Sink(name, action, keys, indexes, keymaps);
+    sink = new Sink(name, keys, indexes, keymaps);
   }
   return sink;
 };
 
 var m = memory();
 m;
-var s = m.getSource("foo", "know", ["x", "y", "z"]);
+var s = m.getSource("foo", ["x", "y", "z"]);
 s;
-var s2 = m.getSource("foo", "know", ["x", "z", "y"]);
-s2;
-var t = m.getSink("foo", "know", [null,"z", "y", "x"]);
+var s = m.getSource("foo", ["x", "y", "z"]);
+s;
+var t = m.getSink("foo", [null,"z", "y", "x"]);
 t;
+var s2 = m.getSource("foo", ["x", "z", "y"]);
+s2;
 
 m;
 t.updateFacts([[0,1,2,3], 1, [0,4,5,6], 2])
