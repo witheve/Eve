@@ -102,6 +102,7 @@ Memory.prototype.getSink = function (name, keys) {
       }
     }
     sink = new Sink(name, keys, indexes, keymaps);
+    this.sinks.push(sink);
   }
   return sink;
 };
