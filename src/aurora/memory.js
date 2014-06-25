@@ -1,5 +1,3 @@
-'use strict';
-
 var btree = aurora.btree;
 
 var keymap = function (fromKeys, toKeys) {
