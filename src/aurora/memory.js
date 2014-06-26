@@ -28,7 +28,13 @@ var Sink = function (name, keys, indexes, keymaps) {
   this.keymaps = keymaps;
 };
 
-Sink.prototype.updateFacts = function (factsAndVals) {
+Sink.prototype.clear = function () {
+  for (var i = 0; i < this.indexes.length; i++) {
+    this.indexes[i].reset();
+  }
+};
+
+Sink.prototype.update = function (elems) {
   if (this.indexes.length === 0) {
     throw ("No indexes for " + this.name);
   }
@@ -36,9 +42,9 @@ Sink.prototype.updateFacts = function (factsAndVals) {
   for (var i = 0; i < this.indexes.length; i++) {
     var index = this.indexes[i];
     var keymap = this.keymaps[i];
-    for (var j = 0; j < factsAndVals.length; j += 2) {
-      var fact = factsAndVals[j];
-      var val = factsAndVals[j+1];
+    for (var j = 0; j < elems.length; j += 2) {
+      var fact = elems[j];
+      var val = elems[j+1];
       if (fact.length !== this.keys.length) {
         throw ("Fact is wrong length " + fact + " " + keymap);
       }
@@ -78,7 +84,6 @@ Memory.prototype.getSource = function (name, keys) {
         sink.keymaps.push(keymap(sink.keys, keys));
       }
     }
-    // TODO for remember/forget add a sink to know
   }
   return source;
 };
@@ -105,17 +110,19 @@ Memory.prototype.getSink = function (name, keys) {
   return sink;
 };
 
+// TESTS
+
 var m = memory();
 m;
 var s = m.getSource("foo", ["x", "y", "z"]);
 s;
 var s = m.getSource("foo", ["x", "y", "z"]);
 s;
-var t = m.getSink("foo", [null,"z", "y", "x"]);
+var t = m.getSink("foo", [null, "z", "y", "x"]);
 t;
 var s2 = m.getSource("foo", ["x", "z", "y"]);
 s2;
 
 m;
-t.updateFacts([[0,1,2,3], 1, [0,4,5,6], 2])
+t.update([[0,1,2,3], 1, [0,4,5,6], 2])
 s.index.toString()

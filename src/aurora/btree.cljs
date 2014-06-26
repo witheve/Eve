@@ -222,6 +222,8 @@
        (let [results #js []]
          (.foreach this #(do (apush results %1) (apush results %2)))
          results))
+  (empty? [this]
+          (== 0 (alength (.-keys root))))
   ISeqable
   (-seq [this]
         (seq (map vec (partition 2 (.elems this))))))
