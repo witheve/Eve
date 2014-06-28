@@ -1,31 +1,31 @@
 var btree = aurora.btree;
 
-var keymap = function (fromKeys, toKeys) {
-  var keymap = toKeys.slice();
-  for (var i = 0; i < toKeys.length; i++) {
-    for (var j = 0; j < fromKeys.length; j++) {
-      if (fromKeys[j] === toKeys[i]) {
-        keymap[i] = j;
+var fieldmap = function (fromFields, toFields) {
+  var fieldmap = toFields.slice();
+  for (var i = 0; i < toFields.length; i++) {
+    for (var j = 0; j < fromFields.length; j++) {
+      if (fromFields[j] === toFields[i]) {
+        fieldmap[i] = j;
       }
     }
-    if (keymap[i] === undefined) {
-      throw ("Key mismatch: " + fromKeys + " " + toKeys);
+    if (fieldmap[i] === undefined) {
+      throw ("Field mismatch: " + fromFields + " " + toFields);
     }
   }
-  return keymap;
+  return fieldmap;
 };
 
-var Source = function (name, keys, index) {
+var Source = function (name, fields, index) {
   this.name = name;
-  this.keys = keys;
+  this.fields = fields;
   this.index = index;
 };
 
-var Sink = function (name, keys, indexes, keymaps) {
+var Sink = function (name, fields, indexes, fieldmaps) {
   this.name = name;
-  this.keys = keys;
+  this.fields = fields;
   this.indexes = indexes;
-  this.keymaps = keymaps;
+  this.fieldmaps = fieldmaps;
 };
 
 Sink.prototype.clear = function () {
@@ -41,16 +41,16 @@ Sink.prototype.update = function (elems) {
   // TODO when we stop doing counting, we can maybe use the return result of assoc to avoid checking all indexes
   for (var i = 0; i < this.indexes.length; i++) {
     var index = this.indexes[i];
-    var keymap = this.keymaps[i];
+    var fieldmap = this.fieldmaps[i];
     for (var j = 0; j < elems.length; j += 2) {
       var fact = elems[j];
       var val = elems[j+1];
-      if (fact.length !== this.keys.length) {
-        throw ("Fact is wrong length " + fact + " " + keymap);
+      if (fact.length !== this.fields.length) {
+        throw ("Fact is wrong length " + fact + " " + fieldmap);
       }
       var mappedFact = [];
-      for (var k = 0; k < keymap.length; k++) {
-        mappedFact[k] = fact[keymap[k]];
+      for (var k = 0; k < fieldmap.length; k++) {
+        mappedFact[k] = fact[fieldmap[k]];
       }
       index.update(mappedFact, val);
     }
@@ -66,45 +66,45 @@ var memory = function () {
   return new Memory([], []);
 };
 
-Memory.prototype.getSource = function (name, keys) {
+Memory.prototype.getSource = function (name, fields) {
   var source;
   for (var i = 0; i < this.sources.length; i++) {
-    if (btree.prim_EQ_(name, this.sources[i].name) && btree.prim_EQ_(keys, this.sources[i].keys)) {
+    if (btree.prim_EQ_(name, this.sources[i].name) && btree.prim_EQ_(fields, this.sources[i].fields)) {
       source = this.sources[i];
       break;
     }
   }
   if (source === undefined) {
-    source = new Source(name, keys, btree.tree(10, keys.length));
+    source = new Source(name, fields, btree.tree(10, fields.length));
     this.sources.push(source);
     for (var j = 0; j < this.sinks.length; j++) {
       var sink = this.sinks[j];
       if (btree.prim_EQ_(name, sink.name)) {
         sink.indexes.push(source.index);
-        sink.keymaps.push(keymap(sink.keys, keys));
+        sink.fieldmaps.push(fieldmap(sink.fields, fields));
       }
     }
   }
   return source;
 };
 
-Memory.prototype.getSink = function (name, keys) {
+Memory.prototype.getSink = function (name, fields) {
   var sink;
   for (var i = 0; i < this.sinks.length; i++) {
-    if (btree.prim_EQ_(name, this.sinks[i].name) && btree.prim_EQ_(keys, this.sinks[i].keys)) {
+    if (btree.prim_EQ_(name, this.sinks[i].name) && btree.prim_EQ_(fields, this.sinks[i].fields)) {
       sink = this.sinks[i];
     }
   }
   if (sink === undefined) {
     var indexes = [];
-    var keymaps = [];
+    var fieldmaps = [];
     for (var j = 0; j < this.sources.length; j++) {
       if (btree.prim_EQ_(name, this.sources[j].name)) {
         indexes.push(this.sources[j].index);
-        keymaps.push(keymap(keys, this.sources[j].keys));
+        fieldmaps.push(fieldmap(fields, this.sources[j].fields));
       }
     }
-    sink = new Sink(name, keys, indexes, keymaps);
+    sink = new Sink(name, fields, indexes, fieldmaps);
     this.sinks.push(sink);
   }
   return sink;
