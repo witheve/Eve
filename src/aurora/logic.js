@@ -80,7 +80,8 @@ Aggregate.prototype.elems = function () {
   return deltaOutput.elems;
 };
 
-var Flow = function (sources, mixer, sinks) {
+var Flow = function (rule, sources, mixer, sinks) {
+  this.rule = rule;
   this.sources = sources;
   this.mixer = mixer;
   this.sinks = sinks;
@@ -88,7 +89,7 @@ var Flow = function (sources, mixer, sinks) {
 
 Flow.prototype.run = function () {
   for (var i = 0; i < this.sources.length; i++) {
-    if (this.sources[i].empty_QMARK_()) {
+    if (this.sources[i].index.empty_QMARK_()) {
       return; // bail out
     }
   }
@@ -137,8 +138,7 @@ Persistent.prototype.run = function () {
   this.knowSink.update(elems);
 };
 
-var Logic = function (rule, flows, transients, persistents) {
-  this.rule = rule;
+var Logic = function (flows, transients, persistents) {
   this.flows = flows;
   this.transients = transients;
   this.persistents = persistents;

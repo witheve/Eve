@@ -40,6 +40,8 @@ var compile = function (memory) {
   var stage2ix2rule = dump(memory, ["stage", "ix", "rule"], [0, 1, 2]);
   var rule2variable2ix = dump(memory, ["rule", "ix", "variable"], [0, 2, 1]);
 
+  var flows = [];
+
   var ix2rules = stage2ix2rule["final"];
   for (var ruleIx in ix2rules) {
     var sources = [];
@@ -61,7 +63,7 @@ var compile = function (memory) {
           var fields = [];
           var varIxes = [];
           for (var field in field2variable) {
-            fields.push([variable2ix(field2variable[field]), field]);
+            fields.push([variable2ix[field2variable[field]], field]);
           }
           fields.sort();
           for (var i = 0; i < fields.length; i++) {
@@ -77,7 +79,7 @@ var compile = function (memory) {
         case "know":
           var fields = [];
           for (var field in field2variable) {
-            fields[variable2ix(field2variable[field])] = field;
+            fields[variable2ix[field2variable[field]]] = field;
           }
           var sink = memory.getSink(clause2table[clause], fields);
           sinks.push(sink);
@@ -102,5 +104,11 @@ var compile = function (memory) {
           break;
       }
     }
+
+    var numVars = Object.keys(variable2ix).length;
+    flows.push(new Flow(rule, sources, btree.solver(numVars, constraints), sinks));
   }
+
+  // TODO make transients and persistents
+  return new Logic(flows, [], []);
 };

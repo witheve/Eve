@@ -73,3 +73,13 @@ parse(m,
 for (var i = 0; i < m.sources.length; i++) {
   console.log(m.sources[i].index.toString());
 }
+
+var l = compile(m);
+
+m.getSink("edge", ["x","y"]).update([["a","b"], ["b","c"], ["c","d"], ["c","b"]]);
+
+l.run();
+
+for (var i = 0; i < m.sources.length; i++) {
+  console.log(m.sources[i].index.toString());
+}
