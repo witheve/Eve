@@ -137,7 +137,8 @@ Persistent.prototype.run = function () {
   this.knowSink.update(elems);
 };
 
-var Logic = function (flows, transients, persistents) {
+var Logic = function (rule, flows, transients, persistents) {
+  this.rule = rule;
   this.flows = flows;
   this.transients = transients;
   this.persistents = persistents;
