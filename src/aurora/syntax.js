@@ -76,9 +76,13 @@ for (var i = 0; i < m.sources.length; i++) {
 
 var l = compile(m);
 
-m.getSink("edge", ["x","y"]).update([["a","b"], ["b","c"], ["c","d"], ["c","b"]]);
+console.log(l);
+
+m.getSink("edge", ["x","y"]).update([["a","b"],1, ["b","c"], 1, ["c","d"], 1, ["c","b"], 1]);
 
 l.run();
+
+l.flows[0].mixer.constraints[0]
 
 for (var i = 0; i < m.sources.length; i++) {
   console.log(m.sources[i].index.toString());

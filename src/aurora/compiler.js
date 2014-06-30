@@ -27,7 +27,11 @@ var dump = function (memory, keys, keyIxes) {
       }
       target = nextTarget;
     }
-    target[key[keyIxes[keyIxes.length - 2]]] = key[keyIxes[keyIxes.length - 1]] || null;
+    var last = key[keyIxes[keyIxes.length - 1]];
+    if (last === undefined) {
+      last = null;
+    }
+    target[key[keyIxes[keyIxes.length - 2]]] = last;
   });
   return dump;
 };
