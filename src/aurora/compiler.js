@@ -37,6 +37,8 @@ var dump = function (memory, keys, keyIxes) {
 };
 
 var compile = function (memory) {
+  var table2ix2field = dump(memory, ["table", "ix", "field"], [0, 1, 2]);
+  var table2lifetime = dump(memory, ["table", "lifetime"]);
   var rule2ix2clauses = dump(memory, ["rule", "ix", "clause"], [0, 1, 2]);
   var clause2table = dump(memory, ["clause", "table"], [0, 1]);
   var clause2action = dump(memory, ["clause", "action"], [0, 1]);
@@ -45,6 +47,8 @@ var compile = function (memory) {
   var rule2variable2ix = dump(memory, ["rule", "ix", "variable"], [0, 2, 1]);
 
   var flows = [];
+  var transients = [];
+  var persistents = [];
 
   var ix2rules = stage2ix2rule["final"];
   for (var ruleIx in ix2rules) {
@@ -113,6 +117,19 @@ var compile = function (memory) {
     flows.push(new Flow(rule, sources, btree.solver(numVars, constraints), sinks));
   }
 
-  // TODO make transients and persistents
-  return new Logic(flows, [], []);
+  for (var table in table2lifetime) {
+    var lifetime = table2lifetime[table];
+    var ix2field = table2ix2field[table];
+    var fields = [];
+    for (var ix in ix2field) {
+      fields.push(ix2field[ix]);
+    }
+    if (lifetime === "transient") {
+      // TODO make transient
+    } else {
+      // TODO make persistent
+    }
+  }
+
+  return new Logic(flows, transients, persistents);
 };

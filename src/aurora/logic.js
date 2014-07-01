@@ -54,7 +54,8 @@ Aggregate.prototype.elems = function () {
   // figure out new output
   if (this.isAscending) {
     this.index.foreach(pushInput);
-  } else {
+  }
+  else {
     this.index.foreach_reverse(pushInput);
   }
   pushInput(btree.greatest_key(this.groupLen));
@@ -63,7 +64,8 @@ Aggregate.prototype.elems = function () {
   var oldOutput;
   if (this.index.output === undefined) {
     oldOutput = btree.tree(10, this.groupLen + 1 + aggs.length);
-  } else {
+  }
+  else {
     oldOutput = this.index.output;
   }
   var deltaOutput = btree.tree(10, this.groupLen + 1 + aggs.length);
