@@ -2,7 +2,7 @@ var btree = aurora.btree;
 
 var init = function (memory) {
   // setup default indexes for code tables
-  memory.getSource("table-field", ["table", "field"]);
+  memory.getSource("table-ix-field", ["table", "ix", "field"]);
   memory.getSource("table-lifetime", ["table", "lifetime"]);
   memory.getSource("rule-ix-clause", ["rule", "ix", "clause"]);
   memory.getSource("clause-table", ["clause", "table"]);

@@ -1,5 +1,5 @@
 var parse = function (memory, program) {
-  var tableField = memory.getSink("table-field", ["table", "field"]);
+  var tableIxField = memory.getSink("table-ix-field", ["table", "ix", "field"]);
   var tableLifetime = memory.getSink("table-lifetime", ["table", "lifetime"]);
   var ruleIxClause = memory.getSink("rule-ix-clause", ["rule", "ix", "clause"]);
   var clauseTable = memory.getSink("clause-table", ["clause", "table"]);
@@ -21,8 +21,8 @@ var parse = function (memory, program) {
       var table = words[2];
       tableLifetime.update([[table, words[1]]]);
       var fields = words.slice(3);
-      for (var j = 0; j < fields.length; j++) {
-        tableField.update([[table, fields[j]]]);
+      for (var ix = 0; ix < fields.length; ix++) {
+        tableIxField.update([[table, ix, fields[ix]]]);
       }
       memory.getSource(table, fields); // create a default index TODO this should eventually be unnecessary
     }
