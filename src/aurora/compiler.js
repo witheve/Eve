@@ -8,6 +8,7 @@ var init = function (memory) {
   memory.getSource("clause-table", ["clause", "table"]);
   memory.getSource("clause-action", ["clause", "action"]); // action is primitive/when/know/remember/forget
   memory.getSource("clause-field-variable", ["clause", "field", "variable"]);
+  memory.getSource("clause-field-constant", ["clause", "field", "constant"]);
   memory.getSource("stage-ix-rule", ["stage", "ix", "rule"]);
   memory.getSource("rule-ix-variable", ["rule", "ix", "variable"]);
 };
@@ -38,11 +39,12 @@ var dump = function (memory, keys, keyIxes) {
 
 var compile = function (memory) {
   var table2ix2field = dump(memory, ["table", "ix", "field"], [0, 1, 2]);
-  var table2lifetime = dump(memory, ["table", "lifetime"]);
+  var table2lifetime = dump(memory, ["table", "lifetime"], [0, 1]);
   var rule2ix2clauses = dump(memory, ["rule", "ix", "clause"], [0, 1, 2]);
   var clause2table = dump(memory, ["clause", "table"], [0, 1]);
   var clause2action = dump(memory, ["clause", "action"], [0, 1]);
   var clause2field2variable = dump(memory, ["clause", "field", "variable"], [0, 1, 2]);
+  var clause2field2constant = dump(memory, ["clause", "field", "constant"], [0, 1, 2]);
   var stage2ix2rule = dump(memory, ["stage", "ix", "rule"], [0, 1, 2]);
   var rule2variable2ix = dump(memory, ["rule", "ix", "variable"], [0, 2, 1]);
 
@@ -61,10 +63,61 @@ var compile = function (memory) {
     for (var clauseIx in ix2clauses) {
       var clause = ix2clauses[clauseIx];
       var field2variable = clause2field2variable[clause];
+      var field2constant = clause2field2constant[clause];
 
       switch (clause2action[clause]) {
         case "primitive":
-          // TODO
+          switch (clause2table[clause]) {
+            case "=constant":
+              var constant = field2constant["constant"];
+              var variable = variable2ix[field2variable["variable"]];
+              constraints.push(btree.constant(constant, variable));
+              break;
+
+            case "=variable":
+              var variableA = variable2ix[field2variable["variable-a"]];
+              var variableB = variable2ix[field2variable["variable-b"]];
+              constraints.push(btree.equal(variableA, variableB));
+              break;
+
+            case "=function":
+              var result = variable2ix[field2variable["result"]];
+              var js = field2constant["js"];
+              var args = [];
+              var argIxes = [];
+              for (variable in variable2ix) {
+                if (js.indexOf(variable) >= 0) {
+                  args.push(variable);
+                  argIxes.push(variable2ix[variable]);
+                }
+              }
+              args.push("return (" + js + ")");
+              var fun = Function.apply(null, args);
+              constraints.push(btree.function$(fun, result, argIxes));
+              break;
+
+            case "filter":
+              var js = field2constant["js"];
+              var args = [];
+              var argIxes = [];
+              for (variable in variable2ix) {
+                if (js.indexOf(variable) >= 0) {
+                  args.push(variable);
+                  argIxes.push(variable2ix[variable]);
+                }
+              }
+              args.push("return (" + js + ")");
+              var fun = Function.apply(args);
+              constraints.push(btree.filter(fun, argIxes));
+              break;
+
+            case "interval":
+              var mid = variable2ix[field2variable["mid"]];
+              var lo = variable2ix[field2variable["lo"]];
+              var hi = variable2ix[field2variable["hi"]];
+              constraints.push(btree.interval(mid, lo, hi));
+              break;
+          }
           break;
 
         case "when":

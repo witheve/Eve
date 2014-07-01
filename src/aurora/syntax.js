@@ -5,6 +5,7 @@ var parse = function (memory, program) {
   var clauseTable = memory.getSink("clause-table", ["clause", "table"]);
   var clauseAction = memory.getSink("clause-action", ["clause", "action"]);
   var clauseFieldVariable = memory.getSink("clause-field-variable", ["clause", "field", "variable"]);
+  var clauseFieldConstant = memory.getSink("clause-field-constant", ["clause", "field", "constant"]);
   var stageIxRule = memory.getSink("stage-ix-rule", ["stage", "ix", "rule"]);
   var ruleIxVariable = memory.getSink("rule-ix-variable", ["rule", "ix", "variable"]);
 
@@ -39,6 +40,40 @@ var parse = function (memory, program) {
       }
       stageIxRule.update([["final", ruleIx, rule]]);
     }
+    else if (words[0] === "let") {
+      clauseIx++;
+      var clause = rule + "-" + clauseIx;
+      ruleIxClause.update([[rule, clauseIx, clause]]);
+      clauseAction.update([[clause, "primitive"]]);
+      clauseTable.update([[clause, "=function"]]);
+      var result = words[1];
+      var js = words.slice(3).join(" ");
+      clauseFieldVariable.update([[clause, "result", result]]);
+      clauseFieldConstant.update([[clause, "js", js]]);
+    }
+    else if (words[0] === "filter") {
+      clauseIx++;
+      var clause = rule + "-" + clauseIx;
+      ruleIxClause.update([[rule, clauseIx, clause]]);
+      clauseAction.update([[clause, "primitive"]]);
+      clauseTable.update([[clause, "filter"]]);
+      var js = words.slice(1).join(" ");
+      clauseFieldConstant.update([[clause, "js", js]]);
+    }
+
+    else if (words[0] === "range") {
+      clauseIx++;
+      var clause = rule + "-" + clauseIx;
+      ruleIxClause.update([[rule, clauseIx, clause]]);
+      clauseAction.update([[clause, "primitive"]]);
+      clauseTable.update([[clause, "interval"]]);
+      var lo = words[1];
+      var mid = words[2];
+      var hi = words[3];
+      clauseFieldVariable.update([[clause, "lo", lo]]);
+      clauseFieldVariable.update([[clause, "mid", mid]]);
+      clauseFieldVariable.update([[clause, "hi", hi]]);
+    }
     else {
       clauseIx++;
       var clause = rule + "-" + clauseIx;
@@ -72,7 +107,13 @@ parse(m,
    "rule transient-edge xx yy zz",
    "when edge x=xx y=yy",
    "when connected x=yy y=zz",
-   "know connected x=xx y=zz"].join("\n"));
+   "know connected x=xx y=zz",
+
+   "table transient str-edge s",
+   "rule str-edge xx yy ss",
+   "when edge x=xx y=yy",
+   "let ss = xx + \"-\" + yy",
+   "know str-edge s=ss"].join("\n"));
 
 for (var i = 0; i < m.sources.length; i++) {
   console.log(m.sources[i].index.toString());
