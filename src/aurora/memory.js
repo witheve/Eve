@@ -1,6 +1,6 @@
 var btree = aurora.btree;
 
-var fieldmap = function (fromFields, toFields) {
+var makeFieldmap = function (fromFields, toFields) {
   var fieldmap = toFields.slice();
   for (var i = 0; i < toFields.length; i++) {
     for (var j = 0; j < fromFields.length; j++) {
@@ -15,97 +15,154 @@ var fieldmap = function (fromFields, toFields) {
   return fieldmap;
 };
 
-var Source = function (name, fields, index) {
-  this.name = name;
-  this.fields = fields;
-  this.index = index;
+var withFieldmap = function (key, fieldmap) {
+  var mappedKey = [];
+  for (var k = 0; k < fieldmap.length; k++) {
+    mappedKey[k] = key[fieldmap[k]];
+  }
+  return mappedKey;
 };
 
-var Sink = function (name, fields, indexes, fieldmaps) {
-  this.name = name;
+var Source = function (index, fields, fieldmap) {
+  this.index = index;
   this.fields = fields;
-  this.indexes = indexes;
-  this.fieldmaps = fieldmaps;
+  this.fieldmap = fieldmap;
+};
+
+var Sink = function (table, fieldmap) {
+  this.table = table;
+  this.fieldmap = fieldmap;
 };
 
 Sink.prototype.clear = function () {
-  for (var i = 0; i < this.indexes.length; i++) {
-    this.indexes[i].reset();
-  }
+  this.table.clear();
 };
 
-Sink.prototype.update = function (elems) {
-  if (this.indexes.length === 0) {
-    throw ("No indexes for " + this.name);
+Sink.prototype.add = function (keys) {
+  for (var i = 0; i < keys.length; i++) {
+    keys[i] = withFieldmap(keys[i], this.fieldmap);
   }
-  // TODO when we stop doing counting, we can maybe use the return result of assoc to avoid checking all indexes
-  for (var i = 0; i < this.indexes.length; i++) {
-    var index = this.indexes[i];
-    var fieldmap = this.fieldmaps[i];
-    for (var j = 0; j < elems.length; j += 2) {
-      var fact = elems[j];
-      var val = elems[j+1];
-      if (fact.length !== this.fields.length) {
-        throw ("Fact is wrong length " + fact + " " + fieldmap);
-      }
-      var mappedFact = [];
-      for (var k = 0; k < fieldmap.length; k++) {
-        mappedFact[k] = fact[fieldmap[k]];
-      }
-      index.update(mappedFact, val);
-    }
-  }
+  this.table.add(keys);
 };
 
-var Memory = function (sources, sinks) {
+Sink.prototype.del = function (ids) {
+  this.table.del(ids);
+};
+
+var Table = function (name, fields, keys, canon, sources, sinks) {
+  this.name = name;
+  this.fields = fields;
+  this.keys = keys;
+  this.canon = canon;
   this.sources = sources;
   this.sinks = sinks;
 };
 
+Table.prototype.clear = function () {
+  for (var i in this.keys) {
+    delete this.keys[i];
+  }
+  this.canon.clear();
+  for (var i = 0; i < this.sources.length; i++) {
+    this.sources[i].index.clear();
+  }
+};
+
+Table.prototype.add = function (keys) {
+  for (var i = 0; i < keys.length; i++) {
+    var key = keys[i];
+    if (key.length !== this.fields.length) {
+      throw ("Fact is wrong length " + key + " " + this.fields);
+    }
+    var id = this.keys.length;
+    if (this.canon.add(key, id) === null) {
+      this.keys[id] = key;
+      for (var j = 0; j < this.sources.length; j++) {
+        var source = this.sources[j];
+        source.index.add(withFieldmap(key, source.fieldmap), id);
+      }
+    }
+  }
+};
+
+Table.prototype.del = function (ids) {
+  for (var i = 0; i < ids.length; i++) {
+    var id = ids[i];
+    var key = this.keys[id];
+    if (key !== undefined) {
+      this.canon.del(key);
+      for (var j = 0; j < this.sources.length; j++) {
+        var source = this.sources[j];
+        source.index.del(withFieldmap(key, source.fieldmap));
+      }
+    }
+  }
+};
+
+var Memory = function (tables) {
+  this.tables = tables;
+};
+
 var memory = function () {
-  return new Memory([], []);
+  return new Memory([]);
+};
+
+Memory.prototype.getTable = function (name, fields) {
+  var table;
+  for (var i = 0; i < this.tables.length; i++) {
+    if (btree.prim_EQ_(name, this.tables[i].name)) {
+      table = this.tables[i];
+      break;
+    }
+  }
+  if (table === undefined) {
+    table = new Table(name, fields, [], btree.tree(10, fields.length), [], []);
+    this.tables.push(table);
+  }
+  return table;
 };
 
 Memory.prototype.getSource = function (name, fields) {
+  var table = this.getTable(name, fields);
+  var sources = table.sources;
   var source;
-  for (var i = 0; i < this.sources.length; i++) {
-    if (btree.prim_EQ_(name, this.sources[i].name) && btree.prim_EQ_(fields, this.sources[i].fields)) {
-      source = this.sources[i];
+  for (var i = 0; i < sources.length; i++) {
+    if (btree.prim_EQ_(fields, sources[i].fields)) {
+      source = sources[i];
       break;
     }
   }
   if (source === undefined) {
-    source = new Source(name, fields, btree.tree(10, fields.length));
-    this.sources.push(source);
-    for (var j = 0; j < this.sinks.length; j++) {
-      var sink = this.sinks[j];
-      if (btree.prim_EQ_(name, sink.name)) {
-        sink.indexes.push(source.index);
-        sink.fieldmaps.push(fieldmap(sink.fields, fields));
-      }
+    var index = btree.tree(10, fields.length);
+    var fieldmap = makeFieldmap(table.fields, fields);
+    var keys = table.keys;
+    for (var id in keys) {
+      index.add(withFieldmap(keys[id], fieldmap), id);
     }
+    source = new Source(index, fields, fieldmap);
+    sources.push(source);
   }
   return source;
 };
 
 Memory.prototype.getSink = function (name, fields) {
+  var filteredFields = [];
+  for (var field in fields) {
+    if (fields !== null) {
+      filteredFields.push(field);
+    }
+  }
+  var table = this.getTable(name, filteredFields);
+  var sinks = table.sinks;
   var sink;
-  for (var i = 0; i < this.sinks.length; i++) {
-    if (btree.prim_EQ_(name, this.sinks[i].name) && btree.prim_EQ_(fields, this.sinks[i].fields)) {
-      sink = this.sinks[i];
+  for (var i = 0; i < sinks.length; i++) {
+    if (btree.prim_EQ_(fields, sinks[i].fields)) {
+      sink = sinks[i];
     }
   }
   if (sink === undefined) {
-    var indexes = [];
-    var fieldmaps = [];
-    for (var j = 0; j < this.sources.length; j++) {
-      if (btree.prim_EQ_(name, this.sources[j].name)) {
-        indexes.push(this.sources[j].index);
-        fieldmaps.push(fieldmap(fields, this.sources[j].fields));
-      }
-    }
-    sink = new Sink(name, fields, indexes, fieldmaps);
-    this.sinks.push(sink);
+    sink = new Sink(table, makeFieldmap(fields, table.fields));
+    sinks.push(sink);
   }
   return sink;
 };
@@ -124,5 +181,8 @@ var s2 = m.getSource("foo", ["x", "z", "y"]);
 s2;
 
 m;
-t.update([[0,1,2,3], 1, [0,4,5,6], 2])
-s.index.toString()
+m.tables[0].sources;
+m.tables[0].sinks;
+t.add([[0,1,2,3], [0,4,5,6]]);
+s.index.toString();
+s2.index.toString();

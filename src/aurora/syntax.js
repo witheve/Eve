@@ -22,10 +22,10 @@ var parse = function (memory, program) {
     else if (words[0] === "table") {
       var table = words[2];
       var lifetime = words[1];
-      tableLifetime.update([[table, lifetime]]);
+      tableLifetime.add([[table, lifetime]]);
       var fields = words.slice(3);
       for (var ix = 0; ix < fields.length; ix++) {
-        tableIxField.update([[table, ix, fields[ix]]]);
+        tableIxField.add([[table, ix, fields[ix]]]);
       }
       // create default indexes TODO this should eventually be unnecessary
       memory.getSource(table, fields);
@@ -36,56 +36,56 @@ var parse = function (memory, program) {
       rule = words[1];
       var variables = words.slice(2);
       for (var ix = 0; ix < variables.length; ix++) {
-        ruleIxVariable.update([[rule, ix, variables[ix]]]);
+        ruleIxVariable.add([[rule, ix, variables[ix]]]);
       }
-      stageIxRule.update([["final", ruleIx, rule]]);
+      stageIxRule.add([["final", ruleIx, rule]]);
     }
     else if (words[0] === "let") {
       clauseIx++;
       var clause = rule + "-" + clauseIx;
-      ruleIxClause.update([[rule, clauseIx, clause]]);
-      clauseAction.update([[clause, "primitive"]]);
-      clauseTable.update([[clause, "=function"]]);
+      ruleIxClause.add([[rule, clauseIx, clause]]);
+      clauseAction.add([[clause, "primitive"]]);
+      clauseTable.add([[clause, "=function"]]);
       var result = words[1];
       var js = words.slice(3).join(" ");
-      clauseFieldVariable.update([[clause, "result", result]]);
-      clauseFieldConstant.update([[clause, "js", js]]);
+      clauseFieldVariable.add([[clause, "result", result]]);
+      clauseFieldConstant.add([[clause, "js", js]]);
     }
     else if (words[0] === "filter") {
       clauseIx++;
       var clause = rule + "-" + clauseIx;
-      ruleIxClause.update([[rule, clauseIx, clause]]);
-      clauseAction.update([[clause, "primitive"]]);
-      clauseTable.update([[clause, "filter"]]);
+      ruleIxClause.add([[rule, clauseIx, clause]]);
+      clauseAction.add([[clause, "primitive"]]);
+      clauseTable.add([[clause, "filter"]]);
       var js = words.slice(1).join(" ");
-      clauseFieldConstant.update([[clause, "js", js]]);
+      clauseFieldConstant.add([[clause, "js", js]]);
     }
 
     else if (words[0] === "range") {
       clauseIx++;
       var clause = rule + "-" + clauseIx;
-      ruleIxClause.update([[rule, clauseIx, clause]]);
-      clauseAction.update([[clause, "primitive"]]);
-      clauseTable.update([[clause, "interval"]]);
+      ruleIxClause.add([[rule, clauseIx, clause]]);
+      clauseAction.add([[clause, "primitive"]]);
+      clauseTable.add([[clause, "interval"]]);
       var lo = words[1];
       var mid = words[2];
       var hi = words[3];
-      clauseFieldVariable.update([[clause, "lo", lo]]);
-      clauseFieldVariable.update([[clause, "mid", mid]]);
-      clauseFieldVariable.update([[clause, "hi", hi]]);
+      clauseFieldVariable.add([[clause, "lo", lo]]);
+      clauseFieldVariable.add([[clause, "mid", mid]]);
+      clauseFieldVariable.add([[clause, "hi", hi]]);
     }
     else {
       clauseIx++;
       var clause = rule + "-" + clauseIx;
-      ruleIxClause.update([[rule, clauseIx, clause]]);
-      clauseAction.update([[clause, words[0]]]);
-      clauseTable.update([[clause, words[1]]]);
+      ruleIxClause.add([[rule, clauseIx, clause]]);
+      clauseAction.add([[clause, words[0]]]);
+      clauseTable.add([[clause, words[1]]]);
       var pairs = words.slice(2);
       for (var j = 0; j < pairs.length; j++) {
         var pair = pairs[j].split("=");
         var field = pair[0];
         var variable = pair[1];
-        clauseFieldVariable.update([[clause, field, variable]]);
+        clauseFieldVariable.add([[clause, field, variable]]);
       }
     }
   }
@@ -115,18 +115,18 @@ parse(m,
    "let ss = xx + \"-\" + yy",
    "know str-edge s=ss"].join("\n"));
 
-for (var i = 0; i < m.sources.length; i++) {
-  console.log(m.sources[i].index.toString());
+for (var i = 0; i < m.tables.length; i++) {
+  console.log(m.tables[i].canon.toString());
 }
 
 var l = compile(m);
 
 console.log(l);
 
-m.getSink("edge", ["x","y"]).update([["a","b"],1, ["b","c"], 1, ["c","d"], 1, ["c","b"], 1]);
+m.getSink("edge", ["x","y"]).add([["a","b"], ["b","c"], ["c","d"], ["c","b"]]);
 
 l.run();
 
-for (var i = 0; i < m.sources.length; i++) {
-  console.log(m.sources[i].index.toString());
+for (var i = 0; i < m.tables.length; i++) {
+  console.log(m.tables[i].canon.toString());
 }

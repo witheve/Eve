@@ -175,12 +175,12 @@
 
 (deftype Tree [max-keys key-len ^:mutable root]
   Object
-  (reset [this]
+  (clear [this]
          (set! root (Node. nil nil #js [] #js [] nil nil nil)))
   (toString [this]
             (pr-str (into (sorted-map-by key-compare) (map vec this))))
-  (add [this key]
-       (.add root key max-keys))
+  (add [this key val]
+       (.add root key val max-keys))
   (del [this key]
        (.del root key max-keys))
   (push! [this ix key&val&child which-child]
@@ -222,37 +222,38 @@
 
 (deftype Node [parent parent-ix keys vals children ^:mutable lower ^:mutable upper]
   Object
-  (add [this key max-keys]
+  (add [this key val max-keys]
        (let [ix (key-find-gte keys key)]
             (if (and (< ix (alength keys)) (key= key (aget keys ix)))
-              false
+              (aget vals ix)
               (if (nil? children)
                 (do
-                  (.push! this ix #js [key nil])
+                  (.push! this ix #js [key val])
                   (.maintain! this max-keys)
-                  true)
-                (.add (aget children ix) key max-keys)))))
+                  nil)
+                (.add (aget children ix) key val max-keys)))))
   (del [this key max-keys]
        (let [ix (key-find-gte keys key)]
-            (if (and (< ix (alength keys)) (key= key (aget keys ix)))
-              (if (nil? children)
-                (do
-                  (.pop! this ix)
-                  (.maintain! this max-keys)
-                  true)
-                (loop [node (aget children (+ ix 1))]
-                  (if (not (nil? (.-children node)))
-                    (recur (aget (.-children node) 0))
-                    (do
-                      (aset keys ix (aget (.-keys node) 0))
-                      (aset vals ix (aget (.-vals node) 0))
-                      (.pop! node 0)
-                      (.maintain! node max-keys)
-                      (.maintain! this max-keys)
-                      true))))
-              (if (nil? children)
-                false
-                (.del (aget children ix) key max-keys)))))
+         (if (and (< ix (alength keys)) (key= key (aget keys ix)))
+           (let [val (aget vals ix)]
+             (if (nil? children)
+               (do
+                 (.pop! this ix)
+                 (.maintain! this max-keys)
+                 val)
+               (loop [node (aget children (+ ix 1))]
+                 (if (not (nil? (.-children node)))
+                   (recur (aget (.-children node) 0))
+                   (do
+                     (aset keys ix (aget (.-keys node) 0))
+                     (aset vals ix (aget (.-vals node) 0))
+                     (.pop! node 0)
+                     (.maintain! node max-keys)
+                     (.maintain! this max-keys)
+                     val)))))
+           (if (nil? children)
+             nil
+             (.del (aget children ix) key max-keys)))))
   (push! [this ix key&val&child which-child] ;; on leaves, child and which-child are not required
          (.splice keys ix 0 (aget key&val&child 0))
          (.splice vals ix 0 (aget key&val&child 1))
