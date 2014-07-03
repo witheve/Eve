@@ -91,8 +91,9 @@
   js/React.__internals.DOMComponent
   (-elem [this] this)
 
-  js/Array
-  (-elem [this] (compound-element this))
+  ;; TODO just ... just don't
+  ;; js/Array
+  ;; (-elem [this] (compound-element this))
 
   js/Element
   (-elem [this] this)
