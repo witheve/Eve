@@ -896,14 +896,14 @@
         results (doall
                  (for [update updates]
                    (let [key (nth update 1)
-                         old (contains? @map key)]
+                         old (get @map key)]
                      (case (nth update 0)
                        :add (do
                               (swap! map assoc key)
-                              (false? old))
+                              old)
                        :del (do
                               (swap! map dissoc key)
-                              (true? old))))))]
+                              old)))))]
     [@map results]))
 
 (defn run-building-prop [min-keys key-len updates]
