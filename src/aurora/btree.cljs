@@ -170,15 +170,6 @@
 
 ;; TREES
 
-;; update adds the delta to the current value for the key and returns either:
-;;   added if the value went from zero to non-zero
-;;   changed if the value went from non-zero to non-zero
-;;   deled if the value went from non-zero to zero
-
-(def added 1)
-(def changed 0)
-(def deled -1)
-
 (def left-child 0)
 (def right-child 1)
 
@@ -188,9 +179,10 @@
          (set! root (Node. nil nil #js [] #js [] nil nil nil)))
   (toString [this]
             (pr-str (into (sorted-map-by key-compare) (map vec this))))
-  (update [this key delta]
-          (assert (not (== delta 0)))
-          (.update root key delta max-keys))
+  (add [this key]
+       (.add root key max-keys))
+  (del [this key]
+       (.del root key max-keys))
   (push! [this ix key&val&child which-child]
            (let [left-child (if (== which-child left-child) (aget key&val&child 2) root)
                  right-child (if (== which-child right-child) (aget key&val&child 2) root)]
@@ -230,40 +222,37 @@
 
 (deftype Node [parent parent-ix keys vals children ^:mutable lower ^:mutable upper]
   Object
-  (update [this key delta max-keys]
-          (let [ix (key-find-gte keys key)]
+  (add [this key max-keys]
+       (let [ix (key-find-gte keys key)]
             (if (and (< ix (alength keys)) (key= key (aget keys ix)))
-              (let [old-val (aget vals ix)
-                    new-val (+ old-val delta)]
-                (if (== 0 new-val)
-                  ;; del
-                  (if (nil? children)
-                    (do
-                      (.pop! this ix)
-                      (.maintain! this max-keys)
-                      deled)
-                    (loop [node (aget children (+ ix 1))]
-                      (if (not (nil? (.-children node)))
-                        (recur (aget (.-children node) 0))
-                        (do
-                          (aset keys ix (aget (.-keys node) 0))
-                          (aset vals ix (aget (.-vals node) 0))
-                          (.pop! node 0)
-                          (.maintain! node max-keys)
-                          (.maintain! this max-keys)
-                          deled))))
-                  ;; change
-                  (do
-                    (aset vals ix new-val)
-                    changed)))
+              false
               (if (nil? children)
-                ;; add
                 (do
-                  (.push! this ix #js [key delta])
+                  (.push! this ix #js [key nil])
                   (.maintain! this max-keys)
-                  added)
-                ;; recur
-                (.update (aget children ix) key delta max-keys)))))
+                  true)
+                (.add (aget children ix) key max-keys)))))
+  (del [this key max-keys]
+       (let [ix (key-find-gte keys key)]
+            (if (and (< ix (alength keys)) (key= key (aget keys ix)))
+              (if (nil? children)
+                (do
+                  (.pop! this ix)
+                  (.maintain! this max-keys)
+                  true)
+                (loop [node (aget children (+ ix 1))]
+                  (if (not (nil? (.-children node)))
+                    (recur (aget (.-children node) 0))
+                    (do
+                      (aset keys ix (aget (.-keys node) 0))
+                      (aset vals ix (aget (.-vals node) 0))
+                      (.pop! node 0)
+                      (.maintain! node max-keys)
+                      (.maintain! this max-keys)
+                      true))))
+              (if (nil? children)
+                false
+                (.del (aget children ix) key max-keys)))))
   (push! [this ix key&val&child which-child] ;; on leaves, child and which-child are not required
          (.splice keys ix 0 (aget key&val&child 0))
          (.splice vals ix 0 (aget key&val&child 1))
@@ -912,31 +901,32 @@
 (defn gen-update [key-len]
   (gen/make-gen
    (fn [rnd size]
-     (let [key (make-simple-key rnd size key-len)
-           delta (make-simple-delta rnd size)]
-         [[:update key delta] nil]))))
+     (let [key (make-simple-key rnd size key-len)]
+       (if (pprng/boolean rnd)
+         [[:add key] nil]
+         [[:del key] nil])))))
 
 (defn apply-to-tree [tree updates]
   [tree
    (doall
     (for [update updates]
-      (.update tree (nth update 1) (nth update 2))))])
+      (case (nth update 0)
+        :add (.add tree (nth update 1))
+        :del (.del tree (nth update 1)))))])
 
 (defn apply-to-sorted-map [map updates]
   (let [map (atom map)
         results (doall
                  (for [update updates]
                    (let [key (nth update 1)
-                         delta (nth update 2)
-                         old-val (get @map key 0)
-                         new-val (+ old-val delta)]
-                     (if (== new-val 0)
-                       (swap! map dissoc key)
-                       (swap! map assoc key new-val))
-                     (cond
-                      (and (== old-val 0) (not (== new-val 0))) added
-                      (and (not (== old-val 0)) (not (== new-val 0))) changed
-                      (and (not (== old-val 0)) (== new-val 0)) deled))))]
+                         old (contains? @map key)]
+                     (case (nth update 0)
+                       :add (do
+                              (swap! map assoc key)
+                              (false? old))
+                       :del (do
+                              (swap! map dissoc key)
+                              (true? old))))))]
     [@map results]))
 
 (defn run-building-prop [min-keys key-len updates]
