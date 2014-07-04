@@ -167,7 +167,7 @@ var compile = function (memory) {
     }
 
     var numVars = Object.keys(variable2ix).length;
-    flows.push(new Flow(rule, sources, btree.solver(numVars, constraints), sinks));
+    flows.push(new RuleFlow(rule, sources, btree.solver(numVars, constraints), sinks));
   }
 
   for (var table in table2lifetime) {
