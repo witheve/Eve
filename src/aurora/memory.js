@@ -126,21 +126,26 @@ Memory.prototype.getSource = function (name, fields) {
   var table = this.getTable(name, fields);
   var sources = table.sources;
   var source;
-  for (var i = 0; i < sources.length; i++) {
-    if (btree.prim_EQ_(fields, sources[i].fields)) {
-      source = sources[i];
-      break;
-    }
+  if (btree.prim_EQ_(fields, this.fields)) {
+    source = new Source(this.canon, fields, fieldmap(fields, fields));
   }
-  if (source === undefined) {
-    var index = btree.tree(10, fields.length);
-    var fieldmap = makeFieldmap(table.fields, fields);
-    var keys = table.keys;
-    for (var id in keys) {
-      index.add(withFieldmap(keys[id], fieldmap), id);
+  else {
+    for (var i = 0; i < sources.length; i++) {
+      if (btree.prim_EQ_(fields, sources[i].fields)) {
+        source = sources[i];
+        break;
+      }
     }
-    source = new Source(index, fields, fieldmap);
-    sources.push(source);
+    if (source === undefined) {
+      var index = btree.tree(10, fields.length);
+      var fieldmap = makeFieldmap(table.fields, fields);
+      var keys = table.keys;
+      for (var id in keys) {
+        index.add(withFieldmap(keys[id], fieldmap), id);
+      }
+      source = new Source(index, fields, fieldmap);
+      sources.push(source);
+    }
   }
   return source;
 };
