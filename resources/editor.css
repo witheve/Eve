@@ -121,7 +121,8 @@ input.expression, .expression:hover { color:#008EED;  border-color:transparent; 
 .editor { display:flex; align-items:stretch; padding-right:30px; width:100%; }
 .editor .rules input { font-family: "Nunito"; font-weight:300; font-size:10pt; padding:0; border:0; margin:0 3px; }
 
-.rules { overflow:auto; max-height:calc(100% - 60px); }
+.rules-list { }
+.rules { overflow:auto; max-height:calc(100% - 100px); }
 .rule-controls button { border:none; background:none; border-radius:3px; font-size:24pt; color:#ccc; transition:background 0.2s ease-in-out, color 0.2s ease-in-out; }
 .rule-controls button:hover { background:#ccc; color:#444; }
 
@@ -137,10 +138,12 @@ input.expression, .expression:hover { color:#008EED;  border-color:transparent; 
 .matcher-list li { margin-bottom:2px; padding:0 5px; border-radius:3px; }
 .matcher-list li:hover, .matcher-list li.selected { background: #ddd; }
 
+.change-from { display:block; }
+
 .program-preview { position:relative; background:#f7f7f7; max-height:calc(100% - 60px); max-width:50%; border-radius:5px;  margin:0 30px 0 20px; flex:2; overflow:auto; box-shadow:0 0 0px #bbb; }
 .program-preview > * { padding:0px; }
 
-.cursor { background:red; display:inline-block; width:1px; height:1em; margin-left:2px; }
+.cursor { color:#f09; display:inline-block; margin-left:5px; }
 
 .between {
   background:#f7f7f7;
