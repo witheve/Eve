@@ -583,7 +583,7 @@
 (defn contains [iterator vars]
 ;;   (let [key-len (.-key-len (.-tree iterator))]
 ;;     (Contains. iterator vars (make-array key-len)))
-  (js/window.Contains. iterator vars)
+  (js/window.ContainsConstraint. iterator vars)
   )
 
 (deftype Constant [c var]
@@ -599,7 +599,7 @@
 
 (defn constant [c var]
 ;;   (Constant. c var)
-  (js/window.Constant. c var)
+  (js/window.ConstantConstraint. c var)
   )
 
 (deftype Equal [vars]
@@ -624,7 +624,8 @@
                        (recur (+ i 1)))))))))
 
 (defn equal [vars]
-  (Equal. vars))
+;;   (Equal. vars)
+  (js/window.EqualConstraint. vars))
 
 (deftype Function [f var vars scratch]
   Object
@@ -649,7 +650,9 @@
                      (.set-eq solver var val)))))))
 
 (defn function [f var vars]
-  (Function. f var vars (make-array (alength vars))))
+;;   (Function. f var vars (make-array (alength vars)))
+  (js/window.FunctionConstraint. f var vars)
+  )
 
 (deftype Filter [f vars scratch]
   Object
@@ -674,7 +677,8 @@
                      (set! (.-failed solver) true)))))))
 
 (defn filter [f vars]
-  (Filter. f vars (make-array (alength vars))))
+;;   (Filter. f vars (make-array (alength vars)))
+  (js/window.FilterConstraint. f vars))
 
 (deftype Interval [in-var lo-var hi-var]
   Object
@@ -705,7 +709,8 @@
              (.set-hi solver in-var (aget (.-his solver) hi-var))))
 
 (defn interval [in-var lo-var hi-var]
-  (Interval. in-var lo-var hi-var))
+;;   (Interval. in-var lo-var hi-var)
+  (js/window.IntervalConstraint. in-var lo-var hi-var))
 
 ;; SOLVER
 

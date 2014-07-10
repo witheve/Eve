@@ -271,12 +271,12 @@ Solver.prototype = {
 };
 
 
-function Constant(val, index) {
+function ConstantConstraint(val, index) {
   this.constant = val;
   this.index = index;
 }
 
-Constant.prototype = {
+ConstantConstraint.prototype = {
   reset: function(solver, myIndex) {},
   val: function(solver, myIndex) { return 1; },
   split_left: function(solver, myIndex) { return false; },
@@ -288,13 +288,13 @@ Constant.prototype = {
 };
 
 
-function Contains(iterator, vars) {
+function ContainsConstraint(iterator, vars) {
   this.iterator = iterator;
   this.vars = vars;
   this.scratchKey = makeArray(iterator.tree.key_len, null);
 }
 
-Contains.prototype = {
+ContainsConstraint.prototype = {
   reset: function(solver, myIndex) {
     this.iterator.reset();
   },
@@ -412,5 +412,160 @@ Contains.prototype = {
         return;
       }
     }
+  }
+};
+
+function EqualConstraint(vars) {
+  this.vars = vars;
+}
+
+EqualConstraint.prototype = {
+  reset: function(solver, myIndex) {
+    var vars = this.vars;
+    var len = vars.length;
+    for(var i = 0; i < len; i++) {
+      solver.setWatch(vars[i], myIndex, true);
+    }
+  },
+
+  val: function(solver, myIndex) { return 1; },
+  split_left: function(solver, myIndex) { return false; },
+  split_right: function(solver, myIndex) {},
+
+  propagate: function(solver, myIndex) {
+    var los = solver.los;
+    var his = solver.his;
+    var vars = this.vars;
+    var len = vars.length;
+    for(var i = 0; i < len; i++) {
+      var cur = vars[i];
+      if(los[cur] === his[cur]) {
+        for(var j = 0; j < len; j++) {
+          solver.setEq(vars[j], los[cur]);
+        }
+      }
+    }
+  }
+};
+
+function FunctionConstraint(func, index, vars) {
+  this.scratch = [];
+  this.func = func;
+  this.index = index;
+  this.vars = vars;
+}
+
+FunctionConstraint.prototype = {
+    reset: function(solver, myIndex) {
+    var vars = this.vars;
+    var len = vars.length;
+    for(var i = 0; i < len; i++) {
+      solver.setWatch(vars[i], myIndex, true);
+    }
+  },
+
+  val: function(solver, myIndex) { return 1; },
+  split_left: function(solver, myIndex) { return false; },
+  split_right: function(solver, myIndex) {},
+
+  propagate: function(solver, myIndex) {
+    var los = solver.los;
+    var his = solver.his;
+    var vars = this.vars;
+    var len = vars.length;
+    var scratch = this.scratch;
+    for(var i = 0; i < len; i++) {
+      var cur = vars[i];
+      if(los[cur] === his[cur]) {
+        scratch[i] = los[cur];
+      } else {
+        break;
+      }
+    }
+
+    if(i === len) {
+      solver.setEq(this.index, this.func.apply(null, scratch));
+    }
+  }
+};
+
+function FilterConstraint(func, vars) {
+  this.scratch = [];
+  this.func = func;
+  this.vars = vars;
+}
+
+FilterConstraint.prototype = {
+  reset: function(solver, myIndex) {
+    var vars = this.vars;
+    var len = vars.length;
+    for(var i = 0; i < len; i++) {
+      solver.setWatch(vars[i], myIndex, true);
+    }
+  },
+
+  val: function(solver, myIndex) { return 1; },
+  split_left: function(solver, myIndex) { return false; },
+  split_right: function(solver, myIndex) {},
+
+  propagate: function(solver, myIndex) {
+    var los = solver.los;
+    var his = solver.his;
+    var vars = this.vars;
+    var len = vars.length;
+    var scratch = this.scratch;
+    for(var i = 0; i < len; i++) {
+      var cur = vars[i];
+      if(los[cur] === his[cur]) {
+        scratch[i] = los[cur];
+      } else {
+        break;
+      }
+    }
+
+    if(i === len) {
+      if(this.func.apply(null, scratch) === false) {
+        solver.failed = true;
+      }
+    }
+  }
+};
+
+function IntervalConstraint(inVar, loVar, hiVar) {
+  this.inVar = inVar;
+  this.loVar = loVar;
+  this.hiVar = hiVar;
+}
+
+IntervalConstraint.prototype = {
+  reset: function(solver, myIndex) {
+    solver.setWatch(this.loVar, myIndex, true);
+    solver.setWatch(this.hiVar, myIndex, true);
+  },
+
+  val: function(solver, myIndex) { return 1; },
+  split_left: function(solver, myIndex) {
+    var los = solver.los;
+    var his = solver.his;
+    var lo_lo = los[this.loVar];
+    var hi_lo = his[this.loVar];
+    var lo_hi = los[this.hiVar];
+    var hi_hi = his[this.hiVar];
+    var in_lo = los[this.inVar];
+    var in_hi = his[this.inVar];
+    if(lo_lo === hi_lo && lo_hi === hi_hi && in_lo !== in_hi) {
+      solver.setHi(this.inVar, Math.ceil(in_lo));
+      return true;
+    }
+    return false;
+  },
+  split_right: function(solver, myIndex) {
+    var inLo = solver.los[this.inVar];
+    solver.setLo(this.inVar, Math.ceil(inLo) + 1);
+  },
+
+  propagate: function(solver, myIndex) {
+    solver.setLo(this.inVar, solver.los[this.loVar]);
+    solver.setHi(this.inVar, solver.his[this.hiVar]);
   }
 };
