@@ -74,7 +74,7 @@ function Solver(numVars, constraints) {
   this.pushedLos = [];
   this.pushedHis = [];
   this.pushedVarWatching = [];
-  this.pushedDirty = [];
+  this.pushedConstraintDirty = [];
   this.pushedSplitters = [];
 }
 
@@ -109,7 +109,7 @@ Solver.prototype = {
     clearArray(this.pushedLos);
     clearArray(this.pushedHis);
     clearArray(this.pushedVarWatching);
-    clearArray(this.pushedDirty);
+    clearArray(this.pushedConstraintDirty);
     clearArray(this.pushedSplitters);
   },
 
@@ -180,7 +180,7 @@ Solver.prototype = {
     pushInto(depth, this.los, this.pushedLos);
     pushInto(depth, this.his, this.pushedHis);
     pushInto(depth, this.varWatching, this.pushedVarWatching);
-    pushInto(depth, this.constraintDirty, this.pushedDirty);
+    pushInto(depth, this.constraintDirty, this.pushedConstraintDirty);
     this.depth = depth + 1;
 
     var constraints = this.constraints;
@@ -200,7 +200,7 @@ Solver.prototype = {
     popFrom(depth, this.los, this.pushedLos);
     popFrom(depth, this.his, this.pushedHis);
     popFrom(depth, this.varWatching, this.pushedVarWatching);
-    popFrom(depth, this.constraintDirty, this.pushedDirty);
+    popFrom(depth, this.constraintDirty, this.pushedConstraintDirty);
     var splitter = this.pushedSplitters.pop();
     this.constraints[splitter].split_right(this, splitter);
   },
