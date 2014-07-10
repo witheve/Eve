@@ -243,7 +243,7 @@
         all-children (.keys (.get-or-create-index env "know" "ui/child" #js ["parent-id" "pos" "child-id"]))
         built-els (js-obj)
         roots (js-obj)
-        final (array :div)
+        final (js/React.DOM.div #js{} (array))
         ]
 
     (dotimes [x (alength els)]
@@ -271,7 +271,7 @@
 
     (let [root-els (js/Object.keys roots)]
       (dotimes [x (alength root-els)]
-        (.push final (aget built-els (aget root-els x)))))
+        (.push (.-props.children final) (aget built-els (aget root-els x)))))
 
     #js {:tree final :elems built-els}))
 
@@ -421,13 +421,12 @@
             to-focus (when focuses
                        (last (.keys focuses)))
             container (dom/$ root)
-            dommied (dommy/node tree)
             ]
         (when container
           (queue-render! kn
                          (fn []
                            (perf-time-named "append tree" (do
-                                                            (js/React.renderComponent dommied container)
+                                                            (js/React.renderComponent tree container)
                                                             (when to-focus
                                                               (try
                                                                 (println "trying to focus")

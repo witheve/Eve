@@ -597,7 +597,7 @@
              (when "cursor" {:clause-id 'clause})
              (func 'cid "\"clause-\" + clause")
              (pretend "ui/child" {:parent-id 'cid :pos 1000000000000 :child-id "cursor"})
-             (draw* [:span {:id "cursor" :className "cursor"} ""]))
+             (draw* [:span {:id "cursor" :className "cursor ion-ios7-arrow-back"}]))
 
        (rule "report key"
              (when "ui/onKeyDown" {:elem-id "rules-list" :key 'key})
@@ -992,8 +992,8 @@
              (func 'rid "\"rule-do-\" + rule")
              (pretend "ui/child" {:parent-id 'rid :pos 'ts :child-id 'cid})
              (draw* [:div {:id 'cid :className "clause" :events ["onClick"] :event-key "activate clause" :entity 'clause}
-                    [:p {:id 'fromCid } [:span {:className "keyword"} "change " ]]
-                    [:p {:id 'toCid} [:span {:className "keyword to"} "to "]]
+                    [:span {:id 'fromCid :className "change-from"} [:span {:className "keyword"} "change " ]]
+                    [:span {:id 'toCid :className "change-to"} [:span {:className "keyword to"} "to "]]
                     ])
              (pretend "draw madlib" {:container 'fromCid :madlib-id 'table :clause-id 'fromId})
              (pretend "draw madlib" {:container 'toCid :madlib-id 'table :clause-id 'toId})
@@ -1109,7 +1109,21 @@
              (when "rule editor active" {:rule-id rule})
              (when "cursor" {:clause-id 'rid})
              (when "draw editor active elem" {:elem-id 'elem})
+             (when "active project" {:project-id 'project})
+             (when "time" {:time 'timestamp})
+             (func 'ruleId "'rule' + project + timestamp")
              (func 'clause "'event' + rule + rid + elem + event")
+             (func 'whenClause "'claus' + ruleId + event + timestamp + 'when'")
+             (func 'madlib "'ui/' + event")
+
+             ;;add a rule
+             (remember "editor rules" {:rule-id 'ruleId :project-id 'project :timestamp timestamp})
+             (remember "editor clauses" {:rule-id ruleId :type "when" :clause-id whenClause :madlib-id madlib :timestamp 'timestamp})
+             (pretend "add clause placeholders" {:rule-id 'ruleId :madlib-id 'madlib :clause-id whenClause})
+             (forget "editor clause fields" {:rule-id 'ruleId :clause-id 'whenClause :constant|variable|expression "variable" :val "elem-id" :key "elem-id"})
+             (remember "editor clause fields" {:rule-id 'ruleId :clause-id 'whenClause :constant|variable|expression "constant" :val 'elem :key "elem-id"})
+
+             ;;add event-listener
              (remember "ui/editor-event-listener" {:rule-id 'rule :clause-id 'clause :root-clause-id 'rid})
              (remember "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression "constant" :val "" :key "entity"})
              (remember "editor clause fields" {:rule-id rule :clause-id clause :constant|variable|expression "constant" :val "" :key "event-key"})
