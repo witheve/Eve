@@ -524,8 +524,9 @@
                            (recur (+ i 1))))))))
                ;; find a new lower bound
                (let [new-los (.seek-gte iterator scratch-key)]
+                 (debug :propagate-new-los new-los)
                  (if (nil? new-los)
-                   (set! (.-failed? solver) true)
+                   (set! (.-failed solver) true)
                    (loop [i 0]
                      (when (< i (alength vars))
                        (let [var (aget vars i)]
@@ -544,6 +545,7 @@
                         (recur (+ i 1))
                         (do
                           (.set-hi solver var (aget los var))
+                          (debug :split-left-set-hi var (aget los var))
                           (when (< (+ i 1) (alength vars))
                             (.set-watch solver (aget vars (+ i 1)) constraint true))
                           (.propagate this solver constraint)
@@ -570,7 +572,7 @@
                  (let [new-los (.seek-gt iterator scratch-key)]
                    (debug :seeking-past scratch-key new-los)
                    (if (nil? new-los)
-                     (set! (.-failed? solver) true)
+                     (set! (.-failed solver) true)
                      (loop [i 0]
                        (when (< i (alength vars))
                          (let [var (aget vars i)]
@@ -579,8 +581,10 @@
                              (recur (+ i 1)))))))))))
 
 (defn contains [iterator vars]
-  (let [key-len (.-key-len (.-tree iterator))]
-    (Contains. iterator vars (make-array key-len))))
+;;   (let [key-len (.-key-len (.-tree iterator))]
+;;     (Contains. iterator vars (make-array key-len)))
+  (js/window.Contains. iterator vars)
+  )
 
 (deftype Constant [c var]
   Object
@@ -594,7 +598,9 @@
              (.set-eq solver var c)))
 
 (defn constant [c var]
-  (Constant. c var))
+;;   (Constant. c var)
+  (js/window.Constant. c var)
+  )
 
 (deftype Equal [vars]
   Object
@@ -665,7 +671,7 @@
                        (aset scratch i (aget los var))
                        (recur (+ i 1))))
                    (when (false? (.apply f nil scratch))
-                     (set! (.-failed? solver) true)))))))
+                     (set! (.-failed solver) true)))))))
 
 (defn filter [f vars]
   (Filter. f vars (make-array (alength vars))))
@@ -705,13 +711,13 @@
 
 ;; los and his are inclusive
 
-(deftype Solver [constraints ^:mutable failed? ^:mutable depth
+(deftype Solver [constraints ^:mutable failed ^:mutable depth
                  los his var->constraint->watching? constraint->dirty?
                  pushed-los pushed-his pushed-var->constraint->watching? pushed-constraint->dirty? pushed-splitters]
   Object
   (reset [this]
          (set! depth 0)
-         (set! failed? false)
+         (set! failed false)
          (dotimes [i (alength los)]
            (aset los i least)
            (aset his i greatest))
@@ -729,14 +735,14 @@
   (set-lo [this var new-lo]
           (when-not (identical? (aget los var) new-lo)
             (if (val-lt (aget his var) new-lo)
-              (set! failed? true)
+              (set! failed true)
               (do
                 (aset los var new-lo)
                 (.set-dirty this var)))))
   (set-hi [this var new-hi]
           (when-not (identical? (aget his var) new-hi)
             (if (val-lt new-hi (aget los var))
-              (set! failed? true)
+              (set! failed true)
               (do
                 (aset his var new-hi)
                 (.set-dirty this var)))))
@@ -745,7 +751,7 @@
                 old-hi (aget his var)]
             (when-not (and (identical? old-lo new-val) (identical? old-hi new-val))
               (if (or (val-lt new-val old-lo) (val-lt old-hi new-val))
-                (set! failed? true)
+                (set! failed true)
                 (do
                   (aset los var new-val)
                   (aset his var new-val)
@@ -773,7 +779,7 @@
                (recur (+ splitter 1)))
              (assert false "Can't split anything!"))))
   (backtrack [this]
-             (set! failed? false)
+             (set! failed false)
              (set! depth (- depth 1))
              (apop-from depth los pushed-los)
              (apop-from depth his pushed-his)
@@ -782,11 +788,11 @@
              (let [splitter (.pop pushed-splitters)]
                (debug :splitting-right los his splitter)
                (.split-right (aget constraints splitter) this splitter)
-               (debug :split-right los his splitter failed?)))
+               (debug :split-right los his splitter failed)))
   (next [this]
         (debug :next los his pushed-los pushed-his)
         (loop [constraint 0]
-          (if (true? failed?)
+          (if (true? failed)
             (do
               (debug :failed)
               (when (> depth 0)
@@ -803,10 +809,11 @@
                   (recur 0)))
               (if (key= los his)
                 (do
-                  (set! failed? true) ;; force solver to backtrack next time
+                  (set! failed true) ;; force solver to backtrack next time
                   (debug :done los)
                   (aclone los))
                 (do
+                  (js/console.log "splitting: " los his)
                   (.split this)
                   (recur 0)))))))
   (val [this]
@@ -828,13 +835,15 @@
         (seq (map vec (partition 2 (.elems this))))))
 
 (defn solver [num-vars constraints]
-  (let [los (least-key num-vars)
-        his (greatest-key num-vars)
-        var->constraint->watching? (amake [_ (* num-vars (alength constraints))] false)
-        constraint->dirty? (amake [_ (alength constraints)] true)]
-    (Solver. constraints false 0
-             los his var->constraint->watching? constraint->dirty?
-             #js [] #js [] #js [] #js [] #js [])))
+;;   (let [los (least-key num-vars)
+;;         his (greatest-key num-vars)
+;;         var->constraint->watching? (amake [_ (* num-vars (alength constraints))] false)
+;;         constraint->dirty? (amake [_ (alength constraints)] true)]
+;;     (Solver. constraints false 0
+;;              los his var->constraint->watching? constraint->dirty?
+;;              #js [] #js [] #js [] #js [] #js []))
+  (js/window.Solver. num-vars constraints)
+  )
 
 ;; TESTS
 
