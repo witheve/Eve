@@ -1004,6 +1004,10 @@
                 (run-product-join-prop min-keys key-len updates)))
 
 (comment
+
+  (defn tree [min, len]
+    (js/window.eve.trees.Tree min len))
+
   (dc/quick-check 1000 (least-prop 1))
   (dc/quick-check 1000 (least-prop 2))
   (dc/quick-check 1000 (greatest-prop 1))
