@@ -1,4 +1,4 @@
-"use strict";
+//"use strict";
 
 var least = false;
 var greatest = undefined;
