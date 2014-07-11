@@ -192,9 +192,9 @@
              (set! (.-parent right-child) root)
              (set! (.-parent-ix right-child) 1)))
   (maintain! [this])
-  (valid! [this]
+  (valid [this]
           (when (> (alength (.-keys root)) 0) ;; the empty tree does not obey most invariants
-            (.valid! root max-keys))
+            (.valid root max-keys))
           true)
   (pretty-print [this]
                 (prn :root)
@@ -320,8 +320,8 @@
             (.maintain! this max-keys)
             (.maintain! right-node max-keys)
             (.maintain! parent max-keys)
-            #_(.valid! this max-keys)
-            #_(.valid! right-node max-keys)))
+            #_(.valid this max-keys)
+            #_(.valid right-node max-keys)))
   (rotate-left! [this max-keys]
                 (if (> parent-ix 0)
                   (let [left-node (aget (.-children parent) (- parent-ix 1))
@@ -368,7 +368,7 @@
             (.maintain! left-node max-keys)
             (.maintain! right-node max-keys)
             (.maintain! parent max-keys)))
-  (valid! [this max-keys]
+  (valid [this max-keys]
           (let [min-keys (js/Math.floor (/ max-keys 2))]
             (when (instance? Node parent) ;; root is allowed to have less keys
               (assert (>= (count keys) min-keys) (pr-str keys min-keys)))
@@ -391,7 +391,7 @@
                 (assert (= upper (.-upper (aget children (- (alength children) 1)))) (pr-str upper (.-upper (aget children (- (alength children) 1)))))
                 (assert (every? #(key-gt (aget keys %) (.-upper (aget children %))) (range (count keys))))
                 (assert (every? #(key-lt (aget keys %) (.-lower (aget children (inc %)))) (range (count keys))))
-                (dotimes [i (count children)] (.valid! (aget children i) max-keys))))))
+                (dotimes [i (count children)] (.valid (aget children i) max-keys))))))
   (pretty-print [this]
                 (str "(" parent-ix ")" "|" (pr-str lower) " " (pr-str (vec keys)) " " (pr-str upper) "|"))
   (foreach [this f]
@@ -922,10 +922,14 @@
 
 (defn run-building-prop [min-keys key-len updates]
   (let [[tree tree-results] (apply-to-tree (tree min-keys key-len) updates)
-        [sorted-map sorted-map-results] (apply-to-sorted-map (sorted-map-by key-compare) updates)]
-    (and (= (seq tree) (seq sorted-map))
+        [sorted-map sorted-map-results] (apply-to-sorted-map (sorted-map-by key-compare) updates)
+        elems (.elems tree)]
+    (and (= (if (> (alength elems) 0)
+              (map vec (partition 2 elems))
+              nil)
+            (seq sorted-map))
          (= tree-results sorted-map-results)
-         (.valid! tree))))
+         (.valid tree))))
 
 (defn building-prop [key-len]
   (prop/for-all [min-keys gen/s-pos-int

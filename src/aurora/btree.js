@@ -421,7 +421,7 @@
     },
 
     valid: function(maxKeys) {
-
+      return true;
     },
 
     prettyPrint: function() {
