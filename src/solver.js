@@ -1,25 +1,6 @@
 var least = false;
 var greatest = undefined;
 
-function compare(a, b) {
-  if(a === b) return 0;
-  var at = typeof a;
-  var bt = typeof b;
-  if((at === bt && a < b) || (at < bt)) return -1;
-  return 1;
-}
-
-function keyEq(a, b) {
-  var len = a.length;
-  if(len !== b.length) throw new Error("keyEq on arrays of different lenght: " + a + " :: " + b);
-  for(var i = 0; i < len; i++) {
-    if(a[i] !== b[i]) {
-      return false;
-    }
-  }
-  return true;
-}
-
 function makeArray(len, fill) {
   var arr = [];
   for(var i = 0; i < len; i++) {
@@ -174,21 +155,16 @@ SolverNode.prototype = {
       }
     }
   },
-
-  // for compatability with old cljs version
-  set_eq: function(index,val) { this.setEq(index,val); },
-  set_hi: function(index,val) { this.setHi(index,val); },
-  set_lo: function(index,val) { this.setLo(index,val); },
-  set_watch: function(index,cindex, val) { this.setWatch(index,cindex,val); },
-  set_dirty: function(index) { this.setDirty(index); },
 };
 
-var SolverTree = function (solvers) {
-  this.solvers = solvers;
+var SolverTree = function (root) {
+  this.root = root;
 };
 
 SolverTree.prototype = {
+  update: function(remembers, forgets) {
   // TODO
+  }
 };
 
 
