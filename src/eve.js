@@ -1,3 +1,5 @@
+"use strict";
+
 function assert(cond, msg) {
   if(!cond) {
     throw new Error(msg);
@@ -35,7 +37,7 @@ function equalArray(a, b) {
   return true;
 }
 
-function findKeyGT(keys, key) {
+function findKeyGTE(keys, key) {
   var lo = 0;
   var hi = keys.length - 1;
   var mid = 0;
@@ -50,6 +52,32 @@ function findKeyGT(keys, key) {
 
     if(comp === 0) {
       return mid;
+    }
+
+    if(comp === -1) {
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return lo;
+}
+
+function findKeyGT(keys, key) {
+  var lo = 0;
+  var hi = keys.length - 1;
+  var mid = 0;
+  var midKey;
+  var comp = 0;
+  while(true) {
+    if(hi < lo) return lo;
+
+    mid = lo + Math.floor((hi - lo)/2);
+    midKey = keys[mid];
+    comp = compareArray(midKey, key);
+
+    if(comp === 0) {
+      return mid + 1;
     }
 
     if(comp === -1) {
@@ -161,7 +189,7 @@ function BTreeNode(parent, parentIx, keys, vals, children, lower, upper) {
 BTreeNode.prototype = {
 
   add: function(key, val, maxKeys) {
-    var ix = findKeyGT(this.keys, key, true);
+    var ix = findKeyGTE(this.keys, key, true);
     var keys = this.keys;
     if(keys.length > ix && compareArray(key, keys[ix]) === 0) {
       return this.vals[ix];
@@ -175,7 +203,7 @@ BTreeNode.prototype = {
   },
 
   del: function(key, maxKeys) {
-    var ix = findKeyGT(this.keys, key, true);
+    var ix = findKeyGTE(this.keys, key, true);
     var keys = this.keys;
     var children = this.children;
     if(keys.length > ix && compareArray(key, keys[ix]) === 0) {
@@ -425,4 +453,85 @@ BTreeNode.prototype = {
 
 function tree(minKeys, keyLen) {
   return new BTree(minKeys * 2, keyLen);
+}
+
+
+function Iterator(tree) {
+  this.tree = tree;
+  this.node = tree.root;
+  this.ix = 0;
+}
+
+Iterator.prototype = {
+  reset: function(key) {
+    this.node = this.tree.root;
+    this.ix = 0;
+  },
+
+  seekGt: function(key) {
+    while(true) {
+      if(this.node.parent.isNode && (compareArray(this.node.upper, key) === -1) || compareArray(key, this.node.lower) === -1) {
+        this.ix = 0;
+        this.node = this.node.parent;
+      } else {
+        while(true) {
+          this.ix = findKeyGT(this.node.keys, key);
+          if(!this.node.children) {
+            if(this.ix < this.node.keys.length) {
+              return this.node.keys[this.ix];
+            } else {
+              return null;
+            }
+          } else {
+            if(compareArray(this.node.children[this.ix].upper, key) === -1) {
+              return this.node.keys[this.ix];
+            } else {
+              this.node = this.node.children[this.ix];
+              this.ix = 0;
+            }
+          }
+
+        }
+        return null;
+      }
+    }
+  },
+
+  seekGte: function(key) {
+    while(true) {
+      if(this.node.parent.isNode && (compareArray(this.node.upper, key) === -1) || compareArray(key, this.node.lower) === -1) {
+        this.ix = 0;
+        this.node = this.node.parent;
+      } else {
+        while(true) {
+          this.ix = findKeyGTE(this.node.keys, key);
+          if(!this.node.children) {
+            if(this.ix < this.node.keys.length) {
+              return this.node.keys[this.ix];
+            } else {
+              return null;
+            }
+          } else {
+            if(compareArray(this.node.children[this.ix].upper, key) === -1) {
+              return this.node.keys[this.ix];
+            } else {
+              this.node = this.node.children[this.ix];
+              this.ix = 0;
+            }
+          }
+
+        }
+        return null;
+      }
+    }
+  },
+
+  contains: function(key) {
+    var found = this.seekGte(key);
+    return found && equalArray(found, key);
+  }
+};
+
+function iterator(tree) {
+  return new Iterator(tree);
 }
