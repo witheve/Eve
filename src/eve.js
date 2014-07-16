@@ -6,6 +6,25 @@ function assert(cond, msg) {
 
 // ORDERING
 
+var least = false;
+var greatest = undefined;
+
+function leastArray(n) {
+  var array = [];
+  for (var i = 0; i < n; i++) {
+    array[i] = least;
+  }
+  return array;
+}
+
+function greatestArray(n) {
+  var array = [];
+  for (var i = 0; i < n; i++) {
+    array[i] = greatest;
+  }
+  return array;
+}
+
 function compareValue(a, b) {
   if(a === b) return 0;
   var at = typeof a;
@@ -14,9 +33,9 @@ function compareValue(a, b) {
   return 1;
 }
 
-function compareArray(a, b) {
+function compareValueArray(a, b) {
   var len = a.length;
-  if(len !== b.length) throw new Error("compareArray on arrays of different lenght: " + a + " :: " + b);
+  if(len !== b.length) throw new Error("compareValueArray on arrays of different lenght: " + a + " :: " + b);
   for(var i = 0; i < len; i++) {
     var comp = compareValue(a[i], b[i]);
     if(comp !== 0) return comp;
@@ -46,7 +65,7 @@ function findKeyGT(keys, key) {
 
     mid = lo + Math.floor((hi - lo)/2);
     midKey = keys[mid];
-    comp = compareArray(midKey, key);
+    comp = compareValueArray(midKey, key);
 
     if(comp === 0) {
       return mid;
@@ -163,7 +182,7 @@ BTreeNode.prototype = {
   add: function(key, val, maxKeys) {
     var ix = findKeyGT(this.keys, key, true);
     var keys = this.keys;
-    if(keys.length > ix && compareArray(key, keys[ix]) === 0) {
+    if(keys.length > ix && compareValueArray(key, keys[ix]) === 0) {
       return this.vals[ix];
     }
     if(!this.children) {
@@ -178,7 +197,7 @@ BTreeNode.prototype = {
     var ix = findKeyGT(this.keys, key, true);
     var keys = this.keys;
     var children = this.children;
-    if(keys.length > ix && compareArray(key, keys[ix]) === 0) {
+    if(keys.length > ix && compareValueArray(key, keys[ix]) === 0) {
       var val = this.vals[ix];
       if(!children) {
         this.pop(ix);
@@ -426,3 +445,144 @@ BTreeNode.prototype = {
 function tree(minKeys, keyLen) {
   return new BTree(minKeys * 2, keyLen);
 }
+
+// TESTS
+
+var jsc = jsc;
+
+function Unshrinkable() {}
+
+function tuple(gens) {
+  return {
+    arbitrary: function(size) {
+      var tuple = [];
+      for (var i = 0; i < gens.length; i++) {
+        tuple[i] = gens[i].arbitrary(size);
+      }
+      return tuple;
+    },
+    randomShrink: function(tuple) {
+      var shrunk = tuple.slice();
+      var i = jsc._.random(0, tuple.length - 1);
+      shrunk[i] = gens[i].randomShrink(shrunk[i]);
+      return shrunk;
+    },
+    show: JSON.stringify,
+  };
+}
+
+function array(gen, n) {
+  return {
+    arbitrary: function(size) {
+      var array = [];
+      var length = n || jsc._.random(1,size);
+      for (var i = 0; i < length; i++) {
+        array[i] = gen.arbitrary(size);
+      }
+      return array;
+    },
+    randomShrink: function(array) {
+      if (array.length === 0) {
+        throw new Unshrinkable();
+      } else {
+        var shrunk = array.slice();
+        var i = jsc._.random(0, array.length - 1);
+        if ((n === undefined) && (jsc._.random(0,1) === 0)) {
+          shrunk.splice(i, 1);
+        } else {
+          shrunk[i] = gen.randomShrink(shrunk[i]);
+        }
+        return shrunk;
+      }
+    },
+    show: JSON.stringify,
+  };
+}
+
+var maxShrinks = 1000;
+
+// limit to 'maxShrinks' random shrink attempts
+function shrinkwrap(gen) {
+  return {
+    arbitrary: gen.arbitrary,
+    shrink: function(value) {
+      var shrinks = [];
+      for (var i = 0; i < maxShrinks; i++) {
+        try {
+          shrinks[i] = gen.randomShrink(value);
+        } catch (err) {
+          if (err.constructor !== Unshrinkable) throw err;
+        }
+      }
+      return shrinks;
+    },
+    show: gen.show,
+  };
+}
+
+// shrinkwrap gens before handing over to jsc
+function forall() {
+  var args = Array.prototype.slice.call(arguments);
+  var gens = args.slice(0, args.length - 1);
+  var fun = args[args.length - 1];
+  var gen = shrinkwrap(tuple(gens));
+  return jsc.forall(gen, function(vals) { return fun.apply(null, vals); });
+}
+
+function assertAll(props, opts) {
+  for (var prop in props) {
+    jsc.assert(props[prop], opts);
+  }
+}
+
+// ORDERING TESTS
+
+function value() {
+  return {
+    arbitrary: function(size) {
+      var i = jsc._.random(-size, size);
+      return (jsc._.random(0,1) === 0) ? i.toString() : i;
+    },
+    randomShrink: function(value) {
+      if (typeof(value) === 'string') {
+        var asInt = parseInt(value);
+        if ((jsc._.random(0,1) === 0) && !isNaN(asInt)) {
+          return asInt;
+        } else if (value === "") {
+          throw new Unshrinkable();
+        }
+        else {
+          return value.slice(0, value.length - 1);
+        }
+      } else {
+        if (value === 0) {
+          throw new Unshrinkable();
+        } else {
+          return jsc._.random((1-value),(value-1));
+        }
+      }
+    },
+    show: JSON.stringify,
+  };
+}
+
+var orderingProps = {
+  valueBounds: forall(value(),
+                      function (v) {
+                        return (compareValue(v, least) === 1) && (compareValue(least, v) === -1) &&
+                          (compareValue(v, greatest) === -1) && (compareValue(greatest, v) === 1);
+                      }),
+
+  valueEquality: forall(value(), value(),
+                        function (v1, v2) {
+                          return (compareValue(v1, v2) === 0) === (v1 === v2);
+                        }),
+
+  valueArrayBounds: forall(array(value(), 3),
+                           function (v) {
+                             return (compareValueArray(v, leastArray(v.length)) === 1) && (compareValueArray(leastArray(v.length), v) === -1) &&
+                               (compareValueArray(v, greatestArray(v.length)) === 1) && (compareValueArray(greatestArray(v.length), v) === 1);
+                           }),
+};
+
+assertAll(orderingProps, {tests: 1000});
