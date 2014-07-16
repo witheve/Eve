@@ -1,5 +1,3 @@
-"use strict";
-
 function assert(cond, msg) {
   if(!cond) {
     throw new Error(msg);
@@ -45,11 +43,24 @@ function compareValueArray(a, b) {
   return 0;
 }
 
-function equalArray(a, b) {
+function arrayEqual(a, b) {
   var len = a.length;
-  if(len !== b.length) throw new Error("equalArray on arrays of different lenght: " + a + " :: " + b);
+  if(len !== b.length) throw new Error("arrayEqual on arrays of different lenght: " + a + " :: " + b);
   for(var i = 0; i < len; i++) {
     if(a[i] !== b[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function nestedEqual(a, b) {
+  if (!(a instanceof Array)) return a === b;
+  if (!(b instanceof Array)) return false;
+  var len = a.length;
+  if(len !== b.length) return false;
+  for(var i = 0; i < len; i++) {
+    if (!nestedEqual(a[i], b[i])) {
       return false;
     }
   }
@@ -126,11 +137,11 @@ BTree.prototype = {
   },
 
   add: function(key, val) {
-    this.root.add(key, val, this.maxKeys);
+    return this.root.add(key, val, this.maxKeys);
   },
 
   del: function(key) {
-    this.root.del(key, this.maxKeys);
+    return this.root.del(key, this.maxKeys);
   },
 
   push: function(ix, keyValChild, childType) {
@@ -219,6 +230,7 @@ BTreeNode.prototype = {
       return null;
     }
     this.children[ix].add(key, val, maxKeys);
+    return null;
   },
 
   del: function(key, maxKeys) {
@@ -248,6 +260,7 @@ BTreeNode.prototype = {
 
     if(!children) return null;
     this.children[ix].del(key, maxKeys);
+    return null;
   },
 
   push: function(ix, keyValChild, childType) {
@@ -470,7 +483,7 @@ BTreeNode.prototype = {
 
 };
 
-function tree(minKeys, keyLen) {
+function btree(minKeys, keyLen) {
   return new BTree(minKeys * 2, keyLen);
 }
 
@@ -550,7 +563,7 @@ Iterator.prototype = {
 
   contains: function(key) {
     var found = this.seekGte(key);
-    return found && equalArray(found, key);
+    return found && arrayEqual(found, key);
   }
 };
 
@@ -561,10 +574,11 @@ function iterator(tree) {
 // TESTS
 
 var jsc = jsc;
+var gen = {};
 
 function Unshrinkable() {}
 
-function tuple(gens) {
+gen.tuple = function (gens) {
   return {
     arbitrary: function(size) {
       var tuple = [];
@@ -581,9 +595,9 @@ function tuple(gens) {
     },
     show: JSON.stringify,
   };
-}
+};
 
-function array(gen, n) {
+gen.array = function(gen, n) {
   return {
     arbitrary: function(size) {
       var array = [];
@@ -609,7 +623,7 @@ function array(gen, n) {
     },
     show: JSON.stringify,
   };
-}
+};
 
 var maxShrinks = 1000;
 
@@ -637,8 +651,12 @@ function forall() {
   var args = Array.prototype.slice.call(arguments);
   var gens = args.slice(0, args.length - 1);
   var fun = args[args.length - 1];
-  var gen = shrinkwrap(tuple(gens));
-  return jsc.forall(gen, function(vals) { return fun.apply(null, vals); });
+  var wrapped = shrinkwrap(gen.tuple(gens));
+  var forall = jsc.forall(wrapped, function(vals) { return fun.apply(null, vals); });
+  forall.gens = gens;
+  forall.fun = fun;
+  forall.wrapped = wrapped;
+  return forall;
 }
 
 function assertAll(props, opts) {
@@ -649,7 +667,7 @@ function assertAll(props, opts) {
 
 // ORDERING TESTS
 
-function value() {
+gen.value = function () {
   return {
     arbitrary: function(size) {
       var i = jsc._.random(-size, size);
@@ -676,25 +694,152 @@ function value() {
     },
     show: JSON.stringify,
   };
-}
+};
+
+gen.eav = function() {
+  return gen.array(gen.value(), 3);
+};
 
 var orderingProps = {
-  valueBounds: forall(value(),
+  valueBounds: forall(gen.value(),
                       function (v) {
                         return (compareValue(v, least) === 1) && (compareValue(least, v) === -1) &&
                           (compareValue(v, greatest) === -1) && (compareValue(greatest, v) === 1);
                       }),
 
-  valueEquality: forall(value(), value(),
+  valueEquality: forall(gen.value(), gen.value(),
                         function (v1, v2) {
                           return (compareValue(v1, v2) === 0) === (v1 === v2);
                         }),
 
-  valueArrayBounds: forall(array(value(), 3),
+  valueReflexive: forall(gen.value(),
+                         function (v) {
+                           return compareValue(v,v) === 0;
+                         }),
+
+  valueTransitive: forall(gen.value(), gen.value(), gen.value(),
+                         function (v1, v2, v3) {
+                           var c12 = compareValue(v1, v2);
+                           var c23 = compareValue(v2, v3);
+                           var c13 = compareValue(v1, v3);
+                           return (c12 === c23) ? (c13 === c23) : true;
+                         }),
+
+  valueArrayBounds: forall(gen.eav(),
                            function (v) {
                              return (compareValueArray(v, leastArray(v.length)) === 1) && (compareValueArray(leastArray(v.length), v) === -1) &&
                                (compareValueArray(v, greatestArray(v.length)) === -1) && (compareValueArray(greatestArray(v.length), v) === 1);
                            }),
+
+  valueArrayEquality: forall(gen.eav(), gen.eav(),
+                        function (v1, v2) {
+                          return (compareValueArray(v1, v2) === 0) === arrayEqual(v1, v2);
+                        }),
+
+  valueArrayReflexive: forall(gen.eav(),
+                         function (v) {
+                           return compareValueArray(v,v) === 0;
+                         }),
+
+  valueArrayTransitive: forall(gen.eav(), gen.eav(), gen.eav(),
+                         function (v1, v2, v3) {
+                           var c12 = compareValueArray(v1, v2);
+                           var c23 = compareValueArray(v2, v3);
+                           var c13 = compareValueArray(v1, v3);
+                           return (c12 === c23) ? (c13 === c23) : true;
+                         }),
 };
 
-assertAll(orderingProps, {tests: 1000});
+assertAll(orderingProps, {tests: 5000});
+
+// BTREE TESTS
+
+gen.action = function(n) {
+  var valueArray = gen.array(gen.value(), n);
+  var integer = jsc.integer();
+  return {
+    arbitrary: function(size) {
+      if (jsc._.random(0,1) === 0) {
+        return ["add", valueArray.arbitrary(size), integer.arbitrary(size)];
+      } else {
+        return ["del", valueArray.arbitrary(size)];
+      }
+    },
+    randomShrink: function(action) {
+      var shrunk = action.slice();
+      shrunk[1] = valueArray.randomShrink(shrunk[1]);
+      return shrunk;
+    },
+    show: JSON.stringify
+  };
+};
+
+function modelBTreeAdd(model, key, val) {
+  for (var i = 0; i < model.length; i++) {
+    if (arrayEqual(key, model[i][0])) {
+      return model[i][1];
+    }
+  }
+  model.push([key, val]);
+  return null;
+}
+
+function modelBTreeDel(model, key) {
+   for (var i = 0; i < model.length; i++) {
+    if (arrayEqual(key, model[i][0])) {
+      var val = model[i][1];
+      model.splice(i, 1);
+      return val;
+    }
+  }
+  return null;
+}
+
+function modelBTree(actions) {
+  var model = [];
+  var results = [];
+  for (var i = 0; i < actions.length; i++) {
+    var action = actions[i];
+    if (action[0] === "add") {
+      results.push(modelBTreeAdd(model, action[1], action[2]));
+    } else {
+      results.push(modelBTreeDel(model, action[1]));
+    }
+  }
+  model.sort(function (a,b) {
+    return compareValueArray(a[0], b[0]);
+  });
+  var elems = [];
+  for (var i = 0; i < model.length; i++) {
+    elems.push(model[i][0], model[i][1]);
+  }
+  return [elems, results];
+}
+
+function realBTree(actions, minkeys, keylen) {
+  var tree = btree(minkeys, keylen);
+  var results = [];
+  for (var i = 0; i < actions.length; i++) {
+    var action = actions[i];
+    if (action[0] === "add") {
+      results.push(tree.add(action[1], action[2]));
+    } else {
+      results.push(tree.del(action[1]));
+    }
+  }
+  return [tree, results];
+}
+
+var btreeProps = {
+  building: forall(gen.array(gen.action(3)),
+                  function (actions) {
+                    var modelResults = modelBTree(actions);
+                    var realResults = realBTree(actions, 10, 3);
+                    return nestedEqual(modelResults[0], realResults[0].elems()) && arrayEqual(modelResults[1], realResults[1]);
+                  })
+};
+
+assertAll(btreeProps, {tests: 5000});
+
+// ITERATOR TESTS
+
