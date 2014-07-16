@@ -693,7 +693,7 @@ var orderingProps = {
   valueArrayBounds: forall(array(value(), 3),
                            function (v) {
                              return (compareValueArray(v, leastArray(v.length)) === 1) && (compareValueArray(leastArray(v.length), v) === -1) &&
-                               (compareValueArray(v, greatestArray(v.length)) === 1) && (compareValueArray(greatestArray(v.length), v) === 1);
+                               (compareValueArray(v, greatestArray(v.length)) === -1) && (compareValueArray(greatestArray(v.length), v) === 1);
                            }),
 };
 
