@@ -133,7 +133,7 @@ function BTree(maxKeys, keyLen) {
 
 BTree.prototype = {
   reset: function() {
-    this.root = new BTreeNode();
+    this.root = new BTreeNode(this, 0, [], [], null, null, null);
   },
 
   add: function(key, val) {
