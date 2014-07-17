@@ -485,7 +485,6 @@ ScanTreeNode.prototype = {
     }
     //If we're wholly contained and not dirty
     if(!this.dirty && whollyContained) {
-      console.log("wholly contained: ", this.lower, this.upper, this.cachedAgg);
       return this.cachedAgg;
     }
     var agg = this.agg;
@@ -504,7 +503,6 @@ ScanTreeNode.prototype = {
         var cur = keys[firstKey];
         //if we've passed the upper bound, we're done
         if(compareValueArray(cur, upper) === 1) break;
-        console.log("adding: ", cur);
         cached = agg(cached, get(cur));
       }
     }
@@ -514,16 +512,13 @@ ScanTreeNode.prototype = {
       var childrenLen = children.length;
       for(var i = 0; i < childrenLen; i++) {
         var child = children[i];
-        console.log("looking at: ", child.lower, child.upper);
         cached = agg(cached, children[i].aggregate(lower, upper));
       }
     }
-    console.log("calculating");
     //if we're wholly contained, cached the value;
     if(whollyContained) {
       this.dirty = false;
       this.cachedAgg = cached;
-      console.log("wholly contained: ", this.lower, this.upper, this.cachedAgg);
     }
     return cached;
   },
@@ -568,6 +563,77 @@ ScanTreeNode.prototype = {
 function scantree(minKeys, keyLen, get, agg) {
   return new ScanTree(minKeys * 2, keyLen, get, agg);
 }
+
+function IntervalTree(keyLen) {
+  this.isNode = false;
+  this.keyLen = keyLen;
+  this.maxKeys = 10;
+  this.upper = greatestArray(keyLen);
+  this.lower = leastArray(keyLen);
+  this.get = function(cur) {
+    return cur;
+  }
+  this.agg = function(prev, cur) {
+    if(!prev) { prev = [greatest, least]; }
+    if(compareValue(cur[0], prev[0]) === -1) {
+      prev[0] = cur[0];
+    }
+    if(compareValue(cur[1], prev[1]) === 1) {
+      prev[1] = cur[1];
+    }
+    return prev;
+  }
+  this.root = new ScanTreeNode(this, 0, [], [], null, null, null, this.get, this.agg);
+}
+
+IntervalTree.prototype = Object.create(ScanTree.prototype);
+IntervalTree.prototype.findIntervals = function(point) {
+  var results = [];
+  var resCount = -1;
+  var nodes = [this.root];
+  var nodeIx = 0;
+  var len = nodes.length;
+  var lower = this.lower;
+  var upper = this.upper;
+  while(nodeIx < len) {
+    var cur = nodes[nodeIx];
+    var range = cur.aggregate(lower, upper);
+    //if this agg range contains the point
+    if(compareValue(range[0], point) !== 1 && compareValue(range[1], point) !== -1) {
+      //add children
+      var children = cur.children;
+      if(children) {
+        var childrenLen = children.length;
+        for(var i = 0; i < childrenLen; i++) {
+          nodes[len + i] = children[i];
+        }
+        len += childrenLen;
+      }
+
+      //check keys
+      var keys = cur.keys;
+      var keysLen = keys.length;
+      if(keysLen) {
+        for(var i = 0; i < keysLen; i++) {
+          var key = keys[i];
+          if(compareValue(key[0], point) !== 1 && compareValue(key[1], point) !== -1) {
+            results[++resCount] = key.slice(0);
+          }
+        }
+      }
+
+    }
+    nodeIx++;
+  }
+  return results;
+
+};
+
+// var intervalTree = new IntervalTree(3);
+// for(var i = 0; i < 40; i++) {
+//   intervalTree.add([i * 2, i * 2 + 10, "foo" + i]);
+// }
+// intervalTree.findIntervals(5);
 
 // var adder = scantree(5,
 //                      1,
