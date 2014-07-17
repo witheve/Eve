@@ -494,8 +494,6 @@ function btree(minKeys, keyLen) {
 
 // ITERATORS
 
-
-
 function Iterator(tree) {
   this.tree = tree;
   this.node = tree.root;
@@ -503,7 +501,7 @@ function Iterator(tree) {
 }
 
 Iterator.prototype = {
-  reset: function(key) {
+  reset: function() {
     this.node = this.tree.root;
     this.ix = 0;
   },
@@ -574,6 +572,76 @@ Iterator.prototype = {
 
 function iterator(tree) {
   return new Iterator(tree);
+}
+
+// MEMORY
+
+function contains(point, volume) {
+  for (var i = 0; i < point.length; i++) {
+    if (compareValue(point[i], volume[i]) === -1) return false;
+    if (compareValue(point[i], volume[point.length + i]) === 1) return false;
+  }
+  return true;
+}
+
+function SimpleWhy(fact, provenance) {
+  this.fact = fact;
+  this.provenance = provenance;
+}
+
+function SimpleWhyNot(proofVolume, solutionVolume, solverState) {
+  this.proofVolume = proofVolume;
+  this.solutionVolume = solutionVolume;
+  this.solverState = solverState;
+}
+
+function SimpleMemory(tree, whys, whyNots) {
+  this.tree = tree;
+  this.whys = whys;
+  this.whyNots = whyNots;
+}
+
+SimpleMemory.prototype = {
+  quarantine: function(proofVolume, solutionVolume, solverState) {
+    this.whyNots.push(new SimpleWhyNot(proofVolume, solutionVolume, solverState));
+  },
+
+  remember: function(fact, provenance, returnedSolverStates) {
+    this.tree.add(fact, null);
+    this.whys.push(new SimpleWhy(fact, provenance));
+    var whyNots = this.whyNots;
+    for (var i = whyNots.length - 1; i >= 0; i--) {
+      var whyNot = whyNots[i];
+      if (contains(fact, whyNot.proofVolume)) {
+        whyNots.splice(i, 1);
+        returnedSolverStates.push(whyNot.solverState);
+      }
+    }
+  },
+
+  forget: function(fact, returnedForgets) {
+    var whys = this.whys;
+    for (var i = whys.length - 1; i >= 0; i--) {
+      var why = whys[i];
+      var provenance = why.provenance;
+      for (var j = 0; j < provenance.length; j++) {
+        if (arrayEqual(fact, provenance[j])) {
+          this.tree.del(fact);
+          whys.splice(i, 1);
+          returnedForgets.push(why.fact);
+          break;
+        }
+      }
+    }
+  },
+
+  constrain: function(ixes) {
+    return new ContainsConstraint(iterator(this.tree), ixes);
+  }
+};
+
+function simpleMemory(keylen) {
+  return new SimpleMemory(btree(10, keylen), [], []);
 }
 
 // TESTS
@@ -876,7 +944,6 @@ gen.movement = function(n) {
 
 function modelIterator(keys, movements) {
   var results = [];
-  console.log(movements);
   for (var i = 0; i < movements.length; i++) {
     var movement = movements[i];
     var bound = (movement[0] === "gt") ? -1 : 0;
@@ -918,3 +985,25 @@ var iteratorProps = {
 };
 
 assertAll(iteratorProps, {tests: 5000});
+
+// MEMORY TESTS
+
+function simpleMemoryTest () {
+  var m = simpleMemory(3);
+  var rs = [];
+  var rf = [];
+  m.quarantine([0,0,0,10,10,10], "sv1", "ss1");
+  m.quarantine([5,5,5,15,15,15], "sv2", "ss2");
+  m.remember([1,1,1], [[1,2,3],[4,5,6]], rs);
+  assert(arrayEqual(rs, ["ss1"]));
+  m.remember([5,5,5], [[1,2,3]], rs);
+  assert(arrayEqual(rs, ["ss1", "ss2"]));
+  m.remember([9,9,9], [[1,2,3]], rs);
+  assert(arrayEqual(rs, ["ss1", "ss2"]));
+  m.forget([4,5,6], rf);
+  assert(nestedEqual(rf, [[1,1,1]]));
+  m.forget([1,2,3], rf);
+  assert(nestedEqual(rf, [[1,1,1],[9,9,9],[5,5,5]]));
+}
+
+simpleMemoryTest();
