@@ -35,7 +35,7 @@ function compareValue(a, b) {
 
 function compareValueArray(a, b) {
   var len = a.length;
-  if(len !== b.length) throw new Error("compareValueArray on arrays of different lenght: " + a + " :: " + b);
+  if(len !== b.length) throw new Error("compareValueArray on arrays of different length: " + a + " :: " + b);
   for(var i = 0; i < len; i++) {
     var comp = compareValue(a[i], b[i]);
     if(comp !== 0) return comp;
@@ -45,7 +45,7 @@ function compareValueArray(a, b) {
 
 function arrayEqual(a, b) {
   var len = a.length;
-  if(len !== b.length) throw new Error("arrayEqual on arrays of different lenght: " + a + " :: " + b);
+  if(len !== b.length) throw new Error("arrayEqual on arrays of different length: " + a + " :: " + b);
   for(var i = 0; i < len; i++) {
     if(a[i] !== b[i]) {
       return false;
@@ -160,12 +160,12 @@ BTree.prototype = {
     right.parentIx = 1;
   },
 
-  maintain: function() {
+  maintainInvariants: function() {
   },
 
-  valid: function() {
+  assertInvariants: function() {
     if(this.root.keys.length > 0) {
-      return this.root.valid(this.maxKeys);
+      return this.root.assertInvariants(this.maxKeys);
     }
     return true;
   },
@@ -201,6 +201,10 @@ BTree.prototype = {
 
   isEmpty: function() {
     return this.root.keys.length === 0;
+  },
+
+  toString: function() {
+    return "<btree " + this.elems().toString() + ">";
   }
 
 };
@@ -226,7 +230,7 @@ BTreeNode.prototype = {
     }
     if(!this.children) {
       this.push(ix, [key, val], null);
-      this.maintain(maxKeys);
+      this.maintainInvariants(maxKeys);
       return null;
     }
     this.children[ix].add(key, val, maxKeys);
@@ -241,7 +245,7 @@ BTreeNode.prototype = {
       var val = this.vals[ix];
       if(!children) {
         this.pop(ix);
-        this.maintain(maxKeys);
+        this.maintainInvariants(maxKeys);
         return val;
       }
 
@@ -253,8 +257,8 @@ BTreeNode.prototype = {
       this.keys[ix] = node.keys[0];
       this.vals[ix] = node.vals[0];
       node.pop(0);
-      node.maintain(maxKeys);
-      this.maintain(maxKeys);
+      node.maintainInvariants(maxKeys);
+      this.maintainInvariants(maxKeys);
       return val;
     }
 
@@ -293,7 +297,7 @@ BTreeNode.prototype = {
     return [key, val];
   },
 
-  maintain: function(maxKeys) {
+  maintainInvariants: function(maxKeys) {
     assert(maxKeys > 0, "Invalid maxKeys: " + maxKeys);
     //If we're still a valid node
     var parent = this.parent;
@@ -375,9 +379,9 @@ BTreeNode.prototype = {
       right.children.unshift(this.children.pop());
     }
     parent.push(this.parentIx, [keys.pop(), this.vals.pop(), right], RIGHTCHILD);
-    this.maintain(maxKeys);
-    right.maintain(maxKeys);
-    parent.maintain(maxKeys);
+    this.maintainInvariants(maxKeys);
+    right.maintainInvariants(maxKeys);
+    parent.maintainInvariants(maxKeys);
   },
 
   rotateLeft: function(maxKeys) {
@@ -393,9 +397,9 @@ BTreeNode.prototype = {
         this.push(0, [parent.keys[separatorIx], parent.vals[separatorIx], kvc[2]], LEFTCHILD);
         parent.keys[separatorIx] = kvc[0];
         parent.vals[separatorIx] = kvc[1];
-        this.maintain(maxKeys);
-        left.maintain(maxKeys);
-        parent.maintain(maxKeys);
+        this.maintainInvariants(maxKeys);
+        left.maintainInvariants(maxKeys);
+        parent.maintainInvariants(maxKeys);
         return;
       }
     }
@@ -416,9 +420,9 @@ BTreeNode.prototype = {
         this.push(this.keys.length, [parent.keys[separatorIx], parent.vals[separatorIx], kvc[2]], RIGHTCHILD);
         parent.keys[separatorIx] = kvc[0];
         parent.vals[separatorIx] = kvc[1];
-        this.maintain(maxKeys);
-        right.maintain(maxKeys);
-        parent.maintain(maxKeys);
+        this.maintainInvariants(maxKeys);
+        right.maintainInvariants(maxKeys);
+        parent.maintainInvariants(maxKeys);
         return;
       }
     }
@@ -437,12 +441,13 @@ BTreeNode.prototype = {
     while(right.keys.length > 0) {
       left.push(left.keys.length, right.pop(0, LEFTCHILD), RIGHTCHILD);
     }
-    left.maintain(maxKeys);
-    right.maintain(maxKeys);
-    parent.maintain(maxKeys);
+    left.maintainInvariants(maxKeys);
+    right.maintainInvariants(maxKeys);
+    parent.maintainInvariants(maxKeys);
   },
 
-  valid: function(maxKeys) {
+  assertInvariants: function(maxKeys) {
+    // TODO finish porting
     return true;
   },
 
@@ -505,7 +510,7 @@ Iterator.prototype = {
 
   seekGt: function(key) {
     while(true) {
-      if(this.node.parent.isNode && (compareValueArray(this.node.upper, key) === -1) || compareValueArray(key, this.node.lower) === -1) {
+      if(this.node.parent.isNode && ((compareValueArray(this.node.upper, key) === -1) || compareValueArray(key, this.node.lower) === -1)) {
         this.ix = 0;
         this.node = this.node.parent;
       } else {
@@ -534,7 +539,7 @@ Iterator.prototype = {
 
   seekGte: function(key) {
     while(true) {
-      if(this.node.parent.isNode && (compareValueArray(this.node.upper, key) === -1) || compareValueArray(key, this.node.lower) === -1) {
+      if(this.node.parent.isNode && ((compareValueArray(this.node.upper, key) === -1) || compareValueArray(key, this.node.lower) === -1)) {
         this.ix = 0;
         this.node = this.node.parent;
       } else {
@@ -593,7 +598,13 @@ gen.tuple = function (gens) {
       shrunk[i] = gens[i].randomShrink(shrunk[i]);
       return shrunk;
     },
-    show: JSON.stringify,
+    show: function(tuple) {
+      var shown = tuple.slice();
+      for (var i = 0; i < shown.length; i++) {
+        shown[i] = gens[i].show(shown[i]);
+      }
+      return "[" + shown.join(", ") + "]";
+    },
   };
 };
 
@@ -835,6 +846,7 @@ var btreeProps = {
                   function (actions) {
                     var modelResults = modelBTree(actions);
                     var realResults = realBTree(actions, 10, 3);
+                    realResults[0].assertInvariants();
                     return nestedEqual(modelResults[0], realResults[0].elems()) && arrayEqual(modelResults[1], realResults[1]);
                   })
 };
@@ -843,3 +855,66 @@ assertAll(btreeProps, {tests: 5000});
 
 // ITERATOR TESTS
 
+gen.movement = function(n) {
+  var valueArray = gen.array(gen.value(), n);
+  return {
+    arbitrary: function(size) {
+      if (jsc._.random(0,1) === 0) {
+        return ["gte", valueArray.arbitrary(size)];
+      } else {
+        return ["gt", valueArray.arbitrary(size)];
+      }
+    },
+    randomShrink: function(movement) {
+      var shrunk = movement.slice();
+      shrunk[1] = valueArray.randomShrink(shrunk[1]);
+      return shrunk;
+    },
+    show: JSON.stringify
+  };
+};
+
+function modelIterator(keys, movements) {
+  var results = [];
+  console.log(movements);
+  for (var i = 0; i < movements.length; i++) {
+    var movement = movements[i];
+    var bound = (movement[0] === "gt") ? -1 : 0;
+    var search = movement[1];
+    var result = null;
+    for (var j = 0; j < keys.length; j++) {
+      var key = keys[j];
+      if ((compareValueArray(search, key) <= bound) && ((result === null) || (compareValueArray(key, result) === -1))) {
+        result = key;
+      }
+    }
+    results.push(result);
+  }
+  return results;
+}
+
+function realIterator(tree, movements) {
+  var results = [];
+  var it = iterator(tree);
+  for (var i = 0; i < movements.length; i++) {
+    var movement = movements[i];
+    if (movement[0] === "gt") {
+      results.push(it.seekGt(movement[1]));
+    } else {
+      results.push(it.seekGte(movement[1]));
+    }
+  }
+  return results;
+}
+
+var iteratorProps = {
+  moving: forall(gen.array(gen.action(3)), gen.array(gen.movement(3)),
+                function(actions, movements) {
+                  var tree = realBTree(actions, 10, 3)[0];
+                  var modelResults = modelIterator(tree.keys(), movements);
+                  var realResults = realIterator(tree, movements);
+                  return nestedEqual(modelResults, realResults);
+                })
+};
+
+assertAll(iteratorProps, {tests: 5000});
