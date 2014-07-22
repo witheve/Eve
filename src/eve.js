@@ -574,7 +574,7 @@ function iterator(tree) {
   return new Iterator(tree);
 }
 
-// MEMORY
+// PROVENANCE
 
 function containsPoint(volume, point) {
   var dimensions = point.length;
@@ -594,28 +594,28 @@ function containsVolume(outerVolume, innerVolume) {
   return true;
 }
 
-function Presence(fact, proof) {
+function Presence(fact, solverPoint) {
   this.fact = fact;
-  this.proof = proof;
+  this.solverPoint = solverPoint;
 }
 
-function Absence(factVolume, proofVolume, proof) {
+function Absence(factVolume, proofVolume, solverVolume) {
   this.factVolume = factVolume;
   this.proofVolume = proofVolume;
-  this.proof = proof;
+  this.solverVolume = solverVolume;
 }
 
-function SimpleMemory(presences, absences) {
+function SimpleProvenance(presences, absences) {
   this.presences = presences;
   this.absences = absences;
 }
 
-SimpleMemory.prototype = {
-  outputPresent: function(presence) {
+SimpleProvenance.prototype = {
+  present: function(presence) {
     this.presences.push(presence);
   },
 
-  outputAbsent: function(absence, returnedPresences) {
+  absent: function(absence, returnedPresences) {
     // remove and return absences/presences which are subsumed
     var presences = this.presences;
     var absences = this.abscences;
@@ -636,7 +636,7 @@ SimpleMemory.prototype = {
     absences.push(absence);
   },
 
-  inputPresent: function(fact, returnedAbsences) {
+  remember: function(fact, returnedAbsences) {
     // remove and return absences which may no longer be valid
     var absences = this.abscences;
     for (var i = absences.length - 1; i >= 0; i--) {
@@ -648,7 +648,7 @@ SimpleMemory.prototype = {
     }
   },
 
-  inputAbsent: function(fact, returnedAbsences) {
+  forget: function(fact, returnedAbsences) {
     // return absences which could be extended
     var absences = this.absences;
     for (var i = absences.length - 1; i >= 0; i--) {
@@ -661,8 +661,8 @@ SimpleMemory.prototype = {
   },
 };
 
-function simpleMemory() {
-  return new SimpleMemory([], []);
+function simpleProvenance() {
+  return new SimpleProvenance([], []);
 }
 
 // SOLVER
@@ -673,6 +673,12 @@ function makeArray(len, fill) {
     arr[i] = fill;
   }
   return arr;
+}
+
+function fillArray(arr, fill) {
+  for(var i = 0; i < arr.length; i++) {
+    arr[i] = fill;
+  }
 }
 
 function pushInto(depth, a, b) {
@@ -697,6 +703,294 @@ function clearArray(arr) {
   }
   return arr;
 }
+
+function Solver(memory, provenance, numVars, constraints) {
+  this.memory = memory;
+  this.provenance = provenance;
+  this.numVars = numVars;
+  this.constraints = constraints;
+  this.los = makeArray(numVars, least);
+  this.his = makeArray(numVars, greatest);
+  this.watching = makeArray(numVars * constraints.length, false);
+  this.dirty = makeArray(constraints.length, true);
+  this.depth = 0;
+  this.pushedSplitters = [];
+  this.pushedLos = [];
+  this.pushedHis = [];
+  this.pushedWatching = [];
+  this.failed = false;
+}
+
+Solver.prototype = {
+  init: function(los, his) {
+    pushInto(0, los, this.los);
+    pushInto(0, his, this.his);
+    fillArray(this.watching, false);
+    fillArray(this.dirty, true);
+    this.depth = 0;
+    clearArray(this.pushedSplitters);
+    clearArray(this.pushedLos);
+    clearArray(this.pushedHis);
+    clearArray(this.pushedWatching);
+    this.failed = false;
+    for (var i = 0; i < this.constraints.length; i++) {
+      this.constraints[i].init(this, i);
+    }
+  },
+
+  setDirty: function(index) {
+    var constraintsLen = this.constraints.length;
+    var start = constraintsLen * index;
+    var watching = this.watching;
+    var dirty = this.dirty;
+    for(var i = 0; i < constraintsLen; i++) {
+      if(watching[start + i] === true) {
+        dirty[i] = true;
+      }
+    }
+  },
+
+  setLo: function(index, lo, proofVolume) {
+    var los = this.los;
+    if(los[index] === lo) return;
+    if(compareValue(this.his[index], lo) === -1) {
+      this.failed = true;
+      return;
+    }
+    if (proofVolume !== null) {
+      var solverVolume = los.concat(los);
+      solverVolume[los.length + index] = lo;
+      this.provenance.absent(new Absence(solverVolume, proofVolume, solverVolume));
+    }
+    los[index] = lo;
+    this.setDirty(index);
+  },
+
+  setHi: function(index, hi, proofVolume) {
+    var his = this.his;
+    if(his[index] === hi) return;
+    if (proofVolume !== null) {
+      var solverVolume = his.concat(his);
+      solverVolume[index] = hi;
+      this.provenance.absent(new Absence(solverVolume, proofVolume, solverVolume));
+    }
+    if(compareValue(hi, this.los[index]) === -1) {
+      this.failed = true;
+      return;
+    }
+    his[index] = hi;
+    this.setDirty(index);
+  },
+
+  setEq: function(index, val, proofVolume) {
+    var los = this.los;
+    var his = this.his;
+    var lo = los[index];
+    var hi = his[index];
+    if(lo === val && hi === val) return;
+    if (proofVolume !== null) {
+      var solverVolume = los.concat(los);
+      solverVolume[los.length + index] = val;
+      this.provenance.absent(new Absence(solverVolume, proofVolume, solverVolume));
+      var solverVolume = his.concat(his);
+      solverVolume[index] = val;
+      this.provenance.absent(new Absence(solverVolume, proofVolume, solverVolume));
+    }
+    if(compareValue(val, lo) === -1 || compareValue(hi, val) === -1) {
+      this.failed = true;
+      return;
+    }
+    los[index] = val;
+    his[index] = val;
+    this.setDirty(index);
+  },
+
+  setWatch: function(index, constraintIndex, val) {
+    var i = (index * this.constraints.length) + constraintIndex;
+    this.watching[i] = val;
+  },
+
+  split: function() {
+    var depth = this.depth;
+    pushInto(depth, this.los, this.pushedLos);
+    pushInto(depth, this.his, this.pushedHis);
+    pushInto(depth, this.watching, this.pushedWatching);
+    this.depth = depth + 1;
+
+    var constraints = this.constraints;
+    var len = constraints.length;
+    for(var i = 0; i < len; i++) {
+      if(constraints[i].splitLeft(this, i) === true) {
+        this.pushedSplitters.push(i);
+        return;
+      }
+    }
+    throw new Error("Can't split anything!");
+  },
+
+  backtrack: function() {
+    this.failed = false;
+    var depth = this.depth = this.depth - 1;
+    popFrom(depth, this.los, this.pushedLos);
+    popFrom(depth, this.his, this.pushedHis);
+    popFrom(depth, this.watching, this.pushedWatching);
+    fillArray(depth, this.dirty, false);
+    var splitter = this.pushedSplitters.pop();
+    this.constraints[splitter].splitRight(this, splitter);
+  },
+
+  solve: function(returnedRemembers, returnedForgets) {
+    var constraints = this.constraints;
+    var constraintsLen = constraints.length;
+    var dirty = this.dirty;
+    var los = this.los;
+    var his = this.his;
+    var provenance = this.provenance;
+
+    while(true) {
+      if (this.failed) {
+        if (this.depth === 0) {
+          // cant backtrack, must be finished
+          return;
+        } else {
+          // backtrack
+          this.backtrack();
+        }
+      } else {
+        // find a dirty constraint
+        for (var i = 0; i < constraintsLen; i++) {
+          if (dirty[i] === true) break;
+        }
+
+        if (i < constraintsLen) {
+          // propagate and loop
+          constraints[i].propagate(this, i);
+        } else if (arrayEqual(los, his)) {
+          // save result and backtrack to right branch
+          var fact = los.slice(); // TODO eventually will need to project EAV from los
+          returnedRemembers.push(fact);
+          provenance.present(new Presence(fact, fact));
+          this.backtrack();
+        } else {
+          // split and descend to left branch
+          this.split();
+        }
+      }
+    }
+  },
+};
+
+// CONSTRAINTS
+
+function ContainsConstraint(iterator, vars) {
+  this.iterator = iterator;
+  this.vars = vars;
+  this.scratchKey = makeArray(iterator.tree.keyLen, null);
+  this.maxKey = makeArray(iterator.tree.keyLen, greatest);
+}
+
+ContainsConstraint.prototype = {
+  init: function(solver, myIndex) {
+    this.iterator.reset();
+  },
+
+  propagate: function(solver, myIndex) {
+    var los = solver.los;
+    var his = solver.his;
+    var vars = this.vars;
+    var len = vars.length;
+    var scratchKey = this.scratchKey;
+
+    // update the scratchKey to represent a new lower bound
+    for(var i = 0; i < len; i++) {
+      var cur = vars[i];
+      scratchKey[i] = los[cur];
+      if(los[cur] !== his[cur]) break;
+    }
+
+    for(var j = i + 1; j < len; j++) {
+      scratchKey[j] = least;
+    }
+
+    // find a new lower bound in the iterator
+    var neueLos = this.iterator.seekGte(scratchKey);
+
+    if(!neueLos) {
+      neueLos = this.maxKey;
+    }
+
+    // update the solver vars
+    for(var x = 0; x < len; x++) {
+      var cur = vars[x];
+      solver.setLo(cur, neueLos[x], scratchKey.concat(neueLos));
+      if(neueLos[x] !== his[cur]) {
+        solver.setWatch(cur, myIndex, true);
+        break;
+      }
+    }
+  },
+
+  splitLeft: function(solver, myIndex) {
+    var los = solver.los;
+    var his = solver.his;
+    var vars = this.vars;
+    var len = vars.length;
+    for(var i = 0; i < len; i++) {
+      var cur = vars[i];
+      if(los[cur] !== his[cur]) {
+        solver.setHi(cur, los[cur]);
+        if(i + 1 < len) {
+          solver.setWatch(vars[i + 1], myIndex, true);
+        }
+        this.propagate(solver, myIndex);
+        return true;
+      }
+    }
+    return false;
+  },
+
+  splitRight: function(solver, myIndex) {
+    var los = solver.los;
+    var his = solver.his;
+    var vars = this.vars;
+    var len = vars.length;
+    var scratchKey = this.scratchKey;
+
+    // copy the los
+    for(var i = 0; i < len; i++) {
+      var cur = vars[i];
+      scratchKey[i] = los[cur];
+    }
+
+    // find the upper bound
+    for(var j = 0; j < len; j++) {
+      var cur = vars[j];
+      if(scratchKey[j] !== his[cur]) break;
+    }
+
+    for(j = j + 1; j < len; j++) {
+      scratchKey[j] = greatest;
+    }
+
+    // seek past the left branch
+    var neueLos = this.iterator.seekGt(scratchKey);
+
+    // if we can't find anything, we're done
+    if(!neueLos) {
+      solver.failed = true;
+      return;
+    }
+
+    // update the solver vars
+    for(var x = 0; x < len; x++) {
+      var cur = vars[x];
+      solver.setLo(cur, neueLos[x]);
+      if(neueLos[x] !== his[cur]) {
+        return;
+      }
+    }
+  },
+};
 
 // TESTS
 
@@ -1044,8 +1338,8 @@ assertAll(iteratorProps, {tests: 5000});
 
 // TODO update memory tests
 
-// function simpleMemoryTest () {
-//   var m = simpleMemory(3);
+// function simpleProvenanceTest () {
+//   var m = simpleProvenance(3);
 //   var rs = [];
 //   var rf = [];
 //   m.quarantine([0,0,0,10,10,10], "sv1", "ss1");
@@ -1062,4 +1356,4 @@ assertAll(iteratorProps, {tests: 5000});
 //   assert(nestedEqual(rf, [[1,1,1],[9,9,9],[5,5,5]]));
 // }
 
-// simpleMemoryTest();
+// simpleProvenanceTest();
