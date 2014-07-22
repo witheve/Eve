@@ -576,72 +576,119 @@ function iterator(tree) {
 
 // MEMORY
 
-function contains(point, volume) {
-  for (var i = 0; i < point.length; i++) {
-    if (compareValue(point[i], volume[i]) === -1) return false;
-    if (compareValue(point[i], volume[point.length + i]) === 1) return false;
+function containsPoint(volume, point) {
+  var dimensions = point.length;
+  for (var i = 0; i < dimensions; i++) {
+    if (compareValue(volume[i], point[i]) === 1) return false;
+    if (compareValue(volume[dimensions + i], point[i]) === -1) return false;
   }
   return true;
 }
 
-function SimpleWhy(fact, provenance) {
+function containsVolume(outerVolume, innerVolume) {
+  var dimensions = outerVolume.length / 2;
+  for (var i = 0; i < dimensions; i++) {
+    if (compareValue(outerVolume[i], innerVolume[i]) === 1) return false;
+    if (compareValue(outerVolume[dimensions + i], innerVolume[dimensions + i]) === -1) return false;
+  }
+  return true;
+}
+
+function Presence(fact, proof) {
   this.fact = fact;
-  this.provenance = provenance;
+  this.proof = proof;
 }
 
-function SimpleWhyNot(proofVolume, solutionVolume, solverState) {
+function Absence(factVolume, proofVolume, proofEdge, proof) {
+  this.factVolume = factVolume;
   this.proofVolume = proofVolume;
-  this.solutionVolume = solutionVolume;
-  this.solverState = solverState;
+  this.proofEdge = proofEdge;
+  this.proof = proof;
 }
 
-function SimpleMemory(tree, whys, whyNots) {
-  this.tree = tree;
-  this.whys = whys;
-  this.whyNots = whyNots;
+function SimpleMemory(presences, absences) {
+  this.presences = presences;
+  this.absences = absences;
 }
 
 SimpleMemory.prototype = {
-  quarantine: function(proofVolume, solutionVolume, solverState) {
-    this.whyNots.push(new SimpleWhyNot(proofVolume, solutionVolume, solverState));
+  outputPresent: function(presence) {
+    this.presences.push(presence);
   },
 
-  remember: function(fact, provenance, returnedSolverStates) {
-    this.tree.add(fact, null);
-    this.whys.push(new SimpleWhy(fact, provenance));
-    var whyNots = this.whyNots;
-    for (var i = whyNots.length - 1; i >= 0; i--) {
-      var whyNot = whyNots[i];
-      if (contains(fact, whyNot.proofVolume)) {
-        whyNots.splice(i, 1);
-        returnedSolverStates.push(whyNot.solverState);
-      }
+  outputAbsent: function(absence, returnedPresences) {
+    // remove absences/presences which are subsumed
+    var presences = this.presences;
+    var absences = this.abscences;
+    for (var i = presences.length - 1; i >= 0; i--) {
+      var thisPresence = presences[i];
+      if (containsPoint(absence.factVolume, thisPresence.fact)) presences.splice(i, 1);
+      returnedPresences.push(thisPresence);
+    }
+    for (var i = absences.length - 1; i >= 0; i--) {
+      var thisAbsence = absences[i];
+      if (containsVolume(absence.factVolume, thisAbsence.factVolume)) absences.splice(i, 1);
+      // dont return this, nobody cares
+    }
+    absences.push(absence);
+  },
+
+  inputPresent: function(fact, returnedAbsences) {
+    // remove absences which may no longer be valid
+    var absences = this.abscences;
+    for (var i = absences.length - 1; i >= 0; i--) {
+      var thisAbsence = absences[i];
+      if (containsPoint(thisAbsence.proofVolume, fact)) absences.splice(i, 1);
+      returnedAbsences.push(thisAbsence);
     }
   },
 
-  forget: function(fact, returnedForgets) {
-    var whys = this.whys;
-    for (var i = whys.length - 1; i >= 0; i--) {
-      var why = whys[i];
-      var provenance = why.provenance;
-      for (var j = 0; j < provenance.length; j++) {
-        if (arrayEqual(fact, provenance[j])) {
-          this.tree.del(fact);
-          whys.splice(i, 1);
-          returnedForgets.push(why.fact);
-          break;
-        }
-      }
+  inputAbsent: function(fact, returnedAbsences) {
+    // remove absences which could be extended
+    var absences = this.absences;
+    for (var i = absences.length - 1; i >= 0; i--) {
+      var thisAbsence = absences[i];
+      if (containsPoint(thisAbsence.proofEdge, fact)) absences.splice(i, 1);
+      returnedAbsences.push(thisAbsence);
     }
   },
-
-  constrain: function(ixes) {
-    return new ContainsConstraint(iterator(this.tree), ixes);
-  }
 };
 
-function simpleMemory(keylen) {
-  return new SimpleMemory(btree(10, keylen), [], []);
+function simpleMemory() {
+  return new SimpleMemory([], []);
+}
+
+// SOLVER
+
+function makeArray(len, fill) {
+  var arr = [];
+  for(var i = 0; i < len; i++) {
+    arr[i] = fill;
+  }
+  return arr;
+}
+
+function pushInto(depth, a, b) {
+  var len = a.length;
+  var start = depth * len;
+  for(var i = 0; i < len; i++) {
+    b[start + i] = a[i];
+  }
+}
+
+function popFrom(depth, a, b) {
+  var len = a.length;
+  var start = depth * len;
+  for(var i = 0; i < len; i++) {
+    a[i] = b[start + i];
+  }
+}
+
+function clearArray(arr) {
+  while (arr.length > 0) {
+    arr.pop();
+  }
+  return arr;
 }
 
 // TESTS
@@ -988,22 +1035,24 @@ assertAll(iteratorProps, {tests: 5000});
 
 // MEMORY TESTS
 
-function simpleMemoryTest () {
-  var m = simpleMemory(3);
-  var rs = [];
-  var rf = [];
-  m.quarantine([0,0,0,10,10,10], "sv1", "ss1");
-  m.quarantine([5,5,5,15,15,15], "sv2", "ss2");
-  m.remember([1,1,1], [[1,2,3],[4,5,6]], rs);
-  assert(arrayEqual(rs, ["ss1"]));
-  m.remember([5,5,5], [[1,2,3]], rs);
-  assert(arrayEqual(rs, ["ss1", "ss2"]));
-  m.remember([9,9,9], [[1,2,3]], rs);
-  assert(arrayEqual(rs, ["ss1", "ss2"]));
-  m.forget([4,5,6], rf);
-  assert(nestedEqual(rf, [[1,1,1]]));
-  m.forget([1,2,3], rf);
-  assert(nestedEqual(rf, [[1,1,1],[9,9,9],[5,5,5]]));
-}
+// TODO update memory tests
 
-simpleMemoryTest();
+// function simpleMemoryTest () {
+//   var m = simpleMemory(3);
+//   var rs = [];
+//   var rf = [];
+//   m.quarantine([0,0,0,10,10,10], "sv1", "ss1");
+//   m.quarantine([5,5,5,15,15,15], "sv2", "ss2");
+//   m.remember([1,1,1], [[1,2,3],[4,5,6]], rs);
+//   assert(arrayEqual(rs, ["ss1"]));
+//   m.remember([5,5,5], [[1,2,3]], rs);
+//   assert(arrayEqual(rs, ["ss1", "ss2"]));
+//   m.remember([9,9,9], [[1,2,3]], rs);
+//   assert(arrayEqual(rs, ["ss1", "ss2"]));
+//   m.forget([4,5,6], rf);
+//   assert(nestedEqual(rf, [[1,1,1]]));
+//   m.forget([1,2,3], rf);
+//   assert(nestedEqual(rf, [[1,1,1],[9,9,9],[5,5,5]]));
+// }
+
+// simpleMemoryTest();
