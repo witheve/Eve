@@ -599,10 +599,11 @@ function Presence(fact, solverPoint) {
   this.solverPoint = solverPoint;
 }
 
-function Absence(factVolume, proofVolume, solverVolume) {
+function Absence(factVolume, proofVolume, solverVolume, constraintIx) {
   this.factVolume = factVolume;
   this.proofVolume = proofVolume;
   this.solverVolume = solverVolume;
+  this.constraintIx = constraintIx;
 }
 
 function SimpleProvenance(presences, absences) {
@@ -750,29 +751,29 @@ Solver.prototype = {
     }
   },
 
-  setLo: function(index, lo, proofVolume) {
+  setLo: function(index, lo, proofVolume, constraintIx) {
     var los = this.los;
     if(los[index] === lo) return;
     if(compareValue(this.his[index], lo) === -1) {
       this.failed = true;
       return;
     }
-    if (proofVolume !== null) {
+    if (proofVolume !== undefined) {
       var solverVolume = los.concat(los);
       solverVolume[los.length + index] = lo;
-      this.provenance.absent(new Absence(solverVolume, proofVolume, solverVolume));
+      this.provenance.absent(new Absence(solverVolume, proofVolume, solverVolume, constraintIx));
     }
     los[index] = lo;
     this.setDirty(index);
   },
 
-  setHi: function(index, hi, proofVolume) {
+  setHi: function(index, hi, proofVolume, constraintIx) {
     var his = this.his;
     if(his[index] === hi) return;
-    if (proofVolume !== null) {
+    if (proofVolume !== undefined) {
       var solverVolume = his.concat(his);
       solverVolume[index] = hi;
-      this.provenance.absent(new Absence(solverVolume, proofVolume, solverVolume));
+      this.provenance.absent(new Absence(solverVolume, proofVolume, solverVolume, constraintIx));
     }
     if(compareValue(hi, this.los[index]) === -1) {
       this.failed = true;
@@ -782,19 +783,19 @@ Solver.prototype = {
     this.setDirty(index);
   },
 
-  setEq: function(index, val, proofVolume) {
+  setEq: function(index, val, proofVolume, constraintIx) {
     var los = this.los;
     var his = this.his;
     var lo = los[index];
     var hi = his[index];
     if(lo === val && hi === val) return;
-    if (proofVolume !== null) {
+    if (proofVolume !== undefined) {
       var solverVolume = los.concat(los);
       solverVolume[los.length + index] = val;
-      this.provenance.absent(new Absence(solverVolume, proofVolume, solverVolume));
+      this.provenance.absent(new Absence(solverVolume, proofVolume, solverVolume, constraintIx));
       var solverVolume = his.concat(his);
       solverVolume[index] = val;
-      this.provenance.absent(new Absence(solverVolume, proofVolume, solverVolume));
+      this.provenance.absent(new Absence(solverVolume, proofVolume, solverVolume, constraintIx));
     }
     if(compareValue(val, lo) === -1 || compareValue(hi, val) === -1) {
       this.failed = true;
@@ -878,6 +879,31 @@ Solver.prototype = {
       }
     }
   },
+
+  adjust: function(remembers, forgets, returnedRemembers, returnedForgets) {
+    var provenance = this.provenance;
+    var constraints = this.constraints;
+    for (var i = 0; i < remembers.length; i++) {
+      var remember = remembers[i];
+      var absences = [];
+      provenance.remember(remember, absences);
+      for (var j = 0; j < absences.length; j++) {
+        var absence = absences[i];
+        var constraintIx = absence.constraintIx;
+        constraints[constraintIx].remember(this, constraintIx, absence, remember, returnedRemembers, returnedForgets);
+      }
+    }
+    for (var i = 0; i < forgets.length; i++) {
+      var forget = forgets[i];
+      var absences = [];
+      provenance.forget(forget, absences);
+      for (var j = 0; j < absences.length; j++) {
+        var absence = absences[i];
+        var constraintIx = absence.constraintIx;
+        constraints[constraintIx].forget(this, constraintIx, absence, forget, returnedRemembers, returnedForgets);
+      }
+    }
+  }
 };
 
 // CONSTRAINTS
@@ -922,7 +948,7 @@ ContainsConstraint.prototype = {
     // update the solver vars
     for(var x = 0; x < len; x++) {
       var cur = vars[x];
-      solver.setLo(cur, neueLos[x], scratchKey.concat(neueLos));
+      solver.setLo(cur, neueLos[x], scratchKey.concat(neueLos), myIndex);
       if(neueLos[x] !== his[cur]) {
         solver.setWatch(cur, myIndex, true);
         break;
@@ -938,7 +964,7 @@ ContainsConstraint.prototype = {
     for(var i = 0; i < len; i++) {
       var cur = vars[i];
       if(los[cur] !== his[cur]) {
-        solver.setHi(cur, los[cur]);
+        solver.setHi(cur, los[cur]); // no proofVolume when splitting
         if(i + 1 < len) {
           solver.setWatch(vars[i + 1], myIndex, true);
         }
@@ -975,20 +1001,27 @@ ContainsConstraint.prototype = {
     // seek past the left branch
     var neueLos = this.iterator.seekGt(scratchKey);
 
-    // if we can't find anything, we're done
     if(!neueLos) {
-      solver.failed = true;
-      return;
+      neueLos = this.maxKey;
     }
 
     // update the solver vars
     for(var x = 0; x < len; x++) {
       var cur = vars[x];
-      solver.setLo(cur, neueLos[x]);
+      solver.setLo(cur, neueLos[x]); // no proofVolume when splitting
       if(neueLos[x] !== his[cur]) {
-        return;
+        solver.setWatch(cur, myIndex, true);
+        break;
       }
     }
+  },
+
+  remember: function(solver, myIndex, absence, remember, returnedRemembers, returnedForgets) {
+    // TODO
+  },
+
+  forget: function(solver, myIndex, absence, forget, returnedRemembers, returnedForgets) {
+    // TODO
   },
 };
 
