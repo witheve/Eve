@@ -599,10 +599,9 @@ function Presence(fact, proof) {
   this.proof = proof;
 }
 
-function Absence(factVolume, proofVolume, proofEdge, proof) {
+function Absence(factVolume, proofVolume, proof) {
   this.factVolume = factVolume;
   this.proofVolume = proofVolume;
-  this.proofEdge = proofEdge;
   this.proof = proof;
 }
 
@@ -617,39 +616,47 @@ SimpleMemory.prototype = {
   },
 
   outputAbsent: function(absence, returnedPresences) {
-    // remove absences/presences which are subsumed
+    // remove and return absences/presences which are subsumed
     var presences = this.presences;
     var absences = this.abscences;
     for (var i = presences.length - 1; i >= 0; i--) {
       var thisPresence = presences[i];
-      if (containsPoint(absence.factVolume, thisPresence.fact)) presences.splice(i, 1);
-      returnedPresences.push(thisPresence);
+      if (containsPoint(absence.factVolume, thisPresence.fact)) {
+        presences.splice(i, 1);
+        returnedPresences.push(thisPresence);
+      }
     }
     for (var i = absences.length - 1; i >= 0; i--) {
       var thisAbsence = absences[i];
-      if (containsVolume(absence.factVolume, thisAbsence.factVolume)) absences.splice(i, 1);
-      // dont return this, nobody cares
+      if (containsVolume(absence.factVolume, thisAbsence.factVolume)) {
+        absences.splice(i, 1);
+        // dont return this, nobody cares
+      }
     }
     absences.push(absence);
   },
 
   inputPresent: function(fact, returnedAbsences) {
-    // remove absences which may no longer be valid
+    // remove and return absences which may no longer be valid
     var absences = this.abscences;
     for (var i = absences.length - 1; i >= 0; i--) {
       var thisAbsence = absences[i];
-      if (containsPoint(thisAbsence.proofVolume, fact)) absences.splice(i, 1);
-      returnedAbsences.push(thisAbsence);
+      if (containsPoint(thisAbsence.proofVolume, fact)) {
+        absences.splice(i, 1);
+        returnedAbsences.push(thisAbsence);
+      }
     }
   },
 
   inputAbsent: function(fact, returnedAbsences) {
-    // remove absences which could be extended
+    // return absences which could be extended
     var absences = this.absences;
     for (var i = absences.length - 1; i >= 0; i--) {
       var thisAbsence = absences[i];
-      if (containsPoint(thisAbsence.proofEdge, fact)) absences.splice(i, 1);
-      returnedAbsences.push(thisAbsence);
+      if (containsPoint(thisAbsence.proofVolume, fact)) {
+        // dont remove this, may not be revised
+        returnedAbsences.push(thisAbsence);
+      }
     }
   },
 };
