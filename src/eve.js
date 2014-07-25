@@ -20,6 +20,13 @@ function fillArray(arr, fill) {
   }
 }
 
+function clearArray(arr) {
+  while (arr.length > 0) {
+    arr.pop();
+  }
+  return arr;
+}
+
 function pushInto(depth, a, b) {
   var len = a.length;
   var start = depth * len;
@@ -642,18 +649,13 @@ function Absence(factVolume, proofVolume, solverVolume, constraintIx) {
   this.constraintIx = constraintIx;
 }
 
-function SimpleProvenance(presences, absences, remembers, forgets) {
-  this.memory = memory;
-  this.solver = solver;
+function SimpleProvenance(presences, absences) {
   this.presences = presences;
   this.absences = absences;
-  this.remembers = remembers;
-  this.forgets = forgets;
 }
 
 function simpleProvenance() {
-  var solver = solver
-  return new SimpleProvenance(solver, [], [], [], []);
+  return new SimpleProvenance([], []);
 }
 
 SimpleProvenance.prototype = {
@@ -662,7 +664,8 @@ SimpleProvenance.prototype = {
   },
 
   absent: function(absence, returnedForgets) {
-    // remove and return absences/presences which are subsumed
+    // remove absences/presences which are subsumed
+    // return forgetton facts
     var presences = this.presences;
     var absences = this.abscences;
     for (var i = presences.length - 1; i >= 0; i--) {
@@ -705,41 +708,87 @@ SimpleProvenance.prototype = {
       }
     }
   },
-
-
-
-  adjust: function(remembers, forgets) {
-    var provenance = this.provenance;
-    var constraints = this.constraints;
-    for (var i = 0; i < remembers.length; i++) {
-      var remember = remembers[i];
-      var absences = [];
-      provenance.remember(remember, absences);
-      for (var j = 0; j < absences.length; j++) {
-        var absence = absences[i];
-        var constraintIx = absence.constraintIx;
-        constraints[constraintIx].remember(this, constraintIx, absence, remember);
-      }
-    }
-    for (var i = 0; i < forgets.length; i++) {
-      var forget = forgets[i];
-      var absences = [];
-      provenance.forget(forget, absences);
-      for (var j = 0; j < absences.length; j++) {
-        var absence = absences[i];
-        var constraintIx = absence.constraintIx;
-        constraints[constraintIx].forget(this, constraintIx, absence, forget);
-      }
-    }
-  }
 };
 
-function clearArray(arr) {
-  while (arr.length > 0) {
-    arr.pop();
-  }
-  return arr;
+// SEARCH
+
+function SearchSpace(numVars, numConstraints, los, his, watching, dirty, empty) {
+  this.numVars = numVars;
+  this.numConstraints = numConstraints;
+  this.los = los;
+  this.his = his;
+  this.watching = watching;
+  this.dirty = dirty;
+  this.empty = empty;
 }
+
+function searchSpace(numVars, numConstraints) {
+  var los = makeArray(numVars, least);
+  var his = makeArray(numVars, greatest);
+  var watching = makeArray(numVars * numConstraints, false);
+  var dirty = makeArray(numConstraints, true);
+  var empty = false;
+  return new SearchSpace(numVars, numConstraints, los, his, watching, dirty, empty);
+}
+
+SearchSpace.prototype = {
+  setVolume: function(volume) {
+    popFrom(0, this.los, volume);
+    popFrom(1, this.his, volume);
+    fillArray(this.watching, false);
+    fillArray(this.dirty, true);
+    this.empty = false;
+  },
+
+  setWatch: function(varIndex, constraintIndex, val) {
+    var i = (varIndex * this.numConstraints) + constraintIndex;
+    this.watching[i] = val;
+  },
+
+  setDirty: function(varIndex) {
+    var numConstraints = this.numConstraints;
+    var start = numConstraints * varIndex;
+    var watching = this.watching;
+    var dirty = this.dirty;
+    for(var i = 0; i < numConstraints; i++) {
+      if(watching[start + i] === true) {
+        dirty[i] = true;
+      }
+    }
+  },
+
+  // TODO record absence on setLo/Hi/Eq?
+
+  setLo: function(varIndex, lo) {
+    var los = this.los;
+    if(compareValue(los[varIndex], lo) !== -1) return; // no change
+    if(compareValue(this.his[varIndex], lo) === -1) this.empty = true;
+    los[varIndex] = lo;
+    this.setDirty(varIndex);
+  },
+
+  setHi: function(varIndex, hi) {
+    var his = this.his;
+    if(compareValue(his[varIndex], hi) !== 1) return; // no change
+    if(compareValue(this.los[varIndex], hi) === 1) this.empty = true;
+    his[varIndex] = hi;
+    this.setDirty(varIndex);
+  },
+
+  setEq: function(varIndex, val) {
+    var los = this.los;
+    var his = this.his;
+    var lo = los[varIndex];
+    var hi = his[varIndex];
+    if(lo === val && hi === val) return; // no change
+    if(compareValue(val, lo) === -1 || compareValue(hi, val) === -1) this.empty = true;
+    los[varIndex] = val;
+    his[varIndex] = val;
+    this.setDirty(varIndex);
+  },
+};
+
+// SOLVER
 
 function Solver(memory, provenance, numVars, constraints, los, his, watching, dirty, failed, depth, pushedLos, pushedHis, pushedWatching, pushedSplitters) {
   this.memory = memory;
@@ -759,69 +808,6 @@ function Solver(memory, provenance, numVars, constraints, los, his, watching, di
 }
 
 Solver.prototype = {
-  setVolume: function(volume) {
-    popFrom(0, this.los, volume);
-    popFrom(1, this.his, volume);
-    fillArray(this.watching, false);
-    fillArray(this.dirty, true);
-    this.failed = false;
-  },
-
-  setDirty: function(index) {
-    var constraintsLen = this.constraints.length;
-    var start = constraintsLen * index;
-    var watching = this.watching;
-    var dirty = this.dirty;
-    for(var i = 0; i < constraintsLen; i++) {
-      if(watching[start + i] === true) {
-        dirty[i] = true;
-      }
-    }
-  },
-
-  // TODO record absence on setLo/Hi/Eq
-
-  setLo: function(index, lo) {
-    var los = this.los;
-    if(compareValue(los[index], lo) !== -1) return;
-    if(compareValue(this.his[index], lo) === -1) {
-      this.failed = true;
-      return;
-    }
-    los[index] = lo;
-    this.setDirty(index);
-  },
-
-  setHi: function(index, hi) {
-    var his = this.his;
-    if(compareValue(his[index], hi) === -1) return;
-    if(compareValue(this.los[index], hi) === 1) {
-      this.failed = true;
-      return;
-    }
-    his[index] = hi;
-    this.setDirty(index);
-  },
-
-  setEq: function(index, val) {
-    var los = this.los;
-    var his = this.his;
-    var lo = los[index];
-    var hi = his[index];
-    if(lo === val && hi === val) return;
-    if(compareValue(val, lo) === -1 || compareValue(hi, val) === -1) {
-      this.failed = true;
-      return;
-    }
-    los[index] = val;
-    his[index] = val;
-    this.setDirty(index);
-  },
-
-  setWatch: function(index, constraintIndex, val) {
-    var i = (index * this.constraints.length) + constraintIndex;
-    this.watching[i] = val;
-  },
 
   split: function() {
     var depth = this.depth;
