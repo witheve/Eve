@@ -1,10 +1,42 @@
+// UTIL
+
 function assert(cond, msg) {
   if(!cond) {
     throw new Error(msg);
   }
 }
 
-// ORDERING
+function makeArray(len, fill) {
+  var arr = [];
+  for(var i = 0; i < len; i++) {
+    arr[i] = fill;
+  }
+  return arr;
+}
+
+function fillArray(arr, fill) {
+  for(var i = 0; i < arr.length; i++) {
+    arr[i] = fill;
+  }
+}
+
+function pushInto(depth, a, b) {
+  var len = a.length;
+  var start = depth * len;
+  for(var i = 0; i < len; i++) {
+    b[start + i] = a[i];
+  }
+}
+
+function popFrom(depth, a, b) {
+  var len = a.length;
+  var start = depth * len;
+  for(var i = 0; i < len; i++) {
+    a[i] = b[start + i];
+  }
+}
+
+// ORDERING / COMPARISON
 
 var least = false;
 var greatest = undefined;
@@ -119,95 +151,28 @@ function findKeyGT(keys, key) {
   return lo;
 }
 
+function containsPoint(volume, point) {
+  var dimensions = point.length;
+  for (var i = 0; i < dimensions; i++) {
+    if (compareValue(volume[i], point[i]) === 1) return false;
+    if (compareValue(volume[dimensions + i], point[i]) === -1) return false;
+  }
+  return true;
+}
+
+function containsVolume(outerVolume, innerVolume) {
+  var dimensions = outerVolume.length / 2;
+  for (var i = 0; i < dimensions; i++) {
+    if (compareValue(outerVolume[i], innerVolume[i]) === 1) return false;
+    if (compareValue(outerVolume[dimensions + i], innerVolume[dimensions + i]) === -1) return false;
+  }
+  return true;
+}
+
 // BTREE
 
 var LEFTCHILD = 0;
 var RIGHTCHILD = 1;
-
-function BTree(maxKeys, keyLen) {
-  this.root = new BTreeNode(this, 0, [], [], null, null, null);
-  this.maxKeys = maxKeys;
-  this.keyLen = keyLen;
-  this.isNode = false;
-}
-
-BTree.prototype = {
-  reset: function() {
-    this.root = new BTreeNode();
-  },
-
-  add: function(key, val) {
-    return this.root.add(key, val, this.maxKeys);
-  },
-
-  del: function(key) {
-    return this.root.del(key, this.maxKeys);
-  },
-
-  push: function(ix, keyValChild, childType) {
-    var right = this.root;
-    var left = this.root;
-    if(childType === LEFTCHILD) {
-      left = keyValChild[2];
-    } else if (childType === RIGHTCHILD) {
-      right = keyValChild[2];
-    }
-
-    this.root = new BTreeNode(this, 0, [keyValChild[0]], [keyValChild[1]], [left, right], left.lower, right.upper);
-    left.parent = this.root;
-    left.parentIx = 0;
-    right.parent = this.root;
-    right.parentIx = 1;
-  },
-
-  maintainInvariants: function() {
-  },
-
-  assertInvariants: function() {
-    if(this.root.keys.length > 0) {
-      return this.root.assertInvariants(this.maxKeys);
-    }
-    return true;
-  },
-
-  foreach: function(f) {
-    this.root.foreach(f);
-  },
-
-  foreachReverse: function(f) {
-    this.root.foreachReverse(f);
-  },
-
-  keys: function() {
-    var results = [];
-    var i = 0;
-    this.foreach(function(k, v) {
-      results[i] = k;
-      i++;
-    });
-    return results;
-  },
-
-  elems: function() {
-    var results = [];
-    var i = 0;
-    this.foreach(function(k, v) {
-      results[i] = k;
-      results[i+1] = v;
-      i = i + 2;
-    });
-    return results;
-  },
-
-  isEmpty: function() {
-    return this.root.keys.length === 0;
-  },
-
-  toString: function() {
-    return "<btree " + this.elems().toString() + ">";
-  }
-
-};
 
 function BTreeNode(parent, parentIx, keys, vals, children, lower, upper) {
   this.parent = parent;
@@ -447,7 +412,7 @@ BTreeNode.prototype = {
   },
 
   assertInvariants: function(maxKeys) {
-    // TODO finish porting
+    // TODO finish porting from cljs version
     return true;
   },
 
@@ -488,16 +453,109 @@ BTreeNode.prototype = {
 
 };
 
-function btree(minKeys, keyLen) {
-  return new BTree(minKeys * 2, keyLen);
+function BTree(root, maxKeys, keyLen) {
+  this.root = root;
+  this.maxKeys = maxKeys;
+  this.keyLen = keyLen;
+  this.isNode = false;
 }
+
+function btree(minKeys, keyLen) {
+  var root = new BTreeNode(this, 0, [], [], null, null, null);
+  var maxKeys = minKeys * 2;
+  return new BTree(root, maxKeys, keyLen);
+}
+
+BTree.prototype = {
+  reset: function() {
+    this.root = new BTreeNode();
+  },
+
+  add: function(key, val) {
+    return this.root.add(key, val, this.maxKeys);
+  },
+
+  del: function(key) {
+    return this.root.del(key, this.maxKeys);
+  },
+
+  push: function(ix, keyValChild, childType) {
+    var right = this.root;
+    var left = this.root;
+    if(childType === LEFTCHILD) {
+      left = keyValChild[2];
+    } else if (childType === RIGHTCHILD) {
+      right = keyValChild[2];
+    }
+
+    this.root = new BTreeNode(this, 0, [keyValChild[0]], [keyValChild[1]], [left, right], left.lower, right.upper);
+    left.parent = this.root;
+    left.parentIx = 0;
+    right.parent = this.root;
+    right.parentIx = 1;
+  },
+
+  maintainInvariants: function() {
+  },
+
+  assertInvariants: function() {
+    if(this.root.keys.length > 0) {
+      return this.root.assertInvariants(this.maxKeys);
+    }
+    return true;
+  },
+
+  foreach: function(f) {
+    this.root.foreach(f);
+  },
+
+  foreachReverse: function(f) {
+    this.root.foreachReverse(f);
+  },
+
+  keys: function() {
+    var results = [];
+    var i = 0;
+    this.foreach(function(k, v) {
+      results[i] = k;
+      i++;
+    });
+    return results;
+  },
+
+  elems: function() {
+    var results = [];
+    var i = 0;
+    this.foreach(function(k, v) {
+      results[i] = k;
+      results[i+1] = v;
+      i = i + 2;
+    });
+    return results;
+  },
+
+  isEmpty: function() {
+    return this.root.keys.length === 0;
+  },
+
+  toString: function() {
+    return "<btree " + this.elems().toString() + ">";
+  }
+
+};
 
 // ITERATORS
 
-function Iterator(tree) {
+function Iterator(tree, node, ix) {
   this.tree = tree;
-  this.node = tree.root;
-  this.ix = 0;
+  this.node = node;
+  this.ix = ix;
+}
+
+function iterator(tree) {
+  var node = tree.root;
+  var ix = 0;
+  return new Iterator(tree, node, ix);
 }
 
 Iterator.prototype = {
@@ -570,29 +628,7 @@ Iterator.prototype = {
   }
 };
 
-function iterator(tree) {
-  return new Iterator(tree);
-}
-
 // PROVENANCE
-
-function containsPoint(volume, point) {
-  var dimensions = point.length;
-  for (var i = 0; i < dimensions; i++) {
-    if (compareValue(volume[i], point[i]) === 1) return false;
-    if (compareValue(volume[dimensions + i], point[i]) === -1) return false;
-  }
-  return true;
-}
-
-function containsVolume(outerVolume, innerVolume) {
-  var dimensions = outerVolume.length / 2;
-  for (var i = 0; i < dimensions; i++) {
-    if (compareValue(outerVolume[i], innerVolume[i]) === 1) return false;
-    if (compareValue(outerVolume[dimensions + i], innerVolume[dimensions + i]) === -1) return false;
-  }
-  return true;
-}
 
 function Presence(fact, solverPoint) {
   this.fact = fact;
@@ -606,11 +642,18 @@ function Absence(factVolume, proofVolume, solverVolume, constraintIx) {
   this.constraintIx = constraintIx;
 }
 
-function SimpleProvenance(presences, absences) {
+function SimpleProvenance(presences, absences, remembers, forgets) {
+  this.memory = memory;
+  this.solver = solver;
   this.presences = presences;
   this.absences = absences;
-  this.remembers = [];
-  this.forgets = []
+  this.remembers = remembers;
+  this.forgets = forgets;
+}
+
+function simpleProvenance() {
+  var solver = solver
+  return new SimpleProvenance(solver, [], [], [], []);
 }
 
 SimpleProvenance.prototype = {
@@ -662,43 +705,34 @@ SimpleProvenance.prototype = {
       }
     }
   },
+
+
+
+  adjust: function(remembers, forgets) {
+    var provenance = this.provenance;
+    var constraints = this.constraints;
+    for (var i = 0; i < remembers.length; i++) {
+      var remember = remembers[i];
+      var absences = [];
+      provenance.remember(remember, absences);
+      for (var j = 0; j < absences.length; j++) {
+        var absence = absences[i];
+        var constraintIx = absence.constraintIx;
+        constraints[constraintIx].remember(this, constraintIx, absence, remember);
+      }
+    }
+    for (var i = 0; i < forgets.length; i++) {
+      var forget = forgets[i];
+      var absences = [];
+      provenance.forget(forget, absences);
+      for (var j = 0; j < absences.length; j++) {
+        var absence = absences[i];
+        var constraintIx = absence.constraintIx;
+        constraints[constraintIx].forget(this, constraintIx, absence, forget);
+      }
+    }
+  }
 };
-
-function simpleProvenance() {
-  return new SimpleProvenance([], [], [], []);
-}
-
-// SOLVER
-
-function makeArray(len, fill) {
-  var arr = [];
-  for(var i = 0; i < len; i++) {
-    arr[i] = fill;
-  }
-  return arr;
-}
-
-function fillArray(arr, fill) {
-  for(var i = 0; i < arr.length; i++) {
-    arr[i] = fill;
-  }
-}
-
-function pushInto(depth, a, b) {
-  var len = a.length;
-  var start = depth * len;
-  for(var i = 0; i < len; i++) {
-    b[start + i] = a[i];
-  }
-}
-
-function popFrom(depth, a, b) {
-  var len = a.length;
-  var start = depth * len;
-  for(var i = 0; i < len; i++) {
-    a[i] = b[start + i];
-  }
-}
 
 function clearArray(arr) {
   while (arr.length > 0) {
@@ -825,7 +859,7 @@ Solver.prototype = {
     var los = this.los;
     var his = this.his;
     var provenance = this.provenance;
-    var remembers = this.remembers;
+    var remembers = provenance.remembers;
 
     this.depth = 0;
 
@@ -862,31 +896,6 @@ Solver.prototype = {
           // split and descend to left branch
           this.split();
         }
-      }
-    }
-  },
-
-  adjust: function(remembers, forgets) {
-    var provenance = this.provenance;
-    var constraints = this.constraints;
-    for (var i = 0; i < remembers.length; i++) {
-      var remember = remembers[i];
-      var absences = [];
-      provenance.remember(remember, absences);
-      for (var j = 0; j < absences.length; j++) {
-        var absence = absences[i];
-        var constraintIx = absence.constraintIx;
-        constraints[constraintIx].remember(this, constraintIx, absence, remember);
-      }
-    }
-    for (var i = 0; i < forgets.length; i++) {
-      var forget = forgets[i];
-      var absences = [];
-      provenance.forget(forget, absences);
-      for (var j = 0; j < absences.length; j++) {
-        var absence = absences[i];
-        var constraintIx = absence.constraintIx;
-        constraints[constraintIx].forget(this, constraintIx, absence, forget);
       }
     }
   }
