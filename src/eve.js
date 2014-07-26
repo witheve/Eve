@@ -712,7 +712,7 @@ SimpleProvenance.prototype = {
 
 // SEARCH
 
-function SearchSpace(numVars, numConstraints, los, his, watching, dirty, empty) {
+function SearchSpace(numVars, numConstraints, los, his, watching, dirty, empty, absentVolumes) {
   this.numVars = numVars;
   this.numConstraints = numConstraints;
   this.los = los;
@@ -720,6 +720,7 @@ function SearchSpace(numVars, numConstraints, los, his, watching, dirty, empty) 
   this.watching = watching;
   this.dirty = dirty;
   this.empty = empty;
+  this.absentVolumes = absentVolumes;
 }
 
 function searchSpace(numVars, numConstraints) {
@@ -728,7 +729,8 @@ function searchSpace(numVars, numConstraints) {
   var watching = makeArray(numVars * numConstraints, false);
   var dirty = makeArray(numConstraints, true);
   var empty = false;
-  return new SearchSpace(numVars, numConstraints, los, his, watching, dirty, empty);
+  var absentVolumes = [];
+  return new SearchSpace(numVars, numConstraints, los, his, watching, dirty, empty, absentVolumes);
 }
 
 SearchSpace.prototype = {
@@ -738,6 +740,7 @@ SearchSpace.prototype = {
     fillArray(this.watching, false);
     fillArray(this.dirty, true);
     this.empty = false;
+    this.absentVolumes.length = 0;
   },
 
   setWatch: function(varIndex, constraintIndex, val) {
@@ -757,69 +760,74 @@ SearchSpace.prototype = {
     }
   },
 
-  // TODO record absence on setLo/Hi/Eq?
-
   setLo: function(varIndex, lo) {
     var los = this.los;
-    if(compareValue(los[varIndex], lo) !== -1) return; // no change
-    if(compareValue(this.his[varIndex], lo) === -1) this.empty = true;
+    var his = this.his;
+    var oldLo = los[varIndex];
+    var oldHi = his[varIndex];
+    if(compareValue(oldLo, lo) !== -1) return; // no change
+    var absentVolume = los.concat(his);
+    if(compareValue(oldHi, lo) === -1) {
+      this.empty = true;
+    } else {
+      absentVolume[this.numVars + varIndex] = lo;
+    }
+    this.absentVolumes.push(absentVolume);
     los[varIndex] = lo;
     this.setDirty(varIndex);
   },
 
   setHi: function(varIndex, hi) {
+    var los = this.los;
     var his = this.his;
-    if(compareValue(his[varIndex], hi) !== 1) return; // no change
-    if(compareValue(this.los[varIndex], hi) === 1) this.empty = true;
+    var oldLo = los[varIndex];
+    var oldHi = his[varIndex];
+    if(compareValue(oldHi, hi) !== 1) return; // no change
+    var absentVolume = los.concat(his);
+    if(compareValue(oldLo, hi) === 1) {
+      this.empty = true;
+    } else {
+      absentVolume[varIndex] = hi;
+    }
+    this.absentVolumes.push(absentVolume);
     his[varIndex] = hi;
     this.setDirty(varIndex);
   },
 
   setEq: function(varIndex, val) {
-    var los = this.los;
-    var his = this.his;
-    var lo = los[varIndex];
-    var hi = his[varIndex];
-    if(lo === val && hi === val) return; // no change
-    if(compareValue(val, lo) === -1 || compareValue(hi, val) === -1) this.empty = true;
-    los[varIndex] = val;
-    his[varIndex] = val;
-    this.setDirty(varIndex);
+    this.setLo(varIndex, val);
+    this.setHi(varIndex, val);
   },
 };
 
-// SOLVER
-
-function Solver(memory, provenance, numVars, constraints, los, his, watching, dirty, failed, depth, pushedLos, pushedHis, pushedWatching, pushedSplitters) {
-  this.memory = memory;
-  this.provenance = provenance;
-  this.numVars = numVars;
-  this.constraints = constraints;
-  this.los = los;
-  this.his = his;
-  this.watching = watching;
-  this.dirty = dirty;
-  this.failed = failed;
+function DepthFirstSearcher(depth, pushedLos, pushedHis, pushedWatching, pushedSplitters) {
   this.depth = depth;
   this.pushedLos = pushedLos;
   this.pushedHis = pushedHis;
   this.pushedWatching = pushedWatching;
-  this.pushedSplitter = pushedSplitters;
+  this.pushedSplitters = pushedSplitters;
 }
 
-Solver.prototype = {
+function depthFirstSearcher() {
+  var depth = 0;
+  var pushedLos = [];
+  var pushedHis = [];
+  var pushedWatching = [];
+  var pushedSplitters = [];
+  return new DepthFirstSearcher(depth, pushedLos, pushedHis, pushedWatching, pushedSplitters);
+}
 
-  split: function() {
+DepthFirstSearcher.prototype = {
+  split: function(searchSpace, constraints) {
     var depth = this.depth;
-    pushInto(depth, this.los, this.pushedLos);
-    pushInto(depth, this.his, this.pushedHis);
-    pushInto(depth, this.watching, this.pushedWatching);
+    pushInto(depth, searchSpace.los, this.pushedLos);
+    pushInto(depth, searchSpace.his, this.pushedHis);
+    pushInto(depth, searchSpace.watching, this.pushedWatching);
     this.depth = depth + 1;
 
-    var constraints = this.constraints;
-    var len = constraints.length;
-    for(var i = 0; i < len; i++) {
-      if(constraints[i].splitLeft(this, i) === true) {
+    var numConstraints = constraints.length;
+    for(var i = 0; i < numConstraints; i++) {
+      if(constraints[i].splitLeft(searchSpace, i) === true) {
         this.pushedSplitters.push(i);
         return;
       }
@@ -827,81 +835,140 @@ Solver.prototype = {
     throw new Error("Can't split anything!");
   },
 
-  backtrack: function() {
-    this.failed = false;
+  backtrack: function(searchSpace, constraints) {
+    searchSpace.empty = false;
     var depth = this.depth = this.depth - 1;
-    popFrom(depth, this.los, this.pushedLos);
-    popFrom(depth, this.his, this.pushedHis);
-    popFrom(depth, this.watching, this.pushedWatching);
-    fillArray(depth, this.dirty, false);
+    popFrom(depth, searchSpace.los, this.pushedLos);
+    popFrom(depth, searchSpace.his, this.pushedHis);
+    popFrom(depth, searchSpace.watching, this.pushedWatching);
+    fillArray(depth, searchSpace.dirty, false);
     var splitter = this.pushedSplitters.pop();
-    this.constraints[splitter].splitRight(this, splitter);
+    constraints[splitter].splitRight(searchSpace, splitter);
   },
 
-  solve: function() {
-    var constraints = this.constraints;
-    var constraintsLen = constraints.length;
-    var dirty = this.dirty;
-    var los = this.los;
-    var his = this.his;
-    var provenance = this.provenance;
-    var remembers = provenance.remembers;
+  search: function(solver) {
+    var searchSpace = solver.searchSpace;
+    var constraints = solver.constraints;
+    var numConstraints = constraints.length;
+    var dirty = searchSpace.dirty;
+    var los = searchSpace.los;
+    var his = searchSpace.his;
+    var provenance = solver.provenance;
+    var queuedRemembers = solver.queuedRemembers;
 
     this.depth = 0;
 
     // init constraints
-    for (var i = 0; i < this.constraints.length; i++) {
-      this.constraints[i].init(this, i);
+    for (var i = 0; i < numConstraints; i++) {
+      constraints[i].init(this, i);
     }
 
     while(true) {
-      if (this.failed) {
+      if (searchSpace.empty) {
         if (this.depth === 0) {
           // cant backtrack, must be finished
           return;
         } else {
           // backtrack
-          this.backtrack();
+          this.backtrack(searchSpace, constraints);
         }
       } else {
         // find a dirty constraint
-        for (var i = 0; i < constraintsLen; i++) {
+        for (var i = 0; i < numConstraints; i++) {
           if (dirty[i] === true) break;
         }
 
-        if (i < constraintsLen) {
+        if (i < numConstraints) {
           // propagate and loop
-          constraints[i].propagate(this, i);
+          constraints[i].propagate(solver, i);
         } else if (arrayEqual(los, his)) {
           // save result and backtrack to right branch
           var fact = los.slice(); // TODO eventually will need to project EAV from los
-          remembers.push(fact);
+          queuedRemembers.push(fact);
           provenance.present(new Presence(fact, fact));
-          this.backtrack();
+          this.backtrack(solver, constraints);
         } else {
           // split and descend to left branch
-          this.split();
+          this.split(solver, constraints);
         }
       }
     }
+
+    // TODO might want to clean up pushed stuff here so the keys can be GCed?
   }
 };
 
-function solver(memory, provenance, numVars, constraints) {
-  var los = makeArray(numVars, null);
-  var his = makeArray(numVars, null);
-  var watching = makeArray(numVars * constraints.length, false);
-  var dirty = makeArray(constraints.length, true);
-  var failed = false;
+// SOLVER
 
-  var depth = 0;
-  var pushedLos = [];
-  var pushedHis = [];
-  var pushedWatching = [];
-  var pushedSplitters = [];
-
-  return new Solver(memory, provenance, numVars, constraints, los, his, watching, dirty, failed, depth, pushedLos, pushedHis, pushedWatching, pushedSplitters);
+function Solver(numVars, constraints, memory, provenance, searchSpace, searcher, queuedPresences, queuedAbsences, queuedRemembers, queuedForgets) {
+  this.numVars = numVars;
+  this.constraints = constraints;
+  this.memory = memory;
+  this.provenance = provenance;
+  this.searchSpace = searchSpace;
+  this.searcher = searcher;
+  this.queuedPresences = queuedPresences;
+  this.queuedAbsences = queuedAbsences;
+  this.queuedRemembers = queuedRemembers;
+  this.queuedForgets = queuedForgets;
 }
+
+function solver(numVars, constraints, memory, provenance) {
+  var space = searchSpace(numVars, constraints.length);
+  var searcher = depthFirstSearcher();
+  var queuedPresences = [];
+  var queuedAbsences = [];
+  var queuedRemembers = [];
+  var queuedForgets = [];
+  return new Solver(numVars, constraints, memory, provenance, space, searcher, queuedPresences, queuedAbsences, queuedRemembers, queuedForgets);
+}
+
+Solver.prototype = {
+  init: function() {
+    var allFacts = makeArray(3, least).concat(makeArray(3, greatest));
+    var allSpace = makeArray(this.numVars, least).concat(makeArray(this.numVars, greatest));
+    this.provenance.absent(new Absence(allFacts, allFacts, allSpace, 0));
+  },
+
+  absent: function(proofVolume) {
+    var absentVolumes = this.searchSpace.absentVolumes;
+    var numAbsentVolumes = absentVolumes.length;
+    var provenance = this.provenance;
+    for (var i = 0; i < numAbsentVolumes.length; i++) {
+      var absentVolume = absentVolumes[i];
+      provenance.absent(new Absence(absentVolume, proofVolume, absentVolume)); // TODO eventually need to project EAV from absentVolume
+    }
+    absentVolumes.length = 0;
+  },
+
+  adjust: function(remembers, forgets) {
+    var provenance = this.provenance;
+    var constraints = this.constraints;
+    var queuedAbsences = this.queuedAbsences;
+
+    for (var i = 0; i < remembers.length; i++) {
+      var remember = remembers[i];
+      queuedAbsences.length = 0;
+      provenance.remember(remember, queuedAbsences);
+      for (var j = 0; j < queuedAbsences.length; j++) {
+        var absence = queuedAbsences[i];
+        var constraintIx = absence.constraintIx;
+        constraints[constraintIx].remember(this, constraintIx, absence, remember);
+      }
+    }
+
+    for (var i = 0; i < forgets.length; i++) {
+      var forget = forgets[i];
+      queuedAbsences.length = 0;
+      provenance.forget(forget, queuedAbsences);
+      for (var j = 0; j < queuedAbsences.length; j++) {
+        var absence = queuedAbsences[i];
+        var constraintIx = absence.constraintIx;
+        constraints[constraintIx].forget(this, constraintIx, absence, forget);
+      }
+    }
+  },
+};
 
 // CONSTRAINTS
 
@@ -918,24 +985,30 @@ ContainsConstraint.prototype = {
   },
 
   setLos: function(solver, myIndex, oldLos, newLos) {
+    var searchSpace = solver.searchSpace;
     var vars = this.vars;
-    var len = vars.length;
-    var his = solver.his;
+    var numVars = vars.length;
+    var his = searchSpace.his;
 
-    // update the solver vars
-    for(var i = 0; i < len; i++) {
+    // update the searchSpace vars
+    for (var i = 0; i < numVars; i++) {
       var cur = vars[i];
-      solver.setLo(cur, newLos[i], myIndex, oldLos, newLos);
+      searchSpace.setLo(cur, newLos[i], myIndex, oldLos, newLos);
       if(newLos[i] !== his[cur]) {
-        solver.setWatch(cur, myIndex, true);
+        searchSpace.setWatch(cur, myIndex, true);
         break;
       }
     }
+
+    // add new absents
+    var proofVolume = oldLos.concat(newLos);
+    solver.absent(proofVolume);
   },
 
   propagate: function(solver, myIndex) {
-    var los = solver.los;
-    var his = solver.his;
+    var searchSpace = solver.searchSpace;
+    var los = searchSpace.los;
+    var his = searchSpace.his;
     var vars = this.vars;
     var len = vars.length;
     var scratchKey = this.scratchKey;
@@ -956,16 +1029,17 @@ ContainsConstraint.prototype = {
   },
 
   splitLeft: function(solver, myIndex) {
-    var los = solver.los;
-    var his = solver.his;
+    var searchSpace = solver.searchSpace;
+    var los = searchSpace.los;
+    var his = searchSpace.his;
     var vars = this.vars;
     var len = vars.length;
     for(var i = 0; i < len; i++) {
       var cur = vars[i];
       if(los[cur] !== his[cur]) {
-        solver.setHi(cur, los[cur]);
+        searchSpace.setHi(cur, los[cur]);
         if(i + 1 < len) {
-          solver.setWatch(vars[i + 1], myIndex, true);
+          searchSpace.setWatch(vars[i + 1], myIndex, true);
         }
         this.propagate(solver, myIndex);
         return true;
@@ -975,8 +1049,9 @@ ContainsConstraint.prototype = {
   },
 
   splitRight: function(solver, myIndex) {
-    var los = solver.los;
-    var his = solver.his;
+    var searchSpace = solver.searchSpace;
+    var los = searchSpace.los;
+    var his = searchSpace.his;
     var vars = this.vars;
     var len = vars.length;
     var scratchKey = this.scratchKey;
@@ -1002,17 +1077,18 @@ ContainsConstraint.prototype = {
   },
 
   remember: function(solver, myIndex, absence, remember) {
-    solver.setVolume(absence.solverVolume);
-    solver.solve();
+    solver.searchSpace.setVolume(absence.solverVolume);
+    solver.searcher.search(solver);
   },
 
   forget: function(solver, myIndex, absence, forget) {
+    // we know we are always moving from lower to higher
     var len = forget.length;
     var oldHis = absence.proofVolume.slice(len, 2*len);
     if (arrayEqual(forget, oldHis)) {
-      var oldLos = absence.proofVolume.slice(0, len); // we know we are always moving from lower to higher
+      var oldLos = absence.proofVolume.slice(0, len);
       var newLos = this.iterator.seekGt(oldLos) || this.maxKey;
-      solver.setVolume(absence.solverVolume);
+      solver.searchSpace.setVolume(absence.solverVolume);
       this.setLos(solver, myIndex, oldLos, newLos);
     }
   },
