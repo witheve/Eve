@@ -158,7 +158,8 @@ function findKeyGT(keys, key) {
   return lo;
 }
 
-function containsPoint(volume, point) {
+function volumeContainsPoint(volume, point) {
+  assert(volume.length === 2 * point.length);
   var dimensions = point.length;
   for (var i = 0; i < dimensions; i++) {
     if (compareValue(volume[i], point[i]) === 1) return false;
@@ -167,7 +168,22 @@ function containsPoint(volume, point) {
   return true;
 }
 
-function containsVolume(outerVolume, innerVolume) {
+function volumeStrictlyContainsPoint(volume, point) {
+  assert(volume.length === 2 * point.length);
+  var dimensions = point.length;
+  for (var i = 0; i < dimensions; i++) {
+    if (compareValue(volume[i], point[i]) === 1) return false;
+    if (compareValue(volume[dimensions + i], point[i]) === -1) return false;
+  }
+  for (var i = 0; i < dimensions; i++) {
+    if ((compareValue(volume[i], point[i]) === -1) &&
+        (compareValue(volume[dimensions + i], point[i]) === 1)) return true;
+  }
+  return false;
+}
+
+function volumeContainsVolume(outerVolume, innerVolume) {
+  assert(outerVolume.length === innerVolume.length);
   var dimensions = outerVolume.length / 2;
   for (var i = 0; i < dimensions; i++) {
     if (compareValue(outerVolume[i], innerVolume[i]) === 1) return false;
@@ -670,14 +686,14 @@ SimpleProvenance.prototype = {
     var absences = this.absences;
     for (var i = presences.length - 1; i >= 0; i--) {
       var thisPresence = presences[i];
-      if (containsPoint(absence.factVolume, thisPresence.fact)) {
+      if (volumeContainsPoint(absence.factVolume, thisPresence.fact)) { // ERROR volumeStrictlyContainsPoint?
         presences.splice(i, 1);
         returnedForgets.push(thisPresence.fact);
       }
     }
     for (var i = absences.length - 1; i >= 0; i--) {
       var thisAbsence = absences[i];
-      if (containsVolume(absence.factVolume, thisAbsence.factVolume)) {
+      if (volumeContainsVolume(absence.solverVolume, thisAbsence.solverVolume)) {
         absences.splice(i, 1);
         // dont return this, nobody cares
       }
@@ -690,7 +706,7 @@ SimpleProvenance.prototype = {
     var absences = this.absences;
     for (var i = absences.length - 1; i >= 0; i--) {
       var thisAbsence = absences[i];
-      if (containsPoint(thisAbsence.proofVolume, fact)) {
+      if (volumeContainsPoint(thisAbsence.proofVolume, fact)) { // ERROR proofRange rangeContainsPoint
         absences.splice(i, 1);
         returnedAbsences.push(thisAbsence);
       }
@@ -755,7 +771,7 @@ SearchSpace.prototype = {
     var oldHi = his[varIndex];
     if(compareValue(oldLo, lo) !== -1) return; // no change
     var absentVolume = los.concat(his);
-    if(compareValue(oldHi, lo) === -1) {
+    if(compareValue(oldHi, lo) === -1 || lo === greatest) {
       this.empty = true;
     } else {
       absentVolume[this.numVars + varIndex] = lo;
@@ -772,7 +788,7 @@ SearchSpace.prototype = {
     var oldHi = his[varIndex];
     if(compareValue(oldHi, hi) !== 1) return; // no change
     var absentVolume = los.concat(his);
-    if(compareValue(oldLo, hi) === 1) {
+    if(compareValue(oldLo, hi) === 1 || hi === least) {
       this.empty = true;
     } else {
       absentVolume[varIndex] = hi;
@@ -806,7 +822,9 @@ function depthFirstSearcher() {
 }
 
 DepthFirstSearcher.prototype = {
-  split: function(searchSpace, constraints) {
+  split: function(solver) {
+    var searchSpace = solver.searchSpace;
+    var constraints = solver.constraints;
     var depth = this.depth;
     pushInto(depth, searchSpace.los, this.pushedLos);
     pushInto(depth, searchSpace.his, this.pushedHis);
@@ -815,7 +833,7 @@ DepthFirstSearcher.prototype = {
 
     var numConstraints = constraints.length;
     for(var i = 0; i < numConstraints; i++) {
-      if(constraints[i].splitLeft(searchSpace, i) === true) {
+      if(constraints[i].splitLeft(solver, i) === true) {
         this.pushedSplitters.push(i);
         return;
       }
@@ -823,7 +841,9 @@ DepthFirstSearcher.prototype = {
     throw new Error("Can't split anything!");
   },
 
-  backtrack: function(searchSpace, constraints) {
+  backtrack: function(solver) {
+    var searchSpace = solver.searchSpace;
+    var constraints = solver.constraints;
     searchSpace.empty = false;
     var depth = this.depth = this.depth - 1;
     popFrom(depth, searchSpace.los, this.pushedLos);
@@ -831,7 +851,7 @@ DepthFirstSearcher.prototype = {
     popFrom(depth, searchSpace.watching, this.pushedWatching);
     fillArray(depth, searchSpace.dirty, false);
     var splitter = this.pushedSplitters.pop();
-    constraints[splitter].splitRight(searchSpace, splitter);
+    constraints[splitter].splitRight(solver, splitter);
   },
 
   search: function(solver) {
@@ -852,13 +872,16 @@ DepthFirstSearcher.prototype = {
     }
 
     while(true) {
+      console.log("search " + this.depth + " " + searchSpace.los + " " + searchSpace.his + " " + this.pushedLos + " " + this.pushedHis);
       if (searchSpace.empty) {
         if (this.depth === 0) {
           // cant backtrack, must be finished
+          console.log("done!");
           return;
         } else {
           // backtrack
-          this.backtrack(searchSpace, constraints);
+          console.log("backtracking");
+          this.backtrack(solver);
         }
       } else {
         // find a dirty constraint
@@ -866,18 +889,23 @@ DepthFirstSearcher.prototype = {
           if (dirty[i] === true) break;
         }
 
+
         if (i < numConstraints) {
           // propagate and loop
+          console.log("propagating " + i);
           constraints[i].propagate(solver, i);
+          dirty[i] = false;
         } else if (arrayEqual(los, his)) {
           // save result and backtrack to right branch
+          console.log("returning " + los);
           var fact = los.slice(); // TODO eventually will need to project EAV from los
           queuedRemembers.push(fact);
           provenance.present(new Presence(fact, fact));
-          this.backtrack(solver, constraints);
+          this.backtrack(solver);
         } else {
           // split and descend to left branch
-          this.split(solver, constraints);
+          console.log("splitting");
+          this.split(solver);
         }
       }
     }
@@ -915,16 +943,16 @@ Solver.prototype = {
   init: function() {
     var allFacts = makeArray(3, least).concat(makeArray(3, greatest));
     var allSpace = makeArray(this.numVars, least).concat(makeArray(this.numVars, greatest));
-    this.provenance.absent(new Absence(allFacts, allFacts, allSpace, 0));
+    this.provenance.absent(new Absence(allSpace, allFacts, allSpace, 0)); // TODO eventually need to project to EAV ie use allFacts for factVolume
   },
 
   absent: function(proofVolume) {
     var absentVolumes = this.searchSpace.absentVolumes;
     var numAbsentVolumes = absentVolumes.length;
     var provenance = this.provenance;
-    for (var i = 0; i < numAbsentVolumes.length; i++) {
+    for (var i = 0; i < numAbsentVolumes; i++) {
       var absentVolume = absentVolumes[i];
-      provenance.absent(new Absence(absentVolume, proofVolume, absentVolume)); // TODO eventually need to project EAV from absentVolume
+      provenance.absent(new Absence(absentVolume, proofVolume, absentVolume), this.queuedForgets); // TODO eventually need to project EAV from absentVolume
     }
     absentVolumes.length = 0;
   },
@@ -1434,17 +1462,17 @@ function simpleProvenanceTest () {
   p.present(new Presence([10,10,10], "sp1"));
   p.present(new Presence([25,25,25], "sp2"));
 
-  var a1 = new Absence([0,0,0,8,8,8], [0,0,0,10,10,10], "sv1", "c1");
+  var a1 = new Absence([0,10], [0,0,0,10,10,10], "sv1", "c1");
   p.absent(a1, rf);
   assert(nestedEqual(rf, []));
   assert(arrayEqual(p.absences, [a1]));
 
-  var a2 = new Absence([5,5,5,10,10,10], [5,5,5,15,15,15], "sv2", "c2");
+  var a2 = new Absence([5,15], [5,5,5,15,15,15], "sv2", "c2");
   p.absent(a2, rf);
   assert(nestedEqual(rf, [[10,10,10]]));
   assert(arrayEqual(p.absences, [a1, a2]));
 
-  var a3 = new Absence([5,5,5,20,20,20], [5,5,5,15,15,15], "sv2", "c2");
+  var a3 = new Absence([5,20], [5,5,5,20,20,20], "sv2", "c2");
   p.absent(a3, rf);
   assert(nestedEqual(rf, [[10,10,10]]));
   assert(arrayEqual(p.absences, [a1, a3]));
@@ -1455,3 +1483,28 @@ function simpleProvenanceTest () {
 }
 
 simpleProvenanceTest();
+
+// SOLVER TESTS
+
+function solverTest() {
+  var m = btree(10, 3);
+  var p = simpleProvenance();
+  var c1 = new ContainsConstraint(iterator(m), [0,1,2]);
+  var c2 = new ContainsConstraint(iterator(m), [3,4,5]);
+  var s = solver(6, [c1,c2], m, p);
+  s.init();
+
+  m.add([0,0,0]);
+  s.adjust([[0,0,0]], []);
+  assert(nestedEqual(s.queuedForgets, []));
+  assert(nestedEqual(s.queuedRemembers, [[0,0,0,0,0,0]]));
+  s.queuedRemembers.length = 0;
+
+  m.add([1,1,1]);
+  s.adjust([[1,1,1]], []);
+  assert(nestedEqual(s.queuedForgets, []));
+  assert(nestedEqual(s.queuedRemembers, [[0,0,0,1,1,1],[1,1,1,0,0,0],[1,1,1,1,1,1]]));
+  s.queuedRemembers.length = 0;
+}
+
+solverTest();
