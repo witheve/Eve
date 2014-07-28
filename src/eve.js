@@ -667,7 +667,7 @@ SimpleProvenance.prototype = {
     // remove absences/presences which are subsumed
     // return forgetton facts
     var presences = this.presences;
-    var absences = this.abscences;
+    var absences = this.absences;
     for (var i = presences.length - 1; i >= 0; i--) {
       var thisPresence = presences[i];
       if (containsPoint(absence.factVolume, thisPresence.fact)) {
@@ -685,25 +685,13 @@ SimpleProvenance.prototype = {
     absences.push(absence);
   },
 
-  remember: function(fact, returnedAbsences) {
+  remove: function(fact, returnedAbsences) {
     // remove and return absences which may no longer be valid
-    var absences = this.abscences;
-    for (var i = absences.length - 1; i >= 0; i--) {
-      var thisAbsence = absences[i];
-      if (containsPoint(thisAbsence.proofVolume, fact)) {
-        absences.splice(i, 1);
-        returnedAbsences.push(thisAbsence);
-      }
-    }
-  },
-
-  forget: function(fact, returnedAbsences) {
-    // return absences which could be extended
     var absences = this.absences;
     for (var i = absences.length - 1; i >= 0; i--) {
       var thisAbsence = absences[i];
       if (containsPoint(thisAbsence.proofVolume, fact)) {
-        // dont remove this, may not be revised
+        absences.splice(i, 1);
         returnedAbsences.push(thisAbsence);
       }
     }
@@ -949,7 +937,7 @@ Solver.prototype = {
     for (var i = 0; i < remembers.length; i++) {
       var remember = remembers[i];
       queuedAbsences.length = 0;
-      provenance.remember(remember, queuedAbsences);
+      provenance.remove(remember, queuedAbsences);
       for (var j = 0; j < queuedAbsences.length; j++) {
         var absence = queuedAbsences[i];
         var constraintIx = absence.constraintIx;
@@ -960,7 +948,7 @@ Solver.prototype = {
     for (var i = 0; i < forgets.length; i++) {
       var forget = forgets[i];
       queuedAbsences.length = 0;
-      provenance.forget(forget, queuedAbsences);
+      provenance.remove(forget, queuedAbsences);
       for (var j = 0; j < queuedAbsences.length; j++) {
         var absence = queuedAbsences[i];
         var constraintIx = absence.constraintIx;
@@ -1279,7 +1267,7 @@ var orderingProps = {
                          }),
 };
 
-assertAll(orderingProps, {tests: 5000});
+assertAll(orderingProps, {tests: 1000});
 
 // BTREE TESTS
 
@@ -1369,7 +1357,7 @@ var btreeProps = {
                   })
 };
 
-assertAll(btreeProps, {tests: 5000});
+assertAll(btreeProps, {tests: 1000});
 
 // ITERATOR TESTS
 
@@ -1434,28 +1422,36 @@ var iteratorProps = {
                 })
 };
 
-assertAll(iteratorProps, {tests: 5000});
+assertAll(iteratorProps, {tests: 1000});
 
 // PROVENANCE TESTS
 
-// TODO update provenance tests
+function simpleProvenanceTest () {
+  var p = simpleProvenance();
+  var rf = [];
+  var ra = [];
 
-// function simpleProvenanceTest () {
-//   var m = simpleProvenance(3);
-//   var rs = [];
-//   var rf = [];
-//   m.quarantine([0,0,0,10,10,10], "sv1", "ss1");
-//   m.quarantine([5,5,5,15,15,15], "sv2", "ss2");
-//   m.remember([1,1,1], [[1,2,3],[4,5,6]], rs);
-//   assert(arrayEqual(rs, ["ss1"]));
-//   m.remember([5,5,5], [[1,2,3]], rs);
-//   assert(arrayEqual(rs, ["ss1", "ss2"]));
-//   m.remember([9,9,9], [[1,2,3]], rs);
-//   assert(arrayEqual(rs, ["ss1", "ss2"]));
-//   m.forget([4,5,6], rf);
-//   assert(nestedEqual(rf, [[1,1,1]]));
-//   m.forget([1,2,3], rf);
-//   assert(nestedEqual(rf, [[1,1,1],[9,9,9],[5,5,5]]));
-// }
+  p.present(new Presence([10,10,10], "sp1"));
+  p.present(new Presence([25,25,25], "sp2"));
 
-// simpleProvenanceTest();
+  var a1 = new Absence([0,0,0,8,8,8], [0,0,0,10,10,10], "sv1", "c1");
+  p.absent(a1, rf);
+  assert(nestedEqual(rf, []));
+  assert(arrayEqual(p.absences, [a1]));
+
+  var a2 = new Absence([5,5,5,10,10,10], [5,5,5,15,15,15], "sv2", "c2");
+  p.absent(a2, rf);
+  assert(nestedEqual(rf, [[10,10,10]]));
+  assert(arrayEqual(p.absences, [a1, a2]));
+
+  var a3 = new Absence([5,5,5,20,20,20], [5,5,5,15,15,15], "sv2", "c2");
+  p.absent(a3, rf);
+  assert(nestedEqual(rf, [[10,10,10]]));
+  assert(arrayEqual(p.absences, [a1, a3]));
+
+  p.remove([9,9,9], ra);
+  assert(arrayEqual(ra, [a3, a1]));
+  assert(arrayEqual(p.absences, []));
+}
+
+simpleProvenanceTest();
