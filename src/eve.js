@@ -693,6 +693,7 @@ SimpleProvenance.prototype = {
     }
     for (var i = absences.length - 1; i >= 0; i--) {
       var thisAbsence = absences[i];
+      // TODO containment on fact volume is a good filter for this when we do a spatial index
       if (volumeContainsVolume(absence.solverVolume, thisAbsence.solverVolume)) {
         absences.splice(i, 1);
         // dont return this, nobody cares
@@ -1005,6 +1006,9 @@ ContainsConstraint.prototype = {
     var vars = this.vars;
     var numVars = vars.length;
     var his = searchSpace.his;
+
+    // clear old absents
+    searchSpace.absentVolumes.length = 0;
 
     // update the searchSpace vars
     for (var i = 0; i < numVars; i++) {
