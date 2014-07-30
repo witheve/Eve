@@ -1192,12 +1192,12 @@ var solverProps = {
                        var tree = btree(10, 3);
                        var constraint0 = new IteratorConstraint(iterator(tree));
                        var constraint1 = new IteratorConstraint(iterator(tree));
-                       var productSolver = solver(3, [constraint0, constraint1], [[0,1,2],[0,1,2]]);
+                       var selfSolver = solver(3, [constraint0, constraint1], [[0,1,2],[0,1,2]]);
                        for (var i = 0; i < facts.length; i++) {
                          tree.add(facts[i]);
                        }
                        var returnedFacts = [];
-                       productSolver.solve(returnedFacts);
+                       selfSolver.solve(returnedFacts);
 
                        var expectedFacts = tree.keys();
                        return nestedEqual(returnedFacts, expectedFacts);
@@ -1227,3 +1227,27 @@ var solverProps = {
 };
 
 assertAll(solverProps, {tests: 5000});
+
+function solverRegressionTest() {
+  var tree0 = btree(10, 2);
+  var tree1 = btree(10, 2);
+  var constraint0 = new IteratorConstraint(iterator(tree0));
+  var constraint1 = new IteratorConstraint(iterator(tree1));
+  var regressionSolver = solver(3, [constraint0, constraint1], [[0,2],[1,2]]);
+
+  tree0.add(["a", "b"]);
+  tree0.add(["b", "c"]);
+  tree0.add(["c", "d"]);
+  tree0.add(["d", "b"]);
+
+  tree1.add(["b", "a"]);
+  tree1.add(["c", "b"]);
+  tree1.add(["d", "c"]);
+  tree1.add(["b", "d"]);
+
+  var returnedFacts = [];
+  regressionSolver.solve(returnedFacts);
+  assert(nestedEqual(returnedFacts, [["a","c","b"],["b","d","c"],["c","b","d"],["d","c","b"]]));
+}
+
+solverRegressionTest();
