@@ -21,29 +21,90 @@
       <link href="codemirror.css" rel="stylesheet" type="text/css"></link>
       <link href="todomvc.css" rel="stylesheet" type="text/css"></link>
       <link href="editor.css" rel="stylesheet" type="text/css"></link>
-<script type='text/javascript' id='lt_ws' src='http://localhost:50967/socket.io/lighttable/ws.js'></script>
+<script type='text/javascript' id='lt_ws' src='http://localhost:59037/socket.io/lighttable/ws.js'></script>
   </head>
   <body>
-      <div class="hiddenthing"></div>
-      <div id="wrapper">
-      </div>
-      <table id="perf">
-          <tr>
-              <td>Render</td>
-              <td id="render-perf"><td/>
-          </tr>
-          <tr>
-              <td>Compile</td>
-              <td id="compile-perf"><td/>
-          </tr>
-          <tr>
-              <td>Run</td>
-              <td id="run-perf"><td/>
-          </tr>
-      </dl>
-      <script type="text/javascript">
-//           require("nw.gui").Window.get().showDevTools();
+<!--  Templates -->
+
+
+      <script type="text/x-template" id="active-element-overlay-template">
       </script>
+
+      <script type="text/x-template" id="button-template">
+          <a class="button" tabindex="-1" v-attr="contenteditable: editing" v-on="dblclick: edit, mouseover: setOverlay, blur: commit">{{content}}</a>
+      </script>
+
+      <script type="text/x-template" id="div-template">
+          <div class="box" v-on="drop: dropTool, dragleave:dragLeave, mouseover: setOverlay, dragover: dragOver">
+              <div class="element-wrapper {{elem.type}}-wrapper" v-repeat="elem: elems" v-component="{{elem.type}}"></span>
+          </div>
+      </script>
+
+      <script type="text/x-template" id="text-template">
+          <span class="text" tabindex="-1" v-attr="contenteditable: editing" v-on="dblclick: edit, mouseover: setOverlay, blur: commit">{{content}}</span>
+      </script>
+
+      <script type="text/x-template" id="ui-canvas-template">
+          <div class="canvas">
+              <div class="design-frame" v-ref="frame" style="width:{{width}};" v-on="drop: dropTool, dragover: dragOver">
+                  <div class="element-wrapper {{elem.type}}-wrapper" v-repeat="elem: elements" v-component="{{elem.type}}"></span>
+              </div>
+          </div>
+      </script>
+
+      <script type="text/x-template" id="grid-template">
+          <table>
+              <thead>
+                  <th v-repeat="headers">{{$value}}</th>
+              </thead>
+              <tbody>
+                  <tr v-repeat="row: rows">
+                      <td v-repeat="row">{{$value}}</td>
+                  </tr>
+              </tbody>
+          </table>
+      </script>
+
+      <script type="text/x-template" id="tool-template">
+          <span>{{name}}</span>
+      </script>
+
+      <script type="text/x-template" id="toolbox-template">
+          <li v-repeat="tools" v-component="tool" draggable="true"
+          v-on="dragstart: dragStart"></li>
+      </script>
+
+
+      <script type="text/x-template" id="card-template">
+          <p>when clicked</p>
+          <p>find</p>
+          <p>do</p>
+      </script>
+
+      <script type="text/x-template" id="toolbar-template">
+          <li class="ion-wrench"></li>
+          <li class="ion-pie-graph"></li>
+          <li class="ion-flask"></li>
+          <li class="ion-monitor" v-on="click: canvasSize('100%')"></li>
+          <li class="ion-ipad" v-on="click: canvasSize('600px')"></li>
+          <li class="ion-iphone" v-on="click: canvasSize('360px')"></li>
+      </script>
+
+      <script type="text/x-template" id="grids-template">
+          <li v-repeat="grids" v-component="grid">
+          </li>
+          <li v-repeat="cards" v-component="card" class="card">
+          </li>
+      </script>
+
+      <div id="outer-wrapper">
+          <div v-component="active-element-overlay" v-ref="overlay" class="active-element-overlay" v-style="top: top, left: left, width: width, height: height"></div>
+          <ul v-component="toolbar" class="toolbar"></ul>
+          <ul v-component="toolbox" class="toolbox"></ul>
+          <div v-component="ui-canvas" v-ref="canvas" class="ui-canvas"></div>
+      </div>
+
+
       <script src="throttle.js" type="text/javascript"> </script>
       <script src="uuid.js" type="text/javascript"> </script>
       <script src="keyevents.js" type="text/javascript"> </script>
@@ -51,7 +112,9 @@
       <script src="fuzzaldrin.js" type="text/javascript"> </script>
       <script src="codemirror.js" type="text/javascript"> </script>
       <script src="jsverify.js" type="text/javascript"> </script>
+      <script src="vue.js" type="text/javascript"> </script>
       <script src="../src/eve.js" type="text/javascript"> </script>
-      <script src="../src/test.js" type="text/javascript"> </script>
+<!--       <script src="../src/test.js" type="text/javascript"> </script> -->
+      <script src="../src/editor/core.js" type="text/javascript"> </script>
   </body>
 </html>

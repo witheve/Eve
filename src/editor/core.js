@@ -141,10 +141,10 @@ comps.activeElement = React.createClass({
     }
     return d.div({className: "active-element-overlay",
                   style: {
-                          top: this.props.box.top,
-                          left: this.props.box.left,
-                          width: this.props.box.width,
-                          height: this.props.box.height}});
+                          top: this.props.box.top - 4,
+                          left: this.props.box.left - 4,
+                          width: this.props.box.width + 8,
+                          height: this.props.box.height + 8}});
   }
 });
 
