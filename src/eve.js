@@ -1188,7 +1188,7 @@ assertAll(iteratorProps, {tests: 1000});
 
 // SOLVER TESTS
 
-function solverTest() {
+function solverProductTest() {
   var t = btree(10, 3);
   var c0 = new IteratorConstraint(iterator(t));
   var c1 = new IteratorConstraint(iterator(t));
@@ -1210,4 +1210,28 @@ function solverTest() {
   assert(nestedEqual(rf, [[0,0,0,0,0,0],[0,0,0,1,2,3],[1,2,3,0,0,0],[1,2,3,1,2,3]]));
 }
 
-solverTest();
+solverProductTest();
+
+function solverSelfTest() {
+  var t = btree(10, 3);
+  var c0 = new IteratorConstraint(iterator(t));
+  var c1 = new IteratorConstraint(iterator(t));
+  var s = solver(3, [c0, c1], [[0,1,2],[0,1,2]]);
+  var rf;
+
+  s.search(rf);
+  rf = [];
+  assert(nestedEqual(rf, []));
+
+  t.add([0,0,0]);
+  rf = [];
+  s.search(rf);
+  assert(nestedEqual(rf, [[0,0,0]]));
+
+  t.add([1,2,3]);
+  rf = [];
+  s.search(rf);
+  assert(nestedEqual(rf, [[0,0,0],[1,2,3]]));
+}
+
+solverSelfTest();
