@@ -679,7 +679,7 @@ function solver(numVars, constraints, varsForConstraint) {
 }
 
 Solver.prototype = {
-  search: function(returnedValues) {
+  solve: function(returnedValues) {
 
     // init values
     var values = this.values;
@@ -708,12 +708,11 @@ Solver.prototype = {
     var state = FIX;
 
     // run the search state machine
-    var m = 100;
-    search: while (m--) {
+    search: while (true) {
       switch (state) {
 
         case FIX: {
-          console.log("FIX " + currentVar + " " + value + " " + values);
+          // console.log("FIX " + currentVar + " " + value + " " + values);
           var currentConstraint = 0;
           var lastChanged = 0;
           do {
@@ -735,7 +734,7 @@ Solver.prototype = {
         }
 
         case DOWN: {
-          console.log("DOWN " + currentVar + " " + value + " " + values);
+          // console.log("DOWN " + currentVar + " " + value + " " + values);
           if (currentVar === numVars - 1) {
             returnedValues.push(values.slice());
             state = NEXT;
@@ -753,7 +752,7 @@ Solver.prototype = {
         }
 
         case UP: {
-          console.log("UP " + currentVar + " " + value + " " + values);
+          // console.log("UP " + currentVar + " " + value + " " + values);
           if (currentVar === 0) {
             break search;
           } else {
@@ -771,7 +770,7 @@ Solver.prototype = {
         }
 
         case NEXT: {
-          console.log("NEXT " + currentVar + " " + value + " " + values);
+          // console.log("NEXT " + currentVar + " " + value + " " + values);
           var value = constraints[0].next(value, false);
           if (value === greatest) {
             state = UP;
@@ -818,7 +817,6 @@ IteratorConstraint.prototype = {
   },
 
   next: function(value, isInclusive) {
-    console.log("SEARCH KEYS ARE " + this.inclusiveSearchKey + " " + this.exclusiveSearchKey + " " + value);
     var currentVar = this.currentVar;
     var searchKey;
     var nextKey;
@@ -831,7 +829,7 @@ IteratorConstraint.prototype = {
       searchKey[currentVar] = value;
       nextKey = this.iterator.seekGt(searchKey);
     }
-    console.log("NEXT KEY " + nextKey + " FROM " + searchKey + " WHEN " + currentVar + " " + value);
+    // console.log("NEXT KEY " + nextKey + " FROM " + searchKey + " WHEN " + currentVar + " " + value);
     if (nextKey === null) {
       return greatest;
     }
@@ -1188,50 +1186,45 @@ assertAll(iteratorProps, {tests: 1000});
 
 // SOLVER TESTS
 
-function solverProductTest() {
-  var t = btree(10, 3);
-  var c0 = new IteratorConstraint(iterator(t));
-  var c1 = new IteratorConstraint(iterator(t));
-  var s = solver(6, [c0, c1], [[0,1,2],[3,4,5]]);
-  var rf;
+var solverProps = {
+  selfJoin: forall(gen.array(gen.eav()),
+                     function (facts) {
+                       var tree = btree(10, 3);
+                       var constraint0 = new IteratorConstraint(iterator(tree));
+                       var constraint1 = new IteratorConstraint(iterator(tree));
+                       var productSolver = solver(3, [constraint0, constraint1], [[0,1,2],[0,1,2]]);
+                       for (var i = 0; i < facts.length; i++) {
+                         tree.add(facts[i]);
+                       }
+                       var returnedFacts = [];
+                       productSolver.solve(returnedFacts);
 
-  s.search(rf);
-  rf = [];
-  assert(nestedEqual(rf, []));
+                       var expectedFacts = tree.keys();
+                       return nestedEqual(returnedFacts, expectedFacts);
+                     }),
 
-  t.add([0,0,0]);
-  rf = [];
-  s.search(rf);
-  assert(nestedEqual(rf, [[0,0,0,0,0,0]]));
+  productJoin: forall(gen.array(gen.eav()),
+                     function (facts) {
+                       console.log(facts.length);
+                       var tree = btree(10, 3);
+                       var constraint0 = new IteratorConstraint(iterator(tree));
+                       var constraint1 = new IteratorConstraint(iterator(tree));
+                       var productSolver = solver(6, [constraint0, constraint1], [[0,1,2],[3,4,5]]);
+                       for (var i = 0; i < facts.length; i++) {
+                         tree.add(facts[i]);
+                       }
+                       var returnedFacts = [];
+                       productSolver.solve(returnedFacts);
 
-  t.add([1,2,3]);
-  rf = [];
-  s.search(rf);
-  assert(nestedEqual(rf, [[0,0,0,0,0,0],[0,0,0,1,2,3],[1,2,3,0,0,0],[1,2,3,1,2,3]]));
-}
+                       var uniqueSortedFacts = tree.keys();
+                       var expectedFacts = [];
+                       for (var i = 0; i < uniqueSortedFacts.length; i++) {
+                         for (var j = 0; j < uniqueSortedFacts.length; j++) {
+                           expectedFacts.push(uniqueSortedFacts[i].concat(uniqueSortedFacts[j]));
+                         }
+                       }
+                       return nestedEqual(returnedFacts, expectedFacts);
+                     })
+};
 
-solverProductTest();
-
-function solverSelfTest() {
-  var t = btree(10, 3);
-  var c0 = new IteratorConstraint(iterator(t));
-  var c1 = new IteratorConstraint(iterator(t));
-  var s = solver(3, [c0, c1], [[0,1,2],[0,1,2]]);
-  var rf;
-
-  s.search(rf);
-  rf = [];
-  assert(nestedEqual(rf, []));
-
-  t.add([0,0,0]);
-  rf = [];
-  s.search(rf);
-  assert(nestedEqual(rf, [[0,0,0]]));
-
-  t.add([1,2,3]);
-  rf = [];
-  s.search(rf);
-  assert(nestedEqual(rf, [[0,0,0],[1,2,3]]));
-}
-
-solverSelfTest();
+assertAll(solverProps, {tests: 5000});
