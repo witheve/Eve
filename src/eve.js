@@ -573,6 +573,7 @@ function Iterator(tree, node, ix) {
   this.tree = tree;
   this.node = node;
   this.ix = ix;
+  this.keyLen = tree.keyLen;
 }
 
 function iterator(tree) {
@@ -651,467 +652,196 @@ Iterator.prototype = {
   }
 };
 
-// PROVENANCE
-
-function Presence(fact, solverPoint) {
-  this.fact = fact;
-  this.solverPoint = solverPoint;
-}
-
-function Absence(factVolume, proofVolume, solverVolume, constraintIx) {
-  this.factVolume = factVolume;
-  this.proofVolume = proofVolume;
-  this.solverVolume = solverVolume;
-  this.constraintIx = constraintIx;
-}
-
-function SimpleProvenance(presences, absences) {
-  this.presences = presences;
-  this.absences = absences;
-}
-
-function simpleProvenance() {
-  return new SimpleProvenance([], []);
-}
-
-SimpleProvenance.prototype = {
-  present: function(presence) {
-    this.presences.push(presence);
-  },
-
-  absent: function(absence, returnedForgets) {
-    // remove absences/presences which are subsumed
-    // return forgetton facts
-    var presences = this.presences;
-    var absences = this.absences;
-    for (var i = presences.length - 1; i >= 0; i--) {
-      var thisPresence = presences[i];
-      if (volumeContainsPoint(absence.factVolume, thisPresence.fact)) { // ERROR volumeStrictlyContainsPoint?
-        presences.splice(i, 1);
-        returnedForgets.push(thisPresence.fact);
-      }
-    }
-    for (var i = absences.length - 1; i >= 0; i--) {
-      var thisAbsence = absences[i];
-      // TODO containment on fact volume is a good filter for this when we do a spatial index
-      if (volumeContainsVolume(absence.solverVolume, thisAbsence.solverVolume)) {
-        absences.splice(i, 1);
-        // dont return this, nobody cares
-      }
-    }
-    absences.push(absence);
-  },
-
-  remove: function(fact, returnedAbsences) {
-    // remove and return absences which may no longer be valid
-    var absences = this.absences;
-    for (var i = absences.length - 1; i >= 0; i--) {
-      var thisAbsence = absences[i];
-      if (volumeContainsPoint(thisAbsence.proofVolume, fact)) { // ERROR proofRange rangeContainsPoint
-        absences.splice(i, 1);
-        returnedAbsences.push(thisAbsence);
-      }
-    }
-  },
-};
-
-// SEARCH
-
-function SearchSpace(numVars, numConstraints, los, his, watching, dirty, empty, absentVolumes) {
-  this.numVars = numVars;
-  this.numConstraints = numConstraints;
-  this.los = los;
-  this.his = his;
-  this.watching = watching;
-  this.dirty = dirty;
-  this.empty = empty;
-  this.absentVolumes = absentVolumes;
-}
-
-function searchSpace(numVars, numConstraints) {
-  var los = makeArray(numVars, least);
-  var his = makeArray(numVars, greatest);
-  var watching = makeArray(numVars * numConstraints, false);
-  var dirty = makeArray(numConstraints, true);
-  var empty = false;
-  var absentVolumes = [];
-  return new SearchSpace(numVars, numConstraints, los, his, watching, dirty, empty, absentVolumes);
-}
-
-SearchSpace.prototype = {
-  setVolume: function(volume) {
-    popFrom(0, this.los, volume);
-    popFrom(1, this.his, volume);
-    fillArray(this.watching, false);
-    fillArray(this.dirty, true);
-    this.empty = false;
-    this.absentVolumes.length = 0;
-  },
-
-  setWatch: function(varIndex, constraintIndex, val) {
-    var i = (varIndex * this.numConstraints) + constraintIndex;
-    this.watching[i] = val;
-  },
-
-  setDirty: function(varIndex) {
-    var numConstraints = this.numConstraints;
-    var start = numConstraints * varIndex;
-    var watching = this.watching;
-    var dirty = this.dirty;
-    for(var i = 0; i < numConstraints; i++) {
-      if(watching[start + i] === true) {
-        dirty[i] = true;
-      }
-    }
-  },
-
-  setLo: function(varIndex, lo) {
-    var los = this.los;
-    var his = this.his;
-    var oldLo = los[varIndex];
-    var oldHi = his[varIndex];
-    if(compareValue(oldLo, lo) !== -1) return; // no change
-    var absentVolume = los.concat(his);
-    if(compareValue(oldHi, lo) === -1 || lo === greatest) {
-      this.empty = true;
-    } else {
-      absentVolume[this.numVars + varIndex] = lo;
-    }
-    this.absentVolumes.push(absentVolume);
-    los[varIndex] = lo;
-    this.setDirty(varIndex);
-  },
-
-  setHi: function(varIndex, hi) {
-    var los = this.los;
-    var his = this.his;
-    var oldLo = los[varIndex];
-    var oldHi = his[varIndex];
-    if(compareValue(oldHi, hi) !== 1) return; // no change
-    var absentVolume = los.concat(his);
-    if(compareValue(oldLo, hi) === 1 || hi === least) {
-      this.empty = true;
-    } else {
-      absentVolume[varIndex] = hi;
-    }
-    this.absentVolumes.push(absentVolume);
-    his[varIndex] = hi;
-    this.setDirty(varIndex);
-  },
-
-  setEq: function(varIndex, val) {
-    this.setLo(varIndex, val);
-    this.setHi(varIndex, val);
-  },
-};
-
-function DepthFirstSearcher(depth, pushedLos, pushedHis, pushedWatching, pushedSplitters) {
-  this.depth = depth;
-  this.pushedLos = pushedLos;
-  this.pushedHis = pushedHis;
-  this.pushedWatching = pushedWatching;
-  this.pushedSplitters = pushedSplitters;
-}
-
-function depthFirstSearcher() {
-  var depth = 0;
-  var pushedLos = [];
-  var pushedHis = [];
-  var pushedWatching = [];
-  var pushedSplitters = [];
-  return new DepthFirstSearcher(depth, pushedLos, pushedHis, pushedWatching, pushedSplitters);
-}
-
-DepthFirstSearcher.prototype = {
-  split: function(solver) {
-    var searchSpace = solver.searchSpace;
-    var constraints = solver.constraints;
-    var depth = this.depth;
-    pushInto(depth, searchSpace.los, this.pushedLos);
-    pushInto(depth, searchSpace.his, this.pushedHis);
-    pushInto(depth, searchSpace.watching, this.pushedWatching);
-    this.depth = depth + 1;
-
-    var numConstraints = constraints.length;
-    for(var i = 0; i < numConstraints; i++) {
-      if(constraints[i].splitLeft(solver, i) === true) {
-        this.pushedSplitters.push(i);
-        return;
-      }
-    }
-    throw new Error("Can't split anything!");
-  },
-
-  backtrack: function(solver) {
-    var searchSpace = solver.searchSpace;
-    var constraints = solver.constraints;
-    searchSpace.empty = false;
-    var depth = this.depth = this.depth - 1;
-    popFrom(depth, searchSpace.los, this.pushedLos);
-    popFrom(depth, searchSpace.his, this.pushedHis);
-    popFrom(depth, searchSpace.watching, this.pushedWatching);
-    fillArray(depth, searchSpace.dirty, false);
-    var splitter = this.pushedSplitters.pop();
-    constraints[splitter].splitRight(solver, splitter);
-  },
-
-  search: function(solver) {
-    var searchSpace = solver.searchSpace;
-    var constraints = solver.constraints;
-    var numConstraints = constraints.length;
-    var dirty = searchSpace.dirty;
-    var los = searchSpace.los;
-    var his = searchSpace.his;
-    var provenance = solver.provenance;
-    var queuedRemembers = solver.queuedRemembers;
-
-    this.depth = 0;
-
-    // init constraints
-    for (var i = 0; i < numConstraints; i++) {
-      constraints[i].init(this, i);
-    }
-
-    while(true) {
-      console.log("search " + this.depth + " " + searchSpace.los + " " + searchSpace.his + " " + this.pushedLos + " " + this.pushedHis);
-      if (searchSpace.empty) {
-        if (this.depth === 0) {
-          // cant backtrack, must be finished
-          console.log("done!");
-          return;
-        } else {
-          // backtrack
-          console.log("backtracking");
-          this.backtrack(solver);
-        }
-      } else {
-        // find a dirty constraint
-        for (var i = 0; i < numConstraints; i++) {
-          if (dirty[i] === true) break;
-        }
-
-
-        if (i < numConstraints) {
-          // propagate and loop
-          console.log("propagating " + i);
-          constraints[i].propagate(solver, i);
-          dirty[i] = false;
-        } else if (arrayEqual(los, his)) {
-          // save result and backtrack to right branch
-          console.log("returning " + los);
-          var fact = los.slice(); // TODO eventually will need to project EAV from los
-          queuedRemembers.push(fact);
-          provenance.present(new Presence(fact, fact));
-          this.backtrack(solver);
-        } else {
-          // split and descend to left branch
-          console.log("splitting");
-          this.split(solver);
-        }
-      }
-    }
-
-    // TODO might want to clean up pushed stuff here so the keys can be GCed?
-  }
-};
-
 // SOLVER
 
-function Solver(numVars, constraints, memory, provenance, searchSpace, searcher, queuedPresences, queuedAbsences, queuedRemembers, queuedForgets) {
+function Solver(numVars, numConstraints, constraints, constraintsForVar) {
   this.numVars = numVars;
+  this.numConstraints = numConstraints;
   this.constraints = constraints;
-  this.memory = memory;
-  this.provenance = provenance;
-  this.searchSpace = searchSpace;
-  this.searcher = searcher;
-  this.queuedPresences = queuedPresences;
-  this.queuedAbsences = queuedAbsences;
-  this.queuedRemembers = queuedRemembers;
-  this.queuedForgets = queuedForgets;
+  this.constraintsForVar = constraintsForVar;
+  this.values = makeArray(numVars, least);
 }
 
-function solver(numVars, constraints, memory, provenance) {
-  var space = searchSpace(numVars, constraints.length);
-  var searcher = depthFirstSearcher();
-  var queuedPresences = [];
-  var queuedAbsences = [];
-  var queuedRemembers = [];
-  var queuedForgets = [];
-  return new Solver(numVars, constraints, memory, provenance, space, searcher, queuedPresences, queuedAbsences, queuedRemembers, queuedForgets);
+function solver(numVars, constraints, varsForConstraint) {
+  var numConstraints = constraints.length;
+  var constraintsForVar = [];
+  for (var i = 0; i < numVars; i++) {
+    constraintsForVar[i] = [];
+  }
+  for (var i = 0; i < numConstraints; i++) {
+    var constraint = constraints[i];
+    var vars = varsForConstraint[i];
+    for (var j = 0; j < vars.length; j++) {
+      constraintsForVar[vars[j]].push(constraint);
+    }
+  }
+  return new Solver(numVars, numConstraints, constraints, constraintsForVar);
 }
 
 Solver.prototype = {
-  init: function() {
-    var allFacts = makeArray(3, least).concat(makeArray(3, greatest));
-    var allSpace = makeArray(this.numVars, least).concat(makeArray(this.numVars, greatest));
-    this.provenance.absent(new Absence(allSpace, allFacts, allSpace, 0)); // TODO eventually need to project to EAV ie use allFacts for factVolume
-  },
+  search: function(returnedValues) {
 
-  absent: function(proofVolume) {
-    var absentVolumes = this.searchSpace.absentVolumes;
-    var numAbsentVolumes = absentVolumes.length;
-    var provenance = this.provenance;
-    for (var i = 0; i < numAbsentVolumes; i++) {
-      var absentVolume = absentVolumes[i];
-      provenance.absent(new Absence(absentVolume, proofVolume, absentVolume), this.queuedForgets); // TODO eventually need to project EAV from absentVolume
-    }
-    absentVolumes.length = 0;
-  },
+    // init values
+    var values = this.values;
+    fillArray(values, least);
 
-  adjust: function(remembers, forgets) {
-    var provenance = this.provenance;
+    // init constraints
     var constraints = this.constraints;
-    var queuedAbsences = this.queuedAbsences;
-
-    for (var i = 0; i < remembers.length; i++) {
-      var remember = remembers[i];
-      queuedAbsences.length = 0;
-      provenance.remove(remember, queuedAbsences);
-      for (var j = 0; j < queuedAbsences.length; j++) {
-        var absence = queuedAbsences[i];
-        var constraintIx = absence.constraintIx;
-        constraints[constraintIx].remember(this, constraintIx, absence, remember);
-      }
+    var numConstraints = this.numConstraints;
+    for (var i = 0; i < numConstraints; i++) {
+      constraints[i].init();
     }
 
-    for (var i = 0; i < forgets.length; i++) {
-      var forget = forgets[i];
-      queuedAbsences.length = 0;
-      provenance.remove(forget, queuedAbsences);
-      for (var j = 0; j < queuedAbsences.length; j++) {
-        var absence = queuedAbsences[i];
-        var constraintIx = absence.constraintIx;
-        constraints[constraintIx].forget(this, constraintIx, absence, forget);
+    // init search
+    var numVars = this.numVars;
+    var constraintsForVar = this.constraintsForVar;
+    var currentVar = 0;
+    var value = values[currentVar];
+    var constraints = constraintsForVar[currentVar];
+    var numConstraints = constraints.length;
+
+    var FIX = 0;
+    var DOWN = 1;
+    var UP = 2;
+    var NEXT = 3;
+
+    var state = FIX;
+
+    // run the search state machine
+    var m = 100;
+    search: while (m--) {
+      switch (state) {
+
+        case FIX: {
+          console.log("FIX " + currentVar + " " + value + " " + values);
+          var currentConstraint = 0;
+          var lastChanged = 0;
+          do {
+            var newValue = constraints[currentConstraint].next(value, true);
+            if (value !== newValue) {
+              lastChanged = currentConstraint;
+            }
+            value = newValue;
+            currentConstraint = (currentConstraint + 1) % numConstraints;
+          }
+          while ((currentConstraint !== lastChanged) && (value !== greatest));
+          if (value === greatest) {
+            state = UP;
+          } else {
+            values[currentVar] = value;
+            state = DOWN;
+          }
+          break;
+        }
+
+        case DOWN: {
+          console.log("DOWN " + currentVar + " " + value + " " + values);
+          if (currentVar === numVars - 1) {
+            returnedValues.push(values.slice());
+            state = NEXT;
+          } else {
+            for (var i = 0; i < numConstraints; i++) {
+              constraints[i].down(value);
+            }
+            currentVar++;
+            value = values[currentVar];
+            constraints = constraintsForVar[currentVar];
+            numConstraints = constraints.length;
+            state = FIX;
+          }
+          break;
+        }
+
+        case UP: {
+          console.log("UP " + currentVar + " " + value + " " + values);
+          if (currentVar === 0) {
+            break search;
+          } else {
+            values[currentVar] = least;
+            currentVar--;
+            value = values[currentVar];
+            constraints = constraintsForVar[currentVar];
+            numConstraints = constraints.length;
+            for (var i = 0; i < numConstraints; i++) {
+              constraints[i].up();
+            }
+            state = NEXT;
+          }
+          break;
+        }
+
+        case NEXT: {
+          console.log("NEXT " + currentVar + " " + value + " " + values);
+          var value = constraints[0].next(value, false);
+          if (value === greatest) {
+            state = UP;
+          } else {
+            values[currentVar] = value;
+            state = FIX;
+          }
+          break;
+        }
       }
     }
-  },
+  }
 };
 
 // CONSTRAINTS
 
-function ContainsConstraint(iterator, vars) {
+function IteratorConstraint(iterator) {
   this.iterator = iterator;
-  this.vars = vars;
-  this.scratchKey = makeArray(iterator.tree.keyLen, null);
-  this.maxKey = makeArray(iterator.tree.keyLen, greatest);
+  this.inclusiveSearchKey = makeArray(iterator.keyLen, least);
+  this.exclusiveSearchKey = makeArray(iterator.keyLen, greatest);
+  this.currentVar = 0;
 }
 
-ContainsConstraint.prototype = {
-  init: function(solver, myIndex) {
+IteratorConstraint.prototype = {
+  init: function() {
     this.iterator.reset();
+    fillArray(this.inclusiveSearchKey, least);
+    fillArray(this.exclusiveSearchKey, greatest);
+    this.currentVar = 0;
   },
 
-  setLos: function(solver, myIndex, oldLos, newLos) {
-    var searchSpace = solver.searchSpace;
-    var vars = this.vars;
-    var numVars = vars.length;
-    var his = searchSpace.his;
+  up: function() {
+    if (this.currentVar < this.inclusiveSearchKey.length) {
+      this.inclusiveSearchKey[this.currentVar] = least;
+      this.exclusiveSearchKey[this.currentVar] = greatest;
+    }
+    this.currentVar--;
+  },
 
-    // clear old absents
-    searchSpace.absentVolumes.length = 0;
+  down: function(value) {
+    this.inclusiveSearchKey[this.currentVar] = value;
+    this.exclusiveSearchKey[this.currentVar] = value;
+    this.currentVar++;
+  },
 
-    // update the searchSpace vars
-    for (var i = 0; i < numVars; i++) {
-      var cur = vars[i];
-      searchSpace.setLo(cur, newLos[i], myIndex, oldLos, newLos);
-      if(newLos[i] !== his[cur]) {
-        searchSpace.setWatch(cur, myIndex, true);
-        break;
+  next: function(value, isInclusive) {
+    console.log("SEARCH KEYS ARE " + this.inclusiveSearchKey + " " + this.exclusiveSearchKey + " " + value);
+    var currentVar = this.currentVar;
+    var searchKey;
+    var nextKey;
+    if (isInclusive === true) {
+      searchKey = this.inclusiveSearchKey;
+      searchKey[currentVar] = value;
+      nextKey = this.iterator.seekGte(searchKey);
+    } else {
+      searchKey = this.exclusiveSearchKey;
+      searchKey[currentVar] = value;
+      nextKey = this.iterator.seekGt(searchKey);
+    }
+    console.log("NEXT KEY " + nextKey + " FROM " + searchKey + " WHEN " + currentVar + " " + value);
+    if (nextKey === null) {
+      return greatest;
+    }
+    for (var i = 0; i < currentVar; i++) {
+      if (searchKey[i] !== nextKey[i]) {
+        return greatest;
       }
     }
-
-    // add new absents
-    var proofVolume = oldLos.concat(newLos);
-    solver.absent(proofVolume);
-  },
-
-  propagate: function(solver, myIndex) {
-    var searchSpace = solver.searchSpace;
-    var los = searchSpace.los;
-    var his = searchSpace.his;
-    var vars = this.vars;
-    var len = vars.length;
-    var scratchKey = this.scratchKey;
-
-    // update the scratchKey to represent a new lower bound
-    for(var i = 0; i < len; i++) {
-      var cur = vars[i];
-      scratchKey[i] = los[cur];
-      if(los[cur] !== his[cur]) break;
-    }
-
-    for(var j = i + 1; j < len; j++) {
-      scratchKey[j] = least;
-    }
-
-    // find a new lower bound in the iterator
-    this.setLos(solver, myIndex, scratchKey, this.iterator.seekGte(scratchKey) || this.maxKey);
-  },
-
-  splitLeft: function(solver, myIndex) {
-    var searchSpace = solver.searchSpace;
-    var los = searchSpace.los;
-    var his = searchSpace.his;
-    var vars = this.vars;
-    var len = vars.length;
-    for(var i = 0; i < len; i++) {
-      var cur = vars[i];
-      if(los[cur] !== his[cur]) {
-        searchSpace.setHi(cur, los[cur]);
-        if(i + 1 < len) {
-          searchSpace.setWatch(vars[i + 1], myIndex, true);
-        }
-        this.propagate(solver, myIndex);
-        return true;
-      }
-    }
-    return false;
-  },
-
-  splitRight: function(solver, myIndex) {
-    var searchSpace = solver.searchSpace;
-    var los = searchSpace.los;
-    var his = searchSpace.his;
-    var vars = this.vars;
-    var len = vars.length;
-    var scratchKey = this.scratchKey;
-
-    // copy the los
-    for(var i = 0; i < len; i++) {
-      var cur = vars[i];
-      scratchKey[i] = los[cur];
-    }
-
-    // find the upper bound
-    for(var j = 0; j < len; j++) {
-      var cur = vars[j];
-      if(scratchKey[j] !== his[cur]) break;
-    }
-
-    for(j = j + 1; j < len; j++) {
-      scratchKey[j] = greatest;
-    }
-
-    // seek *past* the left branch
-    this.setLos(solver, myIndex, scratchKey, this.iterator.seekGt(scratchKey) || this.maxKey);
-  },
-
-  remember: function(solver, myIndex, absence, remember) {
-    solver.searchSpace.setVolume(absence.solverVolume);
-    solver.searcher.search(solver);
-  },
-
-  forget: function(solver, myIndex, absence, forget) {
-    // we know we are always moving from lower to higher
-    var len = forget.length;
-    var oldHis = absence.proofVolume.slice(len, 2*len);
-    if (arrayEqual(forget, oldHis)) {
-      var oldLos = absence.proofVolume.slice(0, len);
-      var newLos = this.iterator.seekGt(oldLos) || this.maxKey;
-      solver.searchSpace.setVolume(absence.solverVolume);
-      this.setLos(solver, myIndex, oldLos, newLos);
-    }
-  },
+    return nextKey[currentVar];
+  }
 };
 
 // TESTS
@@ -1456,59 +1186,28 @@ var iteratorProps = {
 
 assertAll(iteratorProps, {tests: 1000});
 
-// PROVENANCE TESTS
-
-function simpleProvenanceTest () {
-  var p = simpleProvenance();
-  var rf = [];
-  var ra = [];
-
-  p.present(new Presence([10,10,10], "sp1"));
-  p.present(new Presence([25,25,25], "sp2"));
-
-  var a1 = new Absence([0,10], [0,0,0,10,10,10], "sv1", "c1");
-  p.absent(a1, rf);
-  assert(nestedEqual(rf, []));
-  assert(arrayEqual(p.absences, [a1]));
-
-  var a2 = new Absence([5,15], [5,5,5,15,15,15], "sv2", "c2");
-  p.absent(a2, rf);
-  assert(nestedEqual(rf, [[10,10,10]]));
-  assert(arrayEqual(p.absences, [a1, a2]));
-
-  var a3 = new Absence([5,20], [5,5,5,20,20,20], "sv2", "c2");
-  p.absent(a3, rf);
-  assert(nestedEqual(rf, [[10,10,10]]));
-  assert(arrayEqual(p.absences, [a1, a3]));
-
-  p.remove([9,9,9], ra);
-  assert(arrayEqual(ra, [a3, a1]));
-  assert(arrayEqual(p.absences, []));
-}
-
-simpleProvenanceTest();
-
 // SOLVER TESTS
 
 function solverTest() {
-  var m = btree(10, 3);
-  var p = simpleProvenance();
-  var c1 = new ContainsConstraint(iterator(m), [0,1,2]);
-  var c2 = new ContainsConstraint(iterator(m), [3,4,5]);
-  var s = solver(6, [c1,c2], m, p);
-  s.init();
+  var t = btree(10, 3);
+  var c0 = new IteratorConstraint(iterator(t));
+  var c1 = new IteratorConstraint(iterator(t));
+  var s = solver(6, [c0, c1], [[0,1,2],[3,4,5]]);
+  var rf;
 
-  m.add([0,0,0]);
-  s.adjust([[0,0,0]], []);
-  assert(nestedEqual(s.queuedForgets, []));
-  assert(nestedEqual(s.queuedRemembers, [[0,0,0,0,0,0]]));
-  s.queuedRemembers.length = 0;
+  s.search(rf);
+  rf = [];
+  assert(nestedEqual(rf, []));
 
-  m.add([1,1,1]);
-  s.adjust([[1,1,1]], []);
-  assert(nestedEqual(s.queuedForgets, []));
-  assert(nestedEqual(s.queuedRemembers, [[0,0,0,1,1,1],[1,1,1,0,0,0],[1,1,1,1,1,1]]));
-  s.queuedRemembers.length = 0;
+  t.add([0,0,0]);
+  rf = [];
+  s.search(rf);
+  assert(nestedEqual(rf, [[0,0,0,0,0,0]]));
+
+  t.add([1,2,3]);
+  rf = [];
+  s.search(rf);
+  assert(nestedEqual(rf, [[0,0,0,0,0,0],[0,0,0,1,2,3],[1,2,3,0,0,0],[1,2,3,1,2,3]]));
 }
 
 solverTest();
