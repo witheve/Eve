@@ -1205,7 +1205,6 @@ var solverProps = {
 
   productJoin: forall(gen.array(gen.eav()),
                      function (facts) {
-                       console.log(facts.length);
                        var tree = btree(10, 3);
                        var constraint0 = new IteratorConstraint(iterator(tree));
                        var constraint1 = new IteratorConstraint(iterator(tree));
