@@ -20,13 +20,6 @@ function fillArray(arr, fill) {
   }
 }
 
-function clearArray(arr) {
-  while (arr.length > 0) {
-    arr.pop();
-  }
-  return arr;
-}
-
 function pushInto(depth, a, b) {
   var len = a.length;
   var start = depth * len;
@@ -156,40 +149,6 @@ function findKeyGT(keys, key) {
     }
   }
   return lo;
-}
-
-function volumeContainsPoint(volume, point) {
-  assert(volume.length === 2 * point.length);
-  var dimensions = point.length;
-  for (var i = 0; i < dimensions; i++) {
-    if (compareValue(volume[i], point[i]) === 1) return false;
-    if (compareValue(volume[dimensions + i], point[i]) === -1) return false;
-  }
-  return true;
-}
-
-function volumeStrictlyContainsPoint(volume, point) {
-  assert(volume.length === 2 * point.length);
-  var dimensions = point.length;
-  for (var i = 0; i < dimensions; i++) {
-    if (compareValue(volume[i], point[i]) === 1) return false;
-    if (compareValue(volume[dimensions + i], point[i]) === -1) return false;
-  }
-  for (var i = 0; i < dimensions; i++) {
-    if ((compareValue(volume[i], point[i]) === -1) &&
-        (compareValue(volume[dimensions + i], point[i]) === 1)) return true;
-  }
-  return false;
-}
-
-function volumeContainsVolume(outerVolume, innerVolume) {
-  assert(outerVolume.length === innerVolume.length);
-  var dimensions = outerVolume.length / 2;
-  for (var i = 0; i < dimensions; i++) {
-    if (compareValue(outerVolume[i], innerVolume[i]) === 1) return false;
-    if (compareValue(outerVolume[dimensions + i], innerVolume[dimensions + i]) === -1) return false;
-  }
-  return true;
 }
 
 // BTREE
