@@ -1,10 +1,40 @@
+"use strict";
+
 var least = false;
 var greatest = undefined;
+
+function compare(a, b) {
+  if(a === b) return 0;
+  var at = typeof a;
+  var bt = typeof b;
+  if((at === bt && a < b) || (at < bt)) return -1;
+  return 1;
+}
+
+function keyEq(a, b) {
+  var len = a.length;
+  if(len !== b.length) throw new Error("keyEq on arrays of different lenght: " + a + " :: " + b);
+  for(var i = 0; i < len; i++) {
+    if(a[i] !== b[i]) {
+      return false;
+    }
+  }
+  return true;
+}
 
 function makeArray(len, fill) {
   var arr = [];
   for(var i = 0; i < len; i++) {
     arr[i] = fill;
+  }
+  return arr;
+}
+
+function cloneArray(old) {
+  var len = old.length;
+  var arr = [];
+  for(var i = 0; i < len; i++) {
+    arr[i] = old[i];
   }
   return arr;
 }
@@ -32,40 +62,55 @@ function clearArray(arr) {
   return arr;
 }
 
-function SolverNode(numVars, constraints, los, his, varWatching, constraintDirty, failed, splitter, left, right) {
+function Solver(numVars, constraints) {
   this.numVars = numVars;
+  this.los = makeArray(numVars, least);
+  this.his = makeArray(numVars, greatest);
+  this.varWatching = makeArray(numVars * constraints.length, false);
+  this.constraintDirty = makeArray(constraints.length, true);
   this.constraints = constraints;
-  this.los = los;
-  this.his = his;
-  this.varWatching = varWatching;
-  this.constraintDirty = constraintDirty;
-  this.failed = failed;
-  this.splitter = splitter;
-  this.left = left;
-  this.right = right;
+  this.failed = false;
+  this.depth = 0;
+  this.pushedLos = [];
+  this.pushedHis = [];
+  this.pushedVarWatching = [];
+  this.pushedConstraintDirty = [];
+  this.pushedSplitters = [];
 }
 
-function solverNode(numVars, constraints) {
-  var los = makeArray(numVars, least);
-  var his = makeArray(numVars, greatest);
-  var varWatching = makeArray(numVars * constraints.length, false);
-  var constraintDirty = makeArray(constraints.length, true);
-  var failed = false;
-  var splitter = null;
-  var left = null;
-  var right = null;
-  return new SolverNode(numVars, constraints, los, his, varWatching, constraintDirty, failed, splitter, left, right);
-}
+Solver.prototype = {
+  reset: function() {
+    var varsLen = this.numVars;
+    var constraintsLen = this.constraints.length;
 
-SolverNode.prototype = {
-  copy: function() {
-    var copiedConstraints = [];
-    for (var i = 0; i < this.constraints.length; i++) {
-      copiedConstraints[i] = this.constraints[i].copy();
+    this.depth = 0;
+    this.failed = false;
+
+    var his = this.his;
+    var los = this.los;
+    for(var i = 0; i < varsLen; i++) {
+      los[i] = least;
+      his[i] = greatest;
     }
-    return new SolverNode(this.numVars, copiedConstraints,
-                          this.los.slice(), this.his.slice(), this.varWatching.slice(), this.constraintDirty.slice(),
-                          this.failed, null, null, null);
+
+    var varWatching = this.varWatching;
+    var constraints = this.constraints;
+    for(var i = 0; i < constraintsLen; i++) {
+      varWatching[i] = false;
+      constraints[i].reset(this, i);
+    }
+
+    var constraintDirty = this.constraintDirty;
+    var dirtyLen = constraintsLen * varsLen;
+    for(var i = 0; i < dirtyLen; i++) {
+      constraintDirty[i] = true;
+    }
+
+    clearArray(this.pushedLos);
+    clearArray(this.pushedHis);
+    clearArray(this.pushedVarWatching);
+    clearArray(this.pushedConstraintDirty);
+    clearArray(this.pushedSplitters);
   },
 
   setLo: function(index, lo) {
@@ -107,6 +152,12 @@ SolverNode.prototype = {
     this.setDirty(index);
   },
 
+  set_eq: function(index,val) { this.setEq(index,val); },
+  set_hi: function(index,val) { this.setHi(index,val); },
+  set_lo: function(index,val) { this.setLo(index,val); },
+  set_watch: function(index,cindex, val) { this.setWatch(index,cindex,val); },
+  set_dirty: function(index) { this.setDirty(index); },
+
   setWatch: function(index, constraintIndex, val) {
     var i = (index * this.constraints.length) + constraintIndex;
     this.varWatching[i] = val;
@@ -125,46 +176,98 @@ SolverNode.prototype = {
   },
 
   split: function() {
-    this.left = this.copy();
-    this.right = this.copy();
+    var depth = this.depth;
+    pushInto(depth, this.los, this.pushedLos);
+    pushInto(depth, this.his, this.pushedHis);
+    pushInto(depth, this.varWatching, this.pushedVarWatching);
+    pushInto(depth, this.constraintDirty, this.pushedConstraintDirty);
+    this.depth = depth + 1;
 
     var constraints = this.constraints;
     var len = constraints.length;
     for(var i = 0; i < len; i++) {
-      if(constraints[i].split(this, i) === true) {
-        this.splitter = i;
+      if(constraints[i].split_left(this, i) === true) {
+        this.pushedSplitters.push(i);
         return;
       }
     }
     throw new Error("Can't split anything!");
   },
 
-  propagate: function() {
+  backtrack: function() {
+    this.failed = false;
+    var depth = this.depth = this.depth - 1;
+    popFrom(depth, this.los, this.pushedLos);
+    popFrom(depth, this.his, this.pushedHis);
+    popFrom(depth, this.varWatching, this.pushedVarWatching);
+    popFrom(depth, this.constraintDirty, this.pushedConstraintDirty);
+    var splitter = this.pushedSplitters.pop();
+    this.constraints[splitter].split_right(this, splitter);
+  },
+
+  next: function() {
     var constraints = this.constraints;
-    var constraintDirty = this.constraintDirty;
     var constraintsLen = constraints.length;
     var curConstraint = 0;
 
-    while ((curConstraint < constraintsLen) && (!this.failed)) {
-      if(constraintDirty[curConstraint] === false) {
-        curConstraint++;
-      } else {
-        constraints[curConstraint].propagate(this, curConstraint);
-        constraintDirty[curConstraint] = false;
+    while(true) {
+      //console.log("*********************iter******************", curConstraint, this.los, this.his, this.failed);
+      if(this.failed && this.depth > 0) {
+        //if we've failed, back up
+        this.backtrack();
         curConstraint = 0;
+      } else if(this.failed) {
+        //we're done
+        return null;
+      } else if(curConstraint >= constraintsLen) {
+        //console.log("*** no constraints: ", this.los, this.his);
+        //we've gone through all the constraints, we're either at a value
+        if(keyEq(this.los, this.his)) {
+          //console.log("found result: " + this.los);
+          this.failed = true;
+          return cloneArray(this.los);
+        } else {
+          //or we need to split
+          //console.log("Splitting: ", this.los, this.his);
+          this.split();
+          curConstraint = 0;
+        }
+      } else {
+        //otherwise, we need to keep going through the constraints.
+        //If this one isn't dirty, go to the next
+        if(this.constraintDirty[curConstraint] === false) {
+          curConstraint++;
+        } else {
+          constraints[curConstraint].propagate(this, curConstraint);
+          this.constraintDirty[curConstraint] = false;
+          curConstraint = 0;
+        }
       }
     }
   },
-};
 
-var SolverTree = function (root) {
-  this.root = root;
-};
+  val: function() {
+    var res = 1;
+    var constraints = this.constraints;
+    var constraintsLen = constraints.length;
+    for(var i = 0; i < constraintsLen; i++) {
+      res = res * constraints[i].val(this, i);
+    }
+    return res;
+  },
 
-SolverTree.prototype = {
-  update: function(remembers, forgets) {
-  // TODO
-  }
+  elems: function() {
+    var final = [];
+    var cur = this.next();
+    while(cur) {
+      //console.log("PUSHING RESULT: ", cur);
+      final.push(cur);
+      final.push(this.val());
+      cur = this.next();
+    }
+    return final;
+  },
+
 };
 
 

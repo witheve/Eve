@@ -1,10 +1,49 @@
+// UTIL
+
 function assert(cond, msg) {
   if(!cond) {
     throw new Error(msg);
   }
 }
 
-// ORDERING
+function makeArray(len, fill) {
+  var arr = [];
+  for(var i = 0; i < len; i++) {
+    arr[i] = fill;
+  }
+  return arr;
+}
+
+function fillArray(arr, fill) {
+  for(var i = 0; i < arr.length; i++) {
+    arr[i] = fill;
+  }
+}
+
+function clearArray(arr) {
+  while (arr.length > 0) {
+    arr.pop();
+  }
+  return arr;
+}
+
+function pushInto(depth, a, b) {
+  var len = a.length;
+  var start = depth * len;
+  for(var i = 0; i < len; i++) {
+    b[start + i] = a[i];
+  }
+}
+
+function popFrom(depth, a, b) {
+  var len = a.length;
+  var start = depth * len;
+  for(var i = 0; i < len; i++) {
+    a[i] = b[start + i];
+  }
+}
+
+// ORDERING / COMPARISON
 
 var least = false;
 var greatest = undefined;
@@ -119,95 +158,44 @@ function findKeyGT(keys, key) {
   return lo;
 }
 
+function volumeContainsPoint(volume, point) {
+  assert(volume.length === 2 * point.length);
+  var dimensions = point.length;
+  for (var i = 0; i < dimensions; i++) {
+    if (compareValue(volume[i], point[i]) === 1) return false;
+    if (compareValue(volume[dimensions + i], point[i]) === -1) return false;
+  }
+  return true;
+}
+
+function volumeStrictlyContainsPoint(volume, point) {
+  assert(volume.length === 2 * point.length);
+  var dimensions = point.length;
+  for (var i = 0; i < dimensions; i++) {
+    if (compareValue(volume[i], point[i]) === 1) return false;
+    if (compareValue(volume[dimensions + i], point[i]) === -1) return false;
+  }
+  for (var i = 0; i < dimensions; i++) {
+    if ((compareValue(volume[i], point[i]) === -1) &&
+        (compareValue(volume[dimensions + i], point[i]) === 1)) return true;
+  }
+  return false;
+}
+
+function volumeContainsVolume(outerVolume, innerVolume) {
+  assert(outerVolume.length === innerVolume.length);
+  var dimensions = outerVolume.length / 2;
+  for (var i = 0; i < dimensions; i++) {
+    if (compareValue(outerVolume[i], innerVolume[i]) === 1) return false;
+    if (compareValue(outerVolume[dimensions + i], innerVolume[dimensions + i]) === -1) return false;
+  }
+  return true;
+}
+
 // BTREE
 
 var LEFTCHILD = 0;
 var RIGHTCHILD = 1;
-
-function BTree(maxKeys, keyLen) {
-  this.root = new BTreeNode(this, 0, [], [], null, null, null);
-  this.maxKeys = maxKeys;
-  this.keyLen = keyLen;
-  this.isNode = false;
-}
-
-BTree.prototype = {
-  reset: function() {
-    this.root = new BTreeNode(this, 0, [], [], null, null, null);
-  },
-
-  add: function(key, val) {
-    return this.root.add(key, val, this.maxKeys);
-  },
-
-  del: function(key) {
-    return this.root.del(key, this.maxKeys);
-  },
-
-  push: function(ix, keyValChild, childType) {
-    var right = this.root;
-    var left = this.root;
-    if(childType === LEFTCHILD) {
-      left = keyValChild[2];
-    } else if (childType === RIGHTCHILD) {
-      right = keyValChild[2];
-    }
-
-    this.root = new BTreeNode(this, 0, [keyValChild[0]], [keyValChild[1]], [left, right], left.lower, right.upper);
-    left.parent = this.root;
-    left.parentIx = 0;
-    right.parent = this.root;
-    right.parentIx = 1;
-  },
-
-  maintainInvariants: function() {
-  },
-
-  assertInvariants: function() {
-    if(this.root.keys.length > 0) {
-      return this.root.assertInvariants(this.maxKeys);
-    }
-    return true;
-  },
-
-  foreach: function(f) {
-    this.root.foreach(f);
-  },
-
-  foreachReverse: function(f) {
-    this.root.foreachReverse(f);
-  },
-
-  keys: function() {
-    var results = [];
-    var i = 0;
-    this.foreach(function(k, v) {
-      results[i] = k;
-      i++;
-    });
-    return results;
-  },
-
-  elems: function() {
-    var results = [];
-    var i = 0;
-    this.foreach(function(k, v) {
-      results[i] = k;
-      results[i+1] = v;
-      i = i + 2;
-    });
-    return results;
-  },
-
-  isEmpty: function() {
-    return this.root.keys.length === 0;
-  },
-
-  toString: function() {
-    return "<btree " + this.elems().toString() + ">";
-  }
-
-};
 
 function BTreeNode(parent, parentIx, keys, vals, children, lower, upper) {
   this.parent = parent;
@@ -447,7 +435,7 @@ BTreeNode.prototype = {
   },
 
   assertInvariants: function(maxKeys) {
-    // TODO finish porting
+    // TODO finish porting from cljs version
     return true;
   },
 
@@ -488,16 +476,110 @@ BTreeNode.prototype = {
 
 };
 
-function btree(minKeys, keyLen) {
-  return new BTree(minKeys * 2, keyLen);
+function BTree(root, maxKeys, keyLen) {
+  this.root = root;
+  this.maxKeys = maxKeys;
+  this.keyLen = keyLen;
+  this.isNode = false;
 }
+
+function btree(minKeys, keyLen) {
+  var root = new BTreeNode(this, 0, [], [], null, null, null);
+  var maxKeys = minKeys * 2;
+  return new BTree(root, maxKeys, keyLen);
+}
+
+BTree.prototype = {
+  reset: function() {
+    this.root = new BTreeNode();
+  },
+
+  add: function(key, val) {
+    return this.root.add(key, val, this.maxKeys);
+  },
+
+  del: function(key) {
+    return this.root.del(key, this.maxKeys);
+  },
+
+  push: function(ix, keyValChild, childType) {
+    var right = this.root;
+    var left = this.root;
+    if(childType === LEFTCHILD) {
+      left = keyValChild[2];
+    } else if (childType === RIGHTCHILD) {
+      right = keyValChild[2];
+    }
+
+    this.root = new BTreeNode(this, 0, [keyValChild[0]], [keyValChild[1]], [left, right], left.lower, right.upper);
+    left.parent = this.root;
+    left.parentIx = 0;
+    right.parent = this.root;
+    right.parentIx = 1;
+  },
+
+  maintainInvariants: function() {
+  },
+
+  assertInvariants: function() {
+    if(this.root.keys.length > 0) {
+      return this.root.assertInvariants(this.maxKeys);
+    }
+    return true;
+  },
+
+  foreach: function(f) {
+    this.root.foreach(f);
+  },
+
+  foreachReverse: function(f) {
+    this.root.foreachReverse(f);
+  },
+
+  keys: function() {
+    var results = [];
+    var i = 0;
+    this.foreach(function(k, v) {
+      results[i] = k;
+      i++;
+    });
+    return results;
+  },
+
+  elems: function() {
+    var results = [];
+    var i = 0;
+    this.foreach(function(k, v) {
+      results[i] = k;
+      results[i+1] = v;
+      i = i + 2;
+    });
+    return results;
+  },
+
+  isEmpty: function() {
+    return this.root.keys.length === 0;
+  },
+
+  toString: function() {
+    return "<btree " + this.elems().toString() + ">";
+  }
+
+};
 
 // ITERATORS
 
-function Iterator(tree) {
+function Iterator(tree, node, ix) {
   this.tree = tree;
-  this.node = tree.root;
-  this.ix = 0;
+  this.node = node;
+  this.ix = ix;
+  this.keyLen = tree.keyLen;
+}
+
+function iterator(tree) {
+  var node = tree.root;
+  var ix = 0;
+  return new Iterator(tree, node, ix);
 }
 
 Iterator.prototype = {
@@ -570,79 +652,195 @@ Iterator.prototype = {
   }
 };
 
-function iterator(tree) {
-  return new Iterator(tree);
+// SOLVER
+
+function Solver(numVars, numConstraints, constraints, constraintsForVar) {
+  this.numVars = numVars;
+  this.numConstraints = numConstraints;
+  this.constraints = constraints;
+  this.constraintsForVar = constraintsForVar;
+  this.values = makeArray(numVars, least);
 }
 
-// MEMORY
-
-function contains(point, volume) {
-  for (var i = 0; i < point.length; i++) {
-    if (compareValue(point[i], volume[i]) === -1) return false;
-    if (compareValue(point[i], volume[point.length + i]) === 1) return false;
+function solver(numVars, constraints, varsForConstraint) {
+  var numConstraints = constraints.length;
+  var constraintsForVar = [];
+  for (var i = 0; i < numVars; i++) {
+    constraintsForVar[i] = [];
   }
-  return true;
-}
-
-function SimpleWhy(fact, provenance) {
-  this.fact = fact;
-  this.provenance = provenance;
-}
-
-function SimpleWhyNot(proofVolume, solutionVolume, solverState) {
-  this.proofVolume = proofVolume;
-  this.solutionVolume = solutionVolume;
-  this.solverState = solverState;
-}
-
-function SimpleMemory(tree, whys, whyNots) {
-  this.tree = tree;
-  this.whys = whys;
-  this.whyNots = whyNots;
-}
-
-SimpleMemory.prototype = {
-  quarantine: function(proofVolume, solutionVolume, solverState) {
-    this.whyNots.push(new SimpleWhyNot(proofVolume, solutionVolume, solverState));
-  },
-
-  remember: function(fact, provenance, returnedSolverStates) {
-    this.tree.add(fact, null);
-    this.whys.push(new SimpleWhy(fact, provenance));
-    var whyNots = this.whyNots;
-    for (var i = whyNots.length - 1; i >= 0; i--) {
-      var whyNot = whyNots[i];
-      if (contains(fact, whyNot.proofVolume)) {
-        whyNots.splice(i, 1);
-        returnedSolverStates.push(whyNot.solverState);
-      }
+  for (var i = 0; i < numConstraints; i++) {
+    var constraint = constraints[i];
+    var vars = varsForConstraint[i];
+    for (var j = 0; j < vars.length; j++) {
+      constraintsForVar[vars[j]].push(constraint);
     }
-  },
+  }
+  return new Solver(numVars, numConstraints, constraints, constraintsForVar);
+}
 
-  forget: function(fact, returnedForgets) {
-    var whys = this.whys;
-    for (var i = whys.length - 1; i >= 0; i--) {
-      var why = whys[i];
-      var provenance = why.provenance;
-      for (var j = 0; j < provenance.length; j++) {
-        if (arrayEqual(fact, provenance[j])) {
-          this.tree.del(fact);
-          whys.splice(i, 1);
-          returnedForgets.push(why.fact);
+Solver.prototype = {
+  solve: function(returnedValues) {
+
+    // init values
+    var values = this.values;
+    fillArray(values, least);
+
+    // init constraints
+    var constraints = this.constraints;
+    var numConstraints = this.numConstraints;
+    for (var i = 0; i < numConstraints; i++) {
+      constraints[i].init();
+    }
+
+    // init search
+    var numVars = this.numVars;
+    var constraintsForVar = this.constraintsForVar;
+    var currentVar = 0;
+    var value = values[currentVar];
+    var constraints = constraintsForVar[currentVar];
+    var numConstraints = constraints.length;
+
+    var FIX = 0;
+    var DOWN = 1;
+    var UP = 2;
+    var NEXT = 3;
+
+    var state = FIX;
+
+    // run the search state machine
+    search: while (true) {
+      switch (state) {
+
+        case FIX: {
+          // console.log("FIX " + currentVar + " " + value + " " + values);
+          var currentConstraint = 0;
+          var lastChanged = 0;
+          do {
+            var newValue = constraints[currentConstraint].next(value, true);
+            if (value !== newValue) {
+              lastChanged = currentConstraint;
+            }
+            value = newValue;
+            currentConstraint = (currentConstraint + 1) % numConstraints;
+          }
+          while ((currentConstraint !== lastChanged) && (value !== greatest));
+          if (value === greatest) {
+            state = UP;
+          } else {
+            values[currentVar] = value;
+            state = DOWN;
+          }
+          break;
+        }
+
+        case DOWN: {
+          // console.log("DOWN " + currentVar + " " + value + " " + values);
+          if (currentVar === numVars - 1) {
+            returnedValues.push(values.slice());
+            state = NEXT;
+          } else {
+            for (var i = 0; i < numConstraints; i++) {
+              constraints[i].down(value);
+            }
+            currentVar++;
+            value = values[currentVar];
+            constraints = constraintsForVar[currentVar];
+            numConstraints = constraints.length;
+            state = FIX;
+          }
+          break;
+        }
+
+        case UP: {
+          // console.log("UP " + currentVar + " " + value + " " + values);
+          if (currentVar === 0) {
+            break search;
+          } else {
+            values[currentVar] = least;
+            currentVar--;
+            value = values[currentVar];
+            constraints = constraintsForVar[currentVar];
+            numConstraints = constraints.length;
+            for (var i = 0; i < numConstraints; i++) {
+              constraints[i].up();
+            }
+            state = NEXT;
+          }
+          break;
+        }
+
+        case NEXT: {
+          // console.log("NEXT " + currentVar + " " + value + " " + values);
+          var value = constraints[0].next(value, false);
+          if (value === greatest) {
+            state = UP;
+          } else {
+            values[currentVar] = value;
+            state = FIX;
+          }
           break;
         }
       }
     }
-  },
-
-  constrain: function(ixes) {
-    return new ContainsConstraint(iterator(this.tree), ixes);
   }
 };
 
-function simpleMemory(keylen) {
-  return new SimpleMemory(btree(10, keylen), [], []);
+// CONSTRAINTS
+
+function IteratorConstraint(iterator) {
+  this.iterator = iterator;
+  this.inclusiveSearchKey = makeArray(iterator.keyLen, least);
+  this.exclusiveSearchKey = makeArray(iterator.keyLen, greatest);
+  this.currentVar = 0;
 }
+
+IteratorConstraint.prototype = {
+  init: function() {
+    this.iterator.reset();
+    fillArray(this.inclusiveSearchKey, least);
+    fillArray(this.exclusiveSearchKey, greatest);
+    this.currentVar = 0;
+  },
+
+  up: function() {
+    if (this.currentVar < this.inclusiveSearchKey.length) {
+      this.inclusiveSearchKey[this.currentVar] = least;
+      this.exclusiveSearchKey[this.currentVar] = greatest;
+    }
+    this.currentVar--;
+  },
+
+  down: function(value) {
+    this.inclusiveSearchKey[this.currentVar] = value;
+    this.exclusiveSearchKey[this.currentVar] = value;
+    this.currentVar++;
+  },
+
+  next: function(value, isInclusive) {
+    var currentVar = this.currentVar;
+    var searchKey;
+    var nextKey;
+    if (isInclusive === true) {
+      searchKey = this.inclusiveSearchKey;
+      searchKey[currentVar] = value;
+      nextKey = this.iterator.seekGte(searchKey);
+    } else {
+      searchKey = this.exclusiveSearchKey;
+      searchKey[currentVar] = value;
+      nextKey = this.iterator.seekGt(searchKey);
+    }
+    // console.log("NEXT KEY " + nextKey + " FROM " + searchKey + " WHEN " + currentVar + " " + value);
+    if (nextKey === null) {
+      return greatest;
+    }
+    for (var i = 0; i < currentVar; i++) {
+      if (searchKey[i] !== nextKey[i]) {
+        return greatest;
+      }
+    }
+    return nextKey[currentVar];
+  }
+};
 
 // TESTS
 
@@ -829,7 +1027,7 @@ var orderingProps = {
                          }),
 };
 
-assertAll(orderingProps, {tests: 5000});
+assertAll(orderingProps, {tests: 1000});
 
 // BTREE TESTS
 
@@ -919,7 +1117,7 @@ var btreeProps = {
                   })
 };
 
-assertAll(btreeProps, {tests: 5000});
+assertAll(btreeProps, {tests: 1000});
 
 // ITERATOR TESTS
 
@@ -984,26 +1182,49 @@ var iteratorProps = {
                 })
 };
 
-assertAll(iteratorProps, {tests: 5000});
+assertAll(iteratorProps, {tests: 1000});
 
-// MEMORY TESTS
+// SOLVER TESTS
 
-function simpleMemoryTest () {
-  var m = simpleMemory(3);
-  var rs = [];
-  var rf = [];
-  m.quarantine([0,0,0,10,10,10], "sv1", "ss1");
-  m.quarantine([5,5,5,15,15,15], "sv2", "ss2");
-  m.remember([1,1,1], [[1,2,3],[4,5,6]], rs);
-  assert(arrayEqual(rs, ["ss1"]));
-  m.remember([5,5,5], [[1,2,3]], rs);
-  assert(arrayEqual(rs, ["ss1", "ss2"]));
-  m.remember([9,9,9], [[1,2,3]], rs);
-  assert(arrayEqual(rs, ["ss1", "ss2"]));
-  m.forget([4,5,6], rf);
-  assert(nestedEqual(rf, [[1,1,1]]));
-  m.forget([1,2,3], rf);
-  assert(nestedEqual(rf, [[1,1,1],[9,9,9],[5,5,5]]));
-}
+var solverProps = {
+  selfJoin: forall(gen.array(gen.eav()),
+                     function (facts) {
+                       var tree = btree(10, 3);
+                       var constraint0 = new IteratorConstraint(iterator(tree));
+                       var constraint1 = new IteratorConstraint(iterator(tree));
+                       var productSolver = solver(3, [constraint0, constraint1], [[0,1,2],[0,1,2]]);
+                       for (var i = 0; i < facts.length; i++) {
+                         tree.add(facts[i]);
+                       }
+                       var returnedFacts = [];
+                       productSolver.solve(returnedFacts);
 
-simpleMemoryTest();
+                       var expectedFacts = tree.keys();
+                       return nestedEqual(returnedFacts, expectedFacts);
+                     }),
+
+  productJoin: forall(gen.array(gen.eav()),
+                     function (facts) {
+                       console.log(facts.length);
+                       var tree = btree(10, 3);
+                       var constraint0 = new IteratorConstraint(iterator(tree));
+                       var constraint1 = new IteratorConstraint(iterator(tree));
+                       var productSolver = solver(6, [constraint0, constraint1], [[0,1,2],[3,4,5]]);
+                       for (var i = 0; i < facts.length; i++) {
+                         tree.add(facts[i]);
+                       }
+                       var returnedFacts = [];
+                       productSolver.solve(returnedFacts);
+
+                       var uniqueSortedFacts = tree.keys();
+                       var expectedFacts = [];
+                       for (var i = 0; i < uniqueSortedFacts.length; i++) {
+                         for (var j = 0; j < uniqueSortedFacts.length; j++) {
+                           expectedFacts.push(uniqueSortedFacts[i].concat(uniqueSortedFacts[j]));
+                         }
+                       }
+                       return nestedEqual(returnedFacts, expectedFacts);
+                     })
+};
+
+assertAll(solverProps, {tests: 5000});
