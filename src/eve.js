@@ -23,13 +23,6 @@ function fillArray(arr, fill) {
   }
 }
 
-function clearArray(arr) {
-  while (arr.length > 0) {
-    arr.pop();
-  }
-  return arr;
-}
-
 function pushInto(depth, a, b) {
   var len = a.length;
   var start = depth * len;
@@ -159,40 +152,6 @@ function findKeyGT(keys, key) {
     }
   }
   return lo;
-}
-
-function volumeContainsPoint(volume, point) {
-  assert(volume.length === 2 * point.length);
-  var dimensions = point.length;
-  for (var i = 0; i < dimensions; i++) {
-    if (compareValue(volume[i], point[i]) === 1) return false;
-    if (compareValue(volume[dimensions + i], point[i]) === -1) return false;
-  }
-  return true;
-}
-
-function volumeStrictlyContainsPoint(volume, point) {
-  assert(volume.length === 2 * point.length);
-  var dimensions = point.length;
-  for (var i = 0; i < dimensions; i++) {
-    if (compareValue(volume[i], point[i]) === 1) return false;
-    if (compareValue(volume[dimensions + i], point[i]) === -1) return false;
-  }
-  for (var i = 0; i < dimensions; i++) {
-    if ((compareValue(volume[i], point[i]) === -1) &&
-        (compareValue(volume[dimensions + i], point[i]) === 1)) return true;
-  }
-  return false;
-}
-
-function volumeContainsVolume(outerVolume, innerVolume) {
-  assert(outerVolume.length === innerVolume.length);
-  var dimensions = outerVolume.length / 2;
-  for (var i = 0; i < dimensions; i++) {
-    if (compareValue(outerVolume[i], innerVolume[i]) === 1) return false;
-    if (compareValue(outerVolume[dimensions + i], innerVolume[dimensions + i]) === -1) return false;
-  }
-  return true;
 }
 
 // BTREE
@@ -1195,12 +1154,12 @@ var solverProps = {
                        var tree = btree(10, 3);
                        var constraint0 = new IteratorConstraint(iterator(tree));
                        var constraint1 = new IteratorConstraint(iterator(tree));
-                       var productSolver = solver(3, [constraint0, constraint1], [[0,1,2],[0,1,2]]);
+                       var selfSolver = solver(3, [constraint0, constraint1], [[0,1,2],[0,1,2]]);
                        for (var i = 0; i < facts.length; i++) {
                          tree.add(facts[i]);
                        }
                        var returnedFacts = [];
-                       productSolver.solve(returnedFacts);
+                       selfSolver.solve(returnedFacts);
 
                        var expectedFacts = tree.keys();
                        return nestedEqual(returnedFacts, expectedFacts);
@@ -1230,3 +1189,27 @@ var solverProps = {
 };
 
 assertAll(solverProps, {tests: 5000});
+
+function solverRegressionTest() {
+  var tree0 = btree(10, 2);
+  var tree1 = btree(10, 2);
+  var constraint0 = new IteratorConstraint(iterator(tree0));
+  var constraint1 = new IteratorConstraint(iterator(tree1));
+  var regressionSolver = solver(3, [constraint0, constraint1], [[0,2],[1,2]]);
+
+  tree0.add(["a", "b"]);
+  tree0.add(["b", "c"]);
+  tree0.add(["c", "d"]);
+  tree0.add(["d", "b"]);
+
+  tree1.add(["b", "a"]);
+  tree1.add(["c", "b"]);
+  tree1.add(["d", "c"]);
+  tree1.add(["b", "d"]);
+
+  var returnedFacts = [];
+  regressionSolver.solve(returnedFacts);
+  assert(nestedEqual(returnedFacts, [["a","c","b"],["b","d","c"],["c","b","d"],["d","c","b"]]));
+}
+
+solverRegressionTest();
