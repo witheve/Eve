@@ -85,17 +85,17 @@ body { background:#fff; color: #666; font-family: "Nunito"; font-weight:300; fon
 .toolbox { background:#eee; margin:10% 0; list-style:none;}
 .toolbox li { padding:5px 10px; border-radius:3px; }
 
-.text { display:inline-block; vertical-align:top; }
+.text { display:inline-block; position:absolute; vertical-align:top; }
 
 .box { min-height:100px; padding:15px; width:100%; }
 
-.button { display:inline-block; padding:5px 10px; background: #ddd; border-radius:3px; cursor:default; }
+.button { position:absolute; display:inline-block; padding:5px 10px; background: #ddd; border-radius:3px; cursor:default; }
 .button:hover { background:#ccc; }
 
 .button-wrapper { display:inline-block; }
 .text-wrapper {display:inline-block;}
 .div-wrapper { display:block; }
 
-.active-element-overlay { border:1px solid red; position:absolute; pointer-events:none; }
+.active-element-overlay { border:1px solid #aaa; border-radius:3px; position:absolute; pointer-events:none; }
 
 .card { width:100%; }
