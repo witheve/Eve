@@ -1,4 +1,7 @@
 // UTIL
+if(require) {
+  jsc = require("./resources/jsverify.js");
+}
 
 function assert(cond, msg) {
   if(!cond) {
