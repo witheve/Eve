@@ -1,5 +1,5 @@
 // UTIL
-if(require) {
+if(typeof window === 'undefined') {
   jsc = require("./resources/jsverify.js");
 }
 
