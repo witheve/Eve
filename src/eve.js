@@ -614,6 +614,102 @@ Iterator.prototype = {
   }
 };
 
+// PROVENANCE
+
+function WhyNot(solverLos, solverHis, proofLos, proofHis) {
+  this.solverLos = solverLos;
+  this.solverHis = solverHis;
+  this.proofLos = proofLos;
+  this.proofHis = proofHis;
+}
+
+function Why(solverValues) {
+  this.solverValues = solverValues;
+}
+
+function Provenance(inputDelta, dirtyRanges, outputDelta, whys, whyNots) {
+  this.inputDelta = inputDelta;
+  this.dirtyRanges = dirtyRanges;
+  this.outputDelta = outputDelta;
+  this.whys = whys;
+  this.whyNots = whyNots;
+}
+
+function provenance(keyLen, numVars) {
+  var inputDelta = btree(10, keyLen);
+  var dirtyRanges = btree(10, numVars);
+  var outputDelta = btree(10, numVars);
+  var whys = [];
+  var whyNots = [];
+  var provenance = new Provenance(inputDelta, dirtyRanges, outputDelta, whys, whyNots);
+  provenance.whyNot(leastArray(numVars), leastArray(keyLen), greatestArray(keyLen));
+  return provenance;
+}
+
+Provenance.prototype = {
+  // provenance storage
+
+  why: function (solverValues) {
+    this.whys.push(new Why(solverValues));
+    this.outputDelta.update(solverValues, 1);
+  },
+
+  whyNot: function (solverLos, solverHis, proofLos, proofHis) {
+    var whyNots = this.whyNots;
+    for (var i = whyNots.length - 1; i >= 0; i--) {
+      var whyNot = whyNots[i];
+      var lolo = compareValueArray(solverLos, whyNot.solverLos) === -1;
+      var lohi = compareValueArray(solverLos, whyNot.solverHis) !== 1;
+      var hilo = compareValueArray(solverHis, whyNot.solverLos) !== -1;
+      var hihi = compareValueArray(solverHis, whyNot.solverHis) === 1;
+      if (!lolo && !hihi) {
+        // old range contains new range
+        return;
+      } else if (lohi && hilo) {
+        // new range contains old range
+        whyNots.slice(i, 1);
+      } else if (lohi) {
+        // new range overwrites hi end of old range
+        whyNot.solverHis = solverLos;
+      } else if (hilo) {
+        // new range overwrites lo end of old range
+        whyNot.solverLos = solverHis;
+      }
+      // otherwise no intersection
+    }
+    var whys = this.whys;
+    var outputDelta = this.outputDelta;
+    for (var i = whys.length - 1; i >= 0; i--) {
+      var why = whys[i];
+      var solverValues = why.solverValues;
+      if ((compareValueArray(solverLos, solverValues) !== 1) && (compareValueArray(solverValues, solverHis) !== 1)) {
+        whys.splice(i, 1);
+        outputDelta.update(solverValues, -1);
+      }
+    }
+    whyNots.push(new WhyNot(solverLos, solverHis, proofLos, proofHis));
+  },
+
+  find: function (values) {
+    var whyNots = this.whyNots;
+    for (var i = whyNots.length - 1; i >= 0; i--) {
+      var whyNot = whyNots[i];
+      if ((compareValueArray(whyNot.solverLos, values) !== 1) &&
+          (compareValueArray(values, whyNot.solverHis)) !== 1) {
+        whyNots.slice(i, 1);
+        return whyNot;
+      }
+    }
+    return null;
+  },
+
+  // constraint interface
+
+  init: function () {
+    // TODO calculate dirty ranges
+  },
+};
+
 // SOLVER
 
 function Solver(numVars, numConstraints, constraints, constraintsForVar) {
@@ -793,10 +889,12 @@ IteratorConstraint.prototype = {
     }
     // console.log("NEXT KEY " + nextKey + " FROM " + searchKey + " WHEN " + currentVar + " " + value);
     if (nextKey === null) {
+      // no more keys
       return greatest;
     }
     for (var i = 0; i < currentVar; i++) {
       if (searchKey[i] !== nextKey[i]) {
+        // next key does not match prefix of searchKey
         return greatest;
       }
     }
