@@ -39,7 +39,6 @@ mix.container = {
 
       if(!type) return;
 
-      console.log(e.nativeEvent);
       var elem = {type: type,
                   top: e.clientY,
                   left: e.clientX};
@@ -189,6 +188,7 @@ comps.activeElement = React.createClass({
     var height = this.props.box.height;
     var start = {x: 0, y: 0};
     var elem = this.props.elem;
+    var gripSize = 4;
 
     var dragStart = function(e) {
       e.dataTransfer.setData("move", "move")
@@ -198,6 +198,19 @@ comps.activeElement = React.createClass({
     };
 
     var setBox = function(elem) {
+      if(elem.width < 1) {
+        elem.width = 1;
+      }
+      if(elem.height < 1) {
+        elem.height = 1;
+      }
+      if(elem.top >= top + height) {
+        elem.top = top + height - elem.height;
+      }
+      if(elem.left >= left + width) {
+        elem.left = left + width - elem.width;
+      }
+
       box.height = elem.height;
       box.width = elem.width;
       box.left = elem.left;
@@ -205,10 +218,10 @@ comps.activeElement = React.createClass({
     };
 
     return d.div({className: "active-element-overlay",
-                  style: {top: top - 4,
-                          left: left - 4,
-                          width: width + 8,
-                          height: height + 8}},
+                  style: {top: top,
+                          left: left,
+                          width: width,
+                          height: height}},
                  //top left
                  d.div({className: "grip grip-down-diagonal",
                         draggable: "true",
@@ -222,8 +235,8 @@ comps.activeElement = React.createClass({
                           setBox(elem);
                           dirty();
                         },
-                        style: {top: 0,
-                                left: 0}}),
+                        style: {top: -gripSize,
+                                left: -gripSize}}),
                  //top
                  d.div({className: "grip grip-vertical",
                         draggable: "true",
@@ -235,8 +248,8 @@ comps.activeElement = React.createClass({
                           setBox(elem);
                           dirty();
                         },
-                        style: {top: 0,
-                                left: (width / 2)}}),
+                        style: {top: -gripSize,
+                                left: (width / 2) - gripSize}}),
                  //top right
                  d.div({className: "grip grip-up-diagonal",
                         draggable: "true",
@@ -249,8 +262,8 @@ comps.activeElement = React.createClass({
                           setBox(elem);
                           dirty();
                         },
-                        style: {top: 0,
-                                left: width}}),
+                        style: {top: -gripSize,
+                                left: width - gripSize}}),
                  //right
                  d.div({className: "grip grip-horizontal",
                         draggable: "true",
@@ -261,8 +274,8 @@ comps.activeElement = React.createClass({
                           setBox(elem);
                           dirty();
                         },
-                        style: {top: (height / 2),
-                                left: width}}),
+                        style: {top: (height / 2) - gripSize,
+                                left: width - gripSize}}),
                  //bottom right
                  d.div({className: "grip grip-down-diagonal",
                         draggable: "true",
@@ -274,8 +287,8 @@ comps.activeElement = React.createClass({
                           setBox(elem);
                           dirty();
                         },
-                        style: {top: height,
-                                left: width}}),
+                        style: {top: height - gripSize,
+                                left: width - gripSize}}),
                  //bottom
                  d.div({className: "grip grip-vertical",
                         draggable: "true",
@@ -283,11 +296,11 @@ comps.activeElement = React.createClass({
                         onDrag: function(e) {
                           if(e.clientX == 0 && e.clientY == 0) return;
                           elem.height = e.clientY - top;
-                          box.height = elem.height;
+                          setBox(elem);
                           dirty();
                         },
-                        style: {top: height,
-                                left: (width / 2)}}),
+                        style: {top: height - gripSize,
+                                left: (width / 2) - gripSize}}),
                  //bottom left
                  d.div({className: "grip grip-up-diagonal",
                         draggable: "true",
@@ -301,8 +314,8 @@ comps.activeElement = React.createClass({
                           setBox(elem);
                           dirty();
                         },
-                        style: {top: height,
-                                left: 0}}),
+                        style: {top: height - gripSize,
+                                left: -gripSize}}),
                  //left
                  d.div({className: "grip grip-horizontal",
                         draggable: "true",
@@ -315,8 +328,8 @@ comps.activeElement = React.createClass({
                           setBox(elem);
                           dirty();
                         },
-                        style: {top: (height / 2),
-                                left: 0}})
+                        style: {top: (height / 2) - gripSize,
+                                left: -gripSize}})
 
                 );
   }

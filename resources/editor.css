@@ -91,7 +91,7 @@ body { background:#fff; color: #666; font-family: "Nunito"; font-weight:300; fon
 
 .box { min-height:100px; padding:15px; width:100%; }
 
-.button { position:absolute; display:inline-block; padding:5px 10px; background: #ddd; border-radius:3px; cursor:default; }
+.button { text-align:center; padding:5px 10px; background: #ddd; border-radius:3px; cursor:default; }
 .button:hover { background:#ccc; }
 
 .button-wrapper { display:inline-block; }
