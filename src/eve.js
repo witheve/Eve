@@ -1,5 +1,5 @@
 // UTIL
-if(require) {
+if(typeof window === 'undefined') {
   jsc = require("./resources/jsverify.js");
 }
 
@@ -627,22 +627,25 @@ function Why(solverValues) {
   this.solverValues = solverValues;
 }
 
-function Provenance(inputDelta, dirtyRanges, outputDelta, whys, whyNots) {
+function Provenance(inputDelta, bySolver, bySolverIterator, byProof, byProofIterator, dirty, dirtyIterator, outputDelta) {
   this.inputDelta = inputDelta;
-  this.dirtyRanges = dirtyRanges;
+  this.bySolver = bySolver;
+  this.bySolverIterator = bySolverIterator;
+  this.byProof = byProof;
+  this.byProofIterator = byProof;
   this.outputDelta = outputDelta;
-  this.whys = whys;
-  this.whyNots = whyNots;
 }
 
-function provenance(keyLen, numVars) {
-  var inputDelta = btree(10, keyLen);
-  var dirtyRanges = btree(10, numVars);
+function provenance(inputDelta, numVars) {
+  var bySolver = btree(10, numVars);
+  var bySolverIterator = iterator(bySolver);
+  var byProof = btree(10, numVars);
+  var byProofIterator = iterator(byProof);
+  var dirty = btree(10, numVars);
+  var dirtyIterator = iterator(dirty);
   var outputDelta = btree(10, numVars);
-  var whys = [];
-  var whyNots = [];
-  var provenance = new Provenance(inputDelta, dirtyRanges, outputDelta, whys, whyNots);
-  provenance.whyNot(leastArray(numVars), leastArray(keyLen), greatestArray(keyLen));
+  var provenance = new Provenance(inputDelta, bySolver, bySolverIterator, byProof, byProofIterator, dirty, dirtyIterator, outputDelta);
+  provenance.whyNot(leastArray(numVars), leastArray(inputDelta.keyLen), greatestArray(inputDelta.keyLen));
   return provenance;
 }
 
@@ -650,44 +653,22 @@ Provenance.prototype = {
   // provenance storage
 
   why: function (solverValues) {
-    this.whys.push(new Why(solverValues));
+    this.cleanRanges.add(solverValues, new Why(solverValues));
     this.outputDelta.update(solverValues, 1);
   },
 
   whyNot: function (solverLos, solverHis, proofLos, proofHis) {
-    var whyNots = this.whyNots;
-    for (var i = whyNots.length - 1; i >= 0; i--) {
-      var whyNot = whyNots[i];
-      var lolo = compareValueArray(solverLos, whyNot.solverLos) === -1;
-      var lohi = compareValueArray(solverLos, whyNot.solverHis) !== 1;
-      var hilo = compareValueArray(solverHis, whyNot.solverLos) !== -1;
-      var hihi = compareValueArray(solverHis, whyNot.solverHis) === 1;
-      if (!lolo && !hihi) {
-        // old range contains new range
-        return;
-      } else if (lohi && hilo) {
-        // new range contains old range
-        whyNots.slice(i, 1);
-      } else if (lohi) {
-        // new range overwrites hi end of old range
-        whyNot.solverHis = solverLos;
-      } else if (hilo) {
-        // new range overwrites lo end of old range
-        whyNot.solverLos = solverHis;
-      }
-      // otherwise no intersection
+    var cleanRangesIterator = this.cleanRangesIterator;
+    var searchKey = solverLos;
+    var found;
+    var foundLos;
+    var foundHis;
+    while (true) {
+      found = cleanRangesIterator.seekGt(searchKey);
+      searchKey = foundHis;
     }
-    var whys = this.whys;
-    var outputDelta = this.outputDelta;
-    for (var i = whys.length - 1; i >= 0; i--) {
-      var why = whys[i];
-      var solverValues = why.solverValues;
-      if ((compareValueArray(solverLos, solverValues) !== 1) && (compareValueArray(solverValues, solverHis) !== 1)) {
-        whys.splice(i, 1);
-        outputDelta.update(solverValues, -1);
-      }
-    }
-    whyNots.push(new WhyNot(solverLos, solverHis, proofLos, proofHis));
+
+    this.cleanRanges.add(solverHis, new WhyNot(solverLos, solverHis, proofLos, proofHis));
   },
 
   find: function (values) {
