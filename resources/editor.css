@@ -87,6 +87,8 @@ body { background:#fff; color: #666; font-family: "Nunito"; font-weight:300; fon
 
 .text { display:inline-block; position:absolute; vertical-align:top; }
 
+.elem { overflow:hidden; position:absolute; display:inline-block; }
+
 .box { min-height:100px; padding:15px; width:100%; }
 
 .button { position:absolute; display:inline-block; padding:5px 10px; background: #ddd; border-radius:3px; cursor:default; }
@@ -96,6 +98,11 @@ body { background:#fff; color: #666; font-family: "Nunito"; font-weight:300; fon
 .text-wrapper {display:inline-block;}
 .div-wrapper { display:block; }
 
-.active-element-overlay { border:1px solid #aaa; border-radius:3px; position:absolute; pointer-events:none; }
+.active-element-overlay { z-index:10; border:0px solid #aaa; border-radius:3px; position:absolute; pointer-events:none; }
+.grip {background: #fff; width:7px; height:7px; position:absolute; border:1px solid #88f; pointer-events:all;}
+.grip-vertical { cursor: ns-resize; }
+.grip-horizontal { cursor: ew-resize; }
+.grip-up-diagonal { cursor: nesw-resize; }
+.grip-down-diagonal { cursor: nwse-resize; }
 
 .card { width:100%; }

@@ -70,13 +70,18 @@ mix.element = {
     dirty();
   },
 
+  toBox: function(elem) {
+    var rect = elem.getBoundingClientRect();
+    return {top: rect.top, left: rect.left, width: rect.width, height: rect.height};
+  },
+
   onDragEnd: function(e) {
-    data.activeElement = {elem: this, box: e.target.getBoundingClientRect()};
+    data.activeElement = {elem: this.props.node, box: this.toBox(e.target)};
     dirty();
   },
 
   onClick: function(e) {
-    data.activeElement = {elem: this, box: e.target.getBoundingClientRect()};
+    data.activeElement = {elem: this.props.node, box: this.toBox(e.target)};
     dirty();
     e.stopPropagation();
   }
@@ -89,7 +94,7 @@ comps.elements = {
       return {content: "button!"};
     },
     render: function() {
-      return d.a({className: "button", draggable: "true", onMouseDown: this.onClick, onDragEnd: this.onDragEnd, onDragStart: this.onDragStart, onDrag: this.onDrag, style: {top: this.props.node.top || 100, left: this.props.node.left || 100}}, this.state.content);
+      return d.a({className: "button elem", draggable: "true", onMouseDown: this.onClick, onDragEnd: this.onDragEnd, onDragStart: this.onDragStart, onDrag: this.onDrag, style: {height: this.props.node.height, width: this.props.node.width, top: this.props.node.top || 100, left: this.props.node.left || 100}}, this.state.content);
     }
   }),
 
@@ -99,7 +104,14 @@ comps.elements = {
       return {content: "some text"};
     },
     render: function() {
-      return d.span({className: "text",  draggable: "true", onMouseDown: this.onClick, onDragEnd: this.onDragEnd, onDragStart: this.onDragStart, onDrag: this.onDrag, style: {top: this.props.node.top || 100, left: this.props.node.left || 100}}, this.state.content);
+      return d.span({className: "text elem", draggable: "true", onMouseDown: this.onClick, onDragEnd: this.onDragEnd, onDragStart: this.onDragStart, onDrag: this.onDrag, style: {height: this.props.node.height, width: this.props.node.width, top: this.props.node.top || 100, left: this.props.node.left || 100}}, this.state.content);
+    }
+  }),
+
+  image: React.createClass({
+    mixins: [mix.element],
+    render: function() {
+      return d.img({className: "image elem", src: "http://www.palantir.net/sites/default/files/styles/blogpost-mainimage/public/blog/images/Rubber_duck_meme.jpg?itok=fm9xZ0tw", draggable: "true", onMouseDown: this.onClick, onDragEnd: this.onDragEnd, onDragStart: this.onDragStart, onDrag: this.onDrag, style: {height: this.props.node.height, width: this.props.node.width, top: this.props.node.top || 100, left: this.props.node.left || 100}});
     }
   }),
 
@@ -131,10 +143,12 @@ comps.toolbox = React.createClass({
     return d.ul({className: "toolbox"},
                 d.li({draggable: "true",
                       onDragStart: handler("button")}, "button"),
-//                 d.li({draggable: "true",
-//                       onDragStart: handler("div")}, "div"),
+                //                 d.li({draggable: "true",
+                //                       onDragStart: handler("div")}, "div"),
                 d.li({draggable: "true",
-                      onDragStart: handler("text")}, "text")
+                      onDragStart: handler("text")}, "text"),
+                d.li({draggable: "true",
+                      onDragStart: handler("image")}, "image")
                );
   }
 });
@@ -164,24 +178,147 @@ comps.uiCanvas = React.createClass({
 });
 
 comps.activeElement = React.createClass({
-  getInitialState: function() {
-    return {
-      top: 0,
-      left: 0,
-      height: 0,
-      width: 0
-    };
-  },
   render: function() {
     if(!this.props.box) {
       return d.div({className: "active-element-overlay", style: {display: "none"}});
     }
+    var box = this.props.box;
+    var top = this.props.box.top;
+    var left = this.props.box.left;
+    var width = this.props.box.width;
+    var height = this.props.box.height;
+    var start = {x: 0, y: 0};
+    var elem = this.props.elem;
+
+    var dragStart = function(e) {
+      e.dataTransfer.setData("move", "move")
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.dropEffect = "move";
+      e.dataTransfer.setDragImage(clearPixel, 0,0);
+    };
+
+    var setBox = function(elem) {
+      box.height = elem.height;
+      box.width = elem.width;
+      box.left = elem.left;
+      box.top = elem.top;
+    };
+
     return d.div({className: "active-element-overlay",
-                  style: {
-                          top: this.props.box.top - 4,
-                          left: this.props.box.left - 4,
-                          width: this.props.box.width + 8,
-                          height: this.props.box.height + 8}});
+                  style: {top: top - 4,
+                          left: left - 4,
+                          width: width + 8,
+                          height: height + 8}},
+                 //top left
+                 d.div({className: "grip grip-down-diagonal",
+                        draggable: "true",
+                        onDragStart: dragStart,
+                        onDrag: function(e) {
+                          if(e.clientX == 0 && e.clientY == 0) return;
+                          elem.height = height + top - e.clientY;
+                          elem.top = e.clientY;
+                          elem.left = e.clientX;
+                          elem.width = width + left - elem.left;
+                          setBox(elem);
+                          dirty();
+                        },
+                        style: {top: 0,
+                                left: 0}}),
+                 //top
+                 d.div({className: "grip grip-vertical",
+                        draggable: "true",
+                        onDragStart: dragStart,
+                        onDrag: function(e) {
+                          if(e.clientX == 0 && e.clientY == 0) return;
+                          elem.height = height + top - e.clientY;
+                          elem.top = e.clientY;
+                          setBox(elem);
+                          dirty();
+                        },
+                        style: {top: 0,
+                                left: (width / 2)}}),
+                 //top right
+                 d.div({className: "grip grip-up-diagonal",
+                        draggable: "true",
+                        onDragStart: dragStart,
+                        onDrag: function(e) {
+                          if(e.clientX == 0 && e.clientY == 0) return;
+                          elem.height = height + top - e.clientY;
+                          elem.top = e.clientY;
+                          elem.width = e.clientX - left;
+                          setBox(elem);
+                          dirty();
+                        },
+                        style: {top: 0,
+                                left: width}}),
+                 //right
+                 d.div({className: "grip grip-horizontal",
+                        draggable: "true",
+                        onDragStart: dragStart,
+                        onDrag: function(e) {
+                          if(e.clientX == 0 && e.clientY == 0) return;
+                          elem.width = e.clientX - left;
+                          setBox(elem);
+                          dirty();
+                        },
+                        style: {top: (height / 2),
+                                left: width}}),
+                 //bottom right
+                 d.div({className: "grip grip-down-diagonal",
+                        draggable: "true",
+                        onDragStart: dragStart,
+                        onDrag: function(e) {
+                          if(e.clientX == 0 && e.clientY == 0) return;
+                          elem.height = e.clientY - top;
+                          elem.width = e.clientX - left;
+                          setBox(elem);
+                          dirty();
+                        },
+                        style: {top: height,
+                                left: width}}),
+                 //bottom
+                 d.div({className: "grip grip-vertical",
+                        draggable: "true",
+                        onDragStart: dragStart,
+                        onDrag: function(e) {
+                          if(e.clientX == 0 && e.clientY == 0) return;
+                          elem.height = e.clientY - top;
+                          box.height = elem.height;
+                          dirty();
+                        },
+                        style: {top: height,
+                                left: (width / 2)}}),
+                 //bottom left
+                 d.div({className: "grip grip-up-diagonal",
+                        draggable: "true",
+                        onDragStart: dragStart,
+                        onDrag: function(e) {
+                          if(e.clientX == 0 && e.clientY == 0) return;
+                          elem.height = e.clientY - top;
+                          box.height = elem.height;
+                          elem.left = e.clientX;
+                          elem.width = width + left - elem.left;
+                          setBox(elem);
+                          dirty();
+                        },
+                        style: {top: height,
+                                left: 0}}),
+                 //left
+                 d.div({className: "grip grip-horizontal",
+                        draggable: "true",
+                        onDragStart: dragStart,
+                        onDrag: function(e) {
+                          if(e.clientX == 0 && e.clientY == 0) return;
+                          box.height = elem.height;
+                          elem.left = e.clientX;
+                          elem.width = width + left - elem.left;
+                          setBox(elem);
+                          dirty();
+                        },
+                        style: {top: (height / 2),
+                                left: 0}})
+
+                );
   }
 });
 
