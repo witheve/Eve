@@ -9,6 +9,19 @@ clearPixel.src = document.querySelector("#clear-pixel").toDataURL();
 clearPixel.width = 10;
 clearPixel.height = 10;
 
+
+var picker = $("#picker").spectrum({
+  flat: true,
+  showInput: false,
+  showButtons: false,
+  move: function(color) {
+    if(eve.data.activeElement.elem) {
+      eve.data.activeElement.elem[eve.data.activeElement.colorType] = color.toHexString();
+      dirty();
+    }
+  }
+});
+
 var dirty = function() {
   if(!eve.dirty) {
     eve.dirty = true;
@@ -59,6 +72,7 @@ mix.element = {
     e.dataTransfer.dropEffect = "move";
     e.dataTransfer.setDragImage(clearPixel, 0,0);
     data.activeElement = {};
+    picker.spectrum("container").css("display", "none");
     dirty();
   },
 
@@ -75,14 +89,22 @@ mix.element = {
   },
 
   onDragEnd: function(e) {
-    data.activeElement = {elem: this.props.node, box: this.toBox(e.target)};
+    data.activeElement = {view: this, elem: this.props.node, box: this.toBox(e.target)};
     dirty();
   },
 
   onClick: function(e) {
-    data.activeElement = {elem: this.props.node, box: this.toBox(e.target)};
+    data.activeElement = {view: this, elem: this.props.node, box: this.toBox(e.target)};
     dirty();
     e.stopPropagation();
+  },
+
+  getStyle: function() {
+    return {background: this.props.node.background, color: this.props.node.color, height: this.props.node.height, width: this.props.node.width, top: this.props.node.top || 100, left: this.props.node.left || 100};
+  },
+
+  getAttributes: function(klass) {
+    return {className: klass + " elem", draggable: "true", onDoubleClick: this.doubleClick, onMouseDown: this.onClick, onDragEnd: this.onDragEnd, onDragStart: this.onDragStart, onDrag: this.onDrag, style: this.getStyle()}
   }
 }
 
@@ -92,8 +114,9 @@ comps.elements = {
     getInitialState: function() {
       return {content: "button!"};
     },
+    controls: {background: true, color: true},
     render: function() {
-      return d.a({className: "button elem", draggable: "true", onMouseDown: this.onClick, onDragEnd: this.onDragEnd, onDragStart: this.onDragStart, onDrag: this.onDrag, style: {height: this.props.node.height, width: this.props.node.width, top: this.props.node.top || 100, left: this.props.node.left || 100}}, this.state.content);
+      return d.a(this.getAttributes("button"), this.state.content);
     }
   }),
 
@@ -102,15 +125,19 @@ comps.elements = {
     getInitialState: function() {
       return {content: "some text"};
     },
+    controls: {background: true, color: true},
     render: function() {
-      return d.span({className: "text elem", draggable: "true", onMouseDown: this.onClick, onDragEnd: this.onDragEnd, onDragStart: this.onDragStart, onDrag: this.onDrag, style: {height: this.props.node.height, width: this.props.node.width, top: this.props.node.top || 100, left: this.props.node.left || 100}}, this.state.content);
+      return d.span(this.getAttributes("text"), this.state.content);
     }
   }),
 
   image: React.createClass({
     mixins: [mix.element],
+    controls: {background: false, color: false},
     render: function() {
-      return d.img({className: "image elem", src: "http://www.palantir.net/sites/default/files/styles/blogpost-mainimage/public/blog/images/Rubber_duck_meme.jpg?itok=fm9xZ0tw", draggable: "true", onMouseDown: this.onClick, onDragEnd: this.onDragEnd, onDragStart: this.onDragStart, onDrag: this.onDrag, style: {height: this.props.node.height, width: this.props.node.width, top: this.props.node.top || 100, left: this.props.node.left || 100}});
+      var attrs = this.getAttributes("image");
+      attrs.src = "http://www.palantir.net/sites/default/files/styles/blogpost-mainimage/public/blog/images/Rubber_duck_meme.jpg?itok=fm9xZ0tw";
+      return d.img(attrs);
     }
   }),
 
@@ -159,6 +186,7 @@ comps.uiCanvas = React.createClass({
   },
   onClick: function(e) {
     data.activeElement = {};
+    picker.spectrum("container").css("display", "none");
     dirty();
   },
   render: function() {
@@ -177,6 +205,8 @@ comps.uiCanvas = React.createClass({
 });
 
 comps.activeElement = React.createClass({
+  componentDidUpdate: function() {
+  },
   render: function() {
     if(!this.props.box) {
       return d.div({className: "active-element-overlay", style: {display: "none"}});
@@ -217,11 +247,40 @@ comps.activeElement = React.createClass({
       box.top = elem.top;
     };
 
+    var view = this.props.view;
+    var colorPicker, backgroundPicker;
+    if(view.controls.background) {
+      backgroundPicker = d.div({className: "control color-picker control-background-color",
+                                type: "color",
+                                onClick: function(e) {
+                                  eve.data.activeElement.colorType = "background";
+                                  picker.spectrum("set", elem.background);
+                                  picker.spectrum("container").css({top: top - 100, left: left + width + 30, display:"inline-block"});
+                                },
+                                style: {top: 0,
+                                        left: width + 15,
+                                        background: elem.background}});
+    }
+    if(view.controls.color) {
+      colorPicker = d.div({className: "control color-picker control-background-color",
+                           type: "color",
+                           onClick: function(e) {
+                             eve.data.activeElement.colorType = "color";
+                             picker.spectrum("set", elem.color);
+                             picker.spectrum("container").css({top: top - 100, left: left + width + 30, display:"inline-block"});
+                           },
+                           style: {top: 16,
+                                   left: width + 15,
+                                   background: elem.color}});
+    }
+
     return d.div({className: "active-element-overlay",
                   style: {top: top,
                           left: left,
                           width: width,
                           height: height}},
+                 backgroundPicker,
+                 colorPicker,
                  //top left
                  d.div({className: "grip grip-down-diagonal",
                         draggable: "true",

@@ -105,4 +105,9 @@ body { background:#fff; color: #666; font-family: "Nunito"; font-weight:300; fon
 .grip-up-diagonal { cursor: nesw-resize; }
 .grip-down-diagonal { cursor: nwse-resize; }
 
+.control { position:absolute; display:inline-block; pointer-events: all;}
+.control-background-color { width:15px; height:15px; border-radius:3px; border:0px solid #333; background:#ccc; }
+
+.sp-container { background:none; border:none; position:absolute !important; display:none; }
+
 .card { width:100%; }
