@@ -99,12 +99,22 @@ mix.element = {
     e.stopPropagation();
   },
 
+  destroy: function(e) {
+    var elems = data.tree.elements;
+    var index = elems.indexOf(this.props.node);
+    if(index > -1) {
+      elems.splice(index, 1);
+    }
+    data.activeElement = {};
+    dirty();
+  },
+
   getStyle: function() {
     return {background: this.props.node.background, color: this.props.node.color, height: this.props.node.height, width: this.props.node.width, top: this.props.node.top || 100, left: this.props.node.left || 100};
   },
 
   getAttributes: function(klass) {
-    return {className: klass + " elem", draggable: "true", onDoubleClick: this.doubleClick, onMouseDown: this.onClick, onDragEnd: this.onDragEnd, onDragStart: this.onDragStart, onDrag: this.onDrag, style: this.getStyle()}
+    return {className: klass + " elem", draggable: "true", onMouseDown: this.onClick, onDragEnd: this.onDragEnd, onDragStart: this.onDragStart, onDrag: this.onDrag, style: this.getStyle()}
   }
 }
 
@@ -402,6 +412,28 @@ comps.wrapper = React.createClass({
                  comps.toolbox(),
                  comps.uiCanvas({node: data.tree})
                 );
+  }
+});
+
+//Key Handling
+
+var keys = {backspace: 8,
+            enter: 13};
+
+document.addEventListener("keydown", function(e) {
+  var handled = false;
+  switch(e.keyCode) {
+    case keys.backspace:
+      if(data.activeElement.view) {
+        handled = true;
+        data.activeElement.view.destroy();
+      }
+      break;
+  }
+
+  if(handled) {
+    e.preventDefault();
+    e.stopPropagation();
   }
 });
 
