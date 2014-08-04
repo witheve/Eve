@@ -1,7 +1,8 @@
-// UTIL
 if(typeof window === 'undefined') {
   jsc = require("./resources/jsverify.js");
 }
+
+// UTIL
 
 function assert(cond, msg) {
   if(!cond) {
@@ -68,14 +69,53 @@ function compareValue(a, b) {
   return 1;
 }
 
-function compareValueArray(a, b) {
-  var len = a.length;
-  if(len !== b.length) throw new Error("compareValueArray on arrays of different length: " + a + " :: " + b);
-  for(var i = 0; i < len; i++) {
-    var comp = compareValue(a[i], b[i]);
-    if(comp !== 0) return comp;
+function comparePointwise(pointA, pointB) {
+  var len = pointA.length;
+  assert(len === pointB.length);
+  var allLte = true;
+  var allGte = true;
+  for (var i = 0; i < len; i++) {
+    var comparison = compareValue(pointA[i], pointB[i]);
+    if (comparison === -1) allGte = false;
+    if (comparison === 1) allLte = false;
   }
-  return 0;
+  if (allLte && allGte) return 0;
+  if (allLte) return -1;
+  if (allGte) return 1;
+  return NaN;
+}
+
+function containsPointwise(los, his, innerLos, innerHis) {
+  var len = los.length;
+  assert(len === his.length);
+  assert(len === innerLos.length);
+  assert(len === innerHis.length);
+  for (var i = 0; i < len; i++) {
+    if ((compareValue(innerLos[i], los[i]) === -1) || compareValue(innerHis[i], his[i]) === 1) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function pushMin(as, bs) {
+  var len = as.length;
+  assert(len = bs.length);
+  for (var i = 0; i <= len; i++) {
+    if (compareValue(as[i], bs[i]) === 1) {
+      as[i] = bs[i];
+    }
+  }
+}
+
+function pushMax(as, bs) {
+  var len = as.length;
+  assert(len = bs.length);
+  for (var i = 0; i <= len; i++) {
+    if (compareValue(as[i], bs[i]) === -1) {
+      as[i] = bs[i];
+    }
+  }
 }
 
 function arrayEqual(a, b) {
@@ -102,519 +142,80 @@ function nestedEqual(a, b) {
   return true;
 }
 
-function findKeyGTE(keys, key) {
-  var lo = 0;
-  var hi = keys.length - 1;
-  var mid = 0;
-  var midKey;
-  var comp = 0;
-  while(true) {
-    if(hi < lo) return lo;
+// MTREE
+// track a multi-set of volumes
+// supports bounds refinement
 
-    mid = lo + Math.floor((hi - lo)/2);
-    midKey = keys[mid];
-    comp = compareValueArray(midKey, key);
-
-    if(comp === 0) {
-      return mid;
-    }
-
-    if(comp === -1) {
-      lo = mid + 1;
-    } else {
-      hi = mid - 1;
-    }
-  }
-  return lo;
+function Volume(los, his) {
+  this.los = los;
+  this.his = his;
 }
 
-function findKeyGT(keys, key) {
-  var lo = 0;
-  var hi = keys.length - 1;
-  var mid = 0;
-  var midKey;
-  var comp = 0;
-  while(true) {
-    if(hi < lo) return lo;
-
-    mid = lo + Math.floor((hi - lo)/2);
-    midKey = keys[mid];
-    comp = compareValueArray(midKey, key);
-
-    if(comp === 0) {
-      return mid + 1;
-    }
-
-    if(comp === -1) {
-      lo = mid + 1;
-    } else {
-      hi = mid - 1;
-    }
-  }
-  return lo;
+function MTree(volumes) {
+  this.volumes = volumes;
 }
 
-// BTREE
-
-var LEFTCHILD = 0;
-var RIGHTCHILD = 1;
-
-function BTreeNode(parent, parentIx, keys, vals, children, lower, upper) {
-  this.parent = parent;
-  this.parentIx = parentIx;
-  this.keys = keys;
-  this.vals = vals;
-  this.children = children;
-  this.lower = lower;
-  this.upper = upper;
-  this.isNode = true;
+function mtree() {
+  return new MTree([]);
 }
 
-BTreeNode.prototype = {
-
-  add: function(key, val, maxKeys) {
-    var ix = findKeyGTE(this.keys, key, true);
-    var keys = this.keys;
-    if(keys.length > ix && compareValueArray(key, keys[ix]) === 0) {
-      return this.vals[ix];
+MTree.prototype = {
+  update: function(adds, dels) {
+    var volumes = this.volumes;
+    for (var i = adds.length - 1; i >= 0; i--) {
+      volumes.push(adds[i]);
     }
-    if(!this.children) {
-      this.push(ix, [key, val], null);
-      this.maintainInvariants(maxKeys);
-      return null;
-    }
-    this.children[ix].add(key, val, maxKeys);
-    return null;
-  },
-
-  del: function(key, maxKeys) {
-    var ix = findKeyGTE(this.keys, key, true);
-    var keys = this.keys;
-    var children = this.children;
-    if(keys.length > ix && compareValueArray(key, keys[ix]) === 0) {
-      var val = this.vals[ix];
-      if(!children) {
-        this.pop(ix);
-        this.maintainInvariants(maxKeys);
-        return val;
-      }
-
-      var node = children[ix + 1];
-      while(node.children) {
-        node = node.children[0];
-      }
-
-      this.keys[ix] = node.keys[0];
-      this.vals[ix] = node.vals[0];
-      node.pop(0);
-      node.maintainInvariants(maxKeys);
-      this.maintainInvariants(maxKeys);
-      return val;
-    }
-
-    if(!children) return null;
-    this.children[ix].del(key, maxKeys);
-    return null;
-  },
-
-  push: function(ix, keyValChild, childType) {
-    var children = this.children;
-    this.keys.splice(ix, 0, keyValChild[0]);
-    this.vals.splice(ix, 0, keyValChild[1]);
-    if(children) {
-      var childIx = ix + childType;
-      children.splice(childIx, 0, keyValChild[2]);
-    }
-  },
-
-  pop: function(ix, childType) {
-    var keys = this.keys;
-    var vals = this.vals;
-    var children = this.children;
-    var key = keys[ix];
-    var val = vals[ix];
-
-    keys.splice(ix, 1);
-    vals.splice(ix, 1);
-
-    if(children) {
-      var childIx = ix + childType;
-      var child = children[childIx];
-      children.splice(childIx, 1);
-      child.parent = null;
-      return [key, val, child];
-    }
-    return [key, val];
-  },
-
-  maintainInvariants: function(maxKeys) {
-    assert(maxKeys > 0, "Invalid maxKeys: " + maxKeys);
-    //If we're still a valid node
-    var parent = this.parent;
-    if(parent) {
-      var minKeys = Math.floor(maxKeys / 2);
-      var children = this.children;
-
-      //maintain children's parent relationships
-      if(children) {
-        var childrenLen = children.length;
-        for(var i = 0; i < childrenLen; i++) {
-          var child = children[i];
-          child.parentIx = i;
-          child.parent = this;
+    outer: for (var i = dels.length - 1; i >= 0; i--) {
+      var del = dels[i];
+      inner: for (var j = volumes.length - 1; j >= 0; j--) {
+        var volume = volumes[j];
+        if (arrayEqual(del.los, volume.los) && arrayEqual(del.his, volume.his)) {
+          volumes.slice(j, 1);
+          continue outer;
         }
       }
-
-      var keys = this.keys;
-      var keysLen = keys.length;
-      //If we have too many keys split and be done
-      if(keysLen > maxKeys) return this.split(maxKeys);
-
-      //if we have two few keys rotate left
-      if(keysLen < minKeys && parent.isNode) return this.rotateLeft(maxKeys);
-
-      //if we have no keys
-      if(keysLen === 0) {
-
-        if(!children){
-          this.lower = null;
-          this.upper = null;
-          return;
-        }
-
-        //otherwise we're the root node
-        children[0].parent = parent;
-        parent.root = children[0];
-        return;
-
-      }
-
-      //otherwise, we have keys, keep lower and upper correct
-      this.updateLower(!children ? keys[0] : children[0].lower);
-      this.updateUpper(!children ? keys[keysLen - 1] : children[children.length - 1].upper);
     }
-  },
-
-  updateLower: function(newLower) {
-    //TODO: should this be an assert?
-    if(newLower) {
-      this.lower = newLower;
-      if(this.parent.isNode && this.parentIx === 0) {
-        this.parent.updateLower(newLower);
-      }
-    }
-  },
-
-  updateUpper: function(newUpper) {
-    //TODO: should this be an assert?
-    if(newUpper) {
-      this.upper = newUpper;
-      if(this.parent.isNode && this.parentIx === this.parent.children.length - 1) {
-        this.parent.updateUpper(newUpper);
-      }
-    }
-  },
-
-  split: function(maxKeys) {
-    var keys = this.keys;
-    var keysLen = keys.length;
-    var parent = this.parent;
-    var median = Math.floor(keysLen / 2);
-    var right = new BTreeNode(parent, this.parentIx + 1, [], [], this.children ? [] : null, null, null);
-    while(keys.length > median + 1) {
-      var p = this.pop(keys.length - 1, RIGHTCHILD);
-      right.push(0, p, RIGHTCHILD);
-    }
-    if(this.children) {
-      right.children.unshift(this.children.pop());
-    }
-    parent.push(this.parentIx, [keys.pop(), this.vals.pop(), right], RIGHTCHILD);
-    this.maintainInvariants(maxKeys);
-    right.maintainInvariants(maxKeys);
-    parent.maintainInvariants(maxKeys);
-  },
-
-  rotateLeft: function(maxKeys) {
-    var parentIx = this.parentIx;
-    var parent = this.parent;
-    if(parentIx > 0) {
-      var left = parent.children[parentIx - 1];
-      var minKeys = Math.floor(maxKeys / 2);
-      var leftKeysLen = left.keys.length;
-      if(leftKeysLen > minKeys) {
-        var kvc = left.pop(leftKeysLen - 1, RIGHTCHILD);
-        var separatorIx = parentIx - 1;
-        this.push(0, [parent.keys[separatorIx], parent.vals[separatorIx], kvc[2]], LEFTCHILD);
-        parent.keys[separatorIx] = kvc[0];
-        parent.vals[separatorIx] = kvc[1];
-        this.maintainInvariants(maxKeys);
-        left.maintainInvariants(maxKeys);
-        parent.maintainInvariants(maxKeys);
-        return;
-      }
-    }
-    this.rotateRight(maxKeys);
-  },
-
-  rotateRight: function(maxKeys) {
-    var parentIx = this.parentIx;
-    var parent = this.parent;
-    var parentChildren = parent.children;
-    if(parentIx < parentChildren.length - 2) {
-      var right = parentChildren[parentIx + 1];
-      var minKeys = Math.floor(maxKeys / 2);
-      var rightKeysLen = right.keys.length;
-      if(rightKeysLen > minKeys) {
-        var kvc = right.pop(rightKeysLen - 1, LEFTCHILD);
-        var separatorIx = parentIx;
-        this.push(this.keys.length, [parent.keys[separatorIx], parent.vals[separatorIx], kvc[2]], RIGHTCHILD);
-        parent.keys[separatorIx] = kvc[0];
-        parent.vals[separatorIx] = kvc[1];
-        this.maintainInvariants(maxKeys);
-        right.maintainInvariants(maxKeys);
-        parent.maintainInvariants(maxKeys);
-        return;
-      }
-    }
-    this.merge(maxKeys);
-  },
-
-  merge: function(maxKeys) {
-    var parent = this.parent;
-    var parentIx = this.parentIx;
-    var separatorIx = parentIx > 0 ? parentIx - 1 : parentIx;
-    var kvc = parent.pop(separatorIx, RIGHTCHILD);
-    var left = parent.children[separatorIx];
-    var right = kvc[2];
-
-    left.push(left.keys.length, [kvc[0], kvc[1], right.children ? right.children.shift() : null], RIGHTCHILD);
-    while(right.keys.length > 0) {
-      left.push(left.keys.length, right.pop(0, LEFTCHILD), RIGHTCHILD);
-    }
-    left.maintainInvariants(maxKeys);
-    right.maintainInvariants(maxKeys);
-    parent.maintainInvariants(maxKeys);
-  },
-
-  assertInvariants: function(maxKeys) {
-    // TODO finish porting from cljs version
-    return true;
-  },
-
-  foreach: function(f) {
-    var children = this.children;
-    var keys = this.keys;
-    var vals = this.vals;
-    var keysLen = keys.length;
-    if(children) {
-      for(var i = 0; i < keysLen; i++) {
-        children[i].foreach(f);
-        f(keys[i], vals[i]);
-      }
-      children[keysLen].foreach(f);
-    } else {
-      for(var i = 0; i < keysLen; i++) {
-        f(keys[i], vals[i]);
-      }
-    }
-  },
-
-  foreachReverse: function(f) {
-    var children = this.children;
-    var keys = this.keys;
-    var vals = this.vals;
-    var keysLen = keys.length;
-    if(children) {
-      for(var i = keysLen; i > -1; i--) {
-        children[i].foreach(f);
-        f(keys[i], vals[i]);
-      }
-    } else {
-      for(var i = keysLen - 1; i > -1; i--) {
-        f(keys[i], vals[i]);
-      }
-    }
-  },
-
-};
-
-function BTree(root, maxKeys, keyLen) {
-  this.root = root;
-  this.maxKeys = maxKeys;
-  this.keyLen = keyLen;
-  this.isNode = false;
-}
-
-function btree(minKeys, keyLen) {
-  var root = new BTreeNode(this, 0, [], [], null, null, null);
-  var maxKeys = minKeys * 2;
-  return new BTree(root, maxKeys, keyLen);
-}
-
-BTree.prototype = {
-  reset: function() {
-    this.root = new BTreeNode();
-  },
-
-  add: function(key, val) {
-    return this.root.add(key, val, this.maxKeys);
-  },
-
-  del: function(key) {
-    return this.root.del(key, this.maxKeys);
-  },
-
-  push: function(ix, keyValChild, childType) {
-    var right = this.root;
-    var left = this.root;
-    if(childType === LEFTCHILD) {
-      left = keyValChild[2];
-    } else if (childType === RIGHTCHILD) {
-      right = keyValChild[2];
-    }
-
-    this.root = new BTreeNode(this, 0, [keyValChild[0]], [keyValChild[1]], [left, right], left.lower, right.upper);
-    left.parent = this.root;
-    left.parentIx = 0;
-    right.parent = this.root;
-    right.parentIx = 1;
-  },
-
-  maintainInvariants: function() {
-  },
-
-  assertInvariants: function() {
-    if(this.root.keys.length > 0) {
-      return this.root.assertInvariants(this.maxKeys);
-    }
-    return true;
-  },
-
-  foreach: function(f) {
-    this.root.foreach(f);
-  },
-
-  foreachReverse: function(f) {
-    this.root.foreachReverse(f);
-  },
-
-  keys: function() {
-    var results = [];
-    var i = 0;
-    this.foreach(function(k, v) {
-      results[i] = k;
-      i++;
-    });
-    return results;
-  },
-
-  elems: function() {
-    var results = [];
-    var i = 0;
-    this.foreach(function(k, v) {
-      results[i] = k;
-      results[i+1] = v;
-      i = i + 2;
-    });
-    return results;
-  },
-
-  isEmpty: function() {
-    return this.root.keys.length === 0;
-  },
-
-  toString: function() {
-    return "<btree " + this.elems().toString() + ">";
-  }
-
-};
-
-// ITERATORS
-
-function Iterator(tree, node, ix) {
-  this.tree = tree;
-  this.node = node;
-  this.ix = ix;
-  this.keyLen = tree.keyLen;
-}
-
-function iterator(tree) {
-  var node = tree.root;
-  var ix = 0;
-  return new Iterator(tree, node, ix);
-}
-
-Iterator.prototype = {
-  reset: function() {
-    this.node = this.tree.root;
-    this.ix = 0;
-  },
-
-  seekGt: function(key) {
-    while(true) {
-      if(this.node.parent.isNode && ((compareValueArray(this.node.upper, key) === -1) || compareValueArray(key, this.node.lower) === -1)) {
-        this.ix = 0;
-        this.node = this.node.parent;
-      } else {
-        while(true) {
-          this.ix = findKeyGT(this.node.keys, key);
-          if(!this.node.children) {
-            if(this.ix < this.node.keys.length) {
-              return this.node.keys[this.ix];
-            } else {
-              return null;
-            }
-          } else {
-            if(compareValueArray(this.node.children[this.ix].upper, key) === -1) {
-              return this.node.keys[this.ix];
-            } else {
-              this.node = this.node.children[this.ix];
-              this.ix = 0;
-            }
-          }
-
-        }
-        return null;
-      }
-    }
-  },
-
-  seekGte: function(key) {
-    while(true) {
-      if(this.node.parent.isNode && ((compareValueArray(this.node.upper, key) === -1) || compareValueArray(key, this.node.lower) === -1)) {
-        this.ix = 0;
-        this.node = this.node.parent;
-      } else {
-        while(true) {
-          this.ix = findKeyGTE(this.node.keys, key);
-          if(!this.node.children) {
-            if(this.ix < this.node.keys.length) {
-              return this.node.keys[this.ix];
-            } else {
-              return null;
-            }
-          } else {
-            if(compareValueArray(this.node.children[this.ix].upper, key) === -1) {
-              return this.node.keys[this.ix];
-            } else {
-              this.node = this.node.children[this.ix];
-              this.ix = 0;
-            }
-          }
-
-        }
-        return null;
-      }
-    }
-  },
-
-  contains: function(key) {
-    var found = this.seekGte(key);
-    return found && arrayEqual(found, key);
   }
 };
 
-// PROVENANCE
+function MTreeConstraint(volumes) {
+  this.volumes = volumes;
+}
+
+function mtreeConstraint(mtree) {
+  return new MTreeConstraint(mtree.volumes.slice());
+}
+
+MTreeConstraint.prototype = {
+  copy: function() {
+    return new MTreeConstraint(this.volumes.slice());
+  },
+
+  propagate: function(los, his) {
+    var volumes = this.volumes;
+
+    // constrain volumes
+    for (var i = volumes.length - 1; i >= 0; i--) {
+      var volume = volumes[i];
+      if (containsPointwise(los, his, volume.los, volume.his)) {
+        volumes.splice(i, 1);
+      }
+    }
+
+    // shrink bounds
+    fillArray(los, greatest);
+    fillArray(his, least);
+    for (var i = volumes.length - 1; i >= 0; i--) {
+      var volume = volumes[i];
+      pushMin(los, volume.los);
+      pushMax(his, volume.his);
+    }
+  }
+};
+
+// PTREE
+// records a single provenance for each possible solver point
+// tracks dirty volumes when memory changes
 
 function WhyNot(solverLos, solverHis, proofLos, proofHis) {
   this.solverLos = solverLos;
@@ -627,68 +228,123 @@ function Why(solverValues) {
   this.solverValues = solverValues;
 }
 
-function Provenance(inputDelta, bySolver, bySolverIterator, byProof, byProofIterator, dirty, dirtyIterator, outputDelta) {
-  this.inputDelta = inputDelta;
-  this.bySolver = bySolver;
-  this.bySolverIterator = bySolverIterator;
-  this.byProof = byProof;
-  this.byProofIterator = byProof;
-  this.outputDelta = outputDelta;
+function PTree(whys, whyNots) {
+  this.whys = whys;
+  this.whyNots = whyNots;
 }
 
-function provenance(inputDelta, numVars) {
-  var bySolver = btree(10, numVars);
-  var bySolverIterator = iterator(bySolver);
-  var byProof = btree(10, numVars);
-  var byProofIterator = iterator(byProof);
-  var dirty = btree(10, numVars);
-  var dirtyIterator = iterator(dirty);
-  var outputDelta = btree(10, numVars);
-  var provenance = new Provenance(inputDelta, bySolver, bySolverIterator, byProof, byProofIterator, dirty, dirtyIterator, outputDelta);
-  provenance.whyNot(leastArray(numVars), leastArray(inputDelta.keyLen), greatestArray(inputDelta.keyLen));
+function ptree() {
+  return new PTree([], []);
+}
+
+PTree.prototype = {
+  erase: function(points, erasedWhyNots) {
+    var whyNots = this.whyNots;
+    outer: for (var i = whyNots.length - 1; i >= 0; i--) {
+      var whyNot = whyNots[i];
+      var los = whyNot.los;
+      var his = whyNot.his;
+      inner: for (var j = points.length - 1; j >= 0; j--) {
+        var point = points[j];
+        if (containsPointwise(los, his, point, point)) {
+          whyNots.splice(i, 1);
+          erasedWhyNots.push(i);
+          continue outer;
+        }
+      }
+    }
+  },
+
+  write: function(newWhys, newWhyNots, addedWhys, delledWhys) {
+    var whys = this.whys;
+    var whyNots = this.whyNots;
+
+    outer: for (var i = whys.length - 1; i >= 0; i--) {
+      var why = whys[i];
+      var solverValues = why.solverValues;
+      inner: for (var j = newWhyNots.length - 1; j >= 0; j--) {
+        var newWhyNot = newWhyNots[j];
+        // TODO have to check more carefully here - I think that strict containment might be sufficient
+        if (containsPointwise(newWhyNot.solverLos, newWhyNot.solverHis, solverValues, solverValues)) {
+          whys.splice(i, 1);
+          delledWhys.push(why);
+          continue outer;
+        }
+      }
+    }
+
+    outer: for (var i = whyNots.length - 1; i >= 0; i--) {
+      var whyNot = whyNots[i];
+      var solverLos = whyNot.solverLos;
+      var solverHis = whyNot.solverHis;
+      inner: for (var j = newWhyNots.length - 1; j >= 0; j--) {
+        var newWhyNot = newWhyNots[j];
+        if (containsPointwise(solverLos, solverHis, newWhyNot.solverLos, newWhyNot.solverHis)) {
+          newWhyNots.slice(j, 1);
+          continue inner;
+        }
+        if (containsPointwise(newWhyNot.solverLos, newWhyNot.solverHis, solverLos, solverHis)) {
+          whyNots.slice(i, 1);
+          continue outer;
+        }
+      }
+    }
+
+    for (var i = newWhys.length - 1; i >= 0; i--) {
+      whys.push(newWhys[i]);
+    }
+    for (var i = newWhyNots.length - 1; i >= 0; i--) {
+      whyNots.push(newWhyNots[i]);
+    }
+  },
+};
+
+// PROVENANCE
+
+function Provenance(whys, whyNots, ptree) {
+  this.whys = whys;
+  this.whyNots = whyNots;
+  this.ptree = ptree;
+}
+
+function provenance(numVars, keyLen) {
+  var provenance = new Provenance([], [], ptree());
+  provenance.whyNot(leastArray(numVars), leastArray(keyLen), greatestArray(keyLen));
   return provenance;
 }
 
-Provenance.prototype = {
-  // provenance storage
-
-  why: function (solverValues) {
-    this.cleanRanges.add(solverValues, new Why(solverValues));
-    this.outputDelta.update(solverValues, 1);
+Provenance.prototype =  {
+  why: function (why) {
+    this.whys.push(why);
   },
 
-  whyNot: function (solverLos, solverHis, proofLos, proofHis) {
-    var cleanRangesIterator = this.cleanRangesIterator;
-    var searchKey = solverLos;
-    var found;
-    var foundLos;
-    var foundHis;
-    while (true) {
-      found = cleanRangesIterator.seekGt(searchKey);
-      searchKey = foundHis;
+  whyNot: function (whyNot) {
+    this.whyNots.push(whyNot);
+  },
+
+  start: function (inputAdds, inputDels) {
+    var erasedWhyNots = [];
+    this.ptree.erase(inputAdds, erasedWhyNots);
+    this.ptree.erase(inputDels, erasedWhyNots);
+    for (var i = erasedWhyNots.length - 1; i >= 0; i--) {
+      erasedWhyNots[i] = new Volume(erasedWhyNots[i].solverLos, erasedWhyNots[i].solverHis);
     }
-
-    this.cleanRanges.add(solverHis, new WhyNot(solverLos, solverHis, proofLos, proofHis));
+    return new MTreeConstraint(erasedWhyNots);
   },
 
-  find: function (values) {
-    var whyNots = this.whyNots;
-    for (var i = whyNots.length - 1; i >= 0; i--) {
-      var whyNot = whyNots[i];
-      if ((compareValueArray(whyNot.solverLos, values) !== 1) &&
-          (compareValueArray(values, whyNot.solverHis)) !== 1) {
-        whyNots.slice(i, 1);
-        return whyNot;
-      }
+  finish: function (outputAdds, outputDels) {
+    var addLen = outputAdds.length;
+    var delLen = outputDels.length;
+    this.ptree.write(this.whys, this.whyNots, outputAdds, outputDels);
+    for (var i = outputAdds.length - 1; i >= addLen; i--) {
+      outputAdds[i] = outputAdds[i].solverValues;
     }
-    return null;
-  },
-
-  // constraint interface
-
-  init: function () {
-    // TODO calculate dirty ranges
-  },
+    for (var i = outputDels.length - 1; i >= delLen; i--) {
+      outputDels[i] = outputDels[i].solverValues;
+    }
+    this.whys.length = 0;
+    this.whyNots.length = 0;
+  }
 };
 
 // SOLVER
