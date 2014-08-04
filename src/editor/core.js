@@ -9,6 +9,19 @@ clearPixel.src = document.querySelector("#clear-pixel").toDataURL();
 clearPixel.width = 10;
 clearPixel.height = 10;
 
+
+var picker = $("#picker").spectrum({
+  flat: true,
+  showInput: false,
+  showButtons: false,
+  move: function(color) {
+    if(eve.data.activeElement.elem) {
+      eve.data.activeElement.elem[eve.data.activeElement.colorType] = color.toHexString();
+      dirty();
+    }
+  }
+});
+
 var dirty = function() {
   if(!eve.dirty) {
     eve.dirty = true;
@@ -39,7 +52,6 @@ mix.container = {
 
       if(!type) return;
 
-      console.log(e.nativeEvent);
       var elem = {type: type,
                   top: e.clientY,
                   left: e.clientX};
@@ -60,6 +72,7 @@ mix.element = {
     e.dataTransfer.dropEffect = "move";
     e.dataTransfer.setDragImage(clearPixel, 0,0);
     data.activeElement = {};
+    picker.spectrum("container").css("display", "none");
     dirty();
   },
 
@@ -70,15 +83,38 @@ mix.element = {
     dirty();
   },
 
+  toBox: function(elem) {
+    var rect = elem.getBoundingClientRect();
+    return {top: rect.top, left: rect.left, width: rect.width, height: rect.height};
+  },
+
   onDragEnd: function(e) {
-    data.activeElement = {elem: this, box: e.target.getBoundingClientRect()};
+    data.activeElement = {view: this, elem: this.props.node, box: this.toBox(e.target)};
     dirty();
   },
 
   onClick: function(e) {
-    data.activeElement = {elem: this, box: e.target.getBoundingClientRect()};
+    data.activeElement = {view: this, elem: this.props.node, box: this.toBox(e.target)};
     dirty();
     e.stopPropagation();
+  },
+
+  destroy: function(e) {
+    var elems = data.tree.elements;
+    var index = elems.indexOf(this.props.node);
+    if(index > -1) {
+      elems.splice(index, 1);
+    }
+    data.activeElement = {};
+    dirty();
+  },
+
+  getStyle: function() {
+    return {background: this.props.node.background, color: this.props.node.color, height: this.props.node.height, width: this.props.node.width, top: this.props.node.top || 100, left: this.props.node.left || 100};
+  },
+
+  getAttributes: function(klass) {
+    return {className: klass + " elem", draggable: "true", onMouseDown: this.onClick, onDragEnd: this.onDragEnd, onDragStart: this.onDragStart, onDrag: this.onDrag, style: this.getStyle()}
   }
 }
 
@@ -88,8 +124,9 @@ comps.elements = {
     getInitialState: function() {
       return {content: "button!"};
     },
+    controls: {background: true, color: true},
     render: function() {
-      return d.a({className: "button", draggable: "true", onMouseDown: this.onClick, onDragEnd: this.onDragEnd, onDragStart: this.onDragStart, onDrag: this.onDrag, style: {top: this.props.node.top || 100, left: this.props.node.left || 100}}, this.state.content);
+      return d.a(this.getAttributes("button"), this.state.content);
     }
   }),
 
@@ -98,8 +135,19 @@ comps.elements = {
     getInitialState: function() {
       return {content: "some text"};
     },
+    controls: {background: true, color: true},
     render: function() {
-      return d.span({className: "text",  draggable: "true", onMouseDown: this.onClick, onDragEnd: this.onDragEnd, onDragStart: this.onDragStart, onDrag: this.onDrag, style: {top: this.props.node.top || 100, left: this.props.node.left || 100}}, this.state.content);
+      return d.span(this.getAttributes("text"), this.state.content);
+    }
+  }),
+
+  image: React.createClass({
+    mixins: [mix.element],
+    controls: {background: false, color: false},
+    render: function() {
+      var attrs = this.getAttributes("image");
+      attrs.src = "http://www.palantir.net/sites/default/files/styles/blogpost-mainimage/public/blog/images/Rubber_duck_meme.jpg?itok=fm9xZ0tw";
+      return d.img(attrs);
     }
   }),
 
@@ -131,10 +179,12 @@ comps.toolbox = React.createClass({
     return d.ul({className: "toolbox"},
                 d.li({draggable: "true",
                       onDragStart: handler("button")}, "button"),
-//                 d.li({draggable: "true",
-//                       onDragStart: handler("div")}, "div"),
+                //                 d.li({draggable: "true",
+                //                       onDragStart: handler("div")}, "div"),
                 d.li({draggable: "true",
-                      onDragStart: handler("text")}, "text")
+                      onDragStart: handler("text")}, "text"),
+                d.li({draggable: "true",
+                      onDragStart: handler("image")}, "image")
                );
   }
 });
@@ -146,6 +196,7 @@ comps.uiCanvas = React.createClass({
   },
   onClick: function(e) {
     data.activeElement = {};
+    picker.spectrum("container").css("display", "none");
     dirty();
   },
   render: function() {
@@ -164,24 +215,192 @@ comps.uiCanvas = React.createClass({
 });
 
 comps.activeElement = React.createClass({
-  getInitialState: function() {
-    return {
-      top: 0,
-      left: 0,
-      height: 0,
-      width: 0
-    };
+  componentDidUpdate: function() {
   },
   render: function() {
     if(!this.props.box) {
       return d.div({className: "active-element-overlay", style: {display: "none"}});
     }
+    var box = this.props.box;
+    var top = this.props.box.top;
+    var left = this.props.box.left;
+    var width = this.props.box.width;
+    var height = this.props.box.height;
+    var start = {x: 0, y: 0};
+    var elem = this.props.elem;
+    var gripSize = 4;
+
+    var dragStart = function(e) {
+      e.dataTransfer.setData("move", "move")
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.dropEffect = "move";
+      e.dataTransfer.setDragImage(clearPixel, 0,0);
+    };
+
+    var setBox = function(elem) {
+      if(elem.width < 1) {
+        elem.width = 1;
+      }
+      if(elem.height < 1) {
+        elem.height = 1;
+      }
+      if(elem.top >= top + height) {
+        elem.top = top + height - elem.height;
+      }
+      if(elem.left >= left + width) {
+        elem.left = left + width - elem.width;
+      }
+
+      box.height = elem.height;
+      box.width = elem.width;
+      box.left = elem.left;
+      box.top = elem.top;
+    };
+
+    var view = this.props.view;
+    var colorPicker, backgroundPicker;
+    if(view.controls.background) {
+      backgroundPicker = d.div({className: "control color-picker control-background-color",
+                                type: "color",
+                                onClick: function(e) {
+                                  eve.data.activeElement.colorType = "background";
+                                  picker.spectrum("set", elem.background);
+                                  picker.spectrum("container").css({top: top - 100, left: left + width + 30, display:"inline-block"});
+                                },
+                                style: {top: 0,
+                                        left: width + 15,
+                                        background: elem.background}});
+    }
+    if(view.controls.color) {
+      colorPicker = d.div({className: "control color-picker control-background-color",
+                           type: "color",
+                           onClick: function(e) {
+                             eve.data.activeElement.colorType = "color";
+                             picker.spectrum("set", elem.color);
+                             picker.spectrum("container").css({top: top - 100, left: left + width + 30, display:"inline-block"});
+                           },
+                           style: {top: 16,
+                                   left: width + 15,
+                                   background: elem.color}});
+    }
+
     return d.div({className: "active-element-overlay",
-                  style: {
-                          top: this.props.box.top - 4,
-                          left: this.props.box.left - 4,
-                          width: this.props.box.width + 8,
-                          height: this.props.box.height + 8}});
+                  style: {top: top,
+                          left: left,
+                          width: width,
+                          height: height}},
+                 backgroundPicker,
+                 colorPicker,
+                 //top left
+                 d.div({className: "grip grip-down-diagonal",
+                        draggable: "true",
+                        onDragStart: dragStart,
+                        onDrag: function(e) {
+                          if(e.clientX == 0 && e.clientY == 0) return;
+                          elem.height = height + top - e.clientY;
+                          elem.top = e.clientY;
+                          elem.left = e.clientX;
+                          elem.width = width + left - elem.left;
+                          setBox(elem);
+                          dirty();
+                        },
+                        style: {top: -gripSize,
+                                left: -gripSize}}),
+                 //top
+                 d.div({className: "grip grip-vertical",
+                        draggable: "true",
+                        onDragStart: dragStart,
+                        onDrag: function(e) {
+                          if(e.clientX == 0 && e.clientY == 0) return;
+                          elem.height = height + top - e.clientY;
+                          elem.top = e.clientY;
+                          setBox(elem);
+                          dirty();
+                        },
+                        style: {top: -gripSize,
+                                left: (width / 2) - gripSize}}),
+                 //top right
+                 d.div({className: "grip grip-up-diagonal",
+                        draggable: "true",
+                        onDragStart: dragStart,
+                        onDrag: function(e) {
+                          if(e.clientX == 0 && e.clientY == 0) return;
+                          elem.height = height + top - e.clientY;
+                          elem.top = e.clientY;
+                          elem.width = e.clientX - left;
+                          setBox(elem);
+                          dirty();
+                        },
+                        style: {top: -gripSize,
+                                left: width - gripSize}}),
+                 //right
+                 d.div({className: "grip grip-horizontal",
+                        draggable: "true",
+                        onDragStart: dragStart,
+                        onDrag: function(e) {
+                          if(e.clientX == 0 && e.clientY == 0) return;
+                          elem.width = e.clientX - left;
+                          setBox(elem);
+                          dirty();
+                        },
+                        style: {top: (height / 2) - gripSize,
+                                left: width - gripSize}}),
+                 //bottom right
+                 d.div({className: "grip grip-down-diagonal",
+                        draggable: "true",
+                        onDragStart: dragStart,
+                        onDrag: function(e) {
+                          if(e.clientX == 0 && e.clientY == 0) return;
+                          elem.height = e.clientY - top;
+                          elem.width = e.clientX - left;
+                          setBox(elem);
+                          dirty();
+                        },
+                        style: {top: height - gripSize,
+                                left: width - gripSize}}),
+                 //bottom
+                 d.div({className: "grip grip-vertical",
+                        draggable: "true",
+                        onDragStart: dragStart,
+                        onDrag: function(e) {
+                          if(e.clientX == 0 && e.clientY == 0) return;
+                          elem.height = e.clientY - top;
+                          setBox(elem);
+                          dirty();
+                        },
+                        style: {top: height - gripSize,
+                                left: (width / 2) - gripSize}}),
+                 //bottom left
+                 d.div({className: "grip grip-up-diagonal",
+                        draggable: "true",
+                        onDragStart: dragStart,
+                        onDrag: function(e) {
+                          if(e.clientX == 0 && e.clientY == 0) return;
+                          elem.height = e.clientY - top;
+                          box.height = elem.height;
+                          elem.left = e.clientX;
+                          elem.width = width + left - elem.left;
+                          setBox(elem);
+                          dirty();
+                        },
+                        style: {top: height - gripSize,
+                                left: -gripSize}}),
+                 //left
+                 d.div({className: "grip grip-horizontal",
+                        draggable: "true",
+                        onDragStart: dragStart,
+                        onDrag: function(e) {
+                          if(e.clientX == 0 && e.clientY == 0) return;
+                          box.height = elem.height;
+                          elem.left = e.clientX;
+                          elem.width = width + left - elem.left;
+                          setBox(elem);
+                          dirty();
+                        },
+                        style: {top: (height / 2) - gripSize,
+                                left: -gripSize}})
+
+                );
   }
 });
 
@@ -193,6 +412,28 @@ comps.wrapper = React.createClass({
                  comps.toolbox(),
                  comps.uiCanvas({node: data.tree})
                 );
+  }
+});
+
+//Key Handling
+
+var keys = {backspace: 8,
+            enter: 13};
+
+document.addEventListener("keydown", function(e) {
+  var handled = false;
+  switch(e.keyCode) {
+    case keys.backspace:
+      if(data.activeElement.view) {
+        handled = true;
+        data.activeElement.view.destroy();
+      }
+      break;
+  }
+
+  if(handled) {
+    e.preventDefault();
+    e.stopPropagation();
   }
 });
 
