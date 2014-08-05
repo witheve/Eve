@@ -1,7 +1,7 @@
 var eve = {};
 var comps = eve.components = {};
 var mix = eve.mixins = {};
-var data = eve.data = {tree: {elements: []}};
+var data = eve.data = {tree: {elements: []}, activeElement: {}};
 var d = React.DOM;
 
 var clearPixel = document.createElement("img");
@@ -96,6 +96,8 @@ mix.element = {
 
   onDrag: function(e) {
     if(e.clientX == 0 && e.clientY == 0) return;
+    if(e.shiftKey) { data.activeElement.modified = true; }
+    else { data.activeElement.modified = false; }
     var rect = e.target.getBoundingClientRect();
     var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
     this.props.node.left = pos.x - (rect.width / 2);
@@ -109,7 +111,9 @@ mix.element = {
   },
 
   onClick: function(e) {
-    data.activeElement = {view: this, elem: this.props.node, controls:true};
+    data.activeElement.view = this;;
+    data.activeElement.elem = this.props.node;
+    data.activeElement.controls = true;
     dirty();
     e.stopPropagation();
   },
@@ -228,8 +232,8 @@ comps.uiCanvas = React.createClass({
                               onMouseDown: this.onMouseDown,
                               onDrop: this.onDrop,
                               onDragOver: this.onDragOver},
-                             this.getElems(),
                              guides,
+                             this.getElems(),
                              comps.activeElement(data.activeElement)
                             )
                       )
@@ -240,7 +244,7 @@ comps.uiCanvas = React.createClass({
 
 comps.guides = React.createClass({
   snap: function() {
-    if(!data.activeElement || !data.activeElement.elem) return d.div();
+    if(!data.activeElement || !data.activeElement.elem || data.activeElement.modified) return;
     var elem = data.activeElement.elem;
     var elemCenterX = elem.left + elem.width / 2;
 
@@ -252,22 +256,68 @@ comps.guides = React.createClass({
     if(elemCenterX <= snapThreshold + centerCanvas && elemCenterX >= centerCanvas - snapThreshold) {
       elem.left = centerCanvas - elem.width / 2;
     };
+
+    var els = data.tree.elements;
+    for(var i in els) {
+      var cur = els[i];
+      if(cur == elem) continue;
+
+      if(elem.left <= snapThreshold + cur.left && elem.left > cur.left - snapThreshold) {
+        elem.left = cur.left;
+      }
+      if(elem.left + elem.width >= cur.left + cur.width - snapThreshold && elem.left + elem.width <= cur.left + cur.width) {
+        elem.left = cur.left + cur.width - elem.width;
+      }
+
+      if(elem.top <= snapThreshold + cur.top && elem.top >= cur.top) {
+        elem.top = cur.top;
+      }
+
+      if(elem.top + elem.height >= cur.top + cur.height - snapThreshold && elem.top + elem.height <= cur.top + cur.height) {
+        elem.top = cur.top + cur.height - elem.height;
+      }
+    }
+
   },
   render: function() {
     if(!data.activeElement || !data.activeElement.elem) return d.div();
     var elem = data.activeElement.elem;
     var elemCenterX = elem.left + elem.width / 2;
 
-    var snapVisibleThreshold = 30;
+    var snapVisibleThreshold = 20;
     var snapThreshold = 10;
     var centerCanvas = 1280 / 2;
 
+    var guides = [];
+
     var centerGuide;
     if(elemCenterX <= snapVisibleThreshold + centerCanvas && elemCenterX >= centerCanvas - snapVisibleThreshold) {
-      centerGuide =  d.div({className: "guide vertical-guide", style: {left: centerCanvas}});
+      guides.push(d.div({className: "guide vertical-guide", style: {left: centerCanvas}}));
+    }
+
+    var els = data.tree.elements;
+    for(var i in els) {
+      var cur = els[i];
+      if(cur == elem) continue;
+
+      if(elem.left <= snapVisibleThreshold + cur.left && elem.left >= cur.left) {
+        guides.push(d.div({className: "guide vertical-guide", style: {left: cur.left}}));
+      }
+
+      if(elem.left + elem.width >= cur.left + cur.width - snapVisibleThreshold && elem.left + elem.width <= cur.left + cur.width) {
+        guides.push(d.div({className: "guide vertical-guide", style: {left: cur.left + cur.width}}));
+      }
+
+      if(elem.top <= snapVisibleThreshold + cur.top && elem.top >= cur.top) {
+        guides.push(d.div({className: "guide horizontal-guide", style: {top: cur.top}}));
+      }
+
+      if(elem.top + elem.height >= cur.top + cur.height - snapVisibleThreshold && elem.top + elem.height <= cur.top + cur.height) {
+        guides.push(d.div({className: "guide horizontal-guide", style: {top: cur.top + cur.height}}));
+      }
     }
     return d.div({className: "guides"},
-                 centerGuide
+                 guides
                 );
   }
 });
@@ -478,6 +528,7 @@ comps.wrapper = React.createClass({
 //Key Handling
 
 var keys = {backspace: 8,
+            shift: 16,
             enter: 13,
             left: 37,
             up: 38,
@@ -517,6 +568,30 @@ document.addEventListener("keydown", function(e) {
       if(data.activeElement.elem) {
         handled = true;
         data.activeElement.elem.top += shift ? 10 : 1;
+      }
+      break;
+    case keys.shift:
+      if(data.activeElement.elem) {
+        handled = true;
+        data.activeElement.modified = true;
+      }
+      break;
+  }
+
+  if(handled) {
+    dirty();
+    e.preventDefault();
+    e.stopPropagation();
+  }
+});
+
+document.addEventListener("keyup", function(e) {
+  var handled = false;
+  switch(e.keyCode) {
+    case keys.shift:
+      if(data.activeElement.elem) {
+        handled = true;
+        data.activeElement.modified = false;
       }
       break;
   }
