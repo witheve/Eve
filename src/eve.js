@@ -218,15 +218,16 @@ MTreeConstraint.prototype = {
 
   propagate: function(solverState) {
     var ixes = this.ixes;
+    var len = ixes.length;
     var volumes = this.volumes;
+    var solverLos = solverState.los;
+    var solverHis = solverState.his;
     var los = this.los;
     var his = this.his;
 
-    // read old bounds
-    readFrom(ixes, solverState.los, los);
-    readFrom(ixes, solverState.his, his);
+    readFrom(ixes, solverLos, los);
+    readFrom(ixes, solverHis, his);
 
-    // constrain volumes
     for (var i = volumes.length - 1; i >= 0; i--) {
       var volume = volumes[i];
       if (containsPointwise(los, his, volume.los, volume.his)) {
@@ -234,21 +235,50 @@ MTreeConstraint.prototype = {
       }
     }
 
-    // shrink bounds
-    fillArray(los, greatest);
-    fillArray(his, least);
-    for (var i = volumes.length - 1; i >= 0; i--) {
-      var volume = volumes[i];
-      pushMin(los, volume.los);
-      pushMax(his, volume.his);
+    if (volumes.length === 0) {
+      solverState.isFailed = true;
+      return;
     }
 
-    // write new bounds
-    for (var i = ixes.length - 1; i >= 0; i--) {
+    var provenance = solverState.provenance;
+    var changed = false;
+
+    for (var i = len - 1; i >= 0; i--) {
+      var newLo = greatest;
+      var newHi = least;
+      for (var j = volumes.length - 1; j >= 0; j--) {
+        var volume = volumes[j];
+        var volumeLo = volume.los[i];
+        var volumeHi = volume.his[i];
+        if (compareValue(volumeLo, newLo) === -1) newLo = volumeLo;
+        if (compareValue(volumeHi, newHi) === 1) newHi = volumeHi;
+      }
+      var oldLo = los[i];
+      var oldHi = his[i];
       var ix = ixes[i];
-      solverState.setLo(ix, los[i]);
-      solverState.setHi(ix, his[i]);
+      if (newLo !== oldLo) {
+        var notLos = solverLos.slice();
+        var proofLos = los.slice();
+        los[i] = newLo;
+        solverLos[ix] = newLo;
+        var notHis = solverLos.slice();
+        var proofHis = los.slice();
+        provenance.whyNot(new WhyNot(notLos, notHis, proofLos, proofHis));
+        changed = true;
+      }
+      if (newHi !== oldHi) {
+        var notHis = solverHis.slice();
+        var proofHis = his.slice();
+        his[i] = newHi;
+        solverHis[ix] = newHi;
+        var notLos = solverHis.slice();
+        var proofLos = his.slice();
+        provenance.whyNot(new WhyNot(notLos, notHis, proofLos, proofHis));
+        changed = true;
+      }
     }
+
+    return changed;
   },
 
   split: function() {
@@ -402,49 +432,15 @@ Provenance.prototype =  {
 
 // SOLVER
 
-function SolverState(provenance, constraints, los, his, numUnfixed, isChanged, isFailed) {
+function SolverState(provenance, constraints, los, his, isFailed) {
   this.provenance = provenance;
   this.constraints = constraints;
   this.los = los;
   this.his = his;
-  this.numUnfixed = numUnfixed;
-  this.isChanged = isChanged;
   this.isFailed = isFailed;
 }
 
 SolverState.prototype = {
-  // TODO handle provenance
-
-  setLo: function(ix, newLo) {
-    var los = this.los;
-    if (compareValue(los[ix], newLo) === -1) {
-      var his = this.his;
-      var hilo = compareValue(his[ix], newLo);
-      if (hilo === -1) {
-        this.isFailed = true;
-      } else {
-        los[ix] = newLo;
-        this.isChanged = true;
-        if (hilo === 0) this.numUnfixed -= 1;
-      }
-    }
-  },
-
-  setHi: function(ix, newHi) {
-    var his = this.his;
-    if (compareValue(his[ix], newHi) === 1) {
-      var los = this.los;
-      var lohi = compareValue(los[ix], newHi);
-      if (lohi === 1) {
-        this.isFailed = true;
-      } else {
-        his[ix] = newHi;
-        this.isChanged = true;
-        if (lohi === 0) this.numUnfixed -= 1;
-      }
-    }
-  },
-
   propagate: function() {
     var constraints = this.constraints;
     var numConstraints = this.constraints.length;
@@ -452,9 +448,8 @@ SolverState.prototype = {
     var current = 0;
     while (true) {
       if (this.isFailed === true) break;
-      this.isChanged = false;
-      constraints[current].propagate(this);
-      if (this.isChanged === true) lastChanged = current;
+      var changed = constraints[current].propagate(this);
+      if (changed === true) lastChanged = current;
       current = (current + 1) % numConstraints;
       if (current === lastChanged) break;
     }
@@ -475,7 +470,7 @@ SolverState.prototype = {
         otherConstraints[copier] = constraints[copier].copy();
       }
     }
-    var otherSolverState = new SolverState(this.provenance, otherConstraints, this.los.splice(), this.his.splice(), this.numFixed, this.isChanged, this.isFailed);
+    var otherSolverState = new SolverState(this.provenance, otherConstraints, this.los.splice(), this.his.splice(), this.isFailed);
     constraints[splitter].propagate(this);
     otherConstraints[splitter].propagate(otherSolverState);
     return otherSolverState;
@@ -504,12 +499,11 @@ Solver.prototype = {
     }
     constraints.unshift(provenanceConstraint);
 
-    var numVars = this.numVars;
-    var states = [new SolverState(provenance, constraints, makeArray(least), makeArray(greatest), numVars, false, false)];
+    var states = [new SolverState(provenance, constraints, makeArray(least), makeArray(greatest), false)];
     while (states.length > 0) {
       var state = states.pop();
       state.propagate();
-      if (state.numUnfixed === 0) {
+      if (arrayEqual(state.los, state.his)) {
         provenance.why(new Why(state.los.slice()));
       } else if (state.isFailed === false) {
         states.push(state);
