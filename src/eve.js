@@ -114,6 +114,19 @@ function containsPointwise(los, his, innerLos, innerHis) {
   return true;
 }
 
+function intersectsPointwise(losA, hisA, losB, hisB) {
+  var len = losA.length;
+  assert(len === hisA.length);
+  assert(len === losB.length);
+  assert(len === hisB.length);
+  for (var i = 0; i < len; i++) {
+    if ((compareValue(losA[i], hisB[i]) === 1) || compareValue(losB[i], hisA[i]) === 1) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function pushMin(as, bs) {
   var len = as.length;
   assert(len = bs.length);
@@ -234,7 +247,7 @@ MTreeConstraint.prototype = {
 
     for (var i = volumes.length - 1; i >= 0; i--) {
       var volume = volumes[i];
-      if (containsPointwise(los, his, volume.los, volume.his)) {
+      if (intersectsPointwise(los, his, volume.los, volume.his) === false) {
         volumes.splice(i, 1);
       }
     }
@@ -260,7 +273,7 @@ MTreeConstraint.prototype = {
       var oldLo = los[i];
       var oldHi = his[i];
       var ix = ixes[i];
-      if (newLo !== oldLo) {
+      if (compareValue(newLo, oldLo) === 1) {
         var notLos = solverLos.slice();
         var proofLos = los.slice();
         los[i] = newLo;
@@ -270,7 +283,7 @@ MTreeConstraint.prototype = {
         provenance.whyNot(new WhyNot(notLos, notHis, proofLos, proofHis));
         changed = true;
       }
-      if (newHi !== oldHi) {
+      if (compareValue(newHi, oldHi) === -1) {
         var notHis = solverHis.slice();
         var proofHis = his.slice();
         his[i] = newHi;
@@ -378,6 +391,7 @@ PTree.prototype = {
 
     for (var i = newWhys.length - 1; i >= 0; i--) {
       whys.push(newWhys[i]);
+      addedWhys.push(newWhys[i]);
     }
     for (var i = newWhyNots.length - 1; i >= 0; i--) {
       whyNots.push(newWhyNots[i]);
@@ -463,9 +477,11 @@ SolverState.prototype = {
     var lastChanged = 0;
     var current = 0;
     while (true) {
+      console.log("Before prop " + current + " " + this.los + " " + this.his);
       if (this.isFailed === true) break;
       var changed = constraints[current].propagate(this);
       if (changed === true) lastChanged = current;
+      console.log("After prop " + current + " " + this.los + " " + this.his);
       current = (current + 1) % numConstraints;
       if (current === lastChanged) break;
     }
@@ -481,14 +497,18 @@ SolverState.prototype = {
         break;
       }
     }
+    assert(splitter >= 0);
     for (var copier = constraints.length - 1; copier >= 0; copier--) {
       if (copier !== splitter) {
         otherConstraints[copier] = constraints[copier].copy();
       }
     }
     var otherSolverState = new SolverState(this.provenance, otherConstraints, this.los.splice(), this.his.splice(), this.isFailed);
+    console.log("Before split " + splitter + " " + this.los + " " + this.his);
     constraints[splitter].propagate(this);
     otherConstraints[splitter].propagate(otherSolverState);
+    console.log("After split left " + splitter + " " + this.los + " " + this.his);
+    console.log("After split right " + splitter + " " + otherSolverState.los + " " + otherSolverState.his);
     return otherSolverState;
   }
 };
