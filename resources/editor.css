@@ -87,9 +87,9 @@ body { background:#fff; color: #666; font-family: "Nunito"; font-weight:300; fon
 
 .text { display:inline-block; position:absolute; vertical-align:top; }
 
-.elem { overflow:hidden; position:absolute; display:inline-block; }
+.elem { overflow:hidden; position:absolute; display:inline-block; z-index:1; }
 
-.box { min-height:100px; padding:15px; width:100%; }
+.box { min-height:1px; padding:15px; width:100%; z-index:0; }
 
 .button { text-align:center; padding:5px 10px; background: #ddd; border-radius:3px; cursor:default; }
 .button:hover { background:#ccc; }
