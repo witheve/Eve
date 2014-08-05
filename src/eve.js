@@ -40,6 +40,22 @@ function popFrom(depth, a, b) {
   }
 }
 
+function readFrom(ixes, local, remote) {
+  var len = ixes.length;
+  assert(len === local.len);
+  for (var i = 0; i < len; i++) {
+    local[i] = remote[ixes[i]];
+  }
+}
+
+function writeTo(ixes, local, remote) {
+  var len = ixes.length;
+  assert(len === local.len);
+  for (var i = 0; i < len; i++) {
+    remote[ixes[i]] = local[i];
+  }
+}
+
 // ORDERING / COMPARISON
 
 var least = false;
@@ -151,12 +167,16 @@ function Volume(los, his) {
   this.his = his;
 }
 
-function MTree(volumes) {
+function MTree(factLen, volumes) {
+  this.factLen = factLen;
   this.volumes = volumes;
 }
 
-function mtree() {
-  return new MTree([]);
+function MTreeConstraint(ixes, volumes, los, his) {
+  this.ixes = ixes;
+  this.volumes = volumes;
+  this.los = los;
+  this.his = his;
 }
 
 MTree.prototype = {
@@ -175,24 +195,36 @@ MTree.prototype = {
         }
       }
     }
+  },
+
+  constraint: function(ixes) {
+    var volumes = this.volumes.slice();
+    var los = makeArray(ixes.length, least);
+    var his = makeArray(ixes.length, greatest);
+    return new MTreeConstraint(ixes, this, volumes, los, his);
   }
 };
 
-function MTreeConstraint(volumes) {
-  this.volumes = volumes;
-}
-
-function mtreeConstraint(mtree) {
-  return new MTreeConstraint(mtree.volumes.slice());
-}
-
 MTreeConstraint.prototype = {
-  copy: function() {
-    return new MTreeConstraint(this.volumes.slice());
+  reset: function(mtree) {
+    this.volumes = mtree.volumes.slice();
+    fillArray(this.los, least);
+    fillArray(this.his, greatest);
   },
 
-  propagate: function(los, his) {
+  copy: function() {
+    return new MTreeConstraint(this.ixes, this.mtree, this.volumes.slice(), this.los.slice(), this.his.slice());
+  },
+
+  propagate: function(solverState) {
+    var ixes = this.ixes;
     var volumes = this.volumes;
+    var los = this.los;
+    var his = this.his;
+
+    // read old bounds
+    readFrom(ixes, solverState.los, los);
+    readFrom(ixes, solverState.his, his);
 
     // constrain volumes
     for (var i = volumes.length - 1; i >= 0; i--) {
@@ -209,6 +241,26 @@ MTreeConstraint.prototype = {
       var volume = volumes[i];
       pushMin(los, volume.los);
       pushMax(his, volume.his);
+    }
+
+    // write new bounds
+    for (var i = ixes.length - 1; i >= 0; i--) {
+      var ix = ixes[i];
+      solverState.setLo(ix, los[i]);
+      solverState.setHi(ix, his[i]);
+    }
+  },
+
+  split: function() {
+    var volumes = this.volumes;
+    if (volumes.length < 2) {
+      return null;
+    } else {
+      var ix = Math.floor(Math.random() * this.mtree.factLen);
+      volumes.sort(function (vA, vB) {return compareValue(vA.los[ix], vB.los[ix]);});
+      var splitLen = Math.ceil(volumes.length / 2);
+      var splitVolumes = volumes.splice(splitLen, splitLen);
+      return new MTreeConstraint(this.ixes, this.mtree, splitVolumes, this.los.slice(), this.his.slice());
     }
   }
 };
@@ -231,10 +283,6 @@ function Why(solverValues) {
 function PTree(whys, whyNots) {
   this.whys = whys;
   this.whyNots = whyNots;
-}
-
-function ptree() {
-  return new PTree([], []);
 }
 
 PTree.prototype = {
@@ -301,16 +349,17 @@ PTree.prototype = {
 
 // PROVENANCE
 
-function Provenance(whys, whyNots, ptree) {
+function Provenance(numVars, factLen, whys, whyNots, ptree) {
+  this.numVars = numVars;
+  this.factLen = factLen;
   this.whys = whys;
   this.whyNots = whyNots;
   this.ptree = ptree;
-}
-
-function provenance(numVars, keyLen) {
-  var provenance = new Provenance([], [], ptree());
-  provenance.whyNot(leastArray(numVars), leastArray(keyLen), greatestArray(keyLen));
-  return provenance;
+  this.ixes = [];
+  for (var i = 0; i < this.numVars; i++) {
+    this.ixes[i] = i;
+  }
+  this.whyNot(leastArray(numVars), leastArray(factLen), greatestArray(factLen));
 }
 
 Provenance.prototype =  {
@@ -329,7 +378,11 @@ Provenance.prototype =  {
     for (var i = erasedWhyNots.length - 1; i >= 0; i--) {
       erasedWhyNots[i] = new Volume(erasedWhyNots[i].solverLos, erasedWhyNots[i].solverHis);
     }
-    return new MTreeConstraint(erasedWhyNots);
+    if (erasedWhyNots.length === 0) {
+      return null;
+    } else {
+      return new MTreeConstraint(this.ixes, new MTree(this.factLen, erasedWhyNots));
+    }
   },
 
   finish: function (outputAdds, outputDels) {
@@ -349,193 +402,122 @@ Provenance.prototype =  {
 
 // SOLVER
 
-function Solver(numVars, numConstraints, constraints, constraintsForVar) {
-  this.numVars = numVars;
-  this.numConstraints = numConstraints;
+function SolverState(provenance, constraints, los, his, numUnfixed, isChanged, isFailed) {
+  this.provenance = provenance;
   this.constraints = constraints;
-  this.constraintsForVar = constraintsForVar;
-  this.values = makeArray(numVars, least);
+  this.los = los;
+  this.his = his;
+  this.numUnfixed = numUnfixed;
+  this.isChanged = isChanged;
+  this.isFailed = isFailed;
 }
 
-function solver(numVars, constraints, varsForConstraint) {
-  var numConstraints = constraints.length;
-  var constraintsForVar = [];
-  for (var i = 0; i < numVars; i++) {
-    constraintsForVar[i] = [];
-  }
-  for (var i = 0; i < numConstraints; i++) {
-    var constraint = constraints[i];
-    var vars = varsForConstraint[i];
-    for (var j = 0; j < vars.length; j++) {
-      constraintsForVar[vars[j]].push(constraint);
-    }
-  }
-  return new Solver(numVars, numConstraints, constraints, constraintsForVar);
-}
+SolverState.prototype = {
+  // TODO handle provenance
 
-Solver.prototype = {
-  solve: function(returnedValues) {
-
-    // init values
-    var values = this.values;
-    fillArray(values, least);
-
-    // init constraints
-    var constraints = this.constraints;
-    var numConstraints = this.numConstraints;
-    for (var i = 0; i < numConstraints; i++) {
-      constraints[i].init();
-    }
-
-    // init search
-    var numVars = this.numVars;
-    var constraintsForVar = this.constraintsForVar;
-    var currentVar = 0;
-    var value = values[currentVar];
-    var constraints = constraintsForVar[currentVar];
-    var numConstraints = constraints.length;
-
-    var FIX = 0;
-    var DOWN = 1;
-    var UP = 2;
-    var NEXT = 3;
-
-    var state = FIX;
-
-    // run the search state machine
-    search: while (true) {
-      switch (state) {
-
-        case FIX: {
-          // console.log("FIX " + currentVar + " " + value + " " + values);
-          var currentConstraint = 0;
-          var lastChanged = 0;
-          do {
-            var newValue = constraints[currentConstraint].next(value, true);
-            if (value !== newValue) {
-              lastChanged = currentConstraint;
-            }
-            value = newValue;
-            currentConstraint = (currentConstraint + 1) % numConstraints;
-          }
-          while ((currentConstraint !== lastChanged) && (value !== greatest));
-          if (value === greatest) {
-            state = UP;
-          } else {
-            values[currentVar] = value;
-            state = DOWN;
-          }
-          break;
-        }
-
-        case DOWN: {
-          // console.log("DOWN " + currentVar + " " + value + " " + values);
-          if (currentVar === numVars - 1) {
-            returnedValues.push(values.slice());
-            state = NEXT;
-          } else {
-            for (var i = 0; i < numConstraints; i++) {
-              constraints[i].down(value);
-            }
-            currentVar++;
-            value = values[currentVar];
-            constraints = constraintsForVar[currentVar];
-            numConstraints = constraints.length;
-            state = FIX;
-          }
-          break;
-        }
-
-        case UP: {
-          // console.log("UP " + currentVar + " " + value + " " + values);
-          if (currentVar === 0) {
-            break search;
-          } else {
-            values[currentVar] = least;
-            currentVar--;
-            value = values[currentVar];
-            constraints = constraintsForVar[currentVar];
-            numConstraints = constraints.length;
-            for (var i = 0; i < numConstraints; i++) {
-              constraints[i].up();
-            }
-            state = NEXT;
-          }
-          break;
-        }
-
-        case NEXT: {
-          // console.log("NEXT " + currentVar + " " + value + " " + values);
-          var value = constraints[0].next(value, false);
-          if (value === greatest) {
-            state = UP;
-          } else {
-            values[currentVar] = value;
-            state = FIX;
-          }
-          break;
-        }
+  setLo: function(ix, newLo) {
+    var los = this.los;
+    if (compareValue(los[ix], newLo) === -1) {
+      var his = this.his;
+      var hilo = compareValue(his[ix], newLo);
+      if (hilo === -1) {
+        this.isFailed = true;
+      } else {
+        los[ix] = newLo;
+        this.isChanged = true;
+        if (hilo === 0) this.numUnfixed -= 1;
       }
     }
+  },
+
+  setHi: function(ix, newHi) {
+    var his = this.his;
+    if (compareValue(his[ix], newHi) === 1) {
+      var los = this.los;
+      var lohi = compareValue(los[ix], newHi);
+      if (lohi === 1) {
+        this.isFailed = true;
+      } else {
+        his[ix] = newHi;
+        this.isChanged = true;
+        if (lohi === 0) this.numUnfixed -= 1;
+      }
+    }
+  },
+
+  propagate: function() {
+    var constraints = this.constraints;
+    var numConstraints = this.constraints.length;
+    var lastChanged = 0;
+    var current = 0;
+    while (true) {
+      if (this.isFailed === true) break;
+      this.isChanged = false;
+      constraints[current].propagate(this);
+      if (this.isChanged === true) lastChanged = current;
+      current = (current + 1) % numConstraints;
+      if (current === lastChanged) break;
+    }
+  },
+
+  split: function() {
+    var constraints = this.constraints;
+    var otherConstraints = constraints.slice();
+    for (var splitter = constraints.length - 1; splitter >= 0; splitter--) {
+      var otherConstraint = constraints[splitter].split();
+      if (otherConstraint !== null) {
+        otherConstraints[splitter] = otherConstraint;
+        break;
+      }
+    }
+    for (var copier = constraints.length - 1; copier >= 0; copier--) {
+      if (copier !== splitter) {
+        otherConstraints[copier] = constraints[copier].copy();
+      }
+    }
+    var otherSolverState = new SolverState(this.provenance, otherConstraints, this.los.splice(), this.his.splice(), this.numFixed, this.isChanged, this.isFailed);
+    constraints[splitter].propagate(this);
+    otherConstraints[splitter].propagate(otherSolverState);
+    return otherSolverState;
   }
 };
 
-// CONSTRAINTS
-
-function IteratorConstraint(iterator) {
-  this.iterator = iterator;
-  this.inclusiveSearchKey = makeArray(iterator.keyLen, least);
-  this.exclusiveSearchKey = makeArray(iterator.keyLen, greatest);
-  this.currentVar = 0;
+function Solver(numVars, constraints, provenance) {
+  this.numVars = numVars;
+  this.constraints = constraints;
+  this.provenance = provenance;
 }
 
-IteratorConstraint.prototype = {
-  init: function() {
-    this.iterator.reset();
-    fillArray(this.inclusiveSearchKey, least);
-    fillArray(this.exclusiveSearchKey, greatest);
-    this.currentVar = 0;
-  },
-
-  up: function() {
-    if (this.currentVar < this.inclusiveSearchKey.length) {
-      this.inclusiveSearchKey[this.currentVar] = least;
-      this.exclusiveSearchKey[this.currentVar] = greatest;
+Solver.prototype = {
+  update: function(memory, inputAdds, inputDels, outputAdds, outputDels) {
+    var provenance = this.provenance;
+    var provenanceConstraint = provenance.start(inputAdds, inputDels);
+    if (provenanceConstraint === null) {
+      // no changes
+      return;
     }
-    this.currentVar--;
-  },
 
-  down: function(value) {
-    this.inclusiveSearchKey[this.currentVar] = value;
-    this.exclusiveSearchKey[this.currentVar] = value;
-    this.currentVar++;
-  },
+    var constraints = this.constraints.slice();
+    for (var i = constraints.length - 1; i >= 0; i--) {
+      constraints[i] = constraints[i].copy();
+      constraints[i].reset(memory);
+    }
+    constraints.unshift(provenanceConstraint);
 
-  next: function(value, isInclusive) {
-    var currentVar = this.currentVar;
-    var searchKey;
-    var nextKey;
-    if (isInclusive === true) {
-      searchKey = this.inclusiveSearchKey;
-      searchKey[currentVar] = value;
-      nextKey = this.iterator.seekGte(searchKey);
-    } else {
-      searchKey = this.exclusiveSearchKey;
-      searchKey[currentVar] = value;
-      nextKey = this.iterator.seekGt(searchKey);
-    }
-    // console.log("NEXT KEY " + nextKey + " FROM " + searchKey + " WHEN " + currentVar + " " + value);
-    if (nextKey === null) {
-      // no more keys
-      return greatest;
-    }
-    for (var i = 0; i < currentVar; i++) {
-      if (searchKey[i] !== nextKey[i]) {
-        // next key does not match prefix of searchKey
-        return greatest;
+    var numVars = this.numVars;
+    var states = [new SolverState(provenance, constraints, makeArray(least), makeArray(greatest), numVars, false, false)];
+    while (states.length > 0) {
+      var state = states.pop();
+      state.propagate();
+      if (state.numUnfixed === 0) {
+        provenance.why(new Why(state.los.slice()));
+      } else if (state.isFailed === false) {
+        states.push(state);
+        states.push(state.split());
       }
     }
-    return nextKey[currentVar];
+
+    provenance.finish(outputAdds, outputDels);
   }
 };
 
@@ -701,25 +683,25 @@ var orderingProps = {
 
   valueArrayBounds: forall(gen.eav(),
                            function (v) {
-                             return (compareValueArray(v, leastArray(v.length)) === 1) && (compareValueArray(leastArray(v.length), v) === -1) &&
-                               (compareValueArray(v, greatestArray(v.length)) === -1) && (compareValueArray(greatestArray(v.length), v) === 1);
+                             return (comparePointwise(v, leastArray(v.length)) === 1) && (comparePointwise(leastArray(v.length), v) === -1) &&
+                               (comparePointwise(v, greatestArray(v.length)) === -1) && (comparePointwise(greatestArray(v.length), v) === 1);
                            }),
 
   valueArrayEquality: forall(gen.eav(), gen.eav(),
                         function (v1, v2) {
-                          return (compareValueArray(v1, v2) === 0) === arrayEqual(v1, v2);
+                          return (comparePointwise(v1, v2) === 0) === arrayEqual(v1, v2);
                         }),
 
   valueArrayReflexive: forall(gen.eav(),
                          function (v) {
-                           return compareValueArray(v,v) === 0;
+                           return comparePointwise(v,v) === 0;
                          }),
 
   valueArrayTransitive: forall(gen.eav(), gen.eav(), gen.eav(),
                          function (v1, v2, v3) {
-                           var c12 = compareValueArray(v1, v2);
-                           var c23 = compareValueArray(v2, v3);
-                           var c13 = compareValueArray(v1, v3);
+                           var c12 = comparePointwise(v1, v2);
+                           var c23 = comparePointwise(v2, v3);
+                           var c13 = comparePointwise(v1, v3);
                            return (c12 === c23) ? (c13 === c23) : true;
                          }),
 };
@@ -781,7 +763,7 @@ function modelBTree(actions) {
     }
   }
   model.sort(function (a,b) {
-    return compareValueArray(a[0], b[0]);
+    return comparePointwise(a[0], b[0]);
   });
   var elems = [];
   for (var i = 0; i < model.length; i++) {
@@ -846,7 +828,7 @@ function modelIterator(keys, movements) {
     var result = null;
     for (var j = 0; j < keys.length; j++) {
       var key = keys[j];
-      if ((compareValueArray(search, key) <= bound) && ((result === null) || (compareValueArray(key, result) === -1))) {
+      if ((comparePointwise(search, key) <= bound) && ((result === null) || (comparePointwise(key, result) === -1))) {
         result = key;
       }
     }
