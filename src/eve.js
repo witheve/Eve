@@ -42,7 +42,7 @@ function popFrom(depth, a, b) {
 
 function readFrom(ixes, local, remote) {
   var len = ixes.length;
-  assert(len === local.len);
+  assert(len === local.length);
   for (var i = 0; i < len; i++) {
     local[i] = remote[ixes[i]];
   }
@@ -50,7 +50,7 @@ function readFrom(ixes, local, remote) {
 
 function writeTo(ixes, local, remote) {
   var len = ixes.length;
-  assert(len === local.len);
+  assert(len === local.length);
   for (var i = 0; i < len; i++) {
     remote[ixes[i]] = local[i];
   }
@@ -179,6 +179,17 @@ function MTreeConstraint(ixes, volumes, los, his) {
   this.his = his;
 }
 
+MTree.empty = function(factLen) {
+  return new MTree(factLen, []);
+};
+
+MTreeConstraint.fresh = function(ixes) {
+  var volumes = [];
+  var los = makeArray(ixes.length, least);
+  var his = makeArray(ixes.length, greatest);
+  return new MTreeConstraint(ixes, volumes, los, his);
+};
+
 MTree.prototype = {
   update: function(adds, dels) {
     var volumes = this.volumes;
@@ -196,13 +207,6 @@ MTree.prototype = {
       }
     }
   },
-
-  constraint: function(ixes) {
-    var volumes = this.volumes.slice();
-    var los = makeArray(ixes.length, least);
-    var his = makeArray(ixes.length, greatest);
-    return new MTreeConstraint(ixes, this, volumes, los, his);
-  }
 };
 
 MTreeConstraint.prototype = {
@@ -213,7 +217,7 @@ MTreeConstraint.prototype = {
   },
 
   copy: function() {
-    return new MTreeConstraint(this.ixes, this.mtree, this.volumes.slice(), this.los.slice(), this.his.slice());
+    return new MTreeConstraint(this.ixes, this.volumes.slice(), this.los.slice(), this.his.slice());
   },
 
   propagate: function(solverState) {
@@ -225,8 +229,8 @@ MTreeConstraint.prototype = {
     var los = this.los;
     var his = this.his;
 
-    readFrom(ixes, solverLos, los);
-    readFrom(ixes, solverHis, his);
+    readFrom(ixes, los, solverLos);
+    readFrom(ixes, his, solverHis);
 
     for (var i = volumes.length - 1; i >= 0; i--) {
       var volume = volumes[i];
@@ -290,7 +294,7 @@ MTreeConstraint.prototype = {
       volumes.sort(function (vA, vB) {return compareValue(vA.los[ix], vB.los[ix]);});
       var splitLen = Math.ceil(volumes.length / 2);
       var splitVolumes = volumes.splice(splitLen, splitLen);
-      return new MTreeConstraint(this.ixes, this.mtree, splitVolumes, this.los.slice(), this.his.slice());
+      return new MTreeConstraint(this.ixes, splitVolumes, this.los.slice(), this.his.slice());
     }
   }
 };
@@ -315,18 +319,22 @@ function PTree(whys, whyNots) {
   this.whyNots = whyNots;
 }
 
+PTree.empty = function() {
+  return new PTree([], []);
+};
+
 PTree.prototype = {
   erase: function(points, erasedWhyNots) {
     var whyNots = this.whyNots;
     outer: for (var i = whyNots.length - 1; i >= 0; i--) {
       var whyNot = whyNots[i];
-      var los = whyNot.los;
-      var his = whyNot.his;
+      var los = whyNot.proofLos;
+      var his = whyNot.proofHis;
       inner: for (var j = points.length - 1; j >= 0; j--) {
         var point = points[j];
         if (containsPointwise(los, his, point, point)) {
           whyNots.splice(i, 1);
-          erasedWhyNots.push(i);
+          erasedWhyNots.push(whyNot);
           continue outer;
         }
       }
@@ -389,8 +397,14 @@ function Provenance(numVars, factLen, whys, whyNots, ptree) {
   for (var i = 0; i < this.numVars; i++) {
     this.ixes[i] = i;
   }
-  this.whyNot(leastArray(numVars), leastArray(factLen), greatestArray(factLen));
 }
+
+Provenance.empty = function (numVars, factLen) {
+  var provenance = new Provenance(numVars, factLen, [], [], PTree.empty());
+  provenance.whyNot(new WhyNot(makeArray(numVars, least), makeArray(numVars, greatest), makeArray(factLen, least), makeArray(factLen, greatest)));
+  provenance.finish([],[]);
+  return provenance;
+};
 
 Provenance.prototype =  {
   why: function (why) {
@@ -411,7 +425,9 @@ Provenance.prototype =  {
     if (erasedWhyNots.length === 0) {
       return null;
     } else {
-      return new MTreeConstraint(this.ixes, new MTree(this.factLen, erasedWhyNots));
+      var constraint = MTreeConstraint.fresh(this.ixes);
+      constraint.volumes = erasedWhyNots;
+      return constraint;
     }
   },
 
@@ -499,7 +515,8 @@ Solver.prototype = {
     }
     constraints.unshift(provenanceConstraint);
 
-    var states = [new SolverState(provenance, constraints, makeArray(least), makeArray(greatest), false)];
+    var numVars = this.numVars;
+    var states = [new SolverState(provenance, constraints, makeArray(numVars, least), makeArray(numVars, greatest), false)];
     while (states.length > 0) {
       var state = states.pop();
       state.propagate();
@@ -649,6 +666,29 @@ gen.eav = function() {
 };
 
 // SOLVER TESTS
+
+var m = MTree.empty(3);
+var c0 = MTreeConstraint.fresh([0,1,2]);
+var c1 = MTreeConstraint.fresh([0,1,2]);
+var p = Provenance.empty(3, 3);
+var s = new Solver(3, [c0, c1], p);
+
+var inputAdds = [];
+var inputDels = [];
+var outputAdds = [];
+var outputDels = [];
+s.update(m, inputAdds, inputDels, outputAdds, outputDels);
+assert(nestedEqual(outputAdds, []));
+assert(nestedEqual(outputDels, []));
+
+m.update([new Volume([0,0,0],[0,0,0])], []);
+var inputAdds = [[0,0,0]];
+var inputDels = [];
+var outputAdds = [];
+var outputDels = [];
+s.update(m, inputAdds, inputDels, outputAdds, outputDels);
+assert(nestedEqual(outputAdds, [[0,0,0]]));
+assert(nestedEqual(outputDels, []));
 
 var solverProps = {
   selfJoin: forall(gen.array(gen.eav()),
