@@ -1,7 +1,7 @@
 var eve = {};
 var comps = eve.components = {};
 var mix = eve.mixins = {};
-var data = eve.data = {tree: {elements: []}};
+var data = eve.data = {tree: {elements: []}, activeElement: {}};
 var d = React.DOM;
 
 var clearPixel = document.createElement("img");
@@ -29,6 +29,12 @@ var dirty = function() {
   }
 }
 
+var mouseRelativeTo = function(e, elem) {
+  var parentRect = elem.getBoundingClientRect();
+  return {x: e.clientX - parentRect.left - document.body.scrollLeft,
+          y: e.clientY - parentRect.top - document.body.scrollTop};
+}
+
 mix.container = {
   getElems: function() {
     var elems = this.props.node.elements;
@@ -52,9 +58,11 @@ mix.container = {
 
       if(!type) return;
 
+      var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
+
       var elem = {type: type,
-                  top: e.clientY,
-                  left: e.clientX};
+                  top: pos.y,
+                  left: pos.x};
       if(type === "div") {
         elem.elements = [];
       }
@@ -66,35 +74,46 @@ mix.container = {
 };
 
 mix.element = {
+  componentDidMount: function() {
+    if(this.props.node.width === undefined) {
+      this.measureSize(this.getDOMNode());
+    }
+  },
+  measureSize: function(elem) {
+    var rect = elem.getBoundingClientRect();
+    this.props.node.width = rect.width;
+    this.props.node.height = rect.height;
+  },
   onDragStart: function(e) {
     e.dataTransfer.setData("move", "move")
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.dropEffect = "move";
     e.dataTransfer.setDragImage(clearPixel, 0,0);
-    data.activeElement = {};
+    data.activeElement.controls = false;
     picker.spectrum("container").css("display", "none");
     dirty();
   },
 
   onDrag: function(e) {
+    if(e.clientX == 0 && e.clientY == 0) return;
+    if(e.shiftKey) { data.activeElement.modified = true; }
+    else { data.activeElement.modified = false; }
     var rect = e.target.getBoundingClientRect();
-    this.props.node.left = e.clientX - (rect.width / 2);
-    this.props.node.top = e.clientY - (rect.height / 2);
+    var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
+    this.props.node.left = pos.x - (rect.width / 2);
+    this.props.node.top = pos.y - (rect.height / 2);
     dirty();
   },
 
-  toBox: function(elem) {
-    var rect = elem.getBoundingClientRect();
-    return {top: rect.top, left: rect.left, width: rect.width, height: rect.height};
-  },
-
   onDragEnd: function(e) {
-    data.activeElement = {view: this, elem: this.props.node, box: this.toBox(e.target)};
+    data.activeElement.controls = true;
     dirty();
   },
 
   onClick: function(e) {
-    data.activeElement = {view: this, elem: this.props.node, box: this.toBox(e.target)};
+    data.activeElement.view = this;;
+    data.activeElement.elem = this.props.node;
+    data.activeElement.controls = true;
     dirty();
     e.stopPropagation();
   },
@@ -194,22 +213,111 @@ comps.uiCanvas = React.createClass({
   getInitialState: function() {
     return {width: "1280px"};
   },
-  onClick: function(e) {
-    data.activeElement = {};
-    picker.spectrum("container").css("display", "none");
-    dirty();
+  onMouseDown: function(e) {
+    if(e.target.id == "design-frame") {
+      data.activeElement = {};
+      picker.spectrum("container").css("display", "none");
+      dirty();
+    }
   },
   render: function() {
+    var guides = comps.guides();
+    guides.snap();
+
     return d.div({className: "ui-canvas"},
                  d.div({className: "canvas"},
-                       d.div({className: "design-frame",
+                       d.div({id: "design-frame",
+                              className: "design-frame",
                               style: {width: this.state.width},
-                              onMouseDown: this.onClick,
+                              onMouseDown: this.onMouseDown,
                               onDrop: this.onDrop,
                               onDragOver: this.onDragOver},
-                             this.getElems()
+                             guides,
+                             this.getElems(),
+                             comps.activeElement(data.activeElement)
                             )
                       )
+                );
+  }
+});
+
+
+comps.guides = React.createClass({
+  snap: function() {
+    if(!data.activeElement || !data.activeElement.elem || data.activeElement.modified) return;
+    var elem = data.activeElement.elem;
+    var elemCenterX = elem.left + elem.width / 2;
+
+    var snapVisibleThreshold = 30;
+    var snapThreshold = 10;
+    var centerCanvas = 1280 / 2;
+
+    var centerGuide;
+    if(elemCenterX <= snapThreshold + centerCanvas && elemCenterX >= centerCanvas - snapThreshold) {
+      elem.left = centerCanvas - elem.width / 2;
+    };
+
+    var els = data.tree.elements;
+    for(var i in els) {
+      var cur = els[i];
+      if(cur == elem) continue;
+
+      if(elem.left <= snapThreshold + cur.left && elem.left > cur.left - snapThreshold) {
+        elem.left = cur.left;
+      }
+      if(elem.left + elem.width >= cur.left + cur.width - snapThreshold && elem.left + elem.width <= cur.left + cur.width) {
+        elem.left = cur.left + cur.width - elem.width;
+      }
+
+      if(elem.top <= snapThreshold + cur.top && elem.top >= cur.top) {
+        elem.top = cur.top;
+      }
+
+      if(elem.top + elem.height >= cur.top + cur.height - snapThreshold && elem.top + elem.height <= cur.top + cur.height) {
+        elem.top = cur.top + cur.height - elem.height;
+      }
+    }
+
+  },
+  render: function() {
+    if(!data.activeElement || !data.activeElement.elem) return d.div();
+    var elem = data.activeElement.elem;
+    var elemCenterX = elem.left + elem.width / 2;
+
+    var snapVisibleThreshold = 20;
+    var snapThreshold = 10;
+    var centerCanvas = 1280 / 2;
+
+    var guides = [];
+
+    var centerGuide;
+    if(elemCenterX <= snapVisibleThreshold + centerCanvas && elemCenterX >= centerCanvas - snapVisibleThreshold) {
+      guides.push(d.div({className: "guide vertical-guide", style: {left: centerCanvas}}));
+    }
+
+    var els = data.tree.elements;
+    for(var i in els) {
+      var cur = els[i];
+      if(cur == elem) continue;
+
+      if(elem.left <= snapVisibleThreshold + cur.left && elem.left >= cur.left) {
+        guides.push(d.div({className: "guide vertical-guide", style: {left: cur.left}}));
+      }
+
+      if(elem.left + elem.width >= cur.left + cur.width - snapVisibleThreshold && elem.left + elem.width <= cur.left + cur.width) {
+        guides.push(d.div({className: "guide vertical-guide", style: {left: cur.left + cur.width}}));
+      }
+
+      if(elem.top <= snapVisibleThreshold + cur.top && elem.top >= cur.top) {
+        guides.push(d.div({className: "guide horizontal-guide", style: {top: cur.top}}));
+      }
+
+      if(elem.top + elem.height >= cur.top + cur.height - snapVisibleThreshold && elem.top + elem.height <= cur.top + cur.height) {
+        guides.push(d.div({className: "guide horizontal-guide", style: {top: cur.top + cur.height}}));
+      }
+    }
+    return d.div({className: "guides"},
+                 guides
                 );
   }
 });
@@ -218,14 +326,14 @@ comps.activeElement = React.createClass({
   componentDidUpdate: function() {
   },
   render: function() {
-    if(!this.props.box) {
+    if(!this.props.elem || !this.props.controls) {
       return d.div({className: "active-element-overlay", style: {display: "none"}});
     }
-    var box = this.props.box;
-    var top = this.props.box.top;
-    var left = this.props.box.left;
-    var width = this.props.box.width;
-    var height = this.props.box.height;
+    var box = this.props.elem;
+    var top = box.top;
+    var left = box.left;
+    var width = box.width;
+    var height = box.height;
     var start = {x: 0, y: 0};
     var elem = this.props.elem;
     var gripSize = 4;
@@ -250,11 +358,6 @@ comps.activeElement = React.createClass({
       if(elem.left >= left + width) {
         elem.left = left + width - elem.width;
       }
-
-      box.height = elem.height;
-      box.width = elem.width;
-      box.left = elem.left;
-      box.top = elem.top;
     };
 
     var view = this.props.view;
@@ -297,9 +400,10 @@ comps.activeElement = React.createClass({
                         onDragStart: dragStart,
                         onDrag: function(e) {
                           if(e.clientX == 0 && e.clientY == 0) return;
-                          elem.height = height + top - e.clientY;
-                          elem.top = e.clientY;
-                          elem.left = e.clientX;
+                          var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
+                          elem.height = height + top - pos.y;
+                          elem.top = pos.y;
+                          elem.left = pos.x;
                           elem.width = width + left - elem.left;
                           setBox(elem);
                           dirty();
@@ -312,8 +416,9 @@ comps.activeElement = React.createClass({
                         onDragStart: dragStart,
                         onDrag: function(e) {
                           if(e.clientX == 0 && e.clientY == 0) return;
-                          elem.height = height + top - e.clientY;
-                          elem.top = e.clientY;
+                          var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
+                          elem.height = height + top - pos.y;
+                          elem.top = pos.y;
                           setBox(elem);
                           dirty();
                         },
@@ -325,9 +430,10 @@ comps.activeElement = React.createClass({
                         onDragStart: dragStart,
                         onDrag: function(e) {
                           if(e.clientX == 0 && e.clientY == 0) return;
-                          elem.height = height + top - e.clientY;
-                          elem.top = e.clientY;
-                          elem.width = e.clientX - left;
+                          var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
+                          elem.height = height + top - pos.y;
+                          elem.top = pos.y;
+                          elem.width = pos.x - left;
                           setBox(elem);
                           dirty();
                         },
@@ -339,7 +445,8 @@ comps.activeElement = React.createClass({
                         onDragStart: dragStart,
                         onDrag: function(e) {
                           if(e.clientX == 0 && e.clientY == 0) return;
-                          elem.width = e.clientX - left;
+                          var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
+                          elem.width = pos.x - left;
                           setBox(elem);
                           dirty();
                         },
@@ -351,8 +458,9 @@ comps.activeElement = React.createClass({
                         onDragStart: dragStart,
                         onDrag: function(e) {
                           if(e.clientX == 0 && e.clientY == 0) return;
-                          elem.height = e.clientY - top;
-                          elem.width = e.clientX - left;
+                          var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
+                          elem.height = pos.y - top;
+                          elem.width = pos.x - left;
                           setBox(elem);
                           dirty();
                         },
@@ -364,7 +472,8 @@ comps.activeElement = React.createClass({
                         onDragStart: dragStart,
                         onDrag: function(e) {
                           if(e.clientX == 0 && e.clientY == 0) return;
-                          elem.height = e.clientY - top;
+                          var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
+                          elem.height = pos.y - top;
                           setBox(elem);
                           dirty();
                         },
@@ -376,9 +485,10 @@ comps.activeElement = React.createClass({
                         onDragStart: dragStart,
                         onDrag: function(e) {
                           if(e.clientX == 0 && e.clientY == 0) return;
-                          elem.height = e.clientY - top;
+                          var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
+                          elem.height = pos.y - top;
                           box.height = elem.height;
-                          elem.left = e.clientX;
+                          elem.left = pos.x;
                           elem.width = width + left - elem.left;
                           setBox(elem);
                           dirty();
@@ -391,8 +501,9 @@ comps.activeElement = React.createClass({
                         onDragStart: dragStart,
                         onDrag: function(e) {
                           if(e.clientX == 0 && e.clientY == 0) return;
+                          var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
                           box.height = elem.height;
-                          elem.left = e.clientX;
+                          elem.left = pos.x;
                           elem.width = width + left - elem.left;
                           setBox(elem);
                           dirty();
@@ -407,7 +518,6 @@ comps.activeElement = React.createClass({
 comps.wrapper = React.createClass({
   render: function() {
     return d.div({id: "wrapper"},
-                 comps.activeElement(data.activeElement),
                  comps.toolbar(),
                  comps.toolbox(),
                  comps.uiCanvas({node: data.tree})
@@ -418,10 +528,16 @@ comps.wrapper = React.createClass({
 //Key Handling
 
 var keys = {backspace: 8,
-            enter: 13};
+            shift: 16,
+            enter: 13,
+            left: 37,
+            up: 38,
+            right: 39,
+            down: 40};
 
 document.addEventListener("keydown", function(e) {
   var handled = false;
+  var shift = e.shiftKey;
   switch(e.keyCode) {
     case keys.backspace:
       if(data.activeElement.view) {
@@ -429,9 +545,59 @@ document.addEventListener("keydown", function(e) {
         data.activeElement.view.destroy();
       }
       break;
+
+    case keys.left:
+      if(data.activeElement.elem) {
+        handled = true;
+        data.activeElement.elem.left -= shift ? 10 : 1;
+      }
+      break;
+    case keys.right:
+      if(data.activeElement.elem) {
+        handled = true;
+        data.activeElement.elem.left += shift ? 10 : 1;
+      }
+      break;
+    case keys.up:
+      if(data.activeElement.elem) {
+        handled = true;
+        data.activeElement.elem.top -= shift ? 10 : 1;
+      }
+      break;
+    case keys.down:
+      if(data.activeElement.elem) {
+        handled = true;
+        data.activeElement.elem.top += shift ? 10 : 1;
+      }
+      break;
+    case keys.shift:
+      if(data.activeElement.elem) {
+        handled = true;
+        data.activeElement.modified = true;
+      }
+      break;
   }
 
   if(handled) {
+    dirty();
+    e.preventDefault();
+    e.stopPropagation();
+  }
+});
+
+document.addEventListener("keyup", function(e) {
+  var handled = false;
+  switch(e.keyCode) {
+    case keys.shift:
+      if(data.activeElement.elem) {
+        handled = true;
+        data.activeElement.modified = false;
+      }
+      break;
+  }
+
+  if(handled) {
+    dirty();
     e.preventDefault();
     e.stopPropagation();
   }

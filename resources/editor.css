@@ -74,7 +74,7 @@ body { background:#fff; color: #666; font-family: "Nunito"; font-weight:300; fon
 .toolbar li:hover { background:#eee; }
 .ui-canvas { display:flex; flex:1; height:100%; }
 .ui-canvas .canvas { display:flex; align-items:center; justify-content:stretch; flex-direction:column; background:white; width:100%; border-radius:3px; }
-.canvas .design-frame { height:100%; width:1280px; border-left:1px solid #ddd; border-right:1px solid #ddd; }
+.canvas .design-frame { position:relative; height:100%; width:1280px; border-left:1px solid #ddd; border-right:1px solid #ddd; }
 .grids { display:flex; flex:1; height:100%; position:absolute; z-index:10; top:0; right:20px; overflow:scroll; flex-direction:column; padding:20px; list-style:none; padding-left:50px; align-items:flex-start; }
 .grids li { display:inline-block; flex:1 0 auto; margin-bottom:15px; background:#fff; padding:5px; box-shadow: 0 0px 0px #bbb; border-radius:3px; }
 .grids table { border-collapse: collapse; background:white;  width:auto; border-radius:3px; }
@@ -107,6 +107,11 @@ body { background:#fff; color: #666; font-family: "Nunito"; font-weight:300; fon
 
 .control { position:absolute; display:inline-block; pointer-events: all;}
 .control-background-color { width:15px; height:15px; border-radius:3px; border:0px solid #333; background:#ccc; }
+
+.guides { width:100%; height:100%; position:relative; pointer-events:none; }
+.guides .guide {border-right:1px dashed rgba(30,30,255,0.4); border-bottom:1px dashed rgba(30,30,255,0.4); position:absolute; }
+.guides .vertical-guide { height:100%; border-bottom-width:0; }
+.guides .horizontal-guide { width:100%; border-right-width:0; }
 
 .sp-container { background:none; border:none; position:absolute !important; display:none; }
 
