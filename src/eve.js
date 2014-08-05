@@ -24,22 +24,6 @@ function fillArray(arr, fill) {
   }
 }
 
-function pushInto(depth, a, b) {
-  var len = a.length;
-  var start = depth * len;
-  for(var i = 0; i < len; i++) {
-    b[start + i] = a[i];
-  }
-}
-
-function popFrom(depth, a, b) {
-  var len = a.length;
-  var start = depth * len;
-  for(var i = 0; i < len; i++) {
-    a[i] = b[start + i];
-  }
-}
-
 function readFrom(ixes, local, remote) {
   var len = ixes.length;
   assert(len === local.length);
@@ -61,44 +45,12 @@ function writeTo(ixes, local, remote) {
 var least = false;
 var greatest = undefined;
 
-function leastArray(n) {
-  var array = [];
-  for (var i = 0; i < n; i++) {
-    array[i] = least;
-  }
-  return array;
-}
-
-function greatestArray(n) {
-  var array = [];
-  for (var i = 0; i < n; i++) {
-    array[i] = greatest;
-  }
-  return array;
-}
-
 function compareValue(a, b) {
   if(a === b) return 0;
   var at = typeof a;
   var bt = typeof b;
   if((at === bt && a < b) || (at < bt)) return -1;
   return 1;
-}
-
-function comparePointwise(pointA, pointB) {
-  var len = pointA.length;
-  assert(len === pointB.length);
-  var allLte = true;
-  var allGte = true;
-  for (var i = 0; i < len; i++) {
-    var comparison = compareValue(pointA[i], pointB[i]);
-    if (comparison === -1) allGte = false;
-    if (comparison === 1) allLte = false;
-  }
-  if (allLte && allGte) return 0;
-  if (allLte) return -1;
-  if (allGte) return 1;
-  return NaN;
 }
 
 function containsPointwise(los, his, innerLos, innerHis) {
@@ -125,26 +77,6 @@ function intersectsPointwise(losA, hisA, losB, hisB) {
     }
   }
   return true;
-}
-
-function pushMin(as, bs) {
-  var len = as.length;
-  assert(len = bs.length);
-  for (var i = 0; i <= len; i++) {
-    if (compareValue(as[i], bs[i]) === 1) {
-      as[i] = bs[i];
-    }
-  }
-}
-
-function pushMax(as, bs) {
-  var len = as.length;
-  assert(len = bs.length);
-  for (var i = 0; i <= len; i++) {
-    if (compareValue(as[i], bs[i]) === -1) {
-      as[i] = bs[i];
-    }
-  }
 }
 
 function arrayEqual(a, b) {
@@ -235,7 +167,6 @@ MTreeConstraint.prototype = {
 
   propagate: function(solverState) {
     var ixes = this.ixes;
-    var len = ixes.length;
     var volumes = this.volumes;
     var solverLos = solverState.los;
     var solverHis = solverState.his;
@@ -260,7 +191,7 @@ MTreeConstraint.prototype = {
     var provenance = solverState.provenance;
     var changed = false;
 
-    for (var i = len - 1; i >= 0; i--) {
+    for (var i = ixes.length - 1; i >= 0; i--) {
       var newLo = greatest;
       var newHi = least;
       for (var j = volumes.length - 1; j >= 0; j--) {
@@ -274,22 +205,26 @@ MTreeConstraint.prototype = {
       var oldHi = his[i];
       var ix = ixes[i];
       if (compareValue(newLo, oldLo) === 1) {
-        var notLos = solverLos.slice();
         var proofLos = los.slice();
+        var notLos = solverLos.slice();
+        var proofHis = his.slice();
+        var notHis = solverHis.slice();
         los[i] = newLo;
         solverLos[ix] = newLo;
-        var notHis = solverLos.slice();
-        var proofHis = los.slice();
+        proofHis[i] = newLo;
+        notHis[ix] = newLo;
         provenance.whyNot(new WhyNot(notLos, notHis, proofLos, proofHis));
         changed = true;
       }
       if (compareValue(newHi, oldHi) === -1) {
-        var notHis = solverHis.slice();
+        var proofLos = los.slice();
+        var notLos = solverLos.slice();
         var proofHis = his.slice();
+        var notHis = solverHis.slice();
         his[i] = newHi;
         solverHis[ix] = newHi;
-        var notLos = solverHis.slice();
-        var proofLos = his.slice();
+        proofLos[i] = newHi;
+        notLos[ix] = newHi;
         provenance.whyNot(new WhyNot(notLos, notHis, proofLos, proofHis));
         changed = true;
       }
@@ -303,7 +238,7 @@ MTreeConstraint.prototype = {
     if (volumes.length < 2) {
       return null;
     } else {
-      var ix = Math.floor(Math.random() * this.mtree.factLen);
+      var ix = Math.floor(Math.random() * this.ixes.length);
       volumes.sort(function (vA, vB) {return compareValue(vA.los[ix], vB.los[ix]);});
       var splitLen = Math.ceil(volumes.length / 2);
       var splitVolumes = volumes.splice(splitLen, splitLen);
@@ -455,8 +390,8 @@ Provenance.prototype =  {
     for (var i = outputDels.length - 1; i >= delLen; i--) {
       outputDels[i] = outputDels[i].solverValues;
     }
-    this.whys.length = 0;
-    this.whyNots.length = 0;
+    this.whys = [];
+    this.whyNots = [];
   }
 };
 
@@ -503,7 +438,7 @@ SolverState.prototype = {
         otherConstraints[copier] = constraints[copier].copy();
       }
     }
-    var otherSolverState = new SolverState(this.provenance, otherConstraints, this.los.splice(), this.his.splice(), this.isFailed);
+    var otherSolverState = new SolverState(this.provenance, otherConstraints, this.los.slice(), this.his.slice(), this.isFailed);
     console.log("Before split " + splitter + " " + this.los + " " + this.his);
     constraints[splitter].propagate(this);
     otherConstraints[splitter].propagate(otherSolverState);
@@ -530,7 +465,6 @@ Solver.prototype = {
 
     var constraints = this.constraints.slice();
     for (var i = constraints.length - 1; i >= 0; i--) {
-      constraints[i] = constraints[i].copy();
       constraints[i].reset(memory);
     }
     constraints.unshift(provenanceConstraint);
@@ -701,6 +635,8 @@ s.update(m, inputAdds, inputDels, outputAdds, outputDels);
 assert(nestedEqual(outputAdds, []));
 assert(nestedEqual(outputDels, []));
 
+p
+
 m.update([new Volume([0,0,0],[0,0,0])], []);
 var inputAdds = [[0,0,0]];
 var inputDels = [];
@@ -708,6 +644,17 @@ var outputAdds = [];
 var outputDels = [];
 s.update(m, inputAdds, inputDels, outputAdds, outputDels);
 assert(nestedEqual(outputAdds, [[0,0,0]]));
+assert(nestedEqual(outputDels, []));
+
+p
+
+m.update([new Volume([1,1,1],[1,1,1])], []);
+var inputAdds = [[1,1,1]];
+var inputDels = [];
+var outputAdds = [];
+var outputDels = [];
+s.update(m, inputAdds, inputDels, outputAdds, outputDels);
+assert(nestedEqual(outputAdds, [[0,0,0], [1,1,1]]));
 assert(nestedEqual(outputDels, []));
 
 var solverProps = {
