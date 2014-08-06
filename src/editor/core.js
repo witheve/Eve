@@ -1,7 +1,7 @@
 var eve = {};
 var comps = eve.components = {};
 var mix = eve.mixins = {};
-var data = eve.data = {tree: {elements: []}, activeElement: {}};
+var data = eve.data = {tree: {elements: []}, activeElement: {}, selection: {}};
 var d = React.DOM;
 
 var clearPixel = document.createElement("img");
@@ -29,11 +29,26 @@ var dirty = function() {
   }
 }
 
-var mouseRelativeTo = function(e, elem) {
+var relativeTo = function(x, y, elem) {
   var parentRect = elem.getBoundingClientRect();
-  return {x: e.clientX - parentRect.left - document.body.scrollLeft,
-          y: e.clientY - parentRect.top - document.body.scrollTop};
+  return {x: x - parentRect.left,
+          y: y - parentRect.top};
 }
+
+var mouseRelativeTo = function(e, elem) {
+  return relativeTo(e.clientX, e.clientY, elem);
+}
+
+var relativeToCanvas = function(x,y) {
+  return relativeTo(x,y,document.getElementById("design-frame"));
+}
+
+var canvasToGlobal = function(x,y) {
+  var parentRect = document.getElementById("design-frame").getBoundingClientRect();
+  return {x: x + parentRect.left + document.body.scrollLeft,
+          y: y + parentRect.top + document.body.scrollTop};
+}
+
 
 mix.container = {
   getElems: function() {
@@ -60,12 +75,9 @@ mix.container = {
 
       var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
 
-      var elem = {type: type,
-                  top: pos.y,
-                  left: pos.x};
-      if(type === "div") {
-        elem.elements = [];
-      }
+      var elem = comps.elements.make[type]();
+      elem.top = pos.y - (elem.height / 2);
+      elem.left = pos.x - (elem.width / 2);
       this.props.node.elements.push(elem);
       dirty();
       e.preventDefault();
@@ -93,33 +105,47 @@ mix.element = {
     data.activeElement.positioning = true;
     picker.spectrum("container").css("display", "none");
     dirty();
+    e.stopPropagation();
   },
 
   onDrag: function(e) {
-    console.log("on drag");
     if(e.clientX == 0 && e.clientY == 0) return;
     if(e.shiftKey) { data.activeElement.modified = true; }
     else { data.activeElement.modified = false; }
-    var rect = e.target.getBoundingClientRect();
-    var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
-    this.props.node.left = pos.x - (rect.width / 2);
-    this.props.node.top = pos.y - (rect.height / 2);
+    var pos = relativeToCanvas(e.clientX, e.clientY);
+    this.props.node.left = pos.x - (this.props.node.width / 2);
+    this.props.node.top = pos.y - (this.props.node.height / 2);
+    console.log(pos, this.props.node.left, this.props.node.top);
     dirty();
+    e.stopPropagation();
   },
 
   onDragEnd: function(e) {
-    console.log("drag end");
     data.activeElement.controls = true;
     data.activeElement.positioning = false;
     dirty();
+    e.stopPropagation();
   },
 
   onClick: function(e) {
-    data.activeElement.view = this;;
-    data.activeElement.elem = this.props.node;
-    data.activeElement.controls = true;
+    if(e.shiftKey) {
+      if((!data.selection.selections || data.selection.selections.length == 0) && data.activeElement.elem) {
+        data.selection.selections = [data.activeElement.elem];
+        data.activeElement = {};
+      }
+      data.selection.selecting = true;
+      data.selection.selections.push(this.props.node);
+    } else {
+      data.activeElement.view = this;
+      data.activeElement.elem = this.props.node;
+      data.activeElement.controls = true;
+    }
     dirty();
     e.stopPropagation();
+  },
+
+  doubleClick: function(e) {
+    data.activeElement.editing = true;
   },
 
   destroy: function(e) {
@@ -137,30 +163,57 @@ mix.element = {
   },
 
   getAttributes: function(klass) {
-    return {className: klass + " elem", draggable: "true", onMouseDown: this.onClick, onDragEnd: this.onDragEnd, onDragStart: this.onDragStart, onDrag: this.onDrag, style: this.getStyle()}
+    var active = {};
+    if(data.activeElement.view === this) {
+      active = data.activeElement;
+    }
+    var selected = "";
+    if(this.props.node.selected) {
+      selected = " selected";
+    }
+    return {className: klass + " elem" + selected, draggable: "true", onDoubleClick:this.doubleClick, onInput: this.change,  onMouseDown: this.onClick, onDragEnd: this.onDragEnd, onDragStart: this.onDragStart, onDrag: this.onDrag, contentEditable: active.editing, style: this.getStyle()}
   }
 }
 
 comps.elements = {
+
+  make: {
+    button: function() {
+      return {type: "button", width:100, height:30, background:"#ccc", color:"#333", content: "button text"};
+    },
+    text: function() {
+      return {type: "text", width:100, height:30, color:"#333", content: "some awesome text"};
+    },
+    image: function() {
+      return {type: "image",
+              width:100,
+              height:100,
+              src: "http://www.palantir.net/sites/default/files/styles/blogpost-mainimage/public/blog/images/Rubber_duck_meme.jpg?itok=fm9xZ0tw"};
+    },
+    div: function() {
+      return {type: "div", width:100, height:100, background:"#ccc"};
+    }
+  },
+
   button: React.createClass({
     mixins: [mix.element],
-    getInitialState: function() {
-      return {content: "button!"};
+    change: function(e) {
+      this.props.node.content = e.target.innerHTML;
     },
     controls: {background: true, color: true},
     render: function() {
-      return d.a(this.getAttributes("button"), this.state.content);
+      return d.a(this.getAttributes("button"), this.props.node.content);
     }
   }),
 
   text: React.createClass({
     mixins: [mix.element],
-    getInitialState: function() {
-      return {content: "some text"};
+    change: function(e) {
+      this.props.node.content = e.target.innerHTML;
     },
     controls: {background: true, color: true},
     render: function() {
-      return d.span(this.getAttributes("text"), this.state.content);
+      return d.span(this.getAttributes("text"), this.props.node.content);
     }
   }),
 
@@ -169,22 +222,18 @@ comps.elements = {
     controls: {background: false, color: false},
     render: function() {
       var attrs = this.getAttributes("image");
-      attrs.src = "http://www.palantir.net/sites/default/files/styles/blogpost-mainimage/public/blog/images/Rubber_duck_meme.jpg?itok=fm9xZ0tw";
+      attrs.onInput = null;
+      attrs.src = this.props.node.src;
       return d.img(attrs);
     }
   }),
 
   div: React.createClass({
     mixins: [mix.element],
-    componentWillMount: function() {
-      if(!this.props.node.width) {
-        this.props.node.width = 100;
-        this.props.node.height = 100;
-      }
-    },
     controls: {background:true},
     render: function() {
       var attrs = this.getAttributes("box");
+      attrs.onInput = null;
       return d.div(attrs);
     }
   }),
@@ -232,12 +281,153 @@ comps.uiCanvas = React.createClass({
       dirty();
     }
   },
+  onDragStart: function(e) {
+    e.dataTransfer.setData("move", "move")
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.dropEffect = "move";
+    e.dataTransfer.setDragImage(clearPixel, 0,0);
+    data.selection.selecting = true;
+    data.selection.sizing = true;
+    var old = data.selection.selections;
+    for(var i in old) {
+      old[i].selected = false;
+    }
+    data.selection.selections = []
+    data.selection.cur = {x: e.clientX,
+                          y: e.clientY};
+    data.selection.start = {x: e.clientX,
+                            y: e.clientY};
+    dirty();
+  },
+  onDrag: function(e) {
+    if(e.clientX == 0 && e.clientY == 0) return;
+    if(e.clientX > data.selection.start.x) {
+      data.selection.width = e.clientX - data.selection.start.x;
+    } else {
+      data.selection.cur.x = e.clientX;
+      data.selection.width = data.selection.start.x - e.clientX;
+    }
+
+    if(e.clientY > data.selection.start.y) {
+      data.selection.height = e.clientY - data.selection.start.y;
+    } else {
+      data.selection.cur.y = e.clientY;
+      data.selection.height = data.selection.start.y - e.clientY;
+    }
+    var elems = data.tree.elements;
+    var pos = relativeToCanvas(data.selection.cur.x, data.selection.cur.y);
+    var left = pos.x;
+    var right = left + data.selection.width;
+    var top = pos.y;
+    var bottom = top + data.selection.height;
+    var selections = [];
+    for(var i in elems) {
+      var cur = elems[i];
+      cur.selected = false;
+      //if they intersect
+      if(left < cur.left + cur.width //left of the right edge
+         && right > cur.left //right of the left edge
+         && top < cur.top + cur.height //above the bottom
+         && bottom > cur.top //bottom below top
+        ) {
+        selections.push(cur);
+        cur.selected = true;
+      }
+    }
+    data.selection.selections = selections;
+    dirty();
+  },
+  fitSelection: function() {
+    var elems = data.selection.selections;
+    var left = 10000000;
+    var right = 0;
+    var top = 1000000;
+    var bottom = 0;
+    for(var i in elems) {
+      var cur = elems[i];
+      cur.selected = false;
+      if(cur.left < left) {
+        left = cur.left;
+      }
+      if(cur.left + cur.width > right) {
+        right = cur.left + cur.width;
+      }
+      if(cur.top < top) {
+        top = cur.top;
+      }
+      if(cur.top + cur.height > bottom) {
+        bottom = cur.top + cur.height;
+      }
+    }
+    var pos = canvasToGlobal(left, top);
+    data.selection.cur = pos;
+    data.selection.width = right - left;
+    data.selection.height = bottom - top;
+  },
+  onDragEnd: function(e) {
+    data.selection.sizing = false;
+    this.fitSelection();
+    dirty();
+  },
+  startMovingSelection: function(e) {
+    e.dataTransfer.setData("move", "move")
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.dropEffect = "move";
+    e.dataTransfer.setDragImage(clearPixel, 0,0);
+    e.stopPropagation();
+  },
+  moveSelection: function(e) {
+    if(e.clientX == 0 && e.clientY == 0) return;
+    var centerY = data.selection.cur.y + data.selection.height / 2;
+    var centerX = data.selection.cur.x + data.selection.width / 2;
+    var dy = e.clientY - centerY;
+    var dx = e.clientX - centerX;
+
+    var elems = data.selection.selections;
+    for(var i in elems) {
+      elems[i].top += dy;
+      elems[i].left += dx;
+    }
+
+    data.selection.cur.y += dy;
+    data.selection.cur.x += dx;
+
+    dirty();
+    e.stopPropagation();
+  },
+  clearSelections: function(e) {
+    //data.selection = {};
+    //data.activeElement = {};
+    //picker.spectrum("container").css("display", "none");
+  },
   render: function() {
     var guides = comps.guides();
     guides.snap();
 
-    return d.div({className: "ui-canvas"},
-                 d.div({className: "canvas"},
+    var selectionRect;
+    if(data.selection.selecting) {
+      if(!data.selection.sizing) {
+        this.fitSelection();
+      }
+     selectionRect = d.div({className: "selection-rect",
+                            draggable: true,
+                            onMouseDown: function(e) { e.stopPropagation(); },
+                            onDragStart: this.startMovingSelection,
+                            onDrag: this.moveSelection,
+                            style: {top: data.selection.cur.y,
+                                    left: data.selection.cur.x,
+                                    width: data.selection.width,
+                                    height: data.selection.height}});
+    }
+
+    return d.div({className: "ui-canvas",
+                  id: "ui-canvas",
+                  onMouseDown: this.clearSelections},
+                 d.div({className: "canvas",
+                        draggable: true,
+                        onDragStart: this.onDragStart,
+                        onDrag: this.onDrag,
+                        onDragEnd: this.onDragEnd},
                        d.div({id: "design-frame",
                               className: "design-frame",
                               style: {width: this.state.width},
@@ -248,7 +438,8 @@ comps.uiCanvas = React.createClass({
                              this.getElems(),
                              comps.activeElement(data.activeElement)
                             )
-                      )
+                      ),
+                 selectionRect
                 );
   }
 });
@@ -256,7 +447,6 @@ comps.uiCanvas = React.createClass({
 
 comps.guides = React.createClass({
   snap: function() {
-    console.log(data.activeElement.snapable, data.activeElement.positioning);
     if(!data.activeElement.elem
        || data.activeElement.modified
        || (!data.activeElement.snapable && !data.activeElement.positioning && !data.activeElement.resizing)) {
@@ -376,10 +566,12 @@ comps.activeElement = React.createClass({
       e.dataTransfer.dropEffect = "move";
       e.dataTransfer.setDragImage(clearPixel, 0,0);
       data.activeElement.resizing = {};
+      e.stopPropagation();
     };
 
     var dragEnd = function(e) {
       data.activeElement.resizing = false;
+      e.stopPropagation();
     };
 
     var modified = function(e) {
@@ -453,6 +645,7 @@ comps.activeElement = React.createClass({
                           elem.width = width + left - elem.left;
                           setBox(elem);
                           dirty();
+                          e.stopPropagation();
                         },
                         style: {top: -gripSize,
                                 left: -gripSize}}),
@@ -470,6 +663,7 @@ comps.activeElement = React.createClass({
                           elem.top = pos.y;
                           setBox(elem);
                           dirty();
+                          e.stopPropagation();
                         },
                         style: {top: -gripSize,
                                 left: (width / 2) - gripSize}}),
@@ -489,6 +683,7 @@ comps.activeElement = React.createClass({
                           elem.width = pos.x - left;
                           setBox(elem);
                           dirty();
+                          e.stopPropagation();
                         },
                         style: {top: -gripSize,
                                 left: width - gripSize}}),
@@ -505,6 +700,7 @@ comps.activeElement = React.createClass({
                           elem.width = pos.x - left;
                           setBox(elem);
                           dirty();
+                          e.stopPropagation();
                         },
                         style: {top: (height / 2) - gripSize,
                                 left: width - gripSize}}),
@@ -523,6 +719,7 @@ comps.activeElement = React.createClass({
                           elem.width = pos.x - left;
                           setBox(elem);
                           dirty();
+                          e.stopPropagation();
                         },
                         style: {top: height - gripSize,
                                 left: width - gripSize}}),
@@ -539,6 +736,7 @@ comps.activeElement = React.createClass({
                           elem.height = pos.y - top;
                           setBox(elem);
                           dirty();
+                          e.stopPropagation();
                         },
                         style: {top: height - gripSize,
                                 left: (width / 2) - gripSize}}),
@@ -559,6 +757,7 @@ comps.activeElement = React.createClass({
                           elem.width = width + left - elem.left;
                           setBox(elem);
                           dirty();
+                          e.stopPropagation();
                         },
                         style: {top: height - gripSize,
                                 left: -gripSize}}),
@@ -577,6 +776,7 @@ comps.activeElement = React.createClass({
                           elem.width = width + left - elem.left;
                           setBox(elem);
                           dirty();
+                          e.stopPropagation();
                         },
                         style: {top: (height / 2) - gripSize,
                                 left: -gripSize}})
@@ -610,38 +810,38 @@ document.addEventListener("keydown", function(e) {
   var shift = e.shiftKey;
   switch(e.keyCode) {
     case keys.backspace:
-      if(data.activeElement.view) {
+      if(data.activeElement.view && !data.activeElement.editing) {
         handled = true;
         data.activeElement.view.destroy();
       }
       break;
 
     case keys.left:
-      if(data.activeElement.elem) {
+      if(data.activeElement.elem && !data.activeElement.editing) {
         handled = true;
         data.activeElement.elem.left -= shift ? 10 : 1;
       }
       break;
     case keys.right:
-      if(data.activeElement.elem) {
+      if(data.activeElement.elem && !data.activeElement.editing) {
         handled = true;
         data.activeElement.elem.left += shift ? 10 : 1;
       }
       break;
     case keys.up:
-      if(data.activeElement.elem) {
+      if(data.activeElement.elem && !data.activeElement.editing) {
         handled = true;
         data.activeElement.elem.top -= shift ? 10 : 1;
       }
       break;
     case keys.down:
-      if(data.activeElement.elem) {
+      if(data.activeElement.elem && !data.activeElement.editing) {
         handled = true;
         data.activeElement.elem.top += shift ? 10 : 1;
       }
       break;
     case keys.shift:
-      if(data.activeElement.elem) {
+      if(data.activeElement.elem && !data.activeElement.editing) {
         handled = true;
         data.activeElement.modified = true;
       }
@@ -683,8 +883,12 @@ window.eve = eve;
 window.eve.start();
 
 //TODO:
-// - change content
-// - select many and move
+// - better selection model? (only multiple?)
+// - selection highlighting is hard to see
+// - selection rules (fully contained for divs, overlapping for others)
+// - copy
+// - paste
+// - fix center resizing
 // - center snapping?
 // - src property editor
 // - font property editor
