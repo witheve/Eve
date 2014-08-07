@@ -677,101 +677,58 @@ gen.eav = function() {
 
 // SOLVER TESTS
 
-function hasLos(m, los) {
-  var volumes = m.volumes;
-  if (volumes.length !== los.length) return false;
-  for (var i = volumes.length - 1; i >= 0; i--) {
-    if (arrayEqual(volumes[i].los, los[i]) === false) return false;
+function sortEqual(as, bs) {
+  if (as.length !== bs.length) return false;
+  var as = as.splice();
+  var bs = bs.splice();
+  for (var i = as.length - 1; i >= 0; i--) {
+    as[i] = JSON.stringify(as[i]);
+    bs[i] = JSON.stringify(bs[i]);
   }
-  return true;
+  as.sort();
+  bs.sort();
+  return arrayEqual(as, bs);
 }
-
-var c0 = MTreeConstraint.fresh([0,1,2]);
-var c1 = MTreeConstraint.fresh([0,1,2]);
-var s = Solver.empty(3, 3, [c0, c1]);
-
-var m = MTree.empty(3);
-var o = s.update(m, MTree.empty(3));
-assert(hasLos(o, []));
-
-var m = m.update([new Volume([0,0,0],[0,0,0])], []);
-var o = s.update(m, o);
-assert(hasLos(o, [[0,0,0]]));
-
-var m = m.update([new Volume([1,1,1],[1,1,1])], []);
-var o = s.update(m, o);
-assert(hasLos(o, [[0,0,0], [1,1,1]]));
-
-var m = m.update([new Volume([2,2,2],[2,2,2]), new Volume([3,3,3],[3,3,3])], []);
-var o = s.update(m, o);
-assert(hasLos(o, [[0,0,0], [1,1,1], [3,3,3], [2,2,2]]));
-
-var m = m.update([], [new Volume([1,1,1],[1,1,1])]);
-var o = s.update(m, o);
-assert(hasLos(o, [[0,0,0], [3,3,3], [2,2,2]]));
 
 var solverProps = {
   selfJoin: forall(gen.array(gen.eav()),
                      function (facts) {
-                       var tree = btree(10, 3);
-                       var constraint0 = new IteratorConstraint(iterator(tree));
-                       var constraint1 = new IteratorConstraint(iterator(tree));
-                       var selfSolver = solver(3, [constraint0, constraint1], [[0,1,2],[0,1,2]]);
+                       var input = MTree.empty(3);
+                       var constraint0 = MTreeConstraint.fresh([0,1,2]);
+                       var constraint1 = MTreeConstraint.fresh([0,1,2]);
+                       var solver = Solver.empty(3, 3, [constraint0, constraint1]);
+                       var adds = [];
                        for (var i = 0; i < facts.length; i++) {
-                         tree.add(facts[i]);
+                         adds[i] = new Volume(facts[i], facts[i]);
                        }
-                       var returnedFacts = [];
-                       selfSolver.solve(returnedFacts);
-
-                       var expectedFacts = tree.keys();
-                       return nestedEqual(returnedFacts, expectedFacts);
+                       input.update(facts, []);
+                       var output = solver.update(input, MTree.empty());
+                       var expectedVolumes = input.volumes;
+                       return sortEqual(expectedVolumes, output.volumes);
                      }),
 
   productJoin: forall(gen.array(gen.eav()),
                      function (facts) {
-                       var tree = btree(10, 3);
-                       var constraint0 = new IteratorConstraint(iterator(tree));
-                       var constraint1 = new IteratorConstraint(iterator(tree));
-                       var productSolver = solver(6, [constraint0, constraint1], [[0,1,2],[3,4,5]]);
+                       var input = MTree.empty(3);
+                       var constraint0 = MTreeConstraint.fresh([0,1,2]);
+                       var constraint1 = MTreeConstraint.fresh([3,4,5]);
+                       var solver = Solver.empty(3, 6, [constraint0, constraint1]);
+                       var adds = [];
                        for (var i = 0; i < facts.length; i++) {
-                         tree.add(facts[i]);
+                         adds[i] = new Volume(facts[i], facts[i]);
                        }
-                       var returnedFacts = [];
-                       productSolver.solve(returnedFacts);
-
-                       var uniqueSortedFacts = tree.keys();
-                       var expectedFacts = [];
-                       for (var i = 0; i < uniqueSortedFacts.length; i++) {
-                         for (var j = 0; j < uniqueSortedFacts.length; j++) {
-                           expectedFacts.push(uniqueSortedFacts[i].concat(uniqueSortedFacts[j]));
+                       input.update(facts, []);
+                       var output = solver.update(input, MTree.empty());
+                       var expectedVolumes = [];
+                       for (var i = 0; i < facts.length; i++) {
+                         for (var j = 0; j < facts.length; j++) {
+                           expectedVolumes[i] = new Volume(facts[i].concat(facts[j]), facts[i].concat(facts[j]));
                          }
                        }
-                       return nestedEqual(returnedFacts, expectedFacts);
+                       return sortEqual(expectedVolumes, output.volumes);
                      })
 };
 
-assertAll(solverProps, {tests: 5000});
+solverProps.productJoin.fun([[0,0,0]]);
 
-function solverRegressionTest() {
-  var tree0 = btree(10, 2);
-  var tree1 = btree(10, 2);
-  var constraint0 = new IteratorConstraint(iterator(tree0));
-  var constraint1 = new IteratorConstraint(iterator(tree1));
-  var regressionSolver = solver(3, [constraint0, constraint1], [[0,2],[1,2]]);
-
-  tree0.add(["a", "b"]);
-  tree0.add(["b", "c"]);
-  tree0.add(["c", "d"]);
-  tree0.add(["d", "b"]);
-
-  tree1.add(["b", "a"]);
-  tree1.add(["c", "b"]);
-  tree1.add(["d", "c"]);
-  tree1.add(["b", "d"]);
-
-  var returnedFacts = [];
-  regressionSolver.solve(returnedFacts);
-  assert(nestedEqual(returnedFacts, [["a","c","b"],["b","d","c"],["c","b","d"],["d","c","b"]]));
-}
-
-solverRegressionTest();
+// assertAll(solverProps, {tests: 5000});
