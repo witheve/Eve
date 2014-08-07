@@ -169,6 +169,7 @@ MTree.prototype = {
   },
 
   diff: function(oldTree, outputAdds, outputDels) {
+    // TODO hacky gross diffing
     var oldVolumes = oldTree.volumes;
     var newVolumes = this.volumes;
     var adds = {};
@@ -198,10 +199,25 @@ MTree.prototype = {
   }
 };
 
+function dedupe(xs) {
+  var deduper = {};
+  for (var i = xs.length - 1; i >= 0; i--) {
+    var x = xs[i];
+    deduper[JSON.stringify(x)] = x;
+  }
+  var keys = Object.keys(deduper);
+  var deduped = [];
+  for (var i = keys.length - 1; i >= 0; i--) {
+    deduped[i] = deduper[keys[i]];
+  }
+  return deduped;
+}
+
 // TODO pointful stuff is a hack - we really need a different datastructure for the provenance constraint
 MTreeConstraint.prototype = {
   reset: function(mtree) {
-    this.volumes = mtree.volumes.slice();
+    this.volumes = dedupe(mtree.volumes);
+
     fillArray(this.los, least);
     fillArray(this.his, greatest);
   },
@@ -703,7 +719,7 @@ var solverProps = {
                        }
                        var input = input.update(adds, []);
                        var output = solver.update(input, MTree.empty());
-                       var expectedVolumes = input.volumes;
+                       var expectedVolumes = dedupe(input.volumes);
                        return sortEqual(expectedVolumes, output.volumes);
                      }),
 
@@ -722,13 +738,12 @@ var solverProps = {
                        var expectedVolumes = [];
                        for (var i = 0; i < facts.length; i++) {
                          for (var j = 0; j < facts.length; j++) {
-                           expectedVolumes[i] = new Volume(facts[i].concat(facts[j]), facts[i].concat(facts[j]));
+                           expectedVolumes.push(new Volume(facts[i].concat(facts[j]), facts[i].concat(facts[j])));
                          }
                        }
+                       expectedVolumes = dedupe(expectedVolumes);
                        return sortEqual(expectedVolumes, output.volumes);
                      })
 };
 
-// assertAll(solverProps, {tests: 5000});
-
-assertAll({a: solverProps.productJoin}, {tests: 5000});
+assertAll(solverProps, {tests: 5000});
