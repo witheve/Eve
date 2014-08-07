@@ -232,7 +232,7 @@ MTreeConstraint.prototype = {
     }
 
     if (volumes.length === 0) {
-      console.log("Failed with no volumes");
+      // console.log("Failed with no volumes");
       solverState.isFailed = true;
       if (pointful) provenance.add(new Region(solverLos.slice(), solverHis.slice(), los.slice(), his.slice(), false));
       return true;
@@ -276,7 +276,7 @@ MTreeConstraint.prototype = {
       var i = Math.floor(Math.random() * ixes.length);
       var ix = ixes[i];
       var pivot = volumes[volumeIx].los[i];
-      console.log("Split at fact[" + ix + "]=" + pivot);
+      // console.log("Split at fact[" + ix + "]=" + pivot);
       leftSolverState.his[ix] = pivot;
       rightSolverState.los[ix] = pivot;
       return true;
@@ -440,11 +440,11 @@ SolverState.prototype = {
     var lastChanged = 0;
     var current = 0;
     while (true) {
-      console.log("Before prop " + current + " " + this.los + " " + this.his);
+      // console.log("Before prop " + current + " " + this.los + " " + this.his);
       if (this.isFailed === true) break;
       var changed = constraints[current].propagate(this);
       if (changed === true) lastChanged = current;
-      console.log("After prop " + current + " " + this.los + " " + this.his);
+      // console.log("After prop " + current + " " + this.los + " " + this.his);
       current = (current + 1) % numConstraints;
       if (current === lastChanged) break;
     }
@@ -461,10 +461,10 @@ SolverState.prototype = {
       if (constraints[splitter].split(leftSolverState, rightSolverState)) break;
     }
     if (splitter >= 1) {
-      console.log("Split by " + splitter);
+      // console.log("Split by " + splitter);
       return rightSolverState;
     } else {
-      console.log("No split at " + this.los);
+      // console.log("No split at " + this.los);
       return null; // found a solution
     }
   }
@@ -518,7 +518,7 @@ Solver.prototype = {
       var state = states.pop();
       state.propagate();
       if (state.isFailed === true) {
-        console.log("Failed");
+        // console.log("Failed");
       } else {
         var rightState = state.split();
         if (rightState === null) {
@@ -701,7 +701,7 @@ var solverProps = {
                        for (var i = 0; i < facts.length; i++) {
                          adds[i] = new Volume(facts[i], facts[i]);
                        }
-                       input.update(facts, []);
+                       var input = input.update(adds, []);
                        var output = solver.update(input, MTree.empty());
                        var expectedVolumes = input.volumes;
                        return sortEqual(expectedVolumes, output.volumes);
@@ -717,7 +717,7 @@ var solverProps = {
                        for (var i = 0; i < facts.length; i++) {
                          adds[i] = new Volume(facts[i], facts[i]);
                        }
-                       input.update(facts, []);
+                       var input = input.update(adds, []);
                        var output = solver.update(input, MTree.empty());
                        var expectedVolumes = [];
                        for (var i = 0; i < facts.length; i++) {
@@ -729,6 +729,6 @@ var solverProps = {
                      })
 };
 
-solverProps.productJoin.fun([[0,0,0]]);
-
 // assertAll(solverProps, {tests: 5000});
+
+assertAll({a: solverProps.productJoin}, {tests: 5000});
