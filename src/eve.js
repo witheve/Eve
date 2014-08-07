@@ -558,6 +558,46 @@ Solver.prototype = {
   }
 };
 
+// SYSTEM
+
+function System(memory, flows) {
+  this.memory = memory;
+  this.flows = flows;
+}
+
+System.prototype = {
+  update: function (adds, dels) {
+    var memory = this.memory.update(adds, dels);
+    var flows = this.flows;
+    var numFlows = flows.length;
+    for (var i = 0; i < numFlows; i++) {
+      memory = this.updateFlow(flows[i], memory);
+    }
+    this.memory = memory;
+  },
+
+  updateFlow: function(flow, memory) {
+    if (flow instanceof Array) {
+      // fixpoint group of flows
+      var numFlows = flow.length;
+      var oldMemory = memory;
+      var lastChanged = 0;
+      var current = 0;
+      while (true) {
+        var newMemory = this.updateFlow(flow[current], oldMemory);
+        if (newMemory !== oldMemory) lastChanged = current;
+        oldMemory = newMemory;
+        current = (current + 1) % numFlows;
+        if (current === lastChanged) break;
+      }
+      return oldMemory;
+    } else {
+      // run single flow
+      return flow.update(memory, memory);
+    }
+  }
+};
+
 // TESTS
 
 var jsc = jsc;
