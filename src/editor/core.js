@@ -15,8 +15,8 @@ var picker = $("#picker").spectrum({
   showInput: false,
   showButtons: false,
   move: function(color) {
-    if(eve.data.activeElement.elem) {
-      eve.data.activeElement.elem[eve.data.activeElement.colorType] = color.toHexString();
+    if(data.selection.selections && data.selection.selections[0]) {
+      data.selection.selections[0][data.selection.colorType] = color.toHexString();
       dirty();
     }
   }
@@ -31,8 +31,8 @@ var dirty = function() {
 
 var relativeTo = function(x, y, elem) {
   var parentRect = elem.getBoundingClientRect();
-  return {x: x - parentRect.left,
-          y: y - parentRect.top};
+  return {x: (x - parentRect.left),
+          y: (y - parentRect.top)};
 }
 
 var mouseRelativeTo = function(e, elem) {
@@ -45,9 +45,209 @@ var relativeToCanvas = function(x,y) {
 
 var canvasToGlobal = function(x,y) {
   var parentRect = document.getElementById("design-frame").getBoundingClientRect();
-  return {x: x + parentRect.left + document.body.scrollLeft,
-          y: y + parentRect.top + document.body.scrollTop};
+  return {x: (x + parentRect.left + document.body.scrollLeft),
+          y: (y + parentRect.top + document.body.scrollTop)};
 }
+
+var fixDragStart = function(e) {
+  e.dataTransfer.setData("move", "move");
+  e.dataTransfer.effectAllowed = "move";
+  e.dataTransfer.dropEffect = "move";
+  e.dataTransfer.setDragImage(clearPixel, 0,0);
+};
+
+var applyToSelection = function(fn) {
+  //do it to all the selected things
+  var els = data.selection.selections;
+  for(var i in els) {
+    fn(els[i]);
+  }
+  //do it to the box
+  fn(data.selection.box || (data.selection.box = {}));
+};
+
+var fitSelectionBox = function() {
+  var elems = data.selection.selections;
+  var left = 10000000;
+  var right = 0;
+  var top = 1000000;
+  var bottom = 0;
+  for(var i in elems) {
+    var cur = elems[i];
+    if(cur.left < left) {
+      left = cur.left;
+    }
+    if(cur.left + cur.width > right) {
+      right = cur.left + cur.width;
+    }
+    if(cur.top < top) {
+      top = cur.top;
+    }
+    if(cur.top + cur.height > bottom) {
+      bottom = cur.top + cur.height;
+    }
+  }
+  var pos = canvasToGlobal(left, top);
+  data.selection.box = {top: pos.y, left: pos.x, width: right - left, height: bottom - top};
+}
+
+var addSelection = function(elem, skipFit) {
+  var sels = data.selection.selections;
+  if(!sels) {
+    sels = data.selection.selections = [];
+  }
+  data.selection.selecting = true;
+  elem.selected = true;
+  sels.push(elem);
+  if(!skipFit) {
+    fitSelectionBox();
+  }
+};
+
+var clearSelections = function() {
+  var sels = data.selection.selections;
+  for(var i in sels) {
+    sels[i].selected = false;
+  }
+  data.selection = {}
+  data.selection.selections = [];
+};
+
+var snapSelection = function() {
+  if(!data.selection.box
+     || data.selection.modified
+     || (!data.selection.snapable && !data.selection.positioning && !data.selection.resizing)) {
+    data.selection.snapable = false;
+    return;
+  }
+  data.selection.snapable = data.selection.positioning || data.selection.resizing;
+  var active = data.selection;
+  var adjusted = relativeToCanvas(active.box.left, active.box.top);
+  var elem = {top: adjusted.y, left: adjusted.x, width: active.box.width, height: active.box.height};
+  var elemCenterX = (elem.left + elem.width / 2);
+
+  var snapVisibleThreshold = 30;
+  var snapThreshold = 10;
+  var centerCanvas = 1280 / 2;
+  var snaps = {};
+
+  var centerGuide;
+  if(elemCenterX <= snapThreshold + centerCanvas && elemCenterX >= centerCanvas - snapThreshold) {
+    applyToSelection(function(cur) {
+      cur.left += (centerCanvas - elem.width / 2 - elem.left);
+    });
+    snaps.center = {center: centerCanvas};
+    elem.left = (centerCanvas - elem.width / 2);
+  };
+
+  var els = data.tree.elements;
+  for(var i in els) {
+    var cur = els[i];
+    if(cur.selected) continue;
+
+    if(elem.left <= snapThreshold + cur.left && elem.left > cur.left - snapThreshold) {
+      if(!snaps.left) {
+        snaps.left = cur;
+      } else if(elem.left - cur.left < elem.left - snaps.left.left) {
+        snaps.left = cur;
+      }
+    }
+
+    if(elem.left + elem.width >= cur.left + cur.width - snapThreshold && elem.left + elem.width <= cur.left + cur.width) {
+      if(!snaps.right) {
+        snaps.right = cur;
+      } else if(elem.left + elem.width - cur.left - cur.width > elem.left + elem.width - snaps.right.left - snaps.right.width) {
+        snaps.right = cur;
+      }
+    }
+
+    if(elem.top <= snapThreshold + cur.top && elem.top >= cur.top) {
+      if(!snaps.top) {
+        snaps.top = cur;
+      } else if(elem.top - cur.top < elem.top - snaps.top.top) {
+        snaps.top = cur;
+      }
+    }
+
+    if(elem.top + elem.height >= cur.top + cur.height - snapThreshold && elem.top + elem.height <= cur.top + cur.height) {
+      if(!snaps.bottom) {
+        snaps.bottom = cur;
+      } else if(elem.top + elem.height - cur.top - cur.height > elem.top + elem.height - snaps.bottom.top - snaps.bottom.height) {
+        snaps.bottom = cur;
+      }
+    }
+  }
+
+  if(active.resizing) {
+
+    if(active.resizing.left && snaps.left) {
+      applyToSelection(function(sel) {
+        if(snaps.center) {
+          sel.width += elem.left - snaps.left.left;
+        }
+        sel.width += elem.left - snaps.left.left;
+        sel.left += snaps.left.left - elem.left;
+      });
+      elem.left = snaps.left.left;
+    }
+
+    if(active.resizing.right && snaps.right) {
+      applyToSelection(function(sel) {
+        sel.width += snaps.right.left + snaps.right.width - elem.left - elem.width;
+        if(snaps.center) {
+          sel.left -= snaps.right.left + snaps.right.width - elem.left - elem.width;
+          sel.width += snaps.right.left + snaps.right.width - elem.left - elem.width;
+        }
+      });
+    }
+
+    if(active.resizing.top && snaps.top) {
+      applyToSelection(function(sel) {
+        sel.height += elem.top - snaps.top.top;
+        sel.top += snaps.top.top - elem.top;
+      });
+      elem.height += elem.top - snaps.top.top;
+      elem.top = snaps.top.top;
+    }
+
+    if(active.resizing.bottom && snaps.bottom) {
+      applyToSelection(function(sel) {
+        sel.height += snaps.bottom.top + snaps.bottom.height - elem.height - elem.top;
+      });
+      elem.height += snaps.bottom.top + snaps.bottom.height - elem.height - elem.top;
+    }
+
+  } else {
+    if(snaps.left) {
+      applyToSelection(function(sel) {
+        sel.left += snaps.left.left - elem.left;
+      });
+      elem.left = snaps.left.left;
+    }
+
+    if(snaps.right) {
+      applyToSelection(function(sel) {
+        sel.left += snaps.right.left + snaps.right.width - elem.left - elem.width;
+      });
+      elem.left = snaps.right.left + snaps.right.width - elem.width;
+    }
+
+    if(snaps.top) {
+      applyToSelection(function(sel) {
+        sel.top += snaps.top.top - elem.top;
+      });
+      elem.top = snaps.top.top;
+    }
+
+    if(snaps.bottom) {
+      applyToSelection(function(sel) {
+        sel.top += snaps.bottom.top + snaps.bottom.height - elem.height - elem.top;
+      });
+      elem.top = snaps.bottom.top + snaps.bottom.height - elem.height;
+    }
+
+  }
+};
 
 
 mix.container = {
@@ -97,12 +297,8 @@ mix.element = {
     this.props.node.height = rect.height;
   },
   onDragStart: function(e) {
-    e.dataTransfer.setData("move", "move")
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.dropEffect = "move";
-    e.dataTransfer.setDragImage(clearPixel, 0,0);
-    data.activeElement.controls = false;
-    data.activeElement.positioning = true;
+    fixDragStart(e);
+    data.selection.positioning = true;
     picker.spectrum("container").css("display", "none");
     dirty();
     e.stopPropagation();
@@ -110,42 +306,42 @@ mix.element = {
 
   onDrag: function(e) {
     if(e.clientX == 0 && e.clientY == 0) return;
-    if(e.shiftKey) { data.activeElement.modified = true; }
-    else { data.activeElement.modified = false; }
+    if(e.shiftKey) { data.selection.modified = true; }
+    else { data.selection.modified = false; }
     var pos = relativeToCanvas(e.clientX, e.clientY);
-    this.props.node.left = pos.x - (this.props.node.width / 2);
-    this.props.node.top = pos.y - (this.props.node.height / 2);
-    console.log(pos, this.props.node.left, this.props.node.top);
+    var me = this.props.node;
+    var dx = (pos.x - (me.width / 2) - me.left);
+    var dy = (pos.y - (me.height / 2) - me.top);
+    applyToSelection(function(cur) {
+      cur.left += dx;
+      cur.top += dy;
+    });
+    snapSelection();
     dirty();
     e.stopPropagation();
   },
 
   onDragEnd: function(e) {
-    data.activeElement.controls = true;
-    data.activeElement.positioning = false;
+    data.selection.positioning = false;
     dirty();
     e.stopPropagation();
   },
 
   onClick: function(e) {
-    if(e.shiftKey) {
-      if((!data.selection.selections || data.selection.selections.length == 0) && data.activeElement.elem) {
-        data.selection.selections = [data.activeElement.elem];
-        data.activeElement = {};
-      }
-      data.selection.selecting = true;
-      data.selection.selections.push(this.props.node);
-    } else {
-      data.activeElement.view = this;
-      data.activeElement.elem = this.props.node;
-      data.activeElement.controls = true;
+    if(e.shiftKey && !this.props.node.selected) {
+      addSelection(this.props.node);
+      dirty();
+    } else if(!this.props.node.selected) {
+      clearSelections();
+      addSelection(this.props.node);
+      dirty();
     }
-    dirty();
     e.stopPropagation();
   },
 
   doubleClick: function(e) {
-    data.activeElement.editing = true;
+    data.selection.editing = true;
+    dirty();
   },
 
   destroy: function(e) {
@@ -154,7 +350,7 @@ mix.element = {
     if(index > -1) {
       elems.splice(index, 1);
     }
-    data.activeElement = {};
+    data.selection = {};
     dirty();
   },
 
@@ -164,12 +360,10 @@ mix.element = {
 
   getAttributes: function(klass) {
     var active = {};
-    if(data.activeElement.view === this) {
-      active = data.activeElement;
-    }
     var selected = "";
     if(this.props.node.selected) {
       selected = " selected";
+      active = data.selection;
     }
     return {className: klass + " elem" + selected, draggable: "true", onDoubleClick:this.doubleClick, onInput: this.change,  onMouseDown: this.onClick, onDragEnd: this.onDragEnd, onDragStart: this.onDragStart, onDrag: this.onDrag, contentEditable: active.editing, style: this.getStyle()}
   }
@@ -191,7 +385,7 @@ comps.elements = {
               src: "http://www.palantir.net/sites/default/files/styles/blogpost-mainimage/public/blog/images/Rubber_duck_meme.jpg?itok=fm9xZ0tw"};
     },
     div: function() {
-      return {type: "div", width:100, height:100, background:"#ccc"};
+      return {type: "div", width:200, height:100, background:"#ccc"};
     }
   },
 
@@ -276,25 +470,18 @@ comps.uiCanvas = React.createClass({
   },
   onMouseDown: function(e) {
     if(e.target.id == "design-frame") {
-      data.activeElement = {};
+      clearSelections();
       picker.spectrum("container").css("display", "none");
       dirty();
     }
   },
   onDragStart: function(e) {
-    e.dataTransfer.setData("move", "move")
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.dropEffect = "move";
-    e.dataTransfer.setDragImage(clearPixel, 0,0);
+    fixDragStart(e);
+    clearSelections();
     data.selection.selecting = true;
     data.selection.sizing = true;
-    var old = data.selection.selections;
-    for(var i in old) {
-      old[i].selected = false;
-    }
-    data.selection.selections = []
-    data.selection.cur = {x: e.clientX,
-                          y: e.clientY};
+    data.selection.box = {left: e.clientX,
+                          top: e.clientY};
     data.selection.start = {x: e.clientX,
                             y: e.clientY};
     dirty();
@@ -302,98 +489,50 @@ comps.uiCanvas = React.createClass({
   onDrag: function(e) {
     if(e.clientX == 0 && e.clientY == 0) return;
     if(e.clientX > data.selection.start.x) {
-      data.selection.width = e.clientX - data.selection.start.x;
+      data.selection.box.width = e.clientX - data.selection.start.x;
     } else {
-      data.selection.cur.x = e.clientX;
-      data.selection.width = data.selection.start.x - e.clientX;
+      data.selection.box.left = e.clientX;
+      data.selection.box.width = data.selection.start.x - e.clientX;
     }
 
     if(e.clientY > data.selection.start.y) {
-      data.selection.height = e.clientY - data.selection.start.y;
+      data.selection.box.height = e.clientY - data.selection.start.y;
     } else {
-      data.selection.cur.y = e.clientY;
-      data.selection.height = data.selection.start.y - e.clientY;
+      data.selection.box.top = e.clientY;
+      data.selection.box.height = data.selection.start.y - e.clientY;
     }
     var elems = data.tree.elements;
-    var pos = relativeToCanvas(data.selection.cur.x, data.selection.cur.y);
+    var pos = relativeToCanvas(data.selection.box.left, data.selection.box.top);
     var left = pos.x;
-    var right = left + data.selection.width;
+    var right = left + data.selection.box.width;
     var top = pos.y;
-    var bottom = top + data.selection.height;
-    var selections = [];
+    var bottom = top + data.selection.box.height;
+    var sels = data.selection.selections;
+    for(var i in sels) {
+      sels[i].selected = false;
+    }
+    data.selection.selections = [];
     for(var i in elems) {
       var cur = elems[i];
-      cur.selected = false;
       //if they intersect
       if(left < cur.left + cur.width //left of the right edge
          && right > cur.left //right of the left edge
          && top < cur.top + cur.height //above the bottom
          && bottom > cur.top //bottom below top
         ) {
-        selections.push(cur);
-        cur.selected = true;
+        addSelection(cur, true);
       }
     }
-    data.selection.selections = selections;
     dirty();
-  },
-  fitSelection: function() {
-    var elems = data.selection.selections;
-    var left = 10000000;
-    var right = 0;
-    var top = 1000000;
-    var bottom = 0;
-    for(var i in elems) {
-      var cur = elems[i];
-      cur.selected = false;
-      if(cur.left < left) {
-        left = cur.left;
-      }
-      if(cur.left + cur.width > right) {
-        right = cur.left + cur.width;
-      }
-      if(cur.top < top) {
-        top = cur.top;
-      }
-      if(cur.top + cur.height > bottom) {
-        bottom = cur.top + cur.height;
-      }
-    }
-    var pos = canvasToGlobal(left, top);
-    data.selection.cur = pos;
-    data.selection.width = right - left;
-    data.selection.height = bottom - top;
   },
   onDragEnd: function(e) {
     data.selection.sizing = false;
-    this.fitSelection();
-    dirty();
-  },
-  startMovingSelection: function(e) {
-    e.dataTransfer.setData("move", "move")
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.dropEffect = "move";
-    e.dataTransfer.setDragImage(clearPixel, 0,0);
-    e.stopPropagation();
-  },
-  moveSelection: function(e) {
-    if(e.clientX == 0 && e.clientY == 0) return;
-    var centerY = data.selection.cur.y + data.selection.height / 2;
-    var centerX = data.selection.cur.x + data.selection.width / 2;
-    var dy = e.clientY - centerY;
-    var dx = e.clientX - centerX;
-
-    var elems = data.selection.selections;
-    for(var i in elems) {
-      elems[i].top += dy;
-      elems[i].left += dx;
+    if(data.selection.selections.length) {
+      fitSelectionBox();
+    } else {
+      clearSelections();
     }
-
-    data.selection.cur.y += dy;
-    data.selection.cur.x += dx;
-
     dirty();
-    e.stopPropagation();
   },
   clearSelections: function(e) {
     //data.selection = {};
@@ -402,22 +541,22 @@ comps.uiCanvas = React.createClass({
   },
   render: function() {
     var guides = comps.guides();
-    guides.snap();
+    var actives = [];
 
     var selectionRect;
     if(data.selection.selecting) {
       if(!data.selection.sizing) {
-        this.fitSelection();
+        fitSelectionBox();
       }
-     selectionRect = d.div({className: "selection-rect",
-                            draggable: true,
-                            onMouseDown: function(e) { e.stopPropagation(); },
-                            onDragStart: this.startMovingSelection,
-                            onDrag: this.moveSelection,
-                            style: {top: data.selection.cur.y,
-                                    left: data.selection.cur.x,
-                                    width: data.selection.width,
-                                    height: data.selection.height}});
+      selectionRect = d.div({className: "selection-rect",
+                             style: {top: data.selection.box.top,
+                                     left: data.selection.box.left,
+                                     width: data.selection.box.width,
+                                     height: data.selection.box.height}});
+      var sels = data.selection.selections;
+      for(var i in sels) {
+        actives.push(comps.activeElement({elem: sels[i]}));
+      }
     }
 
     return d.div({className: "ui-canvas",
@@ -436,7 +575,7 @@ comps.uiCanvas = React.createClass({
                               onDragOver: this.onDragOver},
                              guides,
                              this.getElems(),
-                             comps.activeElement(data.activeElement)
+                             actives
                             )
                       ),
                  selectionRect
@@ -446,64 +585,11 @@ comps.uiCanvas = React.createClass({
 
 
 comps.guides = React.createClass({
-  snap: function() {
-    if(!data.activeElement.elem
-       || data.activeElement.modified
-       || (!data.activeElement.snapable && !data.activeElement.positioning && !data.activeElement.resizing)) {
-      data.activeElement.snapable = false;
-      return;
-    }
-    data.activeElement.snapable = data.activeElement.positioning || data.activeElement.resizing;
-    var active = data.activeElement;
-    var elem = data.activeElement.elem;
-    var elemCenterX = elem.left + elem.width / 2;
-
-    var snapVisibleThreshold = 30;
-    var snapThreshold = 10;
-    var centerCanvas = 1280 / 2;
-
-    var centerGuide;
-    if(elemCenterX <= snapThreshold + centerCanvas && elemCenterX >= centerCanvas - snapThreshold) {
-      elem.left = centerCanvas - elem.width / 2;
-    };
-
-    var els = data.tree.elements;
-    for(var i in els) {
-      var cur = els[i];
-      if(cur == elem) continue;
-
-      if(elem.left <= snapThreshold + cur.left && elem.left > cur.left - snapThreshold) {
-        if(active.resizing && active.resizing.left) {
-          elem.width = elem.left - cur.left + elem.width;
-        }
-        elem.left = cur.left;
-      }
-      if(elem.left + elem.width >= cur.left + cur.width - snapThreshold && elem.left + elem.width <= cur.left + cur.width) {
-        if(active.resizing && active.resizing.right) {
-          elem.width = cur.left + cur.width - elem.left;
-        }
-        elem.left = cur.left + cur.width - elem.width;
-      }
-
-      if(elem.top <= snapThreshold + cur.top && elem.top >= cur.top) {
-        if(active.resizing && active.resizing.top) {
-          elem.height = elem.top - cur.top + elem.height
-        }
-        elem.top = cur.top;
-      }
-
-      if(elem.top + elem.height >= cur.top + cur.height - snapThreshold && elem.top + elem.height <= cur.top + cur.height) {
-        if(active.resizing && active.resizing.bottom) {
-          elem.height = cur.top + cur.height - elem.top;
-        }
-        elem.top = cur.top + cur.height - elem.height;
-      }
-    }
-
-  },
   render: function() {
-    if(!data.activeElement.elem) return d.div();
-    var elem = data.activeElement.elem;
+    if(!data.selection.box || data.selection.sizing) return d.div();
+    var active = data.selection;
+    var adjusted = relativeToCanvas(active.box.left, active.box.top);
+    var elem = {top: adjusted.y, left: adjusted.x, width: active.box.width, height: active.box.height};
     var elemCenterX = elem.left + elem.width / 2;
 
     var snapVisibleThreshold = 20;
@@ -520,7 +606,7 @@ comps.guides = React.createClass({
     var els = data.tree.elements;
     for(var i in els) {
       var cur = els[i];
-      if(cur == elem) continue;
+      if(cur.selected) continue;
 
       if(elem.left <= snapVisibleThreshold + cur.left && elem.left >= cur.left) {
         guides.push(d.div({className: "guide vertical-guide", style: {left: cur.left}}));
@@ -548,7 +634,7 @@ comps.activeElement = React.createClass({
   componentDidUpdate: function() {
   },
   render: function() {
-    if(!this.props.elem || !this.props.controls) {
+    if(!this.props.elem.top) {
       return d.div({className: "active-element-overlay", style: {display: "none"}});
     }
     var box = this.props.elem;
@@ -561,64 +647,64 @@ comps.activeElement = React.createClass({
     var gripSize = 4;
 
     var dragStart = function(e) {
-      e.dataTransfer.setData("move", "move")
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.dropEffect = "move";
-      e.dataTransfer.setDragImage(clearPixel, 0,0);
-      data.activeElement.resizing = {};
+      fixDragStart(e);
+      data.selection.resizing = {};
       e.stopPropagation();
     };
 
     var dragEnd = function(e) {
-      data.activeElement.resizing = false;
+      data.selection.resizing = false;
       e.stopPropagation();
     };
 
     var modified = function(e) {
-      if(e.shiftKey) { data.activeElement.modified = true; }
-      else { data.activeElement.modified = false; }
+      if(e.shiftKey) { data.selection.modified = true; }
+      else { data.selection.modified = false; }
     }
 
-    var setBox = function(elem) {
+    var setBox = function(elem, prev) {
       if(elem.width < 1) {
         elem.width = 1;
       }
       if(elem.height < 1) {
         elem.height = 1;
       }
-      if(elem.top >= top + height) {
-        elem.top = top + height - elem.height;
+      if(elem.top >= prev.top + prev.height) {
+        elem.top = prev.top + prev.height - elem.height;
       }
-      if(elem.left >= left + width) {
-        elem.left = left + width - elem.width;
+      if(elem.left >= prev.left + prev.width) {
+        elem.left = prev.left + prev.width - elem.width;
       }
     };
 
-    var view = this.props.view;
+    var controls = data.selection.selections.length === 1;
     var colorPicker, backgroundPicker;
-    if(view.controls.background) {
-      backgroundPicker = d.div({className: "control color-picker control-background-color",
-                                type: "color",
-                                onClick: function(e) {
-                                  eve.data.activeElement.colorType = "background";
-                                  picker.spectrum("set", elem.background);
-                                  picker.spectrum("container").css({top: e.clientY - 100, left: e.clientX + 15, display:"inline-block"});
-                                },
-                                style: {top: 0,
-                                        left: width + 15,
-                                        background: elem.background}});
-    }
-    if(view.controls.color) {
-      colorPicker = d.div({className: "control color-picker control-background-color",
-                           type: "color",
-                           onClick: function(e) {
-                             eve.data.activeElement.colorType = "color";
-                             picker.spectrum("set", elem.color);
-                             picker.spectrum("container").css({top: e.clientY - 15, left: e.clientX + 15, display:"inline-block"});
-                           },
-                           style: {top: 16,
-                                   left: width + 15,
-                                   background: elem.color}});
+    if(controls) {
+      var cur = data.selection.selections[0];
+      if(cur.background) {
+        backgroundPicker = d.div({className: "control color-picker control-background-color",
+                                  type: "color",
+                                  onClick: function(e) {
+                                    eve.data.selection.colorType = "background";
+                                    picker.spectrum("set", elem.background);
+                                    picker.spectrum("container").css({top: e.clientY - 100, left: e.clientX + 15, display:"inline-block"});
+                                  },
+                                  style: {top: 0,
+                                          left: width + 15,
+                                          background: elem.background}});
+      }
+      if(cur.color) {
+        colorPicker = d.div({className: "control color-picker control-background-color",
+                             type: "color",
+                             onClick: function(e) {
+                               eve.data.selection.colorType = "color";
+                               picker.spectrum("set", elem.color);
+                               picker.spectrum("container").css({top: e.clientY - 15, left: e.clientX + 15, display:"inline-block"});
+                             },
+                             style: {top: 16,
+                                     left: width + 15,
+                                     background: elem.color}});
+      }
     }
 
     return d.div({className: "active-element-overlay",
@@ -637,13 +723,21 @@ comps.activeElement = React.createClass({
                           if(e.clientX == 0 && e.clientY == 0) return;
                           modified(e);
                           var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
-                          data.activeElement.resizing.top = true;
-                          data.activeElement.resizing.left = true;
-                          elem.height = height + top - pos.y;
-                          elem.top = pos.y;
-                          elem.left = pos.x;
-                          elem.width = width + left - elem.left;
-                          setBox(elem);
+                          data.selection.resizing.top = true;
+                          data.selection.resizing.left = true;
+                          var dy = pos.y - top;
+                          var dx = pos.x - left;
+                          applyToSelection(function(cur) {
+                            var prev = {top: cur.top, left: cur.left, width: cur.width, height: cur.height};
+                            cur.top += dy;
+                            cur.height -= dy;
+                            cur.left += dx;
+                            cur.width -= dx;
+                            setBox(cur, prev);
+                          });
+                          top = pos.y;
+                          left = pos.x;
+                          snapSelection();
                           dirty();
                           e.stopPropagation();
                         },
@@ -658,10 +752,16 @@ comps.activeElement = React.createClass({
                           if(e.clientX == 0 && e.clientY == 0) return;
                           modified(e);
                           var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
-                          data.activeElement.resizing.top = true;
-                          elem.height = height + top - pos.y;
-                          elem.top = pos.y;
-                          setBox(elem);
+                          data.selection.resizing.top = true;
+                          var dy = pos.y - top;
+                          applyToSelection(function(cur) {
+                            var prev = {top: cur.top, left: cur.left, width: cur.width, height: cur.height};
+                            cur.top += dy;
+                            cur.height -= dy;
+                            setBox(cur, prev);
+                          });
+                          top = pos.y;
+                          snapSelection();
                           dirty();
                           e.stopPropagation();
                         },
@@ -676,12 +776,20 @@ comps.activeElement = React.createClass({
                           if(e.clientX == 0 && e.clientY == 0) return;
                           modified(e);
                           var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
-                          data.activeElement.resizing.top = true;
-                          data.activeElement.resizing.right = true;
-                          elem.height = height + top - pos.y;
-                          elem.top = pos.y;
-                          elem.width = pos.x - left;
-                          setBox(elem);
+                          data.selection.resizing.top = true;
+                          data.selection.resizing.right = true;
+                          var dy = pos.y - top;
+                          var dx = pos.x - left - width;
+                          applyToSelection(function(cur) {
+                            var prev = {top: cur.top, left: cur.left, width: cur.width, height: cur.height};
+                            cur.top += dy;
+                            cur.height -= dy;
+                            cur.width += dx;
+                            setBox(cur, prev);
+                          });
+                          top = pos.y;
+                          width = pos.x - left;
+                          snapSelection();
                           dirty();
                           e.stopPropagation();
                         },
@@ -696,9 +804,15 @@ comps.activeElement = React.createClass({
                           if(e.clientX == 0 && e.clientY == 0) return;
                           modified(e);
                           var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
-                          data.activeElement.resizing.right = true;
-                          elem.width = pos.x - left;
-                          setBox(elem);
+                          data.selection.resizing.right = true;
+                          var dx = pos.x - left - width;
+                          applyToSelection(function(cur) {
+                            var prev = {top: cur.top, left: cur.left, width: cur.width, height: cur.height};
+                            cur.width += dx;
+                            setBox(cur, prev);
+                          });
+                          width = pos.x - left;
+                          snapSelection();
                           dirty();
                           e.stopPropagation();
                         },
@@ -713,11 +827,19 @@ comps.activeElement = React.createClass({
                           if(e.clientX == 0 && e.clientY == 0) return;
                           modified(e);
                           var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
-                          data.activeElement.resizing.right = true;
-                          data.activeElement.resizing.bottom = true;
-                          elem.height = pos.y - top;
-                          elem.width = pos.x - left;
-                          setBox(elem);
+                          data.selection.resizing.right = true;
+                          data.selection.resizing.bottom = true;
+                          var dy = pos.y - top - height;
+                          var dx = pos.x - left - width;
+                          applyToSelection(function(cur) {
+                            var prev = {top: cur.top, left: cur.left, width: cur.width, height: cur.height};
+                            cur.height += dy;
+                            cur.width += dx;
+                            setBox(cur, prev);
+                          });
+                          height = pos.y - top;
+                          width = pos.x - left;
+                          snapSelection();
                           dirty();
                           e.stopPropagation();
                         },
@@ -732,9 +854,15 @@ comps.activeElement = React.createClass({
                           if(e.clientX == 0 && e.clientY == 0) return;
                           modified(e);
                           var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
-                          data.activeElement.resizing.bottom = true;
-                          elem.height = pos.y - top;
-                          setBox(elem);
+                          data.selection.resizing.bottom = true;
+                          var dy = pos.y - top - height;
+                          applyToSelection(function(cur) {
+                            var prev = {top: cur.top, left: cur.left, width: cur.width, height: cur.height};
+                            cur.height += dy;
+                            setBox(cur, prev);
+                          });
+                          height = pos.y - top;
+                          snapSelection();
                           dirty();
                           e.stopPropagation();
                         },
@@ -749,13 +877,21 @@ comps.activeElement = React.createClass({
                           if(e.clientX == 0 && e.clientY == 0) return;
                           modified(e);
                           var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
-                          data.activeElement.resizing.bottom = true;
-                          data.activeElement.resizing.left = true;
-                          elem.height = pos.y - top;
-                          box.height = elem.height;
-                          elem.left = pos.x;
-                          elem.width = width + left - elem.left;
-                          setBox(elem);
+                          data.selection.resizing.bottom = true;
+                          data.selection.resizing.left = true;
+                          var dy = pos.y - top - height;
+                          var dx = pos.x - left;
+                          applyToSelection(function(cur) {
+                            var prev = {top: cur.top, left: cur.left, width: cur.width, height: cur.height};
+                            cur.height += dy;
+                            cur.left += dx;
+                            cur.width -= dx;
+                            setBox(cur, prev);
+                          });
+                          height = pos.y - top;
+                          left = pos.x;
+                          width -= dx;
+                          snapSelection();
                           dirty();
                           e.stopPropagation();
                         },
@@ -770,11 +906,17 @@ comps.activeElement = React.createClass({
                           if(e.clientX == 0 && e.clientY == 0) return;
                           modified(e);
                           var pos = mouseRelativeTo(e, document.getElementById("design-frame"));
-                          data.activeElement.resizing.left = true;
-                          box.height = elem.height;
-                          elem.left = pos.x;
-                          elem.width = width + left - elem.left;
-                          setBox(elem);
+                          data.selection.resizing.left = true;
+                          var dx = pos.x - left;
+                          applyToSelection(function(cur) {
+                            var prev = {top: cur.top, left: cur.left, width: cur.width, height: cur.height};
+                            cur.left += dx;
+                            cur.width -= dx;
+                            setBox(cur, prev);
+                          });
+                          left = pos.x;
+                          width -= dx;
+                          snapSelection();
                           dirty();
                           e.stopPropagation();
                         },
@@ -810,40 +952,51 @@ document.addEventListener("keydown", function(e) {
   var shift = e.shiftKey;
   switch(e.keyCode) {
     case keys.backspace:
-      if(data.activeElement.view && !data.activeElement.editing) {
+      if(data.selection.selecting && !data.selection.editing) {
         handled = true;
-        data.activeElement.view.destroy();
+        data.tree.elements = data.tree.elements.filter(function(cur) {
+          return data.selection.selections.indexOf(cur) === -1;
+        });
+        clearSelections();
       }
       break;
 
     case keys.left:
-      if(data.activeElement.elem && !data.activeElement.editing) {
+      if(data.selection.selecting && !data.selection.editing) {
         handled = true;
-        data.activeElement.elem.left -= shift ? 10 : 1;
+        applyToSelection(function(cur) {
+          cur.left -= shift ? 10 : 1;
+        })
       }
       break;
     case keys.right:
-      if(data.activeElement.elem && !data.activeElement.editing) {
+      if(data.selection.selecting && !data.selection.editing) {
         handled = true;
-        data.activeElement.elem.left += shift ? 10 : 1;
+        applyToSelection(function(cur) {
+          cur.left += shift ? 10 : 1;
+        })
       }
       break;
     case keys.up:
-      if(data.activeElement.elem && !data.activeElement.editing) {
+      if(data.selection.selecting && !data.selection.editing) {
         handled = true;
-        data.activeElement.elem.top -= shift ? 10 : 1;
+        applyToSelection(function(cur) {
+          cur.top -= shift ? 10 : 1;
+        })
       }
       break;
     case keys.down:
-      if(data.activeElement.elem && !data.activeElement.editing) {
+      if(data.selection.selecting && !data.selection.editing) {
         handled = true;
-        data.activeElement.elem.top += shift ? 10 : 1;
+        applyToSelection(function(cur) {
+          cur.top += shift ? 10 : 1;
+        })
       }
       break;
     case keys.shift:
-      if(data.activeElement.elem && !data.activeElement.editing) {
+      if(data.selection.selecting && !data.selection.editing) {
         handled = true;
-        data.activeElement.modified = true;
+        data.selection.modified = true;
       }
       break;
   }
@@ -859,9 +1012,9 @@ document.addEventListener("keyup", function(e) {
   var handled = false;
   switch(e.keyCode) {
     case keys.shift:
-      if(data.activeElement.elem) {
+      if(data.selection.selecting) {
         handled = true;
-        data.activeElement.modified = false;
+        data.selection.modified = false;
       }
       break;
   }
