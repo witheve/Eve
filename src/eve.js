@@ -769,11 +769,12 @@ gen.eav = function() {
 // SOLVER TESTS
 
 function sortEqual(as, bs) {
-  if (as.length !== bs.length) return false;
-  var as = as.splice();
-  var bs = bs.splice();
+  var as = as.slice();
+  var bs = bs.slice();
   for (var i = as.length - 1; i >= 0; i--) {
     as[i] = JSON.stringify(as[i]);
+  }
+  for (var i = bs.length - 1; i >= 0; i--) {
     bs[i] = JSON.stringify(bs[i]);
   }
   as.sort();
@@ -793,7 +794,7 @@ var solverProps = {
                          adds[i] = new Volume(facts[i], facts[i]);
                        }
                        var input = input.update(adds, []);
-                       var output = solver.update(input, MTree.empty());
+                       var output = solver.update(input, MTree.empty(3));
                        var expectedVolumes = dedupe(input.volumes);
                        return sortEqual(expectedVolumes, output.volumes);
                      }),
@@ -809,7 +810,7 @@ var solverProps = {
                          adds[i] = new Volume(facts[i], facts[i]);
                        }
                        var input = input.update(adds, []);
-                       var output = solver.update(input, MTree.empty());
+                       var output = solver.update(input, MTree.empty(3));
                        var expectedVolumes = [];
                        for (var i = 0; i < facts.length; i++) {
                          for (var j = 0; j < facts.length; j++) {
@@ -833,13 +834,12 @@ var solverProps = {
                            adds[i] = new Volume(facts[i], facts[i]);
                          }
                          var input = input.update(adds, []);
-                         var output = solver.update(input, MTree.empty());
+                         var output = solver.update(input, MTree.empty(3));
                          var expectedVolumes = [];
                          for (var i = 0; i < facts.length; i++) {
                            if (facts[i][1] === constant) {
                              for (var j = 0; j < facts.length; j++) {
                                var point = facts[i].concat(facts[j]);
-                               point.splice(1,1);
                                expectedVolumes.push(new Volume(point, point));
                              }
                            }
@@ -847,9 +847,46 @@ var solverProps = {
                          expectedVolumes = dedupe(expectedVolumes);
                          return sortEqual(expectedVolumes, output.volumes);
                        }),
+
+  incrementalJoin: forall(gen.array(gen.eav()), gen.value(), gen.array(gen.eav()), gen.array(gen.eav()),
+                          function (facts, constant, laterAdds, laterDels) {
+                            var input = MTree.empty(3);
+                            var constraint0 = new ConstantConstraint(1, constant);
+                            var constraint1 = MTreeConstraint.fresh([0,1,2]);
+                            var constraint2 = MTreeConstraint.fresh([3,4,5]);
+                            var incrementalSolver = Solver.empty(3, 6, [constraint0, constraint1, constraint2]);
+                            var batchSolver = Solver.empty(3, 6, [constraint0, constraint1, constraint2]);
+                            var incrementalOutput = MTree.empty(3);
+                            var batchOutput = MTree.empty(3);
+
+                            var adds = [];
+                            for (var i = 0; i < facts.length; i++) {
+                              adds[i] = new Volume(facts[i], facts[i]);
+                            }
+                            input = input.update(adds, []);
+
+                            incrementalOutput = incrementalSolver.update(input, incrementalOutput);
+
+                            var adds = [];
+                            for (var i = 0; i < laterAdds.length; i++) {
+                              adds[i] = new Volume(laterAdds[i], laterAdds[i]);
+                            }
+                            var dels = [];
+                            for (var i = 0; i < laterDels.length; i++) {
+                              dels[i] = new Volume(laterDels[i], laterDels[i]);
+                            }
+                            input = input.update(adds, dels);
+
+                            batchOutput = batchSolver.update(input, batchOutput);
+                            incrementalOutput = incrementalSolver.update(input, incrementalOutput);
+
+                            return sortEqual(incrementalOutput.volumes, batchOutput.volumes);
+                          }),
 };
 
-assertAll(solverProps, {tests: 5000});
+solverProps.incrementalJoin.fun([[0,2,0],[1,1,1]], 2, [[3,2,3]], []);
+
+// assertAll(solverProps, {tests: 5000});
 
 function soFast(n) {
   var constraint0 = MTreeConstraint.fresh([0,1,2]);
