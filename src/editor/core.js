@@ -1,7 +1,7 @@
 var eve = {};
 var comps = eve.components = {};
 var mix = eve.mixins = {};
-var data = eve.data = {tree: {elements: []}, activeElement: {}, selection: {}};
+var data = eve.data = {tree: {elements: []}, activeElement: {}, selection: {}, undo: {stack:[], pos: -1}};
 var d = React.DOM;
 
 var clearPixel = document.createElement("img");
@@ -102,6 +102,14 @@ var addSelection = function(elem, skipFit) {
   if(!skipFit) {
     fitSelectionBox();
   }
+};
+
+var setSelections = function(sels) {
+  clearSelections();
+  for(var i in sels) {
+    addSelection(sels[i], true);
+  }
+  fitSelectionBox();
 };
 
 var clearSelections = function() {
@@ -262,6 +270,41 @@ var cloneSelected = function() {
   return clone;
 };
 
+var noop = function() {};
+
+var undoEntry = function() {
+  var entry = {undo: noop, redo: noop};
+  var stack = data.undo.stack;
+  var pos = data.undo.pos;
+  if(pos != stack.length - 1) {
+    stack.splice(Math.max(pos, 0), stack.length - pos);
+    if(pos > -1) {
+      data.undo.pos--;
+    }
+  }
+  stack.push(entry);
+  data.undo.pos++;
+  return entry;
+}
+
+var undo = function() {
+  if(data.undo.pos > -1) {
+    var curEntry = data.undo.stack[data.undo.pos];
+    curEntry.undo(curEntry);
+    data.undo.pos--;
+  }
+};
+
+var redo = function() {
+  data.undo.pos++;
+  var curEntry = data.undo.stack[data.undo.pos];
+  if(curEntry) {
+    curEntry.redo(curEntry);
+  } else {
+    data.undo.pos--;
+  }
+};
+
 
 mix.container = {
   getElems: function() {
@@ -312,6 +355,10 @@ mix.element = {
   onDragStart: function(e) {
     fixDragStart(e);
     data.selection.positioning = true;
+    var undo = undoEntry();
+    undo.selection = data.selection.selections.slice(0);
+    undo.start = {left: this.props.node.left, top: this.props.node.top};
+    data.selection.undoEntry = undo;
     picker.spectrum("container").css("display", "none");
     dirty();
     e.stopPropagation();
@@ -336,6 +383,24 @@ mix.element = {
 
   onDragEnd: function(e) {
     data.selection.positioning = false;
+    var entry = data.selection.undoEntry;
+    entry.move = {left: this.props.node.left - entry.start.left, top: this.props.node.top - entry.start.top};
+    entry.undo = function(ent) {
+      var sels = ent.selection;
+      for(var i in sels) {
+        sels[i].left -= ent.move.left;
+        sels[i].top -= ent.move.top;
+      }
+      setSelections(ent.selection.slice());
+    };
+    entry.redo = function(ent) {
+      var sels = ent.selection;
+      for(var i in sels) {
+        sels[i].left += ent.move.left;
+        sels[i].top += ent.move.top;
+      }
+      setSelections(ent.selection.slice());
+    };
     dirty();
     e.stopPropagation();
   },
@@ -960,7 +1025,8 @@ var keys = {backspace: 8,
             right: 39,
             down: 40,
             c: 67,
-            v: 86};
+            v: 86,
+            z: 90};
 
 document.addEventListener("keydown", function(e) {
   var handled = false;
@@ -969,10 +1035,22 @@ document.addEventListener("keydown", function(e) {
     case keys.backspace:
       if(data.selection.selecting && !data.selection.editing) {
         handled = true;
-        data.tree.elements = data.tree.elements.filter(function(cur) {
-          return data.selection.selections.indexOf(cur) === -1;
-        });
-        clearSelections();
+        var entry = undoEntry()
+        entry.selection = data.selection.selections.splice(0);
+        entry.undo = function(ent) {
+          var sels = ent.selection;
+          for(var i in sels) {
+            data.tree.elements.push(sels[i]);
+          }
+          setSelections(ent.selection);
+        };
+        entry.redo = function(ent) {
+          data.tree.elements = data.tree.elements.filter(function(cur) {
+            return ent.selection.indexOf(cur) === -1;
+          });
+          clearSelections();
+        };
+        entry.redo(entry);
       }
       break;
 
@@ -1034,6 +1112,17 @@ document.addEventListener("keydown", function(e) {
         data.clipboard = cloneSelected();
       }
       break;
+
+    case keys.z:
+      if(!(e.ctrlKey || e.metaKey) || data.selection.editing) break;
+
+      handled = true;
+      if(!e.shiftKey) {
+        undo();
+      } else {
+        redo();
+      }
+      break;
   }
 
   if(handled) {
@@ -1071,7 +1160,9 @@ window.eve = eve;
 window.eve.start();
 
 //TODO:
-// - undo/redo
+// - undo for add
+// - undo for resize
+// - undo for property change
 // - fix center resizing
 // - center snapping?
 // - selection rules? (fully contained for divs, overlapping for others)
