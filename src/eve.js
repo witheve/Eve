@@ -53,7 +53,19 @@ function compareValue(a, b) {
   return 1;
 }
 
-function containsPointwise(los, his, innerLos, innerHis) {
+function containsPoint(los, his, point) {
+  var len = los.length;
+  assert(len === his.length);
+  assert(len === point.length);
+  for (var i = 0; i < len; i++) {
+    if ((compareValue(point[i], los[i]) === -1) || compareValue(point[i], his[i]) !== -1) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function containsVolume(los, his, innerLos, innerHis) {
   var len = los.length;
   assert(len === his.length);
   assert(len === innerLos.length);
@@ -66,13 +78,13 @@ function containsPointwise(los, his, innerLos, innerHis) {
   return true;
 }
 
-function intersectsPointwise(losA, hisA, losB, hisB) {
+function intersectsVolume(losA, hisA, losB, hisB) {
   var len = losA.length;
   assert(len === hisA.length);
   assert(len === losB.length);
   assert(len === hisB.length);
   for (var i = 0; i < len; i++) {
-    if ((compareValue(losA[i], hisB[i]) === 1) || compareValue(losB[i], hisA[i]) === 1) {
+    if ((compareValue(losA[i], hisB[i]) !== -1) || compareValue(losB[i], hisA[i]) !== -1) {
       return false;
     }
   }
@@ -117,8 +129,9 @@ function MTree(factLen, volumes) {
   this.volumes = volumes;
 }
 
-function MTreeConstraint(ixes, volumes, los, his) {
+function MTreeConstraint(ixes, pointful, volumes, los, his) {
   this.ixes = ixes;
+  this.pointful = pointful;
   this.volumes = volumes;
   this.los = los;
   this.his = his;
@@ -129,40 +142,88 @@ MTree.empty = function(factLen) {
 };
 
 MTreeConstraint.fresh = function(ixes) {
+  var pointful = true;
   var volumes = [];
   var los = makeArray(ixes.length, least);
   var his = makeArray(ixes.length, greatest);
-  return new MTreeConstraint(ixes, volumes, los, his);
+  return new MTreeConstraint(ixes, pointful, volumes, los, his);
 };
 
 MTree.prototype = {
   update: function(adds, dels) {
-    var volumes = this.volumes;
+    var volumes = this.volumes.slice();
     for (var i = adds.length - 1; i >= 0; i--) {
       volumes.push(adds[i]);
     }
-    outer: for (var i = dels.length - 1; i >= 0; i--) {
+    nextDel: for (var i = dels.length - 1; i >= 0; i--) {
       var del = dels[i];
-      inner: for (var j = volumes.length - 1; j >= 0; j--) {
+      for (var j = volumes.length - 1; j >= 0; j--) {
         var volume = volumes[j];
         if (arrayEqual(del.los, volume.los) && arrayEqual(del.his, volume.his)) {
-          volumes.slice(j, 1);
-          continue outer;
+          volumes.splice(j, 1);
+          continue nextDel;
         }
       }
     }
+    return new MTree(this.factLen, volumes);
   },
+
+  diff: function(oldTree, outputAdds, outputDels) {
+    // TODO hacky gross diffing
+    var oldVolumes = oldTree.volumes;
+    var newVolumes = this.volumes;
+    var adds = {};
+    var dels = {};
+    for (var i = newVolumes.length - 1; i >= 0; i--) {
+      var newVolume = newVolumes[i];
+      adds[JSON.stringify(newVolume)] = newVolume;
+    }
+    for (var i = oldVolumes.length - 1; i >= 0; i--) {
+      var oldVolume = oldVolumes[i];
+      dels[JSON.stringify(oldVolume)] = oldVolume;
+    }
+    for (var i = newVolumes.length - 1; i >= 0; i--) {
+      delete dels[JSON.stringify(newVolumes[i])];
+    }
+    for (var i = oldVolumes.length - 1; i >= 0; i--) {
+      delete adds[JSON.stringify(oldVolumes[i])];
+    }
+    var addKeys = Object.keys(adds);
+    var delKeys = Object.keys(dels);
+    for (var i = addKeys.length - 1; i >= 0; i--) {
+      outputAdds.push(adds[addKeys[i]]);
+    }
+    for (var i = delKeys.length - 1; i >= 0; i--) {
+      outputDels.push(dels[delKeys[i]]);
+    }
+  }
 };
 
+function dedupe(xs) {
+  var deduper = {};
+  for (var i = xs.length - 1; i >= 0; i--) {
+    var x = xs[i];
+    deduper[JSON.stringify(x)] = x;
+  }
+  var keys = Object.keys(deduper);
+  var deduped = [];
+  for (var i = keys.length - 1; i >= 0; i--) {
+    deduped[i] = deduper[keys[i]];
+  }
+  return deduped;
+}
+
+// TODO pointful stuff is a hack - we really need a different datastructure for the provenance constraint
 MTreeConstraint.prototype = {
   reset: function(mtree) {
-    this.volumes = mtree.volumes.slice();
+    this.volumes = dedupe(mtree.volumes);
+
     fillArray(this.los, least);
     fillArray(this.his, greatest);
   },
 
   copy: function() {
-    return new MTreeConstraint(this.ixes, this.volumes.slice(), this.los.slice(), this.his.slice());
+    return new MTreeConstraint(this.ixes, this.pointful, this.volumes.slice(), this.los.slice(), this.his.slice());
   },
 
   propagate: function(solverState) {
@@ -172,60 +233,47 @@ MTreeConstraint.prototype = {
     var solverHis = solverState.his;
     var los = this.los;
     var his = this.his;
+    var provenance = solverState.provenance;
 
     readFrom(ixes, los, solverLos);
     readFrom(ixes, his, solverHis);
 
+    var pointful = this.pointful;
     for (var i = volumes.length - 1; i >= 0; i--) {
       var volume = volumes[i];
-      if (intersectsPointwise(los, his, volume.los, volume.his) === false) {
+      if (((!pointful && (intersectsVolume(los, his, volume.los, volume.his) === false))) ||
+          ((pointful && (containsPoint(los, his, volume.los) === false)))) {
         volumes.splice(i, 1);
       }
     }
 
     if (volumes.length === 0) {
+      // console.log("Failed with no volumes");
       solverState.isFailed = true;
-      return;
+      if (pointful) provenance.add(new Region(solverLos.slice(), solverHis.slice(), los.slice(), his.slice(), false));
+      return true;
     }
 
-    var provenance = solverState.provenance;
     var changed = false;
 
     for (var i = ixes.length - 1; i >= 0; i--) {
       var newLo = greatest;
-      var newHi = least;
       for (var j = volumes.length - 1; j >= 0; j--) {
         var volume = volumes[j];
         var volumeLo = volume.los[i];
-        var volumeHi = volume.his[i];
         if (compareValue(volumeLo, newLo) === -1) newLo = volumeLo;
-        if (compareValue(volumeHi, newHi) === 1) newHi = volumeHi;
       }
-      var oldLo = los[i];
-      var oldHi = his[i];
       var ix = ixes[i];
-      if (compareValue(newLo, oldLo) === 1) {
-        var proofLos = los.slice();
+      if (compareValue(newLo, los[i]) === 1) {
+        var memoryLos = los.slice();
         var notLos = solverLos.slice();
-        var proofHis = his.slice();
+        var memoryHis = his.slice();
         var notHis = solverHis.slice();
         los[i] = newLo;
         solverLos[ix] = newLo;
-        proofHis[i] = newLo;
+        memoryHis[i] = newLo;
         notHis[ix] = newLo;
-        provenance.whyNot(new WhyNot(notLos, notHis, proofLos, proofHis));
-        changed = true;
-      }
-      if (compareValue(newHi, oldHi) === -1) {
-        var proofLos = los.slice();
-        var notLos = solverLos.slice();
-        var proofHis = his.slice();
-        var notHis = solverHis.slice();
-        his[i] = newHi;
-        solverHis[ix] = newHi;
-        proofLos[i] = newHi;
-        notLos[ix] = newHi;
-        provenance.whyNot(new WhyNot(notLos, notHis, proofLos, proofHis));
+        if (pointful) provenance.add(new Region(notLos, notHis, memoryLos, memoryHis, false));
         changed = true;
       }
     }
@@ -233,17 +281,33 @@ MTreeConstraint.prototype = {
     return changed;
   },
 
-  split: function() {
+  split: function(leftSolverState, rightSolverState) {
     var volumes = this.volumes;
     if (volumes.length < 2) {
-      return null;
+      return false;
     } else {
-      var ix = Math.floor(Math.random() * this.ixes.length);
-      volumes.sort(function (vA, vB) {return compareValue(vA.los[ix], vB.los[ix]);});
-      var splitLen = Math.ceil(volumes.length / 2);
-      var splitVolumes = volumes.splice(splitLen, splitLen);
-      return new MTreeConstraint(this.ixes, splitVolumes, this.los.slice(), this.his.slice());
+      // TODO this split algorithm can sometimes fail to change the right state
+      var ixes = this.ixes;
+      var volumeIx = Math.floor(Math.random() * volumes.length);
+      var i = Math.floor(Math.random() * ixes.length);
+      var ix = ixes[i];
+      var pivot = volumes[volumeIx].los[i];
+      // console.log("Split at fact[" + ix + "]=" + pivot);
+      leftSolverState.his[ix] = pivot;
+      rightSolverState.los[ix] = pivot;
+      return true;
     }
+  },
+
+  witness: function(solverState) {
+    var ixes = this.ixes;
+    var solverLos = solverState.los;
+    var solverHis = solverState.his;
+    var los = this.los;
+    var his = this.his;
+    readFrom(ixes, los, solverLos);
+    readFrom(ixes, his, solverHis);
+    solverState.provenance.add(new Region(solverLos.slice(), solverHis.slice(), los.slice(), his.slice(), true));
   }
 };
 
@@ -251,96 +315,83 @@ MTreeConstraint.prototype = {
 // records a single provenance for each possible solver point
 // tracks dirty volumes when memory changes
 
-function WhyNot(solverLos, solverHis, proofLos, proofHis) {
+function Region(solverLos, solverHis, memoryLos, memoryHis, isSolution) {
   this.solverLos = solverLos;
   this.solverHis = solverHis;
-  this.proofLos = proofLos;
-  this.proofHis = proofHis;
+  this.memoryLos = memoryLos;
+  this.memoryHis = memoryHis;
+  this.isSolution = isSolution;
 }
 
-function Why(solverValues) {
-  this.solverValues = solverValues;
-}
-
-function PTree(whys, whyNots) {
-  this.whys = whys;
-  this.whyNots = whyNots;
+function PTree(regions) {
+  this.regions = regions;
 }
 
 PTree.empty = function() {
-  return new PTree([], []);
+  return new PTree([]);
 };
 
 PTree.prototype = {
-  erase: function(points, erasedWhyNots) {
-    var whyNots = this.whyNots;
-    outer: for (var i = whyNots.length - 1; i >= 0; i--) {
-      var whyNot = whyNots[i];
-      var los = whyNot.proofLos;
-      var his = whyNot.proofHis;
+  dirty: function(points, delledRegions) {
+    var regions = this.regions;
+    outer: for (var i = regions.length - 1; i >= 0; i--) {
+      var region = regions[i];
+      var los = region.memoryLos;
+      var his = region.memoryHis;
       inner: for (var j = points.length - 1; j >= 0; j--) {
         var point = points[j];
-        if (containsPointwise(los, his, point, point)) {
-          whyNots.splice(i, 1);
-          erasedWhyNots.push(whyNot);
+        if (containsVolume(los, his, point, point)) {
+          regions.splice(i, 1);
+          delledRegions.push(region);
           continue outer;
         }
       }
     }
   },
 
-  write: function(newWhys, newWhyNots, addedWhys, delledWhys) {
-    var whys = this.whys;
-    var whyNots = this.whyNots;
+  clean: function(newRegions, outputAdds, outputDels) {
+    var regions = this.regions;
 
-    outer: for (var i = whys.length - 1; i >= 0; i--) {
-      var why = whys[i];
-      var solverValues = why.solverValues;
-      inner: for (var j = newWhyNots.length - 1; j >= 0; j--) {
-        var newWhyNot = newWhyNots[j];
-        // TODO have to check more carefully here - I think that strict containment might be sufficient
-        if (containsPointwise(newWhyNot.solverLos, newWhyNot.solverHis, solverValues, solverValues)) {
-          whys.splice(i, 1);
-          delledWhys.push(why);
-          continue outer;
+    outer: for (var i = regions.length - 1; i >= 0; i--) {
+      var oldRegion = regions[i];
+      var oldLos = oldRegion.solverLos;
+      var oldHis = oldRegion.solverHis;
+      inner: for (var j = newRegions.length - 1; j >= 0; j--) {
+        var newRegion = newRegions[j];
+        var newLos = newRegion.solverLos;
+        var newHis = newRegion.solverHis;
+        if (intersectsVolume(oldLos, oldHis, newLos, newHis)) {
+          if (containsVolume(oldLos, oldHis, newLos, newHis)) {
+            newRegions.slice(j, 1);
+            continue inner;
+          } else if (containsVolume(newLos, newHis, oldLos, oldHis)) {
+            regions.slice(i, 1);
+            if (oldRegion.isSolution) outputDels.push(oldLos);
+            continue outer;
+          } else if (containsPoint(newLos, newHis, oldLos) && oldRegion.isSolution) {
+            oldRegion.isSolution = false;
+            outputDels.push(oldRegion.solverLos);
+          } else if (containsPoint(oldLos, oldHis, newLos) && newRegion.isSolution) {
+            assert(false); // the solver should not generate solutions that are contained by non-dirty regions
+          }
         }
       }
     }
 
-    outer: for (var i = whyNots.length - 1; i >= 0; i--) {
-      var whyNot = whyNots[i];
-      var solverLos = whyNot.solverLos;
-      var solverHis = whyNot.solverHis;
-      inner: for (var j = newWhyNots.length - 1; j >= 0; j--) {
-        var newWhyNot = newWhyNots[j];
-        if (containsPointwise(solverLos, solverHis, newWhyNot.solverLos, newWhyNot.solverHis)) {
-          newWhyNots.slice(j, 1);
-          continue inner;
-        }
-        if (containsPointwise(newWhyNot.solverLos, newWhyNot.solverHis, solverLos, solverHis)) {
-          whyNots.slice(i, 1);
-          continue outer;
-        }
-      }
-    }
-
-    for (var i = newWhys.length - 1; i >= 0; i--) {
-      whys.push(newWhys[i]);
-      addedWhys.push(newWhys[i]);
-    }
-    for (var i = newWhyNots.length - 1; i >= 0; i--) {
-      whyNots.push(newWhyNots[i]);
+    for (var i = newRegions.length - 1; i >= 0; i--) {
+      var newRegion = newRegions[i];
+      regions.push(newRegion);
+      if (newRegion.isSolution) outputAdds.push(newRegion.solverLos);
     }
   },
 };
 
 // PROVENANCE
 
-function Provenance(numVars, factLen, whys, whyNots, ptree) {
-  this.numVars = numVars;
+function Provenance(factLen, numVars, regions, ptree) {
   this.factLen = factLen;
-  this.whys = whys;
-  this.whyNots = whyNots;
+  this.numVars = numVars;
+  this.regions = regions;
   this.ptree = ptree;
   this.ixes = [];
   for (var i = 0; i < this.numVars; i++) {
@@ -348,50 +399,43 @@ function Provenance(numVars, factLen, whys, whyNots, ptree) {
   }
 }
 
-Provenance.empty = function (numVars, factLen) {
-  var provenance = new Provenance(numVars, factLen, [], [], PTree.empty());
-  provenance.whyNot(new WhyNot(makeArray(numVars, least), makeArray(numVars, greatest), makeArray(factLen, least), makeArray(factLen, greatest)));
+Provenance.empty = function (factLen, numVars) {
+  var provenance = new Provenance(factLen, numVars, [], PTree.empty());
+  provenance.add(new Region(makeArray(numVars, least), makeArray(numVars, greatest), makeArray(factLen, least), makeArray(factLen, greatest), false));
   provenance.finish([],[]);
   return provenance;
 };
 
 Provenance.prototype =  {
-  why: function (why) {
-    this.whys.push(why);
+  add: function (region) {
+    this.regions.push(region);
   },
 
-  whyNot: function (whyNot) {
-    this.whyNots.push(whyNot);
-  },
-
-  start: function (inputAdds, inputDels) {
-    var erasedWhyNots = [];
-    this.ptree.erase(inputAdds, erasedWhyNots);
-    this.ptree.erase(inputDels, erasedWhyNots);
-    for (var i = erasedWhyNots.length - 1; i >= 0; i--) {
-      erasedWhyNots[i] = new Volume(erasedWhyNots[i].solverLos, erasedWhyNots[i].solverHis);
-    }
-    if (erasedWhyNots.length === 0) {
+  start: function (inputAdds, inputDels, outputDels) {
+    var delledRegions = [];
+    this.ptree.dirty(inputAdds, delledRegions);
+    this.ptree.dirty(inputDels, delledRegions);
+    if (delledRegions.length === 0) {
       return null;
     } else {
+      for (var i = delledRegions.length - 1; i >= 0; i--) {
+        var delledRegion = delledRegions[i];
+        if (delledRegion.isSolution) outputDels.push(delledRegion.solverLos);
+      }
       var constraint = MTreeConstraint.fresh(this.ixes);
-      constraint.volumes = erasedWhyNots;
+      constraint.pointful = false;
+      var volumes = constraint.volumes;
+      for (var i = delledRegions.length - 1; i >= 0; i--) {
+        var delledRegion = delledRegions[i];
+        volumes[i] = new Volume(delledRegion.solverLos, delledRegion.solverHis);
+      }
       return constraint;
     }
   },
 
   finish: function (outputAdds, outputDels) {
-    var addLen = outputAdds.length;
-    var delLen = outputDels.length;
-    this.ptree.write(this.whys, this.whyNots, outputAdds, outputDels);
-    for (var i = outputAdds.length - 1; i >= addLen; i--) {
-      outputAdds[i] = outputAdds[i].solverValues;
-    }
-    for (var i = outputDels.length - 1; i >= delLen; i--) {
-      outputDels[i] = outputDels[i].solverValues;
-    }
-    this.whys = [];
-    this.whyNots = [];
+    this.ptree.clean(this.regions, outputAdds, outputDels);
+    this.regions = [];
   }
 };
 
@@ -412,11 +456,11 @@ SolverState.prototype = {
     var lastChanged = 0;
     var current = 0;
     while (true) {
-      console.log("Before prop " + current + " " + this.los + " " + this.his);
+      // console.log("Before prop " + current + " " + this.los + " " + this.his);
       if (this.isFailed === true) break;
       var changed = constraints[current].propagate(this);
       if (changed === true) lastChanged = current;
-      console.log("After prop " + current + " " + this.los + " " + this.his);
+      // console.log("After prop " + current + " " + this.los + " " + this.his);
       current = (current + 1) % numConstraints;
       if (current === lastChanged) break;
     }
@@ -424,48 +468,63 @@ SolverState.prototype = {
 
   split: function() {
     var constraints = this.constraints;
-    var otherConstraints = constraints.slice();
-    for (var splitter = constraints.length - 1; splitter >= 0; splitter--) {
-      var otherConstraint = constraints[splitter].split();
-      if (otherConstraint !== null) {
-        otherConstraints[splitter] = otherConstraint;
-        break;
-      }
+    var leftSolverState = this;
+    var rightSolverState = new SolverState(this.provenance, constraints.slice(), this.los.slice(), this.his.slice(), this.isFailed);
+    for (var i = constraints.length - 1; i >= 0; i--) {
+      constraints[i] = constraints[i].copy();
     }
-    assert(splitter >= 0);
-    for (var copier = constraints.length - 1; copier >= 0; copier--) {
-      if (copier !== splitter) {
-        otherConstraints[copier] = constraints[copier].copy();
-      }
+    for (var splitter = constraints.length - 1; splitter >= 1; splitter--) {
+      if (constraints[splitter].split(leftSolverState, rightSolverState)) break;
     }
-    var otherSolverState = new SolverState(this.provenance, otherConstraints, this.los.slice(), this.his.slice(), this.isFailed);
-    console.log("Before split " + splitter + " " + this.los + " " + this.his);
-    constraints[splitter].propagate(this);
-    otherConstraints[splitter].propagate(otherSolverState);
-    console.log("After split left " + splitter + " " + this.los + " " + this.his);
-    console.log("After split right " + splitter + " " + otherSolverState.los + " " + otherSolverState.his);
-    return otherSolverState;
+    if (splitter >= 1) {
+      // console.log("Split by " + splitter);
+      return rightSolverState;
+    } else {
+      // console.log("No split at " + this.los);
+      return null; // found a solution
+    }
   }
 };
 
-function Solver(numVars, constraints, provenance) {
+function Solver(numVars, constraints, memory, provenance) {
   this.numVars = numVars;
   this.constraints = constraints;
+  this.memory = memory;
   this.provenance = provenance;
 }
 
+Solver.empty = function (factLen, numVars, constraints) {
+  var memory = MTree.empty(factLen);
+  var provenance = Provenance.empty(factLen, numVars);
+  return new Solver(numVars, constraints, memory, provenance);
+};
+
 Solver.prototype = {
-  update: function(memory, inputAdds, inputDels, outputAdds, outputDels) {
+  update: function(inputMemory, outputMemory) {
+    var inputAdds = [];
+    var inputDels = [];
+    var outputAdds = [];
+    var outputDels = [];
+
+    inputMemory.diff(this.memory, inputAdds, inputDels);
+    this.memory = inputMemory;
+
     var provenance = this.provenance;
-    var provenanceConstraint = provenance.start(inputAdds, inputDels);
+    for (var i = inputAdds.length - 1; i >= 0; i--) {
+      inputAdds[i] = inputAdds[i].los;
+    }
+    for (var i = inputDels.length - 1; i >= 0; i--) {
+      inputDels[i] = inputDels[i].los;
+    }
+    var provenanceConstraint = provenance.start(inputAdds, inputDels, outputDels);
     if (provenanceConstraint === null) {
       // no changes
-      return;
+      return outputMemory;
     }
 
     var constraints = this.constraints.slice();
     for (var i = constraints.length - 1; i >= 0; i--) {
-      constraints[i].reset(memory);
+      constraints[i].reset(inputMemory);
     }
     constraints.unshift(provenanceConstraint);
 
@@ -474,15 +533,68 @@ Solver.prototype = {
     while (states.length > 0) {
       var state = states.pop();
       state.propagate();
-      if (arrayEqual(state.los, state.his)) {
-        provenance.why(new Why(state.los.slice()));
-      } else if (state.isFailed === false) {
-        states.push(state);
-        states.push(state.split());
+      if (state.isFailed === true) {
+        // console.log("Failed");
+      } else {
+        var rightState = state.split();
+        if (rightState === null) {
+          // pick an arbitary constraint to add a proof for this solved state
+          constraints[1].witness(state);
+        } else {
+          states.push(state);
+          states.push(rightState);
+        }
       }
     }
 
     provenance.finish(outputAdds, outputDels);
+    for (var i = outputAdds.length - 1; i >= 0; i--) {
+      outputAdds[i] = new Volume(outputAdds[i], outputAdds[i]);
+    }
+    for (var i = outputDels.length - 1; i >= 0; i--) {
+      outputDels[i] = new Volume(outputDels[i], outputDels[i]);
+    }
+    return outputMemory.update(outputAdds, outputDels);
+  }
+};
+
+// SYSTEM
+
+function System(memory, flows) {
+  this.memory = memory;
+  this.flows = flows;
+}
+
+System.prototype = {
+  update: function (adds, dels) {
+    var memory = this.memory.update(adds, dels);
+    var flows = this.flows;
+    var numFlows = flows.length;
+    for (var i = 0; i < numFlows; i++) {
+      memory = this.updateFlow(flows[i], memory);
+    }
+    this.memory = memory;
+  },
+
+  updateFlow: function(flow, memory) {
+    if (flow instanceof Array) {
+      // fixpoint group of flows
+      var numFlows = flow.length;
+      var oldMemory = memory;
+      var lastChanged = 0;
+      var current = 0;
+      while (true) {
+        var newMemory = this.updateFlow(flow[current], oldMemory);
+        if (newMemory !== oldMemory) lastChanged = current;
+        oldMemory = newMemory;
+        current = (current + 1) % numFlows;
+        if (current === lastChanged) break;
+      }
+      return oldMemory;
+    } else {
+      // run single flow
+      return flow.update(memory, memory);
+    }
   }
 };
 
@@ -621,104 +733,57 @@ gen.eav = function() {
 
 // SOLVER TESTS
 
-var m = MTree.empty(3);
-var c0 = MTreeConstraint.fresh([0,1,2]);
-var c1 = MTreeConstraint.fresh([0,1,2]);
-var p = Provenance.empty(3, 3);
-var s = new Solver(3, [c0, c1], p);
-
-var inputAdds = [];
-var inputDels = [];
-var outputAdds = [];
-var outputDels = [];
-s.update(m, inputAdds, inputDels, outputAdds, outputDels);
-assert(nestedEqual(outputAdds, []));
-assert(nestedEqual(outputDels, []));
-
-p
-
-m.update([new Volume([0,0,0],[0,0,0])], []);
-var inputAdds = [[0,0,0]];
-var inputDels = [];
-var outputAdds = [];
-var outputDels = [];
-s.update(m, inputAdds, inputDels, outputAdds, outputDels);
-assert(nestedEqual(outputAdds, [[0,0,0]]));
-assert(nestedEqual(outputDels, []));
-
-p
-
-m.update([new Volume([1,1,1],[1,1,1])], []);
-var inputAdds = [[1,1,1]];
-var inputDels = [];
-var outputAdds = [];
-var outputDels = [];
-s.update(m, inputAdds, inputDels, outputAdds, outputDels);
-assert(nestedEqual(outputAdds, [[0,0,0], [1,1,1]]));
-assert(nestedEqual(outputDels, []));
+function sortEqual(as, bs) {
+  if (as.length !== bs.length) return false;
+  var as = as.splice();
+  var bs = bs.splice();
+  for (var i = as.length - 1; i >= 0; i--) {
+    as[i] = JSON.stringify(as[i]);
+    bs[i] = JSON.stringify(bs[i]);
+  }
+  as.sort();
+  bs.sort();
+  return arrayEqual(as, bs);
+}
 
 var solverProps = {
   selfJoin: forall(gen.array(gen.eav()),
                      function (facts) {
-                       var tree = btree(10, 3);
-                       var constraint0 = new IteratorConstraint(iterator(tree));
-                       var constraint1 = new IteratorConstraint(iterator(tree));
-                       var selfSolver = solver(3, [constraint0, constraint1], [[0,1,2],[0,1,2]]);
+                       var input = MTree.empty(3);
+                       var constraint0 = MTreeConstraint.fresh([0,1,2]);
+                       var constraint1 = MTreeConstraint.fresh([0,1,2]);
+                       var solver = Solver.empty(3, 3, [constraint0, constraint1]);
+                       var adds = [];
                        for (var i = 0; i < facts.length; i++) {
-                         tree.add(facts[i]);
+                         adds[i] = new Volume(facts[i], facts[i]);
                        }
-                       var returnedFacts = [];
-                       selfSolver.solve(returnedFacts);
-
-                       var expectedFacts = tree.keys();
-                       return nestedEqual(returnedFacts, expectedFacts);
+                       var input = input.update(adds, []);
+                       var output = solver.update(input, MTree.empty());
+                       var expectedVolumes = dedupe(input.volumes);
+                       return sortEqual(expectedVolumes, output.volumes);
                      }),
 
   productJoin: forall(gen.array(gen.eav()),
                      function (facts) {
-                       var tree = btree(10, 3);
-                       var constraint0 = new IteratorConstraint(iterator(tree));
-                       var constraint1 = new IteratorConstraint(iterator(tree));
-                       var productSolver = solver(6, [constraint0, constraint1], [[0,1,2],[3,4,5]]);
+                       var input = MTree.empty(3);
+                       var constraint0 = MTreeConstraint.fresh([0,1,2]);
+                       var constraint1 = MTreeConstraint.fresh([3,4,5]);
+                       var solver = Solver.empty(3, 6, [constraint0, constraint1]);
+                       var adds = [];
                        for (var i = 0; i < facts.length; i++) {
-                         tree.add(facts[i]);
+                         adds[i] = new Volume(facts[i], facts[i]);
                        }
-                       var returnedFacts = [];
-                       productSolver.solve(returnedFacts);
-
-                       var uniqueSortedFacts = tree.keys();
-                       var expectedFacts = [];
-                       for (var i = 0; i < uniqueSortedFacts.length; i++) {
-                         for (var j = 0; j < uniqueSortedFacts.length; j++) {
-                           expectedFacts.push(uniqueSortedFacts[i].concat(uniqueSortedFacts[j]));
+                       var input = input.update(adds, []);
+                       var output = solver.update(input, MTree.empty());
+                       var expectedVolumes = [];
+                       for (var i = 0; i < facts.length; i++) {
+                         for (var j = 0; j < facts.length; j++) {
+                           expectedVolumes.push(new Volume(facts[i].concat(facts[j]), facts[i].concat(facts[j])));
                          }
                        }
-                       return nestedEqual(returnedFacts, expectedFacts);
+                       expectedVolumes = dedupe(expectedVolumes);
+                       return sortEqual(expectedVolumes, output.volumes);
                      })
 };
 
 assertAll(solverProps, {tests: 5000});
-
-function solverRegressionTest() {
-  var tree0 = btree(10, 2);
-  var tree1 = btree(10, 2);
-  var constraint0 = new IteratorConstraint(iterator(tree0));
-  var constraint1 = new IteratorConstraint(iterator(tree1));
-  var regressionSolver = solver(3, [constraint0, constraint1], [[0,2],[1,2]]);
-
-  tree0.add(["a", "b"]);
-  tree0.add(["b", "c"]);
-  tree0.add(["c", "d"]);
-  tree0.add(["d", "b"]);
-
-  tree1.add(["b", "a"]);
-  tree1.add(["c", "b"]);
-  tree1.add(["d", "c"]);
-  tree1.add(["b", "d"]);
-
-  var returnedFacts = [];
-  regressionSolver.solve(returnedFacts);
-  assert(nestedEqual(returnedFacts, [["a","c","b"],["b","d","c"],["c","b","d"],["d","c","b"]]));
-}
-
-solverRegressionTest();
