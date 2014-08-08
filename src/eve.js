@@ -286,7 +286,7 @@ MTreeConstraint.prototype = {
     if (volumes.length < 2) {
       return false;
     } else {
-      // TODO this split algorithm can sometimes fail to change the right state
+      // TODO this split algorithm can sometimes fail to change the right-hand state
       var ixes = this.ixes;
       var volumeIx = Math.floor(Math.random() * volumes.length);
       var i = Math.floor(Math.random() * ixes.length);
@@ -471,10 +471,12 @@ SolverState.prototype = {
     var leftSolverState = this;
     var rightSolverState = new SolverState(this.provenance, constraints.slice(), this.los.slice(), this.his.slice(), this.isFailed);
     for (var i = constraints.length - 1; i >= 0; i--) {
-      constraints[i] = constraints[i].copy();
+      var constraint = constraints[i];
+      if (constraint instanceof MTreeConstraint) constraints[i] = constraint.copy();
     }
     for (var splitter = constraints.length - 1; splitter >= 1; splitter--) {
-      if (constraints[splitter].split(leftSolverState, rightSolverState)) break;
+      var constraint = constraints[splitter];
+      if ((constraint instanceof MTreeConstraint) && constraints[splitter].split(leftSolverState, rightSolverState)) break;
     }
     if (splitter >= 1) {
       // console.log("Split by " + splitter);
@@ -524,7 +526,8 @@ Solver.prototype = {
 
     var constraints = this.constraints.slice();
     for (var i = constraints.length - 1; i >= 0; i--) {
-      constraints[i].reset(inputMemory);
+      var constraint = constraints[i];
+      if (constraint instanceof MTreeConstraint) constraint.reset(inputMemory);
     }
     constraints.unshift(provenanceConstraint);
 
@@ -539,7 +542,13 @@ Solver.prototype = {
         var rightState = state.split();
         if (rightState === null) {
           // pick an arbitary constraint to add a proof for this solved state
-          constraints[1].witness(state);
+          for (var i = constraints.length - 1; i >= 0; i--) {
+            var constraint = constraints[i];
+            if (constraint instanceof MTreeConstraint) {
+              constraint.witness(state);
+              break;
+            }
+          }
         } else {
           states.push(state);
           states.push(rightState);
@@ -555,6 +564,31 @@ Solver.prototype = {
       outputDels[i] = new Volume(outputDels[i], outputDels[i]);
     }
     return outputMemory.update(outputAdds, outputDels);
+  }
+};
+
+// CONSTRAINTS
+
+var ConstantConstraint = function(ix, constant) {
+  this.ix = ix;
+  this.constant = constant;
+};
+
+ConstantConstraint.prototype = {
+  propagate: function(solverState) {
+    var ix = this.ix;
+    var constant = this.constant;
+    var los = solverState.los;
+    var clo = compareValue(constant, los[ix]);
+    if (clo === 0) {
+      return false;
+    } else if ((clo === -1) || (compareValue(constant, solverState.his[ix]) !== -1)) {
+      solverState.isFailed = true;
+      return true;
+    } else {
+      los[ix] = constant;
+      return true;
+    }
   }
 };
 
@@ -694,6 +728,7 @@ function forall() {
 
 function assertAll(props, opts) {
   for (var prop in props) {
+    console.log("Testing " + prop);
     jsc.assert(props[prop], opts);
   }
 }
@@ -778,12 +813,40 @@ var solverProps = {
                        var expectedVolumes = [];
                        for (var i = 0; i < facts.length; i++) {
                          for (var j = 0; j < facts.length; j++) {
-                           expectedVolumes.push(new Volume(facts[i].concat(facts[j]), facts[i].concat(facts[j])));
+                           var point = facts[i].concat(facts[j]);
+                           expectedVolumes.push(new Volume(point, point));
                          }
                        }
                        expectedVolumes = dedupe(expectedVolumes);
                        return sortEqual(expectedVolumes, output.volumes);
-                     })
+                     }),
+
+  constantJoin: forall(gen.array(gen.eav()), gen.value(),
+                       function (facts, constant) {
+                         var input = MTree.empty(3);
+                         var constraint0 = new ConstantConstraint(1, constant);
+                         var constraint1 = MTreeConstraint.fresh([0,1,2]);
+                         var constraint2 = MTreeConstraint.fresh([3,4,5]);
+                         var solver = Solver.empty(3, 6, [constraint0, constraint1, constraint2]);
+                         var adds = [];
+                         for (var i = 0; i < facts.length; i++) {
+                           adds[i] = new Volume(facts[i], facts[i]);
+                         }
+                         var input = input.update(adds, []);
+                         var output = solver.update(input, MTree.empty());
+                         var expectedVolumes = [];
+                         for (var i = 0; i < facts.length; i++) {
+                           if (facts[i][1] === constant) {
+                             for (var j = 0; j < facts.length; j++) {
+                               var point = facts[i].concat(facts[j]);
+                               point.splice(1,1);
+                               expectedVolumes.push(new Volume(point, point));
+                             }
+                           }
+                         }
+                         expectedVolumes = dedupe(expectedVolumes);
+                         return sortEqual(expectedVolumes, output.volumes);
+                       }),
 };
 
 assertAll(solverProps, {tests: 5000});
