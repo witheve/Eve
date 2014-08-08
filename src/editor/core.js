@@ -249,6 +249,19 @@ var snapSelection = function() {
   }
 };
 
+var cloneSelected = function() {
+  var sels = data.selection.selections;
+  var clone = [];
+  for(var i in sels) {
+    var neue = {};
+    for(var key in sels[i]) {
+      neue[key] = sels[i][key];
+    }
+    clone[i] = neue;
+  }
+  return clone;
+};
+
 
 mix.container = {
   getElems: function() {
@@ -945,7 +958,9 @@ var keys = {backspace: 8,
             left: 37,
             up: 38,
             right: 39,
-            down: 40};
+            down: 40,
+            c: 67,
+            v: 86};
 
 document.addEventListener("keydown", function(e) {
   var handled = false;
@@ -999,6 +1014,26 @@ document.addEventListener("keydown", function(e) {
         data.selection.modified = true;
       }
       break;
+    case keys.c:
+      if((e.ctrlKey || e.metaKey) && data.selection.selections && data.selection.selections.length && !data.selection.editing) {
+        handled = true;
+        var cloned = cloneSelected();
+        data.clipboard = cloned;
+      }
+      break;
+    case keys.v:
+      if((e.ctrlKey || e.metaKey) && data.clipboard && !data.selection.editing) {
+        handled = true;
+        cb = data.clipboard;
+        for(var i in cb) {
+          data.tree.elements.push(cb[i]);
+        }
+        clearSelections();
+        data.selection.selecting = true;
+        data.selection.selections = cb;
+        data.clipboard = cloneSelected();
+      }
+      break;
   }
 
   if(handled) {
@@ -1036,13 +1071,10 @@ window.eve = eve;
 window.eve.start();
 
 //TODO:
-// - better selection model? (only multiple?)
-// - selection highlighting is hard to see
-// - selection rules (fully contained for divs, overlapping for others)
-// - copy
-// - paste
+// - undo/redo
 // - fix center resizing
 // - center snapping?
+// - selection rules? (fully contained for divs, overlapping for others)
 // - src property editor
 // - font property editor
 // - exact size property editor
