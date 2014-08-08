@@ -850,3 +850,70 @@ var solverProps = {
 };
 
 assertAll(solverProps, {tests: 5000});
+
+function soFast(n) {
+  var constraint0 = MTreeConstraint.fresh([0,1,2]);
+  var constraint1 = MTreeConstraint.fresh([0,1,2]);
+  var solver = Solver.empty(3, 3, [constraint0, constraint1]);
+
+  var input = MTree.empty(3);
+  var output = MTree.empty(3);
+
+  var adds = [];
+  for (var i = 0; i < n; i++) {
+    var point = [Math.random(),Math.random(),Math.random()];
+    adds[i] = new Volume(point, point);
+  }
+
+  input = input.update(adds, []);
+  console.time("soFast " + n);
+  output = solver.update(input, output);
+  console.timeEnd("soFast " + n);
+
+  console.log("Regions: " + solver.provenance.ptree.regions.length);
+
+  return output;
+}
+
+// soFast(1000);
+
+function soSlow(n) {
+  var constraint0 = MTreeConstraint.fresh([0,1,2]);
+  var constraint1 = MTreeConstraint.fresh([0,1,2]);
+  var solver = Solver.empty(3, 3, [constraint0, constraint1]);
+
+  var input = MTree.empty(3);
+  var output = MTree.empty(3);
+
+  var addsA = [];
+  var addsB = [];
+  for (var i = 0; i < n; i++) {
+    var point = [Math.random(),Math.random(),Math.random()];
+    if (i % 2 === 0) {
+      addsA.push(new Volume(point, point));
+    } else {
+      addsB.push(new Volume(point, point));
+    }
+  }
+
+  input = input.update(addsA, []);
+  console.time("soSlowA " + n);
+  output = solver.update(input, output);
+  console.timeEnd("soSlowA " + n);
+
+  input = input.update(addsB, []);
+  console.time("soSlowB " + n);
+  output = solver.update(input, output);
+  console.timeEnd("soSlowB " + n);
+
+  input = input.update([new Volume([0.5,0.5,0.5],[0.5,0.5,0.5])], []);
+  console.time("soSlowC " + n);
+  output = solver.update(input, output);
+  console.timeEnd("soSlowC " + n);
+
+  console.log("Regions: " + solver.provenance.ptree.regions.length);
+
+  return output;
+}
+
+// soSlow(1000);
