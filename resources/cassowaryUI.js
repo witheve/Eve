@@ -145,6 +145,7 @@ initWindowVars();
 var numItems = 500;
 
 function createItems() {
+  console.time("create: " + numItems);
   var frag = document.createDocumentFragment();
   for(var i = 0; i < numItems; i++) {
     var el = document.createElement("div");
@@ -157,6 +158,7 @@ function createItems() {
   }
 
   document.body.appendChild(frag);
+  console.timeEnd("create: " + numItems);
 }
 
 function testBelow() {
@@ -171,7 +173,7 @@ function testBelow() {
 }
 
 createItems();
-testBelow();
+//testBelow();
 
 // wrapPosition(".project-selection");
 // swapConstraint(".project-selection.left", eq(vars[".project-selection.left"], 300));
