@@ -250,7 +250,7 @@ MTreeConstraint.prototype = {
     if (volumes.length === 0) {
       // console.log("Failed with no volumes");
       solverState.isFailed = true;
-      if (pointful) provenance.add(new Region(solverLos.slice(), solverHis.slice(), los.slice(), his.slice(), false));
+      if (pointful) provenance.add(new Region(solverLos.slice(), solverHis.slice(), [los.slice()], [his.slice()], false));
       return true;
     }
 
@@ -273,7 +273,7 @@ MTreeConstraint.prototype = {
         solverLos[ix] = newLo;
         memoryHis[i] = newLo;
         notHis[ix] = newLo;
-        if (pointful) provenance.add(new Region(notLos, notHis, memoryLos, memoryHis, false));
+        if (pointful) provenance.add(new Region(notLos, notHis, [memoryLos], [memoryHis], false));
         changed = true;
       }
     }
@@ -299,15 +299,14 @@ MTreeConstraint.prototype = {
     }
   },
 
-  witness: function(solverState) {
+  witness: function(solverState, loss, hiss) {
     var ixes = this.ixes;
-    var solverLos = solverState.los;
-    var solverHis = solverState.his;
     var los = this.los;
     var his = this.his;
-    readFrom(ixes, los, solverLos);
-    readFrom(ixes, his, solverHis);
-    solverState.provenance.add(new Region(solverLos.slice(), solverHis.slice(), los.slice(), his.slice(), true));
+    readFrom(ixes, los, solverState.los);
+    readFrom(ixes, his, solverState.his);
+    loss.push(los.slice());
+    hiss.push(his.slice());
   }
 };
 
@@ -315,11 +314,11 @@ MTreeConstraint.prototype = {
 // records a single provenance for each possible solver point
 // tracks dirty volumes when memory changes
 
-function Region(solverLos, solverHis, memoryLos, memoryHis, isSolution) {
+function Region(solverLos, solverHis, memoryLoss, memoryHiss, isSolution) {
   this.solverLos = solverLos;
   this.solverHis = solverHis;
-  this.memoryLos = memoryLos;
-  this.memoryHis = memoryHis;
+  this.memoryLoss = memoryLoss;
+  this.memoryHiss = memoryHiss;
   this.isSolution = isSolution;
 }
 
@@ -334,16 +333,20 @@ PTree.empty = function() {
 PTree.prototype = {
   dirty: function(points, delledRegions) {
     var regions = this.regions;
-    outer: for (var i = regions.length - 1; i >= 0; i--) {
+    nextRegion: for (var i = regions.length - 1; i >= 0; i--) {
       var region = regions[i];
-      var los = region.memoryLos;
-      var his = region.memoryHis;
-      inner: for (var j = points.length - 1; j >= 0; j--) {
+      var loss = region.memoryLoss;
+      var hiss = region.memoryHiss;
+      for (var j = points.length - 1; j >= 0; j--) {
         var point = points[j];
-        if (containsVolume(los, his, point, point)) {
-          regions.splice(i, 1);
-          delledRegions.push(region);
-          continue outer;
+        for (var k = loss.length - 1; k >= 0; k--) {
+          var los = loss[k];
+          var his = hiss[k];
+          if (containsVolume(los, his, point, point)) {
+            regions.splice(i, 1);
+            delledRegions.push(region);
+            continue nextRegion;
+          }
         }
       }
     }
@@ -352,22 +355,22 @@ PTree.prototype = {
   clean: function(newRegions, outputAdds, outputDels) {
     var regions = this.regions;
 
-    outer: for (var i = regions.length - 1; i >= 0; i--) {
+    nextRegion: for (var i = regions.length - 1; i >= 0; i--) {
       var oldRegion = regions[i];
       var oldLos = oldRegion.solverLos;
       var oldHis = oldRegion.solverHis;
-      inner: for (var j = newRegions.length - 1; j >= 0; j--) {
+      nextNewRegion: for (var j = newRegions.length - 1; j >= 0; j--) {
         var newRegion = newRegions[j];
         var newLos = newRegion.solverLos;
         var newHis = newRegion.solverHis;
         if (intersectsVolume(oldLos, oldHis, newLos, newHis)) {
           if (containsVolume(oldLos, oldHis, newLos, newHis)) {
             newRegions.slice(j, 1);
-            continue inner;
+            continue nextNewRegion;
           } else if (containsVolume(newLos, newHis, oldLos, oldHis)) {
             regions.slice(i, 1);
             if (oldRegion.isSolution) outputDels.push(oldLos);
-            continue outer;
+            continue nextRegion;
           } else if (containsPoint(newLos, newHis, oldLos) && oldRegion.isSolution) {
             oldRegion.isSolution = false;
             outputDels.push(oldRegion.solverLos);
@@ -401,7 +404,7 @@ function Provenance(factLen, numVars, regions, ptree) {
 
 Provenance.empty = function (factLen, numVars) {
   var provenance = new Provenance(factLen, numVars, [], PTree.empty());
-  provenance.add(new Region(makeArray(numVars, least), makeArray(numVars, greatest), makeArray(factLen, least), makeArray(factLen, greatest), false));
+  provenance.add(new Region(makeArray(numVars, least), makeArray(numVars, greatest), [makeArray(factLen, least)], [makeArray(factLen, greatest)], false));
   provenance.finish([],[]);
   return provenance;
 };
@@ -541,14 +544,15 @@ Solver.prototype = {
       } else {
         var rightState = state.split();
         if (rightState === null) {
-          // pick an arbitary constraint to add a proof for this solved state
-          for (var i = constraints.length - 1; i >= 0; i--) {
+          var loss = [];
+          var hiss = [];
+          for (var i = constraints.length - 1; i >= 1; i--) {
             var constraint = constraints[i];
             if (constraint instanceof MTreeConstraint) {
-              constraint.witness(state);
-              break;
+              constraint.witness(state, loss, hiss);
             }
           }
+          provenance.add(new Region(state.los.slice(), state.his.slice(), loss, hiss, true));
         } else {
           states.push(state);
           states.push(rightState);
@@ -769,11 +773,12 @@ gen.eav = function() {
 // SOLVER TESTS
 
 function sortEqual(as, bs) {
-  if (as.length !== bs.length) return false;
-  var as = as.splice();
-  var bs = bs.splice();
+  var as = as.slice();
+  var bs = bs.slice();
   for (var i = as.length - 1; i >= 0; i--) {
     as[i] = JSON.stringify(as[i]);
+  }
+  for (var i = bs.length - 1; i >= 0; i--) {
     bs[i] = JSON.stringify(bs[i]);
   }
   as.sort();
@@ -793,7 +798,7 @@ var solverProps = {
                          adds[i] = new Volume(facts[i], facts[i]);
                        }
                        var input = input.update(adds, []);
-                       var output = solver.update(input, MTree.empty());
+                       var output = solver.update(input, MTree.empty(3));
                        var expectedVolumes = dedupe(input.volumes);
                        return sortEqual(expectedVolumes, output.volumes);
                      }),
@@ -809,7 +814,7 @@ var solverProps = {
                          adds[i] = new Volume(facts[i], facts[i]);
                        }
                        var input = input.update(adds, []);
-                       var output = solver.update(input, MTree.empty());
+                       var output = solver.update(input, MTree.empty(3));
                        var expectedVolumes = [];
                        for (var i = 0; i < facts.length; i++) {
                          for (var j = 0; j < facts.length; j++) {
@@ -833,13 +838,12 @@ var solverProps = {
                            adds[i] = new Volume(facts[i], facts[i]);
                          }
                          var input = input.update(adds, []);
-                         var output = solver.update(input, MTree.empty());
+                         var output = solver.update(input, MTree.empty(3));
                          var expectedVolumes = [];
                          for (var i = 0; i < facts.length; i++) {
                            if (facts[i][1] === constant) {
                              for (var j = 0; j < facts.length; j++) {
                                var point = facts[i].concat(facts[j]);
-                               point.splice(1,1);
                                expectedVolumes.push(new Volume(point, point));
                              }
                            }
@@ -847,6 +851,108 @@ var solverProps = {
                          expectedVolumes = dedupe(expectedVolumes);
                          return sortEqual(expectedVolumes, output.volumes);
                        }),
+
+  incrementalJoin: forall(gen.array(gen.eav()), gen.value(), gen.array(gen.eav()), gen.array(gen.eav()),
+                          function (facts, constant, laterAdds, laterDels) {
+                            var input = MTree.empty(3);
+                            var constraint0 = new ConstantConstraint(1, constant);
+                            var constraint1 = MTreeConstraint.fresh([0,1,2]);
+                            var constraint2 = MTreeConstraint.fresh([3,4,5]);
+                            var incrementalSolver = Solver.empty(3, 6, [constraint0, constraint1, constraint2]);
+                            var batchSolver = Solver.empty(3, 6, [constraint0, constraint1, constraint2]);
+                            var incrementalOutput = MTree.empty(3);
+                            var batchOutput = MTree.empty(3);
+
+                            var adds = [];
+                            for (var i = 0; i < facts.length; i++) {
+                              adds[i] = new Volume(facts[i], facts[i]);
+                            }
+                            input = input.update(adds, []);
+
+                            incrementalOutput = incrementalSolver.update(input, incrementalOutput);
+
+                            var adds = [];
+                            for (var i = 0; i < laterAdds.length; i++) {
+                              adds[i] = new Volume(laterAdds[i], laterAdds[i]);
+                            }
+                            var dels = [];
+                            for (var i = 0; i < laterDels.length; i++) {
+                              dels[i] = new Volume(laterDels[i], laterDels[i]);
+                            }
+                            input = input.update(adds, dels);
+
+                            batchOutput = batchSolver.update(input, batchOutput);
+                            incrementalOutput = incrementalSolver.update(input, incrementalOutput);
+
+                            return sortEqual(incrementalOutput.volumes, batchOutput.volumes);
+                          }),
 };
 
 assertAll(solverProps, {tests: 5000});
+
+function soFast(n) {
+  var constraint0 = MTreeConstraint.fresh([0,1,2]);
+  var constraint1 = MTreeConstraint.fresh([0,1,2]);
+  var solver = Solver.empty(3, 3, [constraint0, constraint1]);
+
+  var input = MTree.empty(3);
+  var output = MTree.empty(3);
+
+  var adds = [];
+  for (var i = 0; i < n; i++) {
+    var point = [Math.random(),Math.random(),Math.random()];
+    adds[i] = new Volume(point, point);
+  }
+
+  input = input.update(adds, []);
+  console.time("soFast " + n);
+  output = solver.update(input, output);
+  console.timeEnd("soFast " + n);
+
+  console.log("Regions: " + solver.provenance.ptree.regions.length);
+
+  return output;
+}
+
+// soFast(1000);
+
+function soSlow(n) {
+  var constraint0 = MTreeConstraint.fresh([0,1,2]);
+  var constraint1 = MTreeConstraint.fresh([0,1,2]);
+  var solver = Solver.empty(3, 3, [constraint0, constraint1]);
+
+  var input = MTree.empty(3);
+  var output = MTree.empty(3);
+
+  var addsA = [];
+  var addsB = [];
+  for (var i = 0; i < n; i++) {
+    var point = [Math.random(),Math.random(),Math.random()];
+    if (i % 2 === 0) {
+      addsA.push(new Volume(point, point));
+    } else {
+      addsB.push(new Volume(point, point));
+    }
+  }
+
+  input = input.update(addsA, []);
+  console.time("soSlowA " + n);
+  output = solver.update(input, output);
+  console.timeEnd("soSlowA " + n);
+
+  input = input.update(addsB, []);
+  console.time("soSlowB " + n);
+  output = solver.update(input, output);
+  console.timeEnd("soSlowB " + n);
+
+  input = input.update([new Volume([0.5,0.5,0.5],[0.5,0.5,0.5])], []);
+  console.time("soSlowC " + n);
+  output = solver.update(input, output);
+  console.timeEnd("soSlowC " + n);
+
+  console.log("Regions: " + solver.provenance.ptree.regions.length);
+
+  return output;
+}
+
+// soSlow(1000);
