@@ -112,6 +112,8 @@ body { background:#fff; color: #666; font-family: "Nunito"; font-weight:300; fon
 
 .selected {}
 
+.undo-tree { position:absolute; }
+
 .guides { width:100%; height:100%; position:relative; pointer-events:none; }
 .guides .guide {border-right:1px dashed rgba(30,30,255,0.4); border-bottom:1px dashed rgba(30,30,255,0.4); position:absolute; }
 .guides .vertical-guide { height:100%; border-bottom-width:0; }

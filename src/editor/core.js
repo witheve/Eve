@@ -1,7 +1,7 @@
 var eve = {};
 var comps = eve.components = {};
 var mix = eve.mixins = {};
-var data = eve.data = {tree: {elements: []}, activeElement: {}, selection: {}, undo: {stack:[], pos: -1}};
+var data = eve.data = {tree: {elements: []}, activeElement: {}, selection: {}, undo: {stack:{children: []}}};
 var d = React.DOM;
 
 var clearPixel = document.createElement("img");
@@ -257,51 +257,84 @@ var snapSelection = function() {
   }
 };
 
-var cloneSelected = function() {
+var cloneSelected = function(fields) {
   var sels = data.selection.selections;
   var clone = [];
-  for(var i in sels) {
-    var neue = {};
-    for(var key in sels[i]) {
-      neue[key] = sels[i][key];
+  if(!fields) {
+    for(var i in sels) {
+      var neue = {};
+      for(var key in sels[i]) {
+        neue[key] = sels[i][key];
+      }
+      clone[i] = neue;
     }
-    clone[i] = neue;
+  } else {
+    for(var i in sels) {
+      var neue = {};
+      for(var x in fields) {
+        var key = fields[x];
+        neue[key] = sels[i][key];
+      }
+      clone[i] = neue;
+    }
   }
   return clone;
 };
 
 var noop = function() {};
-
-var undoEntry = function() {
-  var entry = {undo: noop, redo: noop};
-  var stack = data.undo.stack;
-  var pos = data.undo.pos;
-  if(pos != stack.length - 1) {
-    stack.splice(Math.max(pos, 0), stack.length - pos);
-    if(pos > -1) {
-      data.undo.pos--;
+var snapshotUndo = function(entry) {
+  var sels = entry.selections;
+  var orig = entry.original;
+  for(var i in sels) {
+    var sel = sels[i]
+    var cur = orig[i];
+    for(var key in cur) {
+      sel[key] = cur[key];
     }
   }
-  stack.push(entry);
-  data.undo.pos++;
+};
+
+var snapshotRedo = function(entry) {
+  var sels = entry.selections;
+  var final = entry.final;
+  for(var i in sels) {
+    var sel = sels[i]
+    var cur = final[i];
+    for(var key in cur) {
+      sel[key] = cur[key];
+    }
+  }
+};
+
+var undoEntry = function(description) {
+  var stack = data.undo.stack;
+  var entry = {undo: snapshotUndo, redo: snapshotRedo, parent: stack, children: [], description: description};
+  entry.selections = data.selection.selections.slice(0);
+  stack.children.push(entry);
+  data.undo.stack = entry;
   return entry;
 }
 
 var undo = function() {
-  if(data.undo.pos > -1) {
-    var curEntry = data.undo.stack[data.undo.pos];
-    curEntry.undo(curEntry);
-    data.undo.pos--;
+  var cur = data.undo.stack;
+  if(cur.parent) {
+    cur.undo(cur);
+    data.undo.stack = cur.parent;
+    if(cur.selections) {
+      setSelections(cur.selections);
+    }
   }
 };
 
 var redo = function() {
-  data.undo.pos++;
-  var curEntry = data.undo.stack[data.undo.pos];
-  if(curEntry) {
-    curEntry.redo(curEntry);
-  } else {
-    data.undo.pos--;
+  var cur = data.undo.stack;
+  if(cur.children.length) {
+    var last = cur.children[cur.children.length - 1];
+    last.redo(last);
+    data.undo.stack = last;
+    if(last.selections) {
+      setSelections(last.selections);
+    }
   }
 };
 
@@ -355,10 +388,8 @@ mix.element = {
   onDragStart: function(e) {
     fixDragStart(e);
     data.selection.positioning = true;
-    var undo = undoEntry();
-    undo.selection = data.selection.selections.slice(0);
-    undo.start = {left: this.props.node.left, top: this.props.node.top};
-    data.selection.undoEntry = undo;
+    var undo = undoEntry("move selection (drag)");
+    undo.original = cloneSelected(["top", "left"]);
     picker.spectrum("container").css("display", "none");
     dirty();
     e.stopPropagation();
@@ -383,24 +414,8 @@ mix.element = {
 
   onDragEnd: function(e) {
     data.selection.positioning = false;
-    var entry = data.selection.undoEntry;
-    entry.move = {left: this.props.node.left - entry.start.left, top: this.props.node.top - entry.start.top};
-    entry.undo = function(ent) {
-      var sels = ent.selection;
-      for(var i in sels) {
-        sels[i].left -= ent.move.left;
-        sels[i].top -= ent.move.top;
-      }
-      setSelections(ent.selection.slice());
-    };
-    entry.redo = function(ent) {
-      var sels = ent.selection;
-      for(var i in sels) {
-        sels[i].left += ent.move.left;
-        sels[i].top += ent.move.top;
-      }
-      setSelections(ent.selection.slice());
-    };
+    var entry = data.undo.stack;
+    entry.final = cloneSelected(["top", "left"]);
     dirty();
     e.stopPropagation();
   },
@@ -727,11 +742,14 @@ comps.activeElement = React.createClass({
     var dragStart = function(e) {
       fixDragStart(e);
       data.selection.resizing = {};
+      var entry = undoEntry("resize selection");
+      entry.original = cloneSelected(["top", "left", "width", "height"]);
       e.stopPropagation();
     };
 
     var dragEnd = function(e) {
       data.selection.resizing = false;
+      data.undo.stack.final = cloneSelected(["top", "left", "width", "height"]);
       e.stopPropagation();
     };
 
@@ -1005,9 +1023,23 @@ comps.activeElement = React.createClass({
   }
 });
 
+comps.undoList = React.createClass({
+  render: function() {
+    var items = [];
+    var cur = data.undo.stack;
+    for(var i = 0; i < 20; i++) {
+      if(!cur.parent) break;
+      items.push(d.li({}, cur.description));
+      cur = cur.parent;
+    }
+    return d.ul({className: "undo-tree"}, items);
+  }
+});
+
 comps.wrapper = React.createClass({
   render: function() {
     return d.div({id: "wrapper"},
+                 comps.undoList(),
                  comps.toolbar(),
                  comps.toolbox(),
                  comps.uiCanvas({node: data.tree})
@@ -1035,18 +1067,17 @@ document.addEventListener("keydown", function(e) {
     case keys.backspace:
       if(data.selection.selecting && !data.selection.editing) {
         handled = true;
-        var entry = undoEntry()
-        entry.selection = data.selection.selections.splice(0);
+        var entry = undoEntry("remove selected elements");
         entry.undo = function(ent) {
-          var sels = ent.selection;
+          var sels = ent.selections;
           for(var i in sels) {
             data.tree.elements.push(sels[i]);
           }
-          setSelections(ent.selection);
+          setSelections(ent.selections);
         };
         entry.redo = function(ent) {
           data.tree.elements = data.tree.elements.filter(function(cur) {
-            return ent.selection.indexOf(cur) === -1;
+            return ent.selections.indexOf(cur) === -1;
           });
           clearSelections();
         };
