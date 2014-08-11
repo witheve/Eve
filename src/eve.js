@@ -26,7 +26,6 @@ function fillArray(arr, fill) {
 
 function readFrom(ixes, local, remote) {
   var len = ixes.length;
-  assert(len === local.length);
   for (var i = 0; i < len; i++) {
     local[i] = remote[ixes[i]];
   }
@@ -505,11 +504,9 @@ Solver.empty = function (factLen, numVars, constraints) {
 };
 
 Solver.prototype = {
-  update: function(inputMemory, outputMemory) {
+  update: function(inputMemory, outputAdds, outputDels) {
     var inputAdds = [];
     var inputDels = [];
-    var outputAdds = [];
-    var outputDels = [];
 
     inputMemory.diff(this.memory, inputAdds, inputDels);
     this.memory = inputMemory;
@@ -524,7 +521,7 @@ Solver.prototype = {
     var provenanceConstraint = provenance.start(inputAdds, inputDels, outputDels);
     if (provenanceConstraint === null) {
       // no changes
-      return outputMemory;
+      return false;
     }
 
     var constraints = this.constraints.slice();
@@ -561,13 +558,7 @@ Solver.prototype = {
     }
 
     provenance.finish(outputAdds, outputDels);
-    for (var i = outputAdds.length - 1; i >= 0; i--) {
-      outputAdds[i] = new Volume(outputAdds[i], outputAdds[i]);
-    }
-    for (var i = outputDels.length - 1; i >= 0; i--) {
-      outputDels[i] = new Volume(outputDels[i], outputDels[i]);
-    }
-    return outputMemory.update(outputAdds, outputDels);
+    return true;
   }
 };
 
@@ -593,6 +584,46 @@ ConstantConstraint.prototype = {
       los[ix] = constant;
       return true;
     }
+  }
+};
+
+// SINK
+
+function Sink(solver, outputIxess) {
+  this.solver = solver;
+  this.outputIxess = outputIxess;
+}
+
+Sink.prototype = {
+  update: function(inputMemory, outputMemory) {
+    var outputIxess = this.outputIxess;
+
+    var solverAdds = [];
+    var solverDels = [];
+    var isChanged = this.solver.update(inputMemory, solverAdds, solverDels);
+
+    if (isChanged === false) return outputMemory;
+
+    var outputAdds = [];
+    for (var i = solverAdds.length - 1; i >= 0; i--) {
+      var solverAdd = solverAdds[i];
+      for (var j = outputIxess.length - 1; j >= 0; j--) {
+        var point = [];
+        readFrom(outputIxess[j], point, solverAdd);
+        outputAdds.push(new Volume(point, point));
+      }
+    }
+    var outputDels = [];
+    for (var i = solverDels.length - 1; i >= 0; i--) {
+      var solverDel = solverDels[i];
+      for (var j = outputIxess.length - 1; j >= 0; j--) {
+        var point = [];
+        readFrom(outputIxess[j], point, solverDel);
+        outputDels.push(new Volume(point, point));
+      }
+    }
+
+    return outputMemory.update(outputAdds, outputDels);
   }
 };
 
@@ -792,13 +823,13 @@ var solverProps = {
                        var input = MTree.empty(3);
                        var constraint0 = MTreeConstraint.fresh([0,1,2]);
                        var constraint1 = MTreeConstraint.fresh([0,1,2]);
-                       var solver = Solver.empty(3, 3, [constraint0, constraint1]);
+                       var sink = new Sink(Solver.empty(3, 3, [constraint0, constraint1]), [[0,1,2]]);
                        var adds = [];
                        for (var i = 0; i < facts.length; i++) {
                          adds[i] = new Volume(facts[i], facts[i]);
                        }
                        var input = input.update(adds, []);
-                       var output = solver.update(input, MTree.empty(3));
+                       var output = sink.update(input, MTree.empty(3));
                        var expectedVolumes = dedupe(input.volumes);
                        return sortEqual(expectedVolumes, output.volumes);
                      }),
@@ -808,13 +839,13 @@ var solverProps = {
                        var input = MTree.empty(3);
                        var constraint0 = MTreeConstraint.fresh([0,1,2]);
                        var constraint1 = MTreeConstraint.fresh([3,4,5]);
-                       var solver = Solver.empty(3, 6, [constraint0, constraint1]);
+                       var sink = new Sink(Solver.empty(3, 6, [constraint0, constraint1]), [[0,1,2,3,4,5]]);
                        var adds = [];
                        for (var i = 0; i < facts.length; i++) {
                          adds[i] = new Volume(facts[i], facts[i]);
                        }
                        var input = input.update(adds, []);
-                       var output = solver.update(input, MTree.empty(3));
+                       var output = sink.update(input, MTree.empty(3));
                        var expectedVolumes = [];
                        for (var i = 0; i < facts.length; i++) {
                          for (var j = 0; j < facts.length; j++) {
@@ -832,13 +863,13 @@ var solverProps = {
                          var constraint0 = new ConstantConstraint(1, constant);
                          var constraint1 = MTreeConstraint.fresh([0,1,2]);
                          var constraint2 = MTreeConstraint.fresh([3,4,5]);
-                         var solver = Solver.empty(3, 6, [constraint0, constraint1, constraint2]);
+                         var sink = new Sink(Solver.empty(3, 6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]]);
                          var adds = [];
                          for (var i = 0; i < facts.length; i++) {
                            adds[i] = new Volume(facts[i], facts[i]);
                          }
                          var input = input.update(adds, []);
-                         var output = solver.update(input, MTree.empty(3));
+                         var output = sink.update(input, MTree.empty(3));
                          var expectedVolumes = [];
                          for (var i = 0; i < facts.length; i++) {
                            if (facts[i][1] === constant) {
@@ -858,8 +889,8 @@ var solverProps = {
                             var constraint0 = new ConstantConstraint(1, constant);
                             var constraint1 = MTreeConstraint.fresh([0,1,2]);
                             var constraint2 = MTreeConstraint.fresh([3,4,5]);
-                            var incrementalSolver = Solver.empty(3, 6, [constraint0, constraint1, constraint2]);
-                            var batchSolver = Solver.empty(3, 6, [constraint0, constraint1, constraint2]);
+                            var incrementalSink = new Sink(Solver.empty(3, 6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]]);
+                            var batchSInk = new Sink(Solver.empty(3, 6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]]);
                             var incrementalOutput = MTree.empty(3);
                             var batchOutput = MTree.empty(3);
 
@@ -869,7 +900,7 @@ var solverProps = {
                             }
                             input = input.update(adds, []);
 
-                            incrementalOutput = incrementalSolver.update(input, incrementalOutput);
+                            incrementalOutput = incrementalSink.update(input, incrementalOutput);
 
                             var adds = [];
                             for (var i = 0; i < laterAdds.length; i++) {
@@ -881,8 +912,8 @@ var solverProps = {
                             }
                             input = input.update(adds, dels);
 
-                            batchOutput = batchSolver.update(input, batchOutput);
-                            incrementalOutput = incrementalSolver.update(input, incrementalOutput);
+                            batchOutput = batchSInk.update(input, batchOutput);
+                            incrementalOutput = incrementalSink.update(input, incrementalOutput);
 
                             return sortEqual(incrementalOutput.volumes, batchOutput.volumes);
                           }),
