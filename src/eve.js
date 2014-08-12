@@ -26,16 +26,10 @@ function fillArray(arr, fill) {
 
 function readFrom(ixes, local, remote) {
   var len = ixes.length;
-  for (var i = 0; i < len; i++) {
-    local[i] = remote[ixes[i]];
-  }
-}
-
-function writeTo(ixes, local, remote) {
-  var len = ixes.length;
   assert(len === local.length);
   for (var i = 0; i < len; i++) {
-    remote[ixes[i]] = local[i];
+    var ix = ixes[i];
+    if (ix !== null) local[i] = remote[ix];
   }
 }
 
@@ -589,14 +583,16 @@ ConstantConstraint.prototype = {
 
 // SINK
 
-function Sink(solver, outputIxess) {
+function Sink(solver, outputIxess, outputConstantss) {
   this.solver = solver;
   this.outputIxess = outputIxess;
+  this.outputConstantss = outputConstantss;
 }
 
 Sink.prototype = {
   update: function(inputMemory, outputMemory) {
     var outputIxess = this.outputIxess;
+    var outputConstantss = this.outputConstantss;
 
     var solverAdds = [];
     var solverDels = [];
@@ -608,7 +604,7 @@ Sink.prototype = {
     for (var i = solverAdds.length - 1; i >= 0; i--) {
       var solverAdd = solverAdds[i];
       for (var j = outputIxess.length - 1; j >= 0; j--) {
-        var point = [];
+        var point = outputConstantss[j].slice();
         readFrom(outputIxess[j], point, solverAdd);
         outputAdds.push(new Volume(point, point));
       }
@@ -823,7 +819,7 @@ var solverProps = {
                        var input = MTree.empty(3);
                        var constraint0 = MTreeConstraint.fresh([0,1,2]);
                        var constraint1 = MTreeConstraint.fresh([0,1,2]);
-                       var sink = new Sink(Solver.empty(3, 3, [constraint0, constraint1]), [[0,1,2]]);
+                       var sink = new Sink(Solver.empty(3, 3, [constraint0, constraint1]), [[0,1,2]], [[null,null,null]]);
                        var adds = [];
                        for (var i = 0; i < facts.length; i++) {
                          adds[i] = new Volume(facts[i], facts[i]);
@@ -839,7 +835,7 @@ var solverProps = {
                        var input = MTree.empty(3);
                        var constraint0 = MTreeConstraint.fresh([0,1,2]);
                        var constraint1 = MTreeConstraint.fresh([3,4,5]);
-                       var sink = new Sink(Solver.empty(3, 6, [constraint0, constraint1]), [[0,1,2,3,4,5]]);
+                       var sink = new Sink(Solver.empty(3, 6, [constraint0, constraint1]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
                        var adds = [];
                        for (var i = 0; i < facts.length; i++) {
                          adds[i] = new Volume(facts[i], facts[i]);
@@ -863,7 +859,7 @@ var solverProps = {
                          var constraint0 = new ConstantConstraint(1, constant);
                          var constraint1 = MTreeConstraint.fresh([0,1,2]);
                          var constraint2 = MTreeConstraint.fresh([3,4,5]);
-                         var sink = new Sink(Solver.empty(3, 6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]]);
+                         var sink = new Sink(Solver.empty(3, 6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
                          var adds = [];
                          for (var i = 0; i < facts.length; i++) {
                            adds[i] = new Volume(facts[i], facts[i]);
@@ -889,8 +885,8 @@ var solverProps = {
                             var constraint0 = new ConstantConstraint(1, constant);
                             var constraint1 = MTreeConstraint.fresh([0,1,2]);
                             var constraint2 = MTreeConstraint.fresh([3,4,5]);
-                            var incrementalSink = new Sink(Solver.empty(3, 6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]]);
-                            var batchSInk = new Sink(Solver.empty(3, 6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]]);
+                            var incrementalSink = new Sink(Solver.empty(3, 6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
+                            var batchSInk = new Sink(Solver.empty(3, 6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
                             var incrementalOutput = MTree.empty(3);
                             var batchOutput = MTree.empty(3);
 
@@ -920,6 +916,39 @@ var solverProps = {
 };
 
 assertAll(solverProps, {tests: 5000});
+
+// FULL PROGRAMS
+
+function connectedTest() {
+  var constraint0 = MTreeConstraint.fresh([0,1,2]);
+  var constraint1 = new ConstantConstraint(1, "joined to");
+  var sink0 = new Sink(Solver.empty(3, 3, [constraint0, constraint1]), [[0,null,2]], [[null,"connected to",null]]);
+
+  var constraint2 = MTreeConstraint.fresh([0,1,2]);
+  var constraint3 = MTreeConstraint.fresh([2,3,4]);
+  var constraint4 = new ConstantConstraint(1, "joined to");
+  var constraint5 = new ConstantConstraint(3, "connected to");
+  var sink1 = new Sink(Solver.empty(3, 5, [constraint2, constraint3, constraint4, constraint5]), [[0,null,4]], [[null,"connected to",null]]);
+
+  var memory = MTree.empty(3);
+  var system = new System(memory, [sink0, [sink1]]);
+
+  var facts = [["a", "joined to", "b"],
+               ["b", "joined to", "c"],
+               ["c", "joined to", "d"],
+               ["d", "joined to", "b"],];
+  var adds = [];
+  for (var i = 0; i < facts.length; i++) {
+    adds[i] = new Volume(facts[i], facts[i]);
+  }
+  system.update(adds, []);
+
+  return system.memory.volumes;
+}
+
+connectedTest();
+
+// BENCHMARKS
 
 function soFast(n) {
   var constraint0 = MTreeConstraint.fresh([0,1,2]);
