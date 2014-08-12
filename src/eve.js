@@ -189,7 +189,7 @@ MTree.prototype = {
     for (var i = delKeys.length - 1; i >= 0; i--) {
       outputDels.push(dels[delKeys[i]]);
     }
-  }
+  },
 };
 
 function dedupe(xs) {
@@ -804,18 +804,17 @@ gen.eav = function() {
 
 // SOLVER TESTS
 
-function sortEqual(as, bs) {
-  var as = as.slice();
-  var bs = bs.slice();
-  for (var i = as.length - 1; i >= 0; i--) {
-    as[i] = JSON.stringify(as[i]);
+function sortEqual(volumesA, volumesB) {
+  var memoryA = MTree.empty(3).update(volumesA, []);
+  var memoryB = MTree.empty(3).update(volumesB, []);
+  var outputAdds = [];
+  var outputDels = [];
+  memoryA.diff(memoryB, outputAdds, outputDels);
+  if ((outputAdds.length > 0) || (outputDels.length > 0)) {
+    throw new Error("Only A has " + JSON.stringify(outputDels) + " and only B has " + JSON.stringify(outputAdds));
+  } else {
+    return true;
   }
-  for (var i = bs.length - 1; i >= 0; i--) {
-    bs[i] = JSON.stringify(bs[i]);
-  }
-  as.sort();
-  bs.sort();
-  return arrayEqual(as, bs);
 }
 
 var solverProps = {
@@ -984,34 +983,54 @@ assertAll(solverProps, {tests: 5000});
 
 // FULL PROGRAMS
 
-function connectedTest() {
+function pathTest() {
   var constraint0 = MTreeConstraint.fresh([0,1,2]);
-  var constraint1 = new ConstantConstraint(1, "joined to");
-  var sink0 = new Sink(Solver.empty(3, 3, [constraint0, constraint1]), [[0,null,2]], [[null,"connected to",null]]);
+  var constraint1 = new ConstantConstraint(1, "has an edge to");
+  var sink0 = new Sink(Solver.empty(3, 3, [constraint0, constraint1]), [[0,null,2]], [[null,"has a path to",null]]);
 
   var constraint2 = MTreeConstraint.fresh([0,1,2]);
   var constraint3 = MTreeConstraint.fresh([2,3,4]);
-  var constraint4 = new ConstantConstraint(1, "joined to");
-  var constraint5 = new ConstantConstraint(3, "connected to");
-  var sink1 = new Sink(Solver.empty(3, 5, [constraint2, constraint3, constraint4, constraint5]), [[0,null,4]], [[null,"connected to",null]]);
+  var constraint4 = new ConstantConstraint(1, "has an edge to");
+  var constraint5 = new ConstantConstraint(3, "has a path to");
+  var sink1 = new Sink(Solver.empty(3, 5, [constraint2, constraint3, constraint4, constraint5]), [[0,null,4]], [[null,"has a path to",null]]);
 
   var memory = MTree.empty(3);
   var system = new System(memory, [sink0, [sink1]]);
 
-  var facts = [["a", "joined to", "b"],
-               ["b", "joined to", "c"],
-               ["c", "joined to", "d"],
-               ["d", "joined to", "b"]];
+  var facts = [["a", "has an edge to", "b"],
+               ["b", "has an edge to", "c"],
+               ["c", "has an edge to", "d"],
+               ["d", "has an edge to", "b"]];
   var adds = [];
   for (var i = 0; i < facts.length; i++) {
     adds[i] = new Volume(facts[i], facts[i]);
   }
   system.update(adds, []);
 
-  return system.memory.volumes;
+  var derivedFacts = [["a", "has a path to", "b"],
+                      ["b", "has a path to", "c"],
+                      ["c", "has a path to", "d"],
+                      ["d", "has a path to", "b"],
+
+                      ["a", "has a path to", "c"],
+                      ["b", "has a path to", "d"],
+                      ["c", "has a path to", "b"],
+                      ["d", "has a path to", "c"],
+
+                      ["a", "has a path to", "d"],
+                      ["b", "has a path to", "b"],
+                      ["c", "has a path to", "c"],
+                      ["d", "has a path to", "d"],];
+  var expectedFacts = facts.concat(derivedFacts);
+  var expectedVolumes = [];
+  for (var i = expectedFacts.length - 1; i >= 0; i--) {
+    expectedVolumes[i] = new Volume(expectedFacts[i], expectedFacts[i]);
+  }
+
+  assert(sortEqual(dedupe(system.memory.volumes), expectedVolumes));
 }
 
-connectedTest();
+pathTest();
 
 // BENCHMARKS
 
