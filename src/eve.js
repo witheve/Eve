@@ -879,40 +879,100 @@ var solverProps = {
                          return sortEqual(expectedVolumes, output.volumes);
                        }),
 
-  incrementalJoin: forall(gen.array(gen.eav()), gen.value(), gen.array(gen.eav()), gen.array(gen.eav()),
-                          function (facts, constant, laterAdds, laterDels) {
-                            var input = MTree.empty(3);
-                            var constraint0 = new ConstantConstraint(1, constant);
-                            var constraint1 = MTreeConstraint.fresh([0,1,2]);
-                            var constraint2 = MTreeConstraint.fresh([3,4,5]);
-                            var incrementalSink = new Sink(Solver.empty(3, 6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
-                            var batchSInk = new Sink(Solver.empty(3, 6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
-                            var incrementalOutput = MTree.empty(6);
-                            var batchOutput = MTree.empty(6);
+  incrementalConstantJoin: forall(gen.array(gen.eav()), gen.value(), gen.array(gen.eav()), gen.array(gen.eav()),
+                                  function (facts, constant, laterAdds, laterDels) {
+                                    var input = MTree.empty(3);
+                                    var constraint0 = new ConstantConstraint(1, constant);
+                                    var constraint1 = MTreeConstraint.fresh([0,1,2]);
+                                    var constraint2 = MTreeConstraint.fresh([3,4,5]);
+                                    var incrementalSink = new Sink(Solver.empty(3, 6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
+                                    var batchSink = new Sink(Solver.empty(3, 6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
+                                    var incrementalOutput = MTree.empty(6);
+                                    var batchOutput = MTree.empty(6);
 
-                            var adds = [];
-                            for (var i = 0; i < facts.length; i++) {
-                              adds[i] = new Volume(facts[i], facts[i]);
-                            }
-                            input = input.update(adds, []);
+                                    var adds = [];
+                                    for (var i = 0; i < facts.length; i++) {
+                                      adds[i] = new Volume(facts[i], facts[i]);
+                                    }
+                                    input = input.update(adds, []);
 
-                            incrementalOutput = incrementalSink.update(input, incrementalOutput);
+                                    incrementalOutput = incrementalSink.update(input, incrementalOutput);
 
-                            var adds = [];
-                            for (var i = 0; i < laterAdds.length; i++) {
-                              adds[i] = new Volume(laterAdds[i], laterAdds[i]);
-                            }
-                            var dels = [];
-                            for (var i = 0; i < laterDels.length; i++) {
-                              dels[i] = new Volume(laterDels[i], laterDels[i]);
-                            }
-                            input = input.update(adds, dels);
+                                    var adds = [];
+                                    for (var i = 0; i < laterAdds.length; i++) {
+                                      adds[i] = new Volume(laterAdds[i], laterAdds[i]);
+                                    }
+                                    var dels = [];
+                                    for (var i = 0; i < laterDels.length; i++) {
+                                      dels[i] = new Volume(laterDels[i], laterDels[i]);
+                                    }
+                                    input = input.update(adds, dels);
 
-                            batchOutput = batchSInk.update(input, batchOutput);
-                            incrementalOutput = incrementalSink.update(input, incrementalOutput);
+                                    batchOutput = batchSink.update(input, batchOutput);
+                                    incrementalOutput = incrementalSink.update(input, incrementalOutput);
 
-                            return sortEqual(incrementalOutput.volumes, batchOutput.volumes);
-                          }),
+                                    return sortEqual(incrementalOutput.volumes, batchOutput.volumes);
+                                  }),
+
+  actualJoin: forall(gen.array(gen.eav()),
+                       function (facts) {
+                         var input = MTree.empty(3);
+                         var constraint0 = MTreeConstraint.fresh([0,1,2]);
+                         var constraint1 = MTreeConstraint.fresh([2,3,4]);
+                         var sink = new Sink(Solver.empty(3, 5, [constraint0, constraint1]), [[0,1,2,3,4]], [[null,null,null,null,null]]);
+                         var adds = [];
+                         for (var i = 0; i < facts.length; i++) {
+                           adds[i] = new Volume(facts[i], facts[i]);
+                         }
+                         var input = input.update(adds, []);
+                         var output = sink.update(input, MTree.empty(6));
+                         var expectedVolumes = [];
+                         for (var i = 0; i < facts.length; i++) {
+                           for (var j = 0; j < facts.length; j++) {
+                             var point = facts[i].concat(facts[j]);
+                             if (point[2] === point[3]) {
+                               point.splice(2, 1);
+                               expectedVolumes.push(new Volume(point, point));
+                             }
+                           }
+                         }
+                         expectedVolumes = dedupe(expectedVolumes);
+                         return sortEqual(expectedVolumes, output.volumes);
+                       }),
+
+  incrementalActualJoin: forall(gen.array(gen.eav()), gen.array(gen.eav()), gen.array(gen.eav()),
+                                  function (facts, laterAdds, laterDels) {
+                                    var input = MTree.empty(3);
+                                    var constraint0 = MTreeConstraint.fresh([0,1,2]);
+                                    var constraint1 = MTreeConstraint.fresh([2,3,4]);
+                                    var incrementalSink = new Sink(Solver.empty(3, 5, [constraint0, constraint1]), [[0,1,2,3,4]], [[null,null,null,null,null]]);
+                                    var batchSink = new Sink(Solver.empty(3, 5, [constraint0, constraint1]), [[0,1,2,3,4]], [[null,null,null,null,null]]);
+                                    var incrementalOutput = MTree.empty(6);
+                                    var batchOutput = MTree.empty(6);
+
+                                    var adds = [];
+                                    for (var i = 0; i < facts.length; i++) {
+                                      adds[i] = new Volume(facts[i], facts[i]);
+                                    }
+                                    input = input.update(adds, []);
+
+                                    incrementalOutput = incrementalSink.update(input, incrementalOutput);
+
+                                    var adds = [];
+                                    for (var i = 0; i < laterAdds.length; i++) {
+                                      adds[i] = new Volume(laterAdds[i], laterAdds[i]);
+                                    }
+                                    var dels = [];
+                                    for (var i = 0; i < laterDels.length; i++) {
+                                      dels[i] = new Volume(laterDels[i], laterDels[i]);
+                                    }
+                                    input = input.update(adds, dels);
+
+                                    batchOutput = batchSink.update(input, batchOutput);
+                                    incrementalOutput = incrementalSink.update(input, incrementalOutput);
+
+                                    return sortEqual(incrementalOutput.volumes, batchOutput.volumes);
+                                  }),
 };
 
 assertAll(solverProps, {tests: 5000});
