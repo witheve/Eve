@@ -1020,7 +1020,7 @@ function pathTest() {
                       ["a", "has a path to", "d"],
                       ["b", "has a path to", "b"],
                       ["c", "has a path to", "c"],
-                      ["d", "has a path to", "d"],];
+                      ["d", "has a path to", "d"]];
   var expectedFacts = facts.concat(derivedFacts);
   var expectedVolumes = [];
   for (var i = expectedFacts.length - 1; i >= 0; i--) {
