@@ -613,7 +613,7 @@ Sink.prototype = {
     for (var i = solverDels.length - 1; i >= 0; i--) {
       var solverDel = solverDels[i];
       for (var j = outputIxess.length - 1; j >= 0; j--) {
-        var point = [];
+        var point = outputConstantss[j].slice();
         readFrom(outputIxess[j], point, solverDel);
         outputDels.push(new Volume(point, point));
       }
@@ -841,7 +841,7 @@ var solverProps = {
                          adds[i] = new Volume(facts[i], facts[i]);
                        }
                        var input = input.update(adds, []);
-                       var output = sink.update(input, MTree.empty(3));
+                       var output = sink.update(input, MTree.empty(6));
                        var expectedVolumes = [];
                        for (var i = 0; i < facts.length; i++) {
                          for (var j = 0; j < facts.length; j++) {
@@ -865,7 +865,7 @@ var solverProps = {
                            adds[i] = new Volume(facts[i], facts[i]);
                          }
                          var input = input.update(adds, []);
-                         var output = sink.update(input, MTree.empty(3));
+                         var output = sink.update(input, MTree.empty(6));
                          var expectedVolumes = [];
                          for (var i = 0; i < facts.length; i++) {
                            if (facts[i][1] === constant) {
@@ -887,8 +887,8 @@ var solverProps = {
                             var constraint2 = MTreeConstraint.fresh([3,4,5]);
                             var incrementalSink = new Sink(Solver.empty(3, 6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
                             var batchSInk = new Sink(Solver.empty(3, 6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
-                            var incrementalOutput = MTree.empty(3);
-                            var batchOutput = MTree.empty(3);
+                            var incrementalOutput = MTree.empty(6);
+                            var batchOutput = MTree.empty(6);
 
                             var adds = [];
                             for (var i = 0; i < facts.length; i++) {
