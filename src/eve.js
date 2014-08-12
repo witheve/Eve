@@ -642,20 +642,25 @@ System.prototype = {
   },
 
   updateFlow: function(flow, memory) {
+    // console.log("Updating " + JSON.stringify(flow));
     if (flow instanceof Array) {
       // fixpoint group of flows
       var numFlows = flow.length;
       var oldMemory = memory;
+      var newMemory = memory;
       var lastChanged = 0;
       var current = 0;
       while (true) {
-        var newMemory = this.updateFlow(flow[current], oldMemory);
-        if (newMemory !== oldMemory) lastChanged = current;
+        newMemory = this.updateFlow(flow[current], oldMemory);
+        if (newMemory !== oldMemory) {
+          lastChanged = current;
+        } else {
+          if (current === lastChanged) break;
+        }
         oldMemory = newMemory;
         current = (current + 1) % numFlows;
-        if (current === lastChanged) break;
       }
-      return oldMemory;
+      return newMemory;
     } else {
       // run single flow
       return flow.update(memory, memory);
@@ -996,7 +1001,7 @@ function connectedTest() {
   var facts = [["a", "joined to", "b"],
                ["b", "joined to", "c"],
                ["c", "joined to", "d"],
-               ["d", "joined to", "b"],];
+               ["d", "joined to", "b"]];
   var adds = [];
   for (var i = 0; i < facts.length; i++) {
     adds[i] = new Volume(facts[i], facts[i]);
