@@ -809,6 +809,34 @@ function compileSystem(dump) {
   return new System(MTree.empty(3), sinks, downstream);
 }
 
+function bootstrapSystem(memory, strata) {
+  var facts = [];
+  var ix = 0;
+  for (var i = 0; i < strata.length; i++) {
+    var stratum = strata[i];
+    if (stratum instanceof Array) {
+      for (var j = 0; j < stratum.length; j++) {
+        facts.push([stratum[j], "rule.ix", ix]);
+        ix++;
+        for (var k = 0; k < stratum.length; k++) {
+          var flow = "flow-" + stratum[j] + "-" + stratum[k];
+          facts.push([flow, "flow.upstream", stratum[j]]);
+          facts.push([flow, "flow.downstream", stratum[k]]);
+        }
+      }
+    } else {
+      facts.push([stratum, "rule.ix", ix]);
+      ix++;
+    }
+  }
+
+  var adds = [];
+  for (var i = facts.length - 1; i >= 0; i--) {
+    adds[i] = new Volume(facts[i], facts[i]);
+  }
+  return memory.update(adds, []);
+}
+
 // TESTS
 
 var jsc = jsc;
