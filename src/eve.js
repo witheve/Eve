@@ -625,46 +625,52 @@ Sink.prototype = {
 
 // SYSTEM
 
-function System(memory, flows) {
+function System(memory, sinks, downstream) {
   this.memory = memory;
-  this.flows = flows;
+  this.sinks = sinks;
+  this.downstream = downstream;
+  this.dirty = makeArray(sinks.length, true);
 }
 
 System.prototype = {
   update: function (adds, dels) {
-    var memory = this.memory.update(adds, dels);
-    var flows = this.flows;
-    var numFlows = flows.length;
-    for (var i = 0; i < numFlows; i++) {
-      memory = this.updateFlow(flows[i], memory);
-    }
-    this.memory = memory;
-  },
+    var oldMemory = this.memory.update(adds, dels);
+    var newMemory = oldMemory;
+    var sinks = this.sinks;
+    var downstream = this.downstream;
+    var dirty = this.dirty;
+    var numSinks = sinks.length;
 
-  updateFlow: function(flow, memory) {
-    // console.log("Updating " + JSON.stringify(flow));
-    if (flow instanceof Array) {
-      // fixpoint group of flows
-      var numFlows = flow.length;
-      var oldMemory = memory;
-      var newMemory = memory;
-      var lastChanged = 0;
-      var current = 0;
-      while (true) {
-        newMemory = this.updateFlow(flow[current], oldMemory);
-        if (newMemory !== oldMemory) {
-          lastChanged = current;
-        } else {
-          if (current === lastChanged) break;
-        }
-        oldMemory = newMemory;
-        current = (current + 1) % numFlows;
-      }
-      return newMemory;
-    } else {
-      // run single flow
-      return flow.update(memory, memory);
+    for (var i = dirty.length - 1; i >= 0; i--) {
+      dirty[i] = true;
     }
+
+    var current = 0;
+    while (current < numSinks) {
+      if (dirty[current] === false) {
+        current += 1;
+        continue;
+      }
+
+      dirty[current] = false;
+      newMemory = sinks[current].update(oldMemory, oldMemory);
+
+      if (newMemory === oldMemory) {
+        current += 1;
+        continue;
+      }
+
+      oldMemory = newMemory;
+
+      var dirtied = downstream[current];
+      for (var i = dirtied.length - 1; i >= 0; i--) {
+        var sink = dirtied[i];
+        dirty[sink] = true;
+        current = (sink <= current) ? sink : current;
+      }
+    }
+
+    this.memory = newMemory;
   }
 };
 
@@ -995,7 +1001,7 @@ function pathTest() {
   var sink1 = new Sink(Solver.empty(3, 5, [constraint2, constraint3, constraint4, constraint5]), [[0,null,4]], [[null,"has a path to",null]]);
 
   var memory = MTree.empty(3);
-  var system = new System(memory, [sink0, [sink1]]);
+  var system = new System(memory, [sink0, sink1], [[1], [1]]);
 
   var facts = [["a", "has an edge to", "b"],
                ["b", "has an edge to", "c"],
