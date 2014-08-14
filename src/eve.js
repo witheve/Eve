@@ -674,6 +674,139 @@ System.prototype = {
   }
 };
 
+// COMPILER
+// rule: ix
+// flow: upstream downstream
+// clause: rule input|output
+// assignment: clause field constant|variable value
+// constant: variable constant
+// variable: rule ix
+// primitive: rule name ...
+// groupby: rule variable
+// sortby: rule ix variable
+// ixby: rule variable
+
+function dumpMemory(memory) {
+  var volumes = memory.volumes;
+  var eav = {};
+  var vae = {};
+  for (var i = volumes.length - 1; i >= 0; i--) {
+    var point = volumes[i].los;
+    var e = point[0];
+    var a = point[1];
+    var v = point[2];
+    if (eav[e] === undefined) eav[e] = {};
+    if (eav[e][a] === undefined) eav[e][a] = [];
+    eav[e][a].push(v);
+    if (vae[v] === undefined) vae[v] = {};
+    if (vae[v][a] === undefined) vae[v][a] = [];
+    vae[v][a].push(e);
+  }
+  return {eav: eav, vae: vae};
+}
+
+function compileInputClause(dump, clauseId, variableIxes) {
+  var ixes = [null, null, null];
+  var assignmentIds = dump.vae[clauseId]["assignment.clause"];
+  for (var i = assignmentIds.length - 1; i >= 0; i--) {
+    var assignment = dump.eav[assignmentIds[i]];
+    var field = assignment["assignment.field"];
+    var value = variableIxes[assignment["assignment.value"]];
+    var pos;
+    if (field === "entity") {
+        pos = 0;
+      } else if (field === "attribute") {
+        pos = 1;
+      } else if (field === "value") {
+        pos = 2;
+      }
+    if (assignment["assignment.constant|variable"] === "variable") {
+      ixes[pos] = variableIxes[value];
+    } else {
+      // ignore constants - should have been supplanted by variables by this point
+    }
+  }
+  return MTreeConstraint.fresh(ixes);
+}
+
+function compileOutputClause(dump, clauseId, variableIxes) {
+  var ixes = [null, null, null];
+  var constants = [null, null, null];
+  var assignmentIds = dump.vae[clauseId]["assignment.clause"];
+  for (var i = assignmentIds.length - 1; i >= 0; i--) {
+    var assignment = dump.eav[assignmentIds[i]];
+    var field = assignment["assignment.field"];
+    var value = variableIxes[assignment["assignment.value"]];
+    var pos;
+    if (field === "entity") {
+        pos = 0;
+      } else if (field === "attribute") {
+        pos = 1;
+      } else if (field === "value") {
+        pos = 2;
+      }
+    if (assignment["assignment.constant|variable"] === "variable") {
+      ixes[pos] = variableIxes[value];
+    } else {
+      constants[pos] = value;
+    }
+  }
+  return [ixes, constants];
+}
+
+function compileRule(dump, ruleId) {
+  var variableIds = dump.vae[ruleId]["variable.rule"];
+  var variableIxes = {};
+  for (var i = variableIds.length - 1; i >= 0; i--) {
+    variableIxes[variableIds[i]] = dump.eav[variableIds[i]]["variable.ix"];
+  }
+
+  var constraints = [];
+  var outputIxess = [];
+  var outputConstantss = [];
+
+  var clauseIds = dump.vae[ruleId]["clause.rule"];
+  for (var i = clauseIds.length - 1; i >= 0; i--) {
+    if (dump.eav[clauseIds[i]]["clause.input|output"] === "input") {
+      constraints.push(compileInputClause(dump, clauseIds[i], variableIxes));
+    } else {
+      var ixesAndConstants = compileOutputClause(dump, clauseIds[i], variableIxes);
+      outputIxess.push(ixesAndConstants[0]);
+      outputConstantss.push(ixesAndConstants[1]);
+    }
+  }
+
+  for (var i = variableIds.length - 1; i >= 0; i--) {
+    var constants = dump.vae(variableIds[i])["constant.variable"];
+    for (var j = constants.length - 1; j >= 0; j--) {
+      var ix = variableIxes[variableIds[i]];
+      var constant = constants[j]["constant.constant"];
+      constraints.push(new ConstantConstraint(ix, constant));
+    }
+  }
+
+  return new Sink(Solver.empty(3, variableIds.length, constraints), outputIxess, outputConstantss);
+}
+
+function compileSystem(dump) {
+  // TODO need to have a way to identify different systems, rather than just grabbing every rule
+  var sinks = [];
+  var downstream = [];
+  for (var id in dump.eav) {
+    var ruleIx = dump.eav[id]["rule.ix"];
+    if (ruleIx !== undefined) {
+      sinks[ruleIx] = compileRule(dump, id);
+      var downstreamIds = dump.vae[id]["flow.upstream"];
+      var downstreamIxes = [];
+      for (var i = downstreamIds.length - 1; i >= 0; i--) {
+        downstreamIxes[i] = dump.eav[downstreamIds[i]]["rule.ix"];
+      }
+      downstream[ruleIx] = downstreamIxes;
+    }
+  }
+  return new System(MTree.empty(3), sinks, downstream);
+}
+
 // TESTS
 
 var jsc = jsc;
@@ -987,7 +1120,7 @@ var solverProps = {
 
 assertAll(solverProps, {tests: 5000});
 
-// FULL PROGRAMS
+// SYSTEM TESTS
 
 function pathTest() {
   var constraint0 = MTreeConstraint.fresh([0,1,2]);
