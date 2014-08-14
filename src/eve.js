@@ -710,8 +710,8 @@ function compileInputClause(dump, clauseId, variableIxes) {
   var assignmentIds = dump.vae[clauseId]["assignment.clause"];
   for (var i = assignmentIds.length - 1; i >= 0; i--) {
     var assignment = dump.eav[assignmentIds[i]];
-    var field = assignment["assignment.field"];
-    var value = variableIxes[assignment["assignment.value"]];
+    var field = assignment["assignment.field"][0];
+    var value = variableIxes[assignment["assignment.value"][0]];
     var pos;
     if (field === "entity") {
         pos = 0;
@@ -720,7 +720,7 @@ function compileInputClause(dump, clauseId, variableIxes) {
       } else if (field === "value") {
         pos = 2;
       }
-    if (assignment["assignment.constant|variable"] === "variable") {
+    if (assignment["assignment.constant|variable"][0] === "variable") {
       ixes[pos] = variableIxes[value];
     } else {
       // ignore constants - should have been supplanted by variables by this point
@@ -735,8 +735,8 @@ function compileOutputClause(dump, clauseId, variableIxes) {
   var assignmentIds = dump.vae[clauseId]["assignment.clause"];
   for (var i = assignmentIds.length - 1; i >= 0; i--) {
     var assignment = dump.eav[assignmentIds[i]];
-    var field = assignment["assignment.field"];
-    var value = variableIxes[assignment["assignment.value"]];
+    var field = assignment["assignment.field"][0];
+    var value = variableIxes[assignment["assignment.value"][0]];
     var pos;
     if (field === "entity") {
         pos = 0;
@@ -745,7 +745,7 @@ function compileOutputClause(dump, clauseId, variableIxes) {
       } else if (field === "value") {
         pos = 2;
       }
-    if (assignment["assignment.constant|variable"] === "variable") {
+    if (assignment["assignment.constant|variable"][0] === "variable") {
       ixes[pos] = variableIxes[value];
     } else {
       constants[pos] = value;
@@ -758,7 +758,7 @@ function compileRule(dump, ruleId) {
   var variableIds = dump.vae[ruleId]["variable.rule"];
   var variableIxes = {};
   for (var i = variableIds.length - 1; i >= 0; i--) {
-    variableIxes[variableIds[i]] = dump.eav[variableIds[i]]["variable.ix"];
+    variableIxes[variableIds[i]] = dump.eav[variableIds[i]]["variable.ix"][0];
   }
 
   var constraints = [];
@@ -767,7 +767,7 @@ function compileRule(dump, ruleId) {
 
   var clauseIds = dump.vae[ruleId]["clause.rule"];
   for (var i = clauseIds.length - 1; i >= 0; i--) {
-    if (dump.eav[clauseIds[i]]["clause.input|output"] === "input") {
+    if (dump.eav[clauseIds[i]]["clause.input|output"][0] === "input") {
       constraints.push(compileInputClause(dump, clauseIds[i], variableIxes));
     } else {
       var ixesAndConstants = compileOutputClause(dump, clauseIds[i], variableIxes);
@@ -777,7 +777,7 @@ function compileRule(dump, ruleId) {
   }
 
   for (var i = variableIds.length - 1; i >= 0; i--) {
-    var constants = dump.vae(variableIds[i])["constant.variable"];
+    var constants = dump.vae[variableIds[i]]["constant.variable"] || [];
     for (var j = constants.length - 1; j >= 0; j--) {
       var ix = variableIxes[variableIds[i]];
       var constant = constants[j]["constant.constant"];
@@ -793,14 +793,15 @@ function compileSystem(dump) {
   var sinks = [];
   var downstream = [];
   for (var id in dump.eav) {
-    var ruleIx = dump.eav[id]["rule.ix"];
-    if (ruleIx !== undefined) {
+    var ruleIxes = dump.eav[id]["rule.ix"];
+    if (ruleIxes !== undefined) {
+      var ruleIx = ruleIxes[0];
       sinks[ruleIx] = compileRule(dump, id);
       var flowIds = dump.vae[id]["flow.upstream"];
       var downstreamIxes = [];
       for (var i = flowIds.length - 1; i >= 0; i--) {
-        var downstreamId = dump.eav[flowIds[i]]["flow.downstream"];
-        var downstreamIx = dump.eav[downstreamId]["rule.ix"];
+        var downstreamId = dump.eav[flowIds[i]]["flow.downstream"][0];
+        var downstreamIx = dump.eav[downstreamId]["rule.ix"][0];
         downstreamIxes[i] = downstreamIx;
       }
       downstream[ruleIx] = downstreamIxes;
@@ -809,24 +810,98 @@ function compileSystem(dump) {
   return new System(MTree.empty(3), sinks, downstream);
 }
 
-function bootstrapSystem(memory, strata) {
-  var facts = [];
+// SYNTAX
+
+var nextId = 0;
+
+function newId() {
+  return nextId++;
+}
+
+var alpha = /^[a-zA-Z]/;
+
+function parseClause(facts, line, rule, inputOrOutput, variables) {
+  var values = line.slice(2).split(" ");
+  var clause = "clause" + newId();
+  facts.push([clause, "clause.rule", rule]);
+  facts.push([clause, "clause.input|output", inputOrOutput]);
+  var fields = ["entity", "attribute", "value"];
+  for (var i = fields.length - 1; i >= 0; i--) {
+    var value = values[i];
+    var field = fields[i];
+    if (alpha.test(value)) {
+      variables[value] = true;
+    } else {
+      var constant = "constant" + newId();
+      facts.push([constant, "constant.constant", eval(value)]);
+      // your face can be harmful
+      value = "variable" + newId();
+      facts.push([constant, "constant.variable", value]);
+    }
+    var assignment = "assignment" + newId();
+    facts.push([assignment, "assignment.clause", clause]);
+    facts.push([assignment, "assignment.field", field]);
+    facts.push([assignment, "assignment.constant|variable", "variable"]);
+    facts.push([assignment, "assignment.value", value]);
+  }
+}
+
+function parseVariables(facts, rule, variables) {
+  var variables = Object.keys(variables);
+  for (var i = variables.length - 1; i >= 0; i--) {
+    facts.push([variables[i], "variable.rule", rule]);
+    facts.push([variables[i], "variable.ix", i]);
+  }
+}
+
+function parseRule(facts, lines, rule) {
+  var variables = {};
+  while (true) {
+    var line = lines.shift();
+    if (line === "") {
+      break;
+    } else if (line[0] === "@") {
+      parseClause(facts, line, rule, "input", variables);
+    } else if (line[0] === "+") {
+      parseClause(facts, line, rule, "output", variables);
+    } else assert(false);
+  }
+  parseVariables(facts, rule, variables);
+}
+
+function parseStrata(facts, lines) {
   var ix = 0;
-  for (var i = 0; i < strata.length; i++) {
-    var stratum = strata[i];
-    if (stratum instanceof Array) {
-      for (var j = 0; j < stratum.length; j++) {
-        facts.push([stratum[j], "rule.ix", ix]);
+  while (true) {
+    var line = lines.shift();
+    if ((line === "") || (line === undefined)) {
+      break;
+    } else {
+      var rules = line.slice(2).split(" ");
+      for (var i = 0; i < rules.length; i++) {
+        facts.push([rules[i], "rule.ix", ix]);
         ix++;
-        for (var k = 0; k < stratum.length; k++) {
-          var flow = "flow-" + stratum[j] + "-" + stratum[k];
-          facts.push([flow, "flow.upstream", stratum[j]]);
-          facts.push([flow, "flow.downstream", stratum[k]]);
+        for (var j = 0; j < rules.length; j++) {
+          var flow = "flow" + newId();
+          facts.push([flow, "flow.upstream", rules[i]]);
+          facts.push([flow, "flow.downstream", rules[j]]);
         }
       }
-    } else {
-      facts.push([stratum, "rule.ix", ix]);
-      ix++;
+    }
+  }
+}
+
+function parseSystem(memory, lines) {
+  var facts = [];
+
+  while (lines.length > 0) {
+    var line = lines.shift();
+    if (line === "") {
+      continue;
+    } else if (line.indexOf("rule") === 0) {
+      var rule = line.split(" ")[1];
+      parseRule(facts, lines, rule);
+    } else if (line.indexOf("strata") === 0) {
+      parseStrata(facts, lines);
     }
   }
 
@@ -1148,48 +1223,48 @@ var solverProps = {
                                   }),
 };
 
-assertAll(solverProps, {tests: 5000});
+// assertAll(solverProps, {tests: 5000});
 
 // SYSTEM TESTS
 
-function pathTest() {
+function manualPathTest() {
   var constraint0 = MTreeConstraint.fresh([0,1,2]);
-  var constraint1 = new ConstantConstraint(1, "has an edge to");
-  var sink0 = new Sink(Solver.empty(3, 3, [constraint0, constraint1]), [[0,null,2]], [[null,"has a path to",null]]);
+  var constraint1 = new ConstantConstraint(1, "has-an-edge-to");
+  var sink0 = new Sink(Solver.empty(3, 3, [constraint0, constraint1]), [[0,null,2]], [[null,"has-a-path-to",null]]);
 
   var constraint2 = MTreeConstraint.fresh([0,1,2]);
   var constraint3 = MTreeConstraint.fresh([2,3,4]);
-  var constraint4 = new ConstantConstraint(1, "has an edge to");
-  var constraint5 = new ConstantConstraint(3, "has a path to");
-  var sink1 = new Sink(Solver.empty(3, 5, [constraint2, constraint3, constraint4, constraint5]), [[0,null,4]], [[null,"has a path to",null]]);
+  var constraint4 = new ConstantConstraint(1, "has-an-edge-to");
+  var constraint5 = new ConstantConstraint(3, "has-a-path-to");
+  var sink1 = new Sink(Solver.empty(3, 5, [constraint2, constraint3, constraint4, constraint5]), [[0,null,4]], [[null,"has-a-path-to",null]]);
 
   var memory = MTree.empty(3);
   var system = new System(memory, [sink0, sink1], [[1], [1]]);
 
-  var facts = [["a", "has an edge to", "b"],
-               ["b", "has an edge to", "c"],
-               ["c", "has an edge to", "d"],
-               ["d", "has an edge to", "b"]];
+  var facts = [["a", "has-an-edge-to", "b"],
+               ["b", "has-an-edge-to", "c"],
+               ["c", "has-an-edge-to", "d"],
+               ["d", "has-an-edge-to", "b"]];
   var adds = [];
   for (var i = 0; i < facts.length; i++) {
     adds[i] = new Volume(facts[i], facts[i]);
   }
   system.update(adds, []);
 
-  var derivedFacts = [["a", "has a path to", "b"],
-                      ["b", "has a path to", "c"],
-                      ["c", "has a path to", "d"],
-                      ["d", "has a path to", "b"],
+  var derivedFacts = [["a", "has-a-path-to", "b"],
+                      ["b", "has-a-path-to", "c"],
+                      ["c", "has-a-path-to", "d"],
+                      ["d", "has-a-path-to", "b"],
 
-                      ["a", "has a path to", "c"],
-                      ["b", "has a path to", "d"],
-                      ["c", "has a path to", "b"],
-                      ["d", "has a path to", "c"],
+                      ["a", "has-a-path-to", "c"],
+                      ["b", "has-a-path-to", "d"],
+                      ["c", "has-a-path-to", "b"],
+                      ["d", "has-a-path-to", "c"],
 
-                      ["a", "has a path to", "d"],
-                      ["b", "has a path to", "b"],
-                      ["c", "has a path to", "c"],
-                      ["d", "has a path to", "d"]];
+                      ["a", "has-a-path-to", "d"],
+                      ["b", "has-a-path-to", "b"],
+                      ["c", "has-a-path-to", "c"],
+                      ["d", "has-a-path-to", "d"]];
   var expectedFacts = facts.concat(derivedFacts);
   var expectedVolumes = [];
   for (var i = expectedFacts.length - 1; i >= 0; i--) {
@@ -1199,7 +1274,61 @@ function pathTest() {
   assert(sortEqual(dedupe(system.memory.volumes), expectedVolumes));
 }
 
-pathTest();
+// manualPathTest();
+
+// COMPILER TESTS
+
+function compiledPathTest() {
+  var program = ["rule edges",
+                 "@ a 'has-an-edge-to' b",
+                 "+ a 'has-a-path-to' b",
+                 "",
+                 "rule paths",
+                 "@ a 'has-an-edge-to' b",
+                 "@ b 'has-a-path-to' c",
+                 "+ a 'has-a-path-to' c",
+                 "",
+                 "strata",
+                 "~ edges",
+                 "~ paths"];
+  var programMemory = parseSystem(MTree.empty(3), program);
+  var system = compileSystem(dumpMemory(programMemory));
+
+  var facts = [["a", "has-an-edge-to", "b"],
+               ["b", "has-an-edge-to", "c"],
+               ["c", "has-an-edge-to", "d"],
+               ["d", "has-an-edge-to", "b"]];
+  var adds = [];
+  for (var i = 0; i < facts.length; i++) {
+    adds[i] = new Volume(facts[i], facts[i]);
+  }
+  console.log(system);
+  system.update(adds, []);
+
+  var derivedFacts = [["a", "has-a-path-to", "b"],
+                      ["b", "has-a-path-to", "c"],
+                      ["c", "has-a-path-to", "d"],
+                      ["d", "has-a-path-to", "b"],
+
+                      ["a", "has-a-path-to", "c"],
+                      ["b", "has-a-path-to", "d"],
+                      ["c", "has-a-path-to", "b"],
+                      ["d", "has-a-path-to", "c"],
+
+                      ["a", "has-a-path-to", "d"],
+                      ["b", "has-a-path-to", "b"],
+                      ["c", "has-a-path-to", "c"],
+                      ["d", "has-a-path-to", "d"]];
+  var expectedFacts = facts.concat(derivedFacts);
+  var expectedVolumes = [];
+  for (var i = expectedFacts.length - 1; i >= 0; i--) {
+    expectedVolumes[i] = new Volume(expectedFacts[i], expectedFacts[i]);
+  }
+
+  assert(sortEqual(dedupe(system.memory.volumes), expectedVolumes));
+}
+
+compiledPathTest();
 
 // BENCHMARKS
 
