@@ -796,10 +796,12 @@ function compileSystem(dump) {
     var ruleIx = dump.eav[id]["rule.ix"];
     if (ruleIx !== undefined) {
       sinks[ruleIx] = compileRule(dump, id);
-      var downstreamIds = dump.vae[id]["flow.upstream"];
+      var flowIds = dump.vae[id]["flow.upstream"];
       var downstreamIxes = [];
-      for (var i = downstreamIds.length - 1; i >= 0; i--) {
-        downstreamIxes[i] = dump.eav[downstreamIds[i]]["rule.ix"];
+      for (var i = flowIds.length - 1; i >= 0; i--) {
+        var downstreamId = dump.eav[flowIds[i]]["flow.downstream"];
+        var downstreamIx = dump.eav[downstreamId]["rule.ix"];
+        downstreamIxes[i] = downstreamIx;
       }
       downstream[ruleIx] = downstreamIxes;
     }
