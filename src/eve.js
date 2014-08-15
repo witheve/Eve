@@ -711,7 +711,7 @@ function compileInputClause(dump, clauseId, variableIxes) {
   for (var i = assignmentIds.length - 1; i >= 0; i--) {
     var assignment = dump.eav[assignmentIds[i]];
     var field = assignment["assignment.field"][0];
-    var value = variableIxes[assignment["assignment.value"][0]];
+    var value = assignment["assignment.value"][0];
     var pos;
     if (field === "entity") {
         pos = 0;
@@ -736,7 +736,7 @@ function compileOutputClause(dump, clauseId, variableIxes) {
   for (var i = assignmentIds.length - 1; i >= 0; i--) {
     var assignment = dump.eav[assignmentIds[i]];
     var field = assignment["assignment.field"][0];
-    var value = variableIxes[assignment["assignment.value"][0]];
+    var value = assignment["assignment.value"][0];
     var pos;
     if (field === "entity") {
         pos = 0;
@@ -780,7 +780,7 @@ function compileRule(dump, ruleId) {
     var constants = dump.vae[variableIds[i]]["constant.variable"] || [];
     for (var j = constants.length - 1; j >= 0; j--) {
       var ix = variableIxes[variableIds[i]];
-      var constant = constants[j]["constant.constant"];
+      var constant = dump.eav[constants[j]]["constant.constant"][0];
       constraints.push(new ConstantConstraint(ix, constant));
     }
   }
@@ -790,6 +790,7 @@ function compileRule(dump, ruleId) {
 
 function compileSystem(dump) {
   // TODO need to have a way to identify different systems, rather than just grabbing every rule
+  // console.log(dump);
   var sinks = [];
   var downstream = [];
   for (var id in dump.eav) {
@@ -827,22 +828,33 @@ function parseClause(facts, line, rule, inputOrOutput, variables) {
   facts.push([clause, "clause.input|output", inputOrOutput]);
   var fields = ["entity", "attribute", "value"];
   for (var i = fields.length - 1; i >= 0; i--) {
+    var assignment = "assignment" + newId();
     var value = values[i];
     var field = fields[i];
     if (alpha.test(value)) {
       variables[value] = true;
-    } else {
+      facts.push([assignment, "assignment.clause", clause]);
+      facts.push([assignment, "assignment.field", field]);
+      facts.push([assignment, "assignment.constant|variable", "variable"]);
+      facts.push([assignment, "assignment.value", value]);
+    } else if (inputOrOutput === "input") {
       var constant = "constant" + newId();
       facts.push([constant, "constant.constant", eval(value)]);
       // your face can be harmful
-      value = "variable" + newId();
-      facts.push([constant, "constant.variable", value]);
+      var variable = "variable" + newId();
+      variables[variable] = true;
+      facts.push([constant, "constant.variable", variable]);
+      facts.push([assignment, "assignment.clause", clause]);
+      facts.push([assignment, "assignment.field", field]);
+      facts.push([assignment, "assignment.constant|variable", "variable"]);
+      facts.push([assignment, "assignment.value", variable]);
+    } else if (inputOrOutput === "output") {
+      facts.push([assignment, "assignment.clause", clause]);
+      facts.push([assignment, "assignment.field", field]);
+      facts.push([assignment, "assignment.constant|variable", "constant"]);
+      facts.push([assignment, "assignment.value", eval(value)]);
+      // your face can be harmful
     }
-    var assignment = "assignment" + newId();
-    facts.push([assignment, "assignment.clause", clause]);
-    facts.push([assignment, "assignment.field", field]);
-    facts.push([assignment, "assignment.constant|variable", "variable"]);
-    facts.push([assignment, "assignment.value", value]);
   }
 }
 
@@ -1302,7 +1314,7 @@ function compiledPathTest() {
   for (var i = 0; i < facts.length; i++) {
     adds[i] = new Volume(facts[i], facts[i]);
   }
-  console.log(system);
+  // console.log(system);
   system.update(adds, []);
 
   var derivedFacts = [["a", "has-a-path-to", "b"],
