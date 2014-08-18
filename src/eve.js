@@ -175,30 +175,17 @@ Memory.prototype = {
   },
 };
 
-function dedupe(xs) {
-  var deduper = {};
-  for (var i = xs.length - 1; i >= 0; i--) {
-    var x = xs[i];
-    deduper[JSON.stringify(x)] = x;
-  }
-  var keys = Object.keys(deduper);
-  var deduped = [];
-  for (var i = keys.length - 1; i >= 0; i--) {
-    deduped[i] = deduper[keys[i]];
-  }
-  return deduped;
-}
-
 MemoryConstraint.prototype = {
   reset: function(memory) {
     var ixes = this.ixes;
-    var facts = memory.facts;
+    var facts = [];
+    Memory.empty().diff(memory.facts, facts, []); // crude deduping
     for (var i = facts.length - 1; i >= 0; i--) {
       if (facts[i].length !== ixes.length) {
         facts.splice(i, 1);
       }
     }
-    this.facts = dedupe(facts);
+    this.facts = facts;
   },
 
   copy: function() {
