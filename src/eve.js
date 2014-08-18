@@ -86,7 +86,7 @@ function intersectsVolume(losA, hisA, losB, hisB) {
 
 function arrayEqual(a, b) {
   var len = a.length;
-  if(len !== b.length) throw new Error("arrayEqual on arrays of different length: " + a + " :: " + b);
+  assert(len !== b.length);
   for(var i = 0; i < len; i++) {
     if(a[i] !== b[i]) {
       return false;
@@ -95,91 +95,74 @@ function arrayEqual(a, b) {
   return true;
 }
 
-function nestedEqual(a, b) {
-  if (!(a instanceof Array)) return a === b;
-  if (!(b instanceof Array)) return false;
-  var len = a.length;
-  if(len !== b.length) return false;
-  for(var i = 0; i < len; i++) {
-    if (!nestedEqual(a[i], b[i])) {
-      return false;
-    }
-  }
-  return true;
-}
-
-// MTREE
-// track a multi-set of volumes
+// memory
+// track a multi-set of facts
 // supports bounds refinement
 
-function Volume(los, his) {
-  this.los = los;
-  this.his = his;
+function Memory(facts) {
+  this.facts = facts;
 }
 
-function MTree(factLen, volumes) {
-  this.factLen = factLen;
-  this.volumes = volumes;
-}
-
-function MTreeConstraint(ixes, pointful, volumes, los, his) {
+function MemoryConstraint(ixes, facts, los, his) {
   this.ixes = ixes;
-  this.pointful = pointful;
-  this.volumes = volumes;
+  this.facts = facts;
   this.los = los;
   this.his = his;
 }
 
-MTree.empty = function(factLen) {
-  return new MTree(factLen, []);
+Memory.empty = function() {
+  return new Memory([]);
 };
 
-MTreeConstraint.fresh = function(ixes) {
-  var pointful = true;
-  var volumes = [];
+Memory.fromFacts = function(facts) {
+  return new Memory(facts.splice());
+};
+
+MemoryConstraint.fresh = function(ixes) {
+  var facts = [];
   var los = makeArray(ixes.length, least);
   var his = makeArray(ixes.length, greatest);
-  return new MTreeConstraint(ixes, pointful, volumes, los, his);
+  return new MemoryConstraint(ixes, facts, los, his);
 };
 
-MTree.prototype = {
+Memory.prototype = {
   update: function(adds, dels) {
-    var volumes = this.volumes.slice();
+    var facts = this.facts.slice();
     for (var i = adds.length - 1; i >= 0; i--) {
-      volumes.push(adds[i]);
+      facts.push(adds[i]);
     }
     nextDel: for (var i = dels.length - 1; i >= 0; i--) {
       var del = dels[i];
-      for (var j = volumes.length - 1; j >= 0; j--) {
-        var volume = volumes[j];
-        if (arrayEqual(del.los, volume.los) && arrayEqual(del.his, volume.his)) {
-          volumes.splice(j, 1);
+      for (var j = facts.length - 1; j >= 0; j--) {
+        var fact = facts[j];
+        if ((del.length === fact.length) && arrayEqual(del, fact)) {
+          facts.splice(j, 1);
           continue nextDel;
         }
       }
     }
-    return new MTree(this.factLen, volumes);
+    return new Memory(facts);
   },
 
   diff: function(oldTree, outputAdds, outputDels) {
     // TODO hacky gross diffing
-    var oldVolumes = oldTree.volumes;
-    var newVolumes = this.volumes;
+    var oldFacts = oldTree.facts;
+    var newFacts = this.facts;
     var adds = {};
     var dels = {};
-    for (var i = newVolumes.length - 1; i >= 0; i--) {
-      var newVolume = newVolumes[i];
-      adds[JSON.stringify(newVolume)] = newVolume;
+    for (var i = newFacts.length - 1; i >= 0; i--) {
+      var newFact = newFacts[i];
+      adds[JSON.stringify(newFact)] = newFact;
     }
-    for (var i = oldVolumes.length - 1; i >= 0; i--) {
-      var oldVolume = oldVolumes[i];
-      dels[JSON.stringify(oldVolume)] = oldVolume;
+    for (var i = oldFacts.length - 1; i >= 0; i--) {
+      var oldFact = oldFacts[i];
+      dels[JSON.stringify(oldFact)] = oldFact;
     }
-    for (var i = newVolumes.length - 1; i >= 0; i--) {
-      delete dels[JSON.stringify(newVolumes[i])];
+    for (var i = newFacts.length - 1; i >= 0; i--) {
+      delete dels[JSON.stringify(newFacts[i])];
     }
-    for (var i = oldVolumes.length - 1; i >= 0; i--) {
-      delete adds[JSON.stringify(oldVolumes[i])];
+    for (var i = oldFacts.length - 1; i >= 0; i--) {
+      delete adds[JSON.stringify(oldFacts[i])];
     }
     var addKeys = Object.keys(adds);
     var delKeys = Object.keys(dels);
@@ -206,22 +189,25 @@ function dedupe(xs) {
   return deduped;
 }
 
-// TODO pointful stuff is a hack - we really need a different datastructure for the provenance constraint
-MTreeConstraint.prototype = {
-  reset: function(mtree) {
-    this.volumes = dedupe(mtree.volumes);
-
-    fillArray(this.los, least);
-    fillArray(this.his, greatest);
+MemoryConstraint.prototype = {
+  reset: function(memory) {
+    var ixes = this.ixes;
+    var facts = memory.facts;
+    for (var i = facts.length - 1; i >= 0; i--) {
+      if (facts[i].length !== ixes.length) {
+        facts.splice(i, 1);
+      }
+    }
+    this.facts = dedupe(facts);
   },
 
   copy: function() {
-    return new MTreeConstraint(this.ixes, this.pointful, this.volumes.slice(), this.los.slice(), this.his.slice());
+    return new MemoryConstraint(this.ixes, this.facts.slice(), this.los.slice(), this.his.slice());
   },
 
   propagate: function(solverState) {
     var ixes = this.ixes;
-    var volumes = this.volumes;
+    var facts = this.facts;
     var solverLos = solverState.los;
     var solverHis = solverState.his;
     var los = this.los;
@@ -231,19 +217,17 @@ MTreeConstraint.prototype = {
     readFrom(ixes, los, solverLos);
     readFrom(ixes, his, solverHis);
 
-    var pointful = this.pointful;
-    for (var i = volumes.length - 1; i >= 0; i--) {
-      var volume = volumes[i];
-      if (((!pointful && (intersectsVolume(los, his, volume.los, volume.his) === false))) ||
-          ((pointful && (containsPoint(los, his, volume.los) === false)))) {
-        volumes.splice(i, 1);
+    for (var i = facts.length - 1; i >= 0; i--) {
+      var fact = facts[i];
+      if (containsPoint(los, his, fact) === false) {
+        facts.splice(i, 1);
       }
     }
 
-    if (volumes.length === 0) {
-      // console.log("Failed with no volumes");
+    if (facts.length === 0) {
+      // console.log("Failed with no facts");
       solverState.isFailed = true;
-      if (pointful) provenance.add(new Region(solverLos.slice(), solverHis.slice(), [los.slice()], [his.slice()], false));
+      provenance.add(new Region(solverLos.slice(), solverHis.slice(), [los.slice()], [his.slice()], false));
       return true;
     }
 
@@ -251,10 +235,10 @@ MTreeConstraint.prototype = {
 
     for (var i = ixes.length - 1; i >= 0; i--) {
       var newLo = greatest;
-      for (var j = volumes.length - 1; j >= 0; j--) {
-        var volume = volumes[j];
-        var volumeLo = volume.los[i];
-        if (compareValue(volumeLo, newLo) === -1) newLo = volumeLo;
+      for (var j = facts.length - 1; j >= 0; j--) {
+        var fact = facts[j];
+        var factLo = fact[i];
+        if (compareValue(factLo, newLo) === -1) newLo = factLo;
       }
       var ix = ixes[i];
       if (compareValue(newLo, los[i]) === 1) {
@@ -266,7 +250,7 @@ MTreeConstraint.prototype = {
         solverLos[ix] = newLo;
         memoryHis[i] = newLo;
         notHis[ix] = newLo;
-        if (pointful) provenance.add(new Region(notLos, notHis, [memoryLos], [memoryHis], false));
+        provenance.add(new Region(notLos, notHis, [memoryLos], [memoryHis], false));
         changed = true;
       }
     }
@@ -275,16 +259,16 @@ MTreeConstraint.prototype = {
   },
 
   split: function(leftSolverState, rightSolverState) {
-    var volumes = this.volumes;
-    if (volumes.length < 2) {
+    var facts = this.facts;
+    if (facts.length < 2) {
       return false;
     } else {
       // TODO this split algorithm can sometimes fail to change the right-hand state
       var ixes = this.ixes;
-      var volumeIx = Math.floor(Math.random() * volumes.length);
+      var factIx = Math.floor(Math.random() * facts.length);
       var i = Math.floor(Math.random() * ixes.length);
       var ix = ixes[i];
-      var pivot = volumes[volumeIx].los[i];
+      var pivot = facts[factIx][i];
       // console.log("Split at fact[" + ix + "]=" + pivot);
       leftSolverState.his[ix] = pivot;
       rightSolverState.los[ix] = pivot;
@@ -418,12 +402,12 @@ Provenance.prototype =  {
         var delledRegion = delledRegions[i];
         if (delledRegion.isSolution) outputDels.push(delledRegion.solverLos);
       }
-      var constraint = MTreeConstraint.fresh(this.ixes);
+      var constraint = MemoryConstraint.fresh(this.ixes);
       constraint.pointful = false;
-      var volumes = constraint.volumes;
+      var facts = constraint.facts;
       for (var i = delledRegions.length - 1; i >= 0; i--) {
         var delledRegion = delledRegions[i];
-        volumes[i] = new Volume(delledRegion.solverLos, delledRegion.solverHis);
+        facts[i] = delledRegion.solverLos;
       }
       return constraint;
     }
@@ -468,11 +452,11 @@ SolverState.prototype = {
     var rightSolverState = new SolverState(this.provenance, constraints.slice(), this.los.slice(), this.his.slice(), this.isFailed);
     for (var i = constraints.length - 1; i >= 0; i--) {
       var constraint = constraints[i];
-      if (constraint instanceof MTreeConstraint) constraints[i] = constraint.copy();
+      if (constraint instanceof MemoryConstraint) constraints[i] = constraint.copy();
     }
     for (var splitter = constraints.length - 1; splitter >= 1; splitter--) {
       var constraint = constraints[splitter];
-      if ((constraint instanceof MTreeConstraint) && constraints[splitter].split(leftSolverState, rightSolverState)) break;
+      if ((constraint instanceof MemoryConstraint) && constraints[splitter].split(leftSolverState, rightSolverState)) break;
     }
     if (splitter >= 1) {
       // console.log("Split by " + splitter);
@@ -492,7 +476,7 @@ function Solver(numVars, constraints, memory, provenance) {
 }
 
 Solver.empty = function (factLen, numVars, constraints) {
-  var memory = MTree.empty(factLen);
+  var memory = Memory.empty();
   var provenance = Provenance.empty(factLen, numVars);
   return new Solver(numVars, constraints, memory, provenance);
 };
@@ -521,7 +505,7 @@ Solver.prototype = {
     var constraints = this.constraints.slice();
     for (var i = constraints.length - 1; i >= 0; i--) {
       var constraint = constraints[i];
-      if (constraint instanceof MTreeConstraint) constraint.reset(inputMemory);
+      if (constraint instanceof MemoryConstraint) constraint.reset(inputMemory);
     }
     constraints.unshift(provenanceConstraint);
 
@@ -539,7 +523,7 @@ Solver.prototype = {
           var hiss = [];
           for (var i = constraints.length - 1; i >= 1; i--) {
             var constraint = constraints[i];
-            if (constraint instanceof MTreeConstraint) {
+            if (constraint instanceof MemoryConstraint) {
               constraint.witness(state, loss, hiss);
             }
           }
@@ -604,18 +588,18 @@ Sink.prototype = {
     for (var i = solverAdds.length - 1; i >= 0; i--) {
       var solverAdd = solverAdds[i];
       for (var j = outputIxess.length - 1; j >= 0; j--) {
-        var point = outputConstantss[j].slice();
-        readFrom(outputIxess[j], point, solverAdd);
-        outputAdds.push(new Volume(point, point));
+        var fact = outputConstantss[j].slice();
+        readFrom(outputIxess[j], fact, solverAdd);
+        outputAdds.push(fact);
       }
     }
     var outputDels = [];
     for (var i = solverDels.length - 1; i >= 0; i--) {
       var solverDel = solverDels[i];
       for (var j = outputIxess.length - 1; j >= 0; j--) {
-        var point = outputConstantss[j].slice();
-        readFrom(outputIxess[j], point, solverDel);
-        outputDels.push(new Volume(point, point));
+        var fact = outputConstantss[j].slice();
+        readFrom(outputIxess[j], fact, solverDel);
+        outputDels.push(fact);
       }
     }
 
@@ -687,11 +671,11 @@ System.prototype = {
 // ixby: rule variable
 
 function dumpMemory(memory) {
-  var volumes = memory.volumes;
+  var facts = memory.facts;
   var eav = {};
   var vae = {};
-  for (var i = volumes.length - 1; i >= 0; i--) {
-    var point = volumes[i].los;
+  for (var i = facts.length - 1; i >= 0; i--) {
+    var point = facts[i].los;
     var e = point[0];
     var a = point[1];
     var v = point[2];
@@ -726,7 +710,7 @@ function compileInputClause(dump, clauseId, variableIxes) {
       // ignore constants - should have been supplanted by variables by this point
     }
   }
-  return MTreeConstraint.fresh(ixes);
+  return MemoryConstraint.fresh(ixes);
 }
 
 function compileOutputClause(dump, clauseId, variableIxes) {
@@ -808,7 +792,7 @@ function compileSystem(dump) {
       downstream[ruleIx] = downstreamIxes;
     }
   }
-  return new System(MTree.empty(3), sinks, downstream);
+  return new System(Memory.empty(3), sinks, downstream);
 }
 
 // SYNTAX
@@ -917,11 +901,7 @@ function parseSystem(memory, lines) {
     }
   }
 
-  var adds = [];
-  for (var i = facts.length - 1; i >= 0; i--) {
-    adds[i] = new Volume(facts[i], facts[i]);
-  }
-  return memory.update(adds, []);
+  return memory.update(facts, []);
 }
 
 // TESTS
@@ -1060,9 +1040,7 @@ gen.eav = function() {
 
 // SOLVER TESTS
 
-function sortEqual(volumesA, volumesB) {
-  var memoryA = MTree.empty(3).update(volumesA, []);
-  var memoryB = MTree.empty(3).update(volumesB, []);
+function memoryEqual(memoryA, memoryB) {
   var outputAdds = [];
   var outputDels = [];
   memoryA.diff(memoryB, outputAdds, outputDels);
@@ -1076,162 +1054,112 @@ function sortEqual(volumesA, volumesB) {
 var solverProps = {
   selfJoin: forall(gen.array(gen.eav()),
                      function (facts) {
-                       var input = MTree.empty(3);
-                       var constraint0 = MTreeConstraint.fresh([0,1,2]);
-                       var constraint1 = MTreeConstraint.fresh([0,1,2]);
+                       var input = Memory.empty(3);
+                       var constraint0 = MemoryConstraint.fresh([0,1,2]);
+                       var constraint1 = MemoryConstraint.fresh([0,1,2]);
                        var sink = new Sink(Solver.empty(3, 3, [constraint0, constraint1]), [[0,1,2]], [[null,null,null]]);
-                       var adds = [];
-                       for (var i = 0; i < facts.length; i++) {
-                         adds[i] = new Volume(facts[i], facts[i]);
-                       }
-                       var input = input.update(adds, []);
-                       var output = sink.update(input, MTree.empty(3));
-                       var expectedVolumes = dedupe(input.volumes);
-                       return sortEqual(expectedVolumes, output.volumes);
+                       var input = input.update(facts, []);
+                       var output = sink.update(input, Memory.empty(3));
+                       return memoryEqual(input, output);
                      }),
 
   productJoin: forall(gen.array(gen.eav()),
                      function (facts) {
-                       var input = MTree.empty(3);
-                       var constraint0 = MTreeConstraint.fresh([0,1,2]);
-                       var constraint1 = MTreeConstraint.fresh([3,4,5]);
+                       var input = Memory.empty(3);
+                       var constraint0 = MemoryConstraint.fresh([0,1,2]);
+                       var constraint1 = MemoryConstraint.fresh([3,4,5]);
                        var sink = new Sink(Solver.empty(3, 6, [constraint0, constraint1]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
-                       var adds = [];
-                       for (var i = 0; i < facts.length; i++) {
-                         adds[i] = new Volume(facts[i], facts[i]);
-                       }
-                       var input = input.update(adds, []);
-                       var output = sink.update(input, MTree.empty(6));
-                       var expectedVolumes = [];
+                       var input = input.update(facts, []);
+                       var output = sink.update(input, Memory.empty(6));
+                       var expectedFacts = [];
                        for (var i = 0; i < facts.length; i++) {
                          for (var j = 0; j < facts.length; j++) {
-                           var point = facts[i].concat(facts[j]);
-                           expectedVolumes.push(new Volume(point, point));
+                           expectedFacts.push(facts[i].concat(facts[j]));
                          }
                        }
-                       expectedVolumes = dedupe(expectedVolumes);
-                       return sortEqual(expectedVolumes, output.volumes);
+                       return memoryEqual(Memory.fromFacts(expectedFacts), output);
                      }),
 
   constantJoin: forall(gen.array(gen.eav()), gen.value(),
                        function (facts, constant) {
-                         var input = MTree.empty(3);
+                         var input = Memory.empty(3);
                          var constraint0 = new ConstantConstraint(1, constant);
-                         var constraint1 = MTreeConstraint.fresh([0,1,2]);
-                         var constraint2 = MTreeConstraint.fresh([3,4,5]);
+                         var constraint1 = MemoryConstraint.fresh([0,1,2]);
+                         var constraint2 = MemoryConstraint.fresh([3,4,5]);
                          var sink = new Sink(Solver.empty(3, 6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
-                         var adds = [];
-                         for (var i = 0; i < facts.length; i++) {
-                           adds[i] = new Volume(facts[i], facts[i]);
-                         }
-                         var input = input.update(adds, []);
-                         var output = sink.update(input, MTree.empty(6));
-                         var expectedVolumes = [];
+                         var input = input.update(facts, []);
+                         var output = sink.update(input, Memory.empty(6));
+                         var expectedFacts = [];
                          for (var i = 0; i < facts.length; i++) {
                            if (facts[i][1] === constant) {
                              for (var j = 0; j < facts.length; j++) {
-                               var point = facts[i].concat(facts[j]);
-                               expectedVolumes.push(new Volume(point, point));
+                               expectedFacts.push(facts[i].concat(facts[j]));
                              }
                            }
                          }
-                         expectedVolumes = dedupe(expectedVolumes);
-                         return sortEqual(expectedVolumes, output.volumes);
+                         return memoryEqual(Memory.fromFacts(expectedFacts), output);
                        }),
 
   incrementalConstantJoin: forall(gen.array(gen.eav()), gen.value(), gen.array(gen.eav()), gen.array(gen.eav()),
-                                  function (facts, constant, laterAdds, laterDels) {
-                                    var input = MTree.empty(3);
+                                  function (facts, constant, adds, dels) {
+                                    var input = Memory.empty(3);
                                     var constraint0 = new ConstantConstraint(1, constant);
-                                    var constraint1 = MTreeConstraint.fresh([0,1,2]);
-                                    var constraint2 = MTreeConstraint.fresh([3,4,5]);
+                                    var constraint1 = MemoryConstraint.fresh([0,1,2]);
+                                    var constraint2 = MemoryConstraint.fresh([3,4,5]);
                                     var incrementalSink = new Sink(Solver.empty(3, 6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
                                     var batchSink = new Sink(Solver.empty(3, 6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
-                                    var incrementalOutput = MTree.empty(6);
-                                    var batchOutput = MTree.empty(6);
+                                    var incrementalOutput = Memory.empty(6);
+                                    var batchOutput = Memory.empty(6);
 
-                                    var adds = [];
-                                    for (var i = 0; i < facts.length; i++) {
-                                      adds[i] = new Volume(facts[i], facts[i]);
-                                    }
-                                    input = input.update(adds, []);
-
+                                    input = input.update(facts, []);
                                     incrementalOutput = incrementalSink.update(input, incrementalOutput);
 
-                                    var adds = [];
-                                    for (var i = 0; i < laterAdds.length; i++) {
-                                      adds[i] = new Volume(laterAdds[i], laterAdds[i]);
-                                    }
-                                    var dels = [];
-                                    for (var i = 0; i < laterDels.length; i++) {
-                                      dels[i] = new Volume(laterDels[i], laterDels[i]);
-                                    }
                                     input = input.update(adds, dels);
-
-                                    batchOutput = batchSink.update(input, batchOutput);
                                     incrementalOutput = incrementalSink.update(input, incrementalOutput);
+                                    batchOutput = batchSink.update(input, batchOutput);
 
-                                    return sortEqual(incrementalOutput.volumes, batchOutput.volumes);
+                                    return memoryEqual(incrementalOutput, batchOutput);
                                   }),
 
   actualJoin: forall(gen.array(gen.eav()),
                        function (facts) {
-                         var input = MTree.empty(3);
-                         var constraint0 = MTreeConstraint.fresh([0,1,2]);
-                         var constraint1 = MTreeConstraint.fresh([2,3,4]);
+                         var input = Memory.empty(3);
+                         var constraint0 = MemoryConstraint.fresh([0,1,2]);
+                         var constraint1 = MemoryConstraint.fresh([2,3,4]);
                          var sink = new Sink(Solver.empty(3, 5, [constraint0, constraint1]), [[0,1,2,3,4]], [[null,null,null,null,null]]);
-                         var adds = [];
-                         for (var i = 0; i < facts.length; i++) {
-                           adds[i] = new Volume(facts[i], facts[i]);
-                         }
-                         var input = input.update(adds, []);
-                         var output = sink.update(input, MTree.empty(6));
-                         var expectedVolumes = [];
+                         var input = input.update(facts, []);
+                         var output = sink.update(input, Memory.empty(6));
+                         var expectedFacts = [];
                          for (var i = 0; i < facts.length; i++) {
                            for (var j = 0; j < facts.length; j++) {
-                             var point = facts[i].concat(facts[j]);
-                             if (point[2] === point[3]) {
-                               point.splice(2, 1);
-                               expectedVolumes.push(new Volume(point, point));
+                             var fact = facts[i].concat(facts[j]);
+                             if (fact[2] === fact[3]) {
+                               fact.splice(2, 1);
+                               expectedFacts.push(fact);
                              }
                            }
                          }
-                         expectedVolumes = dedupe(expectedVolumes);
-                         return sortEqual(expectedVolumes, output.volumes);
+                         return memoryEqual(Memory.fromFacts(expectedFacts), output);
                        }),
 
   incrementalActualJoin: forall(gen.array(gen.eav()), gen.array(gen.eav()), gen.array(gen.eav()),
-                                  function (facts, laterAdds, laterDels) {
-                                    var input = MTree.empty(3);
-                                    var constraint0 = MTreeConstraint.fresh([0,1,2]);
-                                    var constraint1 = MTreeConstraint.fresh([2,3,4]);
+                                  function (facts, adds, dels) {
+                                    var input = Memory.empty(3);
+                                    var constraint0 = MemoryConstraint.fresh([0,1,2]);
+                                    var constraint1 = MemoryConstraint.fresh([2,3,4]);
                                     var incrementalSink = new Sink(Solver.empty(3, 5, [constraint0, constraint1]), [[0,1,2,3,4]], [[null,null,null,null,null]]);
                                     var batchSink = new Sink(Solver.empty(3, 5, [constraint0, constraint1]), [[0,1,2,3,4]], [[null,null,null,null,null]]);
-                                    var incrementalOutput = MTree.empty(6);
-                                    var batchOutput = MTree.empty(6);
+                                    var incrementalOutput = Memory.empty(6);
+                                    var batchOutput = Memory.empty(6);
 
-                                    var adds = [];
-                                    for (var i = 0; i < facts.length; i++) {
-                                      adds[i] = new Volume(facts[i], facts[i]);
-                                    }
-                                    input = input.update(adds, []);
-
+                                    input = input.update(facts, []);
                                     incrementalOutput = incrementalSink.update(input, incrementalOutput);
 
-                                    var adds = [];
-                                    for (var i = 0; i < laterAdds.length; i++) {
-                                      adds[i] = new Volume(laterAdds[i], laterAdds[i]);
-                                    }
-                                    var dels = [];
-                                    for (var i = 0; i < laterDels.length; i++) {
-                                      dels[i] = new Volume(laterDels[i], laterDels[i]);
-                                    }
                                     input = input.update(adds, dels);
-
-                                    batchOutput = batchSink.update(input, batchOutput);
                                     incrementalOutput = incrementalSink.update(input, incrementalOutput);
+                                    batchOutput = batchSink.update(input, batchOutput);
 
-                                    return sortEqual(incrementalOutput.volumes, batchOutput.volumes);
+                                    return memoryEqual(incrementalOutput, batchOutput);
                                   }),
 };
 
@@ -1240,28 +1168,24 @@ var solverProps = {
 // SYSTEM TESTS
 
 function manualPathTest() {
-  var constraint0 = MTreeConstraint.fresh([0,1,2]);
+  var constraint0 = MemoryConstraint.fresh([0,1,2]);
   var constraint1 = new ConstantConstraint(1, "has-an-edge-to");
   var sink0 = new Sink(Solver.empty(3, 3, [constraint0, constraint1]), [[0,null,2]], [[null,"has-a-path-to",null]]);
 
-  var constraint2 = MTreeConstraint.fresh([0,1,2]);
-  var constraint3 = MTreeConstraint.fresh([2,3,4]);
+  var constraint2 = MemoryConstraint.fresh([0,1,2]);
+  var constraint3 = MemoryConstraint.fresh([2,3,4]);
   var constraint4 = new ConstantConstraint(1, "has-an-edge-to");
   var constraint5 = new ConstantConstraint(3, "has-a-path-to");
   var sink1 = new Sink(Solver.empty(3, 5, [constraint2, constraint3, constraint4, constraint5]), [[0,null,4]], [[null,"has-a-path-to",null]]);
 
-  var memory = MTree.empty(3);
+  var memory = Memory.empty(3);
   var system = new System(memory, [sink0, sink1], [[1], [1]]);
 
   var facts = [["a", "has-an-edge-to", "b"],
                ["b", "has-an-edge-to", "c"],
                ["c", "has-an-edge-to", "d"],
                ["d", "has-an-edge-to", "b"]];
-  var adds = [];
-  for (var i = 0; i < facts.length; i++) {
-    adds[i] = new Volume(facts[i], facts[i]);
-  }
-  system.update(adds, []);
+  system.update(facts, []);
 
   var derivedFacts = [["a", "has-a-path-to", "b"],
                       ["b", "has-a-path-to", "c"],
@@ -1278,12 +1202,8 @@ function manualPathTest() {
                       ["c", "has-a-path-to", "c"],
                       ["d", "has-a-path-to", "d"]];
   var expectedFacts = facts.concat(derivedFacts);
-  var expectedVolumes = [];
-  for (var i = expectedFacts.length - 1; i >= 0; i--) {
-    expectedVolumes[i] = new Volume(expectedFacts[i], expectedFacts[i]);
-  }
 
-  assert(sortEqual(dedupe(system.memory.volumes), expectedVolumes));
+  memoryEqual(system.memory, Memory.fromFacts(expectedFacts));
 }
 
 // manualPathTest();
@@ -1303,7 +1223,7 @@ function compiledPathTest() {
                  "strata",
                  "~ edges",
                  "~ paths"];
-  var programMemory = parseSystem(MTree.empty(3), program);
+  var programMemory = parseSystem(Memory.empty(3), program);
   var system = compileSystem(dumpMemory(programMemory));
 
   var facts = [["a", "has-an-edge-to", "b"],
@@ -1311,9 +1231,6 @@ function compiledPathTest() {
                ["c", "has-an-edge-to", "d"],
                ["d", "has-an-edge-to", "b"]];
   var adds = [];
-  for (var i = 0; i < facts.length; i++) {
-    adds[i] = new Volume(facts[i], facts[i]);
-  }
   // console.log(system);
   system.update(adds, []);
 
@@ -1332,12 +1249,9 @@ function compiledPathTest() {
                       ["c", "has-a-path-to", "c"],
                       ["d", "has-a-path-to", "d"]];
   var expectedFacts = facts.concat(derivedFacts);
-  var expectedVolumes = [];
-  for (var i = expectedFacts.length - 1; i >= 0; i--) {
-    expectedVolumes[i] = new Volume(expectedFacts[i], expectedFacts[i]);
-  }
+  var expectedFacts = [];
 
-  assert(sortEqual(dedupe(system.memory.volumes), expectedVolumes));
+  memoryEqual(system.memory, Memory.fromFacts(expectedFacts));
 }
 
 compiledPathTest();
@@ -1345,17 +1259,16 @@ compiledPathTest();
 // BENCHMARKS
 
 function soFast(n) {
-  var constraint0 = MTreeConstraint.fresh([0,1,2]);
-  var constraint1 = MTreeConstraint.fresh([0,1,2]);
+  var constraint0 = MemoryConstraint.fresh([0,1,2]);
+  var constraint1 = MemoryConstraint.fresh([0,1,2]);
   var solver = Solver.empty(3, 3, [constraint0, constraint1]);
 
-  var input = MTree.empty(3);
-  var output = MTree.empty(3);
+  var input = Memory.empty(3);
+  var output = Memory.empty(3);
 
   var adds = [];
   for (var i = 0; i < n; i++) {
-    var point = [Math.random(),Math.random(),Math.random()];
-    adds[i] = new Volume(point, point);
+    adds[i] = [Math.random(),Math.random(),Math.random()];
   }
 
   input = input.update(adds, []);
@@ -1371,21 +1284,20 @@ function soFast(n) {
 // soFast(1000);
 
 function soSlow(n) {
-  var constraint0 = MTreeConstraint.fresh([0,1,2]);
-  var constraint1 = MTreeConstraint.fresh([0,1,2]);
+  var constraint0 = MemoryConstraint.fresh([0,1,2]);
+  var constraint1 = MemoryConstraint.fresh([0,1,2]);
   var solver = Solver.empty(3, 3, [constraint0, constraint1]);
 
-  var input = MTree.empty(3);
-  var output = MTree.empty(3);
+  var input = Memory.empty(3);
+  var output = Memory.empty(3);
 
   var addsA = [];
   var addsB = [];
   for (var i = 0; i < n; i++) {
-    var point = [Math.random(),Math.random(),Math.random()];
     if (i % 2 === 0) {
-      addsA.push(new Volume(point, point));
+      addsA.push([Math.random(),Math.random(),Math.random()]);
     } else {
-      addsB.push(new Volume(point, point));
+      addsB.push([Math.random(),Math.random(),Math.random()]);
     }
   }
 
@@ -1399,7 +1311,7 @@ function soSlow(n) {
   output = solver.update(input, output);
   console.timeEnd("soSlowB " + n);
 
-  input = input.update([new Volume([0.5,0.5,0.5],[0.5,0.5,0.5])], []);
+  input = input.update([[0.5,0.5,0.5]], []);
   console.time("soSlowC " + n);
   output = solver.update(input, output);
   console.timeEnd("soSlowC " + n);
