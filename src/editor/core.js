@@ -1,7 +1,63 @@
 var eve = {};
 var comps = eve.components = {};
 var mix = eve.mixins = {};
-var data = eve.data = {tree: {elements: []}, activeElement: {}, selection: {}, undo: {stack:{children: []}}};
+var data = eve.data = {tree: {elements: []}, activeElement: {}, selection: {}, undo: {stack:{children: []}},
+                       page: "rules",
+                       activeRule: "foo",
+                       rules: {"foo": {inputs: ["users", "email inbox"],
+                                       workspace: {columns: [{table: "users",
+                                                              name: "id"},
+                                                             {table: "users",
+                                                              filters: "contains 'tom'",
+                                                              name: "name"},
+                                                             {table: "users",
+                                                              name: "email"},
+                                                             {name: "subject",
+                                                              formula: "Hola"},
+                                                             {name: "body",
+                                                              formula: "Hey *name*, ..."},
+                                                            ]},
+                                       outputs: ["email outbox"],
+                                       description: "send an email to tom"},
+                               "woo": {inputs: ["users"],
+                                       workspace: {columns: [{table: "users",
+                                                              name: "name"},
+                                                             {table: "users",
+                                                              name: "email"},
+                                                            ]},
+                                       outputs: [],
+                                       description: "look at users"},
+                               "bar": {inputs: ["users"],
+                                       workspace: {columns: [{table: "users",
+                                                              name: "id"},
+                                                             {table: "users",
+                                                              name: "name"},
+                                                             {table: "users",
+                                                              name: "email"},
+                                                             {name: "subject",
+                                                              formula: "Hola"},
+                                                             {name: "body",
+                                                              formula: "Hey *name*, ..."},
+                                                            ]},
+                                       outputs: ["email outbox"],
+                                       description: "send an email to bar"}},
+                       tables: {"users": {name: "users",
+                                          fields: [{name: "id"}, {name: "name"}, {name: "email"}, {name: "phone"}],
+                                          rows: [[0,"chris","ibdknox@gmail.com","5555555555"],
+                                                 [1,"tom","tom@tom.com","5555555555"]
+                                                ]},
+                                "todos": {name: "todos",
+                                          fields: [{name: "id"}, {name: "text"}, {name: "completed"}],
+                                          rows: [[0, "get milk", "active"], [1, "buy books", "active"]]},
+                                "email outbox": {name: "email outbox",
+                                                 fields: [{name: "id"}, {name: "to"}, {name: "from"}, {name: "subject"}, {name: "body"}],
+                                                 rows: [[0,"tom@tom.com", "chris@chris.com", "Hola", "Hey Tom Pinckney, ..."]]},
+                                "sms outbox": {name: "sms outbox",
+                                               fields: [{name: "id"}, {name: "phone"}, {name: "message"}]},
+                                "email inbox": {name: "email inbox",
+                                                fields: [{name: "id"}, {name: "to"}, {name: "from"}, {name: "subject"}, {name: "body"}]}},
+
+                      };
 var d = React.DOM;
 
 var clearPixel = document.createElement("img");
@@ -1036,13 +1092,197 @@ comps.undoList = React.createClass({
   }
 });
 
+comps.grid = React.createClass({
+  render: function() {
+    var ths = [];
+    var thfilters = [];
+    var headers = this.props.fields;
+    for(var i in headers) {
+      var cur = headers[i];
+      ths.push(d.th({draggable: "true"}, cur.name));
+      if(cur.filters) {
+        thfilters.push(d.th({className: "modifier"}, cur.filters));
+      } else {
+        thfilters.push(d.th({className: "empty"}));
+      }
+    }
+
+    var trs = [];
+    var rows = this.props.rows;
+    if(!rows || !rows.length) {
+      rows = [["", "", "", "", ""]];
+    }
+    for(var i in rows) {
+      var row = rows[i];
+      var tds = [];
+      for(var i in headers) {
+        tds.push(d.td({}, row[i]));
+      }
+      trs.push(d.tr({}, tds));
+    }
+    return d.table({className: "grid"},
+                   d.thead({}, d.tr({}, thfilters), d.tr({}, ths)),
+                   d.tbody({}, trs));
+  }
+});
+
+comps.inputs = React.createClass({
+  render: function() {
+
+    var items = [];
+    var inputs = this.props.rule.inputs;
+    for(var i in inputs) {
+      var cur = inputs[i];
+      items.push(d.li({}, data.tables[cur].name));
+    }
+
+    return d.div({className: "inputs-container container"},
+                 d.ul({className: "inputs"}, items));
+  }
+});
+
+comps.workspace = React.createClass({
+  formulaIter: function(formula, cols) {
+    return function(curRow) {
+      return formula;
+    };
+  },
+  tableIter: function(table, col) {
+    var t = data.tables[table];
+    var colIndex = 0;
+    for(var i in t.fields) {
+      if(t.fields[i].name == col) {
+        colIndex = i;
+        break;
+      }
+    }
+    var row = -1;
+    return function(curRow) {
+      var cur = t.rows[++row];
+      if(!cur) return;
+      return cur[colIndex];
+    };
+  },
+  fakeRows: function(cols) {
+    var rows = [];
+    var iters = [];
+    for(var i in cols) {
+      var col = cols[i];
+      if(col.table) {
+        iters.push(this.tableIter(col.table, col.name))
+      } else if(col.formula) {
+        iters.push(this.formulaIter(col.formula, cols));
+      }
+    }
+
+    var itersLen = iters.length;
+    while(true) {
+      var curRow = [];
+      for(var ix = 0; ix < itersLen; ix++) {
+        var val = iters[ix](curRow);
+        if(!val && val != 0) return rows;
+        curRow.push(val);
+      }
+      rows.push(curRow);
+    }
+
+  },
+  render: function() {
+    var rule = this.props.rule;
+    var cols = rule.workspace.columns;
+
+    return d.div({className: "workspace-container container"},
+                 d.div({className: "workspace"},
+                       d.span({className: "description"}, rule.description),
+                       comps.grid({fields: cols,
+                                  rows: this.fakeRows(cols)})));
+  }
+});
+
+comps.outputs = React.createClass({
+  render: function() {
+
+    var items = [];
+    var outputs = this.props.rule.outputs;
+    for(var i in outputs) {
+      var cur = data.tables[outputs[i]];
+      items.push(d.li({}, d.h2({}, cur.name), comps.grid(cur)));
+    }
+
+    return d.div({className: "outputs-container container"},
+                 d.ul({className: "outputs"}, items, d.li({className: "ion-ios7-plus-empty add-output"})));
+  }
+});
+
+comps.ruleItem = React.createClass({
+  render: function() {
+    var props = this.props;
+    var ins = props.rule.inputs.map(function(cur) {
+      return d.li({}, cur);
+    });
+    var outs = props.rule.outputs.map(function(cur) {
+      return d.li({}, cur);
+    });
+    return d.div({className: "rule",
+                        onClick: function() {
+                          data.activeRule = props.id;
+                          data.page = "data";
+                          dirty();
+                        }},
+                 d.div({className: "vbox"},
+                       d.h2({}, this.props.rule.description),
+                       d.div({className: "hbox"},
+                             d.ul({}, ins),
+                             d.ul({}, outs)))
+                );
+  }
+});
+
+comps.rulesList = React.createClass({
+  render: function() {
+    var items = [];
+    var rs = this.props.rules;
+    for(var i in rs) {
+      var cur = rs[i];
+      items.push(comps.ruleItem({id: i, rule: cur}));
+    }
+    return d.div({className: "rules"}, items);
+  }
+});
+
 comps.wrapper = React.createClass({
   render: function() {
+
+    var cur = [];
+
+    switch(data.page) {
+
+      case "ui":
+        cur.push(comps.toolbox(), comps.undoList(), comps.uiCanvas({node: data.tree}));
+        break;
+
+      case "data":
+        var activeRule = {rule: data.rules[data.activeRule]};
+        cur.push(d.div({className: "vbox"}, d.div({className: "hbox data-top"}, comps.inputs(activeRule), comps.workspace(activeRule)), comps.outputs(activeRule)),
+                 d.span({className: "ion-grid return-to-grid",
+                         onClick: function(e) {
+                           data.page = "rules";
+                           dirty();
+                         }
+                        })
+                );
+        break;
+
+
+      case "rules":
+        cur.push(comps.rulesList({rules: data.rules}));
+        break;
+
+    }
+
     return d.div({id: "wrapper"},
-                 comps.undoList(),
                  comps.toolbar(),
-                 comps.toolbox(),
-                 comps.uiCanvas({node: data.tree})
+                 cur
                 );
   }
 });
@@ -1190,9 +1430,8 @@ eve.start = function() {
 window.eve = eve;
 window.eve.start();
 
-//TODO:
+//TODO UI:
 // - undo for add
-// - undo for resize
 // - undo for property change
 // - fix center resizing
 // - center snapping?
@@ -1202,3 +1441,16 @@ window.eve.start();
 // - exact size property editor
 // - reaction editor?
 // - custom guide lines
+
+//TODO DATA:
+// - merge
+// - group
+// - filter
+// - cell editor
+// - create table
+// - calculated column
+// - drop onto output
+// - add input
+// - add output
+// - grid view of rules
+// - add a rule
