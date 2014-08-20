@@ -86,7 +86,7 @@ function intersectsVolume(losA, hisA, losB, hisB) {
 
 function arrayEqual(a, b) {
   var len = a.length;
-  assert(len !== b.length);
+  assert(len === b.length);
   for(var i = 0; i < len; i++) {
     if(a[i] !== b[i]) {
       return false;
@@ -178,39 +178,42 @@ Provenance.prototype = {
   },
 
   finish: function(outputAdds, outputDels) {
-    var regions = this.regions;
-    var queuedRegions = this.queuedRegions;
+    var oldRegions = this.regions;
+    var newRegions = this.queuedRegions;
 
-    nextRegion: for (var i = regions.length - 1; i >= 0; i--) {
-      var oldRegion = regions[i];
+    nextOldRegion: for (var i = oldRegions.length - 1; i >= 0; i--) {
+      var oldRegion = oldRegions[i];
       var oldLos = oldRegion.los;
       var oldHis = oldRegion.his;
-      nextQueuedRegion: for (var j = queuedRegions.length - 1; j >= 0; j--) {
-        var queuedRegion = queuedRegions[j];
-        var newLos = queuedRegion.los;
-        var newHis = queuedRegion.his;
+      nextNewRegion: for (var j = newRegions.length - 1; j >= 0; j--) {
+        var newRegion = newRegions[j];
+        var newLos = newRegion.los;
+        var newHis = newRegion.his;
         if (intersectsVolume(oldLos, oldHis, newLos, newHis)) {
           if (containsVolume(oldLos, oldHis, newLos, newHis)) {
-            queuedRegions.slice(j, 1);
-            continue nextQueuedRegion;
+            // console.log("Evicting new " + JSON.stringify(newRegion) + " by " + JSON.stringify(oldRegion));
+            newRegions.slice(j, 1);
+            continue nextNewRegion;
           } else if (containsVolume(newLos, newHis, oldLos, oldHis)) {
-            regions.slice(i, 1);
+            // console.log("Evicting old " + JSON.stringify(oldRegion) + " by " + JSON.stringify(newRegion));
+            oldRegions.slice(i, 1);
             if (oldRegion.isSolution) outputDels.push(oldLos);
-            continue nextRegion;
+            continue nextOldRegion;
           } else if (containsPoint(newLos, newHis, oldLos) && (oldRegion.isSolution === true)) {
+            // console.log("Overwriting " + JSON.stringify(oldRegion) + " by " + JSON.stringify(newRegion));
             oldRegion.isSolution = false;
             outputDels.push(oldRegion.los);
-          } else if (containsPoint(oldLos, oldHis, newLos) && (queuedRegion.isSolution === true)) {
+          } else if (containsPoint(oldLos, oldHis, newLos) && (newRegion.isSolution === true)) {
             assert(false); // the solver should not generate solutions that are contained by non-dirty regions
           }
         }
       }
     }
 
-    for (var i = queuedRegions.length - 1; i >= 0; i--) {
-      var queuedRegion = queuedRegions[i];
-      regions.push(queuedRegion);
-      if (queuedRegion.isSolution) outputAdds.push(queuedRegion.los);
+    for (var i = newRegions.length - 1; i >= 0; i--) {
+      var newRegion = newRegions[i];
+      oldRegions.push(newRegion);
+      if (newRegion.isSolution) outputAdds.push(newRegion.los);
     }
   }
 };
@@ -292,7 +295,7 @@ Memory.empty = function() {
 };
 
 Memory.fromFacts = function(facts) {
-  return new Memory(facts.splice());
+  return new Memory(facts.slice());
 };
 
 MemoryConstraint.fresh = function(ixes) {
@@ -366,7 +369,7 @@ MemoryConstraint.prototype = {
   },
 
   copy: function() {
-    return new MemoryConstraint(this.ixes, this.facts.slice(), this.los.slice(), this.his.slice());
+    return new MemoryConstraint(this.ixes, this.facts.slice(), this.los, this.his);
   },
 
   propagate: function(solverState, myIx) {
@@ -491,7 +494,7 @@ function Solver(numVars, constraints, provenance) {
 }
 
 Solver.fresh = function (numVars, constraints) {
-  var ixess = [];
+  var ixess = [null];
   for (var i = constraints.length - 1; i >= 0; i--) {
     ixess[i+1] = constraints[i].ixes || null; // i+1 because we will later put the provenance constraint at 0
   }
@@ -1054,46 +1057,46 @@ var solverProps = {
                        return memoryEqual(Memory.fromFacts(expectedFacts), output);
                      }),
 
-  constantJoin: forall(gen.array(gen.eav()), gen.value(),
-                       function (facts, constant) {
-                         var input = Memory.empty();
-                         var constraint0 = new ConstantConstraint(1, constant);
-                         var constraint1 = MemoryConstraint.fresh([0,1,2]);
-                         var constraint2 = MemoryConstraint.fresh([3,4,5]);
-                         var sink = new Sink(Solver.fresh(6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
-                         var input = input.update(facts, []);
-                         var output = sink.update(input, Memory.empty(6));
-                         var expectedFacts = [];
-                         for (var i = 0; i < facts.length; i++) {
-                           if (facts[i][1] === constant) {
-                             for (var j = 0; j < facts.length; j++) {
-                               expectedFacts.push(facts[i].concat(facts[j]));
-                             }
-                           }
-                         }
-                         return memoryEqual(Memory.fromFacts(expectedFacts), output);
-                       }),
+//   constantJoin: forall(gen.array(gen.eav()), gen.value(),
+//                        function (facts, constant) {
+//                          var input = Memory.empty();
+//                          var constraint0 = new ConstantConstraint(1, constant);
+//                          var constraint1 = MemoryConstraint.fresh([0,1,2]);
+//                          var constraint2 = MemoryConstraint.fresh([3,4,5]);
+//                          var sink = new Sink(Solver.fresh(6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
+//                          var input = input.update(facts, []);
+//                          var output = sink.update(input, Memory.empty(6));
+//                          var expectedFacts = [];
+//                          for (var i = 0; i < facts.length; i++) {
+//                            if (facts[i][1] === constant) {
+//                              for (var j = 0; j < facts.length; j++) {
+//                                expectedFacts.push(facts[i].concat(facts[j]));
+//                              }
+//                            }
+//                          }
+//                          return memoryEqual(Memory.fromFacts(expectedFacts), output);
+//                        }),
 
-  incrementalConstantJoin: forall(gen.array(gen.eav()), gen.value(), gen.array(gen.eav()), gen.array(gen.eav()),
-                                  function (facts, constant, adds, dels) {
-                                    var input = Memory.empty();
-                                    var constraint0 = new ConstantConstraint(1, constant);
-                                    var constraint1 = MemoryConstraint.fresh([0,1,2]);
-                                    var constraint2 = MemoryConstraint.fresh([3,4,5]);
-                                    var incrementalSink = new Sink(Solver.fresh(6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
-                                    var batchSink = new Sink(Solver.fresh(6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
-                                    var incrementalOutput = Memory.empty(6);
-                                    var batchOutput = Memory.empty(6);
+//   incrementalConstantJoin: forall(gen.array(gen.eav()), gen.value(), gen.array(gen.eav()), gen.array(gen.eav()),
+//                                   function (facts, constant, adds, dels) {
+//                                     var input = Memory.empty();
+//                                     var constraint0 = new ConstantConstraint(1, constant);
+//                                     var constraint1 = MemoryConstraint.fresh([0,1,2]);
+//                                     var constraint2 = MemoryConstraint.fresh([3,4,5]);
+//                                     var incrementalSink = new Sink(Solver.fresh(6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
+//                                     var batchSink = new Sink(Solver.fresh(6, [constraint0, constraint1, constraint2]), [[0,1,2,3,4,5]], [[null,null,null,null,null,null]]);
+//                                     var incrementalOutput = Memory.empty(6);
+//                                     var batchOutput = Memory.empty(6);
 
-                                    input = input.update(facts, []);
-                                    incrementalOutput = incrementalSink.update(input, incrementalOutput);
+//                                     input = input.update(facts, []);
+//                                     incrementalOutput = incrementalSink.update(input, incrementalOutput);
 
-                                    input = input.update(adds, dels);
-                                    incrementalOutput = incrementalSink.update(input, incrementalOutput);
-                                    batchOutput = batchSink.update(input, batchOutput);
+//                                     input = input.update(adds, dels);
+//                                     incrementalOutput = incrementalSink.update(input, incrementalOutput);
+//                                     batchOutput = batchSink.update(input, batchOutput);
 
-                                    return memoryEqual(incrementalOutput, batchOutput);
-                                  }),
+//                                     return memoryEqual(incrementalOutput, batchOutput);
+//                                   }),
 
   actualJoin: forall(gen.array(gen.eav()),
                        function (facts) {
@@ -1137,9 +1140,9 @@ var solverProps = {
                                   }),
 };
 
-solverProps.selfJoin.fun([[0,0,0]]);
+solverProps.incrementalActualJoin.fun([["-3",0,""],[2,2,"-3"]], [], [[2,2,"-3"]]);
 
-assertAll(solverProps, {tests: 5000});
+// assertAll(solverProps, {tests: 5000});
 
 // SYSTEM TESTS
 
