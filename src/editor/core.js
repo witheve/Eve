@@ -1,7 +1,8 @@
 var eve = {};
 var comps = eve.components = {};
 var mix = eve.mixins = {};
-var data = eve.data = {tree: {elements: []}, activeElement: {}, selection: {}, undo: {stack:{children: []}},
+var data = eve.data = {tree: {elements: []}, selection: {}, undo: {stack:{children: []}},
+
                        page: "rules",
                        activeRule: "foo",
                        rules: {"foo": {inputs: ["users", "email inbox"],
@@ -20,11 +21,7 @@ var data = eve.data = {tree: {elements: []}, activeElement: {}, selection: {}, u
                                        outputs: ["email outbox"],
                                        description: "send an email to tom"},
                                "woo": {inputs: ["users"],
-                                       workspace: {columns: [{table: "users",
-                                                              name: "name"},
-                                                             {table: "users",
-                                                              name: "email"},
-                                                            ]},
+                                      workspace: {columns: []},
                                        outputs: [],
                                        description: "look at users"},
                                "bar": {inputs: ["users"],
@@ -362,14 +359,20 @@ var snapshotRedo = function(entry) {
   }
 };
 
-var undoEntry = function(description) {
+var undoEntry = function(ent) {
   var stack = data.undo.stack;
-  var entry = {undo: snapshotUndo, redo: snapshotRedo, parent: stack, children: [], description: description};
-  entry.selections = data.selection.selections.slice(0);
+  var entry = {undo: ent.undo, redo: ent.redo, parent: stack, children: [], description: ent.description};
   stack.children.push(entry);
   data.undo.stack = entry;
   return entry;
 }
+
+var uiUndoEntry = function(description) {
+  var entry = undoEntry({description: description, undo: snapshotUndo, redo:snapshotRedo});
+  entry.selections = data.selection.selections.slice(0);
+  return entry;
+}
+
 
 var undo = function() {
   var cur = data.undo.stack;
@@ -444,7 +447,7 @@ mix.element = {
   onDragStart: function(e) {
     fixDragStart(e);
     data.selection.positioning = true;
-    var undo = undoEntry("move selection (drag)");
+    var undo = uiUndoEntry("move selection (drag)");
     undo.original = cloneSelected(["top", "left"]);
     picker.spectrum("container").css("display", "none");
     dirty();
@@ -798,7 +801,7 @@ comps.activeElement = React.createClass({
     var dragStart = function(e) {
       fixDragStart(e);
       data.selection.resizing = {};
-      var entry = undoEntry("resize selection");
+      var entry = uiUndoEntry("resize selection");
       entry.original = cloneSelected(["top", "left", "width", "height"]);
       e.stopPropagation();
     };
@@ -1092,14 +1095,28 @@ comps.undoList = React.createClass({
   }
 });
 
+comps.gridHeader = React.createClass({
+  render: function() {
+    var cur = this.props.column;
+    return d.th({draggable: "true",
+                     onDragStart: function(e) {
+                       data.selection = {action: "move column",
+                                         column: cur};
+                     }},
+                    cur.name);
+  }
+});
+
 comps.grid = React.createClass({
   render: function() {
+    if(!this.props.fields.length) return d.table();
+
     var ths = [];
     var thfilters = [];
     var headers = this.props.fields;
     for(var i in headers) {
       var cur = headers[i];
-      ths.push(d.th({draggable: "true"}, cur.name));
+      ths.push(comps.gridHeader({column: cur}));
       if(cur.filters) {
         thfilters.push(d.th({className: "modifier"}, cur.filters));
       } else {
@@ -1126,6 +1143,44 @@ comps.grid = React.createClass({
   }
 });
 
+comps.inputColumnList = React.createClass({
+  render: function() {
+    var props = this.props;
+    var items = this.props.fields.map(function(cur) {
+      return d.li({draggable: true,
+                   onDragStart: function(e) {
+                     data.selection = {};
+                     data.selection.action = "add column";
+                     data.selection.column = {table: props.name, column: cur.name, name: cur.name};
+                     e.dataTransfer.effectAllowed = "move";
+                     e.dataTransfer.dropEffect = "move";
+                   }},
+                  cur.name);
+    })
+    return d.ul({className: "column-list"}, items);
+  }
+});
+
+comps.inputItem = React.createClass({
+  render: function() {
+    var cur = this.props.table;
+    var items = [d.span({className: "table-name"}, cur.name)];
+    if(cur.active) {
+      items.push(comps.inputColumnList(cur));
+    }
+    return d.li({className: "" + (cur.active ? "active" : ""),
+                 onClick: function() {
+                   cur.active = !cur.active;
+                   dirty();
+                 },
+                 onBlur: function() {
+                   cur.active = false;
+                   dirty();
+                 }},
+                items);
+  }
+});
+
 comps.inputs = React.createClass({
   render: function() {
 
@@ -1133,7 +1188,7 @@ comps.inputs = React.createClass({
     var inputs = this.props.rule.inputs;
     for(var i in inputs) {
       var cur = inputs[i];
-      items.push(d.li({}, data.tables[cur].name));
+      items.push(comps.inputItem({id: cur, table: data.tables[cur]}));
     }
 
     return d.div({className: "inputs-container container"},
@@ -1158,12 +1213,15 @@ comps.workspace = React.createClass({
     }
     var row = -1;
     return function(curRow) {
+      if(!t.rows) return;
       var cur = t.rows[++row];
       if(!cur) return;
       return cur[colIndex];
     };
   },
   fakeRows: function(cols) {
+    if(!cols.length) return [];
+
     var rows = [];
     var iters = [];
     for(var i in cols) {
@@ -1187,15 +1245,72 @@ comps.workspace = React.createClass({
     }
 
   },
+  addColumn: function(col, ix) {
+    var cols = this.props.rule.workspace.columns;
+    for(var i in cols) {
+      if(cols[i].table == col.table && cols[i].name == col.name) {
+        return;
+      }
+    }
+    if(ix === undefined) {
+      cols.push(col);
+      return cols.length - 1;
+    } else {
+      cols.splice(ix,0,col);
+      return ix;
+    }
+  },
+  removeColumn: function(col) {
+    var cols = this.props.rule.workspace.columns;
+    var ix = cols.indexOf(col);
+    cols.splice(ix, 1);
+    return ix;
+  },
+  onDrop: function(e) {
+    var self = this;
+    var action = data.selection.action;
+    if(action == "add column") {
+      var col = data.selection.column;
+      var ix = this.addColumn(col);
+      if(ix !== undefined) {
+        undoEntry({description: "add column",
+                   undo: function(ent) {
+                     self.removeColumn(col);
+                   },
+                   redo: function(ent) {
+                     self.addColumn(col,ix);
+                   }});
+        dirty();
+      }
+    } else if(action == "move column") {
+      var col = data.selection.column;
+      var ix = this.removeColumn(col);
+      undoEntry({description: "remove column",
+                 undo: function(ent) {
+                   self.addColumn(col,ix);
+                 },
+                 redo: function(ent) {
+                   self.removeColumn(col);
+                 }});
+      dirty();
+    }
+  },
+  onDragOver: function(e) {
+    e.preventDefault();
+  },
   render: function() {
     var rule = this.props.rule;
     var cols = rule.workspace.columns;
 
-    return d.div({className: "workspace-container container"},
+    return d.div({className: "workspace-container container",
+                  onDragOver: this.onDragOver,
+                  onDrop: this.onDrop},
                  d.div({className: "workspace"},
                        d.span({className: "description"}, rule.description),
                        comps.grid({fields: cols,
-                                  rows: this.fakeRows(cols)})));
+                                  rows: this.fakeRows(cols)}
+                                 )
+                      ));
   }
 });
 
@@ -1307,7 +1422,7 @@ document.addEventListener("keydown", function(e) {
     case keys.backspace:
       if(data.selection.selecting && !data.selection.editing) {
         handled = true;
-        var entry = undoEntry("remove selected elements");
+        var entry = uiUndoEntry("remove selected elements");
         entry.undo = function(ent) {
           var sels = ent.selections;
           for(var i in sels) {
