@@ -99,7 +99,8 @@ function boundsContainsPoint(los, his, ixes, constants, point) {
   for (var i = ixes.length - 1; i >= 0; i--) {
     var ix = ixes[i];
     if (ix === null) {
-      if (point[i] !== constants[i]) return false;
+      var constant = constants[i];
+      if ((constant !== null) && (point[i] !== constants[i])) return false;
     } else {
       if (compareValue(point[i], los[ix]) === -1) return false;
       if (compareValue(point[i], his[ix]) !== -1) return false;
