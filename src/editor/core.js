@@ -1272,14 +1272,16 @@ comps.workspace = React.createClass({
     if(action == "add column") {
       var col = data.selection.column;
       var ix = this.addColumn(col);
-      undoEntry({description: "add column",
-                 undo: function(ent) {
-                   self.removeColumn(col);
-                 },
-                 redo: function(ent) {
-                   self.addColumn(col,ix);
-                 }});
-      dirty();
+      if(ix !== undefined) {
+        undoEntry({description: "add column",
+                   undo: function(ent) {
+                     self.removeColumn(col);
+                   },
+                   redo: function(ent) {
+                     self.addColumn(col,ix);
+                   }});
+        dirty();
+      }
     } else if(action == "move column") {
       var col = data.selection.column;
       var ix = this.removeColumn(col);
