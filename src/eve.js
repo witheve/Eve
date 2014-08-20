@@ -168,7 +168,7 @@ Provenance.prototype = {
         if (regionContainsPoint(region, ixess, dirtyPoint) === true) {
           regions.splice(i, 1);
           delledRegions.push(region);
-          if (region.isSolution === -1) outputDels.push(region.los);
+          if (region.isSolution === true) outputDels.push(region.los);
           continue nextRegion;
         }
       }
@@ -215,6 +215,8 @@ Provenance.prototype = {
       oldRegions.push(newRegion);
       if (newRegion.isSolution) outputAdds.push(newRegion.los);
     }
+
+    this.queuedRegions = [];
   }
 };
 
@@ -1020,7 +1022,7 @@ gen.eav = function() {
 function memoryEqual(memoryA, memoryB) {
   var outputAdds = [];
   var outputDels = [];
-  memoryA.diff(memoryB, outputAdds, outputDels);
+  memoryB.diff(memoryA, outputAdds, outputDels);
   if ((outputAdds.length > 0) || (outputDels.length > 0)) {
     throw new Error("Only A has " + JSON.stringify(outputDels) + " and only B has " + JSON.stringify(outputAdds));
   } else {
@@ -1133,16 +1135,14 @@ var solverProps = {
                                     incrementalOutput = incrementalSink.update(input, incrementalOutput);
 
                                     input = input.update(adds, dels);
-                                    incrementalOutput = incrementalSink.update(input, incrementalOutput);
                                     batchOutput = batchSink.update(input, batchOutput);
+                                    incrementalOutput = incrementalSink.update(input, incrementalOutput);
 
                                     return memoryEqual(incrementalOutput, batchOutput);
                                   }),
 };
 
-solverProps.incrementalActualJoin.fun([["-3",0,""],[2,2,"-3"]], [], [[2,2,"-3"]]);
-
-// assertAll(solverProps, {tests: 5000});
+assertAll(solverProps, {tests: 5000});
 
 // SYSTEM TESTS
 
