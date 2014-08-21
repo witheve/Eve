@@ -661,16 +661,6 @@ System.prototype = {
 
 // COMPILER
 
-// schema: table field ix
-
-// variable: variable rule
-// pipe: pipe table rule input|output
-// table-constraint: variable table field
-// constant-constraint: variable value
-
-// flow: upstream downstream
-// rule: rule ix
-
 var compilerSchema =
     [["schema", "schema", "table", 0],
      ["schema", "schema", "field", 1],
@@ -682,14 +672,14 @@ var compilerSchema =
      ["schema", "pipe", "pipe", 0],
      ["schema", "pipe", "table", 1],
      ["schema", "pipe", "rule", 2],
-     ["schema", "pipe", "source|sink", 3],
+     ["schema", "pipe", "sourceOrSink", 3],
 
-     ["schema", "table-constraint", "variable", 0],
-     ["schema", "table-constraint", "table", 1],
-     ["schema", "table-constraint", "field", 2],
+     ["schema", "tableConstraint", "variable", 0],
+     ["schema", "tableConstraint", "pipe", 1],
+     ["schema", "tableConstraint", "field", 2],
 
-     ["schema", "constant-constraint", "variable", 0],
-     ["schema", "constant-constraint", "value", 1]];
+     ["schema", "constantConstraint", "variable", 0],
+     ["schema", "constantConstraint", "value", 1]];
 
 function dumpMemory(memory) {
   var facts = memory.facts;
@@ -707,6 +697,14 @@ function dumpMemory(memory) {
   }
 
   var index = {};
+  for (var table in schema) {
+    var tableIndex = index[table] = {};
+    var fields = schema[table];
+    for (var i = fields.length - 1; i >= 0; i--) {
+      var fieldIndex = tableIndex[fields[i]] = {};
+    }
+  }
+
   for (var i = facts.length - 1; i >= 0; i--) {
     var fact = facts[i];
     var table = fact[0];
@@ -719,8 +717,7 @@ function dumpMemory(memory) {
       for (var j = fields.length - 1; j >= 0; j--) {
         var field = fields[j];
         var value = fact[j+1]; // +1 because table is 0
-        var tableIndex = index[table] || (index[table] = {});
-        var fieldIndex = tableIndex[field] || (tableIndex[field] = {});
+        var fieldIndex = index[table][field];
         var results = fieldIndex[value] || (fieldIndex[value] = []);
         results.push(labelledFact);
       }
@@ -728,6 +725,59 @@ function dumpMemory(memory) {
   }
 
   return {schema: schema, index: index};
+}
+
+function compileRule(dump, rule) {
+  var variables = dump.index.variable.rule[rule] || [];
+  var variableConstants = {};
+  for (var i = variables.length - 1; i >= 0; i--) {
+    var variable = variables[i];
+    var constantConstraints = dump.index.constantConstraint.variable[variable.variable] || [];
+    if (constantConstraints.length > 1) assert(false);
+    if (constantConstraints.length === 1) {
+      variables.slice(i);
+      variableConstants[variable.variable] = constantConstraints[0].value;
+    }
+  }
+  var variableIxes = {};
+  for (var i = variables.length - 1; i >= 0; i--) {
+    variableIxes[variables[i].variable] = i;
+  }
+
+  var pipes = dump.index.pipe.rule[rule] || [];
+  var constraints = [];
+  var sinks = [];
+  for (var i = pipes.length - 1; i >= 0; i--) {
+    var pipe = pipes[i];
+    console.log(i);
+    console.log(pipe);
+    var fields = dump.schema[pipe.table];
+    var fieldIxes = {};
+    for (var j = fields.length - 1; j >= 0; j--) {
+      fieldIxes[fields[j]] = j;
+    }
+    var tableConstraints = dump.index.tableConstraint.pipe[pipe.pipe] || [];
+    var ixes = makeArray(fields.length, null);
+    var constants = makeArray(fields.length, null);
+    for (var j = tableConstraints.length - 1; j >= 0; j--) {
+      var tableConstraint = tableConstraints[j];
+      var fieldIx = fieldIxes[tableConstraint.field];
+      var variableIx = variableIxes[tableConstraint.variable];
+      var constant = variableConstants[tableConstraint.variable];
+      if (constant === undefined) {
+        ixes[fieldIx] = variableIx;
+      } else {
+        constants[fieldIx] = constant;
+      }
+    }
+    if (pipe.sourceOrSink === "source") {
+      constraints.push(MemoryConstraint.fresh(ixes, constants));
+    } else if (pipe.sourceOrSink === "sink") {
+      sinks.push(new Sink(ixes, constants));
+    } else assert(false);
+  }
+
+  return new Flow(Solver.fresh(variables.length, constraints), sinks);
 }
 
 // TESTS
@@ -1034,6 +1084,27 @@ function manualPathTest() {
 // manualPathTest();
 
 // COMPILER TESTS
+
+function compileTest() {
+  var facts = [["schema", "edge", "x", 0],
+               ["schema", "edge", "y", 1],
+               ["schema", "connected", "x", 0],
+               ["schema", "connected", "y", 1],
+               ["variable", "a", "testRule"],
+               ["variable", "b", "testRule"],
+               ["pipe", "edgePipe", "edge", "testRule", "source"],
+               ["pipe", "connectedPipe", "connected", "testRule", "sink"],
+               ["tableConstraint", "a", "edgePipe", "x"],
+               ["tableConstraint", "b", "edgePipe", "y"],
+               ["tableConstraint", "a", "connectedPipe", "x"],
+               ["tableConstraint", "b", "connectedPipe", "y"]];
+
+  var dump = dumpMemory(Memory.fromFacts(compilerSchema.concat(facts)));
+
+  return compileRule(dump, "testRule");
+}
+
+// compileTest();
 
 function compiledPathTest() {
   var program = ["rule edges",
