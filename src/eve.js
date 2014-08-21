@@ -724,15 +724,15 @@ function dumpMemory(memory) {
     }
   }
 
-  return {schema: schema, index: index};
+  return index;
 }
 
 function compileRule(dump, rule) {
-  var variables = dump.index.variable.rule[rule] || [];
+  var variables = dump.variable.rule[rule] || [];
   var variableConstants = {};
   for (var i = variables.length - 1; i >= 0; i--) {
     var variable = variables[i];
-    var constantConstraints = dump.index.constantConstraint.variable[variable.variable] || [];
+    var constantConstraints = dump.constantConstraint.variable[variable.variable] || [];
     if (constantConstraints.length > 1) assert(false);
     if (constantConstraints.length === 1) {
       variables.slice(i);
@@ -744,30 +744,25 @@ function compileRule(dump, rule) {
     variableIxes[variables[i].variable] = i;
   }
 
-  var pipes = dump.index.pipe.rule[rule] || [];
+  var pipes = dump.pipe.rule[rule] || [];
   var constraints = [];
   var sinks = [];
   for (var i = pipes.length - 1; i >= 0; i--) {
     var pipe = pipes[i];
-    console.log(i);
-    console.log(pipe);
-    var fields = dump.schema[pipe.table];
-    var fieldIxes = {};
-    for (var j = fields.length - 1; j >= 0; j--) {
-      fieldIxes[fields[j]] = j;
-    }
-    var tableConstraints = dump.index.tableConstraint.pipe[pipe.pipe] || [];
-    var ixes = makeArray(fields.length, null);
-    var constants = makeArray(fields.length, null);
+    var tableConstraints = dump.tableConstraint.pipe[pipe.pipe] || [];
+    var fields = dump.schema.table[pipe.table] || [];
+    var ixes = makeArray(fields.length + 1, null); // +1 because table is 0
+    var constants = makeArray(fields.length + 1, null); // +1 because table is 0
+    constants[0] = pipe.table;
     for (var j = tableConstraints.length - 1; j >= 0; j--) {
       var tableConstraint = tableConstraints[j];
-      var fieldIx = fieldIxes[tableConstraint.field];
+      var fieldIx = dump.schema.field[tableConstraint.field][0].ix;
       var variableIx = variableIxes[tableConstraint.variable];
       var constant = variableConstants[tableConstraint.variable];
       if (constant === undefined) {
-        ixes[fieldIx] = variableIx;
+        ixes[fieldIx + 1] = variableIx; // +1 because table is 0
       } else {
-        constants[fieldIx] = constant;
+        constants[fieldIx + 1] = constant; // +1 because table is 0
       }
     }
     if (pipe.sourceOrSink === "source") {
@@ -1056,26 +1051,26 @@ function manualPathTest() {
   var memory = Memory.empty();
   var system = new System(memory, [flow0, flow1], [[1], [1]]);
 
-  var facts = [["a", "has-an-edge-to", "b"],
-               ["b", "has-an-edge-to", "c"],
-               ["c", "has-an-edge-to", "d"],
-               ["d", "has-an-edge-to", "b"]];
+  var facts = [["a", "b"],
+               ["b", "c"],
+               ["c", "d"],
+               ["d", "b"]];
   system.update(facts, []);
 
-  var derivedFacts = [["a", "has-a-path-to", "b"],
-                      ["b", "has-a-path-to", "c"],
-                      ["c", "has-a-path-to", "d"],
-                      ["d", "has-a-path-to", "b"],
+  var derivedFacts = [["a", "b"],
+                      ["b", "c"],
+                      ["c", "d"],
+                      ["d", "b"],
 
-                      ["a", "has-a-path-to", "c"],
-                      ["b", "has-a-path-to", "d"],
-                      ["c", "has-a-path-to", "b"],
-                      ["d", "has-a-path-to", "c"],
+                      ["a", "c"],
+                      ["b", "d"],
+                      ["c", "b"],
+                      ["d", "c"],
 
-                      ["a", "has-a-path-to", "d"],
-                      ["b", "has-a-path-to", "b"],
-                      ["c", "has-a-path-to", "c"],
-                      ["d", "has-a-path-to", "d"]];
+                      ["a", "d"],
+                      ["b", "b"],
+                      ["c", "c"],
+                      ["d", "d"]];
   var expectedFacts = facts.concat(derivedFacts);
 
   memoryEqual(system.memory, Memory.fromFacts(expectedFacts));
@@ -1085,67 +1080,61 @@ function manualPathTest() {
 
 // COMPILER TESTS
 
-function compileTest() {
-  var facts = [["schema", "edge", "x", 0],
-               ["schema", "edge", "y", 1],
-               ["schema", "connected", "x", 0],
-               ["schema", "connected", "y", 1],
-               ["variable", "a", "testRule"],
-               ["variable", "b", "testRule"],
-               ["pipe", "edgePipe", "edge", "testRule", "source"],
-               ["pipe", "connectedPipe", "connected", "testRule", "sink"],
-               ["tableConstraint", "a", "edgePipe", "x"],
-               ["tableConstraint", "b", "edgePipe", "y"],
-               ["tableConstraint", "a", "connectedPipe", "x"],
-               ["tableConstraint", "b", "connectedPipe", "y"]];
-
-  var dump = dumpMemory(Memory.fromFacts(compilerSchema.concat(facts)));
-
-  return compileRule(dump, "testRule");
-}
-
-// compileTest();
-
 function compiledPathTest() {
-  var program = ["rule edges",
-                 "@ a 'has-an-edge-to' b",
-                 "+ a 'has-a-path-to' b",
-                 "",
-                 "rule paths",
-                 "@ a 'has-an-edge-to' b",
-                 "@ b 'has-a-path-to' c",
-                 "+ a 'has-a-path-to' c",
-                 "",
-                 "strata",
-                 "~ edges",
-                 "~ paths"];
-  var programMemory = parseSystem(Memory.empty(), program);
-  var system = compileSystem(dumpMemory(programMemory));
+  var compilerFacts = [["schema", "edge", "edgeX", 0],
+                       ["schema", "edge", "edgeY", 1],
+                       ["schema", "path", "pathX", 0],
+                       ["schema", "path", "pathY", 1],
 
-  var facts = [["a", "has-an-edge-to", "b"],
-               ["b", "has-an-edge-to", "c"],
-               ["c", "has-an-edge-to", "d"],
-               ["d", "has-an-edge-to", "b"]];
-  var adds = [];
+                       ["variable", "edgeA", "edgeRule"],
+                       ["variable", "edgeB", "edgeRule"],
+                       ["pipe", "edgeEdgePipe", "edge", "edgeRule", "source"],
+                       ["pipe", "edgePathPipe", "path", "edgeRule", "sink"],
+                       ["tableConstraint", "edgeA", "edgeEdgePipe", "edgeX"],
+                       ["tableConstraint", "edgeB", "edgeEdgePipe", "edgeY"],
+                       ["tableConstraint", "edgeA", "edgePathPipe", "pathX"],
+                       ["tableConstraint", "edgeB", "edgePathPipe", "pathY"],
+
+                       ["variable", "pathA", "pathRule"],
+                       ["variable", "pathB", "pathRule"],
+                       ["variable", "pathC", "pathRule"],
+                       ["pipe", "pathEdgePipe", "edge", "pathRule", "source"],
+                       ["pipe", "pathPathSourcePipe", "path", "pathRule", "source"],
+                       ["pipe", "pathPathSinkPipe", "path", "pathRule", "sink"],
+                       ["tableConstraint", "pathA", "pathEdgePipe", "edgeX"],
+                       ["tableConstraint", "pathB", "pathEdgePipe", "edgeY"],
+                       ["tableConstraint", "pathB", "pathPathSourcePipe", "pathX"],
+                       ["tableConstraint", "pathC", "pathPathSourcePipe", "pathY"],
+                       ["tableConstraint", "pathA", "pathPathSinkPipe", "pathX"],
+                       ["tableConstraint", "pathC", "pathPathSinkPipe", "pathY"]];
+
+  var dump = dumpMemory(Memory.fromFacts(compilerSchema.concat(compilerFacts)));
+
+  // TODO compile system too
+  var system = new System(Memory.empty(), [compileRule(dump, "edgeRule"), compileRule(dump, "pathRule")], [[1],[1]]);
+
+  var facts = [["edge", "a", "b"],
+               ["edge", "b", "c"],
+               ["edge", "c", "d"],
+               ["edge", "d", "b"]];
   // console.log(system);
-  system.update(adds, []);
+  system.update(facts, []);
 
-  var derivedFacts = [["a", "has-a-path-to", "b"],
-                      ["b", "has-a-path-to", "c"],
-                      ["c", "has-a-path-to", "d"],
-                      ["d", "has-a-path-to", "b"],
+  var derivedFacts = [["path", "a", "b"],
+                      ["path", "b", "c"],
+                      ["path", "c", "d"],
+                      ["path", "d", "b"],
 
-                      ["a", "has-a-path-to", "c"],
-                      ["b", "has-a-path-to", "d"],
-                      ["c", "has-a-path-to", "b"],
-                      ["d", "has-a-path-to", "c"],
+                      ["path", "a", "c"],
+                      ["path", "b", "d"],
+                      ["path", "c", "b"],
+                      ["path", "d", "c"],
 
-                      ["a", "has-a-path-to", "d"],
-                      ["b", "has-a-path-to", "b"],
-                      ["c", "has-a-path-to", "c"],
-                      ["d", "has-a-path-to", "d"]];
+                      ["path", "a", "d"],
+                      ["path", "b", "b"],
+                      ["path", "c", "c"],
+                      ["path", "d", "d"]];
   var expectedFacts = facts.concat(derivedFacts);
-  var expectedFacts = [];
 
   memoryEqual(system.memory, Memory.fromFacts(expectedFacts));
 }
