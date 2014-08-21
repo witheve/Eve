@@ -666,19 +666,19 @@ var compilerSchema =
      ["schema", "schema", "field", 1],
      ["schema", "schema", "ix", 2],
 
-     ["schema", "variable", "variable", 0],
-     ["schema", "variable", "rule", 1],
+     ["schema", "valve", "valve", 0],
+     ["schema", "valve", "rule", 1],
 
      ["schema", "pipe", "pipe", 0],
      ["schema", "pipe", "table", 1],
      ["schema", "pipe", "rule", 2],
      ["schema", "pipe", "sourceOrSink", 3],
 
-     ["schema", "tableConstraint", "variable", 0],
+     ["schema", "tableConstraint", "valve", 0],
      ["schema", "tableConstraint", "pipe", 1],
      ["schema", "tableConstraint", "field", 2],
 
-     ["schema", "constantConstraint", "variable", 0],
+     ["schema", "constantConstraint", "valve", 0],
      ["schema", "constantConstraint", "value", 1]];
 
 function dumpMemory(memory) {
@@ -728,20 +728,20 @@ function dumpMemory(memory) {
 }
 
 function compileRule(dump, rule) {
-  var variables = dump.variable.rule[rule] || [];
-  var variableConstants = {};
-  for (var i = variables.length - 1; i >= 0; i--) {
-    var variable = variables[i];
-    var constantConstraints = dump.constantConstraint.variable[variable.variable] || [];
+  var valves = dump.valve.rule[rule] || [];
+  var valveConstants = {};
+  for (var i = valves.length - 1; i >= 0; i--) {
+    var valve = valves[i];
+    var constantConstraints = dump.constantConstraint.valve[valve.valve] || [];
     if (constantConstraints.length > 1) assert(false);
     if (constantConstraints.length === 1) {
-      variables.slice(i);
-      variableConstants[variable.variable] = constantConstraints[0].value;
+      valves.slice(i);
+      valveConstants[valve.valve] = constantConstraints[0].value;
     }
   }
-  var variableIxes = {};
-  for (var i = variables.length - 1; i >= 0; i--) {
-    variableIxes[variables[i].variable] = i;
+  var valveIxes = {};
+  for (var i = valves.length - 1; i >= 0; i--) {
+    valveIxes[valves[i].valve] = i;
   }
 
   var pipes = dump.pipe.rule[rule] || [];
@@ -757,10 +757,10 @@ function compileRule(dump, rule) {
     for (var j = tableConstraints.length - 1; j >= 0; j--) {
       var tableConstraint = tableConstraints[j];
       var fieldIx = dump.schema.field[tableConstraint.field][0].ix;
-      var variableIx = variableIxes[tableConstraint.variable];
-      var constant = variableConstants[tableConstraint.variable];
+      var valveIx = valveIxes[tableConstraint.valve];
+      var constant = valveConstants[tableConstraint.valve];
       if (constant === undefined) {
-        ixes[fieldIx + 1] = variableIx; // +1 because table is 0
+        ixes[fieldIx + 1] = valveIx; // +1 because table is 0
       } else {
         constants[fieldIx + 1] = constant; // +1 because table is 0
       }
@@ -772,7 +772,7 @@ function compileRule(dump, rule) {
     } else assert(false);
   }
 
-  return new Flow(Solver.fresh(variables.length, constraints), sinks);
+  return new Flow(Solver.fresh(valves.length, constraints), sinks);
 }
 
 // TESTS
@@ -1086,8 +1086,8 @@ function compiledPathTest() {
                        ["schema", "path", "pathX", 0],
                        ["schema", "path", "pathY", 1],
 
-                       ["variable", "edgeA", "edgeRule"],
-                       ["variable", "edgeB", "edgeRule"],
+                       ["valve", "edgeA", "edgeRule"],
+                       ["valve", "edgeB", "edgeRule"],
                        ["pipe", "edgeEdgePipe", "edge", "edgeRule", "source"],
                        ["pipe", "edgePathPipe", "path", "edgeRule", "sink"],
                        ["tableConstraint", "edgeA", "edgeEdgePipe", "edgeX"],
@@ -1095,9 +1095,9 @@ function compiledPathTest() {
                        ["tableConstraint", "edgeA", "edgePathPipe", "pathX"],
                        ["tableConstraint", "edgeB", "edgePathPipe", "pathY"],
 
-                       ["variable", "pathA", "pathRule"],
-                       ["variable", "pathB", "pathRule"],
-                       ["variable", "pathC", "pathRule"],
+                       ["valve", "pathA", "pathRule"],
+                       ["valve", "pathB", "pathRule"],
+                       ["valve", "pathC", "pathRule"],
                        ["pipe", "pathEdgePipe", "edge", "pathRule", "source"],
                        ["pipe", "pathPathSourcePipe", "path", "pathRule", "source"],
                        ["pipe", "pathPathSinkPipe", "path", "pathRule", "sink"],
