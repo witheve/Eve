@@ -660,254 +660,79 @@ System.prototype = {
 };
 
 // COMPILER
-// rule: ix
+
+// schema: table field ix
+
+// variable: variable rule
+// pipe: pipe table rule input|output
+// table-constraint: variable table field
+// constant-constraint: variable value
+
 // flow: upstream downstream
-// clause: rule input|output
-// assignment: clause field constant|variable value
-// constant: variable constant
-// variable: rule ix
-// primitive: rule name ...
-// groupby: rule variable
-// sortby: rule ix variable
-// ixby: rule variable
+// rule: rule ix
+
+var compilerSchema =
+    [["schema", "schema", "table", 0],
+     ["schema", "schema", "field", 1],
+     ["schema", "schema", "ix", 2],
+
+     ["schema", "variable", "variable", 0],
+     ["schema", "variable", "rule", 1],
+
+     ["schema", "pipe", "pipe", 0],
+     ["schema", "pipe", "table", 1],
+     ["schema", "pipe", "rule", 2],
+     ["schema", "pipe", "source|sink", 3],
+
+     ["schema", "table-constraint", "variable", 0],
+     ["schema", "table-constraint", "table", 1],
+     ["schema", "table-constraint", "field", 2],
+
+     ["schema", "constant-constraint", "variable", 0],
+     ["schema", "constant-constraint", "value", 1]];
 
 function dumpMemory(memory) {
   var facts = memory.facts;
-  var eav = {};
-  var vae = {};
+
+  var schema = {};
   for (var i = facts.length - 1; i >= 0; i--) {
-    var point = facts[i].los;
-    var e = point[0];
-    var a = point[1];
-    var v = point[2];
-    if (eav[e] === undefined) eav[e] = {};
-    if (eav[e][a] === undefined) eav[e][a] = [];
-    eav[e][a].push(v);
-    if (vae[v] === undefined) vae[v] = {};
-    if (vae[v][a] === undefined) vae[v][a] = [];
-    vae[v][a].push(e);
+    var fact = facts[i];
+    if (fact[0] === "schema") {
+      var table = fact[1];
+      var field = fact[2];
+      var ix = fact[3];
+      var fields = schema[table] || (schema[table] = []);
+      fields[ix] = field;
+    }
   }
-  return {eav: eav, vae: vae};
-}
 
-function compileInputClause(dump, clauseId, variableIxes) {
-  var ixes = [null, null, null];
-  var assignmentIds = dump.vae[clauseId]["assignment.clause"];
-  for (var i = assignmentIds.length - 1; i >= 0; i--) {
-    var assignment = dump.eav[assignmentIds[i]];
-    var field = assignment["assignment.field"][0];
-    var value = assignment["assignment.value"][0];
-    var pos;
-    if (field === "entity") {
-        pos = 0;
-      } else if (field === "attribute") {
-        pos = 1;
-      } else if (field === "value") {
-        pos = 2;
+  var index = {};
+  for (var i = facts.length - 1; i >= 0; i--) {
+    var fact = facts[i];
+    var table = fact[0];
+    var fields = schema[table];
+    if (fields !== undefined) {
+      var labelledFact = {};
+      for (var j = fields.length - 1; j >= 0; j--) {
+        labelledFact[fields[j]] = fact[j+1]; // +1 because table is 0
       }
-    if (assignment["assignment.constant|variable"][0] === "variable") {
-      ixes[pos] = variableIxes[value];
-    } else {
-      // ignore constants - should have been supplanted by variables by this point
-    }
-  }
-  return MemoryConstraint.fresh(ixes);
-}
-
-function compileOutputClause(dump, clauseId, variableIxes) {
-  var ixes = [null, null, null];
-  var constants = [null, null, null];
-  var assignmentIds = dump.vae[clauseId]["assignment.clause"];
-  for (var i = assignmentIds.length - 1; i >= 0; i--) {
-    var assignment = dump.eav[assignmentIds[i]];
-    var field = assignment["assignment.field"][0];
-    var value = assignment["assignment.value"][0];
-    var pos;
-    if (field === "entity") {
-        pos = 0;
-      } else if (field === "attribute") {
-        pos = 1;
-      } else if (field === "value") {
-        pos = 2;
-      }
-    if (assignment["assignment.constant|variable"][0] === "variable") {
-      ixes[pos] = variableIxes[value];
-    } else {
-      constants[pos] = value;
-    }
-  }
-  return [ixes, constants];
-}
-
-function compileRule(dump, ruleId) {
-  var variableIds = dump.vae[ruleId]["variable.rule"];
-  var variableIxes = {};
-  for (var i = variableIds.length - 1; i >= 0; i--) {
-    variableIxes[variableIds[i]] = dump.eav[variableIds[i]]["variable.ix"][0];
-  }
-
-  var constraints = [];
-  var outputIxess = [];
-  var outputConstantss = [];
-
-  var clauseIds = dump.vae[ruleId]["clause.rule"];
-  for (var i = clauseIds.length - 1; i >= 0; i--) {
-    if (dump.eav[clauseIds[i]]["clause.input|output"][0] === "input") {
-      constraints.push(compileInputClause(dump, clauseIds[i], variableIxes));
-    } else {
-      var ixesAndConstants = compileOutputClause(dump, clauseIds[i], variableIxes);
-      outputIxess.push(ixesAndConstants[0]);
-      outputConstantss.push(ixesAndConstants[1]);
-    }
-  }
-
-  for (var i = variableIds.length - 1; i >= 0; i--) {
-    var constants = dump.vae[variableIds[i]]["constant.variable"] || [];
-    for (var j = constants.length - 1; j >= 0; j--) {
-      var ix = variableIxes[variableIds[i]];
-      var constant = dump.eav[constants[j]]["constant.constant"][0];
-      constraints.push(new ConstantConstraint(ix, constant));
-    }
-  }
-
-  return new Flow(Solver.fresh(variableIds.length, constraints), outputIxess, outputConstantss);
-}
-
-function compileSystem(dump) {
-  // TODO need to have a way to identify different systems, rather than just grabbing every rule
-  // console.log(dump);
-  var flows = [];
-  var downstream = [];
-  for (var id in dump.eav) {
-    var ruleIxes = dump.eav[id]["rule.ix"];
-    if (ruleIxes !== undefined) {
-      var ruleIx = ruleIxes[0];
-      flows[ruleIx] = compileRule(dump, id);
-      var flowIds = dump.vae[id]["flow.upstream"];
-      var downstreamIxes = [];
-      for (var i = flowIds.length - 1; i >= 0; i--) {
-        var downstreamId = dump.eav[flowIds[i]]["flow.downstream"][0];
-        var downstreamIx = dump.eav[downstreamId]["rule.ix"][0];
-        downstreamIxes[i] = downstreamIx;
-      }
-      downstream[ruleIx] = downstreamIxes;
-    }
-  }
-  return new System(Memory.empty(), flows, downstream);
-}
-
-// SYNTAX
-
-var nextId = 0;
-
-function newId() {
-  return nextId++;
-}
-
-var alpha = /^[a-zA-Z]/;
-
-function parseClause(facts, line, rule, inputOrOutput, variables) {
-  var values = line.slice(2).split(" ");
-  var clause = "clause" + newId();
-  facts.push([clause, "clause.rule", rule]);
-  facts.push([clause, "clause.input|output", inputOrOutput]);
-  var fields = ["entity", "attribute", "value"];
-  for (var i = fields.length - 1; i >= 0; i--) {
-    var assignment = "assignment" + newId();
-    var value = values[i];
-    var field = fields[i];
-    if (alpha.test(value)) {
-      variables[value] = true;
-      facts.push([assignment, "assignment.clause", clause]);
-      facts.push([assignment, "assignment.field", field]);
-      facts.push([assignment, "assignment.constant|variable", "variable"]);
-      facts.push([assignment, "assignment.value", value]);
-    } else if (inputOrOutput === "input") {
-      var constant = "constant" + newId();
-      facts.push([constant, "constant.constant", eval(value)]);
-      // your face can be harmful
-      var variable = "variable" + newId();
-      variables[variable] = true;
-      facts.push([constant, "constant.variable", variable]);
-      facts.push([assignment, "assignment.clause", clause]);
-      facts.push([assignment, "assignment.field", field]);
-      facts.push([assignment, "assignment.constant|variable", "variable"]);
-      facts.push([assignment, "assignment.value", variable]);
-    } else if (inputOrOutput === "output") {
-      facts.push([assignment, "assignment.clause", clause]);
-      facts.push([assignment, "assignment.field", field]);
-      facts.push([assignment, "assignment.constant|variable", "constant"]);
-      facts.push([assignment, "assignment.value", eval(value)]);
-      // your face can be harmful
-    }
-  }
-}
-
-function parseVariables(facts, rule, variables) {
-  var variables = Object.keys(variables);
-  for (var i = variables.length - 1; i >= 0; i--) {
-    facts.push([variables[i], "variable.rule", rule]);
-    facts.push([variables[i], "variable.ix", i]);
-  }
-}
-
-function parseRule(facts, lines, rule) {
-  var variables = {};
-  while (true) {
-    var line = lines.shift();
-    if (line === "") {
-      break;
-    } else if (line[0] === "@") {
-      parseClause(facts, line, rule, "input", variables);
-    } else if (line[0] === "+") {
-      parseClause(facts, line, rule, "output", variables);
-    } else assert(false);
-  }
-  parseVariables(facts, rule, variables);
-}
-
-function parseStrata(facts, lines) {
-  var ix = 0;
-  while (true) {
-    var line = lines.shift();
-    if ((line === "") || (line === undefined)) {
-      break;
-    } else {
-      var rules = line.slice(2).split(" ");
-      for (var i = 0; i < rules.length; i++) {
-        facts.push([rules[i], "rule.ix", ix]);
-        ix++;
-        for (var j = 0; j < rules.length; j++) {
-          var flow = "flow" + newId();
-          facts.push([flow, "flow.upstream", rules[i]]);
-          facts.push([flow, "flow.downstream", rules[j]]);
-        }
+      for (var j = fields.length - 1; j >= 0; j--) {
+        var field = fields[j];
+        var value = fact[j+1]; // +1 because table is 0
+        var tableIndex = index[table] || (index[table] = {});
+        var fieldIndex = tableIndex[field] || (tableIndex[field] = {});
+        var results = fieldIndex[value] || (fieldIndex[value] = []);
+        results.push(labelledFact);
       }
     }
   }
-}
 
-function parseSystem(memory, lines) {
-  var facts = [];
-
-  while (lines.length > 0) {
-    var line = lines.shift();
-    if (line === "") {
-      continue;
-    } else if (line.indexOf("rule") === 0) {
-      var rule = line.split(" ")[1];
-      parseRule(facts, lines, rule);
-    } else if (line.indexOf("strata") === 0) {
-      parseStrata(facts, lines);
-    }
-  }
-
-  return memory.update(facts, []);
+  return {schema: schema, index: index};
 }
 
 // TESTS
 
-var jsc = jsc;
+var jsc = jsc; // just to make jshint happy
 var gen = {};
 
 function Unshrinkable() {}
@@ -1169,12 +994,12 @@ var solverProps = {
 // SYSTEM TESTS
 
 function manualPathTest() {
-  var constraint0 = MemoryConstraint.fresh([0,null,1], [null, "has-an-edge-to", null]);
+  var constraint0 = MemoryConstraint.fresh([0,null,1], [null,"has-an-edge-to",null]);
   var sink0 = new Sink([0,null,1], [null,"has-a-path-to",null]);
   var flow0 = new Flow(Solver.fresh(2, [constraint0]), [sink0]);
 
-  var constraint1 = MemoryConstraint.fresh([0,null,1], [null, "has-an-edge-to", null]);
-  var constraint2 = MemoryConstraint.fresh([1,null,2], [null, "has-a-path-to", null]);
+  var constraint1 = MemoryConstraint.fresh([0,null,1], [null,"has-an-edge-to",null]);
+  var constraint2 = MemoryConstraint.fresh([1,null,2], [null,"has-a-path-to",null]);
   var sink1 = new Sink([0,null,2], [null,"has-a-path-to",null]);
   var flow1 = new Flow(Solver.fresh(3, [constraint1, constraint2]), [sink1]);
 
