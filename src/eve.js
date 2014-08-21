@@ -1086,7 +1086,9 @@ function compiledPathTest() {
 function soFast(n) {
   var constraint0 = MemoryConstraint.fresh([0,1,2]);
   var constraint1 = MemoryConstraint.fresh([0,1,2]);
+  var sink0 = new Sink([0,1,2], [null,null,null]);
   var solver = Solver.fresh(3, [constraint0, constraint1]);
+  var flow = new Flow(solver, [sink0]);
 
   var input = Memory.empty();
   var output = Memory.empty();
@@ -1097,21 +1099,23 @@ function soFast(n) {
   }
 
   input = input.update(adds, []);
-  // console.time("soFast " + n);
-  output = solver.update(input, output);
-  // console.timeEnd("soFast " + n);
+  console.time("soFast " + n);
+  output = flow.update(input, output);
+  console.timeEnd("soFast " + n);
 
-  // console.log("Regions: " + solver.provenance.ptree.regions.length);
+  console.info("Regions: " + solver.provenance.regions.length);
 
   return output;
 }
 
-// soFast(1000);
+// soFast(100000);
 
 function soSlow(n) {
   var constraint0 = MemoryConstraint.fresh([0,1,2]);
   var constraint1 = MemoryConstraint.fresh([0,1,2]);
+  var sink0 = new Sink([0,1,2], [null,null,null]);
   var solver = Solver.fresh(3, [constraint0, constraint1]);
+  var flow = new Flow(solver, [sink0]);
 
   var input = Memory.empty();
   var output = Memory.empty();
@@ -1127,23 +1131,23 @@ function soSlow(n) {
   }
 
   input = input.update(addsA, []);
-  // console.time("soSlowA " + n);
-  output = solver.update(input, output);
-  // console.timeEnd("soSlowA " + n);
+  console.time("soSlowA " + n);
+  output = flow.update(input, output);
+  console.timeEnd("soSlowA " + n);
 
   input = input.update(addsB, []);
-  // console.time("soSlowB " + n);
-  output = solver.update(input, output);
-  // console.timeEnd("soSlowB " + n);
+  console.time("soSlowB " + n);
+  output = flow.update(input, output);
+  console.timeEnd("soSlowB " + n);
 
   input = input.update([[0.5,0.5,0.5]], []);
-  // console.time("soSlowC " + n);
-  output = solver.update(input, output);
-  // console.timeEnd("soSlowC " + n);
+  console.time("soSlowC " + n);
+  output = flow.update(input, output);
+  console.timeEnd("soSlowC " + n);
 
-  // console.log("Regions: " + solver.provenance.ptree.regions.length);
+  console.info("Regions: " + solver.provenance.regions.length);
 
   return output;
 }
 
-// soSlow(1000);
+// soSlow(10000);
