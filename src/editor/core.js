@@ -6,39 +6,13 @@ var data = eve.data = {tree: {elements: []}, selection: {}, undo: {stack:{childr
                        page: "rules",
                        activeRule: "foo",
                        globalId: 0,
-                       rules: {"foo": {inputs: ["users", "email inbox"],
-                                       workspace: {columns: [{table: "users",
-                                                              name: "id"},
-                                                             {table: "users",
-                                                              filters: "contains 'tom'",
-                                                              name: "name"},
-                                                             {table: "users",
-                                                              name: "email"},
-                                                             {name: "subject",
-                                                              formula: "Hola"},
-                                                             {name: "body",
-                                                              formula: "Hey *name*, ..."},
-                                                            ]},
-                                       outputs: ["email outbox"],
-                                       description: "send an email to tom"},
-                               "woo": {inputs: ["users"],
-                                      workspace: {columns: []},
-                                       outputs: [],
+                       rules: {
+                               "boo": {pipes: [{table: "users", type: "source"}, {table: "email outbox", type: "sink"}],
+                                       valves: [{id: "foo", name: "woohoo"}],
+                                       links: [{type: "tableConstraint", valve: "foo", table: "users", field: "name"},
+                                               {type: "tableConstraint", valve: "foo", table: "email outbox", field: "to"}],
                                        description: "look at users"},
-                               "bar": {inputs: ["users"],
-                                       workspace: {columns: [{table: "users",
-                                                              name: "id"},
-                                                             {table: "users",
-                                                              name: "name"},
-                                                             {table: "users",
-                                                              name: "email"},
-                                                             {name: "subject",
-                                                              formula: "Hola"},
-                                                             {name: "body",
-                                                              formula: "Hey *name*, ..."},
-                                                            ]},
-                                       outputs: ["email outbox"],
-                                       description: "send an email to bar"}},
+                               },
                        tables: {"users": {name: "users",
                                           fields: [{name: "id"}, {name: "name"}, {name: "email"}, {name: "phone"}],
                                           rows: [[0,"chris","ibdknox@gmail.com","5555555555"],
@@ -1182,18 +1156,18 @@ comps.inputItem = React.createClass({
   }
 });
 
-comps.inputs = React.createClass({
+comps.sources = React.createClass({
   render: function() {
 
     var items = [];
-    var inputs = this.props.rule.inputs;
-    for(var i in inputs) {
-      var cur = inputs[i];
+    var sources = this.props.sources;
+    for(var i in sources) {
+      var cur = sources[i].table;
       items.push(comps.inputItem({id: cur, table: data.tables[cur]}));
     }
 
     return d.div({className: "inputs-container container"},
-                 d.ul({className: "inputs"}, items, comps.ioSelector({type: "input"})));
+                 d.ul({className: "inputs"}, items, comps.ioSelector({type: "source"})));
   }
 });
 
@@ -1221,6 +1195,7 @@ comps.workspace = React.createClass({
     };
   },
   fakeRows: function(cols) {
+    return [];
     if(!cols.length) return [];
 
     var rows = [];
@@ -1247,7 +1222,7 @@ comps.workspace = React.createClass({
 
   },
   addColumn: function(col, ix) {
-    var cols = this.props.rule.workspace.columns;
+    var cols = this.props.rule.valves;
     for(var i in cols) {
       if(cols[i].table == col.table && cols[i].name == col.name) {
         return;
@@ -1262,7 +1237,7 @@ comps.workspace = React.createClass({
     }
   },
   removeColumn: function(col) {
-    var cols = this.props.rule.workspace.columns;
+    var cols = this.props.rule.valves;
     var ix = cols.indexOf(col);
     cols.splice(ix, 1);
     return ix;
@@ -1301,7 +1276,7 @@ comps.workspace = React.createClass({
   },
   render: function() {
     var rule = this.props.rule;
-    var cols = rule.workspace.columns;
+    var cols = rule.valves;
 
     return d.div({className: "workspace-container container",
                   onDragOver: this.onDragOver,
@@ -1320,7 +1295,7 @@ comps.ioSelectorItem = React.createClass({
     var props = this.props;
     return d.li({className: "",
                  onClick: function() {
-                   data.rules[data.activeRule][props.type + "s"].push(props.table.name);
+                   data.rules[data.activeRule].pipes.push({table: props.table.name, type: props.type});
                    data[props.type + "Selector"] = "closed";
                    dirty();
                  }},
@@ -1350,29 +1325,33 @@ comps.ioSelector = React.createClass({
   }
 });
 
-comps.outputs = React.createClass({
+comps.sinks = React.createClass({
   render: function() {
 
     var items = [];
-    var outputs = this.props.rule.outputs;
-    for(var i in outputs) {
-      var cur = data.tables[outputs[i]];
+    var sinks = this.props.sinks;
+    for(var i in sinks) {
+      var cur = data.tables[sinks[i].table];
       items.push(d.li({}, d.h2({}, cur.name), comps.grid(cur)));
     }
 
     return d.div({className: "outputs-container container"},
-                 d.ul({className: "outputs"}, items, comps.ioSelector({type: "output"})));
+                 d.ul({className: "outputs"}, items, comps.ioSelector({type: "sink"})));
   }
 });
 
 comps.ruleItem = React.createClass({
   render: function() {
     var props = this.props;
-    var ins = props.rule.inputs.map(function(cur) {
-      return d.li({}, cur);
-    });
-    var outs = props.rule.outputs.map(function(cur) {
-      return d.li({}, cur);
+    var ins = [];
+    var outs = [];
+    props.rule.pipes.forEach(function(cur) {
+      var li = d.li({}, cur.table);
+      if(cur.type == "source") {
+        ins.push(li);
+      } else {
+        outs.push(li);
+      }
     });
     return d.div({className: "rule",
                         onClick: function() {
@@ -1399,7 +1378,7 @@ comps.rulesList = React.createClass({
     }
     return d.div({className: "rules"}, items, d.div({className: "add-rule ion-ios7-plus-empty",
                                                      onClick: function() {
-                                                       data.rules["unnamed" + globalId++] = ({inputs: [], outputs: [], workspace: {columns: []}, description: "unnamed"});
+                                                       data.rules["unnamed" + data.globalId++] = ({pipes: [], valves: [], links: [], description: "unnamed"});
                                                        dirty();
                                                      }}));
   }
@@ -1418,7 +1397,16 @@ comps.wrapper = React.createClass({
 
       case "data":
         var activeRule = {rule: data.rules[data.activeRule]};
-        cur.push(d.div({className: "vbox"}, d.div({className: "hbox data-top"}, comps.inputs(activeRule), comps.workspace(activeRule)), comps.outputs(activeRule)),
+        var ins = [];
+        var outs = [];
+        activeRule.rule.pipes.forEach(function(cur) {
+          if(cur.type == "source") {
+            ins.push(cur);
+          } else {
+            outs.push(cur);
+          }
+        });
+        cur.push(d.div({className: "vbox"}, d.div({className: "hbox data-top"}, comps.sources({sources: ins}), comps.workspace(activeRule)), comps.sinks({sinks: outs})),
                  d.span({className: "ion-grid return-to-grid",
                          onClick: function(e) {
                            data.page = "rules";

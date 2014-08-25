@@ -183,11 +183,11 @@ ul, li { list-style:none; }
 .outputs h2 { margin-bottom:5px; color: #aaa; position:absolute; top: -30px; text-align:center; width:100%; }
 .outputs > li { cursor:default; position:relative; display:flex; flex-direction:column; align-items:center; list-style:none; margin:0px 30px; border-radius:10px; color:#666; }
 
-.outputs .output-selector { position:absolute; top:20px; left:-20px; font-size:11pt; padding:0px 8px; border-radius:3px; background:rgba(255,255,255,0.1); }
-.outputs .output-selector li { color:#ccc; text-align:left; padding:3px 10px; }
+.outputs .sink-selector { position:absolute; top:20px; left:-20px; font-size:11pt; padding:0px 8px; border-radius:3px; background:rgba(255,255,255,0.1); }
+.outputs .sink-selector li { color:#ccc; text-align:left; padding:3px 10px; }
 
-.outputs .add-output { font-size:28pt; color:#aaa; }
-.outputs .add-output:hover { background:rgba(255,255,255, 0.18); color:#eee; box-shadow:0 0 20px #000;  }
+.outputs .add-sink { font-size:28pt; color:#aaa; }
+.outputs .add-sink:hover { background:rgba(255,255,255, 0.18); color:#eee; box-shadow:0 0 20px #000;  }
 
 .workspace-container { flex: 2; display:flex; padding:10px; justify-content:center; position:relative; }
 .workspace {  }
