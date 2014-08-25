@@ -5,6 +5,7 @@ var data = eve.data = {tree: {elements: []}, selection: {}, undo: {stack:{childr
 
                        page: "rules",
                        activeRule: "foo",
+                       globalId: 0,
                        rules: {"foo": {inputs: ["users", "email inbox"],
                                        workspace: {columns: [{table: "users",
                                                               name: "id"},
@@ -1398,7 +1399,7 @@ comps.rulesList = React.createClass({
     }
     return d.div({className: "rules"}, items, d.div({className: "add-rule ion-ios7-plus-empty",
                                                      onClick: function() {
-                                                       data.rules["unnamed"] = ({inputs: [], outputs: [], workspace: {columns: []}, description: "unnamed"});
+                                                       data.rules["unnamed" + globalId++] = ({inputs: [], outputs: [], workspace: {columns: []}, description: "unnamed"});
                                                        dirty();
                                                      }}));
   }
