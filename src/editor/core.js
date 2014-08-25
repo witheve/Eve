@@ -14,19 +14,19 @@ var data = eve.data = {tree: {elements: []}, selection: {}, undo: {stack:{childr
                                        description: "look at users"},
                                },
                        tables: {"users": {name: "users",
-                                          fields: [{name: "id"}, {name: "name"}, {name: "email"}, {name: "phone"}],
-                                          rows: [[0,"chris","ibdknox@gmail.com","5555555555"],
-                                                 [1,"tom","tom@tom.com","5555555555"]
-                                                ]},
+                                          id: "users",
+                                          fields: [{name: "id"}, {name: "name"}, {name: "email"}, {name: "phone"}]},
                                 "todos": {name: "todos",
-                                          fields: [{name: "id"}, {name: "text"}, {name: "completed"}],
-                                          rows: [[0, "get milk", "active"], [1, "buy books", "active"]]},
+                                          id: "todos",
+                                          fields: [{name: "id"}, {name: "text"}, {name: "completed"}]},
                                 "email outbox": {name: "email outbox",
-                                                 fields: [{name: "id"}, {name: "to"}, {name: "from"}, {name: "subject"}, {name: "body"}],
-                                                 rows: [[0,"tom@tom.com", "chris@chris.com", "Hola", "Hey Tom Pinckney, ..."]]},
+                                                 id: "email outbox",
+                                                 fields: [{name: "id"}, {name: "to"}, {name: "from"}, {name: "subject"}, {name: "body"}]},
                                 "sms outbox": {name: "sms outbox",
+                                               id: "sms outbox",
                                                fields: [{name: "id"}, {name: "phone"}, {name: "message"}]},
                                 "email inbox": {name: "email inbox",
+                                                id: "email inbox",
                                                 fields: [{name: "id"}, {name: "to"}, {name: "from"}, {name: "subject"}, {name: "body"}]}},
 
                       };
@@ -1072,12 +1072,27 @@ comps.undoList = React.createClass({
 
 comps.gridHeader = React.createClass({
   render: function() {
+    var props = this.props;
     var cur = this.props.column;
     return d.th({draggable: "true",
-                     onDragStart: function(e) {
-                       data.selection = {action: "move column",
-                                         column: cur};
-                     }},
+                 onDragStart: function(e) {
+                   data.selection = {action: "move column",
+                                     column: cur};
+                 },
+                 onDragOver: function(e) {
+                   e.preventDefault();
+                 },
+                 onDrop: function(e) {
+                   console.log(data.selection.column, props);
+                   //TODO: this logic probably doesn't really belong here.
+                   //TODO: this is not undoable
+                   var valve = data.selection.column.id;
+                   if(valve) {
+                     data.rules[data.activeRule].links.push({valve: valve, type: "tableConstraint", table: props.table, field: props.column.name})
+                     dirty();
+                   }
+                 }
+                },
                     cur.name);
   }
 });
@@ -1091,7 +1106,7 @@ comps.grid = React.createClass({
     var headers = this.props.fields;
     for(var i in headers) {
       var cur = headers[i];
-      ths.push(comps.gridHeader({column: cur}));
+      ths.push(comps.gridHeader({column: cur, table: this.props.id}));
       if(cur.filters) {
         thfilters.push(d.th({className: "modifier"}, cur.filters));
       } else {
@@ -1172,55 +1187,6 @@ comps.sources = React.createClass({
 });
 
 comps.workspace = React.createClass({
-  formulaIter: function(formula, cols) {
-    return function(curRow) {
-      return formula;
-    };
-  },
-  tableIter: function(table, col) {
-    var t = data.tables[table];
-    var colIndex = 0;
-    for(var i in t.fields) {
-      if(t.fields[i].name == col) {
-        colIndex = i;
-        break;
-      }
-    }
-    var row = -1;
-    return function(curRow) {
-      if(!t.rows) return;
-      var cur = t.rows[++row];
-      if(!cur) return;
-      return cur[colIndex];
-    };
-  },
-  fakeRows: function(cols) {
-    return [];
-    if(!cols.length) return [];
-
-    var rows = [];
-    var iters = [];
-    for(var i in cols) {
-      var col = cols[i];
-      if(col.table) {
-        iters.push(this.tableIter(col.table, col.name))
-      } else if(col.formula) {
-        iters.push(this.formulaIter(col.formula, cols));
-      }
-    }
-
-    var itersLen = iters.length;
-    while(true) {
-      var curRow = [];
-      for(var ix = 0; ix < itersLen; ix++) {
-        var val = iters[ix](curRow);
-        if(!val && val != 0) return rows;
-        curRow.push(val);
-      }
-      rows.push(curRow);
-    }
-
-  },
   addColumn: function(col, ix) {
     var cols = this.props.rule.valves;
     for(var i in cols) {
@@ -1228,6 +1194,9 @@ comps.workspace = React.createClass({
         return;
       }
     }
+    var valveId = "valve" + data.globalId++;
+    col.id = valveId;
+    this.props.rule.links.push({type: "tableConstraint", valve: valveId, table: col.table, field: col.name});
     if(ix === undefined) {
       cols.push(col);
       return cols.length - 1;
@@ -1240,6 +1209,9 @@ comps.workspace = React.createClass({
     var cols = this.props.rule.valves;
     var ix = cols.indexOf(col);
     cols.splice(ix, 1);
+    this.props.rule.links = this.props.rule.links.filter(function(cur) {
+      return cur.valve != col.id;
+    });
     return ix;
   },
   onDrop: function(e) {
@@ -1261,6 +1233,7 @@ comps.workspace = React.createClass({
     } else if(action == "move column") {
       var col = data.selection.column;
       var ix = this.removeColumn(col);
+      //FIXME: links are lost.
       undoEntry({description: "remove column",
                  undo: function(ent) {
                    self.addColumn(col,ix);
@@ -1284,7 +1257,9 @@ comps.workspace = React.createClass({
                  d.div({className: "workspace"},
                        d.span({className: "description"}, rule.description),
                        comps.grid({fields: cols,
-                                  rows: this.fakeRows(cols)}
+                                   table: "workspace",
+                                   //TODO: show the real intermediates
+                                   rows: []}
                                  )
                       ));
   }
@@ -1332,6 +1307,7 @@ comps.sinks = React.createClass({
     var sinks = this.props.sinks;
     for(var i in sinks) {
       var cur = data.tables[sinks[i].table];
+      //TODO: get the values for the sinks
       items.push(d.li({}, d.h2({}, cur.name), comps.grid(cur)));
     }
 
@@ -1384,6 +1360,18 @@ comps.rulesList = React.createClass({
   }
 });
 
+comps.linksList = React.createClass({
+  render: function() {
+    var links = this.props.links;
+    var items = [];
+    for(var i in links) {
+      var cur = links[i];
+      items.push(d.li({}, cur.valve + " -> " + cur.table + "." + cur.field));
+    }
+    return d.ul({className: "links-list"}, items);
+  }
+});
+
 comps.wrapper = React.createClass({
   render: function() {
 
@@ -1406,7 +1394,7 @@ comps.wrapper = React.createClass({
             outs.push(cur);
           }
         });
-        cur.push(d.div({className: "vbox"}, d.div({className: "hbox data-top"}, comps.sources({sources: ins}), comps.workspace(activeRule)), comps.sinks({sinks: outs})),
+        cur.push(d.div({className: "vbox"}, d.div({className: "hbox data-top"}, comps.sources({sources: ins}), comps.workspace(activeRule), comps.linksList({links: activeRule.rule.links})), comps.sinks({sinks: outs})),
                  d.span({className: "ion-grid return-to-grid",
                          onClick: function(e) {
                            data.page = "rules";
