@@ -67,6 +67,7 @@ a img { border: none; }
 * { box-sizing:border-box !important; }
 html, body { height:100%; overflow:none; }
 body { background:#fff; color: #666; font-family: "Nunito"; font-weight:300; font-size: 11pt; }
+ul, li { list-style:none; }
 
 #wrapper { display:flex; width:100%; height:100%; flex-direction:row; align-items:stretch; justify-content:stretch; }
 .toolbar { width:50px; background:#fff; display:flex; flex-direction:column; justify-content:center; padding-left:10px;  display:none; G}
@@ -180,9 +181,12 @@ body { background:#fff; color: #666; font-family: "Nunito"; font-weight:300; fon
 .outputs-container { position:relative; flex: 0.5; padding:0 20px; display:flex; background:#222; border-left:0px solid #ddd; border-top:1px solid #111; }
 .outputs {  margin:10px; flex: 1; display:flex; border-radius:3px; flex-direction:row; align-items:center; justify-content: center; }
 .outputs h2 { margin-bottom:5px; color: #aaa; position:absolute; top: -30px; text-align:center; width:100%; }
-.outputs li { cursor:default; position:relative; display:flex; flex-direction:column; align-items:center; list-style:none; margin:0px 30px; border-radius:10px; color:#666; }
+.outputs > li { cursor:default; position:relative; display:flex; flex-direction:column; align-items:center; list-style:none; margin:0px 30px; border-radius:10px; color:#666; }
 
-.outputs .add-output { position:absolute; top:20px; left:-20px; font-size:28pt; color:#aaa; padding:0px 8px; border-radius:3px; background:rgba(255,255,255,0.1); }
+.outputs .output-selector { position:absolute; top:20px; left:-20px; font-size:11pt; padding:0px 8px; border-radius:3px; background:rgba(255,255,255,0.1); }
+.outputs .output-selector li { color:#ccc; text-align:left; padding:3px 10px; }
+
+.outputs .add-output { font-size:28pt; color:#aaa; }
 .outputs .add-output:hover { background:rgba(255,255,255, 0.18); color:#eee; box-shadow:0 0 20px #000;  }
 
 .workspace-container { flex: 2; display:flex; padding:10px; justify-content:center; position:relative; }
@@ -195,3 +199,6 @@ body { background:#fff; color: #666; font-family: "Nunito"; font-weight:300; fon
 .rules .rule h2 { text-align:center; color:#ccc; margin-bottom:5px; }
 .rules .rule ul { list-style:none; padding-right:20px; display:flex; align-items:flex-end; justify-content:center; flex-direction:column; }
 .rules .rule ul + ul { border-left: 1px solid #666; padding-right:0; padding-left:20px; }
+
+.rules .add-rule { font-size:28pt; padding:0 8px; background: rgba(255,255,255, 0.15); margin:10px; border-radius:3px; color:#aaa; }
+.rules .add-rule:hover { background:rgba(255,255,255, 0.18); color:#eee; box-shadow:0 0 20px #000;  }

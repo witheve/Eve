@@ -1192,7 +1192,7 @@ comps.inputs = React.createClass({
     }
 
     return d.div({className: "inputs-container container"},
-                 d.ul({className: "inputs"}, items));
+                 d.ul({className: "inputs"}, items, comps.ioSelector({type: "input"})));
   }
 });
 
@@ -1314,6 +1314,41 @@ comps.workspace = React.createClass({
   }
 });
 
+comps.ioSelectorItem = React.createClass({
+  render: function() {
+    var props = this.props;
+    return d.li({className: "",
+                 onClick: function() {
+                   data.rules[data.activeRule][props.type + "s"].push(props.table.name);
+                   data[props.type + "Selector"] = "closed";
+                   dirty();
+                 }},
+                props.table.name);
+  }
+});
+
+comps.ioSelector = React.createClass({
+  render: function() {
+    var type = this.props.type;
+    var selector = type + "Selector";
+    if(!data[selector] || data[selector] == "closed") {
+      return d.li({className: "ion-ios7-plus-empty add-" + type + " " + type + "-selector",
+                   onClick: function() {
+                     data[selector] = "open";
+                     dirty();
+                   }});
+    }
+
+    var items = [];
+    for(var i in data.tables) {
+      items.push(comps.ioSelectorItem({table: data.tables[i], type: type}));
+    }
+
+    return d.li({className: type + "-selector"},
+                d.ul({className: ""}, items));
+  }
+});
+
 comps.outputs = React.createClass({
   render: function() {
 
@@ -1325,7 +1360,7 @@ comps.outputs = React.createClass({
     }
 
     return d.div({className: "outputs-container container"},
-                 d.ul({className: "outputs"}, items, d.li({className: "ion-ios7-plus-empty add-output"})));
+                 d.ul({className: "outputs"}, items, comps.ioSelector({type: "output"})));
   }
 });
 
@@ -1361,7 +1396,11 @@ comps.rulesList = React.createClass({
       var cur = rs[i];
       items.push(comps.ruleItem({id: i, rule: cur}));
     }
-    return d.div({className: "rules"}, items);
+    return d.div({className: "rules"}, items, d.div({className: "add-rule ion-ios7-plus-empty",
+                                                     onClick: function() {
+                                                       data.rules["unnamed"] = ({inputs: [], outputs: [], workspace: {columns: []}, description: "unnamed"});
+                                                       dirty();
+                                                     }}));
   }
 });
 
@@ -1558,14 +1597,10 @@ window.eve.start();
 // - custom guide lines
 
 //TODO DATA:
+// - link to output
+// - calculated column
 // - merge
 // - group
 // - filter
 // - cell editor
 // - create table
-// - calculated column
-// - drop onto output
-// - add input
-// - add output
-// - grid view of rules
-// - add a rule
