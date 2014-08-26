@@ -5,53 +5,28 @@ var data = eve.data = {tree: {elements: []}, selection: {}, undo: {stack:{childr
 
                        page: "rules",
                        activeRule: "foo",
-                       rules: {"foo": {inputs: ["users", "email inbox"],
-                                       workspace: {columns: [{table: "users",
-                                                              name: "id"},
-                                                             {table: "users",
-                                                              filters: "contains 'tom'",
-                                                              name: "name"},
-                                                             {table: "users",
-                                                              name: "email"},
-                                                             {name: "subject",
-                                                              formula: "Hola"},
-                                                             {name: "body",
-                                                              formula: "Hey *name*, ..."},
-                                                            ]},
-                                       outputs: ["email outbox"],
-                                       description: "send an email to tom"},
-                               "woo": {inputs: ["users"],
-                                      workspace: {columns: []},
-                                       outputs: [],
+                       globalId: 0,
+                       rules: {
+                         "boo": {pipes: [{id: "booPipe0", table: "users", type: "source"}, {id: "booPipe1", table: "email outbox", type: "sink"}],
+                                       valves: [{id: "foo", name: "woohoo"}],
+                                       links: [{type: "tableConstraint", valve: "foo", table: "booPipe0", field: "name"},
+                                               {type: "tableConstraint", valve: "foo", table: "booPipe1", field: "to"}],
                                        description: "look at users"},
-                               "bar": {inputs: ["users"],
-                                       workspace: {columns: [{table: "users",
-                                                              name: "id"},
-                                                             {table: "users",
-                                                              name: "name"},
-                                                             {table: "users",
-                                                              name: "email"},
-                                                             {name: "subject",
-                                                              formula: "Hola"},
-                                                             {name: "body",
-                                                              formula: "Hey *name*, ..."},
-                                                            ]},
-                                       outputs: ["email outbox"],
-                                       description: "send an email to bar"}},
+                               },
                        tables: {"users": {name: "users",
-                                          fields: [{name: "id"}, {name: "name"}, {name: "email"}, {name: "phone"}],
-                                          rows: [[0,"chris","ibdknox@gmail.com","5555555555"],
-                                                 [1,"tom","tom@tom.com","5555555555"]
-                                                ]},
+                                          id: "users",
+                                          fields: [{name: "id"}, {name: "name"}, {name: "email"}, {name: "phone"}]},
                                 "todos": {name: "todos",
-                                          fields: [{name: "id"}, {name: "text"}, {name: "completed"}],
-                                          rows: [[0, "get milk", "active"], [1, "buy books", "active"]]},
+                                          id: "todos",
+                                          fields: [{name: "id"}, {name: "text"}, {name: "completed"}]},
                                 "email outbox": {name: "email outbox",
-                                                 fields: [{name: "id"}, {name: "to"}, {name: "from"}, {name: "subject"}, {name: "body"}],
-                                                 rows: [[0,"tom@tom.com", "chris@chris.com", "Hola", "Hey Tom Pinckney, ..."]]},
+                                                 id: "email outbox",
+                                                 fields: [{name: "id"}, {name: "to"}, {name: "from"}, {name: "subject"}, {name: "body"}]},
                                 "sms outbox": {name: "sms outbox",
+                                               id: "sms outbox",
                                                fields: [{name: "id"}, {name: "phone"}, {name: "message"}]},
                                 "email inbox": {name: "email inbox",
+                                                id: "email inbox",
                                                 fields: [{name: "id"}, {name: "to"}, {name: "from"}, {name: "subject"}, {name: "body"}]}},
 
                       };
@@ -1097,26 +1072,41 @@ comps.undoList = React.createClass({
 
 comps.gridHeader = React.createClass({
   render: function() {
+    var props = this.props;
     var cur = this.props.column;
     return d.th({draggable: "true",
-                     onDragStart: function(e) {
-                       data.selection = {action: "move column",
-                                         column: cur};
-                     }},
+                 onDragStart: function(e) {
+                   data.selection = {action: "move column",
+                                     column: cur};
+                 },
+                 onDragOver: function(e) {
+                   e.preventDefault();
+                 },
+                 onDrop: function(e) {
+                   console.log(data.selection.column, props);
+                   //TODO: this logic probably doesn't really belong here.
+                   //TODO: this is not undoable
+                   var valve = data.selection.column.id;
+                   if(valve) {
+                     data.rules[data.activeRule].links.push({valve: valve, type: "tableConstraint", table: props.table, field: props.column.name})
+                     dirty();
+                   }
+                 }
+                },
                     cur.name);
   }
 });
 
 comps.grid = React.createClass({
   render: function() {
-    if(!this.props.fields.length) return d.table();
+    if(!this.props.table.fields.length) return d.table();
 
     var ths = [];
     var thfilters = [];
-    var headers = this.props.fields;
+    var headers = this.props.table.fields;
     for(var i in headers) {
       var cur = headers[i];
-      ths.push(comps.gridHeader({column: cur}));
+      ths.push(comps.gridHeader({column: cur, table: this.props.sinkId}));
       if(cur.filters) {
         thfilters.push(d.th({className: "modifier"}, cur.filters));
       } else {
@@ -1125,7 +1115,7 @@ comps.grid = React.createClass({
     }
 
     var trs = [];
-    var rows = this.props.rows;
+    var rows = this.props.table.rows;
     if(!rows || !rows.length) {
       rows = [["", "", "", "", ""]];
     }
@@ -1145,13 +1135,14 @@ comps.grid = React.createClass({
 
 comps.inputColumnList = React.createClass({
   render: function() {
-    var props = this.props;
-    var items = this.props.fields.map(function(cur) {
+    var table = this.props.table;
+    var id = this.props.id;
+    var items = table.fields.map(function(cur) {
       return d.li({draggable: true,
                    onDragStart: function(e) {
                      data.selection = {};
                      data.selection.action = "add column";
-                     data.selection.column = {table: props.name, column: cur.name, name: cur.name};
+                     data.selection.column = {id: id, table: table.name, column: cur.name, name: cur.name};
                      e.dataTransfer.effectAllowed = "move";
                      e.dataTransfer.dropEffect = "move";
                    }},
@@ -1166,7 +1157,7 @@ comps.inputItem = React.createClass({
     var cur = this.props.table;
     var items = [d.span({className: "table-name"}, cur.name)];
     if(cur.active) {
-      items.push(comps.inputColumnList(cur));
+      items.push(comps.inputColumnList({table: cur, id: this.props.id}));
     }
     return d.li({className: "" + (cur.active ? "active" : ""),
                  onClick: function() {
@@ -1181,89 +1172,47 @@ comps.inputItem = React.createClass({
   }
 });
 
-comps.inputs = React.createClass({
+comps.sources = React.createClass({
   render: function() {
 
     var items = [];
-    var inputs = this.props.rule.inputs;
-    for(var i in inputs) {
-      var cur = inputs[i];
-      items.push(comps.inputItem({id: cur, table: data.tables[cur]}));
+    var sources = this.props.sources;
+    for(var i in sources) {
+      var cur = sources[i].table;
+      items.push(comps.inputItem({id: sources[i].id, table: data.tables[cur]}));
     }
 
     return d.div({className: "inputs-container container"},
-                 d.ul({className: "inputs"}, items));
+                 d.ul({className: "inputs"}, items, comps.ioSelector({type: "source"})));
   }
 });
 
 comps.workspace = React.createClass({
-  formulaIter: function(formula, cols) {
-    return function(curRow) {
-      return formula;
-    };
-  },
-  tableIter: function(table, col) {
-    var t = data.tables[table];
-    var colIndex = 0;
-    for(var i in t.fields) {
-      if(t.fields[i].name == col) {
-        colIndex = i;
-        break;
-      }
-    }
-    var row = -1;
-    return function(curRow) {
-      if(!t.rows) return;
-      var cur = t.rows[++row];
-      if(!cur) return;
-      return cur[colIndex];
-    };
-  },
-  fakeRows: function(cols) {
-    if(!cols.length) return [];
-
-    var rows = [];
-    var iters = [];
-    for(var i in cols) {
-      var col = cols[i];
-      if(col.table) {
-        iters.push(this.tableIter(col.table, col.name))
-      } else if(col.formula) {
-        iters.push(this.formulaIter(col.formula, cols));
-      }
-    }
-
-    var itersLen = iters.length;
-    while(true) {
-      var curRow = [];
-      for(var ix = 0; ix < itersLen; ix++) {
-        var val = iters[ix](curRow);
-        if(!val && val != 0) return rows;
-        curRow.push(val);
-      }
-      rows.push(curRow);
-    }
-
-  },
   addColumn: function(col, ix) {
-    var cols = this.props.rule.workspace.columns;
+    var cols = this.props.rule.valves;
     for(var i in cols) {
       if(cols[i].table == col.table && cols[i].name == col.name) {
         return;
       }
     }
+    var valveId = "valve" + data.globalId++;
+    var valve = {id: valveId, name: col.name};
+    this.props.rule.links.push({type: "tableConstraint", valve: valveId, table: col.id, field: col.name});
     if(ix === undefined) {
-      cols.push(col);
+      cols.push(valve);
       return cols.length - 1;
     } else {
-      cols.splice(ix,0,col);
+      cols.splice(ix,0,valve);
       return ix;
     }
   },
   removeColumn: function(col) {
-    var cols = this.props.rule.workspace.columns;
+    var cols = this.props.rule.valves;
     var ix = cols.indexOf(col);
     cols.splice(ix, 1);
+    this.props.rule.links = this.props.rule.links.filter(function(cur) {
+      return cur.valve != col.id;
+    });
     return ix;
   },
   onDrop: function(e) {
@@ -1285,6 +1234,7 @@ comps.workspace = React.createClass({
     } else if(action == "move column") {
       var col = data.selection.column;
       var ix = this.removeColumn(col);
+      //FIXME: links are lost.
       undoEntry({description: "remove column",
                  undo: function(ent) {
                    self.addColumn(col,ix);
@@ -1300,43 +1250,85 @@ comps.workspace = React.createClass({
   },
   render: function() {
     var rule = this.props.rule;
-    var cols = rule.workspace.columns;
+    var cols = rule.valves;
 
     return d.div({className: "workspace-container container",
                   onDragOver: this.onDragOver,
                   onDrop: this.onDrop},
                  d.div({className: "workspace"},
                        d.span({className: "description"}, rule.description),
-                       comps.grid({fields: cols,
-                                  rows: this.fakeRows(cols)}
+                       comps.grid({table: {fields: cols,
+                                  //TODO: show the real intermediates
+                                           rows: []}}
                                  )
                       ));
   }
 });
 
-comps.outputs = React.createClass({
+comps.ioSelectorItem = React.createClass({
+  render: function() {
+    var props = this.props;
+    return d.li({className: "",
+                 onClick: function() {
+                   data.rules[data.activeRule].pipes.push({id: "pipe" + data.globalId++, table: props.table.name, type: props.type});
+                   data[props.type + "Selector"] = "closed";
+                   dirty();
+                 }},
+                props.table.name);
+  }
+});
+
+comps.ioSelector = React.createClass({
+  render: function() {
+    var type = this.props.type;
+    var selector = type + "Selector";
+    if(!data[selector] || data[selector] == "closed") {
+      return d.li({className: "ion-ios7-plus-empty add-" + type + " " + type + "-selector",
+                   onClick: function() {
+                     data[selector] = "open";
+                     dirty();
+                   }});
+    }
+
+    var items = [];
+    for(var i in data.tables) {
+      items.push(comps.ioSelectorItem({table: data.tables[i], type: type}));
+    }
+
+    return d.li({className: type + "-selector"},
+                d.ul({className: ""}, items));
+  }
+});
+
+comps.sinks = React.createClass({
   render: function() {
 
     var items = [];
-    var outputs = this.props.rule.outputs;
-    for(var i in outputs) {
-      var cur = data.tables[outputs[i]];
-      items.push(d.li({}, d.h2({}, cur.name), comps.grid(cur)));
+    var sinks = this.props.sinks;
+    for(var i in sinks) {
+      console.log(sinks[i]);
+      var cur = data.tables[sinks[i].table];
+      //TODO: get the values for the sinks
+      items.push(d.li({}, d.h2({}, cur.name), comps.grid({table: cur, sinkId: sinks[i].id})));
     }
 
     return d.div({className: "outputs-container container"},
-                 d.ul({className: "outputs"}, items, d.li({className: "ion-ios7-plus-empty add-output"})));
+                 d.ul({className: "outputs"}, items, comps.ioSelector({type: "sink"})));
   }
 });
 
 comps.ruleItem = React.createClass({
   render: function() {
     var props = this.props;
-    var ins = props.rule.inputs.map(function(cur) {
-      return d.li({}, cur);
-    });
-    var outs = props.rule.outputs.map(function(cur) {
-      return d.li({}, cur);
+    var ins = [];
+    var outs = [];
+    props.rule.pipes.forEach(function(cur) {
+      var li = d.li({}, cur.table);
+      if(cur.type == "source") {
+        ins.push(li);
+      } else {
+        outs.push(li);
+      }
     });
     return d.div({className: "rule",
                         onClick: function() {
@@ -1361,7 +1353,71 @@ comps.rulesList = React.createClass({
       var cur = rs[i];
       items.push(comps.ruleItem({id: i, rule: cur}));
     }
-    return d.div({className: "rules"}, items);
+    return d.div({className: "rules"}, items, d.div({className: "add-rule ion-ios7-plus-empty",
+                                                     onClick: function() {
+                                                       data.rules["unnamed" + data.globalId++] = ({pipes: [], valves: [], links: [], description: "unnamed"});
+                                                       dirty();
+                                                     }}));
+  }
+});
+
+comps.tableItem = React.createClass({
+  render: function() {
+    var props = this.props.table;
+    return d.div({className: "rule",
+                        onClick: function() {
+                          data.activeRule = props.id;
+                          data.page = "table-view";
+                          dirty();
+                        }},
+                 d.div({className: "vbox"},
+                       d.h2({}, this.props.table.name))
+                );
+  }
+});
+
+comps.tablesList = React.createClass({
+  render: function () {
+    var items = [];
+    var tables = this.props.tables;
+    for(var i in tables) {
+      var cur = tables[i];
+      items.push(comps.tableItem({id: i, table: cur}));
+    }
+    return d.div({className: "tables"}, items);
+  }
+});
+
+comps.tableView = React.createClass({
+  render: function() {
+    return d.div({className: "table-view"}, d.h2({}, this.props.table.name), comps.grid({table: this.props.table}), d.span({className: "ion-grid return-to-grid",
+                         onClick: function(e) {
+                           data.page = "rules";
+                           dirty();
+                         }
+                        }));
+  }
+});
+
+comps.linksList = React.createClass({
+  render: function() {
+    var links = this.props.rule.links;
+    var valves = this.props.rule.valves;
+    var valveToName = {};
+    for(var i in valves) {
+      valveToName[valves[i].id] = valves[i].name;
+    }
+    var pipes = this.props.rule.pipes;
+    var pipesToName = {};
+    for(var i in pipes) {
+      pipesToName[pipes[i].id] = pipes[i].table;
+    }
+    var items = [];
+    for(var i in links) {
+      var cur = links[i];
+      items.push(d.li({}, valveToName[cur.valve] + " -> " + pipesToName[cur.table] + "." + cur.field + " [" + cur.table + "]" ));
+    }
+    return d.ul({className: "links-list"}, items);
   }
 });
 
@@ -1378,7 +1434,16 @@ comps.wrapper = React.createClass({
 
       case "data":
         var activeRule = {rule: data.rules[data.activeRule]};
-        cur.push(d.div({className: "vbox"}, d.div({className: "hbox data-top"}, comps.inputs(activeRule), comps.workspace(activeRule)), comps.outputs(activeRule)),
+        var ins = [];
+        var outs = [];
+        activeRule.rule.pipes.forEach(function(cur) {
+          if(cur.type == "source") {
+            ins.push(cur);
+          } else {
+            outs.push(cur);
+          }
+        });
+        cur.push(d.div({className: "vbox"}, d.div({className: "hbox data-top"}, comps.sources({sources: ins}), comps.workspace(activeRule), comps.linksList(activeRule)), comps.sinks({sinks: outs})),
                  d.span({className: "ion-grid return-to-grid",
                          onClick: function(e) {
                            data.page = "rules";
@@ -1390,7 +1455,12 @@ comps.wrapper = React.createClass({
 
 
       case "rules":
-        cur.push(comps.rulesList({rules: data.rules}));
+        cur.push(d.div({className: "vbox"}, comps.tablesList({tables: data.tables}), comps.rulesList({rules: data.rules})));
+        break;
+
+      case "table-view":
+        var table = data.tables[data.activeRule];
+        cur.push(comps.tableView({table: table}));
         break;
 
     }
@@ -1558,14 +1628,10 @@ window.eve.start();
 // - custom guide lines
 
 //TODO DATA:
+// - link to output
+// - calculated column
 // - merge
 // - group
 // - filter
 // - cell editor
 // - create table
-// - calculated column
-// - drop onto output
-// - add input
-// - add output
-// - grid view of rules
-// - add a rule
