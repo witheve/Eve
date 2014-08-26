@@ -113,11 +113,11 @@ function boundsContainsPoint(los, his, ixes, constants, point) {
 // covers the solution space with proofs of success/failure
 // tracks dirty proofs when memory changes
 
-function Region(los, his, proof, isSolution) {
+function Region(los, his, proof, solution) {
   this.los = los;
   this.his = his;
   this.proof = proof; // index of constraint that prooves this region, -1 to indicate all constraints
-  this.isSolution = isSolution;
+  this.solution = solution;
 }
 
 function regionContainsPoint(region, constraints, point) {
@@ -153,7 +153,7 @@ function ProvenanceConstraint(regions) {
 }
 
 Provenance.empty = function(numVars, constraints) {
-  var region = new Region(makeArray(numVars, least), makeArray(numVars, greatest), 1);
+  var region = new Region(makeArray(numVars, least), makeArray(numVars, greatest), 1, null);
   return new Provenance(Memory.empty(), numVars, constraints, [region], []);
 };
 
@@ -178,7 +178,7 @@ Provenance.prototype = {
         if (regionContainsPoint(region, constraints, dirtyPoint) === true) {
           regions.splice(i, 1);
           delledRegions.push(region);
-          if (region.isSolution === true) outputDels.push(region.los);
+          if (region.solution !== null) outputDels.push(region.solution);
           continue nextRegion;
         }
       }
@@ -199,10 +199,12 @@ Provenance.prototype = {
       var oldRegion = oldRegions[i];
       var oldLos = oldRegion.los;
       var oldHis = oldRegion.his;
+      var oldSolution = oldRegion.solution;
       nextNewRegion: for (var j = newRegions.length - 1; j >= 0; j--) {
         var newRegion = newRegions[j];
         var newLos = newRegion.los;
         var newHis = newRegion.his;
+        var newSolution = newRegion.solution;
         if (intersectsVolume(oldLos, oldHis, newLos, newHis)) {
           if (containsVolume(oldLos, oldHis, newLos, newHis)) {
             // console.log("Evicting new " + JSON.stringify(newRegion) + " by " + JSON.stringify(oldRegion));
@@ -211,13 +213,13 @@ Provenance.prototype = {
           } else if (containsVolume(newLos, newHis, oldLos, oldHis)) {
             // console.log("Evicting old " + JSON.stringify(oldRegion) + " by " + JSON.stringify(newRegion));
             oldRegions.slice(i, 1);
-            if (oldRegion.isSolution) outputDels.push(oldLos);
+            if (oldSolution !== null) outputDels.push(oldSolution);
             continue nextOldRegion;
-          } else if (containsPoint(newLos, newHis, oldLos) && (oldRegion.isSolution === true)) {
+          } else if ((oldSolution !== null) && containsPoint(newLos, newHis, oldSolution)) {
             // console.log("Overwriting " + JSON.stringify(oldRegion) + " by " + JSON.stringify(newRegion));
-            oldRegion.isSolution = false;
-            outputDels.push(oldRegion.los);
-          } else if (containsPoint(oldLos, oldHis, newLos) && (newRegion.isSolution === true)) {
+            oldRegion.solution = null;
+            outputDels.push(oldSolution);
+          } else if ((newSolution !== null) && containsPoint(oldLos, oldHis, newSolution)) {
             assert(false); // the solver should not generate solutions that are contained by non-dirty regions
           }
         }
@@ -228,7 +230,7 @@ Provenance.prototype = {
     for (var i = newRegions.length - 1; i >= 0; i--) {
       var newRegion = newRegions[i];
       oldRegions.push(newRegion);
-      if (newRegion.isSolution) outputAdds.push(newRegion.los);
+      if (newRegion.solution !== null) outputAdds.push(newRegion.solution);
     }
 
     this.queuedRegions = [];
@@ -404,7 +406,7 @@ MemoryConstraint.prototype = {
     if (facts.length === 0) {
       // console.log("Failed with no facts");
       solverState.isFailed = true;
-      provenance.add(new Region(los.slice(), his.slice(), myIx, false));
+      provenance.add(new Region(los.slice(), his.slice(), myIx, null));
       return true;
     }
 
@@ -422,7 +424,7 @@ MemoryConstraint.prototype = {
         var regionHis = his.slice();
         los[ix] = newLo;
         regionHis[ix] = newLo;
-        provenance.add(new Region(regionLos, regionHis, myIx, false));
+        provenance.add(new Region(regionLos, regionHis, myIx, null));
         changed = true;
       }
     }
@@ -453,6 +455,36 @@ MemoryConstraint.prototype = {
       }
       assert(false); // if there are > 1 facts then we must have some value > los
     }
+  }
+};
+
+// FUNCTIONS
+
+function FunctionFilter(fun, inIxes, outIx) {
+  this.fun = fun;
+  this.inIxes = inIxes;
+  this.outIx = outIx;
+  this.inValues = makeArray(inIxes.length, null);
+}
+
+FunctionFilter.prototype = {
+  propagate: function(solverState, solution) {
+    var los = solverState.los;
+    var his = solverState.his;
+    var inIxes = this.inIxes;
+    var outIx = this.outIx;
+    var inValues = this.inValues;
+
+    for (var i = inIxes.length - 1; i >= 0; i--) {
+      inValues[i] = solution[inIxes[i]];
+    }
+
+    var newValue = this.fun.apply(null, inValues);
+    var oldValue = solution[outIx];
+    if (compareValue(newValue, los[outIx]) === -1) solverState.isFailed = true;
+    else if (compareValue(newValue, his[outIx]) !== -1) solverState.isFailed = true;
+    else if ((oldValue !== null) && (newValue !== oldValue)) solverState.isFailed = true;
+    else solution[outIx] = newValue;
   }
 };
 
@@ -504,17 +536,18 @@ SolverState.prototype = {
   }
 };
 
-function Solver(numVars, constraints, provenance) {
+function Solver(numVars, constraints, filters, provenance) {
   this.numVars = numVars;
   this.constraints = constraints;
+  this.filters = filters;
   this.provenance = provenance;
 }
 
-Solver.fresh = function (numVars, constraints) {
+Solver.fresh = function (numVars, constraints, filters) {
   var provenanceConstraints = constraints.slice();
   provenanceConstraints.unshift({}); // because the provenance constraint will be placed in at 0
   var provenance = Provenance.empty(numVars, provenanceConstraints);
-  return new Solver(numVars, constraints, provenance);
+  return new Solver(numVars, constraints, filters, provenance);
 };
 
 Solver.prototype = {
@@ -535,6 +568,7 @@ Solver.prototype = {
     constraints.unshift(provenanceConstraint);
 
     var numVars = this.numVars;
+    var filters = this.filters;
     var states = [new SolverState(provenance, constraints, makeArray(numVars, least), makeArray(numVars, greatest), false)];
     while (states.length > 0) {
       var state = states.pop();
@@ -544,7 +578,12 @@ Solver.prototype = {
       } else {
         var rightState = state.split();
         if (rightState === null) {
-          provenance.add(new Region(state.los.slice(), state.his.slice(), -1, true));
+          var solution = state.los.slice();
+          for (var i = filters.length - 1; i >= 0; i--) {
+            filters[i].propagate(state, solution);
+            if (state.isFailed) break;
+          }
+          provenance.add(new Region(state.los.slice(), state.his.slice(), -1, state.isFailed ? null : solution));
         } else {
           states.push(state);
           states.push(rightState);
@@ -772,7 +811,7 @@ function compileRule(dump, rule) {
     } else assert(false);
   }
 
-  return new Flow(Solver.fresh(valves.length, constraints), sinks);
+  return new Flow(Solver.fresh(valves.length, constraints, []), sinks);
 }
 
 function compileSystem(memory) {
@@ -943,7 +982,7 @@ var solverProps = {
                        var input = Memory.empty();
                        var constraint0 = MemoryConstraint.fresh([0,1,2]);
                        var constraint1 = MemoryConstraint.fresh([0,1,2]);
-                       var flow = new Flow(Solver.fresh(3, [constraint0, constraint1]), [new Sink([0,1,2], [null,null,null])]);
+                       var flow = new Flow(Solver.fresh(3, [constraint0, constraint1], []), [new Sink([0,1,2], [null,null,null])]);
                        var input = input.update(facts, []);
                        var output = flow.update(input, Memory.empty());
                        return memoryEqual(input, output);
@@ -954,7 +993,7 @@ var solverProps = {
                        var input = Memory.empty();
                        var constraint0 = MemoryConstraint.fresh([0,1,2]);
                        var constraint1 = MemoryConstraint.fresh([3,4,5]);
-                       var flow = new Flow(Solver.fresh(6, [constraint0, constraint1]), [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
+                       var flow = new Flow(Solver.fresh(6, [constraint0, constraint1], []), [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
                        var input = input.update(facts, []);
                        var output = flow.update(input, Memory.empty());
                        var expectedFacts = [];
@@ -971,7 +1010,7 @@ var solverProps = {
                          var input = Memory.empty();
                          var constraint0 = MemoryConstraint.fresh([0,null,1],[null,constant,null]);
                          var constraint1 = MemoryConstraint.fresh([2,3,4]);
-                         var flow = new Flow(Solver.fresh(5, [constraint0, constraint1]), [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                         var flow = new Flow(Solver.fresh(5, [constraint0, constraint1], []), [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
                          var input = input.update(facts, []);
                          var output = flow.update(input, Memory.empty());
                          var expectedFacts = [];
@@ -992,8 +1031,8 @@ var solverProps = {
                                     var input = Memory.empty();
                                     var constraint0 = MemoryConstraint.fresh([0,null,1],[null,constant,null]);
                                     var constraint1 = MemoryConstraint.fresh([2,3,4]);
-                                    var incrementalFlow = new Flow(Solver.fresh(5, [constraint0, constraint1]), [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
-                                    var batchFlow = new Flow(Solver.fresh(5, [constraint0, constraint1]), [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                                    var incrementalFlow = new Flow(Solver.fresh(5, [constraint0, constraint1], []), [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                                    var batchFlow = new Flow(Solver.fresh(5, [constraint0, constraint1], []), [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
                                     var incrementalOutput = Memory.empty();
                                     var batchOutput = Memory.empty();
 
@@ -1012,7 +1051,7 @@ var solverProps = {
                          var input = Memory.empty();
                          var constraint0 = MemoryConstraint.fresh([0,1,2]);
                          var constraint1 = MemoryConstraint.fresh([2,3,4]);
-                         var flow = new Flow(Solver.fresh(5, [constraint0, constraint1]), [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                         var flow = new Flow(Solver.fresh(5, [constraint0, constraint1], []), [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
                          var input = input.update(facts, []);
                          var output = flow.update(input, Memory.empty());
                          var expectedFacts = [];
@@ -1033,8 +1072,8 @@ var solverProps = {
                                     var input = Memory.empty();
                                     var constraint0 = MemoryConstraint.fresh([0,1,2]);
                                     var constraint1 = MemoryConstraint.fresh([2,3,4]);
-                                    var incrementalFlow = new Flow(Solver.fresh(5, [constraint0, constraint1]), [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
-                                    var batchFlow = new Flow(Solver.fresh(5, [constraint0, constraint1]), [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                                    var incrementalFlow = new Flow(Solver.fresh(5, [constraint0, constraint1], []), [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                                    var batchFlow = new Flow(Solver.fresh(5, [constraint0, constraint1], []), [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
                                     var incrementalOutput = Memory.empty();
                                     var batchOutput = Memory.empty();
 
@@ -1047,51 +1086,32 @@ var solverProps = {
 
                                     return memoryEqual(incrementalOutput, batchOutput);
                                   }),
+
+    functionJoin: forall(gen.array(gen.eav()),
+                     function (facts) {
+                       var input = Memory.empty();
+                       var constraint0 = MemoryConstraint.fresh([0,1,2]);
+                       var constraint1 = MemoryConstraint.fresh([3,4,5]);
+                       var filter0 = new FunctionFilter(function (x) { return x + 1;}, [2], 3);
+                       var flow = new Flow(Solver.fresh(6, [constraint0, constraint1], [filter0]), [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
+                       var input = input.update(facts, []);
+                       var output = flow.update(input, Memory.empty());
+                       var expectedFacts = [];
+                       for (var i = 0; i < facts.length; i++) {
+                         for (var j = 0; j < facts.length; j++) {
+                           var fact = facts[i].concat(facts[j]);
+                           if (fact[2] + 1 === fact[3]) {
+                             expectedFacts.push(fact);
+                           }
+                         }
+                       }
+                       return memoryEqual(Memory.fromFacts(expectedFacts), output);
+                     }),
 };
 
+solverProps.functionJoin.fun([[1,0,0]]);
+
 // assertAll(solverProps, {tests: 5000});
-
-// SYSTEM TESTS
-
-function manualPathTest() {
-  var constraint0 = MemoryConstraint.fresh([0,null,1], [null,"has-an-edge-to",null]);
-  var sink0 = new Sink([0,null,1], [null,"has-a-path-to",null]);
-  var flow0 = new Flow(Solver.fresh(2, [constraint0]), [sink0]);
-
-  var constraint1 = MemoryConstraint.fresh([0,null,1], [null,"has-an-edge-to",null]);
-  var constraint2 = MemoryConstraint.fresh([1,null,2], [null,"has-a-path-to",null]);
-  var sink1 = new Sink([0,null,2], [null,"has-a-path-to",null]);
-  var flow1 = new Flow(Solver.fresh(3, [constraint1, constraint2]), [sink1]);
-
-  var memory = Memory.empty();
-  var system = new System(memory, [flow0, flow1], [[1], [1]]);
-
-  var facts = [["a", "b"],
-               ["b", "c"],
-               ["c", "d"],
-               ["d", "b"]];
-  system.update(facts, []);
-
-  var derivedFacts = [["a", "b"],
-                      ["b", "c"],
-                      ["c", "d"],
-                      ["d", "b"],
-
-                      ["a", "c"],
-                      ["b", "d"],
-                      ["c", "b"],
-                      ["d", "c"],
-
-                      ["a", "d"],
-                      ["b", "b"],
-                      ["c", "c"],
-                      ["d", "d"]];
-  var expectedFacts = facts.concat(derivedFacts);
-
-  memoryEqual(system.memory, Memory.fromFacts(expectedFacts));
-}
-
-// manualPathTest();
 
 // COMPILER TESTS
 
@@ -1160,7 +1180,7 @@ function soFast(n) {
   var constraint0 = MemoryConstraint.fresh([0,1,2]);
   var constraint1 = MemoryConstraint.fresh([0,1,2]);
   var sink0 = new Sink([0,1,2], [null,null,null]);
-  var solver = Solver.fresh(3, [constraint0, constraint1]);
+  var solver = Solver.fresh(3, [constraint0, constraint1], []);
   var flow = new Flow(solver, [sink0]);
 
   var input = Memory.empty();
@@ -1187,7 +1207,7 @@ function soSlow(n) {
   var constraint0 = MemoryConstraint.fresh([0,1,2]);
   var constraint1 = MemoryConstraint.fresh([0,1,2]);
   var sink0 = new Sink([0,1,2], [null,null,null]);
-  var solver = Solver.fresh(3, [constraint0, constraint1]);
+  var solver = Solver.fresh(3, [constraint0, constraint1], []);
   var flow = new Flow(solver, [sink0]);
 
   var input = Memory.empty();
