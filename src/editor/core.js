@@ -1361,6 +1361,44 @@ comps.rulesList = React.createClass({
   }
 });
 
+comps.tableItem = React.createClass({
+  render: function() {
+    var props = this.props.table;
+    return d.div({className: "rule",
+                        onClick: function() {
+                          data.activeRule = props.id;
+                          data.page = "table-view";
+                          dirty();
+                        }},
+                 d.div({className: "vbox"},
+                       d.h2({}, this.props.table.name))
+                );
+  }
+});
+
+comps.tablesList = React.createClass({
+  render: function () {
+    var items = [];
+    var tables = this.props.tables;
+    for(var i in tables) {
+      var cur = tables[i];
+      items.push(comps.tableItem({id: i, table: cur}));
+    }
+    return d.div({className: "tables"}, items);
+  }
+});
+
+comps.tableView = React.createClass({
+  render: function() {
+    return d.div({className: "table-view"}, d.h2({}, this.props.table.name), comps.grid({table: this.props.table}), d.span({className: "ion-grid return-to-grid",
+                         onClick: function(e) {
+                           data.page = "rules";
+                           dirty();
+                         }
+                        }));
+  }
+});
+
 comps.linksList = React.createClass({
   render: function() {
     var links = this.props.rule.links;
@@ -1417,7 +1455,12 @@ comps.wrapper = React.createClass({
 
 
       case "rules":
-        cur.push(comps.rulesList({rules: data.rules}));
+        cur.push(d.div({className: "vbox"}, comps.tablesList({tables: data.tables}), comps.rulesList({rules: data.rules})));
+        break;
+
+      case "table-view":
+        var table = data.tables[data.activeRule];
+        cur.push(comps.tableView({table: table}));
         break;
 
     }
