@@ -1270,7 +1270,7 @@ comps.ioSelectorItem = React.createClass({
     var props = this.props;
     return d.li({className: "",
                  onClick: function() {
-                   data.rules[data.activeRule].pipes.push({id: "pipe" + globalId++, table: props.table.name, type: props.type});
+                   data.rules[data.activeRule].pipes.push({id: "pipe" + data.globalId++, table: props.table.name, type: props.type});
                    data[props.type + "Selector"] = "closed";
                    dirty();
                  }},
