@@ -7,10 +7,10 @@ var data = eve.data = {tree: {elements: []}, selection: {}, undo: {stack:{childr
                        activeRule: "foo",
                        globalId: 0,
                        rules: {
-                               "boo": {pipes: [{table: "users", type: "source"}, {table: "email outbox", type: "sink"}],
+                         "boo": {pipes: [{id: "booPipe0", table: "users", type: "source"}, {id: "booPipe1", table: "email outbox", type: "sink"}],
                                        valves: [{id: "foo", name: "woohoo"}],
-                                       links: [{type: "tableConstraint", valve: "foo", table: "users", field: "name"},
-                                               {type: "tableConstraint", valve: "foo", table: "email outbox", field: "to"}],
+                                       links: [{type: "tableConstraint", valve: "foo", table: "booPipe0", field: "name"},
+                                               {type: "tableConstraint", valve: "foo", table: "booPipe1", field: "to"}],
                                        description: "look at users"},
                                },
                        tables: {"users": {name: "users",
@@ -1099,14 +1099,14 @@ comps.gridHeader = React.createClass({
 
 comps.grid = React.createClass({
   render: function() {
-    if(!this.props.fields.length) return d.table();
+    if(!this.props.table.fields.length) return d.table();
 
     var ths = [];
     var thfilters = [];
-    var headers = this.props.fields;
+    var headers = this.props.table.fields;
     for(var i in headers) {
       var cur = headers[i];
-      ths.push(comps.gridHeader({column: cur, table: this.props.id}));
+      ths.push(comps.gridHeader({column: cur, table: this.props.sinkId}));
       if(cur.filters) {
         thfilters.push(d.th({className: "modifier"}, cur.filters));
       } else {
@@ -1115,7 +1115,7 @@ comps.grid = React.createClass({
     }
 
     var trs = [];
-    var rows = this.props.rows;
+    var rows = this.props.table.rows;
     if(!rows || !rows.length) {
       rows = [["", "", "", "", ""]];
     }
@@ -1135,13 +1135,14 @@ comps.grid = React.createClass({
 
 comps.inputColumnList = React.createClass({
   render: function() {
-    var props = this.props;
-    var items = this.props.fields.map(function(cur) {
+    var table = this.props.table;
+    var id = this.props.id;
+    var items = table.fields.map(function(cur) {
       return d.li({draggable: true,
                    onDragStart: function(e) {
                      data.selection = {};
                      data.selection.action = "add column";
-                     data.selection.column = {table: props.name, column: cur.name, name: cur.name};
+                     data.selection.column = {id: id, table: table.name, column: cur.name, name: cur.name};
                      e.dataTransfer.effectAllowed = "move";
                      e.dataTransfer.dropEffect = "move";
                    }},
@@ -1156,7 +1157,7 @@ comps.inputItem = React.createClass({
     var cur = this.props.table;
     var items = [d.span({className: "table-name"}, cur.name)];
     if(cur.active) {
-      items.push(comps.inputColumnList(cur));
+      items.push(comps.inputColumnList({table: cur, id: this.props.id}));
     }
     return d.li({className: "" + (cur.active ? "active" : ""),
                  onClick: function() {
@@ -1178,7 +1179,7 @@ comps.sources = React.createClass({
     var sources = this.props.sources;
     for(var i in sources) {
       var cur = sources[i].table;
-      items.push(comps.inputItem({id: cur, table: data.tables[cur]}));
+      items.push(comps.inputItem({id: sources[i].id, table: data.tables[cur]}));
     }
 
     return d.div({className: "inputs-container container"},
@@ -1195,13 +1196,13 @@ comps.workspace = React.createClass({
       }
     }
     var valveId = "valve" + data.globalId++;
-    col.id = valveId;
-    this.props.rule.links.push({type: "tableConstraint", valve: valveId, table: col.table, field: col.name});
+    var valve = {id: valveId, name: col.name};
+    this.props.rule.links.push({type: "tableConstraint", valve: valveId, table: col.id, field: col.name});
     if(ix === undefined) {
-      cols.push(col);
+      cols.push(valve);
       return cols.length - 1;
     } else {
-      cols.splice(ix,0,col);
+      cols.splice(ix,0,valve);
       return ix;
     }
   },
@@ -1256,10 +1257,9 @@ comps.workspace = React.createClass({
                   onDrop: this.onDrop},
                  d.div({className: "workspace"},
                        d.span({className: "description"}, rule.description),
-                       comps.grid({fields: cols,
-                                   table: "workspace",
-                                   //TODO: show the real intermediates
-                                   rows: []}
+                       comps.grid({table: {fields: cols,
+                                  //TODO: show the real intermediates
+                                           rows: []}}
                                  )
                       ));
   }
@@ -1270,7 +1270,7 @@ comps.ioSelectorItem = React.createClass({
     var props = this.props;
     return d.li({className: "",
                  onClick: function() {
-                   data.rules[data.activeRule].pipes.push({table: props.table.name, type: props.type});
+                   data.rules[data.activeRule].pipes.push({id: "pipe" + globalId++, table: props.table.name, type: props.type});
                    data[props.type + "Selector"] = "closed";
                    dirty();
                  }},
@@ -1306,9 +1306,10 @@ comps.sinks = React.createClass({
     var items = [];
     var sinks = this.props.sinks;
     for(var i in sinks) {
+      console.log(sinks[i]);
       var cur = data.tables[sinks[i].table];
       //TODO: get the values for the sinks
-      items.push(d.li({}, d.h2({}, cur.name), comps.grid(cur)));
+      items.push(d.li({}, d.h2({}, cur.name), comps.grid({table: cur, sinkId: sinks[i].id})));
     }
 
     return d.div({className: "outputs-container container"},
@@ -1368,10 +1369,15 @@ comps.linksList = React.createClass({
     for(var i in valves) {
       valveToName[valves[i].id] = valves[i].name;
     }
+    var pipes = this.props.rule.pipes;
+    var pipesToName = {};
+    for(var i in pipes) {
+      pipesToName[pipes[i].id] = pipes[i].table;
+    }
     var items = [];
     for(var i in links) {
       var cur = links[i];
-      items.push(d.li({}, valveToName[cur.valve] + " -> " + cur.table + "." + cur.field));
+      items.push(d.li({}, valveToName[cur.valve] + " -> " + pipesToName[cur.table] + "." + cur.field + " [" + cur.table + "]" ));
     }
     return d.ul({className: "links-list"}, items);
   }
