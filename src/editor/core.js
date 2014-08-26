@@ -8,10 +8,9 @@ var data = eve.data = {tree: {elements: []}, selection: {}, undo: {stack:{childr
                        globalId: 0,
                        rules: {
                          "boo": {pipes: [{id: "booPipe0", table: "users", type: "source"}, {id: "booPipe1", table: "email outbox", type: "sink"}],
-                                       valves: [{id: "foo", name: "woohoo"}],
-                                       links: [{type: "tableConstraint", valve: "foo", table: "booPipe0", field: "name"},
-                                               {type: "tableConstraint", valve: "foo", table: "booPipe1", field: "to"}],
-                                       description: "look at users"},
+                                 valves: [],
+                                 links: [],
+                                 description: "look at users"},
                                },
                        tables: {"users": {name: "users",
                                           id: "users",
@@ -1248,6 +1247,23 @@ comps.workspace = React.createClass({
   onDragOver: function(e) {
     e.preventDefault();
   },
+
+  getIntermediates: function() {
+    var dump = dumpMemory(data.system.memory);
+    try {
+      var flow = compileRule(dump, data.activeRule);
+      var outputAdds = [];
+      flow.source.update(data.system.memory, outputAdds, []);
+      console.log(JSON.stringify(outputAdds));
+      return outputAdds.map(function(cur) {
+        cur.reverse();
+        return cur;
+      });
+    } catch (e) {
+      return [];
+    }
+  },
+
   render: function() {
     var rule = this.props.rule;
     var cols = rule.valves;
@@ -1259,7 +1275,7 @@ comps.workspace = React.createClass({
                        d.span({className: "description"}, rule.description),
                        comps.grid({table: {fields: cols,
                                   //TODO: show the real intermediates
-                                           rows: []}}
+                                           rows: this.getIntermediates()}}
                                  )
                       ));
   }
@@ -1301,6 +1317,16 @@ comps.ioSelector = React.createClass({
 });
 
 comps.sinks = React.createClass({
+  getSolutions: function() {
+    var dump = dumpMemory(data.system.memory);
+    var flow = compileRule(dump, data.activeRule);
+    var output = flow.update(data.system.memory, Memory.empty())
+    return output.facts.map(function(cur) {
+      cur.shift();
+      return cur;
+    });
+  },
+
   render: function() {
 
     var items = [];
@@ -1309,7 +1335,7 @@ comps.sinks = React.createClass({
       console.log(sinks[i]);
       var cur = data.tables[sinks[i].table];
       //TODO: get the values for the sinks
-      items.push(d.li({}, d.h2({}, cur.name), comps.grid({table: cur, sinkId: sinks[i].id})));
+      items.push(d.li({}, d.h2({}, cur.name), comps.grid({table: {fields: cur.fields, rows: this.getSolutions()}, sinkId: sinks[i].id})));
     }
 
     return d.div({className: "outputs-container container"},
@@ -1422,6 +1448,26 @@ comps.linksList = React.createClass({
 });
 
 comps.wrapper = React.createClass({
+  compileRule: function(rule) {
+    var facts = [];
+    rule.pipes.forEach(function(cur) {
+      var table = data.tables[cur.table];
+      table.fields.forEach(function(field, ix) {
+        facts.push(["schema", cur.table, field.name, ix]);
+      });
+      facts.push(["pipe", cur.id, cur.table, data.activeRule, cur.type]);
+    });
+    rule.links.forEach(function(cur) {
+      facts.push([cur.type, cur.valve, cur.table, cur.field]);
+    });
+    rule.valves.forEach(function(cur) {
+      facts.push(["valve", cur.id, data.activeRule]);
+    });
+    var system = compileSystem(Memory.fromFacts(compilerSchema.concat(facts)));
+    data.system = system;
+    system.update([["users", 0, "chris", "chris@chris.com", "555-555-5555"]], []);
+    return system;
+  },
   render: function() {
 
     var cur = [];
@@ -1443,6 +1489,7 @@ comps.wrapper = React.createClass({
             outs.push(cur);
           }
         });
+        this.compileRule(activeRule.rule);
         cur.push(d.div({className: "vbox"}, d.div({className: "hbox data-top"}, comps.sources({sources: ins}), comps.workspace(activeRule), comps.linksList(activeRule)), comps.sinks({sinks: outs})),
                  d.span({className: "ion-grid return-to-grid",
                          onClick: function(e) {
