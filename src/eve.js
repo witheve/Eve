@@ -1107,9 +1107,28 @@ var solverProps = {
                        }
                        return memoryEqual(Memory.fromFacts(expectedFacts), output);
                      }),
-};
 
-solverProps.functionJoin.fun([[1,0,0]]);
+  incrementalFunctionJoin: forall(gen.array(gen.eav()), gen.array(gen.eav()), gen.array(gen.eav()),
+                                  function (facts, adds, dels) {
+                                    var input = Memory.empty();
+                                    var constraint0 = MemoryConstraint.fresh([0,1,2]);
+                                    var constraint1 = MemoryConstraint.fresh([3,4,5]);
+                                    var filter0 = new FunctionFilter(function (x) { return x + 1;}, [2], 3);
+                                    var incrementalFlow = new Flow(Solver.fresh(6, [constraint0, constraint1], [filter0]), [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
+                                    var batchFlow = new Flow(Solver.fresh(6, [constraint0, constraint1], [filter0]), [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
+                                    var incrementalOutput = Memory.empty();
+                                    var batchOutput = Memory.empty();
+
+                                    input = input.update(facts, []);
+                                    incrementalOutput = incrementalFlow.update(input, incrementalOutput);
+
+                                    input = input.update(adds, dels);
+                                    batchOutput = batchFlow.update(input, batchOutput);
+                                    incrementalOutput = incrementalFlow.update(input, incrementalOutput);
+
+                                    return memoryEqual(incrementalOutput, batchOutput);
+                                  }),
+};
 
 // assertAll(solverProps, {tests: 5000});
 
