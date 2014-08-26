@@ -413,8 +413,8 @@ MemoryConstraint.prototype = {
     for (var i = ixes.length - 1; i >= 0; i--) {
       var newLo = greatest;
       for (var j = facts.length - 1; j >= 0; j--) {
-        var factLo = facts[j][i];
-        if (compareValue(factLo, newLo) === -1) newLo = factLo;
+        var value = facts[j][i];
+        if (compareValue(value, newLo) === -1) newLo = value;
       }
       var ix = ixes[i];
       if (compareValue(newLo, los[ix]) === 1) {
@@ -775,6 +775,21 @@ function compileRule(dump, rule) {
   return new Flow(Solver.fresh(valves.length, constraints), sinks);
 }
 
+function compileSystem(memory) {
+  // TODO do this properly
+  var dump = dumpMemory(memory);
+  var rules = Object.keys(dump.pipe.rule);
+  var flows = [];
+  var dirty = [];
+  var dirtied = [];
+  for (var i = rules.length - 1; i >= 0; i--) {
+    flows[i] = compileRule(dump, rules[i]);
+    dirtied[i] = i;
+    dirty[i] = dirtied;
+  }
+  return new System(memory, flows, dirty);
+}
+
 // TESTS
 
 var jsc = jsc; // just to make jshint happy
@@ -1108,10 +1123,8 @@ function compiledPathTest() {
                        ["tableConstraint", "pathA", "pathPathSinkPipe", "pathX"],
                        ["tableConstraint", "pathC", "pathPathSinkPipe", "pathY"]];
 
-  var dump = dumpMemory(Memory.fromFacts(compilerSchema.concat(compilerFacts)));
-
-  // TODO compile system too
-  var system = new System(Memory.empty(), [compileRule(dump, "edgeRule"), compileRule(dump, "pathRule")], [[1],[1]]);
+  var system = compileSystem(Memory.fromFacts(compilerSchema.concat(compilerFacts)));
+  system.memory = Memory.empty();
 
   var facts = [["edge", "a", "b"],
                ["edge", "b", "c"],
