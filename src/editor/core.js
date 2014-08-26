@@ -1362,11 +1362,16 @@ comps.rulesList = React.createClass({
 
 comps.linksList = React.createClass({
   render: function() {
-    var links = this.props.links;
+    var links = this.props.rule.links;
+    var valves = this.props.rule.valves;
+    var valveToName = {};
+    for(var i in valves) {
+      valveToName[valves[i].id] = valves[i].name;
+    }
     var items = [];
     for(var i in links) {
       var cur = links[i];
-      items.push(d.li({}, cur.valve + " -> " + cur.table + "." + cur.field));
+      items.push(d.li({}, valveToName[cur.valve] + " -> " + cur.table + "." + cur.field));
     }
     return d.ul({className: "links-list"}, items);
   }
@@ -1394,7 +1399,7 @@ comps.wrapper = React.createClass({
             outs.push(cur);
           }
         });
-        cur.push(d.div({className: "vbox"}, d.div({className: "hbox data-top"}, comps.sources({sources: ins}), comps.workspace(activeRule), comps.linksList({links: activeRule.rule.links})), comps.sinks({sinks: outs})),
+        cur.push(d.div({className: "vbox"}, d.div({className: "hbox data-top"}, comps.sources({sources: ins}), comps.workspace(activeRule), comps.linksList(activeRule)), comps.sinks({sinks: outs})),
                  d.span({className: "ion-grid return-to-grid",
                          onClick: function(e) {
                            data.page = "rules";
