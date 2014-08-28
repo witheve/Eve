@@ -718,7 +718,17 @@ var compilerSchema =
      ["schema", "tableConstraint", "field", 2],
 
      ["schema", "constantConstraint", "valve", 0],
-     ["schema", "constantConstraint", "value", 1]];
+     ["schema", "constantConstraint", "value", 1],
+
+     ["schema", "function", "function", 0],
+     ["schema", "function", "code", 1],
+     ["schema", "function", "rule", 2],
+
+     ["schema", "functionInput", "valve", 0],
+     ["schema", "functionInput", "function", 1],
+
+     ["schema", "functionOutput", "valve", 0],
+     ["schema", "functionOutput", "function", 1]];
 
 function dumpMemory(memory) {
   var facts = memory.facts;
@@ -811,7 +821,27 @@ function compileRule(dump, rule) {
     } else assert(false);
   }
 
-  return new Flow(Solver.fresh(valves.length, constraints, []), sinks);
+  var funs = dump.function.rule[rule] || [];
+  var filters = [];
+  for (var i = funs.length - 1; i >= 0; i--) {
+    var fun = funs[i];
+    var inputs = dump.functionInput.function[fun.function];
+    var inIxes = [];
+    var args = [];
+    for (var j = inputs.length - 1; j >= 0; j--) {
+      var valve = inputs[j].valve;
+      args[j] = valve;
+      inIxes[j] = valveIxes[valve];
+    }
+    var output = dump.functionOutput.function[fun.function][0];
+    var outIx = valveIxes[output.valve];
+    var compiled = Function.apply(null, args.concat(["return (" + fun.code + ");"]));
+    filters.push(new FunctionFilter(compiled, inIxes, outIx));
+  }
+
+  // TODO order filters by dependencies
+
+  return new Flow(Solver.fresh(valves.length, constraints, filters), sinks);
 }
 
 function compileSystem(memory) {
@@ -1192,6 +1222,42 @@ function compiledPathTest() {
 }
 
 // compiledPathTest();
+
+function compiledFunctionTest() {
+  var compilerFacts = [["schema", "foo", "fooX", 0],
+                       ["schema", "foo", "fooY", 1],
+                       ["schema", "foo", "fooZ", 2],
+                       ["schema", "bar", "barZ", 0],
+
+                       ["valve", "valveX", "rule"],
+                       ["valve", "valveY", "rule"],
+                       ["valve", "valveZ", "rule"],
+                       ["pipe", "fooPipe", "foo", "rule", "source"],
+                       ["pipe", "barPipe", "bar", "rule", "sink"],
+                       ["tableConstraint", "valveX", "fooPipe", "fooX"],
+                       ["tableConstraint", "valveY", "fooPipe", "fooY"],
+                       ["tableConstraint", "valveZ", "fooPipe", "fooZ"],
+                       ["tableConstraint", "valveZ", "barPipe", "barZ"],
+
+                       ["function", "addFunction", "valveX + valveY", "rule"],
+                       ["functionInput", "valveX", "addFunction"],
+                       ["functionInput", "valveY", "addFunction"],
+                       ["functionOutput", "valveZ", "addFunction"]];
+
+  var system = compileSystem(Memory.fromFacts(compilerSchema.concat(compilerFacts)));
+  system.memory = Memory.empty();
+
+  var facts = [["foo", 2, 3, 5],
+               ["foo", 2, 4, 7]];
+  system.update(facts, []);
+
+  var derivedFacts = [["bar", 5]];
+  var expectedFacts = facts.concat(derivedFacts);
+
+  memoryEqual(system.memory, Memory.fromFacts(expectedFacts));
+}
+
+/// compiledFunctionTest();
 
 // BENCHMARKS
 
