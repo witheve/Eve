@@ -803,7 +803,7 @@ var compilerSchema =
      ["schema", "functionInput", "function", 1]];
 
 function dumpMemory(memory) {
-  var facts = memory.facts;
+  var facts = memory.getFacts();
 
   var schema = {};
   for (var i = facts.length - 1; i >= 0; i--) {
