@@ -321,6 +321,39 @@ Memory.fromFacts = function(facts) {
   return new Memory(facts.slice());
 };
 
+function diffFacts(oldFacts, newFacts, outputAdds, outputDels) {
+  var adds = {};
+  var dels = {};
+  for (var i = newFacts.length - 1; i >= 0; i--) {
+    var newFact = newFacts[i];
+    adds[JSON.stringify(newFact)] = newFact;
+  }
+  for (var i = oldFacts.length - 1; i >= 0; i--) {
+    var oldFact = oldFacts[i];
+    dels[JSON.stringify(oldFact)] = oldFact;
+  }
+  for (var i = newFacts.length - 1; i >= 0; i--) {
+    delete dels[JSON.stringify(newFacts[i])];
+  }
+  for (var i = oldFacts.length - 1; i >= 0; i--) {
+    delete adds[JSON.stringify(oldFacts[i])];
+  }
+  var addKeys = Object.keys(adds);
+  var delKeys = Object.keys(dels);
+  for (var i = addKeys.length - 1; i >= 0; i--) {
+    outputAdds.push(adds[addKeys[i]]);
+  }
+  for (var i = delKeys.length - 1; i >= 0; i--) {
+    outputDels.push(dels[delKeys[i]]);
+  }
+}
+
+function dedupeFacts(facts) {
+  var output = [];
+  diffFacts([], facts, output, []);
+  return output;
+}
+
 Memory.prototype = {
   update: function(adds, dels) {
     var facts = this.facts.slice();
@@ -342,33 +375,22 @@ Memory.prototype = {
 
   diff: function(oldTree, outputAdds, outputDels) {
     // TODO hacky gross diffing
-    var oldFacts = oldTree.facts;
-    var newFacts = this.facts;
-    var adds = {};
-    var dels = {};
-    for (var i = newFacts.length - 1; i >= 0; i--) {
-      var newFact = newFacts[i];
-      adds[JSON.stringify(newFact)] = newFact;
-    }
-    for (var i = oldFacts.length - 1; i >= 0; i--) {
-      var oldFact = oldFacts[i];
-      dels[JSON.stringify(oldFact)] = oldFact;
-    }
-    for (var i = newFacts.length - 1; i >= 0; i--) {
-      delete dels[JSON.stringify(newFacts[i])];
-    }
-    for (var i = oldFacts.length - 1; i >= 0; i--) {
-      delete adds[JSON.stringify(oldFacts[i])];
-    }
-    var addKeys = Object.keys(adds);
-    var delKeys = Object.keys(dels);
-    for (var i = addKeys.length - 1; i >= 0; i--) {
-      outputAdds.push(adds[addKeys[i]]);
-    }
-    for (var i = delKeys.length - 1; i >= 0; i--) {
-      outputDels.push(dels[delKeys[i]]);
-    }
+    diffFacts(oldTree.facts, this.facts, outputAdds, outputDels);
   },
+
+  getFacts: function() {
+    return dedupeFacts(this.facts);
+  },
+
+  getTable: function(name) {
+    var facts = this.facts;
+    var table = [];
+    for (var i = facts.length - 1; i >= 0; i--) {
+      var fact = facts[i];
+      if (fact[0] === name) table.push(fact);
+    }
+    return dedupeFacts(table);
+  }
 };
 
 function MemoryConstraint(ixes, constants, facts) {
@@ -384,15 +406,8 @@ MemoryConstraint.fresh = function(ixes, constants) {
 
 MemoryConstraint.prototype = {
   reset: function(memory) {
-    var ixes = this.ixes;
-    var facts = [];
-    memory.diff(Memory.empty(), facts, []); // crude deduping
-    for (var i = facts.length - 1; i >= 0; i--) {
-      if (facts[i].length !== ixes.length) {
-        facts.splice(i, 1);
-      }
-    }
-    this.facts = facts;
+    // TODO the latter is a hack to avoid having to change all the quickcheck tests
+    this.facts = (this.constants && this.constants[0]) ? memory.getTable(this.constants[0]) : memory.getFacts();
   },
 
   copy: function() {
@@ -482,15 +497,8 @@ NegatedMemoryConstraint.fresh = function(ixes, constants) {
 
 NegatedMemoryConstraint.prototype = {
   reset: function(memory) {
-    var ixes = this.ixes;
-    var facts = [];
-    memory.diff(Memory.empty(), facts, []); // crude deduping
-    for (var i = facts.length - 1; i >= 0; i--) {
-      if (facts[i].length !== ixes.length) {
-        facts.splice(i, 1);
-      }
-    }
-    this.facts = facts;
+    // TODO the latter is a hack to avoid having to change all the quickcheck tests
+    this.facts = (this.constants && this.constants[0]) ? memory.getTable(this.constants[0]) : memory.getFacts();
   },
 
   copy: function() {
