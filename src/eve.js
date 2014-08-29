@@ -164,7 +164,7 @@ function ProvenanceConstraint(regions) {
 }
 
 Provenance.empty = function(numVars, constraints) {
-  var region = new Region(makeArray(numVars, least), makeArray(numVars, greatest), 1, null);
+  var region = new Region(makeArray(numVars, least), makeArray(numVars, greatest), -1, null);
   return new Provenance(Memory.empty(), numVars, constraints, [region], []);
 };
 
