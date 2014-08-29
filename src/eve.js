@@ -872,31 +872,33 @@ function compileRule(dump, rule) {
   });
   for (var i = pipes.length - 1; i >= 0; i--) {
     var pipe = pipes[i];
-    var tableConstraints = dump.tableConstraint.pipe[pipe.pipe] || [];
-    var fields = dump.schema.table[pipe.table] || [];
-    var ixes = makeArray(fields.length + 1, null); // +1 because table is 0
-    var constants = makeArray(fields.length + 1, null); // +1 because table is 0
-    constants[0] = pipe.table;
-    for (var j = tableConstraints.length - 1; j >= 0; j--) {
-      var tableConstraint = tableConstraints[j];
-      var fieldIx = dump.schema.field[tableConstraint.field][0].ix;
-      var valveIx = valveIxes[tableConstraint.valve];
-      var constant = valveConstants[tableConstraint.valve];
-      if (constant === undefined) {
-        ixes[fieldIx + 1] = valveIx; // +1 because table is 0
-      } else {
-        constants[fieldIx + 1] = constant; // +1 because table is 0
+    var tableConstraints = dump.tableConstraint.pipe[pipe.pipe];
+    if (tableConstraints !== undefined) {
+      var fields = dump.schema.table[pipe.table] || [];
+      var ixes = makeArray(fields.length + 1, null); // +1 because table is 0
+      var constants = makeArray(fields.length + 1, null); // +1 because table is 0
+      constants[0] = pipe.table;
+      for (var j = tableConstraints.length - 1; j >= 0; j--) {
+        var tableConstraint = tableConstraints[j];
+        var fieldIx = dump.schema.field[tableConstraint.field][0].ix;
+        var valveIx = valveIxes[tableConstraint.valve];
+        var constant = valveConstants[tableConstraint.valve];
+        if (constant === undefined) {
+          ixes[fieldIx + 1] = valveIx; // +1 because table is 0
+        } else {
+          constants[fieldIx + 1] = constant; // +1 because table is 0
+        }
       }
+      if (pipe.direction === "+source") {
+        constraints.push(MemoryConstraint.fresh(ixes, constants));
+      } else if (pipe.direction === "-source") {
+        var constraint = NegatedMemoryConstraint.fresh(ixes, constants);
+        constraints.push(constraint);
+        filters.push(constraint);
+      } else if (pipe.direction === "+sink") {
+        sinks.push(new Sink(ixes, constants));
+      } else assert(false);
     }
-    if (pipe.direction === "+source") {
-      constraints.push(MemoryConstraint.fresh(ixes, constants));
-    } else if (pipe.direction === "-source") {
-      var constraint = NegatedMemoryConstraint.fresh(ixes, constants);
-      constraints.push(constraint);
-      filters.push(constraint);
-    } else if (pipe.direction === "+sink") {
-      sinks.push(new Sink(ixes, constants));
-    } else assert(false);
   }
 
   var funs = dump.function.rule[rule] || [];
