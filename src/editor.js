@@ -15,6 +15,12 @@ var data = eve.data = {tree: {elements: []}, selection: {}, undo: {stack:{childr
                        tables: {"users": {name: "users",
                                           id: "users",
                                           fields: [{name: "id", id: "users_id"}, {name: "name", id: "users_name"}, {name: "email", id: "users_email"}, {name: "phone", id: "users_phone"}]},
+                                "edges": {name: "edges",
+                                          id: "edges",
+                                          fields: [{name: "from", id: "edges_from"}, {name: "to", id: "edges_to"}]},
+                                "path": {name: "path",
+                                         id: "path",
+                                         fields: [{name: "from", id: "path_from"}, {name: "to", id: "path_to"}]},
                                 "todos": {name: "todos",
                                           id: "todos",
                                           fields: [{name: "id", id: "todos_id"}, {name: "text", id: "todos_text"}, {name: "completed", id: "todos_completed"}]},
@@ -1085,10 +1091,15 @@ comps.gridHeader = React.createClass({
                    //TODO: this logic probably doesn't really belong here.
                    //TODO: this is not undoable
                    var valve = data.selection.column.id;
-                   if(valve) {
+                   if(!valve) return;
+
+                   if(props.table) {
                      data.rules[data.activeRule].links.push({valve: valve, type: "tableConstraint", table: props.table, field: props.column.id})
                      dirty();
+                   } else {
+                     console.log("dropped on a thing");
                    }
+                   e.stopPropagation();
                  }
                 },
                     cur.name);
@@ -1102,6 +1113,7 @@ comps.grid = React.createClass({
     var ths = [];
     var thfilters = [];
     var headers = this.props.table.fields;
+    var headersLen = headers.length;
     for(var i in headers) {
       var cur = headers[i];
       ths.push(comps.gridHeader({column: cur, table: this.props.sinkId}));
@@ -1117,11 +1129,13 @@ comps.grid = React.createClass({
     if(!rows || !rows.length) {
       rows = [["", "", "", "", ""]];
     }
-    for(var i in rows) {
+    var skip = this.props.table.withoutTable ? 0 : 1;
+    var rowLen = rows.length;
+    for(var i = 0; i < rowLen; i++) {
       var row = rows[i];
       var tds = [];
-      for(var i in headers) {
-        tds.push(d.td({}, row[i]));
+      for(var header = 0; header < headersLen; header++) {
+        tds.push(d.td({}, row[header + skip]));
       }
       trs.push(d.tr({}, tds));
     }
@@ -1269,6 +1283,7 @@ comps.workspace = React.createClass({
                  d.div({className: "workspace"},
                        d.span({className: "description"}, rule.description),
                        comps.grid({table: {fields: cols,
+                                           withoutTable: true,
                                   //TODO: show the real intermediates
                                            rows: this.getIntermediates()}}
                                  )
@@ -1318,7 +1333,7 @@ comps.sinks = React.createClass({
     var output = flow.update(data.system.memory, Memory.empty())
     var final = {};
     output.facts.forEach(function(cur) {
-      var table = cur.shift();
+      var table = cur[0];
       if(!final[table]) {
         final[table] = [];
       }
@@ -1416,7 +1431,12 @@ comps.tablesList = React.createClass({
 
 comps.tableView = React.createClass({
   render: function() {
-    return d.div({className: "table-view"}, d.h2({}, this.props.table.name), comps.grid({table: this.props.table}), d.span({className: "ion-grid return-to-grid",
+    //TODO: replace with table API call
+    var curTable = this.props.table.name;
+    var rows = data.system.memory.facts.filter(function(cur) {
+      return cur[0] == curTable;
+    });
+    return d.div({className: "table-view"}, d.h2({}, this.props.table.name), comps.grid({table: {fields: this.props.table.fields, rows: rows}}), d.span({className: "ion-grid return-to-grid",
                          onClick: function(e) {
                            data.page = "rules";
                            dirty();
@@ -1448,13 +1468,40 @@ comps.linksList = React.createClass({
 });
 
 comps.wrapper = React.createClass({
+  buildSystem: function() {
+    var rules = data.rules;
+    var final = [];
+    for(var rule in rules) {
+      var facts = this.compileRule(rules[rule]);
+      var factsLen = facts.length;
+      for(var i = 0; i < factsLen; i++) {
+        final.push(facts[i]);
+      }
+    }
+    var tables = data.tables;
+    for(var table in tables) {
+      var cur = tables[table];
+      cur.fields.forEach(function(field, ix) {
+          final.push(["schema", table, field.id, ix]);
+      });
+    }
+    console.log(JSON.stringify(final));
+    var system = compileSystem(Memory.fromFacts(compilerSchema.concat(final)));
+    system.update([["users", 0, "chris", "chris@chris.com", "555-555-5555"],
+                   ["users", 1, "jamie", "jamie@jamie.com", "555-555-5556"],
+                   ["edges", "a", "b"],
+                   ["edges", "b", "c"],
+                   ["edges", "c", "d"],
+                   ["edges", "d", "b"]
+                  ],
+                  []);
+    return system;
+  },
+
   compileRule: function(rule) {
     var facts = [];
+    var added = {};
     rule.pipes.forEach(function(cur) {
-      var table = data.tables[cur.table];
-      table.fields.forEach(function(field, ix) {
-        facts.push(["schema", cur.table, field.id, ix]);
-      });
       facts.push(["pipe", cur.id, cur.table, data.activeRule, cur.type]);
     });
     rule.links.forEach(function(cur) {
@@ -1463,17 +1510,13 @@ comps.wrapper = React.createClass({
     rule.valves.forEach(function(cur, ix) {
       facts.push(["valve", cur.id, data.activeRule, ix]);
     });
-    var system = compileSystem(Memory.fromFacts(compilerSchema.concat(facts)));
-    data.system = system;
-    system.update([["users", 0, "chris", "chris@chris.com", "555-555-5555"],
-                   ["users", 1, "jamie", "jamie@jamie.com", "555-555-5556"],
-                  ],
-                  []);
-    return system;
+    return facts;
   },
   render: function() {
 
     var cur = [];
+
+    data.system = this.buildSystem();
 
     switch(data.page) {
 
@@ -1492,7 +1535,6 @@ comps.wrapper = React.createClass({
             outs.push(cur);
           }
         });
-        this.compileRule(activeRule.rule);
         cur.push(d.div({className: "vbox"}, d.div({className: "hbox data-top"}, comps.sources({sources: ins}), comps.workspace(activeRule), comps.linksList(activeRule)), comps.sinks({sinks: outs})),
                  d.span({className: "ion-grid return-to-grid",
                          onClick: function(e) {
