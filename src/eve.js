@@ -849,7 +849,7 @@ function compileRule(dump, rule) {
   for (var i = valves.length - 1; i >= 0; i--) {
     var valve = valves[i];
     var constantConstraints = dump.constantConstraint.valve[valve.valve] || [];
-    if (constantConstraints.length > 1) assert(false);
+    assert(constantConstraints.length <= 1);
     if (constantConstraints.length === 1) {
       valves.slice(i);
       valveConstants[valve.valve] = constantConstraints[0].value;
@@ -880,7 +880,9 @@ function compileRule(dump, rule) {
       constants[0] = pipe.table;
       for (var j = tableConstraints.length - 1; j >= 0; j--) {
         var tableConstraint = tableConstraints[j];
-        var fieldIx = dump.schema.field[tableConstraint.field][0].ix;
+        var fieldIxes = dump.schema.field[tableConstraint.field];
+        assert(fieldIxes.length === 1);
+        var fieldIx = fieldIxes[0].ix;
         var valveIx = valveIxes[tableConstraint.valve];
         var constant = valveConstants[tableConstraint.valve];
         if (constant === undefined) {
