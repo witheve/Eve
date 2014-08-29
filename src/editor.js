@@ -7,7 +7,7 @@ var data = eve.data = {tree: {elements: []}, selection: {}, undo: {stack:{childr
                        activeRule: "foo",
                        globalId: 0,
                        rules: {
-                         "boo": {pipes: [{id: "booPipe0", table: "users", type: "source"}, {id: "booPipe1", table: "email outbox", type: "sink"}],
+                         "boo": {pipes: [{id: "booPipe0", table: "users", type: "+source"}, {id: "booPipe1", table: "email outbox", type: "+sink"}],
                                  valves: [],
                                  links: [],
                                  description: "look at users"},
@@ -1255,10 +1255,7 @@ comps.workspace = React.createClass({
       var outputAdds = [];
       flow.source.update(data.system.memory, outputAdds, []);
       console.log(JSON.stringify(outputAdds));
-      return outputAdds.map(function(cur) {
-        cur.reverse();
-        return cur;
-      });
+      return outputAdds;
     } catch (e) {
       return [];
     }
@@ -1308,7 +1305,7 @@ comps.ioSelector = React.createClass({
 
     var items = [];
     for(var i in data.tables) {
-      items.push(comps.ioSelectorItem({table: data.tables[i], type: type}));
+      items.push(comps.ioSelectorItem({table: data.tables[i], type: "+" + type}));
     }
 
     return d.li({className: type + "-selector"},
@@ -1350,7 +1347,7 @@ comps.ruleItem = React.createClass({
     var outs = [];
     props.rule.pipes.forEach(function(cur) {
       var li = d.li({}, cur.table);
-      if(cur.type == "source") {
+      if(cur.type == "+source") {
         ins.push(li);
       } else {
         outs.push(li);
@@ -1460,12 +1457,15 @@ comps.wrapper = React.createClass({
     rule.links.forEach(function(cur) {
       facts.push([cur.type, cur.valve, cur.table, cur.field]);
     });
-    rule.valves.forEach(function(cur) {
-      facts.push(["valve", cur.id, data.activeRule]);
+    rule.valves.forEach(function(cur, ix) {
+      facts.push(["valve", cur.id, data.activeRule, ix]);
     });
     var system = compileSystem(Memory.fromFacts(compilerSchema.concat(facts)));
     data.system = system;
-    system.update([["users", 0, "chris", "chris@chris.com", "555-555-5555"]], []);
+    system.update([["users", 0, "chris", "chris@chris.com", "555-555-5555"],
+                   ["users", 1, "jamie", "jamie@jamie.com", "555-555-5556"],
+                  ],
+                  []);
     return system;
   },
   render: function() {
@@ -1483,7 +1483,7 @@ comps.wrapper = React.createClass({
         var ins = [];
         var outs = [];
         activeRule.rule.pipes.forEach(function(cur) {
-          if(cur.type == "source") {
+          if(cur.type == "+source") {
             ins.push(cur);
           } else {
             outs.push(cur);
