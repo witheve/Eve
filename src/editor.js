@@ -1316,20 +1316,26 @@ comps.sinks = React.createClass({
     var dump = dumpMemory(data.system.memory);
     var flow = compileRule(dump, data.activeRule);
     var output = flow.update(data.system.memory, Memory.empty())
-    return output.facts.map(function(cur) {
-      cur.shift();
-      return cur;
+    var final = {};
+    output.facts.forEach(function(cur) {
+      var table = cur.shift();
+      if(!final[table]) {
+        final[table] = [];
+      }
+      final[table].push(cur);
     });
+    return final;
   },
 
   render: function() {
 
     var items = [];
     var sinks = this.props.sinks;
+    var sols = this.getSolutions();
     for(var i in sinks) {
       var cur = data.tables[sinks[i].table];
       //TODO: get the values for the sinks
-      items.push(d.li({}, d.h2({}, cur.name), comps.grid({table: {fields: cur.fields, rows: this.getSolutions()}, sinkId: sinks[i].id})));
+      items.push(d.li({}, d.h2({}, cur.name), comps.grid({table: {fields: cur.fields, rows: sols[sinks[i].table]}, sinkId: sinks[i].id})));
     }
 
     return d.div({className: "outputs-container container"},
