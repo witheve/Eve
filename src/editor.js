@@ -1097,7 +1097,29 @@ comps.gridHeader = React.createClass({
                      data.rules[data.activeRule].links.push({valve: valve, type: "tableConstraint", table: props.table, field: props.column.id})
                      dirty();
                    } else {
-                     console.log("dropped on a thing");
+                     console.log("dropped on a thing", cur);
+                     var col = data.selection.column;
+                     var rule = data.rules[data.activeRule];
+                     var cols = rule.valves;
+                     for(var ix = 0; ix < cols.length; ix++) {
+                       if(cols[ix].id == col.id) {
+                         break;
+                       }
+                     }
+                     var table, field;
+                     console.log(cols);
+                     cols.splice(ix, 1);
+                     console.log(cols);
+                     rule.links = rule.links.filter(function(cur) {
+                       if(cur.valve == col.id && cur.type == "tableConstraint") {
+                         table = cur.table;
+                         field = cur.field;
+                       }
+                       return cur.valve != col.id;
+                     });
+                     console.log("adding link: ", {valve: valve, type: "tableConstraint", table: table, field: field});
+                     data.rules[data.activeRule].links.push({valve: props.column.id, type: "tableConstraint", table: table, field: field})
+                     dirty();
                    }
                    e.stopPropagation();
                  }
@@ -1263,6 +1285,7 @@ comps.workspace = React.createClass({
 
   getIntermediates: function() {
     var dump = dumpMemory(data.system.memory);
+    console.log(dump);
     try {
       var flow = compileRule(dump, data.activeRule);
       var outputAdds = [];
@@ -1432,10 +1455,7 @@ comps.tablesList = React.createClass({
 comps.tableView = React.createClass({
   render: function() {
     //TODO: replace with table API call
-    var curTable = this.props.table.name;
-    var rows = data.system.memory.facts.filter(function(cur) {
-      return cur[0] == curTable;
-    });
+    var rows = data.system.memory.getTable(this.props.table.name);
     return d.div({className: "table-view"}, d.h2({}, this.props.table.name), comps.grid({table: {fields: this.props.table.fields, rows: rows}}), d.span({className: "ion-grid return-to-grid",
                          onClick: function(e) {
                            data.page = "rules";
@@ -1472,7 +1492,7 @@ comps.wrapper = React.createClass({
     var rules = data.rules;
     var final = [];
     for(var rule in rules) {
-      var facts = this.compileRule(rules[rule]);
+      var facts = this.compileRule(rules[rule], rule);
       var factsLen = facts.length;
       for(var i = 0; i < factsLen; i++) {
         final.push(facts[i]);
@@ -1489,6 +1509,7 @@ comps.wrapper = React.createClass({
     var system = compileSystem(Memory.fromFacts(compilerSchema.concat(final)));
     system.update([["users", 0, "chris", "chris@chris.com", "555-555-5555"],
                    ["users", 1, "jamie", "jamie@jamie.com", "555-555-5556"],
+                   ["users", 2, "rob", "rob", "555-555-5556"],
                    ["edges", "a", "b"],
                    ["edges", "b", "c"],
                    ["edges", "c", "d"],
@@ -1498,17 +1519,17 @@ comps.wrapper = React.createClass({
     return system;
   },
 
-  compileRule: function(rule) {
+  compileRule: function(rule, ruleId) {
     var facts = [];
     var added = {};
     rule.pipes.forEach(function(cur) {
-      facts.push(["pipe", cur.id, cur.table, data.activeRule, cur.type]);
+      facts.push(["pipe", cur.id, cur.table, ruleId, cur.type]);
     });
     rule.links.forEach(function(cur) {
       facts.push([cur.type, cur.valve, cur.table, cur.field]);
     });
     rule.valves.forEach(function(cur, ix) {
-      facts.push(["valve", cur.id, data.activeRule, ix]);
+      facts.push(["valve", cur.id, ruleId, ix]);
     });
     return facts;
   },
