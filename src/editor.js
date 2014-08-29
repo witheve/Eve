@@ -14,19 +14,19 @@ var data = eve.data = {tree: {elements: []}, selection: {}, undo: {stack:{childr
                                },
                        tables: {"users": {name: "users",
                                           id: "users",
-                                          fields: [{name: "id"}, {name: "name"}, {name: "email"}, {name: "phone"}]},
+                                          fields: [{name: "id", id: "users_id"}, {name: "name", id: "users_name"}, {name: "email", id: "users_email"}, {name: "phone", id: "users_phone"}]},
                                 "todos": {name: "todos",
                                           id: "todos",
-                                          fields: [{name: "id"}, {name: "text"}, {name: "completed"}]},
+                                          fields: [{name: "id", id: "todos_id"}, {name: "text", id: "todos_text"}, {name: "completed", id: "todos_completed"}]},
                                 "email outbox": {name: "email outbox",
                                                  id: "email outbox",
-                                                 fields: [{name: "id"}, {name: "to"}, {name: "from"}, {name: "subject"}, {name: "body"}]},
+                                                 fields: [{name: "id", id: "email outbox_id"}, {name: "to", id: "email outbox_to"}, {name: "from", id: "email outbox_from"}, {name: "subject", id: "email outbox_subject"}, {name: "body", id: "email outbox_body"}]},
                                 "sms outbox": {name: "sms outbox",
                                                id: "sms outbox",
-                                               fields: [{name: "id"}, {name: "phone"}, {name: "message"}]},
+                                               fields: [{name: "id", id: "sms outbox_id"}, {name: "phone", id: "sms outbox_phone"}, {name: "message", id: "sms outbox_message"}]},
                                 "email inbox": {name: "email inbox",
                                                 id: "email inbox",
-                                                fields: [{name: "id"}, {name: "to"}, {name: "from"}, {name: "subject"}, {name: "body"}]}},
+                                                fields: [{name: "id", id: "email inbox_id"}, {name: "to", id: "email inbox_to"}, {name: "from", id: "email inbox_from"}, {name: "subject", id: "email inbox_subject"}, {name: "body", id: "email inbox_body"}]}},
 
                       };
 var d = React.DOM;
@@ -1082,12 +1082,11 @@ comps.gridHeader = React.createClass({
                    e.preventDefault();
                  },
                  onDrop: function(e) {
-                   console.log(data.selection.column, props);
                    //TODO: this logic probably doesn't really belong here.
                    //TODO: this is not undoable
                    var valve = data.selection.column.id;
                    if(valve) {
-                     data.rules[data.activeRule].links.push({valve: valve, type: "tableConstraint", table: props.table, field: props.column.name})
+                     data.rules[data.activeRule].links.push({valve: valve, type: "tableConstraint", table: props.table, field: props.column.id})
                      dirty();
                    }
                  }
@@ -1141,7 +1140,7 @@ comps.inputColumnList = React.createClass({
                    onDragStart: function(e) {
                      data.selection = {};
                      data.selection.action = "add column";
-                     data.selection.column = {id: id, table: table.name, column: cur.name, name: cur.name};
+                     data.selection.column = {id: id, table: table.name, column: cur.id, name: cur.name};
                      e.dataTransfer.effectAllowed = "move";
                      e.dataTransfer.dropEffect = "move";
                    }},
@@ -1196,7 +1195,7 @@ comps.workspace = React.createClass({
     }
     var valveId = "valve" + data.globalId++;
     var valve = {id: valveId, name: col.name};
-    this.props.rule.links.push({type: "tableConstraint", valve: valveId, table: col.id, field: col.name});
+    this.props.rule.links.push({type: "tableConstraint", valve: valveId, table: col.id, field: col.column});
     if(ix === undefined) {
       cols.push(valve);
       return cols.length - 1;
@@ -1254,7 +1253,6 @@ comps.workspace = React.createClass({
       var flow = compileRule(dump, data.activeRule);
       var outputAdds = [];
       flow.source.update(data.system.memory, outputAdds, []);
-      console.log(JSON.stringify(outputAdds));
       return outputAdds;
     } catch (e) {
       return [];
@@ -1329,7 +1327,6 @@ comps.sinks = React.createClass({
     var items = [];
     var sinks = this.props.sinks;
     for(var i in sinks) {
-      console.log(sinks[i]);
       var cur = data.tables[sinks[i].table];
       //TODO: get the values for the sinks
       items.push(d.li({}, d.h2({}, cur.name), comps.grid({table: {fields: cur.fields, rows: this.getSolutions()}, sinkId: sinks[i].id})));
@@ -1450,7 +1447,7 @@ comps.wrapper = React.createClass({
     rule.pipes.forEach(function(cur) {
       var table = data.tables[cur.table];
       table.fields.forEach(function(field, ix) {
-        facts.push(["schema", cur.table, field.name, ix]);
+        facts.push(["schema", cur.table, field.id, ix]);
       });
       facts.push(["pipe", cur.id, cur.table, data.activeRule, cur.type]);
     });
