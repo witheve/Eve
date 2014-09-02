@@ -18,21 +18,6 @@ function makeArray(len, fill) {
   return arr;
 }
 
-function fillArray(arr, fill) {
-  for(var i = 0; i < arr.length; i++) {
-    arr[i] = fill;
-  }
-}
-
-function readFrom(ixes, local, remote) {
-  var len = ixes.length;
-  assert(len === local.length);
-  for (var i = 0; i < len; i++) {
-    var ix = ixes[i];
-    if (ix !== null) local[i] = remote[ix];
-  }
-}
-
 // ORDERING / COMPARISON
 
 var least = false;
@@ -44,44 +29,6 @@ function compareValue(a, b) {
   var bt = typeof b;
   if((at === bt && a < b) || (at < bt)) return -1;
   return 1;
-}
-
-function containsPoint(los, his, point) {
-  var len = los.length;
-  assert(len === his.length);
-  assert(len === point.length);
-  for (var i = 0; i < len; i++) {
-    if ((compareValue(point[i], los[i]) === -1) || compareValue(point[i], his[i]) !== -1) {
-      return false;
-    }
-  }
-  return true;
-}
-
-function containsVolume(los, his, innerLos, innerHis) {
-  var len = los.length;
-  assert(len === his.length);
-  assert(len === innerLos.length);
-  assert(len === innerHis.length);
-  for (var i = 0; i < len; i++) {
-    if ((compareValue(innerLos[i], los[i]) === -1) || compareValue(innerHis[i], his[i]) === 1) {
-      return false;
-    }
-  }
-  return true;
-}
-
-function intersectsVolume(losA, hisA, losB, hisB) {
-  var len = losA.length;
-  assert(len === hisA.length);
-  assert(len === losB.length);
-  assert(len === hisB.length);
-  for (var i = 0; i < len; i++) {
-    if ((compareValue(losA[i], hisB[i]) !== -1) || compareValue(losB[i], hisA[i]) !== -1) {
-      return false;
-    }
-  }
-  return true;
 }
 
 function arrayEqual(a, b) {
@@ -108,195 +55,6 @@ function boundsContainsPoint(los, his, ixes, constants, point) {
   }
   return true;
 }
-
-function solutionMatchesPoint(solution, ixes, constants, point) {
-  for (var i = ixes.length - 1; i >= 0; i--) {
-    var ix = ixes[i];
-    if (ix === null) {
-      var constant = constants[i];
-      if ((constant !== null) && (point[i] !== constant)) return false;
-    } else if (point[i] !== solution[ix]) return false;
-  }
-  return true;
-}
-
-// PROVENANCE
-// covers the solution space with proofs of success/failure
-// tracks dirty proofs when memory changes
-
-function Region(los, his, proof, solution) {
-  this.los = los;
-  this.his = his;
-  this.proof = proof; // index of constraint that prooves this region, -1 to indicate all constraints
-  this.solution = solution;
-}
-
-function regionContainsPoint(region, constraints, point) {
-  var los = region.los;
-  var his = region.his;
-  var proof = region.proof;
-  if (proof === -1) {
-    for (var proof = constraints.length - 1; proof >= 0; proof--) {
-      var constraint = constraints[proof];
-      var ixes = constraint.ixes;
-      var constants = constraint.constants;
-      if ((ixes !== undefined) && boundsContainsPoint(los, his, ixes, constants, point)) return true;
-    }
-    return false;
-  } else {
-    var constraint = constraints[proof];
-    var ixes = constraint.ixes;
-    var constants = constraint.constants;
-    return boundsContainsPoint(los, his, ixes, constants, point);
-  }
-}
-
-function Provenance(memory, numVars, constraints, regions, queuedRegions, queuedDels) {
-  this.memory = memory;
-  this.numVars = numVars;
-  this.constraints = constraints;
-  this.regions = regions;
-  this.queuedRegions = queuedRegions;
-  this.queuedDels = queuedDels;
-}
-
-Provenance.empty = function(numVars, constraints) {
-  var region = new Region(makeArray(numVars, least), makeArray(numVars, greatest), -1, null);
-  return new Provenance(Memory.empty(), numVars, constraints, [region], [], []);
-};
-
-Provenance.prototype = {
-  add: function(region) {
-    this.queuedRegions.push(region);
-  },
-
-  start: function (memory) {
-    var dirtyPoints = [];
-    memory.diff(this.memory, dirtyPoints, dirtyPoints);
-    this.memory = memory;
-
-    // console.log("Dirty points " + JSON.stringify(dirtyPoints));
-
-    var constraints = this.constraints;
-    var queuedDels = this.queuedDels;
-
-    var delledRegions = [];
-    var regions = this.regions;
-    nextRegion: for (var i = regions.length - 1; i >= 0; i--) {
-      var region = regions[i];
-      for (var j = dirtyPoints.length - 1; j >= 0; j--) {
-        var dirtyPoint = dirtyPoints[j];
-        if (regionContainsPoint(region, constraints, dirtyPoint) === true) {
-          regions.splice(i, 1);
-          delledRegions.push(region);
-          // console.log("Dirtying " + JSON.stringify(region) + " by " + JSON.stringify(dirtyPoint));
-          if (region.solution !== null) queuedDels.push(region.solution);
-          continue nextRegion;
-        }
-      }
-    }
-
-    if (delledRegions.length === 0) {
-      return false;
-    } else {
-      return delledRegions;
-    }
-  },
-
-  finish: function(outputAdds, outputDels) {
-    var oldRegions = this.regions;
-    var newRegions = this.queuedRegions;
-
-    nextOldRegion: for (var i = oldRegions.length - 1; i >= 0; i--) {
-      var oldRegion = oldRegions[i];
-      var oldLos = oldRegion.los;
-      var oldHis = oldRegion.his;
-      var oldSolution = oldRegion.solution;
-      nextNewRegion: for (var j = newRegions.length - 1; j >= 0; j--) {
-        var newRegion = newRegions[j];
-        var newLos = newRegion.los;
-        var newHis = newRegion.his;
-        var newSolution = newRegion.solution;
-        if (intersectsVolume(oldLos, oldHis, newLos, newHis)) {
-          if (containsVolume(oldLos, oldHis, newLos, newHis)) {
-            // console.log("Evicting new " + JSON.stringify(newRegion) + " by " + JSON.stringify(oldRegion));
-            newRegions.slice(j, 1);
-            continue nextNewRegion;
-          } else if (containsVolume(newLos, newHis, oldLos, oldHis)) {
-            // console.log("Evicting old " + JSON.stringify(oldRegion) + " by " + JSON.stringify(newRegion));
-            oldRegions.slice(i, 1);
-            if (oldSolution !== null) outputDels.push(oldSolution);
-            continue nextOldRegion;
-          } else if ((oldSolution !== null) && containsPoint(newLos, newHis, oldSolution)) {
-            // console.log("Overwriting " + JSON.stringify(oldRegion) + " by " + JSON.stringify(newRegion));
-            oldRegion.solution = null;
-            outputDels.push(oldSolution);
-          } else if ((newSolution !== null) && containsPoint(oldLos, oldHis, newSolution)) {
-            // assert(false); // can happen when a -1 regions is dirtied but an ixed region isn't
-          }
-        }
-      }
-    }
-
-    // console.log("Adding new regions " + JSON.stringify(newRegions));
-    for (var i = newRegions.length - 1; i >= 0; i--) {
-      var newRegion = newRegions[i];
-      oldRegions.push(newRegion);
-      if (newRegion.solution !== null) outputAdds.push(newRegion.solution);
-    }
-
-    this.queuedRegions = [];
-
-    var queuedDels = this.queuedDels;
-    for (var i = queuedDels.length - 1; i >= 0; i--) {
-      outputDels.push(queuedDels[i]);
-    }
-
-    this.queuedDels = [];
-  },
-
-  copy: function(regions) {
-    return regions.slice();
-  },
-
-  propagate: function(regions, solverState, myIx) {
-    var los = solverState.los;
-    var his = solverState.his;
-
-    for (var i = regions.length - 1; i >= 0; i--) {
-      var region = regions[i];
-      if (intersectsVolume(los, his, region.los, region.his) === false) {
-        regions.splice(i, 1);
-      }
-    }
-
-    if (regions.length === 0) {
-      // console.log("Failed with no regions");
-      solverState.isFailed = true;
-      return true;
-    }
-
-    var changed = false;
-
-    for (var i = this.numVars - 1; i >= 0; i--) {
-      var newLo = greatest;
-      for (var j = regions.length - 1; j >= 0; j--) {
-        var regionLo = regions[j].los[i];
-        if (compareValue(regionLo, newLo) === -1) newLo = regionLo;
-      }
-      if (compareValue(newLo, los[i]) === 1) {
-        los[i] = newLo;
-        changed = true;
-      }
-    }
-
-    return changed;
-  },
-
-  split: function(regions, leftSolverState, rightSolverState) {
-    return false;
-  }
-};
 
 // MEMORY
 // track a multi-set of facts
@@ -401,12 +159,11 @@ MemoryConstraint.prototype = {
     return facts.slice();
   },
 
-  propagate: function(facts, solverState, myIx) {
+  propagate: function(facts, solverState) {
     var ixes = this.ixes;
     var constants = this.constants;
     var los = solverState.los;
     var his = solverState.his;
-    var provenance = solverState.provenance;
 
     for (var i = facts.length - 1; i >= 0; i--) {
       var fact = facts[i];
@@ -418,7 +175,6 @@ MemoryConstraint.prototype = {
     if (facts.length === 0) {
       // console.log("Failed with no facts");
       solverState.isFailed = true;
-      provenance.add(new Region(los.slice(), his.slice(), myIx, null));
       return true;
     }
 
@@ -432,11 +188,7 @@ MemoryConstraint.prototype = {
       }
       var ix = ixes[i];
       if (compareValue(newLo, los[ix]) === 1) {
-        var regionLos = los.slice();
-        var regionHis = his.slice();
         los[ix] = newLo;
-        regionHis[ix] = newLo;
-        provenance.add(new Region(regionLos, regionHis, myIx, null));
         changed = true;
       }
     }
@@ -474,6 +226,67 @@ function NegatedMemoryConstraint(ixes, constants) {
   this.constants = constants;
 }
 
+// PROVENANCE
+// responsible for avoiding redundant computation and calculating diffs
+
+function Provenance(inputMemory, oldOutputMemory, newOutputMemory, numVars, constraints) {
+  this.inputMemory = inputMemory;
+  this.oldOutputMemory = oldOutputMemory;
+  this.newOutputMemory = newOutputMemory;
+  this.numVars = numVars;
+  this.constraints = constraints;
+  this.queuedAdds = [];
+}
+
+Provenance.empty = function(numVars, constraints) {
+  return new Provenance(Memory.empty(), Memory.empty(), Memory.empty(), numVars, constraints);
+};
+
+Provenance.prototype = {
+  // provenance interface
+
+  propagated: function (oldLos, oldHis, newLos, newHis, constraintIx) {},
+
+  splitted: function (oldLos, oldHis, leftLos, leftHis, rightLos, rightHis, constraintIx) {},
+
+  failed: function (oldLos, oldHis, ix) {},
+
+  solved: function (solution) {
+    this.queuedAdds.push(solution);
+  },
+
+  // constraint interface
+
+  start: function (memory) {
+    if (this.inputMemory === memory) {
+      return false;
+    } else {
+      this.inputMemory = memory;
+      return null;
+    }
+  },
+
+  finish: function(outputAdds, outputDels) {
+    this.newOutputMemory.update(this.queuedAdds, []);
+    this.newOutputMemory.diff(this.oldOutputMemory, outputAdds, outputDels);
+    this.queuedAdds = [];
+    this.oldOutputMemory = this.newOutputMemory;
+    this.newOutputMemory = Memory.empty();
+  },
+
+  copy: function(state) {
+    return null;
+  },
+
+  propagate: function(state, solverState) {
+    return false;
+  },
+
+  split: function(regions, leftSolverState, rightSolverState) {
+    return false;
+  }
+};
+
 // FUNCTIONS
 
 function FunctionConstraint(fun, inIxes, outIx) {
@@ -495,41 +308,64 @@ function SolverState(provenance, constraints, constraintStates, los, his, isFail
 }
 
 SolverState.prototype = {
-  propagate: function() {
+  expand: function(states) {
+    var provenance = this.provenance;
     var constraints = this.constraints;
     var constraintStates = this.constraintStates;
     var numConstraints = this.constraints.length;
+    var los = this.los;
+    var his = this.his;
+    var oldLos = los.slice();
+    var oldHis = his.slice();
+
+    // propagate all constraints until nothing changes
     var lastChanged = 0;
     var current = 0;
     while (true) {
-      // console.log("Before prop " + current + " " + this.los + " " + this.his);
-      if (this.isFailed === true) break;
-      var changed = constraints[current].propagate(constraintStates[current], this, current);
-      if (changed === true) lastChanged = current;
-      // console.log("After prop " + current + " " + this.los + " " + this.his);
+      // console.log("Before prop " + current + " " + los + " " + his);
+      var changed = constraints[current].propagate(constraintStates[current], this);
+      if (this.isFailed === true) {
+        provenance.failed(oldLos, oldHis, current);
+        return;
+      }
+      if (changed === true) {
+        provenance.propagated(oldLos, oldHis, los, his, current);
+        oldLos = los;
+        oldHis = his;
+        los = los.slice();
+        his = his.slice();
+        lastChanged = current;
+      }
+      // console.log("After prop " + current + " " + los + " " + his);
       current = (current + 1) % numConstraints;
       if (current === lastChanged) break;
     }
-  },
 
-  split: function() {
-    var constraints = this.constraints;
-    var constraintStates = this.constraintStates;
+    // check if we are a leaf
+    if (arrayEqual(los, his)) {
+      provenance.solved(los);
+      // console.log("Found" + JSON.stringify(los));
+      return;
+    }
+
+    // split into two children
     var leftSolverState = this;
-    var rightSolverState = new SolverState(this.provenance, constraints, constraintStates.slice(), this.los.slice(), this.his.slice(), this.isFailed);
+    var rightSolverState = new SolverState(this.provenance, constraints, constraintStates.slice(), los.slice(), his.slice(), this.isFailed);
     for (var i = constraints.length - 1; i >= 0; i--) {
       constraintStates[i] = constraints[i].copy(constraintStates[i]);
     }
     for (var splitter = constraints.length - 1; splitter >= 0; splitter--) {
-      if (constraints[splitter].split(constraintStates[splitter], leftSolverState, rightSolverState)) break;
+      if (constraints[splitter].split(constraintStates[splitter], leftSolverState, rightSolverState)) {
+        provenance.splitted(oldLos, oldHis, leftSolverState.los, leftSolverState.his, rightSolverState.los, rightSolverState.his);
+        break;
+      }
     }
-    if (splitter >= 0) {
-      // console.log("Split by " + splitter);
-      return rightSolverState;
-    } else {
-      // console.log("No split at " + this.los);
-      return null; // found a solution
-    }
+    // console.log("Split by " + splitter);
+
+    // make sure we found a splitter
+    if (splitter < 0) assert(false);
+
+    states.push(leftSolverState, rightSolverState);
   }
 };
 
@@ -561,19 +397,8 @@ Solver.prototype = {
     var states = [new SolverState(provenance, constraints, constraintStates, makeArray(numVars, least), makeArray(numVars, greatest), false)];
     while (states.length > 0) {
       var state = states.pop();
-      state.propagate();
-      if (state.isFailed === true) {
-        // console.log("Failed");
-      } else {
-        var rightState = state.split();
-        if (rightState === null) {
-          var solution = state.los.slice();
-          provenance.add(new Region(state.los.slice(), state.his.slice(), -1, state.isFailed ? null : solution));
-        } else {
-          states.push(state);
-          states.push(rightState);
-        }
-      }
+      // console.log("Popped " + JSON.stringify(state.los) + " " + JSON.stringify(state.his));
+      state.expand(states);
     }
 
     provenance.finish(outputAdds, outputDels);
@@ -1205,6 +1030,8 @@ var solverProps = {
 //                                     return memoryEqual(incrementalOutput, batchOutput);
 //                                   })
 };
+
+solverProps.selfJoin.fun([[0,0,0]]);
 
 // assertAll(solverProps, {tests: 5000});
 
