@@ -56,6 +56,17 @@ function boundsContainsPoint(los, his, ixes, constants, point) {
   return true;
 }
 
+function solutionMatchesPoint(solution, ixes, constants, point) {
+  for (var i = ixes.length - 1; i >= 0; i--) {
+    var ix = ixes[i];
+    if (ix === null) {
+      var constant = constants[i];
+      if ((constant !== null) && (point[i] !== constant)) return false;
+    } else if (point[i] !== solution[ix]) return false;
+  }
+  return true;
+}
+
 // MEMORY
 // track a multi-set of facts
 // supports bounds refinement
@@ -196,7 +207,6 @@ MemoryConstraint.prototype = {
         if (compareValue(value, newHi) === 1) newHi = value;
       }
       var ix = ixes[i];
-      // console.log("Ix " + ix + " " + newLo);
       if (compareValue(newLo, los[ix]) === 1) {
         los[ix] = newLo;
         changed = true;
@@ -246,6 +256,41 @@ function NegatedMemoryConstraint(ixes, constants) {
   this.ixes = ixes;
   this.constants = constants;
 }
+
+NegatedMemoryConstraint.prototype = {
+  start: function(memory) {
+    // TODO the latter is a hack to avoid having to change all the quickcheck tests
+    return (this.constants && this.constants[0]) ? memory.getTable(this.constants[0]) : memory.getFacts();
+  },
+
+  copy: function(facts) {
+    return facts;
+  },
+
+  propagate: function(facts, solverState) {
+    var ixes = this.ixes;
+    var constants = this.constants;
+    var los = solverState.los;
+    var his = solverState.his;
+
+    for (var i = ixes.length - 1; i >= 0; i--) {
+      var ix = ixes[i];
+      if ((ix !== null) && (los[ix] !== his[ix])) return false;
+    }
+
+    for (var i = facts.length - 1; i >= 0; i--) {
+      if (solutionMatchesPoint(los, ixes, constants, facts[i]) === true) {
+        // console.log("Negation failed on " + facts[i]);
+        solverState.isFailed = true;
+        return true;
+      }
+    }
+  },
+
+  split: function(facts, leftSolverState, rightSolverState) {
+    return false;
+  }
+};
 
 // PROVENANCE
 // responsible for avoiding redundant computation and calculating diffs
@@ -590,11 +635,11 @@ function dumpMemory(memory) {
     if (fields !== undefined) {
       var labelledFact = {};
       for (var j = fields.length - 1; j >= 0; j--) {
-        labelledFact[fields[j]] = fact[j+1]; // +1 because table is 0
+        labelledFact[fields[j]] = fact[j+1]; // +1 because table name is at 0
       }
       for (var j = fields.length - 1; j >= 0; j--) {
         var field = fields[j];
-        var value = fact[j+1]; // +1 because table is 0
+        var value = fact[j+1]; // +1 because table name is at 0
         var fieldIndex = index[table][field];
         var results = fieldIndex[value] || (fieldIndex[value] = []);
         results.push(labelledFact);
@@ -628,20 +673,16 @@ function compileRule(dump, rule) {
   Object.keys(dump.function.rule);
 
   var constraints = [];
-  var filters = [];
   var sinks = [];
 
   var pipes = dump.pipe.rule[rule] || [];
-  pipes.sort(function (pipeA, pipeB) {
-    return (pipeA.direction < pipeB.direction) ? -1 : 1; // push -source last so it is gets same ix in constraints and in filters
-  });
   for (var i = pipes.length - 1; i >= 0; i--) {
     var pipe = pipes[i];
     var tableConstraints = dump.tableConstraint.pipe[pipe.pipe];
     if (tableConstraints !== undefined) {
       var fields = dump.schema.table[pipe.table] || [];
-      var ixes = makeArray(fields.length + 1, null); // +1 because table is 0
-      var constants = makeArray(fields.length + 1, null); // +1 because table is 0
+      var ixes = makeArray(fields.length + 1, null); // +1 because table name is at 0
+      var constants = makeArray(fields.length + 1, null); // +1 because table name is at 0
       constants[0] = pipe.table;
       for (var j = tableConstraints.length - 1; j >= 0; j--) {
         var tableConstraint = tableConstraints[j];
@@ -651,17 +692,15 @@ function compileRule(dump, rule) {
         var valveIx = valveIxes[tableConstraint.valve];
         var constant = valveConstants[tableConstraint.valve];
         if (constant === undefined) {
-          ixes[fieldIx + 1] = valveIx; // +1 because table is 0
+          ixes[fieldIx + 1] = valveIx; // +1 because table name is at 0
         } else {
-          constants[fieldIx + 1] = constant; // +1 because table is 0
+          constants[fieldIx + 1] = constant; // +1 because table name is at 0
         }
       }
       if (pipe.direction === "+source") {
         constraints.push(new MemoryConstraint(ixes, constants));
       } else if (pipe.direction === "-source") {
-        var constraint = new NegatedMemoryConstraint(ixes, constants);
-        constraints.push(constraint);
-        filters.push(constraint);
+        constraints.push(new NegatedMemoryConstraint(ixes, constants));
       } else if (pipe.direction === "+sink") {
         sinks.push(new Sink(ixes, constants));
       } else assert(false);
@@ -669,9 +708,6 @@ function compileRule(dump, rule) {
   }
 
   var funs = dump.function.rule[rule] || [];
-  funs.sort(function (funA, funB) {
-    return (valveIxes[funA.valve] < valveIxes[funB.valve]) ? -1 : 1;
-  });
   for (var i = funs.length - 1; i >= 0; i--) {
     var fun = funs[i];
     var outIx = valveIxes[fun.valve];
@@ -680,13 +716,11 @@ function compileRule(dump, rule) {
     var args = [];
     for (var j = inputs.length - 1; j >= 0; j--) {
       var valve = inputs[j].valve;
-      var inIx = valveIxes[valve];
-      assert(inIx < outIx); // functions are evaluated in valve ix order TODO do dep sorting instead
       args[j] = valve;
-      inIxes[j] = inIx;
+      inIxes[j] = valveIxes[valve];
     }
     var compiled = Function.apply(null, args.concat(["return (" + fun.code + ");"]));
-    filters.push(new FunctionFilter(compiled, inIxes, outIx));
+    constraints.push(new FunctionConstraint(compiled, inIxes, outIx));
   }
 
   return new Flow(Solver.fresh(valves.length, constraints), sinks);
@@ -1008,46 +1042,46 @@ var solverProps = {
 //                                     return memoryEqual(incrementalOutput, batchOutput);
 //                                   }),
 
-//   negatedJoin: forall(gen.array(gen.eav()),
-//                      function (facts) {
-//                        var input = Memory.empty();
-//                        var constraint0 = new MemoryConstraint([0,1,2]);
-//                        var constraint1 = new NegatedMemoryConstraint([2,null,null], [null,null,null]);
-//                        var flow = new Flow(Solver.fresh(3, [constraint1, constraint0], [constraint1]), [new Sink([0,1,2], [null,null,null])]);
-//                        var input = input.update(facts, []);
-//                        var output = flow.update(input, Memory.empty());
-//                        var expectedFacts = [];
-//                        nextFact: for (var i = 0; i < facts.length; i++) {
-//                          var fact = facts[i];
-//                          for (var j = 0; j < facts.length; j++) {
-//                            if (fact[2] === facts[j][0]) {
-//                              continue nextFact;
-//                            }
-//                          }
-//                          expectedFacts.push(fact);
-//                        }
-//                        return memoryEqual(Memory.fromFacts(expectedFacts), output);
-//                      }),
+  negatedJoin: forall(gen.array(gen.eav()),
+                     function (facts) {
+                       var input = Memory.empty();
+                       var constraint0 = new MemoryConstraint([0,1,2]);
+                       var constraint1 = new NegatedMemoryConstraint([2,null,null], [null,null,null]);
+                       var flow = new Flow(Solver.fresh(3, [constraint1, constraint0], [constraint1]), [new Sink([0,1,2], [null,null,null])]);
+                       var input = input.update(facts, []);
+                       var output = flow.update(input, Memory.empty());
+                       var expectedFacts = [];
+                       nextFact: for (var i = 0; i < facts.length; i++) {
+                         var fact = facts[i];
+                         for (var j = 0; j < facts.length; j++) {
+                           if (fact[2] === facts[j][0]) {
+                             continue nextFact;
+                           }
+                         }
+                         expectedFacts.push(fact);
+                       }
+                       return memoryEqual(Memory.fromFacts(expectedFacts), output);
+                     }),
 
-//   incrementalNegatedJoin: forall(gen.array(gen.eav()), gen.array(gen.eav()), gen.array(gen.eav()),
-//                                   function (facts, adds, dels) {
-//                                     var input = Memory.empty();
-//                                     var constraint0 = new MemoryConstraint([0,1,2]);
-//                                     var constraint1 = new NegatedMemoryConstraint([2,null,null], [null,null,null]);
-//                                     var incrementalFlow = new Flow(Solver.fresh(3, [constraint1, constraint0], [constraint1]), [new Sink([0,1,2], [null,null,null])]);
-//                                     var batchFlow = new Flow(Solver.fresh(3, [constraint1, constraint0], [constraint1]), [new Sink([0,1,2], [null,null,null])]);
-//                                     var incrementalOutput = Memory.empty();
-//                                     var batchOutput = Memory.empty();
+  incrementalNegatedJoin: forall(gen.array(gen.eav()), gen.array(gen.eav()), gen.array(gen.eav()),
+                                  function (facts, adds, dels) {
+                                    var input = Memory.empty();
+                                    var constraint0 = new MemoryConstraint([0,1,2]);
+                                    var constraint1 = new NegatedMemoryConstraint([2,null,null], [null,null,null]);
+                                    var incrementalFlow = new Flow(Solver.fresh(3, [constraint1, constraint0], [constraint1]), [new Sink([0,1,2], [null,null,null])]);
+                                    var batchFlow = new Flow(Solver.fresh(3, [constraint1, constraint0], [constraint1]), [new Sink([0,1,2], [null,null,null])]);
+                                    var incrementalOutput = Memory.empty();
+                                    var batchOutput = Memory.empty();
 
-//                                     input = input.update(facts, []);
-//                                     incrementalOutput = incrementalFlow.update(input, incrementalOutput);
+                                    input = input.update(facts, []);
+                                    incrementalOutput = incrementalFlow.update(input, incrementalOutput);
 
-//                                     input = input.update(adds, dels);
-//                                     batchOutput = batchFlow.update(input, batchOutput);
-//                                     incrementalOutput = incrementalFlow.update(input, incrementalOutput);
+                                    input = input.update(adds, dels);
+                                    batchOutput = batchFlow.update(input, batchOutput);
+                                    incrementalOutput = incrementalFlow.update(input, incrementalOutput);
 
-//                                     return memoryEqual(incrementalOutput, batchOutput);
-//                                   })
+                                    return memoryEqual(incrementalOutput, batchOutput);
+                                  })
 };
 
 // assertAll(solverProps, {tests: 5000});
@@ -1161,7 +1195,7 @@ function compiledNegationTest() {
 
                        ["valve", "valveX", "rule", 0],
                        ["valve", "valveY", "rule", 1],
-                       ["valve", "valveZ", "rule", 3],
+                       ["valve", "valveZ", "rule", 2],
                        ["pipe", "fooPipe", "foo", "rule", "+source"],
                        ["pipe", "negPipe", "foo", "rule", "-source"],
                        ["pipe", "barPipe", "bar", "rule", "+sink"],
@@ -1172,6 +1206,7 @@ function compiledNegationTest() {
                        ["tableConstraint", "valveZ", "barPipe", "barZ"]];
 
   var system = compileSystem(Memory.fromFacts(compilerSchema.concat(compilerFacts)));
+  // console.log(system);
   system.memory = Memory.empty();
 
   var facts = [["foo", 0, 1, 1],
