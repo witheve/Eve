@@ -107,6 +107,8 @@ function dedupeFacts(facts) {
 
 Memory.prototype = {
   update: function(adds, dels) {
+    if ((adds.length === 0) && (dels.length === 0)) return this;
+
     var facts = this.facts.slice();
     for (var i = adds.length - 1; i >= 0; i--) {
       facts.push(adds[i]);
@@ -121,6 +123,7 @@ Memory.prototype = {
         }
       }
     }
+
     return new Memory(facts);
   },
 
@@ -406,7 +409,7 @@ Solver.prototype = {
     var constraintStates = [];
     for (var i = constraints.length - 1; i >= 0; i--) {
       var constraintState = constraints[i].start(inputMemory);
-      if (constraintState === false) return false; // constraint is trivially unsatisfiable - eg provenance constraint when nothing is dirty
+      if (constraintState === false) return; // constraint is trivially unsatisfiable - eg provenance constraint when nothing is dirty
       constraintStates[i] = constraintState;
     }
 
@@ -419,7 +422,6 @@ Solver.prototype = {
     }
 
     provenance.finish(outputAdds, outputDels);
-    return true;
   }
 };
 
@@ -457,9 +459,9 @@ Flow.prototype = {
   update: function(inputMemory, outputMemory) {
     var sourceAdds = [];
     var sourceDels = [];
-    var isChanged = this.source.update(inputMemory, sourceAdds, sourceDels);
+    this.source.update(inputMemory, sourceAdds, sourceDels);
 
-    if (isChanged === false) return outputMemory;
+    if ((sourceAdds.length === 0) && (sourceDels.length === 0)) return outputMemory;
 
     var sinks = this.sinks;
     var sinkAdds = [];
