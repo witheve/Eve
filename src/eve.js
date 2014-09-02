@@ -50,7 +50,7 @@ function boundsContainsPoint(los, his, ixes, constants, point) {
       if ((constant !== null) && (point[i] !== constant)) return false;
     } else {
       if (compareValue(point[i], los[ix]) === -1) return false;
-      if (compareValue(point[i], his[ix]) !== -1) return false;
+      if (compareValue(point[i], his[ix]) === 1) return false;
     }
   }
   return true;
@@ -165,12 +165,16 @@ MemoryConstraint.prototype = {
     var los = solverState.los;
     var his = solverState.his;
 
+    // console.log("Facts before " + JSON.stringify(facts));
+
     for (var i = facts.length - 1; i >= 0; i--) {
       var fact = facts[i];
       if (boundsContainsPoint(los, his, ixes, constants, fact) === false) {
         facts.splice(i, 1);
       }
     }
+
+    // console.log("Facts after " + JSON.stringify(facts));
 
     if (facts.length === 0) {
       // console.log("Failed with no facts");
@@ -182,13 +186,20 @@ MemoryConstraint.prototype = {
 
     for (var i = ixes.length - 1; i >= 0; i--) {
       var newLo = greatest;
+      var newHi = least;
       for (var j = facts.length - 1; j >= 0; j--) {
         var value = facts[j][i];
         if (compareValue(value, newLo) === -1) newLo = value;
+        if (compareValue(value, newHi) === 1) newHi = value;
       }
       var ix = ixes[i];
+      // console.log("Ix " + ix + " " + newLo);
       if (compareValue(newLo, los[ix]) === 1) {
         los[ix] = newLo;
+        changed = true;
+      }
+      if (compareValue(newHi, his[ix]) === -1) {
+        his[ix] = newHi;
         changed = true;
       }
     }
@@ -197,27 +208,34 @@ MemoryConstraint.prototype = {
   },
 
   split: function(facts, leftSolverState, rightSolverState) {
-    if (facts.length < 2) {
-      return false;
-    } else {
-      var los = leftSolverState.los;
-      var ixes = this.ixes;
-      for (var i = ixes.length - 1; i >= 0; i--) {
-        var ix = ixes[i];
-        if (ix !== null) {
-          for (var j = facts.length - 1; j >= 0; j--) {
-            var pivot = facts[j][i];
-            if (pivot !== los[ix]) {
-              leftSolverState.his[ix] = pivot;
-              rightSolverState.los[ix] = pivot;
-              // console.log("Split at fact[" + i + "]=" + pivot);
-              return true;
-            }
-          }
+    if (facts.length < 2) return false;
+
+    var his = leftSolverState.his;
+    var ixes = this.ixes;
+
+    var i, ix, lowerPivot;
+    findLowerPivot: for (i = ixes.length - 1; i >= 0; i--) {
+      ix = ixes[i];
+      if (ix !== null) {
+        for (var j = facts.length - 1; j >= 0; j--) {
+          lowerPivot = facts[j][i];
+          if (lowerPivot !== his[ix]) break findLowerPivot;
         }
       }
-      assert(false); // if there are > 1 facts then we must have some value > los
     }
+
+    assert(i >= 0); // no pivot?
+
+    var upperPivot = greatest;
+    for (var j = facts.length - 1; j >= 0; j--) {
+      var value = facts[j][i];
+      if ((compareValue(value, lowerPivot) === 1) && (compareValue(value, upperPivot) === -1)) upperPivot = value;
+    }
+
+    leftSolverState.his[ix] = lowerPivot;
+    rightSolverState.los[ix] = upperPivot;
+    // console.log("Split at fact[" + i + "]=" + lowerPivot + "," + upperPivot);
+    return true;
   }
 };
 
@@ -244,6 +262,7 @@ Provenance.empty = function(numVars, constraints) {
 
 Provenance.prototype = {
   // provenance interface
+  // (all inputs may be aliased)
 
   propagated: function (oldLos, oldHis, newLos, newHis, constraintIx) {},
 
@@ -267,7 +286,7 @@ Provenance.prototype = {
   },
 
   finish: function(outputAdds, outputDels) {
-    this.newOutputMemory.update(this.queuedAdds, []);
+    this.newOutputMemory = this.newOutputMemory.update(this.queuedAdds, []);
     this.newOutputMemory.diff(this.oldOutputMemory, outputAdds, outputDels);
     this.queuedAdds = [];
     this.oldOutputMemory = this.newOutputMemory;
@@ -330,10 +349,8 @@ SolverState.prototype = {
       }
       if (changed === true) {
         provenance.propagated(oldLos, oldHis, los, his, current);
-        oldLos = los;
-        oldHis = his;
-        los = los.slice();
-        his = his.slice();
+        oldLos = los.slice();
+        oldHis = his.slice();
         lastChanged = current;
       }
       // console.log("After prop " + current + " " + los + " " + his);
@@ -344,7 +361,7 @@ SolverState.prototype = {
     // check if we are a leaf
     if (arrayEqual(los, his)) {
       provenance.solved(los);
-      // console.log("Found" + JSON.stringify(los));
+      // console.log("Found " + JSON.stringify(los));
       return;
     }
 
@@ -363,7 +380,7 @@ SolverState.prototype = {
     // console.log("Split by " + splitter);
 
     // make sure we found a splitter
-    if (splitter < 0) assert(false);
+    assert(splitter >= 0);
 
     states.push(leftSolverState, rightSolverState);
   }
@@ -1030,8 +1047,6 @@ var solverProps = {
 //                                     return memoryEqual(incrementalOutput, batchOutput);
 //                                   })
 };
-
-solverProps.selfJoin.fun([[0,0,0]]);
 
 // assertAll(solverProps, {tests: 5000});
 
