@@ -15,6 +15,15 @@ var data = eve.data = {tree: {elements: []}, selection: {}, undo: {stack:{childr
                        tables: {"users": {name: "users",
                                           id: "users",
                                           fields: [{name: "id", id: "users_id"}, {name: "name", id: "users_name"}, {name: "email", id: "users_email"}, {name: "phone", id: "users_phone"}]},
+                                "ui_elems": {name: "elems",
+                                          id: "ui_elems",
+                                          fields: [{name: "id", id: "elem_id"}, {name: "type", id: "elem_type"}]},
+                                "ui_text": {name: "ui text",
+                                            id: "ui_text",
+                                            fields: [{name: "id", id: "text_id"}, {name: "text", id: "text_text"}]},
+                                "ui_child": {name: "ui children",
+                                             id: "ui_child",
+                                             fields: [{name: "parent", id: "child_id"}, {name: "position", id: "child_position"}, {name: "child", id: "child_childid"}]},
                                 "edges": {name: "edges",
                                           id: "edges",
                                           fields: [{name: "from", id: "edges_from"}, {name: "to", id: "edges_to"}]},
@@ -55,7 +64,14 @@ var picker = $("#picker").spectrum({
   }
 });
 
-var dirty = function() {
+var dirty = function(recompile) {
+  if(recompile && !eve.recompile) {
+    eve.recompile = true;
+    setTimeout(function() {
+      data.system = uiBuildSystem();
+      eve.recompile = false;
+    }, 0);
+  }
   if(!eve.dirty) {
     eve.dirty = true;
     window.requestAnimationFrame(eve.start);
@@ -1095,7 +1111,7 @@ comps.gridHeader = React.createClass({
 
                    if(props.table) {
                      data.rules[data.activeRule].links.push({valve: valve, type: "tableConstraint", table: props.table, field: props.column.id})
-                     dirty();
+                     dirty(true);
                    } else {
                      console.log("dropped on a thing", cur);
                      var col = data.selection.column;
@@ -1119,7 +1135,7 @@ comps.gridHeader = React.createClass({
                      });
                      console.log("adding link: ", {valve: valve, type: "tableConstraint", table: table, field: field});
                      data.rules[data.activeRule].links.push({valve: props.column.id, type: "tableConstraint", table: table, field: field})
-                     dirty();
+                     dirty(true);
                    }
                    e.stopPropagation();
                  }
@@ -1263,7 +1279,7 @@ comps.workspace = React.createClass({
                    redo: function(ent) {
                      self.addColumn(col,ix);
                    }});
-        dirty();
+        dirty(true);
       }
     } else if(action == "move column") {
       var col = data.selection.column;
@@ -1276,7 +1292,7 @@ comps.workspace = React.createClass({
                  redo: function(ent) {
                    self.removeColumn(col);
                  }});
-      dirty();
+      dirty(true);
     }
   },
   onDragOver: function(e) {
@@ -1319,9 +1335,9 @@ comps.ioSelectorItem = React.createClass({
     var props = this.props;
     return d.li({className: "",
                  onClick: function() {
-                   data.rules[data.activeRule].pipes.push({id: "pipe" + data.globalId++, table: props.table.name, type: props.type});
+                   data.rules[data.activeRule].pipes.push({id: "pipe" + data.globalId++, table: props.table.id, type: props.type});
                    data[props.type + "Selector"] = "closed";
-                   dirty();
+                   dirty(true);
                  }},
                 props.table.name);
   }
@@ -1335,7 +1351,7 @@ comps.ioSelector = React.createClass({
       return d.li({className: "ion-ios7-plus-empty add-" + type + " " + type + "-selector",
                    onClick: function() {
                      data[selector] = "open";
-                     dirty();
+                     dirty(true);
                    }});
     }
 
@@ -1420,7 +1436,7 @@ comps.rulesList = React.createClass({
     return d.div({className: "rules"}, items, d.div({className: "add-rule ion-ios7-plus-empty",
                                                      onClick: function() {
                                                        data.rules["unnamed" + data.globalId++] = ({pipes: [], valves: [], links: [], description: "unnamed"});
-                                                       dirty();
+                                                       dirty(true);
                                                      }}));
   }
 });
@@ -1455,7 +1471,7 @@ comps.tablesList = React.createClass({
 comps.tableView = React.createClass({
   render: function() {
     //TODO: replace with table API call
-    var rows = data.system.memory.getTable(this.props.table.name);
+    var rows = data.system.memory.getTable(this.props.table.id);
     return d.div({className: "table-view"}, d.h2({}, this.props.table.name), comps.grid({table: {fields: this.props.table.fields, rows: rows}}), d.span({className: "ion-grid return-to-grid",
                          onClick: function(e) {
                            data.page = "rules";
@@ -1488,56 +1504,10 @@ comps.linksList = React.createClass({
 });
 
 comps.wrapper = React.createClass({
-  buildSystem: function() {
-    var rules = data.rules;
-    var final = [];
-    for(var rule in rules) {
-      var facts = this.compileRule(rules[rule], rule);
-      var factsLen = facts.length;
-      for(var i = 0; i < factsLen; i++) {
-        final.push(facts[i]);
-      }
-    }
-    var tables = data.tables;
-    for(var table in tables) {
-      var cur = tables[table];
-      cur.fields.forEach(function(field, ix) {
-          final.push(["schema", table, field.id, ix]);
-      });
-    }
-    console.log(JSON.stringify(final));
-    var system = compileSystem(Memory.fromFacts(compilerSchema.concat(final)));
-    system.update([["users", 0, "chris", "chris@chris.com", "555-555-5555"],
-                   ["users", 1, "jamie", "jamie@jamie.com", "555-555-5556"],
-                   ["users", 2, "rob", "rob", "555-555-5556"],
-                   ["edges", "a", "b"],
-                   ["edges", "b", "c"],
-                   ["edges", "c", "d"],
-                   ["edges", "d", "b"]
-                  ],
-                  []);
-    return system;
-  },
 
-  compileRule: function(rule, ruleId) {
-    var facts = [];
-    var added = {};
-    rule.pipes.forEach(function(cur) {
-      facts.push(["pipe", cur.id, cur.table, ruleId, cur.type]);
-    });
-    rule.links.forEach(function(cur) {
-      facts.push([cur.type, cur.valve, cur.table, cur.field]);
-    });
-    rule.valves.forEach(function(cur, ix) {
-      facts.push(["valve", cur.id, ruleId, ix]);
-    });
-    return facts;
-  },
   render: function() {
 
     var cur = [];
-
-    data.system = this.buildSystem();
 
     switch(data.page) {
 
@@ -1568,7 +1538,7 @@ comps.wrapper = React.createClass({
 
 
       case "rules":
-        cur.push(d.div({className: "vbox"}, comps.tablesList({tables: data.tables}), comps.rulesList({rules: data.rules})));
+        cur.push(d.div({className: "vbox"}, comps.tablesList({tables: data.tables}), comps.rulesList({rules: data.rules}), data.uiWatcherResults));
         break;
 
       case "table-view":
@@ -1585,7 +1555,153 @@ comps.wrapper = React.createClass({
   }
 });
 
+//*********************************************************
+// Build
+//*********************************************************
+
+var uiCompileRule = function(rule, ruleId) {
+  console.log(rule);
+  var facts = [];
+  var added = {};
+  rule.pipes.forEach(function(cur) {
+    facts.push(["pipe", cur.id, cur.table, ruleId, cur.type]);
+  });
+  rule.links.forEach(function(cur) {
+    facts.push([cur.type, cur.valve, cur.table, cur.field]);
+  });
+  rule.valves.forEach(function(cur, ix) {
+    facts.push(["valve", cur.id, ruleId, ix]);
+  });
+  return facts;
+}
+
+var uiBuildSystem = function() {
+  var rules = data.rules;
+  var final = [];
+  for(var rule in rules) {
+    var facts = this.uiCompileRule(rules[rule], rule);
+    var factsLen = facts.length;
+    for(var i = 0; i < factsLen; i++) {
+      final.push(facts[i]);
+    }
+  }
+  var tables = data.tables;
+  for(var table in tables) {
+    var cur = tables[table];
+    cur.fields.forEach(function(field, ix) {
+      final.push(["schema", table, field.id, ix]);
+    });
+  }
+  console.log(JSON.stringify(final));
+  var system = compileSystem(Memory.fromFacts(compilerSchema.concat(final)));
+  system.update([["users", 0, "chris", "chris@chris.com", "555-555-5555"],
+                 ["users", 1, "jamie", "jamie@jamie.com", "555-555-5556"],
+                 ["users", 2, "rob", "rob", "555-555-5556"],
+                 ["ui_elems", "foo", "button"],
+                 ["ui_text", "foo_1", "hey!"],
+                 ["ui_child", "foo", 0,"foo_1"],
+                 ["edges", "a", "b"],
+                 ["edges", "b", "c"],
+                 ["edges", "c", "d"],
+                 ["edges", "d", "b"]
+                ],
+                []);
+  return system;
+}
+
+
+//*********************************************************
+// Watchers
+//*********************************************************
+
+var uiWatcher = function(memory) {
+  var elem = memory.getTable("ui_elems");
+  var text = memory.getTable("ui_text");
+  var attrs = memory.getTable("ui_attrs");
+  var styles = memory.getTable("ui_styles");
+  var events = memory.getTable("ui_events");
+  var child = memory.getTable("ui_child");
+
+  var elem_id = 1;
+  var elem_type = 2;
+
+  var text_text = 2;
+
+  var attrs_attr = 2;
+  var attrs_value = 3;
+
+  var styles_attr = 2;
+  var styles_value = 3;
+
+  var child_childid = 3;
+
+  var builtEls = {};
+  var roots = {};
+
+  var elemsLen = elem.length;
+  for(var i = 0; i < elemsLen; i++) {
+    var cur = elem[i];
+    roots[cur[elem_id]] = true;
+    if(React.DOM[cur[elem_type]]) {
+      builtEls[cur[elem_id]] = React.DOM[cur[elem_type]]();
+    } else {
+      builtEls[cur[elem_id]] = React.DOM.p();
+    }
+  }
+
+  var textLen = text.length;
+  for(var i = 0; i < textLen; i++) {
+    var cur = text[i];
+    builtEls[cur[elem_id]] = cur[text_text];
+  }
+
+  var attrsLen = attrs.length;
+  for(var i = 0; i < attrsLen; i++) {
+    var cur = attrs[i];
+    builtEls[cur[elem_id]].props[cur[attrs_attr]] = cur[attrs_value];
+  }
+
+  var stylesLen = styles.length;
+  for(var i = 0; i < stylesLen; i++) {
+    var cur = styles[i];
+    if(!builtEls[cur[attrs_id]].props.styles) {
+      builtEls[cur[attrs_id]].props.styles = {};
+    }
+    builtEls[cur[elem_id]].props.styles[cur[styles_attr]] = cur[styles_value];
+  }
+
+  var eventsLen = events.length;
+  for(var i = 0; i < eventsLen; i++) {
+    var cur = events[i];
+
+  }
+
+  console.log(child);
+  var childLen = child.length;
+  child.sort();
+  for(var i = 0; i < childLen; i++) {
+    var cur = child[i];
+    var child = builtEls[cur[child_childid]];
+    delete roots[cur[child_childid]];
+    if(!builtEls[cur[elem_id]].props.children) {
+      builtEls[cur[elem_id]].props.children = [];
+    }
+    console.log("child: ", JSON.stringify(cur));
+    builtEls[cur[elem_id]].props.children.push(child);
+  }
+
+  var final = d.div();
+  final.props.children = [];
+  for(var i in roots) {
+    final.props.children.push(builtEls[i]);
+  }
+
+  data.uiWatcherResults = final;
+}
+
+//*********************************************************
 //Key Handling
+//*********************************************************
 
 var keys = {backspace: 8,
             shift: 16,
@@ -1721,11 +1837,13 @@ document.addEventListener("keyup", function(e) {
 
 
 eve.start = function() {
+  uiWatcher(data.system.memory);
   React.renderComponent(comps.wrapper(eve.data), document.querySelector("#outer-wrapper"));
   eve.dirty = false;
 }
 
 window.eve = eve;
+data.system = uiBuildSystem();
 window.eve.start();
 
 //TODO UI:
