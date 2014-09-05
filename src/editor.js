@@ -1,13 +1,19 @@
 var eve = {};
+
 var comps = eve.components = {};
 var mix = eve.mixins = {};
 var data = eve.data = {tree: {elements: []}, selection: {}, undo: {stack:{children: []}},
 
                        page: "rules",
+                       selector: {open: {}, selected: false},
                        activeRule: "foo",
                        globalId: 0,
                        rules: {
                          "boo": {pipes: [{id: "booPipe0", table: "users", type: "+source"}, {id: "booPipe1", table: "email outbox", type: "+sink"}],
+                                 joins: [],
+                                 sorts: [],
+                                 groups: [],
+                                 functions: [],
                                  valves: [],
                                  links: [],
                                  description: "look at users"},
@@ -67,10 +73,9 @@ var picker = $("#picker").spectrum({
 var dirty = function(recompile) {
   if(recompile && !eve.recompile) {
     eve.recompile = true;
-    setTimeout(function() {
-      data.system = uiBuildSystem();
-      eve.recompile = false;
-    }, 0);
+    console.log("have to recompile");
+    data.system = uiBuildSystem();
+    eve.recompile = false;
   }
   if(!eve.dirty) {
     eve.dirty = true;
@@ -1106,6 +1111,7 @@ comps.gridHeader = React.createClass({
                  onDrop: function(e) {
                    //TODO: this logic probably doesn't really belong here.
                    //TODO: this is not undoable
+                   data.dropZone = "";
                    var valve = data.selection.column.id;
                    if(!valve) return;
 
@@ -1134,7 +1140,7 @@ comps.gridHeader = React.createClass({
                        return cur.valve != col.id;
                      });
                      console.log("adding link: ", {valve: valve, type: "tableConstraint", table: table, field: field});
-                     data.rules[data.activeRule].links.push({valve: props.column.id, type: "tableConstraint", table: table, field: field})
+                     data.rules[data.activeRule].joins.push({valve: props.column.id, table: table, field: field})
                      dirty(true);
                    }
                    e.stopPropagation();
@@ -1152,11 +1158,12 @@ comps.grid = React.createClass({
     var thfilters = [];
     var headers = this.props.table.fields;
     var headersLen = headers.length;
+    var mods = this.props.table.joins;
     for(var i in headers) {
       var cur = headers[i];
       ths.push(comps.gridHeader({column: cur, table: this.props.sinkId}));
-      if(cur.filters) {
-        thfilters.push(d.th({className: "modifier"}, cur.filters));
+      if(mods && mods[cur.id]) {
+        thfilters.push(d.th({className: "modifier"}, "merged " + mods[cur.id]));
       } else {
         thfilters.push(d.th({className: "empty"}));
       }
@@ -1177,6 +1184,7 @@ comps.grid = React.createClass({
       }
       trs.push(d.tr({}, tds));
     }
+
     return d.table({className: "grid"},
                    d.thead({}, d.tr({}, thfilters), d.tr({}, ths)),
                    d.tbody({}, trs));
@@ -1186,15 +1194,16 @@ comps.grid = React.createClass({
 comps.inputColumnList = React.createClass({
   render: function() {
     var table = this.props.table;
-    var id = this.props.id;
     var items = table.fields.map(function(cur) {
       return d.li({draggable: true,
                    onDragStart: function(e) {
                      data.selection = {};
                      data.selection.action = "add column";
-                     data.selection.column = {id: id, table: table.name, column: cur.id, name: cur.name};
+                     data.selection.column = {tableName: table.name, table: table.id, column: cur.id, name: cur.name};
+                     data.selector.selected = table.id;
                      e.dataTransfer.effectAllowed = "move";
                      e.dataTransfer.dropEffect = "move";
+                     e.stopPropagation();
                    }},
                   cur.name);
     })
@@ -1202,16 +1211,36 @@ comps.inputColumnList = React.createClass({
   }
 });
 
-comps.inputItem = React.createClass({
+comps.dataSelectorItem = React.createClass({
   render: function() {
     var cur = this.props.table;
-    var items = [d.span({className: "table-name"}, cur.name)];
-    if(cur.active) {
+    var active = data.selector.open[cur.id];
+    var items = [d.span({className: "selector-toggle " + (active ? "ion-ios7-arrow-down" : "ion-ios7-arrow-right"),
+                         onClick: function() {
+                            data.selector.open[cur.id] = !active;
+                         }}),
+                 d.span({className: "table-name"}, cur.name)];
+    if(data.selector.open[cur.id]) {
       items.push(comps.inputColumnList({table: cur, id: this.props.id}));
     }
-    return d.li({className: "" + (cur.active ? "active" : ""),
+    return d.li({className: "" + (data.selector.open[cur.id] ? "active" : "") + (data.selector.selected === cur.id ? " selected" : ""),
+                 draggable: true,
+                 onDragStart: function(e) {
+                     data.selection = {};
+                     data.selection.action = "add table";
+                     data.selection.table = cur;
+                     data.selector.selected = cur.id;
+                     e.dataTransfer.effectAllowed = "move";
+                     e.dataTransfer.dropEffect = "move";
+                 },
+                 onDoubleClick: function() {
+                    console.log("here");
+                    data.page = "table-view";
+                    data.activeRule = cur.id;
+                    dirty();
+                 },
                  onClick: function() {
-                   cur.active = !cur.active;
+                    data.selector.selected = cur.id;
                    dirty();
                  },
                  onBlur: function() {
@@ -1222,18 +1251,18 @@ comps.inputItem = React.createClass({
   }
 });
 
-comps.sources = React.createClass({
+comps.dataSelector = React.createClass({
   render: function() {
 
     var items = [];
-    var sources = this.props.sources;
-    for(var i in sources) {
-      var cur = sources[i].table;
-      items.push(comps.inputItem({id: sources[i].id, table: data.tables[cur]}));
+    var tables = data.tables;
+    for(var i in tables) {
+      var cur = tables[i];
+      items.push(comps.dataSelectorItem({table: cur}));
     }
 
-    return d.div({className: "inputs-container container"},
-                 d.ul({className: "inputs"}, items, comps.ioSelector({type: "source"})));
+    return d.div({className: "data-selector container"},
+                 d.ul({className: "data-selector-tables"}, items));
   }
 });
 
@@ -1245,9 +1274,16 @@ comps.workspace = React.createClass({
         return;
       }
     }
+    var pipe = findPipeForTable(this.props.rule, col.table);
+    if(!pipe) {
+        //TODO: how does negation fit into this?
+        pipe = {id: "pipe" + data.globalId++, table: col.table, type: "+source"};
+        this.props.rule.pipes.push(pipe);
+
+    }
     var valveId = "valve" + data.globalId++;
-    var valve = {id: valveId, name: col.name};
-    this.props.rule.links.push({type: "tableConstraint", valve: valveId, table: col.id, field: col.column});
+    var valve = {id: valveId, name: col.tableName + " " + col.name};
+    this.props.rule.links.push({type: "tableConstraint", valve: valveId, table: pipe.id, field: col.column});
     if(ix === undefined) {
       cols.push(valve);
       return cols.length - 1;
@@ -1268,6 +1304,7 @@ comps.workspace = React.createClass({
   onDrop: function(e) {
     var self = this;
     var action = data.selection.action;
+    data.dropZone = false;
     if(action == "add column") {
       var col = data.selection.column;
       var ix = this.addColumn(col);
@@ -1293,10 +1330,24 @@ comps.workspace = React.createClass({
                    self.removeColumn(col);
                  }});
       dirty(true);
+    } else if(action == "add table") {
+      var table = data.selection.table;
+      table.fields.forEach(function(cur) {
+        self.addColumn({tableName: table.name, table: table.id, column: cur.id, name: cur.name});
+      });
+      dirty(true);
     }
   },
   onDragOver: function(e) {
     e.preventDefault();
+    if(data.selection.action.indexOf("add") < 0) return;
+    data.dropZone = "workspace";
+    dirty();
+  },
+
+  onDragLeave: function(e) {
+    data.dropZone = false;
+    dirty();
   },
 
   getIntermediates: function() {
@@ -1315,18 +1366,37 @@ comps.workspace = React.createClass({
   render: function() {
     var rule = this.props.rule;
     var cols = rule.valves;
+    var joins = rule.joins;
+    var filters = rule.joins;
+    var joinMap = {};
+    var filterMap = {};
 
-    return d.div({className: "workspace-container container",
+    for(var i in joins) {
+      var cur = joins[i];
+      joinMap[cur.valve] = columnToName(rule, cur);
+    }
+
+    for(var i in filters) {
+      var cur = filters[i];
+      filterMap[cur.valve] = cur;
+    }
+
+    return d.div({className: "workspace-container container" + (data.dropZone === "workspace" ? " dropping" : ""),
+                  onDragLeave: this.onDragLeave,
                   onDragOver: this.onDragOver,
                   onDrop: this.onDrop},
-                 d.div({className: "workspace"},
-                       d.span({className: "description"}, rule.description),
-                       comps.grid({table: {fields: cols,
-                                           withoutTable: true,
-                                  //TODO: show the real intermediates
-                                           rows: this.getIntermediates()}}
-                                 )
-                      ));
+                  d.div({className: "vbox"},
+                      d.span({className: "description"}, rule.description),
+                      d.div({className: "workspace"},
+                          comps.grid({table: {fields: cols,
+                              joins: joinMap,
+                              filters: filterMap,
+                              add: true,
+                              withoutTable: true,
+                              //TODO: show the real intermediates
+                              rows: this.getIntermediates()}}
+                          ))
+                  ));
   }
 });
 
@@ -1336,7 +1406,7 @@ comps.ioSelectorItem = React.createClass({
     return d.li({className: "",
                  onClick: function() {
                    data.rules[data.activeRule].pipes.push({id: "pipe" + data.globalId++, table: props.table.id, type: props.type});
-                   data[props.type + "Selector"] = "closed";
+                   data[props.type.substring(1) + "Selector"] = "closed";
                    dirty(true);
                  }},
                 props.table.name);
@@ -1348,7 +1418,7 @@ comps.ioSelector = React.createClass({
     var type = this.props.type;
     var selector = type + "Selector";
     if(!data[selector] || data[selector] == "closed") {
-      return d.li({className: "ion-ios7-plus-empty add-" + type + " " + type + "-selector",
+      return d.li({className: "ion-ios7-plus-empty add-button add-" + type + " " + type + "-selector",
                    onClick: function() {
                      data[selector] = "open";
                      dirty(true);
@@ -1381,6 +1451,26 @@ comps.sinks = React.createClass({
     return final;
   },
 
+  onDragOver: function(e) {
+    data.dropZone = "sinks";
+    dirty();
+    e.preventDefault();
+  },
+
+  onDragLeave: function(e) {
+    data.dropZone = "";
+    dirty();
+  },
+
+  onDrop: function(e) {
+    data.dropZone = "";
+    dirty();
+    if(data.selection.action === "add table") {
+      var table = data.selection.table;
+      data.rules[data.activeRule].pipes.push({id: "pipe" + data.globalId++, table: table.id, type: "+sink"});
+    }
+  },
+
   render: function() {
 
     var items = [];
@@ -1392,8 +1482,11 @@ comps.sinks = React.createClass({
       items.push(d.li({}, d.h2({}, cur.name), comps.grid({table: {fields: cur.fields, rows: sols[sinks[i].table]}, sinkId: sinks[i].id})));
     }
 
-    return d.div({className: "outputs-container container"},
-                 d.ul({className: "outputs"}, items, comps.ioSelector({type: "sink"})));
+    return d.div({className: "outputs-container container" + (data.dropZone === "sinks" ? " dropping" : ""),
+        onDragOver: this.onDragOver,
+        onDragLeave: this.onDragLeave,
+        onDrop: this.onDrop},
+        d.ul({className: "outputs"}, items));
   }
 });
 
@@ -1433,11 +1526,15 @@ comps.rulesList = React.createClass({
       var cur = rs[i];
       items.push(comps.ruleItem({id: i, rule: cur}));
     }
-    return d.div({className: "rules"}, items, d.div({className: "add-rule ion-ios7-plus-empty",
+    return d.div({className: "rules"}, items, d.div({className: "add-rule",
                                                      onClick: function() {
-                                                       data.rules["unnamed" + data.globalId++] = ({pipes: [], valves: [], links: [], description: "unnamed"});
+                                                        var rule = "unnamed" + data.globalId++;
+                                                       data.rules[rule] = ({pipes: [], valves: [], joins: [], sorts: [], groups: [], functions: [], links: [], description: "unnamed"});
+                                                       data.page = "data";
+                                                       data.activeRule = rule;
                                                        dirty(true);
-                                                     }}));
+                                                     }},
+                                                     "new rule"));
   }
 });
 
@@ -1497,7 +1594,7 @@ comps.linksList = React.createClass({
     var items = [];
     for(var i in links) {
       var cur = links[i];
-      items.push(d.li({}, valveToName[cur.valve] + " -> " + pipesToName[cur.table] + "." + cur.field + " [" + cur.table + "]" ));
+      items.push(d.li({}, valveToName[cur.valve] + " -> " + pipesToName[cur.table] + " " + cur.field + " [" + cur.table + "]" ));
     }
     return d.ul({className: "links-list"}, items);
   }
@@ -1526,24 +1623,31 @@ comps.wrapper = React.createClass({
             outs.push(cur);
           }
         });
-        cur.push(d.div({className: "vbox"}, d.div({className: "hbox data-top"}, comps.sources({sources: ins}), comps.workspace(activeRule), comps.linksList(activeRule)), comps.sinks({sinks: outs})),
-                 d.span({className: "ion-grid return-to-grid",
-                         onClick: function(e) {
-                           data.page = "rules";
-                           dirty();
-                         }
-                        })
-                );
+        cur.push(d.div({className: "hbox"},
+            comps.dataSelector(),
+            d.div({className: "vbox data-top"}, comps.workspace(activeRule), comps.sinks({sinks: outs})),
+            d.span({className: "ion-grid return-to-grid",
+                onClick: function(e) {
+                    data.page = "rules";
+                    dirty();
+                }
+            })
+        ));
         break;
 
 
       case "rules":
-        cur.push(d.div({className: "vbox"}, comps.tablesList({tables: data.tables}), comps.rulesList({rules: data.rules}), data.uiWatcherResults));
+        cur.push(d.div({className: "hbox"}, comps.dataSelector(), comps.rulesList({rules: data.rules})));
         break;
 
       case "table-view":
         var table = data.tables[data.activeRule];
-        cur.push(comps.tableView({table: table}));
+        var ruleIds = rulesRelatedToTable(table.id);
+        var rules = {};
+        for(var i in ruleIds) {
+            rules[ruleIds[i]] = data.rules[ruleIds[i]];
+        }
+        cur.push(d.div({className: "hbox table-view-container"}, comps.dataSelector(), d.div({className: "vbox"}, comps.tableView({table: table}), comps.rulesList({rules: rules}))));
         break;
 
     }
@@ -1554,6 +1658,51 @@ comps.wrapper = React.createClass({
                 );
   }
 });
+
+//*********************************************************
+// Rule rep utilities
+//*********************************************************
+
+var findField = function(table, id) {
+  for(var i in table.fields) {
+    if(table.fields[i].id === id) {
+      return table.fields[i];
+    }
+  }
+}
+
+var findPipeForTable = function(rule, table) {
+    for(var i in rule.pipes) {
+        var cur = rule.pipes[i];
+        if(cur.table === table) return cur;
+    }
+    return false;
+}
+
+var pipeToTable = function(rule, pipeId) {
+  for(var i in rule.pipes) {
+    if(rule.pipes[i].id === pipeId) {
+      return data.tables[rule.pipes[i].table];
+    }
+  }
+}
+
+var columnToName = function(rule, col) {
+  var table = data.tables[col.table] || pipeToTable(rule, col.table);
+  var column = findField(table, col.field);
+  return table.name + " " + column.name;
+}
+
+var rulesRelatedToTable = function(table) {
+  var rules = data.rules;
+  var final = [];
+  for(var i in rules) {
+    if(findPipeForTable(rules[i], table)) {
+        final.push(i);
+    }
+  }
+  return final;
+}
 
 //*********************************************************
 // Build
@@ -1568,6 +1717,9 @@ var uiCompileRule = function(rule, ruleId) {
   });
   rule.links.forEach(function(cur) {
     facts.push([cur.type, cur.valve, cur.table, cur.field]);
+  });
+  rule.joins.forEach(function(cur) {
+    facts.push(["tableConstraint", cur.valve, cur.table, cur.field]);
   });
   rule.valves.forEach(function(cur, ix) {
     facts.push(["valve", cur.id, ruleId, ix]);
@@ -1837,14 +1989,14 @@ document.addEventListener("keyup", function(e) {
 
 
 eve.start = function() {
+  console.log("eve start");
   uiWatcher(data.system.memory);
   React.renderComponent(comps.wrapper(eve.data), document.querySelector("#outer-wrapper"));
   eve.dirty = false;
 }
 
 window.eve = eve;
-data.system = uiBuildSystem();
-window.eve.start();
+dirty(true);
 
 //TODO UI:
 // - undo for add
