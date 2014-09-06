@@ -748,7 +748,7 @@ function compileRule(dump, rule) {
   for (var i = funs.length - 1; i >= 0; i--) {
     var fun = funs[i];
     var outIx = valveIxes[fun.valve];
-    var inputs = dump.functionInput.function[fun.function];
+    var inputs = dump.functionInput.function[fun.function] || [];
     var inIxes = [];
     var args = [];
     for (var j = inputs.length - 1; j >= 0; j--) {
