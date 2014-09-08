@@ -647,7 +647,12 @@ Flow.prototype = {
 
     var aggregateAdds = [];
     var aggregateDels = [];
-    this.aggregate.update(this.source.provenance.newOutputMemory, aggregateAdds, aggregateDels); // TODO total hack
+    if (this.aggregate) {
+      this.aggregate.update(this.source.provenance.newOutputMemory, aggregateAdds, aggregateDels); // TODO total hack
+    } else {
+      aggregateAdds = sourceAdds;
+      aggregateDels = sourceDels;
+    }
 
     if ((aggregateAdds.length === 0) && (aggregateDels.length === 0)) return outputMemory;
 
@@ -829,7 +834,7 @@ function compileRule(dump, rule) {
   // TODO we hackily assume that valves are ordered by joins/functions/constants -> reducers. we should order them ourselves and reorder afterwards
   var numVars;
   for (numVars = 0; numVars < valves.length; numVars++) {
-    var valve = valves[i].valve;
+    var valve = valves[numVars].valve;
     if ((dump.tableConstraint.valve[valve] === undefined) && (dump.functionConstraint.valve[valve] === undefined)) break;
   }
 
@@ -1085,7 +1090,7 @@ var solverProps = {
                        var input = Memory.empty();
                        var constraint0 = new MemoryConstraint([0,1,2]);
                        var constraint1 = new MemoryConstraint([0,1,2]);
-                       var flow = new Flow(Solver.empty(3, [constraint0, constraint1]), [new Sink([0,1,2], [null,null,null])]);
+                       var flow = new Flow(Solver.empty(3, [constraint0, constraint1]), null, [new Sink([0,1,2], [null,null,null])]);
                        var input = input.update(facts, []);
                        var output = flow.update(input, Memory.empty());
                        return memoryEqual(input, output);
@@ -1096,7 +1101,7 @@ var solverProps = {
                        var input = Memory.empty();
                        var constraint0 = new MemoryConstraint([0,1,2]);
                        var constraint1 = new MemoryConstraint([3,4,5]);
-                       var flow = new Flow(Solver.empty(6, [constraint0, constraint1]), [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
+                       var flow = new Flow(Solver.empty(6, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
                        var input = input.update(facts, []);
                        var output = flow.update(input, Memory.empty());
                        var expectedFacts = [];
@@ -1113,7 +1118,7 @@ var solverProps = {
                          var input = Memory.empty();
                          var constraint0 = new MemoryConstraint([0,null,1],[null,constant,null]);
                          var constraint1 = new MemoryConstraint([2,3,4]);
-                         var flow = new Flow(Solver.empty(5, [constraint0, constraint1]), [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                         var flow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
                          var input = input.update(facts, []);
                          var output = flow.update(input, Memory.empty());
                          var expectedFacts = [];
@@ -1134,8 +1139,8 @@ var solverProps = {
                                     var input = Memory.empty();
                                     var constraint0 = new MemoryConstraint([0,null,1],[null,constant,null]);
                                     var constraint1 = new MemoryConstraint([2,3,4]);
-                                    var incrementalFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
-                                    var batchFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                                    var incrementalFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                                    var batchFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
                                     var incrementalOutput = Memory.empty();
                                     var batchOutput = Memory.empty();
 
@@ -1154,7 +1159,7 @@ var solverProps = {
                          var input = Memory.empty();
                          var constraint0 = new MemoryConstraint([0,1,2]);
                          var constraint1 = new MemoryConstraint([2,3,4]);
-                         var flow = new Flow(Solver.empty(5, [constraint0, constraint1]), [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                         var flow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
                          var input = input.update(facts, []);
                          var output = flow.update(input, Memory.empty());
                          var expectedFacts = [];
@@ -1175,8 +1180,8 @@ var solverProps = {
                                     var input = Memory.empty();
                                     var constraint0 = new MemoryConstraint([0,1,2]);
                                     var constraint1 = new MemoryConstraint([2,3,4]);
-                                    var incrementalFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
-                                    var batchFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                                    var incrementalFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                                    var batchFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
                                     var incrementalOutput = Memory.empty();
                                     var batchOutput = Memory.empty();
 
@@ -1196,7 +1201,7 @@ var solverProps = {
                          var constraint0 = new MemoryConstraint([0,1,2]);
                          var constraint1 = new MemoryConstraint([3,4,5]);
                          var constraint2 = new FunctionConstraint(function (x) { return x + 1;}, [2], 3);
-                         var flow = new Flow(Solver.empty(6, [constraint0, constraint1, constraint2]), [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
+                         var flow = new Flow(Solver.empty(6, [constraint0, constraint1, constraint2]), null, [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
                          var input = input.update(facts, []);
                          var output = flow.update(input, Memory.empty());
                          var expectedFacts = [];
@@ -1217,8 +1222,8 @@ var solverProps = {
                                     var constraint0 = new MemoryConstraint([0,1,2]);
                                     var constraint1 = new MemoryConstraint([3,4,5]);
                                     var constraint2 = new FunctionConstraint(function (x) { return x + 1;}, [2], 3);
-                                    var incrementalFlow = new Flow(Solver.empty(6, [constraint0, constraint1, constraint2]), [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
-                                    var batchFlow = new Flow(Solver.empty(6, [constraint0, constraint1, constraint2]), [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
+                                    var incrementalFlow = new Flow(Solver.empty(6, [constraint0, constraint1, constraint2]), null, [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
+                                    var batchFlow = new Flow(Solver.empty(6, [constraint0, constraint1, constraint2]), null, [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
                                     var incrementalOutput = Memory.empty();
                                     var batchOutput = Memory.empty();
 
@@ -1237,7 +1242,7 @@ var solverProps = {
                        var input = Memory.empty();
                        var constraint0 = new MemoryConstraint([0,1,2]);
                        var constraint1 = new NegatedMemoryConstraint([2,null,null], [null,null,null]);
-                       var flow = new Flow(Solver.empty(3, [constraint1, constraint0], [constraint1]), [new Sink([0,1,2], [null,null,null])]);
+                       var flow = new Flow(Solver.empty(3, [constraint1, constraint0], [constraint1]), null, [new Sink([0,1,2], [null,null,null])]);
                        var input = input.update(facts, []);
                        var output = flow.update(input, Memory.empty());
                        var expectedFacts = [];
@@ -1258,8 +1263,8 @@ var solverProps = {
                                     var input = Memory.empty();
                                     var constraint0 = new MemoryConstraint([0,1,2]);
                                     var constraint1 = new NegatedMemoryConstraint([2,null,null], [null,null,null]);
-                                    var incrementalFlow = new Flow(Solver.empty(3, [constraint1, constraint0], [constraint1]), [new Sink([0,1,2], [null,null,null])]);
-                                    var batchFlow = new Flow(Solver.empty(3, [constraint1, constraint0], [constraint1]), [new Sink([0,1,2], [null,null,null])]);
+                                    var incrementalFlow = new Flow(Solver.empty(3, [constraint1, constraint0], [constraint1]), null, [new Sink([0,1,2], [null,null,null])]);
+                                    var batchFlow = new Flow(Solver.empty(3, [constraint1, constraint0], [constraint1]), null, [new Sink([0,1,2], [null,null,null])]);
                                     var incrementalOutput = Memory.empty();
                                     var batchOutput = Memory.empty();
 
