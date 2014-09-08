@@ -598,7 +598,7 @@ Aggregate.prototype = {
       for (var i = reducerInIxes.length - 1; i >= 0; i--) {
         reduceBy(facts, reducerInIxes[i], reducerOutIxes[i], reducerFuns[i]);
       }
-      newOutputMemory = newOutputMemory.update(facts);
+      newOutputMemory = newOutputMemory.update(facts, []);
     }
     newOutputMemory.diff(this.oldOutputMemory, outputAdds, outputDels);
     this.oldOutputMemory = newOutputMemory;
