@@ -648,7 +648,7 @@ Flow.prototype = {
     var aggregateAdds = [];
     var aggregateDels = [];
     if (this.aggregate) {
-      this.aggregate.update(this.source.provenance.newOutputMemory, aggregateAdds, aggregateDels); // TODO total hack
+      this.aggregate.update(this.source.provenance.oldOutputMemory, aggregateAdds, aggregateDels); // TODO total hack
     } else {
       aggregateAdds = sourceAdds;
       aggregateDels = sourceDels;
