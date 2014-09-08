@@ -835,7 +835,7 @@ function compileRule(dump, rule) {
   var numVars;
   for (numVars = 0; numVars < valves.length; numVars++) {
     var valve = valves[numVars].valve;
-    if ((dump.tableConstraint.valve[valve] === undefined) && (dump.functionConstraint.valve[valve] === undefined)) break;
+    if ((dump.tableConstraint.valve[valve] === undefined) && (dump.function.valve[valve] === undefined)) break;
   }
 
   Object.keys(dump.function.rule);
