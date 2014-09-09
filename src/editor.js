@@ -50,7 +50,32 @@ var data = eve.data = {tree: {elements: []}, selection: {}, undo: {stack:{childr
                                                 fields: [{name: "id", id: "sms pending_id"}]},
                                 "email inbox": {name: "email inbox",
                                                 id: "email inbox",
-                                                fields: [{name: "id", id: "email inbox_id"}, {name: "to", id: "email inbox_to"}, {name: "from", id: "email inbox_from"}, {name: "subject", id: "email inbox_subject"}, {name: "body", id: "email inbox_body"}]}},
+                                                fields: [{name: "id", id: "email inbox_id"}, {name: "to", id: "email inbox_to"}, {name: "from", id: "email inbox_from"}, {name: "subject", id: "email inbox_subject"}, {name: "body", id: "email inbox_body"}]},
+                                "valve": {name: "Eve valve",
+                                          id: "valve",
+                                          fields: [{name: "id", id: "valve_id"}, {name: "rule", id: "valve_rule"}, {name: "ix", id: "valve_ix"}]
+                                         },
+                                "pipe": {name: "Eve pipe",
+                                          id: "pipe",
+                                         fields: [{name: "id", id: "pipe_id"}, {name: "table", id: "pipe_table"}, {name: "rule", id: "pipe_rule"}, {name: "direction", id: "pipe_direction"}]
+                                         },
+                                "tableConstraint": {name: "Eve table constraint",
+                                          id: "tableConstraint",
+                                         fields: [{name: "valve", id: "tc_valve"}, {name: "pipe", id: "tc_pipe"}, {name: "field", id: "tc_field"}]
+                                         },
+                                "constantConstraint": {name: "Eve constant constraint",
+                                          id: "constantConstraint",
+                                         fields: [{name: "valve", id: "cc_valve"}, {name: "value", id: "cc_value"}]
+                                         },
+                                "function": {name: "Eve function",
+                                          id: "function",
+                                         fields: [{name: "id", id: "function_id"}, {name: "code", id: "function_code"}, {name: "valve", id: "function_valve"}, {name: "rule", id: "function_rule"}]
+                                         },
+                                "functionInput": {name: "Eve function input",
+                                          id: "functionInput",
+                                         fields: [{name: "valve", id: "functionInput_valve"}, {name: "function", id: "functionInput_function"}]
+                                         },
+                               },
 
                       };
 var d = React.DOM;
