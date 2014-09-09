@@ -10,6 +10,7 @@ resources/bootstrap.js
 node-webkit*
 aurora.app
 Eve.app
+env.sh
 nw*
 pom.xml
 *.jar

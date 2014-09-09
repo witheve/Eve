@@ -83,9 +83,9 @@ ul, li { list-style:none; }
 .add-button:hover { background:rgba(255,255,255, 0.18); color:#eee; box-shadow:0 0 20px #000;  }
 
 .grid { position:relative; display:inline-block; overflow:none; box-shadow: 0 0 0px #ccc; border-spacing:0; border-collapse: separate; background:none;  width:auto; border-radius:3px; }
-.grid td, .grid th { border-top:1px solid #bbb; background:#e7e7e7; border-right:1px solid #bbb; width:130px; padding:3px 8px; }
+.grid td, .grid th { border-top:1px solid #bbb; background:#e7e7e7; border-right:1px solid #bbb; width:130px; max-width:130px; overflow:hidden; padding:3px 8px; }
 .grid td { text-align: left; }
-.grid th { text-align:center; padding:3px 0; background:#bbbbcf; color:#494456; border-color:#99b; }
+.grid th { text-align:center; padding:3px 0; background:#c0c0c0; color:#4a4a4a; border-color:#999; }
 .grid th:first-child { border-top-left-radius: 3px; }
 .grid th:last-child { border-top-right-radius: 3px; }
 .grid tr:last-child td:last-child { border-botom-left-radius: 3px; }
@@ -98,6 +98,9 @@ ul, li { list-style:none; }
 .grid thead { display:block; }
 .grid tbody { display:block; max-height:250px; overflow:auto; border-bottom-left-radius:3px; border-bottom-right-radius:3px; }
 .grid { box-shadow:0 0 0px #000; }
+.grid .add-column { width:40px; border-top:none; background:#e0e0e0; }
+.grid tr:first-child .add-column { border-top:1px solid #c0c0c0; }
+.grid th.add-column { border-color:#bbb; background:#c0c0c0; color:#666; }
 
 .toolbox { background:#eee; margin:10% 0; list-style:none;}
 .toolbox li { padding:5px 10px; border-radius:3px; }
@@ -208,7 +211,7 @@ ul, li { list-style:none; }
 
 .workspace-container { flex: 1; display:flex; padding:10px; flex-direction:column; align-items:center; justify-content:center; position:relative; }
 .workspace-container.dropping { background:rgba(255,255,255,0.1); }
-.workspace-container .description { color:#ccc; font-size:14pt; flex:none; }
+.workspace-container .description { color:#ccc; font-size:14pt; flex:none; background:none; border:none; width:400px; text-align:center; }
 .workspace-container > .vbox { align-items:center; }
 .workspace { flex:1; display:flex; justify-content: center; align-items:center; }
 

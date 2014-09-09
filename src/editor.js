@@ -8,16 +8,7 @@ var data = eve.data = {tree: {elements: []}, selection: {}, undo: {stack:{childr
                        selector: {open: {}, selected: false},
                        activeRule: "foo",
                        globalId: 0,
-                       rules: {
-                         "boo": {pipes: [{id: "booPipe0", table: "users", type: "+source"}, {id: "booPipe1", table: "email outbox", type: "+sink"}],
-                                 joins: [],
-                                 sorts: [],
-                                 groups: [],
-                                 functions: [],
-                                 valves: [],
-                                 links: [],
-                                 description: "look at users"},
-                               },
+                       rules: { },
                        tables: {"users": {name: "users",
                                           id: "users",
                                           fields: [{name: "id", id: "users_id"}, {name: "name", id: "users_name"}, {name: "email", id: "users_email"}, {name: "phone", id: "users_phone"}]},
@@ -30,6 +21,12 @@ var data = eve.data = {tree: {elements: []}, selection: {}, undo: {stack:{childr
                                 "ui_child": {name: "ui children",
                                              id: "ui_child",
                                              fields: [{name: "parent", id: "child_id"}, {name: "position", id: "child_position"}, {name: "child", id: "child_childid"}]},
+                                "ui_events": {name: "ui events",
+                                             id: "ui_events",
+                                             fields: [{name: "elem", id: "events_elem_id"}, {name: "event", id: "events_event"}, {name: "label", id: "events_label"}, {name: "key", id: "events_key"}]},
+                                "external_events": {name: "external_events",
+                                             id: "external_events",
+                                             fields: [{name: "elem", id: "extevents_elem_id"}, {name: "label", id: "extevents_label"}, {name: "key", id: "extevents_key"}, {name: "event id", id: "extevents_event_id"}]},
                                 "edges": {name: "edges",
                                           id: "edges",
                                           fields: [{name: "from", id: "edges_from"}, {name: "to", id: "edges_to"}]},
@@ -45,12 +42,23 @@ var data = eve.data = {tree: {elements: []}, selection: {}, undo: {stack:{childr
                                 "sms outbox": {name: "sms outbox",
                                                id: "sms outbox",
                                                fields: [{name: "id", id: "sms outbox_id"}, {name: "phone", id: "sms outbox_phone"}, {name: "message", id: "sms outbox_message"}]},
+                                "sms_to_send": {name: "sms to send",
+                                                id: "sms_to_send",
+                                                fields: [{name: "id", id: "sms_to_send_id"}, {name: "phone", id: "sms_to_send_phone"}, {name: "message", id: "sms_to_send_message"}]},
+                                "sms_pending": {name: "sms pending",
+                                                id: "sms_pending",
+                                                fields: [{name: "id", id: "sms pending_id"}]},
                                 "email inbox": {name: "email inbox",
                                                 id: "email inbox",
                                                 fields: [{name: "id", id: "email inbox_id"}, {name: "to", id: "email inbox_to"}, {name: "from", id: "email inbox_from"}, {name: "subject", id: "email inbox_subject"}, {name: "body", id: "email inbox_body"}]}},
 
                       };
 var d = React.DOM;
+
+if(localStorage["eve_rules"]) {
+  data.rules = JSON.parse(localStorage["eve_rules"]);
+  data.globalId = JSON.parse(localStorage["eve_globalId"]);
+}
 
 var clearPixel = document.createElement("img");
 clearPixel.src = document.querySelector("#clear-pixel").toDataURL();
@@ -71,9 +79,10 @@ var picker = $("#picker").spectrum({
 });
 
 var dirty = function(recompile) {
+  localStorage["eve_rules"] = JSON.stringify(data.rules);
+  localStorage["eve_globalId"] = data.globalId;
   if(recompile && !eve.recompile) {
     eve.recompile = true;
-    console.log("have to recompile");
     data.system = uiBuildSystem();
     eve.recompile = false;
   }
@@ -1101,6 +1110,11 @@ comps.gridHeader = React.createClass({
     var props = this.props;
     var cur = this.props.column;
     return d.th({draggable: "true",
+                 onClick: function(e) {
+                   var name = prompt("name: ", cur.name);
+                   cur.name = name;
+                   dirty();
+                 },
                  onDragStart: function(e) {
                    data.selection = {action: "move column",
                                      column: cur};
@@ -1119,7 +1133,6 @@ comps.gridHeader = React.createClass({
                      data.rules[data.activeRule].links.push({valve: valve, type: "tableConstraint", table: props.table, field: props.column.id})
                      dirty(true);
                    } else {
-                     console.log("dropped on a thing", cur);
                      var col = data.selection.column;
                      var rule = data.rules[data.activeRule];
                      var cols = rule.valves;
@@ -1129,9 +1142,7 @@ comps.gridHeader = React.createClass({
                        }
                      }
                      var table, field;
-                     console.log(cols);
                      cols.splice(ix, 1);
-                     console.log(cols);
                      rule.links = rule.links.filter(function(cur) {
                        if(cur.valve == col.id && cur.type == "tableConstraint") {
                          table = cur.table;
@@ -1139,7 +1150,6 @@ comps.gridHeader = React.createClass({
                        }
                        return cur.valve != col.id;
                      });
-                     console.log("adding link: ", {valve: valve, type: "tableConstraint", table: table, field: field});
                      data.rules[data.activeRule].joins.push({valve: props.column.id, table: table, field: field})
                      dirty(true);
                    }
@@ -1151,16 +1161,34 @@ comps.gridHeader = React.createClass({
 });
 
 comps.grid = React.createClass({
+  createSetFunctionCB: function(rule, fn) {
+    return function() {
+      var result = prompt("function:", fn.userCode || fn.code);
+      setFunctionCode(rule, fn, result);
+      dirty(true);
+    }
+  },
   render: function() {
     if(!this.props.table.fields.length) return d.table();
 
+    var rule = getActiveRule();
     var ths = [];
     var thfilters = [];
     var headers = this.props.table.fields;
     var headersLen = headers.length;
     var mods = this.props.table.joins;
+    var fns = [];
     for(var i in headers) {
       var cur = headers[i];
+      var fn = false;
+      if(rule) {
+        fn = getFunctionForValve(rule, cur.id);
+      }
+      if(fn) {
+        fns.push(this.createSetFunctionCB(rule, fn));
+      } else {
+        fns.push(null);
+      }
       ths.push(comps.gridHeader({column: cur, table: this.props.sinkId}));
       if(mods && mods[cur.id]) {
         thfilters.push(d.th({className: "modifier"}, "merged " + mods[cur.id]));
@@ -1180,9 +1208,22 @@ comps.grid = React.createClass({
       var row = rows[i];
       var tds = [];
       for(var header = 0; header < headersLen; header++) {
-        tds.push(d.td({}, row[header + skip]));
+        tds.push(d.td({onClick: fns[header]}, row[header + skip]));
       }
-      trs.push(d.tr({}, tds));
+      if(this.props.table.add) {
+        tds.push(d.td({className:  "add-column",
+                       onClick: function() {
+                         var rule = getActiveRule();
+                         var valve = addValveToRule(rule, "calculated" + data.globalId++);
+                         addFunctionToValve(rule, valve, "5");
+                         dirty(true);
+                       }}));
+      }
+      trs.push(d.tr({className: ""}, tds));
+    }
+
+    if(this.props.table.add) {
+        ths.push(d.th({className: "add-column"}, "+"));
     }
 
     return d.table({className: "grid"},
@@ -1234,7 +1275,6 @@ comps.dataSelectorItem = React.createClass({
                      e.dataTransfer.dropEffect = "move";
                  },
                  onDoubleClick: function() {
-                    console.log("here");
                     data.page = "table-view";
                     data.activeRule = cur.id;
                     dirty();
@@ -1282,7 +1322,7 @@ comps.workspace = React.createClass({
 
     }
     var valveId = "valve" + data.globalId++;
-    var valve = {id: valveId, name: col.tableName + " " + col.name};
+    var valve = {id: valveId, name: col.tableName + "." + col.name};
     this.props.rule.links.push({type: "tableConstraint", valve: valveId, table: pipe.id, field: col.column});
     if(ix === undefined) {
       cols.push(valve);
@@ -1352,7 +1392,6 @@ comps.workspace = React.createClass({
 
   getIntermediates: function() {
     var dump = dumpMemory(data.system.memory);
-    console.log(dump);
     try {
       var flow = compileRule(dump, data.activeRule);
       var outputAdds = [];
@@ -1386,17 +1425,20 @@ comps.workspace = React.createClass({
                   onDragOver: this.onDragOver,
                   onDrop: this.onDrop},
                   d.div({className: "vbox"},
-                      d.span({className: "description"}, rule.description),
-                      d.div({className: "workspace"},
-                          comps.grid({table: {fields: cols,
-                              joins: joinMap,
-                              filters: filterMap,
-                              add: true,
-                              withoutTable: true,
-                              //TODO: show the real intermediates
-                              rows: this.getIntermediates()}}
-                          ))
-                  ));
+                        d.input({className: "description", type: "text", value: rule.description, onChange: function(e) {
+                          rule.description = e.target.value;
+                          dirty();
+                        }}),
+                        d.div({className: "workspace"},
+                              comps.grid({table: {fields: cols,
+                                                  joins: joinMap,
+                                                  filters: filterMap,
+                                                  add: true,
+                                                  withoutTable: true,
+                                                  //TODO: show the real intermediates
+                                                  rows: this.getIntermediates()}}
+                                        ))
+                       ));
   }
 });
 
@@ -1468,6 +1510,7 @@ comps.sinks = React.createClass({
     if(data.selection.action === "add table") {
       var table = data.selection.table;
       data.rules[data.activeRule].pipes.push({id: "pipe" + data.globalId++, table: table.id, type: "+sink"});
+      dirty(true);
     }
   },
 
@@ -1481,6 +1524,8 @@ comps.sinks = React.createClass({
       //TODO: get the values for the sinks
       items.push(d.li({}, d.h2({}, cur.name), comps.grid({table: {fields: cur.fields, rows: sols[sinks[i].table]}, sinkId: sinks[i].id})));
     }
+
+    items.push(d.li({className: "uiWatcher"}, data.uiWatcherResults));
 
     return d.div({className: "outputs-container container" + (data.dropZone === "sinks" ? " dropping" : ""),
         onDragOver: this.onDragOver,
@@ -1504,10 +1549,15 @@ comps.ruleItem = React.createClass({
       }
     });
     return d.div({className: "rule",
-                        onClick: function() {
-                          data.activeRule = props.id;
-                          data.page = "data";
-                          dirty();
+                        onClick: function(e) {
+                          if(!e.altKey) {
+                            data.activeRule = props.id;
+                            data.page = "data";
+                            dirty();
+                          } else {
+                            delete data.rules[props.id];
+                            dirty(true);
+                          }
                         }},
                  d.div({className: "vbox"},
                        d.h2({}, this.props.rule.description),
@@ -1690,7 +1740,7 @@ var pipeToTable = function(rule, pipeId) {
 var columnToName = function(rule, col) {
   var table = data.tables[col.table] || pipeToTable(rule, col.table);
   var column = findField(table, col.field);
-  return table.name + " " + column.name;
+  return table.name + "." + column.name;
 }
 
 var rulesRelatedToTable = function(table) {
@@ -1704,12 +1754,72 @@ var rulesRelatedToTable = function(table) {
   return final;
 }
 
+var getActiveRule = function() {
+  return data.rules[data.activeRule];
+}
+
+var addValveToRule = function(rule, name, ix) {
+  var cols = rule.valves;
+  var valveId = "valve" + data.globalId++;
+  var valve = {id: valveId, name: name};
+  if(ix === undefined) {
+    cols.push(valve);
+  } else {
+    cols.splice(ix,0,valve);
+  }
+  return valveId;
+}
+
+var addFunctionToValve = function(rule, valve, code) {
+  var funcId = "function" + data.globalId++;
+  var func = {id: funcId, code: code, valve: valve, args: []};
+  rule.functions.push(func);
+  return funcId;
+}
+
+var getFunctionForValve = function(rule, valve) {
+  for(var i in rule.functions) {
+    var cur = rule.functions[i];
+    if(cur.valve === valve) {
+      return cur;
+    }
+  }
+  return false;
+}
+
+var setFunctionCode = function(rule, func, code) {
+  var valves = rule.valves;
+  var parts = code.split(/[\s]/);
+  var args = [];
+  var final = [];
+  for(var i in parts) {
+    var cur = parts[i];
+    var found = false;
+    for(var i in valves) {
+      var valve = valves[i];
+      if(cur === valve.name) {
+        found = true;
+        args.push({valve: valve.id});
+        final.push(valve.id);
+        break;
+      }
+    }
+    if(!found) final.push(cur);
+  }
+  func.userCode = code;
+  func.code = final.join(" ");
+  func.args = args;
+  return func;
+}
+
 //*********************************************************
 // Build
 //*********************************************************
 
+var updateQueue = [];
+var isQueued = false;
+
 var uiCompileRule = function(rule, ruleId) {
-  console.log(rule);
   var facts = [];
   var added = {};
   rule.pipes.forEach(function(cur) {
@@ -1724,7 +1834,21 @@ var uiCompileRule = function(rule, ruleId) {
   rule.valves.forEach(function(cur, ix) {
     facts.push(["valve", cur.id, ruleId, ix]);
   });
+  rule.functions.forEach(function(cur) {
+    facts.push(["function", cur.id, cur.code, cur.valve, ruleId]);
+    for(var i in cur.args) {
+      var arg = cur.args[i];
+      facts.push(["functionInput", arg.valve, cur.id]);
+    }
+  });
   return facts;
+}
+
+var updateSystem = function(things) {
+  data.system.update(things, []);
+  //WATCHERS GO HERE
+  smsWatcher(data.system.memory);
+  dirty();
 }
 
 var uiBuildSystem = function() {
@@ -1744,20 +1868,24 @@ var uiBuildSystem = function() {
       final.push(["schema", table, field.id, ix]);
     });
   }
-  console.log(JSON.stringify(final));
-  var system = compileSystem(Memory.fromFacts(compilerSchema.concat(final)));
+  var prev = [];
+  if(data.system) {
+    prev = data.system.memory.getTable("external_events");
+  }
+  var system = compileSystem(Memory.fromFacts(compilerSchema.concat(final).concat(prev)));
+  try {
   system.update([["users", 0, "chris", "chris@chris.com", "555-555-5555"],
-                 ["users", 1, "jamie", "jamie@jamie.com", "555-555-5556"],
-                 ["users", 2, "rob", "rob", "555-555-5556"],
-                 ["ui_elems", "foo", "button"],
-                 ["ui_text", "foo_1", "hey!"],
-                 ["ui_child", "foo", 0,"foo_1"],
+                 ["users", 1, "jamie", "jamie@jamie.com", "555-555-5555"],
+                 ["users", 2, "rob", "rob", "555-555-5555"],
                  ["edges", "a", "b"],
                  ["edges", "b", "c"],
                  ["edges", "c", "d"],
                  ["edges", "d", "b"]
                 ],
                 []);
+  } catch(e) {
+    console.error(e);
+  }
   return system;
 }
 
@@ -1766,13 +1894,19 @@ var uiBuildSystem = function() {
 // Watchers
 //*********************************************************
 
+var createUICallback = function(id, label, key) {
+  return function(e) {
+    updateSystem([["external_events", id, label, key, data.globalId++]]);
+  };
+}
+
 var uiWatcher = function(memory) {
   var elem = memory.getTable("ui_elems");
   var text = memory.getTable("ui_text");
   var attrs = memory.getTable("ui_attrs");
   var styles = memory.getTable("ui_styles");
   var events = memory.getTable("ui_events");
-  var child = memory.getTable("ui_child");
+  var children = memory.getTable("ui_child");
 
   var elem_id = 1;
   var elem_type = 2;
@@ -1784,6 +1918,10 @@ var uiWatcher = function(memory) {
 
   var styles_attr = 2;
   var styles_value = 3;
+
+  var events_event = 2;
+  var events_label = 3;
+  var events_key = 4;
 
   var child_childid = 3;
 
@@ -1825,20 +1963,18 @@ var uiWatcher = function(memory) {
   var eventsLen = events.length;
   for(var i = 0; i < eventsLen; i++) {
     var cur = events[i];
-
+    builtEls[cur[elem_id]].props[cur[events_event]] = createUICallback(cur[elem_id], cur[events_label], cur[events_key]);
   }
 
-  console.log(child);
-  var childLen = child.length;
-  child.sort();
-  for(var i = 0; i < childLen; i++) {
-    var cur = child[i];
+  var childrenLen = children.length;
+  children.sort();
+  for(var i = 0; i < childrenLen; i++) {
+    var cur = children[i];
     var child = builtEls[cur[child_childid]];
     delete roots[cur[child_childid]];
     if(!builtEls[cur[elem_id]].props.children) {
       builtEls[cur[elem_id]].props.children = [];
     }
-    console.log("child: ", JSON.stringify(cur));
     builtEls[cur[elem_id]].props.children.push(child);
   }
 
@@ -1849,6 +1985,25 @@ var uiWatcher = function(memory) {
   }
 
   data.uiWatcherResults = final;
+}
+
+var lastSeenSMSID = 0;
+
+var smsWatcher = function(memory) {
+  var sms = memory.getTable("sms outbox");
+  var sent = [];
+  for(var i in sms) {
+    var cur = sms[i];
+    if(cur[1] > lastSeenSMSID) {
+      $.post("http://localhost:3000/text", {to: cur[2], body: cur[3]});
+      console.log("Send text: ", cur[2], cur[3]);
+      sent.push(["sms_pending", cur[1]]);
+      lastSeenSMSID = cur[1];
+    }
+  }
+  if(sent.length > 0) {
+    data.system.update(sent, []);
+  }
 }
 
 //*********************************************************
@@ -1989,8 +2144,12 @@ document.addEventListener("keyup", function(e) {
 
 
 eve.start = function() {
-  console.log("eve start");
-  uiWatcher(data.system.memory);
+  try {
+    uiWatcher(data.system.memory);
+  } catch(e) {
+    console.error("UI Watcher failed");
+    console.log(e);
+  }
   React.renderComponent(comps.wrapper(eve.data), document.querySelector("#outer-wrapper"));
   eve.dirty = false;
 }
