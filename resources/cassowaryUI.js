@@ -173,7 +173,7 @@ function testBelow() {
 }
 
 createItems();
-//testBelow();
+testBelow();
 
 // wrapPosition(".project-selection");
 // swapConstraint(".project-selection.left", eq(vars[".project-selection.left"], 300));
