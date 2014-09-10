@@ -938,138 +938,7 @@ function compileSystem(memory) {
 
 // TESTS
 
-var jsc = jsc; // just to make jshint happy
-var gen = {};
-
-function Unshrinkable() {}
-
-gen.tuple = function (gens) {
-  return {
-    arbitrary: function(size) {
-      var tuple = [];
-      for (var i = 0; i < gens.length; i++) {
-        tuple[i] = gens[i].arbitrary(size);
-      }
-      return tuple;
-    },
-    randomShrink: function(tuple) {
-      var shrunk = tuple.slice();
-      var i = jsc._.random(0, tuple.length - 1);
-      shrunk[i] = gens[i].randomShrink(shrunk[i]);
-      return shrunk;
-    },
-    show: function(tuple) {
-      var shown = tuple.slice();
-      for (var i = 0; i < shown.length; i++) {
-        shown[i] = gens[i].show(shown[i]);
-      }
-      return "[" + shown.join(", ") + "]";
-    },
-  };
-};
-
-gen.array = function(gen, n) {
-  return {
-    arbitrary: function(size) {
-      var array = [];
-      var length = n || jsc._.random(1,size);
-      for (var i = 0; i < length; i++) {
-        array[i] = gen.arbitrary(size);
-      }
-      return array;
-    },
-    randomShrink: function(array) {
-      if (array.length === 0) {
-        throw new Unshrinkable();
-      } else {
-        var shrunk = array.slice();
-        var i = jsc._.random(0, array.length - 1);
-        if ((n === undefined) && (jsc._.random(0,1) === 0)) {
-          shrunk.splice(i, 1);
-        } else {
-          shrunk[i] = gen.randomShrink(shrunk[i]);
-        }
-        return shrunk;
-      }
-    },
-    show: JSON.stringify,
-  };
-};
-
-var maxShrinks = 1000;
-
-// limit to 'maxShrinks' random shrink attempts
-function shrinkwrap(gen) {
-  return {
-    arbitrary: gen.arbitrary,
-    shrink: function(value) {
-      var shrinks = [];
-      for (var i = 0; i < maxShrinks; i++) {
-        try {
-          shrinks[i] = gen.randomShrink(value);
-        } catch (err) {
-          if (err.constructor !== Unshrinkable) throw err;
-        }
-      }
-      return shrinks;
-    },
-    show: gen.show,
-  };
-}
-
-// shrinkwrap gens before handing over to jsc
-function forall() {
-  var args = Array.prototype.slice.call(arguments);
-  var gens = args.slice(0, args.length - 1);
-  var fun = args[args.length - 1];
-  var wrapped = shrinkwrap(gen.tuple(gens));
-  var forall = jsc.forall(wrapped, function(vals) { return fun.apply(null, vals); });
-  forall.gens = gens;
-  forall.fun = fun;
-  forall.wrapped = wrapped;
-  return forall;
-}
-
-function assertAll(props, opts) {
-  for (var prop in props) {
-    console.info("Testing " + prop);
-    jsc.assert(props[prop], opts);
-  }
-  console.info("Done");
-}
-
-gen.value = function () {
-  return {
-    arbitrary: function(size) {
-      var i = jsc._.random(-size, size);
-      return (jsc._.random(0,1) === 0) ? i.toString() : i;
-    },
-    randomShrink: function(value) {
-      if (typeof(value) === 'string') {
-        var asInt = parseInt(value);
-        if ((jsc._.random(0,1) === 0) && !isNaN(asInt)) {
-          return asInt;
-        } else if (value === "") {
-          throw new Unshrinkable();
-        }
-        else {
-          return value.slice(0, value.length - 1);
-        }
-      } else {
-        if (value === 0) {
-          throw new Unshrinkable();
-        } else {
-          return jsc._.random((1-value),(value-1));
-        }
-      }
-    },
-    show: JSON.stringify,
-  };
-};
-
-gen.eav = function() {
-  return gen.array(gen.value(), 3);
-};
+var bigcheck = bigcheck; // keep jshint happy
 
 // SOLVER TESTS
 
@@ -1084,202 +953,198 @@ function memoryEqual(memoryA, memoryB) {
   }
 }
 
-var solverProps = {
-  selfJoin: forall(gen.array(gen.eav()),
-                     function (facts) {
-                       var input = Memory.empty();
-                       var constraint0 = new MemoryConstraint([0,1,2]);
-                       var constraint1 = new MemoryConstraint([0,1,2]);
-                       var flow = new Flow(Solver.empty(3, [constraint0, constraint1]), null, [new Sink([0,1,2], [null,null,null])]);
-                       var input = input.update(facts, []);
-                       var output = flow.update(input, Memory.empty());
-                       return memoryEqual(input, output);
-                     }),
+var selfJoin = bigcheck.foralls(bigcheck.facts(3),
+                                function (facts) {
+                                  var input = Memory.empty();
+                                  var constraint0 = new MemoryConstraint([0,1,2]);
+                                  var constraint1 = new MemoryConstraint([0,1,2]);
+                                  var flow = new Flow(Solver.empty(3, [constraint0, constraint1]), null, [new Sink([0,1,2], [null,null,null])]);
+                                  var input = input.update(facts, []);
+                                  var output = flow.update(input, Memory.empty());
+                                  return memoryEqual(input, output);
+                                });
 
-  productJoin: forall(gen.array(gen.eav()),
-                     function (facts) {
-                       var input = Memory.empty();
-                       var constraint0 = new MemoryConstraint([0,1,2]);
-                       var constraint1 = new MemoryConstraint([3,4,5]);
-                       var flow = new Flow(Solver.empty(6, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
-                       var input = input.update(facts, []);
-                       var output = flow.update(input, Memory.empty());
-                       var expectedFacts = [];
-                       for (var i = 0; i < facts.length; i++) {
-                         for (var j = 0; j < facts.length; j++) {
-                           expectedFacts.push(facts[i].concat(facts[j]));
-                         }
-                       }
-                       return memoryEqual(Memory.fromFacts(expectedFacts), output);
-                     }),
+var productJoin = bigcheck.foralls(bigcheck.facts(3),
+                                   function (facts) {
+                                     var input = Memory.empty();
+                                     var constraint0 = new MemoryConstraint([0,1,2]);
+                                     var constraint1 = new MemoryConstraint([3,4,5]);
+                                     var flow = new Flow(Solver.empty(6, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
+                                     var input = input.update(facts, []);
+                                     var output = flow.update(input, Memory.empty());
+                                     var expectedFacts = [];
+                                     for (var i = 0; i < facts.length; i++) {
+                                       for (var j = 0; j < facts.length; j++) {
+                                         expectedFacts.push(facts[i].concat(facts[j]));
+                                       }
+                                     }
+                                     return memoryEqual(Memory.fromFacts(expectedFacts), output);
+                                   });
 
-  constantJoin: forall(gen.array(gen.eav()), gen.value(),
-                       function (facts, constant) {
-                         var input = Memory.empty();
-                         var constraint0 = new MemoryConstraint([0,null,1],[null,constant,null]);
-                         var constraint1 = new MemoryConstraint([2,3,4]);
-                         var flow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
-                         var input = input.update(facts, []);
-                         var output = flow.update(input, Memory.empty());
-                         var expectedFacts = [];
-                         for (var i = 0; i < facts.length; i++) {
-                           if (facts[i][1] === constant) {
-                             for (var j = 0; j < facts.length; j++) {
-                               var fact = facts[i].concat(facts[j]);
-                               fact.splice(1,1);
-                               expectedFacts.push(fact);
-                             }
-                           }
-                         }
-                         return memoryEqual(Memory.fromFacts(expectedFacts), output);
-                       }),
+var constantJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.value,
+                                    function (facts, constant) {
+                                      var input = Memory.empty();
+                                      var constraint0 = new MemoryConstraint([0,null,1],[null,constant,null]);
+                                      var constraint1 = new MemoryConstraint([2,3,4]);
+                                      var flow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                                      var input = input.update(facts, []);
+                                      var output = flow.update(input, Memory.empty());
+                                      var expectedFacts = [];
+                                      for (var i = 0; i < facts.length; i++) {
+                                        if (facts[i][1] === constant) {
+                                          for (var j = 0; j < facts.length; j++) {
+                                            var fact = facts[i].concat(facts[j]);
+                                            fact.splice(1,1);
+                                            expectedFacts.push(fact);
+                                          }
+                                        }
+                                      }
+                                      return memoryEqual(Memory.fromFacts(expectedFacts), output);
+                                    });
 
-  incrementalConstantJoin: forall(gen.array(gen.eav()), gen.value(), gen.array(gen.eav()), gen.array(gen.eav()),
-                                  function (facts, constant, adds, dels) {
-                                    var input = Memory.empty();
-                                    var constraint0 = new MemoryConstraint([0,null,1],[null,constant,null]);
-                                    var constraint1 = new MemoryConstraint([2,3,4]);
-                                    var incrementalFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
-                                    var batchFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
-                                    var incrementalOutput = Memory.empty();
-                                    var batchOutput = Memory.empty();
+var incrementalConstantJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.value, bigcheck.facts(3), bigcheck.facts(3),
+                                               function (facts, constant, adds, dels) {
+                                                 var input = Memory.empty();
+                                                 var constraint0 = new MemoryConstraint([0,null,1],[null,constant,null]);
+                                                 var constraint1 = new MemoryConstraint([2,3,4]);
+                                                 var incrementalFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                                                 var batchFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                                                 var incrementalOutput = Memory.empty();
+                                                 var batchOutput = Memory.empty();
 
-                                    input = input.update(facts, []);
-                                    incrementalOutput = incrementalFlow.update(input, incrementalOutput);
+                                                 input = input.update(facts, []);
+                                                 incrementalOutput = incrementalFlow.update(input, incrementalOutput);
 
-                                    input = input.update(adds, dels);
-                                    batchOutput = batchFlow.update(input, batchOutput);
-                                    incrementalOutput = incrementalFlow.update(input, incrementalOutput);
+                                                 input = input.update(adds, dels);
+                                                 batchOutput = batchFlow.update(input, batchOutput);
+                                                 incrementalOutput = incrementalFlow.update(input, incrementalOutput);
 
-                                    return memoryEqual(incrementalOutput, batchOutput);
-                                  }),
+                                                 return memoryEqual(incrementalOutput, batchOutput);
+                                               });
 
-  actualJoin: forall(gen.array(gen.eav()),
-                       function (facts) {
-                         var input = Memory.empty();
-                         var constraint0 = new MemoryConstraint([0,1,2]);
-                         var constraint1 = new MemoryConstraint([2,3,4]);
-                         var flow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
-                         var input = input.update(facts, []);
-                         var output = flow.update(input, Memory.empty());
-                         var expectedFacts = [];
-                         for (var i = 0; i < facts.length; i++) {
-                           for (var j = 0; j < facts.length; j++) {
-                             var fact = facts[i].concat(facts[j]);
-                             if (fact[2] === fact[3]) {
-                               fact.splice(2, 1);
-                               expectedFacts.push(fact);
-                             }
-                           }
-                         }
-                         return memoryEqual(Memory.fromFacts(expectedFacts), output);
-                       }),
-
-  incrementalActualJoin: forall(gen.array(gen.eav()), gen.array(gen.eav()), gen.array(gen.eav()),
-                                  function (facts, adds, dels) {
+var actualJoin = bigcheck.foralls(bigcheck.facts(3),
+                                  function (facts) {
                                     var input = Memory.empty();
                                     var constraint0 = new MemoryConstraint([0,1,2]);
                                     var constraint1 = new MemoryConstraint([2,3,4]);
-                                    var incrementalFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
-                                    var batchFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
-                                    var incrementalOutput = Memory.empty();
-                                    var batchOutput = Memory.empty();
+                                    var flow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                                    var input = input.update(facts, []);
+                                    var output = flow.update(input, Memory.empty());
+                                    var expectedFacts = [];
+                                    for (var i = 0; i < facts.length; i++) {
+                                      for (var j = 0; j < facts.length; j++) {
+                                        var fact = facts[i].concat(facts[j]);
+                                        if (fact[2] === fact[3]) {
+                                          fact.splice(2, 1);
+                                          expectedFacts.push(fact);
+                                        }
+                                      }
+                                    }
+                                    return memoryEqual(Memory.fromFacts(expectedFacts), output);
+                                  });
 
-                                    input = input.update(facts, []);
-                                    incrementalOutput = incrementalFlow.update(input, incrementalOutput);
+var incrementalActualJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.facts(3), bigcheck.facts(3),
+                                             function (facts, adds, dels) {
+                                               var input = Memory.empty();
+                                               var constraint0 = new MemoryConstraint([0,1,2]);
+                                               var constraint1 = new MemoryConstraint([2,3,4]);
+                                               var incrementalFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                                               var batchFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                                               var incrementalOutput = Memory.empty();
+                                               var batchOutput = Memory.empty();
 
-                                    input = input.update(adds, dels);
-                                    batchOutput = batchFlow.update(input, batchOutput);
-                                    incrementalOutput = incrementalFlow.update(input, incrementalOutput);
+                                               input = input.update(facts, []);
+                                               incrementalOutput = incrementalFlow.update(input, incrementalOutput);
 
-                                    return memoryEqual(incrementalOutput, batchOutput);
-                                  }),
+                                               input = input.update(adds, dels);
+                                               batchOutput = batchFlow.update(input, batchOutput);
+                                               incrementalOutput = incrementalFlow.update(input, incrementalOutput);
 
-  functionJoin: forall(gen.array(gen.eav()),
-                       function (facts) {
-                         var input = Memory.empty();
-                         var constraint0 = new MemoryConstraint([0,1,2]);
-                         var constraint1 = new MemoryConstraint([3,4,5]);
-                         var constraint2 = new FunctionConstraint(function (x) { return x + 1;}, [2], 3);
-                         var flow = new Flow(Solver.empty(6, [constraint0, constraint1, constraint2]), null, [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
-                         var input = input.update(facts, []);
-                         var output = flow.update(input, Memory.empty());
-                         var expectedFacts = [];
-                         for (var i = 0; i < facts.length; i++) {
-                           for (var j = 0; j < facts.length; j++) {
-                             var fact = facts[i].concat(facts[j]);
-                             if (fact[2] + 1 === fact[3]) {
-                               expectedFacts.push(fact);
-                             }
-                           }
-                         }
-                         return memoryEqual(Memory.fromFacts(expectedFacts), output);
-                       }),
+                                               return memoryEqual(incrementalOutput, batchOutput);
+                                             });
 
-  incrementalFunctionJoin: forall(gen.array(gen.eav()), gen.array(gen.eav()), gen.array(gen.eav()),
-                                  function (facts, adds, dels) {
-                                    var input = Memory.empty();
-                                    var constraint0 = new MemoryConstraint([0,1,2]);
-                                    var constraint1 = new MemoryConstraint([3,4,5]);
-                                    var constraint2 = new FunctionConstraint(function (x) { return x + 1;}, [2], 3);
-                                    var incrementalFlow = new Flow(Solver.empty(6, [constraint0, constraint1, constraint2]), null, [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
-                                    var batchFlow = new Flow(Solver.empty(6, [constraint0, constraint1, constraint2]), null, [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
-                                    var incrementalOutput = Memory.empty();
-                                    var batchOutput = Memory.empty();
+var functionJoin = bigcheck.foralls(bigcheck.facts(3),
+                                    function (facts) {
+                                      var input = Memory.empty();
+                                      var constraint0 = new MemoryConstraint([0,1,2]);
+                                      var constraint1 = new MemoryConstraint([3,4,5]);
+                                      var constraint2 = new FunctionConstraint(function (x) { return x + 1;}, [2], 3);
+                                      var flow = new Flow(Solver.empty(6, [constraint0, constraint1, constraint2]), null, [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
+                                      var input = input.update(facts, []);
+                                      var output = flow.update(input, Memory.empty());
+                                      var expectedFacts = [];
+                                      for (var i = 0; i < facts.length; i++) {
+                                        for (var j = 0; j < facts.length; j++) {
+                                          var fact = facts[i].concat(facts[j]);
+                                          if (fact[2] + 1 === fact[3]) {
+                                            expectedFacts.push(fact);
+                                          }
+                                        }
+                                      }
+                                      return memoryEqual(Memory.fromFacts(expectedFacts), output);
+                                    });
 
-                                    input = input.update(facts, []);
-                                    incrementalOutput = incrementalFlow.update(input, incrementalOutput);
+var incrementalFunctionJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.facts(3), bigcheck.facts(3),
+                                               function (facts, adds, dels) {
+                                                 var input = Memory.empty();
+                                                 var constraint0 = new MemoryConstraint([0,1,2]);
+                                                 var constraint1 = new MemoryConstraint([3,4,5]);
+                                                 var constraint2 = new FunctionConstraint(function (x) { return x + 1;}, [2], 3);
+                                                 var incrementalFlow = new Flow(Solver.empty(6, [constraint0, constraint1, constraint2]), null, [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
+                                                 var batchFlow = new Flow(Solver.empty(6, [constraint0, constraint1, constraint2]), null, [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
+                                                 var incrementalOutput = Memory.empty();
+                                                 var batchOutput = Memory.empty();
 
-                                    input = input.update(adds, dels);
-                                    batchOutput = batchFlow.update(input, batchOutput);
-                                    incrementalOutput = incrementalFlow.update(input, incrementalOutput);
+                                                 input = input.update(facts, []);
+                                                 incrementalOutput = incrementalFlow.update(input, incrementalOutput);
 
-                                    return memoryEqual(incrementalOutput, batchOutput);
-                                  }),
+                                                 input = input.update(adds, dels);
+                                                 batchOutput = batchFlow.update(input, batchOutput);
+                                                 incrementalOutput = incrementalFlow.update(input, incrementalOutput);
 
-  negatedJoin: forall(gen.array(gen.eav()),
-                     function (facts) {
-                       var input = Memory.empty();
-                       var constraint0 = new MemoryConstraint([0,1,2]);
-                       var constraint1 = new NegatedMemoryConstraint([2,null,null], [null,null,null]);
-                       var flow = new Flow(Solver.empty(3, [constraint1, constraint0], [constraint1]), null, [new Sink([0,1,2], [null,null,null])]);
-                       var input = input.update(facts, []);
-                       var output = flow.update(input, Memory.empty());
-                       var expectedFacts = [];
-                       nextFact: for (var i = 0; i < facts.length; i++) {
-                         var fact = facts[i];
-                         for (var j = 0; j < facts.length; j++) {
-                           if (fact[2] === facts[j][0]) {
-                             continue nextFact;
-                           }
-                         }
-                         expectedFacts.push(fact);
-                       }
-                       return memoryEqual(Memory.fromFacts(expectedFacts), output);
-                     }),
+                                                 return memoryEqual(incrementalOutput, batchOutput);
+                                               });
 
-  incrementalNegatedJoin: forall(gen.array(gen.eav()), gen.array(gen.eav()), gen.array(gen.eav()),
-                                  function (facts, adds, dels) {
-                                    var input = Memory.empty();
-                                    var constraint0 = new MemoryConstraint([0,1,2]);
-                                    var constraint1 = new NegatedMemoryConstraint([2,null,null], [null,null,null]);
-                                    var incrementalFlow = new Flow(Solver.empty(3, [constraint1, constraint0], [constraint1]), null, [new Sink([0,1,2], [null,null,null])]);
-                                    var batchFlow = new Flow(Solver.empty(3, [constraint1, constraint0], [constraint1]), null, [new Sink([0,1,2], [null,null,null])]);
-                                    var incrementalOutput = Memory.empty();
-                                    var batchOutput = Memory.empty();
+var negatedJoin = bigcheck.foralls(bigcheck.facts(3),
+                                   function (facts) {
+                                     var input = Memory.empty();
+                                     var constraint0 = new MemoryConstraint([0,1,2]);
+                                     var constraint1 = new NegatedMemoryConstraint([2,null,null], [null,null,null]);
+                                     var flow = new Flow(Solver.empty(3, [constraint1, constraint0], [constraint1]), null, [new Sink([0,1,2], [null,null,null])]);
+                                     var input = input.update(facts, []);
+                                     var output = flow.update(input, Memory.empty());
+                                     var expectedFacts = [];
+                                     nextFact: for (var i = 0; i < facts.length; i++) {
+                                       var fact = facts[i];
+                                       for (var j = 0; j < facts.length; j++) {
+                                         if (fact[2] === facts[j][0]) {
+                                           continue nextFact;
+                                         }
+                                       }
+                                       expectedFacts.push(fact);
+                                     }
+                                     return memoryEqual(Memory.fromFacts(expectedFacts), output);
+                                   });
 
-                                    input = input.update(facts, []);
-                                    incrementalOutput = incrementalFlow.update(input, incrementalOutput);
+var incrementalNegatedJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.facts(3), bigcheck.facts(3),
+                                              function (facts, adds, dels) {
+                                                var input = Memory.empty();
+                                                var constraint0 = new MemoryConstraint([0,1,2]);
+                                                var constraint1 = new NegatedMemoryConstraint([2,null,null], [null,null,null]);
+                                                var incrementalFlow = new Flow(Solver.empty(3, [constraint1, constraint0], [constraint1]), null, [new Sink([0,1,2], [null,null,null])]);
+                                                var batchFlow = new Flow(Solver.empty(3, [constraint1, constraint0], [constraint1]), null, [new Sink([0,1,2], [null,null,null])]);
+                                                var incrementalOutput = Memory.empty();
+                                                var batchOutput = Memory.empty();
 
-                                    input = input.update(adds, dels);
-                                    batchOutput = batchFlow.update(input, batchOutput);
-                                    incrementalOutput = incrementalFlow.update(input, incrementalOutput);
+                                                input = input.update(facts, []);
+                                                incrementalOutput = incrementalFlow.update(input, incrementalOutput);
 
-                                    return memoryEqual(incrementalOutput, batchOutput);
-                                  })
-};
+                                                input = input.update(adds, dels);
+                                                batchOutput = batchFlow.update(input, batchOutput);
+                                                incrementalOutput = incrementalFlow.update(input, incrementalOutput);
 
-// assertAll(solverProps, {tests: 5000});
+                                                return memoryEqual(incrementalOutput, batchOutput);
+                                              });
 
 // COMPILER TESTS
 
@@ -1340,8 +1205,6 @@ function compiledPathTest() {
   memoryEqual(system.memory, Memory.fromFacts(expectedFacts));
 }
 
-// compiledPathTest();
-
 function compiledFunctionTest() {
   var compilerFacts = [["schema", "foo", "fooX", 0],
                        ["schema", "foo", "fooY", 1],
@@ -1379,8 +1242,6 @@ function compiledFunctionTest() {
   memoryEqual(system.memory, Memory.fromFacts(expectedFacts));
 }
 
-// compiledFunctionTest();
-
 function compiledNegationTest() {
   var compilerFacts = [["schema", "foo", "fooX", 0],
                        ["schema", "foo", "fooY", 1],
@@ -1412,8 +1273,6 @@ function compiledNegationTest() {
 
   memoryEqual(system.memory, Memory.fromFacts(expectedFacts));
 }
-
-// compiledNegationTest();
 
 // BENCHMARKS
 
