@@ -1175,6 +1175,31 @@ var aggregateJoin = bigcheck.foralls(bigcheck.facts(3),
                                        return memoryEqual(Memory.fromFacts(expectedFacts), output);
                                      });
 
+var incrementalAggregateJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.facts(3), bigcheck.facts(3),
+                                     function (facts, adds, dels) {
+                                       var input = Memory.empty();
+                                       var constraint0 = new MemoryConstraint([0,1,2]);
+                                       var incrementalAggregate = Aggregate.empty([2], [0, 1], undefined, [1], [3], [function (as) {return as.join("");}]);
+                                       var batchAggregate = Aggregate.empty([2], [0, 1], undefined, [1], [3], [function (as) {return as.join("");}]);
+                                       var incrementalFlow = new Flow(Solver.empty(3, [constraint0]), incrementalAggregate, [new Sink([1,3], [null,null])]);
+                                       var batchFlow = new Flow(Solver.empty(3, [constraint0]), batchAggregate, [new Sink([1,3], [null,null])]);
+                                       var incrementalOutput = Memory.empty();
+                                       var batchOutput = Memory.empty();
+
+                                       input = input.update(facts, []);
+                                       incrementalOutput = incrementalFlow.update(input, incrementalOutput);
+
+                                       input = input.update(adds, dels);
+                                       batchOutput = batchFlow.update(input, batchOutput);
+                                       incrementalOutput = incrementalFlow.update(input, incrementalOutput);
+
+                                       return memoryEqual(incrementalOutput, batchOutput);
+                                     });
+
+// incrementalAggregateJoin.check({maxTests: 1000});
+bigcheck.lastFailure;
+incrementalAggregateJoin.recheck();
+
 // COMPILER TESTS
 
 function compiledPathTest() {

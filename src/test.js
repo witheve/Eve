@@ -42,6 +42,10 @@ console.time("aggregateJoin");
 aggregateJoin.assert({maxTests: 1000});
 console.timeEnd("aggregateJoin");
 
+console.time("incrementalAggregateJoin");
+incrementalAggregateJoin.assert({maxTests: 1000});
+console.timeEnd("incrementalAggregateJoin");
+
 console.time("compiler tests")
 compiledPathTest();
 compiledFunctionTest();
