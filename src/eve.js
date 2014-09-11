@@ -553,21 +553,18 @@ function compareSortKey(a,b) {
 }
 
 function sortBy(facts, sortIxes) {
-  var keyedFacts = [];
   for (var i = facts.length - 1; i >= 0; i--) {
     var fact = facts[i];
     var sortKey = [];
     for (var j = sortIxes.length - 1; j >= 0; j--) {
       sortKey[j] = fact[sortIxes[j]];
     }
-    keyedFacts[i] = [sortKey, fact];
+    facts[i] = [sortKey, fact];
   }
-  keyedFacts.sort(compareSortKey);
-  var sortedFacts = [];
-  for (var i = keyedFacts.length - 1; i >= 0; i--) {
-    sortedFacts[i] = keyedFacts[i];
+  facts.sort(compareSortKey);
+  for (var i = facts.length - 1; i >= 0; i--) {
+    facts[i] = facts[i][1];
   }
-  return sortedFacts;
 }
 
 function reduceBy(facts, inIx, outIx, fun) {
@@ -575,8 +572,7 @@ function reduceBy(facts, inIx, outIx, fun) {
   for (var i = facts.length - 1; i >= 0; i--) {
     inValues[i] = facts[i][inIx];
   }
-  var outValue = fun.apply(null, inValues);
-  var outIx = this.outIx;
+  var outValue = fun.call(null, inValues);
   for (var i = facts.length - 1; i >= 0; i--) {
     facts[i][outIx] = outValue;
   }
@@ -595,9 +591,9 @@ Aggregate.prototype = {
       var reducerOutIxes = this.reducerOutIxes;
       var reducerFuns = this.reducerFuns;
       for (var i = reducerInIxes.length - 1; i >= 0; i--) {
-        reduceBy(facts, reducerInIxes[i], reducerOutIxes[i], reducerFuns[i]);
+        reduceBy(groupFacts, reducerInIxes[i], reducerOutIxes[i], reducerFuns[i]);
       }
-      newOutputMemory = newOutputMemory.update(facts, []);
+      newOutputMemory = newOutputMemory.update(groupFacts, []);
     }
     newOutputMemory.diff(this.oldOutputMemory, outputAdds, outputDels);
     this.oldOutputMemory = newOutputMemory;
@@ -1120,7 +1116,7 @@ var negatedJoin = bigcheck.foralls(bigcheck.facts(3),
                                      var input = Memory.empty();
                                      var constraint0 = new MemoryConstraint([0,1,2]);
                                      var constraint1 = new NegatedMemoryConstraint([2,null,null], [null,null,null]);
-                                     var flow = new Flow(Solver.empty(3, [constraint1, constraint0], [constraint1]), null, [new Sink([0,1,2], [null,null,null])]);
+                                     var flow = new Flow(Solver.empty(3, [constraint1, constraint0]), null, [new Sink([0,1,2], [null,null,null])]);
                                      var input = input.update(facts, []);
                                      var output = flow.update(input, Memory.empty());
                                      var expectedFacts = [];
@@ -1141,8 +1137,8 @@ var incrementalNegatedJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.facts(
                                                 var input = Memory.empty();
                                                 var constraint0 = new MemoryConstraint([0,1,2]);
                                                 var constraint1 = new NegatedMemoryConstraint([2,null,null], [null,null,null]);
-                                                var incrementalFlow = new Flow(Solver.empty(3, [constraint1, constraint0], [constraint1]), null, [new Sink([0,1,2], [null,null,null])]);
-                                                var batchFlow = new Flow(Solver.empty(3, [constraint1, constraint0], [constraint1]), null, [new Sink([0,1,2], [null,null,null])]);
+                                                var incrementalFlow = new Flow(Solver.empty(3, [constraint1, constraint0]), null, [new Sink([0,1,2], [null,null,null])]);
+                                                var batchFlow = new Flow(Solver.empty(3, [constraint1, constraint0]), null, [new Sink([0,1,2], [null,null,null])]);
                                                 var incrementalOutput = Memory.empty();
                                                 var batchOutput = Memory.empty();
 
@@ -1155,6 +1151,29 @@ var incrementalNegatedJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.facts(
 
                                                 return memoryEqual(incrementalOutput, batchOutput);
                                               });
+
+var aggregateJoin = bigcheck.foralls(bigcheck.facts(3),
+                                     function (facts) {
+                                       var input = Memory.empty();
+                                       var constraint0 = new MemoryConstraint([0,1,2]);
+                                       var aggregate = Aggregate.empty([2], [0, 1], undefined, [1], [3], [function (as) {return as.join("");}]);
+                                       var flow = new Flow(Solver.empty(3, [constraint0]), aggregate, [new Sink([1,3], [null,null])]);
+                                       var input = input.update(facts, []);
+                                       var output = flow.update(input, Memory.empty());
+                                       var groups = {};
+                                       var uniqueFacts = input.getFacts();
+                                       uniqueFacts.sort(compareValueArray);
+                                       for (var i = 0; i < uniqueFacts.length; i++) {
+                                         var fact = uniqueFacts[i];
+                                         groups[fact[2]] = (groups[fact[2]] || "") + fact[1];
+                                       }
+                                       var expectedFacts = [];
+                                       for (var i = 0; i < uniqueFacts.length; i++) {
+                                         var fact = uniqueFacts[i];
+                                         expectedFacts.push([fact[1], groups[fact[2]]]);
+                                       }
+                                       return memoryEqual(Memory.fromFacts(expectedFacts), output);
+                                     });
 
 // COMPILER TESTS
 

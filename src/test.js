@@ -38,6 +38,10 @@ console.time("incrementalNegatedJoin");
 incrementalNegatedJoin.assert({maxTests: 1000, maxSize: 500});
 console.timeEnd("incrementalNegatedJoin");
 
+console.time("aggregateJoin");
+aggregateJoin.assert({maxTests: 1000});
+console.timeEnd("aggregateJoin");
+
 console.time("compiler tests")
 compiledPathTest();
 compiledFunctionTest();

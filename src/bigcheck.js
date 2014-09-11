@@ -1,4 +1,6 @@
 var bigcheck = (function () {
+  var exports;
+
   function isInteger(n) {
     return n === +n && n === (n|0);
   }
@@ -103,10 +105,8 @@ var bigcheck = (function () {
     this.prop = prop;
   }
 
-  var lastFailure;
-
   function Failure(size, numTests, numShrinks, shrunkInput, shrunkOutput, input, output, options, prop) {
-    lastFailure = this;
+    exports.lastFailure = this;
     this.size = size;
     this.numTests = numTests;
     this.numShrinks = numShrinks;
@@ -117,12 +117,6 @@ var bigcheck = (function () {
     this.options = options;
     this.prop = prop;
   }
-
-  Failure.prototype = {
-    recheck: function() {
-      return this.prop.fun.apply(null, this.shrunkInput);
-    }
-  };
 
   function ForAll(gen, fun) {
     this.gen = gen;
@@ -164,7 +158,7 @@ var bigcheck = (function () {
       }
 
       var numShrinks = 0;
-      var maxShrinks = options.maxShrinks || 100;
+      var maxShrinks = options.maxShrinks || (2 * maxTests);
       var bias = options.bias || 0.25; // TODO grow/shrink bias
       var shrunkInput = input;
       var shrunkOutput;
@@ -189,21 +183,22 @@ var bigcheck = (function () {
     assert: function(options) {
       var result = this.check(options);
       if (result instanceof Failure) {
+        if (result.output instanceof Error) result.output = result.output.toString(); // Errors don't JSONify nicely
         throw new Error(JSON.stringify(result));
       } else {
         return result;
       }
+    },
 
+    recheck: function(failure) {
+      var failure = failure || exports.lastFailure;
+      if (failure) {
+        return this.fun.apply(null, failure.shrunkInput);
+      } else {
+        return true;
+      }
     }
   };
-
-  function recheck() {
-    if (lastFailure) {
-      return lastFailure.prop.recheck(lastFailure);
-    } else {
-      return true;
-    }
-  }
 
   // TESTS
 
@@ -238,5 +233,7 @@ var bigcheck = (function () {
 
   // lastFailure.recheck();
 
-  return {number: number, integer: integer, array: array, tuple: tuple, value: value, facts: facts, forall: forall, foralls: foralls, recheck: recheck};
+  exports = {number: number, integer: integer, array: array, tuple: tuple, value: value, facts: facts, forall: forall, foralls: foralls};
+
+  return exports;
 })();
