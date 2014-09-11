@@ -519,12 +519,10 @@ Solver.prototype = {
 
 // AGGREGATE
 
-// TODO implement limits and/or ordinals
-function Aggregate(groupIxes, sortIxes, limitIx, ordinalIx, reducerInIxes, reducerOutIxes, reducerFuns, oldOutputMemory, newOutputMemory) {
+function Aggregate(groupIxes, sortIxes, limitIx, reducerInIxes, reducerOutIxes, reducerFuns, oldOutputMemory, newOutputMemory) {
   this.groupIxes = groupIxes;
   this.sortIxes = sortIxes;
   this.limitIx = limitIx;
-  this.ordinalIx = ordinalIx;
   this.reducerInIxes = reducerInIxes;
   this.reducerOutIxes = reducerOutIxes;
   this.reducerFuns = reducerFuns;
@@ -532,8 +530,8 @@ function Aggregate(groupIxes, sortIxes, limitIx, ordinalIx, reducerInIxes, reduc
   this.newOutputMemory = newOutputMemory;
 }
 
-Aggregate.empty = function (groupIxes, sortIxes, limitIx, ordinalIx, reducerInIxes, reducerOutIxes, reducerFuns) {
-  return new Aggregate(groupIxes, sortIxes, limitIx, ordinalIx, reducerInIxes, reducerOutIxes, reducerFuns, Memory.empty(), Memory.empty());
+Aggregate.empty = function (groupIxes, sortIxes, limitIx, reducerInIxes, reducerOutIxes, reducerFuns) {
+  return new Aggregate(groupIxes, sortIxes, limitIx, reducerInIxes, reducerOutIxes, reducerFuns, Memory.empty(), Memory.empty());
 };
 
 function groupBy(facts, groupIxes) {
@@ -592,6 +590,7 @@ Aggregate.prototype = {
     for (var group in groups) {
       var groupFacts = groups[group];
       sortBy(groupFacts, this.sortIxes);
+      if (this.limitIx) groupFacts = groupFacts.slice(0, groupFacts[0][this.limitIx]);
       var reducerInIxes = this.reducerInIxes;
       var reducerOutIxes = this.reducerOutIxes;
       var reducerFuns = this.reducerFuns;
@@ -752,6 +751,9 @@ var compilerSchema =
      ["schema", "functionInput", "valve", 0],
      ["schema", "functionInput", "function", 1],
 
+     ["schema", "limitValve", "rule", 0],
+     ["schema", "limitValve", "valve", 1],
+
      ["schema", "groupValve", "rule", 0],
      ["schema", "groupValve", "valve", 1],
 
@@ -891,12 +893,20 @@ function compileRule(dump, rule) {
     constraints.push(new FunctionConstraint(compiled, inIxes, outIx));
   }
 
+  var limitIx;
+  var limitValves = dump.limitValve.rule[rule];
+  if (limitValves) {
+    assert(limitValves.length === 1);
+    limitIx = valveIxes(limitValves[0].valve);
+  }
+
   var groupIxes = [];
   var groupValves = dump.groupValve.rule[rule] || [];
   for (var i = groupValves.length - 1; i >= 0; i--) {
     var groupValve = groupValves[i];
     groupIxes[i] = valveIxes[groupValve.valve];
   }
+  if (limitIx) groupIxes.push(limitIx); // because limit has to be fixed per group
 
   var sortIxes = [];
   var sortValves = dump.sortValve.rule[rule] || [];
@@ -916,7 +926,7 @@ function compileRule(dump, rule) {
     reducerFuns[i] = Function.apply(null, [reducer.inValve, "return (" + reducer.code + ");"]);
   }
 
-  var aggregate = Aggregate.empty(groupIxes, sortIxes, reducerInIxes, reducerOutIxes, reducerFuns);
+  var aggregate = Aggregate.empty(groupIxes, sortIxes, limitIx, reducerInIxes, reducerOutIxes, reducerFuns);
 
   return new Flow(Solver.empty(numVars, constraints), aggregate, sinks);
 }
