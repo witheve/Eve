@@ -87,10 +87,36 @@ eve.test.test("simple aggregate",
                   rule.sink("sms outbox");
                   rule.aggregate("clicks.id", "cool", "console.log(clicks.id) || 'hey'");
                   rule.output("cool", "sms outbox.id");
-                })
+                });
               },
               [["users", 5, "chris"], ["clicks", 5]],
               [["sms outbox", "hey"]]);
+
+eve.test.test("filter pass",
+              function(sys) {
+                sys.rule("this is a cool rule", function(rule) {
+                  rule.source("clicks");
+                  rule.sink("sms outbox");
+                  rule.calculate("foo", ["clicks.id"], "clicks.id + 5");
+                  rule.eq("foo", 23);
+                  rule.output("foo", "sms outbox.id");
+                });
+              },
+              [["clicks", 18]],
+              [["sms outbox", 23]]);
+
+eve.test.test("filter fail",
+              function(sys) {
+                sys.rule("this is a cool rule", function(rule) {
+                  rule.source("clicks");
+                  rule.sink("sms outbox");
+                  rule.calculate("foo", ["clicks.id"], "clicks.id + 5");
+                  rule.eq("foo", 23);
+                  rule.output("foo", "sms outbox.id");
+                });
+              },
+              [["clicks", 10]],
+              []);
 
 console.timeEnd("compiler tests");
 

@@ -98,8 +98,8 @@ Rule.prototype.fieldToValve = function(from) {
   if(!valve) {
     var fromParts = dsl.parseName(from);
     valve = this.valve();
-    pipe = dsl.nameToId(fromParts[0], this);
-    field = dsl.nameToId(from);
+    var pipe = dsl.nameToId(fromParts[0], this);
+    var field = dsl.nameToId(from);
     this.names[from] = valve;
     this.items.push(["tableConstraint", valve, pipe, field],
                     ["displayNames", valve, from]);
@@ -115,16 +115,16 @@ Rule.prototype.eq = function(from, value) {
 Rule.prototype.output = function(from, to) {
   var valve = this.fieldToValve(from);
   var toParts = dsl.parseName(to);
-  pipe = dsl.nameToId(toParts[0], this);
-  field = dsl.nameToId(to);
+  var pipe = dsl.nameToId(toParts[0], this);
+  var field = dsl.nameToId(to);
   this.items.push(["tableConstraint", valve, pipe, field]);
 }
 
 Rule.prototype.join = function(from, to) {
   var valve = this.fieldToValve(from);
   var toParts = dsl.parseName(to);
-  pipe = dsl.nameToId(toParts[0], this);
-  field = dsl.nameToId(to);
+  var pipe = dsl.nameToId(toParts[0], this);
+  var field = dsl.nameToId(to);
   this.items.push(["tableConstraint", valve, pipe, field],
                   ["join", valve, pipe, field]);
 }
@@ -249,6 +249,7 @@ eve.test.test = function(name, func, inputs, expected) {
     sys.test(inputs, expected);
   } catch(e) {
     eve.test.failed = true;
+    console.log(sys);
     console.error("failed test: " + name);
     console.error("    " + e.stack);
     return false;

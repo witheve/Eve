@@ -359,10 +359,11 @@ Provenance.prototype = {
 
 // FUNCTIONS
 
-function FunctionConstraint(fun, inIxes, outIx) {
+function FunctionConstraint(fun, inIxes, outIx, outConstant) {
   this.fun = fun;
   this.inIxes = inIxes;
   this.outIx = outIx;
+  this.outConstant = outConstant;
   this.inValues = makeArray(inIxes.length, null);
 }
 
@@ -387,13 +388,18 @@ FunctionConstraint.prototype = {
     }
 
     var outIx = this.outIx;
+    var outConstant = this.outConstant;
     var outValue = this.fun.apply(null, inValues);
-    var compLo = compareValue(outValue, los[outIx]);
-    var compHi = compareValue(outValue, his[outIx]);
+    var compLo = compareValue(outValue, outConstant || los[outIx]);
+    var compHi = compareValue(outValue, outConstant || his[outIx]);
     if ((compLo === -1) || (compHi === 1)) return FAILED;
-    los[outIx] = outValue;
-    his[outIx] = outValue;
-    return ((compLo === 1) || (compHi === -1)) ? CHANGED : UNCHANGED;
+    if (outIx !== undefined) {
+      los[outIx] = outValue;
+      his[outIx] = outValue;
+      return ((compLo === 1) || (compHi === -1)) ? CHANGED : UNCHANGED;
+    } else {
+      return UNCHANGED;
+    }
   },
 
   split: function(myIx, leftConstraintStates, leftLos, leftHis, rightConstraintStates, rightLos, rightHis) {
@@ -884,6 +890,7 @@ function compileRule(dump, rule) {
   for (var i = funs.length - 1; i >= 0; i--) {
     var fun = funs[i];
     var outIx = valveIxes[fun.valve];
+    var outConstant = valveConstants[fun.valve];
     var inputs = dump.functionInput.function[fun.function] || [];
     var inIxes = [];
     var args = [];
@@ -893,7 +900,7 @@ function compileRule(dump, rule) {
       inIxes[j] = valveIxes[valve];
     }
     var compiled = Function.apply(null, args.concat(["return (" + fun.code + ");"]));
-    constraints.push(new FunctionConstraint(compiled, inIxes, outIx));
+    constraints.push(new FunctionConstraint(compiled, inIxes, outIx, outConstant));
   }
 
   var limitIx;
@@ -936,6 +943,7 @@ function compileRule(dump, rule) {
 
 function compileSystem(memory) {
   // TODO do this properly
+  console.log(JSON.stringify(memory.getFacts()));
   var dump = dumpMemory(memory);
   var rules = Object.keys(dump.pipe.rule);
   var flows = [];
