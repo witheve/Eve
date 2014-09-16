@@ -824,7 +824,7 @@ function compileRule(dump, rule) {
     var constantConstraints = dump.constantConstraint.valve[valve.valve] || [];
     assert(constantConstraints.length <= 1);
     if (constantConstraints.length === 1) {
-      valves.slice(i);
+      valves.splice(i, 1);
       valveConstants[valve.valve] = constantConstraints[0].value;
     }
   }
@@ -834,7 +834,7 @@ function compileRule(dump, rule) {
   }
 
   // count how many valves are actually used in constraint solving
-  // TODO we hackily assume that valves are ordered by joins/functions/constants -> reducers. we should order them ourselves and reorder afterwards
+  // TODO we hackily assume that valves are ordered with joins/functions/constants before reducers. we should order them ourselves and reorder afterwards
   var numVars;
   for (numVars = 0; numVars < valves.length; numVars++) {
     var valve = valves[numVars].valve;
