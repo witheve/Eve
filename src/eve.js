@@ -773,7 +773,7 @@ var compilerSchema =
      ["schema", "reducer", "rule", 0],
      ["schema", "reducer", "inValve", 1],
      ["schema", "reducer", "outValve", 2],
-     ["schema", "reducer", "code", 2]];
+     ["schema", "reducer", "code", 3]];
 
 function dumpMemory(memory) {
   var facts = memory.getFacts();
@@ -846,10 +846,8 @@ function compileRule(dump, rule) {
   var numVars;
   for (numVars = 0; numVars < valves.length; numVars++) {
     var valve = valves[numVars].valve;
-    if ((dump.tableConstraint.valve[valve] === undefined) && (dump.function.valve[valve] === undefined)) break;
+    if (dump.reducer.outValve[valve] !== undefined) break;
   }
-
-  Object.keys(dump.function.rule);
 
   var constraints = [];
   var sinks = [];
