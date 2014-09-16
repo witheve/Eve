@@ -5,6 +5,7 @@ dsl.nextId = function() {
 }
 
 dsl.globalNames = {};
+dsl.tableToFields = {};
 
 dsl.nameToId = function(name, rule) {
   if(rule) {
@@ -20,6 +21,7 @@ dsl.parseName = function(name) {
 dsl.table = function(name, fields) {
   var items = [];
   dsl.globalNames[name] = name;
+  dsl.tableToFields[name] = fields;
   items.push(["displayNames", name, name]);
   fields.forEach(function(field, ix) {
     var id = dsl.nextId();
@@ -48,6 +50,11 @@ Rule.prototype.source = function(name, alias) {
   var id = dsl.nameToId(name);
   var pipeId = dsl.nextId();
   this.names[alias || name] = pipeId;
+  if(alias) {
+    dsl.tableToFields[name].forEach(function(cur) {
+      dsl.globalNames[alias + "." + cur] = dsl.globalNames[name + "." + cur];
+    });
+  }
   this.items.push(["pipe", pipeId, id, this.id, "+source"]);
 }
 
@@ -55,6 +62,11 @@ Rule.prototype.sink = function(name, alias) {
   var id = dsl.nameToId(name);
   var pipeId = dsl.nextId();
   this.names[alias || name] = pipeId;
+  if(alias) {
+    dsl.tableToFields[name].forEach(function(cur) {
+      dsl.globalNames[alias + "." + cur] = dsl.globalNames[name + "." + cur];
+    });
+  }
   this.items.push(["pipe", pipeId, id, this.id, "+sink"]);
 }
 
@@ -62,6 +74,11 @@ Rule.prototype.negated = function(name, alias) {
   var id = dsl.nameToId(name);
   var pipeId = dsl.nextId();
   this.names[alias || name] = pipeId;
+  if(alias) {
+    dsl.tableToFields[name].forEach(function(cur) {
+      dsl.globalNames[alias + "." + cur] = dsl.globalNames[name + "." + cur];
+    });
+  }
   this.items.push(["pipe", pipeId, id, this.id, "-source"]);
 }
 
@@ -79,7 +96,8 @@ Rule.prototype.fieldToValve = function(from) {
     pipe = dsl.nameToId(fromParts[0], this);
     field = dsl.nameToId(from);
     this.names[from] = valve;
-    this.items.push(["tableConstraint", valve, pipe, field]);
+    this.items.push(["tableConstraint", valve, pipe, field],
+                    ["displayNames", valve, from]);
   }
   return valve;
 }
@@ -148,7 +166,8 @@ Rule.prototype.aggregate = function(input, output, code) {
   var valve = this.valve();
   code = code.replace(input, inputValve);
   this.names[output] = valve;
-  this.items.push(["reducer", this.id, inputValve, valve, code]);
+  this.items.push(["reducer", this.id, inputValve, valve, code],
+                  ["displayNames", valve, output]);
 }
 
 var DSLSystem = function() {
@@ -197,6 +216,8 @@ sys.table("joins", ["id", "valve", "pipe", "field"]);
 sys.table("clicks", ["id"]);
 sys.table("sms outbox", ["id"]);
 sys.table("users", ["id", "name"]);
+sys.table("edges", ["from", "to"]);
+sys.table("path", ["from", "to"]);
 
 //*********************************************************
 // Rules
@@ -204,24 +225,47 @@ sys.table("users", ["id", "name"]);
 
 sys.rule("this is a cool rule", function(rule) {
   rule.source("clicks");
-  rule.source("users");
+//   rule.source("users");
   rule.sink("sms outbox");
-  rule.join("clicks.id", "users.id");
-  rule.link("users.name", "sms outbox.id");
-//    rule.filter(["clicks.id"], "clicks.id > 28");
+//   rule.join("clicks.id", "users.id");
+//   rule.link("users.name", "sms outbox.id");
+  rule.aggregate("clicks.id", "cool", "console.log(clicks.id)");
+//    rule.filter("clicks.id", "clicks.id > 28");
 //   rule.sort("clicks.id");
 //   rule.group("clicks.id");
 //   rule.calculate("foo", ["clicks.id"], "clicks.id + 5");
 //   rule.eq("foo", 23);
-//   rule.link("foo", "sms outbox.id");
+//   rule.link("cool", "sms outbox.id");
 })
+
+// sys.input([["clicks", 5], ["clicks", 20], ["clicks", 9], ["users", 5, "chris"]]);
+
+sys.rule("edges yo", function(rule) {
+  rule.source("edges");
+  rule.sink("path");
+  rule.link("edges.to", "path.to");
+  rule.link("edges.from", "path.from");
+});
+
+sys.rule("edges and paths, oh my", function(rule) {
+  rule.source("edges");
+  rule.source("path", "input path");
+  rule.sink("path");
+  rule.join("edges.to", "input path.from");
+  rule.link("edges.from", "path.from");
+  rule.link("input path.to", "path.to");
+})
+
 
 sys.compile();
 
-sys.input([["clicks", 5], ["clicks", 20], ["clicks", 9], ["users", 5, "chris"]]);
+console.time("edges");
+sys.input([["edges", "a", "b"], ["edges", "b", "c"], ["edges", "c", "d"], ["edges", "d", "b"]]);
+console.timeEnd("edges");
+
 
 sys.system.memory.getFacts();
 
-sys.system.memory.getTable("sms outbox");
+sys.system.memory.getTable("path");
 
 console.log(sys.system.flows);
