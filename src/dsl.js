@@ -107,7 +107,7 @@ Rule.prototype.eq = function(from, value) {
   this.items.push(["constantConstraint", valve, value]);
 }
 
-Rule.prototype.link = function(from, to) {
+Rule.prototype.output = function(from, to) {
   var valve = this.fieldToValve(from);
   var toParts = dsl.parseName(to);
   pipe = dsl.nameToId(toParts[0], this);
@@ -170,6 +170,12 @@ Rule.prototype.aggregate = function(input, output, code) {
                   ["displayNames", valve, output]);
 }
 
+Rule.prototype.limit = function(num) {
+  var valve = this.valve();
+  this.items.push(["limitValve", this.id, valve],
+                  ["constantConstraint", valve, num]);
+}
+
 var DSLSystem = function() {
   this.system = compileSystem(Memory.fromFacts(compilerSchema));
   this.facts = [];
@@ -195,6 +201,20 @@ DSLSystem.prototype.compile = function() {
 
 DSLSystem.prototype.input = function(items) {
   this.system.update(items, []);
+}
+
+DSLSystem.prototype.empty = function() {
+  this.system.memory = Memory.empty();
+}
+
+DSLSystem.prototype.equal = function(facts) {
+  memoryEqual(this.system.memory, Memory.fromFacts(facts))
+}
+
+DSLSystem.prototype.test = function(inputs, results) {
+  this.empty();
+  this.input(inputs);
+  this.equal(inputs.concat(results));
 }
 
 dsl.system = function() {
@@ -225,43 +245,55 @@ sys.table("path", ["from", "to"]);
 
 sys.rule("this is a cool rule", function(rule) {
   rule.source("clicks");
-//   rule.source("users");
+  rule.source("users");
   rule.sink("sms outbox");
-//   rule.join("clicks.id", "users.id");
-//   rule.link("users.name", "sms outbox.id");
-  rule.aggregate("clicks.id", "cool", "console.log(clicks.id)");
+  rule.join("clicks.id", "users.id");
+  rule.output("users.name", "sms outbox.id");
+//   rule.output("clicks.id", "sms outbox.id");
+//   rule.aggregate("clicks.id", "cool", "console.log(clicks.id)");
 //    rule.filter("clicks.id", "clicks.id > 28");
 //   rule.sort("clicks.id");
 //   rule.group("clicks.id");
 //   rule.calculate("foo", ["clicks.id"], "clicks.id + 5");
 //   rule.eq("foo", 23);
-//   rule.link("cool", "sms outbox.id");
+//   rule.output("cool", "sms outbox.id");
 })
 
 // sys.input([["clicks", 5], ["clicks", 20], ["clicks", 9], ["users", 5, "chris"]]);
 
-sys.rule("edges yo", function(rule) {
-  rule.source("edges");
-  rule.sink("path");
-  rule.link("edges.to", "path.to");
-  rule.link("edges.from", "path.from");
-});
+// sys.rule("edges yo", function(rule) {
+//   rule.source("edges");
+//   rule.sink("path");
+//   rule.output("edges.to", "path.to");
+//   rule.output("edges.from", "path.from");
+//   rule.limit(1);
+// });
 
-sys.rule("edges and paths, oh my", function(rule) {
-  rule.source("edges");
-  rule.source("path", "input path");
-  rule.sink("path");
-  rule.join("edges.to", "input path.from");
-  rule.link("edges.from", "path.from");
-  rule.link("input path.to", "path.to");
-})
+// sys.rule("edges and paths, oh my", function(rule) {
+//   rule.source("edges");
+//   rule.source("path", "input path");
+//   rule.sink("path");
+//   rule.join("edges.to", "input path.from");
+//   rule.output("edges.from", "path.from");
+//   rule.output("input path.to", "path.to");
+// })
 
+sys.facts
 
 sys.compile();
+sys.system.memory.getFacts();
+sys.test([["users", 5, "chris"], ["clicks", 5]], [["sms outbox", "chris"]]);
 
-console.time("edges");
-sys.input([["edges", "a", "b"], ["edges", "b", "c"], ["edges", "c", "d"], ["edges", "d", "b"]]);
-console.timeEnd("edges");
+// console.time("edges");
+// sys.input([["edges", "a", "b"],
+//            ["edges", "b", "c"],
+//            ["edges", "c", "d"],
+//            ["edges", "d", "b"],
+//            ["edges", "d", "e"],
+//            ["edges", "e", "f"],
+//            ["edges", "f", "g"],
+//            ["edges", "g", "a"]]);
+// console.timeEnd("edges");
 
 
 sys.system.memory.getFacts();
