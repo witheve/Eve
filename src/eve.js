@@ -5,6 +5,8 @@ var UNCHANGED = 2;
 var IGNORED = 0;
 var SPLITTED = 1;
 
+var eve = {};
+
 // UTIL
 
 function assert(cond, msg) {

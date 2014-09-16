@@ -1,5 +1,5 @@
 {
-	"name": "Aurora",
+	"name": "Eve",
   "main": "resources/index.html",
 	"js-flags": "--harmony",
 	"single-instance": true,
@@ -17,5 +17,8 @@
 		"show":true,
 		"toolbar": false,
 		"frame": true
-	}
+	},
+  "scripts": {
+    "test": "cat src/bigcheck.js src/eve.js src/dsl.js src/test.js | node"
+  }
 }

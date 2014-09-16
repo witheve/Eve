@@ -1,3 +1,8 @@
+if(!eve.data) {
+  eve.data = {globalId: 0};
+}
+
+eve.test = {};
 var dsl = eve.dsl = {};
 
 dsl.nextId = function() {
@@ -222,33 +227,62 @@ dsl.system = function() {
 }
 
 //*********************************************************
-// System
+// Test
 //*********************************************************
 
-var sys = dsl.system();
+eve.test.wrapCommonTables = function(sys) {
+  sys.table("displayNames", ["id", "name"]);
+  sys.table("joins", ["id", "valve", "pipe", "field"]);
+  sys.table("clicks", ["id"]);
+  sys.table("sms outbox", ["id"]);
+  sys.table("users", ["id", "name"]);
+  sys.table("edges", ["from", "to"]);
+  sys.table("path", ["from", "to"]);
+}
 
-//*********************************************************
-// Tables
-//*********************************************************
+eve.test.test = function(name, func, inputs, expected) {
+  var sys = dsl.system();
+  eve.test.wrapCommonTables(sys);
+  try {
+    func(sys);
+    sys.compile();
+    sys.test(inputs, expected);
+  } catch(e) {
+    eve.test.failed = true;
+    console.error("failed test: " + name);
+    console.error("    " + e.stack);
+    return false;
+  }
+  return true;
+}
 
-sys.table("displayNames", ["id", "name"]);
-sys.table("joins", ["id", "valve", "pipe", "field"]);
-sys.table("clicks", ["id"]);
-sys.table("sms outbox", ["id"]);
-sys.table("users", ["id", "name"]);
-sys.table("edges", ["from", "to"]);
-sys.table("path", ["from", "to"]);
+eve.test.check = function() {
+  if(eve.test.failed) {
+    process.exit(1);
+  }
+}
 
 //*********************************************************
 // Rules
 //*********************************************************
 
-sys.rule("this is a cool rule", function(rule) {
-  rule.source("clicks");
-  rule.source("users");
-  rule.sink("sms outbox");
-  rule.join("clicks.id", "users.id");
-  rule.output("users.name", "sms outbox.id");
+eve.test.test("simple join",
+              function(sys) {
+                sys.rule("this is a cool rule", function(rule) {
+                  rule.source("clicks");
+                  rule.sink("sms outbox");
+                  rule.output("clicks.id", "sms outbox.id");
+                });
+              },
+              [["users", 5, "chris"], ["clicks", 5]],
+              [["sms outbox", 5]]);
+
+// sys.rule("this is a cool rule", function(rule) {
+//   rule.source("clicks");
+//   rule.source("users");
+//   rule.sink("sms outbox");
+//   rule.join("clicks.id", "users.id");
+//   rule.output("users.name", "sms outbox.id");
 //   rule.output("clicks.id", "sms outbox.id");
 //   rule.aggregate("clicks.id", "cool", "console.log(clicks.id)");
 //    rule.filter("clicks.id", "clicks.id > 28");
@@ -257,7 +291,7 @@ sys.rule("this is a cool rule", function(rule) {
 //   rule.calculate("foo", ["clicks.id"], "clicks.id + 5");
 //   rule.eq("foo", 23);
 //   rule.output("cool", "sms outbox.id");
-})
+// })
 
 // sys.input([["clicks", 5], ["clicks", 20], ["clicks", 9], ["users", 5, "chris"]]);
 
@@ -278,11 +312,10 @@ sys.rule("this is a cool rule", function(rule) {
 //   rule.output("input path.to", "path.to");
 // })
 
-sys.facts
-
-sys.compile();
-sys.system.memory.getFacts();
-sys.test([["users", 5, "chris"], ["clicks", 5]], [["sms outbox", "chris"]]);
+// sys.facts
+// sys.compile();
+// sys.system.memory.getFacts();
+// sys.test([["users", 5, "chris"], ["clicks", 5]], [["sms outbox", "chris"]]);
 
 // console.time("edges");
 // sys.input([["edges", "a", "b"],
@@ -296,8 +329,6 @@ sys.test([["users", 5, "chris"], ["clicks", 5]], [["sms outbox", "chris"]]);
 // console.timeEnd("edges");
 
 
-sys.system.memory.getFacts();
+// sys.system.memory.getFacts();
 
-sys.system.memory.getTable("path");
-
-console.log(sys.system.flows);
+// sys.system.memory.getTable("path");

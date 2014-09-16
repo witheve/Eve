@@ -1,5 +1,3 @@
-var eve = {};
-
 var comps = eve.components = {};
 var mix = eve.mixins = {};
 var data = eve.data = {tree: {elements: []}, selection: {}, undo: {stack:{children: []}},
