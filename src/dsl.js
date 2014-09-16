@@ -266,16 +266,16 @@ eve.test.check = function() {
 // Rules
 //*********************************************************
 
-eve.test.test("simple join",
-              function(sys) {
-                sys.rule("this is a cool rule", function(rule) {
-                  rule.source("clicks");
-                  rule.sink("sms outbox");
-                  rule.output("clicks.id", "sms outbox.id");
-                });
-              },
-              [["users", 5, "chris"], ["clicks", 5]],
-              [["sms outbox", 5]]);
+// eve.test.test("simple join",
+//               function(sys) {
+//                 sys.rule("this is a cool rule", function(rule) {
+//                   rule.source("clicks");
+//                   rule.sink("sms outbox");
+//                   rule.output("clicks.id", "sms outbox.id");
+//                 });
+//               },
+//               [["users", 5, "chris"], ["clicks", 5]],
+//               [["sms outbox", 5]]);
 
 // sys.rule("this is a cool rule", function(rule) {
 //   rule.source("clicks");
@@ -292,6 +292,8 @@ eve.test.test("simple join",
 //   rule.eq("foo", 23);
 //   rule.output("cool", "sms outbox.id");
 // })
+
+
 
 // sys.input([["clicks", 5], ["clicks", 20], ["clicks", 9], ["users", 5, "chris"]]);
 
