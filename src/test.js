@@ -135,6 +135,21 @@ eve.test.test("limited aggregate",
               [["users", 1, "jamie"], ["users", 1, "rob"], ["users", 0, "chris"]],
               [["sms outbox", "jamie"]]);
 
+eve.test.test("constant limited aggregate",
+              function(sys) {
+                sys.rule("this is a cool rule", function(rule) {
+                  rule.source("users");
+                  rule.sink("sms outbox");
+                  rule.group("users.id");
+                  rule.sort("users.name");
+                  rule.constantLimit(1);
+                  rule.aggregate("users.name", "cool", "(users.name).join()");
+                  rule.output("cool", "sms outbox.id");
+                });
+              },
+              [["users", 1, "jamie"], ["users", 1, "rob"], ["users", 0, "chris"]],
+              [["sms outbox", "jamie"], ["sms outbox", "chris"]]);
+
 eve.test.test("filter pass",
               function(sys) {
                 sys.rule("this is a cool rule", function(rule) {

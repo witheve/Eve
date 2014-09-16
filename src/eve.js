@@ -532,10 +532,11 @@ Solver.prototype = {
 
 // AGGREGATE
 
-function Aggregate(groupIxes, sortIxes, limitIx, reducerInIxes, reducerOutIxes, reducerFuns, oldOutputMemory, newOutputMemory) {
+function Aggregate(groupIxes, sortIxes, limitIx, limitConstant, reducerInIxes, reducerOutIxes, reducerFuns, oldOutputMemory, newOutputMemory) {
   this.groupIxes = groupIxes;
   this.sortIxes = sortIxes;
   this.limitIx = limitIx;
+  this.limitConstant = limitConstant;
   this.reducerInIxes = reducerInIxes;
   this.reducerOutIxes = reducerOutIxes;
   this.reducerFuns = reducerFuns;
@@ -543,8 +544,8 @@ function Aggregate(groupIxes, sortIxes, limitIx, reducerInIxes, reducerOutIxes, 
   this.newOutputMemory = newOutputMemory;
 }
 
-Aggregate.empty = function (groupIxes, sortIxes, limitIx, reducerInIxes, reducerOutIxes, reducerFuns) {
-  return new Aggregate(groupIxes, sortIxes, limitIx, reducerInIxes, reducerOutIxes, reducerFuns, Memory.empty(), Memory.empty());
+Aggregate.empty = function (groupIxes, sortIxes, limitIx, limitConstant, reducerInIxes, reducerOutIxes, reducerFuns) {
+  return new Aggregate(groupIxes, sortIxes, limitIx, limitConstant, reducerInIxes, reducerOutIxes, reducerFuns, Memory.empty(), Memory.empty());
 };
 
 function groupBy(facts, groupIxes) {
@@ -600,6 +601,7 @@ Aggregate.prototype = {
       var groupFacts = groups[group];
       sortBy(groupFacts, this.sortIxes);
       if (this.limitIx !== undefined) groupFacts = groupFacts.slice(0, groupFacts[0][this.limitIx]);
+      if (this.limitConstant !== undefined) groupFacts = groupFacts.slice(0, this.limitConstant);
       var reducerInIxes = this.reducerInIxes;
       var reducerOutIxes = this.reducerOutIxes;
       var reducerFuns = this.reducerFuns;
@@ -902,10 +904,12 @@ function compileRule(dump, rule) {
   }
 
   var limitIx;
+  var limitConstant;
   var limitValves = dump.limitValve.rule[rule];
   if (limitValves !== undefined) {
     assert(limitValves.length === 1);
     limitIx = valveIxes[limitValves[0].valve];
+    limitConstant = valveConstants[limitValves[0].valve];
   }
 
   var groupIxes = [];
@@ -935,14 +939,14 @@ function compileRule(dump, rule) {
     reducerFuns[i] = Function.apply(null, [reducer.inValve, "return (" + reducer.code + ");"]);
   }
 
-  var aggregate = Aggregate.empty(groupIxes, sortIxes, limitIx, reducerInIxes, reducerOutIxes, reducerFuns);
+  var aggregate = Aggregate.empty(groupIxes, sortIxes, limitIx, limitConstant, reducerInIxes, reducerOutIxes, reducerFuns);
 
   return new Flow(Solver.empty(numVars, constraints), aggregate, sinks);
 }
 
 function compileSystem(memory) {
   // TODO do this properly
-  console.log(JSON.stringify(memory.getFacts()));
+  // console.log(JSON.stringify(memory.getFacts()));
   var dump = dumpMemory(memory);
   var rules = Object.keys(dump.pipe.rule);
   var flows = [];
@@ -1170,7 +1174,7 @@ var aggregateJoin = bigcheck.foralls(bigcheck.facts(3),
                                      function (facts) {
                                        var input = Memory.empty();
                                        var constraint0 = new MemoryConstraint([0,1,2]);
-                                       var aggregate = Aggregate.empty([2], [0, 1], undefined, [1], [3], [function (as) {return as.join("");}]);
+                                       var aggregate = Aggregate.empty([2], [0, 1], undefined, undefined, [1], [3], [function (as) {return as.join("");}]);
                                        var flow = new Flow(Solver.empty(3, [constraint0]), aggregate, [new Sink([1,3], [null,null])]);
                                        var input = input.update(facts, []);
                                        var output = flow.update(input, Memory.empty());
@@ -1193,8 +1197,8 @@ var incrementalAggregateJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.fact
                                      function (facts, adds, dels) {
                                        var input = Memory.empty();
                                        var constraint0 = new MemoryConstraint([0,1,2]);
-                                       var incrementalAggregate = Aggregate.empty([2], [0, 1], undefined, [1], [3], [function (as) {return as.join("");}]);
-                                       var batchAggregate = Aggregate.empty([2], [0, 1], undefined, [1], [3], [function (as) {return as.join("");}]);
+                                       var incrementalAggregate = Aggregate.empty([2], [0, 1], undefined, undefined, [1], [3], [function (as) {return as.join("");}]);
+                                       var batchAggregate = Aggregate.empty([2], [0, 1], undefined, undefined, [1], [3], [function (as) {return as.join("");}]);
                                        var incrementalFlow = new Flow(Solver.empty(3, [constraint0]), incrementalAggregate, [new Sink([1,3], [null,null])]);
                                        var batchFlow = new Flow(Solver.empty(3, [constraint0]), batchAggregate, [new Sink([1,3], [null,null])]);
                                        var incrementalOutput = Memory.empty();
