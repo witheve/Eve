@@ -1,0 +1,358 @@
+support-for-ie ?= true
+
+// ---------------------------------------
+// COMPLETE RESET
+// ---------------------------------------
+
+// Based on [Eric Meyer's reset](http://meyerweb.com/eric/thoughts/2007/05/01/reset-reloaded/)
+
+global-reset()
+  html
+  body
+  div
+  span
+  applet
+  object
+  iframe
+  h1
+  h2
+  h3
+  h5
+  h6
+  p
+  blockquote
+  pre
+  a
+  abbr
+  acronym
+  address
+  big
+  cite
+  code
+  del
+  dfn
+  em
+  img
+  ins
+  kbd
+  q
+  s
+  samp
+  small
+  strike
+  strong
+  sub
+  sup
+  tt
+  var
+  dl
+  dt
+  dd
+  ol
+  ul
+  li
+  fieldset
+  form
+  label
+  legend
+  caption
+  tbody
+  tfoot
+  thead
+  tr
+  th
+  td
+    font-weight: inherit
+    font-style: inherit
+    font-family: inherit
+    font-size: 100%
+    vertical-align: baseline
+    margin: 0
+    padding: 0
+    outline: 0
+    border: none
+  body
+    line-height: 1
+  ol, ul
+    list-style: none
+  // table reset
+  table
+    border-collapse: separate
+    border-spacing: 0
+    vertical-align: middle
+  caption, th, td
+    text-align: left
+    font-weight: normal
+    vertical-align: middle
+  a img
+    border: none
+  // html5 reset
+  article
+  aside
+  canvas
+  details
+  figcaption
+  figure
+  footer
+  header
+  hgroup
+  menu
+  nav
+  section
+  summary
+    margin: 0
+    padding: 0
+    border: none
+    outline: 0
+    display: block
+  audio
+  canvas
+  video
+    display: inline-block
+    *display: inline
+    *zoom: 1
+  audio:not([controls])
+  [hidden]
+    display: none
+
+// ---------------------------------------
+// NORMALIZE
+// ---------------------------------------
+
+// Combination of v1 (IE 6/7 fixes) and v2
+// Ported from JohnAlbin/normalize.css-with-sass-or-compass and modified heavily
+
+normalize()
+  article
+  aside
+  details
+  figcaption
+  figure
+  footer
+  header
+  hgroup
+  main
+  nav
+  section
+  summary
+    display: block
+
+  audio
+  canvas
+  video
+    display: inline-block
+    if support-for-ie
+      *display: inline
+      *zoom: 1
+
+  audio:not([controls])
+    display: none
+    height: 0
+  [hidden]
+    display: none
+
+  html
+    font-family: sans-serif
+    -webkit-text-size-adjust: 100%
+    -ms-text-size-adjust: 100%
+    font-size: 100%
+
+  if support-for-ie
+    button
+    input
+    select
+    textarea
+      font-family: sans-serif
+
+  body
+    margin: 0
+
+  a:focus
+    outline: thin dotted
+
+  a:active
+  a:hover
+    outline: 0
+
+  p
+  pre
+    margin: 1em 0
+
+  blockquote
+    margin: 1em 40px
+
+  h1
+    font-size: 2em
+    margin: 0.67em 0
+
+  h2
+    font-size: 1.5em
+    margin: 0.83em 0
+
+  h3
+    font-size: 1.17em
+    margin: 1em 0
+
+  h4
+    font-size: 1em
+    margin: 1.33em 0
+
+  h5
+    font-size: 0.83em
+    margin: 1.67em 0
+
+  h6
+    font-size: 0.67em
+    margin: 2.33em 0
+
+  abbr[title]
+    border-bottom: 1px dotted
+
+  b
+  strong
+    font-weight: bold
+
+  dfn
+    font-style: italic
+
+  hr
+    -moz-box-sizing: content-box
+    box-sizing: content-box
+    height: 0
+
+  mark
+    background: #ff0
+    color: #000
+
+  code
+  kbd
+  pre
+  samp
+    font-family: monospace, serif
+    if support-for-ie
+      _font-family: 'courier new', monospace
+    font-size: 1em
+
+  pre
+    white-space: pre-wrap
+
+  q
+    quotes: "\201C" "\201D" "\2018" "\2019"
+
+  small
+    font-size: 80%
+
+  sub
+  sup
+    font-size: 75%
+    line-height: 0
+    position: relative
+    vertical-align: baseline
+
+  sup
+    top: -0.5em
+
+  sub
+    bottom: -0.25em
+
+  dl
+  menu
+  ol
+  ul
+    margin: 1em 0
+    padding: 0 0 0 40px
+
+  dl
+    padding: 0
+
+  dd
+    margin: 0 0 0 40px
+
+  if support-for-ie
+    nav
+      ul
+      ol
+        list-style: none
+        list-style-image: none
+
+  img
+    border: 0
+    if support-for-ie
+      -ms-interpolation-mode: bicubic
+
+  svg:not(:root)
+    overflow: hidden
+
+  figure
+    margin: 0
+
+  if support-for-ie
+    form
+      margin: 0
+
+  fieldset
+    border-color: #c0c0c0
+    margin: 0 2px
+    border: 1px solid #c0c0c0
+    padding: 0.35em 0.625em 0.75em
+
+  legend
+    border: 0
+    padding: 0
+    if support-for-ie
+      *margin-left: -7px
+
+  button
+  input
+  select
+  textarea
+    font-family: inherit
+    font-size: 100%
+    margin: 0
+    if support-for-ie
+      vertical-align: baseline
+      *vertical-align: middle
+
+  button
+  input
+    line-height: normal
+
+  button
+  select
+    text-transform: none
+
+  button, html input[type="button"], input[type="reset"], input[type="submit"]
+    -webkit-appearance: button
+    cursor: pointer
+    if support-for-ie
+      *overflow: visible
+
+  button[disabled], html input[disabled]
+    cursor: default
+
+  input[type="checkbox"], input[type="radio"]
+    box-sizing: border-box
+    padding: 0
+    if support-for-ie
+      *height: 13px
+      *width: 13px
+
+  input[type="search"]
+    -webkit-appearance: textfield
+    box-sizing: content-box
+
+  input[type="search"]::-webkit-search-cancel-button, input[type="search"]::-webkit-search-decoration
+    -webkit-appearance: none
+
+  button::-moz-focus-inner
+  input::-moz-focus-inner
+    border: 0
+    padding: 0
+
+  textarea
+    overflow: auto
+    vertical-align: top
+
+  table
+    border-collapse: collapse
+    border-spacing: 0

@@ -1,0 +1,215 @@
+/*  Syntax quick reference
+ *  ----------------------
+ *  gutter[g] = 1
+ *  center(max_width = 1410px, padding = 15px)
+ *  column[col](ratios = 1, offset = false)
+ *  span(ratio = 1, offset = false)
+ *  shift(ratios = 0)
+ *  unshift()
+ *  bp(w = 705px, mobile_first = false[mf])
+ *  endbp()
+ *  stack(padding = 0, align = center[c, left, l, right, r])
+ *  edit()
+ *  align(direction = both[b, vertical, v, horizontal, h])
+ */
+
+// Mixins
+center(max_width = 1410px, padding = 15px)
+    group()
+    max-width max_width
+    float none
+    display block
+    margin-right auto
+    margin-left auto
+    padding-left padding 
+    padding-right padding 
+
+column(ratios = 1, offset = 0, cycle = 0, uncycle = 0)
+    side = get_layout_direction()
+    widths = get_column(ratios)
+    margin_l = margin_last = 0
+    margin_r = widths[1]
+    unless offset == 0
+        if offset < 0
+            offset *= -1
+            offset = get_column(offset, widths[1])[0]
+            margin_r = margin_last = offset + widths[1] * 2
+        else
+            offset = get_column(offset, widths[1])[0]
+            margin_l = offset + widths[1]
+            
+    group()
+    float side
+    width (widths[0])%
+    margin-{side} (margin_l)%
+    margin-{opposite-position(side)} (margin_r)%
+    if uncycle != 0
+        &:nth-child({uncycle}n)
+            margin-{opposite-position(side)} (margin_r)%
+            float side
+    if cycle != 0
+        &:nth-child({cycle}n)
+            margin-{opposite-position(side)} (margin_last)%
+            float opposite-position(side)
+    else
+        &:last-child
+            margin-{opposite-position(side)} (margin_last)%
+
+span(ratio = 1, offset = 0)
+    side = get_layout_direction()
+    width = get_span(ratio)
+    margin_l = margin_r = 0
+    unless offset == 0
+        if offset < 0
+            offset *= -1
+            margin_r = get_span(offset)
+        else
+            margin_l = get_span(offset)
+    group()
+    float side
+    width (width)%
+    margin-{side} (margin_l)%
+    margin-{opposite-position(side)} (margin_r)%
+
+shift(ratios = 0, col_or_span = column)
+    side = get_layout_direction()
+    if side == right
+        ratios = replace_nth(ratios, 0, ratios[0] * -1)
+    if col_or_span == column or col_or_span == col or col_or_span == c
+        widths = get_column(ratios)
+        translate = widths[0] + widths[1]
+    else
+        translate = get_span(ratios)
+    position relative
+    left (translate)%
+
+unshift()
+    position static
+    left 0
+
+bp(w = 705px, mobile_first = false)
+    if (mobile_first == mf || mobile_first == true)
+        unquote("@media all and (min-width: " + w + ") {")
+    else
+        unquote("@media all and (max-width: " + w + ") {")
+endbp()
+    unquote("}")
+
+stack(padding = 0, align = center)
+    side = get_layout_direction()
+    display block
+    float none
+    width 100%
+    margin-left auto
+    margin-right auto
+    if padding != 0
+        padding-left padding
+        padding-right padding  
+    &:first-child
+        margin-{side} auto
+    &:last-child
+        margin-{opposite-position(side)} auto
+    if (align == center) or (align == c)
+        text-align center
+    if (align == left) or (align == l)
+        text-align left
+    if (align == right) or (align == r)
+        text-align right
+
+align(direction = both) // IE10+
+    if (direction == both) or (direction == b)
+        display -webkit-box
+        display -moz-box
+        display -ms-flexbox
+        display -webkit-flex
+        display flex
+        -webkit-box-align center
+        -webkit-flex-align center
+        -ms-flex-align center
+        -webkit-align-items center
+        align-items center
+        -webkit-box-pack center
+        -moz-box-pack center
+        -webkit-justify-content center
+        -ms-flex-pack center
+        justify-content center
+    if (direction == vertical) or (direction == v)
+        display -webkit-box
+        display -moz-box
+        display -ms-flexbox
+        display -webkit-flex
+        display flex
+        -webkit-box-align center
+        -webkit-flex-align center
+        -ms-flex-align center
+        -webkit-align-items center
+        align-items center
+    if (direction == horizontal) or (direction == h)
+        display -webkit-box
+        display -moz-box
+        display -ms-flexbox
+        display -webkit-flex
+        display flex
+        -webkit-box-pack center
+        -moz-box-pack center
+        -webkit-justify-content center
+        -ms-flex-pack center
+        justify-content center
+
+// Grid utilities
+get_span(ratio = 1)
+    return ratio * 100
+
+get_column(ratios = 1, g = gutter)
+    ratios = reverse(ratios) unless parent_first is true
+    w = 100
+    for ratio in ratios
+        g = g / w * 100
+        w = 100 * ratio - g + ratio * g
+    return w g
+
+get_layout_direction()
+    layout_direction == RTL ? result = right : result = left
+    return result
+
+replace_nth(list, index, value)
+    result = ()
+    index = length(list) + index if index < 0
+    for i in (0..(length(list) - 1))
+        if i == index
+            append(result, value)
+        else
+            append(result, list[i])
+    return result
+
+reverse(list)
+    result = ()
+    for item in list
+        prepend(result, item)
+    return result
+
+// Function aliases
+g = gutter
+col = column
+
+// Fancy editing - root level mixin
+edit()
+  *
+    transition 200ms ease all
+    background rgba(#000, .15)
+
+// Resets and defaults - root level mixin
+grid()
+  *
+    box-sizing(border-box)
+    *behavior: url(box-sizing-path)
+
+  html
+    overflow-y: scroll
+    overflow-x: hidden
+
+  body
+    width: 100%
+
+  img, video, audio, embed, object, input, iframe
+    max-width: 100%

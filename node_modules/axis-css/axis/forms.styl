@@ -1,0 +1,226 @@
+// -----------------------------------------------------
+// Forms
+// -----------------------------------------------------
+
+// This module is the most severely lacking, just because I'm not totally sure how to
+// handle it - forms are so different. It will probably end up with this basic functionality
+// for custom forms as well as a mixin you can drop on a form and it will style it for you
+// and take care of everything, for something more like an early prototype or back end.
+
+// It will also contain the ability to append or prepend little icons to your inputs
+
+// Helper: Focus Glow
+// Makes your inputs glow when focused. Takes a color - they will glow that color. Default color by default.
+// ex. +focus-glow
+// ex. +focus-glow(blue)
+// ex. +focus-glow(#D45D86)
+
+focus-glow(color = default-color)
+  &:focus
+    box-shadow(0 0 5px rgba(color,.7))
+    border: 1px solid desaturate(color, 35%)
+    outline: none !important
+
+// Mixin: Input
+// A general purpose mixin for text inputs. Provides an nice attractive default style that's easily
+// customizable. Takes a color as the first param and an optional width as the second.
+// ex. +input
+// ex. +input(purple)
+// ex. +input(#D45D86, 400px)
+
+input(color = light-blue, width = 250px)
+  box-shadow(inset 0 1px 1px rgba(#000, 0.1))
+  font-size: unit(font-size, px)
+  font-family: font-stack
+  font-size: 90%
+  transition()
+  border: solid 1px #bbb
+  border-radius: 2px
+  outline: none !important
+  padding: 4px 5px 4px // test this and make sure it's proportional at different sizes
+  background: #fff
+  color: #555
+  width: width
+  text-shadow: 0 0 1px rgba(#fff, .1)
+  pie()
+  if color
+    focus-glow(color)
+  else
+    box-shadow(none)
+
+// Mixin: Input Search
+// A search style input with rounded corners and an optional search icon at the end. Takes
+// any color.
+// ex. +input-search
+// ex. +input-search(yellow)
+// ex. +input-search
+
+// TODO: Implement search icon option with base64
+
+// =field-search
+//   position: relative
+//   input
+//     +input-search
+//   &:after
+//     font: 16px roots-icons
+//     content: icon(arrow_down_alt1)
+//     display: block
+//     position: absolute
+//     top: 8px
+//     right: 8px
+//     opacity: .5
+
+input-search(color = blue)
+  input(color)
+  padding-left: 9px
+  rounded()
+
+// Mixin: Input Disabled
+// Makes your input appear to be disabled. Note that you also need to add 'disabled' to your
+// html tag in order for it to actually be disabled.
+// ex. +disabled
+
+input-disabled()
+  cursor: not-allowed
+  background: #F5F5F5 !important
+
+  &:hover, &:focus
+    border-color: #bbb
+    box-shadow(inset 0 1px 1px rgba(#000, 0.1))
+
+// Mixin: Label
+// Very basic label for your form. Pass it an optional display type to have it inline or block.
+// ex. +label
+
+label(display = inline-block)
+  line-height: 1.5em
+  display: display
+
+// Mixin: Field
+// Often times it's easier to wrap your input and label in a div called "field" so they can be
+// floated, position, and manipulated without screwing up the rest of the form. That's what this
+// mixin is for - put it on a div that contains a label and an input. Then feed it a direction to
+// align (default is right), and an optional width.
+// ex. +field
+// ex. +field(left)
+// ex. +field(right, 500px)
+
+field(direction = right, width = 370px)
+  clear: both
+  margin-bottom: 5px
+  text-align: direction
+  width: width
+
+// Mixin: Input Error
+// When someone F'd it up, you gotta show them how it is. Put this on an input to make it clear
+// that something bad is happening. Best implemented in a .error class or something similar.
+// ex. input.error
+//       +input-error
+
+input-error(color = red)
+  color: color
+  border-color: color
+  focus-glow(color)
+
+// Mixin: Field Error
+// If you are wrapping labels and inputs in a field div, this makes life even easier. Makes the
+// label text as well as the input field red.
+// ex. .field.error
+//       +field-error
+
+field-error(color = red)
+  color: color
+  input
+    input-error()
+
+// Mixin: Input Warning
+// Ok, so maybe you didn't totally F it up, but at very least you deserve a warning. Well here it is.
+// Best implemented in a .warning class or something similar.
+// ex. input.warning
+//       +input-warning
+
+input-warning(color = yellow)
+  color: color
+  border-color: color
+  focus-glow(color)
+
+// Mixin: Field Warning
+// If you are wrapping labels and inputs in a field div, this makes life even easier. Makes the
+// label text as well as the input field yellow.
+// ex. .field.warning
+//       +field-warning
+
+field-warning(color = yellow)
+  color: color
+  input
+    input-warning()
+
+// Mixin: Input Success
+// http://cl.ly/F4Em/great-success.jpeg - Best implemented in a .success class or something similar.
+// ex. input.success
+//       +input-success
+
+input-success(color = green)
+  color: color
+  border-color: color
+  focus-glow(color)
+
+// Mixin: Field Success
+// You're probably getting tired of this routine at this point. I'm sure you can imagine what this does.
+// ex. .field.success
+//       +field-success
+
+field-success(color = green)
+  color: color
+  input
+    input-success()
+
+// Additive Mixin: Fields
+// WARNING: Creates classes in your css and styles them - not to be used inside an element.
+// Add the field styles to .field as well as success, warning, and failure states. Also takes
+// direction and width. Highly recommended mixin.
+
+fields(direction = right, width = 370px)
+  .field
+    field(direction, width)
+
+    &.success
+      field-success()
+    &.warning
+      field-warning()
+    &.error
+      field-error()
+
+// Additive Mixin: Forms
+// WARNING: Creates classes in your css and styles them - not to be used inside an element.
+// Adds nicer looking styles to all text inputs and textareas. Overrides the defaults.
+
+forms()
+  input[type='email'],
+  input[type='number'],
+  input[type='password'],
+  input[type='search'],
+  input[type='tel'],
+  input[type='text'],
+  input[type='url'],
+  input[type='color'],
+  input[type='date'],
+  input[type='datetime'],
+  input[type='datetime-local'],
+  input[type='month'],
+  input[type='time'],
+  input[type='week'],
+  textarea
+    input()
+
+    &.disabled
+      input-disabled()
+    &.success
+      input-success()
+    &.warning
+      input-warning()
+    &.error
+      input-error()
+
+// shortcut to render all html5 input types
+html5-inputs = unquote("input[type='email'], input[type='number'], input[type='password'], input[type='search'], input[type='tel'], input[type='text'], input[type='url'], input[type='color'], input[type='date'], input[type='datetime'], input[type='datetime-local'], input[type='month'], input[type='time'], input[type='week']")

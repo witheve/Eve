@@ -1,0 +1,41 @@
+// -----------------------------------------------------
+// CODE
+// -----------------------------------------------------
+
+// Mixin: Code
+// Styles inline code snippets on your page. Defaults to a beautiful red, but can be passed any color.
+// ex. +code(blue)
+// ex. +code(#7ED45F)
+
+code(color = #DF5C33)
+  padding: 3px 4px
+  color: color
+  background-color: #F5F5F5
+  border: 1px solid #E1E1E8
+  border-radius: 3px
+  font-family: Menlo, Monaco, monospace
+
+// Mixin: Pre
+// Styles code blocks on your page. Sytanx highlighting to be included in the future.
+// ex. +pre
+
+pre()
+  display: block
+  padding: 7px
+  background-color: #F5F5F5
+  border: 1px solid #E1E1E8
+  border-radius: 3px
+  white-space: pre-wrap
+  word-break: break-all
+  font-family: Menlo, Monaco, monospace
+  line-height: 160%
+
+// Additive Mixin: Code Blocks
+// WARNING: Creates classes in your css and styles them - not to be used inside an element.
+// Adds roots styles by default to <code> and <pre> tags.
+
+code-blocks()
+  code
+    code()
+  pre
+    pre()

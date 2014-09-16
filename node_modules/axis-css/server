@@ -1,0 +1,2 @@
+#!/bin/bash
+node spec/server.js

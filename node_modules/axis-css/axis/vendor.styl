@@ -1,0 +1,86 @@
+// ------
+// Vendor
+// ------
+// Utilities specifically intended for helping with vendor-prefixed
+// css properties
+
+// --------------------------- transitions ---------------------------------
+
+// Mixin: Transition
+// Intelligently prefix shorthand transition. Accepts multiple transitions.
+// ex. transition()
+// ex. transition(color 1s ease)
+// ex. transition(color 1s ease, background 2.4s linear)
+
+transition()
+  arguments = unquote('all .3s ease') unless arguments
+  transition: arguments
+
+
+// Mixin: Box Shadow
+// Auto-prefix box-shadow. Accepts multiple box shadows, includes IE support.
+// ex. box-shadow: 1px 1px 3px blue
+// ex. box-shadow: 1px 1px 3px blue, inset 2px 0 5px rgba(0,0,0,.5)
+
+box-shadow()
+  box-shadow: arguments
+  pie()
+
+// Mixin: Border Radius
+// Prefixes border-radius, IE support.
+// ex. +round-corners(5px)
+
+border-radius()
+  border-radius: arguments
+  pie()
+
+// Alias: Round Corners
+
+round-corners()
+  border-radius: arguments
+  pie()
+
+// Alias: Round
+
+round(px)
+  round-corners(px)
+
+// ------------------------------------- other utils ---------------------------------
+
+// Mixin: Opacity
+// I know, it seems silly. But every time you go to IE testing you will be thanking yourself for
+// using this instead of the normal opacity declaration. Overrides default opacity.
+// ex. opacity: .6
+
+opacity(opacity)
+  filter: s("progid:DXImageTransform.Microsoft.Alpha(Opacity=%s)", opacity * 100) if ie-support
+  opacity: opacity
+
+// Mixin: Border Box
+// Use carefully if you need to test in IE
+
+border-box()
+  box-sizing: border-box
+
+// Mixin: background-appearance-x and y
+// In case you want to use an unsupported background-position property, this
+// should set you straight!
+
+background-position-x(x)
+  background-position: x 0
+
+background-position-y(y)
+  background-position: 0 y
+
+// Mixin: Opentype ligatures
+// The vast majority of fonts contain lowercase and uppercase alphabets, numerals, punctuation and accents. Many professionally-designed 
+// fonts also contain ligatures, alternative characters, smallcaps, different kinds of numbers, and sometimes much more besides. This enables it.
+// Source: http://www.newnet-soft.com/blog/csstypography
+// Additiona: http://blog.fontdeck.com/post/15777165734/opentype-1
+
+openTypeLigatures()
+  -moz-font-feature-settings:    "liga=1, dlig=1"
+  -ms-font-feature-settings:     "liga", "dlig"
+  -webkit-font-feature-settings: "liga", "dlig"
+  -o-font-feature-settings:      "liga", "dlig"
+  font-feature-settings:         "liga", "dlig"

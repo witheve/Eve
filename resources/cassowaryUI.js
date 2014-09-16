@@ -142,7 +142,7 @@ function below(parent, child, margin) {
 var solver = createSolver();
 initWindowVars();
 
-var numItems = 500;
+var numItems = 100;
 
 function createItems() {
   console.time("create: " + numItems);
@@ -162,6 +162,7 @@ function createItems() {
 }
 
 function testBelow() {
+  console.time("position");
   wrapPosition("#foo0");
   for(var i = 1; i < numItems; i++) {
     var id = "#foo" + i;
@@ -170,6 +171,7 @@ function testBelow() {
     swapConstraint(id + ".below", below(prevId, id, 10));
     swapConstraint(id + ".centerx", centerX("window", id));
   }
+  console.timeEnd("position");
 }
 
 createItems();

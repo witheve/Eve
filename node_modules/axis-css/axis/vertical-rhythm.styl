@@ -1,0 +1,441 @@
+// Vertical Rhythm ported from SASS/Compass
+// Works exactly as before, with four exceptions:
+// 1. rhythm() is a mixin, -rhythm() is a function. Stylus doesn't differentiate between same-name mixins and functions
+// 2. All of the variables you're used to lack the dollar sign ($) prepend.
+// 3. debug-vertical-alignment uses a temporary online image solution via http://basehold.it
+// 4. There is no h-borders alias. Use horizonatal-borders instead.
+
+// The base font size.
+base-font-size ?= unit(font-size, px)
+
+// The base line height determines the basic unit of vertical rhythm.
+base-line-height ?= 24px
+
+// Set the default border style for rhythm borders.
+default-rhythm-border-style ?= solid
+
+// The default font size in all browsers.
+browser-default-font-size = 16px
+
+// Set to false if you want to use absolute pixels in sizing your typography.
+relative-font-sizing ?= true
+
+// Allows the `adjust-font-size-to` mixin and the `-lines-for-font-size` function
+// to round the line height to the nearest half line height instead of the
+// nearest integral line height to avoid large spacing between lines.
+round-to-nearest-half-line ?= false
+
+// Ensure there is at least this many pixels
+// of vertical padding above and below the text.
+min-line-padding ?= 2px
+
+// $base-font-size but in your output unit of choice.
+// Defaults to 1em when `$relative-font-sizing` is true.
+font-unit ?= relative-font-sizing ? 1em : base-font-size
+
+// The basic unit of font rhythm.
+base-rhythm-unit = font-unit * base-line-height / base-font-size
+
+// The leader is the amount of whitespace in a line.
+// It might be useful in your calculations.
+base-leader = font-unit / base-font-size * (base-line-height - base-font-size)
+
+// The half-leader is the amount of whitespace above and below a line.
+// It might be useful in your calculations.
+base-half-leader = base-leader / 2
+
+// @public unitless() function borrowed from SASS
+// TODO: move this to a utilities file
+-unitless(number)
+  unit(number) is ''
+
+// @public Function.
+// True if a number has a relative unit.
+-relative-unit(number)
+  unit(number) is '%' or unit(number) is 'em' or unit(number) is 'rem'
+
+// @public Function.
+// True if a number has an absolute unit.
+-absolute-unit(number)
+  not (-relative-unit(number) or -unitless(number))
+
+if (relative-font-sizing) and (not -relative-unit(font-unit))
+  warn('relative-font-sizing is true but font-unit is set to ' + font-unit + ' which is not a relative unit.')
+
+// Mixin
+// Establishes a font baseline for the given font-size.
+establish-baseline(fs = base-font-size)
+  if fs is a 'unit'
+    // IE 6 refuses to resize fonts set in pixels and it weirdly resizes fonts
+    // whose root is set in ems. So we set the root font size in percentages of
+    // the default font size.
+    * html
+      font-size: 100% * (fs / browser-default-font-size)
+    html
+      font-size: fs
+      adjust-leading-to: 1, relative-font-sizing ? fs : base-font-size
+
+  else if (fs is a 'string') and (fs is 'normalize')
+    baseline-normalize()
+
+  else
+    warn('Invalid parameter ' + fs + ' passed to establish-baseline().')
+
+// Show a background image that can be used to debug your alignments.
+// Requires internet connection
+// TODO: Make a better version of this
+debug-vertical-alignment()
+  background-image: url('http://basehold.it/i/' + unit(base-line-height, ''))
+
+// Adjust a block to have a different font size and line height to maintain the
+// rhythm. $lines specifies how many multiples of the baseline rhythm each line
+// of this font should use up. It does not have to be an integer, but it
+// defaults to the smallest integer that is large enough to fit the font.
+// Use $from-size to adjust from a font-size other than the base font-size.
+adjust-font-size-to(to-size, lines = -lines-for-font-size(to-size), from-size = base-font-size)
+  if (not relative-font-sizing) and (from-size is not base-font-size)
+    warn('relative-font-sizing is false but a relative font size was passed to adjust-font-size-to')
+  font-size: font-unit * (to-size / from-size)
+  adjust-leading-to: lines, relative-font-sizing ? to-size : base-font-size
+
+// Adjust a block to have different line height to maintain the rhythm.
+// $lines specifies how many multiples of the baseline rhythm each line of this
+// font should use up. It does not have to be an integer, but it defaults to the
+// smallest integer that is large enough to fit the font.
+adjust-leading-to(lines, font-size = base-font-size)
+  line-height: -rhythm(lines, font-size)
+
+// @public function - Calculate rhythm units.
+-rhythm(lines = 1, font-size = base-font-size, offset = 0)
+  if (not relative-font-sizing) and (font-size is not base-font-size)
+    warn('relative-font-sizing is false but a relative font size was passed to the rhythm function')
+  rhythm = font-unit * (lines * base-line-height - offset) / font-size
+  // Round the pixels down to nearest integer.
+  if unit(rhythm) is 'px'
+    rhythm = floor(rhythm)
+  return rhythm
+
+// @private Function - Calculate the minimum multiple of rhythm units needed to contain the font-size.
+-lines-for-font-size(font-size)
+  lines = round-to-nearest-half-line ? ceil(2 * font-size / base-line-height) / 2 : ceil(font-size / base-line-height)
+  if lines * base-line-height - font-size < min-line-padding * 2
+    lines = lines + (round-to-nearest-half-line ? 0.5 : 1)
+  return unit(lines, '')
+
+// Apply leading whitespace. The $property can be margin or padding.
+leader(lines = 1, font-size = base-font-size, property = margin)
+  {property}-top: -rhythm(lines, font-size)
+
+// Apply leading whitespace as padding.
+padding-leader(lines = 1, font-size = base-font-size)
+  padding-top: -rhythm(lines, font-size)
+
+// Apply leading whitespace as margin.
+margin-leader(lines = 1, font-size = base-font-size)
+  margin-top: -rhythm(lines, font-size)
+
+// Apply trailing whitespace. The $property can be margin or padding.
+trailer(lines = 1, font-size = base-font-size, property = margin)
+  {property}-bottom: -rhythm(lines, font-size)
+
+// Apply trailing whitespace as padding.
+padding-trailer(lines = 1, font-size = base-font-size)
+  padding-bottom: -rhythm(lines, font-size)
+
+// Apply trailing whitespace as margin.
+margin-trailer(lines = 1, font-size = base-font-size)
+  margin-bottom: -rhythm(lines, font-size)
+
+// Shorthand mixin to apply whitespace for top and bottom margins and padding.
+rhythm(l = 0, pl = 0, pt = 0, t = 0, font-size = base-font-size)
+  leader: l, font-size
+  padding-leader: pl, font-size
+  padding-trailer: pt, font-size
+  trailer: t, font-size
+
+// Apply a border and whitespace to any side without destroying the vertical
+// rhythm. The whitespace must be greater than the width of the border.
+apply-side-rhythm-border(side, w = 1px, lines = 1, font-size = base-font-size, bs = default-rhythm-border-style)
+  if (not relative-font-sizing) and (font-size is not base-font-size)
+    warn('relative-font-sizing is false but a relative font size was passed to apply-side-rhythm-border')
+  border-{side}-style: bs
+  border-{side}-width: font-unit * (w / font-size)
+  padding-{side}: -rhythm(lines, font-size, offset = w)
+
+// Apply borders and whitespace equally to all sides.
+rhythm-borders(w = 1px, lines = 1, font-size = base-font-size, bs = default-rhythm-border-style)
+  if (not relative-font-sizing) and (font-size is not base-font-size)
+    warn('relative-font-sizing is false but a relative font size was passed to rhythm-borders')
+  border-style: bs
+  border-width: font-unit * (w / font-size)
+  padding: -rhythm(lines, font-size, offset = w)
+
+// Apply a leading border.
+leading-border(width = 1px, lines = 1, font-size = base-font-size, border-style = default-rhythm-border-style)
+  apply-side-rhythm-border: top, width, lines, font-size, border-style
+
+// Apply a trailing border.
+trailing-border(width = 1px, lines = 1, font-size = base-font-size, border-style = default-rhythm-border-style)
+  apply-side-rhythm-border: bottom, width, lines, font-size, border-style
+
+// Apply both leading and trailing borders.
+horizontal-borders(width = 1px, lines = 1, font-size = base-font-size, border-style = default-rhythm-border-style)
+  leading-border: width, lines, font-size, border-style
+  trailing-border: width, lines, font-size, border-style
+
+// ---------------------------------------------
+// @private Mixin - Internal Baseline Normalize
+// ---------------------------------------------
+
+baseline-normalize()
+  h1-font-size = 2 * base-font-size
+  h2-font-size = 1.5 * base-font-size
+  h3-font-size = 1.17 * base-font-size
+  h4-font-size = 1 * base-font-size
+  h5-font-size = 0.83 * base-font-size
+  h6-font-size = 0.67 * base-font-size
+  base-font-family = sans-serif
+  indent-amount = 40px
+
+  article
+  aside
+  details
+  figcaption
+  figure
+  footer
+  header
+  hgroup
+  main
+  nav
+  section
+  summary
+    display: block
+
+  audio
+  canvas
+  video
+    display: inline-block
+    if support-for-ie
+      *display: inline
+      *zoom: 1
+
+  audio:not([controls])
+    display: none
+    height: 0
+  [hidden]
+    display: none
+
+  html
+    font-family: base-font-family
+    -webkit-text-size-adjust: 100%
+    -ms-text-size-adjust: 100%
+    font-size: 100% * (base-font-size / 16px)
+    adjust-leading-to: 1
+
+  if support-for-ie
+    button
+    input
+    select
+    textarea
+      font-family: base-font-family
+
+  body
+      margin: 0
+
+  a:focus
+    outline: thin dotted
+
+  a:active
+  a:hover
+    outline: 0
+
+  p
+  pre
+    margin: -rhythm(1) 0
+
+  blockquote
+    margin: -rhythm(1) indent-amount
+
+  h1
+    adjust-font-size-to: h1-font-size
+    leader: 1, h1-font-size
+    trailer: 1, h1-font-size
+
+  h2
+    adjust-font-size-to: h2-font-size
+    leader: 1, h2-font-size
+    trailer: 1, h2-font-size
+
+  h3
+    adjust-font-size-to: h3-font-size
+    leader: 1, h3-font-size
+    trailer: 1, h3-font-size
+
+  h4
+    adjust-font-size-to: h4-font-size
+    leader: 1, h4-font-size
+    trailer: 1, h4-font-size
+
+  h5
+    adjust-font-size-to: h5-font-size
+    leader: 1, h5-font-size
+    trailer: 1, h5-font-size
+
+  h6
+    adjust-font-size-to: h6-font-size
+    leader: 1, h6-font-size
+    trailer: 1, h6-font-size
+
+  abbr[title]
+    border-bottom: 1px dotted
+
+  b
+  strong
+    font-weight: bold
+
+  dfn
+    font-style: italic
+
+  hr
+    -moz-box-sizing: content-box
+    box-sizing: content-box
+    height: 0
+
+  mark
+    background: #ff0
+    color: #000
+
+  code
+  kbd
+  pre
+  samp
+    font-family: monospace, serif
+    if support-for-ie
+      _font-family: 'courier new', monospace
+      adjust-font-size-to: 1 * base-font-size
+
+  pre
+    white-space: pre-wrap
+
+  q
+    quotes: "\201C" "\201D" "\2018" "\2019"
+
+  small
+    font-size: 80%
+
+  sub
+  sup
+    font-size: 75%
+    line-height: 0
+    position: relative
+    vertical-align: baseline
+
+  sup
+    top: -0.5em
+
+  sub
+    bottom: -0.25em
+
+  dl
+  menu
+  ol
+  ul
+    margin: -rhythm(1) 0
+    padding: 0 0 0 indent-amount
+
+  dl
+    padding: 0
+
+  dd
+    margin: 0 0 0 indent-amount
+
+  if support-for-ie
+    nav
+      ul
+      ol
+        list-style: none
+        list-style-image: none
+
+  img
+    border: 0
+    if support-for-ie
+      -ms-interpolation-mode: bicubic
+
+  svg:not(:root)
+    overflow: hidden
+
+  figure
+    margin: 0
+
+  if support-for-ie
+    form
+      margin: 0
+
+  fieldset
+    border-color: #c0c0c0
+    margin: 0 2px
+    apply-side-rhythm-border: top, width = 1px, lines = 0.35
+    apply-side-rhythm-border: bottom, width = 1px, lines = 0.65
+    apply-side-rhythm-border: left,  width = 1px, lines = 0.625
+    apply-side-rhythm-border: right, width = 1px, lines = 0.625
+
+  legend
+    border: 0
+    padding: 0
+    if support-for-ie
+      *margin-left: -7px
+
+  button
+  input
+  select
+  textarea
+    font-family: inherit
+    font-size: 100%
+    margin: 0
+    if support-for-ie
+      vertical-align: baseline
+      *vertical-align: middle
+
+  button
+  input
+    line-height: normal
+
+  button
+  select
+    text-transform: none
+
+  button, html input[type="button"], input[type="reset"], input[type="submit"]
+    -webkit-appearance: button
+    cursor: pointer
+    if support-for-ie
+      *overflow: visible
+
+  button[disabled], html input[disabled]
+    cursor: default
+
+  input[type="checkbox"], input[type="radio"]
+    box-sizing: border-box
+    padding: 0
+    if support-for-ie
+      *height: 13px
+      *width: 13px
+
+  input[type="search"]
+    -webkit-appearance: textfield
+    box-sizing: content-box
+
+  input[type="search"]::-webkit-search-cancel-button, input[type="search"]::-webkit-search-decoration
+    -webkit-appearance: none
+
+  button::-moz-focus-inner
+  input::-moz-focus-inner
+    border: 0
+    padding: 0
+
+  textarea
+    overflow: auto
+    vertical-align: top
+
+  table
+    border-collapse: collapse
+    border-spacing: 0

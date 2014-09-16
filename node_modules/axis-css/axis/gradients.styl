@@ -1,0 +1,171 @@
+// -----------------------------------------------------
+// Gradients
+// -----------------------------------------------------
+// linear-gradient() ported from visionmedia/nib
+
+
+// Replace the given str with val in the expr.
+-replace(expr, str, val)
+  expr = clone(expr)
+  for e, i in expr
+    if length(e) > 1
+      expr[i] = -replace(e, str, val)
+    else
+      if str == e
+        expr[i] = val
+  expr
+
+// Normalize gradient points.
+-grad-point(pos)
+  if length(pos) == 1
+    return left pos if pos in (top bottom)
+    return pos top if pos in (left right)
+  else if pos[0] in (top bottom)
+    pos[1] pos[0]
+  else
+    pos
+
+// Implicit color stop position.
+-pos-in-stops(i, stops)
+  len = length(stops)
+  if len - 1 == i
+    100%
+  else if i
+    unit(i / len * 100, '%')
+  else
+    0%
+
+// Normalize color stops:
+// - (color pos) -> (pos color)
+// - (color) -> (implied-pos color)
+-normalize-stops(stops)
+  stops = clone(stops)
+  for stop, i in stops
+    if length(stop) == 1
+      color = stop[0]
+      stop[0] = -pos-in-stops(i, stops)
+      stop[1] = color
+    else if typeof(stop[1]) == 'unit'
+      pos = stop[1]
+      stop[1] = stop[0]
+      stop[0] = pos
+  stops
+
+// Join color stops with the given translation function.
+-join-stops(stops, translate)
+  str = ''
+  len = length(stops)
+  for stop, i in stops
+    str += ', ' if i
+    pos = stop[0]
+    color = stop[1]
+    str += translate(color, pos)
+  unquote(str)
+
+// Legacy Webkit color stop.
+-webkit-stop(color, pos)
+  'color-stop(%d, %s)' % (pos / 100 color)
+
+// Standard color stop.
+-std-stop(color, pos)
+  '%s %s' % (color pos)
+
+// Create a linear gradient with the given start position
+// and variable number of color stops.
+
+// Examples:
+//   background: linear-gradient(top, red, green, blue)
+//   background: linear-gradient(bottom, red, green 50%, blue)
+//   background: linear-gradient(bottom, red, 50% green, blue)
+//   background: linear-gradient(bottom, red, 50% green, 90% white, blue)
+
+linear-gradient(start, stops...)
+  error('color stops required') unless length(stops)
+  prop = current-property[0]
+  val = current-property[1]
+
+  if start is a 'color'
+    unshift(stops, start)
+    start = top
+
+  stops = -normalize-stops(stops)
+
+  // gradient image
+  if start[0] is a 'unit'
+    start = start[1]
+
+  // legacy webkit
+  end = -grad-point(opposite-position(start))
+  webkit-legacy = '-webkit-gradient(linear, %s, %s, %s)' % (-grad-point(start) end -join-stops(stops, -webkit-stop))
+  add-property(prop, -replace(val, '__CALL__', webkit-legacy))
+
+  // vendor prefixed
+  stops = -join-stops(stops, -std-stop)
+  for prefix in vendors
+    unless prefix == official
+      gradient = '-%s-linear-gradient(%s, %s)' % (prefix start stops)
+      add-property(prop, -replace(val, '__CALL__', gradient))
+
+  // standard
+  'linear-gradient(%s, %s)' % (start stops)
+
+// Mixin: Gradient
+// Takes two colors and outputs a vertical gradient that fades between the two colors.
+// ex. gradient(#EB8468, #BA6952)
+
+gradient(color1, color2)
+  background: color1 
+  background: color2 linear-gradient(top, color1, color2) repeat-x
+  if pie-enabled
+    -pie-background: unquote('linear-gradient(top,') color1 unquote(' 0%, ') color2 unquote('color2 100%)')
+    pie()
+
+// Mixin: Simple Gradient
+// Takes one color and an optional strength. Darkens and lightens the color according to the strength
+// and creates a gradient between those two values, the average being the originally passed color.
+// Higher strength will result in a more strongly contrasted gradient
+// ex. simple-gradient(#EB8468)
+// ex. simple-gradient(#61D464, 20%)
+
+simple-gradient(color, strength = 10%)
+  start = lighten(color, strength)
+  end = darken(color, strength)
+  gradient(start, end)
+
+// Mixin: Noise Gradient
+// Exactly the same as the gradient mixin, but overlays a very light noise to give it more texture.
+// ex. noise-gradient(#EB8468, #BA6952)
+
+noise-gradient(color1, color2, imagePath = 'noise.png')
+  background: color1 
+  background: url(img-path imagePath) repeat, color2 linear-gradient(top, color1, color2) repeat-x
+  if pie-enabled
+    -pie-background: unquote('linear-gradient(top,') color1 unquote(' 0%, ') color2 unquote('color2 100%)')
+    pie()
+
+// Mixin: Simple Noise Gradient
+// Exactly like simple gradient, but overlays a very light noise to give it more texture.
+// ex. simple-noise-gradient(#EB8468, #BA6952)
+
+simple-noise-gradient(color, strength = 10%, imagePath = 'noise.png')
+  start = lighten(color, strength)
+  end = darken(color, strength)
+  noise-gradient(start, end, imagePath)
+
+// Mixin: Radial Gradient
+// Exactly like linear gradient, but has no sense of direction
+// ex. radial-gradient(red, blue)
+
+radial-gradient(stops...)
+  error('color stops required') unless length(stops)
+  prop = current-property[0]
+  val = current-property[1]
+  stops = -normalize-stops(stops)
+  webkit-legacy = '-webkit-gradient(radial, center center 0px, center center 100%, %s, %s)' % -join-stops(stops, -webkit-stop)
+  add-property(prop, -replace(val, '__CALL__', webkit-legacy))
+  stops = -join-stops(stops, -std-stop)
+  for prefix in vendors
+    unless prefix is official
+      gradient = '-%s-radial-gradient(center, ellipse cover, %s)' % (prefix stops)
+      add-property(prop, -replace(val, '__CALL__', gradient))
+  'radial-gradient(ellipse at center, %s)' % stops

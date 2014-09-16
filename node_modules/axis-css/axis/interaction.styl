@@ -1,0 +1,99 @@
+// -----------------------------------------------------
+// Interaction
+// -----------------------------------------------------
+
+// Mixin: Hover Darken
+// Darkens the color and/or background color on your element when it's hovered.
+// Takes an optional percentage to darken it.
+// ex. hover-darken()
+// ex. hover-darken: 30%
+
+hover-darken(percent = 15%, force-use-color = false)
+  &:hover
+    if @background and !force-use-color
+      background-color: darken(@background, percent)
+    else if @background-color and !force-use-color
+      background-color: darken(@background-color, percent)
+    else if @color
+      color: darken(@color, percent)
+    else
+      warn('you need to set a color or background color on your element for this to work')
+
+// Mixin: Hover Lighten
+// Works the same way as hover darken but lightens the color
+
+hover-lighten(percent = 15%, force-use-color = false)
+  &:hover
+    if @background and !force-use-color
+      background-color: lighten(@background, percent)
+    else if @background-color and !force-use-color
+      background-color: lighten(@background-color, percent)
+    else if @color
+      color: lighten(@color, percent)
+    else
+      warn('you need to set a color or background color on your element for this to work')
+
+// Mixin: Hover Underline
+// This one is interesting, and may need tweaking to get it to work right on the
+// intended element. Works very nicely for text, like in a span, and can animate.
+// ex. hover-underline()
+// ex. hover-underline: 2px dotted
+
+hover-underline(border-size = 1px, type = solid, color = null)
+  border-bottom: border-size type transparent
+  &:hover
+    border-bottom: border-size type color
+    
+// Mixin: Hover Pop
+// On hover, your element pops out from the page. For scale, it takes an integer or float,
+// 1 represents 100%, 2 is 200%, etc. Optionally can also rotate, pass it a number followed by
+// "deg", like 180deg. If you pass true for shadow, it will animate in a drop shadow to add to
+// the effect
+// ex. hover-pop: 1.5
+// ex. hover-pop: 2.6 90deg
+// ex. hover-pop: 1.2 45deg true
+
+hover-pop(scale = 1.2, rotate = null, shadow = null)
+  if shadow
+    box-shadow(0 0 1px transparent)
+  &:hover
+    position: relative
+    z-index: 10
+    transform: scale(scale)
+    if shadow
+      box-shadow(0 0 5px rgba(#000, .3))
+    if rotate
+      transform: scale(scale) rotate(rotate)
+
+// Mixin: Hover Fade
+// On hover, fades the element's opacity down. Takes an amount as an integer between
+// 0 and 1, like opacity normally does. Recommended to be used with transition.
+// ex. hover-fade: .5
+
+hover-fade(amount = .5)
+  &:hover
+    opacity: amount
+
+// Mixin: Hover Color
+// Will swap an elements color or background color on hover. Takes a color in any format
+// as the first argument. Will first look for a background color to change, then a color.
+// ex. hover-color: #D45D86
+
+hover-color(color, force-use-color = false)
+  &:hover
+    if @background and !force-use-color
+      background-color: color
+    else if @background-color and !force-use-color
+      background-color: color
+    else if @background-color
+      background-color: color
+    else if @color
+      color: color
+    else
+      warn('you need to set a color or background color on your element for this to work')
+
+
+// To add:
+// *+click-down(pixels)*
+// *+click-shadow(radius)*
+// *+button-interaction(color)*

@@ -1,0 +1,177 @@
+// -----------------------------------------------------
+// Buttons
+// -----------------------------------------------------
+// I realize that this is insane, but trust me, it's worth it
+
+// Mixin: highlight
+// Adds a light brighter line across the top of the element for a perspective effect.
+// Takes an optional argument for strength, which takes a value between 0 and 1
+// ex. highlight
+// ex. highlight(.7)
+
+highlight(strength = .3)
+  box-shadow(s("inset 0 1px 0 %s", rgba(255,255,255,strength)))
+
+// This is an internal function used for the button mixins, not intended for use.
+
+parse(size)
+  if size == "small"
+    return 10
+  else if size == "medium"
+    return 13
+  else if size == "large"
+    return 18
+  else
+    return size
+
+// Mixin: Simple Button
+// Creates a very basic looking button style. Two optional params:
+// - color: Takes any color, defaults to the default global color
+// - size: Takes 'small', 'medium', 'large', or an integer. The numbers reflects the
+//   font size for the text inside the button, but scales all other aspects as well.
+// ex. +simple-button
+// ex. +simple-button(blue)
+// ex. +simple-button(#D4513B)
+// ex. +simple-button(green, large)
+// ex. +simple-button(#4C82D4, 24)
+
+// These will accept font icons interally in the very near future
+
+simple-button(color = default-color, size = "medium", textColor = null)
+
+  // color detection and changes
+  textColor = light(color) ? #494949 : #fff unless textColor
+  parsed_size = parse(size)
+
+  // now that we've got numbers, let's work some proportions
+  height = (parsed_size * 1.53px) / 2
+  width = ((parsed_size * 1.53px) * 2.2) / 2
+
+  // dynamically calculated styles
+  font-size: unit(parsed_size, px)
+  padding: unit(height, px) unit(width, px)
+  border-radius: (parsed_size / 4.33333px)
+  background-color: color
+  color: textColor
+  color: rgba(textColor, .95)
+
+  // constant styles
+  cursor: pointer
+  font-weight: bold
+  font-family: font-stack
+  line-height: 1
+  text-align: center
+  text-decoration: none
+  display: inline-block
+
+  &:hover, &:focus
+    background-color: darken(color, 5%)
+    color: darken(textColor, 3%)
+    color: rgba(darken(textColor, 3%), .95)
+
+  &:active
+    background-color: darken(color, 10%)
+
+// Mixin: Button
+// Creates a more fancy looking button style. Two optional params:
+// - color: Takes any color, defaults to the default global color
+// - size: Takes 'small', 'medium', 'large', or an integer. The numbers reflects the
+//   font size for the text inside the button, but scales all other aspects as well.
+// ex. +button
+// ex. +button(blue)
+// ex. +button(#D4513B)
+// ex. +button(green, large)
+// ex. +button(#4C82D4, 24)
+
+// These will accept font icons interally in the very near future
+
+button(color = default-color, size = "medium", textColor = null, shadowColor = null, hoverColor = null)
+
+  // color detection and changes
+  // this could be refactored for sure
+  if textColor
+    darkText = light(textColor) ? true : false
+  else
+    darkText = light(color) ? false : true
+    textColor = darkText ? white : #494949
+
+  shadowColor = darkText ? rgba(#000,.1) : rgba(#fff,.3) unless shadowColor
+  hoverColor = darkText ? rgba(#000,.2) : rgba(#fff,.5) unless hoverColor
+  downShadow = darkText ? 0 -1px 1px rgba(#000,.2) : 1px 1px 1px rgba(#fff,.6)
+
+  // parse words, make sure it's a number
+  parsed_size = parse(size)
+
+  // now that we've got numbers, let's work some proportions
+  height = (parsed_size*1.53px)/2
+  width = ((parsed_size*1.53px)*2.2)/2
+
+  // dynamically calculated styles
+  font-size: unit(parsed_size, px)
+  padding: unit(height, px) unit(width, px)
+  border-radius: (parsed_size/4.33333px)
+  simple-noise-gradient(color)
+  text-shadow: 1px 1px 1px shadowColor
+  border: s('1px solid %s', darken(color, 10%))
+  color: textColor
+  color: rgba(textColor, .95)
+
+  // constant styles
+  highlight()
+  cursor: pointer
+  font-weight: bold
+  font-family: font-stack
+  line-height: 1
+  text-align: center
+  text-decoration: none
+  display: inline-block
+
+  &:hover, &:focus
+    background-position: 0 unit(height * -1, px)
+    color: darken(textColor, 3%)
+    color: rgba(darken(textColor, 3%), .95)
+    text-shadow: 1px 1px 1px hoverColor
+
+  &:active
+    box-shadow(s("inset 0 1px %s %s", parsed_size/2.6px, rgba(darken(color, 25%),.6)))
+    text-shadow: downShadow
+    border-color: darken(color, 18%)
+
+// Mixin: Button Disabled
+// Add this mixin to a button and it will make the button appear to be disabled.
+// Easiest to attach to a class like '.disabled' and add that class to the button.
+// Takes no arguments.
+// ex.  .disabled
+//        +button-disabled
+
+button-disabled()
+  background: #ccc
+  border-color: darken(#ccc, 10%)
+  opacity: .5
+  cursor: default
+  no-select()
+  &:hover
+    background: #ccc
+    background-position: 0 0
+  &:active
+    background: #ccc
+    box-shadow(none)
+    border-color: darken(#ccc, 10%)
+    text-shadow: 1px 1px 1px rgba(#000,.1)
+
+// Additive Mixin: Buttons
+// WARNING: Creates classes in your css and styles them - not to be used inside an element.
+// This mixin makes it such that you can use classes to define buttons on your page.
+// .btn-simple: creates a simple button
+// .btn: creates a fancy button
+// .disabled: disables an existing button (will only work on .btn and .btn-simple)
+
+buttons()
+  .btn-simple
+    transition()
+    simple-button(blue)
+  .btn
+    transition()
+    button(blue)
+  .btn.disabled, .btn-simple.disabled
+    button-disabled()

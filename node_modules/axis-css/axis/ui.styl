@@ -1,0 +1,251 @@
+// -----------------------------------------------------
+// UI
+// -----------------------------------------------------
+
+// Mixin: Area
+// Just a nice little area for you to put content in. Rounded corners, box with light
+// grey background by default. You can pass it a different color if you'd like.
+// ex. area()
+// ex. area(red) -- not recommended
+
+area(color = #F5F5F5)
+  box-shadow(inset 0 0 6px rgba(#000,.05))
+  background-color: color
+  padding: 15px
+  border-radius: 4px
+  margin: 20px 0
+  pie()
+
+// Mixin: Notice
+// A notice for you. Best used for flash alerts, this was originally an internal
+// mixin, but you can use it if you'd like. Give it a color and a width and it will
+// output a nice lightly gradiented box for your notice to reside in.
+// ex. notice()
+// ex. notice(300px, red)
+// ex. notice: 500px blue
+
+notice(width = false, color = #EEEEEE, padding = 10px)
+  simple-gradient(color, 3%)
+  group()
+  border-radius: 5px
+  padding: padding
+  border: 1px solid darken(color, 10%)
+  -webkit-box-shadow: 1px 1px 3px rgba(#000,.05)
+  position: relative
+  width: width if width
+
+// Mixin: Flash
+// This is really great for rails flash messages, or really any little notifications like
+// 'logged in!', 'logged out!', or 'errarrrr!'. Takes one of four types and colors them nicely
+// for you - notice, success, warning, or error. Defaults to notice
+// ex. flash()
+// ex. flash(error)
+// ex. flash: success
+
+flash(type = notice)
+  if type == notice
+    notice(color: #6CC5FA)
+    color: #fff
+    font-weight: bold
+    text-shadow: 1px 1px 1px rgba(#000,.2)
+  if type == success
+    notice(color: #7BDEA3)
+    color: #fff
+    font-weight: bold
+    text-shadow: 1px 1px 1px rgba(#000,.2)
+  if type == warning
+    notice(color: #FAE677)
+    font-weight: bold
+    text-shadow: 1px 1px 1px rgba(#fff,.2)
+  if type == error
+    notice(color: #E77C70)
+    color: #fff
+    font-weight: bold
+    text-shadow: 1px 1px 1px rgba(#000,.2)
+
+// Mixin: Breadcrumb
+// Lay this one down on a list and it will turn the list into a breadcrumb-y thing. By default
+// separates with a slash, but you can feed it any character. Second param is spacing between the
+// list items, and the third is the color of the divider. All are optional.
+// ex. breadcrumb()
+// ex. breadcrumb: '>'
+// ex. breadcrumb: "-" 25px red
+// ex. breadcrumb("~", 40px)
+
+breadcrumb(character = "/", spacing = 10px, divider-color = #CDCDCD)
+  inline-list(spacing)
+  li:after
+    content: character
+    margin-left: spacing
+    color: divider-color
+  li:last-child:after
+    content: ""
+
+// Mixin: Bubble
+// If you're anything like me, you always seem to find your designers putting little bubbles in things.
+// This mixin takes care of that problem, and makes a nice bubble with 100% css.
+// All parameters optional - accepts width, pointer position (left, center, or right), and a color.
+// ex. bubble()
+// ex. bubble: top center #57777E
+// ex. bubble: bottom right #5740A1 500px
+// ex. bubble: right top #5740A1 500px
+
+bubble(pos0 = left, pos1 = false, color = #EEEEEE, width = false, triangleSize = 10px, sideDistance = 15px, padding = 10px, pointer = false, triangleColor = darken(color, 3%))
+  
+  // use named argument 'pointer' as pos0 arg (to preserve old bubble api)
+  if pointer
+    pos1 = pointer
+    pos0 = bottom
+  // if no pos1 is given, shift args and assume 'bottom pos0'
+  if pos1 is false
+    pos1 = pos0
+    pos0 = bottom
+  else if pos1 is a 'color'
+    width = color
+    color = pos1
+    pos1 = pos0
+    pos0 = bottom
+  notice(width, color, padding)
+  &:after
+    if pos0 is top
+      directionTriangle = up
+      positionY = top
+      distanceY = -(triangleSize)
+    else if pos0 is bottom
+      directionTriangle = down
+      positionY = bottom
+      distanceY = -(triangleSize)
+    else if pos0 is left
+      directionTriangle = left
+      positionX = left
+      distanceX = -(triangleSize)
+    else if pos0 is right
+      directionTriangle = right
+      positionX = right
+      distanceX = -(triangleSize)
+
+    if pos1 is left
+      positionX = left
+      distanceX = sideDistance
+    else if pos1 is right
+      positionX = right
+      distanceX = sideDistance
+    else if pos1 is bottom
+      positionY = bottom
+      distanceY = sideDistance
+    else if pos1 is top
+      positionY = top
+      distanceY = sideDistance
+    else if pos1 is center
+      if pos0 is top or pos0 is bottom or pos1 is false
+        margin-left: -(triangleSize)
+        positionX = left
+        distanceX = 50%
+      else
+        margin-top: -(triangleSize/2)
+        positionY = top
+        distanceY = 50%
+
+    // p(pos1)
+    // p(directionTriangle)
+    triangle(directionTriangle, triangleSize, triangleColor)
+    absolute: positionY distanceY positionX distanceX
+    display: block
+
+// Mixin: Figure
+// For when you want to *semantically* show an image. Put this on your <figure /> element and it will style
+// the nested image and figcaption in a wonderfully pleasing manner. Takes a color (for the thin outline), and
+// if you want, dimensions of the image as a space separated list.
+// ex. figure()
+// ex. figure: blue
+// ex. figure: #D29E78 100 250
+// ex. figure: green 100px 400px
+
+figure(color = default-color, dimensions = false)
+  if length(dimensions) > 1
+    display: block
+    width: unit(dimensions[0], px)
+    height: unit(dimensions[1], px)
+  else if dimensions == false
+    inline-block()
+  else
+    warn("Make sure you pass the image's dimensions as a space-separated list")
+  img
+    display: block
+    padding: 4px
+    round(3px)
+    border: 1px solid rgba(color, .6)
+  figcaption
+    padding: 10px 0
+    text-align: center
+    italic()
+
+// Mixin: Navigation
+// Makes a fantastic nav bar for you that doesn't look exactly like bootstrap's and you can
+// customize it as well. Params: fixed (boolean), color (recommend something dark), link color,
+// and size, which is an integer from one up, and scales every aspect of the nav bar for you.
+// All have defaults.
+// This mixin is meant to be placed on a <nav> element that contains a ul.
+// ex. nav()
+// ex. nav: 1 #444 red fixed
+
+navigation(size = 1, color = #222, link-color = #fff, fixed = true)
+  display: block
+  z-index: 10
+  simple-noise-gradient(color, 5%)
+  group()
+  box-shadow(0 3px 3px rgba(0,0,0,.15))
+  border-bottom: 1px solid rgba(darken(color, 15%),.7)
+  height: (size + 14) * 2.866px
+  width: 100%
+  font-size: unit(size + 14, px)
+  if fixed
+    position: unquote('fixed')
+  else
+    position: relative
+
+  h1
+    float: left
+    padding: (size + 14) * .58px
+    padding-left: 17px
+    color: link-color
+    bold()
+    font-size: (size + 14) * 1.3px
+
+  ul
+    float: right
+    margin: 0
+    padding: (size + 14) * .8px
+    color: link-color
+
+    li
+      list-style-type: none
+      margin-right: 30px
+      float: left
+
+      a
+        color: link-color
+        border: none
+        cursor: pointer
+
+        &:hover
+          color: darken(link-color, 20%)
+          border: none
+
+// Additive Mixin: Flash Notices
+// WARNING: Creates classes in your css and styles them - not to be used inside an element.
+// Super convenient flash notices. Anything with .flash on it will display as a notice, and if
+// you add the additional class .error, .warning, .notice, or .success, it will display the
+// appropriate color background for the message.
+// ex. flash-notices()
+
+flash-notices()
+  .flash
+    &.error
+      flash(error)
+    &.warning
+      flash(warning)
+    &.notice
+      flash(notice)
+    &.success
+      flash(success)

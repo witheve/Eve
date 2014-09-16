@@ -1,0 +1,3 @@
+#!/bin/bash
+casperjs spec/init.coffee
+open spec/results

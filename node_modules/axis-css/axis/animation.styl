@@ -1,0 +1,458 @@
+// ------------------------------
+// Preset animations
+// ------------------------------
+
+// Ported directly from Eric Meyer's compass-animation module, which was adapted from Dan Eden's animate.css
+// https://github.com/ericam/compass-animation
+// http://daneden.me/animate/
+
+// Includes: flash, bounce, shake, tada, swing, wobble, pulse, hinge,
+// rollIn/Out, bounceIn/Out(Up/Down/Left/Right), fadeIn/Out(Up/Down/Left/Right), and
+// rotateIn/Out(Up/Down/Left/Right)
+
+// Excludes the "big" animations because they are atrocious and should never be used.
+// Will include more custom-written ones in the future
+
+@keyframes flash
+  0%
+    opacity: 1
+  25%
+    opacity: 0
+  50%
+    opacity: 1
+  75%
+    opacity: 0
+  100%
+    opacity: 1
+
+@keyframes bounce
+  0%
+    transform: translateY(0)
+  20%
+    transform: translateY(0)
+  40%
+    transform: translateY(-30px)
+  50%
+    transform: translateY(0)
+  60%
+    transform: translateY(-15px)
+  80%
+    transform: translateY(0)
+  100%
+    transform: translateY(0)
+
+@keyframes shake
+  0%
+    transform: translateX(0)
+  10%
+    transform: translateX(-10px)
+  20%
+    transform: translateX(10px)
+  30%
+    transform: translateX(-10px)
+  40%
+    transform: translateX(10px)
+  50%
+    transform: translateX(-10px)
+  60%
+    transform: translateX(10px)
+  70%
+    transform: translateX(-10px)
+  80%
+    transform: translateX(10px)
+  90%
+    transform: translateX(-10px)
+  100%
+    transform: translateX(0)
+
+@keyframes tada
+  0%
+    transform: scale(1)
+  10%
+    transform: scale(0.9) rotate(-3deg)
+  20%
+    transform: scale(0.9) rotate(-3deg)
+  30%
+    transform: scale(1.1) rotate(3deg)
+  40%
+    transform: scale(1.1) rotate(-3deg)
+  50%
+    transform: scale(1.1) rotate(3deg)
+  60%
+    transform: scale(1.1) rotate(-3deg)
+  70%
+    transform: scale(1.1) rotate(3deg)
+  80%
+    transform: scale(1.1) rotate(-3deg)
+  90%
+    transform: scale(1.1) rotate(3deg)
+  100%
+    transform: scale(1) rotate(0)
+
+@keyframes swing
+  20%
+  40%
+  60%
+  80%
+  100%
+    transform-origin: top center
+  20%
+    transform: rotate(15deg)
+  40%
+    transform: rotate(-10deg)
+  60%
+    transform: rotate(5deg)
+  80%
+    transform: rotate(-5deg)
+  100%
+    transform: rotate(0deg)
+
+@keyframes wobble
+  0%
+    transform: translateX(0%)
+  15%
+    transform: translateX(-25%) rotate(-5deg)
+  30%
+    transform: translateX(20%) rotate(3deg)
+  45%
+    transform: translateX(-15%) rotate(-3deg)
+  60%
+    transform: translateX(10%) rotate(2deg)
+  75%
+    transform: translateX(-5%) rotate(-1deg)
+  100%
+    transform: translateX(0%)
+
+@keyframes pulse
+  0%
+    transform: scale(1)
+  50%
+    transform: scale(1.1)
+  100%
+    transform: scale(1)
+
+@keyframes hinge
+  0%
+    transform: rotate(0)
+    transform-origin: top left
+    animation-timing-function: ease-in-out
+  20%, 60%
+    transform: rotate(80deg)
+    transform-origin: top left
+    animation-timing-function: ease-in-out
+  40%
+    transform: rotate(60deg)
+    transform-origin: top left
+    animation-timing-function: ease-in-out
+  80%
+    transform: rotate(60deg) translateY(0)
+    opacity: 1
+    transform-origin: top left
+    animation-timing-function: ease-in-out
+  100%
+    transform: translateY(700px)
+    opacity: 0
+
+@keyframes rollIn
+  0%
+    opacity: 0
+    transform: translateX(-100%) rotate(-120deg)
+  100%
+    opacity: 1
+    transform: translateX(0px) rotate(0deg)
+
+@keyframes rollOut
+  0%
+    opacity: 1
+    transform: translateX(0px) rotate(0deg)
+  100%
+    opacity: 0
+    transform: translateX(-100%) rotate(-120deg)
+
+@keyframes bounceIn
+  0%
+    opacity: 0
+    transform: scale(0.3)
+  50%
+    opacity: 1
+    transform: scale(1.05)
+  70%
+    transform: scale(0.9)
+  100%
+    transform: scale(1)
+
+@keyframes bounceInDown
+  0%
+    opacity: 0
+    transform: translateY(-2000px)
+  60%
+    opacity: 1
+    transform: translateY(30px)
+  80%
+    transform: translateY(-10px)
+  100%
+    transform: translateY(0)
+
+@keyframes bounceInUp
+  0%
+    opacity: 0
+    transform: translateY(2000px)
+  60%
+    opacity: 1
+    transform: translateY(-30px)
+  80%
+    transform: translateY(10px)
+  100%
+    transform: translateY(0)
+
+@keyframes bounceInRight
+  0%
+    opacity: 0
+    transform: translateX(2000px)
+  60%
+    opacity: 1
+    transform: translateX(-30px)
+  80%
+    transform: translateX(10px)
+  100%
+    transform: translateX(0)
+
+@keyframes bounceInLeft
+  0%
+    opacity: 0
+    transform: translateX(-2000px)
+  60%
+    opacity: 1
+    transform: translateX(30px)
+  80%
+    transform: translateX(-10px)
+  100%
+    transform: translateX(0)
+
+@keyframes bounceOut
+  0%
+    transform: scale(1)
+  25%
+    transform: scale(0.95)
+  50%
+    opacity: 1
+    transform: scale(1.1)
+  100%
+    opacity: 0
+    transform: scale(0.3)
+
+@keyframes bounceOutUp
+  0%
+    transform: translateY(0)
+  20%
+    opacity: 1
+    transform: translateY(20px)
+  100%
+    opacity: 0
+    transform: translateY(-2000px)
+
+@keyframes bounceOutDown
+  0%
+    transform: translateY(0)
+  20%
+    opacity: 1
+    transform: translateY(-20px)
+  100%
+    opacity: 0
+    transform: translateY(2000px)
+
+@keyframes bounceOutLeft
+  0%
+    transform: translateX(0)
+  20%
+    opacity: 1
+    transform: translateX(20px)
+  100%
+    opacity: 0
+    transform: translateX(-2000px)
+
+@keyframes bounceOutRight
+  0%
+    transform: translateX(0)
+  20%
+    opacity: 1
+    transform: translateX(-20px)
+  100%
+    opacity: 0
+    transform: translateX(2000px)
+
+@keyframes fadeIn
+  0%
+    opacity: 0
+  100%
+    opacity: 1
+
+@keyframes fadeInUp
+  0%
+    transform: translateY(20px)
+    opacity: 0
+  100%
+    transform: translateY(0)
+    opacity: 1
+
+@keyframes fadeInDown
+  0%
+    transform: translateY(-20px)
+    opacity: 0
+  100%
+    transform: translateY(0)
+    opacity: 1
+
+@keyframes fadeInRight
+  0%
+    transform: translateX(20px)
+    opacity: 0
+  100%
+    transform: translateX(0)
+    opacity: 1
+
+@keyframes fadeInLeft
+  0%
+    transform: translateX(-20px)
+    opacity: 0
+  100%
+    transform: translateX(0)
+    opacity: 1
+
+@keyframes fadeOut
+  0%
+    opacity: 1
+  100%
+    opacity: 0
+
+@keyframes fadeOutUp
+  0%
+    transform: translateY(0)
+    opacity: 1
+  100%
+    transform: translateY(-20px)
+    opacity: 0
+
+@keyframes fadeOutDown
+  0%
+    transform: translateY(0)
+    opacity: 1
+  100%
+    transform: translateY(20px)
+    opacity: 0
+
+@keyframes fadeOutRight
+  0%
+    transform: translateX(0)
+    opacity: 1
+  100%
+    transform: translateX(20px)
+    opacity: 0
+
+@keyframes fadeOutLeft
+  0%
+    transform: translateX(0)
+    opacity: 1
+  100%
+    transform: translateX(-20px)
+    opacity: 0
+
+@keyframes rotateIn
+  0%
+    transform-origin: center center
+    transform: rotate(-200deg)
+    opacity: 0
+  100%
+    transform-origin: center center
+    transform: rotate(0)
+    opacity: 1
+
+@keyframes rotateInDownLeft
+  0%
+    transform-origin: left bottom
+    transform: rotate(-90deg)
+    opacity: 0
+  100%
+    transform-origin: left bottom
+    transform: rotate(0)
+    opacity: 1
+
+@keyframes rotateInUpLeft
+  0%
+    transform-origin: left bottom
+    transform: rotate(90deg)
+    opacity: 0
+  100%
+    transform-origin: left bottom
+    transform: rotate(0)
+    opacity: 1
+
+@keyframes rotateInUpRight
+  0%
+    transform-origin: right bottom
+    transform: rotate(-90deg)
+    opacity: 0
+  100%
+    transform-origin: right bottom
+    transform: rotate(0)
+    opacity: 1
+
+@keyframes rotateInDownRight
+  0%
+    transform-origin: right bottom
+    transform: rotate(90deg)
+    opacity: 0
+  100%
+    transform-origin: right bottom
+    transform: rotate(0)
+    opacity: 1
+
+@keyframes rotateOut
+  0%
+    transform-origin: center center
+    transform: rotate(0)
+    opacity: 1
+  100%
+    transform-origin: center center
+    transform: rotate(200deg)
+    opacity: 0
+
+@keyframes rotateOutDownLeft
+  0%
+    transform-origin: left bottom
+    transform: rotate(0)
+    opacity: 1
+  100%
+    transform-origin: left bottom
+    transform: rotate(90deg)
+    opacity: 0
+
+@keyframes rotateOutUpLeft
+  0%
+    transform-origin: left bottom
+    transform: rotate(0)
+    opacity: 1
+  100%
+    transform-origin: left bottom
+    transform: rotate(-90deg)
+    opacity: 0
+
+@keyframes rotateOutDownRight
+  0%
+    transform-origin: right bottom
+    transform: rotate(0)
+    opacity: 1
+  100%
+    transform-origin: right bottom
+    transform: rotate(-90deg)
+    opacity: 0
+
+@keyframes rotateOutUpRight
+  0%
+    transform-origin: right bottom
+    transform: rotate(0)
+    opacity: 1
+  100%
+    transform-origin: right bottom
+    transform: rotate(90deg)
+    opacity: 0

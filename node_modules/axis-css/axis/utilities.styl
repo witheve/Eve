@@ -1,0 +1,346 @@
+// -----------------------------------------------------
+// Utilities
+// -----------------------------------------------------
+
+ie-support ?= true
+
+// Helper: Pie
+// When turned on, enables css3 pie (http://css3pie.com/) for all
+// elements that can use it. Which makes IE look a lot nicer.
+
+pie()
+  behavior: url(pie-path) if pie-enabled
+
+// Mixin: Rounded
+// Unless you are working with a ridiculously large element, this will round the corners
+// as much as css will allow. Even in IE.
+// ex. +rounded
+
+rounded()
+  border-radius: 999px
+  pie()
+
+// Mixin: No Select
+// You can't highlight this.
+
+no-select()
+  -webkit-touch-callout: none
+  prefix(user-select, none)
+
+// Mixin: B
+// Border, but with an intelligent default
+
+b()
+  params = unquote('1px solid') unless params
+  border: params
+
+// Mixin: Bg
+// Makes background (with image) declarations a little simpler.
+// ex. bg: ../img/test.png
+// ex. bg: ../img/other.jpg center center repeat
+
+bg(path, args...)
+  args = unquote('no-repeat') unless args
+  background: url(img-path path) args
+
+// Mixin: bg-retina
+// Make sure the image path is double the size, pass it halved numbers, and you're in the retina-clear
+// ex. bg: ../img/test.png 200px 100px
+// ex. bg: ../img/other.jpg 100px 50px center center repeat
+
+bg-retina(path, width, height, args...)
+  args = unquote('no-repeat') unless args
+  background: url(img-path path) args
+  size: width height
+  background-size: literal-join('', width height)
+
+// Mixin: Bold
+// It's just faster to type +bold than font-weight: bold
+// ex. bold()
+
+bold()
+  font-weight: bold
+
+// Mixin: Italic
+// It's just faster to type +italic than font-style: italic
+// ex. italic()
+
+italic()
+  font-style: italic
+
+// Mixin: Normal
+// Put the font-weight and style back to normal
+
+normal()
+  font-weight: normal
+  font-style: normal
+
+// Mixin: Columns
+// For css3 columns. Takes column count (int), column gap (px, em), column width (px, em), and
+// a border-like declaration if you want a column rule. This follows exactly with the css3 spec,
+// it's just quicker, prefixed, and shortened.
+// ex. columns()
+// ex. columns(5)
+// ex. columns(8, 15px, 200px, 1px solid red)
+
+columns(count = 3, gap = 30px, width = null, rule = null)
+  prefix(column-count, count)
+  prefix(column-gap, gap)
+  prefix(column-width, width) if width
+  prefix(column-rule, rule) if rule
+
+// Mixin: Avoid Column Break
+// If you have a list that is broken into columns, this will make sure that the list item
+// is not split across columns awkwardly. Works only in webkit at the moment.
+
+avoid-column-break()
+  prefix(column-break-inside, avoid)
+
+// Mixin: Triangle
+// One of my favorites. Makes a little css triangle for you. Pass it a direction (up, down, left, right),
+// size (in pixels), and a color.
+// ex. triangle()
+// ex. triangle: down 15px blue
+
+triangle(direction = up, size = 10px, color = #000)
+  width: 0
+  height: 0
+  if direction == up
+    border-left: size solid transparent
+    border-right: size solid transparent
+    border-bottom: size solid color
+  else if direction == down
+    border-left: size solid transparent
+    border-right: size solid transparent
+    border-top: size solid color
+  else if direction == left
+    border-top: size solid transparent
+    border-bottom: size solid transparent
+    border-right: size solid color
+  else if direction == right
+    border-top: size solid transparent
+    border-bottom: size solid transparent
+    border-left: size solid color
+
+
+sprite(iteration, orientation = vertical)
+  if orientation == vertical
+    background-position: 0 unit(@height*-1*iteration, px)
+  else if orientation == horizontal
+    background-position: unit(@width*iteration, px) 0 
+  else
+    warn('orientation must be horizontal or veritcal')
+
+// Mixin: Ir
+// Image replacement. Pass it an image path and the image's dimensions and any text will be hidden
+// in the div and it will show an image instead. Uses the fanciest new method, props to Paul Irish.
+// ex. ir: "../img/test.jpg" 200 400
+
+ir(path, dimensions...)
+  font: 0/0 a
+  text-shadow: none
+  color: transparent
+  bg(path) if path
+  if length(dimensions) > 1
+    width: unit(dimensions[0], px)
+    height: unit(dimensions[1], px)
+  else
+    warn("Make sure you also pass the image dimensions. Example: ir: '/img/whatever.jpg' 200 400")
+
+// Alias: ir
+image-replace(path, dimensions...)
+  font: 0/0 a
+  text-shadow: none
+  color: transparent
+  bg(path) if path
+  if length(dimensions) > 1
+    width: unit(dimensions[0], px)
+    height: unit(dimensions[1], px)
+  else
+    warn("Make sure you also pass the image dimensions. Example: ir: '/img/whatever.jpg' 200 400")
+
+// Mixin: Group
+// This is the clearfix with a better name. Excellent for wrangling floats.
+// ex. group()
+
+group()
+  zoom: 1
+  &:before
+  &:after
+    content: ""
+    display: table
+  &:after
+    clear: both
+
+// Alias: Clearfix
+
+clearfix()
+  group()
+
+// Mixin: Inline Block
+// Cross browser inline block display. Saves many IE headaches.
+// ex. inline-block()
+
+inline-block()
+  display: -moz-inline-stack
+  display: inline-block
+  vertical-align: baseline
+  zoom: 1
+  *display: inline
+  *vertical-align: auto;
+
+// Mixin: Media
+// Based on Nicole Sullivan's media class, made famous by Facebook
+// http://www.stubbornella.org/content/2010/06/25/the-media-object-saves-hundreds-of-lines-of-code/
+
+// Put this on a parent and it will split the first two children left and right, like you would with perhaps
+// a comment with an avatar to the left. Pass it a margin between the two.
+// Explained fully here: http://carrotblog.com/css-patterns-evolved/
+
+// This mixin works right when the element you apply it to has two or three direct children
+// The first one will float to the left, the second one will be to the right of the first, and third will go farthest right
+// ex. media()
+// ex. media: 15px
+// ex. media: 15px 10px
+
+media(margin = 10px)
+
+  left-margin = margin
+  right-margin = margin
+
+  if length(arguments) > 1
+    left-margin = arguments[0]
+    right-margin = arguments[1]
+
+  overflow: hidden
+  zoom: 1
+
+  & > *
+    inline-block()
+    overflow: hidden
+    zoom: 1
+  & > *:first-child
+    float: left
+    margin-right: right-margin
+  & > *:nth-child(3)
+    float: right
+    margin-left: left-margin
+
+// Mixin: Raquo
+// Because technically raquo is not semantic, it's better to add it like this.
+// ex. raquo()
+
+raquo()
+  &:after
+    content: " \00BB"
+
+// Mixin: Size
+// Quickly and smoothly set width and height.
+// ex. size: 50px 100px => width: 50px; height: 100px
+// ex. size: 2em => width: 2em; height: 2em;
+// ex. size: 40 80 => width: 40px; height: 80px
+
+size(numbers...)
+  if length(numbers) > 1
+
+    width-unit  = unit(numbers[0]) == '' ? 'px' : unit(numbers[0])
+    height-unit = unit(numbers[1]) == '' ? 'px' : unit(numbers[1])
+
+    width:  unit(numbers[0], width-unit)
+    height: unit(numbers[1], height-unit)
+  else
+
+    size-unit = unit(numbers) == '' ? 'px' : unit(numbers)
+
+    width:  unit(numbers, size-unit)
+    height: unit(numbers, size-unit)
+
+// Mixin: Font Face
+// Super simple font-face declaration. Just give the name and the folder it lives in.
+// Make sure the font name matches the name of the files.
+// Uses the fontspring syntax: http://www.fontspring.com/blog/the-new-bulletproof-font-face-syntax
+// ex. font-face(proxima-nova, '/fonts')
+
+font-face(name, folder, weight = normal, style = normal)
+  @font-face
+    font-family: name
+    src: url(folder unquote('/') name unquote('.eot') '?#iefix') format('embedded-opentype'), url(folder unquote('/') name unquote('.woff')) format('woff'), url(folder unquote('/') name unquote('.ttf')) format('truetype'), url(folder unquote('/') name unquote('.eot') '#svgFontName') format('svg');
+    font-weight: weight
+    font-style: style
+
+// Mixin: Debug
+// Debugging tool - drop this at root level in your css and it will put borders on every element so
+// you can see what's up. It will also flag them if you made mistakes like put in inline styles, forgot
+// an alt on an image, left the alt blank, etc. For god's sake don't use this in production.
+
+// all credit for this goes to intuit.css, from which I adapted it (and improved it a bit)
+// https://github.com/csswizardry/inuit.css
+
+debug()
+  html
+
+    div
+      border: 1px solid green
+
+    [style], style
+      border: 5px solid yellow
+
+    style
+      border: block
+
+    img
+      border: 5px solid red
+
+    img[alt]
+      border-color: green
+
+    img[alt=""]
+      border-color: yellow
+
+    a
+      border: 5px solid yellow
+
+    a[title]
+      border-color: green
+
+    a[href="#"]
+      outline-color: yellow
+
+    a[target]
+      border-color: red
+
+    [class=""], [id=""]
+      border: 5px solid yellow
+
+// Custom animation timing functions, ported from bourbon
+// https://github.com/thoughtbot/bourbon/blob/master/app/assets/stylesheets/addons/_timing-functions.scss
+
+// ease-in
+ease-in-quad =      cubic-bezier(0.550,  0.085, 0.680, 0.530)
+ease-in-cubic =     cubic-bezier(0.550,  0.055, 0.675, 0.190)
+ease-in-quart =     cubic-bezier(0.895,  0.030, 0.685, 0.220)
+ease-in-quint =     cubic-bezier(0.755,  0.050, 0.855, 0.060)
+ease-in-sine =      cubic-bezier(0.470,  0.000, 0.745, 0.715)
+ease-in-expo =      cubic-bezier(0.950,  0.050, 0.795, 0.035)
+ease-in-circ =      cubic-bezier(0.600,  0.040, 0.980, 0.335)
+ease-in-back =      cubic-bezier(0.600, -0.280, 0.735, 0.045)
+
+// ease-out
+ease-out-quad =     cubic-bezier(0.250,  0.460, 0.450, 0.940)
+ease-out-cubic =    cubic-bezier(0.215,  0.610, 0.355, 1.000)
+ease-out-quart =    cubic-bezier(0.165,  0.840, 0.440, 1.000)
+ease-out-quint =    cubic-bezier(0.230,  1.000, 0.320, 1.000)
+ease-out-sine =     cubic-bezier(0.390,  0.575, 0.565, 1.000)
+ease-out-expo =     cubic-bezier(0.190,  1.000, 0.220, 1.000)
+ease-out-circ =     cubic-bezier(0.075,  0.820, 0.165, 1.000)
+ease-out-back =     cubic-bezier(0.175,  0.885, 0.320, 1.275)
+
+// ease-in-out
+ease-in-out-quad =  cubic-bezier(0.455,  0.030, 0.515, 0.955)
+ease-in-out-cubic = cubic-bezier(0.645,  0.045, 0.355, 1.000)
+ease-in-out-quart = cubic-bezier(0.770,  0.000, 0.175, 1.000)
+ease-in-out-quint = cubic-bezier(0.860,  0.000, 0.070, 1.000)
+ease-in-out-sine =  cubic-bezier(0.445,  0.050, 0.550, 0.950)
+ease-in-out-expo =  cubic-bezier(1.000,  0.000, 0.000, 1.000)
+ease-in-out-circ =  cubic-bezier(0.785,  0.135, 0.150, 0.860)
+ease-in-out-back =  cubic-bezier(0.680, -0.550, 0.265, 1.550)
