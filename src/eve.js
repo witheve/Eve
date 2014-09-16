@@ -1335,7 +1335,7 @@ function soFast(n) {
   var constraint1 = new MemoryConstraint([0,1,2]);
   var sink0 = new Sink([0,1,2], [null,null,null]);
   var solver = Solver.empty(3, [constraint0, constraint1]);
-  var flow = new Flow(solver, [sink0]);
+  var flow = new Flow(solver, null, [sink0]);
 
   var input = Memory.empty();
   var output = Memory.empty();
@@ -1350,8 +1350,6 @@ function soFast(n) {
   output = flow.update(input, output);
   console.timeEnd("soFast " + n);
 
-  console.info("Regions: " + solver.provenance.regions.length);
-
   return output;
 }
 
@@ -1362,7 +1360,7 @@ function soSlow(n) {
   var constraint1 = new MemoryConstraint([0,1,2]);
   var sink0 = new Sink([0,1,2], [null,null,null]);
   var solver = Solver.empty(3, [constraint0, constraint1]);
-  var flow = new Flow(solver, [sink0]);
+  var flow = new Flow(solver, null, [sink0]);
 
   var input = Memory.empty();
   var output = Memory.empty();
@@ -1392,9 +1390,7 @@ function soSlow(n) {
   output = flow.update(input, output);
   console.timeEnd("soSlowC " + n);
 
-  console.info("Regions: " + solver.provenance.regions.length);
-
   return output;
 }
 
-// soSlow(10000);
+// soSlow(100000);
