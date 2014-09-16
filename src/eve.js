@@ -898,7 +898,7 @@ function compileRule(dump, rule) {
   var limitValves = dump.limitValve.rule[rule];
   if (limitValves) {
     assert(limitValves.length === 1);
-    limitIx = valveIxes(limitValves[0].valve);
+    limitIx = valveIxes[limitValves[0].valve];
   }
 
   var groupIxes = [];
