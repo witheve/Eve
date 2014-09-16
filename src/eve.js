@@ -1,6 +1,9 @@
-if(typeof window === 'undefined') {
-  jsc = require("./resources/jsverify.js");
-}
+var FAILED = 0;
+var CHANGED = 1;
+var UNCHANGED = 2;
+
+var IGNORED = 0;
+var SPLITTED = 1;
 
 // UTIL
 
@@ -179,31 +182,29 @@ MemoryConstraint.prototype = {
     return (this.constants && this.constants[0]) ? inputMemory.getTable(this.constants[0]) : inputMemory.getFacts();
   },
 
-  copy: function(facts) {
-    return facts.slice();
-  },
-
-  propagate: function(facts, solverState) {
+  propagate: function(myIx, constraintStates, los, his) {
     var ixes = this.ixes;
     var constants = this.constants;
-    var los = solverState.los;
-    var his = solverState.his;
+    var facts = constraintStates[myIx];
 
     // console.log("Facts before " + JSON.stringify(facts));
 
+    var newFacts = [];
+
     for (var i = facts.length - 1; i >= 0; i--) {
       var fact = facts[i];
-      if (boundsContainsPoint(los, his, ixes, constants, fact) === false) {
-        facts.splice(i, 1);
+      if (boundsContainsPoint(los, his, ixes, constants, fact) === true) {
+        newFacts.push(fact);
       }
     }
+
+    facts = constraintStates[myIx] = newFacts;
 
     // console.log("Facts after " + JSON.stringify(facts));
 
     if (facts.length === 0) {
       // console.log("Failed with no facts");
-      solverState.isFailed = true;
-      return true;
+      return FAILED;
     }
 
     var changed = false;
@@ -227,13 +228,13 @@ MemoryConstraint.prototype = {
       }
     }
 
-    return changed;
+    return (changed === true) ? CHANGED : UNCHANGED;
   },
 
-  split: function(facts, leftSolverState, rightSolverState) {
-    if (facts.length < 2) return false;
+  split: function(myIx, leftConstraintStates, leftLos, leftHis, rightConstraintStates, rightLos, rightHis) {
+    var facts = leftConstraintStates[myIx];
+    if (facts.length < 2) return IGNORED;
 
-    var his = leftSolverState.his;
     var ixes = this.ixes;
 
     var i, ix, lowerPivot;
@@ -242,7 +243,7 @@ MemoryConstraint.prototype = {
       if (ix !== null) {
         for (var j = facts.length - 1; j >= 0; j--) {
           lowerPivot = facts[j][i];
-          if (lowerPivot !== his[ix]) break findLowerPivot;
+          if (lowerPivot !== leftHis[ix]) break findLowerPivot;
         }
       }
     }
@@ -255,10 +256,10 @@ MemoryConstraint.prototype = {
       if ((compareValue(value, lowerPivot) === 1) && (compareValue(value, upperPivot) === -1)) upperPivot = value;
     }
 
-    leftSolverState.his[ix] = lowerPivot;
-    rightSolverState.los[ix] = upperPivot;
+    leftHis[ix] = lowerPivot;
+    rightLos[ix] = upperPivot;
     // console.log("Split at fact[" + i + "]=" + lowerPivot + "," + upperPivot);
-    return true;
+    return SPLITTED;
   }
 };
 
@@ -273,31 +274,25 @@ NegatedMemoryConstraint.prototype = {
     return (this.constants && this.constants[0]) ? inputMemory.getTable(this.constants[0]) : inputMemory.getFacts();
   },
 
-  copy: function(facts) {
-    return facts;
-  },
-
-  propagate: function(facts, solverState) {
+  propagate: function(myIx, constraintStates, los, his) {
+    var facts = constraintStates[myIx];
     var ixes = this.ixes;
     var constants = this.constants;
-    var los = solverState.los;
-    var his = solverState.his;
 
     for (var i = ixes.length - 1; i >= 0; i--) {
       var ix = ixes[i];
-      if ((ix !== null) && (los[ix] !== his[ix])) return false;
+      if ((ix !== null) && (los[ix] !== his[ix])) return UNCHANGED;
     }
 
     for (var i = facts.length - 1; i >= 0; i--) {
       if (solutionMatchesPoint(los, ixes, constants, facts[i]) === true) {
         // console.log("Negation failed on " + facts[i]);
-        solverState.isFailed = true;
-        return true;
+        return FAILED;
       }
     }
   },
 
-  split: function(facts, leftSolverState, rightSolverState) {
+  split: function(myIx, leftConstraintStates, leftLos, leftHis, rightConstraintStates, rightLos, rightHis) {
     return false;
   }
 };
@@ -329,7 +324,7 @@ Provenance.prototype = {
   failed: function (oldLos, oldHis, ix) {},
 
   solved: function (solution) {
-    this.queuedAdds.push(solution);
+    this.queuedAdds.push(solution.slice());
   },
 
   // constraint interface
@@ -351,16 +346,12 @@ Provenance.prototype = {
     this.newOutputMemory = Memory.empty();
   },
 
-  copy: function(state) {
-    return null;
+  propagate: function(myIx, constraintStates, los, his) {
+    return UNCHANGED;
   },
 
-  propagate: function(state, solverState) {
-    return false;
-  },
-
-  split: function(regions, leftSolverState, rightSolverState) {
-    return false;
+  split: function(myIx, leftConstraintStates, leftLos, leftHis, rightConstraintStates, rightLos, rightHis) {
+    return IGNORED;
   }
 };
 
@@ -382,16 +373,14 @@ FunctionConstraint.prototype = {
     return null;
   },
 
-  propagate: function(state, solverState) {
+  propagate: function(myIx, constraintStates, los, his) {
     var inIxes = this.inIxes;
     var inValues = this.inValues;
-    var los = solverState.los;
-    var his = solverState.his;
 
     for (var i = inIxes.length - 1; i >= 0; i--) {
       var inIx = inIxes[i];
       var lo = los[inIx];
-      if ((lo !== his[inIx])) return false;
+      if ((lo !== his[inIx])) return UNCHANGED;
       inValues[i] = lo;
     }
 
@@ -399,87 +388,18 @@ FunctionConstraint.prototype = {
     var outValue = this.fun.apply(null, inValues);
     var compLo = compareValue(outValue, los[outIx]);
     var compHi = compareValue(outValue, his[outIx]);
-    if ((compLo === -1) || (compHi === 1)) solverState.isFailed = true;
+    if ((compLo === -1) || (compHi === 1)) return FAILED;
     los[outIx] = outValue;
     his[outIx] = outValue;
-    return ((compLo === 1) || (compHi === -1));
+    return ((compLo === 1) || (compHi === -1)) ? CHANGED : UNCHANGED;
   },
 
-  split: function(facts, leftSolverState, rightSolverState) {
-    return false;
+  split: function(myIx, leftConstraintStates, leftLos, leftHis, rightConstraintStates, rightLos, rightHis) {
+    return IGNORED;
   }
 };
 
 // SOLVER
-
-function SolverState(provenance, constraints, constraintStates, los, his, isFailed) {
-  this.provenance = provenance;
-  this.constraints = constraints;
-  this.constraintStates = constraintStates;
-  this.los = los;
-  this.his = his;
-  this.isFailed = isFailed;
-}
-
-SolverState.prototype = {
-  expand: function(states) {
-    var provenance = this.provenance;
-    var constraints = this.constraints;
-    var constraintStates = this.constraintStates;
-    var numConstraints = this.constraints.length;
-    var los = this.los;
-    var his = this.his;
-    var oldLos = los.slice();
-    var oldHis = his.slice();
-
-    // propagate all constraints until nothing changes
-    var lastChanged = 0;
-    var current = 0;
-    while (true) {
-      // console.log("Before prop " + current + " " + los + " " + his);
-      var changed = constraints[current].propagate(constraintStates[current], this);
-      if (this.isFailed === true) {
-        provenance.failed(oldLos, oldHis, current);
-        return;
-      }
-      if (changed === true) {
-        provenance.propagated(oldLos, oldHis, los, his, current);
-        oldLos = los.slice();
-        oldHis = his.slice();
-        lastChanged = current;
-      }
-      // console.log("After prop " + current + " " + los + " " + his);
-      current = (current + 1) % numConstraints;
-      if (current === lastChanged) break;
-    }
-
-    // check if we are a leaf
-    if (arrayEqual(los, his)) {
-      provenance.solved(los);
-      // console.log("Found " + JSON.stringify(los));
-      return;
-    }
-
-    // split into two children
-    var leftSolverState = this;
-    var rightSolverState = new SolverState(this.provenance, constraints, constraintStates.slice(), los.slice(), his.slice(), this.isFailed);
-    for (var i = constraints.length - 1; i >= 0; i--) {
-      constraintStates[i] = constraints[i].copy(constraintStates[i]);
-    }
-    for (var splitter = constraints.length - 1; splitter >= 0; splitter--) {
-      if (constraints[splitter].split(constraintStates[splitter], leftSolverState, rightSolverState)) {
-        provenance.splitted(oldLos, oldHis, leftSolverState.los, leftSolverState.his, rightSolverState.los, rightSolverState.his);
-        break;
-      }
-    }
-    // console.log("Split by " + splitter);
-
-    // make sure we found a splitter
-    assert(splitter >= 0);
-
-    states.push(leftSolverState, rightSolverState);
-  }
-};
 
 function Solver(numVars, constraints, provenance) {
   this.numVars = numVars;
@@ -493,11 +413,27 @@ Solver.empty = function (numVars, constraints) {
   return new Solver(numVars, constraints, provenance);
 };
 
+function pushInto(depth, elem, queue) {
+  var start = depth * elem.length;
+  for (var i = elem.length - 1; i >= 0; i--) {
+    queue[start + i] = elem[i];
+  }
+}
+
+function popFrom(depth, elem, queue) {
+  var start = depth * elem.length;
+  for (var i = elem.length - 1; i >= 0; i--) {
+    elem[i] = queue[start + i];
+  }
+}
+
 Solver.prototype = {
   update: function(inputMemory, outputAdds, outputDels) {
     var provenance = this.provenance;
-
+    var numVars = this.numVars;
     var constraints = this.constraints;
+    var numConstraints = constraints.length;
+
     var constraintStates = [];
     for (var i = constraints.length - 1; i >= 0; i--) {
       var constraintState = constraints[i].start(inputMemory);
@@ -505,13 +441,82 @@ Solver.prototype = {
       constraintStates[i] = constraintState;
     }
 
-    var numVars = this.numVars;
-    var states = [new SolverState(provenance, constraints, constraintStates, makeArray(numVars, least), makeArray(numVars, greatest), false)];
-    while (states.length > 0) {
-      var state = states.pop();
-      // console.log("Popped " + JSON.stringify(state.los) + " " + JSON.stringify(state.his));
-      state.expand(states);
+    var los = makeArray(numVars, least);
+    var his = makeArray(numVars, greatest);
+
+    // buffers for splitting;
+    var rightConstraintStates = constraintStates.slice();
+    var rightLos = los.slice();
+    var rightHis = his.slice();
+
+    // stack for depth-first search
+    var depth = 0;
+    var queuedConstraintStates = [];
+    var queuedLos = [];
+    var queuedHis = [];
+
+    // console.log("Starting solve");
+
+    solve: while (true) {
+
+      // propagate all constraints until nothing changes
+      var lastChanged = 0;
+      var current = 0;
+      propagate: while (true) {
+        // console.log("Before prop " + current + " " + los + " " + his);
+        var result = constraints[current].propagate(current, constraintStates, los, his);
+        if (result === FAILED) {
+          provenance.failed(); // TODO
+          if (depth === 0) break solve;
+          depth -= 1;
+          popFrom(depth, constraintStates, queuedConstraintStates);
+          popFrom(depth, los, queuedLos);
+          popFrom(depth, his, queuedHis);
+          continue solve;
+        } else if (result === CHANGED) {
+          provenance.propagated(); // TODO
+          lastChanged = current;
+        }
+        // console.log("After prop " + current + " " + los + " " + his);
+        current = (current + 1) % numConstraints;
+        if (current === lastChanged) break propagate;
+      }
+
+      // check if we are at a solution
+      if (arrayEqual(los, his)) {
+        provenance.solved(los);
+        // console.log("Found " + JSON.stringify(los));
+        if (depth === 0) break solve;
+        depth -= 1;
+        popFrom(depth, constraintStates, queuedConstraintStates);
+        popFrom(depth, los, queuedLos);
+        popFrom(depth, his, queuedHis);
+        continue solve;
+      }
+
+      // split the problem in two
+      var splitter;
+      split: for (splitter = constraints.length - 1; splitter >= 0; splitter--) {
+        pushInto(0, constraintStates, rightConstraintStates);
+        pushInto(0, los, rightLos);
+        pushInto(0, his, rightHis);
+        var result = constraints[splitter].split(splitter, constraintStates, los, his, rightConstraintStates, rightLos, rightHis);
+        if (result === SPLITTED) {
+          provenance.splitted(); // TODO
+          break split;
+        }
+      }
+      // console.log("Split by " + splitter);
+      assert(splitter >= 0);
+
+      pushInto(depth, rightConstraintStates, queuedConstraintStates);
+      pushInto(depth, rightLos, queuedLos);
+      pushInto(depth, rightHis, queuedHis);
+      depth += 1;
+
     }
+
+    // console.log("Finished solve");
 
     provenance.finish(outputAdds, outputDels);
   }
