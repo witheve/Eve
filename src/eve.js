@@ -599,7 +599,7 @@ Aggregate.prototype = {
     for (var group in groups) {
       var groupFacts = groups[group];
       sortBy(groupFacts, this.sortIxes);
-      if (this.limitIx) groupFacts = groupFacts.slice(0, groupFacts[0][this.limitIx]);
+      if (this.limitIx !== undefined) groupFacts = groupFacts.slice(0, groupFacts[0][this.limitIx]);
       var reducerInIxes = this.reducerInIxes;
       var reducerOutIxes = this.reducerOutIxes;
       var reducerFuns = this.reducerFuns;
@@ -903,7 +903,7 @@ function compileRule(dump, rule) {
 
   var limitIx;
   var limitValves = dump.limitValve.rule[rule];
-  if (limitValves) {
+  if (limitValves !== undefined) {
     assert(limitValves.length === 1);
     limitIx = valveIxes[limitValves[0].valve];
   }
@@ -914,7 +914,8 @@ function compileRule(dump, rule) {
     var groupValve = groupValves[i];
     groupIxes[i] = valveIxes[groupValve.valve];
   }
-  if (limitIx) groupIxes.push(limitIx); // because limit has to be fixed per group
+
+  assert((limitIx === undefined) || (groupIxes.indexOf(limitIx) !== -1));
 
   var sortIxes = [];
   var sortValves = dump.sortValve.rule[rule] || [];

@@ -92,6 +92,49 @@ eve.test.test("simple aggregate",
               [["users", 5, "chris"], ["clicks", 5]],
               [["sms outbox", "hey"]]);
 
+eve.test.test("sorted aggregate",
+              function(sys) {
+                sys.rule("this is a cool rule", function(rule) {
+                  rule.source("users");
+                  rule.sink("sms outbox");
+                  rule.sort("users.id");
+                  rule.aggregate("users.name", "cool", "(users.name).join()");
+                  rule.output("cool", "sms outbox.id");
+                });
+              },
+              [["users", 0, "jamie"], ["users", 2, "rob"], ["users", 1, "chris"]],
+              [["sms outbox", "jamie,chris,rob"]]);
+
+eve.test.test("grouped aggregate",
+              function(sys) {
+                sys.rule("this is a cool rule", function(rule) {
+                  rule.source("users");
+                  rule.sink("sms outbox");
+                  rule.group("users.id");
+                  rule.sort("users.name");
+                  rule.aggregate("users.name", "cool", "(users.name).join()");
+                  rule.output("cool", "sms outbox.id");
+                });
+              },
+              [["users", 0, "jamie"], ["users", 0, "rob"], ["users", 1, "chris"]],
+              [["sms outbox", "jamie,rob"], ["sms outbox", "chris"]]);
+
+
+eve.test.test("limited aggregate",
+              function(sys) {
+                sys.rule("this is a cool rule", function(rule) {
+                  rule.source("users");
+                  rule.sink("sms outbox");
+                  rule.group("users.id");
+                  rule.sort("users.name");
+                  rule.limit("users.id");
+                  rule.aggregate("users.name", "cool", "(users.name).join()");
+                  rule.output("cool", "sms outbox.id");
+                });
+              },
+              [["users", 1, "jamie"], ["users", 1, "rob"], ["users", 0, "chris"]],
+              [["sms outbox", "jamie"]]);
+
 eve.test.test("filter pass",
               function(sys) {
                 sys.rule("this is a cool rule", function(rule) {

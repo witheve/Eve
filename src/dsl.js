@@ -175,7 +175,12 @@ Rule.prototype.aggregate = function(input, output, code) {
                   ["displayNames", valve, output]);
 }
 
-Rule.prototype.limit = function(num) {
+Rule.prototype.limit = function(from) {
+  var valve = this.fieldToValve(from);
+  this.items.push(["limitValve", this.id, valve]);
+}
+
+Rule.prototype.constantLimit = function(num) {
   var valve = this.valve();
   this.items.push(["limitValve", this.id, valve],
                   ["constantConstraint", valve, num]);
