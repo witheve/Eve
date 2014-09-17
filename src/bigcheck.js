@@ -190,10 +190,10 @@ var bigcheck = (function () {
       }
     },
 
-    recheck: function(failure) {
-      var failure = failure || exports.lastFailure;
-      if (failure) {
-        return this.fun.apply(null, failure.shrunkInput);
+    recheck: function(input) {
+      var input = input || exports.lastFailure.shrunkInput;
+      if (input) {
+        return this.fun.apply(null, input);
       } else {
         return true;
       }
@@ -202,10 +202,10 @@ var bigcheck = (function () {
 
   // TESTS
 
-//   foralls(number, number,
-//          function (a, b) {
-//            return (a + b) >= a;
-//          }).assert();
+  //   foralls(number, number,
+  //          function (a, b) {
+  //            return (a + b) >= a;
+  //          }).assert();
 
   // console.time("Random tuple failure");
   // foralls(array(tuple([number, number, number])),
@@ -230,8 +230,6 @@ var bigcheck = (function () {
   //          return false;
   //        }).check({maxTests: 10000000, maxShrinks: 20000000, bias: 0});
   // console.timeEnd("Arrays are not strictly sorted");
-
-  // lastFailure.recheck();
 
   exports = {number: number, integer: integer, array: array, tuple: tuple, value: value, facts: facts, forall: forall, foralls: foralls};
 
