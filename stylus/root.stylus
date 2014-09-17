@@ -19,9 +19,13 @@ body { background:#333; color: #666; font-family: "Nunito"; font-weight:300; fon
 ul, li { list-style:none; }
 #clear-pixel { position:absolute; top:0; left: 0;}
 
+#stats { absolute: right bottom; margin:15px; color:#aaa; }
+#stats span:first-child { display:inline-block; width:50px; text-align:right; margin-right:10px; }
+
 //*********************************************************
 // UI editor
 //*********************************************************
+
 #wrapper { display:flex; width:100%; height:100%; flex-direction:row; align-items:stretch; justify-content:stretch; }
 .toolbar { width:50px; background:#fff; display:flex; flex-direction:column; justify-content:center; padding-left:10px;  display:none; G}
 .toolbar li { font-size:25px; width:40px; color:#aaa; padding:10px; border-radius:3px; }

@@ -147,6 +147,19 @@ li {
   top: 0;
   left: 0;
 }
+#stats {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  margin: 15px;
+  color: #aaa;
+}
+#stats span:first-child {
+  display: inline-block;
+  width: 50px;
+  text-align: right;
+  margin-right: 10px;
+}
 #wrapper {
   display: -webkit-box;
   display: -moz-box;

@@ -120,6 +120,15 @@ Rule.prototype.output = function(from, to) {
   this.items.push(["tableConstraint", valve, pipe, field]);
 }
 
+Rule.prototype.outputConstant = function(val, to) {
+  var valve = this.valve();
+  var toParts = dsl.parseName(to);
+  var pipe = dsl.nameToId(toParts[0], this);
+  var field = dsl.nameToId(to);
+  this.items.push(["constantConstraint", valve, val],
+                  ["tableConstraint", valve, pipe, field]);
+}
+
 Rule.prototype.join = function(from, to) {
   var valve = this.fieldToValve(from);
   var toParts = dsl.parseName(to);
@@ -186,6 +195,16 @@ Rule.prototype.constantLimit = function(num) {
                   ["constantConstraint", valve, num]);
 }
 
+Rule.prototype.concat = function(arr) {
+  arr.forEach(function(cur) {
+    this.items.push(cur);
+  });
+}
+
+Rule.prototype.ui = function(elem) {
+  elem(this, null, 0);
+}
+
 var DSLSystem = function() {
   this.system = compileSystem(Memory.fromFacts(compilerSchema));
   this.facts = [];
@@ -232,6 +251,141 @@ dsl.system = function() {
 }
 
 //*********************************************************
+// ui
+//*********************************************************
+
+var ui = eve.ui = {}
+
+ui.events = {
+  "click": true,
+  "doubleClick": true,
+  "contextMenu": true
+}
+
+ui.prefixId = function(rule, prefix, col) {
+  console.log("prefixID:", prefix, col);
+  var id = dsl.nextId();
+  rule.calculate(id, [col], "'" + prefix + "_' + " + col);
+  return id;
+}
+
+ui.postfixId = function(rule, col, postfix) {
+  var id = dsl.nextId();
+  rule.calculate(id, [col], col +  " + '_" + postfix + "'");
+  return id;
+}
+
+ui.ref = function(col) {
+  return function(rule, nameValve, ix) {
+    if(nameValve) {
+      var sink = nameValve + "_sink_" + ix;
+      var id = ui.postfixId(rule, nameValve, ix);
+      rule.sink("ui_text", sink);
+      rule.output(col, sink + ".text");
+      rule.output(id, sink + ".id");
+      return id;
+    } else {
+      return col;
+    }
+  }
+}
+
+ui.elem = function() {
+  var args = arguments;
+  return function(rule, nameValve, ix) {
+//     console.log("elem: ", nameValve, ix);
+    var sink = nameValve + "_sink_" + ix;
+    if(args[1] && args[1].id) {
+      var id = ui.prefixId(rule, args[1].id[0], args[1].id[1]);
+    } else {
+      if(nameValve) {
+        var id = ui.postfixId(rule, nameValve, ix);
+      } else {
+        throw new Error("No initial id provided for ui element");
+      }
+    }
+    rule.sink("ui_elems", sink);
+    rule.outputConstant(args[0], sink + ".type");
+    console.log("Output: ", id, sink+ ".id");
+    rule.output(id, sink + ".id");
+    for(var i in args[1]) {
+      var attr = args[1][i];
+      if(i === 'id') {
+        //id
+
+      } else if(i === 'style') {
+        //styles
+        for(var style in attr) {
+          var value = attr[style];
+          var sink = id + "_stylesink_" + style;
+          rule.sink("ui_styles", sink);
+          rule.output(id, sink + ".id");
+          rule.outputConstant(style, sink + ".attr");
+          if(typeof value === "function") {
+            var valve = value(rule);
+            rule.output(valve, sink + ".value");
+          } else {
+            rule.outputConstant(value, sink + ".value");
+          }
+        }
+      } else if(ui.events[i]) {
+        //event handler
+        var sink = id + "_eventsink_" + i;
+        rule.sink("ui_events", sink);
+        rule.output(id, sink + ".id");
+        rule.outputConstant(i, sink + ".event");
+        var field = [".label", ".key"];
+        for(var x in attr) {
+          if(typeof attr[x] === "function") {
+            var valve = attr[x](rule);
+            rule.output(valve, sink + field[x]);
+          } else {
+            rule.outputConstant(attr[x], sink + field[x]);
+          }
+        }
+      } else {
+        //normal attribute
+        var sink = id + "_attrsink_" + i;
+        rule.sink("ui_attrs", sink);
+        rule.output(id, sink + ".id");
+        rule.outputConstant(i, sink + ".attr");
+        if(typeof attr === "function") {
+          var valve = attr(rule);
+          rule.output(valve, sink + ".value");
+        } else {
+          rule.outputConstant(attr, sink + ".value");
+        }
+      }
+
+    }
+    args[2].forEach(function(cur, ix) {
+      if(typeof cur === "function") {
+        var childId = cur(rule, id, ix);
+        var childSink = textId + "_childsink_ " + ix;
+        //           console.log("child: ", id, ix, childId);
+        rule.sink("ui_child", childSink);
+        rule.output(id, childSink + ".parent");
+        rule.output(childId, childSink + ".child");
+        rule.outputConstant(ix, childSink + ".pos");
+      } else {
+        var textId = ui.postfixId(rule, id, ix);
+        var textSink = textId + "_sink_" + ix;
+        var textChild = textId + "childsink";
+        //           console.log("text: ", ix, textId);
+        rule.sink("ui_text", textSink);
+        rule.sink("ui_child", textChild);
+        rule.output(textId, textSink + ".id");
+        rule.outputConstant(cur, textSink + ".text");
+        rule.output(id, textChild + ".parent");
+        rule.output(textId, textChild + ".child");
+        rule.outputConstant(ix, textChild + ".pos");
+      }
+    });
+    return id;
+  }
+}
+
+//*********************************************************
 // Test
 //*********************************************************
 
@@ -243,6 +397,15 @@ eve.test.wrapCommonTables = function(sys) {
   sys.table("users", ["id", "name"]);
   sys.table("edges", ["from", "to"]);
   sys.table("path", ["from", "to"]);
+  sys.table("rule", ["id", "description"]);
+  sys.table("ui_elems", ["id", "type"]);
+  sys.table("ui_text", ["id", "text"]);
+  sys.table("ui_child", ["parent", "pos", "child"]);
+  sys.table("ui_attrs", ["id", "attr", "value"]);
+  sys.table("ui_styles", ["id", "attr", "value"]);
+  sys.table("ui_events", ["id", "event", "label", "key"]);
+  sys.table("external_events", ["id", "label", "key", "eid"]);
+  sys.table("time", ["time"]);
 }
 
 eve.test.test = function(name, func, inputs, expected) {
