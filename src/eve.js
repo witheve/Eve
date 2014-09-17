@@ -57,13 +57,10 @@ function arrayEqual(a, b) {
   return true;
 }
 
-function boundsContainsPoint(los, his, ixes, constants, point) {
+function boundsContainsPoint(los, his, ixes, point) {
   for (var i = ixes.length - 1; i >= 0; i--) {
     var ix = ixes[i];
-    if (ix === null) {
-      var constant = constants[i];
-      if ((constant !== null) && (point[i] !== constant)) return false;
-    } else {
+    if (ix !== undefined) {
       if (compareValue(point[i], los[ix]) === -1) return false;
       if (compareValue(point[i], his[ix]) === 1) return false;
     }
@@ -71,13 +68,10 @@ function boundsContainsPoint(los, his, ixes, constants, point) {
   return true;
 }
 
-function solutionMatchesPoint(solution, ixes, constants, point) {
+function solutionMatchesPoint(solution, ixes, point) {
   for (var i = ixes.length - 1; i >= 0; i--) {
     var ix = ixes[i];
-    if (ix === null) {
-      var constant = constants[i];
-      if ((constant !== null) && (point[i] !== constant)) return false;
-    } else if (point[i] !== solution[ix]) return false;
+    if ((ix !== undefined) && (point[i] !== solution[ix])) return false;
   }
   return true;
 }
@@ -173,20 +167,19 @@ Memory.prototype = {
   }
 };
 
-function MemoryConstraint(ixes, constants) {
+function MemoryConstraint(table, ixes) {
+  this.table = table;
   this.ixes = ixes;
-  this.constants = constants;
 }
 
 MemoryConstraint.prototype = {
   start: function(inputMemory) {
     // TODO the latter is a hack to avoid having to change all the quickcheck tests
-    return (this.constants && this.constants[0]) ? inputMemory.getTable(this.constants[0]) : inputMemory.getFacts();
+    return this.table ? inputMemory.getTable(this.table) : inputMemory.getFacts();
   },
 
   propagate: function(myIx, constraintStates, los, his) {
     var ixes = this.ixes;
-    var constants = this.constants;
     var facts = constraintStates[myIx];
 
     // console.log("Facts before " + JSON.stringify(facts));
@@ -195,7 +188,7 @@ MemoryConstraint.prototype = {
 
     for (var i = facts.length - 1; i >= 0; i--) {
       var fact = facts[i];
-      if (boundsContainsPoint(los, his, ixes, constants, fact) === true) {
+      if (boundsContainsPoint(los, his, ixes, fact) === true) {
         newFacts.push(fact);
       }
     }
@@ -242,7 +235,7 @@ MemoryConstraint.prototype = {
     var i, ix, lowerPivot;
     findLowerPivot: for (i = ixes.length - 1; i >= 0; i--) {
       ix = ixes[i];
-      if (ix !== null) {
+      if (ix !== undefined) {
         for (var j = facts.length - 1; j >= 0; j--) {
           lowerPivot = facts[j][i];
           if (lowerPivot !== leftHis[ix]) break findLowerPivot;
@@ -265,29 +258,28 @@ MemoryConstraint.prototype = {
   }
 };
 
-function NegatedMemoryConstraint(ixes, constants) {
+function NegatedMemoryConstraint(table, ixes) {
+  this.table = table;
   this.ixes = ixes;
-  this.constants = constants;
 }
 
 NegatedMemoryConstraint.prototype = {
   start: function(inputMemory) {
     // TODO the latter is a hack to avoid having to change all the quickcheck tests
-    return (this.constants && this.constants[0]) ? inputMemory.getTable(this.constants[0]) : inputMemory.getFacts();
+    return this.table ? inputMemory.getTable(this.table) : inputMemory.getFacts();
   },
 
   propagate: function(myIx, constraintStates, los, his) {
     var facts = constraintStates[myIx];
     var ixes = this.ixes;
-    var constants = this.constants;
 
     for (var i = ixes.length - 1; i >= 0; i--) {
       var ix = ixes[i];
-      if ((ix !== null) && (los[ix] !== his[ix])) return UNCHANGED;
+      if ((ix !== undefined) && (los[ix] !== his[ix])) return UNCHANGED;
     }
 
     for (var i = facts.length - 1; i >= 0; i--) {
-      if (solutionMatchesPoint(los, ixes, constants, facts[i]) === true) {
+      if (solutionMatchesPoint(los, ixes, facts[i]) === true) {
         // console.log("Negation failed on " + facts[i]);
         return FAILED;
       }
@@ -359,11 +351,10 @@ Provenance.prototype = {
 
 // FUNCTIONS
 
-function FunctionConstraint(fun, inIxes, outIx, outConstant) {
+function FunctionConstraint(fun, inIxes, outIx) {
   this.fun = fun;
   this.inIxes = inIxes;
   this.outIx = outIx;
-  this.outConstant = outConstant;
   this.inValues = makeArray(inIxes.length, null);
 }
 
@@ -388,10 +379,9 @@ FunctionConstraint.prototype = {
     }
 
     var outIx = this.outIx;
-    var outConstant = this.outConstant;
     var outValue = this.fun.apply(null, inValues);
-    var compLo = compareValue(outValue, outConstant || los[outIx]);
-    var compHi = compareValue(outValue, outConstant || his[outIx]);
+    var compLo = compareValue(outValue, los[outIx]);
+    var compHi = compareValue(outValue, his[outIx]);
     if ((compLo === -1) || (compHi === 1)) return FAILED;
     if (outIx !== undefined) {
       los[outIx] = outValue;
@@ -409,16 +399,17 @@ FunctionConstraint.prototype = {
 
 // SOLVER
 
-function Solver(numVars, constraints, provenance) {
+function Solver(numVars, constants, constraints, provenance) {
   this.numVars = numVars;
+  this.constants = constants;
   this.constraints = constraints;
   this.provenance = provenance;
 }
 
-Solver.empty = function (numVars, constraints) {
+Solver.empty = function (numVars, constants, constraints) {
   var provenance = Provenance.empty(numVars, constraints);
   constraints.push(provenance);
-  return new Solver(numVars, constraints, provenance);
+  return new Solver(numVars, constants, constraints, provenance);
 };
 
 function pushInto(depth, elem, queue) {
@@ -451,6 +442,14 @@ Solver.prototype = {
 
     var los = makeArray(numVars, least);
     var his = makeArray(numVars, greatest);
+    var constants = this.constants;
+    for (var i = constants.length - 1; i >= 0; i--) {
+      var constant = constants[i];
+      if (constant !== undefined) {
+        los[i] = constant;
+        his[i] = constant;
+      }
+    }
 
     // buffers for splitting;
     var rightConstraintStates = constraintStates.slice();
@@ -532,11 +531,10 @@ Solver.prototype = {
 
 // AGGREGATE
 
-function Aggregate(groupIxes, sortIxes, limitIx, limitConstant, reducerInIxes, reducerOutIxes, reducerFuns, oldOutputMemory, newOutputMemory) {
+function Aggregate(groupIxes, sortIxes, limitIx, reducerInIxes, reducerOutIxes, reducerFuns, oldOutputMemory, newOutputMemory) {
   this.groupIxes = groupIxes;
   this.sortIxes = sortIxes;
   this.limitIx = limitIx;
-  this.limitConstant = limitConstant;
   this.reducerInIxes = reducerInIxes;
   this.reducerOutIxes = reducerOutIxes;
   this.reducerFuns = reducerFuns;
@@ -544,8 +542,8 @@ function Aggregate(groupIxes, sortIxes, limitIx, limitConstant, reducerInIxes, r
   this.newOutputMemory = newOutputMemory;
 }
 
-Aggregate.empty = function (groupIxes, sortIxes, limitIx, limitConstant, reducerInIxes, reducerOutIxes, reducerFuns) {
-  return new Aggregate(groupIxes, sortIxes, limitIx, limitConstant, reducerInIxes, reducerOutIxes, reducerFuns, Memory.empty(), Memory.empty());
+Aggregate.empty = function (groupIxes, sortIxes, limitIx, reducerInIxes, reducerOutIxes, reducerFuns) {
+  return new Aggregate(groupIxes, sortIxes, limitIx, reducerInIxes, reducerOutIxes, reducerFuns, Memory.empty(), Memory.empty());
 };
 
 function groupBy(facts, groupIxes) {
@@ -601,7 +599,6 @@ Aggregate.prototype = {
       var groupFacts = groups[group];
       sortBy(groupFacts, this.sortIxes);
       if (this.limitIx !== undefined) groupFacts = groupFacts.slice(0, groupFacts[0][this.limitIx]);
-      if (this.limitConstant !== undefined) groupFacts = groupFacts.slice(0, this.limitConstant);
       var reducerInIxes = this.reducerInIxes;
       var reducerOutIxes = this.reducerOutIxes;
       var reducerFuns = this.reducerFuns;
@@ -618,21 +615,23 @@ Aggregate.prototype = {
 
 // SINK
 
-function Sink(ixes, constants) {
+function Sink(table, ixes) {
+  this.table = table;
   this.ixes = ixes;
-  this.constants = constants;
 }
 
 Sink.prototype = {
   update: function(inputs, outputs) {
+    var table = this.table;
     var ixes = this.ixes;
-    var constants = this.constants;
     for (var i = inputs.length - 1; i >= 0; i--) {
       var input = inputs[i];
-      var output = [];
+      var output = [table];
       for (var j = ixes.length -1; j >= 0; j--) {
         var ix = ixes[j];
-        output[j] = (ix === null) ? constants[j] : input[ix];
+        if (ix !== undefined) {
+          output[j] = input[ixes[j]];
+        }
       }
       outputs.push(output);
     }
@@ -828,27 +827,27 @@ function compileRule(dump, rule) {
   valves.sort(function (valveA, valveB) {
     return (valveA.ix < valveB.ix) ? -1 : 1;
   });
-  var valveConstants = {};
-  for (var i = valves.length - 1; i >= 0; i--) {
-    var valve = valves[i];
-    var constantConstraints = dump.constantConstraint.valve[valve.valve] || [];
-    assert(constantConstraints.length <= 1);
-    if (constantConstraints.length === 1) {
-      valves.splice(i, 1);
-      valveConstants[valve.valve] = constantConstraints[0].value;
-    }
-  }
+
   var valveIxes = {};
   for (var i = valves.length - 1; i >= 0; i--) {
     valveIxes[valves[i].valve] = i;
   }
 
+  var constants = [];
+  for (var i = valves.length - 1; i >= 0; i--) {
+    var valve = valves[i];
+    var constantConstraints = dump.constantConstraint.valve[valve.valve] || [];
+    assert(constantConstraints.length <= 1);
+    if (constantConstraints.length === 1) {
+      constants[valve.ix] = constantConstraints[0].value;
+    }
+  }
+
   // count how many valves are actually used in constraint solving
-  // TODO we hackily assume that valves are ordered with joins/functions/constants before reducers. we should order them ourselves and reorder afterwards
-  var numVars;
-  for (numVars = 0; numVars < valves.length; numVars++) {
-    var valve = valves[numVars].valve;
-    if (dump.reducer.outValve[valve] !== undefined) break;
+  var numVars = valves.length;
+  for (var i = 0; i < valves.length; i++) {
+    var valve = valves[i].valve;
+    if (dump.reducer.outValve[valve] !== undefined) numVars--;
   }
 
   var constraints = [];
@@ -860,28 +859,21 @@ function compileRule(dump, rule) {
     var tableConstraints = dump.tableConstraint.pipe[pipe.pipe];
     if (tableConstraints !== undefined) {
       var fields = dump.schema.table[pipe.table] || [];
-      var ixes = makeArray(fields.length + 1, null); // +1 because table name is at 0
-      var constants = makeArray(fields.length + 1, null); // +1 because table name is at 0
-      constants[0] = pipe.table;
+      var ixes = [];
       for (var j = tableConstraints.length - 1; j >= 0; j--) {
         var tableConstraint = tableConstraints[j];
         var fieldIxes = dump.schema.field[tableConstraint.field];
         assert(fieldIxes.length === 1);
         var fieldIx = fieldIxes[0].ix;
         var valveIx = valveIxes[tableConstraint.valve];
-        var constant = valveConstants[tableConstraint.valve];
-        if (constant === undefined) {
-          ixes[fieldIx + 1] = valveIx; // +1 because table name is at 0
-        } else {
-          constants[fieldIx + 1] = constant; // +1 because table name is at 0
-        }
+        ixes[fieldIx + 1] = valveIx; // +1 because table name is at 0
       }
       if (pipe.direction === "+source") {
-        constraints.push(new MemoryConstraint(ixes, constants));
+        constraints.push(new MemoryConstraint(pipe.table, ixes));
       } else if (pipe.direction === "-source") {
-        constraints.push(new NegatedMemoryConstraint(ixes, constants));
+        constraints.push(new NegatedMemoryConstraint(pipe.table, ixes));
       } else if (pipe.direction === "+sink") {
-        sinks.push(new Sink(ixes, constants));
+        sinks.push(new Sink(pipe.table, ixes));
       } else assert(false);
     }
   }
@@ -890,7 +882,6 @@ function compileRule(dump, rule) {
   for (var i = funs.length - 1; i >= 0; i--) {
     var fun = funs[i];
     var outIx = valveIxes[fun.valve];
-    var outConstant = valveConstants[fun.valve];
     var inputs = dump.functionInput.function[fun.function] || [];
     var inIxes = [];
     var args = [];
@@ -900,16 +891,15 @@ function compileRule(dump, rule) {
       inIxes[j] = valveIxes[valve];
     }
     var compiled = Function.apply(null, args.concat(["return (" + fun.code + ");"]));
-    constraints.push(new FunctionConstraint(compiled, inIxes, outIx, outConstant));
+    constraints.push(new FunctionConstraint(compiled, inIxes, outIx));
   }
 
-  var limitIx;
-  var limitConstant;
+  var limitIx, limitValve;
   var limitValves = dump.limitValve.rule[rule];
   if (limitValves !== undefined) {
     assert(limitValves.length === 1);
-    limitIx = valveIxes[limitValves[0].valve];
-    limitConstant = valveConstants[limitValves[0].valve];
+    limitValve = limitValves[0].valve;
+    limitIx = valveIxes[limitValve];
   }
 
   var groupIxes = [];
@@ -919,7 +909,7 @@ function compileRule(dump, rule) {
     groupIxes[i] = valveIxes[groupValve.valve];
   }
 
-  assert((limitIx === undefined) || (groupIxes.indexOf(limitIx) !== -1));
+  assert((limitIx === undefined) || (groupIxes.indexOf(limitIx) !== -1) || (dump.constantConstraint.valve[limitValve].length === 1));
 
   var sortIxes = [];
   var sortValves = dump.sortValve.rule[rule] || [];
@@ -939,9 +929,9 @@ function compileRule(dump, rule) {
     reducerFuns[i] = Function.apply(null, [reducer.inValve, "return (" + reducer.code + ");"]);
   }
 
-  var aggregate = Aggregate.empty(groupIxes, sortIxes, limitIx, limitConstant, reducerInIxes, reducerOutIxes, reducerFuns);
+  var aggregate = Aggregate.empty(groupIxes, sortIxes, limitIx, reducerInIxes, reducerOutIxes, reducerFuns);
 
-  return new Flow(Solver.empty(numVars, constraints), aggregate, sinks);
+  return new Flow(Solver.empty(numVars, constants, constraints), aggregate, sinks);
 }
 
 function compileSystem(memory) {
@@ -980,9 +970,9 @@ function memoryEqual(memoryA, memoryB) {
 var selfJoin = bigcheck.foralls(bigcheck.facts(3),
                                 function (facts) {
                                   var input = Memory.empty();
-                                  var constraint0 = new MemoryConstraint([0,1,2]);
-                                  var constraint1 = new MemoryConstraint([0,1,2]);
-                                  var flow = new Flow(Solver.empty(3, [constraint0, constraint1]), null, [new Sink([0,1,2], [null,null,null])]);
+                                  var constraint0 = new MemoryConstraint(undefined, [0,1,2]);
+                                  var constraint1 = new MemoryConstraint(undefined, [0,1,2]);
+                                  var flow = new Flow(Solver.empty(3, [], [constraint0, constraint1]), null, [new Sink(undefined, [0,1,2])]);
                                   var input = input.update(facts, []);
                                   var output = flow.update(input, Memory.empty());
                                   return memoryEqual(input, output);
@@ -991,9 +981,9 @@ var selfJoin = bigcheck.foralls(bigcheck.facts(3),
 var productJoin = bigcheck.foralls(bigcheck.facts(3),
                                    function (facts) {
                                      var input = Memory.empty();
-                                     var constraint0 = new MemoryConstraint([0,1,2]);
-                                     var constraint1 = new MemoryConstraint([3,4,5]);
-                                     var flow = new Flow(Solver.empty(6, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
+                                     var constraint0 = new MemoryConstraint(undefined, [0,1,2]);
+                                     var constraint1 = new MemoryConstraint(undefined, [3,4,5]);
+                                     var flow = new Flow(Solver.empty(6, [], [constraint0, constraint1]), null, [new Sink(undefined, [0,1,2,3,4,5])]);
                                      var input = input.update(facts, []);
                                      var output = flow.update(input, Memory.empty());
                                      var expectedFacts = [];
@@ -1008,18 +998,16 @@ var productJoin = bigcheck.foralls(bigcheck.facts(3),
 var constantJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.value,
                                     function (facts, constant) {
                                       var input = Memory.empty();
-                                      var constraint0 = new MemoryConstraint([0,null,1],[null,constant,null]);
-                                      var constraint1 = new MemoryConstraint([2,3,4]);
-                                      var flow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                                      var constraint0 = new MemoryConstraint(undefined, [0,1,2]);
+                                      var constraint1 = new MemoryConstraint(undefined, [3,4,5]);
+                                      var flow = new Flow(Solver.empty(6, [undefined, constant], [constraint0, constraint1]), null, [new Sink(undefined, [0,1,2,3,4,5])]);
                                       var input = input.update(facts, []);
                                       var output = flow.update(input, Memory.empty());
                                       var expectedFacts = [];
                                       for (var i = 0; i < facts.length; i++) {
                                         if (facts[i][1] === constant) {
                                           for (var j = 0; j < facts.length; j++) {
-                                            var fact = facts[i].concat(facts[j]);
-                                            fact.splice(1,1);
-                                            expectedFacts.push(fact);
+                                            expectedFacts.push(facts[i].concat(facts[j]));
                                           }
                                         }
                                       }
@@ -1029,10 +1017,10 @@ var constantJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.value,
 var incrementalConstantJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.value, bigcheck.facts(3), bigcheck.facts(3),
                                                function (facts, constant, adds, dels) {
                                                  var input = Memory.empty();
-                                                 var constraint0 = new MemoryConstraint([0,null,1],[null,constant,null]);
-                                                 var constraint1 = new MemoryConstraint([2,3,4]);
-                                                 var incrementalFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
-                                                 var batchFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                                                 var constraint0 = new MemoryConstraint(undefined, [0,1,2]);
+                                                 var constraint1 = new MemoryConstraint(undefined, [3,4,5]);
+                                                 var incrementalFlow = new Flow(Solver.empty(6, [undefined, constant], [constraint0, constraint1]), null, [new Sink(undefined, [0,1,2,3,4,5])]);
+                                                 var batchFlow = new Flow(Solver.empty(6, [undefined, constant], [constraint0, constraint1]), null, [new Sink(undefined, [0,1,2,3,4,5])]);
                                                  var incrementalOutput = Memory.empty();
                                                  var batchOutput = Memory.empty();
 
@@ -1049,9 +1037,9 @@ var incrementalConstantJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.value
 var actualJoin = bigcheck.foralls(bigcheck.facts(3),
                                   function (facts) {
                                     var input = Memory.empty();
-                                    var constraint0 = new MemoryConstraint([0,1,2]);
-                                    var constraint1 = new MemoryConstraint([2,3,4]);
-                                    var flow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                                    var constraint0 = new MemoryConstraint(undefined, [0,1,2]);
+                                    var constraint1 = new MemoryConstraint(undefined, [2,3,4]);
+                                    var flow = new Flow(Solver.empty(5, [], [constraint0, constraint1]), null, [new Sink(undefined, [0,1,2,3,4])]);
                                     var input = input.update(facts, []);
                                     var output = flow.update(input, Memory.empty());
                                     var expectedFacts = [];
@@ -1070,10 +1058,10 @@ var actualJoin = bigcheck.foralls(bigcheck.facts(3),
 var incrementalActualJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.facts(3), bigcheck.facts(3),
                                              function (facts, adds, dels) {
                                                var input = Memory.empty();
-                                               var constraint0 = new MemoryConstraint([0,1,2]);
-                                               var constraint1 = new MemoryConstraint([2,3,4]);
-                                               var incrementalFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
-                                               var batchFlow = new Flow(Solver.empty(5, [constraint0, constraint1]), null, [new Sink([0,1,2,3,4], [null,null,null,null,null])]);
+                                               var constraint0 = new MemoryConstraint(undefined, [0,1,2]);
+                                               var constraint1 = new MemoryConstraint(undefined, [2,3,4]);
+                                               var incrementalFlow = new Flow(Solver.empty(5, [], [constraint0, constraint1]), null, [new Sink(undefined, [0,1,2,3,4])]);
+                                               var batchFlow = new Flow(Solver.empty(5, [], [constraint0, constraint1]), null, [new Sink(undefined, [0,1,2,3,4])]);
                                                var incrementalOutput = Memory.empty();
                                                var batchOutput = Memory.empty();
 
@@ -1090,10 +1078,10 @@ var incrementalActualJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.facts(3
 var functionJoin = bigcheck.foralls(bigcheck.facts(3),
                                     function (facts) {
                                       var input = Memory.empty();
-                                      var constraint0 = new MemoryConstraint([0,1,2]);
-                                      var constraint1 = new MemoryConstraint([3,4,5]);
+                                      var constraint0 = new MemoryConstraint(undefined, [0,1,2]);
+                                      var constraint1 = new MemoryConstraint(undefined, [3,4,5]);
                                       var constraint2 = new FunctionConstraint(function (x) { return x + 1;}, [2], 3);
-                                      var flow = new Flow(Solver.empty(6, [constraint0, constraint1, constraint2]), null, [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
+                                      var flow = new Flow(Solver.empty(6, [], [constraint0, constraint1, constraint2]), null, [new Sink(undefined, [0,1,2,3,4,5])]);
                                       var input = input.update(facts, []);
                                       var output = flow.update(input, Memory.empty());
                                       var expectedFacts = [];
@@ -1111,11 +1099,11 @@ var functionJoin = bigcheck.foralls(bigcheck.facts(3),
 var incrementalFunctionJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.facts(3), bigcheck.facts(3),
                                                function (facts, adds, dels) {
                                                  var input = Memory.empty();
-                                                 var constraint0 = new MemoryConstraint([0,1,2]);
-                                                 var constraint1 = new MemoryConstraint([3,4,5]);
+                                                 var constraint0 = new MemoryConstraint(undefined, [0,1,2]);
+                                                 var constraint1 = new MemoryConstraint(undefined, [3,4,5]);
                                                  var constraint2 = new FunctionConstraint(function (x) { return x + 1;}, [2], 3);
-                                                 var incrementalFlow = new Flow(Solver.empty(6, [constraint0, constraint1, constraint2]), null, [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
-                                                 var batchFlow = new Flow(Solver.empty(6, [constraint0, constraint1, constraint2]), null, [new Sink([0,1,2,3,4,5], [null,null,null,null,null,null])]);
+                                                 var incrementalFlow = new Flow(Solver.empty(6, [], [constraint0, constraint1, constraint2]), null, [new Sink(undefined, [0,1,2,3,4,5])]);
+                                                 var batchFlow = new Flow(Solver.empty(6, [], [constraint0, constraint1, constraint2]), null, [new Sink(undefined, [0,1,2,3,4,5])]);
                                                  var incrementalOutput = Memory.empty();
                                                  var batchOutput = Memory.empty();
 
@@ -1132,9 +1120,9 @@ var incrementalFunctionJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.facts
 var negatedJoin = bigcheck.foralls(bigcheck.facts(3),
                                    function (facts) {
                                      var input = Memory.empty();
-                                     var constraint0 = new MemoryConstraint([0,1,2]);
-                                     var constraint1 = new NegatedMemoryConstraint([2,null,null], [null,null,null]);
-                                     var flow = new Flow(Solver.empty(3, [constraint1, constraint0]), null, [new Sink([0,1,2], [null,null,null])]);
+                                     var constraint0 = new MemoryConstraint(undefined, [0,1,2]);
+                                     var constraint1 = new NegatedMemoryConstraint(undefined, [2,undefined,undefined]);
+                                     var flow = new Flow(Solver.empty(3, [], [constraint1, constraint0]), null, [new Sink(undefined, [0,1,2])]);
                                      var input = input.update(facts, []);
                                      var output = flow.update(input, Memory.empty());
                                      var expectedFacts = [];
@@ -1153,10 +1141,10 @@ var negatedJoin = bigcheck.foralls(bigcheck.facts(3),
 var incrementalNegatedJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.facts(3), bigcheck.facts(3),
                                               function (facts, adds, dels) {
                                                 var input = Memory.empty();
-                                                var constraint0 = new MemoryConstraint([0,1,2]);
-                                                var constraint1 = new NegatedMemoryConstraint([2,null,null], [null,null,null]);
-                                                var incrementalFlow = new Flow(Solver.empty(3, [constraint1, constraint0]), null, [new Sink([0,1,2], [null,null,null])]);
-                                                var batchFlow = new Flow(Solver.empty(3, [constraint1, constraint0]), null, [new Sink([0,1,2], [null,null,null])]);
+                                                var constraint0 = new MemoryConstraint(undefined, [0,1,2]);
+                                                var constraint1 = new NegatedMemoryConstraint(undefined, [2,undefined,undefined]);
+                                                var incrementalFlow = new Flow(Solver.empty(3, [], [constraint1, constraint0]), null, [new Sink(undefined, [0,1,2])]);
+                                                var batchFlow = new Flow(Solver.empty(3, [], [constraint1, constraint0]), null, [new Sink(undefined, [0,1,2])]);
                                                 var incrementalOutput = Memory.empty();
                                                 var batchOutput = Memory.empty();
 
@@ -1173,9 +1161,9 @@ var incrementalNegatedJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.facts(
 var aggregateJoin = bigcheck.foralls(bigcheck.facts(3),
                                      function (facts) {
                                        var input = Memory.empty();
-                                       var constraint0 = new MemoryConstraint([0,1,2]);
-                                       var aggregate = Aggregate.empty([2], [0, 1], undefined, undefined, [1], [3], [function (as) {return as.join("");}]);
-                                       var flow = new Flow(Solver.empty(3, [constraint0]), aggregate, [new Sink([1,3], [null,null])]);
+                                       var constraint0 = new MemoryConstraint(undefined, [0,1,2]);
+                                       var aggregate = Aggregate.empty([2], [0, 1], undefined, [1], [3], [function (as) {return as.join("");}]);
+                                       var flow = new Flow(Solver.empty(3, [], [constraint0]), aggregate, [new Sink(undefined, [1,3])]);
                                        var input = input.update(facts, []);
                                        var output = flow.update(input, Memory.empty());
                                        var groups = {};
@@ -1196,11 +1184,11 @@ var aggregateJoin = bigcheck.foralls(bigcheck.facts(3),
 var incrementalAggregateJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.facts(3), bigcheck.facts(3),
                                      function (facts, adds, dels) {
                                        var input = Memory.empty();
-                                       var constraint0 = new MemoryConstraint([0,1,2]);
-                                       var incrementalAggregate = Aggregate.empty([2], [0, 1], undefined, undefined, [1], [3], [function (as) {return as.join("");}]);
-                                       var batchAggregate = Aggregate.empty([2], [0, 1], undefined, undefined, [1], [3], [function (as) {return as.join("");}]);
-                                       var incrementalFlow = new Flow(Solver.empty(3, [constraint0]), incrementalAggregate, [new Sink([1,3], [null,null])]);
-                                       var batchFlow = new Flow(Solver.empty(3, [constraint0]), batchAggregate, [new Sink([1,3], [null,null])]);
+                                       var constraint0 = new MemoryConstraint(undefined, [0,1,2]);
+                                       var incrementalAggregate = Aggregate.empty([2], [0, 1], undefined, [1], [3], [function (as) {return as.join("");}]);
+                                       var batchAggregate = Aggregate.empty([2], [0, 1], undefined, [1], [3], [function (as) {return as.join("");}]);
+                                       var incrementalFlow = new Flow(Solver.empty(3, [], [constraint0]), incrementalAggregate, [new Sink(undefined, [1,3])]);
+                                       var batchFlow = new Flow(Solver.empty(3, [], [constraint0]), batchAggregate, [new Sink(undefined, [1,3])]);
                                        var incrementalOutput = Memory.empty();
                                        var batchOutput = Memory.empty();
 
@@ -1213,10 +1201,6 @@ var incrementalAggregateJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.fact
 
                                        return memoryEqual(incrementalOutput, batchOutput);
                                      });
-
-// incrementalAggregateJoin.check({maxTests: 1000});
-bigcheck.lastFailure;
-incrementalAggregateJoin.recheck();
 
 // COMPILER TESTS
 
@@ -1349,10 +1333,10 @@ function compiledNegationTest() {
 // BENCHMARKS
 
 function soFast(n) {
-  var constraint0 = new MemoryConstraint([0,1,2]);
-  var constraint1 = new MemoryConstraint([0,1,2]);
-  var sink0 = new Sink([0,1,2], [null,null,null]);
-  var solver = Solver.empty(3, [constraint0, constraint1]);
+  var constraint0 = new MemoryConstraint(undefined, [0,1,2]);
+  var constraint1 = new MemoryConstraint(undefined, [0,1,2]);
+  var sink0 = new Sink(undefined, [0,1,2]);
+  var solver = Solver.empty(3, [], [constraint0, constraint1]);
   var flow = new Flow(solver, null, [sink0]);
 
   var input = Memory.empty();
@@ -1374,10 +1358,10 @@ function soFast(n) {
 // soFast(100000);
 
 function soSlow(n) {
-  var constraint0 = new MemoryConstraint([0,1,2]);
-  var constraint1 = new MemoryConstraint([0,1,2]);
-  var sink0 = new Sink([0,1,2], [null,null,null]);
-  var solver = Solver.empty(3, [constraint0, constraint1]);
+  var constraint0 = new MemoryConstraint(undefined, [0,1,2]);
+  var constraint1 = new MemoryConstraint(undefined, [0,1,2]);
+  var sink0 = new Sink(undefined, [0,1,2]);
+  var solver = Solver.empty(3, [], [constraint0, constraint1]);
   var flow = new Flow(solver, null, [sink0]);
 
   var input = Memory.empty();

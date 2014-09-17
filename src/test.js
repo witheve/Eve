@@ -1,6 +1,6 @@
-var testMultiplier = 0.1;
-if(typeof window == "undefined") {
-  testMultiplier = process.env.TESTMULTIPLIER || 1;
+var testMultiplier = 1;
+if(typeof window === "undefined") {
+  testMultiplier = process.env.TESTMULTIPLIER;
 }
 
 console.time("selfJoin");
@@ -85,7 +85,7 @@ eve.test.test("simple aggregate",
                 sys.rule("this is a cool rule", function(rule) {
                   rule.source("clicks");
                   rule.sink("sms outbox");
-                  rule.aggregate("clicks.id", "cool", "console.log(clicks.id) || 'hey'");
+                  rule.aggregate("clicks.id", "cool", "'hey'");
                   rule.output("cool", "sms outbox.id");
                 });
               },
