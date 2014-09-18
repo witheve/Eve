@@ -40,9 +40,11 @@ dsl.table = function(name, fields) {
 var Rule = function(desc) {
   this.id = dsl.nextId();
   this.ix = 0;
+  this.reducerIx = 0;
   this.sortIx = 0;
   this.names = {};
   this.items = [["rule", this.id, desc]];
+  this.reducerItems = [];
 }
 
 dsl.rule = function(desc, func) {
@@ -93,6 +95,12 @@ Rule.prototype.valve = function() {
   return valve;
 }
 
+Rule.prototype.reducerValve = function() {
+  var valve = dsl.nextId();
+  this.reducerItems.push(["valve", valve, this.id, this.reducerIx++]);
+  return valve;
+}
+
 Rule.prototype.fieldToValve = function(from) {
   var valve = this.names[from];
   if(!valve) {
@@ -130,6 +138,11 @@ Rule.prototype.outputConstant = function(val, to) {
 }
 
 Rule.prototype.join = function(from, to) {
+  if(!this.names[from] && this.names[to]) {
+    var oldfrom = from;
+    from = to;
+    to = oldfrom;
+  }
   var valve = this.fieldToValve(from);
   var toParts = dsl.parseName(to);
   var pipe = dsl.nameToId(toParts[0], this);
@@ -177,7 +190,7 @@ Rule.prototype.calculate = function(name, args, code) {
 
 Rule.prototype.aggregate = function(input, output, code) {
   var inputValve = this.fieldToValve(input);
-  var valve = this.valve();
+  var valve = this.reducerValve();
   code = code.replace(input, inputValve);
   this.names[output] = valve;
   this.items.push(["reducer", this.id, inputValve, valve, code],
@@ -215,6 +228,13 @@ DSLSystem.prototype.rule = function(name, func) {
   for(var i in rule.items) {
     this.facts.push(rule.items[i]);
   }
+  for(var i in rule.reducerItems) {
+    var cur = rule.reducerItems[i];
+    cur[3] = cur[3] + rule.ix;
+    this.facts.push(cur);
+  }
+  console.log(rule.items);
+  console.log(rule.reducerItems);
 }
 
 DSLSystem.prototype.table = function(name, fields) {
@@ -398,6 +418,7 @@ eve.test.wrapCommonTables = function(sys) {
   sys.table("edges", ["from", "to"]);
   sys.table("path", ["from", "to"]);
   sys.table("rule", ["id", "description"]);
+  sys.table("pipe", ["id", "table", "rule", "direction"])
   sys.table("ui_elems", ["id", "type"]);
   sys.table("ui_text", ["id", "text"]);
   sys.table("ui_child", ["parent", "pos", "child"]);

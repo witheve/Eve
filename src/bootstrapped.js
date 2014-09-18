@@ -129,62 +129,95 @@ program.run = function(facts) {
 var elem = eve.ui.elem;
 var ref = eve.ui.ref;
 
-program.rule("cool", function(rule) {
+var on = function(rule, label) {
+  rule.source("external_events");
+  rule.eq("external_events.label", label);
+}
+
+var setConstant = function(rule, k, v) {
+  rule.sink("state-temp");
+  rule.output("external_events.eid", "state-temp.id");
+  rule.outputConstant(k, "state-temp.key");
+  rule.outputConstant(v, "state-temp.value");
+}
+
+var set = function(rule, k, v) {
+  rule.sink("state-temp");
+  rule.output("external_events.eid", "state-temp.id");
+  rule.outputConstant(k, "state-temp.key");
+  rule.output(v, "state-temp.value");
+}
+
+var joinState = function(rule, k, to) {
+  var id = dsl.nextId();
+  rule.source("state", id);
+  rule.eq("active.key", k);
+  rule.join(to, id + ".value");
+}
+
+var page = function(rule, p) {
+  rule.source("state");
+  rule.eq("state.key", "page");
+  rule.eq("state.value", p);
+}
+
+program.table("state-temp", ["id", "key", "value"]);
+program.table("state", ["key", "value"]);
+
+program.rule("real state", function(rule) {
+  rule.source("external_events");
+  rule.source("state-temp");
+  rule.sink("state");
+  rule.calculate("sorted", ["state-temp.id"], "-1 * state-temp.id");
+  rule.group("state-temp.key");
+  rule.sort("sorted");
+  rule.constantLimit(1);
+  rule.output("state-temp.key", "state.key");
+  rule.output("state-temp.value", "state.value");
+});
+
+program.rule("on goto page", function(rule) {
+  on(rule, "goto page");
+  set(rule, "page", "external_events.key");
+});
+
+program.rule("draw rule", function(rule) {
   rule.source("rule");
-  rule.ui(elem("button", {id: ["ex", "rule.id"], draggable: "true", click: ["did", ref("rule.id")]}, [
+  page(rule, "rules list");
+  rule.ui(elem("button", {id: ["rule", "rule.id"], draggable: "true", click: ["open rule", ref("rule.id")]}, [
     ref("rule.description")
   ]));
 });
 
-program.table("foo", ["count"]);
-program.rule("zomg", function(rule) {
-  rule.source("external_events");
-  rule.sink("foo");
-  rule.aggregate("external_events.eid", "totalClicks", "(external_events.eid).length")
-  rule.output("totalClicks", "foo.count");
+program.rule("open rule", function(rule) {
+  on(rule, "open rule");
+  set(rule, "activeRule", "external_events.key");
+  setConstant(rule, "page", "rule");
 });
 
-// FIXME: this doesn't work right now because there's no way to ask if a table is empty.
-// program.rule("empty zomg", function(rule) {
-//   rule.negated("external_events");
-//   rule.sink("foo");
-//   rule.outputConstant(0, "foo.count");
-// });
-
-program.rule("woah", function(rule) {
-  rule.source("foo");
-  rule.source("time");
-  rule.calculate("color", ["foo.count"], "foo.count > 10 ? 'red' : 'green'");
-  rule.ui(elem("p", {id: ["click", "time.time"], style: {color: ref("color")}}, ["Num clicks: ", ref("foo.count")]));
+program.rule("rule page", function(rule) {
+  page(rule, "rule");
+  rule.source("rule");
+  joinState(rule, "activeRule", "rule.id");
+  rule.ui(elem("div", {id: ["rule-page", "state.value"]}, [
+    elem("button", {click: ["goto page", "rules list"]}, ["back"]),
+    elem("h2", {}, [ref("rule.description")]),
+    elem("ul", {id: ["sources", "rule.id"]}, [])
+  ]));
 });
 
-program.rule("add bar button", function(rule) {
-  rule.source("time");
-  rule.ui(elem("button", {id: ["add bar", "time.time"], click: ["add bar", "time.time"]}, ["add bar"]));
-});
+program.rule("rule page sources", function(rule) {
+  page(rule, "rule");
+  rule.source("rule");
+  rule.source("pipe");
 
-program.table("bar", ["id"]);
-program.table("delbar", ["id"]);
-program.rule("bars", function(rule) {
-  rule.source("external_events");
-  rule.sink("bar", "bar");
-  rule.filter("external_events.label", "external_events.label == 'add bar'");
-  rule.output("external_events.eid", "bar.id");
-})
+  joinState(rule, "activeRule", "rule.id");
+  rule.join("pipe.rule", "rule.id");
+  rule.eq("pipe.direction", "+source");
 
-program.rule("draw bars", function(rule) {
-  rule.source("bar");
-  rule.negated("delbar");
-  rule.join("bar.id", "delbar.id");
-  rule.ui(elem("p", {id: ["bar", "bar.id"], click: ["remove bar", ref("bar.id")]}, [ref("bar.id"), " - remove me"]));
-});
+  rule.ui(elem("li", {id: ["source", "pipe.id"]}, [ref("pipe.table")]));
 
-program.rule("delete bars", function(rule) {
-  rule.source("external_events");
-  rule.sink("delbar");
-  rule.filter("external_events.label", "external_events.label == 'remove bar'");
-  rule.output("external_events.key", "delbar.id");
 });
 
 program.compile();
-program.run([["time", 0], ["users", 0, "chris"], ["users", 1, "rob"], ["users", 2, "jamie"]]);
+program.run([["time", 0], ["external_events", "asdf", "goto page", "rules list", 0]]);
