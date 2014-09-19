@@ -790,6 +790,7 @@ function dumpMemory(memory) {
       var field = fact[2];
       var ix = fact[3];
       var fields = schema[table] || (schema[table] = []);
+      assert(fields[ix] === undefined);
       fields[ix] = field;
     }
   }
