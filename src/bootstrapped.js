@@ -235,28 +235,28 @@ program.rule("draw rule", function(rule) {
 program.rule("rules list sources", function(rule) {
   page(rule, "rules list");
   rule.source("editor_rule");
-  rule.source("pipe");
+  rule.source("pipe2");
 
-  rule.join("editor_rule.id", "pipe.rule");
-  rule.eq("pipe.direction", "+source");
+  rule.join("editor_rule.id", "pipe2.rule");
+  rule.eq("pipe2.direction", "+source");
 
-  rule.calculate("id", ["pipe.table", "editor_rule.id"], "pipe.table + editor_rule.id");
+  rule.calculate("id", ["pipe2.table", "editor_rule.id"], "pipe2.table + editor_rule.id");
 
-  rule.ui(elem("li", {id: ["source", "id"], parent: ["sources", "editor_rule.id", "pipe.table"]}, [ref("pipe.table")]));
+  rule.ui(elem("li", {id: ["source", "id"], parent: ["sources", "editor_rule.id", "pipe2.table"]}, [ref("pipe2.table")]));
 
 });
 
 program.rule("rules list sinks", function(rule) {
   page(rule, "rules list");
   rule.source("editor_rule");
-  rule.source("pipe");
+  rule.source("pipe2");
 
-  rule.join("editor_rule.id", "pipe.rule");
-  rule.eq("pipe.direction", "+sink");
+  rule.join("editor_rule.id", "pipe2.rule");
+  rule.eq("pipe2.direction", "+sink");
 
-  rule.calculate("id", ["pipe.table", "editor_rule.id"], "pipe.table + editor_rule.id");
+  rule.calculate("id", ["pipe2.table", "editor_rule.id"], "pipe2.table + editor_rule.id");
 
-  rule.ui(elem("li", {id: ["sink", "id"], parent: ["sinks", "editor_rule.id", "pipe.table"]}, [ref("pipe.table")]));
+  rule.ui(elem("li", {id: ["sink", "id"], parent: ["sinks", "editor_rule.id", "pipe2.table"]}, [ref("pipe2.table")]));
 
 });
 
@@ -281,23 +281,23 @@ program.rule("table is open?", function(rule) {
 });
 
 program.rule("draw table", function(rule) {
-  rule.source("schema");
+  rule.source("schema2");
   page(rule, "rules list");
-  rule.group("schema.table");
-  rule.ui(elem("li", {id: ["table", "schema.table"], parent: ["table-list", "", "schema.table"], doubleClick: ["open table", ref("schema.table")], click: ["toggle table", ref("schema.table")]}, [
-    elem("h2", {}, [ref("schema.table")]),
-    elem("ul", {id: ["table-fields", "schema.table"]}, [])
+  rule.group("schema2.table");
+  rule.ui(elem("li", {id: ["table", "schema2.table"], parent: ["table-list", "", "schema2.table"], doubleClick: ["open table", ref("schema2.table")], click: ["toggle table", ref("schema2.table")]}, [
+    elem("h2", {}, [ref("schema2.table")]),
+    elem("ul", {id: ["table-fields", "schema2.table"]}, [])
   ]));
 });
 
 program.rule("draw fields for open tables", function(rule) {
   rule.source("open tables");
-  rule.source("schema");
+  rule.source("schema2");
   rule.source("displayNames");
-  rule.join("schema.table", "open tables.table");
-  rule.join("schema.field", "displayNames.id");
-  rule.calculate("id", ["schema.table", "schema.field"], "schema.table + '.' + schema.field");
-  rule.ui(elem("li", {id: ["table-field", "id"], parent: ["table-fields", "schema.table", "schema.ix"]}, [
+  rule.join("schema2.table", "open tables.table");
+  rule.join("schema2.field", "displayNames.id");
+  rule.calculate("id", ["schema2.table", "schema2.field"], "schema2.table + '.' + schema.field");
+  rule.ui(elem("li", {id: ["table-field", "id"], parent: ["table-fields", "schema2.table", "schema2.ix"]}, [
     ref("displayNames.name")
   ]));
 });
@@ -333,26 +333,26 @@ program.rule("rule page", function(rule) {
 program.rule("rule page sources", function(rule) {
   page(rule, "rule");
   rule.source("editor_rule");
-  rule.source("pipe");
+  rule.source("pipe2");
 
   joinState(rule, "activeRule", "editor_rule.id");
-  rule.join("pipe.rule", "editor_rule.id");
-  rule.eq("pipe.direction", "+source");
+  rule.join("pipe2.rule", "editor_rule.id");
+  rule.eq("pipe2.direction", "+source");
 
-  rule.ui(elem("li", {id: ["source", "pipe.id"], parent: ["sources", "editor_rule.id", "pipe.table"]}, [ref("pipe.table")]));
+  rule.ui(elem("li", {id: ["source", "pipe2.id"], parent: ["sources", "editor_rule.id", "pipe2.table"]}, [ref("pipe2.table")]));
 
 });
 
 program.rule("rule page sinks", function(rule) {
   page(rule, "rule");
   rule.source("editor_rule");
-  rule.source("pipe");
+  rule.source("pipe2");
 
   joinState(rule, "activeRule", "editor_rule.id");
-  rule.join("pipe.rule", "editor_rule.id");
-  rule.eq("pipe.direction", "+sink");
+  rule.join("pipe2.rule", "editor_rule.id");
+  rule.eq("pipe2.direction", "+sink");
 
-  rule.ui(elem("li", {id: ["sink", "pipe.id"], parent: ["sinks", "editor_rule.id", "pipe.table"]}, [ref("pipe.table")]));
+  rule.ui(elem("li", {id: ["sink", "pipe2.id"], parent: ["sinks", "editor_rule.id", "pipe2.table"]}, [ref("pipe2.table")]));
 
 });
 
