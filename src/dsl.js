@@ -284,9 +284,9 @@ dsl.system = function() {
 var ui = eve.ui = {}
 
 ui.events = {
-  "click": true,
-  "doubleClick": true,
-  "contextMenu": true
+  "click": "click",
+  "doubleClick": "dblclick",
+  "contextMenu": "contextMenu"
 }
 
 ui.prefixId = function(rule, prefix, col) {
@@ -375,7 +375,7 @@ ui.elem = function() {
         var sink = id + "_eventsink_" + i;
         rule.sink("ui_events", sink);
         rule.output(id, sink + ".id");
-        rule.outputConstant(i, sink + ".event");
+        rule.outputConstant(ui.events[i], sink + ".event");
         var field = [".label", ".key"];
         for(var x in attr) {
           if(typeof attr[x] === "function") {

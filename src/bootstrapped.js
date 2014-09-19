@@ -15,6 +15,7 @@ var now = function() {
 
 var createUICallback = function(id, label, key) {
   return function(e) {
+    console.log("event: ", e);
     program.run([["external_events", id, label, key, eve.data.globalId++]]);
   };
 }
@@ -25,7 +26,14 @@ var svgs = {
   "rect": true
 }
 
-var uiWatcher = function(memory) {
+var uiWatcher = function(prev, memory) {
+  //var adds = [];
+  //var removes = [];
+  //memory.diff(prev, adds, removes);
+
+  //console.log(adds);
+  //console.log(removes);
+
   var elem = memory.getTable("ui_elems");
   var text = memory.getTable("ui_text");
   var attrs = memory.getTable("ui_attrs");
@@ -54,6 +62,7 @@ var uiWatcher = function(memory) {
   var roots = {};
 
   if(program.root) {
+    document.body.removeChild(program.root);
     while(program.root.children.length) {
       program.root.removeChild(program.root.children[0]);
     }
@@ -106,11 +115,12 @@ var uiWatcher = function(memory) {
   if(!program.root) {
     program.builtEls = builtEls;
     program.root = document.createElement("div");
-    document.body.appendChild(program.root);
   }
   for(var i in roots) {
     program.root.appendChild(builtEls[i]);
   }
+
+  document.body.appendChild(program.root);
 }
 
 //*********************************************************
@@ -121,11 +131,12 @@ var program = eve.dsl.system();
 eve.test.wrapCommonTables(program);
 
 program.run = function(facts) {
+  var prev = this.system.memory;
   var start = now();
   this.input(facts);
   var runtime = now() - start;
   start = now();
-  uiWatcher(this.system.memory);
+  uiWatcher(prev, this.system.memory);
   var render = now() - start;
   $("#timeStat").html(runtime.toFixed(2));
   $("#renderStat").html(render.toFixed(2));
@@ -273,7 +284,7 @@ program.rule("draw table", function(rule) {
   rule.source("schema");
   page(rule, "rules list");
   rule.group("schema.table");
-  rule.ui(elem("li", {id: ["table", "schema.table"], parent: ["table-list", "", "schema.table"], click: ["toggle table", ref("schema.table")]}, [
+  rule.ui(elem("li", {id: ["table", "schema.table"], parent: ["table-list", "", "schema.table"], doubleClick: ["open table", ref("schema.table")], click: ["toggle table", ref("schema.table")]}, [
     elem("h2", {}, [ref("schema.table")]),
     elem("ul", {id: ["table-fields", "schema.table"]}, [])
   ]));
@@ -289,6 +300,12 @@ program.rule("draw fields for open tables", function(rule) {
   rule.ui(elem("li", {id: ["table-field", "id"], parent: ["table-fields", "schema.table", "schema.ix"]}, [
     ref("displayNames.name")
   ]));
+});
+
+program.rule("open table", function(rule) {
+  on(rule, "open table");
+  set(rule, "activeTable", "external_events.key");
+  setConstant(rule, "page", "table");
 });
 
 program.rule("open rule", function(rule) {
