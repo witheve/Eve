@@ -439,9 +439,9 @@ eve.test.wrapCommonTables = function(sys) {
   sys.table("users", ["id", "name"]);
   sys.table("edges", ["from", "to"]);
   sys.table("path", ["from", "to"]);
-  sys.table("schema2", ["table", "field", "ix"]);
+  sys.table("schema", ["table", "field", "ix"]);
   sys.table("editor_rule", ["id", "description"]);
-  sys.table("pipe2", ["id", "table", "rule", "direction"]);
+  sys.table("pipe", ["id", "table", "rule", "direction"])
   sys.table("ui_elems", ["id", "type"]);
   sys.table("ui_text", ["id", "text"]);
   sys.table("ui_child", ["parent", "pos", "child"]);
