@@ -93,6 +93,7 @@ Memory.fromFacts = function(facts) {
 };
 
 function diffFacts(oldFacts, newFacts, outputAdds, outputDels) {
+  // console.count("diff");
   var adds = {};
   var dels = {};
   for (var i = newFacts.length - 1; i >= 0; i--) {
@@ -428,6 +429,7 @@ function popFrom(depth, elem, queue) {
 
 Solver.prototype = {
   update: function(inputMemory, outputAdds, outputDels) {
+    // console.count("solver.update");
     var provenance = this.provenance;
     var numVars = this.numVars;
     var constraints = this.constraints;
