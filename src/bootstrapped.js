@@ -19,6 +19,12 @@ var createUICallback = function(id, label, key) {
   };
 }
 
+var svgs = {
+  "svg": true,
+  "path": true,
+  "rect": true
+}
+
 var uiWatcher = function(memory) {
   var elem = memory.getTable("ui_elems");
   var text = memory.getTable("ui_text");
@@ -57,7 +63,11 @@ var uiWatcher = function(memory) {
   for(var i = 0; i < elemsLen; i++) {
     var cur = elem[i];
     roots[cur[elem_id]] = true;
-    builtEls[cur[elem_id]] = document.createElement(cur[elem_type]);
+    if(!svgs[cur[elem_type]]) {
+      builtEls[cur[elem_id]] = document.createElement(cur[elem_type]);
+    } else {
+      builtEls[cur[elem_id]] = document.createElementNS("http://www.w3.org/2000/svg", cur[elem_type]);
+    }
   }
 
   var textLen = text.length;
@@ -123,7 +133,7 @@ program.run = function(facts) {
 }
 
 //*********************************************************
-// rules
+// utils
 //*********************************************************
 
 var elem = eve.ui.elem;
@@ -151,7 +161,7 @@ var set = function(rule, k, v) {
 var joinState = function(rule, k, to) {
   var id = dsl.nextId();
   rule.source("state", id);
-  rule.eq("active.key", k);
+  rule.eq(id + ".key", k);
   rule.join(to, id + ".value");
 }
 
@@ -176,16 +186,108 @@ program.rule("real state", function(rule) {
   rule.output("state-temp.value", "state.value");
 });
 
+//*********************************************************
+// editor
+//*********************************************************
+
 program.rule("on goto page", function(rule) {
   on(rule, "goto page");
   set(rule, "page", "external_events.key");
 });
 
+program.rule("draw rules list ui", function(rule) {
+  page(rule, "rules list");
+  rule.ui(elem("div", {id: ["rules-list-root"], class: "root"}, [
+    elem("ul", {id: ["table-list"], class: "table-list"}, []),
+    elem("ul", {id: ["rules-list"], class: "rules-list"}, [])
+  ]));
+});
+
 program.rule("draw rule", function(rule) {
   rule.source("rule");
   page(rule, "rules list");
-  rule.ui(elem("button", {id: ["rule", "rule.id"], draggable: "true", click: ["open rule", ref("rule.id")]}, [
-    ref("rule.description")
+  rule.ui(elem("li", {id: ["rule", "rule.id"], parent: ["rules-list", "", "rule.id"], click: ["open rule", ref("rule.id")]}, [
+    elem("h2", {}, [ref("rule.description")]),
+    elem("div", {class: "io"}, [
+      elem("ul", {id: ["sources", "rule.id"], class: "sources"}, []),
+      elem("div", {class: "separator"}, [
+        elem("svg", {width:"100%", height:"100%", viewBox: "0 0 10 20", preserveAspectRatio: "none"}, [
+          elem("path",{class: "arrow", d:"m0,0 l10,10 l-10,10", strokeWidth:"0.5"}, [])
+        ])
+      ]),
+      elem("ul", {id: ["sinks", "rule.id"], class: "sinks"}, [])
+    ])
+  ]));
+});
+
+
+program.rule("rules list sources", function(rule) {
+  page(rule, "rules list");
+  rule.source("rule");
+  rule.source("pipe");
+
+  rule.join("rule.id", "pipe.rule");
+  rule.eq("pipe.direction", "+source");
+
+  rule.calculate("id", ["pipe.table", "rule.id"], "pipe.table + rule.id");
+
+  rule.ui(elem("li", {id: ["source", "id"], parent: ["sources", "rule.id", "pipe.table"]}, [ref("pipe.table")]));
+
+});
+
+program.rule("rules list sinks", function(rule) {
+  page(rule, "rules list");
+  rule.source("rule");
+  rule.source("pipe");
+
+  rule.join("rule.id", "pipe.rule");
+  rule.eq("pipe.direction", "+sink");
+
+  rule.calculate("id", ["pipe.table", "rule.id"], "pipe.table + rule.id");
+
+  rule.ui(elem("li", {id: ["sink", "id"], parent: ["sinks", "rule.id", "pipe.table"]}, [ref("pipe.table")]));
+
+});
+
+program.table("open tables-temp", ["table", "state"]);
+program.table("open tables", ["table"]);
+
+program.rule("table is open? -temp", function(rule) {
+  on(rule, "toggle table");
+  rule.sink("open tables-temp");
+  rule.fieldToValve("external_events.eid");
+  rule.group("external_events.key");
+  rule.aggregate("external_events.key", "open/closed", "(external_events.key).length % 2 === 0 ? 'closed' : 'open'");
+  rule.output("open/closed", "open tables-temp.state");
+  rule.output("external_events.key", "open tables-temp.table");
+});
+
+program.rule("table is open?", function(rule) {
+  rule.source("open tables-temp");
+  rule.sink("open tables");
+  rule.eq("open tables-temp.state", "open");
+  rule.output("open tables-temp.table", "open tables.table");
+});
+
+program.rule("draw table", function(rule) {
+  rule.source("schema");
+  page(rule, "rules list");
+  rule.group("schema.table");
+  rule.ui(elem("li", {id: ["table", "schema.table"], parent: ["table-list", "", "schema.table"], click: ["toggle table", ref("schema.table")]}, [
+    elem("h2", {}, [ref("schema.table")]),
+    elem("ul", {id: ["table-fields", "schema.table"]}, [])
+  ]));
+});
+
+program.rule("draw fields for open tables", function(rule) {
+  rule.source("open tables");
+  rule.source("schema");
+  rule.source("displayNames");
+  rule.join("schema.table", "open tables.table");
+  rule.join("schema.field", "displayNames.id");
+  rule.calculate("id", ["schema.table", "schema.field"], "schema.table + '.' + schema.field");
+  rule.ui(elem("li", {id: ["table-field", "id"], parent: ["table-fields", "schema.table", "schema.ix"]}, [
+    ref("displayNames.name")
   ]));
 });
 
@@ -195,6 +297,10 @@ program.rule("open rule", function(rule) {
   setConstant(rule, "page", "rule");
 });
 
+//*********************************************************
+// rule page
+//*********************************************************
+
 program.rule("rule page", function(rule) {
   page(rule, "rule");
   rule.source("rule");
@@ -202,7 +308,8 @@ program.rule("rule page", function(rule) {
   rule.ui(elem("div", {id: ["rule-page", "state.value"]}, [
     elem("button", {click: ["goto page", "rules list"]}, ["back"]),
     elem("h2", {}, [ref("rule.description")]),
-    elem("ul", {id: ["sources", "rule.id"]}, [])
+    elem("ul", {id: ["sources", "rule.id"]}, []),
+    elem("ul", {id: ["sinks", "rule.id"]}, [])
   ]));
 });
 
@@ -215,7 +322,20 @@ program.rule("rule page sources", function(rule) {
   rule.join("pipe.rule", "rule.id");
   rule.eq("pipe.direction", "+source");
 
-  rule.ui(elem("li", {id: ["source", "pipe.id"]}, [ref("pipe.table")]));
+  rule.ui(elem("li", {id: ["source", "pipe.id"], parent: ["sources", "rule.id", "pipe.table"]}, [ref("pipe.table")]));
+
+});
+
+program.rule("rule page sinks", function(rule) {
+  page(rule, "rule");
+  rule.source("rule");
+  rule.source("pipe");
+
+  joinState(rule, "activeRule", "rule.id");
+  rule.join("pipe.rule", "rule.id");
+  rule.eq("pipe.direction", "+sink");
+
+  rule.ui(elem("li", {id: ["sink", "pipe.id"], parent: ["sinks", "rule.id", "pipe.table"]}, [ref("pipe.table")]));
 
 });
 

@@ -43,6 +43,7 @@ var Rule = function(desc) {
   this.reducerIx = 0;
   this.sortIx = 0;
   this.names = {};
+  this.desc = desc;
   this.items = [["rule", this.id, desc]];
   this.reducerItems = [];
 }
@@ -101,16 +102,27 @@ Rule.prototype.reducerValve = function() {
   return valve;
 }
 
+Rule.prototype.tableConstraint = function(valve, to) {
+  var toParts = dsl.parseName(to);
+  var pipe = dsl.nameToId(toParts[0], this);
+  var field = dsl.nameToId(to);
+  if(pipe && field) {
+    this.items.push(["tableConstraint", valve, pipe, field]);
+  } else {
+    if(!pipe) {
+      throw new Error("No pipe defined for: " + to + ' in "' + this.desc + '"');
+    }
+    throw new Error("No schema defined for: " + to + ' in "' + this.desc + '"');
+  }
+}
+
 Rule.prototype.fieldToValve = function(from) {
   var valve = this.names[from];
   if(!valve) {
-    var fromParts = dsl.parseName(from);
     valve = this.valve();
-    var pipe = dsl.nameToId(fromParts[0], this);
-    var field = dsl.nameToId(from);
     this.names[from] = valve;
-    this.items.push(["tableConstraint", valve, pipe, field],
-                    ["displayNames", valve, from]);
+    this.tableConstraint(valve, from);
+    this.items.push(["displayNames", valve, from]);
   }
   return valve;
 }
@@ -122,19 +134,13 @@ Rule.prototype.eq = function(from, value) {
 
 Rule.prototype.output = function(from, to) {
   var valve = this.fieldToValve(from);
-  var toParts = dsl.parseName(to);
-  var pipe = dsl.nameToId(toParts[0], this);
-  var field = dsl.nameToId(to);
-  this.items.push(["tableConstraint", valve, pipe, field]);
+  this.tableConstraint(valve, to);
 }
 
 Rule.prototype.outputConstant = function(val, to) {
   var valve = this.valve();
-  var toParts = dsl.parseName(to);
-  var pipe = dsl.nameToId(toParts[0], this);
-  var field = dsl.nameToId(to);
-  this.items.push(["constantConstraint", valve, val],
-                  ["tableConstraint", valve, pipe, field]);
+  this.tableConstraint(valve, to);
+  this.items.push(["constantConstraint", valve, val]);
 }
 
 Rule.prototype.join = function(from, to) {
@@ -144,11 +150,11 @@ Rule.prototype.join = function(from, to) {
     to = oldfrom;
   }
   var valve = this.fieldToValve(from);
+  this.tableConstraint(valve, to);
   var toParts = dsl.parseName(to);
   var pipe = dsl.nameToId(toParts[0], this);
   var field = dsl.nameToId(to);
-  this.items.push(["tableConstraint", valve, pipe, field],
-                  ["join", valve, pipe, field]);
+  this.items.push(["join", valve, pipe, field]);
 }
 
 Rule.prototype.sort = function(name) {
@@ -215,7 +221,7 @@ Rule.prototype.concat = function(arr) {
 }
 
 Rule.prototype.ui = function(elem) {
-  elem(this, null, 0);
+  return elem(this, null, 0);
 }
 
 var DSLSystem = function() {
@@ -233,8 +239,6 @@ DSLSystem.prototype.rule = function(name, func) {
     cur[3] = cur[3] + rule.ix;
     this.facts.push(cur);
   }
-  console.log(rule.items);
-  console.log(rule.reducerItems);
 }
 
 DSLSystem.prototype.table = function(name, fields) {
@@ -285,7 +289,11 @@ ui.events = {
 ui.prefixId = function(rule, prefix, col) {
   console.log("prefixID:", prefix, col);
   var id = dsl.nextId();
-  rule.calculate(id, [col], "'" + prefix + "_' + " + col);
+  if(col) {
+    rule.calculate(id, [col], "'" + prefix + "_' + " + col);
+  } else {
+    rule.calculate(id, [], "'" + prefix + "'");
+  }
   return id;
 }
 
@@ -332,7 +340,18 @@ ui.elem = function() {
       var attr = args[1][i];
       if(i === 'id') {
         //id
-
+        var sink = id + "_attrsink_" + i;
+        rule.sink("ui_attrs", sink);
+        rule.output(id, sink + ".id");
+        rule.outputConstant("eid", sink + ".attr");
+        rule.output(id, sink + ".value");
+      } else if(i === 'parent') {
+        var parentId = ui.prefixId(rule, attr[0], attr[1]);
+        var childSink = id + "_childsink_ " + ix;
+        rule.sink("ui_child", childSink);
+        rule.output(parentId, childSink + ".parent");
+        rule.output(id, childSink + ".child");
+        rule.output(attr[2], childSink + ".pos");
       } else if(i === 'style') {
         //styles
         for(var style in attr) {
@@ -381,7 +400,7 @@ ui.elem = function() {
     args[2].forEach(function(cur, ix) {
       if(typeof cur === "function") {
         var childId = cur(rule, id, ix);
-        var childSink = textId + "_childsink_ " + ix;
+        var childSink = childId + "_childsink_ " + ix;
         //           console.log("child: ", id, ix, childId);
         rule.sink("ui_child", childSink);
         rule.output(id, childSink + ".parent");
@@ -417,6 +436,7 @@ eve.test.wrapCommonTables = function(sys) {
   sys.table("users", ["id", "name"]);
   sys.table("edges", ["from", "to"]);
   sys.table("path", ["from", "to"]);
+  sys.table("schema", ["table", "field", "ix"]);
   sys.table("rule", ["id", "description"]);
   sys.table("pipe", ["id", "table", "rule", "direction"])
   sys.table("ui_elems", ["id", "type"]);
@@ -438,7 +458,6 @@ eve.test.test = function(name, func, inputs, expected) {
     sys.test(inputs, expected);
   } catch(e) {
     eve.test.failed = true;
-    console.log(sys);
     console.error("failed test: " + name);
     console.error("    " + e.stack);
     return false;
