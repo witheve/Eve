@@ -1,6 +1,6 @@
 var testMultiplier = 1;
 if(typeof window === "undefined") {
-  testMultiplier = process.env.TESTMULTIPLIER;
+  testMultiplier = process.env.TESTMULTIPLIER || 1;
 }
 
 console.time("selfJoin");

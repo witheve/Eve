@@ -737,6 +737,9 @@ var compilerSchema =
      ["schema", "schema", "field", 1],
      ["schema", "schema", "ix", 2],
 
+     ["schema", "rule", "rule", 0],
+     ["schema", "rule", "ix", 1],
+
      ["schema", "valve", "valve", 0],
      ["schema", "valve", "rule", 1],
      ["schema", "valve", "ix", 2],
@@ -938,16 +941,47 @@ function compileSystem(memory) {
   // TODO do this properly
   // console.log(JSON.stringify(memory.getFacts()));
   var dump = dumpMemory(memory);
-  var rules = Object.keys(dump.pipe.rule);
+  var rules = dump.rule.rule;
+
+  // for each rule, get ix
+  // for each input table, push ix
+  // for each rule, for each output table, for each rule in output, push dirty
+
   var flows = [];
-  var dirty = [];
-  var dirtied = [];
-  for (var i = rules.length - 1; i >= 0; i--) {
-    flows[i] = compileRule(dump, rules[i]);
-    dirtied[i] = i;
-    dirty[i] = dirtied;
+  for (var rule in rules) {
+    flows[rules[rule][0].ix] = compileRule(dump, rule);
   }
-  return new System(memory, flows, dirty);
+
+  var dependsOn = {};
+  for (var table in dump.pipe.table) {
+    dependsOn[table] = [];
+  }
+  for (var rule in rules) {
+    var ix = rules[rule][0].ix;
+    var pipes = dump.pipe.rule[rule];
+    for (var i = pipes.length - 1; i >= 0; i--) {
+      var pipe = pipes[i];
+      if (pipe.direction === "+source" || pipe.direction === "-source") {
+        dependsOn[pipe.table].push(ix);
+      }
+    }
+  }
+
+  var downstream = [];
+  for (var rule in rules) {
+    var ix = rules[rule][0].ix;
+    var ruleDownstream = [];
+    var pipes = dump.pipe.rule[rule];
+    for (var i = pipes.length - 1; i >= 0; i--) {
+      var pipe = pipes[i];
+      if (pipe.direction === "+sink") {
+        Array.prototype.push.apply(ruleDownstream, dependsOn[pipe.table]);
+      }
+    }
+    downstream[ix] = ruleDownstream;
+  }
+
+  return new System(memory, flows, downstream);
 }
 
 // TESTS
@@ -1210,6 +1244,7 @@ function compiledPathTest() {
                        ["schema", "path", "pathX", 0],
                        ["schema", "path", "pathY", 1],
 
+                       ["rule", "edgeRule", 0],
                        ["valve", "edgeA", "edgeRule", 0],
                        ["valve", "edgeB", "edgeRule", 1],
                        ["pipe", "edgeEdgePipe", "edge", "edgeRule", "+source"],
@@ -1219,6 +1254,7 @@ function compiledPathTest() {
                        ["tableConstraint", "edgeA", "edgePathPipe", "pathX"],
                        ["tableConstraint", "edgeB", "edgePathPipe", "pathY"],
 
+                       ["rule", "pathRule", 1],
                        ["valve", "pathA", "pathRule", 0],
                        ["valve", "pathB", "pathRule", 1],
                        ["valve", "pathC", "pathRule", 2],
@@ -1267,6 +1303,7 @@ function compiledFunctionTest() {
                        ["schema", "foo", "fooZ", 2],
                        ["schema", "bar", "barZ", 0],
 
+                       ["rule", "rule", 0],
                        ["valve", "valveX", "rule", 0],
                        ["valve", "valveY", "rule", 1],
                        ["valve", "valveXY", "rule", 2],
@@ -1304,6 +1341,7 @@ function compiledNegationTest() {
                        ["schema", "foo", "fooZ", 2],
                        ["schema", "bar", "barZ", 0],
 
+                       ["rule", "rule", 0],
                        ["valve", "valveX", "rule", 0],
                        ["valve", "valveY", "rule", 1],
                        ["valve", "valveZ", "rule", 2],

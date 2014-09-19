@@ -189,6 +189,7 @@ Rule.prototype.constantLimit = function(num) {
 var DSLSystem = function() {
   this.system = compileSystem(Memory.fromFacts(compilerSchema));
   this.facts = [];
+  this.ruleIx = 0;
 }
 
 DSLSystem.prototype.rule = function(name, func) {
@@ -196,6 +197,8 @@ DSLSystem.prototype.rule = function(name, func) {
   for(var i in rule.items) {
     this.facts.push(rule.items[i]);
   }
+  this.facts.push(["rule", rule.id, this.ruleIx]);
+  this.ruleIx++;
 }
 
 DSLSystem.prototype.table = function(name, fields) {
