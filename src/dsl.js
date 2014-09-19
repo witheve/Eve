@@ -44,7 +44,7 @@ var Rule = function(desc) {
   this.sortIx = 0;
   this.names = {};
   this.desc = desc;
-  this.items = [["rule", this.id, desc]];
+  this.items = [["editor_rule", this.id, desc]];
   this.reducerItems = [];
 }
 
@@ -440,7 +440,7 @@ eve.test.wrapCommonTables = function(sys) {
   sys.table("edges", ["from", "to"]);
   sys.table("path", ["from", "to"]);
   sys.table("schema", ["table", "field", "ix"]);
-  sys.table("rule", ["id", "description"]);
+  sys.table("editor_rule", ["id", "description"]);
   sys.table("pipe", ["id", "table", "rule", "direction"])
   sys.table("ui_elems", ["id", "type"]);
   sys.table("ui_text", ["id", "text"]);
