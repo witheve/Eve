@@ -43,7 +43,6 @@ dsl.shadowTable = function(name, fields) {
   dsl.tableToFields[name] = fields;
   items.push(["displayNames", name, name]);
   fields.forEach(function(field, ix) {
-    items.push(["schema", name, field, ix]);
     items.push(["displayNames", field, field]);
     dsl.globalNames[name + "." + field] = field;
   });
@@ -265,7 +264,10 @@ DSLSystem.prototype.table = function(name, fields) {
 }
 
 DSLSystem.prototype.shadowTable = function(name, fields) {
-  dsl.shadowTable(name, fields);
+  var items = dsl.shadowTable(name, fields);
+  for(var i in items) {
+    this.facts.push(items[i]);
+  }
 }
 
 DSLSystem.prototype.compile = function() {
