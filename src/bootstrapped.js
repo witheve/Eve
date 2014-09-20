@@ -339,7 +339,7 @@ program.rule("rule page sources", function(rule) {
   rule.join("pipe.rule", "editor_rule.id");
   rule.eq("pipe.direction", "+source");
 
-  rule.ui(elem("li", {id: ["source", "pipe.id"], parent: ["sources", "editor_rule.id", "pipe.table"]}, [ref("pipe.table")]));
+  rule.ui(elem("li", {id: ["source", "pipe.pipe"], parent: ["sources", "editor_rule.id", "pipe.table"]}, [ref("pipe.table")]));
 
 });
 
@@ -352,7 +352,7 @@ program.rule("rule page sinks", function(rule) {
   rule.join("pipe.rule", "editor_rule.id");
   rule.eq("pipe.direction", "+sink");
 
-  rule.ui(elem("li", {id: ["sink", "pipe.id"], parent: ["sinks", "editor_rule.id", "pipe.table"]}, [ref("pipe.table")]));
+  rule.ui(elem("li", {id: ["sink", "pipe.pipe"], parent: ["sinks", "editor_rule.id", "pipe.table"]}, [ref("pipe.table")]));
 
 });
 

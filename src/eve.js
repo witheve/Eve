@@ -866,9 +866,13 @@ function compileRule(dump, rule) {
       var ixes = [];
       for (var j = tableConstraints.length - 1; j >= 0; j--) {
         var tableConstraint = tableConstraints[j];
-        var fieldIxes = dump.schema.field[tableConstraint.field];
-        assert(fieldIxes.length === 1);
-        var fieldIx = fieldIxes[0].ix;
+        var fields = dump.schema.field[tableConstraint.field].slice();
+        // hacky way to lookup [table, field]
+        for (var k = fields.length - 1; k >= 0; k--) {
+          if (fields[k].table !== pipe.table) fields.splice(k, 1);
+        }
+        assert(fields.length === 1);
+        var fieldIx = fields[0].ix;
         var valveIx = valveIxes[tableConstraint.valve];
         ixes[fieldIx + 1] = valveIx; // +1 because table name is at 0
       }
@@ -1276,7 +1280,7 @@ function compiledPathTest() {
                ["edge", "b", "c"],
                ["edge", "c", "d"],
                ["edge", "d", "b"]];
-  // console.log(system);
+  console.log(system);
   system.update(facts, []);
 
   var derivedFacts = [["path", "a", "b"],

@@ -37,6 +37,19 @@ dsl.table = function(name, fields) {
   return items;
 }
 
+dsl.shadowTable = function(name, fields) {
+  var items = [];
+  dsl.globalNames[name] = name;
+  dsl.tableToFields[name] = fields;
+  items.push(["displayNames", name, name]);
+  fields.forEach(function(field, ix) {
+    items.push(["schema", name, field, ix]);
+    items.push(["displayNames", field, field]);
+    dsl.globalNames[name + "." + field] = field;
+  });
+  return items;
+};
+
 var Rule = function(desc) {
   this.id = dsl.nextId();
   this.ix = 0;
@@ -251,6 +264,10 @@ DSLSystem.prototype.table = function(name, fields) {
   }
 }
 
+DSLSystem.prototype.shadowTable = function(name, fields) {
+  dsl.shadowTable(name, fields);
+}
+
 DSLSystem.prototype.compile = function() {
   this.system = compileSystem(Memory.fromFacts(compilerSchema.concat(this.facts)));
 }
@@ -439,9 +456,9 @@ eve.test.wrapCommonTables = function(sys) {
   sys.table("users", ["id", "name"]);
   sys.table("edges", ["from", "to"]);
   sys.table("path", ["from", "to"]);
-  sys.table("schema", ["table", "field", "ix"]);
+  sys.shadowTable("schema", ["table", "field", "ix"]);
   sys.table("editor_rule", ["id", "description"]);
-  sys.table("pipe", ["id", "table", "rule", "direction"])
+  sys.shadowTable("pipe", ["pipe", "table", "rule", "direction"]);
   sys.table("ui_elems", ["id", "type"]);
   sys.table("ui_text", ["id", "text"]);
   sys.table("ui_child", ["parent", "pos", "child"]);
