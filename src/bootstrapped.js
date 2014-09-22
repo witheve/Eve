@@ -7,7 +7,7 @@ var now = function() {
     return window.performance.now();
   }
   return (new Date()).getTime();
-}
+};
 
 //*********************************************************
 // watchers
@@ -18,13 +18,13 @@ var createUICallback = function(id, label, key) {
     console.log("event: ", e);
     program.run([["external_events", id, label, key, eve.data.globalId++]]);
   };
-}
+};
 
 var svgs = {
   "svg": true,
   "path": true,
   "rect": true
-}
+};
 
 var uiWatcher = function(prev, memory) {
   //var adds = [];
@@ -121,7 +121,7 @@ var uiWatcher = function(prev, memory) {
   }
 
   document.body.appendChild(program.root);
-}
+};
 
 //*********************************************************
 // Program
@@ -141,7 +141,7 @@ program.run = function(facts) {
   $("#timeStat").html(runtime.toFixed(2));
   $("#renderStat").html(render.toFixed(2));
   $("#factsStat").html(this.system.memory.getFacts().length);
-}
+};
 
 //*********************************************************
 // utils
@@ -153,34 +153,34 @@ var ref = eve.ui.ref;
 var on = function(rule, label) {
   rule.source("external_events");
   rule.eq("external_events.label", label);
-}
+};
 
 var setConstant = function(rule, k, v) {
   rule.sink("state-temp");
   rule.output("external_events.eid", "state-temp.id");
   rule.outputConstant(k, "state-temp.key");
   rule.outputConstant(v, "state-temp.value");
-}
+};
 
 var set = function(rule, k, v) {
   rule.sink("state-temp");
   rule.output("external_events.eid", "state-temp.id");
   rule.outputConstant(k, "state-temp.key");
   rule.output(v, "state-temp.value");
-}
+};
 
 var joinState = function(rule, k, to) {
   var id = dsl.nextId();
   rule.source("state", id);
   rule.eq(id + ".key", k);
   rule.join(to, id + ".value");
-}
+};
 
 var page = function(rule, p) {
   rule.source("state");
   rule.eq("state.key", "page");
   rule.eq("state.value", p);
-}
+};
 
 program.table("state-temp", ["id", "key", "value"]);
 program.table("state", ["key", "value"]);

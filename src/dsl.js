@@ -7,7 +7,7 @@ var dsl = eve.dsl = {};
 
 dsl.nextId = function() {
   return "i" + eve.data.globalId++;
-}
+};
 
 dsl.globalNames = {};
 dsl.tableToFields = {};
@@ -17,11 +17,11 @@ dsl.nameToId = function(name, rule) {
     return rule.names[name] || dsl.globalNames[name];
   }
   return dsl.globalNames[name];
-}
+};
 
 dsl.parseName = function(name) {
   return name.split(".");
-}
+};
 
 dsl.table = function(name, fields) {
   var items = [];
@@ -35,7 +35,7 @@ dsl.table = function(name, fields) {
     dsl.globalNames[name + "." + field] = id;
   });
   return items;
-}
+};
 
 dsl.shadowTable = function(name, fields) {
   var items = [];
@@ -58,13 +58,13 @@ var Rule = function(desc) {
   this.desc = desc;
   this.items = [["editor_rule", this.id, desc]];
   this.reducerItems = [];
-}
+};
 
 dsl.rule = function(desc, func) {
   var r = new Rule(desc);
   func(r);
   return r;
-}
+};
 
 Rule.prototype.source = function(name, alias) {
   var id = dsl.nameToId(name);
@@ -76,7 +76,7 @@ Rule.prototype.source = function(name, alias) {
     });
   }
   this.items.push(["pipe", pipeId, id, this.id, "+source"]);
-}
+};
 
 Rule.prototype.sink = function(name, alias) {
   var id = dsl.nameToId(name);
@@ -88,7 +88,7 @@ Rule.prototype.sink = function(name, alias) {
     });
   }
   this.items.push(["pipe", pipeId, id, this.id, "+sink"]);
-}
+};
 
 Rule.prototype.negated = function(name, alias) {
   var id = dsl.nameToId(name);
@@ -100,19 +100,19 @@ Rule.prototype.negated = function(name, alias) {
     });
   }
   this.items.push(["pipe", pipeId, id, this.id, "-source"]);
-}
+};
 
 Rule.prototype.valve = function() {
   var valve = dsl.nextId();
   this.items.push(["valve", valve, this.id, this.ix++]);
   return valve;
-}
+};
 
 Rule.prototype.reducerValve = function() {
   var valve = dsl.nextId();
   this.reducerItems.push(["valve", valve, this.id, this.reducerIx++]);
   return valve;
-}
+};
 
 Rule.prototype.tableConstraint = function(valve, to) {
   var toParts = dsl.parseName(to);
@@ -126,7 +126,7 @@ Rule.prototype.tableConstraint = function(valve, to) {
     }
     throw new Error("No schema defined for: " + to + ' in "' + this.desc + '"');
   }
-}
+};
 
 Rule.prototype.fieldToValve = function(from) {
   var valve = this.names[from];
@@ -137,23 +137,23 @@ Rule.prototype.fieldToValve = function(from) {
     this.items.push(["displayNames", valve, from]);
   }
   return valve;
-}
+};
 
 Rule.prototype.eq = function(from, value) {
   var valve = this.fieldToValve(from);
   this.items.push(["constantConstraint", valve, value]);
-}
+};
 
 Rule.prototype.output = function(from, to) {
   var valve = this.fieldToValve(from);
   this.tableConstraint(valve, to);
-}
+};
 
 Rule.prototype.outputConstant = function(val, to) {
   var valve = this.valve();
   this.tableConstraint(valve, to);
   this.items.push(["constantConstraint", valve, val]);
-}
+};
 
 Rule.prototype.join = function(from, to) {
   if(!this.names[from] && this.names[to]) {
@@ -167,17 +167,17 @@ Rule.prototype.join = function(from, to) {
   var pipe = dsl.nameToId(toParts[0], this);
   var field = dsl.nameToId(to);
   this.items.push(["join", valve, pipe, field]);
-}
+};
 
 Rule.prototype.sort = function(name) {
   var valve = this.fieldToValve(name);
   this.items.push(["sortValve", this.id, valve, this.sortIx++]);
-}
+};
 
 Rule.prototype.group = function(name) {
   var valve = this.fieldToValve(name);
   this.items.push(["groupValve", this.id, valve]);
-}
+};
 
 Rule.prototype.filter = function(name, code) {
   var input = this.fieldToValve(name);
@@ -189,7 +189,7 @@ Rule.prototype.filter = function(name, code) {
     ["functionInput", input, id],
     ["constantConstraint", valve, true]
   );
-}
+};
 
 Rule.prototype.calculate = function(name, args, code) {
   var valve = this.valve();
@@ -204,7 +204,7 @@ Rule.prototype.calculate = function(name, args, code) {
   });
 
   this.items.push(["function", id, code, valve, this.id]);
-}
+};
 
 Rule.prototype.aggregate = function(input, output, code) {
   var inputValve = this.fieldToValve(input);
@@ -213,34 +213,34 @@ Rule.prototype.aggregate = function(input, output, code) {
   this.names[output] = valve;
   this.items.push(["reducer", this.id, inputValve, valve, code],
                   ["displayNames", valve, output]);
-}
+};
 
 Rule.prototype.limit = function(from) {
   var valve = this.fieldToValve(from);
   this.items.push(["limitValve", this.id, valve]);
-}
+};
 
 Rule.prototype.constantLimit = function(num) {
   var valve = this.valve();
   this.items.push(["limitValve", this.id, valve],
                   ["constantConstraint", valve, num]);
-}
+};
 
 Rule.prototype.concat = function(arr) {
   arr.forEach(function(cur) {
     this.items.push(cur);
   });
-}
+};
 
 Rule.prototype.ui = function(elem) {
   return elem(this, null, 0);
-}
+};
 
 var DSLSystem = function() {
   this.system = compileSystem(Memory.fromFacts(compilerSchema));
   this.facts = [];
   this.ruleIx = 0;
-}
+};
 
 DSLSystem.prototype.rule = function(name, func) {
   var rule = dsl.rule(name, func);
@@ -254,59 +254,59 @@ DSLSystem.prototype.rule = function(name, func) {
     cur[3] = cur[3] + rule.ix;
     this.facts.push(cur);
   }
-}
+};
 
 DSLSystem.prototype.table = function(name, fields) {
   var items = dsl.table(name, fields);
   for(var i in items) {
     this.facts.push(items[i]);
   }
-}
+};
 
 DSLSystem.prototype.shadowTable = function(name, fields) {
   var items = dsl.shadowTable(name, fields);
   for(var i in items) {
     this.facts.push(items[i]);
   }
-}
+};
 
 DSLSystem.prototype.compile = function() {
   this.system = compileSystem(Memory.fromFacts(compilerSchema.concat(this.facts)));
-}
+};
 
 DSLSystem.prototype.input = function(items) {
   this.system.update(items, []);
-}
+};
 
 DSLSystem.prototype.empty = function() {
   this.system.memory = Memory.empty();
-}
+};
 
 DSLSystem.prototype.equal = function(facts) {
   memoryEqual(this.system.memory, Memory.fromFacts(facts))
-}
+};
 
 DSLSystem.prototype.test = function(inputs, results) {
   this.empty();
   this.input(inputs);
   this.equal(inputs.concat(results));
-}
+};
 
 dsl.system = function() {
   return new DSLSystem();
-}
+};
 
 //*********************************************************
 // ui
 //*********************************************************
 
-var ui = eve.ui = {}
+var ui = eve.ui = {};
 
 ui.events = {
   "click": "click",
   "doubleClick": "dblclick",
   "contextMenu": "contextMenu"
-}
+};
 
 ui.prefixId = function(rule, prefix, col) {
   console.log("prefixID:", prefix, col);
@@ -317,13 +317,13 @@ ui.prefixId = function(rule, prefix, col) {
     rule.calculate(id, [], "'" + prefix + "'");
   }
   return id;
-}
+};
 
 ui.postfixId = function(rule, col, postfix) {
   var id = dsl.nextId();
   rule.calculate(id, [col], col +  " + '_" + postfix + "'");
   return id;
-}
+};
 
 ui.ref = function(col) {
   return function(rule, nameValve, ix) {
@@ -337,8 +337,8 @@ ui.ref = function(col) {
     } else {
       return col;
     }
-  }
-}
+  };
+};
 
 ui.elem = function() {
   var args = arguments;
@@ -443,8 +443,8 @@ ui.elem = function() {
       }
     });
     return id;
-  }
-}
+  };
+};
 
 //*********************************************************
 // Test
@@ -469,7 +469,7 @@ eve.test.wrapCommonTables = function(sys) {
   sys.table("ui_events", ["id", "event", "label", "key"]);
   sys.table("external_events", ["id", "label", "key", "eid"]);
   sys.table("time", ["time"]);
-}
+};
 
 eve.test.test = function(name, func, inputs, expected) {
   var sys = dsl.system();
@@ -485,13 +485,13 @@ eve.test.test = function(name, func, inputs, expected) {
     return false;
   }
   return true;
-}
+};
 
 eve.test.check = function() {
   if(eve.test.failed) {
     process.exit(1);
   }
-}
+};
 
 //*********************************************************
 // Rules
