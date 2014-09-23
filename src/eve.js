@@ -243,7 +243,7 @@ MemoryConstraint.prototype = {
       }
     }
 
-    assert(i >= 0); // no pivot?
+    if(i < 0) return IGNORED;
 
     var upperPivot = greatest;
     for (var j = facts.length - 1; j >= 0; j--) {

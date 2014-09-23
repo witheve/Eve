@@ -58,12 +58,26 @@ var Rule = function(desc) {
   this.desc = desc;
   this.items = [["editor_rule", this.id, desc]];
   this.reducerItems = [];
+  this.hasSource = false;
+  this.hasSink = false;
 };
 
 dsl.rule = function(desc, func) {
   var r = new Rule(desc);
   func(r);
   return r;
+};
+
+Rule.prototype.valid = function() {
+  if(!this.hasSource) {
+    console.error("No source provided for rule: '" + this.desc + "'");
+    return false;
+  }
+  if(!this.hasSink) {
+    console.error("No sink provided for rule: '" + this.desc + "'");
+    return false;
+  }
+  return true;
 };
 
 Rule.prototype.source = function(name, alias) {
@@ -75,7 +89,9 @@ Rule.prototype.source = function(name, alias) {
       dsl.globalNames[alias + "." + cur] = dsl.globalNames[name + "." + cur];
     });
   }
-  this.items.push(["pipe", pipeId, id, this.id, "+source"]);
+  this.items.push(["pipe", pipeId, id, this.id, "+source"],
+                  ["displayNames", pipeId, alias || name]);
+  this.hasSource = true;
 };
 
 Rule.prototype.sink = function(name, alias) {
@@ -87,7 +103,9 @@ Rule.prototype.sink = function(name, alias) {
       dsl.globalNames[alias + "." + cur] = dsl.globalNames[name + "." + cur];
     });
   }
-  this.items.push(["pipe", pipeId, id, this.id, "+sink"]);
+  this.items.push(["pipe", pipeId, id, this.id, "+sink"],
+                  ["displayNames", pipeId, alias || name]);
+  this.hasSink = true;
 };
 
 Rule.prototype.negated = function(name, alias) {
@@ -99,7 +117,9 @@ Rule.prototype.negated = function(name, alias) {
       dsl.globalNames[alias + "." + cur] = dsl.globalNames[name + "." + cur];
     });
   }
-  this.items.push(["pipe", pipeId, id, this.id, "-source"]);
+  this.items.push(["pipe", pipeId, id, this.id, "-source"],
+                  ["displayNames", pipeId, alias || name]);
+  this.hasSource = true;
 };
 
 Rule.prototype.valve = function() {
@@ -147,12 +167,14 @@ Rule.prototype.eq = function(from, value) {
 Rule.prototype.output = function(from, to) {
   var valve = this.fieldToValve(from);
   this.tableConstraint(valve, to);
+  this.items.push(["displayNames", valve, from]);
 };
 
 Rule.prototype.outputConstant = function(val, to) {
   var valve = this.valve();
   this.tableConstraint(valve, to);
   this.items.push(["constantConstraint", valve, val]);
+  this.items.push(["displayNames", valve, 'constant: ' + val]);
 };
 
 Rule.prototype.join = function(from, to) {
@@ -244,15 +266,17 @@ var DSLSystem = function() {
 
 DSLSystem.prototype.rule = function(name, func) {
   var rule = dsl.rule(name, func);
-  for(var i in rule.items) {
-    this.facts.push(rule.items[i]);
-  }
-  this.facts.push(["rule", rule.id, this.ruleIx]);
-  this.ruleIx++;
-  for(var i in rule.reducerItems) {
-    var cur = rule.reducerItems[i];
-    cur[3] = cur[3] + rule.ix;
-    this.facts.push(cur);
+  if(rule.valid()) {
+    for(var i in rule.items) {
+      this.facts.push(rule.items[i]);
+    }
+    this.facts.push(["rule", rule.id, this.ruleIx]);
+    this.ruleIx++;
+    for(var i in rule.reducerItems) {
+      var cur = rule.reducerItems[i];
+      cur[3] = cur[3] + rule.ix;
+      this.facts.push(cur);
+    }
   }
 };
 
@@ -451,16 +475,27 @@ ui.elem = function() {
 //*********************************************************
 
 eve.test.wrapCommonTables = function(sys) {
+  sys.shadowTable("schema", ["table", "field", "ix"]);
+  sys.shadowTable("pipe", ["pipe", "table", "rule", "direction"]);
+  sys.shadowTable("tableConstraint", ["valve", "pipe", "field"]);
+  sys.shadowTable("rule", ["rule", "ix"]);
+  sys.shadowTable("valve", ["valve", "rule", "ix"]);
+  sys.shadowTable("constantConstraint", ["valve", "value"]);
+  sys.shadowTable("function", ["function", "code", "valve", "rule"]);
+  sys.shadowTable("functionInput", ["valve", "function"]);
+  sys.shadowTable("limitValve", ["rule", "valve"]);
+  sys.shadowTable("groupValve", ["rule", "valve"]);
+  sys.shadowTable("sortValve", ["rule", "valve", "ix"]);
+  sys.shadowTable("reducer", ["rule", "inValve", "outValve", "code"]);
+
   sys.table("displayNames", ["id", "name"]);
-  sys.table("joins", ["id", "valve", "pipe", "field"]);
+  sys.table("join", ["valve", "pipe", "field"]);
   sys.table("clicks", ["id"]);
   sys.table("sms outbox", ["id"]);
   sys.table("users", ["id", "name"]);
   sys.table("edges", ["from", "to"]);
   sys.table("path", ["from", "to"]);
-  sys.shadowTable("schema", ["table", "field", "ix"]);
   sys.table("editor_rule", ["id", "description"]);
-  sys.shadowTable("pipe", ["pipe", "table", "rule", "direction"]);
   sys.table("ui_elems", ["id", "type"]);
   sys.table("ui_text", ["id", "text"]);
   sys.table("ui_child", ["parent", "pos", "child"]);
