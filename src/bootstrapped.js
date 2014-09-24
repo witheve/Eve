@@ -124,6 +124,7 @@ var uiWatcher = function(prev, memory) {
 };
 
 
+var compilerRowLimit = 30;
 var compilerSeen = {};
 var compilerWatcher = function(prev, memory) {
   var getTables = memory.getTable("getTables");
@@ -148,7 +149,7 @@ var compilerWatcher = function(prev, memory) {
         }
         if(tableLen) {
           var rowLen = table[0].length;
-          for(var row = 0; row < tableLen && row < 30; row++) {
+          for(var row = 0; row < tableLen && row < compilerRowLimit; row++) {
             for(var col = 1; col < rowLen; col++) {
               items.push(["gridItems", cur[3], row, col, table[row][col]]);
             }
@@ -242,14 +243,28 @@ var joinState = function(rule, k, to) {
   rule.join(to, id + ".value");
 };
 
-var page = function(rule, p) {
-  rule.source("state");
-  rule.eq("state.key", "page");
-  rule.eq("state.value", p);
+var stateEq = function(rule, k, v) {
+  var id = dsl.nextId();
+  rule.source("state", id);
+  rule.eq(id + ".key", k);
+  rule.eq(id + ".value", v);
 };
+
+var pretendConstant = function(rule, k, v) {
+  var state = dsl.nextId();
+  rule.sink("state", state);
+  rule.outputConstant(k, state + ".key");
+  rule.outputConstant(v, state + ".value");
+};
+
+var page = function(rule, p) {
+  stateEq(rule, "page", p);
+};
+
 
 program.table("state-temp", ["id", "key", "value"]);
 program.table("state", ["key", "value"]);
+program.table("latestId", ["id"]);
 
 program.rule("real state", function(rule) {
   rule.source("external_events");
@@ -262,6 +277,16 @@ program.rule("real state", function(rule) {
   rule.output("state-temp.key", "state.key");
   rule.output("state-temp.value", "state.value");
 });
+
+program.rule("latest eid", function(rule) {
+  rule.source("external_events");
+  rule.sink("latestId");
+  rule.calculate("sorted", ["external_events.eid"], "-1 * external_events.eid");
+  rule.sort("sorted");
+  rule.constantLimit(1);
+  rule.output("external_events.eid", "latestId.id");
+});
+
 
 
 //*********************************************************
@@ -281,6 +306,7 @@ program.rule("on goto page", function(rule) {
 
 program.rule("draw rules list ui", function(rule) {
   page(rule, "rules list");
+  pretendConstant(rule, "drawTablesList", "true");
   rule.ui(elem("div", {id: ["rules-list-root"], class: "root"}, [
     elem("ul", {id: ["table-list"], class: "table-list"}, []),
     elem("ul", {id: ["rules-list"], class: "rules-list"}, [])
@@ -355,7 +381,7 @@ program.rule("table is open?", function(rule) {
 
 program.rule("draw table", function(rule) {
   rule.source("schema");
-  page(rule, "rules list");
+  stateEq(rule, "drawTablesList", "true");
   rule.group("schema.table");
   rule.ui(elem("li", {id: ["table", "schema.table"], parent: ["table-list", "", "schema.table"], click: ["open table", ref("schema.table")], doubleClick: ["toggle table", ref("schema.table")]}, [
     elem("h2", {}, [ref("schema.table")]),
@@ -367,6 +393,7 @@ program.rule("draw fields for open tables", function(rule) {
   rule.source("open tables");
   rule.source("schema");
   rule.source("displayNames");
+  stateEq(rule, "drawTablesList", "true");
   rule.join("schema.table", "open tables.table");
   rule.join("schema.field", "displayNames.id");
   rule.calculate("id", ["schema.table", "schema.field"], "schema.table + '.' + schema.field");
@@ -395,7 +422,7 @@ program.rule("rule page", function(rule) {
   page(rule, "rule");
   rule.source("editor_rule");
   joinState(rule, "activeRule", "editor_rule.id");
-  rule.ui(elem("div", {id: ["rule-page", "state.value"], class: "rule-page"}, [
+  rule.ui(elem("div", {id: ["rule-page"], class: "rule-page"}, [
     elem("header", {}, [
       elem("button", {click: ["goto page", "rules list"]}, ["back"]),
       elem("h2", {}, [ref("editor_rule.description")])
@@ -542,7 +569,7 @@ program.rule("draw grid rows", function(rule) {
   rule.calculate("gid", ["gridItems.row", "drawGrid.gridId"], "drawGrid.gridId + '_' + gridItems.row");
   rule.ui(elem("div", {id: ["grid-row", "gid"], parent: ["grid", "drawGrid.gridId", "gridItems.row"], class: "grid-row"}, []));
   rule.calculate("gcid", ["gridItems.row", "gridItems.col", "drawGrid.gridId"], "drawGrid.gridId + '_' + gridItems.row + '_' + gridItems.col");
-  rule.ui(elem("div", {id: ["grid-col-item", "gcid"], parent: ["grid-row", "gid", "gridItems.col"]}, [
+  rule.ui(elem("div", {id: ["grid-col-item", "gcid"], parent: ["grid-row", "gid", "gridItems.col"], click: ["foo", "drawGrid.gridId"]}, [
     ref("gridItems.val")
   ]));
 });
@@ -586,6 +613,20 @@ program.rule("draw table page", function(rule) {
 
 });
 
+//*********************************************************
+// ui editor
+//*********************************************************
+
+program.rule("draw UI editor", function(rule) {
+  page(rule, "ui editor");
+  pretendConstant(rule, "drawTablesList", "true");
+  rule.ui(elem("div", {id: ["ui-editor-root"], class: "root ui-editor"}, [
+    elem("ul", {id: ["table-list"], class: "table-list"}, []),
+    elem("p", {}, [
+      "hey"
+    ])
+  ]));
+});
 
 //*********************************************************
 // Go
