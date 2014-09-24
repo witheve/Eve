@@ -845,6 +845,7 @@ System.prototype = {
     var numVars = {};
     var fieldIxes = {};
     var numFields = {};
+    var pipeTables = {};
 
     for (var i = valves.length - 1; i >= 0; i--) {
       var valve = valves[i];
@@ -858,8 +859,12 @@ System.prototype = {
     }
     for (var i = fields.length - 1; i >= 0; i--) {
       var field = fields[i];
-      fieldIxes[field.field] = field.ix;
+      fieldIxes[field.table + "-" + field.field] = field.ix;
       numFields[field.table] = (numFields[field.table] || 0) + 1;
+    }
+    for (var i = pipes.length - 1; i >= 0; i--) {
+      var pipe = pipes[i];
+      pipeTables[pipe.pipe] = pipe.table;
     }
 
     // build sinks
@@ -939,7 +944,7 @@ System.prototype = {
     }
     for (var i = tableConstraints.length - 1; i >= 0; i--) {
       var tableConstraint = tableConstraints[i];
-      var fieldIx = fieldIxes[tableConstraint.field];
+      var fieldIx = fieldIxes[pipeTables[tableConstraint.pipe] + "-" + tableConstraint.field];
       var valveIx = valveIxes[tableConstraint.valve];
       constraints[tableConstraint.pipe].fieldIxes[fieldIx] = valveIx;
     }

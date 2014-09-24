@@ -77,8 +77,8 @@ eve.test.test("simple join",
                   rule.output("users.name", "sms outbox.id");
                 });
               },
-              [["users", 5, "chris"], ["clicks", 5]],
-              [["sms outbox", "chris"]]);
+              [["users", 5, "chris"], ["users", 7, "jamie"], ["users", 20, "rob"], ["clicks", 10], ["clicks", 5], ["clicks", 20]],
+              [["sms outbox", "chris"], ["sms outbox", "rob"]]);
 
 eve.test.test("simple aggregate",
               function(sys) {
