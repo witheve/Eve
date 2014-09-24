@@ -713,8 +713,8 @@ var compilerFields =
      ["displayNames", "id", 0],
      ["displayNames", "name", 1],
 
-     ["editor_rules", "id", 0],
-     ["editor_rules", "description", 1],
+     ["editor_rule", "id", 0],
+     ["editor_rule", "description", 1],
 
      ["join", "id", 0],
      ["join", "valve", 1],
