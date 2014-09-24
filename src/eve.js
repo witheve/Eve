@@ -322,6 +322,7 @@ Provenance.prototype = {
   finish: function(system) {
     var oldOutput = system.getStore(this.outputIx) || Memory.empty();
     var newOutput = Memory.fromFacts(this.queuedAdds);
+    this.queuedAdds = [];
     if (newOutput.differsFrom(oldOutput)) system.setStore(this.outputIx, newOutput);
   },
 
@@ -832,6 +833,8 @@ System.prototype = {
     var groupValves = this.getDump("groupValve");
     var sortValves = this.getDump("sortValve");
     var reducers = this.getDump("reducer");
+
+    rules.sort(function (a,b) { if (a.ix < b.ix) return 1; else return -1;});
 
     var stores = [];
     var flows = [];
