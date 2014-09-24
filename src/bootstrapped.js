@@ -26,37 +26,37 @@ var svgs = {
   "rect": true
 }
 
-var uiWatcher = function(prev, memory) {
+var uiWatcher = function(prev, system) {
   //var adds = [];
   //var removes = [];
-  //memory.diff(prev, adds, removes);
+  //system.diff(prev, adds, removes);
 
   //console.log(adds);
   //console.log(removes);
 
-  var elem = memory.getTable("ui_elems");
-  var text = memory.getTable("ui_text");
-  var attrs = memory.getTable("ui_attrs");
-  var styles = memory.getTable("ui_styles");
-  var events = memory.getTable("ui_events");
-  var children = memory.getTable("ui_child");
+  var elem = system.getTable("ui_elems").getFacts();
+  var text = system.getTable("ui_text").getFacts();
+  var attrs = system.getTable("ui_attrs").getFacts();
+  var styles = system.getTable("ui_styles").getFacts();
+  var events = system.getTable("ui_events").getFacts();
+  var children = system.getTable("ui_child").getFacts();
 
-  var elem_id = 1;
-  var elem_type = 2;
+  var elem_id = 0;
+  var elem_type = 1;
 
-  var text_text = 2;
+  var text_text = 1;
 
-  var attrs_attr = 2;
-  var attrs_value = 3;
+  var attrs_attr = 1;
+  var attrs_value = 2;
 
-  var styles_attr = 2;
-  var styles_value = 3;
+  var styles_attr = 1;
+  var styles_value = 2;
 
-  var events_event = 2;
-  var events_label = 3;
-  var events_key = 4;
+  var events_event = 1;
+  var events_label = 2;
+  var events_key = 3;
 
-  var child_childid = 3;
+  var child_childid = 2;
 
   var builtEls = program.builtEls || {};
   var roots = {};
@@ -131,16 +131,22 @@ var program = eve.dsl.system();
 eve.test.wrapCommonTables(program);
 
 program.run = function(facts) {
-  var prev = this.system.memory;
+  var prev; // TODO COW system
   var start = now();
   this.input(facts);
   var runtime = now() - start;
   start = now();
-  uiWatcher(prev, this.system.memory);
+  uiWatcher(prev, this.system);
   var render = now() - start;
   $("#timeStat").html(runtime.toFixed(2));
   $("#renderStat").html(render.toFixed(2));
-  $("#factsStat").html(this.system.memory.getFacts().length);
+  var numFacts = 0;
+  var tableToStore = this.system.tableToStore;
+  for (var table in tableToStore) {
+    numFacts += this.system.getStore(tableToStore[table]).facts.length;
+  }
+  console.log("numFacts", numFacts);
+  $("#factsStat").html(numFacts);
 }
 
 //*********************************************************
@@ -296,7 +302,7 @@ program.rule("draw fields for open tables", function(rule) {
   rule.source("displayNames");
   rule.join("field.table", "open tables.table");
   rule.join("field.field", "displayNames.id");
-  rule.calculate("id", ["field.table", "field.field"], "field.table + '.' + schema.field");
+  rule.calculate("id", ["field.table", "field.field"], "field.table + '.' + field.field");
   rule.ui(elem("li", {id: ["table-field", "id"], parent: ["table-fields", "field.table", "field.ix"]}, [
     ref("displayNames.name")
   ]));

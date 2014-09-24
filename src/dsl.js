@@ -383,7 +383,7 @@ ui.elem = function() {
           rule.sink("ui_styles", sink);
           rule.output(id, sink + ".id");
           rule.outputConstant(style, sink + ".attr");
-          if(typeof value === "functionConstraint") {
+          if(typeof value === "function") {
             var valve = value(rule);
             rule.output(valve, sink + ".value");
           } else {
@@ -398,7 +398,7 @@ ui.elem = function() {
         rule.outputConstant(ui.events[i], sink + ".event");
         var field = [".label", ".key"];
         for(var x in attr) {
-          if(typeof attr[x] === "functionConstraint") {
+          if(typeof attr[x] === "function") {
             var valve = attr[x](rule);
             rule.output(valve, sink + field[x]);
           } else {
@@ -411,7 +411,7 @@ ui.elem = function() {
         rule.sink("ui_attrs", sink);
         rule.output(id, sink + ".id");
         rule.outputConstant(i, sink + ".attr");
-        if(typeof attr === "functionConstraint") {
+        if(typeof attr === "function") {
           var valve = attr(rule);
           rule.output(valve, sink + ".value");
         } else {
@@ -421,7 +421,7 @@ ui.elem = function() {
 
     }
     args[2].forEach(function(cur, ix) {
-      if(typeof cur === "functionConstraint") {
+      if(typeof cur === "function") {
         var childId = cur(rule, id, ix);
         var childSink = childId + "_childsink_ " + ix;
         //           console.log("child: ", id, ix, childId);
@@ -453,7 +453,7 @@ ui.elem = function() {
 
 eve.test.wrapCommonTables = function(sys) {
   sys.shadowTable("displayNames", ["id", "name"]);
-  sys.table("joins", ["id", "valve", "pipe", "field"]);
+  sys.shadowTable("joins", ["id", "valve", "pipe", "field"]);
   sys.table("clicks", ["id"]);
   sys.table("sms outbox", ["id"]);
   sys.table("users", ["id", "name"]);
@@ -461,7 +461,7 @@ eve.test.wrapCommonTables = function(sys) {
   sys.table("path", ["from", "to"]);
   sys.shadowTable("table", ["table"]);
   sys.shadowTable("field", ["table", "field", "ix"]);
-  sys.table("editor_rule", ["id", "description"]);
+  sys.shadowTable("editor_rule", ["id", "description"]);
   sys.shadowTable("pipe", ["pipe", "table", "rule", "direction"]);
   sys.table("ui_elems", ["id", "type"]);
   sys.table("ui_text", ["id", "text"]);
@@ -469,7 +469,7 @@ eve.test.wrapCommonTables = function(sys) {
   sys.table("ui_attrs", ["id", "attr", "value"]);
   sys.table("ui_styles", ["id", "attr", "value"]);
   sys.table("ui_events", ["id", "event", "label", "key"]);
-  sys.table("external_events", ["id", "label", "key", "eid"]);
+  sys.shadowTable("external_events", ["id", "label", "key", "eid"]);
   sys.table("time", ["time"]);
 }
 

@@ -614,7 +614,7 @@ SinkConstraint.prototype = {
       for (var j = fieldIxes.length - 1; j >= 0; j--) {
         outputFact[j] = inputFact[fieldIxes[j]];
       }
-      outputFacts[i] = outputFact;
+      outputFacts.push(outputFact);
     }
   }
 };
@@ -653,8 +653,11 @@ var compilerTables =
      ["groupValve"],
      ["sortValve"],
      ["reducer"],
-     // TODO adding displayNames here is hacky
-     ["displayNames"]];
+     // TODO adding these here is hacky
+     ["displayNames"],
+     ["editor_rule"],
+     ["join"],
+     ["external_events"]];
 
 var compilerFields =
     [["table", "table", 0],
@@ -682,13 +685,13 @@ var compilerFields =
      ["constantConstraint", "valve", 0],
      ["constantConstraint", "value", 1],
 
-     ["functionConstraint", "functionConstraint", 0],
+     ["functionConstraint", "function", 0],
      ["functionConstraint", "code", 1],
      ["functionConstraint", "valve", 2],
      ["functionConstraint", "rule", 3],
 
      ["functionConstraintInput", "valve", 0],
-     ["functionConstraintInput", "functionConstraint", 1],
+     ["functionConstraintInput", "function", 1],
 
      ["limitValve", "rule", 0],
      ["limitValve", "valve", 1],
@@ -705,29 +708,45 @@ var compilerFields =
      ["reducer", "outValve", 2],
      ["reducer", "code", 3],
 
-     // TODO adding displayNames here is hacky
-     ["displayNames", "id", 0],
-     ["displayNames", "name", 1]];
+     // TODO adding these here is hacky
 
-function System(stores, flows, downstream, tableToStore) {
+     ["displayNames", "id", 0],
+     ["displayNames", "name", 1],
+
+     ["editor_rules", "id", 0],
+     ["editor_rules", "description", 1],
+
+     ["joins", "id", 0],
+     ["joins", "valve", 1],
+     ["joins", "pipe", 2],
+     ["joins", "field", 3],
+
+     ["external_events", "id", 0],
+     ["external_events", "label", 1],
+     ["external_events", "key", 2],
+     ["external_events", "eid", 3]];
+
+function System(stores, flows, dirtyFlows, downstream, tableToStore) {
   this.stores = stores;
   this.flows = flows;
+  this.dirtyFlows = dirtyFlows;
   this.downstream = downstream;
   this.tableToStore = tableToStore;
-  this.dirtyFlows = makeArray(flows.length, false);
 }
 
 System.compiler = function() {
   var stores = [];
   var flows = [];
+  var dirtyFlows = [];
   var downstream = [];
   var tableToStore = {};
   for (var i = compilerTables.length - 1; i >= 0; i--) {
+    dirtyFlows[i] = false;
     stores[i] = Memory.empty();
     downstream[i] = [];
     tableToStore[compilerTables[i][0] + "-source"] = i; // TODO will need to set up sinks in here too when this becomes incremental
   }
-  var system = new System(stores, flows, downstream, tableToStore);
+  var system = new System(stores, flows, dirtyFlows, downstream, tableToStore);
   system.setStore(0, Memory.fromFacts(compilerTables));
   system.setStore(1, Memory.fromFacts(compilerFields));
   return system;
@@ -816,6 +835,7 @@ System.prototype = {
 
     var stores = [];
     var flows = [];
+    var dirtyFlows = [];
     var nextIx = 0;
     var tableToStore = {};
     var downstream = [];
@@ -855,14 +875,16 @@ System.prototype = {
       }
 
       tableToStore[table.table + "-source"] = sourceIx;
-      stores[sourceIx] = Memory.empty();
+      stores[sourceIx] = this.stores[this.tableToStore[table.table + "-source"]] || Memory.empty();
+      dirtyFlows[sourceIx] = false;
       downstream[sourceIx] = [sinkIx];
 
       tableToStore[table.table + "-sink"] = sinkIx;
       var sink = new Sink([new SinkConstraint(sourceIx, sinkFieldIxes)], sinkIx);
       sinks[table.table] = sink;
-      stores[sinkIx] = Memory.empty();
+      stores[sinkIx] = this.stores[this.tableToStore[table.table + "-sink"]] || Memory.empty();
       flows[sinkIx] = sink;
+      dirtyFlows[sinkIx] = true;
       downstream[sinkIx] = [];
     }
 
@@ -880,6 +902,7 @@ System.prototype = {
       solvers[rule.rule] = solver;
       stores[solverIx] = Memory.empty();
       flows[solverIx] = solver;
+      dirtyFlows[solverIx] = true;
       downstream[solverIx] = [aggregateIx];
 
       tableToStore[rule.rule + "-aggregate"] = aggregateIx;
@@ -887,6 +910,7 @@ System.prototype = {
       aggregates[rule.rule] = aggregate;
       stores[aggregateIx] = Memory.empty();
       flows[aggregateIx] = aggregate;
+      dirtyFlows[aggregateIx] = true;
       downstream[aggregateIx] = [];
     }
 
@@ -898,11 +922,13 @@ System.prototype = {
         var constraint = new MemoryConstraint(tableToStore[pipe.table + "-sink"], []);
         solvers[pipe.rule].constraints.push(constraint);
         constraints[pipe.pipe] = constraint;
+        dirtyFlows[tableToStore[pipe.rule + "-solver"]] = false; // will be dirtied on update instead
         downstream[tableToStore[pipe.table + "-sink"]].push(tableToStore[pipe.rule + "-solver"]);
       } else if (pipe.direction === "-source") {
         var constraint = new NegatedMemoryConstraint(tableToStore[pipe.table + "-sink"], []);
         solvers[pipe.rule].constraints.push(constraint);
         constraints[pipe.pipe] = constraint;
+        dirtyFlows[tableToStore[pipe.rule + "-solver"]] = false; // will be dirtied on update instead
         downstream[tableToStore[pipe.table + "-sink"]].push(tableToStore[pipe.rule + "-solver"]);
       } else if (pipe.direction === "+sink") {
         var constraint = new SinkConstraint(tableToStore[pipe.rule + "-aggregate"], []);
@@ -970,7 +996,7 @@ System.prototype = {
       aggregate.reducerFuns.push(Function.apply(null, [reducer.inValve, "return (" + reducer.code + ");"]));
     }
 
-    return new System(stores, flows, downstream, tableToStore);
+    return new System(stores, flows, dirtyFlows, downstream, tableToStore);
   }
 };
 
@@ -988,7 +1014,7 @@ function memoryEqual(memoryA, memoryB) {
 }
 
 function loadSystem(system, adds, dels) {
-  console.info("Warning: loadSystem is slow. Use get/setStore instead");
+  console.info("Warning: loadSystem is slow. Use System.updateTable instead");
   // console.log(system);
   var addGroups = {};
   var delGroups = {};
