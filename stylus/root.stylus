@@ -105,3 +105,115 @@ $sinks = #d0d0d0;
     }
   }
 }
+
+.rule-page {
+  header {
+    margin:20px;
+    position:relative;
+    display:flex;
+    flex-direction:row;
+    align-items:center;
+    justify-content:center;
+    button {
+      absolute: top left;
+    }
+    h2 {
+      flex:none;
+      padding:5px;
+    }
+  }
+
+  .io {
+    margin-top:10px;
+    display:flex;
+
+    .separator {
+      background: $sinks;
+      position:relative;
+      width:20px;
+      svg {
+        position:absolute;
+        left: 0;
+        right:0;
+        bottom:0;
+        top:0;
+      }
+      .arrow {
+        fill: $sources;
+      }
+    }
+  }
+
+  .sinks, .sources {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content: center;
+    flex:1;
+    padding:10px 20px;
+  }
+
+  .sources {
+    background:$sources;
+  }
+  .sinks {
+    background:$sinks;
+  }
+
+  .io-item {
+    display:flex;
+    flex-direction:row;
+    align-items:center;
+    border:1px solid #000;
+    border-radius:3px;
+    margin-bottom:8px;
+
+    span {
+      padding:5px 10px;
+
+    }
+    ul {
+      border-left:1px solid #000;
+      li {
+        padding:3px 10px;
+      }
+      li + li {
+        border-top:1px solid #000;
+      }
+    }
+  }
+}
+
+.grid {
+  display:inline-block;
+  border:1px solid #ccc;
+  border-radius:3px;
+
+  .grid-header {
+    display:flex;
+    border-bottom:1px solid #ccc;
+    background:#eee;
+    div {
+      padding:5px;
+      width:130px;
+    }
+    div + div {
+      border-left:1px solid #ccc;
+    }
+  }
+
+  .grid-row {
+    display:flex;
+    div {
+      padding:5px;
+      width:130px;
+      overflow:hidden;
+    }
+    div + div {
+      border-left:1px solid #ccc;
+    }
+  }
+  .grid-row + .grid-row {
+    border-top:1px solid #ccc;
+  }
+}

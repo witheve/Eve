@@ -238,7 +238,7 @@ MemoryConstraint.prototype = {
       }
     }
 
-    assert(i >= 0); // no pivot?
+    if(i < 0) return IGNORED;
 
     var upperPivot = greatest;
     for (var j = facts.length - 1; j >= 0; j--) {
@@ -716,10 +716,10 @@ var compilerFields =
      ["editor_rules", "id", 0],
      ["editor_rules", "description", 1],
 
-     ["joins", "id", 0],
-     ["joins", "valve", 1],
-     ["joins", "pipe", 2],
-     ["joins", "field", 3],
+     ["join", "id", 0],
+     ["join", "valve", 1],
+     ["join", "pipe", 2],
+     ["join", "field", 3],
 
      ["external_events", "id", 0],
      ["external_events", "label", 1],

@@ -7,7 +7,7 @@ var dsl = eve.dsl = {};
 
 dsl.nextId = function() {
   return "i" + eve.data.globalId++;
-}
+};
 
 dsl.globalNames = {};
 dsl.tableToFields = {};
@@ -17,11 +17,11 @@ dsl.nameToId = function(name, rule) {
     return rule.names[name] || dsl.globalNames[name];
   }
   return dsl.globalNames[name];
-}
+};
 
 dsl.parseName = function(name) {
   return name.split(".");
-}
+};
 
 dsl.table = function(name, fields) {
   var items = [];
@@ -36,7 +36,7 @@ dsl.table = function(name, fields) {
     dsl.globalNames[name + "." + field] = id;
   });
   return items;
-}
+};
 
 dsl.shadowTable = function(name, fields) {
   var items = [];
@@ -59,13 +59,27 @@ var Rule = function(desc) {
   this.desc = desc;
   this.items = [["editor_rule", this.id, desc]];
   this.reducerItems = [];
-}
+  this.hasSource = false;
+  this.hasSink = false;
+};
 
 dsl.rule = function(desc, func) {
   var r = new Rule(desc);
   func(r);
   return r;
-}
+};
+
+Rule.prototype.valid = function() {
+  if(!this.hasSource) {
+    console.error("No source provided for rule: '" + this.desc + "'");
+    return false;
+  }
+  if(!this.hasSink) {
+    console.error("No sink provided for rule: '" + this.desc + "'");
+    return false;
+  }
+  return true;
+};
 
 Rule.prototype.source = function(name, alias) {
   var id = dsl.nameToId(name);
@@ -76,8 +90,10 @@ Rule.prototype.source = function(name, alias) {
       dsl.globalNames[alias + "." + cur] = dsl.globalNames[name + "." + cur];
     });
   }
-  this.items.push(["pipe", pipeId, id, this.id, "+source"]);
-}
+  this.items.push(["pipe", pipeId, id, this.id, "+source"],
+                  ["displayNames", pipeId, alias || name]);
+  this.hasSource = true;
+};
 
 Rule.prototype.sink = function(name, alias) {
   var id = dsl.nameToId(name);
@@ -88,8 +104,10 @@ Rule.prototype.sink = function(name, alias) {
       dsl.globalNames[alias + "." + cur] = dsl.globalNames[name + "." + cur];
     });
   }
-  this.items.push(["pipe", pipeId, id, this.id, "+sink"]);
-}
+  this.items.push(["pipe", pipeId, id, this.id, "+sink"],
+                  ["displayNames", pipeId, alias || name]);
+  this.hasSink = true;
+};
 
 Rule.prototype.negated = function(name, alias) {
   var id = dsl.nameToId(name);
@@ -100,20 +118,22 @@ Rule.prototype.negated = function(name, alias) {
       dsl.globalNames[alias + "." + cur] = dsl.globalNames[name + "." + cur];
     });
   }
-  this.items.push(["pipe", pipeId, id, this.id, "-source"]);
-}
+  this.items.push(["pipe", pipeId, id, this.id, "-source"],
+                  ["displayNames", pipeId, alias || name]);
+  this.hasSource = true;
+};
 
 Rule.prototype.valve = function() {
   var valve = dsl.nextId();
   this.items.push(["valve", valve, this.id, this.ix++]);
   return valve;
-}
+};
 
 Rule.prototype.reducerValve = function() {
   var valve = dsl.nextId();
   this.reducerItems.push(["valve", valve, this.id, this.reducerIx++]);
   return valve;
-}
+};
 
 Rule.prototype.tableConstraint = function(valve, to) {
   var toParts = dsl.parseName(to);
@@ -127,7 +147,7 @@ Rule.prototype.tableConstraint = function(valve, to) {
     }
     throw new Error("No schema defined for: " + to + ' in "' + this.desc + '"');
   }
-}
+};
 
 Rule.prototype.fieldToValve = function(from) {
   var valve = this.names[from];
@@ -138,23 +158,25 @@ Rule.prototype.fieldToValve = function(from) {
     this.items.push(["displayNames", valve, from]);
   }
   return valve;
-}
+};
 
 Rule.prototype.eq = function(from, value) {
   var valve = this.fieldToValve(from);
   this.items.push(["constantConstraint", valve, value]);
-}
+};
 
 Rule.prototype.output = function(from, to) {
   var valve = this.fieldToValve(from);
   this.tableConstraint(valve, to);
-}
+  this.items.push(["displayNames", valve, from]);
+};
 
 Rule.prototype.outputConstant = function(val, to) {
   var valve = this.valve();
   this.tableConstraint(valve, to);
   this.items.push(["constantConstraint", valve, val]);
-}
+  this.items.push(["displayNames", valve, 'constant: ' + val]);
+};
 
 Rule.prototype.join = function(from, to) {
   if(!this.names[from] && this.names[to]) {
@@ -168,17 +190,17 @@ Rule.prototype.join = function(from, to) {
   var pipe = dsl.nameToId(toParts[0], this);
   var field = dsl.nameToId(to);
   this.items.push(["join", valve, pipe, field]);
-}
+};
 
 Rule.prototype.sort = function(name) {
   var valve = this.fieldToValve(name);
   this.items.push(["sortValve", this.id, valve, this.sortIx++]);
-}
+};
 
 Rule.prototype.group = function(name) {
   var valve = this.fieldToValve(name);
   this.items.push(["groupValve", this.id, valve]);
-}
+};
 
 Rule.prototype.filter = function(name, code) {
   var input = this.fieldToValve(name);
@@ -190,7 +212,7 @@ Rule.prototype.filter = function(name, code) {
     ["functionConstraintInput", input, id],
     ["constantConstraint", valve, true]
   );
-}
+};
 
 Rule.prototype.calculate = function(name, args, code) {
   var valve = this.valve();
@@ -214,100 +236,102 @@ Rule.prototype.aggregate = function(input, output, code) {
   this.names[output] = valve;
   this.items.push(["reducer", this.id, inputValve, valve, code],
                   ["displayNames", valve, output]);
-}
+};
 
 Rule.prototype.limit = function(from) {
   var valve = this.fieldToValve(from);
   this.items.push(["limitValve", this.id, valve]);
-}
+};
 
 Rule.prototype.constantLimit = function(num) {
   var valve = this.valve();
   this.items.push(["limitValve", this.id, valve],
                   ["constantConstraint", valve, num]);
-}
+};
 
 Rule.prototype.concat = function(arr) {
   arr.forEach(function(cur) {
     this.items.push(cur);
   });
-}
+};
 
 Rule.prototype.ui = function(elem) {
   return elem(this, null, 0);
-}
+};
 
 var DSLSystem = function() {
   var compiler = System.compiler();
   this.system = compiler.compile();
   this.facts = [];
   this.ruleIx = 0;
-}
+};
 
 DSLSystem.prototype.rule = function(name, func) {
   var rule = dsl.rule(name, func);
-  for(var i in rule.items) {
-    this.facts.push(rule.items[i]);
+  if(rule.valid()) {
+    for(var i in rule.items) {
+      this.facts.push(rule.items[i]);
+    }
+    this.facts.push(["rule", rule.id, this.ruleIx]);
+    this.ruleIx++;
+    for(var i in rule.reducerItems) {
+      var cur = rule.reducerItems[i];
+      cur[3] = cur[3] + rule.ix;
+      this.facts.push(cur);
+    }
   }
-  this.facts.push(["rule", rule.id, this.ruleIx]);
-  this.ruleIx++;
-  for(var i in rule.reducerItems) {
-    var cur = rule.reducerItems[i];
-    cur[3] = cur[3] + rule.ix;
-    this.facts.push(cur);
-  }
-}
+};
 
 DSLSystem.prototype.table = function(name, fields) {
   var items = dsl.table(name, fields);
   for(var i in items) {
     this.facts.push(items[i]);
   }
-}
+};
 
 DSLSystem.prototype.shadowTable = function(name, fields) {
   var items = dsl.shadowTable(name, fields);
   for(var i in items) {
     this.facts.push(items[i]);
   }
-}
+};
 
 DSLSystem.prototype.compile = function() {
   var compiler = System.compiler();
   loadSystem(compiler, this.facts, []);
   this.system = compiler.compile();
-}
+};
 
 DSLSystem.prototype.input = function(items) {
   loadSystem(this.system, items, []);
   this.system.refresh();
-}
+};
 
 DSLSystem.prototype.equal = function(facts) {
   testSystem(this.system, facts);
-}
+};
 
 DSLSystem.prototype.test = function(inputs, results) {
   this.compile();
   this.input(inputs);
   this.equal(inputs.concat(results));
-}
+};
 
 dsl.system = function() {
   return new DSLSystem();
-}
+};
 
 //*********************************************************
 // ui
 //*********************************************************
 
-var ui = eve.ui = {}
+var ui = eve.ui = {};
 
 ui.events = {
   "click": "click",
   "doubleClick": "dblclick",
   "contextMenu": "contextMenu"
-}
+};
 
 ui.prefixId = function(rule, prefix, col) {
   console.log("prefixID:", prefix, col);
@@ -318,13 +342,13 @@ ui.prefixId = function(rule, prefix, col) {
     rule.calculate(id, [], "'" + prefix + "'");
   }
   return id;
-}
+};
 
 ui.postfixId = function(rule, col, postfix) {
   var id = dsl.nextId();
   rule.calculate(id, [col], col +  " + '_" + postfix + "'");
   return id;
-}
+};
 
 ui.ref = function(col) {
   return function(rule, nameValve, ix) {
@@ -338,8 +362,8 @@ ui.ref = function(col) {
     } else {
       return col;
     }
-  }
-}
+  };
+};
 
 ui.elem = function() {
   var args = arguments;
@@ -444,34 +468,46 @@ ui.elem = function() {
       }
     });
     return id;
-  }
-}
+  };
+};
 
 //*********************************************************
 // Test
 //*********************************************************
 
 eve.test.wrapCommonTables = function(sys) {
+  sys.shadowTable("table", ["table"]);
+  sys.shadowTable("field", ["table", "field", "ix"]);
+  sys.shadowTable("pipe", ["pipe", "table", "rule", "direction"]);
+  sys.shadowTable("tableConstraint", ["valve", "pipe", "field"]);
+  sys.shadowTable("rule", ["rule", "ix"]);
+  sys.shadowTable("valve", ["valve", "rule", "ix"]);
+  sys.shadowTable("constantConstraint", ["valve", "value"]);
+  sys.shadowTable("functionConstraint", ["function", "code", "valve", "rule"]);
+  sys.shadowTable("functionConstraintInput", ["valve", "function"]);
+  sys.shadowTable("limitValve", ["rule", "valve"]);
+  sys.shadowTable("groupValve", ["rule", "valve"]);
+  sys.shadowTable("sortValve", ["rule", "valve", "ix"]);
+  sys.shadowTable("reducer", ["rule", "inValve", "outValve", "code"]);
+
   sys.shadowTable("displayNames", ["id", "name"]);
-  sys.shadowTable("joins", ["id", "valve", "pipe", "field"]);
+  sys.shadowTable("join", ["valve", "pipe", "field"]);
+  sys.shadowTable("editor_rule", ["id", "description"]);
+  sys.shadowTable("external_events", ["id", "label", "key", "eid"]);
+
   sys.table("clicks", ["id"]);
   sys.table("sms outbox", ["id"]);
   sys.table("users", ["id", "name"]);
   sys.table("edges", ["from", "to"]);
   sys.table("path", ["from", "to"]);
-  sys.shadowTable("table", ["table"]);
-  sys.shadowTable("field", ["table", "field", "ix"]);
-  sys.shadowTable("editor_rule", ["id", "description"]);
-  sys.shadowTable("pipe", ["pipe", "table", "rule", "direction"]);
   sys.table("ui_elems", ["id", "type"]);
   sys.table("ui_text", ["id", "text"]);
   sys.table("ui_child", ["parent", "pos", "child"]);
   sys.table("ui_attrs", ["id", "attr", "value"]);
   sys.table("ui_styles", ["id", "attr", "value"]);
   sys.table("ui_events", ["id", "event", "label", "key"]);
-  sys.shadowTable("external_events", ["id", "label", "key", "eid"]);
   sys.table("time", ["time"]);
-}
+};
 
 eve.test.test = function(name, func, inputs, expected) {
   var sys = dsl.system();
@@ -488,13 +524,13 @@ eve.test.test = function(name, func, inputs, expected) {
     return false;
   }
   return true;
-}
+};
 
 eve.test.check = function() {
   if(eve.test.failed) {
     process.exit(1);
   }
-}
+};
 
 //*********************************************************
 // Rules
