@@ -27,10 +27,11 @@ dsl.table = function(name, fields) {
   var items = [];
   dsl.globalNames[name] = name;
   dsl.tableToFields[name] = fields;
+  items.push(["table", name]);
   items.push(["displayNames", name, name]);
   fields.forEach(function(field, ix) {
     var id = dsl.nextId();
-    items.push(["schema", name, id, ix]);
+    items.push(["field", name, id, ix]);
     items.push(["displayNames", id, field]);
     dsl.globalNames[name + "." + field] = id;
   });
@@ -185,8 +186,8 @@ Rule.prototype.filter = function(name, code) {
   var id = dsl.nextId();
   code = code.replace(name, input);
   this.items.push(
-    ["function", id, code, valve, this.id],
-    ["functionInput", input, id],
+    ["functionConstraint", id, code, valve, this.id],
+    ["functionConstraintInput", input, id],
     ["constantConstraint", valve, true]
   );
 }
@@ -199,11 +200,11 @@ Rule.prototype.calculate = function(name, args, code) {
   var self = this;
   args.forEach(function(cur) {
     var valve = self.fieldToValve(cur);
-    self.items.push(["functionInput", valve, id]);
+    self.items.push(["functionConstraintInput", valve, id]);
     code = code.replace(cur, valve);
   });
 
-  this.items.push(["function", id, code, valve, this.id]);
+  this.items.push(["functionConstraint", id, code, valve, this.id]);
 }
 
 Rule.prototype.aggregate = function(input, output, code) {
@@ -237,7 +238,8 @@ Rule.prototype.ui = function(elem) {
 }
 
 var DSLSystem = function() {
-  this.system = compileSystem(Memory.fromFacts(compilerSchema));
+  var compiler = System.compiler();
+  this.system = compiler.compile();
   this.facts = [];
   this.ruleIx = 0;
 }
@@ -271,23 +273,22 @@ DSLSystem.prototype.shadowTable = function(name, fields) {
 }
 
 DSLSystem.prototype.compile = function() {
-  this.system = compileSystem(Memory.fromFacts(compilerSchema.concat(this.facts)));
+  var compiler = System.compiler();
+  loadSystem(compiler, this.facts, []);
+  this.system = compiler.compile();
 }
 
 DSLSystem.prototype.input = function(items) {
-  this.system.update(items, []);
-}
-
-DSLSystem.prototype.empty = function() {
-  this.system.memory = Memory.empty();
+  loadSystem(this.system, items, []);
+  this.system.refresh();
 }
 
 DSLSystem.prototype.equal = function(facts) {
-  memoryEqual(this.system.memory, Memory.fromFacts(facts))
+  testSystem(this.system, facts);
 }
 
 DSLSystem.prototype.test = function(inputs, results) {
-  this.empty();
+  this.compile();
   this.input(inputs);
   this.equal(inputs.concat(results));
 }
@@ -382,7 +383,7 @@ ui.elem = function() {
           rule.sink("ui_styles", sink);
           rule.output(id, sink + ".id");
           rule.outputConstant(style, sink + ".attr");
-          if(typeof value === "function") {
+          if(typeof value === "functionConstraint") {
             var valve = value(rule);
             rule.output(valve, sink + ".value");
           } else {
@@ -397,7 +398,7 @@ ui.elem = function() {
         rule.outputConstant(ui.events[i], sink + ".event");
         var field = [".label", ".key"];
         for(var x in attr) {
-          if(typeof attr[x] === "function") {
+          if(typeof attr[x] === "functionConstraint") {
             var valve = attr[x](rule);
             rule.output(valve, sink + field[x]);
           } else {
@@ -410,7 +411,7 @@ ui.elem = function() {
         rule.sink("ui_attrs", sink);
         rule.output(id, sink + ".id");
         rule.outputConstant(i, sink + ".attr");
-        if(typeof attr === "function") {
+        if(typeof attr === "functionConstraint") {
           var valve = attr(rule);
           rule.output(valve, sink + ".value");
         } else {
@@ -420,7 +421,7 @@ ui.elem = function() {
 
     }
     args[2].forEach(function(cur, ix) {
-      if(typeof cur === "function") {
+      if(typeof cur === "functionConstraint") {
         var childId = cur(rule, id, ix);
         var childSink = childId + "_childsink_ " + ix;
         //           console.log("child: ", id, ix, childId);
@@ -451,14 +452,15 @@ ui.elem = function() {
 //*********************************************************
 
 eve.test.wrapCommonTables = function(sys) {
-  sys.table("displayNames", ["id", "name"]);
+  sys.shadowTable("displayNames", ["id", "name"]);
   sys.table("joins", ["id", "valve", "pipe", "field"]);
   sys.table("clicks", ["id"]);
   sys.table("sms outbox", ["id"]);
   sys.table("users", ["id", "name"]);
   sys.table("edges", ["from", "to"]);
   sys.table("path", ["from", "to"]);
-  sys.shadowTable("schema", ["table", "field", "ix"]);
+  sys.shadowTable("table", ["table"]);
+  sys.shadowTable("field", ["table", "field", "ix"]);
   sys.table("editor_rule", ["id", "description"]);
   sys.shadowTable("pipe", ["pipe", "table", "rule", "direction"]);
   sys.table("ui_elems", ["id", "type"]);
@@ -480,6 +482,7 @@ eve.test.test = function(name, func, inputs, expected) {
     sys.test(inputs, expected);
   } catch(e) {
     eve.test.failed = true;
+    console.log(sys.system);
     console.error("failed test: " + name);
     console.error("    " + e.stack);
     return false;

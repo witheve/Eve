@@ -160,16 +160,6 @@ Memory.prototype = {
 
   getFacts: function() {
     return dedupeFacts(this.facts);
-  },
-
-  getTable: function(name) {
-    var facts = this.facts;
-    var table = [];
-    for (var i = facts.length - 1; i >= 0; i--) {
-      var fact = facts[i];
-      if (fact[0] === name) table.push(fact);
-    }
-    return dedupeFacts(table);
   }
 };
 
@@ -187,7 +177,7 @@ MemoryConstraint.prototype = {
     var fieldIxes = this.fieldIxes;
     var facts = constraintStates[myIx];
 
-    // console.log("Facts before " + JSON.stringify(facts));
+    // console.log("Facts before " + los + " " + his + " " + JSON.stringify(facts));
 
     var newFacts = [];
 
@@ -200,7 +190,7 @@ MemoryConstraint.prototype = {
 
     facts = constraintStates[myIx] = newFacts;
 
-    // console.log("Facts after " + JSON.stringify(facts));
+    // console.log("Facts after " + los + " " + his + " " + JSON.stringify(facts));
 
     if (facts.length === 0) {
       // console.log("Failed with no facts");
@@ -238,7 +228,7 @@ MemoryConstraint.prototype = {
     var fieldIxes = this.fieldIxes;
 
     var i, ix, lowerPivot;
-    findLowerPivot: for (i = ixes.length - 1; i >= 0; i--) {
+    findLowerPivot: for (i = fieldIxes.length - 1; i >= 0; i--) {
       ix = fieldIxes[i];
       if (ix !== undefined) {
         for (var j = facts.length - 1; j >= 0; j--) {
@@ -629,9 +619,9 @@ SinkConstraint.prototype = {
   }
 };
 
-function Sink(outputIx, constraints) {
-  this.outputIx = outputIx;
+function Sink(constraints, outputIx) {
   this.constraints = constraints;
+  this.outputIx = outputIx;
 }
 
 Sink.prototype = {
@@ -649,76 +639,109 @@ Sink.prototype = {
 
 // SYSTEM
 
-var compilerSchema =
-    [["schema", "schema", "table", 0],
-     ["schema", "schema", "field", 1],
-     ["schema", "schema", "ix", 2],
+var compilerTables =
+    [["table"],
+     ["field"],
+     ["rule"],
+     ["valve"],
+     ["pipe"],
+     ["tableConstraint"],
+     ["constantConstraint"],
+     ["functionConstraint"],
+     ["functionConstraintInput"],
+     ["limitValve"],
+     ["groupValve"],
+     ["sortValve"],
+     ["reducer"],
+     // TODO adding displayNames here is hacky
+     ["displayNames"]];
 
-     ["schema", "rule", "rule", 0],
-     ["schema", "rule", "ix", 1],
+var compilerFields =
+    [["table", "table", 0],
 
-     ["schema", "valve", "valve", 0],
-     ["schema", "valve", "rule", 1],
-     ["schema", "valve", "ix", 2],
+     ["field", "table", 0],
+     ["field", "field", 1],
+     ["field", "ix", 2],
 
-     ["schema", "pipe", "pipe", 0],
-     ["schema", "pipe", "table", 1],
-     ["schema", "pipe", "rule", 2],
-     ["schema", "pipe", "direction", 3], // +source, -source, +sink
+     ["rule", "rule", 0],
+     ["rule", "ix", 1],
 
-     ["schema", "tableConstraint", "valve", 0],
-     ["schema", "tableConstraint", "pipe", 1],
-     ["schema", "tableConstraint", "field", 2],
+     ["valve", "valve", 0],
+     ["valve", "rule", 1],
+     ["valve", "ix", 2],
 
-     ["schema", "constantConstraint", "valve", 0],
-     ["schema", "constantConstraint", "value", 1],
+     ["pipe", "pipe", 0],
+     ["pipe", "table", 1],
+     ["pipe", "rule", 2],
+     ["pipe", "direction", 3], // +source, -source, +sink
 
-     ["schema", "function", "function", 0],
-     ["schema", "function", "code", 1],
-     ["schema", "function", "valve", 2],
-     ["schema", "function", "rule", 3],
+     ["tableConstraint", "valve", 0],
+     ["tableConstraint", "pipe", 1],
+     ["tableConstraint", "field", 2],
 
-     ["schema", "functionInput", "valve", 0],
-     ["schema", "functionInput", "function", 1],
+     ["constantConstraint", "valve", 0],
+     ["constantConstraint", "value", 1],
 
-     ["schema", "limitValve", "rule", 0],
-     ["schema", "limitValve", "valve", 1],
+     ["functionConstraint", "functionConstraint", 0],
+     ["functionConstraint", "code", 1],
+     ["functionConstraint", "valve", 2],
+     ["functionConstraint", "rule", 3],
 
-     ["schema", "groupValve", "rule", 0],
-     ["schema", "groupValve", "valve", 1],
+     ["functionConstraintInput", "valve", 0],
+     ["functionConstraintInput", "functionConstraint", 1],
 
-     ["schema", "sortValve", "rule", 0],
-     ["schema", "sortValve", "valve", 1],
-     ["schema", "sortValve", "ix", 2],
+     ["limitValve", "rule", 0],
+     ["limitValve", "valve", 1],
 
-     ["schema", "reducer", "rule", 0],
-     ["schema", "reducer", "inValve", 1],
-     ["schema", "reducer", "outValve", 2],
-     ["schema", "reducer", "code", 3]];
+     ["groupValve", "rule", 0],
+     ["groupValve", "valve", 1],
+
+     ["sortValve", "rule", 0],
+     ["sortValve", "valve", 1],
+     ["sortValve", "ix", 2],
+
+     ["reducer", "rule", 0],
+     ["reducer", "inValve", 1],
+     ["reducer", "outValve", 2],
+     ["reducer", "code", 3],
+
+     // TODO adding displayNames here is hacky
+     ["displayNames", "id", 0],
+     ["displayNames", "name", 1]];
 
 function System(stores, flows, downstream, tableToStore) {
   this.stores = stores;
   this.flows = flows;
   this.downstream = downstream;
   this.tableToStore = tableToStore;
-  this.dirtyFlows = makeArray(flows.length, true);
+  this.dirtyFlows = makeArray(flows.length, false);
 }
 
 System.compiler = function() {
-  var stores = [Memory.fromFacts(compilerSchema)];
+  var stores = [];
   var flows = [];
   var downstream = [];
-  var tableToStore = {"schema": 0};
-  return new System(stores, flows, downstream, tableToStore);
+  var tableToStore = {};
+  for (var i = compilerTables.length - 1; i >= 0; i--) {
+    stores[i] = Memory.empty();
+    downstream[i] = [];
+    tableToStore[compilerTables[i][0] + "-source"] = i; // TODO will need to set up sinks in here too when this becomes incremental
+  }
+  var system = new System(stores, flows, downstream, tableToStore);
+  system.setStore(0, Memory.fromFacts(compilerTables));
+  system.setStore(1, Memory.fromFacts(compilerFields));
+  return system;
 };
 
 System.prototype = {
   getTable: function (table) {
-    return this.getStore(this.tableToStore[table]);
+    var sinkIx = this.tableToStore[table + "-sink"];
+    return this.getStore(sinkIx);
   },
 
-  setTable: function (table, store) {
-    this.setStore(this.tableToStore[table], store);
+  updateTable: function (table, adds, dels) {
+    var sourceIx = this.tableToStore[table + "-source"];
+    this.setStore(sourceIx, this.getStore(sourceIx).update(adds, dels));
   },
 
   getSolver: function(rule) {
@@ -738,8 +761,28 @@ System.prototype = {
     var dirtiedFlows = this.downstream[storeIx];
     var dirtyFlows = this.dirtyFlows;
     for (var i = dirtiedFlows.length - 1; i >= 0; i--) {
-      dirtyFlows[i] = true;
+      dirtyFlows[dirtiedFlows[i]] = true;
     }
+  },
+
+  getDump: function (table) {
+    var fields = this.getStore(1).getFacts();
+    var tableFields = [];
+    for (var i = fields.length - 1; i >= 0; i--) {
+      var field = fields[i];
+      if (field[0] === table) tableFields[field[2]] = field[1];
+    }
+    var facts = this.getStore(this.tableToStore[table + "-source"]).getFacts();
+    var dump = [];
+    for (var i = facts.length - 1; i >= 0; i--) {
+      var fact = facts[i];
+      var dumpedFact = {};
+      for (var j = tableFields.length - 1; j >= 0; j--) {
+        dumpedFact[tableFields[j]] = fact[j];
+      }
+      dump[i] = dumpedFact;
+    }
+    return dump;
   },
 
   refresh: function() {
@@ -748,6 +791,8 @@ System.prototype = {
     var dirtyFlows = this.dirtyFlows;
     for (var flowIx = 0; flowIx < numFlows; flowIx++) {
       if (dirtyFlows[flowIx] === true) {
+        // console.log(flowIx);
+        dirtyFlows[flowIx] = false;
         flows[flowIx].refresh(this);
         flowIx = 0; // resets the loop
       }
@@ -755,31 +800,35 @@ System.prototype = {
   },
 
   compile: function() {
-    var schemas = this.getTable("schema").getFacts();
-    var rules = this.getTable("rule").getFacts();
-    var valves = this.getTable("rule").getFacts();
-    var pipes = this.getTable("pipe").getFacts();
-    var tableConstraints = this.getTable("tableConstraint").getFacts();
-    var constantConstraints = this.getTable("constantConstraint").getFacts();
-    var functions = this.getTable("function").getFacts();
-    var functionInputs = this.getTable("functionInput").getFacts();
-    var limitValves = this.getTable("limitValve").getFacts();
-    var groupValves = this.getTable("groupValve").getFacts();
-    var sortValves = this.getTable("sortValve").getFacts();
-    var reducers = this.getTable("reducer").getFacts();
+    var tables = this.getDump("table");
+    var fields = this.getDump("field");
+    var rules = this.getDump("rule");
+    var valves = this.getDump("valve");
+    var pipes = this.getDump("pipe");
+    var tableConstraints = this.getDump("tableConstraint");
+    var constantConstraints = this.getDump("constantConstraint");
+    var functionConstraints = this.getDump("functionConstraint");
+    var functionConstraintInputs = this.getDump("functionConstraintInput");
+    var limitValves = this.getDump("limitValve");
+    var groupValves = this.getDump("groupValve");
+    var sortValves = this.getDump("sortValve");
+    var reducers = this.getDump("reducer");
 
     var stores = [];
     var flows = [];
-    var nextStore = 0;
+    var nextIx = 0;
     var tableToStore = {};
     var downstream = [];
 
+    var valveRules = {};
     var valveIxes = {};
     var numVars = {};
     var fieldIxes = {};
+    var numFields = {};
 
     for (var i = valves.length - 1; i >= 0; i--) {
       var valve = valves[i];
+      valveRules[valve.valve] = valve.rule;
       valveIxes[valve.valve] = valve.ix;
       numVars[valve.rule] = (numVars[valve.rule] || 0) + 1;
     }
@@ -787,9 +836,34 @@ System.prototype = {
       var reducer = reducers[i];
       numVars[reducer.rule] = numVars[reducer.rule] - 1;
     }
-    for (var i = schemas.length - 1; i >= 0; i--) {
-      var schema = schemas[i];
-      fieldIxes[schema.field] = schema.ix;
+    for (var i = fields.length - 1; i >= 0; i--) {
+      var field = fields[i];
+      fieldIxes[field.field] = field.ix;
+      numFields[field.table] = (numFields[field.table] || 0) + 1;
+    }
+
+    // build sinks
+    var sinks = {};
+    for (var i = tables.length - 1; i >= 0; i--) {
+      var table = tables[i];
+
+      var sourceIx = nextIx++;
+      var sinkIx = nextIx++;
+      var sinkFieldIxes = [];
+      for (var j = numFields[table.table] - 1; j >= 0; j--) {
+        sinkFieldIxes[j] = j;
+      }
+
+      tableToStore[table.table + "-source"] = sourceIx;
+      stores[sourceIx] = Memory.empty();
+      downstream[sourceIx] = [sinkIx];
+
+      tableToStore[table.table + "-sink"] = sinkIx;
+      var sink = new Sink([new SinkConstraint(sourceIx, sinkFieldIxes)], sinkIx);
+      sinks[table.table] = sink;
+      stores[sinkIx] = Memory.empty();
+      flows[sinkIx] = sink;
+      downstream[sinkIx] = [];
     }
 
     // build solvers and aggregates
@@ -798,34 +872,22 @@ System.prototype = {
     for (var i = rules.length - 1; i >= 0; i--) {
       var rule = rules[i];
 
-      var aggregateIx = nextStore++;
-      var solverIx = nextStore++;
+      var solverIx = nextIx++;
+      var aggregateIx = nextIx++;
 
       tableToStore[rule.rule + "-solver"] = solverIx;
-      var solver = Solver.empty(0, [], [], solverIx);
+      var solver = Solver.empty(numVars[rule.rule], [], [], solverIx);
       solvers[rule.rule] = solver;
       stores[solverIx] = Memory.empty();
+      flows[solverIx] = solver;
       downstream[solverIx] = [aggregateIx];
 
       tableToStore[rule.rule + "-aggregate"] = aggregateIx;
       var aggregate = Aggregate.empty([], [], undefined, [], [], [], solverIx, aggregateIx);
       aggregates[rule.rule] = aggregate;
       stores[aggregateIx] = Memory.empty();
+      flows[aggregateIx] = aggregate;
       downstream[aggregateIx] = [];
-    }
-
-    // build sinks
-    var sinks = {};
-    for (var i = schemas.length - 1; i >= 0; i--) {
-      var schema = schemas[i];
-      if (tableToStore[schema.table] === undefined) {
-        var tableIx = nextStore++;
-        tableToStore[schema.table] = tableIx;
-        var sink = Sink.empty([], tableIx);
-        sinks[schema.table] = sink;
-        stores[tableIx] = Memory.empty();
-        downstream[tableIx] = [];
-      }
     }
 
     // build table constraints
@@ -833,50 +895,63 @@ System.prototype = {
     for (var i = pipes.length - 1; i >= 0; i--) {
       var pipe = pipes[i];
       if (pipe.direction === "+source") {
-        var constraint = new MemoryConstraint(tableToStore[pipe.table], []);
+        var constraint = new MemoryConstraint(tableToStore[pipe.table + "-sink"], []);
         solvers[pipe.rule].constraints.push(constraint);
         constraints[pipe.pipe] = constraint;
-        downstream[tableToStore[pipe.table]].push(tableToStore[pipe.rule]);
+        downstream[tableToStore[pipe.table + "-sink"]].push(tableToStore[pipe.rule + "-solver"]);
       } else if (pipe.direction === "-source") {
-        var constraint = new NegatedMemoryConstraint(tableToStore[pipe.table], []);
+        var constraint = new NegatedMemoryConstraint(tableToStore[pipe.table + "-sink"], []);
         solvers[pipe.rule].constraints.push(constraint);
         constraints[pipe.pipe] = constraint;
-        downstream[tableToStore[pipe.table]].push(tableToStore[pipe.rule]);
+        downstream[tableToStore[pipe.table + "-sink"]].push(tableToStore[pipe.rule + "-solver"]);
       } else if (pipe.direction === "+sink") {
-        var constraint = new SinkConstraint(tableToStore[pipe.table], []);
+        var constraint = new SinkConstraint(tableToStore[pipe.rule + "-aggregate"], []);
         sinks[pipe.table].constraints.push(constraint);
         constraints[pipe.pipe] = constraint;
+        downstream[tableToStore[pipe.rule + "-aggregate"]].push(tableToStore[pipe.table + "-sink"]);
       }
     }
-    for (var i = tableConstraints - 1; i >= 0; i--) {
+    for (var i = tableConstraints.length - 1; i >= 0; i--) {
       var tableConstraint = tableConstraints[i];
       var fieldIx = fieldIxes[tableConstraint.field];
       var valveIx = valveIxes[tableConstraint.valve];
       constraints[tableConstraint.pipe].fieldIxes[fieldIx] = valveIx;
     }
 
-    // build function constraints
-    for (var i = functions.length - 1; i >= 0; i--) {
-      var func = functions[i];
-      var outIx = valveIxes[func.outValve];
-      var constraint = new FunctionConstraint(undefined, [], [], outIx);
-      solvers[func.rule].constraints.push(constraint);
-      constraints[func.function] = constraint;
+    // build constant constraints
+    for (var i = constantConstraints.length - 1; i >= 0; i--) {
+      var constantConstraint = constantConstraints[i];
+      var solver = solvers[valveRules[constantConstraint.valve]];
+      solver.constants[valveIxes[constantConstraint.valve]] = constantConstraint.value;
     }
-    for (var i = functionInputs.length - 1; i >= 0; i--) {
-      var functionInput = functionInputs[i];
-      var constraint = constraints[functionInput.function];
-      constraint.args.push(functionInput.valve);
-      constraint.inIxes.push(valveIxes[functionInput.valve]);
+
+    // build function constraints
+    for (var i = functionConstraints.length - 1; i >= 0; i--) {
+      var functionConstraint = functionConstraints[i];
+      var outIx = valveIxes[functionConstraint.valve];
+      var constraint = new FunctionConstraint(undefined, [], [], outIx);
+      solvers[functionConstraint.rule].constraints.push(constraint);
+      constraints[functionConstraint.function] = constraint;
+    }
+    for (var i = functionConstraintInputs.length - 1; i >= 0; i--) {
+      var functionConstraintInput = functionConstraintInputs[i];
+      var constraint = constraints[functionConstraintInput.function];
+      constraint.args.push(functionConstraintInput.valve);
+      constraint.inIxes.push(valveIxes[functionConstraintInput.valve]);
       constraint.inValues.push(null);
     }
-    for (var i = functions.length - 1; i >= 0; i--) {
-      var func = functions[i];
-      var constraint = constraints[func.function];
-      constraint.fun = Function.apply(null, func.args.concat(["return (" + func.code + ");"]));
+    for (var i = functionConstraints.length - 1; i >= 0; i--) {
+      var functionConstraint = functionConstraints[i];
+      var constraint = constraints[functionConstraint.function];
+      constraint.fun = Function.apply(null, constraint.args.concat(["return (" + functionConstraint.code + ");"]));
     }
 
     // fill in aggregates
+    for (var i = limitValves.length - 1; i >= 0; i--) {
+      var limitValve = limitValves[i];
+      var aggregate = aggregates[limitValve.rule];
+      aggregate.limitIx = valveIxes[limitValve.valve];
+    }
     for (var i = groupValves.length - 1; i >= 0; i--) {
       var groupValve = groupValves[i];
       var aggregate = aggregates[groupValve.rule];
@@ -913,30 +988,37 @@ function memoryEqual(memoryA, memoryB) {
 }
 
 function loadSystem(system, adds, dels) {
-  console.info("Warning: System.update is slow. Use get/setStore instead");
+  console.info("Warning: loadSystem is slow. Use get/setStore instead");
+  // console.log(system);
   var addGroups = {};
   var delGroups = {};
   for (var i = adds.length - 1; i >= 0; i--) {
     var add = adds[i];
-    var group = addGroups[add[0]] || (addGroups[add[0]] = 0);
+    var group = addGroups[add[0]] || (addGroups[add[0]] = []);
     group.push(add.slice(1));
   }
   for (var i = dels.length - 1; i >= 0; i--) {
     var del = dels[i];
-    var group = delGroups[del[0]] || (delGroups[del[0]] = 0);
+    var group = delGroups[del[0]] || (delGroups[del[0]] = []);
     group.push(del.slice(1));
   }
   for (var table in addGroups) {
-    system.setTable(table, system.getTable(table).update(addGroups[table], []));
+    system.updateTable(table, addGroups[table], []);
   }
   for (var table in delGroups) {
-    system.setTable(table, system.getTable(table).update([], delGroups[table]));
+    system.updateTable(table, [], delGroups[table]);
   }
-};
+}
 
-function checkSystem(system, tables) {
-  for (var table in tables) {
-    memoryEqual(system.getTable[table], tables[table]);
+function testSystem(system, facts) {
+  var groups = {};
+  for (var i = facts.length - 1; i >= 0; i--) {
+    var fact = facts[i];
+    var group = groups[fact[0]] || (groups[fact[0]] = []);
+    group.push(fact.slice(1));
+  }
+  for (var table in groups) {
+    memoryEqual(system.getTable(table), Memory.fromFacts(groups[table]));
   }
 }
 
@@ -1182,10 +1264,10 @@ var incrementalAggregateJoin = bigcheck.foralls(bigcheck.facts(3), bigcheck.fact
 // COMPILER TESTS
 
 function compiledPathTest() {
-  var compilerFacts = [["schema", "edge", "edgeX", 0],
-                       ["schema", "edge", "edgeY", 1],
-                       ["schema", "path", "pathX", 0],
-                       ["schema", "path", "pathY", 1],
+  var compilerFacts = [["field", "edge", "edgeX", 0],
+                       ["field", "edge", "edgeY", 1],
+                       ["field", "path", "pathX", 0],
+                       ["field", "path", "pathY", 1],
 
                        ["rule", "edgeRule", 0],
                        ["valve", "edgeA", "edgeRule", 0],
@@ -1214,7 +1296,7 @@ function compiledPathTest() {
   var compiler = System.compiler();
   compiler.update(compilerFacts);
   var system = compiler.compile();
-  console.log(system);
+  // console.log(system);
 
   var facts = [["edge", "a", "b"],
                ["edge", "b", "c"],
@@ -1242,10 +1324,10 @@ function compiledPathTest() {
 }
 
 function compiledFunctionTest() {
-  var compilerFacts = [["schema", "foo", "fooX", 0],
-                       ["schema", "foo", "fooY", 1],
-                       ["schema", "foo", "fooZ", 2],
-                       ["schema", "bar", "barZ", 0],
+  var compilerFacts = [["field", "foo", "fooX", 0],
+                       ["field", "foo", "fooY", 1],
+                       ["field", "foo", "fooZ", 2],
+                       ["field", "bar", "barZ", 0],
 
                        ["rule", "rule", 0],
                        ["valve", "valveX", "rule", 0],
@@ -1259,12 +1341,12 @@ function compiledFunctionTest() {
                        ["tableConstraint", "valveZ", "fooPipe", "fooZ"],
                        ["tableConstraint", "valveZ", "barPipe", "barZ"],
 
-                       ["function", "addFunction", "valveX + valveY", "valveXY", "rule"],
-                       ["functionInput", "valveX", "addFunction"],
-                       ["functionInput", "valveY", "addFunction"],
+                       ["functionConstraint", "addFunction", "valveX + valveY", "valveXY", "rule"],
+                       ["functionConstraintInput", "valveX", "addFunction"],
+                       ["functionConstraintInput", "valveY", "addFunction"],
 
-                       ["function", "idFunction", "valveXY", "valveZ", "rule"],
-                       ["functionInput", "valveXY", "idFunction"]];
+                       ["functionConstraint", "idFunction", "valveXY", "valveZ", "rule"],
+                       ["functionConstraintInput", "valveXY", "idFunction"]];
 
   var system = compileSystem(Memory.fromFacts(compilerSchema.concat(compilerFacts)));
   system.memory = Memory.empty();
@@ -1280,10 +1362,10 @@ function compiledFunctionTest() {
 }
 
 function compiledNegationTest() {
-  var compilerFacts = [["schema", "foo", "fooX", 0],
-                       ["schema", "foo", "fooY", 1],
-                       ["schema", "foo", "fooZ", 2],
-                       ["schema", "bar", "barZ", 0],
+  var compilerFacts = [["field", "foo", "fooX", 0],
+                       ["field", "foo", "fooY", 1],
+                       ["field", "foo", "fooZ", 2],
+                       ["field", "bar", "barZ", 0],
 
                        ["rule", "rule", 0],
                        ["valve", "valveX", "rule", 0],

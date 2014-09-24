@@ -1091,7 +1091,7 @@ var uiBuildSystem = function() {
   for(var table in tables) {
     var cur = tables[table];
     cur.fields.forEach(function(field, ix) {
-      final.push(["schema", table, field.id, ix]);
+      final.push(["field", table, field.id, ix]);
     });
   }
   var prev = [];

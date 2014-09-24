@@ -281,23 +281,23 @@ program.rule("table is open?", function(rule) {
 });
 
 program.rule("draw table", function(rule) {
-  rule.source("schema");
+  rule.source("field");
   page(rule, "rules list");
-  rule.group("schema.table");
-  rule.ui(elem("li", {id: ["table", "schema.table"], parent: ["table-list", "", "schema.table"], doubleClick: ["open table", ref("schema.table")], click: ["toggle table", ref("schema.table")]}, [
-    elem("h2", {}, [ref("schema.table")]),
-    elem("ul", {id: ["table-fields", "schema.table"]}, [])
+  rule.group("field.table");
+  rule.ui(elem("li", {id: ["table", "field.table"], parent: ["table-list", "", "field.table"], doubleClick: ["open table", ref("field.table")], click: ["toggle table", ref("field.table")]}, [
+    elem("h2", {}, [ref("field.table")]),
+    elem("ul", {id: ["table-fields", "field.table"]}, [])
   ]));
 });
 
 program.rule("draw fields for open tables", function(rule) {
   rule.source("open tables");
-  rule.source("schema");
+  rule.source("field");
   rule.source("displayNames");
-  rule.join("schema.table", "open tables.table");
-  rule.join("schema.field", "displayNames.id");
-  rule.calculate("id", ["schema.table", "schema.field"], "schema.table + '.' + schema.field");
-  rule.ui(elem("li", {id: ["table-field", "id"], parent: ["table-fields", "schema.table", "schema.ix"]}, [
+  rule.join("field.table", "open tables.table");
+  rule.join("field.field", "displayNames.id");
+  rule.calculate("id", ["field.table", "field.field"], "field.table + '.' + schema.field");
+  rule.ui(elem("li", {id: ["table-field", "id"], parent: ["table-fields", "field.table", "field.ix"]}, [
     ref("displayNames.name")
   ]));
 });
