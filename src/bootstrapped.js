@@ -252,7 +252,6 @@ program.table("state-temp", ["id", "key", "value"]);
 program.table("state", ["key", "value"]);
 
 program.rule("real state", function(rule) {
-  rule.source("external_events");
   rule.source("state-temp");
   rule.sink("state");
   rule.calculate("sorted", ["state-temp.id"], "-1 * state-temp.id");
