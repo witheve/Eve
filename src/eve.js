@@ -680,6 +680,8 @@ var compilerTables =
      ["groupValve"],
      ["sortValve"],
      ["reducer"],
+     ["flow"],
+     ["refresh"],
      // TODO adding these here is hacky
      ["displayName"],
      ["editorRule"],
@@ -735,6 +737,15 @@ var compilerFields =
      ["reducer", "outValve", 2],
      ["reducer", "code", 3],
 
+     ["flow", "flow", 0],
+     ["flow", "originType", 1], // "solver", "aggregate", "source", "sink"
+     ["flow", "originId", 2], // for solver/aggregate is rule, for source/sink is table
+
+     ["refresh", "tick", 0],
+     ["refresh", "startTime", 1],
+     ["refresh", "endTime", 2],
+     ["refresh", "flow", 3],
+
      // TODO adding these here is hacky
 
      ["displayName", "id", 0],
@@ -760,6 +771,7 @@ function System(stores, flows, dirtyFlows, downstream, tableToStore) {
   this.dirtyFlows = dirtyFlows;
   this.downstream = downstream;
   this.tableToStore = tableToStore;
+  this.tick = 0;
 }
 
 System.compiler = function() {
@@ -833,17 +845,24 @@ System.prototype = {
   },
 
   refresh: function() {
+    var tick = this.tick;
     var flows = this.flows;
     var numFlows = flows.length;
     var dirtyFlows = this.dirtyFlows;
+    var refreshes = [];
     for (var flowIx = 0; flowIx < numFlows; flowIx++) {
       if (dirtyFlows[flowIx] === true) {
         // console.log(flowIx);
         dirtyFlows[flowIx] = false;
+        var startTime = window.performance.now();
         flows[flowIx].refresh(this);
+        var endTime = window.performance.now();
+        refreshes.push([tick, startTime, endTime, flowIx]);
         flowIx = 0; // resets the loop
       }
     }
+    this.updateTable("refresh", refreshes, []);
+    this.tick++;
   },
 
   compile: function() {
@@ -869,6 +888,8 @@ System.prototype = {
     var nextIx = 0;
     var tableToStore = {};
     var downstream = [];
+
+    var flowFacts = [];
 
     var valveRules = {};
     var valveIxes = {};
@@ -910,11 +931,13 @@ System.prototype = {
       }
 
       tableToStore[table.table + "-source"] = sourceIx;
+      flowFacts.push([sourceIx, "source", table.table]);
       stores[sourceIx] = this.stores[this.tableToStore[table.table + "-source"]] || Memory.empty();
       dirtyFlows[sourceIx] = false;
       downstream[sourceIx] = [sinkIx];
 
       tableToStore[table.table + "-sink"] = sinkIx;
+      flowFacts.push([sinkIx, "sink", table.table]);
       var sink = new Sink([new SinkConstraint(sourceIx, sinkFieldIxes)], sinkIx);
       sinks[table.table] = sink;
       stores[sinkIx] = this.stores[this.tableToStore[table.table + "-sink"]] || Memory.empty();
@@ -933,6 +956,7 @@ System.prototype = {
       var aggregateIx = nextIx++;
 
       tableToStore[rule.rule + "-solver"] = solverIx;
+      flowFacts.push([solverIx, "solver", rule.rule]);
       var solver = Solver.empty(numVars[rule.rule], [], [], solverIx);
       solvers[rule.rule] = solver;
       stores[solverIx] = Memory.empty();
@@ -941,6 +965,7 @@ System.prototype = {
       downstream[solverIx] = [aggregateIx];
 
       tableToStore[rule.rule + "-aggregate"] = aggregateIx;
+      flowFacts.push([aggregateIx, "aggregate", rule.rule]);
       var aggregate = Aggregate.empty([], [], undefined, [], [], [], solverIx, aggregateIx);
       aggregates[rule.rule] = aggregate;
       stores[aggregateIx] = Memory.empty();
@@ -957,13 +982,11 @@ System.prototype = {
         var constraint = new MemoryConstraint(tableToStore[pipe.table + "-sink"], []);
         solvers[pipe.rule].constraints.push(constraint);
         constraints[pipe.pipe] = constraint;
-        dirtyFlows[tableToStore[pipe.rule + "-solver"]] = false; // will be dirtied on update instead
         downstream[tableToStore[pipe.table + "-sink"]].push(tableToStore[pipe.rule + "-solver"]);
       } else if (pipe.direction === "-source") {
         var constraint = new NegatedMemoryConstraint(tableToStore[pipe.table + "-sink"], []);
         solvers[pipe.rule].constraints.push(constraint);
         constraints[pipe.pipe] = constraint;
-        dirtyFlows[tableToStore[pipe.rule + "-solver"]] = false; // will be dirtied on update instead
         downstream[tableToStore[pipe.table + "-sink"]].push(tableToStore[pipe.rule + "-solver"]);
       } else if (pipe.direction === "+sink") {
         var constraint = new SinkConstraint(tableToStore[pipe.rule + "-aggregate"], []);
@@ -1031,7 +1054,9 @@ System.prototype = {
       aggregate.reducerFuns.push(Function.apply(null, [reducer.inValve, "return (" + reducer.code + ");"]));
     }
 
-    return new System(stores, flows, dirtyFlows, downstream, tableToStore);
+    var system = new System(stores, flows, dirtyFlows, downstream, tableToStore);
+    system.updateTable("flow", flowFacts, []);
+    return system;
   }
 };
 

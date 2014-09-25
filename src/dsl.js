@@ -495,6 +495,8 @@ eve.test.wrapCommonTables = function(sys) {
   sys.shadowTable("groupValve", ["rule", "valve"]);
   sys.shadowTable("sortValve", ["rule", "valve", "ix"]);
   sys.shadowTable("reducer", ["rule", "inValve", "outValve", "code"]);
+  sys.shadowTable("flow", ["flow", "originType", "originId"]);
+  sys.shadowTable("refresh", ["tick", "startTime", "endTime", "flow"]);
 
   sys.shadowTable("displayName", ["id", "name"]);
   sys.shadowTable("join", ["valve", "pipe", "field"]);
