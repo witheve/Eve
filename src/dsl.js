@@ -57,7 +57,8 @@ var Rule = function(desc) {
   this.sortIx = 0;
   this.names = {};
   this.desc = desc;
-  this.items = [["externalEvent", dsl.nextId(), "set rule name", this.id, eve.data.globalId++, desc]];
+  this.items = [["externalEvent", dsl.nextId(), "set rule name", this.id, eve.data.globalId++, desc],
+                ["displayName", this.id, desc]];
   this.reducerItems = [];
   this.hasSource = false;
   this.hasSink = false;
@@ -317,6 +318,10 @@ DSLSystem.prototype.test = function(inputs, results) {
   this.equal(inputs.concat(results));
 };
 
+DSLSystem.prototype.log = function(table) {
+  console.table(this.system.getTable(table).getFacts());
+};
+
 dsl.system = function() {
   return new DSLSystem();
 };
@@ -515,6 +520,7 @@ eve.test.wrapCommonTables = function(sys) {
   sys.table("uiStyle", ["id", "attr", "value"]);
   sys.table("uiEvent", ["id", "event", "label", "key"]);
   sys.table("time", ["time"]);
+  sys.table("timePerFlow", ["name", "type", "numTimes", "totalTime"]);
 };
 
 eve.test.test = function(name, func, inputs, expected) {

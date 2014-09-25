@@ -795,6 +795,28 @@ program.rule("draw UI editor", function(rule) {
 });
 
 //*********************************************************
+// introspection
+//*********************************************************
+
+// program.rule("find time per flow", function(rule) {
+//   rule.source("displayName");
+//   rule.source("flow");
+//   rule.source("refresh");
+//   rule.join("displayName.id", "flow.originId");
+//   rule.join("flow.flow", "refresh.flow");
+//   rule.group("displayName.name");
+//   rule.group("flow.originType");
+//   rule.calculate("time", ["refresh.startTime", "refresh.endTime"], "refresh.endTime - refresh.startTime");
+//   rule.aggregate("time", "totalTime", "time.reduce(function (a,b) {return a+b})");
+//   rule.aggregate("time", "numTimes", "time.length");
+//   rule.sink("timePerFlow");
+//   rule.join("timePerFlow.name", "displayName.name");
+//   rule.join("timePerFlow.type", "flow.originType");
+//   rule.join("timePerFlow.totalTime", "totalTime");
+//   rule.join("timePerFlow.numTimes", "numTimes");
+// });
+
+//*********************************************************
 // Go
 //*********************************************************
 

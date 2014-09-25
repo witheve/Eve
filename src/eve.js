@@ -611,6 +611,9 @@ Aggregate.prototype = {
       var reducerInIxes = this.reducerInIxes;
       var reducerOutIxes = this.reducerOutIxes;
       var reducerFuns = this.reducerFuns;
+      for (var i = groupFacts.length - 1; i >= 0; i--) {
+        groupFacts[i] = groupFacts[i].slice(); // unalias facts from solver
+      }
       for (var i = reducerInIxes.length - 1; i >= 0; i--) {
         reduceBy(groupFacts, reducerInIxes[i], reducerOutIxes[i], reducerFuns[i]);
       }
