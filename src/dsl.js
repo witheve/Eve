@@ -57,7 +57,7 @@ var Rule = function(desc) {
   this.sortIx = 0;
   this.names = {};
   this.desc = desc;
-  this.items = [["editorRule", this.id, desc]];
+  this.items = [["externalEvent", dsl.nextId(), "set rule name", this.id, eve.data.globalId++, desc]];
   this.reducerItems = [];
   this.hasSource = false;
   this.hasSink = false;
@@ -331,7 +331,7 @@ ui.events = {
   "click": "click",
   "doubleClick": "dblclick",
   "contextMenu": "contextMenu",
-  "keypress": "keypress",
+  "input": "input",
 };
 
 ui.prefixId = function(rule, prefix, col) {
@@ -499,7 +499,7 @@ eve.test.wrapCommonTables = function(sys) {
   sys.shadowTable("displayName", ["id", "name"]);
   sys.shadowTable("join", ["valve", "pipe", "field"]);
   sys.shadowTable("editorRule", ["id", "description"]);
-  sys.shadowTable("externalEvent", ["id", "label", "key", "eid"]);
+  sys.shadowTable("externalEvent", ["id", "label", "key", "eid", "value"]);
 
   sys.table("click", ["id"]);
   sys.table("sms outbox", ["id"]);

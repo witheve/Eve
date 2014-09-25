@@ -751,7 +751,8 @@ var compilerFields =
      ["externalEvent", "id", 0],
      ["externalEvent", "label", 1],
      ["externalEvent", "key", 2],
-     ["externalEvent", "eid", 3]];
+     ["externalEvent", "eid", 3],
+     ["externalEvent", "value", 4]];
 
 function System(stores, flows, dirtyFlows, downstream, tableToStore) {
   this.stores = stores;

@@ -16,7 +16,7 @@ var now = function() {
 var createUICallback = function(id, label, key) {
   return function(e) {
     console.log("event: ", e);
-    program.run([["externalEvent", id, label, key, eve.data.globalId++]]);
+    program.run([["externalEvent", id, label, key, eve.data.globalId++, e.target.value]]);
   };
 };
 
@@ -147,6 +147,7 @@ var uiDiffWatcher = function(storage, system) {
     }
   }
   console.timeEnd("diff");
+  console.log(diff);
 
 
   var elem_id = 0;
@@ -190,18 +191,25 @@ var uiDiffWatcher = function(storage, system) {
   for(var i = 0; i < remElemsLen; i++) {
     var cur = remElem[i];
     var me = builtEls[cur[elem_id]];
-    if(me.parentNode && me.parentNode.parentNode) {
+    if(me && me.parentNode && me.parentNode.parentNode) {
       me.parentNode.removeChild(me);
     }
     builtEls[cur[elem_id]] = null;
   }
 
+
   //add text
   var text = diff["uiText"].adds;
   var textLen = text.length;
+  var addedText = {};
   for(var i = 0; i < textLen; i++) {
     var cur = text[i];
-    builtEls[cur[elem_id]] = document.createTextNode(cur[text_text]);
+    if(!builtEls[cur[elem_id]]) {
+      builtEls[cur[elem_id]] = document.createTextNode(cur[text_text]);
+    } else {
+      builtEls[cur[elem_id]].nodeValue = cur[text_text];
+    }
+    addedText[cur[elem_id]] = true;
   }
 
   //remove text
@@ -210,10 +218,10 @@ var uiDiffWatcher = function(storage, system) {
   for(var i = 0; i < textLen; i++) {
     var cur = text[i];
     var me = builtEls[cur[elem_id]];
-    if(me.parentNode && me.parentNode.parentNode) {
-      me.parentNode.removeChild(me);
+    if(me && !addedText[cur[elem_id]]) {
+       me.nodeValue = "";
+       builtEls[cur[elem_id]] = null;
     }
-    builtEls[cur[elem_id]] = null;
   }
 
   var attrs = diff["uiAttr"].adds;
@@ -437,6 +445,18 @@ program.table("getTable", ["id", "table", "gridId"]);
 program.table("getIntermediate", ["id", "rule", "gridId"]);
 program.table("getResult", ["id", "rule", "sink", "gridId"]);
 
+program.rule("editor rules by name", function(rule) {
+  rule.source("externalEvent");
+  rule.sink("editorRule");
+  rule.eq("externalEvent.label", "set rule name");
+  rule.calculate("sorted", ["externalEvent.eid"], "-1 * externalEvent.eid");
+  rule.sort("sorted");
+  rule.group("externalEvent.key");
+  rule.constantLimit(1);
+  rule.output("externalEvent.key", "editorRule.id");
+  rule.output("externalEvent.value", "editorRule.description");
+});
+
 //*********************************************************
 // editor
 //*********************************************************
@@ -568,7 +588,7 @@ program.rule("rule page", function(rule) {
   rule.ui(elem("div", {id: ["rule-page"], parent: ["root"], class: "rule-page"}, [
     elem("header", {}, [
       elem("button", {click: ["goto page", "rules list"]}, ["back"]),
-      elem("input", {type: "text", keypress: ["set rule name", "editorRule.id"], value: ref("editorRule.description")}, []),
+      elem("input", {type: "text", input: ["set rule name", ref("editorRule.id")], value: ref("editorRule.description")}, []),
       elem("h2", {}, [ref("editorRule.description")])
     ]),
     elem("div", {class: "io"}, [
