@@ -92,37 +92,63 @@ Memory.fromFacts = function(facts) {
   return new Memory(facts.slice());
 };
 
-function diffFacts(oldFacts, newFacts, outputAdds, outputDels) {
-  var adds = {};
-  var dels = {};
-  for (var i = newFacts.length - 1; i >= 0; i--) {
-    var newFact = newFacts[i];
-    adds[JSON.stringify(newFact)] = newFact;
-  }
-  for (var i = oldFacts.length - 1; i >= 0; i--) {
-    var oldFact = oldFacts[i];
-    dels[JSON.stringify(oldFact)] = oldFact;
-  }
-  for (var i = newFacts.length - 1; i >= 0; i--) {
-    delete dels[JSON.stringify(newFacts[i])];
-  }
-  for (var i = oldFacts.length - 1; i >= 0; i--) {
-    delete adds[JSON.stringify(oldFacts[i])];
-  }
-  var addKeys = Object.keys(adds);
-  var delKeys = Object.keys(dels);
-  for (var i = addKeys.length - 1; i >= 0; i--) {
-    outputAdds.push(adds[addKeys[i]]);
-  }
-  for (var i = delKeys.length - 1; i >= 0; i--) {
-    outputDels.push(dels[delKeys[i]]);
-  }
-}
 
 function dedupeFacts(facts) {
-  var output = [];
-  diffFacts([], facts, output, []);
-  return output;
+  var len = facts.length;
+  if (len === 0) return [];
+  facts.sort(compareValueArray);
+  var nextFact = facts[0];
+  var lastFact;
+  var dedupedFacts = [nextFact];
+  for (var i = 1; i < len; i++) {
+    lastFact = nextFact;
+    nextFact = facts[i];
+    if (arrayEqual(lastFact, nextFact) === false) {
+      dedupedFacts.push(nextFact);
+    }
+  }
+  return dedupedFacts;
+}
+
+function diffFacts(oldFacts, newFacts, outputAdds, outputDels) {
+  oldFacts = dedupeFacts(oldFacts);
+  newFacts = dedupeFacts(newFacts);
+  var oldLen = oldFacts.length;
+  var newLen = newFacts.length;
+  var oldIx = 0;
+  var newIx = 0;
+  diff: while (true) {
+    if (oldIx >= oldLen) {
+      for (; newIx < newLen; newIx++) {
+        outputAdds.push(newFacts[newIx]);
+      }
+      break diff;
+    }
+    if (newIx >= newLen) {
+      for (; oldIx < oldLen; oldIx++) {
+        outputDels.push(oldFacts[oldIx]);
+      }
+      break diff;
+    }
+    var nextOld = oldFacts[oldIx];
+    var nextNew = newFacts[newIx];
+    var comp = compareValueArray(nextOld, nextNew);
+    if (comp === 0) {
+      oldIx++;
+      newIx++;
+      continue diff;
+    }
+    if (comp === 1) {
+      outputAdds.push(nextNew);
+      newIx++;
+      continue diff;
+    }
+    if (comp === -1) {
+      outputDels.push(nextOld);
+      oldIx++;
+      continue diff;
+    }
+  }
 }
 
 Memory.prototype = {
