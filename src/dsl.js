@@ -330,7 +330,8 @@ var ui = eve.ui = {};
 ui.events = {
   "click": "click",
   "doubleClick": "dblclick",
-  "contextMenu": "contextMenu"
+  "contextMenu": "contextMenu",
+  "keypress": "keypress",
 };
 
 ui.prefixId = function(rule, prefix, col) {
@@ -393,12 +394,17 @@ ui.elem = function() {
         rule.outputConstant("eid", sink + ".attr");
         rule.output(id, sink + ".value");
       } else if(i === 'parent') {
-        var parentId = ui.prefixId(rule, attr[0], attr[1]);
         var childSink = id + "_childsink_ " + ix;
         rule.sink("uiChild", childSink);
-        rule.output(parentId, childSink + ".parent");
         rule.output(id, childSink + ".child");
-        rule.output(attr[2], childSink + ".pos");
+        if(attr[0] === "root") {
+          rule.outputConstant("root", childSink + ".parent");
+          rule.outputConstant(attr[2] || 0, childSink + ".pos");
+        } else {
+          var parentId = ui.prefixId(rule, attr[0], attr[1]);
+          rule.output(parentId, childSink + ".parent");
+          rule.output(attr[2], childSink + ".pos");
+        }
       } else if(i === 'style') {
         //styles
         for(var style in attr) {

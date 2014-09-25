@@ -58,7 +58,7 @@ var uiWatcher = function(prev, system) {
 
   var child_childid = 2;
 
-  var builtEls = program.builtEls || {};
+  var builtEls = program.builtEls || {"root": document.createElement("div")};
   var roots = {};
 
   if(program.root) {
@@ -114,7 +114,7 @@ var uiWatcher = function(prev, system) {
 
   if(!program.root) {
     program.builtEls = builtEls;
-    program.root = document.createElement("div");
+    program.root = builtEls["root"];
   }
   for(var i in roots) {
     program.root.appendChild(builtEls[i]);
@@ -123,13 +123,144 @@ var uiWatcher = function(prev, system) {
   document.body.appendChild(program.root);
 };
 
+var uiDiffWatcher = function(storage, system) {
+  var tables = ["uiElem", "uiText", "uiAttr", "uiStyle", "uiEvent", "uiChild"];
+  var diff = {};
+  console.time("diff");
+  for(var i = 0; i < tables.length; i++) {
+    var table = tables[i];
+    if(storage[table]) {
+      var adds = [];
+      var removes = [];
+      system.getTable(table).diff(storage[table], adds, removes);
+      storage[table] = system.getTable(table);
+      diff[table] = {
+        adds: adds,
+        removes: removes
+      };
+    } else {
+      storage[table] = system.getTable(table);
+      diff[table] = {
+        adds: system.getTable(table).getFacts(),
+        removes: []
+      };
+    }
+  }
+  console.timeEnd("diff");
+
+
+  var elem_id = 0;
+  var elem_type = 1;
+
+  var text_text = 1;
+
+  var attrs_attr = 1;
+  var attrs_value = 2;
+
+  var styles_attr = 1;
+  var styles_value = 2;
+
+  var events_event = 1;
+  var events_label = 2;
+  var events_key = 3;
+
+  var child_childid = 2;
+
+  var builtEls = storage["builtEls"] || {"root": document.createElement("div")};
+  var roots = {};
+  //remove root to prevent thrashing
+  if(storage["builtEls"]) {
+//     document.body.removeChild(builtEls["root"]);
+  }
+
+  //add elements
+  var elem = diff["uiElem"].adds;
+  var elemsLen = elem.length;
+  for(var i = 0; i < elemsLen; i++) {
+    var cur = elem[i];
+    if(!svgs[cur[elem_type]]) {
+      builtEls[cur[elem_id]] = document.createElement(cur[elem_type]);
+    } else {
+      builtEls[cur[elem_id]] = document.createElementNS("http://www.w3.org/2000/svg", cur[elem_type]);
+    }
+  }
+  //remove elements
+  var remElem = diff["uiElem"].removes;
+  var remElemsLen = remElem.length;
+  for(var i = 0; i < remElemsLen; i++) {
+    var cur = remElem[i];
+    var me = builtEls[cur[elem_id]];
+    if(me.parentNode && me.parentNode.parentNode) {
+      me.parentNode.removeChild(me);
+    }
+    builtEls[cur[elem_id]] = null;
+  }
+
+  //add text
+  var text = diff["uiText"].adds;
+  var textLen = text.length;
+  for(var i = 0; i < textLen; i++) {
+    var cur = text[i];
+    builtEls[cur[elem_id]] = document.createTextNode(cur[text_text]);
+  }
+
+  //remove text
+  var text = diff["uiText"].removes;
+  var textLen = text.length;
+  for(var i = 0; i < textLen; i++) {
+    var cur = text[i];
+    var me = builtEls[cur[elem_id]];
+    if(me.parentNode && me.parentNode.parentNode) {
+      me.parentNode.removeChild(me);
+    }
+    builtEls[cur[elem_id]] = null;
+  }
+
+  var attrs = diff["uiAttr"].adds;
+  var attrsLen = attrs.length;
+  for(var i = 0; i < attrsLen; i++) {
+    var cur = attrs[i];
+    builtEls[cur[elem_id]].setAttribute(cur[attrs_attr], cur[attrs_value]);
+  }
+
+  var styles = diff["uiStyle"].adds;
+  var stylesLen = styles.length;
+  for(var i = 0; i < stylesLen; i++) {
+    var cur = styles[i];
+    builtEls[cur[elem_id]].style[cur[styles_attr]] = cur[styles_value];
+  }
+
+  var events = diff["uiEvent"].adds;
+  var eventsLen = events.length;
+  for(var i = 0; i < eventsLen; i++) {
+    var cur = events[i];
+    builtEls[cur[elem_id]].addEventListener(cur[events_event], createUICallback(cur[elem_id], cur[events_label], cur[events_key]));
+  }
+
+  var children = diff["uiChild"].adds;
+  var childrenLen = children.length;
+  children.sort();
+  for(var i = 0; i < childrenLen; i++) {
+    var cur = children[i];
+    var child = builtEls[cur[child_childid]];
+    builtEls[cur[elem_id]].appendChild(child);
+  }
+
+  if(!storage["builtEls"]) {
+    storage["builtEls"] = builtEls;
+    document.body.appendChild(builtEls["root"]);
+  }
+
+
+};
+
 
 var compilerRowLimit = 30;
 var compilerSeen = {};
-var compilerWatcher = function(prev, system) {
+var compilerWatcher = function(storage, system) {
   var getTable = system.getTable("getTable").getFacts();
-  // var getIntermediate = system.getTable("getIntermediate").getFacts();
-  // var getResult = system.getTable("getResult").getFacts();
+  var getIntermediate = system.getTable("getIntermediate").getFacts();
+  var getResult = system.getTable("getResult").getFacts();
 
   var items = [];
 
@@ -173,22 +304,32 @@ var compilerWatcher = function(prev, system) {
 var program = eve.dsl.system();
 eve.test.wrapCommonTables(program);
 
+program.storage = {"uiWatcher": {},
+                   "compilerWatcher": {}};
+
 program.callRuntime = function(facts) {
   var prev; // TODO COW system
   this.input(facts);
-  compilerWatcher(prev, this.system);
+  compilerWatcher(this.storage["compilerWatcher"], this.system);
 };
 
 program.run = function(facts) {
-  var prev; // TODO COW system
   var start = now();
   this.callRuntime(facts);
   var runtime = now() - start;
-  start = now();
-  uiWatcher(prev, this.system);
-  var render = now() - start;
+  var uiStorage = this.storage["uiWatcher"];
+  var system = this.system;
+  if(!uiStorage["queued"]) {
+    uiStorage["queued"] = true;
+    window.requestAnimationFrame(function() {
+      start = now();
+      uiDiffWatcher(uiStorage, system);
+      var render = now() - start;
+      $("#renderStat").html(render.toFixed(2));
+      uiStorage["queued"] = false;
+    });
+  }
   $("#timeStat").html(runtime.toFixed(2));
-  $("#renderStat").html(render.toFixed(2));
   var numFacts = 0;
   var tableToStore = this.system.tableToStore;
   for (var table in tableToStore) {
@@ -308,7 +449,7 @@ program.rule("on goto page", function(rule) {
 program.rule("draw rules list ui", function(rule) {
   page(rule, "rules list");
   pretendConstant(rule, "drawTablesList", "true");
-  rule.ui(elem("div", {id: ["rules-list-root"], class: "root"}, [
+  rule.ui(elem("div", {id: ["rules-list-root"], parent: ["root"], class: "root"}, [
     elem("ul", {id: ["table-list"], class: "table-list"}, []),
     elem("ul", {id: ["rules-list"], class: "rules-list"}, [])
   ]));
@@ -424,9 +565,10 @@ program.rule("rule page", function(rule) {
   page(rule, "rule");
   rule.source("editorRule");
   joinState(rule, "activeRule", "editorRule.id");
-  rule.ui(elem("div", {id: ["rule-page"], class: "rule-page"}, [
+  rule.ui(elem("div", {id: ["rule-page"], parent: ["root"], class: "rule-page"}, [
     elem("header", {}, [
       elem("button", {click: ["goto page", "rules list"]}, ["back"]),
+      elem("input", {type: "text", keypress: ["set rule name", "editorRule.id"], value: ref("editorRule.description")}, []),
       elem("h2", {}, [ref("editorRule.description")])
     ]),
     elem("div", {class: "io"}, [
@@ -475,7 +617,7 @@ program.rule("rule page source fields", function(rule) {
 
   rule.calculate("id", ["pipe.pipe", "field.field"], "pipe.pipe + '_' + field.field");
 
-  rule.ui(elem("li", {id: ["rule-source-field", "id"], parent: ["rule-source-fields", "pipe.pipe", "field.ix"]}, [
+  rule.ui(elem("li", {id: ["rule-source-field", "id"], parent: ["rule-source-fields", "pipe.pipe", "field.ix"], click: ["blah", "bar"]}, [
     ref("displayName.name")
   ]));
 
@@ -608,7 +750,7 @@ program.rule("draw table page", function(rule) {
   stateAs(rule, "activeTableGridId", "active");
   rule.output("active.value", "drawGrid.gridId");
   rule.outputConstant("table-page", "drawGrid.parent");
-  rule.ui(elem("p", {id: ["table-page"]}, [
+  rule.ui(elem("p", {id: ["table-page"], parent: ["root"]}, [
     elem("button", {click: ["goto page", "rules list"]}, ["back"]),
     elem("h2", {}, [ref("displayName.name")])
   ]));
@@ -622,7 +764,7 @@ program.rule("draw table page", function(rule) {
 program.rule("draw UI editor", function(rule) {
   page(rule, "ui editor");
   pretendConstant(rule, "drawTablesList", "true");
-  rule.ui(elem("div", {id: ["ui-editor-root"], class: "root ui-editor"}, [
+  rule.ui(elem("div", {id: ["ui-editor-root"], parent: ["root"], class: "root ui-editor"}, [
     elem("ul", {id: ["table-list"], class: "table-list"}, []),
     elem("p", {}, [
       "hey"
