@@ -450,11 +450,12 @@ program.rule("editor rules by name", function(rule) {
   rule.sink("editorRule");
   rule.eq("externalEvent.label", "set rule name");
   rule.calculate("sorted", ["externalEvent.eid"], "-1 * externalEvent.eid");
+  rule.calculate("name", ["externalEvent.value"], "externalEvent.value === '' ? 'unnamed' : externalEvent.value");
   rule.sort("sorted");
   rule.group("externalEvent.key");
   rule.constantLimit(1);
   rule.output("externalEvent.key", "editorRule.id");
-  rule.output("externalEvent.value", "editorRule.description");
+  rule.output("name", "editorRule.description");
 });
 
 //*********************************************************
@@ -467,10 +468,12 @@ program.rule("on goto page", function(rule) {
 });
 
 program.rule("draw rules list ui", function(rule) {
+  rule.source("latestId");
   page(rule, "rules list");
   pretendConstant(rule, "drawTablesList", "true");
   rule.ui(elem("div", {id: ["rules-list-root"], parent: ["root"], class: "root"}, [
     elem("ul", {id: ["table-list"], class: "table-list"}, []),
+    elem("button", {click: ["set rule name", ref("latestId.id")]}, ["add rule"]),
     elem("ul", {id: ["rules-list"], class: "rules-list"}, [])
   ]));
 });
@@ -589,7 +592,6 @@ program.rule("rule page", function(rule) {
     elem("header", {}, [
       elem("button", {click: ["goto page", "rules list"]}, ["back"]),
       elem("input", {type: "text", input: ["set rule name", ref("editorRule.id")], value: ref("editorRule.description")}, []),
-      elem("h2", {}, [ref("editorRule.description")])
     ]),
     elem("div", {class: "io"}, [
       elem("ul", {id: ["sources", "editorRule.id"], class: "sources"}, []),

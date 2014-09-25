@@ -223,7 +223,7 @@ Rule.prototype.calculate = function(name, args, code) {
   args.forEach(function(cur) {
     var valve = self.fieldToValve(cur);
     self.items.push(["functionConstraintInput", valve, id]);
-    code = code.replace(cur, valve);
+    code = code.replace(new RegExp(cur, "g"), valve);
   });
 
   this.items.push(["functionConstraint", id, code, valve, this.id]);

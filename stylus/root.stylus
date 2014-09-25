@@ -125,6 +125,7 @@ $sinks = #d0d0d0;
 
   .io {
     margin-top:10px;
+    min-height:100px;
     display:flex;
 
     .separator {
