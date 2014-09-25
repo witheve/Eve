@@ -681,10 +681,10 @@ var compilerTables =
      ["sortValve"],
      ["reducer"],
      // TODO adding these here is hacky
-     ["displayNames"],
-     ["editor_rule"],
+     ["displayName"],
+     ["editorRule"],
      ["join"],
-     ["external_events"]];
+     ["externalEvent"]];
 
 var compilerFields =
     [["table", "table", 0],
@@ -737,21 +737,21 @@ var compilerFields =
 
      // TODO adding these here is hacky
 
-     ["displayNames", "id", 0],
-     ["displayNames", "name", 1],
+     ["displayName", "id", 0],
+     ["displayName", "name", 1],
 
-     ["editor_rule", "id", 0],
-     ["editor_rule", "description", 1],
+     ["editorRule", "id", 0],
+     ["editorRule", "description", 1],
 
      ["join", "id", 0],
      ["join", "valve", 1],
      ["join", "pipe", 2],
      ["join", "field", 3],
 
-     ["external_events", "id", 0],
-     ["external_events", "label", 1],
-     ["external_events", "key", 2],
-     ["external_events", "eid", 3]];
+     ["externalEvent", "id", 0],
+     ["externalEvent", "label", 1],
+     ["externalEvent", "key", 2],
+     ["externalEvent", "eid", 3]];
 
 function System(stores, flows, dirtyFlows, downstream, tableToStore) {
   this.stores = stores;

@@ -28,11 +28,11 @@ dsl.table = function(name, fields) {
   dsl.globalNames[name] = name;
   dsl.tableToFields[name] = fields;
   items.push(["table", name]);
-  items.push(["displayNames", name, name]);
+  items.push(["displayName", name, name]);
   fields.forEach(function(field, ix) {
     var id = dsl.nextId();
     items.push(["field", name, id, ix]);
-    items.push(["displayNames", id, field]);
+    items.push(["displayName", id, field]);
     dsl.globalNames[name + "." + field] = id;
   });
   return items;
@@ -42,9 +42,9 @@ dsl.shadowTable = function(name, fields) {
   var items = [];
   dsl.globalNames[name] = name;
   dsl.tableToFields[name] = fields;
-  items.push(["displayNames", name, name]);
+  items.push(["displayName", name, name]);
   fields.forEach(function(field, ix) {
-    items.push(["displayNames", field, field]);
+    items.push(["displayName", field, field]);
     dsl.globalNames[name + "." + field] = field;
   });
   return items;
@@ -57,7 +57,7 @@ var Rule = function(desc) {
   this.sortIx = 0;
   this.names = {};
   this.desc = desc;
-  this.items = [["editor_rule", this.id, desc]];
+  this.items = [["editorRule", this.id, desc]];
   this.reducerItems = [];
   this.hasSource = false;
   this.hasSink = false;
@@ -91,7 +91,7 @@ Rule.prototype.source = function(name, alias) {
     });
   }
   this.items.push(["pipe", pipeId, id, this.id, "+source"],
-                  ["displayNames", pipeId, alias || name]);
+                  ["displayName", pipeId, alias || name]);
   this.hasSource = true;
 };
 
@@ -105,7 +105,7 @@ Rule.prototype.sink = function(name, alias) {
     });
   }
   this.items.push(["pipe", pipeId, id, this.id, "+sink"],
-                  ["displayNames", pipeId, alias || name]);
+                  ["displayName", pipeId, alias || name]);
   this.hasSink = true;
 };
 
@@ -119,7 +119,7 @@ Rule.prototype.negated = function(name, alias) {
     });
   }
   this.items.push(["pipe", pipeId, id, this.id, "-source"],
-                  ["displayNames", pipeId, alias || name]);
+                  ["displayName", pipeId, alias || name]);
   this.hasSource = true;
 };
 
@@ -155,7 +155,7 @@ Rule.prototype.fieldToValve = function(from) {
     valve = this.valve();
     this.names[from] = valve;
     this.tableConstraint(valve, from);
-    this.items.push(["displayNames", valve, from]);
+    this.items.push(["displayName", valve, from]);
   }
   return valve;
 };
@@ -168,14 +168,14 @@ Rule.prototype.eq = function(from, value) {
 Rule.prototype.output = function(from, to) {
   var valve = this.fieldToValve(from);
   this.tableConstraint(valve, to);
-  this.items.push(["displayNames", valve, from]);
+  this.items.push(["displayName", valve, from]);
 };
 
 Rule.prototype.outputConstant = function(val, to) {
   var valve = this.valve();
   this.tableConstraint(valve, to);
   this.items.push(["constantConstraint", valve, val]);
-  this.items.push(["displayNames", valve, 'constant: ' + val]);
+  this.items.push(["displayName", valve, 'constant: ' + val]);
 };
 
 Rule.prototype.join = function(from, to) {
@@ -235,7 +235,7 @@ Rule.prototype.aggregate = function(input, output, code) {
   code = code.replace(input, inputValve);
   this.names[output] = valve;
   this.items.push(["reducer", this.id, inputValve, valve, code],
-                  ["displayNames", valve, output]);
+                  ["displayName", valve, output]);
 };
 
 Rule.prototype.limit = function(from) {
@@ -355,7 +355,7 @@ ui.ref = function(col) {
     if(nameValve) {
       var sink = nameValve + "_sink_" + ix;
       var id = ui.postfixId(rule, nameValve, ix);
-      rule.sink("ui_text", sink);
+      rule.sink("uiText", sink);
       rule.output(col, sink + ".text");
       rule.output(id, sink + ".id");
       return id;
@@ -379,7 +379,7 @@ ui.elem = function() {
         throw new Error("No initial id provided for ui element");
       }
     }
-    rule.sink("ui_elems", sink);
+    rule.sink("uiElem", sink);
     rule.outputConstant(args[0], sink + ".type");
     console.log("Output: ", id, sink+ ".id");
     rule.output(id, sink + ".id");
@@ -388,14 +388,14 @@ ui.elem = function() {
       if(i === 'id') {
         //id
         var sink = id + "_attrsink_" + i;
-        rule.sink("ui_attrs", sink);
+        rule.sink("uiAttr", sink);
         rule.output(id, sink + ".id");
         rule.outputConstant("eid", sink + ".attr");
         rule.output(id, sink + ".value");
       } else if(i === 'parent') {
         var parentId = ui.prefixId(rule, attr[0], attr[1]);
         var childSink = id + "_childsink_ " + ix;
-        rule.sink("ui_child", childSink);
+        rule.sink("uiChild", childSink);
         rule.output(parentId, childSink + ".parent");
         rule.output(id, childSink + ".child");
         rule.output(attr[2], childSink + ".pos");
@@ -404,7 +404,7 @@ ui.elem = function() {
         for(var style in attr) {
           var value = attr[style];
           var sink = id + "_stylesink_" + style;
-          rule.sink("ui_styles", sink);
+          rule.sink("uiStyle", sink);
           rule.output(id, sink + ".id");
           rule.outputConstant(style, sink + ".attr");
           if(typeof value === "function") {
@@ -417,7 +417,7 @@ ui.elem = function() {
       } else if(ui.events[i]) {
         //event handler
         var sink = id + "_eventsink_" + i;
-        rule.sink("ui_events", sink);
+        rule.sink("uiEvent", sink);
         rule.output(id, sink + ".id");
         rule.outputConstant(ui.events[i], sink + ".event");
         var field = [".label", ".key"];
@@ -432,7 +432,7 @@ ui.elem = function() {
       } else {
         //normal attribute
         var sink = id + "_attrsink_" + i;
-        rule.sink("ui_attrs", sink);
+        rule.sink("uiAttr", sink);
         rule.output(id, sink + ".id");
         rule.outputConstant(i, sink + ".attr");
         if(typeof attr === "function") {
@@ -449,7 +449,7 @@ ui.elem = function() {
         var childId = cur(rule, id, ix);
         var childSink = childId + "_childsink_ " + ix;
         //           console.log("child: ", id, ix, childId);
-        rule.sink("ui_child", childSink);
+        rule.sink("uiChild", childSink);
         rule.output(id, childSink + ".parent");
         rule.output(childId, childSink + ".child");
         rule.outputConstant(ix, childSink + ".pos");
@@ -458,8 +458,8 @@ ui.elem = function() {
         var textSink = textId + "_sink_" + ix;
         var textChild = textId + "childsink";
         //           console.log("text: ", ix, textId);
-        rule.sink("ui_text", textSink);
-        rule.sink("ui_child", textChild);
+        rule.sink("uiText", textSink);
+        rule.sink("uiChild", textChild);
         rule.output(textId, textSink + ".id");
         rule.outputConstant(cur, textSink + ".text");
         rule.output(id, textChild + ".parent");
@@ -490,22 +490,22 @@ eve.test.wrapCommonTables = function(sys) {
   sys.shadowTable("sortValve", ["rule", "valve", "ix"]);
   sys.shadowTable("reducer", ["rule", "inValve", "outValve", "code"]);
 
-  sys.shadowTable("displayNames", ["id", "name"]);
+  sys.shadowTable("displayName", ["id", "name"]);
   sys.shadowTable("join", ["valve", "pipe", "field"]);
-  sys.shadowTable("editor_rule", ["id", "description"]);
-  sys.shadowTable("external_events", ["id", "label", "key", "eid"]);
+  sys.shadowTable("editorRule", ["id", "description"]);
+  sys.shadowTable("externalEvent", ["id", "label", "key", "eid"]);
 
-  sys.table("clicks", ["id"]);
+  sys.table("click", ["id"]);
   sys.table("sms outbox", ["id"]);
-  sys.table("users", ["id", "name"]);
-  sys.table("edges", ["from", "to"]);
+  sys.table("user", ["id", "name"]);
+  sys.table("edge", ["from", "to"]);
   sys.table("path", ["from", "to"]);
-  sys.table("ui_elems", ["id", "type"]);
-  sys.table("ui_text", ["id", "text"]);
-  sys.table("ui_child", ["parent", "pos", "child"]);
-  sys.table("ui_attrs", ["id", "attr", "value"]);
-  sys.table("ui_styles", ["id", "attr", "value"]);
-  sys.table("ui_events", ["id", "event", "label", "key"]);
+  sys.table("uiElem", ["id", "type"]);
+  sys.table("uiText", ["id", "text"]);
+  sys.table("uiChild", ["parent", "pos", "child"]);
+  sys.table("uiAttr", ["id", "attr", "value"]);
+  sys.table("uiStyle", ["id", "attr", "value"]);
+  sys.table("uiEvent", ["id", "event", "label", "key"]);
   sys.table("time", ["time"]);
 };
 

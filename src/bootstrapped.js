@@ -16,7 +16,7 @@ var now = function() {
 var createUICallback = function(id, label, key) {
   return function(e) {
     console.log("event: ", e);
-    program.run([["external_events", id, label, key, eve.data.globalId++]]);
+    program.run([["externalEvent", id, label, key, eve.data.globalId++]]);
   };
 };
 
@@ -34,12 +34,12 @@ var uiWatcher = function(prev, system) {
   //console.log(adds);
   //console.log(removes);
 
-  var elem = system.getTable("ui_elems").getFacts();
-  var text = system.getTable("ui_text").getFacts();
-  var attrs = system.getTable("ui_attrs").getFacts();
-  var styles = system.getTable("ui_styles").getFacts();
-  var events = system.getTable("ui_events").getFacts();
-  var children = system.getTable("ui_child").getFacts();
+  var elem = system.getTable("uiElem").getFacts();
+  var text = system.getTable("uiText").getFacts();
+  var attrs = system.getTable("uiAttr").getFacts();
+  var styles = system.getTable("uiStyle").getFacts();
+  var events = system.getTable("uiEvent").getFacts();
+  var children = system.getTable("uiChild").getFacts();
 
   var elem_id = 0;
   var elem_type = 1;
@@ -127,16 +127,16 @@ var uiWatcher = function(prev, system) {
 var compilerRowLimit = 30;
 var compilerSeen = {};
 var compilerWatcher = function(prev, system) {
-  var getTables = system.getTable("getTables").getFacts();
-  // var getIntermediates = system.getTable("getIntermediates").getFacts();
-  // var getResults = system.getTable("getResults").getFacts();
+  var getTable = system.getTable("getTable").getFacts();
+  // var getIntermediate = system.getTable("getIntermediate").getFacts();
+  // var getResult = system.getTable("getResult").getFacts();
 
   var items = [];
 
-  if(getTables.length) {
-    var len = getTables.length;
+  if(getTable.length) {
+    var len = getTable.length;
     for(var i = 0; i < len; i++) {
-      var cur = getTables[i];
+      var cur = getTable[i];
       var id = cur[0];
       if(!compilerSeen[id]) {
         var table = system.getTable(cur[1]).getFacts();
@@ -144,14 +144,14 @@ var compilerWatcher = function(prev, system) {
         var fields = dsl.tableToFields[cur[1]];
         if(fields) {
           for(var header = 0; header < fields.length; header++) {
-            items.push(["gridHeaders", cur[2], fields[header], header]);
+            items.push(["gridHeader", cur[2], fields[header], header]);
           }
         }
         if(tableLen) {
           var rowLen = table[0].length;
           for(var row = 0; row < tableLen && row < compilerRowLimit; row++) {
             for(var col = 0; col < rowLen; col++) {
-              items.push(["gridItems", cur[2], row, col, table[row][col]]);
+              items.push(["gridItem", cur[2], row, col, table[row][col]]);
             }
           }
         }
@@ -206,20 +206,20 @@ var elem = eve.ui.elem;
 var ref = eve.ui.ref;
 
 var on = function(rule, label) {
-  rule.source("external_events");
-  rule.eq("external_events.label", label);
+  rule.source("externalEvent");
+  rule.eq("externalEvent.label", label);
 };
 
 var setConstant = function(rule, k, v) {
   rule.sink("state-temp");
-  rule.output("external_events.eid", "state-temp.id");
+  rule.output("externalEvent.eid", "state-temp.id");
   rule.outputConstant(k, "state-temp.key");
   rule.outputConstant(v, "state-temp.value");
 };
 
 var set = function(rule, k, v) {
   rule.sink("state-temp");
-  rule.output("external_events.eid", "state-temp.id");
+  rule.output("externalEvent.eid", "state-temp.id");
   rule.outputConstant(k, "state-temp.key");
   rule.output(v, "state-temp.value");
 };
@@ -278,12 +278,12 @@ program.rule("real state", function(rule) {
 });
 
 program.rule("latest eid", function(rule) {
-  rule.source("external_events");
+  rule.source("externalEvent");
   rule.sink("latestId");
-  rule.calculate("sorted", ["external_events.eid"], "-1 * external_events.eid");
+  rule.calculate("sorted", ["externalEvent.eid"], "-1 * externalEvent.eid");
   rule.sort("sorted");
   rule.constantLimit(1);
-  rule.output("external_events.eid", "latestId.id");
+  rule.output("externalEvent.eid", "latestId.id");
 });
 
 
@@ -292,7 +292,9 @@ program.rule("latest eid", function(rule) {
 // compiler stuff
 //*********************************************************
 
-program.table("getTables", ["id", "table", "gridId"]);
+program.table("getTable", ["id", "table", "gridId"]);
+program.table("getIntermediate", ["id", "rule", "gridId"]);
+program.table("getResult", ["id", "rule", "sink", "gridId"]);
 
 //*********************************************************
 // editor
@@ -300,7 +302,7 @@ program.table("getTables", ["id", "table", "gridId"]);
 
 program.rule("on goto page", function(rule) {
   on(rule, "goto page");
-  set(rule, "page", "external_events.key");
+  set(rule, "page", "externalEvent.key");
 });
 
 program.rule("draw rules list ui", function(rule) {
@@ -313,18 +315,18 @@ program.rule("draw rules list ui", function(rule) {
 });
 
 program.rule("draw rule", function(rule) {
-  rule.source("editor_rule");
+  rule.source("editorRule");
   page(rule, "rules list");
-  rule.ui(elem("li", {id: ["rule", "editor_rule.id"], parent: ["rules-list", "", "editor_rule.id"], click: ["open rule", ref("editor_rule.id")]}, [
-    elem("h2", {}, [ref("editor_rule.description")]),
+  rule.ui(elem("li", {id: ["rule", "editorRule.id"], parent: ["rules-list", "", "editorRule.id"], click: ["open rule", ref("editorRule.id")]}, [
+    elem("h2", {}, [ref("editorRule.description")]),
     elem("div", {class: "io"}, [
-      elem("ul", {id: ["sources", "editor_rule.id"], class: "sources"}, []),
+      elem("ul", {id: ["sources", "editorRule.id"], class: "sources"}, []),
       elem("div", {class: "separator"}, [
         elem("svg", {width:"100%", height:"100%", viewBox: "0 0 10 20", preserveAspectRatio: "none"}, [
           elem("path",{class: "arrow", d:"m0,0 l10,10 l-10,10", strokeWidth:"0.5"}, [])
         ])
       ]),
-      elem("ul", {id: ["sinks", "editor_rule.id"], class: "sinks"}, [])
+      elem("ul", {id: ["sinks", "editorRule.id"], class: "sinks"}, [])
     ])
   ]));
 });
@@ -332,50 +334,50 @@ program.rule("draw rule", function(rule) {
 
 program.rule("rules list sources", function(rule) {
   page(rule, "rules list");
-  rule.source("editor_rule");
+  rule.source("editorRule");
   rule.source("pipe");
 
-  rule.join("editor_rule.id", "pipe.rule");
+  rule.join("editorRule.id", "pipe.rule");
   rule.eq("pipe.direction", "+source");
 
-  rule.calculate("id", ["pipe.table", "editor_rule.id"], "pipe.table + editor_rule.id");
+  rule.calculate("id", ["pipe.table", "editorRule.id"], "pipe.table + editorRule.id");
 
-  rule.ui(elem("li", {id: ["source", "id"], parent: ["sources", "editor_rule.id", "pipe.table"]}, [ref("pipe.table")]));
+  rule.ui(elem("li", {id: ["source", "id"], parent: ["sources", "editorRule.id", "pipe.table"]}, [ref("pipe.table")]));
 
 });
 
 program.rule("rules list sinks", function(rule) {
   page(rule, "rules list");
-  rule.source("editor_rule");
+  rule.source("editorRule");
   rule.source("pipe");
 
-  rule.join("editor_rule.id", "pipe.rule");
+  rule.join("editorRule.id", "pipe.rule");
   rule.eq("pipe.direction", "+sink");
 
-  rule.calculate("id", ["pipe.table", "editor_rule.id"], "pipe.table + editor_rule.id");
+  rule.calculate("id", ["pipe.table", "editorRule.id"], "pipe.table + editorRule.id");
 
-  rule.ui(elem("li", {id: ["sink", "id"], parent: ["sinks", "editor_rule.id", "pipe.table"]}, [ref("pipe.table")]));
+  rule.ui(elem("li", {id: ["sink", "id"], parent: ["sinks", "editorRule.id", "pipe.table"]}, [ref("pipe.table")]));
 
 });
 
-program.table("open tables-temp", ["table", "state"]);
-program.table("open tables", ["table"]);
+program.table("openTable-temp", ["table", "state"]);
+program.table("openTable", ["table"]);
 
 program.rule("table is open? -temp", function(rule) {
   on(rule, "toggle table");
-  rule.sink("open tables-temp");
-  rule.fieldToValve("external_events.eid");
-  rule.group("external_events.key");
-  rule.aggregate("external_events.key", "open/closed", "(external_events.key).length % 2 === 0 ? 'closed' : 'open'");
-  rule.output("open/closed", "open tables-temp.state");
-  rule.output("external_events.key", "open tables-temp.table");
+  rule.sink("openTable-temp");
+  rule.fieldToValve("externalEvent.eid");
+  rule.group("externalEvent.key");
+  rule.aggregate("externalEvent.key", "open/closed", "(externalEvent.key).length % 2 === 0 ? 'closed' : 'open'");
+  rule.output("open/closed", "openTable-temp.state");
+  rule.output("externalEvent.key", "openTable-temp.table");
 });
 
 program.rule("table is open?", function(rule) {
-  rule.source("open tables-temp");
-  rule.sink("open tables");
-  rule.eq("open tables-temp.state", "open");
-  rule.output("open tables-temp.table", "open tables.table");
+  rule.source("openTable-temp");
+  rule.sink("openTable");
+  rule.eq("openTable-temp.state", "open");
+  rule.output("openTable-temp.table", "openTable.table");
 });
 
 program.rule("draw table", function(rule) {
@@ -389,28 +391,28 @@ program.rule("draw table", function(rule) {
   ]));
 });
 
-program.rule("draw fields for open tables", function(rule) {
-  rule.source("open tables");
+program.rule("draw fields for openTable", function(rule) {
+  rule.source("openTable");
   rule.source("field");
-  rule.source("displayNames");
+  rule.source("displayName");
   stateEq(rule, "drawTablesList", "true");
-  rule.join("field.table", "open tables.table");
-  rule.join("field.field", "displayNames.id");
+  rule.join("field.table", "openTable.table");
+  rule.join("field.field", "displayName.id");
   rule.calculate("id", ["field.table", "field.field"], "field.table + '.' + field.field");
   rule.ui(elem("li", {id: ["table-field", "id"], parent: ["table-fields", "field.table", "field.ix"]}, [
-    ref("displayNames.name")
+    ref("displayName.name")
   ]));
 });
 
 program.rule("open table", function(rule) {
   on(rule, "open table");
-  set(rule, "activeTable", "external_events.key");
+  set(rule, "activeTable", "externalEvent.key");
   setConstant(rule, "page", "table");
 });
 
 program.rule("open rule", function(rule) {
   on(rule, "open rule");
-  set(rule, "activeRule", "external_events.key");
+  set(rule, "activeRule", "externalEvent.key");
   setConstant(rule, "page", "rule");
 });
 
@@ -420,37 +422,37 @@ program.rule("open rule", function(rule) {
 
 program.rule("rule page", function(rule) {
   page(rule, "rule");
-  rule.source("editor_rule");
-  joinState(rule, "activeRule", "editor_rule.id");
+  rule.source("editorRule");
+  joinState(rule, "activeRule", "editorRule.id");
   rule.ui(elem("div", {id: ["rule-page"], class: "rule-page"}, [
     elem("header", {}, [
       elem("button", {click: ["goto page", "rules list"]}, ["back"]),
-      elem("h2", {}, [ref("editor_rule.description")])
+      elem("h2", {}, [ref("editorRule.description")])
     ]),
     elem("div", {class: "io"}, [
-      elem("ul", {id: ["sources", "editor_rule.id"], class: "sources"}, []),
+      elem("ul", {id: ["sources", "editorRule.id"], class: "sources"}, []),
       elem("div", {class: "separator"}, [
         elem("svg", {width:"100%", height:"100%", viewBox: "0 0 10 20", preserveAspectRatio: "none"}, [
           elem("path",{class: "arrow", d:"m0,0 l10,10 l-10,10", strokeWidth:"0.5"}, [])
         ])
       ]),
-      elem("ul", {id: ["sinks", "editor_rule.id"], class: "sinks"}, [])
+      elem("ul", {id: ["sinks", "editorRule.id"], class: "sinks"}, [])
     ])
   ]));
 });
 
 program.rule("rule page sources", function(rule) {
   page(rule, "rule");
-  rule.source("editor_rule");
+  rule.source("editorRule");
   rule.source("pipe");
-  rule.source("displayNames");
+  rule.source("displayName");
 
-  joinState(rule, "activeRule", "editor_rule.id");
-  rule.join("pipe.rule", "editor_rule.id");
-  rule.join("pipe.pipe", "displayNames.id");
+  joinState(rule, "activeRule", "editorRule.id");
+  rule.join("pipe.rule", "editorRule.id");
+  rule.join("pipe.pipe", "displayName.id");
   rule.eq("pipe.direction", "+source");
 
-  rule.ui(elem("li", {id: ["source", "pipe.pipe"], parent: ["sources", "editor_rule.id", "pipe.table"], class: "io-item"}, [
+  rule.ui(elem("li", {id: ["source", "pipe.pipe"], parent: ["sources", "editorRule.id", "pipe.table"], class: "io-item"}, [
     //TODO: this should really be displayName, but they're nonsensical for generated stuff.
     elem("span", {}, [ref("pipe.table")]),
     elem("ul", {id: ["rule-source-fields", "pipe.pipe"]}, [])
@@ -460,21 +462,21 @@ program.rule("rule page sources", function(rule) {
 
 program.rule("rule page source fields", function(rule) {
   page(rule, "rule");
-  rule.source("editor_rule");
+  rule.source("editorRule");
   rule.source("pipe");
   rule.source("field");
-  rule.source("displayNames");
+  rule.source("displayName");
 
-  joinState(rule, "activeRule", "editor_rule.id");
-  rule.join("pipe.rule", "editor_rule.id");
+  joinState(rule, "activeRule", "editorRule.id");
+  rule.join("pipe.rule", "editorRule.id");
   rule.join("pipe.table", "field.table");
-  rule.join("field.field", "displayNames.id");
+  rule.join("field.field", "displayName.id");
   rule.eq("pipe.direction", "+source");
 
   rule.calculate("id", ["pipe.pipe", "field.field"], "pipe.pipe + '_' + field.field");
 
   rule.ui(elem("li", {id: ["rule-source-field", "id"], parent: ["rule-source-fields", "pipe.pipe", "field.ix"]}, [
-    ref("displayNames.name")
+    ref("displayName.name")
   ]));
 
 });
@@ -482,16 +484,16 @@ program.rule("rule page source fields", function(rule) {
 
 program.rule("rule page sinks", function(rule) {
   page(rule, "rule");
-  rule.source("editor_rule");
+  rule.source("editorRule");
   rule.source("pipe");
-  rule.source("displayNames");
+  rule.source("displayName");
 
-  joinState(rule, "activeRule", "editor_rule.id");
-  rule.join("pipe.rule", "editor_rule.id");
-  rule.join("pipe.pipe", "displayNames.id");
+  joinState(rule, "activeRule", "editorRule.id");
+  rule.join("pipe.rule", "editorRule.id");
+  rule.join("pipe.pipe", "displayName.id");
   rule.eq("pipe.direction", "+sink");
 
-  rule.ui(elem("li", {id: ["sink", "pipe.pipe"], parent: ["sinks", "editor_rule.id", "pipe.table"], class: "io-item"}, [
+  rule.ui(elem("li", {id: ["sink", "pipe.pipe"], parent: ["sinks", "editorRule.id", "pipe.table"], class: "io-item"}, [
     //TODO: this should really be displayName, but they're nonsensical for generated stuff.
     elem("span", {}, [ref("pipe.table")]),
     elem("ul", {id: ["rule-sink-fields", "pipe.pipe"]}, []),
@@ -502,45 +504,45 @@ program.rule("rule page sinks", function(rule) {
 
 program.rule("rule page sink fields", function(rule) {
   page(rule, "rule");
-  rule.source("editor_rule");
+  rule.source("editorRule");
   rule.source("pipe");
   rule.source("field");
-  rule.source("displayNames");
+  rule.source("displayName");
 
-  joinState(rule, "activeRule", "editor_rule.id");
-  rule.join("pipe.rule", "editor_rule.id");
+  joinState(rule, "activeRule", "editorRule.id");
+  rule.join("pipe.rule", "editorRule.id");
   rule.join("pipe.table", "field.table");
-  rule.join("field.field", "displayNames.id");
+  rule.join("field.field", "displayName.id");
   rule.eq("pipe.direction", "+sink");
 
   rule.calculate("id", ["pipe.pipe", "field.field"], "pipe.pipe + '_' + field.field");
 
   rule.ui(elem("li", {id: ["rule-sink-field", "id"], parent: ["rule-sink-fields", "pipe.pipe", "field.ix"]}, [
-    ref("displayNames.name")
+    ref("displayName.name")
   ]));
 
 });
 
 program.rule("rule page sink outputs", function(rule) {
   page(rule, "rule");
-  rule.source("editor_rule");
+  rule.source("editorRule");
   rule.source("pipe");
   rule.source("field");
-  rule.source("displayNames");
+  rule.source("displayName");
   rule.source("tableConstraint");
 
-  joinState(rule, "activeRule", "editor_rule.id");
-  rule.join("pipe.rule", "editor_rule.id");
+  joinState(rule, "activeRule", "editorRule.id");
+  rule.join("pipe.rule", "editorRule.id");
   rule.join("pipe.pipe" ,"tableConstraint.pipe");
   rule.join("pipe.table", "field.table");
   rule.join("field.field", "tableConstraint.field");
-  rule.join("tableConstraint.valve", "displayNames.id");
+  rule.join("tableConstraint.valve", "displayName.id");
   rule.eq("pipe.direction", "+sink");
 
   rule.calculate("id", ["pipe.pipe", "field.field", "tableConstraint.valve"], "pipe.pipe + '_' + field.field + '_' + tableConstraint.valve");
 
   rule.ui(elem("li", {id: ["rule-sink-output", "id"], parent: ["rule-sink-outputs", "pipe.pipe", "field.ix"]}, [
-    ref("displayNames.name")
+    ref("displayName.name")
   ]));
 
 });
@@ -549,8 +551,8 @@ program.rule("rule page sink outputs", function(rule) {
 // Grids
 //*********************************************************
 
-program.table("gridItems", ["gridId", "row", "col", "val"]);
-program.table("gridHeaders", ["gridId", "name", "ix"]);
+program.table("gridItem", ["gridId", "row", "col", "val"]);
+program.table("gridHeader", ["gridId", "name", "ix"]);
 program.table("drawGrid", ["gridId", "parent"]);
 
 program.rule("draw a grid", function(rule) {
@@ -564,23 +566,23 @@ program.rule("draw a grid", function(rule) {
 
 program.rule("draw grid rows", function(rule) {
   rule.source("drawGrid");
-  rule.source("gridItems");
-  rule.join("drawGrid.gridId", "gridItems.gridId");
-  rule.calculate("gid", ["gridItems.row", "drawGrid.gridId"], "drawGrid.gridId + '_' + gridItems.row");
-  rule.ui(elem("div", {id: ["grid-row", "gid"], parent: ["grid", "drawGrid.gridId", "gridItems.row"], class: "grid-row"}, []));
-  rule.calculate("gcid", ["gridItems.row", "gridItems.col", "drawGrid.gridId"], "drawGrid.gridId + '_' + gridItems.row + '_' + gridItems.col");
-  rule.ui(elem("div", {id: ["grid-col-item", "gcid"], parent: ["grid-row", "gid", "gridItems.col"], click: ["foo", "drawGrid.gridId"]}, [
-    ref("gridItems.val")
+  rule.source("gridItem");
+  rule.join("drawGrid.gridId", "gridItem.gridId");
+  rule.calculate("gid", ["gridItem.row", "drawGrid.gridId"], "drawGrid.gridId + '_' + gridItem.row");
+  rule.ui(elem("div", {id: ["grid-row", "gid"], parent: ["grid", "drawGrid.gridId", "gridItem.row"], class: "grid-row"}, []));
+  rule.calculate("gcid", ["gridItem.row", "gridItem.col", "drawGrid.gridId"], "drawGrid.gridId + '_' + gridItem.row + '_' + gridItem.col");
+  rule.ui(elem("div", {id: ["grid-col-item", "gcid"], parent: ["grid-row", "gid", "gridItem.col"], click: ["foo", "drawGrid.gridId"]}, [
+    ref("gridItem.val")
   ]));
 });
 
 program.rule("draw grid headers", function(rule) {
   rule.source("drawGrid");
-  rule.source("gridHeaders");
-  rule.join("drawGrid.gridId", "gridHeaders.gridId");
-  rule.calculate("hid", ["gridHeaders.ix", "drawGrid.gridId"], "drawGrid.gridId + '_' + gridHeaders.ix");
-  rule.ui(elem("div", {id: ["grid-header-item", "hid"], parent: ["grid-header", "drawGrid.gridId", "gridHeaders.ix"]}, [
-    ref("gridHeaders.name")
+  rule.source("gridHeader");
+  rule.join("drawGrid.gridId", "gridHeader.gridId");
+  rule.calculate("hid", ["gridHeader.ix", "drawGrid.gridId"], "drawGrid.gridId + '_' + gridHeader.ix");
+  rule.ui(elem("div", {id: ["grid-header-item", "hid"], parent: ["grid-header", "drawGrid.gridId", "gridHeader.ix"]}, [
+    ref("gridHeader.name")
   ]));
 });
 
@@ -590,25 +592,25 @@ program.rule("draw grid headers", function(rule) {
 
 program.rule("get grid for table page", function(rule) {
   on(rule, "open table");
-  rule.sink("getTables");
-  rule.calculate("id", ["external_events.eid"], "'getTable_' + external_events.eid");
-  rule.output("id", "getTables.gridId");
-  rule.output("external_events.key", "getTables.table");
-  rule.output("external_events.eid", "getTables.id");
+  rule.sink("getTable");
+  rule.calculate("id", ["externalEvent.eid"], "'getTable_' + externalEvent.eid");
+  rule.output("id", "getTable.gridId");
+  rule.output("externalEvent.key", "getTable.table");
+  rule.output("externalEvent.eid", "getTable.id");
   set(rule, "activeTableGridId", "id");
 });
 
 program.rule("draw table page", function(rule) {
   page(rule, "table");
-  rule.source("displayNames");
+  rule.source("displayName");
   rule.sink("drawGrid");
-  joinState(rule, "activeTable", "displayNames.id");
+  joinState(rule, "activeTable", "displayName.id");
   stateAs(rule, "activeTableGridId", "active");
   rule.output("active.value", "drawGrid.gridId");
   rule.outputConstant("table-page", "drawGrid.parent");
   rule.ui(elem("p", {id: ["table-page"]}, [
     elem("button", {click: ["goto page", "rules list"]}, ["back"]),
-    elem("h2", {}, [ref("displayNames.name")])
+    elem("h2", {}, [ref("displayName.name")])
   ]));
 
 });
@@ -633,4 +635,4 @@ program.rule("draw UI editor", function(rule) {
 //*********************************************************
 
 program.compile();
-program.run([["time", 0], ["external_events", "asdf", "goto page", "rules list", 0]]);
+program.run([["time", 0], ["externalEvent", "asdf", "goto page", "rules list", 0]]);
