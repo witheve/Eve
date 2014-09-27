@@ -13,10 +13,31 @@ var now = function() {
 // watchers
 //*********************************************************
 
-var createUICallback = function(id, label, key) {
+var mouseEvents = {"drop": true,
+                   "drag": true,
+                   "mouseover": true,
+                   "drageover": true,
+                   "mousedown": true,
+                   "mouseup": true,
+                   "click": true,
+                   "dblclick": true,
+                   "contextmenu": true};
+
+var createUICallback = function(id, event, label, key) {
   return function(e) {
-    console.log("event: ", e);
-    program.run([["externalEvent", id, label, key, eve.data.globalId++, e.target.value]]);
+//     console.log("event: ", event, e);
+    var items = [];
+    var eid = eve.data.globalId++;
+    if(event === "dragover") {
+      e.preventDefault();
+    } else {
+      if(mouseEvents[event]) {
+        items.push(["mousePosition", eid, e.clientX, e.clientY]);
+      }
+
+      items.push(["externalEvent", id, label, key, eid, e.target.value]);
+      program.run(items);
+    }
   };
 };
 
@@ -147,7 +168,7 @@ var uiDiffWatcher = function(storage, system) {
     }
   }
   console.timeEnd("diff");
-  console.log(diff);
+//   console.log(diff);
 
 
   var elem_id = 0;
@@ -242,7 +263,7 @@ var uiDiffWatcher = function(storage, system) {
   var eventsLen = events.length;
   for(var i = 0; i < eventsLen; i++) {
     var cur = events[i];
-    builtEls[cur[elem_id]].addEventListener(cur[events_event], createUICallback(cur[elem_id], cur[events_label], cur[events_key]));
+    builtEls[cur[elem_id]].addEventListener(cur[events_event], createUICallback(cur[elem_id], cur[events_event], cur[events_label], cur[events_key]));
   }
 
   var children = diff["uiChild"].adds;
@@ -300,7 +321,6 @@ var compilerWatcher = function(storage, system) {
   }
 
   if(items.length) {
-    console.log("grid", items);
     program.callRuntime(items);
   }
 };
@@ -546,7 +566,6 @@ program.rule("table is open?", function(rule) {
 
 program.rule("draw table", function(rule) {
   rule.source("field");
-  page(rule, "rules list");
   stateEq(rule, "drawTablesList", "true");
   rule.group("field.table");
   rule.ui(elem("li", {id: ["table", "field.table"], parent: ["table-list", "", "field.table"], click: ["open table", ref("field.table")], doubleClick: ["toggle table", ref("field.table")]}, [
@@ -788,10 +807,38 @@ program.rule("draw UI editor", function(rule) {
   pretendConstant(rule, "drawTablesList", "true");
   rule.ui(elem("div", {id: ["ui-editor-root"], parent: ["root"], class: "root ui-editor"}, [
     elem("ul", {id: ["table-list"], class: "table-list"}, []),
-    elem("p", {}, [
-      "hey"
-    ])
+    elem("ul", {class: "toolbox"}, [
+      elem("li", {draggable: "true", dragStart: ["toolbox drag", "button"]}, ["button"]),
+      elem("li", {draggable: "true", dragStart: ["toolbox drag", "span"]}, ["text"]),
+      elem("li", {draggable: "true", dragStart: ["toolbox drag", "div"]}, ["box"]),
+      elem("li", {draggable: "true", dragStart: ["toolbox drag", "input"]}, ["input"])
+    ]),
+    elem("div", {id: ["canvas"], class: "canvas", dragOver: ["blah", "baz"], drop: ["dropped control", "drop"]}, [])
   ]));
+});
+
+program.rule("draw ui items", function(rule) {
+  on(rule, "dropped control");
+  rule.source("mousePosition");
+  rule.source("externalEvent", "control");
+  rule.join("externalEvent.eid", "mousePosition.eid");
+  rule.eq("control.label", "toolbox drag");
+  rule.calculate("lower", ["control.eid", "externalEvent.eid"], "control.eid < externalEvent.eid");
+  rule.calculate("sorted", ["control.eid"], "-1 * control.eid");
+  rule.eq("lower", true);
+  rule.group("externalEvent.eid");
+  rule.sort("sorted");
+  rule.constantLimit(1);
+  rule.ui(elem(ref("control.key"),
+               {id: ["drawn", "externalEvent.eid"],
+                draggable: "true",
+                class: "control",
+                style: {top: ref("mousePosition.y"),
+                        left: ref("mousePosition.x")},
+                parent: ["canvas", null, "externalEvent.eid"]},
+               [
+                 ref("control.key")
+               ]));
 });
 
 //*********************************************************
@@ -799,4 +846,4 @@ program.rule("draw UI editor", function(rule) {
 //*********************************************************
 
 program.compile();
-program.run([["time", 0], ["externalEvent", "asdf", "goto page", "rules list", 0]]);
+program.run([["time", 0], ["externalEvent", "asdf", "goto page", "ui editor", 0]]);

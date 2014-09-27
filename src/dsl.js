@@ -332,10 +332,14 @@ ui.events = {
   "doubleClick": "dblclick",
   "contextMenu": "contextMenu",
   "input": "input",
+  "drag": "drag",
+  "drop": "drop",
+  "dragStart": "dragstart",
+  "dragEnd": "dragend",
+  "dragOver": "dragover"
 };
 
 ui.prefixId = function(rule, prefix, col) {
-  console.log("prefixID:", prefix, col);
   var id = dsl.nextId();
   if(col) {
     rule.calculate(id, [col], "'" + prefix + "_' + " + col);
@@ -381,8 +385,11 @@ ui.elem = function() {
       }
     }
     rule.sink("uiElem", sink);
-    rule.outputConstant(args[0], sink + ".type");
-    console.log("Output: ", id, sink+ ".id");
+    if(typeof args[0] === "function") {
+      rule.output(args[0](rule), sink + ".type");
+    } else {
+      rule.outputConstant(args[0], sink + ".type");
+    }
     rule.output(id, sink + ".id");
     for(var i in args[1]) {
       var attr = args[1][i];
@@ -502,6 +509,7 @@ eve.test.wrapCommonTables = function(sys) {
   sys.shadowTable("externalEvent", ["id", "label", "key", "eid", "value"]);
 
   sys.table("click", ["id"]);
+  sys.table("mousePosition", ["eid","x","y"]);
   sys.table("sms outbox", ["id"]);
   sys.table("user", ["id", "name"]);
   sys.table("edge", ["from", "to"]);

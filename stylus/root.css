@@ -464,3 +464,31 @@ li {
 .grid .grid-row + .grid-row {
   border-top: 1px solid #ccc;
 }
+.ui-editor .table-list {
+  box-flex: 0;
+  -webkit-flex: none;
+  flex: none;
+  margin-right: 20px;
+}
+.ui-editor .toolbox li {
+  padding: 5px 10px;
+  border-radius: 3px;
+  background: #ddd;
+}
+.ui-editor .toolbox li + li {
+  margin-top: 5px;
+}
+.ui-editor .canvas {
+  box-flex: 1;
+  -webkit-flex: 1;
+  flex: 1;
+  background: #f7f7f7;
+}
+.ui-editor .canvas .control {
+  position: absolute;
+}
+.ui-editor .canvas div.control {
+  background: #00a6fc;
+  width: 100px;
+  height: 100px;
+}

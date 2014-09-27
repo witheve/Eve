@@ -218,3 +218,34 @@ $sinks = #d0d0d0;
     border-top:1px solid #ccc;
   }
 }
+
+.ui-editor {
+  .table-list {
+    flex:none;
+    margin-right:20px;
+  }
+
+  .toolbox {
+    li {
+      padding:5px 10px;
+      border-radius:3px;
+      background:$sources;
+    }
+    li + li {
+      margin-top:5px;
+    }
+  }
+
+  .canvas {
+    flex: 1;
+    background: #f7f7f7;
+    .control {
+      position:absolute;
+    }
+    div.control {
+      background:blue;
+      width:100px;
+      height:100px;
+    }
+  }
+}
