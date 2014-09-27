@@ -261,8 +261,7 @@ Rule.prototype.ui = function(elem) {
 };
 
 var DSLSystem = function() {
-  var compiler = System.compiler();
-  this.system = compiler.compile();
+  this.system = System.empty();
   this.facts = [];
   this.ruleIx = 0;
 };
@@ -298,9 +297,9 @@ DSLSystem.prototype.shadowTable = function(name, fields) {
 };
 
 DSLSystem.prototype.compile = function() {
-  var compiler = System.compiler();
-  loadSystem(compiler, this.facts, []);
-  this.system = compiler.compile();
+  loadSystem(this.system, this.facts, []);
+  this.system.refresh();
+  this.system.recompile();
 };
 
 DSLSystem.prototype.input = function(items) {

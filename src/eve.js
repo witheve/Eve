@@ -777,21 +777,48 @@ function System(stores, flows, dirtyFlows, downstream, tableToStore) {
   this.tick = 0;
 }
 
-System.compiler = function() {
+System.empty = function() {
   var stores = [];
   var flows = [];
   var dirtyFlows = [];
   var downstream = [];
   var tableToStore = {};
+
+  var numFields = {};
   for (var i = compilerTables.length - 1; i >= 0; i--) {
-    dirtyFlows[i] = false;
-    stores[i] = Memory.empty();
-    downstream[i] = [];
-    tableToStore[compilerTables[i][0] + "-source"] = i; // TODO will need to set up sinks in here too when this becomes incremental
+    var name = compilerTables[i][0];
+    numFields[name] = 0;
   }
+  for (var i = compilerFields.length - 1; i >= 0; i--) {
+    var name = compilerFields[i][0];
+    numFields[name] += 1;
+  }
+
+  for (var i = compilerTables.length - 1; i >= 0; i--) {
+    var name = compilerTables[i][0];
+    var sourceIx = 2*i;
+    var sinkIx = (2*i)+1;
+
+    dirtyFlows[sourceIx] = false;
+    stores[sourceIx] = Memory.empty();
+    downstream[sourceIx] = [sinkIx];
+    tableToStore[name + "-source"] = sourceIx;
+
+    dirtyFlows[sinkIx] = false;
+    stores[sinkIx] = Memory.empty();
+    downstream[sinkIx] = [];
+    tableToStore[name + "-sink"] = sinkIx;
+
+    var sinkFieldIxes = [];
+      for (var j = numFields[name] - 1; j >= 0; j--) {
+        sinkFieldIxes[j] = j;
+      }
+    flows[sinkIx] = new Sink([new SinkConstraint(sourceIx, sinkFieldIxes)], sinkIx);
+  }
+
   var system = new System(stores, flows, dirtyFlows, downstream, tableToStore);
   system.setStore(0, Memory.fromFacts(compilerTables));
-  system.setStore(1, Memory.fromFacts(compilerFields));
+  system.setStore(2, Memory.fromFacts(compilerFields));
   return system;
 };
 
@@ -828,7 +855,7 @@ System.prototype = {
   },
 
   getDump: function (table) {
-    var fields = this.getStore(1).getFacts();
+    var fields = this.getTable("field").getFacts();
     var tableFields = [];
     for (var i = fields.length - 1; i >= 0; i--) {
       var field = fields[i];
@@ -868,7 +895,7 @@ System.prototype = {
     this.tick++;
   },
 
-  compile: function() {
+  recompile: function() {
     var tables = this.getDump("table");
     var fields = this.getDump("field");
     var rules = this.getDump("rule");
@@ -1095,9 +1122,12 @@ System.prototype = {
       aggregate.reducerFuns.push(Function.apply(null, [reducer.inValve, "return (" + reducer.code + ");"]));
     }
 
-    var system = new System(stores, flows, dirtyFlows, downstream, tableToStore);
-    system.updateTable("flow", flowFacts, []);
-    return system;
+    this.stores = stores;
+    this.flows = flows;
+    this.dirtyFlows = dirtyFlows;
+    this.downstream = downstream;
+    this.tableToStore = tableToStore;
+    this.setStore(tableToStore["flow-source"], Memory.fromFacts(flowFacts));
   }
 };
 
