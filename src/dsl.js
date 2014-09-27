@@ -57,7 +57,8 @@ var Rule = function(desc) {
   this.sortIx = 0;
   this.names = {};
   this.desc = desc;
-  this.items = [["externalEvent", dsl.nextId(), "set rule name", this.id, eve.data.globalId++, desc]];
+  this.items = [["externalEvent", dsl.nextId(), "set rule name", this.id, eve.data.globalId++, desc],
+                ["displayName", this.id, desc]];
   this.reducerItems = [];
   this.hasSource = false;
   this.hasSink = false;
@@ -260,8 +261,7 @@ Rule.prototype.ui = function(elem) {
 };
 
 var DSLSystem = function() {
-  var compiler = System.compiler();
-  this.system = compiler.compile();
+  this.system = System.empty();
   this.facts = [];
   this.ruleIx = 0;
 };
@@ -297,9 +297,9 @@ DSLSystem.prototype.shadowTable = function(name, fields) {
 };
 
 DSLSystem.prototype.compile = function() {
-  var compiler = System.compiler();
-  loadSystem(compiler, this.facts, []);
-  this.system = compiler.compile();
+  loadSystem(this.system, this.facts, []);
+  this.system.refresh();
+  this.system.recompile();
 };
 
 DSLSystem.prototype.input = function(items) {
@@ -315,6 +315,10 @@ DSLSystem.prototype.test = function(inputs, results) {
   this.compile();
   this.input(inputs);
   this.equal(inputs.concat(results));
+};
+
+DSLSystem.prototype.log = function(table) {
+  console.table(this.system.getTable(table).getFacts());
 };
 
 dsl.system = function() {
@@ -502,6 +506,8 @@ eve.test.wrapCommonTables = function(sys) {
   sys.shadowTable("groupValve", ["rule", "valve"]);
   sys.shadowTable("sortValve", ["rule", "valve", "ix"]);
   sys.shadowTable("reducer", ["rule", "inValve", "outValve", "code"]);
+  sys.shadowTable("flow", ["flow", "originType", "originId"]);
+  sys.shadowTable("refresh", ["tick", "startTime", "endTime", "flow"]);
 
   sys.shadowTable("displayName", ["id", "name"]);
   sys.shadowTable("join", ["valve", "pipe", "field"]);
@@ -521,6 +527,7 @@ eve.test.wrapCommonTables = function(sys) {
   sys.table("uiStyle", ["id", "attr", "value"]);
   sys.table("uiEvent", ["id", "event", "label", "key"]);
   sys.table("time", ["time"]);
+  sys.table("timePerFlow", ["name", "type", "numTimes", "totalTime"]);
 };
 
 eve.test.test = function(name, func, inputs, expected) {

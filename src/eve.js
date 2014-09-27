@@ -611,6 +611,9 @@ Aggregate.prototype = {
       var reducerInIxes = this.reducerInIxes;
       var reducerOutIxes = this.reducerOutIxes;
       var reducerFuns = this.reducerFuns;
+      for (var i = groupFacts.length - 1; i >= 0; i--) {
+        groupFacts[i] = groupFacts[i].slice(); // unalias facts from solver
+      }
       for (var i = reducerInIxes.length - 1; i >= 0; i--) {
         reduceBy(groupFacts, reducerInIxes[i], reducerOutIxes[i], reducerFuns[i]);
       }
@@ -680,6 +683,8 @@ var compilerTables =
      ["groupValve"],
      ["sortValve"],
      ["reducer"],
+     ["flow"],
+     ["refresh"],
      // TODO adding these here is hacky
      ["displayName"],
      ["editorRule"],
@@ -735,6 +740,15 @@ var compilerFields =
      ["reducer", "outValve", 2],
      ["reducer", "code", 3],
 
+     ["flow", "flow", 0],
+     ["flow", "originType", 1], // "solver", "aggregate", "source", "sink"
+     ["flow", "originId", 2], // for solver/aggregate is rule, for source/sink is table
+
+     ["refresh", "tick", 0],
+     ["refresh", "startTime", 1],
+     ["refresh", "endTime", 2],
+     ["refresh", "flow", 3],
+
      // TODO adding these here is hacky
 
      ["displayName", "id", 0],
@@ -760,23 +774,51 @@ function System(stores, flows, dirtyFlows, downstream, tableToStore) {
   this.dirtyFlows = dirtyFlows;
   this.downstream = downstream;
   this.tableToStore = tableToStore;
+  this.tick = 0;
 }
 
-System.compiler = function() {
+System.empty = function() {
   var stores = [];
   var flows = [];
   var dirtyFlows = [];
   var downstream = [];
   var tableToStore = {};
+
+  var numFields = {};
   for (var i = compilerTables.length - 1; i >= 0; i--) {
-    dirtyFlows[i] = false;
-    stores[i] = Memory.empty();
-    downstream[i] = [];
-    tableToStore[compilerTables[i][0] + "-source"] = i; // TODO will need to set up sinks in here too when this becomes incremental
+    var name = compilerTables[i][0];
+    numFields[name] = 0;
   }
+  for (var i = compilerFields.length - 1; i >= 0; i--) {
+    var name = compilerFields[i][0];
+    numFields[name] += 1;
+  }
+
+  for (var i = compilerTables.length - 1; i >= 0; i--) {
+    var name = compilerTables[i][0];
+    var sourceIx = 2*i;
+    var sinkIx = (2*i)+1;
+
+    dirtyFlows[sourceIx] = false;
+    stores[sourceIx] = Memory.empty();
+    downstream[sourceIx] = [sinkIx];
+    tableToStore[name + "-source"] = sourceIx;
+
+    dirtyFlows[sinkIx] = false;
+    stores[sinkIx] = Memory.empty();
+    downstream[sinkIx] = [];
+    tableToStore[name + "-sink"] = sinkIx;
+
+    var sinkFieldIxes = [];
+      for (var j = numFields[name] - 1; j >= 0; j--) {
+        sinkFieldIxes[j] = j;
+      }
+    flows[sinkIx] = new Sink([new SinkConstraint(sourceIx, sinkFieldIxes)], sinkIx);
+  }
+
   var system = new System(stores, flows, dirtyFlows, downstream, tableToStore);
   system.setStore(0, Memory.fromFacts(compilerTables));
-  system.setStore(1, Memory.fromFacts(compilerFields));
+  system.setStore(2, Memory.fromFacts(compilerFields));
   return system;
 };
 
@@ -813,7 +855,7 @@ System.prototype = {
   },
 
   getDump: function (table) {
-    var fields = this.getStore(1).getFacts();
+    var fields = this.getTable("field").getFacts();
     var tableFields = [];
     for (var i = fields.length - 1; i >= 0; i--) {
       var field = fields[i];
@@ -833,20 +875,27 @@ System.prototype = {
   },
 
   refresh: function() {
+    var tick = this.tick;
     var flows = this.flows;
     var numFlows = flows.length;
     var dirtyFlows = this.dirtyFlows;
+    var refreshes = [];
     for (var flowIx = 0; flowIx < numFlows; flowIx++) {
       if (dirtyFlows[flowIx] === true) {
         // console.log(flowIx);
         dirtyFlows[flowIx] = false;
+        var startTime = window.performance.now();
         flows[flowIx].refresh(this);
+        var endTime = window.performance.now();
+        refreshes.push([tick, startTime, endTime, flowIx]);
         flowIx = 0; // resets the loop
       }
     }
+    this.updateTable("refresh", refreshes, []);
+    this.tick++;
   },
 
-  compile: function() {
+  recompile: function() {
     var tables = this.getDump("table");
     var fields = this.getDump("field");
     var rules = this.getDump("rule");
@@ -866,7 +915,6 @@ System.prototype = {
     var stores = [];
     var flows = [];
     var dirtyFlows = [];
-    var nextIx = 0;
     var tableToStore = {};
     var downstream = [];
 
@@ -876,7 +924,6 @@ System.prototype = {
     var fieldIxes = {};
     var numFields = {};
     var pipeTables = {};
-
     for (var i = valves.length - 1; i >= 0; i--) {
       var valve = valves[i];
       valveRules[valve.valve] = valve.rule;
@@ -897,30 +944,53 @@ System.prototype = {
       pipeTables[pipe.pipe] = pipe.table;
     }
 
-    // build sinks
-    var sinks = {};
+    // choose flow ordering
+    var upstream = {};
+    var nextIx = 0;
+    var flowFacts = [];
+    var tablePlaced = {};
+    for (var i = rules.length - 1; i >= 0; i--) {
+      var rule = rules[i];
+      upstream[rule.rule] = [];
+    }
+    for (var i = pipes.length - 1; i >= 0; i--) {
+      var pipe = pipes[i];
+      if ((pipe.direction === "+source") || (pipe.direction === "-source")) {
+        upstream[pipe.rule].push(pipe.table);
+      }
+    }
+    for (var i = rules.length - 1; i >= 0; i--) {
+      var rule = rules[i];
+      var ruleUpstream = upstream[rule.rule];
+      for (var j = ruleUpstream.length - 1; j >= 0; j--) {
+        var table = ruleUpstream[j];
+        if (tablePlaced[table] !== true) {
+          var sourceIx = nextIx++;
+          tableToStore[table + "-source"] = sourceIx;
+          flowFacts.push([sourceIx, "source", table]);
+          var sinkIx = nextIx++;
+          tableToStore[table + "-sink"] = sinkIx;
+          flowFacts.push([sinkIx, "sink", table]);
+          tablePlaced[table] = true;
+        }
+      }
+      var solverIx = nextIx++;
+      tableToStore[rule.rule + "-solver"] = solverIx;
+      flowFacts.push([solverIx, "solver", rule.rule]);
+      var aggregateIx = nextIx++;
+      tableToStore[rule.rule + "-aggregate"] = aggregateIx;
+      flowFacts.push([aggregateIx, "aggregate", rule.rule]);
+    }
     for (var i = tables.length - 1; i >= 0; i--) {
       var table = tables[i];
-
-      var sourceIx = nextIx++;
-      var sinkIx = nextIx++;
-      var sinkFieldIxes = [];
-      for (var j = numFields[table.table] - 1; j >= 0; j--) {
-        sinkFieldIxes[j] = j;
+      if (tablePlaced[table.table] !== true) {
+          var sourceIx = nextIx++;
+          tableToStore[table.table + "-source"] = sourceIx;
+          flowFacts.push([sourceIx, "source", table.table]);
+          var sinkIx = nextIx++;
+          tableToStore[table.table + "-sink"] = sinkIx;
+          flowFacts.push([sinkIx, "sink", table.table]);
       }
-
-      tableToStore[table.table + "-source"] = sourceIx;
-      stores[sourceIx] = this.stores[this.tableToStore[table.table + "-source"]] || Memory.empty();
-      dirtyFlows[sourceIx] = false;
-      downstream[sourceIx] = [sinkIx];
-
-      tableToStore[table.table + "-sink"] = sinkIx;
-      var sink = new Sink([new SinkConstraint(sourceIx, sinkFieldIxes)], sinkIx);
-      sinks[table.table] = sink;
-      stores[sinkIx] = this.stores[this.tableToStore[table.table + "-sink"]] || Memory.empty();
-      flows[sinkIx] = sink;
-      dirtyFlows[sinkIx] = true;
-      downstream[sinkIx] = [];
     }
 
     // build solvers and aggregates
@@ -929,10 +999,9 @@ System.prototype = {
     for (var i = rules.length - 1; i >= 0; i--) {
       var rule = rules[i];
 
-      var solverIx = nextIx++;
-      var aggregateIx = nextIx++;
+      var solverIx = tableToStore[rule.rule + "-solver"];
+      var aggregateIx = tableToStore[rule.rule + "-aggregate"];
 
-      tableToStore[rule.rule + "-solver"] = solverIx;
       var solver = Solver.empty(numVars[rule.rule], [], [], solverIx);
       solvers[rule.rule] = solver;
       stores[solverIx] = Memory.empty();
@@ -940,7 +1009,6 @@ System.prototype = {
       dirtyFlows[solverIx] = true;
       downstream[solverIx] = [aggregateIx];
 
-      tableToStore[rule.rule + "-aggregate"] = aggregateIx;
       var aggregate = Aggregate.empty([], [], undefined, [], [], [], solverIx, aggregateIx);
       aggregates[rule.rule] = aggregate;
       stores[aggregateIx] = Memory.empty();
@@ -948,6 +1016,31 @@ System.prototype = {
       dirtyFlows[aggregateIx] = true;
       downstream[aggregateIx] = [];
     }
+
+    // build sinks
+    var sinks = {};
+    for (var i = tables.length - 1; i >= 0; i--) {
+      var table = tables[i];
+
+      var sourceIx = tableToStore[table.table + "-source"];
+      var sinkIx = tableToStore[table.table + "-sink"];
+      var sinkFieldIxes = [];
+      for (var j = numFields[table.table] - 1; j >= 0; j--) {
+        sinkFieldIxes[j] = j;
+      }
+
+      stores[sourceIx] = this.stores[this.tableToStore[table.table + "-source"]] || Memory.empty();
+      dirtyFlows[sourceIx] = false;
+      downstream[sourceIx] = [sinkIx];
+
+      var sink = new Sink([new SinkConstraint(sourceIx, sinkFieldIxes)], sinkIx);
+      sinks[table.table] = sink;
+      stores[sinkIx] = this.stores[this.tableToStore[table.table + "-sink"]] || Memory.empty();
+      flows[sinkIx] = sink;
+      dirtyFlows[sinkIx] = true;
+      downstream[sinkIx] = [];
+    }
+
 
     // build table constraints
     var constraints = {};
@@ -957,13 +1050,11 @@ System.prototype = {
         var constraint = new MemoryConstraint(tableToStore[pipe.table + "-sink"], []);
         solvers[pipe.rule].constraints.push(constraint);
         constraints[pipe.pipe] = constraint;
-        dirtyFlows[tableToStore[pipe.rule + "-solver"]] = false; // will be dirtied on update instead
         downstream[tableToStore[pipe.table + "-sink"]].push(tableToStore[pipe.rule + "-solver"]);
       } else if (pipe.direction === "-source") {
         var constraint = new NegatedMemoryConstraint(tableToStore[pipe.table + "-sink"], []);
         solvers[pipe.rule].constraints.push(constraint);
         constraints[pipe.pipe] = constraint;
-        dirtyFlows[tableToStore[pipe.rule + "-solver"]] = false; // will be dirtied on update instead
         downstream[tableToStore[pipe.table + "-sink"]].push(tableToStore[pipe.rule + "-solver"]);
       } else if (pipe.direction === "+sink") {
         var constraint = new SinkConstraint(tableToStore[pipe.rule + "-aggregate"], []);
@@ -1031,7 +1122,12 @@ System.prototype = {
       aggregate.reducerFuns.push(Function.apply(null, [reducer.inValve, "return (" + reducer.code + ");"]));
     }
 
-    return new System(stores, flows, dirtyFlows, downstream, tableToStore);
+    this.stores = stores;
+    this.flows = flows;
+    this.dirtyFlows = dirtyFlows;
+    this.downstream = downstream;
+    this.tableToStore = tableToStore;
+    this.setStore(tableToStore["flow-source"], Memory.fromFacts(flowFacts));
   }
 };
 
