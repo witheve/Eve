@@ -1131,6 +1131,149 @@ System.prototype = {
   }
 };
 
+// ADAM
+
+function program() { // rule*
+  var facts = [];
+  var context = {nextId: 0,
+                 rule: null,
+                 valves: null};
+  for (var i = 0; i < arguments.length; i++) {
+    facts = facts.concat(arguments[i](context));
+  }
+  var system = System.empty();
+  loadSystem(system, facts, []);
+  system.refresh();
+  system.recompile();
+  return system;
+}
+
+function table(table, fields) {
+  return function (context) {
+    var facts = [["table", table]];
+    for (var i = fields.length - 1; i >= 0; i--) {
+      facts.push(["field", table, fields[i], i]);
+    }
+    return facts;
+  };
+}
+
+function rule() { // name, clause*
+  return function (context) {
+    context.rule = arguments[0];
+    var facts = [];
+    for (var i = 1; i < arguments.length; i++) {
+      facts = facts.concat(arguments[i](context));
+    }
+    var valves = {};
+    for (var i = facts.length - 1; i >= 0; i--) {
+      var fact = facts[i];
+      if (fact[0] === "tableConstraint") valves[fact[1]] = true;
+      if (fact[0] === "constantConstraint") valves[fact[1]] = true;
+      if (fact[0] === "functionConstraint") valves[fact[3]] = true;
+      if (fact[0] === "reducer") valves[fact[2]] = true;
+    }
+    valves = Object.keys(valves);
+    valves.sort(); valves.reverse(); // puts reducer valves last
+    for (var i = valves.length - 1; i >= 0; i--) {
+      facts.push(["valve", valves[i], i]);
+    }
+    return facts;
+  };
+}
+
+function pipe(direction, table, bindings) {
+  return function (context) {
+    var pipe = context.rule + "|table=" + table + "|" + context.nextId++;
+    var facts = [["pipe", pipe, table, context.rule, direction]];
+    for (var field in bindings) {
+      var valve = context.rule + "-" + bindings[field];
+      facts.push(["tableConstraint", valve, pipe, field]);
+    }
+    return facts;
+  };
+}
+
+function source(table, bindings) {
+  return pipe("+source", table, bindings);
+}
+
+function notSource(table, bindings) {
+  return pipe("-source", table, bindings);
+}
+
+function sink(table, bindings) {
+  return pipe("+source", table, bindings);
+}
+
+function constant(variable, value) {
+  return function(context) {
+    var valve = context.rule + "|variable=" + variable;
+    return [["constantConstraint", valve, value]];
+  };
+}
+
+function calculate(outputVariable, inputVariables, code) {
+  return function(context) {
+    var functionConstraint = context.rule + "|function=" + outputVariable + "|" + context.nextId++;
+    var facts = [];
+    var outputValve = context.rule + "|variable=" + outputVariable;
+    for (var i = inputVariables.length - 1; i >= 0; i--) {
+      var inputVariable = inputVariables[i];
+      var inputValve = context.rule + "-" + inputVariable;
+      code = code.replace(inputVariable, inputValve);
+      facts.push(["functionConstraintInput", inputValve, functionConstraint]);
+    }
+    facts.push(["functionConstraint", functionConstraint, code, outputValve, context.rule]);
+    return facts;
+  };
+}
+
+function aggregate(groupVariables, sortVariables, limit) {
+  return function(context) {
+    var facts = [];
+    for (var i = groupVariables.length - 1; i >= 0; i--) {
+      var variable = groupVariables[i];
+      var valve = context.rule + "|variable=" + variable;
+      facts.push(["groupValve", context.rule, valve]);
+    }
+    for (var i = sortVariables.length - 1; i >= 0; i--) {
+      var variable = sortVariables[i];
+      var valve = context.rule + "|variable=" + variable;
+      facts.push(["sortValve", context.rule, valve, i]);
+    }
+    if (typeof(limit) === "number") {
+      var valve = context.rule + "|limit";
+      facts.push(["constantConstraint", valve, limit],
+                 ["limitValve", context.rule, valve]);
+    }
+    if (typeof(limit) === "string") {
+      var valve = context.rule + "|variable=" + limit;
+      facts.push(["limitValve", context.rule, valve]);
+    }
+    return facts;
+  };
+}
+
+function reduce(outputVariable, inputVariable, code) {
+  return function(context) {
+    var outputValve = context.rule + "|reduce=" + outputVariable;
+    var inputValve = context.rule + "|reduce=" + inputVariable;
+    code = code.replace(inputVariable, inputValve);
+    return [["reducer", context.rule, inputValve, outputValve, code]];
+  };
+}
+
+// program(
+//   table("user", ["id", "name"]),
+//   table("email", ["userId", "email"]),
+//   table("outbox", ["email", "msg"]),
+//   rule("my rule",
+//        source("user", {id: "id", name: "name"}),
+//        source("email", {userId: "id", email: "email"}),
+//        calculate("msg", ["name"], "'Hey ' + name"),
+//        sink("outbox", {email: "email", msg: "msg"})));
+
 // TESTS
 
 function memoryEqual(memoryA, memoryB) {
