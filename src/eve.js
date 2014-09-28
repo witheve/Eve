@@ -24,10 +24,10 @@ function makeArray(len, fill) {
 }
 
 function replaceString(source, search, replace) {
-  var foundAt = source.indexOf(search) > -1;
+  var foundAt = source.indexOf(search);
   while(foundAt > -1) {
     source = source.replace(search, replace);
-    foundAt = source.indexOf(search, foundAt+replace.length);
+    foundAt = source.indexOf(search, foundAt + replace.length);
   }
   return source;
 }

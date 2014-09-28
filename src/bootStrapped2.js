@@ -25,7 +25,7 @@ var mouseEvents = {"drop": true,
 
 var createUICallback = function(id, event, label, key) {
   return function(e) {
-//     console.log("event: ", event, e);
+    //     console.log("event: ", event, e);
     var items = [];
     var eid = eve.data.globalId++;
     if(event === "dragover") {
@@ -71,7 +71,7 @@ var uiDiffWatcher = function(storage, system) {
     }
   }
   console.timeEnd("diff");
-//   console.log(diff);
+  //   console.log(diff);
 
 
   var elem_id = 0;
@@ -95,7 +95,7 @@ var uiDiffWatcher = function(storage, system) {
   var roots = {};
   //remove root to prevent thrashing
   if(storage["builtEls"]) {
-//     document.body.removeChild(builtEls["root"]);
+    //     document.body.removeChild(builtEls["root"]);
   }
 
   //add elements
@@ -143,8 +143,8 @@ var uiDiffWatcher = function(storage, system) {
     var cur = text[i];
     var me = builtEls[cur[elem_id]];
     if(me && !addedText[cur[elem_id]]) {
-       me.nodeValue = "";
-       builtEls[cur[elem_id]] = null;
+      me.nodeValue = "";
+      builtEls[cur[elem_id]] = null;
     }
   }
 
@@ -259,13 +259,13 @@ function commonTables() {
 var Application = function(system) {
   this.system = system;
   this.storage = {"uiWatcher": {},
-                   "compilerWatcher": {}};
+                  "compilerWatcher": {}};
 }
 
 Application.prototype.callRuntime = function(facts) {
   loadSystem(this.system, facts, []);
   this.system.refresh();
-//   compilerWatcher(this.storage["compilerWatcher"], this.system);
+  //   compilerWatcher(this.storage["compilerWatcher"], this.system);
 };
 
 Application.prototype.run = function(facts) {
@@ -302,11 +302,35 @@ var curApp =
     app(
       program(
         commonTables(),
+
+        //*********************************************************************
+        // util
+        //*********************************************************************
+        table("state-temp", ["id", "key", "value"]),
+        table("state", ["key", "value"]),
+        table("latestId", ["id"]),
+
+        rule("real state",
+             source("state-temp", {id: "id", key: "key", value: "value"}),
+             calculate("sorted", ["id"], "-1 * id"),
+             aggregate(["key"], ["sorted"], 1),
+             sink("state", {key: "key", value: "value"})),
+
+        rule("latest eid",
+             source("externalEvent", {eid: "eid"}),
+             calculate("sorted", ["eid"], "-1 * eid"),
+             aggregate([], ["sorted"], 1),
+             sink("latestId", {id: "eid"})),
+
+        //*********************************************************************
+        // Editor
+        //*********************************************************************
+
         rule("my rule",
              source("time", {time: "time"}),
              calculate("foo", ["time"], "time + 1"),
-             elem("p", {id: "foo", parent: ["root"]},
-                 elem("span", {}, "wooohhoo"))
+             elem("p", {id: "foo", parent: ["root"], style: {background: "red"}, draggable: "true", click: ["time", 1]},
+                  elem("span", {}, "wooohhoo"))
             )));
 
 
