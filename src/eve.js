@@ -23,6 +23,15 @@ function makeArray(len, fill) {
   return arr;
 }
 
+function replaceString(source, search, replace) {
+  var foundAt = source.indexOf(search) > -1;
+  while(foundAt > -1) {
+    source = source.replace(search, replace);
+    foundAt = source.indexOf(search, foundAt+replace.length);
+  }
+  return source;
+}
+
 // ORDERING / COMPARISON
 
 var least = false;
@@ -1095,7 +1104,16 @@ System.prototype = {
     for (var i = functionConstraints.length - 1; i >= 0; i--) {
       var functionConstraint = functionConstraints[i];
       var constraint = constraints[functionConstraint.function];
-      constraint.fun = Function.apply(null, constraint.args.concat(["return (" + functionConstraint.code + ");"]));
+      //CHRIS: we have to clean up names to be valid JS here
+      var code = functionConstraint.code.slice();
+      var args = [];
+      for(var argIx = 0; argIx < constraint.args.length; argIx++) {
+        var curArg = constraint.args[argIx].slice();
+        curArg = curArg.replace(/[\s\W]/g, "_");
+        code = replaceString(code, constraint.args[argIx], curArg);
+        args.push(curArg)
+      }
+      constraint.fun = Function.apply(null, args.concat(["return (" + code + ");"]));
     }
 
     // fill in aggregates
@@ -1159,11 +1177,12 @@ function table(table, fields) {
 }
 
 function rule() { // name, clause*
+  var args = arguments;
   return function (context) {
-    context.rule = arguments[0];
-    var facts = [];
-    for (var i = 1; i < arguments.length; i++) {
-      facts = facts.concat(arguments[i](context));
+    context.rule = args[0];
+    var facts = [["rule", context.rule]];
+    for (var i = 1; i < args.length; i++) {
+      facts = facts.concat(args[i](context));
     }
     var valves = {};
     for (var i = facts.length - 1; i >= 0; i--) {
@@ -1176,7 +1195,7 @@ function rule() { // name, clause*
     valves = Object.keys(valves);
     valves.sort(); valves.reverse(); // puts reducer valves last
     for (var i = valves.length - 1; i >= 0; i--) {
-      facts.push(["valve", valves[i], i]);
+      facts.push(["valve", valves[i], context.rule, i]);
     }
     return facts;
   };
@@ -1187,7 +1206,7 @@ function pipe(direction, table, bindings) {
     var pipe = context.rule + "|table=" + table + "|" + context.nextId++;
     var facts = [["pipe", pipe, table, context.rule, direction]];
     for (var field in bindings) {
-      var valve = context.rule + "-" + bindings[field];
+      var valve = context.rule + "|variable=" + bindings[field];
       facts.push(["tableConstraint", valve, pipe, field]);
     }
     return facts;
@@ -1203,7 +1222,7 @@ function notSource(table, bindings) {
 }
 
 function sink(table, bindings) {
-  return pipe("+source", table, bindings);
+  return pipe("+sink", table, bindings);
 }
 
 function constant(variable, value) {
@@ -1220,8 +1239,8 @@ function calculate(outputVariable, inputVariables, code) {
     var outputValve = context.rule + "|variable=" + outputVariable;
     for (var i = inputVariables.length - 1; i >= 0; i--) {
       var inputVariable = inputVariables[i];
-      var inputValve = context.rule + "-" + inputVariable;
-      code = code.replace(inputVariable, inputValve);
+      var inputValve = context.rule + "|variable=" + inputVariable;
+      code = replaceString(code, inputVariable, inputValve);
       facts.push(["functionConstraintInput", inputValve, functionConstraint]);
     }
     facts.push(["functionConstraint", functionConstraint, code, outputValve, context.rule]);
@@ -1264,6 +1283,144 @@ function reduce(outputVariable, inputVariable, code) {
   };
 }
 
+function compose() {
+  var args = arguments;
+  return function(context) {
+    var facts = [];
+    for(var i = 0; i < args.length; i++) {
+      var cur = args[i];
+      Array.prototype.push.apply(facts, args[i](context));
+    }
+    return facts;
+  };
+}
+
+function concat(context, facts, toAdd, isChild) {
+  Array.prototype.push.apply(facts, toAdd(context, isChild));
+}
+
+function inject(field) {
+  return function(context, isChild) {
+    if(!isChild) {
+      return field;
+    } else {
+      var facts = [];
+      if(!context.uiParent) throw new Error("No parent provided: " + JSON.stringify(context));
+      //auto-generate an id
+      var id = "elemId" + context.nextId++;
+      concat(context, facts, calculate(id, [context.uiParent], context.uiParent + " + '_" + context.uiIx + "'"));
+      concat(context, facts, sink("uiText", {id: id, text: field}));
+      context.uiChildId = id;
+      return facts;
+    }
+  };
+}
+
+function constantOrField(context, facts, thing) {
+  if(typeof thing === "function") {
+    return thing(context);
+  } else {
+    var id = "const" + context.nextId++;
+    concat(context, facts, constant(id, thing));
+    return id;
+  }
+}
+
+var uiEventNames = {
+  "click": "click",
+  "doubleClick": "dblclick",
+  "contextMenu": "contextMenu",
+  "input": "input",
+  "drag": "drag",
+  "drop": "drop",
+  "dragStart": "dragstart",
+  "dragEnd": "dragend",
+  "dragOver": "dragover"
+};
+
+function elem() {
+  var args = arguments;
+  return function(context) {
+    var facts = [];
+    var id;
+    if(args[1] && args[1]["id"]) {
+      //this is our id
+      id = constantOrField(context, facts, args[1]["id"]);
+    } else {
+      if(!context.uiParent) throw new Error("No parent provided: " + JSON.stringify(context));
+      //auto-generate an id
+      var id = "elemId" + context.nextId++;
+      concat(context, facts, calculate(id, [context.uiParent], context.uiParent + " + '_" + context.uiIx + "'"));
+    }
+
+
+    //uiElem
+    var tag = constantOrField(context, facts, args[0]);
+    concat(context, facts, sink("uiElem", {"id": id, "type": tag}));
+
+    //uiAttr
+    var attrs = args[1];
+    if(attrs) {
+      for(var attrKey in attrs) {
+        var attrValue = attrs[attrKey];
+        if(attrKey === "id" || attrKey === "parent") {
+          continue;
+        } else if(attrKey === "style") {
+          for(var styleKey in attrValue) {
+            var styleValue = attrValue[styleKey];
+            var value = constantOrField(context, facts, styleValue);
+            var attr = constantOrField(context, facts, styleKey);
+            concat(context, facts, sink("uiStyle", {"id": id, "attr": attr, "value": value}));
+          }
+        } else if(uiEventNames[attrKey]) {
+          var event = constantOrField(context, facts, attrKey);
+          var label = constantOrField(context, facts, attrValue[0]);
+          var key = constantOrField(context, facts, attrValue[1]);
+          concat(context, facts, sink("uiEvent", {"id": id, "event": event, "label": label, "key": key}));
+        } else {
+          var value = constantOrField(context, facts, attrValue);
+          var attr = constantOrField(context, facts, attrKey);
+          concat(context, facts, sink("uiAttr", {"id": id, "attr": attr, "value": value}));
+        }
+      }
+    }
+
+    //uiChild
+    if(attrs && attrs["parent"]) {
+      var parent = attrs["parent"];
+      var parentId = constantOrField(context, facts, parent[0]);
+      var childPos = constantOrField(context, facts, parent[1] || 0);
+      concat(context, facts, sink("uiChild", {"parent": parentId, "child": id, "pos": childPos}));
+    }
+    for(var childIx = 2; childIx < args.length; childIx++) {
+      var curChild = args[childIx];
+      context.uiParent = id;
+      context.uiIx = childIx - 2;
+      if(typeof curChild === "function") {
+        //we have either an element or an injection
+        concat(context, facts, curChild, true);
+      } else {
+        //we have raw text
+        var textId = "elemId" + context.nextId++;
+        var text = constantOrField(context, facts, curChild);
+        concat(context, facts, calculate(textId, [context.uiParent], context.uiParent + " + '_" + context.uiIx + "'"));
+        concat(context, facts, sink("uiText", {id: textId, text: text}));
+        context.uiChildId = textId;
+      }
+
+      //add uiChild entry
+      var childPos = constantOrField(context, facts, childIx);
+      concat(context, facts, sink("uiChild", {"parent": id, "child": context.uiChildId, "pos": childPos}));
+
+    }
+    context.uiChildId = id;
+    context.uiParent = false;
+    context.uiIx = false;
+
+    return facts;
+  };
+}
+
 // program(
 //   table("user", ["id", "name"]),
 //   table("email", ["userId", "email"]),
@@ -1272,7 +1429,9 @@ function reduce(outputVariable, inputVariable, code) {
 //        source("user", {id: "id", name: "name"}),
 //        source("email", {userId: "id", email: "email"}),
 //        calculate("msg", ["name"], "'Hey ' + name"),
-//        sink("outbox", {email: "email", msg: "msg"})));
+//        sink("outbox", {email: "email", msg: "msg"}),
+//        elem("p", {}, inject("msg"))
+// ));
 
 // TESTS
 
