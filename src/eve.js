@@ -23,15 +23,6 @@ function makeArray(len, fill) {
   return arr;
 }
 
-function replaceString(source, search, replace) {
-  var foundAt = source.indexOf(search);
-  while(foundAt > -1) {
-    source = source.replace(search, replace);
-    foundAt = source.indexOf(search, foundAt + replace.length);
-  }
-  return source;
-}
-
 // ORDERING / COMPARISON
 
 var least = false;
@@ -731,8 +722,9 @@ var compilerFields =
      ["functionConstraint", "valve", 2],
      ["functionConstraint", "rule", 3],
 
-     ["functionConstraintInput", "valve", 0],
-     ["functionConstraintInput", "function", 1],
+     ["functionConstraintInput", "function", 0],
+     ["functionConstraintInput", "valve", 1],
+     ["functionConstraintInput", "variable", 2],
 
      ["limitValve", "rule", 0],
      ["limitValve", "valve", 1],
@@ -747,7 +739,8 @@ var compilerFields =
      ["reducer", "rule", 0],
      ["reducer", "inValve", 1],
      ["reducer", "outValve", 2],
-     ["reducer", "code", 3],
+     ["reducer", "inVariable", 3],
+     ["reducer", "code", 4],
 
      ["flow", "flow", 0],
      ["flow", "originType", 1], // "solver", "aggregate", "source", "sink"
@@ -777,7 +770,8 @@ var compilerFields =
      ["externalEvent", "eid", 3],
      ["externalEvent", "value", 4]];
 
-function System(stores, flows, dirtyFlows, downstream, tableToStore) {
+function System(meta, stores, flows, dirtyFlows, downstream, tableToStore) {
+  this.meta = meta;
   this.stores = stores;
   this.flows = flows;
   this.dirtyFlows = dirtyFlows;
@@ -786,7 +780,7 @@ function System(stores, flows, dirtyFlows, downstream, tableToStore) {
   this.tick = 0;
 }
 
-System.empty = function() {
+System.empty = function(meta) {
   var stores = [];
   var flows = [];
   var dirtyFlows = [];
@@ -825,7 +819,7 @@ System.empty = function() {
     flows[sinkIx] = new Sink([new SinkConstraint(sourceIx, sinkFieldIxes)], sinkIx);
   }
 
-  var system = new System(stores, flows, dirtyFlows, downstream, tableToStore);
+  var system = new System(meta, stores, flows, dirtyFlows, downstream, tableToStore);
   system.setStore(0, Memory.fromFacts(compilerTables));
   system.setStore(2, Memory.fromFacts(compilerFields));
   return system;
@@ -902,6 +896,7 @@ System.prototype = {
     }
     this.updateTable("refresh", refreshes, []);
     this.tick++;
+    return this;
   },
 
   recompile: function() {
@@ -1097,22 +1092,13 @@ System.prototype = {
     for (var i = functionConstraintInputs.length - 1; i >= 0; i--) {
       var functionConstraintInput = functionConstraintInputs[i];
       var constraint = constraints[functionConstraintInput.function];
-      constraint.args.push(functionConstraintInput.valve);
+      constraint.args.push(functionConstraintInput.variable);
       constraint.inIxes.push(valveIxes[functionConstraintInput.valve]);
       constraint.inValues.push(null);
     }
     for (var i = functionConstraints.length - 1; i >= 0; i--) {
       var functionConstraint = functionConstraints[i];
       var constraint = constraints[functionConstraint.function];
-      //CHRIS: we have to clean up names to be valid JS here
-      var code = functionConstraint.code.slice();
-      var args = [];
-      for(var argIx = 0; argIx < constraint.args.length; argIx++) {
-        var curArg = constraint.args[argIx].slice();
-        curArg = curArg.replace(/[\s\W]/g, "_");
-        code = replaceString(code, constraint.args[argIx], curArg);
-        args.push(curArg)
-      }
       constraint.fun = Function.apply(null, args.concat(["return (" + code + ");"]));
     }
 
@@ -1137,7 +1123,7 @@ System.prototype = {
       var aggregate = aggregates[reducer.rule];
       aggregate.reducerInIxes.push(valveIxes[reducer.inValve]);
       aggregate.reducerOutIxes.push(valveIxes[reducer.outValve]);
-      aggregate.reducerFuns.push(Function.apply(null, [reducer.inValve, "return (" + reducer.code + ");"]));
+      aggregate.reducerFuns.push(Function.apply(null, [reducer.inVariable, "return (" + reducer.code + ");"]));
     }
 
     this.stores = stores;
@@ -1146,24 +1132,68 @@ System.prototype = {
     this.downstream = downstream;
     this.tableToStore = tableToStore;
     this.setStore(tableToStore["flow-source"], Memory.fromFacts(flowFacts));
+
+    return this;
+  },
+
+  // for testing
+
+  update: function(adds, dels) {
+    console.info("Warning: System.update is slow. Use System.updateTable instead");
+    // console.log(system);
+    var addGroups = {};
+    var delGroups = {};
+    for (var i = adds.length - 1; i >= 0; i--) {
+      var add = adds[i];
+      var group = addGroups[add[0]] || (addGroups[add[0]] = []);
+      group.push(add.slice(1));
+    }
+    for (var i = dels.length - 1; i >= 0; i--) {
+      var del = dels[i];
+      var group = delGroups[del[0]] || (delGroups[del[0]] = []);
+      group.push(del.slice(1));
+    }
+    for (var table in addGroups) {
+      this.updateTable(table, addGroups[table], []);
+    }
+    for (var table in delGroups) {
+      this.updateTable(table, [], delGroups[table]);
+    }
+    return this;
+  },
+
+  test: function(facts) {
+    var groups = {};
+    for (var i = facts.length - 1; i >= 0; i--) {
+      var fact = facts[i];
+      var group = groups[fact[0]] || (groups[fact[0]] = []);
+      group.push(fact.slice(1));
+    }
+    console.log(this);
+    for (var table in groups) {
+      var outputAdds = [];
+      var outputDels = [];
+      diffFacts(this.getTable(table).facts, groups[table], outputAdds, outputDels);
+      if ((outputAdds.length > 0) || (outputDels.length > 0)) {
+        console.log(this);
+        throw new Error("In '" + this.meta.name + "' table '" + table + "' has " + JSON.stringify(outputDels) + " and the test expects " + JSON.stringify(outputAdds));
+      }
+    }
+    return this;
   }
 };
 
 // ADAM
 
-function program() { // rule*
+function program() { // name, rule*
   var facts = [];
   var context = {nextId: 0,
                  rule: null,
                  valves: null};
-  for (var i = 0; i < arguments.length; i++) {
+  for (var i = 1; i < arguments.length; i++) {
     facts = facts.concat(arguments[i](context));
   }
-  var system = System.empty();
-  loadSystem(system, facts, []);
-  system.refresh();
-  system.recompile();
-  return system;
+  return System.empty({name: arguments[0]}).update(facts, []).refresh().recompile();
 }
 
 function table(table, fields) {
@@ -1190,7 +1220,7 @@ function rule() { // name, clause*
       if (fact[0] === "tableConstraint") valves[fact[1]] = true;
       if (fact[0] === "constantConstraint") valves[fact[1]] = true;
       if (fact[0] === "functionConstraint") valves[fact[3]] = true;
-      if (fact[0] === "reducer") valves[fact[2]] = true;
+      if (fact[0] === "reducer") valves[fact[3]] = true;
     }
     valves = Object.keys(valves);
     valves.sort(); valves.reverse(); // puts reducer valves last
@@ -1240,8 +1270,7 @@ function calculate(outputVariable, inputVariables, code) {
     for (var i = inputVariables.length - 1; i >= 0; i--) {
       var inputVariable = inputVariables[i];
       var inputValve = context.rule + "|variable=" + inputVariable;
-      code = replaceString(code, inputVariable, inputValve);
-      facts.push(["functionConstraintInput", inputValve, functionConstraint]);
+      facts.push(["functionConstraintInput", functionConstraint, inputValve, inputVariable]);
     }
     facts.push(["functionConstraint", functionConstraint, code, outputValve, context.rule]);
     return facts;
@@ -1276,10 +1305,9 @@ function aggregate(groupVariables, sortVariables, limit) {
 
 function reduce(outputVariable, inputVariable, code) {
   return function(context) {
-    var outputValve = context.rule + "|reduce=" + outputVariable;
-    var inputValve = context.rule + "|reduce=" + inputVariable;
-    code = code.replace(inputVariable, inputValve);
-    return [["reducer", context.rule, inputValve, outputValve, code]];
+    var outputValve = context.rule + "|variable=" + outputVariable;
+    var inputValve = context.rule + "|variable=" + inputVariable;
+    return [["reducer", context.rule, inputValve, outputValve, inputVariable, code]];
   };
 }
 
@@ -1434,52 +1462,6 @@ function elem() {
 // ));
 
 // TESTS
-
-function memoryEqual(memoryA, memoryB) {
-  var outputAdds = [];
-  var outputDels = [];
-  memoryB.diff(memoryA, outputAdds, outputDels);
-  if ((outputAdds.length > 0) || (outputDels.length > 0)) {
-    throw new Error("Only A has " + JSON.stringify(outputDels) + " and only B has " + JSON.stringify(outputAdds));
-  } else {
-    return true;
-  }
-}
-
-function loadSystem(system, adds, dels) {
-  console.info("Warning: loadSystem is slow. Use System.updateTable instead");
-  // console.log(system);
-  var addGroups = {};
-  var delGroups = {};
-  for (var i = adds.length - 1; i >= 0; i--) {
-    var add = adds[i];
-    var group = addGroups[add[0]] || (addGroups[add[0]] = []);
-    group.push(add.slice(1));
-  }
-  for (var i = dels.length - 1; i >= 0; i--) {
-    var del = dels[i];
-    var group = delGroups[del[0]] || (delGroups[del[0]] = []);
-    group.push(del.slice(1));
-  }
-  for (var table in addGroups) {
-    system.updateTable(table, addGroups[table], []);
-  }
-  for (var table in delGroups) {
-    system.updateTable(table, [], delGroups[table]);
-  }
-}
-
-function testSystem(system, facts) {
-  var groups = {};
-  for (var i = facts.length - 1; i >= 0; i--) {
-    var fact = facts[i];
-    var group = groups[fact[0]] || (groups[fact[0]] = []);
-    group.push(fact.slice(1));
-  }
-  for (var table in groups) {
-    memoryEqual(system.getTable(table), Memory.fromFacts(groups[table]));
-  }
-}
 
 var bigcheck = bigcheck; // keep jshint happy
 
