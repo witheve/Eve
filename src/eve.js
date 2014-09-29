@@ -1169,7 +1169,6 @@ System.prototype = {
       var group = groups[fact[0]] || (groups[fact[0]] = []);
       group.push(fact.slice(1));
     }
-    console.log(this);
     for (var table in groups) {
       var outputAdds = [];
       var outputDels = [];
