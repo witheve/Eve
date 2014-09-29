@@ -1099,7 +1099,7 @@ System.prototype = {
     for (var i = functionConstraints.length - 1; i >= 0; i--) {
       var functionConstraint = functionConstraints[i];
       var constraint = constraints[functionConstraint.function];
-      constraint.fun = Function.apply(null, args.concat(["return (" + code + ");"]));
+      constraint.fun = Function.apply(null, constraint.args.concat(["return (" + functionConstraint.code + ");"]));
     }
 
     // fill in aggregates
