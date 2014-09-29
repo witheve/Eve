@@ -1220,12 +1220,14 @@ function rule() { // name, clause*
       if (fact[0] === "tableConstraint") valves[fact[1]] = true;
       if (fact[0] === "constantConstraint") valves[fact[1]] = true;
       if (fact[0] === "functionConstraint") valves[fact[3]] = true;
-      if (fact[0] === "reducer") valves[fact[3]] = true;
+      if (fact[0] === "reducer") valves[fact[3]] = false;
     }
-    valves = Object.keys(valves);
-    valves.sort(); valves.reverse(); // puts reducer valves last
-    for (var i = valves.length - 1; i >= 0; i--) {
-      facts.push(["valve", valves[i], context.rule, i]);
+    var ix = 0;
+    for (var valve in valves) {
+      if (valves[valve] === true) facts.push(["valve", valve, context.rule, ix++]);
+    }
+    for (var valve in valves) {
+      if (valves[valve] === false) facts.push(["valve", valve, context.rule, ix++]);
     }
     return facts;
   };
