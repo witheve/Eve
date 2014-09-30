@@ -12,7 +12,7 @@ var now = function() {
 //*********************************************************
 // watchers
 //*********************************************************
-
+var eventId = 1;
 var mouseEvents = {"drop": true,
                    "drag": true,
                    "mouseover": true,
@@ -27,7 +27,7 @@ var createUICallback = function(id, event, label, key) {
   return function(e) {
     //     console.log("event: ", event, e);
     var items = [];
-    var eid = eve.data.globalId++;
+    var eid = eventId++;
     if(event === "dragover") {
       e.preventDefault();
     } else {
@@ -92,6 +92,7 @@ var uiDiffWatcher = function(storage, system) {
   var child_childid = 2;
 
   var builtEls = storage["builtEls"] || {"root": document.createElement("div")};
+  var handlers = storage["handlers"] || {};
   var roots = {};
   //remove root to prevent thrashing
   if(storage["builtEls"]) {
@@ -118,6 +119,7 @@ var uiDiffWatcher = function(storage, system) {
     if(me && me.parentNode && me.parentNode.parentNode) {
       me.parentNode.removeChild(me);
     }
+    handlers[cur[elem_id]] = null;
     builtEls[cur[elem_id]] = null;
   }
 
@@ -162,11 +164,27 @@ var uiDiffWatcher = function(storage, system) {
     builtEls[cur[elem_id]].style[cur[styles_attr]] = cur[styles_value];
   }
 
+  //Remove events
+  var events = diff["uiEvent"].removes;
+  var eventsLen = events.length;
+  for(var i = 0; i < eventsLen; i++) {
+    var cur = events[i];
+    if(builtEls[cur[elem_id]] && handlers[cur[elem_id]] && handlers[cur[elem_id]][cur[events_event]]) {
+      var handler = handlers[cur[elem_id]][cur[events_event]];
+      builtEls[cur[elem_id]].removeEventListener(cur[events_event], handler);
+      handlers[cur[elem_id]][cur[events_event]] = null;
+    }
+  }
+
   var events = diff["uiEvent"].adds;
   var eventsLen = events.length;
   for(var i = 0; i < eventsLen; i++) {
     var cur = events[i];
-    builtEls[cur[elem_id]].addEventListener(cur[events_event], createUICallback(cur[elem_id], cur[events_event], cur[events_label], cur[events_key]));
+    if(!handlers[cur[elem_id]]) {
+      handlers[cur[elem_id]] = {};
+    }
+    var handler = handlers[cur[elem_id]][cur[events_event]] = createUICallback(cur[elem_id], cur[events_event], cur[events_label], cur[events_key]);
+    builtEls[cur[elem_id]].addEventListener(cur[events_event], handler);
   }
 
   var children = diff["uiChild"].adds;
@@ -180,6 +198,7 @@ var uiDiffWatcher = function(storage, system) {
 
   if(!storage["builtEls"]) {
     storage["builtEls"] = builtEls;
+    storage["handlers"] = handlers;
     document.body.appendChild(builtEls["root"]);
   }
 
@@ -263,7 +282,7 @@ var Application = function(system) {
 }
 
 Application.prototype.callRuntime = function(facts) {
-  loadSystem(this.system, facts, []);
+  this.system.update(facts, [])
   this.system.refresh();
   //   compilerWatcher(this.storage["compilerWatcher"], this.system);
 };
@@ -298,14 +317,120 @@ function app(system) {
   return new Application(system);
 }
 
+
+//*********************************************************************
+// helpers
+//*********************************************************************
+
+function mergeObjects(o1, o2) {
+  var final = {};
+  for(var i in o1) {
+    final[i] = o1[i];
+  }
+  if(o2) {
+    for(var i in o2) {
+      o1[i] = o2[i];
+    }
+  }
+  return final;
+}
+
+function page(p) {
+  return compose(
+    source("state", {key: "key", value: "value"}),
+    constant("key", "page"),
+    constant("value", p)
+  );
+}
+
+function on(label, map) {
+  return function(context) {
+    var labelId = "__label" + context.nextId++;
+    var bindings = mergeObjects({label: labelId}, map);
+    return compose(
+      constant(labelId, label),
+      source("externalEvent", bindings)
+    )(context);
+  }
+};
+
+function setConstant(k, v, map) {
+  return function(context) {
+    var bindings = mergeObjects({eid: "__eid" + context.nextId++}, map);
+    var key = "__key" + context.nextId++;
+    var value = "__value" + context.nextId++;
+    return compose(
+      source("externalEvent", bindings),
+      constant(key, k),
+      constant(value, v),
+      sink("state-temp", {id: bindings.eid, key: key, value: value})
+    )(context);
+  }
+};
+
+function set(k, v, map) {
+  return function(context) {
+    var bindings = mergeObjects({eid: "__eid" + context.nextId++}, map);
+    var key = "__key" + context.nextId++;
+    return compose(
+      source("externalEvent", bindings),
+      constant(key, k),
+      sink("state-temp", {id: bindings.eid, key: key, value: v})
+    )(context);
+  }
+};
+
+function outputState(rule, k, to) {
+  var id = dsl.nextId();
+  rule.source("state", id);
+  rule.eq(id + ".key", k);
+  rule.output(id + ".value", to);
+};
+
+function joinState(rule, k, to) {
+  var id = dsl.nextId();
+  rule.source("state", id);
+  rule.eq(id + ".key", k);
+  rule.join(to, id + ".value");
+};
+
+function stateEq(k, v) {
+  return function(context) {
+    var key = "__key" + context.nextId++;
+    var value = "__value" + context.nextId++;
+    return compose(
+      constant(key, k),
+      constant(value, v),
+      source("state", {key: key, value: v})
+    )(context);
+  }
+};
+
+function pretendConstant(k, v) {
+  return function(context) {
+    var key = "__key" + context.nextId++;
+    var value = "__value" + context.nextId++;
+    return compose(
+      constant(key, k),
+      constant(value, v),
+      sink("state", {key: key, value: value})
+    )(context);
+  }
+};
+
+//*********************************************************************
+// Editor app
+//*********************************************************************
+
 var curApp =
     app(
-      program(
+      program("editor",
         commonTables(),
 
         //*********************************************************************
         // util
         //*********************************************************************
+
         table("state-temp", ["id", "key", "value"]),
         table("state", ["key", "value"]),
         table("latestId", ["id"]),
@@ -323,15 +448,132 @@ var curApp =
              sink("latestId", {id: "eid"})),
 
         //*********************************************************************
+        // Compiler
+        //*********************************************************************
+
+
+        table("getTable", ["id", "table", "gridId"]),
+        table("getIntermediate", ["id", "rule", "gridId"]),
+        table("getResult", ["id", "rule", "sink", "gridId"]),
+
+        rule("editor rules by name",
+             constant("label", "set rule name"),
+             source("externalEvent", {eid: "eid", label: "label", key: "key", value: "rawName"}),
+             calculate("sorted", ["eid"], "-1 * eid"),
+             calculate("name", ["rawName"], "rawName === '' ? 'unnamed' : rawName"),
+             aggregate(["key"], ["sorted"], 1),
+             sink("editorRule", {id: "key", description: "name"})
+             ),
+
+        //*********************************************************************
         // Editor
         //*********************************************************************
 
-        rule("my rule",
-             source("time", {time: "time"}),
-             calculate("foo", ["time"], "time + 1"),
-             elem("p", {id: "foo", parent: ["root"], style: {background: "red"}, draggable: "true", click: ["time", 1]},
-                  elem("span", {}, "wooohhoo"))
-            )));
+        rule("on goto page",
+             source("externalEvent", {label: "label", eid: "eid", key: "pageName"}),
+             constant("label", "goto page"),
+             constant("page", "page"),
+             sink("state-temp", {id: "eid", key: "page", value: "pageName"})),
+
+        rule("draw rules list ui",
+             page("rules list"),
+             source("latestId", {id: "id"}),
+             pretendConstant("drawTablesList", "true"),
+             elem("div", {id: "rules-list-root", parent: ["root"], class: "root"},
+                  elem("ul", {id: "table-list", class: "table-list"}),
+                  elem("button", {click: ["set rule name", inject("id")]}, "add rule"),
+                  elem("ul", {id: "rules-list", class: "rules-list"})
+             )),
+
+        rule("draw rule",
+             source("editorRule", {id: "rid", description: "description"}),
+             page("rules list"),
+             calculate("ruleId", ["rid"], "'rule' + rid"),
+             calculate("sourcesId", ["rid"], "'sources' + rid"),
+             calculate("sinksId", ["rid"], "'sinks' + rid"),
+             elem("li", {id: inject("ruleId"), parent: ["rules-list", inject("rid")], click: ["open rule", inject("rid")]},
+                  elem("h2", {}, inject("description")),
+                  elem("div", {class: "io"},
+                       elem("ul", {id: inject("sourcesId"), class: "sources"}),
+                       elem("div", {class: "separator"},
+                            elem("svg", {width:"100%", height:"100%", viewBox: "0 0 10 20", preserveAspectRatio: "none"},
+                                 elem("path",{class: "arrow", d:"m0,0 l10,10 l-10,10", strokeWidth:"0.5"})
+                                )
+                           ),
+                       elem("ul", {id: inject("sinksId"), class: "sinks"}, [])
+                      )
+                 )),
+
+        rule("rules list sources",
+             page("rules list"),
+             constant("dir", "+source"),
+             source("editorRule", {id: "rid"}),
+             source("pipe", {rule: "rid", direction: "dir", table: "table"}),
+             calculate("id", ["table", "rid"], "'source' + table + rid"),
+             calculate("parent", ["rid"], "'sources' + rid"),
+             elem("li", {id: inject("id"), parent: [inject("parent"), inject("table")]}, inject("table"))
+            ),
+
+        rule("rules list sinks",
+             page("rules list"),
+             constant("dir", "+sink"),
+             source("editorRule", {id: "rid"}),
+             source("pipe", {rule: "rid", direction: "dir", table: "table"}),
+             calculate("id", ["table", "rid"], "'source' + table + rid"),
+             calculate("parent", ["rid"], "'sinks' + rid"),
+             elem("li", {id: inject("id"), parent: [inject("parent"), inject("table")]}, inject("table"))),
+
+        rule("open rule",
+             on("open rule", {key: "key"}),
+             set("activeRule", "key"),
+             setConstant("page", "rule")),
 
 
-curApp.run([["time", 0], ["externalEvent", "asdf", "goto page", "ui editor", 0]]);
+        //*********************************************************************
+        // Tables list
+        //*********************************************************************
+
+        table("openTable-temp", ["table", "state"]),
+        table("openTable", ["table"]),
+
+        rule("table is open? -temp",
+             on("toggle table", {eid: "eid", key: "key"}),
+             aggregate(["key"], []),
+             reduce("key", "open_closed", "(key).length % 2 === 0 ? 'closed' : 'open'"),
+             sink("openTable-temp", {state: "open_closed", table: "key"})),
+
+        rule("table is open?",
+             constant("open", "open"),
+             source("openTable-temp", {state: "open", table: "table"}),
+             sink("openTable", {table: "table"})),
+
+        rule("draw table",
+             source("field", {table: "tableId"}),
+             stateEq("drawTablesList", "true"),
+             aggregate(["table"], []),
+             calculate("id", ["tableId"], "'table' + tableId"),
+             calculate("fieldsId", ["tableId"], "'table-fields' + tableId"),
+             elem("li", {id: inject("id"), parent: ["table-list", inject("tableId")], click: ["open table", inject("tableId")], doubleClick: ["toggle table", inject("tableId")]},
+                  elem("h2", {}, inject("tableId")),
+                  elem("ul", {id: inject("fieldsId")})
+                 )),
+
+        rule("draw fields for openTable",
+             source("openTable", {table: "tableId"}),
+             source("field", {table: "tableId", field: "fieldId", ix: "ix"}),
+             stateEq("drawTablesList", "true"),
+             calculate("id", ["tableId", "fieldId"], "'table-field' + tableId + '.' + fieldId"),
+             calculate("parent", ["tableId"], "'table' + tableId"),
+             elem("li", {id: inject("id"), parent: [inject("parent"), inject("ix")]},
+                  inject("field")
+                 )),
+
+      rule("open table",
+           on("open table", {key: "key"}),
+           set("activeTable", "key"),
+           setConstant("page", "table"))
+
+      ));
+
+
+curApp.run([["time", 0], ["externalEvent", "asdf", "goto page", "rules list", 0]]);
