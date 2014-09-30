@@ -893,7 +893,7 @@ System.prototype = {
     var refreshes = [];
     for (var flowIx = 0; flowIx < numFlows; flowIx++) {
       if (dirtyFlows[flowIx] === true) {
-        // console.log(flowIx);
+//         console.log(flowIx);
         dirtyFlows[flowIx] = false;
         var startTime = now();
         flows[flowIx].refresh(this);
@@ -1414,7 +1414,7 @@ function elem() {
             concat(context, facts, sink("uiStyle", {"id": id, "attr": attr, "value": value}));
           }
         } else if(uiEventNames[attrKey]) {
-          var event = constantOrField(context, facts, attrKey);
+          var event = constantOrField(context, facts, uiEventNames[attrKey]);
           var label = constantOrField(context, facts, attrValue[0]);
           var key = constantOrField(context, facts, attrValue[1]);
           concat(context, facts, sink("uiEvent", {"id": id, "event": event, "label": label, "key": key}));
