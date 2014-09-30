@@ -1209,7 +1209,7 @@ function rule() { // name, clause*
   var args = arguments;
   return function (context) {
     context.rule = args[0];
-    var facts = [["rule", context.rule]];
+    var facts = [["rule", context.rule], ["editorRule", context.rule, context.rule]];
     for (var i = 1; i < args.length; i++) {
       facts = facts.concat(args[i](context));
     }
