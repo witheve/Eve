@@ -35,6 +35,18 @@ $sinks = #d0d0d0;
 
 .root {display:flex; padding:20px 50px;}
 
+.program-list {
+  display:flex;
+  flex:1;
+  height:100%;
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
+  li {
+    padding:10px 20px;
+  }
+}
+
 .table-list {
   flex: 1;
   > li {
@@ -107,6 +119,10 @@ $sinks = #d0d0d0;
 }
 
 .rule-page {
+  height:100%;
+  display:flex;
+  flex-direction:column;
+
   header {
     margin:20px;
     position:relative;
@@ -124,6 +140,7 @@ $sinks = #d0d0d0;
   }
 
   .io {
+    flex:1;
     margin-top:10px;
     min-height:100px;
     display:flex;
@@ -152,6 +169,7 @@ $sinks = #d0d0d0;
     justify-content: center;
     flex:1;
     padding:10px 20px;
+    overflow: auto;
   }
 
   .sources {
@@ -162,6 +180,7 @@ $sinks = #d0d0d0;
   }
 
   .io-item {
+    flex: none;
     display:flex;
     flex-direction:row;
     align-items:center;
@@ -183,6 +202,13 @@ $sinks = #d0d0d0;
       }
     }
   }
+
+  .workspace {
+    flex:1;
+    max-width:100%;
+    overflow:auto;
+  }
+
 }
 
 .grid {
@@ -195,6 +221,7 @@ $sinks = #d0d0d0;
     border-bottom:1px solid #ccc;
     background:#eee;
     div {
+      overflow:hidden;
       padding:5px;
       width:130px;
     }

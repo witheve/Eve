@@ -693,6 +693,8 @@ var compilerTables =
      ["flow"],
      ["refresh"],
      // TODO adding these here is hacky
+     ["program"],
+     ["programRule"],
      ["displayName"],
      ["editorRule"],
      ["join"],
@@ -758,7 +760,14 @@ var compilerFields =
      ["refresh", "endTime", 2],
      ["refresh", "flow", 3],
 
+
      // TODO adding these here is hacky
+
+     ["program", "id", 0],
+     ["program", "name", 1],
+
+     ["programRule", "program", 0],
+     ["programRule", "rule", 1],
 
      ["displayName", "id", 0],
      ["displayName", "name", 1],
@@ -1223,6 +1232,10 @@ function rule() { // name, clause*
   return function (context) {
     context.rule = args[0];
     var facts = [["rule", context.rule], ["editorRule", context.rule, context.rule]];
+    if(context.program) {
+      facts.push(["programRule", context.program, context.rule]);
+    }
+
     for (var i = 1; i < args.length; i++) {
       facts = facts.concat(args[i](context));
     }
@@ -1331,7 +1344,7 @@ function compose() {
     var facts = [];
     for(var i = 0; i < args.length; i++) {
       var cur = args[i];
-      Array.prototype.push.apply(facts, args[i](context));
+      Array.prototype.push.apply(facts, cur(context));
     }
     return facts;
   };

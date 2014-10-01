@@ -247,6 +247,28 @@ var compilerWatcher = function(storage, system) {
     }
   }
 
+  if(getIntermediate.length) {
+
+    var len = getIntermediate.length;
+    for(var i = 0; i < len; i++) {
+      var cur = getIntermediate[i];
+      var id = cur[0];
+      if(!compilerSeen[id]) {
+        var table = system.getSolver(cur[1]).getFacts();
+        var tableLen = table.length;
+        if(tableLen) {
+          var rowLen = table[0].length;
+          for(var row = 0; row < tableLen && row < compilerRowLimit; row++) {
+            for(var col = 0; col < rowLen; col++) {
+              items.push(["gridItem", cur[2], row, col, table[row][col]]);
+            }
+          }
+        }
+        compilerSeen[id] = true;
+      }
+    }
+  }
+
   if(items.length) {
     curApp.callRuntime(items);
   }
@@ -444,6 +466,20 @@ function pretendConstant(k, v) {
   }
 };
 
+function subProgram() {
+  console.log("facts");
+  var args = arguments;
+  return function(context) {
+    context.program = 'p' + context.nextId++;
+    var facts = [["program", context.program, args[0]]];
+    for(var i = 1; i < args.length; i++) {
+      Array.prototype.push.apply(facts, args[i](context));
+    }
+    console.log("facts", facts);
+    return facts;
+  }
+}
+
 //*********************************************************************
 // Editor app
 //*********************************************************************
@@ -451,362 +487,426 @@ function pretendConstant(k, v) {
 var curApp =
     app(
       program("editor",
-              commonTables(),
+              subProgram("editor",
+                         commonTables(),
 
-              //*********************************************************************
-              // util
-              //*********************************************************************
+                         //*********************************************************************
+                         // util
+                         //*********************************************************************
 
-              table("state-temp", ["id", "key", "value"]),
-              table("state", ["key", "value"]),
-              table("latestId", ["id"]),
+                         table("state-temp", ["id", "key", "value"]),
+                         table("state", ["key", "value"]),
+                         table("latestId", ["id"]),
 
-              rule("real state",
-                   source("state-temp", {id: "id", key: "key", value: "value"}),
-                   calculate("sorted", ["id"], "-1 * id"),
-                   aggregate(["key"], ["sorted"], 1),
-                   sink("state", {key: "key", value: "value"})),
+                         rule("real state",
+                              source("state-temp", {id: "id", key: "key", value: "value"}),
+                              calculate("sorted", ["id"], "-1 * id"),
+                              aggregate(["key"], ["sorted"], 1),
+                              sink("state", {key: "key", value: "value"})),
 
-              rule("latest eid",
-                   source("externalEvent", {eid: "eid"}),
-                   calculate("sorted", ["eid"], "-1 * eid"),
-                   aggregate([], ["sorted"], 1),
-                   sink("latestId", {id: "eid"})),
+                         rule("latest eid",
+                              source("externalEvent", {eid: "eid"}),
+                              calculate("sorted", ["eid"], "-1 * eid"),
+                              aggregate([], ["sorted"], 1),
+                              sink("latestId", {id: "eid"})),
 
-              //*********************************************************************
-              // Compiler
-              //*********************************************************************
-
-
-              table("getTable", ["id", "table", "gridId"]),
-              table("getIntermediate", ["id", "rule", "gridId"]),
-              table("getResult", ["id", "rule", "sink", "gridId"]),
-
-              rule("editor rules by name",
-                   constant("label", "set rule name"),
-                   source("externalEvent", {eid: "eid", label: "label", key: "key", value: "rawName"}),
-                   calculate("sorted", ["eid"], "-1 * eid"),
-                   calculate("name", ["rawName"], "rawName === '' ? 'unnamed' : rawName"),
-                   aggregate(["key"], ["sorted"], 1),
-                   sink("editorRule", {id: "key", description: "name"})
-                  ),
-
-              //*********************************************************************
-              // Editor
-              //*********************************************************************
-
-              rule("on goto page",
-                   source("externalEvent", {label: "label", eid: "eid", key: "pageName"}),
-                   constant("label", "goto page"),
-                   constant("page", "page"),
-                   sink("state-temp", {id: "eid", key: "page", value: "pageName"})),
-
-              rule("draw rules list ui",
-                   page("rules list"),
-                   source("latestId", {id: "id"}),
-                   pretendConstant("drawTablesList", "true"),
-                   elem("div", {id: "rules-list-root", parent: ["root"], class: "root"},
-                        elem("ul", {id: "table-list", class: "table-list"}),
-                        elem("button", {click: ["set rule name", inject("id")]}, "add rule"),
-                        elem("ul", {id: "rules-list", class: "rules-list"})
-                       )),
-
-              rule("draw rule",
-                   source("editorRule", {id: "rid", description: "description"}),
-                   page("rules list"),
-                   calculate("ruleId", ["rid"], "'rule' + rid"),
-                   calculate("sourcesId", ["rid"], "'sources' + rid"),
-                   calculate("sinksId", ["rid"], "'sinks' + rid"),
-                   elem("li", {id: inject("ruleId"), parent: ["rules-list", inject("rid")], click: ["open rule", inject("rid")]},
-                        elem("h2", {}, inject("description")),
-                        elem("div", {class: "io"},
-                             elem("ul", {id: inject("sourcesId"), class: "sources"}),
-                             elem("div", {class: "separator"},
-                                  elem("svg", {width:"100%", height:"100%", viewBox: "0 0 10 20", preserveAspectRatio: "none"},
-                                       elem("path",{class: "arrow", d:"m0,0 l10,10 l-10,10", strokeWidth:"0.5"})
-                                      )
-                                 ),
-                             elem("ul", {id: inject("sinksId"), class: "sinks"}, [])
-                            )
-                       )),
-
-              rule("rules list sources",
-                   page("rules list"),
-                   constant("dir", "+source"),
-                   source("editorRule", {id: "rid"}),
-                   source("pipe", {rule: "rid", direction: "dir", table: "table"}),
-                   calculate("id", ["table", "rid"], "'source' + table + rid"),
-                   calculate("parent", ["rid"], "'sources' + rid"),
-                   elem("li", {id: inject("id"), parent: [inject("parent"), inject("table")]}, inject("table"))
-                  ),
-
-              rule("rules list sinks",
-                   page("rules list"),
-                   constant("dir", "+sink"),
-                   source("editorRule", {id: "rid"}),
-                   source("pipe", {rule: "rid", direction: "dir", table: "table"}),
-                   calculate("id", ["table", "rid"], "'source' + table + rid"),
-                   calculate("parent", ["rid"], "'sinks' + rid"),
-                   elem("li", {id: inject("id"), parent: [inject("parent"), inject("table")]}, inject("table"))),
-
-              rule("open rule",
-                   on("open rule", {eid: "eid", key: "cur"}),
-                   set("activeRule", "cur", {eid: "eid"}),
-                   setConstant("page", "rule", {eid: "eid"})
-                  ),
+                         //*********************************************************************
+                         // Compiler
+                         //*********************************************************************
 
 
-              //*********************************************************************
-              // Tables list
-              //*********************************************************************
+                         table("getTable", ["id", "table", "gridId"]),
+                         table("getIntermediate", ["id", "rule", "gridId"]),
+                         table("getResult", ["id", "rule", "sink", "gridId"]),
 
-              table("openTable-temp", ["table", "state"]),
-              table("openTable", ["table"]),
+                         rule("editor rules by name",
+                              constant("label", "set rule name"),
+                              source("externalEvent", {eid: "eid", label: "label", key: "key", value: "rawName"}),
+                              calculate("sorted", ["eid"], "-1 * eid"),
+                              calculate("name", ["rawName"], "rawName === '' ? 'unnamed' : rawName"),
+                              aggregate(["key"], ["sorted"], 1),
+                              sink("editorRule", {id: "key", description: "name"})
+                             ),
 
-              rule("table is open? -temp",
-                   on("toggle table", {eid: "eid", key: "key"}),
-                   aggregate(["key"], []),
-                   reduce("key", "open_closed", "(key).length % 2 === 0 ? 'closed' : 'open'"),
-                   sink("openTable-temp", {state: "open_closed", table: "key"})),
+                         //*********************************************************************
+                         // Program list
+                         //*********************************************************************
 
-              rule("table is open?",
-                   constant("open", "open"),
-                   source("openTable-temp", {state: "open", table: "table"}),
-                   sink("openTable", {table: "table"})),
+                         rule("draw program list",
+                              page("program list"),
+                              elem("ul", {id: "program-list", parent: ["root"], class: "program-list"})),
 
-              rule("draw table",
-                   source("field", {table: "tableId"}),
-                   stateEq("drawTablesList", "true"),
-                   aggregate(["table"], []),
-                   calculate("id", ["tableId"], "'table' + tableId"),
-                   calculate("fieldsId", ["tableId"], "'table-fields' + tableId"),
-                   elem("li", {id: inject("id"), parent: ["table-list", inject("tableId")], click: ["open table", inject("tableId")], doubleClick: ["toggle table", inject("tableId")]},
-                        elem("h2", {}, inject("tableId")),
-                        elem("ul", {id: inject("fieldsId")})
-                       )),
+                         rule("draw program items",
+                              page("program list"),
+                              source("program", {id: "id", name: "name"}),
+                              elem("li", {id: inject("id"), parent: ["program-list", inject("name")], click: ["open program", inject("id")]},
+                                   inject("name"))
+                             ),
 
-              rule("draw fields for openTable",
-                   source("openTable", {table: "tableId"}),
-                   source("field", {table: "tableId", field: "fieldId", ix: "ix"}),
-                   stateEq("drawTablesList", "true"),
-                   calculate("id", ["tableId", "fieldId"], "'table-field' + tableId + '.' + fieldId"),
-                   calculate("parent", ["tableId"], "'table' + tableId"),
-                   elem("li", {id: inject("id"), parent: [inject("parent"), inject("ix")]},
-                        inject("field")
-                       )),
+                         rule("open program",
+                              on("open program", {eid: "eid", key: "program"}),
+                              set("activeProgram", "program", {eid: "eid"}),
+                              setConstant("page", "rules list", {eid: "eid"})
+                             ),
 
-              rule("open table",
-                   on("open table", {eid: "eid", key: "key"}),
-                   set("activeTable", "key", {eid: "eid"}),
-                   set("activeTableGridId", "key", {eid: "eid"}),
-                   setConstant("page", "table", {eid: "eid"})),
+                         //*********************************************************************
+                         // Rules list
+                         //*********************************************************************
 
+                         table("activeRule", ["rule"]),
 
-              //*********************************************************
-              // rule page
-              //*********************************************************
+                         rule("on goto page",
+                              constant("label", "goto page"),
+                              source("externalEvent", {label: "label", eid: "eid", key: "pageName"}),
+                              constant("page", "page"),
+                              sink("state-temp", {id: "eid", key: "page", value: "pageName"})),
 
-              rule("rule page",
-                   page("rule"),
-                   source("editorRule", {id: "rid", description: "description"}),
-                   joinState("activeRule", "rid"),
-                   calculate("sourcesId", ["rid"], "'sources' + rid"),
-                   calculate("sinksId", ["rid"], "'sinks' + rid"),
-                   elem("div", {id: "rule-page", parent: ["root"], class: "rule-page"},
-                        elem("header", {},
-                             elem("button", {click: ["goto page", "rules list"]}, "back"),
-                             elem("input", {type: "text", input: ["set rule name", inject("rid")], value: inject("description")})),
-                        elem("div", {class: "io"},
-                             elem("ul", {id: inject("sourcesId"), class: "sources"}),
-                             elem("div", {class: "separator"},
-                                  elem("svg", {width:"100%", height:"100%", viewBox: "0 0 10 20", preserveAspectRatio: "none"},
-                                       elem("path",{class: "arrow", d:"m0,0 l10,10 l-10,10", strokeWidth:"0.5"}))),
-                             elem("ul", {id: inject("sinksId"), class: "sinks"}, [])))),
+                         rule("active rules",
+                              source("editorRule", {id: "rid", description: "description"}),
+                              joinState("activeProgram", "program"),
+                              source("programRule", {program: "program", rule: "rid"}),
+                              sink("activeRule", {rule: "rid"})),
 
-              rule("rule page sources",
-                   page("rule"),
-                   source("editorRule", {id: "rid"}),
-                   constant("dir", "+source"),
-                   source("pipe", {rule: "rid", direction: "dir", table: "table", pipe: "pipe"}),
-                   joinState("activeRule", "rid"),
-                   calculate("id", ["pipe"], "'source' + pipe"),
-                   calculate("parent", ["pipe", "rid"], "'sources' + rid"),
-                   calculate("sourceFieldsId", ["pipe"], "'rule-source-fields' + pipe"),
-                   elem("li", {id: inject("id"), parent: [inject("parent"), inject("table")], class: "io-item"},
-                        elem("span", {}, inject("table")),
-                        elem("ul", {id: inject("sourceFieldsId")})
-                       )),
+                         rule("draw rules list ui",
+                              page("rules list"),
+                              source("latestId", {id: "id"}),
+                              pretendConstant("drawTablesList", "true"),
+                              elem("div", {id: "rules-list-root", parent: ["root"], class: "root"},
+                                   elem("button", {click: ["goto page", "program list"]}, "back"),
+                                   elem("ul", {id: "table-list", class: "table-list"}),
+                                   elem("button", {click: ["set rule name", inject("id")]}, "add rule"),
+                                   elem("ul", {id: "rules-list", class: "rules-list"})
+                                  )),
 
-              rule("rule page source fields",
-                   page("rule"),
-                   source("editorRule", {id: "rid"}),
-                   constant("dir", "+source"),
-                   source("pipe", {rule: "rid", table: "tableId", direction: "dir", pipe: "pipeId"}),
-                   source("field", {table: "tableId", field: "fieldId", ix: "ix"}),
-                   joinState("activeRule", "rid"),
+                         rule("draw rule",
+                              page("rules list"),
+                              source("activeRule", {rule: "rid"}),
+                              source("editorRule", {id: "rid", description: "description"}),
+                              calculate("ruleId", ["rid"], "'rule' + rid"),
+                              calculate("sourcesId", ["rid"], "'sources' + rid"),
+                              calculate("sinksId", ["rid"], "'sinks' + rid"),
+                              elem("li", {id: inject("ruleId"), parent: ["rules-list", inject("rid")], click: ["open rule", inject("rid")]},
+                                   elem("h2", {}, inject("description")),
+                                   elem("div", {class: "io"},
+                                        elem("ul", {id: inject("sourcesId"), class: "sources"}),
+                                        elem("div", {class: "separator"},
+                                             elem("svg", {width:"100%", height:"100%", viewBox: "0 0 10 20", preserveAspectRatio: "none"},
+                                                  elem("path",{class: "arrow", d:"m0,0 l10,10 l-10,10", strokeWidth:"0.5"})
+                                                 )
+                                            ),
+                                        elem("ul", {id: inject("sinksId"), class: "sinks"}, [])
+                                       )
+                                  )),
 
-                   calculate("id", ["pipeId", "fieldId"], "'rule-source-field' + pipeId + '_' + fieldId"),
-                   calculate("parent", ["pipeId"], "'rule-source-fields' + pipeId"),
+                         rule("rules list sources",
+                              page("rules list"),
+                              constant("dir", "+source"),
+                              source("activeRule", {rule: "rid"}),
+                              source("editorRule", {id: "rid"}),
+                              source("pipe", {rule: "rid", direction: "dir", table: "table"}),
+                              calculate("id", ["table", "rid"], "'source' + table + rid"),
+                              calculate("parent", ["rid"], "'sources' + rid"),
+                              elem("li", {id: inject("id"), parent: [inject("parent"), inject("table")]}, inject("table"))
+                             ),
 
-                   elem("li", {id: inject("id"), parent: [inject("parent"), inject("ix")], click: ["blah", "bar"]},
-                        inject("fieldId")
-                       )),
+                         rule("rules list sinks",
+                              page("rules list"),
+                              constant("dir", "+sink"),
+                              source("activeRule", {rule: "rid"}),
+                              source("editorRule", {id: "rid"}),
+                              source("pipe", {rule: "rid", direction: "dir", table: "table"}),
+                              calculate("id", ["table", "rid"], "'source' + table + rid"),
+                              calculate("parent", ["rid"], "'sinks' + rid"),
+                              elem("li", {id: inject("id"), parent: [inject("parent"), inject("table")]}, inject("table"))),
 
-              rule("rule page sinks",
-                   page("rule"),
-                   source("editorRule", {id: "rid"}),
-                   constant("dir", "+sink"),
-                   source("pipe", {rule: "rid", direction: "dir", table: "table", pipe: "pipe"}),
-                   joinState("activeRule", "rid"),
-                   calculate("id", ["pipe"], "'source' + pipe"),
-                   calculate("parent", ["pipe", "rid"], "'sinks' + rid"),
-                   calculate("sinkFieldsId", ["pipe"], "'rule-sink-fields' + pipe"),
-                   calculate("sinkOutputsId", ["pipe"], "'rule-outputs-fields' + pipe"),
-                   elem("li", {id: inject("id"), parent: [inject("parent"), inject("table")], class: "io-item"},
-                        elem("span", {}, inject("table")),
-                        elem("ul", {id: inject("sinkFieldsId")}),
-                        elem("ul", {id: inject("sinkOutputsId")})
-                       )),
-
-              rule("rule page sink fields",
-                   page("rule"),
-                   source("editorRule", {id: "rid"}),
-                   constant("dir", "+sink"),
-                   source("pipe", {rule: "rid", table: "tableId", direction: "dir", pipe: "pipeId"}),
-                   source("field", {table: "tableId", field: "fieldId", ix: "ix"}),
-                   joinState("activeRule", "rid"),
-
-                   calculate("id", ["pipeId", "fieldId"], "'rule-sink-field' + pipeId + '_' + fieldId"),
-                   calculate("parent", ["pipeId"], "'rule-sink-fields' + pipeId"),
-
-                   elem("li", {id: inject("id"), parent: [inject("parent"), inject("ix")], click: ["blah", "bar"]},
-                        inject("fieldId")
-                       )),
-
-              rule("rule page sink outputs",
-                   page("rule"),
-                   source("editorRule", {id: "rid"}),
-                   constant("dir", "+sink"),
-                   source("pipe", {pipe: "pipeId", table: "tableId", rule: "rid", direction: "dir"}),
-                   source("field", {table: "tableId", field: "fieldId", ix: "ix"}),
-                   source("tableConstraint", {valve: "valve", pipe: "pipeId", field: "fieldId"}),
-
-                   joinState("activeRule", "rid"),
-
-                   calculate("id", ["pipeId", "fieldId"], "'rule-sink-output' + pipeId + '_' + fieldId"),
-                   calculate("parent", ["pipeId"], "'rule-outputs-fields' + pipeId"),
-
-                   elem("li", {id: inject("id"), parent: [inject("parent"), inject("ix")]},
-                        inject("valve")
-                       )),
-
-              //*********************************************************
-              // Grids
-              //*********************************************************
-
-              table("gridItem", ["gridId", "row", "col", "val"]),
-              table("gridHeader", ["gridId", "name", "ix"]),
-              table("drawGrid", ["gridId", "parent"]),
-
-              rule("draw a grid",
-                   source("drawGrid", {gridId: "gridId"}),
-                   calculate("rootId", ["gridId"], "'grid' + gridId"),
-                   calculate("headerId", ["gridId"], "'grid-header' + gridId"),
-                   elem("div", {id: inject("rootId"), parent: ["table-page", 10000], class: "grid"}),
-                   elem("div", {id: inject("headerId"), parent: [inject("rootId"), -1], class: "grid-header"})),
-
-              rule("draw grid rows",
-                   source("drawGrid", {gridId: "gridId"}),
-                   source("gridItem", {gridId: "gridId", row: "gridRow", col: "gridCol", val: "gridVal"}),
-                   calculate("rootId", ["gridId"], "'grid' + gridId"),
-                   calculate("rowId", ["gridRow", "gridId"], "'grid-row' + gridId + '_' + gridRow"),
-                   elem("div", {id: inject("rowId"), parent: [inject("rootId"), inject("gridRow")], class: "grid-row"}),
-                   calculate("colId", ["gridRow", "gridCol", "gridId"], "gridId + '_' + gridRow + '_' + gridCol"),
-                   elem("div", {id: inject("colId"), parent: [inject("rowId"), inject("gridCol")], click: ["foo", inject("gridId")]},
-                        inject("gridVal")
-                       )),
-
-              rule("draw grid headers",
-                   source("drawGrid", {gridId: "gridId"}),
-                   source("gridHeader", {gridId: "gridId", ix: "ix", name: "name"}),
-                   calculate("headerId", ["gridId"], "'grid-header' + gridId"),
-                   calculate("itemId", ["ix", "gridId"], "'grid-header-item' + gridId + '_' + ix"),
-                   elem("div", {id: inject("itemId"), parent: [inject("headerId"), inject("ix")]},
-                        inject("name")
-                       )),
-
-              //*********************************************************
-              // table page
-              //*********************************************************
-
-              rule("get grid for table page",
-                   page("table"),
-                   joinState("activeTable", "table"),
-                   joinState("activeTableGridId", "id"),
-                   sink("getTable", {table: "table", id: "id", gridId: "id"})),
-
-              rule("grid headers for table page",
-                   joinState("activeTableGridId", "gridId"),
-                   joinState("activeTable", "table"),
-                   source("field", {table: "table", field: "field", ix: "ix"}),
-                   sink("gridHeader", {gridId: "gridId", name: "field", ix: "ix"})),
-
-              rule("draw table page",
-                   page("table"),
-                   joinState("activeTableGridId", "activeGridId"),
-                   joinState("activeTable", "table"),
-                   constant("table-page", "table-page"),
-                   sink("drawGrid", {gridId: "activeGridId", parent: "table-page"}),
-                   elem("div", {id: "table-page", parent: ["root"]},
-                        elem("button", {click: ["goto page", "rules list"]}, "back"),
-                        elem("h2", {}, inject("table")))),
-
-              //*********************************************************
-              // ui editor
-              //*********************************************************
-
-              table("uiItem", ["id", "type"]),
-
-              rule("draw UI editor",
-                page("ui editor"),
-                pretendConstant("drawTablesList", "true"),
-                elem("div", {id: "ui-editor-root", parent: ["root"], class: "root ui-editor"},
-                  elem("ul", {id: "table-list", class: "table-list"}),
-                  elem("ul", {class: "toolbox"},
-                    elem("li", {draggable: "true", dragStart: ["toolbox drag", "button"]}, "button"),
-                    elem("li", {draggable: "true", dragStart: ["toolbox drag", "span"]}, "text"),
-                    elem("li", {draggable: "true", dragStart: ["toolbox drag", "div"]}, "box"),
-                    elem("li", {draggable: "true", dragStart: ["toolbox drag", "input"]}, "input")
-                  ),
-                  elem("div", {id: "canvas", class: "canvas", dragOver: ["blah", "baz"], drop: ["dropped control", "drop"]})
-                )),
-
-              rule("ui items",
-                   on("dropped control", {eid: "droppedEid"}),
-                   source("mousePosition", {eid: "droppedEid", x: "mouseX", y: "mouseY"}),
-                   constant("toolbox drag", "toolbox drag"),
-                   source("externalEvent", {eid: "controlEid", label: "toolbox drag", key: "controlType"}),
-                   constant("lower", true),
-                   calculate("lower", ["controlEid", "droppedEid"], "controlEid < droppedEid"),
-                   calculate("sorted", ["controlEid"], "-1 * controlEid"),
-                   aggregate(["droppedEid"], ["sorted"], 1),
-                   sink("uiItem", {id: "droppedEid", type: "controlType"})
-                  ),
-
-              rule("draw ui items",
-                   source("uiItem", {id: "id", type: "controlType"}),
-                   source("mousePosition", {eid: "id", x: "mouseX", y: "mouseY"}),
-                   calculate("elemId", ["id"], "'drawn' + id"),
-                   elem(inject("controlType"),
-                        {id: inject("elemId"),
-                         draggable: "true",
-                         class: "control",
-                         style: {top: inject("mouseY"),
-                                 left: inject("mouseX")},
-                        parent: ["canvas", inject("id")]},
-                        inject("controlType")))
-
-             ));
+                         rule("open rule",
+                              on("open rule", {eid: "eid", key: "cur"}),
+                              set("activeRule", "cur", {eid: "eid"}),
+                              set("activeRuleGridId", "eid", {eid: "eid"}),
+                              setConstant("page", "rule", {eid: "eid"})
+                             ),
 
 
-curApp.run([["time", 0], ["externalEvent", "asdf", "goto page", "ui editor", 0]]);
+                         //*********************************************************************
+                         // Tables list
+                         //*********************************************************************
+
+                         table("openTable-temp", ["table", "state"]),
+                         table("openTable", ["table"]),
+
+                         rule("table is open? -temp",
+                              on("toggle table", {eid: "eid", key: "key"}),
+                              aggregate(["key"], []),
+                              reduce("key", "open_closed", "(key).length % 2 === 0 ? 'closed' : 'open'"),
+                              sink("openTable-temp", {state: "open_closed", table: "key"})),
+
+                         rule("table is open?",
+                              constant("open", "open"),
+                              source("openTable-temp", {state: "open", table: "table"}),
+                              sink("openTable", {table: "table"})),
+
+                         rule("draw table",
+                              source("field", {table: "tableId"}),
+                              stateEq("drawTablesList", "true"),
+                              aggregate(["table"], []),
+                              calculate("id", ["tableId"], "'table' + tableId"),
+                              calculate("fieldsId", ["tableId"], "'table-fields' + tableId"),
+                              elem("li", {id: inject("id"), parent: ["table-list", inject("tableId")], click: ["open table", inject("tableId")], doubleClick: ["toggle table", inject("tableId")]},
+                                   elem("h2", {}, inject("tableId")),
+                                   elem("ul", {id: inject("fieldsId")})
+                                  )),
+
+                         rule("draw fields for openTable",
+                              source("openTable", {table: "tableId"}),
+                              source("field", {table: "tableId", field: "fieldId", ix: "ix"}),
+                              stateEq("drawTablesList", "true"),
+                              calculate("id", ["tableId", "fieldId"], "'table-field' + tableId + '.' + fieldId"),
+                              calculate("parent", ["tableId"], "'table' + tableId"),
+                              elem("li", {id: inject("id"), parent: [inject("parent"), inject("ix")]},
+                                   inject("field")
+                                  )),
+
+                         rule("open table",
+                              on("open table", {eid: "eid", key: "key"}),
+                              set("activeTable", "key", {eid: "eid"}),
+                              set("activeTableGridId", "eid", {eid: "eid"}),
+                              setConstant("page", "table", {eid: "eid"})),
+
+
+                         //*********************************************************
+                         // rule page
+                         //*********************************************************
+
+                         rule("rule page",
+                              page("rule"),
+                              source("editorRule", {id: "rid", description: "description"}),
+                              joinState("activeRule", "rid"),
+                              constant("workspace", "workspace"),
+                              joinState("activeRuleGridId", "gridId"),
+                              sink("drawGrid", {gridId: "gridId", parent: "workspace"}),
+                              calculate("sourcesId", ["rid"], "'sources' + rid"),
+                              calculate("sinksId", ["rid"], "'sinks' + rid"),
+                              elem("div", {id: "rule-page", parent: ["root"], class: "rule-page"},
+                                   elem("header", {},
+                                        elem("button", {click: ["goto page", "rules list"]}, "back"),
+                                        elem("input", {type: "text", input: ["set rule name", inject("rid")], value: inject("description")})),
+                                   elem("div", {class: "io"},
+                                        elem("ul", {id: inject("sourcesId"), class: "sources"}),
+                                        elem("div", {class: "separator"},
+                                             elem("svg", {width:"100%", height:"100%", viewBox: "0 0 10 20", preserveAspectRatio: "none"},
+                                                  elem("path",{class: "arrow", d:"m0,0 l10,10 l-10,10", strokeWidth:"0.5"}))),
+                                        elem("ul", {id: inject("sinksId"), class: "sinks"}, [])),
+                                   elem("div", {id: "workspace", class: "workspace"})
+                                  )),
+
+                         rule("rule page sources",
+                              page("rule"),
+                              source("editorRule", {id: "rid"}),
+                              constant("dir", "+source"),
+                              source("pipe", {rule: "rid", direction: "dir", table: "table", pipe: "pipe"}),
+                              joinState("activeRule", "rid"),
+                              calculate("id", ["pipe"], "'source' + pipe"),
+                              calculate("parent", ["pipe", "rid"], "'sources' + rid"),
+                              calculate("sourceFieldsId", ["pipe"], "'rule-source-fields' + pipe"),
+                              elem("li", {id: inject("id"), parent: [inject("parent"), inject("table")], class: "io-item"},
+                                   elem("span", {}, inject("table")),
+                                   elem("ul", {id: inject("sourceFieldsId")})
+                                  )),
+
+                         rule("rule page source fields",
+                              page("rule"),
+                              source("editorRule", {id: "rid"}),
+                              constant("dir", "+source"),
+                              source("pipe", {rule: "rid", table: "tableId", direction: "dir", pipe: "pipeId"}),
+                              source("field", {table: "tableId", field: "fieldId", ix: "ix"}),
+                              joinState("activeRule", "rid"),
+
+                              calculate("id", ["pipeId", "fieldId"], "'rule-source-field' + pipeId + '_' + fieldId"),
+                              calculate("parent", ["pipeId"], "'rule-source-fields' + pipeId"),
+
+                              elem("li", {id: inject("id"), parent: [inject("parent"), inject("ix")], click: ["blah", "bar"]},
+                                   inject("fieldId")
+                                  )),
+
+                         rule("rule page sinks",
+                              page("rule"),
+                              source("editorRule", {id: "rid"}),
+                              constant("dir", "+sink"),
+                              source("pipe", {rule: "rid", direction: "dir", table: "table", pipe: "pipe"}),
+                              joinState("activeRule", "rid"),
+                              calculate("id", ["pipe"], "'source' + pipe"),
+                              calculate("parent", ["pipe", "rid"], "'sinks' + rid"),
+                              calculate("sinkFieldsId", ["pipe"], "'rule-sink-fields' + pipe"),
+                              calculate("sinkOutputsId", ["pipe"], "'rule-outputs-fields' + pipe"),
+                              elem("li", {id: inject("id"), parent: [inject("parent"), inject("table")], class: "io-item"},
+                                   elem("span", {}, inject("table")),
+                                   elem("ul", {id: inject("sinkFieldsId")}),
+                                   elem("ul", {id: inject("sinkOutputsId")})
+                                  )),
+
+                         rule("rule page sink fields",
+                              page("rule"),
+                              source("editorRule", {id: "rid"}),
+                              constant("dir", "+sink"),
+                              source("pipe", {rule: "rid", table: "tableId", direction: "dir", pipe: "pipeId"}),
+                              source("field", {table: "tableId", field: "fieldId", ix: "ix"}),
+                              joinState("activeRule", "rid"),
+
+                              calculate("id", ["pipeId", "fieldId"], "'rule-sink-field' + pipeId + '_' + fieldId"),
+                              calculate("parent", ["pipeId"], "'rule-sink-fields' + pipeId"),
+
+                              elem("li", {id: inject("id"), parent: [inject("parent"), inject("ix")], click: ["blah", "bar"]},
+                                   inject("fieldId")
+                                  )),
+
+                         rule("rule page sink outputs",
+                              page("rule"),
+                              source("editorRule", {id: "rid"}),
+                              constant("dir", "+sink"),
+                              source("pipe", {pipe: "pipeId", table: "tableId", rule: "rid", direction: "dir"}),
+                              source("field", {table: "tableId", field: "fieldId", ix: "ix"}),
+                              source("tableConstraint", {valve: "valve", pipe: "pipeId", field: "fieldId"}),
+
+                              joinState("activeRule", "rid"),
+
+                              calculate("id", ["pipeId", "fieldId"], "'rule-sink-output' + pipeId + '_' + fieldId"),
+                              calculate("parent", ["pipeId"], "'rule-outputs-fields' + pipeId"),
+
+                              elem("li", {id: inject("id"), parent: [inject("parent"), inject("ix")]},
+                                   inject("valve")
+                                  )),
+
+                         rule("get grid for rule page",
+                              page("rule"),
+                              joinState("activeRule", "rid"),
+                              joinState("activeRuleGridId", "gridId"),
+                              sink("getIntermediate", {rule: "rid", id: "gridId", gridId: "gridId"})),
+
+                         rule("grid headers for workspace grid",
+                              page("rule"),
+                              joinState("activeRuleGridId", "gridId"),
+                              joinState("activeRule", "rid"),
+                              source("valve", {rule: "rid", valve: "valve", ix: "ix"}),
+                              sink("gridHeader", {gridId: "gridId", name: "valve", ix: "ix"})),
+
+                         //*********************************************************
+                         // Grids
+                         //*********************************************************
+
+                         table("gridItem", ["gridId", "row", "col", "val"]),
+                         table("gridHeader", ["gridId", "name", "ix"]),
+                         table("drawGrid", ["gridId", "parent"]),
+
+                         rule("draw a grid",
+                              source("drawGrid", {gridId: "gridId", parent: "parent"}),
+                              calculate("rootId", ["gridId"], "'grid' + gridId"),
+                              calculate("headerId", ["gridId"], "'grid-header' + gridId"),
+                              elem("div", {id: inject("rootId"), parent: [inject("parent"), 10000], class: "grid"}),
+                              elem("div", {id: inject("headerId"), parent: [inject("rootId"), -1], class: "grid-header"})),
+
+                         rule("draw grid rows",
+                              source("drawGrid", {gridId: "gridId"}),
+                              source("gridItem", {gridId: "gridId", row: "gridRow", col: "gridCol", val: "gridVal"}),
+                              calculate("rootId", ["gridId"], "'grid' + gridId"),
+                              calculate("rowId", ["gridRow", "gridId"], "'grid-row' + gridId + '_' + gridRow"),
+                              elem("div", {id: inject("rowId"), parent: [inject("rootId"), inject("gridRow")], class: "grid-row"}),
+                              calculate("colId", ["gridRow", "gridCol", "gridId"], "gridId + '_' + gridRow + '_' + gridCol"),
+                              elem("div", {id: inject("colId"), parent: [inject("rowId"), inject("gridCol")], click: ["foo", inject("gridId")]},
+                                   inject("gridVal")
+                                  )),
+
+                         rule("draw grid headers",
+                              source("drawGrid", {gridId: "gridId"}),
+                              source("gridHeader", {gridId: "gridId", ix: "ix", name: "name"}),
+                              calculate("headerId", ["gridId"], "'grid-header' + gridId"),
+                              calculate("itemId", ["ix", "gridId"], "'grid-header-item' + gridId + '_' + ix"),
+                              elem("div", {id: inject("itemId"), parent: [inject("headerId"), inject("ix")]},
+                                   inject("name")
+                                  )),
+
+                         //*********************************************************
+                         // table page
+                         //*********************************************************
+
+                         rule("get grid for table page",
+                              page("table"),
+                              joinState("activeTable", "table"),
+                              joinState("activeTableGridId", "id"),
+                              sink("getTable", {table: "table", id: "id", gridId: "id"})),
+
+                         rule("grid headers for table page",
+                              page("table"),
+                              joinState("activeTableGridId", "gridId"),
+                              joinState("activeTable", "table"),
+                              source("field", {table: "table", field: "field", ix: "ix"}),
+                              sink("gridHeader", {gridId: "gridId", name: "field", ix: "ix"})),
+
+                         rule("draw table page",
+                              page("table"),
+                              joinState("activeTableGridId", "activeGridId"),
+                              joinState("activeTable", "table"),
+                              constant("table-page", "table-page"),
+                              sink("drawGrid", {gridId: "activeGridId", parent: "table-page"}),
+                              elem("div", {id: "table-page", parent: ["root"]},
+                                   elem("button", {click: ["goto page", "rules list"]}, "back"),
+                                   elem("h2", {}, inject("table")))),
+
+                         //*********************************************************
+                         // ui editor
+                         //*********************************************************
+
+                         table("uiItem", ["id", "type"]),
+
+                         rule("draw UI editor",
+                              page("ui editor"),
+                              pretendConstant("drawTablesList", "true"),
+                              elem("div", {id: "ui-editor-root", parent: ["root"], class: "root ui-editor"},
+                                   elem("ul", {id: "table-list", class: "table-list"}),
+                                   elem("ul", {class: "toolbox"},
+                                        elem("li", {draggable: "true", dragStart: ["toolbox drag", "button"]}, "button"),
+                                        elem("li", {draggable: "true", dragStart: ["toolbox drag", "span"]}, "text"),
+                                        elem("li", {draggable: "true", dragStart: ["toolbox drag", "div"]}, "box"),
+                                        elem("li", {draggable: "true", dragStart: ["toolbox drag", "input"]}, "input")
+                                       ),
+                                   elem("div", {id: "canvas", class: "canvas", dragOver: ["blah", "baz"], drop: ["dropped control", "drop"]})
+                                  )),
+
+                         rule("ui items",
+                              on("dropped control", {eid: "droppedEid"}),
+                              source("mousePosition", {eid: "droppedEid", x: "mouseX", y: "mouseY"}),
+                              constant("toolbox drag", "toolbox drag"),
+                              source("externalEvent", {eid: "controlEid", label: "toolbox drag", key: "controlType"}),
+                              constant("lower", true),
+                              calculate("lower", ["controlEid", "droppedEid"], "controlEid < droppedEid"),
+                              calculate("sorted", ["controlEid"], "-1 * controlEid"),
+                              aggregate(["droppedEid"], ["sorted"], 1),
+                              sink("uiItem", {id: "droppedEid", type: "controlType"})
+                             ),
+
+                         rule("draw ui items",
+                              source("uiItem", {id: "id", type: "controlType"}),
+                              source("mousePosition", {eid: "id", x: "mouseX", y: "mouseY"}),
+                              calculate("elemId", ["id"], "'drawn' + id"),
+                              elem(inject("controlType"),
+                                   {id: inject("elemId"),
+                                    draggable: "true",
+                                    dragStart: ["move ui item", inject("id")],
+                                    class: "control",
+                                    style: {top: inject("mouseY"),
+                                    left: inject("mouseX")},
+                                   parent: ["canvas", inject("id")]},
+                              inject("controlType")))
+
+    ),
+
+    subProgram("paths",
+               rule("foo",
+                    page("bar"),
+                    source("time", {time: "time"}),
+                    elem("p", {id: "time", parent: ["root"]}, inject("time"))
+                   )
+              )
+    ));
+
+
+curApp.run([["time", 0], ["externalEvent", "asdf", "goto page", "program list", 0]]);

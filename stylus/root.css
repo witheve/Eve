@@ -169,6 +169,39 @@ li {
   display: flex;
   padding: 20px 50px;
 }
+.program-list {
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-box;
+  display: -webkit-flex;
+  display: box;
+  display: flex;
+  box-flex: 1;
+  -webkit-flex: 1;
+  flex: 1;
+  height: 100%;
+  -webkit-box-align: center;
+  -moz-box-align: center;
+  -o-box-align: center;
+  -ms-box-align: center;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-box-pack: center;
+  -moz-box-pack: center;
+  -o-box-pack: center;
+  -ms-box-pack: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  -webkit-box-orient: vertical;
+  -moz-box-orient: vertical;
+  -o-box-orient: vertical;
+  -ms-box-orient: vertical;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+}
+.program-list li {
+  padding: 10px 20px;
+}
 .table-list {
   box-flex: 1;
   -webkit-flex: 1;
@@ -287,6 +320,21 @@ li {
   background: #d0d0d0;
   border-radius: 0 0 3px 0;
 }
+.rule-page {
+  height: 100%;
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-box;
+  display: -webkit-flex;
+  display: box;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -moz-box-orient: vertical;
+  -o-box-orient: vertical;
+  -ms-box-orient: vertical;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+}
 .rule-page header {
   margin: 20px;
   position: relative;
@@ -327,6 +375,9 @@ li {
   padding: 5px;
 }
 .rule-page .io {
+  box-flex: 1;
+  -webkit-flex: 1;
+  flex: 1;
   margin-top: 10px;
   min-height: 100px;
   display: -webkit-box;
@@ -381,6 +432,7 @@ li {
   -webkit-flex: 1;
   flex: 1;
   padding: 10px 20px;
+  overflow: auto;
 }
 .rule-page .sources {
   background: #ddd;
@@ -389,6 +441,9 @@ li {
   background: #d0d0d0;
 }
 .rule-page .io-item {
+  box-flex: 0;
+  -webkit-flex: none;
+  flex: none;
   display: -webkit-box;
   display: -moz-box;
   display: -ms-box;
@@ -423,6 +478,13 @@ li {
 .rule-page .io-item ul li + li {
   border-top: 1px solid #000;
 }
+.rule-page .workspace {
+  box-flex: 1;
+  -webkit-flex: 1;
+  flex: 1;
+  max-width: 100%;
+  overflow: auto;
+}
 .grid {
   display: inline-block;
   border: 1px solid #ccc;
@@ -439,6 +501,7 @@ li {
   background: #eee;
 }
 .grid .grid-header div {
+  overflow: hidden;
   padding: 5px;
   width: 130px;
 }
