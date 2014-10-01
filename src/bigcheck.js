@@ -118,24 +118,29 @@ var bigcheck = (function () {
     this.prop = prop;
   }
 
-  function ForAll(gen, fun) {
+  function ForAll(name, gen, fun) {
+    this.name = name;
     this.gen = gen;
     this.fun = fun;
   }
 
-  function forall(gen, fun) {
-    return new ForAll(gen, fun);
+  function forall(name, gen, fun) {
+    return new ForAll(name, gen, fun);
   }
 
   function foralls() {
     var gens = Array.prototype.slice.call(arguments);
+    var name = gens.shift();
     var fun = gens.pop();
     var gen = tuple(gens);
-    return new ForAll(gen, fun);
+    return new ForAll(name, gen, function (values) {fun.apply(null, values)});
   }
 
   ForAll.prototype = {
     check: function (options) {
+      console.info("Testing: " + this.name);
+      console.time(this.name);
+
       options = options || {};
 
       var numTests = 0;
@@ -148,13 +153,16 @@ var bigcheck = (function () {
         var size = maxSize * (numTests / maxTests);
         input = this.gen.grow(size);
         try {
-          output = this.fun.apply(null, input);
+          output = this.fun.call(null, input);
         } catch (exception) {
           output = exception;
         }
         if (output !== true) break;
         numTests += 1;
-        if (numTests >= maxTests) return new Success(numTests, options, this);
+        if (numTests >= maxTests) {
+          console.timeEnd(this.name);
+          return new Success(numTests, options, this);
+        }
       }
 
       var numShrinks = 0;
@@ -167,7 +175,7 @@ var bigcheck = (function () {
         var tryInput = this.gen.shrink(shrunkInput, bias);
         var tryOutput;
         try {
-          tryOutput = this.fun.apply(null, tryInput);
+          tryOutput = this.fun.call(null, tryInput);
         } catch (exception) {
           tryOutput = exception;
         }
@@ -176,7 +184,10 @@ var bigcheck = (function () {
           shrunkOutput = tryOutput;
         }
         numShrinks += 1;
-        if (numShrinks >= maxShrinks) return new Failure(size, numTests, numShrinks, shrunkInput, shrunkOutput, input, output, options, this);
+        if (numShrinks >= maxShrinks) {
+          console.timeEnd(this.name);
+          return new Failure(size, numTests, numShrinks, shrunkInput, shrunkOutput, input, output, options, this);
+        }
       }
     },
 
@@ -193,7 +204,7 @@ var bigcheck = (function () {
     recheck: function(input) {
       var input = input || exports.lastFailure.shrunkInput;
       if (input) {
-        return this.fun.apply(null, input);
+        return this.fun.call(null, input);
       } else {
         return true;
       }
