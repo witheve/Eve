@@ -695,6 +695,7 @@ var compilerTables =
      // TODO adding these here is hacky
      ["program"],
      ["programRule"],
+     ["programTable"],
      ["displayName"],
      ["editorRule"],
      ["join"],
@@ -768,6 +769,9 @@ var compilerFields =
 
      ["programRule", "program", 0],
      ["programRule", "rule", 1],
+
+     ["programTable", "program", 0],
+     ["programTable", "table", 1],
 
      ["displayName", "id", 0],
      ["displayName", "name", 1],
@@ -916,7 +920,7 @@ System.prototype = {
     return this;
   },
 
-  recompile: function() {
+  recompile: function(program) {
     var tables = this.getDump("table");
     var fields = this.getDump("field");
     var rules = this.getDump("rule");
@@ -1219,6 +1223,9 @@ function program() { // name, rule*
 function table(table, fields) {
   return function (context) {
     var facts = [["table", table]];
+    if(context.program) {
+      facts.push(["programTable", context.program, table]);
+    }
     for (var i = fields.length - 1; i >= 0; i--) {
       facts.push(["field", table, fields[i], i]);
     }
@@ -1230,7 +1237,7 @@ function rule() { // name, clause*
   var args = arguments;
   return function (context) {
     context.rule = args[0];
-    var facts = [["rule", context.rule], ["editorRule", context.rule, context.rule]];
+    var facts = [["rule", context.rule, context.nextId++], ["editorRule", context.rule, context.rule]];
     if(context.program) {
       facts.push(["programRule", context.program, context.rule]);
     }
