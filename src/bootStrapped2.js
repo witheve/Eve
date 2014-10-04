@@ -638,8 +638,9 @@ var editor =
 
                rule("constantConstraints to compile",
                     source("valvesToCompile", {valve: "valve", rule: "rule", ix: "ix"}),
-                    source("constantConstraint", {valve: "valve", value: "value"}),
-                    sink("constantConstraintToCompile", {valve: "valve", value: "value"})),
+                    source("constantConstraint", {valve: "val", value: "cur"}),
+                    sink("constantConstraintToCompile", {valve: "val", value: "cur"})
+              ),
 
                rule("functionConstraintToCompile to compile",
                     source("valvesToCompile", {valve: "valve", rule: "rule", ix: "ix"}),
@@ -732,7 +733,7 @@ var editor =
                                         elem("path",{class: "arrow", d:"m0,0 l10,10 l-10,10", strokeWidth:"0.5"})
                                        )
                                   ),
-                              elem("ul", {id: inject("sinksId"), class: "sinks"}, [])
+                              elem("ul", {id: inject("sinksId"), class: "sinks"})
                              )
                         )),
 
@@ -833,7 +834,7 @@ var editor =
                               elem("div", {class: "separator"},
                                    elem("svg", {width:"100%", height:"100%", viewBox: "0 0 10 20", preserveAspectRatio: "none"},
                                         elem("path",{class: "arrow", d:"m0,0 l10,10 l-10,10", strokeWidth:"0.5"}))),
-                              elem("ul", {id: inject("sinksId"), class: "sinks"}, [])),
+                              elem("ul", {id: inject("sinksId"), class: "sinks"})),
                          elem("div", {id: "workspace", class: "workspace"})
                         )),
 
@@ -1048,6 +1049,7 @@ var paths =
                rule("foo",
                     source("time", {time: "time"}),
                     elem("p", {id: "time", parent: ["root"]}, inject("time")))
+
               )(context);
 
 curApp.run([["time", 0], ["externalEvent", "asdf", "goto page", "program list", 0]].concat(paths));

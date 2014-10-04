@@ -1289,6 +1289,7 @@ function sink(table, bindings) {
 }
 
 function constant(variable, value) {
+  if(typeof value === "object") throw new Error("object passed as constant");
   return function(context) {
     var valve = context.rule + "|variable=" + variable;
     return [["constantConstraint", valve, value]];
@@ -1460,7 +1461,7 @@ function elem() {
       if(typeof curChild === "function") {
         //we have either an element or an injection
         concat(context, facts, curChild, true);
-      } else {
+      } else if(typeof curChild === "string") {
         //we have raw text
         var textId = "elemId" + context.nextId++;
         var text = constantOrField(context, facts, curChild);
