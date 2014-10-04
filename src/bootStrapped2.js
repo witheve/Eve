@@ -638,9 +638,8 @@ var editor =
 
                rule("constantConstraints to compile",
                     source("valvesToCompile", {valve: "valve", rule: "rule", ix: "ix"}),
-                    source("constantConstraint", {valve: "val", value: "cur"}),
-                    sink("constantConstraintToCompile", {valve: "val", value: "cur"})
-              ),
+                    source("constantConstraint", {valve: "valve", value: "value"}),
+                    sink("constantConstraintToCompile", {valve: "valve", value: "value"})),
 
                rule("functionConstraintToCompile to compile",
                     source("valvesToCompile", {valve: "valve", rule: "rule", ix: "ix"}),
@@ -951,7 +950,7 @@ var editor =
                     calculate("rowId", ["gridRow", "gridId"], "'grid-row' + gridId + '_' + gridRow"),
                     elem("div", {id: inject("rowId"), parent: [inject("rootId"), inject("gridRow")], class: "grid-row"}),
                     calculate("colId", ["gridRow", "gridCol", "gridId"], "gridId + '_' + gridRow + '_' + gridCol"),
-                    elem("div", {id: inject("colId"), parent: [inject("rowId"), inject("gridCol")], click: ["foo", inject("gridId")]},
+                    elem("div", {id: inject("colId"), parent: [inject("rowId"), inject("gridCol")], click: ["click", inject("gridId")]},
                          inject("gridVal")
                         )),
 
@@ -1046,7 +1045,7 @@ var context = {nextId: 10000};
 var paths =
     subProgram("paths",
                commonTables(),
-               rule("foo",
+               rule("blah blah",
                     source("time", {time: "time"}),
                     elem("p", {id: "time", parent: ["root"]}, inject("time")))
 
