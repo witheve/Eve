@@ -95,9 +95,11 @@ var uiDiffWatcher = function(application, storage, system) {
   var builtEls = storage["builtEls"] || {"root": document.createElement("div")};
   var handlers = storage["handlers"] || {};
   var roots = {};
-  //remove root to prevent thrashing
-  if(storage["builtEls"]) {
-    //     document.body.removeChild(builtEls["root"]);
+
+  //add subProgram elements
+  for(var i in compiledSystems) {
+    builtEls[i + "_root"] = compiledSystems[i].getUIRoot();
+    console.log("compiledUI", i + "_root",     builtEls[i + "_root"]);
   }
 
   //add elements
@@ -204,13 +206,21 @@ var uiDiffWatcher = function(application, storage, system) {
   for(var i = 0; i < childrenLen; i++) {
     var cur = children[i];
     var child = builtEls[cur[child_childid]];
-    builtEls[cur[elem_id]].appendChild(child);
+    var parent = builtEls[cur[elem_id]];
+    if(cur[elem_id] == "subProgramUI") {
+      console.log(cur);
+    }
+    if(parent && child) {
+      parent.appendChild(child);
+    }
   }
 
   if(!storage["builtEls"]) {
     storage["builtEls"] = builtEls;
     storage["handlers"] = handlers;
-    storage["rootParent"].appendChild(builtEls["root"]);
+    if(storage["rootParent"]) {
+      storage["rootParent"].appendChild(builtEls["root"]);
+    }
   }
 
 
@@ -259,9 +269,18 @@ var compilerWatcher = function(application, storage, system) {
     sys.updateTable("sortValve", sortValveToCompile, []);
     var reducerToCompile = system.getTable("reducerToCompile").getFacts();
     sys.updateTable("reducer", reducerToCompile, []);
-    console.log("time to compile!", tablesToCompile);
-    compiledSystems[pendingCompiles[0][1]] = app(sys.refresh().recompile(), {"parent": document.body});
-    compiledSystems[pendingCompiles[0][1]].run([["time", 0]]);
+    var prev = compiledSystems[pendingCompiles[0][1]];
+    var prevEvents = [];
+    var parent;
+    if(prev && prev.getUIRoot()) {
+      parent = prev.getUIRoot().parentNode;
+      parent.removeChild(prev.getUIRoot());
+      console.log("Prev events: ", prev.system.getTable("externalEvent").getFacts());
+      prevEvents = prev.system.getTable("externalEvent").getFacts();
+    }
+    compiledSystems[pendingCompiles[0][1]] = app(sys.refresh().recompile(), {parent: parent});
+    compiledSystems[pendingCompiles[0][1]].system.updateTable("externalEvent", prevEvents, []);
+    compiledSystems[pendingCompiles[0][1]].run([["time", 0]].concat(prevEvents));
     console.timeEnd("compile");
     items.push(["compiled", pendingCompiles[0][0]]);
   }
@@ -348,7 +367,7 @@ function commonTables() {
 
 var Application = function(system, opts) {
   this.system = system;
-  this.storage = {"uiWatcher": {"rootParent": (opts && opts["parent"]) || document.body },
+  this.storage = {"uiWatcher": {"rootParent": (opts && opts["parent"])},
                   "compilerWatcher": {}};
 }
 
@@ -356,6 +375,12 @@ Application.prototype.callRuntime = function(facts) {
   this.system.update(facts, [])
   this.system.refresh();
   compilerWatcher(this, this.storage["compilerWatcher"], this.system);
+};
+
+Application.prototype.getUIRoot = function() {
+  if(this.storage["uiWatcher"].builtEls) {
+    return this.storage["uiWatcher"].builtEls.root;
+  }
 };
 
 Application.prototype.run = function(facts) {
@@ -707,6 +732,23 @@ var editor =
                     source("programRule", {program: "program", rule: "rid"}),
                     sink("activeRule", {rule: "rid"})),
 
+               rule("compile if uncompiled",
+                    page("rules list"),
+                    joinState("activeProgram", "program"),
+                    calculate("id", ["program"], "'initial' + program"),
+//                     notSource("compileProgram", {program: "program"}),
+                    sink("compileProgram", {id: "id", program: "program"})
+                   ),
+
+               rule("active program ui",
+                    page("rules list"),
+                    source("compileProgram", {program: "program"}),
+                    joinState("activeProgram", "program"),
+                    calculate("uiRoot", ["program"], "program + '_root'"),
+                    constant("pos", 0),
+                    constant("subProgramUI", "subProgramUI"),
+                    sink("uiChild", {parent: "subProgramUI", child: "uiRoot", pos: "pos"})),
+
                rule("draw rules list ui",
                     page("rules list"),
                     source("latestId", {id: "id"}),
@@ -715,7 +757,8 @@ var editor =
                          elem("button", {click: ["goto page", "program list"]}, "back"),
                          elem("ul", {id: "table-list", class: "table-list"}),
                          elem("button", {click: ["set rule name", inject("id")]}, "add rule"),
-                         elem("ul", {id: "rules-list", class: "rules-list"})
+                         elem("ul", {id: "rules-list", class: "rules-list"}),
+                         elem("div", {id: "subProgramUI"})
                         )),
 
                rule("draw rule",
@@ -1041,7 +1084,7 @@ var editor =
 
     );
 
-var curApp = app(program("editor", editor));
+var curApp = app(program("editor", editor), {parent: document.body});
 
 var context = {nextId: 10000};
 var paths =
