@@ -25,7 +25,7 @@ var mouseEvents = {"drop": true,
                    "dblclick": true,
                    "contextmenu": true};
 
-var createUICallback = function(id, event, label, key) {
+var createUICallback = function(application, id, event, label, key) {
   return function(e) {
     var items = [];
     var eid = eventId++;
@@ -37,7 +37,7 @@ var createUICallback = function(id, event, label, key) {
       }
 
       items.push(["externalEvent", id, label, key, eid, e.target.value]);
-      curApp.run(items);
+      application.run(items);
     }
   };
 };
@@ -48,7 +48,7 @@ var svgs = {
   "rect": true
 };
 
-var uiDiffWatcher = function(storage, system) {
+var uiDiffWatcher = function(application, storage, system) {
   var tables = ["uiElem", "uiText", "uiAttr", "uiStyle", "uiEvent", "uiChild"];
   var diff = {};
   console.time("diff");
@@ -184,7 +184,7 @@ var uiDiffWatcher = function(storage, system) {
     if(!handlers[cur[elem_id]]) {
       handlers[cur[elem_id]] = {};
     }
-    var handler = handlers[cur[elem_id]][cur[events_event]] = createUICallback(cur[elem_id], cur[events_event], cur[events_label], cur[events_key]);
+    var handler = handlers[cur[elem_id]][cur[events_event]] = createUICallback(application, cur[elem_id], cur[events_event], cur[events_label], cur[events_key]);
     builtEls[cur[elem_id]].addEventListener(cur[events_event], handler);
   }
 
@@ -210,7 +210,7 @@ var uiDiffWatcher = function(storage, system) {
   if(!storage["builtEls"]) {
     storage["builtEls"] = builtEls;
     storage["handlers"] = handlers;
-    document.body.appendChild(builtEls["root"]);
+    storage["rootParent"].appendChild(builtEls["root"]);
   }
 
 
@@ -220,7 +220,9 @@ var uiDiffWatcher = function(storage, system) {
 var compilerRowLimit = 30;
 var compilerSeen = {};
 var compiledSystems = {};
-var compilerWatcher = function(storage, system) {
+var compilerWatcher = function(application, storage, system) {
+  if(!system.getTable("getTable")) return;
+
   var getTable = system.getTable("getTable").getFacts();
   var getIntermediate = system.getTable("getIntermediate").getFacts();
   var getResult = system.getTable("getResult").getFacts();
@@ -258,9 +260,8 @@ var compilerWatcher = function(storage, system) {
     var reducerToCompile = system.getTable("reducerToCompile").getFacts();
     sys.updateTable("reducer", reducerToCompile, []);
     console.log("time to compile!", tablesToCompile);
-    compiledSystems[pendingCompiles[0][1]] = sys.refresh().recompile();
-    sys.updateTable("time", [[0]], []);
-    sys.refresh();
+    compiledSystems[pendingCompiles[0][1]] = app(sys.refresh().recompile(), {"parent": document.body});
+    compiledSystems[pendingCompiles[0][1]].run([["time", 0]]);
     console.timeEnd("compile");
     items.push(["compiled", pendingCompiles[0][0]]);
   }
@@ -269,7 +270,7 @@ var compilerWatcher = function(storage, system) {
     var len = getTable.length;
     for(var i = 0; i < len; i++) {
       var cur = getTable[i];
-      var sys = compiledSystems[cur[1]]
+      var sys = compiledSystems[cur[1]].system;
       if(!sys) continue;
       var id = cur[0];
       if(!compilerSeen[id]) {
@@ -292,7 +293,7 @@ var compilerWatcher = function(storage, system) {
     var len = getIntermediate.length;
     for(var i = 0; i < len; i++) {
       var cur = getIntermediate[i];
-      var sys = compiledSystems[cur[1]]
+      var sys = compiledSystems[cur[1]].system;
       if(!sys) continue;
       var id = cur[0];
       if(!compilerSeen[id]) {
@@ -345,16 +346,16 @@ function commonTables() {
   );
 }
 
-var Application = function(system) {
+var Application = function(system, opts) {
   this.system = system;
-  this.storage = {"uiWatcher": {},
+  this.storage = {"uiWatcher": {"rootParent": (opts && opts["parent"]) || document.body },
                   "compilerWatcher": {}};
 }
 
 Application.prototype.callRuntime = function(facts) {
   this.system.update(facts, [])
   this.system.refresh();
-  compilerWatcher(this.storage["compilerWatcher"], this.system);
+  compilerWatcher(this, this.storage["compilerWatcher"], this.system);
 };
 
 Application.prototype.run = function(facts) {
@@ -363,11 +364,12 @@ Application.prototype.run = function(facts) {
   var runtime = now() - start;
   var uiStorage = this.storage["uiWatcher"];
   var system = this.system;
+  var self = this;
   if(!uiStorage["queued"]) {
     uiStorage["queued"] = true;
     window.requestAnimationFrame(function() {
       start = now();
-      uiDiffWatcher(uiStorage, system);
+      uiDiffWatcher(self, uiStorage, system);
       var render = now() - start;
       $("#renderStat").html(render.toFixed(2));
       uiStorage["queued"] = false;
@@ -383,8 +385,8 @@ Application.prototype.run = function(facts) {
   $("#factsStat").html(numFacts);
 };
 
-function app(system) {
-  return new Application(system);
+function app(system, opts) {
+  return new Application(system, opts);
 }
 
 
@@ -1047,7 +1049,15 @@ var paths =
                commonTables(),
                rule("blah blah",
                     source("time", {time: "time"}),
-                    elem("p", {id: "time", parent: ["root"]}, inject("time")))
+                    elem("button", {id: "time", parent: ["root"], click: ["add one", "foo"]}, "add one")),
+               rule("count",
+                    constant("addOne", "add one"),
+                    source("externalEvent", {label: "addOne", eid: "eid"}),
+                    aggregate(["addOne"], []),
+                    reduce("count", "eid", "eid.length"),
+                    elem("p", {id: "count", parent: ["root"]}, inject("count"))
+                   )
+
 
               )(context);
 
