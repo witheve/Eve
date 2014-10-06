@@ -316,7 +316,10 @@ var compilerWatcher = function(application, storage, system) {
       if(!sys) continue;
       var id = cur[0];
       if(!compilerSeen[id]) {
-        var table = sys.getSolver(cur[2]).getFacts();
+        var solver = sys.getSolver(cur[2]);
+        if(!solver) continue;
+
+        var table = solver.getFacts();
         var tableLen = table.length;
         if(tableLen) {
           var rowLen = table[0].length;
@@ -578,6 +581,13 @@ var editor =
                     aggregate([], ["sorted"], 1),
                     sink("latestId", {id: "eid"})),
 
+               rule("initial page",
+                    source("time", {time: "time"}),
+                    constant("page", "page"),
+                    constant("programList", "program list"),
+                    constant("zero", 0),
+                    sink("state-temp", {id: "zero", key: "page", value: "programList"})),
+
                //*********************************************************************
                // Compiler
                //*********************************************************************
@@ -699,13 +709,30 @@ var editor =
 
                rule("draw program list",
                     page("program list"),
-                    elem("ul", {id: "program-list", parent: ["root"], class: "program-list"})),
+                    elem("div", {id: "programs-list-container", parent: ["root"]},
+                         elem("span", {click: ["add program", "foo"]}, "add program"),
+                         elem("ul", {id: "program-list", class: "program-list"}))),
 
                rule("draw program items",
                     page("program list"),
                     source("program", {id: "id", name: "name"}),
                     elem("li", {id: inject("id"), parent: ["program-list", inject("name")], click: ["open program", inject("id")]},
                          inject("name"))
+                   ),
+
+
+               rule("programs",
+                    on("add program", {eid: "eid"}),
+                    calculate("programName", ["eid"], "'program ' + eid"),
+                    sink("program", {id: "programName", name: "programName"})
+                   ),
+
+               rule("port all editor tables to new programs",
+                    on("add program", {eid: "eid"}),
+                    calculate("programName", ["eid"], "'program ' + eid"),
+                    constant("editor", "p0"),
+                    source("programTable", {program: "editor", table: "table"}),
+                    sink("programTable", {program: "programName", table: "table"})
                    ),
 
                rule("open program",
@@ -1092,16 +1119,16 @@ var paths =
                commonTables(),
                rule("blah blah",
                     source("time", {time: "time"}),
-                    elem("button", {id: "time", parent: ["root"], click: ["add one", "foo"]}, "add one")),
+                    elem("button", {id: "time", parent: ["root", 0], click: ["add one", "foo"]}, "add one")),
                rule("count",
                     constant("addOne", "add one"),
                     source("externalEvent", {label: "addOne", eid: "eid"}),
                     aggregate(["addOne"], []),
                     reduce("count", "eid", "eid.length"),
-                    elem("p", {id: "count", parent: ["root"]}, inject("count"))
+                    elem("p", {id: "count", parent: ["root", 1]}, inject("count"))
                    )
 
 
               )(context);
 
-curApp.run([["time", 0], ["externalEvent", "asdf", "goto page", "program list", 0]].concat(paths));
+curApp.run([["time", 0]].concat(paths));
