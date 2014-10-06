@@ -454,6 +454,25 @@ function on(label, map) {
   }
 };
 
+function onStart() {
+  return source("time", {time: "time"});
+}
+
+function constantSink(table, map) {
+  return function(context) {
+    var items = [];
+    var final = {};
+    for(var i in map) {
+      var id = "const" + context.nextId++;
+      items.push(constant(id, map[i]));
+      final[i] = id
+    }
+    items.push(sink(table, final));
+    console.log(final, items);
+    return compose.apply(null, items)(context);
+  }
+}
+
 function setConstant(k, v, map) {
   return function(context) {
     if(map && map.eid) {
@@ -540,7 +559,6 @@ function pretendConstant(k, v) {
 };
 
 function subProgram() {
-  console.log("facts");
   var args = arguments;
   return function(context) {
     context.program = 'p' + context.nextId++;
@@ -582,11 +600,9 @@ var editor =
                     sink("latestId", {id: "eid"})),
 
                rule("initial page",
-                    source("time", {time: "time"}),
-                    constant("page", "page"),
-                    constant("programList", "program list"),
-                    constant("zero", 0),
-                    sink("state-temp", {id: "zero", key: "page", value: "programList"})),
+                    onStart(),
+                    constantSink("state-temp", {id: 0, key: "page", value: "program list"})
+                    ),
 
                //*********************************************************************
                // Compiler
@@ -596,6 +612,28 @@ var editor =
                table("getTable", ["id", "program", "table", "gridId"]),
                table("getIntermediate", ["id", "program", "rule", "gridId"]),
                table("getResult", ["id", "program", "rule", "sink", "gridId"]),
+
+               rule("common tables",
+                    onStart(),
+                    constantSink("programTable", {program: "common", table: "displayName"}),
+                    constantSink("programTable", {program: "common", table: "join"}),
+                    constantSink("programTable", {program: "common", table: "editorRule"}),
+                    constantSink("programTable", {program: "common", table: "externalEvent"}),
+                    constantSink("programTable", {program: "common", table: "click"}),
+                    constantSink("programTable", {program: "common", table: "mousePosition"}),
+                    constantSink("programTable", {program: "common", table: "sms outbox"}),
+                    constantSink("programTable", {program: "common", table: "user"}),
+                    constantSink("programTable", {program: "common", table: "edge"}),
+                    constantSink("programTable", {program: "common", table: "path"}),
+                    constantSink("programTable", {program: "common", table: "uiElem"}),
+                    constantSink("programTable", {program: "common", table: "uiText"}),
+                    constantSink("programTable", {program: "common", table: "uiChild"}),
+                    constantSink("programTable", {program: "common", table: "uiAttr"}),
+                    constantSink("programTable", {program: "common", table: "uiStyle"}),
+                    constantSink("programTable", {program: "common", table: "uiEvent"}),
+                    constantSink("programTable", {program: "common", table: "time"}),
+                    constantSink("programTable", {program: "common", table: "timePerFlow"})
+                   ),
 
                rule("editor rules by name",
                     constant("label", "set rule name"),
@@ -730,8 +768,8 @@ var editor =
                rule("port all editor tables to new programs",
                     on("add program", {eid: "eid"}),
                     calculate("programName", ["eid"], "'program ' + eid"),
-                    constant("editor", "p0"),
-                    source("programTable", {program: "editor", table: "table"}),
+                    constant("common", "common"),
+                    source("programTable", {program: "common", table: "table"}),
                     sink("programTable", {program: "programName", table: "table"})
                    ),
 
