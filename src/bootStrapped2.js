@@ -36,7 +36,22 @@ var createUICallback = function(application, id, event, label, key) {
         items.push(["mousePosition", eid, e.clientX, e.clientY]);
       }
 
-      items.push(["externalEvent", id, label, key, eid, e.target.value]);
+      var value = e.target.value;
+      if(event === "dragstart") {
+        console.log("start: ", JSON.stringify(eid));
+        e.dataTransfer.setData("eid", JSON.stringify(eid));
+        value = eid;
+      }
+      if(event === "drop" || event === "drag" || event === "dragover" || event === "dragend") {
+        console.log("drop", e.dataTransfer.getData("eid"));
+        try {
+          value = JSON.parse(e.dataTransfer.getData("eid"));
+        } catch(e) {
+          value = "";
+        }
+      }
+
+      items.push(["externalEvent", id, label, key, eid, value]);
       application.run(items);
     }
   };
@@ -280,7 +295,7 @@ var compilerWatcher = function(application, storage, system) {
     }
     compiledSystems[pendingCompiles[0][1]] = app(sys.refresh().recompile(), {parent: parent});
     compiledSystems[pendingCompiles[0][1]].system.updateTable("externalEvent", prevEvents, []);
-    compiledSystems[pendingCompiles[0][1]].run([["time", 0]].concat(prevEvents));
+    compiledSystems[pendingCompiles[0][1]].run([["time", 0], ["edge", "a", "b"], ["edge", "b", "c"]].concat(prevEvents));
     console.timeEnd("compile");
     items.push(["compiled", pendingCompiles[0][0]]);
   }
@@ -364,7 +379,7 @@ function commonTables() {
     table("uiStyle", ["id", "attr", "value"]),
     table("uiEvent", ["id", "event", "label", "key"]),
     table("time", ["time"]),
-    table("timePerFlow", ["name", "type", "numTimes", "totalTime"])
+    table("refresh", ["tick", "startTime", "endTime", "flow"])
   );
 }
 
@@ -558,6 +573,21 @@ function pretendConstant(k, v) {
   }
 };
 
+function stateValueAt(key, value, eid) {
+  return function(context) {
+    var keyId = key + context.nextId++;
+    var stateTempId = "st" + context.nextId++;
+    var sortedId = "sorted" + context.nextId++;
+    var lessthanId = "lessthan" + context.nextId++;
+    return compose(constant(keyId, key),
+                   source("state-temp", {id: stateTempId, key: keyId, value: value}),
+                   calculate(sortedId, [stateTempId], "-1 * " + stateTempId),
+                   constant(lessthanId, true),
+                   calculate(lessthanId, [stateTempId, eid], stateTempId + " <= " + eid),
+                   aggregate([eid], [sortedId], 1))(context);
+  }
+}
+
 function subProgram() {
   var args = arguments;
   return function(context) {
@@ -632,7 +662,7 @@ var editor =
                     constantSink("programTable", {program: "common", table: "uiStyle"}),
                     constantSink("programTable", {program: "common", table: "uiEvent"}),
                     constantSink("programTable", {program: "common", table: "time"}),
-                    constantSink("programTable", {program: "common", table: "timePerFlow"})
+                    constantSink("programTable", {program: "common", table: "refresh"})
                    ),
 
                rule("editor rules by name",
@@ -656,6 +686,11 @@ var editor =
                     sink("compileProgram", {id: "eid", program: "program"}),
                     sink("programRule", {program: "program", rule: "rule"})
                    ),
+
+               rule("compiler rules",
+                    source("programRule", {program: "program", rule: "rule"}),
+                    aggregate(["program"], ["rule"], undefined, "ix"),
+                    sink("rule", {rule: "rule", ix: "ix"})),
 
                table("compileProgram", ["id", "program"]),
                table("compiled", ["id"]),
@@ -863,7 +898,7 @@ var editor =
                     source("activeRule", {rule: "rid"}),
                     source("editorRule", {id: "rid"}),
                     source("pipe", {rule: "rid", direction: "dir", table: "table"}),
-                    calculate("id", ["table", "rid"], "'source' + table + rid"),
+                    calculate("id", ["table", "rid"], "'sink' + table + rid"),
                     calculate("parent", ["rid"], "'sinks' + rid"),
                     elem("li", {id: inject("id"), parent: [inject("parent"), inject("table")]}, inject("table"))),
 
@@ -894,12 +929,12 @@ var editor =
                     sink("openTable", {table: "table"})),
 
                rule("draw table",
-                    source("field", {table: "tableId"}),
+                    joinState("activeProgram", "program"),
+                    source("programTable", {table: "tableId", program: "program"}),
                     stateEq("drawTablesList", "true"),
-                    aggregate(["table"], []),
                     calculate("id", ["tableId"], "'table' + tableId"),
                     calculate("fieldsId", ["tableId"], "'table-fields' + tableId"),
-                    elem("li", {id: inject("id"), parent: ["table-list", inject("tableId")], click: ["open table", inject("tableId")], doubleClick: ["toggle table", inject("tableId")]},
+                    elem("li", {id: inject("id"), parent: ["table-list", inject("tableId")], draggable: "true", dragStart:["add pipe", inject("tableId")],  click: ["open table", inject("tableId")], doubleClick: ["toggle table", inject("tableId")]},
                          elem("h2", {}, inject("tableId")),
                          elem("ul", {id: inject("fieldsId")})
                         )),
@@ -934,18 +969,36 @@ var editor =
                     sink("drawGrid", {gridId: "gridId", parent: "workspace"}),
                     calculate("sourcesId", ["rid"], "'sources' + rid"),
                     calculate("sinksId", ["rid"], "'sinks' + rid"),
+                    pretendConstant("drawTablesList", "true"),
                     elem("div", {id: "rule-page", parent: ["root"], class: "rule-page"},
+                         elem("ul", {id: "table-list", class: "table-list"}),
                          elem("header", {},
                               elem("button", {click: ["goto page", "rules list"]}, "back"),
                               elem("input", {type: "text", input: ["set rule name", inject("rid")], value: inject("description")})),
                          elem("div", {class: "io"},
-                              elem("ul", {id: inject("sourcesId"), class: "sources"}),
+                              elem("ul", {id: inject("sourcesId"), class: "sources", drop: ["source drop", ""], dragOver: ["", ""]}),
                               elem("div", {class: "separator"},
                                    elem("svg", {width:"100%", height:"100%", viewBox: "0 0 10 20", preserveAspectRatio: "none"},
                                         elem("path",{class: "arrow", d:"m0,0 l10,10 l-10,10", strokeWidth:"0.5"}))),
-                              elem("ul", {id: inject("sinksId"), class: "sinks"})),
+                              elem("ul", {id: inject("sinksId"), class: "sinks", drop: ["sink drop", ""], dragOver: ["", ""]})),
                          elem("div", {id: "workspace", class: "workspace"})
                         )),
+
+               rule("on source drop",
+                    on("source drop", {value: "eid"}),
+                    constant("addPipe", "add pipe"),
+                    source("externalEvent", {eid: "eid", label: "addPipe", key: "table"}),
+                    stateValueAt("activeRule", "rule", "eid"),
+                    constant("+source", "+source"),
+                    sink("pipe", {pipe: "eid", table: "table", rule: "rule", direction: "+source"})),
+
+               rule("on sink drop ",
+                    on("sink drop", {value: "eid"}),
+                    constant("addPipe", "add pipe"),
+                    source("externalEvent", {eid: "eid", label: "addPipe", key: "table"}),
+                    stateValueAt("activeRule", "rule", "eid"),
+                    constant("+sink", "+sink"),
+                    sink("pipe", {pipe: "eid", table: "table", rule: "rule", direction: "+sink"})),
 
                rule("rule page sources",
                     page("rule"),
@@ -969,10 +1022,11 @@ var editor =
                     source("field", {table: "tableId", field: "fieldId", ix: "ix"}),
                     joinState("activeRule", "rid"),
 
+                    calculate("dragId", ["pipeId", "fieldId"], "pipeId + '_' + fieldId"),
                     calculate("id", ["pipeId", "fieldId"], "'rule-source-field' + pipeId + '_' + fieldId"),
                     calculate("parent", ["pipeId"], "'rule-source-fields' + pipeId"),
 
-                    elem("li", {id: inject("id"), parent: [inject("parent"), inject("ix")], click: ["blah", "bar"]},
+                    elem("li", {id: inject("id"), parent: [inject("parent"), inject("ix")], draggable: "true", dragStart: ["move source field", inject("dragId")]},
                          inject("fieldId")
                         )),
 
@@ -1023,6 +1077,68 @@ var editor =
                     elem("li", {id: inject("id"), parent: [inject("parent"), inject("ix")]},
                          inject("valve")
                         )),
+
+               rule("rule page sink missing outputs",
+                    page("rule"),
+                    source("editorRule", {id: "rid"}),
+                    constant("dir", "+sink"),
+                    source("pipe", {pipe: "pipeId", table: "tableId", rule: "rid", direction: "dir"}),
+                    source("field", {table: "tableId", field: "fieldId", ix: "ix"}),
+                    notSource("tableConstraint", {pipe: "pipeId", field: "fieldId"}),
+
+                    joinState("activeRule", "rid"),
+
+                    calculate("sinkId", ["pipeId", "fieldId"], "pipeId + '_' + fieldId"),
+                    calculate("id", ["pipeId", "fieldId"], "'rule-sink-output' + pipeId + '_' + fieldId"),
+                    calculate("parent", ["pipeId"], "'rule-outputs-fields' + pipeId"),
+
+                    elem("li", {id: inject("id"), parent: [inject("parent"), inject("ix")], class: "empty-output", drop: ["link to sink", inject("sinkId")]},
+                         "- - - -"
+                        )),
+
+               /////////////////////////////////////////////////////////////////////////////////
+               // this is a hack to try and get ixs for valves, I feel like there has to be a
+               // better way to do this, but not sure what it is yet.
+
+               table("eidToRule", ["eid", "rule"]),
+               table("eidToIx", ["eid", "ix"]),
+
+               rule("eid to rule",
+                    on("link to sink", {value: "eid"}),
+                    stateValueAt("activeRule", "rule", "eid"),
+                    sink("eidToRule", {eid: "eid", rule: "rule"})),
+
+               rule("eid to ix",
+                    source("eidToRule", {eid: "eid", rule: "rid"}),
+                    aggregate(["rule"], ["eid"], undefined, "ix"),
+                    sink("eidToIx", {eid: "eid", ix: "ix"})
+                   ),
+
+               // end hack
+               ///////////////////////////////////////////////////////////////////////////////////
+
+               rule("link input to output",
+                    on("link to sink", {value: "eid", key: "sinkpipe_field"}),
+                    constant("moveSourceField", "move source field"),
+                    source("externalEvent", {eid: "eid", label: "moveSourceField", key: "sourcepipe_field"}),
+                    stateValueAt("activeRule", "rule", "eid"),
+                    source("eidToIx", {eid: "eid", ix: "ix"}),
+                    calculate("valve", ["sourcepipe_field"], "sourcepipe_field"),
+                    calculate("sourcePipe", ["sourcepipe_field"], "parseInt(sourcepipe_field.split('_')[0])"),
+                    calculate("sourceField", ["sourcepipe_field"], "sourcepipe_field.split('_')[1]"),
+                    calculate("sinkPipe", ["sinkpipe_field"], "parseInt(sinkpipe_field.split('_')[0])"),
+                    calculate("sinkField", ["sinkpipe_field"], "sinkpipe_field.split('_')[1]"),
+                    sink("valve", {valve: "valve", rule: "rule", ix: "ix"}),
+                    sink("tableConstraint", {valve: "valve", pipe: "sourcePipe", field: "sourceField"}),
+                    sink("tableConstraint", {valve: "valve", pipe: "sinkPipe", field: "sinkField"})
+                   ),
+
+               rule("print valves",
+                    joinState("activeRule", "rid"),
+                    source("valve", {rule: "rid", valve: "valve", ix: "ix"}),
+                    calculate("foo", ["rid", "valve", "ix"], "console.log('valve', rid, valve, ix)"),
+                    sink("click", {id: "foo"})
+                   ),
 
                rule("get grid for rule page",
                     page("rule"),
@@ -1169,4 +1285,4 @@ var paths =
 
               )(context);
 
-curApp.run([["time", 0]].concat(paths));
+curApp.run([["time", 0], ["edge", "a", "b"], ["edge", "b", "c"]].concat(paths));
