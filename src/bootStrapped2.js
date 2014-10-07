@@ -293,9 +293,13 @@ var compilerWatcher = function(application, storage, system) {
       console.log("Prev events: ", prev.system.getTable("externalEvent").getFacts());
       prevEvents = prev.system.getTable("externalEvent").getFacts();
     }
-    compiledSystems[pendingCompiles[0][1]] = app(sys.refresh().recompile(), {parent: parent});
-    compiledSystems[pendingCompiles[0][1]].system.updateTable("externalEvent", prevEvents, []);
-    compiledSystems[pendingCompiles[0][1]].run([["time", 0], ["edge", "a", "b"], ["edge", "b", "c"]].concat(prevEvents));
+    try {
+      compiledSystems[pendingCompiles[0][1]] = app(sys.refresh().recompile(), {parent: parent});
+      compiledSystems[pendingCompiles[0][1]].system.updateTable("externalEvent", prevEvents, []);
+      compiledSystems[pendingCompiles[0][1]].run([["time", 0], ["edge", "a", "b"], ["edge", "b", "c"]].concat(prevEvents));
+    } catch(e) {
+      console.log("compile failed");
+    }
     console.timeEnd("compile");
     items.push(["compiled", pendingCompiles[0][0]]);
   }
@@ -1099,7 +1103,6 @@ var editor =
                /////////////////////////////////////////////////////////////////////////////////
                // this is a hack to try and get ixs for valves, I feel like there has to be a
                // better way to do this, but not sure what it is yet.
-
                table("eidToRule", ["eid", "rule"]),
                table("eidToIx", ["eid", "ix"]),
 
@@ -1113,9 +1116,29 @@ var editor =
                     aggregate(["rule"], ["eid"], undefined, "ix"),
                     sink("eidToIx", {eid: "eid", ix: "ix"})
                    ),
-
                // end hack
                ///////////////////////////////////////////////////////////////////////////////////
+
+               rule("link input to output causes a recompile",
+                    on("link to sink", {value: "eid"}),
+                    stateValueAt("activeProgram", "program", "eid"),
+                    sink("compileProgram", {id: "eid", program: "program"})
+                   ),
+
+               //////////////////////////////////////////////////////////////////////////////////
+               // this is a hack and works largely by accident. This should really use stateValueAt
+               // in order to match request up with the correct program/rule/gridId, but that requires
+               // multiple aggregates in a single rule.
+               rule("link input to output needs new intermediates",
+                    on("link to sink", {value: "eid"}),
+                    joinState("activeProgram", "program"),
+                    joinState("activeRule", "rule"),
+                    joinState("activeRuleGridId", "id"),
+                    sink("getIntermediate", {rule: "rule", program: "program", id: "eid", gridId: "id"})
+                   ),
+               // end hack
+               ///////////////////////////////////////////////////////////////////////////////////
+
 
                rule("link input to output",
                     on("link to sink", {value: "eid", key: "sinkpipe_field"}),
