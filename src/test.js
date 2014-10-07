@@ -70,6 +70,17 @@ program("constant limited aggregate",
 .refresh()
 .test([["output", "jamie"], ["output", "chris"]]);
 
+program("ordinal aggregate",
+  table("input", ["id", "name"]),
+  table("output", ["name", "ix"]),
+  rule("",
+       source("input", {id: "id", name: "name"}),
+       aggregate([], ["name"], undefined, "ix"),
+       sink("output", {name: "name", ix: "ix"})))
+.update([["input", 1, "jamie"], ["input", 1, "rob"], ["input", 0, "chris"]], [])
+.refresh()
+.test([["output", "chris", 0], ["output", "jamie", 1], ["output", "rob", 2]]);
+
 program("filter",
   table("input", ["id"]),
   table("output", ["id"]),

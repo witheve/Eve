@@ -547,10 +547,11 @@ Solver.prototype = {
 
 // AGGREGATE
 
-function Aggregate(groupIxes, sortIxes, limitIx, reducerInIxes, reducerOutIxes, reducerFuns, inputIx, outputIx) {
+function Aggregate(groupIxes, sortIxes, limitIx, ordinalIx, reducerInIxes, reducerOutIxes, reducerFuns, inputIx, outputIx) {
   this.groupIxes = groupIxes;
   this.sortIxes = sortIxes;
   this.limitIx = limitIx;
+  this.ordinalIx = ordinalIx;
   this.reducerInIxes = reducerInIxes;
   this.reducerOutIxes = reducerOutIxes;
   this.reducerFuns = reducerFuns;
@@ -558,8 +559,8 @@ function Aggregate(groupIxes, sortIxes, limitIx, reducerInIxes, reducerOutIxes, 
   this.outputIx = outputIx;
 }
 
-Aggregate.empty = function (groupIxes, sortIxes, limitIx, reducerInIxes, reducerOutIxes, reducerFuns, inputIx, outputIx) {
-  return new Aggregate(groupIxes, sortIxes, limitIx, reducerInIxes, reducerOutIxes, reducerFuns, inputIx, outputIx);
+Aggregate.empty = function (groupIxes, sortIxes, limitIx, ordinalIx, reducerInIxes, reducerOutIxes, reducerFuns, inputIx, outputIx) {
+  return new Aggregate(groupIxes, sortIxes, limitIx, ordinalIx, reducerInIxes, reducerOutIxes, reducerFuns, inputIx, outputIx);
 };
 
 function groupBy(facts, groupIxes) {
@@ -580,7 +581,7 @@ function compareSortKey(a,b) {
   return compareValueArray(a[0], b[0]);
 }
 
-function sortBy(facts, sortIxes) {
+function sortBy(facts, sortIxes, ordinalIx) {
   for (var i = facts.length - 1; i >= 0; i--) {
     var fact = facts[i];
     var sortKey = [];
@@ -591,7 +592,9 @@ function sortBy(facts, sortIxes) {
   }
   facts.sort(compareSortKey);
   for (var i = facts.length - 1; i >= 0; i--) {
-    facts[i] = facts[i][1];
+    var fact = facts[i][1];
+    if (ordinalIx !== undefined) fact[ordinalIx] = i;
+    facts[i] = fact;
   }
 }
 
@@ -613,14 +616,14 @@ Aggregate.prototype = {
     var outputFacts = [];
     for (var group in groups) {
       var groupFacts = groups[group];
-      sortBy(groupFacts, this.sortIxes);
+      for (var i = groupFacts.length - 1; i >= 0; i--) {
+        groupFacts[i] = groupFacts[i].slice(); // unalias facts from solver
+      }
+      sortBy(groupFacts, this.sortIxes, this.ordinalIx);
       if (this.limitIx !== undefined) groupFacts = groupFacts.slice(0, groupFacts[0][this.limitIx]);
       var reducerInIxes = this.reducerInIxes;
       var reducerOutIxes = this.reducerOutIxes;
       var reducerFuns = this.reducerFuns;
-      for (var i = groupFacts.length - 1; i >= 0; i--) {
-        groupFacts[i] = groupFacts[i].slice(); // unalias facts from solver
-      }
       for (var i = reducerInIxes.length - 1; i >= 0; i--) {
         reduceBy(groupFacts, reducerInIxes[i], reducerOutIxes[i], reducerFuns[i]);
       }
@@ -687,6 +690,7 @@ var compilerTables =
      ["functionConstraint"],
      ["functionConstraintInput"],
      ["limitValve"],
+     ["ordinalValve"],
      ["groupValve"],
      ["sortValve"],
      ["reducer"],
@@ -738,6 +742,9 @@ var compilerFields =
 
      ["limitValve", "rule", 0],
      ["limitValve", "valve", 1],
+
+     ["ordinalValve", "rule", 0],
+     ["ordinalValve", "valve", 1],
 
      ["groupValve", "rule", 0],
      ["groupValve", "valve", 1],
@@ -931,6 +938,7 @@ System.prototype = {
     var functionConstraints = this.getDump("functionConstraint");
     var functionConstraintInputs = this.getDump("functionConstraintInput");
     var limitValves = this.getDump("limitValve");
+    var ordinalValves = this.getDump("ordinalValve");
     var groupValves = this.getDump("groupValve");
     var sortValves = this.getDump("sortValve");
     var reducers = this.getDump("reducer");
@@ -958,6 +966,10 @@ System.prototype = {
     for (var i = reducers.length - 1; i >= 0; i--) {
       var reducer = reducers[i];
       numVars[reducer.rule] = numVars[reducer.rule] - 1;
+    }
+    for (var i = ordinalValves.length - 1; i >= 0; i--) {
+      var ordinalValve = ordinalValves[i];
+      numVars[ordinalValve.rule] = numVars[ordinalValve.rule] - 1;
     }
     for (var i = fields.length - 1; i >= 0; i--) {
       var field = fields[i];
@@ -1034,7 +1046,7 @@ System.prototype = {
       dirtyFlows[solverIx] = true;
       downstream[solverIx] = [aggregateIx];
 
-      var aggregate = Aggregate.empty([], [], undefined, [], [], [], solverIx, aggregateIx);
+      var aggregate = Aggregate.empty([], [], undefined, undefined, [], [], [], solverIx, aggregateIx);
       aggregates[rule.rule] = aggregate;
       stores[aggregateIx] = Memory.empty();
       flows[aggregateIx] = aggregate;
@@ -1128,6 +1140,11 @@ System.prototype = {
       var limitValve = limitValves[i];
       var aggregate = aggregates[limitValve.rule];
       aggregate.limitIx = valveIxes[limitValve.valve];
+    }
+    for (var i = ordinalValves.length - 1; i >= 0; i--) {
+      var ordinalValve = ordinalValves[i];
+      var aggregate = aggregates[ordinalValve.rule];
+      aggregate.ordinalIx = valveIxes[ordinalValve.valve];
     }
     for (var i = groupValves.length - 1; i >= 0; i--) {
       var groupValve = groupValves[i];
@@ -1252,6 +1269,7 @@ function rule() { // name, clause*
       if (fact[0] === "constantConstraint") valves[fact[1]] = true;
       if (fact[0] === "functionConstraint") valves[fact[3]] = true;
       if (fact[0] === "reducer") valves[fact[3]] = false;
+      if (fact[0] === "ordinalValve") valves[fact[2]] = false;
     }
     var ix = 0;
     for (var valve in valves) {
@@ -1311,7 +1329,7 @@ function calculate(outputVariable, inputVariables, code) {
   };
 }
 
-function aggregate(groupVariables, sortVariables, limit) {
+function aggregate(groupVariables, sortVariables, limit, ordinal) {
   return function(context) {
     var facts = [];
     for (var i = groupVariables.length - 1; i >= 0; i--) {
@@ -1332,6 +1350,10 @@ function aggregate(groupVariables, sortVariables, limit) {
     if (typeof(limit) === "string") {
       var valve = context.rule + "|variable=" + limit;
       facts.push(["limitValve", context.rule, valve]);
+    }
+    if (typeof(ordinal) === "string") {
+      var valve = context.rule + "|variable=" + ordinal;
+      facts.push(["ordinalValve", context.rule, valve]);
     }
     return facts;
   };
