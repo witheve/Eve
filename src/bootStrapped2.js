@@ -50,7 +50,7 @@ var createUICallback = function(application, id, event, label, key) {
           value = "";
         }
       }
-
+      e.stopPropagation();
       items.push(["externalEvent", id, label, key, eid, value]);
       application.run(items);
     }
@@ -114,7 +114,6 @@ var uiDiffWatcher = function(application, storage, system) {
   //add subProgram elements
   for(var i in compiledSystems) {
     builtEls[i + "_root"] = compiledSystems[i].getUIRoot();
-    console.log("compiledUI", i + "_root",     builtEls[i + "_root"]);
   }
 
   //add elements
@@ -223,7 +222,6 @@ var uiDiffWatcher = function(application, storage, system) {
     var child = builtEls[cur[child_childid]];
     var parent = builtEls[cur[elem_id]];
     if(cur[elem_id] == "subProgramUI") {
-      console.log(cur);
     }
     if(parent && child) {
       parent.appendChild(child);
@@ -289,8 +287,9 @@ var compilerWatcher = function(application, storage, system) {
     var parent;
     if(prev && prev.getUIRoot()) {
       parent = prev.getUIRoot().parentNode;
-      parent.removeChild(prev.getUIRoot());
-      console.log("Prev events: ", prev.system.getTable("externalEvent").getFacts());
+      if(parent) {
+        parent.removeChild(prev.getUIRoot());
+      }
       prevEvents = prev.system.getTable("externalEvent").getFacts();
     }
     try {
@@ -487,7 +486,6 @@ function constantSink(table, map) {
       final[i] = id
     }
     items.push(sink(table, final));
-    console.log(final, items);
     return compose.apply(null, items)(context);
   }
 }
@@ -600,7 +598,6 @@ function subProgram() {
     for(var i = 1; i < args.length; i++) {
       Array.prototype.push.apply(facts, args[i](context));
     }
-    console.log("facts", facts);
     return facts;
   }
 }
@@ -985,7 +982,7 @@ var editor =
                                    elem("svg", {width:"100%", height:"100%", viewBox: "0 0 10 20", preserveAspectRatio: "none"},
                                         elem("path",{class: "arrow", d:"m0,0 l10,10 l-10,10", strokeWidth:"0.5"}))),
                               elem("ul", {id: inject("sinksId"), class: "sinks", drop: ["sink drop", ""], dragOver: ["", ""]})),
-                         elem("div", {id: "workspace", class: "workspace"})
+                         elem("div", {id: "workspace", class: "workspace", dragOver: ["", ""], drop: ["add to workspace", ""]})
                         )),
 
                rule("on source drop",
@@ -1004,6 +1001,44 @@ var editor =
                     constant("+sink", "+sink"),
                     sink("pipe", {pipe: "eid", table: "table", rule: "rule", direction: "+sink"})),
 
+               rule("add table to workspace",
+                    on("add to workspace", {value: "eid"}),
+                    constant("addPipe", "add pipe"),
+                    source("externalEvent", {eid: "eid", label: "addPipe", key: "table"}),
+                    stateValueAt("activeRule", "rule", "eid"),
+                    constant("+source", "+source"),
+                    sink("pipe", {pipe: "eid", table: "table", rule: "rule", direction: "+source"})
+                   ),
+
+               rule("append table valves to workspace",
+                    on("add to workspace", {value: "eid"}),
+                    constant("addPipe", "add pipe"),
+                    source("externalEvent", {eid: "eid", label: "addPipe", key: "table"}),
+                    source("field", {table: "table", field: "field", ix: "ix"}),
+                    stateValueAt("activeRule", "rule", "eid"),
+                    aggregate(["field"], []),
+                    calculate("valve", ["eid", "field"], "eid + '_' + field"),
+                    calculate("name", ["table", "field"], "table + '.' + field"),
+                    sink("displayName", {id: "valve", name: "name"}),
+                    sink("valveToEid-temp", {valve: "valve", rule: "rule", eid: "eid"}),
+                    sink("tableConstraint", {valve: "valve", pipe: "eid", field: "field"})
+                   ),
+
+               rule("append pipe valves to workspace",
+                    on("add to workspace", {value: "eid"}),
+                    constant("moveSource", "move source"),
+                    source("externalEvent", {eid: "eid", label: "moveSource", key: "pipe"}),
+                    source("pipe", {pipe: "pipe", table: "table"}),
+                    source("field", {table: "table", field: "field", ix: "ix"}),
+                    stateValueAt("activeRule", "rule", "eid"),
+                    aggregate(["field"], []),
+                    calculate("valve", ["pipe", "field"], "pipe + '_' + field"),
+                    calculate("name", ["table", "field"], "table + '.' + field"),
+                    sink("displayName", {id: "valve", name: "name"}),
+                    sink("valveToEid-temp", {valve: "valve", rule: "rule", eid: "eid"}),
+                    sink("tableConstraint", {valve: "valve", pipe: "eid", field: "field"})
+                   ),
+
                rule("rule page sources",
                     page("rule"),
                     source("editorRule", {id: "rid"}),
@@ -1013,7 +1048,7 @@ var editor =
                     calculate("id", ["pipe"], "'source' + pipe"),
                     calculate("parent", ["pipe", "rid"], "'sources' + rid"),
                     calculate("sourceFieldsId", ["pipe"], "'rule-source-fields' + pipe"),
-                    elem("li", {id: inject("id"), parent: [inject("parent"), inject("table")], class: "io-item"},
+                    elem("li", {id: inject("id"), parent: [inject("parent"), inject("table")], draggable: "true", dragStart: ["move source", inject("pipe")],  class: "io-item"},
                          elem("span", {}, inject("table")),
                          elem("ul", {id: inject("sourceFieldsId")})
                         )),
@@ -1072,6 +1107,25 @@ var editor =
                     source("pipe", {pipe: "pipeId", table: "tableId", rule: "rid", direction: "dir"}),
                     source("field", {table: "tableId", field: "fieldId", ix: "ix"}),
                     source("tableConstraint", {valve: "valve", pipe: "pipeId", field: "fieldId"}),
+                    source("displayName", {id: "valve", name: "name"}),
+
+                    joinState("activeRule", "rid"),
+
+                    calculate("id", ["pipeId", "fieldId"], "'rule-sink-output' + pipeId + '_' + fieldId"),
+                    calculate("parent", ["pipeId"], "'rule-outputs-fields' + pipeId"),
+
+                    elem("li", {id: inject("id"), parent: [inject("parent"), inject("ix")]},
+                         inject("name")
+                        )),
+
+               rule("rule page sink outputs without displayName",
+                    page("rule"),
+                    source("editorRule", {id: "rid"}),
+                    constant("dir", "+sink"),
+                    source("pipe", {pipe: "pipeId", table: "tableId", rule: "rid", direction: "dir"}),
+                    source("field", {table: "tableId", field: "fieldId", ix: "ix"}),
+                    source("tableConstraint", {valve: "valve", pipe: "pipeId", field: "fieldId"}),
+                    notSource("displayName", {id: "valve"}),
 
                     joinState("activeRule", "rid"),
 
@@ -1101,21 +1155,24 @@ var editor =
                         )),
 
                /////////////////////////////////////////////////////////////////////////////////
-               // this is a hack to try and get ixs for valves, I feel like there has to be a
-               // better way to do this, but not sure what it is yet.
-               table("eidToRule", ["eid", "rule"]),
-               table("eidToIx", ["eid", "ix"]),
+               // I think this is now a reasonable way of handling adding ix's to valves. It also
+               // takes care of deduping and ensures that valves stay in the order they were added in.
+               // Later we'll have to come up with a way to make them reorderable.
 
-               rule("eid to rule",
-                    on("link to sink", {value: "eid"}),
-                    stateValueAt("activeRule", "rule", "eid"),
-                    sink("eidToRule", {eid: "eid", rule: "rule"})),
+               table("valveToEid-temp", ["valve", "rule", "eid"]),
+               table("valveToEid", ["valve", "rule", "eid"]),
 
-               rule("eid to ix",
-                    source("eidToRule", {eid: "eid", rule: "rid"}),
+               rule("valve to eid",
+                    source("valveToEid-temp", {valve: "valve", rule: "rule", eid: "eid"}),
+                    aggregate(["valve"], ["eid"], 1),
+                    sink("valveToEid", {valve: "valve", rule: "rule", eid: "eid"})),
+
+               rule("from eid valves to valves",
+                    source("valveToEid", {valve: "valve", rule: "rule", eid: "eid"}),
                     aggregate(["rule"], ["eid"], undefined, "ix"),
-                    sink("eidToIx", {eid: "eid", ix: "ix"})
+                    sink("valve", {valve: "valve", rule: "rule", ix: "ix"})
                    ),
+
                // end hack
                ///////////////////////////////////////////////////////////////////////////////////
 
@@ -1125,12 +1182,26 @@ var editor =
                     sink("compileProgram", {id: "eid", program: "program"})
                    ),
 
+               rule("add to workspace causes a recompile",
+                    on("add to workspace", {value: "eid"}),
+                    stateValueAt("activeProgram", "program", "eid"),
+                    sink("compileProgram", {id: "eid", program: "program"})
+                   ),
+
                //////////////////////////////////////////////////////////////////////////////////
                // this is a hack and works largely by accident. This should really use stateValueAt
-               // in order to match request up with the correct program/rule/gridId, but that requires
+               // in order to match requests up with the correct program/rule/gridId, but that requires
                // multiple aggregates in a single rule.
                rule("link input to output needs new intermediates",
                     on("link to sink", {value: "eid"}),
+                    joinState("activeProgram", "program"),
+                    joinState("activeRule", "rule"),
+                    joinState("activeRuleGridId", "id"),
+                    sink("getIntermediate", {rule: "rule", program: "program", id: "eid", gridId: "id"})
+                   ),
+
+               rule("add to workspace needs new intermediates",
+                    on("add to workspace", {value: "eid"}),
                     joinState("activeProgram", "program"),
                     joinState("activeRule", "rule"),
                     joinState("activeRuleGridId", "id"),
@@ -1145,22 +1216,40 @@ var editor =
                     constant("moveSourceField", "move source field"),
                     source("externalEvent", {eid: "eid", label: "moveSourceField", key: "sourcepipe_field"}),
                     stateValueAt("activeRule", "rule", "eid"),
-                    source("eidToIx", {eid: "eid", ix: "ix"}),
-                    calculate("valve", ["sourcepipe_field"], "sourcepipe_field"),
+                    source("pipe", {pipe: "sourcePipe", table: "table"}),
                     calculate("sourcePipe", ["sourcepipe_field"], "parseInt(sourcepipe_field.split('_')[0])"),
                     calculate("sourceField", ["sourcepipe_field"], "sourcepipe_field.split('_')[1]"),
                     calculate("sinkPipe", ["sinkpipe_field"], "parseInt(sinkpipe_field.split('_')[0])"),
                     calculate("sinkField", ["sinkpipe_field"], "sinkpipe_field.split('_')[1]"),
-                    sink("valve", {valve: "valve", rule: "rule", ix: "ix"}),
-                    sink("tableConstraint", {valve: "valve", pipe: "sourcePipe", field: "sourceField"}),
-                    sink("tableConstraint", {valve: "valve", pipe: "sinkPipe", field: "sinkField"})
+                    calculate("name", ["table", "sourceField"], "table + '.' + sourceField"),
+                    sink("displayName", {id: "sourcepipe_field", name: "name"}),
+                    sink("valveToEid-temp", {valve: "sourcepipe_field", rule: "rule", eid: "eid"}),
+                    sink("tableConstraint", {valve: "sourcepipe_field", pipe: "sourcePipe", field: "sourceField"}),
+                    sink("tableConstraint", {valve: "sourcepipe_field", pipe: "sinkPipe", field: "sinkField"})
                    ),
 
-               rule("print valves",
-                    joinState("activeRule", "rid"),
-                    source("valve", {rule: "rid", valve: "valve", ix: "ix"}),
-                    calculate("foo", ["rid", "valve", "ix"], "console.log('valve', rid, valve, ix)"),
-                    sink("click", {id: "foo"})
+               rule("add field to workspace",
+                    on("add to workspace", {value: "eid"}),
+                    constant("moveSourceField", "move source field"),
+                    source("externalEvent", {eid: "eid", label: "moveSourceField", key: "sourcepipe_field"}),
+                    stateValueAt("activeRule", "rule", "eid"),
+                    calculate("sourcePipe", ["sourcepipe_field"], "parseInt(sourcepipe_field.split('_')[0])"),
+                    calculate("sourceField", ["sourcepipe_field"], "sourcepipe_field.split('_')[1]"),
+                    calculate("name", ["table", "sourceField"], "table + '.' + sourceField"),
+                    source("pipe", {pipe: "sourcePipe", table: "table"}),
+                    sink("displayName", {id: "sourcepipe_field", name: "name"}),
+                    sink("valveToEid-temp", {valve: "sourcepipe_field", rule: "rule", eid: "eid"}),
+                    sink("tableConstraint", {valve: "sourcepipe_field", pipe: "sourcePipe", field: "sourceField"})
+                   ),
+
+
+               rule("link valve to output",
+                    on("link to sink", {value: "eid", key: "sinkpipe_field"}),
+                    constant("moveColumn", "move column"),
+                    source("externalEvent", {eid: "eid", label: "moveColumn", key: "valve"}),
+                    calculate("sinkPipe", ["sinkpipe_field"], "parseInt(sinkpipe_field.split('_')[0])"),
+                    calculate("sinkField", ["sinkpipe_field"], "sinkpipe_field.split('_')[1]"),
+                    sink("tableConstraint", {valve: "valve", pipe: "sinkPipe", field: "sinkField"})
                    ),
 
                rule("get grid for rule page",
@@ -1175,14 +1264,23 @@ var editor =
                     joinState("activeRuleGridId", "gridId"),
                     joinState("activeRule", "rid"),
                     source("valve", {rule: "rid", valve: "valve", ix: "ix"}),
-                    sink("gridHeader", {gridId: "gridId", name: "valve", ix: "ix"})),
+                    source("displayName", {id: "valve", name: "name"}),
+                    sink("gridHeader", {gridId: "gridId", name: "name", ix: "ix", key: "valve"})),
+
+               rule("grid headers for workspace grid without displayName",
+                    page("rule"),
+                    joinState("activeRuleGridId", "gridId"),
+                    joinState("activeRule", "rid"),
+                    source("valve", {rule: "rid", valve: "valve", ix: "ix"}),
+                    notSource("displayName", {id: "valve"}),
+                    sink("gridHeader", {gridId: "gridId", name: "valve", ix: "ix", key: "valve"})),
 
                //*********************************************************
                // Grids
                //*********************************************************
 
                table("gridItem", ["gridId", "row", "col", "val"]),
-               table("gridHeader", ["gridId", "name", "ix"]),
+               table("gridHeader", ["gridId", "name", "ix", "key"]),
                table("drawGrid", ["gridId", "parent"]),
 
                rule("draw a grid",
@@ -1205,10 +1303,10 @@ var editor =
 
                rule("draw grid headers",
                     source("drawGrid", {gridId: "gridId"}),
-                    source("gridHeader", {gridId: "gridId", ix: "ix", name: "name"}),
+                    source("gridHeader", {gridId: "gridId", ix: "ix", name: "name", key: "key"}),
                     calculate("headerId", ["gridId"], "'grid-header' + gridId"),
                     calculate("itemId", ["ix", "gridId"], "'grid-header-item' + gridId + '_' + ix"),
-                    elem("div", {id: inject("itemId"), parent: [inject("headerId"), inject("ix")]},
+                    elem("div", {id: inject("itemId"), parent: [inject("headerId"), inject("ix")], draggable: "true", dragStart: ["move column", inject("key")]},
                          inject("name")
                         )),
 
@@ -1228,7 +1326,8 @@ var editor =
                     joinState("activeTableGridId", "gridId"),
                     joinState("activeTable", "table"),
                     source("field", {table: "table", field: "field", ix: "ix"}),
-                    sink("gridHeader", {gridId: "gridId", name: "field", ix: "ix"})),
+                    calculate("table_field", ["table", "field"], "table + '_' + field"),
+                    sink("gridHeader", {gridId: "gridId", name: "field", ix: "ix", key: "field"})),
 
                rule("draw table page",
                     page("table"),
