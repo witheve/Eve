@@ -150,6 +150,7 @@ $sinks = #d0d0d0;
   .table-list {
     flex: none;
     padding:0 20px;
+    margin-bottom:10px;
     min-width:200px;
     display:flex;
     flex-direction:row;

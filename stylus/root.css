@@ -412,6 +412,7 @@ li {
   -webkit-flex: none;
   flex: none;
   padding: 0 20px;
+  margin-bottom: 10px;
   min-width: 200px;
   display: -webkit-box;
   display: -moz-box;
