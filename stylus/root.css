@@ -169,6 +169,28 @@ li {
   display: flex;
   padding: 20px 50px;
 }
+.hbox {
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-box;
+  display: -webkit-flex;
+  display: box;
+  display: flex;
+}
+.vbox {
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-box;
+  display: -webkit-flex;
+  display: box;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -moz-box-orient: vertical;
+  -o-box-orient: vertical;
+  -ms-box-orient: vertical;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+}
 .program-list {
   display: -webkit-box;
   display: -moz-box;
@@ -374,6 +396,57 @@ li {
   flex: none;
   padding: 5px;
 }
+.rule-page .vbox {
+  box-flex: 1;
+  -webkit-flex: 1;
+  flex: 1;
+  padding-bottom: 30px;
+}
+.rule-page .rule-space {
+  box-flex: 1;
+  -webkit-flex: 1;
+  flex: 1;
+}
+.rule-page .table-list {
+  box-flex: 0;
+  -webkit-flex: none;
+  flex: none;
+  padding: 0 20px;
+  min-width: 200px;
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-box;
+  display: -webkit-flex;
+  display: box;
+  display: flex;
+  -webkit-box-orient: horizontal;
+  -moz-box-orient: horizontal;
+  -o-box-orient: horizontal;
+  -ms-box-orient: horizontal;
+  -webkit-flex-direction: row;
+  flex-direction: row;
+  -webkit-box-align: start;
+  -moz-box-align: start;
+  -o-box-align: start;
+  -ms-box-align: start;
+  -webkit-align-items: flex-start;
+  align-items: flex-start;
+  overflow: auto;
+}
+.rule-page .table-list li {
+  box-flex: 0;
+  -webkit-flex: none;
+  flex: none;
+  padding: 5px 10px;
+  border-radius: 3px;
+}
+.rule-page .table-list li + li {
+  margin-left: 5px;
+}
+.rule-page .table-list li {
+  display: inline-block;
+  border: 1px solid #333;
+}
 .rule-page .io {
   box-flex: 1;
   -webkit-flex: 1;
@@ -428,17 +501,20 @@ li {
   -ms-box-pack: center;
   -webkit-justify-content: center;
   justify-content: center;
-  box-flex: 1;
-  -webkit-flex: 1;
-  flex: 1;
+  box-flex: 0;
+  -webkit-flex: none;
+  flex: none;
   padding: 10px 20px;
   overflow: auto;
+  min-width: 130px;
 }
 .rule-page .sources {
   background: #ddd;
+  background: none;
 }
 .rule-page .sinks {
   background: #d0d0d0;
+  background: none;
 }
 .rule-page .io-item {
   box-flex: 0;
@@ -484,6 +560,13 @@ li {
   flex: 1;
   max-width: 100%;
   overflow: auto;
+  box-shadow: 0 0 10px #777;
+  z-index: 10;
+  border-radius: 3px;
+}
+.rule-page .workspace .grid {
+  border-left: none;
+  border-top: none;
 }
 .grid {
   display: inline-block;
