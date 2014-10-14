@@ -700,7 +700,7 @@ var compilerTables =
      ["reducer"],
      ["flow"],
      ["refresh"],
-     ["errorRule"],
+     ["constraintRule"],
      // TODO adding these here is hacky
      ["program"],
      ["programRule"],
@@ -773,7 +773,7 @@ var compilerFields =
      ["refresh", "endTime", 2],
      ["refresh", "flow", 3],
 
-     ["errorRule", "rule", 0],
+     ["constraintRule", "rule", 0],
 
      // TODO adding these here is hacky
 
@@ -803,12 +803,12 @@ var compilerFields =
      ["externalEvent", "eid", 3],
      ["externalEvent", "value", 4]];
 
-function System(meta, stores, flows, dirtyFlows, errorFlows, downstream, nameToIx, ixToName) {
+function System(meta, stores, flows, dirtyFlows, constraintFlows, downstream, nameToIx, ixToName) {
   this.meta = meta;
   this.stores = stores;
   this.flows = flows;
   this.dirtyFlows = dirtyFlows;
-  this.errorFlows = errorFlows;
+  this.constraintFlows = constraintFlows;
   this.downstream = downstream;
   this.nameToIx = nameToIx;
   this.ixToName = ixToName;
@@ -819,7 +819,7 @@ System.empty = function(meta) {
   var stores = [];
   var flows = [];
   var dirtyFlows = [];
-  var errorFlows = [];
+  var constraintFlows = [];
   var downstream = [];
   var nameToIx = {};
 
@@ -860,7 +860,7 @@ System.empty = function(meta) {
     ixToName[nameToIx[name]] = name;
   }
 
-  var system = new System(meta, stores, flows, dirtyFlows, errorFlows, downstream, nameToIx, ixToName);
+  var system = new System(meta, stores, flows, dirtyFlows, constraintFlows, downstream, nameToIx, ixToName);
   system.setStore(0, Memory.fromFacts(compilerTables));
   system.setStore(2, Memory.fromFacts(compilerFields));
   return system;
@@ -874,7 +874,9 @@ System.prototype = {
 
   updateTable: function (table, adds, dels) {
     var sourceIx = this.nameToIx[table + "-source"];
-    this.setStore(sourceIx, this.getStore(sourceIx).update(adds, dels));
+    var store = this.getStore(sourceIx);
+    if (store === undefined) console.error("No store for " + table);
+    this.setStore(sourceIx, store.update(adds, dels));
     return this;
   },
 
@@ -925,14 +927,14 @@ System.prototype = {
     var stores = this.stores;
     var numFlows = flows.length;
     var dirtyFlows = this.dirtyFlows;
-    var errorFlows = this.errorFlows;
+    var constraintFlows = this.constraintFlows;
     var refreshes = [];
     for (var flowIx = 0; flowIx < numFlows; flowIx++) {
       if (dirtyFlows[flowIx] === true) {
         dirtyFlows[flowIx] = false;
         var startTime = now();
         flows[flowIx].refresh(this);
-        if ((errorFlows[flowIx] === true) && !(stores[flowIx].isEmpty()))  {
+        if ((constraintFlows[flowIx] === true) && !(stores[flowIx].isEmpty()))  {
           console.error("Error flow " + JSON.stringify(this.ixToName[flowIx]) + " produced " + JSON.stringify(stores[flowIx].getFacts()), this);
         }
         var endTime = now();
@@ -960,14 +962,14 @@ System.prototype = {
     var groupValves = this.getDump("groupValve");
     var sortValves = this.getDump("sortValve");
     var reducers = this.getDump("reducer");
-    var errorRules = this.getDump("errorRule");
+    var constraintRules = this.getDump("constraintRule");
 
     rules.sort(function (a,b) { if (a.ix < b.ix) return 1; else return -1;});
 
     var stores = [];
     var flows = [];
     var dirtyFlows = [];
-    var errorFlows = [];
+    var constraintFlows = [];
     var nameToIx = {};
     var downstream = [];
 
@@ -1184,9 +1186,9 @@ System.prototype = {
       aggregate.reducerFuns.push(Function.apply(null, [reducer.inVariable, "return (" + reducer.code + ");"]));
     }
 
-    for (var i = errorRules.length - 1; i >= 0; i--) {
-      var errorRule = errorRules[i];
-      errorFlows[nameToIx[errorRule.rule + "-aggregate"]] = true;
+    for (var i = constraintRules.length - 1; i >= 0; i--) {
+      var constraintRule = constraintRules[i];
+      constraintFlows[nameToIx[constraintRule.rule + "-aggregate"]] = true;
     }
 
     var ixToName = [];
@@ -1197,7 +1199,7 @@ System.prototype = {
     this.stores = stores;
     this.flows = flows;
     this.dirtyFlows = dirtyFlows;
-    this.errorFlows = errorFlows;
+    this.constraintFlows = constraintFlows;
     this.downstream = downstream;
     this.nameToIx = nameToIx;
     this.ixToName = ixToName;
@@ -1259,14 +1261,16 @@ System.prototype = {
 // ADAM
 
 function program() { // name, rule*
+  var name = arguments[0];
+  var declarations = Array.prototype.slice.call(arguments, 1).concat(compilerConstraints);
   var facts = [];
   var context = {nextId: 0,
                  rule: null,
                  valves: null};
-  for (var i = 1; i < arguments.length; i++) {
-    facts = facts.concat(arguments[i](context));
+  for (var i = 0; i < declarations.length; i++) {
+    facts = facts.concat(declarations[i](context));
   }
-  return System.empty({name: arguments[0]}).update(facts, []).refresh().recompile();
+  return System.empty({name: name}).update(facts, []).refresh().recompile();
 }
 
 function table(table, fields) {
@@ -1286,7 +1290,8 @@ function rule() { // name, clause*
   var args = arguments;
   return function (context) {
     context.rule = args[0];
-    var facts = [["rule", context.rule, context.nextId++], ["editorRule", context.rule, context.rule]];
+    var facts = [["rule", context.rule, context.nextId++],
+                 ["editorRule", context.rule, context.rule]];
     if(context.program) {
       facts.push(["programRule", context.program, context.rule]);
     }
@@ -1312,6 +1317,15 @@ function rule() { // name, clause*
     }
     return facts;
   };
+}
+
+function constraint() { // name, clause*
+  var args = arguments;
+  return function(context) {
+    var facts = rule.apply(null, args)(context);
+    facts.push(["constraintRule", args[0]]);
+    return facts;
+  }
 }
 
 function pipe(direction, table, bindings) {
@@ -1536,3 +1550,14 @@ function elem() {
     return facts;
   };
 }
+
+// COMPILER CONSTRAINTS
+var compilerConstraints = [
+  constraint("all valves are constrained",
+             source("valve", {valve: "valve"}),
+             notSource("tableConstraint", {valve: "valve"}),
+             notSource("constantConstraint", {valve: "valve"}),
+             notSource("functionConstraint", {valve: "valve"}),
+             notSource("reducer", {outValve: "valve"}))
+
+  ];
