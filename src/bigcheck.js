@@ -75,7 +75,7 @@ var bigcheck = (function () {
 
   function tuple(elems) {
     return new Generator(
-      function arrayGrow(size) {
+      function tupleGrow(size) {
         var len = elems.length;
         var value = [];
         for (var i = 0; i < len; i++) {
@@ -83,7 +83,7 @@ var bigcheck = (function () {
         }
         return value;
       },
-      function arrayShrink(value, bias) {
+      function tupleShrink(value, bias) {
         var newValue = value.slice();
         var i = Math.floor(Math.random() * newValue.length);
         newValue[i] = elems[i].shrink(newValue[i], rebias(bias));

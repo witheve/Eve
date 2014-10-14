@@ -103,6 +103,7 @@ function systemCheck() {
   var simple = bigcheck.forall(name + " (simple)",
                                bigcheck.tuple([bigcheck.facts(3)].concat(gens)),
                                function (values) {
+                                 values = values.slice();
                                  var facts = values.shift();
                                  var system = systemSpec.apply(null, values);
                                  var expected = expectedSpec.apply(null, [facts].concat(values));
@@ -112,6 +113,7 @@ function systemCheck() {
   var incremental = bigcheck.forall(name + " (incremental)",
                                     bigcheck.tuple([bigcheck.facts(3), bigcheck.facts(3), bigcheck.facts(3)].concat(gens)),
                                     function (values) {
+                                      values = values.slice();
                                       var facts = values.shift();
                                       var adds = values.shift();
                                       var dels = values.shift();
