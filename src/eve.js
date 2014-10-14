@@ -803,14 +803,15 @@ var compilerFields =
      ["externalEvent", "eid", 3],
      ["externalEvent", "value", 4]];
 
-function System(meta, stores, flows, dirtyFlows, errorFlows, downstream, tableToStore) {
+function System(meta, stores, flows, dirtyFlows, errorFlows, downstream, nameToIx, ixToName) {
   this.meta = meta;
   this.stores = stores;
   this.flows = flows;
   this.dirtyFlows = dirtyFlows;
   this.errorFlows = errorFlows;
   this.downstream = downstream;
-  this.tableToStore = tableToStore;
+  this.nameToIx = nameToIx;
+  this.ixToName = ixToName;
   this.tick = 0;
 }
 
@@ -820,7 +821,7 @@ System.empty = function(meta) {
   var dirtyFlows = [];
   var errorFlows = [];
   var downstream = [];
-  var tableToStore = {};
+  var nameToIx = {};
 
   var numFields = {};
   for (var i = compilerTables.length - 1; i >= 0; i--) {
@@ -840,12 +841,12 @@ System.empty = function(meta) {
     dirtyFlows[sourceIx] = false;
     stores[sourceIx] = Memory.empty();
     downstream[sourceIx] = [sinkIx];
-    tableToStore[name + "-source"] = sourceIx;
+    nameToIx[name + "-source"] = sourceIx;
 
     dirtyFlows[sinkIx] = false;
     stores[sinkIx] = Memory.empty();
     downstream[sinkIx] = [];
-    tableToStore[name + "-sink"] = sinkIx;
+    nameToIx[name + "-sink"] = sinkIx;
 
     var sinkFieldIxes = [];
       for (var j = numFields[name] - 1; j >= 0; j--) {
@@ -854,7 +855,12 @@ System.empty = function(meta) {
     flows[sinkIx] = new Sink([new SinkConstraint(sourceIx, sinkFieldIxes)], sinkIx);
   }
 
-  var system = new System(meta, stores, flows, dirtyFlows, errorFlows, downstream, tableToStore);
+  var ixToName = [];
+  for (var name in nameToIx) {
+    ixToName[nameToIx[name]] = name;
+  }
+
+  var system = new System(meta, stores, flows, dirtyFlows, errorFlows, downstream, nameToIx, ixToName);
   system.setStore(0, Memory.fromFacts(compilerTables));
   system.setStore(2, Memory.fromFacts(compilerFields));
   return system;
@@ -862,22 +868,22 @@ System.empty = function(meta) {
 
 System.prototype = {
   getTable: function (table) {
-    var sinkIx = this.tableToStore[table + "-sink"];
+    var sinkIx = this.nameToIx[table + "-sink"];
     return this.getStore(sinkIx);
   },
 
   updateTable: function (table, adds, dels) {
-    var sourceIx = this.tableToStore[table + "-source"];
+    var sourceIx = this.nameToIx[table + "-source"];
     this.setStore(sourceIx, this.getStore(sourceIx).update(adds, dels));
     return this;
   },
 
   getSolver: function(rule) {
-    return this.getStore(this.tableToStore[rule + "-solver"]);
+    return this.getStore(this.nameToIx[rule + "-solver"]);
   },
 
   getAggregate: function(rule) {
-    return this.getStore(this.tableToStore[rule + "-aggregate"]);
+    return this.getStore(this.nameToIx[rule + "-aggregate"]);
   },
 
   getStore: function (storeIx) {
@@ -900,7 +906,7 @@ System.prototype = {
       var field = fields[i];
       if (field[0] === table) tableFields[field[2]] = field[1];
     }
-    var facts = this.getStore(this.tableToStore[table + "-source"]).getFacts();
+    var facts = this.getStore(this.nameToIx[table + "-source"]).getFacts();
     var dump = [];
     for (var i = facts.length - 1; i >= 0; i--) {
       var fact = facts[i];
@@ -927,7 +933,7 @@ System.prototype = {
         var startTime = now();
         flows[flowIx].refresh(this);
         if ((errorFlows[flowIx] === true) && !(stores[flowIx].isEmpty()))  {
-          console.error("Error flow " + flowIx + " produced " + JSON.stringify(stores[flowIx].getFacts()), this);
+          console.error("Error flow " + JSON.stringify(this.ixToName[flowIx]) + " produced " + JSON.stringify(stores[flowIx].getFacts()), this);
         }
         var endTime = now();
         refreshes.push([tick, startTime, endTime, flowIx]);
@@ -962,7 +968,7 @@ System.prototype = {
     var flows = [];
     var dirtyFlows = [];
     var errorFlows = [];
-    var tableToStore = {};
+    var nameToIx = {};
     var downstream = [];
 
     var valveRules = {};
@@ -1017,29 +1023,29 @@ System.prototype = {
         var table = ruleUpstream[j];
         if (tablePlaced[table] !== true) {
           var sourceIx = nextIx++;
-          tableToStore[table + "-source"] = sourceIx;
+          nameToIx[table + "-source"] = sourceIx;
           flowFacts.push([sourceIx, "source", table]);
           var sinkIx = nextIx++;
-          tableToStore[table + "-sink"] = sinkIx;
+          nameToIx[table + "-sink"] = sinkIx;
           flowFacts.push([sinkIx, "sink", table]);
           tablePlaced[table] = true;
         }
       }
       var solverIx = nextIx++;
-      tableToStore[rule.rule + "-solver"] = solverIx;
+      nameToIx[rule.rule + "-solver"] = solverIx;
       flowFacts.push([solverIx, "solver", rule.rule]);
       var aggregateIx = nextIx++;
-      tableToStore[rule.rule + "-aggregate"] = aggregateIx;
+      nameToIx[rule.rule + "-aggregate"] = aggregateIx;
       flowFacts.push([aggregateIx, "aggregate", rule.rule]);
     }
     for (var i = tables.length - 1; i >= 0; i--) {
       var table = tables[i];
       if (tablePlaced[table.table] !== true) {
           var sourceIx = nextIx++;
-          tableToStore[table.table + "-source"] = sourceIx;
+          nameToIx[table.table + "-source"] = sourceIx;
           flowFacts.push([sourceIx, "source", table.table]);
           var sinkIx = nextIx++;
-          tableToStore[table.table + "-sink"] = sinkIx;
+          nameToIx[table.table + "-sink"] = sinkIx;
           flowFacts.push([sinkIx, "sink", table.table]);
       }
     }
@@ -1050,8 +1056,8 @@ System.prototype = {
     for (var i = rules.length - 1; i >= 0; i--) {
       var rule = rules[i];
 
-      var solverIx = tableToStore[rule.rule + "-solver"];
-      var aggregateIx = tableToStore[rule.rule + "-aggregate"];
+      var solverIx = nameToIx[rule.rule + "-solver"];
+      var aggregateIx = nameToIx[rule.rule + "-aggregate"];
 
       var solver = Solver.empty(numVars[rule.rule], [], [], solverIx);
       solvers[rule.rule] = solver;
@@ -1073,20 +1079,20 @@ System.prototype = {
     for (var i = tables.length - 1; i >= 0; i--) {
       var table = tables[i];
 
-      var sourceIx = tableToStore[table.table + "-source"];
-      var sinkIx = tableToStore[table.table + "-sink"];
+      var sourceIx = nameToIx[table.table + "-source"];
+      var sinkIx = nameToIx[table.table + "-sink"];
       var sinkFieldIxes = [];
       for (var j = numFields[table.table] - 1; j >= 0; j--) {
         sinkFieldIxes[j] = j;
       }
 
-      stores[sourceIx] = this.stores[this.tableToStore[table.table + "-source"]] || Memory.empty();
+      stores[sourceIx] = this.stores[this.nameToIx[table.table + "-source"]] || Memory.empty();
       dirtyFlows[sourceIx] = false;
       downstream[sourceIx] = [sinkIx];
 
       var sink = new Sink([new SinkConstraint(sourceIx, sinkFieldIxes)], sinkIx);
       sinks[table.table] = sink;
-      stores[sinkIx] = this.stores[this.tableToStore[table.table + "-sink"]] || Memory.empty();
+      stores[sinkIx] = this.stores[this.nameToIx[table.table + "-sink"]] || Memory.empty();
       flows[sinkIx] = sink;
       dirtyFlows[sinkIx] = true;
       downstream[sinkIx] = [];
@@ -1098,20 +1104,20 @@ System.prototype = {
     for (var i = pipes.length - 1; i >= 0; i--) {
       var pipe = pipes[i];
       if (pipe.direction === "+source") {
-        var constraint = new MemoryConstraint(tableToStore[pipe.table + "-sink"], []);
+        var constraint = new MemoryConstraint(nameToIx[pipe.table + "-sink"], []);
         solvers[pipe.rule].constraints.push(constraint);
         constraints[pipe.pipe] = constraint;
-        downstream[tableToStore[pipe.table + "-sink"]].push(tableToStore[pipe.rule + "-solver"]);
+        downstream[nameToIx[pipe.table + "-sink"]].push(nameToIx[pipe.rule + "-solver"]);
       } else if (pipe.direction === "-source") {
-        var constraint = new NegatedMemoryConstraint(tableToStore[pipe.table + "-sink"], []);
+        var constraint = new NegatedMemoryConstraint(nameToIx[pipe.table + "-sink"], []);
         solvers[pipe.rule].constraints.push(constraint);
         constraints[pipe.pipe] = constraint;
-        downstream[tableToStore[pipe.table + "-sink"]].push(tableToStore[pipe.rule + "-solver"]);
+        downstream[nameToIx[pipe.table + "-sink"]].push(nameToIx[pipe.rule + "-solver"]);
       } else if (pipe.direction === "+sink") {
-        var constraint = new SinkConstraint(tableToStore[pipe.rule + "-aggregate"], []);
+        var constraint = new SinkConstraint(nameToIx[pipe.rule + "-aggregate"], []);
         sinks[pipe.table].constraints.push(constraint);
         constraints[pipe.pipe] = constraint;
-        downstream[tableToStore[pipe.rule + "-aggregate"]].push(tableToStore[pipe.table + "-sink"]);
+        downstream[nameToIx[pipe.rule + "-aggregate"]].push(nameToIx[pipe.table + "-sink"]);
       }
     }
     for (var i = tableConstraints.length - 1; i >= 0; i--) {
@@ -1180,7 +1186,12 @@ System.prototype = {
 
     for (var i = errorRules.length - 1; i >= 0; i--) {
       var errorRule = errorRules[i];
-      errorFlows[tableToStore[errorRule.rule + "-aggregate"]] = true;
+      errorFlows[nameToIx[errorRule.rule + "-aggregate"]] = true;
+    }
+
+    var ixToName = [];
+    for (var name in nameToIx) {
+      ixToName[nameToIx[name]] = name;
     }
 
     this.stores = stores;
@@ -1188,8 +1199,9 @@ System.prototype = {
     this.dirtyFlows = dirtyFlows;
     this.errorFlows = errorFlows;
     this.downstream = downstream;
-    this.tableToStore = tableToStore;
-    this.setStore(tableToStore["flow-source"], Memory.fromFacts(flowFacts));
+    this.nameToIx = nameToIx;
+    this.ixToName = ixToName;
+    this.setStore(nameToIx["flow-source"], Memory.fromFacts(flowFacts));
 
     return this;
   },
