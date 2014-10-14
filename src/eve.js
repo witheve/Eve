@@ -37,6 +37,10 @@ var now = function() {
 var least = false;
 var greatest = undefined;
 
+function isValue(v) {
+  return (typeof v === 'string') || (typeof v === 'number');
+}
+
 function compareValue(a, b) {
   if(a === b) return 0;
   var at = typeof a;
@@ -402,6 +406,7 @@ FunctionConstraint.prototype = {
 
     var outIx = this.outIx;
     var outValue = this.fun.apply(null, inValues);
+    if (!isValue(outValue)) throw new Error(outValue + " is not a valid Eve value");
     var compLo = compareValue(outValue, los[outIx]);
     var compHi = compareValue(outValue, his[outIx]);
     if ((compLo === -1) || (compHi === 1)) return FAILED;
