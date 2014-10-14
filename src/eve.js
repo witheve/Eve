@@ -478,6 +478,7 @@ Solver.prototype = {
 
     // stack for depth-first search
     var depth = 0;
+    var steps = 0;
     var queuedConstraintStates = [];
     var queuedLos = [];
     var queuedHis = [];
@@ -486,10 +487,13 @@ Solver.prototype = {
 
     solve: while (true) {
 
+      if (steps > 100000) throw new Error("Solver took too long - probably an infinite loop");
+
       // propagate all constraints until nothing changes
       var lastChanged = 0;
       var current = 0;
       propagate: while (true) {
+        steps += 1;
         // console.log("Before prop " + current + " " + los + " " + his);
         var result = constraints[current].propagate(current, constraintStates, los, his);
         if (result === FAILED) {
@@ -1363,7 +1367,7 @@ function sink(table, bindings) {
 }
 
 function constant(variable, value) {
-  if(typeof value === "object") throw new Error("object passed as constant");
+  if (typeof value === "object") throw new Error("Object passed as constant");
   return function(context) {
     var valve = context.rule + "|variable=" + variable;
     return [["constantConstraint", valve, value]];
@@ -1562,6 +1566,7 @@ function elem() {
 }
 
 // COMPILER CONSTRAINTS
+
 var compilerConstraints = [
   foreignKey("field", "table", "table", "table"),
   foreignKey("valve", "rule", "rule", "rule"),
