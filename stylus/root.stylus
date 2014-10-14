@@ -34,6 +34,8 @@ $sinks = #d0d0d0;
 //*********************************************************
 
 .root {display:flex; padding:20px 50px;}
+.hbox { display:flex; }
+.vbox { display:flex; flex-direction:column; }
 
 .program-list {
   display:flex;
@@ -139,6 +141,32 @@ $sinks = #d0d0d0;
     }
   }
 
+  .vbox { flex: 1;
+    padding-bottom: 30px;
+  }
+  .rule-space {
+    flex: 1;
+  }
+  .table-list {
+    flex: none;
+    padding:0 20px;
+    margin-bottom:10px;
+    min-width:200px;
+    display:flex;
+    flex-direction:row;
+    align-items:flex-start;
+    overflow:auto;
+    li {
+      flex:none;
+      padding: 5px 10px;
+      border-radius: 3px;
+    }
+    li + li {
+      margin-left:5px;
+    }
+  }
+  .table-list li { display:inline-block; border:1px solid #333; }
+
   .io {
     flex:1;
     margin-top:10px;
@@ -167,16 +195,19 @@ $sinks = #d0d0d0;
     flex-direction:column;
     align-items:center;
     justify-content: center;
-    flex:1;
+    flex:none;
     padding:10px 20px;
     overflow: auto;
+    min-width:130px;
   }
 
   .sources {
     background:$sources;
+    background:none;
   }
   .sinks {
     background:$sinks;
+    background:none;
   }
 
   .io-item {
@@ -207,6 +238,13 @@ $sinks = #d0d0d0;
     flex:1;
     max-width:100%;
     overflow:auto;
+    box-shadow: 0 0 10px #777;
+    z-index: 10;
+    border-radius:3px;
+    .grid {
+      border-left: none;
+      border-top: none;
+    }
   }
 
 }
