@@ -7,6 +7,8 @@ var SPLITTED = 1;
 
 var eve = {};
 
+var metastack = [];
+
 // UTIL
 
 function assert(cond, msg) {
@@ -926,28 +928,33 @@ System.prototype = {
   },
 
   refresh: function() {
+    metastack.push("System.refresh");
     var tick = this.tick;
     var flows = this.flows;
     var stores = this.stores;
     var numFlows = flows.length;
     var dirtyFlows = this.dirtyFlows;
     var constraintFlows = this.constraintFlows;
+    var ixToName = this.ixToName;
     var refreshes = [];
     for (var flowIx = 0; flowIx < numFlows; flowIx++) {
       if (dirtyFlows[flowIx] === true) {
+        metastack.push("Refreshing: " + ixToName[flowIx]);
         dirtyFlows[flowIx] = false;
         var startTime = now();
         flows[flowIx].refresh(this);
         if ((constraintFlows[flowIx] === true) && !(stores[flowIx].isEmpty()))  {
-          console.error("Error flow " + JSON.stringify(this.ixToName[flowIx]) + " produced " + JSON.stringify(stores[flowIx].getFacts()), this);
+          console.error("Error flow " + JSON.stringify(ixToName[flowIx]) + " produced " + JSON.stringify(stores[flowIx].getFacts()), this);
         }
         var endTime = now();
         refreshes.push([tick, startTime, endTime, flowIx]);
         flowIx = 0; // resets the loop
+        metastack.pop();
       }
     }
     this.updateTable("refresh", refreshes, []);
     this.tick++;
+    metastack.pop();
     return this;
   },
 
