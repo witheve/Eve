@@ -494,7 +494,7 @@ Solver.prototype = {
 
     solve: while (true) {
 
-      if (steps > 100000) throw new Error("Solver took too long - probably an infinite loop");
+      if (steps > 1000000) throw new Error("Solver took too long - probably an infinite loop");
 
       // propagate all constraints until nothing changes
       var lastChanged = 0;
