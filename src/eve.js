@@ -328,6 +328,115 @@ NegatedMemoryConstraint.prototype = {
   }
 };
 
+// TODO would prefer to be able to separate these somehow but would require inserting non-scalar values into the solver
+//      makes comparisons much more expensive
+//      maybe the solver can have a separate section for these?
+function AggregatedMemoryConstraint(storeIx, groupIxes, keepIxes, sortIxes, sortOrders, limitIx, ordinalIx, outIx, fun) {
+  this.storeIx = storeIx;
+  this.groupIxes = groupIxes;
+  this.keepIxes = keepIxes;
+  this.sortIxes = sortIxes;
+  this.sortOrders = sortOrders;
+  this.limitIx = limitIx;
+  this.ordinalIx = ordinalIx;
+  this.outIx = outIx;
+  this.fun = fun;
+}
+
+function compareSortKey(a,b) {
+  return compareValueArray(a[0], b[0]);
+}
+
+function aggregateSortBy(facts, sortIxes, sortOrders) {
+  for (var i = facts.length - 1; i >= 0; i--) {
+    var fact = facts[i];
+    var sortKey = [];
+    for (var j = sortIxes.length - 1; j >= 0; j--) {
+      sortKey[j] = fact[sortIxes[j]];
+    }
+    facts[i] = [sortKey, fact];
+  }
+  facts.sort(compareSortKey);
+  for (var i = facts.length - 1; i >= 0; i--) {
+    var fact = facts[i][1];
+    facts[i] = fact;
+  }
+}
+
+AggregatedMemoryConstraint.prototype = {
+  start: function(system) {
+    return system.getStore(this.storeIx).getFacts();
+  },
+
+  propagate: function(myIx, constraintStates, los, his) {
+    var facts = constraintStates[myIx];
+
+    if (facts === null) return UNCHANGED; // have already run and thrown away our state
+
+    var groupIxes = this.groupIxes;
+    var limitIx = this.limitIx;
+
+    if (los[limitIx] !== his[limitIx]) return UNCHANGED;
+
+    for (var i = groupIxes.length - 1; i >= 0; i--) {
+      var ix = groupIxes[i];
+      if ((ix !== undefined) && (los[ix] !== his[ix])) return UNCHANGED;
+    }
+
+    constraintStates[myIx] = null; // throw away state so we don't run again
+
+    var keepIxes = this.keepIxes;
+    var keptFacts = [];
+
+    for (var i = facts.length - 1; i >= 0; i--) {
+      var fact = facts[i]
+      if (solutionMatchesPoint(los, groupIxes, fact) === false) {
+        var keptFact = [];
+        for (var j = keepIxes.length - 1; j >= 0; j--) {
+          keptFact[j] = fact[keepIxes[j]];
+        }
+        keptFacts.push(keptFact);
+      }
+    }
+
+    var sortIxes = this.sortIxes;
+    var sortOrders = this.sortOrders;
+    var ordinalIx = this.ordinalIx;
+
+    if (sortIxes !== undefined) {
+      aggregateSortBy(sortIxes, sortOrders);
+    }
+    if (limitIx !== undefined) {
+      keptFacts = keptFacts.slice(los[limitIx]);
+    }
+    if (ordinalIx !== undefined) {
+      for (var i = keptFacts.length - 1; i >= 0; i--) {
+        keptFacts[i][ordinalIx] = i;
+      }
+    }
+
+    keptFacts = dedupeFacts(keptFacts);
+
+    var outValue = this.fun.call(null, keptFacts);
+    if (!isValue(outValue)) throw new Error(outValue + " is not a valid Eve value");
+    var outIx = this.outIx;
+    var compLo = compareValue(outValue, los[outIx]);
+    var compHi = compareValue(outValue, his[outIx]);
+    if ((compLo === -1) || (compHi === 1)) return FAILED;
+    if (outIx !== undefined) {
+      los[outIx] = outValue;
+      his[outIx] = outValue;
+      return ((compLo === 1) || (compHi === -1)) ? CHANGED : UNCHANGED;
+    } else {
+      return UNCHANGED;
+    }
+  },
+
+  split: function(myIx, leftConstraintStates, leftLos, leftHis, rightConstraintStates, rightLos, rightHis) {
+    return false;
+  }
+};
+
 // PROVENANCE
 // responsible for avoiding redundant computation and calculating diffs
 
@@ -390,10 +499,12 @@ function FunctionConstraint(fun, args, inIxes, outIx) {
 
 FunctionConstraint.prototype = {
   start: function(system) {
-    return null;
+    return true;
   },
 
   propagate: function(myIx, constraintStates, los, his) {
+    if (constraintStates[myIx] === false) return UNCHANGED; // already ran, don't need to go again
+
     var inIxes = this.inIxes;
     var inValues = this.inValues;
 
@@ -403,6 +514,8 @@ FunctionConstraint.prototype = {
       if ((lo !== his[inIx])) return UNCHANGED;
       inValues[i] = lo;
     }
+
+    constraintStates[myIx] = false; // going to run now, don't run again
 
     var outIx = this.outIx;
     var outValue = this.fun.apply(null, inValues);
@@ -557,98 +670,6 @@ Solver.prototype = {
     // console.log("Finished solve");
 
     provenance.finish(system);
-  }
-};
-
-// AGGREGATE
-
-function Aggregate(groupIxes, sortIxes, limitIx, ordinalIx, reducerInIxes, reducerOutIxes, reducerFuns, inputIx, outputIx) {
-  this.groupIxes = groupIxes;
-  this.sortIxes = sortIxes;
-  this.limitIx = limitIx;
-  this.ordinalIx = ordinalIx;
-  this.reducerInIxes = reducerInIxes;
-  this.reducerOutIxes = reducerOutIxes;
-  this.reducerFuns = reducerFuns;
-  this.inputIx = inputIx;
-  this.outputIx = outputIx;
-}
-
-Aggregate.empty = function (groupIxes, sortIxes, limitIx, ordinalIx, reducerInIxes, reducerOutIxes, reducerFuns, inputIx, outputIx) {
-  return new Aggregate(groupIxes, sortIxes, limitIx, ordinalIx, reducerInIxes, reducerOutIxes, reducerFuns, inputIx, outputIx);
-};
-
-function groupBy(facts, groupIxes) {
-  var groups = {};
-  for (var i = facts.length - 1; i >= 0; i--) {
-    var fact = facts[i];
-    var group = [];
-    for (var j = groupIxes.length - 1; j >= 0; j--) {
-      group[j] = fact[groupIxes[j]];
-    }
-    var groupFacts = groups[JSON.stringify(group)] || (groups[JSON.stringify(group)] = []);
-    groupFacts.push(fact);
-  }
-  return groups;
-}
-
-function compareSortKey(a,b) {
-  return compareValueArray(a[0], b[0]);
-}
-
-function sortBy(facts, sortIxes, ordinalIx) {
-  for (var i = facts.length - 1; i >= 0; i--) {
-    var fact = facts[i];
-    var sortKey = [];
-    for (var j = sortIxes.length - 1; j >= 0; j--) {
-      sortKey[j] = fact[sortIxes[j]];
-    }
-    facts[i] = [sortKey, fact];
-  }
-  facts.sort(compareSortKey);
-  for (var i = facts.length - 1; i >= 0; i--) {
-    var fact = facts[i][1];
-    if (ordinalIx !== undefined) fact[ordinalIx] = i;
-    facts[i] = fact;
-  }
-}
-
-function reduceBy(facts, inIx, outIx, fun) {
-  var inValues = [];
-  for (var i = facts.length - 1; i >= 0; i--) {
-    inValues[i] = facts[i][inIx];
-  }
-  var outValue = fun.call(null, inValues);
-  for (var i = facts.length - 1; i >= 0; i--) {
-    facts[i][outIx] = outValue;
-  }
-}
-
-Aggregate.prototype = {
-  refresh: function(system) {
-    var inputFacts = system.getStore(this.inputIx).getFacts();
-    var groups = groupBy(inputFacts, this.groupIxes);
-    var outputFacts = [];
-    for (var group in groups) {
-      var groupFacts = groups[group];
-      for (var i = groupFacts.length - 1; i >= 0; i--) {
-        groupFacts[i] = groupFacts[i].slice(); // unalias facts from solver
-      }
-      sortBy(groupFacts, this.sortIxes, this.ordinalIx);
-      if (this.limitIx !== undefined) groupFacts = groupFacts.slice(0, groupFacts[0][this.limitIx]);
-      var reducerInIxes = this.reducerInIxes;
-      var reducerOutIxes = this.reducerOutIxes;
-      var reducerFuns = this.reducerFuns;
-      for (var i = reducerInIxes.length - 1; i >= 0; i--) {
-        reduceBy(groupFacts, reducerInIxes[i], reducerOutIxes[i], reducerFuns[i]);
-      }
-      for (var i = groupFacts.length - 1; i >= 0; i--) {
-        outputFacts.push(groupFacts[i]);
-      }
-    }
-    var oldOutput = system.getStore(this.outputIx);
-    var newOutput = Memory.fromFacts(outputFacts);
-    if (newOutput.differsFrom(oldOutput)) system.setStore(this.outputIx, newOutput);
   }
 };
 
