@@ -44,6 +44,7 @@ function tableCard(name, headers, rows, constants) {
 }
 
 function onTableCards(cards) {
+  var start = now();
   $(".table-card").remove();
   var frag = document.createDocumentFragment();
   for(var cardIx in cards) {
@@ -51,6 +52,7 @@ function onTableCards(cards) {
     frag.appendChild(tableCard(card[0], card[1], card[2], card[3]));
   }
   $("#cards").append(frag);
+  $("#renderStat").html((now() - start).toFixed(2));
 }
 
 function clearErrors(errors) {
