@@ -159,6 +159,7 @@ body {
   -webkit-flex: 1.5;
   flex: 1.5;
   background: #444;
+  overflow: auto;
 }
 .cm-s-default {
   background: #333;

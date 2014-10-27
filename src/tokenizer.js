@@ -301,6 +301,24 @@ function parseLine(stream, state) {
       stream.skipToEnd();
       tokens.push({token: "ui", content: stream.current(), pos: [stream.start, stream.pos]});
       break;
+    case "~":
+      instruction.type = "header";
+      instruction.fields = [];
+      while(!stream.eol()) {
+        var field = parseSymbol(stream, "field", true, context);
+        instruction.fields.push(field);
+        Array.prototype.push.apply(tokens, field.tokens);
+      }
+      break;
+    case "+":
+      instruction.type = "insert";
+      instruction.values = [];
+      while(!stream.eol()) {
+        var value = parseConstant(stream, context);
+        instruction.values.push(value);
+        Array.prototype.push.apply(tokens, value.tokens);
+      }
+      break;
     default:
       if(stream.string.indexOf("=") > -1) {
         //this is a calculation
@@ -393,6 +411,8 @@ function parse(string) {
           finalizeRule(curRule);
         }
         curRule = {name: line.name,
+                   header: false,
+                   values: [],
                    constants: {},
                    fields: {},
                    sources: [],
@@ -425,6 +445,13 @@ function parse(string) {
         break;
       case "filter":
         curRule.filters.push(line);
+        break;
+      case "header":
+        curRule.header = line;
+        break;
+      case "insert":
+        curRule.values.push(line);
+        break;
       default:
         break;
     }
@@ -454,9 +481,29 @@ function parse(string) {
 
 function parsedToEveProgram(parsed) {
   var tablesCreated = {};
+  var values = [];
   var rules = ["editor program", commonTables()];
   for(var ix in parsed) {
     var curRule = parsed[ix];
+
+    if(curRule.header) {
+      //If there's a header we need to do inserts and such
+      var tableFields = curRule.header.fields.map(function(cur) {
+        return cur.name;
+      });
+      for(var valueIx in curRule.values) {
+        var insert = curRule.values[valueIx].values.map(function(cur) {
+          return cur.value;
+        });
+        insert.unshift(curRule.name);
+        console.log(insert);
+        values.push(insert);
+      }
+      tablesCreated[curRule.name] = {fields: tableFields, constants: curRule.constants};
+      rules.push(table(curRule.name, tableFields));
+      continue;
+    }
+
     var parts = ["rule" + ix];
 
     // handle sources
@@ -508,7 +555,7 @@ function parsedToEveProgram(parsed) {
     tablesCreated[curRule.name] = {fields: tableFields, constants: curRule.constants};
     rules.push(table(curRule.name, tableFields));
   }
-  return {program: program.apply(null, rules), tablesCreated: tablesCreated};
+  return {program: program.apply(null, rules), tablesCreated: tablesCreated, values: values};
 }
 
 function tokenToCMType(token) {

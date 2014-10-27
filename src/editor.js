@@ -1,5 +1,5 @@
 var editor = CodeMirror(document.querySelector("#editor"), {
-  value: "* path\n  | edge from to\n\n* path2\n  | edge from to:t\n  | path from:t to\n\n* path\n  | path2 from to",
+  value: "* edge\n  ~ from to\n  + \"a\" \"b\"\n  + \"b\" \"c\"\n\n* path\n  | edge from to\n\n* path2\n  | edge from to:t\n  | path from:t to\n\n* path\n  | path2 from to",
   tabSize: 2,
   mode:  "eve"
 });
@@ -55,11 +55,11 @@ function onChange(cm, change) {
     console.log(parsed);
     console.log(editorProg);
     editorApp = app(editorProg.program, {parent: document.querySelector("#program")});
-    editorApp.run([["time", 0], ["edge", "a", "b"], ["edge", "b", "c"]]);
+    editorApp.run([["time", 0]].concat(editorProg.values));
   } catch(e) {
     console.log(e);
   }
 }
 
-editor.on("change", onChange);
+editor.on("change", Cowboy.debounce(200, onChange));
 onChange(editor, null);

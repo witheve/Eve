@@ -24,7 +24,7 @@ body {
   }
   .CodeMirror-scroll { height:100%; }
 }
-#program { flex: 1.5; background: #444;}
+#program { flex: 1.5; background: #444; overflow:auto;}
 
 
 .cm-s-default { background: #333; color: #ccc; font-family: "Inconsolata", "Courier New", monospace; }
