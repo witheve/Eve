@@ -31,7 +31,6 @@ function onCompile(code) {
   var parsed = parse(code);
   try {
     editorProg = parsedToEveProgram(parsed);
-    console.log(parsed);
     editorApp = app(editorProg.program, {parent: null});
     editorApp.run([["time", 0]].concat(editorProg.values));
     if(editorProg.errors.length) {

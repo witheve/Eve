@@ -65,7 +65,7 @@ function addErrors(errors) {
     if(typeof err === "string") {
       $("#errors").append("<li>" + err + "</li>");
     } else {
-      $("#errors").append("<li> Line: " + err.line + " - " + err.errors[0].message + "</li>");
+      $("#errors").append("<li> Line: " + err.line + 1 + " - " + err.errors[0].message + "</li>");
     }
   }
   $("#errors").show();

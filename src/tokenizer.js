@@ -501,7 +501,6 @@ function parsedToEveProgram(parsed) {
           return cur.value;
         });
         insert.unshift(curRule.name);
-        console.log(insert);
         values.push(insert);
       }
       tablesCreated[curRule.name] = {fields: tableFields, constants: curRule.constants};
@@ -555,7 +554,6 @@ function parsedToEveProgram(parsed) {
       sinkFields[field] = field;
     }
     parts.push(sink(curRule.name, sinkFields));
-    console.log(curRule.name, parts.map(function(c) { return typeof c === "function" ? c({nextId: 1, rule: "rule" + ix}) : c; }));
     rules.push(rule.apply(null, parts));
     tablesCreated[curRule.name] = {fields: tableFields, constants: curRule.constants};
     rules.push(table(curRule.name, tableFields));
