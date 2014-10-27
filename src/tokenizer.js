@@ -165,7 +165,7 @@ function parseSymbol(stream, type, allowAlias, context, looseCheck) {
       tokens.push({token: "operator", type: "alias", pos: [stream.start, stream.pos]})
       stream.commit();
       //we're aliasing.
-      var alias = parseSymbol(stream, "alias", false);
+      var alias = parseSymbol(stream, "alias", false, context);
       Array.prototype.push.apply(symbol.tokens, alias.tokens);
       symbol.alias = alias.name;
       nameToken.type = "aliased-" + type;
