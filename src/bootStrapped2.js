@@ -669,6 +669,16 @@ var editor =
                     constantSink("programTable", {program: "common", table: "refresh"})
                    ),
 
+               rule("add rule",
+                    constant("label", "add rule"),
+                    source("externalEvent", {eid: "eid", label: "label", key: "key", value: "rawName"}),
+                    constant("unnamed", "unnamed"),
+                    constant("setRuleName", "set rule name"),
+                    constant("openRule", "open rule"),
+                    sink("externalEvent", {eid: "eid", label: "openRule", key: "key", value: "unnamed"}),
+                    sink("externalEvent", {eid: "eid", label: "setRuleName", key: "key", value: "unnamed"})
+                   ),
+
                rule("editor rules by name",
                     constant("label", "set rule name"),
                     source("externalEvent", {eid: "eid", label: "label", key: "key", value: "rawName"}),
@@ -788,9 +798,12 @@ var editor =
 
                rule("draw program list",
                     page("program list"),
-                    elem("div", {id: "programs-list-container", parent: ["root"]},
-                         elem("span", {click: ["add program", "foo"]}, "add program"),
-                         elem("ul", {id: "program-list", class: "program-list"}))),
+                    elem("div", {id: "programs-list-container", class: "program-list-container", parent: ["root"]},
+                         elem("div", {class: "cards-container"},
+                              elem("ul", {id: "program-list", class: "program-list"}),
+                              elem("span", {class: "add", click: ["add program", "foo"]}, "create a stack")),
+                         elem("div", {class: "card-preview"})
+              )),
 
                rule("draw program items",
                     page("program list"),
@@ -801,8 +814,10 @@ var editor =
 
 
                rule("programs",
-                    on("add program", {eid: "eid"}),
+                    on("add program", {id: "id", eid: "eid"}),
                     calculate("programName", ["eid"], "'program ' + eid"),
+                    set("activeProgram", "programName", {eid: "eid"}),
+                    setConstant("page", "rules list", {eid: "eid"}),
                     sink("program", {id: "programName", name: "programName"})
                    ),
 
@@ -818,6 +833,81 @@ var editor =
                     on("open program", {eid: "eid", key: "program"}),
                     set("activeProgram", "program", {eid: "eid"}),
                     setConstant("page", "rules list", {eid: "eid"})
+                   ),
+
+               //*********************************************************************
+               // Cards
+               //*********************************************************************
+
+               table("card", ["id", "type"]),
+               table("cardMeta", ["id", "field", "value"]),
+
+               rule("card UI",
+                    page("card UI"),
+                    elem("div", {id: "card-ui", parent: ["root"], class: "card-ui"},
+                         elem("ul", {id: "card-list", class: "card-list"}),
+                         elem("button", {click: ["add card", ""]}, "add card")
+                        )
+                   ),
+
+               rule("display table cards",
+                    page("card UI"),
+                    constant("table", "table"),
+                    source("card", {id: "id", type: "table"}),
+                    calculate("cardId", ["id"], "'card' + id"),
+                    elem("li", {id: inject("cardId"), parent: ["card-list", inject("id")], class: "card"}, "this is a table card")),
+
+               rule("display calculation cards",
+                    page("card UI"),
+                    constant("calculation", "calculation"),
+                    source("card", {id: "id", type: "calculation"}),
+                    calculate("cardId", ["id"], "'card' + id"),
+                    elem("li", {id: inject("cardId"), parent: ["card-list", inject("id")], class: "card"}, "1 + 1 = 3")),
+
+               rule("display text cards",
+                    page("card UI"),
+                    constant("text", "text"),
+                    source("card", {id: "id", type: "text"}),
+                    calculate("cardId", ["id"], "'card' + id"),
+                    elem("li", {id: inject("cardId"), parent: ["card-list", inject("id")], class: "card"},
+                         elem("textarea", {value: "this is some awesome text"}))),
+
+               rule("display view cards",
+                    page("card UI"),
+                    constant("view", "view"),
+                    source("card", {id: "id", type: "view"}),
+                    calculate("cardId", ["id"], "'card' + id"),
+                    elem("li", {id: inject("cardId"), parent: ["card-list", inject("id")], class: "card"}, "view!")),
+
+               rule("add card",
+                    on("add card", {eid: "eid"}),
+                    constant("cancelAddCard", "cancel add card"),
+                    notSource("externalEvent", {key: "eid", label: "cancelAddCard"}),
+                    notSource("card", {id: "eid"}),
+                    calculate("tableType", ["eid"], "eid + '_table'"),
+                    calculate("calculationType", ["eid"], "eid + '_calculation'"),
+                    calculate("textType", ["eid"], "eid + '_text'"),
+                    calculate("viewType", ["eid"], "eid + '_view'"),
+                    calculate("documentType", ["eid"], "eid + '_document'"),
+                    calculate("websiteType", ["eid"], "eid + '_website'"),
+                    elem("div", {id: "add-card-dialog", parent: ["card-ui"], class: "add-card-dialog"},
+                         elem("h2", {}, "choose a type:"),
+                         elem("ul", {},
+                              elem("li", {click: ["set card type", inject("tableType")]}, "table"),
+                              elem("li", {click: ["set card type", inject("calculationType")]}, "calculation"),
+                              elem("li", {click: ["set card type", inject("textType")]}, "text"),
+                              elem("li", {click: ["set card type", inject("viewType")]}, "view"),
+                              elem("li", {click: ["set card type", inject("documentType")]}, "document"),
+                              elem("li", {click: ["set card type", inject("websiteType")]}, "website")
+                                 )
+                        )
+                   ),
+
+               rule("set card type",
+                    on("set card type", {key: "key"}),
+                    calculate("eid", ["key"], "parseInt(key.split('_')[0])"),
+                    calculate("type", ["key"], "key.split('_')[1]"),
+                    sink("card", {id: "eid", type: "type"})
                    ),
 
                //*********************************************************************
@@ -859,11 +949,15 @@ var editor =
                     page("rules list"),
                     source("latestId", {id: "id"}),
                     pretendConstant("drawTablesList", "true"),
-                    elem("div", {id: "rules-list-root", parent: ["root"], class: "root"},
-                         elem("button", {click: ["goto page", "program list"]}, "back"),
-                         elem("ul", {id: "table-list", class: "table-list"}),
-                         elem("button", {click: ["set rule name", inject("id")]}, "add rule"),
-                         elem("ul", {id: "rules-list", class: "rules-list"}),
+                    elem("div", {id: "rules-list-root", parent: ["root"], class: "root rules-list-container"},
+                         elem("header", {},
+                              elem("button", {click: ["goto page", "program list"]}, "back")),
+                         elem("div", {},
+                              elem("ul", {id: "table-list", class: "table-list"}),
+                              elem("div", {},
+                                   elem("ul", {id: "rules-list", class: "rules-list"}),
+                                   elem("button", {click: ["add rule", inject("id")]}, "add rule")
+                                  )),
                          elem("div", {id: "subProgramUI"})
                         )),
 
@@ -1455,4 +1549,4 @@ var paths =
 
               )(context);
 
-curApp.run([["time", 0], ["edge", "a", "b"], ["edge", "b", "c"]].concat(paths));
+//curApp.run([["time", 0], ["edge", "a", "b"], ["edge", "b", "c"]].concat(paths));

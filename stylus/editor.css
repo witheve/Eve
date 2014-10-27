@@ -1,0 +1,264 @@
+html,
+body,
+div,
+span,
+applet,
+object,
+iframe,
+h1,
+h2,
+h3,
+h5,
+h6,
+p,
+blockquote,
+pre,
+a,
+abbr,
+acronym,
+address,
+big,
+cite,
+code,
+del,
+dfn,
+em,
+img,
+ins,
+kbd,
+q,
+s,
+samp,
+small,
+strike,
+strong,
+sub,
+sup,
+tt,
+var,
+dl,
+dt,
+dd,
+ol,
+ul,
+li,
+fieldset,
+form,
+label,
+legend,
+caption,
+tbody,
+tfoot,
+thead,
+tr,
+th,
+td {
+  font-weight: inherit;
+  font-style: inherit;
+  font-family: inherit;
+  font-size: 100%;
+  vertical-align: baseline;
+  margin: 0;
+  padding: 0;
+  outline: 0;
+  border: none;
+}
+body {
+  line-height: 1;
+}
+ol,
+ul {
+  list-style: none;
+}
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+  vertical-align: middle;
+}
+caption,
+th,
+td {
+  text-align: left;
+  font-weight: normal;
+  vertical-align: middle;
+}
+a img {
+  border: none;
+}
+article,
+aside,
+canvas,
+details,
+figcaption,
+figure,
+footer,
+header,
+hgroup,
+menu,
+nav,
+section,
+summary {
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: 0;
+  display: block;
+}
+audio,
+canvas,
+video {
+  display: inline-block;
+  *display: inline;
+  *zoom: 1;
+}
+audio:not([controls]),
+[hidden] {
+  display: none;
+}
+body {
+  background: #333;
+  font-family: "Avenir", "Verdana";
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-box;
+  display: -webkit-flex;
+  display: box;
+  display: flex;
+}
+#stats {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  margin: 15px;
+  color: #777;
+}
+#stats span:first-child {
+  display: inline-block;
+  width: 50px;
+  text-align: right;
+  margin-right: 10px;
+}
+#editor {
+  box-flex: 1;
+  -webkit-flex: 1;
+  flex: 1;
+  position: relative;
+}
+#editor .CodeMirror {
+  position: absolute;
+  top: 20px;
+  bottom: 20px;
+  left: 20px;
+  right: 20px;
+}
+#editor .CodeMirror-scroll {
+  height: 100%;
+}
+#program {
+  box-flex: 1.5;
+  -webkit-flex: 1.5;
+  flex: 1.5;
+  background: #444;
+}
+.cm-s-default {
+  background: #333;
+  color: #ccc;
+  font-family: "Inconsolata", "Courier New", 'Bitstream Vera Sans Mono', Consolas, Courier, monospace;
+}
+.cm-s-default div.CodeMirror-cursor {
+  border-color: #ccc;
+}
+.cm-s-default .CodeMirror-selected {
+  background: #555;
+}
+.cm-s-default span.cm-operator {
+  color: #aaa;
+}
+.cm-s-default span.cm-symbol-ruleName,
+span.cm-operator-rule {
+  color: #9cc;
+}
+.cm-s-default span.cm-field {
+  color: #ff8ab0;
+}
+.cm-s-default span.cm-aliased-field {
+  color: #79a;
+}
+.cm-s-default span.cm-assigned-field {
+  color: #79a;
+}
+.cm-s-default span.cm-symbol-variable {
+  color: #ff8ab0;
+}
+.cm-s-default span.cm-symbol-alias {
+  color: #ff8ab0;
+}
+.cm-s-default span.cm-symbol-table {
+  color: #add;
+}
+.cm-s-default span.cm-function {
+  color: #79a;
+}
+.cm-s-default span.cm-number {
+  color: #79a;
+}
+.cm-s-default span.cm-comment {
+  color: #79a;
+}
+.card {
+  background: #666;
+  box-shadow: 0 0 8px #222;
+  padding: 20px;
+  padding-top: 10px;
+  margin: 30px;
+  border-radius: 3px;
+}
+.card h2 {
+  font-size: 18pt;
+  margin-bottom: 10px;
+  color: #add;
+}
+.grid {
+  display: inline-block;
+  border: 1px solid #555;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.grid .grid-header {
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-box;
+  display: -webkit-flex;
+  display: box;
+  display: flex;
+  border-bottom: 1px solid #555;
+  background: #888;
+}
+.grid .grid-header div {
+  overflow: hidden;
+  padding: 5px;
+  width: 130px;
+}
+.grid .grid-header div + div {
+  border-left: 1px solid #555;
+}
+.grid .grid-row {
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-box;
+  display: -webkit-flex;
+  display: box;
+  display: flex;
+}
+.grid .grid-row div {
+  padding: 5px;
+  width: 130px;
+  overflow: hidden;
+  background: #bbb;
+}
+.grid .grid-row div + div {
+  border-left: 1px solid #555;
+}
+.grid .grid-row + .grid-row {
+  border-top: 1px solid #555;
+}

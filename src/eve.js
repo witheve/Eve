@@ -38,7 +38,8 @@ var least = false;
 var greatest = undefined;
 
 function isValue(v) {
-  return (typeof v === 'string') || (typeof v === 'number');
+  var t = typeof v;
+  return (t === 'string') || (t === 'number') || (t === "boolean") ;
 }
 
 function compareValue(a, b) {
@@ -1580,40 +1581,40 @@ function elem() {
 // COMPILER CONSTRAINTS
 
 var compilerConstraints = [
-  foreignKey("field", "table", "table", "table"),
-  foreignKey("valve", "rule", "rule", "rule"),
-  foreignKey("pipe", "table", "table", "table"),
-  foreignKey("pipe", "rule", "rule", "rule"),
-  foreignKey("tableConstraint", "pipe", "pipe", "pipe"),
-  foreignKey("tableConstraint", "valve", "valve", "valve"),
-  constraint("fields in rules match fields in tables",
-             source("tableConstraint", {valve: "valve", pipe: "pipe", field: "field"}),
-             source("pipe", {pipe: "pipe", table: "table"}),
-             notSource("field", {table: "table", field: "field"})),
-  foreignKey("constantConstraint", "valve", "valve", "valve"),
-  foreignKey("functionConstraint", "valve", "valve", "valve"),
-  foreignKey("functionConstraint", "rule", "rule", "rule"),
-  foreignKey("functionConstraintInput", "function", "functionConstraint", "function"),
-  foreignKey("functionConstraintInput", "valve", "valve", "valve"),
-  foreignKey("limitValve", "rule", "rule", "rule"),
-  foreignKey("limitValve", "valve", "valve", "valve"),
-  foreignKey("ordinalValve", "rule", "rule", "rule"),
-  foreignKey("ordinalValve", "valve", "valve", "valve"),
-  foreignKey("groupValve", "rule", "rule", "rule"),
-  foreignKey("groupValve", "valve", "valve", "valve"),
-  foreignKey("sortValve", "rule", "rule", "rule"),
-  foreignKey("sortValve", "valve", "valve", "valve"),
-  foreignKey("reducer", "rule", "rule", "rule"),
-  foreignKey("reducer", "inValve", "valve", "valve"),
-  foreignKey("reducer", "outValve", "valve", "valve"),
-  foreignKey("refresh", "flow", "flow", "flow"),
-  foreignKey("constraintRule", "rule", "rule", "rule"),
+//   foreignKey("field", "table", "table", "table"),
+//   foreignKey("valve", "rule", "rule", "rule"),
+//   foreignKey("pipe", "table", "table", "table"),
+//   foreignKey("pipe", "rule", "rule", "rule"),
+//   foreignKey("tableConstraint", "pipe", "pipe", "pipe"),
+//   foreignKey("tableConstraint", "valve", "valve", "valve"),
+//   constraint("fields in rules match fields in tables",
+//              source("tableConstraint", {valve: "valve", pipe: "pipe", field: "field"}),
+//              source("pipe", {pipe: "pipe", table: "table"}),
+//              notSource("field", {table: "table", field: "field"})),
+//   foreignKey("constantConstraint", "valve", "valve", "valve"),
+//   foreignKey("functionConstraint", "valve", "valve", "valve"),
+//   foreignKey("functionConstraint", "rule", "rule", "rule"),
+//   foreignKey("functionConstraintInput", "function", "functionConstraint", "function"),
+//   foreignKey("functionConstraintInput", "valve", "valve", "valve"),
+//   foreignKey("limitValve", "rule", "rule", "rule"),
+//   foreignKey("limitValve", "valve", "valve", "valve"),
+//   foreignKey("ordinalValve", "rule", "rule", "rule"),
+//   foreignKey("ordinalValve", "valve", "valve", "valve"),
+//   foreignKey("groupValve", "rule", "rule", "rule"),
+//   foreignKey("groupValve", "valve", "valve", "valve"),
+//   foreignKey("sortValve", "rule", "rule", "rule"),
+//   foreignKey("sortValve", "valve", "valve", "valve"),
+//   foreignKey("reducer", "rule", "rule", "rule"),
+//   foreignKey("reducer", "inValve", "valve", "valve"),
+//   foreignKey("reducer", "outValve", "valve", "valve"),
+//   foreignKey("refresh", "flow", "flow", "flow"),
+//   foreignKey("constraintRule", "rule", "rule", "rule"),
 
 
-  constraint("all valves are constrained",
-             source("valve", {valve: "valve"}),
-             notSource("tableConstraint", {valve: "valve"}),
-             notSource("constantConstraint", {valve: "valve"}),
-             notSource("functionConstraint", {valve: "valve"}),
-             notSource("reducer", {outValve: "valve"}))
+//   constraint("all valves are constrained",
+//              source("valve", {valve: "valve"}),
+//              notSource("tableConstraint", {valve: "valve"}),
+//              notSource("constantConstraint", {valve: "valve"}),
+//              notSource("functionConstraint", {valve: "valve"}),
+//              notSource("reducer", {outValve: "valve"}))
   ];
