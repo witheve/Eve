@@ -331,10 +331,9 @@ NegatedMemoryConstraint.prototype = {
 // TODO would prefer to be able to separate these somehow but would require inserting non-scalar values into the solver
 //      makes comparisons much more expensive
 //      maybe the solver can have a separate section for these?
-function AggregatedMemoryConstraint(storeIx, groupIxes, keepIxes, sortIxes, sortOrders, limitIx, ordinalIx, outIx, fun) {
+function AggregatedMemoryConstraint(storeIx, groupIxes, sortIxes, sortOrders, limitIx, ordinalIx, outIx, fun) {
   this.storeIx = storeIx;
   this.groupIxes = groupIxes;
-  this.keepIxes = keepIxes;
   this.sortIxes = sortIxes;
   this.sortOrders = sortOrders;
   this.limitIx = limitIx;
@@ -385,17 +384,12 @@ AggregatedMemoryConstraint.prototype = {
 
     constraintStates[myIx] = null; // throw away state so we don't run again
 
-    var keepIxes = this.keepIxes;
-    var keptFacts = [];
+    var groupFacts = [];
 
     for (var i = facts.length - 1; i >= 0; i--) {
       var fact = facts[i]
       if (solutionMatchesPoint(los, groupIxes, fact) === false) {
-        var keptFact = [];
-        for (var j = keepIxes.length - 1; j >= 0; j--) {
-          keptFact[j] = fact[keepIxes[j]];
-        }
-        keptFacts.push(keptFact);
+        groupFacts.push(fact);
       }
     }
 
@@ -407,17 +401,17 @@ AggregatedMemoryConstraint.prototype = {
       aggregateSortBy(sortIxes, sortOrders);
     }
     if (limitIx !== undefined) {
-      keptFacts = keptFacts.slice(los[limitIx]);
+      groupFacts = groupFacts.slice(los[limitIx]);
     }
     if (ordinalIx !== undefined) {
-      for (var i = keptFacts.length - 1; i >= 0; i--) {
-        keptFacts[i][ordinalIx] = i;
+      for (var i = groupFacts.length - 1; i >= 0; i--) {
+        groupFacts[i][ordinalIx] = i;
       }
     }
 
-    keptFacts = dedupeFacts(keptFacts);
+    groupFacts = dedupeFacts(groupFacts);
 
-    var outValue = this.fun.call(null, keptFacts);
+    var outValue = this.fun.call(null, groupFacts);
     if (!isValue(outValue)) throw new Error(outValue + " is not a valid Eve value");
     var outIx = this.outIx;
     var compLo = compareValue(outValue, los[outIx]);
@@ -673,39 +667,19 @@ Solver.prototype = {
   }
 };
 
-// SINK
+// UNION
 
-function SinkConstraint(inputIx, fieldIxes) {
-  this.inputIx = inputIx;
-  this.fieldIxes = fieldIxes;
-}
-
-SinkConstraint.prototype = {
-  into: function(system, outputFacts) {
-    var inputFacts = system.getStore(this.inputIx).facts;
-    var fieldIxes = this.fieldIxes;
-    for (var i = inputFacts.length - 1; i >= 0; i--) {
-      var inputFact = inputFacts[i];
-      var outputFact = [];
-      for (var j = fieldIxes.length - 1; j >= 0; j--) {
-        outputFact[j] = inputFact[fieldIxes[j]];
-      }
-      outputFacts.push(outputFact);
-    }
-  }
-};
-
-function Sink(constraints, outputIx) {
-  this.constraints = constraints;
+function Union(inputIxes, outputIx) {
+  this.inputIxes = inputIxes;
   this.outputIx = outputIx;
 }
 
-Sink.prototype = {
+Union.prototype = {
   refresh: function(system) {
     var outputFacts = [];
-    var constraints = this.constraints;
-    for (var i = constraints.length - 1; i >= 0; i--) {
-      constraints[i].into(system, outputFacts);
+    var inputIxes = this.inputIxes;
+    for (var i = inputIxes.length - 1; i >= 0; i--) {
+      outputFacts = outputFacts.concat(system.getStore(inputIxes[i]).getFacts());
     }
     var oldOutput = system.getStore(this.outputIx);
     var newOutput = Memory.fromFacts(outputFacts);
@@ -715,125 +689,22 @@ Sink.prototype = {
 
 // SYSTEM
 
-var compilerTables =
-    [["table"],
-     ["field"],
-     ["rule"],
-     ["valve"],
-     ["pipe"],
-     ["tableConstraint"],
-     ["constantConstraint"],
-     ["functionConstraint"],
-     ["functionConstraintInput"],
-     ["limitValve"],
-     ["ordinalValve"],
-     ["groupValve"],
-     ["sortValve"],
-     ["reducer"],
-     ["flow"],
-     ["refresh"],
-     ["constraintRule"],
-     // TODO adding these here is hacky
-     ["program"],
-     ["programRule"],
-     ["programTable"],
-     ["displayName"],
-     ["editorRule"],
-     ["join"],
-     ["externalEvent"]];
-
-var compilerFields =
-    [["table", "table", 0],
-
-     ["field", "table", 0],
-     ["field", "field", 1],
-     ["field", "ix", 2],
-
-     ["rule", "rule", 0],
-     ["rule", "ix", 1],
-
-     ["valve", "valve", 0],
-     ["valve", "rule", 1],
-     ["valve", "ix", 2],
-
-     ["pipe", "pipe", 0],
-     ["pipe", "table", 1],
-     ["pipe", "rule", 2],
-     ["pipe", "direction", 3], // +source, -source, +sink
-
-     ["tableConstraint", "valve", 0],
-     ["tableConstraint", "pipe", 1],
-     ["tableConstraint", "field", 2],
-
-     ["constantConstraint", "valve", 0],
-     ["constantConstraint", "value", 1],
-
-     ["functionConstraint", "function", 0],
-     ["functionConstraint", "code", 1],
-     ["functionConstraint", "valve", 2],
-     ["functionConstraint", "rule", 3], // TODO redundant
-
-     ["functionConstraintInput", "function", 0],
-     ["functionConstraintInput", "valve", 1],
-     ["functionConstraintInput", "variable", 2],
-
-     ["limitValve", "rule", 0],
-     ["limitValve", "valve", 1],
-
-     ["ordinalValve", "rule", 0],
-     ["ordinalValve", "valve", 1],
-
-     ["groupValve", "rule", 0],
-     ["groupValve", "valve", 1],
-
-     ["sortValve", "rule", 0],
-     ["sortValve", "valve", 1],
-     ["sortValve", "ix", 2],
-
-     ["reducer", "rule", 0],
-     ["reducer", "inValve", 1],
-     ["reducer", "outValve", 2],
-     ["reducer", "inVariable", 3],
-     ["reducer", "code", 4],
-
-     ["flow", "flow", 0],
-     ["flow", "originType", 1], // "solver", "aggregate", "source", "sink"
-     ["flow", "originId", 2], // for solver/aggregate is rule, for source/sink is table
-
-     ["refresh", "tick", 0],
-     ["refresh", "startTime", 1],
-     ["refresh", "endTime", 2],
-     ["refresh", "flow", 3],
-
-     ["constraintRule", "rule", 0],
-
-     // TODO adding these here is hacky
-
-     ["program", "id", 0],
-     ["program", "name", 1],
-
-     ["programRule", "program", 0],
-     ["programRule", "rule", 1],
-
-     ["programTable", "program", 0],
-     ["programTable", "table", 1],
-
-     ["displayName", "id", 0],
-     ["displayName", "name", 1],
-
-     ["editorRule", "id", 0],
-     ["editorRule", "description", 1],
-
-     ["join", "id", 0],
-     ["join", "valve", 1],
-     ["join", "pipe", 2],
-     ["join", "field", 3],
-
-     ["externalEvent", "id", 0],
-     ["externalEvent", "label", 1],
-     ["externalEvent", "key", 2],
-     ["externalEvent", "eid", 3],
-     ["externalEvent", "value", 4]];
+var compilerSchemas = [
+  ["view", "view"],
+  ["field", "field", "view", "ix"],
+  ["query", "query", "view", "ix"],
+  ["constantConstraint", "query", "field", "value"],
+  ["functionConstraint", "constraint", "query", "field", "code"],
+  ["functionConstraintBinding", "constraint", "field", "variable"],
+  ["viewConstraint", "constraint", "query", "sourceView", "isNegated"],
+  ["viewConstraintBinding", "constraint", "field", "sourceField"],
+  ["aggregateConstraint", "constraint", "query", "sourceView", "code|splat"],
+  ["aggregateConstraintBinding", "constraint", "field", "sourceField"],
+  ["sort", "constraint", "field", "ix", "ascending|descending"],
+  ["limit", "constraint", "field"],
+  ["ordinal", "constraint", "field"],
+  ["isInput", "view"]
+];
 
 function System(meta, stores, flows, dirtyFlows, constraintFlows, downstream, nameToIx, ixToName) {
   this.meta = meta;
@@ -855,36 +726,25 @@ System.empty = function(meta) {
   var downstream = [];
   var nameToIx = {};
 
-  var numFields = {};
-  for (var i = compilerTables.length - 1; i >= 0; i--) {
-    var name = compilerTables[i][0];
-    numFields[name] = 0;
-  }
-  for (var i = compilerFields.length - 1; i >= 0; i--) {
-    var name = compilerFields[i][0];
-    numFields[name] += 1;
-  }
+  var compilerViews = [];
+  var compilerFields = [];
 
-  for (var i = compilerTables.length - 1; i >= 0; i--) {
-    var name = compilerTables[i][0];
-    var sourceIx = 2*i;
-    var sinkIx = (2*i)+1;
+  for (var i = compilerSchemas.length - 1; i >= 0; i--) {
+    var view = compilerSchemas[i][0];
+    var fields = compilerSchemas[i].slice(1);
 
-    dirtyFlows[sourceIx] = false;
-    stores[sourceIx] = Memory.empty();
-    downstream[sourceIx] = [sinkIx];
-    nameToIx[name + "-source"] = sourceIx;
+    compilerViews.push([view])
+    for (var j = fields.length - 1; j >= 0; j--) {
+      compilerFields.push([fields[j], view, j]);
+    }
 
-    dirtyFlows[sinkIx] = false;
-    stores[sinkIx] = Memory.empty();
-    downstream[sinkIx] = [];
-    nameToIx[name + "-sink"] = sinkIx;
-
-    var sinkFieldIxes = [];
-      for (var j = numFields[name] - 1; j >= 0; j--) {
-        sinkFieldIxes[j] = j;
-      }
-    flows[sinkIx] = new Sink([new SinkConstraint(sourceIx, sinkFieldIxes)], sinkIx);
+    var inputIx = 2*i;
+    var viewIx = (2*i)+1;
+    stores[viewIx] = Memory.empty();
+    flows[viewIx] = null;
+    dirtyFlows[viewIx] = false;
+    downstream[viewIx] = [];
+    nameToIx[view] = viewIx;
   }
 
   var ixToName = [];
@@ -893,31 +753,23 @@ System.empty = function(meta) {
   }
 
   var system = new System(meta, stores, flows, dirtyFlows, constraintFlows, downstream, nameToIx, ixToName);
-  system.setStore(0, Memory.fromFacts(compilerTables));
-  system.setStore(2, Memory.fromFacts(compilerFields));
+  system.updateView("view", compilerViews, []);
+  system.updateView("field", compilerFields, []);
   return system;
 };
 
 System.prototype = {
-  getTable: function (table) {
-    var sinkIx = this.nameToIx[table + "-sink"];
-    return this.getStore(sinkIx);
+  getView: function (view) {
+    var viewIx = this.nameToIx[view];
+    return this.getStore(viewIx);
   },
 
-  updateTable: function (table, adds, dels) {
-    var sourceIx = this.nameToIx[table + "-source"];
-    var store = this.getStore(sourceIx);
-    if (store === undefined) console.error("No store for " + table);
-    this.setStore(sourceIx, store.update(adds, dels));
+  updateView: function (view, adds, dels) {
+    var inputIx = this.nameToIx[view];
+    if (inputIx === undefined) console.error("No store for " + view);
+    var store = this.getStore(inputIx);
+    this.setStore(inputIx, store.update(adds, dels));
     return this;
-  },
-
-  getSolver: function(rule) {
-    return this.getStore(this.nameToIx[rule + "-solver"]);
-  },
-
-  getAggregate: function(rule) {
-    return this.getStore(this.nameToIx[rule + "-aggregate"]);
   },
 
   getStore: function (storeIx) {
@@ -933,20 +785,20 @@ System.prototype = {
     }
   },
 
-  getDump: function (table) {
-    var fields = this.getTable("field").getFacts();
-    var tableFields = [];
+  getDump: function (view) {
+    var fields = this.getView("field").getFacts();
+    var viewFields = [];
     for (var i = fields.length - 1; i >= 0; i--) {
       var field = fields[i];
-      if (field[0] === table) tableFields[field[2]] = field[1];
+      if (field[0] === view) viewFields[field[2]] = field[1];
     }
-    var facts = this.getStore(this.nameToIx[table + "-source"]).getFacts();
+    var facts = this.getStore(this.nameToIx[view]).getFacts();
     var dump = [];
     for (var i = facts.length - 1; i >= 0; i--) {
       var fact = facts[i];
       var dumpedFact = {};
-      for (var j = tableFields.length - 1; j >= 0; j--) {
-        dumpedFact[tableFields[j]] = fact[j];
+      for (var j = viewFields.length - 1; j >= 0; j--) {
+        dumpedFact[viewFields[j]] = fact[j];
       }
       dump[i] = dumpedFact;
     }
@@ -965,10 +817,11 @@ System.prototype = {
     var refreshes = [];
     for (var flowIx = 0; flowIx < numFlows; flowIx++) {
       if (dirtyFlows[flowIx] === true) {
-        metastack.push("Refreshing: " + ixToName[flowIx]);
+        metastack.push("System.refresh: " + ixToName[flowIx]);
         dirtyFlows[flowIx] = false;
         var startTime = now();
-        flows[flowIx].refresh(this);
+        var flow = flows[flowIx];
+        if (flow !== null) flows[flowIx].refresh(this);
         if ((constraintFlows[flowIx] === true) && !(stores[flowIx].isEmpty()))  {
           console.error("Error flow " + JSON.stringify(ixToName[flowIx]) + " produced " + JSON.stringify(stores[flowIx].getFacts()), this);
         }
@@ -978,7 +831,7 @@ System.prototype = {
         metastack.pop();
       }
     }
-    this.updateTable("refresh", refreshes, []);
+    this.updateInput("refresh", refreshes, []);
     this.tick++;
     metastack.pop();
     return this;
