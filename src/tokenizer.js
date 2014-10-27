@@ -1,5 +1,5 @@
 //From CodeMirror
-var StringStream = CodeMirror.StringStream = function(string, tabSize) {
+var StringStream = function(string, tabSize) {
   this.pos = this.start = 0;
   this.string = string;
   this.tabSize = tabSize || 8;
@@ -387,6 +387,7 @@ function finalizeRule(rule) {
 function parse(string) {
   var lines = string.split("\n");
   var state = {};
+  var errors = [];
   var parsed = lines.map(function(line, ix) {
     if(line.match(/\S/)) {
       //console.log("line: ", line, ix);
@@ -394,6 +395,9 @@ function parse(string) {
       state.mode = parsed.type;
       if(parsed) {
         parsed.line = ix;
+        if(parsed.errors.length) {
+          errors.push({line: ix, errors: parsed.errors});
+        }
       }
       return parsed;
     }
@@ -458,7 +462,7 @@ function parse(string) {
   }
   finalizeRule(curRule);
 
-  return rules;
+  return {rules: rules, errors: errors};
 }
 
 
@@ -481,10 +485,11 @@ function parse(string) {
 
 function parsedToEveProgram(parsed) {
   var tablesCreated = {};
+  var errors = parsed.errors || [];
   var values = [];
   var rules = ["editor program", commonTables()];
-  for(var ix in parsed) {
-    var curRule = parsed[ix];
+  for(var ix in parsed.rules) {
+    var curRule = parsed.rules[ix];
 
     if(curRule.header) {
       //If there's a header we need to do inserts and such
@@ -555,7 +560,7 @@ function parsedToEveProgram(parsed) {
     tablesCreated[curRule.name] = {fields: tableFields, constants: curRule.constants};
     rules.push(table(curRule.name, tableFields));
   }
-  return {program: program.apply(null, rules), tablesCreated: tablesCreated, values: values};
+  return {program: program.apply(null, rules), tablesCreated: tablesCreated, values: values, errors: errors};
 }
 
 function tokenToCMType(token) {
@@ -591,29 +596,29 @@ function CodeMirrorModeParser() {
   }
 }
 
-if(window.CodeMirror) {
-  CodeMirror.defineMode("eve", CodeMirrorModeParser);
-  CodeMirror.defineMIME("text/x-eve", "eve");
-}
+// if(window.CodeMirror) {
+//   CodeMirror.defineMode("eve", CodeMirrorModeParser);
+//   CodeMirror.defineMIME("text/x-eve", "eve");
+// }
 
 
-var thing = CodeMirrorModeParser();
-var tokenizer = thing.token;
+// var thing = CodeMirrorModeParser();
+// var tokenizer = thing.token;
 
-function tick(tokenizer, stream) {
-  var final = {style: tokenizer(stream, {}),
-               pos: [stream.start, stream.pos]};
-  stream.start = stream.pos;
-  return final;
-}
+// function tick(tokenizer, stream) {
+//   var final = {style: tokenizer(stream, {}),
+//                pos: [stream.start, stream.pos]};
+//   stream.start = stream.pos;
+//   return final;
+// }
 
-var stream = new StringStream("  foo = b ");
+// var stream = new StringStream("  foo = b ");
 
-parseLine(stream);
-tick(tokenizer, stream);
+// parseLine(stream);
+// tick(tokenizer, stream);
 
-console.log(parse("* a\n| 'program ' "))
-console.log(parse("* awesome rule\n|'program Rule' program : p name=\"awesome\"\n@ programRule program rule | ordinal:ix sort:rule"));
-console.log(parse("* another rule\n|"));
+// console.log(parse("* a\n| 'program ' "))
+// console.log(parse("* awesome rule\n|'program Rule' program : p name=\"awesome\"\n@ programRule program rule | ordinal:ix sort:rule"));
+// console.log(parse("* another rule\n|"));
 
-parse("* this is a rule\n| this:alias is a source\n? cool > huh")
+// parse("* this is a rule\n| this:alias is a source\n? cool > huh")

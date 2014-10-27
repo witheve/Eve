@@ -5,6 +5,8 @@
 var now = function() {
   if(typeof window !== "undefined" && window.performance) {
     return window.performance.now();
+  } else if(typeof performance !== "undefined") {
+    return performance.now();
   }
   return (new Date()).getTime();
 };
@@ -398,6 +400,7 @@ Application.prototype.callRuntime = function(facts) {
   this.system.update(facts, [])
   this.system.refresh();
   compilerWatcher(this, this.storage["compilerWatcher"], this.system);
+  compilerWatcher2(this, this.storage["compilerWatcher"], this.system);
 };
 
 Application.prototype.getUIRoot = function() {
@@ -413,24 +416,25 @@ Application.prototype.run = function(facts) {
   var uiStorage = this.storage["uiWatcher"];
   var system = this.system;
   var self = this;
-  if(!uiStorage["queued"]) {
-    uiStorage["queued"] = true;
-    window.requestAnimationFrame(function() {
-      start = now();
-      uiDiffWatcher(self, uiStorage, system);
-      var render = now() - start;
-      $("#renderStat").html(render.toFixed(2));
-      uiStorage["queued"] = false;
-    });
-  }
-  $("#timeStat").html(runtime.toFixed(2));
+//   if(!uiStorage["queued"]) {
+//     uiStorage["queued"] = true;
+//     window.requestAnimationFrame(function() {
+//       start = now();
+//       uiDiffWatcher(self, uiStorage, system);
+//       var render = now() - start;
+//       $("#renderStat").html(render.toFixed(2));
+//       uiStorage["queued"] = false;
+//     });
+//   }
+//   $("#timeStat").html(runtime.toFixed(2));
   var numFacts = 0;
   var tableToStore = this.system.tableToStore;
   for (var table in tableToStore) {
     numFacts += this.system.getStore(tableToStore[table]).facts.length;
   }
   console.log("numFacts", numFacts);
-  $("#factsStat").html(numFacts);
+  postMessage({type: "runStats", runtime: runtime.toFixed(2), numFacts: numFacts});
+//   $("#factsStat").html(numFacts);
 };
 
 function app(system, opts) {
@@ -1529,24 +1533,24 @@ var editor =
 
     );
 
-var curApp = app(program("editor", editor), {parent: document.body});
+// var curApp = app(program("editor", editor), {parent: document.body});
 
-var context = {nextId: 10000};
-var paths =
-    subProgram("paths",
-               commonTables(),
-               rule("blah blah",
-                    source("time", {time: "time"}),
-                    elem("button", {id: "time", parent: ["root", 0], click: ["add one", "foo"]}, "add one")),
-               rule("count",
-                    constant("addOne", "add one"),
-                    source("externalEvent", {label: "addOne", eid: "eid"}),
-                    aggregate(["addOne"], []),
-                    reduce("count", "eid", "eid.length"),
-                    elem("p", {id: "count", parent: ["root", 1]}, inject("count"))
-                   )
+// var context = {nextId: 10000};
+// var paths =
+//     subProgram("paths",
+//                commonTables(),
+//                rule("blah blah",
+//                     source("time", {time: "time"}),
+//                     elem("button", {id: "time", parent: ["root", 0], click: ["add one", "foo"]}, "add one")),
+//                rule("count",
+//                     constant("addOne", "add one"),
+//                     source("externalEvent", {label: "addOne", eid: "eid"}),
+//                     aggregate(["addOne"], []),
+//                     reduce("count", "eid", "eid.length"),
+//                     elem("p", {id: "count", parent: ["root", 1]}, inject("count"))
+//                    )
 
 
-              )(context);
+//               )(context);
 
 //curApp.run([["time", 0], ["edge", "a", "b"], ["edge", "b", "c"]].concat(paths));

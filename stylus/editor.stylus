@@ -24,10 +24,13 @@ body {
   }
   .CodeMirror-scroll { height:100%; }
 }
-#program { flex: 1.5; background: #444; overflow:auto; max-height:100%;}
+#cards { flex: 1.5; background: #444; position:relative; overflow:auto; max-height:100%; }
+/* #errors { pointer-events:none; position:absolute; top:0px; bottom:0px; left:0px; right:0px; background: rgba(255,100,100,0.9); padding:20px;} */
+#errors { margin:30px; margin-bottom:0; padding:10px; background: #f56; border-radius:3px; box-shadow: 0 0 8px #222; }
+#errors li { white-space:pre; color: #000; font-family:"Inconsolata", "Menlo", "Courier New", monospace; }
 
 
-.cm-s-default { background: #333; color: #ccc; font-family: "Inconsolata", "Courier New", monospace; }
+.cm-s-default { background: #333; color: #ccc; font-family: "Inconsolata", "Menlo", "Courier New", monospace; }
 .cm-s-default div.CodeMirror-cursor { border-color: #ccc; }
 .cm-s-default .CodeMirror-selected { background:#555; }
 .cm-s-default span.cm-operator { color: #aaa; }
