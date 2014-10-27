@@ -160,6 +160,7 @@ body {
   flex: 1.5;
   background: #444;
   overflow: auto;
+  max-height: 100%;
 }
 .cm-s-default {
   background: #333;
@@ -205,6 +206,9 @@ span.cm-operator-rule {
 }
 .cm-s-default span.cm-comment {
   color: #79a;
+}
+.cm-s-default span.cm-constant {
+  color: #9af;
 }
 .card {
   background: #666;
