@@ -104,7 +104,7 @@ function parseConstant(stream, context) {
   return constant;
 }
 
-function parseSymbol(stream, type, allowAlias, context) {
+function parseSymbol(stream, type, allowAlias, context, looseCheck) {
   //'foo bar'
   //'foo bar':woohoo
   //'foo bar' = "zomg"
@@ -148,7 +148,7 @@ function parseSymbol(stream, type, allowAlias, context) {
   var maybeAlias = stream.peek();
 
   //if we allow allowAlias then we have to check the next non-space char for : or =
-  if(!allowAlias) {
+  if(!allowAlias && !looseCheck) {
     if(maybeAlias === ":") {
       context.errors.push({message: "Invalid alias on symbol: " + symbol.name + ". Aliases aren't allowed here.", pos: [stream.start, stream.pos]});
       stream.next();
@@ -156,7 +156,7 @@ function parseSymbol(stream, type, allowAlias, context) {
       context.errors.push({message: "Invalid assignment on symbol: " + symbol.name + ". assignments aren't allowed here.", pos: [stream.start, stream.pos]});
       stream.next();
     }
-  } else {
+  } else if(allowAlias) {
     //console.log("before Eat", stream.peek());
     //console.log("maybeAlias", maybeAlias);
     if(maybeAlias === ":") {
@@ -281,7 +281,7 @@ function parseLine(stream, state) {
       instruction.type = "reduce";
       tokens.push({token: "operator", type: "reduce", pos: [stream.start, stream.pos]});
       stream.commit();
-      instruction.symbol = parseSymbol(stream, "variable", false, context);
+      instruction.symbol = parseSymbol(stream, "variable", false, context, "loose");
       Array.prototype.push.apply(tokens, instruction.symbol.tokens);
       stream.skipTo("=");
       stream.next();
@@ -324,7 +324,7 @@ function parseLine(stream, state) {
         //this is a calculation
         instruction.type = "function";
         stream.backUp(1);
-        instruction.symbol = parseSymbol(stream, "variable", false, context);
+        instruction.symbol = parseSymbol(stream, "variable", false, context, "loose");
         Array.prototype.push.apply(tokens, instruction.symbol.tokens);
         stream.commit();
         stream.skipTo("=");
