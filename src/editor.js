@@ -1,5 +1,11 @@
+var initialValue =  "* edge\n  ~ from to\n  + \"a\" \"b\"\n  + \"b\" \"c\"\n\n* path\n  | edge from to\n\n* path2\n  | edge from to:t\n  | path from:t to\n\n* path\n  | path2 from to";
+
+if(window.localStorage["eveEditorCode"]) {
+  initialValue = window.localStorage["eveEditorCode"];
+}
+
 var editor = CodeMirror(document.querySelector("#editor"), {
-  value: "* edge\n  ~ from to\n  + \"a\" \"b\"\n  + \"b\" \"c\"\n\n* path\n  | edge from to\n\n* path2\n  | edge from to:t\n  | path from:t to\n\n* path\n  | path2 from to",
+  value: initialValue,
   tabSize: 2,
   mode:  "eve"
 });
@@ -49,7 +55,9 @@ function compilerWatcher(application, storage, system) {
 }
 
 function onChange(cm, change) {
-  var parsed = parse(cm.getValue());
+  var edValue = cm.getValue();
+  window.localStorage["eveEditorCode"] = edValue;
+  var parsed = parse(edValue);
   try {
     editorProg = parsedToEveProgram(parsed);
     console.log(parsed);
