@@ -165,6 +165,7 @@ body {
 }
 /* #errors { pointer-events:none; position:absolute; top:0px; bottom:0px; left:0px; right:0px; background: rgba(255,100,100,0.9); padding:20px;} */
 #errors {
+  display: none;
   margin: 30px;
   margin-bottom: 0;
   padding: 10px;
