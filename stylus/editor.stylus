@@ -1,0 +1,101 @@
+use('../node_modules/nib')
+use('../node_modules/axis-css')
+
+@import 'nib'
+@import 'axis'
+
+global-reset()
+
+body {
+  background: #333;
+  font-family: "Avenir", "Verdana";
+  display:flex;
+}
+
+#stats { fixed: right bottom; margin:15px; color:#777; }
+#stats span:first-child { display:inline-block; width:50px; text-align:right; margin-right:10px; }
+
+#editor {
+  flex:1;
+  position:relative;
+  .CodeMirror {
+    position:absolute;
+    top:20px; bottom:20px; left:20px; right:20px;
+  }
+  .CodeMirror-scroll { height:100%; }
+}
+#cards { flex: 1.5; background: #444; position:relative; overflow:auto; max-height:100%; }
+/* #errors { pointer-events:none; position:absolute; top:0px; bottom:0px; left:0px; right:0px; background: rgba(255,100,100,0.9); padding:20px;} */
+#errors { display:none; margin:30px; margin-bottom:0; padding:10px; background: #f56; border-radius:3px; box-shadow: 0 0 8px #222; }
+#errors li { white-space:pre; color: #000; font-family:"Inconsolata", "Menlo", "Courier New", monospace; }
+
+
+.cm-s-default { background: #333; color: #ccc; font-family: "Inconsolata", "Menlo", "Courier New", monospace; }
+.cm-s-default div.CodeMirror-cursor { border-color: #ccc; }
+.cm-s-default .CodeMirror-selected { background:#555; }
+.cm-s-default span.cm-operator { color: #aaa; }
+.cm-s-default span.cm-symbol-ruleName, span.cm-operator-rule { color: #9cc; }
+.cm-s-default span.cm-field { color: #FF8AB0; }
+.cm-s-default span.cm-aliased-field { color: #79a; }
+.cm-s-default span.cm-assigned-field { color: #79a; }
+.cm-s-default span.cm-symbol-variable { color: #FF8AB0; }
+.cm-s-default span.cm-symbol-alias { color: #FF8AB0; }
+.cm-s-default span.cm-symbol-table { color: #add; }
+.cm-s-default span.cm-function { color: #79a; }
+.cm-s-default span.cm-number { color: #79a; }
+.cm-s-default span.cm-comment { color: #79a; }
+.cm-s-default span.cm-constant { color:#9af; }
+
+
+.card {
+  background:#666;
+  box-shadow:0 0 8px #222;
+  padding:20px;
+  padding-top:10px
+  margin:30px;
+  border-radius:3px;
+
+  h2 {
+    font-size: 18pt;
+    margin-bottom:10px;
+    color: #add;
+  }
+}
+
+.grid {
+  $border-color = #555;
+  display:inline-block;
+  border:1px solid $border-color;
+  border-radius:3px;
+  overflow:hidden;
+
+  .grid-header {
+    display:flex;
+    border-bottom:1px solid $border-color;
+    background:#888;
+    div {
+      overflow:hidden;
+      padding:5px;
+      width:130px;
+    }
+    div + div {
+      border-left:1px solid $border-color;
+    }
+  }
+
+  .grid-row {
+    display:flex;
+    div {
+      padding:5px;
+      width:130px;
+      overflow:hidden;
+      background: #bbb;
+    }
+    div + div {
+      border-left:1px solid $border-color;
+    }
+  }
+  .grid-row + .grid-row {
+    border-top:1px solid $border-color;
+  }
+}

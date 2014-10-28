@@ -38,7 +38,8 @@ var least = false;
 var greatest = undefined;
 
 function isValue(v) {
-  return (typeof v === 'string') || (typeof v === 'number');
+  var t = typeof v;
+  return (t === 'string') || (t === 'number') || (t === "boolean") ;
 }
 
 function compareValue(a, b) {

@@ -3,7 +3,6 @@
 .CodeMirror {
   /* Set height, width, borders, and global font properties here */
   font-family: monospace;
-  height: auto;
 }
 .CodeMirror-scroll {
   /* Set scrolling behaviour here */
@@ -40,6 +39,9 @@
   box-sizing: content-box;
 }
 
+.CodeMirror-guttermarker { color: black; }
+.CodeMirror-guttermarker-subtle { color: #999; }
+
 /* CURSOR */
 
 .CodeMirror div.CodeMirror-cursor {
@@ -54,10 +56,37 @@
   border: 0;
   background: #7e7;
 }
+.CodeMirror.cm-keymap-fat-cursor div.CodeMirror-cursors {
+  z-index: 1;
+}
+
+.cm-animate-fat-cursor {
+  width: auto;
+  border: 0;
+  -webkit-animation: blink 1.06s steps(1) infinite;
+  -moz-animation: blink 1.06s steps(1) infinite;
+  animation: blink 1.06s steps(1) infinite;
+}
+@-moz-keyframes blink {
+  0% { background: #7e7; }
+  50% { background: none; }
+  100% { background: #7e7; }
+}
+@-webkit-keyframes blink {
+  0% { background: #7e7; }
+  50% { background: none; }
+  100% { background: #7e7; }
+}
+@keyframes blink {
+  0% { background: #7e7; }
+  50% { background: none; }
+  100% { background: #7e7; }
+}
+
 /* Can style cursor different in overwrite (non-insert) mode */
 div.CodeMirror-overwrite div.CodeMirror-cursor {}
 
-.cm-tab { display: inline-block; }
+.cm-tab { display: inline-block; text-decoration: inherit; }
 
 .CodeMirror-ruler {
   border-left: 1px solid #ccc;
@@ -70,11 +99,12 @@ div.CodeMirror-overwrite div.CodeMirror-cursor {}
 .cm-s-default .cm-atom {color: #219;}
 .cm-s-default .cm-number {color: #164;}
 .cm-s-default .cm-def {color: #00f;}
-.cm-s-default .cm-variable {color: black;}
+.cm-s-default .cm-variable,
+.cm-s-default .cm-punctuation,
+.cm-s-default .cm-property,
+.cm-s-default .cm-operator {}
 .cm-s-default .cm-variable-2 {color: #05a;}
 .cm-s-default .cm-variable-3 {color: #085;}
-.cm-s-default .cm-property {color: black;}
-.cm-s-default .cm-operator {color: black;}
 .cm-s-default .cm-comment {color: #a50;}
 .cm-s-default .cm-string {color: #a11;}
 .cm-s-default .cm-string-2 {color: #f50;}
@@ -94,12 +124,16 @@ div.CodeMirror-overwrite div.CodeMirror-cursor {}
 .cm-header, .cm-strong {font-weight: bold;}
 .cm-em {font-style: italic;}
 .cm-link {text-decoration: underline;}
+.cm-strikethrough {text-decoration: line-through;}
 
 .cm-s-default .cm-error {color: #f00;}
 .cm-invalidchar {color: #f00;}
 
+/* Default styles for common addons */
+
 div.CodeMirror span.CodeMirror-matchingbracket {color: #0f0;}
 div.CodeMirror span.CodeMirror-nonmatchingbracket {color: #f22;}
+.CodeMirror-matchingtag { background: rgba(255, 150, 0, .3); }
 .CodeMirror-activeline-background {background: #e8f2ff;}
 
 /* STOP */
@@ -183,6 +217,7 @@ div.CodeMirror span.CodeMirror-nonmatchingbracket {color: #f22;}
 
 .CodeMirror-lines {
   cursor: text;
+  min-height: 1px; /* prevents collapsing before first draw */
 }
 .CodeMirror pre {
   /* Reset some styles that the rest of the page might have set */
@@ -242,7 +277,7 @@ div.CodeMirror span.CodeMirror-nonmatchingbracket {color: #f22;}
 div.CodeMirror-cursors {
   visibility: hidden;
   position: relative;
-  z-index: 1;
+  z-index: 3;
 }
 .CodeMirror-focused div.CodeMirror-cursors {
   visibility: visible;
@@ -269,3 +304,6 @@ div.CodeMirror-cursors {
     visibility: hidden;
   }
 }
+
+/* Help users use markselection to safely style text background */
+span.CodeMirror-selectedtext { background: none; }
