@@ -1092,352 +1092,49 @@ System.prototype = {
       var group = groups[fact[0]] || (groups[fact[0]] = []);
       group.push(fact.slice(1));
     }
-    for (var table in groups) {
-      this.testTable(table, groups[table]);
+    for (var view in groups) {
+      this.testview(view, groups[view]);
     }
     return this;
   }
 };
 
-// ADAM
-
-function program() { // name, rule*
-  var name = arguments[0];
-  var declarations = Array.prototype.slice.call(arguments, 1).concat(compilerConstraints);
-  var facts = [];
-  var context = {nextId: 0,
-                 rule: null,
-                 valves: null};
-  for (var i = 0; i < declarations.length; i++) {
-    facts = facts.concat(declarations[i](context));
-  }
-  return System.empty({name: name}).update(facts, []).refresh().recompile();
-}
-
-function table(table, fields) {
-  return function (context) {
-    var facts = [["table", table]];
-    if(context.program) {
-      facts.push(["programTable", context.program, table]);
-    }
-    for (var i = fields.length - 1; i >= 0; i--) {
-      facts.push(["field", table, fields[i], i]);
-    }
-    return facts;
-  };
-}
-
-function rule() { // name, clause*
-  var args = arguments;
-  return function (context) {
-    context.rule = args[0];
-    var facts = [["rule", context.rule, context.nextId++],
-                 ["editorRule", context.rule, context.rule]];
-    if(context.program) {
-      facts.push(["programRule", context.program, context.rule]);
-    }
-
-    for (var i = 1; i < args.length; i++) {
-      facts = facts.concat(args[i](context));
-    }
-    var valves = {};
-    for (var i = facts.length - 1; i >= 0; i--) {
-      var fact = facts[i];
-      if (fact[0] === "tableConstraint") valves[fact[1]] = true;
-      if (fact[0] === "constantConstraint") valves[fact[1]] = true;
-      if (fact[0] === "functionConstraint") valves[fact[3]] = true;
-      if (fact[0] === "reducer") valves[fact[3]] = false;
-      if (fact[0] === "ordinalValve") valves[fact[2]] = false;
-    }
-    var ix = 0;
-    for (var valve in valves) {
-      if (valves[valve] === true) facts.push(["valve", valve, context.rule, ix++]);
-    }
-    for (var valve in valves) {
-      if (valves[valve] === false) facts.push(["valve", valve, context.rule, ix++]);
-    }
-    return facts;
-  };
-}
-
-function constraint() { // name, clause*
-  var args = arguments;
-  return function(context) {
-    var facts = rule.apply(null, args)(context);
-    facts.push(["constraintRule", args[0]]);
-    return facts;
-  }
-}
-
-function foreignKey(fromTable, fromField, toTable, toField) {
-  var fromBindings = {};
-  fromBindings[fromField] = "field";
-  var toBindings = {};
-  toBindings[toField] = "field";
-  return constraint("foreignKey: " + fromTable + "." + fromField + " = " + toTable + "." + toField,
-                    source(fromTable, fromBindings),
-                    notSource(toTable, toBindings));
-}
-
-function pipe(direction, table, bindings) {
-  return function (context) {
-    var pipe = context.rule + "|table=" + table + "|" + context.nextId++;
-    var facts = [["pipe", pipe, table, context.rule, direction]];
-    for (var field in bindings) {
-      var valve = context.rule + "|variable=" + bindings[field];
-      facts.push(["tableConstraint", valve, pipe, field]);
-    }
-    return facts;
-  };
-}
-
-function source(table, bindings) {
-  return pipe("+source", table, bindings);
-}
-
-function notSource(table, bindings) {
-  return pipe("-source", table, bindings);
-}
-
-function sink(table, bindings) {
-  return pipe("+sink", table, bindings);
-}
-
-function constant(variable, value) {
-  if (typeof value === "object") throw new Error("Object passed as constant");
-  return function(context) {
-    var valve = context.rule + "|variable=" + variable;
-    return [["constantConstraint", valve, value]];
-  };
-}
-
-function calculate(outputVariable, inputVariables, code) {
-  return function(context) {
-    var functionConstraint = context.rule + "|function=" + outputVariable + "|" + context.nextId++;
-    var facts = [];
-    var outputValve = context.rule + "|variable=" + outputVariable;
-    for (var i = inputVariables.length - 1; i >= 0; i--) {
-      var inputVariable = inputVariables[i];
-      var inputValve = context.rule + "|variable=" + inputVariable;
-      facts.push(["functionConstraintInput", functionConstraint, inputValve, inputVariable]);
-    }
-    facts.push(["functionConstraint", functionConstraint, code, outputValve, context.rule]);
-    return facts;
-  };
-}
-
-function aggregate(groupVariables, sortVariables, limit, ordinal) {
-  return function(context) {
-    var facts = [];
-    for (var i = groupVariables.length - 1; i >= 0; i--) {
-      var variable = groupVariables[i];
-      var valve = context.rule + "|variable=" + variable;
-      facts.push(["groupValve", context.rule, valve]);
-    }
-    for (var i = sortVariables.length - 1; i >= 0; i--) {
-      var variable = sortVariables[i];
-      var valve = context.rule + "|variable=" + variable;
-      facts.push(["sortValve", context.rule, valve, i]);
-    }
-    if (typeof(limit) === "number") {
-      var valve = context.rule + "|limit";
-      facts.push(["constantConstraint", valve, limit],
-                 ["limitValve", context.rule, valve]);
-    }
-    if (typeof(limit) === "string") {
-      var valve = context.rule + "|variable=" + limit;
-      facts.push(["limitValve", context.rule, valve]);
-    }
-    if (typeof(ordinal) === "string") {
-      var valve = context.rule + "|variable=" + ordinal;
-      facts.push(["ordinalValve", context.rule, valve]);
-    }
-    return facts;
-  };
-}
-
-function reduce(outputVariable, inputVariable, code) {
-  return function(context) {
-    var outputValve = context.rule + "|variable=" + outputVariable;
-    var inputValve = context.rule + "|variable=" + inputVariable;
-    return [["reducer", context.rule, inputValve, outputValve, inputVariable, code]];
-  };
-}
-
-function compose() {
-  var args = arguments;
-  return function(context) {
-    var facts = [];
-    for(var i = 0; i < args.length; i++) {
-      var cur = args[i];
-      Array.prototype.push.apply(facts, cur(context));
-    }
-    return facts;
-  };
-}
-
-function concat(context, facts, toAdd, isChild) {
-  Array.prototype.push.apply(facts, toAdd(context, isChild));
-}
-
-function inject(field) {
-  return function(context, isChild) {
-    if(!isChild) {
-      return field;
-    } else {
-      var facts = [];
-      if(!context.uiParent) throw new Error("No parent provided: " + JSON.stringify(context));
-      //auto-generate an id
-      var id = "elemId" + context.nextId++;
-      concat(context, facts, calculate(id, [context.uiParent], context.uiParent + " + '_" + context.uiIx + "'"));
-      concat(context, facts, sink("uiText", {id: id, text: field}));
-      context.uiChildId = id;
-      return facts;
-    }
-  };
-}
-
-function constantOrField(context, facts, thing) {
-  if(typeof thing === "function") {
-    return thing(context);
-  } else {
-    var id = "const" + context.nextId++;
-    concat(context, facts, constant(id, thing));
-    return id;
-  }
-}
-
-var uiEventNames = {
-  "click": "click",
-  "doubleClick": "dblclick",
-  "contextMenu": "contextMenu",
-  "input": "input",
-  "drag": "drag",
-  "drop": "drop",
-  "dragStart": "dragstart",
-  "dragEnd": "dragend",
-  "dragOver": "dragover"
-};
-
-function elem() {
-  var args = arguments;
-  return function(context) {
-    var facts = [];
-    var id;
-    if(args[1] && args[1]["id"]) {
-      //this is our id
-      id = constantOrField(context, facts, args[1]["id"]);
-    } else {
-      if(!context.uiParent) throw new Error("No parent provided: " + JSON.stringify(context));
-      //auto-generate an id
-      var id = "elemId" + context.nextId++;
-      concat(context, facts, calculate(id, [context.uiParent], context.uiParent + " + '_" + context.uiIx + "'"));
-    }
-
-
-    //uiElem
-    var tag = constantOrField(context, facts, args[0]);
-    concat(context, facts, sink("uiElem", {"id": id, "type": tag}));
-
-    //uiAttr
-    var attrs = args[1];
-    if(attrs) {
-      for(var attrKey in attrs) {
-        var attrValue = attrs[attrKey];
-        if(attrKey === "id" || attrKey === "parent") {
-          continue;
-        } else if(attrKey === "style") {
-          for(var styleKey in attrValue) {
-            var styleValue = attrValue[styleKey];
-            var value = constantOrField(context, facts, styleValue);
-            var attr = constantOrField(context, facts, styleKey);
-            concat(context, facts, sink("uiStyle", {"id": id, "attr": attr, "value": value}));
-          }
-        } else if(uiEventNames[attrKey]) {
-          var event = constantOrField(context, facts, uiEventNames[attrKey]);
-          var label = constantOrField(context, facts, attrValue[0]);
-          var key = constantOrField(context, facts, attrValue[1]);
-          concat(context, facts, sink("uiEvent", {"id": id, "event": event, "label": label, "key": key}));
-        } else {
-          var value = constantOrField(context, facts, attrValue);
-          var attr = constantOrField(context, facts, attrKey);
-          concat(context, facts, sink("uiAttr", {"id": id, "attr": attr, "value": value}));
-        }
-      }
-    }
-
-    //uiChild
-    if(attrs && attrs["parent"]) {
-      var parent = attrs["parent"];
-      var parentId = constantOrField(context, facts, parent[0]);
-      var childPos = constantOrField(context, facts, parent[1] || 0);
-      concat(context, facts, sink("uiChild", {"parent": parentId, "child": id, "pos": childPos}));
-    }
-    for(var childIx = 2; childIx < args.length; childIx++) {
-      var curChild = args[childIx];
-      context.uiParent = id;
-      context.uiIx = childIx - 2;
-      if(typeof curChild === "function") {
-        //we have either an element or an injection
-        concat(context, facts, curChild, true);
-      } else if(typeof curChild === "string") {
-        //we have raw text
-        var textId = "elemId" + context.nextId++;
-        var text = constantOrField(context, facts, curChild);
-        concat(context, facts, calculate(textId, [context.uiParent], context.uiParent + " + '_" + context.uiIx + "'"));
-        concat(context, facts, sink("uiText", {id: textId, text: text}));
-        context.uiChildId = textId;
-      }
-
-      //add uiChild entry
-      var childPos = constantOrField(context, facts, childIx);
-      concat(context, facts, sink("uiChild", {"parent": id, "child": context.uiChildId, "pos": childPos}));
-
-    }
-    context.uiChildId = id;
-    context.uiParent = false;
-    context.uiIx = false;
-
-    return facts;
-  };
-}
-
 // COMPILER CONSTRAINTS
 
 var compilerConstraints = [
-  foreignKey("field", "table", "table", "table"),
-  foreignKey("valve", "rule", "rule", "rule"),
-  foreignKey("pipe", "table", "table", "table"),
-  foreignKey("pipe", "rule", "rule", "rule"),
-  foreignKey("tableConstraint", "pipe", "pipe", "pipe"),
-  foreignKey("tableConstraint", "valve", "valve", "valve"),
-  constraint("fields in rules match fields in tables",
-             source("tableConstraint", {valve: "valve", pipe: "pipe", field: "field"}),
-             source("pipe", {pipe: "pipe", table: "table"}),
-             notSource("field", {table: "table", field: "field"})),
+  foreignKey("field", "view", "view", "view"),
+  foreignKey("valve", "query", "query", "query"),
+  foreignKey("pipe", "view", "view", "view"),
+  foreignKey("pipe", "query", "query", "query"),
+  foreignKey("viewConstraint", "pipe", "pipe", "pipe"),
+  foreignKey("viewConstraint", "valve", "valve", "valve"),
+  constraint("fields in queries match fields in views",
+             source("viewConstraint", {valve: "valve", pipe: "pipe", field: "field"}),
+             source("pipe", {pipe: "pipe", view: "view"}),
+             notSource("field", {view: "view", field: "field"})),
   foreignKey("constantConstraint", "valve", "valve", "valve"),
   foreignKey("functionConstraint", "valve", "valve", "valve"),
-  foreignKey("functionConstraint", "rule", "rule", "rule"),
+  foreignKey("functionConstraint", "query", "query", "query"),
   foreignKey("functionConstraintInput", "function", "functionConstraint", "function"),
   foreignKey("functionConstraintInput", "valve", "valve", "valve"),
-  foreignKey("limitValve", "rule", "rule", "rule"),
+  foreignKey("limitValve", "query", "query", "query"),
   foreignKey("limitValve", "valve", "valve", "valve"),
-  foreignKey("ordinalValve", "rule", "rule", "rule"),
+  foreignKey("ordinalValve", "query", "query", "query"),
   foreignKey("ordinalValve", "valve", "valve", "valve"),
-  foreignKey("groupValve", "rule", "rule", "rule"),
+  foreignKey("groupValve", "query", "query", "query"),
   foreignKey("groupValve", "valve", "valve", "valve"),
-  foreignKey("sortValve", "rule", "rule", "rule"),
+  foreignKey("sortValve", "query", "query", "query"),
   foreignKey("sortValve", "valve", "valve", "valve"),
-  foreignKey("reducer", "rule", "rule", "rule"),
+  foreignKey("reducer", "query", "query", "query"),
   foreignKey("reducer", "inValve", "valve", "valve"),
   foreignKey("reducer", "outValve", "valve", "valve"),
   foreignKey("refresh", "flow", "flow", "flow"),
-  foreignKey("constraintRule", "rule", "rule", "rule"),
+  foreignKey("constraintquery", "query", "query", "query"),
 
 
   constraint("all valves are constrained",
              source("valve", {valve: "valve"}),
-             notSource("tableConstraint", {valve: "valve"}),
+             notSource("viewConstraint", {valve: "valve"}),
              notSource("constantConstraint", {valve: "valve"}),
              notSource("functionConstraint", {valve: "valve"}),
              notSource("reducer", {outValve: "valve"}))
