@@ -397,13 +397,13 @@ AggregatedMemoryConstraint.prototype = {
     var sortOrders = this.sortOrders;
     var ordinalIx = this.ordinalIx;
 
-    if (sortIxes !== undefined) {
+    if (sortIxes !== null) {
       aggregateSortBy(sortIxes, sortOrders);
     }
-    if (limitIx !== undefined) {
+    if (limitIx !== null) {
       groupFacts = groupFacts.slice(los[limitIx]);
     }
-    if (ordinalIx !== undefined) {
+    if (ordinalIx !== null) {
       for (var i = groupFacts.length - 1; i >= 0; i--) {
         groupFacts[i][ordinalIx] = i;
       }
@@ -417,13 +417,9 @@ AggregatedMemoryConstraint.prototype = {
     var compLo = compareValue(outValue, los[outIx]);
     var compHi = compareValue(outValue, his[outIx]);
     if ((compLo === -1) || (compHi === 1)) return FAILED;
-    if (outIx !== undefined) {
-      los[outIx] = outValue;
-      his[outIx] = outValue;
-      return ((compLo === 1) || (compHi === -1)) ? CHANGED : UNCHANGED;
-    } else {
-      return UNCHANGED;
-    }
+    los[outIx] = outValue;
+    his[outIx] = outValue;
+    return ((compLo === 1) || (compHi === -1)) ? CHANGED : UNCHANGED;
   },
 
   split: function(myIx, leftConstraintStates, leftLos, leftHis, rightConstraintStates, rightLos, rightHis) {
@@ -483,9 +479,9 @@ Provenance.prototype = {
 
 // FUNCTIONS
 
-function FunctionConstraint(fun, args, inIxes, outIx) {
+function FunctionConstraint(fun, variables, inIxes, outIx) {
   this.fun = fun;
-  this.args = args;
+  this.variables = variables;
   this.inIxes = inIxes;
   this.outIx = outIx;
   this.inValues = makeArray(inIxes.length, null);
@@ -517,13 +513,9 @@ FunctionConstraint.prototype = {
     var compLo = compareValue(outValue, los[outIx]);
     var compHi = compareValue(outValue, his[outIx]);
     if ((compLo === -1) || (compHi === 1)) return FAILED;
-    if (outIx !== undefined) {
-      los[outIx] = outValue;
-      his[outIx] = outValue;
-      return ((compLo === 1) || (compHi === -1)) ? CHANGED : UNCHANGED;
-    } else {
-      return UNCHANGED;
-    }
+    los[outIx] = outValue;
+    his[outIx] = outValue;
+    return ((compLo === 1) || (compHi === -1)) ? CHANGED : UNCHANGED;
   },
 
   split: function(myIx, leftConstraintStates, leftLos, leftHis, rightConstraintStates, rightLos, rightHis) {
@@ -695,12 +687,12 @@ var compilerSchemas = [
   ["query", "query", "view", "ix"],
   ["constantConstraint", "query", "field", "value"],
   ["functionConstraint", "constraint", "query", "field", "code"],
-  ["functionConstraintBinding", "constraint", "field", "variable"],
+  ["functionConstraintBinding", "constraint", "field", "field"],
   ["viewConstraint", "constraint", "query", "sourceView", "isNegated"],
   ["viewConstraintBinding", "constraint", "field", "sourceField"],
-  ["aggregateConstraint", "constraint", "query", "sourceView", "code|splat"],
+  ["aggregateConstraint", "constraint", "query", "field", "sourceView", "codeOrSplat"],
   ["aggregateConstraintBinding", "constraint", "field", "sourceField"],
-  ["sort", "constraint", "field", "ix", "ascending|descending"],
+  ["sort", "constraint", "field", "ix", "ascendingOrDescending"],
   ["limit", "constraint", "field"],
   ["ordinal", "constraint", "field"],
   ["isInput", "view"]
@@ -738,8 +730,7 @@ System.empty = function(meta) {
       compilerFields.push([fields[j], view, j]);
     }
 
-    var inputIx = 2*i;
-    var viewIx = (2*i)+1;
+    var viewIx = i;
     stores[viewIx] = Memory.empty();
     flows[viewIx] = null;
     dirtyFlows[viewIx] = false;
@@ -753,30 +744,30 @@ System.empty = function(meta) {
   }
 
   var system = new System(meta, stores, flows, dirtyFlows, constraintFlows, downstream, nameToIx, ixToName);
-  system.updateView("view", compilerViews, []);
-  system.updateView("field", compilerFields, []);
+  system.updateStore("view", compilerViews, []);
+  system.updateStore("field", compilerFields, []);
   return system;
 };
 
 System.prototype = {
-  getView: function (view) {
-    var viewIx = this.nameToIx[view];
-    return this.getStore(viewIx);
+  getStore: function (name) {
+    var ix = this.nameToIx[name];
+    return this._getStore(ix);
   },
 
-  updateView: function (view, adds, dels) {
-    var inputIx = this.nameToIx[view];
-    if (inputIx === undefined) console.error("No store for " + view);
-    var store = this.getStore(inputIx);
-    this.setStore(inputIx, store.update(adds, dels));
+  updateStore: function (name, adds, dels) {
+    var ix = this.nameToIx[name];
+    if (ix === undefined) throw new Error("No store for " + name);
+    var store = this.getStore(ix);
+    this._setStore(ix, store.update(adds, dels));
     return this;
   },
 
-  getStore: function (storeIx) {
+  _getStore: function (storeIx) {
     return this.stores[storeIx];
   },
 
-  setStore: function (storeIx, store) {
+  _setStore: function (storeIx, store) {
     this.stores[storeIx] = store;
     var dirtiedFlows = this.downstream[storeIx];
     var dirtyFlows = this.dirtyFlows;
@@ -786,7 +777,7 @@ System.prototype = {
   },
 
   getDump: function (view) {
-    var fields = this.getView("field").getFacts();
+    var fields = this.getStore("field").getFacts();
     var viewFields = [];
     for (var i = fields.length - 1; i >= 0; i--) {
       var field = fields[i];
@@ -831,31 +822,30 @@ System.prototype = {
         metastack.pop();
       }
     }
-    this.updateInput("refresh", refreshes, []);
+    this.updateStore("refresh", refreshes, []);
     this.tick++;
     metastack.pop();
     return this;
   },
 
   recompile: function(program) {
-    var tables = this.getDump("table");
+    // dump views
+    var views = this.getDump("view");
     var fields = this.getDump("field");
-    var rules = this.getDump("rule");
-    var valves = this.getDump("valve");
-    var pipes = this.getDump("pipe");
-    var tableConstraints = this.getDump("tableConstraint");
+    var queries = this.getDump("query");
     var constantConstraints = this.getDump("constantConstraint");
     var functionConstraints = this.getDump("functionConstraint");
-    var functionConstraintInputs = this.getDump("functionConstraintInput");
-    var limitValves = this.getDump("limitValve");
-    var ordinalValves = this.getDump("ordinalValve");
-    var groupValves = this.getDump("groupValve");
-    var sortValves = this.getDump("sortValve");
-    var reducers = this.getDump("reducer");
-    var constraintRules = this.getDump("constraintRule");
+    var functionConstraintBindings = this.getDump("functionConstraintBinding");
+    var viewConstraints = this.getDump("viewConstraint");
+    var viewConstraintBindings = this.getDump("viewConstraintBinding");
+    var aggregateConstraints = this.getDump("aggregateConstraint");
+    var aggregateConstraintBindings = this.getDump("aggregateConstraintBinding");
+    var sorts = this.getDump("sort");
+    var limits = this.getDump("limit");
+    var ordinals = this.getDump("ordinals");
+    var isInputs = this.getDump("isInput");
 
-    rules.sort(function (a,b) { if (a.ix < b.ix) return 1; else return -1;});
-
+    // init system state
     var stores = [];
     var flows = [];
     var dirtyFlows = [];
@@ -863,229 +853,191 @@ System.prototype = {
     var nameToIx = {};
     var downstream = [];
 
-    var valveRules = {};
-    var valveIxes = {};
-    var numVars = {};
-    var fieldIxes = {};
-    var numFields = {};
-    var pipeTables = {};
-    for (var i = valves.length - 1; i >= 0; i--) {
-      var valve = valves[i];
-      valveRules[valve.valve] = valve.rule;
-      valveIxes[valve.valve] = valve.ix;
-      numVars[valve.rule] = (numVars[valve.rule] || 0) + 1;
+    // build some indexes
+    var queryToView = {};
+    for (var i = queries.length - 1; i >= 0; i--) {
+      var query = queries[i];
+      queryToView[query.query] = query.view;
     }
-    for (var i = reducers.length - 1; i >= 0; i--) {
-      var reducer = reducers[i];
-      numVars[reducer.rule] = numVars[reducer.rule] - 1;
-    }
-    for (var i = ordinalValves.length - 1; i >= 0; i--) {
-      var ordinalValve = ordinalValves[i];
-      numVars[ordinalValve.rule] = numVars[ordinalValve.rule] - 1;
-    }
+    var fieldToIx = {};
     for (var i = fields.length - 1; i >= 0; i--) {
       var field = fields[i];
-      fieldIxes[field.table + "-" + field.field] = field.ix;
-      numFields[field.table] = (numFields[field.table] || 0) + 1;
+      fieldToIx[field.field] = field.ix;
     }
-    for (var i = pipes.length - 1; i >= 0; i--) {
-      var pipe = pipes[i];
-      pipeTables[pipe.pipe] = pipe.table;
+
+    // work out upstream dependencies
+    var upstream = {};
+    for (var i = views.length - 1; i >= 0; i--) {
+      var view = views[i];
+      upstream[view.view] = [];
     }
+    for (var i = viewConstraints.length - 1; i >= 0; i--) {
+      var viewConstraint = viewConstraints.length;
+      upstream[viewConstraint.sourceView].push(queryToView[viewConstraint.query]);
+    }
+
+    // order queries by their ix
+    queries.sort(function (a,b) { if (a.ix < b.ix) return 1; else return -1;});
 
     // choose flow ordering
-    var upstream = {};
     var nextIx = 0;
-    var flowFacts = [];
-    var tablePlaced = {};
-    for (var i = rules.length - 1; i >= 0; i--) {
-      var rule = rules[i];
-      upstream[rule.rule] = [];
-    }
-    for (var i = pipes.length - 1; i >= 0; i--) {
-      var pipe = pipes[i];
-      if ((pipe.direction === "+source") || (pipe.direction === "-source")) {
-        upstream[pipe.rule].push(pipe.table);
-      }
-    }
-    for (var i = rules.length - 1; i >= 0; i--) {
-      var rule = rules[i];
-      var ruleUpstream = upstream[rule.rule];
-      for (var j = ruleUpstream.length - 1; j >= 0; j--) {
-        var table = ruleUpstream[j];
-        if (tablePlaced[table] !== true) {
-          var sourceIx = nextIx++;
-          nameToIx[table + "-source"] = sourceIx;
-          flowFacts.push([sourceIx, "source", table]);
-          var sinkIx = nextIx++;
-          nameToIx[table + "-sink"] = sinkIx;
-          flowFacts.push([sinkIx, "sink", table]);
-          tablePlaced[table] = true;
+    var viewPlaced = {};
+    for (var i = queries.length - 1; i >= 0; i--) {
+      var query = queries[i];
+      var queryUpstream = upstream[query.query];
+      for (var j = queryUpstream.length - 1; j >= 0; j--) {
+        var view = queryUpstream[j];
+        if (viewPlaced[view] !== true) {
+          nameToIx[view] = nextIx++;
+          viewPlaced[view] = true;
         }
       }
-      var solverIx = nextIx++;
-      nameToIx[rule.rule + "-solver"] = solverIx;
-      flowFacts.push([solverIx, "solver", rule.rule]);
-      var aggregateIx = nextIx++;
-      nameToIx[rule.rule + "-aggregate"] = aggregateIx;
-      flowFacts.push([aggregateIx, "aggregate", rule.rule]);
+      nameToIx[query.query] = nextIx++;
     }
-    for (var i = tables.length - 1; i >= 0; i--) {
-      var table = tables[i];
-      if (tablePlaced[table.table] !== true) {
-          var sourceIx = nextIx++;
-          nameToIx[table.table + "-source"] = sourceIx;
-          flowFacts.push([sourceIx, "source", table.table]);
-          var sinkIx = nextIx++;
-          nameToIx[table.table + "-sink"] = sinkIx;
-          flowFacts.push([sinkIx, "sink", table.table]);
+    for (var i = views.length - 1; i >= 0; i--) {
+      var view = views[i];
+      if (viewPlaced[view.view] !== true) {
+        nameToIx[view.view] = nextIx++;
+        viewPlaced[view.view] = true;
       }
     }
 
-    // build solvers and aggregates
-    var solvers = {};
-    var aggregates = {};
-    for (var i = rules.length - 1; i >= 0; i--) {
-      var rule = rules[i];
-
-      var solverIx = nameToIx[rule.rule + "-solver"];
-      var aggregateIx = nameToIx[rule.rule + "-aggregate"];
-
-      var solver = Solver.empty(numVars[rule.rule], [], [], solverIx);
-      solvers[rule.rule] = solver;
-      stores[solverIx] = Memory.empty();
-      flows[solverIx] = solver;
-      dirtyFlows[solverIx] = true;
-      downstream[solverIx] = [aggregateIx];
-
-      var aggregate = Aggregate.empty([], [], undefined, undefined, [], [], [], solverIx, aggregateIx);
-      aggregates[rule.rule] = aggregate;
-      stores[aggregateIx] = Memory.empty();
-      flows[aggregateIx] = aggregate;
-      dirtyFlows[aggregateIx] = true;
-      downstream[aggregateIx] = [];
+    // build unions
+    for (var i = views.length - 1; i >= 0; i--) {
+      var view = views[i];
+      var viewIx = nameToIx[view.view];
+      stores[viewIx] = Memory.empty();
+      flows[viewIx] = new Union([], viewIx);
     }
 
-    // build sinks
-    var sinks = {};
-    for (var i = tables.length - 1; i >= 0; i--) {
-      var table = tables[i];
-
-      var sourceIx = nameToIx[table.table + "-source"];
-      var sinkIx = nameToIx[table.table + "-sink"];
-      var sinkFieldIxes = [];
-      for (var j = numFields[table.table] - 1; j >= 0; j--) {
-        sinkFieldIxes[j] = j;
-      }
-
-      stores[sourceIx] = this.stores[this.nameToIx[table.table + "-source"]] || Memory.empty();
-      dirtyFlows[sourceIx] = false;
-      downstream[sourceIx] = [sinkIx];
-
-      var sink = new Sink([new SinkConstraint(sourceIx, sinkFieldIxes)], sinkIx);
-      sinks[table.table] = sink;
-      stores[sinkIx] = this.stores[this.nameToIx[table.table + "-sink"]] || Memory.empty();
-      flows[sinkIx] = sink;
-      dirtyFlows[sinkIx] = true;
-      downstream[sinkIx] = [];
+    // fill in unions
+    for (var i = queries.length - 1; i >= 0; i--) {
+      var query = queries[i];
+      var queryIx = nameToIx[query.query];
+      var viewIx = nameToIx[query.view];
+      flows[viewIx].inputIxes.push(queryIx);
     }
 
+    // build solvers
+    for (var i = queries.length - 1; i >= 0; i--) {
+      var query = queries[i];
+      var queryIx = nameToIx[query.query];
+      stores[queryIx] = Memory.empty();
+      flows[queryIx] = Solver.empty(0, [], [], queryIx);
+    }
 
-    // build table constraints
+    // fill in fields
+    for (var i = fields.length - 1; i >= 0; i--) {
+      var field = fields[i];
+      var queryIx = nameToIx[field.query];
+      flows[queryIx].numVars += 1;
+    }
+
     var constraints = {};
-    for (var i = pipes.length - 1; i >= 0; i--) {
-      var pipe = pipes[i];
-      if (pipe.direction === "+source") {
-        var constraint = new MemoryConstraint(nameToIx[pipe.table + "-sink"], []);
-        solvers[pipe.rule].constraints.push(constraint);
-        constraints[pipe.pipe] = constraint;
-        downstream[nameToIx[pipe.table + "-sink"]].push(nameToIx[pipe.rule + "-solver"]);
-      } else if (pipe.direction === "-source") {
-        var constraint = new NegatedMemoryConstraint(nameToIx[pipe.table + "-sink"], []);
-        solvers[pipe.rule].constraints.push(constraint);
-        constraints[pipe.pipe] = constraint;
-        downstream[nameToIx[pipe.table + "-sink"]].push(nameToIx[pipe.rule + "-solver"]);
-      } else if (pipe.direction === "+sink") {
-        var constraint = new SinkConstraint(nameToIx[pipe.rule + "-aggregate"], []);
-        sinks[pipe.table].constraints.push(constraint);
-        constraints[pipe.pipe] = constraint;
-        downstream[nameToIx[pipe.rule + "-aggregate"]].push(nameToIx[pipe.table + "-sink"]);
-      }
-    }
-    for (var i = tableConstraints.length - 1; i >= 0; i--) {
-      var tableConstraint = tableConstraints[i];
-      var fieldIx = fieldIxes[pipeTables[tableConstraint.pipe] + "-" + tableConstraint.field];
-      var valveIx = valveIxes[tableConstraint.valve];
-      constraints[tableConstraint.pipe].fieldIxes[fieldIx] = valveIx;
-    }
 
-    // build constant constraints
+    // fill in constants
     for (var i = constantConstraints.length - 1; i >= 0; i--) {
       var constantConstraint = constantConstraints[i];
-      var solver = solvers[valveRules[constantConstraint.valve]];
-      solver.constants[valveIxes[constantConstraint.valve]] = constantConstraint.value;
+      var queryIx = nameToIx[constantConstraint.query];
+      var fieldIx = fieldToIx[constantConstraint.field];
+      flows[queryIx].constants[fieldIx] = constantConstraint.value;
     }
 
-    // build function constraints
+    // build functions
     for (var i = functionConstraints.length - 1; i >= 0; i--) {
       var functionConstraint = functionConstraints[i];
-      var outIx = valveIxes[functionConstraint.valve];
-      var constraint = new FunctionConstraint(undefined, [], [], outIx);
-      solvers[functionConstraint.rule].constraints.push(constraint);
-      constraints[functionConstraint.function] = constraint;
+      var fieldIx = fieldToIx[functionConstraint.field];
+      var constraint = new FunctionConstraint(null, [], [], fieldIx);
+      constraints[functionConstraint.constraint] = constraint;
+      var queryIx = nameToIx[functionConstraint.query];
+      flows[queryIx].constraints.push(constraint);
     }
-    for (var i = functionConstraintInputs.length - 1; i >= 0; i--) {
-      var functionConstraintInput = functionConstraintInputs[i];
-      var constraint = constraints[functionConstraintInput.function];
-      constraint.args.push(functionConstraintInput.variable);
-      constraint.inIxes.push(valveIxes[functionConstraintInput.valve]);
-      constraint.inValues.push(null);
+
+    // fill in functions
+    for (var i = functionConstraintBindings.length - 1; i >= 0; i--) {
+      var functionConstraintBinding = functionConstraintBindings[i];
+      var constraint = constraints[functionConstraintBinding.constraint];
+      constraint.variables.push(functionConstraintBinding.variable);
+      var fieldIx = fieldToIx[functionConstraintBinding.field];
+      constraint.inputIxes.push(fieldIx);
     }
+
+    // compile function code
     for (var i = functionConstraints.length - 1; i >= 0; i--) {
       var functionConstraint = functionConstraints[i];
-      var constraint = constraints[functionConstraint.function];
-      constraint.fun = Function.apply(null, constraint.args.concat(["return (" + functionConstraint.code + ");"]));
+      var constraint = constraints[functionConstraint.constraint];
+      constraint.fun = Function.apply(null, constraint.variables.concat(["return (" + functionConstraint.code + ");"]));
     }
 
-    // fill in aggregates
-    for (var i = limitValves.length - 1; i >= 0; i--) {
-      var limitValve = limitValves[i];
-      var aggregate = aggregates[limitValve.rule];
-      aggregate.limitIx = valveIxes[limitValve.valve];
-    }
-    for (var i = ordinalValves.length - 1; i >= 0; i--) {
-      var ordinalValve = ordinalValves[i];
-      var aggregate = aggregates[ordinalValve.rule];
-      aggregate.ordinalIx = valveIxes[ordinalValve.valve];
-    }
-    for (var i = groupValves.length - 1; i >= 0; i--) {
-      var groupValve = groupValves[i];
-      var aggregate = aggregates[groupValve.rule];
-      aggregate.groupIxes.push(valveIxes[groupValve.valve]);
-    }
-    for (var i = sortValves.length - 1; i >= 0; i--) {
-      var sortValve = sortValves[i];
-      var aggregate = aggregates[sortValve.rule];
-      aggregate.sortIxes[sortValve.ix] = valveIxes[sortValve.valve];
-    }
-    for (var i = reducers.length - 1; i >= 0; i--) {
-      var reducer = reducers[i];
-      var aggregate = aggregates[reducer.rule];
-      aggregate.reducerInIxes.push(valveIxes[reducer.inValve]);
-      aggregate.reducerOutIxes.push(valveIxes[reducer.outValve]);
-      aggregate.reducerFuns.push(Function.apply(null, [reducer.inVariable, "return (" + reducer.code + ");"]));
+    // build view constraints
+    for (var i = viewConstraints.length - 1; i >= 0; i--) {
+      var viewConstraint = viewConstraints[i];
+      var sourceIx = nameToIx[viewConstraint.sourceView];
+      var constraint = viewConstraint.isNegated ? new NegatedMemoryConstraint(sourceIx, []) : new MemoryConstraint(sourceIx, []);
+      constraints[viewConstraint.constraint] = constraint;
+      var queryIx = nameToIx[viewConstraint.query];
+      flows[queryIx].constraints.push(constraint);
     }
 
-    for (var i = constraintRules.length - 1; i >= 0; i--) {
-      var constraintRule = constraintRules[i];
-      constraintFlows[nameToIx[constraintRule.rule + "-aggregate"]] = true;
+    // fill in view constraints
+    for (var i = viewConstraintBindings.length - 1; i >= 0; i--) {
+      var viewConstraintBinding = viewConstraintBindings[i];
+      var fieldIx = fieldToIx[viewConstraintBinding.field];
+      var sourceIx = fieldToIx[viewConstraintBinding.sourceField];
+      constraints[viewConstraintBinding.constraint].fieldIxes[sourceIx] = fieldIx;
     }
 
+    // build aggregate constraints
+    for (var i = aggregateConstraints.length - 1; i >= 0; i--) {
+      var aggregateConstraint = aggregateConstraints[i];
+      var fieldIx = nameToIx[aggregateConstraint.field];
+      var sourceIx = nameToIx[aggregateConstraint.sourceView];
+      var fun = Function("facts", aggregateConstraint.code);
+      var constraint = new AggregatedMemoryConstraint(sourceIx, [], [], [], null, null, fieldIx, fun);
+      constraints[aggregateConstraint.constraint] = constraint;
+      var queryIx = nameToIx[aggregateConstraint.query];
+      flows[queryIx].constraints.push(constraint);
+    }
+
+    // fill in group variables
+    for (var i = aggregateConstraintBindings.length - 1; i >= 0; i--) {
+      var aggregateConstraintBinding = aggregateConstraintBindings[i];
+      var fieldIx = fieldToIx[aggregateConstraintBinding.field];
+      var sourceIx = fieldToIx[aggregateConstraintBinding.sourceField];
+      constraints[aggregateConstraintBinding.constraint].groupIxes[sourceIx] = fieldIx;
+    }
+
+    // fill in sort variables
+    for (var i = sorts.length - 1; i >= 0; i--) {
+      var sort = sorts[i];
+      var fieldIx = fieldToIx[sort.field];
+      var isAscending = sort.ascendingOrDescending === "ascending";
+      var constraint = constraints[sort.constraint];
+      constraint.sortIxes.push(fieldIx);
+      constraint.sortOrders.push(isAscending);
+    }
+
+    // fill in limit variables
+    for (var i = limits.length - 1; i >= 0; i--) {
+      var limit = limits[i];
+      var fieldIx = fieldToIx[limit.field];
+      constraints[limit.constraint].limitIx = fieldIx;
+    }
+
+    // fill in ordinal variables
+    for (var i = ordinals.length - 1; i >= 0; i--) {
+      var ordinal = ordinals[i];
+      var fieldIx = fieldToIx[ordinal.field];
+      constraints[ordinal.constraint].ordinalIx = fieldIx;
+    }
+
+    // reverse nameToIx
     var ixToName = [];
     for (var name in nameToIx) {
       ixToName[nameToIx[name]] = name;
     }
 
+    // set system state
     this.stores = stores;
     this.flows = flows;
     this.dirtyFlows = dirtyFlows;
@@ -1093,7 +1045,6 @@ System.prototype = {
     this.downstream = downstream;
     this.nameToIx = nameToIx;
     this.ixToName = ixToName;
-    this.setStore(nameToIx["flow-source"], Memory.fromFacts(flowFacts));
 
     return this;
   },
@@ -1114,22 +1065,22 @@ System.prototype = {
       var group = delGroups[del[0]] || (delGroups[del[0]] = []);
       group.push(del.slice(1));
     }
-    for (var table in addGroups) {
-      this.updateTable(table, addGroups[table], []);
+    for (var view in addGroups) {
+      this.updateStore(view, addGroups[view], []);
     }
-    for (var table in delGroups) {
-      this.updateTable(table, [], delGroups[table]);
+    for (var view in delGroups) {
+      this.updateStore(view, [], delGroups[view]);
     }
     return this;
   },
 
-  testTable: function(table, facts) {
+  testview: function(view, facts) {
     var outputAdds = [];
     var outputDels = [];
-    diffFacts(this.getTable(table).facts, facts, outputAdds, outputDels);
+    diffFacts(this.getStore(view).facts, facts, outputAdds, outputDels);
     if ((outputAdds.length > 0) || (outputDels.length > 0)) {
       console.error(this);
-      throw new Error("In '" + this.meta.name + "' table '" + table + "' has " + JSON.stringify(outputDels) + " and the test expects " + JSON.stringify(outputAdds));
+      throw new Error("In '" + this.meta.name + "' view '" + view + "' has " + JSON.stringify(outputDels) + " and the test expects " + JSON.stringify(outputAdds));
     }
     return this;
   },
