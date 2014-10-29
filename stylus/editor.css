@@ -193,16 +193,16 @@ body {
   color: #aaa;
 }
 .cm-s-default span.cm-symbol-ruleName,
-span.cm-operator-rule {
+.cm-s-default span.cm-operator-ruleName {
   color: #9cc;
 }
 .cm-s-default span.cm-field {
   color: #ff8ab0;
 }
-.cm-s-default span.cm-aliased-field {
+.cm-s-default span.cm-field-aliased {
   color: #79a;
 }
-.cm-s-default span.cm-assigned-field {
+.cm-s-default span.cm-field-assigned {
   color: #79a;
 }
 .cm-s-default span.cm-symbol-variable {
@@ -223,7 +223,7 @@ span.cm-operator-rule {
 .cm-s-default span.cm-comment {
   color: #79a;
 }
-.cm-s-default span.cm-constant {
+.cm-s-default span.cm-string {
   color: #9af;
 }
 .card {
