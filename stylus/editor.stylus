@@ -34,17 +34,17 @@ body {
 .cm-s-default div.CodeMirror-cursor { border-color: #ccc; }
 .cm-s-default .CodeMirror-selected { background:#555; }
 .cm-s-default span.cm-operator { color: #aaa; }
-.cm-s-default span.cm-symbol-ruleName, span.cm-operator-rule { color: #9cc; }
+.cm-s-default span.cm-symbol-ruleName, .cm-s-default span.cm-operator-ruleName { color: #9cc; }
 .cm-s-default span.cm-field { color: #FF8AB0; }
-.cm-s-default span.cm-aliased-field { color: #79a; }
-.cm-s-default span.cm-assigned-field { color: #79a; }
+.cm-s-default span.cm-field-aliased { color: #79a; }
+.cm-s-default span.cm-field-assigned { color: #79a; }
 .cm-s-default span.cm-symbol-variable { color: #FF8AB0; }
 .cm-s-default span.cm-symbol-alias { color: #FF8AB0; }
 .cm-s-default span.cm-symbol-table { color: #add; }
 .cm-s-default span.cm-function { color: #79a; }
 .cm-s-default span.cm-number { color: #79a; }
 .cm-s-default span.cm-comment { color: #79a; }
-.cm-s-default span.cm-constant { color:#9af; }
+.cm-s-default span.cm-string { color:#9af; }
 
 
 .card {
