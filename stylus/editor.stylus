@@ -29,6 +29,8 @@ body {
 #errors { display:none; margin:30px; margin-bottom:0; padding:10px; background: #f56; border-radius:3px; box-shadow: 0 0 8px #222; }
 #errors li { white-space:pre; color: #000; font-family:"Inconsolata", "Menlo", "Courier New", monospace; }
 
+#uiCard { background:#f4f4f4; margin:30px; border-radius:3px; padding:20px; box-shadow: 0 0 8px #222; }
+
 
 .cm-s-default { background: #333; color: #ccc; font-family: "Inconsolata", "Menlo", "Courier New", monospace; }
 .cm-s-default div.CodeMirror-cursor { border-color: #ccc; }
