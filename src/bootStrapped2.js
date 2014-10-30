@@ -423,16 +423,11 @@ function view(name, fields) {
 
 function commonViews() {
   var facts = [];
-  pushAll(facts, view("displayName", ["id", "name"]));
-  pushAll(facts, view("join", ["valve", "pipe", "field"]));
-  pushAll(facts, view("editorRule", ["id", "description"]));
   pushAll(facts, view("externalEvent", ["id", "label", "key", "eid", "value"]));
   pushAll(facts, view("click", ["id"]));
   pushAll(facts, view("mousePosition", ["eid","x","y"]));
   pushAll(facts, view("sms outbox", ["id"]));
   pushAll(facts, view("user", ["id", "name"]));
-  pushAll(facts, view("edge", ["from", "to"]));
-  pushAll(facts, view("path", ["from", "to"]));
   pushAll(facts, view("uiElem", ["id", "type"]));
   pushAll(facts, view("uiText", ["id", "text"]));
   pushAll(facts, view("uiChild", ["parent", "pos", "child"]));

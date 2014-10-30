@@ -32,7 +32,7 @@ function compilerWatcher2(application, storage, system) {
     if(uiStorage[table]) {
       var adds = [];
       var removes = [];
-      system.getTable(table).diff(uiStorage[table], adds, removes);
+      system.getStore(table).diff(uiStorage[table], adds, removes);
       uiStorage[table] = system.getStore(table);
       diff[table] = {
         adds: adds,
