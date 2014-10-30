@@ -214,7 +214,7 @@ function MemoryConstraint(storeIx, fieldIxes) {
 
 MemoryConstraint.prototype = {
   start: function(system) {
-    return system.getStore(this.storeIx).getFacts();
+    return system._getStore(this.storeIx).getFacts();
   },
 
   propagate: function(myIx, constraintStates, los, his) {
@@ -304,7 +304,7 @@ function NegatedMemoryConstraint(storeIx, fieldIxes) {
 
 NegatedMemoryConstraint.prototype = {
   start: function(system) {
-    return system.getStore(this.storeIx).getFacts();
+    return system._getStore(this.storeIx).getFacts();
   },
 
   propagate: function(myIx, constraintStates, los, his) {
@@ -365,7 +365,7 @@ function aggregateSortBy(facts, sortIxes, sortOrders) {
 
 AggregatedMemoryConstraint.prototype = {
   start: function(system) {
-    return system.getStore(this.storeIx).getFacts();
+    return system._getStore(this.storeIx).getFacts();
   },
 
   propagate: function(myIx, constraintStates, los, his) {
@@ -463,10 +463,10 @@ Provenance.prototype = {
   },
 
   finish: function(system) {
-    var oldOutput = system.getStore(this.outputIx) || Memory.empty();
+    var oldOutput = system._getStore(this.outputIx) || Memory.empty();
     var newOutput = Memory.fromFacts(this.queuedAdds);
     this.queuedAdds = [];
-    if (newOutput.differsFrom(oldOutput)) system.setStore(this.outputIx, newOutput);
+    if (newOutput.differsFrom(oldOutput)) system._setStore(this.outputIx, newOutput);
   },
 
   propagate: function(myIx, constraintStates, los, his) {
@@ -672,11 +672,11 @@ Union.prototype = {
     var outputFacts = [];
     var inputIxes = this.inputIxes;
     for (var i = inputIxes.length - 1; i >= 0; i--) {
-      outputFacts = outputFacts.concat(system.getStore(inputIxes[i]).getFacts());
+      outputFacts = outputFacts.concat(system._getStore(inputIxes[i]).getFacts());
     }
-    var oldOutput = system.getStore(this.outputIx);
+    var oldOutput = system._getStore(this.outputIx);
     var newOutput = Memory.fromFacts(outputFacts);
-    if (newOutput.differsFrom(oldOutput)) system.setStore(this.outputIx, newOutput);
+    if (newOutput.differsFrom(oldOutput)) system._setStore(this.outputIx, newOutput);
   }
 };
 
@@ -913,20 +913,20 @@ System.prototype = {
     }
 
     // work out downstream dependencies
-    for (var i = nextIx; i >= 0; i--) {
+    for (var i = nextIx - 1; i >= 0; i--) {
       downstream[i] = [];
     }
     for (var i = viewConstraints.length - 1; i >= 0; i--) {
       var viewConstraint = viewConstraints[i];
       var viewIx = nameToIx[viewConstraint.sourceView];
       var queryIx = nameToIx[viewConstraint.query];
-      downstream[viewIx].push[queryIx];
+      downstream[viewIx].push(queryIx);
     }
     for (var i = queries.length - 1; i >= 0; i--) {
       var query = queries[i];
       var viewIx = nameToIx[query.view];
       var queryIx = nameToIx[query.query];
-      downstream[queryIx].push[viewIx];
+      downstream[queryIx].push(viewIx);
     }
 
     // build unions

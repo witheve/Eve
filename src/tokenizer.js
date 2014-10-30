@@ -446,7 +446,6 @@ function parsedToEveProgram(parsed) {
     var view = curRule.name;
     var query = view + "|query=" + ix;
     facts.push(["view", view]);
-    facts.push(["query", query, view, ix]);
 
     // fields need to be globally unique and we don't use uuids yet, so prepend the view name
     var fields = {};
@@ -506,6 +505,11 @@ function parsedToEveProgram(parsed) {
     }
 
     // handle fields
+    if(curRule.header) {
+      curRule.header.fields.forEach(function(cur) {
+        makeLocalField(cur.name);
+      });
+    }
     var fieldToIx = {};
     var orderedFields = Object.keys(fields);
     orderedFields.sort();
@@ -533,6 +537,8 @@ function parsedToEveProgram(parsed) {
         }
         values.push(value);
       }
+    } else {
+      facts.push(["query", query, view, ix]);
     }
   }
   console.log("Compiling " + JSON.stringify(facts));

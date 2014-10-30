@@ -1,4 +1,4 @@
-var initialValue =  "* edge\n  ~ from to\n  + \"a\" \"b\"\n  + \"b\" \"c\"\n\n* path\n  | edge from to\n\n* path2\n  | edge from to:t\n  | path from:t to\n\n* path\n  | path2 from to";
+var initialValue =  "* time\n  ~ time\n\n* refresh\n  ~ tick startTime endTime flowIx\n\n* edge\n  ~ from to\n  + \"a\" \"b\"\n  + \"b\" \"c\"\n\n* path\n  | edge from to\n\n* path2\n  | edge from to:t\n  | path from:t to\n\n* path\n  | path2 from to";
 
 if(window.localStorage["eveEditorCode"]) {
   initialValue = window.localStorage["eveEditorCode"];
