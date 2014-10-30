@@ -410,10 +410,98 @@ function parseLine(line, state) {
         return {type: "insert", values: values, tokens: tokens};
         break;
       case "#":
-        //setReference
-        break;
       case "@":
-        //setExplode
+        //setReference
+        var type = tokens[0].op === "#" ? "setExplode" : "setReference";
+        tokens[0].subType = type;
+        if(tokens.length == 1) return {type: "unknown", tokens:tokens};
+
+        if(!tokens[1].type === "symbol") {
+          return {error: {message: "Expected a table symbol", token: tokens[1]}, tokens: tokens};
+        }
+        tokens[1].subType = "table";
+        var fields = [];
+        var tokenIx = 2;
+        while(tokenIx < tokens.length && tokens[tokenIx].op !== "|") {
+          //we only allow symbols as fields
+          var field = tokensToSymbol(tokens, tokenIx);
+          if(field.error) {
+            field.tokens = tokens;
+            return field;
+          }
+          if(tokens[tokenIx].subType) {
+            tokens[tokenIx].subType = "field-" + tokens[tokenIx].subType;
+          } else {
+            tokens[tokenIx].subType = "field";
+          }
+          fields.push(field.symbol);
+          tokenIx = field.ix;
+          tokenIx++;
+        }
+
+        var setRef = {type: type, table: tokens[1].name, fields: fields, tokens: tokens}
+
+        // parse the parameters if they exist e.g.
+        // @ foo i x | sort: x ix: z limit: 3
+        var paramNames = {"limit": true, "sort": true, "ix": true};
+        if(tokens[tokenIx]) {
+          tokenIx++;
+          //now check which parameter this is for
+          while(tokenIx < tokens.length) {
+            var param = tokens[tokenIx];
+            if(param.name === "ix") {
+              //ix is a symbol, skip the :
+              param.subType = "param";
+              var symbol = tokens[tokenIx + 2];
+              if(!symbol || symbol.type !== "symbol" || paramNames[symbol.name]) {
+                return {error: {message: "Invalid ix. Expected symbol.", token: tokens[tokenIx + 2]}};
+              }
+              symbol.subType = "field";
+              setRef.ix = symbol.name;
+              tokenIx = tokenIx + 3;
+            } else if(param.name === "limit") {
+              //limit is either a number or symbol, skip the :
+              param.subType = "param";
+              var lim = tokens[tokenIx + 2];
+              if(!lim || (lim.type !== "symbol" && lim.type !== "number") || paramNames[lim.name]) {
+                return {error: {message: "Invalid limit. Expected symbol or number.", token: tokens[tokenIx + 2]}};
+              }
+              setRef.limit = lim.name || lim.value;
+              tokenIx = tokenIx + 3;
+            } else if(param.name === "sort") {
+              //sort is a set of either a symbol, a symbol + ASC/DESC
+              param.subType = "param";
+              tokenIx = tokenIx + 2;
+              var sorts = [];
+              while(tokenIx < tokens.length) {
+                var sortToken = tokens[tokenIx];
+                if(!sortToken || sortToken.type !== "symbol") {
+                  return {error: {message: "Invalid limit. Expected symbol.", token: sortToken}};
+                }
+                if(paramNames[sortToken.name] && sorts.length) {
+                  break;
+                } else if(paramNames[sortToken.name]) {
+                  return {error: {message: "Invalid sort. Expected a field to sort on.", token: sortToken}};
+                }
+                sortToken.subType = "field";
+                var sort = [sortToken.name];
+                if(tokens[tokenIx + 1] && (tokens[tokenIx+1].name === "ASC" || tokens[tokenIx+1].name === "DESC")) {
+                  tokenIx++;
+                  tokens[tokenIx].subType = "sortOrder";
+                  sort.push(tokens[tokenIx].name);
+                }
+                sorts.push(sort);
+                tokenIx++;
+              }
+              setRef.sort = sorts;
+            } else {
+              tokenIx++;
+            }
+          }
+
+        }
+
+        return setRef;
         break;
       case "?":
         //filter
@@ -614,6 +702,19 @@ function parse(string) {
 }
 
 function eveUIElem(ui) {
+  //["uiElem", "uiText", "uiAttr", "uiStyle", "uiEvent", "uiChild"]
+  //look for an id attr to determine the id of this thing
+  //create the element
+  //create attrs entries based on the attrs
+    //if attr is style
+      //create style entries based on the style map
+    //if attr is id
+    //if attr is parent
+  //for each child
+    //if it's text or a symbol
+      //create a uiText
+    //Otherwise it's a child element run uiElem on it and get the child's id
+    //create a uiChild for it
   var parts = [];
   if(ui.tag) {
     parts.push(inject(ui.tag));

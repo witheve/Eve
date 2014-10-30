@@ -233,6 +233,12 @@ body {
 .cm-s-default span.cm-string {
   color: #9af;
 }
+.cm-s-default span.cm-param {
+  color: #aaa;
+}
+.cm-s-default span.cm-sortOrder {
+  color: #79a;
+}
 .card {
   background: #666;
   box-shadow: 0 0 8px #222;
