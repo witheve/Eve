@@ -454,7 +454,7 @@ function parseLine(line, state) {
               param.subType = "param";
               var symbol = tokens[tokenIx + 2];
               if(!symbol || symbol.type !== "symbol" || paramNames[symbol.name]) {
-                return {error: {message: "Invalid ix. Expected symbol.", token: tokens[tokenIx + 2]}};
+                return {error: {message: "Invalid ix. Expected symbol.", token: tokens[tokenIx + 2]}, tokens: tokens};
               }
               symbol.subType = "field";
               setRef.ix = symbol.name;
@@ -464,7 +464,7 @@ function parseLine(line, state) {
               param.subType = "param";
               var lim = tokens[tokenIx + 2];
               if(!lim || (lim.type !== "symbol" && lim.type !== "number") || paramNames[lim.name]) {
-                return {error: {message: "Invalid limit. Expected symbol or number.", token: tokens[tokenIx + 2]}};
+                return {error: {message: "Invalid limit. Expected symbol or number.", token: tokens[tokenIx + 2]}, tokens: tokens};
               }
               setRef.limit = lim.name || lim.value;
               tokenIx = tokenIx + 3;
@@ -476,19 +476,23 @@ function parseLine(line, state) {
               while(tokenIx < tokens.length) {
                 var sortToken = tokens[tokenIx];
                 if(!sortToken || sortToken.type !== "symbol") {
-                  return {error: {message: "Invalid limit. Expected symbol.", token: sortToken}};
+                  return {error: {message: "Invalid limit. Expected symbol.", token: sortToken, tokens: tokens}};
                 }
                 if(paramNames[sortToken.name] && sorts.length) {
                   break;
                 } else if(paramNames[sortToken.name]) {
-                  return {error: {message: "Invalid sort. Expected a field to sort on.", token: sortToken}};
+                  return {error: {message: "Invalid sort. Expected a field to sort on.", token: sortToken}, tokens: tokens};
                 }
                 sortToken.subType = "field";
                 var sort = [sortToken.name];
-                if(tokens[tokenIx + 1] && (tokens[tokenIx+1].name === "ASC" || tokens[tokenIx+1].name === "DESC")) {
-                  tokenIx++;
-                  tokens[tokenIx].subType = "sortOrder";
-                  sort.push(tokens[tokenIx].name);
+                if(tokens[tokenIx + 1] && tokens[tokenIx + 1].op === "=") {
+                  if(tokens[tokenIx+2].name === "ASC" || tokens[tokenIx+2].name === "DESC") {
+                    tokenIx = tokenIx + 2;
+                    tokens[tokenIx].subType = "sortOrder";
+                    sort.push(tokens[tokenIx].name);
+                  } else {
+                    return {error: {message: "Invalid sort order. Must be ASC or DESC.", token: tokens[tokenIx+2]}, tokens: tokens};
+                  }
                 }
                 sorts.push(sort);
                 tokenIx++;
