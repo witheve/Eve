@@ -124,12 +124,12 @@ body {
   display: -webkit-flex;
   display: box;
   display: flex;
-  -webkit-box-orient: vertical;
-  -moz-box-orient: vertical;
-  -o-box-orient: vertical;
-  -ms-box-orient: vertical;
-  -webkit-flex-direction: column;
-  flex-direction: column;
+  -webkit-box-orient: horizontal;
+  -moz-box-orient: horizontal;
+  -o-box-orient: horizontal;
+  -ms-box-orient: horizontal;
+  -webkit-flex-direction: row;
+  flex-direction: row;
 }
 #stats {
   position: fixed;
@@ -148,7 +148,6 @@ body {
   box-flex: 1;
   -webkit-flex: 1;
   flex: 1;
-  height: 50%;
   position: relative;
 }
 #editor .CodeMirror {
@@ -162,13 +161,13 @@ body {
   height: 100%;
 }
 #cards {
-  box-flex: 1;
-  -webkit-flex: 1;
-  flex: 1;
+  box-flex: 1.5;
+  -webkit-flex: 1.5;
+  flex: 1.5;
   background: #444;
   position: relative;
   overflow: auto;
-  max-height: 50%;
+  max-height: 100%;
 }
 /* #errors { pointer-events:none; position:absolute; top:0px; bottom:0px; left:0px; right:0px; background: rgba(255,100,100,0.9); padding:20px;} */
 #errors {
