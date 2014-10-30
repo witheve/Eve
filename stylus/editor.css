@@ -178,6 +178,13 @@ body {
   color: #000;
   font-family: "Inconsolata", "Menlo", "Courier New", 'Bitstream Vera Sans Mono', Consolas, Courier, monospace;
 }
+#uiCard {
+  background: #f4f4f4;
+  margin: 30px;
+  border-radius: 3px;
+  padding: 20px;
+  box-shadow: 0 0 8px #222;
+}
 .cm-s-default {
   background: #333;
   color: #ccc;

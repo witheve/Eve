@@ -65,183 +65,6 @@ var svgs = {
   "rect": true
 };
 
-var uiDiffWatcher = function(application, storage, system) {
-  var tables = ["uiElem", "uiText", "uiAttr", "uiStyle", "uiEvent", "uiChild"];
-  var diff = {};
-  console.time("diff");
-  for(var i = 0; i < tables.length; i++) {
-    var table = tables[i];
-    if(storage[table]) {
-      var adds = [];
-      var removes = [];
-      system.getStore(table).diff(storage[table], adds, removes);
-      storage[table] = system.getStore(table);
-      diff[table] = {
-        adds: adds,
-        removes: removes
-      };
-    } else {
-      storage[table] = system.getStore(table);
-      diff[table] = {
-        adds: system.getStore(table).getFacts(),
-        removes: []
-      };
-    }
-  }
-  console.timeEnd("diff");
-  //   console.log(diff);
-
-
-  var elem_id = 0;
-  var elem_type = 1;
-
-  var text_text = 1;
-
-  var attrs_attr = 1;
-  var attrs_value = 2;
-
-  var styles_attr = 1;
-  var styles_value = 2;
-
-  var events_event = 1;
-  var events_label = 2;
-  var events_key = 3;
-
-  var child_childid = 2;
-
-  var builtEls = storage["builtEls"] || {"root": document.createElement("div")};
-  var handlers = storage["handlers"] || {};
-  var roots = {};
-
-  //add subProgram elements
-  for(var i in compiledSystems) {
-    builtEls[i + "_root"] = compiledSystems[i].getUIRoot();
-  }
-
-  //add elements
-  var elem = diff["uiElem"].adds;
-  var elemsLen = elem.length;
-  for(var i = 0; i < elemsLen; i++) {
-    var cur = elem[i];
-    if(!svgs[cur[elem_type]]) {
-      builtEls[cur[elem_id]] = document.createElement(cur[elem_type]);
-    } else {
-      builtEls[cur[elem_id]] = document.createElementNS("http://www.w3.org/2000/svg", cur[elem_type]);
-    }
-  }
-  //remove elements
-  var remElem = diff["uiElem"].removes;
-  var remElemsLen = remElem.length;
-  for(var i = 0; i < remElemsLen; i++) {
-    var cur = remElem[i];
-    var me = builtEls[cur[elem_id]];
-    if(me && me.parentNode && me.parentNode.parentNode) {
-      me.parentNode.removeChild(me);
-    }
-    handlers[cur[elem_id]] = null;
-    builtEls[cur[elem_id]] = null;
-  }
-
-
-  //add text
-  var text = diff["uiText"].adds;
-  var textLen = text.length;
-  var addedText = {};
-  for(var i = 0; i < textLen; i++) {
-    var cur = text[i];
-    if(!builtEls[cur[elem_id]]) {
-      builtEls[cur[elem_id]] = document.createTextNode(cur[text_text]);
-    } else {
-      builtEls[cur[elem_id]].nodeValue = cur[text_text];
-    }
-    addedText[cur[elem_id]] = true;
-  }
-
-  //remove text
-  var text = diff["uiText"].removes;
-  var textLen = text.length;
-  for(var i = 0; i < textLen; i++) {
-    var cur = text[i];
-    var me = builtEls[cur[elem_id]];
-    if(me && !addedText[cur[elem_id]]) {
-      me.nodeValue = "";
-      builtEls[cur[elem_id]] = null;
-    }
-  }
-
-  var attrs = diff["uiAttr"].adds;
-  var attrsLen = attrs.length;
-  for(var i = 0; i < attrsLen; i++) {
-    var cur = attrs[i];
-    builtEls[cur[elem_id]].setAttribute(cur[attrs_attr], cur[attrs_value]);
-  }
-
-  var styles = diff["uiStyle"].adds;
-  var stylesLen = styles.length;
-  for(var i = 0; i < stylesLen; i++) {
-    var cur = styles[i];
-    builtEls[cur[elem_id]].style[cur[styles_attr]] = cur[styles_value];
-  }
-
-  //Remove events
-  var events = diff["uiEvent"].removes;
-  var eventsLen = events.length;
-  for(var i = 0; i < eventsLen; i++) {
-    var cur = events[i];
-    if(builtEls[cur[elem_id]] && handlers[cur[elem_id]] && handlers[cur[elem_id]][cur[events_event]]) {
-      var handler = handlers[cur[elem_id]][cur[events_event]];
-      builtEls[cur[elem_id]].removeEventListener(cur[events_event], handler);
-      handlers[cur[elem_id]][cur[events_event]] = null;
-    }
-  }
-
-  var events = diff["uiEvent"].adds;
-  var eventsLen = events.length;
-  for(var i = 0; i < eventsLen; i++) {
-    var cur = events[i];
-    if(!handlers[cur[elem_id]]) {
-      handlers[cur[elem_id]] = {};
-    }
-    var handler = handlers[cur[elem_id]][cur[events_event]] = createUICallback(application, cur[elem_id], cur[events_event], cur[events_label], cur[events_key]);
-    builtEls[cur[elem_id]].addEventListener(cur[events_event], handler);
-  }
-
-  var children = diff["uiChild"].adds;
-  var childrenLen = children.length;
-  children.sort(function(a,b) {
-    if(a[0] !== b[0]) {
-      return a[0].localeCompare(b[0]);
-    } else {
-      if(typeof a[1] === "string" || typeof b[1] === "string") {
-        return (a[1] + "").localeCompare((b[1] + ""));
-      } else {
-        return a[1] - b[1];
-      }
-    }
-  });
-  for(var i = 0; i < childrenLen; i++) {
-    var cur = children[i];
-    var child = builtEls[cur[child_childid]];
-    var parent = builtEls[cur[elem_id]];
-    if(cur[elem_id] == "subProgramUI") {
-    }
-    if(parent && child) {
-      parent.appendChild(child);
-    }
-  }
-
-  if(!storage["builtEls"]) {
-    storage["builtEls"] = builtEls;
-    storage["handlers"] = handlers;
-    if(storage["rootParent"]) {
-      storage["rootParent"].appendChild(builtEls["root"]);
-    }
-  }
-
-
-};
-
-
 var compilerRowLimit = 30;
 var compilerSeen = {};
 var compiledSystems = {};
@@ -375,7 +198,7 @@ var Application = function(system, opts) {
 Application.prototype.callRuntime = function(facts) {
   this.system.update(facts, [])
   this.system.refresh();
-  compilerWatcher(this, this.storage["compilerWatcher"], this.system);
+//   compilerWatcher(this, this.storage["compilerWatcher"], this.system);
   compilerWatcher2(this, this.storage["compilerWatcher"], this.system);
 };
 
@@ -584,23 +407,39 @@ function subProgram() {
   }
 }
 
-// var curApp = app(program("editor", editor), {parent: document.body});
+function pushAll(arr, things) {
+  Array.prototype.push.apply(arr, things);
+  return arr;
+}
 
-// var context = {nextId: 10000};
-// var paths =
-//     subProgram("paths",
-//                rule("blah blah",
-//                     source("time", {time: "time"}),
-//                     elem("button", {id: "time", parent: ["root", 0], click: ["add one", "foo"]}, "add one")),
-//                rule("count",
-//                     constant("addOne", "add one"),
-//                     source("externalEvent", {label: "addOne", eid: "eid"}),
-//                     aggregate(["addOne"], []),
-//                     reduce("count", "eid", "eid.length"),
-//                     elem("p", {id: "count", parent: ["root", 1]}, inject("count"))
-//                    )
+function view(name, fields) {
+  var facts = [["view", name]];
+  for(var i in fields) {
+    var field = fields[i];
+    facts.push(["field", field, name, i]);
+  }
+  return facts;
+}
 
-
-//               )(context);
-
-//curApp.run([["time", 0], ["edge", "a", "b"], ["edge", "b", "c"]].concat(paths));
+function commonViews() {
+  var facts = [];
+  pushAll(facts, view("displayName", ["id", "name"]));
+  pushAll(facts, view("join", ["valve", "pipe", "field"]));
+  pushAll(facts, view("editorRule", ["id", "description"]));
+  pushAll(facts, view("externalEvent", ["id", "label", "key", "eid", "value"]));
+  pushAll(facts, view("click", ["id"]));
+  pushAll(facts, view("mousePosition", ["eid","x","y"]));
+  pushAll(facts, view("sms outbox", ["id"]));
+  pushAll(facts, view("user", ["id", "name"]));
+  pushAll(facts, view("edge", ["from", "to"]));
+  pushAll(facts, view("path", ["from", "to"]));
+  pushAll(facts, view("uiElem", ["id", "type"]));
+  pushAll(facts, view("uiText", ["id", "text"]));
+  pushAll(facts, view("uiChild", ["parent", "pos", "child"]));
+  pushAll(facts, view("uiAttr", ["id", "attr", "value"]));
+  pushAll(facts, view("uiStyle", ["id", "attr", "value"]));
+  pushAll(facts, view("uiEvent", ["id", "event", "label", "key"]));
+  pushAll(facts, view("time", ["time"]));
+  pushAll(facts, view("refresh", ["tick", "startTime", "endTime", "flow"]));
+  return facts;
+}

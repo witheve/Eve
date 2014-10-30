@@ -165,12 +165,173 @@ function tokensToSymbol(tokens, ix) {
   return {ix: ix, symbol: {type: "symbol", name: name}};
 }
 
+function parseUIAttrs(tokens, ix, state, prevAttrs) {
+  var curToken = tokens[ix];
+  var curIx = ix;
+  var attrs;
+  if(prevAttrs) {
+    attrs = prevAttrs;
+  } else if(curToken.type === "operator" && curToken.op === "{") {
+    attrs = {kvs: [], type: "map"};
+    state.stack.push(attrs);
+    curIx++;
+  } else {
+    return {error: {message: "Invalid map", token: curToken}};
+  }
+
+  var kvs = attrs.kvs;
+  var curKv = [];
+
+  //We may be finishing a pair from the last line
+  if(kvs.length) {
+    curKv = kvs[kvs.length - 1];
+  } else {
+    kvs.push(curKv);
+  }
+
+  while(curIx < tokens.length && tokens[curIx].op !== "}") {
+    if(curKv.length == 2) {
+      curKv = [];
+      kvs.push(curKv);
+    }
+    var kvToken = tokens[curIx];
+    if(kvToken.type !== "string" && kvToken.type !== "number" && kvToken.type !== "symbol") {
+      return {error: {message: "Invalid attr token: " + kvToken.type + ". Expected string, number, or symbol.", token: kvToken}};
+    }
+    if(curKv.length == 0 && kvToken.type === "symbol") {
+      return {error: {message: "Invalid attr key: " + kvToken.type + ". Expected string or number.", token: kvToken}};
+    }
+    curKv.push(tokens[curIx]);
+    curIx++;
+  }
+
+  if(tokens[curIx] && tokens[curIx].op === "}") {
+    state.stack.pop();
+    curIx++;
+  }
+
+  return {ix: curIx, attrs: attrs};
+}
+
+function parseUIVector(tokens, ix, state, prevElement) {
+  var curToken = tokens[ix];
+  var childrenIx = ix;
+  var element;
+  if(prevElement) {
+    element = prevElement;
+  } else if(curToken.type === "operator" && curToken.op === "[") {
+    element = {children: [], type: "vector"};
+    state.stack.push(element);
+    childrenIx++;
+  } else {
+    return {error: {message: "Invalid vector", token: curToken}};
+  }
+
+  //if we haven't already set a tag
+  if(!element.tag && !element.tagConstant && childrenIx < tokens.length) {
+    var tagIx = childrenIx;
+    var tagToken = tokens[tagIx];
+    childrenIx++;
+    if(tagToken.type === "symbol") {
+      element.tag = tagToken.name;
+    } else if(tagToken.type === "string") {
+      element.tagConstant = tagToken.value;
+    } else {
+      return {error: {message: "Invalid UI tag: " + tagToken.type + ". Expected string or symbol.", token: tagToken}};
+    }
+  }
+
+  //if we haven't handled attrs yet
+  if(element.attrs === undefined && childrenIx < tokens.length) {
+    // there is an optional map of attributes
+    var maybeMapIx = childrenIx;
+    var maybeMapToken = tokens[maybeMapIx];
+
+    if(maybeMapToken.type === "operator" && maybeMapToken.op === "{") {
+      var attrsResult = parseUIAttrs(tokens, ix+2, state);
+      if(attrsResult.error) return attrsResult;
+      //the other children start after this map then
+      childrenIx = attrsResult.ix;
+      element.attrs = attrsResult.attrs;
+    } else {
+      //Set to false to indicate we handled this, but there's still no attrs
+      element.attrs = false;
+    }
+
+  }
+
+  // children can be either vectors, symbols, or constants
+  while(childrenIx < tokens.length && tokens[childrenIx].op !== "]") {
+    var curChild = tokens[childrenIx];
+    if(curChild.type === "operator" && curChild.op === "[") {
+      var childResult = parseUIVector(tokens, childrenIx, state);
+      if(childResult.error) return childResult;
+
+      //the other children start after this vector's index
+      childrenIx = childResult.ix;
+      element.children.push(childResult.element);
+
+    } else if (curChild.type === "symbol" || curChild.type === "string" || curChild.type === "number") {
+      element.children.push(curChild);
+      childrenIx++;
+    } else {
+      return {error: {message: "Invalid UI child: " + curChild.type + ". Expected vector, symbol, or constant.", token: curChild}};
+    }
+  }
+
+  if(tokens[childrenIx] && tokens[childrenIx].op === "]") {
+    state.stack.pop();
+    childrenIx++;
+  }
+
+  return {ix: childrenIx, element: element};
+}
+
+function parseUI(tokens, ix, state) {
+  var curToken = tokens[ix];
+  var childrenIx = ix;
+  var element;
+
+  if(state.stack.length) {
+    while(state.stack.length && childrenIx < tokens.length) {
+      element = state.stack[state.stack.length - 1];
+      var parser = element.type === "map" ? parseUIAttrs : parseUIVector;
+      var result = parser(tokens, ix, state, element);
+      if(result.error) return result;
+      childrenIx = result.ix;
+    }
+    return {element: element};
+
+  } else if(curToken.type === "operator" && curToken.op === "[") {
+    return parseUIVector(tokens, ix, state);
+
+  } else if(curToken.type === "operator" && curToken.op === "{") {
+    return parseUIAttrs(tokens, ix, state);
+
+  } else {
+    return {error: {message: "Continuing to parse UI, but there's nothing on the stack", token: curToken}};
+  }
+}
+
+function tokenToJSONValue(token) {
+  if(token.type === "string") {
+    return JSON.stringify(token.value);
+  }
+  return token.name || token.value || token.op
+}
+
 function parseLine(line, state) {
   var tokens = tokenizeLine(line);
   if(!tokens.length) return null;
 
   if(state.stack && state.stack.length) {
-    //we're in the middle of a structure
+    //we're in the middle of a UI structure, keep going
+    var ui = parseUI(tokens, 0, state);
+    //if nothing is on the stack, we're done parsing the ui
+    if(!state.stack.length) {
+      return {type: "ui", element: ui.element, tokens: tokens}
+    }
+    return {type: "ui", tokens: tokens};
 
   } else if(tokens[0].type === "operator") {
     //new standard line
@@ -189,6 +350,8 @@ function parseLine(line, state) {
       case "|":
         //source
         tokens[0].subType = "source";
+        if(tokens.length == 1) return {type: "unknown", tokens:tokens};
+
         if(!tokens[1].type === "symbol") {
           return {error: {message: "Expected a table symbol", token: tokens[1]}, tokens: tokens};
         }
@@ -258,13 +421,14 @@ function parseLine(line, state) {
         var parts = [];
         for(var i = 1; i < tokens.length; i++) {
           tokens[i].subType = "function";
-          parts.push(tokens[i].name || tokens[i].value || tokens[i].op);
+          parts.push(tokenToJSONValue(tokens[i]));
         }
         return {type: "filter", function: parts.join(" "), tokens: tokens};
         break;
       case ">":
         //reduce
         tokens[0].subType = "reduce";
+        if(tokens.length < 3) return {type: "unknown", tokens:tokens};
         if(tokens[1].type !== "symbol") {
           return {error: {message: "Assignments must begin with a valid symbol.", token: tokens[1], tokens: tokens}};
         }
@@ -278,13 +442,19 @@ function parseLine(line, state) {
         var parts = [];
         for(var i = 3; i < tokens.length; i++) {
           tokens[i].subType = "function";
-          parts.push(tokens[i].name || tokens[i].value || tokens[i].op);
+          parts.push(tokenToJSONValue(tokens[i]));
         }
         return {type: "reduce", symbol: tokens[1].name, function: parts.join(" "), tokens: tokens};
         break;
 
       case "[":
         //ui
+        if(!state.stack) state.stack = [];
+        var ui = parseUI(tokens, 0, state);
+        //if nothing is on the stack, we're done parsing the ui
+        if(!state.stack.length) {
+          return {type: "ui", element: ui.element, tokens: tokens}
+        }
         return {type: "ui", tokens: tokens};
         break;
     }
@@ -297,6 +467,8 @@ function parseLine(line, state) {
       return {error: {message: "Assignments must begin with a valid symbol.", token: tokens[0], tokens: tokens}};
     }
 
+    if(tokens.length < 2) return {type: "unknown", tokens:tokens};
+
     if(tokens[1].type !== "operator" || tokens[1].op !== "=") {
       return {error: {message: "Expected an =", token: tokens[1]}, tokens: tokens};
     }
@@ -306,7 +478,7 @@ function parseLine(line, state) {
     var parts = [];
     for(var i = 2; i < tokens.length; i++) {
       tokens[i].subType = "function";
-      parts.push(tokens[i].name || tokens[i].value || tokens[i].op);
+      parts.push(tokenToJSONValue(tokens[i]));
     }
     return {type: "function", symbol: tokens[0].name, function: parts.join(" "), tokens: tokens};
   }
@@ -386,6 +558,7 @@ function parse(string) {
         }
         curRule = {name: line.name,
                    header: false,
+                   ui: [],
                    values: [],
                    constants: {},
                    fields: {},
@@ -426,6 +599,11 @@ function parse(string) {
       case "insert":
         curRule.values.push(line);
         break;
+      case "ui":
+        if(line.element) {
+          curRule.ui.push(line.element);
+        }
+        break;
       default:
         break;
     }
@@ -433,6 +611,52 @@ function parse(string) {
   finalizeRule(curRule);
 
   return {rules: rules, errors: errors};
+}
+
+function eveUIElem(ui) {
+  var parts = [];
+  if(ui.tag) {
+    parts.push(inject(ui.tag));
+  } else {
+    parts.push(ui.tagConstant);
+  }
+
+  //handle attributes
+  if(!ui.attrs) {
+    parts.push({});
+  } else {
+    //break the KVs down
+    var attrs = {};
+    for(var ix in ui.attrs.kvs) {
+      var curKv = ui.attrs.kvs[ix];
+      if(curKv[1].type === "symbol") {
+        var value = inject(curKv[1].name);
+      } else {
+        var value = curKv[1].value;
+      }
+
+      //TODO: THIS IS A HACK
+      if(curKv[0].value === "parent") {
+        value = [value];
+      }
+
+      attrs[curKv[0].value] = value;
+    }
+    parts.push(attrs);
+  }
+
+  //handle children
+  for(var childIx in ui.children) {
+    var child = ui.children[childIx];
+    if(child.type === "vector") {
+      parts.push(eveUIElem(child));
+    } else if(child.type === "symbol") {
+      parts.push(inject(child.name));
+    } else {
+      parts.push(child.value);
+    }
+  }
+  return elem.apply(null, parts);
 }
 
 function parsedToEveProgram(parsed) {
@@ -504,7 +728,13 @@ function parsedToEveProgram(parsed) {
       facts.push(["constantConstraint", query, makeLocalField(symbol), true]);
     }
 
-    // handle fields
+    // handle UI
+    for(var uiIx in curRule.ui) {
+      var curUi = curRule.ui[uiIx];
+      //parts.push(eveUIElem(curUi));
+    }
+
+     // handle fields
     if(curRule.header) {
       curRule.header.fields.forEach(function(cur) {
         makeLocalField(cur.name);
@@ -542,7 +772,7 @@ function parsedToEveProgram(parsed) {
     }
   }
   console.log("Compiling " + JSON.stringify(facts));
-  return {program: System.empty({name: "editor program"}).update(facts, []).recompile(), values: values, errors: errors, tablesCreated: tablesCreated};
+  return {program: System.empty({name: "editor program"}).update(facts.concat(commonViews()), []).recompile(), values: values, errors: errors, tablesCreated: tablesCreated};
 }
 
 function tokenToCMType(token) {
@@ -577,6 +807,9 @@ function CodeMirrorModeParser() {
         return null;
       }
       return null;
+    },
+    startState: function() {
+      return {};
     }
   }
 }
@@ -602,7 +835,7 @@ function CodeMirrorModeParser() {
 // parseLine(stream, {});
 // tick(tokenizer, stream);
 
-// console.log(parse("* a\n| 'program ' "))
+//  console.log(parse("* a\n[\"div\" {class foo}\n[\"p\" \"cool\"]]").rules[0].ui)
 // console.log(parse("* awesome rule\n|'program Rule' program : p name=\"awesome\"\n@ programRule program rule | ordinal:ix sort:rule"));
 // console.log(parse("* another rule\n|"));
 

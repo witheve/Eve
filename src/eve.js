@@ -980,7 +980,7 @@ System.prototype = {
       var constraint = constraints[functionConstraintBinding.constraint];
       constraint.variables.push(functionConstraintBinding.variable);
       var fieldIx = fieldToIx[functionConstraintBinding.field];
-      constraint.inputIxes.push(fieldIx);
+      constraint.inIxes.push(fieldIx);
     }
 
     // compile function code

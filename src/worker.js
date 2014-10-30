@@ -14,6 +14,8 @@ var console = {
   }
 };
 
+var uiStorage = {};
+
 function compilerWatcher2(application, storage, system) {
   var returns = [];
   for(var table in editorProg.tablesCreated) {
@@ -21,7 +23,30 @@ function compilerWatcher2(application, storage, system) {
     var rows = system.getStore(table).getFacts();
     returns.push([table, info.fields, rows, info.constants]);
   }
-  postMessage({type: "tableCards", cards: returns})
+  postMessage({type: "tableCards", cards: returns});
+
+  var uiTables = ["uiElem", "uiText", "uiAttr", "uiStyle", "uiEvent", "uiChild"];
+  var diff = {};
+  for(var i = 0; i < uiTables.length; i++) {
+    var table = uiTables[i];
+    if(uiStorage[table]) {
+      var adds = [];
+      var removes = [];
+      system.getTable(table).diff(uiStorage[table], adds, removes);
+      uiStorage[table] = system.getStore(table);
+      diff[table] = {
+        adds: adds,
+        removes: removes
+      };
+    } else {
+      uiStorage[table] = system.getStore(table);
+      diff[table] = {
+        adds: system.getStore(table).getFacts(),
+        removes: []
+      };
+    }
+  }
+  postMessage({type: "renderUI", diff: diff})
 }
 
 var editorProg;
