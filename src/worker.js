@@ -18,7 +18,7 @@ function compilerWatcher2(application, storage, system) {
   var returns = [];
   for(var table in editorProg.tablesCreated) {
     var info = editorProg.tablesCreated[table];
-    var rows = system.getTable(table).getFacts();
+    var rows = system.getStore(table).getFacts();
     returns.push([table, info.fields, rows, info.constants]);
   }
   postMessage({type: "tableCards", cards: returns})

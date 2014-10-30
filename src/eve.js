@@ -688,7 +688,7 @@ var compilerSchemas = [
   ["query", "query", "view", "ix"],
   ["constantConstraint", "query", "field", "value"],
   ["functionConstraint", "constraint", "query", "field", "code"],
-  ["functionConstraintBinding", "constraint", "field", "field"],
+  ["functionConstraintBinding", "constraint", "field", "variable"],
   ["viewConstraint", "constraint", "query", "sourceView", "isNegated"],
   ["viewConstraintBinding", "constraint", "field", "sourceField"],
   ["aggregateConstraint", "constraint", "query", "field", "sourceView", "codeOrSplat"],
@@ -759,7 +759,7 @@ System.prototype = {
   updateStore: function (name, adds, dels) {
     var ix = this.nameToIx[name];
     if (ix === undefined) throw new Error("No store for " + name);
-    var store = this.getStore(ix);
+    var store = this._getStore(ix);
     this._setStore(ix, store.update(adds, dels));
     return this;
   },
@@ -782,9 +782,9 @@ System.prototype = {
     var viewFields = [];
     for (var i = fields.length - 1; i >= 0; i--) {
       var field = fields[i];
-      if (field[0] === view) viewFields[field[2]] = field[1];
+      if (field[1] === view) viewFields[field[2]] = field[0];
     }
-    var facts = this.getStore(this.nameToIx[view]).getFacts();
+    var facts = this.getStore(view).getFacts();
     var dump = [];
     for (var i = facts.length - 1; i >= 0; i--) {
       var fact = facts[i];
@@ -843,7 +843,7 @@ System.prototype = {
     var aggregateConstraintBindings = this.getDump("aggregateConstraintBinding");
     var sorts = this.getDump("sort");
     var limits = this.getDump("limit");
-    var ordinals = this.getDump("ordinals");
+    var ordinals = this.getDump("ordinal");
     var isInputs = this.getDump("isInput");
 
     // init system state
@@ -865,16 +865,25 @@ System.prototype = {
       var field = fields[i];
       fieldToIx[field.field] = field.ix;
     }
+    var viewToNumFields = {};
+    for (var i = views.length - 1; i >= 0; i--) {
+      var view = views[i];
+      viewToNumFields[view.view] = 0;
+    }
+    for (var i = fields.length - 1; i >= 0; i--) {
+      var field = fields[i];
+      viewToNumFields[field.view] += 1;
+    }
 
     // work out upstream dependencies
     var upstream = {};
-    for (var i = views.length - 1; i >= 0; i--) {
-      var view = views[i];
-      upstream[view.view] = [];
+    for (var i = queries.length - 1; i >= 0; i--) {
+      var query = queries[i];
+      upstream[query.query] = [];
     }
     for (var i = viewConstraints.length - 1; i >= 0; i--) {
-      var viewConstraint = viewConstraints.length;
-      upstream[viewConstraint.sourceView].push(queryToView[viewConstraint.query]);
+      var viewConstraint = viewConstraints[i];
+      upstream[viewConstraint.query].push(viewConstraint.sourceView);
     }
 
     // order queries by their ix
@@ -903,6 +912,23 @@ System.prototype = {
       }
     }
 
+    // work out downstream dependencies
+    for (var i = nextIx; i >= 0; i--) {
+      downstream[i] = [];
+    }
+    for (var i = viewConstraints.length - 1; i >= 0; i--) {
+      var viewConstraint = viewConstraints[i];
+      var viewIx = nameToIx[viewConstraint.sourceView];
+      var queryIx = nameToIx[viewConstraint.query];
+      downstream[viewIx].push[queryIx];
+    }
+    for (var i = queries.length - 1; i >= 0; i--) {
+      var query = queries[i];
+      var viewIx = nameToIx[query.view];
+      var queryIx = nameToIx[query.query];
+      downstream[queryIx].push[viewIx];
+    }
+
     // build unions
     for (var i = views.length - 1; i >= 0; i--) {
       var view = views[i];
@@ -922,16 +948,10 @@ System.prototype = {
     // build solvers
     for (var i = queries.length - 1; i >= 0; i--) {
       var query = queries[i];
+      var numFields = viewToNumFields[query.view];
       var queryIx = nameToIx[query.query];
       stores[queryIx] = Memory.empty();
-      flows[queryIx] = Solver.empty(0, [], [], queryIx);
-    }
-
-    // fill in fields
-    for (var i = fields.length - 1; i >= 0; i--) {
-      var field = fields[i];
-      var queryIx = nameToIx[field.query];
-      flows[queryIx].numVars += 1;
+      flows[queryIx] = Solver.empty(numFields, [], [], queryIx);
     }
 
     var constraints = {};
@@ -1099,44 +1119,3 @@ System.prototype = {
     return this;
   }
 };
-
-// COMPILER CONSTRAINTS
-
-var compilerConstraints = [
-  foreignKey("field", "view", "view", "view"),
-  foreignKey("valve", "query", "query", "query"),
-  foreignKey("pipe", "view", "view", "view"),
-  foreignKey("pipe", "query", "query", "query"),
-  foreignKey("viewConstraint", "pipe", "pipe", "pipe"),
-  foreignKey("viewConstraint", "valve", "valve", "valve"),
-  constraint("fields in queries match fields in views",
-             source("viewConstraint", {valve: "valve", pipe: "pipe", field: "field"}),
-             source("pipe", {pipe: "pipe", view: "view"}),
-             notSource("field", {view: "view", field: "field"})),
-  foreignKey("constantConstraint", "valve", "valve", "valve"),
-  foreignKey("functionConstraint", "valve", "valve", "valve"),
-  foreignKey("functionConstraint", "query", "query", "query"),
-  foreignKey("functionConstraintInput", "function", "functionConstraint", "function"),
-  foreignKey("functionConstraintInput", "valve", "valve", "valve"),
-  foreignKey("limitValve", "query", "query", "query"),
-  foreignKey("limitValve", "valve", "valve", "valve"),
-  foreignKey("ordinalValve", "query", "query", "query"),
-  foreignKey("ordinalValve", "valve", "valve", "valve"),
-  foreignKey("groupValve", "query", "query", "query"),
-  foreignKey("groupValve", "valve", "valve", "valve"),
-  foreignKey("sortValve", "query", "query", "query"),
-  foreignKey("sortValve", "valve", "valve", "valve"),
-  foreignKey("reducer", "query", "query", "query"),
-  foreignKey("reducer", "inValve", "valve", "valve"),
-  foreignKey("reducer", "outValve", "valve", "valve"),
-  foreignKey("refresh", "flow", "flow", "flow"),
-  foreignKey("constraintquery", "query", "query", "query"),
-
-
-  constraint("all valves are constrained",
-             source("valve", {valve: "valve"}),
-             notSource("viewConstraint", {valve: "valve"}),
-             notSource("constantConstraint", {valve: "valve"}),
-             notSource("functionConstraint", {valve: "valve"}),
-             notSource("reducer", {outValve: "valve"}))
-  ];

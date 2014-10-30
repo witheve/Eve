@@ -438,77 +438,105 @@ function parse(string) {
 function parsedToEveProgram(parsed) {
   var tablesCreated = {};
   var errors = parsed.errors || [];
+  var facts = [];
   var values = [];
-  var rules = ["editor program", commonTables()];
   for(var ix in parsed.rules) {
     var curRule = parsed.rules[ix];
 
-    if(curRule.header) {
-      //If there's a header we need to do inserts and such
-      var tableFields = curRule.header.fields.map(function(cur) {
-        return cur.name;
-      });
-      for(var valueIx in curRule.values) {
-        var insert = curRule.values[valueIx].values;
-        insert.unshift(curRule.name);
-        values.push(insert);
-      }
-      tablesCreated[curRule.name] = {fields: tableFields, constants: curRule.constants};
-      rules.push(table(curRule.name, tableFields));
-      continue;
-    }
+    var view = curRule.name;
+    var query = view + "|query=" + ix;
+    facts.push(["view", view]);
+    facts.push(["query", query, view, ix]);
 
-    var parts = ["rule" + ix];
+    // fields need to be globally unique and we don't use uuids yet, so prepend the view name
+    var fields = {};
+    function makeLocalField(name) {
+      fields[name] = true;
+      return view + "|field=" + name;
+    }
+    function makeRemoteField(remoteView, name) {
+      return remoteView + "|field=" + name;
+    }
 
     // handle sources
     for(var sourceIx in curRule.sources) {
       var src = curRule.sources[sourceIx];
-      var fields = {};
+      var constraint = query + "|viewConstraint=" + sourceIx;
+      facts.push(["viewConstraint", constraint, query, src.table, false]);
       for(var fieldIx in src.fields) {
         var field = src.fields[fieldIx];
         if(field.alias) {
-          fields[field.name] = field.alias;
+          facts.push(["viewConstraintBinding", constraint, makeLocalField(field.alias), makeRemoteField(src.table, field.name)]);
         } else if(field.constant) {
-          fields[field.name] = field.constantVar;
+          facts.push(["viewConstraintBinding", constraint, makeLocalField(field.constantVar), makeRemoteField(src.table, field.name)]);
         } else {
-          fields[field.name] = field.name;
+          facts.push(["viewConstraintBinding", constraint, makeLocalField(field.name), makeRemoteField(src.table, field.name)]);
         }
       }
-      parts.push(source(src.table, fields));
     }
 
     // handle functions
     for(var funcIx in curRule.functions) {
       var func = curRule.functions[funcIx];
-      parts.push(calculate(func.symbol, func.args, func.function));
+      var constraint = query + "|functionConstraint=" + funcIx;
+      facts.push(["functionConstraint", constraint, query, makeLocalField(func.symbol), func.function]);
+      for (argIx in func.args) {
+        var arg = func.args[argIx];
+        facts.push(["functionConstraintBinding", constraint, makeLocalField(arg), arg]);
+      }
     }
 
     // handle constants
     for(var cons in curRule.constants) {
       var field = curRule.constants[cons];
-      parts.push(constant(cons, field.constant));
+      facts.push(["constantConstraint", query, makeLocalField(cons), field.constant]);
     }
 
     // handle filters
     for(var filterIx in curRule.filters) {
       var filter = curRule.filters[filterIx];
-      parts.push(calculate("filter" + filterIx, filter.args, filter.function));
-      parts.push(constant("filter" + filterIx, true));
+      var symbol = "filterField" + filterIx;
+      var constraint = query + "|filterConstraint=" + filterIx;
+      facts.push("functionConstraint", constraint, query, makeLocalField(symbol), filter.function);
+      for (argIx in filter.args) {
+        var arg = filter.args[argIx];
+        facts.push(["functionConstraintBinding", constraint, makeLocalField(arg), arg]);
+      }
+      facts.push(["constantConstraint", query, makeLocalField(symbol), true]);
     }
 
-    //create tables and sinks
-    var tableFields = [];
-    var sinkFields = {};
-    for(var field in curRule.fields) {
-      tableFields.push(field);
-      sinkFields[field] = field;
+    // handle fields
+    var fieldToIx = {};
+    var orderedFields = Object.keys(fields);
+    orderedFields.sort();
+    tablesCreated[curRule.name] = {fields: orderedFields, constants: curRule.constants};
+    for(var fieldIx in orderedFields) {
+      var field = orderedFields[fieldIx];
+      fieldToIx[field] = fieldIx;
+      facts.push(["field", makeLocalField(field), view, fieldIx]);
     }
-    parts.push(sink(curRule.name, sinkFields));
-    rules.push(rule.apply(null, parts));
-    tablesCreated[curRule.name] = {fields: tableFields, constants: curRule.constants};
-    rules.push(table(curRule.name, tableFields));
+
+    // handle header
+    if(curRule.header) {
+      var tableFields = curRule.header.fields.map(function(cur) {
+        return cur.name;
+      });
+      var orderedTableFields = tableFields.slice();
+      orderedTableFields.sort();
+
+      // have to reorder insert facts to match the default field ordering
+      for(var valueIx in curRule.values) {
+        var insert = curRule.values[valueIx].values;
+        var value = [curRule.name];
+        for (var insertIx in insert) {
+          value[1 + orderedTableFields.indexOf(tableFields[insertIx])] = insert[insertIx];
+        }
+        values.push(value);
+      }
+    }
   }
-  return {program: program.apply(null, rules), tablesCreated: tablesCreated, values: values, errors: errors};
+  console.log("Compiling " + JSON.stringify(facts));
+  return {program: System.empty({name: "editor program"}).update(facts, []).recompile(), values: values, errors: errors, tablesCreated: tablesCreated};
 }
 
 function tokenToCMType(token) {
