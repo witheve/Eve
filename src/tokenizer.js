@@ -313,6 +313,13 @@ function parseUI(tokens, ix, state) {
   }
 }
 
+function tokenToJSONValue(token) {
+  if(token.type === "string") {
+    return JSON.stringify(token.value);
+  }
+  return token.name || token.value || token.op
+}
+
 function parseLine(line, state) {
   var tokens = tokenizeLine(line);
   if(!tokens.length) return null;
@@ -343,6 +350,8 @@ function parseLine(line, state) {
       case "|":
         //source
         tokens[0].subType = "source";
+        if(tokens.length == 1) return {type: "unknown", tokens:tokens};
+
         if(!tokens[1].type === "symbol") {
           return {error: {message: "Expected a table symbol", token: tokens[1]}, tokens: tokens};
         }
@@ -412,13 +421,14 @@ function parseLine(line, state) {
         var parts = [];
         for(var i = 1; i < tokens.length; i++) {
           tokens[i].subType = "function";
-          parts.push(tokens[i].name || tokens[i].value || tokens[i].op);
+          parts.push(tokenToJSONValue(tokens[i]));
         }
         return {type: "filter", function: parts.join(" "), tokens: tokens};
         break;
       case ">":
         //reduce
         tokens[0].subType = "reduce";
+        if(tokens.length < 3) return {type: "unknown", tokens:tokens};
         if(tokens[1].type !== "symbol") {
           return {error: {message: "Assignments must begin with a valid symbol.", token: tokens[1], tokens: tokens}};
         }
@@ -432,7 +442,7 @@ function parseLine(line, state) {
         var parts = [];
         for(var i = 3; i < tokens.length; i++) {
           tokens[i].subType = "function";
-          parts.push(tokens[i].name || tokens[i].value || tokens[i].op);
+          parts.push(tokenToJSONValue(tokens[i]));
         }
         return {type: "reduce", symbol: tokens[1].name, function: parts.join(" "), tokens: tokens};
         break;
@@ -457,6 +467,8 @@ function parseLine(line, state) {
       return {error: {message: "Assignments must begin with a valid symbol.", token: tokens[0], tokens: tokens}};
     }
 
+    if(tokens.length < 2) return {type: "unknown", tokens:tokens};
+
     if(tokens[1].type !== "operator" || tokens[1].op !== "=") {
       return {error: {message: "Expected an =", token: tokens[1]}, tokens: tokens};
     }
@@ -466,7 +478,7 @@ function parseLine(line, state) {
     var parts = [];
     for(var i = 2; i < tokens.length; i++) {
       tokens[i].subType = "function";
-      parts.push(tokens[i].name || tokens[i].value || tokens[i].op);
+      parts.push(tokenToJSONValue(tokens[i]));
     }
     return {type: "function", symbol: tokens[0].name, function: parts.join(" "), tokens: tokens};
   }
