@@ -10,6 +10,7 @@ body {
   background: #333;
   font-family: "Avenir", "Verdana";
   display:flex;
+  flex-direction:column;
 }
 
 #stats { fixed: right bottom; margin:15px; color:#777; }
@@ -17,6 +18,7 @@ body {
 
 #editor {
   flex:1;
+  height:50%;
   position:relative;
   .CodeMirror {
     position:absolute;
@@ -24,7 +26,7 @@ body {
   }
   .CodeMirror-scroll { height:100%; }
 }
-#cards { flex: 1.5; background: #444; position:relative; overflow:auto; max-height:100%; }
+#cards { flex:1; background: #444; position:relative; overflow:auto; max-height:50%; }
 /* #errors { pointer-events:none; position:absolute; top:0px; bottom:0px; left:0px; right:0px; background: rgba(255,100,100,0.9); padding:20px;} */
 #errors { display:none; margin:30px; margin-bottom:0; padding:10px; background: #f56; border-radius:3px; box-shadow: 0 0 8px #222; }
 #errors li { white-space:pre; color: #000; font-family:"Inconsolata", "Menlo", "Courier New", monospace; }
@@ -38,6 +40,7 @@ body {
 .cm-s-default span.cm-operator { color: #aaa; }
 .cm-s-default span.cm-symbol-ruleName, .cm-s-default span.cm-operator-ruleName { color: #9cc; }
 .cm-s-default span.cm-field { color: #FF8AB0; }
+.cm-s-default span.cm-symbol { color: #FF8AB0; }
 .cm-s-default span.cm-field-aliased { color: #79a; }
 .cm-s-default span.cm-field-assigned { color: #79a; }
 .cm-s-default span.cm-symbol-variable { color: #FF8AB0; }
@@ -48,6 +51,7 @@ body {
 .cm-s-default span.cm-comment { color: #79a; }
 .cm-s-default span.cm-string { color:#9af; }
 .cm-s-default span.cm-param { color:#aaa; }
+.cm-s-default span.cm-attribute { color:#79a; }
 .cm-s-default span.cm-sortOrder { color:#79a; }
 
 

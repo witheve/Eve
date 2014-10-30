@@ -124,6 +124,12 @@ body {
   display: -webkit-flex;
   display: box;
   display: flex;
+  -webkit-box-orient: vertical;
+  -moz-box-orient: vertical;
+  -o-box-orient: vertical;
+  -ms-box-orient: vertical;
+  -webkit-flex-direction: column;
+  flex-direction: column;
 }
 #stats {
   position: fixed;
@@ -142,6 +148,7 @@ body {
   box-flex: 1;
   -webkit-flex: 1;
   flex: 1;
+  height: 50%;
   position: relative;
 }
 #editor .CodeMirror {
@@ -155,13 +162,13 @@ body {
   height: 100%;
 }
 #cards {
-  box-flex: 1.5;
-  -webkit-flex: 1.5;
-  flex: 1.5;
+  box-flex: 1;
+  -webkit-flex: 1;
+  flex: 1;
   background: #444;
   position: relative;
   overflow: auto;
-  max-height: 100%;
+  max-height: 50%;
 }
 /* #errors { pointer-events:none; position:absolute; top:0px; bottom:0px; left:0px; right:0px; background: rgba(255,100,100,0.9); padding:20px;} */
 #errors {
@@ -206,6 +213,9 @@ body {
 .cm-s-default span.cm-field {
   color: #ff8ab0;
 }
+.cm-s-default span.cm-symbol {
+  color: #ff8ab0;
+}
 .cm-s-default span.cm-field-aliased {
   color: #79a;
 }
@@ -235,6 +245,9 @@ body {
 }
 .cm-s-default span.cm-param {
   color: #aaa;
+}
+.cm-s-default span.cm-attribute {
+  color: #79a;
 }
 .cm-s-default span.cm-sortOrder {
   color: #79a;
