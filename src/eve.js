@@ -72,20 +72,20 @@ function arrayEqual(a, b) {
 }
 
 function boundsContainsPoint(los, his, ixes, point) {
-  for (var i = ixes.length - 1; i >= 0; i--) {
-    var ix = ixes[i];
-    if (ix !== undefined) {
-      if (compareValue(point[i], los[ix]) === -1) return false;
-      if (compareValue(point[i], his[ix]) === 1) return false;
-    }
+  for (var i = ixes.length - 1; i >= 0; i-=2) {
+    var pointIx = ixes[i];
+    var boundsIx = ixes[i-1];
+    if (compareValue(point[pointIx], los[boundsIx]) === -1) return false;
+    if (compareValue(point[pointIx], his[boundsIx]) === 1) return false;
   }
   return true;
 }
 
 function solutionMatchesPoint(solution, ixes, point) {
-  for (var i = ixes.length - 1; i >= 0; i--) {
-    var ix = ixes[i];
-    if ((ix !== undefined) && (point[i] !== solution[ix])) return false;
+  for (var i = ixes.length - 1; i >= 0; i-=2) {
+    var pointIx = ixes[i];
+    var boundsIx = ixes[i-1];
+    if (point[pointIx] !== solution[boundsIx]) return false;
   }
   return true;
 }
@@ -207,9 +207,9 @@ Memory.prototype = {
   }
 };
 
-function MemoryConstraint(storeIx, fieldIxes) {
+function MemoryConstraint(storeIx, bindingIxes) {
   this.storeIx = storeIx;
-  this.fieldIxes = fieldIxes;
+  this.bindingIxes = bindingIxes;
 }
 
 MemoryConstraint.prototype = {
@@ -218,7 +218,7 @@ MemoryConstraint.prototype = {
   },
 
   propagate: function(myIx, constraintStates, los, his) {
-    var fieldIxes = this.fieldIxes;
+    var bindingIxes = this.bindingIxes;
     var facts = constraintStates[myIx];
 
     // console.log("Facts before " + los + " " + his + " " + JSON.stringify(facts));
@@ -227,7 +227,7 @@ MemoryConstraint.prototype = {
 
     for (var i = facts.length - 1; i >= 0; i--) {
       var fact = facts[i];
-      if (boundsContainsPoint(los, his, fieldIxes, fact) === true) {
+      if (boundsContainsPoint(los, his, bindingIxes, fact) === true) {
         newFacts.push(fact);
       }
     }
@@ -243,21 +243,22 @@ MemoryConstraint.prototype = {
 
     var changed = false;
 
-    for (var i = fieldIxes.length - 1; i >= 0; i--) {
+    for (var i = bindingIxes.length - 1; i >= 0; i-=2) {
+      var pointIx = bindingIxes[i];
+      var boundsIx = bindingIxes[i-1];
       var newLo = greatest;
       var newHi = least;
       for (var j = facts.length - 1; j >= 0; j--) {
-        var value = facts[j][i];
+        var value = facts[j][pointIx];
         if (compareValue(value, newLo) === -1) newLo = value;
         if (compareValue(value, newHi) === 1) newHi = value;
       }
-      var ix = fieldIxes[i];
-      if (compareValue(newLo, los[ix]) === 1) {
-        los[ix] = newLo;
+      if (compareValue(newLo, los[boundsIx]) === 1) {
+        los[boundsIx] = newLo;
         changed = true;
       }
-      if (compareValue(newHi, his[ix]) === -1) {
-        his[ix] = newHi;
+      if (compareValue(newHi, his[boundsIx]) === -1) {
+        his[boundsIx] = newHi;
         changed = true;
       }
     }
@@ -269,37 +270,36 @@ MemoryConstraint.prototype = {
     var facts = leftConstraintStates[myIx];
     if (facts.length < 2) return IGNORED;
 
-    var fieldIxes = this.fieldIxes;
+    var bindingIxes = this.bindingIxes;
 
-    var i, ix, lowerPivot;
-    findLowerPivot: for (i = fieldIxes.length - 1; i >= 0; i--) {
-      ix = fieldIxes[i];
-      if (ix !== undefined) {
-        for (var j = facts.length - 1; j >= 0; j--) {
-          lowerPivot = facts[j][i];
-          if (lowerPivot !== leftHis[ix]) break findLowerPivot;
-        }
+    var i, pointIx, boundsIx, lowerPivot;
+    findLowerPivot: for (i = bindingIxes.length - 1; i >= 0; i-=2) {
+      pointIx = bindingIxes[i];
+      boundsIx = bindingIxes[i-1];
+      for (var j = facts.length - 1; j >= 0; j--) {
+        lowerPivot = facts[j][pointIx];
+        if (lowerPivot !== leftHis[boundsIx]) break findLowerPivot;
       }
     }
 
     if(i < 0) return IGNORED;
 
     var upperPivot = greatest;
-    for (var j = facts.length - 1; j >= 0; j--) {
-      var value = facts[j][i];
+    for (var i = facts.length - 1; i >= 0; i--) {
+      var value = facts[i][pointIx];
       if ((compareValue(value, lowerPivot) === 1) && (compareValue(value, upperPivot) === -1)) upperPivot = value;
     }
 
-    leftHis[ix] = lowerPivot;
-    rightLos[ix] = upperPivot;
-    // console.log("Split at fact[" + i + "]=" + lowerPivot + "," + upperPivot);
+    leftHis[boundsIx] = lowerPivot;
+    rightLos[boundsIx] = upperPivot;
+    // console.log("Split at fact[" + pointIx + "]=" + lowerPivot + "," + upperPivot);
     return SPLITTED;
   }
 };
 
-function NegatedMemoryConstraint(storeIx, fieldIxes) {
+function NegatedMemoryConstraint(storeIx, bindingIxes) {
   this.storeIx = storeIx;
-  this.fieldIxes = fieldIxes;
+  this.bindingIxes = bindingIxes;
 }
 
 NegatedMemoryConstraint.prototype = {
@@ -309,15 +309,15 @@ NegatedMemoryConstraint.prototype = {
 
   propagate: function(myIx, constraintStates, los, his) {
     var facts = constraintStates[myIx];
-    var fieldIxes = this.fieldIxes;
+    var bindingIxes = this.bindingIxes;
 
-    for (var i = fieldIxes.length - 1; i >= 0; i--) {
-      var ix = fieldIxes[i];
-      if ((ix !== undefined) && (los[ix] !== his[ix])) return UNCHANGED;
+    for (var i = bindingIxes.length - 1; i >= 0; i-=2) {
+      var boundsIx = ixes[i-1];
+      if (los[boundsIx] !== his[boundsIx]) return UNCHANGED;
     }
 
     for (var i = facts.length - 1; i >= 0; i--) {
-      if (solutionMatchesPoint(los, fieldIxes, facts[i]) === true) {
+      if (solutionMatchesPoint(los, bindingIxes, facts[i]) === true) {
         // console.log("Negation failed on " + facts[i]);
         return FAILED;
       }
@@ -332,9 +332,9 @@ NegatedMemoryConstraint.prototype = {
 // TODO would prefer to be able to separate these somehow but would require inserting non-scalar values into the solver
 //      makes comparisons much more expensive
 //      maybe the solver can have a separate section for these?
-function AggregatedMemoryConstraint(storeIx, groupIxes, sortIxes, sortOrders, limitIx, ordinalIx, outIx, fun) {
+function AggregatedMemoryConstraint(storeIx, bindingIxes, sortIxes, sortOrders, limitIx, ordinalIx, outIx, fun) {
   this.storeIx = storeIx;
-  this.groupIxes = groupIxes;
+  this.bindingIxes = bindingIxes;
   this.sortIxes = sortIxes;
   this.sortOrders = sortOrders;
   this.limitIx = limitIx;
@@ -347,6 +347,7 @@ function compareSortKey(a,b) {
   return compareValueArray(a[0], b[0]);
 }
 
+// TODO handle sortOrders
 function aggregateSortBy(facts, sortIxes, sortOrders) {
   for (var i = facts.length - 1; i >= 0; i--) {
     var fact = facts[i];
@@ -373,14 +374,14 @@ AggregatedMemoryConstraint.prototype = {
 
     if (facts === null) return UNCHANGED; // have already run and thrown away our state
 
-    var groupIxes = this.groupIxes;
+    var bindingIxes = this.bindingIxes;
     var limitIx = this.limitIx;
 
     if (los[limitIx] !== his[limitIx]) return UNCHANGED;
 
-    for (var i = groupIxes.length - 1; i >= 0; i--) {
-      var ix = groupIxes[i];
-      if ((ix !== undefined) && (los[ix] !== his[ix])) return UNCHANGED;
+    for (var i = bindingIxes.length - 1; i >= 0; i-=2) {
+      var boundsIx = ixes[i-1];
+      if (los[boundsIx] !== his[boundsIx]) return UNCHANGED;
     }
 
     constraintStates[myIx] = null; // throw away state so we don't run again
@@ -389,7 +390,7 @@ AggregatedMemoryConstraint.prototype = {
 
     for (var i = facts.length - 1; i >= 0; i--) {
       var fact = facts[i]
-      if (solutionMatchesPoint(los, groupIxes, fact) === false) {
+      if (solutionMatchesPoint(los, bindingIxes, fact) === false) {
         groupFacts.push(fact);
       }
     }
@@ -1005,7 +1006,7 @@ System.prototype = {
       var viewConstraintBinding = viewConstraintBindings[i];
       var fieldIx = fieldToIx[viewConstraintBinding.field];
       var sourceIx = fieldToIx[viewConstraintBinding.sourceField];
-      constraints[viewConstraintBinding.constraint].fieldIxes[sourceIx] = fieldIx;
+      constraints[viewConstraintBinding.constraint].bindingIxes.push(fieldIx, sourceIx);
     }
 
     // build aggregate constraints
@@ -1025,7 +1026,7 @@ System.prototype = {
       var aggregateConstraintBinding = aggregateConstraintBindings[i];
       var fieldIx = fieldToIx[aggregateConstraintBinding.field];
       var sourceIx = fieldToIx[aggregateConstraintBinding.sourceField];
-      constraints[aggregateConstraintBinding.constraint].groupIxes[sourceIx] = fieldIx;
+      constraints[aggregateConstraintBinding.constraint].bindingIxes.push(fieldIx, sourceIx);
     }
 
     // fill in sort variables
