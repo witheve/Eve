@@ -22,14 +22,14 @@ function tableCard(name, headers, rows, constants) {
   var grid = $(".grid", card);
   var gridHeader = $(".grid-header", card);
   $("h2", card).html(name);
-  for(var headerIx in headers) {
+  for(var headerIx = headers.length - 1; headerIx >= 0; headerIx--) {
     var header = headers[headerIx];
     gridHeader.append("<div class='header'>" + header + "</div>");
   }
   for(var cons in constants) {
     gridHeader.append("<div class='header'>" + constants[cons].name + "</div>");
   }
-  for(var ix in rows) {
+  for(var ix = rows.length - 1; ix >= 0; ix--) {
     var row = rows[ix];
     var rowElem = $("<div class='grid-row'></div>");
     for(var field in row) {
@@ -47,7 +47,7 @@ function onTableCards(cards) {
   var start = now();
   $(".table-card").remove();
   var frag = document.createDocumentFragment();
-  for(var cardIx in cards) {
+  for(var cardIx = cards.length - 1; cardIx >= 0; cardIx--) {
     var card = cards[cardIx];
     frag.appendChild(tableCard(card[0], card[1], card[2], card[3]));
   }

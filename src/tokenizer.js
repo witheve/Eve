@@ -751,7 +751,7 @@ function eveUIElem(ui) {
   }
 
   //handle children
-  for(var childIx in ui.children) {
+  for(var childIx = ui.children.length - 1; childIx >= 0; childIx--) {
     var child = ui.children[childIx];
     if(child.type === "vector") {
       parts.push(eveUIElem(child));
@@ -791,7 +791,7 @@ function parsedToEveProgram(parsed) {
       var src = curRule.sources[sourceIx];
       var constraint = query + "|viewConstraint=" + sourceIx;
       facts.push(["viewConstraint", constraint, query, src.table, false]);
-      for(var fieldIx in src.fields) {
+      for(var fieldIx = src.fields.length - 1; fieldIx >= 0; fieldIx--) {
         var field = src.fields[fieldIx];
         if(field.alias) {
           facts.push(["viewConstraintBinding", constraint, makeLocalField(field.alias), makeRemoteField(src.table, field.name)]);
@@ -808,7 +808,7 @@ function parsedToEveProgram(parsed) {
       var func = curRule.functions[funcIx];
       var constraint = query + "|functionConstraint=" + funcIx;
       facts.push(["functionConstraint", constraint, query, makeLocalField(func.symbol), func.function]);
-      for (argIx in func.args) {
+      for (var argIx = func.args.length - 1; argIx >= 0; argIx--) {
         var arg = func.args[argIx];
         facts.push(["functionConstraintBinding", constraint, makeLocalField(arg), arg]);
       }
@@ -826,7 +826,7 @@ function parsedToEveProgram(parsed) {
       var symbol = "filterField" + filterIx;
       var constraint = query + "|filterConstraint=" + filterIx;
       facts.push("functionConstraint", constraint, query, makeLocalField(symbol), filter.function);
-      for (argIx in filter.args) {
+      for (var argIx = filter.args.length - 1; argIx >= 0; argIx--) {
         var arg = filter.args[argIx];
         facts.push(["functionConstraintBinding", constraint, makeLocalField(arg), arg]);
       }
@@ -867,7 +867,7 @@ function parsedToEveProgram(parsed) {
       for(var valueIx = curRule.values.length - 1; valueIx >= 0; valueIx--) {
         var insert = curRule.values[valueIx].values;
         var value = [curRule.name];
-        for (var insertIx in insert) {
+        for (var insertIx = insert.length - 1; insertIx >= 0; insertIx--) {
           value[1 + orderedTableFields.indexOf(tableFields[insertIx])] = insert[insertIx];
         }
         values.push(value);
