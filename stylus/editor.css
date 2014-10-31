@@ -205,14 +205,14 @@ body {
 .cm-s-default span.cm-operator {
   color: #aaa;
 }
+.cm-s-default span.cm-symbol {
+  color: #ff8ab0;
+}
 .cm-s-default span.cm-symbol-ruleName,
 .cm-s-default span.cm-operator-ruleName {
   color: #9cc;
 }
 .cm-s-default span.cm-field {
-  color: #ff8ab0;
-}
-.cm-s-default span.cm-symbol {
   color: #ff8ab0;
 }
 .cm-s-default span.cm-field-aliased {

@@ -37,9 +37,9 @@ body {
 .cm-s-default div.CodeMirror-cursor { border-color: #ccc; }
 .cm-s-default .CodeMirror-selected { background:#555; }
 .cm-s-default span.cm-operator { color: #aaa; }
+.cm-s-default span.cm-symbol { color: #FF8AB0; }
 .cm-s-default span.cm-symbol-ruleName, .cm-s-default span.cm-operator-ruleName { color: #9cc; }
 .cm-s-default span.cm-field { color: #FF8AB0; }
-.cm-s-default span.cm-symbol { color: #FF8AB0; }
 .cm-s-default span.cm-field-aliased { color: #79a; }
 .cm-s-default span.cm-field-assigned { color: #79a; }
 .cm-s-default span.cm-symbol-variable { color: #FF8AB0; }

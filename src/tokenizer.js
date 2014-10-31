@@ -346,8 +346,17 @@ function parseLine(line, state) {
         var parts = [];
         for(var i = 1; i < tokens.length; i++) {
           tokens[i].subType = "ruleName";
-          parts.push(tokens[i].name || tokens[i].value || tokens[i].op);
+          var val;
+          if(tokens[i].name !== undefined) {
+            val = tokens[i].name
+          } else if(tokens[i].value !== undefined) {
+            val = tokens[i].value;
+          } else {
+            val = tokens[i].op;
+          }
+          parts.push(val);
         }
+        console.log("ruleName", JSON.stringify(parts), tokens);
         return {type: "rule", name: parts.join(" "), tokens: tokens};
         break;
       case "|":
@@ -575,6 +584,10 @@ function parseLine(line, state) {
       tokens[i].subType = "function";
       parts.push(tokenToJSONValue(tokens[i]));
     }
+
+    if(tokens.length === 3 && (tokens[2].type === "number" || tokens[2].type === "string")) {
+      return {type: "constant", symbol: tokens[0].name, constant:tokens[2].value, tokens: tokens};
+    }
     return {type: "function", symbol: tokens[0].name, function: parts.join(" "), tokens: tokens};
   }
 
@@ -677,6 +690,10 @@ function parse(string) {
         }
         curRule.sources.push(line);
         break;
+      case "constant":
+        line.constantVar = line.symbol;
+        curRule.constants[line.constantVar] = line;
+        break;
       case "function":
         curRule.fields[line.symbol] = line;
         curRule.functions.push(line);
@@ -717,60 +734,111 @@ var uiTableToFields = {
   "uiEvent": ["id", "event", "label", "key"],
 };
 
-function createUIView(uiTable, view, ix, mappings) {
+var uiEventNames = {
+  "click": "click",
+  "doubleClick": "dblclick",
+  "contextMenu": "contextMenu",
+  "input": "input",
+  "drag": "drag",
+  "drop": "drop",
+  "dragStart": "dragstart",
+  "dragEnd": "dragend",
+  "dragOver": "dragover"
+};
+
+function createUIView(uiTable, view, context, mappings) {
   var facts = [];
   var tempMappings = {};
+  var fields = {};
+  var bindings = {};
   //make temp table
-  var tempName = uiTable + view + "|ix=" + ix;
+  var tempName = uiTable + view + "|ix=" + context.nextId++;
   var query = tempName + "|query";
 
-  function makeLocalField(name) {
-    return query + "|field=" + name;
+  function toLocalFieldName(name) {
+    return tempName + "|field=" + name;
   }
+
+  function makeLocalField(name) {
+    if(fields[name]) {
+      return fields[name];
+    }
+    fields[name] = toLocalFieldName(name);
+    return fields[name];
+  }
+
   function makeRemoteField(remoteView, name) {
     return remoteView + "|field=" + name;
   }
 
+  function localBinding(constraint, local, remote) {
+    if(bindings[remote]) return false;
+
+    bindings[remote] = local;
+    facts.push(["viewConstraintBinding", constraint, local, remote]);
+    return true;
+  }
+
   facts.push(["view", tempName]);
-  facts.push(["query", query, tempName, ix]);
-  var viewConstraint = query + "|viewConstraint=" + ix;
+  facts.push(["query", query, tempName, context.nextId]);
+  var viewConstraint = query + "|viewConstraint=" + context.nextId;
   facts.push(["viewConstraint", viewConstraint, query, view, false]);
   for(var localField in mappings) {
     var value = mappings[localField];
     if(value.type === "symbol") {
       tempMappings[localField] = "bound_" + localField;
-      facts.push(["viewConstraintBinding", viewConstraint, makeLocalField(tempMappings[localField]), makeRemoteField(view, value.name)]);
+      var didBind = localBinding(viewConstraint, makeLocalField(tempMappings[localField]), makeRemoteField(view, value.name));
+      if(!didBind) {
+        var funcConstraint = query + "|functionConstraint=" + tempMappings[localField];
+        facts.push(["functionConstraint", funcConstraint, query, makeLocalField(tempMappings[localField]), localField]);
+        facts.push(["functionConstraintBinding", funcConstraint, bindings[makeRemoteField(view, value.name)], localField]);
+      }
     } else if(value.type === "string" || value.type === "number" || value.type === "constant") {
       tempMappings[localField] = "constant_" + localField;
       facts.push(["constantConstraint", query, makeLocalField(tempMappings[localField]), value.value]);
-    } else if(value.type === "function") {
+    }
+  }
+
+  //functions have to be done afterward to make sure that items that have already been bound are reused
+  for(var localField in mappings) {
+    var value = mappings[localField];
+    if(value.type === "function") {
       tempMappings[localField] = "func_" + localField;
       var funcConstraint = query + "|functionConstraint=" + tempMappings[localField];
       facts.push(["functionConstraint", funcConstraint, query, makeLocalField(tempMappings[localField]), value.function]);
       for (argIx in value.args) {
         var arg = value.args[argIx];
-        var localName = tempMappings[arg] || "arg_" + arg;
-        facts.push(["viewConstraintBinding", viewConstraint, makeLocalField(localName), makeRemoteField(view, arg)]);
-        facts.push(["functionConstraintBinding", funcConstraint, makeLocalField(localName), arg]);
+        var didBind = localBinding(viewConstraint, toLocalFieldName("bound_" + arg), makeRemoteField(view, arg));
+        if(didBind) {
+          //if we *did* end up binding, make sure that field is accounted for
+          makeLocalField("bound_" + arg);
+        }
+        facts.push(["functionConstraintBinding", funcConstraint, bindings[makeRemoteField(view, arg)], arg]);
       }
     }
   }
 
+  var fieldIx = 0;
+  for(var field in fields) {
+    facts.push(["field", makeLocalField(field), tempName, fieldIx])
+    fieldIx++;
+  }
+
   //map temp table into the real table
   var realQuery = tempName + "|realQuery";
-  facts.push(["query", realQuery, uiTable, ix]);
+  facts.push(["query", realQuery, uiTable, context.nextId++]);
 
-  var constraint = realQuery + "|viewConstraint=" + ix;
+  var constraint = realQuery + "|viewConstraint=" + context.nextId;
   facts.push(["viewConstraint", constraint, realQuery, tempName, false]);
   for(var i in uiTableToFields[uiTable]) {
     var field = uiTableToFields[uiTable][i];
-    facts.push(["viewConstraintBinding", constraint, makeRemoteField(uiTable,field), makeRemoteField(query, tempMappings[field])]);
+    facts.push(["viewConstraintBinding", constraint, makeRemoteField(uiTable,field), makeRemoteField(tempName, tempMappings[field])]);
   }
 
   return facts;
 }
 
-function eveUIElem(view, ui, parentGeneratedId) {
+function eveUIElem(view, ui, parentGeneratedId, context) {
   //["uiElem", "uiText", "uiAttr", "uiStyle", "uiEvent", "uiChild"]
   //look for an id attr to determine the id of this thing
   //create the element
@@ -786,10 +854,9 @@ function eveUIElem(view, ui, parentGeneratedId) {
     //create a uiChild for it
 
   var facts = [];
-  var ix = 0;
   var attrs = {};
-  for(var ix in ui.attrs.kvs) {
-    var curKv = ui.attrs.kvs[ix];
+  for(var i = 0; i < ui.attrs.kvs.length; i++) {
+    var curKv = ui.attrs.kvs[i];
     attrs[curKv[0].value] = curKv[1];
   }
 
@@ -808,7 +875,7 @@ function eveUIElem(view, ui, parentGeneratedId) {
   }
   console.log("Elem mappings", elemMappings);
 
-  pushAll(facts, createUIView("uiElem", view, ix++, elemMappings));
+  pushAll(facts, createUIView("uiElem", view, context, elemMappings));
 
   //handle attributes
   for(var key in attrs) {
@@ -820,17 +887,18 @@ function eveUIElem(view, ui, parentGeneratedId) {
     } else if(uiEventNames[key]) {
       //event
       eventMappings = {id: id, event: {type: "constant", value: uiEventNames[key]}, label: attrs[key], key: attrs["key"]};
-      pushAll(facts, createUIView("uiEvent", view, ix++, eventMappings));
+      pushAll(facts, createUIView("uiEvent", view, context, eventMappings));
     } else {
       attrMappings = {id: id, attr: {type: "constant", value: key}, value: attrs[key]};
-      pushAll(facts, createUIView("uiAttr", view, ix++, attrMappings));
+      pushAll(facts, createUIView("uiAttr", view, context, attrMappings));
     }
   }
+
 
   var generateChildId;
   if(id.type === "symbol") {
     generateChildId = function(ix) {
-      return {type: "function", function: symbol.name + " + '_" + ix + "'", args: [symbol.name]};
+      return {type: "function", function: id.name + " + '_" + ix + "'", args: [id.name]};
     }
   } else if(id.type === "function") {
     generateChildId = function(ix) {
@@ -856,19 +924,20 @@ function eveUIElem(view, ui, parentGeneratedId) {
       //otherwise we need to build a text element
       //make textId
       var textId = generateChildId(childIx);
+      console.log("TEXT ID", textId);
       textMappings = {id: textId, text: child};
-      pushAll(facts, createUIView("uiText", view, ix++, textMappings));
+      pushAll(facts, createUIView("uiText", view, context, textMappings));
       childId = textId;
       pos = {type: "constant", value: childIx};
     }
     childMappings = {parent: id, child: childId, pos: pos};
-    pushAll(facts, createUIView("uiChild", view, ix++, childMappings));
+    pushAll(facts, createUIView("uiChild", view, context, childMappings));
   }
 
   //if there's a parent attr on me, parent me
   if(attrs["parent"]) {
-    childMappings = {parent: attrs["parent"], child: id, pos: attrs["ix"]};
-    pushAll(facts, createUIView("uiChild", view, ix++, childMappings));
+    childMappings = {parent: attrs["parent"], child: id, pos: attrs["ix"] || {type: "constant", value: 0}};
+    pushAll(facts, createUIView("uiChild", view, context, childMappings));
   }
 
   return {id: id, facts: facts};
@@ -877,13 +946,15 @@ function eveUIElem(view, ui, parentGeneratedId) {
 function parsedToEveProgram(parsed) {
   var tablesCreated = {};
   var errors = parsed.errors || [];
+  var context = {nextId: 0};
   var facts = [];
   var values = [];
-  for(var ix in parsed.rules) {
+  for(var ix = 0; ix < parsed.rules.length; ix++) {
+    var curId = context.nextId;
     var curRule = parsed.rules[ix];
 
     var view = curRule.name;
-    var query = view + "|query=" + ix;
+    var query = view + "|query=" + curId;
     facts.push(["view", view]);
 
     // fields need to be globally unique and we don't use uuids yet, so prepend the view name
@@ -946,8 +1017,8 @@ function parsedToEveProgram(parsed) {
     // handle UI
     for(var uiIx = curRule.ui.length - 1; uiIx >= 0; uiIx--) {
       var curUi = curRule.ui[uiIx];
-      var result = eveUIElem(view, curUi, {type: "constant", value: "root" + ix});
-      console.log(result);
+      var result = eveUIElem(view, curUi, {type: "constant", value: "root" + ix}, context);
+      console.log(JSON.stringify(result.facts));
       pushAll(facts, result.facts);
       //parts.push(eveUIElem(curUi));
     }
@@ -986,8 +1057,9 @@ function parsedToEveProgram(parsed) {
         values.push(value);
       }
     } else {
-      facts.push(["query", query, view, ix]);
+      facts.push(["query", query, view, curId]);
     }
+    context.nextId++;
   }
   console.log("Compiling " + JSON.stringify(facts));
   return {program: System.empty({name: "editor program"}).update(facts.concat(commonViews()), []).recompile(), values: values, errors: errors, tablesCreated: tablesCreated};
