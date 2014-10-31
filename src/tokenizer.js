@@ -776,7 +776,8 @@ function createUIView(uiTable, view, context, mappings) {
   }
 
   function localBinding(constraint, local, remote) {
-    if(bindings[remote]) return false;
+//     multiple bindings of the same field didn't previously work. This is a workaround in case it turns out it still doesn't.
+//     if(bindings[remote]) return false;
 
     bindings[remote] = local;
     facts.push(["viewConstraintBinding", constraint, local, remote]);
@@ -793,11 +794,12 @@ function createUIView(uiTable, view, context, mappings) {
     if(value.type === "symbol") {
       tempMappings[localField] = "bound_" + localField;
       var didBind = localBinding(viewConstraint, makeLocalField(tempMappings[localField]), makeRemoteField(view, value.name));
-      if(!didBind) {
-        var funcConstraint = query + "|functionConstraint=" + tempMappings[localField];
-        facts.push(["functionConstraint", funcConstraint, query, makeLocalField(tempMappings[localField]), localField]);
-        facts.push(["functionConstraintBinding", funcConstraint, bindings[makeRemoteField(view, value.name)], localField]);
-      }
+//       multiple bindings of the same field didn't previously work. This is a workaround in case it turns out it still doesn't.
+//       if(!didBind) {
+//         var funcConstraint = query + "|functionConstraint=" + tempMappings[localField];
+//         facts.push(["functionConstraint", funcConstraint, query, makeLocalField(tempMappings[localField]), localField]);
+//         facts.push(["functionConstraintBinding", funcConstraint, bindings[makeRemoteField(view, value.name)], localField]);
+//       }
     } else if(value.type === "string" || value.type === "number" || value.type === "constant") {
       tempMappings[localField] = "constant_" + localField;
       facts.push(["constantConstraint", query, makeLocalField(tempMappings[localField]), value.value]);
