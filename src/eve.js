@@ -933,7 +933,7 @@ System.prototype = {
     for (var i = views.length - 1; i >= 0; i--) {
       var view = views[i];
       var viewIx = nameToIx[view.view];
-      stores[viewIx] = Memory.empty();
+      stores[viewIx] = this.getStore(view.view) || Memory.empty();
       flows[viewIx] = new Union([], viewIx);
     }
 
