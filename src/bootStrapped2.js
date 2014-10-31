@@ -14,56 +14,6 @@ var now = function() {
 //*********************************************************
 // watchers
 //*********************************************************
-var eventId = 1;
-var mouseEvents = {"drop": true,
-                   "drag": true,
-                   "mouseover": true,
-                   "dragover": true,
-                   "dragstart": true,
-                   "dragend": true,
-                   "mousedown": true,
-                   "mouseup": true,
-                   "click": true,
-                   "dblclick": true,
-                   "contextmenu": true};
-
-var createUICallback = function(application, id, event, label, key) {
-  return function(e) {
-    var items = [];
-    var eid = eventId++;
-    if(event === "dragover") {
-      e.preventDefault();
-    } else {
-      if(mouseEvents[event]) {
-        items.push(["mousePosition", eid, e.clientX, e.clientY]);
-      }
-
-      var value = e.target.value;
-      if(event === "dragstart") {
-        console.log("start: ", JSON.stringify(eid));
-        e.dataTransfer.setData("eid", JSON.stringify(eid));
-        value = eid;
-      }
-      if(event === "drop" || event === "drag" || event === "dragover" || event === "dragend") {
-        console.log("drop", e.dataTransfer.getData("eid"));
-        try {
-          value = JSON.parse(e.dataTransfer.getData("eid"));
-        } catch(e) {
-          value = "";
-        }
-      }
-      e.stopPropagation();
-      items.push(["externalEvent", id, label, key, eid, value]);
-      application.run(items);
-    }
-  };
-};
-
-var svgs = {
-  "svg": true,
-  "path": true,
-  "rect": true
-};
 
 var compilerRowLimit = 30;
 var compilerSeen = {};

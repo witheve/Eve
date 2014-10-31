@@ -356,7 +356,6 @@ function parseLine(line, state) {
           }
           parts.push(val);
         }
-        console.log("ruleName", JSON.stringify(parts), tokens);
         return {type: "rule", name: parts.join(" "), tokens: tokens};
         break;
       case "|":
@@ -595,13 +594,18 @@ function parseLine(line, state) {
 
 }
 
+function containsField(str, field) {
+  // either it only is the field or it is preceeded/followed by non-word chars
+  return str.match(new RegExp("(^" + field + "$)|(^" + field + "[\\+\\-\\*\\=\\)\\s])|([\\+\\-\\*\\=\\(\\s]" + field + "[\\+\\-\\*\\=\\)\\s])|([\\+\\-\\*\\=\\(\\s]" + field + "$)"));
+}
+
 function finalizeRule(rule) {
   //set args for functions
   for(var i in rule.functions) {
     var func = rule.functions[i];
     var args = [];
     for(var field in rule.fields) {
-      if(func.function.indexOf(field) > -1) {
+      if(containsField(func.function, field)) {
         args.push(field);
       }
     }
@@ -613,7 +617,7 @@ function finalizeRule(rule) {
     var reduce = rule.reduces[i];
     var args = [];
     for(var field in rule.fields) {
-      if(reduce.function.indexOf(field) > -1) {
+      if(containsField(reduce.function, field)) {
         args.push(field);
       }
     }
@@ -625,7 +629,7 @@ function finalizeRule(rule) {
     var filter = rule.filters[i];
     var args = [];
     for(var field in rule.fields) {
-      if(filter.function.indexOf(field) > -1) {
+      if(containsField(filter.function, field)) {
         args.push(field);
       }
     }
@@ -785,6 +789,7 @@ function createUIView(uiTable, view, context, mappings) {
   facts.push(["viewConstraint", viewConstraint, query, view, false]);
   for(var localField in mappings) {
     var value = mappings[localField];
+    if(!value) throw new Error("Missing value for: " + localField);
     if(value.type === "symbol") {
       tempMappings[localField] = "bound_" + localField;
       var didBind = localBinding(viewConstraint, makeLocalField(tempMappings[localField]), makeRemoteField(view, value.name));
@@ -873,7 +878,6 @@ function eveUIElem(view, ui, parentGeneratedId, context) {
   } else {
     elemMappings["type"] = {type: "constant", value: ui.tagConstant};
   }
-  console.log("Elem mappings", elemMappings);
 
   pushAll(facts, createUIView("uiElem", view, context, elemMappings));
 
@@ -886,7 +890,7 @@ function eveUIElem(view, ui, parentGeneratedId, context) {
       //TODO: make styles work
     } else if(uiEventNames[key]) {
       //event
-      eventMappings = {id: id, event: {type: "constant", value: uiEventNames[key]}, label: attrs[key], key: attrs["key"]};
+      eventMappings = {id: id, event: {type: "constant", value: uiEventNames[key]}, label: attrs[key], key: attrs["key"] || {type: "constant", value: ""}};
       pushAll(facts, createUIView("uiEvent", view, context, eventMappings));
     } else {
       attrMappings = {id: id, attr: {type: "constant", value: key}, value: attrs[key]};
@@ -924,7 +928,6 @@ function eveUIElem(view, ui, parentGeneratedId, context) {
       //otherwise we need to build a text element
       //make textId
       var textId = generateChildId(childIx);
-      console.log("TEXT ID", textId);
       textMappings = {id: textId, text: child};
       pushAll(facts, createUIView("uiText", view, context, textMappings));
       childId = textId;
@@ -1018,7 +1021,6 @@ function parsedToEveProgram(parsed) {
     for(var uiIx = curRule.ui.length - 1; uiIx >= 0; uiIx--) {
       var curUi = curRule.ui[uiIx];
       var result = eveUIElem(view, curUi, {type: "constant", value: "root" + ix}, context);
-      console.log(JSON.stringify(result.facts));
       pushAll(facts, result.facts);
       //parts.push(eveUIElem(curUi));
     }

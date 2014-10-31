@@ -55,9 +55,14 @@ var editorApp;
 function onCompile(code) {
   var parsed = parse(code);
   try {
+    var prev = editorApp;
     editorProg = parsedToEveProgram(parsed);
     editorApp = app(editorProg.program, {parent: null});
-    editorApp.run([["time", 0]].concat(editorProg.values));
+    var facts = [["time", 0]].concat(editorProg.values)
+    if(prev) {
+      editorApp.system.updateStore("externalEvent", prev.system.getStore("externalEvent").getFacts(), []);
+    }
+    editorApp.run(facts);
     if(editorProg.errors.length) {
       postMessage({type: "errors", errors: editorProg.errors});
     }
@@ -71,6 +76,9 @@ onmessage = function(event) {
   switch(event.data.type) {
     case "compile":
       onCompile(event.data.code);
+      break;
+    case "event":
+      editorApp.run(event.data.items);
       break;
   }
 }

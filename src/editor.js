@@ -81,6 +81,56 @@ function onChange(cm, change) {
   worker.postMessage({type: "compile", code: edValue});
 }
 
+var eventId = 1;
+var mouseEvents = {"drop": true,
+                   "drag": true,
+                   "mouseover": true,
+                   "dragover": true,
+                   "dragstart": true,
+                   "dragend": true,
+                   "mousedown": true,
+                   "mouseup": true,
+                   "click": true,
+                   "dblclick": true,
+                   "contextmenu": true};
+
+var createUICallback = function(id, event, label, key) {
+  return function(e) {
+    var items = [];
+    var eid = eventId++;
+    if(event === "dragover") {
+      e.preventDefault();
+    } else {
+      if(mouseEvents[event]) {
+        items.push(["mousePosition", eid, e.clientX, e.clientY]);
+      }
+
+      var value = e.target.value;
+      if(event === "dragstart") {
+        console.log("start: ", JSON.stringify(eid));
+        e.dataTransfer.setData("eid", JSON.stringify(eid));
+        value = eid;
+      }
+      if(event === "drop" || event === "drag" || event === "dragover" || event === "dragend") {
+        console.log("drop", e.dataTransfer.getData("eid"));
+        try {
+          value = JSON.parse(e.dataTransfer.getData("eid"));
+        } catch(e) {
+          value = "";
+        }
+      }
+      e.stopPropagation();
+      items.push(["externalEvent", id, label, key, eid, value]);
+      worker.postMessage({type: "event", items: items});
+    }
+  };
+};
+
+var svgs = {
+  "svg": true,
+  "path": true,
+  "rect": true
+};
 
 function uiDiffRenderer(diff, storage) {
   var elem_id = 0;
@@ -220,9 +270,7 @@ function uiDiffRenderer(diff, storage) {
     if(!handlers[cur[elem_id]]) {
       handlers[cur[elem_id]] = {};
     }
-    //var handler = handlers[cur[elem_id]][cur[events_event]] = createUICallback(application, cur[elem_id], cur[events_event], cur[events_label], cur[events_key]);
-    //TODO: hook up event handlers
-    var handler = function() {};
+    var handler = handlers[cur[elem_id]][cur[events_event]] = createUICallback(cur[elem_id], cur[events_event], cur[events_label], cur[events_key]);
     builtEls[cur[elem_id]].addEventListener(cur[events_event], handler);
   }
 
