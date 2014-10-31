@@ -201,6 +201,9 @@ function parseUIAttrs(tokens, ix, state, prevAttrs) {
     if(curKv.length == 0 && kvToken.type === "symbol") {
       return {error: {message: "Invalid attr key: " + kvToken.type + ". Expected string or number.", token: kvToken}};
     }
+    if(curKv.length == 0) {
+      kvToken.subType = "attribute";
+    }
     curKv.push(tokens[curIx]);
     curIx++;
   }
@@ -705,7 +708,69 @@ function parse(string) {
   return {rules: rules, errors: errors};
 }
 
-function eveUIElem(ui) {
+var uiTableToFields = {
+  "uiElem": ["id", "type"],
+  "uiText": ["id", "text"],
+  "uiChild": ["parent", "pos", "child"],
+  "uiAttr": ["id", "attr", "value"],
+  "uiStyle": ["id", "attr", "value"],
+  "uiEvent": ["id", "event", "label", "key"],
+};
+
+function createUIView(uiTable, view, ix, mappings) {
+  var facts = [];
+  var tempMappings = {};
+  //make temp table
+  var tempName = uiTable + view + "|ix=" + ix;
+  var query = tempName + "|query";
+
+  function makeLocalField(name) {
+    return query + "|field=" + name;
+  }
+  function makeRemoteField(remoteView, name) {
+    return remoteView + "|field=" + name;
+  }
+
+  facts.push(["view", tempName]);
+  facts.push(["query", query, tempName, ix]);
+  var viewConstraint = query + "|viewConstraint=" + ix;
+  facts.push(["viewConstraint", viewConstraint, query, view, false]);
+  for(var localField in mappings) {
+    var value = mappings[localField];
+    if(value.type === "symbol") {
+      tempMappings[localField] = "bound_" + localField;
+      facts.push(["viewConstraintBinding", viewConstraint, makeLocalField(tempMappings[localField]), makeRemoteField(view, value.name)]);
+    } else if(value.type === "string" || value.type === "number" || value.type === "constant") {
+      tempMappings[localField] = "constant_" + localField;
+      facts.push(["constantConstraint", query, makeLocalField(tempMappings[localField]), value.value]);
+    } else if(value.type === "function") {
+      tempMappings[localField] = "func_" + localField;
+      var funcConstraint = query + "|functionConstraint=" + tempMappings[localField];
+      facts.push(["functionConstraint", funcConstraint, query, makeLocalField(tempMappings[localField]), value.function]);
+      for (argIx in value.args) {
+        var arg = value.args[argIx];
+        var localName = tempMappings[arg] || "arg_" + arg;
+        facts.push(["viewConstraintBinding", viewConstraint, makeLocalField(localName), makeRemoteField(view, arg)]);
+        facts.push(["functionConstraintBinding", funcConstraint, makeLocalField(localName), arg]);
+      }
+    }
+  }
+
+  //map temp table into the real table
+  var realQuery = tempName + "|realQuery";
+  facts.push(["query", realQuery, uiTable, ix]);
+
+  var constraint = realQuery + "|viewConstraint=" + ix;
+  facts.push(["viewConstraint", constraint, realQuery, tempName, false]);
+  for(var i in uiTableToFields[uiTable]) {
+    var field = uiTableToFields[uiTable][i];
+    facts.push(["viewConstraintBinding", constraint, makeRemoteField(uiTable,field), makeRemoteField(query, tempMappings[field])]);
+  }
+
+  return facts;
+}
+
+function eveUIElem(view, ui, parentGeneratedId) {
   //["uiElem", "uiText", "uiAttr", "uiStyle", "uiEvent", "uiChild"]
   //look for an id attr to determine the id of this thing
   //create the element
@@ -719,49 +784,94 @@ function eveUIElem(ui) {
       //create a uiText
     //Otherwise it's a child element run uiElem on it and get the child's id
     //create a uiChild for it
-  var parts = [];
-  if(ui.tag) {
-    parts.push(inject(ui.tag));
-  } else {
-    parts.push(ui.tagConstant);
+
+  var facts = [];
+  var ix = 0;
+  var attrs = {};
+  for(var ix in ui.attrs.kvs) {
+    var curKv = ui.attrs.kvs[ix];
+    attrs[curKv[0].value] = curKv[1];
   }
 
-  //handle attributes
-  if(!ui.attrs) {
-    parts.push({});
+  var id;
+  if(attrs["id"]) {
+    id = attrs["id"];
   } else {
-    //break the KVs down
-    var attrs = {};
-    for(var ix in ui.attrs.kvs) {
-      var curKv = ui.attrs.kvs[ix];
-      if(curKv[1].type === "symbol") {
-        var value = inject(curKv[1].name);
-      } else {
-        var value = curKv[1].value;
-      }
+    id = parentGeneratedId;
+  }
 
-      //TODO: THIS IS A HACK
-      if(curKv[0].value === "parent") {
-        value = [value];
-      }
+  var elemMappings = {id: id};
+  if(ui.tag) {
+    elemMappings["type"] = {type: "symbol", name: ui.tag};
+  } else {
+    elemMappings["type"] = {type: "constant", value: ui.tagConstant};
+  }
+  console.log("Elem mappings", elemMappings);
 
-      attrs[curKv[0].value] = value;
+  pushAll(facts, createUIView("uiElem", view, ix++, elemMappings));
+
+  //handle attributes
+  for(var key in attrs) {
+    var attrMappings;
+    if(key === "id" || key === "parent" || key === "key" || key === "ix") {
+      //no-op
+    } else if(key === "style") {
+      //TODO: make styles work
+    } else if(uiEventNames[key]) {
+      //event
+      eventMappings = {id: id, event: {type: "constant", value: uiEventNames[key]}, label: attrs[key], key: attrs["key"]};
+      pushAll(facts, createUIView("uiEvent", view, ix++, eventMappings));
+    } else {
+      attrMappings = {id: id, attr: {type: "constant", value: key}, value: attrs[key]};
+      pushAll(facts, createUIView("uiAttr", view, ix++, attrMappings));
     }
-    parts.push(attrs);
+  }
+
+  var generateChildId;
+  if(id.type === "symbol") {
+    generateChildId = function(ix) {
+      return {type: "function", function: symbol.name + " + '_" + ix + "'", args: [symbol.name]};
+    }
+  } else if(id.type === "function") {
+    generateChildId = function(ix) {
+      return {type: "function", function: id.function + " + '_" + ix + "'", args: id.args};
+    }
+  } else {
+    generateChildId = function(ix) {
+      return {type: "constant", value: id.value + "_" + ix};
+    }
   }
 
   //handle children
   for(var childIx in ui.children) {
     var child = ui.children[childIx];
+    var pos;
+    var childId;
     if(child.type === "vector") {
-      parts.push(eveUIElem(child));
-    } else if(child.type === "symbol") {
-      parts.push(inject(child.name));
+      //we need to do this again
+      var child = eveUIElem(view, child, generateChildId(childIx));
+      pushAll(facts, child.facts);
+      childId = child.id;
     } else {
-      parts.push(child.value);
+      //otherwise we need to build a text element
+      //make textId
+      var textId = generateChildId(childIx);
+      textMappings = {id: textId, text: child};
+      pushAll(facts, createUIView("uiText", view, ix++, textMappings));
+      childId = textId;
+      pos = {type: "constant", value: childIx};
     }
+    childMappings = {parent: id, child: childId, pos: pos};
+    pushAll(facts, createUIView("uiChild", view, ix++, childMappings));
   }
-  return elem.apply(null, parts);
+
+  //if there's a parent attr on me, parent me
+  if(attrs["parent"]) {
+    childMappings = {parent: attrs["parent"], child: id, pos: attrs["ix"]};
+    pushAll(facts, createUIView("uiChild", view, ix++, childMappings));
+  }
+
+  return {id: id, facts: facts};
 }
 
 function parsedToEveProgram(parsed) {
@@ -836,6 +946,9 @@ function parsedToEveProgram(parsed) {
     // handle UI
     for(var uiIx = curRule.ui.length - 1; uiIx >= 0; uiIx--) {
       var curUi = curRule.ui[uiIx];
+      var result = eveUIElem(view, curUi, {type: "constant", value: "root" + ix});
+      console.log(result);
+      pushAll(facts, result.facts);
       //parts.push(eveUIElem(curUi));
     }
 
