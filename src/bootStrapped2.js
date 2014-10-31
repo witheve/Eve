@@ -414,9 +414,9 @@ function pushAll(arr, things) {
 
 function view(name, fields) {
   var facts = [["view", name]];
-  for(var i in fields) {
+  for(var i = 0; i < fields.length; i++) {
     var field = fields[i];
-    facts.push(["field", field, name, i]);
+    facts.push(["field", name + "|field=" + field, name, i]);
   }
   return facts;
 }
