@@ -787,7 +787,7 @@ function parsedToEveProgram(parsed) {
     }
 
     // handle sources
-    for(var sourceIx in curRule.sources) {
+    for(var sourceIx = curRule.sources.length - 1; sourceIx >= 0; sourceIx--) {
       var src = curRule.sources[sourceIx];
       var constraint = query + "|viewConstraint=" + sourceIx;
       facts.push(["viewConstraint", constraint, query, src.table, false]);
@@ -804,7 +804,7 @@ function parsedToEveProgram(parsed) {
     }
 
     // handle functions
-    for(var funcIx in curRule.functions) {
+    for(var funcIx = curRule.functions.length - 1; funcIx >= 0; funcIx--) {
       var func = curRule.functions[funcIx];
       var constraint = query + "|functionConstraint=" + funcIx;
       facts.push(["functionConstraint", constraint, query, makeLocalField(func.symbol), func.function]);
@@ -821,7 +821,7 @@ function parsedToEveProgram(parsed) {
     }
 
     // handle filters
-    for(var filterIx in curRule.filters) {
+    for(var filterIx = curRule.filters.length - 1; filterIx >= 0; filterIx--) {
       var filter = curRule.filters[filterIx];
       var symbol = "filterField" + filterIx;
       var constraint = query + "|filterConstraint=" + filterIx;
@@ -834,7 +834,7 @@ function parsedToEveProgram(parsed) {
     }
 
     // handle UI
-    for(var uiIx in curRule.ui) {
+    for(var uiIx = curRule.ui.length - 1; uiIx >= 0; uiIx--) {
       var curUi = curRule.ui[uiIx];
       //parts.push(eveUIElem(curUi));
     }
@@ -849,7 +849,7 @@ function parsedToEveProgram(parsed) {
     var orderedFields = Object.keys(fields);
     orderedFields.sort();
     tablesCreated[curRule.name] = {fields: orderedFields, constants: curRule.constants};
-    for(var fieldIx in orderedFields) {
+    for(var fieldIx = orderedFields.length - 1; fieldIx >= 0; fieldIx--) {
       var field = orderedFields[fieldIx];
       fieldToIx[field] = fieldIx;
       facts.push(["field", makeLocalField(field), view, fieldIx]);
@@ -864,7 +864,7 @@ function parsedToEveProgram(parsed) {
       orderedTableFields.sort();
 
       // have to reorder insert facts to match the default field ordering
-      for(var valueIx in curRule.values) {
+      for(var valueIx = curRule.values.length - 1; valueIx >= 0; valueIx--) {
         var insert = curRule.values[valueIx].values;
         var value = [curRule.name];
         for (var insertIx in insert) {
