@@ -776,7 +776,8 @@ function createUIView(uiTable, view, context, mappings) {
   }
 
   function localBinding(constraint, local, remote) {
-    if(bindings[remote]) return false;
+//     multiple bindings of the same field didn't previously work. This is a workaround in case it turns out it still doesn't.
+//     if(bindings[remote]) return false;
 
     bindings[remote] = local;
     facts.push(["viewConstraintBinding", constraint, local, remote]);
@@ -793,11 +794,12 @@ function createUIView(uiTable, view, context, mappings) {
     if(value.type === "symbol") {
       tempMappings[localField] = "bound_" + localField;
       var didBind = localBinding(viewConstraint, makeLocalField(tempMappings[localField]), makeRemoteField(view, value.name));
-      if(!didBind) {
-        var funcConstraint = query + "|functionConstraint=" + tempMappings[localField];
-        facts.push(["functionConstraint", funcConstraint, query, makeLocalField(tempMappings[localField]), localField]);
-        facts.push(["functionConstraintBinding", funcConstraint, bindings[makeRemoteField(view, value.name)], localField]);
-      }
+//       multiple bindings of the same field didn't previously work. This is a workaround in case it turns out it still doesn't.
+//       if(!didBind) {
+//         var funcConstraint = query + "|functionConstraint=" + tempMappings[localField];
+//         facts.push(["functionConstraint", funcConstraint, query, makeLocalField(tempMappings[localField]), localField]);
+//         facts.push(["functionConstraintBinding", funcConstraint, bindings[makeRemoteField(view, value.name)], localField]);
+//       }
     } else if(value.type === "string" || value.type === "number" || value.type === "constant") {
       tempMappings[localField] = "constant_" + localField;
       facts.push(["constantConstraint", query, makeLocalField(tempMappings[localField]), value.value]);
@@ -860,9 +862,11 @@ function eveUIElem(view, ui, parentGeneratedId, context) {
 
   var facts = [];
   var attrs = {};
-  for(var i = 0; i < ui.attrs.kvs.length; i++) {
-    var curKv = ui.attrs.kvs[i];
-    attrs[curKv[0].value] = curKv[1];
+  if(ui.attrs) {
+    for(var i = 0; i < ui.attrs.kvs.length; i++) {
+      var curKv = ui.attrs.kvs[i];
+      attrs[curKv[0].value] = curKv[1];
+    }
   }
 
   var id;
@@ -921,9 +925,10 @@ function eveUIElem(view, ui, parentGeneratedId, context) {
     var childId;
     if(child.type === "vector") {
       //we need to do this again
-      var child = eveUIElem(view, child, generateChildId(childIx));
+      var child = eveUIElem(view, child, generateChildId(childIx), context);
       pushAll(facts, child.facts);
       childId = child.id;
+      pos = child.pos || {type: "constant", value: childIx};
     } else {
       //otherwise we need to build a text element
       //make textId
@@ -943,7 +948,7 @@ function eveUIElem(view, ui, parentGeneratedId, context) {
     pushAll(facts, createUIView("uiChild", view, context, childMappings));
   }
 
-  return {id: id, facts: facts};
+  return {id: id, facts: facts, pos: attrs["ix"]};
 }
 
 function parsedToEveProgram(parsed) {
