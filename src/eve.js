@@ -272,8 +272,8 @@ MemoryConstraint.prototype = {
 
     var bindingIxes = this.bindingIxes;
 
-    var i, pointIx, boundsIx, lowerPivot;
-    findLowerPivot: for (i = bindingIxes.length - 1; i >= 0; i-=2) {
+    var pointIx, boundsIx, lowerPivot;
+    findLowerPivot: for (var i = bindingIxes.length - 1; i >= 0; i-=2) {
       pointIx = bindingIxes[i];
       boundsIx = bindingIxes[i-1];
       for (var j = facts.length - 1; j >= 0; j--) {
@@ -332,36 +332,13 @@ NegatedMemoryConstraint.prototype = {
 // TODO would prefer to be able to separate these somehow but would require inserting non-scalar values into the solver
 //      makes comparisons much more expensive
 //      maybe the solver can have a separate section for these?
-function AggregatedMemoryConstraint(storeIx, bindingIxes, sortIxes, sortOrders, limitIx, ordinalIx, outIx, fun) {
+function AggregatedMemoryConstraint(storeIx, bindingIxes, outIx, variables, inIxes, fun) {
   this.storeIx = storeIx;
   this.bindingIxes = bindingIxes;
-  this.sortIxes = sortIxes;
-  this.sortOrders = sortOrders;
-  this.limitIx = limitIx;
-  this.ordinalIx = ordinalIx;
   this.outIx = outIx;
+  this.variables = variables;
+  this.inIxes = inIxes;
   this.fun = fun;
-}
-
-function compareSortKey(a,b) {
-  return compareValueArray(a[0], b[0]);
-}
-
-// TODO handle sortOrders
-function aggregateSortBy(facts, sortIxes, sortOrders) {
-  for (var i = facts.length - 1; i >= 0; i--) {
-    var fact = facts[i];
-    var sortKey = [];
-    for (var j = sortIxes.length - 1; j >= 0; j--) {
-      sortKey[j] = fact[sortIxes[j]];
-    }
-    facts[i] = [sortKey, fact];
-  }
-  facts.sort(compareSortKey);
-  for (var i = facts.length - 1; i >= 0; i--) {
-    var fact = facts[i][1];
-    facts[i] = fact;
-  }
 }
 
 AggregatedMemoryConstraint.prototype = {
@@ -375,9 +352,6 @@ AggregatedMemoryConstraint.prototype = {
     if (facts === null) return UNCHANGED; // have already run and thrown away our state
 
     var bindingIxes = this.bindingIxes;
-    var limitIx = this.limitIx;
-
-    if (los[limitIx] !== his[limitIx]) return UNCHANGED;
 
     for (var i = bindingIxes.length - 1; i >= 0; i-=2) {
       var boundsIx = ixes[i-1];
@@ -395,25 +369,18 @@ AggregatedMemoryConstraint.prototype = {
       }
     }
 
-    var sortIxes = this.sortIxes;
-    var sortOrders = this.sortOrders;
-    var ordinalIx = this.ordinalIx;
-
-    if (sortIxes !== null) {
-      aggregateSortBy(sortIxes, sortOrders);
-    }
-    if (limitIx !== null) {
-      groupFacts = groupFacts.slice(los[limitIx]);
-    }
-    if (ordinalIx !== null) {
-      for (var i = groupFacts.length - 1; i >= 0; i--) {
-        groupFacts[i][ordinalIx] = i;
+    var inIxes = this.inIxes;
+    var inValues = [];
+    for (var i = inIxes.length - 1; i >= 0; i--) {
+      var inIx = inIxes[i];
+      var inValue = [];
+      for (var j = groupFacts.length - 1; j >= 0; j--) {
+        inValue[j] = groupFacts[j][i];
       }
+      inValues[i] = inValue;
     }
+    var outValue = this.fun.apply(null, inValues);
 
-    groupFacts = dedupeFacts(groupFacts);
-
-    var outValue = this.fun.call(null, groupFacts);
     if (!isValue(outValue)) throw new Error(outValue + " is not a valid Eve value");
     var outIx = this.outIx;
     var compLo = compareValue(outValue, los[outIx]);
@@ -692,11 +659,9 @@ var compilerSchemas = [
   ["functionConstraintBinding", "constraint", "field", "variable"],
   ["viewConstraint", "constraint", "query", "sourceView", "isNegated"],
   ["viewConstraintBinding", "constraint", "field", "sourceField"],
-  ["aggregateConstraint", "constraint", "query", "field", "sourceView", "codeOrSplat"],
-  ["aggregateConstraintBinding", "constraint", "field", "sourceField"],
-  ["sort", "constraint", "field", "ix", "ascendingOrDescending"],
-  ["limit", "constraint", "field"],
-  ["ordinal", "constraint", "field"],
+  ["aggregateConstraint", "constraint", "query", "field", "sourceView", "code"],
+  ["aggregateConstraintSolverBinding", "constraint", "field", "sourceField"],
+  ["aggregateConstraintCodeBinding", "constraint", "sourceField", "variable"],
   ["isInput", "view"]
 ];
 
@@ -841,10 +806,8 @@ System.prototype = {
     var viewConstraints = this.getDump("viewConstraint");
     var viewConstraintBindings = this.getDump("viewConstraintBinding");
     var aggregateConstraints = this.getDump("aggregateConstraint");
-    var aggregateConstraintBindings = this.getDump("aggregateConstraintBinding");
-    var sorts = this.getDump("sort");
-    var limits = this.getDump("limit");
-    var ordinals = this.getDump("ordinal");
+    var aggregateConstraintSolverBindings = this.getDump("aggregateConstraintSolverBinding");
+    var aggregateConstraintCodeBindings = this.getDump("aggregateConstraintCodeBinding");
     var isInputs = this.getDump("isInput");
 
     // init system state
@@ -1014,43 +977,34 @@ System.prototype = {
       var aggregateConstraint = aggregateConstraints[i];
       var fieldIx = nameToIx[aggregateConstraint.field];
       var sourceIx = nameToIx[aggregateConstraint.sourceView];
-      var fun = Function("facts", aggregateConstraint.code);
-      var constraint = new AggregatedMemoryConstraint(sourceIx, [], [], [], null, null, fieldIx, fun);
+      var constraint = new AggregatedMemoryConstraint(sourceIx, [], fieldIx, [], [], null);
       constraints[aggregateConstraint.constraint] = constraint;
       var queryIx = nameToIx[aggregateConstraint.query];
       flows[queryIx].constraints.push(constraint);
     }
 
-    // fill in group variables
-    for (var i = aggregateConstraintBindings.length - 1; i >= 0; i--) {
-      var aggregateConstraintBinding = aggregateConstraintBindings[i];
-      var fieldIx = fieldToIx[aggregateConstraintBinding.field];
-      var sourceIx = fieldToIx[aggregateConstraintBinding.sourceField];
-      constraints[aggregateConstraintBinding.constraint].bindingIxes.push(fieldIx, sourceIx);
+    // fill in aggregate solver bindings
+    for (var i = aggregateConstraintSolverBindings.length - 1; i >= 0; i--) {
+      var aggregateConstraintSolverBinding = aggregateConstraintSolverBindings[i];
+      var fieldIx = fieldToIx[aggregateConstraintSolverBinding.field];
+      var sourceIx = fieldToIx[aggregateConstraintSolverBinding.sourceField];
+      constraints[aggregateConstraintSolverBinding.constraint].bindingIxes.push(fieldIx, sourceIx);
     }
 
-    // fill in sort variables
-    for (var i = sorts.length - 1; i >= 0; i--) {
-      var sort = sorts[i];
-      var fieldIx = fieldToIx[sort.field];
-      var isAscending = sort.ascendingOrDescending === "ascending";
-      var constraint = constraints[sort.constraint];
-      constraint.sortIxes.push(fieldIx);
-      constraint.sortOrders.push(isAscending);
+    // fill in aggregate code bindings
+    for (var i = aggregateConstraintCodeBindings.length - 1; i >= 0; i--) {
+      var aggregateConstraintCodeBinding = aggregateConstraintCodeBindings[i];
+      var sourceIx = fieldToIx[aggregateConstraintCodeBinding.sourceField];
+      var constraint = constraints[aggregateConstraintCodeBinding.constraint];
+      constraint.variables.push(aggregateConstraintCodeBinding.variable);
+      constraint.inIxes.push(sourceIx);
     }
 
-    // fill in limit variables
-    for (var i = limits.length - 1; i >= 0; i--) {
-      var limit = limits[i];
-      var fieldIx = fieldToIx[limit.field];
-      constraints[limit.constraint].limitIx = fieldIx;
-    }
-
-    // fill in ordinal variables
-    for (var i = ordinals.length - 1; i >= 0; i--) {
-      var ordinal = ordinals[i];
-      var fieldIx = fieldToIx[ordinal.field];
-      constraints[ordinal.constraint].ordinalIx = fieldIx;
+    // compile aggregate code
+    for (var i = aggregateConstraints.length - 1; i >= 0; i--) {
+      var aggregateConstraint = aggregateConstraints[i];
+      var constraint = constraints[aggregateConstraint.constraint];
+      constraint.fun = Function.apply(null, constraint.variables.concat(["return (" + aggregateConstraint.code + ");"]));
     }
 
     // reverse nameToIx
