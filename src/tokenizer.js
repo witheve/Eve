@@ -420,11 +420,9 @@ function parseLine(line, state) {
         }
         return {type: "insert", values: values, tokens: tokens};
         break;
-      case "#":
       case "@":
-        //setReference
-        var type = tokens[0].op === "#" ? "setExplode" : "setReference";
-        tokens[0].subType = type;
+        //aggregate
+        tokens[0].subType = "aggregate";
         if(tokens.length == 1) return {type: "unknown", tokens:tokens};
 
         if(!tokens[1].type === "symbol") {
@@ -450,70 +448,30 @@ function parseLine(line, state) {
           tokenIx++;
         }
 
-        var setRef = {type: type, table: tokens[1].name, fields: fields, tokens: tokens}
+        var setRef = {type: "aggregate", table: tokens[1].name, fields: fields, tokens: tokens}
 
-        // parse the parameters if they exist e.g.
-        // @ foo i x | sort: x ix: z limit: 3
-        var paramNames = {"limit": true, "sort": true, "ix": true};
-        if(tokens[tokenIx]) {
-          tokenIx++;
-          //now check which parameter this is for
-          while(tokenIx < tokens.length) {
-            var param = tokens[tokenIx];
-            if(param.name === "ix") {
-              //ix is a symbol, skip the :
-              param.subType = "param";
-              var symbol = tokens[tokenIx + 2];
-              if(!symbol || symbol.type !== "symbol" || paramNames[symbol.name]) {
-                return {error: {message: "Invalid ix. Expected symbol.", token: tokens[tokenIx + 2]}, tokens: tokens};
-              }
-              symbol.subType = "field";
-              setRef.ix = symbol.name;
-              tokenIx = tokenIx + 3;
-            } else if(param.name === "limit") {
-              //limit is either a number or symbol, skip the :
-              param.subType = "param";
-              var lim = tokens[tokenIx + 2];
-              if(!lim || (lim.type !== "symbol" && lim.type !== "number") || paramNames[lim.name]) {
-                return {error: {message: "Invalid limit. Expected symbol or number.", token: tokens[tokenIx + 2]}, tokens: tokens};
-              }
-              setRef.limit = lim.name || lim.value;
-              tokenIx = tokenIx + 3;
-            } else if(param.name === "sort") {
-              //sort is a set of either a symbol, a symbol + ASC/DESC
-              param.subType = "param";
-              tokenIx = tokenIx + 2;
-              var sorts = [];
-              while(tokenIx < tokens.length) {
-                var sortToken = tokens[tokenIx];
-                if(!sortToken || sortToken.type !== "symbol") {
-                  return {error: {message: "Invalid limit. Expected symbol.", token: sortToken, tokens: tokens}};
-                }
-                if(paramNames[sortToken.name] && sorts.length) {
-                  break;
-                } else if(paramNames[sortToken.name]) {
-                  return {error: {message: "Invalid sort. Expected a field to sort on.", token: sortToken}, tokens: tokens};
-                }
-                sortToken.subType = "field";
-                var sort = [sortToken.name];
-                if(tokens[tokenIx + 1] && tokens[tokenIx + 1].op === "=") {
-                  if(tokens[tokenIx+2].name === "ASC" || tokens[tokenIx+2].name === "DESC") {
-                    tokenIx = tokenIx + 2;
-                    tokens[tokenIx].subType = "sortOrder";
-                    sort.push(tokens[tokenIx].name);
-                  } else {
-                    return {error: {message: "Invalid sort order. Must be ASC or DESC.", token: tokens[tokenIx+2]}, tokens: tokens};
-                  }
-                }
-                sorts.push(sort);
-                tokenIx++;
-              }
-              setRef.sort = sorts;
-            } else {
-              tokenIx++;
-            }
+        if(tokens[tokenIx] && tokens[tokenIx].op === "|") {
+
+          if(tokens.length < tokenIx + 3) return {type: "unknown", tokens:tokens};
+
+          if(tokens[tokenIx + 1].type !== "symbol") {
+            return {error: {message: "Assignments must begin with a valid symbol.", token: tokens[tokenIx + 1], tokens: tokens}};
           }
 
+          if(tokens[tokenIx + 2].type !== "operator" || tokens[tokenIx + 2].op !== "=") {
+            return {error: {message: "Expected an =", token: tokens[tokenIx + 2], tokens: tokens}};
+          }
+
+          tokens[tokenIx + 1].subType = "variable";
+          tokens[tokenIx + 2].subType = "assignment";
+          var parts = [];
+          for(var i = tokenIx+3; i < tokens.length; i++) {
+            tokens[i].subType = "function";
+            parts.push(tokenToJSONValue(tokens[i]));
+          }
+
+          setRef.function = parts.join(" ");
+          setRef.symbol = tokens[tokenIx + 1].name;
         }
 
         return setRef;
@@ -613,15 +571,15 @@ function finalizeRule(rule) {
   }
 
   //set args for reduces
-  for(var i in rule.reduces) {
-    var reduce = rule.reduces[i];
+  for(var i in rule.aggregates) {
+    var agg = rule.aggregates[i];
     var args = [];
     for(var field in rule.fields) {
-      if(containsField(reduce.function, field)) {
+      if(containsField(agg.function, field)) {
         args.push(field);
       }
     }
-    reduce.args = args;
+    agg.args = args;
   }
 
   //set args for filters
@@ -677,7 +635,7 @@ function parse(string) {
                    sources: [],
                    filters: [],
                    functions: [],
-                   reduces: []};
+                   aggregates: []};
         rules.push(curRule);
         break;
       case "source":
@@ -702,9 +660,9 @@ function parse(string) {
         curRule.fields[line.symbol] = line;
         curRule.functions.push(line);
         break;
-      case "reduce":
+      case "aggregate":
         curRule.fields[line.symbol] = line;
-        curRule.reduces.push(line);
+        curRule.aggregates.push(line);
         break;
       case "filter":
         curRule.filters.push(line);
@@ -1003,6 +961,14 @@ function parsedToEveProgram(parsed) {
       }
     }
 
+
+    // handle aggregates
+    for(var aggIx = curRule.aggregates.length - 1; aggIx >= 0; aggIx--) {
+      var agg = curRule.aggregates[aggIx];
+      console.log("Aggregate", agg);
+      //TODO: Jamie fills in the aggregates;
+    }
+
     // handle constants
     for(var cons in curRule.constants) {
       var field = curRule.constants[cons];
@@ -1068,7 +1034,7 @@ function parsedToEveProgram(parsed) {
     }
     context.nextId++;
   }
-  console.log("Compiling " + JSON.stringify(facts));
+//   console.log("Compiling " + JSON.stringify(facts));
   return {program: System.empty({name: "editor program"}).update(facts.concat(commonViews()), []).recompile(), values: values, errors: errors, tablesCreated: tablesCreated};
 }
 
