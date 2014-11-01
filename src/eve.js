@@ -312,7 +312,7 @@ NegatedMemoryConstraint.prototype = {
     var bindingIxes = this.bindingIxes;
 
     for (var i = bindingIxes.length - 1; i >= 0; i-=2) {
-      var boundsIx = ixes[i-1];
+      var boundsIx = bindingIxes[i-1];
       if (los[boundsIx] !== his[boundsIx]) return UNCHANGED;
     }
 
@@ -329,9 +329,6 @@ NegatedMemoryConstraint.prototype = {
   }
 };
 
-// TODO would prefer to be able to separate these somehow but would require inserting non-scalar values into the solver
-//      makes comparisons much more expensive
-//      maybe the solver can have a separate section for these?
 function AggregatedMemoryConstraint(storeIx, bindingIxes, outIx, variables, inIxes, fun) {
   this.storeIx = storeIx;
   this.bindingIxes = bindingIxes;
@@ -354,7 +351,7 @@ AggregatedMemoryConstraint.prototype = {
     var bindingIxes = this.bindingIxes;
 
     for (var i = bindingIxes.length - 1; i >= 0; i-=2) {
-      var boundsIx = ixes[i-1];
+      var boundsIx = bindingIxes[i-1];
       if (los[boundsIx] !== his[boundsIx]) return UNCHANGED;
     }
 
@@ -849,6 +846,10 @@ System.prototype = {
       var viewConstraint = viewConstraints[i];
       upstream[viewConstraint.query].push(viewConstraint.sourceView);
     }
+    for (var i = aggregateConstraints.length - 1; i >= 0; i--) {
+      var aggregateConstraint = aggregateConstraints[i];
+      upstream[aggregateConstraint.query].push(aggregateConstraint.sourceView);
+    }
 
     // order queries by their ix
     queries.sort(function (a,b) { if (a.ix < b.ix) return 1; else return -1;});
@@ -884,6 +885,12 @@ System.prototype = {
       var viewConstraint = viewConstraints[i];
       var viewIx = nameToIx[viewConstraint.sourceView];
       var queryIx = nameToIx[viewConstraint.query];
+      downstream[viewIx].push(queryIx);
+    }
+    for (var i = aggregateConstraints.length - 1; i >= 0; i--) {
+      var aggregateConstraint = aggregateConstraints[i];
+      var viewIx = nameToIx[aggregateConstraint.sourceView];
+      var queryIx = nameToIx[aggregateConstraint.query];
       downstream[viewIx].push(queryIx);
     }
     for (var i = queries.length - 1; i >= 0; i--) {
@@ -975,7 +982,7 @@ System.prototype = {
     // build aggregate constraints
     for (var i = aggregateConstraints.length - 1; i >= 0; i--) {
       var aggregateConstraint = aggregateConstraints[i];
-      var fieldIx = nameToIx[aggregateConstraint.field];
+      var fieldIx = fieldToIx[aggregateConstraint.field];
       var sourceIx = nameToIx[aggregateConstraint.sourceView];
       var constraint = new AggregatedMemoryConstraint(sourceIx, [], fieldIx, [], [], null);
       constraints[aggregateConstraint.constraint] = constraint;
