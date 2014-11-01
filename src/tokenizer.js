@@ -862,9 +862,11 @@ function eveUIElem(view, ui, parentGeneratedId, context) {
 
   var facts = [];
   var attrs = {};
-  for(var i = 0; i < ui.attrs.kvs.length; i++) {
-    var curKv = ui.attrs.kvs[i];
-    attrs[curKv[0].value] = curKv[1];
+  if(ui.attrs) {
+    for(var i = 0; i < ui.attrs.kvs.length; i++) {
+      var curKv = ui.attrs.kvs[i];
+      attrs[curKv[0].value] = curKv[1];
+    }
   }
 
   var id;
@@ -923,9 +925,10 @@ function eveUIElem(view, ui, parentGeneratedId, context) {
     var childId;
     if(child.type === "vector") {
       //we need to do this again
-      var child = eveUIElem(view, child, generateChildId(childIx));
+      var child = eveUIElem(view, child, generateChildId(childIx), context);
       pushAll(facts, child.facts);
       childId = child.id;
+      pos = child.pos || {type: "constant", value: childIx};
     } else {
       //otherwise we need to build a text element
       //make textId
@@ -945,7 +948,7 @@ function eveUIElem(view, ui, parentGeneratedId, context) {
     pushAll(facts, createUIView("uiChild", view, context, childMappings));
   }
 
-  return {id: id, facts: facts};
+  return {id: id, facts: facts, pos: attrs["ix"]};
 }
 
 function parsedToEveProgram(parsed) {
