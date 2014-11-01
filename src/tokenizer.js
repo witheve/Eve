@@ -928,8 +928,8 @@ function parsedToEveProgram(parsed) {
           facts.push(["aggregateConstraintSolverBinding", constraint, makeLocalField(field.name), makeRemoteField(agg.table, field.name)]);
         }
       }
-      for (var argIx = agg.args.lenth - 1; argIx >= 0; argIx--) {
-        var arg = agg.args[argsIx];
+      for (var argIx = agg.args.length - 1; argIx >= 0; argIx--) {
+        var arg = agg.args[argIx];
         facts.push(["aggregateConstraintCodeBinding", constraint, makeRemoteField(agg.table, arg), arg]);
       }
     }
