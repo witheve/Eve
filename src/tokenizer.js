@@ -932,11 +932,25 @@ function parsedToEveProgram(parsed) {
       }
     }
 
-
     // handle aggregates
     for(var aggIx = curRule.aggregates.length - 1; aggIx >= 0; aggIx--) {
       var agg = curRule.aggregates[aggIx];
-      //TODO: Jamie fills in the aggregates;
+      var constraint = query + "|aggregateConstraint=" + aggIx;
+      facts.push(["aggregateConstraint", constraint, query, makeLocalField(agg.symbol), agg.table, agg.function]);
+      for (var fieldIx = agg.fields.length - 1; fieldIx >= 0; fieldIx--) {
+        var field = agg.fields[fieldIx];
+        if(field.alias) {
+          facts.push(["aggregateConstraintSolverBinding", constraint, makeLocalField(field.alias), makeRemoteField(agg.table, field.name)]);
+        } else if(field.constant) {
+          facts.push(["aggregateConstraintSolverBinding", constraint, makeLocalField(field.constantVar), makeRemoteField(agg.table, field.name)]);
+        } else {
+          facts.push(["aggregateConstraintSolverBinding", constraint, makeLocalField(field.name), makeRemoteField(agg.table, field.name)]);
+        }
+      }
+      for (var argIx = agg.args.length - 1; argIx >= 0; argIx--) {
+        var arg = agg.args[argIx];
+        facts.push(["aggregateConstraintCodeBinding", constraint, makeRemoteField(agg.table, arg), arg]);
+      }
     }
 
     // handle constants
