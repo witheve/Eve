@@ -258,6 +258,9 @@ body {
 .cm-s-default span.cm-param {
   color: #aaa;
 }
+.cm-s-default span.cm-arg {
+  color: #fa7;
+}
 .cm-s-default span.cm-attribute {
   color: #79a;
 }

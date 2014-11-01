@@ -76,8 +76,8 @@ StringStream.prototype = {
 };
 
 var whiteSpace = /[\s]/;
-var operators = /[~+\|:\[\{\>\*#\?@=\}\]]/;
-var symbolChars = /[^=':\s\[\]\{\}]/;
+var operators = /[~+\|:\[\{\>\*#\?=\}\]\(\)]/;
+var symbolChars = /[^=':\s\[\]\{\}\(\)]/;
 var numberChars = /[\d\.]/;
 
 // operator symbol 'symbol' "string" number
@@ -319,6 +319,8 @@ function parseUI(tokens, ix, state) {
 function tokenToJSONValue(token) {
   if(token.type === "string") {
     return JSON.stringify(token.value);
+  } else if(token.type === "symbol" && token.name[0] === "@") {
+    return token.name.substring(1);
   }
   return token.name || token.value || token.op
 }
@@ -420,7 +422,7 @@ function parseLine(line, state) {
         }
         return {type: "insert", values: values, tokens: tokens};
         break;
-      case "@":
+      case ">":
         //aggregate
         tokens[0].subType = "aggregate";
         if(tokens.length == 1) return {type: "unknown", tokens:tokens};
@@ -448,7 +450,8 @@ function parseLine(line, state) {
           tokenIx++;
         }
 
-        var setRef = {type: "aggregate", table: tokens[1].name, fields: fields, tokens: tokens}
+        var args = [];
+        var setRef = {type: "aggregate", table: tokens[1].name, fields: fields, args: args, tokens: tokens}
 
         if(tokens[tokenIx] && tokens[tokenIx].op === "|") {
 
@@ -466,7 +469,12 @@ function parseLine(line, state) {
           tokens[tokenIx + 2].subType = "assignment";
           var parts = [];
           for(var i = tokenIx+3; i < tokens.length; i++) {
-            tokens[i].subType = "function";
+            if(tokens[i].type === "symbol" && tokens[i].name[0] === "@") {
+              tokens[i].subType = "arg";
+              args.push(tokens[i].name.substring(1));
+            } else {
+              tokens[i].subType = "function";
+            }
             parts.push(tokenToJSONValue(tokens[i]));
           }
 
@@ -480,32 +488,17 @@ function parseLine(line, state) {
         //filter
         tokens[0].subType = "filter";
         var parts = [];
+        var args = [];
         for(var i = 1; i < tokens.length; i++) {
-          tokens[i].subType = "function";
+          if(tokens[i].type === "symbol" && tokens[i].name[0] === "@") {
+            tokens[i].subType = "arg";
+            args.push(tokens[i].name.substring(1));
+          } else {
+            tokens[i].subType = "function";
+          }
           parts.push(tokenToJSONValue(tokens[i]));
         }
-        return {type: "filter", function: parts.join(" "), tokens: tokens};
-        break;
-      case ">":
-        //reduce
-        tokens[0].subType = "reduce";
-        if(tokens.length < 3) return {type: "unknown", tokens:tokens};
-        if(tokens[1].type !== "symbol") {
-          return {error: {message: "Assignments must begin with a valid symbol.", token: tokens[1], tokens: tokens}};
-        }
-
-        if(tokens[2].type !== "operator" || tokens[2].op !== "=") {
-          return {error: {message: "Expected an =", token: tokens[2], tokens: tokens}};
-        }
-
-        tokens[1].subType = "variable";
-        tokens[2].subType = "assignment";
-        var parts = [];
-        for(var i = 3; i < tokens.length; i++) {
-          tokens[i].subType = "function";
-          parts.push(tokenToJSONValue(tokens[i]));
-        }
-        return {type: "reduce", symbol: tokens[1].name, function: parts.join(" "), tokens: tokens};
+        return {type: "filter", function: parts.join(" "), args: args, tokens: tokens};
         break;
 
       case "[":
@@ -537,62 +530,25 @@ function parseLine(line, state) {
     tokens[0].subType = "variable";
     tokens[1].subType = "assignment";
     var parts = [];
+    var args = [];
     for(var i = 2; i < tokens.length; i++) {
-      tokens[i].subType = "function";
+      if(tokens[i].type === "symbol" && tokens[i].name[0] === "@") {
+        tokens[i].subType = "arg";
+        args.push(tokens[i].name.substring(1));
+      } else {
+        tokens[i].subType = "function";
+      }
       parts.push(tokenToJSONValue(tokens[i]));
     }
 
     if(tokens.length === 3 && (tokens[2].type === "number" || tokens[2].type === "string")) {
       return {type: "constant", symbol: tokens[0].name, constant:tokens[2].value, tokens: tokens};
     }
-    return {type: "function", symbol: tokens[0].name, function: parts.join(" "), tokens: tokens};
+    return {type: "function", symbol: tokens[0].name, function: parts.join(" "), args: args, tokens: tokens};
   }
 
   return {type: "unknown", tokens: tokens};
 
-}
-
-function containsField(str, field) {
-  // either it only is the field or it is preceeded/followed by non-word chars
-  return str.match(new RegExp("(^" + field + "$)|(^" + field + "[\\+\\-\\*\\=\\)\\s])|([\\+\\-\\*\\=\\(\\s]" + field + "[\\+\\-\\*\\=\\)\\s])|([\\+\\-\\*\\=\\(\\s]" + field + "$)"));
-}
-
-function finalizeRule(rule) {
-  //set args for functions
-  for(var i in rule.functions) {
-    var func = rule.functions[i];
-    var args = [];
-    for(var field in rule.fields) {
-      if(containsField(func.function, field)) {
-        args.push(field);
-      }
-    }
-    func.args = args;
-  }
-
-  //set args for reduces
-  for(var i in rule.aggregates) {
-    var agg = rule.aggregates[i];
-    var args = [];
-    for(var field in rule.fields) {
-      if(containsField(agg.function, field)) {
-        args.push(field);
-      }
-    }
-    agg.args = args;
-  }
-
-  //set args for filters
-  for(var i in rule.filters) {
-    var filter = rule.filters[i];
-    var args = [];
-    for(var field in rule.fields) {
-      if(containsField(filter.function, field)) {
-        args.push(field);
-      }
-    }
-    filter.args = args;
-  }
 }
 
 function parse(string) {
@@ -623,9 +579,6 @@ function parse(string) {
     var line = parsed[i];
     switch(line.type) {
       case "rule":
-        if(curRule) {
-          finalizeRule(curRule);
-        }
         curRule = {name: line.name,
                    header: false,
                    ui: [],
@@ -682,7 +635,6 @@ function parse(string) {
         break;
     }
   }
-  finalizeRule(curRule);
 
   return {rules: rules, errors: errors};
 }

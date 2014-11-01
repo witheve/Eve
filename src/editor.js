@@ -17,7 +17,6 @@ var editor = CodeMirror(document.querySelector("#editor"), {
     Tab: function(cm) {
       var loc = cm.getCursor();
       var char = cm.getRange({line: loc.line, ch: loc.ch - 1}, loc);
-      console.log("here in tab", loc, char, cm.getRange({line: loc.line, ch: loc.ch - 1}, loc));
       if(char.match(/[\w]/)) {
         CodeMirror.commands.autocomplete(cm);
       } else {

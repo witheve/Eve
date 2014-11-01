@@ -54,6 +54,7 @@ $fonts = "Inconsolata", "Menlo", "Courier New", monospace;
 .cm-s-default span.cm-comment { color: #79a; }
 .cm-s-default span.cm-string { color:#9af; }
 .cm-s-default span.cm-param { color:#aaa; }
+.cm-s-default span.cm-arg { color: #fa7; }
 .cm-s-default span.cm-attribute { color:#79a; }
 .cm-s-default span.cm-sortOrder { color:#79a; }
 .cm-s-default .Codemirror-activeline-background { background: #3f3f3f; }
