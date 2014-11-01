@@ -77,7 +77,7 @@ StringStream.prototype = {
 
 var whiteSpace = /[\s]/;
 var operators = /[~+\|:\[\{\>\*#\?=\}\]\(\)]/;
-var symbolChars = /[^=':\s\[\]\{\}\(\)]/;
+var symbolChars = /[^=':\s\[\]\{\}\(\)\.\+\-\*\/]/;
 var numberChars = /[\d\.]/;
 
 // operator symbol 'symbol' "string" number
