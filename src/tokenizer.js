@@ -965,7 +965,6 @@ function parsedToEveProgram(parsed) {
     // handle aggregates
     for(var aggIx = curRule.aggregates.length - 1; aggIx >= 0; aggIx--) {
       var agg = curRule.aggregates[aggIx];
-      console.log("Aggregate", agg);
       //TODO: Jamie fills in the aggregates;
     }
 

@@ -196,8 +196,21 @@ body {
   color: #ccc;
   font-family: "Inconsolata", "Menlo", "Courier New", 'Bitstream Vera Sans Mono', Consolas, Courier, monospace;
 }
+.CodeMirror-dialog {
+  font-family: "Inconsolata", "Menlo", "Courier New", 'Bitstream Vera Sans Mono', Consolas, Courier, monospace;
+  background: #555;
+  color: #ccc;
+  border: none;
+}
+.CodeMirror-dialog input {
+  font-size: 11pt;
+}
 .cm-s-default div.CodeMirror-cursor {
   border-color: #ccc;
+}
+.cm-s-default.cm-fat-cursor div.CodeMirror-cursor {
+  border: none;
+  background: #aaa;
 }
 .cm-s-default .CodeMirror-selected {
   background: #555;
@@ -250,6 +263,34 @@ body {
 }
 .cm-s-default span.cm-sortOrder {
   color: #79a;
+}
+.cm-s-default .Codemirror-activeline-background {
+  background: #3f3f3f;
+}
+.cm-s-default .cm-operator.Codemirror-matchingbracket {
+  color: #aaa;
+  border-bottom: 1px solid #fff;
+}
+.cm-s-default .cm-searching {
+  background: rgba(255,255,255,0.15);
+  border-radius: 2px;
+  color: #fff !important;
+}
+.CodeMirror-hints {
+  background: #555;
+  border: none;
+  font-size: 11pt;
+  font-family: "Inconsolata", "Menlo", "Courier New", 'Bitstream Vera Sans Mono', Consolas, Courier, monospace;
+  padding: 0;
+  color: #aaa;
+}
+.CodeMirror-hints .CodeMirror-hint {
+  padding: 2px 8px;
+  color: #bbb;
+}
+.CodeMirror-hints .CodeMirror-hint-active {
+  color: #fff;
+  background: #0ac;
 }
 .card {
   background: #666;
