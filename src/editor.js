@@ -38,7 +38,7 @@ function tableCard(name, headers, rows, constants) {
   var grid = $(".grid", card);
   var gridHeader = $(".grid-header", card);
   $("h2", card).html(name);
-  for(var headerIx = headers.length - 1; headerIx >= 0; headerIx--) {
+  for(var headerIx = 0; headerIx < headers.length; headerIx++) {
     var header = headers[headerIx];
     gridHeader.append("<div class='header'>" + header + "</div>");
   }
