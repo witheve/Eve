@@ -40,7 +40,7 @@ function tableCard(name, headers, rows, constants) {
   $("h2", card).html(name);
   for(var headerIx = 0; headerIx < headers.length; headerIx++) {
     var header = headers[headerIx];
-    gridHeader.append("<div class='header'>" + header + "</div>");
+    gridHeader.prepend("<div class='header'>" + header + "</div>");
   }
   for(var cons in constants) {
     gridHeader.append("<div class='header'>" + constants[cons].name + "</div>");
@@ -49,7 +49,7 @@ function tableCard(name, headers, rows, constants) {
     var row = rows[ix];
     var rowElem = $("<div class='grid-row'></div>");
     for(var field in row) {
-      rowElem.append("<div>" + row[field] + "</div>")
+      rowElem.prepend("<div>" + row[field] + "</div>")
     }
     for(var cons in constants) {
       rowElem.append("<div>" + constants[cons].constant + "</div>");
@@ -63,7 +63,7 @@ function onTableCards(cards) {
   var start = now();
   $(".table-card").remove();
   var frag = document.createDocumentFragment();
-  for(var cardIx = cards.length - 1; cardIx >= 0; cardIx--) {
+  for(var cardIx = 0; cardIx < cards.length; cardIx++) {
     var card = cards[cardIx];
     frag.appendChild(tableCard(card[0], card[1], card[2], card[3]));
   }
