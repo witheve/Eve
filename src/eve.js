@@ -361,7 +361,7 @@ AggregatedMemoryConstraint.prototype = {
 
     for (var i = facts.length - 1; i >= 0; i--) {
       var fact = facts[i]
-      if (solutionMatchesPoint(los, bindingIxes, fact) === false) {
+      if (solutionMatchesPoint(los, bindingIxes, fact) === true) {
         groupFacts.push(fact);
       }
     }
@@ -372,7 +372,7 @@ AggregatedMemoryConstraint.prototype = {
       var inIx = inIxes[i];
       var inValue = [];
       for (var j = groupFacts.length - 1; j >= 0; j--) {
-        inValue[j] = groupFacts[j][i];
+        inValue[j] = groupFacts[j][inIx];
       }
       inValues[i] = inValue;
     }
