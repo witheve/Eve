@@ -80,6 +80,18 @@ var operators = /[~+\|:\[\{\>\*#\?=\}\]\(\)]/;
 var symbolChars = /[^=':\s\[\]\{\}\(\)\.\+\-\*\/]/;
 var numberChars = /[\d\.]/;
 
+function replaceAll(string, finds, replacements) {
+  var final = string;
+  for(var i = 0; i < finds.length; i++) {
+   var pos = final.indexOf(finds[i]);
+    while (pos > -1){
+      final = final.replace(finds[i], replacements[i]);
+      pos = final.indexOf(finds[i]);
+    }
+  }
+  return final;
+}
+
 // operator symbol 'symbol' "string" number
 
 function nextToken(stream, tokens) {
@@ -468,17 +480,18 @@ function parseLine(line, state) {
           tokens[tokenIx + 1].subType = "variable";
           tokens[tokenIx + 2].subType = "assignment";
           var parts = [];
+          var argsWithAts = [];
           for(var i = tokenIx+3; i < tokens.length; i++) {
             if(tokens[i].type === "symbol" && tokens[i].name[0] === "@") {
               tokens[i].subType = "arg";
+              argsWithAts.push(tokens[i].name);
               args.push(tokens[i].name.substring(1));
             } else {
               tokens[i].subType = "function";
             }
-            parts.push(tokenToJSONValue(tokens[i]));
           }
-
-          setRef.function = parts.join(" ");
+          var startPos = tokens[tokenIx + 2].pos;
+          setRef.function = replaceAll(line.substring(startPos[1]), argsWithAts, args);
           setRef.symbol = tokens[tokenIx + 1].name;
         }
 
@@ -489,16 +502,18 @@ function parseLine(line, state) {
         tokens[0].subType = "filter";
         var parts = [];
         var args = [];
+        var argsWithAts = [];
         for(var i = 1; i < tokens.length; i++) {
           if(tokens[i].type === "symbol" && tokens[i].name[0] === "@") {
             tokens[i].subType = "arg";
+            argsWithAts.push(tokens[i].name);
             args.push(tokens[i].name.substring(1));
           } else {
             tokens[i].subType = "function";
           }
-          parts.push(tokenToJSONValue(tokens[i]));
         }
-        return {type: "filter", function: parts.join(" "), args: args, tokens: tokens};
+        var func = replaceAll(line.substring(1), argsWithAts, args);
+        return {type: "filter", function: func, args: args, tokens: tokens};
         break;
 
       case "[":
@@ -531,20 +546,24 @@ function parseLine(line, state) {
     tokens[1].subType = "assignment";
     var parts = [];
     var args = [];
+    var argsWithAts = [];
     for(var i = 2; i < tokens.length; i++) {
       if(tokens[i].type === "symbol" && tokens[i].name[0] === "@") {
         tokens[i].subType = "arg";
+        argsWithAts.push(tokens[i].name);
         args.push(tokens[i].name.substring(1));
       } else {
         tokens[i].subType = "function";
       }
-      parts.push(tokenToJSONValue(tokens[i]));
     }
 
     if(tokens.length === 3 && (tokens[2].type === "number" || tokens[2].type === "string")) {
       return {type: "constant", symbol: tokens[0].name, constant:tokens[2].value, tokens: tokens};
     }
-    return {type: "function", symbol: tokens[0].name, function: parts.join(" "), args: args, tokens: tokens};
+
+    var startPos = tokens[1].pos;
+    var func = replaceAll(line.substring(startPos[1]), argsWithAts, args);
+    return {type: "function", symbol: tokens[0].name, function: func, args: args, tokens: tokens};
   }
 
   return {type: "unknown", tokens: tokens};
