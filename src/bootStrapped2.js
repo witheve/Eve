@@ -12,6 +12,34 @@ var now = function() {
 };
 
 //*********************************************************
+// aggregates
+//*********************************************************
+
+function sum(arr) {
+  return arr.reduce(function (a,b) {return a+b;}, 0);
+}
+
+function count(arr) {
+  return arr.length;
+}
+
+function avg(arr) {
+  return sum(arr) / count(arr);
+}
+
+function maxBy(desired, sort, otherwise) {
+  var max = sort[0];
+  var maxIx = 0;
+  for(var i = sort.length; i >= 0; i--) {
+    if(sort[i] > max) {
+      max = sort[i];
+      maxIx = i;
+    }
+  }
+  return desired[maxIx] || otherwise || "";
+}
+
+//*********************************************************
 // watchers
 //*********************************************************
 

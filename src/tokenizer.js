@@ -77,7 +77,7 @@ StringStream.prototype = {
 
 var whiteSpace = /[\s]/;
 var operators = /[~+\|:\[\{\>\*#\?=\}\]\(\)]/;
-var symbolChars = /[^=':\s\[\]\{\}\(\)\.\+\-\*\/]/;
+var symbolChars = /[^=':\s\[\]\{\}\(\)\.\+\-\*\/,]/;
 var numberChars = /[\d\.]/;
 
 function replaceAll(string, finds, replacements) {
