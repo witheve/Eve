@@ -77,7 +77,7 @@ StringStream.prototype = {
 
 var whiteSpace = /[\s]/;
 var operators = /[~+\|:\[\{\>\*#\?=\}\]\(\)]/;
-var symbolChars = /[^=':\s\[\]\{\}\(\)\.\+\-\*\/]/;
+var symbolChars = /[^=':\s\[\]\{\}\(\)\.\+\-\*\/,]/;
 var numberChars = /[\d\.]/;
 
 function replaceAll(string, finds, replacements) {
@@ -1036,13 +1036,22 @@ function tokenToCMType(token) {
 
 function CodeMirrorModeParser() {
   return {
+    lastParse: {},
     token: function(stream, state) {
       if(stream.eatWhile(whiteSpace)) return null;
 
       stream.next();
-
       var start = stream.pos;
-      var line = parseLine(stream.string, state);
+
+      if(this.lastParse.string !== stream.string) {
+        var line = parseLine(stream.string, state);
+        this.lastParse.string = stream.string;
+        this.lastParse.parse = line;
+        this.lastParse.stack = state.stack.slice();
+      } else {
+        line = this.lastParse.parse;
+        state.stack = this.lastParse.stack.slice();
+      }
 
       if(line.tokens) {
 
@@ -1060,7 +1069,7 @@ function CodeMirrorModeParser() {
       return null;
     },
     startState: function() {
-      return {};
+      return {stack: []};
     }
   }
 }
@@ -1070,6 +1079,10 @@ function CodeMirrorModeParser() {
 //   CodeMirror.defineMIME("text/x-eve", "eve");
 // }
 
+// var state = {};
+// "* foo\n[\"hey\"\n \"h\" t \"y\"]".split("\n").forEach(function(line) {
+//   console.log(parseLine(line, state), JSON.stringify(state));
+// })
 
 // var thing = CodeMirrorModeParser();
 // var tokenizer = thing.token;
