@@ -381,6 +381,9 @@ function parseLine(line, state) {
           return {error: {message: "Expected a table symbol", token: tokens[1]}, tokens: tokens};
         }
         tokens[1].subType = "table";
+        var name = tokens[1].name;
+        var negated = name.indexOf("!") === 0;
+        if (negated) name = name.substr(1);
         var fields = [];
         var tokenIx = 2;
         while(tokenIx < tokens.length) {
@@ -400,7 +403,7 @@ function parseLine(line, state) {
           tokenIx++;
         }
 
-        return {type: "source", table: tokens[1].name, fields: fields, tokens: tokens};
+        return {type: "source", table: name, negated: negated, fields: fields, tokens: tokens};
         break;
       case "~":
         //header
@@ -512,7 +515,7 @@ function parseLine(line, state) {
             tokens[i].subType = "function";
           }
         }
-        var func = replaceAll(line.substring(1), argsWithAts, args);
+        var func = replaceAll(line.substring(line.indexOf("?") + 1), argsWithAts, args);
         return {type: "filter", function: func, args: args, tokens: tokens};
         break;
 
@@ -613,11 +616,12 @@ function parse(string) {
       case "source":
         for(var i in line.fields) {
           var field = line.fields[i];
-          if(field.alias) {
+          if(field.alias !== undefined) {
             curRule.fields[field.alias] = field;
-          } else if(field.constant) {
+          } else if(field.constant !== undefined) {
             field.constantVar = "constant" + nextId++;
             curRule.constants[field.constantVar] = field;
+            curRule.fields[field.name] = field;
           } else {
             curRule.fields[field.name] = field;
           }
@@ -908,12 +912,12 @@ function parsedToEveProgram(parsed) {
     for(var sourceIx = curRule.sources.length - 1; sourceIx >= 0; sourceIx--) {
       var src = curRule.sources[sourceIx];
       var constraint = query + "|viewConstraint=" + sourceIx;
-      facts.push(["viewConstraint", constraint, query, src.table, false]);
+      facts.push(["viewConstraint", constraint, query, src.table, src.negated]);
       for(var fieldIx = src.fields.length - 1; fieldIx >= 0; fieldIx--) {
         var field = src.fields[fieldIx];
-        if(field.alias) {
+        if(field.alias !== undefined) {
           facts.push(["viewConstraintBinding", constraint, makeLocalField(field.alias), makeRemoteField(src.table, field.name)]);
-        } else if(field.constant) {
+        } else if(field.constant !== undefined) {
           facts.push(["viewConstraintBinding", constraint, makeLocalField(field.constantVar), makeRemoteField(src.table, field.name)]);
         } else {
           facts.push(["viewConstraintBinding", constraint, makeLocalField(field.name), makeRemoteField(src.table, field.name)]);
@@ -939,9 +943,9 @@ function parsedToEveProgram(parsed) {
       facts.push(["aggregateConstraint", constraint, query, makeLocalField(agg.symbol), agg.table, agg.function]);
       for (var fieldIx = agg.fields.length - 1; fieldIx >= 0; fieldIx--) {
         var field = agg.fields[fieldIx];
-        if(field.alias) {
+        if(field.alias !== undefined) {
           facts.push(["aggregateConstraintSolverBinding", constraint, makeLocalField(field.alias), makeRemoteField(agg.table, field.name)]);
-        } else if(field.constant) {
+        } else if(field.constant !== undefined) {
           facts.push(["aggregateConstraintSolverBinding", constraint, makeLocalField(field.constantVar), makeRemoteField(agg.table, field.name)]);
         } else {
           facts.push(["aggregateConstraintSolverBinding", constraint, makeLocalField(field.name), makeRemoteField(agg.table, field.name)]);
@@ -964,7 +968,7 @@ function parsedToEveProgram(parsed) {
       var filter = curRule.filters[filterIx];
       var symbol = "filterField" + filterIx;
       var constraint = query + "|filterConstraint=" + filterIx;
-      facts.push("functionConstraint", constraint, query, makeLocalField(symbol), filter.function);
+      facts.push(["functionConstraint", constraint, query, makeLocalField(symbol), filter.function]);
       for (var argIx = filter.args.length - 1; argIx >= 0; argIx--) {
         var arg = filter.args[argIx];
         facts.push(["functionConstraintBinding", constraint, makeLocalField(arg), arg]);
