@@ -404,6 +404,7 @@ function commonViews() {
   pushAll(facts, view("externalEvent", ["id", "label", "key", "eid", "value"]));
   pushAll(facts, view("click", ["id"]));
   pushAll(facts, view("mousePosition", ["eid","x","y"]));
+  pushAll(facts, view("keyboard", ["eid","keyCode","eventType"]));
   pushAll(facts, view("sms outbox", ["id"]));
   pushAll(facts, view("user", ["id", "name"]));
   pushAll(facts, view("uiElem", ["id", "type"]));

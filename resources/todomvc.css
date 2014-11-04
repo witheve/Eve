@@ -22,7 +22,7 @@
 	color: #4d4d4d;
 	-webkit-font-smoothing: antialiased;
   padding:20px;
-  min-height:100%;
+  padding-bottom:50px;
 }
 
 .running-wrapper .todoapp input,

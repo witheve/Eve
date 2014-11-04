@@ -1,4 +1,4 @@
-var initialValue =  "* time\n  ~ time\n\n* refresh\n  ~ tick startTime endTime flowIx\n\n* edge\n  ~ from to\n  + \"a\" \"b\"\n  + \"b\" \"c\"\n\n* path\n  | edge from to\n\n* path2\n  | edge from to:t\n  | path from:t to\n\n* path\n  | path2 from to";
+var initialValue =  "* edge\n  ~ from to\n  + \"a\" \"b\"\n  + \"b\" \"c\"\n\n* path\n  | edge from to\n\n* path2\n  | edge from to:t\n  | path from:t to\n\n* path\n  | path2 from to";
 
 if(window.localStorage["eveEditorCode"]) {
   initialValue = window.localStorage["eveEditorCode"];
@@ -7,7 +7,7 @@ if(window.localStorage["eveEditorCode"]) {
 CodeMirror.defineMode("eve", CodeMirrorModeParser);
 CodeMirror.defineMIME("text/x-eve", "eve");
 
-var editor = CodeMirror(document.querySelector("#editor"), {
+var editor = CodeMirror(document.querySelector("#editorContainer"), {
   value: initialValue,
   tabSize: 2,
   matchBrackets: true,
@@ -33,8 +33,14 @@ var editorApp;
 var editorProg;
 var worker = new Worker("../src/worker.js");
 
-function tableCard(name, headers, rows, constants) {
-  var card = $("<div class='card table-card'><h2></h2><div class='grid'><div class='grid-header'></div></div></div>");
+//bind open events
+$("#cards").on("click", ".table-card", function() {
+  $(this).toggleClass("open");
+});
+
+function tableCard(name, headers, rows, isOpen) {
+  var card = $("<div class='card table-card " + (isOpen ? "open" : "") + "'><h2></h2><div class='grid'><div class='grid-header'></div></div></div>");
+  card.data("tableId", name);
   var grid = $(".grid", card);
   var gridHeader = $(".grid-header", card);
   $("h2", card).html(name);
@@ -42,17 +48,11 @@ function tableCard(name, headers, rows, constants) {
     var header = headers[headerIx];
     gridHeader.prepend("<div class='header'>" + header + "</div>");
   }
-  for(var cons in constants) {
-    gridHeader.append("<div class='header'>" + constants[cons].name + "</div>");
-  }
   for(var ix = rows.length - 1; ix >= 0; ix--) {
     var row = rows[ix];
     var rowElem = $("<div class='grid-row'></div>");
     for(var field in row) {
       rowElem.prepend("<div>" + row[field] + "</div>")
-    }
-    for(var cons in constants) {
-      rowElem.append("<div>" + constants[cons].constant + "</div>");
     }
     grid.append(rowElem);
   }
@@ -61,11 +61,16 @@ function tableCard(name, headers, rows, constants) {
 
 function onTableCards(cards) {
   var start = now();
+  var opens = {};
+  $(".open").get().forEach(function(cur) {
+    opens[$(cur).data("tableId")] = true;
+  });
+  console.log("opens", opens)
   $(".table-card").remove();
   var frag = document.createDocumentFragment();
   for(var cardIx = 0; cardIx < cards.length; cardIx++) {
     var card = cards[cardIx];
-    frag.appendChild(tableCard(card[0], card[1], card[2], card[3]));
+    frag.appendChild(tableCard(card[0], card[1], card[2], opens[card[0]]));
   }
   $("#cards").append(frag);
   $("#renderStat").html((now() - start).toFixed(2));
@@ -110,6 +115,8 @@ var mouseEvents = {"drop": true,
                    "dblclick": true,
                    "contextmenu": true};
 
+var keyEvents = {"keydown": true, "keyup": true, "keypress": true};
+
 var createUICallback = function(id, event, label, key) {
   return function(e) {
     var items = [];
@@ -119,6 +126,10 @@ var createUICallback = function(id, event, label, key) {
     } else {
       if(mouseEvents[event]) {
         items.push(["mousePosition", eid, e.clientX, e.clientY]);
+      }
+
+      if(keyEvents[event]) {
+        items.push(["keyboard", eid, e.keyCode, event]);
       }
 
       var value = e.target.value;
@@ -257,7 +268,11 @@ function uiDiffRenderer(diff, storage) {
   var attrsLen = attrs.length;
   for(var i = 0; i < attrsLen; i++) {
     var cur = attrs[i];
-    builtEls[cur[elem_id]].setAttribute(cur[attrs_attr], cur[attrs_value]);
+    if(cur[attrs_value] === false || cur[attrs_value] === "false") {
+      builtEls[cur[elem_id]].removeAttribute(cur[attrs_attr]);
+    } else {
+      builtEls[cur[elem_id]].setAttribute(cur[attrs_attr], cur[attrs_value]);
+    }
   }
 
   var styles = diff["uiStyle"].adds;
@@ -338,6 +353,7 @@ worker.onmessage = function(event) {
       console.log.apply(console, event.data.args);
       break;
     case "error":
+      clearErrors();
       addErrors([event.data.error])
       console.error(event.data.error);
       break;

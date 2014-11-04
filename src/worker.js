@@ -27,6 +27,7 @@ function compilerWatcher2(application, storage, system) {
 
   var uiTables = ["uiElem", "uiText", "uiAttr", "uiStyle", "uiEvent", "uiChild"];
   var diff = {};
+  var hasUI = false;
   for(var i = 0; i < uiTables.length; i++) {
     var table = uiTables[i];
     if(uiStorage[table]) {
@@ -34,19 +35,25 @@ function compilerWatcher2(application, storage, system) {
       var removes = [];
       system.getStore(table).diff(uiStorage[table], adds, removes);
       uiStorage[table] = system.getStore(table);
+      if(adds.length || removes.length) { hasUI = true; }
       diff[table] = {
         adds: adds,
         removes: removes
       };
     } else {
       uiStorage[table] = system.getStore(table);
+      var adds = system.getStore(table).getFacts();
+      if(adds.length) { hasUI = true; }
       diff[table] = {
-        adds: system.getStore(table).getFacts(),
+        adds: adds,
         removes: []
       };
     }
   }
-  postMessage({type: "renderUI", diff: diff})
+
+  if(hasUI) {
+    postMessage({type: "renderUI", diff: diff});
+  }
 }
 
 var editorProg;
