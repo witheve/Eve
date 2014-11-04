@@ -179,8 +179,8 @@ body {
   flex-direction: column;
 }
 /* #errors { pointer-events:none; position:absolute; top:0px; bottom:0px; left:0px; right:0px; background: rgba(255,100,100,0.9); padding:20px;} */
-#errors { display:none; margin:30px; margin-bottom:0; padding:10px; background: #f56; border-radius:3px; box-shadow: 0 0 8px #222; }
-#errors li { white-space:pre; color: #000; font-family:"Inconsolata", "Menlo", "Courier New", monospace; }
+#errors { flex:none; display:none; margin:30px; margin-bottom:0; padding:10px 20px; background: #f56; overflow:auto; border-radius:3px; z-depth(1); }
+#errors li { display:block; white-space:pre; color: #000; font-family:"Inconsolata", "Menlo", "Courier New", monospace; }
 
 #uiCard { background:#f4f4f4; margin:30px; border-radius:3px; padding:20px;
   flex:none;

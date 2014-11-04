@@ -353,6 +353,7 @@ worker.onmessage = function(event) {
       console.log.apply(console, event.data.args);
       break;
     case "error":
+      clearErrors();
       addErrors([event.data.error])
       console.error(event.data.error);
       break;
