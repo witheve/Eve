@@ -906,6 +906,7 @@ System.prototype = {
       var viewIx = nameToIx[view.view];
       stores[viewIx] = this.getStore(view.view) || Memory.empty();
       flows[viewIx] = new Union([], viewIx);
+      dirtyFlows[viewIx] = true;
     }
 
     // fill in unions
@@ -923,6 +924,7 @@ System.prototype = {
       var queryIx = nameToIx[query.query];
       stores[queryIx] = Memory.empty();
       flows[queryIx] = Solver.empty(numFields, [], [], queryIx);
+      dirtyFlows[queryIx] = true;
     }
 
     var constraints = {};
