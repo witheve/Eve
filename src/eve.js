@@ -906,7 +906,7 @@ System.prototype = {
       var viewIx = nameToIx[view.view];
       stores[viewIx] = this.getStore(view.view) || Memory.empty();
       flows[viewIx] = new Union([], viewIx);
-      dirtyFlows[viewIx] = true;
+      dirtyFlows[viewIx] = false;
     }
 
     // fill in unions
@@ -924,7 +924,7 @@ System.prototype = {
       var queryIx = nameToIx[query.query];
       stores[queryIx] = Memory.empty();
       flows[queryIx] = Solver.empty(numFields, [], [], queryIx);
-      dirtyFlows[queryIx] = true;
+      dirtyFlows[queryIx] = true; // need to run solvers even if they don't have input yet - aggregates can compute on empty sets
     }
 
     var constraints = {};
