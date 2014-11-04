@@ -4,13 +4,148 @@ use('../node_modules/axis-css')
 @import 'nib'
 @import 'axis'
 
+/***********************************/
+  // Name:           Material Shadows
+// Description:    Paper shadows of material design.
+//
+// Git:            https://github.com/mrmlnc/material-shadows
+//
+// ================================================================================
+
+
+
+// Settings
+// --------------------------------------------------------------------------------
+
+$z-depth-css =                         false;
+$z-depth-browser-prefix =              false;
+$z-depth-animation =                   true;
+$z-depth-animation-time =              .28s;
+$z-depth-animation-function =          cubic-bezier(.4, 0, .2, 1);
+
+
+
+// Shadows
+// --------------------------------------------------------------------------------
+$z-depth = {
+  // z-depth-1
+  z1: {
+    top: 0 2px 10px 0 rgba(0, 0, 0, 0.16)
+    bottom: 0 2px 5px 0 rgba(0, 0, 0, 0.26)
+  }
+  // z-depth-2
+  z2: {
+    top: 0 6px 20px 0 rgba(0, 0, 0, 0.19)
+    bottom: 0 8px 17px 0 rgba(0, 0, 0, 0.2)
+  }
+  // z-depth-3
+  z3: {
+    top: 0 17px 50px 0 rgba(0, 0, 0, 0.19)
+    bottom: 0 12px 15px 0 rgba(0, 0, 0, 0.24)
+  }
+  // z-depth-4
+  z4: {
+    top: 0 25px 55px 0 rgba(0, 0, 0, 0.21)
+    bottom: 0 16px 28px 0 rgba(0, 0, 0, 0.22)
+  }
+  // z-depth-5
+  z5: {
+    top: 0 40px 77px 0 rgba(0, 0, 0, 0.22)
+    bottom: 0 27px 24px 0 rgba(0, 0, 0, 0.2)
+  }
+}
+
+
+
+// Mixins
+// --------------------------------------------------------------------------------
+
+prefixer($property, $value, $prefixes)
+  if $z-depth-browser-prefix
+    for $prefix in $prefixes
+      if $prefix == webkit
+        -webkit-{$property}: $value
+      else if $prefix == moz
+        -moz-{$property}: $value
+      else if $prefix == ms
+        -ms-{$property}: $value
+      else if $prefix == o
+        -o-{$property}: $value
+      else if $prefix == spec
+        {$property}: $value
+  else
+    {$property}: $value
+
+// Top & Bottom
+z-depth($depth = 1, $orientation = null)
+  $value = $z-depth["z" + $depth]
+
+  if $orientation == top
+    prefixer(box-shadow, $value["top"], spec)
+  else if $orientation == bottom
+    prefixer(box-shadow, $value["bottom"], spec)
+  else
+    prefixer(box-shadow, s(join(', ', $value["top"], $value["bottom"])), spec)
+
+// Top
+z-depth-top($depth = 1)
+  z-depth($depth, top)
+
+// Bottom
+z-depth-bottom($depth = 1)
+  z-depth($depth, bottom)
+
+// Animation
+z-depth-animation($depth-after, $orientation = full)
+  prefixer(transition, box-shadow $z-depth-animation-time $z-depth-animation-function, webkit o spec)
+  &:hover,
+  &:focus
+    if $orientation == top
+      z-depth-top($depth-after)
+    else if $orientation == bottom
+      z-depth-bottom($depth-after)
+    else
+      z-depth($depth-after)
+
+
+
+// Classes
+// --------------------------------------------------------------------------------
+
+if $z-depth-css
+  .z-depth
+    for $i in (1)..(length($z-depth))
+      &-z{$i}
+        z-depth($i)
+
+        &-top
+          z-depth-top($i)
+
+        &-bottom
+          z-depth-bottom($i)
+
+    // z-depth-animation
+    if $z-depth-animation
+      &-animation
+        &:hover
+          .z-depth-z1,
+          .z-depth-z2,
+          .z-depth-z3,
+          .z-depth-z4,
+          .z-depth-z5
+            prefixer(transition, box-shadow $z-depth-animation-time $z-depth-animation-function, webkit o spec)
+  /*********************************/
+
 global-reset()
 
+* { box-sizing:border-box; }
+
 body {
-  background: #333;
+  background: #ececec;
   font-family: "Avenir", "Verdana";
   display:flex;
   flex-direction:row;
+  color: rgba(0,0,0,0.87);
 }
 
 #stats { fixed: right bottom; margin:15px; color:#777; }
@@ -20,78 +155,134 @@ body {
   flex:1;
   position:relative;
   .CodeMirror {
+    z-depth(1);
+    overflow:hidden;
+    border-radius:2px;
     position:absolute;
-    top:20px; bottom:20px; left:20px; right:20px;
+    top:30px; bottom:30px; left:20px; right:20px;
+  }
+  .CodeMirror-lines {
+    padding: 20px 0; /* Vertical padding around content */
+  }
+  .CodeMirror pre {
+    padding: 0 20px; /* Horizontal padding of content */
   }
   .CodeMirror-scroll { height:100%; }
 }
-#cards { flex: 1.5; background: #444; position:relative; overflow:auto; max-height:100%; }
+#cards { flex: 1.2;
+  background: #ececec;
+  position:relative;
+  overflow:auto;
+  max-height:100%;
+  padding-bottom:100px;
+  display:flex;
+  flex-direction: column;
+}
 /* #errors { pointer-events:none; position:absolute; top:0px; bottom:0px; left:0px; right:0px; background: rgba(255,100,100,0.9); padding:20px;} */
 #errors { display:none; margin:30px; margin-bottom:0; padding:10px; background: #f56; border-radius:3px; box-shadow: 0 0 8px #222; }
 #errors li { white-space:pre; color: #000; font-family:"Inconsolata", "Menlo", "Courier New", monospace; }
 
-#uiCard { background:#f4f4f4; margin:30px; border-radius:3px; padding:20px; box-shadow: 0 0 8px #222; }
+#uiCard { background:#f4f4f4; margin:30px; border-radius:3px; padding:20px;
+  flex:none;
+  z-depth(1);
+}
+#uiCard h2 { font-size:14pt; color: rgba(0,0,0, 0.56); margin-bottom:10px; }
+#uiCard > div { border-radius:2px; overflow:hidden; box-shadow: 0 0px 0px rgba(0,0,0,0.26); }
 
 $fonts = "Inconsolata", "Menlo", "Courier New", monospace;
 
-.cm-s-default { background: #333; color: #ccc; font-family:$fonts;  }
-.CodeMirror-dialog { font-family: $fonts; background: #555; color: #ccc; border:none; }
+.cm-s-default { background: #f7f7f7; color: #555; font-family:$fonts;  }
+.CodeMirror-dialog { font-family: $fonts; background: #e0e0e0; color: #555; border:none; }
 .CodeMirror-dialog input { font-size:11pt; }
-.cm-s-default div.CodeMirror-cursor { border-color: #ccc; }
+.cm-s-default div.CodeMirror-cursor { border-color: #888; }
 .cm-s-default.cm-fat-cursor div.CodeMirror-cursor { border:none; background:#aaa; }
-.cm-s-default .CodeMirror-selected { background:#555; }
-.cm-s-default span.cm-operator { color: #aaa; }
-.cm-s-default span.cm-symbol { color: #FF8AB0; }
-.cm-s-default span.cm-symbol-ruleName, .cm-s-default span.cm-operator-ruleName { color: #9cc; }
-.cm-s-default span.cm-field { color: #FF8AB0; }
-.cm-s-default span.cm-field-aliased { color: #79a; }
-.cm-s-default span.cm-field-assigned { color: #79a; }
-.cm-s-default span.cm-symbol-variable { color: #FF8AB0; }
-.cm-s-default span.cm-symbol-alias { color: #FF8AB0; }
-.cm-s-default span.cm-symbol-table { color: #add; }
-.cm-s-default span.cm-function { color: #79a; }
-.cm-s-default span.cm-number { color: #79a; }
-.cm-s-default span.cm-comment { color: #79a; }
-.cm-s-default span.cm-string { color:#9af; }
+.cm-s-default .CodeMirror-selected { background:rgba(250,0,0,0.1); border-radius:2px; }
+.cm-s-default span.cm-operator { color: #888; }
+.cm-s-default span.cm-comment { color: #999; }
+.cm-s-default span.cm-symbol { color: #aa00cc; }
+.cm-s-default span.cm-field { color: #aa00cc; }
+.cm-s-default span.cm-symbol-variable { color: #aa00cc; }
+.cm-s-default span.cm-symbol-alias { color: #aa00cc; }
+.cm-s-default span.cm-field-aliased { color: #9972A1; }
+.cm-s-default span.cm-field-assigned { color: #9972A1; }
+.cm-s-default span.cm-string { color:#555; }
+.cm-s-default span.cm-number { color: #555; }
+.cm-s-default span.cm-function { color: #555; }
+.cm-s-default span.cm-attribute { color:#77c; }
 .cm-s-default span.cm-param { color:#aaa; }
-.cm-s-default span.cm-arg { color: #fa7; }
-.cm-s-default span.cm-attribute { color:#79a; }
-.cm-s-default span.cm-sortOrder { color:#79a; }
-.cm-s-default .Codemirror-activeline-background { background: #3f3f3f; }
+.cm-s-default span.cm-arg { color: #330066; }
+.cm-s-default span.cm-symbol-ruleName, .cm-s-default span.cm-operator-ruleName { color: #28b; }
+.cm-s-default span.cm-symbol-table { color: #28b; }
+.cm-s-default .Codemirror-activeline-background { background: #eee; }
 .cm-s-default .cm-operator.Codemirror-matchingbracket { color: #aaa; border-bottom:1px solid #fff; }
-.cm-s-default .cm-searching { background: rgba(255,255,255, 0.15); border-radius:2px; color: #fff !important; }
-.CodeMirror-hints { background: #555; border:none; font-size:11pt; font-family: $fonts; padding:0; color:#aaa; }
-.CodeMirror-hints .CodeMirror-hint { padding: 2px 8px; color: #bbb; }
+.cm-s-default .cm-searching { background: rgba(0,100,250, .20); border-radius:2px; color: #55a !important; }
+.CodeMirror-hints { background: #e0e0e0; border:none; font-size:11pt; font-family: $fonts; padding:0; color:#aaa; }
+.CodeMirror-hints .CodeMirror-hint { padding: 2px 8px; color: #777; }
 .CodeMirror-hints .CodeMirror-hint-active { color: #fff; background:#0ac; }
 
+$open-animation = cubic-bezier(.14,.85,.77,1.03);
 
 .card {
-  background:#666;
-  box-shadow:0 0 8px #222;
-  padding:20px;
-  padding-top:10px
-  margin:30px;
+  flex:none;
+  background:#f7f7f7;
+  padding:10px 20px;
+  padding-bottom:13px;
+  padding-top:10px;
+    z-depth(1);
+  margin:0 30px;
   border-radius:3px;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  align-items: flex-start;
+  margin-top: -5px;
+  transition: margin 0.28s $open-animation;
+
+  &:hover h2 {
+    color:blue;
+  }
 
   h2 {
-    font-size: 18pt;
-    margin-bottom:10px;
-    color: #add;
+    transition: margin 0.28s $open-animation;
+    cursor: default;
+    font-size: 14pt;
+    color: rgba(0,0,0,0.56);
   }
+
+  .grid {
+    overflow:hidden;
+    transition:max-height 0.28s $open-animation;
+    max-height:0px;
+    border-width:0;
+    min-height:0;
+  }
+
+}
+.card.open {
+  margin:30px;
+  h2 { margin-bottom:10px; }
+ .grid { max-height:100%; border-width:1px; min-height:40px; overflow:auto; max-width:100%; }
+}
+
+#uiCard + .card.open, .card.open + .card.open {
+  margin-top:0px;
 }
 
 .grid {
-  $border-color = #555;
-  display:inline-block;
+  $border-color = rgba(0,0,0,0.16);
   border:1px solid $border-color;
-  border-radius:3px;
-  overflow:hidden;
+  border-radius:2px;
+  overflow:auto;
+  min-height:40px;
+  background: rgba(0,0,0,0.03);
+  flex-shrink:0;
 
   .grid-header {
     display:flex;
     border-bottom:1px solid $border-color;
-    background:#888;
+    background:rgba(0,0,0,0.1);
     div {
+      flex:none;
       overflow:hidden;
       padding:5px;
       width:130px;
@@ -104,10 +295,10 @@ $fonts = "Inconsolata", "Menlo", "Courier New", monospace;
   .grid-row {
     display:flex;
     div {
+      flex:none;
       padding:5px;
       width:130px;
       overflow:hidden;
-      background: #bbb;
     }
     div + div {
       border-left:1px solid $border-color;

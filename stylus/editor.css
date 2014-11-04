@@ -1,3 +1,4 @@
+/***********************************/
 html,
 body,
 div,
@@ -115,8 +116,13 @@ audio:not([controls]),
 [hidden] {
   display: none;
 }
+* {
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+}
 body {
-  background: #333;
+  background: #ececec;
   font-family: "Avenir", "Verdana";
   display: -webkit-box;
   display: -moz-box;
@@ -130,6 +136,7 @@ body {
   -ms-box-orient: horizontal;
   -webkit-flex-direction: row;
   flex-direction: row;
+  color: rgba(0,0,0,0.87);
 }
 #stats {
   position: fixed;
@@ -151,23 +158,45 @@ body {
   position: relative;
 }
 #editor .CodeMirror {
+  box-shadow: 0 2px 10px 0 rgba(0,0,0,0.16), 0 2px 5px 0 rgba(0,0,0,0.26);
+  overflow: hidden;
+  border-radius: 2px;
   position: absolute;
-  top: 20px;
-  bottom: 20px;
+  top: 30px;
+  bottom: 30px;
   left: 20px;
   right: 20px;
+}
+#editor .CodeMirror-lines {
+  padding: 20px 0; /* Vertical padding around content */
+}
+#editor .CodeMirror pre {
+  padding: 0 20px; /* Horizontal padding of content */
 }
 #editor .CodeMirror-scroll {
   height: 100%;
 }
 #cards {
-  box-flex: 1.5;
-  -webkit-flex: 1.5;
-  flex: 1.5;
-  background: #444;
+  box-flex: 1.2;
+  -webkit-flex: 1.2;
+  flex: 1.2;
+  background: #ececec;
   position: relative;
   overflow: auto;
   max-height: 100%;
+  padding-bottom: 100px;
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-box;
+  display: -webkit-flex;
+  display: box;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -moz-box-orient: vertical;
+  -o-box-orient: vertical;
+  -ms-box-orient: vertical;
+  -webkit-flex-direction: column;
+  flex-direction: column;
 }
 /* #errors { pointer-events:none; position:absolute; top:0px; bottom:0px; left:0px; right:0px; background: rgba(255,100,100,0.9); padding:20px;} */
 #errors {
@@ -189,98 +218,109 @@ body {
   margin: 30px;
   border-radius: 3px;
   padding: 20px;
-  box-shadow: 0 0 8px #222;
+  box-flex: 0;
+  -webkit-flex: none;
+  flex: none;
+  box-shadow: 0 2px 10px 0 rgba(0,0,0,0.16), 0 2px 5px 0 rgba(0,0,0,0.26);
+}
+#uiCard h2 {
+  font-size: 14pt;
+  color: rgba(0,0,0,0.56);
+  margin-bottom: 10px;
+}
+#uiCard > div {
+  border-radius: 2px;
+  overflow: hidden;
+  box-shadow: 0 0px 0px rgba(0,0,0,0.26);
 }
 .cm-s-default {
-  background: #333;
-  color: #ccc;
+  background: #f7f7f7;
+  color: #555;
   font-family: "Inconsolata", "Menlo", "Courier New", 'Bitstream Vera Sans Mono', Consolas, Courier, monospace;
 }
 .CodeMirror-dialog {
   font-family: "Inconsolata", "Menlo", "Courier New", 'Bitstream Vera Sans Mono', Consolas, Courier, monospace;
-  background: #555;
-  color: #ccc;
+  background: #e0e0e0;
+  color: #555;
   border: none;
 }
 .CodeMirror-dialog input {
   font-size: 11pt;
 }
 .cm-s-default div.CodeMirror-cursor {
-  border-color: #ccc;
+  border-color: #888;
 }
 .cm-s-default.cm-fat-cursor div.CodeMirror-cursor {
   border: none;
   background: #aaa;
 }
 .cm-s-default .CodeMirror-selected {
-  background: #555;
+  background: rgba(250,0,0,0.1);
+  border-radius: 2px;
 }
 .cm-s-default span.cm-operator {
-  color: #aaa;
-}
-.cm-s-default span.cm-symbol {
-  color: #ff8ab0;
-}
-.cm-s-default span.cm-symbol-ruleName,
-.cm-s-default span.cm-operator-ruleName {
-  color: #9cc;
-}
-.cm-s-default span.cm-field {
-  color: #ff8ab0;
-}
-.cm-s-default span.cm-field-aliased {
-  color: #79a;
-}
-.cm-s-default span.cm-field-assigned {
-  color: #79a;
-}
-.cm-s-default span.cm-symbol-variable {
-  color: #ff8ab0;
-}
-.cm-s-default span.cm-symbol-alias {
-  color: #ff8ab0;
-}
-.cm-s-default span.cm-symbol-table {
-  color: #add;
-}
-.cm-s-default span.cm-function {
-  color: #79a;
-}
-.cm-s-default span.cm-number {
-  color: #79a;
+  color: #888;
 }
 .cm-s-default span.cm-comment {
-  color: #79a;
+  color: #999;
+}
+.cm-s-default span.cm-symbol {
+  color: #a0c;
+}
+.cm-s-default span.cm-field {
+  color: #a0c;
+}
+.cm-s-default span.cm-symbol-variable {
+  color: #a0c;
+}
+.cm-s-default span.cm-symbol-alias {
+  color: #a0c;
+}
+.cm-s-default span.cm-field-aliased {
+  color: #9972a1;
+}
+.cm-s-default span.cm-field-assigned {
+  color: #9972a1;
 }
 .cm-s-default span.cm-string {
-  color: #9af;
+  color: #555;
+}
+.cm-s-default span.cm-number {
+  color: #555;
+}
+.cm-s-default span.cm-function {
+  color: #555;
+}
+.cm-s-default span.cm-attribute {
+  color: #77c;
 }
 .cm-s-default span.cm-param {
   color: #aaa;
 }
 .cm-s-default span.cm-arg {
-  color: #fa7;
+  color: #306;
 }
-.cm-s-default span.cm-attribute {
-  color: #79a;
+.cm-s-default span.cm-symbol-ruleName,
+.cm-s-default span.cm-operator-ruleName {
+  color: #28b;
 }
-.cm-s-default span.cm-sortOrder {
-  color: #79a;
+.cm-s-default span.cm-symbol-table {
+  color: #28b;
 }
 .cm-s-default .Codemirror-activeline-background {
-  background: #3f3f3f;
+  background: #eee;
 }
 .cm-s-default .cm-operator.Codemirror-matchingbracket {
   color: #aaa;
   border-bottom: 1px solid #fff;
 }
 .cm-s-default .cm-searching {
-  background: rgba(255,255,255,0.15);
+  background: rgba(0,100,250,0.2);
   border-radius: 2px;
-  color: #fff !important;
+  color: #55a !important;
 }
 .CodeMirror-hints {
-  background: #555;
+  background: #e0e0e0;
   border: none;
   font-size: 11pt;
   font-family: "Inconsolata", "Menlo", "Courier New", 'Bitstream Vera Sans Mono', Consolas, Courier, monospace;
@@ -289,30 +329,86 @@ body {
 }
 .CodeMirror-hints .CodeMirror-hint {
   padding: 2px 8px;
-  color: #bbb;
+  color: #777;
 }
 .CodeMirror-hints .CodeMirror-hint-active {
   color: #fff;
   background: #0ac;
 }
 .card {
-  background: #666;
-  box-shadow: 0 0 8px #222;
-  padding: 20px;
+  box-flex: 0;
+  -webkit-flex: none;
+  flex: none;
+  background: #f7f7f7;
+  padding: 10px 20px;
+  padding-bottom: 13px;
   padding-top: 10px;
-  margin: 30px;
-  border-radius: 3px;
-}
-.card h2 {
-  font-size: 18pt;
-  margin-bottom: 10px;
-  color: #add;
-}
-.grid {
-  display: inline-block;
-  border: 1px solid #555;
+  box-shadow: 0 2px 10px 0 rgba(0,0,0,0.16), 0 2px 5px 0 rgba(0,0,0,0.26);
+  margin: 0 30px;
   border-radius: 3px;
   overflow: hidden;
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-box;
+  display: -webkit-flex;
+  display: box;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -moz-box-orient: vertical;
+  -o-box-orient: vertical;
+  -ms-box-orient: vertical;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  -webkit-box-align: start;
+  -moz-box-align: start;
+  -o-box-align: start;
+  -ms-box-align: start;
+  -webkit-align-items: flex-start;
+  align-items: flex-start;
+  margin-top: -5px;
+  transition: margin 0.28s cubic-bezier(0.14, 0.85, 0.77, 1.03);
+}
+.card:hover h2 {
+  color: #00a6fc;
+}
+.card h2 {
+  transition: margin 0.28s cubic-bezier(0.14, 0.85, 0.77, 1.03);
+  cursor: default;
+  font-size: 14pt;
+  color: rgba(0,0,0,0.56);
+}
+.card .grid {
+  overflow: hidden;
+  transition: max-height 0.28s cubic-bezier(0.14, 0.85, 0.77, 1.03);
+  max-height: 0px;
+  border-width: 0;
+  min-height: 0;
+}
+.card.open {
+  margin: 30px;
+}
+.card.open h2 {
+  margin-bottom: 10px;
+}
+.card.open .grid {
+  max-height: 100%;
+  border-width: 1px;
+  min-height: 40px;
+  overflow: auto;
+  max-width: 100%;
+}
+#uiCard + .card.open,
+.card.open + .card.open {
+  margin-top: 0px;
+}
+.grid {
+  border: 1px solid rgba(0,0,0,0.16);
+  border-radius: 2px;
+  overflow: auto;
+  min-height: 40px;
+  background: rgba(0,0,0,0.03);
+  -webkit-flex-shrink: 0;
+  flex-shrink: 0;
 }
 .grid .grid-header {
   display: -webkit-box;
@@ -321,16 +417,19 @@ body {
   display: -webkit-flex;
   display: box;
   display: flex;
-  border-bottom: 1px solid #555;
-  background: #888;
+  border-bottom: 1px solid rgba(0,0,0,0.16);
+  background: rgba(0,0,0,0.1);
 }
 .grid .grid-header div {
+  box-flex: 0;
+  -webkit-flex: none;
+  flex: none;
   overflow: hidden;
   padding: 5px;
   width: 130px;
 }
 .grid .grid-header div + div {
-  border-left: 1px solid #555;
+  border-left: 1px solid rgba(0,0,0,0.16);
 }
 .grid .grid-row {
   display: -webkit-box;
@@ -341,14 +440,16 @@ body {
   display: flex;
 }
 .grid .grid-row div {
+  box-flex: 0;
+  -webkit-flex: none;
+  flex: none;
   padding: 5px;
   width: 130px;
   overflow: hidden;
-  background: #bbb;
 }
 .grid .grid-row div + div {
-  border-left: 1px solid #555;
+  border-left: 1px solid rgba(0,0,0,0.16);
 }
 .grid .grid-row + .grid-row {
-  border-top: 1px solid #555;
+  border-top: 1px solid rgba(0,0,0,0.16);
 }

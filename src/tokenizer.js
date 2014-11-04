@@ -675,6 +675,7 @@ var uiEventNames = {
   "click": "click",
   "doubleClick": "dblclick",
   "contextMenu": "contextMenu",
+  "keyDown": "keydown",
   "input": "input",
   "drag": "drag",
   "drop": "drop",
@@ -878,6 +879,10 @@ function eveUIElem(view, ui, parentGeneratedId, context) {
   //if there's a parent attr on me, parent me
   if(attrs["parent"]) {
     childMappings = {parent: attrs["parent"], child: id, pos: attrs["ix"] || {type: "constant", value: 0}};
+    pushAll(facts, createUIView("uiChild", view, context, childMappings));
+  } else if(parentGeneratedId.value && parentGeneratedId.value.match(/root[\d]+$/)) {
+    //This is a special case for not defining a parent on a root node
+    childMappings = {parent: {type: "constant", value: "root"}, child: id, pos: attrs["ix"] || {type: "constant", value: 0}};
     pushAll(facts, createUIView("uiChild", view, context, childMappings));
   }
 
