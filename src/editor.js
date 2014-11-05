@@ -64,7 +64,6 @@ function tableCard(name, headers, rows, isOpen) {
 }
 
 function onTableCards(cards) {
-  var start = now();
   var opens = {};
   $(".table-card").get().forEach(function(cur) {
     opens[$(cur).data("tableId")] = $(cur).hasClass("open");
@@ -76,7 +75,6 @@ function onTableCards(cards) {
     frag.appendChild(tableCard(card[0], card[1], card[2], opens[card[0]]));
   }
   $("#cards").append(frag);
-  $("#renderStat").html((now() - start).toFixed(2));
 }
 
 function clearErrors(errors) {
@@ -128,7 +126,6 @@ var storage = {};
 var worker = new Worker("../src/worker.js");
 
 worker.onmessage = function(event) {
-  console.log("Got message for: ", event.data.run, event.data.type);
   var run = getRun(event.data.run);
   switch(event.data.type) {
     case "tableCards":
@@ -165,8 +162,10 @@ worker.onmessage = function(event) {
       run.reloadFacts = event.data.reloadFacts;
       run.stop = now();
       run.total = run.stop - run.start;
-      $("#timeStat").html(event.data.runtime);
-      $("#factsStat").html(event.data.numFacts);
+      $("#timeStat").html(run.runtime.toFixed(2));
+      $("#renderStat").html((run.renderUIDiff || 0).toFixed(2) + " / " + (run.tableCardsRendering || 0).toFixed(2));
+      $("#totalStat").html(run.total.toFixed(2));
+      $("#factsStat").html(run.facts);
       break;
     case "renderUI":
       run.renderUIMarshalling = now() - event.data.time;
