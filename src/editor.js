@@ -1,3 +1,7 @@
+//*********************************************************
+// CodeMirror editor
+//*********************************************************
+
 var initialValue =  "* edge\n  ~ from to\n  + \"a\" \"b\"\n  + \"b\" \"c\"\n\n* path\n  | edge from to\n\n* path2\n  | edge from to:t\n  | path from:t to\n\n* path\n  | path2 from to";
 
 if(window.localStorage["eveEditorCode"]) {
@@ -29,9 +33,9 @@ var editor = CodeMirror(document.querySelector("#editorContainer"), {
   mode:  "eve"
 });
 
-var editorApp;
-var editorProg;
-var worker = new Worker("../src/worker.js");
+//*********************************************************
+// Cards UI
+//*********************************************************
 
 //bind open events
 $("#cards").on("click", ".table-card", function() {
@@ -95,12 +99,91 @@ function addErrors(errors) {
   $("#errors").show();
 }
 
+//*********************************************************
+// worker
+//*********************************************************
+
+var runs = [];
+
+function createRun() {
+  var run = {id: runs.length};
+  runs.push(run);
+  return run;
+}
+
+function getRun(id) {
+  return runs[id];
+}
+
 function onChange(cm, change) {
   var edValue = cm.getValue();
   window.localStorage["eveEditorCode"] = edValue;
-  console.time("onChange");
-  worker.postMessage({type: "compile", code: edValue});
+  var run = createRun();
+  run.compile = true;
+  run.start = now();
+  worker.postMessage({type: "compile", code: edValue, run: run.id});
 }
+
+var storage = {};
+var worker = new Worker("../src/worker.js");
+
+worker.onmessage = function(event) {
+  console.log("Got message for: ", event.data.run, event.data.type);
+  var run = getRun(event.data.run);
+  switch(event.data.type) {
+    case "tableCards":
+      run.tableCardsMarshalling = now() - event.data.time;
+      run.tableCardsRendering = now();
+      clearErrors();
+      onTableCards(event.data.cards);
+      run.tableCardsRendering = now() - run.tableCardsRendering;
+      break;
+    case "log":
+      event.data.args.unshift("Worker: ");
+      console.log.apply(console, event.data.args);
+      break;
+    case "error":
+      clearErrors();
+      run.renderError = now();
+      addErrors([event.data.error])
+      console.error(event.data.error);
+      run.renderError = now() - run.renderError;
+      run.stop = now();
+      run.total = run.stop - run.start;
+      break;
+    case "errors":
+      run.renderSyntaxErrors = now();
+      addErrors(event.data.errors);
+      console.error("Syntax error: ", event.data.errors);
+      run.renderSyntaxErrors = now() - run.renderSyntaxErrors;
+      break;
+    case "runStats":
+      run.runtime = event.data.runtime;
+      run.facts = event.data.numFacts;
+      run.compile = event.data.compile;
+      run.parse = event.data.parse;
+      run.reloadFacts = event.data.reloadFacts;
+      run.stop = now();
+      run.total = run.stop - run.start;
+      $("#timeStat").html(event.data.runtime);
+      $("#factsStat").html(event.data.numFacts);
+      break;
+    case "renderUI":
+      run.renderUIMarshalling = now() - event.data.time;
+      run.renderUIDiff = now();
+      storage["rootParent"] = $("#uiCard").get(0);
+      uiDiffRenderer(event.data.diff, storage);
+      run.renderUIDiff = now() - run.renderUIDiff;
+      break;
+  }
+}
+
+editor.on("change", Cowboy.debounce(200, onChange));
+onChange(editor, null);
+
+//*********************************************************
+// UI Diff
+//*********************************************************
 
 var eventId = 1;
 var mouseEvents = {"drop": true,
@@ -148,8 +231,10 @@ var createUICallback = function(id, event, label, key) {
       }
       e.stopPropagation();
       items.push(["externalEvent", id, label, key, eid, value]);
-      console.time("fullRun");
-      worker.postMessage({type: "event", items: items});
+      var run = createRun();
+      run.event = true;
+      run.start = now();
+      worker.postMessage({type: "event", items: items, run: run.id});
     }
   };
 };
@@ -336,44 +421,3 @@ function uiDiffRenderer(diff, storage) {
 
 
 };
-
-var storage = {};
-
-worker.onmessage = function(event) {
-  switch(event.data.type) {
-    case "tableCards":
-      console.log("TableCards Marshalling time", now() - event.data.time);
-      clearErrors();
-      onTableCards(event.data.cards);
-      break;
-    case "log":
-      event.data.args.unshift("Worker: ");
-      console.log.apply(console, event.data.args);
-      break;
-    case "error":
-      clearErrors();
-      addErrors([event.data.error])
-      console.error(event.data.error);
-      break;
-    case "errors":
-      addErrors(event.data.errors);
-      console.error("Syntax error: ", event.data.errors);
-      break;
-    case "runStats":
-      $("#timeStat").html(event.data.runtime);
-      $("#factsStat").html(event.data.numFacts);
-      console.timeEnd("fullRun");
-      console.timeEnd("onChange");
-      break;
-    case "renderUI":
-      console.log("RenderUI Marshalling time", now() - event.data.time);
-      console.time("uiDiffRenderer");
-      storage["rootParent"] = $("#uiCard").get(0);
-      uiDiffRenderer(event.data.diff, storage);
-      console.timeEnd("uiDiffRenderer");
-      break;
-  }
-}
-
-editor.on("change", Cowboy.debounce(200, onChange));
-onChange(editor, null);

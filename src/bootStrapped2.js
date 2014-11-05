@@ -49,40 +49,29 @@ var Application = function(system, opts) {
                   "compilerWatcher": {}};
 }
 
-Application.prototype.callRuntime = function(facts) {
-  this.system.update(facts, [])
-  this.system.refresh();
-//   compilerWatcher(this, this.storage["compilerWatcher"], this.system);
-};
-
 Application.prototype.getUIRoot = function() {
   if(this.storage["uiWatcher"].builtEls) {
     return this.storage["uiWatcher"].builtEls.root;
   }
 };
 
-Application.prototype.run = function(facts) {
-  var start = now();
-  this.callRuntime(facts);
-  var runtime = now() - start;
-  var uiStorage = this.storage["uiWatcher"];
-  var system = this.system;
-  var self = this;
-  compilerWatcher2(this, this.storage["compilerWatcher"], this.system);
+Application.prototype.totalFacts = function() {
   var numFacts = 0;
-  var tableToStore = this.system.nameToIx;
-  for (var table in tableToStore) {
+  for (var table in this.system.nameToIx) {
     numFacts += this.system.getStore(table).facts.length;
   }
-  console.log("numFacts", numFacts);
-  postMessage({type: "runStats", runtime: runtime.toFixed(2), numFacts: numFacts});
-//   $("#factsStat").html(numFacts);
+  return numFacts;
+};
+
+Application.prototype.run = function(facts) {
+  this.system.update(facts, [])
+  this.system.refresh();
+  compilerWatcher2(this, this.storage["compilerWatcher"], this.system);
 };
 
 function app(system, opts) {
   return new Application(system, opts);
 }
-
 
 //*********************************************************************
 // helpers
