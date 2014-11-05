@@ -25,6 +25,8 @@
   padding-bottom:50px;
 }
 
+.running-wrapper strong { font-weight:bold; }
+
 .running-wrapper .todoapp input,
 .running-wrapper .todoapp button {
   outline:none;

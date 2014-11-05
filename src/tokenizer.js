@@ -377,7 +377,7 @@ function parseLine(line, state) {
         tokens[0].subType = "source";
         if(tokens.length == 1) return {type: "unknown", tokens:tokens};
 
-        if(!tokens[1].type === "symbol") {
+        if(tokens[1].type !== "symbol") {
           return {error: {message: "Expected a table symbol", token: tokens[1]}, tokens: tokens};
         }
         tokens[1].subType = "table";
@@ -675,6 +675,8 @@ var uiEventNames = {
   "click": "click",
   "doubleClick": "dblclick",
   "contextMenu": "contextMenu",
+  "blur": "blur",
+  "focus": "focus",
   "keyDown": "keydown",
   "input": "input",
   "drag": "drag",

@@ -65,7 +65,6 @@ function onTableCards(cards) {
   $(".open").get().forEach(function(cur) {
     opens[$(cur).data("tableId")] = true;
   });
-  console.log("opens", opens)
   $(".table-card").remove();
   var frag = document.createDocumentFragment();
   for(var cardIx = 0; cardIx < cards.length; cardIx++) {
