@@ -23,7 +23,7 @@ function compilerWatcher2(application, storage, system) {
     var rows = system.getStore(table).getFacts();
     returns.push([table, info.fields, rows, info.constants]);
   }
-  postMessage({type: "tableCards", cards: returns});
+  postMessage({type: "tableCards", cards: returns, time: now()});
 
   var uiTables = ["uiElem", "uiText", "uiAttr", "uiStyle", "uiEvent", "uiChild"];
   var diff = {};
@@ -52,7 +52,7 @@ function compilerWatcher2(application, storage, system) {
   }
 
   if(hasUI) {
-    postMessage({type: "renderUI", diff: diff});
+    postMessage({type: "renderUI", diff: diff, time: now()});
   }
 }
 

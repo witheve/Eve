@@ -39,7 +39,7 @@ $("#cards").on("click", ".table-card", function() {
 });
 
 function tableCard(name, headers, rows, isOpen) {
-  var card = $("<div class='card table-card " + (isOpen ? "open" : "") + "'><h2></h2><div class='grid'><div class='grid-header'></div></div></div>");
+  var card = $("<div class='card table-card " + (isOpen === false ? "" : "open") + "'><h2></h2><div class='grid'><div class='grid-header'></div></div></div>");
   card.data("tableId", name);
   var grid = $(".grid", card);
   var gridHeader = $(".grid-header", card);
@@ -62,8 +62,8 @@ function tableCard(name, headers, rows, isOpen) {
 function onTableCards(cards) {
   var start = now();
   var opens = {};
-  $(".open").get().forEach(function(cur) {
-    opens[$(cur).data("tableId")] = true;
+  $(".table-card").get().forEach(function(cur) {
+    opens[$(cur).data("tableId")] = $(cur).hasClass("open");
   });
   $(".table-card").remove();
   var frag = document.createDocumentFragment();
@@ -98,6 +98,7 @@ function addErrors(errors) {
 function onChange(cm, change) {
   var edValue = cm.getValue();
   window.localStorage["eveEditorCode"] = edValue;
+  console.time("onChange");
   worker.postMessage({type: "compile", code: edValue});
 }
 
@@ -147,6 +148,7 @@ var createUICallback = function(id, event, label, key) {
       }
       e.stopPropagation();
       items.push(["externalEvent", id, label, key, eid, value]);
+      console.time("fullRun");
       worker.postMessage({type: "event", items: items});
     }
   };
@@ -182,10 +184,6 @@ function uiDiffRenderer(diff, storage) {
   var removed = {};
 
   //add subProgram elements
-  for(var i in compiledSystems) {
-    builtEls[i + "_root"] = compiledSystems[i].getUIRoot();
-  }
-
   //capture the elements we will remove
   var remElem = diff["uiElem"].removes;
   var remElemsLen = remElem.length;
@@ -344,6 +342,7 @@ var storage = {};
 worker.onmessage = function(event) {
   switch(event.data.type) {
     case "tableCards":
+      console.log("TableCards Marshalling time", now() - event.data.time);
       clearErrors();
       onTableCards(event.data.cards);
       break;
@@ -363,10 +362,15 @@ worker.onmessage = function(event) {
     case "runStats":
       $("#timeStat").html(event.data.runtime);
       $("#factsStat").html(event.data.numFacts);
+      console.timeEnd("fullRun");
+      console.timeEnd("onChange");
       break;
     case "renderUI":
+      console.log("RenderUI Marshalling time", now() - event.data.time);
+      console.time("uiDiffRenderer");
       storage["rootParent"] = $("#uiCard").get(0);
       uiDiffRenderer(event.data.diff, storage);
+      console.timeEnd("uiDiffRenderer");
       break;
   }
 }
