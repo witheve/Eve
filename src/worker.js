@@ -15,6 +15,7 @@ var console = {
 };
 
 var uiStorage = {};
+var inputTables = ["externalEvent", "keyboard", "mousePosition"];
 
 function compilerWatcher2(application, storage, system) {
   var returns = [];
@@ -74,7 +75,12 @@ function onCompile(code) {
     stats.reloadFacts = now();
     var facts = [["time", 0]].concat(editorProg.values)
     if(prev) {
-      editorApp.system.updateStore("externalEvent", prev.system.getStore("externalEvent").getFacts(), []);
+      for(var i in inputTables) {
+        var table = inputTables[i];
+        if(prev.system.getStore(table)) {
+          editorApp.system.updateStore(table, prev.system.getStore(table).getFacts(), []);
+        }
+      }
     }
     stats.reloadFacts = now() - stats.reloadFacts;
     stats.runtime = now();
