@@ -777,12 +777,12 @@ System.prototype = {
         var startTime = now();
         var flow = flows[flowIx];
         if (flow !== null) flows[flowIx].refresh(this);
-        if ((constraintFlows[flowIx] === true) && !(stores[flowIx].isEmpty()))  {
+        if ((checkFlows[flowIx] === true) && !(stores[flowIx].isEmpty()))  {
           console.error("Error flow " + JSON.stringify(ixToName[flowIx]) + " produced " + JSON.stringify(stores[flowIx].getFacts()), this);
         }
         var endTime = now();
         refreshes.push([tick, startTime, endTime, flowIx]);
-        flowIx = 0; // resets the loop
+        flowIx = -1; // resets the loop
         metastack.pop();
       }
     }
