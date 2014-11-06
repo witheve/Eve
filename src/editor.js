@@ -162,9 +162,9 @@ worker.onmessage = function(event) {
       run.reloadFacts = event.data.reloadFacts;
       run.stop = now();
       run.total = run.stop - run.start;
-      $("#timeStat").html(run.runtime.toFixed(2));
+      $("#timeStat").html((run.runtime || 0).toFixed(2));
       $("#renderStat").html((run.renderUIDiff || 0).toFixed(2) + " / " + (run.tableCardsRendering || 0).toFixed(2));
-      $("#totalStat").html(run.total.toFixed(2));
+      $("#totalStat").html((run.total || 0).toFixed(2));
       $("#factsStat").html(run.facts);
       break;
     case "renderUI":
