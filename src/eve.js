@@ -924,7 +924,7 @@ System.prototype = {
       var query = queries[i];
       var numFields = viewToNumFields[query.view];
       var queryIx = nameToIx[query.query];
-      stores[queryIx] = Memory.empty();
+      stores[queryIx] = this.getStore(query.query) || Memory.empty();
       flows[queryIx] = Solver.empty(numFields, [], [], queryIx);
       dirtyFlows[queryIx] = true; // need to run solvers even if they don't have input yet - aggregates can compute on empty sets
     }
