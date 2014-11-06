@@ -659,15 +659,16 @@ var compilerSchemas = [
   ["aggregateConstraint", "constraint", "query", "field", "sourceView", "code"],
   ["aggregateConstraintSolverBinding", "constraint", "field", "sourceField"],
   ["aggregateConstraintCodeBinding", "constraint", "sourceField", "variable"],
-  ["isInput", "view"]
+  ["isInput", "view"],
+  ["isCheck", "view"]
 ];
 
-function System(meta, stores, flows, dirtyFlows, constraintFlows, downstream, nameToIx, ixToName) {
+function System(meta, stores, flows, dirtyFlows, checkFlows, downstream, nameToIx, ixToName) {
   this.meta = meta;
   this.stores = stores;
   this.flows = flows;
   this.dirtyFlows = dirtyFlows;
-  this.constraintFlows = constraintFlows;
+  this.checkFlows = checkFlows;
   this.downstream = downstream;
   this.nameToIx = nameToIx;
   this.ixToName = ixToName;
@@ -678,7 +679,7 @@ System.empty = function(meta) {
   var stores = [];
   var flows = [];
   var dirtyFlows = [];
-  var constraintFlows = [];
+  var checkFlows = [];
   var downstream = [];
   var nameToIx = {};
 
@@ -707,7 +708,7 @@ System.empty = function(meta) {
     ixToName[nameToIx[name]] = name;
   }
 
-  var system = new System(meta, stores, flows, dirtyFlows, constraintFlows, downstream, nameToIx, ixToName);
+  var system = new System(meta, stores, flows, dirtyFlows, checkFlows, downstream, nameToIx, ixToName);
   system.updateStore("view", compilerViews, []);
   system.updateStore("field", compilerFields, []);
   return system;
@@ -767,7 +768,7 @@ System.prototype = {
     var stores = this.stores;
     var numFlows = flows.length;
     var dirtyFlows = this.dirtyFlows;
-    var constraintFlows = this.constraintFlows;
+    var checkFlows = this.checkFlows;
     var ixToName = this.ixToName;
     var refreshes = [];
     for (var flowIx = 0; flowIx < numFlows; flowIx++) {
@@ -806,12 +807,13 @@ System.prototype = {
     var aggregateConstraintSolverBindings = this.getDump("aggregateConstraintSolverBinding");
     var aggregateConstraintCodeBindings = this.getDump("aggregateConstraintCodeBinding");
     var isInputs = this.getDump("isInput");
+    var isChecks = this.getDump("isCheck");
 
     // init system state
     var stores = [];
     var flows = [];
     var dirtyFlows = [];
-    var constraintFlows = [];
+    var checkFlows = [];
     var nameToIx = {};
     var downstream = [];
 
@@ -1016,6 +1018,13 @@ System.prototype = {
       constraint.fun = Function.apply(null, constraint.variables.concat(["return (" + aggregateConstraint.code + ");"]));
     }
 
+    // tag checks
+    for (var i = isChecks.length - 1; i >= 0; i--) {
+      var isCheck = isChecks[i];
+      var viewIx = viewToIx[isCheck.view];
+      checkFlows[viewIx] = true;
+    }
+
     // reverse nameToIx
     var ixToName = [];
     for (var name in nameToIx) {
@@ -1026,7 +1035,7 @@ System.prototype = {
     this.stores = stores;
     this.flows = flows;
     this.dirtyFlows = dirtyFlows;
-    this.constraintFlows = constraintFlows;
+    this.checkFlows = checkFlows;
     this.downstream = downstream;
     this.nameToIx = nameToIx;
     this.ixToName = ixToName;
