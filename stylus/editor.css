@@ -123,7 +123,7 @@ audio:not([controls]),
 }
 body {
   background: #ececec;
-  font-family: "Avenir", "Verdana";
+  font-family: "Avenir", "Verdana", "Helvetica", "Arial", sans-serif;
   display: -webkit-box;
   display: -moz-box;
   display: -ms-box;
@@ -144,12 +144,67 @@ body {
   bottom: 0;
   margin: 15px;
   color: #777;
+  display: none;
 }
 #stats span:first-child {
   display: inline-block;
   width: 50px;
   text-align: right;
   margin-right: 10px;
+}
+#stacksView {
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-box;
+  display: -webkit-flex;
+  display: box;
+  display: flex;
+  box-flex: 1;
+  -webkit-flex: 1;
+  flex: 1;
+  -webkit-box-align: center;
+  -moz-box-align: center;
+  -o-box-align: center;
+  -ms-box-align: center;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-box-pack: center;
+  -moz-box-pack: center;
+  -o-box-pack: center;
+  -ms-box-pack: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  -webkit-align-content: center;
+  align-content: center;
+  -webkit-box-lines: multiple;
+  -moz-box-lines: multiple;
+  -o-box-lines: multiple;
+  -ms-box-lines: multiple;
+  -webkit-flex-wrap: wrap;
+  flex-wrap: wrap;
+}
+#stacksView div {
+  box-shadow: 0 2px 10px 0 rgba(0,0,0,0.16), 0 2px 5px 0 rgba(0,0,0,0.26);
+  padding: 40px 40px;
+  background: #f7f7f7;
+  margin: 15px;
+  border-radius: 2px;
+  transition: box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+#stacksView div:hover,
+#stacksView div:focus {
+  box-shadow: 0 6px 20px 0 rgba(0,0,0,0.19), 0 8px 17px 0 rgba(0,0,0,0.2);
+}
+#stack {
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-box;
+  display: -webkit-flex;
+  display: box;
+  display: flex;
+  box-flex: 1;
+  -webkit-flex: 1;
+  flex: 1;
 }
 #editor {
   box-flex: 1;
@@ -217,6 +272,43 @@ body {
   white-space: pre;
   color: #000;
   font-family: "Inconsolata", "Menlo", "Courier New", 'Bitstream Vera Sans Mono', Consolas, Courier, monospace;
+}
+#return {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  box-shadow: 0 2px 10px 0 rgba(0,0,0,0.16), 0 2px 5px 0 rgba(0,0,0,0.26);
+  transition: box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  float: right;
+  border-radius: 40px;
+  background: #00a6fc;
+  color: #fff;
+  border: none;
+  outline: none;
+  display: inline-block;
+  vertical-align: middle;
+  z-index: 10;
+  width: 40px;
+  height: 40px;
+}
+#return:hover,
+#return:focus {
+  box-shadow: 0 6px 20px 0 rgba(0,0,0,0.19), 0 8px 17px 0 rgba(0,0,0,0.2);
+}
+#return .icon {
+  font-size: 20pt;
+  vertical-align: middle;
+}
+#controlCard {
+  margin-top: 30px;
+  display: block;
+}
+#controlCard h1 {
+  vertical-align: middle;
+  font-size: 16pt;
+  margin-top: 3px;
+  color: rgba(0,0,0,0.56);
+  display: inline-block;
 }
 #uiCard {
   background: #f4f4f4;
