@@ -28,15 +28,31 @@ function avg(arr) {
 }
 
 function maxBy(desired, sort, otherwise) {
-  var max = sort[0];
-  var maxIx = 0;
+  var max = -Infinity;
+  var maxIx;
   for(var i = sort.length; i >= 0; i--) {
     if(sort[i] > max) {
       max = sort[i];
       maxIx = i;
     }
   }
-  return desired[maxIx] || otherwise || "";
+  if (maxIx !== undefined) return desired[maxIx];
+  if (otherwise !== undefined) return otherwise;
+  assert(false);
+}
+
+function lastBefore(desired, sort, limit, otherwise) {
+  var max = -Infinity;
+  var maxIx;
+  for(var i = sort.length; i >= 0; i--) {
+    if((sort[i] > max) && (sort[i] < limit)) {
+      max = sort[i];
+      maxIx = i;
+    }
+  }
+  if (maxIx !== undefined) return desired[maxIx];
+  if (otherwise !== undefined) return otherwise;
+  assert(false);
 }
 
 //*********************************************************

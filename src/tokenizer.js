@@ -495,7 +495,7 @@ function parseLine(line, state) {
                 var realName = tokens[i+1].name.substring(1);
                 tokens[i+1].subType = "arg";
                 toReplace.push(tokens[i].name + "." + realName);
-                replacements.push(realName);
+                replacements.push(tokens[i].name.substring(1) + "$" + realName);
                 aggregateArgs.push(realName);
                 i = i+1;
               } else {
@@ -761,7 +761,7 @@ function createUIView(uiTable, view, context, mappings) {
 //       if(!didBind) {
 //         var funcConstraint = query + "|functionConstraint=" + tempMappings[localField];
 //         facts.push(["functionConstraint", funcConstraint, query, makeLocalField(tempMappings[localField]), localField]);
-//         facts.push(["functionConstraintBinding", funcConstraint, bindings[makeRemoteField(view, value.name)], localField]);
+//         facts.push(["functionConstraintInput", funcConstraint, bindings[makeRemoteField(view, value.name)], localField]);
 //       }
     } else if(value.type === "string" || value.type === "number" || value.type === "constant") {
       tempMappings[localField] = "constant_" + localField;
@@ -783,7 +783,7 @@ function createUIView(uiTable, view, context, mappings) {
           //if we *did* end up binding, make sure that field is accounted for
           makeLocalField("bound_" + arg);
         }
-        facts.push(["functionConstraintBinding", funcConstraint, bindings[makeRemoteField(view, arg)], arg]);
+        facts.push(["functionConstraintInput", funcConstraint, bindings[makeRemoteField(view, arg)], arg]);
       }
     }
   }
@@ -966,7 +966,7 @@ function parsedToEveProgram(parsed) {
       facts.push(["functionConstraint", constraint, query, makeLocalField(func.symbol), func.function]);
       for (var argIx = func.args.length - 1; argIx >= 0; argIx--) {
         var arg = func.args[argIx];
-        facts.push(["functionConstraintBinding", constraint, makeLocalField(arg), arg]);
+        facts.push(["functionConstraintInput", constraint, makeLocalField(arg), arg]);
       }
     }
 
@@ -978,16 +978,20 @@ function parsedToEveProgram(parsed) {
       for (var fieldIx = agg.fields.length - 1; fieldIx >= 0; fieldIx--) {
         var field = agg.fields[fieldIx];
         if(field.alias !== undefined) {
-          facts.push(["aggregateConstraintSolverBinding", constraint, makeLocalField(field.alias), makeRemoteField(agg.table, field.name)]);
+          facts.push(["aggregateConstraintBinding", constraint, makeLocalField(field.alias), makeRemoteField(agg.table, field.name)]);
         } else if(field.constant !== undefined) {
-          facts.push(["aggregateConstraintSolverBinding", constraint, makeLocalField(field.constantVar), makeRemoteField(agg.table, field.name)]);
+          facts.push(["aggregateConstraintBinding", constraint, makeLocalField(field.constantVar), makeRemoteField(agg.table, field.name)]);
         } else {
-          facts.push(["aggregateConstraintSolverBinding", constraint, makeLocalField(field.name), makeRemoteField(agg.table, field.name)]);
+          facts.push(["aggregateConstraintBinding", constraint, makeLocalField(field.name), makeRemoteField(agg.table, field.name)]);
         }
       }
       for (var argIx = agg.args.length - 1; argIx >= 0; argIx--) {
         var arg = agg.args[argIx];
-        facts.push(["aggregateConstraintCodeBinding", constraint, makeRemoteField(agg.table, arg), arg]);
+        facts.push(["aggregateConstraintSolverInput", constraint, makeLocalField(arg), arg]);
+      }
+      for (var argIx = agg.aggregateArgs.length - 1; argIx >= 0; argIx--) {
+        var arg = agg.aggregateArgs[argIx];
+        facts.push(["aggregateConstraintAggregateInput", constraint, makeRemoteField(agg.table, arg), agg.table + "$" + arg]);
       }
     }
 
@@ -1005,7 +1009,7 @@ function parsedToEveProgram(parsed) {
       facts.push(["functionConstraint", constraint, query, makeLocalField(symbol), filter.function]);
       for (var argIx = filter.args.length - 1; argIx >= 0; argIx--) {
         var arg = filter.args[argIx];
-        facts.push(["functionConstraintBinding", constraint, makeLocalField(arg), arg]);
+        facts.push(["functionConstraintInput", constraint, makeLocalField(arg), arg]);
       }
       facts.push(["constantConstraint", query, makeLocalField(symbol), true]);
     }

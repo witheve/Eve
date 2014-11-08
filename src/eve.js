@@ -329,12 +329,14 @@ NegatedMemoryConstraint.prototype = {
   }
 };
 
-function AggregatedMemoryConstraint(storeIx, bindingIxes, outIx, variables, inIxes, fun) {
+function AggregatedMemoryConstraint(storeIx, bindingIxes, outIx, solverVariables, aggregateVariables, solverIxes, aggregateIxes, fun) {
   this.storeIx = storeIx;
   this.bindingIxes = bindingIxes;
   this.outIx = outIx;
-  this.variables = variables;
-  this.inIxes = inIxes;
+  this.solverVariables = solverVariables;
+  this.aggregateVariables = aggregateVariables;
+  this.solverIxes = solverIxes;
+  this.aggregateIxes = aggregateIxes;
   this.fun = fun;
 }
 
@@ -349,10 +351,15 @@ AggregatedMemoryConstraint.prototype = {
     if (facts === null) return UNCHANGED; // have already run and thrown away our state
 
     var bindingIxes = this.bindingIxes;
-
     for (var i = bindingIxes.length - 1; i >= 0; i-=2) {
       var boundsIx = bindingIxes[i-1];
       if (los[boundsIx] !== his[boundsIx]) return UNCHANGED;
+    }
+
+    var solverIxes = this.solverIxes;
+    for (var i = solverIxes.length - 1; i >= 0; i--) {
+      var solverIx = solverIxes[i];
+      if (los[solverIx] !== his[solverIx]) return UNCHANGED;
     }
 
     constraintStates[myIx] = null; // throw away state so we don't run again
@@ -366,18 +373,23 @@ AggregatedMemoryConstraint.prototype = {
       }
     }
 
-    var inIxes = this.inIxes;
     var inValues = [];
-    for (var i = inIxes.length - 1; i >= 0; i--) {
-      var inIx = inIxes[i];
+    for (var i = solverIxes.length - 1; i >= 0; i--) {
+      var solverIx = solverIxes[i];
+      inValues[i] = los[solverIx];
+    }
+    var solverLen = solverIxes.length;
+    var aggregateIxes = this.aggregateIxes;
+    for (var i = aggregateIxes.length - 1; i >= 0; i--) {
+      var aggregateIx = aggregateIxes[i];
       var inValue = [];
       for (var j = groupFacts.length - 1; j >= 0; j--) {
-        inValue[j] = groupFacts[j][inIx];
+        inValue[j] = groupFacts[j][aggregateIx];
       }
-      inValues[i] = inValue;
+      inValues[solverLen + i] = inValue;
     }
-    var outValue = this.fun.apply(null, inValues);
 
+    var outValue = this.fun.apply(null, inValues);
     if (!isValue(outValue)) throw new Error(outValue + " is not a valid Eve value");
     var outIx = this.outIx;
     var compLo = compareValue(outValue, los[outIx]);
@@ -653,12 +665,13 @@ var compilerSchemas = [
   ["query", "query", "view", "ix"],
   ["constantConstraint", "query", "field", "value"],
   ["functionConstraint", "constraint", "query", "field", "code"],
-  ["functionConstraintBinding", "constraint", "field", "variable"],
+  ["functionConstraintInput", "constraint", "field", "variable"],
   ["viewConstraint", "constraint", "query", "sourceView", "isNegated"],
   ["viewConstraintBinding", "constraint", "field", "sourceField"],
   ["aggregateConstraint", "constraint", "query", "field", "sourceView", "code"],
-  ["aggregateConstraintSolverBinding", "constraint", "field", "sourceField"],
-  ["aggregateConstraintCodeBinding", "constraint", "sourceField", "variable"],
+  ["aggregateConstraintBinding", "constraint", "field", "sourceField"],
+  ["aggregateConstraintSolverInput", "constraint", "field", "variable"],
+  ["aggregateConstraintAggregateInput", "constraint", "sourceField", "variable"],
   ["isInput", "view"],
   ["isCheck", "view"]
 ];
@@ -800,12 +813,13 @@ System.prototype = {
     var queries = this.getDump("query");
     var constantConstraints = this.getDump("constantConstraint");
     var functionConstraints = this.getDump("functionConstraint");
-    var functionConstraintBindings = this.getDump("functionConstraintBinding");
+    var functionConstraintInputs = this.getDump("functionConstraintInput");
     var viewConstraints = this.getDump("viewConstraint");
     var viewConstraintBindings = this.getDump("viewConstraintBinding");
     var aggregateConstraints = this.getDump("aggregateConstraint");
-    var aggregateConstraintSolverBindings = this.getDump("aggregateConstraintSolverBinding");
-    var aggregateConstraintCodeBindings = this.getDump("aggregateConstraintCodeBinding");
+    var aggregateConstraintBindings = this.getDump("aggregateConstraintBinding");
+    var aggregateConstraintSolverInputs = this.getDump("aggregateConstraintSolverInput");
+    var aggregateConstraintAggregateInputs = this.getDump("aggregateConstraintAggregateInput");
     var isInputs = this.getDump("isInput");
     var isChecks = this.getDump("isCheck");
 
@@ -950,11 +964,11 @@ System.prototype = {
     }
 
     // fill in functions
-    for (var i = functionConstraintBindings.length - 1; i >= 0; i--) {
-      var functionConstraintBinding = functionConstraintBindings[i];
-      var constraint = constraints[functionConstraintBinding.constraint];
-      constraint.variables.push(functionConstraintBinding.variable);
-      var fieldIx = fieldToIx[functionConstraintBinding.field];
+    for (var i = functionConstraintInputs.length - 1; i >= 0; i--) {
+      var functionConstraintInput = functionConstraintInputs[i];
+      var constraint = constraints[functionConstraintInput.constraint];
+      constraint.variables.push(functionConstraintInput.variable);
+      var fieldIx = fieldToIx[functionConstraintInput.field];
       constraint.inIxes.push(fieldIx);
     }
 
@@ -988,34 +1002,46 @@ System.prototype = {
       var aggregateConstraint = aggregateConstraints[i];
       var fieldIx = fieldToIx[aggregateConstraint.field];
       var sourceIx = nameToIx[aggregateConstraint.sourceView];
-      var constraint = new AggregatedMemoryConstraint(sourceIx, [], fieldIx, [], [], null);
+      var constraint = new AggregatedMemoryConstraint(sourceIx, [], fieldIx, [], [], [], [], null);
       constraints[aggregateConstraint.constraint] = constraint;
       var queryIx = nameToIx[aggregateConstraint.query];
       flows[queryIx].constraints.push(constraint);
     }
 
-    // fill in aggregate solver bindings
-    for (var i = aggregateConstraintSolverBindings.length - 1; i >= 0; i--) {
-      var aggregateConstraintSolverBinding = aggregateConstraintSolverBindings[i];
-      var fieldIx = fieldToIx[aggregateConstraintSolverBinding.field];
-      var sourceIx = fieldToIx[aggregateConstraintSolverBinding.sourceField];
-      constraints[aggregateConstraintSolverBinding.constraint].bindingIxes.push(fieldIx, sourceIx);
+    // fill in aggregate bindings
+    for (var i = aggregateConstraintBindings.length - 1; i >= 0; i--) {
+      var aggregateConstraintBinding = aggregateConstraintBindings[i];
+      var fieldIx = fieldToIx[aggregateConstraintBinding.field];
+      var sourceIx = fieldToIx[aggregateConstraintBinding.sourceField];
+      constraints[aggregateConstraintBinding.constraint].bindingIxes.push(fieldIx, sourceIx);
     }
 
-    // fill in aggregate code bindings
-    for (var i = aggregateConstraintCodeBindings.length - 1; i >= 0; i--) {
-      var aggregateConstraintCodeBinding = aggregateConstraintCodeBindings[i];
-      var sourceIx = fieldToIx[aggregateConstraintCodeBinding.sourceField];
-      var constraint = constraints[aggregateConstraintCodeBinding.constraint];
-      constraint.variables.push(aggregateConstraintCodeBinding.variable);
-      constraint.inIxes.push(sourceIx);
+    // fill in aggregate solver inputs
+    for (var i = aggregateConstraintSolverInputs.length - 1; i >= 0; i--) {
+      var aggregateConstraintSolverInput = aggregateConstraintSolverInputs[i];
+      var fieldIx = fieldToIx[aggregateConstraintSolverInput.field];
+      var constraint = constraints[aggregateConstraintSolverInput.constraint];
+      constraint.solverVariables.push(aggregateConstraintSolverInput.variable);
+      constraint.solverIxes.push(fieldIx);
+    }
+
+    // fill in aggregate aggregate inputs
+    for (var i = aggregateConstraintAggregateInputs.length - 1; i >= 0; i--) {
+      var aggregateConstraintAggregateInput = aggregateConstraintAggregateInputs[i];
+      var sourceIx = fieldToIx[aggregateConstraintAggregateInput.sourceField];
+      var constraint = constraints[aggregateConstraintAggregateInput.constraint];
+      constraint.aggregateVariables.push(aggregateConstraintAggregateInput.variable);
+      constraint.aggregateIxes.push(sourceIx);
     }
 
     // compile aggregate code
     for (var i = aggregateConstraints.length - 1; i >= 0; i--) {
       var aggregateConstraint = aggregateConstraints[i];
       var constraint = constraints[aggregateConstraint.constraint];
-      constraint.fun = Function.apply(null, constraint.variables.concat(["return (" + aggregateConstraint.code + ");"]));
+      constraint.fun = Function.apply(null,
+                                      constraint.solverVariables.concat(
+                                        constraint.aggregateVariables.concat(
+                                          ["return (" + aggregateConstraint.code + ");"])));
     }
 
     // tag checks
