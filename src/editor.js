@@ -1,100 +1,34 @@
 //*********************************************************
-// CodeMirror editor
+// State
 //*********************************************************
 
-var initialValue =  "* edge\n  ~ from to\n  + \"a\" \"b\"\n  + \"b\" \"c\"\n\n* path\n  | edge from to\n\n* path2\n  | edge from to:t\n  | path from:t to\n\n* path\n  | path2 from to";
+// current version
+// list of stacks
+// the code for each stack
+// current open stack / open tables?
 
-if(window.localStorage["eveEditorCode"]) {
-  initialValue = window.localStorage["eveEditorCode"];
-}
-
-CodeMirror.defineMode("eve", CodeMirrorModeParser);
-CodeMirror.defineMIME("text/x-eve", "eve");
-
-var editor = CodeMirror(document.querySelector("#editorContainer"), {
-  value: initialValue,
-  tabSize: 2,
-  matchBrackets: true,
-  autoCloseBrackets: true,
-  styleActiveLine: true,
-  extraKeys: {
-    Tab: function(cm) {
-      var loc = cm.getCursor();
-      var char = cm.getRange({line: loc.line, ch: loc.ch - 1}, loc);
-      if(char.match(/[\w]/)) {
-        CodeMirror.commands.autocomplete(cm);
-      } else {
-        var spaces = Array(cm.getOption("indentUnit") + 1).join(" ");
-        cm.replaceSelection(spaces);
-      }
-    }
-  },
-//   keyMap: "vim",
-  mode:  "eve"
-});
-
-//*********************************************************
-// Cards UI
-//*********************************************************
-
-//bind open events
-$("#cards").on("click", ".table-card", function() {
-  $(this).toggleClass("open");
-});
-
-function tableCard(name, headers, rows, isOpen) {
-  var card = $("<div class='card table-card " + (isOpen === false ? "" : "open") + "'><h2></h2><div class='grid'><div class='grid-header'></div></div></div>");
-  card.data("tableId", name);
-  var grid = $(".grid", card);
-  var gridHeader = $(".grid-header", card);
-  $("h2", card).html(name);
-  for(var headerIx = 0; headerIx < headers.length; headerIx++) {
-    var header = headers[headerIx];
-    gridHeader.prepend("<div class='header'>" + header + "</div>");
+function getLocal(k, otherwise) {
+  if(localStorage[k]) {
+    return JSON.parse(localStorage[k])
   }
-  for(var ix = rows.length - 1; ix >= 0; ix--) {
-    var row = rows[ix];
-    var rowElem = $("<div class='grid-row'></div>");
-    for(var field in row) {
-      rowElem.prepend("<div>" + row[field] + "</div>")
-    }
-    grid.append(rowElem);
-  }
-  return card.get(0);
+  return otherwise;
 }
 
-function onTableCards(cards) {
-  var opens = {};
-  $(".table-card").get().forEach(function(cur) {
-    opens[$(cur).data("tableId")] = $(cur).hasClass("open");
-  });
-  $(".table-card").remove();
-  var frag = document.createDocumentFragment();
-  for(var cardIx = 0; cardIx < cards.length; cardIx++) {
-    var card = cards[cardIx];
-    frag.appendChild(tableCard(card[0], card[1], card[2], opens[card[0]]));
-  }
-  $("#cards").append(frag);
+function setLocal(k, v) {
+  localStorage[k] = JSON.stringify(v);
 }
 
-function clearErrors(errors) {
-  $("#errors").empty().hide();
+var prevVersion = getLocal("prevVersion");
+var stacks = getLocal("stacks");
+
+if(!stacks) {
+  stacks = ["Tutorial", "Incrementer", "Personal wealth", "Department heads", "TodoMVC", "Turing machine", "Graph paths"];
+  setLocal("stacks", stacks);
 }
 
-function clearUICard(errors) {
-  $("#uiCard").empty();
-}
-
-function addErrors(errors) {
-  for(var i in errors) {
-    var err = errors[i];
-    if(typeof err === "string") {
-      $("#errors").append("<li>" + err + "</li>");
-    } else {
-      $("#errors").append("<li> Line: " + (err.line + 1) + " - " + err.message + "</li>");
-    }
-  }
-  $("#errors").show();
+var initialValue = localStorage["eveEditorCode"];
+if(!initialValue) {
+  initialValue =  "* edge\n  ~ from to\n  + \"a\" \"b\"\n  + \"b\" \"c\"\n\n* path\n  | edge from to\n\n* path2\n  | edge from to:t\n  | path from:t to\n\n* path\n  | path2 from to";
 }
 
 //*********************************************************
@@ -102,6 +36,7 @@ function addErrors(errors) {
 //*********************************************************
 
 var runs = [];
+var storage = {};
 
 function createRun() {
   var run = {id: runs.length};
@@ -113,19 +48,7 @@ function getRun(id) {
   return runs[id];
 }
 
-function onChange(cm, change) {
-  var edValue = cm.getValue();
-  window.localStorage["eveEditorCode"] = edValue;
-  var run = createRun();
-  run.compile = true;
-  run.start = now();
-  worker.postMessage({type: "compile", code: edValue, run: run.id});
-}
-
-var storage = {};
-var worker = new Worker("../src/worker.js");
-
-worker.onmessage = function(event) {
+function onWorkerMessage(event) {
   var run = getRun(event.data.run);
   switch(event.data.type) {
     case "tableCards":
@@ -177,8 +100,173 @@ worker.onmessage = function(event) {
   }
 }
 
+//*********************************************************
+// stacks view
+//*********************************************************
+
+for(var i in stacks) {
+  console.log("stacks!", stacks[i])
+  var cur = $("<div class='stack'>" + stacks[i] + "</div>");
+  cur.data("stack", stacks[i]);
+  $("#stacksView").append(cur);
+}
+
+$("#stacksView").on("click", ".stack", function() {
+  openStack($(this).data("stack"));
+});
+
+function openStacksView() {
+  closeStack();
+  $("#stacksView").show();
+}
+
+function closeStacksView() {
+  $("#stacksView").hide();
+}
+
+
+//*********************************************************
+// open stack
+//*********************************************************
+
+var worker;
+function openStack(stack) {
+  closeStacksView();
+  $("#controlCard h1").text(stack);
+  $("#stack").show();
+  setLocal("activeStack", stack);
+  worker = new Worker("../src/worker.js");
+  worker.onmessage = onWorkerMessage;
+  editor.setValue(getLocal(stack + "-code", ""));
+  editor.refresh();
+  onChange(editor, null);
+}
+
+$("#return").on("click", function() {
+  openStacksView();
+})
+
+function closeStack() {
+  setLocal("activeStack", null);
+  resetStackUI();
+  if(worker) {
+    worker.terminate();
+  }
+  $("#stack").hide();
+}
+
+//*********************************************************
+// CodeMirror editor
+//*********************************************************
+
+
+CodeMirror.defineMode("eve", CodeMirrorModeParser);
+CodeMirror.defineMIME("text/x-eve", "eve");
+
+var editor = CodeMirror(document.querySelector("#editorContainer"), {
+  value: initialValue,
+  tabSize: 2,
+  matchBrackets: true,
+  autoCloseBrackets: true,
+  styleActiveLine: true,
+  extraKeys: {
+    Tab: function(cm) {
+      var loc = cm.getCursor();
+      var char = cm.getRange({line: loc.line, ch: loc.ch - 1}, loc);
+      if(char.match(/[\w]/)) {
+        CodeMirror.commands.autocomplete(cm);
+      } else {
+        var spaces = Array(cm.getOption("indentUnit") + 1).join(" ");
+        cm.replaceSelection(spaces);
+      }
+    }
+  },
+//   keyMap: "vim",
+  mode:  "eve"
+});
+
+function onChange(cm, change) {
+  var edValue = cm.getValue();
+  var stack = getLocal("activeStack");
+  setLocal(stack + "-code", edValue);
+  var run = createRun();
+  run.compile = true;
+  run.start = now();
+  worker.postMessage({type: "compile", code: edValue, run: run.id});
+}
+
 editor.on("change", Cowboy.debounce(200, onChange));
-onChange(editor, null);
+
+//*********************************************************
+// Cards UI
+//*********************************************************
+
+//bind open events
+$("#cards").on("click", ".table-card", function() {
+  $(this).toggleClass("open");
+});
+
+function tableCard(name, headers, rows, isOpen) {
+  var card = $("<div class='card table-card " + (isOpen === false ? "" : "open") + "'><h2></h2><div class='grid'><div class='grid-header'></div></div></div>");
+  card.data("tableId", name);
+  var grid = $(".grid", card);
+  var gridHeader = $(".grid-header", card);
+  $("h2", card).html(name);
+  for(var headerIx = 0; headerIx < headers.length; headerIx++) {
+    var header = headers[headerIx];
+    gridHeader.prepend("<div class='header'>" + header + "</div>");
+  }
+  for(var ix = rows.length - 1; ix >= 0; ix--) {
+    var row = rows[ix];
+    var rowElem = $("<div class='grid-row'></div>");
+    for(var field in row) {
+      rowElem.prepend("<div>" + row[field] + "</div>")
+    }
+    grid.append(rowElem);
+  }
+  return card.get(0);
+}
+
+function onTableCards(cards) {
+  var opens = {};
+  $(".table-card").get().forEach(function(cur) {
+    opens[$(cur).data("tableId")] = $(cur).hasClass("open");
+  });
+  $(".table-card").remove();
+  var frag = document.createDocumentFragment();
+  for(var cardIx = 0; cardIx < cards.length; cardIx++) {
+    var card = cards[cardIx];
+    frag.appendChild(tableCard(card[0], card[1], card[2], opens[card[0]]));
+  }
+  $("#cards").append(frag);
+}
+
+function clearErrors(errors) {
+  $("#errors").empty().hide();
+}
+
+function clearUICard(errors) {
+  $("#uiCard > div").empty();
+}
+
+function resetStackUI() {
+  clearErrors();
+  clearUICard();
+  $(".table-card").remove();
+}
+
+function addErrors(errors) {
+  for(var i in errors) {
+    var err = errors[i];
+    if(typeof err === "string") {
+      $("#errors").append("<li>" + err + "</li>");
+    } else {
+      $("#errors").append("<li> Line: " + (err.line + 1) + " - " + err.message + "</li>");
+    }
+  }
+  $("#errors").show();
+}
+
 
 //*********************************************************
 // UI Diff
@@ -420,3 +508,13 @@ function uiDiffRenderer(diff, storage) {
 
 
 };
+
+//*********************************************************
+// Go!
+//*********************************************************
+
+if(!getLocal("activeStack")) {
+  openStacksView();
+} else {
+  openStack(getLocal("activeStack"));
+}
