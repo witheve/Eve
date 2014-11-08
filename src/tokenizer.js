@@ -120,7 +120,7 @@ function nextToken(stream, tokens) {
     var value = current.substring(1);
     stream.next();
     tokens.push({type: "string", value: value, pos: [stream.start, stream.pos]});
-  } else if(char.match(numberChars)){
+  } else if(char.match(/[\d]/)){
     //number
     stream.eatWhile(numberChars);
     var current = stream.current();
@@ -446,6 +446,7 @@ function parseLine(line, state) {
           return {error: {message: "Expected a table symbol", token: tokens[1]}, tokens: tokens};
         }
         tokens[1].subType = "table";
+        var aggTable = tokens[1].name;
         var fields = [];
         var tokenIx = 2;
         while(tokenIx < tokens.length && tokens[tokenIx].op !== "|") {
@@ -466,7 +467,8 @@ function parseLine(line, state) {
         }
 
         var args = [];
-        var setRef = {type: "aggregate", table: tokens[1].name, fields: fields, args: args, tokens: tokens}
+        var aggregateArgs = [];
+        var setRef = {type: "aggregate", table: aggTable, fields: fields, args: args, aggregateArgs: aggregateArgs, tokens: tokens}
 
         if(tokens[tokenIx] && tokens[tokenIx].op === "|") {
 
@@ -482,19 +484,32 @@ function parseLine(line, state) {
 
           tokens[tokenIx + 1].subType = "variable";
           tokens[tokenIx + 2].subType = "assignment";
-          var parts = [];
-          var argsWithAts = [];
+          var toReplace = [];
+          var replacements = [];
           for(var i = tokenIx+3; i < tokens.length; i++) {
             if(tokens[i].type === "symbol" && tokens[i].name[0] === "@") {
+              var symName = tokens[i].name.substring(1);
               tokens[i].subType = "arg";
-              argsWithAts.push(tokens[i].name);
-              args.push(tokens[i].name.substring(1));
+
+              if(symName === aggTable && tokens[i+1] && tokens[i+1].name[0] === ".") {
+                var realName = tokens[i+1].name.substring(1);
+                tokens[i+1].subType = "arg";
+                toReplace.push(tokens[i].name + "." + realName);
+                replacements.push(realName);
+                aggregateArgs.push(realName);
+                i = i+1;
+              } else {
+                toReplace.push(tokens[i].name);
+                replacements.push(symName);
+                args.push(symName);
+              }
+
             } else {
               tokens[i].subType = "function";
             }
           }
           var startPos = tokens[tokenIx + 2].pos;
-          setRef.function = replaceAll(line.substring(startPos[1]), argsWithAts, args);
+          setRef.function = replaceAll(line.substring(startPos[1]), toReplace, replacements);
           setRef.symbol = tokens[tokenIx + 1].name;
         }
 
@@ -638,6 +653,18 @@ function parse(string) {
         break;
       case "aggregate":
         curRule.fields[line.symbol] = line;
+        for(var i in line.fields) {
+          var field = line.fields[i];
+          if(field.alias !== undefined) {
+            curRule.fields[field.alias] = field;
+          } else if(field.constant !== undefined) {
+            field.constantVar = "constant" + nextId++;
+            curRule.constants[field.constantVar] = field;
+            curRule.fields[field.name] = field;
+          } else {
+            curRule.fields[field.name] = field;
+          }
+        }
         curRule.aggregates.push(line);
         break;
       case "filter":
