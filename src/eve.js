@@ -646,14 +646,22 @@ function Union(inputIxes, outputIx) {
 
 Union.prototype = {
   refresh: function(system) {
-    var outputFacts = [];
     var inputIxes = this.inputIxes;
-    for (var i = inputIxes.length - 1; i >= 0; i--) {
-      outputFacts = outputFacts.concat(system._getStore(inputIxes[i]).getFacts());
+    if (inputIxes.length === 0) {
+      return;
     }
-    var oldOutput = system._getStore(this.outputIx);
-    var newOutput = Memory.fromFacts(outputFacts);
-    if (newOutput.differsFrom(oldOutput)) system._setStore(this.outputIx, newOutput);
+    else if (inputIxes.length === 1) {
+      system._setStore(this.outputIx, system._getStore(inputIxes[0]));
+    }
+    else {
+      var outputFacts = [];
+      for (var i = inputIxes.length - 1; i >= 0; i--) {
+        outputFacts = outputFacts.concat(system._getStore(inputIxes[i]).getFacts());
+      }
+      var oldOutput = system._getStore(this.outputIx);
+      var newOutput = Memory.fromFacts(outputFacts);
+      if (newOutput.differsFrom(oldOutput)) system._setStore(this.outputIx, newOutput);
+    }
   }
 };
 
