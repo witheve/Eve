@@ -491,7 +491,7 @@ function parseLine(line, state) {
               var symName = tokens[i].name.substring(1);
               tokens[i].subType = "arg";
 
-              if(symName === aggTable && tokens[i+1] && tokens[i+1].name[0] === ".") {
+              if(symName === aggTable && tokens[i+1] && tokens[i+1].name && tokens[i+1].name[0] === ".") {
                 var realName = tokens[i+1].name.substring(1);
                 tokens[i+1].subType = "arg";
                 toReplace.push(tokens[i].name + "." + realName);

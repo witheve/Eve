@@ -22,7 +22,7 @@ var prevVersion = getLocal("prevVersion");
 var stacks = getLocal("stacks");
 
 if(!stacks) {
-  stacks = ["Tutorial", "Incrementer", "Personal wealth", "Department heads", "TodoMVC", "Turing machine", "Graph paths"];
+  stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph paths", "TodoMVC", "Turing machine"];
   setLocal("stacks", stacks);
 }
 
@@ -137,7 +137,7 @@ function openStack(stack) {
   setLocal("activeStack", stack);
   worker = new Worker("../src/worker.js");
   worker.onmessage = onWorkerMessage;
-  editor.setValue(getLocal(stack + "-code", ""));
+  editor.setValue(getLocal(stack + "-code", examples[stack]));
   editor.refresh();
   onChange(editor, null);
 }
@@ -317,7 +317,7 @@ var createUICallback = function(id, event, label, key) {
         }
       }
       e.stopPropagation();
-      items.push(["externalEvent", id, label, key, eid, value]);
+      items.push(["event", id, label, key, eid, value]);
       var run = createRun();
       run.event = true;
       run.start = now();

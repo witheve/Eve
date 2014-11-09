@@ -15,7 +15,7 @@ var console = {
 };
 
 var uiStorage = {};
-var inputTables = ["externalEvent", "keyboard", "mousePosition"];
+var inputTables = ["event", "keyboard", "mousePosition"];
 
 function compilerWatcher2(application, storage, system) {
   var returns = [];

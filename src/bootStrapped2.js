@@ -109,7 +109,7 @@ function view(name, fields) {
 
 function commonViews() {
   var facts = [];
-  pushAll(facts, view("externalEvent", ["id", "label", "key", "eid", "value"]));
+  pushAll(facts, view("event", ["id", "label", "key", "eid", "value"]));
   pushAll(facts, view("click", ["id"]));
   pushAll(facts, view("mousePosition", ["eid","x","y"]));
   pushAll(facts, view("keyboard", ["eid","keyCode","eventType"]));
