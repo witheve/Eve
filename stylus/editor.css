@@ -300,7 +300,7 @@ body {
   vertical-align: middle;
 }
 #controlCard {
-  margin-top: 30px;
+  margin: 30px;
   display: block;
 }
 #controlCard h1 {
@@ -313,6 +313,7 @@ body {
 #uiCard {
   background: #f4f4f4;
   margin: 30px;
+  margin-top: 0px;
   border-radius: 3px;
   padding: 20px;
   box-flex: 0;

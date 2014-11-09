@@ -93,6 +93,7 @@ function onWorkerMessage(event) {
     case "renderUI":
       run.renderUIMarshalling = now() - event.data.time;
       run.renderUIDiff = now();
+      $("#uiCard").show();
       storage["rootParent"] = $("#uiCard").get(0);
       uiDiffRenderer(event.data.diff, storage);
       run.renderUIDiff = now() - run.renderUIDiff;
@@ -252,6 +253,7 @@ function clearUICard(errors) {
 function resetStackUI() {
   clearErrors();
   clearUICard();
+  $("#uiCard").hide();
   $(".table-card").remove();
 }
 

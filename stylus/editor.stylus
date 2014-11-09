@@ -221,7 +221,7 @@ body {
     }
 }
 #controlCard {
-  margin-top:30px;
+  margin:30px;
   display:block;
   h1 {
     vertical-align:middle;
@@ -232,7 +232,7 @@ body {
   }
 }
 
-#uiCard { background:#f4f4f4; margin:30px; border-radius:3px; padding:20px;
+#uiCard { background:#f4f4f4; margin:30px; margin-top:0px; border-radius:3px; padding:20px;
   flex:none;
   z-depth(1);
 }
