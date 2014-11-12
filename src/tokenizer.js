@@ -76,7 +76,7 @@ StringStream.prototype = {
 };
 
 var whiteSpace = /[\s]/;
-var operators = /[~+\|:\[\{\>\*#\?=\}\]\(\)]/;
+var operators = /[~+\|:\[\{\>\$*#\?=\}\]\(\)]/;
 var symbolChars = /[^=':\s\[\]\{\}\(\)\.\+\-\*\/,]/;
 var numberChars = /[\d\.]/;
 
@@ -354,6 +354,7 @@ function parseLine(line, state) {
     //new standard line
     switch(tokens[0].op) {
       case "*":
+      case "$":
         //rule
         tokens[0].subType = "ruleName";
         //name is all the rest of the tokens joined by space
@@ -370,7 +371,8 @@ function parseLine(line, state) {
           }
           parts.push(val);
         }
-        return {type: "rule", name: parts.join(" "), tokens: tokens};
+        var isCheck = tokens[0].op === "$";
+        return {type: "rule", name: parts.join(" "), tokens: tokens, isCheck: isCheck};
         break;
       case "|":
         //source
@@ -617,6 +619,7 @@ function parse(string) {
     switch(line.type) {
       case "rule":
         curRule = {name: line.name,
+                   isCheck: line.isCheck,
                    header: false,
                    ui: [],
                    values: [],
@@ -918,7 +921,7 @@ function eveUIElem(view, ui, parentGeneratedId, context) {
   return {id: id, facts: facts, pos: attrs["ix"]};
 }
 
-function parsedToEveProgram(parsed) {
+function parsedIntoEveProgram(parsed, program) {
   var tablesCreated = {};
   var errors = parsed.errors || [];
   var context = {nextId: 0};
@@ -931,6 +934,8 @@ function parsedToEveProgram(parsed) {
     var view = curRule.name;
     var query = view + "|query=" + curId;
     facts.push(["view", view]);
+
+    if (curRule.isCheck) facts.push(["isCheck", view]);
 
     // fields need to be globally unique and we don't use uuids yet, so prepend the view name
     var fields = {};
@@ -1061,7 +1066,9 @@ function parsedToEveProgram(parsed) {
     context.nextId++;
   }
 //   console.log("Compiling " + JSON.stringify(facts));
-  return {program: System.empty({name: "editor program"}).update(facts.concat(commonViews()), []).recompile(), values: values, errors: errors, tablesCreated: tablesCreated};
+
+  program.update(facts.concat(commonViews()), []);
+  return {program: program, values: values, errors: errors, tablesCreated: tablesCreated};
 }
 
 function tokenToCMType(token) {

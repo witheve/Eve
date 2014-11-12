@@ -1,7 +1,6 @@
 importScripts("eve.js", "bootStrapped2.js", "tokenizer.js");
 
-var console = {
-  log: function() {
+function consoleLog() {
     var final = [];
     for(var i in arguments) {
       final[i] = arguments[i];
@@ -12,6 +11,10 @@ var console = {
       postMessage({type: "error", error: "Worker: Could not log a message", run: run});
     }
   }
+
+var console = {
+  log: consoleLog,
+  error: consoleLog
 };
 
 var uiStorage = {};
@@ -57,6 +60,7 @@ function compilerWatcher2(application, storage, system) {
   }
 }
 
+var compilerProg;
 var editorProg;
 var editorApp;
 var run;
@@ -64,12 +68,34 @@ var run;
 function onCompile(code) {
   var stats = {};
   stats.parse = now();
+  var parsedCompilerChecks = parse(compilerChecks);
   var parsed = parse(code);
   stats.parse = now() - stats.parse;
   try {
     var prev = editorApp;
     stats.compile = now();
-    editorProg = parsedToEveProgram(parsed);
+    var system = System.empty({name: "editor program"});
+
+    var errors = [];
+
+    compilerProg = parsedIntoEveProgram(parsedCompilerChecks, system);
+    errors = errors.concat(compilerProg.errors);
+    compilerProg.program.refresh(errors);
+    if (errors.length > 0) {
+      postMessage({type: "errors", errors: errors, run: run});
+      return;
+    }
+    compilerProg.program.recompile();
+
+    editorProg = parsedIntoEveProgram(parsed, system);
+    errors = errors.concat(editorProg.errors);
+    editorProg.program.refresh(errors);
+    if (errors.length > 0) {
+      postMessage({type: "errors", errors: errors, run: run});
+      return;
+    }
+    editorProg.program.recompile();
+
     editorApp = app(editorProg.program, {parent: null});
     stats.compile = now() - stats.compile;
     stats.reloadFacts = now();
@@ -84,11 +110,12 @@ function onCompile(code) {
     }
     stats.reloadFacts = now() - stats.reloadFacts;
     stats.runtime = now();
-    editorApp.run(facts);
+    var runtimeErrors = editorApp.run(facts);
     stats.numFacts = editorApp.totalFacts();
     stats.runtime = now() - stats.runtime;
-    if(editorProg.errors.length) {
-      postMessage({type: "errors", errors: editorProg.errors, run: run});
+    var errors = runtimeErrors.concat(compilerProg.errors, editorProg.errors);
+    if(errors.length > 0) {
+      postMessage({type: "errors", errors: errors, run: run});
     }
     postMessage({type: "runStats", parse: stats.parse, reloadFacts:stats.reloadFacts, compile: stats.compile, runtime: stats.runtime, numFacts: editorApp.totalFacts(), run: run});
   } catch(e) {

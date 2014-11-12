@@ -681,7 +681,8 @@ var compilerSchemas = [
   ["aggregateConstraintSolverInput", "constraint", "field", "variable"],
   ["aggregateConstraintAggregateInput", "constraint", "sourceField", "variable"],
   ["isInput", "view"],
-  ["isCheck", "view"]
+  ["isCheck", "view"],
+  ["refresh", "tick", "startTime", "endTime", "flow"]
 ];
 
 function System(meta, stores, flows, dirtyFlows, checkFlows, downstream, nameToIx, ixToName) {
@@ -713,7 +714,9 @@ System.empty = function(meta) {
 
     compilerViews.push([view])
     for (var j = fields.length - 1; j >= 0; j--) {
-      compilerFields.push([fields[j], view, j]);
+      // mangle field names the same way the parser does :(
+      var field = view + "|field=" + fields[j];
+      compilerFields.push([field, view, j]);
     }
 
     var viewIx = i;
@@ -767,7 +770,10 @@ System.prototype = {
     var viewFields = [];
     for (var i = fields.length - 1; i >= 0; i--) {
       var field = fields[i];
-      if (field[1] === view) viewFields[field[2]] = field[0];
+      if (field[1] === view) {
+        var unmangledField = field[0].substring((view + "field=").length + 1);
+        viewFields[field[2]] = unmangledField;
+      }
     }
     var facts = this.getStore(view).getFacts();
     var dump = [];
@@ -782,7 +788,7 @@ System.prototype = {
     return dump;
   },
 
-  refresh: function() {
+  refresh: function(errors) {
     metastack.push("System.refresh");
     var tick = this.tick;
     var flows = this.flows;
@@ -800,7 +806,7 @@ System.prototype = {
         var flow = flows[flowIx];
         if (flow !== null) flows[flowIx].refresh(this);
         if ((checkFlows[flowIx] === true) && !(stores[flowIx].isEmpty()))  {
-          console.error("Error flow " + JSON.stringify(ixToName[flowIx]) + " produced " + JSON.stringify(stores[flowIx].getFacts()), this);
+          errors.push("Check flow " + JSON.stringify(ixToName[flowIx]) + " produced " + JSON.stringify(stores[flowIx].getFacts()));
         }
         var endTime = now();
         refreshes.push([tick, startTime, endTime, flowIx]);
@@ -1055,7 +1061,7 @@ System.prototype = {
     // tag checks
     for (var i = isChecks.length - 1; i >= 0; i--) {
       var isCheck = isChecks[i];
-      var viewIx = viewToIx[isCheck.view];
+      var viewIx = nameToIx[isCheck.view];
       checkFlows[viewIx] = true;
     }
 
@@ -1126,3 +1132,5 @@ System.prototype = {
     return this;
   }
 };
+
+var compilerChecks = ''

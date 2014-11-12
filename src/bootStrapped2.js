@@ -81,8 +81,10 @@ Application.prototype.totalFacts = function() {
 
 Application.prototype.run = function(facts) {
   this.system.update(facts, [])
-  this.system.refresh();
+  var errors = [];
+  this.system.refresh(errors);
   compilerWatcher2(this, this.storage["compilerWatcher"], this.system);
+  return errors;
 };
 
 function app(system, opts) {
@@ -122,6 +124,5 @@ function commonViews() {
   pushAll(facts, view("uiStyle", ["id", "attr", "value"]));
   pushAll(facts, view("uiEvent", ["id", "event", "label", "key"]));
   pushAll(facts, view("time", ["time"]));
-  pushAll(facts, view("refresh", ["tick", "startTime", "endTime", "flow"]));
   return facts;
 }
