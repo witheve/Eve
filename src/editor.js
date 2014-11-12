@@ -21,8 +21,8 @@ function setLocal(k, v) {
 var prevVersion = getLocal("prevVersion");
 var stacks = getLocal("stacks");
 
-if(!stacks) {
-  stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph paths", "TodoMVC", "Turing machine"];
+if(!stacks || stacks.indexOf("Clock") === -1) {
+  stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph paths", "TodoMVC", "Turing machine", "Clock"];
   setLocal("stacks", stacks);
 }
 

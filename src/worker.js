@@ -143,7 +143,7 @@ function onCompile(code) {
     editorApp = app(editorProg.program, {parent: null});
     stats.compile = now() - stats.compile;
     stats.reloadFacts = now();
-    var facts = [["time", 0]].concat(editorProg.values)
+    var facts = [["time", (new Date()).getTime()]].concat(editorProg.values)
     if(prev) {
       for(var i in inputTables) {
         var table = inputTables[i];
