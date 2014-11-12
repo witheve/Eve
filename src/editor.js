@@ -45,7 +45,7 @@ function createRun() {
 }
 
 function getRun(id) {
-  return runs[id];
+  return runs[id] || createRun();
 }
 
 function onWorkerMessage(event) {
@@ -78,6 +78,7 @@ function onWorkerMessage(event) {
       run.renderSyntaxErrors = now() - run.renderSyntaxErrors;
       break;
     case "runStats":
+      run.start = event.data.start || run.start;
       run.runtime = event.data.runtime;
       run.facts = event.data.numFacts;
       run.compile = event.data.compile;
@@ -331,7 +332,10 @@ var createUICallback = function(id, event, label, key) {
 var svgs = {
   "svg": true,
   "path": true,
-  "rect": true
+  "rect": true,
+  "circle": true,
+  "line": true,
+  "path": true
 };
 
 function uiDiffRenderer(diff, storage) {

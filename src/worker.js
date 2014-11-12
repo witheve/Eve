@@ -20,6 +20,50 @@ var console = {
 var uiStorage = {};
 var inputTables = ["event", "keyboard", "mousePosition"];
 
+function timerWatcher(application, storage, system) {
+  var timers = system.getStore("timer");
+  if(!timers) return;
+
+  var adds = [];
+  var removes = [];
+  timeouts = uiStorage["timeouts"] || {};
+  if(uiStorage["timer"]) {
+    try {
+      timers.diff(uiStorage["timer"], adds, removes);
+    } catch(e) {
+      adds = timers.getFacts();
+      removes = uiStorage["timer"].getFacts();
+    }
+  } else {
+    adds = timers.getFacts();
+  }
+  uiStorage["timer"] = timers;
+
+  for(var removeIx = 0; removeIx < removes.length; removeIx++) {
+    var id = removes[removeIx][0];
+    clearTimeout(timeouts[id]);
+    timeouts[event] = null;
+  }
+
+  for(var addIx = 0; addIx < adds.length; addIx++) {
+    var id = adds[addIx][0];
+    var event = adds[addIx][1];
+    var rate = adds[addIx][2];
+
+    if(!id) continue;
+    if(!rate || typeof(rate) === "string" || rate < 1000) rate = 1000;
+
+    var timeout = setInterval(function() {
+     var start = now();
+     editorApp.run([["event", 10000, event, "", 10000, (new Date()).getTime()]]);
+     postMessage({type: "runStats", runtime: (now() - start), numFacts: editorApp.totalFacts(), start: start, run: run});
+    }, rate);
+    timeouts[id] = timeout;
+  }
+
+  uiStorage["timeouts"] = timeouts;
+}
+
 function compilerWatcher2(application, storage, system) {
   var returns = [];
   for(var table in editorProg.tablesCreated) {

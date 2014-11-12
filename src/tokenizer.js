@@ -856,8 +856,9 @@ function eveUIElem(view, ui, parentGeneratedId, context) {
     var attrMappings;
     if(key === "id" || key === "parent" || key === "key" || key === "ix") {
       //no-op
-    } else if(key === "style") {
+    //} else if(key === "style") {
       //TODO: make styles work
+
     } else if(uiEventNames[key]) {
       //event
       eventMappings = {id: id, event: {type: "constant", value: uiEventNames[key]}, label: attrs[key], key: attrs["key"] || {type: "constant", value: ""}};
