@@ -315,7 +315,7 @@ var createUICallback = function(id, event, label, key) {
         }
       }
       e.stopPropagation();
-      items.push(["event", id, label, key, eid, value]);
+      items.push(["event", eid, label, key, value]);
       var run = createRun();
       run.event = true;
       run.start = now();
@@ -351,7 +351,7 @@ function uiDiffRenderer(diff, storage) {
 
   var child_childid = 2;
 
-  var builtEls = storage["builtEls"] || {"root": document.createElement("div")};
+  var builtEls = storage["builtEls"] || {"eve-root": document.createElement("div")};
   var handlers = storage["handlers"] || {};
   var roots = {};
   var removed = {};
@@ -503,7 +503,7 @@ function uiDiffRenderer(diff, storage) {
     storage["builtEls"] = builtEls;
     storage["handlers"] = handlers;
     if(storage["rootParent"]) {
-      storage["rootParent"].appendChild(builtEls["root"]);
+      storage["rootParent"].appendChild(builtEls["eve-root"]);
     }
   }
 

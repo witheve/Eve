@@ -1,14 +1,16 @@
 importScripts("eve.js", "bootStrapped2.js", "tokenizer.js");
 
+var editorApp = app();
+
 function consoleLog() {
     var final = [];
     for(var i in arguments) {
       final[i] = arguments[i];
     }
     try {
-      postMessage({type: "log", args: final, run: run});
+      postMessage({type: "log", args: final, run: editorApp.runNumber});
     } catch(e) {
-      postMessage({type: "error", error: "Worker: Could not log a message", run: run});
+      postMessage({type: "error", error: "Worker: Could not log a message", run: editorApp.runNumber});
     }
   }
 
@@ -17,7 +19,6 @@ var console = {
   error: consoleLog
 };
 
-var uiStorage = {};
 var inputTables = ["event", "keyboard", "mousePosition"];
 
 function timerWatcher(application, storage, system) {
@@ -26,18 +27,18 @@ function timerWatcher(application, storage, system) {
 
   var adds = [];
   var removes = [];
-  timeouts = uiStorage["timeouts"] || {};
-  if(uiStorage["timer"]) {
+  timeouts = storage["timeouts"] || {};
+  if(storage["timer"]) {
     try {
-      timers.diff(uiStorage["timer"], adds, removes);
+      timers.diff(storage["timer"], adds, removes);
     } catch(e) {
       adds = timers.getFacts();
-      removes = uiStorage["timer"].getFacts();
+      removes = storage["timer"].getFacts();
     }
   } else {
     adds = timers.getFacts();
   }
-  uiStorage["timer"] = timers;
+  storage["timer"] = timers;
 
   for(var removeIx = 0; removeIx < removes.length; removeIx++) {
     var id = removes[removeIx][0];
@@ -55,41 +56,43 @@ function timerWatcher(application, storage, system) {
 
     var timeout = setInterval(function() {
      var start = now();
-     editorApp.run([["event", 10000, event, "", 10000, (new Date()).getTime()]]);
-     postMessage({type: "runStats", runtime: (now() - start), numFacts: editorApp.totalFacts(), start: start, run: run});
+     application.run([["event", application.eventId++, event, "", (new Date()).getTime()]]);
+     postMessage({type: "runStats", runtime: (now() - start), numFacts: application.totalFacts(), start: start, run: null});
     }, rate);
     timeouts[id] = timeout;
   }
 
-  uiStorage["timeouts"] = timeouts;
+  storage["timeouts"] = timeouts;
 }
 
-function compilerWatcher2(application, storage, system) {
+function tableCardWatcher(application, storage, system) {
   var returns = [];
-  for(var table in editorProg.tablesCreated) {
-    var info = editorProg.tablesCreated[table];
+  for(var table in application.programResults.tablesCreated) {
+    var info = application.programResults.tablesCreated[table];
     var rows = system.getStore(table).getFacts();
     returns.push([table, info.fields, rows, info.constants]);
   }
-  postMessage({type: "tableCards", cards: returns, time: now(), run: run});
+  postMessage({type: "tableCards", cards: returns, time: now(), run: editorApp.runNumber});
+}
 
+function uiWatcher(application, storage, system) {
   var uiTables = ["uiElem", "uiText", "uiAttr", "uiStyle", "uiEvent", "uiChild"];
   var diff = {};
   var hasUI = false;
   for(var i = 0; i < uiTables.length; i++) {
     var table = uiTables[i];
-    if(uiStorage[table]) {
+    if(storage[table]) {
       var adds = [];
       var removes = [];
-      system.getStore(table).diff(uiStorage[table], adds, removes);
-      uiStorage[table] = system.getStore(table);
+      system.getStore(table).diff(storage[table], adds, removes);
+      storage[table] = system.getStore(table);
       if(adds.length || removes.length) { hasUI = true; }
       diff[table] = {
         adds: adds,
         removes: removes
       };
     } else {
-      uiStorage[table] = system.getStore(table);
+      storage[table] = system.getStore(table);
       var adds = system.getStore(table).getFacts();
       if(adds.length) { hasUI = true; }
       diff[table] = {
@@ -100,20 +103,16 @@ function compilerWatcher2(application, storage, system) {
   }
 
   if(hasUI) {
-    postMessage({type: "renderUI", diff: diff, time: now(), run: run});
+    postMessage({type: "renderUI", diff: diff, time: now(), run: editorApp.runNumber});
   }
 }
-
-var compilerProg;
-var editorProg;
-var editorApp;
-var run;
 
 function onCompile(code) {
   var stats = {};
   stats.parse = now();
   var parsedCompilerChecks = parse(compilerChecks);
   var parsed = parse(code);
+  editorApp.lastParse = parsed;
   stats.parse = now() - stats.parse;
   try {
     var prev = editorApp;
@@ -122,28 +121,30 @@ function onCompile(code) {
 
     var errors = [];
 
-    compilerProg = parsedIntoEveProgram(parsedCompilerChecks, system);
-    errors = errors.concat(compilerProg.errors);
-    compilerProg.program.refresh(errors);
+    compileResults = injectParsed(parsedCompilerChecks, system);
+    editorApp.compileResults = compileResults;
+    errors = errors.concat(compileResults.errors);
+    system.refresh(errors);
     if (errors.length > 0) {
-      postMessage({type: "errors", errors: errors, run: run});
+      postMessage({type: "errors", errors: errors, run: editorApp.runNumber});
       return;
     }
-    compilerProg.program.recompile();
+    system.recompile();
 
-    editorProg = parsedIntoEveProgram(parsed, system);
-    errors = errors.concat(editorProg.errors);
-    editorProg.program.refresh(errors);
+    programResults = injectParsed(parsed, system);
+    editorApp.programResults = programResults;
+    errors = errors.concat(programResults.errors);
+    system.refresh(errors);
     if (errors.length > 0) {
-      postMessage({type: "errors", errors: errors, run: run});
+      postMessage({type: "errors", errors: errors, run: editorApp.runNumber});
       return;
     }
-    editorProg.program.recompile();
+    system.recompile();
 
-    editorApp = app(editorProg.program, {parent: null});
+    editorApp.updateSystem(system);
     stats.compile = now() - stats.compile;
     stats.reloadFacts = now();
-    var facts = [["time", (new Date()).getTime()]].concat(editorProg.values)
+    var facts = [["time", (new Date()).getTime()]].concat(programResults.values)
     if(prev) {
       for(var i in inputTables) {
         var table = inputTables[i];
@@ -157,28 +158,34 @@ function onCompile(code) {
     var runtimeErrors = editorApp.run(facts);
     stats.numFacts = editorApp.totalFacts();
     stats.runtime = now() - stats.runtime;
-    var errors = runtimeErrors.concat(compilerProg.errors, editorProg.errors);
+    var errors = runtimeErrors.concat(compileResults.errors, programResults.errors);
     if(errors.length > 0) {
-      postMessage({type: "errors", errors: errors, run: run});
+      postMessage({type: "errors", errors: errors, run: editorApp.runNumber});
     }
-    postMessage({type: "runStats", parse: stats.parse, reloadFacts:stats.reloadFacts, compile: stats.compile, runtime: stats.runtime, numFacts: editorApp.totalFacts(), run: run});
+    postMessage({type: "runStats", parse: stats.parse, reloadFacts:stats.reloadFacts, compile: stats.compile, runtime: stats.runtime, numFacts: editorApp.totalFacts(), run: editorApp.runNumber});
   } catch(e) {
-    postMessage({type: "runStats", parse: stats.parse, reloadFacts:stats.reloadFacts, compile: stats.compile, runtime: stats.runtime, run: run});
-    postMessage({type: "error", error: e.stack, run: run})
+    postMessage({type: "runStats", parse: stats.parse, reloadFacts:stats.reloadFacts, compile: stats.compile, runtime: stats.runtime, run: editorApp.runNumber});
+    postMessage({type: "error", error: e.stack, run: editorApp.runNumber})
   }
 }
 
 
 onmessage = function(event) {
-  run = event.data.run;
+  editorApp.runNumber = event.data.run;
   switch(event.data.type) {
     case "compile":
       onCompile(event.data.code);
       break;
     case "event":
       var start = now();
-      editorApp.run(event.data.items);
-      postMessage({type: "runStats", runtime: (now() - start), numFacts: editorApp.totalFacts(), run: run});
+      var eid = editorApp.eventId++;
+      var events = event.data.items.map(function(cur) {
+        //set the eventId
+        cur[1] = eid;
+        return cur;
+      });
+      editorApp.run(events);
+      postMessage({type: "runStats", runtime: (now() - start), numFacts: editorApp.totalFacts(), run: editorApp.runNumber});
       break;
   }
 }

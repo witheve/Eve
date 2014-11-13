@@ -891,14 +891,14 @@ function eveUIElem(view, ui, parentGeneratedId, context) {
     pushAll(facts, createUIView("uiChild", view, context, childMappings));
   } else if(parentGeneratedId.value && parentGeneratedId.value.match(/root[\d]+$/)) {
     //This is a special case for not defining a parent on a root node
-    childMappings = {parent: {type: "constant", value: "root"}, child: id, pos: attrs["ix"] || {type: "constant", value: 0}};
+    childMappings = {parent: {type: "constant", value: "eve-root"}, child: id, pos: attrs["ix"] || {type: "constant", value: 0}};
     pushAll(facts, createUIView("uiChild", view, context, childMappings));
   }
 
   return {id: id, facts: facts, pos: attrs["ix"]};
 }
 
-function parsedIntoEveProgram(parsed, program) {
+function injectParsed(parsed, program) {
   var tablesCreated = {};
   var errors = parsed.errors || [];
   var context = {nextId: 0};
@@ -999,7 +999,7 @@ function parsedIntoEveProgram(parsed, program) {
     // handle UI
     for(var uiIx = curRule.ui.length - 1; uiIx >= 0; uiIx--) {
       var curUi = curRule.ui[uiIx];
-      var result = eveUIElem(view, curUi, {type: "constant", value: "root" + ix}, context);
+      var result = eveUIElem(view, curUi, {type: "constant", value: "eve-root" + ix}, context);
       pushAll(facts, result.facts);
       //parts.push(eveUIElem(curUi));
     }
@@ -1045,7 +1045,7 @@ function parsedIntoEveProgram(parsed, program) {
 //   console.log("Compiling " + JSON.stringify(facts));
 
   program.update(facts.concat(commonViews()), []);
-  return {program: program, values: values, errors: errors, tablesCreated: tablesCreated};
+  return {values: values, errors: errors, tablesCreated: tablesCreated};
 }
 
 function tokenToCMType(token) {
