@@ -51,7 +51,7 @@ function timerWatcher(application, storage, system) {
     var rate = adds[addIx][2];
 
     if(!id) continue;
-    if(!rate || typeof(rate) === "string" || rate < 1000) rate = 1000;
+    if(!rate || typeof(rate) === "string" || rate < 100) rate = 100;
 
     var timeout = setInterval(function() {
      var start = now();
