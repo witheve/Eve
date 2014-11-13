@@ -26,11 +26,6 @@ if(!stacks || stacks.indexOf("Clock") === -1) {
   setLocal("stacks", stacks);
 }
 
-var initialValue = localStorage["eveEditorCode"];
-if(!initialValue) {
-  initialValue =  "* edge\n  ~ from to\n  + \"a\" \"b\"\n  + \"b\" \"c\"\n\n* path\n  | edge from to\n\n* path2\n  | edge from to:t\n  | path from:t to\n\n* path\n  | path2 from to";
-}
-
 //*********************************************************
 // worker
 //*********************************************************
@@ -166,7 +161,7 @@ CodeMirror.defineMode("eve", CodeMirrorModeParser);
 CodeMirror.defineMIME("text/x-eve", "eve");
 
 var editor = CodeMirror(document.querySelector("#editorContainer"), {
-  value: initialValue,
+  value: "",
   tabSize: 2,
   matchBrackets: true,
   autoCloseBrackets: true,
