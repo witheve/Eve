@@ -1,4 +1,4 @@
-importScripts("eve.js", "bootStrapped2.js", "tokenizer.js");
+importScripts("eve.js", "bootStrapped2.js", "tokenizer.js", "../resources/qwest.js");
 
 var editorApp = app();
 
@@ -20,6 +20,55 @@ var console = {
 };
 
 var inputTables = ["event", "keyboard", "mousePosition"];
+
+function webRequestWatcher(application, storage, system) {
+  var requests = system.getStore("webRequest");
+  if(!requests) return;
+
+  var adds = [];
+  var removes = [];
+  sent = storage["sent"] || {};
+  if(storage["sent"]) {
+    try {
+      requests.diff(storage["requests"], adds, removes);
+    } catch(e) {
+      adds = requests.getFacts();
+      removes = storage["requests"].getFacts();
+    }
+  } else {
+    adds = requests.getFacts();
+  }
+  storage["requests"] = requests;
+
+  for(var removeIx = 0; removeIx < removes.length; removeIx++) {
+    var id = removes[removeIx][0];
+    if(sent[id]) {
+      sent[id].xhr.abort();
+      sent[id] = null;
+    }
+  }
+
+  for(var addIx = 0; addIx < adds.length; addIx++) {
+    var id = adds[addIx][1];
+    var url = adds[addIx][2];
+    var event = adds[addIx][0];
+
+    if(id === undefined || url === undefined || event === undefined) continue;
+
+    var req = qwest.get(url)
+                   .then(function(response) {
+                     console.log("response!");
+                     if(!sent[id]) return;
+                     var start = now();
+                     var resp = typeof response === "string" ? response : JSON.stringify(response);
+                     application.run([["event", application.eventId++, event, id, resp]]);
+                     postMessage({type: "runStats", runtime: (now() - start), numFacts: application.totalFacts(), start: start, run: null});
+                   });
+    sent[id] = req;
+  }
+
+  storage["sent"] = sent;
+}
 
 function timerWatcher(application, storage, system) {
   var timers = system.getStore("timer");
@@ -43,7 +92,7 @@ function timerWatcher(application, storage, system) {
   for(var removeIx = 0; removeIx < removes.length; removeIx++) {
     var id = removes[removeIx][0];
     clearTimeout(timeouts[id]);
-    timeouts[event] = null;
+    timeouts[id] = null;
   }
 
   for(var addIx = 0; addIx < adds.length; addIx++) {
