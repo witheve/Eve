@@ -21,10 +21,45 @@ function setLocal(k, v) {
 var prevVersion = getLocal("prevVersion");
 var stacks = getLocal("stacks");
 
-if(!stacks || stacks.indexOf("Clock") === -1) {
-  stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph paths", "TodoMVC", "Turing machine", "Clock"];
+// if(!stacks || stacks.indexOf("Clock") === -1) {
+  stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph paths", "TodoMVC", "Turing machine", "Clock", "Editor"];
   setLocal("stacks", stacks);
+// }
+
+//*********************************************************
+// renderer
+//*********************************************************
+
+var renderer = {"editorQueue": [], "programQueue": [], "queued": false}
+
+function drainRenderQueue() {
+  var start = now();
+  $("#uiCard").show();
+  storage["rootParent"] = $("#uiCard").get(0);
+  for(var i = 0, len = renderer["programQueue"].length; i < len; i++) {
+    var diff = renderer["programQueue"][i];
+    uiDiffRenderer(diff, storage);
+  }
+  renderer["programQueue"] = [];
+
+  editorStorage["rootParent"] = $("#cards").get(0);
+  for(var i = 0, len = renderer["editorQueue"].length; i < len; i++) {
+    var diff = renderer["editorQueue"][i];
+    uiDiffRenderer(diff, editorStorage);
+  }
+  renderer["editorQueue"] = [];
+  var end = now();
+//   console.log("Render loop:", end - start);
+  renderer["queued"] = false;
 }
+
+function queueRender() {
+  if(!renderer["queued"]) {
+    renderer["queued"] = true;
+    requestAnimationFrame(drainRenderQueue);
+  }
+}
+
 
 //*********************************************************
 // worker
@@ -32,6 +67,7 @@ if(!stacks || stacks.indexOf("Clock") === -1) {
 
 var runs = [];
 var storage = {};
+var editorStorage = {"queue": [], "working": false};
 
 function createRun() {
   var run = {id: runs.length};
@@ -52,6 +88,16 @@ function onWorkerMessage(event) {
       clearErrors();
       onTableCards(event.data.cards);
       run.tableCardsRendering = now() - run.tableCardsRendering;
+      break;
+    case "tableCardsBootstrapped":
+      if(!editorStorage["working"]) {
+        editorStorage["working"] = true;
+        editorWorker.postMessage({type: "tableCardsBootstrapped", changes: [event.data.changes]});
+      } else {
+        var queue = editorStorage["queue"];
+        queue.push(event.data.changes);
+        editorStorage["queue"] = queue;
+      }
       break;
     case "log":
       event.data.args.unshift("Worker: ");
@@ -86,13 +132,27 @@ function onWorkerMessage(event) {
       $("#totalStat").html((run.total || 0).toFixed(2));
       $("#factsStat").html(run.facts);
       break;
+    case "requestTableCards":
+      worker.postMessage(event.data);
+      break;
+    case "renderEditorUI":
+      run.renderUIMarshalling = now() - event.data.time;
+      renderer["editorQueue"].push(event.data.diff);
+      queueRender();
+      break;
+    case "editorRunStats":
+//       console.log("editor finished");
+      if(!editorStorage["queue"].length) {
+        editorStorage["working"] = false;
+      } else {
+        editorWorker.postMessage(({type: "tableCardsBootstrapped", changes: editorStorage["queue"]}));
+        editorStorage["queue"] = [];
+      }
+      break;
     case "renderUI":
       run.renderUIMarshalling = now() - event.data.time;
-      run.renderUIDiff = now();
-      $("#uiCard").show();
-      storage["rootParent"] = $("#uiCard").get(0);
-      uiDiffRenderer(event.data.diff, storage);
-      run.renderUIDiff = now() - run.renderUIDiff;
+      renderer["programQueue"].push(event.data.diff);
+      queueRender();
       break;
   }
 }
@@ -102,7 +162,6 @@ function onWorkerMessage(event) {
 //*********************************************************
 
 for(var i in stacks) {
-  console.log("stacks!", stacks[i])
   var cur = $("<div class='stack'>" + stacks[i] + "</div>");
   cur.data("stack", stacks[i]);
   $("#stacksView").append(cur);
@@ -121,6 +180,12 @@ function closeStacksView() {
   $("#stacksView").hide();
 }
 
+//*********************************************************
+// editor worker
+//*********************************************************
+
+var editorWorker = new Worker("../src/worker.js");
+editorWorker.onmessage = onWorkerMessage;
 
 //*********************************************************
 // open stack
@@ -131,6 +196,8 @@ function openStack(stack) {
   closeStacksView();
   $("#controlCard h1").text(stack);
   $("#stack").show();
+  editorWorker.postMessage({type: "init", editor: true});
+  editorWorker.postMessage({type: "compile", code: getLocal("Editor-code", examples["Editor"]), run: 0});
   setLocal("activeStack", stack);
   worker = new Worker("../src/worker.js");
   worker.onmessage = onWorkerMessage;
@@ -203,41 +270,6 @@ $("#cards").on("click", ".table-card", function() {
   $(this).toggleClass("open");
 });
 
-function tableCard(name, headers, rows, isOpen) {
-  var card = $("<div class='card table-card " + (isOpen === false ? "" : "open") + "'><h2></h2><div class='grid'><div class='grid-header'></div></div></div>");
-  card.data("tableId", name);
-  var grid = $(".grid", card);
-  var gridHeader = $(".grid-header", card);
-  $("h2", card).html(name);
-  for(var headerIx = 0; headerIx < headers.length; headerIx++) {
-    var header = headers[headerIx];
-    gridHeader.prepend("<div class='header'>" + header + "</div>");
-  }
-  for(var ix = rows.length - 1; ix >= 0; ix--) {
-    var row = rows[ix];
-    var rowElem = $("<div class='grid-row'></div>");
-    for(var field in row) {
-      rowElem.prepend("<div>" + row[field] + "</div>")
-    }
-    grid.append(rowElem);
-  }
-  return card.get(0);
-}
-
-function onTableCards(cards) {
-  var opens = {};
-  $(".table-card").get().forEach(function(cur) {
-    opens[$(cur).data("tableId")] = $(cur).hasClass("open");
-  });
-  $(".table-card").remove();
-  var frag = document.createDocumentFragment();
-  for(var cardIx = 0; cardIx < cards.length; cardIx++) {
-    var card = cards[cardIx];
-    frag.appendChild(tableCard(card[0], card[1], card[2], opens[card[0]]));
-  }
-  $("#cards").append(frag);
-}
-
 function clearErrors(errors) {
   $("#errors").empty().hide();
 }
@@ -250,7 +282,6 @@ function resetStackUI() {
   clearErrors();
   clearUICard();
   $("#uiCard").hide();
-  $(".table-card").remove();
 }
 
 function addErrors(errors) {
@@ -333,6 +364,37 @@ var svgs = {
   "path": true
 };
 
+function appendSortElement(parent, child){
+
+  var value = child.eveSortValue;
+  var children = parent.childNodes;
+  var startIndex = 0;
+  var stopIndex = children.length - 1;
+
+  //shortcut the common case of just appending to the end
+  if(children[stopIndex].eveSortValue < value) return parent.appendChild(child);
+
+  var middle = Math.floor((stopIndex + startIndex) / 2);
+  var cur = children[middle];
+
+  while(cur.eveSortValue !== value && startIndex < stopIndex){
+
+    if (value < cur.eveSortValue){
+      stopIndex = middle - 1;
+    } else if (value > cur.eveSortValue){
+      startIndex = middle + 1;
+    }
+
+    middle = Math.floor((stopIndex + startIndex)/2);
+    cur = children[middle];
+  }
+
+  if(cur === child) return;
+  if(value > cur.eveSortValue) return parent.insertBefore(child, children[middle + 1]);
+  if(value < cur.eveSortValue) return parent.insertBefore(child, cur);
+  return parent.insertBefore(child, cur);
+}
+
 function uiDiffRenderer(diff, storage) {
   var elem_id = 0;
   var elem_type = 1;
@@ -349,6 +411,7 @@ function uiDiffRenderer(diff, storage) {
   var events_label = 2;
   var events_key = 3;
 
+  var child_pos = 1;
   var child_childid = 2;
 
   var builtEls = storage["builtEls"] || {"eve-root": document.createElement("div")};
@@ -492,10 +555,13 @@ function uiDiffRenderer(diff, storage) {
     var cur = children[i];
     var child = builtEls[cur[child_childid]];
     var parent = builtEls[cur[elem_id]];
-    if(cur[elem_id] == "subProgramUI") {
-    }
     if(parent && child) {
-      parent.appendChild(child);
+      child.eveSortValue = cur[child_pos];
+      if(parent.childNodes.length === 0) {
+        parent.appendChild(child);
+      } else {
+        appendSortElement(parent, child, child.eveSortValue);
+      }
     }
   }
 
@@ -506,7 +572,6 @@ function uiDiffRenderer(diff, storage) {
       storage["rootParent"].appendChild(builtEls["eve-root"]);
     }
   }
-
 
 };
 

@@ -31,7 +31,7 @@ function arbitraryObject(arbitrary, size) {
 module.exports = {
   array: arbitraryArray,
   string: arbitraryString,
-  object: arbitraryObject,
+  object: arbitraryObject
 };
 
 },{"./random.js":9}],2:[function(_dereq_,module,exports){

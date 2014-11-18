@@ -879,7 +879,7 @@ System.prototype = {
         metastack.pop();
       }
     }
-    this.updateStore("refresh", refreshes, []);
+//     this.updateStore("refresh", refreshes, []);
     this.tick++;
     metastack.pop();
     return this;

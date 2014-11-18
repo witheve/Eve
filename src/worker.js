@@ -14,6 +14,38 @@ function consoleLog() {
     }
   }
 
+function diffArray(neue, old) {
+  var adds = [];
+  var removes = [];
+  for(var i = 0, len = neue.length; i < len; i++) {
+    if(old.indexOf(neue[i]) === -1) {
+      adds.push(neue[i]);
+    }
+  }
+  for(var i = 0, len = old.length; i < len; i++) {
+    if(neue.indexOf(old[i]) === -1) {
+      removes.push(old[i]);
+    }
+  }
+  return {adds: adds, removes: removes};
+}
+
+function diffTables(neue, old) {
+  var adds = [];
+  var removes = [];
+  if(old) {
+    try {
+      neue.diff(old, adds, removes);
+    } catch(e) {
+      adds = neue.getFacts();
+      removes = old.getFacts();
+    }
+  } else {
+    adds = neue.getFacts();
+  }
+  return {adds: adds, removes: removes};
+}
+
 var console = {
   log: consoleLog,
   error: consoleLog
@@ -74,20 +106,11 @@ function timerWatcher(application, storage, system) {
   var timers = system.getStore("timer");
   if(!timers) return;
 
-  var adds = [];
-  var removes = [];
-  timeouts = storage["timeouts"] || {};
-  if(storage["timer"]) {
-    try {
-      timers.diff(storage["timer"], adds, removes);
-    } catch(e) {
-      adds = timers.getFacts();
-      removes = storage["timer"].getFacts();
-    }
-  } else {
-    adds = timers.getFacts();
-  }
+  var diff = diffTables(timers, storage["timer"]);
+  var adds = diff.adds;
+  var removes = diff.removes;
   storage["timer"] = timers;
+  timeouts = storage["timeouts"] || {};
 
   for(var removeIx = 0; removeIx < removes.length; removeIx++) {
     var id = removes[removeIx][0];
@@ -101,7 +124,7 @@ function timerWatcher(application, storage, system) {
     var rate = adds[addIx][2];
 
     if(!id) continue;
-    if(!rate || typeof(rate) === "string" || rate < 100) rate = 100;
+    if(!rate || typeof(rate) === "string" || rate < 16) rate = 16;
 
     var timeout = setInterval(function() {
      var start = now();
@@ -115,13 +138,39 @@ function timerWatcher(application, storage, system) {
 }
 
 function tableCardWatcher(application, storage, system) {
-  var returns = [];
-  for(var table in application.programResults.tablesCreated) {
-    var info = application.programResults.tablesCreated[table];
-    var rows = system.getStore(table).getFacts();
-    returns.push([table, info.fields, rows, info.constants]);
+  //We don't want to end up an infinite loop sending tableCards to our self
+  //if we're the editor
+  if(editorApp.isEditor || !editorApp.sendTableCards) return;
+
+  var adds = [];
+  var updates = [];
+  var removes = [];
+  var prev = storage["previousTablesCreated"];
+  for(var tableName in application.programResults.tablesCreated) {
+    var info = application.programResults.tablesCreated[tableName];
+    var table = system.getStore(tableName);
+    var diff = diffTables(table, storage[tableName]);
+    if(!storage[tableName]) {
+      adds.push([tableName, info.fields, [], diff.adds, diff.removes]);
+    } else if(diff.adds.length || diff.removes.length) {
+      var prevInfo = prev ? prev[tableName] : null;
+      var fieldsDiff = diffArray(info.fields, prevInfo.fields)
+      updates.push([tableName, fieldsDiff.adds, fieldsDiff.removes, diff.adds, diff.removes]);
+    }
+    storage[tableName] = table;
   }
-  postMessage({type: "tableCards", cards: returns, time: now(), run: editorApp.runNumber});
+
+  for(var prevTable in prev) {
+    if(!application.programResults.tablesCreated[prevTable]) {
+      removes.push([prevTable, [], prev[prevTable].fields, [], storage[prevTable].getFacts()]);
+      storage[prevTable] = null;
+    }
+  }
+
+  storage["previousTablesCreated"] = application.programResults.tablesCreated;
+//   postMessage({type: "tableCards", cards: returns, time: now(), run: editorApp.runNumber});
+  editorApp.sendTableCards = false;
+  postMessage({type: "tableCardsBootstrapped", changes: JSON.stringify({adds: adds, updates: updates, removes: removes}), time: now(), run: editorApp.runNumber});
 }
 
 function uiWatcher(application, storage, system) {
@@ -152,7 +201,8 @@ function uiWatcher(application, storage, system) {
   }
 
   if(hasUI) {
-    postMessage({type: "renderUI", diff: diff, time: now(), run: editorApp.runNumber});
+    var type = editorApp.isEditor ? "renderEditorUI" : "renderUI";
+    postMessage({type: type, diff: diff, time: now(), run: editorApp.runNumber});
   }
 }
 
@@ -188,6 +238,7 @@ function onCompile(code) {
       postMessage({type: "errors", errors: errors, run: editorApp.runNumber});
       return;
     }
+    postMessage({type: "tablesCreated", tables: programResults.tablesCreated});
     system.recompile();
 
     editorApp.updateSystem(system);
@@ -218,12 +269,115 @@ function onCompile(code) {
   }
 }
 
+function injectedTablesToFacts(tables, run, adds, removes, shouldAddTable) {
+  var tableCards = adds["tableCard"];
+  var tableCardFields = adds["tableCardField"];
+  var tableCardCells = adds["tableCardCell"];
+  var remTableCards = removes["tableCard"];
+  var remTableCardFields = removes["tableCardField"];
+  var remTableCardCells = removes["tableCardCell"];
+  for(var tableIx = 0, len = tables.length; tableIx < len; tableIx++) {
+    var table = tables[tableIx][0];
+    var fieldsAdded = tables[tableIx][1];
+    var fieldsRemoved = tables[tableIx][2];
+    var addedRows = tables[tableIx][3];
+    var removedRows = tables[tableIx][4];
+
+//     console.log("sizes", addedRows.length, removedRows.length, facts.length, removes.length);
+
+    if(shouldAddTable) {
+      tableCards.push([run, table]);
+    }
+
+    for(var fieldIx = 0, flen = fieldsAdded.length; fieldIx < flen; fieldIx++) {
+      var field = fieldsAdded[fieldIx];
+      tableCardFields.push([run, table, field, fieldIx]);
+    }
+
+    for(var fieldIx = 0, flen = fieldsRemoved.length; fieldIx < flen; fieldIx++) {
+      var field = fieldsRemoved[fieldIx];
+      remTableCardFields.push([run, table, field, fieldIx]);
+    }
+
+    for(var rowIx = 0, rlen = addedRows.length; rowIx < rlen; rowIx++) {
+      var row = addedRows[rowIx];
+      var rowId = JSON.stringify(row);
+      for(var colIx = 0, clen = row.length; colIx < clen; colIx++) {
+        tableCardCells.push([run, table, rowId, colIx, row[colIx]]);
+      }
+    }
+
+    for(var rowIx = 0, rlen = removedRows.length; rowIx < rlen; rowIx++) {
+      var row = removedRows[rowIx];
+      var rowId = JSON.stringify(row);
+      for(var colIx = 0, clen = row.length; colIx < clen; colIx++) {
+        remTableCardCells.push([run, table, rowId, colIx, row[colIx]]);
+      }
+    }
+
+
+//     console.log("sizes", addedRows.length, removedRows.length, facts.length, removes.length);
+  }
+}
+
+function injectEveTables(queuedChanges) {
+  var run = 1;
+  var adds = {"tableCard": [], "tableCardField": [], "tableCardCell": []};
+  var removes = {"tableCard": [], "tableCardField": [], "tableCardCell": []};
+  var tables = ["tableCard", "tableCardField", "tableCardCell"];
+
+  for(var changeIx = 0, len = queuedChanges.length; changeIx < len; changeIx++) {
+    var changes = queuedChanges[changeIx];
+    injectedTablesToFacts(changes.adds, run, adds, removes, true);
+    injectedTablesToFacts(changes.updates, run, adds, removes, false);
+    injectedTablesToFacts(changes.removes, run, removes, removes, true);
+  }
+
+//   console.log(adds, removes);
+
+  var start = now();
+  var eid = editorApp.eventId++;
+  var totalFactsChanged = 0;
+  for(var i = 0, len = tables.length; i < len; i++) {
+    var table = tables[i];
+    totalFactsChanged += adds[table].length + removes[table].length;
+    editorApp.system.updateStore(table, adds[table], removes[table]);
+  }
+  editorApp.run([]);
+  console.log("run time", now() - start, totalFactsChanged, editorApp.totalFacts());
+  postMessage({type: "editorRunStats", runtime: (now() - start), numFacts: editorApp.totalFacts(), run: editorApp.runNumber});
+  postMessage({type: "requestTableCards", lastSeenRunNumber: editorApp.runNumber});
+}
+
 
 onmessage = function(event) {
   editorApp.runNumber = event.data.run;
   switch(event.data.type) {
+    case "init":
+      editorApp.isEditor = event.data.editor;
+      if(editorApp.isEditor) {
+        postMessage({type: "requestTableCards", lastSeenRunNumber: editorApp.runNumber});
+      }
+      break;
     case "compile":
       onCompile(event.data.code);
+      break;
+    case "tableCardsBootstrapped":
+      editorApp.eventId++;
+      injectEveTables(event.data.changes.map(JSON.parse));
+      break;
+    case "requestTableCards":
+      if(editorApp.runNumber !== event.data.lastSeenRunNumber) {
+        tableCardWatcher(editorApp, editorApp.storage["tableCardWatcher"], editorApp.system);
+      } else {
+        editorApp.sendTableCards = true;
+      }
+      break;
+    case "inject":
+      var start = now();
+      var eid = editorApp.eventId++;
+      editorApp.run(event.data.items);
+      postMessage({type: "runStats", runtime: (now() - start), numFacts: editorApp.totalFacts(), run: editorApp.runNumber});
       break;
     case "event":
       var start = now();

@@ -100,8 +100,8 @@ Application.prototype.updateSystem = function(system) {
   this.system = system;
 };
 
-Application.prototype.run = function(facts) {
-  this.system.update(facts, [])
+Application.prototype.run = function(facts, removes) {
+  this.system.update(facts, removes || []);
   var errors = [];
   this.system.refresh(errors);
   webRequestWatcher(this, this.storage["webRequestWatcher"], this.system);
@@ -150,5 +150,8 @@ function commonViews() {
   pushAll(facts, view("uiStyle", ["id", "attr", "value"]));
   pushAll(facts, view("uiEvent", ["id", "event", "label", "key"]));
   pushAll(facts, view("time", ["time"]));
+  pushAll(facts, view("tableCard", ["run", "table"]));
+  pushAll(facts, view("tableCardField", ["run", "table", "field", "ix"]));
+  pushAll(facts, view("tableCardCell", ["run", "table", "row", "col", "value"]));
   return facts;
 }

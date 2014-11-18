@@ -310,7 +310,7 @@ function parseUI(tokens, ix, state) {
     while(state.stack.length && childrenIx < tokens.length) {
       element = state.stack[state.stack.length - 1];
       var parser = element.type === "map" ? parseUIAttrs : parseUIVector;
-      var result = parser(tokens, ix, state, element);
+      var result = parser(tokens, childrenIx, state, element);
       if(result.error) return result;
       childrenIx = result.ix;
     }
@@ -881,21 +881,26 @@ function eveUIElem(view, ui, parentGeneratedId, context) {
       childId = textId;
       pos = {type: "constant", value: childIx};
     }
-    childMappings = {parent: id, child: childId, pos: pos};
-    pushAll(facts, createUIView("uiChild", view, context, childMappings));
+    if(!child.parented) {
+      childMappings = {parent: id, child: childId, pos: pos};
+      pushAll(facts, createUIView("uiChild", view, context, childMappings));
+    }
   }
 
+  var parented = false;
   //if there's a parent attr on me, parent me
   if(attrs["parent"]) {
+    parented = true;
     childMappings = {parent: attrs["parent"], child: id, pos: attrs["ix"] || {type: "constant", value: 0}};
     pushAll(facts, createUIView("uiChild", view, context, childMappings));
   } else if(parentGeneratedId.value && parentGeneratedId.value.match(/root[\d]+$/)) {
+    parented = true;
     //This is a special case for not defining a parent on a root node
     childMappings = {parent: {type: "constant", value: "eve-root"}, child: id, pos: attrs["ix"] || {type: "constant", value: 0}};
     pushAll(facts, createUIView("uiChild", view, context, childMappings));
   }
 
-  return {id: id, facts: facts, pos: attrs["ix"]};
+  return {id: id, facts: facts, pos: attrs["ix"], parented: parented};
 }
 
 function injectParsed(parsed, program) {
