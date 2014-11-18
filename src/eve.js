@@ -1,9 +1,6 @@
-var FAILED = 0;
-var CHANGED = 1;
-var UNCHANGED = 2;
-
-var IGNORED = 0;
-var SPLITTED = 1;
+var FAILED = -1;
+var UNCHANGED = 0;
+// or bitflag for changed vars
 
 var eve = {};
 
@@ -31,6 +28,18 @@ var now = function() {
   }
   return (new Date()).getTime();
 };
+
+function bitIsSet(bits, bit){
+    return ((bits>>bit) % 2 != 0)
+}
+
+function setBit(bits, bit){
+    return bits | (1<<bit);
+}
+
+function clearBit(bits, bit){
+    return bits & ~(1<<bit);
+}
 
 // ORDERING / COMPARISON
 
@@ -241,7 +250,7 @@ MemoryConstraint.prototype = {
       return FAILED;
     }
 
-    var changed = false;
+    var changes = UNCHANGED;
 
     for (var i = bindingIxes.length - 1; i >= 0; i-=2) {
       var pointIx = bindingIxes[i];
@@ -255,20 +264,20 @@ MemoryConstraint.prototype = {
       }
       if (compareValue(newLo, los[boundsIx]) === 1) {
         los[boundsIx] = newLo;
-        changed = true;
+        changes = setBit(changes, boundsIx);
       }
       if (compareValue(newHi, his[boundsIx]) === -1) {
         his[boundsIx] = newHi;
-        changed = true;
+        changes = setBit(changes, boundsIx);
       }
     }
 
-    return (changed === true) ? CHANGED : UNCHANGED;
+    return changes;
   },
 
   split: function(myIx, leftConstraintStates, leftLos, leftHis, rightConstraintStates, rightLos, rightHis) {
     var facts = leftConstraintStates[myIx];
-    if (facts.length < 2) return IGNORED;
+    if (facts.length < 2) return UNCHANGED;
 
     var bindingIxes = this.bindingIxes;
 
@@ -282,7 +291,7 @@ MemoryConstraint.prototype = {
       }
     }
 
-    if(i < 0) return IGNORED;
+    if (i < 0) return UNCHANGED;
 
     var upperPivot = greatest;
     for (var i = facts.length - 1; i >= 0; i--) {
@@ -293,7 +302,7 @@ MemoryConstraint.prototype = {
     leftHis[boundsIx] = lowerPivot;
     rightLos[boundsIx] = upperPivot;
     // console.log("Split at fact[" + pointIx + "]=" + lowerPivot + "," + upperPivot);
-    return SPLITTED;
+    return setBit(UNCHANGED, boundsIx);
   }
 };
 
@@ -325,7 +334,7 @@ NegatedMemoryConstraint.prototype = {
   },
 
   split: function(myIx, leftConstraintStates, leftLos, leftHis, rightConstraintStates, rightLos, rightHis) {
-    return false;
+    return UNCHANGED;
   }
 };
 
@@ -397,11 +406,11 @@ AggregatedMemoryConstraint.prototype = {
     if ((compLo === -1) || (compHi === 1)) return FAILED;
     los[outIx] = outValue;
     his[outIx] = outValue;
-    return ((compLo === 1) || (compHi === -1)) ? CHANGED : UNCHANGED;
+    return ((compLo === 1) || (compHi === -1)) ? setBit(UNCHANGED, outIx) : UNCHANGED;
   },
 
   split: function(myIx, leftConstraintStates, leftLos, leftHis, rightConstraintStates, rightLos, rightHis) {
-    return false;
+    return UNCHANGED;
   }
 };
 
@@ -451,7 +460,7 @@ Provenance.prototype = {
   },
 
   split: function(myIx, leftConstraintStates, leftLos, leftHis, rightConstraintStates, rightLos, rightHis) {
-    return IGNORED;
+    return UNCHANGED;
   }
 };
 
@@ -493,11 +502,11 @@ FunctionConstraint.prototype = {
     if ((compLo === -1) || (compHi === 1)) return FAILED;
     los[outIx] = outValue;
     his[outIx] = outValue;
-    return ((compLo === 1) || (compHi === -1)) ? CHANGED : UNCHANGED;
+    return ((compLo === 1) || (compHi === -1)) ? setBit(UNCHANGED, outIx) : UNCHANGED;
   },
 
   split: function(myIx, leftConstraintStates, leftLos, leftHis, rightConstraintStates, rightLos, rightHis) {
-    return IGNORED;
+    return UNCHANGED;
   }
 };
 
@@ -588,7 +597,7 @@ Solver.prototype = {
           popFrom(depth, los, queuedLos);
           popFrom(depth, his, queuedHis);
           continue solve;
-        } else if (result === CHANGED) {
+        } else if (result !== UNCHANGED) {
           provenance.propagated(); // TODO
           lastChanged = current;
         }
@@ -616,7 +625,7 @@ Solver.prototype = {
         pushInto(0, los, rightLos);
         pushInto(0, his, rightHis);
         var result = constraints[splitter].split(splitter, constraintStates, los, his, rightConstraintStates, rightLos, rightHis);
-        if (result === SPLITTED) {
+        if (result !== UNCHANGED) {
           provenance.splitted(); // TODO
           break split;
         }
@@ -951,6 +960,7 @@ System.prototype = {
     for (var i = queries.length - 1; i >= 0; i--) {
       var query = queries[i];
       var numFields = viewToNumFields[query.view];
+      assert(numFields <= 32) // we use bitflags in the constraint solver
       var queryIx = nameToIx[query.query];
       stores[queryIx] = this.getStore(query.query) || Memory.empty();
       flows[queryIx] = Solver.empty(numFields, [], [], queryIx);
