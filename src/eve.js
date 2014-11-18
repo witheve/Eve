@@ -626,7 +626,6 @@ Solver.prototype = {
         steps += 1;
         // console.log("Before prop " + current + " " + los + " " + his);
         if (bitIsSet(constraintDirty, current)) {
-          constraintDirty = clearBit(constraintDirty, current);
           var result = constraints[current].propagate(current, constraintStates, constraintWatches, los, his);
           if (result === FAILED) {
             provenance.failed(); // TODO
@@ -647,6 +646,7 @@ Solver.prototype = {
               }
             }
           }
+          constraintDirty = clearBit(constraintDirty, current);
         }
         // console.log("After prop " + current + " " + los + " " + his);
         current = (current + 1) % numConstraints;
