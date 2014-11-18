@@ -642,7 +642,7 @@ Solver.prototype = {
             provenance.propagated(); // TODO
             lastChanged = current;
             for (var i = constraints.length - 1; i >= 0; i--) {
-              if ((result && constraintWatches[i]) > 0) {
+              if ((result & constraintWatches[i]) > 0) {
                 constraintDirty = setBit(constraintDirty, i);
               }
             }
@@ -677,7 +677,7 @@ Solver.prototype = {
         if (result !== UNCHANGED) {
           provenance.splitted(); // TODO
           for (var i = constraints.length - 1; i >= 0; i--) {
-            if ((result && constraintWatches[i]) > 0) {
+            if ((result & constraintWatches[i]) > 0) {
               constraintDirty = setBit(constraintDirty, i);
             }
           }
