@@ -21,14 +21,9 @@ function setLocal(k, v) {
 var prevVersion = getLocal("prevVersion");
 var stacks = getLocal("stacks");
 
-if(!stacks) {
-  stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph paths", "TodoMVC", "Turing machine"];
+if(!stacks || stacks.indexOf("Clock") === -1) {
+  stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph paths", "TodoMVC", "Turing machine", "Clock"];
   setLocal("stacks", stacks);
-}
-
-var initialValue = localStorage["eveEditorCode"];
-if(!initialValue) {
-  initialValue =  "* edge\n  ~ from to\n  + \"a\" \"b\"\n  + \"b\" \"c\"\n\n* path\n  | edge from to\n\n* path2\n  | edge from to:t\n  | path from:t to\n\n* path\n  | path2 from to";
 }
 
 //*********************************************************
@@ -45,7 +40,7 @@ function createRun() {
 }
 
 function getRun(id) {
-  return runs[id];
+  return runs[id] || createRun();
 }
 
 function onWorkerMessage(event) {
@@ -78,6 +73,7 @@ function onWorkerMessage(event) {
       run.renderSyntaxErrors = now() - run.renderSyntaxErrors;
       break;
     case "runStats":
+      run.start = event.data.start || run.start;
       run.runtime = event.data.runtime;
       run.facts = event.data.numFacts;
       run.compile = event.data.compile;
@@ -165,7 +161,7 @@ CodeMirror.defineMode("eve", CodeMirrorModeParser);
 CodeMirror.defineMIME("text/x-eve", "eve");
 
 var editor = CodeMirror(document.querySelector("#editorContainer"), {
-  value: initialValue,
+  value: "",
   tabSize: 2,
   matchBrackets: true,
   autoCloseBrackets: true,
@@ -319,7 +315,7 @@ var createUICallback = function(id, event, label, key) {
         }
       }
       e.stopPropagation();
-      items.push(["event", id, label, key, eid, value]);
+      items.push(["event", eid, label, key, value]);
       var run = createRun();
       run.event = true;
       run.start = now();
@@ -331,7 +327,10 @@ var createUICallback = function(id, event, label, key) {
 var svgs = {
   "svg": true,
   "path": true,
-  "rect": true
+  "rect": true,
+  "circle": true,
+  "line": true,
+  "path": true
 };
 
 function uiDiffRenderer(diff, storage) {
@@ -352,7 +351,7 @@ function uiDiffRenderer(diff, storage) {
 
   var child_childid = 2;
 
-  var builtEls = storage["builtEls"] || {"root": document.createElement("div")};
+  var builtEls = storage["builtEls"] || {"eve-root": document.createElement("div")};
   var handlers = storage["handlers"] || {};
   var roots = {};
   var removed = {};
@@ -504,7 +503,7 @@ function uiDiffRenderer(diff, storage) {
     storage["builtEls"] = builtEls;
     storage["handlers"] = handlers;
     if(storage["rootParent"]) {
-      storage["rootParent"].appendChild(builtEls["root"]);
+      storage["rootParent"].appendChild(builtEls["eve-root"]);
     }
   }
 

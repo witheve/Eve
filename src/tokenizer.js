@@ -1,4 +1,3 @@
-//cool
 //From CodeMirror
 var StringStream = function(string, tabSize) {
   this.pos = this.start = 0;
@@ -742,9 +741,6 @@ function createUIView(uiTable, view, context, mappings) {
   }
 
   function localBinding(constraint, local, remote) {
-//     multiple bindings of the same field didn't previously work. This is a workaround in case it turns out it still doesn't.
-//     if(bindings[remote]) return false;
-
     bindings[remote] = local;
     facts.push(["viewConstraintBinding", constraint, local, remote]);
     return true;
@@ -760,12 +756,6 @@ function createUIView(uiTable, view, context, mappings) {
     if(value.type === "symbol") {
       tempMappings[localField] = "bound_" + localField;
       var didBind = localBinding(viewConstraint, makeLocalField(tempMappings[localField]), makeRemoteField(view, value.name));
-//       multiple bindings of the same field didn't previously work. This is a workaround in case it turns out it still doesn't.
-//       if(!didBind) {
-//         var funcConstraint = query + "|functionConstraint=" + tempMappings[localField];
-//         facts.push(["functionConstraint", funcConstraint, query, makeLocalField(tempMappings[localField]), localField]);
-//         facts.push(["functionConstraintInput", funcConstraint, bindings[makeRemoteField(view, value.name)], localField]);
-//       }
     } else if(value.type === "string" || value.type === "number" || value.type === "constant") {
       tempMappings[localField] = "constant_" + localField;
       facts.push(["constantConstraint", query, makeLocalField(tempMappings[localField]), value.value]);
@@ -812,20 +802,6 @@ function createUIView(uiTable, view, context, mappings) {
 }
 
 function eveUIElem(view, ui, parentGeneratedId, context) {
-  //["uiElem", "uiText", "uiAttr", "uiStyle", "uiEvent", "uiChild"]
-  //look for an id attr to determine the id of this thing
-  //create the element
-  //create attrs entries based on the attrs
-    //if attr is style
-      //create style entries based on the style map
-    //if attr is id
-    //if attr is parent
-  //for each child
-    //if it's text or a symbol
-      //create a uiText
-    //Otherwise it's a child element run uiElem on it and get the child's id
-    //create a uiChild for it
-
   var facts = [];
   var attrs = {};
   if(ui.attrs) {
@@ -856,8 +832,9 @@ function eveUIElem(view, ui, parentGeneratedId, context) {
     var attrMappings;
     if(key === "id" || key === "parent" || key === "key" || key === "ix") {
       //no-op
-    } else if(key === "style") {
+    //} else if(key === "style") {
       //TODO: make styles work
+
     } else if(uiEventNames[key]) {
       //event
       eventMappings = {id: id, event: {type: "constant", value: uiEventNames[key]}, label: attrs[key], key: attrs["key"] || {type: "constant", value: ""}};
@@ -914,14 +891,14 @@ function eveUIElem(view, ui, parentGeneratedId, context) {
     pushAll(facts, createUIView("uiChild", view, context, childMappings));
   } else if(parentGeneratedId.value && parentGeneratedId.value.match(/root[\d]+$/)) {
     //This is a special case for not defining a parent on a root node
-    childMappings = {parent: {type: "constant", value: "root"}, child: id, pos: attrs["ix"] || {type: "constant", value: 0}};
+    childMappings = {parent: {type: "constant", value: "eve-root"}, child: id, pos: attrs["ix"] || {type: "constant", value: 0}};
     pushAll(facts, createUIView("uiChild", view, context, childMappings));
   }
 
   return {id: id, facts: facts, pos: attrs["ix"]};
 }
 
-function parsedIntoEveProgram(parsed, program) {
+function injectParsed(parsed, program) {
   var tablesCreated = {};
   var errors = parsed.errors || [];
   var context = {nextId: 0};
@@ -1022,7 +999,7 @@ function parsedIntoEveProgram(parsed, program) {
     // handle UI
     for(var uiIx = curRule.ui.length - 1; uiIx >= 0; uiIx--) {
       var curUi = curRule.ui[uiIx];
-      var result = eveUIElem(view, curUi, {type: "constant", value: "root" + ix}, context);
+      var result = eveUIElem(view, curUi, {type: "constant", value: "eve-root" + ix}, context);
       pushAll(facts, result.facts);
       //parts.push(eveUIElem(curUi));
     }
@@ -1068,7 +1045,7 @@ function parsedIntoEveProgram(parsed, program) {
 //   console.log("Compiling " + JSON.stringify(facts));
 
   program.update(facts.concat(commonViews()), []);
-  return {program: program, values: values, errors: errors, tablesCreated: tablesCreated};
+  return {values: values, errors: errors, tablesCreated: tablesCreated};
 }
 
 function tokenToCMType(token) {
@@ -1118,34 +1095,3 @@ function CodeMirrorModeParser() {
     }
   }
 }
-
-// if(window.CodeMirror) {
-//   CodeMirror.defineMode("eve", CodeMirrorModeParser);
-//   CodeMirror.defineMIME("text/x-eve", "eve");
-// }
-
-// var state = {};
-// "* foo\n[\"hey\"\n \"h\" t \"y\"]".split("\n").forEach(function(line) {
-//   console.log(parseLine(line, state), JSON.stringify(state));
-// })
-
-// var thing = CodeMirrorModeParser();
-// var tokenizer = thing.token;
-
-// function tick(tokenizer, stream) {
-//   var final = {style: tokenizer(stream, {}),
-//                pos: [stream.start, stream.pos]};
-//   stream.start = stream.pos;
-//   return final;
-// }
-
-// var stream = new StringStream("[div {class 'foo' \"zomg\" 234} 'cool']");
-
-// parseLine(stream, {});
-// tick(tokenizer, stream);
-
-//  console.log(parse("* a\n[\"div\" {class foo}\n[\"p\" \"cool\"]]").rules[0].ui)
-// console.log(parse("* awesome rule\n|'program Rule' program : p name=\"awesome\"\n@ programRule program rule | ordinal:ix sort:rule"));
-// console.log(parse("* another rule\n|"));
-
-// parse("* this is a rule\n| this:alias is a source\n? cool > huh")

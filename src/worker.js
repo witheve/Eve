@@ -1,4 +1,6 @@
-importScripts("eve.js", "bootStrapped2.js", "tokenizer.js");
+importScripts("eve.js", "bootStrapped2.js", "tokenizer.js", "../resources/qwest.js");
+
+var editorApp = app();
 
 function consoleLog() {
     var final = [];
@@ -6,9 +8,9 @@ function consoleLog() {
       final[i] = arguments[i];
     }
     try {
-      postMessage({type: "log", args: final, run: run});
+      postMessage({type: "log", args: final, run: editorApp.runNumber});
     } catch(e) {
-      postMessage({type: "error", error: "Worker: Could not log a message", run: run});
+      postMessage({type: "error", error: "Worker: Could not log a message", run: editorApp.runNumber});
     }
   }
 
@@ -17,35 +19,129 @@ var console = {
   error: consoleLog
 };
 
-var uiStorage = {};
 var inputTables = ["event", "keyboard", "mousePosition"];
 
-function compilerWatcher2(application, storage, system) {
+function webRequestWatcher(application, storage, system) {
+  var requests = system.getStore("webRequest");
+  if(!requests) return;
+
+  var adds = [];
+  var removes = [];
+  sent = storage["sent"] || {};
+  if(storage["sent"]) {
+    try {
+      requests.diff(storage["requests"], adds, removes);
+    } catch(e) {
+      adds = requests.getFacts();
+      removes = storage["requests"].getFacts();
+    }
+  } else {
+    adds = requests.getFacts();
+  }
+  storage["requests"] = requests;
+
+  for(var removeIx = 0; removeIx < removes.length; removeIx++) {
+    var id = removes[removeIx][0];
+    if(sent[id]) {
+      sent[id].xhr.abort();
+      sent[id] = null;
+    }
+  }
+
+  for(var addIx = 0; addIx < adds.length; addIx++) {
+    var id = adds[addIx][1];
+    var url = adds[addIx][2];
+    var event = adds[addIx][0];
+
+    if(id === undefined || url === undefined || event === undefined) continue;
+
+    var req = qwest.get(url)
+                   .then(function(response) {
+                     console.log("response!");
+                     if(!sent[id]) return;
+                     var start = now();
+                     var resp = typeof response === "string" ? response : JSON.stringify(response);
+                     application.run([["event", application.eventId++, event, id, resp]]);
+                     postMessage({type: "runStats", runtime: (now() - start), numFacts: application.totalFacts(), start: start, run: null});
+                   });
+    sent[id] = req;
+  }
+
+  storage["sent"] = sent;
+}
+
+function timerWatcher(application, storage, system) {
+  var timers = system.getStore("timer");
+  if(!timers) return;
+
+  var adds = [];
+  var removes = [];
+  timeouts = storage["timeouts"] || {};
+  if(storage["timer"]) {
+    try {
+      timers.diff(storage["timer"], adds, removes);
+    } catch(e) {
+      adds = timers.getFacts();
+      removes = storage["timer"].getFacts();
+    }
+  } else {
+    adds = timers.getFacts();
+  }
+  storage["timer"] = timers;
+
+  for(var removeIx = 0; removeIx < removes.length; removeIx++) {
+    var id = removes[removeIx][0];
+    clearTimeout(timeouts[id]);
+    timeouts[id] = null;
+  }
+
+  for(var addIx = 0; addIx < adds.length; addIx++) {
+    var id = adds[addIx][0];
+    var event = adds[addIx][1];
+    var rate = adds[addIx][2];
+
+    if(!id) continue;
+    if(!rate || typeof(rate) === "string" || rate < 100) rate = 100;
+
+    var timeout = setInterval(function() {
+     var start = now();
+     application.run([["event", application.eventId++, event, "", (new Date()).getTime()]]);
+     postMessage({type: "runStats", runtime: (now() - start), numFacts: application.totalFacts(), start: start, run: null});
+    }, rate);
+    timeouts[id] = timeout;
+  }
+
+  storage["timeouts"] = timeouts;
+}
+
+function tableCardWatcher(application, storage, system) {
   var returns = [];
-  for(var table in editorProg.tablesCreated) {
-    var info = editorProg.tablesCreated[table];
+  for(var table in application.programResults.tablesCreated) {
+    var info = application.programResults.tablesCreated[table];
     var rows = system.getStore(table).getFacts();
     returns.push([table, info.fields, rows, info.constants]);
   }
-  postMessage({type: "tableCards", cards: returns, time: now(), run: run});
+  postMessage({type: "tableCards", cards: returns, time: now(), run: editorApp.runNumber});
+}
 
+function uiWatcher(application, storage, system) {
   var uiTables = ["uiElem", "uiText", "uiAttr", "uiStyle", "uiEvent", "uiChild"];
   var diff = {};
   var hasUI = false;
   for(var i = 0; i < uiTables.length; i++) {
     var table = uiTables[i];
-    if(uiStorage[table]) {
+    if(storage[table]) {
       var adds = [];
       var removes = [];
-      system.getStore(table).diff(uiStorage[table], adds, removes);
-      uiStorage[table] = system.getStore(table);
+      system.getStore(table).diff(storage[table], adds, removes);
+      storage[table] = system.getStore(table);
       if(adds.length || removes.length) { hasUI = true; }
       diff[table] = {
         adds: adds,
         removes: removes
       };
     } else {
-      uiStorage[table] = system.getStore(table);
+      storage[table] = system.getStore(table);
       var adds = system.getStore(table).getFacts();
       if(adds.length) { hasUI = true; }
       diff[table] = {
@@ -56,20 +152,16 @@ function compilerWatcher2(application, storage, system) {
   }
 
   if(hasUI) {
-    postMessage({type: "renderUI", diff: diff, time: now(), run: run});
+    postMessage({type: "renderUI", diff: diff, time: now(), run: editorApp.runNumber});
   }
 }
-
-var compilerProg;
-var editorProg;
-var editorApp;
-var run;
 
 function onCompile(code) {
   var stats = {};
   stats.parse = now();
   var parsedCompilerChecks = parse(compilerChecks);
   var parsed = parse(code);
+  editorApp.lastParse = parsed;
   stats.parse = now() - stats.parse;
   try {
     var prev = editorApp;
@@ -78,28 +170,30 @@ function onCompile(code) {
 
     var errors = [];
 
-    compilerProg = parsedIntoEveProgram(parsedCompilerChecks, system);
-    errors = errors.concat(compilerProg.errors);
-    compilerProg.program.refresh(errors);
+    compileResults = injectParsed(parsedCompilerChecks, system);
+    editorApp.compileResults = compileResults;
+    errors = errors.concat(compileResults.errors);
+    system.refresh(errors);
     if (errors.length > 0) {
-      postMessage({type: "errors", errors: errors, run: run});
+      postMessage({type: "errors", errors: errors, run: editorApp.runNumber});
       return;
     }
-    compilerProg.program.recompile();
+    system.recompile();
 
-    editorProg = parsedIntoEveProgram(parsed, system);
-    errors = errors.concat(editorProg.errors);
-    editorProg.program.refresh(errors);
+    programResults = injectParsed(parsed, system);
+    editorApp.programResults = programResults;
+    errors = errors.concat(programResults.errors);
+    system.refresh(errors);
     if (errors.length > 0) {
-      postMessage({type: "errors", errors: errors, run: run});
+      postMessage({type: "errors", errors: errors, run: editorApp.runNumber});
       return;
     }
-    editorProg.program.recompile();
+    system.recompile();
 
-    editorApp = app(editorProg.program, {parent: null});
+    editorApp.updateSystem(system);
     stats.compile = now() - stats.compile;
     stats.reloadFacts = now();
-    var facts = [["time", 0]].concat(editorProg.values)
+    var facts = [["time", (new Date()).getTime()]].concat(programResults.values)
     if(prev) {
       for(var i in inputTables) {
         var table = inputTables[i];
@@ -113,28 +207,34 @@ function onCompile(code) {
     var runtimeErrors = editorApp.run(facts);
     stats.numFacts = editorApp.totalFacts();
     stats.runtime = now() - stats.runtime;
-    var errors = runtimeErrors.concat(compilerProg.errors, editorProg.errors);
+    var errors = runtimeErrors.concat(compileResults.errors, programResults.errors);
     if(errors.length > 0) {
-      postMessage({type: "errors", errors: errors, run: run});
+      postMessage({type: "errors", errors: errors, run: editorApp.runNumber});
     }
-    postMessage({type: "runStats", parse: stats.parse, reloadFacts:stats.reloadFacts, compile: stats.compile, runtime: stats.runtime, numFacts: editorApp.totalFacts(), run: run});
+    postMessage({type: "runStats", parse: stats.parse, reloadFacts:stats.reloadFacts, compile: stats.compile, runtime: stats.runtime, numFacts: editorApp.totalFacts(), run: editorApp.runNumber});
   } catch(e) {
-    postMessage({type: "runStats", parse: stats.parse, reloadFacts:stats.reloadFacts, compile: stats.compile, runtime: stats.runtime, run: run});
-    postMessage({type: "error", error: e.stack, run: run})
+    postMessage({type: "runStats", parse: stats.parse, reloadFacts:stats.reloadFacts, compile: stats.compile, runtime: stats.runtime, run: editorApp.runNumber});
+    postMessage({type: "error", error: e.stack, run: editorApp.runNumber})
   }
 }
 
 
 onmessage = function(event) {
-  run = event.data.run;
+  editorApp.runNumber = event.data.run;
   switch(event.data.type) {
     case "compile":
       onCompile(event.data.code);
       break;
     case "event":
       var start = now();
-      editorApp.run(event.data.items);
-      postMessage({type: "runStats", runtime: (now() - start), numFacts: editorApp.totalFacts(), run: run});
+      var eid = editorApp.eventId++;
+      var events = event.data.items.map(function(cur) {
+        //set the eventId
+        cur[1] = eid;
+        return cur;
+      });
+      editorApp.run(events);
+      postMessage({type: "runStats", runtime: (now() - start), numFacts: editorApp.totalFacts(), run: editorApp.runNumber});
       break;
   }
 }
