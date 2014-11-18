@@ -331,6 +331,8 @@ NegatedMemoryConstraint.prototype = {
         return FAILED;
       }
     }
+
+    return UNCHANGED;
   },
 
   split: function(myIx, leftConstraintStates, leftLos, leftHis, rightConstraintStates, rightLos, rightHis) {
