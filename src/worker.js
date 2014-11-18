@@ -169,8 +169,10 @@ function tableCardWatcher(application, storage, system) {
 
   storage["previousTablesCreated"] = application.programResults.tablesCreated;
 //   postMessage({type: "tableCards", cards: returns, time: now(), run: editorApp.runNumber});
-  editorApp.sendTableCards = false;
-  postMessage({type: "tableCardsBootstrapped", changes: JSON.stringify({adds: adds, updates: updates, removes: removes}), time: now(), run: editorApp.runNumber});
+  if(adds.length || removes.length || updates.length) {
+    editorApp.sendTableCards = false;
+    postMessage({type: "tableCardsBootstrapped", changes: JSON.stringify({adds: adds, updates: updates, removes: removes}), time: now(), run: editorApp.runNumber});
+  }
 }
 
 function uiWatcher(application, storage, system) {
