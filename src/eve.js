@@ -222,11 +222,18 @@ function MemoryConstraint(storeIx, bindingIxes) {
 }
 
 MemoryConstraint.prototype = {
-  start: function(system) {
+  start: function(myIx, constraintWatches, system) {
+    var watch = 0;
+    var bindingIxes = this.bindingIxes;
+    for (var i = bindingIxes.length - 1; i >= 0; i-=2) {
+      var boundsIx = bindingIxes[i-1];
+      watch = setBit(watch, boundsIx);
+    }
+    constraintWatches[myIx] = watch;
     return system._getStore(this.storeIx).getFacts();
   },
 
-  propagate: function(myIx, constraintStates, los, his) {
+  propagate: function(myIx, constraintStates, constraintWatches, los, his) {
     var bindingIxes = this.bindingIxes;
     var facts = constraintStates[myIx];
 
@@ -312,17 +319,23 @@ function NegatedMemoryConstraint(storeIx, bindingIxes) {
 }
 
 NegatedMemoryConstraint.prototype = {
-  start: function(system) {
+  start: function(myIx, constraintWatches, system) {
+    if (this.bindingIxes.length > 0) {
+      constraintWatches[myIx] = setBit(0, this.bindingIxes[0]);
+    }
     return system._getStore(this.storeIx).getFacts();
   },
 
-  propagate: function(myIx, constraintStates, los, his) {
+  propagate: function(myIx, constraintStates, constraintWatches, los, his) {
     var facts = constraintStates[myIx];
     var bindingIxes = this.bindingIxes;
 
     for (var i = bindingIxes.length - 1; i >= 0; i-=2) {
       var boundsIx = bindingIxes[i-1];
-      if (los[boundsIx] !== his[boundsIx]) return UNCHANGED;
+      if (los[boundsIx] !== his[boundsIx]) {
+        constraintWatches[myIx] = setBit(0, boundsIx);
+        return UNCHANGED;
+      }
     }
 
     for (var i = facts.length - 1; i >= 0; i--) {
@@ -332,6 +345,7 @@ NegatedMemoryConstraint.prototype = {
       }
     }
 
+    constraintWatches[myIx] = 0;
     return UNCHANGED;
   },
 
@@ -352,28 +366,33 @@ function AggregatedMemoryConstraint(storeIx, bindingIxes, outIx, solverVariables
 }
 
 AggregatedMemoryConstraint.prototype = {
-  start: function(system) {
+  start: function(myIx, constraintWatches, system) {
+    if (this.bindingIxes.length > 0) {
+      constraintWatches[myIx] = setBit(0, this.bindingIxes[0]);
+    }
     return system._getStore(this.storeIx).getFacts();
   },
 
-  propagate: function(myIx, constraintStates, los, his) {
+  propagate: function(myIx, constraintStates, constraintWatches, los, his) {
     var facts = constraintStates[myIx];
-
-    if (facts === null) return UNCHANGED; // have already run and thrown away our state
 
     var bindingIxes = this.bindingIxes;
     for (var i = bindingIxes.length - 1; i >= 0; i-=2) {
       var boundsIx = bindingIxes[i-1];
-      if (los[boundsIx] !== his[boundsIx]) return UNCHANGED;
+      if (los[boundsIx] !== his[boundsIx]) {
+        constraintWatches[myIx] = setBit(0, boundsIx);
+        return UNCHANGED;
+      }
     }
 
     var solverIxes = this.solverIxes;
     for (var i = solverIxes.length - 1; i >= 0; i--) {
       var solverIx = solverIxes[i];
-      if (los[solverIx] !== his[solverIx]) return UNCHANGED;
+      if (los[solverIx] !== his[solverIx]) {
+        constraintWatches[myIx] = setBit(0, solverIx);
+        return UNCHANGED;
+      }
     }
-
-    constraintStates[myIx] = null; // throw away state so we don't run again
 
     var groupFacts = [];
 
@@ -408,6 +427,7 @@ AggregatedMemoryConstraint.prototype = {
     if ((compLo === -1) || (compHi === 1)) return FAILED;
     los[outIx] = outValue;
     his[outIx] = outValue;
+    constraintWatches[myIx] = 0;
     return ((compLo === 1) || (compHi === -1)) ? setBit(UNCHANGED, outIx) : UNCHANGED;
   },
 
@@ -477,24 +497,26 @@ function FunctionConstraint(fun, variables, inIxes, outIx) {
 }
 
 FunctionConstraint.prototype = {
-  start: function(system) {
+  start: function(myIx, constraintWatches, system) {
+    if (this.inIxes.length > 0) {
+      constraintWatches[myIx] = setBit(0, this.inIxes[0]);
+    }
     return true;
   },
 
-  propagate: function(myIx, constraintStates, los, his) {
-    if (constraintStates[myIx] === false) return UNCHANGED; // already ran, don't need to go again
-
+  propagate: function(myIx, constraintStates, constraintWatches, los, his) {
     var inIxes = this.inIxes;
     var inValues = this.inValues;
 
     for (var i = inIxes.length - 1; i >= 0; i--) {
       var inIx = inIxes[i];
       var lo = los[inIx];
-      if ((lo !== his[inIx])) return UNCHANGED;
+      if ((lo !== his[inIx])) {
+        constraintWatches[myIx] = setBit(0, inIx);
+        return UNCHANGED;
+      }
       inValues[i] = lo;
     }
-
-    constraintStates[myIx] = false; // going to run now, don't run again
 
     var outIx = this.outIx;
     var outValue = this.fun.apply(null, inValues);
@@ -504,6 +526,7 @@ FunctionConstraint.prototype = {
     if ((compLo === -1) || (compHi === 1)) return FAILED;
     los[outIx] = outValue;
     his[outIx] = outValue;
+    constraintWatches[myIx] = 0;
     return ((compLo === 1) || (compHi === -1)) ? setBit(UNCHANGED, outIx) : UNCHANGED;
   },
 
@@ -548,11 +571,21 @@ Solver.prototype = {
     var constraints = this.constraints;
     var numConstraints = constraints.length;
 
+    var constraintWatches = [];
+    for (var i = constraints.length - 1; i >= 0; i--) {
+      constraintWatches[i] = 0;
+    }
+
     var constraintStates = [];
     for (var i = constraints.length - 1; i >= 0; i--) {
-      var constraintState = constraints[i].start(system);
+      var constraintState = constraints[i].start(i, constraintWatches, system);
       if (constraintState === false) return; // constraint is trivially unsatisfiable - eg provenance constraint when nothing is dirty
       constraintStates[i] = constraintState;
+    }
+
+    var constraintDirty = 0;
+    for (var i = constraints.length - 1; i >= 0; i--) {
+      constraintDirty = setBit(constraintDirty, i);
     }
 
     var los = makeArray(numVars, least);
@@ -575,6 +608,8 @@ Solver.prototype = {
     var depth = 0;
     var steps = 0;
     var queuedConstraintStates = [];
+    var queuedConstraintWatches = [];
+    var queuedConstraintDirty = [];
     var queuedLos = [];
     var queuedHis = [];
 
@@ -590,18 +625,28 @@ Solver.prototype = {
       propagate: while (true) {
         steps += 1;
         // console.log("Before prop " + current + " " + los + " " + his);
-        var result = constraints[current].propagate(current, constraintStates, los, his);
-        if (result === FAILED) {
-          provenance.failed(); // TODO
-          if (depth === 0) break solve;
-          depth -= 1;
-          popFrom(depth, constraintStates, queuedConstraintStates);
-          popFrom(depth, los, queuedLos);
-          popFrom(depth, his, queuedHis);
-          continue solve;
-        } else if (result !== UNCHANGED) {
-          provenance.propagated(); // TODO
-          lastChanged = current;
+        if (bitIsSet(constraintDirty, current)) {
+          constraintDirty = clearBit(constraintDirty, current);
+          var result = constraints[current].propagate(current, constraintStates, constraintWatches, los, his);
+          if (result === FAILED) {
+            provenance.failed(); // TODO
+            if (depth === 0) break solve;
+            depth -= 1;
+            popFrom(depth, constraintStates, queuedConstraintStates);
+            popFrom(depth, constraintWatches, queuedConstraintWatches);
+            constraintDirty = queuedConstraintDirty.pop();
+            popFrom(depth, los, queuedLos);
+            popFrom(depth, his, queuedHis);
+            continue solve;
+          } else if (result !== UNCHANGED) {
+            provenance.propagated(); // TODO
+            lastChanged = current;
+            for (var i = constraints.length - 1; i >= 0; i--) {
+              if ((result && constraintWatches[i]) > 0) {
+                constraintDirty = setBit(constraintDirty, i);
+              }
+            }
+          }
         }
         // console.log("After prop " + current + " " + los + " " + his);
         current = (current + 1) % numConstraints;
@@ -615,6 +660,8 @@ Solver.prototype = {
         if (depth === 0) break solve;
         depth -= 1;
         popFrom(depth, constraintStates, queuedConstraintStates);
+        popFrom(depth, constraintWatches, queuedConstraintWatches);
+        constraintDirty = queuedConstraintDirty.pop();
         popFrom(depth, los, queuedLos);
         popFrom(depth, his, queuedHis);
         continue solve;
@@ -629,6 +676,11 @@ Solver.prototype = {
         var result = constraints[splitter].split(splitter, constraintStates, los, his, rightConstraintStates, rightLos, rightHis);
         if (result !== UNCHANGED) {
           provenance.splitted(); // TODO
+          for (var i = constraints.length - 1; i >= 0; i--) {
+            if ((result && constraintWatches[i]) > 0) {
+              constraintDirty = setBit(constraintDirty, i);
+            }
+          }
           break split;
         }
       }
@@ -636,6 +688,8 @@ Solver.prototype = {
       assert(splitter >= 0);
 
       pushInto(depth, rightConstraintStates, queuedConstraintStates);
+      pushInto(depth, constraintWatches, queuedConstraintWatches); // not changed during splitting
+      queuedConstraintDirty.push(constraintDirty);
       pushInto(depth, rightLos, queuedLos);
       pushInto(depth, rightHis, queuedHis);
       depth += 1;
