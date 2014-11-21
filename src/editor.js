@@ -82,13 +82,6 @@ function getRun(id) {
 function onWorkerMessage(event) {
   var run = getRun(event.data.run);
   switch(event.data.type) {
-    case "tableCards":
-      run.tableCardsMarshalling = now() - event.data.time;
-      run.tableCardsRendering = now();
-      clearErrors();
-      onTableCards(event.data.cards);
-      run.tableCardsRendering = now() - run.tableCardsRendering;
-      break;
     case "tableCardsBootstrapped":
       if(!editorStorage["working"]) {
         editorStorage["working"] = true;
@@ -119,6 +112,7 @@ function onWorkerMessage(event) {
       run.renderSyntaxErrors = now() - run.renderSyntaxErrors;
       break;
     case "runStats":
+      clearErrors();
       run.start = event.data.start || run.start;
       run.runtime = event.data.runtime;
       run.facts = event.data.numFacts;
@@ -186,6 +180,8 @@ function closeStacksView() {
 
 var editorWorker = new Worker("../src/worker.js");
 editorWorker.onmessage = onWorkerMessage;
+editorWorker.postMessage({type: "init", editor: true});
+editorWorker.postMessage({type: "compile", code: getLocal("Editor-code", examples["Editor"]), run: 0});
 
 //*********************************************************
 // open stack
@@ -196,8 +192,7 @@ function openStack(stack) {
   closeStacksView();
   $("#controlCard h1").text(stack);
   $("#stack").show();
-  editorWorker.postMessage({type: "init", editor: true});
-  editorWorker.postMessage({type: "compile", code: getLocal("Editor-code", examples["Editor"]), run: 0});
+  editorWorker.postMessage({type: "reset"});
   setLocal("activeStack", stack);
   worker = new Worker("../src/worker.js");
   worker.onmessage = onWorkerMessage;
@@ -253,6 +248,11 @@ function onChange(cm, change) {
   var edValue = cm.getValue();
   var stack = getLocal("activeStack");
   setLocal(stack + "-code", edValue);
+  //Special case modifying the editor to go ahead and compile/run that into
+  //the current editor process
+  if(stack === "Editor") {
+    editorWorker.postMessage({type: "compile", code: edValue, run: 0});
+  }
   var run = createRun();
   run.compile = true;
   run.start = now();

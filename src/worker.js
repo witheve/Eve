@@ -51,7 +51,7 @@ var console = {
   error: consoleLog
 };
 
-var inputTables = ["event", "keyboard", "mousePosition"];
+var inputTables = ["event", "keyboard", "mousePosition", "tableCard", "tableCardField", "tableCardCell"];
 
 function webRequestWatcher(application, storage, system) {
   var requests = system.getStore("webRequest");
@@ -140,7 +140,7 @@ function timerWatcher(application, storage, system) {
 function tableCardWatcher(application, storage, system) {
   //We don't want to end up an infinite loop sending tableCards to our self
   //if we're the editor
-  if(editorApp.isEditor || !editorApp.sendTableCards) return;
+  if(editorApp.isEditor || (storage["previousTablesCreated"] && !editorApp.sendTableCards)) return;
 
   var adds = [];
   var updates = [];
@@ -208,15 +208,16 @@ function uiWatcher(application, storage, system) {
   }
 }
 
-function onCompile(code) {
+function onCompile(code, addInputs) {
   var stats = {};
   stats.parse = now();
   var parsedCompilerChecks = parse(compilerChecks);
   var parsed = parse(code);
+  editorApp.code = code;
   editorApp.lastParse = parsed;
   stats.parse = now() - stats.parse;
   try {
-    var prev = editorApp;
+    var prev = editorApp.system;
     stats.compile = now();
     var system = System.empty({name: "editor program"});
 
@@ -247,11 +248,11 @@ function onCompile(code) {
     stats.compile = now() - stats.compile;
     stats.reloadFacts = now();
     var facts = [["time", (new Date()).getTime()]].concat(programResults.values)
-    if(prev) {
+    if(addInputs && prev) {
       for(var i in inputTables) {
         var table = inputTables[i];
-        if(prev.system.getStore(table)) {
-          editorApp.system.updateStore(table, prev.system.getStore(table).getFacts(), []);
+        if(prev.getStore(table)) {
+          system.updateStore(table, prev.getStore(table).getFacts(), []);
         }
       }
     }
@@ -362,7 +363,7 @@ onmessage = function(event) {
       }
       break;
     case "compile":
-      onCompile(event.data.code);
+      onCompile(event.data.code, true);
       break;
     case "tableCardsBootstrapped":
       editorApp.eventId++;
@@ -374,6 +375,9 @@ onmessage = function(event) {
       } else {
         editorApp.sendTableCards = true;
       }
+      break;
+    case "reset":
+      onCompile(editorApp.code, false);
       break;
     case "inject":
       var start = now();
