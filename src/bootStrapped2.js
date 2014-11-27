@@ -27,6 +27,10 @@ function seconds(ms) {
   return (new Date(ms)).getSeconds();
 }
 
+function milliseconds(ms) {
+  return (new Date(ms)).getMilliseconds();
+}
+
 var sin = Math.sin;
 var cos = Math.cos;
 var tan = Math.tan;

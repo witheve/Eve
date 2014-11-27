@@ -296,6 +296,18 @@ function addErrors(errors) {
   $("#errors").show();
 }
 
+//*********************************************************
+// UI diff element
+// setAttribute
+// removeAttribute
+// appendChild
+// removeChild
+// insertBefore
+// removeEventListener
+// addEventListener
+// .parentNode
+// .style
+//*********************************************************
 
 //*********************************************************
 // UI Diff
