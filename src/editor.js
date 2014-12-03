@@ -54,7 +54,7 @@ function drainRenderQueue() {
     renderer["programQueue"] = [];
   }
   var end = now();
-  console.log("Render loop:", end - start);
+//   console.log("Render loop:", end - start);
   renderer["queued"] = false;
 }
 
