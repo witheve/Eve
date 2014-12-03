@@ -254,7 +254,7 @@ body {
   flex-direction: column;
 }
 /* #errors { pointer-events:none; position:absolute; top:0px; bottom:0px; left:0px; right:0px; background: rgba(255,100,100,0.9); padding:20px;} */
-#errors {
+.errors {
   box-flex: 0;
   -webkit-flex: none;
   flex: none;
@@ -267,7 +267,7 @@ body {
   border-radius: 3px;
   box-shadow: 0 2px 10px 0 rgba(0,0,0,0.16), 0 2px 5px 0 rgba(0,0,0,0.26);
 }
-#errors li {
+.errors li {
   display: block;
   white-space: pre;
   color: #000;
@@ -299,18 +299,18 @@ body {
   font-size: 20pt;
   vertical-align: middle;
 }
-#controlCard {
+.controlCard {
   margin: 30px;
   display: block;
 }
-#controlCard h1 {
+.controlCard h1 {
   vertical-align: middle;
   font-size: 16pt;
   margin-top: 3px;
   color: rgba(0,0,0,0.56);
   display: inline-block;
 }
-#uiCard {
+.uiCard {
   background: #f4f4f4;
   margin: 30px;
   margin-top: 0px;
@@ -321,12 +321,12 @@ body {
   flex: none;
   box-shadow: 0 2px 10px 0 rgba(0,0,0,0.16), 0 2px 5px 0 rgba(0,0,0,0.26);
 }
-#uiCard h2 {
+.uiCard h2 {
   font-size: 14pt;
   color: rgba(0,0,0,0.56);
   margin-bottom: 10px;
 }
-#uiCard > div {
+.uiCard > div {
   border-radius: 2px;
   overflow: hidden;
   box-shadow: 0 0px 0px rgba(0,0,0,0.26);

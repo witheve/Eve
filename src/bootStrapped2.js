@@ -157,5 +157,7 @@ function commonViews() {
   pushAll(facts, view("tableCard", ["run", "table"]));
   pushAll(facts, view("tableCardField", ["run", "table", "field", "ix"]));
   pushAll(facts, view("tableCardCell", ["run", "table", "row", "col", "value"]));
+  pushAll(facts, view("tableCardProgram", ["run", "program"]));
+  pushAll(facts, view("tableCardErrors", ["run", "error", "line"]));
   return facts;
 }

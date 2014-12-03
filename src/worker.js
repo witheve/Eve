@@ -1,18 +1,20 @@
 importScripts("eve.js", "bootStrapped2.js", "tokenizer.js", "../resources/qwest.js");
 
-var editorApp = app();
+var eveApp = app();
+eveApp.runNumber = 0;
 
 function consoleLog() {
-    var final = [];
-    for(var i in arguments) {
-      final[i] = arguments[i];
-    }
-    try {
-      postMessage({type: "log", args: final, run: editorApp.runNumber});
-    } catch(e) {
-      postMessage({type: "error", error: "Worker: Could not log a message", run: editorApp.runNumber});
-    }
+  var final = [];
+  for(var i in arguments) {
+    final[i] = arguments[i];
   }
+  final.unshift(eveApp.name + ":");
+  try {
+    postMessage({to: "uiThread", type: "log", args: final, run: eveApp.runNumber});
+  } catch(e) {
+    postMessage({to: "uiThread", type: "log", args: [eveApp.name + ": Could not log a message"], run: eveApp.runNumber});
+  }
+}
 
 function diffArray(neue, old) {
   var adds = [];
@@ -44,6 +46,20 @@ function diffTables(neue, old) {
     adds = neue.getFacts();
   }
   return {adds: adds, removes: removes};
+}
+
+function runWithFacts(application, facts) {
+  var stats = {start: now()};
+  try {
+    stats.run = application.runNumber++;
+    stats.errors = application.run(facts);
+    stats.numFacts = application.totalFacts();
+    stats.end = now();
+    stats.runtime = stats.end - stats.start;
+  } catch(e) {
+    postMessage({to: "uiThread", type: "log", args: [e.stack], run: application.runNumber});
+  }
+  return stats;
 }
 
 var console = {
@@ -89,12 +105,9 @@ function webRequestWatcher(application, storage, system) {
 
     var req = qwest.get(url)
                    .then(function(response) {
-                     console.log("response!");
                      if(!sent[id]) return;
-                     var start = now();
                      var resp = typeof response === "string" ? response : JSON.stringify(response);
-                     application.run([["event", application.eventId++, event, id, resp]]);
-                     postMessage({type: "runStats", runtime: (now() - start), numFacts: application.totalFacts(), start: start, run: null});
+                     var stats = runWithFacts([["event", application.eventId++, event, id, resp]]);
                    });
     sent[id] = req;
   }
@@ -127,9 +140,7 @@ function timerWatcher(application, storage, system) {
     if(!rate || typeof(rate) === "string" || rate < 16) rate = 16;
 
     var timeout = setInterval(function() {
-     var start = now();
-     application.run([["event", application.eventId++, event, "", (new Date()).getTime()]]);
-     postMessage({type: "runStats", runtime: (now() - start), numFacts: application.totalFacts(), start: start, run: null});
+      var stats = runWithFacts(application, [["event", application.eventId++, event, "", (new Date()).getTime()]]);
     }, rate);
     timeouts[id] = timeout;
   }
@@ -140,7 +151,7 @@ function timerWatcher(application, storage, system) {
 function tableCardWatcher(application, storage, system) {
   //We don't want to end up an infinite loop sending tableCards to our self
   //if we're the editor
-  if(editorApp.isEditor || (storage["previousTablesCreated"] && !editorApp.sendTableCards)) return;
+  if(application.isEditor || (storage["previousTablesCreated"] && !application.sendTableCards)) return;
 
   var adds = [];
   var updates = [];
@@ -168,10 +179,10 @@ function tableCardWatcher(application, storage, system) {
   }
 
   storage["previousTablesCreated"] = application.programResults.tablesCreated;
-//   postMessage({type: "tableCards", cards: returns, time: now(), run: editorApp.runNumber});
+//   postMessage({type: "tableCards", cards: returns, time: now(), run: eveApp.runNumber});
   if(adds.length || removes.length || updates.length) {
-    editorApp.sendTableCards = false;
-    postMessage({type: "tableCardsBootstrapped", changes: JSON.stringify({adds: adds, updates: updates, removes: removes}), time: now(), run: editorApp.runNumber});
+    application.sendTableCards = false;
+    postMessage({to: "editor", type: "tableCards", changes: JSON.stringify({adds: adds, updates: updates, removes: removes}), time: now(), run: application.runNumber});
   }
 }
 
@@ -203,8 +214,8 @@ function uiWatcher(application, storage, system) {
   }
 
   if(hasUI) {
-    var type = editorApp.isEditor ? "renderEditorUI" : "renderUI";
-    postMessage({type: type, diff: diff, time: now(), run: editorApp.runNumber});
+    var container = eveApp.isEditor ? "editor" : "program";
+    postMessage({to: "uiThread", uiContainer: container, type: "renderUI", diff: diff, time: now(), run: eveApp.runNumber});
   }
 }
 
@@ -213,38 +224,38 @@ function onCompile(code, addInputs) {
   stats.parse = now();
   var parsedCompilerChecks = parse(compilerChecks);
   var parsed = parse(code);
-  editorApp.code = code;
-  editorApp.lastParse = parsed;
+  eveApp.code = code;
+  eveApp.lastParse = parsed;
   stats.parse = now() - stats.parse;
   try {
-    var prev = editorApp.system;
+    var prev = eveApp.system;
     stats.compile = now();
     var system = System.empty({name: "editor program"});
 
     var errors = [];
 
     compileResults = injectParsed(parsedCompilerChecks, system);
-    editorApp.compileResults = compileResults;
+    eveApp.compileResults = compileResults;
     errors = errors.concat(compileResults.errors);
     system.refresh(errors);
     if (errors.length > 0) {
-      postMessage({type: "errors", errors: errors, run: editorApp.runNumber});
+      postMessage({to: "editor", type: "errors", errors: errors, run: eveApp.runNumber});
       return;
     }
     system.recompile();
 
     programResults = injectParsed(parsed, system);
-    editorApp.programResults = programResults;
+    eveApp.programResults = programResults;
     errors = errors.concat(programResults.errors);
     system.refresh(errors);
     if (errors.length > 0) {
-      postMessage({type: "errors", errors: errors, run: editorApp.runNumber});
+      postMessage({to: "editor", type: "errors", errors: errors, run: eveApp.runNumber});
       return;
     }
-    postMessage({type: "tablesCreated", tables: programResults.tablesCreated});
+    postMessage({to: "editor", type: "tablesCreated", tables: programResults.tablesCreated});
     system.recompile();
 
-    editorApp.updateSystem(system);
+    eveApp.updateSystem(system);
     stats.compile = now() - stats.compile;
     stats.reloadFacts = now();
     var facts = [["time", (new Date()).getTime()]].concat(programResults.values)
@@ -257,18 +268,17 @@ function onCompile(code, addInputs) {
       }
     }
     stats.reloadFacts = now() - stats.reloadFacts;
-    stats.runtime = now();
-    var runtimeErrors = editorApp.run(facts);
-    stats.numFacts = editorApp.totalFacts();
-    stats.runtime = now() - stats.runtime;
+
+    var runStats = runWithFacts(eveApp, facts);
+
     var errors = runtimeErrors.concat(compileResults.errors, programResults.errors);
     if(errors.length > 0) {
-      postMessage({type: "errors", errors: errors, run: editorApp.runNumber});
+      postMessage({to: "editor", type: "errors", errors: errors, run: eveApp.runNumber});
     }
-    postMessage({type: "runStats", parse: stats.parse, reloadFacts:stats.reloadFacts, compile: stats.compile, runtime: stats.runtime, numFacts: editorApp.totalFacts(), run: editorApp.runNumber});
+//     postMessage({to: "editor", type: "runStats", parse: stats.parse, reloadFacts:stats.reloadFacts, compile: stats.compile, runtime: stats.runtime, numFacts: eveApp.totalFacts(), run: eveApp.runNumber});
   } catch(e) {
-    postMessage({type: "runStats", parse: stats.parse, reloadFacts:stats.reloadFacts, compile: stats.compile, runtime: stats.runtime, run: editorApp.runNumber});
-    postMessage({type: "error", error: e.stack, run: editorApp.runNumber})
+//     postMessage({type: "runStats", parse: stats.parse, reloadFacts:stats.reloadFacts, compile: stats.compile, runtime: stats.runtime, run: eveApp.runNumber});
+    postMessage({to: "editor", type: "error", error: e.stack, run: eveApp.runNumber})
   }
 }
 
@@ -323,78 +333,75 @@ function injectedTablesToFacts(tables, run, adds, removes, shouldAddTable) {
   }
 }
 
-function injectEveTables(queuedChanges) {
+function injectEveTables(changes) {
   var run = 1;
   var adds = {"tableCard": [], "tableCardField": [], "tableCardCell": []};
   var removes = {"tableCard": [], "tableCardField": [], "tableCardCell": []};
   var tables = ["tableCard", "tableCardField", "tableCardCell"];
 
-  for(var changeIx = 0, len = queuedChanges.length; changeIx < len; changeIx++) {
-    var changes = queuedChanges[changeIx];
-    injectedTablesToFacts(changes.adds, run, adds, removes, true);
-    injectedTablesToFacts(changes.updates, run, adds, removes, false);
-    injectedTablesToFacts(changes.removes, run, removes, removes, true);
-  }
+  injectedTablesToFacts(changes.adds, run, adds, removes, true);
+  injectedTablesToFacts(changes.updates, run, adds, removes, false);
+  injectedTablesToFacts(changes.removes, run, removes, removes, true);
 
 //   console.log(adds, removes);
 
   var start = now();
-  var eid = editorApp.eventId++;
+  var eid = eveApp.eventId++;
   var totalFactsChanged = 0;
   for(var i = 0, len = tables.length; i < len; i++) {
     var table = tables[i];
     totalFactsChanged += adds[table].length + removes[table].length;
-    editorApp.system.updateStore(table, adds[table], removes[table]);
+    eveApp.system.updateStore(table, adds[table], removes[table]);
   }
-  editorApp.run([]);
-  console.log("run time", now() - start, totalFactsChanged, editorApp.totalFacts());
-  postMessage({type: "editorRunStats", runtime: (now() - start), numFacts: editorApp.totalFacts(), run: editorApp.runNumber});
-  postMessage({type: "requestTableCards", lastSeenRunNumber: editorApp.runNumber});
+  var stats = runWithFacts(eveApp, []);
+  console.log("run time", now() - start, totalFactsChanged, eveApp.totalFacts());
+  postMessage({to: "program", type: "requestTableCards", lastSeenRunNumber: eveApp.lastSeenRunNumber});
 }
 
 
 onmessage = function(event) {
-  editorApp.runNumber = event.data.run;
   switch(event.data.type) {
     case "init":
-      editorApp.isEditor = event.data.editor;
-      if(editorApp.isEditor) {
-        postMessage({type: "requestTableCards", lastSeenRunNumber: editorApp.runNumber});
+      eveApp.name = event.data.name;
+      eveApp.isEditor = event.data.editor;
+      if(eveApp.isEditor) {
+        postMessage({to: "program", type: "requestTableCards", lastSeenRunNumber: eveApp.lastSeenRunNumber});
       }
+      break;
+
+    case "newProgram":
+      console.log("new program: ", event.data.programName);
+      var stats = runWithFacts(eveApp, [["tableCardProgram", 1, event.data.programName]]);
       break;
     case "compile":
       onCompile(event.data.code, true);
       break;
-    case "tableCardsBootstrapped":
-      editorApp.eventId++;
-      injectEveTables(event.data.changes.map(JSON.parse));
+    case "tableCards":
+      eveApp.eventId++;
+      eveApp.lastSeenRunNumber = event.data.run;
+      injectEveTables(JSON.parse(event.data.changes));
       break;
     case "requestTableCards":
-      if(editorApp.runNumber !== event.data.lastSeenRunNumber) {
-        tableCardWatcher(editorApp, editorApp.storage["tableCardWatcher"], editorApp.system);
-      } else {
-        editorApp.sendTableCards = true;
+      eveApp.sendTableCards = true;
+      if(eveApp.runNumber !== event.data.lastSeenRunNumber) {
+        tableCardWatcher(eveApp, eveApp.storage["tableCardWatcher"], eveApp.system);
       }
       break;
     case "reset":
-      onCompile(editorApp.code, false);
+      onCompile(eveApp.code, false);
       break;
     case "inject":
-      var start = now();
-      var eid = editorApp.eventId++;
-      editorApp.run(event.data.items);
-      postMessage({type: "runStats", runtime: (now() - start), numFacts: editorApp.totalFacts(), run: editorApp.runNumber});
+      eveApp.eventId++;
+      var stats = runWithFacts(eveApp, event.data.items);
       break;
     case "event":
-      var start = now();
-      var eid = editorApp.eventId++;
+      var eid = eveApp.eventId++;
       var events = event.data.items.map(function(cur) {
         //set the eventId
         cur[1] = eid;
         return cur;
       });
-      editorApp.run(events);
-      postMessage({type: "runStats", runtime: (now() - start), numFacts: editorApp.totalFacts(), run: editorApp.runNumber});
+      var stats = runWithFacts(eveApp, events);
       break;
   }
 }

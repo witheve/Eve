@@ -34,22 +34,27 @@ var renderer = {"editorQueue": [], "programQueue": [], "queued": false}
 
 function drainRenderQueue() {
   var start = now();
-  $("#uiCard").show();
-  storage["rootParent"] = $("#uiCard").get(0);
-  for(var i = 0, len = renderer["programQueue"].length; i < len; i++) {
-    var diff = renderer["programQueue"][i];
-    uiDiffRenderer(diff, storage);
-  }
-  renderer["programQueue"] = [];
-
   editorStorage["rootParent"] = $("#cards").get(0);
   for(var i = 0, len = renderer["editorQueue"].length; i < len; i++) {
     var diff = renderer["editorQueue"][i];
     uiDiffRenderer(diff, editorStorage);
   }
   renderer["editorQueue"] = [];
+
+  storage["rootParent"] = $(".uiCard").get(0);
+  if(storage["rootParent"] && renderer["programQueue"].length > 0) {
+    for(var i = 0, len = renderer["programQueue"].length; i < len; i++) {
+      var diff = renderer["programQueue"][i];
+      uiDiffRenderer(diff, storage);
+    }
+    var eveRoot = $(storage["builtEls"]["eve-root"]);
+    if(!eveRoot.closest(document.documentElement).size()) {
+      storage["rootParent"].appendChild(eveRoot.get(0));
+    }
+    renderer["programQueue"] = [];
+  }
   var end = now();
-//   console.log("Render loop:", end - start);
+  console.log("Render loop:", end - start);
   renderer["queued"] = false;
 }
 
@@ -65,89 +70,28 @@ function queueRender() {
 // worker
 //*********************************************************
 
-var runs = [];
 var storage = {};
+var workers = {};
 var editorStorage = {"queue": [], "working": false};
 
-function createRun() {
-  var run = {id: runs.length};
-  runs.push(run);
-  return run;
-}
-
-function getRun(id) {
-  return runs[id] || createRun();
-}
-
 function onWorkerMessage(event) {
-  var run = getRun(event.data.run);
-  switch(event.data.type) {
-    case "tableCardsBootstrapped":
-      if(!editorStorage["working"]) {
-        editorStorage["working"] = true;
-        editorWorker.postMessage({type: "tableCardsBootstrapped", changes: [event.data.changes]});
-      } else {
-        var queue = editorStorage["queue"];
-        queue.push(event.data.changes);
-        editorStorage["queue"] = queue;
-      }
-      break;
-    case "log":
-      event.data.args.unshift("Worker: ");
-      console.log.apply(console, event.data.args);
-      break;
-    case "error":
-      clearErrors();
-      run.renderError = now();
-      addErrors([event.data.error])
-      console.error(event.data.error);
-      run.renderError = now() - run.renderError;
-      run.stop = now();
-      run.total = run.stop - run.start;
-      break;
-    case "errors":
-      run.renderSyntaxErrors = now();
-      addErrors(event.data.errors);
-      console.error("Syntax error: ", event.data.errors);
-      run.renderSyntaxErrors = now() - run.renderSyntaxErrors;
-      break;
-    case "runStats":
-      clearErrors();
-      run.start = event.data.start || run.start;
-      run.runtime = event.data.runtime;
-      run.facts = event.data.numFacts;
-      run.compile = event.data.compile;
-      run.parse = event.data.parse;
-      run.reloadFacts = event.data.reloadFacts;
-      run.stop = now();
-      run.total = run.stop - run.start;
-      $("#timeStat").html((run.runtime || 0).toFixed(2));
-      $("#renderStat").html((run.renderUIDiff || 0).toFixed(2) + " / " + (run.tableCardsRendering || 0).toFixed(2));
-      $("#totalStat").html((run.total || 0).toFixed(2));
-      $("#factsStat").html(run.facts);
-      break;
-    case "requestTableCards":
-      worker.postMessage(event.data);
-      break;
-    case "renderEditorUI":
-      run.renderUIMarshalling = now() - event.data.time;
-      renderer["editorQueue"].push(event.data.diff);
-      queueRender();
-      break;
-    case "editorRunStats":
-//       console.log("editor finished");
-      if(!editorStorage["queue"].length) {
-        editorStorage["working"] = false;
-      } else {
-        editorWorker.postMessage(({type: "tableCardsBootstrapped", changes: editorStorage["queue"]}));
-        editorStorage["queue"] = [];
-      }
-      break;
-    case "renderUI":
-      run.renderUIMarshalling = now() - event.data.time;
-      renderer["programQueue"].push(event.data.diff);
-      queueRender();
-      break;
+  if(event.data.to === "uiThread") {
+    switch(event.data.type) {
+      case "log":
+        console.log.apply(console, event.data.args);
+        break;
+      case "renderUI":
+        if(event.data.uiContainer === "program") {
+          renderer["programQueue"].push(event.data.diff);
+        } else {
+          renderer["editorQueue"].push(event.data.diff);
+        }
+        queueRender();
+        break;
+    }
+  } else {
+    var worker = workers[event.data.to];
+    if(worker) worker.postMessage(event.data);
   }
 }
 
@@ -178,24 +122,24 @@ function closeStacksView() {
 // editor worker
 //*********************************************************
 
-var editorWorker = new Worker("../src/worker.js");
-editorWorker.onmessage = onWorkerMessage;
-editorWorker.postMessage({type: "init", editor: true});
-editorWorker.postMessage({type: "compile", code: getLocal("Editor-code", examples["Editor"]), run: 0});
+workers["editor"] = new Worker("../src/worker.js");
+workers["editor"].onmessage = onWorkerMessage;
+workers["editor"].postMessage({type: "init", editor: true, name: "EveEditor"});
+workers["editor"].postMessage({type: "compile", code: getLocal("Editor-code", examples["Editor"])});
 
 //*********************************************************
 // open stack
 //*********************************************************
 
-var worker;
 function openStack(stack) {
   closeStacksView();
-  $("#controlCard h1").text(stack);
   $("#stack").show();
-  editorWorker.postMessage({type: "reset"});
   setLocal("activeStack", stack);
-  worker = new Worker("../src/worker.js");
-  worker.onmessage = onWorkerMessage;
+  storage = {};
+  workers["program"] = new Worker("../src/worker.js");
+  workers["program"].onmessage = onWorkerMessage;
+  workers["program"].postMessage({type: "init", editor: false, name: stack});
+  workers["editor"].postMessage({type: "newProgram", programName: stack});
   editor.setValue(getLocal(stack + "-code", examples[stack]));
   editor.refresh();
   onChange(editor, null);
@@ -207,9 +151,9 @@ $("#return").on("click", function() {
 
 function closeStack() {
   setLocal("activeStack", null);
-  resetStackUI();
-  if(worker) {
-    worker.terminate();
+  workers["editor"].postMessage({type: "reset"});
+  if(workers["program"]) {
+    workers["program"].terminate();
   }
   $("#stack").hide();
 }
@@ -251,12 +195,9 @@ function onChange(cm, change) {
   //Special case modifying the editor to go ahead and compile/run that into
   //the current editor process
   if(stack === "Editor") {
-    editorWorker.postMessage({type: "compile", code: edValue, run: 0});
+    workers["editor"].postMessage({type: "compile", code: edValue});
   }
-  var run = createRun();
-  run.compile = true;
-  run.start = now();
-  worker.postMessage({type: "compile", code: edValue, run: run.id});
+  workers["program"].postMessage({type: "compile", code: edValue});
 }
 
 editor.on("change", Cowboy.debounce(200, onChange));
@@ -269,32 +210,6 @@ editor.on("change", Cowboy.debounce(200, onChange));
 $("#cards").on("click", ".table-card", function() {
   $(this).toggleClass("open");
 });
-
-function clearErrors(errors) {
-  $("#errors").empty().hide();
-}
-
-function clearUICard(errors) {
-  $("#uiCard > div").empty();
-}
-
-function resetStackUI() {
-  clearErrors();
-  clearUICard();
-  $("#uiCard").hide();
-}
-
-function addErrors(errors) {
-  for(var i in errors) {
-    var err = errors[i];
-    if(typeof err === "string") {
-      $("#errors").append("<li>" + err + "</li>");
-    } else {
-      $("#errors").append("<li> Line: " + (err.line + 1) + " - " + err.message + "</li>");
-    }
-  }
-  $("#errors").show();
-}
 
 //*********************************************************
 // UI diff element
@@ -359,10 +274,7 @@ var createUICallback = function(id, event, label, key) {
       }
       e.stopPropagation();
       items.push(["event", eid, label, key, value]);
-      var run = createRun();
-      run.event = true;
-      run.start = now();
-      worker.postMessage({type: "event", items: items, run: run.id});
+      workers["program"].postMessage({type: "event", items: items});
     }
   };
 };
@@ -385,6 +297,8 @@ function appendSortElement(parent, child){
 
   //shortcut the common case of just appending to the end
   if(children[stopIndex].eveSortValue < value) return parent.appendChild(child);
+  //shortcut the common case of just prepending to the beginning
+  if(children[startIndex].eveSortValue > value) return parent.insertBefore(child, children[startIndex]);
 
   var middle = Math.floor((stopIndex + startIndex) / 2);
   var cur = children[middle];
@@ -398,6 +312,7 @@ function appendSortElement(parent, child){
     }
 
     middle = Math.floor((stopIndex + startIndex)/2);
+    if(cur === children[middle]) break;
     cur = children[middle];
   }
 
