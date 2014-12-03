@@ -254,7 +254,7 @@ body {
   flex-direction: column;
 }
 /* #errors { pointer-events:none; position:absolute; top:0px; bottom:0px; left:0px; right:0px; background: rgba(255,100,100,0.9); padding:20px;} */
-.errors {
+.errorCard {
   box-flex: 0;
   -webkit-flex: none;
   flex: none;
@@ -262,12 +262,12 @@ body {
   margin: 30px;
   margin-bottom: 0;
   padding: 10px 20px;
-  background: #f56;
+  background: #f56 !important;
   overflow: auto;
   border-radius: 3px;
   box-shadow: 0 2px 10px 0 rgba(0,0,0,0.16), 0 2px 5px 0 rgba(0,0,0,0.26);
 }
-.errors li {
+.errorCard pre {
   display: block;
   white-space: pre;
   color: #000;

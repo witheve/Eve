@@ -89,7 +89,8 @@ var Application = function(system, opts) {
   this.storage = {"uiWatcher": {},
                   "timerWatcher": {},
                   "webRequestWatcher": {},
-                  "tableCardWatcher": {}};
+                  "programInfo": {},
+                  };
 }
 
 Application.prototype.totalFacts = function() {
@@ -110,7 +111,6 @@ Application.prototype.run = function(facts, removes) {
   this.system.refresh(errors);
   webRequestWatcher(this, this.storage["webRequestWatcher"], this.system);
   timerWatcher(this, this.storage["timerWatcher"], this.system);
-  tableCardWatcher(this, this.storage["tableCardWatcher"], this.system);
   uiWatcher(this, this.storage["uiWatcher"], this.system);
   return errors;
 };
@@ -158,6 +158,8 @@ function commonViews() {
   pushAll(facts, view("tableCardField", ["run", "table", "field", "ix"]));
   pushAll(facts, view("tableCardCell", ["run", "table", "row", "col", "value"]));
   pushAll(facts, view("tableCardProgram", ["run", "program"]));
-  pushAll(facts, view("tableCardErrors", ["run", "error", "line"]));
+  pushAll(facts, view("tableCardProgramErrors", ["run", "error"]));
+  pushAll(facts, view("tableCardProfiles", ["run", "event", "time"]));
+  pushAll(facts, view("tableCardUIInfo", ["run", "hasUI"]));
   return facts;
 }
