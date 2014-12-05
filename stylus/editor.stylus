@@ -288,9 +288,9 @@ $open-animation = cubic-bezier(.14,.85,.77,1.03);
   margin-top: -5px;
   transition: margin 0.28s $open-animation;
 
-  &:hover h2 {
+/*   &:hover h2 {
     color:blue;
-  }
+  } */
 
   h2 {
     transition: margin 0.28s $open-animation;

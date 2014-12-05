@@ -22,7 +22,7 @@ var prevVersion = getLocal("prevVersion");
 var stacks = getLocal("stacks");
 
 // if(!stacks || stacks.indexOf("Clock") === -1) {
-  stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph paths", "TodoMVC", "Turing machine", "Clock", "Editor"];
+  stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph paths", "TodoMVC", "Turing machine", "Clock", "Editor", "My Stack"];
   setLocal("stacks", stacks);
 // }
 
@@ -54,6 +54,9 @@ function drainRenderQueue() {
     renderer["programQueue"] = [];
   }
   var end = now();
+  if(end - start > 10) {
+    console.error("Long render: " + (end - start));
+  }
 //   console.log("Render loop:", end - start);
   renderer["queued"] = false;
 }
@@ -201,15 +204,6 @@ function onChange(cm, change) {
 }
 
 editor.on("change", Cowboy.debounce(200, onChange));
-
-//*********************************************************
-// Cards UI
-//*********************************************************
-
-//bind open events
-$("#cards").on("click", ".table-card", function() {
-  $(this).toggleClass("open");
-});
 
 //*********************************************************
 // UI diff element

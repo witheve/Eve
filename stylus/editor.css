@@ -465,9 +465,9 @@ body {
   align-items: flex-start;
   margin-top: -5px;
   transition: margin 0.28s cubic-bezier(0.14, 0.85, 0.77, 1.03);
-}
-.card:hover h2 {
-  color: #00a6fc;
+/*   &:hover h2 {
+    color:blue;
+  } */
 }
 .card h2 {
   transition: margin 0.28s cubic-bezier(0.14, 0.85, 0.77, 1.03);
