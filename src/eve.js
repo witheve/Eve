@@ -9,36 +9,36 @@ var metastack = [];
 // UTIL
 
 function assert(cond, msg) {
-  if(!cond) {
+  if (!cond) {
     throw new Error(msg);
   }
 }
 
 function makeArray(len, fill) {
   var arr = [];
-  for(var i = 0; i < len; i++) {
+  for (var i = 0; i < len; i++) {
     arr[i] = fill;
   }
   return arr;
 }
 
 var now = function() {
-  if(typeof window !== "undefined" && window.performance) {
+  if (typeof window !== "undefined" && window.performance) {
     return window.performance.now();
   }
   return (new Date()).getTime();
 };
 
-function bitIsSet(bits, bit){
-    return ((bits>>bit) % 2 != 0)
+function bitIsSet(bits, bit) {
+  return ((bits >> bit) % 2 != 0)
 }
 
-function setBit(bits, bit){
-    return bits | (1<<bit);
+function setBit(bits, bit) {
+  return bits | (1 << bit);
 }
 
-function clearBit(bits, bit){
-    return bits & ~(1<<bit);
+function clearBit(bits, bit) {
+  return bits & ~(1 << bit);
 }
 
 // ORDERING / COMPARISON
@@ -48,23 +48,23 @@ var greatest = undefined;
 
 function isValue(v) {
   var t = typeof v;
-  return (t === 'string') || (t === 'number') || (t === "boolean") ;
+  return (t === 'string') || (t === 'number') || (t === "boolean");
 }
 
 function compareValue(a, b) {
-  if(a === b) return 0;
+  if (a === b) return 0;
   var at = typeof a;
   var bt = typeof b;
-  if((at === bt && a < b) || (at < bt)) return -1;
+  if ((at === bt && a < b) || (at < bt)) return -1;
   return 1;
 }
 
 function compareValueArray(a, b) {
   var len = a.length;
-  if(len !== b.length) throw new Error("compareValueArray on arrays of different length: " + a + " :: " + b);
-  for(var i = 0; i < len; i++) {
+  if (len !== b.length) throw new Error("compareValueArray on arrays of different length: " + a + " :: " + b);
+  for (var i = 0; i < len; i++) {
     var comp = compareValue(a[i], b[i]);
-    if(comp !== 0) return comp;
+    if (comp !== 0) return comp;
   }
   return 0;
 }
@@ -72,8 +72,8 @@ function compareValueArray(a, b) {
 function arrayEqual(a, b) {
   var len = a.length;
   assert(len === b.length);
-  for(var i = 0; i < len; i++) {
-    if(a[i] !== b[i]) {
+  for (var i = 0; i < len; i++) {
+    if (a[i] !== b[i]) {
       return false;
     }
   }
@@ -81,9 +81,9 @@ function arrayEqual(a, b) {
 }
 
 function boundsContainsPoint(los, his, ixes, point) {
-  for (var i = ixes.length - 1; i >= 0; i-=2) {
+  for (var i = ixes.length - 1; i >= 0; i -= 2) {
     var pointIx = ixes[i];
-    var boundsIx = ixes[i-1];
+    var boundsIx = ixes[i - 1];
     if (compareValue(point[pointIx], los[boundsIx]) === -1) return false;
     if (compareValue(point[pointIx], his[boundsIx]) === 1) return false;
   }
@@ -91,9 +91,9 @@ function boundsContainsPoint(los, his, ixes, point) {
 }
 
 function solutionMatchesPoint(solution, ixes, point) {
-  for (var i = ixes.length - 1; i >= 0; i-=2) {
+  for (var i = ixes.length - 1; i >= 0; i -= 2) {
     var pointIx = ixes[i];
-    var boundsIx = ixes[i-1];
+    var boundsIx = ixes[i - 1];
     if (point[pointIx] !== solution[boundsIx]) return false;
   }
   return true;
@@ -202,7 +202,8 @@ Memory.prototype = {
   },
 
   differsFrom: function(oldTree) {
-    var adds = [], dels = [];
+    var adds = [],
+      dels = [];
     this.diff(oldTree, adds, dels);
     return (adds.length > 0) || (dels.length > 0);
   },
@@ -225,8 +226,8 @@ MemoryConstraint.prototype = {
   start: function(myIx, constraintWatches, system) {
     var watch = 0;
     var bindingIxes = this.bindingIxes;
-    for (var i = bindingIxes.length - 1; i >= 0; i-=2) {
-      var boundsIx = bindingIxes[i-1];
+    for (var i = bindingIxes.length - 1; i >= 0; i -= 2) {
+      var boundsIx = bindingIxes[i - 1];
       watch = setBit(watch, boundsIx);
     }
     constraintWatches[myIx] = watch;
@@ -259,9 +260,9 @@ MemoryConstraint.prototype = {
 
     var changes = UNCHANGED;
 
-    for (var i = bindingIxes.length - 1; i >= 0; i-=2) {
+    for (var i = bindingIxes.length - 1; i >= 0; i -= 2) {
       var pointIx = bindingIxes[i];
-      var boundsIx = bindingIxes[i-1];
+      var boundsIx = bindingIxes[i - 1];
       var newLo = greatest;
       var newHi = least;
       for (var j = facts.length - 1; j >= 0; j--) {
@@ -289,9 +290,9 @@ MemoryConstraint.prototype = {
     var bindingIxes = this.bindingIxes;
 
     var pointIx, boundsIx, lowerPivot;
-    findLowerPivot: for (var i = bindingIxes.length - 1; i >= 0; i-=2) {
+    findLowerPivot: for (var i = bindingIxes.length - 1; i >= 0; i -= 2) {
       pointIx = bindingIxes[i];
-      boundsIx = bindingIxes[i-1];
+      boundsIx = bindingIxes[i - 1];
       for (var j = facts.length - 1; j >= 0; j--) {
         lowerPivot = facts[j][pointIx];
         if (lowerPivot !== leftHis[boundsIx]) break findLowerPivot;
@@ -330,8 +331,8 @@ NegatedMemoryConstraint.prototype = {
     var facts = constraintStates[myIx];
     var bindingIxes = this.bindingIxes;
 
-    for (var i = bindingIxes.length - 1; i >= 0; i-=2) {
-      var boundsIx = bindingIxes[i-1];
+    for (var i = bindingIxes.length - 1; i >= 0; i -= 2) {
+      var boundsIx = bindingIxes[i - 1];
       if (los[boundsIx] !== his[boundsIx]) {
         constraintWatches[myIx] = setBit(0, boundsIx);
         return UNCHANGED;
@@ -377,8 +378,8 @@ AggregatedMemoryConstraint.prototype = {
     var facts = constraintStates[myIx];
 
     var bindingIxes = this.bindingIxes;
-    for (var i = bindingIxes.length - 1; i >= 0; i-=2) {
-      var boundsIx = bindingIxes[i-1];
+    for (var i = bindingIxes.length - 1; i >= 0; i -= 2) {
+      var boundsIx = bindingIxes[i - 1];
       if (los[boundsIx] !== his[boundsIx]) {
         constraintWatches[myIx] = setBit(0, boundsIx);
         return UNCHANGED;
@@ -454,19 +455,19 @@ Provenance.prototype = {
   // provenance interface
   // (all inputs may be aliased)
 
-  propagated: function (oldLos, oldHis, newLos, newHis, constraintIx) {},
+  propagated: function(oldLos, oldHis, newLos, newHis, constraintIx) {},
 
-  splitted: function (oldLos, oldHis, leftLos, leftHis, rightLos, rightHis, constraintIx) {},
+  splitted: function(oldLos, oldHis, leftLos, leftHis, rightLos, rightHis, constraintIx) {},
 
-  failed: function (oldLos, oldHis, ix) {},
+  failed: function(oldLos, oldHis, ix) {},
 
-  solved: function (solution) {
+  solved: function(solution) {
     this.queuedAdds.push(solution.slice());
   },
 
   // constraint interface
 
-  start: function (system) {
+  start: function(system) {
     return null;
   },
 
@@ -544,7 +545,7 @@ function Solver(numVars, constants, constraints, provenance) {
   this.provenance = provenance;
 }
 
-Solver.empty = function (numVars, constants, constraints, outputIx) {
+Solver.empty = function(numVars, constants, constraints, outputIx) {
   var provenance = Provenance.empty(numVars, constraints, outputIx);
   constraints.push(provenance);
   return new Solver(numVars, constants, constraints, provenance);
@@ -670,21 +671,21 @@ Solver.prototype = {
       // split the problem in two
       var splitter;
       split: for (splitter = constraints.length - 1; splitter >= 0; splitter--) {
-        pushInto(0, constraintStates, rightConstraintStates);
-        pushInto(0, los, rightLos);
-        pushInto(0, his, rightHis);
-        var result = constraints[splitter].split(splitter, constraintStates, los, his, rightConstraintStates, rightLos, rightHis);
-        if (result !== UNCHANGED) {
-          provenance.splitted(); // TODO
-          for (var i = constraints.length - 1; i >= 0; i--) {
-            if ((result & constraintWatches[i]) > 0) {
-              constraintDirty = setBit(constraintDirty, i);
+          pushInto(0, constraintStates, rightConstraintStates);
+          pushInto(0, los, rightLos);
+          pushInto(0, his, rightHis);
+          var result = constraints[splitter].split(splitter, constraintStates, los, his, rightConstraintStates, rightLos, rightHis);
+          if (result !== UNCHANGED) {
+            provenance.splitted(); // TODO
+            for (var i = constraints.length - 1; i >= 0; i--) {
+              if ((result & constraintWatches[i]) > 0) {
+                constraintDirty = setBit(constraintDirty, i);
+              }
             }
+            break split;
           }
-          break split;
         }
-      }
-      // console.log("Split by " + splitter);
+        // console.log("Split by " + splitter);
       assert(splitter >= 0);
 
       pushInto(depth, rightConstraintStates, queuedConstraintStates);
@@ -714,11 +715,9 @@ Union.prototype = {
     var inputIxes = this.inputIxes;
     if (inputIxes.length === 0) {
       return;
-    }
-    else if (inputIxes.length === 1) {
+    } else if (inputIxes.length === 1) {
       system._setStore(this.outputIx, system._getStore(inputIxes[0]));
-    }
-    else {
+    } else {
       var outputFacts = [];
       for (var i = inputIxes.length - 1; i >= 0; i--) {
         outputFacts = outputFacts.concat(system._getStore(inputIxes[i]).getFacts());
@@ -804,12 +803,12 @@ System.empty = function(meta) {
 };
 
 System.prototype = {
-  getStore: function (name) {
+  getStore: function(name) {
     var ix = this.nameToIx[name];
     return this._getStore(ix);
   },
 
-  updateStore: function (name, adds, dels) {
+  updateStore: function(name, adds, dels) {
     var ix = this.nameToIx[name];
     if (ix === undefined) throw new Error("No store for " + name);
     var store = this._getStore(ix);
@@ -817,11 +816,11 @@ System.prototype = {
     return this;
   },
 
-  _getStore: function (storeIx) {
+  _getStore: function(storeIx) {
     return this.stores[storeIx];
   },
 
-  _setStore: function (storeIx, store) {
+  _setStore: function(storeIx, store) {
     this.stores[storeIx] = store;
     var dirtiedFlows = this.downstream[storeIx];
     var dirtyFlows = this.dirtyFlows;
@@ -830,7 +829,7 @@ System.prototype = {
     }
   },
 
-  getDump: function (view) {
+  getDump: function(view) {
     var fields = this.getStore("field").getFacts();
     var viewFields = [];
     for (var i = fields.length - 1; i >= 0; i--) {
@@ -870,7 +869,7 @@ System.prototype = {
         var startTime = now();
         var flow = flows[flowIx];
         if (flow !== null) flows[flowIx].refresh(this);
-        if ((checkFlows[flowIx] === true) && !(stores[flowIx].isEmpty()))  {
+        if ((checkFlows[flowIx] === true) && !(stores[flowIx].isEmpty())) {
           errors.push("Check flow " + JSON.stringify(ixToName[flowIx]) + " produced " + JSON.stringify(stores[flowIx].getFacts()));
         }
         var endTime = now();
@@ -879,7 +878,7 @@ System.prototype = {
         metastack.pop();
       }
     }
-//     this.updateStore("refresh", refreshes, []);
+    //     this.updateStore("refresh", refreshes, []);
     this.tick++;
     metastack.pop();
     return this;
@@ -947,7 +946,10 @@ System.prototype = {
     }
 
     // order queries by their ix
-    queries.sort(function (a,b) { if (a.ix < b.ix) return 1; else return -1;});
+    queries.sort(function(a, b) {
+      if (a.ix < b.ix) return 1;
+      else return -1;
+    });
 
     // choose flow ordering
     var nextIx = 0;
@@ -1119,9 +1121,9 @@ System.prototype = {
       var aggregateConstraint = aggregateConstraints[i];
       var constraint = constraints[aggregateConstraint.constraint];
       constraint.fun = Function.apply(null,
-                                      constraint.solverVariables.concat(
-                                        constraint.aggregateVariables.concat(
-                                          ["return (" + aggregateConstraint.code + ");"])));
+        constraint.solverVariables.concat(
+          constraint.aggregateVariables.concat(
+            ["return (" + aggregateConstraint.code + ");"])));
     }
 
     // tag checks
