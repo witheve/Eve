@@ -746,7 +746,15 @@ var compilerSchemas = [
   ["aggregateConstraintAggregateInput", "constraint", "sourceField", "variable"],
   ["isInput", "view"],
   ["isCheck", "view"],
-  ["refresh", "tick", "startTime", "endTime", "flow"]
+  ["refresh", "tick", "startTime", "endTime", "flow"],
+
+  // TODO these need fields
+  ["event"],
+  ["keyboard"],
+  ["mousePosition"],
+  ["tableCard"],
+  ["tableCardField"],
+  ["tableCardCell"]
 ];
 
 function System(meta, stores, flows, dirtyFlows, checkFlows, downstream, nameToIx, ixToName) {
@@ -799,6 +807,7 @@ System.empty = function(meta) {
   var system = new System(meta, stores, flows, dirtyFlows, checkFlows, downstream, nameToIx, ixToName);
   system.updateStore("view", compilerViews, []);
   system.updateStore("field", compilerFields, []);
+  system.updateStore("isInput", compilerViews, []);
   return system;
 };
 
@@ -929,6 +938,11 @@ System.prototype = {
       var field = fields[i];
       viewToNumFields[field.view] += 1;
     }
+    var viewIsInput = {};
+    for (var i = isInputs.length - 1; i >= 0; i--) {
+      var isInput = isInputs[i];
+      viewIsInput[isInput.view] = true;
+    }
 
     // work out upstream dependencies
     var upstream = {};
@@ -1001,7 +1015,7 @@ System.prototype = {
     for (var i = views.length - 1; i >= 0; i--) {
       var view = views[i];
       var viewIx = nameToIx[view.view];
-      stores[viewIx] = this.getStore(view.view) || Memory.empty();
+      stores[viewIx] = viewIsInput[view.view] ? this.getStore(view.view) : Memory.empty();
       flows[viewIx] = new Union([], viewIx);
       dirtyFlows[viewIx] = false;
     }
@@ -1020,7 +1034,7 @@ System.prototype = {
       var numFields = viewToNumFields[query.view];
       assert(numFields <= 32) // we use bitflags in the constraint solver
       var queryIx = nameToIx[query.query];
-      stores[queryIx] = this.getStore(query.query) || Memory.empty();
+      stores[queryIx] = Memory.empty();
       flows[queryIx] = Solver.empty(numFields, [], [], queryIx);
       dirtyFlows[queryIx] = true; // need to run solvers even if they don't have input yet - aggregates can compute on empty sets
     }
