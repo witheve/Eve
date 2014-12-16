@@ -1,5 +1,7 @@
 {
 	"name": "Eve",
+  "description": "Programming designed for humans.",
+  "repository": "http://github.com/kodowa/eve",
   "dependencies": {
     "express": "4.10.x",
     "compression": "*",
@@ -12,6 +14,7 @@
     "axis-css": "*"
   },
   "scripts": {
+    "start": "node server.js",
     "test": "cat src/bigcheck.js src/eve.js src/dsl.js src/test.js | node"
   }
 }
