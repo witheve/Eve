@@ -747,6 +747,8 @@ function createUIView(uiTable, view, context, mappings) {
   }
 
   facts.push(["view", tempName]);
+  facts.push(["generatedView", tempName]);
+  if(context.programName) facts.push(["programView", context.programName, tempName]);
   facts.push(["query", query, tempName, context.nextId]);
   var viewConstraint = query + "|viewConstraint=" + context.nextId;
   facts.push(["viewConstraint", viewConstraint, query, view, false]);
@@ -790,6 +792,7 @@ function createUIView(uiTable, view, context, mappings) {
   //map temp table into the real table
   var realQuery = tempName + "|realQuery";
   facts.push(["query", realQuery, uiTable, context.nextId++]);
+  if(context.programName) { facts.push(["programQuery", context.programName, realQuery]); }
 
   var constraint = realQuery + "|viewConstraint=" + context.nextId;
   facts.push(["viewConstraint", constraint, realQuery, tempName, false]);
@@ -903,12 +906,12 @@ function eveUIElem(view, ui, parentGeneratedId, context) {
   return {id: id, facts: facts, pos: attrs["ix"], parented: parented};
 }
 
-function injectParsed(parsed, program) {
+function injectParsed(parsed, program, prefix, programName) {
   var tablesCreated = {};
   var errors = parsed.errors || [];
-  var context = {nextId: 0};
+  var context = {nextId: 0, programName: programName};
   var facts = [];
-  var values = [];
+  var values = {};
   for(var ix = 0; ix < parsed.rules.length; ix++) {
     var curId = context.nextId;
     var curRule = parsed.rules[ix];
@@ -916,6 +919,8 @@ function injectParsed(parsed, program) {
     var view = curRule.name;
     var query = view + "|query=" + curId;
     facts.push(["view", view]);
+
+    if(programName) facts.push(["programView", programName, view]);
 
     if (curRule.isCheck) facts.push(["isCheck", view]);
 
@@ -1015,33 +1020,42 @@ function injectParsed(parsed, program) {
         makeLocalField(cur.name);
       });
     }
-    var fieldToIx = {};
-    var orderedFields = Object.keys(fields);
-    orderedFields.sort();
-    tablesCreated[curRule.name] = {fields: orderedFields, constants: curRule.constants};
-    for(var fieldIx = orderedFields.length - 1; fieldIx >= 0; fieldIx--) {
-      var field = orderedFields[fieldIx];
-      fieldToIx[field] = fieldIx;
-      facts.push(["field", makeLocalField(field), view, fieldIx]);
+
+    if(!addedTables[curRule.name]) {
+      var fieldToIx = {};
+      var orderedFields = Object.keys(fields);
+      orderedFields.sort();
+      tablesCreated[curRule.name] = {fields: orderedFields, constants: curRule.constants};
+      for(var fieldIx = orderedFields.length - 1; fieldIx >= 0; fieldIx--) {
+        var field = orderedFields[fieldIx];
+        var munged = makeLocalField(field);
+        fieldToIx[field] = fieldIx;
+        if(prefix) { facts.push(["displayName", munged, field]); }
+        facts.push(["field", munged, view, fieldIx]);
+      }
     }
 
     // handle header
     if(curRule.header) {
+      facts.push(["isInput", curRule.name]);
       var tableFields = curRule.header.fields.map(function(cur) {
         return cur.name;
       });
       var orderedTableFields = tableFields.slice();
       orderedTableFields.sort();
 
+      if(!values[curRule.name]) values[curRule.name] = [];
+
       // have to reorder insert facts to match the default field ordering
       for(var valueIx = curRule.values.length - 1; valueIx >= 0; valueIx--) {
         var insert = curRule.values[valueIx].values;
-        var value = [curRule.name];
+        var value = [];
         for (var insertIx = insert.length - 1; insertIx >= 0; insertIx--) {
-          value[1 + orderedTableFields.indexOf(tableFields[insertIx])] = insert[insertIx];
+          value[orderedTableFields.indexOf(tableFields[insertIx])] = insert[insertIx];
         }
-        values.push(value);
+        values[curRule.name].push(value);
       }
+
     } else {
       facts.push(["query", query, view, curId]);
     }
@@ -1049,7 +1063,14 @@ function injectParsed(parsed, program) {
   }
 //   console.log("Compiling " + JSON.stringify(facts));
 
-  program.update(facts.concat(commonViews()), []);
+  var final = facts;
+  if(prefix) {
+    final = final.map(function(cur) {
+      cur[0] = prefix + cur[0];
+      return cur;
+    });
+  }
+  program.update(final, []);
   return {values: values, errors: errors, tablesCreated: tablesCreated};
 }
 

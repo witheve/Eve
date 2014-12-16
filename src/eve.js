@@ -747,14 +747,6 @@ var compilerSchemas = [
   ["isInput", "view"],
   ["isCheck", "view"],
   ["refresh", "tick", "startTime", "endTime", "flow"],
-
-  // TODO these need fields
-  ["event"],
-  ["keyboard"],
-  ["mousePosition"],
-  ["tableCard"],
-  ["tableCardField"],
-  ["tableCardCell"]
 ];
 
 function System(meta, stores, flows, dirtyFlows, checkFlows, downstream, nameToIx, ixToName) {
@@ -1015,7 +1007,7 @@ System.prototype = {
     for (var i = views.length - 1; i >= 0; i--) {
       var view = views[i];
       var viewIx = nameToIx[view.view];
-      stores[viewIx] = viewIsInput[view.view] ? this.getStore(view.view) : Memory.empty();
+      stores[viewIx] = viewIsInput[view.view] && this.getStore(view.view) ? this.getStore(view.view) : Memory.empty();
       flows[viewIx] = new Union([], viewIx);
       dirtyFlows[viewIx] = false;
     }

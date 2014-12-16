@@ -1,8 +1,7 @@
 importScripts("eve.js", "bootStrapped2.js", "tokenizer.js", "../resources/qwest.js");
 
 var eveApp = app();
-eveApp.runNumber = 0;
-eveApp.running = true;
+eveApp.remotes = {};
 
 function consoleLog() {
   var final = [];
@@ -36,7 +35,7 @@ function diffArray(neue, old) {
 function diffTables(neue, old) {
   var adds = [];
   var removes = [];
-  if(old) {
+  if(old && neue) {
     try {
       neue.diff(old, adds, removes);
     } catch(e) {
@@ -49,39 +48,21 @@ function diffTables(neue, old) {
   return {adds: adds, removes: removes};
 }
 
-function errorsToFacts(errors) {
-  if(!errors) return [];
-
-  return errors.map(function(cur) {
-    var text = typeof cur === "string" ? cur : "Line " + cur.line + ": " + cur.message;
-    return [eveApp.runNumber, text];
-  });
-}
-
-function runWithFacts(application, facts, stats) {
-  if(!application.running) return;
-
-  var stats = stats || {profile: []};
-  stats.start = now();
-  try {
-    stats.run = application.runNumber;
-    stats.errors = application.run(facts);
-    stats.numFacts = application.totalFacts();
-    stats.end = now();
-    stats.profile.push([stats.run, "runtime", stats.end - stats.start]);
-    application.lastStats = stats;
-    collectProgramInfo(application, stats);
-  } catch(e) {
-    postMessage({to: "uiThread", type: "log", args: [e.stack], run: application.runNumber});
+function applyDiff(application, table, diff) {
+  if(diff.adds.length || diff.removes.length) {
+    application.system.updateStore(table, diff.adds, diff.removes);
   }
-  return stats;
 }
+
 
 var console = {
   log: consoleLog,
   error: consoleLog
 };
 
+var compilerTables = ["programView", "programQuery", "subscription", "generatedView", "displayName", "view", "field", "query", "constantConstraint", "functionConstraint", "functionConstraintInput", "constantConstraint",
+                      "viewConstraint", "viewConstraintBinding", "aggregateConstraint", "aggregateConstraintBinding", "aggregateConstraintSolverInput",
+                      "aggregateConstraintAggregateInput", "isInput", "isCheck"];
 var inputTables = ["event", "keyboard", "mousePosition", "tableCard", "tableCardField", "tableCardCell"];
 
 function webRequestWatcher(application, storage, system) {
@@ -122,8 +103,7 @@ function webRequestWatcher(application, storage, system) {
                    .then(function(response) {
                      if(!sent[id]) return;
                      var resp = typeof response === "string" ? response : JSON.stringify(response);
-                     application.runNumber++;
-                     var stats = runWithFacts(application, [["event", application.eventId++, event, id, resp]]);
+                     application.run([["event", application.eventId++, event, id, resp]]);
                    });
     sent[id] = req;
   }
@@ -142,22 +122,21 @@ function timerWatcher(application, storage, system) {
   timeouts = storage["timeouts"] || {};
 
   for(var removeIx = 0; removeIx < removes.length; removeIx++) {
-    var id = removes[removeIx][0];
+    var id = removes[removeIx][1];
     clearTimeout(timeouts[id]);
     timeouts[id] = null;
   }
 
   for(var addIx = 0; addIx < adds.length; addIx++) {
-    var id = adds[addIx][0];
-    var event = adds[addIx][1];
+    var id = adds[addIx][1];
+    var event = adds[addIx][0];
     var rate = adds[addIx][2];
 
     if(!id) continue;
     if(!rate || typeof(rate) === "string" || rate < 16) rate = 16;
 
     var timeout = setInterval(function() {
-      application.runNumber++;
-      var stats = runWithFacts(application, [["event", application.eventId++, event, "", (new Date()).getTime()]]);
+      application.run([["event", application.eventId++, event, "", (new Date()).getTime()]]);
     }, rate);
     timeouts[id] = timeout;
   }
@@ -165,58 +144,183 @@ function timerWatcher(application, storage, system) {
   storage["timeouts"] = timeouts;
 }
 
-function collectProgramInfo(application, runInfo) {
-  //We don't want to end up an infinite loop sending programInfo to our self
-  //if we're the editor
-  var storage = application.storage["programInfo"];
-  var system = application.system;
-  if(application.isEditor || (storage["previousTablesCreated"] && !application.sendProgramInfo)) return;
-
-  //table differences
-  var adds = [];
-  var updates = [];
-  var removes = [];
-  var prev = storage["previousTablesCreated"];
-  for(var tableName in application.programResults.tablesCreated) {
-    var info = application.programResults.tablesCreated[tableName];
-    var table = system.getStore(tableName);
-    var diff = diffTables(table, storage[tableName]);
-    if(!storage[tableName]) {
-      adds.push([tableName, info.fields, [], diff.adds, diff.removes]);
-    } else if(diff.adds.length || diff.removes.length) {
-      var prevInfo = prev ? prev[tableName] : null;
-      var fieldsDiff = diffArray(info.fields, prevInfo.fields)
-      updates.push([tableName, fieldsDiff.adds, fieldsDiff.removes, diff.adds, diff.removes]);
+function compileWatcher(application, storage, system) {
+  var needsCompile = false;
+  for(var i = 0, len = compilerTables.length; i < len; i++) {
+    var table = compilerTables[i];
+    var current = system.getStore(table);
+    if(!needsCompile) {
+      var diff = diffTables(current, storage[table])
+      if(diff.adds.length || diff.removes.length) {
+        needsCompile = true;
+      }
     }
-    storage[tableName] = table;
+    storage[table] = current;
   }
 
-  for(var prevTable in prev) {
-    if(!application.programResults.tablesCreated[prevTable]) {
-      removes.push([prevTable, [], prev[prevTable].fields, [], storage[prevTable].getFacts()]);
-      storage[prevTable] = null;
+  if(needsCompile) {
+    var run = application.runNumber + 1;
+    try {
+      start = now();
+      system.recompile();
+      system.updateStore("profile", [[run, "compile", now() - start]], []);
+
+      var errors = [];
+      system.refresh(errors);
+      if(errors.length) {
+        system.updateStore("error", errorsToFacts(errors), []);
+      }
+
+    } catch(e) {
+      system.updateStore("error", [[run, e.stack]], []);
+      return false;
+    }
+  }
+  return true;
+}
+
+function factsToCells(facts, view) {
+  var cells = [];
+  for(var factIx = 0, factLen = facts.length; factIx < factLen; factIx++) {
+    var fact = facts[factIx];
+    var row = JSON.stringify(fact);
+    for(var colIx = 0, colLen = fact.length; colIx < colLen; colIx++) {
+      cells.push([view, row, colIx, fact[colIx]]);
+    }
+  }
+  return cells;
+}
+
+function remoteWatcher(application, storage, system) {
+  var diffs = {};
+  var removed = {};
+  var remoteNames = [];
+  var remoteStatuses = application.remotes;
+
+  //Handle remote thread creation and destruction
+  var remoteTable = system.getStore("remote");
+  var remoteDiff = diffTables(remoteTable, storage["remotes"]);
+
+  for(var i = 0, len = remoteDiff.removes.length; i < len; i++) {
+    var name = remoteDiff.removes[i][0];
+    removed[name] = true;
+    remoteStatuses[name] = {killed: true};
+    postMessage({to: "uiThread", type: "kill", name: name});
+  }
+
+  for(var i = 0, len = remoteDiff.adds.length; i < len; i++) {
+    var name = remoteDiff.adds[i][0];
+    postMessage({to: "uiThread", type: "createThread", name: name});
+    remoteStatuses[name] = {ready:true, lastSeenRunNumber: -1};
+  }
+
+  var remotes = remoteTable ? remoteTable.getFacts() : [];
+  for(var i = 0, len = remotes.length; i < len; i++) {
+    var name = remotes[i][0];
+    remoteNames.push(name);
+    diffs[name] = {};
+  }
+
+  storage["remotes"] = remoteTable;
+
+  // Collect diffs for remote compiler views
+  for(var i = 0, len = compilerTables.length; i < len; i++) {
+    var table = "remote|" + compilerTables[i];
+    var current = system.getStore(table);
+    var diff = diffTables(current, storage[table])
+    storage[table] = current;
+    if(diff.adds.length || diff.removes.length) {
+      var first = diff.adds[0] || diff.removes[0];
+      var remoteName = first[0];
+      var result = {adds: [], removes: []};
+      if(!diffs[remoteName]) continue;
+      diffs[remoteName][compilerTables[i]] = result;
+      for(var x = 0, xlen = diff.adds.length; x < xlen; x++) {
+        var cur = diff.adds[x];
+        if(!removed[remoteName]) {
+          result.adds.push(cur.slice(1));
+        }
+      }
+      for(var x = 0, xlen = diff.removes.length; x < xlen; x++) {
+        var cur = diff.removes[x];
+        if(!removed[remoteName]) {
+          result.removes.push(cur.slice(1));
+        }
+      }
     }
   }
 
-  storage["previousTablesCreated"] = application.programResults.tablesCreated;
-
-  //hasUI
-  var hasUI = false;
-  var uiElem = system.getStore("uiElem");
-  if(uiElem) {
-    hasUI = uiElem.getFacts().length > 0;
+  // reconstitute insertedFacts
+  var inserts = {};
+  var insertedTable = system.getStore("remote|insertedFact");
+  var insertedDiff = diffTables(insertedTable, storage["remote|insertedFact"]);
+  storage["remote|insertedFact"] = insertedTable;
+  if(insertedDiff.adds.length || insertedDiff.removes.length) {
+    var insertedFacts = insertedTable.getFacts();
+    for(var i = 0, len = insertedFacts.length; i < len; i++) {
+      var fact = insertedFacts[i];
+      var remote = fact[0];
+      var view = fact[1];
+      var row = fact[2];
+      var col = fact[3];
+      var value = fact[4];
+      if(!inserts[remote]) inserts[remote] = {};
+      if(!inserts[remote][view]) inserts[remote][view] = [];
+      if(!inserts[remote][view][row]) inserts[remote][view][row] = [];
+      inserts[remote][view][row][col] = value;
+    }
   }
 
-  //errors
-  var errors = errorsToFacts(runInfo.errors);
-
-  //profile
-  var profile = runInfo.profile;
-
-  if(adds.length || removes.length || updates.length || errors.length || profile.length) {
-    application.sendProgramInfo = false;
-    postMessage({to: "editor", type: "programInfo", changes: JSON.stringify({adds: adds, updates: updates, removes: removes}), errors: errors, profile: profile, hasUI: hasUI, time: now(), run: application.runNumber});
+  // collect subscriptions
+  var subscriptions = {};
+  var subsTable = system.getStore("subscription");
+  var subsFacts = subsTable.getFacts();
+  for(var subIx = 0, subLen = subsFacts.length; subIx < subLen; subIx++) {
+    var cur = subsFacts[subIx];
+    var remote = cur[0];
+    var view = cur[1];
+    var alias = cur[2];
+    var asCell = cur[3];
+    var localTable = system.getStore(view);
+    if(!remoteStatuses[remote] || !remoteStatuses[remote].ready) continue;
+    if(!subscriptions[remote]) {
+      subscriptions[remote] = {};
+      remoteNames.push(remote);
+    }
+    var results = subscriptions[remote];
+    if(localTable) {
+      var diff = diffTables(localTable, storage[remote + "|" + alias]);
+      storage[remote + "|" + alias] = localTable;
+      if(asCell) {
+        if(!results["resultCell"]) {
+          results["resultCell"] = {adds: [], removes: []};
+        }
+        results["resultCell"].adds = results["resultCell"].adds.concat(factsToCells(diff.adds, alias));
+        results["resultCell"].removes = results["resultCell"].removes.concat(factsToCells(diff.removes, alias));
+      } else {
+        results[alias] = {};
+        results[alias].adds = diff.adds;
+        results[alias].removes = diff.removes;
+      }
+    }
   }
+
+  for(var remoteIx = 0, remoteLen = remoteNames.length; remoteIx < remoteLen; remoteIx++) {
+    var remoteThread = remoteNames[remoteIx];
+    if((diffs[remoteThread] && Object.keys(diffs[remoteThread]).length) ||
+       (inserts[remoteThread] && Object.keys(inserts[remoteThread]).length) ||
+       (subscriptions[remoteThread] && Object.keys(subscriptions[remoteThread]).length)) {
+      remoteStatuses[remoteThread].ready = false;
+      remoteStatuses[remoteThread].lastSeenRunNumber = application.runNumber;
+      postMessage({to: remoteThread,
+                   from: application.name,
+                   type: "diffs",
+                   diffs: JSON.stringify(diffs[remoteThread] || {}),
+                   subscriptions:JSON.stringify(subscriptions[remoteThread] || {}),
+                   inserts: JSON.stringify(inserts[remoteThread] || {})});
+    }
+  }
+
 }
 
 function uiWatcher(application, storage, system) {
@@ -248,171 +352,154 @@ function uiWatcher(application, storage, system) {
 
   if(hasUI) {
     var container = eveApp.isEditor ? "editor" : "program";
-    postMessage({to: "uiThread", uiContainer: container, type: "renderUI", diff: diff, time: now(), run: eveApp.runNumber});
+    postMessage({to: "uiThread", uiContainer: container, type: "renderUI", diff: diff, time: now(), run: eveApp.runNumber, from: eveApp.name});
   }
 }
 
-function onCompile(code, addInputs) {
+function onCompile(code, replace, subProgram) {
   var stats = {profile: []};
   var start = now();
   var parsedCompilerChecks = parse(compilerChecks);
   var parsed = parse(code);
-  eveApp.code = code;
+  var prefix = subProgram ? "editor|" : "";
+  var run = eveApp.runNumber + 1;
+  if(!subProgram) {
+    eveApp.code = code;
+  }
+  var compileErrorTable = eveApp.system.getStore("compileError");
+  if(compileErrorTable) {
+    eveApp.system.updateStore("compileError", [], compileErrorTable.getFacts());
+  }
   eveApp.lastParse = parsed;
-  stats.profile.push([eveApp.runNumber, "parse", now() - start]);
+  stats.profile.push([run, "parse", now() - start]);
   try {
     var prev = eveApp.system;
     start = now();
     var system = System.empty({name: "editor program"});
+    system.update(commonViews(), []);
+    system.recompile();
+    system.refresh();
 
     var errors = [];
 
     compileResults = injectParsed(parsedCompilerChecks, system);
+
+    if(eveApp.isEditor) {
+      system.update(editorViews(), []);
+    }
+
     eveApp.compileResults = compileResults;
     errors = errors.concat(compileResults.errors);
     system.refresh(errors);
     if (errors.length > 0) {
-      eveApp.running = false;
-      postMessage({to: "editor", type: "error", errors: errorsToFacts(errors), run: eveApp.runNumber});
-      return;
+      eveApp.system.updateStore("compileError", errorsToFacts(errors), []);
+      if(!subProgram) return remoteWatcher(eveApp, eveApp.storage["remoteWatcher"], eveApp.system);
+      else return eveApp.run([]);
     }
     system.recompile();
 
-    programResults = injectParsed(parsed, system);
+    programResults = injectParsed(parsed, system, prefix, subProgram && eveApp.activeEditorProgram);
     eveApp.programResults = programResults;
     errors = errors.concat(programResults.errors);
     system.refresh(errors);
     if (errors.length > 0) {
-      eveApp.running = false;
-      postMessage({to: "editor", type: "error", errors: errorsToFacts(errors), run: eveApp.runNumber});
-      return;
+      eveApp.system.updateStore("compileError", errorsToFacts(errors), []);
+      if(!subProgram) return remoteWatcher(eveApp, eveApp.storage["remoteWatcher"], eveApp.system);
+      else return eveApp.run([]);
     }
-    system.recompile();
-    eveApp.updateSystem(system);
 
-    stats.profile.push([eveApp.runNumber, "compile", now() - start]);
+    stats.profile.push([run, "compile", now() - start]);
 
-    start = now();
-    var facts = [["time", (new Date()).getTime()]].concat(programResults.values)
-    if(addInputs && prev) {
-      for(var i in inputTables) {
-        var table = inputTables[i];
-        if(prev.getStore(table)) {
-          system.updateStore(table, prev.getStore(table).getFacts(), []);
+    if(!replace) {
+      start = now();
+      for(var i = 0, len = compilerTables.length; i < len; i++) {
+        var table = prefix + compilerTables[i];
+        var diff = diffTables(system.getStore(table), prev.getStore(table));
+        applyDiff(eveApp, table, diff);
+      }
+      stats.profile.push([run, "loadCompiled", now() - start]);
+    } else {
+      eveApp.updateSystem(system);
+    }
+
+    if(!subProgram) {
+      compileWatcher(eveApp, eveApp.storage["compilerWatcher"], eveApp.system);
+    }
+
+    programResults.values["time"] = [[(new Date()).getTime()]];
+
+    if(!subProgram) {
+      for(var table in programResults.values) {
+        var facts = programResults.values[table];
+        var prev = eveApp.system.getStore(table);
+        var removes = [];
+        if(prev) {
+          removes = prev.getFacts();
+        }
+        eveApp.system.updateStore(table, facts, removes);
+      }
+    } else {
+      var insertedFacts = [];
+      for(var table in programResults.values) {
+        var facts = programResults.values[table];
+        for(var factIx = 0, factLen = facts.length; factIx < factLen; factIx++) {
+          var fact = facts[factIx];
+          for(var colIx = 0, colLen = fact.length; colIx < colLen; colIx++) {
+            insertedFacts.push([eveApp.activeEditorProgram, table, factIx, colIx, fact[colIx]]);
+          }
         }
       }
+      var prev = eveApp.system.getStore("editor|insertedFact");
+      var removes = [];
+      if(prev) {
+        removes = prev.getFacts();
+      }
+      eveApp.system.updateStore("editor|insertedFact", insertedFacts, removes);
     }
 
-    stats.profile.push([eveApp.runNumber, "reloadFacts", now() - start]);
-
-    var runStats = runWithFacts(eveApp, facts, stats);
+    eveApp.system.updateStore("profile", stats.profile, []);
+    eveApp.run([]);
 
   } catch(e) {
-    postMessage({to: "editor", type: "error", errors: [e.stack], run: eveApp.runNumber})
+    eveApp.system.updateStore("error", [[run, e.stack]], []);
+    remoteWatcher(eveApp, eveApp.storage["remoteWatcher"], eveApp.system);
   }
 }
 
-function injectedTablesToFacts(tables, run, adds, removes, shouldAddTable) {
-  var tableCards = adds["tableCard"];
-  var tableCardFields = adds["tableCardField"];
-  var tableCardCells = adds["tableCardCell"];
-  var remTableCards = removes["tableCard"];
-  var remTableCardFields = removes["tableCardField"];
-  var remTableCardCells = removes["tableCardCell"];
-  for(var tableIx = 0, len = tables.length; tableIx < len; tableIx++) {
-    var table = tables[tableIx][0];
-    var fieldsAdded = tables[tableIx][1];
-    var fieldsRemoved = tables[tableIx][2];
-    var addedRows = tables[tableIx][3];
-    var removedRows = tables[tableIx][4];
-
-//     console.log("sizes", addedRows.length, removedRows.length, facts.length, removes.length);
-
-    if(shouldAddTable) {
-      tableCards.push([run, table]);
-    }
-
-    for(var fieldIx = 0, flen = fieldsAdded.length; fieldIx < flen; fieldIx++) {
-      var field = fieldsAdded[fieldIx];
-      tableCardFields.push([run, table, field, fieldIx]);
-    }
-
-    for(var fieldIx = 0, flen = fieldsRemoved.length; fieldIx < flen; fieldIx++) {
-      var field = fieldsRemoved[fieldIx];
-      remTableCardFields.push([run, table, field, fieldIx]);
-    }
-
-    for(var rowIx = 0, rlen = addedRows.length; rowIx < rlen; rowIx++) {
-      var row = addedRows[rowIx];
-      var rowId = JSON.stringify(row);
-      for(var colIx = 0, clen = row.length; colIx < clen; colIx++) {
-        tableCardCells.push([run, table, rowId, colIx, row[colIx]]);
-      }
-    }
-
-    for(var rowIx = 0, rlen = removedRows.length; rowIx < rlen; rowIx++) {
-      var row = removedRows[rowIx];
-      var rowId = JSON.stringify(row);
-      for(var colIx = 0, clen = row.length; colIx < clen; colIx++) {
-        remTableCardCells.push([run, table, rowId, colIx, row[colIx]]);
-      }
-    }
-
-
-//     console.log("sizes", addedRows.length, removedRows.length, facts.length, removes.length);
-  }
-}
-
-function injectProgramInfo(programInfo) {
-  var run = 1;
-  var changes = JSON.parse(programInfo.changes);
-  var adds = {"tableCard": [], "tableCardField": [], "tableCardCell": []};
-  var removes = {"tableCard": [], "tableCardField": [], "tableCardCell": []};
-  var tables = ["tableCard", "tableCardField", "tableCardCell"];
-
-  injectedTablesToFacts(changes.adds, run, adds, removes, true);
-  injectedTablesToFacts(changes.updates, run, adds, removes, false);
-  injectedTablesToFacts(changes.removes, run, removes, removes, true);
-
-//   console.log(adds, removes);
-
+function injectRemoteDiffs(diffs, inserts, subs) {
   var start = now();
-  var eid = eveApp.eventId++;
-  var totalFactsChanged = 0;
-  for(var i = 0, len = tables.length; i < len; i++) {
-    var table = tables[i];
-    totalFactsChanged += adds[table].length + removes[table].length;
-    eveApp.system.updateStore(table, adds[table], removes[table]);
+  var changed = false;
+  for(var table in diffs) {
+    var curDiff = diffs[table];
+    if(curDiff.adds.length || curDiff.removes.length) {
+      changed = true;
+      eveApp.system.updateStore(table, curDiff.adds, curDiff.removes);
+    }
   }
 
-  // clean up errors
-  eveApp.system.updateStore("tableCardProgramErrors", programInfo.errors, eveApp.system.getStore("tableCardProgramErrors").getFacts());
-
-  // insert profile information
-  eveApp.system.updateStore("tableCardProfiles", programInfo.profile, []);
-
-  // hasUI changes
-  var UIInfo = eveApp.system.getStore("tableCardUIInfo").getFacts()[0];
-  if(!UIInfo) {
-    eveApp.system.updateStore("tableCardUIInfo", [[run, programInfo.hasUI]], []);
-  } else if(UIInfo[1] !== programInfo.hasUI) {
-    eveApp.system.updateStore("tableCardUIInfo", [[run, programInfo.hasUI]], [UIInfo]);
+  if(changed) {
+    var didCompile = compileWatcher(eveApp, eveApp.storage["compilerWatcher"], eveApp.system);
+    if(!didCompile) return remoteWatcher(eveApp, eveApp.storage["remoteWatcher"], eveApp.system);
   }
 
-  // Run with all the updates
-  var stats = runWithFacts(eveApp, []);
-  console.log("run time", now() - start, totalFactsChanged, eveApp.totalFacts());
-  postMessage({to: "program", type: "requestProgramInfo", lastSeenRunNumber: eveApp.lastSeenRunNumber});
-}
-
-function injectProgramError(errors) {
-  var start = now();
-  // clean up errors
-  eveApp.system.updateStore("tableCardProgramErrors", errors, eveApp.system.getStore("tableCardProgramErrors").getFacts());
-
-  // Run with all the updates
-  var stats = runWithFacts(eveApp, []);
-  console.log("run time", now() - start, errors.length, eveApp.totalFacts());
+  var inserted = false;
+  for(var table in inserts) {
+    var facts = inserts[table];
+    var current = eveApp.system.getStore(table);
+    if(current) {
+      inserted = true;
+      eveApp.system.updateStore(table, facts, current.getFacts());
+    }
+  }
+  for(var table in subs) {
+    var diff = subs[table];
+    var current = eveApp.system.getStore(table);
+    if(current) {
+      inserted = true;
+      eveApp.system.updateStore(table, diff.adds, diff.removes);
+    }
+  }
+  if(inserted) eveApp.run([]);
 }
 
 onmessage = function(event) {
@@ -420,55 +507,57 @@ onmessage = function(event) {
     case "init":
       eveApp.name = event.data.name;
       eveApp.isEditor = event.data.editor;
-      if(eveApp.isEditor) {
-        postMessage({to: "program", type: "requestProgramInfo", lastSeenRunNumber: eveApp.lastSeenRunNumber});
-      }
       break;
-
+    case "remoteInit":
+      eveApp.name = event.data.name;
+      break;
     case "newProgram":
       console.log("new program: ", event.data.programName);
-      var stats = runWithFacts(eveApp, [["tableCardProgram", 1, event.data.programName]]);
+      eveApp.activeEditorProgram = event.data.programName;
+      eveApp.run([["tableCardProgram", 1, event.data.programName]]);
       break;
     case "compile":
-      eveApp.running = true;
-      eveApp.runNumber++;
-      onCompile(event.data.code, true);
+      onCompile(event.data.code, false, event.data.subProgram);
       break;
-    case "programInfo":
-      eveApp.runNumber++;
-      eveApp.eventId++;
-      eveApp.lastSeenRunNumber = event.data.run;
-      injectProgramInfo(event.data);
-      break;
-    case "error":
-      eveApp.runNumber++;
-      eveApp.eventId++;
-      injectProgramError(event.data.errors);
-      break;
-    case "requestProgramInfo":
-      eveApp.sendProgramInfo = true;
-      if(eveApp.running & eveApp.runNumber !== event.data.lastSeenRunNumber) {
-        collectProgramInfo(eveApp, eveApp.lastStats || {profile: []});
+    case "remoteReady":
+      var remote = eveApp.remotes[event.data.from];
+      if(!remote) {
+        remote = eveApp.remotes[event.data.from] = {};
+      }
+      remote.ready = true;
+      if(eveApp.running && eveApp.runNumber !== remote.lastSeenRunNumber) {
+        remoteWatcher(eveApp, eveApp.storage["remoteWatcher"], eveApp.system);
       }
       break;
     case "reset":
-      eveApp.runNumber++;
-      onCompile(eveApp.code, false);
+      eveApp.storage["compilerWatcher"] = {};
+      onCompile(eveApp.code, true);
       break;
-    case "inject":
-      eveApp.runNumber++;
+    case "diffs":
+      console.log("diffs");
       eveApp.eventId++;
-      var stats = runWithFacts(eveApp, event.data.items);
+      var remote = eveApp.remotes[event.data.from];
+      if(!remote) {
+        remote = eveApp.remotes[event.data.from] = {};
+      }
+      //if this remote was killed ignore any further diffs
+      if(remote.killed) return;
+      // otherwise whoever sent us this is ready for us to respond to them
+      remote.ready = true;
+      var diffs = JSON.parse(event.data.diffs);
+      var inserts = JSON.parse(event.data.inserts);
+      var subscriptions = JSON.parse(event.data.subscriptions);
+      injectRemoteDiffs(diffs, inserts, subscriptions);
+      postMessage({to: event.data.from, type: "remoteReady", from: eveApp.name});
       break;
     case "event":
-      eveApp.runNumber++;
       var eid = eveApp.eventId++;
       var events = event.data.items.map(function(cur) {
         //set the eventId
         cur[1] = eid;
         return cur;
       });
-      var stats = runWithFacts(eveApp, events);
+      eveApp.run(events);
       break;
   }
 }

@@ -21,10 +21,9 @@ function setLocal(k, v) {
 var prevVersion = getLocal("prevVersion");
 var stacks = getLocal("stacks");
 
-// if(!stacks || stacks.indexOf("Clock") === -1) {
-  stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph paths", "TodoMVC", "Turing machine", "Clock", "Editor", "My Stack"];
-  setLocal("stacks", stacks);
-// }
+stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph paths", "TodoMVC", "Turing machine", "Clock", "Editor", "My Stack"];
+setLocal("stacks", stacks);
+setLocal("Editor-code", examples["Editor"]);
 
 //*********************************************************
 // renderer
@@ -36,16 +35,20 @@ function drainRenderQueue() {
   var start = now();
   editorStorage["rootParent"] = $("#cards").get(0);
   for(var i = 0, len = renderer["editorQueue"].length; i < len; i++) {
-    var diff = renderer["editorQueue"][i];
-    uiDiffRenderer(diff, editorStorage);
+    var queued = renderer["editorQueue"][i];
+    var program = queued[0];
+    var diff = queued[1];
+    uiDiffRenderer(diff, editorStorage, program);
   }
   renderer["editorQueue"] = [];
 
   storage["rootParent"] = $(".uiCard").get(0);
   if(storage["rootParent"] && renderer["programQueue"].length > 0) {
     for(var i = 0, len = renderer["programQueue"].length; i < len; i++) {
-      var diff = renderer["programQueue"][i];
-      uiDiffRenderer(diff, storage);
+      var queued = renderer["programQueue"][i];
+      var program = queued[0];
+      var diff = queued[1];
+      uiDiffRenderer(diff, storage, program);
     }
     var eveRoot = $(storage["builtEls"]["eve-root"]);
     if(!eveRoot.closest(document.documentElement).size()) {
@@ -85,11 +88,24 @@ function onWorkerMessage(event) {
         break;
       case "renderUI":
         if(event.data.uiContainer === "program") {
-          renderer["programQueue"].push(event.data.diff);
+          renderer["programQueue"].push([event.data.from, event.data.diff]);
         } else {
-          renderer["editorQueue"].push(event.data.diff);
+          renderer["editorQueue"].push([event.data.from, event.data.diff]);
         }
         queueRender();
+        break;
+      case "kill":
+        console.log("killing thread", event.data.name);
+        var worker = workers[event.data.name];
+        if(worker) {
+          worker.terminate();
+        }
+        break;
+      case "createThread":
+        console.log("starting thread", event.data.name);
+        workers[event.data.name] = new Worker("../src/worker.js");
+        workers[event.data.name].onmessage = onWorkerMessage;
+        workers[event.data.name].postMessage({type: "remoteInit", name: event.data.name})
         break;
     }
   } else {
@@ -125,10 +141,10 @@ function closeStacksView() {
 // editor worker
 //*********************************************************
 
-workers["editor"] = new Worker("../src/worker.js");
-workers["editor"].onmessage = onWorkerMessage;
-workers["editor"].postMessage({type: "init", editor: true, name: "EveEditor"});
-workers["editor"].postMessage({type: "compile", code: getLocal("Editor-code", examples["Editor"])});
+workers["Editor"] = new Worker("../src/worker.js");
+workers["Editor"].onmessage = onWorkerMessage;
+workers["Editor"].postMessage({type: "init", editor: true, name: "Editor"});
+workers["Editor"].postMessage({type: "compile", code: getLocal("Editor-code", examples["Editor"])});
 
 //*********************************************************
 // open stack
@@ -139,10 +155,10 @@ function openStack(stack) {
   $("#stack").show();
   setLocal("activeStack", stack);
   storage = {};
-  workers["program"] = new Worker("../src/worker.js");
-  workers["program"].onmessage = onWorkerMessage;
-  workers["program"].postMessage({type: "init", editor: false, name: stack});
-  workers["editor"].postMessage({type: "newProgram", programName: stack});
+//   workers["program"] = new Worker("../src/worker.js");
+//   workers["program"].onmessage = onWorkerMessage;
+//   workers["program"].postMessage({type: "init", editor: false, name: stack});
+  workers["Editor"].postMessage({type: "newProgram", programName: stack});
   editor.setValue(getLocal(stack + "-code", examples[stack]));
   editor.refresh();
   onChange(editor, null);
@@ -154,10 +170,7 @@ $("#return").on("click", function() {
 
 function closeStack() {
   setLocal("activeStack", null);
-  workers["editor"].postMessage({type: "reset"});
-  if(workers["program"]) {
-    workers["program"].terminate();
-  }
+  workers["Editor"].postMessage({type: "reset"});
   $("#stack").hide();
 }
 
@@ -198,9 +211,9 @@ function onChange(cm, change) {
   //Special case modifying the editor to go ahead and compile/run that into
   //the current editor process
   if(stack === "Editor") {
-    workers["editor"].postMessage({type: "compile", code: edValue});
+    workers["Editor"].postMessage({type: "compile", code: edValue});
   }
-  workers["program"].postMessage({type: "compile", code: edValue});
+  workers["Editor"].postMessage({type: "compile", code: edValue, subProgram: true});
 }
 
 editor.on("change", Cowboy.debounce(200, onChange));
@@ -237,7 +250,7 @@ var mouseEvents = {"drop": true,
 
 var keyEvents = {"keydown": true, "keyup": true, "keypress": true};
 
-var createUICallback = function(id, event, label, key) {
+var createUICallback = function(id, event, label, key, program) {
   return function(e) {
     var items = [];
     var eid = eventId++;
@@ -268,7 +281,7 @@ var createUICallback = function(id, event, label, key) {
       }
       e.stopPropagation();
       items.push(["event", eid, label, key, value]);
-      workers["program"].postMessage({type: "event", items: items});
+      workers[program].postMessage({type: "event", items: items});
     }
   };
 };
@@ -316,7 +329,7 @@ function appendSortElement(parent, child){
   return parent.insertBefore(child, cur);
 }
 
-function uiDiffRenderer(diff, storage) {
+function uiDiffRenderer(diff, storage, program) {
   var elem_id = 0;
   var elem_type = 1;
 
@@ -422,6 +435,8 @@ function uiDiffRenderer(diff, storage) {
   var attrsLen = attrs.length;
   for(var i = 0; i < attrsLen; i++) {
     var cur = attrs[i];
+    if(!builtEls[cur[elem_id]]) continue;
+
     if(cur[attrs_value] === false || cur[attrs_value] === "false") {
       builtEls[cur[elem_id]].removeAttribute(cur[attrs_attr]);
     } else {
@@ -455,7 +470,7 @@ function uiDiffRenderer(diff, storage) {
     if(!handlers[cur[elem_id]]) {
       handlers[cur[elem_id]] = {};
     }
-    var handler = handlers[cur[elem_id]][cur[events_event]] = createUICallback(cur[elem_id], cur[events_event], cur[events_label], cur[events_key]);
+    var handler = handlers[cur[elem_id]][cur[events_event]] = createUICallback(cur[elem_id], cur[events_event], cur[events_label], cur[events_key], program);
     builtEls[cur[elem_id]].addEventListener(cur[events_event], handler);
   }
 
@@ -463,7 +478,15 @@ function uiDiffRenderer(diff, storage) {
   var childrenLen = children.length;
   children.sort(function(a,b) {
     if(a[0] !== b[0]) {
-      return a[0].localeCompare(b[0]);
+      var ta = typeof(a[0]);
+      var tb = typeof(b[0])
+      if(ta === tb && ta === "string") {
+        return a[0].localeCompare(b[0]);
+      } if(ta === "string" || tb === "string") {
+        return (a[0] + "").localeCompare((b[0] + ""));
+      } else {
+        return a[0] - b[0];
+      }
     } else {
       if(typeof a[1] === "string" || typeof b[1] === "string") {
         return (a[1] + "").localeCompare((b[1] + ""));
