@@ -2,6 +2,11 @@
 	"name": "Eve",
   "dependencies": {
     "express": "4.10.x",
+    "compression": "*",
+    "serve-static": "*",
+    "serve-favicon": "*",
+    "cookie-parser": "*",
+    "body-parser": "*",
     "socket.io": "1.2.1",
     "nib": "*",
     "axis-css": "*"

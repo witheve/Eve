@@ -1,4 +1,9 @@
-importScripts("eve.js", "bootStrapped2.js", "tokenizer.js", "../resources/qwest.js");
+importScripts("eve.js", "bootStrapped2.js", "tokenizer.js");
+try {
+   importScripts("/qwest.js");
+} catch(e) {
+  importScripts("../resources/qwest.js");
+}
 
 var eveApp = app();
 eveApp.remotes = {};

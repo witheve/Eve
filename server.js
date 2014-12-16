@@ -1,33 +1,26 @@
 var express = require('express');
 var app = express();
+var server = require("http").Server(app);
+var io = require("socket.io")(server);
 
 var oneDay = 86400000;
 
-// Twilio Credentials
-var accountSid = process.env["TWILIO_SID"];
-var authToken = process.env["TWILIO_AUTH"];
+app.use(require("compression")());
+app.use(require("body-parser").json());
+app.use(require("body-parser").urlencoded({extended: true}));
 
-//require the Twilio module and create a REST client
-var client = require('twilio')(accountSid, authToken);
+app.use(require("serve-static")(__dirname + '/resources', { maxAge: 1000 }));
+app.use("/src", require("serve-static")(__dirname + '/src', { maxAge: 1000 }));
+app.use("/stylus", require("serve-static")(__dirname + '/stylus', { maxAge: 1000 }));
 
-app.use(express.compress());
-app.use(express.json());
-app.use(express.urlencoded());
-
-app.use(express.static(__dirname + '/resources', { maxAge: 1000 }));
-
-app.post("/text", function(req, res) {
-
-  console.log(JSON.stringify(req.params));
-
-  client.messages.create({
-    to: req.param('to'),
-    from: "+17742955216",
-    body: req.param('body'),
-  }, function(err, message) {
-    console.log(message.sid);
+io.on("connection", function(socket) {
+  socket.emit("news", {hello: "world"});
+  socket.on("my other event", function(data) {
+    console.log(data);
   });
-
 });
 
-app.listen(process.env.PORT || 3000);
+var port = process.env.PORT || 3000;
+server.listen(port);
+console.log("Eve is up and running at http://localhost:" + port + "/");
+

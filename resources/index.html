@@ -1,56 +1,67 @@
+<!doctype html5>
 <html>
-  <head>
-    <title>Eve</title>
-      <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
-       <meta name="apple-mobile-web-app-capable" content="yes">
-      <!-- Run in full-screen mode. -->
-        <meta name="apple-mobile-web-app-capable" content="yes">
+    <head>
+        <title>Eve</title>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <!-- Run in full-screen mode. -->
+        <meta name="apple-mobile-web-app-capable" content="yes" />
 
         <!-- Make the status bar black with white text. -->
-        <meta name="apple-mobile-web-app-status-bar-style" content="black">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black" />
 
         <!-- Customize home screen title. -->
-        <meta name="apple-mobile-web-app-title" content="Web App">
+        <meta name="apple-mobile-web-app-title" content="Web App" />
 
         <!-- Disable phone number detection. -->
-        <meta name="format-detection" content="telephone=no">
+        <meta name="format-detection" content="telephone=no" />
 
         <!-- Set viewport. -->
-        <meta name="viewport" content="initial-scale=1">
-      <link href="ionicons.css" rel="stylesheet" type="text/css"></link>
-      <link href="spectrum.css" rel="stylesheet" type="text/css"></link>
-      <link href="codemirror.css" rel="stylesheet" type="text/css"></link>
-    <link href="todomvc.css" rel="stylesheet" type="text/css"></link>
-    <link href="../stylus/root.css" rel="stylesheet" type="text/css"></link>
-<script type='text/javascript' id='lt_ws' src='http://localhost:54050/socket.io/lighttable/ws.js'></script>
-  </head>
-  <body>
+        <meta name="viewport" content="initial-scale=1" />
+        <link href="ionicons.css" rel="stylesheet" type="text/css"></link>
+        <link href="spectrum.css" rel="stylesheet" type="text/css"></link>
+        <link href="codemirror.css" rel="stylesheet" type="text/css"></link>
+        <link href="codemirrorAddons.css" rel="stylesheet" type="text/css"></link>
+        <link href="todomvc.css" rel="stylesheet" type="text/css"></link>
+        <link href="../stylus/editor.css" rel="stylesheet" type="text/css"></link>
+        <script src="/socket.io/socket.io.js"></script>
+        <script type='text/javascript' id='lt_ws' src='http://localhost:62755/socket.io/lighttable/ws.js'></script>
+    </head>
+<body>
 
-      <div id="outer-wrapper">
+    <div id="stacksView">
+    </div>
+    <div id="stack" style="display:none;">
+        <div id="editor"><div id="editorContainer"></div></div>
+        <div id="cards">
+        </div>
+        <button id="return"><span class="ion-ios7-albums icon"></span></button>
+    </div>
+    <canvas id="clear-pixel" width="1" height="1"></canvas>
 
-      </div>
-      <div id="picker"></div>
-      <canvas id="clear-pixel" width="1" height="1"></canvas>
 
-
-      <script src="throttle.js" type="text/javascript"> </script>
-      <script src="jquery.js" type="text/javascript"> </script>
-      <script src="spectrum.js" type="text/javascript"> </script>
-      <script src="uuid.js" type="text/javascript"> </script>
-      <script src="keyevents.js" type="text/javascript"> </script>
-      <script src="react.js" type="text/javascript"> </script>
-      <script src="fuzzaldrin.js" type="text/javascript"> </script>
-      <script src="codemirror.js" type="text/javascript"> </script>
-      <script src="jsverify.js" type="text/javascript"> </script>
-      <script src="vue.js" type="text/javascript"> </script>
-      <script src="../src/bigcheck.js" type="text/javascript"> </script>
-      <script src="../src/eve.js" type="text/javascript"> </script>
-<!--       <script src="../src/test.js" type="text/javascript"> </script> -->
-      <script src="../src/bootStrapped2.js" type="text/javascript"> </script>
-      <ul id="stats">
-          <li><span>time: </span><span id="timeStat"></span></li>
-          <li><span>render: </span><span id="renderStat"></span></li>
-          <li><span>facts: </span><span id="factsStat"></span></li>
-      </ul>
-  </body>
+    <script src="throttle.js" type="text/javascript"> </script>
+    <script src="jquery.js" type="text/javascript"> </script>
+    <script src="spectrum.js" type="text/javascript"> </script>
+    <script src="uuid.js" type="text/javascript"> </script>
+    <script src="keyevents.js" type="text/javascript"> </script>
+    <script src="react.js" type="text/javascript"> </script>
+    <script src="fuzzaldrin.js" type="text/javascript"> </script>
+    <script src="codemirror.js" type="text/javascript"> </script>
+    <script src="codemirrorAddons.js" type="text/javascript"> </script>
+    <script src="jsverify.js" type="text/javascript"> </script>
+    <script src="../src/bigcheck.js" type="text/javascript"> </script>
+    <script src="../src/eve.js" type="text/javascript"> </script>
+    <script src="../src/tokenizer.js" type="text/javascript"> </script>
+    <script src="../src/bootStrapped2.js" type="text/javascript"> </script>
+    <script src="../src/examples.js" type="text/javascript"> </script>
+    <script src="../src/editor.js" type="text/javascript"> </script>
+    <ul id="stats">
+        <li><span>time: </span><span id="timeStat"></span></li>
+        <li><span>render: </span><span id="renderStat"></span></li>
+        <li><span>total: </span><span id="totalStat"></span></li>
+        <li><span>facts: </span><span id="factsStat"></span></li>
+    </ul>
+</body>
 </html>
