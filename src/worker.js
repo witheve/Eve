@@ -539,7 +539,6 @@ onmessage = function(event) {
       onCompile(eveApp.code, true);
       break;
     case "diffs":
-      console.log("diffs");
       eveApp.eventId++;
       var remote = eveApp.remotes[event.data.from];
       if(!remote) {
