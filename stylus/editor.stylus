@@ -138,6 +138,13 @@ if $z-depth-css
 
 global-reset()
 
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 300;
+  src: local('Nunito-Light'), url(../resources/fonts/Nunito-Light.ttf) format('woff');
+}
+
 * { box-sizing:border-box; }
 
 body {

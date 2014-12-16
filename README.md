@@ -6,5 +6,5 @@ Eve is programming designed for humans.
 
 ```
 npm install
-npm start
+npm run dev
 ```
