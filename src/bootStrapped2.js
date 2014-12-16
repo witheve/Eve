@@ -57,7 +57,12 @@ function count(arr) {
 }
 
 function avg(arr) {
-  return sum(arr) / count(arr);
+  var c = count(arr);
+  if(c === 0) {
+    return 0;
+  } else {
+    return sum(arr) / c;
+  }
 }
 
 function maxBy(desired, sort, otherwise) {
@@ -243,9 +248,6 @@ function commonViews() {
   pushAll(facts, view("remote|isInput", ['remote', "view"]));
   pushAll(facts, view("remote|isCheck", ['remote', "view"]));
   pushAll(facts, view("webRequest", ["id", "url", "event"]));
-  pushAll(facts, view("click", ["id"]));
-  pushAll(facts, view("sms outbox", ["id"]));
-  pushAll(facts, view("user", ["id", "name"]));
   pushAll(facts, view("uiElem", ["id", "type"]));
   pushAll(facts, view("uiText", ["id", "text"]));
   pushAll(facts, view("uiChild", ["parent", "pos", "child"]));
