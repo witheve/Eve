@@ -22,3 +22,4 @@ resources/
 hs_err*
 .nrepl-port
 *.DS_Store
+node_modules/
