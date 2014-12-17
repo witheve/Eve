@@ -1,6 +1,6 @@
-//*********************************************************
+//---------------------------------------------------------
 // State
-//*********************************************************
+//---------------------------------------------------------
 
 // current version
 // list of stacks
@@ -25,9 +25,12 @@ stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph pat
 setLocal("stacks", stacks);
 setLocal("Editor-code", examples["Editor"]);
 
-//*********************************************************
+var client = getLocal("client", uuid());
+setLocal("client", client);
+
+//---------------------------------------------------------
 // renderer
-//*********************************************************
+//---------------------------------------------------------
 
 var renderer = {"editorQueue": [], "programQueue": [], "queued": false}
 
@@ -72,9 +75,9 @@ function queueRender() {
 }
 
 
-//*********************************************************
+//---------------------------------------------------------
 // worker
-//*********************************************************
+//---------------------------------------------------------
 
 var storage = {};
 var workers = {};
@@ -99,13 +102,19 @@ function onWorkerMessage(event) {
         var worker = workers[event.data.name];
         if(worker) {
           worker.terminate();
+          workers[event.data.name] = null;
+          if(workers["server"]) {
+            workers["server"].postMessage({type: "unsubscribe", from: event.data.name, client: client});
+          }
         }
         break;
       case "createThread":
+        if(workers[event.data.name]) return;
+
         console.log("starting thread", event.data.name);
         workers[event.data.name] = new Worker("../src/worker.js");
         workers[event.data.name].onmessage = onWorkerMessage;
-        workers[event.data.name].postMessage({type: "remoteInit", name: event.data.name})
+        workers[event.data.name].postMessage({type: "remoteInit", name: event.data.name, client: client})
         break;
     }
   } else {
@@ -114,9 +123,9 @@ function onWorkerMessage(event) {
   }
 }
 
-//*********************************************************
+//---------------------------------------------------------
 // stacks view
-//*********************************************************
+//---------------------------------------------------------
 
 for(var i in stacks) {
   var cur = $("<div class='stack'>" + stacks[i] + "</div>");
@@ -137,18 +146,18 @@ function closeStacksView() {
   $("#stacksView").hide();
 }
 
-//*********************************************************
+//---------------------------------------------------------
 // editor worker
-//*********************************************************
+//---------------------------------------------------------
 
 workers["Editor"] = new Worker("../src/worker.js");
 workers["Editor"].onmessage = onWorkerMessage;
-workers["Editor"].postMessage({type: "init", editor: true, name: "Editor"});
+workers["Editor"].postMessage({type: "init", editor: true, name: "Editor", client: client});
 workers["Editor"].postMessage({type: "compile", code: getLocal("Editor-code", examples["Editor"])});
 
-//*********************************************************
+//---------------------------------------------------------
 // open stack
-//*********************************************************
+//---------------------------------------------------------
 
 function openStack(stack) {
   closeStacksView();
@@ -174,9 +183,9 @@ function closeStack() {
   $("#stack").hide();
 }
 
-//*********************************************************
+//---------------------------------------------------------
 // CodeMirror editor
-//*********************************************************
+//---------------------------------------------------------
 
 
 CodeMirror.defineMode("eve", CodeMirrorModeParser);
@@ -218,7 +227,7 @@ function onChange(cm, change) {
 
 editor.on("change", Cowboy.debounce(200, onChange));
 
-//*********************************************************
+//---------------------------------------------------------
 // UI diff element
 // setAttribute
 // removeAttribute
@@ -229,11 +238,11 @@ editor.on("change", Cowboy.debounce(200, onChange));
 // addEventListener
 // .parentNode
 // .style
-//*********************************************************
+//---------------------------------------------------------
 
-//*********************************************************
+//---------------------------------------------------------
 // UI Diff
-//*********************************************************
+//---------------------------------------------------------
 
 var eventId = 1;
 var mouseEvents = {"drop": true,
@@ -258,11 +267,11 @@ var createUICallback = function(id, event, label, key, program) {
       e.preventDefault();
     } else {
       if(mouseEvents[event]) {
-        items.push(["mousePosition", eid, e.clientX, e.clientY]);
+        items.push(["mousePosition", client, eid, e.clientX, e.clientY]);
       }
 
       if(keyEvents[event]) {
-        items.push(["keyboard", eid, e.keyCode, event]);
+        items.push(["keyboard", client, eid, e.keyCode, event]);
       }
 
       var value = e.target.value;
@@ -280,7 +289,7 @@ var createUICallback = function(id, event, label, key, program) {
         }
       }
       e.stopPropagation();
-      items.push(["event", eid, label, key, value]);
+      items.push(["event", client, eid, label, key, value]);
       workers[program].postMessage({type: "event", items: items});
     }
   };
@@ -519,21 +528,29 @@ function uiDiffRenderer(diff, storage, program) {
 
 };
 
-//*********************************************************
+//---------------------------------------------------------
 // socket.io
-//*********************************************************
+//---------------------------------------------------------
 
 if(window["io"]) {
-  var socket = io.connect('http://localhost');
-  socket.on('news', function (data) {
-    console.log(data);
-    socket.emit('my other event', { my: 'data' });
+  var socket = io.connect('/');
+  socket.on("message", function (data) {
+    onWorkerMessage({data: data});
   });
+
+  var server = {
+    postMessage: function(data) {
+      socket.emit("message", data);
+    },
+    terminate: function() {}
+  };
+
+  workers["server"] = server;
 }
 
-//*********************************************************
+//---------------------------------------------------------
 // Go!
-//*********************************************************
+//---------------------------------------------------------
 
 if(!getLocal("activeStack")) {
   openStacksView();

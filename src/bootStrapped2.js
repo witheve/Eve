@@ -1,6 +1,6 @@
-//*********************************************************
+//---------------------------------------------------------
 // utils
-//*********************************************************
+//---------------------------------------------------------
 
 var now = function() {
   if(typeof window !== "undefined" && window.performance) {
@@ -20,9 +20,47 @@ function errorsToFacts(errors) {
   });
 }
 
-//*********************************************************
+function diffArray(neue, old) {
+  var adds = [];
+  var removes = [];
+  for(var i = 0, len = neue.length; i < len; i++) {
+    if(old.indexOf(neue[i]) === -1) {
+      adds.push(neue[i]);
+    }
+  }
+  for(var i = 0, len = old.length; i < len; i++) {
+    if(neue.indexOf(old[i]) === -1) {
+      removes.push(old[i]);
+    }
+  }
+  return {adds: adds, removes: removes};
+}
+
+function diffTables(neue, old) {
+  var adds = [];
+  var removes = [];
+  if(old && neue) {
+    try {
+      neue.diff(old, adds, removes);
+    } catch(e) {
+      adds = neue.getFacts();
+      removes = old.getFacts();
+    }
+  } else if(neue) {
+    adds = neue.getFacts();
+  }
+  return {adds: adds, removes: removes};
+}
+
+function applyDiff(application, table, diff) {
+  if(diff.adds.length || diff.removes.length) {
+    application.system.updateStore(table, diff.adds, diff.removes);
+  }
+}
+
+//---------------------------------------------------------
 // functions
-//*********************************************************
+//---------------------------------------------------------
 
 function hours(ms) {
   return (new Date(ms)).getHours();
@@ -44,9 +82,9 @@ var sin = Math.sin;
 var cos = Math.cos;
 var tan = Math.tan;
 
-//*********************************************************
+//---------------------------------------------------------
 // aggregates
-//*********************************************************
+//---------------------------------------------------------
 
 function sum(arr) {
   return arr.reduce(function (a,b) {return a+b;}, 0);
@@ -93,9 +131,9 @@ function lastBefore(desired, sort, limit, otherwise) {
   assert(false);
 }
 
-//*********************************************************
+//---------------------------------------------------------
 // Program
-//*********************************************************
+//---------------------------------------------------------
 
 var Application = function(system, opts) {
   this.eventId = 0;
@@ -136,10 +174,10 @@ Application.prototype.run = function(facts, removes) {
     this.system.update(facts, removes || []);
     var errors = [];
     this.system.refresh(errors);
-    compileWatcher(this, this.storage["compilerWatcher"], this.system);
-    webRequestWatcher(this, this.storage["webRequestWatcher"], this.system);
-    timerWatcher(this, this.storage["timerWatcher"], this.system);
-    uiWatcher(this, this.storage["uiWatcher"], this.system);
+    this.compileWatcher(this, this.storage["compilerWatcher"], this.system);
+    this.webRequestWatcher(this, this.storage["webRequestWatcher"], this.system);
+    this.timerWatcher(this, this.storage["timerWatcher"], this.system);
+    this.uiWatcher(this, this.storage["uiWatcher"], this.system);
     //errors
     if(errors.length) {
       this.system.updateStore("error", errorsToFacts(errors), []);
@@ -149,7 +187,7 @@ Application.prototype.run = function(facts, removes) {
     this.system.updateStore("error", [[this.runNumber, e.stack]], []);
   }
   start = now();
-  remoteWatcher(this, this.storage["remoteWatcher"], this.system);
+  this.remoteWatcher(this, this.storage["remoteWatcher"], this.system);
   this.system.updateStore("profile", [[this.runNumber, "remoteWatcher", now() - start]], []);
 
   return errors;
@@ -159,9 +197,9 @@ function app(system, opts) {
   return new Application(system, opts);
 }
 
-//*********************************************************************
+//---------------------------------------------------------
 // helpers
-//*********************************************************************
+//---------------------------------------------------------
 
 var addedTables = {};
 
@@ -220,16 +258,17 @@ function editorViews() {
 
 function commonViews() {
   var facts = [];
-  pushAll(facts, inputView("event", ["eid", "label", "key", "value"]));
-  pushAll(facts, inputView("mousePosition", ["eid","x","y"]));
-  pushAll(facts, inputView("keyboard", ["eid","keyCode","eventType"]));
+  pushAll(facts, inputView("event", ["client", "eid", "label", "key", "value"]));
+  pushAll(facts, inputView("mousePosition", ["client", "eid","x","y"]));
+  pushAll(facts, inputView("keyboard", ["client", "eid","keyCode","eventType"]));
   pushAll(facts, inputView("time", ["time"]));
-  pushAll(facts, inputView("timer", ["id", "event", "rate"]));
+  pushAll(facts, inputView("timer", ["client", "id", "event", "rate"]));
   pushAll(facts, inputView("subscription", ["recipient", "view", "alias", "asCells"]));
   pushAll(facts, inputView("resultCell", ["view", "row", "col", "value"]));
   pushAll(facts, inputView("generatedView", ["view"]));
   pushAll(facts, inputView("error", ["run", "error"]));
   pushAll(facts, inputView("profile", ["run", "event", "time"]));
+  pushAll(facts, inputView("client", ["client"]));
   pushAll(facts, view("remote|subscription", ["remote", "recipient", "view", "alias", "asCells"]));
   pushAll(facts, view("remote", ["remote"]));
   pushAll(facts, view("remote|insertedFact", ["remote", "view", "row", "col", "value"]));
@@ -247,6 +286,7 @@ function commonViews() {
   pushAll(facts, view("remote|aggregateConstraintAggregateInput", ['remote', "constraint", "sourceField", "variable"]));
   pushAll(facts, view("remote|isInput", ['remote', "view"]));
   pushAll(facts, view("remote|isCheck", ['remote', "view"]));
+  pushAll(facts, view("shared", ["view", "alias"]));
   pushAll(facts, view("webRequest", ["id", "url", "event"]));
   pushAll(facts, view("uiElem", ["id", "type"]));
   pushAll(facts, view("uiText", ["id", "text"]));
