@@ -222,7 +222,7 @@ function onChange(cm, change) {
   if(stack === "Editor") {
     workers["Editor"].postMessage({type: "compile", code: edValue});
   }
-  workers["Editor"].postMessage({type: "compile", code: edValue, subProgram: true});
+  workers["Editor"].postMessage({type: "compile", code: edValue, subProgram: true, subProgramName: stack});
 }
 
 editor.on("change", Cowboy.debounce(200, onChange));

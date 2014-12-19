@@ -332,7 +332,10 @@ eveApp.uiWatcher = function(application, storage, system) {
   }
 }
 
-function onCompile(code, replace, subProgram) {
+function onCompile(code, replace, subProgram, subProgramName) {
+  if(!eveApp.storage["textCompile"]) {
+    eveApp.storage["textCompile"] = {};
+  }
   var stats = {profile: []};
   var start = now();
   var parsedCompilerChecks = parse(compilerChecks);
@@ -350,6 +353,7 @@ function onCompile(code, replace, subProgram) {
   stats.profile.push([run, "parse", now() - start]);
   try {
     var prev = eveApp.system;
+    var prevCompile = eveApp.storage["textCompile"][subProgramName] || System.empty({});
     start = now();
     var system = System.empty({name: "editor program"});
     system.update(commonViews(), []);
@@ -374,7 +378,7 @@ function onCompile(code, replace, subProgram) {
     }
     system.recompile();
 
-    programResults = injectParsed(parsed, system, prefix, subProgram && eveApp.activeEditorProgram);
+    programResults = injectParsed(parsed, system, prefix, subProgram && subProgramName);
     eveApp.programResults = programResults;
     errors = errors.concat(programResults.errors);
     system.refresh(errors);
@@ -390,7 +394,7 @@ function onCompile(code, replace, subProgram) {
       start = now();
       for(var i = 0, len = compilerTables.length; i < len; i++) {
         var table = prefix + compilerTables[i];
-        var diff = diffTables(system.getStore(table), prev.getStore(table));
+        var diff = diffTables(system.getStore(table), prevCompile.getStore(table));
         applyDiff(eveApp, table, diff);
       }
       stats.profile.push([run, "loadCompiled", now() - start]);
@@ -398,13 +402,14 @@ function onCompile(code, replace, subProgram) {
       eveApp.updateSystem(system);
     }
 
-    if(!subProgram) {
-      eveApp.compileWatcher(eveApp, eveApp.storage["compilerWatcher"], eveApp.system);
+    if(subProgramName) {
+      eveApp.storage["textCompile"][subProgramName] = system;
     }
 
     programResults.values["time"] = [[(new Date()).getTime()]];
 
     if(!subProgram) {
+      eveApp.compileWatcher(eveApp, eveApp.storage["compilerWatcher"], eveApp.system);
       for(var table in programResults.values) {
         var facts = programResults.values[table];
         var prev = eveApp.system.getStore(table);
@@ -493,12 +498,17 @@ onmessage = function(event) {
       eveApp.run([["client", event.data.client]]);
       break;
     case "newProgram":
+      if(!eveApp.isEditor) { return; }
       console.log("new program: ", event.data.programName);
       eveApp.activeEditorProgram = event.data.programName;
-      eveApp.run([["tableCardProgram", 1, event.data.programName]]);
+      eveApp.system.updateStore("tableCardProgram", [[1, event.data.programName]], eveApp.system.getStore("tableCardProgram").getFacts());
+      eveApp.system.updateStore("resultCell", [], eveApp.system.getStore("resultCell").getFacts());
+      eveApp.system.updateStore("editorProfile", [], eveApp.system.getStore("editorProfile").getFacts());
+      eveApp.system.updateStore("editorError", [], eveApp.system.getStore("editorError").getFacts());
+      eveApp.run([]);
       break;
     case "compile":
-      onCompile(event.data.code, false, event.data.subProgram);
+      onCompile(event.data.code, false, event.data.subProgram, event.data.subProgramName);
       break;
     case "remoteReady":
       var remote = eveApp.remotes[event.data.from];
@@ -511,8 +521,10 @@ onmessage = function(event) {
       }
       break;
     case "reset":
-      eveApp.storage["compilerWatcher"] = {};
-      onCompile(eveApp.code, true);
+//       eveApp.storage["compilerWatcher"] = {};
+//       onCompile(eveApp.code, true);
+      eveApp.system.updateStore("tableCardProgram", [], eveApp.system.getStore("tableCardProgram").getFacts());
+      eveApp.run([]);
       break;
     case "diffs":
       if(event.data.eventId > eveApp.eventId) {
