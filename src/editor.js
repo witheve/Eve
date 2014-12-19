@@ -21,7 +21,7 @@ function setLocal(k, v) {
 var prevVersion = getLocal("prevVersion");
 var stacks = getLocal("stacks");
 
-stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph paths", "TodoMVC", "Turing machine", "Clock", "Editor", "My Stack"];
+stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph paths", "TodoMVC", "Turing machine", "Clock", "My Stack", "Editor", "Runtime", "Editor injection"];
 setLocal("stacks", stacks);
 setLocal("Editor-code", examples["Editor"]);
 
@@ -154,6 +154,11 @@ workers["Editor"] = new Worker("../src/worker.js");
 workers["Editor"].onmessage = onWorkerMessage;
 workers["Editor"].postMessage({type: "init", editor: true, name: "Editor", client: client});
 workers["Editor"].postMessage({type: "compile", code: getLocal("Editor-code", examples["Editor"])});
+
+for(var stackIx in stacks) {
+  var stack = stacks[stackIx];
+  workers["Editor"].postMessage({type: "compile", code: getLocal(stack + "-code", examples[stack]), subProgram: true, subProgramName: stack});
+}
 
 //---------------------------------------------------------
 // open stack

@@ -505,6 +505,7 @@ onmessage = function(event) {
       eveApp.system.updateStore("resultCell", [], eveApp.system.getStore("resultCell").getFacts());
       eveApp.system.updateStore("editorProfile", [], eveApp.system.getStore("editorProfile").getFacts());
       eveApp.system.updateStore("editorError", [], eveApp.system.getStore("editorError").getFacts());
+      eveApp.system.updateStore("editor|hasUI", [], eveApp.system.getStore("editor|hasUI").getFacts());
       eveApp.run([]);
       break;
     case "compile":
