@@ -153,6 +153,7 @@ body {
   display:flex;
   flex-direction:row;
   color: rgba(0,0,0,0.87);
+  height: 100vh;
 }
 
 #stats { fixed: right bottom; margin:15px; color:#777; display:none; }
