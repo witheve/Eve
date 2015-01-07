@@ -748,7 +748,10 @@ function createUIView(uiTable, view, context, mappings) {
 
   facts.push(["view", tempName]);
   facts.push(["generatedView", tempName]);
-  if(context.programName) facts.push(["programView", context.programName, tempName]);
+  if(context.programName) {
+    facts.push(["programView", context.programName, tempName]);
+    facts.push(["programQuery", context.programName, query]);
+  }
   facts.push(["query", query, tempName, context.nextId]);
   var viewConstraint = query + "|viewConstraint=" + context.nextId;
   facts.push(["viewConstraint", viewConstraint, query, view, false]);
