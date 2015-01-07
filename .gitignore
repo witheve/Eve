@@ -15,9 +15,7 @@ nw*
 pom.xml
 *.jar
 *.class
-.lein-deps-sum
-.lein-failures
-.lein-plugins
+.lein-*
 resources/
 hs_err*
 .nrepl-port

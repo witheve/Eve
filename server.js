@@ -131,7 +131,7 @@ function serverApp(app) {
 }
 
 //load the eve source which is not designed to be a node module currently
-var eveFiles = ["src/eve.js", "src/bootStrapped2.js"];
+var eveFiles = ["src/eve.js", "src/helpers.js"];
 for(var ix in eveFiles) {
   global.eval(fs.readFileSync(eveFiles[ix]).toString());
 }

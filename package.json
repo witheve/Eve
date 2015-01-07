@@ -17,6 +17,6 @@
   "scripts": {
     "watch-stylus": "./node_modules/.bin/stylus --watch stylus/*.stylus",
     "dev": "npm run watch-stylus & npm start",
-    "test": "cat src/bigcheck.js src/eve.js src/dsl.js src/test.js | node"
+    "test": "cat src/bigcheck.js src/eve.js src/test.js | node"
   }
 }

@@ -1,4 +1,4 @@
-importScripts("eve.js", "bootStrapped2.js", "tokenizer.js");
+importScripts("eve.js", "helpers.js", "tokenizer.js");
 try {
    importScripts("/qwest.js");
 } catch(e) {
