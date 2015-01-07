@@ -1,3 +1,7 @@
+//---------------------------------------------------------
+// Eve runtime and compiler
+//---------------------------------------------------------
+
 var FAILED = -1;
 var UNCHANGED = 0;
 // or bitflag for changed vars

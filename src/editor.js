@@ -2,11 +2,6 @@
 // State
 //---------------------------------------------------------
 
-// current version
-// list of stacks
-// the code for each stack
-// current open stack / open tables?
-
 function getLocal(k, otherwise) {
   if(localStorage[k]) {
     return JSON.parse(localStorage[k])
@@ -454,7 +449,11 @@ function uiDiffRenderer(diff, storage, program) {
     if(cur[attrs_value] === false || cur[attrs_value] === "false") {
       builtEls[cur[elem_id]].removeAttribute(cur[attrs_attr]);
     } else {
-      builtEls[cur[elem_id]].setAttribute(cur[attrs_attr], cur[attrs_value]);
+      try {
+        builtEls[cur[elem_id]].setAttribute(cur[attrs_attr], cur[attrs_value]);
+      } catch(e) {
+        console.error("invalid attribute: ", cur[attrs_attr], cur[attrs_value]);
+      }
     }
   }
 
