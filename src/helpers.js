@@ -15,8 +15,10 @@ function errorsToFacts(errors) {
   if(!errors) return [];
 
   return errors.map(function(cur) {
-    var text = typeof cur === "string" ? cur : "Line " + cur.line + ": " + cur.message;
-    return [eveApp.runNumber, text];
+    if(typeof cur === "string") {
+      cur = {message: cur};
+    }
+    return [eveApp.runNumber, cur.message, cur.stack || "?", cur.line || "?"];
   });
 }
 
@@ -184,7 +186,7 @@ Application.prototype.run = function(facts, removes) {
     }
     this.system.updateStore("profile", [[this.runNumber, "runtime", now() - start]], []);
   } catch(e) {
-    this.system.updateStore("error", [[this.runNumber, e.stack]], []);
+    this.system.updateStore("error", errorsToFacts([e]), []);
   }
   start = now();
   this.remoteWatcher(this, this.storage["remoteWatcher"], this.system);
@@ -248,8 +250,8 @@ function editorViews() {
   pushAll(facts, inputView("editor|isCheck", ["view"]));
   pushAll(facts, inputView("editor|displayName", ["id", "name"]));
   pushAll(facts, inputView("editorProfile", ["run", "event", "time"]));
-  pushAll(facts, inputView("editorError", ["run", "error"]));
-  pushAll(facts, inputView("compileError", ["run", "error"]));
+  pushAll(facts, inputView("editorError", ["run", "error", "stack", "line"]));
+  pushAll(facts, inputView("compileError", ["run", "error", "stack", "line"]));
   pushAll(facts, inputView("tableCard", ["run", "table"]));
   pushAll(facts, inputView("tableCardProgram", ["run", "program"]));
   pushAll(facts, inputView("tableCardUIInfo", ["run", "hasUI"]));
@@ -266,7 +268,7 @@ function commonViews() {
   pushAll(facts, inputView("subscription", ["recipient", "view", "alias", "asCells"]));
   pushAll(facts, inputView("resultCell", ["view", "row", "col", "value"]));
   pushAll(facts, inputView("generatedView", ["view"]));
-  pushAll(facts, inputView("error", ["run", "error"]));
+  pushAll(facts, inputView("error", ["run", "error", "stack", "line"]));
   pushAll(facts, inputView("profile", ["run", "event", "time"]));
   pushAll(facts, inputView("client", ["client"]));
   pushAll(facts, view("remote|subscription", ["remote", "recipient", "view", "alias", "asCells"]));
