@@ -496,6 +496,7 @@ onmessage = function(event) {
       eveApp.name = event.data.name;
       eveApp.client = event.data.client;
       eveApp.run([["client", event.data.client]]);
+      eveApp.remotes["server"] = {ready: true};
       break;
     case "newProgram":
       if(!eveApp.isEditor) { return; }
