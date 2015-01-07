@@ -138,7 +138,7 @@ eveApp.compileWatcher = function(application, storage, system) {
       }
 
     } catch(e) {
-      system.updateStore("error", [[run, e.stack]], []);
+      system.updateStore("error", errorsToFacts([e]), []);
       return false;
     }
   }
@@ -442,7 +442,7 @@ function onCompile(code, replace, subProgram, subProgramName) {
     eveApp.run([]);
 
   } catch(e) {
-    eveApp.system.updateStore("error", [[run, e.stack]], []);
+    eveApp.system.updateStore("error", errorsToFacts([e]), []);
     eveApp.remoteWatcher(eveApp, eveApp.storage["remoteWatcher"], eveApp.system);
   }
 }
