@@ -18,7 +18,7 @@ function errorsToFacts(errors) {
     if(typeof cur === "string") {
       cur = {message: cur};
     }
-    return [eveApp.runNumber, cur.message, cur.stack || "?", cur.line || "?"];
+    return [eveApp.runNumber, cur.message, cur.stack || "", cur.line || "N/A"];
   });
 }
 
