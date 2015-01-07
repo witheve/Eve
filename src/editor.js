@@ -306,7 +306,7 @@ var svgs = {
   "rect": true,
   "circle": true,
   "line": true,
-  "path": true
+  "polygon": true
 };
 
 function appendSortElement(parent, child){
