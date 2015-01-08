@@ -18,10 +18,49 @@ express.use("/stylus", require("serve-static")(__dirname + '/stylus', { maxAge: 
 // hackery
 //-----------------------------------------------------
 
-function compileWatcher(app, storage, system) {}
+var compilerTables = ["programView", "programQuery", "subscription", "generatedView", "displayName", "view", "field", "query", "constantConstraint", "functionConstraint", "functionConstraintInput", "constantConstraint",
+                      "viewConstraint", "viewConstraintBinding", "aggregateConstraint", "aggregateConstraintBinding", "aggregateConstraintSolverInput",
+                      "aggregateConstraintAggregateInput", "isInput", "isCheck"];
+
+function compileWatcher(application, storage, system) {
+  var needsCompile = false;
+  for(var i = 0, len = compilerTables.length; i < len; i++) {
+    var table = compilerTables[i];
+    var current = system.getStore(table);
+    if(!needsCompile) {
+      var diff = diffTables(current, storage[table])
+      if(diff.adds.length || diff.removes.length) {
+        needsCompile = true;
+      }
+    }
+    storage[table] = current;
+  }
+
+  if(needsCompile) {
+    var run = application.runNumber + 1;
+    try {
+      start = now();
+      system.recompile();
+      system.updateStore("profile", [[run, "compile", now() - start]], []);
+
+      var errors = [];
+      system.refresh(errors);
+      if(errors.length) {
+        system.updateStore("error", errorsToFacts(errors), []);
+      }
+
+    } catch(e) {
+      system.updateStore("error", errorsToFacts([e]), []);
+      return false;
+    }
+  }
+  return true;
+}
+
 function webRequestWatcher(app, storage, system) {}
 function timerWatcher(app, storage, system) {}
 function uiWatcher(app, storage, system) {}
+
 function remoteWatcher(app, storage, system) {
   var remoteStatuses = app.remotes;
   var remoteNames = [];
@@ -61,6 +100,7 @@ function remoteWatcher(app, storage, system) {
       }
     }
   }
+
 
   for(var remoteIx = 0, remoteLen = remoteNames.length; remoteIx < remoteLen; remoteIx++) {
     var remoteThread = remoteNames[remoteIx];
@@ -113,11 +153,14 @@ function injectRemoteDiffs(application, client, diffs, inserts, subs) {
     var current = application.system.getStore(table);
     if(current) {
       inserted = true;
-      application.system.updateStore(table, diff.adds, diff.removes);
-      application.storage["remoteWatcher"][client.id + "|" + table] = application.system.getStore(table);
+      application.system.updateStore(table, diff.adds, []); //diff.removes);
+  //    application.storage["remoteWatcher"][client.id + "|" + table] = application.system.getStore(table);
+    } else {
+      console.log("failed, no table **************** ", table);
     }
   }
- if(inserted) application.run([]);
+
+ if(inserted || changed) application.run([]);
 }
 
 function serverApp(app) {

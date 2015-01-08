@@ -177,6 +177,7 @@ eveApp.remoteWatcher = function(application, storage, system) {
   for(var i = 0, len = remoteDiff.adds.length; i < len; i++) {
     var name = remoteDiff.adds[i][0];
     postMessage({to: "uiThread", type: "createThread", name: name, client: application.client});
+    postMessage({to: name, type: "remoteReady", from: application.name, client: application.client});
     remoteStatuses[name] = {ready:true, lastSeenRunNumber: -1};
   }
 
@@ -196,19 +197,20 @@ eveApp.remoteWatcher = function(application, storage, system) {
     var diff = diffTables(current, storage[table])
     storage[table] = current;
     if(diff.adds.length || diff.removes.length) {
-      var first = diff.adds[0] || diff.removes[0];
-      var remoteName = first[0];
-      var result = {adds: [], removes: []};
-      if(!diffs[remoteName]) continue;
-      diffs[remoteName][compilerTables[i]] = result;
       for(var x = 0, xlen = diff.adds.length; x < xlen; x++) {
         var cur = diff.adds[x];
+        var remoteName = cur[0];
+        if(!diffs[remoteName]) continue;
+        var result = diffs[remoteName][compilerTables[i]] || (diffs[remoteName][compilerTables[i]] = {adds: [], removes: []});
         if(!removed[remoteName]) {
           result.adds.push(cur.slice(1));
         }
       }
       for(var x = 0, xlen = diff.removes.length; x < xlen; x++) {
         var cur = diff.removes[x];
+        var remoteName = cur[0];
+        if(!diffs[remoteName]) continue;
+        var result = diffs[remoteName][compilerTables[i]] || (diffs[remoteName][compilerTables[i]] = {adds: [], removes: []});
         if(!removed[remoteName]) {
           result.removes.push(cur.slice(1));
         }
