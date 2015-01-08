@@ -444,13 +444,18 @@ function uiDiffRenderer(diff, storage, program) {
   var attrsLen = attrs.length;
   for(var i = 0; i < attrsLen; i++) {
     var cur = attrs[i];
-    if(!builtEls[cur[elem_id]]) continue;
+    var el = builtEls[cur[elem_id]];
+    if(!el) continue;
 
     if(cur[attrs_value] === false || cur[attrs_value] === "false") {
-      builtEls[cur[elem_id]].removeAttribute(cur[attrs_attr]);
+      el.removeAttribute(cur[attrs_attr]);
     } else {
       try {
-        builtEls[cur[elem_id]].setAttribute(cur[attrs_attr], cur[attrs_value]);
+        if(cur[attrs_attr] === "value") {
+          if(cur[attrs_value] !== el.value) el.value = cur[attrs_value];
+        } else {
+          el.setAttribute(cur[attrs_attr], cur[attrs_value]);
+        }
       } catch(e) {
         console.error("invalid attribute: ", cur[attrs_attr], cur[attrs_value]);
       }
