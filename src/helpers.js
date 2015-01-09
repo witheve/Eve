@@ -133,6 +133,20 @@ function lastBefore(desired, sort, limit, otherwise) {
   assert(false);
 }
 
+function firstAfter(desired, sort, limit, otherwise) {
+  var max = Infinity;
+  var maxIx;
+  for(var i = sort.length; i >= 0; i--) {
+    if((sort[i] < max) && (sort[i] > limit)) {
+      max = sort[i];
+      maxIx = i;
+    }
+  }
+  if (maxIx !== undefined) return desired[maxIx];
+  if (otherwise !== undefined) return otherwise;
+  assert(false);
+}
+
 //---------------------------------------------------------
 // Program
 //---------------------------------------------------------

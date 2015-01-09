@@ -77,7 +77,7 @@ StringStream.prototype = {
 var whiteSpace = /[\s]/;
 var operators = /[~+\|:\[\{\>\$*#\?=\}\]\(\)]/;
 var symbolChars = /[^=':\s\[\]\{\}\(\)\.\+\-\*\/,]/;
-var numberChars = /[\d\.]/;
+var numberChars = /[-\d\.]/;
 
 function replaceAll(string, finds, replacements) {
   var final = string;
@@ -119,7 +119,7 @@ function nextToken(stream, tokens) {
     var value = current.substring(1);
     stream.next();
     tokens.push({type: "string", value: value, pos: [stream.start, stream.pos]});
-  } else if(char.match(/[\d]/)){
+  } else if(char.match(/[-\d]/)){
     //number
     stream.eatWhile(numberChars);
     var current = stream.current();
@@ -707,6 +707,7 @@ var uiEventNames = {
   "blur": "blur",
   "focus": "focus",
   "keyDown": "keydown",
+  "keyUp": "keyup",
   "input": "input",
   "drag": "drag",
   "drop": "drop",
