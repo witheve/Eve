@@ -434,7 +434,23 @@ function parseLine(line, state) {
         tokens[0].subType = "insert";
         var values = [];
         for(var i = 1; i < tokens.length; i++) {
-          values.push(tokens[i].value);
+          if(tokens[i].op === "[") {
+            var curInterval = [];
+            while(i < tokens.length && tokens[i].op !== "]") {
+              i++;
+              if(tokens[i] && tokens[i].value) {
+                curInterval.push(tokens[i].value);
+              }
+            }
+            if(curInterval.length > 2) {
+              return {error: {message: "Intervals must only contain a start and an end.", token: tokens[i]}, tokens: tokens};
+            } else if(curInterval.length < 2) {
+              return {error: {message: "Intervals must contain both a start and an end.", token: tokens[i]}, tokens: tokens};
+            }
+            values.push(interval(curInterval[0], curInterval[1]));
+          } else {
+            values.push(tokens[i].value);
+          }
         }
         return {type: "insert", values: values, tokens: tokens};
         break;
@@ -632,8 +648,8 @@ function parse(string) {
         rules.push(curRule);
         break;
       case "source":
-        for(var i in line.fields) {
-          var field = line.fields[i];
+        for(var fieldIx in line.fields) {
+          var field = line.fields[fieldIx];
           if(field.alias !== undefined) {
             curRule.fields[field.alias] = field;
           } else if(field.constant !== undefined) {
@@ -656,8 +672,8 @@ function parse(string) {
         break;
       case "aggregate":
         curRule.fields[line.symbol] = line;
-        for(var i in line.fields) {
-          var field = line.fields[i];
+        for(var fieldIx in line.fields) {
+          var field = line.fields[fieldIx];
           if(field.alias !== undefined) {
             curRule.fields[field.alias] = field;
           } else if(field.constant !== undefined) {
@@ -1062,7 +1078,11 @@ function injectParsed(parsed, program, prefix, programName) {
         for (var insertIx = insert.length - 1; insertIx >= 0; insertIx--) {
           value[orderedTableFields.indexOf(tableFields[insertIx])] = insert[insertIx];
         }
-        values[curRule.name].push(value);
+        if(value.length === orderedTableFields.length) {
+          values[curRule.name].push(value);
+        } else {
+          errors.push({message: "Inserted value must contain " + orderedTableFields.length + " fields. " + value.length + " currently provided.", line: curRule.values[valueIx].line});
+        }
       }
 
     } else {

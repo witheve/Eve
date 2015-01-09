@@ -64,6 +64,10 @@ function applyDiff(application, table, diff) {
 // functions
 //---------------------------------------------------------
 
+function interval(start, end) {
+  return new Interval(start, end);
+}
+
 function hours(ms) {
   return (new Date(ms)).getHours();
 }

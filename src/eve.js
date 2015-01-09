@@ -45,20 +45,43 @@ function clearBit(bits, bit) {
   return bits & ~(1 << bit);
 }
 
+//---------------------------------------------------------
+// interval type
+//---------------------------------------------------------
+
+function Interval(start, end) {
+  this.start = start;
+  this.end = end;
+}
+
+intervalCompare = function(me, other) {
+  var s = me.start;
+  var e = me.end;
+  var os = other.start;
+  var oe = other.end;
+  if(s === os && e === oe) return 0;
+  if(s > os || e > oe) return 1;
+  return -1;
+}
+
 // ORDERING / COMPARISON
 
 var least = false;
 var greatest = undefined;
 
+
 function isValue(v) {
   var t = typeof v;
-  return (t === 'string') || (t === 'number') || (t === "boolean");
+  return (t === 'string') || (t === 'number') || (t === "boolean") || (t === "object" && v && v.start !== undefined);
 }
 
 function compareValue(a, b) {
   if (a === b) return 0;
   var at = typeof a;
   var bt = typeof b;
+  if(at === "object" && bt === "object") {
+    return intervalCompare(a,b);
+  }
   if ((at === bt && a < b) || (at < bt)) return -1;
   return 1;
 }
