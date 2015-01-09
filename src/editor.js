@@ -16,7 +16,7 @@ function setLocal(k, v) {
 var prevVersion = getLocal("prevVersion");
 var stacks = getLocal("stacks");
 
-stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph paths", "TodoMVC", "Turing machine", "Clock", "Chat", "My Stack", "Editor", "Runtime", "Editor injection"];
+stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph paths", "TodoMVC", "Turing machine", "Clock", "Chat", "Game", "My Stack", "Editor", "Runtime", "Editor injection"];
 setLocal("stacks", stacks);
 setLocal("Editor-code", examples["Editor"]);
 
