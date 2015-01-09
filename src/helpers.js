@@ -148,6 +148,43 @@ function firstAfter(desired, sort, limit, otherwise) {
 }
 
 //---------------------------------------------------------
+// Filters
+//---------------------------------------------------------
+// Returns all items in desired where the interval or point represented by sort is contained within [start, end]
+function contains(desired, sort, start, end) {
+  // start is actually an interval
+  if(end === undefined && typeof start === 'object') {
+    end = start.end;
+    start = start.start;
+  }
+  if(end === 'undefined') {
+    end = Infinity;
+  }
+
+  var results = [];
+//   console.log('CONTAINS');
+//   console.log('- Desired:', desired.join(', '));
+//   console.log('- Sort:', sort.join(', '));
+//   console.log('- Start:', start);
+  console.log('- End:', end);
+  for(var i = 0, len = sort.length; i < len; i++) {
+    var v = sort[i];
+    var type = typeof v;
+    if(type === "number") {
+      v = {start: v, end: v};
+    }
+    console.log('- V:', JSON.stringify(v));
+    assert(typeof v === "object", "Contains sort field must contain intervals or numbers.");
+
+    if(v.start >= start && v.end <= end)  {
+      results.push(desired[i]);
+    }
+  }
+//   console.log('- Results:', results.join(', '));
+  return results;
+}
+
+//---------------------------------------------------------
 // Program
 //---------------------------------------------------------
 
