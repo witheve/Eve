@@ -469,7 +469,7 @@ function parseLine(line, state) {
 
         var args = [];
         var aggregateArgs = [];
-        var setRef = {type: "aggregate", table: aggTable, fields: fields, args: args, aggregateArgs: aggregateArgs, tokens: tokens}
+        var setRef = {type: "aggregate", table: aggTable, fields: fields, args: args, aggregateArgs: aggregateArgs, tokens: tokens, lineNumber: state.lineNumber};
 
         if(tokens[tokenIx] && tokens[tokenIx].op === "|") {
 
@@ -596,6 +596,7 @@ function parse(string) {
   var parsed = lines.map(function(line, ix) {
     if(line.match(/\S/)) {
       //console.log("line: ", line, ix);
+      state.lineNumber = ix;
       var parsed = parseLine(line, state)
       if(parsed) {
         parsed.line = ix;
@@ -973,7 +974,8 @@ function injectParsed(parsed, program, prefix, programName) {
     for(var aggIx = curRule.aggregates.length - 1; aggIx >= 0; aggIx--) {
       var agg = curRule.aggregates[aggIx];
       var constraint = query + "|aggregateConstraint=" + aggIx;
-      facts.push(["aggregateConstraint", constraint, query, makeLocalField(agg.symbol), agg.table, agg.function]);
+      var wrappedFn = "function() { try { return " + agg.function + "; } catch(e) { if(typeof e !== 'string') { e.line = " + agg.lineNumber + "; } throw e; } }()";
+      facts.push(["aggregateConstraint", constraint, query, makeLocalField(agg.symbol), agg.table, wrappedFn]);
       for (var fieldIx = agg.fields.length - 1; fieldIx >= 0; fieldIx--) {
         var field = agg.fields[fieldIx];
         if(field.alias !== undefined) {
