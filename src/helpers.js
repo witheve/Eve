@@ -156,6 +156,7 @@ function firstAfter(desired, sort, limit, otherwise) {
 //---------------------------------------------------------
 // Returns all items in desired where the interval or point represented by sort is contained within [start, end]
 function contains(desired, sort, start, end) {
+  assert(desired.length === sort.length, "Desired and sort fields must both be of the same length. Did you remember to filter them both?");
   // start is actually an interval
   if(end === undefined && typeof start === 'object') {
     end = start.end;
@@ -166,25 +167,43 @@ function contains(desired, sort, start, end) {
   }
 
   var results = [];
-//   console.log('CONTAINS');
-//   console.log('- Desired:', desired.join(', '));
-//   console.log('- Sort:', sort.join(', '));
-//   console.log('- Start:', start);
-  console.log('- End:', end);
   for(var i = 0, len = sort.length; i < len; i++) {
     var v = sort[i];
     var type = typeof v;
     if(type === "number") {
       v = {start: v, end: v};
     }
-    console.log('- V:', JSON.stringify(v));
     assert(typeof v === "object", "Contains sort field must contain intervals or numbers.");
 
     if(v.start >= start && v.end <= end)  {
       results.push(desired[i]);
     }
   }
-//   console.log('- Results:', results.join(', '));
+  return results;
+}
+
+// Sorts desired by sort ascending
+function sort(desired, sort) {
+  assert(desired.length === sort.length, "Desired and sort fields must both be of the same length. Did you remember to filter them both?");
+
+  var len = sort.length;
+  // Allocate an array of the indexes.
+  var results = new Array(len)
+  for(var i = 0; i < len; i++) {
+    results[i] = i;
+  }
+  // Sort the index array into the desired order.
+  results.sort(function(a, b) {
+    if(sort[a] > sort[b]) { return 1; }
+    if(sort[a] < sort[b]) { return -1; }
+    return 0;
+  });
+
+  // Overwrite the indexes with the desired values.
+  for(i = 0; i < len; i++) {
+    results[i] = desired[results[i]];
+  }
+
   return results;
 }
 
