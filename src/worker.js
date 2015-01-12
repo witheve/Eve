@@ -29,7 +29,6 @@ var console = {
 var compilerTables = ["programView", "programQuery", "subscription", "generatedView", "displayName", "view", "field", "query", "constantConstraint", "functionConstraint", "functionConstraintInput", "constantConstraint",
                       "viewConstraint", "viewConstraintBinding", "aggregateConstraint", "aggregateConstraintBinding", "aggregateConstraintSolverInput",
                       "aggregateConstraintAggregateInput", "isInput", "isCheck"];
-var inputTables = ["event", "keyboard", "mousePosition", "tableCard", "tableCardField", "tableCardCell"];
 
 eveApp.webRequestWatcher = function(application, storage, system) {
   var requests = system.getStore("webRequest");
@@ -69,7 +68,7 @@ eveApp.webRequestWatcher = function(application, storage, system) {
                    .then(function(response) {
                      if(!sent[id]) return;
                      var resp = typeof response === "string" ? response : JSON.stringify(response);
-                     application.run([["event", application.client, application.eventId++, event, id, resp]]);
+                     application.run([["rawEvent", application.client, application.eventId++, event, id, resp]]);
                    });
     sent[id] = req;
   }
@@ -102,7 +101,7 @@ eveApp.timerWatcher = function(application, storage, system) {
     if(!rate || typeof(rate) === "string" || rate < 16) rate = 16;
 
     var timeout = setInterval(function() {
-      application.run([["event", application.client, application.eventId++, event, "", (new Date()).getTime()]]);
+      application.run([["rawEvent", application.client, application.eventId++, event, "", (new Date()).getTime()]]);
     }, rate);
     timeouts[id] = timeout;
   }

@@ -289,7 +289,7 @@ var createUICallback = function(id, event, label, key, program) {
         }
       }
       e.stopPropagation();
-      items.push(["event", client, eid, label, key, value]);
+      items.push(["rawEvent", client, eid, label, key, value]);
       workers[program].postMessage({type: "event", items: items});
     }
   };

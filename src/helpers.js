@@ -315,7 +315,7 @@ function editorViews() {
 
 function commonViews() {
   var facts = [];
-  pushAll(facts, inputView("event", ["client", "eid", "label", "key", "value"]));
+  pushAll(facts, inputView("rawEvent", ["client", "eid", "label", "key", "value"]));
   pushAll(facts, inputView("mousePosition", ["client", "eid","x","y"]));
   pushAll(facts, inputView("keyboard", ["client", "eid","keyCode","eventType"]));
   pushAll(facts, inputView("time", ["time"]));
@@ -326,6 +326,8 @@ function commonViews() {
   pushAll(facts, inputView("error", ["run", "error", "stack", "line"]));
   pushAll(facts, inputView("profile", ["run", "event", "time"]));
   pushAll(facts, inputView("client", ["client"]));
+  pushAll(facts, view("removedEvent", ["client", "eid"]));
+  pushAll(facts, view("event", ["client", "eid", "label", "key", "value"]));
   pushAll(facts, view("remote|subscription", ["remote", "recipient", "view", "alias", "asCells"]));
   pushAll(facts, view("remote", ["remote"]));
   pushAll(facts, view("remote|insertedFact", ["remote", "view", "row", "col", "value"]));
