@@ -2,6 +2,7 @@ var express = require('express')();
 var server = require("http").Server(express);
 var io = require("socket.io")(server);
 var fs = require("fs");
+var path = require("path");
 
 var oneDay = 86400000;
 
@@ -15,7 +16,7 @@ express.use("/stylus", require("serve-static")(__dirname + '/stylus', { maxAge: 
 
 
 //-----------------------------------------------------
-// hackery
+// hackery (much of this is modified from worker.js)
 //-----------------------------------------------------
 
 var compilerTables = ["programView", "programQuery", "subscription", "generatedView", "displayName", "view", "field", "query", "constantConstraint", "functionConstraint", "functionConstraintInput", "constantConstraint",
@@ -181,6 +182,11 @@ for(var ix in eveFiles) {
 
 //-----------------------------------------------------
 
+
+//---------------------------------------------------------
+// Clients
+//---------------------------------------------------------
+
 var apps = {};
 var clients = {};
 var socketToClient = {};
@@ -213,6 +219,10 @@ function unsubscribeClient(client, appName) {
   }
   app.system.updateStore("subscription", [], subs);
 }
+
+//---------------------------------------------------------
+// Message routing
+//---------------------------------------------------------
 
 io.on("connection", function(socket) {
   socket.on("disconnect", function() {
@@ -265,6 +275,26 @@ io.on("connection", function(socket) {
     }
   });
 });
+
+//---------------------------------------------------------
+// Examples loading
+//---------------------------------------------------------
+
+express.get("/src/examples.js", function(req, res) {
+  var examples = {};
+  var files = fs.readdirSync("examples/");
+  for(var i in files) {
+    var file = files[i];
+    var content = fs.readFileSync("examples/" + file).toString();
+    examples[path.basename(file, ".eve")] = content;
+
+  }
+  res.send("var examples = " + JSON.stringify(examples));
+});
+
+//---------------------------------------------------------
+// Go
+//---------------------------------------------------------
 
 var port = process.env.PORT || 3000;
 server.listen(port);
