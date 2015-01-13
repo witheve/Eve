@@ -1,0 +1,234 @@
+* tableCardProgram
+  ~ run program
+
+* stacksToInject
+  ~ stack
+  + "Editor injection"
+  + "Runtime"
+
+* editor|numEvents
+  ~ count
+
+* editor|hasUI
+  ~ count hasUI
+
+* remoteViewsToTrack
+  ~ recipient view alias asCells
+  + "Editor" "error" "editorError" ""
+  + "Editor" "profile" "editorProfile" ""
+  + "Editor" "hasUI" "editor|hasUI" ""
+  + "Editor" "numEvents" "editor|numEvents" ""
+
+* viewsToPush
+  ~ remote view alias asCells
+  + "Editor" "rollback" "rollback" ""
+
+* drawControlCard
+  | tableCardProgram program
+  | editor|numEvents count
+  ;> rollback | current = count(@rollback.event) === 0 ? @count : 1
+  ["div" {"id" "controlCard" "class" "card controlCard open" "ix" "a"}
+    ["h1" program]
+    ["input" {"type" "range" "min" 0 "max" count "step" 1 "value" 100 "input" "rollback"}]]
+
+* drawUICard
+  | editor|hasUI hasUI
+  ? @hasUI
+  ["div" {"id" "uiCard" "class" "card uiCard open" "ix" "aaa"}
+    ["header"
+      ["h2" "UI"]]]
+
+* drawErrorCard
+  > error | localErrors = count(@error.error)
+  > compileError | compileErrors = count(@compileError.error)
+  > editorError | remoteErrors = count(@editorError.error)
+  ? @remoteErrors + @localErrors + @compileErrors > 0
+  ["div" {"id" "errorCard" "class" "card errorCard" "ix" "aa"}
+    ]
+
+* drawRemoteErrors
+  | editorError error line stack
+  ["div" {"parent" "errorCard" "id" error}
+    ["div" {"style" "float: right;"} "Line: " line]
+    ["h3" "[remote] " error]
+    ["pre" stack]
+  ]
+
+* drawLocalErrors
+  | error error line stack
+  ["div" {"parent" "errorCard" "id" error}
+    ["div" {"style" "float: right;"} "Line: " line]
+    ["h3" "[local] " error]
+    ["pre" stack]
+  ]
+
+* drawCompileErrors
+  | compileError error line stack
+  ["div" {"parent" "errorCard" "id" error}
+    ["div" {"style" "float: right;"} "Line: " line]
+    ["h3" "[compile] " error]
+    ["pre" stack]
+  ]
+
+* drawPerfCard
+  > editorProfile event="runtime" | runtime = maxBy(@editorProfile.time, @editorProfile.run, 0)
+  > editorProfile event="remoteWatcher" | watcher = maxBy(@editorProfile.time, @editorProfile.run, 0)
+  > editorProfile event="compile" | compile = maxBy(@editorProfile.time, @editorProfile.run, 0).toFixed(2)
+  > profile event="runtime" | editor = maxBy(@profile.time, @profile.run, 0)
+  > profile event="remoteWatcher" | editorWatcher = maxBy(@profile.time, @profile.run, 0)
+  totalRun = (@watcher + @runtime).toFixed(2)
+  totalEditor = (@editorWatcher + @editor).toFixed(2)
+  ["div" {"id" "perfCard" "class" "card perfCard" "ix" "zzzzzzzzzzz"}
+    ["h2" "Performance"]
+    ["p" {"style" "margin-top:10px"} "runtime: " totalRun]
+    ["p" "compile: " compile]
+    ["p" "editor: " totalEditor]
+    ]
+
+* drawTableCard
+  | realViews view:table remote
+  id = "table|" + @remote + "|" + @table
+  gridId = "grid" + @remote + "|" + @table
+  gridHeaderId = "gridHeader" + @table
+  ["div" {"id" id "class" "card table-card open" "ix" table}
+    ["h2" table]
+    ["div" {"id" gridId "class" "grid" "gid" gridId}
+    ["div" {"id" gridHeaderId "class" "grid-header" "ix" "" "hid" gridHeaderId}]]]
+
+* drawTableCardGridHeaders
+  | realViews view
+  | editor|field view field ix
+  | editor|displayName id:field name
+  gridHeaderId = "gridHeader" + @view
+  id = @view + @field + @ix
+  ["div" {"id" id "parent" gridHeaderId "class" "header" "ix" ix "style" ""}
+   name]
+
+* drawTableCardRows
+  | resultCell view:table row
+  id = "row" + @table + @row
+  gridId = "grid" + @table
+  ix = @row + 1
+  ["div" {"id" id "parent" gridId "row" ix "ix" ix "class" "grid-row"}]
+
+* drawTableCardCells
+  | resultCell view:table row col value
+  id = @table + @row + @col
+  rowId = "row" + @table + @row
+  strValue = typeof @value === "object" ? "[" + @value.start + " " + @value.end + "]" : @value
+  ["div" {"id" id "parent" rowId "ix" col} strValue]
+
+* rollbackEvents
+  | event label="rollback" eid value:event
+
+* rollback
+  | rollbackEvents eid event
+
+* realViews
+  | tableCardProgram program
+  | editor|programView program view
+  | editor|activeView view remote
+  | !editor|generatedView view
+
+* subs
+  | realViews view remote
+  recipient = "Editor"
+  alias = @remote + "|" + @view
+  asCells = true
+
+* remote|subscription
+  | editor|activeProgram remote
+  | remoteViewsToTrack recipient view alias asCells
+
+* remote|subscription
+  | editor|activeProgram remote:recipient
+  | viewsToPush remote view alias asCells
+
+* remote|subscription
+  | subs remote view recipient alias asCells
+
+* editor|injections
+  | tableCardProgram program
+  | stacksToInject stack
+  remote = "editor|" + @program
+
+* editor|activeProgram
+  | editor|injections stack:program remote
+
+* editor|activeProgram
+  | tableCardProgram program
+  remote = "editor|" + @program
+
+* editor|activeView
+  | editor|activeProgram program remote
+  | editor|programView program view
+
+* editor|activeQuery
+  | editor|activeProgram program remote
+  | editor|programQuery program query
+
+* editor|activeInsertedFact
+  | editor|activeProgram remote program
+  | editor|insertedFact program view row col value
+
+* remote|insertedFact
+  | editor|activeInsertedFact view remote row col value
+
+* remote
+  | editor|activeProgram remote
+
+* remote|view
+  | editor|activeView view remote
+  | editor|view view
+
+* remote|query
+  | editor|activeQuery query remote
+  | editor|query view query ix
+
+* remote|field
+  | remote|view view remote
+  | editor|field field view ix
+
+* remote|constantConstraint
+  | remote|query query remote
+  | editor|constantConstraint query field value
+
+* remote|functionConstraint
+  | remote|query query remote
+  | editor|functionConstraint constraint query field code
+
+* remote|functionConstraintInput
+  | remote|functionConstraint constraint remote
+  | editor|functionConstraintInput constraint field variable
+
+* remote|viewConstraint
+  | remote|query query remote
+  | editor|viewConstraint constraint query sourceView isNegated
+
+* remote|viewConstraintBinding
+  | remote|viewConstraint constraint remote
+  | editor|viewConstraintBinding constraint field sourceField
+
+* remote|aggregateConstraint
+  | remote|query query remote
+  | editor|aggregateConstraint constraint query field sourceView code
+
+* remote|aggregateConstraintBinding
+  | remote|aggregateConstraint constraint remote
+  | editor|aggregateConstraintBinding constraint field sourceField
+
+* remote|aggregateConstraintSolverInput
+  | remote|aggregateConstraint constraint remote
+  | editor|aggregateConstraintSolverInput constraint field variable
+
+* remote|aggregateConstraintAggregateInput
+  | remote|aggregateConstraint constraint remote
+  | editor|aggregateConstraintAggregateInput constraint sourceField variable
+
+* remote|isInput
+  | remote|view view remote
+  | editor|isInput view
+
+* remote|isCheck
+  | remote|view view remote
+  | editor|isCheck view

@@ -222,6 +222,7 @@ function onChange(cm, change) {
   var edValue = cm.getValue();
   var stack = getLocal("activeStack");
   setLocal(stack + "-code", edValue);
+  $.post("/src/examples.js/update", {stack: stack, content: edValue});
   //Special case modifying the editor to go ahead and compile/run that into
   //the current editor process
   if(stack === "Editor") {

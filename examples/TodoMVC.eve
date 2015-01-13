@@ -1,0 +1,154 @@
+;;*************************************************
+;; Todo views
+;;*************************************************
+
+* todosText
+  | todosOverTime id
+  > todosOverTime id | todo = maxBy(@todosOverTime.todo, @todosOverTime.time, "")
+
+* todos
+  | todosText id todo
+  | todosActive id isActive
+  | !removedTodos id
+* todos
+  | todosText id todo
+  | !todosActive id
+  | !removedTodos id
+  isActive = "active"
+
+* visibleTodos
+  | todosToDraw id
+  | todos id todo isActive
+  | todoEditing id
+  editing = "true"
+* visibleTodos
+  | todosToDraw id
+  | todos id todo isActive
+  | !todoEditing id
+  editing = "false"
+
+* remainingTodos
+  | todos id isActive="active"
+* completedTodos
+  | todos id isActive="completed"
+
+;;*************************************************
+;; Events
+;;*************************************************
+
+* addedTodos
+  | event label="keydown" eid value
+  | keyboard eid keyCode=13
+  time = @eid
+* todosOverTime
+  | addedTodos value:todo eid:id time
+
+* todosToDraw
+  | todos isActive:f id
+  | filter filter:f
+* todosToDraw2
+  | todos id
+  | filter filter
+  filter = "all"
+* todosToDraw
+  | todosToDraw2 id filter:f
+
+* filter
+  > event label="set filter" | filter = maxBy(@event.key, @event.eid, "all")
+
+* toggleAllTemp
+  | event label="toggle-all" eid
+  > event label="toggle-all" | curToggle = count(@event.eid)
+;;TODO figure out how to make toggle-all do the right thing
+
+* toggles
+  | event label="toggle active" key
+  > event label="toggle active" key | total = count(@event.eid)
+  > event label="toggle active" key | lastEid = maxBy(@event.eid, @event.eid, 0)
+  isActive = @total % 2 === 0 ? "active" : "completed"
+* todosActive
+  | toggles isActive key:id
+
+* editedTodos
+  | event label="edit todo" eid key value
+  | keyboard eid keyCode=13
+* todosOverTime
+  | editedTodos value:todo key:id eid:time
+
+* removeEvents
+  | event label="remove todo" key:id
+* removedTodos
+  | removeEvents id
+* removeCompleted
+  | event label="remove completed" eid
+  | toggles lastEid key:id isActive="completed"
+  ? @lastEid < @eid
+* removedTodos
+  | removeCompleted id
+
+* todoEditing1
+  | event label="edit todo" key:id
+  | !event label="done editing" key:id
+* todoEditing2
+  | event label="edit todo" key:id eid:open
+  | event label="done editing" key:id eid:close
+  ? @open > @close
+* todoEditing
+  | todoEditing1 id
+* todoEditing
+  | todoEditing2 id
+
+;;*************************************************
+;; Drawing
+;;*************************************************
+
+* draw todos
+  | visibleTodos id todo isActive editing="false"
+  uiId = "todo" + @id
+  checked = @isActive === "active" ? "false" : "checked"
+  klass = @isActive === "active" ? "active" : "completed"
+  ["li" {"class" klass "id" uiId "parent" "todo-list" "doubleClick" "edit todo" "key" id "ix" id}
+    ["input" {"type" "checkbox" "checked" checked "click" "toggle active" "key" id}]
+    ["label" todo]
+    ["button" {"click" "remove todo" "key" id}]]
+
+* draw editing todos
+  | visibleTodos id todo isActive editing="true"
+  uiId = "todo" + @id + "-editor"
+  ["li" {"id" uiId
+         "parent" "todo-list"
+         "ix" id}
+    ["input" {"type" "text" "class" "todo-editor" "keyDown" "edit todo" "blur" "done editing" "key" id "value" todo}]]
+
+* draw todos left
+  > remainingTodos | remaining = count(@remainingTodos.id)
+  ? @remaining > 0
+  remainingText = @remaining === 1 ? " todo left" : " todos left"
+  ["span" {"class" "todo-count" "parent" "footer" "ix" "-1"}
+    ["strong" remaining] remainingText]
+
+* draw remove completed
+  > completedTodos | completed = count(@completedTodos.id)
+  ? @completed > 0
+  ["button" {"class" "clear-completed" "click" "remove completed" "parent" "footer" "ix" 2} "Clear completed (" completed ")"]
+
+* todomvc
+  | filter filter
+  allClass = @filter === "all" ? "active" : ""
+  activeClass = @filter === "active" ? "active" : ""
+  completedClass = @filter === "completed" ? "active" : ""
+  ["div" {"class" "running-wrapper"}
+    ["div" {"class" "todoapp"}
+      ["h1" "Todos"]
+      ["header"
+        ["input" {"type" "checkbox" "class" "toggle-all" "click" "toggle-all"}]
+        ["input" {"type" "text" "class" "new-todo" "placeholder" "What needs to be done?" "keyDown" "keydown"}]]
+      ["ul" {"class" "todo-list" "id" "todo-list"}]
+      ["div" {"class" "footer" "id" "footer"}
+
+        ["ul" {"class" "filters" "id" "filters-list"}
+          ["li" ["button" {"class" allClass "click" "set filter" "key" "all"} "all"]]
+          ["li" ["button" {"class" activeClass "click" "set filter" "key" "active"} "active"]]
+          ["li" ["button" {"class" completedClass "click" "set filter" "key" "completed"} "completed"]]
+          ]]
+        ]]

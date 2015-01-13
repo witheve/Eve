@@ -1,0 +1,51 @@
+;;-----------------------------------------------
+;; Chat app
+;;-----------------------------------------------
+
+* rootUi
+  | currentValue value
+  ["div" {"id" "zomg" "style" "border:1px solid #ccc;"}
+    ["ul" {"id" "messages" "style" "height: 200px; overflow:auto; width:400px; background: white; padding:15px; "}]
+    ["input" {"type" "text"
+              "placeholder" "Send a message"
+              "value" value
+              "keyDown" "newMessage"
+              "input" "messageChanged"
+              "style" "width:400px; padding:3px 5px; background:#fff; border:none; border-top:1px solid #ccc; "}]]
+
+* messageUi
+  | inboundMessages user message id
+  ["li" {"parent" "messages" "id" id "ix" id}
+    ["span" {"style" "color: #999"} user ": "]
+    message]
+
+* sentMessages
+  | event eid:id client label="newMessage" value:message
+  | keyboard eid:id keyCode=13
+  user = @client.substring(0,6)
+
+* outboundMessages
+  | sentMessages id message user
+
+* inboundMessages
+   ~ id message user
+
+* remoteSubsTemp
+  | client client:me
+  stack = "editor|Chat"
+  server = "server"
+  inbound = "inboundMessages"
+  outbound = "outboundMessages"
+  asCells = false
+
+* remote|subscription
+  | remoteSubsTemp server:remote inbound:view inbound:alias asCells me:recipient
+
+* remote|subscription
+  | remoteSubsTemp stack:remote outbound:view inbound:alias asCells server:recipient
+
+* currentValue
+  > event label="messageChanged" | eid = maxBy(@event.eid, @event.eid, 0)
+  > event label="messageChanged" | lastValue = maxBy(@event.value, @event.eid, "")
+  > keyboard keyCode=13 | submitEid = maxBy(@keyboard.eid, @keyboard.eid, 0)
+  value = @submitEid > @eid ? "" : @lastValue

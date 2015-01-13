@@ -1,0 +1,17 @@
+;;***********************************************
+;; Net worth example
+;;***********************************************
+
+* netWorth
+  year = 2014
+  rate = 0.02
+  principle = 100000
+
+* netWorthRecurse
+  | netWorth year:prev principle:pr rate
+  year = @prev + 1
+  ? @year < 2030
+  principle = (@pr * (1 + @rate)).toFixed(2)
+
+* netWorth
+  | netWorthRecurse year principle rate

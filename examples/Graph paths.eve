@@ -1,0 +1,19 @@
+;*************************************
+; Path example
+;*************************************
+
+* edge
+  ~ from to
+  + "a" "b"
+  + "b" "c"
+  + "c" "d"
+
+* path
+  | edge from to
+
+* path2
+  | edge from to:t
+  | path from:t to
+
+* path
+  | path2 from to
