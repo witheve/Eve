@@ -145,10 +145,15 @@ function closeStacksView() {
 // editor worker
 //---------------------------------------------------------
 
+function getEditorCode() {
+  return getLocal("Runtime-code", examples["Runtime"]) + "\n" +
+         getLocal("Editor-code", examples["Editor"]);
+}
+
 workers["Editor"] = new Worker("../src/worker.js");
 workers["Editor"].onmessage = onWorkerMessage;
 workers["Editor"].postMessage({type: "init", editor: true, name: "Editor", client: client});
-workers["Editor"].postMessage({type: "compile", code: getLocal("Editor-code", examples["Editor"])});
+workers["Editor"].postMessage({type: "compile", code: getEditorCode()});
 
 for(var stackIx in stacks) {
   var stack = stacks[stackIx];
@@ -220,7 +225,7 @@ function onChange(cm, change) {
   //Special case modifying the editor to go ahead and compile/run that into
   //the current editor process
   if(stack === "Editor") {
-    workers["Editor"].postMessage({type: "compile", code: edValue});
+    workers["Editor"].postMessage({type: "compile", code: getEditorCode()});
   }
   workers["Editor"].postMessage({type: "compile", code: edValue, subProgram: true, subProgramName: stack});
 }

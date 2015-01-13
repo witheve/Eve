@@ -170,13 +170,17 @@ eveApp.remoteWatcher = function(application, storage, system) {
     var name = remoteDiff.removes[i][0];
     removed[name] = true;
     remoteStatuses[name] = {killed: true};
-    postMessage({to: "uiThread", type: "kill", name: name, client: application.client});
+    if(name !== application.name) {
+      postMessage({to: "uiThread", type: "kill", name: name, client: application.client});
+    }
   }
 
   for(var i = 0, len = remoteDiff.adds.length; i < len; i++) {
     var name = remoteDiff.adds[i][0];
-    postMessage({to: "uiThread", type: "createThread", name: name, client: application.client});
-    postMessage({to: name, type: "remoteReady", from: application.name, client: application.client});
+    if(name !== application.name) {
+      postMessage({to: "uiThread", type: "createThread", name: name, client: application.client});
+      postMessage({to: name, type: "remoteReady", from: application.name, client: application.client});
+    }
     remoteStatuses[name] = {ready:true, lastSeenRunNumber: -1};
   }
 
@@ -531,9 +535,9 @@ onmessage = function(event) {
       break;
     case "diffs":
       if(event.data.eventId > eveApp.eventId) {
-        eveApp.eventId = event.data.eventId;
+       // eveApp.eventId = event.data.eventId;
       }
-      eveApp.eventId++;
+      //eveApp.eventId++;
       var remote = eveApp.remotes[event.data.from];
       if(!remote) {
         remote = eveApp.remotes[event.data.from] = {};
