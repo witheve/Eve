@@ -720,6 +720,8 @@ var uiTableToFields = {
 var uiEventNames = {
   "click": "click",
   "doubleClick": "dblclick",
+  "mouseDown": "mousedown",
+  "mouseUp": "mouseup",
   "contextMenu": "contextMenu",
   "change": "change",
   "blur": "blur",
