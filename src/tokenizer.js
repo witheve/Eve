@@ -721,6 +721,7 @@ var uiEventNames = {
   "click": "click",
   "doubleClick": "dblclick",
   "contextMenu": "contextMenu",
+  "change": "change",
   "blur": "blur",
   "focus": "focus",
   "keyDown": "keydown",
