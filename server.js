@@ -292,6 +292,20 @@ express.get("/src/examples.js", function(req, res) {
   res.send("var examples = " + JSON.stringify(examples));
 });
 
+express.post("/src/examples.js/update", function(req, res) {
+  var stack = req.body.stack;
+  var content = req.body.content;
+  var path = "examples/" + stack + ".eve";
+
+  // my stack shouldn't get written out.
+  if(stack === "My Stack") return;
+
+  //only save stacks we already know about
+  if(fs.existsSync(path)) {
+    fs.writeFileSync(path, content);
+  }
+});
+
 //---------------------------------------------------------
 // Go
 //---------------------------------------------------------
