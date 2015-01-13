@@ -153,7 +153,7 @@ function getEditorCode() {
 workers["Editor"] = new Worker("../src/worker.js");
 workers["Editor"].onmessage = onWorkerMessage;
 workers["Editor"].postMessage({type: "init", editor: true, name: "Editor", client: client});
-workers["Editor"].postMessage({type: "compile", code: getEditorCode()});
+workers["Editor"].postMessage({type: "compile", code: getEditorCode(), subProgramName: "LocalEditor"});
 
 for(var stackIx in stacks) {
   var stack = stacks[stackIx];
@@ -226,7 +226,7 @@ function onChange(cm, change) {
   //Special case modifying the editor to go ahead and compile/run that into
   //the current editor process
   if(stack === "Editor") {
-    workers["Editor"].postMessage({type: "compile", code: getEditorCode()});
+    workers["Editor"].postMessage({type: "compile", code: getEditorCode(), subProgramName: "LocalEditor"});
   }
   workers["Editor"].postMessage({type: "compile", code: edValue, subProgram: true, subProgramName: stack});
 }

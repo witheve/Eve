@@ -25,11 +25,8 @@
 
 * drawControlCard
   | tableCardProgram program
-  | editor|numEvents count
-  ;> rollback | current = count(@rollback.event) === 0 ? @count : 1
   ["div" {"id" "controlCard" "class" "card controlCard open" "ix" "a"}
-    ["h1" program]
-    ["input" {"type" "range" "min" 0 "max" count "step" 1 "value" 100 "input" "rollback"}]]
+    ["h1" program]]
 
 * drawUICard
   | editor|hasUI hasUI
@@ -117,12 +114,6 @@
   rowId = "row" + @table + @row
   strValue = typeof @value === "object" ? "[" + @value.start + " " + @value.end + "]" : @value
   ["div" {"id" id "parent" rowId "ix" col} strValue]
-
-* rollbackEvents
-  | event label="rollback" eid value:event
-
-* rollback
-  | rollbackEvents eid event
 
 * realViews
   | tableCardProgram program
