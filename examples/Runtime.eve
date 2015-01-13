@@ -32,6 +32,31 @@
 * remote|subscription
   | manuallySubscribe remote alias view asCells recipient
 
+* eventComplete
+  | rawEvent interval label key
+  | rawEvent interval:ii
+  ? intervalStart(@interval) == intervalStart(@ii)
+  ? intervalEnd(@interval) < intervalEnd(@ii)
+
+* eventInProgress
+  | rawEvent interval label key
+  start = intervalStart(@interval)
+  > rawEvent | num = count(startsAt(@rawEvent.interval, @rawEvent.interval, @start))
+  ? @num == 1
+
 * event
-  | rawEvent client eid label key value
-  | !removedEvent client eid
+  | eventComplete interval label key
+  | !removedEvent eid
+  eid = intervalStart(@interval)
+
+* event
+  | eventInProgress interval label key
+  | !removedEvent eid
+  eid = intervalStart(@interval)
+
+
+;* event
+;  | rawEvent interval label key
+;  | !removedEvent eid
+;  eid = intervalStart(@interval)
+
