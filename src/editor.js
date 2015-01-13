@@ -515,7 +515,6 @@ function uiDiffRenderer(diff, storage, program) {
   }
 
   var events = diff["uiEvent"].adds;
-  console.log('EVTS', events);
   var eventsLen = events.length;
   for(var i = 0; i < eventsLen; i++) {
     var cur = events[i];
@@ -524,7 +523,6 @@ function uiDiffRenderer(diff, storage, program) {
     }
     var handlers = handlers[cur[elem_id]][cur[events_event]] = createUICallbacks(cur[elem_id], cur[events_event], cur[events_label], cur[events_key], program);
     var eventNames = Object.keys(handlers);
-    console.log('Registering handlers:', eventNames.join(', '));
     eventNames.forEach(function(event) {
       builtEls[cur[elem_id]].addEventListener(event, handlers[event]);
     });
