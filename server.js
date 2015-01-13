@@ -298,7 +298,7 @@ express.post("/src/examples.js/update", function(req, res) {
   var path = "examples/" + stack + ".eve";
 
   // my stack shouldn't get written out.
-  if(stack === "My Stack") return;
+  if(stack === "My Stack") return res.send("");
 
   //only save stacks we already know about
   if(fs.existsSync(path)) {
