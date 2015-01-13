@@ -263,47 +263,68 @@ var mouseEvents = {"drop": true,
                    "contextmenu": true};
 
 var keyEvents = {"keydown": true, "keyup": true, "keypress": true};
-var instantEvents = {"click": true, "dblclick": true, "keypress": true};
+var instantEvents = {"click": true, "dblclick": true, "keypress": true, "contextmenu": true};
+var startEvents = {"mousedown": "mouseup", "keydown": "keyup", "focus": "blur"};
+var endEvents = {"mouseup": "mousedown", "keyup": "keydown", "blur": "focus"};
 
-var createUICallback = function(id, event, label, key, program) {
+var _createUICallback = function(id, event, label, key, program) {
   return function(e) {
-    var items = [];
-    var eid = eventId++;
     if(event === "dragover") {
       e.preventDefault();
-    } else {
-      if(event in mouseEvents) {
-        console.log(event);
-        items.push(["mousePosition", eid, e.clientX, e.clientY]);
-      }
-
-      if(event in keyEvents) {
-        items.push(["keyboard", eid, e.keyCode, event]);
-      }
-
-      var value = e.target.value;
-      if(event === "dragstart") {
-        console.log("start: ", JSON.stringify(eid));
-        e.dataTransfer.setData("eid", JSON.stringify(eid));
-        value = eid;
-      }
-      if(event === "drop" || event === "drag" || event === "dragover" || event === "dragend") {
-        console.log("drop", e.dataTransfer.getData("eid"));
-        try {
-          value = JSON.parse(e.dataTransfer.getData("eid"));
-        } catch(e) {
-          value = "";
-        }
-      }
-      e.stopPropagation();
-      var end = (event in instantEvents ? eid : Infinity);
-      items.push(
-        ["rawEvent", interval(eid, end), label, key],
-        ["eventTime", eid, Date.now()]
-      );
-      workers[program].postMessage({type: "event", items: items});
+      return;
     }
+
+    var eid = eventId++;
+    var result = {
+      eid: eid,
+      time: Date.now(),
+      event: event,
+      label: label,
+      key: key
+    };
+
+    (result.isInstant = instantEvents[event]) ||
+    (result.isStart = startEvents[event]) ||
+    (result.isEnd = endEvents[event]);
+
+    if(event in mouseEvents) {
+      result.type = "mouse";
+      result.x = e.clientX;
+      result.y = e.clientY;
+    } else if(event in keyEvents) {
+      result.type = "keyboard";
+      result.keyCode = e.keyCode;
+      result.subState = e.keyCode;
+    }
+
+    var value = e.target.value;
+    if(event === "dragstart") {
+      console.log("start: ", JSON.stringify(eid));
+      e.dataTransfer.setData("eid", JSON.stringify(eid));
+      value = eid;
+    }
+    if(event === "drop" || event === "drag" || event === "dragover" || event === "dragend") {
+      console.log("drop", e.dataTransfer.getData("eid"));
+      try {
+        value = JSON.parse(e.dataTransfer.getData("eid"));
+      } catch(e) {
+        value = "";
+      }
+    }
+    e.stopPropagation();
+    workers[program].postMessage({type: "event", items: [result]});
   };
+};
+
+var createUICallbacks = function(id, event, label, key, program) {
+  var handlers = {};
+  handlers[event] = _createUICallback(id, event, label, key, program);
+  var pair = startEvents[event] || endEvents[event];
+  if(pair) {
+    handlers[pair] = _createUICallback(id, pair, label, key, program);
+  }
+
+  return handlers;
 };
 
 var svgs = {
@@ -493,14 +514,19 @@ function uiDiffRenderer(diff, storage, program) {
   }
 
   var events = diff["uiEvent"].adds;
+  console.log('EVTS', events);
   var eventsLen = events.length;
   for(var i = 0; i < eventsLen; i++) {
     var cur = events[i];
     if(!handlers[cur[elem_id]]) {
       handlers[cur[elem_id]] = {};
     }
-    var handler = handlers[cur[elem_id]][cur[events_event]] = createUICallback(cur[elem_id], cur[events_event], cur[events_label], cur[events_key], program);
-    builtEls[cur[elem_id]].addEventListener(cur[events_event], handler);
+    var handlers = handlers[cur[elem_id]][cur[events_event]] = createUICallbacks(cur[elem_id], cur[events_event], cur[events_label], cur[events_key], program);
+    var eventNames = Object.keys(handlers);
+    console.log('Registering handlers:', eventNames.join(', '));
+    eventNames.forEach(function(event) {
+      builtEls[cur[elem_id]].addEventListener(event, handlers[event]);
+    });
   }
 
   var children = diff["uiChild"].adds;

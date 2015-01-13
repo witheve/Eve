@@ -510,6 +510,33 @@ function injectRemoteDiffs(client, diffs, inserts, subs) {
   if(inserted) eveApp.run([]);
 }
 
+//************************************
+// Event Handling
+//************************************
+
+var UIEventState = {
+  "keydown": {}
+};
+
+function setEventStart(event, value) {
+  // If the event is an end event, isEnd has the name of it's pair.
+  var state = event.isEnd || event.event;
+  if(event.subState) {
+    return UIEventState[state][event.subState] = value;
+  }
+  return UIEventState[state] = value;
+
+}
+
+function getEventStart(event) {
+  // If the event is an end event, isEnd has the name of it's pair.
+  var state = event.isEnd || event.event;
+  if(event.subState) {
+    return UIEventState[state][event.subState];
+  }
+  return UIEventState[state];
+}
+
 onmessage = function(event) {
   switch(event.data.type) {
     case "init":
@@ -578,23 +605,46 @@ onmessage = function(event) {
 
       // Calculate the difference between the latest eid and the event's temporary eid.
       var current = eveApp.eventId++;
-      var offset = current - event.data.items[0][1];
+      var offset = current - event.data.items[0].eid;
 
       // @TODO: Translate eid to interval.
       // @TODO: Match events into states.
-      var events = event.data.items.map(function(cur) {
+      var facts = [];
+      var events = event.data.items.forEach(function(cur) {
+        var event = cur.event;
+
         //set the eventId
-        if(typeof cur[1] === "number") {
-          cur[1] += offset;
-        } else {
-          // @FIXME: Figure out how to match and increment intervals correctly.
-          cur[1].start += offset;
-          cur[1].end += offset;
+        var eid = cur.eid + offset;
+        var intvl;
+        var prev = getEventStart(cur);
+
+        // Build interval based on event stage.
+        if(cur.isInstant) {
+          intvl = interval(eid, eid);
+
+        } else if(cur.isStart) {
+          if(prev === undefined) setEventStart(cur, eid);
+          else return;
+          intvl = interval(eid, Infinity);
+
+        } else if(cur.isEnd) {
+          setEventStart(cur, undefined);
+          intvl = interval(prev, eid);
         }
 
-        return cur;
+        // Push extended event facts.
+        if(event.type === "mouse") {
+          facts.push(["mousePosition", intvl, cur.x, cur.y]);
+
+        } else if(event.type === "keyboard") {
+          facts.push("keyboard", intvl, cur.charCode, event);
+        }
+
+
+        facts.push(["rawEvent", intvl, cur.label, cur.key]);
+        facts.push(["eventTime", eid, cur.time]);
       });
-      eveApp.run(events);
+      eveApp.run(facts);
       break;
   }
 }
