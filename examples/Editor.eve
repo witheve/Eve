@@ -112,7 +112,7 @@
   | resultCell view:table row col value
   id = @table + @row + @col
   rowId = "row" + @table + @row
-  strValue = typeof @value === "object" ? "[" + @value.start + " " + @value.end + "]" : @value
+  strValue = typeof @value === "object" ? intervalToString(@value) : @value
   ["div" {"id" id "parent" rowId "ix" col} strValue]
 
 * realViews
