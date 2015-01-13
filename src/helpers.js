@@ -90,11 +90,17 @@ var tan = Math.tan;
 
 function intervalStart(interval) {
   assert(typeof interval === "object", "intervalStart requires an interval field.");
+  if(interval.length) {
+    return interval.map(intervalStart);
+  }
   return interval.start === null ? -Infinity : interval.start;
 }
 
 function intervalEnd(interval) {
   assert(typeof interval === "object", "intervalEnd requires an interval field.");
+  if(interval.length) {
+    return interval.map(intervalEnd);
+  }
   return interval.end === null ? Infinity : interval.end;
 }
 
@@ -197,6 +203,29 @@ function contains(desired, sort, start, end) {
   }
   return results;
 }
+
+function startsAt(desired, sort, start) {
+  assert(desired.length === sort.length, "Desired and sort fields must both be of the same length. Did you remember to filter them both?");
+  var matches = [];
+  for(var i = 0, len = sort.length; i < len; i++) {
+    if(intervalStart(sort[i]) == start) {
+      matches.push(desired[i]);
+    }
+  }
+  return matches;
+}
+
+function endsAt(desired, sort, end) {
+  assert(desired.length === sort.length, "Desired and sort fields must both be of the same length. Did you remember to filter them both?");
+  var matches = [];
+  for(var i = 0, len = sort.length; i < len; i++) {
+    if(intervalEnd(sort[i]) == end) {
+      matches.push(desired[i]);
+    }
+  }
+  return matches;
+}
+
 
 // Sorts desired by sort ascending
 function sort(desired, sort) {
