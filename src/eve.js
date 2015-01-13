@@ -55,10 +55,10 @@ function Interval(start, end) {
 }
 
 intervalCompare = function(me, other) {
-  var s = me.start;
-  var e = me.end;
-  var os = other.start;
-  var oe = other.end;
+  var s = intervalStart(me);
+  var e = intervalEnd(me);
+  var os = intervalStart(other);
+  var oe = intervalEnd(other);
   if(s === os && e === oe) return 0;
   if(s > os || e > oe) return 1;
   return -1;
@@ -101,7 +101,7 @@ function arrayEqual(a, b) {
   assert(len === b.length);
   for (var i = 0; i < len; i++) {
     if (a[i] !== b[i]) {
-      return false;
+      return (compareValue(a[i], b[i]) === 0);
     }
   }
   return true;
