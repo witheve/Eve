@@ -447,7 +447,7 @@ function parseLine(line, state) {
             } else if(curInterval.length < 2) {
               return {error: {message: "Intervals must contain both a start and an end.", token: tokens[i]}, tokens: tokens};
             }
-            values.push(interval(curInterval[0], curInterval[1]));
+            values.push(interval(Number(curInterval[0]), Number(curInterval[1])));
           } else {
             values.push(tokens[i].value);
           }
