@@ -570,7 +570,6 @@ onmessage = function(event) {
       var diffs = JSON.parse(event.data.diffs);
       var inserts = JSON.parse(event.data.inserts);
       var subscriptions = JSON.parse(event.data.subscriptions);
-      console.log('DIFFS', subscriptions);
       injectRemoteDiffs(event.data.from, diffs, inserts, subscriptions);
       postMessage({to: event.data.from, type: "remoteReady", from: eveApp.name, client: eveApp.client});
       break;
@@ -595,7 +594,6 @@ onmessage = function(event) {
 
         return cur;
       });
-      console.log('EVTS', events);
       eveApp.run(events);
       break;
   }

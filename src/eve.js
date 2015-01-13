@@ -60,8 +60,8 @@ intervalCompare = function(me, other) {
   var os = intervalStart(other);
   var oe = intervalEnd(other);
   if(s === os && e === oe) return 0;
-  if(s > os || e > oe) return 1;
-  return -1;
+  if(s < os || (s === os && e < oe)) return -1;
+  return 1;
 }
 
 // ORDERING / COMPARISON
@@ -96,12 +96,22 @@ function compareValueArray(a, b) {
   return 0;
 }
 
+function valueEqual(a, b) {
+  if(a === b) return true;
+  var at = typeof a;
+  var bt = typeof b;
+  if(at === "object" && bt === "object") {
+    return a.start === b.start && a.end === b.end;
+  }
+  return false;
+}
+
 function arrayEqual(a, b) {
   var len = a.length;
   assert(len === b.length);
   for (var i = 0; i < len; i++) {
-    if (a[i] !== b[i]) {
-      return (compareValue(a[i], b[i]) === 0);
+    if (!valueEqual(a[i], b[i])) {
+      return false;
     }
   }
   return true;
@@ -121,7 +131,7 @@ function solutionMatchesPoint(solution, ixes, point) {
   for (var i = ixes.length - 1; i >= 0; i -= 2) {
     var pointIx = ixes[i];
     var boundsIx = ixes[i - 1];
-    if (point[pointIx] !== solution[boundsIx]) return false;
+    if (!valueEqual(point[pointIx], solution[boundsIx])) return false;
   }
   return true;
 }
@@ -322,7 +332,7 @@ MemoryConstraint.prototype = {
       boundsIx = bindingIxes[i - 1];
       for (var j = facts.length - 1; j >= 0; j--) {
         lowerPivot = facts[j][pointIx];
-        if (lowerPivot !== leftHis[boundsIx]) break findLowerPivot;
+        if (!valueEqual(lowerPivot, leftHis[boundsIx])) break findLowerPivot;
       }
     }
 
@@ -336,7 +346,7 @@ MemoryConstraint.prototype = {
 
     leftHis[boundsIx] = lowerPivot;
     rightLos[boundsIx] = upperPivot;
-    // console.log("Split at fact[" + pointIx + "]=" + lowerPivot + "," + upperPivot);
+//     console.log("Split at fact[" + pointIx + "]=" + lowerPivot + "," + upperPivot);
     return setBit(UNCHANGED, boundsIx);
   }
 };
@@ -360,7 +370,7 @@ NegatedMemoryConstraint.prototype = {
 
     for (var i = bindingIxes.length - 1; i >= 0; i -= 2) {
       var boundsIx = bindingIxes[i - 1];
-      if (los[boundsIx] !== his[boundsIx]) {
+      if (!valueEqual(los[boundsIx], his[boundsIx])) {
         constraintWatches[myIx] = setBit(0, boundsIx);
         return UNCHANGED;
       }
@@ -407,7 +417,7 @@ AggregatedMemoryConstraint.prototype = {
     var bindingIxes = this.bindingIxes;
     for (var i = bindingIxes.length - 1; i >= 0; i -= 2) {
       var boundsIx = bindingIxes[i - 1];
-      if (los[boundsIx] !== his[boundsIx]) {
+      if (!valueEqual(los[boundsIx], his[boundsIx])) {
         constraintWatches[myIx] = setBit(0, boundsIx);
         return UNCHANGED;
       }
@@ -416,7 +426,7 @@ AggregatedMemoryConstraint.prototype = {
     var solverIxes = this.solverIxes;
     for (var i = solverIxes.length - 1; i >= 0; i--) {
       var solverIx = solverIxes[i];
-      if (los[solverIx] !== his[solverIx]) {
+      if (!valueEqual(los[solverIx], his[solverIx])) {
         constraintWatches[myIx] = setBit(0, solverIx);
         return UNCHANGED;
       }
@@ -539,7 +549,7 @@ FunctionConstraint.prototype = {
     for (var i = inIxes.length - 1; i >= 0; i--) {
       var inIx = inIxes[i];
       var lo = los[inIx];
-      if ((lo !== his[inIx])) {
+      if (!valueEqual(lo, his[inIx])) {
         constraintWatches[myIx] = setBit(0, inIx);
         return UNCHANGED;
       }
