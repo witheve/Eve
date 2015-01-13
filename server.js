@@ -294,7 +294,7 @@ express.get("/src/examples.js", function(req, res) {
 
 express.post("/src/examples.js/update", function(req, res) {
   var stack = req.body.stack;
-  var content = req.body.content.replace(/[ \\t]+$/gm, "");
+  var content = req.body.content.replace(/[ \t]+$/gm, "");
   if(content[content.length-1] != "\n") {
     content += "\n";
   }
