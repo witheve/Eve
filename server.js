@@ -304,6 +304,7 @@ express.post("/src/examples.js/update", function(req, res) {
   if(fs.existsSync(path)) {
     fs.writeFileSync(path, content);
   }
+  res.send("");
 });
 
 //---------------------------------------------------------
