@@ -16,7 +16,7 @@ express.use("/stylus", require("serve-static")(__dirname + '/stylus', { maxAge: 
 
 
 //-----------------------------------------------------
-// hackery
+// hackery (much of this is modified from worker.js)
 //-----------------------------------------------------
 
 var compilerTables = ["programView", "programQuery", "subscription", "generatedView", "displayName", "view", "field", "query", "constantConstraint", "functionConstraint", "functionConstraintInput", "constantConstraint",
@@ -182,6 +182,11 @@ for(var ix in eveFiles) {
 
 //-----------------------------------------------------
 
+
+//---------------------------------------------------------
+// Clients
+//---------------------------------------------------------
+
 var apps = {};
 var clients = {};
 var socketToClient = {};
@@ -214,6 +219,10 @@ function unsubscribeClient(client, appName) {
   }
   app.system.updateStore("subscription", [], subs);
 }
+
+//---------------------------------------------------------
+// Message routing
+//---------------------------------------------------------
 
 io.on("connection", function(socket) {
   socket.on("disconnect", function() {
@@ -319,7 +328,6 @@ express.post("/src/tests.js/update", function(req, res) {
   updateFile("tests/" + stack + ".eve", req.body.content);
   res.send("");
 });
-
 
 //---------------------------------------------------------
 // Go

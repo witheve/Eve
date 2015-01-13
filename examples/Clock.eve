@@ -1,0 +1,31 @@
+;*****************************************************
+; A clock
+;*****************************************************
+
+* timer
+ ~ id event rate
+ + 3 "tick" 1000
+
+* clock
+  | time time:startTime
+  > event label="tick" | value = maxBy(@event.value, @event.value, @startTime)
+  hours = hours(@value)
+  minutes = minutes(@value)
+  seconds = seconds(@value)
+
+* draw clock
+  | clock hours minutes seconds
+  secondsAngle = (@seconds * 6 - 90) * (Math.PI / 180)
+  secondsX = cos(@secondsAngle) * 95 + 102
+  secondsY = sin(@secondsAngle) * 95 + 102
+  minutesAngle = (@minutes * 6 - 90) * (Math.PI / 180)
+  minutesX = cos(@minutesAngle) * 90 + 102
+  minutesY = sin(@minutesAngle) * 90 + 102
+  hoursAngle = (@hours * 30 - 90) * (Math.PI / 180)
+  hoursX = cos(@hoursAngle) * 75 + 102
+  hoursY = sin(@hoursAngle) * 75 + 102
+  ["svg" {"width" 205 "height" 205}
+    ["circle" {"cx" 102 "cy" 102 "r" 100 "style" "stroke:black; fill:#f7f7f7;"}]
+    ["line" {"x1" 100 "y1" 100 "x2" secondsX "y2" secondsY "style" "stroke:red; stroke-width:2px;"}]
+    ["line" {"x1" 100 "y1" 100 "x2" minutesX "y2" minutesY "style" "stroke:black; stroke-width:3px;"}]
+    ["line" {"x1" 100 "y1" 100 "x2" hoursX "y2" hoursY "style" "stroke:black; stroke-width:4px;"}]]

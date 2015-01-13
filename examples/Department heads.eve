@@ -1,0 +1,22 @@
+;*************************************
+; Department heads
+;*************************************
+
+* employee
+  ~ name department salary
+  + "jamie" "engineering" 75000
+  + "chris" "engineering" 75000
+  + "rob" "operations" 75000
+
+* heads
+  ~ name department
+  + "chris" "engineering"
+  + "harry" "magic"
+  + "rob" "operations"
+
+* totals
+  | heads name department
+  > employee department | cost = sum(@employee.salary)
+
+* average salary
+  > employee | average = avg(@employee.salary)

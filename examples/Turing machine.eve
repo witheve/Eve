@@ -1,0 +1,74 @@
+; --- input ---
+
+* machinePositionInput
+  ~ time position
+  + 0 0
+
+* machineStateInput
+  ~ time state
+  + 0 "a"
+
+* transition
+  ~ oldState oldSymbol write move newState
+  + "a" "x" "x" "left" "b"
+  + "a" 0 0 "right" "a"
+  + "a" 1 1 "right" "a"
+  + "b" "x" 1 "right" "c"
+  + "b" 0 1 "left" "c"
+  + "b" 1 0 "left" "b"
+  + "c" "x" "x" "left" "d"
+  + "c" 0 0 "right" "c"
+  + "c" 1 1 "right" "c"
+
+* initialWrite
+ ~ position symbol
+ + 0 0
+ + 1 1
+ + 2 1
+
+; --- code ---
+
+* machinePosition
+  | machinePositionInput time position
+
+* machineState
+  | machineStateInput time state
+
+* transitionTaken
+  | machinePosition time position
+  | machineState time state
+  > write position | symbol = lastBefore(@write.symbol, @write.time, @time, "x")
+  | transition oldState:state oldSymbol:symbol write move newState
+
+* write
+  time = -1
+  | initialWrite position symbol
+
+* write
+  | transitionTaken time position write:symbol
+
+* changeState
+  | transitionTaken time newState
+  newTime = @time + 1
+* machineState
+  | changeState newTime:time newState:state
+
+* moveLeft
+  | transitionTaken time position move="left"
+  newPosition = @position - 1
+  newTime = @time + 1
+* machinePosition
+  | moveLeft newTime:time newPosition:position
+
+* moveRight
+  | transitionTaken time position move="right"
+  newPosition = @position + 1
+  newTime = @time + 1
+* machinePosition
+  | moveRight newTime:time newPosition:position
+
+; --- output ---
+
+* tape
+  | write position
+  > write position | symbol = maxBy(@write.symbol, @write.time)
