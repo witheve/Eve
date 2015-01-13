@@ -258,6 +258,7 @@ var mouseEvents = {"drop": true,
                    "contextmenu": true};
 
 var keyEvents = {"keydown": true, "keyup": true, "keypress": true};
+var instantEvents = {"click": true, "dblclick": true, "keypress": true};
 
 var createUICallback = function(id, event, label, key, program) {
   return function(e) {
@@ -266,12 +267,13 @@ var createUICallback = function(id, event, label, key, program) {
     if(event === "dragover") {
       e.preventDefault();
     } else {
-      if(mouseEvents[event]) {
-        items.push(["mousePosition", client, eid, e.clientX, e.clientY]);
+      if(event in mouseEvents) {
+        console.log(event);
+        items.push(["mousePosition", eid, e.clientX, e.clientY]);
       }
 
-      if(keyEvents[event]) {
-        items.push(["keyboard", client, eid, e.keyCode, event]);
+      if(event in keyEvents) {
+        items.push(["keyboard", eid, e.keyCode, event]);
       }
 
       var value = e.target.value;
@@ -289,7 +291,11 @@ var createUICallback = function(id, event, label, key, program) {
         }
       }
       e.stopPropagation();
-      items.push(["rawEvent", client, eid, label, key, value]);
+      var end = (event in instantEvents ? eid : Infinity);
+      items.push(
+        ["rawEvent", interval(eid, end), label, key],
+        ["eventTime", eid, Date.now()]
+      );
       workers[program].postMessage({type: "event", items: items});
     }
   };

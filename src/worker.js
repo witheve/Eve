@@ -52,26 +52,43 @@ eveApp.webRequestWatcher = function(application, storage, system) {
   for(var removeIx = 0; removeIx < removes.length; removeIx++) {
     var id = removes[removeIx][0];
     if(sent[id]) {
-      sent[id].xhr.abort();
+      sent[id].abort();
       sent[id] = null;
     }
   }
 
-  for(var addIx = 0; addIx < adds.length; addIx++) {
-    var id = adds[addIx][1];
-    var url = adds[addIx][2];
-    var event = adds[addIx][0];
+  adds.forEach(function(add, addIx) {
+    var id = add[1];
+    var url = add[2];
+    var event = add[0];
 
-    if(id === undefined || url === undefined || event === undefined) continue;
+    if(id === undefined || url === undefined || event === undefined) return;
 
-    var req = qwest.get(url)
-                   .then(function(response) {
-                     if(!sent[id]) return;
-                     var resp = typeof response === "string" ? response : JSON.stringify(response);
-                     application.run([["rawEvent", application.client, application.eventId++, event, id, resp]]);
-                   });
+    var start = application.eventId++;
+    application.run([
+      ["rawEvent", interval(start, Infinity), event, id],
+      ["eventTime", start, Date.now()]
+    ]);
+
+    function completed(response) {
+      if(!sent[id]) return;
+      var resp = typeof response === "string" ? response : JSON.stringify(response);
+      var end = application.eventId++;
+      var interval = interval(start, end);
+      application.run([
+        ["rawEvent", interval, event, id],
+        ["eventTime", end, Date.now()],
+        ["webResponse", interval, resp]
+      ]);
+    }
+
+    var req = qwest.get(url).then(completed);
+    req.abort = function() {
+      req.xhr.abort();
+      completed();
+    };
     sent[id] = req;
-  }
+  });
 
   storage["sent"] = sent;
 }
@@ -92,19 +109,23 @@ eveApp.timerWatcher = function(application, storage, system) {
     timeouts[id] = null;
   }
 
-  for(var addIx = 0; addIx < adds.length; addIx++) {
-    var id = adds[addIx][1];
-    var event = adds[addIx][0];
-    var rate = adds[addIx][2];
+  adds.forEach(function(add, addIx) {
+    var id = add[1];
+    var event = add[0];
+    var rate = add[2];
 
-    if(!id) continue;
+    if(!id) return;
     if(!rate || typeof(rate) === "string" || rate < 16) rate = 16;
 
     var timeout = setInterval(function() {
-      application.run([["rawEvent", application.client, application.eventId++, event, "", (new Date()).getTime()]]);
+      var start = application.eventId++;
+      application.run([
+        ["rawEvent", interval(start, start), event, ""],
+        ["eventTime", start, Date.now()]
+      ]);
     }, rate);
     timeouts[id] = timeout;
-  }
+  })
 
   storage["timeouts"] = timeouts;
 }
@@ -545,16 +566,32 @@ onmessage = function(event) {
       var diffs = JSON.parse(event.data.diffs);
       var inserts = JSON.parse(event.data.inserts);
       var subscriptions = JSON.parse(event.data.subscriptions);
+      console.log('DIFFS', subscriptions);
       injectRemoteDiffs(event.data.from, diffs, inserts, subscriptions);
       postMessage({to: event.data.from, type: "remoteReady", from: eveApp.name, client: eveApp.client});
       break;
     case "event":
-      var eid = eveApp.eventId++;
+      if(!event.data.items.length) break;
+
+      // Calculate the difference between the latest eid and the event's temporary eid.
+      var current = eveApp.eventId++;
+      var offset = current - event.data.items[0][1];
+
+      // @TODO: Translate eid to interval.
+      // @TODO: Match events into states.
       var events = event.data.items.map(function(cur) {
         //set the eventId
-        cur[2] = eid;
+        if(typeof cur[1] === "number") {
+          cur[1] += offset;
+        } else {
+          // @FIXME: Figure out how to match and increment intervals correctly.
+          cur[1].start += offset;
+          cur[1].end += offset;
+        }
+
         return cur;
       });
+      console.log('EVTS', events);
       eveApp.run(events);
       break;
   }
