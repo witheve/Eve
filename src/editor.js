@@ -523,9 +523,10 @@ function uiDiffRenderer(diff, storage, program) {
     }
     var handlers = handlers[cur[elem_id]][cur[events_event]] = createUICallbacks(cur[elem_id], cur[events_event], cur[events_label], cur[events_key], program);
     var eventNames = Object.keys(handlers);
-    eventNames.forEach(function(event) {
+    for(var j = 0, len = eventNames.length; j < len; j++) {
+      var event = eventNames[j];
       builtEls[cur[elem_id]].addEventListener(event, handlers[event]);
-    });
+    }
   }
 
   var children = diff["uiChild"].adds;
