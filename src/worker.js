@@ -603,8 +603,6 @@ onmessage = function(event) {
     case "event":
       if(!event.data.items.length) break;
 
-      // @TODO: Translate eid to interval.
-      // @TODO: Match events into states.
       var facts = [];
       var events = event.data.items.forEach(function(cur) {
         var event = cur.event;
