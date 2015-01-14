@@ -603,10 +603,6 @@ onmessage = function(event) {
     case "event":
       if(!event.data.items.length) break;
 
-      // Calculate the difference between the latest eid and the event's temporary eid.
-      var current = eveApp.eventId++;
-      var offset = current - event.data.items[0].eid;
-
       // @TODO: Translate eid to interval.
       // @TODO: Match events into states.
       var facts = [];
@@ -614,7 +610,7 @@ onmessage = function(event) {
         var event = cur.event;
 
         //set the eventId
-        var eid = cur.eid + offset;
+        var eid = eveApp.eventId++;
         var intvl;
         var prev = getEventStart(cur);
 
@@ -624,7 +620,11 @@ onmessage = function(event) {
 
         } else if(cur.isStart) {
           if(prev === undefined) setEventStart(cur, eid);
-          else return;
+          else {
+            // Roll back the eventId since the event is ignored.
+            eveApp.eventId--;
+            return;
+          }
           intvl = interval(eid, Infinity);
 
         } else if(cur.isEnd) {
@@ -640,11 +640,11 @@ onmessage = function(event) {
           facts.push("keyboard", intvl, cur.charCode, event);
         }
 
-
         facts.push(["rawEvent", intvl, cur.label, cur.key]);
         facts.push(["eventTime", eid, cur.time]);
       });
-      eveApp.run(facts);
+
+      if(facts.length) eveApp.run(facts);
       break;
   }
 }
