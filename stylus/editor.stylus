@@ -161,12 +161,13 @@ body {
 
 #stacksView {
   display:flex;
+  flex-direction: column;
   flex:1;
   align-items: center;
   justify-content: center;
   align-content: center;
   flex-wrap:wrap;
-  div {
+  .stack {
     z-depth(1);
     padding:40px 40px;
     background:#f7f7f7;
@@ -174,6 +175,18 @@ body {
     border-radius:2px;
     z-depth-animation(2);
   }
+
+  h2 {
+    display: flex;
+  }
+}
+#testStacks, #exampleStacks {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-content: center;
+  flex-wrap:wrap;
+  margin-bottom: 5em;
 }
 #stack { display:flex; flex:1; }
 

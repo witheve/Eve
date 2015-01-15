@@ -15,10 +15,26 @@ function setLocal(k, v) {
 
 var prevVersion = getLocal("prevVersion");
 var stacks = getLocal("stacks");
+var exampleStacks = Object.keys(examples);
+var testStacks = Object.keys(tests);
 
-stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph paths", "TodoMVC", "Turing machine", "Clock", "Chat", "Game", "My Stack", "Editor", "Runtime", "Editor injection"];
+
+//stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph paths", "TodoMVC", "Turing machine", "Clock", "Chat", "Game", "My Stack", "Editor", "Runtime", "Editor injection"];
+stacks = stacks.concat(exampleStacks, testStacks);
+stacks.sort();
+var uniqueStacks = [];
+var prev;
+for(var stackIx = 0; stackIx < stacks.length; stackIx++) {
+  var stack = stacks[stackIx];
+  if(stack !== prev) {
+    prev = stack;
+    uniqueStacks.push(stack);
+  }
+}
+stacks = uniqueStacks;
 setLocal("stacks", stacks);
 // setLocal("Editor-code", examples["Editor"]);
+console.log(tests, stacks);
 
 var client = getLocal("client", uuid());
 setLocal("client", client);
@@ -125,7 +141,14 @@ function onWorkerMessage(event) {
 for(var i in stacks) {
   var cur = $("<div class='stack'>" + stacks[i] + "</div>");
   cur.data("stack", stacks[i]);
-  $("#stacksView").append(cur);
+  $("#exampleStacks").append(cur);
+}
+
+
+for(var i in testStacks) {
+  var cur = $("<div class='stack testStack'>" + testStacks[i] + "</div>");
+  cur.data("stack", testStacks[i]);
+  $("#testStacks").append(cur);
 }
 
 $("#stacksView").on("click", ".stack", function() {
@@ -173,7 +196,7 @@ function openStack(stack) {
 //   workers["program"].onmessage = onWorkerMessage;
 //   workers["program"].postMessage({type: "init", editor: false, name: stack});
   workers["Editor"].postMessage({type: "newProgram", programName: stack});
-  editor.setValue(getLocal(stack + "-code", examples[stack]));
+  editor.setValue(getLocal(stack + "-code", examples[stack] || tests[stack]));
   editor.refresh();
   onChange(editor, null);
 }
