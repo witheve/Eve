@@ -16,14 +16,3 @@
   field1 = 7
   field2 = 10
   field3 = -1
-
-* Intermix field literal and constant constraints
-  ~ field1 field2 field3
-  + 1 4 9
-  field4 = 16
-
-* Intermix multi-row field literal and constant constraints
-  ~ field1 field2 field3
-  + 1 4 9
-  + 25 9 16
-  field4 = 16
