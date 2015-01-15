@@ -266,6 +266,64 @@ io.on("connection", function(socket) {
   });
 });
 
+//---------------------------------------------------------
+// Examples / tests loading
+//---------------------------------------------------------
+function bundleFiles(dir, ext) {
+  var bundle = {};
+  var files = fs.readdirSync(dir);
+  for(var i in files) {
+    var file = files[i];
+    if(path.extname(file) === ext) {
+      var content = fs.readFileSync(path.join(dir, file)).toString();
+      bundle[path.basename(file, ext)] = content;
+    }
+  }
+
+  return bundle;
+}
+
+function updateFile(path, content)  {
+  content = content.replace(/[ \t]+$/gm, "");
+  if(content[content.length-1] != "\n") {
+    content += "\n";
+  }
+  // Only update existing files
+  if(fs.existsSync(path)) {
+    fs.writeFileSync(path, content);
+  }
+}
+
+express.get("/src/examples.js", function(req, res) {
+  var examples = bundleFiles("examples", ".eve");
+  res.send("var examples = " + JSON.stringify(examples));
+});
+
+
+express.post("/src/examples.js/update", function(req, res) {
+  var stack = req.body.stack;
+  // my stack shouldn't get written out.
+  if(stack === "My Stack") return res.send("");
+  updateFile("examples/" + stack + ".eve", req.body.content);
+  res.send("");
+});
+
+express.get("/src/tests.js", function(req, res) {
+  var tests = bundleFiles("tests", ".eve");
+  res.send("var tests = " + JSON.stringify(tests));
+});
+
+express.post("/src/tests.js/update", function(req, res) {
+  var stack = req.body.stack;
+  updateFile("tests/" + stack + ".eve", req.body.content);
+  res.send("");
+});
+
+
+//---------------------------------------------------------
+// Go
+//---------------------------------------------------------
+
 var port = process.env.PORT || 3000;
 server.listen(port);
 console.log("Eve is up and running at http://localhost:" + port + "/");
