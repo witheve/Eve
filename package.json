@@ -17,7 +17,7 @@
   "scripts": {
     "watch-stylus": "./node_modules/.bin/stylus --watch stylus/*.stylus",
     "dev": "npm run watch-stylus & npm start",
-    "test": "cat src/bigcheck.js src/eve.js src/test.js | node"
+    "test": "node src/test.js"
   },
   "devDependencies": {
     "axis-css": "^0.1.8"
