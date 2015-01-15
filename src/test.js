@@ -80,3 +80,8 @@ test("foo.eve", function(env) {
   injectAndRun(env, [["foo", 2]]);
   checkTable(env, "foo", [[1], [2]]);
 });
+
+test("Add data.eve", function(env) {
+  injectAndRun(env, []);
+  checkTable(env, "Add field literal", [[7, 10, -1]]);
+});
