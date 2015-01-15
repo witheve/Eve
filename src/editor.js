@@ -20,7 +20,7 @@ var testStacks = Object.keys(tests);
 
 
 //stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph paths", "TodoMVC", "Turing machine", "Clock", "Chat", "Game", "My Stack", "Editor", "Runtime", "Editor injection"];
-stacks = stacks.concat(exampleStacks, testStacks);
+stacks = (stacks || []).concat(exampleStacks);
 stacks.sort();
 var uniqueStacks = [];
 var prev;
@@ -245,6 +245,13 @@ function onChange(cm, change) {
   var edValue = cm.getValue();
   var stack = getLocal("activeStack");
   setLocal(stack + "-code", edValue);
+
+  if(stack in examples) {
+    $.post("/src/examples.js/update", {stack: stack, content: edValue});
+  } else if(stack in tests) {
+    $.post("/src/tests.js/update", {stack: stack, content: edValue});
+  }
+
   //Special case modifying the editor to go ahead and compile/run that into
   //the current editor process
   if(stack === "Editor") {
