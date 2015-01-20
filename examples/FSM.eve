@@ -1,0 +1,26 @@
+* machines
+  ~ id transition from to
+  + "button" "click" "a" "b"
+  + "button" "click" "b" "c"
+  + "button" "dblClick" "c" "a"
+
+* initialStates
+  ~ id machine state
+  + -1 "button" "a"
+
+* states
+  | initialStates id machine state
+
+* states
+  | machines id:machine
+  | transitions machine id state
+
+* transitions
+  | machines id:machine transition from:prev to:state
+  | event eid:id label:transition key:machine
+  > states machine | prev = lastBefore(@states.state, @states.id, @id, "")
+
+* ui
+  ["div"
+    ["button" {"click" "click" "key" "button" "doubleClick" "dblClick"} "hi"]
+  ]
