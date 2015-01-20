@@ -12,7 +12,7 @@
     "stylus": "*",
     "socket.io": "1.2.1",
     "nib": "*",
-    "axis": "*"
+    "axis-css": "*"
   },
   "scripts": {
     "watch-stylus": "./node_modules/.bin/stylus --watch stylus/*.stylus",
