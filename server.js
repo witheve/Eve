@@ -2,6 +2,7 @@ var express = require('express')();
 var server = require("http").Server(express);
 var io = require("socket.io")(server);
 var fs = require("fs");
+var path = require("path");
 
 var oneDay = 86400000;
 
