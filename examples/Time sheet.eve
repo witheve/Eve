@@ -17,7 +17,7 @@
   | projects id:project
   | fsm_states machine:project state="working" id:startId
   > fsm_states machine:project state="paused" | endId = firstAfter(@fsm_states.id, @fsm_states.id, @startId, 999999999999)
-| eventTime tick:startId time:startMS
+  | eventTime tick:startId time:startMS
   > event label="minutes" | endMS = lastBefore(@event.value, @event.eid, @endId, 0)
   durationMS = @endMS - @startMS
   start = hours(@startMS) + ":" + minutes(@startMS)
@@ -67,7 +67,7 @@
   | projects id client name
   | clients id:client name:clientName
   | fsm_currentState machine:id state:workingState
-  > times project:id | totalElapsed = sum(@times.duration)
+  > times project:id | totalElapsed = sum(@times.duration).toFixed(1)
 
   workingToggle = @workingState == "paused" ? "start" : "pause"
 
