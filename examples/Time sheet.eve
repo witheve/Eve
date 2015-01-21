@@ -14,11 +14,10 @@
   + 2 3 "Bill's Homepage"
 
 * rawTimes
-  ;~ project start end duration
   | projects id:project
   | fsm_states machine:project state="working" id:startId
   > fsm_states machine:project state="paused" | endId = firstAfter(@fsm_states.id, @fsm_states.id, @startId, 999999999999)
-  > event label="minutes" | startMS = firstAfter(@event.value, @event.eid, @startId, 0)
+| eventTime tick:startId time:startMS
   > event label="minutes" | endMS = lastBefore(@event.value, @event.eid, @endId, 0)
   durationMS = @endMS - @startMS
   start = hours(@startMS) + ":" + minutes(@startMS)
@@ -51,7 +50,7 @@
   | fsm_machines id:machine
   | event eid:id label:transition key:machine
 
-* _view fsm_currentState
+* view fsm_currentState
   | fsm_currentState machine state
 
 
