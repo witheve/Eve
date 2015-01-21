@@ -35,3 +35,36 @@
 * event
   | rawEvent client eid label key value
   | !removedEvent client eid
+
+;;; FSM
+
+* fsm_initialMachines
+  ~ id transition from to
+
+* fsm_machines
+  | fsm_initialMachines id transition from to
+
+* fsm_initialStates
+  ~ id machine state
+
+* fsm_states
+  | fsm_initialStates id machine state
+
+* fsm_states
+  | fsm_machines id:machine
+  | fsm_transitions machine id state
+
+* fsm_currentState
+  | fsm_machines id:machine
+  > fsm_states machine | state = maxBy(@fsm_states.state, @fsm_states.id)
+
+* fsm_initialTransitions
+  ~ id transition machine
+
+* fsm_potentialTransitions
+  | fsm_initialTransitions id transition machine
+
+* fsm_transitions
+  | fsm_machines id:machine transition from:prev to:state
+  | fsm_potentialTransitions id transition machine
+  > fsm_states machine | prev = lastBefore(@fsm_states.state, @fsm_states.id, @id, "")
