@@ -335,6 +335,7 @@ function editorViews() {
 function commonViews() {
   var facts = [];
   pushAll(facts, inputView("rawEvent", ["client", "eid", "label", "key", "value"]));
+  pushAll(facts, inputView("eventTime", ["client", "tick", "time"]));
   pushAll(facts, inputView("mousePosition", ["client", "eid","x","y"]));
   pushAll(facts, inputView("keyboard", ["client", "eid","keyCode","eventType"]));
   pushAll(facts, inputView("time", ["time"]));
