@@ -19,11 +19,16 @@
     }
   }
 
-  h3 {
+  .title {
     display: inline-block;
     margin-right: 1em;
-    min-width: 10em;
+    min-width: 16em;
     color: rgb(16, 16, 16);
+  }
+
+  .title.editing {
+    font-size: 1em;
+    margin: -0.5em 1.25em -0.25em -0.25em;
   }
 
   .elapsed {

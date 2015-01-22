@@ -1,7 +1,3 @@
-
-;* aaaa
-;  | event eid label key value
-
 * timer
  ~ id event rate
  + 3 "minutes" 6000
@@ -20,6 +16,16 @@
 * projects
   | initialProjects id client name
   version = 0
+
+* editedProjects
+  > fsm_states type="title" instance:id state="display" | eid = maxBy(@fsm_states.id, @fsm_states.id, 1)
+  | projects id client
+  | event eid value:name
+  version = @eid
+  ? @name !== ""
+
+* projects
+  | editedProjects id client name version
 
 * currentProjects
   | projects id client name version
@@ -100,12 +106,12 @@
   workingToggle = @workingState == "paused" ? "start" : "pause"
 
   ["div" {"id" id "parent" "trackers" "class" "project-tracker"}
-    " for "
-    ["span" {"class" "client-name"} clientName]
+    ["span" {"ix" 1} " for "]
+    ["span" {"ix" 2 "class" "client-name"} clientName]
 
-    ["span" {"class" "elapsed"} totalElapsed " minutes"]
+    ["span" {"ix" 3 "class" "elapsed"} totalElapsed " minutes"]
 
-    ["div" {"class" "controls"}
+    ["div" {"ix" 4 "class" "controls"}
       ["button" {"click" "toggle working"
                  "key" timerFSM}
                  workingToggle]
@@ -118,6 +124,7 @@
   titleFSM = @type + "|||" + @id
   ? @state == "display"
   ["h3" {"id" titleFSM "parent" id "ix" 0
+         "class" "title"
          "click" "edit title"
          "key" titleFSM} name]
 
@@ -127,9 +134,9 @@
   titleFSM = @type + "|||" + @id
   ? @state == "editing"
   ["input" {"id" titleFSM "parent" id "ix" 0
-         "class" title
+         "class" "title editing"
          "autofocus" true
          "blur" "save title"
-         "input" "update title"
+         "keyDown" "update title"
          "key" titleFSM
          "value" name}]
