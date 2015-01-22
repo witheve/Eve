@@ -38,17 +38,39 @@
 
 ;;; FSM
 
+;; Initial Static data
+* fsm_initialStates
+  ~ id machine state
+
+* fsm_initialTypedStates
+  ~ id type machine state
+
 * fsm_initialMachines
   ~ id transition from to
+
+* fsm_initialTypedMachines
+  ~ type id transition from to
+
+* fsm_initialTransitions
+  ~ id transition machine
+
+* fsm_typedMachines
+  | fsm_initialTypedMachines type id transition from to
 
 * fsm_machines
   | fsm_initialMachines id transition from to
 
-* fsm_initialStates
-  ~ id machine state
+* fsm_machines
+  | fsm_mungedTypedMachines munged:id transition from to
+
+* fsm_typedStates
+  | fsm_initialTypedStates id type machine state
 
 * fsm_states
   | fsm_initialStates id machine state
+
+* fsm_states
+  | fsm_mungedTypedStates id munged:machine state
 
 * fsm_states
   | fsm_machines id:machine
@@ -58,9 +80,6 @@
   | fsm_machines id:machine
   > fsm_states machine | state = maxBy(@fsm_states.state, @fsm_states.id)
 
-* fsm_initialTransitions
-  ~ id transition machine
-
 * fsm_potentialTransitions
   | fsm_initialTransitions id transition machine
 
@@ -68,3 +87,12 @@
   | fsm_machines id:machine transition from:prev to:state
   | fsm_potentialTransitions id transition machine
   > fsm_states machine | prev = lastBefore(@fsm_states.state, @fsm_states.id, @id, "")
+
+; Internal munging
+* fsm_mungedTypedMachines
+  | fsm_typedMachines type id transition from to
+  munged = @type + "-" + @id
+
+* fsm_mungedTypedStates
+  | fsm_typedStates id type machine state
+  munged = @type + "-" + @machine
