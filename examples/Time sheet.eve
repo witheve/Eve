@@ -42,47 +42,26 @@
   | rawTimes project start end duration
 
 
-;; Add timer FSM
-* fsm_transitions
-  | currentProjects id:instance
-  type = "timer"
-  transition = "toggle working"
-  from = "paused"
-  to = "working"
+;; Add FSMs
+* transitions
+  ~ type transition from to
+  + "timer" "toggle working" "paused" "working"
+  + "timer" "toggle working" "working" "paused"
+  + "title" "edit title" "display" "editing"
+  + "title" "save title" "editing" "display"
+
+* startingStates
+  ~ type id state
+  + "timer" -1 "paused"
+  + "title" -1 "display"
 
 * fsm_transitions
   | currentProjects id:instance
-  type = "timer"
-  transition = "toggle working"
-  from = "working"
-  to = "paused"
+  | transitions type transition from to
 
 * fsm_states
   | currentProjects id:instance
-  type = "timer"
-  id = -1
-  state = "paused"
-
-;; Add title editing FSM
-* fsm_transitions
-  | currentProjects id:instance
-  type = "title"
-  transition = "edit title"
-  from = "display"
-  to = "editing"
-
-* fsm_transitions
-  | currentProjects id:instance
-  type = "title"
-  transition = "save title"
-  from = "editing"
-  to = "display"
-
-* fsm_states
-  | currentProjects id:instance
-  type = "title"
-  id = -1
-  state = "display"
+  | startingStates type id state
 
 
 ;; Shovel potential transactions into the system
@@ -149,6 +128,7 @@
   ? @state == "editing"
   ["input" {"id" titleFSM "parent" id "ix" 0
          "class" title
+         "autofocus" true
          "blur" "save title"
          "input" "update title"
          "key" titleFSM
