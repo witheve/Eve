@@ -225,6 +225,7 @@ var editor = CodeMirror(document.querySelector("#editorContainer"), {
   matchBrackets: true,
   autoCloseBrackets: true,
   styleActiveLine: true,
+  lineNumbers: true,
   extraKeys: {
     Tab: function(cm) {
       var loc = cm.getCursor();
