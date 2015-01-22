@@ -39,60 +39,35 @@
 ;;; FSM
 
 ;; Initial Static data
-* fsm_initialStates
-  ~ id machine state
-
-* fsm_initialTypedStates
-  ~ id type machine state
-
-* fsm_initialMachines
-  ~ id transition from to
-
-* fsm_initialTypedMachines
-  ~ type id transition from to
-
 * fsm_initialTransitions
-  ~ id transition machine
+  ~ type instance transition from to
 
-* fsm_typedMachines
-  | fsm_initialTypedMachines type id transition from to
+* fsm_initialStates
+  ~ type instance id state
 
-* fsm_machines
-  | fsm_initialMachines id transition from to
+* fsm_initialHistory
+  ~ type instance id transition
 
-* fsm_machines
-  | fsm_mungedTypedMachines munged:id transition from to
-
-* fsm_typedStates
-  | fsm_initialTypedStates id type machine state
+;; Dynamic data
+* fsm_transitions
+  | fsm_initialTransitions type instance transition from to
 
 * fsm_states
-  | fsm_initialStates id machine state
+  | fsm_initialStates type instance id state
 
 * fsm_states
-  | fsm_mungedTypedStates id munged:machine state
-
-* fsm_states
-  | fsm_machines id:machine
-  | fsm_transitions machine id state
-
-* fsm_currentState
-  | fsm_machines id:machine
-  > fsm_states machine | state = maxBy(@fsm_states.state, @fsm_states.id)
+  ;| fsm_transitions type instance ;; Is this needed?
+  | fsm_history type instance id state
 
 * fsm_potentialTransitions
-  | fsm_initialTransitions id transition machine
+  | fsm_initialHistory type instance id transition
 
-* fsm_transitions
-  | fsm_machines id:machine transition from:prev to:state
-  | fsm_potentialTransitions id transition machine
-  > fsm_states machine | prev = lastBefore(@fsm_states.state, @fsm_states.id, @id, "")
+;; Computed data
+* fsm_currentState
+  | fsm_transitions type instance
+  > fsm_states type instance | state = maxBy(@fsm_states.state, @fsm_states.id)
 
-; Internal munging
-* fsm_mungedTypedMachines
-  | fsm_typedMachines type id transition from to
-  munged = @type + "-" + @id
-
-* fsm_mungedTypedStates
-  | fsm_typedStates id type machine state
-  munged = @type + "-" + @machine
+* fsm_history
+  | fsm_transitions type instance transition from:prev to:state
+  | fsm_potentialTransitions type instance id transition
+  > fsm_states type instance | prev = lastBefore(@fsm_states.state, @fsm_states.id, @id, "")
