@@ -1,5 +1,6 @@
-* aaaa
-  | event eid label key value
+
+;* aaaa
+;  | event eid label key value
 
 * timer
  ~ id event rate
@@ -27,10 +28,9 @@
 ;; Calculate times
 * rawTimes
   | currentProjects id:project
-  | fsm_mungedTypedMachines type="timer" id:project munged:machine
-  | fsm_states machine state="working" id:startId
+  | fsm_states type="timer" instance:project state="working" id:startId
   ;; Infinity isn't working?
-  > fsm_states machine state="paused" | endId = firstAfter(@fsm_states.id, @fsm_states.id, @startId, 999999999999)
+  > fsm_states type="timer" instance:project state="paused" | endId = firstAfter(@fsm_states.id, @fsm_states.id, @startId, 999999999999)
   | eventTime tick:startId time:startMS
   > event label="minutes" | endMS = lastBefore(@event.value, @event.eid, @endId, 0)
   durationMS = @endMS - @startMS
@@ -43,77 +43,82 @@
 
 
 ;; Add timer FSM
-* fsm_typedMachines
-  | currentProjects id
+* fsm_transitions
+  | currentProjects id:instance
   type = "timer"
   transition = "toggle working"
   from = "paused"
   to = "working"
 
-* fsm_typedMachines
-  | currentProjects id
+* fsm_transitions
+  | currentProjects id:instance
   type = "timer"
   transition = "toggle working"
   from = "working"
   to = "paused"
 
-* fsm_typedStates
-  | currentProjects id:machine
+* fsm_states
+  | currentProjects id:instance
   type = "timer"
   id = -1
   state = "paused"
 
 ;; Add title editing FSM
-* fsm_typedMachines
-  | currentProjects id
+* fsm_transitions
+  | currentProjects id:instance
   type = "title"
   transition = "edit title"
   from = "display"
   to = "editing"
 
-* fsm_typedMachines
-  | currentProjects id
+* fsm_transitions
+  | currentProjects id:instance
   type = "title"
   transition = "save title"
   from = "editing"
   to = "display"
 
-* fsm_typedStates
-  | currentProjects id:machine
+* fsm_states
+  | currentProjects id:instance
   type = "title"
   id = -1
   state = "display"
 
 
 ;; Shovel potential transactions into the system
+* potentialTransitions
+  | fsm_transitions type instance transition
+  | event eid:id label:transition key
+  ? @key ==  @type + "|||" + @instance
+
 * fsm_potentialTransitions
-  | fsm_machines id:machine transition
-  | event eid:id label:transition key:machine
+  ;; @TODO: fixme
+  | potentialTransitions type instance id transition
+
 
 ;; Keep an eye on current state
 * view fsm_currentState
-  | fsm_currentState machine state
+  | fsm_currentState type instance state
 
 * view fsm_states
-  | fsm_states id machine state
+  | fsm_states type instance id state
 
 
 ;;; UI
 
 * ui root
   ["div" {"id" "root" "class" "time-sheet-example"}
+    ["h2" "Time Sheets"]
     ["div" {"id" "trackers" "class" "trackers"}]
   ]
 
 * ui project tracker
   | currentProjects id client name
   | clients id:client name:clientName
-  | fsm_currentState machine state:workingState
-  | fsm_mungedTypedMachines munged:machine id type="timer"
+  | fsm_currentState type="timer" instance:id state:workingState
   > times project:id | totalElapsed = sum(@times.duration).toFixed(1)
-
+  timerFSM = "timer|||" + @id
   workingToggle = @workingState == "paused" ? "start" : "pause"
-
 
   ["div" {"id" id "parent" "trackers" "class" "project-tracker"}
     " for "
@@ -123,15 +128,15 @@
 
     ["div" {"class" "controls"}
       ["button" {"click" "toggle working"
-                 "key" machine}
+                 "key" timerFSM}
                  workingToggle]
     ]
   ]
 
 * ui title (display)
   | currentProjects id client name
-  | fsm_currentState machine:titleFSM state
-  titleFSM = "title-" + @id
+  | fsm_currentState type instance:id state
+  titleFSM = @type + "|||" + @id
   ? @state == "display"
   ["h3" {"id" titleFSM "parent" id "ix" 0
          "click" "edit title"
@@ -139,8 +144,8 @@
 
 * ui title (editing)
   | currentProjects id client name
-  | fsm_currentState machine:titleFSM state
-  titleFSM = "title-" + @id
+  | fsm_currentState type instance:id state
+  titleFSM = @type + "|||" + @id
   ? @state == "editing"
   ["input" {"id" titleFSM "parent" id "ix" 0
          "class" title
