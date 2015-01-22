@@ -490,6 +490,8 @@ function uiDiffRenderer(diff, storage, program) {
       try {
         if(cur[attrs_attr] === "value") {
           if(cur[attrs_value] !== el.value) el.value = cur[attrs_value];
+        } else if (cur[attrs_attr] === "autofocus") {
+            el.focus();
         } else {
           el.setAttribute(cur[attrs_attr], cur[attrs_value]);
         }
