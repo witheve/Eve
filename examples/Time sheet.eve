@@ -1,3 +1,6 @@
+* aaaa
+  | event eid label key value
+
 * timer
  ~ id event rate
  + 3 "minutes" 6000
@@ -8,15 +11,26 @@
   + 2 "Jeff"
   + 3 "Bill"
 
-* projects
+* initialProjects
   ~ id client name
   + 1 1 "Jen's Cafe"
   + 2 3 "Bill's Homepage"
 
+* projects
+  | initialProjects id client name
+  version = 0
+
+* currentProjects
+  | projects id client name version
+  > projects id | version = maxBy(@projects.version, @projects.version, 0)
+
+;; Calculate times
 * rawTimes
-  | projects id:project
-  | fsm_states machine:project state="working" id:startId
-  > fsm_states machine:project state="paused" | endId = firstAfter(@fsm_states.id, @fsm_states.id, @startId, 999999999999)
+  | currentProjects id:project
+  | fsm_mungedTypedMachines type="timer" id:project munged:machine
+  | fsm_states machine state="working" id:startId
+  ;; Infinity isn't working?
+  > fsm_states machine state="paused" | endId = firstAfter(@fsm_states.id, @fsm_states.id, @startId, 999999999999)
   | eventTime tick:startId time:startMS
   > event label="minutes" | endMS = lastBefore(@event.value, @event.eid, @endId, 0)
   durationMS = @endMS - @startMS
@@ -24,63 +38,113 @@
   end = hours(@endMS) + ":" + minutes(@endMS)
   duration = +(@durationMS / 60000).toFixed(1)
 
-
 * times
   | rawTimes project start end duration
 
 
-* fsm_machines
-  | projects id
+;; Add timer FSM
+* fsm_typedMachines
+  | currentProjects id
+  type = "timer"
   transition = "toggle working"
   from = "paused"
   to = "working"
 
-* fsm_machines
-  | projects id
+* fsm_typedMachines
+  | currentProjects id
+  type = "timer"
   transition = "toggle working"
   from = "working"
   to = "paused"
 
-* fsm_states
-  | projects id:machine
+* fsm_typedStates
+  | currentProjects id:machine
+  type = "timer"
   id = -1
   state = "paused"
 
+;; Add title editing FSM
+* fsm_typedMachines
+  | currentProjects id
+  type = "title"
+  transition = "edit title"
+  from = "display"
+  to = "editing"
+
+* fsm_typedMachines
+  | currentProjects id
+  type = "title"
+  transition = "save title"
+  from = "editing"
+  to = "display"
+
+* fsm_typedStates
+  | currentProjects id:machine
+  type = "title"
+  id = -1
+  state = "display"
+
+
+;; Shovel potential transactions into the system
 * fsm_potentialTransitions
-  | fsm_machines id:machine
+  | fsm_machines id:machine transition
   | event eid:id label:transition key:machine
 
+;; Keep an eye on current state
 * view fsm_currentState
   | fsm_currentState machine state
 
+* view fsm_states
+  | fsm_states id machine state
 
 
 ;;; UI
 
 * ui root
-  ["div" {"id" "root"}
-    ;["button" {"click" "click" "key" "button" "doubleClick" "dblClick"} "hi"]
+  ["div" {"id" "root" "class" "time-sheet-example"}
     ["div" {"id" "trackers" "class" "trackers"}]
   ]
 
 * ui project tracker
-  | projects id client name
+  | currentProjects id client name
   | clients id:client name:clientName
-  | fsm_currentState machine:id state:workingState
+  | fsm_currentState machine state:workingState
+  | fsm_mungedTypedMachines munged:machine id type="timer"
   > times project:id | totalElapsed = sum(@times.duration).toFixed(1)
 
   workingToggle = @workingState == "paused" ? "start" : "pause"
 
+
   ["div" {"id" id "parent" "trackers" "class" "project-tracker"}
-    ["h3" name]
     " for "
     ["span" {"class" "client-name"} clientName]
 
-    ["div" "Elapsed time: " totalElapsed " minutes"]
+    ["span" {"class" "elapsed"} totalElapsed " minutes"]
 
     ["div" {"class" "controls"}
       ["button" {"click" "toggle working"
-                 "key" id}
+                 "key" machine}
                  workingToggle]
     ]
   ]
+
+* ui title (display)
+  | currentProjects id client name
+  | fsm_currentState machine:titleFSM state
+  titleFSM = "title-" + @id
+  ? @state == "display"
+  ["h3" {"id" titleFSM "parent" id "ix" 0
+         "click" "edit title"
+         "key" titleFSM} name]
+
+* ui title (editing)
+  | currentProjects id client name
+  | fsm_currentState machine:titleFSM state
+  titleFSM = "title-" + @id
+  ? @state == "editing"
+  ["input" {"id" titleFSM "parent" id "ix" 0
+         "class" title
+         "blur" "save title"
+         "input" "update title"
+         "key" titleFSM
+         "value" name}]
