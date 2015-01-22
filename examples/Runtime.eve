@@ -56,7 +56,6 @@
   | fsm_initialStates type instance id state
 
 * fsm_states
-  ;| fsm_transitions type instance ;; Is this needed?
   | fsm_history type instance id state
 
 * fsm_potentialTransitions
