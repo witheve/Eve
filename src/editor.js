@@ -325,6 +325,7 @@ var createUICallback = function(id, event, label, key, program) {
         }
       }
       e.stopPropagation();
+      value = (value === undefined) ? "" : value;
       items.push(["rawEvent", client, eid, label, key, value]);
       items.push(["eventTime", client, eid, Date.now()]);
       workers[program].postMessage({type: "event", items: items});
