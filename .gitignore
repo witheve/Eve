@@ -23,3 +23,4 @@ hs_err*
 node_modules/
 stylus/*.css
 *.log
+build/

@@ -12,6 +12,7 @@ express.use(require("body-parser").urlencoded({extended: true}));
 
 express.use(require("serve-static")(__dirname + '/resources', { maxAge: 1000 }));
 express.use("/src", require("serve-static")(__dirname + '/src', { maxAge: 1000 }));
+express.use("/build", require("serve-static")(__dirname + '/build', { maxAge: 1000 }));
 express.use("/stylus", require("serve-static")(__dirname + '/stylus', { maxAge: 1000 }));
 
 
