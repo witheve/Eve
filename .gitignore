@@ -22,5 +22,6 @@ hs_err*
 *.DS_Store
 node_modules/
 stylus/*.css
+stylus/*.map
 *.log
 build/
