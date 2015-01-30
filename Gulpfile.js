@@ -4,7 +4,6 @@ var stylus = require("gulp-stylus");
 var sourcemaps = require("gulp-sourcemaps");
 var browserify = require("gulp-browserify");
 var sweetify = require("sweetify");
-var watch = require("gulp-watch");
 var batch = require("gulp-batch");
 var run = require("gulp-run");
 
@@ -46,15 +45,8 @@ gulp.task("build", "Build all the things.", ["stylus", "build-editor"]);
 // Watch tasks
 
 gulp.task("watch-editor", "Watch editor related files for changes.", ["build-editor"], function() {
-  watch(editorSources.concat(macroSources), function(events, done) {
-    gulp.start("build-editor");
-  });
-});
-
-
-gulp.task("foo", "Watch editor related files for changes.", [], function() {
   gulp.watch(editorSources.concat(macroSources), function(events, done) {
-    console.log("Changes!");
+    gulp.start("build-editor");
   });
 });
 
