@@ -53,7 +53,7 @@ gulp.task("watch-editor", "Watch editor related files for changes.", ["build-edi
 
 // Run the server.
 gulp.task("run-server", "Run the eve server.", function() {
-  return run("npm start").exec();
+  run("npm start").exec();
 });
 
 gulp.task("watch", "Watch all the things.", ["watch-stylus", "watch-editor", "run-server"]);
