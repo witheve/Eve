@@ -1,8 +1,9 @@
 var gulp = require("gulp-help")(require("gulp"));
+var rename = require("gulp-rename");
 var stylus = require("gulp-stylus");
 var sourcemaps = require("gulp-sourcemaps");
 var browserify = require("gulp-browserify");
-var to5ify = require("6to5ify");
+var sweetify = require("sweetify");
 var watch = require("gulp-watch");
 var batch = require("gulp-batch");
 
@@ -24,15 +25,18 @@ gulp.task("watch-stylus", "Watch stylus files for changes.", ["stylus"], functio
 
 // JS Bundles
 
-var editorSources = ["src/editor.js", "src/uiRenderers.js"];
+var editorSources = ["src/ide.sjs"];
 gulp.task("build-editor", "Build the editor bundle.", function() {
   return gulp.src(editorSources, {read: false})
   .pipe(sourcemaps.init())
   .pipe(browserify({
     debug: true,
-    transform: [to5ify]
+    transform: [sweetify]
   }))
   .pipe(sourcemaps.write("."))
+  .pipe(rename({
+    extname: ".js"
+  }))
   .pipe(gulp.dest("build"));
 });
 
