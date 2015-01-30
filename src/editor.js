@@ -43,19 +43,10 @@ setLocal("client", client);
 // renderer
 //---------------------------------------------------------
 
-var renderer = {"editorQueue": [], "programQueue": [], "queued": false}
+var renderer = {"programQueue": [], "queued": false}
 
 function drainRenderQueue() {
   var start = now();
-  editorStorage["rootParent"] = $("#cards").get(0);
-  for(var i = 0, len = renderer["editorQueue"].length; i < len; i++) {
-    var queued = renderer["editorQueue"][i];
-    var program = queued[0];
-    var diff = queued[1];
-    uiDiffRenderer(diff, editorStorage, program);
-  }
-  renderer["editorQueue"] = [];
-
   storage["rootParent"] = $(".uiCard").get(0);
   if(storage["rootParent"] && renderer["programQueue"].length > 0) {
     for(var i = 0, len = renderer["programQueue"].length; i < len; i++) {
@@ -92,176 +83,24 @@ function queueRender() {
 
 var storage = {};
 var workers = {};
-var editorStorage = {"queue": [], "working": false};
 
 function onWorkerMessage(event) {
-  if(event.data.to === "uiThread") {
-    switch(event.data.type) {
-      case "log":
-        console.log.apply(console, event.data.args);
-        break;
-      case "renderUI":
-        if(event.data.uiContainer === "program") {
-          renderer["programQueue"].push([event.data.from, event.data.diff]);
-        } else {
-          renderer["editorQueue"].push([event.data.from, event.data.diff]);
-        }
-        queueRender();
-        break;
-      case "kill":
-        console.log("killing thread", event.data.name);
-        var worker = workers[event.data.name];
-        if(worker) {
-          worker.terminate();
-          workers[event.data.name] = null;
-          if(workers["server"]) {
-            workers["server"].postMessage({type: "unsubscribe", from: event.data.name, client: client});
-          }
-        }
-        break;
-      case "createThread":
-        if(workers[event.data.name]) return;
-
-        console.log("starting thread", event.data.name);
-        workers[event.data.name] = new Worker("../src/worker.js");
-        workers[event.data.name].onmessage = onWorkerMessage;
-        workers[event.data.name].postMessage({type: "remoteInit", name: event.data.name, client: client})
-        break;
-    }
-  } else {
-    var worker = workers[event.data.to];
-    if(worker) worker.postMessage(event.data);
+  switch(event.data.type) {
+    case "log":
+      console.log.apply(console, event.data.args);
+      break;
+    case "renderUI":
+      renderer["programQueue"].push([event.data.from, event.data.diff]);
+      queueRender();
+      break;
   }
 }
 
-//---------------------------------------------------------
-// stacks view
-//---------------------------------------------------------
-
-for(var i in stacks) {
-  var cur = $("<div class='stack'>" + stacks[i] + "</div>");
-  cur.data("stack", stacks[i]);
-  $("#exampleStacks").append(cur);
+function createWorker() {
+  var worker = new Worker("../src/worker.js");
+  worker.onmessage = onWorkerMessage;
+  return worker;
 }
-
-
-for(var i in testStacks) {
-  var cur = $("<div class='stack testStack'>" + testStacks[i] + "</div>");
-  cur.data("stack", testStacks[i]);
-  $("#testStacks").append(cur);
-}
-
-$("#stacksView").on("click", ".stack", function() {
-  openStack($(this).data("stack"));
-});
-
-function openStacksView() {
-  closeStack();
-  $("#stacksView").show();
-}
-
-function closeStacksView() {
-  $("#stacksView").hide();
-}
-
-//---------------------------------------------------------
-// editor worker
-//---------------------------------------------------------
-
-function getEditorCode() {
-  return getLocal("Runtime-code", examples["Runtime"]) + "\n" +
-         getLocal("Editor-code", examples["Editor"]);
-}
-
-workers["Editor"] = new Worker("../src/worker.js");
-workers["Editor"].onmessage = onWorkerMessage;
-workers["Editor"].postMessage({type: "init", editor: true, name: "Editor", client: client});
-workers["Editor"].postMessage({type: "compile", code: getEditorCode()});
-
-for(var stackIx in stacks) {
-  var stack = stacks[stackIx];
-  workers["Editor"].postMessage({type: "compile", code: getLocal(stack + "-code", examples[stack]), subProgram: true, subProgramName: stack});
-}
-
-//---------------------------------------------------------
-// open stack
-//---------------------------------------------------------
-
-function openStack(stack) {
-  closeStacksView();
-  $("#stack").show();
-  setLocal("activeStack", stack);
-  storage = {};
-//   workers["program"] = new Worker("../src/worker.js");
-//   workers["program"].onmessage = onWorkerMessage;
-//   workers["program"].postMessage({type: "init", editor: false, name: stack});
-  workers["Editor"].postMessage({type: "newProgram", programName: stack});
-  editor.setValue(getLocal(stack + "-code", examples[stack] || tests[stack]));
-  editor.refresh();
-  onChange(editor, null);
-}
-
-$("#return").on("click", function() {
-  openStacksView();
-})
-
-function closeStack() {
-  setLocal("activeStack", null);
-  workers["Editor"].postMessage({type: "reset"});
-  $("#stack").hide();
-}
-
-//---------------------------------------------------------
-// CodeMirror editor
-//---------------------------------------------------------
-
-
-CodeMirror.defineMode("eve", CodeMirrorModeParser);
-CodeMirror.defineMIME("text/x-eve", "eve");
-
-var editor = CodeMirror(document.querySelector("#editorContainer"), {
-  value: "",
-  tabSize: 2,
-  matchBrackets: true,
-  autoCloseBrackets: true,
-  styleActiveLine: true,
-  lineNumbers: true,
-  extraKeys: {
-    Tab: function(cm) {
-      var loc = cm.getCursor();
-      var char = cm.getRange({line: loc.line, ch: loc.ch - 1}, loc);
-      if(char.match(/[\w]/)) {
-        CodeMirror.commands.autocomplete(cm);
-      } else {
-        var spaces = Array(cm.getOption("indentUnit") + 1).join(" ");
-        cm.replaceSelection(spaces);
-      }
-    }
-  },
-//   keyMap: "vim",
-  mode:  "eve"
-});
-
-function onChange(cm, change) {
-  var edValue = cm.getValue();
-  var stack = getLocal("activeStack");
-  setLocal(stack + "-code", edValue);
-
-  if(stack in examples) {
-    $.post("/src/examples.js/update", {stack: stack, content: edValue});
-  } else if(stack in tests) {
-    $.post("/src/tests.js/update", {stack: stack, content: edValue});
-  }
-
-  //Special case modifying the editor to go ahead and compile/run that into
-  //the current editor process
-  if(stack === "Editor") {
-    workers["Editor"].postMessage({type: "compile", code: getEditorCode()});
-  }
-  workers["Editor"].postMessage({type: "compile", code: edValue, subProgram: true, subProgramName: stack});
-}
-
-editor.on("change", Cowboy.debounce(200, onChange));
 
 //---------------------------------------------------------
 // UI diff element
@@ -600,9 +439,3 @@ if(window["io"]) {
 //---------------------------------------------------------
 // Go!
 //---------------------------------------------------------
-
-if(!getLocal("activeStack")) {
-  openStacksView();
-} else {
-  openStack(getLocal("activeStack"));
-}
