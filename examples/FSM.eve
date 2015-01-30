@@ -13,9 +13,9 @@
 
 * states
   | machines id:machine
-  | transitions machine id state
+  | transitionz machine id state
 
-* transitions
+* transitionz
   | machines id:machine transition from:prev to:state
   | event eid:id label:transition key:machine
   > states machine | prev = lastBefore(@states.state, @states.id, @id, "")
