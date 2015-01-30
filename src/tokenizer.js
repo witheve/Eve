@@ -766,10 +766,10 @@ function createUIView(uiTable, view, context, mappings) {
   }
 
   facts.push(["view", tempName]);
-  facts.push(["generatedView", tempName]);
+//   facts.push(["generatedView", tempName]);
   if(context.programName) {
-    facts.push(["programView", context.programName, tempName]);
-    facts.push(["programQuery", context.programName, query]);
+//     facts.push(["programView", context.programName, tempName]);
+//     facts.push(["programQuery", context.programName, query]);
   }
   facts.push(["query", query, tempName, context.nextId]);
   var viewConstraint = query + "|viewConstraint=" + context.nextId;
@@ -814,7 +814,7 @@ function createUIView(uiTable, view, context, mappings) {
   //map temp table into the real table
   var realQuery = tempName + "|realQuery";
   facts.push(["query", realQuery, uiTable, context.nextId++]);
-  if(context.programName) { facts.push(["programQuery", context.programName, realQuery]); }
+//   if(context.programName) { facts.push(["programQuery", context.programName, realQuery]); }
 
   var constraint = realQuery + "|viewConstraint=" + context.nextId;
   facts.push(["viewConstraint", constraint, realQuery, tempName, false]);
@@ -943,8 +943,8 @@ function injectParsed(parsed, program, prefix, programName) {
     facts.push(["view", view]);
 
     if(programName) {
-      facts.push(["programView", programName, view]);
-      facts.push(["programQuery", programName, query]);
+//       facts.push(["programView", programName, view]);
+//       facts.push(["programQuery", programName, query]);
     }
 
     if (curRule.isCheck) facts.push(["isCheck", view]);
@@ -1150,4 +1150,11 @@ function CodeMirrorModeParser() {
       return {stack: []};
     }
   }
+}
+
+function codeToSystem(code) {
+  var system = System.empty({});
+  var parsed = parse(code);
+  injectParsed(parsed, system, false, false);
+  return system;
 }

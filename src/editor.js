@@ -85,6 +85,7 @@ var storage = {};
 var workers = {};
 
 function onWorkerMessage(event) {
+  console.log("event", event);
   switch(event.data.type) {
     case "log":
       console.log.apply(console, event.data.args);
@@ -101,6 +102,10 @@ function createWorker() {
   worker.onmessage = onWorkerMessage;
   return worker;
 }
+
+var cur = createWorker();
+// cur.postMessage({type: "diffs", diffs: diffSystems(codeToSystem(examples["Runtime"] + "\n" + examples["Clock"]), null, compilerTables)});
+
 
 //---------------------------------------------------------
 // UI diff element
