@@ -6,6 +6,7 @@ var browserify = require("gulp-browserify");
 var sweetify = require("sweetify");
 var watch = require("gulp-watch");
 var batch = require("gulp-batch");
+var run = require("gulp-run");
 
 // Styles
 
@@ -50,4 +51,9 @@ gulp.task("watch-editor", "Watch editor related files for changes.", ["build-edi
   }));
 });
 
-gulp.task("watch", "Watch all the things.", ["watch-stylus", "watch-editor"]);
+// Run the server.
+gulp.task("run-server", "Run the eve server.", function() {
+  return run("npm start").exec();
+});
+
+gulp.task("watch", "Watch all the things.", ["watch-stylus", "run-server"]);
