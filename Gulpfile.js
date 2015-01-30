@@ -8,6 +8,8 @@ var watch = require("gulp-watch");
 var batch = require("gulp-batch");
 var run = require("gulp-run");
 
+sweetify.extensions = /.+\.js$/;
+
 // Styles
 
 gulp.task("stylus", "Compile stylus files to CSS.", function() {
@@ -26,7 +28,7 @@ gulp.task("watch-stylus", "Watch stylus files for changes.", ["stylus"], functio
 
 // JS Bundles
 
-var editorSources = ["src/ide.sjs"];
+var editorSources = ["src/editor/**/*.js"];
 gulp.task("build-editor", "Build the editor bundle.", function() {
   return gulp.src(editorSources, {read: false})
   .pipe(sourcemaps.init())
@@ -35,9 +37,6 @@ gulp.task("build-editor", "Build the editor bundle.", function() {
     transform: [sweetify]
   }))
   .pipe(sourcemaps.write("."))
-  .pipe(rename({
-    extname: ".js"
-  }))
   .pipe(gulp.dest("build"));
 });
 

@@ -33,6 +33,6 @@
     "gulp-stylus": "^2.0.0",
     "gulp-watch": "^4.1.0",
     "stylus": "^0.49.3",
-    "sweetify": "^0.4.0"
+    "sweetify": "git+ssh://git@github.com:joshuafcole/sweetify.git"
   }
 }

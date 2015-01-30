@@ -1,4 +1,4 @@
-import macros from "./macros.sjs";
+import macros from "../macros.sjs";
 
 var data = require("./data.json");
 
