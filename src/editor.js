@@ -98,7 +98,7 @@ function onWorkerMessage(event) {
 }
 
 function createWorker() {
-  var worker = new Worker("../src/worker.js");
+  var worker = new Worker("../build/worker.js");
   worker.onmessage = onWorkerMessage;
   return worker;
 }
