@@ -21,9 +21,6 @@ var console = {
   error: consoleLog
 };
 
-var compilerTables = ["programView", "programQuery", "subscription", "generatedView", "displayName", "view", "field", "query", "constantConstraint", "functionConstraint", "functionConstraintInput", "constantConstraint",
-                      "viewConstraint", "viewConstraintBinding", "aggregateConstraint", "aggregateConstraintBinding", "aggregateConstraintSolverInput",
-                      "aggregateConstraintAggregateInput", "isInput", "isCheck"];
 
 eveApp.timerWatcher = function(application, storage, system) {
   var timers = system.getStore("timer");
@@ -137,8 +134,7 @@ eveApp.uiWatcher = function(application, storage, system) {
   }
 
   if(hasUI) {
-    var container = eveApp.isEditor ? "editor" : "program";
-    postMessage({to: "uiThread", uiContainer: container, type: "renderUI", diff: diff, time: now(), run: eveApp.runNumber, from: eveApp.name, client: application.client});
+    postMessage({to: "uiThread", type: "renderUI", diff: diff, time: now(), run: eveApp.runNumber, from: eveApp.name, client: application.client});
   }
 }
 
@@ -150,12 +146,9 @@ onmessage = function(event) {
       eveApp.client = event.data.client;
       eveApp.run([["client", event.data.client]]);
       break;
-    case "remoteInit":
-      eveApp.name = event.data.name;
-      eveApp.client = event.data.client;
-      eveApp.run([["client", event.data.client]]);
-      break;
-    case "compile":
+    case "diffs":
+      applySystemDiff(eveApp, event.data.diffs);
+      eveApp.run([]);
       //TODO: ?
       break;
     case "event":

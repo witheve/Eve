@@ -54,10 +54,30 @@ function diffTables(neue, old) {
   return {adds: adds, removes: removes};
 }
 
+function diffSystems(neue, old, tables) {
+  var final = {};
+  for(var i = 0, len = tables.length; i < len; i++) {
+    var table = tables[i];
+    if(old) {
+      final[table] = diffTables(neue.getStore(table), old.getStore(table));
+    } else {
+      final[table] = {adds: neue.getStore(table).getFacts(), removes: []};
+    }
+  }
+  return final;
+}
+
 function applyDiff(application, table, diff) {
   if(diff.adds.length || diff.removes.length) {
     application.system.updateStore(table, diff.adds, diff.removes);
   }
+}
+
+function applySystemDiff(application, diffs) {
+  for(var table in diffs) {
+    applyDiff(application, table, diffs[table]);
+  }
+  return application;
 }
 
 //---------------------------------------------------------
@@ -274,6 +294,10 @@ function app(system, opts) {
 //---------------------------------------------------------
 // helpers
 //---------------------------------------------------------
+
+var compilerTables = ["view", "field", "query", "constantConstraint", "functionConstraint", "functionConstraintInput", "constantConstraint",
+                      "viewConstraint", "viewConstraintBinding", "aggregateConstraint", "aggregateConstraintBinding", "aggregateConstraintSolverInput",
+                      "aggregateConstraintAggregateInput", "isInput", "isCheck"];
 
 var addedTables = {};
 
