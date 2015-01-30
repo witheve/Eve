@@ -29,6 +29,7 @@ gulp.task("watch-stylus", "Watch stylus files for changes.", ["stylus"], functio
 // JS Bundles
 
 var editorSources = ["src/editor/**/*.js"];
+var macroSources = ["src/**/*.sjs"];
 gulp.task("build-editor", "Build the editor bundle.", function() {
   return gulp.src(editorSources, {read: false})
   .pipe(sourcemaps.init())
@@ -45,14 +46,14 @@ gulp.task("build", "Build all the things.", ["stylus", "build-editor"]);
 // Watch tasks
 
 gulp.task("watch-editor", "Watch editor related files for changes.", ["build-editor"], function() {
-  watch(editorSources, batch(function(events, done) {
+  watch(editorSources.concat(macroSources), batch(function(events, done) {
     gulp.start("build-editor", done);
   }));
 });
 
 // Run the server.
 gulp.task("run-server", "Run the eve server.", function() {
-  run("npm start").exec();
+  require('./server');
 });
 
 gulp.task("watch", "Watch all the things.", ["watch-stylus", "watch-editor", "run-server"]);
