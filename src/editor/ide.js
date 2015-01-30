@@ -7,7 +7,6 @@ function stackToDiff(stack) {
   forattr(view, facts of stack) {
     diff[view] = {adds: facts};
   }
-
   return diff;
 };
 
