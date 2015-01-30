@@ -2,7 +2,8 @@ macro foreach {
   // foreach(value of list), foreach(value of [1,...,n])
   rule {($x:ident of $list:expr) { $line ... }} => {
     var list = $list;
-    for (var i = 0; i < list.length; i++) {
+    var len = list && list.length || 0;
+    for (var i = 0; i < len; i++) {
       var $x = list[i];
       $line ...
     }
@@ -10,7 +11,8 @@ macro foreach {
   // foreach(ix, value of list), foreach(ix, value of [1,...,n])
   rule {($ix:ident, $x:ident of $list:expr) { $line ... }} => {
     var list = $list;
-    for (var $ix = 0; $ix < list.length; $ix++) {
+    var len = list && list.length || 0;
+    for (var $ix = 0; $ix < len; $ix++) {
       var $x = list[$ix];
       $line ...
     }
@@ -25,7 +27,8 @@ macro forattr {
   rule {($ix:ident of $obj:expr) { $line ... }} => {
     var obj = $obj;
     var keys = Object.keys(obj);
-    for(var i = 0, len = keys.length; i < len; i++) {
+    var len = keys.length;
+    for(var i = 0; i < len; i++) {
       var $ix = keys[i];
       $line ...
     }
@@ -34,7 +37,8 @@ macro forattr {
   rule {($ix:ident, $x:ident of $obj:expr) { $line ... }} => {
     var obj = $obj;
     var keys = Object.keys(obj);
-    for(var i = 0, len = keys.length; i < len; i++) {
+    var len = keys.length;
+    for(var i = 0; i < len; i++) {
       var $ix = keys[i];
       var $x = obj[$ix];
       $line ...
