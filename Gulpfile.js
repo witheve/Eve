@@ -21,7 +21,7 @@ gulp.task("stylus", "Compile stylus files to CSS.", function() {
 });
 
 gulp.task("watch-stylus", "Watch stylus files for changes.", ["stylus"], function() {
-  watch("stylus/**/*.stylus", batch(function(events, done) {
+  gulp.watch("stylus/**/*.stylus", batch(function(events, done) {
     gulp.start("stylus", done);
   }));
 });
@@ -53,7 +53,7 @@ gulp.task("watch-editor", "Watch editor related files for changes.", ["build-edi
 
 
 gulp.task("foo", "Watch editor related files for changes.", [], function() {
-  watch(editorSources.concat(macroSources), function(events, done) {
+  gulp.watch(editorSources.concat(macroSources), function(events, done) {
     console.log("Changes!");
   });
 });
