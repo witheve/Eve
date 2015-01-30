@@ -7,7 +7,6 @@
     "body-parser": "*",
     "compression": "*",
     "cookie-parser": "*",
-    "es6-module-loader": "^0.12.0",
     "express": "4.10.x",
     "nib": "*",
     "serve-favicon": "*",
