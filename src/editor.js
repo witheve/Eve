@@ -103,8 +103,8 @@ function createWorker() {
   return worker;
 }
 
-var cur = createWorker();
-// cur.postMessage({type: "diffs", diffs: diffSystems(codeToSystem(examples["Runtime"] + "\n" + examples["Clock"]), null, compilerTables)});
+var programWorker = createWorker();
+programWorker.postMessage({type: "diffs", diffs: diffSystems(codeToSystem( examples["Runtime"] + "\n\n" + examples["Incrementer"]), null, null)});
 
 
 //---------------------------------------------------------
@@ -172,7 +172,7 @@ var createUICallback = function(id, event, label, key, program) {
       value = (value === undefined) ? "" : value;
       items.push(["rawEvent", client, eid, label, key, value]);
       items.push(["eventTime", client, eid, Date.now()]);
-      workers[program].postMessage({type: "event", items: items});
+      programWorker.postMessage({type: "event", items: items});
     }
   };
 };

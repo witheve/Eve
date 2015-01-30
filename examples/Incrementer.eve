@@ -6,7 +6,3 @@
   > event label="increment" | clicks = count(@event.eid)
   ["button" {"click" "increment"}
     "I've been clicked " clicks " times."]
-
-* manuallyShared
-  ~ alias view
-  + "rawEvent" "rawEvent"

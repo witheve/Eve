@@ -34,7 +34,7 @@
 
 * event
   | rawEvent client eid label key value
-  | !removedEvent client eid
+;  | !removedEvent client eid
 
 ;;; FSM
 

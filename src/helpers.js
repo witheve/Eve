@@ -56,12 +56,21 @@ function diffTables(neue, old) {
 
 function diffSystems(neue, old, tables) {
   var final = {};
+  if(!old) {
+    old = System.empty({});
+    old.update(commonViews(), []);
+    old.recompile();
+  }
+  if(!tables) {
+    tables = neue.getStore("view").getFacts().map(function(cur) {
+      return cur[0];
+    });
+  }
   for(var i = 0, len = tables.length; i < len; i++) {
     var table = tables[i];
-    if(old) {
-      final[table] = diffTables(neue.getStore(table), old.getStore(table));
-    } else {
-      final[table] = {adds: neue.getStore(table).getFacts(), removes: []};
+    var diff = diffTables(neue.getStore(table), old.getStore(table));
+    if(diff.adds.length || diff.removes.length) {
+      final[table] = diff;
     }
   }
   return final;
@@ -332,11 +341,10 @@ function commonViews() {
   pushAll(facts, inputView("keyboard", ["client", "eid","keyCode","eventType"]));
   pushAll(facts, inputView("time", ["time"]));
   pushAll(facts, inputView("timer", ["client", "id", "event", "rate"]));
-  pushAll(facts, inputView("subscription", ["recipient", "view", "alias", "asCells"]));
+  pushAll(facts, inputView("subscription", ["view"]));
   pushAll(facts, inputView("error", ["run", "error", "stack", "line"]));
   pushAll(facts, inputView("profile", ["run", "event", "time"]));
   pushAll(facts, inputView("client", ["client"]));
-  pushAll(facts, view("event", ["client", "eid", "label", "key", "value"]));
   pushAll(facts, view("uiElem", ["id", "type"]));
   pushAll(facts, view("uiText", ["id", "text"]));
   pushAll(facts, view("uiChild", ["parent", "pos", "child"]));

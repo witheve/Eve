@@ -2,6 +2,7 @@ importScripts("eve.js", "helpers.js", "tokenizer.js");
 
 var eveApp = app();
 eveApp.remotes = {};
+eveApp.client = "";
 
 function consoleLog() {
   var final = [];
@@ -103,7 +104,21 @@ function factsToCells(facts, view) {
 }
 
 eveApp.remoteWatcher = function(application, storage, system) {
+  if(!application.pull) return;
 
+  var subscriptions = system.getStore("subscription").getFacts();
+  var final = {};
+  for(var i = 0, len = subscriptions.length; i < len; i++) {
+    var view = subscriptions[i][0];
+    var diff = diffTables(system.getStore(view), storage[view]);
+    if(diff.adds.length || diff.removes.length) {
+      final[view] = diff;
+    }
+    storage[view] = system.getStore(view);
+  }
+
+  application.pull = false;
+  postMessage({type: "diffs", diffs: final, runNumber: application.runNumber});
 }
 
 eveApp.uiWatcher = function(application, storage, system) {
@@ -147,9 +162,17 @@ onmessage = function(event) {
       eveApp.run([["client", event.data.client]]);
       break;
     case "diffs":
+      console.log(event.data.diffs);
       applySystemDiff(eveApp, event.data.diffs);
       eveApp.run([]);
       //TODO: ?
+      break;
+    case "pull":
+      eveApp.pull = true;
+      if(event.data.runNumber !== eveApp.runNumber) {
+        //do pull
+        eveApp.remoteWatcher(eveApp, eveApp.storage["remoteWatcher"], eveApp.system);
+      }
       break;
     case "event":
       var eid = eveApp.eventId++;

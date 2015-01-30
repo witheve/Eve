@@ -1155,6 +1155,13 @@ function CodeMirrorModeParser() {
 function codeToSystem(code) {
   var system = System.empty({});
   var parsed = parse(code);
-  injectParsed(parsed, system, false, false);
+  var programResults = injectParsed(parsed, system, false, false);
+  system.update(commonViews(), []);
+  system.recompile();
+  programResults.values["time"] = [[now()]];
+  for(var table in programResults.values) {
+    var facts = programResults.values[table];
+    system.updateStore(table, facts, []);
+  }
   return system;
 }
