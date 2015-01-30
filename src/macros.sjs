@@ -42,3 +42,10 @@ macro forattr {
   }
 }
 export forattr
+
+macro factToId {
+  rule {($fact:expr)} => {
+    JSON.stringify($fact);
+  }
+}
+export factToId
