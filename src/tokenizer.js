@@ -1151,3 +1151,10 @@ function CodeMirrorModeParser() {
     }
   }
 }
+
+function codeToSystem(code) {
+  var system = System.empty({});
+  var parsed = parse(code);
+  injectParsed(parsed, system, false, false);
+  return system;
+}
