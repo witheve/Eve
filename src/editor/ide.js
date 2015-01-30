@@ -11,24 +11,47 @@ function stackToDiff(stack) {
 };
 
 function getFields(view, stack) {
-  var fields = [];
+  const FIELD_FIELD = 0;
   const FIELD_VIEW = 1;
+
+  var fields = [];
   foreach(row of stack.field) {
     if(row[FIELD_VIEW] == view) {
+      fields.push(row);
     }
   }
+
+  return fields;
 }
 
-console.log(stackToDiff(data["department heads"]));
+
 
 // [[viewId]: [rows:Fact]]
+var viewsContainer = document.createElement("div");
+document.body.appendChild(viewsContainer);
 var viewUI = {};
-
 // Update view UI in response to added, removed, or updated facts.
-function diffRenderer(diffs, stack) {
+function diffRenderer(diffs) {
+  document.body.removeChild(viewsContainer);
   forattr(view, diff of diffs) {
     var rowId;
     var rowElem;
+    console.log('V', view, 'D', diff);
+
+    if(!viewUI[view]) {
+      var viewContainer = document.createElement("div");
+      viewContainer.className = "card table-card open";
+      var viewGrid = document.createElement("div");
+      viewGrid.className = "grid";
+      viewContainer.appendChild(viewGrid);
+      viewUI[view] = {
+        $container: viewContainer,
+        $title: null, //@FIXME
+        $header: null, //@FIXME
+        $grid: viewGrid
+      };
+      viewsContainer.appendChild(viewContainer);
+    }
 
     // Find removed rows to prune.
     foreach(row of diff.removes) {
@@ -44,7 +67,22 @@ function diffRenderer(diffs, stack) {
     foreach(row of diff.adds) {
       rowId = factToId(row);
       rowElem = document.createElement("div");
+
+      foreach(field of row) {
+        var fieldElem = document.createElement("div");
+        fieldElem.className = "grid-row";
+        fieldElem.appendChild(document.createTextNode(field));
+        rowElem.appendChild(fieldElem);
+      }
+
+      viewUI[view].$grid.appendChild(rowElem);
     }
   }
+  document.body.appendChild(viewsContainer);
+}
 
-};
+
+var diffs = stackToDiff(data["department heads"]);
+console.log(diffs);
+
+diffRenderer(diffs);
