@@ -1,5 +1,5 @@
 macro foreach {
-  // foreach(x of list), foreach(x of [1,...,n])
+  // foreach(value of list), foreach(value of [1,...,n])
   rule {($x:ident of $list:expr) { $line ... }} => {
     var list = $list;
     for (var i = 0; i < list.length; i++) {
@@ -7,7 +7,7 @@ macro foreach {
       $line ...
     }
   }
-  // foreach(ix, x of list), foreach(ix, x of [1,...,n])
+  // foreach(ix, value of list), foreach(ix, value of [1,...,n])
   rule {($ix:ident, $x:ident of $list:expr) { $line ... }} => {
     var list = $list;
     for (var $ix = 0; $ix < list.length; $ix++) {
@@ -16,5 +16,29 @@ macro foreach {
     }
   }
 }
-
 export foreach
+
+// Optimized for performance with large numbers of keys (N > 20).
+// For smaller numbers of keys, just use for...in.
+macro forattr {
+  // forattr(ix of object)
+  rule {($ix:ident of $obj:expr) { $line ... }} => {
+    var obj = $obj;
+    var keys = Object.keys(obj);
+    for(var i = 0, len = keys.length; i < len; i++) {
+      var $ix = keys[i];
+      $line ...
+    }
+  }
+  // forattr(ix, value of object)
+  rule {($ix:ident, $x:ident of $obj:expr) { $line ... }} => {
+    var obj = $obj;
+    var keys = Object.keys(obj);
+    for(var i = 0, len = keys.length; i < len; i++) {
+      var $ix = keys[i];
+      var $x = obj[$ix];
+      $line ...
+    }
+  }
+}
+export forattr
