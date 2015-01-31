@@ -1159,6 +1159,12 @@ function codeToSystem(code) {
   system.update(commonViews(), []);
   system.recompile();
   programResults.values["time"] = [[now()]];
+  var tablesCreated = Object.keys(programResults.tablesCreated).map(function(table) {
+    return [table];
+  });
+
+  system.updateStore("workspaceView", tablesCreated, []);
+  system.updateStore("subscription", tablesCreated, []);
   for(var table in programResults.values) {
     var facts = programResults.values[table];
     system.updateStore(table, facts, []);
