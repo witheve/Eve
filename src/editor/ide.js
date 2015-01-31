@@ -107,7 +107,7 @@ function diffRenderer(diffs, views) {
       // Ensure that the node exists to remove.
       if(viewUI[view][rowId]) {
         rowElem = viewUI[view][rowId];
-        rowElem.parentNode.removeChild();
+        rowElem.parentNode.removeChild(rowElem);
         viewUI[view][rowId] = undefined;
       }
     }
@@ -124,6 +124,7 @@ function diffRenderer(diffs, views) {
         rowElem.appendChild(fieldElem);
       }
 
+      viewUI[view][rowId] = rowElem;
       viewUI[view].$grid.appendChild(rowElem);
     }
   }
