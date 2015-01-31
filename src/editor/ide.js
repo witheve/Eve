@@ -88,7 +88,7 @@ function dirtyViews(diff) {
 
 // [[viewId]: [rows:Fact]]
 var viewsContainer = document.createElement("div");
-document.body.appendChild(viewsContainer);
+$("#cards")[0].appendChild(viewsContainer);
 var viewUI = {};
 // Update view UI in response to added, removed, or updated facts.
 function diffRenderer(diffs, views) {
