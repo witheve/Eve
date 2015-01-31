@@ -1,3 +1,9 @@
+var ide = require('./ide.js');
+var diffSystems = global.diffSystems;
+var codeToSystem = global.codeToSystem;
+var examples = global.examples;
+var tests = global.tests || {};
+
 //---------------------------------------------------------
 // State
 //---------------------------------------------------------
@@ -16,7 +22,7 @@ function setLocal(k, v) {
 var prevVersion = getLocal("prevVersion");
 var stacks = getLocal("stacks");
 var exampleStacks = Object.keys(examples);
-var testStacks = Object.keys(tests);
+var testStacks = []; //Object.keys(tests);
 
 
 //stacks = ["Tutorial", "Incrementer", "Net worth", "Department heads", "Graph paths", "TodoMVC", "Turing machine", "Clock", "Chat", "Game", "My Stack", "Editor", "Runtime", "Editor injection"];
@@ -34,7 +40,6 @@ for(var stackIx = 0; stackIx < stacks.length; stackIx++) {
 stacks = uniqueStacks;
 setLocal("stacks", stacks);
 // setLocal("Editor-code", examples["Editor"]);
-console.log(tests, stacks);
 
 var client = getLocal("client", uuid());
 setLocal("client", client);
@@ -81,11 +86,11 @@ function queueRender() {
 // worker
 //---------------------------------------------------------
 
+var system;
 var storage = {};
 var workers = {};
 
 function onWorkerMessage(event) {
-  console.log("event", event);
   switch(event.data.type) {
     case "log":
       console.log.apply(console, event.data.args);
@@ -93,6 +98,15 @@ function onWorkerMessage(event) {
     case "renderUI":
       renderer["programQueue"].push([event.data.from, event.data.diff]);
       queueRender();
+      break;
+    case "diffs":
+      var diffs = event.data.diffs;
+      applySystemDiff(system, diffs);
+
+      ide.render(diffs, system);
+      setTimeout(function() {
+        programWorker.postMessage({type: "pull", runNumber: event.data.runNumber});
+      }, 1000);
       break;
   }
 }
@@ -104,9 +118,21 @@ function createWorker() {
 }
 
 var programWorker = createWorker();
-programWorker.postMessage({type: "diffs", diffs: diffSystems(codeToSystem( examples["Runtime"] + "\n\n" + examples["Incrementer"]), null, null)});
+
+var system = codeToSystem( examples["Runtime"] + "\n\n" + examples["Incrementer"]);
+system.updateStore("workspaceView", [["event"]], []);
+programWorker.postMessage({type: "diffs", diffs: diffSystems(system, null, null)});
+
+var workspaceViews = system.getStore("workspaceView").getFacts().map(function(row) {
+  return row[0];
+});
+console.log(workspaceViews);
 
 
+var initialDiff = system.getStore('view').getFacts().reduce(function(memo, view) {
+  memo[view[0]] = {adds: system.getStore(view[0]).getFacts()};
+  return memo;
+}, {});
 
 //---------------------------------------------------------
 // socket.io
@@ -131,3 +157,6 @@ if(window["io"]) {
 //---------------------------------------------------------
 // Go!
 //---------------------------------------------------------
+
+ide.render(initialDiff, system);
+programWorker.postMessage({type: "pull"});
