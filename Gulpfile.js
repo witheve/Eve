@@ -31,12 +31,9 @@ var editorSources = ["src/editor/**/*.js"];
 var macroSources = ["src/**/*.sjs"];
 gulp.task("build-editor", "Build the editor bundle.", function() {
   return gulp.src(editorSources, {read: false})
-  .pipe(sourcemaps.init())
   .pipe(browserify({
-    debug: true,
     transform: [sweetify]
   }))
-  .pipe(sourcemaps.write("."))
   .pipe(gulp.dest("build"));
 });
 
