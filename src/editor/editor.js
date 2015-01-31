@@ -1,6 +1,7 @@
 var ide = require('./ide.js');
 var diffSystems = global.diffSystems;
 var codeToSystem = global.codeToSystem;
+var uiDiffRenderer = global.uiDiffRenderer;
 var examples = global.examples;
 var tests = global.tests || {};
 
@@ -42,6 +43,7 @@ setLocal("stacks", stacks);
 // setLocal("Editor-code", examples["Editor"]);
 
 var client = getLocal("client", uuid());
+global.client = client;
 setLocal("client", client);
 
 //---------------------------------------------------------
@@ -101,12 +103,10 @@ function onWorkerMessage(event) {
       break;
     case "diffs":
       var diffs = event.data.diffs;
-      applySystemDiff(system, diffs);
+      applySystemDiff({system: system}, diffs);
 
       ide.render(diffs, system);
-      setTimeout(function() {
-        programWorker.postMessage({type: "pull", runNumber: event.data.runNumber});
-      }, 1000);
+      programWorker.postMessage({type: "pull", runNumber: event.data.runNumber});
       break;
   }
 }
@@ -117,10 +117,11 @@ function createWorker() {
   return worker;
 }
 
-var programWorker = createWorker();
+var programWorker = global.programWorker = createWorker();
 
 var system = codeToSystem( examples["Runtime"] + "\n\n" + examples["Incrementer"]);
-system.updateStore("workspaceView", [["event"]], []);
+system.updateStore("workspaceView", [["event"], ["field"]], []);
+system.updateStore("subscription", [["event"], ["field"]], []);
 programWorker.postMessage({type: "diffs", diffs: diffSystems(system, null, null)});
 
 var workspaceViews = system.getStore("workspaceView").getFacts().map(function(row) {
