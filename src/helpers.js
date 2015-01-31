@@ -11,14 +11,14 @@ var now = function() {
   return (new Date()).getTime();
 };
 
-function errorsToFacts(errors) {
+function errorsToFacts(application, errors) {
   if(!errors) return [];
 
   return errors.map(function(cur) {
     if(typeof cur === "string") {
       cur = {message: cur};
     }
-    return [eveApp.runNumber, cur.message, cur.stack || "", cur.line || "N/A"];
+    return [application.runNumber, cur.message, cur.stack || "", cur.line || "N/A"];
   });
 }
 

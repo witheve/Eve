@@ -53,3 +53,12 @@ macro factToId {
   }
 }
 export factToId
+
+macro unpack {
+  rule {[$name:ident (,) ...] = $expr} => {
+    var e = $expr;
+    var i = 0
+    $(; var $name = e[i++]) ...
+  }
+}
+export unpack
