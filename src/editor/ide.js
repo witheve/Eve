@@ -91,18 +91,15 @@ var viewsContainer = document.createElement("div");
 document.body.appendChild(viewsContainer);
 var viewUI = {};
 // Update view UI in response to added, removed, or updated facts.
-function diffRenderer(diffs, system) {
-  forattr(view, diff of diffs) {
-    var rowId;
-    var rowElem;
-
-    var workspaceViews = system.getStore("workspaceView").getFacts().map(function(row) {
-      return row[0];
-    });
-
-    if(workspaceViews.indexOf(view) === -1) {
+function diffRenderer(diffs, views) {
+  foreach(view of views) {
+    var diff = diffs[view];
+    if(!diff) {
       continue;
     }
+
+    var rowId;
+    var rowElem;
 
     // Find removed rows to prune.
     foreach(row of diff.removes) {
@@ -134,17 +131,14 @@ function diffRenderer(diffs, system) {
 
 // Watch all eve views in stack for changes, keeping table views in sync.
 function render(diffs, system) {
-  console.log("HALLO");
-  console.log(diffs);
+  var workspaceViews = system.getStore("workspaceView").getFacts().map(function(row) {
+    return row[0];
+  });
 
   if(diffs.field) {
     var fields = system.getStore("field").getFacts();
     var dirtied = dirtyViews(diffs.field);
     foreach(view of dirtied) {
-      var workspaceViews = system.getStore("workspaceView").getFacts().map(function(row) {
-        return row[0];
-      });
-
       if(workspaceViews.indexOf(view) === -1) {
         continue;
       }
@@ -162,7 +156,7 @@ function render(diffs, system) {
     }
   }
 
-  diffRenderer(diffs, system);
+  diffRenderer(diffs, workspaceViews);
 }
 module.exports.render = render;
 
