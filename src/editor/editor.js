@@ -120,8 +120,8 @@ function createWorker() {
 var programWorker = global.programWorker = createWorker();
 
 var system = codeToSystem( examples["Runtime"] + "\n\n" + examples["Incrementer"]);
-system.updateStore("workspaceView", [["event"], ["field"]], []);
-system.updateStore("subscription", [["event"], ["field"]], []);
+system.updateStore("workspaceView", [["event"], ["increment button"]], []);
+system.updateStore("subscription", [["event"], ["increment button"]], []);
 programWorker.postMessage({type: "diffs", diffs: diffSystems(system, null, null)});
 
 var workspaceViews = system.getStore("workspaceView").getFacts().map(function(row) {
