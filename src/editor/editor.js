@@ -119,7 +119,7 @@ function createWorker() {
 
 var programWorker = global.programWorker = createWorker();
 
-var system = codeToSystem( examples["Runtime"] + "\n\n" + examples["Clock"]);
+var system = codeToSystem( examples["Runtime"] + "\n\n" + examples["TodoMVC"]);
 programWorker.postMessage({type: "diffs", diffs: diffSystems(system, null, null)});
 
 var workspaceViews = system.getStore("workspaceView").getFacts().map(function(row) {

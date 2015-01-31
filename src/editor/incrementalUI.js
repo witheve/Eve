@@ -156,11 +156,11 @@ function uiDiffRenderer(diff, storage, program) {
   }
 
   //remove all elements that weren't just added
-  foreach(toRemove, toRemoveElem of removed) {
+  forattr(toRemove, toRemoveElem of removed) {
     if(!toRemove) continue;
 
     if(toRemoveElem && toRemoveElem.parentNode && toRemoveElem.parentNode.parentNode) {
-      cur.parentNode.removeChild(cur);
+      toRemoveElem.parentNode.removeChild(toRemoveElem);
     }
     handlers[toRemove] = null;
     builtEls[toRemove] = null;
