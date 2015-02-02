@@ -196,7 +196,8 @@ function dispatch(eventInfo) {
   unpack [event, info] = eventInfo;
   switch(event) {
     case "openView":
-      // open that card? Can the searcher sele
+      // open that card?
+      console.log("open: ", info);
       break;
 
     case "updateSearcher":
@@ -259,6 +260,7 @@ function createSearcher() {
   for(var ix = 0, len = final.maxResults; ix < len; ix++) {
     var elem = document.createElement("li");
     elem.style.display = "none";
+    elem.ix = ix;
     elem.addEventListener("click", itemCallback);
     list.appendChild(elem);
     lis[ix] = elem;
