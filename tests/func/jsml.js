@@ -13,6 +13,7 @@ var tests = [
   }, "child1", ["div", "child2"], "child3"],
   ["pre", "test", document.createElement("p")],
   ["pre", document.createElement("p"), "test"],
+  ["button", {style: {background: "red"}}]
 ];
 
 var expectations = [
@@ -22,7 +23,8 @@ var expectations = [
   "<p>child1<div>child2</div>child3</p>",
   "<p class=\"foo\">child1<div>child2</div>child3</p>",
   "<pre>test<p></p></pre>",
-  "<pre><p></p>test</pre>"
+  "<pre><p></p>test</pre>",
+  "<button style=\"background: red;\"></button>"
 ];
 
 for(var testIx = 0, len = tests.length; testIx < len; testIx++) {
