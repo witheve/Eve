@@ -1056,7 +1056,7 @@ function injectParsed(parsed, program, prefix, programName) {
         var field = orderedFields[fieldIx];
         var munged = makeLocalField(field);
         fieldToIx[field] = fieldIx;
-        if(prefix) { facts.push(["displayName", munged, field]); }
+        facts.push(["displayName", munged, field]);
         facts.push(["field", munged, view, fieldIx]);
       }
     }
@@ -1100,6 +1100,7 @@ function injectParsed(parsed, program, prefix, programName) {
       return cur;
     });
   }
+
   program.update(final, []);
   return {values: values, errors: errors, tablesCreated: tablesCreated};
 }

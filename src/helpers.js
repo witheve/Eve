@@ -321,7 +321,7 @@ function view(name, fields) {
   for(var i = 0; i < fields.length; i++) {
     var field = fields[i];
     var munged = name + "|field=" + field;
-//     facts.push(["displayName", munged, field]);
+    facts.push(["displayName", munged, field]);
     facts.push(["field", munged, name, i]);
   }
   return facts;

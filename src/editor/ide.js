@@ -8,20 +8,25 @@ const FIELD_FIELD = 0;
 const FIELD_VIEW = 1;
 const FIELD_IX = 2;
 
+const DISPLAY_NAME_ID = 0;
+const DISPLAY_NAME_NAME = 1;
+
+const WORKSPACE_VIEW_VIEW = 0;
+
 //---------------------------------------------------------
 // Helper Methods
 //---------------------------------------------------------
 
-// Converts a complete set of stack facts into a diff (useful for initial creation).
-function stackToDiff(stack) {
-  var diff = {};
-  forattr(view, facts of stack) {
-    diff[view] = {adds: facts};
+// Plucks the given index out of the arrays or objects in an array.
+function pluck(arr, field) {
+  var results = Array(arr.length);
+  foreach(ix, item of arr) {
+    results[ix] = item[field];
   }
-  return diff;
-};
+  return results;
+}
 
-// Return the facts with the appropriate value at the given index.
+// Return the facts where the given field index contains value.
 function select(view, ix, value) {
   var results = [];
   foreach(row of view) {
@@ -34,7 +39,20 @@ function select(view, ix, value) {
 }
 module.exports.select = select;
 
-function createTableCard(name, fields) {
+// Return the facts where the given field index contains a matching value.
+function contains(view, ix, values) {
+  var results = [];
+  foreach(row of view) {
+    if(values.indexOf(row[ix]) !== -1) {
+      results.push(row);
+    }
+  }
+  return results;
+}
+module.exports.contains = contains;
+
+// Create a card with the given name and fields.
+function createTableCard(name, fields, names) {
   var card = {};
 
   card.$title = document.createElement("h2");
@@ -44,13 +62,17 @@ function createTableCard(name, fields) {
   card.$header.className = "grid-header";
 
   fields = fields.slice();
-  fields.sort(function(field) {
-    return field[FIELD_IX];
+  fields.sort(function(a, b) {
+    return (a[FIELD_IX] < b[FIELD_IX]) ? -1 : 1;
   });
   foreach(field of fields) {
+    var fieldNameFacts = select(names, DISPLAY_NAME_ID, field[FIELD_FIELD]);
+    var fieldName = fieldNameFacts[0][DISPLAY_NAME_NAME];
+
     var fieldHeader = document.createElement("div");
     fieldHeader.className = "header";
-    fieldHeader.appendChild(document.createTextNode(field[FIELD_FIELD]));
+    fieldHeader.appendChild(document.createTextNode(fieldName));
+    fieldHeader.setAttribute("ix", field[FIELD_IX]);
     card.$header.appendChild(fieldHeader);
   }
 
@@ -90,6 +112,7 @@ function dirtyViews(diff) {
 var viewsContainer = document.createElement("div");
 $("#cards")[0].appendChild(viewsContainer);
 var viewUI = {};
+
 // Update view UI in response to added, removed, or updated facts.
 function diffRenderer(diffs, views) {
   foreach(view of views) {
@@ -104,7 +127,6 @@ function diffRenderer(diffs, views) {
     // Find removed rows to prune.
     foreach(row of diff.removes) {
       rowId = factToId(row);
-      // Ensure that the node exists to remove.
       if(viewUI[view][rowId]) {
         rowElem = viewUI[view][rowId];
         rowElem.parentNode.removeChild(rowElem);
@@ -132,11 +154,10 @@ function diffRenderer(diffs, views) {
 
 // Watch all eve views in stack for changes, keeping table views in sync.
 function render(diffs, system) {
-  var workspaceViews = system.getStore("workspaceView").getFacts().map(function(row) {
-    return row[0];
-  });
+  var workspaceViews = pluck(system.getStore("workspaceView").getFacts(), WORKSPACE_VIEW_VIEW);
 
   if(diffs.field) {
+    var displayNames = system.getStore("displayName").getFacts();
     var fields = system.getStore("field").getFacts();
     var dirtied = dirtyViews(diffs.field);
     foreach(view of dirtied) {
@@ -152,7 +173,8 @@ function render(diffs, system) {
 
       // Create the new card.
       var viewFields = select(fields, FIELD_VIEW, view);
-      viewUI[view] = createTableCard(view, viewFields);
+      var fieldNames = contains(displayNames, DISPLAY_NAME_ID, pluck(viewFields, FIELD_FIELD));
+      viewUI[view] = createTableCard(view, viewFields, fieldNames);
       viewsContainer.appendChild(viewUI[view].$container);
     }
   }
