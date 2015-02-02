@@ -34,6 +34,7 @@ function select(view, ix, value) {
 }
 module.exports.select = select;
 
+// Create a card with the given name and fields.
 function createTableCard(name, fields) {
   var card = {};
 
@@ -44,13 +45,14 @@ function createTableCard(name, fields) {
   card.$header.className = "grid-header";
 
   fields = fields.slice();
-  fields.sort(function(field) {
-    return field[FIELD_IX];
+  fields.sort(function(a, b) {
+    return (a[FIELD_IX] < b[FIELD_IX]) ? -1 : 1;
   });
   foreach(field of fields) {
     var fieldHeader = document.createElement("div");
     fieldHeader.className = "header";
     fieldHeader.appendChild(document.createTextNode(field[FIELD_FIELD]));
+    fieldHeader.setAttribute("ix", field[FIELD_IX]);
     card.$header.appendChild(fieldHeader);
   }
 
