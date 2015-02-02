@@ -125,7 +125,6 @@ programWorker.postMessage({type: "diffs", diffs: diffSystems(system, null, null)
 var workspaceViews = system.getStore("workspaceView").getFacts().map(function(row) {
   return row[0];
 });
-console.log(workspaceViews);
 
 
 var initialDiff = system.getStore('view').getFacts().reduce(function(memo, view) {
