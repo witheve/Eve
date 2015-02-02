@@ -144,12 +144,15 @@ eveApp.uiWatcher = function(application, storage, system) {
 
 onmessage = function(event) {
   switch(event.data.type) {
-    case "init":
-      eveApp.name = event.data.name;
-      eveApp.client = event.data.client;
-      eveApp.run([["client", event.data.client]]);
-      break;
     case "diffs":
+      if(!eveApp.initialized) {
+        applyDiff(eveApp, "view", event.data.diffs["view"]);
+        applyDiff(eveApp, "field", event.data.diffs["field"]);
+        eveApp.system.recompile();
+        eveApp.initialized = true;
+        event.data.diffs["view"] = {adds: [], removes: []};
+        event.data.diffs["field"] = {adds: [], removes: []};
+      }
       console.log(event.data.diffs);
       applySystemDiff(eveApp, event.data.diffs);
       eveApp.run([]);
