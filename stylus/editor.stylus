@@ -362,6 +362,29 @@ $open-animation = cubic-bezier(.14,.85,.77,1.03);
     div + div {
       border-left:1px solid $border-color;
     }
+
+    .sort-btn {
+      float: right;
+      width: 1em;
+      height: 1em;
+      position: relative;
+
+      &::after {
+        position: absolute;
+        top: 0; left: 0; bottom: 0; right: 0;
+        font-size: 1em;
+      }
+
+      &[sort-dir="0"]::after {
+        content: "↕";
+      }
+      &[sort-dir="1"]::after {
+        content: "↓";
+      }
+      &[sort-dir="-1"]::after {
+        content: "↑";
+      }
+    }
   }
 
   .grid-row {

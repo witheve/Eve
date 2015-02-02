@@ -53,6 +53,19 @@ function contains(view, ix, values) {
 }
 module.exports.contains = contains;
 
+// Creates a handler to sort the given table by the given field index.
+function sortTable(name, fieldIx) {
+  return function(evt) {
+    var sortDir = +evt.target.getAttribute("sort-dir") + 1;
+    if(sortDir > 1) {
+      sortDir = -1;
+    }
+    evt.target.setAttribute("sort-dir", sortDir);
+
+    console.log("Sorting", name, "by", fieldIx, "order", sortDir);
+  };
+}
+
 // Create a card with the given name and fields.
 function createTableCard(name, fields, names) {
   var header = ["div", {class: "grid-header"}];
@@ -63,7 +76,12 @@ function createTableCard(name, fields, names) {
   });
   foreach(field of fields) {
     var fieldName = select(names, DISPLAY_NAME_ID, field[FIELD_FIELD])[0][DISPLAY_NAME_NAME];
-    header.push(["div", {class: "header", ix: field[FIELD_IX]}, fieldName]);
+    header.push(
+      ["div", {class: "header", ix: field[FIELD_IX]},
+       fieldName,
+       ["button", {class: "sort-btn", "sort-dir": 0, click: sortTable(name, field[FIELD_IX])}]
+      ]
+    );
   }
 
   var card = {};
