@@ -132,6 +132,8 @@ var initialDiff = system.getStore('view').getFacts().reduce(function(memo, view)
   return memo;
 }, {});
 
+ide.init(system);
+
 //---------------------------------------------------------
 // socket.io
 //---------------------------------------------------------
