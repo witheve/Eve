@@ -1,5 +1,7 @@
 import macros from "../macros.sjs";
 
+JSML = require("./jsml");
+
 //---------------------------------------------------------
 // Static Data
 //---------------------------------------------------------
@@ -53,38 +55,25 @@ module.exports.contains = contains;
 
 // Create a card with the given name and fields.
 function createTableCard(name, fields, names) {
-  var card = {};
-
-  card.$title = document.createElement("h2");
-  card.$title.appendChild(document.createTextNode(name));
-
-  card.$header = document.createElement("div");
-  card.$header.className = "grid-header";
+  var header = ["div", {class: "grid-header"}];
 
   fields = fields.slice();
   fields.sort(function(a, b) {
     return (a[FIELD_IX] < b[FIELD_IX]) ? -1 : 1;
   });
   foreach(field of fields) {
-    var fieldNameFacts = select(names, DISPLAY_NAME_ID, field[FIELD_FIELD]);
-    var fieldName = fieldNameFacts[0][DISPLAY_NAME_NAME];
-
-    var fieldHeader = document.createElement("div");
-    fieldHeader.className = "header";
-    fieldHeader.appendChild(document.createTextNode(fieldName));
-    fieldHeader.setAttribute("ix", field[FIELD_IX]);
-    card.$header.appendChild(fieldHeader);
+    var fieldName = select(names, DISPLAY_NAME_ID, field[FIELD_FIELD])[0][DISPLAY_NAME_NAME];
+    header.push(["div", {class: "header", ix: field[FIELD_IX]}, fieldName]);
   }
 
-  card.$grid = document.createElement("div");
-  card.$grid.className = "grid";
-
-  card.$container = document.createElement("div");
-  card.$container.className = "card table-card open";
-
-  card.$container.appendChild(card.$title);
-  card.$container.appendChild(card.$grid);
-  card.$grid.appendChild(card.$header);
+  var card = {};
+  card.$grid = JSML.parse(["div", {class: "grid"}, header]);
+  card.$container = JSML.parse(
+    ["div", {class: "card table-card open"},
+     ["h2", name],
+     card.$grid
+    ]
+  );
 
   return card;
 }
@@ -137,15 +126,13 @@ function diffRenderer(diffs, views) {
     // Build and insert added rows.
     foreach(row of diff.adds) {
       rowId = factToId(row);
-      rowElem = document.createElement("div");
-      rowElem.className = "grid-row";
+      rowContent = ["div", {class: "grid-row"}];
 
       foreach(field of row) {
-        var fieldElem = document.createElement("div");
-        fieldElem.appendChild(document.createTextNode(field));
-        rowElem.appendChild(fieldElem);
+        rowContent.push(["div", field]);
       }
 
+      rowElem = JSML.parse(rowContent);
       viewUI[view][rowId] = rowElem;
       viewUI[view].$grid.appendChild(rowElem);
     }
