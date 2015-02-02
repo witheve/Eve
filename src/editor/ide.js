@@ -163,3 +163,114 @@ module.exports.render = render;
 
 //var stack = data["department heads"];
 //eveWatcher(stackToDiff(stack));
+
+//---------------------------------------------------------
+// Dispatcher
+//---------------------------------------------------------
+
+var currentSystem = null;
+
+function dispatch(eventInfo) {
+  unpack [event, info] = eventInfo;
+  switch(event) {
+    case "openView":
+      // open that card? Can the searcher sele
+      break;
+
+    case "updateSearcher":
+      updateSearcher(currentSystem, searcher, info);
+      break;
+  }
+}
+
+//---------------------------------------------------------
+// Searcher
+//---------------------------------------------------------
+
+function searchForView(system, needle) {
+  var results = [];
+  foreach(view of system.getStore("view").getFacts()) {
+    unpack [uuid] = view;
+    //if(displayNames[uuid].indexOf(needle) > -1) {
+    if(uuid.indexOf(needle) > -1) {
+       //results.push([uuid, displayNames[uuid]]);
+       results.push([uuid, uuid]);
+    }
+  }
+  return results;
+}
+
+function updateSearcherItems(searcher, results) {
+  if(results.length < searcher.maxResults) {
+    for(var ix = results.length, len = searcher.maxResults; ix < len; ix++) {
+      searcher.lis[ix].style.display = "none";
+    }
+  }
+  foreach(ix, result of results) {
+    if(ix >= searcher.maxResults) break;
+    unpack [uuid, displayName] = result;
+    searcher.lis[ix].textContent = displayName;
+    searcher.lis[ix].style.display = "";
+  }
+  searcher.results = results;
+}
+
+function updateSearcher(system, searcher, needle) {
+  var results = searchForView(system, needle);
+  updateSearcherItems(searcher, results);
+  return searcher;
+}
+
+function createSearcher() {
+  var final = {};
+  var lis = [];
+  var list = document.createElement("ul");
+
+  final.maxResults = 20;
+  final.results = [];
+  final.event = "openView"; //you may use the searcher for other things, like lookup?
+  var itemCallback = function(e) {
+    var ix = e.target.ix;
+    dispatch([final.event, final.results[ix]]);
+  }
+
+  for(var ix = 0, len = final.maxResults; ix < len; ix++) {
+    var elem = document.createElement("li");
+    elem.style.display = "none";
+    elem.addEventListener("click", itemCallback);
+    list.appendChild(elem);
+    lis[ix] = elem;
+  }
+
+  final.lis = lis;
+
+  final.elem = document.createElement("div");
+  final.elem.className = "searcher";
+
+  var inputCallback = function(e) {
+    var value = e.target.value;
+    dispatch(["updateSearcher", value]);
+  }
+  var input = document.createElement("input");
+  input.type = "text";
+  input.addEventListener("input", inputCallback);
+
+  final.elem.appendChild(input);
+  final.elem.appendChild(list);
+  return final;
+}
+
+//---------------------------------------------------------
+// Init
+//---------------------------------------------------------
+
+var searcher;
+var currentSystem;
+
+function init(system) {
+  currentSystem = system;
+  searcher = createSearcher();
+  document.body.appendChild(searcher.elem);
+}
+
+module.exports.init = init;
