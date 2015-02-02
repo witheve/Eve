@@ -10,7 +10,9 @@ var tests = [
   ["p", "child1", ["div", "child2"], "child3"],
   ["p", {
     class: "foo"
-  }, "child1", ["div", "child2"], "child3"]
+  }, "child1", ["div", "child2"], "child3"],
+  ["pre", "test", document.createElement("p")],
+  ["pre", document.createElement("p"), "test"],
 ];
 
 var expectations = [
@@ -18,7 +20,9 @@ var expectations = [
   "<span id=\"test\" customattr=\"true\"></span>",
   "<p>child1child2child3</p>",
   "<p>child1<div>child2</div>child3</p>",
-  "<p class=\"foo\">child1<div>child2</div>child3</p>"
+  "<p class=\"foo\">child1<div>child2</div>child3</p>",
+  "<pre>test<p></p></pre>",
+  "<pre><p></p>test</pre>"
 ];
 
 for(var testIx = 0, len = tests.length; testIx < len; testIx++) {
