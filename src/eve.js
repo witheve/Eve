@@ -759,6 +759,7 @@ Union.prototype = {
 // SYSTEM
 
 var compilerSchemas = [
+  ["displayName", "id", "name"],
   ["view", "view"],
   ["field", "field", "view", "ix"],
   ["query", "query", "view", "ix"],
