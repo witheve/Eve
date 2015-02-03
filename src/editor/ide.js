@@ -1,8 +1,7 @@
 import macros from "../macros.sjs";
 
-JSML = require("./jsml");
-incrementalUI = require("./incrementalUI");
-
+var helpers = require("./helpers");
+var Card = require("./card");
 
 //---------------------------------------------------------
 // Data
@@ -26,48 +25,15 @@ $("#cards")[0].appendChild(viewsContainer);
 // Helper Methods
 //---------------------------------------------------------
 
-// Plucks the given index out of the arrays or objects in an array.
-function pluck(arr, field) {
-  var results = Array(arr.length);
-  foreach(ix, item of arr) {
-    results[ix] = item[field];
-  }
-  return results;
-}
-
-// Return the facts where the given field index contains value.
-function select(view, ix, value) {
-  var results = [];
-  foreach(row of view) {
-    if(row[ix] == value) {
-      results.push(row);
-    }
-  }
-
-  return results;
-}
-module.exports.select = select;
-
-// Return the facts where the given field index contains a matching value.
-function contains(view, ix, values) {
-  var results = [];
-  foreach(row of view) {
-    if(values.indexOf(row[ix]) !== -1) {
-      results.push(row);
-    }
-  }
-  return results;
-}
-module.exports.contains = contains;
 
 // Find all views dirtied in the `field` diff.
 function dirtyViews(diff, views) {
 
   var rawChangedViews = [];
-  foreach(field of contains(diff.removes, FIELD_VIEW, views)) {
+  foreach(field of helpers.contains(diff.removes, FIELD_VIEW, views)) {
     rawChangedViews.push(field[FIELD_VIEW]);
   }
-  foreach(field of contains(diff.adds, FIELD_VIEW, views)) {
+  foreach(field of helpers.contains(diff.adds, FIELD_VIEW, views)) {
     rawChangedViews.push(field[FIELD_VIEW]);
   }
 
@@ -81,177 +47,11 @@ function dirtyViews(diff, views) {
   return changedViews;
 }
 
-//---------------------------------------------------------
-// Card
-//---------------------------------------------------------
-
-function Card(id, name, system) {
-  this.name = id;
-  this.id = name;
-  this.system = system;
-  this.rows = {};
-  this.sortIx = 0;
-  this.sortDir = 1;
-}
-
-Card.prototype = {
-  //-------------------------------------------------------
-  // Data Methods
-  //-------------------------------------------------------
-  getFacts: function() {
-    return this.system.getStore(this.id).getFacts();
-  },
-
-  getFields: function(fields) {
-    fields = fields || this.system.getStore("field").getFacts();
-    return select(fields, FIELD_VIEW, this.id);
-  },
-
-  // Get a mapping of {[id:String]: name:String}
-  getNameMap: function(names, fields) {
-    names = names || this.system.getStore("displayName").getFacts();
-    fields = this.getFields(fields);
-    var fieldIds = pluck(fields, FIELD_FIELD);
-    var fieldNames = contains(names, DISPLAY_NAME_ID, fieldIds);
-    return fieldNames.reduce(function(memo, nameFact) {
-      unpack [id, name] = nameFact;
-      memo[id] = name;
-      return memo;
-    }, {});
-  },
-
-  sortBy: function(ix, dir) {
-    this.sortIx = ix;
-    this.sortDir = dir;
-    var facts = this.getFacts();
-
-    foreach(ix, fact of facts) {
-      var rowId = factToId(fact);
-      this.rows[rowId].eveSortValue = fact[this.sortIx];
-    }
-
-    foreach(ix, fact of facts) {
-      var rowId = factToId(fact);
-      this.appendRow(this.rows[rowId]);
-    }
-  },
-
-  //-------------------------------------------------------
-  // View Methods
-  //-------------------------------------------------------
-  appendRow: function($child) {
-    if(!this.$rows.childNodes.length) {
-      console.log("appendFirst", this.name, $child);
-      return this.$rows.appendChild($child);
-    }
-
-    switch(this.sortDir) {
-      case 1:
-        console.log("Asc", this.name, $child);
-        incrementalUI.appendSortElement(this.$rows, $child);
-        break;
-      case -1:
-        console.log("Desc", this.name, $child);
-        incrementalUI.appendSortElementDesc(this.$rows, $child);
-        break;
-      default:
-        console.log("Default", this.name, $child);
-        this.$rows.appendChild($child);
-    }
-  },
-
-  renderCard: function(names, fields) {
-    fields = this.getFields(fields).slice();
-    fields.sort(function(a, b) {
-      return (a[ix] > b[ix]) ? 1 : -1;
-    });
-    var nameMap = this.getNameMap(names, fields);
-
-    if(this.$container) {
-      this.$container.parentNode.removeChild(this.$container);
-      this.$container = this.$rows = null;
-    }
-
-    // Populate the grid-header with field headers.
-    var header = ["div", {class: "grid-header"}];
-    foreach(fieldFact of fields) {
-      unpack [field, view, ix] = fieldFact;
-      var handler = this._sortTableHandler(this, ix);
-      header.push(
-        ["div", {class: "header", ix: ix},
-         nameMap[field],
-         ["button", {class: "sort-btn", "sort-dir": 0, click: handler}]
-        ]
-      );
-    }
-
-    this.$rows = JSML.parse(["div"]);
-    this.$container = JSML.parse(
-      ["div", {class: "card table-card open"},
-       ["h2", name],
-       ["div", {class: "grid"}, header, this.$rows]
-      ]
-    );
-
-    return this.$container;
-  },
-
-  _sortTableHandler: function(self, ix) {
-    return function(evt) {
-      var sortDir = +evt.target.getAttribute("sort-dir") + 1;
-      if(sortDir > 1) {
-        sortDir = -1;
-      }
-
-      $(self.$container).find(".sort-btn").attr("sort-dir", 0);
-      evt.target.setAttribute("sort-dir", sortDir);
-      dispatch(["sortCard", self, ix, sortDir]);
-    };
-  },
-
-  renderRows: function() {
-    var facts = this.getFacts();
-    this.addRows(facts);
-  },
-
-  clearRows: function() {
-    forattr(id, $row of this.$rows) {
-      this.$rows.removeChild($row);
-      this.rows[id] = undefined;
-    }
-  },
-
-  removeRows: function(removes) {
-    foreach(row of removes) {
-      var rowId = factToId(row);
-      var $row = this.rows[rowId];
-      if($row) {
-        this.$rows.removeChild($row);
-        this.rows[rowId] = undefined;
-      }
-    }
-  },
-
-  addRows: function(adds) {
-    foreach(fact of adds) {
-      var row = ["div", {class: "grid-row"}];
-      foreach(field of fact) {
-        row.push(["div", field]);
-      }
-
-      var $row = JSML.parse(row);
-      $row.eveSortValue = fact[this.sortIx];
-      var rowId = factToId(fact);
-      this.rows[rowId] = $row;
-      this.appendRow($row);
-    }
-  }
-};
 
 
 // Watch all eve views in stack for changes, keeping table views in sync.
 function render(diffs, system) {
-  var workspaceViews = pluck(system.getStore("workspaceView").getFacts(), WORKSPACE_VIEW_VIEW);
+  var workspaceViews = helpers.pluck(system.getStore("workspaceView").getFacts(), WORKSPACE_VIEW_VIEW);
   // Add/update/remove cards in response to added or removed fields and views.
   if(diffs.field) {
     var dirtied = dirtyViews(diffs.field, workspaceViews);
@@ -303,6 +103,7 @@ function dispatch(eventInfo) {
       break;
   }
 }
+module.exports.dispatch = dispatch;
 
 //---------------------------------------------------------
 // Searcher
