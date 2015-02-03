@@ -112,6 +112,42 @@ function appendSortElement(parent, child){
   if(value < cur.eveSortValue) return parent.insertBefore(child, cur);
   return parent.insertBefore(child, cur);
 }
+module.exports.appendSortElement = appendSortElement;
+
+function appendSortElementDesc(parent, child){
+  var value = child.eveSortValue;
+  var children = parent.childNodes;
+  var startIndex = 0;
+  var stopIndex = children.length - 1;
+
+  //shortcut the common case of just appending to the end
+  if(children[stopIndex].eveSortValue > value) return parent.appendChild(child);
+  //shortcut the common case of just prepending to the beginning
+  if(children[startIndex].eveSortValue < value) return parent.insertBefore(child, children[startIndex]);
+
+  var middle = Math.floor((stopIndex + startIndex) / 2);
+  var cur = children[middle];
+
+  while(cur.eveSortValue !== value && startIndex < stopIndex && middle > 0){
+
+    if (value > cur.eveSortValue){
+      stopIndex = middle - 1;
+    } else if (value < cur.eveSortValue){
+      startIndex = middle + 1;
+    }
+
+   middle = Math.floor((stopIndex + startIndex)/2);
+    if(cur === children[middle]) break;
+    cur = children[middle];
+  }
+
+  if(cur === child) return;
+  if(value > cur.eveSortValue) return parent.insertBefore(child, cur);
+  if(value < cur.eveSortValue) return parent.insertBefore(child, children[middle + 1]);
+  return parent.insertBefore(child, cur);
+}
+module.exports.appendSortElementDesc = appendSortElementDesc;
+
 
 function uiDiffRenderer(diff, storage, program) {
 
