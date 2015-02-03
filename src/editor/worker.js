@@ -11,7 +11,7 @@ function consoleLog() {
   for(var i in arguments) {
     final[i] = arguments[i];
   }
-  final.unshift(eveApp.name + ":");
+  final.unshift("worker:");
   try {
     postMessage({to: "uiThread", type: "log", args: final, run: eveApp.runNumber, client: eveApp.client});
   } catch(e) {
@@ -144,14 +144,16 @@ eveApp.uiWatcher = function(application, storage, system) {
 
 onmessage = function(event) {
   switch(event.data.type) {
-    case "init":
-      eveApp.name = event.data.name;
-      eveApp.client = event.data.client;
-      eveApp.run([["client", event.data.client]]);
-      break;
     case "diffs":
-      console.log(event.data.diffs);
-      applySystemDiff(eveApp, event.data.diffs);
+      var diffs = event.data.diffs;
+      if(diffs["view"] || diffs["field"]) {
+        applyDiff(eveApp, "view", diffs["view"]);
+        applyDiff(eveApp, "field", diffs["field"]);
+        eveApp.system.recompile();
+        diffs["view"] = {adds: [], removes: []};
+        diffs["field"] = {adds: [], removes: []};
+      }
+      applySystemDiff(eveApp, diffs);
       eveApp.run([]);
       //TODO: ?
       break;
