@@ -16,15 +16,13 @@ const DISPLAY_NAME_NAME = 1;
 
 const WORKSPACE_VIEW_VIEW = 0;
 
+//---------------------------------------------------------
+// Rendering
+//---------------------------------------------------------
+
 var viewUI = {};
 var viewsContainer = document.createElement("div");
 $("#cards")[0].appendChild(viewsContainer);
-
-
-//---------------------------------------------------------
-// Helper Methods
-//---------------------------------------------------------
-
 
 // Find all views dirtied in the `field` diff.
 function dirtyViews(diff, views) {
@@ -46,8 +44,6 @@ function dirtyViews(diff, views) {
   }
   return changedViews;
 }
-
-
 
 // Watch all eve views in stack for changes, keeping table views in sync.
 function render(diffs, system) {
@@ -76,9 +72,6 @@ function render(diffs, system) {
   }
 }
 module.exports.render = render;
-
-//var stack = data["department heads"];
-//eveWatcher(stackToDiff(stack));
 
 //---------------------------------------------------------
 // Dispatcher
