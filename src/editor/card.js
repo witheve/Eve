@@ -19,6 +19,12 @@ function Card(id, name, system) {
   this.rows = {};
   this.sortIx = 0;
   this.sortDir = 1;
+  this.type = "table-card";
+
+  var isInputs = this.system.getStore("isInput").getFacts();
+  if(helpers.select(isInputs, 0, this.id).length) {
+    this.type = "input-card";
+  }
 }
 
 Card.prototype = {
@@ -110,8 +116,8 @@ Card.prototype = {
 
     this.$rows = JSML.parse(["div"]);
     this.$container = JSML.parse(
-      ["div", {class: "card table-card open"},
-       ["h2", name],
+      ["div", {class: "card open " + this.type},
+       ["h2", this.name],
        ["div", {class: "grid"}, header, this.$rows]
       ]
     );
@@ -157,14 +163,16 @@ Card.prototype = {
 
   addRows: function(adds) {
     foreach(fact of adds) {
-      var row = ["div", {class: "grid-row"}];
+      var rowId = factToId(fact);
+      if(this.rows[rowId]) { continue; }
+
+      var row = ["div", {class: "grid-row", rowId: rowId}];
       foreach(field of fact) {
         row.push(["div", field]);
       }
 
       var $row = JSML.parse(row);
       $row.eveSortValue = fact[this.sortIx];
-      var rowId = factToId(fact);
       this.rows[rowId] = $row;
       this.appendRow($row);
     }
