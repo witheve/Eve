@@ -145,6 +145,12 @@ function dispatch(eventInfo) {
             var $field = input.selection.card.getField(rowId, ix);
             $field.textContent = data;
           },
+          keypress: function(evt) {
+            var key = evt.key || evt.keyIdentifier;
+            if(key === "Enter") {
+              input.elem.blur();
+            }
+          },
           blur: function(evt) {
             var programWorker = global.programWorker;
             unpack [rowId, ix] = (input.selection.field);
