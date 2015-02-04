@@ -336,6 +336,12 @@ $open-animation = cubic-bezier(.14,.85,.77,1.03);
  .grid { max-height:100%; border-width:1px; min-height:40px; overflow:auto; max-width:100%; }
 }
 
+.card.input-card {
+    background: linear-gradient(top, rgba(247, 247, 247, 0.75), rgba(247, 247, 247, 0.75)), url("../input.jpg");
+    background-size: cover;
+    background-position: center;
+}
+
 #uiCard + .card.open, .card.open + .card.open {
   margin-top:0px;
 }
@@ -344,7 +350,7 @@ $open-animation = cubic-bezier(.14,.85,.77,1.03);
   $border-color = rgba(0,0,0,0.16);
   border:1px solid $border-color;
   border-radius:2px;
-  overflow:auto;
+  overflow: auto;
   min-height:40px;
   background: rgba(0,0,0,0.03);
   flex-shrink:0;
@@ -397,6 +403,11 @@ $open-animation = cubic-bezier(.14,.85,.77,1.03);
     }
     div + div {
       border-left:1px solid $border-color;
+    }
+    div.selected {
+      z-index: 1;
+      background: rgba(255, 255, 255, 0.75);
+      outline: 1px solid orange;
     }
   }
   .grid-row + .grid-row {

@@ -1,5 +1,6 @@
 import macros from "../macros.sjs";
 
+var JSML = require("./jsml");
 var helpers = require("./helpers");
 var Card = require("./card");
 
@@ -74,6 +75,37 @@ function render(diffs, system) {
 module.exports.render = render;
 
 //---------------------------------------------------------
+// Input
+//---------------------------------------------------------
+var input = {
+  elem: JSML.parse(["input", {style: {width: 0, height: 0, opacity: 0}}]),
+  selection: null,
+  handlers: {},
+  handle: function(handlers) {
+    input.elem.blur();
+    forattr(event, handler of handlers) {
+      input.elem.addEventListener(event, handler);
+    }
+    input.handlers = handlers;
+  }
+};
+
+input.elem.addEventListener("blur", function blurHandler(evt) {
+  // Handle blur events, which would otherwise be deleted before firing.
+  if(input.handlers["blur"]) {
+    input.handlers["blur"](evt);
+  }
+
+  forattr(event, handler of input.handlers) {
+    input.elem.removeEventListener(event, handler);
+  }
+
+  input.elem.value = "";
+  input.handlers = {};
+});
+
+
+//---------------------------------------------------------
 // Dispatcher
 //---------------------------------------------------------
 
@@ -89,6 +121,36 @@ function dispatch(eventInfo) {
 
     case "sortCard":
       eventInfo[1].sortBy(eventInfo[2], eventInfo[3]);
+      break;
+
+    case "selectField":
+      if(input.selection) {
+        input.elem.blur();
+        input.selection.card.selectField();
+      }
+      eventInfo[1].selectField(eventInfo[2], eventInfo[3]);
+      input.selection = {
+        card: eventInfo[1],
+        field: [eventInfo[2], eventInfo[3]]
+      };
+      if(eventInfo[1].type === "input-card") {
+        input.handle({
+          input: function(evt) {
+            var data = evt.target.value;
+            unpack [rowId, ix] = (input.selection.field);
+            var $field = input.selection.card.getField(rowId, ix);
+            while($field.childNodes.length) {
+              $field.removeChild($field.childNodes[0]);
+            }
+            $field.appendChild(document.createTextNode(data));
+          },
+          blur: function(evt) {
+            console.log("@TODO: Save changes!");
+          }
+        });
+
+        input.elem.focus();
+      }
       break;
 
     case "updateSearcher":
@@ -187,6 +249,7 @@ function init(system) {
   currentSystem = system;
   searcher = createSearcher();
   document.body.appendChild(searcher.elem);
+  document.body.appendChild(input.elem);
 }
 
 module.exports.init = init;
