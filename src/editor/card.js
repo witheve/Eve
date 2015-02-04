@@ -56,16 +56,14 @@ Card.prototype = {
   sortBy: function(ix, dir) {
     this.sortIx = ix;
     this.sortDir = dir;
-    var facts = this.getFacts();
 
-    foreach(ix, fact of facts) {
-      var rowId = factToId(fact);
-      this.rows[rowId].eveSortValue = fact[this.sortIx];
+    forattr(rowId, $row of this.rows) {
+      var fact = idToFact(rowId);
+      $row.eveSortValue = fact[this.sortIx];
     }
 
-    foreach(ix, fact of facts) {
-      var rowId = factToId(fact);
-      this.appendRow(this.rows[rowId]);
+    forattr(rowId, $row of this.rows) {
+      this.appendRow($row);
     }
   },
 
@@ -133,8 +131,8 @@ Card.prototype = {
   clearRows: function() {
     forattr(id, $row of this.$rows) {
       this.$rows.removeChild($row);
-      this.rows[id] = undefined;
     }
+    this.rows = {};
   },
 
   removeRows: function(removes) {
@@ -143,7 +141,7 @@ Card.prototype = {
       var $row = this.rows[rowId];
       if($row) {
         this.$rows.removeChild($row);
-        this.rows[rowId] = undefined;
+        delete this.rows[rowId];
       }
     }
   },
