@@ -104,6 +104,46 @@ input.elem.addEventListener("blur", function blurHandler(evt) {
   input.handlers = {};
 });
 
+function selectField(card, rowId, ix) {
+  var programWorker = global.programWorker;
+
+  if(input.selection) {
+    input.elem.blur();
+  }
+  card.selectField(rowId, ix);
+  input.selection = {
+    card: card,
+    field: [rowId, ix]
+  };
+  if(card.type === "input-card") {
+    input.handle({
+      input: function(evt) {
+        var $field = card.getField(rowId, ix);
+        $field.textContent = evt.target.value;
+      },
+      keypress: function(evt) {
+        var key = evt.key || evt.keyIdentifier;
+        if(key === "Enter") {
+          input.elem.blur();
+        }
+      },
+      blur: function(evt) {
+        card.selectField();
+        var data = evt.target.value;
+        if(!data) { return; }
+
+        var oldFact = idToFact(rowId);
+        var fact = oldFact.slice();
+        fact[ix] = (isNaN(data)) ? data : +data;
+        var diffs = {};
+        diffs[card.id] = {adds: [fact], removes: [oldFact]};
+        dispatch(["diffs", diffs]);
+      }
+    });
+
+    input.elem.focus();
+  }
+}
 
 //---------------------------------------------------------
 // Dispatcher
@@ -128,47 +168,7 @@ function dispatch(eventInfo) {
       break;
 
     case "selectField":
-      if(input.selection) {
-        input.elem.blur();
-        input.selection.card.selectField();
-      }
-      eventInfo[1].selectField(eventInfo[2], eventInfo[3]);
-      input.selection = {
-        card: eventInfo[1],
-        field: [eventInfo[2], eventInfo[3]]
-      };
-      if(eventInfo[1].type === "input-card") {
-        input.handle({
-          input: function(evt) {
-            var data = evt.target.value;
-            unpack [rowId, ix] = (input.selection.field);
-            var $field = input.selection.card.getField(rowId, ix);
-            $field.textContent = data;
-          },
-          keypress: function(evt) {
-            var key = evt.key || evt.keyIdentifier;
-            if(key === "Enter") {
-              input.elem.blur();
-            }
-          },
-          blur: function(evt) {
-            var programWorker = global.programWorker;
-            unpack [rowId, ix] = (input.selection.field);
-            eventInfo[1].selectField();
-            var data = evt.target.value;
-            if(!data) { return; }
-
-            var oldFact = idToFact(rowId);
-            var fact = oldFact.slice();
-            fact[ix] = (isNaN(data)) ? data : +data;
-            var diffs = {};
-            diffs[eventInfo[1].id] = {adds: [fact], removes: [oldFact]};
-            dispatch(["diffs", diffs]);
-          }
-        });
-
-        input.elem.focus();
-      }
+      selectField(eventInfo[1], eventInfo[2], eventInfo[3]);
       break;
 
     case "updateSearcher":
