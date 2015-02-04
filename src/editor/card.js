@@ -125,19 +125,6 @@ Card.prototype = {
     return this.$container;
   },
 
-  _sortTableHandler: function(self, ix) {
-    return function(evt) {
-      var sortDir = +evt.target.getAttribute("sort-dir") + 1;
-      if(sortDir > 1) {
-        sortDir = -1;
-      }
-
-      $(self.$container).find(".sort-btn").attr("sort-dir", 0);
-      evt.target.setAttribute("sort-dir", sortDir);
-      ide.dispatch(["sortCard", self, ix, sortDir]);
-    };
-  },
-
   renderRows: function() {
     var facts = this.getFacts();
     this.addRows(facts);
@@ -167,14 +154,59 @@ Card.prototype = {
       if(this.rows[rowId]) { continue; }
 
       var row = ["div", {class: "grid-row", rowId: rowId}];
-      foreach(field of fact) {
-        row.push(["div", field]);
+
+      foreach(ix, field of fact) {
+        var handler = this._selectFieldHandler(this, rowId, ix);
+        row.push(["div", {click: handler}, field]);
       }
 
       var $row = JSML.parse(row);
       $row.eveSortValue = fact[this.sortIx];
       this.rows[rowId] = $row;
       this.appendRow($row);
+    }
+  },
+
+  getField: function(rowId, ix) {
+    var $row = this.rows[rowId];
+    if(!$row) { return; }
+
+    return $row.childNodes[ix];
+  },
+
+  //-------------------------------------------------------
+  // Event handlers / Interactions
+  //-------------------------------------------------------
+  selectField: function(rowId, ix) {
+    if(this.selectedField) {
+      unpack [oldRowId, oldIx] = (this.selectedField);
+      var $oldField = this.getField(oldRowId, oldIx);
+      $oldField.classList.remove("selected");
+    }
+
+    var $field = this.getField(rowId, ix);
+    if(!$field) { return; }
+
+    this.selectedField = [rowId, ix]
+    $field.classList.add("selected");
+  },
+
+  _sortTableHandler: function(self, ix) {
+    return function(evt) {
+      var sortDir = +evt.target.getAttribute("sort-dir") + 1;
+      if(sortDir > 1) {
+        sortDir = -1;
+      }
+
+      $(self.$container).find(".sort-btn").attr("sort-dir", 0);
+      evt.target.setAttribute("sort-dir", sortDir);
+      ide.dispatch(["sortCard", self, ix, sortDir]);
+    };
+  },
+
+  _selectFieldHandler: function(self, rowId, ix) {
+    return function(evt) {
+      ide.dispatch(["selectField", self, rowId, ix]);
     }
   }
 };
