@@ -76,10 +76,10 @@ Card.prototype = {
     }
 
     switch(this.sortDir) {
-      case 1:
+      case 0:
         incrementalUI.appendSortElement(this.$rows, $child);
         break;
-      case -1:
+      case 1:
         incrementalUI.appendSortElementDesc(this.$rows, $child);
         break;
       default:
@@ -196,10 +196,10 @@ Card.prototype = {
     return function(evt) {
       var sortDir = +evt.target.getAttribute("sort-dir") + 1;
       if(sortDir > 1) {
-        sortDir = -1;
+        sortDir = 0;
       }
 
-      $(self.$container).find(".sort-btn").attr("sort-dir", 0);
+      $(self.$container).find(".sort-btn").attr("sort-dir", -1);
       evt.target.setAttribute("sort-dir", sortDir);
       ide.dispatch(["sortCard", self, ix, sortDir]);
     };

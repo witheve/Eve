@@ -381,13 +381,13 @@ $open-animation = cubic-bezier(.14,.85,.77,1.03);
         font-size: 1em;
       }
 
-      &[sort-dir="0"]::after {
+      &[sort-dir="-1"]::after {
         content: "↕";
       }
-      &[sort-dir="1"]::after {
+      &[sort-dir="0"]::after {
         content: "↓";
       }
-      &[sort-dir="-1"]::after {
+      &[sort-dir="1"]::after {
         content: "↑";
       }
     }
