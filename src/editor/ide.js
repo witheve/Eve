@@ -119,6 +119,10 @@ function dispatch(eventInfo) {
       console.log("open: ", info);
       break;
 
+    case "diffs":
+      programWorker.postMessage({type: "diffs", diffs: info});
+      break;
+
     case "sortCard":
       eventInfo[1].sortBy(eventInfo[2], eventInfo[3]);
       break;
@@ -139,13 +143,21 @@ function dispatch(eventInfo) {
             var data = evt.target.value;
             unpack [rowId, ix] = (input.selection.field);
             var $field = input.selection.card.getField(rowId, ix);
-            while($field.childNodes.length) {
-              $field.removeChild($field.childNodes[0]);
-            }
-            $field.appendChild(document.createTextNode(data));
+            $field.textContent = data;
           },
           blur: function(evt) {
-            console.log("@TODO: Save changes!");
+            var programWorker = global.programWorker;
+            unpack [rowId, ix] = (input.selection.field);
+            eventInfo[1].selectField();
+            var data = evt.target.value;
+            if(!data) { return; }
+
+            var oldFact = idToFact(rowId);
+            var fact = oldFact.slice();
+            fact[ix] = (isNaN(data)) ? data : +data;
+            var diffs = {};
+            diffs[eventInfo[1].id] = {adds: [fact], removes: [oldFact]};
+            dispatch(["diffs", diffs]);
           }
         });
 
