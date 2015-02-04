@@ -185,7 +185,10 @@ Card.prototype = {
     }
 
     var $field = this.getField(rowId, ix);
-    if(!$field) { return; }
+    if(!$field) {
+      this.selectedField = null;
+      return;
+    }
 
     this.selectedField = [rowId, ix]
     $field.classList.add("selected");
