@@ -114,7 +114,7 @@ Card.prototype = {
     // header.push(["div", {class: "header"}]);
 
     this.$newRow = this.createRow("newRow", new Array(fields.length), {class: "empty"});
-    this.$rows = JSML.parse(["div"]);
+    this.$rows = JSML.parse(["div", {class: "grid-rows"}]);
     this.$container = JSML.parse(
       ["div", {class: "card open " + this.type},
        ["h2", this.name],

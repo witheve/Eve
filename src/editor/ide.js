@@ -3,6 +3,7 @@ import macros from "../macros.sjs";
 var JSML = require("./jsml");
 var helpers = require("./helpers");
 var Card = require("./card");
+var grid = require("./grid");
 
 //---------------------------------------------------------
 // Data
@@ -22,8 +23,7 @@ const WORKSPACE_VIEW_VIEW = 0;
 //---------------------------------------------------------
 
 var viewUI = {};
-var viewsContainer = document.createElement("div");
-$("#cards")[0].appendChild(viewsContainer);
+var viewsContainer = $("#cards")[0];
 
 // Find all views dirtied in the `field` diff.
 function dirtyViews(diff, views) {
@@ -44,6 +44,16 @@ function dirtyViews(diff, views) {
     }
   }
   return changedViews;
+}
+
+function ensureCard(view, system) {
+  if(!viewUI[view]) {
+    var fields = system.getStore("field").getFacts();
+    var displayNames = system.getStore("displayName").getFacts();
+    viewUI[view] = new Card(view, view, system);
+    var $container = viewUI[view].renderCard(displayNames, fields);
+    viewsContainer.appendChild($container);
+  }
 }
 
 // Watch all eve views in stack for changes, keeping table views in sync.
@@ -68,9 +78,12 @@ function render(diffs, system) {
   // Add/update/remove rows in response to added or removed facts in all views.
   forattr(view, diff of diffs) {
     if(workspaceViews.indexOf(view) === -1) { continue; }
+    ensureCard(view, system);
     viewUI[view].removeRows(diff.removes);
     viewUI[view].addRows(diff.adds);
   }
+  grid.makeGrid(document.querySelector("#cards"), {gridSize: [5,2],
+                                                   marginSize: [10,10]});
 }
 module.exports.render = render;
 
@@ -170,6 +183,10 @@ function dispatch(eventInfo) {
   switch(event) {
     case "openView":
       // open that card?
+      unpack [uuid, name] = info;
+      var diff = {"workspaceView": {adds: [[uuid]], removes: []}};
+      applySystemDiff({system: currentSystem}, diff);
+      dispatch(["diffs", diff]);
       console.log("open: ", info);
       break;
 
@@ -187,6 +204,11 @@ function dispatch(eventInfo) {
 
     case "updateSearcher":
       updateSearcher(currentSystem, searcher, info);
+      break;
+
+    case "blurSearcher":
+    case "focusSearcher":
+      activateSearcher(searcher, event);
       break;
   }
 }
@@ -230,6 +252,16 @@ function updateSearcher(system, searcher, needle) {
   return searcher;
 }
 
+function activateSearcher(searcher, focusOrBlur) {
+  if(focusOrBlur === "focusSearcher") {
+    searcher.elem.classList.add("active");
+  } else {
+    setTimeout(function() {
+      searcher.elem.classList.remove("active");
+    }, 200);
+  }
+}
+
 function createSearcher() {
   var final = {};
   var lis = [];
@@ -257,13 +289,19 @@ function createSearcher() {
   final.elem = document.createElement("div");
   final.elem.className = "searcher";
 
-  var inputCallback = function(e) {
-    var value = e.target.value;
-    dispatch(["updateSearcher", value]);
-  }
   var input = document.createElement("input");
   input.type = "text";
-  input.addEventListener("input", inputCallback);
+  input.placeholder = "Search";
+  input.addEventListener("input", function(e) {
+    var value = e.target.value;
+    dispatch(["updateSearcher", value]);
+  });
+  input.addEventListener("focus", function(e) {
+    dispatch(["focusSearcher", null]);
+  });
+  input.addEventListener("blur", function(e) {
+    dispatch(["blurSearcher", null]);
+  });
 
   final.elem.appendChild(input);
   final.elem.appendChild(list);

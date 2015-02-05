@@ -342,10 +342,10 @@ function commonViews() {
   pushAll(facts, inputView("keyboard", ["client", "eid","keyCode","eventType"]));
   pushAll(facts, inputView("time", ["time"]));
   pushAll(facts, inputView("timer", ["client", "id", "event", "rate"]));
-  pushAll(facts, inputView("subscription", ["view"]));
   pushAll(facts, inputView("error", ["run", "error", "stack", "line"]));
   pushAll(facts, inputView("profile", ["run", "event", "time"]));
   pushAll(facts, inputView("client", ["client"]));
+  pushAll(facts, view("subscription", ["view"]));
   pushAll(facts, view("uiElem", ["id", "type"]));
   pushAll(facts, view("uiText", ["id", "text"]));
   pushAll(facts, view("uiChild", ["parent", "pos", "child"]));
