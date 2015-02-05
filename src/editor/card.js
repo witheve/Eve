@@ -107,7 +107,7 @@ Card.prototype = {
       header.push(
         ["div", {class: "header", ix: ix},
          nameMap[field],
-         ["button", {class: "sort-btn", "sort-dir": 0, click: handler}]
+         ["button", {class: "sort-btn", "sort-dir": -1, click: handler}]
         ]
       );
     }
