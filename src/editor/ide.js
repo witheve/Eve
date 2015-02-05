@@ -82,7 +82,7 @@ function render(diffs, system) {
     viewUI[view].removeRows(diff.removes);
     viewUI[view].addRows(diff.adds);
   }
-  grid.makeGrid(document.querySelector("#cards"), {gridSize: [2,2],
+  grid.makeGrid(document.querySelector("#cards"), {gridSize: [10,10],
                                                    marginSize: [10,10]});
 }
 module.exports.render = render;
@@ -177,6 +177,7 @@ function selectField(card, rowId, ix) {
 //---------------------------------------------------------
 
 var currentSystem = null;
+var mode = "grid";
 
 function dispatch(eventInfo) {
   unpack [event, info] = eventInfo;
@@ -211,9 +212,43 @@ function dispatch(eventInfo) {
     case "focusSearcher":
       activateSearcher(searcher, event);
       break;
+
+    case "selectCard":
+      if(mode === "grid") {
+        selectCard(info);
+      }
+      break;
   }
 }
 module.exports.dispatch = dispatch;
+
+//---------------------------------------------------------
+// card mode
+//---------------------------------------------------------
+
+function selectCard(card) {
+  console.log(card);
+  mode = "card";
+  var cardsElem = document.querySelector("#cards");
+  var targetDims = card.$container.getBoundingClientRect();
+  var dims = cardsElem.getBoundingClientRect();
+  var cx = dims.left + dims.width / 2;
+  var cy = dims.top + dims.height / 2;
+  var tx = targetDims.left + targetDims.width / 2;
+  var ty = targetDims.top + targetDims.height / 2;
+  var x = (tx - cx) * 10;
+  var y = (ty - cy) * 10;
+  cardsElem.classList.toggle("zoom");
+  if(cardsElem.classList.contains("zoom")) {
+    cardsElem.style.transform = "translate(" + -x + "px, " + -y + "px) scale(10)";
+    cardsElem.style.transformOrigin = "50% 50%";
+    cardsElem.style.opacity = 0;
+  } else {
+    mode = "grid";
+    cardsElem.style.transform = "";
+    cardsElem.style.opacity = 1;
+  }
+}
 
 //---------------------------------------------------------
 // Searcher

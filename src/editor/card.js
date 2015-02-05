@@ -137,10 +137,15 @@ Card.prototype = {
     }
     // header.push(["div", {class: "header"}]);
 
+    var selectCard = function() {
+      ide.dispatch(["selectCard", this]);
+    }
+
     this.$newRow = this.createRow("newRow", new Array(fields.length), {class: "empty"});
     this.$rows = JSML.parse(["div", {class: "grid-rows"}]);
     this.$container = JSML.parse(
-      ["div", {class: "card open " + this.type},
+      ["div", {class: "card open " + this.type,
+               click: selectCard},
        ["h2", this.name],
        ["div", {class: "grid"},
         header,
