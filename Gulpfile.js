@@ -1,13 +1,12 @@
-var gulp = require("gulp-help")(require("gulp"));
-var rename = require("gulp-rename");
-var stylus = require("gulp-stylus");
-var sourcemaps = require("gulp-sourcemaps");
-var browserify = require("gulp-browserify");
-var sweetify = require("sweetify");
 var batch = require("gulp-batch");
-var run = require("gulp-run");
-
-sweetify.extensions = /.+\.js$/;
+var browserify = require("browserify");
+var buffer = require("vinyl-buffer");
+var glob = require("glob-all");
+var gulp = require("gulp-help")(require("gulp"));
+var source = require("vinyl-source-stream");
+var sourcemaps = require("gulp-sourcemaps");
+var stylus = require("gulp-stylus");
+var sweetify = require("sweetify");
 
 // Styles
 
@@ -29,12 +28,25 @@ gulp.task("watch-stylus", "Watch stylus files for changes.", ["stylus"], functio
 
 var editorSources = ["src/editor/**/*.js"];
 var macroSources = ["src/**/*.sjs"];
+
 gulp.task("build-editor", "Build the editor bundle.", function() {
-  return gulp.src(editorSources, {read: false})
-  .pipe(browserify({
-    debug: true,
-    transform: [sweetify]
-  }))
+  var editorFiles = glob.sync(editorSources).map(function(file) {
+    return "./" + file;
+  });
+  var bundler = browserify({
+    entries: editorFiles,
+    debug: true
+  });
+  bundler.transform(sweetify, {
+    extensions: /.+\.(js|sjs)$/,
+    readableNames: true
+  });
+
+  return bundler.bundle()
+  .pipe(source("editor.js"))
+  .pipe(buffer())
+  .pipe(sourcemaps.init({loadMaps: true}))
+  .pipe(sourcemaps.write("build"))
   .pipe(gulp.dest("build"));
 });
 
