@@ -46,7 +46,7 @@ gulp.task("build-editor", "Build the editor bundle.", function() {
   .pipe(source("editor.js"))
   .pipe(buffer())
   .pipe(sourcemaps.init({loadMaps: true}))
-  .pipe(sourcemaps.write("build"))
+  .pipe(sourcemaps.write("."))
   .pipe(gulp.dest("build"));
 });
 
