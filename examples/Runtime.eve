@@ -2,7 +2,7 @@
   | workspaceView view
 
 * event
-  | rawEvent client eid label key value
+  | rawEvent eid label key value
 ;  | !removedEvent client eid
 
 ;;; FSM

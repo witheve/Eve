@@ -40,11 +40,11 @@ var createUICallback = function(id, event, label, key, program) {
       e.preventDefault();
     } else {
       if(mouseEvents[event]) {
-        items.push(["mousePosition", client, eid, e.clientX, e.clientY]);
+        items.push(["mousePosition", eid, e.clientX, e.clientY]);
       }
 
       if(keyEvents[event]) {
-        items.push(["keyboard", client, eid, e.keyCode, event]);
+        items.push(["keyboard", eid, e.keyCode, event]);
       }
 
       var value = e.target.value;
@@ -63,8 +63,8 @@ var createUICallback = function(id, event, label, key, program) {
       }
       e.stopPropagation();
       value = (value === undefined) ? "" : value;
-      items.push(["rawEvent", client, eid, label, key, value]);
-      items.push(["eventTime", client, eid, Date.now()]);
+      items.push(["rawEvent", eid, label, key, value]);
+      items.push(["eventTime", eid, Date.now()]);
       programWorker.postMessage({type: "event", items: items});
     }
   };
