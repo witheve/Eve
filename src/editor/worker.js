@@ -4,7 +4,6 @@ importScripts("../src/eve.js", "../src/helpers.js", "../src/tokenizer.js");
 
 var eveApp = global.eveApp = app();
 eveApp.remotes = {};
-eveApp.client = "";
 
 function consoleLog() {
   var final = [];
@@ -13,9 +12,9 @@ function consoleLog() {
   }
   final.unshift("worker:");
   try {
-    postMessage({to: "uiThread", type: "log", args: final, run: eveApp.runNumber, client: eveApp.client});
+    postMessage({to: "uiThread", type: "log", args: final, run: eveApp.runNumber});
   } catch(e) {
-    postMessage({to: "uiThread", type: "log", args: [eveApp.name + ": Could not log a message"], run: eveApp.runNumber, client: eveApp.client});
+    postMessage({to: "uiThread", type: "log", args: [eveApp.name + ": Could not log a message"], run: eveApp.runNumber});
   }
 }
 
@@ -50,7 +49,7 @@ eveApp.timerWatcher = function(application, storage, system) {
     if(!rate || typeof(rate) === "string" || rate < 16) rate = 16;
 
     var timeout = setInterval(function() {
-      application.run([["rawEvent", application.client, application.eventId++, event, "", (new Date()).getTime()]]);
+      application.run([["rawEvent", application.eventId++, event, "", (new Date()).getTime()]]);
     }, rate);
     timeouts[id] = timeout;
   }
@@ -137,7 +136,7 @@ eveApp.uiWatcher = function(application, storage, system) {
   }
 
   if(hasUI) {
-    postMessage({to: "uiThread", type: "renderUI", diff: diffs, time: now(), run: eveApp.runNumber, from: eveApp.name, client: application.client});
+    postMessage({to: "uiThread", type: "renderUI", diff: diffs, time: now(), run: eveApp.runNumber, from: eveApp.name});
   }
 }
 
@@ -168,7 +167,7 @@ onmessage = function(event) {
       var eid = eveApp.eventId++;
       var events = event.data.items.map(function(cur) {
         //set the eventId
-        cur[2] = eid;
+        cur[1] = eid;
         return cur;
       });
       eveApp.run(events);

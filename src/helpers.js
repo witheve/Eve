@@ -241,7 +241,7 @@ function sort(desired, sort) {
 //---------------------------------------------------------
 
 var Application = function(system, opts) {
-  this.eventId = 0;
+  this.eventId = 1;
   this.system = system || System.empty({name: "unknown"});
   this.storage = {"uiWatcher": {},
                   "timerWatcher": {},
@@ -336,15 +336,14 @@ function inputView(name, fields) {
 function commonViews() {
   var facts = [];
   pushAll(facts, inputView("workspaceView", ["view"]));
-  pushAll(facts, inputView("rawEvent", ["client", "eid", "label", "key", "value"]));
-  pushAll(facts, inputView("eventTime", ["client", "tick", "time"]));
-  pushAll(facts, inputView("mousePosition", ["client", "eid","x","y"]));
-  pushAll(facts, inputView("keyboard", ["client", "eid","keyCode","eventType"]));
+  pushAll(facts, inputView("rawEvent", ["eid", "label", "key", "value"]));
+  pushAll(facts, inputView("eventTime", ["tick", "time"]));
+  pushAll(facts, inputView("mousePosition", ["eid","x","y"]));
+  pushAll(facts, inputView("keyboard", ["eid","keyCode","eventType"]));
   pushAll(facts, inputView("time", ["time"]));
-  pushAll(facts, inputView("timer", ["client", "id", "event", "rate"]));
+  pushAll(facts, inputView("timer", ["id", "event", "rate"]));
   pushAll(facts, inputView("error", ["run", "error", "stack", "line"]));
   pushAll(facts, inputView("profile", ["run", "event", "time"]));
-  pushAll(facts, inputView("client", ["client"]));
   pushAll(facts, view("subscription", ["view"]));
   pushAll(facts, view("uiElem", ["id", "type"]));
   pushAll(facts, view("uiText", ["id", "text"]));

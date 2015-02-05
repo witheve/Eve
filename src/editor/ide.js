@@ -184,6 +184,7 @@ function dispatch(eventInfo) {
     case "openView":
       // open that card?
       unpack [uuid, name] = info;
+      ensureCard(uuid, currentSystem);
       var diff = {"workspaceView": {adds: [[uuid]], removes: []}};
       applySystemDiff({system: currentSystem}, diff);
       dispatch(["diffs", diff]);
