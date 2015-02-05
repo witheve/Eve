@@ -1,36 +1,5 @@
-* sharedSubs
-  | client client:recipient
-  | shared alias view
-  remote = "server"
-  asCells = false
-
-* remote|subscription
-  | sharedSubs remote view recipient alias asCells
-
-* remote|view
-  | remote|subscription remote alias:view
-
-* remote|field
-  | remote|subscription remote alias:view
-  | field view field ix
-
-* remote
-  | sharedSubs remote
-
-* remote
-  | remote|subscription remote
-
-* manuallyShared
-  ~ alias view
-
-* shared
-  | manuallyShared alias view
-
-* manuallySubscribe
-  ~ remote view alias asCells recipient
-
-* remote|subscription
-  | manuallySubscribe remote alias view asCells recipient
+* subscription
+  | workspaceView view
 
 * event
   | rawEvent client eid label key value

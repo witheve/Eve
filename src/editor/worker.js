@@ -115,6 +115,7 @@ eveApp.remoteWatcher = function(application, storage, system) {
     if(diff.adds.length || diff.removes.length) {
       final[view] = diff;
     }
+    console.log("diff: ", view, diff);
     storage[view] = system.getStore(view);
   }
 

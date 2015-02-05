@@ -112,7 +112,7 @@ Card.prototype = {
       );
     }
 
-    this.$rows = JSML.parse(["div"]);
+    this.$rows = JSML.parse(["div", {class: "grid-rows"}]);
     this.$container = JSML.parse(
       ["div", {class: "card open " + this.type},
        ["h2", this.name],

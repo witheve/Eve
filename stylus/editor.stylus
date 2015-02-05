@@ -4,139 +4,10 @@ use('../node_modules/axis-css')
 @import 'nib'
 @import 'axis'
 
-/***********************************/
-  // Name:           Material Shadows
-// Description:    Paper shadows of material design.
-//
-// Git:            https://github.com/mrmlnc/material-shadows
-//
-// ================================================================================
-
-
-
-// Settings
-// --------------------------------------------------------------------------------
-
-$z-depth-css =                         false;
-$z-depth-browser-prefix =              false;
-$z-depth-animation =                   true;
-$z-depth-animation-time =              .28s;
-$z-depth-animation-function =          cubic-bezier(.4, 0, .2, 1);
-
-
-
-// Shadows
-// --------------------------------------------------------------------------------
-$z-depth = {
-  // z-depth-1
-  z1: {
-    top: 0 2px 10px 0 rgba(0, 0, 0, 0.16)
-    bottom: 0 2px 5px 0 rgba(0, 0, 0, 0.26)
-  }
-  // z-depth-2
-  z2: {
-    top: 0 6px 20px 0 rgba(0, 0, 0, 0.19)
-    bottom: 0 8px 17px 0 rgba(0, 0, 0, 0.2)
-  }
-  // z-depth-3
-  z3: {
-    top: 0 17px 50px 0 rgba(0, 0, 0, 0.19)
-    bottom: 0 12px 15px 0 rgba(0, 0, 0, 0.24)
-  }
-  // z-depth-4
-  z4: {
-    top: 0 25px 55px 0 rgba(0, 0, 0, 0.21)
-    bottom: 0 16px 28px 0 rgba(0, 0, 0, 0.22)
-  }
-  // z-depth-5
-  z5: {
-    top: 0 40px 77px 0 rgba(0, 0, 0, 0.22)
-    bottom: 0 27px 24px 0 rgba(0, 0, 0, 0.2)
-  }
-}
-
-
-
-// Mixins
-// --------------------------------------------------------------------------------
-
-prefixer($property, $value, $prefixes)
-  if $z-depth-browser-prefix
-    for $prefix in $prefixes
-      if $prefix == webkit
-        -webkit-{$property}: $value
-      else if $prefix == moz
-        -moz-{$property}: $value
-      else if $prefix == ms
-        -ms-{$property}: $value
-      else if $prefix == o
-        -o-{$property}: $value
-      else if $prefix == spec
-        {$property}: $value
-  else
-    {$property}: $value
-
-// Top & Bottom
-z-depth($depth = 1, $orientation = null)
-  $value = $z-depth["z" + $depth]
-
-  if $orientation == top
-    prefixer(box-shadow, $value["top"], spec)
-  else if $orientation == bottom
-    prefixer(box-shadow, $value["bottom"], spec)
-  else
-    prefixer(box-shadow, s(join(', ', $value["top"], $value["bottom"])), spec)
-
-// Top
-z-depth-top($depth = 1)
-  z-depth($depth, top)
-
-// Bottom
-z-depth-bottom($depth = 1)
-  z-depth($depth, bottom)
-
-// Animation
-z-depth-animation($depth-after, $orientation = full)
-  prefixer(transition, box-shadow $z-depth-animation-time $z-depth-animation-function, webkit o spec)
-  &:hover,
-  &:focus
-    if $orientation == top
-      z-depth-top($depth-after)
-    else if $orientation == bottom
-      z-depth-bottom($depth-after)
-    else
-      z-depth($depth-after)
-
-
-
-// Classes
-// --------------------------------------------------------------------------------
-
-if $z-depth-css
-  .z-depth
-    for $i in (1)..(length($z-depth))
-      &-z{$i}
-        z-depth($i)
-
-        &-top
-          z-depth-top($i)
-
-        &-bottom
-          z-depth-bottom($i)
-
-    // z-depth-animation
-    if $z-depth-animation
-      &-animation
-        &:hover
-          .z-depth-z1,
-          .z-depth-z2,
-          .z-depth-z3,
-          .z-depth-z4,
-          .z-depth-z5
-            prefixer(transition, box-shadow $z-depth-animation-time $z-depth-animation-function, webkit o spec)
-  /*********************************/
-
 global-reset()
+
+$defaultTextColor = rgba(0,0,0,0.87);
+$fonts = "Avenir", "Verdana", "Helvetica", "Arial", sans-serif;
 
 @font-face {
   font-family: 'Nunito';
@@ -150,158 +21,71 @@ global-reset()
 body {
   background: #ececec;
   font-family: "Avenir", "Verdana", "Helvetica", "Arial", sans-serif;
-  display:flex;
-  flex-direction:row;
-  color: rgba(0,0,0,0.87);
+  color: $defaultTextColor;
   height: 100vh;
 }
 
-#stats { fixed: right bottom; margin:15px; color:#777; display:none; }
-#stats span:first-child { display:inline-block; width:50px; text-align:right; margin-right:10px; }
-
-#stacksView {
-  display:flex;
-  flex-direction: column;
-  flex:1;
-  align-items: center;
-  justify-content: center;
-  align-content: center;
-  flex-wrap:wrap;
-  .stack {
-    z-depth(1);
-    padding:40px 40px;
-    background:#f7f7f7;
-    margin:15px;
-    border-radius:2px;
-    z-depth-animation(2);
-  }
-
-  h2 {
-    display: flex;
-  }
-}
-#testStacks, #exampleStacks {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  align-content: center;
-  flex-wrap:wrap;
-  margin-bottom: 5em;
-}
-#stack { display:flex; flex:1; }
-
-#editor {
-  flex:1;
-  position:relative;
-  .CodeMirror {
-    z-depth(1);
-    overflow:hidden;
-    border-radius:2px;
-    position:absolute;
-    top:30px; bottom:30px; left:20px; right:20px;
-  }
-  .CodeMirror-lines {
-    padding: 20px 0; /* Vertical padding around content */
-  }
-  .CodeMirror pre {
-    padding: 0 20px; /* Horizontal padding of content */
-  }
-  .CodeMirror-scroll { height:100%; }
-}
-#cards { flex: 1.2;
+#cards {
   background: #ececec;
-  position:relative;
+  position:absolute;
   overflow:auto;
-  max-height:100%;
-  padding-bottom:100px;
-  display:flex;
-  flex-direction: column;
+  top:60px;
+  bottom:50px;
+  left:50px;
+  right:50px;
 }
-/* #errors { pointer-events:none; position:absolute; top:0px; bottom:0px; left:0px; right:0px; background: rgba(255,100,100,0.9); padding:20px;} */
-.errorCard { flex:none; display:none; margin:30px; margin-bottom:0; padding:10px 20px; background: #f56 !important; overflow:auto; border-radius:3px; z-depth(1); }
-.errorCard > div { width: 100%; }
-.errorCard pre { display:block; white-space:pre; color: #000; font-family:"Inconsolata", "Menlo", "Courier New", monospace; }
 
-#return { position:fixed; bottom:20px; right:20px;
-    z-depth(1);
-    z-depth-animation(2);
-    float:right;
-    border-radius:40px;
-    background:blue;
-    color:white;
-    border:none;
-    outline:none;
-    display:inline-block;
-    vertical-align:middle;
-    z-index:10;
-    width:40px;
-    height:40px;
 
-    .icon {
-      font-size:20pt;
-      vertical-align:middle;
+.searcher {
+  position:fixed;
+  top:10px;
+  left:40px;
+  padding:10px;
+
+  input {
+    outline: none;
+    width:100%;
+    font-size:11pt;
+    color: $defaultTextColor;
+    font-family: $fonts;
+  }
+
+  ul {
+    font-size:11pt;
+    display:none;
+  }
+
+  &.active {
+    border:1px solid #ddd;
+    background:#f7f7f7;
+    input {
+      border:none;
+      background: #f7f7f7;
     }
-}
-.controlCard {
-  margin:30px;
-  display:block;
-  h1 {
-    vertical-align:middle;
-    font-size: 16pt;
-    margin-top:3px;
-    color: rgba(0,0,0,0.56);
-    display:inline-block;
+    ul {
+      display:block;
+      li:first-child {
+        border-top:1px solid #ddd;
+        padding-top:8px;
+      }
+      li {
+        padding:3px;
+        margin-top:5px;
+        &:hover {
+          border-radius:2px;
+          background: #e5e5e5;
+        }
+      }
+    }
   }
 }
-
-.uiCard { background:#f4f4f4; margin:30px; margin-top:0px; border-radius:3px; padding:20px;
-  flex:none;
-  z-depth(1);
-}
-.uiCard h2 { font-size:14pt; color: rgba(0,0,0, 0.56); margin-bottom:10px; }
-.uiCard > div { border-radius:2px; overflow:hidden; box-shadow: 0 0px 0px rgba(0,0,0,0.26); }
-
-$fonts = "Inconsolata", "Menlo", "Courier New", monospace;
-
-.cm-s-default { background: #f7f7f7; color: #555; font-family:$fonts;  }
-.CodeMirror-dialog { font-family: $fonts; background: #e0e0e0; color: #555; border:none; }
-.CodeMirror-dialog input { font-size:11pt; }
-.cm-s-default div.CodeMirror-cursor { border-color: #888; }
-.cm-s-default.cm-fat-cursor div.CodeMirror-cursor { border:none; background:#aaa; }
-.cm-s-default .CodeMirror-selected { background:rgba(250,0,0,0.1); border-radius:2px; }
-.cm-s-default span.cm-operator { color: #888; }
-.cm-s-default span.cm-comment { color: #999; }
-.cm-s-default span.cm-symbol { color: #aa00cc; }
-.cm-s-default span.cm-field { color: #aa00cc; }
-.cm-s-default span.cm-symbol-variable { color: #aa00cc; }
-.cm-s-default span.cm-symbol-alias { color: #aa00cc; }
-.cm-s-default span.cm-field-aliased { color: #9972A1; }
-.cm-s-default span.cm-field-assigned { color: #9972A1; }
-.cm-s-default span.cm-string { color:#555; }
-.cm-s-default span.cm-number { color: #555; }
-.cm-s-default span.cm-function { color: #555; }
-.cm-s-default span.cm-attribute { color:#77c; }
-.cm-s-default span.cm-param { color:#aaa; }
-.cm-s-default span.cm-arg { color: #330066; }
-.cm-s-default span.cm-symbol-ruleName, .cm-s-default span.cm-operator-ruleName { color: #28b; }
-.cm-s-default span.cm-symbol-table { color: #28b; }
-.cm-s-default .Codemirror-activeline-background { background: #eee; }
-.cm-s-default .cm-operator.Codemirror-matchingbracket { color: #aaa; border-bottom:1px solid #fff; }
-.cm-s-default .cm-searching { background: rgba(0,100,250, .20); border-radius:2px; color: #55a !important; }
-.CodeMirror-hints { background: #e0e0e0; border:none; font-size:11pt; font-family: $fonts; padding:0; color:#aaa; }
-.CodeMirror-hints .CodeMirror-hint { padding: 2px 8px; color: #777; }
-.CodeMirror-hints .CodeMirror-hint-active { color: #fff; background:#0ac; }
-
-$open-animation = cubic-bezier(.14,.85,.77,1.03);
 
 .card {
-  flex:none;
+  position:absolute;
   background:#f7f7f7;
   padding:10px 20px;
   padding-bottom:13px;
   padding-top:10px;
-    z-depth(1);
-  margin:0 30px;
   border-radius:3px;
   overflow:hidden;
   display:flex;
@@ -310,12 +94,8 @@ $open-animation = cubic-bezier(.14,.85,.77,1.03);
   margin-top: -5px;
   transition: margin 0.28s $open-animation;
 
-/*   &:hover h2 {
-    color:blue;
-  } */
-
   h2 {
-    transition: margin 0.28s $open-animation;
+    flex: none;
     cursor: default;
     font-size: 14pt;
     color: rgba(0,0,0,0.56);
@@ -323,27 +103,15 @@ $open-animation = cubic-bezier(.14,.85,.77,1.03);
 
   .grid {
     overflow:hidden;
-    transition:max-height 0.28s $open-animation;
-    max-height:0px;
-    border-width:0;
-    min-height:0;
+    flex: 1;
   }
 
-}
-.card.open {
-  margin:30px;
-  h2 { margin-bottom:10px; }
- .grid { max-height:100%; border-width:1px; min-height:40px; overflow:auto; max-width:100%; }
 }
 
 .card.input-card {
     background: linear-gradient(top, rgba(247, 247, 247, 0.75), rgba(247, 247, 247, 0.75)), url("../input.jpg");
     background-size: cover;
     background-position: center;
-}
-
-#uiCard + .card.open, .card.open + .card.open {
-  margin-top:0px;
 }
 
 .grid {
@@ -354,9 +122,16 @@ $open-animation = cubic-bezier(.14,.85,.77,1.03);
   min-height:40px;
   background: rgba(0,0,0,0.03);
   flex-shrink:0;
+  display:flex;
+  flex-direction:column;
+
+  .grid-rows {
+    overflow:auto;
+  }
 
   .grid-header {
     display:flex;
+    flex: none;
     border-bottom:1px solid $border-color;
     background:rgba(0,0,0,0.1);
     div {
@@ -374,6 +149,9 @@ $open-animation = cubic-bezier(.14,.85,.77,1.03);
       width: 1em;
       height: 1em;
       position: relative;
+      border:none;
+      background:none;
+      outline:none;
 
       &::after {
         position: absolute;
@@ -410,7 +188,7 @@ $open-animation = cubic-bezier(.14,.85,.77,1.03);
       outline: 1px solid orange;
     }
   }
-  .grid-row + .grid-row {
-    border-top:1px solid $border-color;
+  .grid-row {
+    border-bottom:1px solid $border-color;
   }
 }

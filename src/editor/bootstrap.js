@@ -105,6 +105,7 @@ function onWorkerMessage(event) {
       var diffs = event.data.diffs;
       applySystemDiff({system: system}, diffs);
 
+      console.log("here", diffs);
       ide.render(diffs, system);
       programWorker.postMessage({type: "pull", runNumber: event.data.runNumber});
       break;
@@ -119,7 +120,7 @@ function createWorker() {
 
 var programWorker = global.programWorker = createWorker();
 
-var system = codeToSystem( examples["Runtime"] + "\n\n" + examples["TodoMVC"]);
+var system = codeToSystem( examples["Runtime"] + "\n\n" + examples["Clock"]);
 programWorker.postMessage({type: "diffs", diffs: diffSystems(system, null, null)});
 
 var workspaceViews = system.getStore("workspaceView").getFacts().map(function(row) {
