@@ -82,7 +82,7 @@ function render(diffs, system) {
     viewUI[view].removeRows(diff.removes);
     viewUI[view].addRows(diff.adds);
   }
-  grid.makeGrid(document.querySelector("#cards"), {gridSize: [5,2],
+  grid.makeGrid(document.querySelector("#cards"), {gridSize: [2,2],
                                                    marginSize: [10,10]});
 }
 module.exports.render = render;
@@ -155,7 +155,7 @@ function selectField(card, rowId, ix) {
           var $field = card.getField(rowId, ix);
           $field.textContent = "";
         } else {
-          var oldFact = idToFact(rowId);
+          var oldFact = card.rowIdToFact(rowId);
           fact = oldFact.slice();
           removes.push(oldFact);
         }

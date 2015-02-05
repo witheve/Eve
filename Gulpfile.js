@@ -10,17 +10,18 @@ var sweetify = require("sweetify");
 
 // Styles
 
-gulp.task("stylus", "Compile stylus files to CSS.", function() {
+function compileStylus() {
   return gulp.src("stylus/**/*.stylus")
   .pipe(sourcemaps.init())
   .pipe(stylus())
   .pipe(sourcemaps.write("."))
   .pipe(gulp.dest("stylus"));
-});
+}
+gulp.task("stylus", "Compile stylus files to CSS.", compileStylus);
 
 gulp.task("watch-stylus", "Watch stylus files for changes.", ["stylus"], function() {
-  gulp.watch("stylus/**/*.stylus", batch(function(events, done) {
-    gulp.start("stylus", done);
+  return gulp.watch("stylus/**/*.stylus", batch(function(events) {
+    return compileStylus();
   }));
 });
 
@@ -29,40 +30,57 @@ gulp.task("watch-stylus", "Watch stylus files for changes.", ["stylus"], functio
 var editorSources = ["src/editor/**/*.js"];
 var macroSources = ["src/**/*.sjs"];
 
-gulp.task("build-editor", "Build the editor bundle.", function() {
-  var editorFiles = glob.sync(editorSources).map(function(file) {
-    return "./" + file;
-  });
+function bundle(name, files) {
   var bundler = browserify({
-    entries: editorFiles,
+    entries: files,
     debug: true
   });
   bundler.transform(sweetify, {
     extensions: /.+\.(js|sjs)$/,
+    formatIndent: 2,
     readableNames: true
   });
 
   return bundler.bundle()
-  .pipe(source("editor.js"))
+  .pipe(source(name))
   .pipe(buffer())
   .pipe(sourcemaps.init({loadMaps: true}))
   .pipe(sourcemaps.write("."))
-  .pipe(gulp.dest("build"));
+  .pipe(gulp.dest("build"))
+  .on("end", function() {
+    bundler.reset();
+  });
+}
+gulp.task("build-editor", "Build the editor bundle.", function() {
+  bundle("editor.js", ["./src/editor/bootstrap.js"]);
 });
 
-gulp.task("build", "Build all the things.", ["stylus", "build-editor"]);
+gulp.task("build-worker", "Build the worker bundle.", function() {
+  bundle("worker.js", ["./src/editor/worker.js"]);
+});
+
+gulp.task("build", "Build all the things.", ["stylus", "build-editor", "build-worker"]);
 
 // Watch tasks
 
 gulp.task("watch-editor", "Watch editor related files for changes.", ["build-editor"], function() {
-  gulp.watch(editorSources.concat(macroSources), function(events, done) {
-    gulp.start("build-editor");
+  return gulp.watch(editorSources.concat(macroSources), function(events) {
+    console.log("Recompiling editor");
+    return bundle("editor.js", ["./src/editor/bootstrap.js"]);
   });
 });
+
+gulp.task("watch-worker", "Watch worker related files for changes.", ["build-worker"], function() {
+  return gulp.watch(editorSources.concat(macroSources), function(events) {
+    console.log("Recompiling worker");
+    return bundle("worker.js", ["./src/editor/worker.js"]);
+  });
+});
+
 
 // Run the server.
 gulp.task("run-server", "Run the eve server.", function() {
   require('./server');
 });
 
-gulp.task("watch", "Watch all the things.", ["watch-stylus", "watch-editor", "run-server"]);
+gulp.task("watch", "Watch all the things.", ["watch-stylus", "watch-editor", "watch-worker", "run-server"]);

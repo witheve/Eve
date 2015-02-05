@@ -166,7 +166,7 @@ function uiDiffRenderer(diff, storage, program) {
 
   //add elements
   var uiElemAdds = diff["uiElem"].adds;
-  for(addElem of uiElemAdds) {
+  foreach(addElem of uiElemAdds) {
     unpack [id, type] = addElem;
     if(!svgs[type]) {
       var tag = type || "span";
