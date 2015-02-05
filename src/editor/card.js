@@ -12,11 +12,31 @@ const FIELD_IX = 2;
 const DISPLAY_NAME_ID = 0;
 const DISPLAY_NAME_NAME = 1;
 
+function factToId(card, fact) {
+  var key = JSON.stringify(fact);
+  if(!(key in card.rowIds)) {
+    card.rowIds[key] = card._maxRowId++;
+  }
+  return card.rowIds[key];
+}
+
+function idToFact(card, id) {
+  id = +id;
+  forattr(key, cid of card.rowIds) {
+    if(id === cid) {
+      return JSON.parse(key);
+    }
+  }
+}
+
+
 function Card(id, name, system) {
   this.name = id;
   this.id = name;
   this.system = system;
   this.rows = {};
+  this.rowIds = {};
+  this._maxRowId = 0;
   this.sortIx = 0;
   this.sortDir = 1;
   this.type = "table-card";
@@ -58,13 +78,17 @@ Card.prototype = {
     this.sortDir = dir;
 
     forattr(rowId, $row of this.rows) {
-      var fact = idToFact(rowId);
+      var fact = idToFact(this, rowId);
       $row.eveSortValue = fact[this.sortIx];
     }
 
     forattr(rowId, $row of this.rows) {
       this.appendRow($row);
     }
+  },
+
+  rowIdToFact: function(rowId) {
+    return idToFact(this, rowId);
   },
 
   //-------------------------------------------------------
@@ -155,7 +179,7 @@ Card.prototype = {
 
   removeRows: function(removes) {
     foreach(row of removes) {
-      var rowId = factToId(row);
+      var rowId = factToId(this, row);
       var $row = this.rows[rowId];
       if($row) {
         this.$rows.removeChild($row);
@@ -166,7 +190,7 @@ Card.prototype = {
 
   addRows: function(adds) {
     foreach(fact of adds) {
-      var rowId = factToId(fact);
+      var rowId = factToId(this, fact);
       if(this.rows[rowId]) { continue; }
 
       var $row = this.createRow(rowId, fact);

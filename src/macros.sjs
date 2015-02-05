@@ -47,21 +47,6 @@ macro forattr {
 }
 export forattr
 
-macro factToId {
-  rule {($fact:expr)} => {
-    JSON.stringify($fact);
-  }
-}
-export factToId
-
-macro idToFact {
-  rule {($id:expr)} => {
-    JSON.parse($id);
-  }
-}
-export idToFact
-
-
 macro unpack {
   rule {[$name:ident (,) ...] = $expr} => {
     var e = $expr;
