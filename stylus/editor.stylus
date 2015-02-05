@@ -87,7 +87,8 @@ body {
   padding-bottom:13px;
   padding-top:10px;
   border-radius:3px;
-  overflow:hidden;
+  overflow-y:hidden;
+  overflow-x: auto;
   display:flex;
   flex-direction:column;
   align-items: flex-start;
