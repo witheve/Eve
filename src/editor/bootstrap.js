@@ -105,7 +105,6 @@ function onWorkerMessage(event) {
       var diffs = event.data.diffs;
       applySystemDiff({system: system}, diffs);
 
-      console.log("here", diffs);
       ide.render(diffs, system);
       programWorker.postMessage({type: "pull", runNumber: event.data.runNumber});
       break;

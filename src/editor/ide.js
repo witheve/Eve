@@ -82,8 +82,8 @@ function render(diffs, system) {
     viewUI[view].removeRows(diff.removes);
     viewUI[view].addRows(diff.adds);
   }
-  console.log(grid.makeGrid(document.querySelector("#cards"), {gridSize: [5,2],
-                                                        marginSize: [10,10]}));
+  grid.makeGrid(document.querySelector("#cards"), {gridSize: [5,2],
+                                                   marginSize: [10,10]});
 }
 module.exports.render = render;
 
