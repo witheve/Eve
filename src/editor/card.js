@@ -111,16 +111,34 @@ Card.prototype = {
         ]
       );
     }
+    // header.push(["div", {class: "header"}]);
 
+    this.$newRow = this.createRow("newRow", new Array(fields.length), {class: "empty"});
     this.$rows = JSML.parse(["div"]);
     this.$container = JSML.parse(
       ["div", {class: "card open " + this.type},
        ["h2", this.name],
-       ["div", {class: "grid"}, header, this.$rows]
+       ["div", {class: "grid"},
+        header,
+        this.$rows,
+        (this.type === "input-card") ? this.$newRow : ""
+       ]
       ]
     );
 
     return this.$container;
+  },
+
+  createRow: function(rowId, fact, opts) {
+    opts = opts || {};
+    opts.class = opts.class || "";
+    var row = ["div", {class: "grid-row " + opts.class, rowId: rowId}];
+    foreach(ix, field of fact) {
+      var handler = this._selectFieldHandler(this, rowId, ix);
+      row.push(["div", {click: handler}, field]);
+    }
+
+    return JSML.parse(row);
   },
 
   renderRows: function() {
@@ -151,14 +169,7 @@ Card.prototype = {
       var rowId = factToId(fact);
       if(this.rows[rowId]) { continue; }
 
-      var row = ["div", {class: "grid-row", rowId: rowId}];
-
-      foreach(ix, field of fact) {
-        var handler = this._selectFieldHandler(this, rowId, ix);
-        row.push(["div", {click: handler}, field]);
-      }
-
-      var $row = JSML.parse(row);
+      var $row = this.createRow(rowId, fact);
       $row.eveSortValue = fact[this.sortIx];
       this.rows[rowId] = $row;
       this.appendRow($row);
@@ -167,7 +178,12 @@ Card.prototype = {
 
   getField: function(rowId, ix) {
     var $row = this.rows[rowId];
-    if(!$row) { return; }
+    if(!$row) {
+      if(rowId === "newRow") {
+        return this.$newRow.childNodes[ix];
+      }
+      return;
+    }
 
     return $row.childNodes[ix];
   },

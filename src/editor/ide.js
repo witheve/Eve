@@ -128,15 +128,29 @@ function selectField(card, rowId, ix) {
         }
       },
       blur: function(evt) {
+        var adds = [], removes = [];
+        var fact;
         card.selectField();
         var data = evt.target.value;
         if(!data) { return; }
 
-        var oldFact = idToFact(rowId);
-        var fact = oldFact.slice();
+        if(rowId === "newRow") {
+          fact = [];
+          for(var i = 0, len = card.getFields().length; i < len; i++) {
+            fact.push("");
+          }
+          var $field = card.getField(rowId, ix);
+          $field.textContent = "";
+        } else {
+          var oldFact = idToFact(rowId);
+          fact = oldFact.slice();
+          removes.push(oldFact);
+        }
+
         fact[ix] = (isNaN(data)) ? data : +data;
+        adds.push(fact);
         var diffs = {};
-        diffs[card.id] = {adds: [fact], removes: [oldFact]};
+        diffs[card.id] = {adds: adds, removes: removes};
         dispatch(["diffs", diffs]);
       }
     });
