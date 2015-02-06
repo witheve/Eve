@@ -48,7 +48,7 @@ macro forattr {
 export forattr
 
 macro unpack {
-  rule {[$name:ident (,) ...] = $expr} => {
+  rule {[$name:ident (,) ...] = $expr:expr} => {
     var e = $expr;
     var i = 0
     $(; var $name = e[i++]) ...
