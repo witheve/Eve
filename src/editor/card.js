@@ -38,10 +38,11 @@ function Card(id, name, system) {
   this.name = id;
   this.id = name;
   this.system = system;
-  this.fields = [];
+  this.currentFields = [];
   this.rows = {};
   this.rowIds = {};
   this._maxRowId = 0;
+  this.selectedField = null;
   this.sortIx = null;
   this.sortDir = 0;
   this.type = "table-card";
@@ -131,18 +132,18 @@ Card.prototype = {
     fields = this.getFields(fields).slice();
 
     if(this.$container) {
-      if(JSON.stringify(fields) === JSON.stringify(this.fields)) { return this.$container; }
+      if(JSON.stringify(fields) === JSON.stringify(this.currentFields)) { return this.$container; }
       this.$container.parentNode.removeChild(this.$container);
       this.$container = null;
       this.clearRows();
     }
 
     fields.sort(function(a, b) {
-      return (a[ix] > b[ix]) ? 1 : -1;
+      if(a[FIELD_IX] === b[FIELD_IX]) return 0;
+      return (a[FIELD_IX] > b[FIELD_IX]) ? 1 : -1;
     });
-    this.fields = fields;
+    this.currentFields = fields;
     var nameMap = this.getNameMap(names, fields);
-
     // Populate the grid-header with field headers.
     var header = ["div", {class: "grid-header"}];
     foreach(fieldFact of fields) {
