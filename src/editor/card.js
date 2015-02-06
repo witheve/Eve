@@ -37,8 +37,8 @@ function Card(id, name, system) {
   this.rows = {};
   this.rowIds = {};
   this._maxRowId = 0;
-  this.sortIx = 0;
-  this.sortDir = 1;
+  this.sortIx = null;
+  this.sortDir = 0;
   this.type = "table-card";
 
   var isInputs = this.system.getStore("isInput").getFacts();
@@ -77,9 +77,20 @@ Card.prototype = {
     this.sortIx = ix;
     this.sortDir = dir;
 
-    forattr(rowId, $row of this.rows) {
-      var fact = idToFact(this, rowId);
-      $row.eveSortValue = fact[this.sortIx];
+    $(this.$container).find(".header .sort-btn").attr("sort-dir", -1);
+
+    if(ix !== null) {
+      // Sort by ix.
+      $(this.$container).find(".header[ix=" + ix + "] .sort-btn").attr("sort-dir", dir);
+      forattr(rowId, $row of this.rows) {
+        var fact = idToFact(this, rowId);
+        $row.eveSortValue = fact[this.sortIx];
+      }
+    } else {
+      // Sort by insertion.
+      forattr(rowId, $row of this.rows) {
+        $row.eveSortValue = rowId;
+      }
     }
 
     forattr(rowId, $row of this.rows) {
@@ -194,7 +205,11 @@ Card.prototype = {
       if(this.rows[rowId]) { continue; }
 
       var $row = this.createRow(rowId, fact);
-      $row.eveSortValue = fact[this.sortIx];
+      if(this.sortIx !== null) {
+        $row.eveSortValue = fact[this.sortIx];
+      } else {
+        $row.eveSortValue = rowId;
+      }
       this.rows[rowId] = $row;
       this.appendRow($row);
     }
@@ -218,6 +233,10 @@ Card.prototype = {
   selectField: function(rowId, ix) {
     if(this.selectedField) {
       unpack [oldRowId, oldIx] = (this.selectedField);
+      if(oldRowId === "newRow") {
+        // Clear sort order when adding a new row.
+        this.sortBy(null, 0);
+      }
       var $oldField = this.getField(oldRowId, oldIx);
       $oldField.classList.remove("selected");
     }
@@ -239,8 +258,6 @@ Card.prototype = {
         sortDir = 0;
       }
 
-      $(self.$container).find(".sort-btn").attr("sort-dir", -1);
-      evt.target.setAttribute("sort-dir", sortDir);
       ide.dispatch(["sortCard", self, ix, sortDir]);
     };
   },
