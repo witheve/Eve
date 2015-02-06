@@ -307,7 +307,8 @@ function searchForView(system, needle) {
   foreach(view of system.getStore("view").getFacts()) {
     unpack [uuid] = view;
     //if(displayNames[uuid].indexOf(needle) > -1) {
-    if(uuid.indexOf(needle) > -1) {
+    // @FIXME: temporary hack for better searching until we use display names.
+    if(uuid.toLowerCase().indexOf(needle.toLowerCase()) > -1) {
        //results.push([uuid, displayNames[uuid]]);
        results.push([uuid, uuid]);
     }
