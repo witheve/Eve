@@ -38,6 +38,7 @@ function Card(id, name, system) {
   this.name = id;
   this.id = name;
   this.system = system;
+  this.fields = [];
   this.rows = {};
   this.rowIds = {};
   this._maxRowId = 0;
@@ -128,15 +129,19 @@ Card.prototype = {
 
   renderCard: function(names, fields) {
     fields = this.getFields(fields).slice();
+
+    if(this.$container) {
+      if(JSON.stringify(fields) === JSON.stringify(this.fields)) { return this.$container; }
+      this.$container.parentNode.removeChild(this.$container);
+      this.$container = null;
+      this.clearRows();
+    }
+
     fields.sort(function(a, b) {
       return (a[ix] > b[ix]) ? 1 : -1;
     });
+    this.fields = fields;
     var nameMap = this.getNameMap(names, fields);
-
-    if(this.$container) {
-      this.$container.parentNode.removeChild(this.$container);
-      this.$container = this.$rows = null;
-    }
 
     // Populate the grid-header with field headers.
     var header = ["div", {class: "grid-header"}];
@@ -186,7 +191,7 @@ Card.prototype = {
   },
 
   clearRows: function() {
-    forattr(id, $row of this.$rows) {
+    forattr(id, $row of this.rows) {
       this.$rows.removeChild($row);
     }
     this.rows = {};
@@ -219,6 +224,11 @@ Card.prototype = {
       }
       this.rows[rowId] = $row;
       this.appendRow($row);
+    }
+
+    if(this.selectedField) {
+      unpack [rowId, ix] = this.selectedField;
+      this.selectField(rowId, ix);
     }
   },
 
