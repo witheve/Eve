@@ -12,6 +12,10 @@ const FIELD_IX = 2;
 const DISPLAY_NAME_ID = 0;
 const DISPLAY_NAME_NAME = 1;
 
+function factToKey(card, fact) {
+  return JSON.stringify(fact);
+}
+
 function factToId(card, fact) {
   var key = JSON.stringify(fact);
   if(!(key in card.rowIds)) {
@@ -196,6 +200,9 @@ Card.prototype = {
         this.$rows.removeChild($row);
         delete this.rows[rowId];
       }
+
+      var key = factToKey(this, row);
+      delete this.rowIds[key];
     }
   },
 
