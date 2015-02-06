@@ -23,10 +23,10 @@ body {
   font-family: "Avenir", "Verdana", "Helvetica", "Arial", sans-serif;
   color: $defaultTextColor;
   height: 100vh;
+  overflow:hidden;
 }
 
 #cards {
-  background: #ececec;
   position:absolute;
   overflow:auto;
   top:60px;
@@ -36,8 +36,23 @@ body {
   transition: 0.4s ease-in-out;
 }
 
-#cards.zoom {
+#cardEditor {
+  position:absolute;
+  overflow:auto;
+  top:60px;
+  bottom:50px;
+  left:50px;
+  right:50px;
+  transition: 0.2s ease-in-out;
+  opacity: 0;
+  pointer-events: none;
+
+  &.active {
+    opacity:1;
+    pointer-events: auto;
+  }
 }
+
 
 
 .searcher {

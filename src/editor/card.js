@@ -137,8 +137,9 @@ Card.prototype = {
     }
     // header.push(["div", {class: "header"}]);
 
+    var self = this;
     var selectCard = function() {
-      ide.dispatch(["selectCard", this]);
+      ide.dispatch(["selectCard", self]);
     }
 
     this.$newRow = this.createRow("newRow", new Array(fields.length), {class: "empty"});

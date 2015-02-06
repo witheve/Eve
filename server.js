@@ -330,6 +330,10 @@ express.post("/src/tests.js/update", function(req, res) {
   res.send("");
 });
 
+express.get("*", function(req, res) {
+  res.send(fs.readFileSync("resources/index.html").toString());
+});
+
 //---------------------------------------------------------
 // Go
 //---------------------------------------------------------

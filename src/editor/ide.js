@@ -24,6 +24,7 @@ const WORKSPACE_VIEW_VIEW = 0;
 
 var viewUI = {};
 var viewsContainer = $("#cards")[0];
+var gridGrid;
 
 // Find all views dirtied in the `field` diff.
 function dirtyViews(diff, views) {
@@ -53,6 +54,7 @@ function ensureCard(view, system) {
     viewUI[view] = new Card(view, view, system);
     var $container = viewUI[view].renderCard(displayNames, fields);
     viewsContainer.appendChild($container);
+    grid.layout(gridGrid);
   }
 }
 
@@ -73,6 +75,7 @@ function render(diffs, system) {
       var $container = viewUI[view].renderCard(displayNames, fields);
       viewsContainer.appendChild($container);
     }
+    grid.layout(gridGrid);
   }
 
   // Add/update/remove rows in response to added or removed facts in all views.
@@ -82,8 +85,6 @@ function render(diffs, system) {
     viewUI[view].removeRows(diff.removes);
     viewUI[view].addRows(diff.adds);
   }
-  grid.makeGrid(document.querySelector("#cards"), {gridSize: [10,10],
-                                                   marginSize: [10,10]});
 }
 module.exports.render = render;
 
@@ -177,7 +178,6 @@ function selectField(card, rowId, ix) {
 //---------------------------------------------------------
 
 var currentSystem = null;
-var mode = "grid";
 
 function dispatch(eventInfo) {
   unpack [event, info] = eventInfo;
@@ -215,7 +215,19 @@ function dispatch(eventInfo) {
 
     case "selectCard":
       if(mode === "grid") {
+        window.history.pushState({cardName: info.name}, info.name, "/" + info.name);
         selectCard(info);
+      } else {
+        window.history.pushState({}, "eve", "/");
+        deselectCard();
+      }
+      break;
+
+    case "locationChange":
+      if(info.state && info.state.cardName && viewUI[info.state.cardName]) {
+        selectCard(viewUI[info.state.cardName]);
+      } else if(mode !== "grid") {
+        deselectCard();
       }
       break;
   }
@@ -223,11 +235,14 @@ function dispatch(eventInfo) {
 module.exports.dispatch = dispatch;
 
 //---------------------------------------------------------
-// card mode
+// modes
 //---------------------------------------------------------
 
+var mode = "grid";
+var activeCard = null;
+
 function selectCard(card) {
-  console.log(card);
+  activeCard = card;
   mode = "card";
   var cardsElem = document.querySelector("#cards");
   var targetDims = card.$container.getBoundingClientRect();
@@ -238,16 +253,49 @@ function selectCard(card) {
   var ty = targetDims.top + targetDims.height / 2;
   var x = (tx - cx) * 10;
   var y = (ty - cy) * 10;
-  cardsElem.classList.toggle("zoom");
-  if(cardsElem.classList.contains("zoom")) {
-    cardsElem.style.transform = "translate(" + -x + "px, " + -y + "px) scale(10)";
-    cardsElem.style.transformOrigin = "50% 50%";
-    cardsElem.style.opacity = 0;
-  } else {
-    mode = "grid";
-    cardsElem.style.transform = "";
-    cardsElem.style.opacity = 1;
-  }
+  cardsElem.classList.add("zoom");
+  cardsElem.style.transform = "translate(" + -x + "px, " + -y + "px) scale(10)";
+  cardsElem.style.transformOrigin = "50% 50%";
+  cardsElem.style.opacity = 0;
+  setTimeout(function() {
+    activateCardEditor(card);
+  }, 400);
+}
+
+function deselectCard() {
+  document.getElementById("cardEditor").classList.remove("active");
+  var cardsElem = document.querySelector("#cards");
+  mode = "grid";
+  cardsElem.classList.remove("zoom");
+  cardsElem.style.transform = "";
+  cardsElem.style.opacity = 1;
+  releaseCard(activeCard);
+}
+
+//---------------------------------------------------------
+// card editor
+//---------------------------------------------------------
+
+var cardEditorGrid;
+
+function activateCardEditor(card) {
+  document.getElementById("cardEditor").classList.add("active");
+  card.prevParent = card.$container.parentNode;
+  card.prevSibling = card.$container.nextSibling;
+  card.prevPosition = {top: card.$container.style.top,
+                       left: card.$container.style.left,
+                       width: card.$container.style.width,
+                       height: card.$container.style.height};
+  document.getElementById("cardEditor").appendChild(card.$container);
+  grid.setSizeAndPosition(cardEditorGrid, card.$container, [10,12], [0,1]);
+}
+
+function releaseCard(card) {
+  card.$container.style.top = card.prevPosition.top;
+  card.$container.style.left = card.prevPosition.left;
+  card.$container.style.width = card.prevPosition.width;
+  card.$container.style.height = card.prevPosition.height;
+  card.prevParent.insertBefore(card.$container, card.prevSibling);
 }
 
 //---------------------------------------------------------
@@ -356,6 +404,14 @@ function init(system) {
   searcher = createSearcher();
   document.body.appendChild(searcher.elem);
   document.body.appendChild(input.elem);
+  window.addEventListener("popstate", function(e) {
+    dispatch(["locationChange", event]);
+  });
+  cardEditorGrid = grid.makeGrid(document.querySelector("#cardEditor"), {gridSize: [12,12],
+                                                                         marginSize: [10,10]})
+
+  gridGrid = grid.makeGrid(document.querySelector("#cards"), {gridSize: [5,2],
+                                                              marginSize: [10,10]});
 }
 
 module.exports.init = init;
