@@ -351,5 +351,15 @@ function commonViews() {
   pushAll(facts, view("uiAttr", ["id", "attr", "value"]));
   pushAll(facts, view("uiStyle", ["id", "attr", "value"]));
   pushAll(facts, view("uiEvent", ["id", "event", "label", "key"]));
+
+  facts.push(
+    ["tag", "rawEvent", "system input"],
+    ["tag", "eventTime", "system input"],
+    ["tag", "mousePosition", "system input"],
+    ["tag", "keyboard", "system input"],
+    ["tag", "time", "system input"],
+    ["tag", "error", "system input"],
+    ["tag", "profile", "system input"]
+  );
   return facts;
 }
