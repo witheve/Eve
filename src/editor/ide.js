@@ -218,8 +218,8 @@ function dispatch(eventInfo) {
         window.history.pushState({cardName: info.name}, info.name, "/" + info.name);
         selectCard(info);
       } else {
-        window.history.pushState({}, "eve", "/");
-        deselectCard();
+        //window.history.pushState({}, "eve", "/");
+        //deselectCard();
       }
       break;
 
