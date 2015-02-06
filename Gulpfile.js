@@ -43,9 +43,9 @@ function bundle(name, files) {
 
   return bundler.bundle()
   .pipe(source(name))
-  .pipe(buffer())
-  .pipe(sourcemaps.init({loadMaps: true}))
-  .pipe(sourcemaps.write("."))
+  //.pipe(buffer())
+  //.pipe(sourcemaps.init({loadMaps: true}))
+  //.pipe(sourcemaps.write("."))
   .pipe(gulp.dest("build"))
   .on("end", function() {
     bundler.reset();

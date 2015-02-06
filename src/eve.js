@@ -799,15 +799,18 @@ System.empty = function(meta) {
 
   var compilerViews = [];
   var compilerFields = [];
+  var compilerDisplayNames = [];
 
   for (var i = compilerSchemas.length - 1; i >= 0; i--) {
     var view = compilerSchemas[i][0];
     var fields = compilerSchemas[i].slice(1);
 
+
     compilerViews.push([view])
     for (var j = fields.length - 1; j >= 0; j--) {
       // mangle field names the same way the parser does :(
       var field = view + "|field=" + fields[j];
+      compilerDisplayNames.push([field, fields[j]]);
       compilerFields.push([field, view, j]);
     }
 
@@ -827,6 +830,7 @@ System.empty = function(meta) {
   var system = new System(meta, stores, flows, dirtyFlows, checkFlows, downstream, nameToIx, ixToName);
   system.updateStore("view", compilerViews, []);
   system.updateStore("field", compilerFields, []);
+  system.updateStore("displayName", compilerDisplayNames, []);
   system.updateStore("isInput", compilerViews, []);
   return system;
 };

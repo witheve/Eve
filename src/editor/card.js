@@ -12,6 +12,10 @@ const FIELD_IX = 2;
 const DISPLAY_NAME_ID = 0;
 const DISPLAY_NAME_NAME = 1;
 
+function factToKey(card, fact) {
+  return JSON.stringify(fact);
+}
+
 function factToId(card, fact) {
   var key = JSON.stringify(fact);
   if(!(key in card.rowIds)) {
@@ -34,11 +38,12 @@ function Card(id, name, system) {
   this.name = id;
   this.id = name;
   this.system = system;
+  this.fields = [];
   this.rows = {};
   this.rowIds = {};
   this._maxRowId = 0;
-  this.sortIx = 0;
-  this.sortDir = 1;
+  this.sortIx = null;
+  this.sortDir = 0;
   this.type = "table-card";
 
   var isInputs = this.system.getStore("isInput").getFacts();
@@ -77,9 +82,20 @@ Card.prototype = {
     this.sortIx = ix;
     this.sortDir = dir;
 
-    forattr(rowId, $row of this.rows) {
-      var fact = idToFact(this, rowId);
-      $row.eveSortValue = fact[this.sortIx];
+    $(this.$container).find(".header .sort-btn").attr("sort-dir", -1);
+
+    if(ix !== null) {
+      // Sort by ix.
+      $(this.$container).find(".header[ix=" + ix + "] .sort-btn").attr("sort-dir", dir);
+      forattr(rowId, $row of this.rows) {
+        var fact = idToFact(this, rowId);
+        $row.eveSortValue = fact[this.sortIx];
+      }
+    } else {
+      // Sort by insertion.
+      forattr(rowId, $row of this.rows) {
+        $row.eveSortValue = rowId;
+      }
     }
 
     forattr(rowId, $row of this.rows) {
@@ -113,15 +129,19 @@ Card.prototype = {
 
   renderCard: function(names, fields) {
     fields = this.getFields(fields).slice();
+
+    if(this.$container) {
+      if(JSON.stringify(fields) === JSON.stringify(this.fields)) { return this.$container; }
+      this.$container.parentNode.removeChild(this.$container);
+      this.$container = null;
+      this.clearRows();
+    }
+
     fields.sort(function(a, b) {
       return (a[ix] > b[ix]) ? 1 : -1;
     });
+    this.fields = fields;
     var nameMap = this.getNameMap(names, fields);
-
-    if(this.$container) {
-      this.$container.parentNode.removeChild(this.$container);
-      this.$container = this.$rows = null;
-    }
 
     // Populate the grid-header with field headers.
     var header = ["div", {class: "grid-header"}];
@@ -177,7 +197,7 @@ Card.prototype = {
   },
 
   clearRows: function() {
-    forattr(id, $row of this.$rows) {
+    forattr(id, $row of this.rows) {
       this.$rows.removeChild($row);
     }
     this.rows = {};
@@ -191,6 +211,9 @@ Card.prototype = {
         this.$rows.removeChild($row);
         delete this.rows[rowId];
       }
+
+      var key = factToKey(this, row);
+      delete this.rowIds[key];
     }
   },
 
@@ -200,9 +223,18 @@ Card.prototype = {
       if(this.rows[rowId]) { continue; }
 
       var $row = this.createRow(rowId, fact);
-      $row.eveSortValue = fact[this.sortIx];
+      if(this.sortIx !== null) {
+        $row.eveSortValue = fact[this.sortIx];
+      } else {
+        $row.eveSortValue = rowId;
+      }
       this.rows[rowId] = $row;
       this.appendRow($row);
+    }
+
+    if(this.selectedField) {
+      unpack [rowId, ix] = this.selectedField;
+      this.selectField(rowId, ix);
     }
   },
 
@@ -224,6 +256,10 @@ Card.prototype = {
   selectField: function(rowId, ix) {
     if(this.selectedField) {
       unpack [oldRowId, oldIx] = (this.selectedField);
+      if(oldRowId === "newRow") {
+        // Clear sort order when adding a new row.
+        this.sortBy(null, 0);
+      }
       var $oldField = this.getField(oldRowId, oldIx);
       $oldField.classList.remove("selected");
     }
@@ -245,8 +281,6 @@ Card.prototype = {
         sortDir = 0;
       }
 
-      $(self.$container).find(".sort-btn").attr("sort-dir", -1);
-      evt.target.setAttribute("sort-dir", sortDir);
       ide.dispatch(["sortCard", self, ix, sortDir]);
     };
   },
