@@ -315,20 +315,37 @@ function pushAll(arr, things) {
   return arr;
 }
 
-function view(name, fields) {
+function view(name, fields, tags) {
+  tags = tags || [];
   addedTables[name] = true;
   var facts = [["view", name]];
   for(var i = 0; i < fields.length; i++) {
     var field = fields[i];
-    var munged = name + "|field=" + field;
-    facts.push(["displayName", munged, field]);
-    facts.push(["field", munged, name, i]);
+    var id = name + "|field=" + field;
+    facts.push(["displayName", id, field]);
+    facts.push(["field", id, name, i]);
+  }
+
+  if(tags.indexOf("input") > -1 && tags.indexOf("system input") === -1) {
+    var field = "__insertion id__";
+    var id = name + "|field=" + field;
+    facts.push(
+      ["displayName", id, field],
+      ["field", id, name, fields.length],
+      ["tag", id, "hidden"]
+    );
+  }
+
+  for(var i = 0; i < tags.length; i++) {
+    facts.push(["tag", name, tags[i]]);
   }
   return facts;
 }
 
-function inputView(name, fields) {
-  var final = view(name, fields);
+function inputView(name, fields, tags) {
+  tags = tags || [];
+  tags.push("input");
+  var final = view(name, fields, tags);
   final.push(["isInput", name]);
   return final;
 }
@@ -336,14 +353,14 @@ function inputView(name, fields) {
 function commonViews() {
   var facts = [];
   pushAll(facts, inputView("workspaceView", ["view"]));
-  pushAll(facts, inputView("rawEvent", ["eid", "label", "key", "value"]));
-  pushAll(facts, inputView("eventTime", ["tick", "time"]));
-  pushAll(facts, inputView("mousePosition", ["eid","x","y"]));
-  pushAll(facts, inputView("keyboard", ["eid","keyCode","eventType"]));
-  pushAll(facts, inputView("time", ["time"]));
+  pushAll(facts, inputView("rawEvent", ["eid", "label", "key", "value"], ["system input"]));
+  pushAll(facts, inputView("eventTime", ["tick", "time"], ["system input"]));
+  pushAll(facts, inputView("mousePosition", ["eid","x","y"], ["system input"]));
+  pushAll(facts, inputView("keyboard", ["eid","keyCode","eventType"], ["system input"]));
+  pushAll(facts, inputView("time", ["time"], ["system input"]));
   pushAll(facts, inputView("timer", ["id", "event", "rate"]));
-  pushAll(facts, inputView("error", ["run", "error", "stack", "line"]));
-  pushAll(facts, inputView("profile", ["run", "event", "time"]));
+  pushAll(facts, inputView("error", ["run", "error", "stack", "line"], ["system input"]));
+  pushAll(facts, inputView("profile", ["run", "event", "time"], ["system input"]));
   pushAll(facts, view("subscription", ["view"]));
   pushAll(facts, view("uiElem", ["id", "type"]));
   pushAll(facts, view("uiText", ["id", "text"]));
@@ -352,14 +369,5 @@ function commonViews() {
   pushAll(facts, view("uiStyle", ["id", "attr", "value"]));
   pushAll(facts, view("uiEvent", ["id", "event", "label", "key"]));
 
-  facts.push(
-    ["tag", "rawEvent", "system input"],
-    ["tag", "eventTime", "system input"],
-    ["tag", "mousePosition", "system input"],
-    ["tag", "keyboard", "system input"],
-    ["tag", "time", "system input"],
-    ["tag", "error", "system input"],
-    ["tag", "profile", "system input"]
-  );
   return facts;
 }
