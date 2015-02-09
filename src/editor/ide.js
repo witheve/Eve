@@ -183,12 +183,58 @@ var tiles = {
     }),
     adderRow: reactFactory({
       getInitialState: function() {
-        return {row: []};
+        return {row: [], activeField: -1};
+      },
+      checkComplete: function() {
+        for(var i = 0, len = this.props.len; i < len; i++) {
+          if(this.state.row[i] === undefined || this.state.row[i] === null) return false;
+        }
+        return true;
+      },
+      click: function(e) {
+        var ix = parseInt(e.currentTarget.getAttribute("data-ix"));
+        this.setState({activeField: ix});
+        e.currentTarget.focus();
+      },
+      keyDown: function(e) {
+        //handle pressing enter
+        if(e.keyCode === 13) {
+          this.commit();
+        }
+        e.preventDefault();
+      },
+      input: function(e) {
+        var row = this.state.row;
+        row[this.state.activeField] = e.target.value;
+        this.setState({row: row});
+      },
+      blur: function() {
+        this.setState({activeField: -1});
+        this.commit();
+      },
+      commit: function() {
+
       },
       render: function() {
         var fields = [];
+        var className;
+        var contentEditable;
         for(var i = 0, len = this.props.len; i < len; i++) {
-          fields.push(["div", this.state.row[i]]);
+          className = "";
+          contentEditable = false;
+          if(this.state.activeField === i) {
+            className = "selected";
+            contentEditable = true;
+          }
+          fields.push(["div", {
+            "tabindex": -1,
+            "className": className,
+            "contentEditable": contentEditable,
+            "onBlur": this.blur,
+            "onKeydown": this.keyDown,
+            "onClick": this.click,
+            "data-ix": i
+          }, this.state.row[i]]);
         }
         return JSML.react(["div", {"className": "grid-row", "key": JSON.stringify(this.props.row)}, fields]);
       }
