@@ -284,8 +284,8 @@ function searchForView(needle) {
     unpack [uuid] = view;
     //@TODO: why are none of the views in displayName?
     name = names[uuid];
-    if(uuid.toLowerCase().indexOf(needle.toLowerCase()) > -1) {
-      results.push([uuid, uuid]);
+    if(name.toLowerCase().indexOf(needle.toLowerCase()) > -1) {
+      results.push([name, uuid]);
     }
   }
   return results;
