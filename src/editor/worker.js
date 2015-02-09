@@ -140,21 +140,43 @@ eveApp.uiWatcher = function(application, storage, system) {
   }
 }
 
+function handleDiffs(application, diffs) {
+  var storage = application.storage["remoteWatcher"];
+  var updateStorage = function(table, diff) {
+    if(storage[table]) {
+      storage[table] = storage[table].update(diff.adds, diff.removes);
+    } else {
+      storage[table] = application.system.getStore(table);
+    }
+  }
+
+  //if we've changed the views or fields we have to do that first to ensure
+  //that the stores will be in place when we then try to apply diffs to them.
+  if(diffs["view"] || diffs["field"]) {
+    applyDiff(eveApp, "view", diffs["view"]);
+    applyDiff(eveApp, "field", diffs["field"]);
+    eveApp.system.recompile();
+    updateStorage("view", diffs["view"]);
+    updateStorage("field", diffs["field"]);
+    diffs["view"] = {adds: [], removes: []};
+    diffs["field"] = {adds: [], removes: []};
+  }
+
+  for(var table in diffs) {
+    applyDiff(application, table, diffs[table]);
+    //Since we got these diffs from a remote, we have to update storage so that we don't
+    //then send these back to the remote.
+    updateStorage(table, diffs[table]);
+  }
+  return application;
+}
 
 onmessage = function(event) {
   switch(event.data.type) {
     case "diffs":
       var diffs = event.data.diffs;
-      if(diffs["view"] || diffs["field"]) {
-        applyDiff(eveApp, "view", diffs["view"]);
-        applyDiff(eveApp, "field", diffs["field"]);
-        eveApp.system.recompile();
-        diffs["view"] = {adds: [], removes: []};
-        diffs["field"] = {adds: [], removes: []};
-      }
-      applySystemDiff(eveApp, diffs);
+      handleDiffs(eveApp, diffs);
       eveApp.run([]);
-      //TODO: ?
       break;
     case "pull":
       eveApp.pull = true;

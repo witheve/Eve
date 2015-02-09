@@ -74,7 +74,10 @@ var JSML = module.exports = {
       }
     }
 
-    return React.createElement(tag, attrs, children);
+    if(children.length) {
+      return React.createElement(tag, attrs, children);
+    }
+    return React.createElement(tag, attrs);
   }
 };
 

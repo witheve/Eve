@@ -199,21 +199,25 @@ var tiles = {
       keyDown: function(e) {
         //handle pressing enter
         if(e.keyCode === 13) {
-          this.commit();
+          this.blur();
+          e.preventDefault();
         }
-        e.preventDefault();
       },
       input: function(e) {
         var row = this.state.row;
-        row[this.state.activeField] = e.target.value;
-        this.setState({row: row});
+        row[this.state.activeField] = e.target.textContent;
       },
       blur: function() {
         this.setState({activeField: -1});
         this.commit();
       },
       commit: function() {
-
+        if(this.checkComplete()) {
+          var row = this.state.row.slice();
+          this.setState(this.getInitialState(), function() {
+          });
+          dispatch(["addRow", {table: this.props.table, row: row}]);
+        }
       },
       render: function() {
         var fields = [];
@@ -227,16 +231,18 @@ var tiles = {
             contentEditable = true;
           }
           fields.push(["div", {
-            "tabindex": -1,
+            "tabIndex": -1,
             "className": className,
             "contentEditable": contentEditable,
+            "onInput": this.input,
             "onBlur": this.blur,
-            "onKeydown": this.keyDown,
+            "onKeyDown": this.keyDown,
             "onClick": this.click,
-            "data-ix": i
-          }, this.state.row[i]]);
+            "data-ix": i,
+            "dangerouslySetInnerHTML": {__html: this.state.row[i] || ""}
+          }]);
         }
-        return JSML.react(["div", {"className": "grid-row", "key": JSON.stringify(this.props.row)}, fields]);
+        return JSML.react(["div", {"className": "grid-row", "key": "adderRow"}, fields]);
       }
     }),
     render: function() {
@@ -260,7 +266,7 @@ var tiles = {
                                    headers],
                                   ["div", {"className": "grid-rows"},
                                    rows,
-                                   isInput ? this.adderRow({len: headers.length}) : null]])];
+                                   isInput ? this.adderRow({len: headers.length, table: table}) : null]])];
       return tiles.wrapper({ix: this.props.ix, content: content});
     }
   }),
@@ -352,7 +358,13 @@ function dispatch(eventInfo) {
       unpack [uuid, name] = info;
       var diff = {"workspaceView": {adds: [[uuid]], removes: []}};
       indexer.handleDiffs(diff);
-      console.log("open: ", info);
+      break;
+
+    case "addRow":
+      //@TODO: we haven't set up view forwarding for constant/input views
+      var diff = {};
+      diff[info.table] = {adds: [info.row], removes: []};
+      indexer.handleDiffs(diff);
       break;
 
     case "sortCard":
