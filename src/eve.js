@@ -806,8 +806,8 @@ System.empty = function(meta) {
     var view = compilerSchemas[i][0];
     var fields = compilerSchemas[i].slice(1);
 
-
     compilerViews.push([view])
+    compilerDisplayNames.push([view, view]);
     for (var j = fields.length - 1; j >= 0; j--) {
       // mangle field names the same way the parser does :(
       var field = view + "|field=" + fields[j];
