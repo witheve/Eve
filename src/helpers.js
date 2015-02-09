@@ -319,7 +319,7 @@ function pushAll(arr, things) {
 function view(name, fields, tags) {
   tags = tags || [];
   addedTables[name] = true;
-  var facts = [["view", name]];
+  var facts = [["view", name], ["displayName", name, name]];
   for(var i = 0; i < fields.length; i++) {
     var field = fields[i];
     var id = name + "|field=" + field;
