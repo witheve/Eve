@@ -157,6 +157,13 @@ var Root = React.createFactory(React.createClass({
 var tileGrid;
 
 var tiles = {
+  wrapper: reactFactory({
+    render: function() {
+      return JSML.react(["div", {"className": "card " + (this.props.class || ""),
+                                 "style": grid.wrapPosition(tileGrid, this.props.ix, {})},
+                         this.props.content]);
+    }
+  }),
   table: reactFactory({
     header: reactFactory({
       render: function() {
@@ -174,6 +181,18 @@ var tiles = {
         return JSML.react(["div", {"className": "grid-row", "key": JSON.stringify(this.props.row)}, fields]);
       }
     }),
+    adderRow: reactFactory({
+      getInitialState: function() {
+        return {row: []};
+      },
+      render: function() {
+        var fields = [];
+        for(var i = 0, len = this.props.len; i < len; i++) {
+          fields.push(["div", this.state.row[i]]);
+        }
+        return JSML.react(["div", {"className": "grid-row", "key": JSON.stringify(this.props.row)}, fields]);
+      }
+    }),
     render: function() {
       var self = this;
       var table = this.props.table;
@@ -183,24 +202,25 @@ var tiles = {
       }).map(function(cur) {
         return self.header({field: cur});
       });
+      //@TODO: sorting. We should probably use a sorted indexer as sorting all the rows
+      // every update is going to be stupidly expensive.
       var rows = indexer.facts(table).map(function(cur) {
         return self.row({row: cur});
       });
       var isInput = hasTag(table, "input");
-      return JSML.react(["div", {"className": "card",
-                                 "style": grid.wrapPosition(tileGrid, this.props.ix, {})},
-                         ["h2", table, isInput ? " - input" : ""],
-                         ["div", {"className": "grid"},
-                          ["div", {"className": "grid-header"},
-                            headers],
-                          ["div", {"className": "grid-rows"},
-                            rows]]]);
+      var content =  [JSML.react(["h2", table, isInput ? " - input" : ""]),
+                      JSML.react(["div", {"className": "grid"},
+                                  ["div", {"className": "grid-header"},
+                                   headers],
+                                  ["div", {"className": "grid-rows"},
+                                   rows,
+                                   isInput ? this.adderRow({len: headers.length}) : null]])];
+      return tiles.wrapper({ix: this.props.ix, content: content});
     }
   }),
   ui: reactFactory({
     render: function() {
-      return JSML.react(["div", {"className": "card uiCard",
-                                "style": grid.wrapPosition(tileGrid, this.props.ix, {})}]);
+      return tiles.wrapper({ix: this.props.ix, class: "uiCard"});
     }
   })
 };
