@@ -10,7 +10,6 @@ var grid = require("./grid");
 // Globals
 //---------------------------------------------------------
 
-var currentSystem;
 var indexer;
 
 //---------------------------------------------------------
@@ -89,7 +88,9 @@ Indexer.prototype = {
     return this.system.getStore(table).getFacts();
   },
   index: function(index) {
-    return this.indexes[index].index;
+    var cur = this.indexes[index];
+    if(!cur) throw new Error("No index named: " + index);
+    return cur.index;
   },
   addIndex: function(table, name, indexer) {
     if(!this.tableToIndexes[table]) {
@@ -109,6 +110,19 @@ Indexer.prototype = {
 };
 
 //---------------------------------------------------------
+// Index helpers
+//---------------------------------------------------------
+
+function hasTag(id, needle) {
+  var tags = indexer.index("idToTags")[id];
+  foreach(tagEntry of tags) {
+    unpack [uuid, tag] = tagEntry;
+    if(tag === needle) return true;
+  }
+  return false;
+}
+
+//---------------------------------------------------------
 // React helpers
 //---------------------------------------------------------
 
@@ -123,7 +137,8 @@ function reactFactory(obj) {
 var Root = React.createFactory(React.createClass({
   render: function() {
     var tables = indexer.facts("workspaceView").map(function(cur, ix) {
-      return tiles.table({table: cur[0],
+      unpack [uuid] = cur;
+      return tiles.table({table: uuid,
                           ix: ix + 1});
     })
     return JSML.react(["div",
@@ -145,8 +160,9 @@ var tiles = {
   table: reactFactory({
     header: reactFactory({
       render: function() {
-        var name = indexer.index("displayName")[this.props.field[0]];
-        return JSML.react(["div", {"className": "header"}, name]);
+        unpack [uuid] = this.props.field;
+        var name = indexer.index("displayName")[uuid];
+        return JSML.react(["div", {"className": "header", "key": uuid}, name]);
       }
     }),
     row: reactFactory({
@@ -155,22 +171,25 @@ var tiles = {
         foreach(field of this.props.row) {
           fields.push(["div", field]);
         }
-        return JSML.react(["div", {"className": "grid-row"}, fields]);
+        return JSML.react(["div", {"className": "grid-row", "key": JSON.stringify(this.props.row)}, fields]);
       }
     }),
     render: function() {
       var self = this;
-      var headers = indexer.index("viewToFields")[this.props.table].sort(function(a, b) {
+      var table = this.props.table;
+      var headers = indexer.index("viewToFields")[table].sort(function(a, b) {
+        //compare their ixes
         return a[2] - b[2];
       }).map(function(cur) {
         return self.header({field: cur});
       });
-      var rows = indexer.facts(this.props.table).map(function(cur) {
+      var rows = indexer.facts(table).map(function(cur) {
         return self.row({row: cur});
       });
+      var isInput = hasTag(table, "input");
       return JSML.react(["div", {"className": "card",
                                  "style": grid.wrapPosition(tileGrid, this.props.ix, {})},
-                         ["h2", this.props.table],
+                         ["h2", table, isInput ? " - input" : ""],
                          ["div", {"className": "grid"},
                           ["div", {"className": "grid-header"},
                             headers],
@@ -188,10 +207,73 @@ var tiles = {
 
 
 //---------------------------------------------------------
-// Dispatcher
+// Searcher
 //---------------------------------------------------------
 
-var currentSystem = null;
+function searchForView(needle) {
+  var results = [];
+  var names = indexer.index("displayName");
+  var name;
+  foreach(view of indexer.facts("view")) {
+    unpack [uuid] = view;
+    //@TODO: why are none of the views in displayName?
+    name = names[uuid];
+    if(uuid.toLowerCase().indexOf(needle.toLowerCase()) > -1) {
+      results.push([uuid, uuid]);
+    }
+  }
+  return results;
+}
+
+var ReactSearcher = reactFactory({
+  getInitialState: function() {
+    return {search: ""};
+  },
+
+  input: function(e) {
+    this.setState({search: e.target.value});
+  },
+
+  focus: function(e) { this.setState({active: true}); },
+  blur: function(e) {
+    var self = this;
+    setTimeout(function() {
+      self.setState({active: false})
+    }, 200);
+  },
+
+  render: function() {
+    var cx = React.addons.classSet;
+    var possible = searchForView(this.state.search);
+    var results = [];
+    for(var i = 0; i < 20; i++) {
+      results.push(SearcherItem({item: possible[i], event: "openView"}));
+    }
+    return JSML.react(["div", {"className": cx({"searcher": true,
+                                                "active": this.state.active})},
+                       ["input", {"type": "text",
+                                  "onFocus": this.focus,
+                                  "onBlur": this.blur,
+                                  "onInput": this.input}],
+                       ["ul", {},
+                        results]]);
+  }
+});
+
+var SearcherItem = reactFactory({
+  click: function() {
+    dispatch([this.props.event, this.props.item]);
+  },
+  render: function() {
+    var display = this.props.item ? "" : "none";
+    var name = this.props.item ? this.props.item[0] : "";
+    return JSML.react(["li", {"onClick": this.click, style: {display: display}}, name]);
+  }
+});
+
+//---------------------------------------------------------
+// Dispatcher
+//---------------------------------------------------------
 
 function dispatch(eventInfo) {
   unpack [event, info] = eventInfo;
@@ -236,76 +318,12 @@ function dispatch(eventInfo) {
 }
 module.exports.dispatch = dispatch;
 
-//---------------------------------------------------------
-// Searcher
-//---------------------------------------------------------
-
-function searchForView(system, needle) {
-  var results = [];
-  foreach(view of system.getStore("view").getFacts()) {
-    unpack [uuid] = view;
-    //if(displayNames[uuid].indexOf(needle) > -1) {
-    // @FIXME: temporary hack for better searching until we use display names.
-    if(uuid.toLowerCase().indexOf(needle.toLowerCase()) > -1) {
-      //results.push([uuid, displayNames[uuid]]);
-      results.push([uuid, uuid]);
-    }
-  }
-  return results;
-}
-
-var ReactSearcher = reactFactory({
-  getInitialState: function() {
-    return {search: ""};
-  },
-
-  input: function(e) {
-    this.setState({search: e.target.value});
-  },
-
-  focus: function(e) { this.setState({active: true}); },
-  blur: function(e) {
-    var self = this;
-    setTimeout(function() {
-      self.setState({active: false})
-    }, 200);
-  },
-
-  render: function() {
-    var cx = React.addons.classSet;
-    var possible = searchForView(currentSystem, this.state.search);
-    var results = [];
-    for(var i = 0; i < 20; i++) {
-      results.push(SearcherItem({item: possible[i], event: "openView"}));
-    }
-    return JSML.react(["div", {"className": cx({"searcher": true,
-                                                "active": this.state.active})},
-                       ["input", {"type": "text",
-                                  "onFocus": this.focus,
-                                  "onBlur": this.blur,
-                                  "onInput": this.input}],
-                       ["ul", {},
-                        results]]);
-  }
-});
-
-var SearcherItem = reactFactory({
-  click: function() {
-    dispatch([this.props.event, this.props.item]);
-  },
-  render: function() {
-    var display = this.props.item ? "" : "none";
-    var name = this.props.item ? this.props.item[0] : "";
-    return JSML.react(["li", {"onClick": this.click, style: {display: display}}, name]);
-  }
-});
 
 //---------------------------------------------------------
 // Init
 //---------------------------------------------------------
 
 function init(system) {
-  currentSystem = system;
   window.indexer = indexer = new Indexer(system);
   indexer.addIndex("displayName", "displayName", indexers.makeLookup(0, 1));
   indexer.addIndex("field", "viewToFields", indexers.makeCollector(1));
