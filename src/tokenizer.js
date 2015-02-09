@@ -766,6 +766,7 @@ function createUIView(uiTable, view, context, mappings) {
   }
 
   facts.push(["view", tempName]);
+ facts.push(["displayName", tempName, tempName]);
 //   facts.push(["generatedView", tempName]);
   if(context.programName) {
 //     facts.push(["programView", context.programName, tempName]);
@@ -941,6 +942,7 @@ function injectParsed(parsed, program, prefix, programName) {
     var view = curRule.name;
     var query = view + "|query=" + curId;
     facts.push(["view", view]);
+    facts.push(["displayName", view, view]);
 
     if(programName) {
 //       facts.push(["programView", programName, view]);
