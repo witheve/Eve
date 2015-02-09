@@ -313,7 +313,7 @@ function init(system) {
   indexer.forward("workspaceView");
   var dims = document.body.getBoundingClientRect();
   tileGrid = grid.makeGrid(document.body, {
-    dimensions: [dims.width - 50, dims.height - 110],
+    dimensions: [dims.width - 100, dims.height - 110],
     gridSize: [5,2],
     marginSize: [10,10]
   });
