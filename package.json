@@ -12,6 +12,7 @@
     "serve-favicon": "*",
     "serve-static": "*",
     "socket.io": "1.2.1",
+    "react": "0.12.2",
     "stylus": "*"
   },
   "scripts": {

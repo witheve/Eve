@@ -77,8 +77,9 @@ function diffSystems(neue, old, tables) {
 }
 
 function applyDiff(application, table, diff) {
+  var system = application.system || application;
   if(diff.adds.length || diff.removes.length) {
-    application.system.updateStore(table, diff.adds, diff.removes);
+    system.updateStore(table, diff.adds, diff.removes);
   }
 }
 

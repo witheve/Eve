@@ -10,6 +10,17 @@ function setSizeAndPosition(grid, child, size, position) {
 }
 module.exports.setSizeAndPosition = setSizeAndPosition;
 
+function wrapPosition(grid, ix, obj) {
+  var row = Math.floor(ix / grid.cols);
+  var col = ix - (row * grid.cols);
+  obj.top = row * grid.unitHeight + row * grid.colMargin;
+  obj.left = col * grid.unitWidth + col * grid.rowMargin;
+  obj.width = grid.unitWidth;
+  obj.height = grid.unitHeight;
+  return obj;
+}
+module.exports.wrapPosition = wrapPosition;
+
 function layout(grid) {
   var children = grid.container.children;
   foreach(ix, child of children) {
@@ -24,6 +35,7 @@ function layout(grid) {
 module.exports.layout = layout;
 
 // options: {
+//   dimensions: [1000,1000], // pixel width, height of grid
 //   gridSize: [20,20], // number of rows, cols
 //   marginSize: [20,20], // margin in pixels
 // }
@@ -34,23 +46,14 @@ function makeGrid(container, options) {
     cols: options["gridSize"][1],
     rowMargin: options["marginSize"][0],
     colMargin: options["marginSize"][1],
+    width: options["dimensions"][0],
+    height: options["dimensions"][1],
     positions: [],
     items: {}
   };
 
-  var dimensions = container.getBoundingClientRect();
-  grid.unitWidth = Math.floor(dimensions.width / grid.cols) - grid.rowMargin;
-  grid.unitHeight = Math.floor(dimensions.height / grid.rows) - grid.colMargin;
-
-  var children = container.children;
-  foreach(ix, child of children) {
-    var row = Math.floor(ix / grid.cols);
-    var col = ix - (row * grid.cols);
-    child.style.top = row * grid.unitHeight + row * grid.colMargin;
-    child.style.left = col * grid.unitWidth + col * grid.rowMargin;
-    child.style.width = grid.unitWidth;
-    child.style.height = grid.unitHeight;
-  }
+  grid.unitWidth = Math.floor(grid.width / grid.cols) - grid.rowMargin;
+  grid.unitHeight = Math.floor(grid.height / grid.rows) - grid.colMargin;
 
   return grid;
 }

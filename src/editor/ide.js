@@ -1,9 +1,17 @@
 import macros from "../macros.sjs";
 
+var React = require("react/addons");
 var JSML = require("./jsml");
 var helpers = require("./helpers");
 var Card = require("./card");
 var grid = require("./grid");
+
+//---------------------------------------------------------
+// Globals
+//---------------------------------------------------------
+
+var currentSystem;
+var indexer;
 
 //---------------------------------------------------------
 // Data
@@ -19,159 +27,178 @@ const DISPLAY_NAME_NAME = 1;
 const WORKSPACE_VIEW_VIEW = 0;
 
 //---------------------------------------------------------
-// Rendering
+// Indexer
 //---------------------------------------------------------
 
-var viewUI = {};
-var viewsContainer = $("#cards")[0];
-var gridGrid;
-
-// Find all views dirtied in the `field` diff.
-function dirtyViews(diff, views) {
-
-  var rawChangedViews = [];
-  foreach(field of helpers.contains(diff.removes, FIELD_VIEW, views)) {
-    rawChangedViews.push(field[FIELD_VIEW]);
-  }
-  foreach(field of helpers.contains(diff.adds, FIELD_VIEW, views)) {
-    rawChangedViews.push(field[FIELD_VIEW]);
-  }
-
-  // Unique views only.
-  var changedViews = [];
-  foreach(ix, view of rawChangedViews) {
-    if(rawChangedViews.indexOf(view) === ix) {
-      changedViews.push(view);
-    }
-  }
-  return changedViews;
-}
-
-function ensureCard(view, system) {
-  if(!viewUI[view]) {
-    var fields = system.getStore("field").getFacts();
-    var displayNames = system.getStore("displayName").getFacts();
-    viewUI[view] = new Card(view, view, system);
-    var $container = viewUI[view].renderCard(displayNames, fields);
-    viewsContainer.appendChild($container);
-    grid.layout(gridGrid);
-  }
-}
-
-// Watch all eve views in stack for changes, keeping table views in sync.
-function render(diffs, system) {
-  var workspaceViews = helpers.pluck(system.getStore("workspaceView").getFacts(), WORKSPACE_VIEW_VIEW);
-  // Add/update/remove cards in response to added or removed fields and views.
-  if(diffs.field) {
-    var dirtied = dirtyViews(diffs.field, workspaceViews);
-    var fields = system.getStore("field").getFacts();
-    var displayNames = system.getStore("displayName").getFacts();
-
-    foreach(view of dirtied) {
-      if(!viewUI[view]) {
-        viewUI[view] = new Card(view, view, system);
+var indexers = {
+  makeLookup: function(keyIx, valueIx) {
+    return function(cur, diffs) {
+      var final = cur || {};
+      foreach(add of diffs.adds) {
+        final[add[keyIx]] = add[valueIx];
       }
-
-      var $container = viewUI[view].renderCard(displayNames, fields);
-      viewsContainer.appendChild($container);
+      foreach(remove of diffs.removes) {
+        final[remove[keyIx]] = null;
+      }
+      return final;
     }
-    grid.layout(gridGrid);
-  }
-
-  // Add/update/remove rows in response to added or removed facts in all views.
-  forattr(view, diff of diffs) {
-    if(workspaceViews.indexOf(view) === -1) { continue; }
-    ensureCard(view, system);
-    viewUI[view].removeRows(diff.removes);
-    viewUI[view].addRows(diff.adds);
-  }
-}
-module.exports.render = render;
-
-//---------------------------------------------------------
-// Input
-//---------------------------------------------------------
-var input = {
-  elem: JSML.parse(["input", {style: {width: 0, height: 0, opacity: 0}}]),
-  selection: null,
-  handlers: {},
-  handle: function(handlers) {
-    input.elem.blur();
-    forattr(event, handler of handlers) {
-      input.elem.addEventListener(event, handler);
+  },
+  makeCollector: function(keyIx) {
+    return function(cur, diffs) {
+      var final = cur || {};
+      foreach(add of diffs.adds) {
+        if(!final[add[keyIx]]) {
+          final[add[keyIx]] = [];
+        }
+        final[add[keyIx]].push(add);
+      }
+      foreach(remove of diffs.removes) {
+        final[remove[keyIx]] = final[remove[keyIx]].filter(function(cur) {
+          return !arrayEqual(cur, remove)
+        });
+      }
+      return final;
     }
-    input.handlers = handlers;
   }
 };
 
-input.elem.addEventListener("blur", function blurHandler(evt) {
-  // Handle blur events, which would otherwise be deleted before firing.
-  if(input.handlers["blur"]) {
-    input.handlers["blur"](evt);
-  }
+function Indexer(system) {
+  this.system = system;
+  this.tableToIndexes = {};
+  this.indexes = {};
+  this.tablesToForward = [];
+};
 
-  forattr(event, handler of input.handlers) {
-    input.elem.removeEventListener(event, handler);
-  }
-
-  input.elem.value = "";
-  input.handlers = {};
-});
-
-function selectField(card, rowId, ix) {
-  var programWorker = global.programWorker;
-
-  if(input.selection) {
-    input.elem.blur();
-  }
-  card.selectField(rowId, ix);
-  input.selection = {
-    card: card,
-    field: [rowId, ix]
-  };
-  if(card.type === "input-card") {
-    input.handle({
-      input: function(evt) {
-        var $field = card.getField(rowId, ix);
-        $field.textContent = evt.target.value;
-      },
-      keypress: function(evt) {
-        var key = evt.key || evt.keyIdentifier;
-        if(key === "Enter") {
-          input.elem.blur();
+Indexer.prototype = {
+  handleDiffs: function(diffs, fromProgram) {
+    var tableToIndexes = this.tableToIndexes;
+    var indexes = this.indexes;
+    var system = this.system;
+    var cur;
+    forattr(table, diff of diffs) {
+      if(tableToIndexes[table]) {
+        foreach(index of tableToIndexes[table]) {
+          cur = this.indexes[index];
+          cur.index = cur.indexer(cur.index, diff);
         }
-      },
-      blur: function(evt) {
-        var adds = [], removes = [];
-        var fact;
-        card.selectField();
-        var data = evt.target.value;
-        if(!data) { return; }
-
-        if(rowId === "newRow") {
-          fact = [];
-          for(var i = 0, len = card.getFields().length; i < len; i++) {
-            fact.push("");
-          }
-          var $field = card.getField(rowId, ix);
-          $field.textContent = "";
-        } else {
-          var oldFact = card.rowIdToFact(rowId);
-          fact = oldFact.slice();
-          removes.push(oldFact);
-        }
-
-        fact[ix] = (isNaN(data)) ? data : +data;
-        adds.push(fact);
-        var diffs = {};
-        diffs[card.id] = {adds: adds, removes: removes};
-        dispatch(["diffs", diffs]);
       }
-    });
+      applyDiff(system, table, diff);
+    }
 
-    input.elem.focus();
+    //we should only forward diffs to the program if they weren't
+    //from the program to bgin with.
+    if(!fromProgram) {
+      var toSend = {};
+      foreach(table of this.tablesToForward) {
+        if(!diffs[table]) continue;
+        toSend[table] = diffs[table];
+      }
+      programWorker.postMessage({type: "diffs", diffs: toSend});
+    }
+
+    dispatch(["diffsHandled", diffs]);
+  },
+  facts: function(table) {
+    return this.system.getStore(table).getFacts();
+  },
+  index: function(index) {
+    return this.indexes[index].index;
+  },
+  addIndex: function(table, name, indexer) {
+    if(!this.tableToIndexes[table]) {
+      this.tableToIndexes[table] = [];
+    }
+    this.tableToIndexes[table].push(name);
+    //initialize the index by sending an add of all the facts we have now.
+    this.indexes[name] = {index: indexer(null, {adds: this.facts(table), removes: []}),
+                          indexer: indexer};
+  },
+  forward: function(table) {
+    this.tablesToForward.push(table);
+  },
+  unforward: function(table) {
+    this.tablesToForward.remove(table);
   }
-}
+};
+
+//---------------------------------------------------------
+// React helpers
+//---------------------------------------------------------
+
+function reactFactory(obj) {
+  return React.createFactory(React.createClass(obj));
+};
+
+//---------------------------------------------------------
+// Root
+//---------------------------------------------------------
+
+var Root = React.createFactory(React.createClass({
+  render: function() {
+    var tables = indexer.facts("workspaceView").map(function(cur, ix) {
+      return tiles.table({table: cur[0],
+                          ix: ix + 1});
+    })
+    return JSML.react(["div",
+                       ReactSearcher(),
+                       ["div", {"id": "cards"},
+                        tiles.ui({ix: 0}),
+                        tables
+                        ]]);
+  }
+}));
+
+//---------------------------------------------------------
+// tiles
+//---------------------------------------------------------
+
+var tileGrid;
+
+var tiles = {
+  table: reactFactory({
+    header: reactFactory({
+      render: function() {
+        var name = indexer.index("displayName")[this.props.field[0]];
+        return JSML.react(["div", {"className": "header"}, name]);
+      }
+    }),
+    row: reactFactory({
+      render: function() {
+        var fields = [];
+        foreach(field of this.props.row) {
+          fields.push(["div", field]);
+        }
+        return JSML.react(["div", {"className": "grid-row"}, fields]);
+      }
+    }),
+    render: function() {
+      var self = this;
+      var headers = indexer.index("viewToFields")[this.props.table].sort(function(a, b) {
+        return a[2] - b[2];
+      }).map(function(cur) {
+        return self.header({field: cur});
+      });
+      var rows = indexer.facts(this.props.table).map(function(cur) {
+        return self.row({row: cur});
+      });
+      return JSML.react(["div", {"className": "card",
+                                 "style": grid.wrapPosition(tileGrid, this.props.ix, {})},
+                         ["h2", this.props.table],
+                         ["div", {"className": "grid"},
+                          ["div", {"className": "grid-header"},
+                            headers],
+                          ["div", {"className": "grid-rows"},
+                            rows]]]);
+    }
+  }),
+  ui: reactFactory({
+    render: function() {
+      return JSML.react(["div", {"className": "card uiCard",
+                                "style": grid.wrapPosition(tileGrid, this.props.ix, {})}]);
+    }
+  })
+};
+
 
 //---------------------------------------------------------
 // Dispatcher
@@ -182,18 +209,15 @@ var currentSystem = null;
 function dispatch(eventInfo) {
   unpack [event, info] = eventInfo;
   switch(event) {
+    case "diffsHandled":
+      React.render(Root(), document.body);
+      break;
     case "openView":
       // open that card?
       unpack [uuid, name] = info;
-      ensureCard(uuid, currentSystem);
       var diff = {"workspaceView": {adds: [[uuid]], removes: []}};
-      applySystemDiff({system: currentSystem}, diff);
-      dispatch(["diffs", diff]);
+      indexer.handleDiffs(diff);
       console.log("open: ", info);
-      break;
-
-    case "diffs":
-      programWorker.postMessage({type: "diffs", diffs: info});
       break;
 
     case "sortCard":
@@ -204,19 +228,10 @@ function dispatch(eventInfo) {
       selectField(eventInfo[1], eventInfo[2], eventInfo[3]);
       break;
 
-    case "updateSearcher":
-      updateSearcher(currentSystem, searcher, info);
-      break;
-
-    case "blurSearcher":
-    case "focusSearcher":
-      activateSearcher(searcher, event);
-      break;
-
     case "selectCard":
       if(mode === "grid") {
         window.history.pushState({cardName: info.name}, info.name, "/" + info.name);
-        selectCard(info);
+//         selectCard(info);
       } else {
         //window.history.pushState({}, "eve", "/");
         //deselectCard();
@@ -225,78 +240,14 @@ function dispatch(eventInfo) {
 
     case "locationChange":
       if(info.state && info.state.cardName && viewUI[info.state.cardName]) {
-        selectCard(viewUI[info.state.cardName]);
+//         selectCard(viewUI[info.state.cardName]);
       } else if(mode !== "grid") {
-        deselectCard();
+//         deselectCard();
       }
       break;
   }
 }
 module.exports.dispatch = dispatch;
-
-//---------------------------------------------------------
-// modes
-//---------------------------------------------------------
-
-var mode = "grid";
-var activeCard = null;
-
-function selectCard(card) {
-  activeCard = card;
-  mode = "card";
-  var cardsElem = document.querySelector("#cards");
-  var targetDims = card.$container.getBoundingClientRect();
-  var dims = cardsElem.getBoundingClientRect();
-  var cx = dims.left + dims.width / 2;
-  var cy = dims.top + dims.height / 2;
-  var tx = targetDims.left + targetDims.width / 2;
-  var ty = targetDims.top + targetDims.height / 2;
-  var x = (tx - cx) * 10;
-  var y = (ty - cy) * 10;
-  cardsElem.classList.add("zoom");
-  cardsElem.style.transform = "translate(" + -x + "px, " + -y + "px) scale(10)";
-  cardsElem.style.transformOrigin = "50% 50%";
-  cardsElem.style.opacity = 0;
-  setTimeout(function() {
-    activateCardEditor(card);
-  }, 400);
-}
-
-function deselectCard() {
-  document.getElementById("cardEditor").classList.remove("active");
-  var cardsElem = document.querySelector("#cards");
-  mode = "grid";
-  cardsElem.classList.remove("zoom");
-  cardsElem.style.transform = "";
-  cardsElem.style.opacity = 1;
-  releaseCard(activeCard);
-}
-
-//---------------------------------------------------------
-// card editor
-//---------------------------------------------------------
-
-var cardEditorGrid;
-
-function activateCardEditor(card) {
-  document.getElementById("cardEditor").classList.add("active");
-  card.prevParent = card.$container.parentNode;
-  card.prevSibling = card.$container.nextSibling;
-  card.prevPosition = {top: card.$container.style.top,
-                       left: card.$container.style.left,
-                       width: card.$container.style.width,
-                       height: card.$container.style.height};
-  document.getElementById("cardEditor").appendChild(card.$container);
-  grid.setSizeAndPosition(cardEditorGrid, card.$container, [10,12], [0,1]);
-}
-
-function releaseCard(card) {
-  card.$container.style.top = card.prevPosition.top;
-  card.$container.style.left = card.prevPosition.left;
-  card.$container.style.width = card.prevPosition.width;
-  card.$container.style.height = card.prevPosition.height;
-  card.prevParent.insertBefore(card.$container, card.prevSibling);
-}
 
 //---------------------------------------------------------
 // Searcher
@@ -309,110 +260,86 @@ function searchForView(system, needle) {
     //if(displayNames[uuid].indexOf(needle) > -1) {
     // @FIXME: temporary hack for better searching until we use display names.
     if(uuid.toLowerCase().indexOf(needle.toLowerCase()) > -1) {
-       //results.push([uuid, displayNames[uuid]]);
-       results.push([uuid, uuid]);
+      //results.push([uuid, displayNames[uuid]]);
+      results.push([uuid, uuid]);
     }
   }
   return results;
 }
 
-function updateSearcherItems(searcher, results) {
-  if(results.length < searcher.maxResults) {
-    for(var ix = results.length, len = searcher.maxResults; ix < len; ix++) {
-      searcher.lis[ix].style.display = "none";
-    }
-  }
-  foreach(ix, result of results) {
-    if(ix >= searcher.maxResults) break;
-    unpack [uuid, displayName] = result;
-    searcher.lis[ix].textContent = displayName;
-    searcher.lis[ix].style.display = "";
-  }
-  searcher.results = results;
-}
+var ReactSearcher = reactFactory({
+  getInitialState: function() {
+    return {search: ""};
+  },
 
-function updateSearcher(system, searcher, needle) {
-  var results = searchForView(system, needle);
-  updateSearcherItems(searcher, results);
-  return searcher;
-}
+  input: function(e) {
+    this.setState({search: e.target.value});
+  },
 
-function activateSearcher(searcher, focusOrBlur) {
-  if(focusOrBlur === "focusSearcher") {
-    searcher.elem.classList.add("active");
-  } else {
+  focus: function(e) { this.setState({active: true}); },
+  blur: function(e) {
+    var self = this;
     setTimeout(function() {
-      searcher.elem.classList.remove("active");
+      self.setState({active: false})
     }, 200);
+  },
+
+  render: function() {
+    var cx = React.addons.classSet;
+    var possible = searchForView(currentSystem, this.state.search);
+    var results = [];
+    for(var i = 0; i < 20; i++) {
+      results.push(SearcherItem({item: possible[i], event: "openView"}));
+    }
+    return JSML.react(["div", {"className": cx({"searcher": true,
+                                                "active": this.state.active})},
+                       ["input", {"type": "text",
+                                  "onFocus": this.focus,
+                                  "onBlur": this.blur,
+                                  "onInput": this.input}],
+                       ["ul", {},
+                        results]]);
   }
-}
+});
 
-function createSearcher() {
-  var final = {};
-  var lis = [];
-  var list = document.createElement("ul");
-
-  final.maxResults = 20;
-  final.results = [];
-  final.event = "openView"; //you may use the searcher for other things, like lookup?
-  var itemCallback = function(e) {
-    var ix = e.target.ix;
-    dispatch([final.event, final.results[ix]]);
+var SearcherItem = reactFactory({
+  click: function() {
+    dispatch([this.props.event, this.props.item]);
+  },
+  render: function() {
+    var display = this.props.item ? "" : "none";
+    var name = this.props.item ? this.props.item[0] : "";
+    return JSML.react(["li", {"onClick": this.click, style: {display: display}}, name]);
   }
-
-  for(var ix = 0, len = final.maxResults; ix < len; ix++) {
-    var elem = document.createElement("li");
-    elem.style.display = "none";
-    elem.ix = ix;
-    elem.addEventListener("click", itemCallback);
-    list.appendChild(elem);
-    lis[ix] = elem;
-  }
-
-  final.lis = lis;
-
-  final.elem = document.createElement("div");
-  final.elem.className = "searcher";
-
-  var input = document.createElement("input");
-  input.type = "text";
-  input.placeholder = "Search";
-  input.addEventListener("input", function(e) {
-    var value = e.target.value;
-    dispatch(["updateSearcher", value]);
-  });
-  input.addEventListener("focus", function(e) {
-    dispatch(["focusSearcher", null]);
-  });
-  input.addEventListener("blur", function(e) {
-    dispatch(["blurSearcher", null]);
-  });
-
-  final.elem.appendChild(input);
-  final.elem.appendChild(list);
-  return final;
-}
+});
 
 //---------------------------------------------------------
 // Init
 //---------------------------------------------------------
 
-var searcher;
-var currentSystem;
-
 function init(system) {
   currentSystem = system;
-  searcher = createSearcher();
-  document.body.appendChild(searcher.elem);
-  document.body.appendChild(input.elem);
+  window.indexer = indexer = new Indexer(system);
+  indexer.addIndex("displayName", "displayName", indexers.makeLookup(0, 1));
+  indexer.addIndex("field", "viewToFields", indexers.makeCollector(1));
+  indexer.addIndex("tag", "idToTags", indexers.makeCollector(0));
+  indexer.forward("workspaceView");
+  var dims = document.body.getBoundingClientRect();
+  tileGrid = grid.makeGrid(document.body, {
+    dimensions: [dims.width - 50, dims.height - 110],
+    gridSize: [5,2],
+    marginSize: [10,10]
+  });
+  React.render(Root(), document.body);
   window.addEventListener("popstate", function(e) {
     dispatch(["locationChange", event]);
   });
-  cardEditorGrid = grid.makeGrid(document.querySelector("#cardEditor"), {gridSize: [12,12],
-                                                                         marginSize: [10,10]})
-
-  gridGrid = grid.makeGrid(document.querySelector("#cards"), {gridSize: [5,2],
-                                                              marginSize: [10,10]});
 }
 
 module.exports.init = init;
+
+
+function handleProgramDiffs(diffs) {
+  indexer.handleDiffs(diffs, true);
+}
+module.exports.handleProgramDiffs = handleProgramDiffs;

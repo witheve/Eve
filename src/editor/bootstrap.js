@@ -103,9 +103,7 @@ function onWorkerMessage(event) {
       break;
     case "diffs":
       var diffs = event.data.diffs;
-      applySystemDiff({system: system}, diffs);
-
-      ide.render(diffs, system);
+      ide.handleProgramDiffs(diffs);
       programWorker.postMessage({type: "pull", runNumber: event.data.runNumber});
       break;
   }
@@ -119,20 +117,8 @@ function createWorker() {
 
 var programWorker = global.programWorker = createWorker();
 
-var system = codeToSystem( examples["Runtime"] + "\n\n" + examples["Clock"]);
+var system = codeToSystem( examples["Runtime"] + "\n\n" + examples["Incrementer"]);
 programWorker.postMessage({type: "diffs", diffs: diffSystems(system, null, null)});
-
-var workspaceViews = system.getStore("workspaceView").getFacts().map(function(row) {
-  return row[0];
-});
-
-
-var initialDiff = system.getStore('view').getFacts().reduce(function(memo, view) {
-  memo[view[0]] = {adds: system.getStore(view[0]).getFacts()};
-  return memo;
-}, {});
-
-ide.init(system);
 
 //---------------------------------------------------------
 // socket.io
@@ -158,5 +144,5 @@ if(window["io"]) {
 // Go!
 //---------------------------------------------------------
 
-ide.render(initialDiff, system);
+ide.init(system);
 programWorker.postMessage({type: "pull"});

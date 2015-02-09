@@ -60,6 +60,7 @@ body {
   top:10px;
   left:40px;
   padding:10px;
+  z-index:10;
 
   input {
     outline: none;
