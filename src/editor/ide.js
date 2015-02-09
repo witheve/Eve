@@ -14,19 +14,6 @@ var currentSystem;
 var indexer;
 
 //---------------------------------------------------------
-// Data
-//---------------------------------------------------------
-
-const FIELD_FIELD = 0;
-const FIELD_VIEW = 1;
-const FIELD_IX = 2;
-
-const DISPLAY_NAME_ID = 0;
-const DISPLAY_NAME_NAME = 1;
-
-const WORKSPACE_VIEW_VIEW = 0;
-
-//---------------------------------------------------------
 // Indexer
 //---------------------------------------------------------
 
