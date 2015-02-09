@@ -3,6 +3,7 @@ var browserify = require("browserify");
 var buffer = require("vinyl-buffer");
 var glob = require("glob-all");
 var gulp = require("gulp-help")(require("gulp"));
+var plumber = require("gulp-plumber");
 var source = require("vinyl-source-stream");
 var sourcemaps = require("gulp-sourcemaps");
 var stylus = require("gulp-stylus");
@@ -13,6 +14,7 @@ var sweetify = require("sweetify");
 function compileStylus() {
   return gulp.src("stylus/**/*.stylus")
   .pipe(sourcemaps.init())
+  .pipe(plumber())
   .pipe(stylus())
   .pipe(sourcemaps.write("."))
   .pipe(gulp.dest("stylus"));
@@ -42,6 +44,11 @@ function bundle(name, files) {
   });
 
   return bundler.bundle()
+  .on('error', function(err){
+    console.log("[bundle] Error:", err.message);
+    this.end();
+  })
+
   .pipe(source(name))
   //.pipe(buffer())
   //.pipe(sourcemaps.init({loadMaps: true}))
