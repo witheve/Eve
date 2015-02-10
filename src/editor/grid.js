@@ -1,14 +1,17 @@
 import macros from "../macros.sjs";
 
-function setSizeAndPosition(grid, child, size, position) {
+function getSizeAndPosition(grid, size, position) {
+  var obj = {};
   unpack [width, height] = size;
   unpack [row, col] = position;
-  child.style.top = row * grid.unitHeight + row * grid.colMargin;
-  child.style.left = col * grid.unitWidth + col * grid.rowMargin;
-  child.style.width = width * grid.unitWidth + width * grid.colMargin;
-  child.style.height = height * grid.unitHeight + height * grid.rowMargin;
+  obj.top = row * grid.unitHeight + row * grid.colMargin;
+  obj.left = col * grid.unitWidth + col * grid.rowMargin;
+//   obj.transform = "translate3d(" + left + "px, " + top + "px, 0)"
+  obj.width = width * grid.unitWidth + ((width - 1) * grid.colMargin);
+  obj.height = height * grid.unitHeight + ((height - 1) * grid.rowMargin);
+  return obj;
 }
-module.exports.setSizeAndPosition = setSizeAndPosition;
+module.exports.getSizeAndPosition = getSizeAndPosition;
 
 function wrapPosition(grid, ix, obj) {
   var row = Math.floor(ix / grid.cols);
@@ -20,6 +23,13 @@ function wrapPosition(grid, ix, obj) {
   return obj;
 }
 module.exports.wrapPosition = wrapPosition;
+
+function indexToRowCol(grid, ix) {
+  var row = Math.floor(ix / grid.cols);
+  var col = ix - (row * grid.cols);
+  return [row, col];
+}
+module.exports.indexToRowCol = indexToRowCol;
 
 function layout(grid) {
   var children = grid.container.children;

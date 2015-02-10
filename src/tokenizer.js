@@ -1166,7 +1166,7 @@ function codeToSystem(code) {
     return [table];
   });
 
-  //system.updateStore("workspaceView", tablesCreated, []);
+//   system.updateStore("workspaceView", tablesCreated, []);
   //system.updateStore("subscription", tablesCreated, []);
   for(var table in programResults.values) {
     var facts = programResults.values[table];

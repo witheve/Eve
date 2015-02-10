@@ -28,32 +28,12 @@ body {
 
 #cards {
   position:absolute;
-  overflow:auto;
+  overflow:visible;
   top:60px;
   bottom:50px;
   left:50px;
   right:50px;
-  transition: 0.4s ease-in-out;
 }
-
-#cardEditor {
-  position:absolute;
-  overflow:auto;
-  top:60px;
-  bottom:50px;
-  left:50px;
-  right:50px;
-  transition: 0.2s ease-in-out;
-  opacity: 0;
-  pointer-events: none;
-
-  &.active {
-    opacity:1;
-    pointer-events: auto;
-  }
-}
-
-
 
 .searcher {
   position:fixed;
@@ -112,7 +92,7 @@ body {
   display:flex;
   flex-direction:column;
   align-items: flex-start;
-  transition: margin 0.28s $open-animation;
+  transition: 0.4s ease-in-out;
 
   h2 {
     flex: none;

@@ -135,16 +135,52 @@ function reactFactory(obj) {
 //---------------------------------------------------------
 
 var Root = React.createFactory(React.createClass({
+  getInitialState: function() {
+    return {activeRow: false, activeCol: false};
+  },
+  click: function() {
+//     if(this.state.activeRow === false) {
+//       this.setState({activeRow: 1, activeCol: 1});
+//     } else {
+//       this.setState({activeRow: false, activeCol: false});
+//     }
+  },
+  calculateRowCol: function(row, col) {
+    var newRow = row;
+    var newCol = col;
+    if(this.state.activeRow !== false) {
+      var rowOffset = row - this.state.activeRow;
+      var colOffset = col - this.state.activeCol;
+      var rowEdge = rowOffset > 0 ? tileGrid.rows + 1 : (rowOffset < 0 ? -2 : row);
+      var colEdge = colOffset > 0 ? tileGrid.cols + 1 : (colOffset < 0 ? -2 : col);
+      newRow = rowEdge;
+      newCol = colEdge;
+    }
+    return [newRow, newCol];
+  },
   render: function() {
+    var self = this;
     var tables = indexer.facts("workspaceView").map(function(cur, ix) {
       unpack [uuid] = cur;
+      unpack [row, col] = grid.indexToRowCol(tileGrid, ix + 1);
+      unpack [finalRow, finalCol] = self.calculateRowCol(row, col);
+      var size = [1,1];
+      if(finalRow === self.state.activeRow && finalCol === self.state.activeCol) {
+        size = [tileGrid.cols, tileGrid.rows];
+        finalRow = 0;
+        finalCol = 0;
+        console.log("here", size);
+      }
       return tiles.table({table: uuid,
-                          ix: ix + 1});
+                          size: size,
+                          pos: [finalRow, finalCol]});
     })
+    var uiPos = this.calculateRowCol(0,0);
     return JSML.react(["div",
                        ReactSearcher(),
-                       ["div", {"id": "cards"},
-                        tiles.ui({ix: 0}),
+                       ["div", {"id": "cards",
+                                "onClick": this.click},
+                        tiles.ui({pos: uiPos, size: [1,1]}),
                         tables
                         ]]);
   }
@@ -160,7 +196,7 @@ var tiles = {
   wrapper: reactFactory({
     render: function() {
       return JSML.react(["div", {"className": "card " + (this.props.class || ""),
-                                 "style": grid.wrapPosition(tileGrid, this.props.ix, {})},
+                                 "style": grid.getSizeAndPosition(tileGrid, this.props.size, this.props.pos)},
                          this.props.content]);
     }
   }),
@@ -267,12 +303,12 @@ var tiles = {
                                   ["div", {"className": "grid-rows"},
                                    rows,
                                    isInput ? this.adderRow({len: headers.length, table: table}) : null]])];
-      return tiles.wrapper({ix: this.props.ix, content: content});
+      return tiles.wrapper({pos: this.props.pos, size: this.props.size, content: content});
     }
   }),
   ui: reactFactory({
     render: function() {
-      return tiles.wrapper({ix: this.props.ix, class: "uiCard"});
+      return tiles.wrapper({pos: this.props.pos, size: this.props.size, class: "uiCard"});
     }
   })
 };
@@ -374,24 +410,6 @@ function dispatch(eventInfo) {
     case "selectField":
       selectField(eventInfo[1], eventInfo[2], eventInfo[3]);
       break;
-
-    case "selectCard":
-      if(mode === "grid") {
-        window.history.pushState({cardName: info.name}, info.name, "/" + info.name);
-//         selectCard(info);
-      } else {
-        //window.history.pushState({}, "eve", "/");
-        //deselectCard();
-      }
-      break;
-
-    case "locationChange":
-      if(info.state && info.state.cardName && viewUI[info.state.cardName]) {
-//         selectCard(viewUI[info.state.cardName]);
-      } else if(mode !== "grid") {
-//         deselectCard();
-      }
-      break;
   }
 }
 module.exports.dispatch = dispatch;
@@ -410,7 +428,7 @@ function init(system) {
   var dims = document.body.getBoundingClientRect();
   tileGrid = grid.makeGrid(document.body, {
     dimensions: [dims.width - 100, dims.height - 110],
-    gridSize: [5,2],
+    gridSize: [5, 2],
     marginSize: [10,10]
   });
   React.render(Root(), document.body);

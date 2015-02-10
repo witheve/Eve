@@ -117,7 +117,7 @@ function createWorker() {
 
 var programWorker = global.programWorker = createWorker();
 
-var system = codeToSystem( examples["Runtime"] + "\n\n" + examples["Incrementer"]);
+var system = codeToSystem( examples["Runtime"] + "\n\n" + examples["TodoMVC"]);
 programWorker.postMessage({type: "diffs", diffs: diffSystems(system, null, null)});
 
 //---------------------------------------------------------
