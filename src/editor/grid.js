@@ -24,9 +24,10 @@ function wrapPosition(grid, ix, obj) {
 }
 module.exports.wrapPosition = wrapPosition;
 
-function indexToRowCol(grid, ix) {
-  var row = Math.floor(ix / grid.cols);
-  var col = ix - (row * grid.cols);
+function indexToRowCol(grid, size, ix) {
+  unpack [width, height] = size;
+  var row = Math.floor((ix * width) / grid.cols) * height;
+  var col = (ix * width) % grid.cols;
   return [row, col];
 }
 module.exports.indexToRowCol = indexToRowCol;
