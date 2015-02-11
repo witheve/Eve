@@ -185,71 +185,6 @@ function reactFactory(obj) {
 };
 
 //---------------------------------------------------------
-// Root
-//---------------------------------------------------------
-
-var Root = React.createFactory(React.createClass({
-  calculateRowCol: function(activeRow, activeCol, row, col, size) {
-    unpack [width, height] = size;
-    var newRow = row;
-    var newCol = col;
-    if(activeRow !== false) {
-      var rowOffset = row - activeRow;
-      var colOffset = col - activeCol;
-      var rowEdge = rowOffset > 0 ? tileGrid.rows + 1 : (rowOffset < 0 ? -2 * height : row);
-      var colEdge = colOffset > 0 ? tileGrid.cols + 1 : (colOffset < 0 ? -2 * width : col);
-      newRow = rowEdge;
-      newCol = colEdge;
-    }
-    return [newRow, newCol];
-  },
-  sizeAndPosition: function(activeRow, activeCol, ix) {
-    var size = [6,2];
-    unpack [row, col] = grid.indexToRowCol(tileGrid, size, ix);
-    unpack [finalRow, finalCol] = this.calculateRowCol(activeRow, activeCol, row, col, size);
-    if(finalRow === activeRow && finalCol === activeCol) {
-      size = [tileGrid.cols - 2, tileGrid.rows];
-      finalRow = 0;
-      finalCol = 1;
-    }
-    return {size: size, pos: [finalRow, finalCol]};
-  },
-  render: function() {
-    var activeTile = indexer.facts("activeTile")[0];
-    var activeRow = false;
-    var activeCol = false;
-    if(activeTile) {
-      var tileIx = 0;
-      if(activeTile[0] !== "uiCard") {
-        foreach(ix, view of indexer.facts("workspaceView")) {
-          if(activeTile[0] !== view[0]) continue;
-          tileIx = ix + 1;
-          break;
-        }
-      }
-      unpack [activeRow, activeCol] = grid.indexToRowCol(tileGrid, [6,2], tileIx);
-    }
-    var self = this;
-    var tables = indexer.facts("workspaceView").map(function(cur, ix) {
-      unpack [uuid] = cur;
-      var tile = self.sizeAndPosition(activeRow, activeCol, ix + 1);
-      return tiles.table({table: uuid,
-                          size: tile.size,
-                          pos: tile.pos});
-    })
-    var tile = this.sizeAndPosition(activeRow, activeCol, 0);
-    return JSML.react(["div",
-                        ProgramLoader(),
-                        ReactSearcher(),
-                        ["div", {"id": "cards",
-                                "onClick": this.click},
-                        tiles.ui({pos: tile.pos, size: tile.size, table: "uiCard"}),
-                        tables
-                        ]]);
-  }
-}));
-
-//---------------------------------------------------------
 // Mixins
 //---------------------------------------------------------
 
@@ -284,6 +219,75 @@ var editableRowMixin = {
 };
 
 //---------------------------------------------------------
+// Root
+//---------------------------------------------------------
+var gridSize = [6, 2];
+
+var Root = React.createFactory(React.createClass({
+  calculateRowCol: function(activeRow, activeCol, row, col, size) {
+    unpack [width, height] = size;
+    var newRow = row;
+    var newCol = col;
+    if(activeRow !== false) {
+      var rowOffset = row - activeRow;
+      var colOffset = col - activeCol;
+      var rowEdge = rowOffset > 0 ? tileGrid.rows + 1 : (rowOffset < 0 ? -2 * height : row);
+      var colEdge = colOffset > 0 ? tileGrid.cols + 1 : (colOffset < 0 ? -2 * width : col);
+      newRow = rowEdge;
+      newCol = colEdge;
+    }
+    return [newRow, newCol];
+  },
+  sizeAndPosition: function(activeRow, activeCol, ix) {
+    var size = gridSize;
+    unpack [row, col] = grid.indexToRowCol(tileGrid, size, ix);
+    unpack [finalRow, finalCol] = this.calculateRowCol(activeRow, activeCol, row, col, size);
+    if(finalRow === activeRow && finalCol === activeCol) {
+      size = [tileGrid.cols - 2, tileGrid.rows];
+      finalRow = 0;
+      finalCol = 1;
+    }
+    return {size: size, pos: [finalRow, finalCol]};
+  },
+  render: function() {
+    var activeTile = indexer.facts("activeTile")[0];
+    var activeRow = false;
+    var activeCol = false;
+    if(activeTile) {
+      var tileIx = 0;
+      if(activeTile[0] !== "uiCard") {
+        foreach(ix, view of indexer.facts("workspaceView")) {
+          if(activeTile[0] !== view[0]) continue;
+          tileIx = ix + 1;
+          break;
+        }
+      }
+      unpack [activeRow, activeCol] = grid.indexToRowCol(tileGrid, gridSize, tileIx);
+    }
+    var self = this;
+    var tables = indexer.facts("workspaceView").map(function(cur, ix) {
+      unpack [uuid] = cur;
+      var tile = self.sizeAndPosition(activeRow, activeCol, ix + 1);
+      return tiles.table({table: uuid,
+                          size: tile.size,
+                          pos: tile.pos});
+    })
+    var UITile = this.sizeAndPosition(activeRow, activeCol, 0);
+    var AddTile = this.sizeAndPosition(activeRow, activeCol, tables.length + 1);
+    console.log(UITile, AddTile);
+    return JSML.react(["div",
+                        ProgramLoader(),
+                        ReactSearcher(),
+                        ["div", {"id": "cards",
+                                "onClick": this.click},
+                         tiles.ui({pos: UITile.pos, size: UITile.size, table: "uiCard"}),
+                         tables,
+                         tiles.addTile(AddTile)
+                        ]]);
+  }
+}));
+
+//---------------------------------------------------------
 // tiles
 //---------------------------------------------------------
 
@@ -300,10 +304,20 @@ var tiles = {
       }
     },
     render: function() {
+      var selectable = (this.props.selectable !== undefined) ? this.props.selectable : true;
       return JSML.react(["div", {"className": "card " + (this.props.class || ""),
-                                 "onClick": this.click,
+                                 "onClick": (selectable) ? this.click : undefined,
                                  "style": grid.getSizeAndPosition(tileGrid, this.props.size, this.props.pos)},
                          this.props.content]);
+    }
+  }),
+  addTile: reactFactory({
+    click: function(e) {
+      dispatch(["addTile", {pos: this.props.pos, size: this.props.size}]);
+    },
+    render: function() {
+      var content = JSML.react(["div", {onClick: this.click}, "+"]);
+      return tiles.wrapper({pos: this.props.pos, size: this.props.size, id: "addTile", class: "add-tile", content: content, selectable: false});
     }
   }),
   table: reactFactory({
