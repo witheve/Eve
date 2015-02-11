@@ -125,6 +125,31 @@ function hasTag(id, needle) {
   return false;
 }
 
+//all the tables that the table queries or joins on
+function incomingTables(curTable) {
+  var incoming = {};
+  var queries = indexer.index("viewToQuery")[curTable];
+  var queryToConstraint = indexer.index("queryToViewConstraint");
+  var queryToAggregate = indexer.index("queryToAggregateConstraint");
+  var constraints;
+  foreach(query of queries) {
+    constraints = queryToConstraint[query[0]];
+    foreach(constraint of constraints) {
+      incoming[constraint[2]] = true;
+    }
+    aggregates = queryToAggregate[query[0]];
+    foreach(agg of aggregates) {
+      incoming[agg[3]] = true;
+    }
+  }
+  return Object.keys(incoming);
+}
+
+//all the tables that query or join on this table
+function outgoingTables(curTable) {
+  //@TODO
+}
+
 //---------------------------------------------------------
 // React helpers
 //---------------------------------------------------------
@@ -471,6 +496,9 @@ function init(system) {
   indexer.addIndex("displayName", "displayName", indexers.makeLookup(0, 1));
   indexer.addIndex("field", "viewToFields", indexers.makeCollector(1));
   indexer.addIndex("tag", "idToTags", indexers.makeCollector(0));
+  indexer.addIndex("query", "viewToQuery", indexers.makeCollector(1));
+  indexer.addIndex("viewConstraint", "queryToViewConstraint", indexers.makeCollector(1));
+  indexer.addIndex("aggregateConstraint", "queryToAggregateConstraint", indexers.makeCollector(1));
   indexer.forward("workspaceView");
   var dims = document.body.getBoundingClientRect();
   tileGrid = grid.makeGrid(document.body, {
