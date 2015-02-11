@@ -52,7 +52,7 @@ setLocal("client", client);
 
 var renderer = {"programQueue": [], "queued": false}
 
-function drainRenderQueue() {
+function drainRenderQueue(worker) {
   var start = now();
   storage["rootParent"] = $(".uiCard").get(0);
   if(storage["rootParent"] && renderer["programQueue"].length > 0) {
@@ -60,7 +60,7 @@ function drainRenderQueue() {
       var queued = renderer["programQueue"][i];
       var program = queued[0];
       var diff = queued[1];
-      uiDiffRenderer(diff, storage, program);
+      uiDiffRenderer(worker, diff, storage, program);
     }
     var eveRoot = $(storage["builtEls"]["eve-root"]);
     if(!eveRoot.closest(document.documentElement).size()) {
@@ -76,10 +76,10 @@ function drainRenderQueue() {
   renderer["queued"] = false;
 }
 
-function queueRender() {
+function queueRender(worker) {
   if(!renderer["queued"]) {
     renderer["queued"] = true;
-    requestAnimationFrame(drainRenderQueue);
+    requestAnimationFrame(drainRenderQueue.bind(null, worker));
   }
 }
 
@@ -90,7 +90,6 @@ function queueRender() {
 
 var system;
 var storage = {};
-var workers = {};
 
 function onWorkerMessage(event) {
   switch(event.data.type) {
@@ -99,26 +98,37 @@ function onWorkerMessage(event) {
       break;
     case "renderUI":
       renderer["programQueue"].push([event.data.from, event.data.diff]);
-      queueRender();
+      console.log(event.data.from);
+      queueRender(this);
       break;
     case "diffs":
       var diffs = event.data.diffs;
       ide.handleProgramDiffs(diffs);
-      programWorker.postMessage({type: "pull", runNumber: event.data.runNumber});
+      this.postMessage({type: "pull", runNumber: event.data.runNumber});
       break;
   }
 }
 
-function createWorker() {
+
+function createWorker(program) {
+  if(module.exports.worker) {
+    module.exports.worker.terminate();
+  }
   var worker = new Worker("../build/worker.js");
-  worker.onmessage = onWorkerMessage;
+  worker.onmessage = onWorkerMessage.bind(worker);
+  module.exports.worker = worker;
+
+  system = codeToSystem( examples["Runtime"] + "\n\n" + examples[program]);
+  storage = {};
+
+  worker.postMessage({type: "diffs", diffs: diffSystems(system, null, null)});
+  ide.init(system);
+  worker.postMessage({type: "pull"});
+  // export or pass programWorker
   return worker;
 }
 
-var programWorker = global.programWorker = createWorker();
 
-var system = codeToSystem( examples["Runtime"] + "\n\n" + examples["Incrementer"]);
-programWorker.postMessage({type: "diffs", diffs: diffSystems(system, null, null)});
 
 //---------------------------------------------------------
 // socket.io
@@ -136,13 +146,15 @@ if(window["io"]) {
     },
     terminate: function() {}
   };
-
-  workers["server"] = server;
 }
 
 //---------------------------------------------------------
 // Go!
 //---------------------------------------------------------
 
-ide.init(system);
-programWorker.postMessage({type: "pull"});
+global.bootstrap = module.exports = {};
+module.exports.programName = "Incrementer";
+module.exports.worker = createWorker("Incrementer");
+module.exports.createWorker = createWorker;
+
+

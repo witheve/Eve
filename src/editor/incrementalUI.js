@@ -32,7 +32,7 @@ var mouseEvents = {"drop": true,
 
 var keyEvents = {"keydown": true, "keyup": true, "keypress": true};
 
-var createUICallback = function(id, event, label, key, program) {
+var createUICallback = function(worker, id, event, label, key, program) {
   return function(e) {
     var items = [];
     var eid = eventId++;
@@ -65,7 +65,7 @@ var createUICallback = function(id, event, label, key, program) {
       value = (value === undefined) ? "" : value;
       items.push(["rawEvent", eid, label, key, value]);
       items.push(["eventTime", eid, Date.now()]);
-      programWorker.postMessage({type: "event", items: items});
+      worker.postMessage({type: "event", items: items});
     }
   };
 };
@@ -149,7 +149,7 @@ function appendSortElementDesc(parent, child){
 module.exports.appendSortElementDesc = appendSortElementDesc;
 
 
-function uiDiffRenderer(diff, storage, program) {
+function uiDiffRenderer(worker, diff, storage, program) {
 
   var builtEls = storage["builtEls"] || {"eve-root": document.createElement("div")};
   var handlers = storage["handlers"] || {};
@@ -273,7 +273,7 @@ function uiDiffRenderer(diff, storage, program) {
     if(!handlers[id]) {
       handlers[id] = {};
     }
-    var handler = handlers[id][event] = createUICallback(id, event, label, key, program);
+    var handler = handlers[id][event] = createUICallback(worker, id, event, label, key, program);
     builtEls[id].addEventListener(event, handler);
   }
 

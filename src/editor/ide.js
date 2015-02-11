@@ -79,7 +79,8 @@ Indexer.prototype = {
         if(!diffs[table]) continue;
         toSend[table] = diffs[table];
       }
-      programWorker.postMessage({type: "diffs", diffs: toSend});
+      console.log("hello");
+      global.bootstrap.worker.postMessage({type: "diffs", diffs: toSend});
     }
 
     dispatch(["diffsHandled", diffs]);
@@ -391,6 +392,7 @@ var ProjectLoader = reactFactory({
   },
   change: function(e) {
     // TODO: load and reset, somehow.
+    var worker = global.bootstrap.createWorker(e.target.value);
     console.log(e.target.value);
   },
   render: function() {
@@ -578,6 +580,7 @@ function ideTables() {
 
 function init(system) {
   system.update(ideTables(), []);
+  document.body.innerHTML = "";
   system.recompile();
   window.indexer = indexer = new Indexer(system);
   indexer.addIndex("displayName", "displayName", indexers.makeLookup(0, 1));
