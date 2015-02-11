@@ -612,14 +612,6 @@ function dispatch(eventInfo) {
       indexer.handleDiffs(diff);
       break;
 
-    case "sortCard":
-      eventInfo[1].sortBy(eventInfo[2], eventInfo[3]);
-      break;
-
-    case "selectField":
-      selectField(eventInfo[1], eventInfo[2], eventInfo[3]);
-      break;
-
     case "selectTile":
       var diff = {};
       diff["activeTile"] = {adds: [[info]], removes: indexer.facts("activeTile")};
