@@ -34,9 +34,9 @@ var macroSources = ["src/**/*.sjs"];
 
 function bundle(name, files) {
   var bundler = browserify({
-    entries: files,
     debug: true
-  });
+  })
+  .add(files, {expose: true});
   bundler.transform(sweetify, {
     extensions: /.+\.(js|sjs)$/,
     formatIndent: 2,
