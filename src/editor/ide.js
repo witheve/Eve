@@ -87,7 +87,19 @@ Indexer.prototype = {
     var indexes = this.indexes;
     var system = this.system;
     var cur;
+    var specialDiffs = ["view", "field"];
+    var isSpecial = false;
+    foreach(name of specialDiffs) {
+      if(!diffs[name]) { continue; }
+      applyDiff(this.system, name, diffs[name]);
+      isSpecial = true;
+    }
+    if(isSpecial) {
+      this.system.recompile();
+    }
+
     forattr(table, diff of diffs) {
+      if(specialDiffs.indexOf(table) !== -1) { continue; }
       if(tableToIndexes[table]) {
         foreach(index of tableToIndexes[table]) {
           cur = this.indexes[index];
@@ -409,7 +421,8 @@ var tiles = {
     render: function() {
       var self = this;
       var table = this.props.table;
-      var headers = indexer.index("viewToFields")[table].sort(function(a, b) {
+      var viewFields = indexer.index("viewToFields")[table] || [];
+      var headers = viewFields.sort(function(a, b) {
         //compare their ixes
         return a[2] - b[2];
       }).map(function(cur) {
@@ -656,6 +669,19 @@ function dispatch(eventInfo) {
     case "deselectTile":
       var diff = {};
       diff["activeTile"] = {adds: [], removes: indexer.facts("activeTile")};
+      indexer.handleDiffs(diff);
+      break;
+
+    case "addTile":
+      var id = global.uuid();
+      console.log(id);
+      var diff = {
+        view: {adds: [[id]], removes: []},
+        workspaceView: {adds: [[id]], removes: []},
+        isInput: {adds: [[id]], removes: []},
+        tag: {adds: [[id, "input"]], removes: []},
+        displayName: {adds: [[id, "Untitled view"]], removes: []}
+      };
       indexer.handleDiffs(diff);
       break;
 
