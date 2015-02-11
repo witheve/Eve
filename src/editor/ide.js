@@ -360,7 +360,7 @@ function searchForView(needle) {
 
 var ReactSearcher = reactFactory({
   getInitialState: function() {
-    return { max: 20, index: undefined, search: "", value: "", possible: searchForView('') };
+    return { active: false, max: 20, index: undefined, search: "", value: "", possible: searchForView('') };
   },
 
   cleanup: function() {
@@ -373,6 +373,8 @@ var ReactSearcher = reactFactory({
 
   input: function(e) {
     this.setState({
+      active: true,
+      index: undefined,
       value: e.target.value,
       search: e.target.value,
       possible: searchForView(e.target.value)
@@ -394,7 +396,8 @@ var ReactSearcher = reactFactory({
       DOWN: 40,
       LEFT: 37,
       RIGHT: 39,
-      ENTER: 13
+      ENTER: 13,
+      ESCAPE: 27
     };
     var max = Math.min(this.state.possible.length, this.state.max);
 
@@ -423,10 +426,12 @@ var ReactSearcher = reactFactory({
         if (this.state.index !== undefined) {
           dispatch(["openView", this.state.possible[this.state.index]]);
         }
-        this.setState(this.getInitialState());
+        var state = this.getInitialState();
+        state.active = true;
+        this.setState(state);
       break;
-      default:
-        this.setState({index: undefined});
+      case KEYCODES.ESCAPE:
+        this.setState(this.getInitialState());
       break;
     }
   },
@@ -461,7 +466,7 @@ var SearcherItem = reactFactory({
   render: function() {
     var focus = this.props.focus ? "focused" : "";
     var name = this.props.item ? this.props.item[0] : "";
-    return JSML.react(["li", {"onClick": this.click, className: focus, name]);
+    return JSML.react(["li", {"onClick": this.click, className: focus}, name]);
   }
 });
 
