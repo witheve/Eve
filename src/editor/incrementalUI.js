@@ -331,24 +331,19 @@ var storage;
 var renderer;
 
 function renderQueueInit() {
-  storage = {};
+  module.exports.storage = storage = {builtEls: {"eve-root": document.createElement("div")}};
   renderer = {"programQueue": [], "queued": false}
 }
 module.exports.renderQueueInit = renderQueueInit;
 
 function drainRenderQueue() {
   var start = now();
-  storage["rootParent"] = $(".uiCard").get(0);
-  if(storage["rootParent"] && renderer["programQueue"].length > 0) {
+  if(renderer["programQueue"].length > 0) {
     for(var i = 0, len = renderer["programQueue"].length; i < len; i++) {
       var queued = renderer["programQueue"][i];
       var program = queued[0];
       var diff = queued[1];
       uiDiffRenderer(diff, storage, program);
-    }
-    var eveRoot = $(storage["builtEls"]["eve-root"]);
-    if(!eveRoot.closest(document.documentElement).size()) {
-      storage["rootParent"].appendChild(eveRoot.get(0));
     }
     renderer["programQueue"] = [];
   }
@@ -370,3 +365,5 @@ function queueRender(queue, item) {
   }
 }
 module.exports.queueRender = queueRender;
+
+
