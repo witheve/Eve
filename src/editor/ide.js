@@ -274,7 +274,6 @@ var Root = React.createFactory(React.createClass({
     })
     var UITile = this.sizeAndPosition(activeRow, activeCol, 0);
     var AddTile = this.sizeAndPosition(activeRow, activeCol, tables.length + 1);
-    console.log(UITile, AddTile);
     return JSML.react(["div",
                         ProgramLoader(),
                         ReactSearcher(),
@@ -659,6 +658,9 @@ function dispatch(eventInfo) {
       diff["activeTile"] = {adds: [], removes: indexer.facts("activeTile")};
       indexer.handleDiffs(diff);
       break;
+
+    default:
+      console.warn("[dispatch] Unhandled event:", event, info);
   }
 }
 module.exports.dispatch = dispatch;
