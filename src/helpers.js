@@ -343,6 +343,7 @@ function inputView(name, fields, tags) {
 
 function commonViews() {
   var facts = [];
+  pushAll(facts, inputView("editId", ["view", "fact", "id"], ["system input"]));
   pushAll(facts, inputView("workspaceView", ["view"]));
   pushAll(facts, inputView("rawEvent", ["eid", "label", "key", "value"], ["system input"]));
   pushAll(facts, inputView("eventTime", ["tick", "time"], ["system input"]));

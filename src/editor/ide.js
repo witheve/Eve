@@ -29,6 +29,29 @@ var indexers = {
       return final;
     }
   },
+  makeLookup2D: function(key1Ix, key2Ix, valueIx) {
+    return function(cur, diffs) {
+      var final = cur || {};
+      foreach(add of diffs.adds) {
+        var key1 = add[key1Ix];
+        if(!final[key1]) {
+          final[key1] = {};
+        }
+        var key2 = add[key2Ix];
+        final[key1][key2] = add[valueIx];
+      }
+      foreach(remove of diffs.removes) {
+        var key1 = remove[key1Ix];
+        if(!final[key1]) {
+          continue;
+        }
+        var key2 = remove[key2Ix];
+        final[key1][key2] = null;
+      }
+
+      return final;
+    };
+  },
   makeCollector: function(keyIx) {
     return function(cur, diffs) {
       var final = cur || {};
@@ -225,6 +248,40 @@ var Root = React.createFactory(React.createClass({
 }));
 
 //---------------------------------------------------------
+// Mixins
+//---------------------------------------------------------
+
+var editableRowMixin = {
+  getInitialState: function() {
+    return {edits: [], activeField: -1};
+  },
+  click: function(e) {
+    var ix = parseInt(e.currentTarget.getAttribute("data-ix"), 10);
+    this.setState({activeField: ix});
+    e.currentTarget.focus();
+    e.stopPropagation();
+  },
+  keyDown: function(e) {
+    //handle pressing enter
+    if(e.keyCode === 13) {
+      this.blur();
+      e.preventDefault();
+    }
+  },
+  input: function(e) {
+    var edits = this.state.edits;
+    edits[this.state.activeField] = e.target.textContent;
+  },
+  blur: function() {
+    this.setState({activeField: -1});
+    var commitSuccessful = this.commit();
+    if(commitSuccessful) {
+      this.setState({edits: []});
+    }
+  }
+};
+
+//---------------------------------------------------------
 // tiles
 //---------------------------------------------------------
 
@@ -256,51 +313,57 @@ var tiles = {
       }
     }),
     row: reactFactory({
+      mixins: [editableRowMixin],
+      commit: function() {
+        var oldRow = this.props.row;
+        var newRow = oldRow.slice();
+        var edits = this.state.edits;
+        foreach(ix, field of newRow) {
+          if(edits[ix] !== null && edits[ix] !== undefined) {
+            newRow[ix] = edits[ix];
+          }
+        }
+        dispatch(["updateRow", {table: this.props.table, oldRow: oldRow, newRow: newRow}]);
+        return true;
+      },
       render: function() {
         var fields = [];
-        foreach(field of this.props.row) {
-          fields.push(["div", field]);
+        foreach(ix, field of this.props.row) {
+          className = "";
+          contentEditable = false;
+          if(this.state.activeField === ix) {
+            className = "selected";
+            contentEditable = true;
+          }
+          fields.push(["div", {
+            "data-ix": ix,
+            className: className,
+            contentEditable: contentEditable,
+            onInput: this.input,
+            onBlur: this.blur,
+            onKeydown: this.keyDown,
+            onClick: this.click,
+            dangerouslySetInnerHTML: {__html: this.state.edits[ix] || field || ""}
+          }]);
         }
         return JSML.react(["div", {"className": "grid-row", "key": JSON.stringify(this.props.row)}, fields]);
       }
     }),
     adderRow: reactFactory({
-      getInitialState: function() {
-        return {row: [], activeField: -1};
-      },
+      mixins: [editableRowMixin],
       checkComplete: function() {
         for(var i = 0, len = this.props.len; i < len; i++) {
-          if(this.state.row[i] === undefined || this.state.row[i] === null) return false;
+          if(this.state.edits[i] === undefined || this.state.edits[i] === null) return false;
         }
         return true;
       },
-      click: function(e) {
-        var ix = parseInt(e.currentTarget.getAttribute("data-ix"));
-        this.setState({activeField: ix});
-        e.currentTarget.focus();
-      },
-      keyDown: function(e) {
-        //handle pressing enter
-        if(e.keyCode === 13) {
-          this.blur();
-          e.preventDefault();
-        }
-      },
-      input: function(e) {
-        var row = this.state.row;
-        row[this.state.activeField] = e.target.textContent;
-      },
-      blur: function() {
-        this.setState({activeField: -1});
-        this.commit();
-      },
       commit: function() {
         if(this.checkComplete()) {
-          var row = this.state.row.slice();
-          this.setState(this.getInitialState(), function() {
-          });
+          var row = this.state.edits.slice();
           dispatch(["addRow", {table: this.props.table, row: row}]);
+          return true;
         }
+        return false;
       },
       render: function() {
         var fields = [];
@@ -322,7 +385,7 @@ var tiles = {
             "onKeyDown": this.keyDown,
             "onClick": this.click,
             "data-ix": i,
-            "dangerouslySetInnerHTML": {__html: this.state.row[i] || ""}
+            "dangerouslySetInnerHTML": {__html: this.state.edits[i] || ""}
           }]);
         }
         return JSML.react(["div", {"className": "grid-row", "key": "adderRow"}, fields]);
@@ -340,7 +403,7 @@ var tiles = {
       //@TODO: sorting. We should probably use a sorted indexer as sorting all the rows
       // every update is going to be stupidly expensive.
       var rows = indexer.facts(table).map(function(cur) {
-        return self.row({row: cur});
+        return self.row({row: cur, table: table});
       });
       var isInput = hasTag(table, "input");
       var content =  [JSML.react(["h2", table, isInput ? " - input" : ""]),
@@ -522,6 +585,15 @@ var SearcherItem = reactFactory({
 // Dispatcher
 //---------------------------------------------------------
 
+function maxRowId(view) {
+  var ids = indexer.index("editViewToIds")[view];
+  if(ids && ids.length) {
+    return ids[ids.length - 1][2];
+  } else {
+    return -1;
+  }
+}
+
 function dispatch(eventInfo) {
   unpack [event, info] = eventInfo;
   switch(event) {
@@ -539,15 +611,28 @@ function dispatch(eventInfo) {
       //@TODO: we haven't set up view forwarding for constant/input views
       var diff = {};
       diff[info.table] = {adds: [info.row], removes: []};
+      var id = maxRowId(info.table) + 1;
+      if(id) { id += 1; }
+      diff["editId"] = {adds: [[info.table, JSON.stringify(info.row), id]], removes: []};
       indexer.handleDiffs(diff);
       break;
 
-    case "sortCard":
-      eventInfo[1].sortBy(eventInfo[2], eventInfo[3]);
-      break;
+    case "updateRow":
+      var diff = {};
+      var oldFact = JSON.stringify(info.oldRow);
+      var newFact = JSON.stringify(info.newRow);
+      var edits = indexer.index("editRowToId")[info.table];
+      var editId;
+      if(edits && edits[oldFact] !== undefined && edits[oldFact] !== null) {
+        editId = edits[oldFact];
+      } else {
+        // Hack-around until every constant row has a *saved* editId.
+        editId = maxRowId(info.table) + 1;
+      }
 
-    case "selectField":
-      selectField(eventInfo[1], eventInfo[2], eventInfo[3]);
+      diff[info.table] = {adds: [info.newRow], removes: [info.oldRow]};
+      diff["editId"] = {adds: [[info.table, newFact, editId]], removes: [[info.table, oldFact, editId]]};
+      indexer.handleDiffs(diff);
       break;
 
     case "selectTile":
@@ -586,6 +671,8 @@ function init(system) {
   indexer.addIndex("displayName", "displayName", indexers.makeLookup(0, 1));
   indexer.addIndex("field", "viewToFields", indexers.makeCollector(1));
   indexer.addIndex("tag", "idToTags", indexers.makeCollector(0));
+  indexer.addIndex("editId", "editRowToId", indexers.makeLookup2D(0, 1, 2));
+  indexer.addIndex("editId", "editViewToIds", indexers.makeCollector(0));
   indexer.addIndex("query", "viewToQuery", indexers.makeCollector(1));
   indexer.addIndex("viewConstraint", "queryToViewConstraint", indexers.makeCollector(1));
   indexer.addIndex("aggregateConstraint", "queryToAggregateConstraint", indexers.makeCollector(1));
