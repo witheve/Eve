@@ -601,7 +601,6 @@ function dispatch(eventInfo) {
       var edits = indexer.index("editRowToId")[info.table];
       var editId;
       if(edits && edits[oldFact] !== undefined && edits[oldFact] !== null) {
-        console.log("edited", oldFact);
         editId = edits[oldFact];
       } else {
         // Hack-around until every constant row has a *saved* editId.
