@@ -148,6 +148,31 @@ function hasTag(id, needle) {
   return false;
 }
 
+//all the tables that the table queries or joins on
+function incomingTables(curTable) {
+  var incoming = {};
+  var queries = indexer.index("viewToQuery")[curTable];
+  var queryToConstraint = indexer.index("queryToViewConstraint");
+  var queryToAggregate = indexer.index("queryToAggregateConstraint");
+  var constraints;
+  foreach(query of queries) {
+    constraints = queryToConstraint[query[0]];
+    foreach(constraint of constraints) {
+      incoming[constraint[2]] = true;
+    }
+    aggregates = queryToAggregate[query[0]];
+    foreach(agg of aggregates) {
+      incoming[agg[3]] = true;
+    }
+  }
+  return Object.keys(incoming);
+}
+
+//all the tables that query or join on this table
+function outgoingTables(curTable) {
+  //@TODO
+}
+
 //---------------------------------------------------------
 // React helpers
 //---------------------------------------------------------
@@ -423,33 +448,97 @@ function searchForView(needle) {
 
 var ReactSearcher = reactFactory({
   getInitialState: function() {
-    return {search: ""};
+    return { active: false, max: 20, index: undefined, search: "", value: "", possible: searchForView('') };
+  },
+
+  cleanup: function() {
+    // FIXME: This is gross.
+    var self = this;
+    setTimeout(function() {
+      self.setState(self.getInitialState());
+    }, 200);
   },
 
   input: function(e) {
-    this.setState({search: e.target.value});
+    this.setState({
+      active: true,
+      index: undefined,
+      value: e.target.value,
+      search: e.target.value,
+      possible: searchForView(e.target.value)
+    });
   },
 
   focus: function(e) { this.setState({active: true}); },
   blur: function(e) {
+    // FIXME: This is gross.
     var self = this;
     setTimeout(function() {
-      self.setState({active: false})
+      self.setState({active: false, index: undefined})
     }, 200);
+  },
+
+  keydown: function(e) {
+    var KEYCODES = {
+      UP: 38,
+      DOWN: 40,
+      LEFT: 37,
+      RIGHT: 39,
+      ENTER: 13,
+      ESCAPE: 27
+    };
+    var max = Math.min(this.state.possible.length, this.state.max);
+
+    // FIXME: stupid 1 access to grab the name.
+    switch (e.keyCode) {
+      case KEYCODES.DOWN:
+        e.preventDefault();
+        if (this.state.index === undefined) {
+          var newindex = 0;
+          this.setState({index: newindex, value: this.state.possible[newindex][1]});
+        } else if (this.state.index !== max) {
+          var newindex = this.state.index + 1;
+          this.setState({index: newindex, value: this.state.possible[newindex][1]});
+        }
+      break;
+      case KEYCODES.UP:
+        e.preventDefault();
+        if (this.state.index === 0) {
+          this.setState({index: undefined, value: this.state.search});
+        } else if (this.state.index !== undefined) {
+          var newindex = this.state.index - 1;
+          this.setState({index: newindex, value: this.state.possible[newindex][1]});
+        }
+      break;
+      case KEYCODES.ENTER:
+        if (this.state.index !== undefined) {
+          dispatch(["openView", this.state.possible[this.state.index]]);
+        }
+        var state = this.getInitialState();
+        state.active = true;
+        this.setState(state);
+      break;
+      case KEYCODES.ESCAPE:
+        this.setState(this.getInitialState());
+      break;
+    }
   },
 
   render: function() {
     var cx = React.addons.classSet;
-    var possible = searchForView(this.state.search);
+    var possible = this.state.possible;
+    var possiblelength = possible.length;
     var results = [];
-    for(var i = 0; i < 20; i++) {
-      results.push(SearcherItem({item: possible[i], event: "openView"}));
+    for(var i = 0; i < this.state.max && i < possiblelength; i++) {
+      results.push(SearcherItem({searcher: this, focus: this.state.index === i, item: possible[i], event: "openView"}));
     }
     return JSML.react(["div", {"className": cx({"searcher": true,
                                                 "active": this.state.active})},
                        ["input", {"type": "text",
+                                  "value": this.state.value,
                                   "onFocus": this.focus,
                                   "onBlur": this.blur,
+                                  "onKeyDown": this.keydown,
                                   "onInput": this.input}],
                        ["ul", {},
                         results]]);
@@ -458,12 +547,14 @@ var ReactSearcher = reactFactory({
 
 var SearcherItem = reactFactory({
   click: function() {
+    // FIXME: How dirty is it to pass the "parent" to the child?
+    this.props.searcher.cleanup();
     dispatch([this.props.event, this.props.item]);
   },
   render: function() {
-    var display = this.props.item ? "" : "none";
+    var focus = this.props.focus ? "focused" : "";
     var name = this.props.item ? this.props.item[0] : "";
-    return JSML.react(["li", {"onClick": this.click, style: {display: display}}, name]);
+    return JSML.react(["li", {"onClick": this.click, className: focus}, name]);
   }
 });
 
@@ -567,6 +658,9 @@ function init(system) {
   indexer.addIndex("tag", "idToTags", indexers.makeCollector(0));
   indexer.addIndex("editId", "editRowToId", indexers.makeLookup2D(0, 1, 2));
   indexer.addIndex("editId", "editViewToIds", indexers.makeCollector(0));
+  indexer.addIndex("query", "viewToQuery", indexers.makeCollector(1));
+  indexer.addIndex("viewConstraint", "queryToViewConstraint", indexers.makeCollector(1));
+  indexer.addIndex("aggregateConstraint", "queryToAggregateConstraint", indexers.makeCollector(1));
   indexer.forward("workspaceView");
   var dims = document.body.getBoundingClientRect();
   tileGrid = grid.makeGrid(document.body, {
