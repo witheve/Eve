@@ -71,10 +71,10 @@ body {
       li {
         padding:3px;
         margin-top:5px;
-        &:hover {
-          border-radius:2px;
-          background: #e5e5e5;
-        }
+      }
+      li.focused, li:hover {
+        border-radius:2px;
+        background: #e5e5e5;
       }
     }
   }
