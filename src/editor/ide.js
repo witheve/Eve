@@ -188,8 +188,9 @@ var Root = React.createFactory(React.createClass({
     })
     var tile = this.sizeAndPosition(activeRow, activeCol, 0);
     return JSML.react(["div",
-                       ReactSearcher(),
-                       ["div", {"id": "cards",
+                        ProjectLoader(),
+                        ReactSearcher(),
+                        ["div", {"id": "cards",
                                 "onClick": this.click},
                         tiles.ui({pos: tile.pos, size: tile.size, table: "uiCard"}),
                         tables
@@ -357,6 +358,26 @@ function searchForView(needle) {
   }
   return results;
 }
+
+var ProjectLoader = reactFactory({
+  getInitialState: function() {
+    var examples = Object.keys(global.examples);
+    return {examples: examples};
+  },
+  change: function(e) {
+    // TODO: load and reset, somehow.
+    console.log(e.target.value);
+  },
+  render: function() {
+    // FIXME: Weird clicking issue?
+    var options = [];
+    var exampleslength = this.state.examples.length;
+    for (var i = 0; i < exampleslength; i++) {
+      options.push(["option", {value: this.state.examples[i]}, this.state.examples[i]]);
+    }
+    return JSML.react(["select", { onChange: this.change }, options]);
+  }
+});
 
 var ReactSearcher = reactFactory({
   getInitialState: function() {
