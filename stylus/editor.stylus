@@ -129,9 +129,10 @@ body {
     transition: 0.2s ease-in-out;
   }
   &.add-tile > div {
+    width: 100%; height: 100%;
+    text-align: center;
     font-size: 5em;
-    margin: auto;
-    vertical-align: middle;
+
   }
   &.add-tile:hover {
     border: 3px dashed lightness($bg-color, 98%);
@@ -140,7 +141,7 @@ body {
   }
   &.add-tile:active {
     background: $bg-color;
-    transition: 0.1s ease-in-out;
+    transition: 0.1s ease-out;
     color: rgba(0, 0, 0, 0.56);
   }
 }
