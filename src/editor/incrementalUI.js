@@ -32,7 +32,7 @@ var mouseEvents = {"drop": true,
 
 var keyEvents = {"keydown": true, "keyup": true, "keypress": true};
 
-var createUICallback = function(worker, id, event, label, key, program) {
+var createUICallback = function(id, event, label, key, program) {
   return function(e) {
     var items = [];
     var eid = eventId++;
@@ -65,7 +65,7 @@ var createUICallback = function(worker, id, event, label, key, program) {
       value = (value === undefined) ? "" : value;
       items.push(["rawEvent", eid, label, key, value]);
       items.push(["eventTime", eid, Date.now()]);
-      worker.postMessage({type: "event", items: items});
+      program.worker.postMessage({type: "event", items: items});
     }
   };
 };
@@ -149,7 +149,7 @@ function appendSortElementDesc(parent, child){
 module.exports.appendSortElementDesc = appendSortElementDesc;
 
 
-function uiDiffRenderer(worker, diff, storage, program) {
+function uiDiffRenderer(diff, storage, program) {
 
   var builtEls = storage["builtEls"] || {"eve-root": document.createElement("div")};
   var handlers = storage["handlers"] || {};
@@ -273,7 +273,7 @@ function uiDiffRenderer(worker, diff, storage, program) {
     if(!handlers[id]) {
       handlers[id] = {};
     }
-    var handler = handlers[id][event] = createUICallback(worker, id, event, label, key, program);
+    var handler = handlers[id][event] = createUICallback(id, event, label, key, program);
     builtEls[id].addEventListener(event, handler);
   }
 
@@ -321,4 +321,52 @@ function uiDiffRenderer(worker, diff, storage, program) {
 
 };
 
-global.uiDiffRenderer = uiDiffRenderer;
+module.exports.uiDiffRenderer = uiDiffRenderer;
+
+
+//---------------------------------------------------------
+// Render queue
+//---------------------------------------------------------
+var storage;
+var renderer;
+
+function renderQueueInit() {
+  storage = {};
+  renderer = {"programQueue": [], "queued": false}
+}
+module.exports.renderQueueInit = renderQueueInit;
+
+function drainRenderQueue() {
+  var start = now();
+  storage["rootParent"] = $(".uiCard").get(0);
+  if(storage["rootParent"] && renderer["programQueue"].length > 0) {
+    for(var i = 0, len = renderer["programQueue"].length; i < len; i++) {
+      var queued = renderer["programQueue"][i];
+      var program = queued[0];
+      var diff = queued[1];
+      uiDiffRenderer(diff, storage, program);
+    }
+    var eveRoot = $(storage["builtEls"]["eve-root"]);
+    if(!eveRoot.closest(document.documentElement).size()) {
+      storage["rootParent"].appendChild(eveRoot.get(0));
+    }
+    renderer["programQueue"] = [];
+  }
+  var end = now();
+  if(end - start > 10) {
+    console.error("Long render: " + (end - start));
+  }
+//   console.log("Render loop:", end - start);
+  renderer["queued"] = false;
+}
+module.exports.drainRenderQueue = drainRenderQueue;
+
+function queueRender(queue, item) {
+  renderer[queue].push(item);
+
+  if(!renderer["queued"]) {
+    renderer["queued"] = true;
+    requestAnimationFrame(drainRenderQueue);
+  }
+}
+module.exports.queueRender = queueRender;

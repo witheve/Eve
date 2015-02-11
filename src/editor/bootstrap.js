@@ -1,7 +1,7 @@
-var ide = require('./ide.js');
+var ide = require("./ide.js");
 var diffSystems = global.diffSystems;
 var codeToSystem = global.codeToSystem;
-var uiDiffRenderer = global.uiDiffRenderer;
+var incrementalUI = require("./incrementalUI");
 var examples = global.examples;
 var tests = global.tests || {};
 
@@ -47,88 +47,66 @@ global.client = client;
 setLocal("client", client);
 
 //---------------------------------------------------------
-// renderer
-//---------------------------------------------------------
-
-var renderer = {"programQueue": [], "queued": false}
-
-function drainRenderQueue(worker) {
-  var start = now();
-  storage["rootParent"] = $(".uiCard").get(0);
-  if(storage["rootParent"] && renderer["programQueue"].length > 0) {
-    for(var i = 0, len = renderer["programQueue"].length; i < len; i++) {
-      var queued = renderer["programQueue"][i];
-      var program = queued[0];
-      var diff = queued[1];
-      uiDiffRenderer(worker, diff, storage, program);
-    }
-    var eveRoot = $(storage["builtEls"]["eve-root"]);
-    if(!eveRoot.closest(document.documentElement).size()) {
-      storage["rootParent"].appendChild(eveRoot.get(0));
-    }
-    renderer["programQueue"] = [];
-  }
-  var end = now();
-  if(end - start > 10) {
-    console.error("Long render: " + (end - start));
-  }
-//   console.log("Render loop:", end - start);
-  renderer["queued"] = false;
-}
-
-function queueRender(worker) {
-  if(!renderer["queued"]) {
-    renderer["queued"] = true;
-    requestAnimationFrame(drainRenderQueue.bind(null, worker));
-  }
-}
-
-
-//---------------------------------------------------------
 // worker
 //---------------------------------------------------------
 
-var system;
-var storage = {};
+function Program(name, code) {
+  this.name = name;
+  this.system = codeToSystem(code);
+  this.worker = new Worker("../build/worker.js");
+  this.worker.onmessage = this.onWorkerMessage.bind(this);
 
-function onWorkerMessage(event) {
-  switch(event.data.type) {
-    case "log":
-      console.log.apply(console, event.data.args);
-      break;
-    case "renderUI":
-      renderer["programQueue"].push([event.data.from, event.data.diff]);
-      console.log(event.data.from);
-      queueRender(this);
-      break;
-    case "diffs":
-      var diffs = event.data.diffs;
-      ide.handleProgramDiffs(diffs);
-      this.postMessage({type: "pull", runNumber: event.data.runNumber});
-      break;
-  }
+  this.worker.postMessage({type: "diffs", diffs: diffSystems(this.system, null, null)});
 }
-
-
-function createWorker(program) {
-  if(module.exports.worker) {
-    module.exports.worker.terminate();
+Program.prototype = {
+  onWorkerMessage: function onWorkerMessage(event) {
+    switch(event.data.type) {
+      case "log":
+        console.log.apply(console, event.data.args);
+        break;
+      case "renderUI":
+        incrementalUI.queueRender("programQueue", [this, event.data.diff]);
+        break;
+      case "diffs":
+        ide.handleProgramDiffs(event.data.diffs);
+        this.worker.postMessage({type: "pull", runNumber: event.data.runNumber});
+        break;
+    }
   }
-  var worker = new Worker("../build/worker.js");
-  worker.onmessage = onWorkerMessage.bind(worker);
-  module.exports.worker = worker;
+};
 
-  system = codeToSystem( examples["Runtime"] + "\n\n" + examples[program]);
-  storage = {};
-
-  worker.postMessage({type: "diffs", diffs: diffSystems(system, null, null)});
-  ide.init(system);
-  worker.postMessage({type: "pull"});
-  // export or pass programWorker
-  return worker;
+function TaskManager() {
+  this._program = {};
+  this._running = null;
 }
+TaskManager.prototype = {
+  add: function(name, code) {
+    this._program[name] = code; // Add single program.
+  },
+  list: function() {
+    return this._program;
+  },
+  run: function(name) {
+    var code = this._program["Runtime"] + "\n\n" + this._program[name];
+    if(this._running) { this.stop(); }
+    incrementalUI.renderQueueInit();
+    this._running = new Program(name, code);
+    ide.init(this._running);
+    this._running.worker.postMessage({type: "pull"});
+    return this._running;
+  },
+  stop: function() {
+    this._running.worker.terminate();
+  },
+  current: function() {
+    return this._running;
+  }
+};
+var taskManager = new TaskManager();
 
-
+for(var i = 0, keys = Object.keys(examples); i < keys.length; i++) {
+  taskManager.add(keys[i], examples[keys[i]]);
+}
 
 //---------------------------------------------------------
 // socket.io
@@ -152,9 +130,5 @@ if(window["io"]) {
 // Go!
 //---------------------------------------------------------
 
-global.bootstrap = module.exports = {};
-module.exports.programName = "Incrementer";
-module.exports.worker = createWorker("Incrementer");
-module.exports.createWorker = createWorker;
-
-
+module.exports.taskManager = taskManager;
+taskManager.run("Incrementer");

@@ -1,6 +1,7 @@
 import macros from "../macros.sjs";
 
 var React = require("react/addons");
+var bootstrap = require("./bootstrap");
 var JSML = require("./jsml");
 var helpers = require("./helpers");
 var Card = require("./card");
@@ -10,6 +11,7 @@ var grid = require("./grid");
 // Globals
 //---------------------------------------------------------
 
+var ide = module.exports;
 var indexer;
 
 //---------------------------------------------------------
@@ -71,8 +73,9 @@ var indexers = {
   }
 };
 
-function Indexer(system) {
-  this.system = system;
+function Indexer(program) {
+  this.worker = program.worker
+  this.system = program.system;
   this.tableToIndexes = {};
   this.indexes = {};
   this.tablesToForward = [];
@@ -102,8 +105,7 @@ Indexer.prototype = {
         if(!diffs[table]) continue;
         toSend[table] = diffs[table];
       }
-      console.log("hello");
-      global.bootstrap.worker.postMessage({type: "diffs", diffs: toSend});
+      this.worker.postMessage({type: "diffs", diffs: toSend});
     }
 
     dispatch(["diffsHandled", diffs]);
@@ -237,7 +239,7 @@ var Root = React.createFactory(React.createClass({
     })
     var tile = this.sizeAndPosition(activeRow, activeCol, 0);
     return JSML.react(["div",
-                        ProjectLoader(),
+                        ProgramLoader(),
                         ReactSearcher(),
                         ["div", {"id": "cards",
                                 "onClick": this.click},
@@ -448,24 +450,22 @@ function searchForView(needle) {
   return results;
 }
 
-var ProjectLoader = reactFactory({
+var ProgramLoader = reactFactory({
   getInitialState: function() {
-    var examples = Object.keys(global.examples);
-    return {examples: examples};
+    var programs = Object.keys(bootstrap.taskManager.list());
+    var current = bootstrap.taskManager.current().name;
+    return {programs: programs, current: current};
   },
   change: function(e) {
-    // TODO: load and reset, somehow.
-    var worker = global.bootstrap.createWorker(e.target.value);
-    console.log(e.target.value);
+    bootstrap.taskManager.run(e.target.value);
   },
   render: function() {
-    // FIXME: Weird clicking issue?
+    var current = this.state.current;
     var options = [];
-    var exampleslength = this.state.examples.length;
-    for (var i = 0; i < exampleslength; i++) {
-      options.push(["option", {value: this.state.examples[i]}, this.state.examples[i]]);
+    foreach(ix, name of this.state.programs) {
+      options.push(["option", {value: name}, name]);
     }
-    return JSML.react(["select", { onChange: this.change }, options]);
+    return JSML.react(["select", {className: "program-loader", onChange: this.change, value: current}, options]);
   }
 });
 
@@ -663,11 +663,11 @@ function ideTables() {
 // Init
 //---------------------------------------------------------
 
-function init(system) {
-  system.update(ideTables(), []);
-  document.body.innerHTML = "";
-  system.recompile();
-  window.indexer = indexer = new Indexer(system);
+function init(program) {
+  React.unmountComponentAtNode(document.body);
+  program.system.update(ideTables(), []);
+  program.system.recompile();
+  window.indexer = indexer = new Indexer(program);
   indexer.addIndex("displayName", "displayName", indexers.makeLookup(0, 1));
   indexer.addIndex("field", "viewToFields", indexers.makeCollector(1));
   indexer.addIndex("tag", "idToTags", indexers.makeCollector(0));
