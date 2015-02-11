@@ -459,10 +459,9 @@ var SearcherItem = reactFactory({
     dispatch([this.props.event, this.props.item]);
   },
   render: function() {
-    var display = this.props.item ? "" : "none";
     var focus = this.props.focus ? "focused" : "";
     var name = this.props.item ? this.props.item[0] : "";
-    return JSML.react(["li", {"onClick": this.click, className: focus, style: {display: display}}, name]);
+    return JSML.react(["li", {"onClick": this.click, className: focus, name]);
   }
 });
 
