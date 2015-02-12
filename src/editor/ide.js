@@ -849,6 +849,8 @@ function ideTables() {
   pushAll(facts, inputView("activeTile", ["tile"]));
   pushAll(facts, inputView("gridTile", ["tile", "type", "w", "h", "x", "y"]));
   pushAll(facts, inputView("tableTile", ["tile", "table"]));
+  pushAll(facts, inputView("contextMenu", ["x", "y"]));
+  pushAll(facts, inputView("contextMenuItem", ["pos", "text", "event", "id"]));
   return facts;
 }
 
