@@ -433,6 +433,10 @@ var tiles = {
         dispatch(["addField", {view: this.props.view, name: this.state.edit}]);
         return true;
       },
+      componentDidUpdate: function() {
+        //@HACK: React doesn't correctly clear contentEditable fields
+        this.getDOMNode().textContent = "";
+      },
       render: function() {
         return JSML.react(["div", this.wrapEditable({
           className: "header add-header",
@@ -473,6 +477,11 @@ var tiles = {
         if(this.checkComplete()) {
           var row = this.state.edits.slice();
           dispatch(["addRow", {table: this.props.table, row: row}]);
+          //@HACK: React doesn't correctly clear contentEditable fields
+          foreach(ix, _ of row) {
+            console.log(ix, this.getDOMNode().children[ix]);
+            this.getDOMNode().children[ix].textContent = "";
+          }
           return true;
         }
         return false;
