@@ -179,7 +179,7 @@ Indexer.prototype = {
 function hasTag(id, needle) {
   var tags = indexer.index("idToTags")[id];
   foreach(tagEntry of tags) {
-    unpack [uuid, tag] = tagEntry;
+    unpack [_, tag] = tagEntry;
     if(tag === needle) return true;
   }
   return false;
@@ -414,33 +414,33 @@ var tiles = {
       mixins: [editableFieldMixin],
       commit: function() {
         if(!this.state.edit) { return; }
-        dispatch(["rename", {uuid: this.props.uuid, name: this.state.edit}]);
+        dispatch(["rename", {id: this.props.id, name: this.state.edit}]);
         return true;
       },
       render: function() {
-        var uuid = this.props.uuid;
-        var name = this.state.edit || indexer.index("displayName")[uuid];
-        var isInput = hasTag(uuid, "input");
+        var id = this.props.id;
+        var name = this.state.edit || indexer.index("displayName")[id];
+        var isInput = hasTag(id, "input");
         return JSML.react(
           ["h2",
-           ["span", this.wrapEditable({key: uuid + "-title",}, name)],
+           ["span", this.wrapEditable({key: id + "-title",}, name)],
            (isInput ? " - input" : "")]);
       }
     }),
     header: reactFactory({
       mixins: [editableFieldMixin],
       commit: function() {
-        unpack [uuid] = this.props.field;
+        unpack [id] = this.props.field;
         if(!this.state.edit) { return; }
-        dispatch(["rename", {uuid: uuid, name: this.state.edit}]);
+        dispatch(["rename", {id: id, name: this.state.edit}]);
         return true;
       },
       render: function() {
-        unpack [uuid] = this.props.field;
-        var name = this.state.edit || indexer.index("displayName")[uuid];
+        unpack [id] = this.props.field;
+        var name = this.state.edit || indexer.index("displayName")[id];
         return JSML.react(["div", this.wrapEditable({
           className: "header",
-          key: uuid,
+          key: id,
         }, name)]);
       }
     }),
@@ -530,7 +530,7 @@ var tiles = {
       });
       var isInput = hasTag(table, "input");
 
-      var content =  [self.title({uuid: table}),
+      var content =  [self.title({id: table}),
                       JSML.react(["div", {"className": "grid"},
                                   ["div", {"className": "grid-header"},
                                    headers, self.addHeader({view: table})],
@@ -576,11 +576,11 @@ function searchForView(needle) {
   var names = indexer.index("displayName");
   var name;
   foreach(view of indexer.facts("view")) {
-    unpack [uuid] = view;
+    unpack [id] = view;
     //@TODO: why are none of the views in displayName?
-    name = names[uuid];
+    name = names[id];
     if(name.toLowerCase().indexOf(needle.toLowerCase()) > -1) {
-      results.push([uuid, name]);
+      results.push([id, name]);
     }
   }
   return results;
@@ -739,15 +739,15 @@ function dispatch(eventInfo) {
 
     // Tile selection
     case "openView":
-      unpack [tableUUID, name] = info;
+      unpack [tableId, name] = info;
       var ix = indexer.facts("gridTile").length;
       unpack [row, col] = grid.indexToRowCol(tileGrid, defaultSize, ix);
-      var tile = uuid();
-      var diff = {"workspaceView": {adds: [[tableUUID]], removes: []},
+      var tile = global.uuid();
+      var diff = {"workspaceView": {adds: [[tableId]], removes: []},
                   "gridTile": {adds: [[tile, "table", defaultSize[0], defaultSize[1], row, col]], removes: []},
-                  "tableTile": {adds: [[tile, tableUUID]], removes: []}};
+                  "tableTile": {adds: [[tile, tableId]], removes: []}};
       indexer.handleDiffs(diff);
-      indexer.forward(tableUUID);
+      indexer.forward(tableId);
       break;
 
     case "selectTile":
@@ -808,9 +808,9 @@ function dispatch(eventInfo) {
 
     // Updating facts
     case "rename":
-      var oldFact = indexer.index("displayName")[info.uuid];
+      var oldFact = indexer.index("displayName")[info.id];
       var diff = {
-        displayName: {adds: [[info.uuid, info.name]], removes: [oldFact]}
+        displayName: {adds: [[info.id, info.name]], removes: [oldFact]}
       };
       indexer.handleDiffs(diff);
       break;
