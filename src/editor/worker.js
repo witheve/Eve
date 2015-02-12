@@ -185,6 +185,17 @@ onmessage = function(event) {
         eveApp.remoteWatcher(eveApp, eveApp.storage["remoteWatcher"], eveApp.system);
       }
       break;
+    case "clearStorage":
+      //the remote cleared the following views (probably due to recompile)
+      var views = event.data.views;
+      var storage = eveApp.storage["remoteWatcher"];
+      foreach(view of views) {
+        storage[view] = null;
+      }
+      //send diffs again so that it has up to date information
+      eveApp.pull = true;
+      eveApp.remoteWatcher(eveApp, eveApp.storage["remoteWatcher"], eveApp.system);
+      break;
     case "event":
       var eid = eveApp.eventId++;
       var events = event.data.items.map(function(cur) {

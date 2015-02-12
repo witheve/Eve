@@ -111,6 +111,9 @@ Indexer.prototype = {
     }
     if(isSpecial) {
       this.system.recompile();
+      //all non-input views were just cleared, make sure the worker clears storage
+      //so that we end up with the views getting repopulated correctly.
+      this.worker.postMessage({type: "clearStorage", views: getNonInputWorkspaceViews()})
     }
 
     forattr(table, diff of diffs) {
@@ -201,6 +204,17 @@ function incomingTables(curTable) {
 //all the tables that query or join on this table
 function outgoingTables(curTable) {
   //@TODO
+}
+
+function getNonInputWorkspaceViews() {
+  var final = [];
+  var views = indexer.facts("workspaceView");
+  foreach(view of views) {
+    if(!hasTag(view[0], "input")) {
+      final.push(view[0]);
+    }
+  }
+  return final;
 }
 
 //---------------------------------------------------------
@@ -479,7 +493,6 @@ var tiles = {
           dispatch(["addRow", {table: this.props.table, row: row}]);
           //@HACK: React doesn't correctly clear contentEditable fields
           foreach(ix, _ of row) {
-            console.log(ix, this.getDOMNode().children[ix]);
             this.getDOMNode().children[ix].textContent = "";
           }
           return true;
