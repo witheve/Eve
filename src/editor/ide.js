@@ -221,6 +221,13 @@ function getNonInputWorkspaceViews() {
   return final;
 }
 
+function getTileFootprints() {
+  return indexer.facts("gridTile").map(function(cur, ix) {
+    unpack [tile, type, w, h, x, y] = cur;
+    return {pos: [x, y], size: [w, h]};
+  });
+}
+
 //---------------------------------------------------------
 // React helpers
 //---------------------------------------------------------
@@ -341,8 +348,6 @@ var Root = React.createFactory(React.createClass({
     }
     var self = this;
 
-    var gridItems = [];
-
     var tables = indexer.facts("gridTile").map(function(cur, ix) {
       unpack [tile, type, width, height, row, col] = cur;
       if(activeTile && tile !== activeTile[0]) {
@@ -354,11 +359,7 @@ var Root = React.createFactory(React.createClass({
 
       }
 
-      var gridItem = {
-        size: [width, height],
-        pos: [row, col]
-      };
-      gridItems.push(gridItem); // @FIXME: side effecty, but faster than a separate loop.
+      var gridItem = {size: [width, height], pos: [row, col]};
 
       if(type === "table") {
         var table = indexer.index("tileToTable")[tile];
@@ -370,6 +371,8 @@ var Root = React.createFactory(React.createClass({
         return tiles.ui(gridItem);
       }
     });
+
+    var gridItems = getTileFootprints();
     unpack [addRow, addCol] = grid.firstGap(tileGrid, gridItems, defaultSize);
     return JSML.react(["div",
                         ProgramLoader(),
@@ -759,7 +762,8 @@ function dispatch(eventInfo) {
     case "openView":
       unpack [tableId, name] = info;
       var ix = indexer.facts("gridTile").length;
-      unpack [row, col] = grid.indexToRowCol(tileGrid, defaultSize, ix);
+      var gridItems = getTileFootprints();
+      unpack [row, col] = grid.firstGap(tileGrid, gridItems, defaultSize);
       var tile = global.uuid();
       var diff = {"workspaceView": {adds: [[tableId]], removes: []},
                   "gridTile": {adds: [[tile, "table", defaultSize[0], defaultSize[1], row, col]], removes: []},
