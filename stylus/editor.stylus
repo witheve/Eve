@@ -171,8 +171,6 @@ body {
     overflow:auto;
   }
 
-  .grid-header .shrink-wrap, .grid-row .shrink-wrap { width: auto; }
-
   .grid-header {
     display:flex;
     flex: none;
@@ -214,6 +212,9 @@ body {
       }
     }
   }
+  .header.add-header {
+    height: 1.5em;
+  }
 
   .grid-row {
     display:flex;
@@ -226,10 +227,6 @@ body {
     div + div {
       border-left:1px solid $border-color;
     }
-    div.conjoined {
-      border-bottom: 1px solid $border-color-inverted;
-      margin-bottom: -1px;
-    }
     div.selected {
       z-index: 1;
       background: rgba(255, 255, 255, 0.75);
@@ -239,8 +236,7 @@ body {
   .grid-row {
     border-bottom:1px solid $border-color;
   }
-  .grid-row.empty {
+  .grid-row.add-row {
     height: 1.5em;
-    border-top: 1px solid $border-color;
   }
 }

@@ -429,6 +429,11 @@ var tiles = {
         }]);
       }
     }),
+    addHeader: reactFactory({
+      render: function() {
+        return JSML.react(["div", {className: "header add-header"}, ""]);
+      }
+    }),
     row: reactFactory({
       mixins: [editableRowMixin],
       commit: function() {
@@ -505,7 +510,7 @@ var tiles = {
             "dangerouslySetInnerHTML": {__html: this.state.edits[i] || ""}
           }]);
         }
-        return JSML.react(["div", {"className": "grid-row", "key": "adderRow"}, fields]);
+        return JSML.react(["div", {"className": "grid-row add-row", "key": "adderRow"}, fields]);
       }
     }),
     render: function() {
@@ -528,7 +533,7 @@ var tiles = {
       var content =  [self.title({uuid: table}),
                       JSML.react(["div", {"className": "grid"},
                                   ["div", {"className": "grid-header"},
-                                   headers],
+                                   headers, self.addHeader()],
                                   ["div", {"className": "grid-rows"},
                                    rows,
                                    isInput ? this.adderRow({len: headers.length, table: table}) : null]])];
