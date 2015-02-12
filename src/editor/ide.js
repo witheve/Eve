@@ -777,6 +777,7 @@ function dispatch(eventInfo) {
         displayName: {adds: [[id, "Untitled view"]], removes: []}
       };
       indexer.handleDiffs(diff);
+      indexer.forward(id);
       break;
 
     case "addRow":
