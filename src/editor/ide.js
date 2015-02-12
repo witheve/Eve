@@ -785,7 +785,6 @@ function dispatch(eventInfo) {
     case "addTile":
       var id = global.uuid();
       var tileId = global.uuid();
-      console.log(id, info);
       unpack [x, y] = info.pos;
       unpack [w, h] = info.size;
       var diff = {
