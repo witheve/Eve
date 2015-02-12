@@ -571,7 +571,7 @@ var tiles = {
     }),
     render: function() {
       var content = this.container({});
-      return tiles.wrapper({pos: this.props.pos, size: this.props.size, tile: this.props.tile, content: content});
+      return tiles.wrapper({pos: this.props.pos, size: this.props.size, tile: this.props.tile, class: "ui-tile", content: content});
     }
   })
 };

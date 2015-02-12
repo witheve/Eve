@@ -162,17 +162,22 @@ body {
     color: alpha($bg-color, 0);
     transition 0.2s ease-out;
   }
-  &:not(.add-tile):hover > .close-tile {
+  &:hover > .close-tile {
     background: alpha(#FF9977, 0.7);
     color: white;
   }
-  &:not(.add-tile) > .close-tile:hover {
+  & > .close-tile:hover {
     background: alpha(#FF7755, 0.8);
     color: white;
   }
-  &:not(.add-tile) > .close-tile:active {
+  & > .close-tile:active {
     background: #FF6644;
     color: white;
+  }
+  &.add-tile, &.ui-tile {
+    & > .close-tile {
+      display: none;
+    }
   }
 }
 
