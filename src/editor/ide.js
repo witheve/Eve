@@ -781,10 +781,15 @@ function dispatch(eventInfo) {
 
     case "addTile":
       var id = global.uuid();
-      console.log(id);
+      var tileId = global.uuid();
+      console.log(id, info);
+      unpack [x, y] = info.pos;
+      unpack [w, h] = info.size;
       var diff = {
         view: {adds: [[id]], removes: []},
         workspaceView: {adds: [[id]], removes: []},
+        tableTile: {adds: [[tileId, id]], removes: []},
+        gridTile: {adds: [[tileId, "table", w, h, x, y]], removes: []},
         isInput: {adds: [[id]], removes: []},
         tag: {adds: [[id, "input"]], removes: []},
         displayName: {adds: [[id, "Untitled view"]], removes: []}
