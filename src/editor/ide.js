@@ -625,10 +625,10 @@ var ReactSearcher = reactFactory({
         e.preventDefault();
         if (this.state.index === undefined) {
           var newindex = 0;
-          this.setState({index: newindex, value: this.state.possible[newindex][0]});
+          this.setState({index: newindex, value: this.state.possible[newindex][1]});
         } else if (this.state.index !== max) {
           var newindex = this.state.index + 1;
-          this.setState({index: newindex, value: this.state.possible[newindex][0]});
+          this.setState({index: newindex, value: this.state.possible[newindex][1]});
         }
       break;
       case KEYCODES.UP:
@@ -637,7 +637,7 @@ var ReactSearcher = reactFactory({
           this.setState({index: undefined, value: this.state.search});
         } else if (this.state.index !== undefined) {
           var newindex = this.state.index - 1;
-          this.setState({index: newindex, value: this.state.possible[newindex][0]});
+          this.setState({index: newindex, value: this.state.possible[newindex][1]});
         }
       break;
       case KEYCODES.ENTER:
