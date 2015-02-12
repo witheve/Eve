@@ -493,7 +493,7 @@ function searchForView(needle) {
     //@TODO: why are none of the views in displayName?
     name = names[uuid];
     if(name.toLowerCase().indexOf(needle.toLowerCase()) > -1) {
-      results.push([name, uuid]);
+      results.push([uuid, name]);
     }
   }
   return results;
@@ -567,10 +567,10 @@ var ReactSearcher = reactFactory({
         e.preventDefault();
         if (this.state.index === undefined) {
           var newindex = 0;
-          this.setState({index: newindex, value: this.state.possible[newindex][1]});
+          this.setState({index: newindex, value: this.state.possible[newindex][0]});
         } else if (this.state.index !== max) {
           var newindex = this.state.index + 1;
-          this.setState({index: newindex, value: this.state.possible[newindex][1]});
+          this.setState({index: newindex, value: this.state.possible[newindex][0]});
         }
       break;
       case KEYCODES.UP:
@@ -579,7 +579,7 @@ var ReactSearcher = reactFactory({
           this.setState({index: undefined, value: this.state.search});
         } else if (this.state.index !== undefined) {
           var newindex = this.state.index - 1;
-          this.setState({index: newindex, value: this.state.possible[newindex][1]});
+          this.setState({index: newindex, value: this.state.possible[newindex][0]});
         }
       break;
       case KEYCODES.ENTER:
@@ -625,7 +625,7 @@ var SearcherItem = reactFactory({
   },
   render: function() {
     var focus = this.props.focus ? "focused" : "";
-    var name = this.props.item ? this.props.item[0] : "";
+    var name = this.props.item ? this.props.item[1] : "";
     return JSML.react(["li", {"onClick": this.click, className: focus}, name]);
   }
 });
