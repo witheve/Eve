@@ -114,13 +114,13 @@ Indexer.prototype = {
     }
 
     forattr(table, diff of diffs) {
-      if(specialDiffs.indexOf(table) !== -1) { continue; }
       if(tableToIndexes[table]) {
         foreach(index of tableToIndexes[table]) {
           cur = this.indexes[index];
           cur.index = cur.indexer(cur.index, diff);
         }
       }
+      if(specialDiffs.indexOf(table) !== -1) { continue; }
       applyDiff(system, table, diff);
     }
 
@@ -263,7 +263,6 @@ var editableFieldMixin = {
     return {editing: false, edit: null};
   },
   click: function(e) {
-    console.log("clicked");
     this.setState({editing: true});
     e.currentTarget.focus();
     e.stopPropagation();
@@ -282,7 +281,7 @@ var editableFieldMixin = {
     this.setState({editing: false});
     var commitSuccessful = this.commit();
     if(commitSuccessful) {
-      this.setState({edit: null});
+      this.setState({edit: ""});
     }
   },
   wrapEditable: function(attrs, content) {
@@ -430,10 +429,14 @@ var tiles = {
     addHeader: reactFactory({
       mixins: [editableFieldMixin],
       commit: function() {
-        console.log("hi", this.state.edit);
+        if(!this.state.edit) { return; }
+        dispatch(["addField", {view: this.props.view, name: this.state.edit}]);
+        return true;
       },
       render: function() {
-        return JSML.react(["div", {className: "header add-header"}, this.state.edit]);
+        return JSML.react(["div", this.wrapEditable({
+          className: "header add-header",
+          key: this.props.view + "-add-header"}, "")]);
       }
     }),
     row: reactFactory({
@@ -504,7 +507,7 @@ var tiles = {
       var content =  [self.title({uuid: table}),
                       JSML.react(["div", {"className": "grid"},
                                   ["div", {"className": "grid-header"},
-                                   headers, self.addHeader()],
+                                   headers, self.addHeader({view: table})],
                                   ["div", {"className": "grid-rows"},
                                    rows,
                                    isInput ? this.adderRow({len: headers.length, table: table}) : null]])];
@@ -707,8 +710,9 @@ function dispatch(eventInfo) {
     case "diffsHandled":
       React.render(Root(), document.body);
       break;
+
+    // Tile selection
     case "openView":
-      // open that card?
       unpack [tableUUID, name] = info;
       var ix = indexer.facts("gridTile").length;
       unpack [row, col] = grid.indexToRowCol(tileGrid, defaultSize, ix);
@@ -719,6 +723,35 @@ function dispatch(eventInfo) {
       indexer.handleDiffs(diff);
       break;
 
+    case "selectTile":
+      var diff = {};
+      diff["activeTile"] = {adds: [[info]], removes: indexer.facts("activeTile")};
+      indexer.handleDiffs(diff);
+      break;
+    case "deselectTile":
+      var diff = {};
+      diff["activeTile"] = {adds: [], removes: indexer.facts("activeTile")};
+      indexer.handleDiffs(diff);
+      break;
+
+    // Adding facts
+    case "addTile":
+      var id = global.uuid();
+      var tileId = global.uuid();
+      unpack [x, y] = info.pos;
+      unpack [w, h] = info.size;
+      var diff = {
+        view: {adds: [[id]], removes: []},
+        workspaceView: {adds: [[id]], removes: []},
+        tableTile: {adds: [[tileId, id]], removes: []},
+        gridTile: {adds: [[tileId, "table", w, h, x, y]], removes: []},
+        isInput: {adds: [[id]], removes: []},
+        tag: {adds: [[id, "input"]], removes: []},
+        displayName: {adds: [[id, "Untitled view"]], removes: []}
+      };
+      indexer.handleDiffs(diff);
+      break;
+
     case "addRow":
       //@TODO: we haven't set up view forwarding for constant/input views
       var diff = {};
@@ -726,6 +759,31 @@ function dispatch(eventInfo) {
       var id = maxRowId(info.table) + 1;
       if(id) { id += 1; }
       diff["editId"] = {adds: [[info.table, JSON.stringify(info.row), id]], removes: []};
+      indexer.handleDiffs(diff);
+      break;
+
+    case "addField":
+      var id = global.uuid();
+      var fields = indexer.index("viewToFields")[info.view] || [];
+      var oldFacts = indexer.facts(info.view) || [];
+      var newFacts = oldFacts.slice();
+      foreach(ix, fact of newFacts) {
+        fact.push("");
+      };
+      var diff = {
+        field: {adds: [[id, info.view, fields.length]], removes: []},
+        displayName: {adds: [[id, info.name]], removes: []}
+      };
+      diff[info.view] = {adds: newFacts, removes: oldFacts};
+      indexer.handleDiffs(diff);
+      break;
+
+    // Updating facts
+    case "rename":
+      var oldFact = indexer.index("displayName")[info.uuid];
+      var diff = {
+        displayName: {adds: [[info.uuid, info.name]], removes: [oldFact]}
+      };
       indexer.handleDiffs(diff);
       break;
 
@@ -747,41 +805,6 @@ function dispatch(eventInfo) {
       indexer.handleDiffs(diff);
       break;
 
-    case "selectTile":
-      var diff = {};
-      diff["activeTile"] = {adds: [[info]], removes: indexer.facts("activeTile")};
-      indexer.handleDiffs(diff);
-      break;
-    case "deselectTile":
-      var diff = {};
-      diff["activeTile"] = {adds: [], removes: indexer.facts("activeTile")};
-      indexer.handleDiffs(diff);
-      break;
-
-    case "addTile":
-      var id = global.uuid();
-      var tileId = global.uuid();
-      unpack [x, y] = info.pos;
-      unpack [w, h] = info.size;
-      var diff = {
-        view: {adds: [[id]], removes: []},
-        workspaceView: {adds: [[id]], removes: []},
-        tableTile: {adds: [[tileId, id]], removes: []},
-        gridTile: {adds: [[tileId, "table", w, h, x, y]], removes: []},
-        isInput: {adds: [[id]], removes: []},
-        tag: {adds: [[id, "input"]], removes: []},
-        displayName: {adds: [[id, "Untitled view"]], removes: []}
-      };
-      indexer.handleDiffs(diff);
-      break;
-
-    case "rename":
-      var oldFact = indexer.index("displayName")[info.uuid];
-      var diff = {
-        displayName: {adds: [[info.uuid, info.name]], removes: [oldFact]}
-      };
-      indexer.handleDiffs(diff);
-      break;
 
     default:
       console.warn("[dispatch] Unhandled event:", event, info);
