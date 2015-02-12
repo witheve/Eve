@@ -747,6 +747,7 @@ function dispatch(eventInfo) {
                   "gridTile": {adds: [[tile, "table", defaultSize[0], defaultSize[1], row, col]], removes: []},
                   "tableTile": {adds: [[tile, tableUUID]], removes: []}};
       indexer.handleDiffs(diff);
+      indexer.forward(tableUUID);
       break;
 
     case "selectTile":
