@@ -138,7 +138,11 @@ Indexer.prototype = {
       this.worker.postMessage({type: "diffs", diffs: toSend});
     }
 
-    dispatch(["diffsHandled", diffs]);
+    //if we forced a recompile, we shouldn't redraw until the worker comes back
+    //with the latest diffs.
+    if(!isSpecial) {
+      dispatch(["diffsHandled", diffs]);
+    }
   },
   facts: function(table) {
     return this.system.getStore(table).getFacts();
@@ -870,6 +874,8 @@ function init(program) {
   indexer.addIndex("tableTile", "tileToTable", indexers.makeLookup(0, 1));
   indexer.addIndex("gridTile", "gridTile", indexers.makeLookup(0, false));
   indexer.forward("workspaceView");
+  indexer.forward("view");
+  indexer.forward("field");
   var dims = document.body.getBoundingClientRect();
   tileGrid = grid.makeGrid(document.body, {
     dimensions: [dims.width - 100, dims.height - 110],

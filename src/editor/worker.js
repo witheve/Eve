@@ -150,16 +150,20 @@ function handleDiffs(application, diffs) {
     }
   }
 
-  //if we've changed the views or fields we have to do that first to ensure
+  //if we've changed the views or fields we have to recompile first to ensure
   //that the stores will be in place when we then try to apply diffs to them.
-  if(diffs["view"] || diffs["field"]) {
-    applyDiff(eveApp, "view", diffs["view"]);
-    applyDiff(eveApp, "field", diffs["field"]);
+  var recompile = false;
+  var recompileViews = ["view", "field"];
+  foreach(view of recompileViews) {
+    if(diffs[view]) {
+      applyDiff(eveApp, view, diffs[view]);
+      updateStorage(view, diffs[view]);
+      diffs[view] = {adds: [], removes: []};
+      recompile = true;
+    }
+  }
+  if(recompile) {
     eveApp.system.recompile();
-    updateStorage("view", diffs["view"]);
-    updateStorage("field", diffs["field"]);
-    diffs["view"] = {adds: [], removes: []};
-    diffs["field"] = {adds: [], removes: []};
   }
 
   for(var table in diffs) {
@@ -192,9 +196,6 @@ onmessage = function(event) {
       foreach(view of views) {
         storage[view] = null;
       }
-      //send diffs again so that it has up to date information
-      eveApp.pull = true;
-      eveApp.remoteWatcher(eveApp, eveApp.storage["remoteWatcher"], eveApp.system);
       break;
     case "event":
       var eid = eveApp.eventId++;
