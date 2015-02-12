@@ -74,3 +74,60 @@ function addGridItem(grid, item, position, size) {
 
 }
 
+function firstGap(grid, items, size) {
+  size = size || [1, 1];
+  unpack [width, height] = size;
+  var filled = new Array(grid.rows);
+  for(var i = 0; i < grid.rows; i++) {
+    filled[i] = new Array(grid.cols);
+    for(var j = 0; j < grid.cols; j++) {
+      filled[i][j] = false;
+    }
+  }
+
+  // Populate footprint of existing items.
+  foreach(ix, item of items) {
+    unpack [w, h] = item.size;
+    unpack [x0, y0] = item.pos;
+    console.log(x0, y0, w, h);
+
+    for(var y = y0; y < y0 + h; y++) {
+      for(var x = x0; x < x0 + w; x++) {
+        filled[y][x] = true;
+      }
+    }
+  }
+
+  // Find gap >= size.
+  for(var y0 = 0; y0 < grid.rows; y0++) {
+    for(var x0 = 0; x0 < grid.cols; x0++) {
+      if(!filled[y0][x0]) {
+        gap = true;
+        for(var y = y0; y < y0 + height; y++) {
+          for(var x = x0; x < x0 + width; x++) {
+            if(filled[y][x]) {
+              gap = false;
+              break;
+            }
+          }
+          if(!gap) { break; }
+        }
+
+
+        console.log("Trying", x0, y0);
+        console.log("\n" + filled.map(function(f) {
+          return f.map(function(s) {
+            return (s ? "##" : "  ");
+          }).join("|");
+        }).join("\n"));
+
+
+        if(gap) {
+          return [x0, y0];
+        }
+        filled[y0][x0] = true;
+      }
+    }
+  }
+}
+module.exports.firstGap = firstGap;

@@ -340,6 +340,9 @@ var Root = React.createFactory(React.createClass({
        activeTile = indexer.index("gridTile")[activeTileEntry[0]];
     }
     var self = this;
+
+    var gridItems = [];
+
     var tables = indexer.facts("gridTile").map(function(cur, ix) {
       unpack [tile, type, width, height, row, col] = cur;
       if(activeTile && tile !== activeTile[0]) {
@@ -350,19 +353,24 @@ var Root = React.createFactory(React.createClass({
         unpack [row, col] = expanded.pos;
 
       }
+
+      var gridItem = {
+        size: [width, height],
+        pos: [row, col]
+      };
+      gridItems.push(gridItem); // @FIXME: side effecty, but faster than a separate loop.
+
       if(type === "table") {
         var table = indexer.index("tileToTable")[tile];
-        return tiles.table({tile: tile,
-                            table: table,
-                            size: [width, height],
-                            pos: [row, col]});
+        gridItem.table = table;
+        gridItem.tile = tile;
+        return tiles.table(gridItem);
       } else if(type === "ui") {
-        return tiles.ui({tile: "uiTile",
-                         size: [width, height],
-                         pos: [row, col]});
+        gridItem.tile = "uiTile";
+        return tiles.ui(gridItem);
       }
-    })
-    unpack [addRow, addCol] = grid.indexToRowCol(tileGrid, defaultSize, tables.length);
+    });
+    unpack [addRow, addCol] = grid.firstGap(tileGrid, gridItems, defaultSize);
     return JSML.react(["div",
                         ProgramLoader(),
                         ReactSearcher(),
