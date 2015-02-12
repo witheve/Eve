@@ -230,6 +230,36 @@ var editableRowMixin = {
   }
 };
 
+// @TODO: Consider rewriting row / adderRow to use this per field instead.
+var editableFieldMixin = {
+  getInitialState: function() {
+    return {editing: false, edit: null};
+  },
+  click: function(e) {
+    console.log("clicked");
+    this.setState({editing: true});
+    e.currentTarget.focus();
+    e.stopPropagation();
+  },
+  keyDown: function(e) {
+    //handle pressing enter
+    if(e.keyCode === 13) {
+      this.blur();
+      e.preventDefault();
+    }
+  },
+  input: function(e) {
+    this.state.edit = e.target.textContent;
+  },
+  blur: function() {
+    this.setState({editing: false});
+    var commitSuccessful = this.commit();
+    if(commitSuccessful) {
+      this.setState({edit: null});
+    }
+  }
+};
+
 //---------------------------------------------------------
 // Root
 //---------------------------------------------------------
@@ -332,11 +362,59 @@ var tiles = {
     }
   }),
   table: reactFactory({
+    title: reactFactory({
+      mixins: [editableFieldMixin],
+      commit: function() {
+        console.warn("Not implemented yet");
+        return true;
+      },
+      render: function() {
+        var uuid = this.props.uuid;
+        var name = this.state.edit || indexer.index("displayName")[uuid];
+        var isInput = hasTag(uuid, "input");
+        var className = "";
+        var contentEditable = false;
+        if(this.state.editing) {
+          className += " selected";
+          contentEditable = true;
+        }
+        return JSML.react(["h2", {
+          className: className,
+          contentEditable: contentEditable,
+          onInput: this.input,
+          onBlur: this.blur,
+          onKeyDown: this.keyDown,
+          onClick: this.click,
+          key: uuid + "-title",
+          dangerouslySetInnerHTML: {__html: name + (isInput ? " - input" : "")}
+        }]);
+      }
+    }),
     header: reactFactory({
+      mixins: [editableFieldMixin],
+      commit: function() {
+        console.warn("Not implemented yet");
+        return true;
+      },
       render: function() {
         unpack [uuid] = this.props.field;
-        var name = indexer.index("displayName")[uuid];
-        return JSML.react(["div", {"className": "header", "key": uuid}, name]);
+        var name = this.state.edit || indexer.index("displayName")[uuid];
+        var className = "header";
+        var contentEditable = false;
+        if(this.state.editing) {
+          className += " selected";
+          contentEditable = true;
+        }
+        return JSML.react(["div", {
+          className: className,
+          contentEditable: contentEditable,
+          onInput: this.input,
+          onBlur: this.blur,
+          onKeyDown: this.keyDown,
+          onClick: this.click,
+          key: uuid,
+          dangerouslySetInnerHTML: {__html: name}
+        }]);
       }
     }),
     row: reactFactory({
@@ -434,7 +512,8 @@ var tiles = {
         return self.row({row: cur, table: table});
       });
       var isInput = hasTag(table, "input");
-      var content =  [JSML.react(["h2", table, isInput ? " - input" : ""]),
+
+      var content =  [self.title({uuid: table}),
                       JSML.react(["div", {"className": "grid"},
                                   ["div", {"className": "grid-header"},
                                    headers],
