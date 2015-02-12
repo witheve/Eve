@@ -393,12 +393,22 @@ var tiles = {
         dispatch(["deselectTile", this.props.tile]);
       }
     },
+    close: function(e) {
+      var active = indexer.first("activeTile");
+      if(active && active[0] === this.props.tile) {
+        dispatch(["deselectTile", this.props.tile]);
+      }
+      dispatch(["closeTile", this.props.tile]);
+      e.stopPropagation();
+    },
     render: function() {
       var selectable = (this.props.selectable !== undefined) ? this.props.selectable : true;
       return JSML.react(["div", {"className": "card " + (this.props.class || ""),
                                  "key": this.props.tile,
                                  "onClick": (selectable) ? this.click : undefined,
                                  "style": grid.getSizeAndPosition(tileGrid, this.props.size, this.props.pos)},
+                         ["button", {className: "close-tile",
+                                     onClick: this.close}, "X"],
                          this.props.content]);
     }
   }),
@@ -541,14 +551,14 @@ var tiles = {
         return self.row({row: cur, table: table});
       });
       var isInput = hasTag(table, "input");
-
       var content =  [self.title({id: table}),
-                      JSML.react(["div", {"className": "grid"},
-                                  ["div", {"className": "grid-header"},
-                                   headers, self.addHeader({view: table})],
-                                  ["div", {"className": "grid-rows"},
-                                   rows,
-                                   isInput ? this.adderRow({len: headers.length, table: table}) : null]])];
+                      ["div", {className: "grid"},
+                       ["div", {className: "grid-header"},
+                        headers,
+                        self.addHeader({view: table})],
+                       ["div", {className: "grid-rows"},
+                        rows,
+                        isInput ? this.adderRow({len: headers.length, table: table}) : null]]];
       return tiles.wrapper({pos: this.props.pos, size: this.props.size, tile: this.props.tile, content: content});
     }
   }),
@@ -573,7 +583,7 @@ var tiles = {
     }),
     render: function() {
       var content = this.container({});
-      return tiles.wrapper({pos: this.props.pos, size: this.props.size, tile: this.props.tile, content: content});
+      return tiles.wrapper({pos: this.props.pos, size: this.props.size, tile: this.props.tile, class: "ui-tile", content: content});
     }
   })
 };
@@ -791,6 +801,18 @@ function dispatch(eventInfo) {
       indexer.forward(tableId);
       break;
 
+    case "closeTile":
+      var tileId = info;
+      var tableId = indexer.index("tileToTable")[tileId];
+      var diff = {
+        gridTile: {adds: [], removes: [indexer.index("gridTile")[tileId]]},
+        tableTile: {adds: [], removes: [indexer.index("tableTile")[tileId]]},
+        workspaceView: {adds: [], removes: [tableId]}
+      };
+      indexer.handleDiffs(diff);
+      indexer.forward(tableId);
+      break;
+
     case "selectTile":
       var diff = {};
       diff["activeTile"] = {adds: [[info]], removes: indexer.facts("activeTile")};
@@ -933,6 +955,7 @@ function init(program) {
   indexer.addIndex("viewConstraint", "queryToViewConstraint", indexers.makeCollector(1));
   indexer.addIndex("aggregateConstraint", "queryToAggregateConstraint", indexers.makeCollector(1));
   indexer.addIndex("tableTile", "tileToTable", indexers.makeLookup(0, 1));
+  indexer.addIndex("tableTile", "tableTile", indexers.makeLookup(0, false));
   indexer.addIndex("gridTile", "gridTile", indexers.makeLookup(0, false));
   indexer.forward("workspaceView");
   indexer.forward("view");

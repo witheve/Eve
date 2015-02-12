@@ -179,6 +179,33 @@ body {
     transition: 0.1s ease-out;
     color: rgba(0, 0, 0, 0.56);
   }
+
+  & > .close-tile {
+    position: absolute; top: 0; right: 0;
+
+    background: alpha($bg-color, 0);
+    border: 1px solid alpha($bg-color, 0);
+    border-radius: 4px; border-top-left-radius: 0; border-bottom-right-radius: 0;
+    color: alpha($bg-color, 0);
+    transition 0.2s ease-out;
+  }
+  &:hover > .close-tile {
+    background: alpha(#FF9977, 0.7);
+    color: white;
+  }
+  & > .close-tile:hover {
+    background: alpha(#FF7755, 0.8);
+    color: white;
+  }
+  & > .close-tile:active {
+    background: #FF6644;
+    color: white;
+  }
+  &.add-tile, &.ui-tile {
+    & > .close-tile {
+      display: none;
+    }
+  }
 }
 
 
