@@ -372,17 +372,24 @@ var Root = React.createFactory(React.createClass({
       }
     });
 
-    var gridItems = getTileFootprints();
-    unpack [addRow, addCol] = grid.firstGap(tileGrid, gridItems, defaultSize);
+    var gridContainer = ["div", {"id": "cards", "onClick": this.click}, tables];
+
+    // if there isn't an active tile, add placeholder tiles for areas that can hold them.
+    if(!activeTile) {
+      var gridItems = getTileFootprints();
+      while(true) {
+        var slot = grid.firstGap(tileGrid, gridItems, defaultSize);
+        if(!slot) { break; }
+        var gridItem = {size: defaultSize, pos: slot};
+        gridItems.push(gridItem);
+        gridContainer.push(tiles.addTile(gridItem));
+      }
+    }
+
     return JSML.react(["div",
-                        ProgramLoader(),
-                        ReactSearcher(),
-                        ["div", {"id": "cards",
-                                "onClick": this.click},
-                         tables,
-                         activeTile ? null : tiles.addTile({size: defaultSize,
-                                                            pos: [addRow, addCol]})
-                        ]]);
+                   ProgramLoader(),
+                   ReactSearcher(),
+                   gridContainer]);
   }
 }));
 
@@ -761,9 +768,12 @@ function dispatch(eventInfo) {
     // Tile selection
     case "openView":
       unpack [tableId, name] = info;
-      var ix = indexer.facts("gridTile").length;
-      var gridItems = getTileFootprints();
-      unpack [row, col] = grid.firstGap(tileGrid, gridItems, defaultSize);
+      var gap = grid.firstGap(tileGrid, getTileFootprints(), defaultSize);
+      if(!gap) {
+        console.warn("Grid is full, aborting.");
+        break;
+      }
+      unpack [row, col] = gap;
       var tile = global.uuid();
       var diff = {"workspaceView": {adds: [[tableId]], removes: []},
                   "gridTile": {adds: [[tile, "table", defaultSize[0], defaultSize[1], row, col]], removes: []},
