@@ -6,6 +6,7 @@ var JSML = require("./jsml");
 var helpers = require("./helpers");
 var Card = require("./card");
 var grid = require("./grid");
+var incrementalUI = require("./incrementalUI");
 
 //---------------------------------------------------------
 // Globals
@@ -13,6 +14,7 @@ var grid = require("./grid");
 
 var ide = module.exports;
 var indexer;
+var defaultSize = [6,3];
 
 //---------------------------------------------------------
 // Indexer
@@ -20,15 +22,28 @@ var indexer;
 
 var indexers = {
   makeLookup: function(keyIx, valueIx) {
-    return function(cur, diffs) {
-      var final = cur || {};
-      foreach(add of diffs.adds) {
-        final[add[keyIx]] = add[valueIx];
+    if(valueIx !== false) {
+      return function(cur, diffs) {
+        var final = cur || {};
+        foreach(add of diffs.adds) {
+          final[add[keyIx]] = add[valueIx];
+        }
+        foreach(remove of diffs.removes) {
+          final[remove[keyIx]] = null;
+        }
+        return final;
       }
-      foreach(remove of diffs.removes) {
-        final[remove[keyIx]] = null;
+    } else {
+      return function(cur, diffs) {
+        var final = cur || {};
+        foreach(add of diffs.adds) {
+          final[add[keyIx]] = add;
+        }
+        foreach(remove of diffs.removes) {
+          final[remove[keyIx]] = null;
+        }
+        return final;
       }
-      return final;
     }
   },
   makeLookup2D: function(key1Ix, key2Ix, valueIx) {
@@ -266,64 +281,57 @@ var editableFieldMixin = {
 var gridSize = [6, 2];
 
 var Root = React.createFactory(React.createClass({
-  calculateRowCol: function(activeRow, activeCol, row, col, size) {
-    unpack [width, height] = size;
-    var newRow = row;
-    var newCol = col;
-    if(activeRow !== false) {
-      var rowOffset = row - activeRow;
-      var colOffset = col - activeCol;
-      var rowEdge = rowOffset > 0 ? tileGrid.rows + 1 : (rowOffset < 0 ? -2 * height : row);
-      var colEdge = colOffset > 0 ? tileGrid.cols + 1 : (colOffset < 0 ? -2 * width : col);
-      newRow = rowEdge;
-      newCol = colEdge;
-    }
-    return [newRow, newCol];
+  adjustPosition: function(activeTile, cur) {
+    unpack [tile, type, width, height, row, col] = cur;
+    unpack [atile, atype, awidth, aheight, activeRow, activeCol] = activeTile;
+    var rowOffset = row - activeRow;
+    var colOffset = col - activeCol;
+    var rowEdge = rowOffset > 0 ? tileGrid.rows + 1 : (rowOffset < 0 ? -2 * height : row);
+    var colEdge = colOffset > 0 ? tileGrid.cols + 1 : (colOffset < 0 ? -2 * width : col);
+    return [rowEdge, colEdge];
   },
-  sizeAndPosition: function(activeRow, activeCol, ix) {
-    var size = gridSize;
-    unpack [row, col] = grid.indexToRowCol(tileGrid, size, ix);
-    unpack [finalRow, finalCol] = this.calculateRowCol(activeRow, activeCol, row, col, size);
-    if(finalRow === activeRow && finalCol === activeCol) {
-      size = [tileGrid.cols - 2, tileGrid.rows];
-      finalRow = 0;
-      finalCol = 1;
-    }
-    return {size: size, pos: [finalRow, finalCol]};
+  expand: function() {
+    return {size: [tileGrid.cols - 2, tileGrid.rows],
+            pos: [0, 1]};
   },
   render: function() {
-    var activeTile = indexer.facts("activeTile")[0];
-    var activeRow = false;
-    var activeCol = false;
-    if(activeTile) {
-      var tileIx = 0;
-      if(activeTile[0] !== "uiCard") {
-        foreach(ix, view of indexer.facts("workspaceView")) {
-          if(activeTile[0] !== view[0]) continue;
-          tileIx = ix + 1;
-          break;
-        }
-      }
-      unpack [activeRow, activeCol] = grid.indexToRowCol(tileGrid, gridSize, tileIx);
+    var activeTile;
+    var activeTileEntry = indexer.first("activeTile");
+    if(activeTileEntry) {
+       activeTile = indexer.index("gridTile")[activeTileEntry[0]];
     }
     var self = this;
-    var tables = indexer.facts("workspaceView").map(function(cur, ix) {
-      unpack [uuid] = cur;
-      var tile = self.sizeAndPosition(activeRow, activeCol, ix + 1);
-      return tiles.table({table: uuid,
-                          size: tile.size,
-                          pos: tile.pos});
+    var tables = indexer.facts("gridTile").map(function(cur, ix) {
+      unpack [tile, type, width, height, row, col] = cur;
+      if(activeTile && tile !== activeTile[0]) {
+        unpack [row, col] = self.adjustPosition(activeTile, cur);
+      } else if(activeTile) {
+        var expanded = self.expand();
+        unpack [width, height] = expanded.size;
+        unpack [row, col] = expanded.pos;
+
+      }
+      if(type === "table") {
+        var table = indexer.index("tileToTable")[tile];
+        return tiles.table({tile: tile,
+                            table: table,
+                            size: [width, height],
+                            pos: [row, col]});
+      } else if(type === "ui") {
+        return tiles.ui({tile: "uiTile",
+                         size: [width, height],
+                         pos: [row, col]});
+      }
     })
-    var UITile = this.sizeAndPosition(activeRow, activeCol, 0);
-    var AddTile = this.sizeAndPosition(activeRow, activeCol, tables.length + 1);
+    unpack [addRow, addCol] = grid.indexToRowCol(tileGrid, defaultSize, tables.length);
     return JSML.react(["div",
                         ProgramLoader(),
                         ReactSearcher(),
                         ["div", {"id": "cards",
                                 "onClick": this.click},
-                         tiles.ui({pos: UITile.pos, size: UITile.size, table: "uiCard"}),
                          tables,
-                         tiles.addTile(AddTile)
+                         activeTile ? null : tiles.addTile({size: defaultSize,
+                                                            pos: [addRow, addCol]})
                         ]]);
   }
 }));
@@ -338,15 +346,16 @@ var tiles = {
   wrapper: reactFactory({
     click: function() {
       var active = indexer.first("activeTile");
-      if(!active || active[0] !== this.props.id) {
-        dispatch(["selectTile", this.props.id]);
+      if(!active || active[0] !== this.props.tile) {
+        dispatch(["selectTile", this.props.tile]);
       } else {
-        dispatch(["deselectTile", this.props.id]);
+        dispatch(["deselectTile", this.props.tile]);
       }
     },
     render: function() {
       var selectable = (this.props.selectable !== undefined) ? this.props.selectable : true;
       return JSML.react(["div", {"className": "card " + (this.props.class || ""),
+                                 "key": this.props.tile,
                                  "onClick": (selectable) ? this.click : undefined,
                                  "style": grid.getSizeAndPosition(tileGrid, this.props.size, this.props.pos)},
                          this.props.content]);
@@ -520,17 +529,31 @@ var tiles = {
                                   ["div", {"className": "grid-rows"},
                                    rows,
                                    isInput ? this.adderRow({len: headers.length, table: table}) : null]])];
-      return tiles.wrapper({pos: this.props.pos, size: this.props.size, id: this.props.table, content: content});
+      return tiles.wrapper({pos: this.props.pos, size: this.props.size, tile: this.props.tile, content: content});
     }
   }),
   ui: reactFactory({
-    click: function(e) {
-      e.stopPropagation();
-    },
+    //we create this container element because we need something that will
+    //never update, otherwise the content that gets injected by the program
+    //will get removed.
+    container: reactFactory({
+      shouldComponentUpdate: function(props, state) {
+        return false;
+      },
+      componentDidMount: function() {
+        this.getDOMNode().appendChild(incrementalUI.storage["builtEls"]["eve-root"]);
+      },
+      click: function(e) {
+        e.stopPropagation();
+      },
+      render: function() {
+        return JSML.react(["div", {"className": "uiCard",
+                                   "onClick": this.click}]);
+      }
+    }),
     render: function() {
-      var content = JSML.react(["div", {"className": "uiCard",
-                                        "onClick": this.click}]);
-      return tiles.wrapper({pos: this.props.pos, size: this.props.size, id: this.props.table, content: content});
+      var content = this.container({});
+      return tiles.wrapper({pos: this.props.pos, size: this.props.size, tile: this.props.tile, content: content});
     }
   })
 };
@@ -707,8 +730,13 @@ function dispatch(eventInfo) {
       break;
     case "openView":
       // open that card?
-      unpack [uuid, name] = info;
-      var diff = {"workspaceView": {adds: [[uuid]], removes: []}};
+      unpack [tableUUID, name] = info;
+      var ix = indexer.facts("gridTile").length;
+      unpack [row, col] = grid.indexToRowCol(tileGrid, defaultSize, ix);
+      var tile = uuid();
+      var diff = {"workspaceView": {adds: [[tableUUID]], removes: []},
+                  "gridTile": {adds: [[tile, "table", defaultSize[0], defaultSize[1], row, col]], removes: []},
+                  "tableTile": {adds: [[tile, tableUUID]], removes: []}};
       indexer.handleDiffs(diff);
       break;
 
@@ -777,12 +805,18 @@ module.exports.dispatch = dispatch;
 function ideTables() {
   var facts = [];
   pushAll(facts, inputView("activeTile", ["tile"]));
+  pushAll(facts, inputView("gridTile", ["tile", "type", "w", "h", "x", "y"]));
+  pushAll(facts, inputView("tableTile", ["tile", "table"]));
   return facts;
 }
 
 //---------------------------------------------------------
 // Init
 //---------------------------------------------------------
+
+function startingDiffs() {
+  return {"gridTile": {adds: [["uiTile", "ui", defaultSize[0], defaultSize[1], 0, 0]], removes: []}}
+}
 
 function init(program) {
   React.unmountComponentAtNode(document.body);
@@ -797,6 +831,8 @@ function init(program) {
   indexer.addIndex("query", "viewToQuery", indexers.makeCollector(1));
   indexer.addIndex("viewConstraint", "queryToViewConstraint", indexers.makeCollector(1));
   indexer.addIndex("aggregateConstraint", "queryToAggregateConstraint", indexers.makeCollector(1));
+  indexer.addIndex("tableTile", "tileToTable", indexers.makeLookup(0, 1));
+  indexer.addIndex("gridTile", "gridTile", indexers.makeLookup(0, false));
   indexer.forward("workspaceView");
   var dims = document.body.getBoundingClientRect();
   tileGrid = grid.makeGrid(document.body, {
@@ -804,10 +840,10 @@ function init(program) {
     gridSize: [12, 12],
     marginSize: [10,10]
   });
-  React.render(Root(), document.body);
   window.addEventListener("popstate", function(e) {
     dispatch(["locationChange", event]);
   });
+  indexer.handleDiffs(startingDiffs());
 }
 
 module.exports.init = init;
