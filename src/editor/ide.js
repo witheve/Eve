@@ -242,6 +242,18 @@ var editableRowMixin = {
     if(commitSuccessful) {
       this.setState({edits: []});
     }
+  },
+  wrapEditable: function(attrs, content) {
+    var ix = attrs["data-ix"];
+    var editing = this.state.activeField === ix;
+    attrs.contentEditable = editing;
+    attrs.className += (editing) ? " selected" : "";
+    attrs.onClick = this.click;
+    attrs.onKeyDown = this.keyDown;
+    attrs.onInput = this.input;
+    attrs.onBlur = this.blur;
+    attrs.dangerouslySetInnerHTML = {__html: this.state.edits[ix] || content};
+    return attrs;
   }
 };
 
@@ -272,6 +284,16 @@ var editableFieldMixin = {
     if(commitSuccessful) {
       this.setState({edit: null});
     }
+  },
+  wrapEditable: function(attrs, content) {
+    attrs.contentEditable = this.state.editing;
+    attrs.className += (this.state.editing) ? " selected" : "";
+    attrs.onClick = this.click;
+    attrs.onKeyDown = this.keyDown;
+    attrs.onInput = this.input;
+    attrs.onBlur = this.blur;
+    attrs.dangerouslySetInnerHTML = {__html: this.state.edit || content};
+    return attrs;
   }
 };
 
@@ -382,22 +404,10 @@ var tiles = {
         var uuid = this.props.uuid;
         var name = this.state.edit || indexer.index("displayName")[uuid];
         var isInput = hasTag(uuid, "input");
-        var className = "";
-        var contentEditable = false;
-        if(this.state.editing) {
-          className += " selected";
-          contentEditable = true;
-        }
-        return JSML.react(["h2", ["span", {
-          className: className,
-          contentEditable: contentEditable,
-          onInput: this.input,
-          onBlur: this.blur,
-          onKeyDown: this.keyDown,
-          onClick: this.click,
-          key: uuid + "-title",
-          dangerouslySetInnerHTML: {__html: name}
-        }], (isInput ? " - input" : "")]);
+        return JSML.react(
+          ["h2",
+           ["span", this.wrapEditable({key: uuid + "-title",}, name)],
+           (isInput ? " - input" : "")]);
       }
     }),
     header: reactFactory({
@@ -411,27 +421,19 @@ var tiles = {
       render: function() {
         unpack [uuid] = this.props.field;
         var name = this.state.edit || indexer.index("displayName")[uuid];
-        var className = "header";
-        var contentEditable = false;
-        if(this.state.editing) {
-          className += " selected";
-          contentEditable = true;
-        }
-        return JSML.react(["div", {
-          className: className,
-          contentEditable: contentEditable,
-          onInput: this.input,
-          onBlur: this.blur,
-          onKeyDown: this.keyDown,
-          onClick: this.click,
+        return JSML.react(["div", this.wrapEditable({
+          className: "header",
           key: uuid,
-          dangerouslySetInnerHTML: {__html: name}
-        }]);
+        }, name)]);
       }
     }),
     addHeader: reactFactory({
+      mixins: [editableFieldMixin],
+      commit: function() {
+        console.log("hi", this.state.edit);
+      },
       render: function() {
-        return JSML.react(["div", {className: "header add-header"}, ""]);
+        return JSML.react(["div", {className: "header add-header"}, this.state.edit]);
       }
     }),
     row: reactFactory({
@@ -451,22 +453,7 @@ var tiles = {
       render: function() {
         var fields = [];
         foreach(ix, field of this.props.row) {
-          className = "";
-          contentEditable = false;
-          if(this.state.activeField === ix) {
-            className = "selected";
-            contentEditable = true;
-          }
-          fields.push(["div", {
-            "data-ix": ix,
-            className: className,
-            contentEditable: contentEditable,
-            onInput: this.input,
-            onBlur: this.blur,
-            onKeydown: this.keyDown,
-            onClick: this.click,
-            dangerouslySetInnerHTML: {__html: this.state.edits[ix] || field || ""}
-          }]);
+          fields.push(["div", this.wrapEditable({"data-ix": ix,}, field)]);
         }
         return JSML.react(["div", {"className": "grid-row", "key": JSON.stringify(this.props.row)}, fields]);
       }
@@ -492,23 +479,7 @@ var tiles = {
         var className;
         var contentEditable;
         for(var i = 0, len = this.props.len; i < len; i++) {
-          className = "";
-          contentEditable = false;
-          if(this.state.activeField === i) {
-            className = "selected";
-            contentEditable = true;
-          }
-          fields.push(["div", {
-            "tabIndex": -1,
-            "className": className,
-            "contentEditable": contentEditable,
-            "onInput": this.input,
-            "onBlur": this.blur,
-            "onKeyDown": this.keyDown,
-            "onClick": this.click,
-            "data-ix": i,
-            "dangerouslySetInnerHTML": {__html: this.state.edits[i] || ""}
-          }]);
+          fields.push(["div", this.wrapEditable({"tabIndex": -1, "data-ix": i}, "")]);
         }
         return JSML.react(["div", {"className": "grid-row add-row", "key": "adderRow"}, fields]);
       }
