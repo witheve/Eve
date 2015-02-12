@@ -374,7 +374,8 @@ var tiles = {
     title: reactFactory({
       mixins: [editableFieldMixin],
       commit: function() {
-        console.warn("Not implemented yet");
+        if(!this.state.edit) { return; }
+        dispatch(["rename", {uuid: this.props.uuid, name: this.state.edit}]);
         return true;
       },
       render: function() {
@@ -387,7 +388,7 @@ var tiles = {
           className += " selected";
           contentEditable = true;
         }
-        return JSML.react(["h2", {
+        return JSML.react(["h2", ["span", {
           className: className,
           contentEditable: contentEditable,
           onInput: this.input,
@@ -395,14 +396,16 @@ var tiles = {
           onKeyDown: this.keyDown,
           onClick: this.click,
           key: uuid + "-title",
-          dangerouslySetInnerHTML: {__html: name + (isInput ? " - input" : "")}
-        }]);
+          dangerouslySetInnerHTML: {__html: name}
+        }], (isInput ? " - input" : "")]);
       }
     }),
     header: reactFactory({
       mixins: [editableFieldMixin],
       commit: function() {
-        console.warn("Not implemented yet");
+        unpack [uuid] = this.props.field;
+        if(!this.state.edit) { return; }
+        dispatch(["rename", {uuid: uuid, name: this.state.edit}]);
         return true;
       },
       render: function() {
@@ -793,6 +796,14 @@ function dispatch(eventInfo) {
         isInput: {adds: [[id]], removes: []},
         tag: {adds: [[id, "input"]], removes: []},
         displayName: {adds: [[id, "Untitled view"]], removes: []}
+      };
+      indexer.handleDiffs(diff);
+      break;
+
+    case "rename":
+      var oldFact = indexer.index("displayName")[info.uuid];
+      var diff = {
+        displayName: {adds: [[info.uuid, info.name]], removes: [oldFact]}
       };
       indexer.handleDiffs(diff);
       break;
