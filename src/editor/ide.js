@@ -102,7 +102,19 @@ Indexer.prototype = {
     var indexes = this.indexes;
     var system = this.system;
     var cur;
+    var specialDiffs = ["view", "field"];
+    var isSpecial = false;
+    foreach(name of specialDiffs) {
+      if(!diffs[name]) { continue; }
+      applyDiff(this.system, name, diffs[name]);
+      isSpecial = true;
+    }
+    if(isSpecial) {
+      this.system.recompile();
+    }
+
     forattr(table, diff of diffs) {
+      if(specialDiffs.indexOf(table) !== -1) { continue; }
       if(tableToIndexes[table]) {
         foreach(index of tableToIndexes[table]) {
           cur = this.indexes[index];
@@ -200,8 +212,43 @@ function reactFactory(obj) {
 };
 
 //---------------------------------------------------------
+// Mixins
+//---------------------------------------------------------
+
+var editableRowMixin = {
+  getInitialState: function() {
+    return {edits: [], activeField: -1};
+  },
+  click: function(e) {
+    var ix = parseInt(e.currentTarget.getAttribute("data-ix"), 10);
+    this.setState({activeField: ix});
+    e.currentTarget.focus();
+    e.stopPropagation();
+  },
+  keyDown: function(e) {
+    //handle pressing enter
+    if(e.keyCode === 13) {
+      this.blur();
+      e.preventDefault();
+    }
+  },
+  input: function(e) {
+    var edits = this.state.edits;
+    edits[this.state.activeField] = e.target.textContent;
+  },
+  blur: function() {
+    this.setState({activeField: -1});
+    var commitSuccessful = this.commit();
+    if(commitSuccessful) {
+      this.setState({edits: []});
+    }
+  }
+};
+
+//---------------------------------------------------------
 // Root
 //---------------------------------------------------------
+var gridSize = [6, 2];
 
 var Root = React.createFactory(React.createClass({
   adjustPosition: function(activeTile, cur) {
@@ -246,49 +293,18 @@ var Root = React.createFactory(React.createClass({
                          pos: [row, col]});
       }
     })
+    unpack [addRow, addCol] = grid.indexToRowCol(tileGrid, defaultSize, tables.length);
     return JSML.react(["div",
                         ProgramLoader(),
                         ReactSearcher(),
                         ["div", {"id": "cards",
                                 "onClick": this.click},
-                         tables
+                         tables,
+                         activeTile ? null : tiles.addTile({size: defaultSize,
+                                                            pos: [addRow, addCol]})
                         ]]);
   }
 }));
-
-//---------------------------------------------------------
-// Mixins
-//---------------------------------------------------------
-
-var editableRowMixin = {
-  getInitialState: function() {
-    return {edits: [], activeField: -1};
-  },
-  click: function(e) {
-    var ix = parseInt(e.currentTarget.getAttribute("data-ix"), 10);
-    this.setState({activeField: ix});
-    e.currentTarget.focus();
-    e.stopPropagation();
-  },
-  keyDown: function(e) {
-    //handle pressing enter
-    if(e.keyCode === 13) {
-      this.blur();
-      e.preventDefault();
-    }
-  },
-  input: function(e) {
-    var edits = this.state.edits;
-    edits[this.state.activeField] = e.target.textContent;
-  },
-  blur: function() {
-    this.setState({activeField: -1});
-    var commitSuccessful = this.commit();
-    if(commitSuccessful) {
-      this.setState({edits: []});
-    }
-  }
-};
 
 //---------------------------------------------------------
 // tiles
@@ -307,11 +323,21 @@ var tiles = {
       }
     },
     render: function() {
+      var selectable = (this.props.selectable !== undefined) ? this.props.selectable : true;
       return JSML.react(["div", {"className": "card " + (this.props.class || ""),
-                                 "onClick": this.click,
                                  "key": this.props.tile,
+                                 "onClick": (selectable) ? this.click : undefined,
                                  "style": grid.getSizeAndPosition(tileGrid, this.props.size, this.props.pos)},
                          this.props.content]);
+    }
+  }),
+  addTile: reactFactory({
+    click: function(e) {
+      dispatch(["addTile", {pos: this.props.pos, size: this.props.size}]);
+    },
+    render: function() {
+      var content = JSML.react(["div", {onClick: this.click}, "+"]);
+      return tiles.wrapper({pos: this.props.pos, size: this.props.size, id: "addTile", class: "add-tile", content: content, selectable: false});
     }
   }),
   table: reactFactory({
@@ -404,7 +430,8 @@ var tiles = {
     render: function() {
       var self = this;
       var table = this.props.table;
-      var headers = indexer.index("viewToFields")[table].sort(function(a, b) {
+      var viewFields = indexer.index("viewToFields")[table] || [];
+      var headers = viewFields.sort(function(a, b) {
         //compare their ixes
         return a[2] - b[2];
       }).map(function(cur) {
@@ -672,6 +699,22 @@ function dispatch(eventInfo) {
       diff["activeTile"] = {adds: [], removes: indexer.facts("activeTile")};
       indexer.handleDiffs(diff);
       break;
+
+    case "addTile":
+      var id = global.uuid();
+      console.log(id);
+      var diff = {
+        view: {adds: [[id]], removes: []},
+        workspaceView: {adds: [[id]], removes: []},
+        isInput: {adds: [[id]], removes: []},
+        tag: {adds: [[id, "input"]], removes: []},
+        displayName: {adds: [[id, "Untitled view"]], removes: []}
+      };
+      indexer.handleDiffs(diff);
+      break;
+
+    default:
+      console.warn("[dispatch] Unhandled event:", event, info);
   }
 }
 module.exports.dispatch = dispatch;

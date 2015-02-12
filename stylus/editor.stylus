@@ -90,8 +90,9 @@ body {
 }
 
 .card {
+  $bg-color = #f7f7f7;
   position:absolute;
-  background:#f7f7f7;
+  background: $bg-color;
   padding:10px 20px;
   padding-bottom:13px;
   padding-top:10px;
@@ -115,13 +116,36 @@ body {
     flex: 1;
   }
 
-}
-
-.card.input-card {
+  &.input-card {
     background: linear-gradient(top, rgba(247, 247, 247, 0.75), rgba(247, 247, 247, 0.75)), url("../input.jpg");
     background-size: cover;
     background-position: center;
+  }
+
+  &.add-tile {
+    border: 3px dashed alpha($bg-color, 0);
+    background: alpha($bg-color, 0);
+    color: alpha($bg-color, 0);
+    transition: 0.3s ease-in-out;
+  }
+  &.add-tile > div {
+    width: 100%; height: 100%;
+    text-align: center;
+    font-size: 5em;
+
+  }
+  &.add-tile:hover {
+    border: 3px dashed lightness($bg-color, 98%);
+    background: alpha($bg-color, 0.5);
+    color: rgba(0, 0, 0, 0.56);
+  }
+  &.add-tile:active {
+    background: $bg-color;
+    transition: 0.1s ease-out;
+    color: rgba(0, 0, 0, 0.56);
+  }
 }
+
 
 .grid {
   $border-color = rgba(0,0,0,0.16);
