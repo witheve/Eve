@@ -389,10 +389,12 @@ var Root = React.createFactory(React.createClass({
       }
     }
 
+    var menu = indexer.first("contextMenu");
     return JSML.react(["div",
-                   ProgramLoader(),
-                   ReactSearcher(),
-                   gridContainer]);
+                       menu ? ContextMenu({x: menu[0], y: menu[1]}) : null,
+                       ProgramLoader(),
+                       ReactSearcher(),
+                       gridContainer]);
   }
 }));
 
@@ -463,6 +465,15 @@ var tiles = {
     }),
     header: reactFactory({
       mixins: [editableFieldMixin],
+      contextMenu: function(e) {
+        e.preventDefault();
+        dispatch(["contextMenu", {e: {clientX: e.clientX, clientY: e.clientY},
+                                  items: [
+                                    [0, "filter", "filterField", this.props.field[0]],
+                                    [1, "group", "groupField", this.props.field[0]],
+                                    [2, "lookup", "lookupField", this.props.field[0]]
+                                  ]}])
+      },
       commit: function() {
         unpack [id] = this.props.field;
         if(!this.state.edit) { return; }
@@ -475,6 +486,7 @@ var tiles = {
         return JSML.react(["div", this.wrapEditable({
           className: "header",
           key: id,
+          onContextMenu: this.contextMenu
         }, name)]);
       }
     }),
@@ -751,6 +763,35 @@ var SearcherItem = reactFactory({
   }
 });
 
+
+//---------------------------------------------------------
+// Context menu
+//---------------------------------------------------------
+
+var ContextMenuItem = reactFactory({
+  click: function() {
+    dispatch([this.props.event, this.props.id]);
+  },
+  render: function() {
+    return JSML.react(["div", {className: "menu-item", onClick: this.click}, this.props.text]);
+  }
+});
+
+var ContextMenu = reactFactory({
+  clear: function() {
+    dispatch(["clearContextMenu"]);
+  },
+  render: function() {
+    var items = indexer.facts("contextMenuItem").map(function(cur) {
+      unpack [pos, text, event, id] = cur;
+      return ContextMenuItem({pos: pos, text: text, event: event, id: id});
+    });
+    return JSML.react(["div", {className: "menu-shade", onClick: this.clear},
+                       ["div", {className: "menu", style: {top: this.props.y, left: this.props.x}},
+                        items]]);
+  }
+});
+
 //---------------------------------------------------------
 // Dispatcher
 //---------------------------------------------------------
@@ -885,6 +926,22 @@ function dispatch(eventInfo) {
       indexer.handleDiffs(diff);
       break;
 
+    case "contextMenu":
+      var diff = {
+        contextMenu: {adds: [[info.e.clientX, info.e.clientY]], removes: indexer.facts("contextMenu") || []},
+        contextMenuItem: {adds: info.items, removes: indexer.facts("contextMenuItem") || []},
+      }
+      indexer.handleDiffs(diff);
+      break;
+
+    case "clearContextMenu":
+      var diff = {
+        contextMenu: {adds: [], removes: indexer.facts("contextMenu") || []},
+        contextMenuItem: {adds: [], removes: indexer.facts("contextMenuItem") || []},
+      }
+      indexer.handleDiffs(diff);
+      break;
+
 
     default:
       console.warn("[dispatch] Unhandled event:", event, info);
@@ -901,6 +958,8 @@ function ideTables() {
   pushAll(facts, inputView("activeTile", ["tile"]));
   pushAll(facts, inputView("gridTile", ["tile", "type", "w", "h", "x", "y"]));
   pushAll(facts, inputView("tableTile", ["tile", "table"]));
+  pushAll(facts, inputView("contextMenu", ["x", "y"]));
+  pushAll(facts, inputView("contextMenuItem", ["pos", "text", "event", "id"]));
   return facts;
 }
 
