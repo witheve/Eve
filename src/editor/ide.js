@@ -103,21 +103,19 @@ var indexers = {
       foreach(add of diffs.adds) {
         var loIx = 0;
         var hiIx = final.length;
+
         foreach(sortIx of sortIxes) {
           for(var ix = loIx; ix < hiIx; ix++) {
             var item = final[ix];
 
             if(add[sortIx] > item[sortIx]) {
-              loIx = ix;
+              loIx = ix + 1;
             } else if(add[sortIx] < item[sortIx]) {
               hiIx = ix;
-            } else {
               break;
             }
           }
         }
-
-        console.log("Inserting", add, "at", loIx, "sorted by", sortIxes, add[sortIx]);
         final.splice(loIx, 0, add);
       }
 
