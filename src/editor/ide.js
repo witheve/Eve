@@ -989,22 +989,6 @@ function dispatch(eventInfo) {
       indexer.handleDiffs(diff);
       break;
 
-    case "addField":
-      var id = global.uuid();
-      var fields = indexer.index("viewToFields")[info.view] || [];
-      var oldFacts = indexer.facts(info.view) || [];
-      var newFacts = oldFacts.slice();
-      foreach(ix, fact of newFacts) {
-        fact.push("");
-      };
-      var diff = {
-        field: {adds: [[id, info.view, fields.length]], removes: []},
-        displayName: {adds: [[id, info.name]], removes: []}
-      };
-      diff[info.view] = {adds: newFacts, removes: oldFacts};
-      indexer.handleDiffs(diff);
-      break;
-
     case "updateRow":
       var diff = {};
       var oldFact = JSON.stringify(info.oldRow);
@@ -1020,6 +1004,22 @@ function dispatch(eventInfo) {
 
       diff[info.table] = {adds: [info.newRow], removes: [info.oldRow]};
       diff["editId"] = {adds: [[info.table, newFact, editId]], removes: [[info.table, oldFact, editId]]};
+      indexer.handleDiffs(diff);
+      break;
+
+    case "addField":
+      var id = global.uuid();
+      var fields = indexer.index("viewToFields")[info.view] || [];
+      var oldFacts = indexer.facts(info.view) || [];
+      var newFacts = oldFacts.slice();
+      foreach(ix, fact of newFacts) {
+        fact.push("");
+      };
+      var diff = {
+        field: {adds: [[id, info.view, fields.length]], removes: []},
+        displayName: {adds: [[id, info.name]], removes: []}
+      };
+      diff[info.view] = {adds: newFacts, removes: oldFacts};
       indexer.handleDiffs(diff);
       break;
 
