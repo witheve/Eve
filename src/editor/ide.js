@@ -165,7 +165,10 @@ Indexer.prototype = {
     this.tablesToForward.push(table);
   },
   unforward: function(table) {
-    this.tablesToForward.remove(table);
+    var ix = this.tablesToForward.indexOf(table);
+    if(ix !== -1) {
+      this.tablesToForward.splice(ix, 1);
+    }
   },
   first: function(table) {
     return this.facts(table)[0];
@@ -779,7 +782,9 @@ function dispatch(eventInfo) {
                   "gridTile": {adds: [[tile, "table", defaultSize[0], defaultSize[1], row, col]], removes: []},
                   "tableTile": {adds: [[tile, tableId]], removes: []}};
       indexer.handleDiffs(diff);
-      indexer.forward(tableId);
+      if(hasTag(tableId, "constant")) {
+        indexer.forward(tableId);
+      }
       break;
 
     case "closeTile":
@@ -791,7 +796,7 @@ function dispatch(eventInfo) {
         workspaceView: {adds: [], removes: [tableId]}
       };
       indexer.handleDiffs(diff);
-      indexer.forward(tableId);
+      indexer.unforward(tableId);
       break;
 
     case "selectTile":
@@ -817,7 +822,7 @@ function dispatch(eventInfo) {
         tableTile: {adds: [[tileId, id]], removes: []},
         gridTile: {adds: [[tileId, "table", w, h, x, y]], removes: []},
         isInput: {adds: [[id]], removes: []},
-        tag: {adds: [[id, "input"]], removes: []},
+        tag: {adds: [[id, "input"], [id, "constant"]], removes: []},
         displayName: {adds: [[id, "Untitled view"]], removes: []}
       };
       indexer.handleDiffs(diff);
