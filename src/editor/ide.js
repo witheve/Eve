@@ -28,6 +28,7 @@ function aget(obj, keys, create) {
   return cur;
 }
 
+
 //---------------------------------------------------------
 // Indexer
 //---------------------------------------------------------
@@ -501,22 +502,29 @@ var tiles = {
     },
     render: function() {
       var selectable = (this.props.selectable !== undefined) ? this.props.selectable : true;
+      var controls = "";
+      if(this.props.controls !== false) {
+        controls = ["div", {className: "tile-controls"},
+                    ["button", {className: "tile-control close-btn",
+                                onClick: this.close}, "X"]];
+      }
       return JSML.react(["div", {"className": "card " + (this.props.class || ""),
                                  "key": this.props.tile,
                                  "onClick": (selectable) ? this.click : undefined,
                                  "style": grid.getSizeAndPosition(tileGrid, this.props.size, this.props.pos)},
-                         ["button", {className: "close-tile",
-                                     onClick: this.close}, "X"],
+                         controls,
                          this.props.content]);
     }
   }),
   addTile: reactFactory({
     click: function(e) {
-      dispatch(["addTile", {pos: this.props.pos, size: this.props.size}]);
+      var id = dispatch(["addView", {type: "constant"}]);
+      dispatch(["addTile", {pos: this.props.pos, size: this.props.size, type: "table", id: id}]);
     },
     render: function() {
       var content = JSML.react(["div", {onClick: this.click}, "+"]);
-      return tiles.wrapper({pos: this.props.pos, size: this.props.size, id: "addTile", class: "add-tile", content: content, selectable: false});
+      return tiles.wrapper({id: "addTile", class: "add-tile", content: content, controls: false,
+                            pos: this.props.pos, size: this.props.size, selectable: false});
     }
   }),
   table: reactFactory({
@@ -686,7 +694,8 @@ var tiles = {
     }),
     render: function() {
       var content = this.container({});
-      return tiles.wrapper({pos: this.props.pos, size: this.props.size, tile: this.props.tile, class: "ui-tile", content: content});
+      return tiles.wrapper({class: "ui-tile", controls: false, content: content,
+                            pos: this.props.pos, size: this.props.size, tile: this.props.tile});
     }
   })
 };
@@ -891,23 +900,34 @@ function dispatch(eventInfo) {
       React.render(Root(), document.body);
       break;
 
-    // Tile selection
-    case "openView":
-      unpack [tableId, name] = info;
-      var gap = grid.firstGap(tileGrid, getTileFootprints(), defaultSize);
-      if(!gap) {
-        console.warn("Grid is full, aborting.");
-        break;
-      }
-      unpack [row, col] = gap;
-      var tile = global.uuid();
-      var diff = {"workspaceView": {adds: [[tableId]], removes: []},
-                  "gridTile": {adds: [[tile, "table", defaultSize[0], defaultSize[1], row, col]], removes: []},
-                  "tableTile": {adds: [[tile, tableId]], removes: []}};
+
+    //---------------------------------------------------------
+    // Tiles
+    //---------------------------------------------------------
+    case "selectTile":
+      var diff = {};
+      diff["activeTile"] = {adds: [[info]], removes: indexer.facts("activeTile")};
       indexer.handleDiffs(diff);
-      if(hasTag(tableId, "constant")) {
-        indexer.forward(tableId);
-      }
+      break;
+
+    case "deselectTile":
+      var diff = {};
+      diff["activeTile"] = {adds: [], removes: indexer.facts("activeTile")};
+      indexer.handleDiffs(diff);
+      break;
+
+    case "addTile":
+      var id = info.id;
+      var tileId = global.uuid();
+      unpack [x, y] = info.pos;
+      unpack [w, h] = info.size;
+      var diff = {
+        tableTile: {adds: [[tileId, id]], removes: []},
+        gridTile: {adds: [[tileId, info.type, w, h, x, y]], removes: []},
+      };
+      indexer.handleDiffs(diff);
+      indexer.forward(id);
+      return tileId;
       break;
 
     case "closeTile":
@@ -922,36 +942,41 @@ function dispatch(eventInfo) {
       indexer.unforward(tableId);
       break;
 
-    case "selectTile":
-      var diff = {};
-      diff["activeTile"] = {adds: [[info]], removes: indexer.facts("activeTile")};
-      indexer.handleDiffs(diff);
-      break;
-    case "deselectTile":
-      var diff = {};
-      diff["activeTile"] = {adds: [], removes: indexer.facts("activeTile")};
-      indexer.handleDiffs(diff);
-      break;
-
-    // Adding facts
-    case "addTile":
+    case "addView":
       var id = global.uuid();
-      var tileId = global.uuid();
-      unpack [x, y] = info.pos;
-      unpack [w, h] = info.size;
       var diff = {
         view: {adds: [[id]], removes: []},
         workspaceView: {adds: [[id]], removes: []},
-        tableTile: {adds: [[tileId, id]], removes: []},
-        gridTile: {adds: [[tileId, "table", w, h, x, y]], removes: []},
-        isInput: {adds: [[id]], removes: []},
-        tag: {adds: [[id, "input"], [id, "constant"]], removes: []},
-        displayName: {adds: [[id, "Untitled view"]], removes: []}
+        displayName: {adds: [[id, info.name || "Untitled view"]], removes: []}
       };
+      if(info.type === "constant") {
+        diff.isInput = {adds: [[id]], removes: []};
+        diff.tag = {adds: [[id, "input"], [id, "constant"]], removes: []};
+      }
       indexer.handleDiffs(diff);
       indexer.forward(id);
+      return id;
       break;
 
+    case "openView":
+      unpack [tableId, name] = info;
+      var diff = {"workspaceView": {adds: [[tableId]], removes: []}};
+      indexer.handleDiffs(diff);
+      if(hasTag(tableId, "constant")) {
+        indexer.forward(tableId);
+      }
+
+      var gap = grid.firstGap(tileGrid, getTileFootprints(), defaultSize);
+      if(!gap) {
+        console.warn("Grid is full, aborting.");
+        break;
+      }
+      dispatch(["addTile", {id: tableId, pos: gap, size: defaultSize, type: "table"}]);
+      break;
+
+    //---------------------------------------------------------
+    // Tables
+    //---------------------------------------------------------
     case "addRow":
       //@TODO: we haven't set up view forwarding for constant/input views
       var diff = {};
@@ -978,15 +1003,6 @@ function dispatch(eventInfo) {
       indexer.handleDiffs(diff);
       break;
 
-    // Updating facts
-    case "rename":
-      var oldFact = indexer.index("displayName")[info.id];
-      var diff = {
-        displayName: {adds: [[info.id, info.name]], removes: [oldFact]}
-      };
-      indexer.handleDiffs(diff);
-      break;
-
     case "updateRow":
       var diff = {};
       var oldFact = JSON.stringify(info.oldRow);
@@ -1002,6 +1018,17 @@ function dispatch(eventInfo) {
 
       diff[info.table] = {adds: [info.newRow], removes: [info.oldRow]};
       diff["editId"] = {adds: [[info.table, newFact, editId]], removes: [[info.table, oldFact, editId]]};
+      indexer.handleDiffs(diff);
+      break;
+
+    //---------------------------------------------------------
+    // Misc.
+    //---------------------------------------------------------
+    case "rename":
+      var oldFact = indexer.index("displayName")[info.id];
+      var diff = {
+        displayName: {adds: [[info.id, info.name]], removes: [oldFact]}
+      };
       indexer.handleDiffs(diff);
       break;
 
