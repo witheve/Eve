@@ -100,6 +100,7 @@ var indexers = {
         }
       }
 
+      // @NOTE: This can be optimized further by presorting adds and maintaining loIx as a sliding window.
       foreach(add of diffs.adds) {
         var loIx = 0;
         var hiIx = final.length;
