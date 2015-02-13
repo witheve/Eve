@@ -15,6 +15,14 @@ var incrementalUI = require("./incrementalUI");
 var ide = module.exports;
 var indexer;
 var defaultSize = [6,3];
+var KEYCODES = {
+  UP: 38,
+  DOWN: 40,
+  LEFT: 37,
+  RIGHT: 39,
+  ENTER: 13,
+  ESCAPE: 27
+};
 
 //---------------------------------------------------------
 // Indexer
@@ -291,7 +299,7 @@ var editableRowMixin = {
   },
   keyDown: function(e) {
     //handle pressing enter
-    if(e.keyCode === 13) {
+    if(e.keyCode === KEYCODES.ENTER) {
       this.blur();
       e.preventDefault();
     }
@@ -333,7 +341,7 @@ var editableFieldMixin = {
   },
   keyDown: function(e) {
     //handle pressing enter
-    if(e.keyCode === 13) {
+    if(e.keyCode === KEYCODES.ENTER) {
       this.blur();
       e.preventDefault();
     }
@@ -442,7 +450,7 @@ var tileGrid;
 
 var tiles = {
   wrapper: reactFactory({
-    click: function() {
+    doubleClick: function() {
       var active = indexer.first("activeTile");
       if(!active || active[0] !== this.props.tile) {
         dispatch(["selectTile", this.props.tile]);
@@ -462,7 +470,7 @@ var tiles = {
       var selectable = (this.props.selectable !== undefined) ? this.props.selectable : true;
       return JSML.react(["div", {"className": "card " + (this.props.class || ""),
                                  "key": this.props.tile,
-                                 "onClick": (selectable) ? this.click : undefined,
+                                 "onDoubleClick": (selectable) ? this.doubleClick : undefined,
                                  "style": grid.getSizeAndPosition(tileGrid, this.props.size, this.props.pos)},
                          ["button", {className: "close-tile",
                                      onClick: this.close}, "X"],
@@ -470,11 +478,29 @@ var tiles = {
     }
   }),
   addTile: reactFactory({
+    contextMenu: function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var sizePos = {pos: this.props.pos, size: this.props.size};
+      dispatch(["contextMenu", {e: {clientX: e.clientX, clientY: e.clientY},
+                                items: [
+                                  [0, "Table", "addTableTile", sizePos],
+                                  [1, "View", "addViewTile", sizePos],
+                                  [2, "UI", "addUI", sizePos]
+                                ]}]);
+    },
     click: function(e) {
-      dispatch(["addTile", {pos: this.props.pos, size: this.props.size}]);
+      var sizePos = {pos: this.props.pos, size: this.props.size};
+      dispatch(["contextMenu", {e: {clientX: e.clientX, clientY: e.clientY},
+                                items: [
+                                  [0, "Table", "addTableTile", sizePos],
+                                  [1, "View", "addViewTile", sizePos],
+                                  [2, "UI", "addUI", sizePos]
+                                ]}]);
+//       dispatch(["addTableTile", {pos: this.props.pos, size: this.props.size}]);
     },
     render: function() {
-      var content = JSML.react(["div", {onClick: this.click}, "+"]);
+      var content = JSML.react(["div", {onClick: this.click, onContextMenu: this.contextMenu}, "+"]);
       return tiles.wrapper({pos: this.props.pos, size: this.props.size, id: "addTile", class: "add-tile", content: content, selectable: false});
     }
   }),
@@ -612,7 +638,7 @@ var tiles = {
       });
       var isConstant = hasTag(table, "constant");
       var isInput = hasTag(table, "input");
-      var className = (isConstant || isInput) ? "input-card" : "";
+      var className = (isConstant || isInput) ? "input-card" : "view-card";
       var content =  [self.title({id: table}),
                       ["div", {className: "grid"},
                        ["div", {className: "grid-header"},
@@ -637,10 +663,11 @@ var tiles = {
       },
       click: function(e) {
         e.stopPropagation();
+        e.preventDefault();
       },
       render: function() {
         return JSML.react(["div", {"className": "uiCard",
-                                   "onClick": this.click}]);
+                                   "onDoubleClick": this.click}]);
       }
     }),
     render: function() {
@@ -722,14 +749,6 @@ var ReactSearcher = reactFactory({
   },
 
   keydown: function(e) {
-    var KEYCODES = {
-      UP: 38,
-      DOWN: 40,
-      LEFT: 37,
-      RIGHT: 39,
-      ENTER: 13,
-      ESCAPE: 27
-    };
     var max = Math.min(this.state.possible.length, this.state.max);
 
     // FIXME: stupid 1 access to grab the name.
@@ -893,7 +912,7 @@ function dispatch(eventInfo) {
       break;
 
     // Adding facts
-    case "addTile":
+    case "addTableTile":
       var id = global.uuid();
       var tileId = global.uuid();
       unpack [x, y] = info.pos;
@@ -905,6 +924,22 @@ function dispatch(eventInfo) {
         gridTile: {adds: [[tileId, "table", w, h, x, y]], removes: []},
         isInput: {adds: [[id]], removes: []},
         tag: {adds: [[id, "input"], [id, "constant"]], removes: []},
+        displayName: {adds: [[id, "Untitled table"]], removes: []}
+      };
+      indexer.handleDiffs(diff);
+      indexer.forward(id);
+      break;
+
+    case "addViewTile":
+      var id = global.uuid();
+      var tileId = global.uuid();
+      unpack [x, y] = info.pos;
+      unpack [w, h] = info.size;
+      var diff = {
+        view: {adds: [[id]], removes: []},
+        workspaceView: {adds: [[id]], removes: []},
+        tableTile: {adds: [[tileId, id]], removes: []},
+        gridTile: {adds: [[tileId, "table", w, h, x, y]], removes: []},
         displayName: {adds: [[id, "Untitled view"]], removes: []}
       };
       indexer.handleDiffs(diff);
@@ -912,7 +947,6 @@ function dispatch(eventInfo) {
       break;
 
     case "addRow":
-      //@TODO: we haven't set up view forwarding for constant/input views
       var diff = {};
       diff[info.table] = {adds: [info.row], removes: []};
       var id = maxRowId(info.table) + 1;
