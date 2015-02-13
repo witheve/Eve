@@ -16,6 +16,18 @@ var ide = module.exports;
 var indexer;
 var defaultSize = [6,3];
 
+function aget(obj, keys, create) {
+  var cur = obj;
+  foreach(key of keys) {
+    if(!cur[key]) {
+      if(!create) { return undefined; }
+      cur[key] = {};
+    }
+    cur = cur[key];
+  }
+  return cur;
+}
+
 //---------------------------------------------------------
 // Indexer
 //---------------------------------------------------------
@@ -70,27 +82,57 @@ var indexers = {
     };
   },
   makeCollector: function(keyIx) {
-    return function(cur, diffs) {
-      var final = cur || {};
-      foreach(add of diffs.adds) {
-        if(!final[add[keyIx]]) {
-          final[add[keyIx]] = [];
+    if(arguments.length === 1) {
+      return function(cur, diffs) {
+        var final = cur || {};
+        foreach(add of diffs.adds) {
+          if(!final[add[keyIx]]) {
+            final[add[keyIx]] = [];
+          }
+          final[add[keyIx]].push(add);
         }
-        final[add[keyIx]].push(add);
+        foreach(remove of diffs.removes) {
+          final[remove[keyIx]] = final[remove[keyIx]].filter(function(cur) {
+            return !arrayEqual(cur, remove)
+          });
+        }
+        return final;
       }
-      foreach(remove of diffs.removes) {
-        final[remove[keyIx]] = final[remove[keyIx]].filter(function(cur) {
-          return !arrayEqual(cur, remove)
-        });
+    } else {
+      var keyIxes = [].slice.apply(arguments);
+      var lastKeyIx = keyIxes.pop();
+      return function(cur, diffs) {
+        var final = cur || {};
+        foreach(add of diffs.adds) {
+          var keys = [];
+          foreach(ix, keyIx of keyIxes) {
+            keys[ix] = add[keyIx];
+          }
+          var cur = aget(final, keys, true);
+          if(!cur[add[lastKeyIx]]) {
+            cur[add[lastKeyIx]] = [];
+          }
+          cur[add[lastKeyIx]].push(add);
+        }
+        foreach(remove of diffs.removes) {
+          var keys = [];
+          foreach(ix, keyIx of keyIxes) {
+            keys[ix] = remove[keyIx];
+          }
+          var cur = aget(final, keys, false);
+          cur[remove[lastKeyIx]] = cur[remove[lastKeyIx]].filter(function(c) {
+            return !arrayEqual(cur, remove);
+          });
+
+        }
+        return final;
       }
-      return final;
     }
   },
   makeSorter: function() {
     var sortIxes = [].slice.apply(arguments);
     return function(cur, diffs) {
       var final = cur || [];
-
       foreach(remove of diffs.removes) {
         foreach(ix, item of final) {
           if(arrayEqual(item, remove)) {
@@ -104,11 +146,9 @@ var indexers = {
       foreach(add of diffs.adds) {
         var loIx = 0;
         var hiIx = final.length;
-
         foreach(sortIx of sortIxes) {
           for(var ix = loIx; ix < hiIx; ix++) {
             var item = final[ix];
-
             if(add[sortIx] > item[sortIx]) {
               loIx = ix + 1;
             } else if(add[sortIx] < item[sortIx]) {
