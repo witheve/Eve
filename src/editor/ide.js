@@ -451,11 +451,14 @@ var tiles = {
       render: function() {
         var id = this.props.id;
         var name = this.state.edit || indexer.index("displayName")[id];
-        var isInput = hasTag(id, "input");
+        var label = "";
+        if(hasTag(id, "constant")) { label = " - constant"; }
+        else if(hasTag(id, "input")) { label = "- input"; }
+
         return JSML.react(
           ["h2",
            ["span", this.wrapEditable({key: id + "-title",}, name)],
-           (isInput ? " - input" : "")]);
+           label]);
       }
     }),
     header: reactFactory({
@@ -559,7 +562,7 @@ var tiles = {
       var rows = indexer.facts(table).map(function(cur) {
         return self.row({row: cur, table: table});
       });
-      var isInput = hasTag(table, "input");
+      var isConstant = hasTag(table, "constant");
       var content =  [self.title({id: table}),
                       ["div", {className: "grid"},
                        ["div", {className: "grid-header"},
@@ -567,7 +570,7 @@ var tiles = {
                         self.addHeader({view: table})],
                        ["div", {className: "grid-rows"},
                         rows,
-                        isInput ? this.adderRow({len: headers.length, table: table}) : null]]];
+                        isConstant ? this.adderRow({len: headers.length, table: table}) : null]]];
       return tiles.wrapper({pos: this.props.pos, size: this.props.size, tile: this.props.tile, content: content});
     }
   }),
