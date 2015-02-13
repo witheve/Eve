@@ -85,6 +85,44 @@ var indexers = {
       }
       return final;
     }
+  },
+  makeSorter: function() {
+    var sortIxes = [].slice.apply(arguments);
+    return function(cur, diffs) {
+      var final = cur || [];
+
+      foreach(remove of diffs.removes) {
+        foreach(ix, item of final) {
+          if(arrayEqual(item, remove)) {
+            final.splice(ix, 1);
+            break;
+          }
+        }
+      }
+
+      foreach(add of diffs.adds) {
+        var loIx = 0;
+        var hiIx = final.length;
+        foreach(sortIx of sortIxes) {
+          for(var ix = loIx; ix < hiIx; ix++) {
+            var item = final[ix];
+
+            if(add[sortIx] > item[sortIx]) {
+              loIx = ix;
+            } else if(add[sortIx] < item[sortIx]) {
+              hiIx = ix;
+            } else {
+              break;
+            }
+          }
+        }
+
+        console.log("Inserting", add, "at", loIx, "sorted by", sortIxes, add[sortIx]);
+        final.splice(loIx, 0, add);
+      }
+
+      return final;
+    }
   }
 };
 
@@ -575,6 +613,8 @@ var tiles = {
         return self.row({row: cur, table: table});
       });
       var isConstant = hasTag(table, "constant");
+      var isInput = hasTag(table, "input");
+      var className = (isConstant || isInput) ? "input-card" : "";
       var content =  [self.title({id: table}),
                       ["div", {className: "grid"},
                        ["div", {className: "grid-header"},
@@ -583,7 +623,7 @@ var tiles = {
                        ["div", {className: "grid-rows"},
                         rows,
                         isConstant ? this.adderRow({len: headers.length, table: table}) : null]]];
-      return tiles.wrapper({pos: this.props.pos, size: this.props.size, tile: this.props.tile, content: content});
+      return tiles.wrapper({pos: this.props.pos, size: this.props.size, tile: this.props.tile, class: className, content: content});
     }
   }),
   ui: reactFactory({
@@ -1009,3 +1049,8 @@ function handleProgramDiffs(diffs) {
   indexer.handleDiffs(diffs, true);
 }
 module.exports.handleProgramDiffs = handleProgramDiffs;
+
+
+
+// Debug
+global.indexers = indexers;
