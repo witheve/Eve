@@ -919,6 +919,13 @@ function dispatch(eventInfo) {
     case "addTile":
       var id = info.id;
       var tileId = global.uuid();
+      if(!info.pos) {
+        info.pos = grid.firstGap(tileGrid, getTileFootprints(), defaultSize);
+        if(!info.pos) {
+          console.warn("Grid is full, aborting.");
+          break;
+        }
+      }
       unpack [x, y] = info.pos;
       unpack [w, h] = info.size;
       var diff = {
@@ -966,12 +973,7 @@ function dispatch(eventInfo) {
         indexer.forward(tableId);
       }
 
-      var gap = grid.firstGap(tileGrid, getTileFootprints(), defaultSize);
-      if(!gap) {
-        console.warn("Grid is full, aborting.");
-        break;
-      }
-      dispatch(["addTile", {id: tableId, pos: gap, size: defaultSize, type: "table"}]);
+      dispatch(["addTile", {id: tableId, size: defaultSize, type: "table"}]);
       break;
 
     //---------------------------------------------------------
