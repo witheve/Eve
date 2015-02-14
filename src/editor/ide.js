@@ -24,6 +24,19 @@ var KEYCODES = {
   ESCAPE: 27
 };
 
+function aget(obj, keys, create) {
+  var cur = obj;
+  foreach(key of keys) {
+    if(!cur[key]) {
+      if(!create) { return undefined; }
+      cur[key] = {};
+    }
+    cur = cur[key];
+  }
+  return cur;
+}
+
+
 //---------------------------------------------------------
 // Indexer
 //---------------------------------------------------------
@@ -78,27 +91,57 @@ var indexers = {
     };
   },
   makeCollector: function(keyIx) {
-    return function(cur, diffs) {
-      var final = cur || {};
-      foreach(add of diffs.adds) {
-        if(!final[add[keyIx]]) {
-          final[add[keyIx]] = [];
+    if(arguments.length === 1) {
+      return function(cur, diffs) {
+        var final = cur || {};
+        foreach(add of diffs.adds) {
+          if(!final[add[keyIx]]) {
+            final[add[keyIx]] = [];
+          }
+          final[add[keyIx]].push(add);
         }
-        final[add[keyIx]].push(add);
+        foreach(remove of diffs.removes) {
+          final[remove[keyIx]] = final[remove[keyIx]].filter(function(cur) {
+            return !arrayEqual(cur, remove)
+          });
+        }
+        return final;
       }
-      foreach(remove of diffs.removes) {
-        final[remove[keyIx]] = final[remove[keyIx]].filter(function(cur) {
-          return !arrayEqual(cur, remove)
-        });
+    } else {
+      var keyIxes = [].slice.apply(arguments);
+      var lastKeyIx = keyIxes.pop();
+      return function(cur, diffs) {
+        var final = cur || {};
+        foreach(add of diffs.adds) {
+          var keys = [];
+          foreach(ix, keyIx of keyIxes) {
+            keys[ix] = add[keyIx];
+          }
+          var cur = aget(final, keys, true);
+          if(!cur[add[lastKeyIx]]) {
+            cur[add[lastKeyIx]] = [];
+          }
+          cur[add[lastKeyIx]].push(add);
+        }
+        foreach(remove of diffs.removes) {
+          var keys = [];
+          foreach(ix, keyIx of keyIxes) {
+            keys[ix] = remove[keyIx];
+          }
+          var cur = aget(final, keys, false);
+          cur[remove[lastKeyIx]] = cur[remove[lastKeyIx]].filter(function(c) {
+            return !arrayEqual(cur, remove);
+          });
+
+        }
+        return final;
       }
-      return final;
     }
   },
   makeSorter: function() {
     var sortIxes = [].slice.apply(arguments);
     return function(cur, diffs) {
       var final = cur || [];
-
       foreach(remove of diffs.removes) {
         foreach(ix, item of final) {
           if(arrayEqual(item, remove)) {
@@ -108,14 +151,13 @@ var indexers = {
         }
       }
 
+      // @NOTE: This can be optimized further by presorting adds and maintaining loIx as a sliding window.
       foreach(add of diffs.adds) {
         var loIx = 0;
         var hiIx = final.length;
-
         foreach(sortIx of sortIxes) {
           for(var ix = loIx; ix < hiIx; ix++) {
             var item = final[ix];
-
             if(add[sortIx] > item[sortIx]) {
               loIx = ix + 1;
             } else if(add[sortIx] < item[sortIx]) {
@@ -468,17 +510,22 @@ var tiles = {
     },
     render: function() {
       var selectable = (this.props.selectable !== undefined) ? this.props.selectable : true;
+      var controls = "";
+      if(this.props.controls !== false) {
+        controls = ["div", {className: "tile-controls"},
+                    ["button", {className: "tile-control close-btn",
+                                onClick: this.close}, "X"]];
+      }
       return JSML.react(["div", {"className": "card " + (this.props.class || ""),
                                  "key": this.props.tile,
                                  "onDoubleClick": (selectable) ? this.doubleClick : undefined,
                                  "style": grid.getSizeAndPosition(tileGrid, this.props.size, this.props.pos)},
-                         ["button", {className: "close-tile",
-                                     onClick: this.close}, "X"],
+                         controls,
                          this.props.content]);
     }
   }),
   addTile: reactFactory({
-    contextMenu: function(e) {
+    click: function(e) {
       e.preventDefault();
       e.stopPropagation();
       var sizePos = {pos: this.props.pos, size: this.props.size};
@@ -489,19 +536,9 @@ var tiles = {
                                   [2, "UI", "addUI", sizePos]
                                 ]}]);
     },
-    click: function(e) {
-      var sizePos = {pos: this.props.pos, size: this.props.size};
-      dispatch(["contextMenu", {e: {clientX: e.clientX, clientY: e.clientY},
-                                items: [
-                                  [0, "Table", "addTableTile", sizePos],
-                                  [1, "View", "addViewTile", sizePos],
-                                  [2, "UI", "addUI", sizePos]
-                                ]}]);
-//       dispatch(["addTableTile", {pos: this.props.pos, size: this.props.size}]);
-    },
     render: function() {
-      var content = JSML.react(["div", {onClick: this.click, onContextMenu: this.contextMenu}, "+"]);
-      return tiles.wrapper({pos: this.props.pos, size: this.props.size, id: "addTile", class: "add-tile", content: content, selectable: false});
+      var content = JSML.react(["div", {onClick: this.click, onContextMenu: this.click}, "+"]);
+      return tiles.wrapper({pos: this.props.pos, size: this.props.size, id: "addTile", class: "add-tile", content: content, controls: false, selectable: false});
     }
   }),
   table: reactFactory({
@@ -672,7 +709,8 @@ var tiles = {
     }),
     render: function() {
       var content = this.container({});
-      return tiles.wrapper({pos: this.props.pos, size: this.props.size, tile: this.props.tile, class: "ui-tile", content: content});
+      return tiles.wrapper({class: "ui-tile", controls: false, content: content,
+                            pos: this.props.pos, size: this.props.size, tile: this.props.tile});
     }
   })
 };
@@ -869,23 +907,67 @@ function dispatch(eventInfo) {
       React.render(Root(), document.body);
       break;
 
-    // Tile selection
-    case "openView":
-      unpack [tableId, name] = info;
-      var gap = grid.firstGap(tileGrid, getTileFootprints(), defaultSize);
-      if(!gap) {
-        console.warn("Grid is full, aborting.");
-        break;
-      }
-      unpack [row, col] = gap;
-      var tile = global.uuid();
-      var diff = {"workspaceView": {adds: [[tableId]], removes: []},
-                  "gridTile": {adds: [[tile, "table", defaultSize[0], defaultSize[1], row, col]], removes: []},
-                  "tableTile": {adds: [[tile, tableId]], removes: []}};
+
+    //---------------------------------------------------------
+    // Tiles
+    //---------------------------------------------------------
+    case "selectTile":
+      var diff = {};
+      diff["activeTile"] = {adds: [[info]], removes: indexer.facts("activeTile")};
       indexer.handleDiffs(diff);
-      if(hasTag(tableId, "constant")) {
-        indexer.forward(tableId);
+      break;
+
+    case "deselectTile":
+      var diff = {};
+      diff["activeTile"] = {adds: [], removes: indexer.facts("activeTile")};
+      indexer.handleDiffs(diff);
+      break;
+
+    case "addView":
+      var id = global.uuid();
+      var diff = {
+        view: {adds: [[id]], removes: []},
+        workspaceView: {adds: [[id]], removes: []},
+        displayName: {adds: [[id, info.name || "Untitled table"]], removes: []}
+      };
+      if(info.type === "constant") {
+        diff.isInput = {adds: [[id]], removes: []};
+        diff.tag = {adds: [[id, "input"], [id, "constant"]], removes: []};
       }
+      indexer.handleDiffs(diff);
+      indexer.forward(id);
+      return id;
+      break;
+
+    case "addTile":
+      var id = info.id;
+      var tileId = global.uuid();
+      if(!info.pos) {
+        info.pos = grid.firstGap(tileGrid, getTileFootprints(), defaultSize);
+        if(!info.pos) {
+          console.warn("Grid is full, aborting.");
+          break;
+        }
+      }
+      unpack [x, y] = info.pos;
+      unpack [w, h] = info.size;
+      var diff = {
+        tableTile: {adds: [[tileId, id]], removes: []},
+        gridTile: {adds: [[tileId, info.type, w, h, x, y]], removes: []},
+      };
+      indexer.handleDiffs(diff);
+      indexer.forward(id);
+      return tileId;
+      break;
+
+    case "addTableTile":
+      var id = dispatch(["addView", {type: "constant"}]);
+      dispatch(["addTile", {pos: info.pos, size: info.size, type: "table", id: id}]);
+      break;
+
+    case "addViewTile":
+      var id = dispatch(["addView", {name: "Untitled view"}]);
+      dispatch(["addTile", {pos: info.pos, size: info.size, type: "table", id: id}]);
       break;
 
     case "closeTile":
@@ -900,58 +982,44 @@ function dispatch(eventInfo) {
       indexer.unforward(tableId);
       break;
 
-    case "selectTile":
-      var diff = {};
-      diff["activeTile"] = {adds: [[info]], removes: indexer.facts("activeTile")};
+    case "openView":
+      unpack [tableId, name] = info;
+      var diff = {"workspaceView": {adds: [[tableId]], removes: []}};
       indexer.handleDiffs(diff);
-      break;
-    case "deselectTile":
-      var diff = {};
-      diff["activeTile"] = {adds: [], removes: indexer.facts("activeTile")};
-      indexer.handleDiffs(diff);
+      if(hasTag(tableId, "constant")) {
+        indexer.forward(tableId);
+      }
+
+      dispatch(["addTile", {id: tableId, size: defaultSize, type: "table"}]);
       break;
 
-    // Adding facts
-    case "addTableTile":
-      var id = global.uuid();
-      var tileId = global.uuid();
-      unpack [x, y] = info.pos;
-      unpack [w, h] = info.size;
-      var diff = {
-        view: {adds: [[id]], removes: []},
-        workspaceView: {adds: [[id]], removes: []},
-        tableTile: {adds: [[tileId, id]], removes: []},
-        gridTile: {adds: [[tileId, "table", w, h, x, y]], removes: []},
-        isInput: {adds: [[id]], removes: []},
-        tag: {adds: [[id, "input"], [id, "constant"]], removes: []},
-        displayName: {adds: [[id, "Untitled table"]], removes: []}
-      };
-      indexer.handleDiffs(diff);
-      indexer.forward(id);
-      break;
-
-    case "addViewTile":
-      var id = global.uuid();
-      var tileId = global.uuid();
-      unpack [x, y] = info.pos;
-      unpack [w, h] = info.size;
-      var diff = {
-        view: {adds: [[id]], removes: []},
-        workspaceView: {adds: [[id]], removes: []},
-        tableTile: {adds: [[tileId, id]], removes: []},
-        gridTile: {adds: [[tileId, "table", w, h, x, y]], removes: []},
-        displayName: {adds: [[id, "Untitled view"]], removes: []}
-      };
-      indexer.handleDiffs(diff);
-      indexer.forward(id);
-      break;
-
+    //---------------------------------------------------------
+    // Tables
+    //---------------------------------------------------------
     case "addRow":
       var diff = {};
       diff[info.table] = {adds: [info.row], removes: []};
       var id = maxRowId(info.table) + 1;
       if(id) { id += 1; }
       diff["editId"] = {adds: [[info.table, JSON.stringify(info.row), id]], removes: []};
+      indexer.handleDiffs(diff);
+      break;
+
+    case "updateRow":
+      var diff = {};
+      var oldFact = JSON.stringify(info.oldRow);
+      var newFact = JSON.stringify(info.newRow);
+      var edits = indexer.index("editRowToId")[info.table];
+      var editId;
+      if(edits && edits[oldFact] !== undefined && edits[oldFact] !== null) {
+        editId = edits[oldFact];
+      } else {
+        // Hack-around until every constant row has a *saved* editId.
+        editId = maxRowId(info.table) + 1;
+      }
+
+      diff[info.table] = {adds: [info.newRow], removes: [info.oldRow]};
+      diff["editId"] = {adds: [[info.table, newFact, editId]], removes: [[info.table, oldFact, editId]]};
       indexer.handleDiffs(diff);
       break;
 
@@ -971,30 +1039,14 @@ function dispatch(eventInfo) {
       indexer.handleDiffs(diff);
       break;
 
-    // Updating facts
+    //---------------------------------------------------------
+    // Misc.
+    //---------------------------------------------------------
     case "rename":
       var oldFact = indexer.index("displayName")[info.id];
       var diff = {
         displayName: {adds: [[info.id, info.name]], removes: [oldFact]}
       };
-      indexer.handleDiffs(diff);
-      break;
-
-    case "updateRow":
-      var diff = {};
-      var oldFact = JSON.stringify(info.oldRow);
-      var newFact = JSON.stringify(info.newRow);
-      var edits = indexer.index("editRowToId")[info.table];
-      var editId;
-      if(edits && edits[oldFact] !== undefined && edits[oldFact] !== null) {
-        editId = edits[oldFact];
-      } else {
-        // Hack-around until every constant row has a *saved* editId.
-        editId = maxRowId(info.table) + 1;
-      }
-
-      diff[info.table] = {adds: [info.newRow], removes: [info.oldRow]};
-      diff["editId"] = {adds: [[info.table, newFact, editId]], removes: [[info.table, oldFact, editId]]};
       indexer.handleDiffs(diff);
       break;
 
