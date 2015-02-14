@@ -46,22 +46,22 @@ var indexers = {
     if(valueIx !== false) {
       return function(cur, diffs) {
         var final = cur || {};
-        foreach(add of diffs.adds) {
-          final[add[keyIx]] = add[valueIx];
-        }
         foreach(remove of diffs.removes) {
           final[remove[keyIx]] = null;
+        }
+        foreach(add of diffs.adds) {
+          final[add[keyIx]] = add[valueIx];
         }
         return final;
       }
     } else {
       return function(cur, diffs) {
         var final = cur || {};
-        foreach(add of diffs.adds) {
-          final[add[keyIx]] = add;
-        }
         foreach(remove of diffs.removes) {
           final[remove[keyIx]] = null;
+        }
+        foreach(add of diffs.adds) {
+          final[add[keyIx]] = add;
         }
         return final;
       }
@@ -94,17 +94,19 @@ var indexers = {
     if(arguments.length === 1) {
       return function(cur, diffs) {
         var final = cur || {};
+        foreach(remove of diffs.removes) {
+          final[remove[keyIx]] = final[remove[keyIx]].filter(function(cur) {
+            return !arrayEqual(cur, remove)
+          });
+        }
+
         foreach(add of diffs.adds) {
           if(!final[add[keyIx]]) {
             final[add[keyIx]] = [];
           }
           final[add[keyIx]].push(add);
         }
-        foreach(remove of diffs.removes) {
-          final[remove[keyIx]] = final[remove[keyIx]].filter(function(cur) {
-            return !arrayEqual(cur, remove)
-          });
-        }
+
         return final;
       }
     } else {
@@ -190,13 +192,13 @@ Indexer.prototype = {
     var cur;
     var specialDiffs = ["view", "field"];
     var isSpecial = false;
-    foreach(name of specialDiffs) {
-      if(!diffs[name]) { continue; }
-      applyDiff(this.system, name, diffs[name]);
+    foreach(table of specialDiffs) {
+      if(!diffs[table]) { continue; }
+      applyDiff(system, table, diffs[table]);
       isSpecial = true;
     }
     if(isSpecial) {
-      this.system.recompile();
+      system.recompile();
       //all non-input views were just cleared, make sure the worker clears storage
       //so that we end up with the views getting repopulated correctly.
       this.worker.postMessage({type: "clearStorage", views: getNonInputWorkspaceViews()})
@@ -248,7 +250,12 @@ Indexer.prototype = {
                           indexer: indexer};
   },
   forward: function(table) {
-    this.tablesToForward.push(table);
+    if(!table) { return; }
+    else if(typeof table === "object" && table.length) {
+      this.tablesToForward.push.apply(this.tablesToForward, table);
+    } else {
+      this.tablesToForward.push(table);
+    }
   },
   unforward: function(table) {
     var ix = this.tablesToForward.indexOf(table);
@@ -956,7 +963,6 @@ function dispatch(eventInfo) {
         gridTile: {adds: [[tileId, info.type, w, h, x, y]], removes: []},
       };
       indexer.handleDiffs(diff);
-      indexer.forward(id);
       return tileId;
       break;
 
@@ -1027,15 +1033,54 @@ function dispatch(eventInfo) {
       var id = global.uuid();
       var fields = indexer.index("viewToFields")[info.view] || [];
       var oldFacts = indexer.facts(info.view) || [];
-      var newFacts = oldFacts.slice();
-      foreach(ix, fact of newFacts) {
-        fact.push("");
+      var newFacts = new Array(oldFacts.length);
+      foreach(ix, fact of oldFacts) {
+        var newFact = fact.slice();
+        newFact.push("");
+        newFacts[ix] = newFact;
       };
       var diff = {
         field: {adds: [[id, info.view, fields.length]], removes: []},
         displayName: {adds: [[id, info.name]], removes: []}
       };
       diff[info.view] = {adds: newFacts, removes: oldFacts};
+      indexer.handleDiffs(diff);
+      break;
+
+    case "groupField":
+      var viewId = indexer.index("fieldToView")[info];
+      var oldFields = indexer.index("viewToFields")[viewId];
+
+      // Adjust field indexes.
+      var fields = oldFields.slice();
+      var groupedField;
+      foreach(field of fields) {
+        if(field[0] == info) {
+          groupedField = field;
+          break;
+        }
+      }
+      foreach(ix, field of fields) {
+        if(field[2] < groupedField[2]) {
+          fields[ix] = field = field.slice();
+          field[2] += 1;
+        }
+      }
+
+      // Adjust view fact indexes.
+      var oldFacts = indexer.facts(viewId);
+      var facts = oldFacts.slice();
+      foreach(ix, fact of facts) {
+        facts[ix] = fact = fact.slice();
+        fact.unshift(fact.splice(groupedField[2], 1)[0]);
+      }
+
+      groupedField[2] = 0;
+
+      var diff = {
+        field: {adds: fields, removes: oldFields}
+      };
+      diff[viewId] = {adds: facts, removes: oldFacts};
       indexer.handleDiffs(diff);
       break;
 
@@ -1102,6 +1147,7 @@ function init(program) {
   window.indexer = indexer = new Indexer(program);
   indexer.addIndex("displayName", "displayName", indexers.makeLookup(0, 1));
   indexer.addIndex("field", "viewToFields", indexers.makeCollector(1));
+  indexer.addIndex("field", "fieldToView", indexers.makeLookup(0, 1));
   indexer.addIndex("tag", "idToTags", indexers.makeCollector(0));
   indexer.addIndex("editId", "editRowToId", indexers.makeLookup2D(0, 1, 2));
   indexer.addIndex("editId", "editViewToIds", indexers.makeCollector(0));
@@ -1112,8 +1158,9 @@ function init(program) {
   indexer.addIndex("tableTile", "tableTile", indexers.makeLookup(0, false));
   indexer.addIndex("gridTile", "gridTile", indexers.makeLookup(0, false));
   indexer.forward("workspaceView");
-  indexer.forward("view");
-  indexer.forward("field");
+
+  indexer.forward(global.compilerTables);
+
   var dims = document.body.getBoundingClientRect();
   tileGrid = grid.makeGrid(document.body, {
     dimensions: [dims.width - 100, dims.height - 110],
