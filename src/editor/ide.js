@@ -274,7 +274,7 @@ function hasTag(id, needle) {
   return false;
 }
 
-//all the tables that the table queries or joins on
+//all the tables that the table queries on
 function incomingTables(curTable) {
   var incoming = {};
   var queries = indexer.index("viewToQuery")[curTable];
@@ -294,7 +294,7 @@ function incomingTables(curTable) {
   return Object.keys(incoming);
 }
 
-//all the tables that query or join on this table
+//all the tables that query on this table
 function outgoingTables(curTable) {
   //@TODO
 }
@@ -323,7 +323,18 @@ function getTileFootprints() {
 
 function reactFactory(obj) {
   return React.createFactory(React.createClass(obj));
-};
+}
+
+function parseValue(value) {
+  //if there are non-numerics then it can't be a number
+  if(value.match(new RegExp("[^\\d\\.-]"))) {
+    return value;
+  } else if(value.indexOf(".")) {
+    //it's a float
+    return parseFloat(value);
+  }
+  return parseInt(value);
+}
 
 //---------------------------------------------------------
 // Mixins
@@ -348,7 +359,7 @@ var editableRowMixin = {
   },
   input: function(e) {
     var edits = this.state.edits;
-    edits[this.state.activeField] = e.target.textContent;
+    edits[this.state.activeField] = parseValue(e.target.textContent);
   },
   blur: function() {
     this.setState({activeField: -1});
@@ -389,7 +400,7 @@ var editableFieldMixin = {
     }
   },
   input: function(e) {
-    this.state.edit = e.target.textContent;
+    this.state.edit = parseValue(e.target.textContent);
   },
   blur: function() {
     this.setState({editing: false});
@@ -431,9 +442,13 @@ var Root = React.createFactory(React.createClass({
   },
   render: function() {
     var activeTile;
+    var activeTileTable;
     var activeTileEntry = indexer.first("activeTile");
     if(activeTileEntry) {
        activeTile = indexer.index("gridTile")[activeTileEntry[0]];
+      if(activeTile[1] === "table") {
+        activeTileTable = indexer.index("tileToTable")[activeTile[0]];
+      }
     }
     var self = this;
 
@@ -479,7 +494,6 @@ var Root = React.createFactory(React.createClass({
     return JSML.react(["div",
                        menu ? ContextMenu({x: menu[0], y: menu[1]}) : null,
                        ProgramLoader(),
-                       ReactSearcher(),
                        gridContainer]);
   }
 }));
@@ -508,6 +522,8 @@ var tiles = {
       dispatch(["closeTile", this.props.tile]);
       e.stopPropagation();
     },
+    contextMenu: function(e) {
+    },
     render: function() {
       var selectable = (this.props.selectable !== undefined) ? this.props.selectable : true;
       var controls = "";
@@ -518,6 +534,7 @@ var tiles = {
       }
       return JSML.react(["div", {"className": "card " + (this.props.class || ""),
                                  "key": this.props.tile,
+                                 "onContextMenu": this.props.contextMenu || this.contextMenu,
                                  "onDoubleClick": (selectable) ? this.doubleClick : undefined,
                                  "style": grid.getSizeAndPosition(tileGrid, this.props.size, this.props.pos)},
                          controls,
@@ -528,12 +545,13 @@ var tiles = {
     click: function(e) {
       e.preventDefault();
       e.stopPropagation();
-      var sizePos = {pos: this.props.pos, size: this.props.size};
+      dispatch(["setActivePosition", [this.props.size[0], this.props.size[1], this.props.pos[0], this.props.pos[1]]]);
       dispatch(["contextMenu", {e: {clientX: e.clientX, clientY: e.clientY},
                                 items: [
-                                  [0, "Table", "addTableTile", sizePos],
-                                  [1, "View", "addViewTile", sizePos],
-                                  [2, "UI", "addUI", sizePos]
+                                  [0, "text", "New Table", "addTableTile", ""],
+                                  [1, "text", "New View", "addViewTile", ""],
+                                  [2, "text", "New UI", "addUI", ""],
+                                  [3, "searcher", "Existing table or view", "openView", ""]
                                 ]}]);
     },
     render: function() {
@@ -566,12 +584,13 @@ var tiles = {
       mixins: [editableFieldMixin],
       contextMenu: function(e) {
         e.preventDefault();
+        e.stopPropagation();
         dispatch(["contextMenu", {e: {clientX: e.clientX, clientY: e.clientY},
                                   items: [
-                                    [0, "filter", "filterField", this.props.field[0]],
-                                    [1, "group", "groupField", this.props.field[0]],
-                                    [2, "lookup", "lookupField", this.props.field[0]]
-                                  ]}])
+                                    [0, "text", "filter", "filterField", this.props.field[0]],
+                                    [1, "text", "group", "groupField", this.props.field[0]],
+                                    [2, "text", "lookup", "lookupField", this.props.field[0]]
+                                  ]}]);
       },
       commit: function() {
         unpack [id] = this.props.field;
@@ -658,6 +677,16 @@ var tiles = {
         return JSML.react(["div", {"className": "grid-row add-row", "key": "adderRow"}, fields]);
       }
     }),
+    contextMenu: function(e) {
+      var isInput = hasTag(this.props.table, "input");
+      if(!isInput) {
+        e.preventDefault();
+        dispatch(["contextMenu", {e: {clientX: e.clientX, clientY: e.clientY},
+                                  items: [
+                                    [0, "text", "lookup", "lookupField", this.props.table]
+                                  ]}]);
+      }
+    },
     render: function() {
       var self = this;
       var table = this.props.table;
@@ -684,7 +713,7 @@ var tiles = {
                        ["div", {className: "grid-rows"},
                         rows,
                         isConstant ? this.adderRow({len: headers.length, table: table}) : null]]];
-      return tiles.wrapper({pos: this.props.pos, size: this.props.size, tile: this.props.tile, class: className, content: content});
+      return tiles.wrapper({pos: this.props.pos, size: this.props.size, tile: this.props.tile, class: className, content: content, contextMenu: this.contextMenu});
     }
   }),
   ui: reactFactory({
@@ -756,15 +785,7 @@ var ProgramLoader = reactFactory({
 
 var ReactSearcher = reactFactory({
   getInitialState: function() {
-    return { active: false, max: 20, index: undefined, search: "", value: "", possible: searchForView('') };
-  },
-
-  cleanup: function() {
-    // FIXME: This is gross.
-    var self = this;
-    setTimeout(function() {
-      self.setState(self.getInitialState());
-    }, 200);
+    return { active: false, max: 5, index: undefined, search: "", value: "", possible: searchForView('') };
   },
 
   input: function(e) {
@@ -778,12 +799,14 @@ var ReactSearcher = reactFactory({
   },
 
   focus: function(e) { this.setState({active: true}); },
-  blur: function(e) {
-    // FIXME: This is gross.
-    var self = this;
-    setTimeout(function() {
-      self.setState({active: false, index: undefined})
-    }, 200);
+  blur: function(e) {},
+  select: function(ix) {
+    var cur = this.state.possible[ix];
+    if(cur) {
+      dispatch([this.props.event, cur]);
+    }
+    var state = this.getInitialState();
+    this.setState(state);
   },
 
   keydown: function(e) {
@@ -811,12 +834,7 @@ var ReactSearcher = reactFactory({
         }
       break;
       case KEYCODES.ENTER:
-        if (this.state.index !== undefined) {
-          dispatch(["openView", this.state.possible[this.state.index]]);
-        }
-        var state = this.getInitialState();
-        state.active = true;
-        this.setState(state);
+        this.select(this.state.index || 0);
       break;
       case KEYCODES.ESCAPE:
         this.setState(this.getInitialState());
@@ -830,11 +848,12 @@ var ReactSearcher = reactFactory({
     var possiblelength = possible.length;
     var results = [];
     for(var i = 0; i < this.state.max && i < possiblelength; i++) {
-      results.push(SearcherItem({searcher: this, focus: this.state.index === i, item: possible[i], event: "openView"}));
+      results.push(SearcherItem({searcher: this, focus: this.state.index === i, ix: i, item: possible[i], select: this.select}));
     }
     return JSML.react(["div", {"className": cx({"searcher": true,
                                                 "active": this.state.active})},
                        ["input", {"type": "text",
+                                  "placeholder": this.props.placeholder || "Search",
                                   "value": this.state.value,
                                   "onFocus": this.focus,
                                   "onBlur": this.blur,
@@ -847,9 +866,7 @@ var ReactSearcher = reactFactory({
 
 var SearcherItem = reactFactory({
   click: function() {
-    // FIXME: How dirty is it to pass the "parent" to the child?
-    this.props.searcher.cleanup();
-    dispatch([this.props.event, this.props.item]);
+    this.props.select(this.props.ix);
   },
   render: function() {
     var focus = this.props.focus ? "focused" : "";
@@ -863,14 +880,25 @@ var SearcherItem = reactFactory({
 // Context menu
 //---------------------------------------------------------
 
-var ContextMenuItem = reactFactory({
-  click: function() {
-    dispatch([this.props.event, this.props.id]);
-  },
-  render: function() {
-    return JSML.react(["div", {className: "menu-item", onClick: this.click}, this.props.text]);
-  }
-});
+ContextMenuItems = {
+  text: reactFactory({
+    click: function() {
+      dispatch([this.props.event, this.props.id]);
+    },
+    render: function() {
+      return JSML.react(["div", {className: "menu-item", onClick: this.click}, this.props.text]);
+    }
+  }),
+  searcher: reactFactory({
+    click: function(e) {
+      e.stopPropagation();
+    },
+    render: function() {
+      return JSML.react(["div", {className: "menu-item", onClick: this.click},
+                         ReactSearcher({event: this.props.event, placeholder: this.props.text, info: this.props.id})]);
+    }
+  })
+};
 
 var ContextMenu = reactFactory({
   clear: function() {
@@ -878,8 +906,8 @@ var ContextMenu = reactFactory({
   },
   render: function() {
     var items = indexer.facts("contextMenuItem").map(function(cur) {
-      unpack [pos, text, event, id] = cur;
-      return ContextMenuItem({pos: pos, text: text, event: event, id: id});
+      unpack [pos, type, text, event, id] = cur;
+      return ContextMenuItems[type]({pos: pos, text: text, event: event, id: id});
     });
     return JSML.react(["div", {className: "menu-shade", onClick: this.clear},
                        ["div", {className: "menu", style: {top: this.props.y, left: this.props.x}},
@@ -911,6 +939,12 @@ function dispatch(eventInfo) {
     //---------------------------------------------------------
     // Tiles
     //---------------------------------------------------------
+    case "setActivePosition":
+      var diff = {};
+      diff["activePosition"] = {adds: [info], removes: indexer.facts("activePosition")};
+      indexer.handleDiffs(diff);
+      break;
+
     case "selectTile":
       var diff = {};
       diff["activeTile"] = {adds: [[info]], removes: indexer.facts("activeTile")};
@@ -960,16 +994,6 @@ function dispatch(eventInfo) {
       return tileId;
       break;
 
-    case "addTableTile":
-      var id = dispatch(["addView", {type: "constant"}]);
-      dispatch(["addTile", {pos: info.pos, size: info.size, type: "table", id: id}]);
-      break;
-
-    case "addViewTile":
-      var id = dispatch(["addView", {name: "Untitled view"}]);
-      dispatch(["addTile", {pos: info.pos, size: info.size, type: "table", id: id}]);
-      break;
-
     case "closeTile":
       var tileId = info;
       var tableId = indexer.index("tileToTable")[tileId];
@@ -982,6 +1006,35 @@ function dispatch(eventInfo) {
       indexer.unforward(tableId);
       break;
 
+    //---------------------------------------------------------
+    // Menu actions
+    //---------------------------------------------------------
+
+    case "addTableTile":
+      var id = dispatch(["addView", {type: "constant"}]);
+      var activePosition = indexer.first("activePosition");
+      if(activePosition) {
+        unpack [width, height, x, y] = activePosition;
+        dispatch(["addTile", {pos: [x, y], size: [width, height], type: "table", id: id}]);
+      } else {
+        dispatch(["addTile", {type: "table", id: id}]);
+      }
+      dispatch(["clearContextMenu"]);
+      break;
+
+    case "addViewTile":
+      var id = dispatch(["addView", {name: "Untitled view"}]);
+      var activePosition = indexer.first("activePosition");
+      if(activePosition) {
+        unpack [width, height, x, y] = activePosition;
+        dispatch(["addTile", {pos: [x, y], size: [width, height], type: "table", id: id}]);
+      } else {
+        dispatch(["addTile", {type: "table", id: id}]);
+      }
+      dispatch(["clearContextMenu"]);
+      break;
+
+
     case "openView":
       unpack [tableId, name] = info;
       var diff = {"workspaceView": {adds: [[tableId]], removes: []}};
@@ -989,8 +1042,14 @@ function dispatch(eventInfo) {
       if(hasTag(tableId, "constant")) {
         indexer.forward(tableId);
       }
-
-      dispatch(["addTile", {id: tableId, size: defaultSize, type: "table"}]);
+      var activePosition = indexer.first("activePosition");
+      if(activePosition) {
+        unpack [width, height, x, y] = activePosition;
+        dispatch(["addTile", {pos: [x, y], size: [width, height], type: "table", id: tableId}]);
+      } else {
+        dispatch(["addTile", {size: defaultSize, type: "table", id: tableId}]);
+      }
+      dispatch(["clearContextMenu"]);
       break;
 
     //---------------------------------------------------------
@@ -1079,11 +1138,12 @@ module.exports.dispatch = dispatch;
 
 function ideTables() {
   var facts = [];
+  pushAll(facts, inputView("activePosition", ["w", "h", "x", "y"]));
   pushAll(facts, inputView("activeTile", ["tile"]));
   pushAll(facts, inputView("gridTile", ["tile", "type", "w", "h", "x", "y"]));
   pushAll(facts, inputView("tableTile", ["tile", "table"]));
   pushAll(facts, inputView("contextMenu", ["x", "y"]));
-  pushAll(facts, inputView("contextMenuItem", ["pos", "text", "event", "id"]));
+  pushAll(facts, inputView("contextMenuItem", ["pos", "type", "text", "event", "id"]));
   return facts;
 }
 
