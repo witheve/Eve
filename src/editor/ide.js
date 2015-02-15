@@ -324,6 +324,12 @@ function getTileFootprints() {
   });
 }
 
+function sortByIx(facts, ix) {
+  return facts.sort(function(a, b) {
+    return a[ix] - b[ix];
+  });
+};
+
 //---------------------------------------------------------
 // React helpers
 //---------------------------------------------------------
@@ -669,14 +675,12 @@ var tiles = {
       var self = this;
       var table = this.props.table;
       var viewFields = indexer.index("viewToFields")[table] || [];
-      var headers = viewFields.sort(function(a, b) {
-        //compare their ixes
-        return a[2] - b[2];
-      }).map(function(cur) {
+      var headers = sortByIx(viewFields, 2).map(function(cur) {
         return self.header({field: cur});
       });
       //@TODO: sorting. We should probably use a sorted indexer as sorting all the rows
       // every update is going to be stupidly expensive.
+      var facts = indexer.facts(table);
       var rows = indexer.facts(table).map(function(cur) {
         return self.row({row: cur, table: table});
       });
@@ -1052,19 +1056,26 @@ function dispatch(eventInfo) {
       var oldFields = indexer.index("viewToFields")[viewId];
 
       // Adjust field indexes.
-      var fields = oldFields.slice();
-      var groupedField;
+      var fields = sortByIx(oldFields.slice(), 2);
+      // @TODO: groups, then sorts, then rest.
+      var groups = [];
+      var rest = [];
       foreach(field of fields) {
-        if(field[0] == info) {
-          groupedField = field;
-          break;
+        if(field[0] === info || hasTag(field[0], "grouped")) {
+          groups.push(field);
+        } else {
+          rest.push(field);
         }
       }
+      fields = groups.concat(rest);
+      var oldIx;
+      var newIx;
       foreach(ix, field of fields) {
-        if(field[2] < groupedField[2]) {
-          fields[ix] = field = field.slice();
-          field[2] += 1;
+        if(field[0] === info) {
+          oldIx = field[2];
+          newIx = ix;
         }
+        field[2] = ix;
       }
 
       // Adjust view fact indexes.
@@ -1072,13 +1083,12 @@ function dispatch(eventInfo) {
       var facts = oldFacts.slice();
       foreach(ix, fact of facts) {
         facts[ix] = fact = fact.slice();
-        fact.unshift(fact.splice(groupedField[2], 1)[0]);
+        fact.splice(newIx, 0, fact.splice(oldIx, 1)[0]);
       }
 
-      groupedField[2] = 0;
-
       var diff = {
-        field: {adds: fields, removes: oldFields}
+        field: {adds: fields, removes: oldFields},
+        tag: {adds: [[info, "grouped"]], removes: []}
       };
       diff[viewId] = {adds: facts, removes: oldFacts};
       indexer.handleDiffs(diff);
