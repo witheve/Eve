@@ -1066,6 +1066,7 @@ function injectParsed(parsed, program, prefix, programName) {
     // handle header
     if(curRule.header) {
       facts.push(["isInput", curRule.name]);
+      facts.push(["tag", curRule.name, "constant"]);
       var tableFields = curRule.header.fields.map(function(cur) {
         return cur.name;
       });
