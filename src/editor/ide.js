@@ -240,6 +240,9 @@ Indexer.prototype = {
     if(!cur) throw new Error("No index named: " + index);
     return cur.index;
   },
+  hasIndex: function(index) {
+    return !!this.indexes[index];
+  },
   addIndex: function(table, name, indexer) {
     if(!this.tableToIndexes[table]) {
       this.tableToIndexes[table] = [];
@@ -707,12 +710,34 @@ var tiles = {
       var headers = sortByIx(viewFields, 2).map(function(cur) {
         return self.header({field: cur});
       });
+
+      function factToRow(cur) {
+        return self.row({row: cur, table: table});
+      }
+
+      function indexToRows(index) {
+        var rows = [];
+        if(index instanceof Array) {
+          rows = index.map(factToRow);
+        } else {
+          forattr(value, group of index) {
+            // @TODO: inject value column + row groups.
+            rows.push.apply(rows, indexToRows(group));
+          }
+        }
+        return rows;
+      }
+
       //@TODO: sorting. We should probably use a sorted indexer as sorting all the rows
       // every update is going to be stupidly expensive.
-      var facts = indexer.facts(table);
-      var rows = indexer.facts(table).map(function(cur) {
-        return self.row({row: cur, table: table});
-      });
+
+      var index;
+      if(indexer.hasIndex(table + "|rows")) {
+        index = indexer.index(table + "|rows");
+      } else {
+        index = indexer.facts(table) || [];
+      }
+      var rows = indexToRows(index);
       var isConstant = hasTag(table, "constant");
       var isInput = hasTag(table, "input");
       var className = (isConstant || isInput) ? "input-card" : "view-card";
@@ -1151,6 +1176,7 @@ function dispatch(eventInfo) {
       };
       diff[viewId] = {adds: facts, removes: oldFacts};
       indexer.handleDiffs(diff);
+      indexer.addIndex(viewId, viewId + "|rows", indexers.makeCollector.apply(null, helpers.pluck(groups, 2)));
       break;
 
     //---------------------------------------------------------
