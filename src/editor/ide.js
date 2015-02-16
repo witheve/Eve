@@ -1206,7 +1206,7 @@ function dispatch(eventInfo) {
       break;
 
     case "groupField":
-var viewId = indexer.index("fieldToView")[info];
+      var viewId = indexer.index("fieldToView")[info];
       var oldFields = indexer.index("viewToFields")[viewId];
 
       // Adjust field indexes.
@@ -1246,6 +1246,7 @@ var viewId = indexer.index("fieldToView")[info];
       };
       diff[viewId] = {adds: facts, removes: oldFacts};
       indexer.handleDiffs(diff);
+      indexer.addIndex(viewId, viewId + "|rows", indexers.makeCollector.apply(null, helpers.pluck(groups, 2)));
       break;
 
     case "updateCalculated":
