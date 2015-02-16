@@ -242,6 +242,9 @@ Indexer.prototype = {
     if(!cur) throw new Error("No index named: " + index);
     return cur.index;
   },
+  hasIndex: function(index) {
+    return !!this.indexes[index];
+  },
   addIndex: function(table, name, indexer) {
     if(!this.tableToIndexes[table]) {
       this.tableToIndexes[table] = [];
@@ -325,6 +328,12 @@ function getTileFootprints() {
     return {pos: [x, y], size: [w, h]};
   });
 }
+
+function sortByIx(facts, ix) {
+  return facts.sort(function(a, b) {
+    return a[ix] - b[ix];
+  });
+};
 
 //---------------------------------------------------------
 // React helpers
@@ -712,18 +721,39 @@ var tiles = {
       var self = this;
       var table = this.props.table;
       var viewFields = indexer.index("viewToFields")[table] || [];
-      viewFields.sort(function(a, b) {
-        //compare their ixes
-        return a[2] - b[2];
-      })
+      sortByIx(viewFields, 2);
       var headers = viewFields.map(function(cur) {
         return self.header({field: cur});
       });
-      //@TODO: sorting. We should probably use a sorted indexer as sorting all the rows
-      // every update is going to be stupidly expensive.
+
+      function factToRow(cur) {
+        return self.row({row: cur, table: table, fields: viewFields});
+      }
+
+      function indexToRows(index) {
+        var rows = [];
+        if(index instanceof Array) {
+          rows = index.map(factToRow);
+        } else {
+          forattr(value, group of index) {
+            // @TODO: inject value column + row groups.
+            rows.push.apply(rows, indexToRows(group));
+          }
+        }
+        return rows;
+      }
+
       var rows = indexer.facts(table).map(function(cur) {
         return self.row({row: cur, table: table, fields: viewFields});
       });
+
+      var index;
+      if(indexer.hasIndex(table + "|rows")) {
+        index = indexer.index(table + "|rows");
+      } else {
+        index = indexer.facts(table) || [];
+      }
+      var rows = indexToRows(index);
       var isConstant = hasTag(table, "constant");
       var isInput = hasTag(table, "input");
       var className = (isConstant || isInput) ? "input-card" : "view-card";
@@ -1176,45 +1206,45 @@ function dispatch(eventInfo) {
       break;
 
     case "groupField":
-      var diff = {};
-      var viewId = indexer.index("fieldToView")[info];
+var viewId = indexer.index("fieldToView")[info];
       var oldFields = indexer.index("viewToFields")[viewId];
 
-
       // Adjust field indexes.
-      var fields = oldFields.slice();
-      var groupedField;
+      var fields = sortByIx(oldFields.slice(), 2);
+      // @TODO: groups, then sorts, then rest.
+      var groups = [];
+      var rest = [];
       foreach(field of fields) {
-        if(field[0] == info) {
-          groupedField = field;
-          break;
+        if(field[0] === info || hasTag(field[0], "grouped")) {
+          groups.push(field);
+        } else {
+          rest.push(field);
         }
       }
-
-      //only do all of this if the field is not already at position 0
-      if(groupedField[2] !== 0) {
-        foreach(ix, field of fields) {
-          if(field[2] < groupedField[2]) {
-            fields[ix] = field = field.slice();
-            field[2] += 1;
-          }
+      fields = groups.concat(rest);
+      var oldIx;
+      var newIx;
+      foreach(ix, field of fields) {
+        if(field[0] === info) {
+          oldIx = field[2];
+          newIx = ix;
         }
-
-        // Adjust view fact indexes.
-        var oldFacts = indexer.facts(viewId);
-        var facts = oldFacts.slice();
-        foreach(ix, fact of facts) {
-          facts[ix] = fact = fact.slice();
-          fact.unshift(fact.splice(groupedField[2], 1)[0]);
-        }
-
-        groupedField[2] = 0;
-
-        diff.field = {adds: fields, removes: oldFields};
-        diff[viewId] = {adds: facts, removes: oldFacts};
+        field[2] = ix;
       }
 
-      diff.tag = {adds: [[info, "grouped"]], removes: []};
+      // Adjust view fact indexes.
+      var oldFacts = indexer.facts(viewId);
+      var facts = oldFacts.slice();
+      foreach(ix, fact of facts) {
+        facts[ix] = fact = fact.slice();
+        fact.splice(newIx, 0, fact.splice(oldIx, 1)[0]);
+      }
+
+      var diff = {
+        field: {adds: fields, removes: oldFields},
+        tag: {adds: [[info, "grouped"]], removes: []}
+      };
+      diff[viewId] = {adds: facts, removes: oldFacts};
       indexer.handleDiffs(diff);
       break;
 
@@ -1324,7 +1354,6 @@ function dispatch(eventInfo) {
         diff.constantConstraint.adds.push([queryId, field, value]);
       }
 
-      console.log(diff);
       indexer.handleDiffs(diff);
       break;
 
