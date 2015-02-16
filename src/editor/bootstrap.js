@@ -10,14 +10,14 @@ var tests = global.tests || {};
 //---------------------------------------------------------
 
 function getLocal(k, otherwise) {
-  if(localStorage[k]) {
-    return JSON.parse(localStorage[k])
-  }
+//   if(localStorage[k]) {
+//     return JSON.parse(localStorage[k])
+//   }
   return otherwise;
 }
 
 function setLocal(k, v) {
-  localStorage[k] = JSON.stringify(v);
+//   localStorage[k] = JSON.stringify(v);
 }
 
 var prevVersion = getLocal("prevVersion");

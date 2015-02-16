@@ -279,7 +279,7 @@ Application.prototype.run = function(facts, removes) {
     this.system.update(facts, removes || []);
     var errors = [];
     this.system.refresh(errors);
-    this.compileWatcher(this, this.storage["compilerWatcher"], this.system);
+    this.compilerWatcher(this, this.storage["compilerWatcher"], this.system);
     this.timerWatcher(this, this.storage["timerWatcher"], this.system);
     this.uiWatcher(this, this.storage["uiWatcher"], this.system);
     //errors

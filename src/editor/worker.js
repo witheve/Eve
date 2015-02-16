@@ -57,7 +57,7 @@ eveApp.timerWatcher = function(application, storage, system) {
   storage["timeouts"] = timeouts;
 }
 
-eveApp.compileWatcher = function(application, storage, system) {
+eveApp.compilerWatcher = function(application, storage, system) {
   var needsCompile = false;
 
   foreach(table of compilerTables) {
@@ -71,6 +71,7 @@ eveApp.compileWatcher = function(application, storage, system) {
     storage[table] = current;
   }
 
+  console.log("needs compile?", needsCompile)
   if(needsCompile) {
     var run = application.runNumber + 1;
     try {
@@ -83,13 +84,13 @@ eveApp.compileWatcher = function(application, storage, system) {
       if(errors.length) {
         system.updateStore("error", errorsToFacts(application, errors), []);
       }
-
+      return true;
     } catch(e) {
       system.updateStore("error", errorsToFacts(application, [e]), []);
       return false;
     }
   }
-  return true;
+  return false;
 }
 
 function factsToCells(facts, view) {
@@ -154,7 +155,7 @@ function handleDiffs(application, diffs) {
   //that the stores will be in place when we then try to apply diffs to them.
   var recompile = false;
   var recompileViews = ["view", "field"];
-  foreach(view of recompileViews) {
+  foreach(view of compilerTables) {
     if(diffs[view]) {
       applyDiff(eveApp, view, diffs[view]);
       updateStorage(view, diffs[view]);
@@ -163,7 +164,7 @@ function handleDiffs(application, diffs) {
     }
   }
   if(recompile) {
-    eveApp.system.recompile();
+    application.compilerWatcher(application, application.storage["compilerWatcher"], application.system);
   }
 
   for(var table in diffs) {

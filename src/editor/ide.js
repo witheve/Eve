@@ -15,6 +15,7 @@ var incrementalUI = require("./incrementalUI");
 var ide = module.exports;
 var indexer;
 var defaultSize = [6,3];
+var aggregateFuncs = ["sum", "count", "avg"];
 var KEYCODES = {
   UP: 38,
   DOWN: 40,
@@ -95,6 +96,7 @@ var indexers = {
       return function(cur, diffs) {
         var final = cur || {};
         foreach(remove of diffs.removes) {
+          if(!final[remove[keyIx]]) continue;
           final[remove[keyIx]] = final[remove[keyIx]].filter(function(cur) {
             return !arrayEqual(cur, remove)
           });
@@ -368,9 +370,9 @@ var editableRowMixin = {
     var edits = this.state.edits;
     edits[this.state.activeField] = parseValue(e.target.textContent);
   },
-  blur: function() {
+  blur: function(e) {
+    var commitSuccessful = this.commit(this.state.activeField);
     this.setState({activeField: -1});
-    var commitSuccessful = this.commit();
     if(commitSuccessful) {
       this.setState({edits: []});
     }
@@ -608,8 +610,12 @@ var tiles = {
       render: function() {
         unpack [id] = this.props.field;
         var name = this.state.edit || indexer.index("displayName")[id];
+        var className = "header";
+        if(hasTag(id, "grouped")) {
+          className += " grouped";
+        }
         return JSML.react(["div", this.wrapEditable({
-          className: "header",
+          className: className,
           key: id,
           onContextMenu: this.contextMenu
         }, name)]);
@@ -634,16 +640,24 @@ var tiles = {
     }),
     row: reactFactory({
       mixins: [editableRowMixin],
-      commit: function() {
-        var oldRow = this.props.row;
-        var newRow = oldRow.slice();
-        var edits = this.state.edits;
-        foreach(ix, field of newRow) {
-          if(edits[ix] !== null && edits[ix] !== undefined) {
-            newRow[ix] = edits[ix];
+      commit: function(ix) {
+        var table = this.props.table;
+
+        //if this is a constant view, then we just modify the row
+        if(hasTag(table, "constant")) {
+          var oldRow = this.props.row;
+          var newRow = oldRow.slice();
+          var edits = this.state.edits;
+          foreach(ix, field of newRow) {
+            if(edits[ix] !== null && edits[ix] !== undefined) {
+              newRow[ix] = edits[ix];
+            }
           }
+          dispatch(["updateRow", {table: table, oldRow: oldRow, newRow: newRow}]);
+        } else if(ix > -1 && this.state.edits[ix] !== undefined) { //FIXME: how is blur getting called with an ix of -1?
+          //if this isn't a constant view, then we have to modify
+          dispatch(["updateCalculated", {table: table, field: this.props.fields[ix][0], value: this.state.edits[ix]}]);
         }
-        dispatch(["updateRow", {table: this.props.table, oldRow: oldRow, newRow: newRow}]);
         return true;
       },
       render: function() {
@@ -690,7 +704,7 @@ var tiles = {
         e.preventDefault();
         dispatch(["contextMenu", {e: {clientX: e.clientX, clientY: e.clientY},
                                   items: [
-                                    [0, "text", "lookup", "lookupField", this.props.table]
+                                    [0, "searcher", "Add table", "addTableToView", this.props.table]
                                   ]}]);
       }
     },
@@ -698,16 +712,17 @@ var tiles = {
       var self = this;
       var table = this.props.table;
       var viewFields = indexer.index("viewToFields")[table] || [];
-      var headers = viewFields.sort(function(a, b) {
+      viewFields.sort(function(a, b) {
         //compare their ixes
         return a[2] - b[2];
-      }).map(function(cur) {
+      })
+      var headers = viewFields.map(function(cur) {
         return self.header({field: cur});
       });
       //@TODO: sorting. We should probably use a sorted indexer as sorting all the rows
       // every update is going to be stupidly expensive.
       var rows = indexer.facts(table).map(function(cur) {
-        return self.row({row: cur, table: table});
+        return self.row({row: cur, table: table, fields: viewFields});
       });
       var isConstant = hasTag(table, "constant");
       var isInput = hasTag(table, "input");
@@ -810,7 +825,7 @@ var ReactSearcher = reactFactory({
   select: function(ix) {
     var cur = this.state.possible[ix];
     if(cur) {
-      dispatch([this.props.event, cur]);
+      dispatch([this.props.event, {selected: cur, id: this.props.id}]);
     }
     var state = this.getInitialState();
     this.setState(state);
@@ -902,7 +917,7 @@ ContextMenuItems = {
     },
     render: function() {
       return JSML.react(["div", {className: "menu-item", onClick: this.click},
-                         ReactSearcher({event: this.props.event, placeholder: this.props.text, info: this.props.id})]);
+                         ReactSearcher({event: this.props.event, placeholder: this.props.text, id: this.props.id})]);
     }
   })
 };
@@ -939,6 +954,7 @@ function dispatch(eventInfo) {
   unpack [event, info] = eventInfo;
   switch(event) {
     case "diffsHandled":
+      //TODO: Should we push this off to a requestAnimationFrame?
       React.render(Root(), document.body);
       break;
 
@@ -1038,11 +1054,17 @@ function dispatch(eventInfo) {
         dispatch(["addTile", {type: "table", id: id}]);
       }
       dispatch(["clearContextMenu"]);
+      // add an initial query
+      var queryId = global.uuid();
+      var diff = {
+        query: {adds: [[queryId, id, 0]], removes: []}
+      }
+      indexer.handleDiffs(diff);
       break;
 
 
     case "openView":
-      unpack [tableId, name] = info;
+      unpack [tableId, name] = info.selected;
       var diff = {"workspaceView": {adds: [[tableId]], removes: []}};
       indexer.handleDiffs(diff);
       if(hasTag(tableId, "constant")) {
@@ -1056,6 +1078,39 @@ function dispatch(eventInfo) {
         dispatch(["addTile", {size: defaultSize, type: "table", id: tableId}]);
       }
       dispatch(["clearContextMenu"]);
+      break;
+
+
+    case "addTableToView":
+      unpack [tableId, tableName] = info.selected;
+      unpack [queryId, view, ix] = indexer.index("viewToQuery")[info.id][0];
+      var currentFields = indexer.index("viewToFields")[info.id];
+      var currentFieldCount = 0;
+      if(currentFields) {
+        currentFieldCount = currentFields.length;
+      }
+      var constraintId = global.uuid();
+      var tableFields = indexer.index("viewToFields")[tableId];
+      var displayNameLookup = indexer.index("displayName");
+      var newFields = [];
+      var bindings = [];
+      var displayNames = [];
+      foreach(ix, field of tableFields) {
+        var fieldId = global.uuid();
+        //generate fields for each field in the added view
+        newFields.push([fieldId, info.id, ix + currentFieldCount]);
+        //use their displayName
+        displayNames.push([fieldId, displayNameLookup[field[0]]]);
+        //generate view constraint bindings for each of those fields
+        bindings.push([constraintId, fieldId, field[0]]);
+      }
+      var diff = {
+        field: {adds: newFields, removes: []},
+        displayName: {adds: displayNames, removes: []},
+        viewConstraint: {adds: [[constraintId, queryId, tableId, false]], removes: []},
+        viewConstraintBinding: {adds: bindings, removes: []}
+      }
+      indexer.handleDiffs(diff);
       break;
 
     //---------------------------------------------------------
@@ -1089,26 +1144,42 @@ function dispatch(eventInfo) {
       break;
 
     case "addField":
+      var diff = {};
       var id = global.uuid();
+      var isConstant = hasTag(info.view, "constant");
       var fields = indexer.index("viewToFields")[info.view] || [];
-      var oldFacts = indexer.facts(info.view) || [];
-      var newFacts = new Array(oldFacts.length);
-      foreach(ix, fact of oldFacts) {
-        var newFact = fact.slice();
-        newFact.push("");
-        newFacts[ix] = newFact;
-      };
-      var diff = {
-        field: {adds: [[id, info.view, fields.length]], removes: []},
-        displayName: {adds: [[id, info.name]], removes: []}
-      };
-      diff[info.view] = {adds: newFacts, removes: oldFacts};
+
+      //if this is a constant view, patch up the facts that already
+      //exist for the view
+      if(isConstant) {
+        var oldFacts = indexer.facts(info.view) || [];
+        var newFacts = new Array(oldFacts.length);
+        foreach(ix, fact of oldFacts) {
+          var newFact = fact.slice();
+          newFact.push("");
+          newFacts[ix] = newFact;
+        };
+        diff[info.view] = {adds: newFacts, removes: oldFacts};
+      } else {
+        //if this isn't a constant view, then we need to fill this field with
+        //something. @TODO: should this be a constant? should we do this some
+        //other way?
+        //@TODO: we can't assume there's only ever one query...
+        unpack [queryId] = indexer.index("viewToQuery")[info.view][0];
+        diff.constantConstraint = {adds: [[queryId, id, ""]], removes: []};
+        diff.tag = {adds: [[id, "calculated"]], removes: []};
+      }
+
+      diff.field = {adds: [[id, info.view, fields.length]], removes: []};
+      diff.displayName = {adds: [[id, info.name]], removes: []};
       indexer.handleDiffs(diff);
       break;
 
     case "groupField":
+      var diff = {};
       var viewId = indexer.index("fieldToView")[info];
       var oldFields = indexer.index("viewToFields")[viewId];
+
 
       // Adjust field indexes.
       var fields = oldFields.slice();
@@ -1119,27 +1190,141 @@ function dispatch(eventInfo) {
           break;
         }
       }
-      foreach(ix, field of fields) {
-        if(field[2] < groupedField[2]) {
-          fields[ix] = field = field.slice();
-          field[2] += 1;
+
+      //only do all of this if the field is not already at position 0
+      if(groupedField[2] !== 0) {
+        foreach(ix, field of fields) {
+          if(field[2] < groupedField[2]) {
+            fields[ix] = field = field.slice();
+            field[2] += 1;
+          }
         }
+
+        // Adjust view fact indexes.
+        var oldFacts = indexer.facts(viewId);
+        var facts = oldFacts.slice();
+        foreach(ix, fact of facts) {
+          facts[ix] = fact = fact.slice();
+          fact.unshift(fact.splice(groupedField[2], 1)[0]);
+        }
+
+        groupedField[2] = 0;
+
+        diff.field = {adds: fields, removes: oldFields};
+        diff[viewId] = {adds: facts, removes: oldFacts};
       }
 
-      // Adjust view fact indexes.
-      var oldFacts = indexer.facts(viewId);
-      var facts = oldFacts.slice();
-      foreach(ix, fact of facts) {
-        facts[ix] = fact = fact.slice();
-        fact.unshift(fact.splice(groupedField[2], 1)[0]);
+      diff.tag = {adds: [[info, "grouped"]], removes: []};
+      indexer.handleDiffs(diff);
+      break;
+
+    case "updateCalculated":
+      var table = info.table;
+      var field = info.field;
+      var value = info.value;
+      var diff = {};
+
+      //@TODO: we can't assume there's only ever one query...
+      unpack [queryId] = indexer.index("viewToQuery")[table][0];
+
+      //it is either an aggregateConstraint, a functionConstraint, or a constantConstraint
+      //@TODO: this is super frail. Filters are function + constant and you can filter a
+      //the result of a function. How would we know what to edit?
+
+      var functions = indexer.index("queryToFunctionConstraint")[queryId] || [];
+      var foundFunc = functions.filter(function(cur) {
+        unpack [id, queryId, constraintField] = cur;
+        return constraintField === field;
+      });
+
+      var aggs = indexer.index("queryToAggregateConstraint")[queryId] || [];
+      var foundAgg = functions.filter(function(cur) {
+        unpack [id, queryId, constraintField] = cur;
+        return constraintField === field;
+      });
+
+      var constants = indexer.index("queryToConstantConstraint")[queryId] || [];
+      var foundConstant = constants.filter(function(cur) {
+        unpack [id, constraintField] = cur;
+        return constraintField === field;
+      });
+
+      if(foundFunc.length) {
+        unpack [constraintId] = foundFunc[0]
+        diff.functionConstraint = {adds: [], removes: [foundFunc[0]]};
+        diff.functionConstraintInput = {adds: [],
+                                        removes: indexer.index("functionConstraintToInput")[constraintId] || []};
+      } else if(foundAgg.length) {
+        unpack [constraintId] = foundAgg[0]
+        diff.aggregateConstraint = {adds: [], removes: [foundAgg[0]]};
+        diff.aggregateConstraintAggregateInput = {adds: [],
+                                                  removes: indexer.index("aggregateConstraintToInput")[constraintId] || []};
+      } else if(foundConstant.length) {
+        unpack [constraintId] = foundConstant[0]
+        diff.constantConstraint = {adds: [], removes: [foundConstant[0]]};
       }
 
-      groupedField[2] = 0;
 
-      var diff = {
-        field: {adds: fields, removes: oldFields}
-      };
-      diff[viewId] = {adds: facts, removes: oldFacts};
+      // add a new thing.
+      if(value[0] === "=") {
+        //it's a function
+        var id = global.uuid();
+        var viewFields = indexer.index("viewToFields")[table];
+        var displayNames = indexer.index("displayName");
+        var namedFields = viewFields.map(function(cur) {
+          return [cur[0], displayNames[cur[0]]];
+        });
+        var inputs = [];
+        foreach(named of namedFields) {
+          unpack [fieldId, name] = named;
+          if(value.indexOf(name) > -1) {
+            inputs.push([id, fieldId, name]);
+          }
+        }
+
+        var isAggregate = false;
+        foreach(agg of aggregateFuncs) {
+          if(value.indexOf(agg + "(") > -1) {
+            isAggregate = true;
+            break;
+          }
+        }
+
+        if(isAggregate) {
+          if(!diff.aggregateConstraint) {
+            diff.aggregateConstraint = {adds: [], removes: []};
+            diff.aggregateConstraintBinding = {adds: [], removes: []};
+            diff.aggregateConstraintSolverInput = {adds: [], removes: []};
+            diff.aggregateConstraintAggregateInput = {adds: [], removes: []};
+          }
+          var groups = viewFields.filter(function(cur) {
+            return hasTag(cur[0], "grouped");
+          }).map(function(cur) {
+            return [id, cur[0], cur[0]];
+          });
+          diff.aggregateConstraint.adds.push([id, queryId, field, table, value.substring(1)]);
+          //add groups
+          diff.aggregateConstraintBinding.adds = groups;
+          //add non-aggregate inputs
+          diff.aggregateConstraintAggregateInput.adds = inputs;
+        } else {
+          if(!diff.functionConstraint) {
+            diff.functionConstraint = {adds: [], removes: []};
+            diff.functionConstraintInput = {adds: [], removes: []};
+          }
+          diff.functionConstraint.adds.push([id, queryId, field, table, value.substring(1)]);
+          diff.functionConstraintInput.adds = inputs;
+        }
+
+      } else {
+        //it's a constant
+        if(!diff.constantConstraint) {
+          diff.constantConstraint = {adds: [], removes: []};
+        }
+        diff.constantConstraint.adds.push([queryId, field, value]);
+      }
+
+      console.log(diff);
       indexer.handleDiffs(diff);
       break;
 
@@ -1214,6 +1399,10 @@ function init(program) {
   indexer.addIndex("query", "viewToQuery", indexers.makeCollector(1));
   indexer.addIndex("viewConstraint", "queryToViewConstraint", indexers.makeCollector(1));
   indexer.addIndex("aggregateConstraint", "queryToAggregateConstraint", indexers.makeCollector(1));
+  indexer.addIndex("aggregateConstraintAggregateInput", "aggregateConstraintToInput", indexers.makeCollector(0));
+  indexer.addIndex("functionConstraint", "queryToFunctionConstraint", indexers.makeCollector(1));
+  indexer.addIndex("functionConstraintInput", "functionConstraintToInput", indexers.makeCollector(0));
+  indexer.addIndex("constantConstraint", "queryToConstantConstraint", indexers.makeCollector(0));
   indexer.addIndex("tableTile", "tileToTable", indexers.makeLookup(0, 1));
   indexer.addIndex("tableTile", "tableTile", indexers.makeLookup(0, false));
   indexer.addIndex("gridTile", "gridTile", indexers.makeLookup(0, false));
