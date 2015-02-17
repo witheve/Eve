@@ -37,6 +37,16 @@ function aget(obj, keys, create) {
   return cur;
 }
 
+function cloneArray(arr) {
+  var result = [];
+  foreach(item of arr) {
+    if(item instanceof Array) {
+      item = cloneArray(item);
+    }
+    result.push(item);
+  }
+  return result;
+}
 
 //---------------------------------------------------------
 // Indexer
@@ -676,7 +686,8 @@ var tiles = {
       render: function() {
         var fields = [];
         foreach(ix, field of this.props.row) {
-          fields.push(["div", this.wrapEditable({"data-ix": ix,}, field)]);
+          if(ix < (this.props.startIx || 0)) { continue; }
+          fields.push(["div", this.wrapEditable({"data-ix": ix}, field)]);
         }
         return JSML.react(["div", {"className": "grid-row", "key": JSON.stringify(this.props.row)}, fields]);
       }
@@ -730,26 +741,25 @@ var tiles = {
         return self.header({field: cur});
       });
 
-      function factToRow(cur) {
-        return self.row({row: cur, table: table, fields: viewFields});
-      }
 
-      function indexToRows(index) {
+      function indexToRows(index, startIx) {
+        startIx = startIx || 0;
         var rows = [];
         if(index instanceof Array) {
-          rows = index.map(factToRow);
+          rows = index.map(function factToRow(cur) {
+            return self.row({row: cur, table: table, fields: viewFields, startIx: startIx});
+          });
         } else {
           forattr(value, group of index) {
-            // @TODO: inject value column + row groups.
-            rows.push.apply(rows, indexToRows(group));
+            var groupRow = ["div", {className: "grid-group"}];
+            groupRow.push.apply(groupRow, indexToRows(group, startIx + 1));
+            rows.push(["div", {className: "grid-row"},
+                       ["div", {className: "grouped-field"}, value],
+                       groupRow]);
           }
         }
         return rows;
       }
-
-      var rows = indexer.facts(table).map(function(cur) {
-        return self.row({row: cur, table: table, fields: viewFields});
-      });
 
       var index;
       if(indexer.hasIndex(table + "|rows")) {
@@ -1213,13 +1223,14 @@ function dispatch(eventInfo) {
     case "groupField":
       var viewId = indexer.index("fieldToView")[info];
       var oldFields = indexer.index("viewToFields")[viewId].slice();
-      var foo = oldFields.slice();
+      var fields = cloneArray(oldFields);
+      var oldFacts = indexer.facts(viewId).slice();
+      var facts = cloneArray(oldFacts);
 
-      // Adjust field indexes.
-      var fields = sortByIx(oldFields.slice(), 2);
-      // @TODO: groups, then sorts, then rest.
+      // Splits fields into grouped and ungrouped.
       var groups = [];
       var rest = [];
+      sortByIx(fields, 2);
       foreach(field of fields) {
         if(field[0] === info || hasTag(field[0], "grouped")) {
           groups.push(field);
@@ -1228,31 +1239,24 @@ function dispatch(eventInfo) {
         }
       }
       fields = groups.concat(rest);
-      var oldIx;
-      var newIx;
+
+      // Updates field ixes and reorders facts if changed.
       foreach(ix, field of fields) {
-        if(field[0] === info) {
-          oldIx = field[2];
-          newIx = ix;
+        if(field[2] === ix) { continue; }
+        foreach(factIx, fact of oldFacts) {
+          facts[factIx][ix] = fact[field[2]];
         }
         field[2] = ix;
       }
 
-      // Adjust view fact indexes.
-      var oldFacts = indexer.facts(viewId);
-      var facts = oldFacts.slice();
-      foreach(ix, fact of facts) {
-        facts[ix] = fact = fact.slice();
-        fact.splice(newIx, 0, fact.splice(oldIx, 1)[0]);
-      }
-
       var diff = {
-        field: {adds: fields, removes: foo},
+        field: {adds: fields, removes: oldFields},
         tag: {adds: [[info, "grouped"]], removes: []}
       };
       diff[viewId] = {adds: facts, removes: oldFacts};
       indexer.handleDiffs(diff);
-      indexer.addIndex(viewId, viewId + "|rows", indexers.makeCollector.apply(null, helpers.pluck(groups, 2)));
+      indexer.addIndex(viewId, viewId + "|rows",
+                       indexers.makeCollector.apply(null, helpers.pluck(groups, 2)));
       break;
 
     case "updateCalculated":
@@ -1349,7 +1353,7 @@ function dispatch(eventInfo) {
             diff.functionConstraint = {adds: [], removes: []};
             diff.functionConstraintInput = {adds: [], removes: []};
           }
-          diff.functionConstraint.adds.push([id, queryId, field, table, value.substring(1)]);
+          diff.functionConstraint.adds.push([id, queryId, field, value.substring(1)]);
           diff.functionConstraintInput.adds = inputs;
         }
 

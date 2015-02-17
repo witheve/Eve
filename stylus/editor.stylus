@@ -260,19 +260,26 @@ body {
 
   .grid-row {
     display:flex;
-    div {
+
+    & > div {
       flex:none;
       padding:5px;
       width:130px;
       overflow:hidden;
     }
-    div + div {
+    & > div + div {
       border-left:1px solid $border-color;
     }
-    div.selected {
+    & > div.selected {
       z-index: 1;
       background: rgba(255, 255, 255, 0.75);
       outline: 1px solid orange;
+    }
+
+    & > .grid-group {
+      flex-direction: column;
+      flex-grow: 1;
+      padding: 0;
     }
   }
   .grid-row {
