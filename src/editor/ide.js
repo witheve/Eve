@@ -235,7 +235,9 @@ Indexer.prototype = {
         if(!diffs[table]) continue;
         toSend[table] = diffs[table];
       }
-      this.worker.postMessage({type: "diffs", diffs: toSend});
+      if(Object.keys(toSend).length) {
+        this.worker.postMessage({type: "diffs", diffs: toSend});
+      }
     }
 
     //if we forced a recompile, we shouldn't redraw until the worker comes back
