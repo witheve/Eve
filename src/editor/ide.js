@@ -682,7 +682,8 @@ var tiles = {
       render: function() {
         var fields = [];
         foreach(ix, field of this.props.row) {
-          fields.push(["div", this.wrapEditable({"data-ix": ix,}, field)]);
+          if(ix < (this.props.startIx || 0)) { continue; }
+          fields.push(["div", this.wrapEditable({"data-ix": ix}, field)]);
         }
         return JSML.react(["div", {"className": "grid-row", "key": JSON.stringify(this.props.row)}, fields]);
       }
@@ -736,26 +737,25 @@ var tiles = {
         return self.header({field: cur});
       });
 
-      function factToRow(cur) {
-        return self.row({row: cur, table: table, fields: viewFields});
-      }
 
-      function indexToRows(index) {
+      function indexToRows(index, startIx) {
+        startIx = startIx || 0;
         var rows = [];
         if(index instanceof Array) {
-          rows = index.map(factToRow);
+          rows = index.map(function factToRow(cur) {
+            return self.row({row: cur, table: table, fields: viewFields, startIx: startIx});
+          });
         } else {
           forattr(value, group of index) {
-            // @TODO: inject value column + row groups.
-            rows.push.apply(rows, indexToRows(group));
+            var groupRow = ["div", {className: "grid-group"}];
+            groupRow.push.apply(groupRow, indexToRows(group, startIx + 1));
+            rows.push(["div", {className: "grid-row"},
+                       ["div", {className: "grouped-field"}, value],
+                       groupRow]);
           }
         }
         return rows;
       }
-
-      var rows = indexer.facts(table).map(function(cur) {
-        return self.row({row: cur, table: table, fields: viewFields});
-      });
 
       var index;
       if(indexer.hasIndex(table + "|rows")) {
@@ -1216,7 +1216,6 @@ function dispatch(eventInfo) {
       break;
 
     case "groupField":
-      console.log('wat');
       var viewId = indexer.index("fieldToView")[info];
       var oldFields = indexer.index("viewToFields")[viewId].slice();
       var fields = cloneArray(oldFields);
@@ -1238,7 +1237,6 @@ function dispatch(eventInfo) {
 
       // Updates field ixes and reorders facts if changed.
       foreach(ix, field of fields) {
-        console.log(indexer.index("displayName")[field[0]], ix, field[2]);
         if(field[2] === ix) { continue; }
         foreach(factIx, fact of oldFacts) {
           facts[factIx][ix] = fact[field[2]];
@@ -1252,6 +1250,8 @@ function dispatch(eventInfo) {
       };
       diff[viewId] = {adds: facts, removes: oldFacts};
       indexer.handleDiffs(diff);
+      indexer.addIndex(viewId, viewId + "|rows",
+                       indexers.makeCollector.apply(null, helpers.pluck(groups, 2)));
       break;
 
     case "updateCalculated":
