@@ -37,6 +37,16 @@ function aget(obj, keys, create) {
   return cur;
 }
 
+function cloneArray(arr) {
+  var result = [];
+  foreach(item of arr) {
+    if(item instanceof Array) {
+      item = cloneArray(item);
+    }
+    result.push(item);
+  }
+  return result;
+}
 
 //---------------------------------------------------------
 // Indexer
@@ -1206,14 +1216,17 @@ function dispatch(eventInfo) {
       break;
 
     case "groupField":
+      console.log('wat');
       var viewId = indexer.index("fieldToView")[info];
-      var oldFields = indexer.index("viewToFields")[viewId];
+      var oldFields = indexer.index("viewToFields")[viewId].slice();
+      var fields = cloneArray(oldFields);
+      var oldFacts = indexer.facts(viewId).slice();
+      var facts = cloneArray(oldFacts);
 
-      // Adjust field indexes.
-      var fields = sortByIx(oldFields.slice(), 2);
-      // @TODO: groups, then sorts, then rest.
+      // Splits fields into grouped and ungrouped.
       var groups = [];
       var rest = [];
+      sortByIx(fields, 2);
       foreach(field of fields) {
         if(field[0] === info || hasTag(field[0], "grouped")) {
           groups.push(field);
@@ -1222,22 +1235,15 @@ function dispatch(eventInfo) {
         }
       }
       fields = groups.concat(rest);
-      var oldIx;
-      var newIx;
+
+      // Updates field ixes and reorders facts if changed.
       foreach(ix, field of fields) {
-        if(field[0] === info) {
-          oldIx = field[2];
-          newIx = ix;
+        console.log(indexer.index("displayName")[field[0]], ix, field[2]);
+        if(field[2] === ix) { continue; }
+        foreach(factIx, fact of oldFacts) {
+          facts[factIx][ix] = fact[field[2]];
         }
         field[2] = ix;
-      }
-
-      // Adjust view fact indexes.
-      var oldFacts = indexer.facts(viewId);
-      var facts = oldFacts.slice();
-      foreach(ix, fact of facts) {
-        facts[ix] = fact = fact.slice();
-        fact.splice(newIx, 0, fact.splice(oldIx, 1)[0]);
       }
 
       var diff = {
@@ -1246,7 +1252,6 @@ function dispatch(eventInfo) {
       };
       diff[viewId] = {adds: facts, removes: oldFacts};
       indexer.handleDiffs(diff);
-      indexer.addIndex(viewId, viewId + "|rows", indexers.makeCollector.apply(null, helpers.pluck(groups, 2)));
       break;
 
     case "updateCalculated":
