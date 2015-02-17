@@ -803,8 +803,34 @@ var tiles = {
                                    "onDoubleClick": this.click}]);
       }
     }),
+    tools: reactFactory({
+      click: function(e) {
+        dispatch(["addUIEditorElement", {type: "button", x: 10, y: 10, w: 100, h: 20}]);
+      },
+      render: function() {
+        return JSML.react(["div", {"className": "ui-tools"},
+                           ["div", {onClick: this.click}, "box"],
+                           ["div", {onClick: this.click}, "text"],
+                           ["div", {onClick: this.click}, "button"],
+                           ["div", {onClick: this.click}, "input"]
+                          ]);
+      }
+    }),
     render: function() {
-      var content = this.container({});
+
+
+      if(this.props.active) {
+        var typeToDOM = {"text": "span", "box": "div", "button": "button", "input" : "input"};
+        var editorElems = indexer.facts("uiEditorElement").map(function(cur) {
+          unpack [id, type, x, y, width, height] = cur;
+          return JSML.react([typeToDOM[type], {style: {width: width, height: height, top: y, left: x, position: "absolute"}}, type]);
+        });
+        var content = [JSML.react(["div", editorElems]),
+                       this.props.active ? this.tools({}) : null];
+      } else {
+        var content = [this.container({})];
+      }
+
       return tiles.wrapper({class: "ui-tile", controls: false, content: content,
                             pos: this.props.pos, size: this.props.size, tile: this.props.tile});
     }
@@ -1369,6 +1395,19 @@ function dispatch(eventInfo) {
       break;
 
     //---------------------------------------------------------
+    // UI Editor
+    //---------------------------------------------------------
+
+    case "addUIEditorElement":
+      var diff = {
+        uiEditorElement: {adds: [], removes: []}
+      }
+      var id = global.uuid();
+      diff.uiEditorElement.adds.push([id, info.type, info.x, info.y, info.w, info.h]);
+      indexer.handleDiffs(diff);
+      break;
+
+    //---------------------------------------------------------
     // Misc.
     //---------------------------------------------------------
     case "rename":
@@ -1413,8 +1452,9 @@ function namespacedField(displayNames, tableAndField) {
 
 function viewToDSL(view) {
   var displayNames = indexer.index("displayName");
-  var query = indexer.index("viewToQuery")[view][0];
-  if(!query) throw new Error("Translating to DSL, but no query for view: " + view);
+  var queries = indexer.index("viewToQuery")[view];
+  if(!queries) return;
+  var query = queries[0];
   var final = "";
   var queryId = query[0];
 
@@ -1533,6 +1573,7 @@ function ideTables() {
   pushAll(facts, inputView("tableTile", ["tile", "table"]));
   pushAll(facts, inputView("contextMenu", ["x", "y"]));
   pushAll(facts, inputView("contextMenuItem", ["pos", "type", "text", "event", "id"]));
+  pushAll(facts, inputView("uiEditorElement", ["id", "type", "x", "y", "w", "h"]));
   return facts;
 }
 
