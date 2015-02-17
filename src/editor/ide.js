@@ -474,16 +474,18 @@ var Root = React.createFactory(React.createClass({
 
     var tables = indexer.facts("gridTile").map(function(cur, ix) {
       unpack [tile, type, width, height, row, col] = cur;
+      var gridItem = {};
       if(activeTile && tile !== activeTile[0]) {
         unpack [row, col] = self.adjustPosition(activeTile, cur);
       } else if(activeTile) {
         var expanded = self.expand();
         unpack [width, height] = expanded.size;
         unpack [row, col] = expanded.pos;
-
+        gridItem.active = true;
       }
 
-      var gridItem = {size: [width, height], pos: [row, col]};
+      gridItem.size = [width, height];
+      gridItem.pos = [row, col];
 
       if(type === "table") {
         var table = indexer.index("tileToTable")[tile];
@@ -760,6 +762,7 @@ var tiles = {
       var isInput = hasTag(table, "input");
       var className = (isConstant || isInput) ? "input-card" : "view-card";
       var content =  [self.title({id: table}),
+                      (this.props.active ? ["pre", viewToDSL(table)] : null),
                       ["div", {className: "grid"},
                        ["div", {className: "grid-header"},
                         headers,
@@ -1209,7 +1212,8 @@ function dispatch(eventInfo) {
 
     case "groupField":
       var viewId = indexer.index("fieldToView")[info];
-      var oldFields = indexer.index("viewToFields")[viewId];
+      var oldFields = indexer.index("viewToFields")[viewId].slice();
+      var foo = oldFields.slice();
 
       // Adjust field indexes.
       var fields = sortByIx(oldFields.slice(), 2);
@@ -1243,7 +1247,7 @@ function dispatch(eventInfo) {
       }
 
       var diff = {
-        field: {adds: fields, removes: oldFields},
+        field: {adds: fields, removes: foo},
         tag: {adds: [[info, "grouped"]], removes: []}
       };
       diff[viewId] = {adds: facts, removes: oldFacts};
@@ -1395,6 +1399,125 @@ function dispatch(eventInfo) {
 module.exports.dispatch = dispatch;
 
 //---------------------------------------------------------
+// AST helpers
+//---------------------------------------------------------
+
+function namespacedField(displayNames, tableAndField) {
+  unpack [table, field] = tableAndField;
+  return displayNames[table] + "." + displayNames[field];
+}
+
+function viewToDSL(view) {
+  var displayNames = indexer.index("displayName");
+  var query = indexer.index("viewToQuery")[view][0];
+  if(!query) throw new Error("Translating to DSL, but no query for view: " + view);
+  var final = "";
+  var queryId = query[0];
+
+  var constants = indexer.index("queryToConstantConstraint")[queryId];
+  var viewConstraints = indexer.index("queryToViewConstraint")[queryId];
+  var viewConstraintBindings = {};
+  var VCBIndex = indexer.index("viewConstraintToBinding");
+  foreach(vc of viewConstraints) {
+    unpack [id, _, sourceView] = vc;
+    var bindings = VCBIndex[id];
+    if(!bindings) continue;
+
+    foreach(binding of bindings) {
+      unpack [_, field, sourceField] = binding;
+      if(!viewConstraintBindings[field]) {
+        viewConstraintBindings[field] = [];
+      }
+      viewConstraintBindings[field].push([sourceView, sourceField]);
+    }
+  }
+
+  var functionConstraints = indexer.index("queryToFunctionConstraint")[queryId];
+  var aggregateConstraints = indexer.index("queryToAggregateConstraint")[queryId];
+  var aggregateConstraintBindings = {};
+  var ACBIndex = indexer.index("aggregateConstraintToBinding");
+  foreach(agg of aggregateConstraints) {
+    unpack [id, _, field, sourceView, code] = agg;
+    var bindings = ACBIndex[id];
+    if(!bindings) continue;
+
+    foreach(binding of bindings) {
+      unpack [_, field, sourceField] = binding;
+      if(!aggregateConstraintBindings[field]) {
+        aggregateConstraintBindings[field] = [];
+      }
+      aggregateConstraintBindings[field].push([sourceView, sourceField]);
+    }
+  }
+
+  foreach(vc of viewConstraints) {
+    unpack [id, _, sourceView] = vc;
+    final += "<- " + displayNames[sourceView] + "\n";
+  }
+
+  foreach(agg of aggregateConstraints) {
+    unpack [id, query, field, sourceView, code] = agg;
+    final += "<= " + displayNames[sourceView] + "\n";
+  }
+
+  var constantFields = {};
+  foreach(constant of constants) {
+    unpack [queryId, field, value] = constant;
+    constantFields[field] = value;
+    if(viewConstraintBindings[field]) {
+      final += namespacedField(displayNames, viewConstraintBindings[field][0]) + " = " + JSON.stringify(value) + "\n";
+    }
+  }
+
+  forattr(field, bindings of viewConstraintBindings) {
+    if(bindings.length > 1) {
+      final += namespacedField(displayNames, bindings[0]);
+      final += " = " + namespacedField(displayNames, bindings[1]);
+      final += "\n";
+    }
+  }
+
+  forattr(field, bindings of aggregateConstraintBindings) {
+    var vcb = viewConstraintBindings[field];
+    var constant = constantFields[field];
+    if(bindings.length) {
+      var cur = displayNames[field];
+      if(vcb) {
+        cur = namespacedField(displayNames, vcb[0]);
+      } else if(constantFields[field]) {
+        cur = JSON.stringify(constantFields[field]);
+      }
+      final += namespacedField(displayNames, bindings[0]);
+      final += " = " + cur;
+      final += "\n";
+    }
+  }
+
+  var filters = [];
+  foreach(func of functionConstraints) {
+    unpack [id, query, field, code] = func;
+    if(!hasTag(id, "filter")) {
+      final += displayNames[field] + " = " + code.trim() + "\n";
+    } else {
+      filters.push(code.trim());
+    }
+  }
+
+  foreach(agg of aggregateConstraints) {
+    unpack [id, query, field, sourceView, code] = agg;
+    final += displayNames[field] + " = " + code.trim() + "\n";
+  }
+
+  foreach(filter of filters) {
+    final += filter + "\n";
+  }
+
+  return final;
+}
+
+global.viewToDSL = viewToDSL;
+
+//---------------------------------------------------------
 // IDE tables
 //---------------------------------------------------------
 
@@ -1430,7 +1553,9 @@ function init(program) {
   indexer.addIndex("editId", "editViewToIds", indexers.makeCollector(0));
   indexer.addIndex("query", "viewToQuery", indexers.makeCollector(1));
   indexer.addIndex("viewConstraint", "queryToViewConstraint", indexers.makeCollector(1));
+  indexer.addIndex("viewConstraintBinding", "viewConstraintToBinding", indexers.makeCollector(0));
   indexer.addIndex("aggregateConstraint", "queryToAggregateConstraint", indexers.makeCollector(1));
+  indexer.addIndex("aggregateConstraintBinding", "aggregateConstraintToBinding", indexers.makeCollector(0));
   indexer.addIndex("aggregateConstraintAggregateInput", "aggregateConstraintToInput", indexers.makeCollector(0));
   indexer.addIndex("functionConstraint", "queryToFunctionConstraint", indexers.makeCollector(1));
   indexer.addIndex("functionConstraintInput", "functionConstraintToInput", indexers.makeCollector(0));

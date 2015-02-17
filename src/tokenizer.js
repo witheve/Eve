@@ -993,7 +993,8 @@ function injectParsed(parsed, program, prefix, programName) {
     for(var aggIx = curRule.aggregates.length - 1; aggIx >= 0; aggIx--) {
       var agg = curRule.aggregates[aggIx];
       var constraint = query + "|aggregateConstraint=" + aggIx;
-      var wrappedFn = "function() { try { return " + agg.function + "; } catch(e) { if(typeof e !== 'string') { e.line = " + agg.lineNumber + "; } throw e; } }()";
+//       var wrappedFn = "function() { try { return " + agg.function + "; } catch(e) { if(typeof e !== 'string') { e.line = " + agg.lineNumber + "; } throw e; } }()";
+      var wrappedFn = agg.function;
       facts.push(["aggregateConstraint", constraint, query, makeLocalField(agg.symbol), agg.table, wrappedFn]);
       for (var fieldIx = agg.fields.length - 1; fieldIx >= 0; fieldIx--) {
         var field = agg.fields[fieldIx];
@@ -1026,6 +1027,7 @@ function injectParsed(parsed, program, prefix, programName) {
       var filter = curRule.filters[filterIx];
       var symbol = "filterField" + filterIx;
       var constraint = query + "|filterConstraint=" + filterIx;
+      facts.push(["tag", constraint, "filter"]);
       facts.push(["functionConstraint", constraint, query, makeLocalField(symbol), filter.function]);
       for (var argIx = filter.args.length - 1; argIx >= 0; argIx--) {
         var arg = filter.args[argIx];
