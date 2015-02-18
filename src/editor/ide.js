@@ -282,6 +282,10 @@ Indexer.prototype = {
   },
   first: function(table) {
     return this.facts(table)[0];
+  },
+  last: function(table) {
+    var facts = this.facts(table);
+    return facts[facts.length - 1];
   }
 };
 
@@ -583,7 +587,7 @@ var tiles = {
                                   [0, "text", "New Table", "addTableTile", ""],
                                   [1, "text", "New View", "addViewTile", ""],
                                   [2, "text", "New UI", "addUI", ""],
-                                  [3, "searcher", "Existing table or view", "openView", ""]
+                                  [3, "viewSearcher", "Existing table or view", "openView", ""]
                                 ]}]);
     },
     render: function() {
@@ -621,7 +625,7 @@ var tiles = {
                                   items: [
                                     [0, "text", "filter", "filterField", this.props.field[0]],
                                     [1, "text", "group", "groupField", this.props.field[0]],
-                                    [2, "text", "lookup", "lookupField", this.props.field[0]]
+                                    [2, "fieldSearcher", "join", "joinField", this.props.field[0]]
                                   ]}]);
       },
       commit: function() {
@@ -728,7 +732,7 @@ var tiles = {
         e.preventDefault();
         dispatch(["contextMenu", {e: {clientX: e.clientX, clientY: e.clientY},
                                   items: [
-                                    [0, "searcher", "Add table", "addTableToView", this.props.table]
+                                    [0, "viewSearcher", "Add table", "addTableToView", this.props.table]
                                   ]}]);
       }
     },
@@ -837,26 +841,6 @@ var tiles = {
   })
 };
 
-
-//---------------------------------------------------------
-// Searcher
-//---------------------------------------------------------
-
-function searchForView(needle) {
-  var results = [];
-  var names = indexer.index("displayName");
-  var name;
-  foreach(view of indexer.facts("view")) {
-    unpack [id] = view;
-    //@TODO: why are none of the views in displayName?
-    name = names[id];
-    if(name.toLowerCase().indexOf(needle.toLowerCase()) > -1) {
-      results.push([id, name]);
-    }
-  }
-  return results;
-}
-
 var ProgramLoader = reactFactory({
   getInitialState: function() {
     var programs = Object.keys(bootstrap.taskManager.list());
@@ -876,9 +860,54 @@ var ProgramLoader = reactFactory({
   }
 });
 
+//---------------------------------------------------------
+// Searcher
+//---------------------------------------------------------
+
+var searchMethod = {
+  view: function searchForView(needle) {
+    var results = [];
+    var names = indexer.index("displayName");
+    var name;
+    foreach(view of indexer.facts("view")) {
+      unpack [id] = view;
+      name = names[id];
+      if(name.toLowerCase().indexOf(needle.toLowerCase()) > -1) {
+        results.push([id, name]);
+      }
+    }
+    return results;
+  },
+
+  field: function searchForField(needle, searchOpts) {
+    searchOpts = searchOpts || {};
+    var results = [];
+    var names = indexer.index("displayName");
+    var name;
+    var fields = indexer.index("viewToFields")[searchOpts.view];
+    if(!fields) {
+      fields = indexer.facts("field");
+    }
+    foreach(field of fields) {
+      unpack [id, view, ix] = field;
+      name = names[id];
+      if(name && name.toLowerCase().indexOf(needle.toLowerCase()) > -1) {
+        results.push([id, name]);
+      }
+    }
+    return results;
+  }
+};
+
 var ReactSearcher = reactFactory({
   getInitialState: function() {
-    return { active: false, max: 5, index: undefined, search: "", value: "", possible: searchForView('') };
+    var search = searchMethod[this.props.type];
+    if(!search) throw new Error("No search function defined for type: '" + this.props.type + "'.");
+    return {active: false, index: undefined,
+            current: "", value: "",
+            max: this.props.max || 5,
+            possible: search('', this.props.searchOpts),
+            search: search};
   },
 
   input: function(e) {
@@ -886,8 +915,8 @@ var ReactSearcher = reactFactory({
       active: true,
       index: undefined,
       value: e.target.value,
-      search: e.target.value,
-      possible: searchForView(e.target.value)
+      current: e.target.value,
+      possible: this.state.search(e.target.value, this.props.searchOpts)
     });
   },
 
@@ -920,7 +949,7 @@ var ReactSearcher = reactFactory({
       case KEYCODES.UP:
         e.preventDefault();
         if (this.state.index === 0) {
-          this.setState({index: undefined, value: this.state.search});
+          this.setState({index: undefined, value: this.state.current});
         } else if (this.state.index !== undefined) {
           var newindex = this.state.index - 1;
           this.setState({index: newindex, value: this.state.possible[newindex][1]});
@@ -982,13 +1011,24 @@ ContextMenuItems = {
       return JSML.react(["div", {className: "menu-item", onClick: this.click}, this.props.text]);
     }
   }),
-  searcher: reactFactory({
+  viewSearcher: reactFactory({
     click: function(e) {
       e.stopPropagation();
     },
     render: function() {
       return JSML.react(["div", {className: "menu-item", onClick: this.click},
-                         ReactSearcher({event: this.props.event, placeholder: this.props.text, id: this.props.id})]);
+                         ReactSearcher({event: this.props.event, placeholder: this.props.text, id: this.props.id, type: "view"})]);
+    }
+  }),
+  fieldSearcher: reactFactory({
+    click: function(e) {
+      e.stopPropagation();
+    },
+    render: function() {
+      return JSML.react(["div", {className: "menu-item", onClick: this.click},
+                         ReactSearcher({event: this.props.event, placeholder: this.props.text,
+                                        id: this.props.id, type: "field",
+                                        searchOpts: {view: indexer.index("fieldToView")[this.props.id]}})]);
     }
   })
 };
@@ -1182,6 +1222,7 @@ function dispatch(eventInfo) {
         viewConstraintBinding: {adds: bindings, removes: []}
       }
       indexer.handleDiffs(diff);
+      dispatch(["clearContextMenu"]);
       break;
 
     //---------------------------------------------------------
@@ -1283,6 +1324,26 @@ function dispatch(eventInfo) {
       indexer.handleDiffs(diff);
       indexer.addIndex(viewId, viewId + "|rows",
                        indexers.makeCollector.apply(null, helpers.pluck(groups, 2)));
+      break;
+
+    case "joinField":
+      console.log("joinField", info);
+      var field1 = info.id;
+      var field2 = info.selected[0];
+
+      var bindings = indexer.index("fieldToBindings")[field2];
+      if(!bindings || !bindings.length) {
+        throw new Error("Cannot join with unbound (local?) field: '" + indexer.index("displayName")[field2] + "'.");
+      }
+      var binding = bindings[0];
+      unpack [constraint, __, sourceField] = binding;
+      // @TODO: check for flipped duplicates?
+      // var bindings = indexer.index("viewConstraintToBinding")[constraint] || [];
+
+      indexer.handleDiffs({
+        "viewConstraintBinding": {adds: [[constraint, field1, sourceField]], removes: []}
+      });
+      dispatch(["clearContextMenu"]);
       break;
 
     case "updateCalculated":
@@ -1598,7 +1659,9 @@ function init(program) {
   indexer.addIndex("editId", "editViewToIds", indexers.makeCollector(0));
   indexer.addIndex("query", "viewToQuery", indexers.makeCollector(1));
   indexer.addIndex("viewConstraint", "queryToViewConstraint", indexers.makeCollector(1));
+  indexer.addIndex("viewConstraint", "viewConstraint", indexers.makeLookup(0, false));
   indexer.addIndex("viewConstraintBinding", "viewConstraintToBinding", indexers.makeCollector(0));
+  indexer.addIndex("viewConstraintBinding", "fieldToBindings", indexers.makeCollector(1));
   indexer.addIndex("aggregateConstraint", "queryToAggregateConstraint", indexers.makeCollector(1));
   indexer.addIndex("aggregateConstraintBinding", "aggregateConstraintToBinding", indexers.makeCollector(0));
   indexer.addIndex("aggregateConstraintAggregateInput", "aggregateConstraintToInput", indexers.makeCollector(0));
