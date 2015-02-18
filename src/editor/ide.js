@@ -477,13 +477,16 @@ var uiEditorElementMixin = {
     return {x: x, y: y, width: width, height: height};
   },
   dragStart: function(e) {
+    var myDims = e.currentTarget.getBoundingClientRect();
+    this.state.offsetX = e.clientX - myDims.left;
+    this.state.offsetY = e.clientY - myDims.top;
     e.dataTransfer.setData("id", this.props.elem[0]);
     e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0,0);
   },
   drag: function(e) {
     if(e.clientX && e.clientY) {
-      var parentDims = e.currentTarget.parentNode.getBoundingClientRect();
-      this.setState({x: e.clientX - parentDims.left, y: e.clientY - parentDims.top});
+      var parentDims = document.querySelector(".ui-tile").getBoundingClientRect();
+      this.setState({x: e.clientX - parentDims.left - this.state.offsetX, y: e.clientY - parentDims.top - this.state.offsetY});
     }
   },
   dragEnd: function(e) {
@@ -556,8 +559,7 @@ var Resizer = reactFactory({
   },
   drag: function(e) {
     if(e.clientX && e.clientY) {
-      //@TODO: this is super fragile. We need a way to figure out our offset from the containing tile.
-      var grandParentDims = e.currentTarget.parentNode.parentNode.getBoundingClientRect();
+      var grandParentDims = document.querySelector(".ui-tile").getBoundingClientRect();
       var relX = e.clientX - grandParentDims.left;
       var relY = e.clientY - grandParentDims.top;
 
@@ -1688,7 +1690,7 @@ function dispatch(eventInfo) {
       unpack [menuX, menuY] = indexer.first("contextMenu");
       //@TODO: it seems sketchy to query the DOM here, but we have to get the relative
       //position of the click to the design surface.
-      var surfaceDimensions = document.querySelector(".ui-design-surface").getBoundingClientRect();
+      var surfaceDimensions = document.querySelector(".ui-tile").getBoundingClientRect();
       var x = menuX - surfaceDimensions.left;
       var y = menuY - surfaceDimensions.top;
       var id = global.uuid();
