@@ -455,6 +455,173 @@ var editableFieldMixin = {
   }
 };
 
+
+var uiEditorElementMixin = {
+  getInitialState: function() {
+    unpack [id, type, x, y, width, height] = this.props.elem;
+    return {x: x, y: y, width: width, height: height};
+  },
+  dragStart: function(e) {
+    e.dataTransfer.setData("id", this.props.elem[0]);
+    e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0,0);
+  },
+  drag: function(e) {
+    if(e.clientX && e.clientY) {
+      var parentDims = e.currentTarget.parentNode.getBoundingClientRect();
+      this.setState({x: e.clientX - parentDims.left, y: e.clientY - parentDims.top});
+    }
+  },
+  dragEnd: function(e) {
+    console.log("final", this.state.x, this.state.y);
+    this.moved();
+  },
+  wrapStyle: function(opts) {
+    var state = this.state;
+    opts.style = {width: state.width, height: state.height, top: state.y, left: state.x, position: "absolute"};
+    return opts;
+  },
+  wrapDragEvents: function(opts) {
+    opts.draggable = "true";
+    opts.onDrag = this.drag;
+    opts.onDragStart = this.dragStart;
+    opts.onDragEnd = this.dragEnd;
+    return opts;
+  },
+  resize: function(dims) {
+    this.setState({x: dims.x, y: dims.y, width: dims.width, height: dims.height});
+  },
+  moved: function() {
+    unpack [id, type, x, y, width, height] = this.props.elem;
+    dispatch(["uiEditorElementMove", {neue: [id, type, this.state.x, this.state.y, this.state.width, this.state.height],
+                                      old: this.props.elem}]);
+  }
+};
+
+var Resizer = reactFactory({
+  handleSize: [8,8],
+  minSize: [10,10],
+  componentWillReceiveProps: function(neue) {
+    if(this.state.x !== neue.x || this.state.y !== neue.y) {
+      this.setState({x: neue.x, y: neue.y, width: neue.width, height: neue.height});
+    }
+  },
+  wrapStyle: function(opts) {
+    var state = this.state;
+    opts.style = {width: state.width, height: state.height, top: state.y, left: state.x, position: "absolute"};
+    return opts;
+  },
+  wrapHandleStyle: function(opts) {
+    var dx = opts["data-x"];
+    var dy = opts["data-y"];
+    unpack [handleWidth, handleHeight] = this.handleSize;
+    opts.className = "resize-handle";
+
+    //init to left
+    var x = handleWidth / -2;
+    if(dx === "right") {
+      x = (handleWidth / -2) + this.state.width;
+    } else if(dx === "center") {
+      x = (handleWidth / -2) + (this.state.width / 2);
+    }
+
+    //init to top
+    var y = handleHeight / -2;
+    if(dy === "bottom") {
+      y = (handleHeight / -2) + this.state.height;
+    } else if(dy === "middle") {
+      y = (handleHeight / -2) + (this.state.height / 2);
+    }
+    opts.style = {width: handleWidth, height: handleHeight, top: y - 1, left: x - 1};
+    return opts;
+  },
+  dragStart: function(e) {
+    this.state.dx = e.currentTarget.getAttribute("data-x");
+    this.state.dy = e.currentTarget.getAttribute("data-y");
+    e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0,0);
+  },
+  drag: function(e) {
+    if(e.clientX && e.clientY) {
+      //@TODO: this is super fragile. We need a way to figure out our offset from the containing tile.
+      var grandParentDims = e.currentTarget.parentNode.parentNode.getBoundingClientRect();
+      var relX = e.clientX - grandParentDims.left;
+      var relY = e.clientY - grandParentDims.top;
+
+      var minSize = this.props.minSize || this.minSize;
+
+      //init to doing nothing
+      var x = this.state.x;
+      var width = this.state.width;
+      var xdiff = relX - x;
+      if(this.state.dx === "left") {
+        x = relX;
+        width = this.state.width - xdiff;
+        if(width < minSize[0]) {
+          width = minSize[0];
+          x = (this.state.x + this.state.width) - minSize[0];
+        }
+      } else if(this.state.dx === "right") {
+        width = width + (xdiff - width);
+        if(width < minSize[0]) {
+          width = minSize[0];
+        }
+      }
+
+      //init to doing nothing
+      var y = this.state.y;
+      var height = this.state.height;
+      var ydiff = relY - y;
+      if(this.state.dy === "top") {
+        y = relY;
+        height = height - ydiff;
+        if(height < minSize[1]) {
+          height = minSize[1];
+          y = (this.state.y + this.state.height) - minSize[1];
+        }
+      } else if(this.state.dy === "bottom") {
+        height = height + (ydiff - height);
+        if(height < minSize[1]) {
+          height = minSize[1];
+        }
+      }
+      this.setState({x: x, y: y, width: width, height: height});
+      if(this.props.resize) {
+        this.props.resize(this.state);
+      }
+    }
+  },
+  dragEnd: function(e) {
+    console.log("final", this.state.x, this.state.y);
+    if(this.props.resizeEnd) {
+      this.props.resizeEnd(this.state);
+    }
+  },
+  wrapDragEvents: function(opts) {
+    opts.draggable = "true";
+    opts.onDrag = this.drag;
+    opts.onDragStart = this.dragStart;
+    opts.onDragEnd = this.dragEnd;
+    return opts;
+  },
+  wrapHandle: function(opts) {
+    return this.wrapDragEvents(this.wrapHandleStyle(opts));
+  },
+  getInitialState: function() {
+    return {x: this.props.x, y: this.props.y, width: this.props.width, height: this.props.height};
+  },
+  render: function() {
+    return JSML.react(["div", this.wrapStyle({className: "resizer"}),
+                       ["div", this.wrapHandle({"data-x": "left", "data-y": "top"})],
+                       ["div", this.wrapHandle({"data-x": "center", "data-y": "top"})],
+                       ["div", this.wrapHandle({"data-x": "right", "data-y": "top"})],
+                       ["div", this.wrapHandle({"data-x": "right", "data-y": "middle"})],
+                       ["div", this.wrapHandle({"data-x": "right", "data-y": "bottom"})],
+                       ["div", this.wrapHandle({"data-x": "center", "data-y": "bottom"})],
+                       ["div", this.wrapHandle({"data-x": "left", "data-y": "bottom"})],
+                       ["div", this.wrapHandle({"data-x": "left", "data-y": "middle"})]
+                      ])
+  }
+});
+
 //---------------------------------------------------------
 // Root
 //---------------------------------------------------------
@@ -528,6 +695,7 @@ var Root = React.createFactory(React.createClass({
 
     var menu = indexer.first("contextMenu");
     return JSML.react(["div",
+                       ["canvas", {id: "clear-pixel", width: 1, height: 1}],
                        menu ? ContextMenu({x: menu[0], y: menu[1]}) : null,
                        ProgramLoader(),
                        gridContainer]);
@@ -809,25 +977,68 @@ var tiles = {
     }),
     tools: reactFactory({
       click: function(e) {
-        dispatch(["addUIEditorElement", {type: "button", x: 10, y: 10, w: 100, h: 20}]);
+        var type = e.currentTarget.getAttribute("data-tool") || "button";
+        dispatch(["addUIEditorElement", {type: type, x: 10, y: 10, w: 100, h: 20}]);
       },
       render: function() {
         return JSML.react(["div", {"className": "ui-tools"},
-                           ["div", {onClick: this.click}, "box"],
-                           ["div", {onClick: this.click}, "text"],
-                           ["div", {onClick: this.click}, "button"],
-                           ["div", {onClick: this.click}, "input"]
+                           ["div", {onClick: this.click, "data-tool": "box"}, "box"],
+                           ["div", {onClick: this.click, "data-tool": "text"}, "text"],
+                           ["div", {onClick: this.click, "data-tool": "button"}, "button"],
+                           ["div", {onClick: this.click, "data-tool": "input"}, "input"]
                           ]);
       }
     }),
+    box: reactFactory({
+      mixins: [uiEditorElementMixin],
+      render: function() {
+        var state = this.state;
+        var opts = this.wrapStyle(this.wrapDragEvents({}));
+        unpack [id, type, x, y, width, height] = this.props.elem;
+        return JSML.react(["div",
+                           Resizer({x: state.x, y: state.y, width: state.width, height: state.height, resize: this.resize, resizeEnd: this.moved}),
+                           ["div", opts, "box"]]);
+      }
+    }),
+    text: reactFactory({
+      mixins: [uiEditorElementMixin],
+      render: function() {
+        var state = this.state;
+        var opts = this.wrapStyle(this.wrapDragEvents({}));
+        unpack [id, type, x, y, width, height] = this.props.elem;
+        return JSML.react(["div",
+                           Resizer({x: state.x, y: state.y, width: state.width, height: state.height, resize: this.resize, resizeEnd: this.moved}),
+                           ["span", opts, "text"]]);
+      }
+    }),
+    button: reactFactory({
+      mixins: [uiEditorElementMixin],
+      render: function() {
+        var state = this.state;
+        var opts = this.wrapStyle(this.wrapDragEvents({}));
+        opts.key = this.props.elem[0];
+        return JSML.react(["div",
+                           Resizer({x: state.x, y: state.y, width: state.width, height: state.height, resize: this.resize, resizeEnd: this.moved}),
+                           ["button", opts, "button"]]);
+      }
+    }),
+    input: reactFactory({
+      mixins: [uiEditorElementMixin],
+      render: function() {
+        var state = this.state;
+        var opts = this.wrapStyle(this.wrapDragEvents({placeholder: "input"}));
+        unpack [id, type, x, y, width, height] = this.props.elem;
+        return JSML.react(["div",
+                           Resizer({x: state.x, y: state.y, width: state.width, height: state.height, resize: this.resize, resizeEnd: this.moved}),
+                           ["input", opts]]);
+      }
+    }),
     render: function() {
-
-
       if(this.props.active) {
-        var typeToDOM = {"text": "span", "box": "div", "button": "button", "input" : "input"};
+        var self = this;
         var editorElems = indexer.facts("uiEditorElement").map(function(cur) {
           unpack [id, type, x, y, width, height] = cur;
-          return JSML.react([typeToDOM[type], {style: {width: width, height: height, top: y, left: x, position: "absolute"}}, type]);
+          return self[type]({elem: cur})
         });
         var content = [JSML.react(["div", editorElems]),
                        this.props.active ? this.tools({}) : null];
@@ -1465,6 +1676,13 @@ function dispatch(eventInfo) {
       }
       var id = global.uuid();
       diff.uiEditorElement.adds.push([id, info.type, info.x, info.y, info.w, info.h]);
+      indexer.handleDiffs(diff);
+      break;
+
+    case "uiEditorElementMove":
+      var diff = {
+        uiEditorElement: {adds: [info.neue], removes: [info.old]}
+      }
       indexer.handleDiffs(diff);
       break;
 
