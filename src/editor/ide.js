@@ -48,6 +48,22 @@ function cloneArray(arr) {
   return result;
 }
 
+// Delete any keys or descendant keys which are empty.
+function garbageCollectIndex(index) {
+  forattr(key, group of index) {
+    if(group instanceof Array) {
+      if(!group || !group.length) {
+        delete index[key];
+      }
+    } else if(typeof group === "object") {
+      garbageCollectIndex(group);
+      if(!Object.keys(group).length) {
+        delete index[key];
+      }
+    }
+  }
+}
+
 //---------------------------------------------------------
 // Indexer
 //---------------------------------------------------------
@@ -58,7 +74,7 @@ var indexers = {
       return function(cur, diffs) {
         var final = cur || {};
         foreach(remove of diffs.removes) {
-          final[remove[keyIx]] = null;
+          delete final[remove[keyIx]];
         }
         foreach(add of diffs.adds) {
           final[add[keyIx]] = add[valueIx];
@@ -69,7 +85,7 @@ var indexers = {
       return function(cur, diffs) {
         var final = cur || {};
         foreach(remove of diffs.removes) {
-          final[remove[keyIx]] = null;
+          delete final[remove[keyIx]];
         }
         foreach(add of diffs.adds) {
           final[add[keyIx]] = add;
@@ -95,7 +111,7 @@ var indexers = {
           continue;
         }
         var key2 = remove[key2Ix];
-        final[key1][key2] = null;
+        delete final[key1][key2];
       }
 
       return final;
@@ -119,6 +135,7 @@ var indexers = {
           final[add[keyIx]].push(add);
         }
 
+        garbageCollectIndex(final);
         return final;
       }
     } else {
@@ -148,6 +165,7 @@ var indexers = {
           });
 
         }
+        garbageCollectIndex(final);
         return final;
       }
     }
@@ -1563,7 +1581,8 @@ function dispatch(eventInfo) {
       // var bindings = indexer.index("viewConstraintToBinding")[constraint] || [];
 
       indexer.handleDiffs({
-        "viewConstraintBinding": {adds: [[constraint, field1, sourceField]], removes: []}
+        "viewConstraintBinding": {adds: [[constraint, field1, sourceField]], removes: []},
+        "tag": {adds: [[field2, "hidden"]], removes: []}
       });
       dispatch(["clearContextMenu"]);
       break;
