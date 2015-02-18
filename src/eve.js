@@ -603,7 +603,7 @@ Solver.prototype = {
     //other than the provenance one, just return. This allows compilation
     //to be done by the compilerWatcher, which may need to create a view
     //before it has populated its constraints.
-    if(constraints.length === 1) {
+    if(constraints.length === 1 && this.constants.length !== this.numVars) {
       return;
     }
 
