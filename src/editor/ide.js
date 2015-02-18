@@ -300,6 +300,17 @@ Indexer.prototype = {
     this.indexes[name] = {index: indexer(null, {adds: this.facts(table), removes: []}),
                           indexer: indexer};
   },
+  removeIndex: function(table, name) {
+    var tableIndexes = this.tableToIndexes[table];
+    var ix = tableIndexes.indexOf(name);
+    if(ix !== -1) {
+      tableIndexes.splice(ix, 1);
+    }
+    if(!tableIndexes.length) {
+      delete this.tableToIndexes[table];
+    }
+    delete this.indexes[name];
+  },
   forward: function(table) {
     if(!table) { return; }
     else if(typeof table === "object" && table.length) {
@@ -825,11 +836,12 @@ var tiles = {
       contextMenu: function(e) {
         e.preventDefault();
         e.stopPropagation();
+        var id = this.props.field[0];
         dispatch(["contextMenu", {e: {clientX: e.clientX, clientY: e.clientY},
                                   items: [
-                                    [0, "text", "filter", "filterField", this.props.field[0]],
-                                    [1, "text", "group", "groupField", this.props.field[0]],
-                                    [2, "fieldSearcher", "join", "joinField", this.props.field[0]]
+                                    [0, "text", "filter", "filterField", id],
+                                    (hasTag(id, "grouped") ? [1, "text", "ungroup", "ungroupField", id] : [1, "text", "group", "groupField", id]),
+                                    [2, "fieldSearcher", "join", "joinField", id]
                                   ]}]);
       },
       commit: function() {
@@ -1307,6 +1319,45 @@ function maxRowId(view) {
   }
 }
 
+function sortView(view) {
+  var oldFields = indexer.index("viewToFields")[view].slice();
+  var fields = cloneArray(oldFields);
+  var oldFacts = indexer.facts(view).slice();
+  var facts = cloneArray(oldFacts);
+
+  // Splits fields into grouped and ungrouped.
+  var groups = [];
+  var rest = [];
+  sortByIx(fields, 2);
+  foreach(field of fields) {
+    if(hasTag(field[0], "grouped")) {
+      groups.push(field);
+    } else {
+      rest.push(field);
+    }
+  }
+  fields = groups.concat(rest);
+
+  // Updates field ixes and reorders facts if changed.
+  var modified = false;
+  foreach(ix, field of fields) {
+    if(field[2] === ix) { continue; }
+    modified = true;
+    foreach(factIx, fact of oldFacts) {
+      facts[factIx][ix] = fact[field[2]];
+    }
+    field[2] = ix;
+  }
+
+  if(modified) {
+    var diff = {
+      field: {adds: fields, removes: oldFields},
+    };
+    diff[view] = {adds: facts, removes: oldFacts};
+    indexer.handleDiffs(diff);
+  }
+}
+
 function dispatch(eventInfo) {
   unpack [event, info] = eventInfo;
   switch(event) {
@@ -1535,46 +1586,28 @@ function dispatch(eventInfo) {
       break;
 
     case "groupField":
-      var viewId = indexer.index("fieldToView")[info];
-      var oldFields = indexer.index("viewToFields")[viewId].slice();
-      var fields = cloneArray(oldFields);
-      var oldFacts = indexer.facts(viewId).slice();
-      var facts = cloneArray(oldFacts);
-
-      // Splits fields into grouped and ungrouped.
-      var groups = [];
-      var rest = [];
-      sortByIx(fields, 2);
-      foreach(field of fields) {
-        if(field[0] === info || hasTag(field[0], "grouped")) {
-          groups.push(field);
-        } else {
-          rest.push(field);
-        }
-      }
-      fields = groups.concat(rest);
-
-      // Updates field ixes and reorders facts if changed.
-      var modified = false;
-      foreach(ix, field of fields) {
-        if(field[2] === ix) { continue; }
-        modified = true;
-        foreach(factIx, fact of oldFacts) {
-          facts[factIx][ix] = fact[field[2]];
-        }
-        field[2] = ix;
-      }
-
+      var view = indexer.index("fieldToView")[info];
       var diff = {
-        field: {adds: fields, removes: oldFields},
         tag: {adds: [[info, "grouped"]], removes: []}
       };
-      if(modified) {
-        diff[viewId] = {adds: facts, removes: oldFacts};
-      }
       indexer.handleDiffs(diff);
-      indexer.addIndex(viewId, viewId + "|rows",
+      sortView(view);
+      var groups = indexer.index("viewToFields")[view].filter(function(field) {
+        return hasTag(field[0], "grouped");
+      });
+      console.log(groups);
+      indexer.addIndex(view, view + "|rows",
                        indexers.makeCollector.apply(null, helpers.pluck(groups, 2)));
+      break;
+
+    case "ungroupField":
+      var view = indexer.index("fieldToView")[info];
+      var diff = {
+        tag: {adds: [], removes: [[info, "grouped"]]}
+      }
+      indexer.removeIndex(view, view + "|rows");
+      indexer.handleDiffs(diff);
+      sortView(view);
       break;
 
     case "joinField":
