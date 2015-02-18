@@ -894,7 +894,7 @@ var tiles = {
       render: function() {
         var fields = [];
         foreach(ix, field of this.props.row) {
-          if(ix < (this.props.startIx || 0)) { continue; }
+          if(this.props.hidden[ix]) { continue; }
           fields.push(["div", this.wrapEditable({"data-ix": ix}, field)]);
         }
         return JSML.react(["div", {"className": "grid-row", "key": JSON.stringify(this.props.row)}, fields]);
@@ -945,22 +945,29 @@ var tiles = {
       var table = this.props.table;
       var viewFields = indexer.index("viewToFields")[table] || [];
       sortByIx(viewFields, 2);
-      var headers = viewFields.map(function(cur) {
-        return self.header({field: cur});
+      var hidden = [];
+      var headers = viewFields.map(function(cur, ix) {
+        hidden[ix] = hasTag(cur[0], "hidden");
+        if(!hidden[ix]) {
+          return self.header({field: cur});
+        }
       });
 
 
-      function indexToRows(index, startIx) {
+      function indexToRows(index, hidden, startIx) {
         startIx = startIx || 0;
+        hidden = hidden || [];
         var rows = [];
         if(index instanceof Array) {
           rows = index.map(function factToRow(cur) {
-            return self.row({row: cur, table: table, fields: viewFields, startIx: startIx});
-          });
+            return self.row({row: cur, table: table, fields: viewFields, hidden: hidden});
+          }).filter(Boolean);
         } else {
+          var newHidden = hidden.slice();
+          newHidden[startIx] = true;
           forattr(value, group of index) {
             var groupRow = ["div", {className: "grid-group"}];
-            groupRow.push.apply(groupRow, indexToRows(group, startIx + 1));
+            groupRow.push.apply(groupRow, indexToRows(group, newHidden, startIx + 1));
             rows.push(["div", {className: "grid-row"},
                        ["div", {className: "grouped-field"}, value],
                        groupRow]);
@@ -975,7 +982,7 @@ var tiles = {
       } else {
         index = indexer.facts(table) || [];
       }
-      var rows = indexToRows(index);
+      var rows = indexToRows(index, hidden);
       var isConstant = hasTag(table, "constant");
       var isInput = hasTag(table, "input");
       var className = (isConstant || isInput) ? "input-card" : "view-card";
