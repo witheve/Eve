@@ -160,6 +160,7 @@ var indexers = {
             keys[ix] = remove[keyIx];
           }
           var cur = aget(final, keys, false);
+          if(!cur) { continue; }
           cur[remove[lastKeyIx]] = cur[remove[lastKeyIx]].filter(function(c) {
             return !arrayEqual(c, remove);
           });
