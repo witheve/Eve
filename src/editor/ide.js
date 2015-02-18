@@ -144,7 +144,7 @@ var indexers = {
           }
           var cur = aget(final, keys, false);
           cur[remove[lastKeyIx]] = cur[remove[lastKeyIx]].filter(function(c) {
-            return !arrayEqual(cur, remove);
+            return !arrayEqual(c, remove);
           });
 
         }
@@ -211,11 +211,24 @@ Indexer.prototype = {
       applyDiff(system, table, diffs[table]);
       isSpecial = true;
     }
+
     if(isSpecial) {
+      var viewsToClear = getNonInputWorkspaceViews();
+
+      // Nuke indexes before the system nukes facts.
+      foreach(table of viewsToClear) {
+        if(!tableToIndexes[table]) { continue; }
+        var diff = {adds: [], removes: this.facts(table)};
+        foreach(index of tableToIndexes[table]) {
+          var cur = this.indexes[index];
+          cur.indexer(cur.index, diff);
+        }
+      }
+
       system.recompile();
       //all non-input views were just cleared, make sure the worker clears storage
       //so that we end up with the views getting repopulated correctly.
-      this.worker.postMessage({type: "clearStorage", views: getNonInputWorkspaceViews()})
+      this.worker.postMessage({type: "clearStorage", views: viewsToClear})
     }
 
     forattr(table, diff of diffs) {
@@ -1077,7 +1090,7 @@ var searchMethod = {
     foreach(view of indexer.facts("view")) {
       unpack [id] = view;
       name = names[id];
-      if(name.toLowerCase().indexOf(needle.toLowerCase()) > -1) {
+      if(name && name.toLowerCase().indexOf(needle.toLowerCase()) > -1) {
         results.push([id, name]);
       }
     }
@@ -1490,6 +1503,7 @@ function dispatch(eventInfo) {
       diff.field = {adds: [[id, info.view, fields.length]], removes: []};
       diff.displayName = {adds: [[id, info.name]], removes: []};
       indexer.handleDiffs(diff);
+
       break;
 
     case "groupField":
@@ -1536,7 +1550,6 @@ function dispatch(eventInfo) {
       break;
 
     case "joinField":
-      console.log("joinField", info);
       var field1 = info.id;
       var field2 = info.selected[0];
 
