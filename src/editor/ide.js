@@ -197,7 +197,9 @@ function Indexer(program) {
 };
 
 Indexer.prototype = {
+  latestDiffs: {},
   handleDiffs: function(diffs, fromProgram) {
+    this.latestDiffs = diffs;
     var tableToIndexes = this.tableToIndexes;
     var indexes = this.indexes;
     var system = this.system;
@@ -975,27 +977,12 @@ var tiles = {
                                    "onDoubleClick": this.click}]);
       }
     }),
-    tools: reactFactory({
-      click: function(e) {
-        var type = e.currentTarget.getAttribute("data-tool") || "button";
-        dispatch(["addUIEditorElement", {type: type, x: 10, y: 10, w: 100, h: 20}]);
-      },
-      render: function() {
-        return JSML.react(["div", {"className": "ui-tools"},
-                           ["div", {onClick: this.click, "data-tool": "box"}, "box"],
-                           ["div", {onClick: this.click, "data-tool": "text"}, "text"],
-                           ["div", {onClick: this.click, "data-tool": "button"}, "button"],
-                           ["div", {onClick: this.click, "data-tool": "input"}, "input"]
-                          ]);
-      }
-    }),
     box: reactFactory({
       mixins: [uiEditorElementMixin],
       render: function() {
         var state = this.state;
         var opts = this.wrapStyle(this.wrapDragEvents({}));
-        unpack [id, type, x, y, width, height] = this.props.elem;
-        return JSML.react(["div",
+        return JSML.react(["div", {key: this.props.elem[0]},
                            Resizer({x: state.x, y: state.y, width: state.width, height: state.height, resize: this.resize, resizeEnd: this.moved}),
                            ["div", opts, "box"]]);
       }
@@ -1005,8 +992,7 @@ var tiles = {
       render: function() {
         var state = this.state;
         var opts = this.wrapStyle(this.wrapDragEvents({}));
-        unpack [id, type, x, y, width, height] = this.props.elem;
-        return JSML.react(["div",
+        return JSML.react(["div", {key: this.props.elem[0]},
                            Resizer({x: state.x, y: state.y, width: state.width, height: state.height, resize: this.resize, resizeEnd: this.moved}),
                            ["span", opts, "text"]]);
       }
@@ -1016,8 +1002,7 @@ var tiles = {
       render: function() {
         var state = this.state;
         var opts = this.wrapStyle(this.wrapDragEvents({}));
-        opts.key = this.props.elem[0];
-        return JSML.react(["div",
+        return JSML.react(["div", {key: this.props.elem[0]},
                            Resizer({x: state.x, y: state.y, width: state.width, height: state.height, resize: this.resize, resizeEnd: this.moved}),
                            ["button", opts, "button"]]);
       }
@@ -1027,21 +1012,30 @@ var tiles = {
       render: function() {
         var state = this.state;
         var opts = this.wrapStyle(this.wrapDragEvents({placeholder: "input"}));
-        unpack [id, type, x, y, width, height] = this.props.elem;
-        return JSML.react(["div",
+        return JSML.react(["div", {key: this.props.elem[0]},
                            Resizer({x: state.x, y: state.y, width: state.width, height: state.height, resize: this.resize, resizeEnd: this.moved}),
                            ["input", opts]]);
       }
     }),
+    contextMenu: function(e) {
+      e.preventDefault();
+      dispatch(["contextMenu", {e: {clientX: e.clientX, clientY: e.clientY},
+                                items: [
+                                  [0, "text", "box", "addUIEditorElementFromMenu", "box"],
+                                  [0, "text", "text", "addUIEditorElementFromMenu", "text"],
+                                  [0, "text", "button", "addUIEditorElementFromMenu", "button"],
+                                  [0, "text", "input", "addUIEditorElementFromMenu", "input"]
+                                ]}]);
+    },
     render: function() {
       if(this.props.active) {
         var self = this;
         var editorElems = indexer.facts("uiEditorElement").map(function(cur) {
-          unpack [id, type, x, y, width, height] = cur;
+          unpack [id, type] = cur;
           return self[type]({elem: cur})
         });
-        var content = [JSML.react(["div", editorElems]),
-                       this.props.active ? this.tools({}) : null];
+        var content = JSML.react(["div", {className: "ui-design-surface", onContextMenu: this.contextMenu},
+                                  editorElems]);
       } else {
         var content = [this.container({})];
       }
@@ -1674,12 +1668,18 @@ function dispatch(eventInfo) {
     // UI Editor
     //---------------------------------------------------------
 
-    case "addUIEditorElement":
+    case "addUIEditorElementFromMenu":
       var diff = {
         uiEditorElement: {adds: [], removes: []}
       }
+      unpack [menuX, menuY] = indexer.first("contextMenu");
+      //@TODO: it seems sketchy to query the DOM here, but we have to get the relative
+      //position of the click to the design surface.
+      var surfaceDimensions = document.querySelector(".ui-design-surface").getBoundingClientRect();
+      var x = menuX - surfaceDimensions.left;
+      var y = menuY - surfaceDimensions.top;
       var id = global.uuid();
-      diff.uiEditorElement.adds.push([id, info.type, info.x, info.y, info.w, info.h]);
+      diff.uiEditorElement.adds.push([id, info, x, y, 100, 20]);
       indexer.handleDiffs(diff);
       break;
 

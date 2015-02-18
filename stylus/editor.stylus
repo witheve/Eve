@@ -72,7 +72,12 @@ body {
 }
 
 .ui-tile {
+  -webkit-user-select:none;
   position:relative;
+  .ui-design-surface {
+    width:100%;
+    height: 100%;
+  }
   .ui-tools {
     position:absolute;
     top: 10px;
@@ -86,7 +91,7 @@ body {
 .resizer {
   z-index: 10;
   pointer-events: none;
-  border:1px solid red;
+  border:0px solid red;
   .resize-handle {
     position:absolute;
     background: #f99;
