@@ -83,6 +83,17 @@ body {
   }
 }
 
+.resizer {
+  z-index: 10;
+  pointer-events: none;
+  border:1px solid red;
+  .resize-handle {
+    position:absolute;
+    background: #f99;
+    pointer-events: auto;
+  }
+}
+
 .searcher {
 
   input {
