@@ -1475,7 +1475,7 @@ function dispatch(eventInfo) {
       //if this is a constant view, patch up the facts that already
       //exist for the view
       if(isConstant) {
-        var oldFacts = indexer.facts(info.view) || [];
+        var oldFacts = (indexer.facts(info.view) || []).slice();
         var newFacts = new Array(oldFacts.length);
         foreach(ix, fact of oldFacts) {
           var newFact = fact.slice();
@@ -1519,8 +1519,10 @@ function dispatch(eventInfo) {
       fields = groups.concat(rest);
 
       // Updates field ixes and reorders facts if changed.
+      var modified = false;
       foreach(ix, field of fields) {
         if(field[2] === ix) { continue; }
+        modified = true;
         foreach(factIx, fact of oldFacts) {
           facts[factIx][ix] = fact[field[2]];
         }
@@ -1531,7 +1533,9 @@ function dispatch(eventInfo) {
         field: {adds: fields, removes: oldFields},
         tag: {adds: [[info, "grouped"]], removes: []}
       };
-      diff[viewId] = {adds: facts, removes: oldFacts};
+      if(modified) {
+        diff[viewId] = {adds: facts, removes: oldFacts};
+      }
       indexer.handleDiffs(diff);
       indexer.addIndex(viewId, viewId + "|rows",
                        indexers.makeCollector.apply(null, helpers.pluck(groups, 2)));
