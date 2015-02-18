@@ -520,7 +520,6 @@ var uiEditorElementMixin = {
     }
   },
   dragEnd: function(e) {
-    console.log("final", this.state.x, this.state.y);
     this.moved();
   },
   wrapStyle: function(opts) {
@@ -637,7 +636,6 @@ var Resizer = reactFactory({
     }
   },
   dragEnd: function(e) {
-    console.log("final", this.state.x, this.state.y);
     if(this.props.resizeEnd) {
       this.props.resizeEnd(this.state);
     }
@@ -1754,13 +1752,23 @@ function dispatch(eventInfo) {
       var x = menuX - surfaceDimensions.left;
       var y = menuY - surfaceDimensions.top;
       var id = global.uuid();
-      diff.uiEditorElement.adds.push([id, info, x, y, 100, 20]);
+      var elem = [id, info, x, y, 100, 20];
+      diff.uiEditorElement.adds.push(elem);
+      var views = elementToViews(elem);
+      forattr(table, values of views) {
+        diff[table] = {adds: values, removes: []};
+      }
       indexer.handleDiffs(diff);
       break;
 
     case "uiEditorElementMove":
       var diff = {
         uiEditorElement: {adds: [info.neue], removes: [info.old]}
+      }
+      var neueViews = elementToViews(info.neue);
+      var oldViews = elementToViews(info.old);
+      forattr(table, values of neueViews) {
+        diff[table] = {adds: values, removes: oldViews[table]};
       }
       indexer.handleDiffs(diff);
       break;
@@ -1798,6 +1806,78 @@ function dispatch(eventInfo) {
   }
 }
 module.exports.dispatch = dispatch;
+
+//---------------------------------------------------------
+// UI Helpers
+//---------------------------------------------------------
+
+function elementToViews(element) {
+  var typeToDOM = {"box": "div", "button": "button", "text": "span", "input": "input"};
+  var results = {view: [], field: [], query: [], viewConstraint: [], viewConstraintBinding: [], constantConstraint: []};
+  unpack [id, type, x, y, width, height] = element;
+  //uiElem view
+  var uiElemFeederId = id + "|uiElemFeeder";
+  results.view.push([uiElemFeederId]);
+  results.field.push([uiElemFeederId + "|id", uiElemFeederId, 0],
+                     [uiElemFeederId + "|type", uiElemFeederId, 1]);
+  var uiElemFeederQueryId = uiElemFeederId + "|query";
+  results.query.push([uiElemFeederQueryId, uiElemFeederId, 0]);
+  results.constantConstraint.push([uiElemFeederQueryId, uiElemFeederId + "|id", id]);
+  results.constantConstraint.push([uiElemFeederQueryId, uiElemFeederId + "|type", typeToDOM[type]]);
+
+  var uiElemQueryId = id + "|uiElem|Query";
+  results.query.push([uiElemQueryId, "uiElem", 0]);
+  var uiElemViewConstraintId = uiElemQueryId + "|viewConstraint";
+  results.viewConstraint.push([uiElemViewConstraintId, uiElemQueryId, uiElemFeederId, false]);
+  results.viewConstraintBinding.push([uiElemViewConstraintId, "uiElem|field=id", uiElemFeederId + "|id"]);
+  results.viewConstraintBinding.push([uiElemViewConstraintId, "uiElem|field=type", uiElemFeederId + "|type"]);
+
+  //uiAttr view - pack all the styles into style
+  var styleStr = "top: " + y + "px; left: " + x + "px; width:" + width + "px; height:" + height + "px; background: red; position:absolute;";
+  var uiAttrFeederId = id + "|uiAttrFeeder";
+  results.view.push([uiAttrFeederId]);
+  results.field.push([uiAttrFeederId + "|id", uiAttrFeederId, 0],
+                     [uiAttrFeederId + "|attr", uiAttrFeederId, 1],
+                     [uiAttrFeederId + "|value", uiAttrFeederId, 2]);
+  var uiAttrFeederQueryId = uiAttrFeederId + "|query";
+  results.query.push([uiAttrFeederQueryId, uiAttrFeederId, 0]);
+  results.constantConstraint.push([uiAttrFeederQueryId, uiAttrFeederId + "|id", id]);
+  results.constantConstraint.push([uiAttrFeederQueryId, uiAttrFeederId + "|attr", "style"]);
+  results.constantConstraint.push([uiAttrFeederQueryId, uiAttrFeederId + "|value", styleStr]);
+
+  var uiAttrQueryId = id + "|uiAttr|Query";
+  results.query.push([uiAttrQueryId, "uiAttr", 0]);
+  var uiAttrViewConstraintId = uiAttrQueryId + "|viewConstraint";
+  results.viewConstraint.push([uiAttrViewConstraintId, uiAttrQueryId, uiAttrFeederId, false]);
+  results.viewConstraintBinding.push([uiAttrViewConstraintId, "uiAttr|field=id", uiAttrFeederId + "|id"]);
+  results.viewConstraintBinding.push([uiAttrViewConstraintId, "uiAttr|field=attr", uiAttrFeederId + "|attr"]);
+  results.viewConstraintBinding.push([uiAttrViewConstraintId, "uiAttr|field=value", uiAttrFeederId + "|value"]);
+
+  //uiText view
+  //@TODO
+
+  //uiChild view
+  var uiChildFeederId = id + "|uiChildFeeder";
+  results.view.push([uiChildFeederId]);
+  results.field.push([uiChildFeederId + "|parent", uiChildFeederId, 0],
+                     [uiChildFeederId + "|pos", uiChildFeederId, 1],
+                     [uiChildFeederId + "|child", uiChildFeederId, 2]);
+  var uiChildFeederQueryId = uiChildFeederId + "|query";
+  results.query.push([uiChildFeederQueryId, uiChildFeederId, 0]);
+  results.constantConstraint.push([uiChildFeederQueryId, uiChildFeederId + "|parent", "eve-root"]);
+  results.constantConstraint.push([uiChildFeederQueryId, uiChildFeederId + "|pos", 0]);
+  results.constantConstraint.push([uiChildFeederQueryId, uiChildFeederId + "|child", id]);
+
+  var uiChildQueryId = id + "|uiChild|Query";
+  results.query.push([uiChildQueryId, "uiChild", 0]);
+  var uiChildViewConstraintId = uiChildQueryId + "|viewConstraint";
+  results.viewConstraint.push([uiChildViewConstraintId, uiChildQueryId, uiChildFeederId, false]);
+  results.viewConstraintBinding.push([uiChildViewConstraintId, "uiChild|field=parent", uiChildFeederId + "|parent"]);
+  results.viewConstraintBinding.push([uiChildViewConstraintId, "uiChild|field=pos", uiChildFeederId + "|pos"]);
+  results.viewConstraintBinding.push([uiChildViewConstraintId, "uiChild|field=child", uiChildFeederId + "|child"]);
+  return results;
+
+}
 
 //---------------------------------------------------------
 // AST helpers
