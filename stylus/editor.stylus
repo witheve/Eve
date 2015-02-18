@@ -91,10 +91,10 @@ body {
 .resizer {
   z-index: 10;
   pointer-events: none;
-  border:0px solid red;
+  border:1px solid #ddd;
   .resize-handle {
     position:absolute;
-    background: #f99;
+    border:1px solid #bbb;
     pointer-events: auto;
   }
 }
