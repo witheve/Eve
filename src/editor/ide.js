@@ -1565,7 +1565,8 @@ function dispatch(eventInfo) {
       // var bindings = indexer.index("viewConstraintToBinding")[constraint] || [];
 
       indexer.handleDiffs({
-        "viewConstraintBinding": {adds: [[constraint, field1, sourceField]], removes: []}
+        "viewConstraintBinding": {adds: [[constraint, field1, sourceField]], removes: []},
+        "tag": {adds: [[field2, "hidden"]], removes: []}
       });
       dispatch(["clearContextMenu"]);
       break;
