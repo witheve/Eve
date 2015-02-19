@@ -14,7 +14,7 @@ var incrementalUI = require("./incrementalUI");
 
 var ide = module.exports;
 var indexer;
-var defaultSize = [6,3];
+var defaultSize = [12,3];
 var aggregateFuncs = ["sum", "count", "avg"];
 var KEYCODES = {
   UP: 38,
@@ -1078,28 +1078,38 @@ var tiles = {
     }),
     contextMenu: function(e) {
       e.preventDefault();
-      dispatch(["contextMenu", {e: {clientX: e.clientX, clientY: e.clientY},
-                                items: [
-                                  [0, "text", "box", "addUIEditorElementFromMenu", "box"],
-                                  [0, "text", "text", "addUIEditorElementFromMenu", "text"],
-                                  [0, "text", "button", "addUIEditorElementFromMenu", "button"],
-                                  [0, "text", "input", "addUIEditorElementFromMenu", "input"]
-                                ]}]);
+      var mode = indexer.index("uiEditorTileToMode")[this.props.tile] || "live";
+      if(mode === "designer") {
+        dispatch(["contextMenu", {e: {clientX: e.clientX, clientY: e.clientY},
+                                  items: [
+                                    [0, "text", "Live view", "liveUIMode", this.props.tile],
+                                    [1, "text", "box", "addUIEditorElementFromMenu", "box"],
+                                    [2, "text", "text", "addUIEditorElementFromMenu", "text"],
+                                    [3, "text", "button", "addUIEditorElementFromMenu", "button"],
+                                    [4, "text", "input", "addUIEditorElementFromMenu", "input"]
+                                  ]}]);
+      } else {
+        dispatch(["contextMenu", {e: {clientX: e.clientX, clientY: e.clientY},
+                                  items: [
+                                    [0, "text", "Designer", "designerUIMode", this.props.tile]
+                                  ]}]);
+      }
     },
     render: function() {
-      if(this.props.active) {
+      var mode = indexer.index("uiEditorTileToMode")[this.props.tile] || "live";
+      if(mode === "designer") {
         var self = this;
         var editorElems = indexer.facts("uiEditorElement").map(function(cur) {
           unpack [id, type] = cur;
           return self[type]({elem: cur})
         });
-        var content = JSML.react(["div", {className: "ui-design-surface", onContextMenu: this.contextMenu},
+        var content = JSML.react(["div", {className: "ui-design-surface"},
                                   editorElems]);
       } else {
         var content = [this.container({})];
       }
 
-      return tiles.wrapper({class: "ui-tile", controls: false, content: content,
+      return tiles.wrapper({class: "ui-tile", controls: false, content: content, contextMenu: this.contextMenu,
                             pos: this.props.pos, size: this.props.size, tile: this.props.tile});
     }
   })
@@ -1810,6 +1820,24 @@ function dispatch(eventInfo) {
       indexer.handleDiffs(diff);
       break;
 
+    case "liveUIMode":
+    case "designerUIMode":
+      var tile = info;
+      var mode = "live";
+      if(event === "designerUIMode") {
+        mode = "designer";
+      }
+      var removes = [];
+      var prev = indexer.index("uiEditorTileToMode")[tile];
+      if(prev) {
+        removes = [[tile, prev]];
+      }
+      var diff = {
+        uiEditorMode: {adds: [[tile, mode]], removes: removes}
+      }
+      indexer.handleDiffs(diff);
+      break;
+
     //---------------------------------------------------------
     // Misc.
     //---------------------------------------------------------
@@ -1890,8 +1918,46 @@ function elementToViews(element) {
   results.viewConstraintBinding.push([uiAttrViewConstraintId, "uiAttr|field=attr", uiAttrFeederId + "|attr"]);
   results.viewConstraintBinding.push([uiAttrViewConstraintId, "uiAttr|field=value", uiAttrFeederId + "|value"]);
 
-  //uiText view
-  //@TODO
+  if(type === "text" || type === "button") {
+    console.log("here");
+    //uiText view
+    var uiTextFeederId = id + "|uiTextFeeder";
+    var uiTextId = id + "|uiText";
+    results.view.push([uiTextFeederId]);
+    results.field.push([uiTextFeederId + "|id", uiTextFeederId, 0],
+                       [uiTextFeederId + "|text", uiTextFeederId, 1]);
+    var uiTextFeederQueryId = uiTextFeederId + "|query";
+    results.query.push([uiTextFeederQueryId, uiTextFeederId, 0]);
+    results.constantConstraint.push([uiTextFeederQueryId, uiTextFeederId + "|id", uiTextId]);
+    results.constantConstraint.push([uiTextFeederQueryId, uiTextFeederId + "|text", type]);
+
+    var uiTextQueryId = id + "|uiText|Query";
+    results.query.push([uiTextQueryId, "uiText", 0]);
+    var uiTextViewConstraintId = uiTextQueryId + "|viewConstraint";
+    results.viewConstraint.push([uiTextViewConstraintId, uiTextQueryId, uiTextFeederId, false]);
+    results.viewConstraintBinding.push([uiTextViewConstraintId, "uiText|field=id", uiTextFeederId + "|id"]);
+    results.viewConstraintBinding.push([uiTextViewConstraintId, "uiText|field=text", uiTextFeederId + "|text"]);
+
+    //uiChild view for uiText
+    var uiChildTextFeederId = id + "|uiChildTextFeeder";
+    results.view.push([uiChildTextFeederId]);
+    results.field.push([uiChildTextFeederId + "|parent", uiChildTextFeederId, 0],
+                       [uiChildTextFeederId + "|pos", uiChildTextFeederId, 1],
+                       [uiChildTextFeederId + "|child", uiChildTextFeederId, 2]);
+    var uiChildTextFeederQueryId = uiChildTextFeederId + "|query";
+    results.query.push([uiChildTextFeederQueryId, uiChildTextFeederId, 0]);
+    results.constantConstraint.push([uiChildTextFeederQueryId, uiChildTextFeederId + "|parent", id]);
+    results.constantConstraint.push([uiChildTextFeederQueryId, uiChildTextFeederId + "|pos", 0]);
+    results.constantConstraint.push([uiChildTextFeederQueryId, uiChildTextFeederId + "|child", uiTextId]);
+
+    var uiChildTextQueryId = id + "|uiChildText|Query";
+    results.query.push([uiChildTextQueryId, "uiChild", 0]);
+    var uiChildTextViewConstraintId = uiChildTextQueryId + "|viewConstraint";
+    results.viewConstraint.push([uiChildTextViewConstraintId, uiChildTextQueryId, uiChildTextFeederId, false]);
+    results.viewConstraintBinding.push([uiChildTextViewConstraintId, "uiChild|field=parent", uiChildTextFeederId + "|parent"]);
+    results.viewConstraintBinding.push([uiChildTextViewConstraintId, "uiChild|field=pos", uiChildTextFeederId + "|pos"]);
+    results.viewConstraintBinding.push([uiChildTextViewConstraintId, "uiChild|field=child", uiChildTextFeederId + "|child"]);
+  }
 
   //uiChild view
   var uiChildFeederId = id + "|uiChildFeeder";
@@ -1912,6 +1978,7 @@ function elementToViews(element) {
   results.viewConstraintBinding.push([uiChildViewConstraintId, "uiChild|field=parent", uiChildFeederId + "|parent"]);
   results.viewConstraintBinding.push([uiChildViewConstraintId, "uiChild|field=pos", uiChildFeederId + "|pos"]);
   results.viewConstraintBinding.push([uiChildViewConstraintId, "uiChild|field=child", uiChildFeederId + "|child"]);
+  console.log(results);
   return results;
 
 }
@@ -2051,6 +2118,7 @@ function ideTables() {
   pushAll(facts, inputView("contextMenu", ["x", "y"]));
   pushAll(facts, inputView("contextMenuItem", ["pos", "type", "text", "event", "id"]));
   pushAll(facts, inputView("uiEditorElement", ["id", "type", "x", "y", "w", "h"]));
+  pushAll(facts, inputView("uiEditorMode", ["tile", "mode"]));
   return facts;
 }
 
@@ -2088,6 +2156,7 @@ function init(program) {
   indexer.addIndex("tableTile", "tileToTable", indexers.makeLookup(0, 1));
   indexer.addIndex("tableTile", "tableTile", indexers.makeLookup(0, false));
   indexer.addIndex("gridTile", "gridTile", indexers.makeLookup(0, false));
+  indexer.addIndex("uiEditorMode", "uiEditorTileToMode", indexers.makeLookup(0, 1));
   indexer.forward("workspaceView");
 
   indexer.forward(global.compilerTables);
