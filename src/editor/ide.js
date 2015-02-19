@@ -160,7 +160,7 @@ var indexers = {
             keys[ix] = remove[keyIx];
           }
           var cur = aget(final, keys, false);
-          if(!cur) { continue; }
+          if(!cur || !cur[remove[lastKeyIx]]) { continue; }
           cur[remove[lastKeyIx]] = cur[remove[lastKeyIx]].filter(function(c) {
             return !arrayEqual(c, remove);
           });
@@ -835,12 +835,20 @@ var tiles = {
         e.preventDefault();
         e.stopPropagation();
         var id = this.props.field[0];
+        var joins = indexer.index("fieldToJoins")[id];
+        var isJoined = joins && joins.length;
+
+        var items = [
+          [0, "text", "filter", "filterField", id],
+          (hasTag(id, "grouped") ? [1, "text", "ungroup", "ungroupField", id] : [1, "text", "group", "groupField", id])
+        ];
+        if(isJoined) {
+          items.push([items.length, "text", "unjoin", "unjoinField", id]);
+        }
+        items.push([items.length, "fieldSearcher", "join", "joinField", id])
+
         dispatch(["contextMenu", {e: {clientX: e.clientX, clientY: e.clientY},
-                                  items: [
-                                    [0, "text", "filter", "filterField", id],
-                                    (hasTag(id, "grouped") ? [1, "text", "ungroup", "ungroupField", id] : [1, "text", "group", "groupField", id]),
-                                    [2, "fieldSearcher", "join", "joinField", id]
-                                  ]}]);
+                                  items: items}]);
       },
       commit: function() {
         unpack [id] = this.props.field;
@@ -1354,6 +1362,11 @@ function sortView(view) {
     diff[view] = {adds: facts, removes: oldFacts};
     indexer.handleDiffs(diff);
   }
+
+  if(groups.length) {
+    indexer.addIndex(view, view + "|rows",
+                     indexers.makeCollector.apply(null, helpers.pluck(groups, 2)));
+  }
 }
 
 function dispatch(eventInfo) {
@@ -1590,12 +1603,6 @@ function dispatch(eventInfo) {
       };
       indexer.handleDiffs(diff);
       sortView(view);
-      var groups = indexer.index("viewToFields")[view].filter(function(field) {
-        return hasTag(field[0], "grouped");
-      });
-      console.log(groups);
-      indexer.addIndex(view, view + "|rows",
-                       indexers.makeCollector.apply(null, helpers.pluck(groups, 2)));
       break;
 
     case "ungroupField":
@@ -1623,9 +1630,39 @@ function dispatch(eventInfo) {
 
       indexer.handleDiffs({
         "viewConstraintBinding": {adds: [[constraint, field1, sourceField]], removes: []},
-        "tag": {adds: [[field2, "hidden"]], removes: []}
+        "tag": {adds: [[field2, "hidden"]], removes: []},
+        "join": {adds: [[field1, sourceField]], removes: []}
       });
       dispatch(["clearContextMenu"]);
+      break;
+
+    case "unjoinField":
+      var joins = indexer.index("fieldToJoins")[info];
+      var bindings = indexer.index("fieldToBindings")[info];
+      var diff = {
+        join: {adds: [], removes: joins},
+        tag: {adds: [], removes: []},
+        viewConstraintBinding: {adds: [], removes: []}
+      };
+      foreach(join of joins) {
+        unpack [field, sourceField] = join;
+        // Remove the viewConstraintBinding
+        foreach(binding of bindings) {
+          unpack [constraint, __, bindingSource] = binding;
+          if(bindingSource === sourceField) {
+            diff.viewConstraintBinding.removes.push(binding);
+
+            // Reveal any fields which were collapsed into this one by the join.
+            var relatedBindings = indexer.index("viewConstraintToBinding")[constraint];
+            foreach(related of relatedBindings) {
+              unpack [__, relatedField, __] = related;
+              diff.tag.removes.push([relatedField, "hidden"]);
+            }
+          }
+        }
+      }
+
+      indexer.handleDiffs(diff);
       break;
 
     case "updateCalculated":
@@ -2005,6 +2042,8 @@ global.viewToDSL = viewToDSL;
 
 function ideTables() {
   var facts = [];
+  pushAll(facts, inputView("editId", ["view", "fact", "id"], ["system input"]));
+  pushAll(facts, inputView("join", ["field", "sourceField"]));
   pushAll(facts, inputView("activePosition", ["w", "h", "x", "y"]));
   pushAll(facts, inputView("activeTile", ["tile"]));
   pushAll(facts, inputView("gridTile", ["tile", "type", "w", "h", "x", "y"]));
@@ -2034,6 +2073,7 @@ function init(program) {
   indexer.addIndex("tag", "idToTags", indexers.makeCollector(0));
   indexer.addIndex("editId", "editRowToId", indexers.makeLookup2D(0, 1, 2));
   indexer.addIndex("editId", "editViewToIds", indexers.makeCollector(0));
+  indexer.addIndex("join", "fieldToJoins", indexers.makeCollector(0));
   indexer.addIndex("query", "viewToQuery", indexers.makeCollector(1));
   indexer.addIndex("viewConstraint", "queryToViewConstraint", indexers.makeCollector(1));
   indexer.addIndex("viewConstraint", "viewConstraint", indexers.makeLookup(0, false));
