@@ -99,7 +99,7 @@ function firstGap(grid, items, size) {
   // Find gap >= size.
   for(var x0 = 0; x0 < grid.cols; x0++) {
     for(var y0 = 0; y0 < grid.rows; y0++) {
-      if(!filled[x0][y0]) {
+      if(!filled[x0][y0] && x0 + height < grid.cols && y0 + width < grid.rows) {
         gap = true;
         for(var x = x0; x < x0 + height; x++) {
           for(var y = y0; y < y0 + width; y++) {
