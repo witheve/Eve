@@ -48,6 +48,24 @@ function cloneArray(arr) {
   return result;
 }
 
+function cloneShallow(obj) {
+  if(obj instanceof Array) {
+    var result = new Array(obj.length);
+    foreach(ix, v of obj) {
+      result[ix] = v;
+    }
+    return result;
+  } else if(typeof obj === "object") {
+    var result = {};
+    forattr(k, v of obj) {
+      result[k] = v;
+    }
+    return result;
+  }
+
+  return obj;
+}
+
 // Delete any keys or descendant keys which are empty.
 function garbageCollectIndex(index) {
   forattr(key, group of index) {
@@ -500,6 +518,20 @@ var editableFieldMixin = {
   }
 };
 
+var editableInputMixin = cloneShallow(editableFieldMixin);
+editableInputMixin.input = function(e) {
+  this.state.edit = e.target.value;
+};
+editableInputMixin.wrapEditable = function(attrs, content) {
+    attrs.className += (this.state.editing) ? " selected" : "";
+    attrs.onClick = this.click;
+    attrs.onKeyDown = this.keyDown;
+    attrs.onInput = this.input;
+    attrs.onBlur = this.blur;
+    attrs.value = this.state.edit || content;
+    return attrs;
+};
+
 
 var uiEditorElementMixin = {
   getInitialState: function() {
@@ -839,7 +871,7 @@ var tiles = {
         var isJoined = joins && joins.length;
 
         var items = [
-          [0, "text", "filter", "filterField", id],
+          [0, "input", "filter", "filterField", id],
           (hasTag(id, "grouped") ? [1, "text", "ungroup", "ungroupField", id] : [1, "text", "group", "groupField", id])
         ];
         if(isJoined) {
@@ -1249,6 +1281,7 @@ var ReactSearcher = reactFactory({
     return JSML.react(["div", {"className": cx({"searcher": true,
                                                 "active": this.state.active})},
                        ["input", {"type": "text",
+                                  className: "full-input",
                                   "placeholder": this.props.placeholder || "Search",
                                   "value": this.state.value,
                                   "onFocus": this.focus,
@@ -1283,6 +1316,20 @@ ContextMenuItems = {
     },
     render: function() {
       return JSML.react(["div", {className: "menu-item", onClick: this.click}, this.props.text]);
+    }
+  }),
+  input: reactFactory({
+    mixins: [editableInputMixin],
+    commit: function() {
+      console.log("committing", this.state.edit);
+      dispatch([this.props.event, {id: this.props.id, text: this.state.edit}]);
+      return true;
+    },
+    render: function() {
+      // editableInputMixin.
+      return JSML.react(["div", {className: "menu-item"},
+                         ["input", this.wrapEditable({className: "full-input", type: "text", placeholder: this.props.text})]
+                        ]);
     }
   }),
   viewSearcher: reactFactory({
