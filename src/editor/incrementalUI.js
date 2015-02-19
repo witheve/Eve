@@ -255,6 +255,7 @@ function uiDiffRenderer(diff, storage, program) {
     builtEls[addStyle[elem_id]].style[addStyle[styles_attr]] = addStyle[styles_value];
   }
 
+
   //Remove events
   var uiEventRemoves = diff["uiEvent"].removes;
   foreach(remEvent of uiEventRemoves) {
@@ -273,9 +274,11 @@ function uiDiffRenderer(diff, storage, program) {
     if(!handlers[id]) {
       handlers[id] = {};
     }
-    var handler = handlers[id][event] = createUICallback(id, event, label, key, program);
+    var handler = createUICallback(id, event, label, key, program);
+    handlers[id][event] = handler;
     builtEls[id].addEventListener(event, handler);
   }
+
 
   var uiChildAdds = diff["uiChild"].adds;
   uiChildAdds.sort(function(a,b) {
@@ -311,14 +314,8 @@ function uiDiffRenderer(diff, storage, program) {
     }
   }
 
-  if(!storage["builtEls"]) {
-    storage["builtEls"] = builtEls;
-    storage["handlers"] = handlers;
-    if(storage["rootParent"]) {
-      storage["rootParent"].appendChild(builtEls["eve-root"]);
-    }
-  }
-
+  storage["builtEls"] = builtEls;
+  storage["handlers"] = handlers;
 };
 
 module.exports.uiDiffRenderer = uiDiffRenderer;

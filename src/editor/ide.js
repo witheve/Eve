@@ -1079,7 +1079,7 @@ var tiles = {
         return [
           [0, "text", "Live view", "liveUIMode", this.props.tile],
           [1, "text", "text", "setText", this.props.elem[0]],
-          [1, "text", "click", "setUIElementEvent", "click"]
+          [1, "input", "click", "setUIElementEvent", "click"]
         ];
       },
       element: function() {
@@ -1301,6 +1301,27 @@ ContextMenuItems = {
     },
     render: function() {
       return JSML.react(["div", {className: "menu-item", onClick: this.click}, this.props.text]);
+    }
+  }),
+  input: reactFactory({
+    click: function(e) {
+      e.stopPropagation();
+    },
+    keyDown: function(e) {
+      if(e.keyCode === KEYCODES.ENTER) {
+        this.commit(e.currentTarget.value);
+        dispatch(["clearContextMenu"]);
+      }
+    },
+    blur: function(e) {
+      this.commit(e.currentTarget.value);
+    },
+    commit: function(value) {
+      dispatch([this.props.event, {id: this.props.id, value: value}]);
+    },
+    render: function() {
+      return JSML.react(["div", {className: "menu-item", onClick: this.click},
+                         ["input", {type: "text", placeholder: this.props.text, onBlur: this.blur, onKeyDown: this.keyDown}]]);
     }
   }),
   viewSearcher: reactFactory({
@@ -1847,9 +1868,10 @@ function dispatch(eventInfo) {
       break;
 
     case "setUIElementEvent":
-      console.log("event", info);
+      var type = info.id;
+      var label = info.value;
       var elementId = indexer.first("activeUIEditorElement")[0];
-      var eventFact = [elementId, info, info, ""];
+      var eventFact = [elementId, type, label, ""];
       var diff = {
         uiEditorElementEvent: {adds: [eventFact], removes: []}
       };
@@ -1857,10 +1879,11 @@ function dispatch(eventInfo) {
       var oldViews = {};
       var prev;
       if(prevEvents) {
-        prev = prevEvents[info];
+        prev = prevEvents[type];
         if(prev) {
           diff.uiEditorElementEvent.removes.push(prev);
           oldViews = elementEventToViews(prev);
+          console.log("Old views", oldViews);
         }
       }
       var neueViews = elementEventToViews(eventFact);
