@@ -27,9 +27,6 @@ var KEYCODES = {
   ESCAPE: 27
 };
 
-
-
-
 //---------------------------------------------------------
 // React helpers
 //---------------------------------------------------------
@@ -91,6 +88,29 @@ var editableRowMixin = {
     attrs.onInput = this.input;
     attrs.onBlur = this.blur;
     attrs.dangerouslySetInnerHTML = {__html: this.state.edits[ix] || content};
+    return attrs;
+  }
+};
+
+var headerMixin = {
+  dragStart: function(e) {
+    e.currentTarget.classList.add("dragging");
+    dispatch(["dragField", {table: this.props.table, field: this.props.field[0]}]);
+  },
+  dragEnd: function(e) {
+    e.currentTarget.classList.remove("dragging");
+    dispatch(["clearDragField", {table: this.props.table, field: this.props.field[0]}]);
+  },
+  doubleClick: function(e) {
+    e.stopPropagation();
+    this.click();
+  },
+  wrapHeader: function(attrs, content) {
+    attrs.draggable = true;
+    attrs.onDoubleClick = this.doubleClick;
+    attrs.onClick = null;
+    attrs.onDragStart = this.dragStart;
+    attrs.onDragEnd = this.dragEnd;
     return attrs;
   }
 };
@@ -171,6 +191,26 @@ var uiEditorElementMixin = {
     this.moved();
     dispatch(["setActiveUIEditorElement", this.props.elem[0]]);
   },
+  dragOver: function(e) {
+    if(indexer.first("dragField")) {
+      //class?
+      e.preventDefault();
+    }
+  },
+  drop: function(e) {
+    e.stopPropagation();
+    var dragged = indexer.first("dragField");
+    if(dragged) {
+      unpack[table, field] = dragged;
+      if(this.dropMenu) {
+        console.log("drop menu!");
+        dispatch(["dropField", {table: table, field: field}]);
+        dispatch(["setActiveUIEditorElement", this.props.elem[0]]);
+        dispatch(["contextMenu", {e: {clientX: e.clientX, clientY: e.clientY},
+                                  items: this.dropMenu()}]);
+      }
+    }
+  },
   wrapStyle: function(opts) {
     var state = this.state;
     opts.style = {width: state.width, height: state.height, top: state.y, left: state.x, position: "absolute"};
@@ -208,7 +248,7 @@ var uiEditorElementMixin = {
   },
   render: function() {
     var state = this.state;
-    return JSML.react(["div", {key: this.props.elem[0], onContextMenu: this.contextMenu, onClick: this.click},
+    return JSML.react(["div", {key: this.props.elem[0], onContextMenu: this.contextMenu, onClick: this.click, onDragOver: this.dragOver, onDrop: this.drop},
                        this.isActive() ? Resizer({x: state.x, y: state.y, width: state.width, height: state.height, resize: this.resize, resizeEnd: this.moved}) : null,
                        this.element()
                       ]);
@@ -501,7 +541,7 @@ var tiles = {
       }
     }),
     header: reactFactory({
-      mixins: [editableFieldMixin],
+      mixins: [editableFieldMixin, headerMixin],
       contextMenu: function(e) {
         e.preventDefault();
         e.stopPropagation();
@@ -534,11 +574,13 @@ var tiles = {
         if(index.hasTag(id, "grouped")) {
           className += " grouped";
         }
-        return JSML.react(["div", this.wrapEditable({
+        var opts = this.wrapEditable({
           className: className,
           key: id,
           onContextMenu: this.contextMenu
-        }, name)]);
+        }, name);
+        opts = this.wrapHeader(opts);
+        return JSML.react(["div", opts]);
       }
     }),
     addHeader: reactFactory({
@@ -638,7 +680,7 @@ var tiles = {
       var headers = viewFields.map(function(cur, ix) {
         hidden[ix] = index.hasTag(cur[0], "hidden");
         if(!hidden[ix]) {
-          return self.header({field: cur});
+          return self.header({field: cur, table: table});
         }
       });
 
@@ -723,23 +765,38 @@ var tiles = {
     }),
     button: reactFactory({
       mixins: [uiEditorElementMixin],
+      dropMenu: function(table, field) {
+        return [
+          [0, "text", "text", "bindUIElementText", "text"]
+        ];
+      },
       contextMenuItems: function(e) {
         return [
           [0, "text", "Live view", "liveUIMode", this.props.tile],
-          [1, "text", "text", "setText", this.props.elem[0]],
           [1, "input", "click", "setUIElementEvent", "click"]
         ];
       },
       element: function() {
         var opts = this.wrapStyle(this.wrapDragEvents({}));
-        return ["button", opts, "button"];
+        var attrs = indexer.index("uiElementToElementAttr")[this.props.elem[0]];
+        console.log(attrs);
+        var text = "button";
+        if(attrs && attrs["text"]) {
+          unpack [_, attr, field, isBinding] = attrs["text"][0];
+          if(isBinding) {
+            text = "Bound to " + indexer.index("displayName")[field];
+          } else {
+            text = table;
+          }
+        }
+        return ["button", opts, text];
       }
     }),
     input: reactFactory({
       mixins: [uiEditorElementMixin],
       element: function() {
         var opts = this.wrapStyle(this.wrapDragEvents({placeholder: "input"}));
-        return ["input", opts, "button"];
+        return ["input", opts, "input"];
       }
     }),
     contextMenu: function(e) {
@@ -953,9 +1010,8 @@ ContextMenuItems = {
     }
   }),
   input: reactFactory({
-   mixins: [editableInputMixin],
+    mixins: [editableInputMixin],
     commit: function() {
-      console.log("committing", this.state.edit);
       dispatch([this.props.event, {id: this.props.id, text: this.state.edit}]);
       return true;
     },
@@ -1345,6 +1401,33 @@ function dispatch(eventInfo) {
       indexer.handleDiffs(diff);
       break;
 
+    case "dragField":
+      var table = info.table;
+      var field = info.field;
+      var diff = {
+        "dragField": {adds: [[table, field]], removes: indexer.facts("dragField")}
+      };
+      indexer.handleDiffs(diff);
+      break;
+
+    case "clearDragField":
+      console.log("Clearing drag field");
+      var diff = {
+        "dragField": {adds: [], removes: indexer.facts("dragField")}
+      };
+      indexer.handleDiffs(diff);
+      break;
+
+    case "dropField":
+      var table = info.table;
+      var field = info.field;
+      var diff = {
+        "dragField": {adds: [], removes: indexer.facts("dragField")},
+        "dropField": {adds: [[table, field]], removes: indexer.facts("dropField")}
+      };
+      indexer.handleDiffs(diff);
+      break;
+
     case "groupField":
       var view = indexer.index("fieldToView")[info];
       var diff = {
@@ -1620,6 +1703,7 @@ function dispatch(eventInfo) {
     case "setUIElementEvent":
       var type = info.id;
       var label = info.text;
+      if(!label) return;
       var elementId = indexer.first("activeUIEditorElement")[0];
       var eventFact = [elementId, type, label, ""];
       var diff = {
@@ -1641,7 +1725,65 @@ function dispatch(eventInfo) {
       }
       indexer.handleDiffs(diff);
       var eventViewId = elementId + "|uiEvent|" + type;
-      dispatch(["openView", {selected: [eventViewId]}]);
+      if(!indexer.index("tableToTile")[eventViewId]) {
+        dispatch(["openView", {selected: [eventViewId]}]);
+      } else {
+        dispatch(["clearContextMenu"]);
+      }
+      break;
+
+    case "bindUIElementStyle":
+      var attr = info;
+      var elementId = indexer.first("activeUIEditorElement")[0];
+      var dropField = indexer.first("dropField");
+      if(!dropField) return;
+      unpack [table, field] = dropField;
+      var eventFact = [elementId, attr, field, true];
+      var diff = {
+        uiEditorElementAttr: {adds: [eventFact], removes: []}
+      };
+      var prevEvents = indexer.index("uiElementToElementAttr")[elementId];
+      var oldViews = {};
+      var prev;
+      if(prevEvents) {
+        prev = prevEvents[attr];
+        if(prev && prev[0]) {
+          diff.uiEditorElementAttr.removes.push(prev[0]);
+          oldViews = elementStyleToViews(prev[0]);
+        }
+      }
+      var neueViews = elementStyleToViews(eventFact);
+      forattr(table, values of neueViews) {
+        diff[table] = {adds: values, removes: oldViews[table] || []};
+      }
+      indexer.handleDiffs(diff);
+      break;
+
+    case "bindUIElementText":
+      var attr = info;
+      var elementId = indexer.first("activeUIEditorElement")[0];
+      var dropField = indexer.first("dropField");
+      if(!dropField) return;
+      unpack [table, field] = dropField;
+      var eventFact = [elementId, "text", field, true];
+      var diff = {
+        uiEditorElementAttr: {adds: [eventFact], removes: []}
+      };
+      var prevEvents = indexer.index("uiElementToElementAttr")[elementId];
+      var oldViews = {};
+      var prev;
+      if(prevEvents) {
+        prev = prevEvents[attr];
+        if(prev && prev[0]) {
+          diff.uiEditorElementAttr.removes.push(prev[0]);
+          oldViews = elementTextToViews(prev[0]);
+        }
+      }
+      var neueViews = elementTextToViews(eventFact);
+      forattr(table, values of neueViews) {
+        diff[table] = {adds: values, removes: oldViews[table] || []};
+      }
+      indexer.handleDiffs(diff);
       break;
 
     case "liveUIMode":
@@ -1747,6 +1889,67 @@ function elementEventToViews(event) {
   return results;
 }
 
+function elementAttrToViews(attr) {
+  unpack [elementId, attrType, value, isBinding] = attr;
+  if(attrType === "text") {
+    elementTextToViews(results, attr);
+  }
+  return results;
+}
+
+function elementTextToViews(text) {
+  var results = {view: [], field: [], query: [], viewConstraint: [], viewConstraintBinding: [], constantConstraint: [], displayName: []};
+  unpack [id, _, field, isBinding] = text;
+  var view = indexer.index("fieldToView")[field];
+  console.log(view, field);
+  //uiText view
+  var uiTextFeederId = id + "|uiTextFeeder";
+  var uiTextId = id + "|uiText";
+  results.view.push([uiTextFeederId]);
+  results.field.push([uiTextFeederId + "|id", uiTextFeederId, 0],
+                     [uiTextFeederId + "|text", uiTextFeederId, 1]);
+  var uiTextFeederQueryId = uiTextFeederId + "|query";
+  results.query.push([uiTextFeederQueryId, uiTextFeederId, 0]);
+  results.constantConstraint.push([uiTextFeederQueryId, uiTextFeederId + "|id", uiTextId]);
+  //create a viewConstraint and bind it
+  if(isBinding) {
+    var bindingVCId = uiTextFeederQueryId + "|" + view + "|viewConstraint";
+    results.viewConstraint.push([bindingVCId, uiTextFeederQueryId, view, false]);
+    results.viewConstraintBinding.push([bindingVCId, uiTextFeederId + "|text", field]);
+  } else {
+    //otherwise it's just a constant
+    results.constantConstraint.push([uiTextFeederQueryId, uiTextFeederId + "|text", field]);
+  }
+
+  var uiTextQueryId = id + "|uiText|Query";
+  results.query.push([uiTextQueryId, "uiText", 0]);
+  var uiTextViewConstraintId = uiTextQueryId + "|viewConstraint";
+  results.viewConstraint.push([uiTextViewConstraintId, uiTextQueryId, uiTextFeederId, false]);
+  results.viewConstraintBinding.push([uiTextViewConstraintId, "uiText|field=id", uiTextFeederId + "|id"]);
+  results.viewConstraintBinding.push([uiTextViewConstraintId, "uiText|field=text", uiTextFeederId + "|text"]);
+
+  //uiChild view for uiText
+  var uiChildTextFeederId = id + "|uiChildTextFeeder";
+  results.view.push([uiChildTextFeederId]);
+  results.field.push([uiChildTextFeederId + "|parent", uiChildTextFeederId, 0],
+                     [uiChildTextFeederId + "|pos", uiChildTextFeederId, 1],
+                     [uiChildTextFeederId + "|child", uiChildTextFeederId, 2]);
+  var uiChildTextFeederQueryId = uiChildTextFeederId + "|query";
+  results.query.push([uiChildTextFeederQueryId, uiChildTextFeederId, 0]);
+  results.constantConstraint.push([uiChildTextFeederQueryId, uiChildTextFeederId + "|parent", id]);
+  results.constantConstraint.push([uiChildTextFeederQueryId, uiChildTextFeederId + "|pos", 0]);
+  results.constantConstraint.push([uiChildTextFeederQueryId, uiChildTextFeederId + "|child", uiTextId]);
+
+  var uiChildTextQueryId = id + "|uiChildText|Query";
+  results.query.push([uiChildTextQueryId, "uiChild", 0]);
+  var uiChildTextViewConstraintId = uiChildTextQueryId + "|viewConstraint";
+  results.viewConstraint.push([uiChildTextViewConstraintId, uiChildTextQueryId, uiChildTextFeederId, false]);
+  results.viewConstraintBinding.push([uiChildTextViewConstraintId, "uiChild|field=parent", uiChildTextFeederId + "|parent"]);
+  results.viewConstraintBinding.push([uiChildTextViewConstraintId, "uiChild|field=pos", uiChildTextFeederId + "|pos"]);
+  results.viewConstraintBinding.push([uiChildTextViewConstraintId, "uiChild|field=child", uiChildTextFeederId + "|child"]);
+  return results;
+}
+
 function elementToViews(element) {
   var typeToDOM = {"box": "div", "button": "button", "text": "span", "input": "input"};
   var results = {view: [], field: [], query: [], viewConstraint: [], viewConstraintBinding: [], constantConstraint: [], displayName: []};
@@ -1769,7 +1972,7 @@ function elementToViews(element) {
   results.viewConstraintBinding.push([uiElemViewConstraintId, "uiElem|field=type", uiElemFeederId + "|type"]);
 
   //uiAttr view - pack all the styles into style
-  var styleStr = "top: " + y + "px; left: " + x + "px; width:" + width + "px; height:" + height + "px; background: red; position:absolute;";
+  var styleStr = "top: " + y + "px; left: " + x + "px; width:" + width + "px; height:" + height + "px; position:absolute;";
   var uiAttrFeederId = id + "|uiAttrFeeder";
   results.view.push([uiAttrFeederId]);
   results.field.push([uiAttrFeederId + "|id", uiAttrFeederId, 0],
@@ -1788,46 +1991,6 @@ function elementToViews(element) {
   results.viewConstraintBinding.push([uiAttrViewConstraintId, "uiAttr|field=id", uiAttrFeederId + "|id"]);
   results.viewConstraintBinding.push([uiAttrViewConstraintId, "uiAttr|field=attr", uiAttrFeederId + "|attr"]);
   results.viewConstraintBinding.push([uiAttrViewConstraintId, "uiAttr|field=value", uiAttrFeederId + "|value"]);
-
-  if(type === "text" || type === "button") {
-    //uiText view
-    var uiTextFeederId = id + "|uiTextFeeder";
-    var uiTextId = id + "|uiText";
-    results.view.push([uiTextFeederId]);
-    results.field.push([uiTextFeederId + "|id", uiTextFeederId, 0],
-                       [uiTextFeederId + "|text", uiTextFeederId, 1]);
-    var uiTextFeederQueryId = uiTextFeederId + "|query";
-    results.query.push([uiTextFeederQueryId, uiTextFeederId, 0]);
-    results.constantConstraint.push([uiTextFeederQueryId, uiTextFeederId + "|id", uiTextId]);
-    results.constantConstraint.push([uiTextFeederQueryId, uiTextFeederId + "|text", type]);
-
-    var uiTextQueryId = id + "|uiText|Query";
-    results.query.push([uiTextQueryId, "uiText", 0]);
-    var uiTextViewConstraintId = uiTextQueryId + "|viewConstraint";
-    results.viewConstraint.push([uiTextViewConstraintId, uiTextQueryId, uiTextFeederId, false]);
-    results.viewConstraintBinding.push([uiTextViewConstraintId, "uiText|field=id", uiTextFeederId + "|id"]);
-    results.viewConstraintBinding.push([uiTextViewConstraintId, "uiText|field=text", uiTextFeederId + "|text"]);
-
-    //uiChild view for uiText
-    var uiChildTextFeederId = id + "|uiChildTextFeeder";
-    results.view.push([uiChildTextFeederId]);
-    results.field.push([uiChildTextFeederId + "|parent", uiChildTextFeederId, 0],
-                       [uiChildTextFeederId + "|pos", uiChildTextFeederId, 1],
-                       [uiChildTextFeederId + "|child", uiChildTextFeederId, 2]);
-    var uiChildTextFeederQueryId = uiChildTextFeederId + "|query";
-    results.query.push([uiChildTextFeederQueryId, uiChildTextFeederId, 0]);
-    results.constantConstraint.push([uiChildTextFeederQueryId, uiChildTextFeederId + "|parent", id]);
-    results.constantConstraint.push([uiChildTextFeederQueryId, uiChildTextFeederId + "|pos", 0]);
-    results.constantConstraint.push([uiChildTextFeederQueryId, uiChildTextFeederId + "|child", uiTextId]);
-
-    var uiChildTextQueryId = id + "|uiChildText|Query";
-    results.query.push([uiChildTextQueryId, "uiChild", 0]);
-    var uiChildTextViewConstraintId = uiChildTextQueryId + "|viewConstraint";
-    results.viewConstraint.push([uiChildTextViewConstraintId, uiChildTextQueryId, uiChildTextFeederId, false]);
-    results.viewConstraintBinding.push([uiChildTextViewConstraintId, "uiChild|field=parent", uiChildTextFeederId + "|parent"]);
-    results.viewConstraintBinding.push([uiChildTextViewConstraintId, "uiChild|field=pos", uiChildTextFeederId + "|pos"]);
-    results.viewConstraintBinding.push([uiChildTextViewConstraintId, "uiChild|field=child", uiChildTextFeederId + "|child"]);
-  }
 
   //uiChild view
   var uiChildFeederId = id + "|uiChildFeeder";
@@ -1848,7 +2011,6 @@ function elementToViews(element) {
   results.viewConstraintBinding.push([uiChildViewConstraintId, "uiChild|field=parent", uiChildFeederId + "|parent"]);
   results.viewConstraintBinding.push([uiChildViewConstraintId, "uiChild|field=pos", uiChildFeederId + "|pos"]);
   results.viewConstraintBinding.push([uiChildViewConstraintId, "uiChild|field=child", uiChildFeederId + "|child"]);
-  console.log(results);
   return results;
 
 }
@@ -1990,7 +2152,10 @@ function ideTables() {
   pushAll(facts, inputView("uiEditorElement", ["id", "type", "x", "y", "w", "h"]));
   pushAll(facts, inputView("uiEditorMode", ["tile", "mode"]));
   pushAll(facts, inputView("uiEditorElementEvent", ["element", "event", "label", "key"]));
+  pushAll(facts, inputView("uiEditorElementAttr", ["element", "attr", "value", "isBinding"]));
   pushAll(facts, inputView("activeUIEditorElement", ["element"]));
+  pushAll(facts, inputView("dragField", ["table", "field"]));
+  pushAll(facts, inputView("dropField", ["table", "field"]));
   return facts;
 }
 
@@ -2030,10 +2195,12 @@ function init(program) {
   indexer.addIndex("functionConstraintInput", "functionConstraintToInput", indexers.makeCollector(0));
   indexer.addIndex("constantConstraint", "queryToConstantConstraint", indexers.makeCollector(0));
   indexer.addIndex("tableTile", "tileToTable", indexers.makeLookup(0, 1));
+  indexer.addIndex("tableTile", "tableToTile", indexers.makeLookup(1, 0));
   indexer.addIndex("tableTile", "tableTile", indexers.makeLookup(0, false));
   indexer.addIndex("gridTile", "gridTile", indexers.makeLookup(0, false));
   indexer.addIndex("uiEditorMode", "uiEditorTileToMode", indexers.makeLookup(0, 1));
   indexer.addIndex("uiEditorElementEvent", "uiElementToElementEvent", indexers.makeCollector(0, 1));
+  indexer.addIndex("uiEditorElementAttr", "uiElementToElementAttr", indexers.makeCollector(0, 1));
   indexer.forward("workspaceView");
 
   indexer.forward(global.compilerTables);
