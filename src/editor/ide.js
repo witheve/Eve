@@ -17,7 +17,7 @@ var indexers = index.indexers;
 var ide = module.exports;
 var indexer;
 var defaultSize = [12,3];
-var aggregateFuncs = ["sum", "count", "avg"];
+var aggregateFuncs = ["sum", "count", "avg", "maxBy"];
 var KEYCODES = {
   UP: 38,
   DOWN: 40,
@@ -758,9 +758,29 @@ var tiles = {
     }),
     text: reactFactory({
       mixins: [uiEditorElementMixin],
+      dropMenu: function(table, field) {
+        return [
+          [0, "text", "text", "bindUIElementText", "text"]
+        ];
+      },
+      contextMenuItems: function(e) {
+        return [
+          [0, "text", "Live view", "liveUIMode", this.props.tile],
+        ];
+      },
       element: function() {
         var opts = this.wrapStyle(this.wrapDragEvents({}));
-        return ["span", opts, "text"];
+        var attrs = indexer.index("uiElementToElementAttr")[this.props.elem[0]];
+        var text = "text";
+        if(attrs && attrs["text"]) {
+          unpack [_, attr, field, isBinding] = attrs["text"][0];
+          if(isBinding) {
+            text = "Bound to " + indexer.index("displayName")[field];
+          } else {
+            text = table;
+          }
+        }
+        return ["span", opts, text];
       }
     }),
     button: reactFactory({
@@ -779,7 +799,6 @@ var tiles = {
       element: function() {
         var opts = this.wrapStyle(this.wrapDragEvents({}));
         var attrs = indexer.index("uiElementToElementAttr")[this.props.elem[0]];
-        console.log(attrs);
         var text = "button";
         if(attrs && attrs["text"]) {
           unpack [_, attr, field, isBinding] = attrs["text"][0];
@@ -794,9 +813,15 @@ var tiles = {
     }),
     input: reactFactory({
       mixins: [uiEditorElementMixin],
+      contextMenuItems: function(e) {
+        return [
+          [0, "text", "Live view", "liveUIMode", this.props.tile],
+          [1, "input", "input", "setUIElementEvent", "input"]
+        ];
+      },
       element: function() {
         var opts = this.wrapStyle(this.wrapDragEvents({placeholder: "input"}));
-        return ["input", opts, "input"];
+        return ["div", opts, "input"];
       }
     }),
     contextMenu: function(e) {
@@ -1886,6 +1911,13 @@ function elementEventToViews(event) {
   results.viewConstraintBinding.push([eventsViewConstraintId, "event|field=label", filterViewId + "|label"]);
   results.viewConstraintBinding.push([eventsViewConstraintId, "event|field=key", filterViewId + "|key"]);
   results.constantConstraint.push([filterViewQueryId, filterViewId + "|label", label]);
+
+  if(type === "input") {
+    results.field.push([filterViewId + "|value", filterViewId, 3]);
+    results.displayName.push([filterViewId + "|value", "value"]);
+    results.viewConstraintBinding.push([eventsViewConstraintId, "event|field=value", filterViewId + "|value"]);
+  }
+
   return results;
 }
 
