@@ -108,7 +108,7 @@ var editableFieldMixin = {
   keyDown: function(e) {
     //handle pressing enter
     if(e.keyCode === KEYCODES.ENTER) {
-      this.blur();
+      e.currentTarget.blur();
       e.preventDefault();
     }
   },
@@ -1619,7 +1619,7 @@ function dispatch(eventInfo) {
 
     case "setUIElementEvent":
       var type = info.id;
-      var label = info.value;
+      var label = info.text;
       var elementId = indexer.first("activeUIEditorElement")[0];
       var eventFact = [elementId, type, label, ""];
       var diff = {
