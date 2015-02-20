@@ -12,11 +12,11 @@ function Indexer(program, handlers) {
   this.indexes = {};
   this.tablesToForward = [];
   this.handlers = handlers || {};
+  this.latestDiffs = {};
 };
 module.exports.Indexer = Indexer;
 
 Indexer.prototype = {
-  latestDiffs: {},
   handleDiffs: function(diffs, fromProgram) {
     this.latestDiffs = diffs;
     var tableToIndexes = this.tableToIndexes;
@@ -125,6 +125,19 @@ Indexer.prototype = {
     if(ix !== -1) {
       this.tablesToForward.splice(ix, 1);
     }
+  },
+  currentlyDiffing: function(tableOrTables) {
+    var tables = tableOrTables;
+    if(tableOrTables.constructor !== Array) {
+      tables = [tableOrTables]
+    }
+    foreach(table of tables) {
+      var diff = this.latestDiffs[table];
+      if(diff && (diff.adds || diff.removes)) {
+        return true;
+      }
+    }
+    return false;
   },
   first: function(table) {
     return this.facts(table)[0];
