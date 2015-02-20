@@ -71,7 +71,6 @@ eveApp.compilerWatcher = function(application, storage, system) {
     storage[table] = current;
   }
 
-  console.log("needs compile?", needsCompile)
   if(needsCompile) {
     var run = application.runNumber + 1;
     try {

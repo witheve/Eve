@@ -169,6 +169,7 @@ var uiEditorElementMixin = {
   },
   dragEnd: function(e) {
     this.moved();
+    dispatch(["setActiveUIEditorElement", this.props.elem[0]]);
   },
   wrapStyle: function(opts) {
     var state = this.state;
@@ -189,6 +190,28 @@ var uiEditorElementMixin = {
     unpack [id, type, x, y, width, height] = this.props.elem;
     dispatch(["uiEditorElementMove", {neue: [id, type, this.state.x, this.state.y, this.state.width, this.state.height],
                                       old: this.props.elem}]);
+  },
+  click: function(e) {
+    dispatch(["setActiveUIEditorElement", this.props.elem[0]]);
+  },
+  contextMenu: function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dispatch(["setActiveUIEditorElement", this.props.elem[0]]);
+    dispatch(["contextMenu", {e: {clientX: e.clientX, clientY: e.clientY},
+                              items: this.contextMenuItems()}]);
+  },
+  isActive: function() {
+    var active = indexer.first("activeUIEditorElement");
+    if(!active) return false;
+    return active[0] === this.props.elem[0];
+  },
+  render: function() {
+    var state = this.state;
+    return JSML.react(["div", {key: this.props.elem[0], onContextMenu: this.contextMenu, onClick: this.click},
+                       this.isActive() ? Resizer({x: state.x, y: state.y, width: state.width, height: state.height, resize: this.resize, resizeEnd: this.moved}) : null,
+                       this.element()
+                      ]);
   }
 };
 
@@ -686,42 +709,37 @@ var tiles = {
     }),
     box: reactFactory({
       mixins: [uiEditorElementMixin],
-      render: function() {
-        var state = this.state;
+      element: function() {
         var opts = this.wrapStyle(this.wrapDragEvents({}));
-        return JSML.react(["div", {key: this.props.elem[0]},
-                           Resizer({x: state.x, y: state.y, width: state.width, height: state.height, resize: this.resize, resizeEnd: this.moved}),
-                           ["div", opts, "box"]]);
+        return ["div", opts, "box"];
       }
     }),
     text: reactFactory({
       mixins: [uiEditorElementMixin],
-      render: function() {
-        var state = this.state;
+      element: function() {
         var opts = this.wrapStyle(this.wrapDragEvents({}));
-        return JSML.react(["div", {key: this.props.elem[0]},
-                           Resizer({x: state.x, y: state.y, width: state.width, height: state.height, resize: this.resize, resizeEnd: this.moved}),
-                           ["span", opts, "text"]]);
+        return ["span", opts, "text"];
       }
     }),
     button: reactFactory({
       mixins: [uiEditorElementMixin],
-      render: function() {
-        var state = this.state;
+      contextMenuItems: function(e) {
+        return [
+          [0, "text", "Live view", "liveUIMode", this.props.tile],
+          [1, "text", "text", "setText", this.props.elem[0]],
+          [1, "input", "click", "setUIElementEvent", "click"]
+        ];
+      },
+      element: function() {
         var opts = this.wrapStyle(this.wrapDragEvents({}));
-        return JSML.react(["div", {key: this.props.elem[0]},
-                           Resizer({x: state.x, y: state.y, width: state.width, height: state.height, resize: this.resize, resizeEnd: this.moved}),
-                           ["button", opts, "button"]]);
+        return ["button", opts, "button"];
       }
     }),
     input: reactFactory({
       mixins: [uiEditorElementMixin],
-      render: function() {
-        var state = this.state;
+      element: function() {
         var opts = this.wrapStyle(this.wrapDragEvents({placeholder: "input"}));
-        return JSML.react(["div", {key: this.props.elem[0]},
-                           Resizer({x: state.x, y: state.y, width: state.width, height: state.height, resize: this.resize, resizeEnd: this.moved}),
-                           ["input", opts]]);
+        return ["input", opts, "button"];
       }
     }),
     contextMenu: function(e) {
@@ -749,7 +767,7 @@ var tiles = {
         var self = this;
         var editorElems = indexer.facts("uiEditorElement").map(function(cur) {
           unpack [id, type] = cur;
-          return self[type]({elem: cur})
+          return self[type]({elem: cur, tile: self.props.tile});
         });
         var content = JSML.react(["div", {className: "ui-design-surface"},
                                   editorElems]);
@@ -935,14 +953,13 @@ ContextMenuItems = {
     }
   }),
   input: reactFactory({
-    mixins: [editableInputMixin],
+   mixins: [editableInputMixin],
     commit: function() {
       console.log("committing", this.state.edit);
       dispatch([this.props.event, {id: this.props.id, text: this.state.edit}]);
       return true;
     },
     render: function() {
-      // editableInputMixin.
       return JSML.react(["div", {className: "menu-item"},
                          ["input", this.wrapEditable({className: "full-input", type: "text", placeholder: this.props.text})]
                         ]);
@@ -1561,8 +1578,10 @@ function dispatch(eventInfo) {
     //---------------------------------------------------------
 
     case "addUIEditorElementFromMenu":
+      var id = global.uuid();
       var diff = {
-        uiEditorElement: {adds: [], removes: []}
+        uiEditorElement: {adds: [], removes: []},
+        activeUIEditorElement: {adds: [[id]], removes: indexer.facts("activeUIEditorElement")}
       }
       unpack [menuX, menuY] = indexer.first("contextMenu");
       //@TODO: it seems sketchy to query the DOM here, but we have to get the relative
@@ -1570,7 +1589,6 @@ function dispatch(eventInfo) {
       var surfaceDimensions = document.querySelector(".ui-tile").getBoundingClientRect();
       var x = menuX - surfaceDimensions.left;
       var y = menuY - surfaceDimensions.top;
-      var id = global.uuid();
       var elem = [id, info, x, y, 100, 20];
       diff.uiEditorElement.adds.push(elem);
       var views = elementToViews(elem);
@@ -1588,6 +1606,39 @@ function dispatch(eventInfo) {
       var oldViews = elementToViews(info.old);
       forattr(table, values of neueViews) {
         diff[table] = {adds: values, removes: oldViews[table]};
+      }
+      indexer.handleDiffs(diff);
+      break;
+
+    case "setActiveUIEditorElement":
+      var diff = {
+        activeUIEditorElement: {adds: [[info]], removes: indexer.facts("activeUIEditorElement")}
+      };
+      indexer.handleDiffs(diff);
+      break;
+
+    case "setUIElementEvent":
+      var type = info.id;
+      var label = info.value;
+      var elementId = indexer.first("activeUIEditorElement")[0];
+      var eventFact = [elementId, type, label, ""];
+      var diff = {
+        uiEditorElementEvent: {adds: [eventFact], removes: []}
+      };
+      var prevEvents = indexer.index("uiElementToElementEvent")[elementId];
+      var oldViews = {};
+      var prev;
+      if(prevEvents) {
+        prev = prevEvents[type];
+        if(prev) {
+          diff.uiEditorElementEvent.removes.push(prev);
+          oldViews = elementEventToViews(prev);
+          console.log("Old views", oldViews);
+        }
+      }
+      var neueViews = elementEventToViews(eventFact);
+      forattr(table, values of neueViews) {
+        diff[table] = {adds: values, removes: oldViews[table] || []};
       }
       indexer.handleDiffs(diff);
       break;
@@ -1648,6 +1699,35 @@ module.exports.dispatch = dispatch;
 // UI Helpers
 //---------------------------------------------------------
 
+function elementEventToViews(event) {
+  var results = {view: [], field: [], query: [], viewConstraint: [], viewConstraintBinding: [], constantConstraint: []};
+  unpack [id, type, label, key] = event;
+  //uiEvent view
+  var uiEventFeederId = id + "|uiEventFeeder";
+  results.view.push([uiEventFeederId]);
+  results.field.push([uiEventFeederId + "|id", uiEventFeederId, 0],
+                     [uiEventFeederId + "|event", uiEventFeederId, 1],
+                     [uiEventFeederId + "|label", uiEventFeederId, 2],
+                     [uiEventFeederId + "|key", uiEventFeederId, 3]);
+  var uiEventFeederQueryId = uiEventFeederId + "|query";
+  results.query.push([uiEventFeederQueryId, uiEventFeederId, 0]);
+  results.constantConstraint.push([uiEventFeederQueryId, uiEventFeederId + "|id", id]);
+  results.constantConstraint.push([uiEventFeederQueryId, uiEventFeederId + "|label", label]);
+  results.constantConstraint.push([uiEventFeederQueryId, uiEventFeederId + "|event", type]);
+  results.constantConstraint.push([uiEventFeederQueryId, uiEventFeederId + "|key", key]);
+
+  var uiEventQueryId = id + "|uiEvent|Query";
+  results.query.push([uiEventQueryId, "uiEvent", 0]);
+  var uiEventViewConstraintId = uiEventQueryId + "|viewConstraint";
+  results.viewConstraint.push([uiEventViewConstraintId, uiEventQueryId, uiEventFeederId, false]);
+  results.viewConstraintBinding.push([uiEventViewConstraintId, "uiEvent|field=id", uiEventFeederId + "|id"]);
+  results.viewConstraintBinding.push([uiEventViewConstraintId, "uiEvent|field=label", uiEventFeederId + "|label"]);
+  results.viewConstraintBinding.push([uiEventViewConstraintId, "uiEvent|field=event", uiEventFeederId + "|event"]);
+  results.viewConstraintBinding.push([uiEventViewConstraintId, "uiEvent|field=key", uiEventFeederId + "|key"]);
+
+  return results;
+}
+
 function elementToViews(element) {
   var typeToDOM = {"box": "div", "button": "button", "text": "span", "input": "input"};
   var results = {view: [], field: [], query: [], viewConstraint: [], viewConstraintBinding: [], constantConstraint: []};
@@ -1691,7 +1771,6 @@ function elementToViews(element) {
   results.viewConstraintBinding.push([uiAttrViewConstraintId, "uiAttr|field=value", uiAttrFeederId + "|value"]);
 
   if(type === "text" || type === "button") {
-    console.log("here");
     //uiText view
     var uiTextFeederId = id + "|uiTextFeeder";
     var uiTextId = id + "|uiText";
@@ -1891,6 +1970,8 @@ function ideTables() {
   pushAll(facts, inputView("contextMenuItem", ["pos", "type", "text", "event", "id"]));
   pushAll(facts, inputView("uiEditorElement", ["id", "type", "x", "y", "w", "h"]));
   pushAll(facts, inputView("uiEditorMode", ["tile", "mode"]));
+  pushAll(facts, inputView("uiEditorElementEvent", ["element", "event", "label", "key"]));
+  pushAll(facts, inputView("activeUIEditorElement", ["element"]));
   return facts;
 }
 
@@ -1933,6 +2014,7 @@ function init(program) {
   indexer.addIndex("tableTile", "tableTile", indexers.makeLookup(0, false));
   indexer.addIndex("gridTile", "gridTile", indexers.makeLookup(0, false));
   indexer.addIndex("uiEditorMode", "uiEditorTileToMode", indexers.makeLookup(0, 1));
+  indexer.addIndex("uiEditorElementEvent", "uiElementToElementEvent", indexers.makeCollector(0, 1));
   indexer.forward("workspaceView");
 
   indexer.forward(global.compilerTables);
