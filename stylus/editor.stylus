@@ -99,16 +99,15 @@ body {
   }
 }
 
+.full-input {
+  outline: none;
+  width:100%;
+  font-size:11pt;
+  color: $defaultTextColor;
+  font-family: $fonts;
+}
+
 .searcher {
-
-  input {
-    outline: none;
-    width:100%;
-    font-size:11pt;
-    color: $defaultTextColor;
-    font-family: $fonts;
-  }
-
   ul {
     font-size:11pt;
     display:none;

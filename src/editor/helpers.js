@@ -34,3 +34,50 @@ function contains(view, ix, values) {
   return results;
 }
 module.exports.contains = contains;
+
+// Gets the given `keys` recursively in `obj`, optionally creating intermediates if `create` is true.
+function aget(obj, keys, create) {
+  var cur = obj;
+  foreach(key of keys) {
+    if(!cur[key]) {
+      if(!create) { return undefined; }
+      cur[key] = {};
+    }
+    cur = cur[key];
+  }
+  return cur;
+}
+module.exports.aget = aget;
+
+// Deeply clones an array given it only contains arrays and primitives.
+function cloneArray(arr) {
+  var result = [];
+  foreach(item of arr) {
+    if(item instanceof Array) {
+      item = cloneArray(item);
+    }
+    result.push(item);
+  }
+  return result;
+}
+module.exports.cloneArray = cloneArray;
+
+// Shallow clones arrays and objects.
+function cloneShallow(obj) {
+  if(obj instanceof Array) {
+    var result = new Array(obj.length);
+    foreach(ix, v of obj) {
+      result[ix] = v;
+    }
+    return result;
+  } else if(typeof obj === "object") {
+    var result = {};
+    forattr(k, v of obj) {
+      result[k] = v;
+    }
+    return result;
+  }
+
+  return obj;
+}
+module.exports.cloneShallow = cloneShallow;

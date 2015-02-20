@@ -7,6 +7,8 @@ var helpers = require("./helpers");
 var Card = require("./card");
 var grid = require("./grid");
 var incrementalUI = require("./incrementalUI");
+var index = require("./indexer");
+var indexers = index.indexers;
 
 //---------------------------------------------------------
 // Globals
@@ -25,376 +27,8 @@ var KEYCODES = {
   ESCAPE: 27
 };
 
-function aget(obj, keys, create) {
-  var cur = obj;
-  foreach(key of keys) {
-    if(!cur[key]) {
-      if(!create) { return undefined; }
-      cur[key] = {};
-    }
-    cur = cur[key];
-  }
-  return cur;
-}
 
-function cloneArray(arr) {
-  var result = [];
-  foreach(item of arr) {
-    if(item instanceof Array) {
-      item = cloneArray(item);
-    }
-    result.push(item);
-  }
-  return result;
-}
 
-// Delete any keys or descendant keys which are empty.
-function garbageCollectIndex(index) {
-  forattr(key, group of index) {
-    if(group instanceof Array) {
-      if(!group || !group.length) {
-        delete index[key];
-      }
-    } else if(typeof group === "object") {
-      garbageCollectIndex(group);
-      if(!Object.keys(group).length) {
-        delete index[key];
-      }
-    }
-  }
-}
-
-//---------------------------------------------------------
-// Indexer
-//---------------------------------------------------------
-
-var indexers = {
-  makeLookup: function(keyIx, valueIx) {
-    if(valueIx !== false) {
-      return function(cur, diffs) {
-        var final = cur || {};
-        foreach(remove of diffs.removes) {
-          delete final[remove[keyIx]];
-        }
-        foreach(add of diffs.adds) {
-          final[add[keyIx]] = add[valueIx];
-        }
-        return final;
-      }
-    } else {
-      return function(cur, diffs) {
-        var final = cur || {};
-        foreach(remove of diffs.removes) {
-          delete final[remove[keyIx]];
-        }
-        foreach(add of diffs.adds) {
-          final[add[keyIx]] = add;
-        }
-        return final;
-      }
-    }
-  },
-  makeLookup2D: function(key1Ix, key2Ix, valueIx) {
-    return function(cur, diffs) {
-      var final = cur || {};
-      foreach(add of diffs.adds) {
-        var key1 = add[key1Ix];
-        if(!final[key1]) {
-          final[key1] = {};
-        }
-        var key2 = add[key2Ix];
-        final[key1][key2] = add[valueIx];
-      }
-      foreach(remove of diffs.removes) {
-        var key1 = remove[key1Ix];
-        if(!final[key1]) {
-          continue;
-        }
-        var key2 = remove[key2Ix];
-        delete final[key1][key2];
-      }
-
-      return final;
-    };
-  },
-  makeCollector: function(keyIx) {
-    if(arguments.length === 1) {
-      return function(cur, diffs) {
-        var final = cur || {};
-        foreach(remove of diffs.removes) {
-          if(!final[remove[keyIx]]) continue;
-          final[remove[keyIx]] = final[remove[keyIx]].filter(function(cur) {
-            return !arrayEqual(cur, remove)
-          });
-        }
-
-        foreach(add of diffs.adds) {
-          if(!final[add[keyIx]]) {
-            final[add[keyIx]] = [];
-          }
-          final[add[keyIx]].push(add);
-        }
-
-        garbageCollectIndex(final);
-        return final;
-      }
-    } else {
-      var keyIxes = [].slice.apply(arguments);
-      var lastKeyIx = keyIxes.pop();
-      return function(cur, diffs) {
-        var final = cur || {};
-        foreach(add of diffs.adds) {
-          var keys = [];
-          foreach(ix, keyIx of keyIxes) {
-            keys[ix] = add[keyIx];
-          }
-          var cur = aget(final, keys, true);
-          if(!cur[add[lastKeyIx]]) {
-            cur[add[lastKeyIx]] = [];
-          }
-          cur[add[lastKeyIx]].push(add);
-        }
-        foreach(remove of diffs.removes) {
-          var keys = [];
-          foreach(ix, keyIx of keyIxes) {
-            keys[ix] = remove[keyIx];
-          }
-          var cur = aget(final, keys, false);
-          if(!cur || !cur[remove[lastKeyIx]]) { continue; }
-          cur[remove[lastKeyIx]] = cur[remove[lastKeyIx]].filter(function(c) {
-            return !arrayEqual(c, remove);
-          });
-
-        }
-        garbageCollectIndex(final);
-        return final;
-      }
-    }
-  },
-  makeSorter: function() {
-    var sortIxes = [].slice.apply(arguments);
-    return function(cur, diffs) {
-      var final = cur || [];
-      foreach(remove of diffs.removes) {
-        foreach(ix, item of final) {
-          if(arrayEqual(item, remove)) {
-            final.splice(ix, 1);
-            break;
-          }
-        }
-      }
-
-      // @NOTE: This can be optimized further by presorting adds and maintaining loIx as a sliding window.
-      foreach(add of diffs.adds) {
-        var loIx = 0;
-        var hiIx = final.length;
-        foreach(sortIx of sortIxes) {
-          for(var ix = loIx; ix < hiIx; ix++) {
-            var item = final[ix];
-            if(add[sortIx] > item[sortIx]) {
-              loIx = ix + 1;
-            } else if(add[sortIx] < item[sortIx]) {
-              hiIx = ix;
-              break;
-            }
-          }
-        }
-        final.splice(loIx, 0, add);
-      }
-
-      return final;
-    }
-  }
-};
-
-function Indexer(program) {
-  this.worker = program.worker
-  this.system = program.system;
-  this.tableToIndexes = {};
-  this.indexes = {};
-  this.tablesToForward = [];
-};
-
-Indexer.prototype = {
-  latestDiffs: {},
-  handleDiffs: function(diffs, fromProgram) {
-    this.latestDiffs = diffs;
-    var tableToIndexes = this.tableToIndexes;
-    var indexes = this.indexes;
-    var system = this.system;
-    var cur;
-    var specialDiffs = ["view", "field"];
-    var isSpecial = false;
-    foreach(table of specialDiffs) {
-      if(!diffs[table]) { continue; }
-      applyDiff(system, table, diffs[table]);
-      isSpecial = true;
-    }
-
-    if(isSpecial) {
-      var viewsToClear = getNonInputWorkspaceViews();
-
-      // Nuke indexes before the system nukes facts.
-      foreach(table of viewsToClear) {
-        if(!tableToIndexes[table]) { continue; }
-        var diff = {adds: [], removes: this.facts(table)};
-        foreach(index of tableToIndexes[table]) {
-          var cur = this.indexes[index];
-          cur.indexer(cur.index, diff);
-        }
-      }
-
-      system.recompile();
-      //all non-input views were just cleared, make sure the worker clears storage
-      //so that we end up with the views getting repopulated correctly.
-      this.worker.postMessage({type: "clearStorage", views: viewsToClear})
-    }
-
-    forattr(table, diff of diffs) {
-      if(tableToIndexes[table]) {
-        foreach(index of tableToIndexes[table]) {
-          cur = this.indexes[index];
-          cur.index = cur.indexer(cur.index, diff);
-        }
-      }
-      if(specialDiffs.indexOf(table) !== -1) { continue; }
-      applyDiff(system, table, diff);
-    }
-
-    //we should only forward diffs to the program if they weren't
-    //from the program to bgin with.
-    if(!fromProgram) {
-      var toSend = {};
-      foreach(table of this.tablesToForward) {
-        if(!diffs[table]) continue;
-        toSend[table] = diffs[table];
-      }
-      if(Object.keys(toSend).length) {
-        this.worker.postMessage({type: "diffs", diffs: toSend});
-      }
-    }
-
-    //if we forced a recompile, we shouldn't redraw until the worker comes back
-    //with the latest diffs.
-    if(!isSpecial) {
-      dispatch(["diffsHandled", diffs]);
-    }
-  },
-  facts: function(table) {
-    return this.system.getStore(table).getFacts();
-  },
-  index: function(index) {
-    var cur = this.indexes[index];
-    if(!cur) throw new Error("No index named: " + index);
-    return cur.index;
-  },
-  hasIndex: function(index) {
-    return !!this.indexes[index];
-  },
-  addIndex: function(table, name, indexer) {
-    if(!this.tableToIndexes[table]) {
-      this.tableToIndexes[table] = [];
-    }
-    this.tableToIndexes[table].push(name);
-    //initialize the index by sending an add of all the facts we have now.
-    this.indexes[name] = {index: indexer(null, {adds: this.facts(table), removes: []}),
-                          indexer: indexer};
-  },
-  removeIndex: function(table, name) {
-    var tableIndexes = this.tableToIndexes[table];
-    var ix = tableIndexes.indexOf(name);
-    if(ix !== -1) {
-      tableIndexes.splice(ix, 1);
-    }
-    if(!tableIndexes.length) {
-      delete this.tableToIndexes[table];
-    }
-    delete this.indexes[name];
-  },
-  forward: function(table) {
-    if(!table) { return; }
-    else if(typeof table === "object" && table.length) {
-      this.tablesToForward.push.apply(this.tablesToForward, table);
-    } else {
-      this.tablesToForward.push(table);
-    }
-  },
-  unforward: function(table) {
-    var ix = this.tablesToForward.indexOf(table);
-    if(ix !== -1) {
-      this.tablesToForward.splice(ix, 1);
-    }
-  },
-  first: function(table) {
-    return this.facts(table)[0];
-  },
-  last: function(table) {
-    var facts = this.facts(table);
-    return facts[facts.length - 1];
-  }
-};
-
-//---------------------------------------------------------
-// Index helpers
-//---------------------------------------------------------
-
-function hasTag(id, needle) {
-  var tags = indexer.index("idToTags")[id];
-  foreach(tagEntry of tags) {
-    unpack [_, tag] = tagEntry;
-    if(tag === needle) return true;
-  }
-  return false;
-}
-
-//all the tables that the table queries on
-function incomingTables(curTable) {
-  var incoming = {};
-  var queries = indexer.index("viewToQuery")[curTable];
-  var queryToConstraint = indexer.index("queryToViewConstraint");
-  var queryToAggregate = indexer.index("queryToAggregateConstraint");
-  var constraints;
-  foreach(query of queries) {
-    constraints = queryToConstraint[query[0]];
-    foreach(constraint of constraints) {
-      incoming[constraint[2]] = true;
-    }
-    aggregates = queryToAggregate[query[0]];
-    foreach(agg of aggregates) {
-      incoming[agg[3]] = true;
-    }
-  }
-  return Object.keys(incoming);
-}
-
-//all the tables that query on this table
-function outgoingTables(curTable) {
-  //@TODO
-}
-
-function getNonInputWorkspaceViews() {
-  var final = [];
-  var views = indexer.facts("workspaceView");
-  foreach(view of views) {
-    if(!hasTag(view[0], "input")) {
-      final.push(view[0]);
-    }
-  }
-  return final;
-}
-
-function getTileFootprints() {
-  return indexer.facts("gridTile").map(function(cur, ix) {
-    unpack [tile, type, w, h, x, y] = cur;
-    return {pos: [x, y], size: [w, h]};
-  });
-}
-
-function sortByIx(facts, ix) {
-  return facts.sort(function(a, b) {
-    return a[ix] - b[ix];
-  });
-};
 
 //---------------------------------------------------------
 // React helpers
@@ -498,6 +132,20 @@ var editableFieldMixin = {
     attrs.dangerouslySetInnerHTML = {__html: this.state.edit || content};
     return attrs;
   }
+};
+
+var editableInputMixin = helpers.cloneShallow(editableFieldMixin);
+editableInputMixin.input = function(e) {
+  this.state.edit = e.target.value;
+};
+editableInputMixin.wrapEditable = function(attrs, content) {
+    attrs.className += (this.state.editing) ? " selected" : "";
+    attrs.onClick = this.click;
+    attrs.onKeyDown = this.keyDown;
+    attrs.onInput = this.input;
+    attrs.onBlur = this.blur;
+    attrs.value = this.state.edit || content;
+    return attrs;
 };
 
 
@@ -751,7 +399,7 @@ var Root = React.createFactory(React.createClass({
 
     // if there isn't an active tile, add placeholder tiles for areas that can hold them.
     if(!activeTile) {
-      var gridItems = getTileFootprints();
+      var gridItems = index.getTileFootprints();
       while(true) {
         var slot = grid.firstGap(tileGrid, gridItems, defaultSize);
         if(!slot) { break; }
@@ -843,8 +491,8 @@ var tiles = {
         var id = this.props.id;
         var name = this.state.edit || indexer.index("displayName")[id];
         var label = "";
-        if(hasTag(id, "constant")) { label = " - constant"; }
-        else if(hasTag(id, "input")) { label = "- input"; }
+        if(index.hasTag(id, "constant")) { label = " - constant"; }
+        else if(index.hasTag(id, "input")) { label = "- input"; }
 
         return JSML.react(
           ["h2",
@@ -862,8 +510,8 @@ var tiles = {
         var isJoined = joins && joins.length;
 
         var items = [
-          [0, "text", "filter", "filterField", id],
-          (hasTag(id, "grouped") ? [1, "text", "ungroup", "ungroupField", id] : [1, "text", "group", "groupField", id])
+          [0, "input", "filter", "filterField", id],
+          (index.hasTag(id, "grouped") ? [1, "text", "ungroup", "ungroupField", id] : [1, "text", "group", "groupField", id])
         ];
         if(isJoined) {
           items.push([items.length, "text", "unjoin", "unjoinField", id]);
@@ -883,7 +531,7 @@ var tiles = {
         unpack [id] = this.props.field;
         var name = this.state.edit || indexer.index("displayName")[id];
         var className = "header";
-        if(hasTag(id, "grouped")) {
+        if(index.hasTag(id, "grouped")) {
           className += " grouped";
         }
         return JSML.react(["div", this.wrapEditable({
@@ -916,7 +564,7 @@ var tiles = {
         var table = this.props.table;
 
         //if this is a constant view, then we just modify the row
-        if(hasTag(table, "constant")) {
+        if(index.hasTag(table, "constant")) {
           var oldRow = this.props.row;
           var newRow = oldRow.slice();
           var edits = this.state.edits;
@@ -972,7 +620,7 @@ var tiles = {
       }
     }),
     contextMenu: function(e) {
-      var isInput = hasTag(this.props.table, "input");
+      var isInput = index.hasTag(this.props.table, "input");
       if(!isInput) {
         e.preventDefault();
         dispatch(["contextMenu", {e: {clientX: e.clientX, clientY: e.clientY},
@@ -985,10 +633,10 @@ var tiles = {
       var self = this;
       var table = this.props.table;
       var viewFields = indexer.index("viewToFields")[table] || [];
-      sortByIx(viewFields, 2);
+      index.sortByIx(viewFields, 2);
       var hidden = [];
       var headers = viewFields.map(function(cur, ix) {
-        hidden[ix] = hasTag(cur[0], "hidden");
+        hidden[ix] = index.hasTag(cur[0], "hidden");
         if(!hidden[ix]) {
           return self.header({field: cur});
         }
@@ -1017,15 +665,15 @@ var tiles = {
         return rows;
       }
 
-      var index;
+      var rowIndex;
       if(indexer.hasIndex(table + "|rows")) {
-        index = indexer.index(table + "|rows");
+        rowIndex = indexer.index(table + "|rows");
       } else {
-        index = indexer.facts(table) || [];
+        rowIndex = indexer.facts(table) || [];
       }
-      var rows = indexToRows(index, hidden);
-      var isConstant = hasTag(table, "constant");
-      var isInput = hasTag(table, "input");
+      var rows = indexToRows(rowIndex, hidden);
+      var isConstant = index.hasTag(table, "constant");
+      var isInput = index.hasTag(table, "input");
       var className = (isConstant || isInput) ? "input-card" : "view-card";
       var content =  [self.title({id: table}),
                       (this.props.active ? ["pre", viewToDSL(table)] : null),
@@ -1267,6 +915,7 @@ var ReactSearcher = reactFactory({
     return JSML.react(["div", {"className": cx({"searcher": true,
                                                 "active": this.state.active})},
                        ["input", {"type": "text",
+                                  className: "full-input",
                                   "placeholder": this.props.placeholder || "Search",
                                   "value": this.state.value,
                                   "onFocus": this.focus,
@@ -1304,24 +953,16 @@ ContextMenuItems = {
     }
   }),
   input: reactFactory({
-    click: function(e) {
-      e.stopPropagation();
-    },
-    keyDown: function(e) {
-      if(e.keyCode === KEYCODES.ENTER) {
-        this.commit(e.currentTarget.value);
-        dispatch(["clearContextMenu"]);
-      }
-    },
-    blur: function(e) {
-      this.commit(e.currentTarget.value);
-    },
-    commit: function(value) {
-      dispatch([this.props.event, {id: this.props.id, value: value}]);
+   mixins: [editableInputMixin],
+    commit: function() {
+      console.log("committing", this.state.edit);
+      dispatch([this.props.event, {id: this.props.id, text: this.state.edit}]);
+      return true;
     },
     render: function() {
-      return JSML.react(["div", {className: "menu-item", onClick: this.click},
-                         ["input", {type: "text", placeholder: this.props.text, onBlur: this.blur, onKeyDown: this.keyDown}]]);
+      return JSML.react(["div", {className: "menu-item"},
+                         ["input", this.wrapEditable({className: "full-input", type: "text", placeholder: this.props.text})]
+                        ]);
     }
   }),
   viewSearcher: reactFactory({
@@ -1376,16 +1017,16 @@ function maxRowId(view) {
 
 function sortView(view) {
   var oldFields = indexer.index("viewToFields")[view].slice();
-  var fields = cloneArray(oldFields);
+  var fields = helpers.cloneArray(oldFields);
   var oldFacts = indexer.facts(view).slice();
-  var facts = cloneArray(oldFacts);
+  var facts = helpers.cloneArray(oldFacts);
 
   // Splits fields into grouped and ungrouped.
   var groups = [];
   var rest = [];
-  sortByIx(fields, 2);
+  index.sortByIx(fields, 2);
   foreach(field of fields) {
-    if(hasTag(field[0], "grouped")) {
+    if(index.hasTag(field[0], "grouped")) {
       groups.push(field);
     } else {
       rest.push(field);
@@ -1416,6 +1057,68 @@ function sortView(view) {
     indexer.addIndex(view, view + "|rows",
                      indexers.makeCollector.apply(null, helpers.pluck(groups, 2)));
   }
+}
+
+function _clearFilter(field) {
+  var diff = {
+    constantConstraint: {adds: [], removes: []},
+    field: {adds: [], removes: []},
+    functionConstraint: {adds: [], removes: []},
+    functionConstraintInput: {adds: [], removes: []},
+    tag: {adds: [], removes: []}
+  };
+  var view = indexer.index("fieldToView")[field];
+  var viewFields = indexer.index("viewToFields")[view];
+  var queries = indexer.index("viewToQuery")[view];
+  if(!queries || !queries.length) {
+    throw new Error("cannot filter malformed view: '" + view + "' containing field: '" + field + "'.");
+  }
+  var query = queries[0][0]; // @FIXME: Handle multiple queries.
+
+  // Remove conflicting function constraints / computed fields.
+  var functionConstraints = indexer.index("queryToFunctionConstraint")[query];
+  console.log("queries", queries, "query", query, "fnCons", functionConstraints);
+  foreach(constraintFact of functionConstraints) {
+    unpack [constraint, __, filterField, code] = constraintFact;
+    console.log("Checking constraint", constraint, indexer.index("idToTags")[constraint]);
+    if(index.hasTag(constraint, "filter") && index.hasTag(constraint, field)) {
+      var inputs = indexer.index("functionConstraintToInput")[constraint];
+      diff.functionConstraint.removes.push(constraintFact);
+      pushAll(diff.functionConstraintInput.removes, inputs);
+      diff.tag.removes.push([constraint, "filter"],
+                            [constraint, field],
+                            [filterField, "filter"],
+                            [filterField, "hidden"]);
+      console.log(filterField);
+      foreach(fieldFact of viewFields) {
+        console.log(" - ", fieldFact);
+        if(fieldFact[0] === filterField) {
+          diff.field.removes.push(fieldFact);
+          break;
+        }
+      }
+    }
+  }
+
+  // Remove conflicting constant constraints.
+  var constantConstraints = indexer.index("queryToConstantConstraint")[query];
+  foreach(constraintFact of constantConstraints) {
+    unpack [__, filterField, value] = constraintFact;
+    if(field === filterField) {
+      diff.constantConstraint.removes.push(constraintFact);
+      break;
+    }
+  }
+  foreach(constraintFact of constantConstraints) {
+    foreach(fieldFact of diff.field.removes) {
+      if(fieldFact[0] === filterField) {
+        diff.constantConstraint.removes.push(constraintFact);
+        break;
+      }
+    }
+  }
+  console.log("clearFilter", diff);
+  return diff;
 }
 
 function dispatch(eventInfo) {
@@ -1468,7 +1171,7 @@ function dispatch(eventInfo) {
       var id = info.id;
       var tileId = global.uuid();
       if(!info.pos) {
-        info.pos = grid.firstGap(tileGrid, getTileFootprints(), defaultSize);
+        info.pos = grid.firstGap(tileGrid, index.getTileFootprints(), defaultSize);
         if(!info.pos) {
           console.warn("Grid is full, aborting.");
           break;
@@ -1530,12 +1233,11 @@ function dispatch(eventInfo) {
       indexer.handleDiffs(diff);
       break;
 
-
     case "openView":
       unpack [tableId, name] = info.selected;
       var diff = {"workspaceView": {adds: [[tableId]], removes: []}};
       indexer.handleDiffs(diff);
-      if(hasTag(tableId, "constant")) {
+      if(index.hasTag(tableId, "constant")) {
         indexer.forward(tableId);
       }
       var activePosition = indexer.first("activePosition");
@@ -1547,7 +1249,6 @@ function dispatch(eventInfo) {
       }
       dispatch(["clearContextMenu"]);
       break;
-
 
     case "addTableToView":
       unpack [tableId, tableName] = info.selected;
@@ -1615,7 +1316,7 @@ function dispatch(eventInfo) {
     case "addField":
       var diff = {};
       var id = global.uuid();
-      var isConstant = hasTag(info.view, "constant");
+      var isConstant = index.hasTag(info.view, "constant");
       var fields = indexer.index("viewToFields")[info.view] || [];
 
       //if this is a constant view, patch up the facts that already
@@ -1642,7 +1343,6 @@ function dispatch(eventInfo) {
       diff.field = {adds: [[id, info.view, fields.length]], removes: []};
       diff.displayName = {adds: [[id, info.name]], removes: []};
       indexer.handleDiffs(diff);
-
       break;
 
     case "groupField":
@@ -1710,7 +1410,57 @@ function dispatch(eventInfo) {
           }
         }
       }
+      indexer.handleDiffs(diff);
+      break;
 
+    case "filterField":
+      console.log("filterField", info);
+      var diff = _clearFilter(info.id);
+      if(!info.text) {
+        indexer.handleDiffs(diff);
+        return;
+      }
+      var view = indexer.index("fieldToView")[info.id];
+      var viewFields = indexer.index("viewToFields")[view];
+      var queries = indexer.index("viewToQuery")[view];
+      if(!queries || !queries.length) {
+        throw new Error("cannot filter malformed view: '" + view + "' containing field: '" + info.id + "'.");
+      }
+      var query = queries[0][0]; // @FIXME: Handle multiple queries.
+
+      if(info.text[0] === "=") {
+        // This is a function filter.
+        var code = info.text.substring(1);
+        var id = global.uuid();
+        var filterField = global.uuid();
+        var displayNames = indexer.index("displayName");
+        var namedFields = viewFields.map(function(cur) {
+          return [cur[0], displayNames[cur[0]]];
+        });
+        var inputs = [];
+        foreach(named of namedFields) {
+          unpack [fieldId, name] = named;
+          if(code.indexOf(name) > -1) {
+            inputs.push([id, fieldId, name]);
+          }
+        }
+
+        diff.field.adds.push([filterField, view, viewFields.length]);
+        diff.constantConstraint.adds.push([query, filterField, true]);
+        diff.tag.adds.push([id, "filter"],
+                           [id, info.id],
+                           [filterField, "filter"]
+                           //[filterField, "hidden"]
+                          );
+        diff.functionConstraint.adds.push([id, query, filterField, code]);
+        pushAll(diff.functionConstraintInput.adds, inputs);
+
+      } else {
+        // This is a constant filter.
+        diff.constantConstraint.adds.push([query, info.id, info.text]);
+      }
+
+      console.log(diff);
       indexer.handleDiffs(diff);
       break;
 
@@ -1794,7 +1544,7 @@ function dispatch(eventInfo) {
             diff.aggregateConstraintAggregateInput = {adds: [], removes: []};
           }
           var groups = viewFields.filter(function(cur) {
-            return hasTag(cur[0], "grouped");
+            return index.hasTag(cur[0], "grouped");
           }).map(function(cur) {
             return [id, cur[0], cur[0]];
           });
@@ -2201,7 +1951,7 @@ function viewToDSL(view) {
   var filters = [];
   foreach(func of functionConstraints) {
     unpack [id, query, field, code] = func;
-    if(!hasTag(id, "filter")) {
+    if(!index.hasTag(id, "filter")) {
       final += displayNames[field] + " = " + code.trim() + "\n";
     } else {
       filters.push(code.trim());
@@ -2255,7 +2005,11 @@ function init(program) {
   React.unmountComponentAtNode(document.body);
   program.system.update(ideTables(), []);
   program.system.recompile();
-  window.indexer = indexer = new Indexer(program);
+  window.indexer = indexer = new index.Indexer(program, {
+    diffsHandled: function(diffs) {
+      dispatch(["diffsHandled", diffs]);
+    }
+  });
   indexer.addIndex("displayName", "displayName", indexers.makeLookup(0, 1));
   indexer.addIndex("field", "viewToFields", indexers.makeCollector(1));
   indexer.addIndex("field", "fieldToView", indexers.makeLookup(0, 1));
@@ -2297,13 +2051,7 @@ function init(program) {
 
 module.exports.init = init;
 
-
 function handleProgramDiffs(diffs) {
   indexer.handleDiffs(diffs, true);
 }
 module.exports.handleProgramDiffs = handleProgramDiffs;
-
-
-
-// Debug
-global.indexers = indexers;
