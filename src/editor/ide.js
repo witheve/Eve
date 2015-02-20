@@ -1630,10 +1630,9 @@ function dispatch(eventInfo) {
       var prev;
       if(prevEvents) {
         prev = prevEvents[type];
-        if(prev) {
-          diff.uiEditorElementEvent.removes.push(prev);
-          oldViews = elementEventToViews(prev);
-          console.log("Old views", oldViews);
+        if(prev && prev[0]) {
+          diff.uiEditorElementEvent.removes.push(prev[0]);
+          oldViews = elementEventToViews(prev[0]);
         }
       }
       var neueViews = elementEventToViews(eventFact);
@@ -1641,6 +1640,8 @@ function dispatch(eventInfo) {
         diff[table] = {adds: values, removes: oldViews[table] || []};
       }
       indexer.handleDiffs(diff);
+      var eventViewId = elementId + "|uiEvent|" + type;
+      dispatch(["openView", {selected: [eventViewId]}]);
       break;
 
     case "liveUIMode":
@@ -1726,23 +1727,23 @@ function elementEventToViews(event) {
   results.viewConstraintBinding.push([uiEventViewConstraintId, "uiEvent|field=key", uiEventFeederId + "|key"]);
 
   //filtered view of Events for this event
-//   var filterViewId = id + "|uiEvent|" + type;
-//   results.view.push([filterViewId]);
-//   results.displayName.push([filterViewId, label + " events"]);
-//   results.field.push([filterViewId + "|id", filterViewId, 0],
-//                      [filterViewId + "|label", filterViewId, 1],
-//                      [filterViewId + "|key", filterViewId, 2]);
-//   results.displayName.push([filterViewId + "|id", "id"]);
-//   results.displayName.push([filterViewId + "|label", "label"]);
-//   results.displayName.push([filterViewId + "|key", "key"]);
-//   var filterViewQueryId = filterViewId + "|query";
-//   results.query.push([filterViewQueryId, filterViewId, 0]);
-//   var eventsViewConstraintId = filterViewQueryId + "|viewConstraint";
-//   results.viewConstraint.push([eventsViewConstraintId, filterViewQueryId, "event", false]);
-//   results.viewConstraintBinding.push([eventsViewConstraintId, "event|field=eid", filterViewId + "|id"]);
-//   results.viewConstraintBinding.push([eventsViewConstraintId, "event|field=label", filterViewId + "|label"]);
-//   results.viewConstraintBinding.push([eventsViewConstraintId, "event|field=key", filterViewId + "|key"]);
-//   results.constantConstraint.push([filterViewQueryId, filterViewId + "|label", label]);
+  var filterViewId = id + "|uiEvent|" + type;
+  results.view.push([filterViewId]);
+  results.displayName.push([filterViewId, label + " events"]);
+  results.field.push([filterViewId + "|id", filterViewId, 0],
+                     [filterViewId + "|label", filterViewId, 1],
+                     [filterViewId + "|key", filterViewId, 2]);
+  results.displayName.push([filterViewId + "|id", "id"]);
+  results.displayName.push([filterViewId + "|label", "label"]);
+  results.displayName.push([filterViewId + "|key", "key"]);
+  var filterViewQueryId = filterViewId + "|query";
+  results.query.push([filterViewQueryId, filterViewId, 0]);
+  var eventsViewConstraintId = filterViewQueryId + "|viewConstraint";
+  results.viewConstraint.push([eventsViewConstraintId, filterViewQueryId, "event", false]);
+  results.viewConstraintBinding.push([eventsViewConstraintId, "event|field=eid", filterViewId + "|id"]);
+  results.viewConstraintBinding.push([eventsViewConstraintId, "event|field=label", filterViewId + "|label"]);
+  results.viewConstraintBinding.push([eventsViewConstraintId, "event|field=key", filterViewId + "|key"]);
+  results.constantConstraint.push([filterViewQueryId, filterViewId + "|label", label]);
   return results;
 }
 
