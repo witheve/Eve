@@ -81,3 +81,28 @@ function cloneShallow(obj) {
   return obj;
 }
 module.exports.cloneShallow = cloneShallow;
+
+// Merge objects [`src`...] into `dest` destructively, overwriting unmergeable properties.
+function merge(dest) {
+  var srcs = [].slice.call(arguments, 1);
+  if(!srcs.length) { return dest; }
+  foreach(src of srcs) {
+    forattr(key, val of src) {
+      if(dest[key] !== undefined && typeof dest[key] === typeof val) {
+        if(val instanceof Array) {
+          dest[key].push.apply(dest[key], cloneArray(val));
+          continue;
+        } else if(typeof val === "object") {
+          dest[key] = merge(dest[key], val);
+          continue;
+        }
+      }
+
+      // Fallback case overwrites.
+      dest[key] = val;
+    }
+  }
+
+  return dest;
+}
+module.exports.merge = merge;
