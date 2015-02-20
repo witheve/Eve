@@ -1950,7 +1950,7 @@ module.exports.dispatch = dispatch;
 //---------------------------------------------------------
 
 function elementEventToViews(event) {
-  var results = {view: [], field: [], query: [], viewConstraint: [], viewConstraintBinding: [], constantConstraint: []};
+  var results = {view: [], field: [], query: [], viewConstraint: [], viewConstraintBinding: [], constantConstraint: [], displayName: []};
   unpack [id, type, label, key] = event;
   //uiEvent view
   var uiEventFeederId = id + "|uiEventFeeder";
@@ -1975,12 +1975,30 @@ function elementEventToViews(event) {
   results.viewConstraintBinding.push([uiEventViewConstraintId, "uiEvent|field=event", uiEventFeederId + "|event"]);
   results.viewConstraintBinding.push([uiEventViewConstraintId, "uiEvent|field=key", uiEventFeederId + "|key"]);
 
+  //filtered view of Events for this event
+//   var filterViewId = id + "|uiEvent|" + type;
+//   results.view.push([filterViewId]);
+//   results.displayName.push([filterViewId, label + " events"]);
+//   results.field.push([filterViewId + "|id", filterViewId, 0],
+//                      [filterViewId + "|label", filterViewId, 1],
+//                      [filterViewId + "|key", filterViewId, 2]);
+//   results.displayName.push([filterViewId + "|id", "id"]);
+//   results.displayName.push([filterViewId + "|label", "label"]);
+//   results.displayName.push([filterViewId + "|key", "key"]);
+//   var filterViewQueryId = filterViewId + "|query";
+//   results.query.push([filterViewQueryId, filterViewId, 0]);
+//   var eventsViewConstraintId = filterViewQueryId + "|viewConstraint";
+//   results.viewConstraint.push([eventsViewConstraintId, filterViewQueryId, "event", false]);
+//   results.viewConstraintBinding.push([eventsViewConstraintId, "event|field=eid", filterViewId + "|id"]);
+//   results.viewConstraintBinding.push([eventsViewConstraintId, "event|field=label", filterViewId + "|label"]);
+//   results.viewConstraintBinding.push([eventsViewConstraintId, "event|field=key", filterViewId + "|key"]);
+//   results.constantConstraint.push([filterViewQueryId, filterViewId + "|label", label]);
   return results;
 }
 
 function elementToViews(element) {
   var typeToDOM = {"box": "div", "button": "button", "text": "span", "input": "input"};
-  var results = {view: [], field: [], query: [], viewConstraint: [], viewConstraintBinding: [], constantConstraint: []};
+  var results = {view: [], field: [], query: [], viewConstraint: [], viewConstraintBinding: [], constantConstraint: [], displayName: []};
   unpack [id, type, x, y, width, height] = element;
   //uiElem view
   var uiElemFeederId = id + "|uiElemFeeder";
