@@ -893,7 +893,7 @@ var searchMethod = {
     var name;
     foreach(view of indexer.facts("view")) {
       unpack [id] = view;
-      name = names[id];
+      name = names[id].toString();
       if(name && name.toLowerCase().indexOf(needle.toLowerCase()) > -1) {
         results.push([id, name]);
       }
