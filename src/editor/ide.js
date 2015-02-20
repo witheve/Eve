@@ -16,7 +16,7 @@ var indexers = index.indexers;
 
 var ide = module.exports;
 var indexer;
-var defaultSize = [12,3];
+var defaultSize = [6,3];
 var aggregateFuncs = ["sum", "count", "avg"];
 var KEYCODES = {
   UP: 38,
@@ -26,9 +26,6 @@ var KEYCODES = {
   ENTER: 13,
   ESCAPE: 27
 };
-
-
-
 
 //---------------------------------------------------------
 // React helpers
@@ -108,7 +105,7 @@ var editableFieldMixin = {
   keyDown: function(e) {
     //handle pressing enter
     if(e.keyCode === KEYCODES.ENTER) {
-      this.blur();
+      this.getDOMNode().blur();
       e.preventDefault();
     }
   },
@@ -845,7 +842,7 @@ var ReactSearcher = reactFactory({
     if(!search) throw new Error("No search function defined for type: '" + this.props.type + "'.");
     return {active: false, index: undefined,
             current: "", value: "",
-            max: this.props.max || 5,
+            max: this.props.max || 10,
             possible: search('', this.props.searchOpts),
             search: search};
   },
@@ -955,7 +952,6 @@ ContextMenuItems = {
   input: reactFactory({
    mixins: [editableInputMixin],
     commit: function() {
-      console.log("committing", this.state.edit);
       dispatch([this.props.event, {id: this.props.id, text: this.state.edit}]);
       return true;
     },
@@ -1060,64 +1056,24 @@ function sortView(view) {
 }
 
 function _clearFilter(field) {
-  var diff = {
-    constantConstraint: {adds: [], removes: []},
-    field: {adds: [], removes: []},
-    functionConstraint: {adds: [], removes: []},
-    functionConstraintInput: {adds: [], removes: []},
-    tag: {adds: [], removes: []}
-  };
+  var diff = {};
   var view = indexer.index("fieldToView")[field];
-  var viewFields = indexer.index("viewToFields")[view];
   var queries = indexer.index("viewToQuery")[view];
-  if(!queries || !queries.length) {
-    throw new Error("cannot filter malformed view: '" + view + "' containing field: '" + field + "'.");
+  var functionConstraints = [];
+  foreach(queryFact of queries) {
+    functionConstraints.push.apply(functionConstraints, indexer.index("queryToFunctionConstraint")[queryFact[0]]);
   }
-  var query = queries[0][0]; // @FIXME: Handle multiple queries.
-
-  // Remove conflicting function constraints / computed fields.
-  var functionConstraints = indexer.index("queryToFunctionConstraint")[query];
-  console.log("queries", queries, "query", query, "fnCons", functionConstraints);
-  foreach(constraintFact of functionConstraints) {
-    unpack [constraint, __, filterField, code] = constraintFact;
-    console.log("Checking constraint", constraint, indexer.index("idToTags")[constraint]);
-    if(index.hasTag(constraint, "filter") && index.hasTag(constraint, field)) {
-      var inputs = indexer.index("functionConstraintToInput")[constraint];
-      diff.functionConstraint.removes.push(constraintFact);
-      pushAll(diff.functionConstraintInput.removes, inputs);
-      diff.tag.removes.push([constraint, "filter"],
-                            [constraint, field],
-                            [filterField, "filter"],
-                            [filterField, "hidden"]);
-      console.log(filterField);
-      foreach(fieldFact of viewFields) {
-        console.log(" - ", fieldFact);
-        if(fieldFact[0] === filterField) {
-          diff.field.removes.push(fieldFact);
-          break;
-        }
-      }
-    }
+  foreach(constraint of functionConstraints) {
+    if(!index.hasTag(constraint[0], "filter") || !index.hasTag(constraint[0], field)) { continue; }
+    var field = constraint[2];
+    var fieldFact = indexer.index("field")[field];
+    helpers.merge(diff, index.diff.remove("field", fieldFact));
+  }
+  var constantConstraints = indexer.index("fieldToConstantConstraint")[field];
+  foreach(constraint of constantConstraints) {
+    helpers.merge(diff, index.diff.remove("constantConstraint", constraint));
   }
 
-  // Remove conflicting constant constraints.
-  var constantConstraints = indexer.index("queryToConstantConstraint")[query];
-  foreach(constraintFact of constantConstraints) {
-    unpack [__, filterField, value] = constraintFact;
-    if(field === filterField) {
-      diff.constantConstraint.removes.push(constraintFact);
-      break;
-    }
-  }
-  foreach(constraintFact of constantConstraints) {
-    foreach(fieldFact of diff.field.removes) {
-      if(fieldFact[0] === filterField) {
-        diff.constantConstraint.removes.push(constraintFact);
-        break;
-      }
-    }
-  }
-  console.log("clearFilter", diff);
   return diff;
 }
 
@@ -1414,54 +1370,55 @@ function dispatch(eventInfo) {
       break;
 
     case "filterField":
-      console.log("filterField", info);
-      var diff = _clearFilter(info.id);
-      if(!info.text) {
-        indexer.handleDiffs(diff);
-        return;
-      }
-      var view = indexer.index("fieldToView")[info.id];
-      var viewFields = indexer.index("viewToFields")[view];
-      var queries = indexer.index("viewToQuery")[view];
-      if(!queries || !queries.length) {
-        throw new Error("cannot filter malformed view: '" + view + "' containing field: '" + info.id + "'.");
-      }
-      var query = queries[0][0]; // @FIXME: Handle multiple queries.
+      indexer.handleDiffs(_clearFilter(info.id));
 
-      if(info.text[0] === "=") {
-        // This is a function filter.
-        var code = info.text.substring(1);
-        var id = global.uuid();
-        var filterField = global.uuid();
-        var displayNames = indexer.index("displayName");
-        var namedFields = viewFields.map(function(cur) {
-          return [cur[0], displayNames[cur[0]]];
-        });
-        var inputs = [];
-        foreach(named of namedFields) {
-          unpack [fieldId, name] = named;
-          if(code.indexOf(name) > -1) {
-            inputs.push([id, fieldId, name]);
+      // @FIXME: hack because we don't currently have a callback for when the worker has responded.
+      setTimeout(function() {
+        var diff = {};
+        if(!info.text) { return; }
+        var view = indexer.index("fieldToView")[info.id];
+        var viewFields = indexer.index("viewToFields")[view];
+        var queries = indexer.index("viewToQuery")[view];
+        if(!queries || !queries.length) {
+          throw new Error("cannot filter malformed view: '" + view + "' containing field: '" + info.id + "'.");
+        }
+        var query = queries[0][0]; // @FIXME: Handle multiple queries.
+
+
+        if(info.text[0] === "=") {
+          // This is a function filter.
+          var code = info.text.substring(1);
+          var id = global.uuid();
+          var filterField = global.uuid();
+          var displayNames = indexer.index("displayName");
+          var namedFields = viewFields.map(function(cur) {
+            return [cur[0], displayNames[cur[0]]];
+          });
+          var inputs = [];
+          foreach(named of namedFields) {
+            unpack [fieldId, name] = named;
+            if(code.indexOf(name) > -1) {
+              inputs.push([id, fieldId, name]);
+            }
           }
+
+          diff.field = {adds: [[filterField, view, viewFields.length]], removes: []};
+          diff.constantConstraint = {adds: [[query, filterField, true]], removes: []};
+          diff.tag = {adds: [[id, "filter"],
+                             [id, info.id],
+                             [filterField, "filter"]
+                             //[filterField, "hidden"]
+                            ], removes: []};
+          diff.functionConstraint = {adds: [[id, query, filterField, code]], removes: []};
+          diff.functionConstraintInput = {adds: inputs, removes: []};
+
+        } else {
+          // This is a constant filter.
+          diff.constantConstraint = {adds: [[query, info.id, parseValue(info.text)]], removes: []};
         }
 
-        diff.field.adds.push([filterField, view, viewFields.length]);
-        diff.constantConstraint.adds.push([query, filterField, true]);
-        diff.tag.adds.push([id, "filter"],
-                           [id, info.id],
-                           [filterField, "filter"]
-                           //[filterField, "hidden"]
-                          );
-        diff.functionConstraint.adds.push([id, query, filterField, code]);
-        pushAll(diff.functionConstraintInput.adds, inputs);
-
-      } else {
-        // This is a constant filter.
-        diff.constantConstraint.adds.push([query, info.id, info.text]);
-      }
-
-      console.log(diff);
-      indexer.handleDiffs(diff);
+        indexer.handleDiffs(diff);
+      }, 100);
       break;
 
     case "updateCalculated":
@@ -1995,6 +1952,7 @@ function init(program) {
   indexer.addIndex("displayName", "displayName", indexers.makeLookup(0, 1));
   indexer.addIndex("field", "viewToFields", indexers.makeCollector(1));
   indexer.addIndex("field", "fieldToView", indexers.makeLookup(0, 1));
+  indexer.addIndex("field", "field", indexers.makeLookup(0, false));
   indexer.addIndex("tag", "idToTags", indexers.makeCollector(0));
   indexer.addIndex("editId", "editRowToId", indexers.makeLookup2D(0, 1, 2));
   indexer.addIndex("editId", "editViewToIds", indexers.makeCollector(0));
@@ -2008,8 +1966,10 @@ function init(program) {
   indexer.addIndex("aggregateConstraintBinding", "aggregateConstraintToBinding", indexers.makeCollector(0));
   indexer.addIndex("aggregateConstraintAggregateInput", "aggregateConstraintToInput", indexers.makeCollector(0));
   indexer.addIndex("functionConstraint", "queryToFunctionConstraint", indexers.makeCollector(1));
+  indexer.addIndex("functionConstraint", "fieldToFunctionConstraint", indexers.makeCollector(2));
   indexer.addIndex("functionConstraintInput", "functionConstraintToInput", indexers.makeCollector(0));
   indexer.addIndex("constantConstraint", "queryToConstantConstraint", indexers.makeCollector(0));
+  indexer.addIndex("constantConstraint", "fieldToConstantConstraint", indexers.makeCollector(1));
   indexer.addIndex("tableTile", "tileToTable", indexers.makeLookup(0, 1));
   indexer.addIndex("tableTile", "tableTile", indexers.makeLookup(0, false));
   indexer.addIndex("gridTile", "gridTile", indexers.makeLookup(0, false));
