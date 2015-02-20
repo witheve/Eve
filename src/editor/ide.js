@@ -699,7 +699,7 @@ var tiles = {
           forattr(value, group of index) {
             var groupRow = ["div", {className: "grid-group"}];
             groupRow.push.apply(groupRow, indexToRows(group, newHidden, startIx + 1));
-            rows.push(["div", {className: "grid-row"},
+            rows.push(["div", {className: "grid-row grouped-row"},
                        ["div", {className: "grouped-field"}, value],
                        groupRow]);
           }
@@ -1515,8 +1515,8 @@ function dispatch(eventInfo) {
         diff.constantConstraint = {adds: [[query, filterField, true]], removes: []};
         diff.tag = {adds: [[id, "filter"],
                            [id, info.id],
-                           [filterField, "filter"]
-                           //[filterField, "hidden"]
+                           [filterField, "filter"],
+                           [filterField, "hidden"]
                           ], removes: []};
         diff.functionConstraint = {adds: [[id, query, filterField, code]], removes: []};
         diff.functionConstraintInput = {adds: inputs, removes: []};

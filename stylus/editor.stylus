@@ -230,13 +230,12 @@ body {
 
 
 .grid {
-  $border-color = rgba(0,0,0,0.16);
+  $border-color = rgba(0,0,0,0.08);
   $border-color-inverted = rgba(255, 255, 255, 0.32);
   border:1px solid $border-color;
   border-radius:2px;
   overflow: auto;
   min-height:40px;
-  background: rgba(0,0,0,0.03);
   flex-shrink:0;
   display:flex;
   flex-direction:column;
@@ -249,7 +248,7 @@ body {
     display:flex;
     flex: none;
     border-bottom:1px solid $border-color;
-    background:rgba(0,0,0,0.1);
+    background:rgba(0,0,0,0.05);
     div {
       flex:none;
       overflow:hidden;
@@ -314,8 +313,9 @@ body {
       padding: 0;
     }
   }
-  .grid-row {
+  .grouped-row {
     border-bottom:1px solid $border-color;
+    margin-bottom: -1px;
   }
   .grid-row.add-row {
     height: 1.5em;
