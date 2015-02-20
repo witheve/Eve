@@ -1370,55 +1370,52 @@ function dispatch(eventInfo) {
       break;
 
     case "filterField":
-      indexer.handleDiffs(_clearFilter(info.id));
+      var clearDiff = _clearFilter(info.id);
+      var diff = {};
+      if(!info.text) { return; }
+      var view = indexer.index("fieldToView")[info.id];
+      var viewFields = indexer.index("viewToFields")[view];
+      var queries = indexer.index("viewToQuery")[view];
+      if(!queries || !queries.length) {
+        throw new Error("cannot filter malformed view: '" + view + "' containing field: '" + info.id + "'.");
+      }
+      var query = queries[0][0]; // @FIXME: Handle multiple queries.
 
-      // @FIXME: hack because we don't currently have a callback for when the worker has responded.
-      setTimeout(function() {
-        var diff = {};
-        if(!info.text) { return; }
-        var view = indexer.index("fieldToView")[info.id];
-        var viewFields = indexer.index("viewToFields")[view];
-        var queries = indexer.index("viewToQuery")[view];
-        if(!queries || !queries.length) {
-          throw new Error("cannot filter malformed view: '" + view + "' containing field: '" + info.id + "'.");
-        }
-        var query = queries[0][0]; // @FIXME: Handle multiple queries.
-
-
-        if(info.text[0] === "=") {
-          // This is a function filter.
-          var code = info.text.substring(1);
-          var id = global.uuid();
-          var filterField = global.uuid();
-          var displayNames = indexer.index("displayName");
-          var namedFields = viewFields.map(function(cur) {
-            return [cur[0], displayNames[cur[0]]];
-          });
-          var inputs = [];
-          foreach(named of namedFields) {
-            unpack [fieldId, name] = named;
-            if(code.indexOf(name) > -1) {
-              inputs.push([id, fieldId, name]);
-            }
+      if(info.text[0] === "=") {
+        // This is a function filter.
+        var code = info.text.substring(1);
+        var id = global.uuid();
+        var filterField = global.uuid();
+        var displayNames = indexer.index("displayName");
+        var namedFields = viewFields.map(function(cur) {
+          return [cur[0], displayNames[cur[0]]];
+        });
+        var inputs = [];
+        foreach(named of namedFields) {
+          unpack [fieldId, name] = named;
+          if(code.indexOf(name) > -1) {
+            inputs.push([id, fieldId, name]);
           }
-
-          diff.field = {adds: [[filterField, view, viewFields.length]], removes: []};
-          diff.constantConstraint = {adds: [[query, filterField, true]], removes: []};
-          diff.tag = {adds: [[id, "filter"],
-                             [id, info.id],
-                             [filterField, "filter"]
-                             //[filterField, "hidden"]
-                            ], removes: []};
-          diff.functionConstraint = {adds: [[id, query, filterField, code]], removes: []};
-          diff.functionConstraintInput = {adds: inputs, removes: []};
-
-        } else {
-          // This is a constant filter.
-          diff.constantConstraint = {adds: [[query, info.id, parseValue(info.text)]], removes: []};
         }
 
-        indexer.handleDiffs(diff);
-      }, 100);
+        var filterIx = viewFields.length - (clearDiff.field ? clearDiff.field.removes.length : 0);
+        diff.field = {adds: [[filterField, view, filterIx]], removes: []};
+        diff.constantConstraint = {adds: [[query, filterField, true]], removes: []};
+        diff.tag = {adds: [[id, "filter"],
+                           [id, info.id],
+                           [filterField, "filter"]
+                           //[filterField, "hidden"]
+                          ], removes: []};
+        diff.functionConstraint = {adds: [[id, query, filterField, code]], removes: []};
+        diff.functionConstraintInput = {adds: inputs, removes: []};
+
+      } else {
+        // This is a constant filter.
+        diff.constantConstraint = {adds: [[query, info.id, parseValue(info.text)]], removes: []};
+      }
+
+      helpers.merge(diff, clearDiff);
+      indexer.handleDiffs(diff);
       break;
 
     case "updateCalculated":
