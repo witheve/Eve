@@ -5,8 +5,6 @@ var helpers = require("./helpers");
 // Indexer
 //---------------------------------------------------------
 
-
-
 function Indexer(program, handlers) {
   this.worker = program.worker
   this.system = program.system;
@@ -371,3 +369,89 @@ function sortByIx(facts, ix) {
   });
 };
 module.exports.sortByIx = sortByIx;
+
+//---------------------------------------------------------
+// Diff helpers
+//---------------------------------------------------------
+var _dependencies = {
+  view: {
+    field: [0, 1],
+    query: [0, 1],
+    tag: [0, 0]
+  },
+  field: {
+    aggregateConstraint: [0, 2],
+    constantConstraint: [0, 1],
+    displayName: [0, 0],
+    functionConstraint: [0, 2],
+    tag: [0, 0],
+    viewConstraint: [0, 2]
+  },
+  query: {
+    aggregateConstraint: [0, 1],
+    constantConstraint: [0, 0],
+    functionConstraint: [0, 1],
+    tag: [0, 0],
+    viewConstraint: [0, 1]
+  },
+  aggregateConstraint: {
+    aggregateConstraintAggregateInput: [0, 0],
+    aggregateConstraintBinding: [0, 0],
+    aggregateConstraintSolverInput: [0, 0],
+    tag: [0, 0]
+  },
+  functionConstraint: {
+    functionConstraintInput: [0, 0],
+    tag: [0, 0]
+  },
+  viewConstraint: {
+    viewConstraintBinding: [0, 0],
+    tag: [0, 0]
+  }
+};
+
+function _collect(view, ix, val) {
+  var facts = indexer.facts(view);
+  var matches = [];
+  if(!facts) { return matches; }
+
+  foreach(fact of facts) {
+    if(fact[ix] === val) {
+      matches.push(fact);
+    }
+  }
+  return matches;
+}
+
+var diff = {
+// Remove fact from view, including all known dependencies.
+  remove: function remove(view, fact) {
+    return diff.removeAll(view, [fact]);
+  },
+  removeAll: function removeAll(view, facts, indent) {
+    indent = indent || 0;
+    var diff = {};
+    if(!facts) { return diff; }
+    foreach(fact of facts) {
+      if(!fact) { continue; }
+      if(!diff[view]) {
+        diff[view] = {adds: [], removes: []};
+      }
+      diff[view].removes.push(fact);
+      var deps = _dependencies[view];
+      // console.log(new Array(indent + 1).join("> "), "Removing '" + view + "':", fact, "---");
+      // console.log(new Array(indent + 2).join("  "), "X", view, diff[view]);
+      if(!deps) { continue; }
+
+      forattr(dep, keys of deps) {
+        unpack [fromIx, toIx] = keys;
+        // @FIXME: Slow fallback until we figure out how to integrate indexes.
+        var depFacts = _collect(dep, toIx, fact[fromIx]);
+        // console.log(new Array(indent + 2).join("  "), view, "<--", dep, "@", keys, ":", depFacts);
+        helpers.merge(diff, removeAll(dep, depFacts, indent + 1));
+      }
+    }
+    return diff;
+  }
+}
+module.exports.diff = diff;
