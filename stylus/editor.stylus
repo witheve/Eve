@@ -19,7 +19,7 @@ $fonts = "Avenir", "Verdana", "Helvetica", "Arial", sans-serif;
 * { box-sizing:border-box; }
 
 body {
-  background: #ececec;
+  background: #302029;
   font-family: "Avenir", "Verdana", "Helvetica", "Arial", sans-serif;
   color: $defaultTextColor;
   height: 100vh;
@@ -164,6 +164,16 @@ body {
     cursor: default;
     font-size: 14pt;
     color: rgba(0,0,0,0.56);
+    margin-bottom:8px;
+    margin-top:5px;
+  }
+
+  pre {
+    margin: 10px;
+    margin-bottom: 25px;
+    font-size: 10pt;
+    color: #259;
+    line-height:1.25em;
   }
 
   .grid {
@@ -172,9 +182,6 @@ body {
   }
 
   &.input-card {
-    background: linear-gradient(top, rgba(247, 247, 247, 0.75), rgba(247, 247, 247, 0.75)), url("../input.jpg");
-    background-size: cover;
-    background-position: center;
   }
 
   &.add-tile {
@@ -233,7 +240,6 @@ body {
 .grid {
   $border-color = rgba(0,0,0,0.08);
   $border-color-inverted = rgba(255, 255, 255, 0.32);
-  border:1px solid $border-color;
   border-radius:2px;
   overflow: auto;
   min-height:40px;
@@ -248,16 +254,16 @@ body {
   .grid-header {
     display:flex;
     flex: none;
-    border-bottom:1px solid $border-color;
     background:rgba(0,0,0,0.05);
+    margin-bottom: 8px;
+    border-radius:2px;
+    font-weight: 500;
+    color: #555;
     div {
       flex:none;
       overflow:hidden;
-      padding:5px;
-      width:130px;
-    }
-    div + div {
-      border-left:1px solid $border-color;
+      padding:5px 15px;
+      width:200px;
     }
 
     .sort-btn {
@@ -288,6 +294,18 @@ body {
   }
   .header.add-header {
     height: 1.5em;
+    width: 50px;
+    transition: width 0.2s ease-in-out;
+    &.selected {
+      width: 200px;
+      background: rgba(0,0,0,0.08);
+      &::before {
+        content: "";
+      }
+    }
+    &::before {
+      content: "+";
+    }
   }
 
   .grid-row {
@@ -295,14 +313,14 @@ body {
 
     & > div {
       flex:none;
-      padding:5px;
-      width:130px;
+      padding:5px 15px;
+      width:200px;
       overflow:hidden;
-    }
-    & > div + div {
-      border-left:1px solid $border-color;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     & > div.selected {
+      text-overflow: clip;
       z-index: 1;
       background: rgba(255, 255, 255, 0.75);
       outline: 1px solid orange;

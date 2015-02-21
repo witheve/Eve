@@ -103,7 +103,7 @@ var headerMixin = {
   },
   doubleClick: function(e) {
     e.stopPropagation();
-    this.click();
+    this.click(e);
   },
   wrapHeader: function(attrs, content) {
     attrs.draggable = true;
@@ -394,8 +394,8 @@ var Root = React.createFactory(React.createClass({
     return [rowEdge, colEdge];
   },
   expand: function() {
-    return {size: [tileGrid.cols - 2, tileGrid.rows],
-            pos: [0, 1]};
+    return {size: [tileGrid.cols - 0, tileGrid.rows],
+            pos: [0, 0]};
   },
   render: function() {
     var activeTile;
@@ -893,7 +893,7 @@ var searchMethod = {
     var name;
     foreach(view of indexer.facts("view")) {
       unpack [id] = view;
-      name = names[id].toString();
+      name = names[id] ? names[id].toString() : false;
       if(name && name.toLowerCase().indexOf(needle.toLowerCase()) > -1) {
         results.push([id, name]);
       }
@@ -2060,12 +2060,12 @@ function viewToDSL(view) {
 
   foreach(vc of viewConstraints) {
     unpack [id, _, sourceView] = vc;
-    final += "<- " + displayNames[sourceView] + "\n";
+    final += "with " + displayNames[sourceView] + "\n";
   }
 
   foreach(agg of aggregateConstraints) {
     unpack [id, query, field, sourceView, code] = agg;
-    final += "<= " + displayNames[sourceView] + "\n";
+    final += "with { " + displayNames[sourceView] + " }\n";
   }
 
   var constantFields = {};
