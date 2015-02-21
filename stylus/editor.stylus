@@ -19,7 +19,7 @@ $fonts = "Avenir", "Verdana", "Helvetica", "Arial", sans-serif;
 * { box-sizing:border-box; }
 
 body {
-  background: #302029;
+  background: #505059;
   font-family: "Avenir", "Verdana", "Helvetica", "Arial", sans-serif;
   color: $defaultTextColor;
   height: 100vh;
