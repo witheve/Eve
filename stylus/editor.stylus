@@ -51,24 +51,46 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  background: rgba(0,0,0,0);
+  background: rgba(0,0,0,0.3);
   z-index: 100;
 }
 
 .menu {
   position:absolute;
-  box-shadow: 0 0 8px #999;
-  background: #f7f7f7;
   min-width:80px;
   border-radius: 2px;
-  overflow: hidden;
+  display:flex;
+  align-items: flex-start;
+  flex-direction:column;
 }
 
 .menu-item {
-  padding:5px 10px;
+  box-shadow: 0 2px 4px #555;
+  background: #eee;
+  border-radius: 2px;
+  margin-bottom:5px;
+  padding:10px 10px;
   cursor: default;
+  transition:box-shadow 0.2s ease-in-out;
   &:hover {
-    background: #e0e0e0;
+/*     box-shadow: 0 4px 15px #555; */
+    background: #cdf;
+    input {
+      color: #333;
+      &::-webkit-input-placeholder {
+        color: #78a;
+      }
+    }
+    .searcher.active ul li {
+      border-color: #9ac;
+      &:hover, &.focused {
+        background: rgba(0,0,0,0.1);
+      }
+    }
+  }
+  input {
+    background:none;
+    border:none;
   }
 }
 
@@ -120,16 +142,13 @@ body {
   }
 
   &.active {
-    border:1px solid #ddd;
-    background:#f7f7f7;
     input {
       border:none;
-      background: #f7f7f7;
     }
     ul {
       display:block;
       li:first-child {
-        border-top:1px solid #ddd;
+        border-top:1px solid #ccc;
         padding-top:8px;
       }
       li {
@@ -185,7 +204,7 @@ body {
   }
 
   &.add-tile {
-    border: 3px dashed alpha($bg-color, 0);
+    border: 0px dashed alpha($bg-color, 0);
     background: alpha($bg-color, 0);
     color: alpha($bg-color, 0);
     transition: 0.3s ease-in-out;
@@ -204,15 +223,10 @@ body {
     height: 100%;
     vertical-align: middle;
   }
-  &.add-tile:hover {
-    border: 3px dashed lightness($bg-color, 98%);
-    background: alpha($bg-color, 0.5);
-    color: rgba(0, 0, 0, 0.56);
-  }
-  &.add-tile:active {
-    background: $bg-color;
-    transition: 0.1s ease-out;
-    color: rgba(0, 0, 0, 0.56);
+  &.add-tile:hover, &.selected {
+    border: 0px dashed alpha($bg-color, 0.5);
+    background: alpha($bg-color, 0.2);
+    color: rgba(255, 255, 255, 0.36);
   }
 
   & > .tile-controls {
@@ -228,7 +242,7 @@ body {
     & > .tile-control:active { opacity: 1; }
 
     & > .tile-control.close-btn {
-      background: #FF6644;
+      background: #aaa;
       border-width: 0px; border-radius: 0;
       color: white;
     }

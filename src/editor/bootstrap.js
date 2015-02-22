@@ -131,4 +131,4 @@ if(window["io"]) {
 //---------------------------------------------------------
 
 module.exports.taskManager = taskManager;
-taskManager.run("Incrementer");
+taskManager.run("My Stack");
