@@ -128,6 +128,7 @@ var editableFieldMixin = {
   keyDown: function(e) {
     //handle pressing enter
     if(e.keyCode === KEYCODES.ENTER) {
+      this.state.force = true;
       e.currentTarget.blur();
       e.preventDefault();
     }
@@ -137,7 +138,8 @@ var editableFieldMixin = {
   },
   blur: function() {
     this.setState({editing: false});
-    var commitSuccessful = this.commit();
+    var commitSuccessful = this.commit(this.state.force);
+    this.state.force = false;
     if(commitSuccessful) {
       this.setState({edit: ""});
     }
@@ -230,9 +232,11 @@ var uiEditorElementMixin = {
     dispatch(["uiEditorElementMove", {neue: [id, type, this.state.x, this.state.y, this.state.width, this.state.height],
                                       old: this.props.elem}]);
   },
-  click: function(e) {
+  setActive: function(e) {
     dispatch(["setActiveUIEditorElement", this.props.elem[0]]);
+    e.stopPropagation();
   },
+  stopPropagation: function(e) { e.stopPropagation(); },
   contextMenu: function(e) {
     e.preventDefault();
     e.stopPropagation();
@@ -247,7 +251,7 @@ var uiEditorElementMixin = {
   },
   render: function() {
     var state = this.state;
-    return JSML.react(["div", {key: this.props.elem[0], onContextMenu: this.contextMenu, onClick: this.click, onDragOver: this.dragOver, onDrop: this.drop},
+    return JSML.react(["div", {key: this.props.elem[0], onContextMenu: this.contextMenu, onClick: this.setActive, onDoubleClick: this.stopPropagation, onDragOver: this.dragOver, onDrop: this.drop},
                        this.isActive() ? Resizer({x: state.x, y: state.y, width: state.width, height: state.height, resize: this.resize, resizeEnd: this.moved}) : null,
                        this.element()
                       ]);
@@ -797,14 +801,14 @@ var tiles = {
           if(isBinding) {
             text = "Bound to " + indexer.index("displayName")[field];
           } else {
-            text = table;
+            text = field;
           }
         }
         return ["span", opts, text];
       }
     }),
     button: reactFactory({
-      mixins: [uiEditorElementMixin],
+      mixins: [uiEditorElementMixin, editableFieldMixin],
       dropMenu: function(table, field) {
         return [
           [0, "text", "text", "bindUIElementText", "text"]
@@ -814,21 +818,25 @@ var tiles = {
         return [
           [0, "text", "Live view", "liveUIMode", this.props.tile],
           [1, "input", "Button name", "bindUIElementName", this.props.elem[0]],
-          [1, "text", "Get clicks", "setUIElementEvent", "click"]
+          [2, "input", "Text", "setUIElementText", this.props.elem[0]],
+          [3, "text", "Get clicks", "setUIElementEvent", "click"]
         ];
       },
+      commit: function() {
+        dispatch(["setUIElementText", this.state.edit]);
+      },
       element: function() {
-        var opts = this.wrapStyle(this.wrapDragEvents({}));
         var attrs = indexer.index("uiElementToElementAttr")[this.props.elem[0]];
-        var text = "button";
+        var text = "";
         if(attrs && attrs["text"]) {
           unpack [_, attr, field, isBinding] = attrs["text"][0];
           if(isBinding) {
             text = "Bound to " + indexer.index("displayName")[field];
           } else {
-            text = table;
+            text = field;
           }
         }
+        var opts = this.wrapStyle(this.wrapDragEvents({className: "uiElement-button"}));
         return ["button", opts, text];
       }
     }),
@@ -1057,8 +1065,8 @@ ContextMenuItems = {
   }),
   input: reactFactory({
     mixins: [editableInputMixin],
-    commit: function() {
-      dispatch([this.props.event, {id: this.props.id, text: this.state.edit}]);
+    commit: function(force) {
+      dispatch([this.props.event, {id: this.props.id, text: this.state.edit, force: force}]);
       return true;
     },
     render: function() {
@@ -1739,28 +1747,45 @@ function dispatch(eventInfo) {
     case "bindUIElementName":
       var elementId = info.id;
       var name = info.text;
+      var force = info.force;
       if(!name) return;
       var eventFact = [elementId, "name", name, false];
       var diff = {
         uiEditorElementAttr: {adds: [eventFact], removes: []}
       };
       var prevEvents = indexer.index("uiElementToElementEvent")[elementId];
-      var oldViews = {};
-      var prev;
+      var oldViews;
+      var neueViews;
+      //@TODO for now this will only affect events, but once we allow repetition
+      //changing the name will affect every view created for this element.
       if(prevEvents) {
-        prev = prevEvents[type];
-        if(prev && prev[0]) {
-          diff.uiEditorElementAttr.removes.push(prev[0]);
-//           oldViews = elementEventToViews(prev[0]);
+        forattr(type, events of prevEvents) {
+          if(events && events[0]) {
+            diff.uiEditorElementAttr.removes.push(events[0]);
+            oldViews = elementEventToViews(events[0], oldViews);
+            var updated = events[0].slice();
+            updated[3] = name;
+            diff.uiEditorElementAttr.adds.push(updated);
+            neueViews = elementEventToViews(updated, neueViews);
+          }
         }
+      } else {
+        neueViews = {};
+        oldViews = {};
       }
-//       var neueViews = elementEventToViews(eventFact);
-//       forattr(table, values of neueViews) {
-//         diff[table] = {adds: values, removes: oldViews[table] || []};
-//       }
-      //@TODO changing the name of a uiElement effects *everything* generated for that element.
+
+      //remove the old name
+      var prevName = indexer.index("uiElementToElementAttr")[elementId];
+      if(prevName && prevName["name"] && prevName["name"][0]) {
+        diff.uiEditorElementAttr.removes.push(prevName["name"][0]);
+      }
+      forattr(table, values of neueViews) {
+        diff[table] = {adds: values, removes: oldViews[table] || []};
+      }
       indexer.handleDiffs(diff);
-      dispatch(["clearContextMenu"]);
+      if(force) {
+        dispatch(["clearContextMenu"]);
+      }
       break;
 
     case "setUIElementEvent":
@@ -1768,6 +1793,11 @@ function dispatch(eventInfo) {
       if(!type) return;
       var elementId = indexer.first("activeUIEditorElement")[0];
       var name = elementId;
+      var attrs = indexer.index("uiElementToElementAttr")[elementId];
+      if(attrs && attrs["name"] && attrs["name"][0]) {
+        name = attrs["name"][0][2];
+      }
+      console.log("Have name: ", name);
       var eventFact = [elementId, type, type, name];
       var diff = {
         uiEditorElementEvent: {adds: [eventFact], removes: []}
@@ -1849,6 +1879,30 @@ function dispatch(eventInfo) {
       indexer.handleDiffs(diff);
       break;
 
+    case "setUIElementText":
+      var text = info.text;
+      var elementId = indexer.first("activeUIEditorElement")[0];
+      var eventFact = [elementId, "text", text, false];
+      var diff = {
+        uiEditorElementAttr: {adds: [eventFact], removes: []}
+      };
+      var prevEvents = indexer.index("uiElementToElementAttr")[elementId];
+      var oldViews = {};
+      var prev;
+      if(prevEvents) {
+        prev = prevEvents[attr];
+        if(prev && prev[0]) {
+          diff.uiEditorElementAttr.removes.push(prev[0]);
+          oldViews = elementTextToViews(prev[0]);
+        }
+      }
+      var neueViews = elementTextToViews(eventFact);
+      forattr(table, values of neueViews) {
+        diff[table] = {adds: values, removes: oldViews[table] || []};
+      }
+      indexer.handleDiffs(diff);
+      break;
+
     case "liveUIMode":
     case "designerUIMode":
       var tile = info;
@@ -1905,8 +1959,8 @@ module.exports.dispatch = dispatch;
 // UI Helpers
 //---------------------------------------------------------
 
-function elementEventToViews(event) {
-  var results = {view: [], field: [], query: [], viewConstraint: [], viewConstraintBinding: [], constantConstraint: [], displayName: []};
+function elementEventToViews(event, results) {
+  var results = results || {view: [], field: [], query: [], viewConstraint: [], viewConstraintBinding: [], constantConstraint: [], displayName: []};
   unpack [id, type, label, key] = event;
   //uiEvent view
   var uiEventFeederId = id + "|uiEventFeeder";
@@ -1934,7 +1988,12 @@ function elementEventToViews(event) {
   //filtered view of Events for this event
   var filterViewId = id + "|uiEvent|" + type;
   results.view.push([filterViewId]);
-  results.displayName.push([filterViewId, label + " events"]);
+  //if we haven't given this element a name, don't make a crazy view name
+  if(id === key) {
+    results.displayName.push([filterViewId, label + "events"]);
+  } else {
+    results.displayName.push([filterViewId, key + " " + label + "s"]);
+  }
   results.field.push([filterViewId + "|id", filterViewId, 0],
                      [filterViewId + "|label", filterViewId, 2],
                      [filterViewId + "|key", filterViewId, 1]);
@@ -1949,7 +2008,7 @@ function elementEventToViews(event) {
   results.viewConstraintBinding.push([eventsViewConstraintId, filterViewId + "|label", "event|field=label"]);
   results.viewConstraintBinding.push([eventsViewConstraintId, filterViewId + "|key", "event|field=key"]);
   results.constantConstraint.push([filterViewQueryId, filterViewId + "|label", label]);
-  results.constantConstraint.push([filterViewQueryId, filterViewId + "|key", id]);
+  results.constantConstraint.push([filterViewQueryId, filterViewId + "|key", key]);
 
   if(type === "input") {
     results.field.push([filterViewId + "|value", filterViewId, 3]);

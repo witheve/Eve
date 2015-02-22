@@ -116,6 +116,10 @@ body {
   }
 }
 
+.uiElement-button {
+  appearance: button;
+}
+
 .resizer {
   z-index: 10;
   pointer-events: none;
@@ -336,8 +340,8 @@ body {
     & > div.selected {
       text-overflow: clip;
       z-index: 1;
-      background: rgba(255, 255, 255, 0.75);
-      outline: 1px solid orange;
+      background: #cdf;
+      border-radius:2px;
     }
 
     & > .grid-group {
