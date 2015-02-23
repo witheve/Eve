@@ -117,8 +117,28 @@ body {
   }
 }
 
-.uiElement-button {
-  appearance: button;
+.uiElement {
+  border:1px solid #9af;
+  outline: none;
+  background:#f0f0f0;
+  &::after {
+    position:absolute;
+    top: -20px;
+    left: 0;
+    color: #9af;
+  }
+  &.button::after {
+    content: "button";
+  }
+  &.text::after {
+    content: "text";
+  }
+  &.box::after {
+    content: "box";
+  }
+  &.input::after {
+    content: "input";
+  }
 }
 
 .resizer {
@@ -130,6 +150,10 @@ body {
     border:1px solid #bbb;
     pointer-events: auto;
   }
+  .ns-handle { cursor: ns-resize; }
+  .ew-handle { cursor: ew-resize; }
+  .nesw-handle { cursor: nesw-resize; }
+  .nwse-handle { cursor: nwse-resize; }
 }
 
 .full-input {

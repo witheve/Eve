@@ -125,6 +125,9 @@ var editableFieldMixin = {
     e.currentTarget.focus();
     e.stopPropagation();
   },
+  stop: function(e) {
+    e.stopPropagation();
+  },
   keyDown: function(e) {
     //handle pressing enter
     if(e.keyCode === KEYCODES.ENTER) {
@@ -148,6 +151,7 @@ var editableFieldMixin = {
     attrs.contentEditable = this.state.editing;
     attrs.className += (this.state.editing) ? " selected" : "";
     attrs.onClick = this.click;
+    attrs.onDoubleClick = this.stop;
     attrs.onKeyDown = this.keyDown;
     attrs.onInput = this.input;
     attrs.onBlur = this.blur;
@@ -275,7 +279,6 @@ var Resizer = reactFactory({
     var dx = opts["data-x"];
     var dy = opts["data-y"];
     unpack [handleWidth, handleHeight] = this.handleSize;
-    opts.className = "resize-handle";
 
     //init to left
     var x = handleWidth / -2;
@@ -292,6 +295,8 @@ var Resizer = reactFactory({
     } else if(dy === "middle") {
       y = (handleHeight / -2) + (this.state.height / 2);
     }
+
+    opts.className += " resize-handle";
     opts.style = {width: handleWidth, height: handleHeight, top: y - 1, left: x - 1};
     return opts;
   },
@@ -369,14 +374,14 @@ var Resizer = reactFactory({
   },
   render: function() {
     return JSML.react(["div", this.wrapStyle({className: "resizer"}),
-                       ["div", this.wrapHandle({"data-x": "left", "data-y": "top"})],
-                       ["div", this.wrapHandle({"data-x": "center", "data-y": "top"})],
-                       ["div", this.wrapHandle({"data-x": "right", "data-y": "top"})],
-                       ["div", this.wrapHandle({"data-x": "right", "data-y": "middle"})],
-                       ["div", this.wrapHandle({"data-x": "right", "data-y": "bottom"})],
-                       ["div", this.wrapHandle({"data-x": "center", "data-y": "bottom"})],
-                       ["div", this.wrapHandle({"data-x": "left", "data-y": "bottom"})],
-                       ["div", this.wrapHandle({"data-x": "left", "data-y": "middle"})]
+                       ["div", this.wrapHandle({"data-x": "left", "data-y": "top", className: "nwse-handle"})],
+                       ["div", this.wrapHandle({"data-x": "center", "data-y": "top", className: "ns-handle"})],
+                       ["div", this.wrapHandle({"data-x": "right", "data-y": "top", className: "nesw-handle"})],
+                       ["div", this.wrapHandle({"data-x": "right", "data-y": "middle", className: "ew-handle"})],
+                       ["div", this.wrapHandle({"data-x": "right", "data-y": "bottom", className: "nwse-handle"})],
+                       ["div", this.wrapHandle({"data-x": "center", "data-y": "bottom", className: "ns-handle"})],
+                       ["div", this.wrapHandle({"data-x": "left", "data-y": "bottom", className: "nesw-handle"})],
+                       ["div", this.wrapHandle({"data-x": "left", "data-y": "middle", className: "ew-handle"})]
                       ])
   }
 });
@@ -776,8 +781,8 @@ var tiles = {
     box: reactFactory({
       mixins: [uiEditorElementMixin],
       element: function() {
-        var opts = this.wrapStyle(this.wrapDragEvents({}));
-        return ["div", opts, "box"];
+        var opts = this.wrapStyle(this.wrapDragEvents({className: "uiElement box"}));
+        return ["div", opts];
       }
     }),
     text: reactFactory({
@@ -793,9 +798,9 @@ var tiles = {
         ];
       },
       element: function() {
-        var opts = this.wrapStyle(this.wrapDragEvents({}));
+        var opts = this.wrapStyle(this.wrapDragEvents({className: "text uiElement"}));
         var attrs = indexer.index("uiElementToElementAttr")[this.props.elem[0]];
-        var text = "text";
+        var text = "";
         if(attrs && attrs["text"]) {
           unpack [_, attr, field, isBinding] = attrs["text"][0];
           if(isBinding) {
@@ -836,7 +841,7 @@ var tiles = {
             text = field;
           }
         }
-        var opts = this.wrapStyle(this.wrapDragEvents({className: "uiElement-button"}));
+        var opts = this.wrapStyle(this.wrapDragEvents({className: "uiElement button"}));
         return ["button", opts, text];
       }
     }),
@@ -849,8 +854,8 @@ var tiles = {
         ];
       },
       element: function() {
-        var opts = this.wrapStyle(this.wrapDragEvents({placeholder: "input"}));
-        return ["div", opts, "input"];
+        var opts = this.wrapStyle(this.wrapDragEvents({placeholder: "input", className: "uiElement input"}));
+        return ["div", opts];
       }
     }),
     contextMenu: function(e) {
