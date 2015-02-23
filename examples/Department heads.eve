@@ -4,9 +4,13 @@
 
 * employee
   ~ name department salary
-  + "jamie" "engineering" 75000
-  + "chris" "engineering" 75000
-  + "rob" "operations" 75000
+  + "jamie" "engineering" 7000
+  + "chris" "engineering" 2000
+  + "rob" "operations" 5000
+  + "josh" "engineering" 9000
+  + "corey" "engineering" 6000
+  + "ron" "magic" 1000
+  + "hermione" "magic" 9000
 
 * heads
   ~ name department
