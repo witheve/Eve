@@ -99,6 +99,19 @@ body {
   -webkit-user-select:none;
   position:relative;
   overflow:auto;
+  .switcher {
+    position:absolute;
+    top: 10px;
+    left: 10px;
+    color: #999;
+    span {
+      cursor: default;
+      margin-right: 5px;
+    }
+    .active {
+      color: #9af;
+    }
+  }
   .uiCard {
     overflow:auto;
   }
