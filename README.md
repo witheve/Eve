@@ -1,3 +1,7 @@
+#HERE BE DRAGONS.
+
+Everything in here is likely to be rewritten, potentially wrong, and not to be relied on in any way. Consider these experiments until you see otherwise.
+
 ## Eve
 
 Eve is programming designed for humans.
