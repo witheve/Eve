@@ -13,7 +13,7 @@ npm install
 npm run dev
 ```
 
-For more checkout the [overview](https://github.com/Kodowa/Eve/tree/master/doc/overview.md).
+For more checkout the [overview](doc/overview.md).
 
 ### Other versions
 
