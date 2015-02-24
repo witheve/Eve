@@ -13,6 +13,8 @@ npm install
 npm run dev
 ```
 
+For more checkout the [overview](https://github.com/Kodowa/Eve/tree/master/doc/overview.md).
+
 ### License
 
 Eve is Licensed under the [Apache License](http://www.apache.org/licenses/LICENSE-2.0).

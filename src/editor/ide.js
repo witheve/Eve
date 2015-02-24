@@ -4,7 +4,6 @@ var React = require("react/addons");
 var bootstrap = require("./bootstrap");
 var JSML = require("./jsml");
 var helpers = require("./helpers");
-var Card = require("./card");
 var grid = require("./grid");
 var incrementalUI = require("./incrementalUI");
 var index = require("./indexer");
