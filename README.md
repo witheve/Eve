@@ -15,6 +15,10 @@ npm run dev
 
 For more checkout the [overview](https://github.com/Kodowa/Eve/tree/master/doc/overview.md).
 
+### Other versions
+
+If you want to play with the older version that has the text-based editor (and the syntax that goes with it), checkout the syntax branch.
+
 ### License
 
 Eve is Licensed under the [Apache License](http://www.apache.org/licenses/LICENSE-2.0).
