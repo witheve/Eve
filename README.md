@@ -17,7 +17,7 @@ For more checkout the [overview](doc/overview.md).
 
 ### Other versions
 
-If you want to play with the older version that has the text-based editor (and the syntax that goes with it), checkout the syntax branch.
+If you want to play with the older version that has the text-based editor (and the syntax that goes with it), checkout the [syntax branch](../syntax).
 
 ### License
 
