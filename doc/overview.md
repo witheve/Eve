@@ -13,19 +13,14 @@ Then open http://localhost:3000 in a browser.
 
 * **System** - The structure that holds all the views in the database and is resonsible for turning code into a plan for execution.
 * **Memory** - The structure that holds the values of a view in the database. These are copy-on-write.
-
 * **View** - A table in the database that may either be constant or built from queries.
 * **Field** - A column in a view
 * **Query** - A view can be populated by a query (a set of relational algebra operations) or even multiple queries (this is how recursion works). Queries are what "code" in Eve is attached to.
-
 * **ConstantConstraint** - Ensures that the value of a column is the given constant. This is how you would create a column with a constant value, as well as create a filter for a column that is populated by something else.
-
 * **ViewConstraint** - You can think of this as a "FROM" in SQL. It defines that a query is going to pull from some other view.
 * **ViewConstraintBinding** - These define the fields of the ViewConstraint that you want to pull into this view and what local fields should be populated with their values.
-
 * **FunctionConstraint** - Defines a fuction that will be computed and which field that value should be placed in.
 * **FunctionConstraintInput** - Defines the fields that should be passed to the given function and what their names should be.
-
 * **AggregateConstraint** - Defines a function that will aggregate over the given view and what field the result should be placed in.
 * **AggregatConstraintBinding** - Allows you to bind local fields to fields in the table that is being aggregated over. This is how groups work.
 * **AggregateConstraintSolverInput** - Allows you to reference local fields in the aggregate function
