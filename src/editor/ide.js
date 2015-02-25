@@ -262,6 +262,7 @@ var uiEditorElementMixin = {
 };
 
 var Resizer = reactFactory({
+  displayName: "Resizer",
   handleSize: [8,8],
   minSize: [10,10],
   componentWillReceiveProps: function(neue) {
@@ -391,6 +392,7 @@ var Resizer = reactFactory({
 var gridSize = [6, 2];
 
 var Root = React.createFactory(React.createClass({
+  displayName: "Root",
   adjustPosition: function(activeTile, cur) {
     unpack [tile, type, width, height, row, col] = cur;
     unpack [atile, atype, awidth, aheight, activeRow, activeCol] = activeTile;
@@ -474,6 +476,7 @@ var tileGrid;
 
 var tiles = {
   wrapper: reactFactory({
+    displayName: "tiles-wrapper",
     doubleClick: function() {
       var active = indexer.first("activeTile");
       if(!active || active[0] !== this.props.tile) {
@@ -512,6 +515,7 @@ var tiles = {
     }
   }),
   addTile: reactFactory({
+    displayName: "tiles-addTile",
     click: function(e) {
       e.preventDefault();
       e.stopPropagation();
@@ -531,7 +535,9 @@ var tiles = {
     }
   }),
   table: reactFactory({
+    displayName: "tiles-table",
     title: reactFactory({
+      displayName: "tiles-title",
       mixins: [editableFieldMixin],
       commit: function() {
         if(!this.state.edit) { return; }
@@ -552,6 +558,7 @@ var tiles = {
       }
     }),
     header: reactFactory({
+      displayName: "tiles-header",
       mixins: [editableFieldMixin, headerMixin],
       contextMenu: function(e) {
         e.preventDefault();
@@ -595,6 +602,7 @@ var tiles = {
       }
     }),
     addHeader: reactFactory({
+      displayName: "tiles-addHeader",
       mixins: [editableFieldMixin],
       commit: function() {
         if(!this.state.edit) { return; }
@@ -612,6 +620,7 @@ var tiles = {
       }
     }),
     row: reactFactory({
+      displayName: "tiles-row",
       mixins: [editableRowMixin],
       commit: function(ix) {
         var table = this.props.table;
@@ -643,6 +652,7 @@ var tiles = {
       }
     }),
     adderRow: reactFactory({
+      displayName: "tiles-adderRow",
       mixins: [editableRowMixin],
       checkComplete: function() {
         for(var i = 0, len = this.props.len; i < len; i++) {
@@ -758,10 +768,12 @@ var tiles = {
     }
   }),
   ui: reactFactory({
+    displayName: "ui",
     //we create this container element because we need something that will
     //never update, otherwise the content that gets injected by the program
     //will get removed.
     container: reactFactory({
+      displayName: "ui-container",
       shouldComponentUpdate: function(props, state) {
         return false;
       },
@@ -778,6 +790,7 @@ var tiles = {
       }
     }),
     box: reactFactory({
+      displayName: "ui-box",
       mixins: [uiEditorElementMixin],
       element: function() {
         var opts = this.wrapStyle(this.wrapDragEvents({className: "uiElement box"}));
@@ -785,6 +798,7 @@ var tiles = {
       }
     }),
     text: reactFactory({
+      displayName: "ui-box",
       mixins: [uiEditorElementMixin],
       dropMenu: function(table, field) {
         return [
@@ -812,6 +826,7 @@ var tiles = {
       }
     }),
     button: reactFactory({
+      displayName: "ui-button",
       mixins: [uiEditorElementMixin, editableFieldMixin],
       dropMenu: function(table, field) {
         return [
@@ -845,6 +860,7 @@ var tiles = {
       }
     }),
     input: reactFactory({
+      displayName: "ui-input",
       mixins: [uiEditorElementMixin],
       contextMenuItems: function(e) {
         return [
@@ -907,6 +923,7 @@ var tiles = {
 };
 
 var ProgramLoader = reactFactory({
+  displayName: "ProgramLoader",
   getInitialState: function() {
     var programs = Object.keys(bootstrap.taskManager.list());
     var current = bootstrap.taskManager.current().name;
@@ -965,6 +982,7 @@ var searchMethod = {
 };
 
 var ReactSearcher = reactFactory({
+  displayName: "ReactSearcher",
   getInitialState: function() {
     var search = searchMethod[this.props.type];
     if(!search) throw new Error("No search function defined for type: '" + this.props.type + "'.");
@@ -1053,6 +1071,7 @@ var ReactSearcher = reactFactory({
 });
 
 var SearcherItem = reactFactory({
+  displayName: "SearcherItem",
   click: function() {
     this.props.select(this.props.ix);
   },
@@ -1070,6 +1089,7 @@ var SearcherItem = reactFactory({
 
 ContextMenuItems = {
   text: reactFactory({
+    displayName: "ContextMenuItems-text",
     click: function() {
       dispatch([this.props.event, this.props.id]);
     },
@@ -1078,6 +1098,7 @@ ContextMenuItems = {
     }
   }),
   input: reactFactory({
+    displayName: "ContextMenuItems-input",
     mixins: [editableInputMixin],
     commit: function(force) {
       dispatch([this.props.event, {id: this.props.id, text: this.state.edit, force: force}]);
@@ -1090,6 +1111,7 @@ ContextMenuItems = {
     }
   }),
   viewSearcher: reactFactory({
+    displayName: "ContextMenuItems-viewSearcher",
     click: function(e) {
       e.stopPropagation();
     },
@@ -1099,6 +1121,7 @@ ContextMenuItems = {
     }
   }),
   fieldSearcher: reactFactory({
+    displayName: "ContextMenuItems-fieldSearcher",
     click: function(e) {
       e.stopPropagation();
     },
@@ -1112,6 +1135,7 @@ ContextMenuItems = {
 };
 
 var ContextMenu = reactFactory({
+  displayName: "ContextMenu",
   clear: function() {
     dispatch(["clearContextMenu"]);
   },
