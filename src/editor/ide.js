@@ -1125,6 +1125,7 @@ var ContextMenu = reactFactory({
     var h = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
     var menusize = this.getDOMNode().children[0].getBoundingClientRect();
 
+    var transform = 1;
     var transformX = 1;
     var transformY = 1;
 
@@ -1156,8 +1157,9 @@ var ContextMenu = reactFactory({
       transformY = h / menusize.height;
     }
 
-    // FIXME: Scale linearly.
-    this.setState({transform: "scale("+transformX+","+transformY+")"});
+    // Scale size linearly in the event that it doesn't fit on the screen.
+    transform = Math.min(transformX, transformY);
+    this.setState({transform: "scale("+transform+","+transform+")"});
   },
   render: function() {
     var items = indexer.facts("contextMenuItem").map(function(cur) {
