@@ -56,6 +56,7 @@ body {
 }
 
 .menu {
+  transform-origin: 0 0;
   position:absolute;
   min-width:80px;
   border-radius: 2px;
@@ -65,11 +66,14 @@ body {
   flex-direction:column;
 }
 
+.menu-item + .menu-item {
+  margin-top: 5px;
+}
+
 .menu-item {
   box-shadow: 0 2px 4px #555;
   background: #eee;
   border-radius: 2px;
-  margin-bottom:5px;
   padding:10px 10px;
   cursor: default;
   transition:box-shadow 0.2s ease-in-out;
@@ -181,6 +185,10 @@ body {
   ul {
     font-size:11pt;
     display:none;
+  }
+
+  .full-input {
+    margin: -3px 0;
   }
 
   &.active {

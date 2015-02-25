@@ -1112,8 +1112,53 @@ ContextMenuItems = {
 };
 
 var ContextMenu = reactFactory({
+  getInitialState: function() {
+    return {x: 0, y: 0, transform: "scale(1,1)"};
+  },
   clear: function() {
     dispatch(["clearContextMenu"]);
+  },
+  componentDidMount: function() {
+    // Calculate if the contextMenu will extend beyond the screen size.
+    var w = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+    var h = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
+    var menusize = this.getDOMNode().children[0].getBoundingClientRect();
+
+    var transform = 1;
+    var transformX = 1;
+    var transformY = 1;
+
+    if (menusize.width + this.props.x < w) {
+      // fits to the right, no changes necessary.
+      this.setState({x: this.props.x });
+    } else if (this.props.x - menusize.width > 0) {
+      // fits to the left.
+      this.setState({x: this.props.x - menusize.width });
+    } else if (menusize.width < w) {
+      // fits on screen, but not exactly contextually. Switch to modal.
+      this.setState({x: ((w - menusize.width)/2) });
+    } else {
+      // doesn't fit on screen, scale.
+      transformX = w / menusize.width;
+    }
+
+    if (menusize.height + this.props.y < h) {
+      // fits below, no changes necessary.
+      this.setState({y: this.props.y });
+    } else if (this.props.y - menusize.height > 0) {
+      // fits above.
+      this.setState({y: this.props.y - menusize.height });
+    } else if (menusize.height < h) {
+      // fits on screen, but not exactly contextually. Switch to modal.
+      this.setState({y: ((h - menusize.height)/2) });
+    } else {
+      // doesn't fit on screen, scale.
+      transformY = h / menusize.height;
+    }
+
+    // Scale size linearly in the event that it doesn't fit on the screen.
+    transform = Math.min(transformX, transformY);
+    this.setState({transform: "scale("+transform+","+transform+")"});
   },
   render: function() {
     var items = indexer.facts("contextMenuItem").map(function(cur) {
@@ -1121,7 +1166,7 @@ var ContextMenu = reactFactory({
       return ContextMenuItems[type]({pos: pos, text: text, event: event, id: id});
     });
     return JSML.react(["div", {className: "menu-shade", onClick: this.clear},
-                       ["div", {className: "menu", style: {top: this.props.y, left: this.props.x}},
+                       ["div", {className: "menu", style: {top: this.state.y, left: this.state.x, transform: this.state.transform}},
                         items]]);
   }
 });
