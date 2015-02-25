@@ -183,6 +183,10 @@ body {
     display:none;
   }
 
+  .full-input {
+    margin: -3px 0;
+  }
+
   &.active {
     input {
       border:none;
