@@ -9,6 +9,18 @@ function reactFactory(obj) {
   return React.createFactory(React.createClass(obj));
 }
 
+function range(from, to) {
+  if(to === undefined) {
+    to = from;
+    from = 0;
+  }
+  var results = [];
+  for(var i = from; i < to; i++) {
+    results.push(i);
+  }
+  return results;
+}
+
 //---------------------------------------------------------
 // UI state
 //---------------------------------------------------------
@@ -22,7 +34,6 @@ var ixer = new Indexing.Indexer();
 
 var root = reactFactory({
   render: function() {
-//     return JSML(["p", "hey!"]);
     return table({table: "foo"});
   }
 });
@@ -124,13 +135,19 @@ var tableRow = reactFactory({
   },
   render: function() {
     var self = this;
-    var fields = [];
-    for(var i = 0, len = this.props.length; i < len; i++) {
-      var content = this.props.row[i];
-      fields.push(["td", editable({value: content, onSubmit: function(value) {
-        self.setColumn(i, value);
-      }})])
-    }
+    var fields = range(this.props.length).map(function(cur) {
+      var content = self.props.row[cur];
+      if(content === undefined) {
+        content = "";
+      }
+      if(self.props.editable) {
+        return ["td", editable({value: content, onSubmit: function(value) {
+          self.setColumn(cur, value);
+        }})];
+      } else {
+        return ["td", content];
+      }
+    });
     return JSML(["tr", fields]);
   }
 });
@@ -169,10 +186,10 @@ var table = reactFactory({
       });
     }
     var rowComponents = rows.map(function(cur, ix) {
-      return tableRow({table: self.props.table, row: cur, length: numColumns, key: JSON.stringify(cur) + ix});
+      return tableRow({table: self.props.table, row: cur, length: numColumns, key: JSON.stringify(cur) + ix, editable: true});
     });
     this.state.partialRows.forEach(function(cur) {
-      rowComponents.push(tableRow({table: self.props.table, row: [], length: numColumns, isNewRow: true, onRowAdded: self.rowAdded, onRowModified: self.addedRowModified, key: cur, id: cur}));
+      rowComponents.push(tableRow({table: self.props.table, row: [], length: numColumns, editable: true, isNewRow: true, onRowAdded: self.rowAdded, onRowModified: self.addedRowModified, key: cur, id: cur}));
     });
     return JSML(["div", {className: "tableWrapper"},
                  ["table",
