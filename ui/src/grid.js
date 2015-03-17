@@ -15,6 +15,7 @@ var Grid = (function(document, React, Velocity) {
   };
 
   return {
+    DEFAULT_SIZE: [6, 3],
     makeGrid: function makeGrid(params) { // (Any) -> Grid
       if(!params) { throw new Error(ERR.NO_PARAMS); }
       var bounds = params.bounds || params.container;
@@ -42,14 +43,15 @@ var Grid = (function(document, React, Velocity) {
           grid[key] = opts[key];
         }
       }
+      return grid;
     },
     getRect: function getRect(grid, pos, size) { // (Grid, Pos, Size) -> Rect
       if(!grid) { throw new Error(ERR.NO_GRID); }
       if(!pos) { throw new Error(ERR.NO_POS); }
       if(!size) { throw new Error(ERR.NO_SIZE); }
 
-      var gapWidth = grid.gutter * (grid.size[0] - 2);
-      var gapHeight = grid.gutter * (grid.size[1] - 2);
+      var gapWidth = grid.gutter * (grid.size[0] - 1);
+      var gapHeight = grid.gutter * (grid.size[1] - 1);
       var cellWidth = (grid.bounds.width - gapWidth) / grid.size[0];
       var cellHeight = (grid.bounds.height - gapHeight) / grid.size[1];
 

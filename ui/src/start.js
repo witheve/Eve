@@ -40,12 +40,61 @@ var ixer = new Indexing.Indexer();
 // Root component
 //---------------------------------------------------------
 
+var toolbar = reactFactory({
+  render: function() {
+    var content = ["div", {className: "toolbar"}];
+    content.push.apply(content, this.props.controls);
+    return JSML(content);
+  }
+});
+
 var root = reactFactory({
   displayName: "root",
+  getInitialState: function() {
+    return {editingGrid: false, bounds: this.getBounds()};
+  },
+  componentDidMount: function() {
+    window.addEventListener("resize", this.updateGrid);
+  },
+  componentWillUnmount: function() {
+    window.removeEventListener("resize", this.updateGrid);
+  },
+  updateGrid: function() {
+    // @FIXME: I need to be debounced.
+    this.setState({bounds: this.getBounds()});
+  },
+  getBounds: function() {
+    var bounds = extend({}, document.querySelector("body").getBoundingClientRect());
+    bounds.height -= 80;
+    bounds.width -= 40;
+    return bounds;
+  },
+  chooseProgram: function() {
+    console.warn("@TODO: Implement me.");
+  },
+  toggleEditGrid: function() {
+    this.setState({editingGrid: !this.state.editingGrid});
+  },
   render: function() {
-    return JSML(["div",
-                 ["canvas", {width: 1, height: 1, id: "clear-pixel"}],
-                 stage({parent: "body"})]);
+    return JSML(
+      ["div",
+       ["canvas", {width: 1, height: 1, id: "clear-pixel"}],
+       stage({bounds: this.state.bounds, editing: this.state.editingGrid}),
+       toolbar({
+         controls: [
+           ["button", {
+             title: "choose program",
+             className: "btn-choose-program ion-ios-albums-outline pull-right",
+             onClick: this.chooseProgram
+           }],
+           ["button", {
+             title: "edit grid",
+             className: "btn-edit-grid ion-grid pull-right",
+             onClick: this.toggleEditGrid
+           }]
+         ]
+       })]
+    );
   }
 });
 
@@ -88,7 +137,7 @@ var stage = reactFactory({
   displayName: "stage",
   getInitialState: function() {
     return {
-      grid: Grid.makeGrid({container: this.props.parent, gutter: 8}),
+      grid: Grid.makeGrid({bounds: this.props.bounds, gutter: 8}),
       tiles: [
         {pos: [0, 0], size: [3, 1], type: "debug"},
         {pos: [3, 0], size: [9, 1], type: "debug"},
@@ -100,6 +149,10 @@ var stage = reactFactory({
       ]
     };
   },
+  componentWillReceiveProps: function(nextProps) {
+    this.setState({grid: Grid.updateGrid(this.state.grid, {bounds: nextProps.bounds})});
+  },
+
   render: function() {
     var children = [];
     for(var tileIx = 0, tilesLength = this.state.tiles.length; tileIx < tilesLength; tileIx++) {
