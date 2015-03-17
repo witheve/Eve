@@ -8,13 +8,34 @@ body {
   background: gray;
 }
 
+.toolbar {
+  padding: 10px 20px;
+}
+.toolbar > button {
+  background: none;
+  border: none;
+  font-size: 2em;
+}
+.toolbar > button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: rgb(32, 64, 128);
+}
+.toolbar > button:active {
+  background: rgba(255, 255, 255, 0.5);
+  color: rgb(32, 144, 255);
+}
+
+.pull-right {
+  float: right;
+}
+
 /*****************************************************************************\
  * Grid
 \*****************************************************************************/
 
 .tile-grid {
   position: absolute;
-  top: 40px; right: 20px; bottom: 20px; left: 20px;
+  top: 60px; right: 20px; bottom: 20px; left: 20px;
 }
 
 .grid-tile {

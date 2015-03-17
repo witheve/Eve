@@ -40,13 +40,27 @@ var ixer = new Indexing.Indexer();
 // Root component
 //---------------------------------------------------------
 
+var toolbar = reactFactory({
+  render: function() {
+    return JSML(
+      ["div", {className: "toolbar"},
+       ["button", {className: "btn-choose-program ion-ios-albums-outline pull-right"}],
+       ["button", {className: "btn-edit-grid ion-grid pull-right"}]]
+    );
+  }
+});
+
 var root = reactFactory({
   displayName: "root",
   render: function() {
     var bounds = extend({}, document.querySelector("body").getBoundingClientRect());
-    bounds.height -= 60;
+    bounds.height -= 80;
     bounds.width -= 40;
-    return stage({bounds: bounds});
+    return JSML(
+      ["div",
+       stage({bounds: bounds}),
+       toolbar()]
+    );
   }
 });
 
