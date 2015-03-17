@@ -42,24 +42,57 @@ var ixer = new Indexing.Indexer();
 
 var toolbar = reactFactory({
   render: function() {
-    return JSML(
-      ["div", {className: "toolbar"},
-       ["button", {className: "btn-choose-program ion-ios-albums-outline pull-right"}],
-       ["button", {className: "btn-edit-grid ion-grid pull-right"}]]
-    );
+    var content = ["div", {className: "toolbar"}];
+    content.push.apply(content, this.props.controls);
+    return JSML(content);
   }
 });
 
 var root = reactFactory({
   displayName: "root",
-  render: function() {
+  getInitialState: function() {
+    return {editingGrid: false, bounds: this.getBounds()};
+  },
+  componentDidMount: function() {
+    window.addEventListener("resize", this.updateGrid);
+  },
+  componentWillUnmount: function() {
+    window.removeEventListener("resize", this.updateGrid);
+  },
+  updateGrid: function() {
+    // @FIXME: I need to be debounced.
+    this.setState({bounds: this.getBounds()});
+  },
+  getBounds: function() {
     var bounds = extend({}, document.querySelector("body").getBoundingClientRect());
     bounds.height -= 80;
     bounds.width -= 40;
+    return bounds;
+  },
+  chooseProgram: function() {
+    console.warn("@TODO: Implement me.");
+  },
+  toggleEditGrid: function() {
+    this.setState({editingGrid: !this.state.editingGrid});
+  },
+  render: function() {
     return JSML(
       ["div",
-       stage({bounds: bounds}),
-       toolbar()]
+       stage({bounds: this.state.bounds, editing: this.state.editingGrid}),
+       toolbar({
+         controls: [
+           ["button", {
+             title: "choose program",
+             className: "btn-choose-program ion-ios-albums-outline pull-right",
+             onClick: this.chooseProgram
+           }],
+           ["button", {
+             title: "edit grid",
+             className: "btn-edit-grid ion-grid pull-right",
+             onClick: this.toggleEditGrid
+           }]
+         ]
+       })]
     );
   }
 });
@@ -115,6 +148,10 @@ var stage = reactFactory({
       ]
     };
   },
+  componentWillReceiveProps: function(nextProps) {
+    this.setState({grid: Grid.updateGrid(this.state.grid, {bounds: nextProps.bounds})});
+  },
+
   render: function() {
     var children = [];
     for(var tileIx = 0, tilesLength = this.state.tiles.length; tileIx < tilesLength; tileIx++) {

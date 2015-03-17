@@ -43,6 +43,7 @@ var Grid = (function(document, React, Velocity) {
           grid[key] = opts[key];
         }
       }
+      return grid;
     },
     getRect: function getRect(grid, pos, size) { // (Grid, Pos, Size) -> Rect
       if(!grid) { throw new Error(ERR.NO_GRID); }
