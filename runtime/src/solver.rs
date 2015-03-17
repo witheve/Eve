@@ -33,20 +33,30 @@ pub struct Source {
 }
 
 impl Source {
-    fn constrained_to(&self, result: &Vec<Value>) -> Vec<Value> {
-        // convert internal representation to a vec of values
-        self.relation.iter().map(|tuple| Value::Tuple(tuple.clone())).collect()
+    fn constrained_to(&self, result: &Vec<Value>) -> &Relation {
+        // TODO apply constraints
+        &self.relation
     }
 }
 
-// #[derive(Clone, Debug)]
-// enum Clause {
-//     Tuple(Source),
-//     Relation(Source),
-// }
+#[derive(Clone, Debug)]
+pub enum Clause {
+    Tuple(Source),
+    Relation(Source),
+    // Function(...),
+}
+
+impl Clause {
+    fn constrained_to(&self, result: &Vec<Value>) -> Vec<Value> {
+        match self {
+            &Clause::Tuple(ref source) => source.constrained_to(result).iter().map(|tuple| Value::Tuple(tuple.clone())).collect(),
+            &Clause::Relation(ref source) => vec![Value::Relation(source.constrained_to(result).clone())]
+        }
+    }
+}
 
 pub struct Query {
-    pub sources: Vec<Source>,
+    pub clauses: Vec<Clause>,
 }
 
 // an iter over results of the query, where each result is either:
@@ -57,13 +67,13 @@ pub struct QueryIter<'a> {
     max_len: usize, // max length of a result
     now_len: usize, // ixes[0..now_len] and values[0..now_len] are all valid for the next result
     has_next: bool, // are there any more results to be found
-    ixes: Vec<usize>, // index of the value last returned by each source
-    values: Vec<Vec<Value>>, // the constrained relations representing each source
+    ixes: Vec<usize>, // index of the value last returned by each clause
+    values: Vec<Vec<Value>>, // the constrained relations representing each clause
 }
 
 impl Query {
     pub fn iter(&self) -> QueryIter {
-        let max_len = self.sources.len();
+        let max_len = self.clauses.len();
         QueryIter{
             query: &self,
             max_len: max_len,
@@ -90,7 +100,7 @@ impl<'a> Iterator for QueryIter<'a> {
 
         // determine the values that changed since last time
         for i in (self.now_len .. self.max_len) {
-            let values = self.query.sources[i].constrained_to(&result);
+            let values = self.query.clauses[i].constrained_to(&result);
             if values.len() == 0 {
                 break;
             } else {
