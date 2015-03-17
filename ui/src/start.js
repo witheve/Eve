@@ -17,6 +17,18 @@ function extend(dest, src) {
   return dest;
 }
 
+function range(from, to) {
+  if(to === undefined) {
+    to = from;
+    from = 0;
+  }
+  var results = [];
+  for(var i = from; i < to; i++) {
+    results.push(i);
+  }
+  return results;
+}
+
 //---------------------------------------------------------
 // UI state
 //---------------------------------------------------------
@@ -31,7 +43,6 @@ var ixer = new Indexing.Indexer();
 var root = reactFactory({
   displayName: "root",
   render: function() {
-//     return JSML(["p", "hey!"]);
     return stage({parent: "body"});
   }
 });
@@ -40,8 +51,7 @@ var root = reactFactory({
 // Grid components
 //---------------------------------------------------------
 
-var tiles = {
-};
+var tiles = {};
 
 tiles.debug = {
   flippable: false,
@@ -107,6 +117,7 @@ var stage = reactFactory({
 //---------------------------------------------------------
 
 var editable = reactFactory({
+  displayName: "editable",
   getInitialState: function() {
     return {value: "", modified: false};
   },
@@ -140,6 +151,7 @@ var editable = reactFactory({
 });
 
 var tableHeader = reactFactory({
+  displayName: "tableHeader",
   renameHeader: function(value) {
     //do stuff
     dispatch("rename", {id: this.props.id, value: value});
@@ -150,6 +162,7 @@ var tableHeader = reactFactory({
 });
 
 var tableRow = reactFactory({
+  displayName: "tableRow",
   getInitialState: function() {
     var row = [];
     var cur = this.props.row;
@@ -158,11 +171,13 @@ var tableRow = reactFactory({
     }
     return {row: row};
   },
-  componentDidUpdate: function() {
-    var row = this.state.row;
-    var cur = this.props.row;
-    for(var i = 0, len = this.props.length; i < len; i++) {
-      row[i] = cur[i];
+  componentDidUpdate: function(prev) {
+    if(!Indexing.arraysIdentical(prev.row, this.props.row)) {
+      var row = this.state.row;
+      var cur = this.props.row;
+      for(var i = 0, len = this.props.length; i < len; i++) {
+        row[i] = cur[i];
+      }
     }
   },
   checkRowComplete: function() {
@@ -176,10 +191,13 @@ var tableRow = reactFactory({
     this.state.row[ix] = value;
     if(this.checkRowComplete()) {
       this.submitRow();
+    } else {
+      if(this.props.onRowModified) this.props.onRowModified(this.props.id);
     }
   },
   submitRow: function() {
     if(this.props.isNewRow) {
+      if(this.props.onRowAdded) this.props.onRowAdded(this.props.id);
       dispatch("addRow", {table: this.props.table, neue: this.state.row});
     } else {
       dispatch("swapRow", {table: this.props.table, old: this.props.row, neue: this.state.row});
@@ -187,10 +205,18 @@ var tableRow = reactFactory({
   },
   render: function() {
     var self = this;
-    var fields = this.state.row.map(function(field, ix) {
-      return ["td", editable({value: field, onSubmit: function(value) {
-        self.setColumn(ix, value);
-      }})];
+    var fields = range(this.props.length).map(function(cur) {
+      var content = self.props.row[cur];
+      if(content === undefined) {
+        content = "";
+      }
+      if(self.props.editable) {
+        return ["td", editable({value: content, onSubmit: function(value) {
+          self.setColumn(cur, value);
+        }})];
+      } else {
+        return ["td", content];
+      }
     });
     return JSML(["tr", fields]);
   }
@@ -198,10 +224,21 @@ var tableRow = reactFactory({
 
 tiles.table = {
   content: reactFactory({
-    displayName: "table-tile",
+    displayName: "table",
     getInitialState: function() {
-      // @TODO: lookup table from tile Id.
-      return {table: "foo"};
+      var table = "foo"; //@FIXME derive this from tableTile index.
+      return {table: table, partialRows: [uuid()]};
+    },
+    rowAdded: function(id) {
+      this.setState({partialRows: this.state.partialRows.filter(function(cur) {
+        return cur !== id;
+      })});
+    },
+    addedRowModified: function(id) {
+      if(this.state.partialRows[this.state.partialRows.length - 1] === id) {
+        this.state.partialRows.push(uuid());
+        this.setState({partialRows: this.state.partialRows})
+      }
     },
     addColumn: function() {
       dispatch("addColumnToTable", {table: this.state.table});
@@ -214,14 +251,22 @@ tiles.table = {
       var headers = fields.map(function(cur) {
         return tableHeader({field: code.name(cur[0]), id: cur[0]});
       });
-      var rows = rows.map(function(cur) {
-        return tableRow({table: self.props.table, row: cur, length: numColumns});
+      var rowIds = ixer.index("editId")[this.state.table];
+      if(rowIds) {
+        rows.sort(function(a, b) {
+          return rowIds[JSON.stringify(a)] - rowIds[JSON.stringify(b)];
+        });
+      }
+      var rowComponents = rows.map(function(cur, ix) {
+        return tableRow({table: self.props.table, row: cur, length: numColumns, key: JSON.stringify(cur) + ix, editable: true});
       });
-      rows.push(tableRow({table: this.state.table, row: [], length: numColumns, isNewRow: true}));
+      this.state.partialRows.forEach(function(cur) {
+        rowComponents.push(tableRow({table: self.props.table, row: [], length: numColumns, editable: true, isNewRow: true, onRowAdded: self.rowAdded, onRowModified: self.addedRowModified, key: cur, id: cur}));
+      });
       return JSML(["div", {className: "tableWrapper"},
                    ["table",
                     ["thead", ["tr", headers]],
-                    ["tbody", rows]],
+                    ["tbody", rowComponents]],
                    ["div", {className: "addColumn", onClick: this.addColumn}, "+"]]);
     }
   })
@@ -248,17 +293,22 @@ function dispatch(event, arg, noRedraw) {
       ixer.handleDiffs(diffs);
       break;
     case "swapRow":
-      var diffs = {};
-      diffs[arg.table] = {adds: [arg.neue], removes: [arg.old]};
+      var oldKey = JSON.stringify(arg.old);
+      var time = ixer.index("editId")[arg.table][oldKey];
+      var diffs = {
+        editId: {adds: [[arg.table, JSON.stringify(arg.neue), time]], removes: [[arg.table, oldKey, time]]}
+      };
+      diffs[arg.table] = {adds: [arg.neue.slice()], removes: [arg.old.slice()]};
       ixer.handleDiffs(diffs);
       break;
     case "addRow":
-      var diffs = {};
-      diffs[arg.table] = {adds: [arg.neue], removes: []};
+      var diffs = {
+        editId: {adds: [[arg.table, JSON.stringify(arg.neue), (new Date()).getTime()]], removes: []}
+      };
+      diffs[arg.table] = {adds: [arg.neue.slice()], removes: []};
       ixer.handleDiffs(diffs);
       break;
     case "rename":
-      console.log("rename", arg);
       var diffs = code.diffs.changeDisplayName(arg.id, arg.value);
       ixer.handleDiffs(diffs);
       break;
@@ -315,11 +365,13 @@ var code = {
 //add some views
 ixer.addIndex("displayName", "displayName", Indexing.create.lookup([0, 1]));
 ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
+ixer.addIndex("editId", "editId", Indexing.create.lookup([0,1,2]));
 ixer.addIndex("viewToSchema", "view", Indexing.create.lookup([0, 1]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([1]));
 ixer.handleDiffs({view: {adds: [["foo", "foo-schema", false]], removes: []},
                   schema: {adds: [["foo-schema"]], removes: []},
                   field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "string"]], removes: []},
+                  editId: {adds: [["foo", JSON.stringify(["a", "b"]), 0], ["foo", JSON.stringify(["c", "d"]), 1]], removes: []},
                   foo: {adds: [["a", "b"], ["c", "d"]], removes: []},
                   input: {adds: [["foo", ["a", "b"]], ["foo", ["c", "d"]]], removes: []},
                   displayName: {adds: [["foo-a", "foo A"], ["foo-b", "foo B"]], removes: []},

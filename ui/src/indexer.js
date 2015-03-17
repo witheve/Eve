@@ -8,23 +8,36 @@ var Indexing = (function() {
       if (a[i] !== b[i]) return false;
     }
     return true;
-  };
+  }
+
+  exports.arraysIdentical = arraysIdentical;
+
+  function indexOfArray(haystack, needle) {
+    var result = -1;
+    for(var haystackIx = 0, haystackLen = haystack.length; haystackIx < haystackLen; haystackIx++) {
+      var cur = haystack[haystackIx];
+      if(arraysIdentical(cur, needle)) {
+        result = haystackIx;
+        break;
+      }
+    }
+    return result;
+  }
 
   function applyTableDiff(table, diff) {
     var adds = diff.adds;
     var removes = diff.removes;
     for(var remIx = 0, remLen = removes.length; remIx < remLen; remIx++) {
       var rem = removes[remIx];
-      for(var tableIx = 0, tableLen = table.length; tableIx < tableLen; tableIx++) {
-        var cur = table[tableIx];
-        if(arraysIdentical(cur, rem)) {
-          table.splice(tableIx, 1);
-          break;
-        }
+      var foundIx = indexOfArray(table, rem);
+      if(foundIx !== -1) {
+        table.splice(foundIx, 1);
       }
     }
     for(var addIx = 0, addLen = adds.length; addIx < addLen; addIx++) {
       var add = adds[addIx];
+      var foundIx = indexOfArray(table, add);
+      if(foundIx !== -1) continue;
       table.push(add);
     }
   }
