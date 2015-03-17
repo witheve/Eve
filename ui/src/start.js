@@ -117,6 +117,7 @@ tiles.debug = {
 
 var gridTile = reactFactory({
   displayName: "grid-tile",
+  mixins: [Drag.mixins.draggable],
   render: function() {
     var tile = tiles[this.props.type];
     if(!tile) { throw new Error("Invalid tile type specified: '" + this.props.type + "'."); }
@@ -127,24 +128,29 @@ var gridTile = reactFactory({
       width: this.props.width,
       height: this.props.height
     };
-
-    return JSML(["div", {className: "grid-tile " + this.props.type, style: style}, tile.content(tile)]);
+    var attrs = {className: "grid-tile " + this.props.type, style: style};
+    var data = {};
+    data["tile/" + this.props.type] = this.props.id;
+    data["tile/generic"] = this.props.id;
+    if(this.props.draggable) { attrs = this.wrapDraggable(attrs, {data: data, image: null}); }
+    return JSML(["div", attrs, tile.content(tile)]);
   }
 });
 
 var stage = reactFactory({
   displayName: "stage",
+  mixins: [Drag.mixins.dropzone],
   getInitialState: function() {
     return {
       grid: Grid.makeGrid({bounds: this.props.bounds, gutter: 8}),
       tiles: [
-        {pos: [0, 0], size: [3, 1], type: "debug"},
-        {pos: [3, 0], size: [9, 1], type: "debug"},
-        {pos: [0, 1], size: [1, 5], type: "debug"},
-        {pos: [1, 1], size: [2, 1], type: "debug"},
-        {pos: [3, 1], size: [9, 1], type: "debug"},
-        {pos: [1, 2], size: [4, 8], type: "table"},
-        {pos: [5, 2], size: [7, 4], type: "table"}
+        {pos: [0, 0], size: [3, 1], type: "debug", id: uuid()},
+        {pos: [3, 0], size: [9, 1], type: "debug", id: uuid()},
+        {pos: [0, 1], size: [1, 5], type: "debug", id: uuid()},
+        {pos: [1, 1], size: [2, 1], type: "debug", id: uuid()},
+        {pos: [3, 1], size: [9, 1], type: "debug", id: uuid()},
+        {pos: [1, 2], size: [4, 8], type: "table", id: uuid()},
+        {pos: [5, 2], size: [7, 4], type: "table", id: uuid()}
       ]
     };
   },
@@ -153,14 +159,19 @@ var stage = reactFactory({
   },
 
   render: function() {
+    var isEditing = this.props.editing;
+
     var children = [];
     for(var tileIx = 0, tilesLength = this.state.tiles.length; tileIx < tilesLength; tileIx++) {
       var tileRaw = this.state.tiles[tileIx];
       var tileRect = Grid.getRect(this.state.grid, tileRaw.pos, tileRaw.size);
       var tile = extend(extend({}, tileRaw), tileRect);
+      tile.draggable = tile.resizable = isEditing;
       children.push(gridTile(tile));
     }
-    var content = ["div", {className: "tile-grid"}];
+    var attrs = {className: "tile-grid" + (isEditing ? " editing" : "")};
+    if(this.props.editing) { attrs = this.wrapDropzone(attrs); }
+    var content = ["div", attrs];
     content.push.apply(content, children);
     return JSML(content);
   }
