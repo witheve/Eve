@@ -137,14 +137,20 @@ var table = reactFactory({
     var headers = fields.map(function(cur) {
       return tableHeader({field: code.name(cur[0]), id: cur[0]});
     });
-    var rows = rows.map(function(cur) {
-      return tableRow({table: self.props.table, row: cur, length: numColumns});
+    var rowIds = ixer.index("editId")[this.props.table];
+    if(rowIds) {
+      rows.sort(function(a, b) {
+        return rowIds[JSON.stringify(a)] - rowIds[JSON.stringify(b)];
+      });
+    }
+    var rowComponents = rows.map(function(cur) {
+      return tableRow({table: self.props.table, row: cur, length: numColumns, key: JSON.stringify(cur)});
     });
-    rows.push(tableRow({table: this.props.table, row: [], length: numColumns, isNewRow: true}));
+    rowComponents.push(tableRow({table: this.props.table, row: [], length: numColumns, isNewRow: true}));
     return JSML(["div", {className: "tableWrapper"},
                  ["table",
                   ["thead", ["tr", headers]],
-                  ["tbody", rows]],
+                  ["tbody", rowComponents]],
                 ["div", {className: "addColumn", onClick: this.addColumn}, "+"]]);
   }
 });
@@ -170,12 +176,18 @@ function dispatch(event, arg, noRedraw) {
       ixer.handleDiffs(diffs);
       break;
     case "swapRow":
-      var diffs = {};
+      var oldKey = JSON.stringify(arg.old);
+      var time = ixer.index("editId")[arg.table][oldKey];
+      var diffs = {
+        editId: {adds: [[arg.table, JSON.stringify(arg.neue), time]], removes: [[arg.table, oldKey, time]]}
+      };
       diffs[arg.table] = {adds: [arg.neue], removes: [arg.old]};
       ixer.handleDiffs(diffs);
       break;
     case "addRow":
-      var diffs = {};
+      var diffs = {
+        editId: {adds: [[arg.table, JSON.stringify(arg.neue), (new Date()).getTime()]], removes: []}
+      };
       diffs[arg.table] = {adds: [arg.neue], removes: []};
       ixer.handleDiffs(diffs);
       break;
@@ -237,11 +249,13 @@ var code = {
 //add some views
 ixer.addIndex("displayName", "displayName", Indexing.create.lookup([0, 1]));
 ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
+ixer.addIndex("editId", "editId", Indexing.create.lookup([0,1,2]));
 ixer.addIndex("viewToSchema", "view", Indexing.create.lookup([0, 1]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([1]));
 ixer.handleDiffs({view: {adds: [["foo", "foo-schema", false]], removes: []},
                   schema: {adds: [["foo-schema"]], removes: []},
                   field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "string"]], removes: []},
+                  editId: {adds: [["foo", JSON.stringify(["a", "b"]), 0], ["foo", JSON.stringify(["c", "d"]), 1]], removes: []},
                   foo: {adds: [["a", "b"], ["c", "d"]], removes: []},
                   input: {adds: [["foo", ["a", "b"]], ["foo", ["c", "d"]]], removes: []},
                   displayName: {adds: [["foo-a", "foo A"], ["foo-b", "foo B"]], removes: []},
