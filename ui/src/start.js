@@ -258,10 +258,10 @@ tiles.table = {
         });
       }
       var rowComponents = rows.map(function(cur, ix) {
-        return tableRow({table: self.props.table, row: cur, length: numColumns, key: JSON.stringify(cur) + ix, editable: true});
+        return tableRow({table: self.state.table, row: cur, length: numColumns, key: JSON.stringify(cur) + ix, editable: true});
       });
       this.state.partialRows.forEach(function(cur) {
-        rowComponents.push(tableRow({table: self.props.table, row: [], length: numColumns, editable: true, isNewRow: true, onRowAdded: self.rowAdded, onRowModified: self.addedRowModified, key: cur, id: cur}));
+        rowComponents.push(tableRow({table: this.state.table, row: [], length: numColumns, editable: true, isNewRow: true, onRowAdded: self.rowAdded, onRowModified: self.addedRowModified, key: cur, id: cur}));
       });
       return JSML(["div", {className: "tableWrapper"},
                    ["table",
