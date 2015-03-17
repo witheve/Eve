@@ -9,6 +9,14 @@ function reactFactory(obj) {
   return React.createFactory(React.createClass(obj));
 }
 
+function extend(dest, src) {
+  for(var key in src) {
+    if(!src.hasOwnProperty(key)) { continue; }
+    dest[key] = src[key];
+  }
+  return dest;
+}
+
 //---------------------------------------------------------
 // UI state
 //---------------------------------------------------------
@@ -21,15 +29,78 @@ var ixer = new Indexing.Indexer();
 //---------------------------------------------------------
 
 var root = reactFactory({
+  displayName: "root",
   render: function() {
 //     return JSML(["p", "hey!"]);
-    return table({table: "foo"});
+    return stage({parent: "body"});
   }
 });
 
 //---------------------------------------------------------
 // Grid components
 //---------------------------------------------------------
+
+var tiles = {
+};
+
+tiles.debug = {
+  flippable: false,
+  navigable: false,
+  content: reactFactory({
+    displayName: "debug-tile",
+    render: function() {
+      return JSML(["span", "hello, world!"]);
+    }
+  })
+};
+
+
+var gridTile = reactFactory({
+  displayName: "grid-tile",
+  render: function() {
+    var tile = tiles[this.props.type];
+    if(!tile) { throw new Error("Invalid tile type specified: '" + this.props.type + "'."); }
+
+    var style = {
+      top: this.props.top,
+      left: this.props.left,
+      width: this.props.width,
+      height: this.props.height
+    };
+
+    return JSML(["div", {className: "grid-tile " + this.props.type, style: style}, tile.content(tile)]);
+  }
+});
+
+var stage = reactFactory({
+  displayName: "stage",
+  getInitialState: function() {
+    return {
+      grid: Grid.makeGrid({container: this.props.parent, gutter: 8}),
+      tiles: [
+        {pos: [0, 0], size: [3, 1], type: "debug"},
+        {pos: [3, 0], size: [9, 1], type: "debug"},
+        {pos: [0, 1], size: [1, 5], type: "debug"},
+        {pos: [1, 1], size: [2, 1], type: "debug"},
+        {pos: [3, 1], size: [9, 1], type: "debug"},
+        {pos: [1, 2], size: [4, 8], type: "table"},
+        {pos: [5, 2], size: [7, 4], type: "table"}
+      ]
+    };
+  },
+  render: function() {
+    var children = [];
+    for(var tileIx = 0, tilesLength = this.state.tiles.length; tileIx < tilesLength; tileIx++) {
+      var tileRaw = this.state.tiles[tileIx];
+      var tileRect = Grid.getRect(this.state.grid, tileRaw.pos, tileRaw.size);
+      var tile = extend(extend({}, tileRaw), tileRect);
+      children.push(gridTile(tile));
+    }
+    var content = ["div", {className: "tile-grid"}];
+    content.push.apply(content, children);
+    return JSML(content);
+  }
+});
 
 //---------------------------------------------------------
 // Table components
@@ -125,29 +196,36 @@ var tableRow = reactFactory({
   }
 });
 
-var table = reactFactory({
-  addColumn: function() {
-    dispatch("addColumnToTable", {table: this.props.table});
-  },
-  render: function() {
-    var self = this;
-    var fields = code.viewToFields(this.props.table);
-    var rows = ixer.facts(this.props.table);
-    var numColumns = fields.length;
-    var headers = fields.map(function(cur) {
-      return tableHeader({field: code.name(cur[0]), id: cur[0]});
-    });
-    var rows = rows.map(function(cur) {
-      return tableRow({table: self.props.table, row: cur, length: numColumns});
-    });
-    rows.push(tableRow({table: this.props.table, row: [], length: numColumns, isNewRow: true}));
-    return JSML(["div", {className: "tableWrapper"},
-                 ["table",
-                  ["thead", ["tr", headers]],
-                  ["tbody", rows]],
-                ["div", {className: "addColumn", onClick: this.addColumn}, "+"]]);
-  }
-});
+tiles.table = {
+  content: reactFactory({
+    displayName: "table-tile",
+    getInitialState: function() {
+      // @TODO: lookup table from tile Id.
+      return {table: "foo"};
+    },
+    addColumn: function() {
+      dispatch("addColumnToTable", {table: this.state.table});
+    },
+    render: function() {
+      var self = this;
+      var fields = code.viewToFields(this.state.table);
+      var rows = ixer.facts(this.state.table);
+      var numColumns = fields.length;
+      var headers = fields.map(function(cur) {
+        return tableHeader({field: code.name(cur[0]), id: cur[0]});
+      });
+      var rows = rows.map(function(cur) {
+        return tableRow({table: self.props.table, row: cur, length: numColumns});
+      });
+      rows.push(tableRow({table: this.state.table, row: [], length: numColumns, isNewRow: true}));
+      return JSML(["div", {className: "tableWrapper"},
+                   ["table",
+                    ["thead", ["tr", headers]],
+                    ["tbody", rows]],
+                   ["div", {className: "addColumn", onClick: this.addColumn}, "+"]]);
+    }
+  })
+};
 
 //---------------------------------------------------------
 // View components
