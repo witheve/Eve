@@ -1,4 +1,4 @@
-#[derive(PartialEq, Clone, Debug)] // TODO can't lookup NaN
+#[derive(PartialEq, Clone, PartialOrd, Debug)] // TODO can't lookup NaN
 pub enum Value {
     String(String),
     Float(f64),
@@ -9,33 +9,72 @@ pub enum Value {
 pub type Tuple = Vec<Value>;
 pub type Relation = Vec<Vec<Value>>; // a set of tuples
 
-// #[derive(PartialEq, Eq, Clone, Debug)]
-// enum ConstraintOp {
-//     LT,
-//     LTE,
-//     EQ,
-//     NEQ,
-//     GT,
-//     GTE,
-// }
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub enum ConstraintOp {
+    LT,
+    LTE,
+    EQ,
+    NEQ,
+    GT,
+    GTE,
+}
 
-// #[derive(Clone, Debug)]
-// struct Constraint {
-//     op: ConstraintOp,
-//     left: ConstraintReference,
-//     right: ConstraintReference,
-// }
+#[derive(Clone, Debug)]
+pub enum ConstraintReference {
+    Constant{value: Value},
+    Value{clause: usize, column: usize},
+}
+
+#[derive(Clone, Debug)]
+pub struct Constraint {
+    pub my_column: usize,
+    pub op: ConstraintOp,
+    pub other_ref: ConstraintReference,
+}
+
+impl Constraint {
+    fn prepare<'a>(&'a self, result: &'a Vec<Value>) -> &'a Value {
+        match self.other_ref {
+            ConstraintReference::Constant{ref value} =>
+                value,
+            ConstraintReference::Value{clause, column} => {
+                match result[clause] {
+                    Value::Tuple(ref tuple) => &tuple[column],
+                    _ => panic!("Expected a tuple"),
+                }
+            }
+        }
+    }
+
+    // bearing in mind that Value is only PartialOrd so this may do weird things with NaN
+    fn test(&self, my_row: &Vec<Value>, other_value: &Value) -> bool {
+        let my_value = &my_row[self.my_column];
+        match self.op {
+            ConstraintOp::LT => my_value < other_value,
+            ConstraintOp::LTE => my_value <= other_value,
+            ConstraintOp::EQ => my_value == other_value,
+            ConstraintOp::NEQ => my_value != other_value,
+            ConstraintOp::GT => my_value > other_value,
+            ConstraintOp::GTE => my_value >= other_value,
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Source {
     pub relation: Relation,
-    // constraints: Vec<Constraint>,
+    pub constraints: Vec<Constraint>,
 }
 
 impl Source {
-    fn constrained_to(&self, result: &Vec<Value>) -> &Relation {
+    fn constrained_to(&self, result: &Vec<Value>) -> Relation {
         // TODO apply constraints
-        &self.relation
+        let prepared: Vec<&Value> = self.constraints.iter().map(|constraint| constraint.prepare(result)).collect();
+        self.relation.iter().filter(|row|
+            self.constraints.iter().zip(prepared.iter()).all(|(constraint, value)|
+                constraint.test(row, value)
+            )
+        ).map(|row| row.clone()).collect()
     }
 }
 
@@ -49,8 +88,14 @@ pub enum Clause {
 impl Clause {
     fn constrained_to(&self, result: &Vec<Value>) -> Vec<Value> {
         match self {
-            &Clause::Tuple(ref source) => source.constrained_to(result).iter().map(|tuple| Value::Tuple(tuple.clone())).collect(),
-            &Clause::Relation(ref source) => vec![Value::Relation(source.constrained_to(result).clone())]
+            &Clause::Tuple(ref source) => {
+                let relation = source.constrained_to(result);
+                relation.into_iter().map(|tuple| Value::Tuple(tuple)).collect()
+            },
+            &Clause::Relation(ref source) => {
+                let relation = source.constrained_to(result);
+                vec![Value::Relation(relation)]
+            }
         }
     }
 }
