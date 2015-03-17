@@ -37,13 +37,33 @@ var Drag = (function(document) {
       }
     },
     dropzone: {
+      _getBestType: function(types, accepts) {
+        for(var ix in types) {
+          var type = types[ix];
+          if(accepts.indexOf(type) !== -1) {
+            return type;
+          }
+        }
+      },
       _onDragOver: function(evt) {
-        console.log("hello", evt, JSON.stringify(evt.dataTransfer));
+        var opts = this._dropzoneOpts;
+        var dT = evt.dataTransfer;
+        var type = this._getBestType(dT.types, opts.accepts);
+        if(!type) { return; }
         evt.preventDefault();
+        if(opts.onDragOver) { opts.onDragOver(evt, type); }
+      },
+      _onDrop: function(evt) {
+        var type = this._getBestType(dT.types, opts.accepts);
+        if(!type) { return; }
+        evt.preventDefault();
+        if(opts.onDrop) { opts.onDrop(evt, type); }
       },
       wrapDropzone: function(attrs, opts) {
         opts = opts || {};
-        if(attrs.onDragOver) { opts.onDragover = attrs.onDragOver; }
+        if(!opts.accepts) { throw new Error("Must specify list of draggable types for the dropzone to accept."); }
+        if(attrs.onDragOver) { opts.onDragOver = attrs.onDragOver; }
+        if(attrs.onDrop) { opts.onDrop = attrs.onDrop; }
         this._dropzoneOpts = opts;
         attrs.onDragOver = this._onDragOver;
         return attrs;
