@@ -43,7 +43,10 @@ var ixer = new Indexing.Indexer();
 var root = reactFactory({
   displayName: "root",
   render: function() {
-    return stage({parent: "body"});
+    var bounds = extend({}, document.querySelector("body").getBoundingClientRect());
+    bounds.height -= 60;
+    bounds.width -= 40;
+    return stage({bounds: bounds});
   }
 });
 
@@ -86,7 +89,7 @@ var stage = reactFactory({
   displayName: "stage",
   getInitialState: function() {
     return {
-      grid: Grid.makeGrid({container: this.props.parent, gutter: 8}),
+      grid: Grid.makeGrid({bounds: this.props.bounds, gutter: 8}),
       tiles: [
         {pos: [0, 0], size: [3, 1], type: "debug"},
         {pos: [3, 0], size: [9, 1], type: "debug"},
