@@ -17,14 +17,17 @@ var Grid = (function(document, React, Velocity) {
   return {
     makeGrid: function makeGrid(params) { // (Any) -> Grid
       if(!params) { throw new Error(ERR.NO_PARAMS); }
-      if(!params.bounds && !params.container) { throw new Error(ERR.NO_BOUNDS); }
-      var container = params.container;
-      if(typeof container === "string") {
-        container = document.querySelector(container);
+      var bounds = params.bounds || params.container;
+      if(typeof bounds === "string") {
+        bounds = document.querySelector(bounds);
       }
+      if(bounds && bounds.nodeType) {
+        bounds = bounds.getBoundingClientRect();
+      }
+      if(!bounds) { throw new Error(ERR.NO_BOUNDS); }
       return {
         size: params.size || [12, 12],
-        bounds: params.bounds || container.getBoundingClientRect(),
+        bounds: bounds,
         gutter: params.gutter || 0
       }
     },

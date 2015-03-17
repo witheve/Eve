@@ -1,8 +1,12 @@
-fn main() {
-    println!("Hello, solver!");
-}
+extern crate eve;
+
+use eve::solver::*;
 
 #[test]
 fn test_me() {
-    assert!(false);
+    not_good();
+}
+
+fn main() {
+    println!("Hello solver!");
 }
