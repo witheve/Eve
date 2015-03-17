@@ -48,16 +48,16 @@ var Grid = (function(document, React, Velocity) {
       if(!pos) { throw new Error(ERR.NO_POS); }
       if(!size) { throw new Error(ERR.NO_SIZE); }
 
-      var gapWidth = grid.gutter * (grid.size[0] - 1);
-      var gapHeight = grid.gutter * (grid.size[1] - 1);
+      var gapWidth = grid.gutter * (grid.size[0] - 2);
+      var gapHeight = grid.gutter * (grid.size[1] - 2);
       var cellWidth = (grid.bounds.width - gapWidth) / grid.size[0];
       var cellHeight = (grid.bounds.height - gapHeight) / grid.size[1];
 
       var rect = {
-        left: grid.bounds.left + pos[0] * cellWidth + (pos[0] === 0 ? 0 : (pos[0] - 1) * grid.gutter),
-        top: grid.bounds.top + pos[1] * cellHeight + (pos[1] === 0 ? 0 : (pos[1] - 1) * grid.gutter),
-        width: size[0] * cellWidth + (size[0] === 0 ? 0 : (pos[0] - 1) * grid.gutter),
-        height: size[1] * cellHeight + (size[1] === 0 ? 0 : (pos[1] - 1) * grid.gutter)
+        left: grid.bounds.left + pos[0] * cellWidth + pos[0] * grid.gutter,
+        top: grid.bounds.top + pos[1] * cellHeight + pos[1] * grid.gutter,
+        width: size[0] * cellWidth + (size[0] - 1) * grid.gutter,
+        height: size[1] * cellHeight + (size[1] - 1) * grid.gutter
       };
       return rect;
     },
