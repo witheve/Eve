@@ -37,6 +37,9 @@ body {
   position: absolute;
   top: 60px; right: 20px; bottom: 20px; left: 20px;
 }
+.tile-grid.editing {
+  background: rgba(255, 128, 192, 0.3);
+}
 
 .grid-tile {
   padding: 8px;
