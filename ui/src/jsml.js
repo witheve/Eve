@@ -15,7 +15,7 @@ function JSML(jsml) {
   // Remaining strings / arrays are children.
   for(var ix = 0, len = jsml.length; ix < len; ix++) {
     var child = jsml[ix];
-    if(ix < childIx || !child) { continue; }
+    if(ix < childIx || child === undefined) { continue; }
 
     if(child.constructor === Array && child.length) {
       if(typeof child[0] === "string" || typeof child[0] === "function") {
