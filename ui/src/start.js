@@ -133,7 +133,7 @@ var gridTile = reactFactory({
     var data = {};
     data["tile/" + this.props.type] = this.props.id;
     data["tile/generic"] = this.props.id;
-    if(this.props.draggable) { attrs = this.wrapDraggable(attrs, {data: data, image: null}); }
+    if(this.props.draggable) { attrs = this.wrapDraggable(attrs, {data: data, image: null, effect: "move"}); }
     return JSML(["div", attrs, tile.content(tile)]);
   }
 });
@@ -145,13 +145,8 @@ var stage = reactFactory({
     return {
       grid: Grid.makeGrid({bounds: this.props.bounds, gutter: 8}),
       tiles: [
-        {pos: [0, 0], size: [3, 1], type: "debug", id: uuid()},
-        {pos: [3, 0], size: [9, 1], type: "debug", id: uuid()},
-        {pos: [0, 1], size: [1, 5], type: "debug", id: uuid()},
-        {pos: [1, 1], size: [2, 1], type: "debug", id: uuid()},
-        {pos: [3, 1], size: [9, 1], type: "debug", id: uuid()},
-        {pos: [1, 2], size: [4, 8], type: "table", id: uuid()},
-        {pos: [5, 2], size: [7, 4], type: "ui", id: uuid()}
+        {pos: [0, 0], size: [6, 4], type: "table", id: uuid()},
+        {pos: [6, 0], size: [6, 4], type: "ui", id: uuid()}
       ]
     };
   },
@@ -161,7 +156,6 @@ var stage = reactFactory({
 
   render: function() {
     var isEditing = this.props.editing;
-
     var children = [];
     for(var tileIx = 0, tilesLength = this.state.tiles.length; tileIx < tilesLength; tileIx++) {
       var tileRaw = this.state.tiles[tileIx];
@@ -171,7 +165,7 @@ var stage = reactFactory({
       children.push(gridTile(tile));
     }
     var attrs = {className: "tile-grid" + (isEditing ? " editing" : "")};
-    if(this.props.editing) { attrs = this.wrapDropzone(attrs); }
+    if(this.props.editing) { attrs = this.wrapDropzone(attrs, {accepts: ["tile/generic"]}); }
     var content = ["div", attrs];
     content.push.apply(content, children);
     return JSML(content);
