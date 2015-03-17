@@ -55,10 +55,14 @@ body {
 \*****************************************************************************/
 
 .ui-editor { display:flex; flex:2; }
+
 .ui-inspector {flex: none;}
 .ui-inspector > ul { background:red; }
+
 .ui-canvas {flex: 1; position:relative; }
 .ui-canvas > * { position:absolute; }
 .ui-canvas .control { background:rgba(0,0,0,0.05); }
+.ui-canvas .resize-handle { position:absolute; background: rgba(170,204,255,0.3); border: 1px solid #acf; }
+
 .ui-tools {flex: none;}
 .ui-tools > ul { background: red; }
