@@ -63,6 +63,8 @@ var Grid = (function(document, React, Velocity) {
         width: size[0] * grid.calculated.cellWidth + (size[0] - 1) * grid.gutter,
         height: size[1] * grid.calculated.cellHeight + (size[1] - 1) * grid.gutter
       };
+      // rect.right = grid.bounds.right - (rect.left + rect.width);
+      // rect.bottom = grid.bounds.bottom - (rect.top + rect.height);
       return rect;
     },
     evacuateRect: function evacuateRect(grid, pos, size, from) { // (Grid, Pos, Size, Pos?) -> Rect
@@ -104,6 +106,8 @@ var Grid = (function(document, React, Velocity) {
       if(!size) { throw new Error(ERR.NO_SIZE); }
       if(!map) { map = Grid.tilesToMap(grid, tiles); }
 
+      if(pos[0] < 0) { return false; }
+      if(pos[1] < 0) { return false; }
       if(pos[0] + size[0] > grid.size[0]) { return false; }
       if(pos[1] + size[1] > grid.size[1]) { return false; }
 

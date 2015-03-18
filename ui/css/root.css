@@ -48,6 +48,10 @@ body {
   border-radius: 3px;
   display:flex;
 }
+.grid-tile-footprint {
+  position: absolute;
+  pointer-events: none;
+}
 
 
 /*****************************************************************************\

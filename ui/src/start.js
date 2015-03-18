@@ -108,9 +108,18 @@ tiles.debug = {
   flippable: false,
   navigable: false,
   content: reactFactory({
-    displayName: "debug-tile",
+    displayName: "debug",
     render: function() {
       return JSML(["span", "hello, world!"]);
+    }
+  })
+};
+
+tiles.footprint = {
+  content: reactFactory({
+    displayName: "footprint",
+    render: function() {
+      return JSML(["span"]);
     }
   })
 };
@@ -119,6 +128,11 @@ tiles.debug = {
 var gridTile = reactFactory({
   displayName: "grid-tile",
   mixins: [Drag.mixins.draggable],
+  dragStart: function(evt) {
+    var offsetX = evt.clientX - this.props.left;
+    var offsetY = evt.clientY - this.props.top;
+    this.props.dragStart(evt, this.props, [offsetX, offsetY]);
+  },
   render: function() {
     var tile = tiles[this.props.type];
     if(!tile) { throw new Error("Invalid tile type specified: '" + this.props.type + "'."); }
@@ -130,10 +144,15 @@ var gridTile = reactFactory({
       height: this.props.height
     };
     var attrs = {className: "grid-tile " + this.props.type, style: style};
-    var data = {};
-    data["tile/" + this.props.type] = this.props.id;
-    data["tile/generic"] = this.props.id;
-    if(this.props.draggable) { attrs = this.wrapDraggable(attrs, {data: data, effect: "move"}); }
+
+    if(this.props.draggable) {
+      var data = {};
+      data["tile/" + this.props.type] = this.props.id;
+      data["tile/generic"] = this.props.id;
+      attrs.onDragStart = this.dragStart;
+      attrs.onDragEnd = this.props.dragEnd;
+      attrs = this.wrapDraggable(attrs, {data: data, effect: "move"});
+    }
     return JSML(["div", attrs, tile.content(tile)]);
   }
 });
@@ -147,18 +166,30 @@ var stage = reactFactory({
       tiles: [
         {pos: [0, 0], size: [6, 4], type: "table", id: uuid()},
         {pos: [6, 0], size: [6, 4], type: "ui", id: uuid()}
-      ]
+      ],
+      drag: false
     };
   },
   componentWillReceiveProps: function(nextProps) {
     this.setState({grid: Grid.makeGrid({bounds: nextProps.bounds, gutter: 8})});
   },
+  startTileDrag: function(evt, tile, offset) {
+    this.setState({drag: {target: tile, offset: offset, pos: tile.pos, id: uuid()}});
+  },
+  endTileDrag: function() {
+    this.setState({drag: undefined});
+  },
   showTileFootprint: function(evt) {
-    var pos = Grid.coordsToGrid(this.state.grid, evt.clientX, evt.clientY);
+    var drag = this.state.drag;
+    var x = evt.clientX - drag.offset[0];
+    var y = evt.clientY - drag.offset[1];
+    var pos = Grid.coordsToGrid(this.state.grid, x, y);
 
-    var x = evt.clientX;
-    var y = evt.clientY;
-    console.log(pos, x, y);
+    var oldPos = this.state.drag.pos;
+    if(pos[0] !== oldPos[0] || pos[1] !== oldPos[1]) {
+      drag.pos = pos;
+      this.setState({drag: drag});
+    }
   },
 
   render: function() {
@@ -169,6 +200,8 @@ var stage = reactFactory({
       var tileRect = Grid.getRect(this.state.grid, tileRaw.pos, tileRaw.size);
       var tile = extend(extend({}, tileRaw), tileRect);
       tile.draggable = tile.resizable = isEditing;
+      tile.dragStart = this.startTileDrag;
+      tile.dragEnd = this.endTileDrag;
       children.push(gridTile(tile));
     }
     var attrs = {className: "tile-grid" + (isEditing ? " editing" : "")};
@@ -178,6 +211,23 @@ var stage = reactFactory({
     }
     var content = ["div", attrs];
     content.push.apply(content, children);
+
+    if(this.state.drag) {
+      var pos = this.state.drag.pos;
+      var size = this.state.drag.target.size;
+      var footprint = Grid.getRect(this.state.grid, pos, size);
+      var tiles = extend([], this.state.tiles);
+      tiles.splice(tiles.indexOf(this.state.drag.target), 1);
+      var hasGap = Grid.hasGapAt(this.state.grid, tiles, pos, size);
+      content.push(["div", {
+        key: this.state.drag.id, className: "grid-tile-footprint",
+        style: {
+          top: footprint.top, left: footprint.left, height: footprint.height, width: footprint.width,
+          background: hasGap ? "blue" : "red"
+        }
+      }, ""]);
+    }
+
     return JSML(content);
   }
 });
