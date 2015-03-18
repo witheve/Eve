@@ -1,7 +1,8 @@
 /**
- * Rect - {left:N, top:N, width:N, height:N}
  * Pos - [x:N, y:N]
  * Size - {w:N, h:N}
+ * Tile - {pos:Pos, size:Size}
+ * Rect - {left:N, top:N, width:N, height:N}
  * Grid - {size:Size, bounds:Rect, gutter:N}
  */
 
@@ -10,6 +11,7 @@ var Grid = (function(document, React, Velocity) {
     NO_PARAMS: "Must specify parameter object.",
     NO_BOUNDS: "Must specify either explicit bounds or a bounding container.",
     NO_GRID: "Must provide a valid grid to work within.",
+    NO_TILE: "Must provide a valid tile.",
     NO_POS: "Must provide a valid grid position.",
     NO_SIZE: "Must provide a valid size in grid cells."
   };
@@ -21,6 +23,13 @@ var Grid = (function(document, React, Velocity) {
       while(col.push(defaultValue) < height) {}
     }
     return arr;
+  }
+
+  function assertTile(tile) {
+    if(!tile) { throw new Error(ERR.NO_TILE); }
+    if(!tile.pos) { throw new Error(ERR.NO_POS); }
+    if(!tile.size) { throw new Error(ERR.NO_SIZE); }
+    return true;
   }
 
   return {
@@ -52,41 +61,43 @@ var Grid = (function(document, React, Velocity) {
       };
       return grid;
     },
-    getRect: function getRect(grid, pos, size) { // (Grid, Pos, Size) -> Rect
+    getRect: function getRect(grid, tile) { // (Grid, Tile) -> Rect
       if(!grid) { throw new Error(ERR.NO_GRID); }
-      if(!pos) { throw new Error(ERR.NO_POS); }
-      if(!size) { throw new Error(ERR.NO_SIZE); }
+      assertTile(tile);
 
       var rect = {
-        left: grid.bounds.left + pos[0] * grid.calculated.cellWidth + pos[0] * grid.gutter,
-        top: grid.bounds.top + pos[1] * grid.calculated.cellHeight + pos[1] * grid.gutter,
-        width: size[0] * grid.calculated.cellWidth + (size[0] - 1) * grid.gutter,
-        height: size[1] * grid.calculated.cellHeight + (size[1] - 1) * grid.gutter
+        left: grid.bounds.left + tile.pos[0] * grid.calculated.cellWidth + tile.pos[0] * grid.gutter,
+        top: grid.bounds.top + tile.pos[1] * grid.calculated.cellHeight + tile.pos[1] * grid.gutter,
+        width: tile.size[0] * grid.calculated.cellWidth + (tile.size[0] - 1) * grid.gutter,
+        height: tile.size[1] * grid.calculated.cellHeight + (tile.size[1] - 1) * grid.gutter
       };
       // rect.right = grid.bounds.right - (rect.left + rect.width);
       // rect.bottom = grid.bounds.bottom - (rect.top + rect.height);
       return rect;
     },
-    evacuateRect: function evacuateRect(grid, pos, size, from) { // (Grid, Pos, Size, Pos?) -> Rect
+    evacuateRect: function evacuateRect(grid, tile, from) { // (Grid, Tile, Pos?) -> Rect
       if(!grid) { throw new Error(ERR.NO_GRID); }
-      if(!pos) { throw new Error(ERR.NO_POS); }
-      if(!size) { throw new Error(ERR.NO_SIZE); }
+      assertTile(tile);
       from = from || [grid.size[0] / 2, grid.size[1] / 2];
+      console.warn("@TODO: Implement me");
     },
-    confineRect: function confineRect(grid, pos, size, to) { // (Grid, Pos, Size, Pos?) -> Rect
+    confineRect: function confineRect(grid, tile, to) { // (Grid, Tile, Pos?) -> Rect
       if(!grid) { throw new Error(ERR.NO_GRID); }
-      if(!pos) { throw new Error(ERR.NO_POS); }
-      if(!size) { throw new Error(ERR.NO_SIZE); }
+      assertTile(tile);
       to = to || [grid.size[0] / 2, grid.size[1] / 2]; // @NOTE: I'm not sure this default makes sense.
+      console.warn("@TODO: Implement me");
     },
-    coordsToGrid: function coordsToGrid(grid, x, y) {
+    coordsToGrid: function coordsToGrid(grid, x, y, round) { // (Grid, N, N, Bool?) -> Pos
       if(!grid) { throw new Error(ERR.NO_GRID); }
-
       x -= grid.bounds.top;
       y -= grid.bounds.left;
       x /= grid.calculated.snapWidth;
       y /= grid.calculated.snapHeight;
-      return [Math.floor(x), Math.floor(y)];
+      if(round) {
+        return [Math.round(x), Math.round(y)];
+      } else {
+        return [Math.floor(x), Math.floor(y)];
+      }
     },
     tilesToMap: function tilesToMap(grid, tiles) { // (Grid, Tile[]) -> TileMap
       var map = make2DArray(grid.size[0], grid.size[1], 0);
@@ -100,19 +111,18 @@ var Grid = (function(document, React, Velocity) {
       }
       return map;
     },
-    hasGapAt: function hasGapAt(grid, tiles, pos, size, map) { // (Grid, Tile[], Pos, Size, TileMap?) -> Bool
+    hasGapAt: function hasGapAt(grid, tiles, tile, map) { // (Grid, Tile[], Pos, Size, TileMap?) -> Bool
       if(!grid) { throw new Error(ERR.NO_GRID); }
-      if(!pos) { throw new Error(ERR.NO_POS); }
-      if(!size) { throw new Error(ERR.NO_SIZE); }
+      assertTile(tile);
       if(!map) { map = Grid.tilesToMap(grid, tiles); }
 
-      if(pos[0] < 0) { return false; }
-      if(pos[1] < 0) { return false; }
-      if(pos[0] + size[0] > grid.size[0]) { return false; }
-      if(pos[1] + size[1] > grid.size[1]) { return false; }
+      if(tile.pos[0] < 0) { return false; }
+      if(tile.pos[1] < 0) { return false; }
+      if(tile.pos[0] + tile.size[0] > grid.size[0]) { return false; }
+      if(tile.pos[1] + tile.size[1] > grid.size[1]) { return false; }
 
-      for(var x = pos[0]; x < pos[0] + size[0]; x++) {
-        for(var y = pos[1]; y < pos[1] + size[1]; y++) {
+      for(var x = tile.pos[0]; x < tile.pos[0] + tile.size[0]; x++) {
+        for(var y = tile.pos[1]; y < tile.pos[1] + tile.size[1]; y++) {
           if(map[x][y] > 0) {
             return false;
           }
@@ -124,10 +134,12 @@ var Grid = (function(document, React, Velocity) {
       if(!grid) { throw new Error(ERR.NO_GRID); }
       if(!size) { throw new Error(ERR.NO_SIZE); }
       var map = Grid.tilesToMap(grid, tiles);
+      var tile = {pos: undefined, size: size};
       for(var x = 0; x <= grid.size[0] - size[0]; x++) {
         for(var y = 0; y <= grid.size[1] - size[1]; y++) {
           if(map[x][y] > 0) { continue; }
-          if(Grid.hasGapAt(grid, tiles, [x, y], size, map)) {
+          tile.pos = [x, y];
+          if(Grid.hasGapAt(grid, tiles, tile, map)) {
             return [x, y];
           }
         }

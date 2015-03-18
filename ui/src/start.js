@@ -193,11 +193,10 @@ var stage = reactFactory({
     var drag = this.state.drag;
     var x = evt.clientX - drag.offset[0];
     var y = evt.clientY - drag.offset[1];
-    var pos = Grid.coordsToGrid(this.state.grid, x, y);
+    var pos = Grid.coordsToGrid(this.state.grid, x, y, true);
 
     var oldPos = this.state.drag.pos;
     if(pos[0] !== oldPos[0] || pos[1] !== oldPos[1]) {
-      var size = drag.size;
       drag.pos = pos;
 
       var tiles = [];
@@ -207,7 +206,7 @@ var stage = reactFactory({
           tiles.push(curTile);
         }
       }
-      drag.valid = Grid.hasGapAt(this.state.grid, tiles, pos, size);
+      drag.valid = Grid.hasGapAt(this.state.grid, tiles, this.state.drag);
 
       this.setState({drag: drag});
     }
@@ -218,7 +217,7 @@ var stage = reactFactory({
     var children = [];
     for(var tileIx = 0, tilesLength = this.state.tiles.length; tileIx < tilesLength; tileIx++) {
       var tileRaw = this.state.tiles[tileIx];
-      var tileRect = Grid.getRect(this.state.grid, tileRaw.pos, tileRaw.size);
+      var tileRect = Grid.getRect(this.state.grid, tileRaw);
       var tile = extend(extend({}, tileRaw), tileRect);
       tile.draggable = tile.resizable = isEditing;
       tile.dragStart = this.startTileDrag;
@@ -234,9 +233,7 @@ var stage = reactFactory({
     content.push.apply(content, children);
 
     if(this.state.drag) {
-      var pos = this.state.drag.pos;
-      var size = this.state.drag.size;
-      var footprint = Grid.getRect(this.state.grid, pos, size);
+      var footprint = Grid.getRect(this.state.grid, this.state.drag);
       content.push(["div", {
         key: this.state.drag.id, className: "grid-tile-footprint",
         style: {
