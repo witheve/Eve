@@ -51,6 +51,14 @@ body {
 .grid-tile-footprint {
   position: absolute;
   pointer-events: none;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 3px;
+  transition: 0.1s ease-in-out;
+}
+.grid-tile-footprint.invalid {
+  background: rgba(255, 64, 64, 0.2);
+  border-color: rgba(255, 32, 32, 0.4);
 }
 
 

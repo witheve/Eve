@@ -235,10 +235,9 @@ var stage = reactFactory({
     if(this.state.drag) {
       var footprint = Grid.getRect(this.state.grid, this.state.drag);
       content.push(["div", {
-        key: this.state.drag.id, className: "grid-tile-footprint",
+        key: this.state.drag.id, className: "grid-tile-footprint" + (this.state.drag.valid ? " valid" : " invalid"),
         style: {
           top: footprint.top, left: footprint.left, height: footprint.height, width: footprint.width,
-          background: this.state.drag.valid ? "blue" : "red"
         }
       }, ""]);
     }
