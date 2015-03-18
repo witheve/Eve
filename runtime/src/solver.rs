@@ -1,3 +1,5 @@
+use std;
+
 #[derive(PartialEq, Clone, PartialOrd, Debug)] // TODO can't lookup NaN
 pub enum Value {
     String(String),
@@ -20,30 +22,52 @@ pub enum ConstraintOp {
 }
 
 #[derive(Clone, Debug)]
-pub enum ConstraintReference {
+pub enum Ref {
     Constant{value: Value},
     Value{clause: usize, column: usize},
+    Tuple{clause: usize},
+    Relation{clause: usize},
+}
+
+impl Ref {
+    fn resolve<'a>(&'a self, result: &'a Vec<Value>) -> &'a Value {
+        match *self {
+            Ref::Constant{ref value} =>
+                value,
+            Ref::Value{clause, column} => {
+                match result[clause] {
+                    Value::Tuple(ref tuple) => &tuple[column],
+                    _ => panic!("Expected a tuple"),
+                }
+            },
+            Ref::Tuple{clause} => {
+                let value = &result[clause];
+                match *value {
+                    Value::Tuple(..) => value,
+                    _ => panic!("Expected a tuple"),
+                }
+            },
+            Ref::Relation{clause} =>{
+                let value = &result[clause];
+                match *value {
+                    Value::Relation(..) => value,
+                    _ => panic!("Expected a relation"),
+                }
+            },
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct Constraint {
     pub my_column: usize,
     pub op: ConstraintOp,
-    pub other_ref: ConstraintReference,
+    pub other_ref: Ref,
 }
 
 impl Constraint {
     fn prepare<'a>(&'a self, result: &'a Vec<Value>) -> &'a Value {
-        match self.other_ref {
-            ConstraintReference::Constant{ref value} =>
-                value,
-            ConstraintReference::Value{clause, column} => {
-                match result[clause] {
-                    Value::Tuple(ref tuple) => &tuple[column],
-                    _ => panic!("Expected a tuple"),
-                }
-            }
-        }
+        self.other_ref.resolve(result)
     }
 
     // bearing in mind that Value is only PartialOrd so this may do weird things with NaN
@@ -78,23 +102,49 @@ impl Source {
     }
 }
 
+pub type EveFn = fn(Vec<Value>) -> Value;
+
+#[derive(Clone)]
+pub struct Call {
+    pub fun: EveFn,
+    pub arg_refs: Vec<Ref>,
+}
+
+impl std::fmt::Debug for Call {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        formatter.write_str(&*format!("Call{{fun: <fun>, arg_refs:{:?}}}", self.arg_refs))
+    }
+}
+
+impl Call {
+    fn eval(&self, result: &Vec<Value>) -> Value {
+        let args = self.arg_refs.iter().map(|arg_ref| arg_ref.resolve(result).clone()).collect();
+        let fun = self.fun;
+        fun(args)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum Clause {
     Tuple(Source),
     Relation(Source),
-    // Function(...),
+    Call(Call),
 }
 
 impl Clause {
     fn constrained_to(&self, result: &Vec<Value>) -> Vec<Value> {
-        match self {
-            &Clause::Tuple(ref source) => {
+        match *self {
+            Clause::Tuple(ref source) => {
                 let relation = source.constrained_to(result);
                 relation.into_iter().map(|tuple| Value::Tuple(tuple)).collect()
             },
-            &Clause::Relation(ref source) => {
+            Clause::Relation(ref source) => {
                 let relation = source.constrained_to(result);
                 vec![Value::Relation(relation)]
+            },
+            Clause::Call(ref call) => {
+                let value = call.eval(result);
+                vec![value]
             }
         }
     }
