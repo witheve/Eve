@@ -173,10 +173,21 @@ var stage = reactFactory({
     this.setState({grid: Grid.makeGrid({bounds: nextProps.bounds, gutter: 8})});
   },
   startTileDrag: function(evt, tile, offset, pos, size) {
-    this.setState({drag: {target: tile, offset: offset, pos: pos, size: size, id: uuid()}});
+    this.setState({drag: {target: tile, valid: true, offset: offset, pos: pos, size: size, id: uuid()}});
   },
   endTileDrag: function() {
-    this.setState({drag: undefined});
+    var tile;
+    for(var ix = 0, len = this.state.tiles.length; ix < len; ix++) {
+      var curTile = this.state.tiles[ix];
+      if(curTile.id === this.state.drag.target) {
+        tile = curTile;
+        break;
+      }
+    }
+    if(this.state.drag.valid) {
+      tile.pos = this.state.drag.pos;
+    }
+    this.setState({drag: undefined, tiles: this.state.tiles});
   },
   showTileFootprint: function(evt) {
     var drag = this.state.drag;
@@ -186,7 +197,18 @@ var stage = reactFactory({
 
     var oldPos = this.state.drag.pos;
     if(pos[0] !== oldPos[0] || pos[1] !== oldPos[1]) {
+      var size = drag.size;
       drag.pos = pos;
+
+      var tiles = [];
+      for(var ix = 0, len = this.state.tiles.length; ix < len; ix++) {
+        var curTile = this.state.tiles[ix];
+        if(curTile.id !== this.state.drag.target) {
+          tiles.push(curTile);
+        }
+      }
+      drag.valid = Grid.hasGapAt(this.state.grid, tiles, pos, size);
+
       this.setState({drag: drag});
     }
   },
@@ -214,20 +236,12 @@ var stage = reactFactory({
     if(this.state.drag) {
       var pos = this.state.drag.pos;
       var size = this.state.drag.size;
-      var tiles = [];
-      for(var ix = 0, len = this.state.tiles.length; ix < len; ix++) {
-        var curTile = this.state.tiles[ix];
-        if(curTile.id !== this.state.drag.target) {
-          tiles.push(curTile);
-        }
-      }
       var footprint = Grid.getRect(this.state.grid, pos, size);
-      var hasGap = Grid.hasGapAt(this.state.grid, tiles, pos, size);
       content.push(["div", {
         key: this.state.drag.id, className: "grid-tile-footprint",
         style: {
           top: footprint.top, left: footprint.left, height: footprint.height, width: footprint.width,
-          background: hasGap ? "blue" : "red"
+          background: this.state.drag.valid ? "blue" : "red"
         }
       }, ""]);
     }
