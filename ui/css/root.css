@@ -70,3 +70,10 @@ body {
 
 .ui-tools {flex: none;}
 .ui-tools > ul { background: red; }
+
+/*****************************************************************************\
+ * View editor
+\*****************************************************************************/
+
+.view-wrapper { display:flex; flex:1; }
+.view-wrapper .view-source { flex: none; margin-right: 30px; display:flex; flex-direction:column; align-items:center; }

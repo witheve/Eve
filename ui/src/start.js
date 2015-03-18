@@ -165,7 +165,7 @@ var stage = reactFactory({
       tiles: [
         {pos: [0, 0], size: [6, 4], type: "table", id: uuid()},
         {pos: [6, 0], size: [6, 4], type: "ui", id: uuid()},
-        {pos: [6, 4], size: [6, 4], type: "ui", id: uuid()}
+        {pos: [6, 4], size: [6, 4], type: "view", id: uuid()}
       ],
     };
   },
@@ -401,11 +401,11 @@ tiles.table = {
       this.state.partialRows.forEach(function(cur) {
         rowComponents.push(tableRow({table: self.state.table, row: [], length: numColumns, editable: true, isNewRow: true, onRowAdded: self.rowAdded, onRowModified: self.addedRowModified, key: cur, id: cur}));
       });
-      return JSML(["div", {className: "tableWrapper"},
+      return JSML(["div", {className: "table-wrapper"},
                    ["table",
                     ["thead", ["tr", headers]],
                     ["tbody", rowComponents]],
-                   ["div", {className: "addColumn", onClick: this.addColumn}, "+"]]);
+                   ["div", {className: "add-column", onClick: this.addColumn}, "+"]]);
     }
   })
 };
@@ -413,6 +413,28 @@ tiles.table = {
 //---------------------------------------------------------
 // View components
 //---------------------------------------------------------
+
+var viewSource = reactFactory({
+  render: function() {
+    return JSML(["div", {className: "view-source"},
+                 ["h1", "foo"],
+                 tiles.table.content({tileId: this.props.tileId})
+                ]);
+  }
+});
+
+tiles.view = {
+  content: reactFactory({
+    render: function() {
+
+      return JSML(["div", {className: "view-wrapper"},
+                   viewSource({}),
+                   viewSource({}),
+                   ["div", "add source"]
+                  ]);
+    }
+  })
+}
 
 //---------------------------------------------------------
 // UI editor components
