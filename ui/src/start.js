@@ -134,7 +134,7 @@ var gridTile = reactFactory({
     data["tile/" + this.props.type] = this.props.id;
     data["tile/generic"] = this.props.id;
     if(this.props.draggable) { attrs = this.wrapDraggable(attrs, {data: data, image: null}); }
-    return JSML(["div", attrs, tile.content(tile)]);
+    return JSML(["div", attrs, tile.content({tileId: this.props.id})]);
   }
 });
 
@@ -151,7 +151,8 @@ var stage = reactFactory({
         {pos: [1, 1], size: [2, 1], type: "debug", id: uuid()},
         {pos: [3, 1], size: [9, 1], type: "debug", id: uuid()},
         {pos: [1, 2], size: [4, 8], type: "table", id: uuid()},
-        {pos: [5, 2], size: [7, 4], type: "ui", id: uuid()}
+        {pos: [5, 2], size: [7, 4], type: "ui", id: uuid()},
+        {pos: [5, 6], size: [7, 4], type: "ui", id: uuid()}
       ]
     };
   },
@@ -594,7 +595,7 @@ tiles.ui = {
   content: reactFactory({
     displayName: "ui-editor",
     render: function() {
-      var id = "myUI";
+      var id = this.props.tileId;
       var elements = ixer.index("uiComponentToElements")[id] || [];
       elements = elements.map(function(cur) {
         return {component: cur[0], id: cur[1], control: cur[2], left: cur[3], top: cur[4], right: cur[5], bottom: cur[6]};
