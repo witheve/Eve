@@ -1,4 +1,11 @@
+#![feature(test)]
+
+extern crate rand;
+extern crate time;
 extern crate eve;
+extern crate test;
+
+use rand::distributions::{IndependentSample, Range};
 
 use eve::solver::*;
 use eve::solver::Value::*;
@@ -111,4 +118,65 @@ fn main() {
         println!("{:?}", result);
     }
     println!("");
+
+    let bench_size = 10000;
+    let between = Range::new(0, bench_size);
+    let mut rng = rand::thread_rng();
+
+    let mut users = vec![];
+    let mut logins = vec![];
+    let mut bans = vec![];
+
+    for i in (0..bench_size) {
+        users.push(vec![Float(i as f64), Float(i as f64)]);
+    }
+
+    for i in (0..bench_size) {
+        let user = between.ind_sample(&mut rng);
+        logins.push(vec![Float(user as f64), Float(i as f64)]);
+    }
+
+    for i in (0..bench_size) {
+        bans.push(vec![Float(i as f64)]);
+    }
+
+    let start = time::precise_time_s();
+    // lol no indexing
+    let end = time::precise_time_s();
+    println!("index: {}s", end - start);
+
+    let user_eq_user = Constraint{
+        my_column: 0,
+        op: ConstraintOp::EQ,
+        other_ref: Ref::Value{
+            clause: 0,
+            column: 0,
+        }
+    };
+    let ip_eq_ip = Constraint{
+        my_column: 0,
+        op: ConstraintOp::EQ,
+        other_ref: Ref::Value{
+            clause: 1,
+            column: 1,
+        }
+    };
+    let query = Query{clauses: vec![
+        Clause::Tuple(Source{relation: users, constraints: vec![]}),
+        Clause::Tuple(Source{relation: logins, constraints: vec![user_eq_user]}),
+        Clause::Tuple(Source{relation: bans, constraints: vec![ip_eq_ip]}),
+    ]};
+
+    let start = time::precise_time_s();
+    println!("{:?} results", query.iter().count());
+    // for result in query.iter().enumerate() {
+    //     println!("{:?}", result);
+    // }
+    let end = time::precise_time_s();
+    println!("solve: {}s", end - start);
+
+    let start = time::precise_time_s();
+    drop(query);
+    let end = time::precise_time_s();
+    println!("erase: {}s", end - start);
 }

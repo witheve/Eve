@@ -76,7 +76,6 @@ var Drag = (function(document) {
   clearPixel.id = "clearPixel";
   clearPixel.width = 1; clearPixel.height = 1;
   document.body.appendChild(clearPixel);
-  console.log('hi');
   return {
     mixins: mixins
   };

@@ -131,7 +131,7 @@ var gridTile = reactFactory({
   dragStart: function(evt) {
     var offsetX = evt.clientX - this.props.left;
     var offsetY = evt.clientY - this.props.top;
-    this.props.dragStart(evt, this.props, [offsetX, offsetY]);
+    this.props.dragStart(evt, this.props.id, [offsetX, offsetY], this.props.pos, this.props.size);
   },
   render: function() {
     var tile = tiles[this.props.type];
@@ -144,7 +144,6 @@ var gridTile = reactFactory({
       height: this.props.height
     };
     var attrs = {className: "grid-tile " + this.props.type, style: style};
-
     if(this.props.draggable) {
       var data = {};
       data["tile/" + this.props.type] = this.props.id;
@@ -153,7 +152,7 @@ var gridTile = reactFactory({
       attrs.onDragEnd = this.props.dragEnd;
       attrs = this.wrapDraggable(attrs, {data: data, effect: "move"});
     }
-    return JSML(["div", attrs, tile.content(tile)]);
+    return JSML(["div", attrs, tile.content({tileId: this.props.id})]);
   }
 });
 
@@ -165,16 +164,16 @@ var stage = reactFactory({
       grid: Grid.makeGrid({bounds: this.props.bounds, gutter: 8}),
       tiles: [
         {pos: [0, 0], size: [6, 4], type: "table", id: uuid()},
-        {pos: [6, 0], size: [6, 4], type: "ui", id: uuid()}
+        {pos: [6, 0], size: [6, 4], type: "ui", id: uuid()},
+        {pos: [6, 4], size: [6, 4], type: "ui", id: uuid()}
       ],
-      drag: false
     };
   },
   componentWillReceiveProps: function(nextProps) {
     this.setState({grid: Grid.makeGrid({bounds: nextProps.bounds, gutter: 8})});
   },
-  startTileDrag: function(evt, tile, offset) {
-    this.setState({drag: {target: tile, offset: offset, pos: tile.pos, id: uuid()}});
+  startTileDrag: function(evt, tile, offset, pos, size) {
+    this.setState({drag: {target: tile, offset: offset, pos: pos, size: size, id: uuid()}});
   },
   endTileDrag: function() {
     this.setState({drag: undefined});
@@ -214,10 +213,15 @@ var stage = reactFactory({
 
     if(this.state.drag) {
       var pos = this.state.drag.pos;
-      var size = this.state.drag.target.size;
+      var size = this.state.drag.size;
+      var tiles = [];
+      for(var ix = 0, len = this.state.tiles.length; ix < len; ix++) {
+        var curTile = this.state.tiles[ix];
+        if(curTile.id !== this.state.drag.target) {
+          tiles.push(curTile);
+        }
+      }
       var footprint = Grid.getRect(this.state.grid, pos, size);
-      var tiles = extend([], this.state.tiles);
-      tiles.splice(tiles.indexOf(this.state.drag.target), 1);
       var hasGap = Grid.hasGapAt(this.state.grid, tiles, pos, size);
       content.push(["div", {
         key: this.state.drag.id, className: "grid-tile-footprint",
@@ -648,7 +652,7 @@ tiles.ui = {
   content: reactFactory({
     displayName: "ui-editor",
     render: function() {
-      var id = "myUI";
+      var id = this.props.tileId;
       var elements = ixer.index("uiComponentToElements")[id] || [];
       elements = elements.map(function(cur) {
         return {component: cur[0], id: cur[1], control: cur[2], left: cur[3], top: cur[4], right: cur[5], bottom: cur[6]};
