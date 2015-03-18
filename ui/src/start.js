@@ -354,11 +354,12 @@ function relativeCoords(e, me, parent) {
     var canvasRelY = e.clientY - canvasRect.top;
     var elementRelX = e.clientX - myRect.left;
     var elementRelY = e.clientY - myRect.top;
-    return {canvas: {x: canvasRelX, y: canvasRelY}, element: {x: elementRelX, y: elementRelY}}
+    return {canvas: {left: canvasRelX, top: canvasRelY}, element: {left: elementRelX, top: elementRelY}}
 }
 
 var uiControls = {
   button: {
+    control: "button",
     displayName: "button",
     attrs: [{displayName: "width"},
             {displayName: "height"},
@@ -368,6 +369,7 @@ var uiControls = {
            ]
   },
   text: {
+    control: "text",
     displayName: "text",
     attrs: [{displayName: "width"},
             {displayName: "height"},
@@ -377,6 +379,7 @@ var uiControls = {
            ]
   },
   box: {
+    control: "box",
     displayName: "box",
     attrs: [{displayName: "width"},
             {displayName: "height"},
@@ -391,11 +394,11 @@ var uiControls = {
 var uiControl = reactFactory({
   displayName: "ui-control",
   startMoving: function(e) {
-    e.dataTransfer.setData("uiElementAdd", this.props.control.displayName);
+    e.dataTransfer.setData("uiElementAdd", this.props.control.control);
     e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0,0);
   },
   addElement: function(e) {
-    dispatch("uiComponentElementAdd", {component: this.props.component, control: this.props.control.displayName, x: 100, y: 100, width: 100, height: 100});
+    dispatch("uiComponentElementAdd", {component: this.props.component, control: this.props.control.control, left: 100, top: 100, right: 200, bottom: 200});
   },
   render: function() {
     return JSML(["li", {draggable: true,
@@ -434,41 +437,131 @@ var uiInpector = reactFactory({
 var uiCanvasElem = reactFactory({
   getInitialState: function() {
     var cur = this.props.element;
-    return {width: cur.width, height: cur.height, x: cur.x, y: cur.y};
+    return {right: cur.right, bottom: cur.bottom, left: cur.left, top: cur.top};
   },
   componentDidUpdate: function(prev) {
     if(prev.element.id !== this.props.element.id) {
       var cur = this.props.element;
-      this.setState({width: cur.width, height: cur.height, x: cur.x, y: cur.y});
+      this.setState({right: cur.right, bottom: cur.bottom, left: cur.left, top: cur.top});
     }
   },
   startMoving: function(e) {
-    var rel = relativeCoords(e, e.target, e.target.parentNode);
+    var rel = relativeCoords(e, e.target, e.target.parentNode.parentNode);
     this.state.offset = rel.element;
     e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0,0);
   },
   move: function(e) {
     if(e.clientX === 0 && e.clientY === 0) return;
     //calculate offset;
-    var canvasPos = relativeCoords(e, e.target, e.target.parentNode).canvas;
-    var x = canvasPos.x - this.state.offset.x;
-    var y = canvasPos.y - this.state.offset.y;
-    this.setState({x: x, y: y});
+    var canvasPos = relativeCoords(e, e.target, e.target.parentNode.parentNode).canvas;
+    var left = canvasPos.left - this.state.offset.left;
+    var top = canvasPos.top - this.state.offset.top;
+    var right = this.state.right + (left - this.state.left);
+    var bottom = this.state.bottom + (top - this.state.top);
+    this.setState({left: left, top: top, right: right, bottom: bottom});
   },
   stopMoving: function(e) {
     var state = this.state;
     var element = this.props.element;
-    dispatch("uiComponentElementMoved", {element: element, x: state.x, y: state.y});
+    dispatch("uiComponentElementMoved", {element: element, left: state.left, top: state.top, right: state.right, bottom: state.bottom});
+  },
+  startResizing: function(e) {
+    this.state.resizeX = e.target.getAttribute("x");
+    this.state.resizeY = e.target.getAttribute("y");
+    e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0,0);
+  },
+  checkSize: function(orig, neue) {
+    var minSize = 10;
+    var width = neue.right - neue.left;
+    var height = neue.bottom - neue.top;
+    if(width < minSize) {
+      //figure out which dimension changed and fix it to a width of minSize
+      if(neue.left !== orig.left) {
+        neue.left = neue.right - minSize;
+      } else if(neue.right !== orig.right) {
+        neue.right = neue.left + minSize;
+      }
+    }
+    if(height < minSize) {
+      //figure out which dimension changed and fix it to a height of minSize
+      if(neue.top !== orig.top) {
+        neue.top = neue.bottom - minSize;
+      } else if(neue.bottom !== orig.bottom) {
+        neue.bottom = neue.top + minSize;
+      }
+    }
+    return neue;
+  },
+  resize: function(e) {
+    var rel = relativeCoords(e, e.target, e.target.parentNode.parentNode).canvas;
+    var state = this.state;
+    var neue = {left: state.left, top: state.top, right: state.right, bottom: state.bottom};
+    if(this.state.resizeX) {
+      neue[this.state.resizeX] = rel.left;
+    }
+    if(this.state.resizeY) {
+      neue[this.state.resizeY] = rel.top;
+    }
+    this.setState(this.checkSize(state, neue));
+  },
+  stopResizing: function(e) {
+    var state = this.state;
+    var element = this.props.element;
+    dispatch("uiComponentElementMoved", {element: element, left: state.left, top: state.top, right: state.right, bottom: state.bottom});
+  },
+  wrapResizeHandle: function(opts) {
+    opts.draggable = true;
+    opts.onDragStart = this.startResizing;
+    opts.onDrag = this.resize;
+    opts.onDragEnd = this.stopResizing;
+    var size = 7;
+    var offset = size / 2;
+    var width = this.state.right - this.state.left;
+    var height = this.state.bottom - this.state.top;
+    var style = opts.style = {};
+    style.width = size + "px";
+    style.height = size + "px";
+    //set position
+    if(opts.x === "left") {
+      //left edge
+      style.left = 0 - offset + "px";
+    } else if(opts.x === "right") {
+      //right edge
+      style.left = width - offset + "px";
+    } else {
+      //center
+      style.left = (width / 2) - offset + "px";
+    }
+    if(opts.y === "top") {
+      //top edge
+      style.top = 0 - offset + "px";
+    } else if(opts.y === "bottom") {
+      style.top = height - offset + "px";
+    } else {
+      style.top = (height / 2) - offset + "px";
+    }
+    return opts;
   },
   render: function() {
     var cur = this.props.element;
-    return JSML(["div", {className: "control",
-                         style: {top: this.state.y, left: this.state.x, width: this.state.width, height: this.state.height},
-                         onDragStart: this.startMoving,
-                         onDrag: this.move,
-                         onDragEnd: this.stopMoving,
-                         draggable: true},
-                 cur.control]);
+    var width = this.state.right - this.state.left;
+    var height = this.state.bottom - this.state.top;
+    return JSML(["div", {style: {top: this.state.top, left: this.state.left, width: width, height: height}},
+                 ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "top"})],
+                 ["div", this.wrapResizeHandle({className: "resize-handle", y: "top"})],
+                 ["div", this.wrapResizeHandle({className: "resize-handle", x: "right", y: "top"})],
+                 ["div", this.wrapResizeHandle({className: "resize-handle", x: "right"})],
+                 ["div", this.wrapResizeHandle({className: "resize-handle", x: "right", y: "bottom"})],
+                 ["div", this.wrapResizeHandle({className: "resize-handle", y: "bottom"})],
+                 ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "bottom"})],
+                 ["div", this.wrapResizeHandle({className: "resize-handle", x: "left"})],
+                 ["div", {className: "control",
+                          style: {width: width, height: height},
+                          onDragStart: this.startMoving,
+                          onDrag: this.move,
+                          onDragEnd: this.stopMoving,
+                          draggable: true},
+                  cur.control]]);
   }
 });
 
@@ -482,12 +575,12 @@ var uiCanvas = reactFactory({
     if(!type) return;
     var canvas = e.target;
     var rel = relativeCoords(e, canvas, canvas).canvas;
-    dispatch("uiComponentElementAdd", {component: this.props.component, control: type, x: rel.x, y: rel.y, width: 100, height: 100});
+    dispatch("uiComponentElementAdd", {component: this.props.component, control: type, left: rel.left, top: rel.top, right: rel.left + 100, bottom: rel.top + 100});
     console.log("add", type);
   },
   render: function() {
     var elems = this.props.elements.map(function(cur) {
-      return uiCanvasElem({element: cur});
+      return uiCanvasElem({element: cur, key: cur.element});
     })
     return JSML(["div", {className: "ui-canvas",
                          onDragOver: this.elementOver,
@@ -504,7 +597,7 @@ tiles.ui = {
       var id = "myUI";
       var elements = ixer.index("uiComponentToElements")[id] || [];
       elements = elements.map(function(cur) {
-        return {component: cur[0], id: cur[1], control: cur[2], width: cur[3], height: cur[4], x: cur[5], y: cur[6]};
+        return {component: cur[0], id: cur[1], control: cur[2], left: cur[3], top: cur[4], right: cur[5], bottom: cur[6]};
       });
       return JSML(["div", {className: "ui-editor"},
                    uiTools({component: id}),
@@ -548,15 +641,15 @@ function dispatch(event, arg, noRedraw) {
       break;
     case "uiComponentElementMoved":
       var element = arg.element;
-      var prev = [element.component, element.id, element.control, element.width, element.height, element.x, element.y];
-      var neue = [element.component, element.id, element.control, element.width, element.height, arg.x, arg.y];
+      var prev = [element.component, element.id, element.control, element.left, element.top, element.right, element.bottom];
+      var neue = [element.component, element.id, element.control, arg.left, arg.top, arg.right, arg.bottom] ;
       var diffs = {
         uiComponentElement: {adds: [neue], removes: [prev]}
       };
       ixer.handleDiffs(diffs);
       break;
     case "uiComponentElementAdd":
-      var neue = [arg.component, uuid(), arg.control, arg.width, arg.height, arg.x, arg.y];
+      var neue = [arg.component, uuid(), arg.control, arg.left, arg.top, arg.right, arg.bottom];
       var diffs = {
         uiComponentElement: {adds: [neue], removes: []}
       };
