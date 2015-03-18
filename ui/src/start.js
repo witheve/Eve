@@ -133,7 +133,7 @@ var gridTile = reactFactory({
     var data = {};
     data["tile/" + this.props.type] = this.props.id;
     data["tile/generic"] = this.props.id;
-    if(this.props.draggable) { attrs = this.wrapDraggable(attrs, {data: data, image: null, effect: "move"}); }
+    if(this.props.draggable) { attrs = this.wrapDraggable(attrs, {data: data, effect: "move"}); }
     return JSML(["div", attrs, tile.content(tile)]);
   }
 });
@@ -151,7 +151,14 @@ var stage = reactFactory({
     };
   },
   componentWillReceiveProps: function(nextProps) {
-    this.setState({grid: Grid.updateGrid(this.state.grid, {bounds: nextProps.bounds})});
+    this.setState({grid: Grid.makeGrid({bounds: nextProps.bounds, gutter: 8})});
+  },
+  showTileFootprint: function(evt) {
+    var pos = Grid.coordsToGrid(this.state.grid, evt.clientX, evt.clientY);
+
+    var x = evt.clientX;
+    var y = evt.clientY;
+    console.log(pos, x, y);
   },
 
   render: function() {
@@ -165,7 +172,10 @@ var stage = reactFactory({
       children.push(gridTile(tile));
     }
     var attrs = {className: "tile-grid" + (isEditing ? " editing" : "")};
-    if(this.props.editing) { attrs = this.wrapDropzone(attrs, {accepts: ["tile/generic"]}); }
+    if(this.props.editing) {
+      attrs.onDragOver = this.showTileFootprint;
+      attrs = this.wrapDropzone(attrs, {accepts: ["tile/generic"]});
+    }
     var content = ["div", attrs];
     content.push.apply(content, children);
     return JSML(content);

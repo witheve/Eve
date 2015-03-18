@@ -35,23 +35,21 @@ var Grid = (function(document, React, Velocity) {
         bounds = bounds.getBoundingClientRect();
       }
       if(!bounds) { throw new Error(ERR.NO_BOUNDS); }
-      return {
+
+      var grid = {
         size: params.size || [12, 12],
         bounds: bounds,
-        gutter: params.gutter || 0
-      }
-    },
-    updateGrid: function updateGrid(grid, opts) { // (Grid, Any) -> Grid
-      if(!grid) { throw new Error(ERR.NO_GRID); }
-      if(!opts) { return; }
-      for(var key in opts) {
-        if(!opts.hasOwnProperty(key)) { continue; }
-        if(key === "container") {
-          grid.bounds = opts.container.getBoundingClientRect();
-        } else {
-          grid[key] = opts[key];
-        }
-      }
+        gutter: params.gutter || 0,
+      };
+
+      var gapWidth = grid.gutter * (grid.size[0] - 1);
+      var gapHeight = grid.gutter * (grid.size[1] - 1);
+      grid.calculated = {
+        cellWidth: (grid.bounds.width - gapWidth) / grid.size[0],
+        cellHeight: (grid.bounds.height - gapHeight) / grid.size[1],
+        snapWidth: grid.bounds.width / grid.size[0],
+        snapHeight: grid.bounds.height / grid.size[1]
+      };
       return grid;
     },
     getRect: function getRect(grid, pos, size) { // (Grid, Pos, Size) -> Rect
@@ -59,16 +57,11 @@ var Grid = (function(document, React, Velocity) {
       if(!pos) { throw new Error(ERR.NO_POS); }
       if(!size) { throw new Error(ERR.NO_SIZE); }
 
-      var gapWidth = grid.gutter * (grid.size[0] - 1);
-      var gapHeight = grid.gutter * (grid.size[1] - 1);
-      var cellWidth = (grid.bounds.width - gapWidth) / grid.size[0];
-      var cellHeight = (grid.bounds.height - gapHeight) / grid.size[1];
-
       var rect = {
-        left: grid.bounds.left + pos[0] * cellWidth + pos[0] * grid.gutter,
-        top: grid.bounds.top + pos[1] * cellHeight + pos[1] * grid.gutter,
-        width: size[0] * cellWidth + (size[0] - 1) * grid.gutter,
-        height: size[1] * cellHeight + (size[1] - 1) * grid.gutter
+        left: grid.bounds.left + pos[0] * grid.calculated.cellWidth + pos[0] * grid.gutter,
+        top: grid.bounds.top + pos[1] * grid.calculated.cellHeight + pos[1] * grid.gutter,
+        width: size[0] * grid.calculated.cellWidth + (size[0] - 1) * grid.gutter,
+        height: size[1] * grid.calculated.cellHeight + (size[1] - 1) * grid.gutter
       };
       return rect;
     },
@@ -83,6 +76,15 @@ var Grid = (function(document, React, Velocity) {
       if(!pos) { throw new Error(ERR.NO_POS); }
       if(!size) { throw new Error(ERR.NO_SIZE); }
       to = to || [grid.size[0] / 2, grid.size[1] / 2]; // @NOTE: I'm not sure this default makes sense.
+    },
+    coordsToGrid: function coordsToGrid(grid, x, y) {
+      if(!grid) { throw new Error(ERR.NO_GRID); }
+
+      x -= grid.bounds.top;
+      y -= grid.bounds.left;
+      x /= grid.calculated.snapWidth;
+      y /= grid.calculated.snapHeight;
+      return [Math.floor(x), Math.floor(y)];
     },
     tilesToMap: function tilesToMap(grid, tiles) { // (Grid, Tile[]) -> TileMap
       var map = make2DArray(grid.size[0], grid.size[1], 0);
