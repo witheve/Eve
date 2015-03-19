@@ -26,6 +26,15 @@ function findWhere(arr, key, needle) {
   }
 }
 
+function findMatch(haystack, needles) {
+  for(var ix = 0, len = needles.length; ix < len; ix++) {
+    var needle = needles[ix];
+    if(haystack.indexOf(needle) !== -1) {
+      return needle;
+    }
+  }
+}
+
 function range(from, to) {
   if(to === undefined) {
     to = from;
@@ -143,7 +152,6 @@ var gridTile = reactFactory({
     return {currentPos: [this.props.left, this.props.top], currentSize: [this.props.width, this.props.height]};
   },
   startDrag: function(evt) {
-    console.log("start");
     var dT = evt.dataTransfer;
     dT.setData("tile/" + this.props.type, this.props.id);
     dT.setData("tile/generic", this.props.id);
@@ -204,15 +212,21 @@ var stage = reactFactory({
   mixins: [Drag.mixins.dropzone],
   getInitialState: function() {
     return {
+      accepts: ["tile/generic"],
       grid: Grid.makeGrid({bounds: this.props.bounds, gutter: 8}),
     };
   },
   componentWillReceiveProps: function(nextProps) {
     this.setState({grid: Grid.makeGrid({bounds: nextProps.bounds, gutter: 8})});
   },
-  dragTileOver: function(evt, type) {
+  dragTileOver: function(evt) {
     // @TODO: Once converted to tables, retrieve pos / size here for updateFootprint.
-    var id = evt.dataTransfer.getData(type);
+    var dT = evt.dataTransfer;
+    var type = findMatch(this.state.accepts, dT.types);
+    if(!type) { return; }
+
+    evt.preventDefault();
+    var id = dT.getData(type);
     if(this.state.dragId !== id) {
       this.setState({dragId: id});
     }
@@ -221,7 +235,7 @@ var stage = reactFactory({
     this.setState({dragId: undefined, dragPos: undefined, dragSize: undefined});
   },
   dropTile: function() {
-    if(this.state.dragValid) {
+    if(this.state.dragValid && this.state.dragPos && this.state.dragSize) {
       dispatch("updateTile", {id: this.state.dragId, pos: this.state.dragPos, size: this.state.dragSize});
     }
     this.setState({dragId: undefined, dragPos: undefined, dragSize: undefined});
@@ -266,7 +280,6 @@ var stage = reactFactory({
       attrs.onDragOver = this.dragTileOver;
       attrs.onDragLeave = this.dragTileOut;
       attrs.onDrop = this.dropTile;
-      attrs = this.wrapDropzone(attrs, {accepts: ["tile/generic"]});
     }
     var content = ["div", attrs];
     content.push.apply(content, children);

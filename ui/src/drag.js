@@ -4,54 +4,6 @@ var Drag = (function(document) {
   }
 
   var mixins = {
-    draggable: {
-      _startDrag: function(evt) {
-        var opts = this._dragOpts;
-
-        for(var dataType in opts.data) {
-          if(!opts.data.hasOwnProperty(dataType)) { continue; }
-          evt.dataTransfer.setData(dataType, opts.data[dataType]);
-        }
-        if(opts.image === null || opts.image === false) {
-          document.body.appendChild(clearPixel);
-          opts.image = clearPixel;
-        }
-        if(opts.image) { evt.dataTransfer.setDragImage(clearPixel, 0, 0); }
-        if(opts.effect) { evt.dataTransfer.effectAllowed = opts.effect; }
-
-        var el = this.getDOMNode();
-        var top = parseFloat(el.style.top);
-        var left = parseFloat(el.style.left);
-        var offset = [evt.clientX - left, evt.clientY - top];
-        if(opts.onDragStart) { opts.onDragStart(evt, offset); }
-        this.setState({dragging: true, dragOffset: offset});
-      },
-      _endDrag: function(evt) {
-        var opts = this._dragOpts;
-        if(opts.onDragEnd) {
-          opts.onDragEnd(evt, this.state.dragOffset);
-        }
-        this.setState({dragging: false, dragOffset: undefined});
-      },
-      _dragging: function(evt) {
-        var opts = this._dragOpts;
-        if(opts.onDrag) {
-          opts.onDrag(evt, this.state.dragOffset);
-        }
-      },
-      wrapDraggable: function(attrs, opts) {
-        opts = opts || {};
-        if(attrs.onDragStart) { opts.onDragStart = attrs.onDragStart; }
-        if(attrs.onDragEnd) { opts.onDragEnd = attrs.onDragEnd; }
-        if(attrs.onDrag) { opts.onDrag = attrs.onDrag; }
-        this._dragOpts = opts;
-        attrs.draggable = true;
-        attrs.onDragStart = this._startDrag;
-        attrs.onDragEnd = this._endDrag;
-        attrs.onDrag = this._dragging;
-        return attrs;
-      }
-    },
     dropzone: {
       _getBestType: function(types, accepts) {
         for(var ix in types) {
@@ -143,18 +95,16 @@ var Drag = (function(document) {
   };
 
   var dragHandle = reactFactory({
-    mixins: [mixins.draggable],
+    mixins: [],
     getInitialState: function() {
       return {parentRect: this.props.parent.getDOMNode().getBoundingClientRect()};
     },
     dragStart: function(evt) {
       this.props.onDragStart(this.props.dir, this.props.axis);
       this.setState({parentRect: this.props.parent.getDOMNode().getBoundingClientRect()});
-      //evt.stopPropagation();
     },
     dragEnd: function(evt) {
       this.props.onDragEnd(this.props.dir, this.props.axis);
-      //evt.stopPropagation();
     },
     dragging: function(evt) {
       var delta = [0, 0];
@@ -188,11 +138,11 @@ var Drag = (function(document) {
         className: "drag-handle " + this.props.dir,
         key: this.props.dir,
         style: style,
+        draggable: true,
         onDrag: this.dragging,
         onDragStart: this.dragStart,
         onDragEnd: this.dragEnd
       };
-      attrs = this.wrapDraggable(attrs);
       return JSML(
         ["div", attrs]
       );
