@@ -5,7 +5,9 @@ body {
   position: relative;
   margin: 0;
 
-  background: gray;
+  color: #ccc;
+  background: #202020;
+  font-family: Avenir, "Helvetica Neue";
 }
 
 .toolbar {
@@ -15,14 +17,17 @@ body {
   background: none;
   border: none;
   font-size: 2em;
+  color: #999;
+  border-radius:2px;
+  outline: none;
 }
 .toolbar > button:hover {
   background: rgba(255, 255, 255, 0.2);
-  color: rgb(32, 64, 128);
+  color: #acf;
 }
 .toolbar > button:active {
   background: rgba(255, 255, 255, 0.5);
-  color: rgb(32, 144, 255);
+  color: #acf;
 }
 
 .pull-right {
@@ -55,7 +60,7 @@ body {
 .grid-tile {
   padding: 8px;
   position: absolute;
-  background: #eee;
+  background: #2c2c2c;
   border-radius: 3px;
   display:flex;
 }
@@ -72,23 +77,34 @@ body {
   border-color: rgba(255, 32, 32, 0.4);
 }
 
+/*****************************************************************************\
+ * Table
+\*****************************************************************************/
+
+th { background: rgba(255,255,255, 0.1); }
+td, th { padding:3px 8px; min-width: 50px; text-align:left; }
+th:first-child { border-radius: 2px 0 0 2px; }
+th:last-child { border-radius: 0 2px 2px 0; }
+
+.table-wrapper { flex: 1; display:flex; }
+.add-column { margin-left: 10px; }
 
 /*****************************************************************************\
  * UI editor
 \*****************************************************************************/
 
-.ui-editor { display:flex; flex:2; }
+.ui-editor { display:flex; flex:2; overflow:hidden; }
 
 .ui-inspector {flex: none;}
-.ui-inspector > ul { background:red; }
+.ui-inspector > ul { padding: 5px; background: rgba(255,255,255, 0.1); border-radius:2px; }
 
 .ui-canvas {flex: 1; position:relative; }
 .ui-canvas > * { position:absolute; }
-.ui-canvas .control { background:rgba(0,0,0,0.05); }
+.ui-canvas .control { background:rgba(255,255,255, 0.08); }
 .ui-canvas .resize-handle { position:absolute; background: rgba(170,204,255,0.3); border: 1px solid #acf; }
 
 .ui-tools {flex: none;}
-.ui-tools > ul { background: red; }
+.ui-tools > ul { padding: 5px; background: rgba(255,255,255, 0.1); border-radius:2px; }
 
 /*****************************************************************************\
  * View editor

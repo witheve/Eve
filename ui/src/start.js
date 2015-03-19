@@ -379,12 +379,10 @@ var tableRow = reactFactory({
   }
 });
 
-tiles.table = {
-  content: reactFactory({
+var table = reactFactory({
     displayName: "table",
     getInitialState: function() {
-      var table = "foo"; //@FIXME derive this from tableTile index.
-      return {table: table, partialRows: [uuid()]};
+      return {partialRows: [uuid()]};
     },
     rowAdded: function(id) {
       this.setState({partialRows: this.state.partialRows.filter(function(cur) {
@@ -398,27 +396,27 @@ tiles.table = {
       }
     },
     addColumn: function() {
-      dispatch("addColumnToTable", {table: this.state.table});
+      dispatch("addColumnToTable", {table: this.props.tableId});
     },
     render: function() {
       var self = this;
-      var fields = code.viewToFields(this.state.table);
-      var rows = ixer.facts(this.state.table);
+      var fields = code.viewToFields(this.props.tableId);
+      var rows = ixer.facts(this.props.tableId);
       var numColumns = fields.length;
       var headers = fields.map(function(cur) {
         return tableHeader({field: code.name(cur[0]), id: cur[0]});
       });
-      var rowIds = ixer.index("editId")[this.state.table];
+      var rowIds = ixer.index("editId")[this.props.tableId];
       if(rowIds) {
         rows.sort(function(a, b) {
           return rowIds[JSON.stringify(a)] - rowIds[JSON.stringify(b)];
         });
       }
       var rowComponents = rows.map(function(cur, ix) {
-        return tableRow({table: self.state.table, row: cur, length: numColumns, key: JSON.stringify(cur) + ix, editable: true});
+        return tableRow({table: self.props.tableId, row: cur, length: numColumns, key: JSON.stringify(cur) + ix, editable: true});
       });
       this.state.partialRows.forEach(function(cur) {
-        rowComponents.push(tableRow({table: self.state.table, row: [], length: numColumns, editable: true, isNewRow: true, onRowAdded: self.rowAdded, onRowModified: self.addedRowModified, key: cur, id: cur}));
+        rowComponents.push(tableRow({table: self.props.tableId, row: [], length: numColumns, editable: true, isNewRow: true, onRowAdded: self.rowAdded, onRowModified: self.addedRowModified, key: cur, id: cur}));
       });
       return JSML(["div", {className: "table-wrapper"},
                    ["table",
@@ -426,7 +424,14 @@ tiles.table = {
                     ["tbody", rowComponents]],
                    ["div", {className: "add-column", onClick: this.addColumn}, "+"]]);
     }
-  })
+  });
+
+tiles.table = {
+  content: function(opts) {
+    //@TODO: get table for tile
+    opts.tableId = "foo";
+    return table(opts);
+  }
 };
 
 //---------------------------------------------------------
@@ -435,9 +440,10 @@ tiles.table = {
 
 var viewSource = reactFactory({
   render: function() {
+    var viewOrFunction = this.props.source[3];
     return JSML(["div", {className: "view-source"},
-                 ["h1", "foo"],
-                 tiles.table.content({tileId: this.props.tileId})
+                 ["h1", viewOrFunction],
+                 table({tileId: this.props.tileId, tableId: viewOrFunction})
                 ]);
   }
 });
@@ -445,10 +451,18 @@ var viewSource = reactFactory({
 tiles.view = {
   content: reactFactory({
     render: function() {
+      var self = this;
+      var sources = ixer.index("viewToSources")["qq"];
+      sources.sort(function(a, b) {
+        //sort by ix
+        return a[2] - b[2];
+      });
+      var items = sources.map(function(cur) {
+        return viewSource({tileId: self.props.tileId, source: cur});
+      });
       //edit view
       return JSML(["div", {className: "view-wrapper"},
-                   viewSource({}),
-                   viewSource({}),
+                   items,
                    ["div", "add source"]
                   ]);
     }
@@ -826,7 +840,7 @@ var code = {
       }
 
       var diffs = {
-        view: {adds: [id, schema, false]}, // @NOTE: What is false?
+        view: {adds: [[id, schema, "union"]]},
         field: {adds: fieldAdds},
         displayName: {adds: displayNames}
       };
@@ -861,13 +875,23 @@ ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.col
 ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schema", "query"]], removes: []},
                   schema: {adds: [["foo-schema"], ["qq-schema"]], removes: []},
                   field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "string"], ["qq-a", "qq-schema", 0, "string"]], removes: []},
-                  source: {adds: [["foo-source", "qq", 0, "foo", true], ["foo-source", "qq", 0, "foo", false]], removes: []},
+                  source: {adds: [["foo-source", "qq", 0, "foo", true], ["zomg-source", "qq", 0, "zomg", false]], removes: []},
                   editId: {adds: [["foo", JSON.stringify(["a", "b"]), 0], ["foo", JSON.stringify(["c", "d"]), 1]], removes: []},
                   foo: {adds: [["a", "b"], ["c", "d"]], removes: []},
                   input: {adds: [["foo", ["a", "b"]], ["foo", ["c", "d"]]], removes: []},
                   displayName: {adds: [["foo-a", "foo A"], ["foo-b", "foo B"]], removes: []},
                   uiComponent: {adds: [["myUI"]], removes: []},
                  });
+
+
+ixer.handleDiffs(code.diffs.addView("zomg", {
+  d: "string",
+  e: "string",
+  f: "string"
+}, [
+  ["a", "b", "c"],
+  ["d", "e", "f"]
+], "zomg"));
 
 // Grid Indexes
 ixer.addIndex("gridTile", "gridTile", Indexing.create.lookup([0, false]));
