@@ -138,11 +138,24 @@ tiles.debug = {
 
 var gridTile = reactFactory({
   displayName: "grid-tile",
-  mixins: [Drag.mixins.draggable, Drag.mixins.resizable],
+  mixins: [Drag.mixins.resizable],
   getInitialState: function() {
     return {currentPos: [this.props.left, this.props.top], currentSize: [this.props.width, this.props.height]};
   },
-  dragging: function(evt, offset) {
+  startDrag: function(evt) {
+    console.log("start");
+    var dT = evt.dataTransfer;
+    dT.setData("tile/" + this.props.type, this.props.id);
+    dT.setData("tile/generic", this.props.id);
+    dT.setDragImage(document.getElementById("clear-pixel"), 0, 0);
+    var offset = [evt.clientX - this.props.left, evt.clientY - this.props.top];
+    this.setState({dragging: true, dragOffset: offset});
+  },
+  endDrag: function(evt) {
+    this.setState({dragging: false, dragOffset: undefined});
+  },
+  dragging: function(evt) {
+    var offset = this.state.dragOffset;
     var pos = [evt.clientX - offset[0], evt.clientY - offset[1]];
     var currentPos = this.state.currentPos;
     if(pos[0] !== currentPos[0] || pos[1] !== currentPos[1]) {
@@ -166,18 +179,21 @@ var gridTile = reactFactory({
       width: this.props.width,
       height: this.props.height
     };
-    var attrs = {className: "grid-tile " + this.props.type, style: style, key: this.props.id};
+    var attrs = {
+      key: this.props.id,
+      className: "grid-tile " + this.props.type,
+      style: style,
+      draggable: this.props.draggable
+    };
     var content = ["div", attrs, tile.content({tileId: this.props.id})];
     if(this.props.resizable) {
       attrs.onResize = this.resizing;
       content = this.wrapResizableJsml(content);
     }
     if(this.props.draggable) {
-      var data = {};
-      data["tile/" + this.props.type] = this.props.id;
-      data["tile/generic"] = this.props.id;
+      attrs.onDragStart = this.startDrag;
+      attrs.onDragEnd = this.endDrag;
       attrs.onDrag = this.dragging;
-      attrs = this.wrapDraggable(attrs, {data: data, effect: "move"});
     }
     return JSML(content);
   }
