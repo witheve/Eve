@@ -203,7 +203,6 @@ var Drag = (function(document) {
   var clearPixel = document.createElement("canvas");
   clearPixel.id = "clearPixel";
   clearPixel.width = clearPixel.height = 1;
-  document.body.appendChild(clearPixel);
   return {
     mixins: mixins
   };

@@ -50,8 +50,9 @@ var ixer = new Indexing.Indexer();
 //---------------------------------------------------------
 
 var toolbar = reactFactory({
+  displayName: "toolbar",
   render: function() {
-    var content = ["div", {className: "toolbar"}];
+    var content = ["div", {className: "toolbar", key: this.props.key}];
     content.push.apply(content, this.props.controls);
     return JSML(content);
   }
@@ -85,21 +86,31 @@ var root = reactFactory({
     this.setState({editingGrid: !this.state.editingGrid});
   },
   render: function() {
+    var tiles = ixer.facts("gridTile").map(function(tile) {
+      return {
+        id: tile[0], grid: tile[1], type: tile[2],
+        pos: [tile[3], tile[4]], size: [tile[5], tile[6]]
+      };
+    });
+
     return JSML(
       ["div",
-       ["canvas", {width: 1, height: 1, id: "clear-pixel"}],
-       stage({bounds: this.state.bounds, editing: this.state.editingGrid}),
+       ["canvas", {width: 1, height: 1, id: "clear-pixel", key: "root-clear-pixel"}],
+       stage({bounds: this.state.bounds, editing: this.state.editingGrid, key: "root-stage", tiles: tiles}),
        toolbar({
+         key: "root-toolbar",
          controls: [
            ["button", {
              title: "choose program",
              className: "btn-choose-program ion-ios-albums-outline pull-right",
-             onClick: this.chooseProgram
+             onClick: this.chooseProgram,
+             key: 0
            }],
            ["button", {
              title: "edit grid",
              className: "btn-edit-grid ion-grid pull-right",
-             onClick: this.toggleEditGrid
+             onClick: this.toggleEditGrid,
+             key: 1
            }]
          ]
        })]
@@ -178,11 +189,6 @@ var stage = reactFactory({
   getInitialState: function() {
     return {
       grid: Grid.makeGrid({bounds: this.props.bounds, gutter: 8}),
-      tiles: [
-        {pos: [0, 0], size: [6, 4], type: "table", id: uuid()},
-        {pos: [6, 0], size: [6, 4], type: "ui", id: uuid()},
-        {pos: [6, 4], size: [6, 4], type: "ui", id: uuid()}
-      ],
     };
   },
   componentWillReceiveProps: function(nextProps) {
@@ -196,15 +202,13 @@ var stage = reactFactory({
     }
   },
   dragTileOut: function(evt) {
-    this.setState({dragId: undefined, tiles: this.state.tiles});
+    this.setState({dragId: undefined, dragPos: undefined, dragSize: undefined});
   },
   dropTile: function() {
-    var tile = findWhere(this.state.tiles, "id", this.state.dragId);
     if(this.state.dragValid) {
-      tile.pos = this.state.dragPos;
-      tile.size = this.state.dragSize;
+      dispatch("updateTile", {id: this.state.dragId, pos: this.state.dragPos, size: this.state.dragSize});
     }
-    this.setState({dragId: undefined, tiles: this.state.tiles});
+    this.setState({dragId: undefined, dragPos: undefined, dragSize: undefined});
   },
   updateFootprint: function(pos, size) {
     var oldPos = this.state.dragPos;
@@ -220,8 +224,8 @@ var stage = reactFactory({
     }
 
     var oldValid = this.state.dragValid;
-    var tile = findWhere(this.state.tiles, "id", this.state.dragId);
-    var tiles = this.state.tiles.slice();
+    var tile = findWhere(this.props.tiles, "id", this.state.dragId);
+    var tiles = this.props.tiles.slice();
     tiles.splice(tiles.indexOf(tile), 1);
     var valid = Grid.hasGapAt(this.state.grid, tiles, {pos: pos, size: size});
     if(oldValid !== valid) {
@@ -232,15 +236,16 @@ var stage = reactFactory({
   render: function() {
     var isEditing = this.props.editing;
     var children = [];
-    for(var tileIx = 0, tilesLength = this.state.tiles.length; tileIx < tilesLength; tileIx++) {
-      var tileRaw = this.state.tiles[tileIx];
+    for(var tileIx = 0, tilesLength = this.props.tiles.length; tileIx < tilesLength; tileIx++) {
+      var tileRaw = this.props.tiles[tileIx];
       var tileRect = Grid.getRect(this.state.grid, tileRaw);
       var tile = extend(extend({}, tileRaw), tileRect);
+      tile.key = tile.id;
       tile.draggable = tile.resizable = isEditing;
       tile.updateFootprint = this.updateFootprint;
       children.push(gridTile(tile));
     }
-    var attrs = {className: "tile-grid" + (isEditing ? " editing" : "")};
+    var attrs = {key: this.props.key, className: "tile-grid" + (isEditing ? " editing" : "")};
     if(this.props.editing) {
       attrs.onDragOver = this.dragTileOver;
       attrs.onDragLeave = this.dragTileOut;
@@ -250,7 +255,7 @@ var stage = reactFactory({
     var content = ["div", attrs];
     content.push.apply(content, children);
 
-    if(this.state.dragId) {
+    if(this.state.dragId && this.state.dragPos) {
       var footprint = Grid.getRect(this.state.grid, {pos: this.state.dragPos, size: this.state.dragSize});
       content.push(["div", {
         className: "grid-tile-footprint" + (this.state.dragValid ? " valid" : " invalid"),
@@ -741,6 +746,15 @@ function dispatch(event, arg, noRedraw) {
       };
       ixer.handleDiffs(diffs);
       break;
+    case "updateTile":
+      var oldTile = ixer.index("gridTile")[arg.id].slice();
+      var tile = oldTile.slice();
+      tile[3] = arg.pos[0], tile[4] = arg.pos[1];
+      tile[5] = arg.size[0], tile[6] = arg.size[1];
+      diffs = {gridTile: {adds: [tile], removes: [oldTile]}};
+      console.log(diffs);
+      ixer.handleDiffs(diffs);
+      break;
     default:
       console.error("Dispatch for unknown event: ", event, arg);
       break;
@@ -775,6 +789,29 @@ var code = {
         displayName: {adds: [[id, neue]], removes: [[id, cur]]}
       }
       return diffs;
+    },
+    addView: function(name, fields, initial, id) { // (S, {[S]: Type}, Fact[]?, Uuid?) -> Diffs
+      id = id || uuid();
+      var schema = uuid();
+      var displayNames = [[id, name]];
+      var fieldIx = 0;
+      var fieldAdds = [];
+      for(var fieldName in fields) {
+        if(!fields.hasOwnProperty(fieldName)) { continue; }
+        var fieldId = uuid()
+        fieldAdds.push([fieldId, schema, fieldIx++, fields[fieldName]]);
+        displayNames.push([fieldId, fieldName]);
+      }
+
+      var diffs = {
+        view: {adds: [id, schema, false]}, // @NOTE: What is false?
+        field: {adds: fieldAdds},
+        displayName: {adds: displayNames}
+      };
+      if(initial) {
+        diffs[id] = {adds: initial};
+      }
+      return diffs;
     }
   },
   viewToFields: function(view) {
@@ -798,6 +835,7 @@ ixer.addIndex("editId", "editId", Indexing.create.lookup([0,1,2]));
 ixer.addIndex("viewToSchema", "view", Indexing.create.lookup([0, 1]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([1]));
 ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([0]));
+
 ixer.handleDiffs({view: {adds: [["foo", "foo-schema", false]], removes: []},
                   schema: {adds: [["foo-schema"]], removes: []},
                   field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "string"]], removes: []},
@@ -806,7 +844,26 @@ ixer.handleDiffs({view: {adds: [["foo", "foo-schema", false]], removes: []},
                   input: {adds: [["foo", ["a", "b"]], ["foo", ["c", "d"]]], removes: []},
                   displayName: {adds: [["foo-a", "foo A"], ["foo-b", "foo B"]], removes: []},
                   uiComponent: {adds: [["myUI"]], removes: []},
-
                  });
+
+// Grid Indexes
+ixer.addIndex("gridTile", "gridTile", Indexing.create.lookup([0, false]));
+ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
+
+var gridId = "default";
+
+ixer.handleDiffs(code.diffs.addView("gridTile", {
+  tile: "string",
+  grid: "string",
+  type: "string",
+  x: "number",
+  y: "number",
+  w: "number",
+  h: "number"
+}, [
+  [uuid(), gridId, "ui", 0, 0, 6, 4],
+  [uuid(), gridId, "table", 6, 0, 6, 4]
+], "gridTile"));
+
 
 dispatch("load");
