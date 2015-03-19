@@ -9,9 +9,9 @@ function reactFactory(obj) {
   return React.createFactory(React.createClass(obj));
 }
 
-function extend(dest, src) {
+function extend(dest, src, ignoreHasOwnProperty) {
   for(var key in src) {
-    if(!src.hasOwnProperty(key)) { continue; }
+    if(!src.hasOwnProperty(key) && !ignoreHasOwnProperty) { continue; }
     dest[key] = src[key];
   }
   return dest;
@@ -83,7 +83,7 @@ var root = reactFactory({
     this.setState({bounds: this.getBounds()});
   },
   getBounds: function() {
-    var bounds = extend({}, document.querySelector("body").getBoundingClientRect());
+    var bounds = extend({}, document.body.getBoundingClientRect(), true);
     bounds.height -= 80;
     bounds.width -= 40;
     return bounds;
@@ -154,7 +154,7 @@ var gridTile = reactFactory({
     var dT = evt.dataTransfer;
     dT.setData("tile/" + this.props.type, this.props.id);
     dT.setData("tile/generic", this.props.id);
-    dT.setDragImage(document.getElementById("clear-pixel"), 0, 0);
+    // dT.setDragImage(document.getElementById("clear-pixel"), 0, 0);
     var offset = [evt.clientX - this.props.left, evt.clientY - this.props.top];
     this.setState({dragging: true, dragOffset: offset});
   },
@@ -170,7 +170,22 @@ var gridTile = reactFactory({
       this.props.updateFootprint(pos, this.state.currentSize);
     }
   },
-  resizing: function(dimensions) {
+  startResize: function(evt) {
+    evt.stopPropagation();
+    var dT = evt.dataTransfer;
+    dT.setData("tile/generic", this.props.id);
+    dT.setDragImage(document.getElementById("clear-pixel"), 0, 0);
+    var offset = [evt.clientX - this.props.width, evt.clientY - this.props.height];
+    this.setState({resizing: true, resizeOffset: offset});
+  },
+  endResize: function(evt) {
+    evt.stopPropagation();
+    this.setState({resizing: false, resizeoffset: undefined});
+  },
+  resizing: function(evt) {
+    evt.stopPropagation();
+    var offset = this.state.resizeOffset;
+    var dimensions = [evt.clientX - offset[0], evt.clientY - offset[1]];
     var currentSize = this.state.currentSize;
     if(dimensions[0] !== currentSize[0] || dimensions[1] !== currentSize[1]) {
       this.setState({currentSize: dimensions});
@@ -188,14 +203,20 @@ var gridTile = reactFactory({
     };
     var attrs = {
       key: this.props.id,
-      className: "grid-tile " + this.props.type,
+      className: "grid-tile " + this.props.type + (this.state.dragging ? " dragging" : ""),
       style: style,
       draggable: this.props.draggable
     };
     var content = ["div", attrs, tile.content({tileId: this.props.id})];
     if(this.props.resizable) {
       attrs.onResize = this.resizing;
-      content.push(["div" {className: "corner-se-grip", draggable: true}]);
+      content.push(["div", {
+        className: "corner-se-grip ion-drag",
+        draggable: true,
+        onDragStart: this.startResize,
+        onDragEnd: this.stopResize,
+        onDrag: this.resizing
+      }]);
     }
     if(this.props.draggable) {
       attrs.onDragStart = this.startDrag;
@@ -274,13 +295,23 @@ var stage = reactFactory({
       children.push(gridTile(tile));
     }
     var attrs = {key: this.props.key, className: "tile-grid" + (isEditing ? " editing" : "")};
+    var content = ["div", attrs];
+    content.push.apply(content, children);
+
     if(this.props.editing) {
       attrs.onDragOver = this.dragTileOver;
       attrs.onDragLeave = this.dragTileOut;
       attrs.onDrop = this.dropTile;
+
+      var gridShadows = [];
+      for(var x = 0; x < this.state.grid.size[0]; x++) {
+        for(var y = 0; y < this.state.grid.size[1]; y++) {
+          var shadowStyle = Grid.getRect(this.state.grid, {pos: [x, y], size: [1, 1]});
+          gridShadows.push(["div", {className: "grid-shadow", key: x + "," + y, style: shadowStyle}]);
+        }
+      }
+      content.push.apply(content, gridShadows);
     }
-    var content = ["div", attrs];
-    content.push.apply(content, children);
 
     if(this.state.dragId && this.state.dragPos) {
       var footprint = Grid.getRect(this.state.grid, {pos: this.state.dragPos, size: this.state.dragSize});
@@ -815,7 +846,6 @@ function dispatch(event, arg, noRedraw) {
       tile[3] = arg.pos[0], tile[4] = arg.pos[1];
       tile[5] = arg.size[0], tile[6] = arg.size[1];
       diffs = {gridTile: {adds: [tile], removes: [oldTile]}};
-      console.log(diffs);
       ixer.handleDiffs(diffs);
       break;
     default:

@@ -47,7 +47,7 @@ var Grid = (function(document, React, Velocity) {
 
       var grid = {
         size: params.size || [12, 12],
-        bounds: bounds,
+        bounds: {top: bounds.top, left: bounds.left, bottom: bounds.bottom, right: bounds.right, width: bounds.width, height: bounds.height},
         gutter: params.gutter || 0,
       };
 
@@ -89,8 +89,8 @@ var Grid = (function(document, React, Velocity) {
     },
     coordsToPos: function coordsToPos(grid, x, y, round) { // (Grid, N, N, Bool?) -> Pos
       if(!grid) { throw new Error(ERR.NO_GRID); }
-      x = (x - grid.bounds.top) / grid.calculated.snapWidth;
-      y = (y - grid.bounds.left) / grid.calculated.snapHeight;
+      x = (x - grid.bounds.left) / grid.calculated.snapWidth;
+      y = (y - grid.bounds.top) / grid.calculated.snapHeight;
       if(round) { return [Math.round(x), Math.round(y)]; }
       else { return [Math.floor(x), Math.floor(y)]; }
     },
