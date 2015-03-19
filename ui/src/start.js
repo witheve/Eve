@@ -26,6 +26,15 @@ function findWhere(arr, key, needle) {
   }
 }
 
+function findMatch(haystack, needles) {
+  for(var ix = 0, len = needles.length; ix < len; ix++) {
+    var needle = needles[ix];
+    if(haystack.indexOf(needle) !== -1) {
+      return needle;
+    }
+  }
+}
+
 function range(from, to) {
   if(to === undefined) {
     to = from;
@@ -138,11 +147,23 @@ tiles.debug = {
 
 var gridTile = reactFactory({
   displayName: "grid-tile",
-  mixins: [Drag.mixins.draggable, Drag.mixins.resizable],
+  mixins: [Drag.mixins.resizable],
   getInitialState: function() {
     return {currentPos: [this.props.left, this.props.top], currentSize: [this.props.width, this.props.height]};
   },
-  dragging: function(evt, offset) {
+  startDrag: function(evt) {
+    var dT = evt.dataTransfer;
+    dT.setData("tile/" + this.props.type, this.props.id);
+    dT.setData("tile/generic", this.props.id);
+    dT.setDragImage(document.getElementById("clear-pixel"), 0, 0);
+    var offset = [evt.clientX - this.props.left, evt.clientY - this.props.top];
+    this.setState({dragging: true, dragOffset: offset});
+  },
+  endDrag: function(evt) {
+    this.setState({dragging: false, dragOffset: undefined});
+  },
+  dragging: function(evt) {
+    var offset = this.state.dragOffset;
     var pos = [evt.clientX - offset[0], evt.clientY - offset[1]];
     var currentPos = this.state.currentPos;
     if(pos[0] !== currentPos[0] || pos[1] !== currentPos[1]) {
@@ -166,18 +187,21 @@ var gridTile = reactFactory({
       width: this.props.width,
       height: this.props.height
     };
-    var attrs = {className: "grid-tile " + this.props.type, style: style, key: this.props.id};
+    var attrs = {
+      key: this.props.id,
+      className: "grid-tile " + this.props.type,
+      style: style,
+      draggable: this.props.draggable
+    };
     var content = ["div", attrs, tile.content({tileId: this.props.id})];
     if(this.props.resizable) {
       attrs.onResize = this.resizing;
       content = this.wrapResizableJsml(content);
     }
     if(this.props.draggable) {
-      var data = {};
-      data["tile/" + this.props.type] = this.props.id;
-      data["tile/generic"] = this.props.id;
+      attrs.onDragStart = this.startDrag;
+      attrs.onDragEnd = this.endDrag;
       attrs.onDrag = this.dragging;
-      attrs = this.wrapDraggable(attrs, {data: data, effect: "move"});
     }
     return JSML(content);
   }
@@ -188,15 +212,21 @@ var stage = reactFactory({
   mixins: [Drag.mixins.dropzone],
   getInitialState: function() {
     return {
+      accepts: ["tile/generic"],
       grid: Grid.makeGrid({bounds: this.props.bounds, gutter: 8}),
     };
   },
   componentWillReceiveProps: function(nextProps) {
     this.setState({grid: Grid.makeGrid({bounds: nextProps.bounds, gutter: 8})});
   },
-  dragTileOver: function(evt, type) {
+  dragTileOver: function(evt) {
     // @TODO: Once converted to tables, retrieve pos / size here for updateFootprint.
-    var id = evt.dataTransfer.getData(type);
+    var dT = evt.dataTransfer;
+    var type = findMatch(this.state.accepts, dT.types);
+    if(!type) { return; }
+
+    evt.preventDefault();
+    var id = dT.getData(type);
     if(this.state.dragId !== id) {
       this.setState({dragId: id});
     }
@@ -205,7 +235,7 @@ var stage = reactFactory({
     this.setState({dragId: undefined, dragPos: undefined, dragSize: undefined});
   },
   dropTile: function() {
-    if(this.state.dragValid) {
+    if(this.state.dragValid && this.state.dragPos && this.state.dragSize) {
       dispatch("updateTile", {id: this.state.dragId, pos: this.state.dragPos, size: this.state.dragSize});
     }
     this.setState({dragId: undefined, dragPos: undefined, dragSize: undefined});
@@ -250,7 +280,6 @@ var stage = reactFactory({
       attrs.onDragOver = this.dragTileOver;
       attrs.onDragLeave = this.dragTileOut;
       attrs.onDrop = this.dropTile;
-      attrs = this.wrapDropzone(attrs, {accepts: ["tile/generic"]});
     }
     var content = ["div", attrs];
     content.push.apply(content, children);
