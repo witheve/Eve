@@ -426,7 +426,7 @@ var viewSource = reactFactory({
 tiles.view = {
   content: reactFactory({
     render: function() {
-
+      //edit view
       return JSML(["div", {className: "view-wrapper"},
                    viewSource({}),
                    viewSource({}),
@@ -804,11 +804,13 @@ ixer.addIndex("displayName", "displayName", Indexing.create.lookup([0, 1]));
 ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
 ixer.addIndex("editId", "editId", Indexing.create.lookup([0,1,2]));
 ixer.addIndex("viewToSchema", "view", Indexing.create.lookup([0, 1]));
+ixer.addIndex("viewToSources", "source", Indexing.create.collector([1]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([1]));
 ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([0]));
-ixer.handleDiffs({view: {adds: [["foo", "foo-schema", false]], removes: []},
-                  schema: {adds: [["foo-schema"]], removes: []},
-                  field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "string"]], removes: []},
+ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schema", "query"]], removes: []},
+                  schema: {adds: [["foo-schema"], ["qq-schema"]], removes: []},
+                  field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "string"], ["qq-a", "qq-schema", 0, "string"]], removes: []},
+                  source: {adds: [["foo-source", "qq", 0, "foo", true], ["foo-source", "qq", 0, "foo", false]], removes: []},
                   editId: {adds: [["foo", JSON.stringify(["a", "b"]), 0], ["foo", JSON.stringify(["c", "d"]), 1]], removes: []},
                   foo: {adds: [["a", "b"], ["c", "d"]], removes: []},
                   input: {adds: [["foo", ["a", "b"]], ["foo", ["c", "d"]]], removes: []},
