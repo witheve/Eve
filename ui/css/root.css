@@ -29,9 +29,20 @@ body {
   float: right;
 }
 
+
 /*****************************************************************************\
  * Grid
 \*****************************************************************************/
+
+.drag-handle {
+  position: absolute;
+  width: 8px; height: 8px;
+  background: rgba(96, 208, 255, 0.4);
+  border: 1px solid rgb(32, 144, 255);
+  border-radius: 1px;
+}
+.drag-handle:hover { background: rgba(96, 208, 255, 0.8); }
+.drag-handle:active { background: rgba(96, 208, 255, 1); }
 
 .tile-grid {
   position: absolute;
@@ -52,7 +63,7 @@ body {
   position: absolute;
   pointer-events: none;
   background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(96, 208, 255, 0.8);
   border-radius: 3px;
   transition: 0.1s ease-in-out;
 }

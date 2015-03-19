@@ -87,17 +87,19 @@ var Grid = (function(document, React, Velocity) {
       to = to || [grid.size[0] / 2, grid.size[1] / 2]; // @NOTE: I'm not sure this default makes sense.
       console.warn("@TODO: Implement me");
     },
-    coordsToGrid: function coordsToGrid(grid, x, y, round) { // (Grid, N, N, Bool?) -> Pos
+    coordsToPos: function coordsToPos(grid, x, y, round) { // (Grid, N, N, Bool?) -> Pos
       if(!grid) { throw new Error(ERR.NO_GRID); }
-      x -= grid.bounds.top;
-      y -= grid.bounds.left;
-      x /= grid.calculated.snapWidth;
-      y /= grid.calculated.snapHeight;
-      if(round) {
-        return [Math.round(x), Math.round(y)];
-      } else {
-        return [Math.floor(x), Math.floor(y)];
-      }
+      x = (x - grid.bounds.top) / grid.calculated.snapWidth;
+      y = (y - grid.bounds.left) / grid.calculated.snapHeight;
+      if(round) { return [Math.round(x), Math.round(y)]; }
+      else { return [Math.floor(x), Math.floor(y)]; }
+    },
+    coordsToSize: function coordsToSize(grid, w, h, round) { // (Grid, N, N, Bool?) -> Size
+      if(!grid) { throw new Error(ERR.NO_GRID); }
+      w = w / grid.calculated.snapWidth;
+      h = h / grid.calculated.snapHeight;
+      if(round) { return [Math.round(w), Math.round(h)]; }
+      else { return [Math.floor(w), Math.floor(h)]; }
     },
     tilesToMap: function tilesToMap(grid, tiles) { // (Grid, Tile[]) -> TileMap
       var map = make2DArray(grid.size[0], grid.size[1], 0);
