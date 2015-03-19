@@ -52,6 +52,8 @@ var Indexing = (function() {
     handleDiffs: function(diffs) {
       for(var table in diffs) {
         var diff = diffs[table];
+        diff.adds = diff.adds || [];
+        diff.removes = diff.removes || [];
         var indexes = this.tableToIndex[table] || [];
         for(var ix = 0, len = indexes.length; ix < len; ix++) {
           var cur = indexes[ix];

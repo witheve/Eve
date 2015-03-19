@@ -17,6 +17,15 @@ function extend(dest, src) {
   return dest;
 }
 
+function findWhere(arr, key, needle) {
+  for(var ix = 0, len = arr.length; ix < len; ix++) {
+    var cur = arr[ix];
+    if(cur[key] === needle) {
+      return cur;
+    }
+  }
+}
+
 function range(from, to) {
   if(to === undefined) {
     to = from;
@@ -41,8 +50,9 @@ var ixer = new Indexing.Indexer();
 //---------------------------------------------------------
 
 var toolbar = reactFactory({
+  displayName: "toolbar",
   render: function() {
-    var content = ["div", {className: "toolbar"}];
+    var content = ["div", {className: "toolbar", key: this.props.key}];
     content.push.apply(content, this.props.controls);
     return JSML(content);
   }
@@ -76,21 +86,31 @@ var root = reactFactory({
     this.setState({editingGrid: !this.state.editingGrid});
   },
   render: function() {
+    var tiles = ixer.facts("gridTile").map(function(tile) {
+      return {
+        id: tile[0], grid: tile[1], type: tile[2],
+        pos: [tile[3], tile[4]], size: [tile[5], tile[6]]
+      };
+    });
+
     return JSML(
       ["div",
-       ["canvas", {width: 1, height: 1, id: "clear-pixel"}],
-       stage({bounds: this.state.bounds, editing: this.state.editingGrid}),
+       ["canvas", {width: 1, height: 1, id: "clear-pixel", key: "root-clear-pixel"}],
+       stage({bounds: this.state.bounds, editing: this.state.editingGrid, key: "root-stage", tiles: tiles}),
        toolbar({
+         key: "root-toolbar",
          controls: [
            ["button", {
              title: "choose program",
              className: "btn-choose-program ion-ios-albums-outline pull-right",
-             onClick: this.chooseProgram
+             onClick: this.chooseProgram,
+             key: 0
            }],
            ["button", {
              title: "edit grid",
              className: "btn-edit-grid ion-grid pull-right",
-             onClick: this.toggleEditGrid
+             onClick: this.toggleEditGrid,
+             key: 1
            }]
          ]
        })]
@@ -115,44 +135,51 @@ tiles.debug = {
   })
 };
 
-tiles.footprint = {
-  content: reactFactory({
-    displayName: "footprint",
-    render: function() {
-      return JSML(["span"]);
-    }
-  })
-};
-
 
 var gridTile = reactFactory({
   displayName: "grid-tile",
-  mixins: [Drag.mixins.draggable],
-  dragStart: function(evt) {
-    var offsetX = evt.clientX - this.props.left;
-    var offsetY = evt.clientY - this.props.top;
-    this.props.dragStart(evt, this.props.id, [offsetX, offsetY], this.props.pos, this.props.size);
+  mixins: [Drag.mixins.draggable, Drag.mixins.resizable],
+  getInitialState: function() {
+    return {currentPos: [this.props.left, this.props.top], currentSize: [this.props.width, this.props.height]};
+  },
+  dragging: function(evt, offset) {
+    var pos = [evt.clientX - offset[0], evt.clientY - offset[1]];
+    var currentPos = this.state.currentPos;
+    if(pos[0] !== currentPos[0] || pos[1] !== currentPos[1]) {
+      this.setState({currentPos: pos});
+      this.props.updateFootprint(pos, this.state.currentSize);
+    }
+  },
+  resizing: function(dimensions) {
+    var currentSize = this.state.currentSize;
+    if(dimensions[0] !== currentSize[0] || dimensions[1] !== currentSize[1]) {
+      this.setState({currentSize: dimensions});
+      this.props.updateFootprint(this.state.currentPos, dimensions);
+    }
   },
   render: function() {
     var tile = tiles[this.props.type];
     if(!tile) { throw new Error("Invalid tile type specified: '" + this.props.type + "'."); }
-
     var style = {
       top: this.props.top,
       left: this.props.left,
       width: this.props.width,
       height: this.props.height
     };
-    var attrs = {className: "grid-tile " + this.props.type, style: style};
+    var attrs = {className: "grid-tile " + this.props.type, style: style, key: this.props.id};
+    var content = ["div", attrs, tile.content({tileId: this.props.id})];
+    if(this.props.resizable) {
+      attrs.onResize = this.resizing;
+      content = this.wrapResizableJsml(content);
+    }
     if(this.props.draggable) {
       var data = {};
       data["tile/" + this.props.type] = this.props.id;
       data["tile/generic"] = this.props.id;
-      attrs.onDragStart = this.dragStart;
-      attrs.onDragEnd = this.props.dragEnd;
+      attrs.onDrag = this.dragging;
       attrs = this.wrapDraggable(attrs, {data: data, effect: "move"});
     }
-    return JSML(["div", attrs, tile.content({tileId: this.props.id})]);
+    return JSML(content);
   }
 });
 
@@ -162,86 +189,78 @@ var stage = reactFactory({
   getInitialState: function() {
     return {
       grid: Grid.makeGrid({bounds: this.props.bounds, gutter: 8}),
-      tiles: [
-        {pos: [0, 0], size: [6, 4], type: "table", id: uuid()},
-        {pos: [6, 0], size: [6, 4], type: "ui", id: uuid()},
-        {pos: [6, 4], size: [6, 4], type: "view", id: uuid()}
-      ],
     };
   },
   componentWillReceiveProps: function(nextProps) {
     this.setState({grid: Grid.makeGrid({bounds: nextProps.bounds, gutter: 8})});
   },
-  startTileDrag: function(evt, tile, offset, pos, size) {
-    this.setState({drag: {target: tile, valid: true, offset: offset, pos: pos, size: size, id: uuid()}});
-  },
-  endTileDrag: function() {
-    var tile;
-    for(var ix = 0, len = this.state.tiles.length; ix < len; ix++) {
-      var curTile = this.state.tiles[ix];
-      if(curTile.id === this.state.drag.target) {
-        tile = curTile;
-        break;
-      }
+  dragTileOver: function(evt, type) {
+    // @TODO: Once converted to tables, retrieve pos / size here for updateFootprint.
+    var id = evt.dataTransfer.getData(type);
+    if(this.state.dragId !== id) {
+      this.setState({dragId: id});
     }
-    if(this.state.drag.valid) {
-      tile.pos = this.state.drag.pos;
-    }
-    this.setState({drag: undefined, tiles: this.state.tiles});
   },
-  showTileFootprint: function(evt) {
-    var drag = this.state.drag;
-    var x = evt.clientX - drag.offset[0];
-    var y = evt.clientY - drag.offset[1];
-    var pos = Grid.coordsToGrid(this.state.grid, x, y);
+  dragTileOut: function(evt) {
+    this.setState({dragId: undefined, dragPos: undefined, dragSize: undefined});
+  },
+  dropTile: function() {
+    if(this.state.dragValid) {
+      dispatch("updateTile", {id: this.state.dragId, pos: this.state.dragPos, size: this.state.dragSize});
+    }
+    this.setState({dragId: undefined, dragPos: undefined, dragSize: undefined});
+  },
+  updateFootprint: function(pos, size) {
+    var oldPos = this.state.dragPos;
+    var pos = Grid.coordsToPos(this.state.grid, pos[0], pos[1], true);
+    if(!oldPos || pos[0] !== oldPos[0] || pos[1] !== oldPos[1]) {
+      this.setState({dragPos: pos});
+    }
 
-    var oldPos = this.state.drag.pos;
-    if(pos[0] !== oldPos[0] || pos[1] !== oldPos[1]) {
-      var size = drag.size;
-      drag.pos = pos;
+    var oldSize = this.state.dragSize;
+    var size = Grid.coordsToSize(this.state.grid, size[0], size[1], true);
+    if(!oldSize || size[0] !== oldSize[0] || size[1] !== oldSize[1]) {
+      this.setState({dragSize: size});
+    }
 
-      var tiles = [];
-      for(var ix = 0, len = this.state.tiles.length; ix < len; ix++) {
-        var curTile = this.state.tiles[ix];
-        if(curTile.id !== this.state.drag.target) {
-          tiles.push(curTile);
-        }
-      }
-      drag.valid = Grid.hasGapAt(this.state.grid, tiles, pos, size);
-
-      this.setState({drag: drag});
+    var oldValid = this.state.dragValid;
+    var tile = findWhere(this.props.tiles, "id", this.state.dragId);
+    var tiles = this.props.tiles.slice();
+    tiles.splice(tiles.indexOf(tile), 1);
+    var valid = Grid.hasGapAt(this.state.grid, tiles, {pos: pos, size: size});
+    if(oldValid !== valid) {
+      this.setState({dragValid: valid});
     }
   },
 
   render: function() {
     var isEditing = this.props.editing;
     var children = [];
-    for(var tileIx = 0, tilesLength = this.state.tiles.length; tileIx < tilesLength; tileIx++) {
-      var tileRaw = this.state.tiles[tileIx];
-      var tileRect = Grid.getRect(this.state.grid, tileRaw.pos, tileRaw.size);
+    for(var tileIx = 0, tilesLength = this.props.tiles.length; tileIx < tilesLength; tileIx++) {
+      var tileRaw = this.props.tiles[tileIx];
+      var tileRect = Grid.getRect(this.state.grid, tileRaw);
       var tile = extend(extend({}, tileRaw), tileRect);
+      tile.key = tile.id;
       tile.draggable = tile.resizable = isEditing;
-      tile.dragStart = this.startTileDrag;
-      tile.dragEnd = this.endTileDrag;
+      tile.updateFootprint = this.updateFootprint;
       children.push(gridTile(tile));
     }
-    var attrs = {className: "tile-grid" + (isEditing ? " editing" : "")};
+    var attrs = {key: this.props.key, className: "tile-grid" + (isEditing ? " editing" : "")};
     if(this.props.editing) {
-      attrs.onDragOver = this.showTileFootprint;
+      attrs.onDragOver = this.dragTileOver;
+      attrs.onDragLeave = this.dragTileOut;
+      attrs.onDrop = this.dropTile;
       attrs = this.wrapDropzone(attrs, {accepts: ["tile/generic"]});
     }
     var content = ["div", attrs];
     content.push.apply(content, children);
 
-    if(this.state.drag) {
-      var pos = this.state.drag.pos;
-      var size = this.state.drag.size;
-      var footprint = Grid.getRect(this.state.grid, pos, size);
+    if(this.state.dragId && this.state.dragPos) {
+      var footprint = Grid.getRect(this.state.grid, {pos: this.state.dragPos, size: this.state.dragSize});
       content.push(["div", {
-        key: this.state.drag.id, className: "grid-tile-footprint",
+        className: "grid-tile-footprint" + (this.state.dragValid ? " valid" : " invalid"),
         style: {
           top: footprint.top, left: footprint.left, height: footprint.height, width: footprint.width,
-          background: this.state.drag.valid ? "blue" : "red"
         }
       }, ""]);
     }
@@ -749,6 +768,15 @@ function dispatch(event, arg, noRedraw) {
       };
       ixer.handleDiffs(diffs);
       break;
+    case "updateTile":
+      var oldTile = ixer.index("gridTile")[arg.id].slice();
+      var tile = oldTile.slice();
+      tile[3] = arg.pos[0], tile[4] = arg.pos[1];
+      tile[5] = arg.size[0], tile[6] = arg.size[1];
+      diffs = {gridTile: {adds: [tile], removes: [oldTile]}};
+      console.log(diffs);
+      ixer.handleDiffs(diffs);
+      break;
     default:
       console.error("Dispatch for unknown event: ", event, arg);
       break;
@@ -781,6 +809,29 @@ var code = {
       var cur = ixer.index("displayName")[id];
       var diffs = {
         displayName: {adds: [[id, neue]], removes: [[id, cur]]}
+      }
+      return diffs;
+    },
+    addView: function(name, fields, initial, id) { // (S, {[S]: Type}, Fact[]?, Uuid?) -> Diffs
+      id = id || uuid();
+      var schema = uuid();
+      var displayNames = [[id, name]];
+      var fieldIx = 0;
+      var fieldAdds = [];
+      for(var fieldName in fields) {
+        if(!fields.hasOwnProperty(fieldName)) { continue; }
+        var fieldId = uuid()
+        fieldAdds.push([fieldId, schema, fieldIx++, fields[fieldName]]);
+        displayNames.push([fieldId, fieldName]);
+      }
+
+      var diffs = {
+        view: {adds: [id, schema, false]}, // @NOTE: What is false?
+        field: {adds: fieldAdds},
+        displayName: {adds: displayNames}
+      };
+      if(initial) {
+        diffs[id] = {adds: initial};
       }
       return diffs;
     }
@@ -816,7 +867,26 @@ ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schem
                   input: {adds: [["foo", ["a", "b"]], ["foo", ["c", "d"]]], removes: []},
                   displayName: {adds: [["foo-a", "foo A"], ["foo-b", "foo B"]], removes: []},
                   uiComponent: {adds: [["myUI"]], removes: []},
-
                  });
+
+// Grid Indexes
+ixer.addIndex("gridTile", "gridTile", Indexing.create.lookup([0, false]));
+ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
+
+var gridId = "default";
+
+ixer.handleDiffs(code.diffs.addView("gridTile", {
+  tile: "string",
+  grid: "string",
+  type: "string",
+  x: "number",
+  y: "number",
+  w: "number",
+  h: "number"
+}, [
+  [uuid(), gridId, "ui", 0, 0, 6, 4],
+  [uuid(), gridId, "table", 6, 0, 6, 4]
+], "gridTile"));
+
 
 dispatch("load");
