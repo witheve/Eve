@@ -147,7 +147,6 @@ tiles.debug = {
 
 var gridTile = reactFactory({
   displayName: "grid-tile",
-  mixins: [Drag.mixins.resizable],
   getInitialState: function() {
     return {currentPos: [this.props.left, this.props.top], currentSize: [this.props.width, this.props.height]};
   },
@@ -196,7 +195,7 @@ var gridTile = reactFactory({
     var content = ["div", attrs, tile.content({tileId: this.props.id})];
     if(this.props.resizable) {
       attrs.onResize = this.resizing;
-      content = this.wrapResizableJsml(content);
+      content.push(["div" {className: "corner-se-grip", draggable: true}]);
     }
     if(this.props.draggable) {
       attrs.onDragStart = this.startDrag;
@@ -209,7 +208,6 @@ var gridTile = reactFactory({
 
 var stage = reactFactory({
   displayName: "stage",
-  mixins: [Drag.mixins.dropzone],
   getInitialState: function() {
     return {
       accepts: ["tile/generic"],
