@@ -144,6 +144,24 @@ tiles.debug = {
   })
 };
 
+tiles.add = {
+  content: reactFactory({
+    displayName: "add",
+    addTile: function(evt) {
+      dispatch("addTile", {
+        id: this.props.tileId,
+        type: "debug",
+        pos: this.props.pos,
+        size: this.props.size
+      });
+    },
+    render: function() {
+      return JSML(["div", {
+        onClick: this.addTile
+      }]);
+    }
+  })
+};
 
 var gridTile = reactFactory({
   displayName: "grid-tile",
@@ -207,7 +225,7 @@ var gridTile = reactFactory({
       style: style,
       draggable: this.props.draggable
     };
-    var content = ["div", attrs, tile.content({tileId: this.props.id})];
+    var content = ["div", attrs, tile.content({tileId: this.props.id, pos: this.props.pos, size: this.props.size})];
     if(this.props.resizable) {
       attrs.onResize = this.resizing;
       content.push(["div", {
@@ -284,9 +302,20 @@ var stage = reactFactory({
 
   render: function() {
     var isEditing = this.props.editing;
+    var tiles = this.props.tiles.slice();
+    var addPos;
+    while(addPos = Grid.findGap(this.state.grid, tiles, Grid.DEFAULT_SIZE)) {
+      tiles.push({
+        pos: addPos,
+        size: Grid.DEFAULT_SIZE,
+        type: "add",
+        id: uuid()
+      });
+    }
+
     var children = [];
-    for(var tileIx = 0, tilesLength = this.props.tiles.length; tileIx < tilesLength; tileIx++) {
-      var tileRaw = this.props.tiles[tileIx];
+    for(var tileIx = 0, tilesLength = tiles.length; tileIx < tilesLength; tileIx++) {
+      var tileRaw = tiles[tileIx];
       var tileRect = Grid.getRect(this.state.grid, tileRaw);
       var tile = extend(extend({}, tileRaw), tileRect);
       tile.key = tile.id;
@@ -837,6 +866,14 @@ function dispatch(event, arg, noRedraw) {
       var neue = [arg.component, uuid(), arg.control, arg.left, arg.top, arg.right, arg.bottom];
       var diffs = {
         uiComponentElement: {adds: [neue], removes: []}
+      };
+      ixer.handleDiffs(diffs);
+      break;
+    case "addTile":
+      // @FIXME: active grid
+      var fact = [arg.id, "default", arg.type, arg.pos[0], arg.pos[1], arg.size[0], arg.size[1]];
+      var diffs = {
+        gridTile: {adds: [fact]}
       };
       ixer.handleDiffs(diffs);
       break;
