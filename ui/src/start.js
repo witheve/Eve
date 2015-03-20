@@ -99,7 +99,11 @@ var root = reactFactory({
     this.setState({editingGrid: !this.state.editingGrid});
   },
   render: function() {
-    var tiles = ixer.facts("gridTile").map(function(tile) {
+    var activeGrid = ixer.facts("activeGrid")[0][0];
+    console.log("Active grid is:", activeGrid);
+    var tiles = ixer.facts("gridTile").filter(function(fact) {
+      return fact[1] === activeGrid;
+    }).map(function(tile) {
       return {
         id: tile[0], grid: tile[1], type: tile[2],
         pos: [tile[3], tile[4]], size: [tile[5], tile[6]]
@@ -172,6 +176,17 @@ var gridTile = reactFactory({
   getInitialState: function() {
     return {currentPos: [this.props.left, this.props.top], currentSize: [this.props.width, this.props.height]};
   },
+
+  navigate: function(evt) {
+    var target = ixer.index("gridTarget")[this.props.id];
+    if(!target) {
+      return;
+    }
+
+    console.log("navigating to", target);
+    dispatch("navigate", {tile: this.props.id, target: target});
+  },
+
   startDrag: function(evt) {
     var dT = evt.dataTransfer;
     dT.setData("tile/" + this.props.type, this.props.id);
@@ -226,7 +241,8 @@ var gridTile = reactFactory({
       key: this.props.id,
       className: "grid-tile " + this.props.type + (this.state.dragging ? " dragging" : ""),
       style: style,
-      draggable: this.props.draggable
+      draggable: this.props.draggable,
+      onDoubleClick: this.navigate
     };
     var content = ["div", attrs, tile.content({tileId: this.props.id, pos: this.props.pos, size: this.props.size})];
     if(this.props.resizable) {
@@ -307,6 +323,7 @@ var stage = reactFactory({
   render: function() {
     var isEditing = this.props.editing;
     var tiles = this.props.tiles.slice();
+
     var addPos;
     while(addPos = Grid.findGap(this.state.grid, tiles, Grid.DEFAULT_SIZE)) {
       tiles.push({
@@ -977,7 +994,8 @@ function dispatch(event, arg, noRedraw) {
       break;
     case "addTile":
       // @FIXME: active grid
-      var fact = [arg.id, "default", arg.type, arg.pos[0], arg.pos[1], arg.size[0], arg.size[1]];
+      var activeGrid = ixer.facts("activeGrid")[0][0];
+      var fact = [arg.id, activeGrid, arg.type, arg.pos[0], arg.pos[1], arg.size[0], arg.size[1]];
       var diffs = {
         gridTile: {adds: [fact]}
       };
@@ -998,6 +1016,13 @@ function dispatch(event, arg, noRedraw) {
       tile[2] = "table";
       var diffs = {gridTile: {adds: [tile], removes: [oldTile]},
                   tableTile: {adds: [[tile[0], arg.view]]}};
+      ixer.handleDiffs(diffs);
+      break;
+    case "navigate":
+      if(!arg.target.indexOf("grid://") === 0) { throw new Error("Cannot handle non grid:// urls yet."); }
+      var diffs = {
+        activeGrid: {adds: [[arg.target.substring(7)]], removes: ixer.facts("activeGrid")}
+      }
       ixer.handleDiffs(diffs);
       break;
     default:
@@ -1103,11 +1128,13 @@ ixer.handleDiffs(code.diffs.addView("zomg", {
 ], "zomg"));
 
 // Grid Indexes
+ixer.addIndex("gridTarget", "gridTarget", Indexing.create.lookup([0, 1]));
 ixer.addIndex("gridTile", "gridTile", Indexing.create.lookup([0, false]));
 ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
 
 var gridId = "default";
 
+var uiViewId = uuid();
 ixer.handleDiffs(code.diffs.addView("gridTile", {
   tile: "string",
   grid: "string",
@@ -1117,8 +1144,31 @@ ixer.handleDiffs(code.diffs.addView("gridTile", {
   w: "number",
   h: "number"
 }, [
-  [uuid(), gridId, "ui", 0, 0, 6, 4],
+  [uiViewId, gridId, "ui", 0, 0, 6, 4],
+  [uuid(), gridId, "table", 6, 0, 6, 4],
+  [uuid(), "ui", "ui", 0, 0, 11, 11],
 ], "gridTile"));
+
+ixer.handleDiffs(code.diffs.addView(
+  "activeGrid",
+  {grid: "string"},
+  [["default"]],
+  "activeGrid"));
+
+
+ixer.handleDiffs(code.diffs.addView(
+  "gridTarget",
+  {tile: "string", target: "string"},
+  [[uiViewId, "grid://ui"]],
+  "gridTarget"));
+
+
+ixer.handleDiffs(code.diffs.addView("gridTarget", {
+  tile: "string",
+  target: "string"
+}, [
+  [uiViewId, "grid://ui"]
+], "gridTarget"));
 
 
 dispatch("load");

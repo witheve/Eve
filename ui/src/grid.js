@@ -17,10 +17,12 @@ var Grid = (function(document, React, Velocity) {
   };
 
   function make2DArray(width, height, defaultValue) {
-    var arr = [];
-    while(arr.push([]) < width) {
-      var col = arr[arr.length - 1];
-      while(col.push(defaultValue) < height) {}
+    var arr = new Array(width);
+    for(var x = 0; x < width; x++) {
+      arr[x] = [];
+      for(var y = 0; y < height; y++) {
+        arr[x][y] = defaultValue;
+      }
     }
     return arr;
   }
@@ -146,6 +148,17 @@ var Grid = (function(document, React, Velocity) {
           }
         }
       }
+    },
+    tilesToText: function(grid, tiles) {
+      var map = Grid.tilesToMap(grid, tiles);
+      var result = [];
+      for(var x = 0; x < map.length; x++) {
+        for(var y = 0; y < map[x].length; y++) {
+          result[y] = result[y] || [];
+          result[y][x] = map[x][y];
+        }
+      }
+      return result.map(function(row) { return row.join(" | "); }).join("\n");
     }
   };
 })(window.document, React, Velocity);
