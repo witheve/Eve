@@ -110,18 +110,18 @@ body {
 .grid-tile-inner:hover > .toolbar { opacity: 0.6; }
 .grid-tile-inner > .toolbar:hover { opacity: 1; }
 
-.grid-tile .corner-se-grip {
+.grid-tile-inner .corner-se-grip {
   position: absolute; bottom: 0; right: 0;
   width: 16px; height: 16px;
   overflow: hidden;
   border-bottom-right-radius: 3px;
   opacity: 0.6;
 }
-.grid-tile:hover .corner-se-grip { opacity: 1; }
-.grid-tile .corner-se-grip:hover {
+.grid-tile-inner:hover .corner-se-grip { opacity: 1; }
+.grid-tile-inner .corner-se-grip:hover {
   color: rgb(96, 208, 255);
 }
-.grid-tile .corner-se-grip.ion-drag::before {
+.grid-tile-inner .corner-se-grip.ion-drag::before {
   font-weight: 200;
   font-size: 1.4em;
   transform: rotateZ(-45deg);
@@ -130,9 +130,9 @@ body {
 .grid-tile.add { opacity: 0; }
 .grid-tile.add:hover { opacity: 0.5 }
 .grid-tile.add:active { opacity: 0.75 }
-.grid-tile.add > .toolbar { opacity: 0; pointer-events: none; }
-.grid-tile.add > .corner-se-grip { opacity: 0; pointer-events: none; }
-.grid-tile.add > div {
+.grid-tile.add .toolbar { opacity: 0; pointer-events: none; }
+.grid-tile.add .corner-se-grip { opacity: 0; pointer-events: none; }
+.grid-tile.add div {
   position: absolute; top: 0; left: 0; bottom: 0; right: 0;
 }
 
