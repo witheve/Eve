@@ -105,10 +105,10 @@ body {
   transform: rotateZ(-45deg);
 }
 
-.tile-grid.editing > .grid-tile.add { opacity: 0; pointer-events: none; }
 .grid-tile.add { opacity: 0; }
 .grid-tile.add:hover { opacity: 0.5 }
 .grid-tile.add:active { opacity: 0.75 }
+.grid-tile.add > .corner-se-grip { opacity: 0; pointer-events: none; }
 .grid-tile.add > div {
   position: absolute; top: 0; left: 0; bottom: 0; right: 0;
 }
