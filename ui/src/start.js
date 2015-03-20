@@ -7,7 +7,8 @@ var alphabet = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
 
 var KEYS = {UP: 38,
             DOWN: 40,
-            ENTER: 13};
+            ENTER: 13,
+            Z: 90};
 
 function reactFactory(obj) {
   return React.createFactory(React.createClass(obj));
@@ -974,62 +975,127 @@ tiles.ui = {
 };
 
 //---------------------------------------------------------
+// Diff Helpers
+//---------------------------------------------------------
+
+function reverseDiff(diff) {
+  var neue = {};
+  for(var table in diff) {
+    var old = diff[table];
+    neue[table] = {adds: old.removes, removes: old.adds};
+  }
+  return neue;
+}
+
+function mergeDiffs(a,b) {
+  var neue = {};
+  for(var table in a) {
+    neue[table] = {};
+    neue[table].adds = a[table].adds;
+    neue[table].removes = a[table].removes;
+  }
+  for(var table in b) {
+    if(!neue[table]) {
+      neue[table] = {};
+    }
+    if(neue[table].adds) {
+      neue[table].adds = neue[table].adds.concat(b[table].adds);
+    } else {
+      neue[table].adds = b[table].adds;
+    }
+    if(neue[table].removes) {
+      neue[table].removes = neue[table].removes.concat(b[table].removes);
+    } else {
+      neue[table].removes = b[table].removes;
+    }
+  }
+  return neue;
+}
+
+function into(diff, addOrRemove, tables) {
+  for(var table in tables) {
+    if(!diff[table]) {
+      diff[table] = {};
+    }
+    if(diff[table][addOrRemove]) {
+      diff[table][addOrRemove] = diff[table][addOrRemove].concat(tables[table]);
+    } else {
+      diff[table][addOrRemove] = tables[table];
+    }
+  }
+  return diff;
+}
+
+//---------------------------------------------------------
 // Event dispatch
 //---------------------------------------------------------
 
+var eventStack = {root: true, children: []};
+
+function scaryUndoEvent() {
+  if(!eventStack.parent || !eventStack.diffs) return {};
+
+  var old = eventStack;
+  eventStack = old.parent;
+  return reverseDiff(old.diffs);
+}
+
+function scaryRedoEvent() {
+  if(!eventStack.children.length) return {};
+
+  eventStack = eventStack.children[eventStack.children.length - 1];
+  return eventStack.diffs;
+}
+
 function dispatch(event, arg, noRedraw) {
+  var storeEvent = true;
+  var diffs = {};
+
   switch(event) {
     case "load":
       break;
     case "addColumnToTable":
-      var diffs = code.diffs.addColumn(arg.table);
-      ixer.handleDiffs(diffs);
+      diffs = code.diffs.addColumn(arg.table);
       break;
     case "swapRow":
       var oldKey = JSON.stringify(arg.old);
       var edits = ixer.index("editId")[arg.table]
       var time = edits ? edits[oldKey] : 0;
-      var diffs = {
+      diffs = {
         editId: {adds: [[arg.table, JSON.stringify(arg.neue), time]], removes: [[arg.table, oldKey, time]]}
       };
       diffs[arg.table] = {adds: [arg.neue.slice()], removes: [arg.old.slice()]};
-      ixer.handleDiffs(diffs);
       break;
     case "addRow":
-      var diffs = {
+      diffs = {
         editId: {adds: [[arg.table, JSON.stringify(arg.neue), (new Date()).getTime()]], removes: []}
       };
       diffs[arg.table] = {adds: [arg.neue.slice()], removes: []};
-      ixer.handleDiffs(diffs);
       break;
     case "rename":
-      var diffs = code.diffs.changeDisplayName(arg.id, arg.value);
-      ixer.handleDiffs(diffs);
+      diffs = code.diffs.changeDisplayName(arg.id, arg.value);
       break;
     case "uiComponentElementMoved":
       var element = arg.element;
       var prev = [element.component, element.id, element.control, element.left, element.top, element.right, element.bottom];
       var neue = [element.component, element.id, element.control, arg.left, arg.top, arg.right, arg.bottom] ;
-      var diffs = {
+      diffs = {
         uiComponentElement: {adds: [neue], removes: [prev]}
       };
-      ixer.handleDiffs(diffs);
       break;
     case "uiComponentElementAdd":
       var neue = [arg.component, uuid(), arg.control, arg.left, arg.top, arg.right, arg.bottom];
-      var diffs = {
+      diffs = {
         uiComponentElement: {adds: [neue], removes: []}
       };
-      ixer.handleDiffs(diffs);
       break;
     case "addTile":
       // @FIXME: active grid
       var activeGrid = ixer.facts("activeGrid")[0][0];
       var fact = [arg.id, activeGrid, arg.type, arg.pos[0], arg.pos[1], arg.size[0], arg.size[1]];
-      var diffs = {
+      diffs = {
         gridTile: {adds: [fact]}
       };
-      ixer.handleDiffs(diffs);
       break;
     case "updateTile":
       var oldTile = ixer.index("gridTile")[arg.id].slice();
@@ -1037,33 +1103,46 @@ function dispatch(event, arg, noRedraw) {
       tile[3] = arg.pos[0], tile[4] = arg.pos[1];
       tile[5] = arg.size[0], tile[6] = arg.size[1];
       diffs = {gridTile: {adds: [tile], removes: [oldTile]}};
-      ixer.handleDiffs(diffs);
       break;
     case "setTileView":
       var oldTile = ixer.index("gridTile")[arg.tileId].slice();
       var tile = oldTile.slice();
       //set to a table tile
       tile[2] = "table";
-      var diffs = {gridTile: {adds: [tile], removes: [oldTile]},
+      diffs = {gridTile: {adds: [tile], removes: [oldTile]},
                   tableTile: {adds: [[tile[0], arg.view]]}};
-      ixer.handleDiffs(diffs);
       break;
     case "navigate":
       if(!arg.target.indexOf("grid://") === 0) { throw new Error("Cannot handle non grid:// urls yet."); }
-      var diffs = {
+      diffs = {
         activeGrid: {adds: [[arg.target.substring(7)]], removes: ixer.facts("activeGrid")}
       }
-      ixer.handleDiffs(diffs);
       break;
     case "addSource":
       var ix = (ixer.index("viewToSources")[arg.view] || []).length;
-      var diffs = {source: {adds: [[uuid(), arg.view, ix, arg.source, true]], removes: []}};
-      ixer.handleDiffs(diffs);
+      diffs = {source: {adds: [[uuid(), arg.view, ix, arg.source, true]], removes: []}};
+      break;
+    case "undo":
+      storeEvent = false;
+      diffs = scaryUndoEvent();
+      break;
+    case "redo":
+      storeEvent = false;
+      diffs = scaryRedoEvent();
       break;
     default:
       console.error("Dispatch for unknown event: ", event, arg);
+      return;
       break;
   }
+
+  if(storeEvent) {
+    var eventItem = {event: event, diffs: diffs, children: [], parent: eventStack};
+    eventStack.children.push(eventItem);
+    eventStack = eventItem;
+  }
+
+  ixer.handleDiffs(diffs);
 
   if(!noRedraw) {
     React.render(root(), document.body);
@@ -1127,6 +1206,27 @@ var code = {
     return ixer.index("displayName")[id];
   }
 }
+
+//---------------------------------------------------------
+// Global key handling
+//---------------------------------------------------------
+
+document.addEventListener("keydown", function(e) {
+  //Don't capture keys if they are
+  if(e.defaultPrevented
+     || e.target.nodeName === "INPUT"
+     || e.target.getAttribute("contentEditable")) {
+    return;
+  }
+
+  //undo + redo
+  if((e.metaKey || e.ctrlKey) && e.shiftKey && e.keyCode === KEYS.Z) {
+    dispatch("redo");
+  } else if((e.metaKey || e.ctrlKey) && e.keyCode === KEYS.Z) {
+    dispatch("undo");
+  }
+
+});
 
 //---------------------------------------------------------
 // Go
