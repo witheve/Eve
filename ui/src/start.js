@@ -39,6 +39,15 @@ function findMatch(haystack, needles) {
   }
 }
 
+function coerceInput(input) {
+  if(input.match(/^-?[\d]+$/gim)) {
+    return parseInt(input);
+  } else if(input.match(/^-?[\d]+\.[\d]+$/gim)) {
+    return parseFloat(input);
+  }
+  return input;
+}
+
 function range(from, to) {
   if(to === undefined) {
     to = from;
@@ -484,7 +493,7 @@ var editable = reactFactory({
     return {value: "", modified: false};
   },
   handleChange: function(e) {
-    this.setState({value: e.target.textContent, modified: true});
+    this.setState({value: coerceInput(e.target.textContent), modified: true});
   },
   handleKeys: function(e) {
     //submit on enter
@@ -978,7 +987,8 @@ function dispatch(event, arg, noRedraw) {
       break;
     case "swapRow":
       var oldKey = JSON.stringify(arg.old);
-      var time = ixer.index("editId")[arg.table][oldKey];
+      var edits = ixer.index("editId")[arg.table]
+      var time = edits ? edits[oldKey] : 0;
       var diffs = {
         editId: {adds: [[arg.table, JSON.stringify(arg.neue), time]], removes: [[arg.table, oldKey, time]]}
       };
