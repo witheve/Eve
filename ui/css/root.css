@@ -96,7 +96,11 @@ body {
   margin: -8px; margin-left: 8px;
 
   font-size: 0.75em;
+  opacity: 0;
+  transition: 0.2s ease-in-out;
 }
+.grid-tile:hover > .toolbar { opacity: 0.6; }
+.grid-tile > .toolbar:hover { opacity: 1; }
 
 .grid-tile .corner-se-grip {
   position: absolute; bottom: 0; right: 0;
