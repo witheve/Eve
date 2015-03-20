@@ -172,7 +172,6 @@ var gridTile = reactFactory({
     var dT = evt.dataTransfer;
     dT.setData("tile/" + this.props.type, this.props.id);
     dT.setData("tile/generic", this.props.id);
-    // dT.setDragImage(document.getElementById("clear-pixel"), 0, 0);
     var offset = [evt.clientX - this.props.left, evt.clientY - this.props.top];
     this.setState({dragging: true, dragOffset: offset});
   },
@@ -185,7 +184,7 @@ var gridTile = reactFactory({
     var currentPos = this.state.currentPos;
     if(pos[0] !== currentPos[0] || pos[1] !== currentPos[1]) {
       this.setState({currentPos: pos});
-      this.props.updateFootprint(pos, this.state.currentSize);
+      this.props.updateFootprint(pos, [this.props.width, this.props.height]);
     }
   },
   startResize: function(evt) {
@@ -207,7 +206,7 @@ var gridTile = reactFactory({
     var currentSize = this.state.currentSize;
     if(dimensions[0] !== currentSize[0] || dimensions[1] !== currentSize[1]) {
       this.setState({currentSize: dimensions});
-      this.props.updateFootprint(this.state.currentPos, dimensions);
+      this.props.updateFootprint([this.props.left, this.props.top], dimensions);
     }
   },
   render: function() {
