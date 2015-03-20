@@ -5,6 +5,10 @@
 var alphabet = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
                 "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"];
 
+var KEYS = {UP: 38,
+            DOWN: 40,
+            ENTER: 13};
+
 function reactFactory(obj) {
   return React.createFactory(React.createClass(obj));
 }
@@ -150,7 +154,7 @@ tiles.add = {
     addTile: function(evt) {
       dispatch("addTile", {
         id: this.props.tileId,
-        type: "debug",
+        type: "addTable",
         pos: this.props.pos,
         size: this.props.size
       });
@@ -357,6 +361,100 @@ var stage = reactFactory({
 });
 
 //---------------------------------------------------------
+// Table selector
+//---------------------------------------------------------
+
+var tableSelectorItem = reactFactory({
+  select: function() {
+    if(this.props.select) {
+      this.props.select(this.props.view);
+    }
+  },
+  render: function() {
+    var displayNames = ixer.index("displayName");
+    var fields = code.viewToFields(this.props.view) || [];
+    var items = fields.map(function(cur) {
+      return ["li", displayNames[cur[0]]];
+    });
+    var className = "result";
+    if(this.props.selected) {
+      className += " selected";
+    }
+    return JSML(["li", {className: className,
+                        onClick: this.select},
+                 ["h2", this.props.name],
+                 ["ul", items]]);
+  }
+});
+
+var tableSelector = reactFactory({
+  getInitialState: function() {
+    return {search: "", selected: -1};
+  },
+  updateSearch: function(e) {
+    this.setState({search: e.target.value, selected: -1});
+  },
+  handleKeys: function(e) {
+    if(e.keyCode === KEYS.ENTER) {
+      var sel = this.state.selected;
+      if(sel === -1) {
+        sel = 0;
+      }
+      this.select(this.state.results[sel]);
+    } else if(e.keyCode === KEYS.UP) {
+      var sel = this.state.selected;
+      if(sel > 0) {
+        sel -= 1;
+      } else {
+        sel = this.state.results.length - 1;
+      }
+      this.setState({selected: sel});
+    } else if(e.keyCode === KEYS.DOWN) {
+      var sel = this.state.selected;
+      if(sel < this.state.results.length - 1) {
+        sel += 1;
+      } else {
+        sel = 0;
+      }
+      this.setState({selected: sel});
+    }
+  },
+  select: function(view) {
+    var event = this.props.action || "selectView";
+    this.props.view = view;
+    dispatch(event, this.props);
+  },
+  render: function() {
+    var self = this;
+    var displayNames = ixer.index("displayName");
+    var search = this.state.search;
+    var items = [];
+    var results = [];
+    ixer.facts("view").forEach(function(cur) {
+      var view = cur[0];
+      var name = displayNames[cur[0]]
+      if(name && name.indexOf(search) > -1) {
+        var selected = items.length === self.state.selected;
+        results.push(view);
+        items.push(tableSelectorItem({view: view, name: name, selected: selected, select: self.select}));
+      }
+    });
+    this.state.results = results;
+    return JSML(["div", {className: "table-selector"},
+                 ["input", {type: "text", placeholder: "search", onKeyDown: this.handleKeys, onInput: this.updateSearch, value: this.state.search}],
+                 ["ul", items]]);
+  }
+});
+
+tiles.addTable = {
+  content: reactFactory({
+    render: function() {
+      return tableSelector({tileId: this.props.tileId, action: "setTileView"});
+    }
+  })
+};
+
+//---------------------------------------------------------
 // Table components
 //---------------------------------------------------------
 
@@ -505,19 +603,27 @@ var table = reactFactory({
       this.state.partialRows.forEach(function(cur) {
         rowComponents.push(tableRow({table: self.props.tableId, row: [], length: numColumns, editable: true, isNewRow: true, onRowAdded: self.rowAdded, onRowModified: self.addedRowModified, key: cur, id: cur}));
       });
+      var addColumn;
+      if(this.props.editable) {
+        addColumn = ["div", {className: "add-column", onClick: this.addColumn}, "+"];
+      }
       return JSML(["div", {className: "table-wrapper"},
                    ["table",
                     ["thead", ["tr", headers]],
                     ["tbody", rowComponents]],
-                   ["div", {className: "add-column", onClick: this.addColumn}, "+"]]);
+                   addColumn
+                   ]);
     }
   });
 
 tiles.table = {
   content: function(opts) {
-    //@TODO: get table for tile
-    opts.tableId = "foo";
-    return table(opts);
+    var currentTable = ixer.index("tableTile")[opts.tileId];
+    if(currentTable) {
+      opts.tableId = currentTable[1];
+      opts.editable = true;
+      return table(opts);
+    }
   }
 };
 
@@ -885,6 +991,15 @@ function dispatch(event, arg, noRedraw) {
       diffs = {gridTile: {adds: [tile], removes: [oldTile]}};
       ixer.handleDiffs(diffs);
       break;
+    case "setTileView":
+      var oldTile = ixer.index("gridTile")[arg.tileId].slice();
+      var tile = oldTile.slice();
+      //set to a table tile
+      tile[2] = "table";
+      var diffs = {gridTile: {adds: [tile], removes: [oldTile]},
+                  tableTile: {adds: [[tile[0], arg.view]]}};
+      ixer.handleDiffs(diffs);
+      break;
     default:
       console.error("Dispatch for unknown event: ", event, arg);
       break;
@@ -973,7 +1088,7 @@ ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schem
                   editId: {adds: [["foo", JSON.stringify(["a", "b"]), 0], ["foo", JSON.stringify(["c", "d"]), 1]], removes: []},
                   foo: {adds: [["a", "b"], ["c", "d"]], removes: []},
                   input: {adds: [["foo", ["a", "b"]], ["foo", ["c", "d"]]], removes: []},
-                  displayName: {adds: [["foo-a", "foo A"], ["foo-b", "foo B"]], removes: []},
+                  displayName: {adds: [["foo", "foo"], ["foo-a", "foo A"], ["foo-b", "foo B"]], removes: []},
                   uiComponent: {adds: [["myUI"]], removes: []},
                  });
 
@@ -1003,7 +1118,6 @@ ixer.handleDiffs(code.diffs.addView("gridTile", {
   h: "number"
 }, [
   [uuid(), gridId, "ui", 0, 0, 6, 4],
-  [uuid(), gridId, "table", 6, 0, 6, 4]
 ], "gridTile"));
 
 

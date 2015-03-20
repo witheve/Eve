@@ -86,6 +86,7 @@ body {
   z-index: 1;
   background: #2c2c2c;
   border-radius: 3px;
+  overflow:hidden;
 }
 
 .grid-tile .corner-se-grip {
@@ -125,6 +126,18 @@ th:last-child { border-radius: 0 2px 2px 0; }
 
 .table-wrapper { flex: 1; display:flex; }
 .add-column { margin-left: 10px; }
+
+/*****************************************************************************\
+ * Table selector
+\*****************************************************************************/
+
+.table-selector input { border:none; background:rgba(255,255,255,0.1); outline:none; padding:5px; color: #ccc; }
+.table-selector .result { padding:5px; display:flex; flex-direction:column; }
+.table-selector .result + .result { border-top:1px solid rgba(255,255,255, 0.1); }
+.table-selector .result.selected { background:red; }
+.table-selector .result h2 { font-size:12pt; margin-bottom:3px;  }
+.table-selector .result ul { font-size:10pt; display:flex; }
+.table-selector .result li { margin-right:8px; font-style:italic; }
 
 /*****************************************************************************\
  * UI editor
