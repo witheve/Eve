@@ -95,7 +95,11 @@ var root = reactFactory({
     this.setState({editingGrid: !this.state.editingGrid});
   },
   render: function() {
-    var tiles = ixer.facts("gridTile").map(function(tile) {
+    var activeGrid = ixer.facts("activeGrid")[0][0];
+    console.log("Active grid is:", activeGrid);
+    var tiles = ixer.facts("gridTile").filter(function(fact) {
+      return fact[1] === activeGrid;
+    }).map(function(tile) {
       return {
         id: tile[0], grid: tile[1], type: tile[2],
         pos: [tile[3], tile[4]], size: [tile[5], tile[6]]
@@ -176,6 +180,7 @@ var gridTile = reactFactory({
     }
 
     console.log("navigating to", target);
+    dispatch("navigate", {tile: this.props.id, target: target});
   },
 
   startDrag: function(evt) {
@@ -883,7 +888,8 @@ function dispatch(event, arg, noRedraw) {
       break;
     case "addTile":
       // @FIXME: active grid
-      var fact = [arg.id, "default", arg.type, arg.pos[0], arg.pos[1], arg.size[0], arg.size[1]];
+      var activeGrid = ixer.facts("activeGrid")[0][0];
+      var fact = [arg.id, activeGrid, arg.type, arg.pos[0], arg.pos[1], arg.size[0], arg.size[1]];
       var diffs = {
         gridTile: {adds: [fact]}
       };
@@ -895,6 +901,13 @@ function dispatch(event, arg, noRedraw) {
       tile[3] = arg.pos[0], tile[4] = arg.pos[1];
       tile[5] = arg.size[0], tile[6] = arg.size[1];
       diffs = {gridTile: {adds: [tile], removes: [oldTile]}};
+      ixer.handleDiffs(diffs);
+      break;
+    case "navigate":
+      if(!arg.target.indexOf("grid://") === 0) { throw new Error("Cannot handle non grid:// urls yet."); }
+      var diffs = {
+        activeGrid: {adds: [[arg.target.substring(7)]], removes: ixer.facts("activeGrid")}
+      }
       ixer.handleDiffs(diffs);
       break;
     default:
@@ -1017,8 +1030,23 @@ ixer.handleDiffs(code.diffs.addView("gridTile", {
   h: "number"
 }, [
   [uiViewId, gridId, "ui", 0, 0, 6, 4],
-  [uuid(), gridId, "table", 6, 0, 6, 4]
+  [uuid(), gridId, "table", 6, 0, 6, 4],
+  [uuid(), "ui", "ui", 0, 0, 11, 11],
 ], "gridTile"));
+
+ixer.handleDiffs(code.diffs.addView(
+  "activeGrid",
+  {grid: "string"},
+  [["default"]],
+  "activeGrid"));
+
+
+ixer.handleDiffs(code.diffs.addView(
+  "gridTarget",
+  {tile: "string", target: "string"},
+  [[uiViewId, "grid://ui"]],
+  "gridTarget"));
+
 
 ixer.handleDiffs(code.diffs.addView("gridTarget", {
   tile: "string",
