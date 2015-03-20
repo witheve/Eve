@@ -134,6 +134,8 @@ td, th { padding:3px 8px; min-width: 50px; text-align:left; }
 th:first-child { border-radius: 2px 0 0 2px; }
 th:last-child { border-radius: 0 2px 2px 0; }
 
+.table-wrapper tbody { overflow-y: auto; }
+
 .table-wrapper { flex: 1; display:flex; }
 .add-column { margin-left: 10px; }
 
