@@ -437,9 +437,9 @@ var tableSelector = reactFactory({
     }
   },
   select: function(view) {
-    var event = this.props.action || "selectView";
-    this.props.view = view;
-    dispatch(event, this.props);
+    if(this.props.onSelect) {
+      this.props.onSelect(view);
+    }
   },
   render: function() {
     var self = this;
@@ -465,8 +465,11 @@ var tableSelector = reactFactory({
 
 tiles.addTable = {
   content: reactFactory({
+    onSelect: function(view) {
+      dispatch("setTileView", {tileId: this.props.tileId, view: view});
+    },
     render: function() {
-      return tableSelector({tileId: this.props.tileId, action: "setTileView"});
+      return tableSelector({onSelect: this.onSelect});
     }
   })
 };
@@ -660,9 +663,20 @@ var viewSource = reactFactory({
 
 tiles.view = {
   content: reactFactory({
+    getInitialState: function() {
+      return {addingSource: false};
+    },
+    startAddingSource: function() {
+      this.setState({addingSource: true});
+    },
+    stopAddingSource: function(view) {
+      this.setState({addingSource: false});
+      dispatch("addSource", {view: this.props.view || "qq", source: view});
+    },
     render: function() {
       var self = this;
-      var sources = ixer.index("viewToSources")["qq"];
+      var view = "qq";
+      var sources = ixer.index("viewToSources")[view] || [];
       sources.sort(function(a, b) {
         //sort by ix
         return a[2] - b[2];
@@ -670,10 +684,16 @@ tiles.view = {
       var items = sources.map(function(cur) {
         return viewSource({tileId: self.props.tileId, source: cur});
       });
+      var add;
+      if(this.state.addingSource) {
+        add = tableSelector({onSelect: this.stopAddingSource});
+      } else {
+        add = ["div", {onClick: this.startAddingSource}, "add source"];
+      }
       //edit view
       return JSML(["div", {className: "view-wrapper"},
                    items,
-                   ["div", "add source"]
+                   add
                   ]);
     }
   })
@@ -1025,6 +1045,11 @@ function dispatch(event, arg, noRedraw) {
       }
       ixer.handleDiffs(diffs);
       break;
+    case "addSource":
+      var ix = (ixer.index("viewToSources")[arg.view] || []).length;
+      var diffs = {source: {adds: [[uuid(), arg.view, ix, arg.source, true]], removes: []}};
+      ixer.handleDiffs(diffs);
+      break;
     default:
       console.error("Dispatch for unknown event: ", event, arg);
       break;
@@ -1109,7 +1134,7 @@ ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.col
 ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schema", "query"]], removes: []},
                   schema: {adds: [["foo-schema"], ["qq-schema"]], removes: []},
                   field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "string"], ["qq-a", "qq-schema", 0, "string"]], removes: []},
-                  source: {adds: [["foo-source", "qq", 0, "foo", true], ["zomg-source", "qq", 0, "zomg", false]], removes: []},
+//                   source: {adds: [["foo-source", "qq", 0, "foo", true], ["zomg-source", "qq", 0, "zomg", false]], removes: []},
                   editId: {adds: [["foo", JSON.stringify(["a", "b"]), 0], ["foo", JSON.stringify(["c", "d"]), 1]], removes: []},
                   foo: {adds: [["a", "b"], ["c", "d"]], removes: []},
                   input: {adds: [["foo", ["a", "b"]], ["foo", ["c", "d"]]], removes: []},
@@ -1145,8 +1170,8 @@ ixer.handleDiffs(code.diffs.addView("gridTile", {
   h: "number"
 }, [
   [uiViewId, gridId, "ui", 0, 0, 6, 4],
-  [uuid(), gridId, "table", 6, 0, 6, 4],
-  [uuid(), "ui", "ui", 0, 0, 11, 11],
+  [uuid(), gridId, "view", 6, 0, 6, 4],
+  [uuid(), "ui", "ui", 0, 0, 12, 12],
 ], "gridTile"));
 
 ixer.handleDiffs(code.diffs.addView(
