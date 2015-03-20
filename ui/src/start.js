@@ -294,6 +294,7 @@ var stage = reactFactory({
     var tiles = this.props.tiles.slice();
     tiles.splice(tiles.indexOf(tile), 1);
     var valid = Grid.hasGapAt(this.state.grid, tiles, {pos: pos, size: size});
+    if(size[0] < 1 || size[1] < 1) { valid = false; }
     if(oldValid !== valid) {
       this.setState({dragValid: valid});
     }

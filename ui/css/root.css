@@ -105,7 +105,7 @@ body {
   transform: rotateZ(-45deg);
 }
 
-.tile-grid.editing > .grid-tile.add { opacity: 0; }
+.tile-grid.editing > .grid-tile.add { opacity: 0; pointer-events: none; }
 .grid-tile.add { opacity: 0; }
 .grid-tile.add:hover { opacity: 0.5 }
 .grid-tile.add:active { opacity: 0.75 }
