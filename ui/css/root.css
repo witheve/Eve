@@ -83,10 +83,19 @@ body {
   padding: 8px;
   position: absolute;
   display:flex;
+  justify-content: space-between;
   z-index: 1;
   background: #2c2c2c;
   border-radius: 3px;
   overflow:hidden;
+}
+
+.grid-tile > .toolbar {
+  max-width: 2.5em;
+  padding: 0;
+  margin: -8px; margin-left: 8px;
+
+  font-size: 0.75em;
 }
 
 .grid-tile .corner-se-grip {
@@ -109,6 +118,7 @@ body {
 .grid-tile.add { opacity: 0; }
 .grid-tile.add:hover { opacity: 0.5 }
 .grid-tile.add:active { opacity: 0.75 }
+.grid-tile.add > .toolbar { opacity: 0; pointer-events: none; }
 .grid-tile.add > .corner-se-grip { opacity: 0; pointer-events: none; }
 .grid-tile.add > div {
   position: absolute; top: 0; left: 0; bottom: 0; right: 0;

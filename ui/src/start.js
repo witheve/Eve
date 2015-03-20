@@ -51,6 +51,24 @@ function range(from, to) {
   return results;
 }
 
+function verticalTable(rows) {
+  var content = [];
+  for(var rowIx = 0, rowsLength = rows.length; rowIx < rowsLength; rowIx++) {
+    var row = rows[rowIx];
+    var rowEl = ["tr"];
+
+    if(row[0]) {
+      rowEl.push(["th", row[0]]);
+    }
+    for(var ix = 1, len = row.length; ix < len; ix++) {
+      rowEl.push(["td", row[ix]]);
+    }
+
+    content.push(rowEl);
+  }
+  return content;
+}
+
 //---------------------------------------------------------
 // UI state
 //---------------------------------------------------------
@@ -142,7 +160,6 @@ var root = reactFactory({
 var tiles = {};
 
 tiles.debug = {
-  flippable: false,
   navigable: false,
   content: reactFactory({
     displayName: "debug",
@@ -153,6 +170,9 @@ tiles.debug = {
 };
 
 tiles.add = {
+  flippable: false,
+  resizable: false,
+  draggable: false,
   content: reactFactory({
     displayName: "add",
     addTile: function(evt) {
@@ -171,6 +191,24 @@ tiles.add = {
   })
 };
 
+// @FIXME: Embed this in a table format?
+var tileProperties = reactFactory({
+  displayName: "properties",
+  setTarget: function(val) {
+    dispatch("setTarget", {id: this.props.tileId, target: val});
+  },
+  render: function() {
+    var target = ixer.index("gridTarget")[this.props.tileId];
+    return JSML(
+      ["table", {className: "tile-properties"}, verticalTable([
+        ["Id", this.props.tileId],
+        ["Type", this.props.type],
+        ["Target", editable({value: target, onSubmit: this.setTarget})]
+      ])]
+    );
+  }
+});
+
 var gridTile = reactFactory({
   displayName: "grid-tile",
   getInitialState: function() {
@@ -187,6 +225,11 @@ var gridTile = reactFactory({
     dispatch("navigate", {tile: this.props.id, target: target});
   },
 
+  flip: function(evt) {
+    this.setState({flipped: !this.state.flipped});
+  },
+
+  // Dragging
   startDrag: function(evt) {
     var dT = evt.dataTransfer;
     dT.setData("tile/" + this.props.type, this.props.id);
@@ -206,6 +249,8 @@ var gridTile = reactFactory({
       this.props.updateFootprint(pos, [this.props.width, this.props.height]);
     }
   },
+
+  // Resizing
   startResize: function(evt) {
     evt.stopPropagation();
     var dT = evt.dataTransfer;
@@ -228,6 +273,8 @@ var gridTile = reactFactory({
       this.props.updateFootprint([this.props.left, this.props.top], dimensions);
     }
   },
+
+  // Rendering
   render: function() {
     var tile = tiles[this.props.type];
     if(!tile) { throw new Error("Invalid tile type specified: '" + this.props.type + "'."); }
@@ -237,17 +284,21 @@ var gridTile = reactFactory({
       width: this.props.width,
       height: this.props.height
     };
-    var attrs = {
-      key: this.props.id,
-      className: "grid-tile " + this.props.type + (this.state.dragging ? " dragging" : ""),
-      style: style,
-      draggable: this.props.draggable,
-      onDoubleClick: this.navigate
-    };
-    var content = ["div", attrs, tile.content({tileId: this.props.id, pos: this.props.pos, size: this.props.size})];
-    if(this.props.resizable) {
+
+    var attrs = {key: this.props.id, className: "grid-tile " + this.props.type, style: style};
+    var controls = [];
+    var children = [];
+
+    if(tile.navigable !== false) {
+      attrs.onDoubleClick = this.navigate;
+    }
+    if(tile.flippable !== false) {
+      attrs.className += (this.state.flipped ? " flipped" : "");
+      controls.push(["button", {className: "flip-tile ion-reply", onClick: this.flip}]);
+    }
+    if(this.props.resizable && tile.resizable !== false) {
       attrs.onResize = this.resizing;
-      content.push(["div", {
+      children.push(["div", {
         className: "corner-se-grip ion-drag",
         draggable: true,
         onDragStart: this.startResize,
@@ -255,11 +306,26 @@ var gridTile = reactFactory({
         onDrag: this.resizing
       }]);
     }
-    if(this.props.draggable) {
+    if(this.props.draggable && tile.draggable !== false) {
+      attrs.className += (this.state.dragging ? " dragging" : "");
+      attrs.draggable = true;
       attrs.onDragStart = this.startDrag;
       attrs.onDragEnd = this.endDrag;
       attrs.onDrag = this.dragging;
     }
+
+    var inner;
+    if(this.state.flipped) {
+      if(tile.backContent) {
+        inner = tile.backContent({tileId: this.props.id, pos: this.props.pos, size: this.props.size, type: this.props.type});
+      } else {
+        inner = tileProperties({tileId: this.props.id, pos: this.props.pos, size: this.props.size, type: this.props.type});
+      }
+    } else {
+      inner = tile.content({tileId: this.props.id, pos: this.props.pos, size: this.props.size});
+    }
+    var content = ["div", attrs, inner, toolbar({key: "toolbar", controls: controls})];
+    content.push.apply(content, children);
     return JSML(content);
   }
 });
@@ -464,6 +530,7 @@ var tableSelector = reactFactory({
 });
 
 tiles.addTable = {
+  flippable: false,
   content: reactFactory({
     onSelect: function(view) {
       dispatch("setTileView", {tileId: this.props.tileId, view: view});
@@ -644,7 +711,30 @@ tiles.table = {
       opts.editable = true;
       return table(opts);
     }
-  }
+  },
+  backContent: reactFactory({
+    displayName: "table-properties",
+    setName: function(val) {
+      var currentTable = ixer.index("tableTile")[this.props.tileId];
+      var id = currentTable[1];
+      dispatch("rename", {id: id, value: val});
+    },
+    render: function() {
+      var currentTable = ixer.index("tableTile")[this.props.tileId];
+      var id = currentTable[1];
+      var name = ixer.index("displayName")[id];
+
+      return JSML(
+        ["div",
+         tileProperties({tileId: this.props.tileId}),
+         ["br"],
+         ["table", verticalTable([
+           ["name", editable({value: name, onSubmit: this.setName})]
+         ])]
+        ]
+      );
+    }
+  })
 };
 
 //---------------------------------------------------------
@@ -1036,6 +1126,12 @@ function dispatch(event, arg, noRedraw) {
       tile[2] = "table";
       var diffs = {gridTile: {adds: [tile], removes: [oldTile]},
                   tableTile: {adds: [[tile[0], arg.view]]}};
+      ixer.handleDiffs(diffs);
+      break;
+    case "setTarget":
+      var diffs = {
+        gridTarget: {adds: [[arg.id, arg.target]], removes: [[arg.id, ixer.index("gridTarget")[arg.id]]]}
+      };
       ixer.handleDiffs(diffs);
       break;
     case "navigate":
