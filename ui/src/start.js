@@ -303,6 +303,7 @@ var stage = reactFactory({
   render: function() {
     var isEditing = this.props.editing;
     var tiles = this.props.tiles.slice();
+
     var addPos;
     while(addPos = Grid.findGap(this.state.grid, tiles, Grid.DEFAULT_SIZE)) {
       tiles.push({
