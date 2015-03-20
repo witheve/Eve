@@ -168,6 +168,16 @@ var gridTile = reactFactory({
   getInitialState: function() {
     return {currentPos: [this.props.left, this.props.top], currentSize: [this.props.width, this.props.height]};
   },
+
+  navigate: function(evt) {
+    var target = ixer.index("gridTarget")[this.props.id];
+    if(!target) {
+      return;
+    }
+
+    console.log("navigating to", target);
+  },
+
   startDrag: function(evt) {
     var dT = evt.dataTransfer;
     dT.setData("tile/" + this.props.type, this.props.id);
@@ -222,7 +232,8 @@ var gridTile = reactFactory({
       key: this.props.id,
       className: "grid-tile " + this.props.type + (this.state.dragging ? " dragging" : ""),
       style: style,
-      draggable: this.props.draggable
+      draggable: this.props.draggable,
+      onDoubleClick: this.navigate
     };
     var content = ["div", attrs, tile.content({tileId: this.props.id, pos: this.props.pos, size: this.props.size})];
     if(this.props.resizable) {
@@ -989,11 +1000,13 @@ ixer.handleDiffs(code.diffs.addView("zomg", {
 ], "zomg"));
 
 // Grid Indexes
+ixer.addIndex("gridTarget", "gridTarget", Indexing.create.lookup([0, 1]));
 ixer.addIndex("gridTile", "gridTile", Indexing.create.lookup([0, false]));
 ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
 
 var gridId = "default";
 
+var uiViewId = uuid();
 ixer.handleDiffs(code.diffs.addView("gridTile", {
   tile: "string",
   grid: "string",
@@ -1003,9 +1016,16 @@ ixer.handleDiffs(code.diffs.addView("gridTile", {
   w: "number",
   h: "number"
 }, [
-  [uuid(), gridId, "ui", 0, 0, 6, 4],
+  [uiViewId, gridId, "ui", 0, 0, 6, 4],
   [uuid(), gridId, "table", 6, 0, 6, 4]
 ], "gridTile"));
+
+ixer.handleDiffs(code.diffs.addView("gridTarget", {
+  tile: "string",
+  target: "string"
+}, [
+  [uiViewId, "grid://ui"]
+], "gridTarget"));
 
 
 dispatch("load");
