@@ -769,8 +769,18 @@ tiles.table = {
 var viewSource = reactFactory({
   render: function() {
     var viewOrFunction = this.props.source[3];
+    var constraints = this.props.constraints.map(function(cur) {
+      var left = code.refToName(cur[2]);
+      var right = code.refToName(cur[3]);
+      var remove = function() {
+        dispatch("removeConstaint", {constraint: cur.slice()})
+      };
+      return ["li", {onClick: remove},
+              left, " " + cur[1] + " ", right];
+    });
     return JSML(["div", {className: "view-source"},
                  ["h1", viewOrFunction],
+                 ["ul", constraints],
                  table({tileId: this.props.tileId, tableId: viewOrFunction})
                 ]);
   }
@@ -792,12 +802,21 @@ tiles.view = {
       var self = this;
       var view = "qq";
       var sources = ixer.index("viewToSources")[view] || [];
+      var constraints = ixer.index("viewToConstraints")[view] || [];
+      var sourceToConstraints = {};
+      constraints.forEach(function(cur) {
+        var source = cur[2].source;
+        if(!sourceToConstraints[source]) {
+          sourceToConstraints[source] = [];
+        }
+        sourceToConstraints[source].push(cur);
+      })
       sources.sort(function(a, b) {
         //sort by ix
         return a[2] - b[2];
       });
       var items = sources.map(function(cur) {
-        return viewSource({tileId: self.props.tileId, source: cur});
+        return viewSource({tileId: self.props.tileId, source: cur, constraints: sourceToConstraints[cur[0]] || []});
       });
       var add;
       if(this.state.addingSource) {
@@ -912,7 +931,13 @@ var uiCanvasElem = reactFactory({
     return {right: cur.right, bottom: cur.bottom, left: cur.left, top: cur.top};
   },
   componentDidUpdate: function(prev) {
-    if(prev.element.id !== this.props.element.id) {
+    var old = prev.element;
+    var neue = this.props.element;
+    if(old.id !== neue.id
+       || old.left !== neue.left
+       || old.right !== neue.right
+       || old.top !== neue.top
+       || old.bottom !== neue.bottom) {
       var cur = this.props.element;
       this.setState({right: cur.right, bottom: cur.bottom, left: cur.left, top: cur.top});
     }
@@ -1226,12 +1251,17 @@ function dispatch(event, arg, noRedraw) {
     case "navigate":
       if(!arg.target.indexOf("grid://") === 0) { throw new Error("Cannot handle non grid:// urls yet."); }
       diffs = {
-        activeGrid: {adds: [[arg.target.substring(7)]], removes: ixer.facts("activeGrid")}
+        activeGrid: {adds: [[arg.target.substring(7)]], removes: ixer.facts("activeGrid").slice()}
       }
       break;
     case "addSource":
       var ix = (ixer.index("viewToSources")[arg.view] || []).length;
-      diffs = {source: {adds: [[uuid(), arg.view, ix, arg.source, true]], removes: []}};
+      var sourceId = uuid();
+      diffs = code.diffs.autoJoins(arg.view, arg.source, sourceId);
+      diffs["source"] = {adds: [[sourceId, arg.view, ix, arg.source, true]], removes: []};
+      break;
+    case "removeConstaint":
+      diffs.constraint = {removes: [arg.constraint]};
       break;
     case "undo":
       storeEvent = false;
@@ -1307,11 +1337,51 @@ var code = {
         diffs[id] = {adds: initial};
       }
       return diffs;
+    },
+    autoJoins: function(view, sourceView, sourceId) {
+      var displayNames = ixer.index("displayName");
+      var sources = ixer.index("viewToSources")[view] || [];
+      var fields = code.viewToFields(sourceView);
+      var constraints = [];
+      fields = fields.map(function(cur) {
+        return [cur[0], displayNames[cur[0]]];
+      });
+      sources.forEach(function(cur) {
+        theirFields = code.viewToFields(cur[3]);
+        if(!theirFields) return;
+
+        for(var i in theirFields) {
+          var theirs = theirFields[i];
+          for(var x in fields) {
+            var myField = fields[x];
+            if(displayNames[theirs[0]] === myField[1]) {
+              //same name, join them.
+              constraints.push(
+                [view, "=",
+                 {"": "field-source-ref", field: myField[0], source: sourceId},
+                 {"": "field-source-ref", field: theirs[0], source: cur[0]}]);
+            }
+          }
+        }
+      });
+      return {constraint: {adds: constraints, removes: []}};
     }
   },
   viewToFields: function(view) {
     var schema = ixer.index("viewToSchema")[view];
     return ixer.index("schemaToFields")[schema];
+  },
+  refToName: function(ref) {
+    switch(ref[""]) {
+      case "field-source-ref":
+        var view = code.name(ixer.index("sourceToData")[ref.source]);
+        var field = code.name(ref.field);
+        return view + "." + field;
+        break;
+      default:
+        return "Unknown ref: " + JSON.stringify(ref);
+        break;
+    }
   },
   name: function(id) {
     return ixer.index("displayName")[id];
@@ -1347,9 +1417,11 @@ document.addEventListener("keydown", function(e) {
 //add some views
 ixer.addIndex("displayName", "displayName", Indexing.create.lookup([0, 1]));
 ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
+ixer.addIndex("sourceToData", "source", Indexing.create.lookup([0, 3]));
 ixer.addIndex("editId", "editId", Indexing.create.lookup([0,1,2]));
 ixer.addIndex("viewToSchema", "view", Indexing.create.lookup([0, 1]));
 ixer.addIndex("viewToSources", "source", Indexing.create.collector([1]));
+ixer.addIndex("viewToConstraints", "constraint", Indexing.create.collector([0]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([1]));
 ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([0]));
 ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schema", "query"]], removes: []},
@@ -1359,13 +1431,13 @@ ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schem
                   editId: {adds: [["foo", JSON.stringify(["a", "b"]), 0], ["foo", JSON.stringify(["c", "d"]), 1]], removes: []},
                   foo: {adds: [["a", "b"], ["c", "d"]], removes: []},
                   input: {adds: [["foo", ["a", "b"]], ["foo", ["c", "d"]]], removes: []},
-                  displayName: {adds: [["foo", "foo"], ["foo-a", "foo A"], ["foo-b", "foo B"]], removes: []},
+                  displayName: {adds: [["foo", "foo"], ["foo-a", "a"], ["foo-b", "foo B"]], removes: []},
                   uiComponent: {adds: [["myUI"]], removes: []},
                  });
 
 
 ixer.handleDiffs(code.diffs.addView("zomg", {
-  d: "string",
+  a: "string",
   e: "string",
   f: "string"
 }, [
