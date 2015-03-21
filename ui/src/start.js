@@ -210,7 +210,7 @@ var tileProperties = reactFactory({
   render: function() {
     var target = ixer.index("gridTarget")[this.props.tileId];
     return JSML(
-      ["table", {className: "tile-properties"}, verticalTable([
+      ["table", {className: "tile-properties flex"}, verticalTable([
         ["Id", this.props.tileId],
         ["Type", this.props.type],
         ["Target", editable({value: target, onSubmit: this.setTarget})]
@@ -237,14 +237,15 @@ var gridTile = reactFactory({
 
   flip: function(evt) {
     var self = this;
-    Velocity(this.getDOMNode(), {rotateY: "+=90deg"}, {
-      duration: 250,
+    var dir = (this.state.flipped ? "+=" : "-=");
+    Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {
+      duration: 150,
       easing: "easeInSine",
       complete: function() {
         self.setState({flipped: !self.state.flipped});
       }
     });
-    Velocity(this.getDOMNode(), {rotateY: "+=90deg"}, {duration: 250, easing: "easeOutSine"});
+    Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {duration: 350, easing: "easeOutCubic"});
   },
 
   // Dragging
@@ -307,13 +308,15 @@ var gridTile = reactFactory({
     var controls = [];
     var children = [];
 
-    if(tile.navigable !== false) {
-      attrs.onDoubleClick = this.navigate;
-    }
     if(tile.flippable !== false) {
       attrs.className += (this.state.flipped ? " flipped" : "");
-      controls.push(["button", {className: "flip-tile ion-reply", onClick: this.flip}]);
+      controls.push(["button", {className: "flip-tile " + (this.state.flipped ? "ion-forward" : "ion-reply"), onClick: this.flip}]);
     }
+    if(tile.navigable !== false) {
+      attrs.onDoubleClick = this.navigate;
+      controls.push(["button", {className: "navigate-tile ion-link", onClick: this.navigate}]);
+    }
+
     if(this.props.resizable && tile.resizable !== false) {
       attrs.onResize = this.resizing;
       children.push(["div", {
@@ -747,7 +750,7 @@ tiles.table = {
       var name = ixer.index("displayName")[id];
 
       return JSML(
-        ["div",
+        ["div", {className: "flex"},
          tileProperties({tileId: this.props.tileId}),
          ["br"],
          ["table", verticalTable([
