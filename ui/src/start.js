@@ -593,11 +593,16 @@ var editable = reactFactory({
   },
   render: function() {
     var value = this.state.value || this.props.value;
+    if(value === undefined) {
+      value = ""
+    } else if(typeof value === "object") {
+      value = JSON.stringify(value);
+    }
     return JSML(["div", {"contentEditable": true,
                          "onInput": this.handleChange,
                          "onBlur": this.submit,
                          "onKeyDown": this.handleKeys,
-                         dangerouslySetInnerHTML: {__html: value !== undefined ? value : ""}}]);
+                         dangerouslySetInnerHTML: {__html: value}}]);
   }
 });
 
@@ -1330,7 +1335,7 @@ var code = {
         field: {adds: fieldAdds},
         displayName: {adds: displayNames}
       };
-      if(initial) {
+      if(initial && initial.length) {
         diffs[id] = {adds: initial};
       }
       return diffs;
@@ -1442,6 +1447,21 @@ ixer.handleDiffs(code.diffs.addView("zomg", {
   ["d", "e", "f"]
 ], "zomg"));
 
+//code views
+ixer.handleDiffs(
+  code.diffs.addView("schema", {id: "id"}, [], "schema"));
+ixer.handleDiffs(
+  code.diffs.addView("field", {id: "id", schema: "id", ix: "int", type: "type"}, [], "field"));
+ixer.handleDiffs(
+  code.diffs.addView("primitive", {id: "id", inSchema: "id", outSchema: "id"}, [], "primitive"));
+ixer.handleDiffs(
+  code.diffs.addView("view", {id: "id", schema: "id", kind: "query|union"}, [], "view"));
+ixer.handleDiffs(
+  code.diffs.addView("source", {id: "id", view: "id", ix: "int", data: "data", splat: "bool"}, [], "source"));
+ixer.handleDiffs(
+  code.diffs.addView("constraint", {view: "id", op: "op", left: "reference", right: "reference"}, [], "constraint"));
+
+
 // Grid Indexes
 ixer.addIndex("gridTarget", "gridTarget", Indexing.create.lookup([0, 1]));
 ixer.addIndex("gridTile", "gridTile", Indexing.create.lookup([0, false]));
@@ -1469,14 +1489,6 @@ ixer.handleDiffs(code.diffs.addView(
   {grid: "string"},
   [["default"]],
   "activeGrid"));
-
-
-ixer.handleDiffs(code.diffs.addView(
-  "gridTarget",
-  {tile: "string", target: "string"},
-  [[uiViewId, "grid://ui"]],
-  "gridTarget"));
-
 
 ixer.handleDiffs(code.diffs.addView("gridTarget", {
   tile: "string",
