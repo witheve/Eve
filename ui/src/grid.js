@@ -17,10 +17,12 @@ var Grid = (function(document, React, Velocity) {
   };
 
   function make2DArray(width, height, defaultValue) {
-    var arr = [];
-    while(arr.push([]) < width) {
-      var col = arr[arr.length - 1];
-      while(col.push(defaultValue) < height) {}
+    var arr = new Array(width);
+    for(var x = 0; x < width; x++) {
+      arr[x] = [];
+      for(var y = 0; y < height; y++) {
+        arr[x][y] = defaultValue;
+      }
     }
     return arr;
   }
@@ -47,7 +49,7 @@ var Grid = (function(document, React, Velocity) {
 
       var grid = {
         size: params.size || [12, 12],
-        bounds: bounds,
+        bounds: {top: bounds.top, left: bounds.left, bottom: bounds.bottom, right: bounds.right, width: bounds.width, height: bounds.height},
         gutter: params.gutter || 0,
       };
 
@@ -89,8 +91,8 @@ var Grid = (function(document, React, Velocity) {
     },
     coordsToPos: function coordsToPos(grid, x, y, round) { // (Grid, N, N, Bool?) -> Pos
       if(!grid) { throw new Error(ERR.NO_GRID); }
-      x = (x - grid.bounds.top) / grid.calculated.snapWidth;
-      y = (y - grid.bounds.left) / grid.calculated.snapHeight;
+      x = (x - grid.bounds.left) / grid.calculated.snapWidth;
+      y = (y - grid.bounds.top) / grid.calculated.snapHeight;
       if(round) { return [Math.round(x), Math.round(y)]; }
       else { return [Math.floor(x), Math.floor(y)]; }
     },
@@ -146,6 +148,17 @@ var Grid = (function(document, React, Velocity) {
           }
         }
       }
+    },
+    tilesToText: function(grid, tiles) {
+      var map = Grid.tilesToMap(grid, tiles);
+      var result = [];
+      for(var x = 0; x < map.length; x++) {
+        for(var y = 0; y < map[x].length; y++) {
+          result[y] = result[y] || [];
+          result[y][x] = map[x][y];
+        }
+      }
+      return result.map(function(row) { return row.join(" | "); }).join("\n");
     }
   };
 })(window.document, React, Velocity);

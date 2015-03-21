@@ -99,11 +99,12 @@ var Indexing = (function() {
         var adds = diffs.adds;
         var removes = diffs.removes;
         var cursor;
-        for(var remIx = 0, remLen = removes.length; remIx < remLen; remIx++) {
+        outer: for(var remIx = 0, remLen = removes.length; remIx < remLen; remIx++) {
           var rem = removes[remIx];
           cursor = cur;
           for(var ix = 0, keyLen = keyIxes.length - 1; ix < keyLen; ix++) {
             cursor = cursor[rem[keyIxes[ix]]];
+            if(!cursor) continue outer;
           }
           delete cursor[rem[keyIxes[keyIxes.length - 1]]];
         }
@@ -131,11 +132,12 @@ var Indexing = (function() {
         var adds = diffs.adds;
         var removes = diffs.removes;
         var cursor;
-        for(var remIx = 0, remLen = removes.length; remIx < remLen; remIx++) {
+        outer: for(var remIx = 0, remLen = removes.length; remIx < remLen; remIx++) {
           var rem = removes[remIx];
           cursor = cur;
           for(var ix = 0, keyLen = keyIxes.length - 1; ix < keyLen; ix++) {
             cursor = cursor[rem[keyIxes[ix]]];
+            if(!cursor) continue outer;
           }
 
           cursor[rem[keyIxes[keyIxes.length - 1]]] = cursor[rem[keyIxes[keyIxes.length - 1]]].filter(function(potential) {

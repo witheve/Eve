@@ -5,13 +5,18 @@
 var alphabet = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
                 "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"];
 
+var KEYS = {UP: 38,
+            DOWN: 40,
+            ENTER: 13,
+            Z: 90};
+
 function reactFactory(obj) {
   return React.createFactory(React.createClass(obj));
 }
 
-function extend(dest, src) {
+function extend(dest, src, ignoreHasOwnProperty) {
   for(var key in src) {
-    if(!src.hasOwnProperty(key)) { continue; }
+    if(!src.hasOwnProperty(key) && !ignoreHasOwnProperty) { continue; }
     dest[key] = src[key];
   }
   return dest;
@@ -26,6 +31,24 @@ function findWhere(arr, key, needle) {
   }
 }
 
+function findMatch(haystack, needles) {
+  for(var ix = 0, len = needles.length; ix < len; ix++) {
+    var needle = needles[ix];
+    if(haystack.indexOf(needle) !== -1) {
+      return needle;
+    }
+  }
+}
+
+function coerceInput(input) {
+  if(input.match(/^-?[\d]+$/gim)) {
+    return parseInt(input);
+  } else if(input.match(/^-?[\d]+\.[\d]+$/gim)) {
+    return parseFloat(input);
+  }
+  return input;
+}
+
 function range(from, to) {
   if(to === undefined) {
     to = from;
@@ -36,6 +59,24 @@ function range(from, to) {
     results.push(i);
   }
   return results;
+}
+
+function verticalTable(rows) {
+  var content = [];
+  for(var rowIx = 0, rowsLength = rows.length; rowIx < rowsLength; rowIx++) {
+    var row = rows[rowIx];
+    var rowEl = ["tr"];
+
+    if(row[0]) {
+      rowEl.push(["th", row[0]]);
+    }
+    for(var ix = 1, len = row.length; ix < len; ix++) {
+      rowEl.push(["td", row[ix]]);
+    }
+
+    content.push(rowEl);
+  }
+  return content;
 }
 
 //---------------------------------------------------------
@@ -74,7 +115,7 @@ var root = reactFactory({
     this.setState({bounds: this.getBounds()});
   },
   getBounds: function() {
-    var bounds = extend({}, document.querySelector("body").getBoundingClientRect());
+    var bounds = extend({}, document.body.getBoundingClientRect(), true);
     bounds.height -= 80;
     bounds.width -= 40;
     return bounds;
@@ -86,7 +127,11 @@ var root = reactFactory({
     this.setState({editingGrid: !this.state.editingGrid});
   },
   render: function() {
-    var tiles = ixer.facts("gridTile").map(function(tile) {
+    var activeGrid = ixer.facts("activeGrid")[0][0];
+    console.log("Active grid is:", activeGrid);
+    var tiles = ixer.facts("gridTile").filter(function(fact) {
+      return fact[1] === activeGrid;
+    }).map(function(tile) {
       return {
         id: tile[0], grid: tile[1], type: tile[2],
         pos: [tile[3], tile[4]], size: [tile[5], tile[6]]
@@ -125,7 +170,6 @@ var root = reactFactory({
 var tiles = {};
 
 tiles.debug = {
-  flippable: false,
   navigable: false,
   content: reactFactory({
     displayName: "debug",
@@ -135,28 +179,120 @@ tiles.debug = {
   })
 };
 
+tiles.add = {
+  flippable: false,
+  resizable: false,
+  draggable: false,
+  content: reactFactory({
+    displayName: "add",
+    addTile: function(evt) {
+      dispatch("addTile", {
+        id: this.props.tileId,
+        type: "addTable",
+        pos: this.props.pos,
+        size: this.props.size
+      });
+    },
+    render: function() {
+      return JSML(["div", {
+        onClick: this.addTile
+      }]);
+    }
+  })
+};
+
+// @FIXME: Embed this in a table format?
+var tileProperties = reactFactory({
+  displayName: "properties",
+  setTarget: function(val) {
+    dispatch("setTarget", {id: this.props.tileId, target: val});
+  },
+  render: function() {
+    var target = ixer.index("gridTarget")[this.props.tileId];
+    return JSML(
+      ["table", {className: "tile-properties"}, verticalTable([
+        ["Id", this.props.tileId],
+        ["Type", this.props.type],
+        ["Target", editable({value: target, onSubmit: this.setTarget})]
+      ])]
+    );
+  }
+});
 
 var gridTile = reactFactory({
   displayName: "grid-tile",
-  mixins: [Drag.mixins.draggable, Drag.mixins.resizable],
   getInitialState: function() {
     return {currentPos: [this.props.left, this.props.top], currentSize: [this.props.width, this.props.height]};
   },
-  dragging: function(evt, offset) {
+
+  navigate: function(evt) {
+    var target = ixer.index("gridTarget")[this.props.id];
+    if(!target) {
+      return;
+    }
+
+    console.log("navigating to", target);
+    dispatch("navigate", {tile: this.props.id, target: target});
+  },
+
+  flip: function(evt) {
+    var self = this;
+    Velocity(this.getDOMNode(), {rotateY: "+=90deg"}, {
+      duration: 250,
+      easing: "easeInSine",
+      complete: function() {
+        self.setState({flipped: !self.state.flipped});
+      }
+    });
+    Velocity(this.getDOMNode(), {rotateY: "+=90deg"}, {duration: 250, easing: "easeOutSine"});
+  },
+
+  // Dragging
+  startDrag: function(evt) {
+    var dT = evt.dataTransfer;
+    dT.setData("tile/" + this.props.type, this.props.id);
+    dT.setData("tile/generic", this.props.id);
+    var offset = [evt.clientX - this.props.left, evt.clientY - this.props.top];
+    this.setState({dragging: true, dragOffset: offset});
+  },
+  endDrag: function(evt) {
+    this.setState({dragging: false, dragOffset: undefined});
+  },
+  dragging: function(evt) {
+    var offset = this.state.dragOffset;
     var pos = [evt.clientX - offset[0], evt.clientY - offset[1]];
     var currentPos = this.state.currentPos;
     if(pos[0] !== currentPos[0] || pos[1] !== currentPos[1]) {
       this.setState({currentPos: pos});
-      this.props.updateFootprint(pos, this.state.currentSize);
+      this.props.updateFootprint(pos, [this.props.width, this.props.height]);
     }
   },
-  resizing: function(dimensions) {
+
+  // Resizing
+  startResize: function(evt) {
+    evt.stopPropagation();
+    var dT = evt.dataTransfer;
+    dT.setData("tile/generic", this.props.id);
+    dT.setDragImage(document.getElementById("clear-pixel"), 0, 0);
+    var offset = [evt.clientX - this.props.width, evt.clientY - this.props.height];
+    this.setState({resizing: true, resizeOffset: offset});
+  },
+  endResize: function(evt) {
+    evt.stopPropagation();
+    this.setState({resizing: false, resizeoffset: undefined});
+  },
+  resizing: function(evt) {
+    evt.stopPropagation();
+    var offset = this.state.resizeOffset;
+    var dimensions = [evt.clientX - offset[0], evt.clientY - offset[1]];
     var currentSize = this.state.currentSize;
     if(dimensions[0] !== currentSize[0] || dimensions[1] !== currentSize[1]) {
       this.setState({currentSize: dimensions});
-      this.props.updateFootprint(this.state.currentPos, dimensions);
+      this.props.updateFootprint([this.props.left, this.props.top], dimensions);
     }
   },
+
+  // Rendering
   render: function() {
     var tile = tiles[this.props.type];
     if(!tile) { throw new Error("Invalid tile type specified: '" + this.props.type + "'."); }
@@ -166,37 +302,75 @@ var gridTile = reactFactory({
       width: this.props.width,
       height: this.props.height
     };
-    var attrs = {className: "grid-tile " + this.props.type, style: style, key: this.props.id};
-    var content = ["div", attrs, tile.content({tileId: this.props.id})];
-    if(this.props.resizable) {
+
+    var attrs = {key: this.props.id, className: "grid-tile " + this.props.type, style: style};
+    var controls = [];
+    var children = [];
+
+    if(tile.navigable !== false) {
+      attrs.onDoubleClick = this.navigate;
+    }
+    if(tile.flippable !== false) {
+      attrs.className += (this.state.flipped ? " flipped" : "");
+      controls.push(["button", {className: "flip-tile ion-reply", onClick: this.flip}]);
+    }
+    if(this.props.resizable && tile.resizable !== false) {
       attrs.onResize = this.resizing;
-      content = this.wrapResizableJsml(content);
+      children.push(["div", {
+        className: "corner-se-grip ion-drag",
+        draggable: true,
+        onDragStart: this.startResize,
+        onDragEnd: this.stopResize,
+        onDrag: this.resizing
+      }]);
     }
-    if(this.props.draggable) {
-      var data = {};
-      data["tile/" + this.props.type] = this.props.id;
-      data["tile/generic"] = this.props.id;
+    if(this.props.draggable && tile.draggable !== false) {
+      attrs.className += (this.state.dragging ? " dragging" : "");
+      attrs.draggable = true;
+      attrs.onDragStart = this.startDrag;
+      attrs.onDragEnd = this.endDrag;
       attrs.onDrag = this.dragging;
-      attrs = this.wrapDraggable(attrs, {data: data, effect: "move"});
     }
+
+    var inner;
+    if(this.state.flipped) {
+      if(tile.backContent) {
+        inner = tile.backContent({tileId: this.props.id, pos: this.props.pos, size: this.props.size, type: this.props.type});
+      } else {
+        inner = tileProperties({tileId: this.props.id, pos: this.props.pos, size: this.props.size, type: this.props.type});
+      }
+    } else {
+      inner = tile.content({tileId: this.props.id, pos: this.props.pos, size: this.props.size});
+    }
+    var content = ["div", attrs,
+                   ["div", {className: "grid-tile-inner", style: {transform: (this.state.flipped ? "rotateY(180deg)" : undefined)}},
+                    inner,
+                    toolbar({key: "toolbar", controls: controls}),
+                    children
+                   ]];
     return JSML(content);
   }
 });
 
 var stage = reactFactory({
   displayName: "stage",
-  mixins: [Drag.mixins.dropzone],
   getInitialState: function() {
     return {
+      accepts: ["tile/generic"],
       grid: Grid.makeGrid({bounds: this.props.bounds, gutter: 8}),
     };
   },
   componentWillReceiveProps: function(nextProps) {
     this.setState({grid: Grid.makeGrid({bounds: nextProps.bounds, gutter: 8})});
   },
-  dragTileOver: function(evt, type) {
+  dragTileOver: function(evt) {
     // @TODO: Once converted to tables, retrieve pos / size here for updateFootprint.
-    var id = evt.dataTransfer.getData(type);
+    var dT = evt.dataTransfer;
+    var type = findMatch(this.state.accepts, dT.types);
+    if(!type) { return; }
+
+    evt.preventDefault();
+    var id = dT.getData(type);
     if(this.state.dragId !== id) {
       this.setState({dragId: id});
     }
@@ -205,7 +379,7 @@ var stage = reactFactory({
     this.setState({dragId: undefined, dragPos: undefined, dragSize: undefined});
   },
   dropTile: function() {
-    if(this.state.dragValid) {
+    if(this.state.dragValid && this.state.dragPos && this.state.dragSize) {
       dispatch("updateTile", {id: this.state.dragId, pos: this.state.dragPos, size: this.state.dragSize});
     }
     this.setState({dragId: undefined, dragPos: undefined, dragSize: undefined});
@@ -228,6 +402,7 @@ var stage = reactFactory({
     var tiles = this.props.tiles.slice();
     tiles.splice(tiles.indexOf(tile), 1);
     var valid = Grid.hasGapAt(this.state.grid, tiles, {pos: pos, size: size});
+    if(size[0] < 1 || size[1] < 1) { valid = false; }
     if(oldValid !== valid) {
       this.setState({dragValid: valid});
     }
@@ -235,9 +410,21 @@ var stage = reactFactory({
 
   render: function() {
     var isEditing = this.props.editing;
+    var tiles = this.props.tiles.slice();
+
+    var addPos;
+    while(addPos = Grid.findGap(this.state.grid, tiles, Grid.DEFAULT_SIZE)) {
+      tiles.push({
+        pos: addPos,
+        size: Grid.DEFAULT_SIZE,
+        type: "add",
+        id: uuid()
+      });
+    }
+
     var children = [];
-    for(var tileIx = 0, tilesLength = this.props.tiles.length; tileIx < tilesLength; tileIx++) {
-      var tileRaw = this.props.tiles[tileIx];
+    for(var tileIx = 0, tilesLength = tiles.length; tileIx < tilesLength; tileIx++) {
+      var tileRaw = tiles[tileIx];
       var tileRect = Grid.getRect(this.state.grid, tileRaw);
       var tile = extend(extend({}, tileRaw), tileRect);
       tile.key = tile.id;
@@ -246,14 +433,23 @@ var stage = reactFactory({
       children.push(gridTile(tile));
     }
     var attrs = {key: this.props.key, className: "tile-grid" + (isEditing ? " editing" : "")};
+    var content = ["div", attrs];
+    content.push.apply(content, children);
+
     if(this.props.editing) {
       attrs.onDragOver = this.dragTileOver;
       attrs.onDragLeave = this.dragTileOut;
       attrs.onDrop = this.dropTile;
-      attrs = this.wrapDropzone(attrs, {accepts: ["tile/generic"]});
+
+      var gridShadows = [];
+      for(var x = 0; x < this.state.grid.size[0]; x++) {
+        for(var y = 0; y < this.state.grid.size[1]; y++) {
+          var shadowStyle = Grid.getRect(this.state.grid, {pos: [x, y], size: [1, 1]});
+          gridShadows.push(["div", {className: "grid-shadow", key: x + "," + y, style: shadowStyle}]);
+        }
+      }
+      content.push.apply(content, gridShadows);
     }
-    var content = ["div", attrs];
-    content.push.apply(content, children);
 
     if(this.state.dragId && this.state.dragPos) {
       var footprint = Grid.getRect(this.state.grid, {pos: this.state.dragPos, size: this.state.dragSize});
@@ -270,6 +466,104 @@ var stage = reactFactory({
 });
 
 //---------------------------------------------------------
+// Table selector
+//---------------------------------------------------------
+
+var tableSelectorItem = reactFactory({
+  select: function() {
+    if(this.props.select) {
+      this.props.select(this.props.view);
+    }
+  },
+  render: function() {
+    var displayNames = ixer.index("displayName");
+    var fields = code.viewToFields(this.props.view) || [];
+    var items = fields.map(function(cur) {
+      return ["li", displayNames[cur[0]]];
+    });
+    var className = "result";
+    if(this.props.selected) {
+      className += " selected";
+    }
+    return JSML(["li", {className: className,
+                        onClick: this.select},
+                 ["h2", this.props.name],
+                 ["ul", items]]);
+  }
+});
+
+var tableSelector = reactFactory({
+  getInitialState: function() {
+    return {search: "", selected: -1};
+  },
+  updateSearch: function(e) {
+    this.setState({search: e.target.value, selected: -1});
+  },
+  handleKeys: function(e) {
+    if(e.keyCode === KEYS.ENTER) {
+      var sel = this.state.selected;
+      if(sel === -1) {
+        sel = 0;
+      }
+      this.select(this.state.results[sel]);
+    } else if(e.keyCode === KEYS.UP) {
+      var sel = this.state.selected;
+      if(sel > 0) {
+        sel -= 1;
+      } else {
+        sel = this.state.results.length - 1;
+      }
+      this.setState({selected: sel});
+    } else if(e.keyCode === KEYS.DOWN) {
+      var sel = this.state.selected;
+      if(sel < this.state.results.length - 1) {
+        sel += 1;
+      } else {
+        sel = 0;
+      }
+      this.setState({selected: sel});
+    }
+  },
+  select: function(view) {
+    if(this.props.onSelect) {
+      this.props.onSelect(view);
+    }
+  },
+  render: function() {
+    var self = this;
+    var displayNames = ixer.index("displayName");
+    var search = this.state.search;
+    var items = [];
+    var results = [];
+    ixer.facts("view").forEach(function(cur) {
+      var view = cur[0];
+      var name = displayNames[cur[0]]
+      if(name && name.indexOf(search) > -1) {
+        var selected = items.length === self.state.selected;
+        results.push(view);
+        items.push(tableSelectorItem({view: view, name: name, selected: selected, select: self.select}));
+      }
+    });
+    this.state.results = results;
+    return JSML(["div", {className: "table-selector"},
+                 ["input", {type: "text", placeholder: "search", onKeyDown: this.handleKeys, onInput: this.updateSearch, value: this.state.search}],
+                 ["ul", items]]);
+  }
+});
+
+tiles.addTable = {
+  flippable: false,
+  content: reactFactory({
+    onSelect: function(view) {
+      dispatch("setTileView", {tileId: this.props.tileId, view: view});
+    },
+    render: function() {
+      return tableSelector({onSelect: this.onSelect});
+    }
+  })
+};
+
+//---------------------------------------------------------
 // Table components
 //---------------------------------------------------------
 
@@ -279,7 +573,7 @@ var editable = reactFactory({
     return {value: "", modified: false};
   },
   handleChange: function(e) {
-    this.setState({value: e.target.textContent, modified: true});
+    this.setState({value: coerceInput(e.target.textContent), modified: true});
   },
   handleKeys: function(e) {
     //submit on enter
@@ -379,12 +673,10 @@ var tableRow = reactFactory({
   }
 });
 
-tiles.table = {
-  content: reactFactory({
+var table = reactFactory({
     displayName: "table",
     getInitialState: function() {
-      var table = "foo"; //@FIXME derive this from tableTile index.
-      return {table: table, partialRows: [uuid()]};
+      return {partialRows: [uuid()]};
     },
     rowAdded: function(id) {
       this.setState({partialRows: this.state.partialRows.filter(function(cur) {
@@ -398,33 +690,71 @@ tiles.table = {
       }
     },
     addColumn: function() {
-      dispatch("addColumnToTable", {table: this.state.table});
+      dispatch("addColumnToTable", {table: this.props.tableId});
     },
     render: function() {
       var self = this;
-      var fields = code.viewToFields(this.state.table);
-      var rows = ixer.facts(this.state.table);
+      var fields = code.viewToFields(this.props.tableId);
+      var rows = ixer.facts(this.props.tableId);
       var numColumns = fields.length;
       var headers = fields.map(function(cur) {
         return tableHeader({field: code.name(cur[0]), id: cur[0]});
       });
-      var rowIds = ixer.index("editId")[this.state.table];
+      var rowIds = ixer.index("editId")[this.props.tableId];
       if(rowIds) {
         rows.sort(function(a, b) {
           return rowIds[JSON.stringify(a)] - rowIds[JSON.stringify(b)];
         });
       }
       var rowComponents = rows.map(function(cur, ix) {
-        return tableRow({table: self.state.table, row: cur, length: numColumns, key: JSON.stringify(cur) + ix, editable: true});
+        return tableRow({table: self.props.tableId, row: cur, length: numColumns, key: JSON.stringify(cur) + ix, editable: true});
       });
       this.state.partialRows.forEach(function(cur) {
-        rowComponents.push(tableRow({table: self.state.table, row: [], length: numColumns, editable: true, isNewRow: true, onRowAdded: self.rowAdded, onRowModified: self.addedRowModified, key: cur, id: cur}));
+        rowComponents.push(tableRow({table: self.props.tableId, row: [], length: numColumns, editable: true, isNewRow: true, onRowAdded: self.rowAdded, onRowModified: self.addedRowModified, key: cur, id: cur}));
       });
+      var addColumn;
+      if(this.props.editable) {
+        addColumn = ["div", {className: "add-column", onClick: this.addColumn}, "+"];
+      }
       return JSML(["div", {className: "table-wrapper"},
                    ["table",
                     ["thead", ["tr", headers]],
                     ["tbody", rowComponents]],
-                   ["div", {className: "add-column", onClick: this.addColumn}, "+"]]);
+                   addColumn
+                   ]);
+    }
+  });
+
+tiles.table = {
+  content: function(opts) {
+    var currentTable = ixer.index("tableTile")[opts.tileId];
+    if(currentTable) {
+      opts.tableId = currentTable[1];
+      opts.editable = true;
+      return table(opts);
+    }
+  },
+  backContent: reactFactory({
+    displayName: "table-properties",
+    setName: function(val) {
+      var currentTable = ixer.index("tableTile")[this.props.tileId];
+      var id = currentTable[1];
+      dispatch("rename", {id: id, value: val});
+    },
+    render: function() {
+      var currentTable = ixer.index("tableTile")[this.props.tileId];
+      var id = currentTable[1];
+      var name = ixer.index("displayName")[id];
+
+      return JSML(
+        ["div",
+         tileProperties({tileId: this.props.tileId}),
+         ["br"],
+         ["table", verticalTable([
+           ["name", editable({value: name, onSubmit: this.setName})]
+         ])]
+        ]
+      );
     }
   })
 };
@@ -435,21 +765,66 @@ tiles.table = {
 
 var viewSource = reactFactory({
   render: function() {
+    var viewOrFunction = this.props.source[3];
+    var constraints = this.props.constraints.map(function(cur) {
+      var left = code.refToName(cur[2]);
+      var right = code.refToName(cur[3]);
+      var remove = function() {
+        dispatch("removeConstaint", {constraint: cur.slice()})
+      };
+      return ["li", {onClick: remove},
+              left, " " + cur[1] + " ", right];
+    });
     return JSML(["div", {className: "view-source"},
-                 ["h1", "foo"],
-                 tiles.table.content({tileId: this.props.tileId})
+                 ["h1", viewOrFunction],
+                 ["ul", constraints],
+                 table({tileId: this.props.tileId, tableId: viewOrFunction})
                 ]);
   }
 });
 
 tiles.view = {
   content: reactFactory({
+    getInitialState: function() {
+      return {addingSource: false};
+    },
+    startAddingSource: function() {
+      this.setState({addingSource: true});
+    },
+    stopAddingSource: function(view) {
+      this.setState({addingSource: false});
+      dispatch("addSource", {view: this.props.view || "qq", source: view});
+    },
     render: function() {
+      var self = this;
+      var view = "qq";
+      var sources = ixer.index("viewToSources")[view] || [];
+      var constraints = ixer.index("viewToConstraints")[view] || [];
+      var sourceToConstraints = {};
+      constraints.forEach(function(cur) {
+        var source = cur[2].source;
+        if(!sourceToConstraints[source]) {
+          sourceToConstraints[source] = [];
+        }
+        sourceToConstraints[source].push(cur);
+      })
+      sources.sort(function(a, b) {
+        //sort by ix
+        return a[2] - b[2];
+      });
+      var items = sources.map(function(cur) {
+        return viewSource({tileId: self.props.tileId, source: cur, constraints: sourceToConstraints[cur[0]] || []});
+      });
+      var add;
+      if(this.state.addingSource) {
+        add = tableSelector({onSelect: this.stopAddingSource});
+      } else {
+        add = ["div", {onClick: this.startAddingSource}, "add source"];
+      }
       //edit view
       return JSML(["div", {className: "view-wrapper"},
-                   viewSource({}),
-                   viewSource({}),
-                   ["div", "add source"]
+                   items,
+                   add
                   ]);
     }
   })
@@ -553,7 +928,13 @@ var uiCanvasElem = reactFactory({
     return {right: cur.right, bottom: cur.bottom, left: cur.left, top: cur.top};
   },
   componentDidUpdate: function(prev) {
-    if(prev.element.id !== this.props.element.id) {
+    var old = prev.element;
+    var neue = this.props.element;
+    if(old.id !== neue.id
+       || old.left !== neue.left
+       || old.right !== neue.right
+       || old.top !== neue.top
+       || old.bottom !== neue.bottom) {
       var cur = this.props.element;
       this.setState({right: cur.right, bottom: cur.bottom, left: cur.left, top: cur.top});
     }
@@ -721,52 +1102,127 @@ tiles.ui = {
 };
 
 //---------------------------------------------------------
+// Diff Helpers
+//---------------------------------------------------------
+
+function reverseDiff(diff) {
+  var neue = {};
+  for(var table in diff) {
+    var old = diff[table];
+    neue[table] = {adds: old.removes, removes: old.adds};
+  }
+  return neue;
+}
+
+function mergeDiffs(a,b) {
+  var neue = {};
+  for(var table in a) {
+    neue[table] = {};
+    neue[table].adds = a[table].adds;
+    neue[table].removes = a[table].removes;
+  }
+  for(var table in b) {
+    if(!neue[table]) {
+      neue[table] = {};
+    }
+    if(neue[table].adds) {
+      neue[table].adds = neue[table].adds.concat(b[table].adds);
+    } else {
+      neue[table].adds = b[table].adds;
+    }
+    if(neue[table].removes) {
+      neue[table].removes = neue[table].removes.concat(b[table].removes);
+    } else {
+      neue[table].removes = b[table].removes;
+    }
+  }
+  return neue;
+}
+
+function into(diff, addOrRemove, tables) {
+  for(var table in tables) {
+    if(!diff[table]) {
+      diff[table] = {};
+    }
+    if(diff[table][addOrRemove]) {
+      diff[table][addOrRemove] = diff[table][addOrRemove].concat(tables[table]);
+    } else {
+      diff[table][addOrRemove] = tables[table];
+    }
+  }
+  return diff;
+}
+
+//---------------------------------------------------------
 // Event dispatch
 //---------------------------------------------------------
 
+var eventStack = {root: true, children: []};
+
+function scaryUndoEvent() {
+  if(!eventStack.parent || !eventStack.diffs) return {};
+
+  var old = eventStack;
+  eventStack = old.parent;
+  return reverseDiff(old.diffs);
+}
+
+function scaryRedoEvent() {
+  if(!eventStack.children.length) return {};
+
+  eventStack = eventStack.children[eventStack.children.length - 1];
+  return eventStack.diffs;
+}
+
 function dispatch(event, arg, noRedraw) {
+  var storeEvent = true;
+  var diffs = {};
+
   switch(event) {
     case "load":
       break;
     case "addColumnToTable":
-      var diffs = code.diffs.addColumn(arg.table);
-      ixer.handleDiffs(diffs);
+      diffs = code.diffs.addColumn(arg.table);
       break;
     case "swapRow":
       var oldKey = JSON.stringify(arg.old);
-      var time = ixer.index("editId")[arg.table][oldKey];
-      var diffs = {
+      var edits = ixer.index("editId")[arg.table]
+      var time = edits ? edits[oldKey] : 0;
+      diffs = {
         editId: {adds: [[arg.table, JSON.stringify(arg.neue), time]], removes: [[arg.table, oldKey, time]]}
       };
       diffs[arg.table] = {adds: [arg.neue.slice()], removes: [arg.old.slice()]};
-      ixer.handleDiffs(diffs);
       break;
     case "addRow":
-      var diffs = {
+      diffs = {
         editId: {adds: [[arg.table, JSON.stringify(arg.neue), (new Date()).getTime()]], removes: []}
       };
       diffs[arg.table] = {adds: [arg.neue.slice()], removes: []};
-      ixer.handleDiffs(diffs);
       break;
     case "rename":
-      var diffs = code.diffs.changeDisplayName(arg.id, arg.value);
-      ixer.handleDiffs(diffs);
+      diffs = code.diffs.changeDisplayName(arg.id, arg.value);
       break;
     case "uiComponentElementMoved":
       var element = arg.element;
       var prev = [element.component, element.id, element.control, element.left, element.top, element.right, element.bottom];
       var neue = [element.component, element.id, element.control, arg.left, arg.top, arg.right, arg.bottom] ;
-      var diffs = {
+      diffs = {
         uiComponentElement: {adds: [neue], removes: [prev]}
       };
-      ixer.handleDiffs(diffs);
       break;
     case "uiComponentElementAdd":
       var neue = [arg.component, uuid(), arg.control, arg.left, arg.top, arg.right, arg.bottom];
-      var diffs = {
+      diffs = {
         uiComponentElement: {adds: [neue], removes: []}
       };
-      ixer.handleDiffs(diffs);
+      break;
+    case "addTile":
+      // @FIXME: active grid
+      var activeGrid = ixer.facts("activeGrid")[0][0];
+      var fact = [arg.id, activeGrid, arg.type, arg.pos[0], arg.pos[1], arg.size[0], arg.size[1]];
+      diffs = {
+        gridTile: {adds: [fact]}
+      };
       break;
     case "updateTile":
       var oldTile = ixer.index("gridTile")[arg.id].slice();
@@ -774,13 +1230,57 @@ function dispatch(event, arg, noRedraw) {
       tile[3] = arg.pos[0], tile[4] = arg.pos[1];
       tile[5] = arg.size[0], tile[6] = arg.size[1];
       diffs = {gridTile: {adds: [tile], removes: [oldTile]}};
-      console.log(diffs);
+      break;
+    case "setTileView":
+      var oldTile = ixer.index("gridTile")[arg.tileId].slice();
+      var tile = oldTile.slice();
+      //set to a table tile
+      tile[2] = "table";
+      diffs = {gridTile: {adds: [tile], removes: [oldTile]},
+                  tableTile: {adds: [[tile[0], arg.view]]}};
+      break;
+    case "setTarget":
+      var diffs = {
+        gridTarget: {adds: [[arg.id, arg.target]], removes: [[arg.id, ixer.index("gridTarget")[arg.id]]]}
+      };
       ixer.handleDiffs(diffs);
+      break;
+    case "navigate":
+      if(!arg.target.indexOf("grid://") === 0) { throw new Error("Cannot handle non grid:// urls yet."); }
+      diffs = {
+        activeGrid: {adds: [[arg.target.substring(7)]], removes: ixer.facts("activeGrid").slice()}
+      }
+      break;
+    case "addSource":
+      var ix = (ixer.index("viewToSources")[arg.view] || []).length;
+      var sourceId = uuid();
+      diffs = code.diffs.autoJoins(arg.view, arg.source, sourceId);
+      diffs["source"] = {adds: [[sourceId, arg.view, ix, arg.source, true]], removes: []};
+      break;
+    case "removeConstaint":
+      diffs.constraint = {removes: [arg.constraint]};
+      break;
+    case "undo":
+      storeEvent = false;
+      diffs = scaryUndoEvent();
+      break;
+    case "redo":
+      storeEvent = false;
+      diffs = scaryRedoEvent();
       break;
     default:
       console.error("Dispatch for unknown event: ", event, arg);
+      return;
       break;
   }
+
+  if(storeEvent) {
+    var eventItem = {event: event, diffs: diffs, children: [], parent: eventStack};
+    eventStack.children.push(eventItem);
+    eventStack = eventItem;
+  }
+
+  ixer.handleDiffs(diffs);
 
   if(!noRedraw) {
     React.render(root(), document.body);
@@ -826,7 +1326,7 @@ var code = {
       }
 
       var diffs = {
-        view: {adds: [id, schema, false]}, // @NOTE: What is false?
+        view: {adds: [[id, schema, "union"]]},
         field: {adds: fieldAdds},
         displayName: {adds: displayNames}
       };
@@ -834,16 +1334,77 @@ var code = {
         diffs[id] = {adds: initial};
       }
       return diffs;
+    },
+    autoJoins: function(view, sourceView, sourceId) {
+      var displayNames = ixer.index("displayName");
+      var sources = ixer.index("viewToSources")[view] || [];
+      var fields = code.viewToFields(sourceView);
+      var constraints = [];
+      fields = fields.map(function(cur) {
+        return [cur[0], displayNames[cur[0]]];
+      });
+      sources.forEach(function(cur) {
+        theirFields = code.viewToFields(cur[3]);
+        if(!theirFields) return;
+
+        for(var i in theirFields) {
+          var theirs = theirFields[i];
+          for(var x in fields) {
+            var myField = fields[x];
+            if(displayNames[theirs[0]] === myField[1]) {
+              //same name, join them.
+              constraints.push(
+                [view, "=",
+                 {"": "field-source-ref", field: myField[0], source: sourceId},
+                 {"": "field-source-ref", field: theirs[0], source: cur[0]}]);
+            }
+          }
+        }
+      });
+      return {constraint: {adds: constraints, removes: []}};
     }
   },
   viewToFields: function(view) {
     var schema = ixer.index("viewToSchema")[view];
     return ixer.index("schemaToFields")[schema];
   },
+  refToName: function(ref) {
+    switch(ref[""]) {
+      case "field-source-ref":
+        var view = code.name(ixer.index("sourceToData")[ref.source]);
+        var field = code.name(ref.field);
+        return view + "." + field;
+        break;
+      default:
+        return "Unknown ref: " + JSON.stringify(ref);
+        break;
+    }
+  },
   name: function(id) {
     return ixer.index("displayName")[id];
   }
 }
+
+//---------------------------------------------------------
+// Global key handling
+//---------------------------------------------------------
+
+document.addEventListener("keydown", function(e) {
+  //Don't capture keys if they are
+  if(e.defaultPrevented
+     || e.target.nodeName === "INPUT"
+     || e.target.getAttribute("contentEditable")) {
+    return;
+  }
+
+  //undo + redo
+  if((e.metaKey || e.ctrlKey) && e.shiftKey && e.keyCode === KEYS.Z) {
+    dispatch("redo");
+  } else if((e.metaKey || e.ctrlKey) && e.keyCode === KEYS.Z) {
+    dispatch("undo");
+  }
+
+});
 
 //---------------------------------------------------------
 // Go
@@ -853,28 +1414,42 @@ var code = {
 //add some views
 ixer.addIndex("displayName", "displayName", Indexing.create.lookup([0, 1]));
 ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
+ixer.addIndex("sourceToData", "source", Indexing.create.lookup([0, 3]));
 ixer.addIndex("editId", "editId", Indexing.create.lookup([0,1,2]));
 ixer.addIndex("viewToSchema", "view", Indexing.create.lookup([0, 1]));
 ixer.addIndex("viewToSources", "source", Indexing.create.collector([1]));
+ixer.addIndex("viewToConstraints", "constraint", Indexing.create.collector([0]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([1]));
 ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([0]));
 ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schema", "query"]], removes: []},
                   schema: {adds: [["foo-schema"], ["qq-schema"]], removes: []},
                   field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "string"], ["qq-a", "qq-schema", 0, "string"]], removes: []},
-                  source: {adds: [["foo-source", "qq", 0, "foo", true], ["foo-source", "qq", 0, "foo", false]], removes: []},
+//                   source: {adds: [["foo-source", "qq", 0, "foo", true], ["zomg-source", "qq", 0, "zomg", false]], removes: []},
                   editId: {adds: [["foo", JSON.stringify(["a", "b"]), 0], ["foo", JSON.stringify(["c", "d"]), 1]], removes: []},
                   foo: {adds: [["a", "b"], ["c", "d"]], removes: []},
                   input: {adds: [["foo", ["a", "b"]], ["foo", ["c", "d"]]], removes: []},
-                  displayName: {adds: [["foo-a", "foo A"], ["foo-b", "foo B"]], removes: []},
+                  displayName: {adds: [["foo", "foo"], ["foo-a", "a"], ["foo-b", "foo B"]], removes: []},
                   uiComponent: {adds: [["myUI"]], removes: []},
                  });
 
+
+ixer.handleDiffs(code.diffs.addView("zomg", {
+  a: "string",
+  e: "string",
+  f: "string"
+}, [
+  ["a", "b", "c"],
+  ["d", "e", "f"]
+], "zomg"));
+
 // Grid Indexes
+ixer.addIndex("gridTarget", "gridTarget", Indexing.create.lookup([0, 1]));
 ixer.addIndex("gridTile", "gridTile", Indexing.create.lookup([0, false]));
 ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
 
 var gridId = "default";
 
+var uiViewId = uuid();
 ixer.handleDiffs(code.diffs.addView("gridTile", {
   tile: "string",
   grid: "string",
@@ -884,9 +1459,31 @@ ixer.handleDiffs(code.diffs.addView("gridTile", {
   w: "number",
   h: "number"
 }, [
-  [uuid(), gridId, "ui", 0, 0, 6, 4],
-  [uuid(), gridId, "table", 6, 0, 6, 4]
+  [uiViewId, gridId, "ui", 0, 0, 6, 4],
+  [uuid(), gridId, "view", 6, 0, 6, 4],
+  [uuid(), "ui", "ui", 0, 0, 12, 12],
 ], "gridTile"));
+
+ixer.handleDiffs(code.diffs.addView(
+  "activeGrid",
+  {grid: "string"},
+  [["default"]],
+  "activeGrid"));
+
+
+ixer.handleDiffs(code.diffs.addView(
+  "gridTarget",
+  {tile: "string", target: "string"},
+  [[uiViewId, "grid://ui"]],
+  "gridTarget"));
+
+
+ixer.handleDiffs(code.diffs.addView("gridTarget", {
+  tile: "string",
+  target: "string"
+}, [
+  [uiViewId, "grid://ui"]
+], "gridTarget"));
 
 
 dispatch("load");
