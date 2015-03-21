@@ -1236,7 +1236,7 @@ function dispatch(event, arg, noRedraw) {
     case "navigate":
       if(!arg.target.indexOf("grid://") === 0) { throw new Error("Cannot handle non grid:// urls yet."); }
       diffs = {
-        activeGrid: {adds: [[arg.target.substring(7)]], removes: ixer.facts("activeGrid")}
+        activeGrid: {adds: [[arg.target.substring(7)]], removes: ixer.facts("activeGrid").slice()}
       }
       break;
     case "addSource":
