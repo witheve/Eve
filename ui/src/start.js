@@ -236,7 +236,15 @@ var gridTile = reactFactory({
   },
 
   flip: function(evt) {
-    this.setState({flipped: !this.state.flipped});
+    var self = this;
+    Velocity(this.getDOMNode(), {rotateY: "+=90deg"}, {
+      duration: 250,
+      easing: "easeInSine",
+      complete: function() {
+        self.setState({flipped: !self.state.flipped});
+      }
+    });
+    Velocity(this.getDOMNode(), {rotateY: "+=90deg"}, {duration: 250, easing: "easeOutSine"});
   },
 
   // Dragging
@@ -334,8 +342,12 @@ var gridTile = reactFactory({
     } else {
       inner = tile.content({tileId: this.props.id, pos: this.props.pos, size: this.props.size});
     }
-    var content = ["div", attrs, inner, toolbar({key: "toolbar", controls: controls})];
-    content.push.apply(content, children);
+    var content = ["div", attrs,
+                   ["div", {className: "grid-tile-inner", style: {transform: (this.state.flipped ? "rotateY(180deg)" : undefined)}},
+                    inner,
+                    toolbar({key: "toolbar", controls: controls}),
+                    children
+                   ]];
     return JSML(content);
   }
 });

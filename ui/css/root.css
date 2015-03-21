@@ -53,6 +53,9 @@ body {
   position: absolute;
   top: 60px; right: 20px; bottom: 20px; left: 20px;
   background: #202020;
+  perspective: 100;
+  -webkit-perspective: 5000;
+  -moz-perspective: 5000;
 }
 .tile-grid.editing > .grid-tile.dragging {
   z-index: -1000;
@@ -80,17 +83,22 @@ body {
 
 
 .grid-tile {
-  padding: 8px;
   position: absolute;
-  display:flex;
-  justify-content: space-between;
   z-index: 1;
+  overflow:hidden;
+
   background: #2c2c2c;
   border-radius: 3px;
-  overflow:hidden;
+  transform-style: preserve-3d;
+}
+.grid-tile-inner {
+  position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+  padding: 8px;
+  display:flex;
+  justify-content: space-between;
 }
 
-.grid-tile > .toolbar {
+.grid-tile-inner > .toolbar {
   max-width: 2.5em;
   padding: 0;
   margin: -8px; margin-left: 8px;
@@ -99,21 +107,21 @@ body {
   opacity: 0;
   transition: 0.2s ease-in-out;
 }
-.grid-tile:hover > .toolbar { opacity: 0.6; }
-.grid-tile > .toolbar:hover { opacity: 1; }
+.grid-tile-inner:hover > .toolbar { opacity: 0.6; }
+.grid-tile-inner > .toolbar:hover { opacity: 1; }
 
-.grid-tile .corner-se-grip {
+.grid-tile-inner .corner-se-grip {
   position: absolute; bottom: 0; right: 0;
   width: 16px; height: 16px;
   overflow: hidden;
   border-bottom-right-radius: 3px;
   opacity: 0.6;
 }
-.grid-tile:hover .corner-se-grip { opacity: 1; }
-.grid-tile .corner-se-grip:hover {
+.grid-tile-inner:hover .corner-se-grip { opacity: 1; }
+.grid-tile-inner .corner-se-grip:hover {
   color: rgb(96, 208, 255);
 }
-.grid-tile .corner-se-grip.ion-drag::before {
+.grid-tile-inner .corner-se-grip.ion-drag::before {
   font-weight: 200;
   font-size: 1.4em;
   transform: rotateZ(-45deg);
@@ -122,9 +130,9 @@ body {
 .grid-tile.add { opacity: 0; }
 .grid-tile.add:hover { opacity: 0.5 }
 .grid-tile.add:active { opacity: 0.75 }
-.grid-tile.add > .toolbar { opacity: 0; pointer-events: none; }
-.grid-tile.add > .corner-se-grip { opacity: 0; pointer-events: none; }
-.grid-tile.add > div {
+.grid-tile.add .toolbar { opacity: 0; pointer-events: none; }
+.grid-tile.add .corner-se-grip { opacity: 0; pointer-events: none; }
+.grid-tile.add div {
   position: absolute; top: 0; left: 0; bottom: 0; right: 0;
 }
 
