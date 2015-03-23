@@ -231,8 +231,10 @@ var gridTile = reactFactory({
       return;
     }
 
-    console.log("navigating to", target);
-    dispatch("navigate", {tile: this.props.id, target: target});
+    if(this.props.onNavigate) {
+      console.log("navigating to", target);
+      this.props.onNavigate(this.props.id, target);
+    }
   },
 
   flip: function(evt) {
@@ -366,6 +368,25 @@ var stage = reactFactory({
   componentWillReceiveProps: function(nextProps) {
     this.setState({grid: Grid.makeGrid({bounds: nextProps.bounds, gutter: 8})});
   },
+  componentDidUpdate: function(prevProps, prevState) {
+    console.log(this.refs);
+    if(this.state.navigating) {
+      for(var tileIx = 0, len = this.props.tiles.length; tileIx < len; tileIx++) {
+        var tile = this.refs["tile-" + tileIx];
+        Velocity(tile.getDOMNode(), {opacity: 0.5}, {
+          duration: 500
+        });
+      }
+    }
+  },
+  navigate: function(id, target) {
+    this.setState({navigating: true, navTarget: target, navId: id});
+    var self = this;
+    setTimeout(function() {
+      self.setState({navigating: false, navTarget: undefined, navId: undefined});
+      dispatch("navigate", {id: id, target: target});
+    }, 500);
+  },
   dragTileOver: function(evt) {
     // @TODO: Once converted to tables, retrieve pos / size here for updateFootprint.
     var dT = evt.dataTransfer;
@@ -430,10 +451,13 @@ var stage = reactFactory({
       var tileRaw = tiles[tileIx];
       var tileRect = Grid.getRect(this.state.grid, tileRaw);
       var tile = extend(extend({}, tileRaw), tileRect);
+      tile.ref = "tile-" + tileIx;
       tile.key = tile.id;
       tile.draggable = tile.resizable = isEditing;
       tile.updateFootprint = this.updateFootprint;
-      children.push(gridTile(tile));
+      tile.onNavigate = this.navigate;
+      var child = gridTile(tile);
+      children.push(child);
     }
     var attrs = {key: this.props.key, className: "tile-grid" + (isEditing ? " editing" : "")};
     var content = ["div", attrs];
@@ -1243,7 +1267,7 @@ function dispatch(event, arg, noRedraw) {
                   tableTile: {adds: [[tile[0], arg.view]]}};
       break;
     case "setTarget":
-      var diffs = {
+      diffs = {
         gridTarget: {adds: [[arg.id, arg.target]], removes: [[arg.id, ixer.index("gridTarget")[arg.id]]]}
       };
       ixer.handleDiffs(diffs);

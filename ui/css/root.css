@@ -155,7 +155,7 @@ th:last-child { border-radius: 0 2px 2px 0; }
 
 .table-wrapper tbody { overflow-y: auto; }
 
-.table-wrapper { flex: 1; display:flex; }
+.table-wrapper { flex: 1; display: flex; overflow-x: auto; }
 .add-column { margin-left: 10px; }
 
 /*****************************************************************************\
