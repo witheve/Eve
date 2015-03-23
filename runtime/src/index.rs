@@ -1,6 +1,8 @@
+use std::collections::btree_map;
 use std::collections::btree_map::{BTreeMap, Entry, Keys};
+use std::iter::{FromIterator, IntoIterator};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialOrd, PartialEq, Ord, Eq)]
 pub struct Index<T> {
     items: BTreeMap<T, usize>,
 }
@@ -59,6 +61,33 @@ impl<'a, T: Ord> Iterator for Iter<'a, T> {
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.keys.size_hint()
+    }
+}
+
+impl<T: Ord> FromIterator<T> for Index<T> {
+    fn from_iter<I: IntoIterator<Item=T>>(iterable: I) -> Self {
+        Index{items: BTreeMap::from_iter(
+            iterable.into_iter().map(|item| (item, 1))
+            )}
+    }
+}
+
+pub struct IntoIter<T> {
+    items: btree_map::IntoIter<T, usize>
+}
+
+impl<T: Ord> Iterator for IntoIter<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<T> {
+        self.items.next().map(|(key, _)| key)
+    }
+}
+
+impl<T: Ord> IntoIterator for Index<T> {
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+    fn into_iter(self) -> IntoIter<T> {
+        IntoIter{items: self.items.into_iter()}
     }
 }
 

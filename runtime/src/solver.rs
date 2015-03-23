@@ -1,15 +1,18 @@
 use std;
+use std::iter::IntoIterator;
 
-#[derive(PartialEq, Clone, PartialOrd, Debug)] // TODO can't lookup NaN
+use index::Index;
+
+#[derive(Clone, Debug, PartialOrd, PartialEq, Ord, Eq)]
 pub enum Value {
     String(String),
-    Float(f64),
+    // Float(f64), NaN prevents Eq, Ord
     Tuple(Tuple),
     Relation(Relation),
 }
 
 pub type Tuple = Vec<Value>;
-pub type Relation = Vec<Vec<Value>>; // a set of tuples
+pub type Relation = Index<Vec<Value>>; // a set of tuples
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum ConstraintOp {
