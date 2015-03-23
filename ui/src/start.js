@@ -138,10 +138,16 @@ var root = reactFactory({
       return;
     }
 
-    this.setState({navigating: true, navTarget: target, navId: id});
+    var inward = false;
+    if(this.state.prevNav) {
+      var prevNavTile = factToTile(ixer.index("gridTile")[this.state.prevNav.id]);
+      inward = prevNavTile.grid === target && !this.state.prevNav.inward;
+    }
+
+    this.setState({nav: {target: target, id: id, inward: inward}});
     var self = this;
     setTimeout(function() {
-      self.setState({navigating: false, navTarget: undefined, navId: undefined});
+      self.setState({nav: false, prevNav: self.state.nav});
       dispatch("navigate", {id: id, target: target});
     }, 500);
   },
@@ -156,9 +162,16 @@ var root = reactFactory({
     var tiles = this.getTiles(activeGrid);
     var animTiles = [];
     var navTile;
-    if(this.state.navigating) {
-      animTiles = this.getTiles(this.state.navTarget);
-      navTile = factToTile(ixer.index("gridTile")[this.state.navId]);
+    var animations;
+
+    if(this.state.nav) {
+      animTiles = this.getTiles(this.state.nav.target);
+      navTile = factToTile(ixer.index("gridTile")[this.state.nav.id]);
+      var prevNavTile = (this.state.prevNav ? factToTile(ixer.index("gridTile")[this.state.prevNav.id]) : undefined);
+      animations = (this.state.nav.inward ?
+                    [["unevacuate", navTile.pos], ["confine", prevNavTile]] :
+                    [["unconfine", navTile], ["evacuate", navTile.pos]]
+                   );
     }
 
     return JSML(
@@ -168,7 +181,8 @@ var root = reactFactory({
          key: "anim-stage",
          tiles: animTiles,
          bounds: this.state.bounds,
-         animation: ["unconfine", navTile]
+         animation: animations[0],
+         style: {zIndex: this.state.nav.inward ? 2 : 1}
        }) : undefined),
        stage({
          key: "root-stage",
@@ -176,7 +190,7 @@ var root = reactFactory({
          bounds: this.state.bounds,
          editing: this.state.editingGrid,
          onNavigate: this.navigate,
-         animation: this.state.navigating ? ["evacuate", navTile.pos] : undefined
+         animation: this.state.nav ? animations[1] : undefined
        }),
        toolbar({
          key: "root-toolbar",
@@ -409,25 +423,35 @@ var stage = reactFactory({
     }
   },
   animate: function(type, arg) {
-    if(type === "evacuate") {
-      for(var tileIx = 0, len = this.props.tiles.length; tileIx < len; tileIx++) {
-        var child = this.refs["tile-" + tileIx];
-        // @TODO: get pos from this.state.navId
-        var tile = Grid.evacuateTile(this.state.grid, child.props, arg, true);
-        var style = Grid.getRect(this.state.grid, tile);
-        Velocity(child.getDOMNode(), style, {
-          duration: 500
-        });
+    for(var tileIx = 0, len = this.props.tiles.length; tileIx < len; tileIx++) {
+      var child = this.refs["tile-" + tileIx];
+      var style;
+      switch(type) {
+        case "evacuate":
+          var tile = Grid.evacuateTile(this.state.grid, child.props, arg);
+          style = Grid.getRect(this.state.grid, tile);
+          if(child.props.pos[0] === arg[0] && child.props.pos[1] === arg[1]) {
+            child.getDOMNode().style.opacity = 0;
+          }
+          break;
+        case "unevacuate":
+          var tileRect = Grid.getRect(this.state.grid, Grid.evacuateTile(this.state.grid, child.props, arg, true));
+          extend(child.getDOMNode().style, tileRect);
+          style = Grid.getRect(this.state.grid, child.props);
+          break;
+        case "confine":
+          var tile = Grid.confineTile(this.state.grid, child.props, this.props.animation[1]);
+          style = Grid.getRect(this.state.grid, tile);
+          break;
+        case "unconfine":
+          var tileRect = Grid.getRect(this.state.grid, Grid.confineTile(this.state.grid, child.props, this.props.animation[1]));
+          extend(child.getDOMNode().style, tileRect);
+          style = Grid.getRect(this.state.grid, child.props);
+          break;
+        default:
+          console.error("Unhandled animation: '" + type + "'.");
       }
-    }
-    if(type === "unconfine") {
-      for(var tileIx = 0, len = this.props.tiles.length; tileIx < len; tileIx++) {
-        var child = this.refs["tile-" + tileIx];
-        var style = Grid.getRect(this.state.grid, child.props);
-        Velocity(child.getDOMNode(), style, {
-          duration: 500
-        });
-      }
+      Velocity(child.getDOMNode(), style, {duration: 500});
     }
   },
   dragTileOver: function(evt) {
@@ -493,10 +517,6 @@ var stage = reactFactory({
     for(var tileIx = 0, tilesLength = tiles.length; tileIx < tilesLength; tileIx++) {
       var tileRaw = tiles[tileIx];
       var tileRect = Grid.getRect(this.state.grid, tileRaw);
-      if(this.props.animation && this.props.animation[0] === "unconfine") {
-        tileRect = Grid.getRect(this.state.grid, Grid.confineTile(this.state.grid, tileRaw, this.props.animation[1]));
-      }
-
       var tile = extend(extend({}, tileRaw), tileRect);
       tile.ref = "tile-" + tileIx;
       tile.key = tile.id;
@@ -506,7 +526,7 @@ var stage = reactFactory({
       var child = gridTile(tile);
       children.push(child);
     }
-    var attrs = {key: this.props.key, className: "tile-grid" + (isEditing ? " editing" : "")};
+    var attrs = {key: this.props.key, className: "tile-grid" + (isEditing ? " editing" : ""), style: this.props.style};
     var content = ["div", attrs];
     content.push.apply(content, children);
 
@@ -1524,6 +1544,7 @@ ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
 var gridId = "grid://default";
 
 var uiViewId = uuid();
+var bigUiViewId = uuid();
 ixer.handleDiffs(code.diffs.addView("gridTile", {
   tile: "string",
   grid: "string",
@@ -1535,7 +1556,7 @@ ixer.handleDiffs(code.diffs.addView("gridTile", {
 }, [
   [uiViewId, gridId, "ui", 0, 0, 6, 4],
   [uuid(), gridId, "view", 6, 0, 6, 4],
-  [uuid(), "grid://ui", "ui", 0, 0, 12, 12],
+  [bigUiViewId, "grid://ui", "ui", 0, 0, 12, 12],
 ], "gridTile"));
 
 ixer.handleDiffs(code.diffs.addView(
@@ -1546,8 +1567,9 @@ ixer.handleDiffs(code.diffs.addView(
 
 ixer.handleDiffs(code.diffs.addView(
   "gridTarget",
-  {tile: "string", target: "string"},
-  [[uiViewId, "grid://ui"]],
-  "gridTarget"));
+  {tile: "string", target: "string"}, [
+    [uiViewId, "grid://ui"],
+    [bigUiViewId, "grid://default"]
+  ], "gridTarget"));
 
 dispatch("load");
