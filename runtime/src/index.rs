@@ -1,94 +1,126 @@
-#![feature(core)]
-#![allow(dead_code)] // TODO remove
+extern crate std;
+use std::rc;
+use std::rc::Rc;
+use std::mem::{replace, copy_mut_lifetime};
+use std::ops::IndexMut;
 
-// based on http://www3.informatik.tu-muenchen.de/~leis/papers/ART.pdf
-// TODO once we know the size of Node<> resize the bodies to fit into default jemalloc size classes
-
-use std::mem;
-
-// K and V must be sized so we don't end up with fat pointers messing up the transmutes
-struct Leaf<K: Sized, V: Sized> {
+struct QQLeaf<K,V> {
     key: K,
-    val: V,
-    children: [Option<Box<Node<Unknown>>>; 0], // just for Node.children
+    value: V,
 }
 
-pub struct Node4 { // if paths[i] = byte then follow children[i]
-    paths: [u8; 4],
-    children: [Option<Box<Node<Unknown>>>; 4],
+#[derive(Clone)]
+struct QQBranch<K,V> {
+    children: Vec<QQNode<K,V>>,
 }
 
-pub struct Node16 { // if paths[i] = byte then follow children[i]
-    paths: [u8; 16],
-    children: [Option<Box<Node<Unknown>>>; 16],
+#[derive(Clone)]
+enum QQNode<K,V> {
+    Empty,
+    Leaf(Rc<QQLeaf<K,V>>),
+    Branch(Rc<QQBranch<K,V>>),
 }
 
-pub struct Node48 { // if paths[byte] = i then follow children[i]
-    paths: [u8; 256],
-    children: [Option<Box<Node<Unknown>>>; 48],
+#[derive(Clone)]
+pub struct QQTree<K,V> {
+    root: QQNode<K,V>,
 }
 
-pub struct Node256 { // follow children[byte]
-    children: [Option<Box<Node<Unknown>>>; 256],
+pub trait Nibbled {
+    fn nibble(&self, i: usize) -> Option<u8>;
 }
 
-pub struct Node<T> {
-    pub num_entries: u8,
-    // TODO ref count
-    // TODO info on collapsed paths
-    body: T, // one of Leaf, Node4, Node16, Node48, Node256
+fn nibbled_eq<K: Nibbled>(key1: &K, key2: &K, from_depth: usize) -> bool {
+    let mut depth = from_depth;
+    loop {
+        let n1 = key1.nibble(depth);
+        let n2 = key2.nibble(depth);
+        if n1 != n2 { return false; }
+        if n1 == None { return true; }
+        depth += 1;
+    }
 }
 
-#[test]
-fn transmutes_are_safe() {
-    // TODO test Leaf<Value,
-    use std::mem::size_of;
-    assert_eq!(size_of::<&Node<Unknown>>(), size_of::<&Node<Leaf<String, String>>>());
-    assert_eq!(size_of::<&Node<Unknown>>(), size_of::<&Node<Node4>>());
-    assert_eq!(size_of::<&Node<Unknown>>(), size_of::<&Node<Node16>>());
-    assert_eq!(size_of::<&Node<Unknown>>(), size_of::<&Node<Node48>>());
-    assert_eq!(size_of::<&Node<Unknown>>(), size_of::<&Node<Node256>>());
-    assert_eq!(size_of::<Box<Node<Unknown>>>(), size_of::<Box<Node<Leaf<String, String>>>>());
-    assert_eq!(size_of::<Box<Node<Unknown>>>(), size_of::<Box<Node<Node4>>>());
-    assert_eq!(size_of::<Box<Node<Unknown>>>(), size_of::<Box<Node<Node16>>>());
-    assert_eq!(size_of::<Box<Node<Unknown>>>(), size_of::<Box<Node<Node48>>>());
-    assert_eq!(size_of::<Box<Node<Unknown>>>(), size_of::<Box<Node<Node256>>>());
+static FOREVER: &'static () = &();
+
+impl<K,V> QQTree<K,V> {
+    pub fn empty() -> Self {
+        QQTree{root: QQNode::Empty}
+    }
 }
 
-// TODO needs custom drop?
-
-pub enum Unknown {}
-
-impl Node<Unknown> {
-    pub fn children(&self) -> &[Option<Box<Node<Unknown>>>] {
-        if self.num_entries == 1 {
-            panic!("Handle generics later");
-        } else if self.num_entries <= 4 {
-            unsafe {
-                let node = mem::transmute_copy::<&Node<Unknown>, &Node<Node4>>(&self);
-                let children = mem::copy_lifetime(self, &node.body.children);
-                children
+impl<K: Nibbled + Clone, V: Clone> QQTree<K,V> {
+    pub fn insert(self, key: K, value: V) -> Self {
+        let mut root_ref = Box::new(self.root);
+        {
+            let mut node_ref = &mut *root_ref;
+            let mut depth = 0;
+            loop {
+                let node = replace(node_ref, QQNode::Empty); // take ownership
+                match node {
+                    QQNode::Empty => {
+                        *node_ref = QQNode::Leaf(Rc::new(QQLeaf{key: key, value: value}));
+                        break;
+                    },
+                    QQNode::Leaf(leaf_rc) => {
+                        // check if this is the same key
+                        if nibbled_eq(&key, &leaf_rc.key, depth) {
+                            // if so, just overwrite it
+                            *node_ref = QQNode::Leaf(Rc::new(QQLeaf{key: key, value: value}));
+                            break;
+                        } else {
+                            // otherwise, insert a branch between parent and node
+                            let mut children = vec![QQNode::Empty; 17];
+                            let leaf_node = QQNode::Leaf(leaf_rc.clone()); // only clones the ref
+                            match key.nibble(depth) {
+                                Some(nibble) => children[nibble as usize] = leaf_node,
+                                None => children[16] = leaf_node,
+                            }
+                            let node = QQNode::Branch(Rc::new(QQBranch{children: children}));
+                            *node_ref = node;
+                        }
+                    },
+                    QQNode::Branch(branch_rc) => {
+                        // make branch_rc editable
+                        let mut branch = match rc::try_unwrap(branch_rc) {
+                            Ok(branch) => branch,
+                            Err(branch_rc) => (*branch_rc).clone(),
+                        };
+                        match key.nibble(depth) {
+                            None => {
+                                // key ends here, can just overwrite the slot
+                                branch.children[16] = QQNode::Leaf(Rc::new(QQLeaf{key: key, value: value}));
+                                *node_ref = QQNode::Branch(Rc::new(branch));
+                                break;
+                            }
+                            Some(nibble) => {
+                                // put this branch back, look at the child instead
+                                let child_ref = unsafe {
+                                    // we are attaching the branch to the new tree, so this reference is valid for the whole function
+                                    copy_mut_lifetime(FOREVER, branch.children.index_mut(&(nibble as usize)))
+                                };
+                                *node_ref = QQNode::Branch(Rc::new(branch));
+                                node_ref = child_ref;
+                                depth += 1;
+                                continue;
+                            }
+                        }
+                    }
+                }
             }
+        }
+        QQTree{root: (*root_ref).clone()}
+    }
+}
+
+
+impl Nibbled for String {
+    fn nibble(&self, i: usize) -> Option<u8> {
+        if i < self.len() {
+            // TODO lies and wrongness
+            Some(self.as_bytes()[i] & 0xF)
         } else {
-            panic!("Other node types");
+            None
         }
     }
-}
-
-pub fn eg_node() -> Box<Node<Unknown>> {
-    let node = Box::new(
-        Node{
-            num_entries: 3,
-            body: Node4{
-                paths: [0; 4],
-                children: [None, None, None, None]
-            }
-        });
-    unsafe {
-        mem::transmute_copy::<Box<Node<Node4>>, Box<Node<Unknown>>>(&node)
-    }
-}
-
-struct Art {
-    root: Node<Unknown>,
 }
