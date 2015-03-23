@@ -55,8 +55,8 @@ body {
   position: absolute;
   top: 60px; right: 20px; bottom: 20px; left: 20px;
   background: #202020;
-  perspective: 100;
-  -webkit-perspective: 10000;
+  perspective: 5000;
+  -webkit-perspective: 5000;
   -moz-perspective: 5000;
 }
 .tile-grid.editing > .grid-tile.dragging {

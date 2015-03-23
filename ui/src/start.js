@@ -750,7 +750,7 @@ tiles.table = {
       var name = ixer.index("displayName")[id];
 
       return JSML(
-        ["div", {className: "flex"},
+        ["div",
          tileProperties({tileId: this.props.tileId}),
          ["br"],
          ["table", verticalTable([
