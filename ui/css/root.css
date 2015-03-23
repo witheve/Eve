@@ -54,12 +54,15 @@ body {
 .tile-grid {
   position: absolute;
   top: 60px; right: 20px; bottom: 20px; left: 20px;
-  background: #202020;
+
   perspective: 5000;
   -webkit-perspective: 5000;
   -moz-perspective: 5000;
 }
+.tile-grid.editing { background: #202020; }
+
 .tile-grid.editing > .grid-tile.dragging {
+
   z-index: -1000;
   transition: 0.01s;
 }
@@ -90,6 +93,7 @@ body {
 
   background: #2c2c2c;
   border-radius: 3px;
+  border: 3px solid gray;
   transform-style: preserve-3d;
 }
 .grid-tile.flipped {

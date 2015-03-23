@@ -77,17 +77,32 @@ var Grid = (function(document, React, Velocity) {
       // rect.bottom = grid.bounds.bottom - (rect.top + rect.height);
       return rect;
     },
-    evacuateRect: function evacuateRect(grid, tile, from) { // (Grid, Tile, Pos?) -> Rect
+    evacuateTile: function evacuateRect(grid, tile, from, force) { // (Grid, Tile, Pos?, Bool?) -> Tile
       if(!grid) { throw new Error(ERR.NO_GRID); }
       assertTile(tile);
       from = from || [grid.size[0] / 2, grid.size[1] / 2];
-      console.warn("@TODO: Implement me");
+
+      var xOffset = tile.pos[0] - from[0];
+      var yOffset = tile.pos[1] - from[1];
+      var xEdge = xOffset > 0 ? grid.size[0] + 1 : (xOffset < 0 ? -tile.size[0] - 1 : tile.pos[0]);
+      var yEdge = yOffset > 0 ? grid.size[1] + 1 : (yOffset < 0 ? -tile.size[1] - 1 : tile.pos[0]);
+
+      if(force && xEdge === tile.pos[0] && yEdge === tile.pos[1]) {
+        yEdge = grid.size[1] + 1;
+      }
+
+      return {pos: [xEdge, yEdge], size: tile.size};
     },
-    confineRect: function confineRect(grid, tile, to) { // (Grid, Tile, Pos?) -> Rect
+    confineTile: function confineRect(grid, tile, to) { // (Grid, Tile, Tile) -> Tile
       if(!grid) { throw new Error(ERR.NO_GRID); }
       assertTile(tile);
-      to = to || [grid.size[0] / 2, grid.size[1] / 2]; // @NOTE: I'm not sure this default makes sense.
-      console.warn("@TODO: Implement me");
+      assertTile(to);
+      var result = {pos: to.pos, size: []};
+      if(tile.size[0] < to.size[0]) { result.size[0] = tile.size[0]; }
+      else { result.size[0] = to.size[0]; }
+      if(tile.size[1] < to.size[1]) { result.size[1] = tile.size[1]; }
+      else { result.size[1] = to.size[1]; }
+      return result;
     },
     coordsToPos: function coordsToPos(grid, x, y, round) { // (Grid, N, N, Bool?) -> Pos
       if(!grid) { throw new Error(ERR.NO_GRID); }
