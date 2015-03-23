@@ -94,7 +94,6 @@ body {
 
   background: #2c2c2c;
   border-radius: 3px;
-  border: 3px solid gray;
   transform-style: preserve-3d;
 }
 .grid-tile.flipped {

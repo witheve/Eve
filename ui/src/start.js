@@ -144,7 +144,7 @@ var root = reactFactory({
       inward = prevNavTile.grid === target && !this.state.prevNav.inward;
     }
 
-    this.setState({nav: {target: target, id: id, inward: inward}});
+    this.setState({nav: {target: target, id: id, inward: inward}, editingGrid: false});
     var self = this;
     setTimeout(function() {
       self.setState({nav: false, prevNav: self.state.nav});
