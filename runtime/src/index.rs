@@ -72,6 +72,7 @@ impl<K: Nibbled + Clone, V: Clone> QQTree<K,V> {
                             // otherwise, insert a branch between parent and node
                             let mut children = vec![QQNode::Empty; 17];
                             let leaf_node = QQNode::Leaf(leaf_rc.clone()); // only clones the ref
+                            // TODO fold this branch into get_path
                             match key.nibble(depth) {
                                 Some(nibble) => children[nibble as usize] = leaf_node,
                                 None => children[16] = leaf_node,
@@ -86,6 +87,7 @@ impl<K: Nibbled + Clone, V: Clone> QQTree<K,V> {
                             Ok(branch) => branch,
                             Err(branch_rc) => (*branch_rc).clone(),
                         };
+                        // TODO fold this branch into get_path
                         match key.nibble(depth) {
                             None => {
                                 // key ends here, can just overwrite the slot
