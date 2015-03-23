@@ -98,15 +98,16 @@ impl Constraint {
 
 #[derive(Clone, Debug)]
 pub struct Source {
-    pub relation: Relation,
+    pub relation: usize,
     pub constraints: Vec<Constraint>,
 }
 
 impl Source {
-    fn constrained_to(&self, result: &Vec<Value>) -> Relation {
+    fn constrained_to(&self, inputs: &Vec<&Relation>, result: &Vec<Value>) -> Relation {
         // TODO apply constraints
         let prepared: Vec<&Value> = self.constraints.iter().map(|constraint| constraint.prepare(result)).collect();
-        self.relation.iter().filter(|row|
+        let input = inputs[self.relation];
+        input.iter().filter(|row|
             self.constraints.iter().zip(prepared.iter()).all(|(constraint, value)|
                 constraint.test(row, value)
             )
@@ -144,14 +145,14 @@ pub enum Clause {
 }
 
 impl Clause {
-    fn constrained_to(&self, result: &Vec<Value>) -> Vec<Value> {
+    fn constrained_to(&self, inputs: &Vec<&Relation>, result: &Vec<Value>) -> Vec<Value> {
         match *self {
             Clause::Tuple(ref source) => {
-                let relation = source.constrained_to(result);
+                let relation = source.constrained_to(inputs, result);
                 relation.into_iter().map(|tuple| Value::Tuple(tuple)).collect()
             },
             Clause::Relation(ref source) => {
-                let relation = source.constrained_to(result);
+                let relation = source.constrained_to(inputs, result);
                 vec![Value::Relation(relation)]
             },
             Clause::Call(ref call) => {
@@ -162,6 +163,7 @@ impl Clause {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct Query {
     pub clauses: Vec<Clause>,
 }
@@ -171,6 +173,7 @@ pub struct Query {
 // * a smaller tuple indicating a backtrack point
 pub struct QueryIter<'a> {
     query: &'a Query,
+    inputs: Vec<&'a Relation>,
     max_len: usize, // max length of a result
     now_len: usize, // ixes[0..now_len] and values[0..now_len] are all valid for the next result
     has_next: bool, // are there any more results to be found
@@ -179,10 +182,11 @@ pub struct QueryIter<'a> {
 }
 
 impl Query {
-    pub fn iter(&self) -> QueryIter {
+    pub fn iter<'a>(&'a self, inputs: Vec<&'a Relation>) -> QueryIter {
         let max_len = self.clauses.len();
         QueryIter{
             query: &self,
+            inputs: inputs,
             max_len: max_len,
             now_len: 0,
             has_next: true, // can always return at least the early fail
@@ -207,7 +211,7 @@ impl<'a> Iterator for QueryIter<'a> {
 
         // determine the values that changed since last time
         for i in (self.now_len .. self.max_len) {
-            let values = self.query.clauses[i].constrained_to(&result);
+            let values = self.query.clauses[i].constrained_to(&self.inputs, &result);
             if values.len() == 0 {
                 break;
             } else {
