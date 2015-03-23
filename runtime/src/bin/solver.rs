@@ -21,8 +21,8 @@ fn main() {
         vec![Float(-4.0), Float(-5.0), Float(-6.0)]
     ];
     let query = Query{clauses: vec![
-        Clause::Tuple(Source{relation: a, constraints: vec![]}),
-        Clause::Tuple(Source{relation: b, constraints: vec![]}),
+        Clause::Tuple(Source{relation: a.into_iter().collect(), constraints: vec![]}),
+        Clause::Tuple(Source{relation: b.into_iter().collect(), constraints: vec![]}),
     ]};
     for result in query.iter() {
         println!("{:?}", result);
@@ -40,8 +40,8 @@ fn main() {
         vec![Float(-4.0), Float(-5.0), Float(-6.0)]
     ];
     let query = Query{clauses: vec![
-        Clause::Relation(Source{relation: a, constraints: vec![]}),
-        Clause::Tuple(Source{relation: b, constraints: vec![]}),
+        Clause::Relation(Source{relation: a.into_iter().collect(), constraints: vec![]}),
+        Clause::Tuple(Source{relation: b.into_iter().collect(), constraints: vec![]}),
     ]};
     for result in query.iter() {
         println!("{:?}", result);
@@ -58,8 +58,8 @@ fn main() {
         vec![Float(-4.0), Float(-5.0), Float(-6.0)]
     ];
     let query = Query{clauses: vec![
-        Clause::Tuple(Source{relation: a, constraints: vec![]}),
-        Clause::Relation(Source{relation: b, constraints: vec![]}),
+        Clause::Tuple(Source{relation: a.into_iter().collect(), constraints: vec![]}),
+        Clause::Relation(Source{relation: b.into_iter().collect(), constraints: vec![]}),
     ]};
     for result in query.iter() {
         println!("{:?}", result);
@@ -84,8 +84,8 @@ fn main() {
         }
     };
     let query = Query{clauses: vec![
-        Clause::Tuple(Source{relation: a, constraints: vec![]}),
-        Clause::Tuple(Source{relation: b, constraints: vec![b0_lt_a0]}),
+        Clause::Tuple(Source{relation: a.into_iter().collect(), constraints: vec![]}),
+        Clause::Tuple(Source{relation: b.into_iter().collect(), constraints: vec![b0_lt_a0]}),
     ]};
     for result in query.iter() {
         println!("{:?}", result);
@@ -110,8 +110,8 @@ fn main() {
     let a0 = Ref::Value{clause: 0, column: 0};
     let b2 = Ref::Value{clause: 1, column: 2};
     let query = Query{clauses: vec![
-        Clause::Tuple(Source{relation: a, constraints: vec![]}),
-        Clause::Tuple(Source{relation: b, constraints: vec![]}),
+        Clause::Tuple(Source{relation: a.into_iter().collect(), constraints: vec![]}),
+        Clause::Tuple(Source{relation: b.into_iter().collect(), constraints: vec![]}),
         Clause::Call(Call{fun: add, arg_refs: vec![a0, b2]}),
     ]};
     for result in query.iter() {
@@ -128,20 +128,22 @@ fn main() {
     let mut bans = vec![];
 
     for i in (0..bench_size) {
-        users.push(vec![Float(i as f64), Float(i as f64)]);
+        users.push(vec![String(format!("email{}", i)), String(format!("user{}", i))]);
     }
 
     for i in (0..bench_size) {
         let user = between.ind_sample(&mut rng);
-        logins.push(vec![Float(user as f64), Float(i as f64)]);
+        logins.push(vec![String(format!("user{}", user)), String(format!("ip{}", i))]);
     }
 
     for i in (0..bench_size) {
-        bans.push(vec![Float(i as f64)]);
+        bans.push(vec![String(format!("ip{}", i))]);
     }
 
     let start = time::precise_time_s();
-    // lol no indexing
+    let users = users.into_iter().collect();
+    let logins = logins.into_iter().collect();
+    let bans = bans.into_iter().collect();
     let end = time::precise_time_s();
     println!("index: {}s", end - start);
 

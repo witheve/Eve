@@ -1,6 +1,10 @@
 use std;
+use std::iter::IntoIterator;
+use std::cmp::Ordering;
 
-#[derive(PartialEq, Clone, PartialOrd, Debug)] // TODO can't lookup NaN
+use index::Index;
+
+#[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Value {
     String(String),
     Float(f64),
@@ -8,8 +12,16 @@ pub enum Value {
     Relation(Relation),
 }
 
+impl Ord for Value {
+    fn cmp(&self, other: &Value) -> Ordering {
+        self.partial_cmp(other).unwrap() // TODO this will panic on NaN
+    }
+}
+
+impl Eq for Value {} // TODO this is unsafe for NaN
+
 pub type Tuple = Vec<Value>;
-pub type Relation = Vec<Vec<Value>>; // a set of tuples
+pub type Relation = Index<Vec<Value>>; // a set of tuples
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum ConstraintOp {
