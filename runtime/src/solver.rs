@@ -1,15 +1,24 @@
 use std;
 use std::iter::IntoIterator;
+use std::cmp::Ordering;
 
 use index::Index;
 
-#[derive(Clone, Debug, PartialOrd, PartialEq, Ord, Eq)]
+#[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Value {
     String(String),
-    // Float(f64), NaN prevents Eq, Ord
+    Float(f64),
     Tuple(Tuple),
     Relation(Relation),
 }
+
+impl Ord for Value {
+    fn cmp(&self, other: &Value) -> Ordering {
+        self.partial_cmp(other).unwrap() // TODO this will panic on NaN
+    }
+}
+
+impl Eq for Value {} // TODO this is unsafe for NaN
 
 pub type Tuple = Vec<Value>;
 pub type Relation = Index<Vec<Value>>; // a set of tuples
