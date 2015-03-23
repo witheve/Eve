@@ -97,12 +97,22 @@ var Grid = (function(document, React, Velocity) {
       if(!grid) { throw new Error(ERR.NO_GRID); }
       assertTile(tile);
       assertTile(to);
-      var result = {pos: to.pos, size: []};
-      if(tile.size[0] < to.size[0]) { result.size[0] = tile.size[0]; }
-      else { result.size[0] = to.size[0]; }
-      if(tile.size[1] < to.size[1]) { result.size[1] = tile.size[1]; }
-      else { result.size[1] = to.size[1]; }
-      return result;
+      var res = {pos: [tile.pos[0], tile.pos[1]], size: [tile.size[0], tile.size[1]]};
+      // Lower bounds
+      if(res.pos[0] < to.pos[0]) { res.pos[0] = to.pos[0]; }
+      if(res.pos[1] < to.pos[1]) { res.pos[1] = to.pos[1]; }
+
+      // Upper bounds
+      if(res.size[0] > to.size[0]) {res.size[0] = to.size[0]; }
+      if(res.size[1] > to.size[1]) {res.size[1] = to.size[1]; }
+
+      // Preserve size to greatest possible extent.
+      var dx = res.pos[0] + res.size[0] - (to.pos[0] + to.size[0]);
+      if(dx > 0) { res.pos[0] = Math.max(res.pos[0] - dx, to.pos[0]); }
+      var dy = res.pos[1] + res.size[1] - (to.pos[1] + to.size[1]);
+      if(dy > 0) { res.pos[1] = Math.max(res.pos[1] - dy, to.pos[1]); }
+
+      return res;
     },
     coordsToPos: function coordsToPos(grid, x, y, round) { // (Grid, N, N, Bool?) -> Pos
       if(!grid) { throw new Error(ERR.NO_GRID); }
