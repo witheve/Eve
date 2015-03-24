@@ -169,7 +169,7 @@ var root = reactFactory({
       navTile = factToTile(ixer.index("gridTile")[this.state.nav.id]);
       var prevNavTile = (this.state.prevNav ? factToTile(ixer.index("gridTile")[this.state.prevNav.id]) : undefined);
       animations = (this.state.nav.inward ?
-                    [["unevacuate", navTile.pos], ["confine", prevNavTile]] :
+                    [["unevacuate", prevNavTile.pos], ["confine", prevNavTile]] :
                     [["unconfine", navTile], ["evacuate", navTile.pos]]
                    );
     }
@@ -428,7 +428,7 @@ var stage = reactFactory({
       var style;
       switch(type) {
         case "evacuate":
-          var tile = Grid.evacuateTile(this.state.grid, child.props, arg);
+          var tile = Grid.evacuateTile(this.state.grid, child.props, arg, true);
           style = Grid.getRect(this.state.grid, tile);
           if(child.props.pos[0] === arg[0] && child.props.pos[1] === arg[1]) {
             child.getDOMNode().style.opacity = 0;
@@ -1274,6 +1274,18 @@ function dispatch(event, arg, noRedraw) {
 
   switch(event) {
     case "load":
+      var session = localStorage.getItem("session");
+      if(session) {
+        ixer.load(JSON.parse(session));
+      } else {
+        initIndexer();
+      }
+      break;
+    case "unload":
+      if(!window.DO_NOT_SAVE) {
+        var session = JSON.stringify(ixer.tables, null, 2);
+        localStorage.setItem("session", session);
+      }
       break;
     case "addColumnToTable":
       diffs = code.diffs.addColumn(arg.table);
@@ -1497,15 +1509,17 @@ document.addEventListener("keydown", function(e) {
   } else if((e.metaKey || e.ctrlKey) && e.keyCode === KEYS.Z) {
     dispatch("undo");
   }
+});
 
+window.addEventListener("unload", function(e) {
+  dispatch("unload");
 });
 
 //---------------------------------------------------------
 // Go
 //---------------------------------------------------------
 
-
-//add some views
+// Core
 ixer.addIndex("displayName", "displayName", Indexing.create.lookup([0, 1]));
 ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
 ixer.addIndex("sourceToData", "source", Indexing.create.lookup([0, 3]));
@@ -1515,61 +1529,69 @@ ixer.addIndex("viewToSources", "source", Indexing.create.collector([1]));
 ixer.addIndex("viewToConstraints", "constraint", Indexing.create.collector([0]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([1]));
 ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([0]));
-ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schema", "query"]], removes: []},
-                  schema: {adds: [["foo-schema"], ["qq-schema"]], removes: []},
-                  field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "string"], ["qq-a", "qq-schema", 0, "string"]], removes: []},
-//                   source: {adds: [["foo-source", "qq", 0, "foo", true], ["zomg-source", "qq", 0, "zomg", false]], removes: []},
-                  editId: {adds: [["foo", JSON.stringify(["a", "b"]), 0], ["foo", JSON.stringify(["c", "d"]), 1]], removes: []},
-                  foo: {adds: [["a", "b"], ["c", "d"]], removes: []},
-                  input: {adds: [["foo", ["a", "b"]], ["foo", ["c", "d"]]], removes: []},
-                  displayName: {adds: [["foo", "foo"], ["foo-a", "a"], ["foo-b", "foo B"]], removes: []},
-                  uiComponent: {adds: [["myUI"]], removes: []},
-                 });
-
-
-ixer.handleDiffs(code.diffs.addView("zomg", {
-  a: "string",
-  e: "string",
-  f: "string"
-}, [
-  ["a", "b", "c"],
-  ["d", "e", "f"]
-], "zomg"));
 
 // Grid Indexes
 ixer.addIndex("gridTarget", "gridTarget", Indexing.create.lookup([0, 1]));
 ixer.addIndex("gridTile", "gridTile", Indexing.create.lookup([0, false]));
 ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
 
-var gridId = "grid://default";
 
-var uiViewId = uuid();
-var bigUiViewId = uuid();
-ixer.handleDiffs(code.diffs.addView("gridTile", {
-  tile: "string",
-  grid: "string",
-  type: "string",
-  x: "number",
-  y: "number",
-  w: "number",
-  h: "number"
-}, [
-  [uiViewId, gridId, "ui", 0, 0, 6, 4],
-  [uuid(), gridId, "view", 6, 0, 6, 4],
-  [bigUiViewId, "grid://ui", "ui", 0, 0, 12, 12],
-], "gridTile"));
+function initIndexer() {
+  //add some views
+  ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schema", "query"]], removes: []},
+                    schema: {adds: [["foo-schema"], ["qq-schema"]], removes: []},
+                    field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "string"], ["qq-a", "qq-schema", 0, "string"]], removes: []},
+                    //                   source: {adds: [["foo-source", "qq", 0, "foo", true], ["zomg-source", "qq", 0, "zomg", false]], removes: []},
+                    editId: {adds: [["foo", JSON.stringify(["a", "b"]), 0], ["foo", JSON.stringify(["c", "d"]), 1]], removes: []},
+                    foo: {adds: [["a", "b"], ["c", "d"]], removes: []},
+                    input: {adds: [["foo", ["a", "b"]], ["foo", ["c", "d"]]], removes: []},
+                    displayName: {adds: [["foo", "foo"], ["foo-a", "a"], ["foo-b", "foo B"]], removes: []},
+                    uiComponent: {adds: [["myUI"]], removes: []},
+                   });
 
-ixer.handleDiffs(code.diffs.addView(
-  "activeGrid",
-  {grid: "string"},
-  [[gridId]],
-  "activeGrid"));
+  ixer.handleDiffs(code.diffs.addView("zomg", {
+    a: "string",
+    e: "string",
+    f: "string"
+  }, [
+    ["a", "b", "c"],
+    ["d", "e", "f"]
+  ], "zomg"));
 
-ixer.handleDiffs(code.diffs.addView(
-  "gridTarget",
-  {tile: "string", target: "string"}, [
-    [uiViewId, "grid://ui"],
-    [bigUiViewId, "grid://default"]
-  ], "gridTarget"));
 
+  var gridId = "grid://default";
+  var uiViewId = uuid();
+  var bigUiViewId = uuid();
+  ixer.handleDiffs(code.diffs.addView("gridTile", {
+    tile: "string",
+    grid: "string",
+    type: "string",
+    x: "number",
+    y: "number",
+    w: "number",
+    h: "number"
+  }, [
+    [uiViewId, gridId, "ui", 0, 0, 6, 4],
+    [uuid(), gridId, "view", 6, 0, 6, 4],
+    [bigUiViewId, "grid://ui", "ui", 0, 0, 12, 12],
+  ], "gridTile"));
+
+  ixer.handleDiffs(code.diffs.addView(
+    "activeGrid",
+    {grid: "string"},
+    [[gridId]],
+    "activeGrid"));
+
+  ixer.handleDiffs(code.diffs.addView(
+    "gridTarget",
+    {tile: "string", target: "string"}, [
+      [uiViewId, "grid://ui"],
+      [bigUiViewId, "grid://default"]
+    ], "gridTarget"));
+}
 dispatch("load");
+
+function clearStorage() {
+  window.DO_NOT_SAVE = true;
+  localStorage.clear();
+}
