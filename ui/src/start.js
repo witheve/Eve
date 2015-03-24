@@ -250,6 +250,9 @@ var gridTile = reactFactory({
   // Dragging
   startDrag: function(evt) {
     var dT = evt.dataTransfer;
+    //NOTE: setting the text data is necessary for some browser to subsequently
+    //trigger the drop event :(
+    dT.setData("text", "foo");
     dT.setData("tile/" + this.props.type, this.props.id);
     dT.setData("tile/generic", this.props.id);
     var offset = [evt.clientX - this.props.left, evt.clientY - this.props.top];
@@ -272,6 +275,9 @@ var gridTile = reactFactory({
   startResize: function(evt) {
     evt.stopPropagation();
     var dT = evt.dataTransfer;
+    //NOTE: setting the text data is necessary for some browser to subsequently
+    //trigger the drop event :(
+    dT.setData("text", "foo");
     dT.setData("tile/generic", this.props.id);
     dT.setDragImage(document.getElementById("clear-pixel"), 0, 0);
     var offset = [evt.clientX - this.props.width, evt.clientY - this.props.height];
@@ -765,23 +771,278 @@ tiles.table = {
 };
 
 //---------------------------------------------------------
+// Constraint editor
+//---------------------------------------------------------
+
+//---------------------------------------------------------
+// Function editor
+//---------------------------------------------------------
+
+
+var structuredSelectorItem = reactFactory({
+  select: function() {
+    if(this.props.select) {
+      this.props.select(this.props.view);
+    }
+  },
+  render: function() {
+    var className = "result";
+    if(this.props.selected) {
+      className += " selected";
+    }
+    return JSML(["li", {className: className,
+                        onClick: this.select},
+                 this.props.text]);
+  }
+});
+
+var structuredSelector = reactFactory({
+  getInitialState: function() {
+    return {search: "", selected: -1, active: false, modified: false};
+  },
+  componentDidUpdate: function(prev) {
+    if(this.props.value !== prev.value) {
+      this.setState({search: "", selected: -1, modified: false});
+    }
+  },
+  updateSearch: function(e) {
+    this.setState({search: e.target.textContent, selected: -1, modified: true});
+  },
+  deactivate: function(e) {
+    this.setState({active: false});
+  },
+  activate: function(e) {
+    //@TODO: make this select all the contents of the field
+    this.setState({active: true});
+  },
+  handleKeys: function(e) {
+    if(e.keyCode === KEYS.ENTER) {
+      e.preventDefault();
+      var sel = this.state.selected;
+      if(sel === -1) {
+        sel = 0;
+      }
+      this.select(this.state.results[sel]);
+    } else if(e.keyCode === KEYS.UP) {
+      e.preventDefault();
+      var sel = this.state.selected;
+      if(sel > 0) {
+        sel -= 1;
+      } else {
+        sel = this.state.results.length - 1;
+      }
+      this.setState({selected: sel});
+    } else if(e.keyCode === KEYS.DOWN) {
+      e.preventDefault();
+      var sel = this.state.selected;
+      if(sel < this.state.results.length - 1) {
+        sel += 1;
+      } else {
+        sel = 0;
+      }
+      this.setState({selected: sel});
+    }
+  },
+  isValid: function() {
+    if(this.props.validate) {
+      if(this.state.modified) {
+        var sel = this.state.selected;
+        if(sel === -1) {
+          sel = 0;
+        }
+        var cur = this.state.results ? this.state.results[sel] : undefined;
+      } else {
+        var cur = this.props.selectedId;
+      }
+      return this.props.validate(cur, this.state.search);
+    }
+    return true;
+  },
+  select: function(view) {
+    if(this.props.onSelect && this.isValid()) {
+      this.props.onSelect(view);
+    }
+  },
+  render: function() {
+    var self = this;
+    var search = this.state.search;
+    var items = [];
+    var results = [];
+    this.props.items.forEach(function(cur) {
+      var id = cur.id;
+      var text = cur.text;
+      if(text && text.indexOf(search) > -1) {
+        var selected = items.length === self.state.selected;
+        results.push(id);
+        items.push(structuredSelectorItem({id: id, text: text, selected: selected, select: self.select}));
+      }
+    });
+    var suggestions;
+    if(this.state.active) {
+      suggestions = ["ul", items];
+    }
+    this.state.results = results;
+    var valid = this.isValid() ? "valid" : "invalid";
+   return JSML(["div", {className: "structured-selector " + valid},
+                 ["span", {className: "input",
+                           contentEditable: true,
+                           onFocus: this.activate,
+                           onBlur: this.deactivate,
+                           onKeyDown: this.handleKeys,
+                           onInput: this.updateSearch,
+                           dangerouslySetInnerHTML: {__html: this.state.modified ? this.state.search : this.props.value}}],
+                 suggestions]);
+  }
+});
+
+
+var astComponents = {
+    "field-source-ref": reactFactory({
+      validate: function(selected, raw) {
+        if(this.props.validate) {
+          return this.props.validate(selected, raw);
+        }
+        return selected !== undefined;
+      },
+      set: function(ref) {
+        console.log("Set!", ref);
+        if(this.props.onSet) {
+          this.props.onSet(ref);
+        }
+      },
+      render: function() {
+//         return {"": "field-source-ref", source: source, field: field};
+        var name = code.refToName(this.props.curRef);
+        var items = this.props.items || [];
+        items = items.map(function(cur) {
+          return {id: cur, text: code.refToName(cur)};
+        });
+        return structuredSelector({items: items, onSelect: this.set, selectedId: this.props.curRef, value: name, validate: this.props.strict ? this.validate : null});
+      }
+    }),
+    "source-ref": reactFactory({
+      render: function() {
+//       return {"": "source-ref", source: source};
+      }
+    }),
+    "field-ref": reactFactory({
+      render: function() {
+//       return {"": "field-ref", field: field};
+      }
+    }),
+    constant: reactFactory({
+      render: function() {
+//       return {"": "constant", value: value};
+      }
+    }),
+    op: reactFactory({
+      validate: function(selected, raw) {
+        return selected !== undefined;
+      },
+      set: function(op) {
+        if(this.props.onSet) {
+          this.props.onSet(op);
+        }
+      },
+      render: function() {
+        var allOps = [{id: "=", text: "="},
+                   {id: ">", text: ">"},
+                   {id: "<", text: "<"},
+                   {id: ">=", text: ">="},
+                   {id: "<=", text: "<="},
+                   {id: "!=", text: "!="}];
+        return structuredSelector({items: allOps, onSelect: this.set, selectedId: this.props.op, value: this.props.op, validate: this.validate});
+      }
+    }),
+    variable: reactFactory({
+      render: function() {
+//       return {"": "variable", string: string};
+      }
+    }),
+    call: reactFactory({
+      render: function() {
+//       return {"": "call", primitive: primitive, args: args};
+      }
+    }),
+    match: reactFactory({
+      render: function() {
+//       return {"": "match", patterns: patterns, handlers: handlers};
+      }
+    }),
+    tuple: reactFactory({
+      render: function() {
+//       return {"": "tuple", patterns: patterns};
+      }
+    }),
+    constraint: reactFactory({
+      setLeft: function(ref) {
+        var neue = this.props.constraint.slice();
+        neue[2] = ref;
+        dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
+      },
+      setRight: function(ref) {
+        var neue = this.props.constraint.slice();
+        neue[3] = ref;
+        dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
+      },
+      validateRight: function(selected, raw) {
+        //@TODO: can either be a constant or a ref
+        if(selected === undefined) return false;
+        //left and right have to type check
+        var left = code.refToType(this.props.constraint[2]);
+        var right = code.refToType(selected);
+        console.log("validateRight", left, right);
+        return code.typesEqual(left, right);
+      },
+      setOp: function(op) {
+        var neue = this.props.constraint.slice();
+        neue[1] = op;
+        dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
+      },
+      render: function() {
+        var view = this.props.source[1];
+        var sourceId = this.props.source[0];
+        var viewOrData = this.props.source[3];
+        var allRefs = code.viewToRefs(view);
+        var leftType = code.refToType(this.props.constraint[2]);
+
+        var rightRefs = allRefs.filter(function(cur) {
+          return code.typesEqual(leftType, code.refToType(cur));
+        });
+
+        var localRefs = allRefs.filter(function(cur) {
+          return cur.source === sourceId;
+        });
+        var cur = this.props.constraint;
+        var left = astComponents["field-source-ref"]({curRef: cur[2], items: localRefs, onSet: this.setLeft, strict: true});
+        //@TODO: right can be a constant or a ref...
+        var right = astComponents["field-source-ref"]({curRef: cur[3], items: rightRefs, onSet: this.setRight, validate: this.validateRight, strict: true});
+        var op = astComponents["op"]({op: cur[1], onSet: this.setOp});
+        return JSML(["div", {className: "structured-constraint"},
+                     left,
+                     op,
+                     right,
+                    ])
+      }
+    }),
+}
+
+//---------------------------------------------------------
 // View components
 //---------------------------------------------------------
 
 var viewSource = reactFactory({
   render: function() {
+    var self = this;
     var viewOrFunction = this.props.source[3];
     var constraints = this.props.constraints.map(function(cur) {
-      var left = code.refToName(cur[2]);
-      var right = code.refToName(cur[3]);
       var remove = function() {
-        dispatch("removeConstaint", {constraint: cur.slice()})
+//         dispatch("removeConstaint", {constraint: cur.slice()})
       };
-      return ["li", {onClick: remove},
-              left, " " + cur[1] + " ", right];
+      return ["li", {onClick: remove}, astComponents["constraint"]({constraint: cur, source: self.props.source})];
     });
     return JSML(["div", {className: "view-source"},
-                 ["h1", viewOrFunction],
+                 ["h1", code.name(viewOrFunction)],
                  ["ul", constraints],
                  table({tileId: this.props.tileId, tableId: viewOrFunction})
                 ]);
@@ -1262,8 +1523,11 @@ function dispatch(event, arg, noRedraw) {
       diffs = code.diffs.autoJoins(arg.view, arg.source, sourceId);
       diffs["source"] = {adds: [[sourceId, arg.view, ix, arg.source, true]], removes: []};
       break;
-    case "removeConstaint":
+    case "removeConstraint":
       diffs.constraint = {removes: [arg.constraint]};
+      break;
+    case "swapConstraint":
+      diffs.constraint = {adds: [arg.neue.slice()], removes: [arg.old.slice()]}
       break;
     case "undo":
       storeEvent = false;
@@ -1369,6 +1633,32 @@ var code = {
       return {constraint: {adds: constraints, removes: []}};
     }
   },
+  ast: {
+    fieldSourceRef: function(source, field) {
+      return {"": "field-source-ref", source: source, field: field};
+    },
+    sourceRef: function(source) {
+      return {"": "source-ref", source: source};
+    },
+    fieldRef: function(field) {
+      return {"": "field-ref", field: field};
+    },
+    constant: function(value) {
+      return {"": "constant", value: value};
+    },
+    variable: function(string) {
+      return {"": "variable", string: string};
+    },
+    call: function(primitive, args) {
+      return {"": "call", primitive: primitive, args: args};
+    },
+    match: function(patterns, handlers) {
+      return {"": "match", patterns: patterns, handlers: handlers};
+    },
+    tuple: function(patterns) {
+      return {"": "tuple", patterns: patterns};
+    }
+  },
   viewToFields: function(view) {
     var schema = ixer.index("viewToSchema")[view];
     return ixer.index("schemaToFields")[schema];
@@ -1384,6 +1674,30 @@ var code = {
         return "Unknown ref: " + JSON.stringify(ref);
         break;
     }
+  },
+  refToType: function(ref) {
+    return ixer.index("field")[ref.field][3];
+  },
+  typesEqual: function(a, b) {
+    //@TODO: equivalence. e.g. int = number
+    return a === b;
+  },
+  viewToRefs: function(view) {
+    var refs = [];
+    var sources = ixer.index("viewToSources")[view] || [];
+    sources.forEach(function(source) {
+      var viewOrData = source[3];
+      var sourceView = viewOrData;
+      //view
+      if(typeof viewOrData !== "string") {
+        //@TODO: handle getting the refs for functions
+        sourceView = null;
+      }
+      code.viewToFields(sourceView).forEach(function(field) {
+        refs.push(code.ast.fieldSourceRef(source[0], field[0]));
+      });
+    });
+    return refs;
   },
   name: function(id) {
     return ixer.index("displayName")[id];
@@ -1419,6 +1733,7 @@ document.addEventListener("keydown", function(e) {
 //add some views
 ixer.addIndex("displayName", "displayName", Indexing.create.lookup([0, 1]));
 ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
+ixer.addIndex("field", "field", Indexing.create.lookup([0, false]));
 ixer.addIndex("sourceToData", "source", Indexing.create.lookup([0, 3]));
 ixer.addIndex("editId", "editId", Indexing.create.lookup([0,1,2]));
 ixer.addIndex("viewToSchema", "view", Indexing.create.lookup([0, 1]));
@@ -1428,7 +1743,7 @@ ixer.addIndex("schemaToFields", "field", Indexing.create.collector([1]));
 ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([0]));
 ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schema", "query"]], removes: []},
                   schema: {adds: [["foo-schema"], ["qq-schema"]], removes: []},
-                  field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "string"], ["qq-a", "qq-schema", 0, "string"]], removes: []},
+                  field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "number"], ["qq-a", "qq-schema", 0, "string"]], removes: []},
 //                   source: {adds: [["foo-source", "qq", 0, "foo", true], ["zomg-source", "qq", 0, "zomg", false]], removes: []},
                   editId: {adds: [["foo", JSON.stringify(["a", "b"]), 0], ["foo", JSON.stringify(["c", "d"]), 1]], removes: []},
                   foo: {adds: [["a", "b"], ["c", "d"]], removes: []},
@@ -1437,11 +1752,10 @@ ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schem
                   uiComponent: {adds: [["myUI"]], removes: []},
                  });
 
-
 ixer.handleDiffs(code.diffs.addView("zomg", {
   a: "string",
-  e: "string",
-  f: "string"
+  e: "number",
+  f: "number"
 }, [
   ["a", "b", "c"],
   ["d", "e", "f"]
@@ -1461,6 +1775,12 @@ ixer.handleDiffs(
 ixer.handleDiffs(
   code.diffs.addView("constraint", {view: "id", op: "op", left: "reference", right: "reference"}, [], "constraint"));
 
+
+//example tables
+ixer.handleDiffs(
+  code.diffs.addView("employees", {department: "string", name: "string", salary: "float"}, [], false));
+ixer.handleDiffs(
+  code.diffs.addView("department heads", {department: "string", head: "string"}, [], false));
 
 // Grid Indexes
 ixer.addIndex("gridTarget", "gridTarget", Indexing.create.lookup([0, 1]));
