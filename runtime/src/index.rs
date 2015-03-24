@@ -1,126 +1,176 @@
-extern crate std;
-use std::rc;
-use std::rc::Rc;
-use std::mem::{replace, copy_mut_lifetime};
-use std::ops::IndexMut;
+use std::collections::btree_map;
+use std::collections::btree_map::{BTreeMap, Entry, Keys};
+use std::iter::{FromIterator, IntoIterator};
 
-struct QQLeaf<K,V> {
-    key: K,
-    value: V,
+#[derive(Clone, Debug, PartialOrd, PartialEq, Ord, Eq)]
+pub struct Index<T> {
+    items: BTreeMap<T, usize>,
 }
 
-#[derive(Clone)]
-struct QQBranch<K,V> {
-    children: Vec<QQNode<K,V>>,
+// #[derive(Debug)] Keys does not implement Debug :(
+pub struct Iter<'a, T> where T: 'a {
+    keys: Keys<'a, T, usize>,
 }
 
-#[derive(Clone)]
-enum QQNode<K,V> {
-    Empty,
-    Leaf(Rc<QQLeaf<K,V>>),
-    Branch(Rc<QQBranch<K,V>>),
-}
+impl<T: Ord> Index<T> {
+    pub fn new() -> Self {
+        Index{items: BTreeMap::new()}
+    }
 
-#[derive(Clone)]
-pub struct QQTree<K,V> {
-    root: QQNode<K,V>,
-}
+    pub fn insert(&mut self, item: T, count: usize) {
+        match self.items.entry(item) {
+            Entry::Vacant(vacant) => {
+                vacant.insert(count);
+            }
+            Entry::Occupied(mut occupied) => {
+                let existing_count = *occupied.get();
+                occupied.insert(existing_count + count);
+            }
+        }
+    }
 
-pub trait Nibbled {
-    fn nibble(&self, i: usize) -> Option<u8>;
-}
+    pub fn remove(&mut self, item: T, count: usize) {
+        match self.items.entry(item) {
+            Entry::Vacant(_) => {
+                panic!("Removed a non-existing entry");
+            }
+            Entry::Occupied(mut occupied) => {
+                let new_count = *occupied.get() - count;
+                if new_count > 0 {
+                    occupied.insert(new_count);
+                } else if new_count == 0 {
+                    occupied.remove();
+                } else {
+                    panic!("Removed a non-existing entry");
+                }
+            }
+        }
+    }
 
-fn nibbled_eq<K: Nibbled>(key1: &K, key2: &K, from_depth: usize) -> bool {
-    let mut depth = from_depth;
-    loop {
-        let n1 = key1.nibble(depth);
-        let n2 = key2.nibble(depth);
-        if n1 != n2 { return false; }
-        if n1 == None { return true; }
-        depth += 1;
+    pub fn iter(&self) -> Iter<T> {
+        Iter{keys: self.items.keys()}
     }
 }
 
-static FOREVER: &'static () = &();
+impl<'a, T: Ord> Iterator for Iter<'a, T> {
+    type Item = &'a T;
 
-impl<K,V> QQTree<K,V> {
-    pub fn empty() -> Self {
-        QQTree{root: QQNode::Empty}
+    fn next(&mut self) -> Option<&'a T> {
+        self.keys.next()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.keys.size_hint()
     }
 }
 
-impl<K: Nibbled + Clone, V: Clone> QQTree<K,V> {
-    pub fn insert(self, key: K, value: V) -> Self {
-        let mut root_ref = Box::new(self.root);
-        {
-            let mut node_ref = &mut *root_ref;
-            let mut depth = 0;
-            loop {
-                let node = replace(node_ref, QQNode::Empty); // take ownership
-                match node {
-                    QQNode::Empty => {
-                        *node_ref = QQNode::Leaf(Rc::new(QQLeaf{key: key, value: value}));
-                        break;
-                    },
-                    QQNode::Leaf(leaf_rc) => {
-                        // check if this is the same key
-                        if nibbled_eq(&key, &leaf_rc.key, depth) {
-                            // if so, just overwrite it
-                            *node_ref = QQNode::Leaf(Rc::new(QQLeaf{key: key, value: value}));
-                            break;
-                        } else {
-                            // otherwise, insert a branch between parent and node
-                            let mut children = vec![QQNode::Empty; 17];
-                            let leaf_node = QQNode::Leaf(leaf_rc.clone()); // only clones the ref
-                            match key.nibble(depth) {
-                                Some(nibble) => children[nibble as usize] = leaf_node,
-                                None => children[16] = leaf_node,
-                            }
-                            let node = QQNode::Branch(Rc::new(QQBranch{children: children}));
-                            *node_ref = node;
+impl<T: Ord> FromIterator<T> for Index<T> {
+    fn from_iter<I: IntoIterator<Item=T>>(iterable: I) -> Self {
+        Index{items: BTreeMap::from_iter(
+            iterable.into_iter().map(|item| (item, 1))
+            )}
+    }
+}
+
+pub struct IntoIter<T> {
+    items: btree_map::IntoIter<T, usize>
+}
+
+impl<T: Ord> Iterator for IntoIter<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<T> {
+        self.items.next().map(|(key, _)| key)
+    }
+}
+
+impl<T: Ord> IntoIterator for Index<T> {
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+    fn into_iter(self) -> IntoIter<T> {
+        IntoIter{items: self.items.into_iter()}
+    }
+}
+
+pub mod diff {
+    use std::collections::btree_map::Keys;
+    use std::cmp::{max, Ordering};
+
+    #[derive(Debug)]
+    pub struct Diff<'a, T> where T: 'a {
+        pub before: &'a super::Index<T>,
+        pub after: &'a super::Index<T>,
+    }
+
+    #[derive(Debug)]
+    pub enum Change {
+        Inserted,
+        Unchanged,
+        Removed,
+    }
+
+    // #[derive(Debug)] Keys does not implement Debug :(
+    pub struct Iter<'a, T> where T: 'a {
+        before_keys: Keys<'a, T, usize>,
+        after_keys: Keys<'a, T, usize>,
+        before_key: Option<&'a T>,
+        after_key: Option<&'a T>,
+    }
+
+    impl<'a, T: Ord> Diff<'a, T> {
+        pub fn iter(&self) -> Iter<'a, T> {
+            let mut before_keys = self.before.items.keys();
+            let mut after_keys = self.after.items.keys();
+            let before_key = before_keys.next();
+            let after_key = after_keys.next();
+            Iter{before_keys: before_keys, after_keys: after_keys, before_key: before_key, after_key: after_key}
+        }
+    }
+
+    impl<'a, T: Ord> Iterator for Iter<'a, T> {
+        type Item = (Change, &'a T);
+
+        fn next(&mut self) -> Option<(Change, &'a T)> {
+            match (self.before_key, self.after_key) {
+                (None, None) => {
+                    return None;
+                }
+                (Some(before), None) => {
+                    self.before_key = self.before_keys.next();
+                    return Some((Change::Removed, before));
+                }
+                (None, Some(after)) => {
+                    self.after_key = self.after_keys.next();
+                    return Some((Change::Inserted, after));
+                }
+                (Some(before), Some(after)) => {
+                    match before.cmp(after) {
+                        Ordering::Less => {
+                            self.before_key = self.before_keys.next();
+                            return Some((Change::Removed, before));
                         }
-                    },
-                    QQNode::Branch(branch_rc) => {
-                        // make branch_rc editable
-                        let mut branch = match rc::try_unwrap(branch_rc) {
-                            Ok(branch) => branch,
-                            Err(branch_rc) => (*branch_rc).clone(),
-                        };
-                        match key.nibble(depth) {
-                            None => {
-                                // key ends here, can just overwrite the slot
-                                branch.children[16] = QQNode::Leaf(Rc::new(QQLeaf{key: key, value: value}));
-                                *node_ref = QQNode::Branch(Rc::new(branch));
-                                break;
-                            }
-                            Some(nibble) => {
-                                // put this branch back, look at the child instead
-                                let child_ref = unsafe {
-                                    // we are attaching the branch to the new tree, so this reference is valid for the whole function
-                                    copy_mut_lifetime(FOREVER, branch.children.index_mut(&(nibble as usize)))
-                                };
-                                *node_ref = QQNode::Branch(Rc::new(branch));
-                                node_ref = child_ref;
-                                depth += 1;
-                                continue;
-                            }
+                        Ordering::Greater => {
+                            self.after_key = self.after_keys.next();
+                            return Some((Change::Inserted, after));
+                        }
+                        Ordering::Equal => {
+                            self.before_key = self.before_keys.next();
+                            self.after_key = self.after_keys.next();
+                            return Some((Change::Unchanged, before));
                         }
                     }
                 }
             }
         }
-        QQTree{root: (*root_ref).clone()}
-    }
-}
 
-
-impl Nibbled for String {
-    fn nibble(&self, i: usize) -> Option<u8> {
-        if i < self.len() {
-            // TODO lies and wrongness
-            Some(self.as_bytes()[i] & 0xF)
-        } else {
-            None
+        fn size_hint(&self) -> (usize, Option<usize>) {
+            let (before_lower, before_upper) = self.before_keys.size_hint();
+            let (after_lower, after_upper) = self.after_keys.size_hint();
+            let lower = max(before_lower, after_lower);
+            let upper = match (before_upper, after_upper) {
+                (Some(before_upper), Some(after_upper)) => Some(before_upper + after_upper),
+                _ => None
+            };
+            (lower, upper)
         }
     }
 }

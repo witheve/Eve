@@ -49,6 +49,15 @@ var Indexing = (function() {
   }
 
   Indexer.prototype = {
+    load: function(pickle) {
+      var diffs = {};
+      for(var table in pickle) {
+        if(!diffs[table]) { diffs[table] = {}; }
+        diffs[table].adds = pickle[table];
+      }
+      console.log(diffs);
+      this.handleDiffs(diffs);
+    },
     handleDiffs: function(diffs) {
       for(var table in diffs) {
         var diff = diffs[table];

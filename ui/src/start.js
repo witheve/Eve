@@ -79,6 +79,13 @@ function verticalTable(rows) {
   return content;
 }
 
+function factToTile(tile) {
+  return {
+    id: tile[0], grid: tile[1], type: tile[2],
+    pos: [tile[3], tile[4]], size: [tile[5], tile[6]]
+  };
+}
+
 //---------------------------------------------------------
 // UI state
 //---------------------------------------------------------
@@ -120,6 +127,30 @@ var root = reactFactory({
     bounds.width -= 40;
     return bounds;
   },
+  getTiles: function(grid) {
+    return ixer.facts("gridTile").filter(function(fact) {
+      return fact[1] === grid;
+    }).map(factToTile);
+  },
+  navigate: function(id) {
+    var target = ixer.index("gridTarget")[id];
+    if(!target) {
+      return;
+    }
+
+    var inward = false;
+    if(this.state.prevNav) {
+      var prevNavTile = factToTile(ixer.index("gridTile")[this.state.prevNav.id]);
+      inward = prevNavTile.grid === target && !this.state.prevNav.inward;
+    }
+
+    this.setState({nav: {target: target, id: id, inward: inward}, editingGrid: false});
+    var self = this;
+    setTimeout(function() {
+      self.setState({nav: false, prevNav: self.state.nav});
+      dispatch("navigate", {id: id, target: target});
+    }, 500);
+  },
   chooseProgram: function() {
     console.warn("@TODO: Implement me.");
   },
@@ -128,20 +159,39 @@ var root = reactFactory({
   },
   render: function() {
     var activeGrid = ixer.facts("activeGrid")[0][0];
-    console.log("Active grid is:", activeGrid);
-    var tiles = ixer.facts("gridTile").filter(function(fact) {
-      return fact[1] === activeGrid;
-    }).map(function(tile) {
-      return {
-        id: tile[0], grid: tile[1], type: tile[2],
-        pos: [tile[3], tile[4]], size: [tile[5], tile[6]]
-      };
-    });
+    var tiles = this.getTiles(activeGrid);
+    var animTiles = [];
+    var navTile;
+    var animations;
+
+    if(this.state.nav) {
+      animTiles = this.getTiles(this.state.nav.target);
+      navTile = factToTile(ixer.index("gridTile")[this.state.nav.id]);
+      var prevNavTile = (this.state.prevNav ? factToTile(ixer.index("gridTile")[this.state.prevNav.id]) : undefined);
+      animations = (this.state.nav.inward ?
+                    [["unevacuate", prevNavTile.pos], ["confine", prevNavTile]] :
+                    [["unconfine", navTile], ["evacuate", navTile.pos]]
+                   );
+    }
 
     return JSML(
       ["div",
        ["canvas", {width: 1, height: 1, id: "clear-pixel", key: "root-clear-pixel"}],
-       stage({bounds: this.state.bounds, editing: this.state.editingGrid, key: "root-stage", tiles: tiles}),
+      (animTiles.length ? stage({
+         key: "anim-stage",
+         tiles: animTiles,
+         bounds: this.state.bounds,
+         animation: animations[0],
+         style: {zIndex: this.state.nav.inward ? 2 : 1}
+       }) : undefined),
+       stage({
+         key: "root-stage",
+         tiles: tiles,
+         bounds: this.state.bounds,
+         editing: this.state.editingGrid,
+         onNavigate: this.navigate,
+         animation: this.state.nav ? animations[1] : undefined
+       }),
        toolbar({
          key: "root-toolbar",
          controls: [
@@ -210,7 +260,7 @@ var tileProperties = reactFactory({
   render: function() {
     var target = ixer.index("gridTarget")[this.props.tileId];
     return JSML(
-      ["table", {className: "tile-properties"}, verticalTable([
+      ["table", {className: "tile-properties flex"}, verticalTable([
         ["Id", this.props.tileId],
         ["Type", this.props.type],
         ["Target", editable({value: target, onSubmit: this.setTarget})]
@@ -225,26 +275,27 @@ var gridTile = reactFactory({
     return {currentPos: [this.props.left, this.props.top], currentSize: [this.props.width, this.props.height]};
   },
 
-  navigate: function(evt) {
-    var target = ixer.index("gridTarget")[this.props.id];
-    if(!target) {
-      return;
-    }
+  close: function(evt) {
+    dispatch("closeTile", this.props.id);
+  },
 
-    console.log("navigating to", target);
-    dispatch("navigate", {tile: this.props.id, target: target});
+  navigate: function(evt) {
+    if(this.props.onNavigate) {
+      this.props.onNavigate(this.props.id);
+    }
   },
 
   flip: function(evt) {
     var self = this;
-    Velocity(this.getDOMNode(), {rotateY: "+=90deg"}, {
-      duration: 250,
+    var dir = (this.state.flipped ? "+=" : "-=");
+    Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {
+      duration: 150,
       easing: "easeInSine",
       complete: function() {
         self.setState({flipped: !self.state.flipped});
       }
     });
-    Velocity(this.getDOMNode(), {rotateY: "+=90deg"}, {duration: 250, easing: "easeOutSine"});
+    Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {duration: 350, easing: "easeOutCubic"});
   },
 
   // Dragging
@@ -313,13 +364,17 @@ var gridTile = reactFactory({
     var controls = [];
     var children = [];
 
-    if(tile.navigable !== false) {
-      attrs.onDoubleClick = this.navigate;
-    }
+    controls.push(["button", {className: "close-tile ion-android-close", onClick: this.close}]);
+
     if(tile.flippable !== false) {
       attrs.className += (this.state.flipped ? " flipped" : "");
-      controls.push(["button", {className: "flip-tile ion-reply", onClick: this.flip}]);
+      controls.push(["button", {className: "flip-tile " + (this.state.flipped ? "ion-forward" : "ion-reply"), onClick: this.flip}]);
     }
+    if(tile.navigable !== false) {
+      attrs.onDoubleClick = this.navigate;
+      controls.push(["button", {className: "navigate-tile ion-link", onClick: this.navigate}]);
+    }
+
     if(this.props.resizable && tile.resizable !== false) {
       attrs.onResize = this.resizing;
       children.push(["div", {
@@ -368,6 +423,48 @@ var stage = reactFactory({
   },
   componentWillReceiveProps: function(nextProps) {
     this.setState({grid: Grid.makeGrid({bounds: nextProps.bounds, gutter: 8})});
+  },
+  componentDidMount: function() {
+    if(this.props.animation) {
+      this.animate.apply(this, this.props.animation);
+    }
+  },
+  componentDidUpdate: function(prevProps, prevState) {
+    if(this.props.animation) {
+      this.animate.apply(this, this.props.animation);
+    }
+  },
+  animate: function(type, arg) {
+    for(var tileIx = 0, len = this.props.tiles.length; tileIx < len; tileIx++) {
+      var child = this.refs["tile-" + tileIx];
+      var style;
+      switch(type) {
+        case "evacuate":
+          var tile = Grid.evacuateTile(this.state.grid, child.props, arg, true);
+          style = Grid.getRect(this.state.grid, tile);
+          if(child.props.pos[0] === arg[0] && child.props.pos[1] === arg[1]) {
+            child.getDOMNode().style.opacity = 0;
+          }
+          break;
+        case "unevacuate":
+          var tileRect = Grid.getRect(this.state.grid, Grid.evacuateTile(this.state.grid, child.props, arg, true));
+          extend(child.getDOMNode().style, tileRect);
+          style = Grid.getRect(this.state.grid, child.props);
+          break;
+        case "confine":
+          var tile = Grid.confineTile(this.state.grid, child.props, this.props.animation[1]);
+          style = Grid.getRect(this.state.grid, tile);
+          break;
+        case "unconfine":
+          var tileRect = Grid.getRect(this.state.grid, Grid.confineTile(this.state.grid, child.props, this.props.animation[1]));
+          extend(child.getDOMNode().style, tileRect);
+          style = Grid.getRect(this.state.grid, child.props);
+          break;
+        default:
+          console.error("Unhandled animation: '" + type + "'.");
+      }
+      Velocity(child.getDOMNode(), style, {duration: 500});
+    }
   },
   dragTileOver: function(evt) {
     // @TODO: Once converted to tables, retrieve pos / size here for updateFootprint.
@@ -433,12 +530,15 @@ var stage = reactFactory({
       var tileRaw = tiles[tileIx];
       var tileRect = Grid.getRect(this.state.grid, tileRaw);
       var tile = extend(extend({}, tileRaw), tileRect);
+      tile.ref = "tile-" + tileIx;
       tile.key = tile.id;
       tile.draggable = tile.resizable = isEditing;
       tile.updateFootprint = this.updateFootprint;
-      children.push(gridTile(tile));
+      tile.onNavigate = this.props.onNavigate;
+      var child = gridTile(tile);
+      children.push(child);
     }
-    var attrs = {key: this.props.key, className: "tile-grid" + (isEditing ? " editing" : "")};
+    var attrs = {key: this.props.key, className: "tile-grid" + (isEditing ? " editing" : ""), style: this.props.style};
     var content = ["div", attrs];
     content.push.apply(content, children);
 
@@ -1374,6 +1474,18 @@ function dispatch(event, arg, noRedraw) {
 
   switch(event) {
     case "load":
+      var session = localStorage.getItem("session");
+      if(session) {
+        ixer.load(JSON.parse(session));
+      } else {
+        initIndexer();
+      }
+      break;
+    case "unload":
+      if(!window.DO_NOT_SAVE) {
+        var session = JSON.stringify(ixer.tables, null, 2);
+        localStorage.setItem("session", session);
+      }
       break;
     case "addColumnToTable":
       diffs = code.diffs.addColumn(arg.table);
@@ -1418,6 +1530,11 @@ function dispatch(event, arg, noRedraw) {
         gridTile: {adds: [fact]}
       };
       break;
+    case "closeTile":
+      // @TODO: clean up old dependent facts.
+      var fact = ixer.index("gridTile")[arg].slice();
+      diffs.gridTile = {removes: [fact]};
+      break;
     case "updateTile":
       var oldTile = ixer.index("gridTile")[arg.id].slice();
       var tile = oldTile.slice();
@@ -1434,7 +1551,7 @@ function dispatch(event, arg, noRedraw) {
                   tableTile: {adds: [[tile[0], arg.view]]}};
       break;
     case "setTarget":
-      var diffs = {
+      diffs = {
         gridTarget: {adds: [[arg.id, arg.target]], removes: [[arg.id, ixer.index("gridTarget")[arg.id]]]}
       };
       ixer.handleDiffs(diffs);
@@ -1442,7 +1559,7 @@ function dispatch(event, arg, noRedraw) {
     case "navigate":
       if(!arg.target.indexOf("grid://") === 0) { throw new Error("Cannot handle non grid:// urls yet."); }
       diffs = {
-        activeGrid: {adds: [[arg.target.substring(7)]], removes: ixer.facts("activeGrid").slice()}
+        activeGrid: {adds: [[arg.target]], removes: ixer.facts("activeGrid").slice()}
       }
       break;
     case "addSource":
@@ -1650,15 +1767,17 @@ document.addEventListener("keydown", function(e) {
   } else if((e.metaKey || e.ctrlKey) && e.keyCode === KEYS.Z) {
     dispatch("undo");
   }
+});
 
+window.addEventListener("unload", function(e) {
+  dispatch("unload");
 });
 
 //---------------------------------------------------------
 // Go
 //---------------------------------------------------------
 
-
-//add some views
+// Core
 ixer.addIndex("displayName", "displayName", Indexing.create.lookup([0, 1]));
 ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
 ixer.addIndex("field", "field", Indexing.create.lookup([0, false]));
@@ -1669,25 +1788,38 @@ ixer.addIndex("viewToSources", "source", Indexing.create.collector([1]));
 ixer.addIndex("viewToConstraints", "constraint", Indexing.create.collector([0]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([1]));
 ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([0]));
-ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schema", "query"]], removes: []},
-                  schema: {adds: [["foo-schema"], ["qq-schema"]], removes: []},
-                  field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "number"], ["qq-a", "qq-schema", 0, "string"]], removes: []},
-//                   source: {adds: [["foo-source", "qq", 0, "foo", true], ["zomg-source", "qq", 0, "zomg", false]], removes: []},
-                  editId: {adds: [["foo", JSON.stringify(["a", "b"]), 0], ["foo", JSON.stringify(["c", "d"]), 1]], removes: []},
-                  foo: {adds: [["a", "b"], ["c", "d"]], removes: []},
-                  input: {adds: [["foo", ["a", "b"]], ["foo", ["c", "d"]]], removes: []},
-                  displayName: {adds: [["foo", "foo"], ["foo-a", "a"], ["foo-b", "foo B"]], removes: []},
-                  uiComponent: {adds: [["myUI"]], removes: []},
-                 });
 
-ixer.handleDiffs(code.diffs.addView("zomg", {
-  a: "string",
-  e: "number",
-  f: "number"
-}, [
-  ["a", "b", "c"],
-  ["d", "e", "f"]
-], "zomg"));
+// Grid Indexes
+ixer.addIndex("gridTarget", "gridTarget", Indexing.create.lookup([0, 1]));
+ixer.addIndex("gridTile", "gridTile", Indexing.create.lookup([0, false]));
+ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
+
+function initIndexer() {
+  ixer.handleDiffs(code.diffs.addView("view", {id: "string", schema: "string", query: "string"}, undefined, "view"));
+  ixer.handleDiffs(code.diffs.addView("field", {id: "string", schema: "string", ix: "number"}, undefined, "field"));
+  ixer.handleDiffs(code.diffs.addView("displayName", {id: "string", name: "string"}, undefined, "displayName"));
+
+  //add some views
+  ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schema", "query"]], removes: []},
+                    schema: {adds: [["foo-schema"], ["qq-schema"]], removes: []},
+                    field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "number"], ["qq-a", "qq-schema", 0, "string"]], removes: []},
+                    //                   source: {adds: [["foo-source", "qq", 0, "foo", true], ["zomg-source", "qq", 0, "zomg", false]], removes: []},
+                    editId: {adds: [["foo", JSON.stringify(["a", "b"]), 0], ["foo", JSON.stringify(["c", "d"]), 1]], removes: []},
+                    foo: {adds: [["a", "b"], ["c", "d"]], removes: []},
+                    input: {adds: [["foo", ["a", "b"]], ["foo", ["c", "d"]]], removes: []},
+                    displayName: {adds: [["foo", "foo"], ["foo-a", "a"], ["foo-b", "foo B"]], removes: []},
+                    uiComponent: {adds: [["myUI"]], removes: []},
+                   });
+
+  ixer.handleDiffs(code.diffs.addView("zomg", {
+    a: "string",
+    e: "number",
+    f: "number"
+  }, [
+    ["a", "b", "c"],
+    ["d", "e", "f"]
+  ], "zomg"));
+
 
 //code views
 ixer.handleDiffs(
@@ -1710,40 +1842,41 @@ ixer.handleDiffs(
 ixer.handleDiffs(
   code.diffs.addView("department heads", {department: "string", head: "string"}, [], false));
 
-// Grid Indexes
-ixer.addIndex("gridTarget", "gridTarget", Indexing.create.lookup([0, 1]));
-ixer.addIndex("gridTile", "gridTile", Indexing.create.lookup([0, false]));
-ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
-
-var gridId = "default";
-
-var uiViewId = uuid();
-ixer.handleDiffs(code.diffs.addView("gridTile", {
-  tile: "string",
-  grid: "string",
-  type: "string",
-  x: "number",
-  y: "number",
-  w: "number",
-  h: "number"
-}, [
-  [uiViewId, gridId, "ui", 0, 0, 6, 4],
-  [uuid(), gridId, "view", 6, 0, 6, 4],
-  [uuid(), "ui", "ui", 0, 0, 12, 12],
-], "gridTile"));
-
-ixer.handleDiffs(code.diffs.addView(
-  "activeGrid",
-  {grid: "string"},
-  [["default"]],
-  "activeGrid"));
-
-ixer.handleDiffs(code.diffs.addView("gridTarget", {
-  tile: "string",
-  target: "string"
-}, [
-  [uiViewId, "grid://ui"]
-], "gridTarget"));
 
 
+  var gridId = "grid://default";
+  var uiViewId = uuid();
+  var bigUiViewId = uuid();
+  ixer.handleDiffs(code.diffs.addView("gridTile", {
+    tile: "string",
+    grid: "string",
+    type: "string",
+    x: "number",
+    y: "number",
+    w: "number",
+    h: "number"
+  }, [
+    [uiViewId, gridId, "ui", 0, 0, 6, 4],
+    [uuid(), gridId, "view", 6, 0, 6, 4],
+    [bigUiViewId, "grid://ui", "ui", 0, 0, 12, 12],
+  ], "gridTile"));
+
+  ixer.handleDiffs(code.diffs.addView(
+    "activeGrid",
+    {grid: "string"},
+    [[gridId]],
+    "activeGrid"));
+
+  ixer.handleDiffs(code.diffs.addView(
+    "gridTarget",
+    {tile: "string", target: "string"}, [
+      [uiViewId, "grid://ui"],
+      [bigUiViewId, "grid://default"]
+    ], "gridTarget"));
+}
 dispatch("load");
+
+function clearStorage() {
+  window.DO_NOT_SAVE = true;
+  localStorage.clear();
+}

@@ -10,6 +10,8 @@ body {
   font-family: Avenir, "Helvetica Neue";
 }
 
+.flex { display: flex; }
+
 .toolbar {
   padding: 10px 20px;
 }
@@ -52,12 +54,16 @@ body {
 .tile-grid {
   position: absolute;
   top: 60px; right: 20px; bottom: 20px; left: 20px;
-  background: #202020;
-  perspective: 100;
+  z-index: 1;
+
+  perspective: 5000;
   -webkit-perspective: 5000;
   -moz-perspective: 5000;
 }
+.tile-grid.editing { background: #202020; }
+
 .tile-grid.editing > .grid-tile.dragging {
+
   z-index: -1000;
   transition: 0.01s;
 }
@@ -81,7 +87,6 @@ body {
   border-color: rgba(255, 32, 32, 0.4);
 }
 
-
 .grid-tile {
   position: absolute;
   z-index: 1;
@@ -91,6 +96,9 @@ body {
   border-radius: 3px;
   transform-style: preserve-3d;
 }
+.grid-tile.flipped {
+  background: #404040; /* color not found */
+}
 .grid-tile-inner {
   position: absolute; top: 0; left: 0; bottom: 0; right: 0;
   padding: 8px;
@@ -99,8 +107,11 @@ body {
 }
 
 .grid-tile-inner > .toolbar {
-  max-width: 2.5em;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  flex: 2.5em 0;
   margin: -8px; margin-left: 8px;
 
   font-size: 0.75em;
@@ -148,7 +159,7 @@ th:last-child { border-radius: 0 2px 2px 0; }
 
 .table-wrapper tbody { overflow-y: auto; }
 
-.table-wrapper { flex: 1; display:flex; }
+.table-wrapper { flex: 1; display: flex; overflow-x: auto; }
 .add-column { margin-left: 10px; }
 
 /*****************************************************************************\

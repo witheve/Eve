@@ -77,17 +77,46 @@ var Grid = (function(document, React, Velocity) {
       // rect.bottom = grid.bounds.bottom - (rect.top + rect.height);
       return rect;
     },
-    evacuateRect: function evacuateRect(grid, tile, from) { // (Grid, Tile, Pos?) -> Rect
+    evacuateTile: function evacuateRect(grid, tile, from, force) { // (Grid, Tile, Pos?, Bool?) -> Tile
       if(!grid) { throw new Error(ERR.NO_GRID); }
       assertTile(tile);
       from = from || [grid.size[0] / 2, grid.size[1] / 2];
-      console.warn("@TODO: Implement me");
+
+      var xOffset = tile.pos[0] - from[0];
+      var yOffset = tile.pos[1] - from[1];
+      var xEdge = xOffset > 0 ? grid.size[0] + 1 : (xOffset < 0 ? -tile.size[0] - 1 : tile.pos[0]);
+      var yEdge = yOffset > 0 ? grid.size[1] + 1 : (yOffset < 0 ? -tile.size[1] - 1 : tile.pos[1]);
+
+      if(force && xEdge === tile.pos[0] && yEdge === tile.pos[1]) {
+        if(tile.pos[1] > grid.size[1] / 2) {
+          yEdge = grid.size[1] + 1;
+        } else {
+          yEdge = -tile.size[1] - 1;
+        }
+      }
+
+      return {pos: [xEdge, yEdge], size: tile.size};
     },
-    confineRect: function confineRect(grid, tile, to) { // (Grid, Tile, Pos?) -> Rect
+    confineTile: function confineRect(grid, tile, to) { // (Grid, Tile, Tile) -> Tile
       if(!grid) { throw new Error(ERR.NO_GRID); }
       assertTile(tile);
-      to = to || [grid.size[0] / 2, grid.size[1] / 2]; // @NOTE: I'm not sure this default makes sense.
-      console.warn("@TODO: Implement me");
+      assertTile(to);
+      var res = {pos: [tile.pos[0], tile.pos[1]], size: [tile.size[0], tile.size[1]]};
+      // Lower bounds
+      if(res.pos[0] < to.pos[0]) { res.pos[0] = to.pos[0]; }
+      if(res.pos[1] < to.pos[1]) { res.pos[1] = to.pos[1]; }
+
+      // Upper bounds
+      if(res.size[0] > to.size[0]) {res.size[0] = to.size[0]; }
+      if(res.size[1] > to.size[1]) {res.size[1] = to.size[1]; }
+
+      // Preserve size to greatest possible extent.
+      var dx = res.pos[0] + res.size[0] - (to.pos[0] + to.size[0]);
+      if(dx > 0) { res.pos[0] = Math.max(res.pos[0] - dx, to.pos[0]); }
+      var dy = res.pos[1] + res.size[1] - (to.pos[1] + to.size[1]);
+      if(dy > 0) { res.pos[1] = Math.max(res.pos[1] - dy, to.pos[1]); }
+
+      return res;
     },
     coordsToPos: function coordsToPos(grid, x, y, round) { // (Grid, N, N, Bool?) -> Pos
       if(!grid) { throw new Error(ERR.NO_GRID); }
