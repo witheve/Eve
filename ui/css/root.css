@@ -141,11 +141,28 @@ body {
 .grid-tile.add { opacity: 0; }
 .grid-tile.add:hover { opacity: 0.5 }
 .grid-tile.add:active { opacity: 0.75 }
-.grid-tile.add .toolbar { opacity: 0; pointer-events: none; }
+.grid-tile.add .grid-tile-inner > .toolbar { opacity: 0; pointer-events: none; }
 .grid-tile.add .corner-se-grip { opacity: 0; pointer-events: none; }
-.grid-tile.add div {
-  position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+.grid-tile.add div { position: absolute; top: 0; left: 0; bottom: 0; right: 0; }
+
+.grid-tile.addChooser .tile-type-chooser { display: flex; flex-direction: row; }
+.grid-tile.addChooser .pane-1 { display: flex; flex-direction: column; }
+
+.grid-tile.addChooser .pane-1 button {
+  font-size: 1.2em;
+  font-weight: 100;
+  padding: 4px 8px;
+  margin: 0 4px;
+
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: #aaa;
+  text-align: left;
 }
+.grid-tile.addChooser .pane-1 button:hover { background: rgba(255, 255, 255, 0.1); color: rgba(96, 208, 255, 0.8); }
+.grid-tile.addChooser .pane-1 button:active { background: rgba(255, 255, 255, 0.2); color: rgb(96, 208, 255); }
+.grid-tile.addChooser .pane { padding: 4px 8px; }
 
 
 /*****************************************************************************\

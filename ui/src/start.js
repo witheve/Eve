@@ -86,6 +86,17 @@ function factToTile(tile) {
   };
 }
 
+function mergeDiffs(dest, src) {
+  for(var key in src) {
+    if(!src.hasOwnProperty(key) && !ignoreHasOwnProperty) { continue; }
+    if(!dest[key].adds) { dest[key].adds = []; }
+    if(!dest[key].removes) { dest[key].removes = []; }
+    if(src[key].adds) { dest[key].adds.push.apply(dest[key], src[key].adds); }
+    if(src[key].removes) { dest[key].removes.push.apply(dest[key], src[key].removes); }
+  }
+  return dest;
+}
+
 //---------------------------------------------------------
 // UI state
 //---------------------------------------------------------
@@ -149,7 +160,7 @@ var root = reactFactory({
     setTimeout(function() {
       self.setState({nav: false, prevNav: self.state.nav});
       dispatch("navigate", {id: id, target: target});
-    }, 500);
+    }, 600);
   },
   chooseProgram: function() {
     console.warn("@TODO: Implement me.");
@@ -230,6 +241,7 @@ tiles.debug = {
 };
 
 tiles.add = {
+  navigable: false,
   flippable: false,
   resizable: false,
   draggable: false,
@@ -238,15 +250,84 @@ tiles.add = {
     addTile: function(evt) {
       dispatch("addTile", {
         id: this.props.tileId,
-        type: "addTable",
+        type: "addChooser",
         pos: this.props.pos,
         size: this.props.size
       });
     },
     render: function() {
-      return JSML(["div", {
-        onClick: this.addTile
-      }]);
+      return JSML(["div", {onClick: this.addTile}]);
+    }
+  })
+};
+
+var addTileTypes = {
+  "ui": {
+    name: "ui", description: "Visualize your data with a user interface.",
+    add: function(id) {
+      dispatch("updateTile", {id: id, type: "ui"});
+    }
+  },
+  "existing": {
+    name: "existing", description: "Add new data in a spreadsheet.",
+    pane: function(id) {
+      return tableSelector({onSelect: addTileTypes.existing.add.bind(null, id)});
+    },
+    add: function(id, view) {
+      // Update type.
+      dispatch("setTileView", {tileId: id, view: view});
+    }
+  },
+  "view": {
+    name: "view", description: "Run calculations or transformations on your data.",
+    add: function(id) {
+      dispatch("addView", id);
+    }
+  },
+  "table": {
+    name: "table", description: "Open an existing tile in this grid.",
+    add: function(id) {
+      dispatch("addTable", id);
+    }
+  },
+};
+
+
+tiles.addChooser = {
+  navigable: false,
+  flippable: false,
+  content: reactFactory({
+    displayName: "add-chooser",
+    getInitialState: function() {
+      return {description: "Hover a tile type to read about what it is used for."};
+    },
+    hoverType: function(type) {
+      this.setState({description: addTileTypes[type].description});
+    },
+    chooseType: function(type) {
+      var tile = addTileTypes[type];
+      if(tile.pane) {
+        this.setState({pane2: addTileTypes[type].pane(this.props.tileId)});
+      } else {
+        tile.add(this.props.tileId);
+      }
+    },
+    render: function() {
+      var controls = [];
+      for(var type in addTileTypes) {
+        var tile = addTileTypes[type];
+        var control = ["button", {
+          onMouseOver: this.hoverType.bind(this, type),
+          onClick: this.chooseType.bind(this, type)
+        }, tile.name];
+        controls.push(control);
+      }
+      return JSML(
+        ["div", {className: "tile-type-chooser"},
+         ["div", {className: "pane-1"}, controls],
+         (this.state.pane2 ? ["div", {className: "pane-2 pane"}, this.state.pane2] : undefined),
+         (this.state.description ? ["div", {className: "description pane"}, this.state.description] : undefined)]
+      );
     }
   })
 };
@@ -265,6 +346,36 @@ var tileProperties = reactFactory({
         ["Type", this.props.type],
         ["Target", editable({value: target, onSubmit: this.setTarget})]
       ])]
+    );
+  }
+});
+
+var tableProperties = reactFactory({
+  displayName: "table-properties",
+  getInitialState: function() {
+    var type = ixer.index("gridTile")[this.props.tileId][2];
+    return {type: type};
+  },
+  getView: function() {
+    return ixer.index(this.state.type + "Tile")[this.props.tileId][1];
+  },
+  setName: function(val) {
+    var id = this.getView();
+    dispatch("rename", {id: id, value: val});
+  },
+  render: function() {
+    var id = this.getView();
+    var name = ixer.index("displayName")[id];
+
+    return JSML(
+      ["div",
+       tileProperties({tileId: this.props.tileId}),
+       ["br"],
+       ["table", verticalTable([
+         ["id", id],
+         ["name", editable({value: name, onSubmit: this.setName})]
+       ])]
+      ]
     );
   }
 });
@@ -651,18 +762,6 @@ var tableSelector = reactFactory({
   }
 });
 
-tiles.addTable = {
-  flippable: false,
-  content: reactFactory({
-    onSelect: function(view) {
-      dispatch("setTileView", {tileId: this.props.tileId, view: view});
-    },
-    render: function() {
-      return tableSelector({onSelect: this.onSelect});
-    }
-  })
-};
-
 //---------------------------------------------------------
 // Table components
 //---------------------------------------------------------
@@ -834,29 +933,7 @@ tiles.table = {
       return table(opts);
     }
   },
-  backContent: reactFactory({
-    displayName: "table-properties",
-    setName: function(val) {
-      var currentTable = ixer.index("tableTile")[this.props.tileId];
-      var id = currentTable[1];
-      dispatch("rename", {id: id, value: val});
-    },
-    render: function() {
-      var currentTable = ixer.index("tableTile")[this.props.tileId];
-      var id = currentTable[1];
-      var name = ixer.index("displayName")[id];
-
-      return JSML(
-        ["div",
-         tileProperties({tileId: this.props.tileId}),
-         ["br"],
-         ["table", verticalTable([
-           ["name", editable({value: name, onSubmit: this.setName})]
-         ])]
-        ]
-      );
-    }
-  })
+  backContent: tableProperties
 };
 
 //---------------------------------------------------------
@@ -888,16 +965,19 @@ tiles.view = {
     getInitialState: function() {
       return {addingSource: false};
     },
+    getView: function() {
+      return ixer.index("viewTile")[this.props.tileId][1];
+    },
     startAddingSource: function() {
       this.setState({addingSource: true});
     },
     stopAddingSource: function(view) {
       this.setState({addingSource: false});
-      dispatch("addSource", {view: this.props.view || "qq", source: view});
+      dispatch("addSource", {view: this.getView(), source: view});
     },
     render: function() {
       var self = this;
-      var view = "qq";
+      var view = this.getView();
       var sources = ixer.index("viewToSources")[view] || [];
       var constraints = ixer.index("viewToConstraints")[view] || [];
       var sourceToConstraints = {};
@@ -927,7 +1007,8 @@ tiles.view = {
                    add
                   ]);
     }
-  })
+  }),
+  backContent: tableProperties
 }
 
 //---------------------------------------------------------
@@ -1293,6 +1374,7 @@ function dispatch(event, arg, noRedraw) {
         localStorage.setItem("session", session);
       }
       break;
+
     case "addColumnToTable":
       diffs = code.diffs.addColumn(arg.table);
       break;
@@ -1336,6 +1418,21 @@ function dispatch(event, arg, noRedraw) {
         gridTile: {adds: [fact]}
       };
       break;
+    case "updateTile":
+      var fact = ixer.index("gridTile")[arg.id].slice();
+      var oldFact = fact.slice();
+      fact[1] = arg.grid || fact[1];
+      fact[2] = arg.type || fact[2];
+      if(arg.pos) {
+        fact[3] = arg.pos[0] || fact[3];
+        fact[4] = arg.pos[1] || fact[4];
+      }
+      if(arg.size) {
+        fact[5] = arg.size[0] || fact[5];
+        fact[6] = arg.size[1] || fact[6];
+      }
+      diffs = {gridTile: {adds: [fact], removes: [oldFact]}};
+      break;
     case "closeTile":
       // @TODO: clean up old dependent facts.
       var fact = ixer.index("gridTile")[arg].slice();
@@ -1351,11 +1448,33 @@ function dispatch(event, arg, noRedraw) {
     case "setTileView":
       var oldTile = ixer.index("gridTile")[arg.tileId].slice();
       var tile = oldTile.slice();
+      //set to a tile type
+      var type = tile[2] = (code.hasTag(arg.view, "table") ? "table" : "view");
+      diffs = {gridTile: {adds: [tile], removes: [oldTile]}};
+      diffs[type + "Tile"] = {adds: [[tile[0], arg.view]]}; // @NOTE: So hacky
+      break;
+    case "addTable":
+      var oldTile = ixer.index("gridTile")[arg].slice();
+      var tile = oldTile.slice();
       //set to a table tile
       tile[2] = "table";
-      diffs = {gridTile: {adds: [tile], removes: [oldTile]},
-                  tableTile: {adds: [[tile[0], arg.view]]}};
+      var tableId = uuid();
+      diffs = code.diffs.addView("Untitled Table", {A: "string"}, undefined, tableId, ["table"]);
+      diffs.gridTile = {adds: [tile], removes: [oldTile]};
+      diffs.tableTile = {adds: [[arg, tableId]]};
       break;
+    case "addView":
+      var oldTile = ixer.index("gridTile")[arg].slice();
+      var tile = oldTile.slice();
+      //set to a table tile
+      tile[2] = "view";
+      var viewId = uuid();
+      diffs = code.diffs.addView("Untitled View", {}, undefined, viewId, ["view"]);
+      diffs.gridTile = {adds: [tile], removes: [oldTile]};
+      diffs.viewTile = {adds: [[arg, viewId]]};
+      break;
+
+
     case "setTarget":
       diffs = {
         gridTarget: {adds: [[arg.id, arg.target]], removes: [[arg.id, ixer.index("gridTarget")[arg.id]]]}
@@ -1429,7 +1548,7 @@ var code = {
       }
       return diffs;
     },
-    addView: function(name, fields, initial, id) { // (S, {[S]: Type}, Fact[]?, Uuid?) -> Diffs
+    addView: function(name, fields, initial, id, tags) { // (S, {[S]: Type}, Fact[]?, Uuid?, S[]?) -> Diffs
       id = id || uuid();
       var schema = uuid();
       var displayNames = [[id, name]];
@@ -1449,6 +1568,11 @@ var code = {
       };
       if(initial) {
         diffs[id] = {adds: initial};
+      }
+      if(tags) {
+        diffs.tag = {adds: tags.map(function(tag) {
+          return [id, tag];
+        })};
       }
       return diffs;
     },
@@ -1480,6 +1604,9 @@ var code = {
       });
       return {constraint: {adds: constraints, removes: []}};
     }
+  },
+  hasTag: function(id, tag) {
+    return ixer.index("tag")[id].indexOf(tag) !== -1;
   },
   viewToFields: function(view) {
     var schema = ixer.index("viewToSchema")[view];
@@ -1531,6 +1658,7 @@ window.addEventListener("unload", function(e) {
 //---------------------------------------------------------
 
 // Core
+ixer.addIndex("tag", "tag", Indexing.create.collector([0]));
 ixer.addIndex("displayName", "displayName", Indexing.create.lookup([0, 1]));
 ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
 ixer.addIndex("sourceToData", "source", Indexing.create.lookup([0, 3]));
@@ -1545,12 +1673,15 @@ ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.col
 ixer.addIndex("gridTarget", "gridTarget", Indexing.create.lookup([0, 1]));
 ixer.addIndex("gridTile", "gridTile", Indexing.create.lookup([0, false]));
 ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
+ixer.addIndex("viewTile", "viewTile", Indexing.create.lookup([0, false]));
 
 
 function initIndexer() {
-  ixer.handleDiffs(code.diffs.addView("view", {id: "string", schema: "string", query: "string"}, undefined, "view"));
-  ixer.handleDiffs(code.diffs.addView("field", {id: "string", schema: "string", ix: "number"}, undefined, "field"));
-  ixer.handleDiffs(code.diffs.addView("displayName", {id: "string", name: "string"}, undefined, "displayName"));
+  ixer.handleDiffs(code.diffs.addView("view", {id: "string", schema: "string", query: "string"}, undefined, "view", ["table"]));
+  ixer.handleDiffs(code.diffs.addView("field", {id: "string", schema: "string", ix: "number"}, undefined, "field", ["table"]));
+  ixer.handleDiffs(code.diffs.addView("displayName", {id: "string", name: "string"}, undefined, "displayName", ["table"]));
+  ixer.handleDiffs(code.diffs.addView("tableTile", {id: "string", view: "string"}, undefined, "tableTile", ["table"]));
+  ixer.handleDiffs(code.diffs.addView("viewTile", {id: "string", view: "string"}, undefined, "viewTile", ["table"]));
 
   //add some views
   ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schema", "query"]], removes: []},
@@ -1571,7 +1702,7 @@ function initIndexer() {
   }, [
     ["a", "b", "c"],
     ["d", "e", "f"]
-  ], "zomg"));
+  ], "zomg", ["table"]));
 
 
   var gridId = "grid://default";
@@ -1586,23 +1717,22 @@ function initIndexer() {
     w: "number",
     h: "number"
   }, [
-    [uiViewId, gridId, "ui", 0, 0, 6, 4],
-    [uuid(), gridId, "view", 6, 0, 6, 4],
+    [uiViewId, gridId, "ui", 0, 0, 6, 3],
     [bigUiViewId, "grid://ui", "ui", 0, 0, 12, 12],
-  ], "gridTile"));
+  ], "gridTile", ["table"]));
 
   ixer.handleDiffs(code.diffs.addView(
     "activeGrid",
     {grid: "string"},
     [[gridId]],
-    "activeGrid"));
+    "activeGrid", ["table"]));
 
   ixer.handleDiffs(code.diffs.addView(
     "gridTarget",
     {tile: "string", target: "string"}, [
       [uiViewId, "grid://ui"],
       [bigUiViewId, "grid://default"]
-    ], "gridTarget"));
+    ], "gridTarget", ["table"]));
 }
 dispatch("load");
 
