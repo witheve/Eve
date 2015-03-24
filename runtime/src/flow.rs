@@ -1,12 +1,19 @@
+use index::Index;
 use solver::{Value, Tuple, Relation, Query};
 
 use std::rc::Rc;
 use std::cell::RefCell;
 
 #[derive(Clone, Debug)]
+pub struct Union{
+    pub mappings: Vec<(usize, Vec<(usize, usize)>)>,
+}
+
+#[derive(Clone, Debug)]
 pub enum View {
     Input(Relation),
     Query(Query),
+    Union(Union),
 }
 
 #[derive(Clone, Debug)]
@@ -29,11 +36,33 @@ pub struct Flow {
     pub nodes: Vec<Node>,
 }
 
+impl Union {
+    fn run(&self, inputs: Vec<&Relation>) -> Relation {
+        assert_eq!(inputs.len(), self.mappings.len());
+        let mut index = Index::new();
+        for (input, &(max_len, ref mapping)) in inputs.iter().zip(self.mappings.iter()) {
+            for tuple in input.iter() {
+                println!("{:?} {:?}", tuple, mapping);
+                // TODO this ugliness is due to storing backtrack info inline with results
+                if tuple.len() == max_len {
+                    let mut output = Vec::with_capacity(mapping.len());
+                    for &(outer, inner) in mapping.iter() {
+                        output.push(tuple[outer][inner].clone());
+                    }
+                    index.insert(output, 1);
+                }
+            }
+        }
+        index
+    }
+}
+
 impl View {
-    fn run(&self, inputs: Vec<&Relation>) -> Vec<Tuple> {
+    fn run(&self, inputs: Vec<&Relation>) -> Relation {
         match *self {
-            View::Input(ref relation) => relation.iter().map(|tuple| tuple.clone()).collect(),
+            View::Input(ref relation) => relation.clone(),
             View::Query(ref query) => query.iter(inputs).collect(),
+            View::Union(ref union) => union.run(inputs),
         }
     }
 }
@@ -47,7 +76,7 @@ impl Flow {
                     let new_value = {
                         let upstream = node.upstream.iter().map(|state| state.borrow()).collect::<Vec<_>>();
                         let inputs = upstream.iter().map(|node| &node.value).collect();
-                        node.view.run(inputs).into_iter().collect()
+                        node.view.run(inputs)
                     };
                     let changed = {
                         let mut state = node.state.borrow_mut();

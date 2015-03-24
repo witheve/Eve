@@ -1,6 +1,7 @@
 use std;
 use std::iter::IntoIterator;
 use std::cmp::Ordering;
+use std::ops;
 
 use index::Index;
 
@@ -11,6 +12,8 @@ pub enum Value {
     Tuple(Tuple),
     Relation(Relation),
 }
+pub type Tuple = Vec<Value>;
+pub type Relation = Index<Vec<Value>>; // a set of tuples
 
 impl Ord for Value {
     fn cmp(&self, other: &Value) -> Ordering {
@@ -20,8 +23,16 @@ impl Ord for Value {
 
 impl Eq for Value {} // TODO this is unsafe for NaN
 
-pub type Tuple = Vec<Value>;
-pub type Relation = Index<Vec<Value>>; // a set of tuples
+impl ops::Index<usize> for Value {
+    type Output = Value;
+
+    fn index(&self, index: &usize) -> &Value {
+        match *self {
+            Value::Tuple(ref tuple) => tuple.index(index),
+            _ => panic!("Indexing a non-tuple value"),
+        }
+    }
+}
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum ConstraintOp {
