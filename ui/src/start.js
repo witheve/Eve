@@ -780,118 +780,51 @@ tiles.table = {
 
 
 var structuredSelectorItem = reactFactory({
-  select: function() {
-    if(this.props.select) {
-      this.props.select(this.props.view);
+  set: function() {
+    if(this.props.onSet) {
+      this.props.onSet(this.props.item.id);
     }
   },
   render: function() {
-    var className = "result";
-    if(this.props.selected) {
-      className += " selected";
-    }
-    return JSML(["li", {className: className,
-                        onClick: this.select},
-                 this.props.text]);
+    return JSML(["li", {onClick: this.set}, this.props.item.text]);
   }
 });
 
 var structuredSelector = reactFactory({
   getInitialState: function() {
-    return {search: "", selected: -1, active: false, modified: false};
+    return {active: false};
   },
-  componentDidUpdate: function(prev) {
-    if(this.props.value !== prev.value) {
-      this.setState({search: "", selected: -1, modified: false});
-    }
+  toggleActive: function() {
+    this.setState({active: !this.state.active});
   },
-  updateSearch: function(e) {
-    this.setState({search: e.target.textContent, selected: -1, modified: true});
-  },
-  deactivate: function(e) {
+  deactivate: function() {
     this.setState({active: false});
   },
-  activate: function(e) {
-    //@TODO: make this select all the contents of the field
-    this.setState({active: true});
-  },
-  handleKeys: function(e) {
-    if(e.keyCode === KEYS.ENTER) {
-      e.preventDefault();
-      var sel = this.state.selected;
-      if(sel === -1) {
-        sel = 0;
-      }
-      this.select(this.state.results[sel]);
-    } else if(e.keyCode === KEYS.UP) {
-      e.preventDefault();
-      var sel = this.state.selected;
-      if(sel > 0) {
-        sel -= 1;
-      } else {
-        sel = this.state.results.length - 1;
-      }
-      this.setState({selected: sel});
-    } else if(e.keyCode === KEYS.DOWN) {
-      e.preventDefault();
-      var sel = this.state.selected;
-      if(sel < this.state.results.length - 1) {
-        sel += 1;
-      } else {
-        sel = 0;
-      }
-      this.setState({selected: sel});
-    }
-  },
-  isValid: function() {
-    if(this.props.validate) {
-      if(this.state.modified) {
-        var sel = this.state.selected;
-        if(sel === -1) {
-          sel = 0;
-        }
-        var cur = this.state.results ? this.state.results[sel] : undefined;
-      } else {
-        var cur = this.props.selectedId;
-      }
-      return this.props.validate(cur, this.state.search);
-    }
-    return true;
-  },
-  select: function(view) {
-    if(this.props.onSelect && this.isValid()) {
-      this.props.onSelect(view);
+  set: function(id) {
+    this.deactivate();
+    if(this.props.onSet) {
+      this.props.onSet(id);
     }
   },
   render: function() {
     var self = this;
-    var search = this.state.search;
-    var items = [];
-    var results = [];
-    this.props.items.forEach(function(cur) {
-      var id = cur.id;
-      var text = cur.text;
-      if(text && text.indexOf(search) > -1) {
-        var selected = items.length === self.state.selected;
-        results.push(id);
-        items.push(structuredSelectorItem({id: id, text: text, selected: selected, select: self.select}));
-      }
-    });
-    var suggestions;
+    var items;
     if(this.state.active) {
-      suggestions = ["ul", items];
+      items = this.props.items.map(function(cur) {
+        return structuredSelectorItem({item: cur, onSet: self.set});
+      });
     }
-    this.state.results = results;
-    var valid = this.isValid() ? "valid" : "invalid";
-   return JSML(["div", {className: "structured-selector " + valid},
-                 ["span", {className: "input",
-                           contentEditable: true,
-                           onFocus: this.activate,
-                           onBlur: this.deactivate,
-                           onKeyDown: this.handleKeys,
-                           onInput: this.updateSearch,
-                           dangerouslySetInnerHTML: {__html: this.state.modified ? this.state.search : this.props.value}}],
-                 suggestions]);
+    var validClass = " valid";
+    if(this.props.invalid) {
+      validClass = " invalid";
+    }
+    var activeClass = " inactive";
+    if(this.state.active) {
+      activeClass = " active";
+    }
+    return JSML(["div", {className: "structured-selector" + validClass + activeClass},
+                 ["span", {className: "input", onClick: this.toggleActive}, this.props.value],
+                 ["ul", items]]);
   }
 });
 
@@ -917,7 +850,7 @@ var astComponents = {
         items = items.map(function(cur) {
           return {id: cur, text: code.refToName(cur)};
         });
-        return structuredSelector({items: items, onSelect: this.set, selectedId: this.props.curRef, value: name, validate: this.props.strict ? this.validate : null});
+        return structuredSelector({value: name, items: items, onSet: this.set, invalid: this.props.invalid});
       }
     }),
     "source-ref": reactFactory({
@@ -936,9 +869,6 @@ var astComponents = {
       }
     }),
     op: reactFactory({
-      validate: function(selected, raw) {
-        return selected !== undefined;
-      },
       set: function(op) {
         if(this.props.onSet) {
           this.props.onSet(op);
@@ -951,7 +881,7 @@ var astComponents = {
                    {id: ">=", text: ">="},
                    {id: "<=", text: "<="},
                    {id: "!=", text: "!="}];
-        return structuredSelector({items: allOps, onSelect: this.set, selectedId: this.props.op, value: this.props.op, validate: this.validate});
+        return structuredSelector({value: this.props.op, items: allOps, onSet: this.set});
       }
     }),
     variable: reactFactory({
@@ -987,11 +917,9 @@ var astComponents = {
       },
       validateRight: function(selected, raw) {
         //@TODO: can either be a constant or a ref
-        if(selected === undefined) return false;
         //left and right have to type check
         var left = code.refToType(this.props.constraint[2]);
-        var right = code.refToType(selected);
-        console.log("validateRight", left, right);
+        var right = code.refToType(this.props.constraint[3]);
         return code.typesEqual(left, right);
       },
       setOp: function(op) {
@@ -1016,7 +944,7 @@ var astComponents = {
         var cur = this.props.constraint;
         var left = astComponents["field-source-ref"]({curRef: cur[2], items: localRefs, onSet: this.setLeft, strict: true});
         //@TODO: right can be a constant or a ref...
-        var right = astComponents["field-source-ref"]({curRef: cur[3], items: rightRefs, onSet: this.setRight, validate: this.validateRight, strict: true});
+        var right = astComponents["field-source-ref"]({curRef: cur[3], items: rightRefs, onSet: this.setRight, invalid: !this.validateRight()});
         var op = astComponents["op"]({op: cur[1], onSet: this.setOp});
         return JSML(["div", {className: "structured-constraint"},
                      left,

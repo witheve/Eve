@@ -167,10 +167,13 @@ th:last-child { border-radius: 0 2px 2px 0; }
  * Structured editor
 \*****************************************************************************/
 
-.structured-selector { display:inline-block; }
+.structured-selector { display:inline-block; position:relative; }
 .structured-selector + .structured-selector { margin-left:5px; }
-.structured-selector .input { display:inline-block; outline:none; border-radius:2px; min-width: 15px; background:#444; min-height:1em; }
-.structured-selector ul { position:absolute; background: #444; color: #ccc; }
+.structured-selector .input { display:inline-block; outline:none; border-radius:2px; min-width: 15px; background:#444; min-height:1em; padding:3px 5px; cursor: default; }
+.structured-selector.active .input { padding:3px 5px; box-shadow: 0 0 8px #111; }
+.structured-selector ul { position:absolute; z-index: 10; left:-5px; margin-top:5px; background: #444; color: #ccc; box-shadow:0 0px 8px #111; border-radius:2px; }
+.structured-selector li { padding:5px 10px; border-radius:2px; cursor:default; }
+.structured-selector li:hover { background: #666; }
 .structured-selector .selected { background:red; }
 .structured-selector.invalid .input { background:red; }
 
@@ -197,4 +200,4 @@ th:last-child { border-radius: 0 2px 2px 0; }
 
 .view-wrapper { display:flex; flex:1; }
 .view-wrapper .view-source { flex: none; margin-right: 30px; display:flex; flex-direction:column; align-items:center; }
-.view-wrapper .view-source ul { margin:8px 0; }
+.view-wrapper .view-source > ul { margin:8px 0; }
