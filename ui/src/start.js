@@ -275,6 +275,10 @@ var gridTile = reactFactory({
     return {currentPos: [this.props.left, this.props.top], currentSize: [this.props.width, this.props.height]};
   },
 
+  close: function(evt) {
+    dispatch("closeTile", this.props.id);
+  },
+
   navigate: function(evt) {
     if(this.props.onNavigate) {
       this.props.onNavigate(this.props.id);
@@ -353,6 +357,8 @@ var gridTile = reactFactory({
     var attrs = {key: this.props.id, className: "grid-tile " + this.props.type, style: style};
     var controls = [];
     var children = [];
+
+    controls.push(["button", {className: "close-tile ion-android-close", onClick: this.close}]);
 
     if(tile.flippable !== false) {
       attrs.className += (this.state.flipped ? " flipped" : "");
@@ -1329,6 +1335,11 @@ function dispatch(event, arg, noRedraw) {
       diffs = {
         gridTile: {adds: [fact]}
       };
+      break;
+    case "closeTile":
+      // @TODO: clean up old dependent facts.
+      var fact = ixer.index("gridTile")[arg].slice();
+      diffs.gridTile = {removes: [fact]};
       break;
     case "updateTile":
       var oldTile = ixer.index("gridTile")[arg.id].slice();
