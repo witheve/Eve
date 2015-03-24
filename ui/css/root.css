@@ -138,7 +138,7 @@ body {
   transform: rotateZ(-45deg);
 }
 
-.grid-tile.add { opacity: 0; }
+.grid-tile.add { opacity: 0; overflow: hidden; }
 .grid-tile.add:hover { opacity: 0.5 }
 .grid-tile.add:active { opacity: 0.75 }
 .grid-tile.add .grid-tile-inner > .toolbar { opacity: 0; pointer-events: none; }

@@ -1644,6 +1644,7 @@ function dispatch(event, arg, noRedraw) {
       var tile = oldTile.slice();
       //set to a tile type
       var type = tile[2] = (code.hasTag(arg.view, "table") ? "table" : "view");
+      console.log("type", arg.view, code.hasTag(arg.view, "view"), type);
       diffs = {gridTile: {adds: [tile], removes: [oldTile]}};
       diffs[type + "Tile"] = {adds: [[tile[0], arg.view]]}; // @NOTE: So hacky
       break;
@@ -1803,7 +1804,13 @@ var code = {
     }
   },
   hasTag: function(id, tag) {
-    return ixer.index("tag")[id].indexOf(tag) !== -1;
+    var tags = ixer.index("tag")[id];
+    for(var ix in tags) {
+      if(tags[ix][1] == tag) {
+        return true;
+      }
+    }
+    return false;
   },
   ast: {
     fieldSourceRef: function(source, field) {
