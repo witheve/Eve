@@ -1548,6 +1548,10 @@ ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
 
 
 function initIndexer() {
+  ixer.handleDiffs(code.diffs.addView("view", {id: "string", schema: "string", query: "string"}, undefined, "view"));
+  ixer.handleDiffs(code.diffs.addView("field", {id: "string", schema: "string", ix: "number"}, undefined, "field"));
+  ixer.handleDiffs(code.diffs.addView("displayName", {id: "string", name: "string"}, undefined, "displayName"));
+
   //add some views
   ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schema", "query"]], removes: []},
                     schema: {adds: [["foo-schema"], ["qq-schema"]], removes: []},
