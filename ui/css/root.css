@@ -32,9 +32,16 @@ body {
   color: #acf;
 }
 
-.pull-right {
-  float: right;
+.pull-right { float: right; }
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
 }
+::-webkit-scrollbar-corner { display: none; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.5); }
 
 
 /*****************************************************************************\
@@ -90,7 +97,6 @@ body {
 .grid-tile {
   position: absolute;
   z-index: 1;
-  overflow:auto;
 
   background: #2c2c2c;
   border-radius: 3px;
@@ -176,7 +182,7 @@ th:last-child { border-radius: 0 2px 2px 0; }
 
 .table-wrapper tbody { overflow-y: auto; }
 
-.table-wrapper { flex: 1; display: flex; overflow-x: auto; }
+.table-wrapper { flex: 1; display: flex; overflow: auto; }
 .add-column { margin-left: 10px; }
 
 /*****************************************************************************\
