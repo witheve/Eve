@@ -412,6 +412,9 @@ var gridTile = reactFactory({
   // Dragging
   startDrag: function(evt) {
     var dT = evt.dataTransfer;
+    //NOTE: setting the text data is necessary for some browser to subsequently
+    //trigger the drop event :(
+    dT.setData("text", "foo");
     dT.setData("tile/" + this.props.type, this.props.id);
     dT.setData("tile/generic", this.props.id);
     var offset = [evt.clientX - this.props.left, evt.clientY - this.props.top];
@@ -434,6 +437,9 @@ var gridTile = reactFactory({
   startResize: function(evt) {
     evt.stopPropagation();
     var dT = evt.dataTransfer;
+    //NOTE: setting the text data is necessary for some browser to subsequently
+    //trigger the drop event :(
+    dT.setData("text", "foo");
     dT.setData("tile/generic", this.props.id);
     dT.setDragImage(document.getElementById("clear-pixel"), 0, 0);
     var offset = [evt.clientX - this.props.width, evt.clientY - this.props.height];
@@ -792,11 +798,16 @@ var editable = reactFactory({
   },
   render: function() {
     var value = this.state.value || this.props.value;
+    if(value === undefined) {
+      value = ""
+    } else if(typeof value === "object") {
+      value = JSON.stringify(value);
+    }
     return JSML(["div", {"contentEditable": true,
                          "onInput": this.handleChange,
                          "onBlur": this.submit,
                          "onKeyDown": this.handleKeys,
-                         dangerouslySetInnerHTML: {__html: value !== undefined ? value : ""}}]);
+                         dangerouslySetInnerHTML: {__html: value}}]);
   }
 });
 
@@ -937,23 +948,206 @@ tiles.table = {
 };
 
 //---------------------------------------------------------
+// Constraint editor
+//---------------------------------------------------------
+
+//---------------------------------------------------------
+// Function editor
+//---------------------------------------------------------
+
+
+var structuredSelectorItem = reactFactory({
+  set: function() {
+    if(this.props.onSet) {
+      this.props.onSet(this.props.item.id);
+    }
+  },
+  render: function() {
+    return JSML(["li", {onClick: this.set}, this.props.item.text]);
+  }
+});
+
+var structuredSelector = reactFactory({
+  getInitialState: function() {
+    return {active: false};
+  },
+  toggleActive: function() {
+    this.setState({active: !this.state.active});
+  },
+  deactivate: function() {
+    this.setState({active: false});
+  },
+  set: function(id) {
+    this.deactivate();
+    if(this.props.onSet) {
+      this.props.onSet(id);
+    }
+  },
+  render: function() {
+    var self = this;
+    var items;
+    if(this.state.active) {
+      items = this.props.items.map(function(cur) {
+        return structuredSelectorItem({item: cur, onSet: self.set});
+      });
+    }
+    var validClass = " valid";
+    if(this.props.invalid) {
+      validClass = " invalid";
+    }
+    var activeClass = " inactive";
+    if(this.state.active) {
+      activeClass = " active";
+    }
+    return JSML(["div", {className: "structured-selector" + validClass + activeClass},
+                 ["span", {className: "input", onClick: this.toggleActive}, this.props.value],
+                 ["ul", items]]);
+  }
+});
+
+
+var astComponents = {
+    "field-source-ref": reactFactory({
+      validate: function(selected, raw) {
+        if(this.props.validate) {
+          return this.props.validate(selected, raw);
+        }
+        return selected !== undefined;
+      },
+      set: function(ref) {
+        console.log("Set!", ref);
+        if(this.props.onSet) {
+          this.props.onSet(ref);
+        }
+      },
+      render: function() {
+//         return {"": "field-source-ref", source: source, field: field};
+        var name = code.refToName(this.props.curRef);
+        var items = this.props.items || [];
+        items = items.map(function(cur) {
+          return {id: cur, text: code.refToName(cur)};
+        });
+        return structuredSelector({value: name, items: items, onSet: this.set, invalid: this.props.invalid});
+      }
+    }),
+    "source-ref": reactFactory({
+      render: function() {
+//       return {"": "source-ref", source: source};
+      }
+    }),
+    "field-ref": reactFactory({
+      render: function() {
+//       return {"": "field-ref", field: field};
+      }
+    }),
+    constant: reactFactory({
+      render: function() {
+//       return {"": "constant", value: value};
+      }
+    }),
+    op: reactFactory({
+      set: function(op) {
+        if(this.props.onSet) {
+          this.props.onSet(op);
+        }
+      },
+      render: function() {
+        var allOps = [{id: "=", text: "="},
+                   {id: ">", text: ">"},
+                   {id: "<", text: "<"},
+                   {id: ">=", text: ">="},
+                   {id: "<=", text: "<="},
+                   {id: "!=", text: "!="}];
+        return structuredSelector({value: this.props.op, items: allOps, onSet: this.set});
+      }
+    }),
+    variable: reactFactory({
+      render: function() {
+//       return {"": "variable", string: string};
+      }
+    }),
+    call: reactFactory({
+      render: function() {
+//       return {"": "call", primitive: primitive, args: args};
+      }
+    }),
+    match: reactFactory({
+      render: function() {
+//       return {"": "match", patterns: patterns, handlers: handlers};
+      }
+    }),
+    tuple: reactFactory({
+      render: function() {
+//       return {"": "tuple", patterns: patterns};
+      }
+    }),
+    constraint: reactFactory({
+      setLeft: function(ref) {
+        var neue = this.props.constraint.slice();
+        neue[2] = ref;
+        dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
+      },
+      setRight: function(ref) {
+        var neue = this.props.constraint.slice();
+        neue[3] = ref;
+        dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
+      },
+      validateRight: function(selected, raw) {
+        //@TODO: can either be a constant or a ref
+        //left and right have to type check
+        var left = code.refToType(this.props.constraint[2]);
+        var right = code.refToType(this.props.constraint[3]);
+        return code.typesEqual(left, right);
+      },
+      setOp: function(op) {
+        var neue = this.props.constraint.slice();
+        neue[1] = op;
+        dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
+      },
+      render: function() {
+        var view = this.props.source[1];
+        var sourceId = this.props.source[0];
+        var viewOrData = this.props.source[3];
+        var allRefs = code.viewToRefs(view);
+        var leftType = code.refToType(this.props.constraint[2]);
+
+        var rightRefs = allRefs.filter(function(cur) {
+          return code.typesEqual(leftType, code.refToType(cur));
+        });
+
+        var localRefs = allRefs.filter(function(cur) {
+          return cur.source === sourceId;
+        });
+        var cur = this.props.constraint;
+        var left = astComponents["field-source-ref"]({curRef: cur[2], items: localRefs, onSet: this.setLeft, strict: true});
+        //@TODO: right can be a constant or a ref...
+        var right = astComponents["field-source-ref"]({curRef: cur[3], items: rightRefs, onSet: this.setRight, invalid: !this.validateRight()});
+        var op = astComponents["op"]({op: cur[1], onSet: this.setOp});
+        return JSML(["div", {className: "structured-constraint"},
+                     left,
+                     op,
+                     right,
+                    ])
+      }
+    }),
+}
+
+//---------------------------------------------------------
 // View components
 //---------------------------------------------------------
 
 var viewSource = reactFactory({
   render: function() {
+    var self = this;
     var viewOrFunction = this.props.source[3];
     var constraints = this.props.constraints.map(function(cur) {
-      var left = code.refToName(cur[2]);
-      var right = code.refToName(cur[3]);
       var remove = function() {
-        dispatch("removeConstaint", {constraint: cur.slice()})
+//         dispatch("removeConstaint", {constraint: cur.slice()})
       };
-      return ["li", {onClick: remove},
-              left, " " + cur[1] + " ", right];
+      return ["li", {onClick: remove}, astComponents["constraint"]({constraint: cur, source: self.props.source})];
     });
     return JSML(["div", {className: "view-source"},
-                 ["h1", viewOrFunction],
+                 ["h1", code.name(viewOrFunction)],
                  ["ul", constraints],
                  table({tileId: this.props.tileId, tableId: viewOrFunction})
                 ]);
@@ -1493,8 +1687,11 @@ function dispatch(event, arg, noRedraw) {
       diffs = code.diffs.autoJoins(arg.view, arg.source, sourceId);
       diffs["source"] = {adds: [[sourceId, arg.view, ix, arg.source, true]], removes: []};
       break;
-    case "removeConstaint":
+    case "removeConstraint":
       diffs.constraint = {removes: [arg.constraint]};
+      break;
+    case "swapConstraint":
+      diffs.constraint = {adds: [arg.neue.slice()], removes: [arg.old.slice()]}
       break;
     case "undo":
       storeEvent = false;
@@ -1566,7 +1763,7 @@ var code = {
         field: {adds: fieldAdds},
         displayName: {adds: displayNames}
       };
-      if(initial) {
+      if(initial && initial.length) {
         diffs[id] = {adds: initial};
       }
       if(tags) {
@@ -1608,6 +1805,32 @@ var code = {
   hasTag: function(id, tag) {
     return ixer.index("tag")[id].indexOf(tag) !== -1;
   },
+  ast: {
+    fieldSourceRef: function(source, field) {
+      return {"": "field-source-ref", source: source, field: field};
+    },
+    sourceRef: function(source) {
+      return {"": "source-ref", source: source};
+    },
+    fieldRef: function(field) {
+      return {"": "field-ref", field: field};
+    },
+    constant: function(value) {
+      return {"": "constant", value: value};
+    },
+    variable: function(string) {
+      return {"": "variable", string: string};
+    },
+    call: function(primitive, args) {
+      return {"": "call", primitive: primitive, args: args};
+    },
+    match: function(patterns, handlers) {
+      return {"": "match", patterns: patterns, handlers: handlers};
+    },
+    tuple: function(patterns) {
+      return {"": "tuple", patterns: patterns};
+    }
+  },
   viewToFields: function(view) {
     var schema = ixer.index("viewToSchema")[view];
     return ixer.index("schemaToFields")[schema];
@@ -1624,10 +1847,34 @@ var code = {
         break;
     }
   },
+  refToType: function(ref) {
+    return ixer.index("field")[ref.field][3];
+  },
+  typesEqual: function(a, b) {
+    //@TODO: equivalence. e.g. int = number
+    return a === b;
+  },
+  viewToRefs: function(view) {
+    var refs = [];
+    var sources = ixer.index("viewToSources")[view] || [];
+    sources.forEach(function(source) {
+      var viewOrData = source[3];
+      var sourceView = viewOrData;
+      //view
+      if(typeof viewOrData !== "string") {
+        //@TODO: handle getting the refs for functions
+        sourceView = null;
+      }
+      code.viewToFields(sourceView).forEach(function(field) {
+        refs.push(code.ast.fieldSourceRef(source[0], field[0]));
+      });
+    });
+    return refs;
+  },
   name: function(id) {
     return ixer.index("displayName")[id];
   }
-}
+};
 
 //---------------------------------------------------------
 // Global key handling
@@ -1661,6 +1908,7 @@ window.addEventListener("unload", function(e) {
 ixer.addIndex("tag", "tag", Indexing.create.collector([0]));
 ixer.addIndex("displayName", "displayName", Indexing.create.lookup([0, 1]));
 ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
+ixer.addIndex("field", "field", Indexing.create.lookup([0, false]));
 ixer.addIndex("sourceToData", "source", Indexing.create.lookup([0, 3]));
 ixer.addIndex("editId", "editId", Indexing.create.lookup([0,1,2]));
 ixer.addIndex("viewToSchema", "view", Indexing.create.lookup([0, 1]));
@@ -1675,7 +1923,6 @@ ixer.addIndex("gridTile", "gridTile", Indexing.create.lookup([0, false]));
 ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
 ixer.addIndex("viewTile", "viewTile", Indexing.create.lookup([0, false]));
 
-
 function initIndexer() {
   ixer.handleDiffs(code.diffs.addView("view", {id: "string", schema: "string", query: "string"}, undefined, "view", ["table"]));
   ixer.handleDiffs(code.diffs.addView("field", {id: "string", schema: "string", ix: "number"}, undefined, "field", ["table"]));
@@ -1686,7 +1933,7 @@ function initIndexer() {
   //add some views
   ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schema", "query"]], removes: []},
                     schema: {adds: [["foo-schema"], ["qq-schema"]], removes: []},
-                    field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "string"], ["qq-a", "qq-schema", 0, "string"]], removes: []},
+                    field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "number"], ["qq-a", "qq-schema", 0, "string"]], removes: []},
                     //                   source: {adds: [["foo-source", "qq", 0, "foo", true], ["zomg-source", "qq", 0, "zomg", false]], removes: []},
                     editId: {adds: [["foo", JSON.stringify(["a", "b"]), 0], ["foo", JSON.stringify(["c", "d"]), 1]], removes: []},
                     foo: {adds: [["a", "b"], ["c", "d"]], removes: []},
@@ -1697,12 +1944,35 @@ function initIndexer() {
 
   ixer.handleDiffs(code.diffs.addView("zomg", {
     a: "string",
-    e: "string",
-    f: "string"
+    e: "number",
+    f: "number"
   }, [
     ["a", "b", "c"],
     ["d", "e", "f"]
   ], "zomg", ["table"]));
+
+
+//code views
+ixer.handleDiffs(
+  code.diffs.addView("schema", {id: "id"}, [], "schema"));
+ixer.handleDiffs(
+  code.diffs.addView("field", {id: "id", schema: "id", ix: "int", type: "type"}, [], "field"));
+ixer.handleDiffs(
+  code.diffs.addView("primitive", {id: "id", inSchema: "id", outSchema: "id"}, [], "primitive"));
+ixer.handleDiffs(
+  code.diffs.addView("view", {id: "id", schema: "id", kind: "query|union"}, [], "view"));
+ixer.handleDiffs(
+  code.diffs.addView("source", {id: "id", view: "id", ix: "int", data: "data", splat: "bool"}, [], "source"));
+ixer.handleDiffs(
+  code.diffs.addView("constraint", {view: "id", op: "op", left: "reference", right: "reference"}, [], "constraint"));
+
+
+//example tables
+ixer.handleDiffs(
+  code.diffs.addView("employees", {department: "string", name: "string", salary: "float"}, [], false));
+ixer.handleDiffs(
+  code.diffs.addView("department heads", {department: "string", head: "string"}, [], false));
+
 
 
   var gridId = "grid://default";
