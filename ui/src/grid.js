@@ -85,10 +85,14 @@ var Grid = (function(document, React, Velocity) {
       var xOffset = tile.pos[0] - from[0];
       var yOffset = tile.pos[1] - from[1];
       var xEdge = xOffset > 0 ? grid.size[0] + 1 : (xOffset < 0 ? -tile.size[0] - 1 : tile.pos[0]);
-      var yEdge = yOffset > 0 ? grid.size[1] + 1 : (yOffset < 0 ? -tile.size[1] - 1 : tile.pos[0]);
+      var yEdge = yOffset > 0 ? grid.size[1] + 1 : (yOffset < 0 ? -tile.size[1] - 1 : tile.pos[1]);
 
       if(force && xEdge === tile.pos[0] && yEdge === tile.pos[1]) {
-        yEdge = grid.size[1] + 1;
+        if(tile.pos[1] > grid.size[1] / 2) {
+          yEdge = grid.size[1] + 1;
+        } else {
+          yEdge = -tile.size[1] - 1;
+        }
       }
 
       return {pos: [xEdge, yEdge], size: tile.size};

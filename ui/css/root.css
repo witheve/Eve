@@ -32,9 +32,16 @@ body {
   color: #acf;
 }
 
-.pull-right {
-  float: right;
+.pull-right { float: right; }
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
 }
+::-webkit-scrollbar-corner { display: none; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.5); }
 
 
 /*****************************************************************************\
@@ -90,7 +97,6 @@ body {
 .grid-tile {
   position: absolute;
   z-index: 1;
-  overflow:hidden;
 
   background: #2c2c2c;
   border-radius: 3px;
@@ -138,14 +144,31 @@ body {
   transform: rotateZ(-45deg);
 }
 
-.grid-tile.add { opacity: 0; }
+.grid-tile.add { opacity: 0; overflow: hidden; }
 .grid-tile.add:hover { opacity: 0.5 }
 .grid-tile.add:active { opacity: 0.75 }
-.grid-tile.add .toolbar { opacity: 0; pointer-events: none; }
+.grid-tile.add .grid-tile-inner > .toolbar { opacity: 0; pointer-events: none; }
 .grid-tile.add .corner-se-grip { opacity: 0; pointer-events: none; }
-.grid-tile.add div {
-  position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+.grid-tile.add div { position: absolute; top: 0; left: 0; bottom: 0; right: 0; }
+
+.grid-tile.addChooser .tile-type-chooser { display: flex; flex-direction: row; }
+.grid-tile.addChooser .pane-1 { display: flex; flex-direction: column; }
+
+.grid-tile.addChooser .pane-1 button {
+  font-size: 1.2em;
+  font-weight: 100;
+  padding: 4px 8px;
+  margin: 0 4px;
+
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: #aaa;
+  text-align: left;
 }
+.grid-tile.addChooser .pane-1 button:hover { background: rgba(255, 255, 255, 0.1); color: rgba(96, 208, 255, 0.8); }
+.grid-tile.addChooser .pane-1 button:active { background: rgba(255, 255, 255, 0.2); color: rgb(96, 208, 255); }
+.grid-tile.addChooser .pane { padding: 4px 8px; }
 
 
 /*****************************************************************************\
@@ -159,7 +182,7 @@ th:last-child { border-radius: 0 2px 2px 0; }
 
 .table-wrapper tbody { overflow-y: auto; }
 
-.table-wrapper { flex: 1; display: flex; overflow-x: auto; }
+.table-wrapper { flex: 1; display: flex; overflow: auto; }
 .add-column { margin-left: 10px; }
 
 /*****************************************************************************\
@@ -173,6 +196,20 @@ th:last-child { border-radius: 0 2px 2px 0; }
 .table-selector .result h2 { font-size:12pt; margin-bottom:3px;  }
 .table-selector .result ul { font-size:10pt; display:flex; }
 .table-selector .result li { margin-right:8px; font-style:italic; }
+
+/*****************************************************************************\
+ * Structured editor
+\*****************************************************************************/
+
+.structured-selector { display:inline-block; position:relative; }
+.structured-selector + .structured-selector { margin-left:5px; }
+.structured-selector .input { display:inline-block; outline:none; border-radius:2px; min-width: 15px; background:#444; min-height:1em; padding:3px 5px; cursor: default; }
+.structured-selector.active .input { padding:3px 5px; box-shadow: 0 0 8px #111; }
+.structured-selector ul { position:absolute; z-index: 10; left:-5px; margin-top:5px; background: #444; color: #ccc; box-shadow:0 0px 8px #111; border-radius:2px; }
+.structured-selector li { padding:5px 10px; border-radius:2px; cursor:default; }
+.structured-selector li:hover { background: #666; }
+.structured-selector .selected { background:red; }
+.structured-selector.invalid .input { background:red; }
 
 /*****************************************************************************\
  * UI editor
@@ -197,3 +234,4 @@ th:last-child { border-radius: 0 2px 2px 0; }
 
 .view-wrapper { display:flex; flex:1; }
 .view-wrapper .view-source { flex: none; margin-right: 30px; display:flex; flex-direction:column; align-items:center; }
+.view-wrapper .view-source > ul { margin:8px 0; }

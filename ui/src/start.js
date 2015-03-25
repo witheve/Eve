@@ -86,6 +86,17 @@ function factToTile(tile) {
   };
 }
 
+function mergeDiffs(dest, src) {
+  for(var key in src) {
+    if(!src.hasOwnProperty(key) && !ignoreHasOwnProperty) { continue; }
+    if(!dest[key].adds) { dest[key].adds = []; }
+    if(!dest[key].removes) { dest[key].removes = []; }
+    if(src[key].adds) { dest[key].adds.push.apply(dest[key], src[key].adds); }
+    if(src[key].removes) { dest[key].removes.push.apply(dest[key], src[key].removes); }
+  }
+  return dest;
+}
+
 //---------------------------------------------------------
 // UI state
 //---------------------------------------------------------
@@ -149,7 +160,7 @@ var root = reactFactory({
     setTimeout(function() {
       self.setState({nav: false, prevNav: self.state.nav});
       dispatch("navigate", {id: id, target: target});
-    }, 500);
+    }, 600);
   },
   chooseProgram: function() {
     console.warn("@TODO: Implement me.");
@@ -169,7 +180,7 @@ var root = reactFactory({
       navTile = factToTile(ixer.index("gridTile")[this.state.nav.id]);
       var prevNavTile = (this.state.prevNav ? factToTile(ixer.index("gridTile")[this.state.prevNav.id]) : undefined);
       animations = (this.state.nav.inward ?
-                    [["unevacuate", navTile.pos], ["confine", prevNavTile]] :
+                    [["unevacuate", prevNavTile.pos], ["confine", prevNavTile]] :
                     [["unconfine", navTile], ["evacuate", navTile.pos]]
                    );
     }
@@ -230,6 +241,7 @@ tiles.debug = {
 };
 
 tiles.add = {
+  navigable: false,
   flippable: false,
   resizable: false,
   draggable: false,
@@ -238,15 +250,84 @@ tiles.add = {
     addTile: function(evt) {
       dispatch("addTile", {
         id: this.props.tileId,
-        type: "addTable",
+        type: "addChooser",
         pos: this.props.pos,
         size: this.props.size
       });
     },
     render: function() {
-      return JSML(["div", {
-        onClick: this.addTile
-      }]);
+      return JSML(["div", {onClick: this.addTile}]);
+    }
+  })
+};
+
+var addTileTypes = {
+  "ui": {
+    name: "ui", description: "Visualize your data with a user interface.",
+    add: function(id) {
+      dispatch("updateTile", {id: id, type: "ui"});
+    }
+  },
+  "existing": {
+    name: "existing", description: "Add new data in a spreadsheet.",
+    pane: function(id) {
+      return tableSelector({onSelect: addTileTypes.existing.add.bind(null, id)});
+    },
+    add: function(id, view) {
+      // Update type.
+      dispatch("setTileView", {tileId: id, view: view});
+    }
+  },
+  "view": {
+    name: "view", description: "Run calculations or transformations on your data.",
+    add: function(id) {
+      dispatch("addView", id);
+    }
+  },
+  "table": {
+    name: "table", description: "Open an existing tile in this grid.",
+    add: function(id) {
+      dispatch("addTable", id);
+    }
+  },
+};
+
+
+tiles.addChooser = {
+  navigable: false,
+  flippable: false,
+  content: reactFactory({
+    displayName: "add-chooser",
+    getInitialState: function() {
+      return {description: "Hover a tile type to read about what it is used for."};
+    },
+    hoverType: function(type) {
+      this.setState({description: addTileTypes[type].description});
+    },
+    chooseType: function(type) {
+      var tile = addTileTypes[type];
+      if(tile.pane) {
+        this.setState({pane2: addTileTypes[type].pane(this.props.tileId)});
+      } else {
+        tile.add(this.props.tileId);
+      }
+    },
+    render: function() {
+      var controls = [];
+      for(var type in addTileTypes) {
+        var tile = addTileTypes[type];
+        var control = ["button", {
+          onMouseOver: this.hoverType.bind(this, type),
+          onClick: this.chooseType.bind(this, type)
+        }, tile.name];
+        controls.push(control);
+      }
+      return JSML(
+        ["div", {className: "tile-type-chooser"},
+         ["div", {className: "pane-1"}, controls],
+         (this.state.pane2 ? ["div", {className: "pane-2 pane"}, this.state.pane2] : undefined),
+         (this.state.description ? ["div", {className: "description pane"}, this.state.description] : undefined)]
+      );
     }
   })
 };
@@ -269,10 +350,44 @@ var tileProperties = reactFactory({
   }
 });
 
+var tableProperties = reactFactory({
+  displayName: "table-properties",
+  getInitialState: function() {
+    var type = ixer.index("gridTile")[this.props.tileId][2];
+    return {type: type};
+  },
+  getView: function() {
+    return ixer.index(this.state.type + "Tile")[this.props.tileId][1];
+  },
+  setName: function(val) {
+    var id = this.getView();
+    dispatch("rename", {id: id, value: val});
+  },
+  render: function() {
+    var id = this.getView();
+    var name = ixer.index("displayName")[id];
+
+    return JSML(
+      ["div",
+       tileProperties({tileId: this.props.tileId}),
+       ["br"],
+       ["table", verticalTable([
+         ["id", id],
+         ["name", editable({value: name, onSubmit: this.setName})]
+       ])]
+      ]
+    );
+  }
+});
+
 var gridTile = reactFactory({
   displayName: "grid-tile",
   getInitialState: function() {
     return {currentPos: [this.props.left, this.props.top], currentSize: [this.props.width, this.props.height]};
+  },
+
+  close: function(evt) {
+    dispatch("closeTile", this.props.id);
   },
 
   navigate: function(evt) {
@@ -297,6 +412,9 @@ var gridTile = reactFactory({
   // Dragging
   startDrag: function(evt) {
     var dT = evt.dataTransfer;
+    //NOTE: setting the text data is necessary for some browser to subsequently
+    //trigger the drop event :(
+    dT.setData("text", "foo");
     dT.setData("tile/" + this.props.type, this.props.id);
     dT.setData("tile/generic", this.props.id);
     var offset = [evt.clientX - this.props.left, evt.clientY - this.props.top];
@@ -319,6 +437,9 @@ var gridTile = reactFactory({
   startResize: function(evt) {
     evt.stopPropagation();
     var dT = evt.dataTransfer;
+    //NOTE: setting the text data is necessary for some browser to subsequently
+    //trigger the drop event :(
+    dT.setData("text", "foo");
     dT.setData("tile/generic", this.props.id);
     dT.setDragImage(document.getElementById("clear-pixel"), 0, 0);
     var offset = [evt.clientX - this.props.width, evt.clientY - this.props.height];
@@ -353,6 +474,8 @@ var gridTile = reactFactory({
     var attrs = {key: this.props.id, className: "grid-tile " + this.props.type, style: style};
     var controls = [];
     var children = [];
+
+    controls.push(["button", {className: "close-tile ion-android-close", onClick: this.close}]);
 
     if(tile.flippable !== false) {
       attrs.className += (this.state.flipped ? " flipped" : "");
@@ -428,7 +551,7 @@ var stage = reactFactory({
       var style;
       switch(type) {
         case "evacuate":
-          var tile = Grid.evacuateTile(this.state.grid, child.props, arg);
+          var tile = Grid.evacuateTile(this.state.grid, child.props, arg, true);
           style = Grid.getRect(this.state.grid, tile);
           if(child.props.pos[0] === arg[0] && child.props.pos[1] === arg[1]) {
             child.getDOMNode().style.opacity = 0;
@@ -645,18 +768,6 @@ var tableSelector = reactFactory({
   }
 });
 
-tiles.addTable = {
-  flippable: false,
-  content: reactFactory({
-    onSelect: function(view) {
-      dispatch("setTileView", {tileId: this.props.tileId, view: view});
-    },
-    render: function() {
-      return tableSelector({onSelect: this.onSelect});
-    }
-  })
-};
-
 //---------------------------------------------------------
 // Table components
 //---------------------------------------------------------
@@ -687,11 +798,16 @@ var editable = reactFactory({
   },
   render: function() {
     var value = this.state.value || this.props.value;
+    if(value === undefined) {
+      value = ""
+    } else if(typeof value === "object") {
+      value = JSON.stringify(value);
+    }
     return JSML(["div", {"contentEditable": true,
                          "onInput": this.handleChange,
                          "onBlur": this.submit,
                          "onKeyDown": this.handleKeys,
-                         dangerouslySetInnerHTML: {__html: value !== undefined ? value : ""}}]);
+                         dangerouslySetInnerHTML: {__html: value}}]);
   }
 });
 
@@ -828,30 +944,193 @@ tiles.table = {
       return table(opts);
     }
   },
-  backContent: reactFactory({
-    displayName: "table-properties",
-    setName: function(val) {
-      var currentTable = ixer.index("tableTile")[this.props.tileId];
-      var id = currentTable[1];
-      dispatch("rename", {id: id, value: val});
-    },
-    render: function() {
-      var currentTable = ixer.index("tableTile")[this.props.tileId];
-      var id = currentTable[1];
-      var name = ixer.index("displayName")[id];
-
-      return JSML(
-        ["div",
-         tileProperties({tileId: this.props.tileId}),
-         ["br"],
-         ["table", verticalTable([
-           ["name", editable({value: name, onSubmit: this.setName})]
-         ])]
-        ]
-      );
-    }
-  })
+  backContent: tableProperties
 };
+
+//---------------------------------------------------------
+// Constraint editor
+//---------------------------------------------------------
+
+//---------------------------------------------------------
+// Function editor
+//---------------------------------------------------------
+
+
+var structuredSelectorItem = reactFactory({
+  set: function() {
+    if(this.props.onSet) {
+      this.props.onSet(this.props.item.id);
+    }
+  },
+  render: function() {
+    return JSML(["li", {onClick: this.set}, this.props.item.text]);
+  }
+});
+
+var structuredSelector = reactFactory({
+  getInitialState: function() {
+    return {active: false};
+  },
+  toggleActive: function() {
+    this.setState({active: !this.state.active});
+  },
+  deactivate: function() {
+    this.setState({active: false});
+  },
+  set: function(id) {
+    this.deactivate();
+    if(this.props.onSet) {
+      this.props.onSet(id);
+    }
+  },
+  render: function() {
+    var self = this;
+    var items;
+    if(this.state.active) {
+      items = this.props.items.map(function(cur) {
+        return structuredSelectorItem({item: cur, onSet: self.set});
+      });
+    }
+    var validClass = " valid";
+    if(this.props.invalid) {
+      validClass = " invalid";
+    }
+    var activeClass = " inactive";
+    if(this.state.active) {
+      activeClass = " active";
+    }
+    return JSML(["div", {className: "structured-selector" + validClass + activeClass},
+                 ["span", {className: "input", onClick: this.toggleActive}, this.props.value],
+                 ["ul", items]]);
+  }
+});
+
+
+var astComponents = {
+    "field-source-ref": reactFactory({
+      validate: function(selected, raw) {
+        if(this.props.validate) {
+          return this.props.validate(selected, raw);
+        }
+        return selected !== undefined;
+      },
+      set: function(ref) {
+        console.log("Set!", ref);
+        if(this.props.onSet) {
+          this.props.onSet(ref);
+        }
+      },
+      render: function() {
+//         return {"": "field-source-ref", source: source, field: field};
+        var name = code.refToName(this.props.curRef);
+        var items = this.props.items || [];
+        items = items.map(function(cur) {
+          return {id: cur, text: code.refToName(cur)};
+        });
+        return structuredSelector({value: name, items: items, onSet: this.set, invalid: this.props.invalid});
+      }
+    }),
+    "source-ref": reactFactory({
+      render: function() {
+//       return {"": "source-ref", source: source};
+      }
+    }),
+    "field-ref": reactFactory({
+      render: function() {
+//       return {"": "field-ref", field: field};
+      }
+    }),
+    constant: reactFactory({
+      render: function() {
+//       return {"": "constant", value: value};
+      }
+    }),
+    op: reactFactory({
+      set: function(op) {
+        if(this.props.onSet) {
+          this.props.onSet(op);
+        }
+      },
+      render: function() {
+        var allOps = [{id: "=", text: "="},
+                   {id: ">", text: ">"},
+                   {id: "<", text: "<"},
+                   {id: ">=", text: ">="},
+                   {id: "<=", text: "<="},
+                   {id: "!=", text: "!="}];
+        return structuredSelector({value: this.props.op, items: allOps, onSet: this.set});
+      }
+    }),
+    variable: reactFactory({
+      render: function() {
+//       return {"": "variable", string: string};
+      }
+    }),
+    call: reactFactory({
+      render: function() {
+//       return {"": "call", primitive: primitive, args: args};
+      }
+    }),
+    match: reactFactory({
+      render: function() {
+//       return {"": "match", patterns: patterns, handlers: handlers};
+      }
+    }),
+    tuple: reactFactory({
+      render: function() {
+//       return {"": "tuple", patterns: patterns};
+      }
+    }),
+    constraint: reactFactory({
+      setLeft: function(ref) {
+        var neue = this.props.constraint.slice();
+        neue[2] = ref;
+        dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
+      },
+      setRight: function(ref) {
+        var neue = this.props.constraint.slice();
+        neue[3] = ref;
+        dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
+      },
+      validateRight: function(selected, raw) {
+        //@TODO: can either be a constant or a ref
+        //left and right have to type check
+        var left = code.refToType(this.props.constraint[2]);
+        var right = code.refToType(this.props.constraint[3]);
+        return code.typesEqual(left, right);
+      },
+      setOp: function(op) {
+        var neue = this.props.constraint.slice();
+        neue[1] = op;
+        dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
+      },
+      render: function() {
+        var view = this.props.source[1];
+        var sourceId = this.props.source[0];
+        var viewOrData = this.props.source[3];
+        var allRefs = code.viewToRefs(view);
+        var leftType = code.refToType(this.props.constraint[2]);
+
+        var rightRefs = allRefs.filter(function(cur) {
+          return code.typesEqual(leftType, code.refToType(cur));
+        });
+
+        var localRefs = allRefs.filter(function(cur) {
+          return cur.source === sourceId;
+        });
+        var cur = this.props.constraint;
+        var left = astComponents["field-source-ref"]({curRef: cur[2], items: localRefs, onSet: this.setLeft, strict: true});
+        //@TODO: right can be a constant or a ref...
+        var right = astComponents["field-source-ref"]({curRef: cur[3], items: rightRefs, onSet: this.setRight, invalid: !this.validateRight()});
+        var op = astComponents["op"]({op: cur[1], onSet: this.setOp});
+        return JSML(["div", {className: "structured-constraint"},
+                     left,
+                     op,
+                     right,
+                    ])
+      }
+    }),
+}
 
 //---------------------------------------------------------
 // View components
@@ -859,18 +1138,16 @@ tiles.table = {
 
 var viewSource = reactFactory({
   render: function() {
+    var self = this;
     var viewOrFunction = this.props.source[3];
     var constraints = this.props.constraints.map(function(cur) {
-      var left = code.refToName(cur[2]);
-      var right = code.refToName(cur[3]);
       var remove = function() {
-        dispatch("removeConstaint", {constraint: cur.slice()})
+//         dispatch("removeConstaint", {constraint: cur.slice()})
       };
-      return ["li", {onClick: remove},
-              left, " " + cur[1] + " ", right];
+      return ["li", {onClick: remove}, astComponents["constraint"]({constraint: cur, source: self.props.source})];
     });
     return JSML(["div", {className: "view-source"},
-                 ["h1", viewOrFunction],
+                 ["h1", code.name(viewOrFunction)],
                  ["ul", constraints],
                  table({tileId: this.props.tileId, tableId: viewOrFunction})
                 ]);
@@ -882,16 +1159,19 @@ tiles.view = {
     getInitialState: function() {
       return {addingSource: false};
     },
+    getView: function() {
+      return ixer.index("viewTile")[this.props.tileId][1];
+    },
     startAddingSource: function() {
       this.setState({addingSource: true});
     },
     stopAddingSource: function(view) {
       this.setState({addingSource: false});
-      dispatch("addSource", {view: this.props.view || "qq", source: view});
+      dispatch("addSource", {view: this.getView(), source: view});
     },
     render: function() {
       var self = this;
-      var view = "qq";
+      var view = this.getView();
       var sources = ixer.index("viewToSources")[view] || [];
       var constraints = ixer.index("viewToConstraints")[view] || [];
       var sourceToConstraints = {};
@@ -921,7 +1201,8 @@ tiles.view = {
                    add
                   ]);
     }
-  })
+  }),
+  backContent: tableProperties
 }
 
 //---------------------------------------------------------
@@ -1274,7 +1555,20 @@ function dispatch(event, arg, noRedraw) {
 
   switch(event) {
     case "load":
+      var session = localStorage.getItem("session");
+      if(session) {
+        ixer.load(JSON.parse(session));
+      } else {
+        initIndexer();
+      }
       break;
+    case "unload":
+      if(!window.DO_NOT_SAVE) {
+        var session = JSON.stringify(ixer.tables, null, 2);
+        localStorage.setItem("session", session);
+      }
+      break;
+
     case "addColumnToTable":
       diffs = code.diffs.addColumn(arg.table);
       break;
@@ -1319,6 +1613,26 @@ function dispatch(event, arg, noRedraw) {
       };
       break;
     case "updateTile":
+      var fact = ixer.index("gridTile")[arg.id].slice();
+      var oldFact = fact.slice();
+      fact[1] = arg.grid || fact[1];
+      fact[2] = arg.type || fact[2];
+      if(arg.pos) {
+        fact[3] = arg.pos[0] || fact[3];
+        fact[4] = arg.pos[1] || fact[4];
+      }
+      if(arg.size) {
+        fact[5] = arg.size[0] || fact[5];
+        fact[6] = arg.size[1] || fact[6];
+      }
+      diffs = {gridTile: {adds: [fact], removes: [oldFact]}};
+      break;
+    case "closeTile":
+      // @TODO: clean up old dependent facts.
+      var fact = ixer.index("gridTile")[arg].slice();
+      diffs.gridTile = {removes: [fact]};
+      break;
+    case "updateTile":
       var oldTile = ixer.index("gridTile")[arg.id].slice();
       var tile = oldTile.slice();
       tile[3] = arg.pos[0], tile[4] = arg.pos[1];
@@ -1328,11 +1642,34 @@ function dispatch(event, arg, noRedraw) {
     case "setTileView":
       var oldTile = ixer.index("gridTile")[arg.tileId].slice();
       var tile = oldTile.slice();
+      //set to a tile type
+      var type = tile[2] = (code.hasTag(arg.view, "table") ? "table" : "view");
+      console.log("type", arg.view, code.hasTag(arg.view, "view"), type);
+      diffs = {gridTile: {adds: [tile], removes: [oldTile]}};
+      diffs[type + "Tile"] = {adds: [[tile[0], arg.view]]}; // @NOTE: So hacky
+      break;
+    case "addTable":
+      var oldTile = ixer.index("gridTile")[arg].slice();
+      var tile = oldTile.slice();
       //set to a table tile
       tile[2] = "table";
-      diffs = {gridTile: {adds: [tile], removes: [oldTile]},
-                  tableTile: {adds: [[tile[0], arg.view]]}};
+      var tableId = uuid();
+      diffs = code.diffs.addView("Untitled Table", {A: "string"}, undefined, tableId, ["table"]);
+      diffs.gridTile = {adds: [tile], removes: [oldTile]};
+      diffs.tableTile = {adds: [[arg, tableId]]};
       break;
+    case "addView":
+      var oldTile = ixer.index("gridTile")[arg].slice();
+      var tile = oldTile.slice();
+      //set to a table tile
+      tile[2] = "view";
+      var viewId = uuid();
+      diffs = code.diffs.addView("Untitled View", {}, undefined, viewId, ["view"]);
+      diffs.gridTile = {adds: [tile], removes: [oldTile]};
+      diffs.viewTile = {adds: [[arg, viewId]]};
+      break;
+
+
     case "setTarget":
       diffs = {
         gridTarget: {adds: [[arg.id, arg.target]], removes: [[arg.id, ixer.index("gridTarget")[arg.id]]]}
@@ -1351,8 +1688,11 @@ function dispatch(event, arg, noRedraw) {
       diffs = code.diffs.autoJoins(arg.view, arg.source, sourceId);
       diffs["source"] = {adds: [[sourceId, arg.view, ix, arg.source, true]], removes: []};
       break;
-    case "removeConstaint":
+    case "removeConstraint":
       diffs.constraint = {removes: [arg.constraint]};
+      break;
+    case "swapConstraint":
+      diffs.constraint = {adds: [arg.neue.slice()], removes: [arg.old.slice()]}
       break;
     case "undo":
       storeEvent = false;
@@ -1406,7 +1746,7 @@ var code = {
       }
       return diffs;
     },
-    addView: function(name, fields, initial, id) { // (S, {[S]: Type}, Fact[]?, Uuid?) -> Diffs
+    addView: function(name, fields, initial, id, tags) { // (S, {[S]: Type}, Fact[]?, Uuid?, S[]?) -> Diffs
       id = id || uuid();
       var schema = uuid();
       var displayNames = [[id, name]];
@@ -1424,8 +1764,13 @@ var code = {
         field: {adds: fieldAdds},
         displayName: {adds: displayNames}
       };
-      if(initial) {
+      if(initial && initial.length) {
         diffs[id] = {adds: initial};
+      }
+      if(tags) {
+        diffs.tag = {adds: tags.map(function(tag) {
+          return [id, tag];
+        })};
       }
       return diffs;
     },
@@ -1458,6 +1803,41 @@ var code = {
       return {constraint: {adds: constraints, removes: []}};
     }
   },
+  hasTag: function(id, tag) {
+    var tags = ixer.index("tag")[id];
+    for(var ix in tags) {
+      if(tags[ix][1] == tag) {
+        return true;
+      }
+    }
+    return false;
+  },
+  ast: {
+    fieldSourceRef: function(source, field) {
+      return {"": "field-source-ref", source: source, field: field};
+    },
+    sourceRef: function(source) {
+      return {"": "source-ref", source: source};
+    },
+    fieldRef: function(field) {
+      return {"": "field-ref", field: field};
+    },
+    constant: function(value) {
+      return {"": "constant", value: value};
+    },
+    variable: function(string) {
+      return {"": "variable", string: string};
+    },
+    call: function(primitive, args) {
+      return {"": "call", primitive: primitive, args: args};
+    },
+    match: function(patterns, handlers) {
+      return {"": "match", patterns: patterns, handlers: handlers};
+    },
+    tuple: function(patterns) {
+      return {"": "tuple", patterns: patterns};
+    }
+  },
   viewToFields: function(view) {
     var schema = ixer.index("viewToSchema")[view];
     return ixer.index("schemaToFields")[schema];
@@ -1474,10 +1854,34 @@ var code = {
         break;
     }
   },
+  refToType: function(ref) {
+    return ixer.index("field")[ref.field][3];
+  },
+  typesEqual: function(a, b) {
+    //@TODO: equivalence. e.g. int = number
+    return a === b;
+  },
+  viewToRefs: function(view) {
+    var refs = [];
+    var sources = ixer.index("viewToSources")[view] || [];
+    sources.forEach(function(source) {
+      var viewOrData = source[3];
+      var sourceView = viewOrData;
+      //view
+      if(typeof viewOrData !== "string") {
+        //@TODO: handle getting the refs for functions
+        sourceView = null;
+      }
+      code.viewToFields(sourceView).forEach(function(field) {
+        refs.push(code.ast.fieldSourceRef(source[0], field[0]));
+      });
+    });
+    return refs;
+  },
   name: function(id) {
     return ixer.index("displayName")[id];
   }
-}
+};
 
 //---------------------------------------------------------
 // Global key handling
@@ -1497,17 +1901,21 @@ document.addEventListener("keydown", function(e) {
   } else if((e.metaKey || e.ctrlKey) && e.keyCode === KEYS.Z) {
     dispatch("undo");
   }
+});
 
+window.addEventListener("unload", function(e) {
+  dispatch("unload");
 });
 
 //---------------------------------------------------------
 // Go
 //---------------------------------------------------------
 
-
-//add some views
+// Core
+ixer.addIndex("tag", "tag", Indexing.create.collector([0]));
 ixer.addIndex("displayName", "displayName", Indexing.create.lookup([0, 1]));
 ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
+ixer.addIndex("field", "field", Indexing.create.lookup([0, false]));
 ixer.addIndex("sourceToData", "source", Indexing.create.lookup([0, 3]));
 ixer.addIndex("editId", "editId", Indexing.create.lookup([0,1,2]));
 ixer.addIndex("viewToSchema", "view", Indexing.create.lookup([0, 1]));
@@ -1515,61 +1923,97 @@ ixer.addIndex("viewToSources", "source", Indexing.create.collector([1]));
 ixer.addIndex("viewToConstraints", "constraint", Indexing.create.collector([0]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([1]));
 ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([0]));
-ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schema", "query"]], removes: []},
-                  schema: {adds: [["foo-schema"], ["qq-schema"]], removes: []},
-                  field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "string"], ["qq-a", "qq-schema", 0, "string"]], removes: []},
-//                   source: {adds: [["foo-source", "qq", 0, "foo", true], ["zomg-source", "qq", 0, "zomg", false]], removes: []},
-                  editId: {adds: [["foo", JSON.stringify(["a", "b"]), 0], ["foo", JSON.stringify(["c", "d"]), 1]], removes: []},
-                  foo: {adds: [["a", "b"], ["c", "d"]], removes: []},
-                  input: {adds: [["foo", ["a", "b"]], ["foo", ["c", "d"]]], removes: []},
-                  displayName: {adds: [["foo", "foo"], ["foo-a", "a"], ["foo-b", "foo B"]], removes: []},
-                  uiComponent: {adds: [["myUI"]], removes: []},
-                 });
-
-
-ixer.handleDiffs(code.diffs.addView("zomg", {
-  a: "string",
-  e: "string",
-  f: "string"
-}, [
-  ["a", "b", "c"],
-  ["d", "e", "f"]
-], "zomg"));
 
 // Grid Indexes
 ixer.addIndex("gridTarget", "gridTarget", Indexing.create.lookup([0, 1]));
 ixer.addIndex("gridTile", "gridTile", Indexing.create.lookup([0, false]));
 ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
+ixer.addIndex("viewTile", "viewTile", Indexing.create.lookup([0, false]));
 
-var gridId = "grid://default";
+function initIndexer() {
+  ixer.handleDiffs(code.diffs.addView("view", {id: "string", schema: "string", query: "string"}, undefined, "view", ["table"]));
+  ixer.handleDiffs(code.diffs.addView("field", {id: "string", schema: "string", ix: "number"}, undefined, "field", ["table"]));
+  ixer.handleDiffs(code.diffs.addView("displayName", {id: "string", name: "string"}, undefined, "displayName", ["table"]));
+  ixer.handleDiffs(code.diffs.addView("tableTile", {id: "string", view: "string"}, undefined, "tableTile", ["table"]));
+  ixer.handleDiffs(code.diffs.addView("viewTile", {id: "string", view: "string"}, undefined, "viewTile", ["table"]));
 
-var uiViewId = uuid();
-var bigUiViewId = uuid();
-ixer.handleDiffs(code.diffs.addView("gridTile", {
-  tile: "string",
-  grid: "string",
-  type: "string",
-  x: "number",
-  y: "number",
-  w: "number",
-  h: "number"
-}, [
-  [uiViewId, gridId, "ui", 0, 0, 6, 4],
-  [uuid(), gridId, "view", 6, 0, 6, 4],
-  [bigUiViewId, "grid://ui", "ui", 0, 0, 12, 12],
-], "gridTile"));
+  //add some views
+  ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schema", "query"]], removes: []},
+                    schema: {adds: [["foo-schema"], ["qq-schema"]], removes: []},
+                    field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "number"], ["qq-a", "qq-schema", 0, "string"]], removes: []},
+                    //                   source: {adds: [["foo-source", "qq", 0, "foo", true], ["zomg-source", "qq", 0, "zomg", false]], removes: []},
+                    editId: {adds: [["foo", JSON.stringify(["a", "b"]), 0], ["foo", JSON.stringify(["c", "d"]), 1]], removes: []},
+                    foo: {adds: [["a", "b"], ["c", "d"]], removes: []},
+                    input: {adds: [["foo", ["a", "b"]], ["foo", ["c", "d"]]], removes: []},
+                    displayName: {adds: [["foo", "foo"], ["foo-a", "a"], ["foo-b", "foo B"]], removes: []},
+                    uiComponent: {adds: [["myUI"]], removes: []},
+                   });
 
-ixer.handleDiffs(code.diffs.addView(
-  "activeGrid",
-  {grid: "string"},
-  [[gridId]],
-  "activeGrid"));
+  ixer.handleDiffs(code.diffs.addView("zomg", {
+    a: "string",
+    e: "number",
+    f: "number"
+  }, [
+    ["a", "b", "c"],
+    ["d", "e", "f"]
+  ], "zomg", ["table"]));
 
-ixer.handleDiffs(code.diffs.addView(
-  "gridTarget",
-  {tile: "string", target: "string"}, [
-    [uiViewId, "grid://ui"],
-    [bigUiViewId, "grid://default"]
-  ], "gridTarget"));
 
+//code views
+ixer.handleDiffs(
+  code.diffs.addView("schema", {id: "id"}, [], "schema"));
+ixer.handleDiffs(
+  code.diffs.addView("field", {id: "id", schema: "id", ix: "int", type: "type"}, [], "field"));
+ixer.handleDiffs(
+  code.diffs.addView("primitive", {id: "id", inSchema: "id", outSchema: "id"}, [], "primitive"));
+ixer.handleDiffs(
+  code.diffs.addView("view", {id: "id", schema: "id", kind: "query|union"}, [], "view"));
+ixer.handleDiffs(
+  code.diffs.addView("source", {id: "id", view: "id", ix: "int", data: "data", splat: "bool"}, [], "source"));
+ixer.handleDiffs(
+  code.diffs.addView("constraint", {view: "id", op: "op", left: "reference", right: "reference"}, [], "constraint"));
+
+
+//example tables
+ixer.handleDiffs(
+  code.diffs.addView("employees", {department: "string", name: "string", salary: "float"}, [], false));
+ixer.handleDiffs(
+  code.diffs.addView("department heads", {department: "string", head: "string"}, [], false));
+
+
+
+  var gridId = "grid://default";
+  var uiViewId = uuid();
+  var bigUiViewId = uuid();
+  ixer.handleDiffs(code.diffs.addView("gridTile", {
+    tile: "string",
+    grid: "string",
+    type: "string",
+    x: "number",
+    y: "number",
+    w: "number",
+    h: "number"
+  }, [
+    [uiViewId, gridId, "ui", 0, 0, 6, 3],
+    [bigUiViewId, "grid://ui", "ui", 0, 0, 12, 12],
+  ], "gridTile", ["table"]));
+
+  ixer.handleDiffs(code.diffs.addView(
+    "activeGrid",
+    {grid: "string"},
+    [[gridId]],
+    "activeGrid", ["table"]));
+
+  ixer.handleDiffs(code.diffs.addView(
+    "gridTarget",
+    {tile: "string", target: "string"}, [
+      [uiViewId, "grid://ui"],
+      [bigUiViewId, "grid://default"]
+    ], "gridTarget", ["table"]));
+}
 dispatch("load");
+
+function clearStorage() {
+  window.DO_NOT_SAVE = true;
+  localStorage.clear();
+}
