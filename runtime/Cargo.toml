@@ -2,7 +2,8 @@
 
 name = "eve"
 version = "0.0.1"
-authors = ["Jamie Brandon <jamie@scattered-thoughts.net>"]
+authors = ["Jamie Brandon <jamie@scattered-thoughts.net>",
+	   "Corey Montella <corey@kodowa.com>"]
 
 [dependencies]
 rand = "*"
