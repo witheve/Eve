@@ -32,9 +32,16 @@ body {
   color: #acf;
 }
 
-.pull-right {
-  float: right;
+.pull-right { float: right; }
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
 }
+::-webkit-scrollbar-corner { display: none; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.5); }
 
 
 /*****************************************************************************\
@@ -62,8 +69,8 @@ body {
 }
 .tile-grid.editing { background: #202020; }
 
+.tile-grid.editing > .grid-tile > .grid-tile-inner { pointer-events: none; }
 .tile-grid.editing > .grid-tile.dragging {
-
   z-index: -1000;
   transition: 0.01s;
 }
@@ -90,7 +97,6 @@ body {
 .grid-tile {
   position: absolute;
   z-index: 1;
-  overflow:auto;
 
   background: #2c2c2c;
   border-radius: 3px;
@@ -122,6 +128,7 @@ body {
 .grid-tile-inner > .toolbar:hover { opacity: 1; }
 
 .grid-tile-inner .corner-se-grip {
+  pointer-events: auto;
   position: absolute; bottom: 0; right: 0;
   width: 16px; height: 16px;
   overflow: hidden;
@@ -138,14 +145,31 @@ body {
   transform: rotateZ(-45deg);
 }
 
-.grid-tile.add { opacity: 0; }
+.grid-tile.add { opacity: 0; overflow: hidden; }
 .grid-tile.add:hover { opacity: 0.5 }
 .grid-tile.add:active { opacity: 0.75 }
-.grid-tile.add .toolbar { opacity: 0; pointer-events: none; }
+.grid-tile.add .grid-tile-inner > .toolbar { opacity: 0; pointer-events: none; }
 .grid-tile.add .corner-se-grip { opacity: 0; pointer-events: none; }
-.grid-tile.add div {
-  position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+.grid-tile.add div { position: absolute; top: 0; left: 0; bottom: 0; right: 0; }
+
+.grid-tile.addChooser .tile-type-chooser { display: flex; flex-direction: row; }
+.grid-tile.addChooser .pane-1 { display: flex; flex-direction: column; }
+
+.grid-tile.addChooser .pane-1 button {
+  font-size: 1.2em;
+  font-weight: 100;
+  padding: 4px 8px;
+  margin: 0 4px;
+
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: #aaa;
+  text-align: left;
 }
+.grid-tile.addChooser .pane-1 button:hover { background: rgba(255, 255, 255, 0.1); color: rgba(96, 208, 255, 0.8); }
+.grid-tile.addChooser .pane-1 button:active { background: rgba(255, 255, 255, 0.2); color: rgb(96, 208, 255); }
+.grid-tile.addChooser .pane { padding: 4px 8px; }
 
 
 /*****************************************************************************\
@@ -159,15 +183,16 @@ th:last-child { border-radius: 0 2px 2px 0; }
 
 .table-wrapper tbody { overflow-y: auto; }
 
-.table-wrapper { flex: 1; display: flex; overflow-x: auto; }
+.table-wrapper { flex: 1; display: flex; overflow: auto; }
 .add-column { margin-left: 10px; }
 
 /*****************************************************************************\
  * Table selector
 \*****************************************************************************/
-
-.table-selector input { border:none; background:rgba(255,255,255,0.1); outline:none; padding:5px; color: #ccc; }
-.table-selector .result { padding:5px; display:flex; flex-direction:column; }
+.table-selector { background: #444; box-shadow: 0 0 8px #111;}
+.table-selector input { border:none; background:rgba(255,255,255,0.1); outline:none; padding:5px; color: #ccc; width: 100%; }
+.table-selector > ul { max-height: 20em; overflow-y: auto; }
+.table-selector .result { padding:5px; display:flex; flex-direction:column;}
 .table-selector .result + .result { border-top:1px solid rgba(255,255,255, 0.1); }
 .table-selector .result.selected { background:red; }
 .table-selector .result h2 { font-size:12pt; margin-bottom:3px;  }
