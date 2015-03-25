@@ -1,18 +1,17 @@
 extern crate eve;
 
+use eve::index::Index;
 use eve::value::ToRelation;
 use eve::value::Value::*;
-use eve::index::*;
 use eve::query::*;
 use eve::flow::*;
 
-use std::rc::Rc;
 use std::cell::RefCell;
 
 fn main() {
     let edges = vec![("a","b"), ("b", "c"), ("c", "d"), ("d", "b")].to_relation();
     let path_union = Union{
-        mappings: vec![(1, vec![(0, 0), (0, 1)]), (2, vec![(0, 0), (1, 1)])],
+        mappings: vec![(2, vec![(0, 0), (1, 1)]), (1, vec![(0, 0), (0, 1)])],
     };
     let first_step_query = Query{clauses: vec![
         Clause::Tuple(Source{relation: 0, constraints: vec![]}),
@@ -62,6 +61,7 @@ fn main() {
         dirty: vec![0].into_iter().collect(),
     };
     let new_state = flow.run(&old_state);
-    println!("{:?}", old_state);
-    println!("{:?}", new_state);
+    // println!("{:?}", old_state);
+    // println!("{:?}", new_state);
+    println!("{:?}", new_state.outputs[1]);
 }

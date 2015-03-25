@@ -4,7 +4,6 @@ use query::Query;
 
 use std::cell::RefCell;
 use std::collections::BitSet;
-use std::mem::replace;
 
 #[derive(Clone, Debug)]
 pub struct Union{
@@ -44,7 +43,6 @@ impl Union {
         let mut index = Index::new();
         for (input, &(max_len, ref mapping)) in inputs.iter().zip(self.mappings.iter()) {
             for tuple in input.iter() {
-                println!("{:?} {:?}", tuple, mapping);
                 // TODO this ugliness is due to storing backtrack info inline with results
                 if tuple.len() == max_len {
                     let mut output = Vec::with_capacity(mapping.len());

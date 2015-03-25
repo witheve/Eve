@@ -10,7 +10,6 @@ use rand::distributions::{IndependentSample, Range};
 use eve::query::*;
 use eve::value::*;
 use eve::value::Value::*;
-use eve::index::*;
 
 fn main() {
     let a = vec![(0.0, 1.0, 2.0), (4.0, 5.0, 6.0)].to_relation();
