@@ -2,6 +2,8 @@ use std::collections::btree_map;
 use std::collections::btree_map::{BTreeMap, Entry, Keys};
 use std::iter::{FromIterator, IntoIterator};
 
+use value::{Value, ToValue};
+
 #[derive(Clone, Debug, PartialOrd, PartialEq, Ord, Eq)]
 pub struct Index<T> {
     items: BTreeMap<T, usize>,

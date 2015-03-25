@@ -1,5 +1,6 @@
 extern crate eve;
 
+use eve::value::ToRelation;
 use eve::value::Value::*;
 use eve::index::*;
 use eve::query::*;
@@ -9,12 +10,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 fn main() {
-    let edges = vec![
-        vec![String("a".to_string()), String("b".to_string())],
-        vec![String("b".to_string()), String("c".to_string())],
-        vec![String("c".to_string()), String("d".to_string())],
-        vec![String("d".to_string()), String("b".to_string())],
-    ].into_iter().collect();
+    let edges = vec![("a","b"), ("b", "c"), ("c", "d"), ("d", "b")].to_relation();
     let path_union = Union{
         mappings: vec![(1, vec![(0, 0), (0, 1)]), (2, vec![(0, 0), (1, 1)])],
     };
