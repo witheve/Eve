@@ -299,10 +299,12 @@ tiles.addChooser = {
   content: reactFactory({
     displayName: "add-chooser",
     getInitialState: function() {
-      return {description: "Hover a tile type to read about what it is used for."};
+      return {description: "Hover a tile type to read about what it is used for.", type: undefined};
     },
     hoverType: function(type) {
-      this.setState({description: addTileTypes[type].description});
+      if(this.state.type !== type) {
+        this.setState({type: type, description: addTileTypes[type].description, pane2: undefined});
+      }
     },
     chooseType: function(type) {
       var tile = addTileTypes[type];
@@ -1005,29 +1007,79 @@ var structuredSelector = reactFactory({
   }
 });
 
+var structuredMultiSelector = reactFactory({
+  getInitialState: function() {
+    return {active: false, mode: false};
+  },
+  toggleActive: function() {
+    this.setState({active: !this.state.active});
+  },
+  deactivate: function() {
+    this.setState({active: false});
+  },
+  set: function(id) {
+    this.deactivate();
+    if(this.props.onSet) {
+      this.props.onSet(id);
+    }
+  },
+  setMode: function(e) {
+    var mode = e.currentTarget.getAttribute("data-mode");
+    if(!this.props.disabled || !this.props.disabled[mode]) {
+      this.setState({mode: mode});
+    }
+  },
+  render: function() {
+    var self = this;
+    var mode = this.state.mode || this.props.mode || "field";
+    var items;
+    var column2;
+    if(mode === "field") {
+      items = this.props.items.map(function(cur) {
+        return structuredSelectorItem({item: cur, onSet: self.set});
+      });
+      column2 = ["ul", items];
+    }
+    if(mode === "function") {
+      items = this.props.items.map(function(cur) {
+        return structuredSelectorItem({item: cur, onSet: self.set});
+      });
+      column2 = ["ul", items];
+    }
+    if(mode === "match") {
+      column2 = ["div", "match editor"];
+    }
+    if(mode === "constant") {
+      column2 = ["div", "constant editor"];
+    }
+    var modes = ["field", "function", "match", "constant"];
+    var modeButtons = modes.map(function(cur) {
+      var className = mode === cur ? "selected" : "";
+      className +=  self.props.disabled && self.props.disabled[cur] ? " disabled" : "";
+      return ["button", {className: className, onClick: self.setMode, "data-mode": cur}, cur];
+    });
+    var activeClass = this.state.active ? " active" : " inactive";
+    return JSML(["div", {className: "structured-editor" + activeClass},
+                 ["div", {className: "code", onClick: this.toggleActive}, this.props.value],
+                 ["div", {className: "selectors"},
+                  ["div", {className: "column"},
+                   modeButtons],
+                  ["div", {className: "column"},
+                   column2
+                  ],
+                 ]]);
+  }
+});
+
 
 var astComponents = {
     "field-source-ref": reactFactory({
-      validate: function(selected, raw) {
-        if(this.props.validate) {
-          return this.props.validate(selected, raw);
-        }
-        return selected !== undefined;
-      },
-      set: function(ref) {
-        console.log("Set!", ref);
-        if(this.props.onSet) {
-          this.props.onSet(ref);
-        }
-      },
       render: function() {
 //         return {"": "field-source-ref", source: source, field: field};
         var name = code.refToName(this.props.curRef);
-        var items = this.props.items || [];
-        items = items.map(function(cur) {
-          return {id: cur, text: code.refToName(cur)};
-        });
-        return structuredSelector({value: name, items: items, onSet: this.set, invalid: this.props.invalid});
+        var activeClass = this.props.active ? " active" : "";
+        var invalidClass = this.props.invalid ? " invalid" : "";
+        return JSML(["span", {className: "token" + activeClass + invalidClass, onClick: this.props.onSelect}, name]);
       }
     }),
     "source-ref": reactFactory({
@@ -1046,19 +1098,10 @@ var astComponents = {
       }
     }),
     op: reactFactory({
-      set: function(op) {
-        if(this.props.onSet) {
-          this.props.onSet(op);
-        }
-      },
       render: function() {
-        var allOps = [{id: "=", text: "="},
-                   {id: ">", text: ">"},
-                   {id: "<", text: "<"},
-                   {id: ">=", text: ">="},
-                   {id: "<=", text: "<="},
-                   {id: "!=", text: "!="}];
-        return structuredSelector({value: this.props.op, items: allOps, onSet: this.set});
+        var activeClass = this.props.active ? " active" : "";
+        var invalidClass = this.props.invalid ? " invalid" : "";
+        return JSML(["span", {className: "token" + activeClass + invalidClass, onClick: this.props.onSelect}, this.props.op]);
       }
     }),
     variable: reactFactory({
@@ -1081,15 +1124,30 @@ var astComponents = {
 //       return {"": "tuple", patterns: patterns};
       }
     }),
+    expression: reactFactory({
+      render: function() {
+        var allRefs = code.viewToRefs("qq");
+        var items = allRefs.map(function(cur) {
+          return {id: cur, text: code.refToName(cur)};
+        });
+        return JSML(["div", {className: "code-container"},
+                     structuredMultiSelector({items: items, value: ["span", {className: "token"}, "yo"]})]);
+      }
+    }),
     constraint: reactFactory({
+      getInitialState: function() {
+        return {};
+      },
       setLeft: function(ref) {
         var neue = this.props.constraint.slice();
         neue[2] = ref;
+        this.setState({editing: false});
         dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
       },
       setRight: function(ref) {
         var neue = this.props.constraint.slice();
         neue[3] = ref;
+        this.setState({editing: false});
         dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
       },
       validateRight: function(selected, raw) {
@@ -1102,32 +1160,69 @@ var astComponents = {
       setOp: function(op) {
         var neue = this.props.constraint.slice();
         neue[1] = op;
+        this.setState({editing: false});
         dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
       },
+      editingLeft: function() { this.setState({editing: "left"}); },
+      editingRight: function() { this.setState({editing: "right"}); },
+      editingOp: function() { this.setState({editing: "op"}); },
       render: function() {
         var view = this.props.source[1];
         var sourceId = this.props.source[0];
         var viewOrData = this.props.source[3];
         var allRefs = code.viewToRefs(view);
-        var leftType = code.refToType(this.props.constraint[2]);
-
-        var rightRefs = allRefs.filter(function(cur) {
-          return code.typesEqual(leftType, code.refToType(cur));
-        });
-
-        var localRefs = allRefs.filter(function(cur) {
-          return cur.source === sourceId;
-        });
         var cur = this.props.constraint;
-        var left = astComponents["field-source-ref"]({curRef: cur[2], items: localRefs, onSet: this.setLeft, strict: true});
+        var editing = this.state.editing;
+        var left = astComponents["field-source-ref"]({curRef: cur[2], onSelect: this.editingLeft, active: editing === "left"});
         //@TODO: right can be a constant or a ref...
-        var right = astComponents["field-source-ref"]({curRef: cur[3], items: rightRefs, onSet: this.setRight, invalid: !this.validateRight()});
-        var op = astComponents["op"]({op: cur[1], onSet: this.setOp});
-        return JSML(["div", {className: "structured-constraint"},
-                     left,
-                     op,
-                     right,
-                    ])
+        var right = astComponents["field-source-ref"]({curRef: cur[3], onSelect: this.editingRight, active: editing === "right", invalid: !this.validateRight()});
+        var op = astComponents["op"]({op: cur[1], active: editing === "op", onSelect: this.editingOp});
+        var content = ["div", {className: "structured-constraint",
+                               onClick: this.startEditing},
+                       left, op, right];
+        var editor;
+        if(this.state.editing === "left") {
+          var localRefs = allRefs.filter(function(cur) {
+            return cur.source === sourceId;
+          }).map(function(cur) {
+            return {id: cur, text: code.refToName(cur)};
+          });
+          editor = structuredMultiSelector({items: localRefs,
+                                             onSet: this.setLeft,
+                                             value: content,
+                                             mode: "field",
+                                             disabled: {"function": "Only a field is allowed here.",
+                                                        "match": "Only a field is allowed here.",
+                                                        "constant": "Only a field is allowed here."}});
+        } else if(this.state.editing === "right") {
+        var leftType = code.refToType(this.props.constraint[2]);
+          var rightRefs = allRefs.filter(function(cur) {
+            return code.typesEqual(leftType, code.refToType(cur));
+          }).map(function(cur) {
+            return {id: cur, text: code.refToName(cur)};
+          });
+          editor = structuredMultiSelector({items: rightRefs,
+                                             onSet: this.setRight,
+                                             value: content,
+                                             mode: "field",
+                                             disabled: {"function": "Only a field or value is allowed here.",
+                                                        "match": "Only a field or value is allowed here."}});
+        } else if(this.state.editing === "op") {
+          var allOps = [{id: "=", text: "="},
+                        {id: ">", text: ">"},
+                        {id: "<", text: "<"},
+                        {id: ">=", text: ">="},
+                        {id: "<=", text: "<="},
+                        {id: "!=", text: "!="}];
+          editor = structuredMultiSelector({items: allOps,
+                                             onSet: this.setOp,
+                                             value: content,
+                                             mode: "function",
+                                             disabled: {"field": "Only a function is allowed here.",
+                                                        "match": "Only a function is allowed here.",
+                                                        "constant": "Only a function is allowed here."}});
+        }
+        return JSML(["div", {className: "code-container"}, content, editor]);
       }
     }),
 }
@@ -1169,6 +1264,13 @@ tiles.view = {
       this.setState({addingSource: false});
       dispatch("addSource", {view: this.getView(), source: view});
     },
+    startAddingCalculation: function() {
+      this.setState({addingCalculation: true});
+    },
+    stopAddingCalculation: function(view) {
+      this.setState({addingCalculation: false});
+//       dispatch("addSource", {view: this.props.view || "qq", source: view});
+    },
     render: function() {
       var self = this;
       var view = this.getView();
@@ -1195,10 +1297,18 @@ tiles.view = {
       } else {
         add = ["div", {onClick: this.startAddingSource}, "add source"];
       }
+      var calculate;
+      if(this.state.addingCalculation) {
+        calculate = ["div", astComponents["expression"]({})];
+      } else {
+        calculate = ["div", {onClick: this.startAddingCalculation}, "add calculation"];
+      }
       //edit view
       return JSML(["div", {className: "view-wrapper"},
                    items,
-                   add
+                   ["div",
+                    add,
+                    calculate]
                   ]);
     }
   }),
@@ -1302,7 +1412,26 @@ var uiCanvasElem = reactFactory({
     var cur = this.props.element;
     return {right: cur.right, bottom: cur.bottom, left: cur.left, top: cur.top};
   },
+  shouldComponentUpdate: function(nextProps, nextState) {
+    var state = this.state;
+    var old = this.props.element;
+    var neue = nextProps.element;
+    if(old.id !== neue.id
+       || old.left !== neue.left
+       || old.right !== neue.right
+       || old.top !== neue.top
+       || old.bottom !== neue.bottom
+       || state.left !== nextState.left
+       || state.right !== nextState.right
+       || state.top !== nextState.top
+       || state.bottom !== nextState.bottom
+      ) {
+      return true;
+    }
+    return false;
+  },
   componentDidUpdate: function(prev) {
+    var state = this.state;
     var old = prev.element;
     var neue = this.props.element;
     if(old.id !== neue.id
@@ -1313,6 +1442,72 @@ var uiCanvasElem = reactFactory({
       var cur = this.props.element;
       this.setState({right: cur.right, bottom: cur.bottom, left: cur.left, top: cur.top});
     }
+  },
+  findSnaps: function(pos) {
+    var drawThreshold = 15;
+    var snapThreshold = 8;
+    var state = this.state;
+    var id = this.props.element.id;
+    var guides = [];
+    var snaps = {};
+    this.props.elements.forEach(function(cur) {
+      if(cur.id === id) return;
+
+      var left = Math.abs(cur.left - pos.left);
+      if(left <= drawThreshold) {
+        guides.push({side: "left", axis: "x", pos: cur.left});
+        if(left <= snapThreshold && (!snaps["left"] || snaps["left"].diff > left)) {
+          snaps["left"] = {side: "botton", axis: "y", pos: cur.left, diff: left};
+        }
+      }
+      var right = Math.abs(cur.right - pos.right);
+      if(right <= drawThreshold) {
+        guides.push({side: "right", axis: "x", pos: cur.right});
+        if(right <= snapThreshold && (!snaps["right"] || snaps["right"].diff > right)) {
+          snaps["right"] = {side: "botton", axis: "y", pos: cur.right, diff: right};
+        }
+      }
+      var top = Math.abs(cur.top - pos.top);
+      if(top <= drawThreshold) {
+        guides.push({side: "top", axis: "y", pos: cur.top});
+        if(top <= snapThreshold && (!snaps["top"] || snaps["top"].diff > top)) {
+          snaps["top"] = {side: "botton", axis: "y", pos: cur.top, diff: top};
+        }
+      }
+      var bottom = Math.abs(cur.bottom - pos.bottom);
+      if(bottom <= drawThreshold) {
+        guides.push({side: "botton", axis: "y", pos: cur.bottom});
+        if(bottom <= snapThreshold && (!snaps["bottom"] || snaps["bottom"].diff > bottom)) {
+          snaps["bottom"] = {side: "botton", axis: "y", pos: cur.bottom, diff: bottom};
+        }
+      }
+    });
+    this.props.drawSnaps(guides);
+    if(snaps.left) {
+      snaps.left = snaps.left.pos;
+      //preserve width
+      snaps.right = (pos.right - pos.left) + snaps.left;
+    } else if(snaps.right) {
+      snaps.right = snaps.right.pos;
+      //preserve width
+      snaps.left = snaps.right - (pos.right - pos.left);
+    } else {
+      snaps.left = pos.left;
+      snaps.right = pos.right;
+    }
+    if(snaps.top) {
+      snaps.top = snaps.top.pos;
+      //preserve height
+      snaps.bottom = (pos.bottom - pos.top) + snaps.top;
+    } else if(snaps.bottom) {
+      snaps.bottom = snaps.bottom.pos;
+      //preserve width
+      snaps.top = snaps.bottom - (pos.bottom - pos.top);
+    } else {
+      snaps.top = pos.top;
+      snaps.bottom = pos.bottom;
+    }
+    return snaps;
   },
   startMoving: function(e) {
     var rel = relativeCoords(e, e.target, e.target.parentNode.parentNode);
@@ -1327,9 +1522,11 @@ var uiCanvasElem = reactFactory({
     var top = canvasPos.top - this.state.offset.top;
     var right = this.state.right + (left - this.state.left);
     var bottom = this.state.bottom + (top - this.state.top);
-    this.setState({left: left, top: top, right: right, bottom: bottom});
+    var pos = {left: left, top: top, right: right, bottom: bottom};
+    this.setState(this.findSnaps(pos));
   },
   stopMoving: function(e) {
+    this.props.drawSnaps([]);
     var state = this.state;
     var element = this.props.element;
     dispatch("uiComponentElementMoved", {element: element, left: state.left, top: state.top, right: state.right, bottom: state.bottom});
@@ -1362,6 +1559,8 @@ var uiCanvasElem = reactFactory({
     return neue;
   },
   resize: function(e) {
+    if(e.clientX === 0 && e.clientY === 0) return;
+
     var rel = relativeCoords(e, e.target, e.target.parentNode.parentNode).canvas;
     var state = this.state;
     var neue = {left: state.left, top: state.top, right: state.right, bottom: state.bottom};
@@ -1371,9 +1570,11 @@ var uiCanvasElem = reactFactory({
     if(this.state.resizeY) {
       neue[this.state.resizeY] = rel.top;
     }
+    var snaps = this.findSnaps(neue);
     this.setState(this.checkSize(state, neue));
   },
   stopResizing: function(e) {
+    this.props.drawSnaps([]);
     var state = this.state;
     var element = this.props.element;
     dispatch("uiComponentElementMoved", {element: element, left: state.left, top: state.top, right: state.right, bottom: state.bottom});
@@ -1436,8 +1637,14 @@ var uiCanvasElem = reactFactory({
 
 var uiCanvas = reactFactory({
   displayName: "ui-canvas",
+  getInitialState: function() {
+    return {snapGuides: []}
+  },
   elementOver: function(e) {
     e.preventDefault();
+  },
+  drawSnaps: function(snaps) {
+    this.setState({snapGuides: snaps});
   },
   elementDropped: function(e) {
     var type = e.dataTransfer.getData("uiElementAdd");
@@ -1448,13 +1655,30 @@ var uiCanvas = reactFactory({
     console.log("add", type);
   },
   render: function() {
+    var self = this;
     var elems = this.props.elements.map(function(cur) {
-      return uiCanvasElem({element: cur, key: cur.element});
-    })
+      return uiCanvasElem({element: cur, key: cur.id, elements: self.props.elements, drawSnaps: self.drawSnaps});
+    });
+    var snaps = this.state.snapGuides.map(function(cur) {
+      var style = {background: "red"};
+      if(cur.axis === "y") {
+        style.left = 0;
+        style.right = 0;
+        style.top = cur.pos;
+        style.height = 1;
+      } else if(cur.axis === "x") {
+        style.top = 0;
+        style.bottom = 0;
+        style.left = cur.pos;
+        style.width = 1;
+      }
+      return ["div", {style: style}];
+    });
     return JSML(["div", {className: "ui-canvas",
                          onDragOver: this.elementOver,
                          onDrop: this.elementDropped},
-                 elems
+                 elems,
+                 snaps
                 ]);
   }
 });
@@ -1618,12 +1842,12 @@ function dispatch(event, arg, noRedraw) {
       fact[1] = arg.grid || fact[1];
       fact[2] = arg.type || fact[2];
       if(arg.pos) {
-        fact[3] = arg.pos[0] || fact[3];
-        fact[4] = arg.pos[1] || fact[4];
+        fact[3] = arg.pos[0];
+        fact[4] = arg.pos[1];
       }
       if(arg.size) {
-        fact[5] = arg.size[0] || fact[5];
-        fact[6] = arg.size[1] || fact[6];
+        fact[5] = arg.size[0];
+        fact[6] = arg.size[1];
       }
       diffs = {gridTile: {adds: [fact], removes: [oldFact]}};
       break;
@@ -1631,13 +1855,6 @@ function dispatch(event, arg, noRedraw) {
       // @TODO: clean up old dependent facts.
       var fact = ixer.index("gridTile")[arg].slice();
       diffs.gridTile = {removes: [fact]};
-      break;
-    case "updateTile":
-      var oldTile = ixer.index("gridTile")[arg.id].slice();
-      var tile = oldTile.slice();
-      tile[3] = arg.pos[0], tile[4] = arg.pos[1];
-      tile[5] = arg.size[0], tile[6] = arg.size[1];
-      diffs = {gridTile: {adds: [tile], removes: [oldTile]}};
       break;
     case "setTileView":
       var oldTile = ixer.index("gridTile")[arg.tileId].slice();

@@ -69,8 +69,8 @@ body {
 }
 .tile-grid.editing { background: #202020; }
 
+.tile-grid.editing > .grid-tile > .grid-tile-inner { pointer-events: none; }
 .tile-grid.editing > .grid-tile.dragging {
-
   z-index: -1000;
   transition: 0.01s;
 }
@@ -128,6 +128,7 @@ body {
 .grid-tile-inner > .toolbar:hover { opacity: 1; }
 
 .grid-tile-inner .corner-se-grip {
+  pointer-events: auto;
   position: absolute; bottom: 0; right: 0;
   width: 16px; height: 16px;
   overflow: hidden;
@@ -188,9 +189,10 @@ th:last-child { border-radius: 0 2px 2px 0; }
 /*****************************************************************************\
  * Table selector
 \*****************************************************************************/
-
-.table-selector input { border:none; background:rgba(255,255,255,0.1); outline:none; padding:5px; color: #ccc; }
-.table-selector .result { padding:5px; display:flex; flex-direction:column; }
+.table-selector { background: #444; box-shadow: 0 0 8px #111;}
+.table-selector input { border:none; background:rgba(255,255,255,0.1); outline:none; padding:5px; color: #ccc; width: 100%; }
+.table-selector > ul { max-height: 20em; overflow-y: auto; }
+.table-selector .result { padding:5px; display:flex; flex-direction:column;}
 .table-selector .result + .result { border-top:1px solid rgba(255,255,255, 0.1); }
 .table-selector .result.selected { background:red; }
 .table-selector .result h2 { font-size:12pt; margin-bottom:3px;  }
@@ -201,15 +203,25 @@ th:last-child { border-radius: 0 2px 2px 0; }
  * Structured editor
 \*****************************************************************************/
 
-.structured-selector { display:inline-block; position:relative; }
-.structured-selector + .structured-selector { margin-left:5px; }
-.structured-selector .input { display:inline-block; outline:none; border-radius:2px; min-width: 15px; background:#444; min-height:1em; padding:3px 5px; cursor: default; }
-.structured-selector.active .input { padding:3px 5px; box-shadow: 0 0 8px #111; }
-.structured-selector ul { position:absolute; z-index: 10; left:-5px; margin-top:5px; background: #444; color: #ccc; box-shadow:0 0px 8px #111; border-radius:2px; }
-.structured-selector li { padding:5px 10px; border-radius:2px; cursor:default; }
-.structured-selector li:hover { background: #666; }
-.structured-selector .selected { background:red; }
-.structured-selector.invalid .input { background:red; }
+.code-container { position:relative; }
+
+.token { border-radius: 2px; background: #444; padding: 0 5px; cursor:default; }
+.token + .token { margin-left: 5px; }
+.token:hover { background: #888; }
+.token.active { background: #aaa; color: #222; }
+.token.invalid { background: #a45; color: #ccc; }
+
+.structured-editor { position:absolute; box-shadow:0 0 8px #111; top:-5px; left: -5px; background: #444; padding:3px 5px; border-radius:2px; }
+.structured-editor .code { text-align: left;  padding: 5px 5px 10px 5px; border-bottom: 1px solid #666; margin-bottom:10px; }
+.structured-editor .selectors { display:flex; }
+.structured-editor .column { display:flex; flex-direction:column; flex:none; }
+.structured-editor .column + .column { margin-left: 8px; }
+.structured-editor .column li { padding: 3px 5px; cursor:default; border-radius:2px; }
+.structured-editor .column li:hover { background: #777; }
+.structured-editor button { outline:none; border-radius:2px; height: 40px; padding:0 5px; background:#777; border:none; }
+.structured-editor button + button { margin-top:2px; }
+.structured-editor .selected { background: #aaa; }
+.structured-editor .disabled { display:none; }
 
 /*****************************************************************************\
  * UI editor
