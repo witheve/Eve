@@ -69,8 +69,8 @@ body {
 }
 .tile-grid.editing { background: #202020; }
 
+.tile-grid.editing > .grid-tile > .grid-tile-inner { pointer-events: none; }
 .tile-grid.editing > .grid-tile.dragging {
-
   z-index: -1000;
   transition: 0.01s;
 }
