@@ -178,15 +178,25 @@ th:last-child { border-radius: 0 2px 2px 0; }
  * Structured editor
 \*****************************************************************************/
 
-.structured-selector { display:inline-block; position:relative; }
-.structured-selector + .structured-selector { margin-left:5px; }
-.structured-selector .input { display:inline-block; outline:none; border-radius:2px; min-width: 15px; background:#444; min-height:1em; padding:3px 5px; cursor: default; }
-.structured-selector.active .input { padding:3px 5px; box-shadow: 0 0 8px #111; }
-.structured-selector ul { position:absolute; z-index: 10; left:-5px; margin-top:5px; background: #444; color: #ccc; box-shadow:0 0px 8px #111; border-radius:2px; }
-.structured-selector li { padding:5px 10px; border-radius:2px; cursor:default; }
-.structured-selector li:hover { background: #666; }
-.structured-selector .selected { background:red; }
-.structured-selector.invalid .input { background:red; }
+.code-container { position:relative; }
+
+.token { border-radius: 2px; background: #444; padding: 0 5px; cursor:default; }
+.token + .token { margin-left: 5px; }
+.token:hover { background: #888; }
+.token.active { background: #aaa; color: #222; }
+.token.invalid { background: #a45; color: #ccc; }
+
+.structured-editor { position:absolute; box-shadow:0 0 8px #111; top:-5px; left: -5px; background: #444; padding:3px 5px; border-radius:2px; }
+.structured-editor .code { text-align: left;  padding: 5px 5px 10px 5px; border-bottom: 1px solid #666; margin-bottom:10px; }
+.structured-editor .selectors { display:flex; }
+.structured-editor .column { display:flex; flex-direction:column; flex:none; }
+.structured-editor .column + .column { margin-left: 8px; }
+.structured-editor .column li { padding: 3px 5px; cursor:default; border-radius:2px; }
+.structured-editor .column li:hover { background: #777; }
+.structured-editor button { outline:none; border-radius:2px; height: 40px; padding:0 5px; background:#777; border:none; }
+.structured-editor button + button { margin-top:2px; }
+.structured-editor .selected { background: #aaa; }
+.structured-editor .disabled { display:none; }
 
 /*****************************************************************************\
  * UI editor
