@@ -299,10 +299,12 @@ tiles.addChooser = {
   content: reactFactory({
     displayName: "add-chooser",
     getInitialState: function() {
-      return {description: "Hover a tile type to read about what it is used for."};
+      return {description: "Hover a tile type to read about what it is used for.", type: undefined};
     },
     hoverType: function(type) {
-      this.setState({description: addTileTypes[type].description});
+      if(this.state.type !== type) {
+        this.setState({type: type, description: addTileTypes[type].description, pane2: undefined});
+      }
     },
     chooseType: function(type) {
       var tile = addTileTypes[type];

@@ -188,9 +188,10 @@ th:last-child { border-radius: 0 2px 2px 0; }
 /*****************************************************************************\
  * Table selector
 \*****************************************************************************/
-
-.table-selector input { border:none; background:rgba(255,255,255,0.1); outline:none; padding:5px; color: #ccc; }
-.table-selector .result { padding:5px; display:flex; flex-direction:column; }
+.table-selector { background: #444; box-shadow: 0 0 8px #111;}
+.table-selector input { border:none; background:rgba(255,255,255,0.1); outline:none; padding:5px; color: #ccc; width: 100%; }
+.table-selector > ul { max-height: 20em; overflow-y: auto; }
+.table-selector .result { padding:5px; display:flex; flex-direction:column;}
 .table-selector .result + .result { border-top:1px solid rgba(255,255,255, 0.1); }
 .table-selector .result.selected { background:red; }
 .table-selector .result h2 { font-size:12pt; margin-bottom:3px;  }
