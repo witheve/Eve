@@ -1389,6 +1389,8 @@ var uiCanvasElem = reactFactory({
     return neue;
   },
   resize: function(e) {
+    if(e.clientX === 0 && e.clientY === 0) return;
+
     var rel = relativeCoords(e, e.target, e.target.parentNode.parentNode).canvas;
     var state = this.state;
     var neue = {left: state.left, top: state.top, right: state.right, bottom: state.bottom};
@@ -1463,6 +1465,9 @@ var uiCanvasElem = reactFactory({
 
 var uiCanvas = reactFactory({
   displayName: "ui-canvas",
+  getInitialState: function() {
+    return {snapGuides: []}
+  },
   elementOver: function(e) {
     e.preventDefault();
   },
