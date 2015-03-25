@@ -1412,6 +1412,24 @@ var uiCanvasElem = reactFactory({
     var cur = this.props.element;
     return {right: cur.right, bottom: cur.bottom, left: cur.left, top: cur.top};
   },
+  shouldComponentUpdate: function(nextProps, nextState) {
+    var state = this.state;
+    var old = this.props.element;
+    var neue = nextProps.element;
+    if(old.id !== neue.id
+       || old.left !== neue.left
+       || old.right !== neue.right
+       || old.top !== neue.top
+       || old.bottom !== neue.bottom
+       || state.left !== nextState.left
+       || state.right !== nextState.right
+       || state.top !== nextState.top
+       || state.bottom !== nextState.bottom
+      ) {
+      return true;
+    }
+    return false;
+  },
   componentDidUpdate: function(prev) {
     var state = this.state;
     var old = prev.element;
@@ -1659,8 +1677,8 @@ var uiCanvas = reactFactory({
     return JSML(["div", {className: "ui-canvas",
                          onDragOver: this.elementOver,
                          onDrop: this.elementDropped},
-                 snaps,
-                 elems
+                 elems,
+                 snaps
                 ]);
   }
 });
