@@ -1458,28 +1458,28 @@ var uiCanvasElem = reactFactory({
       if(left <= drawThreshold) {
         guides.push({side: "left", axis: "x", pos: cur.left});
         if(left <= snapThreshold && (!snaps["left"] || snaps["left"].diff > left)) {
-          snaps["left"] = {side: "botton", axis: "y", pos: cur.left, diff: left};
+          snaps["left"] = {axis: "y", pos: cur.left, diff: left};
         }
       }
       var right = Math.abs(cur.right - pos.right);
       if(right <= drawThreshold) {
         guides.push({side: "right", axis: "x", pos: cur.right});
         if(right <= snapThreshold && (!snaps["right"] || snaps["right"].diff > right)) {
-          snaps["right"] = {side: "botton", axis: "y", pos: cur.right, diff: right};
+          snaps["right"] = {axis: "y", pos: cur.right, diff: right};
         }
       }
       var top = Math.abs(cur.top - pos.top);
       if(top <= drawThreshold) {
         guides.push({side: "top", axis: "y", pos: cur.top});
         if(top <= snapThreshold && (!snaps["top"] || snaps["top"].diff > top)) {
-          snaps["top"] = {side: "botton", axis: "y", pos: cur.top, diff: top};
+          snaps["top"] = {axis: "y", pos: cur.top, diff: top};
         }
       }
       var bottom = Math.abs(cur.bottom - pos.bottom);
       if(bottom <= drawThreshold) {
-        guides.push({side: "botton", axis: "y", pos: cur.bottom});
+        guides.push({axis: "y", pos: cur.bottom});
         if(bottom <= snapThreshold && (!snaps["bottom"] || snaps["bottom"].diff > bottom)) {
-          snaps["bottom"] = {side: "botton", axis: "y", pos: cur.bottom, diff: bottom};
+          snaps["bottom"] = {axis: "y", pos: cur.bottom, diff: bottom};
         }
       }
     });
