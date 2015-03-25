@@ -1620,12 +1620,12 @@ function dispatch(event, arg, noRedraw) {
       fact[1] = arg.grid || fact[1];
       fact[2] = arg.type || fact[2];
       if(arg.pos) {
-        fact[3] = arg.pos[0] || fact[3];
-        fact[4] = arg.pos[1] || fact[4];
+        fact[3] = arg.pos[0];
+        fact[4] = arg.pos[1];
       }
       if(arg.size) {
-        fact[5] = arg.size[0] || fact[5];
-        fact[6] = arg.size[1] || fact[6];
+        fact[5] = arg.size[0];
+        fact[6] = arg.size[1];
       }
       diffs = {gridTile: {adds: [fact], removes: [oldFact]}};
       break;
@@ -1633,13 +1633,6 @@ function dispatch(event, arg, noRedraw) {
       // @TODO: clean up old dependent facts.
       var fact = ixer.index("gridTile")[arg].slice();
       diffs.gridTile = {removes: [fact]};
-      break;
-    case "updateTile":
-      var oldTile = ixer.index("gridTile")[arg.id].slice();
-      var tile = oldTile.slice();
-      tile[3] = arg.pos[0], tile[4] = arg.pos[1];
-      tile[5] = arg.size[0], tile[6] = arg.size[1];
-      diffs = {gridTile: {adds: [tile], removes: [oldTile]}};
       break;
     case "setTileView":
       var oldTile = ixer.index("gridTile")[arg.tileId].slice();
