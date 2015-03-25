@@ -1,5 +1,6 @@
 use std::ops;
 use std::cmp::Ordering;
+use std::iter::IntoIterator;
 
 use index::Index;
 
@@ -12,6 +13,7 @@ pub enum Value {
 }
 pub type Tuple = Vec<Value>;
 pub type Relation = Index<Vec<Value>>; // a set of tuples
+pub type Id = String; // TODO use uuid?
 
 impl Ord for Value {
     fn cmp(&self, other: &Value) -> Ordering {
@@ -32,8 +34,22 @@ impl ops::Index<usize> for Value {
     }
 }
 
-trait ToValue {
+pub trait ToValue {
     fn to_value(self) -> Value;
+}
+
+pub trait ToTuple {
+    fn to_tuple(self) -> Tuple;
+}
+
+pub trait ToRelation {
+    fn to_relation(self) -> Relation;
+}
+
+impl ToValue for Value {
+    fn to_value(self) -> Value {
+        self
+    }
 }
 
 impl<'a> ToValue for &'a str {
@@ -54,37 +70,55 @@ impl ToValue for f64 {
     }
 }
 
-impl<A: ToValue> ToValue for (A,) {
-    fn to_value(self) -> Value {
+// impl<T: ToTuple> ToValue for T {
+//     fn to_value(self) -> Value {
+//         Value::Tuple(self.to_tuple())
+//     }
+// }
+
+// impl<T: ToRelation> ToValue for T where T: !ToTuple {
+//     fn to_value(self) -> Value {
+//         Value::Relation(self.to_relation())
+//     }
+// }
+
+impl<A: ToValue> ToTuple for (A,) {
+    fn to_tuple(self) -> Vec<Value> {
         let (a,) = self;
-        Value::Tuple(vec![a.to_value()])
+        vec![a.to_value()]
     }
 }
 
-impl<A: ToValue, B: ToValue> ToValue for (A,B) {
-    fn to_value(self) -> Value {
+impl<A: ToValue, B: ToValue> ToTuple for (A,B) {
+    fn to_tuple(self) -> Vec<Value> {
         let (a,b) = self;
-        Value::Tuple(vec![a.to_value(), b.to_value()])
+        vec![a.to_value(), b.to_value()]
     }
 }
 
-impl<A: ToValue, B: ToValue, C: ToValue> ToValue for (A,B,C) {
-    fn to_value(self) -> Value {
+impl<A: ToValue, B: ToValue, C: ToValue> ToTuple for (A,B,C) {
+    fn to_tuple(self) -> Vec<Value> {
         let (a,b,c) = self;
-        Value::Tuple(vec![a.to_value(), b.to_value(), c.to_value()])
+        vec![a.to_value(), b.to_value(), c.to_value()]
     }
 }
 
-impl<A: ToValue, B: ToValue, C: ToValue, D: ToValue> ToValue for (A,B,C,D) {
-    fn to_value(self) -> Value {
+impl<A: ToValue, B: ToValue, C: ToValue, D: ToValue> ToTuple for (A,B,C,D) {
+    fn to_tuple(self) -> Vec<Value> {
         let (a,b,c,d) = self;
-        Value::Tuple(vec![a.to_value(), b.to_value(), c.to_value(), d.to_value()])
+        vec![a.to_value(), b.to_value(), c.to_value(), d.to_value()]
     }
 }
 
-impl<A: ToValue, B: ToValue, C: ToValue, D: ToValue, E: ToValue> ToValue for (A,B,C,D,E) {
-    fn to_value(self) -> Value {
+impl<A: ToValue, B: ToValue, C: ToValue, D: ToValue, E: ToValue> ToTuple for (A,B,C,D,E) {
+    fn to_tuple(self) -> Vec<Value> {
         let (a,b,c,d,e) = self;
-        Value::Tuple(vec![a.to_value(), b.to_value(), c.to_value(), d.to_value(), e.to_value()])
+        vec![a.to_value(), b.to_value(), c.to_value(), d.to_value(), e.to_value()]
+    }
+}
+
+impl<T: ToTuple> ToRelation for Vec<T> {
+    fn to_relation(self) -> Relation {
+        self.into_iter().map(|t| t.to_tuple()).collect()
     }
 }

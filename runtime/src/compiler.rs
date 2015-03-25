@@ -1,10 +1,12 @@
-use std::collections::btree_map::{BTreeMap, Entry};
-use std::cell::{RefCell, RefMut};
-use value::Relation;
+use value::{Id, Relation};
 use index::Index;
 
+use std::collections::btree_map::{BTreeMap, Entry};
+use std::cell::{RefCell, RefMut};
+
+#[derive(Clone, Debug)]
 struct World {
-    views: BTreeMap<String, RefCell<Relation>>,
+    views: BTreeMap<Id, RefCell<Relation>>,
 }
 
 impl World {

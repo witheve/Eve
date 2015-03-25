@@ -7,18 +7,13 @@ extern crate test;
 
 use rand::distributions::{IndependentSample, Range};
 
-use eve::solver::*;
-use eve::solver::Value::*;
+use eve::query::*;
+use eve::value::*;
+use eve::value::Value::*;
 
 fn main() {
-    let a = vec![
-        vec![Float(0.0), Float(1.0), Float(2.0)],
-        vec![Float(4.0), Float(5.0), Float(6.0)]
-    ].into_iter().collect();
-    let b = vec![
-        vec![Float(-0.0), Float(-1.0), Float(-2.0)],
-        vec![Float(-4.0), Float(-5.0), Float(-6.0)]
-    ].into_iter().collect();
+    let a = vec![(0.0, 1.0, 2.0), (4.0, 5.0, 6.0)].to_relation();
+    let b = vec![(-0.0, -1.0, -2.0), (-4.0, -5.0, -6.0)].to_relation();
     let query = Query{clauses: vec![
         Clause::Tuple(Source{relation: 0, constraints: vec![]}),
         Clause::Tuple(Source{relation: 1, constraints: vec![]}),
@@ -28,14 +23,8 @@ fn main() {
     }
     println!("");
 
-    let a = vec![
-        vec![Float(0.0), Float(1.0), Float(2.0)],
-        vec![Float(4.0), Float(5.0), Float(6.0)]
-    ].into_iter().collect();
-    let b = vec![
-        vec![Float(-0.0), Float(-1.0), Float(-2.0)],
-        vec![Float(-4.0), Float(-5.0), Float(-6.0)]
-    ].into_iter().collect();
+    let a = vec![(0.0, 1.0, 2.0), (4.0, 5.0, 6.0)].to_relation();
+    let b = vec![(-0.0, -1.0, -2.0), (-4.0, -5.0, -6.0)].to_relation();
     let query = Query{clauses: vec![
         Clause::Relation(Source{relation: 0, constraints: vec![]}),
         Clause::Tuple(Source{relation: 1, constraints: vec![]}),
@@ -45,14 +34,8 @@ fn main() {
     }
     println!("");
 
-    let a = vec![
-        vec![Float(0.0), Float(1.0), Float(2.0)],
-        vec![Float(4.0), Float(5.0), Float(6.0)]
-    ].into_iter().collect();
-    let b = vec![
-        vec![Float(-0.0), Float(-1.0), Float(-2.0)],
-        vec![Float(-4.0), Float(-5.0), Float(-6.0)]
-    ].into_iter().collect();
+    let a = vec![(0.0, 1.0, 2.0), (4.0, 5.0, 6.0)].to_relation();
+    let b = vec![(-0.0, -1.0, -2.0), (-4.0, -5.0, -6.0)].to_relation();
     let query = Query{clauses: vec![
         Clause::Tuple(Source{relation: 0, constraints: vec![]}),
         Clause::Relation(Source{relation: 1, constraints: vec![]}),
@@ -62,14 +45,8 @@ fn main() {
     }
     println!("");
 
-    let a = vec![
-        vec![Float(0.0), Float(1.0), Float(2.0)],
-        vec![Float(4.0), Float(5.0), Float(6.0)]
-    ].into_iter().collect();
-    let b = vec![
-        vec![Float(0.0), Float(1.0), Float(2.0)],
-        vec![Float(4.0), Float(5.0), Float(6.0)]
-    ].into_iter().collect();
+    let a = vec![(0.0, 1.0, 2.0), (4.0, 5.0, 6.0)].to_relation();
+    let b = vec![(-0.0, -1.0, -2.0), (-4.0, -5.0, -6.0)].to_relation();
     let b0_lt_a0 = Constraint{
         my_column: 0,
         op: ConstraintOp::LT,
@@ -87,14 +64,8 @@ fn main() {
     }
     println!("");
 
-    let a = vec![
-        vec![Float(0.0), Float(1.0), Float(2.0)],
-        vec![Float(4.0), Float(5.0), Float(6.0)]
-    ].into_iter().collect();
-    let b = vec![
-        vec![Float(-0.0), Float(-1.0), Float(-2.0)],
-        vec![Float(-4.0), Float(-5.0), Float(-6.0)]
-    ].into_iter().collect();
+    let a = vec![(0.0, 1.0, 2.0), (4.0, 5.0, 6.0)].to_relation();
+    let b = vec![(-0.0, -1.0, -2.0), (-4.0, -5.0, -6.0)].to_relation();
     fn add(args: Vec<Value>) -> Value {
         match &*args {
             [Float(a), Float(b)] => Float(a+b),
