@@ -1,12 +1,14 @@
-use value::Relation;
+use value::{Id, Relation};
 use index::Index;
 use query::Query;
 
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::collections::BitSet;
+use std::mem::replace;
 
 #[derive(Clone, Debug)]
 pub struct Union{
+    // max_len, vec[(column_ix, tuple_ix)]
     pub mappings: Vec<(usize, Vec<(usize, usize)>)>,
 }
 
@@ -18,23 +20,22 @@ pub enum View {
 }
 
 #[derive(Clone, Debug)]
-pub struct NodeState {
-    pub value: Relation,
-    pub dirty: bool,
-}
-
-#[derive(Clone, Debug)]
 pub struct Node {
-    pub id: String,
+    pub id: Id,
     pub view: View,
-    pub state: Rc<RefCell<NodeState>>,
-    pub upstream: Vec<Rc<RefCell<NodeState>>>,
-    pub downstream: Vec<Rc<RefCell<NodeState>>>,
+    pub upstream: Vec<usize>,
+    pub downstream: Vec<usize>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Flow {
     pub nodes: Vec<Node>,
+}
+
+#[derive(Clone, Debug)]
+pub struct FlowState {
+    pub outputs: Vec<RefCell<Relation>>,
+    pub dirty: BitSet,
 }
 
 impl Union {
@@ -69,28 +70,24 @@ impl View {
 }
 
 impl Flow {
-    pub fn run(&self) -> Self {
-        let flow = self.clone(); // TODO this does not actually clone the states :(
+    pub fn run(&self, state: &FlowState) -> FlowState {
+        let mut state = state.clone();
         loop {
-            match flow.nodes.iter().find(|node_ref| node_ref.state.borrow().dirty) {
-                Some(node) => {
-                    let new_value = {
-                        let upstream = node.upstream.iter().map(|state| state.borrow()).collect::<Vec<_>>();
-                        let inputs = upstream.iter().map(|node| &node.value).collect();
+            match state.dirty.iter().next() {
+                Some(ix) => {
+                    state.dirty.remove(&ix);
+                    let node = &self.nodes[ix];
+                    let new_output = {
+                        let upstream = node.upstream.iter().map(|uix| state.outputs[*uix].borrow()).collect::<Vec<_>>();
+                        let inputs = upstream.iter().map(|output_ref| &**output_ref).collect();
                         node.view.run(inputs)
                     };
-                    let changed = {
-                        let mut state = node.state.borrow_mut();
-                        let changed = state.value != new_value;
-                        state.value = new_value;
-                        state.dirty = false;
-                        changed
-                    };
-                    if changed {
-                        for state in node.downstream.iter() {
-                            state.borrow_mut().dirty = true;
+                    if new_output != *state.outputs[ix].borrow() {
+                        for dix in node.downstream.iter() {
+                            state.dirty.insert(*dix);
                         }
                     }
+                    *state.outputs[ix].borrow_mut() = new_output;
                     continue;
                 }
                 None => {
@@ -98,6 +95,6 @@ impl Flow {
                 }
             }
         }
-        flow
+        state
     }
 }

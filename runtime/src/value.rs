@@ -12,6 +12,7 @@ pub enum Value {
 }
 pub type Tuple = Vec<Value>;
 pub type Relation = Index<Vec<Value>>; // a set of tuples
+pub type Id = String; // TODO use uuid?
 
 impl Ord for Value {
     fn cmp(&self, other: &Value) -> Ordering {
