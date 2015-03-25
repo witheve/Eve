@@ -7,8 +7,9 @@ extern crate test;
 
 use rand::distributions::{IndependentSample, Range};
 
-use eve::solver::*;
-use eve::solver::Value::*;
+use eve::query::*;
+use eve::value::*;
+use eve::value::Value::*;
 
 fn main() {
     let a = vec![

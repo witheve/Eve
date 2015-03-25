@@ -1,8 +1,8 @@
 extern crate eve;
 
-use eve::solver::Value::*;
+use eve::value::Value::*;
 use eve::index::*;
-use eve::solver::*;
+use eve::query::*;
 use eve::flow::*;
 
 use std::rc::Rc;

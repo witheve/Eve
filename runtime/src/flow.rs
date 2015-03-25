@@ -1,5 +1,6 @@
+use value::Relation;
 use index::Index;
-use solver::{Value, Tuple, Relation, Query};
+use query::Query;
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -69,7 +70,7 @@ impl View {
 
 impl Flow {
     pub fn run(&self) -> Self {
-        let flow = self.clone();
+        let flow = self.clone(); // TODO this does not actually clone the states :(
         loop {
             match flow.nodes.iter().find(|node_ref| node_ref.state.borrow().dirty) {
                 Some(node) => {

@@ -50,6 +50,18 @@ impl<T: Ord> Index<T> {
     pub fn iter(&self) -> Iter<T> {
         Iter{keys: self.items.keys()}
     }
+
+    pub fn find_all<F: Fn(&T) -> bool>(&self, filter: F) -> Vec<&T> {
+        self.iter().filter(|t| filter(*t)).collect()
+    }
+
+    pub fn find_one<F: Fn(&T) -> bool>(&self, filter: F) -> &T {
+        match &*self.find_all(filter) {
+            [] => panic!("None found"),
+            [t] => t,
+            _ => panic!("Too many found"),
+        }
+    }
 }
 
 impl<'a, T: Ord> Iterator for Iter<'a, T> {

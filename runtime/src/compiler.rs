@@ -1,25 +1,5 @@
-use std::collections::btree_map::{BTreeMap, Entry};
-use std::cell::{RefCell, RefMut};
 use value::Relation;
 use index::Index;
-
-struct World {
-    views: BTreeMap<String, RefCell<Relation>>,
-}
-
-impl World {
-    fn view<Id: ToString>(&mut self, id: Id) -> RefMut<Relation> {
-        match self.views.entry(id.to_string()) {
-            Entry::Vacant(vacant) => {
-                let relation = RefCell::new(Index::new());
-                vacant.insert(relation).borrow_mut()
-            }
-            Entry::Occupied(occupied) => {
-                occupied.into_mut().borrow_mut()
-            }
-        }
-    }
-}
 
 // TODO
 // check schema table
