@@ -1413,6 +1413,7 @@ var uiCanvasElem = reactFactory({
     return {right: cur.right, bottom: cur.bottom, left: cur.left, top: cur.top};
   },
   componentDidUpdate: function(prev) {
+    var state = this.state;
     var old = prev.element;
     var neue = this.props.element;
     if(old.id !== neue.id
@@ -1423,6 +1424,72 @@ var uiCanvasElem = reactFactory({
       var cur = this.props.element;
       this.setState({right: cur.right, bottom: cur.bottom, left: cur.left, top: cur.top});
     }
+  },
+  findSnaps: function(pos) {
+    var drawThreshold = 15;
+    var snapThreshold = 8;
+    var state = this.state;
+    var id = this.props.element.id;
+    var guides = [];
+    var snaps = {};
+    this.props.elements.forEach(function(cur) {
+      if(cur.id === id) return;
+
+      var left = Math.abs(cur.left - pos.left);
+      if(left <= drawThreshold) {
+        guides.push({side: "left", axis: "x", pos: cur.left});
+        if(left <= snapThreshold && (!snaps["left"] || snaps["left"].diff > left)) {
+          snaps["left"] = {side: "botton", axis: "y", pos: cur.left, diff: left};
+        }
+      }
+      var right = Math.abs(cur.right - pos.right);
+      if(right <= drawThreshold) {
+        guides.push({side: "right", axis: "x", pos: cur.right});
+        if(right <= snapThreshold && (!snaps["right"] || snaps["right"].diff > right)) {
+          snaps["right"] = {side: "botton", axis: "y", pos: cur.right, diff: right};
+        }
+      }
+      var top = Math.abs(cur.top - pos.top);
+      if(top <= drawThreshold) {
+        guides.push({side: "top", axis: "y", pos: cur.top});
+        if(top <= snapThreshold && (!snaps["top"] || snaps["top"].diff > top)) {
+          snaps["top"] = {side: "botton", axis: "y", pos: cur.top, diff: top};
+        }
+      }
+      var bottom = Math.abs(cur.bottom - pos.bottom);
+      if(bottom <= drawThreshold) {
+        guides.push({side: "botton", axis: "y", pos: cur.bottom});
+        if(bottom <= snapThreshold && (!snaps["bottom"] || snaps["bottom"].diff > bottom)) {
+          snaps["bottom"] = {side: "botton", axis: "y", pos: cur.bottom, diff: bottom};
+        }
+      }
+    });
+    this.props.drawSnaps(guides);
+    if(snaps.left) {
+      snaps.left = snaps.left.pos;
+      //preserve width
+      snaps.right = (pos.right - pos.left) + snaps.left;
+    } else if(snaps.right) {
+      snaps.right = snaps.right.pos;
+      //preserve width
+      snaps.left = snaps.right - (pos.right - pos.left);
+    } else {
+      snaps.left = pos.left;
+      snaps.right = pos.right;
+    }
+    if(snaps.top) {
+      snaps.top = snaps.top.pos;
+      //preserve height
+      snaps.bottom = (pos.bottom - pos.top) + snaps.top;
+    } else if(snaps.bottom) {
+      snaps.bottom = snaps.bottom.pos;
+      //preserve width
+      snaps.top = snaps.bottom - (pos.bottom - pos.top);
+    } else {
+      snaps.top = pos.top;
+      snaps.bottom = pos.bottom;
+    }
+    return snaps;
   },
   startMoving: function(e) {
     var rel = relativeCoords(e, e.target, e.target.parentNode.parentNode);
@@ -1437,9 +1504,11 @@ var uiCanvasElem = reactFactory({
     var top = canvasPos.top - this.state.offset.top;
     var right = this.state.right + (left - this.state.left);
     var bottom = this.state.bottom + (top - this.state.top);
-    this.setState({left: left, top: top, right: right, bottom: bottom});
+    var pos = {left: left, top: top, right: right, bottom: bottom};
+    this.setState(this.findSnaps(pos));
   },
   stopMoving: function(e) {
+    this.props.drawSnaps([]);
     var state = this.state;
     var element = this.props.element;
     dispatch("uiComponentElementMoved", {element: element, left: state.left, top: state.top, right: state.right, bottom: state.bottom});
@@ -1483,9 +1552,11 @@ var uiCanvasElem = reactFactory({
     if(this.state.resizeY) {
       neue[this.state.resizeY] = rel.top;
     }
+    var snaps = this.findSnaps(neue);
     this.setState(this.checkSize(state, neue));
   },
   stopResizing: function(e) {
+    this.props.drawSnaps([]);
     var state = this.state;
     var element = this.props.element;
     dispatch("uiComponentElementMoved", {element: element, left: state.left, top: state.top, right: state.right, bottom: state.bottom});
@@ -1554,6 +1625,9 @@ var uiCanvas = reactFactory({
   elementOver: function(e) {
     e.preventDefault();
   },
+  drawSnaps: function(snaps) {
+    this.setState({snapGuides: snaps});
+  },
   elementDropped: function(e) {
     var type = e.dataTransfer.getData("uiElementAdd");
     if(!type) return;
@@ -1563,12 +1637,29 @@ var uiCanvas = reactFactory({
     console.log("add", type);
   },
   render: function() {
+    var self = this;
     var elems = this.props.elements.map(function(cur) {
-      return uiCanvasElem({element: cur, key: cur.element});
-    })
+      return uiCanvasElem({element: cur, key: cur.id, elements: self.props.elements, drawSnaps: self.drawSnaps});
+    });
+    var snaps = this.state.snapGuides.map(function(cur) {
+      var style = {background: "red"};
+      if(cur.axis === "y") {
+        style.left = 0;
+        style.right = 0;
+        style.top = cur.pos;
+        style.height = 1;
+      } else if(cur.axis === "x") {
+        style.top = 0;
+        style.bottom = 0;
+        style.left = cur.pos;
+        style.width = 1;
+      }
+      return ["div", {style: style}];
+    });
     return JSML(["div", {className: "ui-canvas",
                          onDragOver: this.elementOver,
                          onDrop: this.elementDropped},
+                 snaps,
                  elems
                 ]);
   }
