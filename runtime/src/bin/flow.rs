@@ -9,7 +9,7 @@ use eve::flow::*;
 use std::cell::RefCell;
 
 fn main() {
-    let edges = vec![("a","b"), ("b", "c"), ("c", "d"), ("d", "b")].to_relation();
+    let edges = vec![("a","b"), ("b", "c"), ("c", "d"), ("d", "b")];
     let path_union = Union{
         mappings: vec![(2, vec![(0, 0), (1, 1)]), (1, vec![(0, 0), (0, 1)])],
     };
@@ -32,7 +32,7 @@ fn main() {
         nodes: vec![
             Node{
                 id: "edge".to_string(),
-                view: View::Input(edges),
+                view: View::Input,
                 upstream: vec![],
                 downstream: vec![2,3],
             },
@@ -56,12 +56,15 @@ fn main() {
             },
         ]
     };
-    let old_state = FlowState{
-        outputs: (0..4).map(|_| RefCell::new(Index::new())).collect(),
-        dirty: vec![0].into_iter().collect(),
+    let mut state = FlowState{
+        outputs: vec![
+            RefCell::new(edges.to_relation()),
+            RefCell::new(Index::new()),
+            RefCell::new(Index::new()),
+            RefCell::new(Index::new()),
+            ],
+        dirty: vec![1,2,3].into_iter().collect(),
     };
-    let new_state = flow.run(&old_state);
-    // println!("{:?}", old_state);
-    // println!("{:?}", new_state);
-    println!("{:?}", new_state.outputs[1]);
+    flow.run(&mut state);
+    println!("{:?}", state.outputs[1]);
 }

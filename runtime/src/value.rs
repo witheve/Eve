@@ -1,4 +1,5 @@
 use std::ops;
+use std::num::ToPrimitive;
 use std::cmp::Ordering;
 use std::iter::IntoIterator;
 
@@ -30,6 +31,36 @@ impl ops::Index<usize> for Value {
         match *self {
             Value::Tuple(ref tuple) => tuple.index(index),
             _ => panic!("Indexing a non-tuple value"),
+        }
+    }
+}
+
+impl ToString for Value {
+    fn to_string(&self) -> String {
+        match *self {
+            Value::String(ref string) => string.clone(),
+            _ => panic!("Stringifying a non-string value"),
+        }
+    }
+}
+
+impl ToPrimitive for Value {
+    fn to_f64(&self) -> Option<f64> {
+        match *self {
+            Value::Float(ref float) => float.to_f64(),
+            _ => None,
+        }
+    }
+    fn to_i64(&self) -> Option<i64> {
+        match *self {
+            Value::Float(ref float) => float.to_i64(),
+            _ => None,
+        }
+    }
+    fn to_u64(&self) -> Option<u64> {
+        match *self {
+            Value::Float(ref float) => float.to_u64(),
+            _ => None,
         }
     }
 }
@@ -69,6 +100,12 @@ impl ToValue for f64 {
         Value::Float(self)
     }
 }
+
+// impl ToValue for usize {
+//     fn to_value(self) -> Value {
+//         Value::Float(self.to_f64().unwrap())
+//     }
+// }
 
 // impl<T: ToTuple> ToValue for T {
 //     fn to_value(self) -> Value {
