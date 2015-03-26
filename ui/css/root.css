@@ -229,6 +229,11 @@ th:last-child { border-radius: 0 2px 2px 0; }
 
 .ui-editor { display:flex; flex:2; overflow:hidden; }
 
+.ui-guide {
+  background: rgba(64, 192, 255, 0.5);
+  box-shadow: 0 0 2px rgba(64, 192, 255, 0.5);
+}
+
 .ui-inspector {flex: none;}
 .ui-inspector > ul { padding: 5px; background: rgba(255,255,255, 0.1); border-radius:2px; }
 

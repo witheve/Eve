@@ -1478,27 +1478,59 @@ var uiEditor = {
   },
   findSnaps: function(elem, snapSet, snapZone, only) { // (Elem, SnapSet, Number, Elem?) -> Elem
     elem = extend({}, elem);
-    only = only || {top: true, left: true, bottom: true, right: true, centerX: true, centerY: true};
+    var sides = {top: true, left: true, bottom: true, right: true, centerX: true, centerY: true};
     var snaps = {};
-    var snapIx;
+    var guides = [];
     elem.centerX = elem.left + (elem.right - elem.left) / 2;
     elem.centerY = elem.top + (elem.bottom - elem.top) / 2;
 
-    for(var side in only) {
+    for(var side in sides) {
       var axis = uiEditor.axis[side];
-      if(!only[side]) { continue; }
+      var opposite = uiEditor.opposite[side];
+      if(only[opposite]) { continue; }
       snaps[side] = snapSet[axis][nearestNeighbor(snapSet[axis], elem[side])];
       if(Math.abs(snaps[side] - elem[side]) > snapZone) {
         snaps[side] = undefined;
+      } else {
+        guides.push({side: side, axis: axis, pos: snaps[side]});
       }
     }
 
-    return snaps;
+    // choose the closer of centerX/left and centerY/top to determine which should be snapped to.
+    var size = {x: (elem.right - elem.left), y: (elem.bottom - elem.top)};
+    var centerX = elem.left + size.x / 2;
+    var centerY = elem.top + size.y / 2;
+    if(!only.right && !only.left && (!snaps.left || Math.abs(snaps.centerX - centerX) < Math.abs(snaps.left - elem.left))) {
+      snaps.left = snaps.centerX - size.x / 2;
+    }
+    if(!only.bottom && !only.top && (!snaps.top || Math.abs(snaps.centerY - centerY) < Math.abs(snaps.top - elem.top))) {
+      snaps.top = snaps.centerY - size.y / 2;
+    }
+
+    // Constrain size when moving.
+    if(!only.left && snaps.left) {
+      snaps.right = snaps.left + size.x;
+    }
+    else if(!only.right && snaps.right) {
+      snaps.left = snaps.right - size.x;
+    }
+    if(!only.top && snaps.top) {
+      snaps.bottom = snaps.top + size.y;
+    }
+    else if(!only.bottom && snaps.bottom) {
+      snaps.top = snaps.bottom - size.y;
+    }
+    for(side in snaps) {
+      if(!snaps[side]) {
+        snaps[side] = elem[side];
+      }
+    }
+
+    return {snaps: snaps, guides: guides};
   }
 };
 
-
-var uiCanvasElem = reactFactory({
+var uiCanvasGroup = reactFactory({
   getInitialState: function() {
     var cur = this.props.element;
     return {right: cur.right, bottom: cur.bottom, left: cur.left, top: cur.top};
@@ -1534,66 +1566,24 @@ var uiCanvasElem = reactFactory({
       this.setState({right: cur.right, bottom: cur.bottom, left: cur.left, top: cur.top});
     }
   },
+
+  // Snapping
   findSnaps: function(pos, only) {
-    var drawThreshold = 15;
     var snapThreshold = 8;
     var state = this.state;
-    var id = this.props.element.id;
     var guides = [];
     only = only || {};
 
     var els = this.props.elements.slice();
     els.splice(els.indexOf(this.props.element), 1);
-
     var possibleSnaps = uiEditor.findPossibleSnaps(els, {edge: true, center: true});
-    var snaps = uiEditor.findSnaps(pos, possibleSnaps, snapThreshold);
-
-    // choose the closer of centerX/left and centerY/top to determine which should be snapped to.
-    var centerX = pos.left + (pos.right - pos.left) / 2;
-    var centerY = pos.top + (pos.bottom - pos.top) / 2;
-    if(!only.right && !only.left && (!snaps.left || Math.abs(snaps.centerX - centerX) < Math.abs(snaps.left - pos.left))) {
-      snaps.left = snaps.centerX - (pos.right - pos.left) / 2;
-    }
-    if(!only.bottom && !only.top && (!snaps.top || Math.abs(snaps.centerY - centerY) < Math.abs(snaps.top - pos.top))) {
-      snaps.top = snaps.centerY - (pos.bottom - pos.top) / 2;
-    }
-
-    var size = {x: (pos.right - pos.left), y: (pos.bottom - pos.top)};
-
-    for(var side in snaps) {
-      var opposite = uiEditor.opposite[side];
-
-      if(snaps[side]) {
-        var axis = uiEditor.axis[side];
-        guides.push({side: side, axis: axis, pos: snaps[side]});
-      }
-
-      if(only[opposite]) {
-        snaps[side] = undefined;
-      }
-    }
-
-    if(!only.left && snaps.left) {
-      snaps.right = snaps.left + (pos.right - pos.left);
-    }
-    else if(!only.right && snaps.right) {
-      snaps.left = snaps.right - (pos.right - pos.left);
-    }
-    if(!only.top && snaps.top) {
-      snaps.bottom = snaps.top + (pos.bottom - pos.top);
-    }
-    else if(!only.bottom && snaps.bottom) {
-      snaps.top = snaps.bottom - (pos.bottom - pos.top);
-    }
-    for(side in snaps) {
-      if(!snaps[side]) {
-        snaps[side] = pos[side];
-      }
-    }
-
-    this.props.drawSnaps(guides);
-    return snaps;
+    var found = uiEditor.findSnaps(pos, possibleSnaps, snapThreshold, only);
+    console.log(found);
+    this.props.drawSnaps(found.guides);
+    return found.snaps;
   },
+
+  // Moving
   startMoving: function(e) {
     var rel = relativeCoords(e, e.target, e.target.parentNode.parentNode);
     this.state.offset = rel.element;
@@ -1616,6 +1606,8 @@ var uiCanvasElem = reactFactory({
     var element = this.props.element;
     dispatch("uiComponentElementMoved", {element: element, left: state.left, top: state.top, right: state.right, bottom: state.bottom});
   },
+
+  // Resizing
   startResizing: function(e) {
     this.state.resizeX = e.target.getAttribute("x");
     this.state.resizeY = e.target.getAttribute("y");
@@ -1705,20 +1697,22 @@ var uiCanvasElem = reactFactory({
     var width = this.state.right - this.state.left;
     var height = this.state.bottom - this.state.top;
     return JSML(["div", {style: {top: this.state.top, left: this.state.left, width: width, height: height}},
-                 ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "top"})],
-                 ["div", this.wrapResizeHandle({className: "resize-handle", y: "top"})],
-                 ["div", this.wrapResizeHandle({className: "resize-handle", x: "right", y: "top"})],
-                 ["div", this.wrapResizeHandle({className: "resize-handle", x: "right"})],
-                 ["div", this.wrapResizeHandle({className: "resize-handle", x: "right", y: "bottom"})],
-                 ["div", this.wrapResizeHandle({className: "resize-handle", y: "bottom"})],
-                 ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "bottom"})],
-                 ["div", this.wrapResizeHandle({className: "resize-handle", x: "left"})],
+                 (this.props.selected ? [
+                   ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "top"})],
+                   ["div", this.wrapResizeHandle({className: "resize-handle", y: "top"})],
+                   ["div", this.wrapResizeHandle({className: "resize-handle", x: "right", y: "top"})],
+                   ["div", this.wrapResizeHandle({className: "resize-handle", x: "right"})],
+                   ["div", this.wrapResizeHandle({className: "resize-handle", x: "right", y: "bottom"})],
+                   ["div", this.wrapResizeHandle({className: "resize-handle", y: "bottom"})],
+                   ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "bottom"})],
+                   ["div", this.wrapResizeHandle({className: "resize-handle", x: "left"})]
+                 ] : undefined),
                  ["div", {className: "control",
                           style: {width: width, height: height},
                           onDragStart: this.startMoving,
                           onDrag: this.move,
                           onDragEnd: this.stopMoving,
-                          draggable: true},
+                          draggable: this.props.selected},
                   cur.control]]);
   }
 });
@@ -1745,10 +1739,15 @@ var uiCanvas = reactFactory({
   render: function() {
     var self = this;
     var elems = this.props.elements.map(function(cur) {
-      return uiCanvasElem({element: cur, key: cur.id, elements: self.props.elements, drawSnaps: self.drawSnaps});
+      return uiCanvasGroup({
+        element: cur, key: cur.id,
+        elements: self.props.elements,
+        drawSnaps: self.drawSnaps,
+        selected: true
+      });
     });
     var snaps = this.state.snapGuides.map(function(cur) {
-      var style = {background: "red"};
+      var style = {};
       if(cur.axis === "y") {
         style.left = 0;
         style.right = 0;
@@ -1760,7 +1759,7 @@ var uiCanvas = reactFactory({
         style.left = cur.pos;
         style.width = 1;
       }
-      return ["div", {style: style}];
+      return ["div", {className: "ui-guide", style: style}];
     });
     return JSML(["div", {className: "ui-canvas",
                          onDragOver: this.elementOver,
