@@ -1440,7 +1440,10 @@ var uiInpector = reactFactory({
 var uiEditor = {
   // Elem: {top: Number, left: Number, bottom: Number, right: Number}
   // SnapSet: {x: Number[], y: Number[]}
-
+  axis: {
+    left: "x", right: "x", centerX: "x",
+    top: "y", bottom: "y", centerY: "y"
+  },
   findPossibleSnaps: function(elems, types, grid) { // (Elem[], {[String]: Bool}?, Grid?) -> SnapSet
     types = types || {edge: true, center: true, grid: true};
     var snaps = {x: [], y: []};
@@ -1470,29 +1473,18 @@ var uiEditor = {
     return snaps;
   },
   findSnaps: function(elem, snapSet, snapZone, only) { // (Elem, SnapSet, Number, Elem?) -> Elem
+    elem = extend({}, elem);
     only = only || {top: true, left: true, bottom: true, right: true, centerX: true, centerY: true};
     var snaps = {};
     var snapIx;
-    if(only.top) {
-      snaps.top = snapSet.y[nearestNeighbor(snapSet.y, elem.top)];
-    }
-    if(only.bottom) {
-      snaps.bottom = snapSet.y[nearestNeighbor(snapSet.y, elem.bottom)];
-    }
-    if(only.left) {
-      snaps.left = snapSet.x[nearestNeighbor(snapSet.x, elem.left)];
-    }
-    if(only.right) {
-      snaps.right = snapSet.x[nearestNeighbor(snapSet.x, elem.right)];
-    }
-    if(only.centerX) {
-      snaps.centerX = snapSet.x[nearestNeighbor(snapSet.x, elem.left + (elem.right - elem.left) / 2)];
-    }
-    if(only.centerY) {
-      snaps.centerY = snapSet.y[nearestNeighbor(snapSet.y, elem.top + (elem.bottom - elem.top) / 2)];
-    }
+    elem.centerX = elem.left + (elem.right - elem.left) / 2;
+    elem.centerY = elem.top + (elem.bottom - elem.top) / 2;
 
-    for(var side in snaps) {
+    for(var side in only) {
+      var axis = uiEditor.axis[side];
+      if(!only[side]) { continue; }
+      snaps[side] = snapSet[axis][nearestNeighbor(snapSet[axis], elem[side])];
+      console.log(side, axis, snaps[side]);
       if(Math.abs(snaps[side] - elem[side]) > snapZone) {
         snaps[side] = undefined;
       }
@@ -1553,7 +1545,7 @@ var uiCanvasElem = reactFactory({
 
     var possibleSnaps = uiEditor.findPossibleSnaps(els, {edge: true, center: true});
     var snaps = uiEditor.findSnaps(pos, possibleSnaps, snapThreshold); // @TODO: only
-
+    console.log("<", snaps.left, ">", snaps.right, "^", snaps.top, "v", snaps.bottom, "cX", snaps.centerX, "cY", snaps.centerY);
     for(var side in snaps) {
       if(snaps[side]) {
         var axis = (side === "left" || side === "right" || side === "centerX" ? "x" : "y");
