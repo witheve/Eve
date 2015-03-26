@@ -43,14 +43,27 @@ pub enum Op {
 	Multiply,
 	Divide,
 	Exponentiate,
+	Exp,
+	Sqrt,
+	Log,
+	Log10,
+	Log2,
+	Ln,
+	Abs,
+	Sign,
 	Sin,
 	Cos,
 	Tan,
+	ASin,
+	ACos,
+	ATan,
+	ATan2,
 	StrConcat,
 	StrUpper,
 	StrLower,
 	StrLength,
 	StrReplace,
+	None,
 }
 
 #[derive(Clone)]
@@ -70,7 +83,7 @@ pub enum Tuple {
 }
 
 // Constant Enum --------------------------------------------------------------
-#[derive(Clone)]
+#[derive(Clone,PartialEq)]
 pub enum Constant {
 	StringConstant(String),
 	NumericConstant(Numeric),
@@ -86,7 +99,7 @@ impl std::fmt::Debug for Constant {
 	}
 }
 
-trait ToConstant { fn to_const(&self) -> Constant; }
+pub trait ToConstant { fn to_const(&self) -> Constant; }
 
 impl ToConstant for Constant { fn to_const(&self) -> Constant { self.clone() } }
 impl ToConstant for Numeric { fn to_const(&self) -> Constant { Constant::NumericConstant(self.clone()) } }
@@ -128,7 +141,7 @@ impl ToNumeric for Constant {
 	
 		match self {
 			&Constant::NumericConstant(ref x) => x.clone(),
-			&Constant::StringConstant(_) => panic!("Cannot convert string to numeric"),
+			&Constant::StringConstant(_) => panic!("ToNumeric for Constant: Cannot convert string to numeric!"),
 		}
 	}
 }
@@ -248,14 +261,32 @@ fn process_constant(c: & Constant) -> Numeric {
 fn process_call(c: & Call) -> Constant {
 
 	match c.op {
-		// Math functions
-		Op::Add => infix(|x,y|{x+y},&c.args),
-		Op::Subtract => infix(|x,y|{x-y},&c.args),
-		Op::Multiply => infix(|x,y|{x*y},&c.args),
-		Op::Divide => infix(|x,y|{x/y},&c.args),
-		Op::Exponentiate => infix(|x,y|{x.powf(y)},&c.args),
+		// Infix ops
+		Op::Add => twoargs(|x,y|{x+y},&c.args),
+		Op::Subtract => twoargs(|x,y|{x-y},&c.args),
+		Op::Multiply => twoargs(|x,y|{x*y},&c.args),
+		Op::Divide => twoargs(|x,y|{x/y},&c.args),
+		Op::Exponentiate => twoargs(|x,y|{x.powf(y)},&c.args),
+			
+		// Some general math functions
+		Op::Abs => onearg(|x|{x.abs()},&c.args),	
+		Op::Sqrt => onearg(|x|{x.sqrt()},&c.args),	
+		Op::Sign => onearg(|x|{x.signum()},&c.args),		
+		Op::Exp => onearg(|x|{x.exp()},&c.args),
+		Op::Ln => onearg(|x|{x.ln()},&c.args),
+		Op::Log => twoargs(|x,y|{x.log(y)},&c.args),			
+		Op::Log10 => onearg(|x|{x.log10()},&c.args),			
+		Op::Log2 => onearg(|x|{x.log2()},&c.args),		
+			
+		// Trig functions
 		Op::Sin => onearg(|x|{x.sin()},&c.args),
-		
+		Op::Cos => onearg(|x|{x.cos()},&c.args),
+		Op::Tan => onearg(|x|{x.tan()},&c.args),
+		Op::ASin => onearg(|x|{x.atan()},&c.args),
+		Op::ACos => onearg(|x|{x.atan()},&c.args),
+		Op::ATan => onearg(|x|{x.atan()},&c.args),
+		Op::ATan2 => twoargs(|x,y|{x.atan2(y)},&c.args),
+
 		// String functions
 		Op::StrConcat => str_cat(&c.args),
 		Op::StrUpper => str_to_upper(&c.args),
@@ -268,22 +299,22 @@ fn process_call(c: & Call) -> Constant {
 
 // Math Functions  ------------------------------------------------------------
 
-// Perform a provided function that takes one argument
+// Execute a provided function that takes one argument in an expression vector
 fn onearg<F: Fn(f64) -> f64>(f: F, args: &ExpressionVec) -> Constant {
 	argcheck(args,1);
 	let x = unwrap_numeric(&process_expression(&args[0]).to_numeric());
 	f(x).to_const()
 }
 
-// Perform a provided infix operation on two arguments in an expression vector
-fn infix<F: Fn(f64,f64) -> f64>(f: F, args: &ExpressionVec) -> Constant {
+// Execute a provided function that takes two arguments in an expression vector
+fn twoargs<F: Fn(f64,f64) -> f64>(f: F, args: &ExpressionVec) -> Constant {
 
 	argcheck(args,2);
 
-	let lhs = unwrap_numeric(&process_expression(&args[0]).to_numeric());
-	let rhs = unwrap_numeric(&process_expression(&args[1]).to_numeric());
+	let x = unwrap_numeric(&process_expression(&args[0]).to_numeric());
+	let y = unwrap_numeric(&process_expression(&args[1]).to_numeric());
 	
-	f(lhs,rhs).to_const()
+	f(x,y).to_const()
 	
 }
 
