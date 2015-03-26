@@ -97,6 +97,35 @@ function mergeDiffs(dest, src) {
   return dest;
 }
 
+function unique(arr) {
+  arr.sort(function(a, b) { return a - b; });
+  var prev = arr[0];
+  var ix = 1;
+  while(ix < arr.length) {
+    if(arr[ix] === prev) {
+      arr.splice(ix, 1);
+    } else {
+      prev = arr[ix];
+      ix++;
+    }
+  }
+  return ix;
+}
+
+function nearestNeighbor(haystack, needle) {
+  var prevDelta = Infinity;
+  var delta = Infinity;
+  for(var ix = 0, len = haystack.length; ix < len; ix++) {
+    delta = Math.abs(haystack[ix] - needle);
+    if(delta < prevDelta) {
+      prevDelta = delta;
+    } else {
+      return ix - 1;
+    }
+  }
+  return ix - 1;
+}
+
 //---------------------------------------------------------
 // UI state
 //---------------------------------------------------------
@@ -1362,7 +1391,7 @@ var uiControls = {
            ]
   }
 
-}
+};
 
 var uiControl = reactFactory({
   displayName: "ui-control",
@@ -1407,6 +1436,73 @@ var uiInpector = reactFactory({
   }
 });
 
+
+var uiEditor = {
+  // Elem: {top: Number, left: Number, bottom: Number, right: Number}
+  // SnapSet: {x: Number[], y: Number[]}
+
+  findPossibleSnaps: function(elems, types, grid) { // (Elem[], {[String]: Bool}?, Grid?) -> SnapSet
+    types = types || {edge: true, center: true, grid: true};
+    var snaps = {x: [], y: []};
+    for(var elemIx in elems) {
+      var elem = elems[elemIx];
+      if(types.edge) {
+        snaps.x.push(elem.left, elem.right);
+        snaps.y.push(elem.top, elem.bottom);
+      }
+      if(types.center) {
+        snaps.x.push(elem.left + (elem.right - elem.left) / 2);
+        snaps.y.push(elem.top + (elem.bottom - elem.top) / 2);
+      }
+    }
+    if(types.grid) {
+      for(var x = 0, w = grid.size[0]; x < w; x++) {
+        snaps.x.push(x * grid.calculated.cellWidth + x * grid.gutter);
+      }
+      for(var y = 0, h = grid.size[1]; y < h; y++) {
+        snaps.y.push(y * grid.calculated.cellHeight + y * grid.gutter);
+      }
+    }
+
+    unique(snaps.x);
+    unique(snaps.y);
+
+    return snaps;
+  },
+  findSnaps: function(elem, snapSet, snapZone, only) { // (Elem, SnapSet, Number, Elem?) -> Elem
+    only = only || {top: true, left: true, bottom: true, right: true, centerX: true, centerY: true};
+    var snaps = {};
+    var snapIx;
+    if(only.top) {
+      snaps.top = snapSet.y[nearestNeighbor(snapSet.y, elem.top)];
+    }
+    if(only.bottom) {
+      snaps.bottom = snapSet.y[nearestNeighbor(snapSet.y, elem.bottom)];
+    }
+    if(only.left) {
+      snaps.left = snapSet.x[nearestNeighbor(snapSet.x, elem.left)];
+    }
+    if(only.right) {
+      snaps.right = snapSet.x[nearestNeighbor(snapSet.x, elem.right)];
+    }
+    if(only.centerX) {
+      snaps.centerX = snapSet.x[nearestNeighbor(snapSet.x, elem.left + (elem.right - elem.left) / 2)];
+    }
+    if(only.centerY) {
+      snaps.centerY = snapSet.y[nearestNeighbor(snapSet.y, elem.top + (elem.bottom - elem.top) / 2)];
+    }
+
+    for(var side in snaps) {
+      if(Math.abs(snaps[side] - elem[side]) > snapZone) {
+        snaps[side] = undefined;
+      }
+    }
+
+    return snaps;
+  }
+};
+
+
 var uiCanvasElem = reactFactory({
   getInitialState: function() {
     var cur = this.props.element;
@@ -1449,81 +1545,40 @@ var uiCanvasElem = reactFactory({
     var state = this.state;
     var id = this.props.element.id;
     var guides = [];
-    var snaps = {};
     var only = only || {};
-    this.props.elements.forEach(function(cur) {
-      if(cur.id === id) return;
 
-      var left = Math.abs(cur.left - pos.left);
-      if(left <= drawThreshold) {
-        guides.push({side: "left", axis: "x", pos: cur.left});
-        if(left <= snapThreshold && (!snaps["left"] || snaps["left"].diff > left)) {
-          snaps["left"] = {axis: "y", pos: cur.left, diff: left};
-        }
+    var els = this.props.elements.slice();
+    var elIx = els.indexOf(this.props.element);
+    els.splice(elIx, 1);
+
+    var possibleSnaps = uiEditor.findPossibleSnaps(els, {edge: true, center: true});
+    var snaps = uiEditor.findSnaps(pos, possibleSnaps, snapThreshold); // @TODO: only
+
+    for(var side in snaps) {
+      if(snaps[side]) {
+        var axis = (side === "left" || side === "right" || side === "centerX" ? "x" : "y");
+        guides.push({side: side, axis: axis, pos: snaps[side]});
       }
-      var right = Math.abs(cur.right - pos.right);
-      if(right <= drawThreshold) {
-        guides.push({side: "right", axis: "x", pos: cur.right});
-        if(right <= snapThreshold && (!snaps["right"] || snaps["right"].diff > right)) {
-          snaps["right"] = {axis: "y", pos: cur.right, diff: right};
-        }
+    }
+    if(snaps.left && snaps.right === undefined) {
+      snaps.right = snaps.left + (pos.right - pos.left);
+    }
+    if(snaps.right && snaps.left === undefined) {
+      snaps.left = snaps.right - (pos.right - pos.left);
+    }
+    if(snaps.top && snaps.bottom === undefined) {
+      snaps.bottom = snaps.top + (pos.bottom - pos.top);
+    }
+    if(snaps.bottom && snaps.top === undefined) {
+      snaps.top = snaps.bottom - (pos.bottom - pos.top);
+    }
+    for(side in snaps) {
+      if(!snaps[side]) {
+        snaps[side] = pos[side];
       }
-      var top = Math.abs(cur.top - pos.top);
-      if(top <= drawThreshold) {
-        guides.push({side: "top", axis: "y", pos: cur.top});
-        if(top <= snapThreshold && (!snaps["top"] || snaps["top"].diff > top)) {
-          snaps["top"] = {axis: "y", pos: cur.top, diff: top};
-        }
-      }
-      var bottom = Math.abs(cur.bottom - pos.bottom);
-      if(bottom <= drawThreshold) {
-        guides.push({axis: "y", pos: cur.bottom});
-        if(bottom <= snapThreshold && (!snaps["bottom"] || snaps["bottom"].diff > bottom)) {
-          snaps["bottom"] = {axis: "y", pos: cur.bottom, diff: bottom};
-        }
-      }
-    });
+    }
+
     this.props.drawSnaps(guides);
-    if(snaps.left && !only["right"]) {
-      snaps.left = snaps.left.pos;
-      if(!only["left"]) {
-        //preserve width
-        snaps.right = (pos.right - pos.left) + snaps.left;
-      } else {
-        snaps.right = pos.right;
-      }
-    } else if(snaps.right && !only["left"]) {
-      snaps.right = snaps.right.pos;
-      if(!only["right"]) {
-        //preserve width
-        snaps.left = snaps.right - (pos.right - pos.left);
-      } else {
-        snaps.left = pos.left;
-      }
-    } else {
-      snaps.left = pos.left;
-      snaps.right = pos.right;
-    }
-    if(snaps.top && !only["bottom"]) {
-      snaps.top = snaps.top.pos;
-      if(!only["top"]) {
-        //preserve height
-        snaps.bottom = (pos.bottom - pos.top) + snaps.top;
-      } else {
-        snaps.bottom = pos.bottom;
-      }
-    } else if(snaps.bottom && !only["top"]) {
-      snaps.bottom = snaps.bottom.pos;
-      if(!only["bottom"]) {
-        //preserve width
-        snaps.top = snaps.bottom - (pos.bottom - pos.top);
-      } else {
-        snaps.top = pos.top;
-      }
-    } else {
-      snaps.top = pos.top;
-      snaps.bottom = pos.bottom;
-    }
     return snaps;
   },
   startMoving: function(e) {
