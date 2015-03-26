@@ -1444,6 +1444,10 @@ var uiEditor = {
     left: "x", right: "x", centerX: "x",
     top: "y", bottom: "y", centerY: "y"
   },
+  opposite: {
+    left: "right", right: "left",
+    top: "bottom", bottom: "top"
+  },
   findPossibleSnaps: function(elems, types, grid) { // (Elem[], {[String]: Bool}?, Grid?) -> SnapSet
     types = types || {edge: true, center: true, grid: true};
     var snaps = {x: [], y: []};
@@ -1543,20 +1547,30 @@ var uiCanvasElem = reactFactory({
 
     var possibleSnaps = uiEditor.findPossibleSnaps(els, {edge: true, center: true});
     var snaps = uiEditor.findSnaps(pos, possibleSnaps, snapThreshold);
+
+    // choose the closer of centerX/left and centerY/top to determine which should be snapped to.
+    var centerX = pos.left + (pos.right - pos.left) / 2;
+    var centerY = pos.top + (pos.bottom - pos.top) / 2;
+    if(!only.right && (!snaps.left || Math.abs(snaps.centerX - centerX) < Math.abs(snaps.left - pos.left))) {
+      snaps.left = snaps.centerX - (pos.right - pos.left) / 2;
+    }
+    if(!only.bottom && (!snaps.top || Math.abs(snaps.centerY - centerY) < Math.abs(snaps.top - pos.top))) {
+      snaps.top = snaps.centerY - (pos.bottom - pos.top) / 2;
+    }
+
+    var size = {x: (pos.right - pos.left), y: (pos.bottom - pos.top)};
+
     for(var side in snaps) {
+      var opposite = uiEditor.opposite[side];
+
       if(snaps[side]) {
         var axis = uiEditor.axis[side];
         guides.push({side: side, axis: axis, pos: snaps[side]});
       }
-    }
-    // choose the closer of centerX/left and centerY/top to determine which should be snapped to.
-    var centerX = pos.left + (pos.right - pos.left) / 2;
-    var centerY = pos.top + (pos.bottom - pos.top) / 2;
-    if(!only.right && !snaps.left || Math.abs(snaps.centerX - centerX) < Math.abs(snaps.left - pos.left)) {
-      snaps.left = snaps.centerX - (pos.right - pos.left) / 2;
-    }
-    if(!only.bottom && !snaps.top || Math.abs(snaps.centerY - centerY) < Math.abs(snaps.top - pos.top)) {
-      snaps.top = snaps.centerY - (pos.bottom - pos.top) / 2;
+
+      if(only[opposite]) {
+        snaps[side] = undefined;
+      }
     }
 
     if(!only.left && snaps.left) {
