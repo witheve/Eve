@@ -1551,10 +1551,10 @@ var uiCanvasElem = reactFactory({
     // choose the closer of centerX/left and centerY/top to determine which should be snapped to.
     var centerX = pos.left + (pos.right - pos.left) / 2;
     var centerY = pos.top + (pos.bottom - pos.top) / 2;
-    if(!only.right && (!snaps.left || Math.abs(snaps.centerX - centerX) < Math.abs(snaps.left - pos.left))) {
+    if(!only.right && !only.left && (!snaps.left || Math.abs(snaps.centerX - centerX) < Math.abs(snaps.left - pos.left))) {
       snaps.left = snaps.centerX - (pos.right - pos.left) / 2;
     }
-    if(!only.bottom && (!snaps.top || Math.abs(snaps.centerY - centerY) < Math.abs(snaps.top - pos.top))) {
+    if(!only.bottom && !only.top && (!snaps.top || Math.abs(snaps.centerY - centerY) < Math.abs(snaps.top - pos.top))) {
       snaps.top = snaps.centerY - (pos.bottom - pos.top) / 2;
     }
 
