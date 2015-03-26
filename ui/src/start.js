@@ -1484,7 +1484,6 @@ var uiEditor = {
       var axis = uiEditor.axis[side];
       if(!only[side]) { continue; }
       snaps[side] = snapSet[axis][nearestNeighbor(snapSet[axis], elem[side])];
-      console.log(side, axis, snaps[side]);
       if(Math.abs(snaps[side] - elem[side]) > snapZone) {
         snaps[side] = undefined;
       }
@@ -1537,7 +1536,7 @@ var uiCanvasElem = reactFactory({
     var state = this.state;
     var id = this.props.element.id;
     var guides = [];
-    var only = only || {};
+    only = only || {};
 
     var els = this.props.elements.slice();
     var elIx = els.indexOf(this.props.element);
@@ -1545,23 +1544,22 @@ var uiCanvasElem = reactFactory({
 
     var possibleSnaps = uiEditor.findPossibleSnaps(els, {edge: true, center: true});
     var snaps = uiEditor.findSnaps(pos, possibleSnaps, snapThreshold); // @TODO: only
-    console.log("<", snaps.left, ">", snaps.right, "^", snaps.top, "v", snaps.bottom, "cX", snaps.centerX, "cY", snaps.centerY);
     for(var side in snaps) {
       if(snaps[side]) {
-        var axis = (side === "left" || side === "right" || side === "centerX" ? "x" : "y");
+        var axis = uiEditor.axis[side];
         guides.push({side: side, axis: axis, pos: snaps[side]});
       }
     }
-    if(snaps.left && snaps.right === undefined) {
+    if(!only.left && snaps.left && snaps.right === undefined) {
       snaps.right = snaps.left + (pos.right - pos.left);
     }
-    if(snaps.right && snaps.left === undefined) {
+    if(!only.right && snaps.right && snaps.left === undefined) {
       snaps.left = snaps.right - (pos.right - pos.left);
     }
-    if(snaps.top && snaps.bottom === undefined) {
+    if(!only.top && snaps.top && snaps.bottom === undefined) {
       snaps.bottom = snaps.top + (pos.bottom - pos.top);
     }
-    if(snaps.bottom && snaps.top === undefined) {
+    if(!only.bottom && snaps.bottom && snaps.top === undefined) {
       snaps.top = snaps.bottom - (pos.bottom - pos.top);
     }
     for(side in snaps) {
