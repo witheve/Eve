@@ -1539,27 +1539,36 @@ var uiCanvasElem = reactFactory({
     only = only || {};
 
     var els = this.props.elements.slice();
-    var elIx = els.indexOf(this.props.element);
-    els.splice(elIx, 1);
+    els.splice(els.indexOf(this.props.element), 1);
 
     var possibleSnaps = uiEditor.findPossibleSnaps(els, {edge: true, center: true});
-    var snaps = uiEditor.findSnaps(pos, possibleSnaps, snapThreshold); // @TODO: only
+    var snaps = uiEditor.findSnaps(pos, possibleSnaps, snapThreshold);
     for(var side in snaps) {
       if(snaps[side]) {
         var axis = uiEditor.axis[side];
         guides.push({side: side, axis: axis, pos: snaps[side]});
       }
     }
-    if(!only.left && snaps.left && snaps.right === undefined) {
+    // choose the closer of centerX/left and centerY/top to determine which should be snapped to.
+    var centerX = pos.left + (pos.right - pos.left) / 2;
+    var centerY = pos.top + (pos.bottom - pos.top) / 2;
+    if(!only.right && !snaps.left || Math.abs(snaps.centerX - centerX) < Math.abs(snaps.left - pos.left)) {
+      snaps.left = snaps.centerX - (pos.right - pos.left) / 2;
+    }
+    if(!only.bottom && !snaps.top || Math.abs(snaps.centerY - centerY) < Math.abs(snaps.top - pos.top)) {
+      snaps.top = snaps.centerY - (pos.bottom - pos.top) / 2;
+    }
+
+    if(!only.left && snaps.left) {
       snaps.right = snaps.left + (pos.right - pos.left);
     }
-    if(!only.right && snaps.right && snaps.left === undefined) {
+    else if(!only.right && snaps.right) {
       snaps.left = snaps.right - (pos.right - pos.left);
     }
-    if(!only.top && snaps.top && snaps.bottom === undefined) {
+    if(!only.top && snaps.top) {
       snaps.bottom = snaps.top + (pos.bottom - pos.top);
     }
-    if(!only.bottom && snaps.bottom && snaps.top === undefined) {
+    else if(!only.bottom && snaps.bottom) {
       snaps.top = snaps.bottom - (pos.bottom - pos.top);
     }
     for(side in snaps) {
