@@ -207,20 +207,28 @@ th:last-child { border-radius: 0 2px 2px 0; }
 
 .token { border-radius: 2px; background: #444; padding: 0 5px; cursor:default; }
 .token + .token { margin-left: 5px; }
-.token:hover { background: #888; }
-.token.active { background: #aaa; color: #222; }
+.token:hover { background: #666; }
+.token.active { background: #666; color: #ccc; }
 .token.invalid { background: #a45; color: #ccc; }
+
+.token.active .ref { color: #acf; }
+.token.active .namespace { color: #aaa; }
+
+.ref { color: #acf; }
+.ref span { display:inline-block; }
+.namespace { color: #999; margin-right:6px; }
 
 .structured-editor { position:absolute; box-shadow:0 0 8px #111; top:-5px; left: -5px; background: #444; padding:3px 5px; border-radius:2px; }
 .structured-editor .code { text-align: left;  padding: 5px 5px 10px 5px; border-bottom: 1px solid #666; margin-bottom:10px; }
-.structured-editor .selectors { display:flex; }
-.structured-editor .column { display:flex; flex-direction:column; flex:none; }
+.structured-editor .selectors { display:flex; margin:0 4px 5px 4px; }
+.structured-editor .column { display:flex; flex-direction:column; flex:none; max-height:200px; overflow-y:auto; overflow-x: hidden; }
 .structured-editor .column + .column { margin-left: 8px; }
-.structured-editor .column li { padding: 3px 5px; cursor:default; border-radius:2px; }
-.structured-editor .column li:hover { background: #777; }
-.structured-editor button { outline:none; border-radius:2px; height: 40px; padding:0 5px; background:#777; border:none; }
-.structured-editor button + button { margin-top:2px; }
-.structured-editor .selected { background: #aaa; }
+.structured-editor .column > ul { display:flex; flex-wrap: wrap; width:200px; }
+.structured-editor .column li { padding: 8px 5px; overflow:hidden; text-align:center; flex: none; min-width:99px; max-width:99px; margin-left:1px; margin-bottom:1px; cursor:default; border-radius:2px; background: #555; }
+.structured-editor .column li:hover { background: #888; color: #eee; }
+.structured-editor .column li:hover .namespace { color: #bbb; }
+.structured-editor button { outline:none; margin-top:1px; min-width:55px; border-radius:2px; padding:9px 5px; background:#555; border:none; color:#ccc; }
+.structured-editor .selected { background: #888; color: #eee; }
 .structured-editor .disabled { display:none; }
 
 /*****************************************************************************\

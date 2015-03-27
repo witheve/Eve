@@ -1040,6 +1040,11 @@ var structuredMultiSelector = reactFactory({
   getInitialState: function() {
     return {active: false, mode: false};
   },
+  componentDidUpdate: function(prev) {
+    if(this.props.mode !== prev.mode || !pathEqual(prev.path, this.props.path)) {
+      this.setState({mode: this.props.mode});
+    }
+  },
   toggleActive: function() {
     this.setState({active: !this.state.active});
   },
@@ -1064,22 +1069,31 @@ var structuredMultiSelector = reactFactory({
     var items;
     var column2;
     if(mode === "field") {
-      items = this.props.items.map(function(cur) {
+      var fields = this.props.fields || [];
+      items = fields.map(function(cur) {
         return structuredSelectorItem({item: cur, onSet: self.set});
       });
-      column2 = ["ul", items];
+      if(items.length) {
+        column2 = ["ul", items];
+      }
     }
     if(mode === "function") {
-      items = this.props.items.map(function(cur) {
+      var funcs = this.props.functions || [];
+      items = funcs.map(function(cur) {
         return structuredSelectorItem({item: cur, onSet: self.set});
       });
-      column2 = ["ul", items];
+      if(items.length) {
+        column2 = ["ul", items];
+      }
     }
     if(mode === "match") {
-      column2 = ["div", "match editor"];
     }
     if(mode === "constant") {
-      column2 = ["div", "constant editor"];
+    }
+    if(column2) {
+      column2 = ["div", {className: "column"},
+                   column2
+                  ];
     }
     var modes = ["field", "function", "match", "constant"];
     var modeButtons = modes.map(function(cur) {
@@ -1093,167 +1107,360 @@ var structuredMultiSelector = reactFactory({
                  ["div", {className: "selectors"},
                   ["div", {className: "column"},
                    modeButtons],
-                  ["div", {className: "column"},
-                   column2
-                  ],
+                  column2
                  ]]);
   }
 });
 
+var primitiveInfo = {
+  "+": {infix: true, args: ["number", "number"]},
+  "-": {infix: true, args: ["number", "number"]},
+  "*": {infix: true, args: ["number", "number"]},
+  "/": {infix: true, args: ["number", "number"]},
+  "sum": {infix: false, args: ["number"]},
+  "count": {infix: false, args: ["group"]},
+  "average": {infix: false, args: ["number"]},
+
+}
+
+var pathEqual = Indexing.arraysIdentical;
+function tokenAtPath(component, value, pathExtension) {
+  return astComponents["token"]({path: pathExtension ? component.props.path.concat(pathExtension) : component.props.path,
+                                 onSelect: component.props.onSelect,
+                                 activePath: component.props.activePath,
+                                 value: value});
+}
+function componentAtPath(component, value, pathExtension) {
+  return astComponents[value[""]]({path: pathExtension ? component.props.path.concat(pathExtension) : component.props.path,
+                                 onSelect: component.props.onSelect,
+                                 activePath: component.props.activePath,
+                                 value: value});
+}
 
 var astComponents = {
-    "field-source-ref": reactFactory({
-      render: function() {
-//         return {"": "field-source-ref", source: source, field: field};
-        var name = code.refToName(this.props.curRef);
-        var activeClass = this.props.active ? " active" : "";
-        var invalidClass = this.props.invalid ? " invalid" : "";
-        return JSML(["span", {className: "token" + activeClass + invalidClass, onClick: this.props.onSelect}, name]);
+  "token": reactFactory({
+    onSelect: function() {
+      this.props.onSelect(this.props.path);
+    },
+    render: function() {
+      var activeClass = pathEqual(this.props.activePath || [], this.props.path) ? " selected" : "";
+      var invalidClass = this.props.invalid ? " invalid" : "";
+      return JSML(["span", {className: "token" + activeClass + invalidClass, onClick: this.onSelect}, this.props.value])
+    }
+  }),
+  "field-source-ref": reactFactory({
+    render: function() {
+      var name = code.refToName(this.props.value);
+      var value = ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], name.field];
+      return tokenAtPath(this, value);
+    }
+  }),
+  "source-ref": reactFactory({
+    render: function() {
+      //       return {"": "source-ref", source: source};
+    }
+  }),
+  constant: reactFactory({
+    render: function() {
+      //       return {"": "constant", value: value};
+    }
+  }),
+  op: reactFactory({
+    render: function() {
+      return tokenAtPath(this, this.props.value);
+    }
+  }),
+  variable: reactFactory({
+    render: function() {
+      //       return {"": "variable", string: string};
+    }
+  }),
+  call: reactFactory({
+    placeholderOrValue: function(args, placeholders, ix) {
+      var curArg = args[ix];
+      if(curArg) {
+        return componentAtPath(this, curArg, ["args", ix]);
       }
-    }),
-    "source-ref": reactFactory({
-      render: function() {
-//       return {"": "source-ref", source: source};
-      }
-    }),
-    "field-ref": reactFactory({
-      render: function() {
-//       return {"": "field-ref", field: field};
-      }
-    }),
-    constant: reactFactory({
-      render: function() {
-//       return {"": "constant", value: value};
-      }
-    }),
-    op: reactFactory({
-      render: function() {
-        var activeClass = this.props.active ? " active" : "";
-        var invalidClass = this.props.invalid ? " invalid" : "";
-        return JSML(["span", {className: "token" + activeClass + invalidClass, onClick: this.props.onSelect}, this.props.op]);
-      }
-    }),
-    variable: reactFactory({
-      render: function() {
-//       return {"": "variable", string: string};
-      }
-    }),
-    call: reactFactory({
-      render: function() {
-//       return {"": "call", primitive: primitive, args: args};
-      }
-    }),
-    match: reactFactory({
-      render: function() {
-//       return {"": "match", patterns: patterns, handlers: handlers};
-      }
-    }),
-    tuple: reactFactory({
-      render: function() {
-//       return {"": "tuple", patterns: patterns};
-      }
-    }),
-    expression: reactFactory({
-      render: function() {
-        var allRefs = code.viewToRefs("qq");
-        var items = allRefs.map(function(cur) {
-          return {id: cur, text: code.refToName(cur)};
+      return tokenAtPath(this, placeholders[ix], ["args", ix]);
+    },
+    render: function() {
+      //       return {"": "call", primitive: primitive, args: args};
+      var self = this;
+      var prim = this.props.value.primitive;
+      var args = this.props.value.args || [];
+      var info = primitiveInfo[prim];
+      var rep;
+      var op = tokenAtPath(this, prim);
+      if(info.infix) {
+        var arg1 = this.placeholderOrValue(args, info.args, 0);
+        var arg2 = this.placeholderOrValue(args, info.args, 1);
+        rep = ["span", arg1, op, arg2];
+      } else {
+        args = info.args.map(function(cur, ix) {
+          return self.placeholderOrValue(args, info.args, ix);
         });
-        return JSML(["div", {className: "code-container"},
-                     structuredMultiSelector({items: items, value: ["span", {className: "token"}, "yo"]})]);
+        rep = ["span", op, args];
       }
-    }),
-    constraint: reactFactory({
-      getInitialState: function() {
-        return {};
-      },
-      setLeft: function(ref) {
-        var neue = this.props.constraint.slice();
-        neue[2] = ref;
-        this.setState({editing: false});
-        dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
-      },
-      setRight: function(ref) {
-        var neue = this.props.constraint.slice();
-        neue[3] = ref;
-        this.setState({editing: false});
-        dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
-      },
-      validateRight: function(selected, raw) {
-        //@TODO: can either be a constant or a ref
-        //left and right have to type check
-        var left = code.refToType(this.props.constraint[2]);
-        var right = code.refToType(this.props.constraint[3]);
-        return code.typesEqual(left, right);
-      },
-      setOp: function(op) {
-        var neue = this.props.constraint.slice();
-        neue[1] = op;
-        this.setState({editing: false});
-        dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
-      },
-      editingLeft: function() { this.setState({editing: "left"}); },
-      editingRight: function() { this.setState({editing: "right"}); },
-      editingOp: function() { this.setState({editing: "op"}); },
-      render: function() {
-        var view = this.props.source[1];
-        var sourceId = this.props.source[0];
-        var viewOrData = this.props.source[3];
-        var allRefs = code.viewToRefs(view);
-        var cur = this.props.constraint;
-        var editing = this.state.editing;
-        var left = astComponents["field-source-ref"]({curRef: cur[2], onSelect: this.editingLeft, active: editing === "left"});
-        //@TODO: right can be a constant or a ref...
-        var right = astComponents["field-source-ref"]({curRef: cur[3], onSelect: this.editingRight, active: editing === "right", invalid: !this.validateRight()});
-        var op = astComponents["op"]({op: cur[1], active: editing === "op", onSelect: this.editingOp});
-        var content = ["div", {className: "structured-constraint",
-                               onClick: this.startEditing},
-                       left, op, right];
-        var editor;
-        if(this.state.editing === "left") {
-          var localRefs = allRefs.filter(function(cur) {
-            return cur.source === sourceId;
-          }).map(function(cur) {
-            return {id: cur, text: code.refToName(cur)};
-          });
-          editor = structuredMultiSelector({items: localRefs,
-                                             onSet: this.setLeft,
-                                             value: content,
-                                             mode: "field",
-                                             disabled: {"function": "Only a field is allowed here.",
-                                                        "match": "Only a field is allowed here.",
-                                                        "constant": "Only a field is allowed here."}});
-        } else if(this.state.editing === "right") {
-        var leftType = code.refToType(this.props.constraint[2]);
-          var rightRefs = allRefs.filter(function(cur) {
-            return code.typesEqual(leftType, code.refToType(cur));
-          }).map(function(cur) {
-            return {id: cur, text: code.refToName(cur)};
-          });
-          editor = structuredMultiSelector({items: rightRefs,
-                                             onSet: this.setRight,
-                                             value: content,
-                                             mode: "field",
-                                             disabled: {"function": "Only a field or value is allowed here.",
-                                                        "match": "Only a field or value is allowed here."}});
-        } else if(this.state.editing === "op") {
-          var allOps = [{id: "=", text: "="},
-                        {id: ">", text: ">"},
-                        {id: "<", text: "<"},
-                        {id: ">=", text: ">="},
-                        {id: "<=", text: "<="},
-                        {id: "!=", text: "!="}];
-          editor = structuredMultiSelector({items: allOps,
-                                             onSet: this.setOp,
-                                             value: content,
-                                             mode: "function",
-                                             disabled: {"field": "Only a function is allowed here.",
-                                                        "match": "Only a function is allowed here.",
-                                                        "constant": "Only a function is allowed here."}});
+      return JSML(["div", {}, rep]);
+    }
+  }),
+  match: reactFactory({
+    render: function() {
+      //       return {"": "match", patterns: patterns, handlers: handlers};
+    }
+  }),
+  tuple: reactFactory({
+    render: function() {
+      //       return {"": "tuple", patterns: patterns};
+    }
+  }),
+  expression: reactFactory({
+    getInitialState: function() {
+      return {editing: false}
+    },
+    onSet: function(id) {
+      //@TODO: if this expression is complete and valid
+      var path = this.state.editing;
+      //@TODO: deep clone
+      var exp = this.props.expression;
+      if(!path.length) {
+        exp = id;
+      } else {
+        //follow the path, modify the thing there.
+        var cursor = exp;
+        for(var i = 0, len = path.length - 1; i < len; i++) {
+          cursor = cursor[path[i]];
         }
-        return JSML(["div", {className: "code-container"}, content, editor]);
+        cursor[path[path.length - 1]] = id;
       }
-    }),
+      if(this.props.onSet) {
+        this.props.onSet(exp);
+        this.moveCursor(path, exp);
+      }
+    },
+    moveCursor: function(path, exp) {
+      var info = this.parentTupleAndPath(path, exp);
+      var parent = info.parent;
+      var remaining = info.path || [];
+      var child = info.child || {};
+
+      //if we're dealing with a function, we want to move the cursor
+      //to the next empty arg
+      if(child[""] === "call") {
+        var info = primitiveInfo[child.primitive];
+        this.startEditing(path.concat(["args", 0]));
+        return
+      } else if(parent[""] === "call") {
+        //find the next empty arg
+        var info = primitiveInfo[parent.primitive];
+        for(var i = 0, len = info.args.length; i < len; i++) {
+          if(!parent.args[i]) break;
+        }
+        if(i === info.args.length) return;
+        if(remaining[0] === "args") {
+          var final = path.slice(0,path.length - 1);
+          final.push(i);
+          this.startEditing(final);
+        } else {
+          this.startEditing(path.concat(["args", i]));
+        }
+      }
+    },
+    parentTupleAndPath: function(path, exp) {
+      var parent, remaining, child;
+      if(!path || !path.length) {
+        parent = exp;
+        remaining = path.slice();
+      } else {
+        var cursor = exp;
+        parent = cursor;
+        var remainingIx = 0;
+        for(var i = 0, len = path.length - 1; i < len; i++) {
+          cursor = cursor[path[i]];
+          if(cursor[""]) {
+            remainingIx = i;
+            parent = cursor;
+          }
+        }
+        child = cursor[path[path.length - 1]];
+        if(remainingIx > 0) {
+          remaining = path.slice(remainingIx + 1);
+        } else {
+          remaining = path.slice();
+        }
+      }
+      return {parent: parent, path: remaining, child: child};
+    },
+    getFuncs: function() {
+      var funcs = [{id: {"": "call", "primitive": "+", args: []}, text: "+"},
+                   {id: {"": "call", "primitive": "-", args: []}, text: "-"},
+                   {id: {"": "call", "primitive": "*", args: []}, text: "*"},
+                   {id: {"": "call", "primitive": "/", args: []}, text: "/"},
+                   {id: {"": "call", "primitive": "sum", args: []}, text: "sum"},
+                   {id: {"": "call", "primitive": "count", args: []}, text: "count"},
+                   {id: {"": "call", "primitive": "average", args: []}, text: "average"}];
+      return funcs;
+    },
+    getFields: function(type) {
+      var allRefs = code.viewToRefs(this.props.viewId, type);
+      var items = allRefs.map(function(cur) {
+        var name = code.refToName(cur);
+        return {id: cur, text: ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], name.field]};
+      });
+      return items;
+    },
+    fullEditor: function() {
+      this.startEditing([]);
+    },
+    startEditing: function(path) {
+      this.setState({editing: path});
+    },
+    selectorProperties: function() {
+      var info = this.parentTupleAndPath(this.state.editing, this.props.expression);
+      var exp = info.parent || {};
+      var path = info.path || [];
+
+
+      switch(exp[""]) {
+        case "call":
+          var info = primitiveInfo[exp.primitive];
+          var fields, mode;
+          var functions = this.getFuncs();
+          var disabled = {};
+          if(path[0] === "args") {
+            fields = this.getFields(info.args[path[1]]);
+            mode = "field";
+          } else {
+            fields = this.getFields();
+            mode = "function";
+          }
+          return {fields: fields,
+                  functions: functions,
+                  onSet: this.onSet,
+                  mode: mode,
+                  disabled: disabled}
+          break;
+        default:
+          return {fields: this.getFields(),
+                  functions: this.getFuncs(),
+                  onSet: this.onSet,
+                  mode: "function",
+                  disabled: {}};
+          break;
+      }
+
+    },
+    render: function() {
+      if(this.props.expression) {
+        value = astComponents[this.props.expression[""]]({value: this.props.expression, path: [], activePath: this.state.editing, onSelect: this.startEditing});
+      } else {
+        value = ["span", {className: "token", onClick: this.fullEditor}, "yo"];
+      }
+      if(this.state.editing) {
+        var editorProps = this.selectorProperties();
+        editorProps.value = value;
+        editorProps.path = this.state.editing;
+        var editor = structuredMultiSelector(editorProps);
+      }
+      return JSML(["div", {className: "code-container"},
+                   value,
+                   editor]);
+    }
+  }),
+  constraint: reactFactory({
+    getInitialState: function() {
+      return {};
+    },
+    setLeft: function(ref) {
+      var neue = this.props.constraint.slice();
+      neue[2] = ref;
+      this.setState({editing: false});
+      dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
+    },
+    setRight: function(ref) {
+      var neue = this.props.constraint.slice();
+      neue[3] = ref;
+      this.setState({editing: false});
+      dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
+    },
+    validateRight: function(selected, raw) {
+      //@TODO: can either be a constant or a ref
+      //left and right have to type check
+      var left = code.refToType(this.props.constraint[2]);
+      var right = code.refToType(this.props.constraint[3]);
+      return code.typesEqual(left, right);
+    },
+    setOp: function(op) {
+      var neue = this.props.constraint.slice();
+      neue[1] = op;
+      this.setState({editing: false});
+      dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
+    },
+    editingLeft: function() { this.setState({editing: "left"}); },
+    editingRight: function() { this.setState({editing: "right"}); },
+    editingOp: function() { this.setState({editing: "op"}); },
+    render: function() {
+      var view = this.props.source[1];
+      var sourceId = this.props.source[0];
+      var viewOrData = this.props.source[3];
+      var allRefs = code.viewToRefs(view);
+      var cur = this.props.constraint;
+      var editing = this.state.editing;
+      var left = astComponents["field-source-ref"]({value: cur[2], onSelect: this.editingLeft, path: ["left"], activePath: [editing]});
+      //@TODO: right can be a constant or a ref...
+      var right = astComponents["field-source-ref"]({value: cur[3], onSelect: this.editingRight, path: ["right"], activePath: [editing], invalid: !this.validateRight()});
+      var op = astComponents["op"]({value: cur[1], path: ["op"], activePath: [editing], onSelect: this.editingOp});
+      var content = ["div", {className: "structured-constraint",
+                             onClick: this.startEditing},
+                     left, op, right];
+      var editor;
+      if(this.state.editing === "left") {
+        var localRefs = allRefs.filter(function(cur) {
+          return cur.source === sourceId;
+        }).map(function(cur) {
+          var name = code.refToName(cur);
+          return {id: cur, text: ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], name.field]};
+        });
+        editor = structuredMultiSelector({fields: localRefs,
+                                          onSet: this.setLeft,
+                                          value: content,
+                                          mode: "field",
+                                          disabled: {"function": "Only a field is allowed here.",
+                                                     "match": "Only a field is allowed here.",
+                                                     "constant": "Only a field is allowed here."}});
+      } else if(this.state.editing === "right") {
+        var leftType = code.refToType(this.props.constraint[2]);
+        var rightRefs = allRefs.filter(function(cur) {
+          return code.typesEqual(leftType, code.refToType(cur));
+        }).map(function(cur) {
+          var name = code.refToName(cur);
+          return {id: cur, text: ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], ["span", name.field]]};
+        });
+        editor = structuredMultiSelector({fields: rightRefs,
+                                          onSet: this.setRight,
+                                          value: content,
+                                          mode: "field",
+                                          disabled: {"function": "Only a field or value is allowed here.",
+                                                     "match": "Only a field or value is allowed here."}});
+      } else if(this.state.editing === "op") {
+        var allOps = [{id: "=", text: "="},
+                      {id: ">", text: ">"},
+                      {id: "<", text: "<"},
+                      {id: ">=", text: ">="},
+                      {id: "<=", text: "<="},
+                      {id: "!=", text: "!="}];
+        editor = structuredMultiSelector({functions: allOps,
+                                          onSet: this.setOp,
+                                          value: content,
+                                          mode: "function",
+                                          disabled: {"field": "Only a function is allowed here.",
+                                                     "match": "Only a function is allowed here.",
+                                                     "constant": "Only a function is allowed here."}});
+      }
+      return JSML(["div", {className: "code-container"}, content, editor]);
+      return JSML(["div", "TODO: fix constraints"]);
+    }
+  }),
 }
 
 //---------------------------------------------------------
@@ -1261,6 +1468,11 @@ var astComponents = {
 //---------------------------------------------------------
 
 var viewSource = reactFactory({
+  updateCalculation: function(expression) {
+    var neue = this.props.source.slice();
+    neue[3] = expression;
+      dispatch("swapCalculationSource", {old: this.props.source, neue: neue});
+  },
   render: function() {
     var self = this;
     var viewOrFunction = this.props.source[3];
@@ -1270,10 +1482,16 @@ var viewSource = reactFactory({
       };
       return ["li", {onClick: remove}, astComponents["constraint"]({constraint: cur, source: self.props.source})];
     });
+    var content;
+    if(typeof viewOrFunction === "string") {
+      content = table({tileId: this.props.tileId, tableId: viewOrFunction});
+    } else {
+      content = ["div", astComponents["expression"]({viewId: this.props.viewId, expression: viewOrFunction, onSet: this.updateCalculation})];
+    }
     return JSML(["div", {className: "view-source"},
                  ["h1", code.name(viewOrFunction)],
                  ["ul", constraints],
-                 table({tileId: this.props.tileId, tableId: viewOrFunction})
+                 content
                 ]);
   }
 });
@@ -1296,9 +1514,9 @@ tiles.view = {
     startAddingCalculation: function() {
       this.setState({addingCalculation: true});
     },
-    stopAddingCalculation: function(view) {
+    stopAddingCalculation: function(expression) {
       this.setState({addingCalculation: false});
-//       dispatch("addSource", {view: this.props.view || "qq", source: view});
+      dispatch("addCalculationSource", {view: this.getView(), source: expression});
     },
     render: function() {
       var self = this;
@@ -1318,7 +1536,7 @@ tiles.view = {
         return a[2] - b[2];
       });
       var items = sources.map(function(cur) {
-        return viewSource({tileId: self.props.tileId, source: cur, constraints: sourceToConstraints[cur[0]] || []});
+        return viewSource({tileId: self.props.tileId, viewId: view, source: cur, constraints: sourceToConstraints[cur[0]] || []});
       });
       var add;
       if(this.state.addingSource) {
@@ -1328,7 +1546,7 @@ tiles.view = {
       }
       var calculate;
       if(this.state.addingCalculation) {
-        calculate = ["div", astComponents["expression"]({})];
+        calculate = ["div", astComponents["expression"]({viewId: view, onSet: this.stopAddingCalculation})];
       } else {
         calculate = ["div", {onClick: this.startAddingCalculation}, "add calculation"];
       }
@@ -2171,6 +2389,15 @@ function dispatch(event, arg, noRedraw) {
       diffs = code.diffs.autoJoins(arg.view, arg.source, sourceId);
       diffs["source"] = {adds: [[sourceId, arg.view, ix, arg.source, true]], removes: []};
       break;
+    case "addCalculationSource":
+      var ix = (ixer.index("viewToSources")[arg.view] || []).length;
+      var sourceId = uuid();
+      //@TODO: should we auto-join calculations?
+      diffs["source"] = {adds: [[sourceId, arg.view, ix, arg.source, true]], removes: []};
+      break;
+    case "swapCalculationSource":
+      diffs["source"] = {adds: [arg.neue.slice()], removes: [arg.old.slice()]};
+      break;
     case "removeConstraint":
       diffs.constraint = {removes: [arg.constraint]};
       break;
@@ -2330,7 +2557,7 @@ var code = {
       case "field-source-ref":
         var view = code.name(ixer.index("sourceToData")[ref.source]);
         var field = code.name(ref.field);
-        return view + "." + field;
+        return {string: view + "." + field, view: view, field: field};
         break;
       default:
         return "Unknown ref: " + JSON.stringify(ref);
@@ -2344,7 +2571,7 @@ var code = {
     //@TODO: equivalence. e.g. int = number
     return a === b;
   },
-  viewToRefs: function(view) {
+  viewToRefs: function(view, ofType) {
     var refs = [];
     var sources = ixer.index("viewToSources")[view] || [];
     sources.forEach(function(source) {
@@ -2354,10 +2581,13 @@ var code = {
       if(typeof viewOrData !== "string") {
         //@TODO: handle getting the refs for functions
         sourceView = null;
+      } else {
+        code.viewToFields(sourceView).forEach(function(field) {
+          if(!ofType || ofType === field[3]) {
+            refs.push(code.ast.fieldSourceRef(source[0], field[0]));
+          }
+        });
       }
-      code.viewToFields(sourceView).forEach(function(field) {
-        refs.push(code.ast.fieldSourceRef(source[0], field[0]));
-      });
     });
     return refs;
   },
