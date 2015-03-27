@@ -1436,114 +1436,18 @@ var uiInpector = reactFactory({
   }
 });
 
+// Elem: {top: Number, left: Number, bottom: Number, right: Number}
+// SnapSet: {x: Number[], y: Number[]}
 
-var uiEditor = {
-  // Elem: {top: Number, left: Number, bottom: Number, right: Number}
-  // SnapSet: {x: Number[], y: Number[]}
-  axis: {
-    left: "x", right: "x", centerX: "x",
-    top: "y", bottom: "y", centerY: "y"
-  },
-  opposite: {
-    left: "right", right: "left",
-    top: "bottom", bottom: "top"
-  },
-  findPossibleSnaps: function(elems, types, grid) { // (Elem[], {[String]: Bool}?, Grid?) -> SnapSet
-    types = types || {edge: true, center: true, grid: true};
-    var snaps = {x: [], y: []};
-    for(var elemIx in elems) {
-      var elem = elems[elemIx];
-      if(types.edge) {
-        snaps.x.push(elem.left, elem.right);
-        snaps.y.push(elem.top, elem.bottom);
-      }
-      if(types.center) {
-        snaps.x.push(elem.left + (elem.right - elem.left) / 2);
-        snaps.y.push(elem.top + (elem.bottom - elem.top) / 2);
-      }
-    }
-    if(types.grid) {
-      for(var x = 0, w = grid.size[0]; x < w; x++) {
-        snaps.x.push(x * grid.calculated.cellWidth + x * grid.gutter);
-      }
-      for(var y = 0, h = grid.size[1]; y < h; y++) {
-        snaps.y.push(y * grid.calculated.cellHeight + y * grid.gutter);
-      }
-    }
-
-    unique(snaps.x);
-    unique(snaps.y);
-
-    return snaps;
-  },
-  findSnaps: function(elem, snapSet, snapZone, only) { // (Elem, SnapSet, Number, Elem?) -> Elem
-    elem = extend({}, elem);
-    var sides = {top: true, left: true, bottom: true, right: true, centerX: true, centerY: true};
-    var snaps = {};
-    var guides = [];
-    elem.centerX = elem.left + (elem.right - elem.left) / 2;
-    elem.centerY = elem.top + (elem.bottom - elem.top) / 2;
-
-    for(var side in sides) {
-      var axis = uiEditor.axis[side];
-      var opposite = uiEditor.opposite[side];
-      if(only[opposite]) { continue; }
-      snaps[side] = snapSet[axis][nearestNeighbor(snapSet[axis], elem[side])];
-      if(Math.abs(snaps[side] - elem[side]) > snapZone) {
-        snaps[side] = undefined;
-      } else {
-        guides.push({side: side, axis: axis, pos: snaps[side]});
-      }
-    }
-
-    // choose the closer of centerX/left and centerY/top to determine which should be snapped to.
-    var size = {x: (elem.right - elem.left), y: (elem.bottom - elem.top)};
-    var centerX = elem.left + size.x / 2;
-    var centerY = elem.top + size.y / 2;
-    if(!only.right && !only.left && (!snaps.left || Math.abs(snaps.centerX - centerX) < Math.abs(snaps.left - elem.left))) {
-      snaps.left = snaps.centerX - size.x / 2;
-    }
-    if(!only.bottom && !only.top && (!snaps.top || Math.abs(snaps.centerY - centerY) < Math.abs(snaps.top - elem.top))) {
-      snaps.top = snaps.centerY - size.y / 2;
-    }
-
-    // Constrain size when moving.
-    if(!only.left && snaps.left) {
-      snaps.right = snaps.left + size.x;
-    }
-    else if(!only.right && snaps.right) {
-      snaps.left = snaps.right - size.x;
-    }
-    if(!only.top && snaps.top) {
-      snaps.bottom = snaps.top + size.y;
-    }
-    else if(!only.bottom && snaps.bottom) {
-      snaps.top = snaps.bottom - size.y;
-    }
-    for(side in snaps) {
-      if(!snaps[side]) {
-        snaps[side] = elem[side];
-      }
-    }
-
-    return {snaps: snaps, guides: guides};
-  }
-};
-
-var uiCanvasGroup = reactFactory({
+var uiSelection = reactFactory({
+  displayName: "selection",
   getInitialState: function() {
-    var cur = this.props.element;
-    return {right: cur.right, bottom: cur.bottom, left: cur.left, top: cur.top};
+    return this.getBounds(this.props.elements);
   },
   shouldComponentUpdate: function(nextProps, nextState) {
+    var self = this;
     var state = this.state;
-    var old = this.props.element;
-    var neue = nextProps.element;
-    if(old.id !== neue.id
-       || old.left !== neue.left
-       || old.right !== neue.right
-       || old.top !== neue.top
-       || old.bottom !== neue.bottom
+    if(this.props.id !== nextProps.id
        || state.left !== nextState.left
        || state.right !== nextState.right
        || state.top !== nextState.top
@@ -1551,62 +1455,204 @@ var uiCanvasGroup = reactFactory({
       ) {
       return true;
     }
-    return false;
+
+    if(this.props.elements.length !== nextProps.elements.length) { return true; }
+    return nextProps.elements.some(function(neue, ix) {
+      var old = self.props.elements[ix];
+      if(old.id !== neue.id
+         || old.left !== neue.left
+         || old.right !== neue.right
+         || old.top !== neue.top
+         || old.bottom !== neue.bottom) {
+        return true;
+      }
+    });
   },
   componentDidUpdate: function(prev) {
-    var state = this.state;
-    var old = prev.element;
-    var neue = this.props.element;
-    if(old.id !== neue.id
-       || old.left !== neue.left
-       || old.right !== neue.right
-       || old.top !== neue.top
-       || old.bottom !== neue.bottom) {
-      var cur = this.props.element;
-      this.setState({right: cur.right, bottom: cur.bottom, left: cur.left, top: cur.top});
+    var shouldSetState = false;
+    if(this.props.elements.length !== prev.elements.length) {
+      shouldSetState = true;
+    } else {
+      shouldSetState = this.props.elements.some(function(neue, ix) {
+        var old = prev.elements[ix];
+        if(old.id !== neue.id
+           || old.left !== neue.left
+           || old.right !== neue.right
+           || old.top !== neue.top
+           || old.bottom !== neue.bottom) {
+          return true;
+        }
+      });
+    }
+
+    if(shouldSetState) {
+      this.setState(this.getBounds(this.props.elements));
     }
   },
 
-  // Snapping
-  findSnaps: function(pos, only) {
-    var snapThreshold = 8;
-    var state = this.state;
-    var guides = [];
-    only = only || {};
+  getBounds: function(elements) {
+    var bounds = {
+      top: Infinity, bottom: -Infinity,
+      left: Infinity, right: -Infinity
+    };
+    for(var ix = 0, len = elements.length; ix < len; ix++) {
+      var el = elements[ix];
+      if(el.top < bounds.top) { bounds.top = el.top; }
+      if(el.left < bounds.left) { bounds.left = el.left; }
+      if(el.bottom > bounds.bottom) { bounds.bottom = el.bottom; }
+      if(el.right > bounds.right) { bounds.right = el.right; }
+    }
+    return bounds;
+  },
+  localizeCoords: function(child, parent) {
+    return {
+      left: child.left - parent.left,
+      right: child.right - parent.left,
+      top: child.top - parent.top,
+      bottom: child.bottom - parent.top
+    };
+  },
+  globalizeCoords: function(child, parent) {
+    return {
+      left: child.left + parent.left,
+      right: child.right + parent.left,
+      top: child.top + parent.top,
+      bottom: child.bottom + parent.top
+    };
+  },
+  transformSelection: function(neue, old, elements) { // (Bounds, Bounds, Elem[]) -> Elem[]
+    var offsetX = old.left - neue.left;
+    var offsetY = old.top - neue.top;
 
-    var els = this.props.elements.slice();
-    els.splice(els.indexOf(this.props.element), 1);
-    var possibleSnaps = uiEditor.findPossibleSnaps(els, {edge: true, center: true});
-    var found = uiEditor.findSnaps(pos, possibleSnaps, snapThreshold, only);
-    console.log(found);
-    this.props.drawSnaps(found.guides);
-    return found.snaps;
+    var widthRatio = (neue.right - neue.left) / (old.right - old.left);
+    var heightRatio = (neue.bottom - neue.top) / (old.bottom - old.top);
+
+    for(var ix = 0, len = elements.length; ix < len; ix++) {
+      var el = extend({}, elements[ix]);
+      el = this.localizeCoords(el, old);
+      el.left *= widthRatio;
+      el.right *= widthRatio;
+      el.top *= heightRatio;
+      el.bottom *= heightRatio;
+      elements[ix] = this.globalizeCoords(el, neue);
+    }
+
+    return elements;
   },
 
   // Moving
   startMoving: function(e) {
-    var rel = relativeCoords(e, e.target, e.target.parentNode.parentNode);
+    this.setState({initialBounds: this.getBounds(this.props.elements)});
+    var rel = relativeCoords(e, e.target, e.target.parentNode);
     this.state.offset = rel.element;
     e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0,0);
   },
   move: function(e) {
     if(e.clientX === 0 && e.clientY === 0) return;
     //calculate offset;
-    var canvasPos = relativeCoords(e, e.target, e.target.parentNode.parentNode).canvas;
+    var canvasPos = relativeCoords(e, e.target, e.target.parentNode).canvas;
     var left = canvasPos.left - this.state.offset.left;
-    var top = canvasPos.top - this.state.offset.top;
+    var top = canvasPos.top   - this.state.offset.top;
     var right = this.state.right + (left - this.state.left);
     var bottom = this.state.bottom + (top - this.state.top);
     var pos = {left: left, top: top, right: right, bottom: bottom};
-    this.setState(this.findSnaps(pos));
+    this.setState(this.props.snap(pos));
   },
   stopMoving: function(e) {
-    this.props.drawSnaps([]);
-    var state = this.state;
-    var element = this.props.element;
-    dispatch("uiComponentElementMoved", {element: element, left: state.left, top: state.top, right: state.right, bottom: state.bottom});
+    // @FIXME: clear guides.
+    var self = this;
+    var oldBounds = this.state.initialBounds;
+    var neueBounds = {left: this.state.left, top: this.state.top, right: this.state.right, bottom: this.state.bottom};
+    var elements = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
+
+    // @FIXME: This needs to be atomic.
+    elements.map(function(neue, ix) {
+      var old = self.props.elements[ix];
+      dispatch("uiComponentElementMoved", {element: old, left: neue.left, top: neue.top, right: neue.right, bottom: neue.bottom});
+    });
+    this.props.snap();
+    this.setState({initialBounds: undefined});
   },
 
+  // Resizing
+  wrapResizeHandle: function(opts) {
+    opts.draggable = true;
+    opts.onDragStart = this.startResizing;
+    opts.onDrag = this.resize;
+    opts.onDragEnd = this.stopResizing;
+    var size = 7;
+    var offset = size / 2;
+    var width = this.state.right - this.state.left;
+    var height = this.state.bottom - this.state.top;
+    var style = opts.style = {};
+    style.width = size + "px";
+    style.height = size + "px";
+    //set position
+    if(opts.x === "left") {
+      //left edge
+      style.left = 0 - offset + "px";
+    } else if(opts.x === "right") {
+      //right edge
+      style.left = width - offset + "px";
+    } else {
+      //center
+      style.left = (width / 2) - offset + "px";
+    }
+    if(opts.y === "top") {
+      //top edge
+      style.top = 0 - offset + "px";
+    } else if(opts.y === "bottom") {
+      style.top = height - offset + "px";
+    } else {
+      style.top = (height / 2) - offset + "px";
+    }
+    return opts;
+  },
+
+
+
+  render: function() {
+    var self = this;
+    var width = this.state.right - this.state.left;
+    var height = this.state.bottom - this.state.top;
+    return JSML(
+      ["div", {
+        className: "ui-selection",
+        style: {top: this.state.top, left: this.state.left, width: width, height: height},
+        onDragStart: this.startMoving,
+        onDrag: this.move,
+        onDragEnd: this.stopMoving,
+        draggable: true
+      },
+
+       ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "top"})],
+       ["div", this.wrapResizeHandle({className: "resize-handle", y: "top"})],
+       ["div", this.wrapResizeHandle({className: "resize-handle", x: "right", y: "top"})],
+       ["div", this.wrapResizeHandle({className: "resize-handle", x: "right"})],
+       ["div", this.wrapResizeHandle({className: "resize-handle", x: "right", y: "bottom"})],
+       ["div", this.wrapResizeHandle({className: "resize-handle", y: "bottom"})],
+       ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "bottom"})],
+       ["div", this.wrapResizeHandle({className: "resize-handle", x: "left"})],
+
+       this.props.elements.map(function(cur) {
+         var local = self.localizeCoords(cur, self.state.initialBounds || self.state);
+         var width = local.right - local.left;
+         var height = local.bottom - local.top;
+
+         return ["div", {className: "control",
+                         style: {top: local.top, left: local.left, width: width, height: height},
+                         onClick: function(evt) {
+                           self.props.select(cur, evt.shiftKey);
+                           evt.stopPropagation();
+                         }
+                        },
+                 cur.control]
+       })
+      ]);
+  }
+});
+
+var uiCanvasGroup = {
   // Resizing
   startResizing: function(e) {
     this.state.resizeX = e.target.getAttribute("x");
@@ -1658,69 +1704,36 @@ var uiCanvasGroup = reactFactory({
     var state = this.state;
     var element = this.props.element;
     dispatch("uiComponentElementMoved", {element: element, left: state.left, top: state.top, right: state.right, bottom: state.bottom});
-  },
-  wrapResizeHandle: function(opts) {
-    opts.draggable = true;
-    opts.onDragStart = this.startResizing;
-    opts.onDrag = this.resize;
-    opts.onDragEnd = this.stopResizing;
-    var size = 7;
-    var offset = size / 2;
-    var width = this.state.right - this.state.left;
-    var height = this.state.bottom - this.state.top;
-    var style = opts.style = {};
-    style.width = size + "px";
-    style.height = size + "px";
-    //set position
-    if(opts.x === "left") {
-      //left edge
-      style.left = 0 - offset + "px";
-    } else if(opts.x === "right") {
-      //right edge
-      style.left = width - offset + "px";
-    } else {
-      //center
-      style.left = (width / 2) - offset + "px";
-    }
-    if(opts.y === "top") {
-      //top edge
-      style.top = 0 - offset + "px";
-    } else if(opts.y === "bottom") {
-      style.top = height - offset + "px";
-    } else {
-      style.top = (height / 2) - offset + "px";
-    }
-    return opts;
-  },
-  render: function() {
-    var cur = this.props.element;
-    var width = this.state.right - this.state.left;
-    var height = this.state.bottom - this.state.top;
-    return JSML(["div", {style: {top: this.state.top, left: this.state.left, width: width, height: height}},
-                 (this.props.selected ? [
-                   ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "top"})],
-                   ["div", this.wrapResizeHandle({className: "resize-handle", y: "top"})],
-                   ["div", this.wrapResizeHandle({className: "resize-handle", x: "right", y: "top"})],
-                   ["div", this.wrapResizeHandle({className: "resize-handle", x: "right"})],
-                   ["div", this.wrapResizeHandle({className: "resize-handle", x: "right", y: "bottom"})],
-                   ["div", this.wrapResizeHandle({className: "resize-handle", y: "bottom"})],
-                   ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "bottom"})],
-                   ["div", this.wrapResizeHandle({className: "resize-handle", x: "left"})]
-                 ] : undefined),
-                 ["div", {className: "control",
-                          style: {width: width, height: height},
-                          onDragStart: this.startMoving,
-                          onDrag: this.move,
-                          onDragEnd: this.stopMoving,
-                          draggable: this.props.selected},
-                  cur.control]]);
   }
-});
+};
 
 var uiCanvas = reactFactory({
   displayName: "ui-canvas",
   getInitialState: function() {
-    return {snapGuides: []}
+    return {snapGuides: [], selection: []}
+  },
+  componentDidUpdate: function() {
+    var self = this;
+    if(this.state.selection.length) {
+      var updateState = false;
+      var selection = this.state.selection.map(function(sel) {
+        var ix = self.props.elements.indexOf(sel);
+        if(ix !== -1) { return sel; }
+
+        updateState = true;
+        for(var ix = 0, len = self.props.elements.length; ix < len; ix++) {
+          if(self.props.elements[ix].id === sel.id) {
+            return self.props.elements[ix];
+          }
+        }
+
+        return undefined;
+      }).filter(Boolean);
+
+      if(updateState) {
+        self.setState({selection: selection});
+      }
+    }
   },
   elementOver: function(e) {
     e.preventDefault();
@@ -1736,15 +1749,160 @@ var uiCanvas = reactFactory({
     dispatch("uiComponentElementAdd", {component: this.props.component, control: type, left: rel.left, top: rel.top, right: rel.left + 100, bottom: rel.top + 100});
     console.log("add", type);
   },
+
+  select: function(el, modify) {
+    var selection = [];
+    if(modify) {
+      selection = this.state.selection.slice();
+      var ix = selection.indexOf(el);
+      if(ix !== -1) {
+        selection.splice(ix, 1);
+      } else {
+        selection.push(el);
+      }
+    }
+    else if(el) {
+      selection.push(el);
+    }
+    this.setState({selection: selection});
+  },
+
+  // Snapping
+    axis: {
+    left: "x", right: "x", centerX: "x",
+    top: "y", bottom: "y", centerY: "y"
+  },
+  opposite: {
+    left: "right", right: "left",
+    top: "bottom", bottom: "top"
+  },
+
+  findPossibleSnaps: function(elems, types, grid) { // (Elem[], {[String]: Bool}?, Grid?) -> SnapSet
+    types = types || {edge: true, center: true, grid: true};
+    var snaps = {x: [], y: []};
+    for(var elemIx in elems) {
+      var elem = elems[elemIx];
+      if(types.edge) {
+        snaps.x.push(elem.left, elem.right);
+        snaps.y.push(elem.top, elem.bottom);
+      }
+      if(types.center) {
+        snaps.x.push(elem.left + (elem.right - elem.left) / 2);
+        snaps.y.push(elem.top + (elem.bottom - elem.top) / 2);
+      }
+    }
+    if(types.grid) {
+      for(var x = 0, w = grid.size[0]; x < w; x++) {
+        snaps.x.push(x * grid.calculated.cellWidth + x * grid.gutter);
+      }
+      for(var y = 0, h = grid.size[1]; y < h; y++) {
+        snaps.y.push(y * grid.calculated.cellHeight + y * grid.gutter);
+      }
+    }
+
+    unique(snaps.x.map(Number));
+    unique(snaps.y.map(Number));
+
+    return snaps;
+  },
+  findSnaps: function(elem, snapSet, snapZone, only) { // (Elem, SnapSet, Number, Elem?) -> Elem
+    elem = extend({}, elem);
+    var sides = {top: true, left: true, bottom: true, right: true, centerX: true, centerY: true};
+    var snaps = {};
+    var guides = [];
+    elem.centerX = elem.left + (elem.right - elem.left) / 2;
+    elem.centerY = elem.top + (elem.bottom - elem.top) / 2;
+
+    for(var side in sides) {
+      var axis = this.axis[side];
+      var opposite = this.opposite[side];
+      if(only[opposite]) { continue; }
+      snaps[side] = snapSet[axis][nearestNeighbor(snapSet[axis], elem[side])];
+      if(!snaps[side] || Math.abs(snaps[side] - elem[side]) > snapZone) {
+        snaps[side] = undefined;
+      } else {
+        guides.push({side: side, axis: axis, pos: snaps[side]});
+      }
+    }
+
+    // choose the closer of centerX/left and centerY/top to determine which should be snapped to.
+    var size = {x: (elem.right - elem.left), y: (elem.bottom - elem.top)};
+    var centerX = elem.left + size.x / 2;
+    var centerY = elem.top + size.y / 2;
+    if(!only.right && !only.left && (!snaps.left || Math.abs(snaps.centerX - centerX) < Math.abs(snaps.left - elem.left))) {
+      snaps.left = snaps.centerX - size.x / 2;
+    }
+    if(!only.bottom && !only.top && (!snaps.top || Math.abs(snaps.centerY - centerY) < Math.abs(snaps.top - elem.top))) {
+      snaps.top = snaps.centerY - size.y / 2;
+    }
+
+    // Constrain size when moving.
+    if(!only.left && snaps.left) {
+      snaps.right = snaps.left + size.x;
+    }
+    else if(!only.right && snaps.right) {
+      snaps.left = snaps.right - size.x;
+    }
+    if(!only.top && snaps.top) {
+      snaps.bottom = snaps.top + size.y;
+    }
+    else if(!only.bottom && snaps.bottom) {
+      snaps.top = snaps.bottom - size.y;
+    }
+    for(side in snaps) {
+      if(!snaps[side]) {
+        snaps[side] = elem[side];
+      }
+    }
+
+    return {snaps: snaps, guides: guides};
+  },
+
+  snap: function(pos, only) {
+    if(!pos) { return this.drawSnaps([]); }
+
+    var self = this;
+    var snapThreshold = 8;
+    only = only || {};
+
+    var els = this.props.elements.filter(function(cur) {
+      return self.state.selection.indexOf(cur) === -1;
+    });
+    var possibleSnaps = this.findPossibleSnaps(els, {edge: true, center: true});
+    var found = this.findSnaps(pos, possibleSnaps, snapThreshold, only);
+    this.drawSnaps(found.guides);
+    return found.snaps;
+  },
+
   render: function() {
     var self = this;
-    var elems = this.props.elements.map(function(cur) {
-      return uiCanvasGroup({
-        element: cur, key: cur.id,
-        elements: self.props.elements,
-        drawSnaps: self.drawSnaps,
-        selected: true
-      });
+
+    // Remove selected and render separately.
+    var selection = uiSelection({elements: this.state.selection, snap: this.snap, select: this.select});
+
+
+    var elems = this.props.elements.filter(function(cur) {
+      return self.state.selection.indexOf(cur) === -1;
+    })
+    .map(function(cur) {
+      var width = cur.right - cur.left;
+      var height = cur.bottom - cur.top;
+      return ["div", {
+        className: "control",
+        style: {top: cur.top, left: cur.left, width: width, height: height},
+        onClick: function(evt) {
+          self.select(cur, evt.shiftKey);
+          evt.stopPropagation();
+        }
+      },
+              cur.control]
+
+//       return uiCanvasGroup({
+//         element: cur, key: cur.id,
+//         elements: self.props.elements,
+//         drawSnaps: self.drawSnaps,
+//         selected: true
+//       });
     });
     var snaps = this.state.snapGuides.map(function(cur) {
       var style = {};
@@ -1763,8 +1921,13 @@ var uiCanvas = reactFactory({
     });
     return JSML(["div", {className: "ui-canvas",
                          onDragOver: this.elementOver,
-                         onDrop: this.elementDropped},
+                         onDrop: this.elementDropped,
+                         onClick: function() {
+                           self.select();
+                         }
+                        },
                  elems,
+                 (this.state.selection.length ? selection : undefined),
                  snaps
                 ]);
   }
@@ -2285,7 +2448,7 @@ ixer.handleDiffs(
   code.diffs.addView("department heads", {department: "string", head: "string"}, [], false));
 
 
-
+// grid views
   var gridId = "grid://default";
   var uiViewId = uuid();
   var bigUiViewId = uuid();
@@ -2314,6 +2477,10 @@ ixer.handleDiffs(
       [uiViewId, "grid://ui"],
       [bigUiViewId, "grid://default"]
     ], "gridTarget", ["table"]));
+
+// ui views
+ixer.handleDiffs(
+  code.diffs.addView("uiComponentElement", {component: "string", id: "string", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]));
 }
 dispatch("load");
 

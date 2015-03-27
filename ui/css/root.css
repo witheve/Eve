@@ -238,7 +238,7 @@ th:last-child { border-radius: 0 2px 2px 0; }
 .ui-inspector > ul { padding: 5px; background: rgba(255,255,255, 0.1); border-radius:2px; }
 
 .ui-canvas {flex: 1; position:relative; }
-.ui-canvas > * { position:absolute; }
+.ui-canvas > *, .ui-selection > * { position:absolute; }
 .ui-canvas .control { background:rgba(255,255,255, 0.08); }
 .ui-canvas .resize-handle { position:absolute; background: rgba(170,204,255,0.3); border: 1px solid #acf; }
 
