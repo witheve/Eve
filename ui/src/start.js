@@ -1160,11 +1160,6 @@ var astComponents = {
       //       return {"": "source-ref", source: source};
     }
   }),
-  "field-ref": reactFactory({
-    render: function() {
-      //       return {"": "field-ref", field: field};
-    }
-  }),
   constant: reactFactory({
     render: function() {
       //       return {"": "constant", value: value};
@@ -1225,7 +1220,6 @@ var astComponents = {
     },
     onSet: function(id) {
       //@TODO: if this expression is complete and valid
-      console.log("SET", id);
       var path = this.state.editing;
       //@TODO: deep clone
       var exp = this.props.expression;
@@ -1254,7 +1248,7 @@ var astComponents = {
       //to the next empty arg
       if(child[""] === "call") {
         var info = primitiveInfo[child.primitive];
-        this.setState({editing: path.concat(["args", 0])});
+        this.startEditing(path.concat(["args", 0]));
         return
       } else if(parent[""] === "call") {
         //find the next empty arg
@@ -1266,9 +1260,9 @@ var astComponents = {
         if(remaining[0] === "args") {
           var final = path.slice(0,path.length - 1);
           final.push(i);
-          this.setState({editing: final});
+          this.startEditing(final);
         } else {
-          this.setState({editing: path.concat(["args", i])});
+          this.startEditing(path.concat(["args", i]));
         }
       }
     },
@@ -1276,7 +1270,7 @@ var astComponents = {
       var parent, remaining, child;
       if(!path || !path.length) {
         parent = exp;
-        remaining = path;
+        remaining = path.slice();
       } else {
         var cursor = exp;
         parent = cursor;
@@ -1289,7 +1283,11 @@ var astComponents = {
           }
         }
         child = cursor[path[path.length - 1]];
-        remaining = path.slice(remainingIx);
+        if(remainingIx > 0) {
+          remaining = path.slice(remainingIx + 1);
+        } else {
+          remaining = path.slice();
+        }
       }
       return {parent: parent, path: remaining, child: child};
     },
@@ -1321,7 +1319,7 @@ var astComponents = {
       var info = this.parentTupleAndPath(this.state.editing, this.props.expression);
       var exp = info.parent || {};
       var path = info.path || [];
-      console.log(info);
+
 
       switch(exp[""]) {
         case "call":
@@ -1471,7 +1469,6 @@ var astComponents = {
 
 var viewSource = reactFactory({
   updateCalculation: function(expression) {
-    console.log("Swap calculation source", expression);
     var neue = this.props.source.slice();
     neue[3] = expression;
       dispatch("swapCalculationSource", {old: this.props.source, neue: neue});
@@ -1480,7 +1477,6 @@ var viewSource = reactFactory({
     var self = this;
     var viewOrFunction = this.props.source[3];
     var constraints = this.props.constraints.map(function(cur) {
-      console.log(self.props.source, cur);
       var remove = function() {
 //         dispatch("removeConstaint", {constraint: cur.slice()})
       };
@@ -1520,7 +1516,6 @@ tiles.view = {
     },
     stopAddingCalculation: function(expression) {
       this.setState({addingCalculation: false});
-      console.log("add calculation source", expression);
       dispatch("addCalculationSource", {view: this.getView(), source: expression});
     },
     render: function() {
