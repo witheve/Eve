@@ -1543,14 +1543,14 @@ var uiSelection = reactFactory({
   // Moving
   startMoving: function(e) {
     this.setState({initialBounds: this.getBounds(this.props.elements)});
-    var rel = relativeCoords(e, e.target, e.target.parentNode);
+    var rel = relativeCoords(e, e.target, e.target.parentNode.parentNode);
     this.state.offset = rel.element;
     e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0,0);
   },
   move: function(e) {
     if(e.clientX === 0 && e.clientY === 0) return;
     //calculate offset;
-    var canvasPos = relativeCoords(e, e.target, e.target.parentNode).canvas;
+    var canvasPos = relativeCoords(e, e.target, e.target.parentNode.parentNode).canvas;
     var left = canvasPos.left - this.state.offset.left;
     var top = canvasPos.top   - this.state.offset.top;
     var right = this.state.right + (left - this.state.left);
@@ -1559,7 +1559,6 @@ var uiSelection = reactFactory({
     this.setState(this.props.snap(pos));
   },
   stopMoving: function(e) {
-    // @FIXME: clear guides.
     var self = this;
     var oldBounds = this.state.initialBounds;
     var neueBounds = {left: this.state.left, top: this.state.top, right: this.state.right, bottom: this.state.bottom};
@@ -1575,12 +1574,74 @@ var uiSelection = reactFactory({
   },
 
   // Resizing
+  startResizing: function(e) {
+    this.state.resizeX = e.target.getAttribute("x");
+    this.state.resizeY = e.target.getAttribute("y");
+    e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0,0);
+    this.setState({initialBounds: this.getBounds(this.props.elements)});
+  },
+  checkSize: function(orig, neue) {
+    var minSize = 10;
+    var width = neue.right - neue.left;
+    var height = neue.bottom - neue.top;
+    if(width < minSize) {
+      //figure out which dimension changed and fix it to a width of minSize
+      if(neue.left !== orig.left) {
+        neue.left = neue.right - minSize;
+      } else if(neue.right !== orig.right) {
+        neue.right = neue.left + minSize;
+      }
+    }
+    if(height < minSize) {
+      //figure out which dimension changed and fix it to a height of minSize
+      if(neue.top !== orig.top) {
+        neue.top = neue.bottom - minSize;
+      } else if(neue.bottom !== orig.bottom) {
+        neue.bottom = neue.top + minSize;
+      }
+    }
+    return neue;
+  },
+  resize: function(e) {
+    if(e.clientX === 0 && e.clientY === 0) return;
+    var rel = relativeCoords(e, e.target, e.target.parentNode.parentNode).canvas;
+    var state = this.state;
+    var neue = {left: state.left, top: state.top, right: state.right, bottom: state.bottom};
+    var only = {};
+    if(this.state.resizeX) {
+      neue[this.state.resizeX] = rel.left;
+      only[this.state.resizeX] = true;
+    }
+    if(this.state.resizeY) {
+      neue[this.state.resizeY] = rel.top;
+      only[this.state.resizeY] = true;
+    }
+    var snaps = this.props.snap(neue, only);
+    this.setState(this.checkSize(state, snaps));
+  },
+  stopResizing: function(e) {
+    var self = this;
+    var oldBounds = this.state.initialBounds;
+    var neueBounds = {left: this.state.left, top: this.state.top, right: this.state.right, bottom: this.state.bottom};
+    var elements = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
+
+    // @FIXME: This needs to be atomic.
+    elements.map(function(neue, ix) {
+      var old = self.props.elements[ix];
+      dispatch("uiComponentElementMoved", {element: old, left: neue.left, top: neue.top, right: neue.right, bottom: neue.bottom});
+    });
+    this.props.snap();
+    this.setState({initialBounds: undefined});
+  },
   wrapResizeHandle: function(opts) {
     opts.draggable = true;
     opts.onDragStart = this.startResizing;
     opts.onDrag = this.resize;
     opts.onDragEnd = this.stopResizing;
-    var size = 7;
+    opts.onMouseDown = function(evt) {
+      evt.stopPropagation();
+    };
+    var size = 14;
     var offset = size / 2;
     var width = this.state.right - this.state.left;
     var height = this.state.bottom - this.state.top;
@@ -1609,20 +1670,25 @@ var uiSelection = reactFactory({
     return opts;
   },
 
-
-
+  // Rendering
   render: function() {
     var self = this;
     var width = this.state.right - this.state.left;
     var height = this.state.bottom - this.state.top;
+
+    var oldBounds = this.state.initialBounds;
+    var neueBounds = {left: this.state.left, top: this.state.top, right: this.state.right, bottom: this.state.bottom};
+
+    var bounds = this.props.elements.slice();
+    if(oldBounds) {
+      this.transformSelection(neueBounds, oldBounds, bounds);
+    }
+
     return JSML(
       ["div", {
         className: "ui-selection",
         style: {top: this.state.top, left: this.state.left, width: width, height: height},
-        onDragStart: this.startMoving,
-        onDrag: this.move,
-        onDragEnd: this.stopMoving,
-        draggable: true
+
       },
 
        ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "top"})],
@@ -1634,78 +1700,30 @@ var uiSelection = reactFactory({
        ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "bottom"})],
        ["div", this.wrapResizeHandle({className: "resize-handle", x: "left"})],
 
-       this.props.elements.map(function(cur) {
-         var local = self.localizeCoords(cur, self.state.initialBounds || self.state);
-         var width = local.right - local.left;
-         var height = local.bottom - local.top;
+       ["div", {onDragStart: this.startMoving,
+        onDrag: this.move,
+        onDragEnd: this.stopMoving,
+        draggable: true},
+        bounds.map(function(cur, ix) {
+          var element = self.props.elements[ix];
+          var local = self.localizeCoords(cur, neueBounds);
+          var width = local.right - local.left;
+          var height = local.bottom - local.top;
 
-         return ["div", {className: "control",
-                         style: {top: local.top, left: local.left, width: width, height: height},
-                         onClick: function(evt) {
-                           self.props.select(cur, evt.shiftKey);
-                           evt.stopPropagation();
-                         }
-                        },
-                 cur.control]
-       })
+          return ["div", {className: "control",
+                          style: {top: local.top, left: local.left, width: width, height: height},
+                          onMouseDown: function(evt) {
+                            evt.stopPropagation();
+                          },
+                          onClick: function(evt) {
+                            self.props.select(cur, evt.shiftKey);
+                          }
+                         },
+                  element.control]
+        })]
       ]);
   }
 });
-
-var uiCanvasGroup = {
-  // Resizing
-  startResizing: function(e) {
-    this.state.resizeX = e.target.getAttribute("x");
-    this.state.resizeY = e.target.getAttribute("y");
-    e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0,0);
-  },
-  checkSize: function(orig, neue) {
-    var minSize = 10;
-    var width = neue.right - neue.left;
-    var height = neue.bottom - neue.top;
-    if(width < minSize) {
-      //figure out which dimension changed and fix it to a width of minSize
-      if(neue.left !== orig.left) {
-        neue.left = neue.right - minSize;
-      } else if(neue.right !== orig.right) {
-        neue.right = neue.left + minSize;
-      }
-    }
-    if(height < minSize) {
-      //figure out which dimension changed and fix it to a height of minSize
-      if(neue.top !== orig.top) {
-        neue.top = neue.bottom - minSize;
-      } else if(neue.bottom !== orig.bottom) {
-        neue.bottom = neue.top + minSize;
-      }
-    }
-    return neue;
-  },
-  resize: function(e) {
-    if(e.clientX === 0 && e.clientY === 0) return;
-
-    var rel = relativeCoords(e, e.target, e.target.parentNode.parentNode).canvas;
-    var state = this.state;
-    var neue = {left: state.left, top: state.top, right: state.right, bottom: state.bottom};
-    var only = {};
-    if(this.state.resizeX) {
-      neue[this.state.resizeX] = rel.left;
-      only[this.state.resizeX] = true;
-    }
-    if(this.state.resizeY) {
-      neue[this.state.resizeY] = rel.top;
-      only[this.state.resizeY] = true;
-    }
-    var snaps = this.findSnaps(neue, only);
-    this.setState(this.checkSize(state, snaps));
-  },
-  stopResizing: function(e) {
-    this.props.drawSnaps([]);
-    var state = this.state;
-    var element = this.props.element;
-    dispatch("uiComponentElementMoved", {element: element, left: state.left, top: state.top, right: state.right, bottom: state.bottom});
-  }
-};
 
 var uiCanvas = reactFactory({
   displayName: "ui-canvas",
@@ -1747,7 +1765,6 @@ var uiCanvas = reactFactory({
     var canvas = e.target;
     var rel = relativeCoords(e, canvas, canvas).canvas;
     dispatch("uiComponentElementAdd", {component: this.props.component, control: type, left: rel.left, top: rel.top, right: rel.left + 100, bottom: rel.top + 100});
-    console.log("add", type);
   },
 
   select: function(el, modify) {
@@ -1800,9 +1817,8 @@ var uiCanvas = reactFactory({
       }
     }
 
-    unique(snaps.x.map(Number));
-    unique(snaps.y.map(Number));
-
+    unique(snaps.x);
+    unique(snaps.y);
     return snaps;
   },
   findSnaps: function(elem, snapSet, snapZone, only) { // (Elem, SnapSet, Number, Elem?) -> Elem
@@ -1890,7 +1906,7 @@ var uiCanvas = reactFactory({
       return ["div", {
         className: "control",
         style: {top: cur.top, left: cur.left, width: width, height: height},
-        onClick: function(evt) {
+        onMouseDown: function(evt) {
           self.select(cur, evt.shiftKey);
           evt.stopPropagation();
         }
@@ -1922,7 +1938,7 @@ var uiCanvas = reactFactory({
     return JSML(["div", {className: "ui-canvas",
                          onDragOver: this.elementOver,
                          onDrop: this.elementDropped,
-                         onClick: function() {
+                         onMouseDown: function() {
                            self.select();
                          }
                         },
