@@ -13,7 +13,7 @@ pub struct Union{
 
 #[derive(Clone, Debug)]
 pub enum View {
-    Input(Relation),
+    Input,
     Query(Query),
     Union(Union),
 }
@@ -49,7 +49,7 @@ impl Union {
                     for &(outer, inner) in mapping.iter() {
                         output.push(tuple[outer][inner].clone());
                     }
-                    index.insert(output, 1);
+                    index.insert(output);
                 }
             }
         }
@@ -60,7 +60,7 @@ impl Union {
 impl View {
     fn run(&self, inputs: Vec<&Relation>) -> Relation {
         match *self {
-            View::Input(ref relation) => relation.clone(),
+            View::Input => panic!("Input should never be dirty"),
             View::Query(ref query) => query.iter(inputs).collect(),
             View::Union(ref union) => union.run(inputs),
         }
@@ -68,8 +68,7 @@ impl View {
 }
 
 impl Flow {
-    pub fn run(&self, state: &FlowState) -> FlowState {
-        let mut state = state.clone();
+    pub fn run(&self, state: &mut FlowState) {
         loop {
             match state.dirty.iter().next() {
                 Some(ix) => {
@@ -93,6 +92,5 @@ impl Flow {
                 }
             }
         }
-        state
     }
 }

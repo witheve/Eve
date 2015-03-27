@@ -17,25 +17,25 @@ impl<T: Ord> Index<T> {
         Index{items: BTreeMap::new()}
     }
 
-    pub fn insert(&mut self, item: T, count: usize) {
+    pub fn insert(&mut self, item: T) {
         match self.items.entry(item) {
             Entry::Vacant(vacant) => {
-                vacant.insert(count);
+                vacant.insert(1);
             }
             Entry::Occupied(mut occupied) => {
                 let existing_count = *occupied.get();
-                occupied.insert(existing_count + count);
+                occupied.insert(existing_count + 1);
             }
         }
     }
 
-    pub fn remove(&mut self, item: T, count: usize) {
+    pub fn remove(&mut self, item: T) {
         match self.items.entry(item) {
             Entry::Vacant(_) => {
                 panic!("Removed a non-existing entry");
             }
             Entry::Occupied(mut occupied) => {
-                let new_count = *occupied.get() - count;
+                let new_count = *occupied.get() - 1;
                 if new_count > 0 {
                     occupied.insert(new_count);
                 } else if new_count == 0 {
@@ -49,18 +49,6 @@ impl<T: Ord> Index<T> {
 
     pub fn iter(&self) -> Iter<T> {
         Iter{keys: self.items.keys()}
-    }
-
-    pub fn find_all<F: Fn(&T) -> bool>(&self, filter: F) -> Vec<&T> {
-        self.iter().filter(|t| filter(*t)).collect()
-    }
-
-    pub fn find_one<F: Fn(&T) -> bool>(&self, filter: F) -> &T {
-        match &*self.find_all(filter) {
-            [] => panic!("None found"),
-            [t] => t,
-            _ => panic!("Too many found"),
-        }
     }
 }
 
