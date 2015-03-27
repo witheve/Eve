@@ -30,6 +30,19 @@ impl Index<Tuple> {
     }
 }
 
+#[macro_export]
+macro_rules! hope {
+    ($pattern:pat = $value:expr ; $rest:expr) => {
+        {
+            let value = $value;
+            match value {
+                $pattern => $rest,
+                _ => panic!("hope! failed on {:?}", value),
+            }
+        }
+    };
+}
+
 // TODO
 // check schema table
 // check view table
