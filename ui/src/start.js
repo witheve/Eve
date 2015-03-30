@@ -1040,6 +1040,11 @@ var structuredMultiSelector = reactFactory({
   getInitialState: function() {
     return {active: false, mode: false};
   },
+  componentDidUpdate: function(prev) {
+    if(this.props.mode !== prev.mode || !pathEqual(prev.path, this.props.path)) {
+      this.setState({mode: this.props.mode});
+    }
+  },
   toggleActive: function() {
     this.setState({active: !this.state.active});
   },
@@ -1064,22 +1069,31 @@ var structuredMultiSelector = reactFactory({
     var items;
     var column2;
     if(mode === "field") {
-      items = this.props.items.map(function(cur) {
+      var fields = this.props.fields || [];
+      items = fields.map(function(cur) {
         return structuredSelectorItem({item: cur, onSet: self.set});
       });
-      column2 = ["ul", items];
+      if(items.length) {
+        column2 = ["ul", items];
+      }
     }
     if(mode === "function") {
-      items = this.props.items.map(function(cur) {
+      var funcs = this.props.functions || [];
+      items = funcs.map(function(cur) {
         return structuredSelectorItem({item: cur, onSet: self.set});
       });
-      column2 = ["ul", items];
+      if(items.length) {
+        column2 = ["ul", items];
+      }
     }
     if(mode === "match") {
-      column2 = ["div", "match editor"];
     }
     if(mode === "constant") {
-      column2 = ["div", "constant editor"];
+    }
+    if(column2) {
+      column2 = ["div", {className: "column"},
+                   column2
+                  ];
     }
     var modes = ["field", "function", "match", "constant"];
     var modeButtons = modes.map(function(cur) {
@@ -1093,167 +1107,360 @@ var structuredMultiSelector = reactFactory({
                  ["div", {className: "selectors"},
                   ["div", {className: "column"},
                    modeButtons],
-                  ["div", {className: "column"},
-                   column2
-                  ],
+                  column2
                  ]]);
   }
 });
 
+var primitiveInfo = {
+  "+": {infix: true, args: ["number", "number"]},
+  "-": {infix: true, args: ["number", "number"]},
+  "*": {infix: true, args: ["number", "number"]},
+  "/": {infix: true, args: ["number", "number"]},
+  "sum": {infix: false, args: ["number"]},
+  "count": {infix: false, args: ["group"]},
+  "average": {infix: false, args: ["number"]},
+
+}
+
+var pathEqual = Indexing.arraysIdentical;
+function tokenAtPath(component, value, pathExtension) {
+  return astComponents["token"]({path: pathExtension ? component.props.path.concat(pathExtension) : component.props.path,
+                                 onSelect: component.props.onSelect,
+                                 activePath: component.props.activePath,
+                                 value: value});
+}
+function componentAtPath(component, value, pathExtension) {
+  return astComponents[value[""]]({path: pathExtension ? component.props.path.concat(pathExtension) : component.props.path,
+                                 onSelect: component.props.onSelect,
+                                 activePath: component.props.activePath,
+                                 value: value});
+}
 
 var astComponents = {
-    "field-source-ref": reactFactory({
-      render: function() {
-//         return {"": "field-source-ref", source: source, field: field};
-        var name = code.refToName(this.props.curRef);
-        var activeClass = this.props.active ? " active" : "";
-        var invalidClass = this.props.invalid ? " invalid" : "";
-        return JSML(["span", {className: "token" + activeClass + invalidClass, onClick: this.props.onSelect}, name]);
+  "token": reactFactory({
+    onSelect: function() {
+      this.props.onSelect(this.props.path);
+    },
+    render: function() {
+      var activeClass = pathEqual(this.props.activePath || [], this.props.path) ? " selected" : "";
+      var invalidClass = this.props.invalid ? " invalid" : "";
+      return JSML(["span", {className: "token" + activeClass + invalidClass, onClick: this.onSelect}, this.props.value])
+    }
+  }),
+  "field-source-ref": reactFactory({
+    render: function() {
+      var name = code.refToName(this.props.value);
+      var value = ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], name.field];
+      return tokenAtPath(this, value);
+    }
+  }),
+  "source-ref": reactFactory({
+    render: function() {
+      //       return {"": "source-ref", source: source};
+    }
+  }),
+  constant: reactFactory({
+    render: function() {
+      //       return {"": "constant", value: value};
+    }
+  }),
+  op: reactFactory({
+    render: function() {
+      return tokenAtPath(this, this.props.value);
+    }
+  }),
+  variable: reactFactory({
+    render: function() {
+      //       return {"": "variable", string: string};
+    }
+  }),
+  call: reactFactory({
+    placeholderOrValue: function(args, placeholders, ix) {
+      var curArg = args[ix];
+      if(curArg) {
+        return componentAtPath(this, curArg, ["args", ix]);
       }
-    }),
-    "source-ref": reactFactory({
-      render: function() {
-//       return {"": "source-ref", source: source};
-      }
-    }),
-    "field-ref": reactFactory({
-      render: function() {
-//       return {"": "field-ref", field: field};
-      }
-    }),
-    constant: reactFactory({
-      render: function() {
-//       return {"": "constant", value: value};
-      }
-    }),
-    op: reactFactory({
-      render: function() {
-        var activeClass = this.props.active ? " active" : "";
-        var invalidClass = this.props.invalid ? " invalid" : "";
-        return JSML(["span", {className: "token" + activeClass + invalidClass, onClick: this.props.onSelect}, this.props.op]);
-      }
-    }),
-    variable: reactFactory({
-      render: function() {
-//       return {"": "variable", string: string};
-      }
-    }),
-    call: reactFactory({
-      render: function() {
-//       return {"": "call", primitive: primitive, args: args};
-      }
-    }),
-    match: reactFactory({
-      render: function() {
-//       return {"": "match", patterns: patterns, handlers: handlers};
-      }
-    }),
-    tuple: reactFactory({
-      render: function() {
-//       return {"": "tuple", patterns: patterns};
-      }
-    }),
-    expression: reactFactory({
-      render: function() {
-        var allRefs = code.viewToRefs("qq");
-        var items = allRefs.map(function(cur) {
-          return {id: cur, text: code.refToName(cur)};
+      return tokenAtPath(this, placeholders[ix], ["args", ix]);
+    },
+    render: function() {
+      //       return {"": "call", primitive: primitive, args: args};
+      var self = this;
+      var prim = this.props.value.primitive;
+      var args = this.props.value.args || [];
+      var info = primitiveInfo[prim];
+      var rep;
+      var op = tokenAtPath(this, prim);
+      if(info.infix) {
+        var arg1 = this.placeholderOrValue(args, info.args, 0);
+        var arg2 = this.placeholderOrValue(args, info.args, 1);
+        rep = ["span", arg1, op, arg2];
+      } else {
+        args = info.args.map(function(cur, ix) {
+          return self.placeholderOrValue(args, info.args, ix);
         });
-        return JSML(["div", {className: "code-container"},
-                     structuredMultiSelector({items: items, value: ["span", {className: "token"}, "yo"]})]);
+        rep = ["span", op, args];
       }
-    }),
-    constraint: reactFactory({
-      getInitialState: function() {
-        return {};
-      },
-      setLeft: function(ref) {
-        var neue = this.props.constraint.slice();
-        neue[2] = ref;
-        this.setState({editing: false});
-        dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
-      },
-      setRight: function(ref) {
-        var neue = this.props.constraint.slice();
-        neue[3] = ref;
-        this.setState({editing: false});
-        dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
-      },
-      validateRight: function(selected, raw) {
-        //@TODO: can either be a constant or a ref
-        //left and right have to type check
-        var left = code.refToType(this.props.constraint[2]);
-        var right = code.refToType(this.props.constraint[3]);
-        return code.typesEqual(left, right);
-      },
-      setOp: function(op) {
-        var neue = this.props.constraint.slice();
-        neue[1] = op;
-        this.setState({editing: false});
-        dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
-      },
-      editingLeft: function() { this.setState({editing: "left"}); },
-      editingRight: function() { this.setState({editing: "right"}); },
-      editingOp: function() { this.setState({editing: "op"}); },
-      render: function() {
-        var view = this.props.source[1];
-        var sourceId = this.props.source[0];
-        var viewOrData = this.props.source[3];
-        var allRefs = code.viewToRefs(view);
-        var cur = this.props.constraint;
-        var editing = this.state.editing;
-        var left = astComponents["field-source-ref"]({curRef: cur[2], onSelect: this.editingLeft, active: editing === "left"});
-        //@TODO: right can be a constant or a ref...
-        var right = astComponents["field-source-ref"]({curRef: cur[3], onSelect: this.editingRight, active: editing === "right", invalid: !this.validateRight()});
-        var op = astComponents["op"]({op: cur[1], active: editing === "op", onSelect: this.editingOp});
-        var content = ["div", {className: "structured-constraint",
-                               onClick: this.startEditing},
-                       left, op, right];
-        var editor;
-        if(this.state.editing === "left") {
-          var localRefs = allRefs.filter(function(cur) {
-            return cur.source === sourceId;
-          }).map(function(cur) {
-            return {id: cur, text: code.refToName(cur)};
-          });
-          editor = structuredMultiSelector({items: localRefs,
-                                             onSet: this.setLeft,
-                                             value: content,
-                                             mode: "field",
-                                             disabled: {"function": "Only a field is allowed here.",
-                                                        "match": "Only a field is allowed here.",
-                                                        "constant": "Only a field is allowed here."}});
-        } else if(this.state.editing === "right") {
-        var leftType = code.refToType(this.props.constraint[2]);
-          var rightRefs = allRefs.filter(function(cur) {
-            return code.typesEqual(leftType, code.refToType(cur));
-          }).map(function(cur) {
-            return {id: cur, text: code.refToName(cur)};
-          });
-          editor = structuredMultiSelector({items: rightRefs,
-                                             onSet: this.setRight,
-                                             value: content,
-                                             mode: "field",
-                                             disabled: {"function": "Only a field or value is allowed here.",
-                                                        "match": "Only a field or value is allowed here."}});
-        } else if(this.state.editing === "op") {
-          var allOps = [{id: "=", text: "="},
-                        {id: ">", text: ">"},
-                        {id: "<", text: "<"},
-                        {id: ">=", text: ">="},
-                        {id: "<=", text: "<="},
-                        {id: "!=", text: "!="}];
-          editor = structuredMultiSelector({items: allOps,
-                                             onSet: this.setOp,
-                                             value: content,
-                                             mode: "function",
-                                             disabled: {"field": "Only a function is allowed here.",
-                                                        "match": "Only a function is allowed here.",
-                                                        "constant": "Only a function is allowed here."}});
+      return JSML(["div", {}, rep]);
+    }
+  }),
+  match: reactFactory({
+    render: function() {
+      //       return {"": "match", patterns: patterns, handlers: handlers};
+    }
+  }),
+  tuple: reactFactory({
+    render: function() {
+      //       return {"": "tuple", patterns: patterns};
+    }
+  }),
+  expression: reactFactory({
+    getInitialState: function() {
+      return {editing: false}
+    },
+    onSet: function(id) {
+      //@TODO: if this expression is complete and valid
+      var path = this.state.editing;
+      //@TODO: deep clone
+      var exp = this.props.expression;
+      if(!path.length) {
+        exp = id;
+      } else {
+        //follow the path, modify the thing there.
+        var cursor = exp;
+        for(var i = 0, len = path.length - 1; i < len; i++) {
+          cursor = cursor[path[i]];
         }
-        return JSML(["div", {className: "code-container"}, content, editor]);
+        cursor[path[path.length - 1]] = id;
       }
-    }),
+      if(this.props.onSet) {
+        this.props.onSet(exp);
+        this.moveCursor(path, exp);
+      }
+    },
+    moveCursor: function(path, exp) {
+      var info = this.parentTupleAndPath(path, exp);
+      var parent = info.parent;
+      var remaining = info.path || [];
+      var child = info.child || {};
+
+      //if we're dealing with a function, we want to move the cursor
+      //to the next empty arg
+      if(child[""] === "call") {
+        var info = primitiveInfo[child.primitive];
+        this.startEditing(path.concat(["args", 0]));
+        return
+      } else if(parent[""] === "call") {
+        //find the next empty arg
+        var info = primitiveInfo[parent.primitive];
+        for(var i = 0, len = info.args.length; i < len; i++) {
+          if(!parent.args[i]) break;
+        }
+        if(i === info.args.length) return;
+        if(remaining[0] === "args") {
+          var final = path.slice(0,path.length - 1);
+          final.push(i);
+          this.startEditing(final);
+        } else {
+          this.startEditing(path.concat(["args", i]));
+        }
+      }
+    },
+    parentTupleAndPath: function(path, exp) {
+      var parent, remaining, child;
+      if(!path || !path.length) {
+        parent = exp;
+        remaining = path.slice();
+      } else {
+        var cursor = exp;
+        parent = cursor;
+        var remainingIx = 0;
+        for(var i = 0, len = path.length - 1; i < len; i++) {
+          cursor = cursor[path[i]];
+          if(cursor[""]) {
+            remainingIx = i;
+            parent = cursor;
+          }
+        }
+        child = cursor[path[path.length - 1]];
+        if(remainingIx > 0) {
+          remaining = path.slice(remainingIx + 1);
+        } else {
+          remaining = path.slice();
+        }
+      }
+      return {parent: parent, path: remaining, child: child};
+    },
+    getFuncs: function() {
+      var funcs = [{id: {"": "call", "primitive": "+", args: []}, text: "+"},
+                   {id: {"": "call", "primitive": "-", args: []}, text: "-"},
+                   {id: {"": "call", "primitive": "*", args: []}, text: "*"},
+                   {id: {"": "call", "primitive": "/", args: []}, text: "/"},
+                   {id: {"": "call", "primitive": "sum", args: []}, text: "sum"},
+                   {id: {"": "call", "primitive": "count", args: []}, text: "count"},
+                   {id: {"": "call", "primitive": "average", args: []}, text: "average"}];
+      return funcs;
+    },
+    getFields: function(type) {
+      var allRefs = code.viewToRefs(this.props.viewId, type);
+      var items = allRefs.map(function(cur) {
+        var name = code.refToName(cur);
+        return {id: cur, text: ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], name.field]};
+      });
+      return items;
+    },
+    fullEditor: function() {
+      this.startEditing([]);
+    },
+    startEditing: function(path) {
+      this.setState({editing: path});
+    },
+    selectorProperties: function() {
+      var info = this.parentTupleAndPath(this.state.editing, this.props.expression);
+      var exp = info.parent || {};
+      var path = info.path || [];
+
+
+      switch(exp[""]) {
+        case "call":
+          var info = primitiveInfo[exp.primitive];
+          var fields, mode;
+          var functions = this.getFuncs();
+          var disabled = {};
+          if(path[0] === "args") {
+            fields = this.getFields(info.args[path[1]]);
+            mode = "field";
+          } else {
+            fields = this.getFields();
+            mode = "function";
+          }
+          return {fields: fields,
+                  functions: functions,
+                  onSet: this.onSet,
+                  mode: mode,
+                  disabled: disabled}
+          break;
+        default:
+          return {fields: this.getFields(),
+                  functions: this.getFuncs(),
+                  onSet: this.onSet,
+                  mode: "function",
+                  disabled: {}};
+          break;
+      }
+
+    },
+    render: function() {
+      if(this.props.expression) {
+        value = astComponents[this.props.expression[""]]({value: this.props.expression, path: [], activePath: this.state.editing, onSelect: this.startEditing});
+      } else {
+        value = ["span", {className: "token", onClick: this.fullEditor}, "yo"];
+      }
+      if(this.state.editing) {
+        var editorProps = this.selectorProperties();
+        editorProps.value = value;
+        editorProps.path = this.state.editing;
+        var editor = structuredMultiSelector(editorProps);
+      }
+      return JSML(["div", {className: "code-container"},
+                   value,
+                   editor]);
+    }
+  }),
+  constraint: reactFactory({
+    getInitialState: function() {
+      return {};
+    },
+    setLeft: function(ref) {
+      var neue = this.props.constraint.slice();
+      neue[2] = ref;
+      this.setState({editing: false});
+      dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
+    },
+    setRight: function(ref) {
+      var neue = this.props.constraint.slice();
+      neue[3] = ref;
+      this.setState({editing: false});
+      dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
+    },
+    validateRight: function(selected, raw) {
+      //@TODO: can either be a constant or a ref
+      //left and right have to type check
+      var left = code.refToType(this.props.constraint[2]);
+      var right = code.refToType(this.props.constraint[3]);
+      return code.typesEqual(left, right);
+    },
+    setOp: function(op) {
+      var neue = this.props.constraint.slice();
+      neue[1] = op;
+      this.setState({editing: false});
+      dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
+    },
+    editingLeft: function() { this.setState({editing: "left"}); },
+    editingRight: function() { this.setState({editing: "right"}); },
+    editingOp: function() { this.setState({editing: "op"}); },
+    render: function() {
+      var view = this.props.source[1];
+      var sourceId = this.props.source[0];
+      var viewOrData = this.props.source[3];
+      var allRefs = code.viewToRefs(view);
+      var cur = this.props.constraint;
+      var editing = this.state.editing;
+      var left = astComponents["field-source-ref"]({value: cur[2], onSelect: this.editingLeft, path: ["left"], activePath: [editing]});
+      //@TODO: right can be a constant or a ref...
+      var right = astComponents["field-source-ref"]({value: cur[3], onSelect: this.editingRight, path: ["right"], activePath: [editing], invalid: !this.validateRight()});
+      var op = astComponents["op"]({value: cur[1], path: ["op"], activePath: [editing], onSelect: this.editingOp});
+      var content = ["div", {className: "structured-constraint",
+                             onClick: this.startEditing},
+                     left, op, right];
+      var editor;
+      if(this.state.editing === "left") {
+        var localRefs = allRefs.filter(function(cur) {
+          return cur.source === sourceId;
+        }).map(function(cur) {
+          var name = code.refToName(cur);
+          return {id: cur, text: ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], name.field]};
+        });
+        editor = structuredMultiSelector({fields: localRefs,
+                                          onSet: this.setLeft,
+                                          value: content,
+                                          mode: "field",
+                                          disabled: {"function": "Only a field is allowed here.",
+                                                     "match": "Only a field is allowed here.",
+                                                     "constant": "Only a field is allowed here."}});
+      } else if(this.state.editing === "right") {
+        var leftType = code.refToType(this.props.constraint[2]);
+        var rightRefs = allRefs.filter(function(cur) {
+          return code.typesEqual(leftType, code.refToType(cur));
+        }).map(function(cur) {
+          var name = code.refToName(cur);
+          return {id: cur, text: ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], ["span", name.field]]};
+        });
+        editor = structuredMultiSelector({fields: rightRefs,
+                                          onSet: this.setRight,
+                                          value: content,
+                                          mode: "field",
+                                          disabled: {"function": "Only a field or value is allowed here.",
+                                                     "match": "Only a field or value is allowed here."}});
+      } else if(this.state.editing === "op") {
+        var allOps = [{id: "=", text: "="},
+                      {id: ">", text: ">"},
+                      {id: "<", text: "<"},
+                      {id: ">=", text: ">="},
+                      {id: "<=", text: "<="},
+                      {id: "!=", text: "!="}];
+        editor = structuredMultiSelector({functions: allOps,
+                                          onSet: this.setOp,
+                                          value: content,
+                                          mode: "function",
+                                          disabled: {"field": "Only a function is allowed here.",
+                                                     "match": "Only a function is allowed here.",
+                                                     "constant": "Only a function is allowed here."}});
+      }
+      return JSML(["div", {className: "code-container"}, content, editor]);
+      return JSML(["div", "TODO: fix constraints"]);
+    }
+  }),
 }
 
 //---------------------------------------------------------
@@ -1261,6 +1468,11 @@ var astComponents = {
 //---------------------------------------------------------
 
 var viewSource = reactFactory({
+  updateCalculation: function(expression) {
+    var neue = this.props.source.slice();
+    neue[3] = expression;
+      dispatch("swapCalculationSource", {old: this.props.source, neue: neue});
+  },
   render: function() {
     var self = this;
     var viewOrFunction = this.props.source[3];
@@ -1270,10 +1482,16 @@ var viewSource = reactFactory({
       };
       return ["li", {onClick: remove}, astComponents["constraint"]({constraint: cur, source: self.props.source})];
     });
+    var content;
+    if(typeof viewOrFunction === "string") {
+      content = table({tileId: this.props.tileId, tableId: viewOrFunction});
+    } else {
+      content = ["div", astComponents["expression"]({viewId: this.props.viewId, expression: viewOrFunction, onSet: this.updateCalculation})];
+    }
     return JSML(["div", {className: "view-source"},
                  ["h1", code.name(viewOrFunction)],
                  ["ul", constraints],
-                 table({tileId: this.props.tileId, tableId: viewOrFunction})
+                 content
                 ]);
   }
 });
@@ -1296,9 +1514,9 @@ tiles.view = {
     startAddingCalculation: function() {
       this.setState({addingCalculation: true});
     },
-    stopAddingCalculation: function(view) {
+    stopAddingCalculation: function(expression) {
       this.setState({addingCalculation: false});
-//       dispatch("addSource", {view: this.props.view || "qq", source: view});
+      dispatch("addCalculationSource", {view: this.getView(), source: expression});
     },
     render: function() {
       var self = this;
@@ -1318,7 +1536,7 @@ tiles.view = {
         return a[2] - b[2];
       });
       var items = sources.map(function(cur) {
-        return viewSource({tileId: self.props.tileId, source: cur, constraints: sourceToConstraints[cur[0]] || []});
+        return viewSource({tileId: self.props.tileId, viewId: view, source: cur, constraints: sourceToConstraints[cur[0]] || []});
       });
       var add;
       if(this.state.addingSource) {
@@ -1328,7 +1546,7 @@ tiles.view = {
       }
       var calculate;
       if(this.state.addingCalculation) {
-        calculate = ["div", astComponents["expression"]({})];
+        calculate = ["div", astComponents["expression"]({viewId: view, onSet: this.stopAddingCalculation})];
       } else {
         calculate = ["div", {onClick: this.startAddingCalculation}, "add calculation"];
       }
@@ -1436,82 +1654,18 @@ var uiInpector = reactFactory({
   }
 });
 
+// Elem: {top: Number, left: Number, bottom: Number, right: Number}
+// SnapSet: {x: Number[], y: Number[]}
 
-var uiEditor = {
-  // Elem: {top: Number, left: Number, bottom: Number, right: Number}
-  // SnapSet: {x: Number[], y: Number[]}
-  axis: {
-    left: "x", right: "x", centerX: "x",
-    top: "y", bottom: "y", centerY: "y"
-  },
-  opposite: {
-    left: "right", right: "left",
-    top: "bottom", bottom: "top"
-  },
-  findPossibleSnaps: function(elems, types, grid) { // (Elem[], {[String]: Bool}?, Grid?) -> SnapSet
-    types = types || {edge: true, center: true, grid: true};
-    var snaps = {x: [], y: []};
-    for(var elemIx in elems) {
-      var elem = elems[elemIx];
-      if(types.edge) {
-        snaps.x.push(elem.left, elem.right);
-        snaps.y.push(elem.top, elem.bottom);
-      }
-      if(types.center) {
-        snaps.x.push(elem.left + (elem.right - elem.left) / 2);
-        snaps.y.push(elem.top + (elem.bottom - elem.top) / 2);
-      }
-    }
-    if(types.grid) {
-      for(var x = 0, w = grid.size[0]; x < w; x++) {
-        snaps.x.push(x * grid.calculated.cellWidth + x * grid.gutter);
-      }
-      for(var y = 0, h = grid.size[1]; y < h; y++) {
-        snaps.y.push(y * grid.calculated.cellHeight + y * grid.gutter);
-      }
-    }
-
-    unique(snaps.x);
-    unique(snaps.y);
-
-    return snaps;
-  },
-  findSnaps: function(elem, snapSet, snapZone, only) { // (Elem, SnapSet, Number, Elem?) -> Elem
-    elem = extend({}, elem);
-    only = only || {top: true, left: true, bottom: true, right: true, centerX: true, centerY: true};
-    var snaps = {};
-    var snapIx;
-    elem.centerX = elem.left + (elem.right - elem.left) / 2;
-    elem.centerY = elem.top + (elem.bottom - elem.top) / 2;
-
-    for(var side in only) {
-      var axis = uiEditor.axis[side];
-      if(!only[side]) { continue; }
-      snaps[side] = snapSet[axis][nearestNeighbor(snapSet[axis], elem[side])];
-      if(Math.abs(snaps[side] - elem[side]) > snapZone) {
-        snaps[side] = undefined;
-      }
-    }
-
-    return snaps;
-  }
-};
-
-
-var uiCanvasElem = reactFactory({
+var uiSelection = reactFactory({
+  displayName: "selection",
   getInitialState: function() {
-    var cur = this.props.element;
-    return {right: cur.right, bottom: cur.bottom, left: cur.left, top: cur.top};
+    return this.getBounds(this.props.elements);
   },
   shouldComponentUpdate: function(nextProps, nextState) {
+    var self = this;
     var state = this.state;
-    var old = this.props.element;
-    var neue = nextProps.element;
-    if(old.id !== neue.id
-       || old.left !== neue.left
-       || old.right !== neue.right
-       || old.top !== neue.top
-       || old.bottom !== neue.bottom
+    if(this.props.id !== nextProps.id
        || state.left !== nextState.left
        || state.right !== nextState.right
        || state.top !== nextState.top
@@ -1519,82 +1673,94 @@ var uiCanvasElem = reactFactory({
       ) {
       return true;
     }
-    return false;
+
+    if(this.props.elements.length !== nextProps.elements.length) { return true; }
+    return nextProps.elements.some(function(neue, ix) {
+      var old = self.props.elements[ix];
+      if(old.id !== neue.id
+         || old.left !== neue.left
+         || old.right !== neue.right
+         || old.top !== neue.top
+         || old.bottom !== neue.bottom) {
+        return true;
+      }
+    });
   },
   componentDidUpdate: function(prev) {
-    var state = this.state;
-    var old = prev.element;
-    var neue = this.props.element;
-    if(old.id !== neue.id
-       || old.left !== neue.left
-       || old.right !== neue.right
-       || old.top !== neue.top
-       || old.bottom !== neue.bottom) {
-      var cur = this.props.element;
-      this.setState({right: cur.right, bottom: cur.bottom, left: cur.left, top: cur.top});
+    var shouldSetState = false;
+    if(this.props.elements.length !== prev.elements.length) {
+      shouldSetState = true;
+    } else {
+      shouldSetState = this.props.elements.some(function(neue, ix) {
+        var old = prev.elements[ix];
+        if(old.id !== neue.id
+           || old.left !== neue.left
+           || old.right !== neue.right
+           || old.top !== neue.top
+           || old.bottom !== neue.bottom) {
+          return true;
+        }
+      });
+    }
+
+    if(shouldSetState) {
+      this.setState(this.getBounds(this.props.elements));
     }
   },
-  findSnaps: function(pos, only) {
-    var drawThreshold = 15;
-    var snapThreshold = 8;
-    var state = this.state;
-    var id = this.props.element.id;
-    var guides = [];
-    only = only || {};
 
-    var els = this.props.elements.slice();
-    els.splice(els.indexOf(this.props.element), 1);
-
-    var possibleSnaps = uiEditor.findPossibleSnaps(els, {edge: true, center: true});
-    var snaps = uiEditor.findSnaps(pos, possibleSnaps, snapThreshold);
-
-    // choose the closer of centerX/left and centerY/top to determine which should be snapped to.
-    var centerX = pos.left + (pos.right - pos.left) / 2;
-    var centerY = pos.top + (pos.bottom - pos.top) / 2;
-    if(!only.right && !only.left && (!snaps.left || Math.abs(snaps.centerX - centerX) < Math.abs(snaps.left - pos.left))) {
-      snaps.left = snaps.centerX - (pos.right - pos.left) / 2;
+  getBounds: function(elements) {
+    var bounds = {
+      top: Infinity, bottom: -Infinity,
+      left: Infinity, right: -Infinity
+    };
+    for(var ix = 0, len = elements.length; ix < len; ix++) {
+      var el = elements[ix];
+      if(el.top < bounds.top) { bounds.top = el.top; }
+      if(el.left < bounds.left) { bounds.left = el.left; }
+      if(el.bottom > bounds.bottom) { bounds.bottom = el.bottom; }
+      if(el.right > bounds.right) { bounds.right = el.right; }
     }
-    if(!only.bottom && !only.top && (!snaps.top || Math.abs(snaps.centerY - centerY) < Math.abs(snaps.top - pos.top))) {
-      snaps.top = snaps.centerY - (pos.bottom - pos.top) / 2;
-    }
-
-    var size = {x: (pos.right - pos.left), y: (pos.bottom - pos.top)};
-
-    for(var side in snaps) {
-      var opposite = uiEditor.opposite[side];
-
-      if(snaps[side]) {
-        var axis = uiEditor.axis[side];
-        guides.push({side: side, axis: axis, pos: snaps[side]});
-      }
-
-      if(only[opposite]) {
-        snaps[side] = undefined;
-      }
-    }
-
-    if(!only.left && snaps.left) {
-      snaps.right = snaps.left + (pos.right - pos.left);
-    }
-    else if(!only.right && snaps.right) {
-      snaps.left = snaps.right - (pos.right - pos.left);
-    }
-    if(!only.top && snaps.top) {
-      snaps.bottom = snaps.top + (pos.bottom - pos.top);
-    }
-    else if(!only.bottom && snaps.bottom) {
-      snaps.top = snaps.bottom - (pos.bottom - pos.top);
-    }
-    for(side in snaps) {
-      if(!snaps[side]) {
-        snaps[side] = pos[side];
-      }
-    }
-
-    this.props.drawSnaps(guides);
-    return snaps;
+    return bounds;
   },
+  localizeCoords: function(child, parent) {
+    return {
+      left: child.left - parent.left,
+      right: child.right - parent.left,
+      top: child.top - parent.top,
+      bottom: child.bottom - parent.top
+    };
+  },
+  globalizeCoords: function(child, parent) {
+    return {
+      left: child.left + parent.left,
+      right: child.right + parent.left,
+      top: child.top + parent.top,
+      bottom: child.bottom + parent.top
+    };
+  },
+  transformSelection: function(neue, old, elements) { // (Bounds, Bounds, Elem[]) -> Elem[]
+    var offsetX = old.left - neue.left;
+    var offsetY = old.top - neue.top;
+
+    var widthRatio = (neue.right - neue.left) / (old.right - old.left);
+    var heightRatio = (neue.bottom - neue.top) / (old.bottom - old.top);
+
+    for(var ix = 0, len = elements.length; ix < len; ix++) {
+      var el = extend({}, elements[ix]);
+      el = this.localizeCoords(el, old);
+      el.left *= widthRatio;
+      el.right *= widthRatio;
+      el.top *= heightRatio;
+      el.bottom *= heightRatio;
+      elements[ix] = this.globalizeCoords(el, neue);
+    }
+
+    return elements;
+  },
+
+  // Moving
   startMoving: function(e) {
+    this.setState({initialBounds: this.getBounds(this.props.elements)});
     var rel = relativeCoords(e, e.target, e.target.parentNode.parentNode);
     this.state.offset = rel.element;
     e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0,0);
@@ -1604,22 +1770,33 @@ var uiCanvasElem = reactFactory({
     //calculate offset;
     var canvasPos = relativeCoords(e, e.target, e.target.parentNode.parentNode).canvas;
     var left = canvasPos.left - this.state.offset.left;
-    var top = canvasPos.top - this.state.offset.top;
+    var top = canvasPos.top   - this.state.offset.top;
     var right = this.state.right + (left - this.state.left);
     var bottom = this.state.bottom + (top - this.state.top);
     var pos = {left: left, top: top, right: right, bottom: bottom};
-    this.setState(this.findSnaps(pos));
+    this.setState(this.props.snap(pos));
   },
   stopMoving: function(e) {
-    this.props.drawSnaps([]);
-    var state = this.state;
-    var element = this.props.element;
-    dispatch("uiComponentElementMoved", {element: element, left: state.left, top: state.top, right: state.right, bottom: state.bottom});
+    var self = this;
+    var oldBounds = this.state.initialBounds;
+    var neueBounds = {left: this.state.left, top: this.state.top, right: this.state.right, bottom: this.state.bottom};
+    var elements = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
+
+    // @FIXME: This needs to be atomic.
+    elements.map(function(neue, ix) {
+      var old = self.props.elements[ix];
+      dispatch("uiComponentElementMoved", {element: old, left: neue.left, top: neue.top, right: neue.right, bottom: neue.bottom});
+    });
+    this.props.snap();
+    this.setState({initialBounds: undefined});
   },
+
+  // Resizing
   startResizing: function(e) {
     this.state.resizeX = e.target.getAttribute("x");
     this.state.resizeY = e.target.getAttribute("y");
     e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0,0);
+    this.setState({initialBounds: this.getBounds(this.props.elements)});
   },
   checkSize: function(orig, neue) {
     var minSize = 10;
@@ -1645,7 +1822,6 @@ var uiCanvasElem = reactFactory({
   },
   resize: function(e) {
     if(e.clientX === 0 && e.clientY === 0) return;
-
     var rel = relativeCoords(e, e.target, e.target.parentNode.parentNode).canvas;
     var state = this.state;
     var neue = {left: state.left, top: state.top, right: state.right, bottom: state.bottom};
@@ -1658,21 +1834,32 @@ var uiCanvasElem = reactFactory({
       neue[this.state.resizeY] = rel.top;
       only[this.state.resizeY] = true;
     }
-    var snaps = this.findSnaps(neue, only);
+    var snaps = this.props.snap(neue, only);
     this.setState(this.checkSize(state, snaps));
   },
   stopResizing: function(e) {
-    this.props.drawSnaps([]);
-    var state = this.state;
-    var element = this.props.element;
-    dispatch("uiComponentElementMoved", {element: element, left: state.left, top: state.top, right: state.right, bottom: state.bottom});
+    var self = this;
+    var oldBounds = this.state.initialBounds;
+    var neueBounds = {left: this.state.left, top: this.state.top, right: this.state.right, bottom: this.state.bottom};
+    var elements = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
+
+    // @FIXME: This needs to be atomic.
+    elements.map(function(neue, ix) {
+      var old = self.props.elements[ix];
+      dispatch("uiComponentElementMoved", {element: old, left: neue.left, top: neue.top, right: neue.right, bottom: neue.bottom});
+    });
+    this.props.snap();
+    this.setState({initialBounds: undefined});
   },
   wrapResizeHandle: function(opts) {
     opts.draggable = true;
     opts.onDragStart = this.startResizing;
     opts.onDrag = this.resize;
     opts.onDragEnd = this.stopResizing;
-    var size = 7;
+    opts.onMouseDown = function(evt) {
+      evt.stopPropagation();
+    };
+    var size = 14;
     var offset = size / 2;
     var width = this.state.right - this.state.left;
     var height = this.state.bottom - this.state.top;
@@ -1700,33 +1887,89 @@ var uiCanvasElem = reactFactory({
     }
     return opts;
   },
+
+  // Rendering
   render: function() {
-    var cur = this.props.element;
+    var self = this;
     var width = this.state.right - this.state.left;
     var height = this.state.bottom - this.state.top;
-    return JSML(["div", {style: {top: this.state.top, left: this.state.left, width: width, height: height}},
-                 ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "top"})],
-                 ["div", this.wrapResizeHandle({className: "resize-handle", y: "top"})],
-                 ["div", this.wrapResizeHandle({className: "resize-handle", x: "right", y: "top"})],
-                 ["div", this.wrapResizeHandle({className: "resize-handle", x: "right"})],
-                 ["div", this.wrapResizeHandle({className: "resize-handle", x: "right", y: "bottom"})],
-                 ["div", this.wrapResizeHandle({className: "resize-handle", y: "bottom"})],
-                 ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "bottom"})],
-                 ["div", this.wrapResizeHandle({className: "resize-handle", x: "left"})],
-                 ["div", {className: "control",
-                          style: {width: width, height: height},
-                          onDragStart: this.startMoving,
-                          onDrag: this.move,
-                          onDragEnd: this.stopMoving,
-                          draggable: true},
-                  cur.control]]);
+
+    var oldBounds = this.state.initialBounds;
+    var neueBounds = {left: this.state.left, top: this.state.top, right: this.state.right, bottom: this.state.bottom};
+
+    var bounds = this.props.elements.slice();
+    if(oldBounds) {
+      this.transformSelection(neueBounds, oldBounds, bounds);
+    }
+
+    return JSML(
+      ["div", {
+        className: "ui-selection",
+        style: {top: this.state.top, left: this.state.left, width: width, height: height},
+
+      },
+
+       ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "top"})],
+       ["div", this.wrapResizeHandle({className: "resize-handle", y: "top"})],
+       ["div", this.wrapResizeHandle({className: "resize-handle", x: "right", y: "top"})],
+       ["div", this.wrapResizeHandle({className: "resize-handle", x: "right"})],
+       ["div", this.wrapResizeHandle({className: "resize-handle", x: "right", y: "bottom"})],
+       ["div", this.wrapResizeHandle({className: "resize-handle", y: "bottom"})],
+       ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "bottom"})],
+       ["div", this.wrapResizeHandle({className: "resize-handle", x: "left"})],
+
+       ["div", {onDragStart: this.startMoving,
+        onDrag: this.move,
+        onDragEnd: this.stopMoving,
+        draggable: true},
+        bounds.map(function(cur, ix) {
+          var element = self.props.elements[ix];
+          var local = self.localizeCoords(cur, neueBounds);
+          var width = local.right - local.left;
+          var height = local.bottom - local.top;
+
+          return ["div", {className: "control",
+                          style: {top: local.top, left: local.left, width: width, height: height},
+                          onMouseDown: function(evt) {
+                            evt.stopPropagation();
+                          },
+                          onClick: function(evt) {
+                            self.props.select(cur, evt.shiftKey);
+                          }
+                         },
+                  element.control]
+        })]
+      ]);
   }
 });
 
 var uiCanvas = reactFactory({
   displayName: "ui-canvas",
   getInitialState: function() {
-    return {snapGuides: []}
+    return {snapGuides: [], selection: []}
+  },
+  componentDidUpdate: function() {
+    var self = this;
+    if(this.state.selection.length) {
+      var updateState = false;
+      var selection = this.state.selection.map(function(sel) {
+        var ix = self.props.elements.indexOf(sel);
+        if(ix !== -1) { return sel; }
+
+        updateState = true;
+        for(var ix = 0, len = self.props.elements.length; ix < len; ix++) {
+          if(self.props.elements[ix].id === sel.id) {
+            return self.props.elements[ix];
+          }
+        }
+
+        return undefined;
+      }).filter(Boolean);
+
+      if(updateState) {
+        self.setState({selection: selection});
+      }
+    }
   },
   elementOver: function(e) {
     e.preventDefault();
@@ -1740,15 +1983,163 @@ var uiCanvas = reactFactory({
     var canvas = e.target;
     var rel = relativeCoords(e, canvas, canvas).canvas;
     dispatch("uiComponentElementAdd", {component: this.props.component, control: type, left: rel.left, top: rel.top, right: rel.left + 100, bottom: rel.top + 100});
-    console.log("add", type);
   },
+
+  select: function(el, modify) {
+    var selection = [];
+    if(modify) {
+      selection = this.state.selection.slice();
+      var ix = selection.indexOf(el);
+      if(ix !== -1) {
+        selection.splice(ix, 1);
+      } else {
+        selection.push(el);
+      }
+    }
+    else if(el) {
+      selection.push(el);
+    }
+    this.setState({selection: selection});
+  },
+
+  // Snapping
+    axis: {
+    left: "x", right: "x", centerX: "x",
+    top: "y", bottom: "y", centerY: "y"
+  },
+  opposite: {
+    left: "right", right: "left",
+    top: "bottom", bottom: "top"
+  },
+
+  findPossibleSnaps: function(elems, types, grid) { // (Elem[], {[String]: Bool}?, Grid?) -> SnapSet
+    types = types || {edge: true, center: true, grid: true};
+    var snaps = {x: [], y: []};
+    for(var elemIx in elems) {
+      var elem = elems[elemIx];
+      if(types.edge) {
+        snaps.x.push(elem.left, elem.right);
+        snaps.y.push(elem.top, elem.bottom);
+      }
+      if(types.center) {
+        snaps.x.push(elem.left + (elem.right - elem.left) / 2);
+        snaps.y.push(elem.top + (elem.bottom - elem.top) / 2);
+      }
+    }
+    if(types.grid) {
+      for(var x = 0, w = grid.size[0]; x < w; x++) {
+        snaps.x.push(x * grid.calculated.cellWidth + x * grid.gutter);
+      }
+      for(var y = 0, h = grid.size[1]; y < h; y++) {
+        snaps.y.push(y * grid.calculated.cellHeight + y * grid.gutter);
+      }
+    }
+
+    unique(snaps.x);
+    unique(snaps.y);
+    return snaps;
+  },
+  findSnaps: function(elem, snapSet, snapZone, only) { // (Elem, SnapSet, Number, Elem?) -> Elem
+    elem = extend({}, elem);
+    var sides = {top: true, left: true, bottom: true, right: true, centerX: true, centerY: true};
+    var snaps = {};
+    var guides = [];
+    elem.centerX = elem.left + (elem.right - elem.left) / 2;
+    elem.centerY = elem.top + (elem.bottom - elem.top) / 2;
+
+    for(var side in sides) {
+      var axis = this.axis[side];
+      var opposite = this.opposite[side];
+      if(only[opposite]) { continue; }
+      snaps[side] = snapSet[axis][nearestNeighbor(snapSet[axis], elem[side])];
+      if(!snaps[side] || Math.abs(snaps[side] - elem[side]) > snapZone) {
+        snaps[side] = undefined;
+      } else {
+        guides.push({side: side, axis: axis, pos: snaps[side]});
+      }
+    }
+
+    // choose the closer of centerX/left and centerY/top to determine which should be snapped to.
+    var size = {x: (elem.right - elem.left), y: (elem.bottom - elem.top)};
+    var centerX = elem.left + size.x / 2;
+    var centerY = elem.top + size.y / 2;
+    if(!only.right && !only.left && (!snaps.left || Math.abs(snaps.centerX - centerX) < Math.abs(snaps.left - elem.left))) {
+      snaps.left = snaps.centerX - size.x / 2;
+    }
+    if(!only.bottom && !only.top && (!snaps.top || Math.abs(snaps.centerY - centerY) < Math.abs(snaps.top - elem.top))) {
+      snaps.top = snaps.centerY - size.y / 2;
+    }
+
+    // Constrain size when moving.
+    if(!only.left && snaps.left) {
+      snaps.right = snaps.left + size.x;
+    }
+    else if(!only.right && snaps.right) {
+      snaps.left = snaps.right - size.x;
+    }
+    if(!only.top && snaps.top) {
+      snaps.bottom = snaps.top + size.y;
+    }
+    else if(!only.bottom && snaps.bottom) {
+      snaps.top = snaps.bottom - size.y;
+    }
+    for(side in snaps) {
+      if(!snaps[side]) {
+        snaps[side] = elem[side];
+      }
+    }
+
+    return {snaps: snaps, guides: guides};
+  },
+
+  snap: function(pos, only) {
+    if(!pos) { return this.drawSnaps([]); }
+
+    var self = this;
+    var snapThreshold = 8;
+    only = only || {};
+
+    var els = this.props.elements.filter(function(cur) {
+      return self.state.selection.indexOf(cur) === -1;
+    });
+    var possibleSnaps = this.findPossibleSnaps(els, {edge: true, center: true});
+    var found = this.findSnaps(pos, possibleSnaps, snapThreshold, only);
+    this.drawSnaps(found.guides);
+    return found.snaps;
+  },
+
   render: function() {
     var self = this;
-    var elems = this.props.elements.map(function(cur) {
-      return uiCanvasElem({element: cur, key: cur.id, elements: self.props.elements, drawSnaps: self.drawSnaps});
+
+    // Remove selected and render separately.
+    var selection = uiSelection({elements: this.state.selection, snap: this.snap, select: this.select});
+
+
+    var elems = this.props.elements.filter(function(cur) {
+      return self.state.selection.indexOf(cur) === -1;
+    })
+    .map(function(cur) {
+      var width = cur.right - cur.left;
+      var height = cur.bottom - cur.top;
+      return ["div", {
+        className: "control",
+        style: {top: cur.top, left: cur.left, width: width, height: height},
+        onMouseDown: function(evt) {
+          self.select(cur, evt.shiftKey);
+          evt.stopPropagation();
+        }
+      },
+              cur.control]
+
+//       return uiCanvasGroup({
+//         element: cur, key: cur.id,
+//         elements: self.props.elements,
+//         drawSnaps: self.drawSnaps,
+//         selected: true
+//       });
     });
     var snaps = this.state.snapGuides.map(function(cur) {
-      var style = {background: "red"};
+      var style = {};
       if(cur.axis === "y") {
         style.left = 0;
         style.right = 0;
@@ -1760,12 +2151,17 @@ var uiCanvas = reactFactory({
         style.left = cur.pos;
         style.width = 1;
       }
-      return ["div", {style: style}];
+      return ["div", {className: "ui-guide", style: style}];
     });
     return JSML(["div", {className: "ui-canvas",
                          onDragOver: this.elementOver,
-                         onDrop: this.elementDropped},
+                         onDrop: this.elementDropped,
+                         onMouseDown: function() {
+                           self.select();
+                         }
+                        },
                  elems,
+                 (this.state.selection.length ? selection : undefined),
                  snaps
                 ]);
   }
@@ -1993,6 +2389,15 @@ function dispatch(event, arg, noRedraw) {
       diffs = code.diffs.autoJoins(arg.view, arg.source, sourceId);
       diffs["source"] = {adds: [[sourceId, arg.view, ix, arg.source, true]], removes: []};
       break;
+    case "addCalculationSource":
+      var ix = (ixer.index("viewToSources")[arg.view] || []).length;
+      var sourceId = uuid();
+      //@TODO: should we auto-join calculations?
+      diffs["source"] = {adds: [[sourceId, arg.view, ix, arg.source, true]], removes: []};
+      break;
+    case "swapCalculationSource":
+      diffs["source"] = {adds: [arg.neue.slice()], removes: [arg.old.slice()]};
+      break;
     case "removeConstraint":
       diffs.constraint = {removes: [arg.constraint]};
       break;
@@ -2152,7 +2557,7 @@ var code = {
       case "field-source-ref":
         var view = code.name(ixer.index("sourceToData")[ref.source]);
         var field = code.name(ref.field);
-        return view + "." + field;
+        return {string: view + "." + field, view: view, field: field};
         break;
       default:
         return "Unknown ref: " + JSON.stringify(ref);
@@ -2166,7 +2571,7 @@ var code = {
     //@TODO: equivalence. e.g. int = number
     return a === b;
   },
-  viewToRefs: function(view) {
+  viewToRefs: function(view, ofType) {
     var refs = [];
     var sources = ixer.index("viewToSources")[view] || [];
     sources.forEach(function(source) {
@@ -2176,10 +2581,13 @@ var code = {
       if(typeof viewOrData !== "string") {
         //@TODO: handle getting the refs for functions
         sourceView = null;
+      } else {
+        code.viewToFields(sourceView).forEach(function(field) {
+          if(!ofType || ofType === field[3]) {
+            refs.push(code.ast.fieldSourceRef(source[0], field[0]));
+          }
+        });
       }
-      code.viewToFields(sourceView).forEach(function(field) {
-        refs.push(code.ast.fieldSourceRef(source[0], field[0]));
-      });
     });
     return refs;
   },
@@ -2286,7 +2694,7 @@ ixer.handleDiffs(
   code.diffs.addView("department heads", {department: "string", head: "string"}, [], false));
 
 
-
+// grid views
   var gridId = "grid://default";
   var uiViewId = uuid();
   var bigUiViewId = uuid();
@@ -2315,6 +2723,10 @@ ixer.handleDiffs(
       [uiViewId, "grid://ui"],
       [bigUiViewId, "grid://default"]
     ], "gridTarget", ["table"]));
+
+// ui views
+ixer.handleDiffs(
+  code.diffs.addView("uiComponentElement", {component: "string", id: "string", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]));
 }
 dispatch("load");
 
