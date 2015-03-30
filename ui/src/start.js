@@ -237,13 +237,13 @@ var root = reactFactory({
          controls: [
            ["button", {
              title: "choose program",
-             className: "btn-choose-program ion-ios-albums-outline pull-right",
+             className: "btn-choose-program icon-btn icon-btn-lg ion-ios-albums-outline pull-right",
              onClick: this.chooseProgram,
              key: 0
            }],
            ["button", {
              title: "edit grid",
-             className: "btn-edit-grid ion-grid pull-right",
+             className: "btn-edit-grid icon-btn icon-btn-lg ion-grid pull-right",
              onClick: this.toggleEditGrid,
              key: 1
            }]
@@ -506,15 +506,15 @@ var gridTile = reactFactory({
     var controls = [];
     var children = [];
 
-    controls.push(["button", {className: "close-tile ion-android-close", onClick: this.close}]);
+    controls.push(["button", {className: "close-tile icon-btn icon-btn-lg ion-android-close", onClick: this.close}]);
 
     if(tile.flippable !== false) {
       attrs.className += (this.state.flipped ? " flipped" : "");
-      controls.push(["button", {className: "flip-tile " + (this.state.flipped ? "ion-forward" : "ion-reply"), onClick: this.flip}]);
+      controls.push(["button", {className: "flip-tile icon-btn icon-btn-lg " + (this.state.flipped ? "ion-forward" : "ion-reply"), onClick: this.flip}]);
     }
     if(tile.navigable !== false) {
       attrs.onDoubleClick = this.navigate;
-      controls.push(["button", {className: "navigate-tile ion-link", onClick: this.navigate}]);
+      controls.push(["button", {className: "navigate-tile icon-btn icon-btn-lg ion-link", onClick: this.navigate}]);
     }
 
     if(this.props.resizable && tile.resizable !== false) {
@@ -1641,6 +1641,53 @@ var uiTools = reactFactory({
   }
 });
 
+var uiLayers = reactFactory({
+  displayName: "ui-layers",
+  selectLayer: function(layer, evt) {
+    this.props.selectLayer(layer);
+  },
+  addLayer: function(evt) {
+    var newLayer = this.props.layers.reduce(function(max, layer) {
+      if(layer.layer > max) { return layer.layer; }
+      return max;
+    }, -1) + 1;
+
+    dispatch("uiComponentLayerAdd", {component: this.props.component, layer: newLayer});
+  },
+  toggleVisible: function(layer, evt) {
+    evt.stopPropagation();
+    layer.invisible = !layer.invisible;
+    dispatch("uiComponentLayerUpdate", layer);
+  },
+  toggleLocked: function(layer, evt) {
+    evt.stopPropagation();
+    layer.locked = !layer.locked;
+    dispatch("uiComponentLayerUpdate", layer);
+  },
+  settings: function(layer, evt) {
+    evt.stopPropagation();
+  },
+  render: function() {
+    var self = this;
+    var layerEls = this.props.layers.map(function(layer) {
+      var invisible = layer.invisible;
+      var locked = layer.locked;
+      return ["li", {className: "ui-layer"}, layer.name,
+             ["button", {className: "layer-toggle-visible icon-btn icon-btn-md " + (invisible ? "ion-eye-disabled" : "ion-eye"),
+                         onClick: self.toggleVisible.bind(self, layer)}],
+              ["button", {className: "layer-toggle-locked icon-btn icon-btn-md " + (locked ? "ion-locked" : "ion-unlocked"),
+                          onClick: self.toggleLocked.bind(self, layer)}],
+              ["button", {className: "layer-settings ion-gear-a icon-btn icon-btn-md ",
+                          onClick: self.settings.bind(self, layer)}]];
+    });
+    return JSML(
+      ["div", {className: "ui-layers"},
+       ["ul", layerEls],
+      ["button", {className: "add-layer", onClick: this.addLayer}, "Add layer"]]
+    );
+  }
+});
+
 var uiInpector = reactFactory({
   displayName: "ui-inspector",
   render: function() {
@@ -2163,7 +2210,12 @@ tiles.ui = {
   content: reactFactory({
     displayName: "ui-editor",
     getInitialState: function() {
-      return {layer: 1};
+      return {layer: 0};
+    },
+    selectLayer: function(layer) {
+      if(!this.state.layer === layer) {
+        this.setState({layer: layer});
+      }
     },
     render: function() {
       var id = this.props.tileId;
@@ -2171,10 +2223,23 @@ tiles.ui = {
       elements = elements.map(function(cur) {
         return {id: cur[0], component: cur[1], layer: cur[2], control: cur[3], left: cur[4], top: cur[5], right: cur[6], bottom: cur[7]};
       });
+      var layers = ixer.index("uiComponentToLayers")[id] || [];
+      layers = layers.map(function(cur) {
+        var name = cur[2];
+        return {id: cur[0], component: cur[1], layer: cur[2], locked: cur[3], invisible: cur[4], name: name};
+      });
+
+//       var layers = elements.reduce(function(memo, cur) {
+//         if(!memo[cur.layer]) { memo[cur.layer] = {name: cur.layer, layer: cur.layer, elements: []}; }
+//         memo[cur.layer].elements.push(cur);
+//         return memo;
+//       }, []);
+
       return JSML(["div", {className: "ui-editor"},
                    uiTools({component: id, layer: this.state.layer}),
                    uiCanvas({elements: elements, component: id, layer: this.state.layer}),
-                   uiInpector({element: {control: "button"}})]);
+                   uiLayers({component: id, layer: this.state.layer, layers: layers,
+                             selectLayer: this.selectLayer})]);
     }
   })
 };
@@ -2306,6 +2371,20 @@ function dispatch(event, arg, noRedraw) {
       var neue = [uuid(), arg.component, arg.layer, arg.control, arg.left, arg.top, arg.right, arg.bottom];
       diffs = {
         uiComponentElement: {adds: [neue], removes: []}
+      };
+      break;
+    case "uiComponentLayerAdd":
+      console.log("hullo", arg);
+      var neue = [uuid(), arg.component, arg.layer, false, false];
+      diffs = {
+        uiComponentLayer: {adds: [neue], removes: []}
+      };
+      break;
+    case "uiComponentLayerUpdate":
+      var neue = [arg.id, arg.component, arg.layer, arg.locked, arg.invisible];
+      var old = ixer.index("uiComponentLayer")[arg.id];
+      diffs = {
+        uiComponentLayer: {adds: [neue], removes: [old]}
       };
       break;
     case "addTile":
@@ -2631,6 +2710,8 @@ ixer.addIndex("viewToSources", "source", Indexing.create.collector([1]));
 ixer.addIndex("viewToConstraints", "constraint", Indexing.create.collector([0]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([1]));
 ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([1]));
+ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.lookup([0, false]));
+ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.collector([1]));
 
 // Grid Indexes
 ixer.addIndex("gridTarget", "gridTarget", Indexing.create.lookup([0, 1]));
@@ -2722,6 +2803,8 @@ ixer.handleDiffs(
 // ui views
 ixer.handleDiffs(
   code.diffs.addView("uiComponentElement", {id: "string", component: "string", layer: "number", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]));
+ixer.handleDiffs(
+  code.diffs.addView("uiComponentLayer", {id: "string", component: "string", layer: "number", locked: "boolean", invisible: "boolean"}, [], "uiComponentLayer", ["table"]));
 }
 dispatch("load");
 

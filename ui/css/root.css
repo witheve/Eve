@@ -15,22 +15,24 @@ body {
 .toolbar {
   padding: 10px 20px;
 }
-.toolbar > button {
+
+.icon-btn {
   background: none;
   border: none;
-  font-size: 2em;
   color: #999;
   border-radius:2px;
   outline: none;
 }
-.toolbar > button:hover {
+.icon-btn:hover {
   background: rgba(255, 255, 255, 0.2);
   color: #acf;
 }
-.toolbar > button:active {
+.icon-btn:active {
   background: rgba(255, 255, 255, 0.5);
   color: #acf;
 }
+.icon-btn-lg { font-size: 2em; }
+.icon-btn-md { font-size: 1.2em; }
 
 .pull-right { float: right; }
 
@@ -257,6 +259,9 @@ th:last-child { border-radius: 0 2px 2px 0; }
 .ui-canvas .resize-handle { position:absolute; background: rgba(170,204,255,0.3); border: 1px solid #acf; }
 
 .ui-tools {flex: none;}
+.ui-tools > ul { padding: 5px; background: rgba(255,255,255, 0.1); border-radius:2px; }
+
+.ui-layers { flex: none; }
 .ui-tools > ul { padding: 5px; background: rgba(255,255,255, 0.1); border-radius:2px; }
 
 /*****************************************************************************\
