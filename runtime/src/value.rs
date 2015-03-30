@@ -101,11 +101,11 @@ impl ToValue for f64 {
     }
 }
 
-// impl ToValue for usize {
-//     fn to_value(self) -> Value {
-//         Value::Float(self.to_f64().unwrap())
-//     }
-// }
+impl ToValue for usize {
+    fn to_value(self) -> Value {
+        Value::Float(self.to_f64().unwrap())
+    }
+}
 
 // impl<T: ToTuple> ToValue for T {
 //     fn to_value(self) -> Value {
