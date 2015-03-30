@@ -101,6 +101,25 @@ impl ToValue for f64 {
     }
 }
 
+impl ToValue for i32 {
+     fn to_value(self) -> Value {
+        Value::Float(self as f64)
+    }   
+}
+
+impl ToValue for i64 {
+     fn to_value(self) -> Value {
+        Value::Float(self as f64)
+    }   
+}
+
+impl ToValue for Tuple {
+    fn to_value(self) -> Value {
+        Value::Tuple(self)
+    }
+
+}
+
 impl ToValue for usize {
     fn to_value(self) -> Value {
         Value::Float(self.to_f64().unwrap())

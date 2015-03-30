@@ -1,7 +1,7 @@
-use std;
-use std::ops::Add;
+use std::fmt::{Debug,Formatter,Result};
 use std::num::Float;
 use std::num::ToPrimitive;
+use value::{Value,Tuple,ToValue};
 
 // Enums...
 // Expression Enum ------------------------------------------------------------
@@ -11,11 +11,12 @@ pub enum Expression {
 	Variable(Variable),
 	Call(Call),
 	Match(Match),
+	Value(Value),
 }
 
-impl std::fmt::Debug for Expression {
+impl Debug for Expression {
 
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+	fn fmt(&self, f: &mut Formatter) -> Result {
 		match *self {
 			Expression::Constant(ref x) => write!(f,"{:?}",*x),
 			Expression::Call(ref x) => write!(f,"{:?}",*x),
@@ -24,15 +25,15 @@ impl std::fmt::Debug for Expression {
 	}
 }
 
-pub trait ToExpression { fn to_expr(&self) -> Expression; }
+pub trait ToExpression { fn to_expr(self) -> Expression; }
 
-impl ToExpression for Expression { fn to_expr(&self) -> Expression { self.clone() } }
-impl ToExpression for Constant { fn to_expr(&self) -> Expression { Expression::Constant(self.clone()) } }
-impl ToExpression for Call { fn to_expr(&self) -> Expression { Expression::Call(self.clone()) } }
-impl ToExpression for Numeric { fn to_expr(&self) -> Expression { Expression::Constant(self.to_const()) } }
-impl ToExpression for i32 { fn to_expr(&self) -> Expression { Expression::Constant(self.to_const()) } }
-impl ToExpression for f64 { fn to_expr(&self) -> Expression { Expression::Constant(self.to_const()) } }
-impl ToExpression for str { fn to_expr(&self) -> Expression { Expression::Constant(self.to_const()) } }
+impl ToExpression for Expression { fn to_expr(self) -> Expression { self } }
+impl ToExpression for Constant { fn to_expr(self) -> Expression { Expression::Constant(self) } }
+impl ToExpression for Call { fn to_expr(self) -> Expression { Expression::Call(self) } }
+impl ToExpression for i32 { fn to_expr(self) -> Expression { Expression::Value(self.to_value()) } }
+impl ToExpression for f64 { fn to_expr(self) -> Expression { Expression::Value(self.to_value()) } }
+impl<'a> ToExpression for &'a str { fn to_expr(self) -> Expression { Expression::Value(self.to_value()) } }
+
 
 // End Expression Enum --------------------------------------------------------
 
@@ -63,6 +64,7 @@ pub enum Op {
 	StrLower,
 	StrLength,
 	StrReplace,
+	StrSplit,
 	None,
 }
 
@@ -77,24 +79,26 @@ pub enum Pattern {
 	Tuple(Tuple),
 }
 
+/*
 #[derive(Clone)]
 pub enum Tuple {
 	Patterns(PatternVec),
 }
+*/
 
 // Constant Enum --------------------------------------------------------------
 #[derive(Clone,PartialEq)]
 pub enum Constant {
 	StringConstant(String),
-	NumericConstant(Numeric),
+	Value(Value),
 }
 
-impl std::fmt::Debug for Constant {
+impl Debug for Constant {
 
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+	fn fmt(&self, f: &mut Formatter) -> Result {
 		match *self {
-			Constant::NumericConstant(ref x) => write!(f,"{:?}",*x),
 			Constant::StringConstant(ref x) => write!(f,"{:?}",*x),
+			_ => unimplemented!(),
 		}
 	}
 }
@@ -102,102 +106,23 @@ impl std::fmt::Debug for Constant {
 pub trait ToConstant { fn to_const(&self) -> Constant; }
 
 impl ToConstant for Constant { fn to_const(&self) -> Constant { self.clone() } }
-impl ToConstant for Numeric { fn to_const(&self) -> Constant { Constant::NumericConstant(self.clone()) } }
-impl ToConstant for f64 { fn to_const(&self) -> Constant { Constant::NumericConstant(self.to_numeric()) } }
-impl ToConstant for i32 { fn to_const(&self) -> Constant { Constant::NumericConstant(self.to_numeric()) } }
-impl ToConstant for usize { fn to_const(&self) -> Constant { Constant::NumericConstant(self.to_numeric()) } }
+impl ToConstant for f64 { fn to_const(&self) -> Constant { Constant::Value(self.to_value()) } }
+impl ToConstant for i32 { fn to_const(&self) -> Constant { Constant::Value(self.to_value()) } }
+impl ToConstant for usize { fn to_const(&self) -> Constant { Constant::Value(self.to_value()) } }
 impl ToConstant for str { fn to_const(&self) -> Constant { Constant::StringConstant(self.to_string()) } }
 impl ToConstant for String { fn to_const(&self) -> Constant { Constant::StringConstant(self.clone())} }
 
 impl ToString for Constant {
 	fn to_string(&self) -> String {
 		match self {
-			&Constant::NumericConstant(_) => panic!("ToString for Constant: Cannot convert numeric constant to string!"),
 			&Constant::StringConstant(ref x) => x.clone(),
+			_ => unimplemented!(),
 		}
 	}
 }
 
 
 // End Constant Enum ----------------------------------------------------------
-
-// Numeric Enum ---------------------------------------------------------------
-#[derive(Clone,PartialOrd,PartialEq,Copy)]
-pub enum Numeric {
-	Integer(i64),
-	Float(f64),
-}
-
-trait ToNumeric { fn to_numeric(&self) -> Numeric; }
-
-impl ToNumeric for f32 { fn to_numeric(&self) -> Numeric { Numeric::Float(*self as f64) } }
-impl ToNumeric for f64 { fn to_numeric(&self) -> Numeric { Numeric::Float(*self) } }
-impl ToNumeric for i64 { fn to_numeric(&self) -> Numeric { Numeric::Integer(*self) } }
-impl ToNumeric for i32 { fn to_numeric(&self) -> Numeric { Numeric::Integer(*self as i64) } }
-impl ToNumeric for usize { fn to_numeric(&self) -> Numeric { Numeric::Integer(*self as i64) } }
-impl ToNumeric for Constant { 
-
-	fn to_numeric(&self) -> Numeric {
-	
-		match self {
-			&Constant::NumericConstant(ref x) => x.clone(),
-			&Constant::StringConstant(_) => panic!("ToNumeric for Constant: Cannot convert string to numeric!"),
-		}
-	}
-}
-
-impl std::fmt::Debug for Numeric {
-
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		match *self {
-			Numeric::Integer(ref x) => write!(f,"{:?}",*x),
-			Numeric::Float(ref x) => write!(f,"{:?}",*x),
-		}
-	}
-}
-
-impl std::ops::Neg for Numeric {
-    type Output = Numeric;
-    fn neg(self) -> Numeric { (-unwrap_numeric(&self)).to_numeric() }
-}
-
-
-impl std::num::ToPrimitive for Numeric {
-
-	fn to_i64(&self) -> Option<i64> { unimplemented!() }
-	fn to_u64(&self) -> Option<u64> { unimplemented!() }
-}
-
-impl std::ops::Add for Numeric {
-	type Output = Numeric;
-	fn add(self, _rhs: Numeric) -> Numeric { (unwrap_numeric(&self) + unwrap_numeric(&_rhs)).to_numeric() }
-}
-
-impl std::ops::Sub for Numeric {
-	type Output = Numeric;
-	fn sub(self, _rhs: Numeric) -> Numeric { (unwrap_numeric(&self) - unwrap_numeric(&_rhs)).to_numeric() }
-}
-
-impl std::ops::Mul for Numeric {
-	type Output = Numeric;
-	fn mul(self, _rhs: Numeric) -> Numeric { (unwrap_numeric(&self) * unwrap_numeric(&_rhs)).to_numeric() }
-}
-
-impl std::ops::Div for Numeric {
-	type Output = Numeric;
-	fn div(self, _rhs: Numeric) -> Numeric { (unwrap_numeric(&self) / unwrap_numeric(&_rhs)).to_numeric() }
-}
-
-fn unwrap_numeric(n: &Numeric) -> f64 {
-	
-	match n {
-		&Numeric::Integer(ref x) => x.clone() as f64,
-		&Numeric::Float(ref x) => x.clone(),
-	}
-}
-
-// End Numeric Enum -----------------------------------------------------------
-
 
 // Structs...
 #[derive(Clone,Debug)]
@@ -215,7 +140,6 @@ pub struct Match {
 // Some type aliases
 pub type PatternVec = Vec<Pattern>;
 pub type ExpressionVec = Vec<Expression>;
-pub type NumericVec = Vec<Numeric>;
 
 // Macro for creating expression vectors
 #[macro_export]
@@ -232,33 +156,35 @@ macro_rules! exprvec {
 }
 
 // This is the main interface to the interpreter. Pass in an expression, get a constant back
-pub fn calculate(e: & Expression) -> Constant {
+pub fn calculate(e: & Expression) -> Value {
 
 	process_expression(e)
 
 }
 
-fn process_expression(e: & Expression) -> Constant {
+fn process_expression(e: & Expression) -> Value {
 	
 	match *e {
-		Expression::Constant(ref x) =>  x.clone(),
+		//Expression::Constant(ref x) =>  x.clone(),
 		Expression::Call(ref x) => process_call(x),
+		//Expression::Constant(ref x) => process_constant(x),
+		Expression::Value(ref x) => x.clone(),
 		_ => unimplemented!(),
 	}
 }
 
-
 /*
-fn process_constant(c: & Constant) -> Numeric {
+fn process_constant(c: & Constant) -> &Value {
 
 	match *c {
-		Constant::NumericConstant(ref x) => x.clone(),
-		Constant::StringConstant(_) => unimplemented!(),
+		Constant::NumericConstant(ref x) => unwrap_numeric(x).to_value(),
+		Constant::StringConstant(ref x) => x.to_value(),
+		_ => unimplemented!(),
 	}
 }
 */
+fn process_call(c: &Call) -> Value {
 
-fn process_call(c: & Call) -> Constant {
 
 	match c.op {
 		// Infix ops
@@ -291,84 +217,117 @@ fn process_call(c: & Call) -> Constant {
 		Op::StrConcat => str_cat(&c.args),
 		Op::StrUpper => str_to_upper(&c.args),
 		Op::StrLower => str_to_lower(&c.args),
-		Op::StrLength => str_length(&c.args,),
-		Op::StrReplace => str_replace(&c.args,),
+		Op::StrLength => str_length(&c.args),
+		Op::StrReplace => str_replace(&c.args),
+		Op::StrSplit => str_split(&c.args),
+		
 		_ => unimplemented!(),
 	}
+
 }
 
 // Math Functions  ------------------------------------------------------------
 
 // Execute a provided function that takes one argument in an expression vector
-fn onearg<F: Fn(f64) -> f64>(f: F, args: &ExpressionVec) -> Constant {
+fn onearg<F: Fn(f64) -> f64>(f: F, args: &ExpressionVec) -> Value {
+
 	argcheck(args,1);
-	let x = unwrap_numeric(&process_expression(&args[0]).to_numeric());
-	f(x).to_const()
+
+	let x = process_expression(&args[0]).to_f64().unwrap();
+
+	f(x).to_value()
 }
 
 // Execute a provided function that takes two arguments in an expression vector
-fn twoargs<F: Fn(f64,f64) -> f64>(f: F, args: &ExpressionVec) -> Constant {
+fn twoargs<F: Fn(f64,f64) -> f64>(f: F, args: &ExpressionVec) -> Value {
 
 	argcheck(args,2);
 
-	let x = unwrap_numeric(&process_expression(&args[0]).to_numeric());
-	let y = unwrap_numeric(&process_expression(&args[1]).to_numeric());
-	
-	f(x,y).to_const()
-	
+	let x = process_expression(&args[0]).to_f64().unwrap();
+	let y = process_expression(&args[1]).to_f64().unwrap();
+
+	f(x,y).to_value()
+
 }
 
 // End Math Functions  --------------------------------------------------------
 
 // String Functions  ----------------------------------------------------------
-
-fn str_cat(args: &ExpressionVec) -> Constant {
+fn str_cat(args: &ExpressionVec) -> Value {
 	
 	argcheck(args,2);
 
 	let s1 = process_expression(&args[0]).to_string();
 	let s2 = process_expression(&args[1]).to_string();
 	
-	(s1 + s2.as_slice()).to_const()
+	(s1 + s2.as_slice()).to_value()
 
 }
 
 // Convert all characters to upper case
-fn str_to_upper(args: &ExpressionVec) -> Constant {
+fn str_to_upper(args: &ExpressionVec) -> Value {
+
 	argcheck(args,1);
+
 	process_expression(&args[0])
 		.to_string()
 		.to_uppercase()
-		.to_const()
+		.to_value()
 }
 
 // Convert all characters to lower case
-fn str_to_lower(args: &ExpressionVec) -> Constant {
+fn str_to_lower(args: &ExpressionVec) -> Value {
+
 	argcheck(args,1);
+
 	process_expression(&args[0])
 		.to_string()
 		.to_lowercase()
-		.to_const()
+		.to_value()
 }
 
 // Return length of the string
-fn str_length(args: &ExpressionVec) -> Constant {
+fn str_length(args: &ExpressionVec) -> Value {
+
 	argcheck(args,1);
+
 	process_expression(&args[0])
 		.to_string()
 		.len()
-		.to_const()
+		.to_value()
 }
 
 // Replace all occurances of a query string with a new string
-fn str_replace(args: &ExpressionVec) -> Constant {
+fn str_replace(args: &ExpressionVec) -> Value {
+
 	argcheck(args,3);
 	
 	let s = process_expression(&args[0]).to_string();
 	let query = process_expression(&args[1]).to_string();
 	let replacement = process_expression(&args[2]).to_string();
 
-	s.replace(query.as_slice(),replacement.as_slice()).to_const()
+	s.replace(query.as_slice(),replacement.as_slice()).to_value()
+
+}
+
+// Spits 
+fn str_split(args: &ExpressionVec) -> Value {
+
+	argcheck(args,1);
+
+	let s = process_expression(&args[0]).to_string();
+
+	let words = s.words();
+
+	let mut t = Tuple::new();
+
+	for word in words {
+
+		t.push(word.to_string().to_value());
+
+	}
+
+	t.to_value()
 
 }
 
@@ -382,5 +341,3 @@ fn argcheck(args: &ExpressionVec, n: usize) {
 }
 
 // End Helper Functions -------------------------------------------------------
-
-

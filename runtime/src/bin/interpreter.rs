@@ -1,386 +1,181 @@
-use std;
-use std::ops::Add;
+#[macro_use]
+extern crate eve;
+extern crate test;
+extern crate core;
+
+use test::Bencher;
+use eve::interpreter::*;
 use std::num::Float;
-use std::num::ToPrimitive;
+use core::num::ToPrimitive;
 
-// Enums...
-// Expression Enum ------------------------------------------------------------
-#[derive(Clone)]
-pub enum Expression {
-	Constant(Constant),
-	Variable(Variable),
-	Call(Call),
-	Match(Match),
-}
-
-impl std::fmt::Debug for Expression {
-
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		match *self {
-			Expression::Constant(ref x) => write!(f,"{:?}",*x),
-			Expression::Call(ref x) => write!(f,"{:?}",*x),
-			_ => unimplemented!(),
-		}
-	}
-}
-
-pub trait ToExpression { fn to_expr(&self) -> Expression; }
-
-impl ToExpression for Expression { fn to_expr(&self) -> Expression { self.clone() } }
-impl ToExpression for Constant { fn to_expr(&self) -> Expression { Expression::Constant(self.clone()) } }
-impl ToExpression for Call { fn to_expr(&self) -> Expression { Expression::Call(self.clone()) } }
-impl ToExpression for Numeric { fn to_expr(&self) -> Expression { Expression::Constant(self.to_const()) } }
-impl ToExpression for i32 { fn to_expr(&self) -> Expression { Expression::Constant(self.to_const()) } }
-impl ToExpression for f64 { fn to_expr(&self) -> Expression { Expression::Constant(self.to_const()) } }
-impl ToExpression for str { fn to_expr(&self) -> Expression { Expression::Constant(self.to_const()) } }
-
-// End Expression Enum --------------------------------------------------------
-
-#[derive(Clone,Debug)]
-pub enum Op {
-	Add,
-	Subtract,
-	Multiply,
-	Divide,
-	Exponentiate,
-	Exp,
-	Sqrt,
-	Log,
-	Log10,
-	Log2,
-	Ln,
-	Abs,
-	Sign,
-	Sin,
-	Cos,
-	Tan,
-	ASin,
-	ACos,
-	ATan,
-	ATan2,
-	StrConcat,
-	StrUpper,
-	StrLower,
-	StrLength,
-	StrReplace,
-	None,
-}
-
-#[derive(Clone)]
-pub enum Variable {
-	Variable(String),
-}
-
-#[derive(Clone)]
-pub enum Pattern {
-	Constant(Constant),
-	Tuple(Tuple),
-}
-
-#[derive(Clone)]
-pub enum Tuple {
-	Patterns(PatternVec),
-}
-
-// Constant Enum --------------------------------------------------------------
-#[derive(Clone,PartialEq)]
-pub enum Constant {
-	StringConstant(String),
-	NumericConstant(Numeric),
-}
-
-impl std::fmt::Debug for Constant {
-
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		match *self {
-			Constant::NumericConstant(ref x) => write!(f,"{:?}",*x),
-			Constant::StringConstant(ref x) => write!(f,"{:?}",*x),
-		}
-	}
-}
-
-pub trait ToConstant { fn to_const(&self) -> Constant; }
-
-impl ToConstant for Constant { fn to_const(&self) -> Constant { self.clone() } }
-impl ToConstant for Numeric { fn to_const(&self) -> Constant { Constant::NumericConstant(self.clone()) } }
-impl ToConstant for f64 { fn to_const(&self) -> Constant { Constant::NumericConstant(self.to_numeric()) } }
-impl ToConstant for i32 { fn to_const(&self) -> Constant { Constant::NumericConstant(self.to_numeric()) } }
-impl ToConstant for usize { fn to_const(&self) -> Constant { Constant::NumericConstant(self.to_numeric()) } }
-impl ToConstant for str { fn to_const(&self) -> Constant { Constant::StringConstant(self.to_string()) } }
-impl ToConstant for String { fn to_const(&self) -> Constant { Constant::StringConstant(self.clone())} }
-
-impl ToString for Constant {
-	fn to_string(&self) -> String {
-		match self {
-			&Constant::NumericConstant(_) => panic!("ToString for Constant: Cannot convert numeric constant to string!"),
-			&Constant::StringConstant(ref x) => x.clone(),
-		}
-	}
-}
-
-
-// End Constant Enum ----------------------------------------------------------
-
-// Numeric Enum ---------------------------------------------------------------
-#[derive(Clone,PartialOrd,PartialEq,Copy)]
-pub enum Numeric {
-	Integer(i64),
-	Float(f64),
-}
-
-trait ToNumeric { fn to_numeric(&self) -> Numeric; }
-
-impl ToNumeric for f32 { fn to_numeric(&self) -> Numeric { Numeric::Float(*self as f64) } }
-impl ToNumeric for f64 { fn to_numeric(&self) -> Numeric { Numeric::Float(*self) } }
-impl ToNumeric for i64 { fn to_numeric(&self) -> Numeric { Numeric::Integer(*self) } }
-impl ToNumeric for i32 { fn to_numeric(&self) -> Numeric { Numeric::Integer(*self as i64) } }
-impl ToNumeric for usize { fn to_numeric(&self) -> Numeric { Numeric::Integer(*self as i64) } }
-impl ToNumeric for Constant { 
-
-	fn to_numeric(&self) -> Numeric {
+fn main() {
 	
-		match self {
-			&Constant::NumericConstant(ref x) => x.clone(),
-			&Constant::StringConstant(_) => panic!("ToNumeric for Constant: Cannot convert string to numeric!"),
-		}
-	}
+	let c1 = Call{op: Op::StrSplit, args: exprvec!["The Quick Brown Fox Jumps Over The Lazy Dog"]};
+	let result = calculate(&c1.to_expr());
+
+	println!("{:?}",result);
 }
 
-impl std::fmt::Debug for Numeric {
+#[test]
+fn opstest() {
 
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		match *self {
-			Numeric::Integer(ref x) => write!(f,"{:?}",*x),
-			Numeric::Float(ref x) => write!(f,"{:?}",*x),
-		}
-	}
-}
-
-impl std::ops::Neg for Numeric {
-    type Output = Numeric;
-    fn neg(self) -> Numeric { (-unwrap_numeric(&self)).to_numeric() }
-}
-
-
-impl std::num::ToPrimitive for Numeric {
-
-	fn to_i64(&self) -> Option<i64> { unimplemented!() }
-	fn to_u64(&self) -> Option<u64> { unimplemented!() }
-}
-
-impl std::ops::Add for Numeric {
-	type Output = Numeric;
-	fn add(self, _rhs: Numeric) -> Numeric { (unwrap_numeric(&self) + unwrap_numeric(&_rhs)).to_numeric() }
-}
-
-impl std::ops::Sub for Numeric {
-	type Output = Numeric;
-	fn sub(self, _rhs: Numeric) -> Numeric { (unwrap_numeric(&self) - unwrap_numeric(&_rhs)).to_numeric() }
-}
-
-impl std::ops::Mul for Numeric {
-	type Output = Numeric;
-	fn mul(self, _rhs: Numeric) -> Numeric { (unwrap_numeric(&self) * unwrap_numeric(&_rhs)).to_numeric() }
-}
-
-impl std::ops::Div for Numeric {
-	type Output = Numeric;
-	fn div(self, _rhs: Numeric) -> Numeric { (unwrap_numeric(&self) / unwrap_numeric(&_rhs)).to_numeric() }
-}
-
-fn unwrap_numeric(n: &Numeric) -> f64 {
-	
-	match n {
-		&Numeric::Integer(ref x) => x.clone() as f64,
-		&Numeric::Float(ref x) => x.clone(),
-	}
-}
-
-// End Numeric Enum -----------------------------------------------------------
-
-
-// Structs...
-#[derive(Clone,Debug)]
-pub struct Call {
-	pub op: Op,
-	pub args: ExpressionVec,
-}
-
-#[derive(Clone)]
-pub struct Match {
-	pub patterns: PatternVec,
-	pub handlers: ExpressionVec,
-}
-
-// Some type aliases
-pub type PatternVec = Vec<Pattern>;
-pub type ExpressionVec = Vec<Expression>;
-pub type NumericVec = Vec<Numeric>;
-
-// Macro for creating expression vectors
-#[macro_export]
-macro_rules! exprvec {
-    ( $( $x:expr ),* ) => {
-        {
-            let mut temp_vec = ExpressionVec::new();
-            $(
-                temp_vec.push($x.to_expr());
-            )*
-            temp_vec
-        }
-    };
-}
-
-// This is the main interface to the interpreter. Pass in an expression, get a constant back
-pub fn calculate(e: & Expression) -> Constant {
-
-	process_expression(e)
-
-}
-
-fn process_expression(e: & Expression) -> Constant {
-	
-	match *e {
-		Expression::Constant(ref x) =>  x.clone(),
-		Expression::Call(ref x) => process_call(x),
-		_ => unimplemented!(),
-	}
-}
-
-
-/*
-fn process_constant(c: & Constant) -> Numeric {
-
-	match *c {
-		Constant::NumericConstant(ref x) => x.clone(),
-		Constant::StringConstant(_) => unimplemented!(),
-	}
-}
-*/
-
-fn process_call(c: & Call) -> Constant {
-
-	match c.op {
-		// Infix ops
-		Op::Add => twoargs(|x,y|{x+y},&c.args),
-		Op::Subtract => twoargs(|x,y|{x-y},&c.args),
-		Op::Multiply => twoargs(|x,y|{x*y},&c.args),
-		Op::Divide => twoargs(|x,y|{x/y},&c.args),
-		Op::Exponentiate => twoargs(|x,y|{x.powf(y)},&c.args),
-			
-		// Some general math functions
-		Op::Abs => onearg(|x|{x.abs()},&c.args),	
-		Op::Sqrt => onearg(|x|{x.sqrt()},&c.args),	
-		Op::Sign => onearg(|x|{x.signum()},&c.args),		
-		Op::Exp => onearg(|x|{x.exp()},&c.args),
-		Op::Ln => onearg(|x|{x.ln()},&c.args),
-		Op::Log => twoargs(|x,y|{x.log(y)},&c.args),			
-		Op::Log10 => onearg(|x|{x.log10()},&c.args),			
-		Op::Log2 => onearg(|x|{x.log2()},&c.args),		
-			
-		// Trig functions
-		Op::Sin => onearg(|x|{x.sin()},&c.args),
-		Op::Cos => onearg(|x|{x.cos()},&c.args),
-		Op::Tan => onearg(|x|{x.tan()},&c.args),
-		Op::ASin => onearg(|x|{x.atan()},&c.args),
-		Op::ACos => onearg(|x|{x.atan()},&c.args),
-		Op::ATan => onearg(|x|{x.atan()},&c.args),
-		Op::ATan2 => twoargs(|x,y|{x.atan2(y)},&c.args),
-
-		// String functions
-		Op::StrConcat => str_cat(&c.args),
-		Op::StrUpper => str_to_upper(&c.args),
-		Op::StrLower => str_to_lower(&c.args),
-		Op::StrLength => str_length(&c.args,),
-		Op::StrReplace => str_replace(&c.args,),
-		_ => unimplemented!(),
-	}
-}
-
-// Math Functions  ------------------------------------------------------------
-
-// Execute a provided function that takes one argument in an expression vector
-fn onearg<F: Fn(f64) -> f64>(f: F, args: &ExpressionVec) -> Constant {
-	argcheck(args,1);
-	let x = unwrap_numeric(&process_expression(&args[0]).to_numeric());
-	f(x).to_const()
-}
-
-// Execute a provided function that takes two arguments in an expression vector
-fn twoargs<F: Fn(f64,f64) -> f64>(f: F, args: &ExpressionVec) -> Constant {
-
-	argcheck(args,2);
-
-	let x = unwrap_numeric(&process_expression(&args[0]).to_numeric());
-	let y = unwrap_numeric(&process_expression(&args[1]).to_numeric());
-	
-	f(x,y).to_const()
+	// Test Some General Math Ops: (((1.3 + 2) * 3) + (7 - 4) / 10) ^ 2.5
+	let c1 = Call{op: Op::Add, args: exprvec![1.3,2]};				// C1 = 1.3 + 2
+	let c2 = Call{op: Op::Multiply, args: exprvec![c1,3]};			// C2 = C1 * 3
+	let c3 = Call{op: Op::Subtract, args: exprvec![7,4]};			// C3 = 7 - 4
+	let c4 = Call{op: Op::Divide, args: exprvec![c3,10]};			// C4 = C3 / 10
+	let c5 = Call{op: Op::Add, args: exprvec![c2,c4]};				// C5 = C2 + C4
+	let c6 = Call{op: Op::Exponentiate, args: exprvec![c5,2.5]};	// C6 = C5 ^ 2.5
+	let result = calculate(&c6.to_expr());
+	assert_eq!(result.to_f64().unwrap(),(((1.3f64 + 2f64) * 3f64) + (7f64 - 4f64) / 10f64).powf(2.5f64));
 	
 }
 
-// End Math Functions  --------------------------------------------------------
+#[test]
+fn stringtest() {
 
-// String Functions  ----------------------------------------------------------
-
-fn str_cat(args: &ExpressionVec) -> Constant {
+	// Test a text replacement
+	let c1 = Call{op: Op::StrReplace, args: exprvec!["Hello World","l","q"] };
+	let result = calculate(&c1.to_expr());
+	assert_eq!(result.to_string(),"Heqqo Worqd".to_string());
 	
-	argcheck(args,2);
+}
 
-	let s1 = process_expression(&args[0]).to_string();
-	let s2 = process_expression(&args[1]).to_string();
+#[test]
+fn trigtest() {
+
+	let pi = std::f64::consts::PI;
+
+	// sin 
+	let c1 = Call{op: Op::Sin, args: exprvec![pi]};
+	let result = calculate(&c1.to_expr());
+	assert_eq!(result.to_f64().unwrap(),pi.sin());
 	
-	(s1 + s2.as_slice()).to_const()
+	// cos 
+	let c1 = Call{op: Op::Cos, args: exprvec![pi]};
+	let result = calculate(&c1.to_expr());
+	assert_eq!(result.to_f64().unwrap(),pi.cos());
 
-}
-
-// Convert all characters to upper case
-fn str_to_upper(args: &ExpressionVec) -> Constant {
-	argcheck(args,1);
-	process_expression(&args[0])
-		.to_string()
-		.to_uppercase()
-		.to_const()
-}
-
-// Convert all characters to lower case
-fn str_to_lower(args: &ExpressionVec) -> Constant {
-	argcheck(args,1);
-	process_expression(&args[0])
-		.to_string()
-		.to_lowercase()
-		.to_const()
-}
-
-// Return length of the string
-fn str_length(args: &ExpressionVec) -> Constant {
-	argcheck(args,1);
-	process_expression(&args[0])
-		.to_string()
-		.len()
-		.to_const()
-}
-
-// Replace all occurances of a query string with a new string
-fn str_replace(args: &ExpressionVec) -> Constant {
-	argcheck(args,3);
+	// tan
+	let c1 = Call{op: Op::Tan, args: exprvec![pi]};
+	let result = calculate(&c1.to_expr());
+	assert_eq!(result.to_f64().unwrap(),pi.tan());
 	
-	let s = process_expression(&args[0]).to_string();
-	let query = process_expression(&args[1]).to_string();
-	let replacement = process_expression(&args[2]).to_string();
-
-	s.replace(query.as_slice(),replacement.as_slice()).to_const()
-
+	// atan2
+	let c1 = Call{op: Op::ATan2, args: exprvec![1.2,2.3]};
+	let result = calculate(&c1.to_expr());
+	assert_eq!(result.to_f64().unwrap(),1.2f64.atan2(2.3f64));
 }
 
-// End String Functions -------------------------------------------------------
+#[test]
+fn bigmathtest() {
 
+	let wa = 1.5;
+	let ma = 2.3;
+	let va = 11.3;
+	let ga = 0.34;
+	let li = 3.45;
+	let mu = 1.50;
+	let gd = 3.14;
+	let g = 9.8;
+	let wx = 0.04;
+	let ps = 0.013;
+	let rh = 1.74;
+	
+	
+	let c1 = Call{op: Op::Sin, args: exprvec![ga]}; 			// sin(ga)
+	let c2 = Call{op: Op::Exponentiate, args: exprvec![c1,2]}; 	// sin(ga)^2
+	let c3 = Call{op: Op::Multiply, args: exprvec![wx,c2]}; 	// wx*sin(ga)^2
+	let c4 = Call{op: Op::Sin, args: exprvec![ps]}; 			// sin(ps)
+	let c5 = Call{op: Op::Multiply, args: exprvec![c3,c4]}; 	// wx*sin(ga)^2*sin(ps)
+	
+	
+	let c6 = Call{op: Op::Cos, args: exprvec![ga]}; 			// cos(ga)
+	let c7 = Call{op: Op::Multiply, args: exprvec![g,c6]}; 		// g*cos(ga)
+	let c8 = Call{op: Op::Divide, args: exprvec![c7,va]}; 		// g*cos(ga)/va
+	let c9 = Call{op: Op::Add, args: exprvec![gd,c8]}; 			// gd+g*cos(ga)/va
+	
+	let c10 = Call{op: Op::Subtract, args: exprvec![c9,c5]}; 	// (gd+g*cos(ga)/va) - (wx*sin(ga)^2*sin(ps))
 
-// Helper Functions -----------------------------------------------------------
+	let c11 = Call{op: Op::Multiply, args: exprvec![wa,rh]};	// wa*rh
+	let c12 = Call{op: Op::Multiply, args: exprvec![c11,va]};	// wa*rh*va	
+	let c13 = Call{op: Op::Cos, args: exprvec![mu]}; 			// cos(mu)
+	let c14 = Call{op: Op::Multiply, args: exprvec![c12,c13]};	// wa*rh*va*cos(mu)	
+	
+	let c15 = Call{op: Op::Multiply, args: exprvec![2,ma]};		// 2*ma
+	
+	let c16 = Call{op: Op::Divide, args: exprvec![c15,c14]};	// 2*ma/wa*rh*va*cos(mu)
+	
+	let c17 = Call{op: Op::Multiply, args: exprvec![c16,c10]};	// (2*ma/wa*rh*va*cos(mu)) * (gd+g*cos(ga)/va) - (wx*sin(ga)^2*sin(ps))
 
-fn argcheck(args: &ExpressionVec, n: usize) {
-	if args.len() != n { panic!("argcheck: Incorrect number of arguments! Expected {}. Given {}.",n,args.len()) };
+	let result = calculate(&c17.to_expr());
+	
+	assert_eq!(result.to_f64().unwrap(),(2f64*ma/(wa*rh*va*mu.cos())*(gd+g*ga.cos()/va-wx*(ga.sin().powf(2f64))*ps.sin())));
+	
 }
 
-// End Helper Functions -------------------------------------------------------
 
+#[bench]
+fn opsbench(b: &mut Bencher) {
 
+	// Test Some General Math Ops: (((1 + 2) * 3) + (7 - 4) / 10) ^ 2
+	
+	let c1 = Call{op: Op::Add, args: exprvec![1.3,2]};				// C1 = 1.3 + 2
+	let c2 = Call{op: Op::Multiply, args: exprvec![c1,3]};			// C2 = C1 * 3
+	let c3 = Call{op: Op::Subtract, args: exprvec![7,4]};			// C3 = 7 - 4
+	let c4 = Call{op: Op::Divide, args: exprvec![c3,10]};			// C4 = C3 / 10
+	let c5 = Call{op: Op::Add, args: exprvec![c2,c4]};				// C5 = C2 + C4
+	let c6 = Call{op: Op::Exponentiate, args: exprvec![c5,2.5]};	// C6 = C5 ^ 2.5
+	let e1 = c6.to_expr();
+	b.iter(|| {
+		calculate(&e1)
+	});
+}
+
+#[bench]
+fn bigmathbench(b: &mut Bencher) {
+
+	let wa = 1.5;
+	let ma = 2.3;
+	let va = 11.3;
+	let ga = 0.34;
+	let mu = 1.50;
+	let gd = 3.14;
+	let g = 9.8;
+	let wx = 0.04;
+	let ps = 0.013;
+	let rh = 1.74;
+	
+	
+	let c1 = Call{op: Op::Sin, args: exprvec![ga]}; 			// sin(ga)
+	let c2 = Call{op: Op::Exponentiate, args: exprvec![c1,2]}; 	// sin(ga)^2
+	let c3 = Call{op: Op::Multiply, args: exprvec![wx,c2]}; 	// wx*sin(ga)^2
+	let c4 = Call{op: Op::Sin, args: exprvec![ps]}; 			// sin(ps)
+	let c5 = Call{op: Op::Multiply, args: exprvec![c3,c4]}; 	// wx*sin(ga)^2*sin(ps)
+	
+	
+	let c6 = Call{op: Op::Cos, args: exprvec![ga]}; 			// cos(ga)
+	let c7 = Call{op: Op::Multiply, args: exprvec![g,c6]}; 		// g*cos(ga)
+	let c8 = Call{op: Op::Divide, args: exprvec![c7,va]}; 		// g*cos(ga)/va
+	let c9 = Call{op: Op::Add, args: exprvec![gd,c8]}; 			// gd+g*cos(ga)/va
+	
+	let c10 = Call{op: Op::Subtract, args: exprvec![c9,c5]}; 	// (gd+g*cos(ga)/va) - (wx*sin(ga)^2*sin(ps))
+
+	let c11 = Call{op: Op::Multiply, args: exprvec![wa,rh]};	// wa*rh
+	let c12 = Call{op: Op::Multiply, args: exprvec![c11,va]};	// wa*rh*va	
+	let c13 = Call{op: Op::Cos, args: exprvec![mu]}; 			// cos(mu)
+	let c14 = Call{op: Op::Multiply, args: exprvec![c12,c13]};	// wa*rh*va*cos(mu)	
+	
+	let c15 = Call{op: Op::Multiply, args: exprvec![2,ma]};		// 2*ma
+	
+	let c16 = Call{op: Op::Divide, args: exprvec![c15,c14]};	// 2*ma/wa*rh*va*cos(mu)
+	
+	let c17 = Call{op: Op::Multiply, args: exprvec![c16,c10]};	// (2*ma/wa*rh*va*cos(mu)) * (gd+g*cos(ga)/va) - (wx*sin(ga)^2*sin(ps))
+	
+	let e1 = c17.to_expr();
+	
+	b.iter(|| {
+		calculate(&e1)
+	});
+	
+}
