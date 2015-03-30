@@ -171,6 +171,12 @@ body {
 .grid-tile.addChooser .pane-1 button:active { background: rgba(255, 255, 255, 0.2); color: rgb(96, 208, 255); }
 .grid-tile.addChooser .pane { padding: 4px 8px; }
 
+.grid-tile.table {
+  background: url("../resources/input.jpg");
+}
+.grid-tile.table > .grid-tile-inner {
+  background: rgba(0, 0, 0, 0.7);
+}
 
 /*****************************************************************************\
  * Table

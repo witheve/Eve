@@ -431,13 +431,13 @@ var gridTile = reactFactory({
     var self = this;
     var dir = (this.state.flipped ? "+=" : "-=");
     Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {
-      duration: 150,
+      duration: 1500,
       easing: "easeInSine",
       complete: function() {
         self.setState({flipped: !self.state.flipped});
       }
     });
-    Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {duration: 350, easing: "easeOutCubic"});
+    Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {duration: 3500, easing: "easeOutCubic"});
   },
 
   // Dragging
@@ -2174,7 +2174,7 @@ tiles.ui = {
       var id = this.props.tileId;
       var elements = ixer.index("uiComponentToElements")[id] || [];
       elements = elements.map(function(cur) {
-        return {component: cur[0], id: cur[1], control: cur[2], left: cur[3], top: cur[4], right: cur[5], bottom: cur[6]};
+        return {id: cur[0], component: cur[1], control: cur[2], left: cur[3], top: cur[4], right: cur[5], bottom: cur[6]};
       });
       return JSML(["div", {className: "ui-editor"},
                    uiTools({component: id}),
@@ -2300,14 +2300,17 @@ function dispatch(event, arg, noRedraw) {
       break;
     case "uiComponentElementMoved":
       var element = arg.element;
-      var prev = [element.component, element.id, element.control, element.left, element.top, element.right, element.bottom];
-      var neue = [element.component, element.id, element.control, arg.left, arg.top, arg.right, arg.bottom] ;
+      var prev = [element.id, element.component, element.control, element.left, element.top, element.right, element.bottom];
+      var neue = [element.id, element.component, element.control, arg.left, arg.top, arg.right, arg.bottom];
       diffs = {
         uiComponentElement: {adds: [neue], removes: [prev]}
       };
+
+      console.log("moved", diffs);
+
       break;
     case "uiComponentElementAdd":
-      var neue = [arg.component, uuid(), arg.control, arg.left, arg.top, arg.right, arg.bottom];
+      var neue = [uuid(), arg.component, arg.control, arg.left, arg.top, arg.right, arg.bottom];
       diffs = {
         uiComponentElement: {adds: [neue], removes: []}
       };
@@ -2635,7 +2638,7 @@ ixer.addIndex("viewToSchema", "view", Indexing.create.lookup([0, 1]));
 ixer.addIndex("viewToSources", "source", Indexing.create.collector([1]));
 ixer.addIndex("viewToConstraints", "constraint", Indexing.create.collector([0]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([1]));
-ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([0]));
+ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([1]));
 
 // Grid Indexes
 ixer.addIndex("gridTarget", "gridTarget", Indexing.create.lookup([0, 1]));
@@ -2726,7 +2729,7 @@ ixer.handleDiffs(
 
 // ui views
 ixer.handleDiffs(
-  code.diffs.addView("uiComponentElement", {component: "string", id: "string", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]));
+  code.diffs.addView("uiComponentElement", {id: "string", component: "string", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]));
 }
 dispatch("load");
 
