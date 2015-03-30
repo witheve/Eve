@@ -1618,7 +1618,7 @@ var uiControl = reactFactory({
     e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0,0);
   },
   addElement: function(e) {
-    dispatch("uiComponentElementAdd", {component: this.props.component, control: this.props.control.control, left: 100, top: 100, right: 200, bottom: 200});
+    dispatch("uiComponentElementAdd", {component: this.props.component, layer: this.props.layer, control: this.props.control.control, left: 100, top: 100, right: 200, bottom: 200});
   },
   render: function() {
     return JSML(["li", {draggable: true,
@@ -1634,7 +1634,7 @@ var uiTools = reactFactory({
     var self = this;
     var items = Object.keys(uiControls).map(function(cur) {
       var cur = uiControls[cur];
-      return uiControl({control: cur, component: self.props.component});
+      return uiControl({control: cur, component: self.props.component, layer: self.props.layer});
     });
     return JSML(["div", {className: "ui-tools"},
                  ["ul", items]]);
@@ -1929,7 +1929,7 @@ var uiSelection = reactFactory({
           var height = local.bottom - local.top;
 
           return ["div", {className: "control",
-                          style: {top: local.top, left: local.left, width: width, height: height},
+                          style: {top: local.top, left: local.left, width: width, height: height, zIndex: cur.layer},
                           onMouseDown: function(evt) {
                             evt.stopPropagation();
                           },
@@ -1946,7 +1946,7 @@ var uiSelection = reactFactory({
 var uiCanvas = reactFactory({
   displayName: "ui-canvas",
   getInitialState: function() {
-    return {snapGuides: [], selection: []}
+    return {snapGuides: [], selection: []};
   },
   componentDidUpdate: function() {
     var self = this;
@@ -1982,7 +1982,7 @@ var uiCanvas = reactFactory({
     if(!type) return;
     var canvas = e.target;
     var rel = relativeCoords(e, canvas, canvas).canvas;
-    dispatch("uiComponentElementAdd", {component: this.props.component, control: type, left: rel.left, top: rel.top, right: rel.left + 100, bottom: rel.top + 100});
+    dispatch("uiComponentElementAdd", {component: this.props.component, layer: this.props.layer, control: type, left: rel.left, top: rel.top, right: rel.left + 100, bottom: rel.top + 100});
   },
 
   select: function(el, modify) {
@@ -2121,22 +2121,14 @@ var uiCanvas = reactFactory({
     .map(function(cur) {
       var width = cur.right - cur.left;
       var height = cur.bottom - cur.top;
-      return ["div", {
-        className: "control",
-        style: {top: cur.top, left: cur.left, width: width, height: height},
-        onMouseDown: function(evt) {
-          self.select(cur, evt.shiftKey);
-          evt.stopPropagation();
-        }
-      },
+      return ["div", {className: "control",
+                      style: {top: cur.top, left: cur.left, width: width, height: height, zIndex: cur.layer},
+                      onMouseDown: function(evt) {
+                        self.select(cur, evt.shiftKey);
+                        evt.stopPropagation();
+                      }},
               cur.control]
 
-//       return uiCanvasGroup({
-//         element: cur, key: cur.id,
-//         elements: self.props.elements,
-//         drawSnaps: self.drawSnaps,
-//         selected: true
-//       });
     });
     var snaps = this.state.snapGuides.map(function(cur) {
       var style = {};
@@ -2170,15 +2162,18 @@ var uiCanvas = reactFactory({
 tiles.ui = {
   content: reactFactory({
     displayName: "ui-editor",
+    getInitialState: function() {
+      return {layer: 1};
+    },
     render: function() {
       var id = this.props.tileId;
       var elements = ixer.index("uiComponentToElements")[id] || [];
       elements = elements.map(function(cur) {
-        return {id: cur[0], component: cur[1], control: cur[2], left: cur[3], top: cur[4], right: cur[5], bottom: cur[6]};
+        return {id: cur[0], component: cur[1], layer: cur[2], control: cur[3], left: cur[4], top: cur[5], right: cur[6], bottom: cur[7]};
       });
       return JSML(["div", {className: "ui-editor"},
-                   uiTools({component: id}),
-                   uiCanvas({elements: elements, component: id}),
+                   uiTools({component: id, layer: this.state.layer}),
+                   uiCanvas({elements: elements, component: id, layer: this.state.layer}),
                    uiInpector({element: {control: "button"}})]);
     }
   })
@@ -2300,17 +2295,15 @@ function dispatch(event, arg, noRedraw) {
       break;
     case "uiComponentElementMoved":
       var element = arg.element;
-      var prev = [element.id, element.component, element.control, element.left, element.top, element.right, element.bottom];
-      var neue = [element.id, element.component, element.control, arg.left, arg.top, arg.right, arg.bottom];
+      var prev = [element.id, element.component, element.layer, element.control, element.left, element.top, element.right, element.bottom];
+      var neue = [element.id, element.component, element.layer, element.control, arg.left, arg.top, arg.right, arg.bottom];
       diffs = {
         uiComponentElement: {adds: [neue], removes: [prev]}
       };
 
-      console.log("moved", diffs);
-
       break;
     case "uiComponentElementAdd":
-      var neue = [uuid(), arg.component, arg.control, arg.left, arg.top, arg.right, arg.bottom];
+      var neue = [uuid(), arg.component, arg.layer, arg.control, arg.left, arg.top, arg.right, arg.bottom];
       diffs = {
         uiComponentElement: {adds: [neue], removes: []}
       };
@@ -2348,7 +2341,6 @@ function dispatch(event, arg, noRedraw) {
       var tile = oldTile.slice();
       //set to a tile type
       var type = tile[2] = (code.hasTag(arg.view, "table") ? "table" : "view");
-      console.log("type", arg.view, code.hasTag(arg.view, "view"), type);
       diffs = {gridTile: {adds: [tile], removes: [oldTile]}};
       diffs[type + "Tile"] = {adds: [[tile[0], arg.view]]}; // @NOTE: So hacky
       break;
@@ -2729,7 +2721,7 @@ ixer.handleDiffs(
 
 // ui views
 ixer.handleDiffs(
-  code.diffs.addView("uiComponentElement", {id: "string", component: "string", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]));
+  code.diffs.addView("uiComponentElement", {id: "string", component: "string", layer: "number", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]));
 }
 dispatch("load");
 
