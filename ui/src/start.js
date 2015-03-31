@@ -850,7 +850,10 @@ var tableHeader = reactFactory({
     dispatch("rename", {id: this.props.id, value: value});
   },
   render: function() {
-    return JSML(["th", editable({value: this.props.field, onSubmit: this.renameHeader})]);
+    if(this.props.editable) {
+      return JSML(["th", editable({value: this.props.field, onSubmit: this.renameHeader})]);
+    }
+    return JSML(["th", this.props.field]);
   }
 });
 
@@ -936,26 +939,20 @@ var table = reactFactory({
     },
     render: function() {
       var self = this;
-      var fields = code.viewToFields(this.props.tableId);
-      var rows = ixer.facts(this.props.tableId);
+      var fields = this.props.fields;
+      var rows = this.props.rows;
       var numColumns = fields.length;
       var headers = fields.map(function(cur) {
-        return tableHeader({field: code.name(cur[0]), id: cur[0]});
+        return tableHeader({field: cur.name, id: cur.id, editable: self.props.headersEditable});
       });
-      var rowIds = ixer.index("editId")[this.props.tableId];
-      if(rowIds) {
-        rows.sort(function(a, b) {
-          return rowIds[JSON.stringify(a)] - rowIds[JSON.stringify(b)];
-        });
-      }
       var rowComponents = rows.map(function(cur, ix) {
-        return tableRow({table: self.props.tableId, row: cur, length: numColumns, key: JSON.stringify(cur) + ix, editable: true});
+        return tableRow({table: self.props.tableId, row: cur, length: numColumns, key: JSON.stringify(cur) + ix, editable: self.props.rowsEditable});
       });
       this.state.partialRows.forEach(function(cur) {
-        rowComponents.push(tableRow({table: self.props.tableId, row: [], length: numColumns, editable: true, isNewRow: true, onRowAdded: self.rowAdded, onRowModified: self.addedRowModified, key: cur, id: cur}));
+        rowComponents.push(tableRow({table: self.props.tableId, row: [], length: numColumns, editable: self.props.rowsEditable, isNewRow: true, onRowAdded: self.rowAdded, onRowModified: self.addedRowModified, key: cur, id: cur}));
       });
       var addColumn;
-      if(this.props.editable) {
+      if(this.props.structureEditable) {
         addColumn = ["div", {className: "add-column", onClick: this.addColumn}, "+"];
       }
       return JSML(["div", {className: "table-wrapper"},
@@ -967,13 +964,48 @@ var table = reactFactory({
     }
   });
 
+var factTable = reactFactory({
+  render: function() {
+      var self = this;
+      var fields = code.viewToFields(this.props.tableId);
+      var rows = ixer.facts(this.props.tableId);
+      fields = fields.map(function(cur) {
+        return {name: code.name(cur[0]), id: cur[0]};
+      });
+      var rowIds = ixer.index("editId")[this.props.tableId];
+      if(rowIds) {
+        rows.sort(function(a, b) {
+          return rowIds[JSON.stringify(a)] - rowIds[JSON.stringify(b)];
+        });
+      }
+      return table({tableId: this.props.tableId, rows: rows, fields: fields, structureEditable: true, rowsEditable: true, headersEditable: true});
+  }
+});
+
+var resultTable = reactFactory({
+  render: function() {
+      var self = this;
+      var fields = code.viewToFields(this.props.tableId);
+      var rows = ixer.facts(this.props.tableId);
+      fields = fields.map(function(cur) {
+        return {name: code.name(cur[0]), id: cur[0]};
+      });
+      var rowIds = ixer.index("editId")[this.props.tableId];
+      if(rowIds) {
+        rows.sort(function(a, b) {
+          return rowIds[JSON.stringify(a)] - rowIds[JSON.stringify(b)];
+        });
+      }
+      return table({tableId: this.props.tableId, rows: rows, fields: fields});
+  }
+});
+
 tiles.table = {
   content: function(opts) {
     var currentTable = ixer.index("tableTile")[opts.tileId];
     if(currentTable) {
       opts.tableId = currentTable[1];
-      opts.editable = true;
-      return table(opts);
+      return factTable(opts);
     }
   },
   backContent: tableProperties
@@ -1548,7 +1580,7 @@ var viewSource = reactFactory({
     });
     var content;
     if(typeof viewOrFunction === "string") {
-      content = table({tileId: this.props.tileId, tableId: viewOrFunction});
+      content = resultTable({tileId: this.props.tileId, tableId: viewOrFunction});
     } else {
       content = ["div", astComponents["expression"]({viewId: this.props.viewId, expression: viewOrFunction, onSet: this.updateCalculation})];
     }
