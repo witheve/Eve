@@ -86,17 +86,6 @@ function factToTile(tile) {
   };
 }
 
-function mergeDiffs(dest, src) {
-  for(var key in src) {
-    if(!src.hasOwnProperty(key) && !ignoreHasOwnProperty) { continue; }
-    if(!dest[key].adds) { dest[key].adds = []; }
-    if(!dest[key].removes) { dest[key].removes = []; }
-    if(src[key].adds) { dest[key].adds.push.apply(dest[key], src[key].adds); }
-    if(src[key].removes) { dest[key].removes.push.apply(dest[key], src[key].removes); }
-  }
-  return dest;
-}
-
 function unique(arr) {
   arr.sort(function(a, b) { return a - b; });
   var prev = arr[0];
@@ -785,13 +774,15 @@ var tableSelector = reactFactory({
     var results = [];
     ixer.facts("view").forEach(function(cur) {
       var view = cur[0];
-      var name = displayNames[cur[0]]
+      var name = displayNames[view]
+      console.log(view, name, displayNames[view]);
       if(name && name.indexOf(search) > -1) {
         var selected = items.length === self.state.selected;
         results.push(view);
         items.push(tableSelectorItem({view: view, name: name, selected: selected, select: self.select}));
       }
     });
+    console.log(items);
     this.state.results = results;
     return JSML(["div", {className: "table-selector"},
                  ["input", {type: "text", placeholder: "search", onKeyDown: this.handleKeys, onInput: this.updateSearch, value: this.state.search}],
@@ -2463,51 +2454,17 @@ tiles.ui = {
 //---------------------------------------------------------
 
 function reverseDiff(diff) {
-  var neue = {};
-  for(var table in diff) {
-    var old = diff[table];
-    neue[table] = {adds: old.removes, removes: old.adds};
-  }
-  return neue;
-}
-
-function mergeDiffs(a,b) {
-  var neue = {};
-  for(var table in a) {
-    neue[table] = {};
-    neue[table].adds = a[table].adds;
-    neue[table].removes = a[table].removes;
-  }
-  for(var table in b) {
-    if(!neue[table]) {
-      neue[table] = {};
-    }
-    if(neue[table].adds) {
-      neue[table].adds = neue[table].adds.concat(b[table].adds);
+  var neue = [];
+  for(var diffIx = 0, diffLen = diff.length; diffIx < diffLen; diffIx++) {
+    var copy = diff[diffIx].slice();
+    neue[diffIx] = copy
+    if(copy[1] === "insert") {
+      copy[1] = "remove";
     } else {
-      neue[table].adds = b[table].adds;
-    }
-    if(neue[table].removes) {
-      neue[table].removes = neue[table].removes.concat(b[table].removes);
-    } else {
-      neue[table].removes = b[table].removes;
+      copy[1] = "insert";
     }
   }
   return neue;
-}
-
-function into(diff, addOrRemove, tables) {
-  for(var table in tables) {
-    if(!diff[table]) {
-      diff[table] = {};
-    }
-    if(diff[table][addOrRemove]) {
-      diff[table][addOrRemove] = diff[table][addOrRemove].concat(tables[table]);
-    } else {
-      diff[table][addOrRemove] = tables[table];
-    }
-  }
-  return diff;
 }
 
 //---------------------------------------------------------
@@ -2533,7 +2490,7 @@ function scaryRedoEvent() {
 
 function dispatch(event, arg, noRedraw) {
   var storeEvent = true;
-  var diffs = {};
+  var diffs = [];
 
   switch(event) {
     case "load":
@@ -2558,16 +2515,14 @@ function dispatch(event, arg, noRedraw) {
       var oldKey = JSON.stringify(arg.old);
       var edits = ixer.index("editId")[arg.table]
       var time = edits ? edits[oldKey] : 0;
-      diffs = {
-        editId: {adds: [[arg.table, JSON.stringify(arg.neue), time]], removes: [[arg.table, oldKey, time]]}
-      };
-      diffs[arg.table] = {adds: [arg.neue.slice()], removes: [arg.old.slice()]};
+      diffs.push(["editId", "insert", [arg.table, JSON.stringify(arg.neue), time]],
+                 ["editId", "remove", [arg.table, oldKey, time]],
+                 [arg.table, "insert", arg.neue.slice()],
+                 [arg.table, "remove", arg.old.slice()]);
       break;
     case "addRow":
-      diffs = {
-        editId: {adds: [[arg.table, JSON.stringify(arg.neue), (new Date()).getTime()]], removes: []}
-      };
-      diffs[arg.table] = {adds: [arg.neue.slice()], removes: []};
+      diffs.push(["editId", "insert", [arg.table, JSON.stringify(arg.neue), (new Date()).getTime()]],
+                 [arg.table, "insert", arg.neue.slice()]);
       break;
     case "rename":
       diffs = code.diffs.changeDisplayName(arg.id, arg.value);
@@ -2576,51 +2531,39 @@ function dispatch(event, arg, noRedraw) {
       var element = arg.element;
       var prev = ixer.index("uiComponentElement")[arg.id];
       var neue = [arg.id, arg.component, arg.layer, arg.control, arg.left, arg.top, arg.right, arg.bottom];
-      diffs = {
-        uiComponentElement: {adds: [neue], removes: [prev]}
-      };
-
+      diffs.push(["uiComponentElement", "insert", neue],
+                 ["uiComponentElement", "remove", prev]);
       break;
     case "uiComponentElementAdd":
       var neue = [uuid(), arg.component, arg.layer, arg.control, arg.left, arg.top, arg.right, arg.bottom];
-      diffs = {
-        uiComponentElement: {adds: [neue], removes: []}
-      };
+      diffs.push(["uiComponentElement", "insert", neue]);
       break;
     case "uiComponentLayerAdd":
       var neue = [uuid(), arg.component, arg.layer, false, false];
-      diffs = {
-        uiComponentLayer: {adds: [neue], removes: []}
-      };
+      diffs.push(["uiComponentLayer", "insert", neue]);
       break;
     case "uiComponentLayerUpdate":
       var neue = [arg.id, arg.component, arg.layer, arg.locked, arg.invisible];
       var old = ixer.index("uiComponentLayer")[arg.id];
-      diffs = {
-        uiComponentLayer: {adds: [neue], removes: [old]}
-      };
+      diffs.push(["uiComponentLayer", "insert", neue],
+                 ["uiComponentLayer", "remove", old]);
       break;
     case "uiComponentAttributeUpdate":
       var neue = [arg.id, arg.property, arg.value];
-      var removes = [];
       var oldProps = ixer.index("uiElementToAttr")[arg.id];
+      diffs.push(["uiComponentAttribute", "insert", neue]);
       if(oldProps) {
         var oldProp = oldProps[arg.property];
         if(oldProp) {
-          removes.push(oldProp);
+          diffs.push(["uiComponentAttribute", "remove", oldProp]);
         }
       }
-      diffs = {
-        uiComponentLayer: {adds: [neue], removes: removes}
-      };
       break;
     case "addTile":
       // @FIXME: active grid
       var activeGrid = ixer.facts("activeGrid")[0][0];
       var fact = [arg.id, activeGrid, arg.type, arg.pos[0], arg.pos[1], arg.size[0], arg.size[1]];
-      diffs = {
-        gridTile: {adds: [fact]}
-      };
+      diffs.push(["gridTile", "insert", fact]);
       break;
     case "updateTile":
       var fact = ixer.index("gridTile")[arg.id].slice();
@@ -2635,20 +2578,22 @@ function dispatch(event, arg, noRedraw) {
         fact[5] = arg.size[0];
         fact[6] = arg.size[1];
       }
-      diffs = {gridTile: {adds: [fact], removes: [oldFact]}};
+      diffs.push(["gridTile", "insert", fact],
+                 ["gridTile", "remove", oldFact]);
       break;
     case "closeTile":
       // @TODO: clean up old dependent facts.
       var fact = ixer.index("gridTile")[arg].slice();
-      diffs.gridTile = {removes: [fact]};
+      diffs.push(["gridTile", "remove", fact]);
       break;
     case "setTileView":
       var oldTile = ixer.index("gridTile")[arg.tileId].slice();
       var tile = oldTile.slice();
       //set to a tile type
       var type = tile[2] = (code.hasTag(arg.view, "table") ? "table" : "view");
-      diffs = {gridTile: {adds: [tile], removes: [oldTile]}};
-      diffs[type + "Tile"] = {adds: [[tile[0], arg.view]]}; // @NOTE: So hacky
+      diffs.push(["gridTile", "remove", oldTile],
+                 ["gridTile", "insert", tile],
+                 [type + "Tile", "insert", [tile[0], arg.view]]);
       break;
     case "addTable":
       var oldTile = ixer.index("gridTile")[arg].slice();
@@ -2657,8 +2602,9 @@ function dispatch(event, arg, noRedraw) {
       tile[2] = "table";
       var tableId = uuid();
       diffs = code.diffs.addView("Untitled Table", {A: "string"}, undefined, tableId, ["table"]);
-      diffs.gridTile = {adds: [tile], removes: [oldTile]};
-      diffs.tableTile = {adds: [[arg, tableId]]};
+      diffs.push(["gridTile", "insert", tile],
+                 ["gridTile", "remove", oldTile],
+                 ["tableTile", "insert", [arg, tableId]]);
       break;
     case "addView":
       var oldTile = ixer.index("gridTile")[arg].slice();
@@ -2667,43 +2613,48 @@ function dispatch(event, arg, noRedraw) {
       tile[2] = "view";
       var viewId = uuid();
       diffs = code.diffs.addView("Untitled View", {}, undefined, viewId, ["view"]);
-      diffs.gridTile = {adds: [tile], removes: [oldTile]};
-      diffs.viewTile = {adds: [[arg, viewId]]};
+      diffs.push(["gridTile", "insert", tile],
+                 ["gridTile", "remove", oldTile],
+                 ["viewTile", "insert", [arg, viewId]]);
       break;
 
-
     case "setTarget":
-      diffs = {
-        gridTarget: {adds: [[arg.id, arg.target]], removes: [[arg.id, ixer.index("gridTarget")[arg.id]]]}
-      };
-      ixer.handleDiffs(diffs);
+      diffs.push(["gridTarget", "insert", [arg.id, arg.target]],
+                 ["gridTarget", "remove", [arg.id, ixer.index("gridTarget")[arg.id]]]);
       break;
     case "navigate":
       if(!arg.target.indexOf("grid://") === 0) { throw new Error("Cannot handle non grid:// urls yet."); }
       diffs = {
         activeGrid: {adds: [[arg.target]], removes: ixer.facts("activeGrid").slice()}
       }
+      var old = ixer.facts("activeGrid")[0];
+      if(old) {
+        diffs.push(["activeGrid", "remove", old]);
+      }
+      diffs.push(["activeGrid", "insert", [arg.target]]);
       break;
     case "addSource":
       var ix = (ixer.index("viewToSources")[arg.view] || []).length;
       var sourceId = uuid();
       diffs = code.diffs.autoJoins(arg.view, arg.source, sourceId);
-      diffs["source"] = {adds: [[sourceId, arg.view, ix, arg.source, true]], removes: []};
+      diffs.push(["source", "insert", [sourceId, arg.view, ix, arg.source, true]]);
       break;
     case "addCalculationSource":
       var ix = (ixer.index("viewToSources")[arg.view] || []).length;
       var sourceId = uuid();
       //@TODO: should we auto-join calculations?
-      diffs["source"] = {adds: [[sourceId, arg.view, ix, arg.source, true]], removes: []};
+      diffs.push(["source", "insert", [sourceId, arg.view, ix, arg.source, true]]);
       break;
     case "swapCalculationSource":
-      diffs["source"] = {adds: [arg.neue.slice()], removes: [arg.old.slice()]};
+      diffs.push(["source", "insert", arg.neue.slice()],
+                 ["source", "remove", arg.old.slice()]);
       break;
     case "removeConstraint":
-      diffs.constraint = {removes: [arg.constraint]};
+      diffs.push(["constraint", "remove", arg.constraint]);
       break;
     case "swapConstraint":
-      diffs.constraint = {adds: [arg.neue.slice()], removes: [arg.old.slice()]}
+      diffs.push(["constraint", "remove", arg.old.slice()],
+                 ["constraint", "insert", arg.neue.slice()]);
       break;
     case "undo":
       storeEvent = false;
@@ -2744,44 +2695,36 @@ var code = {
       var fields = code.viewToFields(viewId) || [];
       var schema = view[1];
       var fieldId = uuid();
-      var diffs = {
-        field: {adds: [[fieldId, schema, fields.length, "unknown"]], removes: []},
-        displayName: {adds: [[fieldId, alphabet[fields.length]]], removes: []}
-      };
-      return diffs;
+      return [["field", "insert", [fieldId, schema, fields.length, "unknown"]],
+              ["displayName", "insert", [fieldId, alphabet[fields.length]]]];
     },
     changeDisplayName: function(id, neue) {
       var cur = ixer.index("displayName")[id];
-      var diffs = {
-        displayName: {adds: [[id, neue]], removes: [[id, cur]]}
-      }
-      return diffs;
+      return [["displayName", "insert", [id, neue]],
+              ["displayName", "remove", [id, cur]]];
     },
     addView: function(name, fields, initial, id, tags) { // (S, {[S]: Type}, Fact[]?, Uuid?, S[]?) -> Diffs
       id = id || uuid();
       var schema = uuid();
-      var displayNames = [[id, name]];
       var fieldIx = 0;
-      var fieldAdds = [];
+      var diffs = [["displayName", "insert", [id, name]]];
       for(var fieldName in fields) {
         if(!fields.hasOwnProperty(fieldName)) { continue; }
         var fieldId = uuid()
-        fieldAdds.push([fieldId, schema, fieldIx++, fields[fieldName]]);
-        displayNames.push([fieldId, fieldName]);
+        diffs.push(["field", "insert", [fieldId, schema, fieldIx++, fields[fieldName]]],
+                   ["displayName", "insert", [fieldId, fieldName]]);
       }
 
-      var diffs = {
-        view: {adds: [[id, schema, "union"]]},
-        field: {adds: fieldAdds},
-        displayName: {adds: displayNames}
-      };
+      diffs.push(["view", "insert", [id, schema, "union"]]);
       if(initial && initial.length) {
-        diffs[id] = {adds: initial};
+        for(var initIx = 0, initLen = initial.length; initIx < initLen; initIx++) {
+          diffs.push([id, "insert", initial[initIx]]);
+        }
       }
       if(tags) {
-        diffs.tag = {adds: tags.map(function(tag) {
-          return [id, tag];
-        })};
+        for(var tagIx = 0, tagLen = tags.length; tagIx < tagLen; tagIx++) {
+          diffs.push(["tag", "insert", [id, tags[tagIx]]]);
+        }
       }
       return diffs;
     },
@@ -2789,7 +2732,7 @@ var code = {
       var displayNames = ixer.index("displayName");
       var sources = ixer.index("viewToSources")[view] || [];
       var fields = code.viewToFields(sourceView);
-      var constraints = [];
+      var diffs = [];
       fields = fields.map(function(cur) {
         return [cur[0], displayNames[cur[0]]];
       });
@@ -2803,15 +2746,16 @@ var code = {
             var myField = fields[x];
             if(displayNames[theirs[0]] === myField[1]) {
               //same name, join them.
-              constraints.push(
-                [view, "=",
-                 {"": "field-source-ref", field: myField[0], source: sourceId},
-                 {"": "field-source-ref", field: theirs[0], source: cur[0]}]);
+              diffs.push(
+                ["constraint", "insert",
+                 [view, "=",
+                  code.ast.fieldSourceRef(sourceId, myField[0]),
+                  code.ast.fieldSourceRef(cur[0], theirs[0])]]);
             }
           }
         }
       });
-      return {constraint: {adds: constraints, removes: []}};
+      return diffs;
     }
   },
   hasTag: function(id, tag) {
@@ -2956,18 +2900,6 @@ function initIndexer() {
   ixer.handleDiffs(code.diffs.addView("displayName", {id: "string", name: "string"}, undefined, "displayName", ["table"]));
   ixer.handleDiffs(code.diffs.addView("tableTile", {id: "string", view: "string"}, undefined, "tableTile", ["table"]));
   ixer.handleDiffs(code.diffs.addView("viewTile", {id: "string", view: "string"}, undefined, "viewTile", ["table"]));
-
-  //add some views
-  ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schema", "query"]], removes: []},
-                    schema: {adds: [["foo-schema"], ["qq-schema"]], removes: []},
-                    field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "number"], ["qq-a", "qq-schema", 0, "string"]], removes: []},
-                    //                   source: {adds: [["foo-source", "qq", 0, "foo", true], ["zomg-source", "qq", 0, "zomg", false]], removes: []},
-                    editId: {adds: [["foo", JSON.stringify(["a", "b"]), 0], ["foo", JSON.stringify(["c", "d"]), 1]], removes: []},
-                    foo: {adds: [["a", "b"], ["c", "d"]], removes: []},
-                    input: {adds: [["foo", ["a", "b"]], ["foo", ["c", "d"]]], removes: []},
-                    displayName: {adds: [["foo", "foo"], ["foo-a", "a"], ["foo-b", "foo B"]], removes: []},
-                    uiComponent: {adds: [["myUI"]], removes: []},
-                   });
 
   ixer.handleDiffs(code.diffs.addView("zomg", {
     a: "string",
