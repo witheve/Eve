@@ -8,11 +8,15 @@ use std::cell::{RefCell, RefMut};
 use std::num::ToPrimitive;
 
 pub struct World {
-    views: HashMap<Id, RefCell<Relation>>,
+    pub views: HashMap<Id, RefCell<Relation>>,
 }
 
 impl World {
-    fn view<Id: ToString>(&self, id: Id) -> RefMut<Relation> {
+    fn view<Id: ToString>(&self, id: Id) -> ::std::cell::Ref<Relation> {
+        self.views.get(&id.to_string()).unwrap().borrow()
+    }
+
+    fn view_mut<Id: ToString>(&self, id: Id) -> RefMut<Relation> {
         self.views.get(&id.to_string()).unwrap().borrow_mut()
     }
 }
@@ -60,9 +64,6 @@ static CONSTRAINT_LEFT: usize = 0;
 static CONSTRAINT_OP: usize = 1;
 static CONSTRAINT_RIGHT: usize = 2;
 
-static COLUMN_SOURCE: usize = 0;
-static COLUMN_FIELD: usize = 1;
-
 static SCHEDULE_IX: usize = 0;
 static SCHEDULE_VIEW: usize = 1;
 
@@ -70,8 +71,8 @@ static UPSTREAM_DOWNSTREAM: usize = 0;
 static UPSTREAM_UPSTREAM: usize = 2;
 
 static VIEWMAPPING_ID: usize = 0;
-static VIEWMAPPING_SINKVIEW: usize = 1;
-static VIEWMAPPING_SOURCEVIEW: usize = 2;
+static VIEWMAPPING_SOURCEVIEW: usize = 1;
+static VIEWMAPPING_SINKVIEW: usize = 2;
 
 static FIELDMAPPING_VIEWMAPPING: usize = 0;
 static FIELDMAPPING_SOURCEFIELD: usize = 1;
@@ -79,7 +80,7 @@ static FIELDMAPPING_SOURCECOLUMN: usize = 2;
 static FIELDMAPPING_SINKFIELD: usize = 3;
 
 fn create_upstream(world: &mut World) {
-    let mut upstream = world.view("upstream");
+    let mut upstream = world.view_mut("upstream");
     for view in world.view("view").iter() {
         let downstream_id = &view[VIEW_ID];
         let kind = &view[VIEW_KIND];
@@ -111,13 +112,18 @@ fn create_upstream(world: &mut World) {
 fn create_schedule(world: &mut World) {
     // TODO actually schedule sensibly
     // TODO warn about cycles through aggregates
-    let mut schedule = world.view("schedule");
+    let mut schedule = world.view_mut("schedule");
     let mut ix = 0.0;
     for view in world.view("view").iter() {
         let view_id = &view[VIEW_ID];
         schedule.insert((ix, view_id.clone()).to_tuple());
         ix += 1.0;
     }
+}
+
+fn get_view_ix(world: &World, view_id: &Value) -> usize {
+    let schedule = world.view("schedule").find_one(SCHEDULE_VIEW, view_id).unwrap().clone();
+    schedule[SOURCE_IX].to_usize().unwrap()
 }
 
 fn get_source_ix(world: &World, source_id: &Value) -> usize {
@@ -133,11 +139,11 @@ fn get_field_ix(world: &World, field_id: &Value) -> usize {
 fn get_num_fields(world: &World, view_id: &Value) -> usize {
     let view = world.view("view").find_one(VIEW_ID, view_id).unwrap().clone();
     let schema_id = &view[VIEW_SCHEMA];
-    world.view("fields").find_all(FIELD_SCHEMA, schema_id).len()
+    world.view("field").find_all(FIELD_SCHEMA, schema_id).len()
 }
 
 fn create_constraint(world: &World, constraint: &Vec<Value>) -> Constraint {
-    let my_column = &constraint[CONSTRAINT_LEFT][COLUMN_FIELD];
+    let my_column = &constraint[CONSTRAINT_LEFT][2];
     let op = match &*constraint[CONSTRAINT_OP].to_string() {
           "<" => ConstraintOp::LT,
           "<=" => ConstraintOp::LTE,
@@ -147,17 +153,30 @@ fn create_constraint(world: &World, constraint: &Vec<Value>) -> Constraint {
           ">=" => ConstraintOp::GTE,
           other => panic!("Unknown constraint op: {}", other),
     };
-    let other_source_id = &constraint[CONSTRAINT_RIGHT][COLUMN_SOURCE];
-    let other_source_ix = get_source_ix(world, other_source_id);
-    let other_field_id = &constraint[CONSTRAINT_RIGHT][COLUMN_FIELD];
-    let other_field_ix = get_field_ix(world, other_field_id);
+    let constraint_right = &constraint[CONSTRAINT_RIGHT];
+    let other_ref = match &*constraint_right[0].to_string() {
+        "column" => {
+            let other_source_id = &constraint_right[1];
+            let other_field_id = &constraint_right[2];
+            let other_source_ix = get_source_ix(world, other_source_id);
+            let other_field_ix = get_field_ix(world, other_field_id);
+            Ref::Value{
+                clause: other_source_ix,
+                column: other_field_ix,
+            }
+        }
+        "constant" => {
+            let value = constraint_right[1].clone();
+            Ref::Constant{
+                value: value,
+            }
+        }
+        other => panic!("Unknown ref kind: {}", other)
+    };
     Constraint{
         my_column: my_column.to_usize().unwrap(),
         op: op,
-        other_ref: Ref::Value{
-            clause: other_source_ix,
-            column: other_field_ix,
-        }
+        other_ref: other_ref,
     }
 }
 
@@ -168,20 +187,24 @@ fn create_clause(world: &World, source: &Vec<Value>) -> Clause {
         let schedule = world.view("schedule").find_one(SCHEDULE_VIEW, other_view_id).unwrap().clone();
         let other_view_ix = &schedule[SCHEDULE_IX];
         let constraints = world.view("constraint").iter().filter(|constraint| {
-            constraint[CONSTRAINT_LEFT][COLUMN_SOURCE] == *other_view_id
+            constraint[CONSTRAINT_LEFT][2] == *other_view_id
         }).map(|constraint| {
             create_constraint(world, constraint)
         }).collect::<Vec<_>>();
-        if source[SOURCE_ACTION].to_string() == "get-tuple" {
-            Clause::Tuple(Source{
-                relation: other_view_ix.to_usize().unwrap(),
-                constraints: constraints,
-            })
-        } else {
-            Clause::Relation(Source{
-                relation: other_view_ix.to_usize().unwrap(),
-                constraints: constraints,
-            })
+        match &*source[SOURCE_ACTION].to_string() {
+            "get-tuple" => {
+                Clause::Tuple(Source{
+                    relation: other_view_ix.to_usize().unwrap(),
+                    constraints: constraints,
+                })
+            }
+            "get-relation" => {
+                Clause::Relation(Source{
+                    relation: other_view_ix.to_usize().unwrap(),
+                    constraints: constraints,
+                })
+            }
+            other => panic!("Unknown view action: {}", other)
         }
     } else {
         panic!("Can't compile functions yet")
@@ -209,7 +232,8 @@ fn create_union(world: &World, view_id: &Value) -> Union {
         for field_mapping in world.view("field-mapping").find_all(FIELDMAPPING_VIEWMAPPING, &view_mapping_id) {
             let source_field_id = &field_mapping[FIELDMAPPING_SOURCEFIELD];
             let source_field_ix = get_field_ix(world, source_field_id);
-            let source_column_ix = field_mapping[FIELDMAPPING_SOURCECOLUMN].to_usize().unwrap();
+            let source_column_id = &field_mapping[FIELDMAPPING_SOURCECOLUMN];
+            let source_column_ix = get_field_ix(world, source_column_id);
             let sink_field_id = &field_mapping[FIELDMAPPING_SINKFIELD];
             let sink_field_ix = get_field_ix(world, sink_field_id);
             field_mappings[sink_field_ix] = (source_field_ix, source_column_ix);
@@ -228,10 +252,10 @@ fn create_node(world: &World, view_id: &Value, view_kind: &Value) -> Node {
         other => panic!("Unknown view kind: {}", other)
     };
     let upstream = world.view("upstream").find_all(UPSTREAM_DOWNSTREAM, view_id).iter().map(|upstream| {
-        upstream[UPSTREAM_UPSTREAM].to_usize().unwrap()
+        get_view_ix(world, &upstream[UPSTREAM_UPSTREAM])
     }).collect(); // arrives in ix order so it will match the arg order selected by create_query/union
     let downstream = world.view("upstream").find_all(UPSTREAM_UPSTREAM, view_id).iter().map(|upstream| {
-        upstream[UPSTREAM_DOWNSTREAM].to_usize().unwrap()
+        get_view_ix(world, &upstream[UPSTREAM_DOWNSTREAM])
     }).collect();
     Node{
         id: view_id.to_string(),
