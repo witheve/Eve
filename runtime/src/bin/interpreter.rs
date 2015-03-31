@@ -1,3 +1,5 @@
+#![feature(test)]
+#![feature(core)]
 #[macro_use]
 extern crate eve;
 extern crate test;
@@ -7,10 +9,12 @@ use test::Bencher;
 use eve::interpreter::*;
 use std::num::Float;
 use core::num::ToPrimitive;
+use eve::value::{Value,ToValue,Tuple};
 
 fn main() {
 	
-	let c1 = Call{op: Op::StrSplit, args: exprvec!["The Quick Brown Fox Jumps Over The Lazy Dog"]};
+	let c0 = Call{op: Op::Add, args: exprvec![1,2]};
+	let c1 = Call{op: Op::Sum, args: exprvec![c0,2,3.4,5,6.7]};
 	let result = calculate(&c1.to_expr());
 
 	println!("{:?}",result);

@@ -1,4 +1,5 @@
 #![feature(test)]
+#![feature(slice_patterns)]
 
 extern crate rand;
 extern crate time;

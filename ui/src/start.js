@@ -2092,31 +2092,9 @@ var uiSelection = reactFactory({
 var uiCanvas = reactFactory({
   displayName: "ui-canvas",
   getInitialState: function() {
-    return {snapGuides: [], selection: []};
+    return {snapGuides: []};
   },
-  componentDidUpdate: function() {
-    var self = this;
-    if(this.state.selection.length) {
-      var updateState = false;
-      var selection = this.state.selection.map(function(sel) {
-        var ix = self.props.elements.indexOf(sel);
-        if(ix !== -1) { return sel; }
 
-        updateState = true;
-        for(var ix = 0, len = self.props.elements.length; ix < len; ix++) {
-          if(self.props.elements[ix].id === sel.id) {
-            return self.props.elements[ix];
-          }
-        }
-
-        return undefined;
-      }).filter(Boolean);
-
-      if(updateState) {
-        self.setState({selection: selection});
-      }
-    }
-  },
   elementOver: function(e) {
     e.preventDefault();
   },
@@ -2129,23 +2107,6 @@ var uiCanvas = reactFactory({
     var canvas = e.target;
     var rel = relativeCoords(e, canvas, canvas).canvas;
     dispatch("uiComponentElementAdd", {component: this.props.component, layer: this.props.layer, control: type, left: rel.left, top: rel.top, right: rel.left + 100, bottom: rel.top + 100});
-  },
-
-  select: function(el, modify) {
-    var selection = [];
-    if(modify) {
-      selection = this.state.selection.slice();
-      var ix = selection.indexOf(el);
-      if(ix !== -1) {
-        selection.splice(ix, 1);
-      } else {
-        selection.push(el);
-      }
-    }
-    else if(el) {
-      selection.push(el);
-    }
-    this.setState({selection: selection});
   },
 
   // Snapping
@@ -2246,7 +2207,7 @@ var uiCanvas = reactFactory({
     only = only || {};
 
     var els = this.props.elements.filter(function(cur) {
-      return self.state.selection.indexOf(cur) === -1 && cur.invisible === false;
+      return self.props.selection.indexOf(cur) === -1 && cur.invisible === false;
     });
     var possibleSnaps = this.findPossibleSnaps(els, {edge: true, center: true});
     var found = this.findSnaps(pos, possibleSnaps, snapThreshold, only);
@@ -2256,13 +2217,11 @@ var uiCanvas = reactFactory({
 
   render: function() {
     var self = this;
-
     // Remove selected and render separately.
-    var selection = uiSelection({elements: this.state.selection, snap: this.snap, select: this.select});
-
+    var selection = uiSelection({elements: this.props.selection, snap: this.snap, select: this.props.select});
 
     var elems = this.props.elements.filter(function(cur) {
-      return self.state.selection.indexOf(cur) === -1 && cur.invisible === false;
+      return self.props.selection.indexOf(cur) === -1 && cur.invisible === false;
     })
     .map(function(cur) {
       var width = cur.right - cur.left;
@@ -2271,7 +2230,7 @@ var uiCanvas = reactFactory({
       return ["div", {className: "control",
                       style: {top: cur.top, left: cur.left, width: width, height: height, zIndex: cur.layer, pointerEvents: locked},
                       onMouseDown: function(evt) {
-                        self.select(cur, evt.shiftKey);
+                        self.props.select(cur, evt.shiftKey);
                         evt.stopPropagation();
                       }},
               cur.control]
@@ -2296,11 +2255,11 @@ var uiCanvas = reactFactory({
                          onDragOver: this.elementOver,
                          onDrop: this.elementDropped,
                          onMouseDown: function() {
-                           self.select();
+                           self.props.select();
                          }
                         },
                  elems,
-                 (this.state.selection.length ? selection : undefined),
+                 (this.props.selection.length ? selection : undefined),
                  snaps
                 ]);
   }
@@ -2310,18 +2269,105 @@ tiles.ui = {
   content: reactFactory({
     displayName: "ui-editor",
     getInitialState: function() {
-      return {layer: 0};
+      var layers = this.getLayers();
+      var elements = this.getElements(layers.map);
+      return {layer: 0, selection: [], layers: layers, elements: elements};
+    },
+    componentWillReceiveProps: function(nextProps) {
+      var oldLayers = this.state.layers;
+      var oldElements = this.state.elements;
+      var neueLayers = this.getLayers();
+      var neueElements = this.getElements(neueLayers.map);
+      var neue, old;
+      var shouldUpdate = false;
+      if(oldLayers.list.length !== neueLayers.length || oldElements.length !== neueElements.length) {
+        this.setState({layers: neueLayers, elements: neueElements});
+        this.refreshSelection(neueElements);
+        return;
+      }
+
+      for(var layerIx = 0, layersLength = oldLayers.list.length; layerIx < layersLength; layerIx++) {
+        old = oldLayers.list[layerIx];
+        neue = neueLayers.list[layerIx];
+        for(var layerKey in old) {
+          if(old[layerKey] !== neue[layerKey]) {
+            this.setState({layers: neueLayers, elements: neueElements});
+            this.refreshSelection(neueElements);
+            return;
+          }
+        }
+      }
+
+      for(var elemIx = 0, elemLength = oldElements.length; elemIx < elemLength; elemIx++) {
+        old = oldElements[elemIx];
+        neue = neueElements[elemIx];
+        for(var elemKey in old) {
+          if(old[elemKey] !== neue[elemKey]) {
+            this.setState({layers: neueLayers, elements: neueElements});
+            this.refreshSelection(neueElements);
+            return;
+          }
+        }
+      }
+    },
+    refreshSelection: function(elements) {
+      var self = this;
+      if(this.state.selection.length) {
+        var updateState = false;
+        var selection = this.state.selection.map(function(sel) {
+          var neue;
+          var ix = elements.indexOf(sel);
+          if(ix !== -1) {
+            neue = sel;
+          }
+          else {
+            updateState = true;
+            for(var ix = 0, len = elements.length; ix < len; ix++) {
+              if(elements[ix].id === sel.id) {
+                neue = elements[ix];
+              }
+            }
+          }
+
+          if(!neue) { return undefined; }
+
+          if(neue.invisible || neue.locked) {
+            updateState = true;
+            return undefined;
+          }
+
+          return neue;
+        }).filter(Boolean);
+
+        if(updateState) {
+          self.setState({selection: selection});
+        }
+      }
+    },
+    select: function(el, modify) {
+      var selection = [];
+      if(modify) {
+        selection = this.state.selection.slice();
+        var ix = selection.indexOf(el);
+        if(ix !== -1) {
+          selection.splice(ix, 1);
+        } else {
+          selection.push(el);
+        }
+      }
+      else if(el) {
+        selection.push(el);
+      }
+      this.setState({selection: selection});
     },
     selectLayer: function(layer) {
       if(this.state.layer !== layer.layer) {
         this.setState({layer: layer.layer});
       }
     },
-    render: function() {
-      var id = this.props.tileId;
-
+    getLayers: function() {
       var layersMap = {};
-      var layers = ixer.index("uiComponentToLayers")[id] || [];
+      var layers = ixer.index("uiComponentToLayers")[this.props.tileId] || [];
       layers = layers.map(function(cur) {
         var name = cur[2];
         var layer = {id: cur[0], component: cur[1], layer: cur[2], locked: cur[3], invisible: cur[4], name: name};
@@ -2331,8 +2377,14 @@ tiles.ui = {
       layers.sort(function(a, b) {
         return a.layer - b.layer;
       });
-
-      var elements = ixer.index("uiComponentToElements")[id] || [];
+      return {
+        map: layersMap,
+        list: layers
+      };
+    },
+    getElements: function(layersMap) {
+      layersMap = layersMap || this.getLayers().map;
+      var elements = ixer.index("uiComponentToElements")[this.props.tileId] || [];
       elements = elements.map(function(cur) {
         var element = {id: cur[0], component: cur[1], layer: cur[2], control: cur[3], left: cur[4], top: cur[5], right: cur[6], bottom: cur[7]};
         var layer = layersMap[element.layer];
@@ -2343,10 +2395,23 @@ tiles.ui = {
 
       // @TODO: Elements on uninitialized layers will generate a layer.
 
+      return elements;
+    },
+    render: function() {
+      var id = this.props.tileId;
       return JSML(["div", {className: "ui-editor"},
                    uiTools({component: id, layer: this.state.layer}),
-                   uiCanvas({elements: elements, component: id, layer: this.state.layer, layers: layers}),
-                   uiLayers({component: id, layer: this.state.layer, layers: layers,
+                   uiCanvas({component: id,
+                             elements: this.state.elements,
+                             layer: this.state.layer,
+                             selection: this.state.selection,
+                             select: this.select}),
+                   uiLayers({component: id,
+                             elements: this.state.elements,
+                             layers: this.state.layers.list,
+                             layer: this.state.layer,
+                             selection: this.state.selection,
+                             select: this.select,
                              selectLayer: this.selectLayer})]);
     }
   })
@@ -2492,6 +2557,20 @@ function dispatch(event, arg, noRedraw) {
       var old = ixer.index("uiComponentLayer")[arg.id];
       diffs = {
         uiComponentLayer: {adds: [neue], removes: [old]}
+      };
+      break;
+    case "uiComponentAttributeUpdate":
+      var neue = [arg.id, arg.property, arg.value];
+      var removes = [];
+      var oldProps = ixer.index("uiElementToAttr")[arg.id];
+      if(oldProps) {
+        var oldProp = oldProps[arg.property];
+        if(oldProp) {
+          removes.push(oldProp);
+        }
+      }
+      diffs = {
+        uiComponentLayer: {adds: [neue], removes: removes}
       };
       break;
     case "addTile":
@@ -2819,6 +2898,8 @@ ixer.addIndex("schemaToFields", "field", Indexing.create.collector([1]));
 ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([1]));
 ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.lookup([0, false]));
 ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.collector([1]));
+ixer.addIndex("uiElementToAttrs", "uiComponentAttribute", Indexing.create.collector([0]));
+ixer.addIndex("uiElementToAttr", "uiComponentAttribute", Indexing.create.lookup([0, 1, false]));
 
 // Grid Indexes
 ixer.addIndex("gridTarget", "gridTarget", Indexing.create.lookup([0, 1]));
@@ -2912,6 +2993,8 @@ ixer.handleDiffs(
   code.diffs.addView("uiComponentElement", {id: "string", component: "string", layer: "number", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]));
 ixer.handleDiffs(
   code.diffs.addView("uiComponentLayer", {id: "string", component: "string", layer: "number", locked: "boolean", invisible: "boolean"}, [], "uiComponentLayer", ["table"]));
+ixer.handleDiffs(
+  code.diffs.addView("uiComponentAttribute", {id: "string", property: "string", value: "string"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
 }
 dispatch("load");
 

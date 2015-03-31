@@ -27,7 +27,7 @@ impl Eq for Value {} // TODO this is unsafe for NaN
 impl ops::Index<usize> for Value {
     type Output = Value;
 
-    fn index(&self, index: &usize) -> &Value {
+    fn index(&self, index: usize) -> &Value {
         match *self {
             Value::Tuple(ref tuple) => tuple.index(index),
             _ => panic!("Indexing a non-tuple value"),
@@ -104,13 +104,13 @@ impl ToValue for f64 {
 impl ToValue for i32 {
      fn to_value(self) -> Value {
         Value::Float(self as f64)
-    }   
+    }
 }
 
 impl ToValue for i64 {
      fn to_value(self) -> Value {
         Value::Float(self as f64)
-    }   
+    }
 }
 
 impl ToValue for Tuple {
