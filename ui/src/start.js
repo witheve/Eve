@@ -1757,13 +1757,73 @@ var uiLayers = reactFactory({
     evt.stopPropagation();
   },
 
+  layerOver: function(e) {
+    var layer = e.dataTransfer.getData("uiLayer");
+    if(layer === undefined) return;
+    e.preventDefault();
+  },
+  layerDropped: function(e) {
+    var layer = e.dataTransfer.getData("uiLayer");
+    if(layer === undefined) return;
+
+    var target = e.target;
+    while(target.tagName !== "LI") {
+      if(!target.parentNode) {
+        console.error("Failed to find target's parent layer LI, aborting.");
+        return;
+      }
+      target = target.parentNode;
+    }
+
+    var targetLayer = Number(target.getAttribute("data-layer"));
+
+    var height = target.getBoundingClientRect().height;
+    var y = relativeCoords(e, target, target).canvas.top;
+    if(y / height > 0.5) {
+      targetLayer += 1;
+    }
+
+    // @TODO: Make this atomic.
+    // @NOTE: this logic requires layers to be enumerated consecutively, otherwise things get more complicated.
+    // @NOTE: Keying element layer by index instead of uuid makes this uncessarily ugly, maybe uuid is better.
+
+    var layers = this.props.layers.slice();
+    var layerMapping = {};
+    var moved = layers.splice(layer, 1)[0];
+    layers.splice(targetLayer, 0, moved);
+
+    for(var ix = 0, len = layers.length; ix < len; ix++) {
+      var cur = extend({}, layers[ix]);
+      layerMapping[cur.layer] = ix;
+      if(cur.layer !== ix) {
+        cur.layer = ix;
+        dispatch("uiComponentLayerUpdate", cur);
+      }
+    }
+
+    for(var elemIx = 0, elemLength = this.props.elements.length; elemIx < elemLength; elemIx++) {
+      var elem = extend({}, this.props.elements[elemIx]);
+      if(elem.layer !== layerMapping[elem.layer]) {
+        elem.layer = layerMapping[elem.layer];
+        dispatch("uiComponentElementMoved", elem);
+      }
+    }
+  },
+
+  dragLayerStart: function(layer, evt) {
+    evt.dataTransfer.setData("uiLayer", layer.layer);
+  },
+
   render: function() {
     var self = this;
     var layerEls = this.props.layers.map(function(layer) {
       var invisible = layer.invisible;
       var locked = layer.locked;
       return ["li", {className: "ui-layer " + (layer.layer === self.props.layer ? "selected" : ""),
-                    onClick: self.selectLayer.bind(self, layer)},
+                     "data-layer": layer.layer,
+                     onClick: self.selectLayer.bind(self, layer),
+                     draggable: true,
+                     onDragStart: self.dragLayerStart.bind(self, layer)},
               layer.name,
              ["button", {className: "layer-toggle-visible icon-btn icon-btn-md " + (invisible ? "ion-eye-disabled" : "ion-eye"),
                          onClick: self.toggleVisible.bind(self, layer)}],
@@ -1774,7 +1834,7 @@ var uiLayers = reactFactory({
     });
     return JSML(
       ["div", {className: "ui-layers"},
-       ["ul", layerEls],
+       ["ul", {onDragOver: this.layerOver, onDrop: this.layerDropped}, layerEls],
       ["button", {className: "add-layer", onClick: this.addLayer}, "Add layer"]]
     );
   }
@@ -2120,6 +2180,8 @@ var uiCanvas = reactFactory({
     this.setState({snapGuides: snaps});
   },
   elementOver: function(e) {
+    var type = e.dataTransfer.getData("uiElementAdd");
+    if(!type) return;
     e.preventDefault();
   },
   elementDropped: function(e) {
