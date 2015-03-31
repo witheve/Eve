@@ -2283,17 +2283,28 @@ tiles.ui = {
       if(this.state.selection.length) {
         var updateState = false;
         var selection = this.state.selection.map(function(sel) {
+          var neue;
           var ix = elements.indexOf(sel);
-          if(ix !== -1) { return sel; }
-
-          updateState = true;
-          for(var ix = 0, len = elements.length; ix < len; ix++) {
-            if(elements[ix].id === sel.id) {
-              return elements[ix];
+          if(ix !== -1) {
+            neue = sel;
+          }
+          else {
+            updateState = true;
+            for(var ix = 0, len = elements.length; ix < len; ix++) {
+              if(elements[ix].id === sel.id) {
+                neue = elements[ix];
+              }
             }
           }
 
-          return undefined;
+          if(!neue) { return undefined; }
+
+          if(neue.invisible || neue.locked) {
+            updateState = true;
+            return undefined;
+          }
+
+          return neue;
         }).filter(Boolean);
 
         if(updateState) {
