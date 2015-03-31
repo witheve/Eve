@@ -86,17 +86,6 @@ function factToTile(tile) {
   };
 }
 
-function mergeDiffs(dest, src) {
-  for(var key in src) {
-    if(!src.hasOwnProperty(key) && !ignoreHasOwnProperty) { continue; }
-    if(!dest[key].adds) { dest[key].adds = []; }
-    if(!dest[key].removes) { dest[key].removes = []; }
-    if(src[key].adds) { dest[key].adds.push.apply(dest[key], src[key].adds); }
-    if(src[key].removes) { dest[key].removes.push.apply(dest[key], src[key].removes); }
-  }
-  return dest;
-}
-
 function unique(arr) {
   arr.sort(function(a, b) { return a - b; });
   var prev = arr[0];
@@ -785,13 +774,15 @@ var tableSelector = reactFactory({
     var results = [];
     ixer.facts("view").forEach(function(cur) {
       var view = cur[0];
-      var name = displayNames[cur[0]]
+      var name = displayNames[view]
+      console.log(view, name, displayNames[view]);
       if(name && name.indexOf(search) > -1) {
         var selected = items.length === self.state.selected;
         results.push(view);
         items.push(tableSelectorItem({view: view, name: name, selected: selected, select: self.select}));
       }
     });
+    console.log(items);
     this.state.results = results;
     return JSML(["div", {className: "table-selector"},
                  ["input", {type: "text", placeholder: "search", onKeyDown: this.handleKeys, onInput: this.updateSearch, value: this.state.search}],
@@ -850,7 +841,10 @@ var tableHeader = reactFactory({
     dispatch("rename", {id: this.props.id, value: value});
   },
   render: function() {
-    return JSML(["th", editable({value: this.props.field, onSubmit: this.renameHeader})]);
+    if(this.props.editable) {
+      return JSML(["th", editable({value: this.props.field, onSubmit: this.renameHeader})]);
+    }
+    return JSML(["th", this.props.field]);
   }
 });
 
@@ -936,26 +930,20 @@ var table = reactFactory({
     },
     render: function() {
       var self = this;
-      var fields = code.viewToFields(this.props.tableId);
-      var rows = ixer.facts(this.props.tableId);
+      var fields = this.props.fields;
+      var rows = this.props.rows;
       var numColumns = fields.length;
       var headers = fields.map(function(cur) {
-        return tableHeader({field: code.name(cur[0]), id: cur[0]});
+        return tableHeader({field: cur.name, id: cur.id, editable: self.props.headersEditable});
       });
-      var rowIds = ixer.index("editId")[this.props.tableId];
-      if(rowIds) {
-        rows.sort(function(a, b) {
-          return rowIds[JSON.stringify(a)] - rowIds[JSON.stringify(b)];
-        });
-      }
       var rowComponents = rows.map(function(cur, ix) {
-        return tableRow({table: self.props.tableId, row: cur, length: numColumns, key: JSON.stringify(cur) + ix, editable: true});
+        return tableRow({table: self.props.tableId, row: cur, length: numColumns, key: JSON.stringify(cur) + ix, editable: self.props.rowsEditable});
       });
       this.state.partialRows.forEach(function(cur) {
-        rowComponents.push(tableRow({table: self.props.tableId, row: [], length: numColumns, editable: true, isNewRow: true, onRowAdded: self.rowAdded, onRowModified: self.addedRowModified, key: cur, id: cur}));
+        rowComponents.push(tableRow({table: self.props.tableId, row: [], length: numColumns, editable: self.props.rowsEditable, isNewRow: true, onRowAdded: self.rowAdded, onRowModified: self.addedRowModified, key: cur, id: cur}));
       });
       var addColumn;
-      if(this.props.editable) {
+      if(this.props.structureEditable) {
         addColumn = ["div", {className: "add-column", onClick: this.addColumn}, "+"];
       }
       return JSML(["div", {className: "table-wrapper"},
@@ -967,13 +955,48 @@ var table = reactFactory({
     }
   });
 
+var factTable = reactFactory({
+  render: function() {
+      var self = this;
+      var fields = code.viewToFields(this.props.tableId);
+      var rows = ixer.facts(this.props.tableId);
+      fields = fields.map(function(cur) {
+        return {name: code.name(cur[0]), id: cur[0]};
+      });
+      var rowIds = ixer.index("editId")[this.props.tableId];
+      if(rowIds) {
+        rows.sort(function(a, b) {
+          return rowIds[JSON.stringify(a)] - rowIds[JSON.stringify(b)];
+        });
+      }
+      return table({tableId: this.props.tableId, rows: rows, fields: fields, structureEditable: true, rowsEditable: true, headersEditable: true});
+  }
+});
+
+var resultTable = reactFactory({
+  render: function() {
+      var self = this;
+      var fields = code.viewToFields(this.props.tableId);
+      var rows = ixer.facts(this.props.tableId);
+      fields = fields.map(function(cur) {
+        return {name: code.name(cur[0]), id: cur[0]};
+      });
+      var rowIds = ixer.index("editId")[this.props.tableId];
+      if(rowIds) {
+        rows.sort(function(a, b) {
+          return rowIds[JSON.stringify(a)] - rowIds[JSON.stringify(b)];
+        });
+      }
+      return table({tableId: this.props.tableId, rows: rows, fields: fields});
+  }
+});
+
 tiles.table = {
   content: function(opts) {
     var currentTable = ixer.index("tableTile")[opts.tileId];
     if(currentTable) {
       opts.tableId = currentTable[1];
-      opts.editable = true;
-      return table(opts);
+      return factTable(opts);
     }
   },
   backContent: tableProperties
@@ -1548,7 +1571,7 @@ var viewSource = reactFactory({
     });
     var content;
     if(typeof viewOrFunction === "string") {
-      content = table({tileId: this.props.tileId, tableId: viewOrFunction});
+      content = resultTable({tileId: this.props.tileId, tableId: viewOrFunction});
     } else {
       content = ["div", astComponents["expression"]({viewId: this.props.viewId, expression: viewOrFunction, onSet: this.updateCalculation})];
     }
@@ -1707,6 +1730,7 @@ var uiTools = reactFactory({
 
 var uiLayers = reactFactory({
   displayName: "ui-layers",
+
   selectLayer: function(layer, evt) {
     this.props.selectLayer(layer);
   },
@@ -1732,13 +1756,74 @@ var uiLayers = reactFactory({
     console.warn("@TODO: implement layer settings");
     evt.stopPropagation();
   },
+
+  layerOver: function(e) {
+    var layer = e.dataTransfer.getData("uiLayer");
+    if(layer === undefined) return;
+    e.preventDefault();
+  },
+  layerDropped: function(e) {
+    var layer = e.dataTransfer.getData("uiLayer");
+    if(layer === undefined) return;
+
+    var target = e.target;
+    while(target.tagName !== "LI") {
+      if(!target.parentNode) {
+        console.error("Failed to find target's parent layer LI, aborting.");
+        return;
+      }
+      target = target.parentNode;
+    }
+
+    var targetLayer = Number(target.getAttribute("data-layer"));
+
+    var height = target.getBoundingClientRect().height;
+    var y = relativeCoords(e, target, target).canvas.top;
+    if(y / height > 0.5) {
+      targetLayer += 1;
+    }
+
+    // @TODO: Make this atomic.
+    // @NOTE: this logic requires layers to be enumerated consecutively, otherwise things get more complicated.
+    // @NOTE: Keying element layer by index instead of uuid makes this uncessarily ugly, maybe uuid is better.
+
+    var layers = this.props.layers.slice();
+    var layerMapping = {};
+    var moved = layers.splice(layer, 1)[0];
+    layers.splice(targetLayer, 0, moved);
+
+    for(var ix = 0, len = layers.length; ix < len; ix++) {
+      var cur = extend({}, layers[ix]);
+      layerMapping[cur.layer] = ix;
+      if(cur.layer !== ix) {
+        cur.layer = ix;
+        dispatch("uiComponentLayerUpdate", cur);
+      }
+    }
+
+    for(var elemIx = 0, elemLength = this.props.elements.length; elemIx < elemLength; elemIx++) {
+      var elem = extend({}, this.props.elements[elemIx]);
+      if(elem.layer !== layerMapping[elem.layer]) {
+        elem.layer = layerMapping[elem.layer];
+        dispatch("uiComponentElementMoved", elem);
+      }
+    }
+  },
+
+  dragLayerStart: function(layer, evt) {
+    evt.dataTransfer.setData("uiLayer", layer.layer);
+  },
+
   render: function() {
     var self = this;
     var layerEls = this.props.layers.map(function(layer) {
       var invisible = layer.invisible;
       var locked = layer.locked;
       return ["li", {className: "ui-layer " + (layer.layer === self.props.layer ? "selected" : ""),
-                    onClick: self.selectLayer.bind(self, layer)},
+                     "data-layer": layer.layer,
+                     onClick: self.selectLayer.bind(self, layer),
+                     draggable: true,
+                     onDragStart: self.dragLayerStart.bind(self, layer)},
               layer.name,
              ["button", {className: "layer-toggle-visible icon-btn icon-btn-md " + (invisible ? "ion-eye-disabled" : "ion-eye"),
                          onClick: self.toggleVisible.bind(self, layer)}],
@@ -1749,7 +1834,7 @@ var uiLayers = reactFactory({
     });
     return JSML(
       ["div", {className: "ui-layers"},
-       ["ul", layerEls],
+       ["ul", {onDragOver: this.layerOver, onDrop: this.layerDropped}, layerEls],
       ["button", {className: "add-layer", onClick: this.addLayer}, "Add layer"]]
     );
   }
@@ -1774,7 +1859,9 @@ var uiInpector = reactFactory({
 var uiSelection = reactFactory({
   displayName: "selection",
   getInitialState: function() {
-    return this.getBounds(this.props.elements);
+    var state = this.getBounds(this.props.elements);
+    state.valid = true;
+    return state;
   },
   shouldComponentUpdate: function(nextProps, nextState) {
     var self = this;
@@ -1877,6 +1964,11 @@ var uiSelection = reactFactory({
     this.setState({initialBounds: this.getBounds(this.props.elements)});
     var rel = relativeCoords(e, e.target, e.target.parentNode.parentNode);
     this.state.offset = rel.element;
+    this.state.valid = true;
+    var ids = this.props.elements.map(function(el) {
+      return el.id;
+    });
+    e.dataTransfer.setData("uiSelection", JSON.stringify(ids));
     e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0,0);
   },
   move: function(e) {
@@ -1888,21 +1980,37 @@ var uiSelection = reactFactory({
     var right = this.state.right + (left - this.state.left);
     var bottom = this.state.bottom + (top - this.state.top);
     var pos = {left: left, top: top, right: right, bottom: bottom};
-    this.setState(this.props.snap(pos));
+    var valid = this.props.validate(pos);
+    if(valid) {
+      pos = this.props.snap(pos);
+    } else {
+      this.props.snap();
+    }
+    pos.valid = valid;
+    this.setState(pos);
   },
   stopMoving: function(e) {
     var self = this;
     var oldBounds = this.state.initialBounds;
     var neueBounds = {left: this.state.left, top: this.state.top, right: this.state.right, bottom: this.state.bottom};
-    var elements = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
+    if(!this.props.validate(neueBounds)) {
+      this.props.snap();
+      this.setState({left: oldBounds.left, top: oldBounds.top, right: oldBounds.right, bottom: oldBounds.bottom, initialBounds: undefined, valid: true});
+      return;
+    }
+    var elBounds = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
 
     // @FIXME: This needs to be atomic.
-    elements.map(function(neue, ix) {
-      var old = self.props.elements[ix];
-      dispatch("uiComponentElementMoved", {element: old, left: neue.left, top: neue.top, right: neue.right, bottom: neue.bottom});
+    elBounds.map(function(bounds, ix) {
+      var neue = extend({}, self.props.elements[ix]);
+      neue.top = bounds.top;
+      neue.right = bounds.right;
+      neue.bottom = bounds.bottom;
+      neue.left = bounds.left;
+      dispatch("uiComponentElementMoved", neue);
     });
     this.props.snap();
-    this.setState({initialBounds: undefined});
+    this.setState({initialBounds: undefined, valid: true});
   },
 
   // Resizing
@@ -1955,12 +2063,16 @@ var uiSelection = reactFactory({
     var self = this;
     var oldBounds = this.state.initialBounds;
     var neueBounds = {left: this.state.left, top: this.state.top, right: this.state.right, bottom: this.state.bottom};
-    var elements = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
+    var elBounds = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
 
     // @FIXME: This needs to be atomic.
-    elements.map(function(neue, ix) {
-      var old = self.props.elements[ix];
-      dispatch("uiComponentElementMoved", {element: old, left: neue.left, top: neue.top, right: neue.right, bottom: neue.bottom});
+    elBounds.map(function(bounds, ix) {
+      var neue = extend({}, self.props.elements[ix]);
+      neue.top = bounds.top;
+      neue.right = bounds.right;
+      neue.bottom = bounds.bottom;
+      neue.left = bounds.left;
+      dispatch("uiComponentElementMoved", neue);
     });
     this.props.snap();
     this.setState({initialBounds: undefined});
@@ -2016,6 +2128,8 @@ var uiSelection = reactFactory({
       this.transformSelection(neueBounds, oldBounds, bounds);
     }
 
+    var resizeClass = "resize-handle" + (this.state.valid ? "" : " invalid");
+
     return JSML(
       ["div", {
         className: "ui-selection",
@@ -2023,14 +2137,14 @@ var uiSelection = reactFactory({
 
       },
 
-       ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "top"})],
-       ["div", this.wrapResizeHandle({className: "resize-handle", y: "top"})],
-       ["div", this.wrapResizeHandle({className: "resize-handle", x: "right", y: "top"})],
-       ["div", this.wrapResizeHandle({className: "resize-handle", x: "right"})],
-       ["div", this.wrapResizeHandle({className: "resize-handle", x: "right", y: "bottom"})],
-       ["div", this.wrapResizeHandle({className: "resize-handle", y: "bottom"})],
-       ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "bottom"})],
-       ["div", this.wrapResizeHandle({className: "resize-handle", x: "left"})],
+       ["div", this.wrapResizeHandle({className: resizeClass, x: "left", y: "top"})],
+       ["div", this.wrapResizeHandle({className: resizeClass, y: "top"})],
+       ["div", this.wrapResizeHandle({className: resizeClass, x: "right", y: "top"})],
+       ["div", this.wrapResizeHandle({className: resizeClass, x: "right"})],
+       ["div", this.wrapResizeHandle({className: resizeClass, x: "right", y: "bottom"})],
+       ["div", this.wrapResizeHandle({className: resizeClass, y: "bottom"})],
+       ["div", this.wrapResizeHandle({className: resizeClass, x: "left", y: "bottom"})],
+       ["div", this.wrapResizeHandle({className: resizeClass, x: "left"})],
 
        ["div", {onDragStart: this.startMoving,
         onDrag: this.move,
@@ -2060,36 +2174,15 @@ var uiSelection = reactFactory({
 var uiCanvas = reactFactory({
   displayName: "ui-canvas",
   getInitialState: function() {
-    return {snapGuides: [], selection: []};
-  },
-  componentDidUpdate: function() {
-    var self = this;
-    if(this.state.selection.length) {
-      var updateState = false;
-      var selection = this.state.selection.map(function(sel) {
-        var ix = self.props.elements.indexOf(sel);
-        if(ix !== -1) { return sel; }
-
-        updateState = true;
-        for(var ix = 0, len = self.props.elements.length; ix < len; ix++) {
-          if(self.props.elements[ix].id === sel.id) {
-            return self.props.elements[ix];
-          }
-        }
-
-        return undefined;
-      }).filter(Boolean);
-
-      if(updateState) {
-        self.setState({selection: selection});
-      }
-    }
-  },
-  elementOver: function(e) {
-    e.preventDefault();
+    return {snapGuides: []};
   },
   drawSnaps: function(snaps) {
     this.setState({snapGuides: snaps});
+  },
+  elementOver: function(e) {
+    var type = e.dataTransfer.getData("uiElementAdd");
+    if(!type) return;
+    e.preventDefault();
   },
   elementDropped: function(e) {
     var type = e.dataTransfer.getData("uiElementAdd");
@@ -2097,23 +2190,6 @@ var uiCanvas = reactFactory({
     var canvas = e.target;
     var rel = relativeCoords(e, canvas, canvas).canvas;
     dispatch("uiComponentElementAdd", {component: this.props.component, layer: this.props.layer, control: type, left: rel.left, top: rel.top, right: rel.left + 100, bottom: rel.top + 100});
-  },
-
-  select: function(el, modify) {
-    var selection = [];
-    if(modify) {
-      selection = this.state.selection.slice();
-      var ix = selection.indexOf(el);
-      if(ix !== -1) {
-        selection.splice(ix, 1);
-      } else {
-        selection.push(el);
-      }
-    }
-    else if(el) {
-      selection.push(el);
-    }
-    this.setState({selection: selection});
   },
 
   // Snapping
@@ -2214,7 +2290,7 @@ var uiCanvas = reactFactory({
     only = only || {};
 
     var els = this.props.elements.filter(function(cur) {
-      return self.state.selection.indexOf(cur) === -1 && cur.invisible === false;
+      return self.props.selection.indexOf(cur) === -1 && cur.invisible === false;
     });
     var possibleSnaps = this.findPossibleSnaps(els, {edge: true, center: true});
     var found = this.findSnaps(pos, possibleSnaps, snapThreshold, only);
@@ -2222,15 +2298,24 @@ var uiCanvas = reactFactory({
     return found.snaps;
   },
 
+  validate: function(child) {
+    var bounds = this.getDOMNode().getBoundingClientRect();
+    if(child.left < 0
+       || child.right > bounds.width
+       || child.top < 0
+       || child.bottom  > bounds.height) {
+      return false;
+    }
+    return true;
+  },
+
   render: function() {
     var self = this;
-
     // Remove selected and render separately.
-    var selection = uiSelection({elements: this.state.selection, snap: this.snap, select: this.select});
-
+    var selection = uiSelection({elements: this.props.selection, snap: this.snap, validate: this.validate, select: this.props.select});
 
     var elems = this.props.elements.filter(function(cur) {
-      return self.state.selection.indexOf(cur) === -1 && cur.invisible === false;
+      return self.props.selection.indexOf(cur) === -1 && cur.invisible === false;
     })
     .map(function(cur) {
       var width = cur.right - cur.left;
@@ -2239,7 +2324,7 @@ var uiCanvas = reactFactory({
       return ["div", {className: "control",
                       style: {top: cur.top, left: cur.left, width: width, height: height, zIndex: cur.layer, pointerEvents: locked},
                       onMouseDown: function(evt) {
-                        self.select(cur, evt.shiftKey);
+                        self.props.select(cur, evt.shiftKey);
                         evt.stopPropagation();
                       }},
               cur.control]
@@ -2264,11 +2349,11 @@ var uiCanvas = reactFactory({
                          onDragOver: this.elementOver,
                          onDrop: this.elementDropped,
                          onMouseDown: function() {
-                           self.select();
+                           self.props.select();
                          }
                         },
                  elems,
-                 (this.state.selection.length ? selection : undefined),
+                 (this.props.selection.length ? selection : undefined),
                  snaps
                 ]);
   }
@@ -2278,18 +2363,105 @@ tiles.ui = {
   content: reactFactory({
     displayName: "ui-editor",
     getInitialState: function() {
-      return {layer: 0};
+      var layers = this.getLayers();
+      var elements = this.getElements(layers.map);
+      return {layer: 0, selection: [], layers: layers, elements: elements};
+    },
+    componentWillReceiveProps: function(nextProps) {
+      var oldLayers = this.state.layers;
+      var oldElements = this.state.elements;
+      var neueLayers = this.getLayers();
+      var neueElements = this.getElements(neueLayers.map);
+      var neue, old;
+      var shouldUpdate = false;
+      if(oldLayers.list.length !== neueLayers.length || oldElements.length !== neueElements.length) {
+        this.setState({layers: neueLayers, elements: neueElements});
+        this.refreshSelection(neueElements);
+        return;
+      }
+
+      for(var layerIx = 0, layersLength = oldLayers.list.length; layerIx < layersLength; layerIx++) {
+        old = oldLayers.list[layerIx];
+        neue = neueLayers.list[layerIx];
+        for(var layerKey in old) {
+          if(old[layerKey] !== neue[layerKey]) {
+            this.setState({layers: neueLayers, elements: neueElements});
+            this.refreshSelection(neueElements);
+            return;
+          }
+        }
+      }
+
+      for(var elemIx = 0, elemLength = oldElements.length; elemIx < elemLength; elemIx++) {
+        old = oldElements[elemIx];
+        neue = neueElements[elemIx];
+        for(var elemKey in old) {
+          if(old[elemKey] !== neue[elemKey]) {
+            this.setState({layers: neueLayers, elements: neueElements});
+            this.refreshSelection(neueElements);
+            return;
+          }
+        }
+      }
+    },
+    refreshSelection: function(elements) {
+      var self = this;
+      if(this.state.selection.length) {
+        var updateState = false;
+        var selection = this.state.selection.map(function(sel) {
+          var neue;
+          var ix = elements.indexOf(sel);
+          if(ix !== -1) {
+            neue = sel;
+          }
+          else {
+            updateState = true;
+            for(var ix = 0, len = elements.length; ix < len; ix++) {
+              if(elements[ix].id === sel.id) {
+                neue = elements[ix];
+              }
+            }
+          }
+
+          if(!neue) { return undefined; }
+
+          if(neue.invisible || neue.locked) {
+            updateState = true;
+            return undefined;
+          }
+
+          return neue;
+        }).filter(Boolean);
+
+        if(updateState) {
+          self.setState({selection: selection});
+        }
+      }
+    },
+    select: function(el, modify) {
+      var selection = [];
+      if(modify) {
+        selection = this.state.selection.slice();
+        var ix = selection.indexOf(el);
+        if(ix !== -1) {
+          selection.splice(ix, 1);
+        } else {
+          selection.push(el);
+        }
+      }
+      else if(el) {
+        selection.push(el);
+      }
+      this.setState({selection: selection});
     },
     selectLayer: function(layer) {
       if(this.state.layer !== layer.layer) {
         this.setState({layer: layer.layer});
       }
     },
-    render: function() {
-      var id = this.props.tileId;
-
+    getLayers: function() {
       var layersMap = {};
-      var layers = ixer.index("uiComponentToLayers")[id] || [];
+      var layers = ixer.index("uiComponentToLayers")[this.props.tileId] || [];
       layers = layers.map(function(cur) {
         var name = cur[2];
         var layer = {id: cur[0], component: cur[1], layer: cur[2], locked: cur[3], invisible: cur[4], name: name};
@@ -2299,8 +2471,14 @@ tiles.ui = {
       layers.sort(function(a, b) {
         return a.layer - b.layer;
       });
-
-      var elements = ixer.index("uiComponentToElements")[id] || [];
+      return {
+        map: layersMap,
+        list: layers
+      };
+    },
+    getElements: function(layersMap) {
+      layersMap = layersMap || this.getLayers().map;
+      var elements = ixer.index("uiComponentToElements")[this.props.tileId] || [];
       elements = elements.map(function(cur) {
         var element = {id: cur[0], component: cur[1], layer: cur[2], control: cur[3], left: cur[4], top: cur[5], right: cur[6], bottom: cur[7]};
         var layer = layersMap[element.layer];
@@ -2311,10 +2489,23 @@ tiles.ui = {
 
       // @TODO: Elements on uninitialized layers will generate a layer.
 
+      return elements;
+    },
+    render: function() {
+      var id = this.props.tileId;
       return JSML(["div", {className: "ui-editor"},
                    uiTools({component: id, layer: this.state.layer}),
-                   uiCanvas({elements: elements, component: id, layer: this.state.layer, layers: layers}),
-                   uiLayers({component: id, layer: this.state.layer, layers: layers,
+                   uiCanvas({component: id,
+                             elements: this.state.elements,
+                             layer: this.state.layer,
+                             selection: this.state.selection,
+                             select: this.select}),
+                   uiLayers({component: id,
+                             elements: this.state.elements,
+                             layers: this.state.layers.list,
+                             layer: this.state.layer,
+                             selection: this.state.selection,
+                             select: this.select,
                              selectLayer: this.selectLayer})]);
     }
   })
@@ -2325,51 +2516,17 @@ tiles.ui = {
 //---------------------------------------------------------
 
 function reverseDiff(diff) {
-  var neue = {};
-  for(var table in diff) {
-    var old = diff[table];
-    neue[table] = {adds: old.removes, removes: old.adds};
-  }
-  return neue;
-}
-
-function mergeDiffs(a,b) {
-  var neue = {};
-  for(var table in a) {
-    neue[table] = {};
-    neue[table].adds = a[table].adds;
-    neue[table].removes = a[table].removes;
-  }
-  for(var table in b) {
-    if(!neue[table]) {
-      neue[table] = {};
-    }
-    if(neue[table].adds) {
-      neue[table].adds = neue[table].adds.concat(b[table].adds);
+  var neue = [];
+  for(var diffIx = 0, diffLen = diff.length; diffIx < diffLen; diffIx++) {
+    var copy = diff[diffIx].slice();
+    neue[diffIx] = copy
+    if(copy[1] === "insert") {
+      copy[1] = "remove";
     } else {
-      neue[table].adds = b[table].adds;
-    }
-    if(neue[table].removes) {
-      neue[table].removes = neue[table].removes.concat(b[table].removes);
-    } else {
-      neue[table].removes = b[table].removes;
+      copy[1] = "insert";
     }
   }
   return neue;
-}
-
-function into(diff, addOrRemove, tables) {
-  for(var table in tables) {
-    if(!diff[table]) {
-      diff[table] = {};
-    }
-    if(diff[table][addOrRemove]) {
-      diff[table][addOrRemove] = diff[table][addOrRemove].concat(tables[table]);
-    } else {
-      diff[table][addOrRemove] = tables[table];
-    }
-  }
-  return diff;
 }
 
 //---------------------------------------------------------
@@ -2395,7 +2552,7 @@ function scaryRedoEvent() {
 
 function dispatch(event, arg, noRedraw) {
   var storeEvent = true;
-  var diffs = {};
+  var diffs = [];
 
   switch(event) {
     case "load":
@@ -2420,55 +2577,55 @@ function dispatch(event, arg, noRedraw) {
       var oldKey = JSON.stringify(arg.old);
       var edits = ixer.index("editId")[arg.table]
       var time = edits ? edits[oldKey] : 0;
-      diffs = {
-        editId: {adds: [[arg.table, JSON.stringify(arg.neue), time]], removes: [[arg.table, oldKey, time]]}
-      };
-      diffs[arg.table] = {adds: [arg.neue.slice()], removes: [arg.old.slice()]};
+      diffs.push(["editId", "insert", [arg.table, JSON.stringify(arg.neue), time]],
+                 ["editId", "remove", [arg.table, oldKey, time]],
+                 [arg.table, "insert", arg.neue.slice()],
+                 [arg.table, "remove", arg.old.slice()]);
       break;
     case "addRow":
-      diffs = {
-        editId: {adds: [[arg.table, JSON.stringify(arg.neue), (new Date()).getTime()]], removes: []}
-      };
-      diffs[arg.table] = {adds: [arg.neue.slice()], removes: []};
+      diffs.push(["editId", "insert", [arg.table, JSON.stringify(arg.neue), (new Date()).getTime()]],
+                 [arg.table, "insert", arg.neue.slice()]);
       break;
     case "rename":
       diffs = code.diffs.changeDisplayName(arg.id, arg.value);
       break;
     case "uiComponentElementMoved":
       var element = arg.element;
-      var prev = [element.id, element.component, element.layer, element.control, element.left, element.top, element.right, element.bottom];
-      var neue = [element.id, element.component, element.layer, element.control, arg.left, arg.top, arg.right, arg.bottom];
-      diffs = {
-        uiComponentElement: {adds: [neue], removes: [prev]}
-      };
-
+      var prev = ixer.index("uiComponentElement")[arg.id];
+      var neue = [arg.id, arg.component, arg.layer, arg.control, arg.left, arg.top, arg.right, arg.bottom];
+      diffs.push(["uiComponentElement", "insert", neue],
+                 ["uiComponentElement", "remove", prev]);
       break;
     case "uiComponentElementAdd":
       var neue = [uuid(), arg.component, arg.layer, arg.control, arg.left, arg.top, arg.right, arg.bottom];
-      diffs = {
-        uiComponentElement: {adds: [neue], removes: []}
-      };
+      diffs.push(["uiComponentElement", "insert", neue]);
       break;
     case "uiComponentLayerAdd":
       var neue = [uuid(), arg.component, arg.layer, false, false];
-      diffs = {
-        uiComponentLayer: {adds: [neue], removes: []}
-      };
+      diffs.push(["uiComponentLayer", "insert", neue]);
       break;
     case "uiComponentLayerUpdate":
       var neue = [arg.id, arg.component, arg.layer, arg.locked, arg.invisible];
       var old = ixer.index("uiComponentLayer")[arg.id];
-      diffs = {
-        uiComponentLayer: {adds: [neue], removes: [old]}
-      };
+      diffs.push(["uiComponentLayer", "insert", neue],
+                 ["uiComponentLayer", "remove", old]);
+      break;
+    case "uiComponentAttributeUpdate":
+      var neue = [arg.id, arg.property, arg.value];
+      var oldProps = ixer.index("uiElementToAttr")[arg.id];
+      diffs.push(["uiComponentAttribute", "insert", neue]);
+      if(oldProps) {
+        var oldProp = oldProps[arg.property];
+        if(oldProp) {
+          diffs.push(["uiComponentAttribute", "remove", oldProp]);
+        }
+      }
       break;
     case "addTile":
       // @FIXME: active grid
       var activeGrid = ixer.facts("activeGrid")[0][0];
       var fact = [arg.id, activeGrid, arg.type, arg.pos[0], arg.pos[1], arg.size[0], arg.size[1]];
-      diffs = {
-        gridTile: {adds: [fact]}
-      };
+      diffs.push(["gridTile", "insert", fact]);
       break;
     case "updateTile":
       var fact = ixer.index("gridTile")[arg.id].slice();
@@ -2483,20 +2640,22 @@ function dispatch(event, arg, noRedraw) {
         fact[5] = arg.size[0];
         fact[6] = arg.size[1];
       }
-      diffs = {gridTile: {adds: [fact], removes: [oldFact]}};
+      diffs.push(["gridTile", "insert", fact],
+                 ["gridTile", "remove", oldFact]);
       break;
     case "closeTile":
       // @TODO: clean up old dependent facts.
       var fact = ixer.index("gridTile")[arg].slice();
-      diffs.gridTile = {removes: [fact]};
+      diffs.push(["gridTile", "remove", fact]);
       break;
     case "setTileView":
       var oldTile = ixer.index("gridTile")[arg.tileId].slice();
       var tile = oldTile.slice();
       //set to a tile type
       var type = tile[2] = (code.hasTag(arg.view, "table") ? "table" : "view");
-      diffs = {gridTile: {adds: [tile], removes: [oldTile]}};
-      diffs[type + "Tile"] = {adds: [[tile[0], arg.view]]}; // @NOTE: So hacky
+      diffs.push(["gridTile", "remove", oldTile],
+                 ["gridTile", "insert", tile],
+                 [type + "Tile", "insert", [tile[0], arg.view]]);
       break;
     case "addTable":
       var oldTile = ixer.index("gridTile")[arg].slice();
@@ -2505,8 +2664,9 @@ function dispatch(event, arg, noRedraw) {
       tile[2] = "table";
       var tableId = uuid();
       diffs = code.diffs.addView("Untitled Table", {A: "string"}, undefined, tableId, ["table"]);
-      diffs.gridTile = {adds: [tile], removes: [oldTile]};
-      diffs.tableTile = {adds: [[arg, tableId]]};
+      diffs.push(["gridTile", "insert", tile],
+                 ["gridTile", "remove", oldTile],
+                 ["tableTile", "insert", [arg, tableId]]);
       break;
     case "addView":
       var oldTile = ixer.index("gridTile")[arg].slice();
@@ -2515,43 +2675,48 @@ function dispatch(event, arg, noRedraw) {
       tile[2] = "view";
       var viewId = uuid();
       diffs = code.diffs.addView("Untitled View", {}, undefined, viewId, ["view"]);
-      diffs.gridTile = {adds: [tile], removes: [oldTile]};
-      diffs.viewTile = {adds: [[arg, viewId]]};
+      diffs.push(["gridTile", "insert", tile],
+                 ["gridTile", "remove", oldTile],
+                 ["viewTile", "insert", [arg, viewId]]);
       break;
 
-
     case "setTarget":
-      diffs = {
-        gridTarget: {adds: [[arg.id, arg.target]], removes: [[arg.id, ixer.index("gridTarget")[arg.id]]]}
-      };
-      ixer.handleDiffs(diffs);
+      diffs.push(["gridTarget", "insert", [arg.id, arg.target]],
+                 ["gridTarget", "remove", [arg.id, ixer.index("gridTarget")[arg.id]]]);
       break;
     case "navigate":
       if(!arg.target.indexOf("grid://") === 0) { throw new Error("Cannot handle non grid:// urls yet."); }
       diffs = {
         activeGrid: {adds: [[arg.target]], removes: ixer.facts("activeGrid").slice()}
       }
+      var old = ixer.facts("activeGrid")[0];
+      if(old) {
+        diffs.push(["activeGrid", "remove", old]);
+      }
+      diffs.push(["activeGrid", "insert", [arg.target]]);
       break;
     case "addSource":
       var ix = (ixer.index("viewToSources")[arg.view] || []).length;
       var sourceId = uuid();
       diffs = code.diffs.autoJoins(arg.view, arg.source, sourceId);
-      diffs["source"] = {adds: [[sourceId, arg.view, ix, arg.source, true]], removes: []};
+      diffs.push(["source", "insert", [sourceId, arg.view, ix, arg.source, true]]);
       break;
     case "addCalculationSource":
       var ix = (ixer.index("viewToSources")[arg.view] || []).length;
       var sourceId = uuid();
       //@TODO: should we auto-join calculations?
-      diffs["source"] = {adds: [[sourceId, arg.view, ix, arg.source, true]], removes: []};
+      diffs.push(["source", "insert", [sourceId, arg.view, ix, arg.source, true]]);
       break;
     case "swapCalculationSource":
-      diffs["source"] = {adds: [arg.neue.slice()], removes: [arg.old.slice()]};
+      diffs.push(["source", "insert", arg.neue.slice()],
+                 ["source", "remove", arg.old.slice()]);
       break;
     case "removeConstraint":
-      diffs.constraint = {removes: [arg.constraint]};
+      diffs.push(["constraint", "remove", arg.constraint]);
       break;
     case "swapConstraint":
-      diffs.constraint = {adds: [arg.neue.slice()], removes: [arg.old.slice()]}
+      diffs.push(["constraint", "remove", arg.old.slice()],
+                 ["constraint", "insert", arg.neue.slice()]);
       break;
     case "undo":
       storeEvent = false;
@@ -2592,44 +2757,36 @@ var code = {
       var fields = code.viewToFields(viewId) || [];
       var schema = view[1];
       var fieldId = uuid();
-      var diffs = {
-        field: {adds: [[fieldId, schema, fields.length, "unknown"]], removes: []},
-        displayName: {adds: [[fieldId, alphabet[fields.length]]], removes: []}
-      };
-      return diffs;
+      return [["field", "insert", [fieldId, schema, fields.length, "unknown"]],
+              ["displayName", "insert", [fieldId, alphabet[fields.length]]]];
     },
     changeDisplayName: function(id, neue) {
       var cur = ixer.index("displayName")[id];
-      var diffs = {
-        displayName: {adds: [[id, neue]], removes: [[id, cur]]}
-      }
-      return diffs;
+      return [["displayName", "insert", [id, neue]],
+              ["displayName", "remove", [id, cur]]];
     },
     addView: function(name, fields, initial, id, tags) { // (S, {[S]: Type}, Fact[]?, Uuid?, S[]?) -> Diffs
       id = id || uuid();
       var schema = uuid();
-      var displayNames = [[id, name]];
       var fieldIx = 0;
-      var fieldAdds = [];
+      var diffs = [["displayName", "insert", [id, name]]];
       for(var fieldName in fields) {
         if(!fields.hasOwnProperty(fieldName)) { continue; }
         var fieldId = uuid()
-        fieldAdds.push([fieldId, schema, fieldIx++, fields[fieldName]]);
-        displayNames.push([fieldId, fieldName]);
+        diffs.push(["field", "insert", [fieldId, schema, fieldIx++, fields[fieldName]]],
+                   ["displayName", "insert", [fieldId, fieldName]]);
       }
 
-      var diffs = {
-        view: {adds: [[id, schema, "union"]]},
-        field: {adds: fieldAdds},
-        displayName: {adds: displayNames}
-      };
+      diffs.push(["view", "insert", [id, schema, "union"]]);
       if(initial && initial.length) {
-        diffs[id] = {adds: initial};
+        for(var initIx = 0, initLen = initial.length; initIx < initLen; initIx++) {
+          diffs.push([id, "insert", initial[initIx]]);
+        }
       }
       if(tags) {
-        diffs.tag = {adds: tags.map(function(tag) {
-          return [id, tag];
-        })};
+        for(var tagIx = 0, tagLen = tags.length; tagIx < tagLen; tagIx++) {
+          diffs.push(["tag", "insert", [id, tags[tagIx]]]);
+        }
       }
       return diffs;
     },
@@ -2637,7 +2794,7 @@ var code = {
       var displayNames = ixer.index("displayName");
       var sources = ixer.index("viewToSources")[view] || [];
       var fields = code.viewToFields(sourceView);
-      var constraints = [];
+      var diffs = [];
       fields = fields.map(function(cur) {
         return [cur[0], displayNames[cur[0]]];
       });
@@ -2651,15 +2808,16 @@ var code = {
             var myField = fields[x];
             if(displayNames[theirs[0]] === myField[1]) {
               //same name, join them.
-              constraints.push(
-                [view, "=",
-                 {"": "field-source-ref", field: myField[0], source: sourceId},
-                 {"": "field-source-ref", field: theirs[0], source: cur[0]}]);
+              diffs.push(
+                ["constraint", "insert",
+                 [view, "=",
+                  code.ast.fieldSourceRef(sourceId, myField[0]),
+                  code.ast.fieldSourceRef(cur[0], theirs[0])]]);
             }
           }
         }
       });
-      return {constraint: {adds: constraints, removes: []}};
+      return diffs;
     }
   },
   hasTag: function(id, tag) {
@@ -2784,9 +2942,13 @@ ixer.addIndex("viewToSchema", "view", Indexing.create.lookup([0, 1]));
 ixer.addIndex("viewToSources", "source", Indexing.create.collector([1]));
 ixer.addIndex("viewToConstraints", "constraint", Indexing.create.collector([0]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([1]));
+// ui
+ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.lookup([0, false]));
 ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([1]));
 ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.lookup([0, false]));
 ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.collector([1]));
+ixer.addIndex("uiElementToAttrs", "uiComponentAttribute", Indexing.create.collector([0]));
+ixer.addIndex("uiElementToAttr", "uiComponentAttribute", Indexing.create.lookup([0, 1, false]));
 
 // Grid Indexes
 ixer.addIndex("gridTarget", "gridTarget", Indexing.create.lookup([0, 1]));
@@ -2800,18 +2962,6 @@ function initIndexer() {
   ixer.handleDiffs(code.diffs.addView("displayName", {id: "string", name: "string"}, undefined, "displayName", ["table"]));
   ixer.handleDiffs(code.diffs.addView("tableTile", {id: "string", view: "string"}, undefined, "tableTile", ["table"]));
   ixer.handleDiffs(code.diffs.addView("viewTile", {id: "string", view: "string"}, undefined, "viewTile", ["table"]));
-
-  //add some views
-  ixer.handleDiffs({view: {adds: [["foo", "foo-schema", "query"], ["qq", "qq-schema", "query"]], removes: []},
-                    schema: {adds: [["foo-schema"], ["qq-schema"]], removes: []},
-                    field: {adds: [["foo-a", "foo-schema", 0, "string"], ["foo-b", "foo-schema", 1, "number"], ["qq-a", "qq-schema", 0, "string"]], removes: []},
-                    //                   source: {adds: [["foo-source", "qq", 0, "foo", true], ["zomg-source", "qq", 0, "zomg", false]], removes: []},
-                    editId: {adds: [["foo", JSON.stringify(["a", "b"]), 0], ["foo", JSON.stringify(["c", "d"]), 1]], removes: []},
-                    foo: {adds: [["a", "b"], ["c", "d"]], removes: []},
-                    input: {adds: [["foo", ["a", "b"]], ["foo", ["c", "d"]]], removes: []},
-                    displayName: {adds: [["foo", "foo"], ["foo-a", "a"], ["foo-b", "foo B"]], removes: []},
-                    uiComponent: {adds: [["myUI"]], removes: []},
-                   });
 
   ixer.handleDiffs(code.diffs.addView("zomg", {
     a: "string",
@@ -2880,6 +3030,8 @@ ixer.handleDiffs(
   code.diffs.addView("uiComponentElement", {id: "string", component: "string", layer: "number", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]));
 ixer.handleDiffs(
   code.diffs.addView("uiComponentLayer", {id: "string", component: "string", layer: "number", locked: "boolean", invisible: "boolean"}, [], "uiComponentLayer", ["table"]));
+ixer.handleDiffs(
+  code.diffs.addView("uiComponentAttribute", {id: "string", property: "string", value: "string"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
 }
 dispatch("load");
 

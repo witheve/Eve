@@ -24,9 +24,7 @@ var Indexing = (function() {
     return result;
   }
 
-  function applyTableDiff(table, diff) {
-    var adds = diff.adds;
-    var removes = diff.removes;
+  function applyTableDiff(table, adds, removes) {
     for(var remIx = 0, remLen = removes.length; remIx < remLen; remIx++) {
       var rem = removes[remIx];
       var foundIx = indexOfArray(table, rem);
@@ -52,26 +50,42 @@ var Indexing = (function() {
     load: function(pickle) {
       var diffs = {};
       for(var table in pickle) {
-        if(!diffs[table]) { diffs[table] = {}; }
-        diffs[table].adds = pickle[table];
+        this.handleDiff(table, pickle[table]);
       }
-      console.log(diffs);
-      this.handleDiffs(diffs);
+    },
+    handleDiff: function(table, adds, removes) {
+      var safeAdds = adds || [];
+      var safeRemoves = removes || [];
+      var indexes = this.tableToIndex[table] || [];
+      for(var ix = 0, len = indexes.length; ix < len; ix++) {
+        var cur = indexes[ix];
+        cur.index = cur.indexer(cur.index, safeAdds, safeRemoves);
+      }
+      if(!this.tables[table]) {
+        this.tables[table] = [];
+      }
+      applyTableDiff(this.tables[table], safeAdds, safeRemoves);
     },
     handleDiffs: function(diffs) {
-      for(var table in diffs) {
-        var diff = diffs[table];
-        diff.adds = diff.adds || [];
-        diff.removes = diff.removes || [];
-        var indexes = this.tableToIndex[table] || [];
-        for(var ix = 0, len = indexes.length; ix < len; ix++) {
-          var cur = indexes[ix];
-          cur.index = cur.indexer(cur.index, diff);
+      var diffTables = {};
+      var adds = {};
+      var removes = {};
+      for(var diffIx = 0, diffLen = diffs.length; diffIx < diffLen; diffIx++) {
+        var cur = diffs[diffIx];
+        var table = cur[0];
+        var action = cur[1];
+        var fact = cur[2];
+        diffTables[table] = true;
+        if(action === "insert") {
+          if(!adds[table]) { adds[table] = []; }
+          adds[table].push(fact);
+        } else {
+          if(!removes[table]) { removes[table] = []; }
+          removes[table].push(fact);
         }
-        if(!this.tables[table]) {
-          this.tables[table] = [];
-        }
-        applyTableDiff(this.tables[table], diff);
+      }
+      for(var table in diffTables) {
+        this.handleDiff(table, adds[table], removes[table]);
       }
     },
     addIndex: function(name, table, indexer) {
@@ -82,7 +96,7 @@ var Indexing = (function() {
       }
       this.tableToIndex[table].push(index);
       if(this.tables[table]) {
-        index.index = index.indexer(index.index, {adds: this.tables[table], removes: []});
+        index.index = index.indexer(index.index, this.tables[table], []);
       }
     },
     index: function(name) {
@@ -104,9 +118,7 @@ var Indexing = (function() {
   var create = {
     lookup: function(keyIxes) {
       var valueIx = keyIxes.pop();
-      return function(cur, diffs) {
-        var adds = diffs.adds;
-        var removes = diffs.removes;
+      return function(cur, adds, removes) {
         var cursor;
         outer: for(var remIx = 0, remLen = removes.length; remIx < remLen; remIx++) {
           var rem = removes[remIx];
@@ -137,9 +149,7 @@ var Indexing = (function() {
       }
     },
     collector: function(keyIxes) {
-      return function(cur, diffs) {
-        var adds = diffs.adds;
-        var removes = diffs.removes;
+      return function(cur, adds, removes) {
         var cursor;
         outer: for(var remIx = 0, remLen = removes.length; remIx < remLen; remIx++) {
           var rem = removes[remIx];
