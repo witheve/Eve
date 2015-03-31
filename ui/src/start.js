@@ -2150,7 +2150,7 @@ var uiCanvas = reactFactory({
     only = only || {};
 
     var els = this.props.elements.filter(function(cur) {
-      return self.state.selection.indexOf(cur) === -1;
+      return self.state.selection.indexOf(cur) === -1 && cur.invisible === false;
     });
     var possibleSnaps = this.findPossibleSnaps(els, {edge: true, center: true});
     var found = this.findSnaps(pos, possibleSnaps, snapThreshold, only);
