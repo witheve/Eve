@@ -1739,6 +1739,7 @@ var uiTools = reactFactory({
 
 var uiLayers = reactFactory({
   displayName: "ui-layers",
+
   selectLayer: function(layer, evt) {
     this.props.selectLayer(layer);
   },
@@ -1764,6 +1765,7 @@ var uiLayers = reactFactory({
     console.warn("@TODO: implement layer settings");
     evt.stopPropagation();
   },
+
   render: function() {
     var self = this;
     var layerEls = this.props.layers.map(function(layer) {
@@ -1806,7 +1808,9 @@ var uiInpector = reactFactory({
 var uiSelection = reactFactory({
   displayName: "selection",
   getInitialState: function() {
-    return this.getBounds(this.props.elements);
+    var state = this.getBounds(this.props.elements);
+    state.valid = true;
+    return state;
   },
   shouldComponentUpdate: function(nextProps, nextState) {
     var self = this;
@@ -1909,6 +1913,11 @@ var uiSelection = reactFactory({
     this.setState({initialBounds: this.getBounds(this.props.elements)});
     var rel = relativeCoords(e, e.target, e.target.parentNode.parentNode);
     this.state.offset = rel.element;
+    this.state.valid = true;
+    var ids = this.props.elements.map(function(el) {
+      return el.id;
+    });
+    e.dataTransfer.setData("uiSelection", JSON.stringify(ids));
     e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0,0);
   },
   move: function(e) {
@@ -1920,21 +1929,37 @@ var uiSelection = reactFactory({
     var right = this.state.right + (left - this.state.left);
     var bottom = this.state.bottom + (top - this.state.top);
     var pos = {left: left, top: top, right: right, bottom: bottom};
-    this.setState(this.props.snap(pos));
+    var valid = this.props.validate(pos);
+    if(valid) {
+      pos = this.props.snap(pos);
+    } else {
+      this.props.snap();
+    }
+    pos.valid = valid;
+    this.setState(pos);
   },
   stopMoving: function(e) {
     var self = this;
     var oldBounds = this.state.initialBounds;
     var neueBounds = {left: this.state.left, top: this.state.top, right: this.state.right, bottom: this.state.bottom};
-    var elements = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
+    if(!this.props.validate(neueBounds)) {
+      this.props.snap();
+      this.setState({left: oldBounds.left, top: oldBounds.top, right: oldBounds.right, bottom: oldBounds.bottom, initialBounds: undefined, valid: true});
+      return;
+    }
+    var elBounds = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
 
     // @FIXME: This needs to be atomic.
-    elements.map(function(neue, ix) {
-      var old = self.props.elements[ix];
-      dispatch("uiComponentElementMoved", {element: old, left: neue.left, top: neue.top, right: neue.right, bottom: neue.bottom});
+    elBounds.map(function(bounds, ix) {
+      var neue = extend({}, self.props.elements[ix]);
+      neue.top = bounds.top;
+      neue.right = bounds.right;
+      neue.bottom = bounds.bottom;
+      neue.left = bounds.left;
+      dispatch("uiComponentElementMoved", neue);
     });
     this.props.snap();
-    this.setState({initialBounds: undefined});
+    this.setState({initialBounds: undefined, valid: true});
   },
 
   // Resizing
@@ -1987,12 +2012,16 @@ var uiSelection = reactFactory({
     var self = this;
     var oldBounds = this.state.initialBounds;
     var neueBounds = {left: this.state.left, top: this.state.top, right: this.state.right, bottom: this.state.bottom};
-    var elements = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
+    var elBounds = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
 
     // @FIXME: This needs to be atomic.
-    elements.map(function(neue, ix) {
-      var old = self.props.elements[ix];
-      dispatch("uiComponentElementMoved", {element: old, left: neue.left, top: neue.top, right: neue.right, bottom: neue.bottom});
+    elBounds.map(function(bounds, ix) {
+      var neue = extend({}, self.props.elements[ix]);
+      neue.top = bounds.top;
+      neue.right = bounds.right;
+      neue.bottom = bounds.bottom;
+      neue.left = bounds.left;
+      dispatch("uiComponentElementMoved", neue);
     });
     this.props.snap();
     this.setState({initialBounds: undefined});
@@ -2048,6 +2077,8 @@ var uiSelection = reactFactory({
       this.transformSelection(neueBounds, oldBounds, bounds);
     }
 
+    var resizeClass = "resize-handle" + (this.state.valid ? "" : " invalid");
+
     return JSML(
       ["div", {
         className: "ui-selection",
@@ -2055,14 +2086,14 @@ var uiSelection = reactFactory({
 
       },
 
-       ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "top"})],
-       ["div", this.wrapResizeHandle({className: "resize-handle", y: "top"})],
-       ["div", this.wrapResizeHandle({className: "resize-handle", x: "right", y: "top"})],
-       ["div", this.wrapResizeHandle({className: "resize-handle", x: "right"})],
-       ["div", this.wrapResizeHandle({className: "resize-handle", x: "right", y: "bottom"})],
-       ["div", this.wrapResizeHandle({className: "resize-handle", y: "bottom"})],
-       ["div", this.wrapResizeHandle({className: "resize-handle", x: "left", y: "bottom"})],
-       ["div", this.wrapResizeHandle({className: "resize-handle", x: "left"})],
+       ["div", this.wrapResizeHandle({className: resizeClass, x: "left", y: "top"})],
+       ["div", this.wrapResizeHandle({className: resizeClass, y: "top"})],
+       ["div", this.wrapResizeHandle({className: resizeClass, x: "right", y: "top"})],
+       ["div", this.wrapResizeHandle({className: resizeClass, x: "right"})],
+       ["div", this.wrapResizeHandle({className: resizeClass, x: "right", y: "bottom"})],
+       ["div", this.wrapResizeHandle({className: resizeClass, y: "bottom"})],
+       ["div", this.wrapResizeHandle({className: resizeClass, x: "left", y: "bottom"})],
+       ["div", this.wrapResizeHandle({className: resizeClass, x: "left"})],
 
        ["div", {onDragStart: this.startMoving,
         onDrag: this.move,
@@ -2094,12 +2125,11 @@ var uiCanvas = reactFactory({
   getInitialState: function() {
     return {snapGuides: []};
   },
-
-  elementOver: function(e) {
-    e.preventDefault();
-  },
   drawSnaps: function(snaps) {
     this.setState({snapGuides: snaps});
+  },
+  elementOver: function(e) {
+    e.preventDefault();
   },
   elementDropped: function(e) {
     var type = e.dataTransfer.getData("uiElementAdd");
@@ -2215,10 +2245,21 @@ var uiCanvas = reactFactory({
     return found.snaps;
   },
 
+  validate: function(child) {
+    var bounds = this.getDOMNode().getBoundingClientRect();
+    if(child.left < 0
+       || child.right > bounds.width
+       || child.top < 0
+       || child.bottom  > bounds.height) {
+      return false;
+    }
+    return true;
+  },
+
   render: function() {
     var self = this;
     // Remove selected and render separately.
-    var selection = uiSelection({elements: this.props.selection, snap: this.snap, select: this.props.select});
+    var selection = uiSelection({elements: this.props.selection, snap: this.snap, validate: this.validate, select: this.props.select});
 
     var elems = this.props.elements.filter(function(cur) {
       return self.props.selection.indexOf(cur) === -1 && cur.invisible === false;
@@ -2533,8 +2574,8 @@ function dispatch(event, arg, noRedraw) {
       break;
     case "uiComponentElementMoved":
       var element = arg.element;
-      var prev = [element.id, element.component, element.layer, element.control, element.left, element.top, element.right, element.bottom];
-      var neue = [element.id, element.component, element.layer, element.control, arg.left, arg.top, arg.right, arg.bottom];
+      var prev = ixer.index("uiComponentElement")[arg.id];
+      var neue = [arg.id, arg.component, arg.layer, arg.control, arg.left, arg.top, arg.right, arg.bottom];
       diffs = {
         uiComponentElement: {adds: [neue], removes: [prev]}
       };
@@ -2895,6 +2936,8 @@ ixer.addIndex("viewToSchema", "view", Indexing.create.lookup([0, 1]));
 ixer.addIndex("viewToSources", "source", Indexing.create.collector([1]));
 ixer.addIndex("viewToConstraints", "constraint", Indexing.create.collector([0]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([1]));
+// ui
+ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.lookup([0, false]));
 ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([1]));
 ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.lookup([0, false]));
 ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.collector([1]));
