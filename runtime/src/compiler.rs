@@ -54,8 +54,8 @@ static FIELD_SCHEMA: usize = 0;
 static FIELD_IX: usize = 1;
 static FIELD_ID: usize = 2;
 
-static SOURCE_IX: usize = 0;
-static SOURCE_VIEW: usize = 1;
+static SOURCE_VIEW: usize = 0;
+static SOURCE_IX: usize = 1;
 static SOURCE_ID: usize = 2;
 static SOURCE_DATA: usize = 3;
 static SOURCE_ACTION: usize = 4;
@@ -63,12 +63,6 @@ static SOURCE_ACTION: usize = 4;
 static CONSTRAINT_LEFT: usize = 0;
 static CONSTRAINT_OP: usize = 1;
 static CONSTRAINT_RIGHT: usize = 2;
-
-static SCHEDULE_IX: usize = 0;
-static SCHEDULE_VIEW: usize = 1;
-
-static UPSTREAM_DOWNSTREAM: usize = 0;
-static UPSTREAM_UPSTREAM: usize = 2;
 
 static VIEWMAPPING_ID: usize = 0;
 static VIEWMAPPING_SOURCEVIEW: usize = 1;
@@ -78,6 +72,13 @@ static FIELDMAPPING_VIEWMAPPING: usize = 0;
 static FIELDMAPPING_SOURCEFIELD: usize = 1;
 static FIELDMAPPING_SOURCECOLUMN: usize = 2;
 static FIELDMAPPING_SINKFIELD: usize = 3;
+
+static SCHEDULE_IX: usize = 0;
+static SCHEDULE_VIEW: usize = 1;
+
+static UPSTREAM_DOWNSTREAM: usize = 0;
+static UPSTREAM_IX: usize = 1;
+static UPSTREAM_UPSTREAM: usize = 2;
 
 fn create_upstream(world: &mut World) {
     let mut upstream = world.view_mut("upstream");
@@ -90,7 +91,7 @@ fn create_upstream(world: &mut World) {
             "query" => {
                 for source in world.view("source").find_all(SOURCE_VIEW, downstream_id) {
                     let data = &source[SOURCE_DATA];
-                    if data[0] == "view".to_value() {
+                    if &*data[0].to_string() == "view"  {
                         let upstream_id = &data[1];
                         upstream.insert((downstream_id.clone(), ix, upstream_id.clone()).to_tuple());
                         ix += 1.0;
@@ -123,7 +124,7 @@ fn create_schedule(world: &mut World) {
 
 fn get_view_ix(world: &World, view_id: &Value) -> usize {
     let schedule = world.view("schedule").find_one(SCHEDULE_VIEW, view_id).unwrap().clone();
-    schedule[SOURCE_IX].to_usize().unwrap()
+    schedule[SCHEDULE_IX].to_usize().unwrap()
 }
 
 fn get_source_ix(world: &World, source_id: &Value) -> usize {
@@ -181,11 +182,16 @@ fn create_constraint(world: &World, constraint: &Vec<Value>) -> Constraint {
 }
 
 fn create_clause(world: &World, source: &Vec<Value>) -> Clause {
+    let source_view_id = &source[SOURCE_VIEW];
     let source_data = &source[SOURCE_DATA];
     if source_data[0].to_string() == "view" {
         let other_view_id = &source_data[1];
-        let schedule = world.view("schedule").find_one(SCHEDULE_VIEW, other_view_id).unwrap().clone();
-        let other_view_ix = &schedule[SCHEDULE_IX];
+        let upstreams = world.view("upstream");
+        let upstream = upstreams.iter().filter(|upstream| {
+            (upstream[UPSTREAM_DOWNSTREAM] == *source_view_id) &&
+            (upstream[UPSTREAM_UPSTREAM] == *other_view_id)
+        }).next().unwrap();
+        let other_view_ix = &upstream[UPSTREAM_IX];
         let constraints = world.view("constraint").iter().filter(|constraint| {
             constraint[CONSTRAINT_LEFT][2] == *other_view_id
         }).map(|constraint| {

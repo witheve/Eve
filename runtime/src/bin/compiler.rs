@@ -27,6 +27,8 @@ fn main() {
     ("path", "path_schema", "union"),
     ("next_step", "next_step_schema", "query"),
     ("first_step", "first_step_schema", "query"),
+    ("upstream", "--none--", "input"),
+    ("schedule", "--none--", "input"),
     ];
     let sources = vec![
     ("next_step", 0.0, "next_step_edge", ("view", "edge").to_tuple(), "get-tuple"),
@@ -58,7 +60,7 @@ fn main() {
         ("field-mapping".to_string(), RefCell::new(field_mappings.to_relation())),
         ("upstream".to_string(), RefCell::new(Index::new())),
         ("schedule".to_string(), RefCell::new(Index::new())),
-        ("edge".to_string(), RefCell::new(Index::new())),
+        ("edge".to_string(), RefCell::new(edges.to_relation())),
         ("path".to_string(), RefCell::new(Index::new())),
         ("next_step".to_string(), RefCell::new(Index::new())),
         ("first_step".to_string(), RefCell::new(Index::new())),
