@@ -1,6 +1,5 @@
-#![feature(core)]
 #![feature(test)]
-
+#![feature(core)]
 #[macro_use]
 extern crate eve;
 extern crate test;
@@ -10,10 +9,12 @@ use test::Bencher;
 use eve::interpreter::*;
 use std::num::Float;
 use core::num::ToPrimitive;
+use eve::value::{Value,ToValue,Tuple};
 
 fn main() {
-
-	let c1 = Call{op: Op::StrSplit, args: exprvec!["The Quick Brown Fox Jumps Over The Lazy Dog"]};
+	
+	let c0 = Call{op: Op::Add, args: exprvec![1,2]};
+	let c1 = Call{op: Op::Sum, args: exprvec![c0,2,3.4,5,6.7]};
 	let result = calculate(&c1.to_expr());
 
 	println!("{:?}",result);
@@ -31,7 +32,7 @@ fn opstest() {
 	let c6 = Call{op: Op::Exponentiate, args: exprvec![c5,2.5]};	// C6 = C5 ^ 2.5
 	let result = calculate(&c6.to_expr());
 	assert_eq!(result.to_f64().unwrap(),(((1.3f64 + 2f64) * 3f64) + (7f64 - 4f64) / 10f64).powf(2.5f64));
-
+	
 }
 
 #[test]
@@ -41,7 +42,7 @@ fn stringtest() {
 	let c1 = Call{op: Op::StrReplace, args: exprvec!["Hello World","l","q"] };
 	let result = calculate(&c1.to_expr());
 	assert_eq!(result.to_string(),"Heqqo Worqd".to_string());
-
+	
 }
 
 #[test]
@@ -49,12 +50,12 @@ fn trigtest() {
 
 	let pi = std::f64::consts::PI;
 
-	// sin
+	// sin 
 	let c1 = Call{op: Op::Sin, args: exprvec![pi]};
 	let result = calculate(&c1.to_expr());
 	assert_eq!(result.to_f64().unwrap(),pi.sin());
-
-	// cos
+	
+	// cos 
 	let c1 = Call{op: Op::Cos, args: exprvec![pi]};
 	let result = calculate(&c1.to_expr());
 	assert_eq!(result.to_f64().unwrap(),pi.cos());
@@ -63,7 +64,7 @@ fn trigtest() {
 	let c1 = Call{op: Op::Tan, args: exprvec![pi]};
 	let result = calculate(&c1.to_expr());
 	assert_eq!(result.to_f64().unwrap(),pi.tan());
-
+	
 	// atan2
 	let c1 = Call{op: Op::ATan2, args: exprvec![1.2,2.3]};
 	let result = calculate(&c1.to_expr());
@@ -84,37 +85,37 @@ fn bigmathtest() {
 	let wx = 0.04;
 	let ps = 0.013;
 	let rh = 1.74;
-
-
+	
+	
 	let c1 = Call{op: Op::Sin, args: exprvec![ga]}; 			// sin(ga)
 	let c2 = Call{op: Op::Exponentiate, args: exprvec![c1,2]}; 	// sin(ga)^2
 	let c3 = Call{op: Op::Multiply, args: exprvec![wx,c2]}; 	// wx*sin(ga)^2
 	let c4 = Call{op: Op::Sin, args: exprvec![ps]}; 			// sin(ps)
 	let c5 = Call{op: Op::Multiply, args: exprvec![c3,c4]}; 	// wx*sin(ga)^2*sin(ps)
-
-
+	
+	
 	let c6 = Call{op: Op::Cos, args: exprvec![ga]}; 			// cos(ga)
 	let c7 = Call{op: Op::Multiply, args: exprvec![g,c6]}; 		// g*cos(ga)
 	let c8 = Call{op: Op::Divide, args: exprvec![c7,va]}; 		// g*cos(ga)/va
 	let c9 = Call{op: Op::Add, args: exprvec![gd,c8]}; 			// gd+g*cos(ga)/va
-
+	
 	let c10 = Call{op: Op::Subtract, args: exprvec![c9,c5]}; 	// (gd+g*cos(ga)/va) - (wx*sin(ga)^2*sin(ps))
 
 	let c11 = Call{op: Op::Multiply, args: exprvec![wa,rh]};	// wa*rh
-	let c12 = Call{op: Op::Multiply, args: exprvec![c11,va]};	// wa*rh*va
+	let c12 = Call{op: Op::Multiply, args: exprvec![c11,va]};	// wa*rh*va	
 	let c13 = Call{op: Op::Cos, args: exprvec![mu]}; 			// cos(mu)
-	let c14 = Call{op: Op::Multiply, args: exprvec![c12,c13]};	// wa*rh*va*cos(mu)
-
+	let c14 = Call{op: Op::Multiply, args: exprvec![c12,c13]};	// wa*rh*va*cos(mu)	
+	
 	let c15 = Call{op: Op::Multiply, args: exprvec![2,ma]};		// 2*ma
-
+	
 	let c16 = Call{op: Op::Divide, args: exprvec![c15,c14]};	// 2*ma/wa*rh*va*cos(mu)
-
+	
 	let c17 = Call{op: Op::Multiply, args: exprvec![c16,c10]};	// (2*ma/wa*rh*va*cos(mu)) * (gd+g*cos(ga)/va) - (wx*sin(ga)^2*sin(ps))
 
 	let result = calculate(&c17.to_expr());
-
+	
 	assert_eq!(result.to_f64().unwrap(),(2f64*ma/(wa*rh*va*mu.cos())*(gd+g*ga.cos()/va-wx*(ga.sin().powf(2f64))*ps.sin())));
-
+	
 }
 
 
@@ -122,7 +123,7 @@ fn bigmathtest() {
 fn opsbench(b: &mut Bencher) {
 
 	// Test Some General Math Ops: (((1 + 2) * 3) + (7 - 4) / 10) ^ 2
-
+	
 	let c1 = Call{op: Op::Add, args: exprvec![1.3,2]};				// C1 = 1.3 + 2
 	let c2 = Call{op: Op::Multiply, args: exprvec![c1,3]};			// C2 = C1 * 3
 	let c3 = Call{op: Op::Subtract, args: exprvec![7,4]};			// C3 = 7 - 4
@@ -148,37 +149,37 @@ fn bigmathbench(b: &mut Bencher) {
 	let wx = 0.04;
 	let ps = 0.013;
 	let rh = 1.74;
-
-
+	
+	
 	let c1 = Call{op: Op::Sin, args: exprvec![ga]}; 			// sin(ga)
 	let c2 = Call{op: Op::Exponentiate, args: exprvec![c1,2]}; 	// sin(ga)^2
 	let c3 = Call{op: Op::Multiply, args: exprvec![wx,c2]}; 	// wx*sin(ga)^2
 	let c4 = Call{op: Op::Sin, args: exprvec![ps]}; 			// sin(ps)
 	let c5 = Call{op: Op::Multiply, args: exprvec![c3,c4]}; 	// wx*sin(ga)^2*sin(ps)
-
-
+	
+	
 	let c6 = Call{op: Op::Cos, args: exprvec![ga]}; 			// cos(ga)
 	let c7 = Call{op: Op::Multiply, args: exprvec![g,c6]}; 		// g*cos(ga)
 	let c8 = Call{op: Op::Divide, args: exprvec![c7,va]}; 		// g*cos(ga)/va
 	let c9 = Call{op: Op::Add, args: exprvec![gd,c8]}; 			// gd+g*cos(ga)/va
-
+	
 	let c10 = Call{op: Op::Subtract, args: exprvec![c9,c5]}; 	// (gd+g*cos(ga)/va) - (wx*sin(ga)^2*sin(ps))
 
 	let c11 = Call{op: Op::Multiply, args: exprvec![wa,rh]};	// wa*rh
-	let c12 = Call{op: Op::Multiply, args: exprvec![c11,va]};	// wa*rh*va
+	let c12 = Call{op: Op::Multiply, args: exprvec![c11,va]};	// wa*rh*va	
 	let c13 = Call{op: Op::Cos, args: exprvec![mu]}; 			// cos(mu)
-	let c14 = Call{op: Op::Multiply, args: exprvec![c12,c13]};	// wa*rh*va*cos(mu)
-
+	let c14 = Call{op: Op::Multiply, args: exprvec![c12,c13]};	// wa*rh*va*cos(mu)	
+	
 	let c15 = Call{op: Op::Multiply, args: exprvec![2,ma]};		// 2*ma
-
+	
 	let c16 = Call{op: Op::Divide, args: exprvec![c15,c14]};	// 2*ma/wa*rh*va*cos(mu)
-
+	
 	let c17 = Call{op: Op::Multiply, args: exprvec![c16,c10]};	// (2*ma/wa*rh*va*cos(mu)) * (gd+g*cos(ga)/va) - (wx*sin(ga)^2*sin(ps))
-
+	
 	let e1 = c17.to_expr();
-
+	
 	b.iter(|| {
 		calculate(&e1)
 	});
-
+	
 }
