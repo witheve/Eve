@@ -237,13 +237,13 @@ var root = reactFactory({
          controls: [
            ["button", {
              title: "choose program",
-             className: "btn-choose-program ion-ios-albums-outline pull-right",
+             className: "btn-choose-program icon-btn icon-btn-lg ion-ios-albums-outline pull-right",
              onClick: this.chooseProgram,
              key: 0
            }],
            ["button", {
              title: "edit grid",
-             className: "btn-edit-grid ion-grid pull-right",
+             className: "btn-edit-grid icon-btn icon-btn-lg ion-grid pull-right",
              onClick: this.toggleEditGrid,
              key: 1
            }]
@@ -431,13 +431,13 @@ var gridTile = reactFactory({
     var self = this;
     var dir = (this.state.flipped ? "+=" : "-=");
     Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {
-      duration: 150,
+      duration: 1500,
       easing: "easeInSine",
       complete: function() {
         self.setState({flipped: !self.state.flipped});
       }
     });
-    Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {duration: 350, easing: "easeOutCubic"});
+    Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {duration: 3500, easing: "easeOutCubic"});
   },
 
   // Dragging
@@ -506,15 +506,15 @@ var gridTile = reactFactory({
     var controls = [];
     var children = [];
 
-    controls.push(["button", {className: "close-tile ion-android-close", onClick: this.close}]);
+    controls.push(["button", {className: "close-tile icon-btn icon-btn-lg ion-android-close", onClick: this.close}]);
 
     if(tile.flippable !== false) {
       attrs.className += (this.state.flipped ? " flipped" : "");
-      controls.push(["button", {className: "flip-tile " + (this.state.flipped ? "ion-forward" : "ion-reply"), onClick: this.flip}]);
+      controls.push(["button", {className: "flip-tile icon-btn icon-btn-lg " + (this.state.flipped ? "ion-forward" : "ion-reply"), onClick: this.flip}]);
     }
     if(tile.navigable !== false) {
       attrs.onDoubleClick = this.navigate;
-      controls.push(["button", {className: "navigate-tile ion-link", onClick: this.navigate}]);
+      controls.push(["button", {className: "navigate-tile icon-btn icon-btn-lg ion-link", onClick: this.navigate}]);
     }
 
     if(this.props.resizable && tile.resizable !== false) {
@@ -1682,7 +1682,7 @@ var uiControl = reactFactory({
     e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0,0);
   },
   addElement: function(e) {
-    dispatch("uiComponentElementAdd", {component: this.props.component, control: this.props.control.control, left: 100, top: 100, right: 200, bottom: 200});
+    dispatch("uiComponentElementAdd", {component: this.props.component, layer: this.props.layer, control: this.props.control.control, left: 100, top: 100, right: 200, bottom: 200});
   },
   render: function() {
     return JSML(["li", {draggable: true,
@@ -1698,10 +1698,60 @@ var uiTools = reactFactory({
     var self = this;
     var items = Object.keys(uiControls).map(function(cur) {
       var cur = uiControls[cur];
-      return uiControl({control: cur, component: self.props.component});
+      return uiControl({control: cur, component: self.props.component, layer: self.props.layer});
     });
     return JSML(["div", {className: "ui-tools"},
                  ["ul", items]]);
+  }
+});
+
+var uiLayers = reactFactory({
+  displayName: "ui-layers",
+  selectLayer: function(layer, evt) {
+    this.props.selectLayer(layer);
+  },
+  addLayer: function(evt) {
+    var newLayer = this.props.layers.reduce(function(max, layer) {
+      if(layer.layer > max) { return layer.layer; }
+      return max;
+    }, -1) + 1;
+
+    dispatch("uiComponentLayerAdd", {component: this.props.component, layer: newLayer});
+  },
+  toggleVisible: function(layer, evt) {
+    evt.stopPropagation();
+    layer.invisible = !layer.invisible;
+    dispatch("uiComponentLayerUpdate", layer);
+  },
+  toggleLocked: function(layer, evt) {
+    evt.stopPropagation();
+    layer.locked = !layer.locked;
+    dispatch("uiComponentLayerUpdate", layer);
+  },
+  settings: function(layer, evt) {
+    console.warn("@TODO: implement layer settings");
+    evt.stopPropagation();
+  },
+  render: function() {
+    var self = this;
+    var layerEls = this.props.layers.map(function(layer) {
+      var invisible = layer.invisible;
+      var locked = layer.locked;
+      return ["li", {className: "ui-layer " + (layer.layer === self.props.layer ? "selected" : ""),
+                    onClick: self.selectLayer.bind(self, layer)},
+              layer.name,
+             ["button", {className: "layer-toggle-visible icon-btn icon-btn-md " + (invisible ? "ion-eye-disabled" : "ion-eye"),
+                         onClick: self.toggleVisible.bind(self, layer)}],
+              ["button", {className: "layer-toggle-locked icon-btn icon-btn-md " + (locked ? "ion-locked" : "ion-unlocked"),
+                          onClick: self.toggleLocked.bind(self, layer)}],
+              ["button", {className: "layer-settings ion-gear-a icon-btn icon-btn-md ",
+                          onClick: self.settings.bind(self, layer)}]];
+    });
+    return JSML(
+      ["div", {className: "ui-layers"},
+       ["ul", layerEls],
+      ["button", {className: "add-layer", onClick: this.addLayer}, "Add layer"]]
+    );
   }
 });
 
@@ -1993,7 +2043,7 @@ var uiSelection = reactFactory({
           var height = local.bottom - local.top;
 
           return ["div", {className: "control",
-                          style: {top: local.top, left: local.left, width: width, height: height},
+                          style: {top: local.top, left: local.left, width: width, height: height, zIndex: cur.layer},
                           onMouseDown: function(evt) {
                             evt.stopPropagation();
                           },
@@ -2010,7 +2060,7 @@ var uiSelection = reactFactory({
 var uiCanvas = reactFactory({
   displayName: "ui-canvas",
   getInitialState: function() {
-    return {snapGuides: [], selection: []}
+    return {snapGuides: [], selection: []};
   },
   componentDidUpdate: function() {
     var self = this;
@@ -2046,7 +2096,7 @@ var uiCanvas = reactFactory({
     if(!type) return;
     var canvas = e.target;
     var rel = relativeCoords(e, canvas, canvas).canvas;
-    dispatch("uiComponentElementAdd", {component: this.props.component, control: type, left: rel.left, top: rel.top, right: rel.left + 100, bottom: rel.top + 100});
+    dispatch("uiComponentElementAdd", {component: this.props.component, layer: this.props.layer, control: type, left: rel.left, top: rel.top, right: rel.left + 100, bottom: rel.top + 100});
   },
 
   select: function(el, modify) {
@@ -2164,7 +2214,7 @@ var uiCanvas = reactFactory({
     only = only || {};
 
     var els = this.props.elements.filter(function(cur) {
-      return self.state.selection.indexOf(cur) === -1;
+      return self.state.selection.indexOf(cur) === -1 && cur.invisible === false;
     });
     var possibleSnaps = this.findPossibleSnaps(els, {edge: true, center: true});
     var found = this.findSnaps(pos, possibleSnaps, snapThreshold, only);
@@ -2180,27 +2230,20 @@ var uiCanvas = reactFactory({
 
 
     var elems = this.props.elements.filter(function(cur) {
-      return self.state.selection.indexOf(cur) === -1;
+      return self.state.selection.indexOf(cur) === -1 && cur.invisible === false;
     })
     .map(function(cur) {
       var width = cur.right - cur.left;
       var height = cur.bottom - cur.top;
-      return ["div", {
-        className: "control",
-        style: {top: cur.top, left: cur.left, width: width, height: height},
-        onMouseDown: function(evt) {
-          self.select(cur, evt.shiftKey);
-          evt.stopPropagation();
-        }
-      },
+      var locked = (cur.locked ? "none" : undefined);
+      return ["div", {className: "control",
+                      style: {top: cur.top, left: cur.left, width: width, height: height, zIndex: cur.layer, pointerEvents: locked},
+                      onMouseDown: function(evt) {
+                        self.select(cur, evt.shiftKey);
+                        evt.stopPropagation();
+                      }},
               cur.control]
 
-//       return uiCanvasGroup({
-//         element: cur, key: cur.id,
-//         elements: self.props.elements,
-//         drawSnaps: self.drawSnaps,
-//         selected: true
-//       });
     });
     var snaps = this.state.snapGuides.map(function(cur) {
       var style = {};
@@ -2234,16 +2277,45 @@ var uiCanvas = reactFactory({
 tiles.ui = {
   content: reactFactory({
     displayName: "ui-editor",
+    getInitialState: function() {
+      return {layer: 0};
+    },
+    selectLayer: function(layer) {
+      if(this.state.layer !== layer.layer) {
+        this.setState({layer: layer.layer});
+      }
+    },
     render: function() {
       var id = this.props.tileId;
+
+      var layersMap = {};
+      var layers = ixer.index("uiComponentToLayers")[id] || [];
+      layers = layers.map(function(cur) {
+        var name = cur[2];
+        var layer = {id: cur[0], component: cur[1], layer: cur[2], locked: cur[3], invisible: cur[4], name: name};
+        layersMap[layer.layer] = layer;
+        return layer;
+      });
+      layers.sort(function(a, b) {
+        return a.layer - b.layer;
+      });
+
       var elements = ixer.index("uiComponentToElements")[id] || [];
       elements = elements.map(function(cur) {
-        return {component: cur[0], id: cur[1], control: cur[2], left: cur[3], top: cur[4], right: cur[5], bottom: cur[6]};
+        var element = {id: cur[0], component: cur[1], layer: cur[2], control: cur[3], left: cur[4], top: cur[5], right: cur[6], bottom: cur[7]};
+        var layer = layersMap[element.layer];
+        element.locked = layer.locked;
+        element.invisible = layer.invisible;
+        return element;
       });
+
+      // @TODO: Elements on uninitialized layers will generate a layer.
+
       return JSML(["div", {className: "ui-editor"},
-                   uiTools({component: id}),
-                   uiCanvas({elements: elements, component: id}),
-                   uiInpector({element: {control: "button"}})]);
+                   uiTools({component: id, layer: this.state.layer}),
+                   uiCanvas({elements: elements, component: id, layer: this.state.layer, layers: layers}),
+                   uiLayers({component: id, layer: this.state.layer, layers: layers,
+                             selectLayer: this.selectLayer})]);
     }
   })
 };
@@ -2364,16 +2436,30 @@ function dispatch(event, arg, noRedraw) {
       break;
     case "uiComponentElementMoved":
       var element = arg.element;
-      var prev = [element.component, element.id, element.control, element.left, element.top, element.right, element.bottom];
-      var neue = [element.component, element.id, element.control, arg.left, arg.top, arg.right, arg.bottom] ;
+      var prev = [element.id, element.component, element.layer, element.control, element.left, element.top, element.right, element.bottom];
+      var neue = [element.id, element.component, element.layer, element.control, arg.left, arg.top, arg.right, arg.bottom];
       diffs = {
         uiComponentElement: {adds: [neue], removes: [prev]}
       };
+
       break;
     case "uiComponentElementAdd":
-      var neue = [arg.component, uuid(), arg.control, arg.left, arg.top, arg.right, arg.bottom];
+      var neue = [uuid(), arg.component, arg.layer, arg.control, arg.left, arg.top, arg.right, arg.bottom];
       diffs = {
         uiComponentElement: {adds: [neue], removes: []}
+      };
+      break;
+    case "uiComponentLayerAdd":
+      var neue = [uuid(), arg.component, arg.layer, false, false];
+      diffs = {
+        uiComponentLayer: {adds: [neue], removes: []}
+      };
+      break;
+    case "uiComponentLayerUpdate":
+      var neue = [arg.id, arg.component, arg.layer, arg.locked, arg.invisible];
+      var old = ixer.index("uiComponentLayer")[arg.id];
+      diffs = {
+        uiComponentLayer: {adds: [neue], removes: [old]}
       };
       break;
     case "addTile":
@@ -2409,7 +2495,6 @@ function dispatch(event, arg, noRedraw) {
       var tile = oldTile.slice();
       //set to a tile type
       var type = tile[2] = (code.hasTag(arg.view, "table") ? "table" : "view");
-      console.log("type", arg.view, code.hasTag(arg.view, "view"), type);
       diffs = {gridTile: {adds: [tile], removes: [oldTile]}};
       diffs[type + "Tile"] = {adds: [[tile[0], arg.view]]}; // @NOTE: So hacky
       break;
@@ -2699,7 +2784,9 @@ ixer.addIndex("viewToSchema", "view", Indexing.create.lookup([0, 1]));
 ixer.addIndex("viewToSources", "source", Indexing.create.collector([1]));
 ixer.addIndex("viewToConstraints", "constraint", Indexing.create.collector([0]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([1]));
-ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([0]));
+ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([1]));
+ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.lookup([0, false]));
+ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.collector([1]));
 
 // Grid Indexes
 ixer.addIndex("gridTarget", "gridTarget", Indexing.create.lookup([0, 1]));
@@ -2790,7 +2877,9 @@ ixer.handleDiffs(
 
 // ui views
 ixer.handleDiffs(
-  code.diffs.addView("uiComponentElement", {component: "string", id: "string", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]));
+  code.diffs.addView("uiComponentElement", {id: "string", component: "string", layer: "number", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]));
+ixer.handleDiffs(
+  code.diffs.addView("uiComponentLayer", {id: "string", component: "string", layer: "number", locked: "boolean", invisible: "boolean"}, [], "uiComponentLayer", ["table"]));
 }
 dispatch("load");
 

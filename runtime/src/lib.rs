@@ -1,3 +1,4 @@
+#![feature(core)]
 #![feature(collections)]
 
 pub mod value;
