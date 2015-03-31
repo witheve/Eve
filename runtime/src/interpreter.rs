@@ -59,6 +59,8 @@ pub enum Op {
 	ACos,
 	ATan,
 	ATan2,
+	Sum,
+	Prod,
 	StrConcat,
 	StrUpper,
 	StrLower,
@@ -213,6 +215,10 @@ fn process_call(c: &Call) -> Value {
 		Op::ATan => onearg(|x|{x.atan()},&c.args),
 		Op::ATan2 => twoargs(|x,y|{x.atan2(y)},&c.args),
 
+		// Aggregate functions
+		Op::Sum => general_agg(|x,y|{x+y},0f64,&c.args),
+		Op::Prod => general_agg(|x,y|{x*y},1f64,&c.args),
+
 		// String functions
 		Op::StrConcat => str_cat(&c.args),
 		Op::StrUpper => str_to_upper(&c.args),
@@ -251,6 +257,20 @@ fn twoargs<F: Fn(f64,f64) -> f64>(f: F, args: &ExpressionVec) -> Value {
 }
 
 // End Math Functions  --------------------------------------------------------
+
+// Aggregate Functions --------------------------------------------------------
+
+fn general_agg<F: Fn(f64,f64) -> f64>(f: F, base: f64, args: &ExpressionVec) -> Value {
+
+	// Some fold magic!
+	let acc = args.iter().fold(base,|acc,next_arg| f(acc,process_expression(next_arg).to_f64().unwrap()) );
+
+	acc.to_value()
+
+}
+
+// End Aggregate Functions ----------------------------------------------------
+
 
 // String Functions  ----------------------------------------------------------
 fn str_cat(args: &ExpressionVec) -> Value {
