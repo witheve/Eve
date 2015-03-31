@@ -1,5 +1,7 @@
 #![feature(core)]
 #![feature(collections)]
+#![feature(slice_patterns)]
+#![feature(str_words)]
 
 pub mod value;
 pub mod index;

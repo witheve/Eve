@@ -213,31 +213,43 @@ th:last-child { border-radius: 0 2px 2px 0; }
 
 .code-container { position:relative; }
 
-.token { border-radius: 2px; background: #444; padding: 0 5px; cursor:default; }
+.token { border-radius: 2px; background: none; border-bottom:1px solid #555; padding: 0 5px; cursor:default; }
 .token + .token { margin-left: 5px; }
-.token:hover { background: #666; }
-.token.active { background: #666; color: #ccc; }
+.token:hover { border-color: #999; border-width:2px; }
+.token.active { border-color: #666; }
 .token.invalid { background: #a45; color: #ccc; }
+.token.selected { background: none; border-color:#acf; border-width:2px; color: #ccc; }
 
 .token.active .ref { color: #acf; }
 .token.active .namespace { color: #aaa; }
 
-.ref { color: #acf; }
+.ref { color: #ddd; }
 .ref span { display:inline-block; }
 .namespace { color: #999; margin-right:6px; }
 
-.structured-editor { position:absolute; box-shadow:0 0 8px #111; top:-5px; left: -5px; background: #444; padding:3px 5px; border-radius:2px; }
-.structured-editor .code { text-align: left;  padding: 5px 5px 10px 5px; border-bottom: 1px solid #666; margin-bottom:10px; }
-.structured-editor .selectors { display:flex; margin:0 4px 5px 4px; }
-.structured-editor .column { display:flex; flex-direction:column; flex:none; max-height:200px; overflow-y:auto; overflow-x: hidden; }
-.structured-editor .column + .column { margin-left: 8px; }
+.structured-editor { position:absolute; box-shadow:0 0 0px #111; left: -10px; margin-top:15px; background: none; border-radius:2px; display:flex; flex-direction:column; }
+.structured-editor > div { display:flex; flex:1; flex-direction:column; background: none; }
+.structured-editor .code { text-align: left;  padding: 10px 10px 10px 10px; border-bottom: 0px solid #666; margin-bottom:10px; }
+.structured-editor .selectors { display:flex; margin:0px 8px 0px 9px; background:#3c3c3c; box-shadow: 0 0 8px #111; border-radius:2px; overflow:hidden; }
+.structured-editor .column { display:flex; flex-direction:column; flex:none; max-height:132px; overflow-y:auto; overflow-x: hidden; }
+.structured-editor .column + .column { margin-left: 0px; }
 .structured-editor .column > ul { display:flex; flex-wrap: wrap; width:200px; }
-.structured-editor .column li { padding: 8px 5px; overflow:hidden; text-align:center; flex: none; min-width:99px; max-width:99px; margin-left:1px; margin-bottom:1px; cursor:default; border-radius:2px; background: #555; }
-.structured-editor .column li:hover { background: #888; color: #eee; }
+.structured-editor .column li { padding: 8px 5px; overflow:hidden; text-align:center; flex: none; min-width:99px; max-width:99px; min-height:32px; margin-left:1px; margin-bottom:1px; cursor:default; border-radius:0px; background: #555; }
+.structured-editor .column li:hover { background: #777; color: #eee; }
 .structured-editor .column li:hover .namespace { color: #bbb; }
-.structured-editor button { outline:none; margin-top:1px; min-width:55px; border-radius:2px; padding:9px 5px; background:#555; border:none; color:#ccc; }
-.structured-editor .selected { background: #888; color: #eee; }
-.structured-editor .disabled { display:none; }
+.structured-editor .workspace { display:flex; flex:1; align-items:center; justify-content:center; width:200px; background: #555; margin-left:1px; }
+.structured-editor button { outline:none; font-size:10pt; min-width:55px; border-radius:0px; padding:8px 5px; background:#6c6c6c; border:none; color:#c3c3c3; }
+.structured-editor button + button { margin-top:0px; border-top:1px solid #555; }
+.structured-editor .selected { background: #8c8c8c; color: #eee; }
+.structured-editor .disabled { color: #888; }
+.structured-editor .column .dummy { background: #494949; }
+.structured-editor .column .dummy:hover { background: #494949; }
+.structured-editor .controls { margin-left: 0px; border-radius: 0; padding: 1px 9px; padding-bottom:8px; display:flex; flex-direction:row; display:none; }
+.structured-editor .controls * { flex: 1; min-height:30px; border-radius:2px; display:flex; align-items:center; justify-content:center; }
+.structured-editor .controls .commit  { background: #555; color: #afc; margin-right:1px; }
+.structured-editor .controls .cancel  { background: #555; color: #faa }
+
+.workspace .input { outline:none; flex: none; text-align:center; padding:10px; width:200px; }
 
 /*****************************************************************************\
  * UI editor

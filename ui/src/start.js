@@ -835,6 +835,7 @@ var editable = reactFactory({
       value = JSON.stringify(value);
     }
     return JSML(["div", {"contentEditable": true,
+                         "className": this.props.className,
                          "onInput": this.handleChange,
                          "onBlur": this.submit,
                          "onKeyDown": this.handleKeys,
@@ -1040,19 +1041,16 @@ var structuredMultiSelector = reactFactory({
   getInitialState: function() {
     return {active: false, mode: false};
   },
+  componentDidMount: function() {
+    if(this.props.mode === "constant") this.selectEditable();
+  },
   componentDidUpdate: function(prev) {
     if(this.props.mode !== prev.mode || !pathEqual(prev.path, this.props.path)) {
+      var self = this;
       this.setState({mode: this.props.mode});
     }
   },
-  toggleActive: function() {
-    this.setState({active: !this.state.active});
-  },
-  deactivate: function() {
-    this.setState({active: false});
-  },
   set: function(id) {
-    this.deactivate();
     if(this.props.onSet) {
       this.props.onSet(id);
     }
@@ -1060,8 +1058,16 @@ var structuredMultiSelector = reactFactory({
   setMode: function(e) {
     var mode = e.currentTarget.getAttribute("data-mode");
     if(!this.props.disabled || !this.props.disabled[mode]) {
-      this.setState({mode: mode});
+      this.setState({mode: mode}, function() {
+        if(mode === "constant") this.selectEditable();
+      });
     }
+  },
+  selectEditable: function() {
+    React.findDOMNode(this.refs.editable).focus();
+  },
+  setConstant: function(value) {
+    this.set({"": "constant", value: value});
   },
   render: function() {
     var self = this;
@@ -1073,6 +1079,11 @@ var structuredMultiSelector = reactFactory({
       items = fields.map(function(cur) {
         return structuredSelectorItem({item: cur, onSet: self.set});
       });
+      if(items.length < 8 || items.length % 2 !== 0) {
+        for(var i = items.length; i < 8 || i % 2 === 1; i++) {
+          items[i] = ["li", {className: "dummy"}];
+        }
+      }
       if(items.length) {
         column2 = ["ul", items];
       }
@@ -1082,13 +1093,21 @@ var structuredMultiSelector = reactFactory({
       items = funcs.map(function(cur) {
         return structuredSelectorItem({item: cur, onSet: self.set});
       });
+      if(items.length < 8 || items.length % 2 !== 0) {
+        for(var i = items.length; i < 8 || i % 2 === 1; i++) {
+          items[i] = ["li", {className: "dummy"}];
+        }
+      }
       if(items.length) {
         column2 = ["ul", items];
       }
     }
     if(mode === "match") {
+      column2 = ["div", {className: "workspace"}];
     }
     if(mode === "constant") {
+      column2 = ["div", {className: "workspace", onClick: this.selectEditable},
+                editable({className: "input", ref: "editable", onSubmit: this.setConstant, value: this.props.value})];
     }
     if(column2) {
       column2 = ["div", {className: "column"},
@@ -1103,12 +1122,12 @@ var structuredMultiSelector = reactFactory({
     });
     var activeClass = this.state.active ? " active" : " inactive";
     return JSML(["div", {className: "structured-editor" + activeClass},
-                 ["div", {className: "code", onClick: this.toggleActive}, this.props.value],
-                 ["div", {className: "selectors"},
-                  ["div", {className: "column"},
-                   modeButtons],
-                  column2
-                 ]]);
+                 ["div", {},
+//                   ["div", {className: "code", onClick: this.toggleActive}, this.props.value],
+                  ["div", {className: "selectors"},
+                   ["div", {className: "column"}, modeButtons],
+                   column2]],
+                ]);
   }
 });
 
@@ -1143,7 +1162,10 @@ var astComponents = {
       this.props.onSelect(this.props.path);
     },
     render: function() {
-      var activeClass = pathEqual(this.props.activePath || [], this.props.path) ? " selected" : "";
+      var activeClass = "";
+      if(this.props.activePath) {
+        activeClass = pathEqual(this.props.activePath, this.props.path) ? " selected" : "";
+      }
       var invalidClass = this.props.invalid ? " invalid" : "";
       return JSML(["span", {className: "token" + activeClass + invalidClass, onClick: this.onSelect}, this.props.value])
     }
@@ -1163,6 +1185,7 @@ var astComponents = {
   constant: reactFactory({
     render: function() {
       //       return {"": "constant", value: value};
+      return tokenAtPath(this, this.props.value.value)
     }
   }),
   op: reactFactory({
@@ -1256,7 +1279,11 @@ var astComponents = {
         for(var i = 0, len = info.args.length; i < len; i++) {
           if(!parent.args[i]) break;
         }
-        if(i === info.args.length) return;
+        if(i === info.args.length) {
+          //we've filled everything in, we're done editing
+          this.stopEditing();
+          return;
+        }
         if(remaining[0] === "args") {
           var final = path.slice(0,path.length - 1);
           final.push(i);
@@ -1312,43 +1339,48 @@ var astComponents = {
     fullEditor: function() {
       this.startEditing([]);
     },
+    stopEditing: function() {
+      this.setState({editing: false});
+    },
     startEditing: function(path) {
+      if(this.state.editing && Indexing.arraysIdentical(path, this.state.editing)) {
+        this.stopEditing();
+        return;
+      }
       this.setState({editing: path});
     },
     selectorProperties: function() {
       var info = this.parentTupleAndPath(this.state.editing, this.props.expression);
       var exp = info.parent || {};
       var path = info.path || [];
-
-
-      switch(exp[""]) {
-        case "call":
-          var info = primitiveInfo[exp.primitive];
-          var fields, mode;
-          var functions = this.getFuncs();
-          var disabled = {};
-          if(path[0] === "args") {
-            fields = this.getFields(info.args[path[1]]);
-            mode = "field";
-          } else {
-            fields = this.getFields();
-            mode = "function";
-          }
-          return {fields: fields,
-                  functions: functions,
-                  onSet: this.onSet,
-                  mode: mode,
-                  disabled: disabled}
-          break;
-        default:
-          return {fields: this.getFields(),
-                  functions: this.getFuncs(),
-                  onSet: this.onSet,
-                  mode: "function",
-                  disabled: {}};
-          break;
+      var child = info.child || {};
+      var cur = exp;
+      if(child[""]) {
+        cur = child;
       }
 
+      var final = {
+        fields: this.getFields(),
+        functions: this.getFuncs(),
+        onSet: this.onSet,
+        mode: "function",
+        disabled: {}
+      };
+
+      if(exp[""] === "call" || cur[""] === "call") {
+        var info = primitiveInfo[exp.primitive];
+        if(path[0] === "args") {
+          final.fields = this.getFields(info.args[path[1]]);
+          final.mode = "field";
+        }
+      }
+
+      if(cur[""] === "constant") {
+        final.mode = "constant";
+        final.value = cur.value;
+      }
+
+      return final;
     },
     render: function() {
       if(this.props.expression) {
@@ -1358,7 +1390,6 @@ var astComponents = {
       }
       if(this.state.editing) {
         var editorProps = this.selectorProperties();
-        editorProps.value = value;
         editorProps.path = this.state.editing;
         var editor = structuredMultiSelector(editorProps);
       }
@@ -1387,7 +1418,11 @@ var astComponents = {
       //@TODO: can either be a constant or a ref
       //left and right have to type check
       var left = code.refToType(this.props.constraint[2]);
-      var right = code.refToType(this.props.constraint[3]);
+      if(this.props.constraint[3][""] === "field-source-ref") {
+        var right = code.refToType(this.props.constraint[3]);
+      } else {
+        var right = typeof this.props.constraint[3].value;
+      }
       return code.typesEqual(left, right);
     },
     setOp: function(op) {
@@ -1396,9 +1431,30 @@ var astComponents = {
       this.setState({editing: false});
       dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
     },
-    editingLeft: function() { this.setState({editing: "left"}); },
-    editingRight: function() { this.setState({editing: "right"}); },
-    editingOp: function() { this.setState({editing: "op"}); },
+    editingLeft: function() {
+      if(this.state.editing === "left") {
+        this.stopEditing();
+        return;
+      }
+      this.setState({editing: "left"});
+    },
+    editingRight: function() {
+      if(this.state.editing === "right") {
+        this.stopEditing();
+        return;
+      }
+      this.setState({editing: "right"});
+    },
+    editingOp: function() {
+      if(this.state.editing === "op") {
+        this.stopEditing();
+        return;
+      }
+      this.setState({editing: "op"});
+    },
+    stopEditing: function() {
+      this.setState({editing:false});
+    },
     render: function() {
       var view = this.props.source[1];
       var sourceId = this.props.source[0];
@@ -1408,7 +1464,7 @@ var astComponents = {
       var editing = this.state.editing;
       var left = astComponents["field-source-ref"]({value: cur[2], onSelect: this.editingLeft, path: ["left"], activePath: [editing]});
       //@TODO: right can be a constant or a ref...
-      var right = astComponents["field-source-ref"]({value: cur[3], onSelect: this.editingRight, path: ["right"], activePath: [editing], invalid: !this.validateRight()});
+      var right = astComponents[cur[3][""]]({value: cur[3], onSelect: this.editingRight, path: ["right"], activePath: [editing], invalid: !this.validateRight()});
       var op = astComponents["op"]({value: cur[1], path: ["op"], activePath: [editing], onSelect: this.editingOp});
       var content = ["div", {className: "structured-constraint",
                              onClick: this.startEditing},
@@ -1422,6 +1478,7 @@ var astComponents = {
           return {id: cur, text: ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], name.field]};
         });
         editor = structuredMultiSelector({fields: localRefs,
+                                          path: this.state.editing,
                                           onSet: this.setLeft,
                                           value: content,
                                           mode: "field",
@@ -1436,10 +1493,17 @@ var astComponents = {
           var name = code.refToName(cur);
           return {id: cur, text: ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], ["span", name.field]]};
         });
+        var value = "";
+        var mode = "field";
+        if(cur[3][""] === "constant") {
+          value = cur[3].value;
+          mode = "constant";
+        }
         editor = structuredMultiSelector({fields: rightRefs,
+                                          path: this.state.editing,
                                           onSet: this.setRight,
-                                          value: content,
-                                          mode: "field",
+                                          value: value,
+                                          mode: mode,
                                           disabled: {"function": "Only a field or value is allowed here.",
                                                      "match": "Only a field or value is allowed here."}});
       } else if(this.state.editing === "op") {
@@ -1451,6 +1515,7 @@ var astComponents = {
                       {id: "!=", text: "!="}];
         editor = structuredMultiSelector({functions: allOps,
                                           onSet: this.setOp,
+                                          path: this.state.editing,
                                           value: content,
                                           mode: "function",
                                           disabled: {"field": "Only a function is allowed here.",
@@ -1458,7 +1523,6 @@ var astComponents = {
                                                      "constant": "Only a function is allowed here."}});
       }
       return JSML(["div", {className: "code-container"}, content, editor]);
-      return JSML(["div", "TODO: fix constraints"]);
     }
   }),
 }
