@@ -1665,6 +1665,7 @@ var uiLayers = reactFactory({
     dispatch("uiComponentLayerUpdate", layer);
   },
   settings: function(layer, evt) {
+    console.warn("@TODO: implement layer settings");
     evt.stopPropagation();
   },
   render: function() {
@@ -1672,7 +1673,9 @@ var uiLayers = reactFactory({
     var layerEls = this.props.layers.map(function(layer) {
       var invisible = layer.invisible;
       var locked = layer.locked;
-      return ["li", {className: "ui-layer"}, layer.name,
+      return ["li", {className: "ui-layer " + (layer.layer === self.props.layer ? "selected" : ""),
+                    onClick: self.selectLayer.bind(self, layer)},
+              layer.name,
              ["button", {className: "layer-toggle-visible icon-btn icon-btn-md " + (invisible ? "ion-eye-disabled" : "ion-eye"),
                          onClick: self.toggleVisible.bind(self, layer)}],
               ["button", {className: "layer-toggle-locked icon-btn icon-btn-md " + (locked ? "ion-locked" : "ion-unlocked"),
@@ -2163,13 +2166,14 @@ var uiCanvas = reactFactory({
 
 
     var elems = this.props.elements.filter(function(cur) {
-      return self.state.selection.indexOf(cur) === -1;
+      return self.state.selection.indexOf(cur) === -1 && cur.invisible === false;
     })
     .map(function(cur) {
       var width = cur.right - cur.left;
       var height = cur.bottom - cur.top;
+      var locked = (cur.locked ? "none" : undefined);
       return ["div", {className: "control",
-                      style: {top: cur.top, left: cur.left, width: width, height: height, zIndex: cur.layer},
+                      style: {top: cur.top, left: cur.left, width: width, height: height, zIndex: cur.layer, pointerEvents: locked},
                       onMouseDown: function(evt) {
                         self.select(cur, evt.shiftKey);
                         evt.stopPropagation();
@@ -2213,31 +2217,39 @@ tiles.ui = {
       return {layer: 0};
     },
     selectLayer: function(layer) {
-      if(!this.state.layer === layer) {
-        this.setState({layer: layer});
+      if(this.state.layer !== layer.layer) {
+        this.setState({layer: layer.layer});
       }
     },
     render: function() {
       var id = this.props.tileId;
-      var elements = ixer.index("uiComponentToElements")[id] || [];
-      elements = elements.map(function(cur) {
-        return {id: cur[0], component: cur[1], layer: cur[2], control: cur[3], left: cur[4], top: cur[5], right: cur[6], bottom: cur[7]};
-      });
+
+      var layersMap = {};
       var layers = ixer.index("uiComponentToLayers")[id] || [];
       layers = layers.map(function(cur) {
         var name = cur[2];
-        return {id: cur[0], component: cur[1], layer: cur[2], locked: cur[3], invisible: cur[4], name: name};
+        var layer = {id: cur[0], component: cur[1], layer: cur[2], locked: cur[3], invisible: cur[4], name: name};
+        layersMap[layer.layer] = layer;
+        return layer;
+      });
+      layers.sort(function(a, b) {
+        return a.layer - b.layer;
       });
 
-//       var layers = elements.reduce(function(memo, cur) {
-//         if(!memo[cur.layer]) { memo[cur.layer] = {name: cur.layer, layer: cur.layer, elements: []}; }
-//         memo[cur.layer].elements.push(cur);
-//         return memo;
-//       }, []);
+      var elements = ixer.index("uiComponentToElements")[id] || [];
+      elements = elements.map(function(cur) {
+        var element = {id: cur[0], component: cur[1], layer: cur[2], control: cur[3], left: cur[4], top: cur[5], right: cur[6], bottom: cur[7]};
+        var layer = layersMap[element.layer];
+        element.locked = layer.locked;
+        element.invisible = layer.invisible;
+        return element;
+      });
+
+      // @TODO: Elements on uninitialized layers will generate a layer.
 
       return JSML(["div", {className: "ui-editor"},
                    uiTools({component: id, layer: this.state.layer}),
-                   uiCanvas({elements: elements, component: id, layer: this.state.layer}),
+                   uiCanvas({elements: elements, component: id, layer: this.state.layer, layers: layers}),
                    uiLayers({component: id, layer: this.state.layer, layers: layers,
                              selectLayer: this.selectLayer})]);
     }
@@ -2374,7 +2386,6 @@ function dispatch(event, arg, noRedraw) {
       };
       break;
     case "uiComponentLayerAdd":
-      console.log("hullo", arg);
       var neue = [uuid(), arg.component, arg.layer, false, false];
       diffs = {
         uiComponentLayer: {adds: [neue], removes: []}
