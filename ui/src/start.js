@@ -1754,7 +1754,7 @@ var uiControl = reactFactory({
     e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0,0);
   },
   addElement: function(e) {
-    dispatch("uiComponentElementAdd", {component: this.props.component, layer: this.props.layer, control: this.props.control.control, left: 100, top: 100, right: 200, bottom: 200});
+    dispatch("addUiComponentElement", {component: this.props.component, layer: this.props.layer, control: this.props.control.control, left: 100, top: 100, right: 200, bottom: 200});
   },
   render: function() {
     return JSML(["li", {draggable: true,
@@ -1838,7 +1838,7 @@ var uiInspector = reactFactory({
       return res;
     });
 
-    dispatch("uiComponentAttributesUpdate", neue);
+    dispatch("updateUiComponentAttributes", neue);
   },
   render: function() {
     var self = this;
@@ -1879,17 +1879,17 @@ var uiLayers = reactFactory({
       return max;
     }, -1) + 1;
 
-    dispatch("uiComponentLayerAdd", {component: this.props.component, layer: newLayer});
+    dispatch("addUiComponentLayer", {component: this.props.component, layer: newLayer});
   },
   toggleVisible: function(layer, evt) {
     evt.stopPropagation();
     layer.invisible = !layer.invisible;
-    dispatch("uiComponentLayerUpdate", layer);
+    dispatch("updateUiComponentLayer", layer);
   },
   toggleLocked: function(layer, evt) {
     evt.stopPropagation();
     layer.locked = !layer.locked;
-    dispatch("uiComponentLayerUpdate", layer);
+    dispatch("updateUiComponentLayer", layer);
   },
   settings: function(layer, evt) {
     console.warn("@TODO: implement layer settings");
@@ -1936,7 +1936,7 @@ var uiLayers = reactFactory({
       layerMapping[cur.layer] = ix;
       if(cur.layer !== ix) {
         cur.layer = ix;
-        dispatch("uiComponentLayerUpdate", cur);
+        dispatch("updateUiComponentLayer", cur);
       }
     }
 
@@ -1944,7 +1944,7 @@ var uiLayers = reactFactory({
       var elem = extend({}, this.props.elements[elemIx]);
       if(elem.layer !== layerMapping[elem.layer]) {
         elem.layer = layerMapping[elem.layer];
-        dispatch("uiComponentElementMoved", elem);
+        dispatch("updateUiComponentElement", elem);
       }
     }
   },
@@ -2169,7 +2169,7 @@ var uiSelection = reactFactory({
       neue.right = bounds.right;
       neue.bottom = bounds.bottom;
       neue.left = bounds.left;
-      dispatch("uiComponentElementMoved", neue);
+      dispatch("updateUiComponentElement", neue);
     });
     this.props.snap();
     this.setState({initialBounds: undefined, valid: true});
@@ -2234,7 +2234,7 @@ var uiSelection = reactFactory({
       neue.right = bounds.right;
       neue.bottom = bounds.bottom;
       neue.left = bounds.left;
-      dispatch("uiComponentElementMoved", neue);
+      dispatch("updateUiComponentElement", neue);
     });
     this.props.snap();
     this.setState({initialBounds: undefined});
@@ -2345,7 +2345,7 @@ var uiCanvas = reactFactory({
     if(!type) return;
     var canvas = e.target;
     var rel = relativeCoords(e, canvas, canvas).canvas;
-    dispatch("uiComponentElementAdd", {component: this.props.component, layer: this.props.layer, control: type, left: rel.left, top: rel.top, right: rel.left + 100, bottom: rel.top + 100});
+    dispatch("addUiComponentElement", {component: this.props.component, layer: this.props.layer, control: type, left: rel.left, top: rel.top, right: rel.left + 100, bottom: rel.top + 100});
   },
 
   // Snapping
@@ -2746,31 +2746,31 @@ function dispatch(event, arg, noRedraw) {
     case "rename":
       diffs = code.diffs.changeDisplayName(arg.id, arg.value);
       break;
-    case "uiComponentElementMoved":
+    case "updateUiComponentElement":
       var element = arg.element;
       var prev = ixer.index("uiComponentElement")[arg.id];
       var neue = [arg.id, arg.component, arg.layer, arg.control, arg.left, arg.top, arg.right, arg.bottom];
       diffs.push(["uiComponentElement", "insert", neue],
                  ["uiComponentElement", "remove", prev]);
       break;
-    case "uiComponentElementAdd":
+    case "addUiComponentElement":
       var neue = [uuid(), arg.component, arg.layer, arg.control, arg.left, arg.top, arg.right, arg.bottom];
       diffs.push(["uiComponentElement", "insert", neue]);
       break;
-    case "uiComponentLayerAdd":
+    case "addUiComponentLayer":
       var neue = [uuid(), arg.component, arg.layer, false, false];
       diffs.push(["uiComponentLayer", "insert", neue]);
       break;
-    case "uiComponentLayerUpdate":
+    case "updateUiComponentLayer":
       var neue = [arg.id, arg.component, arg.layer, arg.locked, arg.invisible];
       var old = ixer.index("uiComponentLayer")[arg.id];
       diffs.push(["uiComponentLayer", "insert", neue],
                  ["uiComponentLayer", "remove", old]);
       break;
-    case "uiComponentAttributeUpdate":
+    case "updateUiComponentAttribute":
       diffs.push.apply(diffs, code.ui.updateAttribute(arg));
       break;
-    case "uiComponentAttributesUpdate":
+    case "updateUiComponentAttributes":
       for(var ix = 0; ix < arg.length; ix++) {
         diffs.push.apply(diffs, code.ui.updateAttribute(arg[ix]));
       }
