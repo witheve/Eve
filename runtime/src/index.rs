@@ -19,7 +19,7 @@ pub struct Changes<T> {
     pub removed: Vec<T>,
 }
 
-impl<T: Ord> Index<T> {
+impl<T: Ord + Clone> Index<T> {
     pub fn new() -> Self {
         Index{items: BTreeMap::new()}
     }
@@ -67,7 +67,7 @@ impl<T: Ord> Index<T> {
         }
     }
 
-    pub fn changes_since<'a>(&'a self, before: &'a Index<T>) -> Changes<&'a T> {
+    pub fn changes_since(&self, before: &Index<T>) -> Changes<T> {
             let mut before_keys = before.items.keys();
             let mut after_keys = self.items.keys();
             let mut before_key = before_keys.next();
@@ -80,21 +80,21 @@ impl<T: Ord> Index<T> {
                         break;
                     }
                     (Some(before), None) => {
-                        removed.push(before);
+                        removed.push(before.clone());
                         before_key = before_keys.next();
                     }
                     (None, Some(after)) => {
-                        inserted.push(after);
+                        inserted.push(after.clone());
                         after_key = after_keys.next();
                     }
                     (Some(before), Some(after)) => {
                         match before.cmp(after) {
                             Ordering::Less => {
-                                removed.push(before);
+                                removed.push(before.clone());
                                 before_key = before_keys.next();
                             }
                             Ordering::Greater => {
-                                inserted.push(after);
+                                inserted.push(after.clone());
                                 after_key = after_keys.next();
                             }
                             Ordering::Equal => {
