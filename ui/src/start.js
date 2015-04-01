@@ -502,7 +502,6 @@ var gridTile = reactFactory({
       controls.push(["button", {className: "flip-tile icon-btn icon-btn-lg " + (this.state.flipped ? "ion-forward" : "ion-reply"), onClick: this.flip}]);
     }
     if(tile.navigable !== false) {
-      attrs.onDoubleClick = this.navigate;
       controls.push(["button", {className: "navigate-tile icon-btn icon-btn-lg ion-link", onClick: this.navigate}]);
     }
 
@@ -797,7 +796,7 @@ var tableSelector = reactFactory({
 var editable = reactFactory({
   displayName: "editable",
   getInitialState: function() {
-    return {value: "", modified: false};
+    return {value: undefined, modified: false};
   },
   handleChange: function(e) {
     this.setState({value: coerceInput(e.target.textContent), modified: true});
@@ -814,12 +813,12 @@ var editable = reactFactory({
   },
   submit: function() {
     if(this.props.onSubmit && this.state.modified) {
-      this.setState({modified: false});
+      this.setState({modified: false, value: undefined});
       this.props.onSubmit(this.state.value);
     }
   },
   render: function() {
-    var value = this.state.value || this.props.value;
+    var value = (this.state.value === undefined ? this.props.value : this.state.value);
     if(value === undefined) {
       value = ""
     } else if(typeof value === "object") {
@@ -1664,39 +1663,70 @@ function relativeCoords(e, me, parent) {
     return {canvas: {left: canvasRelX, top: canvasRelY}, element: {left: elementRelX, top: elementRelY}}
 }
 
-function uiAttributeSetter(attr) {
-  return function(attrs, value, canvas) {
-    attrs.style[attr] = value;
-  }
-}
 // @NOTE: For this to work properly, at most 1 attribute should change per update.
+// UiAttrs = {[group:String]: UiAttr[]}
+// UiAttr = {displayName:String, type:String, group:String, prop:String?|(get:Fn, set:Fn)}
 var uiAttrs = {
   layout: [
-    {displayName: "x", type: "number", group: "layout", set: uiAttributeSetter("left")},
-    {displayName: "y", type: "number", group: "layout", set: uiAttributeSetter("top")},
-    {displayName: "width", type: "number", group: "layout", set: function(attrs, value, canvas) {
-      var right = canvas.right - (attrs.left + value);
-      attrs.style.right = right;
-    }},
-    {displayName: "height", type: "number", group: "layout", set: function(attrs, value, canvas) {
-      var bottom = canvas.bottom - (attrs.top + value);
-      attrs.style.bottom = bottom;
-    }}
+    {displayName: "x", type: "number", group: "layout", prop: "left"},
+    {displayName: "y", type: "number", group: "layout", prop: "top"},
+    {displayName: "width", type: "number", group: "layout",
+     set: function(attrs, value, canvas) {
+       var right = canvas.right - (attrs.left + value);
+       attrs.style.right = right;
+     },
+     get: function(attrs, canvas) {
+       return attrs.right - attrs.left;
+     }},
+    {displayName: "height", type: "number", group: "layout",
+     set: function(attrs, value, canvas) {
+       var bottom = canvas.bottom - (attrs.top + value);
+       attrs.style.bottom = bottom;
+     },
+     get: function(attrs, canvas) {
+       return attrs.bottom - attrs.top;
+     }}
   ],
   typography: [
-    {displayName: "color", type: "color", group: "typography", set: uiAttributeSetter("color")},
-    {displayName: "font", type: "font", group: "typography", set: uiAttributeSetter("font-family")},
-    {displayName: "size", type: "number", group: "typography", set: uiAttributeSetter("font-size")},
-    {displayName: "weight", type: "number", group: "typography", set: uiAttributeSetter("font-weight")},
+    {displayName: "color", type: "color", group: "typography", prop: "color"},
+    {displayName: "font", type: "font", group: "typography", prop: "fontFamily"},
+    {displayName: "size", type: "number", group: "typography", prop: "fontSize"},
+    {displayName: "weight", type: "number", group: "typography", prop: "fontWeight"},
   ],
   appearance: [
-    {displayName: "background", type: ["color", "image"], group: "appearance", set: uiAttributeSetter("background")},
-    {displayName: "border-width", type: "number", group: "appearance", set: uiAttributeSetter("border-width")},
-    {displayName: "border-style", type: "string", group: "appearance", set: uiAttributeSetter("border-style")},
-    {displayName: "border-color", type: "color", group: "appearance", set: uiAttributeSetter("border-color")},
+    {displayName: "background", type: "color", group: "appearance", prop: "backgroundColor"},
+    {displayName: "image", type: "image", group: "appearance", prop: "backgroundImage"},
+    {displayName: "border-width", type: "number", group: "appearance", prop: "borderWidth"},
+    {displayName: "border-style", type: "string", group: "appearance", prop: "borderStyle"},
+    {displayName: "border-color", type: "color", group: "appearance", prop: "borderColor"},
   ]
 };
+function uiPropsSetter(prop) {
+  return function setProperty(attrs, canvas, value) {
+    return {property: prop, value: value};
+  }
+}
+function uiPropsGetter(prop) {
+  return function getProperty(attrs, canvas) {
+    if(attrs[prop]) {
+      return attrs[prop][2];
+    }
+  }
+}
 
+function uiPropsToAccessors(uiAttrs) {
+  for(var uiGroup in uiAttrs) {
+    var attrs = uiAttrs[uiGroup];
+    for(var ix = 0, len = attrs.length; ix < len; ix++) {
+      var attr = attrs[ix];
+      if(attr.prop) {
+        if(!attr.set) { attr.set = uiPropsSetter(attr.prop); }
+        if(!attr.get) { attr.get = uiPropsGetter(attr.prop); }
+      }
+    }
+  }
+}
+uiPropsToAccessors(uiAttrs);
 
 var uiControls = {
   button: {
@@ -1796,18 +1826,43 @@ var uiInspector = reactFactory({
       }
     }
 
-    console.log("controls", controls, "share groups", groups);
     return groups;
   },
+  setAttribute: function(attr, value) {
+    var canvas = {}; // @FIXME: get canvas from props.
+
+    var neue = this.props.selection.map(function(sel) {
+      var attrs = ixer.index("uiElementToAttr")[sel.id] || {};
+      var res = attr.set(attrs, canvas, value);
+      res.id = sel.id;
+      return res;
+    });
+
+    dispatch("uiComponentAttributesUpdate", neue);
+  },
   render: function() {
+    var self = this;
+    var canvas = {}; // @FIXME: get canvas from props.
+
+    var selectionAttrs = this.props.selection.map(function(sel) {
+      return ixer.index("uiElementToAttr")[sel.id] || {};
+    });
+
     var attrs = this.state.groups.reduce(function(memo, group) {
       return memo.concat(uiAttrs[group]);
     }, []);
-    var attrs = attrs.map(function(cur) {
-      return ["li", cur.displayName];
+    var attrsRows = attrs.map(function(cur) {
+      var value = cur.get(selectionAttrs[0], canvas);
+      var same = selectionAttrs.every(function(attrs) {
+        return (cur.get(attrs, canvas) === value);
+      });
+      return [cur.displayName,
+              cur.type,
+              editable({value: (same ? value : "???"), onSubmit: self.setAttribute.bind(self, cur)})];
     });
+    var content = verticalTable(attrsRows);
     return JSML(["div", {className: "ui-inspector"},
-                 ["ul", attrs]
+                 content
                 ]);
   }
 });
@@ -1970,30 +2025,30 @@ var uiSelection = reactFactory({
     state.valid = true;
     return state;
   },
-  shouldComponentUpdate: function(nextProps, nextState) {
-    var self = this;
-    var state = this.state;
-    if(this.props.id !== nextProps.id
-       || state.left !== nextState.left
-       || state.right !== nextState.right
-       || state.top !== nextState.top
-       || state.bottom !== nextState.bottom
-      ) {
-      return true;
-    }
+//   shouldComponentUpdate: function(nextProps, nextState) {
+//     var self = this;
+//     var state = this.state;
+//     if(this.props.id !== nextProps.id
+//        || state.left !== nextState.left
+//        || state.right !== nextState.right
+//        || state.top !== nextState.top
+//        || state.bottom !== nextState.bottom
+//       ) {
+//       return true;
+//     }
 
-    if(this.props.elements.length !== nextProps.elements.length) { return true; }
-    return nextProps.elements.some(function(neue, ix) {
-      var old = self.props.elements[ix];
-      if(old.id !== neue.id
-         || old.left !== neue.left
-         || old.right !== neue.right
-         || old.top !== neue.top
-         || old.bottom !== neue.bottom) {
-        return true;
-      }
-    });
-  },
+//     if(this.props.elements.length !== nextProps.elements.length) { return true; }
+//     return nextProps.elements.some(function(neue, ix) {
+//       var old = self.props.elements[ix];
+//       if(old.id !== neue.id
+//          || old.left !== neue.left
+//          || old.right !== neue.right
+//          || old.top !== neue.top
+//          || old.bottom !== neue.bottom) {
+//         return true;
+//       }
+//     });
+//   },
   componentDidUpdate: function(prev) {
     var shouldSetState = false;
     if(this.props.elements.length !== prev.elements.length) {
@@ -2713,14 +2768,11 @@ function dispatch(event, arg, noRedraw) {
                  ["uiComponentLayer", "remove", old]);
       break;
     case "uiComponentAttributeUpdate":
-      var neue = [arg.id, arg.property, arg.value];
-      var oldProps = ixer.index("uiElementToAttr")[arg.id];
-      diffs.push(["uiComponentAttribute", "insert", neue]);
-      if(oldProps) {
-        var oldProp = oldProps[arg.property];
-        if(oldProp) {
-          diffs.push(["uiComponentAttribute", "remove", oldProp]);
-        }
+      diffs.push.apply(diffs, code.ui.updateAttribute(arg));
+      break;
+    case "uiComponentAttributesUpdate":
+      for(var ix = 0; ix < arg.length; ix++) {
+        diffs.push.apply(diffs, code.ui.updateAttribute(arg[ix]));
       }
       break;
     case "addTile":
@@ -2916,6 +2968,21 @@ var code = {
           }
         }
       });
+      return diffs;
+    }
+  },
+  ui: {
+    updateAttribute: function(attribute) {
+      var diffs = [];
+      var neue = [attribute.id, attribute.property, attribute.value];
+      var oldProps = ixer.index("uiElementToAttr")[attribute.id];
+      diffs.push(["uiComponentAttribute", "insert", neue]);
+      if(oldProps) {
+        var oldProp = oldProps[attribute.property];
+        if(oldProp) {
+          diffs.push(["uiComponentAttribute", "remove", oldProp]);
+        }
+      }
       return diffs;
     }
   },
