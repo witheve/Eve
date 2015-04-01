@@ -1,6 +1,7 @@
 use std::collections::btree_map;
 use std::collections::btree_map::{BTreeMap, Entry, Keys};
 use std::iter::{FromIterator, IntoIterator};
+use std::cmp::{max, Ordering};
 
 #[derive(Clone, Debug, PartialOrd, PartialEq, Ord, Eq)]
 pub struct Index<T> {
@@ -10,6 +11,12 @@ pub struct Index<T> {
 // #[derive(Debug)] Keys does not implement Debug :(
 pub struct Iter<'a, T> where T: 'a {
     keys: Keys<'a, T, usize>,
+}
+
+#[derive(Clone, Debug)]
+pub enum Change {
+    Inserted,
+    Removed,
 }
 
 impl<T: Ord> Index<T> {
@@ -43,6 +50,15 @@ impl<T: Ord> Index<T> {
                 } else {
                     panic!("Removed a non-existing entry");
                 }
+            }
+        }
+    }
+
+    pub fn change(&mut self, changes: Vec<(Change, T)>) {
+        for (change, item) in changes.into_iter() {
+            match change {
+                Change::Inserted => self.insert(item),
+                Change::Removed => self.remove(item),
             }
         }
     }
@@ -91,45 +107,36 @@ impl<T: Ord> IntoIterator for Index<T> {
     }
 }
 
-pub mod diff {
-    use std::collections::btree_map::Keys;
-    use std::cmp::{max, Ordering};
 
-    #[derive(Debug)]
-    pub struct Diff<'a, T> where T: 'a {
-        pub before: &'a super::Index<T>,
-        pub after: &'a super::Index<T>,
+#[derive(Clone, Debug)]
+pub struct Diff<'a, T> where T: 'a {
+    pub before: &'a Index<T>,
+    pub after: &'a Index<T>,
+}
+
+// #[derive(Debug)] Keys does not implement Debug :(
+pub struct DiffIter<'a, T> where T: 'a {
+    before_keys: Keys<'a, T, usize>,
+    after_keys: Keys<'a, T, usize>,
+    before_key: Option<&'a T>,
+    after_key: Option<&'a T>,
+}
+
+impl<'a, T: Ord> Diff<'a, T> {
+    pub fn iter(&self) -> DiffIter<'a, T> {
+        let mut before_keys = self.before.items.keys();
+        let mut after_keys = self.after.items.keys();
+        let before_key = before_keys.next();
+        let after_key = after_keys.next();
+        DiffIter{before_keys: before_keys, after_keys: after_keys, before_key: before_key, after_key: after_key}
     }
+}
 
-    #[derive(Debug)]
-    pub enum Change {
-        Inserted,
-        Unchanged,
-        Removed,
-    }
+impl<'a, T: Ord> Iterator for DiffIter<'a, T> {
+    type Item = (Change, &'a T);
 
-    // #[derive(Debug)] Keys does not implement Debug :(
-    pub struct Iter<'a, T> where T: 'a {
-        before_keys: Keys<'a, T, usize>,
-        after_keys: Keys<'a, T, usize>,
-        before_key: Option<&'a T>,
-        after_key: Option<&'a T>,
-    }
-
-    impl<'a, T: Ord> Diff<'a, T> {
-        pub fn iter(&self) -> Iter<'a, T> {
-            let mut before_keys = self.before.items.keys();
-            let mut after_keys = self.after.items.keys();
-            let before_key = before_keys.next();
-            let after_key = after_keys.next();
-            Iter{before_keys: before_keys, after_keys: after_keys, before_key: before_key, after_key: after_key}
-        }
-    }
-
-    impl<'a, T: Ord> Iterator for Iter<'a, T> {
-        type Item = (Change, &'a T);
-
-        fn next(&mut self) -> Option<(Change, &'a T)> {
+    fn next(&mut self) -> Option<(Change, &'a T)> {
+        loop {
             match (self.before_key, self.after_key) {
                 (None, None) => {
                     return None;
@@ -155,22 +162,22 @@ pub mod diff {
                         Ordering::Equal => {
                             self.before_key = self.before_keys.next();
                             self.after_key = self.after_keys.next();
-                            return Some((Change::Unchanged, before));
+                            continue;
                         }
                     }
                 }
             }
         }
+    }
 
-        fn size_hint(&self) -> (usize, Option<usize>) {
-            let (before_lower, before_upper) = self.before_keys.size_hint();
-            let (after_lower, after_upper) = self.after_keys.size_hint();
-            let lower = max(before_lower, after_lower);
-            let upper = match (before_upper, after_upper) {
-                (Some(before_upper), Some(after_upper)) => Some(before_upper + after_upper),
-                _ => None
-            };
-            (lower, upper)
-        }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let (before_lower, before_upper) = self.before_keys.size_hint();
+        let (after_lower, after_upper) = self.after_keys.size_hint();
+        let lower = max(before_lower, after_lower);
+        let upper = match (before_upper, after_upper) {
+            (Some(before_upper), Some(after_upper)) => Some(before_upper + after_upper),
+            _ => None
+        };
+        (lower, upper)
     }
 }
