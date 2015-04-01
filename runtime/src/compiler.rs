@@ -1,7 +1,7 @@
 use value::{Id, Value, Tuple, Relation, ToValue, ToTuple, ToRelation};
-use index::Index;
+use index::{Index};
 use query::{Ref, ConstraintOp, Constraint, Source, Clause, Query};
-use flow::{FlowState, View, Union, Node, Flow};
+use flow::{Changes, View, Union, Node, FlowState, Flow};
 
 use std::collections::{HashMap, BitSet};
 use std::cell::{RefCell, RefMut};
@@ -18,6 +18,12 @@ impl World {
 
     fn view_mut<Id: ToString>(&self, id: Id) -> RefMut<Relation> {
         self.views.get(&id.to_string()).unwrap().borrow_mut()
+    }
+
+    fn change(&self, changes: Changes) {
+        for (id, changes) in changes.into_iter() {
+            self.view_mut(id).change(changes)
+        }
     }
 }
 

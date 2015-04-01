@@ -1,4 +1,5 @@
-use value::{Id, Relation};
+use value::{Id, Tuple, Relation};
+use index;
 use index::Index;
 use query::Query;
 
@@ -36,6 +37,8 @@ pub struct FlowState {
     pub outputs: Vec<RefCell<Relation>>,
     pub dirty: BitSet,
 }
+
+pub type Changes = Vec<(Id, index::Changes<Tuple>)>;
 
 impl Union {
     fn run(&self, inputs: Vec<&Relation>) -> Relation {
@@ -92,5 +95,37 @@ impl Flow {
                 }
             }
         }
+    }
+
+    pub fn changes_since(&self, after_state: &FlowState, before: &Flow, before_state: &FlowState) -> Changes {
+        let after = self;
+        let mut changes = Vec::new();
+        for (after_ix, after_node) in after.nodes.iter().enumerate() {
+            let id = &after_node.id;
+            match before.nodes.iter().position(|before_node| before_node.id == *id) {
+                Some(before_ix) => {
+                    let after_output = after_state.outputs[after_ix].borrow();
+                    let before_output = before_state.outputs[before_ix].borrow();
+                    changes.push((id.clone(), after_output.changes_since(&*before_output)));
+                }
+                None => {
+                    let after_output = after_state.outputs[after_ix].borrow();
+                    let inserted = after_output.iter().map(|t| t.clone()).collect();
+                    changes.push((id.clone(), index::Changes{inserted: inserted, removed: Vec::new()}));
+                }
+            }
+        }
+        for (before_ix, before_node) in before.nodes.iter().enumerate() {
+            let id = &before_node.id;
+            match after.nodes.iter().position(|after_node| after_node.id == *id) {
+                Some(_) => (), // already handled above
+                None => {
+                    let before_output = before_state.outputs[before_ix].borrow();
+                    let removed = before_output.iter().map(|t| t.clone()).collect();
+                    changes.push((id.clone(), index::Changes{inserted: Vec::new(), removed: removed}));
+                }
+            }
+        }
+        changes
     }
 }
