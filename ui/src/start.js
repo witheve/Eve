@@ -98,7 +98,7 @@ function unique(arr) {
       ix++;
     }
   }
-  return ix;
+  return arr;
 }
 
 function nearestNeighbor(haystack, needle) {
@@ -1664,36 +1664,55 @@ function relativeCoords(e, me, parent) {
     return {canvas: {left: canvasRelX, top: canvasRelY}, element: {left: elementRelX, top: elementRelY}}
 }
 
+function uiAttributeSetter(attr) {
+  return function(attrs, value, canvas) {
+    attrs.style[attr] = value;
+  }
+}
+// @NOTE: For this to work properly, at most 1 attribute should change per update.
+var uiAttrs = {
+  layout: [
+    {displayName: "x", type: "number", group: "layout", set: uiAttributeSetter("left")},
+    {displayName: "y", type: "number", group: "layout", set: uiAttributeSetter("top")},
+    {displayName: "width", type: "number", group: "layout", set: function(attrs, value, canvas) {
+      var right = canvas.right - (attrs.left + value);
+      attrs.style.right = right;
+    }},
+    {displayName: "height", type: "number", group: "layout", set: function(attrs, value, canvas) {
+      var bottom = canvas.bottom - (attrs.top + value);
+      attrs.style.bottom = bottom;
+    }}
+  ],
+  typography: [
+    {displayName: "color", type: "color", group: "typography", set: uiAttributeSetter("color")},
+    {displayName: "font", type: "font", group: "typography", set: uiAttributeSetter("font-family")},
+    {displayName: "size", type: "number", group: "typography", set: uiAttributeSetter("font-size")},
+    {displayName: "weight", type: "number", group: "typography", set: uiAttributeSetter("font-weight")},
+  ],
+  appearance: [
+    {displayName: "background", type: ["color", "image"], group: "appearance", set: uiAttributeSetter("background")},
+    {displayName: "border-width", type: "number", group: "appearance", set: uiAttributeSetter("border-width")},
+    {displayName: "border-style", type: "string", group: "appearance", set: uiAttributeSetter("border-style")},
+    {displayName: "border-color", type: "color", group: "appearance", set: uiAttributeSetter("border-color")},
+  ]
+};
+
+
 var uiControls = {
   button: {
     control: "button",
     displayName: "button",
-    attrs: [{displayName: "width"},
-            {displayName: "height"},
-            {displayName: "x"},
-            {displayName: "y"},
-            {displayName: "text color"},
-           ]
+    attrs: ["layout", "typography", "appearance"]
   },
   text: {
     control: "text",
     displayName: "text",
-    attrs: [{displayName: "width"},
-            {displayName: "height"},
-            {displayName: "x"},
-            {displayName: "y"},
-            {displayName: "text color"},
-           ]
+    attrs: ["layout", "typography"]
   },
   box: {
     control: "box",
     displayName: "box",
-    attrs: [{displayName: "width"},
-            {displayName: "height"},
-            {displayName: "x"},
-            {displayName: "y"},
-            {displayName: "text color"},
-           ]
+    attrs: ["layout", "appearance"]
   }
 
 };
@@ -1725,6 +1744,71 @@ var uiTools = reactFactory({
     });
     return JSML(["div", {className: "ui-tools"},
                  ["ul", items]]);
+  }
+});
+
+var uiInspector = reactFactory({
+  displayName: "ui-inspector",
+  getInitialState: function() {
+    return {controls: [], groups: [], attrs: []};
+  },
+  componentWillReceiveProps: function(nextProps) {
+    if(!nextProps.selection.length && !this.state.controls.length) { return; }
+    var updateState = false;
+    var oldControls = this.state.controls;
+    var neueControls = [];
+    for(var ix = 0, len = nextProps.selection.length; ix < len; ix++) {
+      var sel = nextProps.selection[ix];
+      neueControls.push(sel.control);
+    }
+    unique(neueControls);
+
+    if(neueControls.length !== oldControls.length) { updateState = true; }
+    for(ix = 0, len = neueControls.length; ix < len; ix++) {
+      if(neueControls[ix] !== oldControls[ix]) {
+        updateState = true;
+        break;
+      }
+    }
+
+    if(updateState) {
+      this.setState({controls: neueControls, groups: this.getGroupsForControls(neueControls)});
+    }
+  },
+  getGroupsForControls: function(controls) {
+    var groupsMap = {};
+    for(var controlIx = 0, controlLength = controls.length; controlIx < controlLength; controlIx++) {
+      var controlGroups = uiControls[controls[controlIx]].attrs;
+      for(var groupIx = 0, groupLength = controlGroups.length; groupIx < groupLength; groupIx++) {
+        var group = controlGroups[groupIx];
+        if(!groupsMap[group]) {
+          groupsMap[group] = 1;
+        } else {
+          groupsMap[group] += 1;
+        }
+      }
+    }
+
+    var groups = [];
+    for(var group in groupsMap) {
+      if(groupsMap[group] === controls.length) {
+        groups.push(group);
+      }
+    }
+
+    console.log("controls", controls, "share groups", groups);
+    return groups;
+  },
+  render: function() {
+    var attrs = this.state.groups.reduce(function(memo, group) {
+      return memo.concat(uiAttrs[group]);
+    }, []);
+    var attrs = attrs.map(function(cur) {
+      return ["li", cur.displayName];
+    });
+    return JSML(["div", {className: "ui-inspector"},
+                 ["ul", attrs]
+                ]);
   }
 });
 
@@ -1840,19 +1924,6 @@ var uiLayers = reactFactory({
   }
 });
 
-var uiInpector = reactFactory({
-  displayName: "ui-inspector",
-  render: function() {
-    var info = uiControls[this.props.element.control];
-    var attrs = info.attrs.map(function(cur) {
-      return ["li", cur.displayName];
-    });
-    return JSML(["div", {className: "ui-inspector"},
-                 ["ul", attrs]
-                ]);
-  }
-});
-
 var uiElement = reactFactory({
   displayName: "ui-element",
   render: function() {
@@ -1876,6 +1947,13 @@ var uiElement = reactFactory({
         self.props.select(el.id, evt.shiftKey);
       };
     }
+
+    var userAttrs = ixer.index("uiElementToAttrs")[this.props.id] || [];
+    for(var ix = 0, len = userAttrs.length; ix < len; ix++) {
+      var userAttr = userAttrs[ix];
+      attrs.style[userAttr[1]] = userAttr[2];
+    }
+
     return JSML(
       ["div", attrs, el.control]
     );
@@ -2114,7 +2192,7 @@ var uiSelection = reactFactory({
     opts.onMouseDown = function(evt) {
       evt.stopPropagation();
     };
-    var size = 14;
+    var size = 10;
     var offset = size / 2;
     var width = this.state.right - this.state.left;
     var height = this.state.bottom - this.state.top;
@@ -2528,7 +2606,9 @@ tiles.ui = {
                              layer: this.state.layer,
                              selection: this.state.selection,
                              select: this.select,
-                             selectLayer: this.selectLayer})]);
+                             selectLayer: this.selectLayer}),
+                  uiInspector({component: id,
+                               selection: this.state.selection})]);
     }
   })
 };
