@@ -2788,9 +2788,6 @@ function dispatch(event, arg, noRedraw) {
       break;
     case "navigate":
       if(!arg.target.indexOf("grid://") === 0) { throw new Error("Cannot handle non grid:// urls yet."); }
-      diffs = {
-        activeGrid: {adds: [[arg.target]], removes: ixer.facts("activeGrid").slice()}
-      }
       var old = ixer.facts("activeGrid")[0];
       if(old) {
         diffs.push(["activeGrid", "remove", old]);
@@ -3074,30 +3071,38 @@ function initIndexer() {
     ["d", "e", "f"]
   ], "zomg", ["table"]));
 
-
-//code views
-ixer.handleDiffs(
-  code.diffs.addView("schema", {id: "id"}, [], "schema"));
-ixer.handleDiffs(
-  code.diffs.addView("field", {id: "id", schema: "id", ix: "int", type: "type"}, [], "field"));
-ixer.handleDiffs(
-  code.diffs.addView("primitive", {id: "id", inSchema: "id", outSchema: "id"}, [], "primitive"));
-ixer.handleDiffs(
-  code.diffs.addView("view", {id: "id", schema: "id", kind: "query|union"}, [], "view"));
-ixer.handleDiffs(
-  code.diffs.addView("source", {id: "id", view: "id", ix: "int", data: "data", splat: "bool"}, [], "source"));
-ixer.handleDiffs(
-  code.diffs.addView("constraint", {view: "id", op: "op", left: "reference", right: "reference"}, [], "constraint"));
+  ixer.handleDiffs(code.diffs.addView("foo", {
+    a: "string",
+    b: "number",
+  }, [
+    ["a", "b"],
+    ["d", "e"]
+  ], "foo", ["table"]));
 
 
-//example tables
-ixer.handleDiffs(
-  code.diffs.addView("employees", {department: "string", name: "string", salary: "float"}, [], false));
-ixer.handleDiffs(
-  code.diffs.addView("department heads", {department: "string", head: "string"}, [], false));
+  //code views
+  ixer.handleDiffs(
+    code.diffs.addView("schema", {id: "id"}, [], "schema"));
+  ixer.handleDiffs(
+    code.diffs.addView("field", {id: "id", schema: "id", ix: "int", type: "type"}, [], "field"));
+  ixer.handleDiffs(
+    code.diffs.addView("primitive", {id: "id", inSchema: "id", outSchema: "id"}, [], "primitive"));
+  ixer.handleDiffs(
+    code.diffs.addView("view", {id: "id", schema: "id", kind: "query|union"}, [], "view"));
+  ixer.handleDiffs(
+    code.diffs.addView("source", {id: "id", view: "id", ix: "int", data: "data", splat: "bool"}, [], "source"));
+  ixer.handleDiffs(
+    code.diffs.addView("constraint", {view: "id", op: "op", left: "reference", right: "reference"}, [], "constraint"));
 
 
-// grid views
+  //example tables
+  ixer.handleDiffs(
+    code.diffs.addView("employees", {department: "string", name: "string", salary: "float"}, [], false));
+  ixer.handleDiffs(
+    code.diffs.addView("department heads", {department: "string", head: "string"}, [], false));
+
+
+  // grid views
   var gridId = "grid://default";
   var uiViewId = uuid();
   var bigUiViewId = uuid();
@@ -3127,14 +3132,15 @@ ixer.handleDiffs(
       [bigUiViewId, "grid://default"]
     ], "gridTarget", ["table"]));
 
-// ui views
-ixer.handleDiffs(
-  code.diffs.addView("uiComponentElement", {id: "string", component: "string", layer: "number", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]));
-ixer.handleDiffs(
-  code.diffs.addView("uiComponentLayer", {id: "string", component: "string", layer: "number", locked: "boolean", invisible: "boolean"}, [], "uiComponentLayer", ["table"]));
-ixer.handleDiffs(
-  code.diffs.addView("uiComponentAttribute", {id: "string", property: "string", value: "string"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
+  // ui views
+  ixer.handleDiffs(
+    code.diffs.addView("uiComponentElement", {id: "string", component: "string", layer: "number", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]));
+  ixer.handleDiffs(
+    code.diffs.addView("uiComponentLayer", {id: "string", component: "string", layer: "number", locked: "boolean", invisible: "boolean"}, [], "uiComponentLayer", ["table"]));
+  ixer.handleDiffs(
+    code.diffs.addView("uiComponentAttribute", {id: "string", property: "string", value: "string"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
 }
+
 dispatch("load");
 
 function clearStorage() {

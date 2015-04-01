@@ -3,6 +3,8 @@ use std::num::ToPrimitive;
 use std::cmp::Ordering;
 use std::iter::IntoIterator;
 
+use rustc_serialize::json::{Json, ToJson};
+
 use index::Index;
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
@@ -176,5 +178,29 @@ impl<A: ToValue, B: ToValue, C: ToValue, D: ToValue, E: ToValue> ToTuple for (A,
 impl<T: ToTuple> ToRelation for Vec<T> {
     fn to_relation(self) -> Relation {
         self.into_iter().map(|t| t.to_tuple()).collect()
+    }
+}
+
+impl ToJson for Value {
+    fn to_json(&self) -> Json {
+        match *self {
+            Value::String(ref string) => Json::String(string.clone()),
+            Value::Float(float) => Json::F64(float),
+            Value::Tuple(ref tuple) => tuple.to_json(),
+            Value::Relation(_) => panic!("No json encoding for relations"),
+        }
+    }
+}
+
+impl Value {
+    fn from_json(json: &Json) -> Self {
+        match *json {
+            Json::String(ref string) => Value::String(string.clone()),
+            Json::F64(float) => Value::Float(float),
+            Json::I64(int) => Value::Float(int.to_f64().unwrap()),
+            Json::U64(uint) => Value::Float(uint.to_f64().unwrap()),
+            Json::Array(ref array) => Value::Tuple(array.iter().map(|j| Value::from_json(j)).collect()),
+            _ => panic!("Cannot decode {:?} as Value", json),
+        }
     }
 }
