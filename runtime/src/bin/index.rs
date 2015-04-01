@@ -19,7 +19,6 @@ fn main() {
     after.insert("baz");
     println!("after {:?}", after);
 
-    let diff = diff::Diff{before: &before, after: &after};
-    let changes = diff.iter().collect::<Vec<_>>();
+    let changes = after.changes_since(&before);
     println!("changes {:?}", changes);
 }

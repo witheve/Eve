@@ -1,6 +1,7 @@
 use std::collections::btree_map;
 use std::collections::btree_map::{BTreeMap, Entry, Keys};
 use std::iter::{FromIterator, IntoIterator};
+use std::cmp::{max, Ordering};
 
 #[derive(Clone, Debug, PartialOrd, PartialEq, Ord, Eq)]
 pub struct Index<T> {
@@ -10,6 +11,12 @@ pub struct Index<T> {
 // #[derive(Debug)] Keys does not implement Debug :(
 pub struct Iter<'a, T> where T: 'a {
     keys: Keys<'a, T, usize>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Changes<T> {
+    pub inserted: Vec<T>,
+    pub removed: Vec<T>,
 }
 
 impl<T: Ord> Index<T> {
@@ -50,6 +57,56 @@ impl<T: Ord> Index<T> {
     pub fn iter(&self) -> Iter<T> {
         Iter{keys: self.items.keys()}
     }
+
+    pub fn change(&mut self, changes: Changes<T>) {
+        for item in changes.removed {
+            self.remove(item);
+        }
+        for item in changes.inserted {
+            self.insert(item);
+        }
+    }
+
+    pub fn changes_since<'a>(&'a self, before: &'a Index<T>) -> Changes<&'a T> {
+            let mut before_keys = before.items.keys();
+            let mut after_keys = self.items.keys();
+            let mut before_key = before_keys.next();
+            let mut after_key = after_keys.next();
+            let mut inserted = Vec::new();
+            let mut removed = Vec::new();
+            loop {
+                match (before_key, after_key) {
+                    (None, None) => {
+                        break;
+                    }
+                    (Some(before), None) => {
+                        removed.push(before);
+                        before_key = before_keys.next();
+                    }
+                    (None, Some(after)) => {
+                        inserted.push(after);
+                        after_key = after_keys.next();
+                    }
+                    (Some(before), Some(after)) => {
+                        match before.cmp(after) {
+                            Ordering::Less => {
+                                removed.push(before);
+                                before_key = before_keys.next();
+                            }
+                            Ordering::Greater => {
+                                inserted.push(after);
+                                after_key = after_keys.next();
+                            }
+                            Ordering::Equal => {
+                                before_key = before_keys.next();
+                                after_key = after_keys.next();
+                            }
+                        }
+                    }
+                }
+            }
+            Changes{inserted: inserted, removed: removed}
+    }
 }
 
 impl<'a, T: Ord> Iterator for Iter<'a, T> {
@@ -88,89 +145,5 @@ impl<T: Ord> IntoIterator for Index<T> {
     type IntoIter = IntoIter<T>;
     fn into_iter(self) -> IntoIter<T> {
         IntoIter{items: self.items.into_iter()}
-    }
-}
-
-pub mod diff {
-    use std::collections::btree_map::Keys;
-    use std::cmp::{max, Ordering};
-
-    #[derive(Debug)]
-    pub struct Diff<'a, T> where T: 'a {
-        pub before: &'a super::Index<T>,
-        pub after: &'a super::Index<T>,
-    }
-
-    #[derive(Debug)]
-    pub enum Change {
-        Inserted,
-        Unchanged,
-        Removed,
-    }
-
-    // #[derive(Debug)] Keys does not implement Debug :(
-    pub struct Iter<'a, T> where T: 'a {
-        before_keys: Keys<'a, T, usize>,
-        after_keys: Keys<'a, T, usize>,
-        before_key: Option<&'a T>,
-        after_key: Option<&'a T>,
-    }
-
-    impl<'a, T: Ord> Diff<'a, T> {
-        pub fn iter(&self) -> Iter<'a, T> {
-            let mut before_keys = self.before.items.keys();
-            let mut after_keys = self.after.items.keys();
-            let before_key = before_keys.next();
-            let after_key = after_keys.next();
-            Iter{before_keys: before_keys, after_keys: after_keys, before_key: before_key, after_key: after_key}
-        }
-    }
-
-    impl<'a, T: Ord> Iterator for Iter<'a, T> {
-        type Item = (Change, &'a T);
-
-        fn next(&mut self) -> Option<(Change, &'a T)> {
-            match (self.before_key, self.after_key) {
-                (None, None) => {
-                    return None;
-                }
-                (Some(before), None) => {
-                    self.before_key = self.before_keys.next();
-                    return Some((Change::Removed, before));
-                }
-                (None, Some(after)) => {
-                    self.after_key = self.after_keys.next();
-                    return Some((Change::Inserted, after));
-                }
-                (Some(before), Some(after)) => {
-                    match before.cmp(after) {
-                        Ordering::Less => {
-                            self.before_key = self.before_keys.next();
-                            return Some((Change::Removed, before));
-                        }
-                        Ordering::Greater => {
-                            self.after_key = self.after_keys.next();
-                            return Some((Change::Inserted, after));
-                        }
-                        Ordering::Equal => {
-                            self.before_key = self.before_keys.next();
-                            self.after_key = self.after_keys.next();
-                            return Some((Change::Unchanged, before));
-                        }
-                    }
-                }
-            }
-        }
-
-        fn size_hint(&self) -> (usize, Option<usize>) {
-            let (before_lower, before_upper) = self.before_keys.size_hint();
-            let (after_lower, after_upper) = self.after_keys.size_hint();
-            let lower = max(before_lower, after_lower);
-            let upper = match (before_upper, after_upper) {
-                (Some(before_upper), Some(after_upper)) => Some(before_upper + after_upper),
-                _ => None
-            };
-            (lower, upper)
-        }
     }
 }
