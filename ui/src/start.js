@@ -1853,6 +1853,35 @@ var uiInpector = reactFactory({
   }
 });
 
+var uiElement = reactFactory({
+  displayName: "ui-element",
+  render: function() {
+    var self = this;
+    var el = this.props;
+    var width = el.right - el.left;
+    var height = el.bottom - el.top;
+    var locked = (el.locked ? "none" : undefined);
+    var attrs = {className: "control",
+                 style: {top: el.top, left: el.left, width: width, height: height, zIndex: el.layer, pointerEvents: locked}};
+    if(!this.props.selected) {
+      attrs.onMouseDown = function(evt) {
+        self.props.select(el.id, evt.shiftKey);
+        evt.stopPropagation();
+      };
+    } else {
+      attrs.onMouseDown = function(evt) {
+        evt.stopPropagation();
+      };
+      attrs.onClick = function(evt) {
+        self.props.select(el.id, evt.shiftKey);
+      };
+    }
+    return JSML(
+      ["div", attrs, el.control]
+    );
+  }
+});
+
 // Elem: {top: Number, left: Number, bottom: Number, right: Number}
 // SnapSet: {x: Number[], y: Number[]}
 
@@ -2151,21 +2180,15 @@ var uiSelection = reactFactory({
         onDragEnd: this.stopMoving,
         draggable: true},
         bounds.map(function(cur, ix) {
-          var element = self.props.elements[ix];
+          var element = extend({}, self.props.elements[ix]);
           var local = self.localizeCoords(cur, neueBounds);
-          var width = local.right - local.left;
-          var height = local.bottom - local.top;
+          element.top = local.top;
+          element.bottom = local.bottom;
+          element.left = local.left;
+          element.right = local.right;
+          element.selected = true;
 
-          return ["div", {className: "control",
-                          style: {top: local.top, left: local.left, width: width, height: height, zIndex: cur.layer},
-                          onMouseDown: function(evt) {
-                            evt.stopPropagation();
-                          },
-                          onClick: function(evt) {
-                            self.props.select(cur, evt.shiftKey);
-                          }
-                         },
-                  element.control]
+          return uiElement(element);
         })]
       ]);
   }
@@ -2317,18 +2340,9 @@ var uiCanvas = reactFactory({
     var elems = this.props.elements.filter(function(cur) {
       return self.props.selection.indexOf(cur) === -1 && cur.invisible === false;
     })
-    .map(function(cur) {
-      var width = cur.right - cur.left;
-      var height = cur.bottom - cur.top;
-      var locked = (cur.locked ? "none" : undefined);
-      return ["div", {className: "control",
-                      style: {top: cur.top, left: cur.left, width: width, height: height, zIndex: cur.layer, pointerEvents: locked},
-                      onMouseDown: function(evt) {
-                        self.props.select(cur, evt.shiftKey);
-                        evt.stopPropagation();
-                      }},
-              cur.control]
-
+    .map(function(elem) {
+      elem = extend({}, elem); // React poisons props.
+      return uiElement(elem);
     });
     var snaps = this.state.snapGuides.map(function(cur) {
       var style = {};
@@ -2438,20 +2452,23 @@ tiles.ui = {
         }
       }
     },
-    select: function(el, modify) {
+    select: function(id, modify) {
       var selection = [];
+      var el;
       if(modify) {
         selection = this.state.selection.slice();
-        var ix = selection.indexOf(el);
-        if(ix !== -1) {
-          selection.splice(ix, 1);
-        } else {
-          selection.push(el);
+        el = findWhere(selection, "id", id);
+        if(el) {
+          selection.splice(selection.indexOf(el), 1);
+          return;
         }
       }
-      else if(el) {
+
+      el = findWhere(this.state.elements, "id", id);
+      if(el) {
         selection.push(el);
       }
+
       this.setState({selection: selection});
     },
     selectLayer: function(layer) {
@@ -2477,13 +2494,18 @@ tiles.ui = {
       };
     },
     getElements: function(layersMap) {
+      var self = this;
       layersMap = layersMap || this.getLayers().map;
       var elements = ixer.index("uiComponentToElements")[this.props.tileId] || [];
-      elements = elements.map(function(cur) {
+      elements = elements.map(function(cur, ix) {
         var element = {id: cur[0], component: cur[1], layer: cur[2], control: cur[3], left: cur[4], top: cur[5], right: cur[6], bottom: cur[7]};
         var layer = layersMap[element.layer];
         element.locked = layer.locked;
         element.invisible = layer.invisible;
+
+        element.key = ix;
+        element.select = self.select;
+
         return element;
       });
 
