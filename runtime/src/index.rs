@@ -1,5 +1,5 @@
 use std::collections::btree_map;
-use std::collections::btree_map::{BTreeMap, Entry, Keys};
+use std::collections::btree_map::{BTreeMap, Entry};
 use std::iter::{FromIterator, IntoIterator};
 use std::cmp::{Ordering};
 
@@ -38,7 +38,7 @@ impl<T: Ord + Clone> Index<T> {
 
     pub fn remove(&mut self, item: T) {
         match self.items.entry(item) {
-            Entry::Vacant(mut vacant) => {
+            Entry::Vacant(vacant) => {
                 vacant.insert(-1);
             }
             Entry::Occupied(mut occupied) => {
