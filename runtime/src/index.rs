@@ -2,6 +2,7 @@ use std::collections::btree_map;
 use std::collections::btree_map::{BTreeMap, Entry, Keys};
 use std::iter::{FromIterator, IntoIterator};
 use std::cmp::{max, Ordering};
+use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
 #[derive(Clone, Debug, PartialOrd, PartialEq, Ord, Eq)]
 pub struct Index<T> {
@@ -14,6 +15,7 @@ pub struct Iter<'a, T> where T: 'a {
 }
 
 #[derive(Clone, Debug)]
+#[derive(RustcDecodable, RustcEncodable)]
 pub struct Changes<T> {
     pub inserted: Vec<T>,
     pub removed: Vec<T>,
@@ -106,6 +108,19 @@ impl<T: Ord + Clone> Index<T> {
                 }
             }
             Changes{inserted: inserted, removed: removed}
+    }
+}
+
+impl<T: Ord + Clone + Encodable> Encodable for Index<T> {
+    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), <S as Encoder>::Error> {
+        self.iter().collect::<Vec<&T>>().encode(s)
+    }
+}
+
+impl<T: Ord + Clone + Decodable> Decodable for Index<T> {
+    fn decode<S: Decoder>(s: &mut S) -> Result<Self, <S as Decoder>::Error> {
+        let result: Result<Vec<T>, _> = Decodable::decode(s);
+        result.map(|v| v.into_iter().collect())
     }
 }
 

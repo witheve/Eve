@@ -7,6 +7,7 @@ use std::collections::{HashMap, BitSet};
 use std::cell::{RefCell, RefMut};
 use std::num::ToPrimitive;
 
+#[derive(Clone, Debug)]
 pub struct World {
     pub views: HashMap<Id, RefCell<Relation>>,
 }
@@ -20,7 +21,7 @@ impl World {
         self.views.get(&id.to_string()).unwrap().borrow_mut()
     }
 
-    fn change(&self, changes: Changes) {
+    pub fn change(&self, changes: Changes) {
         for (id, changes) in changes.into_iter() {
             self.view_mut(id).change(changes)
         }

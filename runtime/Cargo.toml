@@ -9,3 +9,4 @@ authors = ["Jamie Brandon <jamie@scattered-thoughts.net>",
 rand = "*"
 time = "*"
 rustc-serialize = "*"
+websocket = "*"
