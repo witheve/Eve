@@ -7,7 +7,7 @@ use std::collections::{HashMap, BitSet};
 use std::io::prelude::*;
 use std::num::ToPrimitive;
 
-use value::Value;
+use value::{Value, Tuple};
 use index;
 use flow::{Changes, FlowState, Flow};
 use compiler::{compile, World};
@@ -23,7 +23,9 @@ impl ToJson for Value {
             Value::String(ref string) => Json::String(string.clone()),
             Value::Float(float) => Json::F64(float),
             Value::Tuple(ref tuple) => tuple.to_json(),
-            Value::Relation(_) => panic!("No json encoding for relations"),
+            Value::Relation(ref relation) => Json::Object(vec![
+                ("relation".to_string(), relation.iter().map(ToJson::to_json).collect::<Vec<_>>().to_json())
+                ].into_iter().collect()),
         }
     }
 }
@@ -36,6 +38,11 @@ impl FromJson for Value {
             Json::I64(int) => Value::Float(int.to_f64().unwrap()),
             Json::U64(uint) => Value::Float(uint.to_f64().unwrap()),
             Json::Array(ref array) => Value::Tuple(array.iter().map(|j| Value::from_json(j)).collect()),
+            Json::Object(ref object) => {
+                assert!(object.len() == 1);
+                let relation: Vec<Tuple> = FromJson::from_json(&object["relation"]);
+                Value::Relation(relation.into_iter().collect())
+            },
             _ => panic!("Cannot decode {:?} as Value", json),
         }
     }
