@@ -67,7 +67,7 @@ impl ToJson for Event {
 impl FromJson for Event {
     fn from_json(json: &Json) -> Self {
         Event{
-            changes: json.as_object().unwrap()[&"changes".to_string()]
+            changes: json.as_object().unwrap()["changes"]
             .as_object().unwrap().iter().map(|(view_id, view_changes)| {
                 (view_id.to_string(), index::Changes{
                     inserted: FromJson::from_json(&view_changes.as_object().unwrap()["inserted"]),

@@ -24,11 +24,11 @@ impl World {
     }
 
     fn view<Id: ToString>(&self, id: Id) -> ::std::cell::Ref<Relation> {
-        self.views.get(&id.to_string()).unwrap().borrow()
+        self.views.get(&id.to_string()).expect(&id.to_string()).borrow()
     }
 
     fn view_mut<Id: ToString>(&self, id: Id) -> RefMut<Relation> {
-        self.views.get(&id.to_string()).unwrap().borrow_mut()
+        self.views.get(&id.to_string()).expect(&id.to_string()).borrow_mut()
     }
 }
 
@@ -303,7 +303,10 @@ fn create_flow_state(world: &World, flow: &Flow) -> FlowState {
     let mut dirty = BitSet::new();
     let mut outputs = Vec::new();
     for (ix, node) in flow.nodes.iter().enumerate() {
-        outputs.push(RefCell::new(world.view(&node.id).clone()));
+        outputs.push(world.views.get(&node.id).map_or_else(
+            || RefCell::new(Index::new()),
+            |r| r.clone()
+            ));
         match node.view {
             View::Input => (),
             _ => {dirty.insert(ix);},
