@@ -255,6 +255,16 @@ th:last-child { border-radius: 0 2px 2px 0; }
  * UI editor
 \*****************************************************************************/
 
+.ui-color-control {
+  display: block;
+  padding: 0;
+  height: 1em;
+  border-radius: 2px;
+  border: 1px solid rgba(0, 0, 0, 0.08); border-top-color: rgba(0, 0, 0, 0.16); border-bottom-color: rgba(80, 80, 80, 0.9);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+.ui-color-control > input { opacity: 0; }
+
 .ui-editor { display:flex; flex:2; overflow:hidden; }
 
 .ui-guide {
@@ -262,13 +272,20 @@ th:last-child { border-radius: 0 2px 2px 0; }
   box-shadow: 0 0 2px rgba(64, 192, 255, 0.5);
 }
 
-.ui-inspector {flex: none; bottom: 0; right: 0; position: absolute; }
-.ui-inspector > ul { padding: 5px; background: rgba(255,255,255, 0.1); border-radius:2px; }
+.ui-inspector {display: flex; flex-direction: column; flex: none; bottom: 0; right: 0; position: absolute; align-items: stretch; }
+.ui-inspector > .ui-inspector-pane { display: flex; flex-direction: row; align-items: stretch; }
+.ui-inspector .ui-inspector-group {
+  margin: 2px;
+  background: rgba(255,255,255, 0.1);
+  border-radius: 2px;
+}
+
+.ui-inspector td > * { vertical-align: middle; min-height: 1em }
 
 .ui-canvas {flex: 1; position:relative; }
 .ui-canvas > *, .ui-selection > div > * { position:absolute; }
 .ui-canvas .control { background:rgba(255,255,255, 0.08); }
-.ui-canvas .resize-handle { position:absolute; background: rgba(170,204,255,0.3); border: 1px solid #acf; z-index: 2; }
+.ui-canvas .resize-handle { position:absolute; background: rgba(170,204,255,0.3); border: 1px solid #acf; z-index: 1000; }
 .ui-canvas .resize-handle.invalid { background: rgba(255, 108, 128, 0.3); border: 1px solid #fab; }
 
 .ui-tools {flex: none;}

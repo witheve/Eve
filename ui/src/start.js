@@ -68,10 +68,18 @@ function verticalTable(rows) {
     var rowEl = ["tr"];
 
     if(row[0]) {
-      rowEl.push(["th", row[0]]);
+      if(row[0].content){
+        rowEl.push(["th", row[0], row[0].content]);
+      } else {
+        rowEl.push(["th", row[0]]);
+      }
     }
     for(var ix = 1, len = row.length; ix < len; ix++) {
-      rowEl.push(["td", row[ix]]);
+      if(row[ix].content) {
+        rowEl.push(["td", row[ix], row[ix].content]);
+      } else {
+        rowEl.push(["td", row[ix]]);
+      }
     }
 
     content.push(rowEl);
@@ -1663,28 +1671,98 @@ function relativeCoords(e, me, parent) {
     return {canvas: {left: canvasRelX, top: canvasRelY}, element: {left: elementRelX, top: elementRelY}}
 }
 
+// UiAttrControls = {[type:String]: ReactFactory({attr:UiAttr, canvas:Canvas, value:Any})}
+var uiAttrControls = {
+  color: reactFactory({
+    displayName: "color",
+    getInitialState: function() {
+      return {id: uuid()};
+    },
+    setAttribute: function(evt) {
+      this.props.setAttribute(evt.target.value);
+    },
+    render: function() {
+      var id = this.state.id;
+      var value = this.props.value;
+      return JSML(
+        ["label", {for: id, className: "ui-color-control", style: {background: value}},
+         ["input", {id: id,
+                    type: "color",
+                    value: value,
+                    onInput: this.setAttribute}]]
+      );
+    }
+  }),
+  font: reactFactory({
+    displayName: "font",
+    getInitialState: function() {
+      return {open: false};
+    },
+    //     togglePicker: function() {
+    //       var isOpen = !this.state.open;
+    //       if(isOpen) {
+    //         this.props.setPane(this.renderPicker());
+    //       } else {
+    //         this.props.setPane();
+    //       }
+    //       this.setState({open: isOpen});
+    //     },
+    //     renderPicker: function(value) {
+    //       console.log("rerendering picker");
+
+    //       value = value || this.props.value;
+    //       var attr = this.props.attr;
+    //       return JSML(
+    //         ["div", {className: "ui-inspector-group"},
+    //          //editable({value: value, onSubmit: this.setAttribute})
+    //         ["input", {type: "color", value: value}]]
+    //       );
+    //     },
+    setAttribute: function(value) {
+      this.props.setAttribute(value);
+      this.props.setPane(this.renderPicker(value));
+    },
+    render: function() {
+      var value = this.props.value;
+      return editable({value: value, onSubmit: this.setAttribute});
+    }
+  })
+};
+
 // @NOTE: For this to work properly, at most 1 attribute should change per update.
 // UiAttrs = {[group:String]: UiAttr[]}
-// UiAttr = {displayName:String, type:String, group:String, prop:String?|(get:Fn, set:Fn)}
+// UiAttr = {displayName:String, type:String, group:String, prop:String?|(get:Fn -> String, set:Fn -> AttrDiff)}
 var uiAttrs = {
   layout: [
-    {displayName: "x", type: "number", group: "layout", prop: "left"},
-    {displayName: "y", type: "number", group: "layout", prop: "top"},
-    {displayName: "width", type: "number", group: "layout",
-     set: function(attrs, value, canvas) {
-       var right = canvas.right - (attrs.left + value);
-       attrs.style.right = right;
+    {displayName: "x", type: "number", group: "layout",
+     set: function(elem, value, canvas) {
+
      },
-     get: function(attrs, canvas) {
-       return attrs.right - attrs.left;
+     get: function(elem, canvas) {
+       return elem.left;
+     }},
+    {displayName: "y", type: "number", group: "layout",
+     set: function(elem, value, canvas) {
+
+     },
+     get: function(elem, canvas) {
+       return elem.top;
+     }},
+    {displayName: "width", type: "number", group: "layout",
+     set: function(elem, value, canvas) {
+       var right = canvas.right - (elem.left + value);
+       // wut do
+     },
+     get: function(elem, canvas) {
+       return elem.right - elem.left;
      }},
     {displayName: "height", type: "number", group: "layout",
-     set: function(attrs, value, canvas) {
-       var bottom = canvas.bottom - (attrs.top + value);
-       attrs.style.bottom = bottom;
+     set: function(elem, value, canvas) {
+       var bottom = canvas.bottom - (elem.top + value);
+       // wut do
      },
-     get: function(attrs, canvas) {
-       return attrs.bottom - attrs.top;
+     get: function(elem, canvas) {
+       return elem.bottom - elem.top;
      }}
   ],
   typography: [
@@ -1702,12 +1780,13 @@ var uiAttrs = {
   ]
 };
 function uiPropsSetter(prop) {
-  return function setProperty(attrs, canvas, value) {
+  return function setProperty(elem, canvas, value) {
     return {property: prop, value: value};
   }
 }
 function uiPropsGetter(prop) {
-  return function getProperty(attrs, canvas) {
+  return function getProperty(elem, canvas) {
+    var attrs = ixer.index("uiElementToAttr")[elem.id] || {};;
     if(attrs[prop]) {
       return attrs[prop][2];
     }
@@ -1744,7 +1823,6 @@ var uiControls = {
     displayName: "box",
     attrs: ["layout", "appearance"]
   }
-
 };
 
 var uiControl = reactFactory({
@@ -1780,7 +1858,7 @@ var uiTools = reactFactory({
 var uiInspector = reactFactory({
   displayName: "ui-inspector",
   getInitialState: function() {
-    return {controls: [], groups: [], attrs: []};
+    return {pane: undefined, controls: [], groups: [], attrs: []};
   },
   componentWillReceiveProps: function(nextProps) {
     if(!nextProps.selection.length && !this.state.controls.length) { return; }
@@ -1802,7 +1880,7 @@ var uiInspector = reactFactory({
     }
 
     if(updateState) {
-      this.setState({controls: neueControls, groups: this.getGroupsForControls(neueControls)});
+      this.setState({pane: undefined, controls: neueControls, groups: this.getGroupsForControls(neueControls)});
     }
   },
   getGroupsForControls: function(controls) {
@@ -1832,38 +1910,53 @@ var uiInspector = reactFactory({
     var canvas = {}; // @FIXME: get canvas from props.
 
     var neue = this.props.selection.map(function(sel) {
-      var attrs = ixer.index("uiElementToAttr")[sel.id] || {};
-      var res = attr.set(attrs, canvas, value);
+      var res = attr.set(sel, canvas, value);
       res.id = sel.id;
       return res;
     });
 
     dispatch("updateUiComponentAttributes", neue);
   },
+  setPane: function(content) {
+    this.setState({pane: content});
+  },
   render: function() {
     var self = this;
+    var selection = this.props.selection;
     var canvas = {}; // @FIXME: get canvas from props.
 
-    var selectionAttrs = this.props.selection.map(function(sel) {
-      return ixer.index("uiElementToAttr")[sel.id] || {};
+    var content = this.state.groups.map(function(group) {
+      var rows = [[{content: group, colSpan: 2, style: {textAlign: "center"}}]];
+      var attrs = uiAttrs[group];
+
+      for(var ix = 0, len = attrs.length; ix < len; ix++) {
+        var cur = attrs[ix];
+        var value = cur.get(selection[0], canvas);
+        var same = selection.every(function(attrs) {
+          return (cur.get(attrs, canvas) === value);
+        });
+        if(!isNaN(value)) {
+          value = value.toFixed(2);
+        }
+
+        var attrControl;
+        if(uiAttrControls[cur.type]) {
+          attrControl = uiAttrControls[cur.type]({attr: cur, canvas: canvas, value: value,
+                                                  setPane: self.setPane, setAttribute: self.setAttribute.bind(self, cur)});
+        } else {
+          attrControl = editable({value: (same ? value : "???"), onSubmit: self.setAttribute.bind(self, cur)});
+        }
+
+        rows.push([cur.displayName, attrControl]);
+      }
+      return ["div", {className: "ui-inspector-group"}, ["table", ["tbody", verticalTable(rows)]]];
     });
 
-    var attrs = this.state.groups.reduce(function(memo, group) {
-      return memo.concat(uiAttrs[group]);
-    }, []);
-    var attrsRows = attrs.map(function(cur) {
-      var value = cur.get(selectionAttrs[0], canvas);
-      var same = selectionAttrs.every(function(attrs) {
-        return (cur.get(attrs, canvas) === value);
-      });
-      return [cur.displayName,
-              cur.type,
-              editable({value: (same ? value : "???"), onSubmit: self.setAttribute.bind(self, cur)})];
-    });
-    var content = verticalTable(attrsRows);
-    return JSML(["div", {className: "ui-inspector"},
-                 content
-                ]);
+    return JSML(
+      ["div", {className: "ui-inspector"},
+       ["div", {className: "ui-inspector-pane"}, content],
+       (this.state.pane ? ["div", {className: "ui-inspector-pane ui-inspector-group"}, this.state.pane] : undefined)]
+    );
   }
 });
 
