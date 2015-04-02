@@ -165,7 +165,7 @@ pub fn calculate(e: & Expression) -> Value {
 }
 
 fn process_expression(e: & Expression) -> Value {
-	
+
 	match *e {
 		//Expression::Constant(ref x) =>  x.clone(),
 		Expression::Call(ref x) => process_call(x),
@@ -195,17 +195,17 @@ fn process_call(c: &Call) -> Value {
 		Op::Multiply => twoargs(|x,y|{x*y},&c.args),
 		Op::Divide => twoargs(|x,y|{x/y},&c.args),
 		Op::Exponentiate => twoargs(|x,y|{x.powf(y)},&c.args),
-			
+
 		// Some general math functions
-		Op::Abs => onearg(|x|{x.abs()},&c.args),	
-		Op::Sqrt => onearg(|x|{x.sqrt()},&c.args),	
-		Op::Sign => onearg(|x|{x.signum()},&c.args),		
+		Op::Abs => onearg(|x|{x.abs()},&c.args),
+		Op::Sqrt => onearg(|x|{x.sqrt()},&c.args),
+		Op::Sign => onearg(|x|{x.signum()},&c.args),
 		Op::Exp => onearg(|x|{x.exp()},&c.args),
 		Op::Ln => onearg(|x|{x.ln()},&c.args),
-		Op::Log => twoargs(|x,y|{x.log(y)},&c.args),			
-		Op::Log10 => onearg(|x|{x.log10()},&c.args),			
-		Op::Log2 => onearg(|x|{x.log2()},&c.args),		
-			
+		Op::Log => twoargs(|x,y|{x.log(y)},&c.args),
+		Op::Log10 => onearg(|x|{x.log10()},&c.args),
+		Op::Log2 => onearg(|x|{x.log2()},&c.args),
+
 		// Trig functions
 		Op::Sin => onearg(|x|{x.sin()},&c.args),
 		Op::Cos => onearg(|x|{x.cos()},&c.args),
@@ -226,7 +226,7 @@ fn process_call(c: &Call) -> Value {
 		Op::StrLength => str_length(&c.args),
 		Op::StrReplace => str_replace(&c.args),
 		Op::StrSplit => str_split(&c.args),
-		
+
 		_ => unimplemented!(),
 	}
 
@@ -274,13 +274,13 @@ fn general_agg<F: Fn(f64,f64) -> f64>(f: F, base: f64, args: &ExpressionVec) -> 
 
 // String Functions  ----------------------------------------------------------
 fn str_cat(args: &ExpressionVec) -> Value {
-	
+
 	argcheck(args,2);
 
 	let s1 = process_expression(&args[0]).to_string();
 	let s2 = process_expression(&args[1]).to_string();
-	
-	(s1 + s2.as_slice()).to_value()
+
+	(s1 + &s2[..]).to_value()
 
 }
 
@@ -321,16 +321,16 @@ fn str_length(args: &ExpressionVec) -> Value {
 fn str_replace(args: &ExpressionVec) -> Value {
 
 	argcheck(args,3);
-	
+
 	let s = process_expression(&args[0]).to_string();
 	let query = process_expression(&args[1]).to_string();
 	let replacement = process_expression(&args[2]).to_string();
 
-	s.replace(query.as_slice(),replacement.as_slice()).to_value()
+	s.replace(&query[..],&replacement[..]).to_value()
 
 }
 
-// Spits 
+// Spits
 fn str_split(args: &ExpressionVec) -> Value {
 
 	argcheck(args,1);

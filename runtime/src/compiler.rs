@@ -1,4 +1,4 @@
-use value::{Id, Value, Tuple, Relation, ToValue, ToTuple, ToRelation};
+use value::{Id, Value, Tuple, Relation, ToTuple};
 use index::{Index};
 use query::{Ref, ConstraintOp, Constraint, Source, Clause, Query};
 use flow::{Changes, View, Union, Node, FlowState, Flow};
@@ -7,23 +7,28 @@ use std::collections::{HashMap, BitSet};
 use std::cell::{RefCell, RefMut};
 use std::num::ToPrimitive;
 
+#[derive(Clone, Debug)]
 pub struct World {
     pub views: HashMap<Id, RefCell<Relation>>,
 }
 
 impl World {
+    pub fn get_or_create<Id: ToString>(&mut self, id: Id) -> &mut RefCell<Relation> {
+        self.views.entry(id.to_string()).or_insert_with(|| RefCell::new(Index::new()))
+    }
+
+    pub fn change(&mut self, changes: Changes) {
+        for (view_id, changes) in changes.into_iter() {
+            self.get_or_create(&view_id).borrow_mut().change(changes)
+        }
+    }
+
     fn view<Id: ToString>(&self, id: Id) -> ::std::cell::Ref<Relation> {
-        self.views.get(&id.to_string()).unwrap().borrow()
+        self.views.get(&id.to_string()).expect(&id.to_string()).borrow()
     }
 
     fn view_mut<Id: ToString>(&self, id: Id) -> RefMut<Relation> {
-        self.views.get(&id.to_string()).unwrap().borrow_mut()
-    }
-
-    fn change(&self, changes: Changes) {
-        for (id, changes) in changes.into_iter() {
-            self.view_mut(id).change(changes)
-        }
+        self.views.get(&id.to_string()).expect(&id.to_string()).borrow_mut()
     }
 }
 
@@ -51,6 +56,9 @@ impl Index<Tuple> {
 // poison rows in rounds until changes stop
 //   foreign keys don't exist or are poisoned
 //   ixes are not 0-n
+
+static COMPILER_VIEWS: [&'static str; 7] =
+["view", "source", "constraint", "view-mapping", "field-mapping", "schedule", "upstream"];
 
 static VIEW_ID: usize = 0;
 static VIEW_SCHEMA: usize = 1;
@@ -295,7 +303,10 @@ fn create_flow_state(world: &World, flow: &Flow) -> FlowState {
     let mut dirty = BitSet::new();
     let mut outputs = Vec::new();
     for (ix, node) in flow.nodes.iter().enumerate() {
-        outputs.push(RefCell::new(world.view(&node.id).clone()));
+        outputs.push(world.views.get(&node.id).map_or_else(
+            || RefCell::new(Index::new()),
+            |r| r.clone()
+            ));
         match node.view {
             View::Input => (),
             _ => {dirty.insert(ix);},
@@ -308,6 +319,9 @@ fn create_flow_state(world: &World, flow: &Flow) -> FlowState {
 }
 
 pub fn compile(world: &mut World) -> (Flow, FlowState) {
+    for view_id in COMPILER_VIEWS.iter() {
+        world.get_or_create(view_id);
+    }
     create_upstream(world);
     create_schedule(world);
     let flow = create_flow(world);
