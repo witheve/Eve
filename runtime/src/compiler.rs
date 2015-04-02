@@ -1,4 +1,4 @@
-use value::{Id, Value, Tuple, Relation, ToValue, ToTuple, ToRelation};
+use value::{Id, Value, Tuple, Relation, ToTuple};
 use index::{Index};
 use query::{Ref, ConstraintOp, Constraint, Source, Clause, Query};
 use flow::{Changes, View, Union, Node, FlowState, Flow};

@@ -1,7 +1,7 @@
 use std::collections::btree_map;
 use std::collections::btree_map::{BTreeMap, Entry, Keys};
 use std::iter::{FromIterator, IntoIterator};
-use std::cmp::{max, Ordering};
+use std::cmp::{Ordering};
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
 #[derive(Clone, Debug, PartialOrd, PartialEq, Ord, Eq)]
