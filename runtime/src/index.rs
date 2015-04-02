@@ -10,7 +10,7 @@ pub struct Index<T> {
 
 // #[derive(Debug)] Keys does not implement Debug :(
 pub struct Iter<'a, T> where T: 'a {
-    keys: Keys<'a, T, usize>,
+    iter: btree_map::Iter<'a, T, usize>,
 }
 
 #[derive(Clone, Debug)]
@@ -38,24 +38,22 @@ impl<T: Ord + Clone> Index<T> {
 
     pub fn remove(&mut self, item: T) {
         match self.items.entry(item) {
-            Entry::Vacant(_) => {
-                panic!("Removed a non-existing entry");
+            Entry::Vacant(mut vacant) => {
+                vacant.insert(-1);
             }
             Entry::Occupied(mut occupied) => {
                 let new_count = *occupied.get() - 1;
-                if new_count > 0 {
+                if new_count != 0 {
                     occupied.insert(new_count);
-                } else if new_count == 0 {
-                    occupied.remove();
                 } else {
-                    panic!("Removed a non-existing entry");
+                    occupied.remove();
                 }
             }
         }
     }
 
     pub fn iter(&self) -> Iter<T> {
-        Iter{keys: self.items.keys()}
+        Iter{iter: self.items.iter()}
     }
 
     pub fn change(&mut self, changes: Changes<T>) {
@@ -113,11 +111,17 @@ impl<'a, T: Ord> Iterator for Iter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<&'a T> {
-        self.keys.next()
+        loop {
+            match self.iter.next() {
+                None => return None,
+                Some((item, count)) if *count > 0 => return Some(item),
+                _ => continue,
+            }
+        }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        self.keys.size_hint()
+        self.iter.size_hint()
     }
 }
 
