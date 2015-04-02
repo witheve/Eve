@@ -70,10 +70,11 @@ pub fn serve() -> (mpsc::Receiver<Changes>, mpsc::Receiver<sender::Sender<WebSoc
 }
 
 pub fn run() {
+    let empty_world = World{views: HashMap::new()};
     let empty_flow = Flow{nodes: Vec::new()};
     let empty_output = FlowState{outputs: Vec::new(), dirty: BitSet::new()};
     let mut instance = Instance{
-        input: World{views: HashMap::new()},
+        input: empty_world,
         flow: empty_flow.clone(),
         output: empty_output.clone(),
     };

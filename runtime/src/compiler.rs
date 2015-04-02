@@ -13,18 +13,22 @@ pub struct World {
 }
 
 impl World {
+    pub fn get_or_create<Id: ToString>(&mut self, id: Id) -> &mut RefCell<Relation> {
+        self.views.entry(id.to_string()).or_insert_with(|| RefCell::new(Index::new()))
+    }
+
+    pub fn change(&mut self, changes: Changes) {
+        for (view_id, changes) in changes.into_iter() {
+            self.get_or_create(&view_id).borrow_mut().change(changes)
+        }
+    }
+
     fn view<Id: ToString>(&self, id: Id) -> ::std::cell::Ref<Relation> {
         self.views.get(&id.to_string()).unwrap().borrow()
     }
 
     fn view_mut<Id: ToString>(&self, id: Id) -> RefMut<Relation> {
         self.views.get(&id.to_string()).unwrap().borrow_mut()
-    }
-
-    pub fn change(&self, changes: Changes) {
-        for (id, changes) in changes.into_iter() {
-            self.view_mut(id).change(changes)
-        }
     }
 }
 
@@ -52,6 +56,9 @@ impl Index<Tuple> {
 // poison rows in rounds until changes stop
 //   foreign keys don't exist or are poisoned
 //   ixes are not 0-n
+
+static COMPILER_VIEWS: [&'static str; 7] =
+["view", "source", "constraint", "view-mapping", "field-mapping", "schedule", "upstream"];
 
 static VIEW_ID: usize = 0;
 static VIEW_SCHEMA: usize = 1;
@@ -309,6 +316,9 @@ fn create_flow_state(world: &World, flow: &Flow) -> FlowState {
 }
 
 pub fn compile(world: &mut World) -> (Flow, FlowState) {
+    for view_id in COMPILER_VIEWS.iter() {
+        world.get_or_create(view_id);
+    }
     create_upstream(world);
     create_schedule(world);
     let flow = create_flow(world);
