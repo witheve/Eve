@@ -6,7 +6,6 @@ use std::iter::IntoIterator;
 use index::Index;
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
-#[derive(RustcDecodable, RustcEncodable)]
 pub enum Value {
     String(String),
     Float(f64),
