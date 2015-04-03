@@ -37,10 +37,11 @@ impl Index<Tuple> {
         self.iter().filter(|t| &t[ix] == value).collect()
     }
 
-    pub fn find_one(&self, ix: usize, value: &Value) -> Option<&Tuple> {
+    pub fn find_one(&self, ix: usize, value: &Value) -> &Tuple {
         match &*self.find_all(ix, value) {
-            [t] => Some(t),
-            _ => None,
+            [] => panic!("No tuples with tuple[{}] = {:?}", ix, value),
+            [t] => t,
+            _ => panic!("Multiple tuples with tuple[{}] = {:?}", ix, value),
         }
     }
 }
@@ -137,22 +138,22 @@ fn create_schedule(world: &mut World) {
 }
 
 fn get_view_ix(world: &World, view_id: &Value) -> usize {
-    let schedule = world.view("schedule").find_one(SCHEDULE_VIEW, view_id).unwrap().clone();
+    let schedule = world.view("schedule").find_one(SCHEDULE_VIEW, view_id).clone();
     schedule[SCHEDULE_IX].to_usize().unwrap()
 }
 
 fn get_source_ix(world: &World, source_id: &Value) -> usize {
-    let source = world.view("source").find_one(SOURCE_ID, source_id).unwrap().clone();
+    let source = world.view("source").find_one(SOURCE_ID, source_id).clone();
     source[SOURCE_IX].to_usize().unwrap()
 }
 
 fn get_field_ix(world: &World, field_id: &Value) -> usize {
-    let field = world.view("field").find_one(FIELD_ID, field_id).unwrap().clone();
+    let field = world.view("field").find_one(FIELD_ID, field_id).clone();
     field[FIELD_IX].to_usize().unwrap()
 }
 
 fn get_num_fields(world: &World, view_id: &Value) -> usize {
-    let view = world.view("view").find_one(VIEW_ID, view_id).unwrap().clone();
+    let view = world.view("view").find_one(VIEW_ID, view_id).clone();
     let schema_id = &view[VIEW_SCHEMA];
     world.view("field").find_all(FIELD_SCHEMA, schema_id).len()
 }
@@ -245,7 +246,7 @@ fn create_union(world: &World, view_id: &Value) -> Union {
     let mut view_mappings = Vec::new();
     for upstream in world.view("upstream").find_all(UPSTREAM_DOWNSTREAM, view_id) { // arrives in ix order
         let source_view_id = &upstream[UPSTREAM_UPSTREAM];
-        let view_mapping = world.view("view-mapping").find_one(VIEWMAPPING_SOURCEVIEW, source_view_id).unwrap().clone();
+        let view_mapping = world.view("view-mapping").find_one(VIEWMAPPING_SOURCEVIEW, source_view_id).clone();
         let view_mapping_id = &view_mapping[VIEWMAPPING_ID];
         let invalid = ::std::usize::MAX;
         let mut field_mappings = vec![(invalid, invalid); num_sink_fields];
@@ -289,7 +290,7 @@ fn create_flow(world: &World) -> Flow {
     let mut nodes = Vec::new();
     for schedule in world.view("schedule").iter() { // arrives in ix order
         let view_id = &schedule[SCHEDULE_VIEW];
-        let view = world.view("view").find_one(VIEW_ID, view_id).unwrap().clone();
+        let view = world.view("view").find_one(VIEW_ID, view_id).clone();
         let view_kind = &view[VIEW_KIND];
         let node = create_node(world, view_id, view_kind);
         nodes.push(node);
