@@ -10,3 +10,7 @@ rand = "*"
 time = "*"
 rustc-serialize = "*"
 websocket = "*"
+
+[profile.release]
+debug = true
+lto = true

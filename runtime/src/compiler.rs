@@ -159,7 +159,7 @@ fn get_num_fields(world: &World, view_id: &Value) -> usize {
 }
 
 fn create_constraint(world: &World, constraint: &Vec<Value>) -> Constraint {
-    let my_column = &constraint[CONSTRAINT_LEFT][2];
+    let my_column = get_field_ix(world, &constraint[CONSTRAINT_LEFT][2]);
     let op = match &*constraint[CONSTRAINT_OP].to_string() {
           "<" => ConstraintOp::LT,
           "<=" => ConstraintOp::LTE,
@@ -190,13 +190,14 @@ fn create_constraint(world: &World, constraint: &Vec<Value>) -> Constraint {
         other => panic!("Unknown ref kind: {}", other)
     };
     Constraint{
-        my_column: my_column.to_usize().unwrap(),
+        my_column: my_column,
         op: op,
         other_ref: other_ref,
     }
 }
 
 fn create_clause(world: &World, source: &Vec<Value>) -> Clause {
+    let source_id = &source[SOURCE_ID];
     let source_view_id = &source[SOURCE_VIEW];
     let source_data = &source[SOURCE_DATA];
     if source_data[0].to_string() == "view" {
@@ -208,7 +209,7 @@ fn create_clause(world: &World, source: &Vec<Value>) -> Clause {
         }).next().unwrap();
         let other_view_ix = &upstream[UPSTREAM_IX];
         let constraints = world.view("constraint").iter().filter(|constraint| {
-            constraint[CONSTRAINT_LEFT][2] == *other_view_id
+            constraint[CONSTRAINT_LEFT][1] == *source_id
         }).map(|constraint| {
             create_constraint(world, constraint)
         }).collect::<Vec<_>>();
