@@ -66,6 +66,21 @@ var Indexing = (function() {
       }
       applyTableDiff(this.tables[table], safeAdds, safeRemoves);
     },
+    dumpMapDiffs: function() {
+      var final = {};
+      for(var table in this.tables) {
+        final[table] = {inserted: this.tables[table], removed: []};
+      }
+      return {changes: final};
+    },
+    handleMapDiffs: function(diffs) {
+      for(var table in diffs) {
+        var diff = diffs[table];
+        if(diff.inserted.length || diff.removed.length) {
+          this.handleDiff(table, diff.inserted, diff.removed);
+        }
+      }
+    },
     handleDiffs: function(diffs) {
       var diffTables = {};
       var adds = {};
@@ -76,7 +91,7 @@ var Indexing = (function() {
         var action = cur[1];
         var fact = cur[2];
         diffTables[table] = true;
-        if(action === "insert") {
+        if(action === "inserted") {
           if(!adds[table]) { adds[table] = []; }
           adds[table].push(fact);
         } else {

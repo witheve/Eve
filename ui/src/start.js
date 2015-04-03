@@ -187,7 +187,11 @@ var root = reactFactory({
     this.setState({editingGrid: !this.state.editingGrid});
   },
   render: function() {
-    var activeGrid = ixer.facts("activeGrid")[0][0];
+    var activeGridInfo = ixer.facts("activeGrid")[0];
+    var activeGrid = "default";
+    if(activeGridInfo) {
+      activeGrid = activeGridInfo[0];
+    }
     var tiles = this.getTiles(activeGrid);
     var animTiles = [];
     var navTile;
@@ -2676,10 +2680,10 @@ function reverseDiff(diff) {
   for(var diffIx = 0, diffLen = diff.length; diffIx < diffLen; diffIx++) {
     var copy = diff[diffIx].slice();
     neue[diffIx] = copy
-    if(copy[1] === "insert") {
-      copy[1] = "remove";
+    if(copy[1] === "inserted") {
+      copy[1] = "removed";
     } else {
-      copy[1] = "insert";
+      copy[1] = "inserted";
     }
   }
   return neue;
@@ -2711,19 +2715,14 @@ function dispatch(event, arg, noRedraw) {
   var diffs = [];
 
   switch(event) {
-    case "load":
-      var session = localStorage.getItem("session");
-      if(session) {
-        ixer.load(JSON.parse(session));
-      } else {
-        initIndexer();
-      }
+    case "initServer":
+      initIndexer();
       break;
     case "unload":
-      if(!window.DO_NOT_SAVE) {
-        var session = JSON.stringify(ixer.tables, null, 2);
-        localStorage.setItem("session", session);
-      }
+//       if(!window.DO_NOT_SAVE) {
+//         var session = JSON.stringify(ixer.tables, null, 2);
+//         localStorage.setItem("session", session);
+//       }
       break;
 
     case "addColumnToTable":
@@ -2733,14 +2732,14 @@ function dispatch(event, arg, noRedraw) {
       var oldKey = JSON.stringify(arg.old);
       var edits = ixer.index("editId")[arg.table]
       var time = edits ? edits[oldKey] : 0;
-      diffs.push(["editId", "insert", [arg.table, JSON.stringify(arg.neue), time]],
-                 ["editId", "remove", [arg.table, oldKey, time]],
-                 [arg.table, "insert", arg.neue.slice()],
-                 [arg.table, "remove", arg.old.slice()]);
+      diffs.push(["editId", "inserted", [arg.table, JSON.stringify(arg.neue), time]],
+                 ["editId", "removed", [arg.table, oldKey, time]],
+                 [arg.table, "inserted", arg.neue.slice()],
+                 [arg.table, "removed", arg.old.slice()]);
       break;
     case "addRow":
-      diffs.push(["editId", "insert", [arg.table, JSON.stringify(arg.neue), (new Date()).getTime()]],
-                 [arg.table, "insert", arg.neue.slice()]);
+      diffs.push(["editId", "inserted", [arg.table, JSON.stringify(arg.neue), (new Date()).getTime()]],
+                 [arg.table, "inserted", arg.neue.slice()]);
       break;
     case "rename":
       diffs = code.diffs.changeDisplayName(arg.id, arg.value);
@@ -2750,26 +2749,26 @@ function dispatch(event, arg, noRedraw) {
         var el = arg[ix];
         var prev = ixer.index("uiComponentElement")[el.id];
         var neue = [el.id, el.component, el.layer, el.control, el.left, el.top, el.right, el.bottom];
-        diffs.push(["uiComponentElement", "insert", neue],
-                   ["uiComponentElement", "remove", prev]);
+        diffs.push(["uiComponentElement", "inserted", neue],
+                   ["uiComponentElement", "removed", prev]);
 
       }
       break;
     case "addUiComponentElement":
       var neue = [uuid(), arg.component, arg.layer, arg.control, arg.left, arg.top, arg.right, arg.bottom];
-      diffs.push(["uiComponentElement", "insert", neue]);
+      diffs.push(["uiComponentElement", "inserted", neue]);
       break;
     case "addUiComponentLayer":
       var neue = [uuid(), arg.component, arg.layer, false, false];
-      diffs.push(["uiComponentLayer", "insert", neue]);
+      diffs.push(["uiComponentLayer", "inserted", neue]);
       break;
     case "updateUiComponentLayers":
       for(var ix = 0; ix < arg.length; ix++) {
         var layer = arg[ix];
         var neue = [layer.id, layer.component, layer.layer, layer.locked, layer.invisible];
         var old = ixer.index("uiComponentLayer")[layer.id];
-        diffs.push(["uiComponentLayer", "insert", neue],
-                   ["uiComponentLayer", "remove", old]);
+        diffs.push(["uiComponentLayer", "inserted", neue],
+                   ["uiComponentLayer", "removed", old]);
       }
       break;
     case "updateUiComponentAttribute":
@@ -2782,9 +2781,13 @@ function dispatch(event, arg, noRedraw) {
       break;
     case "addTile":
       // @FIXME: active grid
-      var activeGrid = ixer.facts("activeGrid")[0][0];
+      var activeGridInfo = ixer.facts("activeGrid")[0];
+      var activeGrid = "default";
+      if(activeGridInfo) {
+        activeGrid = activeGridInfo[0];
+      }
       var fact = [arg.id, activeGrid, arg.type, arg.pos[0], arg.pos[1], arg.size[0], arg.size[1]];
-      diffs.push(["gridTile", "insert", fact]);
+      diffs.push(["gridTile", "inserted", fact]);
       break;
     case "updateTile":
       var fact = ixer.index("gridTile")[arg.id].slice();
@@ -2799,22 +2802,22 @@ function dispatch(event, arg, noRedraw) {
         fact[5] = arg.size[0];
         fact[6] = arg.size[1];
       }
-      diffs.push(["gridTile", "insert", fact],
-                 ["gridTile", "remove", oldFact]);
+      diffs.push(["gridTile", "inserted", fact],
+                 ["gridTile", "removed", oldFact]);
       break;
     case "closeTile":
       // @TODO: clean up old dependent facts.
       var fact = ixer.index("gridTile")[arg].slice();
-      diffs.push(["gridTile", "remove", fact]);
+      diffs.push(["gridTile", "removed", fact]);
       break;
     case "setTileView":
       var oldTile = ixer.index("gridTile")[arg.tileId].slice();
       var tile = oldTile.slice();
       //set to a tile type
       var type = tile[2] = (code.hasTag(arg.view, "table") ? "table" : "view");
-      diffs.push(["gridTile", "remove", oldTile],
-                 ["gridTile", "insert", tile],
-                 [type + "Tile", "insert", [tile[0], arg.view]]);
+      diffs.push(["gridTile", "removed", oldTile],
+                 ["gridTile", "inserted", tile],
+                 [type + "Tile", "inserted", [tile[0], arg.view]]);
       break;
     case "addTable":
       var oldTile = ixer.index("gridTile")[arg].slice();
@@ -2823,9 +2826,9 @@ function dispatch(event, arg, noRedraw) {
       tile[2] = "table";
       var tableId = uuid();
       diffs = code.diffs.addView("Untitled Table", {A: "string"}, undefined, tableId, ["table"]);
-      diffs.push(["gridTile", "insert", tile],
-                 ["gridTile", "remove", oldTile],
-                 ["tableTile", "insert", [arg, tableId]]);
+      diffs.push(["gridTile", "inserted", tile],
+                 ["gridTile", "removed", oldTile],
+                 ["tableTile", "inserted", [arg, tableId]]);
       break;
     case "addView":
       var oldTile = ixer.index("gridTile")[arg].slice();
@@ -2834,45 +2837,45 @@ function dispatch(event, arg, noRedraw) {
       tile[2] = "view";
       var viewId = uuid();
       diffs = code.diffs.addView("Untitled View", {}, undefined, viewId, ["view"]);
-      diffs.push(["gridTile", "insert", tile],
-                 ["gridTile", "remove", oldTile],
-                 ["viewTile", "insert", [arg, viewId]]);
+      diffs.push(["gridTile", "inserted", tile],
+                 ["gridTile", "removed", oldTile],
+                 ["viewTile", "inserted", [arg, viewId]]);
       break;
 
     case "setTarget":
-      diffs.push(["gridTarget", "insert", [arg.id, arg.target]],
-                 ["gridTarget", "remove", [arg.id, ixer.index("gridTarget")[arg.id]]]);
+      diffs.push(["gridTarget", "inserted", [arg.id, arg.target]],
+                 ["gridTarget", "removed", [arg.id, ixer.index("gridTarget")[arg.id]]]);
       break;
     case "navigate":
       if(!arg.target.indexOf("grid://") === 0) { throw new Error("Cannot handle non grid:// urls yet."); }
       var old = ixer.facts("activeGrid")[0];
       if(old) {
-        diffs.push(["activeGrid", "remove", old]);
+        diffs.push(["activeGrid", "removed", old]);
       }
-      diffs.push(["activeGrid", "insert", [arg.target]]);
+      diffs.push(["activeGrid", "inserted", [arg.target]]);
       break;
     case "addSource":
       var ix = (ixer.index("viewToSources")[arg.view] || []).length;
       var sourceId = uuid();
       diffs = code.diffs.autoJoins(arg.view, arg.source, sourceId);
-      diffs.push(["source", "insert", [sourceId, arg.view, ix, arg.source, true]]);
+      diffs.push(["source", "inserted", [sourceId, arg.view, ix, arg.source, true]]);
       break;
     case "addCalculationSource":
       var ix = (ixer.index("viewToSources")[arg.view] || []).length;
       var sourceId = uuid();
       //@TODO: should we auto-join calculations?
-      diffs.push(["source", "insert", [sourceId, arg.view, ix, arg.source, true]]);
+      diffs.push(["source", "inserted", [sourceId, arg.view, ix, arg.source, true]]);
       break;
     case "swapCalculationSource":
-      diffs.push(["source", "insert", arg.neue.slice()],
-                 ["source", "remove", arg.old.slice()]);
+      diffs.push(["source", "inserted", arg.neue.slice()],
+                 ["source", "removed", arg.old.slice()]);
       break;
     case "removeConstraint":
-      diffs.push(["constraint", "remove", arg.constraint]);
+      diffs.push(["constraint", "removed", arg.constraint]);
       break;
     case "swapConstraint":
-      diffs.push(["constraint", "remove", arg.old.slice()],
-                 ["constraint", "insert", arg.neue.slice()]);
+      diffs.push(["constraint", "removed", arg.old.slice()],
+                 ["constraint", "inserted", arg.neue.slice()]);
       break;
     case "undo":
       storeEvent = false;
@@ -2894,10 +2897,10 @@ function dispatch(event, arg, noRedraw) {
     eventStack = eventItem;
   }
 
-  ixer.handleDiffs(diffs);
+//   ixer.handleDiffs(diffs);
+  sendToServer(toMapDiffs(diffs));
 
   if(!noRedraw) {
-    React.render(root(), document.body);
   }
 }
 
@@ -2913,35 +2916,35 @@ var code = {
       var fields = code.viewToFields(viewId) || [];
       var schema = view[1];
       var fieldId = uuid();
-      return [["field", "insert", [fieldId, schema, fields.length, "unknown"]],
-              ["displayName", "insert", [fieldId, alphabet[fields.length]]]];
+      return [["field", "inserted", [fieldId, schema, fields.length, "unknown"]],
+              ["displayName", "inserted", [fieldId, alphabet[fields.length]]]];
     },
     changeDisplayName: function(id, neue) {
       var cur = ixer.index("displayName")[id];
-      return [["displayName", "insert", [id, neue]],
-              ["displayName", "remove", [id, cur]]];
+      return [["displayName", "inserted", [id, neue]],
+              ["displayName", "removed", [id, cur]]];
     },
     addView: function(name, fields, initial, id, tags) { // (S, {[S]: Type}, Fact[]?, Uuid?, S[]?) -> Diffs
       id = id || uuid();
       var schema = uuid();
       var fieldIx = 0;
-      var diffs = [["displayName", "insert", [id, name]]];
+      var diffs = [["displayName", "inserted", [id, name]]];
       for(var fieldName in fields) {
         if(!fields.hasOwnProperty(fieldName)) { continue; }
         var fieldId = uuid()
-        diffs.push(["field", "insert", [fieldId, schema, fieldIx++, fields[fieldName]]],
-                   ["displayName", "insert", [fieldId, fieldName]]);
+        diffs.push(["field", "inserted", [fieldId, schema, fieldIx++, fields[fieldName]]],
+                   ["displayName", "inserted", [fieldId, fieldName]]);
       }
 
-      diffs.push(["view", "insert", [id, schema, "union"]]);
+      diffs.push(["view", "inserted", [id, schema, "input"]]);
       if(initial && initial.length) {
         for(var initIx = 0, initLen = initial.length; initIx < initLen; initIx++) {
-          diffs.push([id, "insert", initial[initIx]]);
+          diffs.push([id, "inserted", initial[initIx]]);
         }
       }
       if(tags) {
         for(var tagIx = 0, tagLen = tags.length; tagIx < tagLen; tagIx++) {
-          diffs.push(["tag", "insert", [id, tags[tagIx]]]);
+          diffs.push(["tag", "inserted", [id, tags[tagIx]]]);
         }
       }
       return diffs;
@@ -2965,7 +2968,7 @@ var code = {
             if(displayNames[theirs[0]] === myField[1]) {
               //same name, join them.
               diffs.push(
-                ["constraint", "insert",
+                ["constraint", "inserted",
                  [view, "=",
                   code.ast.fieldSourceRef(sourceId, myField[0]),
                   code.ast.fieldSourceRef(cur[0], theirs[0])]]);
@@ -2981,11 +2984,11 @@ var code = {
       var diffs = [];
       var neue = [attribute.id, attribute.property, attribute.value];
       var oldProps = ixer.index("uiElementToAttr")[attribute.id];
-      diffs.push(["uiComponentAttribute", "insert", neue]);
+      diffs.push(["uiComponentAttribute", "inserted", neue]);
       if(oldProps) {
         var oldProp = oldProps[attribute.property];
         if(oldProp) {
-          diffs.push(["uiComponentAttribute", "remove", oldProp]);
+          diffs.push(["uiComponentAttribute", "removed", oldProp]);
         }
       }
       return diffs;
@@ -3128,8 +3131,18 @@ ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
 ixer.addIndex("viewTile", "viewTile", Indexing.create.lookup([0, false]));
 
 function initIndexer() {
-  ixer.handleDiffs(code.diffs.addView("view", {id: "string", schema: "string", query: "string"}, undefined, "view", ["table"]));
-  ixer.handleDiffs(code.diffs.addView("field", {id: "string", schema: "string", ix: "number"}, undefined, "field", ["table"]));
+  ixer.handleDiffs(
+    code.diffs.addView("schema", {id: "id"}, [], "schema"));
+  ixer.handleDiffs(
+    code.diffs.addView("field", {id: "id", schema: "id", ix: "int", type: "type"}, [], "field"));
+  ixer.handleDiffs(
+    code.diffs.addView("primitive", {id: "id", inSchema: "id", outSchema: "id"}, [], "primitive"));
+  ixer.handleDiffs(
+    code.diffs.addView("view", {id: "id", schema: "id", kind: "query|union"}, [], "view"));
+  ixer.handleDiffs(
+    code.diffs.addView("source", {id: "id", view: "id", ix: "int", data: "data", splat: "bool"}, [], "source"));
+  ixer.handleDiffs(
+    code.diffs.addView("constraint", {view: "id", op: "op", left: "reference", right: "reference"}, [], "constraint"));
   ixer.handleDiffs(code.diffs.addView("displayName", {id: "string", name: "string"}, undefined, "displayName", ["table"]));
   ixer.handleDiffs(code.diffs.addView("tableTile", {id: "string", view: "string"}, undefined, "tableTile", ["table"]));
   ixer.handleDiffs(code.diffs.addView("viewTile", {id: "string", view: "string"}, undefined, "viewTile", ["table"]));
@@ -3150,22 +3163,6 @@ function initIndexer() {
     ["a", "b"],
     ["d", "e"]
   ], "foo", ["table"]));
-
-
-  //code views
-  ixer.handleDiffs(
-    code.diffs.addView("schema", {id: "id"}, [], "schema"));
-  ixer.handleDiffs(
-    code.diffs.addView("field", {id: "id", schema: "id", ix: "int", type: "type"}, [], "field"));
-  ixer.handleDiffs(
-    code.diffs.addView("primitive", {id: "id", inSchema: "id", outSchema: "id"}, [], "primitive"));
-  ixer.handleDiffs(
-    code.diffs.addView("view", {id: "id", schema: "id", kind: "query|union"}, [], "view"));
-  ixer.handleDiffs(
-    code.diffs.addView("source", {id: "id", view: "id", ix: "int", data: "data", splat: "bool"}, [], "source"));
-  ixer.handleDiffs(
-    code.diffs.addView("constraint", {view: "id", op: "op", left: "reference", right: "reference"}, [], "constraint"));
-
 
   //example tables
   ixer.handleDiffs(
@@ -3213,9 +3210,67 @@ function initIndexer() {
     code.diffs.addView("uiComponentAttribute", {id: "string", property: "string", value: "string"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
 }
 
-dispatch("load");
 
 function clearStorage() {
   window.DO_NOT_SAVE = true;
   localStorage.clear();
 }
+
+var server = {connected: false, queue: [], initialized: false};
+function connectToServer() {
+  var queue = server.queue;
+  var ws = new WebSocket('ws://localhost:2794', []);
+  server.ws = ws;
+
+  // Log errors
+  ws.onerror = function (error) {
+    console.log('WebSocket Error ' + error);
+  };
+
+  // Log messages from the server
+  ws.onmessage = function (e) {
+    var data = JSON.parse(e.data);
+    if(!server.initialized && !data.changes["view"]) {
+      dispatch("initServer");
+      sendToServer(ixer.dumpMapDiffs());
+      server.initialized = true;
+    }
+//     console.log('Server: ' + e.data);
+    console.log("recieved", performance.now(), data);
+    ixer.handleMapDiffs(data.changes);
+    React.render(root(), document.body);
+  };
+
+  ws.onopen = function() {
+    server.connected = true;
+    for(var i = 0, len = queue.length; i < len; i++) {
+      sendToServer(queue[i]);
+    }
+  }
+}
+
+function sendToServer(message) {
+  if(!server.connected) {
+    server.queue.push(message);
+  } else {
+    console.log("sending: ", message, performance.now());
+    server.ws.send(JSON.stringify(message));
+  }
+}
+
+function toMapDiffs(diffs) {
+  var final = {};
+  for(var i = 0, len = diffs.length; i < len; i++) {
+    var cur = diffs[i];
+    var table = cur[0];
+    var action = cur[1];
+    var fact = cur[2];
+    if(!final[table]) {
+      final[table] = {inserted: [], removed: []};
+    }
+    final[table][action].push(fact);
+  }
+  return {changes: final};
+}
+
+connectToServer();
