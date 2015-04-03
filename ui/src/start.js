@@ -1671,22 +1671,71 @@ function relativeCoords(e, me, parent) {
     return {canvas: {left: canvasRelX, top: canvasRelY}, element: {left: elementRelX, top: elementRelY}}
 }
 
+function uiGetBounds(elements) {
+  var bounds = {
+    top: Infinity, bottom: -Infinity,
+    left: Infinity, right: -Infinity
+  };
+  for(var ix = 0, len = elements.length; ix < len; ix++) {
+    var el = elements[ix];
+    if(el.top < bounds.top) { bounds.top = el.top; }
+    if(el.left < bounds.left) { bounds.left = el.left; }
+    if(el.bottom > bounds.bottom) { bounds.bottom = el.bottom; }
+    if(el.right > bounds.right) { bounds.right = el.right; }
+  }
+  return bounds;
+}
+function uiLocalizeCoords(child, parent) {
+  return {
+    left: child.left - parent.left,
+    right: child.right - parent.left,
+    top: child.top - parent.top,
+    bottom: child.bottom - parent.top
+  };
+}
+function uiGlobalizeCoords(child, parent) {
+  return {
+    left: child.left + parent.left,
+    right: child.right + parent.left,
+    top: child.top + parent.top,
+    bottom: child.bottom + parent.top
+  };
+}
+function uiTransformSelection(neue, old, elements) { // (Bounds, Bounds, Elem[]) -> Elem[]
+  var offsetX = old.left - neue.left;
+  var offsetY = old.top - neue.top;
+
+  var widthRatio = (neue.right - neue.left) / (old.right - old.left);
+  var heightRatio = (neue.bottom - neue.top) / (old.bottom - old.top);
+
+  for(var ix = 0, len = elements.length; ix < len; ix++) {
+    var el = extend({}, elements[ix]);
+    var bounds = uiLocalizeCoords(el, old);
+    bounds.left *= widthRatio;
+    bounds.right *= widthRatio;
+    bounds.top *= heightRatio;
+    bounds.bottom *= heightRatio;
+    elements[ix] = extend(el, uiGlobalizeCoords(bounds, neue));
+  }
+
+  return elements;
+}
+
+
 // UiAttrControls = {[type:String]: ReactFactory({attr:UiAttr, canvas:Canvas, value:Any})}
 var uiAttrControls = {
   default: reactFactory({
     displayName: "default-input",
+    setAttribute: function(value) {
+      this.props.attr.set(this.props.selection, this.props.canvas, value);
+    },
     render: function() {
-      var attr = this.props.attr;
-      var selection = this.props.selection;
-      var canvas = this.props.canvas;
-      var value = attr.get(selection[0], canvas);
-      var same = selection.every(function(attrs) {
-        return (attr.get(attrs, canvas) === value);
-      });
-      if(!isNaN(value)) {
+      var value = this.props.attr.get(this.props.selection, this.props.canvas);
+
+      if(value && !isNaN(value)) {
         value = value.toFixed(2);
       }
-      return editable({value: (same ? value : " -- "), onSubmit: this.props.setAttribute});
+      return editable({value: value, onSubmit: this.setAttribute});
     }
   }),
   color: reactFactory({
@@ -1695,19 +1744,14 @@ var uiAttrControls = {
       return {id: uuid()};
     },
     setAttribute: function(evt) {
-      this.props.setAttribute(evt.target.value);
+      this.props.attr.set(this.props.selection, this.props.canvas, evt.target.value);
     },
     render: function() {
       var id = this.state.id;
-      var attr = this.props.attr;
-      var selection = this.props.selection;
-      var canvas = this.props.canvas;
-      var value = attr.get(selection[0], canvas);
-      var same = selection.every(function(attrs) {
-        return (attr.get(attrs, canvas) === value);
-      });
+      var value = this.props.attr.get(this.props.selection, this.props.canvas);
+
       return JSML(
-        ["label", {for: id, className: "ui-color-control", style: {background: (same ? value : undefined)}},
+        ["label", {for: id, className: "ui-color-control", style: {background: value}},
          ["input", {id: id,
                     type: "color",
                     value: value,
@@ -1741,8 +1785,7 @@ var uiAttrControls = {
     //       );
     //     },
     setAttribute: function(value) {
-      this.props.setAttribute(value);
-      this.props.setPane(this.renderPicker(value));
+      this.props.attr.set(this.props.selection, this.props.canvas, value);
     },
     render: function() {
       var value = this.props.value;
@@ -1757,34 +1800,56 @@ var uiAttrControls = {
 var uiAttrs = {
   layout: [
     {displayName: "x", type: "number", group: "layout",
-     set: function(elem, value, canvas) {
-
+     set: function(elements, canvas, value) {
+       var offset = value - uiGetBounds(elements).left;
+       var neue = elements.map(function(elem) {
+         elem = extend({}, elem);
+         elem.left += offset;
+         elem.right += offset;
+         return elem;
+       });
+       dispatch("updateUiComponentElements", neue);
      },
-     get: function(elem, canvas) {
-       return elem.left;
+     get: function(elements, canvas) {
+       return uiGetBounds(elements).left;
      }},
     {displayName: "y", type: "number", group: "layout",
-     set: function(elem, value, canvas) {
-
+     set: function(elements, canvas, value) {
+       var offset = value - uiGetBounds(elements).top;
+       var neue = elements.map(function(elem) {
+         elem = extend({}, elem);
+         elem.top += offset;
+         elem.bottom += offset;
+         return elem;
+       });
+       dispatch("updateUiComponentElements", neue);
      },
-     get: function(elem, canvas) {
-       return elem.top;
+     get: function(elements, canvas) {
+       return uiGetBounds(elements).top;
      }},
     {displayName: "width", type: "number", group: "layout",
-     set: function(elem, value, canvas) {
-       var right = canvas.right - (elem.left + value);
-       // wut do
+     set: function(elements, canvas, value) {
+       var oldBounds = uiGetBounds(elements);
+       var neueBounds = extend({}, oldBounds);
+       neueBounds.right = neueBounds.left + value;
+       var neue = uiTransformSelection(neueBounds, oldBounds, elements.slice());
+       dispatch("updateUiComponentElements", neue);
      },
-     get: function(elem, canvas) {
-       return elem.right - elem.left;
+     get: function(elements, canvas) {
+       var bounds = uiGetBounds(elements);
+       return bounds.right - bounds.left;
      }},
     {displayName: "height", type: "number", group: "layout",
-     set: function(elem, value, canvas) {
-       var bottom = canvas.bottom - (elem.top + value);
-       // wut do
+     set: function(elements, canvas, value) {
+       var oldBounds = uiGetBounds(elements);
+       var neueBounds = extend({}, oldBounds);
+       neueBounds.bottom = neueBounds.top + value;
+       var neue = uiTransformSelection(neueBounds, oldBounds, elements);
+       dispatch("updateUiComponentElements", neue);
      },
-     get: function(elem, canvas) {
-       return elem.bottom - elem.top;
+     get: function(elements, canvas) {
+       var bounds = uiGetBounds(elements);
+       return bounds.bottom - bounds.top;
      }}
   ],
   typography: [
@@ -1802,15 +1867,25 @@ var uiAttrs = {
   ]
 };
 function uiPropsSetter(prop) {
-  return function setProperty(elem, canvas, value) {
-    return {property: prop, value: value};
+  return function setProperty(elements, canvas, value) {
+    var neue = elements.map(function(elem) {
+      return {property: prop, id: elem.id, value: value};
+    });
+    dispatch("updateUiComponentAttributes", neue);
   }
 }
 function uiPropsGetter(prop) {
-  return function getProperty(elem, canvas) {
-    var attrs = ixer.index("uiElementToAttr")[elem.id] || {};;
-    if(attrs[prop]) {
-      return attrs[prop][2];
+  return function getProperty(elements, canvas) {
+    var values = elements.map(function(elem) {
+      var attr = ixer.index("uiElementToAttr")[elem.id] || {};
+      if(attr[prop]) { return attr[prop][2]; }
+    });
+    var value = values[0];
+    var same = values.every(function(val) {
+      return (val === value);
+    });
+    if(same) {
+      return value;
     }
   }
 }
@@ -1930,14 +2005,7 @@ var uiInspector = reactFactory({
   },
   setAttribute: function(attr, value) {
     var canvas = {}; // @FIXME: get canvas from props.
-
-    var neue = this.props.selection.map(function(sel) {
-      var res = attr.set(sel, canvas, value);
-      res.id = sel.id;
-      return res;
-    });
-
-    dispatch("updateUiComponentAttributes", neue);
+    attr.set(this.props.selection, canvas, value);
   },
   setPane: function(content) {
     this.setState({pane: content});
@@ -2129,13 +2197,13 @@ var uiSelection = reactFactory({
     state.valid = true;
     return state;
   },
-  componentDidUpdate: function(prev) {
+  componentWillReceiveProps: function(nextProps) {
     var shouldSetState = false;
-    if(this.props.elements.length !== prev.elements.length) {
+    if(this.props.elements.length !== nextProps.elements.length) {
       shouldSetState = true;
     } else {
-      shouldSetState = this.props.elements.some(function(neue, ix) {
-        var old = prev.elements[ix];
+      shouldSetState = this.props.elements.some(function(old, ix) {
+        var neue = nextProps.elements[ix];
         if(old.id !== neue.id
            || old.left !== neue.left
            || old.right !== neue.right
@@ -2147,59 +2215,13 @@ var uiSelection = reactFactory({
     }
 
     if(shouldSetState) {
-      this.setState(this.getBounds(this.props.elements));
+      this.setState(this.getBounds(nextProps.elements));
     }
   },
-
-  getBounds: function(elements) {
-    var bounds = {
-      top: Infinity, bottom: -Infinity,
-      left: Infinity, right: -Infinity
-    };
-    for(var ix = 0, len = elements.length; ix < len; ix++) {
-      var el = elements[ix];
-      if(el.top < bounds.top) { bounds.top = el.top; }
-      if(el.left < bounds.left) { bounds.left = el.left; }
-      if(el.bottom > bounds.bottom) { bounds.bottom = el.bottom; }
-      if(el.right > bounds.right) { bounds.right = el.right; }
-    }
-    return bounds;
-  },
-  localizeCoords: function(child, parent) {
-    return {
-      left: child.left - parent.left,
-      right: child.right - parent.left,
-      top: child.top - parent.top,
-      bottom: child.bottom - parent.top
-    };
-  },
-  globalizeCoords: function(child, parent) {
-    return {
-      left: child.left + parent.left,
-      right: child.right + parent.left,
-      top: child.top + parent.top,
-      bottom: child.bottom + parent.top
-    };
-  },
-  transformSelection: function(neue, old, elements) { // (Bounds, Bounds, Elem[]) -> Elem[]
-    var offsetX = old.left - neue.left;
-    var offsetY = old.top - neue.top;
-
-    var widthRatio = (neue.right - neue.left) / (old.right - old.left);
-    var heightRatio = (neue.bottom - neue.top) / (old.bottom - old.top);
-
-    for(var ix = 0, len = elements.length; ix < len; ix++) {
-      var el = extend({}, elements[ix]);
-      el = this.localizeCoords(el, old);
-      el.left *= widthRatio;
-      el.right *= widthRatio;
-      el.top *= heightRatio;
-      el.bottom *= heightRatio;
-      elements[ix] = this.globalizeCoords(el, neue);
-    }
-
-    return elements;
-  },
+  getBounds: uiGetBounds,
+  localizeCoords: uiLocalizeCoords,
+  globalizeCoords: uiGlobalizeCoords,
+  transformSelection: uiTransformSelection,
 
   // Moving
   startMoving: function(e) {
@@ -2240,15 +2262,7 @@ var uiSelection = reactFactory({
       this.setState({left: oldBounds.left, top: oldBounds.top, right: oldBounds.right, bottom: oldBounds.bottom, initialBounds: undefined, valid: true});
       return;
     }
-    var elBounds = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
-    var neue = elBounds.map(function(bounds, ix) {
-      var neue = extend({}, self.props.elements[ix]);
-      neue.top = bounds.top;
-      neue.right = bounds.right;
-      neue.bottom = bounds.bottom;
-      neue.left = bounds.left;
-      return neue;
-    });
+    var neue = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
     dispatch("updateUiComponentElements", neue);
     this.props.snap();
     this.setState({initialBounds: undefined, valid: true});
@@ -2304,15 +2318,7 @@ var uiSelection = reactFactory({
     var self = this;
     var oldBounds = this.state.initialBounds;
     var neueBounds = {left: this.state.left, top: this.state.top, right: this.state.right, bottom: this.state.bottom};
-    var elBounds = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
-    var neue = elBounds.map(function(bounds, ix) {
-      var neue = extend({}, self.props.elements[ix]);
-      neue.top = bounds.top;
-      neue.right = bounds.right;
-      neue.bottom = bounds.bottom;
-      neue.left = bounds.left;
-      return neue;
-    });
+    var neue = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
     dispatch("updateUiComponentElements", neue);
     this.props.snap();
     this.setState({initialBounds: undefined});
