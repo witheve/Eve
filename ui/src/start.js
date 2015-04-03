@@ -284,20 +284,10 @@ tiles.add = {
 };
 
 var addTileTypes = {
-  "ui": {
-    name: "ui", description: "Visualize your data with a user interface.",
+  "table": {
+    name: "table", description: "Add new data in a spreadsheet.",
     add: function(id) {
-      dispatch("updateTile", {id: id, type: "ui"});
-    }
-  },
-  "existing": {
-    name: "existing", description: "Add new data in a spreadsheet.",
-    pane: function(id) {
-      return tableSelector({onSelect: addTileTypes.existing.add.bind(null, id)});
-    },
-    add: function(id, view) {
-      // Update type.
-      dispatch("setTileView", {tileId: id, view: view});
+      dispatch("addTable", id);
     }
   },
   "view": {
@@ -306,10 +296,20 @@ var addTileTypes = {
       dispatch("addView", id);
     }
   },
-  "table": {
-    name: "table", description: "Open an existing tile in this grid.",
+  "existing": {
+    name: "existing",  description: "Open an existing tile in this grid.",
+    pane: function(id) {
+      return tableSelector({onSelect: addTileTypes.existing.add.bind(null, id)});
+    },
+    add: function(id, view) {
+      // Update type.
+      dispatch("setTileView", {tileId: id, view: view});
+    }
+  },
+  "ui": {
+    name: "ui", description: "Visualize your data with a user interface.",
     add: function(id) {
-      dispatch("addTable", id);
+      dispatch("updateTile", {id: id, type: "ui"});
     }
   },
 };
@@ -960,37 +960,43 @@ var table = reactFactory({
 
 var factTable = reactFactory({
   render: function() {
-      var self = this;
-      var fields = code.viewToFields(this.props.tableId);
-      var rows = ixer.facts(this.props.tableId);
-      fields = fields.map(function(cur) {
-        return {name: code.name(cur[0]), id: cur[0]};
+    var self = this;
+    var fields = code.viewToFields(this.props.tableId);
+    var rows = ixer.facts(this.props.tableId);
+    fields.sort(function(a, b) {
+      return a[2] - b[2];
+    });
+    fields = fields.map(function(cur) {
+      return {name: code.name(cur[0]), id: cur[0]};
+    });
+    var rowIds = ixer.index("editId")[this.props.tableId];
+    if(rowIds) {
+      rows.sort(function(a, b) {
+        return rowIds[JSON.stringify(a)] - rowIds[JSON.stringify(b)];
       });
-      var rowIds = ixer.index("editId")[this.props.tableId];
-      if(rowIds) {
-        rows.sort(function(a, b) {
-          return rowIds[JSON.stringify(a)] - rowIds[JSON.stringify(b)];
-        });
-      }
-      return table({tableId: this.props.tableId, rows: rows, fields: fields, structureEditable: true, rowsEditable: true, headersEditable: true});
+    }
+    return table({tableId: this.props.tableId, rows: rows, fields: fields, structureEditable: true, rowsEditable: true, headersEditable: true});
   }
 });
 
 var resultTable = reactFactory({
   render: function() {
-      var self = this;
-      var fields = code.viewToFields(this.props.tableId);
-      var rows = ixer.facts(this.props.tableId);
-      fields = fields.map(function(cur) {
-        return {name: code.name(cur[0]), id: cur[0]};
+    var self = this;
+    var fields = code.viewToFields(this.props.tableId);
+    var rows = ixer.facts(this.props.tableId);
+    fields.sort(function(a, b) {
+      return a[2] - b[2];
+    });
+    fields = fields.map(function(cur) {
+      return {name: code.name(cur[0]), id: cur[0]};
+    });
+    var rowIds = ixer.index("editId")[this.props.tableId];
+    if(rowIds) {
+      rows.sort(function(a, b) {
+        return rowIds[JSON.stringify(a)] - rowIds[JSON.stringify(b)];
       });
-      var rowIds = ixer.index("editId")[this.props.tableId];
-      if(rowIds) {
-        rows.sort(function(a, b) {
-          return rowIds[JSON.stringify(a)] - rowIds[JSON.stringify(b)];
-        });
-      }
-      return table({tableId: this.props.tableId, rows: rows, fields: fields});
+    }
+    return table({tableId: this.props.tableId, rows: rows, fields: fields});
   }
 });
 
@@ -3132,17 +3138,17 @@ ixer.addIndex("viewTile", "viewTile", Indexing.create.lookup([0, false]));
 
 function initIndexer() {
   ixer.handleDiffs(
-    code.diffs.addView("schema", {id: "id"}, [], "schema"));
+    code.diffs.addView("schema", {id: "id"}, [], "schema", ["table"]));
   ixer.handleDiffs(
-    code.diffs.addView("field", {id: "id", schema: "id", ix: "int", type: "type"}, [], "field"));
+    code.diffs.addView("field", {id: "id", schema: "id", ix: "int", type: "type"}, [], "field", ["table"]));
   ixer.handleDiffs(
-    code.diffs.addView("primitive", {id: "id", inSchema: "id", outSchema: "id"}, [], "primitive"));
+    code.diffs.addView("primitive", {id: "id", inSchema: "id", outSchema: "id"}, [], "primitive", ["table"]));
   ixer.handleDiffs(
-    code.diffs.addView("view", {id: "id", schema: "id", kind: "query|union"}, [], "view"));
+    code.diffs.addView("view", {id: "id", schema: "id", kind: "query|union"}, [], "view", ["table"]));
   ixer.handleDiffs(
-    code.diffs.addView("source", {id: "id", view: "id", ix: "int", data: "data", splat: "bool"}, [], "source"));
+    code.diffs.addView("source", {id: "id", view: "id", ix: "int", data: "data", splat: "bool"}, [], "source", ["table"]));
   ixer.handleDiffs(
-    code.diffs.addView("constraint", {view: "id", op: "op", left: "reference", right: "reference"}, [], "constraint"));
+    code.diffs.addView("constraint", {view: "id", op: "op", left: "reference", right: "reference"}, [], "constraint", ["table"]));
   ixer.handleDiffs(code.diffs.addView("displayName", {id: "string", name: "string"}, undefined, "displayName", ["table"]));
   ixer.handleDiffs(code.diffs.addView("tableTile", {id: "string", view: "string"}, undefined, "tableTile", ["table"]));
   ixer.handleDiffs(code.diffs.addView("viewTile", {id: "string", view: "string"}, undefined, "viewTile", ["table"]));
@@ -3166,9 +3172,9 @@ function initIndexer() {
 
   //example tables
   ixer.handleDiffs(
-    code.diffs.addView("employees", {department: "string", name: "string", salary: "float"}, [], false));
+    code.diffs.addView("employees", {department: "string", name: "string", salary: "float"}, [], false, ["table"]));
   ixer.handleDiffs(
-    code.diffs.addView("department heads", {department: "string", head: "string"}, [], false));
+    code.diffs.addView("department heads", {department: "string", head: "string"}, [], false, ["table"]));
 
 
   // grid views
