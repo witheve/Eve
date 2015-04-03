@@ -141,7 +141,7 @@ pub fn serve() -> mpsc::Receiver<ServerEvent> {
                             let event = FromJson::from_json(&json);
                             event_sender.send(ServerEvent::Event(event)).unwrap();
                         }
-                        _ => panic!("Unknown message: {:?}", message)
+                        _ => println!("Unknown message: {:?}", message)
                     }
                 }
             });
@@ -167,7 +167,10 @@ pub fn run() {
                 time!("sending initial state", {
                     let changes = instance.flow.changes_since(&instance.output, &empty_flow, &empty_output);
                     let text = format!("{}", Event{changes: changes}.to_json());
-                    sender.send_message(Message::Text(text)).unwrap();
+                    match sender.send_message(Message::Text(text)) {
+                        Ok(_) => (),
+                        Err(error) => println!("Send error: {}", error),
+                    };
                     senders.push(sender)
                 })
             }
@@ -176,7 +179,10 @@ pub fn run() {
                     let changes = instance.change(event.changes);
                     let text = format!("{}", Event{changes: changes}.to_json());
                     for sender in senders.iter_mut() {
-                        sender.send_message(Message::Text(text.clone())).unwrap();
+                        match sender.send_message(Message::Text(text.clone())) {
+                            Ok(_) => (),
+                            Err(error) => println!("Send error: {}", error),
+                        };
                     }
                 })
             }
