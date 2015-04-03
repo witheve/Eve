@@ -61,6 +61,57 @@ function range(from, to) {
   return results;
 }
 
+function clone(item) {
+    if (!item) { return item; } // null, undefined values check
+
+    var types = [ Number, String, Boolean ],
+        result;
+
+    // normalizing primitives if someone did new String('aaa'), or new Number('444');
+    types.forEach(function(type) {
+        if (item instanceof type) {
+            result = type( item );
+        }
+    });
+
+    if (typeof result == "undefined") {
+        if (Object.prototype.toString.call( item ) === "[object Array]") {
+            result = [];
+            item.forEach(function(child, index, array) {
+                result[index] = clone( child );
+            });
+        } else if (typeof item == "object") {
+            // testing that this is DOM
+            if (item.nodeType && typeof item.cloneNode == "function") {
+                var result = item.cloneNode( true );
+            } else if (!item.prototype) { // check that this is a literal
+                if (item instanceof Date) {
+                    result = new Date(item);
+                } else {
+                    // it is an object literal
+                    result = {};
+                    for (var i in item) {
+                        result[i] = clone( item[i] );
+                    }
+                }
+            } else {
+                // depending what you would like here,
+                // just keep the reference, or create new object
+                if (false && item.constructor) {
+                    // would not advice to do that, reason? Read below
+                    result = new item.constructor();
+                } else {
+                    result = item;
+                }
+            }
+        } else {
+            result = item;
+        }
+    }
+
+    return result;
+}
+
 function verticalTable(rows) {
   var content = [];
   for(var rowIx = 0, rowsLength = rows.length; rowIx < rowsLength; rowIx++) {
@@ -68,10 +119,18 @@ function verticalTable(rows) {
     var rowEl = ["tr"];
 
     if(row[0]) {
-      rowEl.push(["th", row[0]]);
+      if(row[0].content){
+        rowEl.push(["th", row[0], row[0].content]);
+      } else {
+        rowEl.push(["th", row[0]]);
+      }
     }
     for(var ix = 1, len = row.length; ix < len; ix++) {
-      rowEl.push(["td", row[ix]]);
+      if(row[ix].content) {
+        rowEl.push(["td", row[ix], row[ix].content]);
+      } else {
+        rowEl.push(["td", row[ix]]);
+      }
     }
 
     content.push(rowEl);
@@ -187,7 +246,11 @@ var root = reactFactory({
     this.setState({editingGrid: !this.state.editingGrid});
   },
   render: function() {
-    var activeGrid = ixer.facts("activeGrid")[0][0];
+    var activeGridInfo = ixer.facts("activeGrid")[0];
+    var activeGrid = "default";
+    if(activeGridInfo) {
+      activeGrid = activeGridInfo[0];
+    }
     var tiles = this.getTiles(activeGrid);
     var animTiles = [];
     var navTile;
@@ -280,20 +343,10 @@ tiles.add = {
 };
 
 var addTileTypes = {
-  "ui": {
-    name: "ui", description: "Visualize your data with a user interface.",
+  "table": {
+    name: "table", description: "Add new data in a spreadsheet.",
     add: function(id) {
-      dispatch("updateTile", {id: id, type: "ui"});
-    }
-  },
-  "existing": {
-    name: "existing", description: "Add new data in a spreadsheet.",
-    pane: function(id) {
-      return tableSelector({onSelect: addTileTypes.existing.add.bind(null, id)});
-    },
-    add: function(id, view) {
-      // Update type.
-      dispatch("setTileView", {tileId: id, view: view});
+      dispatch("addTable", id);
     }
   },
   "view": {
@@ -302,10 +355,20 @@ var addTileTypes = {
       dispatch("addView", id);
     }
   },
-  "table": {
-    name: "table", description: "Open an existing tile in this grid.",
+  "existing": {
+    name: "existing",  description: "Open an existing tile in this grid.",
+    pane: function(id) {
+      return tableSelector({onSelect: addTileTypes.existing.add.bind(null, id)});
+    },
+    add: function(id, view) {
+      // Update type.
+      dispatch("setTileView", {tileId: id, view: view});
+    }
+  },
+  "ui": {
+    name: "ui", description: "Visualize your data with a user interface.",
     add: function(id) {
-      dispatch("addTable", id);
+      dispatch("updateTile", {id: id, type: "ui"});
     }
   },
 };
@@ -774,14 +837,12 @@ var tableSelector = reactFactory({
     ixer.facts("view").forEach(function(cur) {
       var view = cur[0];
       var name = displayNames[view]
-      console.log(view, name, displayNames[view]);
       if(name && name.indexOf(search) > -1) {
         var selected = items.length === self.state.selected;
         results.push(view);
         items.push(tableSelectorItem({view: view, name: name, selected: selected, select: self.select}));
       }
     });
-    console.log(items);
     this.state.results = results;
     return JSML(["div", {className: "table-selector"},
                  ["input", {type: "text", placeholder: "search", onKeyDown: this.handleKeys, onInput: this.updateSearch, value: this.state.search}],
@@ -818,7 +879,7 @@ var editable = reactFactory({
     }
   },
   render: function() {
-    var value = (this.state.value === undefined ? this.props.value : this.state.value);
+    var value = (this.state.modified === false ? this.props.value : this.state.value);
     if(value === undefined) {
       value = ""
     } else if(typeof value === "object") {
@@ -892,7 +953,7 @@ var tableRow = reactFactory({
   render: function() {
     var self = this;
     var fields = range(this.props.length).map(function(cur) {
-      var content = self.props.row[cur];
+      var content = self.state.row[cur];
       if(content === undefined) {
         content = "";
       }
@@ -956,37 +1017,43 @@ var table = reactFactory({
 
 var factTable = reactFactory({
   render: function() {
-      var self = this;
-      var fields = code.viewToFields(this.props.tableId);
-      var rows = ixer.facts(this.props.tableId);
-      fields = fields.map(function(cur) {
-        return {name: code.name(cur[0]), id: cur[0]};
+    var self = this;
+    var fields = code.viewToFields(this.props.tableId);
+    var rows = ixer.facts(this.props.tableId);
+    fields.sort(function(a, b) {
+      return a[2] - b[2];
+    });
+    fields = fields.map(function(cur) {
+      return {name: code.name(cur[0]), id: cur[0]};
+    });
+    var rowIds = ixer.index("editId")[this.props.tableId];
+    if(rowIds) {
+      rows.sort(function(a, b) {
+        return rowIds[JSON.stringify(a)] - rowIds[JSON.stringify(b)];
       });
-      var rowIds = ixer.index("editId")[this.props.tableId];
-      if(rowIds) {
-        rows.sort(function(a, b) {
-          return rowIds[JSON.stringify(a)] - rowIds[JSON.stringify(b)];
-        });
-      }
-      return table({tableId: this.props.tableId, rows: rows, fields: fields, structureEditable: true, rowsEditable: true, headersEditable: true});
+    }
+    return table({tableId: this.props.tableId, rows: rows, fields: fields, structureEditable: true, rowsEditable: true, headersEditable: true});
   }
 });
 
 var resultTable = reactFactory({
   render: function() {
-      var self = this;
-      var fields = code.viewToFields(this.props.tableId);
-      var rows = ixer.facts(this.props.tableId);
-      fields = fields.map(function(cur) {
-        return {name: code.name(cur[0]), id: cur[0]};
+    var self = this;
+    var fields = code.viewToFields(this.props.tableId);
+    var rows = ixer.facts(this.props.tableId);
+    fields.sort(function(a, b) {
+      return a[2] - b[2];
+    });
+    fields = fields.map(function(cur) {
+      return {name: code.name(cur[0]), id: cur[0]};
+    });
+    var rowIds = ixer.index("editId")[this.props.tableId];
+    if(rowIds) {
+      rows.sort(function(a, b) {
+        return rowIds[JSON.stringify(a)] - rowIds[JSON.stringify(b)];
       });
-      var rowIds = ixer.index("editId")[this.props.tableId];
-      if(rowIds) {
-        rows.sort(function(a, b) {
-          return rowIds[JSON.stringify(a)] - rowIds[JSON.stringify(b)];
-        });
-      }
-      return table({tableId: this.props.tableId, rows: rows, fields: fields});
+    }
+    return table({tableId: this.props.tableId, rows: rows, fields: fields});
   }
 });
 
@@ -1089,7 +1156,7 @@ var structuredMultiSelector = reactFactory({
     React.findDOMNode(this.refs.editable).focus();
   },
   setConstant: function(value) {
-    this.set({"": "constant", value: value});
+    this.set(["constant", value]);
   },
   render: function() {
     var self = this;
@@ -1172,7 +1239,7 @@ function tokenAtPath(component, value, pathExtension) {
                                  value: value});
 }
 function componentAtPath(component, value, pathExtension) {
-  return astComponents[value[""]]({path: pathExtension ? component.props.path.concat(pathExtension) : component.props.path,
+  return astComponents[value[0]]({path: pathExtension ? component.props.path.concat(pathExtension) : component.props.path,
                                  onSelect: component.props.onSelect,
                                  activePath: component.props.activePath,
                                  value: value});
@@ -1199,15 +1266,17 @@ var astComponents = {
       return tokenAtPath(this, value);
     }
   }),
-  "source-ref": reactFactory({
+  "column": reactFactory({
     render: function() {
-      //       return {"": "source-ref", source: source};
+      var name = code.refToName(this.props.value);
+      var value = ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], name.field];
+      return tokenAtPath(this, value);
     }
   }),
   constant: reactFactory({
     render: function() {
       //       return {"": "constant", value: value};
-      return tokenAtPath(this, this.props.value.value)
+      return tokenAtPath(this, this.props.value[1])
     }
   }),
   op: reactFactory({
@@ -1224,15 +1293,15 @@ var astComponents = {
     placeholderOrValue: function(args, placeholders, ix) {
       var curArg = args[ix];
       if(curArg) {
-        return componentAtPath(this, curArg, ["args", ix]);
+        return componentAtPath(this, curArg, [2, ix]);
       }
-      return tokenAtPath(this, placeholders[ix], ["args", ix]);
+      return tokenAtPath(this, placeholders[ix], [2, ix]);
     },
     render: function() {
       //       return {"": "call", primitive: primitive, args: args};
       var self = this;
-      var prim = this.props.value.primitive;
-      var args = this.props.value.args || [];
+      var prim = this.props.value[1];
+      var args = this.props.value[2] || [];
       var info = primitiveInfo[prim];
       var rep;
       var op = tokenAtPath(this, prim);
@@ -1267,7 +1336,7 @@ var astComponents = {
       //@TODO: if this expression is complete and valid
       var path = this.state.editing;
       //@TODO: deep clone
-      var exp = this.props.expression;
+      var exp = clone(this.props.expression);
       if(!path.length) {
         exp = id;
       } else {
@@ -1291,27 +1360,27 @@ var astComponents = {
 
       //if we're dealing with a function, we want to move the cursor
       //to the next empty arg
-      if(child[""] === "call") {
-        var info = primitiveInfo[child.primitive];
-        this.startEditing(path.concat(["args", 0]));
+      if(child[0] === "call") {
+        var info = primitiveInfo[child[1]];
+        this.startEditing(path.concat([2, 0]));
         return
-      } else if(parent[""] === "call") {
+      } else if(parent[0] === "call") {
         //find the next empty arg
-        var info = primitiveInfo[parent.primitive];
+        var info = primitiveInfo[parent[1]];
         for(var i = 0, len = info.args.length; i < len; i++) {
-          if(!parent.args[i]) break;
+          if(parent[2][i] === undefined) break;
         }
         if(i === info.args.length) {
           //we've filled everything in, we're done editing
           this.stopEditing();
           return;
         }
-        if(remaining[0] === "args") {
+        if(remaining[0] === 2) {
           var final = path.slice(0,path.length - 1);
           final.push(i);
           this.startEditing(final);
         } else {
-          this.startEditing(path.concat(["args", i]));
+          this.startEditing(path.concat([2, i]));
         }
       }
     },
@@ -1326,7 +1395,7 @@ var astComponents = {
         var remainingIx = 0;
         for(var i = 0, len = path.length - 1; i < len; i++) {
           cursor = cursor[path[i]];
-          if(cursor[""]) {
+          if(typeof cursor[0] === "string") {
             remainingIx = i;
             parent = cursor;
           }
@@ -1341,13 +1410,13 @@ var astComponents = {
       return {parent: parent, path: remaining, child: child};
     },
     getFuncs: function() {
-      var funcs = [{id: {"": "call", "primitive": "+", args: []}, text: "+"},
-                   {id: {"": "call", "primitive": "-", args: []}, text: "-"},
-                   {id: {"": "call", "primitive": "*", args: []}, text: "*"},
-                   {id: {"": "call", "primitive": "/", args: []}, text: "/"},
-                   {id: {"": "call", "primitive": "sum", args: []}, text: "sum"},
-                   {id: {"": "call", "primitive": "count", args: []}, text: "count"},
-                   {id: {"": "call", "primitive": "average", args: []}, text: "average"}];
+      var funcs = [{id: ["call", "+", []], text: "+"},
+                   {id: ["call", "-", []], text: "-"},
+                   {id: ["call", "*", []], text: "*"},
+                   {id: ["call", "/", []], text: "/"},
+                   {id: ["call", "sum", []], text: "sum"},
+                   {id: ["call", "count", []], text: "count"},
+                   {id: ["call", "average", []], text: "average"}];
       return funcs;
     },
     getFields: function(type) {
@@ -1377,7 +1446,7 @@ var astComponents = {
       var path = info.path || [];
       var child = info.child || {};
       var cur = exp;
-      if(child[""]) {
+      if(child[0]) {
         cur = child;
       }
 
@@ -1389,24 +1458,24 @@ var astComponents = {
         disabled: {}
       };
 
-      if(exp[""] === "call" || cur[""] === "call") {
-        var info = primitiveInfo[exp.primitive];
-        if(path[0] === "args") {
+      if(exp[0] === "call" || cur[0] === "call") {
+        var info = primitiveInfo[exp[1]];
+        if(path[0] === 2) {
           final.fields = this.getFields(info.args[path[1]]);
           final.mode = "field";
         }
       }
 
-      if(cur[""] === "constant") {
+      if(cur[0] === "constant") {
         final.mode = "constant";
-        final.value = cur.value;
+        final.value = cur[1];
       }
 
       return final;
     },
     render: function() {
       if(this.props.expression) {
-        value = astComponents[this.props.expression[""]]({value: this.props.expression, path: [], activePath: this.state.editing, onSelect: this.startEditing});
+        value = astComponents[this.props.expression[0]]({value: this.props.expression, path: [], activePath: this.state.editing, onSelect: this.startEditing});
       } else {
         value = ["span", {className: "token", onClick: this.fullEditor}, "yo"];
       }
@@ -1440,7 +1509,7 @@ var astComponents = {
       //@TODO: can either be a constant or a ref
       //left and right have to type check
       var left = code.refToType(this.props.constraint[2]);
-      if(this.props.constraint[3][""] === "field-source-ref") {
+      if(this.props.constraint[3][0] === "column") {
         var right = code.refToType(this.props.constraint[3]);
       } else {
         var right = typeof this.props.constraint[3].value;
@@ -1484,9 +1553,9 @@ var astComponents = {
       var allRefs = code.viewToRefs(view);
       var cur = this.props.constraint;
       var editing = this.state.editing;
-      var left = astComponents["field-source-ref"]({value: cur[2], onSelect: this.editingLeft, path: ["left"], activePath: [editing]});
+      var left = astComponents["column"]({value: cur[2], onSelect: this.editingLeft, path: ["left"], activePath: [editing]});
       //@TODO: right can be a constant or a ref...
-      var right = astComponents[cur[3][""]]({value: cur[3], onSelect: this.editingRight, path: ["right"], activePath: [editing], invalid: !this.validateRight()});
+      var right = astComponents[cur[3][0]]({value: cur[3], onSelect: this.editingRight, path: ["right"], activePath: [editing], invalid: !this.validateRight()});
       var op = astComponents["op"]({value: cur[1], path: ["op"], activePath: [editing], onSelect: this.editingOp});
       var content = ["div", {className: "structured-constraint",
                              onClick: this.startEditing},
@@ -1494,7 +1563,7 @@ var astComponents = {
       var editor;
       if(this.state.editing === "left") {
         var localRefs = allRefs.filter(function(cur) {
-          return cur.source === sourceId;
+          return cur[1] === sourceId;
         }).map(function(cur) {
           var name = code.refToName(cur);
           return {id: cur, text: ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], name.field]};
@@ -1517,7 +1586,7 @@ var astComponents = {
         });
         var value = "";
         var mode = "field";
-        if(cur[3][""] === "constant") {
+        if(cur[3][0] === "constant") {
           value = cur[3].value;
           mode = "constant";
         }
@@ -1569,13 +1638,13 @@ var viewSource = reactFactory({
       return ["li", {onClick: remove}, astComponents["constraint"]({constraint: cur, source: self.props.source})];
     });
     var content;
-    if(typeof viewOrFunction === "string") {
-      content = resultTable({tileId: this.props.tileId, tableId: viewOrFunction});
+    if(viewOrFunction[0] === "view") {
+      content = resultTable({tileId: this.props.tileId, tableId: viewOrFunction[1]});
     } else {
       content = ["div", astComponents["expression"]({viewId: this.props.viewId, expression: viewOrFunction, onSet: this.updateCalculation})];
     }
     return JSML(["div", {className: "view-source"},
-                 ["h1", code.name(viewOrFunction)],
+                 ["h1", code.name(viewOrFunction[1])],
                  ["ul", constraints],
                  content
                 ]);
@@ -1611,7 +1680,7 @@ tiles.view = {
       var constraints = ixer.index("viewToConstraints")[view] || [];
       var sourceToConstraints = {};
       constraints.forEach(function(cur) {
-        var source = cur[2].source;
+        var source = cur[2][1];
         if(!sourceToConstraints[source]) {
           sourceToConstraints[source] = [];
         }
@@ -1622,7 +1691,7 @@ tiles.view = {
         return a[2] - b[2];
       });
       var items = sources.map(function(cur) {
-        return viewSource({tileId: self.props.tileId, viewId: view, source: cur, constraints: sourceToConstraints[cur[0]] || []});
+        return viewSource({key: cur[0], tileId: self.props.tileId, viewId: view, source: cur, constraints: sourceToConstraints[cur[0]] || []});
       });
       var add;
       if(this.state.addingSource) {
@@ -1663,53 +1732,265 @@ function relativeCoords(e, me, parent) {
     return {canvas: {left: canvasRelX, top: canvasRelY}, element: {left: elementRelX, top: elementRelY}}
 }
 
+function uiGetBounds(elements) {
+  var bounds = {
+    top: Infinity, bottom: -Infinity,
+    left: Infinity, right: -Infinity
+  };
+  for(var ix = 0, len = elements.length; ix < len; ix++) {
+    var el = elements[ix];
+    if(el.top < bounds.top) { bounds.top = el.top; }
+    if(el.left < bounds.left) { bounds.left = el.left; }
+    if(el.bottom > bounds.bottom) { bounds.bottom = el.bottom; }
+    if(el.right > bounds.right) { bounds.right = el.right; }
+  }
+  return bounds;
+}
+function uiLocalizeCoords(child, parent) {
+  return {
+    left: child.left - parent.left,
+    right: child.right - parent.left,
+    top: child.top - parent.top,
+    bottom: child.bottom - parent.top
+  };
+}
+function uiGlobalizeCoords(child, parent) {
+  return {
+    left: child.left + parent.left,
+    right: child.right + parent.left,
+    top: child.top + parent.top,
+    bottom: child.bottom + parent.top
+  };
+}
+function uiTransformSelection(neue, old, elements) { // (Bounds, Bounds, Elem[]) -> Elem[]
+  var offsetX = old.left - neue.left;
+  var offsetY = old.top - neue.top;
+
+  var widthRatio = (neue.right - neue.left) / (old.right - old.left);
+  var heightRatio = (neue.bottom - neue.top) / (old.bottom - old.top);
+
+  for(var ix = 0, len = elements.length; ix < len; ix++) {
+    var el = extend({}, elements[ix]);
+    var bounds = uiLocalizeCoords(el, old);
+    bounds.left *= widthRatio;
+    bounds.right *= widthRatio;
+    bounds.top *= heightRatio;
+    bounds.bottom *= heightRatio;
+    elements[ix] = extend(el, uiGlobalizeCoords(bounds, neue));
+  }
+
+  return elements;
+}
+
+function Enum(vals) {
+  if(vals.constructor === Array) {
+    this.options = vals.map(function(val, ix) {
+      return {title: val, value: val};
+    });
+  } else {
+    this.options = [];
+    for(var val in vals) {
+      this.options.push({title: vals[val], value: val});
+    }
+  }
+}
+Enum.prototype = {
+  getOptions: function() {
+    return this.options;
+  },
+  toString: function() {
+    return "enum";
+  }
+};
+function makeEnum(vals) {
+  return new Enum(vals);
+}
+
+
+// UiAttrControls = {[type:String]: ReactFactory({attr:UiAttr, canvas:Canvas, value:Any})}
+var uiAttrControls = {
+  default: reactFactory({
+    displayName: "default-input",
+    setAttribute: function(value) {
+      this.props.attr.set(this.props.selection, this.props.canvas, value);
+    },
+    render: function() {
+      var value = this.props.attr.get(this.props.selection, this.props.canvas);
+
+      if(value && !isNaN(value)) {
+        value = value.toFixed(2);
+      }
+      return editable({value: value, onSubmit: this.setAttribute});
+    }
+  }),
+  color: reactFactory({
+    displayName: "color",
+    getInitialState: function() {
+      return {id: uuid()};
+    },
+    setAttribute: function(evt) {
+      this.props.attr.set(this.props.selection, this.props.canvas, evt.target.value);
+    },
+    render: function() {
+      var id = this.state.id;
+      var value = this.props.attr.get(this.props.selection, this.props.canvas);
+
+      return JSML(
+        ["label", {for: id, className: "ui-color-control", style: {background: value}},
+         ["input", {id: id,
+                    type: "color",
+                    value: value,
+                    onInput: this.setAttribute}]]
+      );
+    }
+  }),
+
+
+  enum: reactFactory({
+    setAttribute: function(evt) {
+      this.props.attr.set(this.props.selection, this.props.canvas, evt.target.value);
+    },
+    render: function() {
+      var self = this;
+      var value = this.props.attr.get(this.props.selection, this.props.canvas);
+      var options = this.props.attr.type.getOptions();
+      return JSML(
+        ["select", {onInput: self.setAttribute, key: JSON.stringify(this.props.attr)},
+         options.map(function(opt) {
+           return ["option", {value: opt.value, selected: (opt.value === value)}, opt.title]
+         })]
+      );
+    }
+  }),
+
+
+  font: reactFactory({
+    displayName: "font",
+    getInitialState: function() {
+      return {open: false};
+    },
+    //     togglePicker: function() {
+    //       var isOpen = !this.state.open;
+    //       if(isOpen) {
+    //         this.props.setPane(this.renderPicker());
+    //       } else {
+    //         this.props.setPane();
+    //       }
+    //       this.setState({open: isOpen});
+    //     },
+    //     renderPicker: function(value) {
+    //       console.log("rerendering picker");
+
+    //       value = value || this.props.value;
+    //       var attr = this.props.attr;
+    //       return JSML(
+    //         ["div", {className: "ui-inspector-group"},
+    //          //editable({value: value, onSubmit: this.setAttribute})
+    //         ["input", {type: "color", value: value}]]
+    //       );
+    //     },
+    setAttribute: function(value) {
+      this.props.attr.set(this.props.selection, this.props.canvas, value);
+    },
+    render: function() {
+      var value = this.props.value;
+      return editable({value: value, onSubmit: this.setAttribute});
+    }
+  })
+};
+
 // @NOTE: For this to work properly, at most 1 attribute should change per update.
 // UiAttrs = {[group:String]: UiAttr[]}
-// UiAttr = {displayName:String, type:String, group:String, prop:String?|(get:Fn, set:Fn)}
+// UiAttr = {displayName:String, type:String, group:String, prop:String?|(get:Fn -> String, set:Fn -> AttrDiff)}
 var uiAttrs = {
   layout: [
-    {displayName: "x", type: "number", group: "layout", prop: "left"},
-    {displayName: "y", type: "number", group: "layout", prop: "top"},
-    {displayName: "width", type: "number", group: "layout",
-     set: function(attrs, value, canvas) {
-       var right = canvas.right - (attrs.left + value);
-       attrs.style.right = right;
+    {displayName: "x", type: "number", group: "layout",
+     set: function(elements, canvas, value) {
+       var offset = value - uiGetBounds(elements).left;
+       var neue = elements.map(function(elem) {
+         elem = extend({}, elem);
+         elem.left += offset;
+         elem.right += offset;
+         return elem;
+       });
+       dispatch("updateUiComponentElements", neue);
      },
-     get: function(attrs, canvas) {
-       return attrs.right - attrs.left;
+     get: function(elements, canvas) {
+       return uiGetBounds(elements).left;
+     }},
+    {displayName: "y", type: "number", group: "layout",
+     set: function(elements, canvas, value) {
+       var offset = value - uiGetBounds(elements).top;
+       var neue = elements.map(function(elem) {
+         elem = extend({}, elem);
+         elem.top += offset;
+         elem.bottom += offset;
+         return elem;
+       });
+       dispatch("updateUiComponentElements", neue);
+     },
+     get: function(elements, canvas) {
+       return uiGetBounds(elements).top;
+     }},
+    {displayName: "width", type: "number", group: "layout",
+     set: function(elements, canvas, value) {
+       var oldBounds = uiGetBounds(elements);
+       var neueBounds = extend({}, oldBounds);
+       neueBounds.right = neueBounds.left + value;
+       var neue = uiTransformSelection(neueBounds, oldBounds, elements.slice());
+       dispatch("updateUiComponentElements", neue);
+     },
+     get: function(elements, canvas) {
+       var bounds = uiGetBounds(elements);
+       return bounds.right - bounds.left;
      }},
     {displayName: "height", type: "number", group: "layout",
-     set: function(attrs, value, canvas) {
-       var bottom = canvas.bottom - (attrs.top + value);
-       attrs.style.bottom = bottom;
+     set: function(elements, canvas, value) {
+       var oldBounds = uiGetBounds(elements);
+       var neueBounds = extend({}, oldBounds);
+       neueBounds.bottom = neueBounds.top + value;
+       var neue = uiTransformSelection(neueBounds, oldBounds, elements);
+       dispatch("updateUiComponentElements", neue);
      },
-     get: function(attrs, canvas) {
-       return attrs.bottom - attrs.top;
+     get: function(elements, canvas) {
+       var bounds = uiGetBounds(elements);
+       return bounds.bottom - bounds.top;
      }}
   ],
   typography: [
     {displayName: "color", type: "color", group: "typography", prop: "color"},
     {displayName: "font", type: "font", group: "typography", prop: "fontFamily"},
     {displayName: "size", type: "number", group: "typography", prop: "fontSize"},
-    {displayName: "weight", type: "number", group: "typography", prop: "fontWeight"},
+    {displayName: "weight", type: makeEnum(["normal", "bold", 100, 200, 300, 500, 600, 800, 900]), group: "typography", prop: "fontWeight"},
   ],
   appearance: [
     {displayName: "background", type: "color", group: "appearance", prop: "backgroundColor"},
     {displayName: "image", type: "image", group: "appearance", prop: "backgroundImage"},
     {displayName: "border-width", type: "number", group: "appearance", prop: "borderWidth"},
-    {displayName: "border-style", type: "string", group: "appearance", prop: "borderStyle"},
+    {displayName: "border-style", type: makeEnum(["none", "dotted", "dashed", "solid", "double"]), group: "appearance", prop: "borderStyle"},
     {displayName: "border-color", type: "color", group: "appearance", prop: "borderColor"},
   ]
 };
 function uiPropsSetter(prop) {
-  return function setProperty(attrs, canvas, value) {
-    return {property: prop, value: value};
+  return function setProperty(elements, canvas, value) {
+    var neue = elements.map(function(elem) {
+      return {property: prop, id: elem.id, value: value};
+    });
+    dispatch("updateUiComponentAttributes", neue);
   }
 }
 function uiPropsGetter(prop) {
-  return function getProperty(attrs, canvas) {
-    if(attrs[prop]) {
-      return attrs[prop][2];
+  return function getProperty(elements, canvas) {
+    var values = elements.map(function(elem) {
+      var attr = ixer.index("uiElementToAttr")[elem.id] || {};
+      if(attr[prop]) { return attr[prop][2]; }
+    });
+    var value = values[0];
+    var same = values.every(function(val) {
+      return (val === value);
+    });
+    if(same) {
+      return value;
     }
   }
 }
@@ -1744,7 +2025,6 @@ var uiControls = {
     displayName: "box",
     attrs: ["layout", "appearance"]
   }
-
 };
 
 var uiControl = reactFactory({
@@ -1780,7 +2060,7 @@ var uiTools = reactFactory({
 var uiInspector = reactFactory({
   displayName: "ui-inspector",
   getInitialState: function() {
-    return {controls: [], groups: [], attrs: []};
+    return {pane: undefined, controls: [], groups: [], attrs: []};
   },
   componentWillReceiveProps: function(nextProps) {
     if(!nextProps.selection.length && !this.state.controls.length) { return; }
@@ -1802,7 +2082,7 @@ var uiInspector = reactFactory({
     }
 
     if(updateState) {
-      this.setState({controls: neueControls, groups: this.getGroupsForControls(neueControls)});
+      this.setState({pane: undefined, controls: neueControls, groups: this.getGroupsForControls(neueControls)});
     }
   },
   getGroupsForControls: function(controls) {
@@ -1830,40 +2110,36 @@ var uiInspector = reactFactory({
   },
   setAttribute: function(attr, value) {
     var canvas = {}; // @FIXME: get canvas from props.
-
-    var neue = this.props.selection.map(function(sel) {
-      var attrs = ixer.index("uiElementToAttr")[sel.id] || {};
-      var res = attr.set(attrs, canvas, value);
-      res.id = sel.id;
-      return res;
-    });
-
-    dispatch("updateUiComponentAttributes", neue);
+    attr.set(this.props.selection, canvas, value);
+  },
+  setPane: function(content) {
+    this.setState({pane: content});
   },
   render: function() {
     var self = this;
+    var selection = this.props.selection;
     var canvas = {}; // @FIXME: get canvas from props.
 
-    var selectionAttrs = this.props.selection.map(function(sel) {
-      return ixer.index("uiElementToAttr")[sel.id] || {};
+    var content = this.state.groups.map(function(group) {
+      var rows = [[{content: group, colSpan: 2, style: {textAlign: "center"}}]];
+      var attrs = uiAttrs[group];
+
+      for(var ix = 0, len = attrs.length; ix < len; ix++) {
+        var cur = attrs[ix];
+        var attrControl = uiAttrControls[cur.type] || uiAttrControls.default;
+        var control = attrControl({attr: cur, canvas: canvas, selection: selection,
+                                                setPane: self.setPane, setAttribute: self.setAttribute.bind(self, cur)});
+
+        rows.push([cur.displayName, control]);
+      }
+      return ["div", {className: "ui-inspector-group"}, ["table", ["tbody", verticalTable(rows)]]];
     });
 
-    var attrs = this.state.groups.reduce(function(memo, group) {
-      return memo.concat(uiAttrs[group]);
-    }, []);
-    var attrsRows = attrs.map(function(cur) {
-      var value = cur.get(selectionAttrs[0], canvas);
-      var same = selectionAttrs.every(function(attrs) {
-        return (cur.get(attrs, canvas) === value);
-      });
-      return [cur.displayName,
-              cur.type,
-              editable({value: (same ? value : "???"), onSubmit: self.setAttribute.bind(self, cur)})];
-    });
-    var content = verticalTable(attrsRows);
-    return JSML(["div", {className: "ui-inspector"},
-                 content
-                ]);
+    return JSML(
+      ["div", {className: "ui-inspector"},
+       ["div", {className: "ui-inspector-pane"}, content],
+       (this.state.pane ? ["div", {className: "ui-inspector-pane ui-inspector-group"}, this.state.pane] : undefined)]
+    );
   }
 });
 
@@ -2026,37 +2302,13 @@ var uiSelection = reactFactory({
     state.valid = true;
     return state;
   },
-//   shouldComponentUpdate: function(nextProps, nextState) {
-//     var self = this;
-//     var state = this.state;
-//     if(this.props.id !== nextProps.id
-//        || state.left !== nextState.left
-//        || state.right !== nextState.right
-//        || state.top !== nextState.top
-//        || state.bottom !== nextState.bottom
-//       ) {
-//       return true;
-//     }
-
-//     if(this.props.elements.length !== nextProps.elements.length) { return true; }
-//     return nextProps.elements.some(function(neue, ix) {
-//       var old = self.props.elements[ix];
-//       if(old.id !== neue.id
-//          || old.left !== neue.left
-//          || old.right !== neue.right
-//          || old.top !== neue.top
-//          || old.bottom !== neue.bottom) {
-//         return true;
-//       }
-//     });
-//   },
-  componentDidUpdate: function(prev) {
+  componentWillReceiveProps: function(nextProps) {
     var shouldSetState = false;
-    if(this.props.elements.length !== prev.elements.length) {
+    if(this.props.elements.length !== nextProps.elements.length) {
       shouldSetState = true;
     } else {
-      shouldSetState = this.props.elements.some(function(neue, ix) {
-        var old = prev.elements[ix];
+      shouldSetState = this.props.elements.some(function(old, ix) {
+        var neue = nextProps.elements[ix];
         if(old.id !== neue.id
            || old.left !== neue.left
            || old.right !== neue.right
@@ -2068,59 +2320,13 @@ var uiSelection = reactFactory({
     }
 
     if(shouldSetState) {
-      this.setState(this.getBounds(this.props.elements));
+      this.setState(this.getBounds(nextProps.elements));
     }
   },
-
-  getBounds: function(elements) {
-    var bounds = {
-      top: Infinity, bottom: -Infinity,
-      left: Infinity, right: -Infinity
-    };
-    for(var ix = 0, len = elements.length; ix < len; ix++) {
-      var el = elements[ix];
-      if(el.top < bounds.top) { bounds.top = el.top; }
-      if(el.left < bounds.left) { bounds.left = el.left; }
-      if(el.bottom > bounds.bottom) { bounds.bottom = el.bottom; }
-      if(el.right > bounds.right) { bounds.right = el.right; }
-    }
-    return bounds;
-  },
-  localizeCoords: function(child, parent) {
-    return {
-      left: child.left - parent.left,
-      right: child.right - parent.left,
-      top: child.top - parent.top,
-      bottom: child.bottom - parent.top
-    };
-  },
-  globalizeCoords: function(child, parent) {
-    return {
-      left: child.left + parent.left,
-      right: child.right + parent.left,
-      top: child.top + parent.top,
-      bottom: child.bottom + parent.top
-    };
-  },
-  transformSelection: function(neue, old, elements) { // (Bounds, Bounds, Elem[]) -> Elem[]
-    var offsetX = old.left - neue.left;
-    var offsetY = old.top - neue.top;
-
-    var widthRatio = (neue.right - neue.left) / (old.right - old.left);
-    var heightRatio = (neue.bottom - neue.top) / (old.bottom - old.top);
-
-    for(var ix = 0, len = elements.length; ix < len; ix++) {
-      var el = extend({}, elements[ix]);
-      el = this.localizeCoords(el, old);
-      el.left *= widthRatio;
-      el.right *= widthRatio;
-      el.top *= heightRatio;
-      el.bottom *= heightRatio;
-      elements[ix] = this.globalizeCoords(el, neue);
-    }
-
-    return elements;
-  },
+  getBounds: uiGetBounds,
+  localizeCoords: uiLocalizeCoords,
+  globalizeCoords: uiGlobalizeCoords,
+  transformSelection: uiTransformSelection,
 
   // Moving
   startMoving: function(e) {
@@ -2161,15 +2367,7 @@ var uiSelection = reactFactory({
       this.setState({left: oldBounds.left, top: oldBounds.top, right: oldBounds.right, bottom: oldBounds.bottom, initialBounds: undefined, valid: true});
       return;
     }
-    var elBounds = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
-    var neue = elBounds.map(function(bounds, ix) {
-      var neue = extend({}, self.props.elements[ix]);
-      neue.top = bounds.top;
-      neue.right = bounds.right;
-      neue.bottom = bounds.bottom;
-      neue.left = bounds.left;
-      return neue;
-    });
+    var neue = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
     dispatch("updateUiComponentElements", neue);
     this.props.snap();
     this.setState({initialBounds: undefined, valid: true});
@@ -2225,15 +2423,7 @@ var uiSelection = reactFactory({
     var self = this;
     var oldBounds = this.state.initialBounds;
     var neueBounds = {left: this.state.left, top: this.state.top, right: this.state.right, bottom: this.state.bottom};
-    var elBounds = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
-    var neue = elBounds.map(function(bounds, ix) {
-      var neue = extend({}, self.props.elements[ix]);
-      neue.top = bounds.top;
-      neue.right = bounds.right;
-      neue.bottom = bounds.bottom;
-      neue.left = bounds.left;
-      return neue;
-    });
+    var neue = this.transformSelection(neueBounds, oldBounds, this.props.elements.slice());
     dispatch("updateUiComponentElements", neue);
     this.props.snap();
     this.setState({initialBounds: undefined});
@@ -2329,7 +2519,19 @@ var uiSelection = reactFactory({
 var uiCanvas = reactFactory({
   displayName: "ui-canvas",
   getInitialState: function() {
-    return {snapGuides: []};
+    var self = this;
+    var els = this.props.elements.filter(function(cur) {
+      return self.props.selection.indexOf(cur) === -1 && cur.invisible === false;
+    });
+    var possibleSnaps = this.findPossibleSnaps(els, {edge: true, center: true});
+    return {snapGuides: [], possibleSnaps: possibleSnaps};
+  },
+  componentWillReceiveProps: function(nextProps) {
+    var els = nextProps.elements.filter(function(cur) {
+      return nextProps.selection.indexOf(cur) === -1 && cur.invisible === false;
+    });
+    var possibleSnaps = this.findPossibleSnaps(els, {edge: true, center: true});
+    this.setState({possibleSnaps: possibleSnaps});
   },
   drawSnaps: function(snaps) {
     this.setState({snapGuides: snaps});
@@ -2444,10 +2646,7 @@ var uiCanvas = reactFactory({
     var snapThreshold = 8;
     only = only || {};
 
-    var els = this.props.elements.filter(function(cur) {
-      return self.props.selection.indexOf(cur) === -1 && cur.invisible === false;
-    });
-    var possibleSnaps = this.findPossibleSnaps(els, {edge: true, center: true});
+    var possibleSnaps = this.state.possibleSnaps;
     var found = this.findSnaps(pos, possibleSnaps, snapThreshold, only);
     this.drawSnaps(found.guides);
     return found.snaps;
@@ -2676,10 +2875,10 @@ function reverseDiff(diff) {
   for(var diffIx = 0, diffLen = diff.length; diffIx < diffLen; diffIx++) {
     var copy = diff[diffIx].slice();
     neue[diffIx] = copy
-    if(copy[1] === "insert") {
-      copy[1] = "remove";
+    if(copy[1] === "inserted") {
+      copy[1] = "removed";
     } else {
-      copy[1] = "insert";
+      copy[1] = "inserted";
     }
   }
   return neue;
@@ -2711,19 +2910,14 @@ function dispatch(event, arg, noRedraw) {
   var diffs = [];
 
   switch(event) {
-    case "load":
-      var session = localStorage.getItem("session");
-      if(session) {
-        ixer.load(JSON.parse(session));
-      } else {
-        initIndexer();
-      }
+    case "initServer":
+      initIndexer();
       break;
     case "unload":
-      if(!window.DO_NOT_SAVE) {
-        var session = JSON.stringify(ixer.tables, null, 2);
-        localStorage.setItem("session", session);
-      }
+//       if(!window.DO_NOT_SAVE) {
+//         var session = JSON.stringify(ixer.tables, null, 2);
+//         localStorage.setItem("session", session);
+//       }
       break;
 
     case "addColumnToTable":
@@ -2733,14 +2927,14 @@ function dispatch(event, arg, noRedraw) {
       var oldKey = JSON.stringify(arg.old);
       var edits = ixer.index("editId")[arg.table]
       var time = edits ? edits[oldKey] : 0;
-      diffs.push(["editId", "insert", [arg.table, JSON.stringify(arg.neue), time]],
-                 ["editId", "remove", [arg.table, oldKey, time]],
-                 [arg.table, "insert", arg.neue.slice()],
-                 [arg.table, "remove", arg.old.slice()]);
+      diffs.push(["editId", "inserted", [arg.table, JSON.stringify(arg.neue), time]],
+                 ["editId", "removed", [arg.table, oldKey, time]],
+                 [arg.table, "inserted", arg.neue.slice()],
+                 [arg.table, "removed", arg.old.slice()]);
       break;
     case "addRow":
-      diffs.push(["editId", "insert", [arg.table, JSON.stringify(arg.neue), (new Date()).getTime()]],
-                 [arg.table, "insert", arg.neue.slice()]);
+      diffs.push(["editId", "inserted", [arg.table, JSON.stringify(arg.neue), (new Date()).getTime()]],
+                 [arg.table, "inserted", arg.neue.slice()]);
       break;
     case "rename":
       diffs = code.diffs.changeDisplayName(arg.id, arg.value);
@@ -2750,26 +2944,26 @@ function dispatch(event, arg, noRedraw) {
         var el = arg[ix];
         var prev = ixer.index("uiComponentElement")[el.id];
         var neue = [el.id, el.component, el.layer, el.control, el.left, el.top, el.right, el.bottom];
-        diffs.push(["uiComponentElement", "insert", neue],
-                   ["uiComponentElement", "remove", prev]);
+        diffs.push(["uiComponentElement", "inserted", neue],
+                   ["uiComponentElement", "removed", prev]);
 
       }
       break;
     case "addUiComponentElement":
       var neue = [uuid(), arg.component, arg.layer, arg.control, arg.left, arg.top, arg.right, arg.bottom];
-      diffs.push(["uiComponentElement", "insert", neue]);
+      diffs.push(["uiComponentElement", "inserted", neue]);
       break;
     case "addUiComponentLayer":
       var neue = [uuid(), arg.component, arg.layer, false, false];
-      diffs.push(["uiComponentLayer", "insert", neue]);
+      diffs.push(["uiComponentLayer", "inserted", neue]);
       break;
     case "updateUiComponentLayers":
       for(var ix = 0; ix < arg.length; ix++) {
         var layer = arg[ix];
         var neue = [layer.id, layer.component, layer.layer, layer.locked, layer.invisible];
         var old = ixer.index("uiComponentLayer")[layer.id];
-        diffs.push(["uiComponentLayer", "insert", neue],
-                   ["uiComponentLayer", "remove", old]);
+        diffs.push(["uiComponentLayer", "inserted", neue],
+                   ["uiComponentLayer", "removed", old]);
       }
       break;
     case "updateUiComponentAttribute":
@@ -2782,9 +2976,13 @@ function dispatch(event, arg, noRedraw) {
       break;
     case "addTile":
       // @FIXME: active grid
-      var activeGrid = ixer.facts("activeGrid")[0][0];
+      var activeGridInfo = ixer.facts("activeGrid")[0];
+      var activeGrid = "default";
+      if(activeGridInfo) {
+        activeGrid = activeGridInfo[0];
+      }
       var fact = [arg.id, activeGrid, arg.type, arg.pos[0], arg.pos[1], arg.size[0], arg.size[1]];
-      diffs.push(["gridTile", "insert", fact]);
+      diffs.push(["gridTile", "inserted", fact]);
       break;
     case "updateTile":
       var fact = ixer.index("gridTile")[arg.id].slice();
@@ -2799,22 +2997,22 @@ function dispatch(event, arg, noRedraw) {
         fact[5] = arg.size[0];
         fact[6] = arg.size[1];
       }
-      diffs.push(["gridTile", "insert", fact],
-                 ["gridTile", "remove", oldFact]);
+      diffs.push(["gridTile", "inserted", fact],
+                 ["gridTile", "removed", oldFact]);
       break;
     case "closeTile":
       // @TODO: clean up old dependent facts.
       var fact = ixer.index("gridTile")[arg].slice();
-      diffs.push(["gridTile", "remove", fact]);
+      diffs.push(["gridTile", "removed", fact]);
       break;
     case "setTileView":
       var oldTile = ixer.index("gridTile")[arg.tileId].slice();
       var tile = oldTile.slice();
       //set to a tile type
       var type = tile[2] = (code.hasTag(arg.view, "table") ? "table" : "view");
-      diffs.push(["gridTile", "remove", oldTile],
-                 ["gridTile", "insert", tile],
-                 [type + "Tile", "insert", [tile[0], arg.view]]);
+      diffs.push(["gridTile", "removed", oldTile],
+                 ["gridTile", "inserted", tile],
+                 [type + "Tile", "inserted", [tile[0], arg.view]]);
       break;
     case "addTable":
       var oldTile = ixer.index("gridTile")[arg].slice();
@@ -2823,9 +3021,9 @@ function dispatch(event, arg, noRedraw) {
       tile[2] = "table";
       var tableId = uuid();
       diffs = code.diffs.addView("Untitled Table", {A: "string"}, undefined, tableId, ["table"]);
-      diffs.push(["gridTile", "insert", tile],
-                 ["gridTile", "remove", oldTile],
-                 ["tableTile", "insert", [arg, tableId]]);
+      diffs.push(["gridTile", "inserted", tile],
+                 ["gridTile", "removed", oldTile],
+                 ["tableTile", "inserted", [arg, tableId]]);
       break;
     case "addView":
       var oldTile = ixer.index("gridTile")[arg].slice();
@@ -2833,46 +3031,48 @@ function dispatch(event, arg, noRedraw) {
       //set to a table tile
       tile[2] = "view";
       var viewId = uuid();
-      diffs = code.diffs.addView("Untitled View", {}, undefined, viewId, ["view"]);
-      diffs.push(["gridTile", "insert", tile],
-                 ["gridTile", "remove", oldTile],
-                 ["viewTile", "insert", [arg, viewId]]);
+      diffs = code.diffs.addView("Untitled View", {}, undefined, viewId, ["view"], "query");
+      diffs.push(["gridTile", "inserted", tile],
+                 ["gridTile", "removed", oldTile],
+                 ["viewTile", "inserted", [arg, viewId]]);
       break;
 
     case "setTarget":
-      diffs.push(["gridTarget", "insert", [arg.id, arg.target]],
-                 ["gridTarget", "remove", [arg.id, ixer.index("gridTarget")[arg.id]]]);
+      diffs.push(["gridTarget", "inserted", [arg.id, arg.target]],
+                 ["gridTarget", "removed", [arg.id, ixer.index("gridTarget")[arg.id]]]);
       break;
     case "navigate":
       if(!arg.target.indexOf("grid://") === 0) { throw new Error("Cannot handle non grid:// urls yet."); }
       var old = ixer.facts("activeGrid")[0];
       if(old) {
-        diffs.push(["activeGrid", "remove", old]);
+        diffs.push(["activeGrid", "removed", old]);
       }
-      diffs.push(["activeGrid", "insert", [arg.target]]);
+      diffs.push(["activeGrid", "inserted", [arg.target]]);
       break;
     case "addSource":
+      var schemaId = ixer.index("view")[arg.view][1];
       var ix = (ixer.index("viewToSources")[arg.view] || []).length;
       var sourceId = uuid();
       diffs = code.diffs.autoJoins(arg.view, arg.source, sourceId);
-      diffs.push(["source", "insert", [sourceId, arg.view, ix, arg.source, true]]);
+      diffs.push(["source", "inserted", [sourceId, arg.view, ix, ["view", arg.source], "get-tuple"]]);
+      diffs.push(["field", "inserted", [sourceId + "-field", schemaId, ix, "tuple"]]);
       break;
     case "addCalculationSource":
       var ix = (ixer.index("viewToSources")[arg.view] || []).length;
       var sourceId = uuid();
       //@TODO: should we auto-join calculations?
-      diffs.push(["source", "insert", [sourceId, arg.view, ix, arg.source, true]]);
+      diffs.push(["source", "inserted", [sourceId, arg.view, ix, arg.source, "get-tuple"]]);
       break;
     case "swapCalculationSource":
-      diffs.push(["source", "insert", arg.neue.slice()],
-                 ["source", "remove", arg.old.slice()]);
+      diffs.push(["source", "inserted", arg.neue.slice()],
+                 ["source", "removed", arg.old.slice()]);
       break;
     case "removeConstraint":
-      diffs.push(["constraint", "remove", arg.constraint]);
+      diffs.push(["constraint", "removed", arg.constraint]);
       break;
     case "swapConstraint":
-      diffs.push(["constraint", "remove", arg.old.slice()],
-                 ["constraint", "insert", arg.neue.slice()]);
+      diffs.push(["constraint", "removed", arg.old.slice()],
+                 ["constraint", "inserted", arg.neue.slice()]);
       break;
     case "undo":
       storeEvent = false;
@@ -2894,10 +3094,10 @@ function dispatch(event, arg, noRedraw) {
     eventStack = eventItem;
   }
 
-  ixer.handleDiffs(diffs);
+//   ixer.handleDiffs(diffs);
+  sendToServer(toMapDiffs(diffs));
 
   if(!noRedraw) {
-    React.render(root(), document.body);
   }
 }
 
@@ -2913,35 +3113,36 @@ var code = {
       var fields = code.viewToFields(viewId) || [];
       var schema = view[1];
       var fieldId = uuid();
-      return [["field", "insert", [fieldId, schema, fields.length, "unknown"]],
-              ["displayName", "insert", [fieldId, alphabet[fields.length]]]];
+      return [["field", "inserted", [fieldId, schema, fields.length, "unknown"]],
+              ["displayName", "inserted", [fieldId, alphabet[fields.length]]]];
     },
     changeDisplayName: function(id, neue) {
       var cur = ixer.index("displayName")[id];
-      return [["displayName", "insert", [id, neue]],
-              ["displayName", "remove", [id, cur]]];
+      return [["displayName", "inserted", [id, neue]],
+              ["displayName", "removed", [id, cur]]];
     },
-    addView: function(name, fields, initial, id, tags) { // (S, {[S]: Type}, Fact[]?, Uuid?, S[]?) -> Diffs
+    addView: function(name, fields, initial, id, tags, type) { // (S, {[S]: Type}, Fact[]?, Uuid?, S[]?) -> Diffs
       id = id || uuid();
       var schema = uuid();
       var fieldIx = 0;
-      var diffs = [["displayName", "insert", [id, name]]];
+      var diffs = [["displayName", "inserted", [id, name]],
+                   ["schema", "inserted", [schema]]];
       for(var fieldName in fields) {
         if(!fields.hasOwnProperty(fieldName)) { continue; }
         var fieldId = uuid()
-        diffs.push(["field", "insert", [fieldId, schema, fieldIx++, fields[fieldName]]],
-                   ["displayName", "insert", [fieldId, fieldName]]);
+        diffs.push(["field", "inserted", [fieldId, schema, fieldIx++, fields[fieldName]]],
+                   ["displayName", "inserted", [fieldId, fieldName]]);
       }
 
-      diffs.push(["view", "insert", [id, schema, "union"]]);
+      diffs.push(["view", "inserted", [id, schema, type || "input"]]);
       if(initial && initial.length) {
         for(var initIx = 0, initLen = initial.length; initIx < initLen; initIx++) {
-          diffs.push([id, "insert", initial[initIx]]);
+          diffs.push([id, "inserted", initial[initIx]]);
         }
       }
       if(tags) {
         for(var tagIx = 0, tagLen = tags.length; tagIx < tagLen; tagIx++) {
-          diffs.push(["tag", "insert", [id, tags[tagIx]]]);
+          diffs.push(["tag", "inserted", [id, tags[tagIx]]]);
         }
       }
       return diffs;
@@ -2955,7 +3156,7 @@ var code = {
         return [cur[0], displayNames[cur[0]]];
       });
       sources.forEach(function(cur) {
-        theirFields = code.viewToFields(cur[3]);
+        theirFields = code.viewToFields(cur[3][1]);
         if(!theirFields) return;
 
         for(var i in theirFields) {
@@ -2965,7 +3166,7 @@ var code = {
             if(displayNames[theirs[0]] === myField[1]) {
               //same name, join them.
               diffs.push(
-                ["constraint", "insert",
+                ["constraint", "inserted",
                  [view, "=",
                   code.ast.fieldSourceRef(sourceId, myField[0]),
                   code.ast.fieldSourceRef(cur[0], theirs[0])]]);
@@ -2981,11 +3182,11 @@ var code = {
       var diffs = [];
       var neue = [attribute.id, attribute.property, attribute.value];
       var oldProps = ixer.index("uiElementToAttr")[attribute.id];
-      diffs.push(["uiComponentAttribute", "insert", neue]);
+      diffs.push(["uiComponentAttribute", "inserted", neue]);
       if(oldProps) {
         var oldProp = oldProps[attribute.property];
         if(oldProp) {
-          diffs.push(["uiComponentAttribute", "remove", oldProp]);
+          diffs.push(["uiComponentAttribute", "removed", oldProp]);
         }
       }
       return diffs;
@@ -3002,7 +3203,7 @@ var code = {
   },
   ast: {
     fieldSourceRef: function(source, field) {
-      return {"": "field-source-ref", source: source, field: field};
+      return ["column", source, field];
     },
     sourceRef: function(source) {
       return {"": "source-ref", source: source};
@@ -3031,10 +3232,10 @@ var code = {
     return ixer.index("schemaToFields")[schema];
   },
   refToName: function(ref) {
-    switch(ref[""]) {
-      case "field-source-ref":
-        var view = code.name(ixer.index("sourceToData")[ref.source]);
-        var field = code.name(ref.field);
+    switch(ref[0]) {
+      case "column":
+        var view = code.name(ixer.index("sourceToData")[ref[1]][1]);
+        var field = code.name(ref[2]);
         return {string: view + "." + field, view: view, field: field};
         break;
       default:
@@ -3043,7 +3244,7 @@ var code = {
     }
   },
   refToType: function(ref) {
-    return ixer.index("field")[ref.field][3];
+    return ixer.index("field")[ref[2]][3];
   },
   typesEqual: function(a, b) {
     //@TODO: equivalence. e.g. int = number
@@ -3054,9 +3255,9 @@ var code = {
     var sources = ixer.index("viewToSources")[view] || [];
     sources.forEach(function(source) {
       var viewOrData = source[3];
-      var sourceView = viewOrData;
+      var sourceView = viewOrData[1];
       //view
-      if(typeof viewOrData !== "string") {
+      if(viewOrData[0] !== "view") {
         //@TODO: handle getting the refs for functions
         sourceView = null;
       } else {
@@ -3128,8 +3329,19 @@ ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
 ixer.addIndex("viewTile", "viewTile", Indexing.create.lookup([0, false]));
 
 function initIndexer() {
-  ixer.handleDiffs(code.diffs.addView("view", {id: "string", schema: "string", query: "string"}, undefined, "view", ["table"]));
-  ixer.handleDiffs(code.diffs.addView("field", {id: "string", schema: "string", ix: "number"}, undefined, "field", ["table"]));
+  ixer.handleDiffs(
+    code.diffs.addView("schema", {id: "id"}, [], "schema", ["table"]));
+  ixer.handleDiffs(
+    code.diffs.addView("field", {id: "id", schema: "id", ix: "int", type: "type"}, [], "field", ["table"]));
+  ixer.handleDiffs(
+    code.diffs.addView("primitive", {id: "id", inSchema: "id", outSchema: "id"}, [], "primitive", ["table"]));
+  ixer.handleDiffs(
+    code.diffs.addView("view", {id: "id", schema: "id", kind: "query|union"}, [], "view", ["table"]));
+  ixer.handleDiffs(
+    code.diffs.addView("source", {id: "id", view: "id", ix: "int", data: "data", splat: "bool"}, [], "source", ["table"]));
+  ixer.handleDiffs(
+    code.diffs.addView("constraint", {view: "id", op: "op", left: "reference", right: "reference"}, [], "constraint", ["table"]));
+  ixer.handleDiffs(code.diffs.addView("tag", {id: "id", tag: "string"}, undefined, "tag", ["table"]));
   ixer.handleDiffs(code.diffs.addView("displayName", {id: "string", name: "string"}, undefined, "displayName", ["table"]));
   ixer.handleDiffs(code.diffs.addView("tableTile", {id: "string", view: "string"}, undefined, "tableTile", ["table"]));
   ixer.handleDiffs(code.diffs.addView("viewTile", {id: "string", view: "string"}, undefined, "viewTile", ["table"]));
@@ -3151,27 +3363,11 @@ function initIndexer() {
     ["d", "e"]
   ], "foo", ["table"]));
 
-
-  //code views
-  ixer.handleDiffs(
-    code.diffs.addView("schema", {id: "id"}, [], "schema"));
-  ixer.handleDiffs(
-    code.diffs.addView("field", {id: "id", schema: "id", ix: "int", type: "type"}, [], "field"));
-  ixer.handleDiffs(
-    code.diffs.addView("primitive", {id: "id", inSchema: "id", outSchema: "id"}, [], "primitive"));
-  ixer.handleDiffs(
-    code.diffs.addView("view", {id: "id", schema: "id", kind: "query|union"}, [], "view"));
-  ixer.handleDiffs(
-    code.diffs.addView("source", {id: "id", view: "id", ix: "int", data: "data", splat: "bool"}, [], "source"));
-  ixer.handleDiffs(
-    code.diffs.addView("constraint", {view: "id", op: "op", left: "reference", right: "reference"}, [], "constraint"));
-
-
   //example tables
   ixer.handleDiffs(
-    code.diffs.addView("employees", {department: "string", name: "string", salary: "float"}, [], false));
+    code.diffs.addView("employees", {department: "string", name: "string", salary: "float"}, [], false, ["table"]));
   ixer.handleDiffs(
-    code.diffs.addView("department heads", {department: "string", head: "string"}, [], false));
+    code.diffs.addView("department heads", {department: "string", head: "string"}, [], false, ["table"]));
 
 
   // grid views
@@ -3213,9 +3409,68 @@ function initIndexer() {
     code.diffs.addView("uiComponentAttribute", {id: "string", property: "string", value: "string"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
 }
 
-dispatch("load");
 
 function clearStorage() {
   window.DO_NOT_SAVE = true;
   localStorage.clear();
 }
+
+var server = {connected: false, queue: [], initialized: false};
+function connectToServer() {
+  var queue = server.queue;
+  var ws = new WebSocket('ws://localhost:2794', []);
+  server.ws = ws;
+
+  // Log errors
+  ws.onerror = function (error) {
+    console.log('WebSocket Error ' + error);
+  };
+
+  // Log messages from the server
+  ws.onmessage = function (e) {
+    var data = JSON.parse(e.data);
+    if(!server.initialized && !data.changes["view"]) {
+      dispatch("initServer");
+      sendToServer(ixer.dumpMapDiffs());
+      ixer.clear();
+      server.initialized = true;
+    }
+//     console.log('Server: ' + e.data);
+    console.log("recieved", performance.now(), data);
+    ixer.handleMapDiffs(data.changes);
+    React.render(root(), document.body);
+  };
+
+  ws.onopen = function() {
+    server.connected = true;
+    for(var i = 0, len = queue.length; i < len; i++) {
+      sendToServer(queue[i]);
+    }
+  }
+}
+
+function sendToServer(message) {
+  if(!server.connected) {
+    server.queue.push(message);
+  } else {
+    console.log("sending: ", JSON.stringify(message), performance.now());
+    server.ws.send(JSON.stringify(message));
+  }
+}
+
+function toMapDiffs(diffs) {
+  var final = {};
+  for(var i = 0, len = diffs.length; i < len; i++) {
+    var cur = diffs[i];
+    var table = cur[0];
+    var action = cur[1];
+    var fact = cur[2];
+    if(!final[table]) {
+      final[table] = {inserted: [], removed: []};
+    }
+    final[table][action].push(fact);
+  }
+  return {changes: final};
+}
+
+connectToServer();
