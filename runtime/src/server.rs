@@ -104,15 +104,18 @@ impl Instance {
     }
 }
 
+pub enum ServerEvent {
+    Event(Event),
+    NewClient(sender::Sender<WebSocketStream>),
+}
+
 // TODO holy crap why is everything blocking? this is a mess
-pub fn serve() -> (mpsc::Receiver<Event>, mpsc::Receiver<sender::Sender<WebSocketStream>>) {
-    let (input_sender, input_receiver) = mpsc::channel();
-    let (sender_sender, sender_receiver) = mpsc::channel();
+pub fn serve() -> mpsc::Receiver<ServerEvent> {
+    let (event_sender, event_receiver) = mpsc::channel();
     thread::spawn(move || {
         let server = Server::bind("127.0.0.1:2794").unwrap();
         for connection in server {
-            let input_sender = input_sender.clone();
-            let sender_sender = sender_sender.clone();
+            let event_sender = event_sender.clone();
             thread::spawn(move || {
                 // accept request
                 let request = connection.unwrap().read_request().unwrap();
@@ -125,7 +128,7 @@ pub fn serve() -> (mpsc::Receiver<Event>, mpsc::Receiver<sender::Sender<WebSocke
                 ::std::io::stdout().flush().unwrap(); // TODO is this actually necessary?
 
                 // hand over sender
-                sender_sender.send(sender).unwrap();
+                event_sender.send(ServerEvent::NewClient(sender)).unwrap();
 
                 // handle messages
                 for message in receiver.incoming_messages() {
@@ -134,7 +137,7 @@ pub fn serve() -> (mpsc::Receiver<Event>, mpsc::Receiver<sender::Sender<WebSocke
                         Message::Text(text) => {
                             let json = Json::from_str(&text).unwrap();
                             let event = FromJson::from_json(&json);
-                            input_sender.send(event).unwrap();
+                            event_sender.send(ServerEvent::Event(event)).unwrap();
                         }
                         _ => panic!("Unknown message: {:?}", message)
                     }
@@ -155,28 +158,26 @@ pub fn run() {
         output: empty_output.clone(),
     };
     let mut senders: Vec<sender::Sender<_>> = Vec::new();
-    let (input_receiver, sender_receiver) = serve();
-    loop {
-        select!(
-            input = input_receiver.recv() => {
+    let event_receiver = serve();
+    for event in event_receiver.iter() {
+        match event {
+            ServerEvent::NewClient(mut sender) => {
                 time!("sending initial state", {
-                    let input = input.unwrap();
-                    let changes = instance.change(input.changes);
-                    let text = format!("{}", Event{changes: changes}.to_json());
-                    for sender in senders.iter_mut() {
-                        sender.send_message(Message::Text(text.clone())).unwrap();
-                    }
-                })
-            },
-            sender = sender_receiver.recv() => {
-                time!("sending update", {
-                    let mut sender = sender.unwrap();
                     let changes = instance.flow.changes_since(&instance.output, &empty_flow, &empty_output);
                     let text = format!("{}", Event{changes: changes}.to_json());
                     sender.send_message(Message::Text(text)).unwrap();
                     senders.push(sender)
                 })
             }
-            )
+            ServerEvent::Event(event) => {
+                time!("sending update", {
+                    let changes = instance.change(event.changes);
+                    let text = format!("{}", Event{changes: changes}.to_json());
+                    for sender in senders.iter_mut() {
+                        sender.send_message(Message::Text(text.clone())).unwrap();
+                    }
+                })
+            }
+        }
     }
 }
