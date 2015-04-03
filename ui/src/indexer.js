@@ -5,6 +5,10 @@ var Indexing = (function() {
     var i = a.length;
     if (i != b.length) return false;
     while (i--) {
+      if(a[i] && a[i].constructor === Array) {
+        if(!arraysIdentical(a[i], b[i])) return false;
+        continue;
+      }
       if (a[i] !== b[i]) return false;
     }
     return true;

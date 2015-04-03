@@ -61,6 +61,57 @@ function range(from, to) {
   return results;
 }
 
+function clone(item) {
+    if (!item) { return item; } // null, undefined values check
+
+    var types = [ Number, String, Boolean ],
+        result;
+
+    // normalizing primitives if someone did new String('aaa'), or new Number('444');
+    types.forEach(function(type) {
+        if (item instanceof type) {
+            result = type( item );
+        }
+    });
+
+    if (typeof result == "undefined") {
+        if (Object.prototype.toString.call( item ) === "[object Array]") {
+            result = [];
+            item.forEach(function(child, index, array) {
+                result[index] = clone( child );
+            });
+        } else if (typeof item == "object") {
+            // testing that this is DOM
+            if (item.nodeType && typeof item.cloneNode == "function") {
+                var result = item.cloneNode( true );
+            } else if (!item.prototype) { // check that this is a literal
+                if (item instanceof Date) {
+                    result = new Date(item);
+                } else {
+                    // it is an object literal
+                    result = {};
+                    for (var i in item) {
+                        result[i] = clone( item[i] );
+                    }
+                }
+            } else {
+                // depending what you would like here,
+                // just keep the reference, or create new object
+                if (false && item.constructor) {
+                    // would not advice to do that, reason? Read below
+                    result = new item.constructor();
+                } else {
+                    result = item;
+                }
+            }
+        } else {
+            result = item;
+        }
+    }
+
+    return result;
+}
+
 function verticalTable(rows) {
   var content = [];
   for(var rowIx = 0, rowsLength = rows.length; rowIx < rowsLength; rowIx++) {
@@ -778,14 +829,12 @@ var tableSelector = reactFactory({
     ixer.facts("view").forEach(function(cur) {
       var view = cur[0];
       var name = displayNames[view]
-      console.log(view, name, displayNames[view]);
       if(name && name.indexOf(search) > -1) {
         var selected = items.length === self.state.selected;
         results.push(view);
         items.push(tableSelectorItem({view: view, name: name, selected: selected, select: self.select}));
       }
     });
-    console.log(items);
     this.state.results = results;
     return JSML(["div", {className: "table-selector"},
                  ["input", {type: "text", placeholder: "search", onKeyDown: this.handleKeys, onInput: this.updateSearch, value: this.state.search}],
@@ -822,7 +871,7 @@ var editable = reactFactory({
     }
   },
   render: function() {
-    var value = (this.state.value === undefined ? this.props.value : this.state.value);
+    var value = (this.state.modified === false ? this.props.value : this.state.value);
     if(value === undefined) {
       value = ""
     } else if(typeof value === "object") {
@@ -896,7 +945,7 @@ var tableRow = reactFactory({
   render: function() {
     var self = this;
     var fields = range(this.props.length).map(function(cur) {
-      var content = self.props.row[cur];
+      var content = self.state.row[cur];
       if(content === undefined) {
         content = "";
       }
@@ -1099,7 +1148,7 @@ var structuredMultiSelector = reactFactory({
     React.findDOMNode(this.refs.editable).focus();
   },
   setConstant: function(value) {
-    this.set({"": "constant", value: value});
+    this.set(["constant", value]);
   },
   render: function() {
     var self = this;
@@ -1182,7 +1231,7 @@ function tokenAtPath(component, value, pathExtension) {
                                  value: value});
 }
 function componentAtPath(component, value, pathExtension) {
-  return astComponents[value[""]]({path: pathExtension ? component.props.path.concat(pathExtension) : component.props.path,
+  return astComponents[value[0]]({path: pathExtension ? component.props.path.concat(pathExtension) : component.props.path,
                                  onSelect: component.props.onSelect,
                                  activePath: component.props.activePath,
                                  value: value});
@@ -1209,15 +1258,17 @@ var astComponents = {
       return tokenAtPath(this, value);
     }
   }),
-  "source-ref": reactFactory({
+  "column": reactFactory({
     render: function() {
-      //       return {"": "source-ref", source: source};
+      var name = code.refToName(this.props.value);
+      var value = ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], name.field];
+      return tokenAtPath(this, value);
     }
   }),
   constant: reactFactory({
     render: function() {
       //       return {"": "constant", value: value};
-      return tokenAtPath(this, this.props.value.value)
+      return tokenAtPath(this, this.props.value[1])
     }
   }),
   op: reactFactory({
@@ -1234,15 +1285,15 @@ var astComponents = {
     placeholderOrValue: function(args, placeholders, ix) {
       var curArg = args[ix];
       if(curArg) {
-        return componentAtPath(this, curArg, ["args", ix]);
+        return componentAtPath(this, curArg, [2, ix]);
       }
-      return tokenAtPath(this, placeholders[ix], ["args", ix]);
+      return tokenAtPath(this, placeholders[ix], [2, ix]);
     },
     render: function() {
       //       return {"": "call", primitive: primitive, args: args};
       var self = this;
-      var prim = this.props.value.primitive;
-      var args = this.props.value.args || [];
+      var prim = this.props.value[1];
+      var args = this.props.value[2] || [];
       var info = primitiveInfo[prim];
       var rep;
       var op = tokenAtPath(this, prim);
@@ -1277,7 +1328,7 @@ var astComponents = {
       //@TODO: if this expression is complete and valid
       var path = this.state.editing;
       //@TODO: deep clone
-      var exp = this.props.expression;
+      var exp = clone(this.props.expression);
       if(!path.length) {
         exp = id;
       } else {
@@ -1301,27 +1352,27 @@ var astComponents = {
 
       //if we're dealing with a function, we want to move the cursor
       //to the next empty arg
-      if(child[""] === "call") {
-        var info = primitiveInfo[child.primitive];
-        this.startEditing(path.concat(["args", 0]));
+      if(child[0] === "call") {
+        var info = primitiveInfo[child[1]];
+        this.startEditing(path.concat([2, 0]));
         return
-      } else if(parent[""] === "call") {
+      } else if(parent[0] === "call") {
         //find the next empty arg
-        var info = primitiveInfo[parent.primitive];
+        var info = primitiveInfo[parent[1]];
         for(var i = 0, len = info.args.length; i < len; i++) {
-          if(!parent.args[i]) break;
+          if(parent[2][i] === undefined) break;
         }
         if(i === info.args.length) {
           //we've filled everything in, we're done editing
           this.stopEditing();
           return;
         }
-        if(remaining[0] === "args") {
+        if(remaining[0] === 2) {
           var final = path.slice(0,path.length - 1);
           final.push(i);
           this.startEditing(final);
         } else {
-          this.startEditing(path.concat(["args", i]));
+          this.startEditing(path.concat([2, i]));
         }
       }
     },
@@ -1336,7 +1387,7 @@ var astComponents = {
         var remainingIx = 0;
         for(var i = 0, len = path.length - 1; i < len; i++) {
           cursor = cursor[path[i]];
-          if(cursor[""]) {
+          if(typeof cursor[0] === "string") {
             remainingIx = i;
             parent = cursor;
           }
@@ -1351,13 +1402,13 @@ var astComponents = {
       return {parent: parent, path: remaining, child: child};
     },
     getFuncs: function() {
-      var funcs = [{id: {"": "call", "primitive": "+", args: []}, text: "+"},
-                   {id: {"": "call", "primitive": "-", args: []}, text: "-"},
-                   {id: {"": "call", "primitive": "*", args: []}, text: "*"},
-                   {id: {"": "call", "primitive": "/", args: []}, text: "/"},
-                   {id: {"": "call", "primitive": "sum", args: []}, text: "sum"},
-                   {id: {"": "call", "primitive": "count", args: []}, text: "count"},
-                   {id: {"": "call", "primitive": "average", args: []}, text: "average"}];
+      var funcs = [{id: ["call", "+", []], text: "+"},
+                   {id: ["call", "-", []], text: "-"},
+                   {id: ["call", "*", []], text: "*"},
+                   {id: ["call", "/", []], text: "/"},
+                   {id: ["call", "sum", []], text: "sum"},
+                   {id: ["call", "count", []], text: "count"},
+                   {id: ["call", "average", []], text: "average"}];
       return funcs;
     },
     getFields: function(type) {
@@ -1387,7 +1438,7 @@ var astComponents = {
       var path = info.path || [];
       var child = info.child || {};
       var cur = exp;
-      if(child[""]) {
+      if(child[0]) {
         cur = child;
       }
 
@@ -1399,24 +1450,24 @@ var astComponents = {
         disabled: {}
       };
 
-      if(exp[""] === "call" || cur[""] === "call") {
-        var info = primitiveInfo[exp.primitive];
-        if(path[0] === "args") {
+      if(exp[0] === "call" || cur[0] === "call") {
+        var info = primitiveInfo[exp[1]];
+        if(path[0] === 2) {
           final.fields = this.getFields(info.args[path[1]]);
           final.mode = "field";
         }
       }
 
-      if(cur[""] === "constant") {
+      if(cur[0] === "constant") {
         final.mode = "constant";
-        final.value = cur.value;
+        final.value = cur[1];
       }
 
       return final;
     },
     render: function() {
       if(this.props.expression) {
-        value = astComponents[this.props.expression[""]]({value: this.props.expression, path: [], activePath: this.state.editing, onSelect: this.startEditing});
+        value = astComponents[this.props.expression[0]]({value: this.props.expression, path: [], activePath: this.state.editing, onSelect: this.startEditing});
       } else {
         value = ["span", {className: "token", onClick: this.fullEditor}, "yo"];
       }
@@ -1450,7 +1501,7 @@ var astComponents = {
       //@TODO: can either be a constant or a ref
       //left and right have to type check
       var left = code.refToType(this.props.constraint[2]);
-      if(this.props.constraint[3][""] === "field-source-ref") {
+      if(this.props.constraint[3][0] === "column") {
         var right = code.refToType(this.props.constraint[3]);
       } else {
         var right = typeof this.props.constraint[3].value;
@@ -1494,9 +1545,9 @@ var astComponents = {
       var allRefs = code.viewToRefs(view);
       var cur = this.props.constraint;
       var editing = this.state.editing;
-      var left = astComponents["field-source-ref"]({value: cur[2], onSelect: this.editingLeft, path: ["left"], activePath: [editing]});
+      var left = astComponents["column"]({value: cur[2], onSelect: this.editingLeft, path: ["left"], activePath: [editing]});
       //@TODO: right can be a constant or a ref...
-      var right = astComponents[cur[3][""]]({value: cur[3], onSelect: this.editingRight, path: ["right"], activePath: [editing], invalid: !this.validateRight()});
+      var right = astComponents[cur[3][0]]({value: cur[3], onSelect: this.editingRight, path: ["right"], activePath: [editing], invalid: !this.validateRight()});
       var op = astComponents["op"]({value: cur[1], path: ["op"], activePath: [editing], onSelect: this.editingOp});
       var content = ["div", {className: "structured-constraint",
                              onClick: this.startEditing},
@@ -1504,7 +1555,7 @@ var astComponents = {
       var editor;
       if(this.state.editing === "left") {
         var localRefs = allRefs.filter(function(cur) {
-          return cur.source === sourceId;
+          return cur[1] === sourceId;
         }).map(function(cur) {
           var name = code.refToName(cur);
           return {id: cur, text: ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], name.field]};
@@ -1527,7 +1578,7 @@ var astComponents = {
         });
         var value = "";
         var mode = "field";
-        if(cur[3][""] === "constant") {
+        if(cur[3][0] === "constant") {
           value = cur[3].value;
           mode = "constant";
         }
@@ -1579,13 +1630,13 @@ var viewSource = reactFactory({
       return ["li", {onClick: remove}, astComponents["constraint"]({constraint: cur, source: self.props.source})];
     });
     var content;
-    if(typeof viewOrFunction === "string") {
-      content = resultTable({tileId: this.props.tileId, tableId: viewOrFunction});
+    if(viewOrFunction[0] === "view") {
+      content = resultTable({tileId: this.props.tileId, tableId: viewOrFunction[1]});
     } else {
       content = ["div", astComponents["expression"]({viewId: this.props.viewId, expression: viewOrFunction, onSet: this.updateCalculation})];
     }
     return JSML(["div", {className: "view-source"},
-                 ["h1", code.name(viewOrFunction)],
+                 ["h1", code.name(viewOrFunction[1])],
                  ["ul", constraints],
                  content
                 ]);
@@ -1621,7 +1672,7 @@ tiles.view = {
       var constraints = ixer.index("viewToConstraints")[view] || [];
       var sourceToConstraints = {};
       constraints.forEach(function(cur) {
-        var source = cur[2].source;
+        var source = cur[2][1];
         if(!sourceToConstraints[source]) {
           sourceToConstraints[source] = [];
         }
@@ -1632,7 +1683,7 @@ tiles.view = {
         return a[2] - b[2];
       });
       var items = sources.map(function(cur) {
-        return viewSource({tileId: self.props.tileId, viewId: view, source: cur, constraints: sourceToConstraints[cur[0]] || []});
+        return viewSource({key: cur[0], tileId: self.props.tileId, viewId: view, source: cur, constraints: sourceToConstraints[cur[0]] || []});
       });
       var add;
       if(this.state.addingSource) {
@@ -2842,7 +2893,7 @@ function dispatch(event, arg, noRedraw) {
       //set to a table tile
       tile[2] = "view";
       var viewId = uuid();
-      diffs = code.diffs.addView("Untitled View", {}, undefined, viewId, ["view"]);
+      diffs = code.diffs.addView("Untitled View", {}, undefined, viewId, ["view"], "query");
       diffs.push(["gridTile", "inserted", tile],
                  ["gridTile", "removed", oldTile],
                  ["viewTile", "inserted", [arg, viewId]]);
@@ -2864,13 +2915,13 @@ function dispatch(event, arg, noRedraw) {
       var ix = (ixer.index("viewToSources")[arg.view] || []).length;
       var sourceId = uuid();
       diffs = code.diffs.autoJoins(arg.view, arg.source, sourceId);
-      diffs.push(["source", "inserted", [sourceId, arg.view, ix, arg.source, true]]);
+      diffs.push(["source", "inserted", [sourceId, arg.view, ix, ["view", arg.source], "get-tuple"]]);
       break;
     case "addCalculationSource":
       var ix = (ixer.index("viewToSources")[arg.view] || []).length;
       var sourceId = uuid();
       //@TODO: should we auto-join calculations?
-      diffs.push(["source", "inserted", [sourceId, arg.view, ix, arg.source, true]]);
+      diffs.push(["source", "inserted", [sourceId, arg.view, ix, arg.source, "get-tuple"]]);
       break;
     case "swapCalculationSource":
       diffs.push(["source", "inserted", arg.neue.slice()],
@@ -2930,7 +2981,7 @@ var code = {
       return [["displayName", "inserted", [id, neue]],
               ["displayName", "removed", [id, cur]]];
     },
-    addView: function(name, fields, initial, id, tags) { // (S, {[S]: Type}, Fact[]?, Uuid?, S[]?) -> Diffs
+    addView: function(name, fields, initial, id, tags, type) { // (S, {[S]: Type}, Fact[]?, Uuid?, S[]?) -> Diffs
       id = id || uuid();
       var schema = uuid();
       var fieldIx = 0;
@@ -2942,7 +2993,7 @@ var code = {
                    ["displayName", "inserted", [fieldId, fieldName]]);
       }
 
-      diffs.push(["view", "inserted", [id, schema, "input"]]);
+      diffs.push(["view", "inserted", [id, schema, type || "input"]]);
       if(initial && initial.length) {
         for(var initIx = 0, initLen = initial.length; initIx < initLen; initIx++) {
           diffs.push([id, "inserted", initial[initIx]]);
@@ -2964,7 +3015,7 @@ var code = {
         return [cur[0], displayNames[cur[0]]];
       });
       sources.forEach(function(cur) {
-        theirFields = code.viewToFields(cur[3]);
+        theirFields = code.viewToFields(cur[3][1]);
         if(!theirFields) return;
 
         for(var i in theirFields) {
@@ -3011,7 +3062,7 @@ var code = {
   },
   ast: {
     fieldSourceRef: function(source, field) {
-      return {"": "field-source-ref", source: source, field: field};
+      return ["column", source, field];
     },
     sourceRef: function(source) {
       return {"": "source-ref", source: source};
@@ -3040,10 +3091,10 @@ var code = {
     return ixer.index("schemaToFields")[schema];
   },
   refToName: function(ref) {
-    switch(ref[""]) {
-      case "field-source-ref":
-        var view = code.name(ixer.index("sourceToData")[ref.source]);
-        var field = code.name(ref.field);
+    switch(ref[0]) {
+      case "column":
+        var view = code.name(ixer.index("sourceToData")[ref[1]][1]);
+        var field = code.name(ref[2]);
         return {string: view + "." + field, view: view, field: field};
         break;
       default:
@@ -3052,7 +3103,7 @@ var code = {
     }
   },
   refToType: function(ref) {
-    return ixer.index("field")[ref.field][3];
+    return ixer.index("field")[ref[2]][3];
   },
   typesEqual: function(a, b) {
     //@TODO: equivalence. e.g. int = number
@@ -3063,9 +3114,9 @@ var code = {
     var sources = ixer.index("viewToSources")[view] || [];
     sources.forEach(function(source) {
       var viewOrData = source[3];
-      var sourceView = viewOrData;
+      var sourceView = viewOrData[1];
       //view
-      if(typeof viewOrData !== "string") {
+      if(viewOrData[0] !== "view") {
         //@TODO: handle getting the refs for functions
         sourceView = null;
       } else {
@@ -3149,6 +3200,7 @@ function initIndexer() {
     code.diffs.addView("source", {id: "id", view: "id", ix: "int", data: "data", splat: "bool"}, [], "source", ["table"]));
   ixer.handleDiffs(
     code.diffs.addView("constraint", {view: "id", op: "op", left: "reference", right: "reference"}, [], "constraint", ["table"]));
+  ixer.handleDiffs(code.diffs.addView("tag", {id: "id", tag: "string"}, undefined, "tag", ["table"]));
   ixer.handleDiffs(code.diffs.addView("displayName", {id: "string", name: "string"}, undefined, "displayName", ["table"]));
   ixer.handleDiffs(code.diffs.addView("tableTile", {id: "string", view: "string"}, undefined, "tableTile", ["table"]));
   ixer.handleDiffs(code.diffs.addView("viewTile", {id: "string", view: "string"}, undefined, "viewTile", ["table"]));
@@ -3259,7 +3311,7 @@ function sendToServer(message) {
   if(!server.connected) {
     server.queue.push(message);
   } else {
-    console.log("sending: ", message, performance.now());
+    console.log("sending: ", JSON.stringify(message), performance.now());
     server.ws.send(JSON.stringify(message));
   }
 }
