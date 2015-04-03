@@ -1782,6 +1782,30 @@ function uiTransformSelection(neue, old, elements) { // (Bounds, Bounds, Elem[])
   return elements;
 }
 
+function Enum(vals) {
+  if(vals.constructor === Array) {
+    this.options = vals.map(function(val, ix) {
+      return {title: val, value: val};
+    });
+  } else {
+    this.options = [];
+    for(var val in vals) {
+      this.options.push({title: vals[val], value: val});
+    }
+  }
+}
+Enum.prototype = {
+  getOptions: function() {
+    return this.options;
+  },
+  toString: function() {
+    return "enum";
+  }
+};
+function makeEnum(vals) {
+  return new Enum(vals);
+}
+
 
 // UiAttrControls = {[type:String]: ReactFactory({attr:UiAttr, canvas:Canvas, value:Any})}
 var uiAttrControls = {
@@ -1820,6 +1844,26 @@ var uiAttrControls = {
       );
     }
   }),
+
+
+  enum: reactFactory({
+    setAttribute: function(evt) {
+      this.props.attr.set(this.props.selection, this.props.canvas, evt.target.value);
+    },
+    render: function() {
+      var self = this;
+      var value = this.props.attr.get(this.props.selection, this.props.canvas);
+      var options = this.props.attr.type.getOptions();
+      return JSML(
+        ["select", {onInput: self.setAttribute, key: JSON.stringify(this.props.attr)},
+         options.map(function(opt) {
+           return ["option", {value: opt.value, selected: (opt.value === value)}, opt.title]
+         })]
+      );
+    }
+  }),
+
+
   font: reactFactory({
     displayName: "font",
     getInitialState: function() {
@@ -1917,13 +1961,13 @@ var uiAttrs = {
     {displayName: "color", type: "color", group: "typography", prop: "color"},
     {displayName: "font", type: "font", group: "typography", prop: "fontFamily"},
     {displayName: "size", type: "number", group: "typography", prop: "fontSize"},
-    {displayName: "weight", type: "number", group: "typography", prop: "fontWeight"},
+    {displayName: "weight", type: makeEnum(["normal", "bold", 100, 200, 300, 500, 600, 800, 900]), group: "typography", prop: "fontWeight"},
   ],
   appearance: [
     {displayName: "background", type: "color", group: "appearance", prop: "backgroundColor"},
     {displayName: "image", type: "image", group: "appearance", prop: "backgroundImage"},
     {displayName: "border-width", type: "number", group: "appearance", prop: "borderWidth"},
-    {displayName: "border-style", type: "string", group: "appearance", prop: "borderStyle"},
+    {displayName: "border-style", type: makeEnum(["none", "dotted", "dashed", "solid", "double"]), group: "appearance", prop: "borderStyle"},
     {displayName: "border-color", type: "color", group: "appearance", prop: "borderColor"},
   ]
 };
