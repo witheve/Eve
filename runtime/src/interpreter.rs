@@ -33,12 +33,12 @@ impl ToExpression for Call { fn to_expr(self) -> Expression { Expression::Call(s
 impl ToExpression for i32 { fn to_expr(self) -> Expression { Expression::Value(self.to_value()) } }
 impl ToExpression for f64 { fn to_expr(self) -> Expression { Expression::Value(self.to_value()) } }
 impl<'a> ToExpression for &'a str { fn to_expr(self) -> Expression { Expression::Value(self.to_value()) } }
-
+impl ToExpression for Value { fn to_expr(self) -> Expression { Expression::Value(self) } }
 
 // End Expression Enum --------------------------------------------------------
 
 #[derive(Clone,Debug)]
-pub enum Op {
+pub enum EveFn {
 	Add,
 	Subtract,
 	Multiply,
@@ -129,8 +129,12 @@ impl ToString for Constant {
 // Structs...
 #[derive(Clone,Debug)]
 pub struct Call {
-	pub op: Op,
+	pub fun: EveFn,
 	pub args: ExpressionVec,
+}
+
+pub fn build_call(fun: EveFn, args: ExpressionVec) -> Call {
+	Call{fun: fun, args: args}
 }
 
 #[derive(Clone)]
@@ -188,44 +192,44 @@ fn process_constant(c: & Constant) -> &Value {
 fn process_call(c: &Call) -> Value {
 
 
-	match c.op {
+	match c.fun {
 		// Infix ops
-		Op::Add => twoargs(|x,y|{x+y},&c.args),
-		Op::Subtract => twoargs(|x,y|{x-y},&c.args),
-		Op::Multiply => twoargs(|x,y|{x*y},&c.args),
-		Op::Divide => twoargs(|x,y|{x/y},&c.args),
-		Op::Exponentiate => twoargs(|x,y|{x.powf(y)},&c.args),
+		EveFn::Add => twoargs(|x,y|{x+y},&c.args),
+		EveFn::Subtract => twoargs(|x,y|{x-y},&c.args),
+		EveFn::Multiply => twoargs(|x,y|{x*y},&c.args),
+		EveFn::Divide => twoargs(|x,y|{x/y},&c.args),
+		EveFn::Exponentiate => twoargs(|x,y|{x.powf(y)},&c.args),
 
 		// Some general math functions
-		Op::Abs => onearg(|x|{x.abs()},&c.args),
-		Op::Sqrt => onearg(|x|{x.sqrt()},&c.args),
-		Op::Sign => onearg(|x|{x.signum()},&c.args),
-		Op::Exp => onearg(|x|{x.exp()},&c.args),
-		Op::Ln => onearg(|x|{x.ln()},&c.args),
-		Op::Log => twoargs(|x,y|{x.log(y)},&c.args),
-		Op::Log10 => onearg(|x|{x.log10()},&c.args),
-		Op::Log2 => onearg(|x|{x.log2()},&c.args),
+		EveFn::Abs => onearg(|x|{x.abs()},&c.args),
+		EveFn::Sqrt => onearg(|x|{x.sqrt()},&c.args),
+		EveFn::Sign => onearg(|x|{x.signum()},&c.args),
+		EveFn::Exp => onearg(|x|{x.exp()},&c.args),
+		EveFn::Ln => onearg(|x|{x.ln()},&c.args),
+		EveFn::Log => twoargs(|x,y|{x.log(y)},&c.args),
+		EveFn::Log10 => onearg(|x|{x.log10()},&c.args),
+		EveFn::Log2 => onearg(|x|{x.log2()},&c.args),
 
 		// Trig functions
-		Op::Sin => onearg(|x|{x.sin()},&c.args),
-		Op::Cos => onearg(|x|{x.cos()},&c.args),
-		Op::Tan => onearg(|x|{x.tan()},&c.args),
-		Op::ASin => onearg(|x|{x.atan()},&c.args),
-		Op::ACos => onearg(|x|{x.atan()},&c.args),
-		Op::ATan => onearg(|x|{x.atan()},&c.args),
-		Op::ATan2 => twoargs(|x,y|{x.atan2(y)},&c.args),
+		EveFn::Sin => onearg(|x|{x.sin()},&c.args),
+		EveFn::Cos => onearg(|x|{x.cos()},&c.args),
+		EveFn::Tan => onearg(|x|{x.tan()},&c.args),
+		EveFn::ASin => onearg(|x|{x.atan()},&c.args),
+		EveFn::ACos => onearg(|x|{x.atan()},&c.args),
+		EveFn::ATan => onearg(|x|{x.atan()},&c.args),
+		EveFn::ATan2 => twoargs(|x,y|{x.atan2(y)},&c.args),
 
 		// Aggregate functions
-		Op::Sum => general_agg(|x,y|{x+y},0f64,&c.args),
-		Op::Prod => general_agg(|x,y|{x*y},1f64,&c.args),
+		EveFn::Sum => general_agg(|x,y|{x+y},0f64,&c.args),
+		EveFn::Prod => general_agg(|x,y|{x*y},1f64,&c.args),
 
 		// String functions
-		Op::StrConcat => str_cat(&c.args),
-		Op::StrUpper => str_to_upper(&c.args),
-		Op::StrLower => str_to_lower(&c.args),
-		Op::StrLength => str_length(&c.args),
-		Op::StrReplace => str_replace(&c.args),
-		Op::StrSplit => str_split(&c.args),
+		EveFn::StrConcat => str_cat(&c.args),
+		EveFn::StrUpper => str_to_upper(&c.args),
+		EveFn::StrLower => str_to_lower(&c.args),
+		EveFn::StrLength => str_length(&c.args),
+		EveFn::StrReplace => str_replace(&c.args),
+		EveFn::StrSplit => str_split(&c.args),
 
 		_ => unimplemented!(),
 	}
