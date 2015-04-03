@@ -1856,45 +1856,11 @@ var uiAttrControls = {
       var options = this.props.attr.type.getOptions();
       return JSML(
         ["select", {onInput: self.setAttribute, key: JSON.stringify(this.props.attr)},
+         ["option", "--"],
          options.map(function(opt) {
            return ["option", {value: opt.value, selected: (opt.value === value)}, opt.title]
          })]
       );
-    }
-  }),
-
-
-  font: reactFactory({
-    displayName: "font",
-    getInitialState: function() {
-      return {open: false};
-    },
-    //     togglePicker: function() {
-    //       var isOpen = !this.state.open;
-    //       if(isOpen) {
-    //         this.props.setPane(this.renderPicker());
-    //       } else {
-    //         this.props.setPane();
-    //       }
-    //       this.setState({open: isOpen});
-    //     },
-    //     renderPicker: function(value) {
-    //       console.log("rerendering picker");
-
-    //       value = value || this.props.value;
-    //       var attr = this.props.attr;
-    //       return JSML(
-    //         ["div", {className: "ui-inspector-group"},
-    //          //editable({value: value, onSubmit: this.setAttribute})
-    //         ["input", {type: "color", value: value}]]
-    //       );
-    //     },
-    setAttribute: function(value) {
-      this.props.attr.set(this.props.selection, this.props.canvas, value);
-    },
-    render: function() {
-      var value = this.props.value;
-      return editable({value: value, onSubmit: this.setAttribute});
     }
   })
 };
@@ -1959,7 +1925,8 @@ var uiAttrs = {
   ],
   typography: [
     {displayName: "color", type: "color", group: "typography", prop: "color"},
-    {displayName: "font", type: "font", group: "typography", prop: "fontFamily"},
+    {displayName: "font", type: makeEnum(["Arial", "Comic Sans MS", "Georgia", "Times New Roman", "Trebuchet MS", "Verdana"]), group: "typography", prop: "fontFamily"},
+    //{},
     {displayName: "size", type: "number", group: "typography", prop: "fontSize"},
     {displayName: "weight", type: makeEnum(["normal", "bold", 100, 200, 300, 500, 600, 800, 900]), group: "typography", prop: "fontWeight"},
   ],
@@ -3418,7 +3385,7 @@ function clearStorage() {
 var server = {connected: false, queue: [], initialized: false};
 function connectToServer() {
   var queue = server.queue;
-  var ws = new WebSocket('ws://localhost:2794', []);
+  var ws = new WebSocket('ws://192.168.1.148:2794', []);
   server.ws = ws;
 
   // Log errors

@@ -259,8 +259,9 @@ th:last-child { border-radius: 0 2px 2px 0; }
   display: block;
   padding: 0;
   height: 1em;
-  border-radius: 2px;
-  border: 1px solid rgba(0, 0, 0, 0.08); border-top-color: rgba(0, 0, 0, 0.16); border-bottom-color: rgba(80, 80, 80, 0.9);
+  overflow: hidden;
+  border-radius: 3px;
+  border: 1px solid rgba(52, 52, 52, 0.9); border-top-color: rgba(48, 48, 48, 0.9); border-bottom-color: rgba(80, 80, 80, 0.9);
   box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 .ui-color-control > input { opacity: 0; }
