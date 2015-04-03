@@ -3382,7 +3382,8 @@ function clearStorage() {
 var server = {connected: false, queue: [], initialized: false};
 function connectToServer() {
   var queue = server.queue;
-  var ws = new WebSocket('ws://192.168.1.148:2794', []);
+  var ws = new WebSocket('ws://localhost:2794', []);
+  // Chris: 192.168.1.148
   server.ws = ws;
 
   // Log errors
