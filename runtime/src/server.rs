@@ -6,12 +6,12 @@ use websocket::stream::WebSocketStream;
 use std::collections::{HashMap, BitSet};
 use std::io::prelude::*;
 use std::num::ToPrimitive;
+use rustc_serialize::json::{Json, ToJson};
 
-use value::Value;
+use value::{Value, Tuple};
 use index;
 use flow::{Changes, FlowState, Flow};
 use compiler::{compile, World};
-use rustc_serialize::json::{Json, ToJson};
 
 trait FromJson {
     fn from_json(json: &Json) -> Self;
@@ -20,10 +20,13 @@ trait FromJson {
 impl ToJson for Value {
     fn to_json(&self) -> Json {
         match *self {
+            Value::Bool(bool) => Json::Boolean(bool),
             Value::String(ref string) => Json::String(string.clone()),
             Value::Float(float) => Json::F64(float),
             Value::Tuple(ref tuple) => tuple.to_json(),
-            Value::Relation(_) => panic!("No json encoding for relations"),
+            Value::Relation(ref relation) => Json::Object(vec![
+                ("relation".to_string(), relation.iter().map(ToJson::to_json).collect::<Vec<_>>().to_json())
+                ].into_iter().collect()),
         }
     }
 }
@@ -31,11 +34,17 @@ impl ToJson for Value {
 impl FromJson for Value {
     fn from_json(json: &Json) -> Self {
         match *json {
+            Json::Boolean(bool) => Value::Bool(bool),
             Json::String(ref string) => Value::String(string.clone()),
             Json::F64(float) => Value::Float(float),
             Json::I64(int) => Value::Float(int.to_f64().unwrap()),
             Json::U64(uint) => Value::Float(uint.to_f64().unwrap()),
             Json::Array(ref array) => Value::Tuple(array.iter().map(|j| Value::from_json(j)).collect()),
+            Json::Object(ref object) => {
+                assert!(object.len() == 1);
+                let relation: Vec<Tuple> = FromJson::from_json(&object["relation"]);
+                Value::Relation(relation.into_iter().collect())
+            },
             _ => panic!("Cannot decode {:?} as Value", json),
         }
     }
@@ -97,15 +106,18 @@ impl Instance {
     }
 }
 
+pub enum ServerEvent {
+    Event(Event),
+    NewClient(sender::Sender<WebSocketStream>),
+}
+
 // TODO holy crap why is everything blocking? this is a mess
-pub fn serve() -> (mpsc::Receiver<Event>, mpsc::Receiver<sender::Sender<WebSocketStream>>) {
-    let (input_sender, input_receiver) = mpsc::channel();
-    let (sender_sender, sender_receiver) = mpsc::channel();
+pub fn serve() -> mpsc::Receiver<ServerEvent> {
+    let (event_sender, event_receiver) = mpsc::channel();
     thread::spawn(move || {
         let server = Server::bind("127.0.0.1:2794").unwrap();
         for connection in server {
-            let input_sender = input_sender.clone();
-            let sender_sender = sender_sender.clone();
+            let event_sender = event_sender.clone();
             thread::spawn(move || {
                 // accept request
                 let request = connection.unwrap().read_request().unwrap();
@@ -118,7 +130,7 @@ pub fn serve() -> (mpsc::Receiver<Event>, mpsc::Receiver<sender::Sender<WebSocke
                 ::std::io::stdout().flush().unwrap(); // TODO is this actually necessary?
 
                 // hand over sender
-                sender_sender.send(sender).unwrap();
+                event_sender.send(ServerEvent::NewClient(sender)).unwrap();
 
                 // handle messages
                 for message in receiver.incoming_messages() {
@@ -127,15 +139,15 @@ pub fn serve() -> (mpsc::Receiver<Event>, mpsc::Receiver<sender::Sender<WebSocke
                         Message::Text(text) => {
                             let json = Json::from_str(&text).unwrap();
                             let event = FromJson::from_json(&json);
-                            input_sender.send(event).unwrap();
+                            event_sender.send(ServerEvent::Event(event)).unwrap();
                         }
-                        _ => panic!("Unknown message: {:?}", message)
+                        _ => println!("Unknown message: {:?}", message)
                     }
                 }
             });
         }
     });
-    (input_receiver, sender_receiver)
+    event_receiver
 }
 
 pub fn run() {
@@ -148,24 +160,32 @@ pub fn run() {
         output: empty_output.clone(),
     };
     let mut senders: Vec<sender::Sender<_>> = Vec::new();
-    let (input_receiver, sender_receiver) = serve();
-    loop {
-        select!(
-            input = input_receiver.recv() => {
-                let input = input.unwrap();
-                let changes = instance.change(input.changes);
-                let text = format!("{}", Event{changes: changes}.to_json());
-                for sender in senders.iter_mut() {
-                    sender.send_message(Message::Text(text.clone())).unwrap();
-                }
-            },
-            sender = sender_receiver.recv() => {
-                let mut sender = sender.unwrap();
-                let changes = instance.flow.changes_since(&instance.output, &empty_flow, &empty_output);
-                let text = format!("{}", Event{changes: changes}.to_json());
-                sender.send_message(Message::Text(text)).unwrap();
-                senders.push(sender)
+    let event_receiver = serve();
+    for event in event_receiver.iter() {
+        match event {
+            ServerEvent::NewClient(mut sender) => {
+                time!("sending initial state", {
+                    let changes = instance.flow.changes_since(&instance.output, &empty_flow, &empty_output);
+                    let text = format!("{}", Event{changes: changes}.to_json());
+                    match sender.send_message(Message::Text(text)) {
+                        Ok(_) => (),
+                        Err(error) => println!("Send error: {}", error),
+                    };
+                    senders.push(sender)
+                })
             }
-            )
+            ServerEvent::Event(event) => {
+                time!("sending update", {
+                    let changes = instance.change(event.changes);
+                    let text = format!("{}", Event{changes: changes}.to_json());
+                    for sender in senders.iter_mut() {
+                        match sender.send_message(Message::Text(text.clone())) {
+                            Ok(_) => (),
+                            Err(error) => println!("Send error: {}", error),
+                        };
+                    }
+                })
+            }
+        }
     }
 }

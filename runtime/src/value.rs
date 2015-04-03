@@ -7,6 +7,7 @@ use index::Index;
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Value {
+    Bool(bool),
     String(String),
     Float(f64),
     Tuple(Tuple),
@@ -80,6 +81,12 @@ pub trait ToRelation {
 impl ToValue for Value {
     fn to_value(self) -> Value {
         self
+    }
+}
+
+impl ToValue for bool {
+    fn to_value(self) -> Value {
+        Value::Bool(self)
     }
 }
 
