@@ -36,7 +36,7 @@ fn main() {
     ("first_step", 0.0, "first_step_edge", ("view", "edge").to_tuple(), "get-tuple"),
     ];
     let constraints = vec![
-    (("column", "next_step_edge", "edge_to").to_tuple(), "==", ("column", "next_step_path", "path_from").to_tuple()),
+    (("column", "next_step_path", "path_from").to_tuple(), "=", ("column", "next_step_edge", "edge_to").to_tuple()),
     ];
     let view_mappings = vec![
     ("next_step_mapping", "next_step", "path"),
