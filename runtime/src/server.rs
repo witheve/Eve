@@ -147,7 +147,7 @@ pub fn serve() -> mpsc::Receiver<ServerEvent> {
             });
         }
     });
-    (input_receiver, sender_receiver)
+    event_receiver
 }
 
 pub fn run() {
