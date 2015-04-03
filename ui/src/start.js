@@ -1673,6 +1673,22 @@ function relativeCoords(e, me, parent) {
 
 // UiAttrControls = {[type:String]: ReactFactory({attr:UiAttr, canvas:Canvas, value:Any})}
 var uiAttrControls = {
+  default: reactFactory({
+    displayName: "default-input",
+    render: function() {
+      var attr = this.props.attr;
+      var selection = this.props.selection;
+      var canvas = this.props.canvas;
+      var value = attr.get(selection[0], canvas);
+      var same = selection.every(function(attrs) {
+        return (attr.get(attrs, canvas) === value);
+      });
+      if(!isNaN(value)) {
+        value = value.toFixed(2);
+      }
+      return editable({value: (same ? value : " -- "), onSubmit: this.props.setAttribute});
+    }
+  }),
   color: reactFactory({
     displayName: "color",
     getInitialState: function() {
@@ -1683,9 +1699,15 @@ var uiAttrControls = {
     },
     render: function() {
       var id = this.state.id;
-      var value = this.props.value;
+      var attr = this.props.attr;
+      var selection = this.props.selection;
+      var canvas = this.props.canvas;
+      var value = attr.get(selection[0], canvas);
+      var same = selection.every(function(attrs) {
+        return (attr.get(attrs, canvas) === value);
+      });
       return JSML(
-        ["label", {for: id, className: "ui-color-control", style: {background: value}},
+        ["label", {for: id, className: "ui-color-control", style: {background: (same ? value : undefined)}},
          ["input", {id: id,
                     type: "color",
                     value: value,
@@ -1931,23 +1953,11 @@ var uiInspector = reactFactory({
 
       for(var ix = 0, len = attrs.length; ix < len; ix++) {
         var cur = attrs[ix];
-        var value = cur.get(selection[0], canvas);
-        var same = selection.every(function(attrs) {
-          return (cur.get(attrs, canvas) === value);
-        });
-        if(!isNaN(value)) {
-          value = value.toFixed(2);
-        }
+        var attrControl = uiAttrControls[cur.type] || uiAttrControls.default;
+        var control = attrControl({attr: cur, canvas: canvas, selection: selection,
+                                                setPane: self.setPane, setAttribute: self.setAttribute.bind(self, cur)});
 
-        var attrControl;
-        if(uiAttrControls[cur.type]) {
-          attrControl = uiAttrControls[cur.type]({attr: cur, canvas: canvas, value: value,
-                                                  setPane: self.setPane, setAttribute: self.setAttribute.bind(self, cur)});
-        } else {
-          attrControl = editable({value: (same ? value : "???"), onSubmit: self.setAttribute.bind(self, cur)});
-        }
-
-        rows.push([cur.displayName, attrControl]);
+        rows.push([cur.displayName, control]);
       }
       return ["div", {className: "ui-inspector-group"}, ["table", ["tbody", verticalTable(rows)]]];
     });
@@ -2119,30 +2129,6 @@ var uiSelection = reactFactory({
     state.valid = true;
     return state;
   },
-//   shouldComponentUpdate: function(nextProps, nextState) {
-//     var self = this;
-//     var state = this.state;
-//     if(this.props.id !== nextProps.id
-//        || state.left !== nextState.left
-//        || state.right !== nextState.right
-//        || state.top !== nextState.top
-//        || state.bottom !== nextState.bottom
-//       ) {
-//       return true;
-//     }
-
-//     if(this.props.elements.length !== nextProps.elements.length) { return true; }
-//     return nextProps.elements.some(function(neue, ix) {
-//       var old = self.props.elements[ix];
-//       if(old.id !== neue.id
-//          || old.left !== neue.left
-//          || old.right !== neue.right
-//          || old.top !== neue.top
-//          || old.bottom !== neue.bottom) {
-//         return true;
-//       }
-//     });
-//   },
   componentDidUpdate: function(prev) {
     var shouldSetState = false;
     if(this.props.elements.length !== prev.elements.length) {
@@ -2422,7 +2408,19 @@ var uiSelection = reactFactory({
 var uiCanvas = reactFactory({
   displayName: "ui-canvas",
   getInitialState: function() {
-    return {snapGuides: []};
+    var self = this;
+    var els = this.props.elements.filter(function(cur) {
+      return self.props.selection.indexOf(cur) === -1 && cur.invisible === false;
+    });
+    var possibleSnaps = this.findPossibleSnaps(els, {edge: true, center: true});
+    return {snapGuides: [], possibleSnaps: possibleSnaps};
+  },
+  componentWillReceiveProps: function(nextProps) {
+    var els = nextProps.elements.filter(function(cur) {
+      return nextProps.selection.indexOf(cur) === -1 && cur.invisible === false;
+    });
+    var possibleSnaps = this.findPossibleSnaps(els, {edge: true, center: true});
+    this.setState({possibleSnaps: possibleSnaps});
   },
   drawSnaps: function(snaps) {
     this.setState({snapGuides: snaps});
@@ -2537,10 +2535,7 @@ var uiCanvas = reactFactory({
     var snapThreshold = 8;
     only = only || {};
 
-    var els = this.props.elements.filter(function(cur) {
-      return self.props.selection.indexOf(cur) === -1 && cur.invisible === false;
-    });
-    var possibleSnaps = this.findPossibleSnaps(els, {edge: true, center: true});
+    var possibleSnaps = this.state.possibleSnaps;
     var found = this.findSnaps(pos, possibleSnaps, snapThreshold, only);
     this.drawSnaps(found.guides);
     return found.snaps;

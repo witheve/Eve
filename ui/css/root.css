@@ -280,7 +280,7 @@ th:last-child { border-radius: 0 2px 2px 0; }
   border-radius: 2px;
 }
 
-.ui-inspector td > * { vertical-align: middle; min-height: 1em }
+.ui-inspector td > * { min-height: 1em; vertical-align: baseline;}
 
 .ui-canvas {flex: 1; position:relative; }
 .ui-canvas > *, .ui-selection > div > * { position:absolute; }
