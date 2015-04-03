@@ -6,12 +6,12 @@ use websocket::stream::WebSocketStream;
 use std::collections::{HashMap, BitSet};
 use std::io::prelude::*;
 use std::num::ToPrimitive;
+use rustc_serialize::json::{Json, ToJson};
 
 use value::{Value, Tuple};
 use index;
 use flow::{Changes, FlowState, Flow};
 use compiler::{compile, World};
-use rustc_serialize::json::{Json, ToJson};
 
 trait FromJson {
     fn from_json(json: &Json) -> Self;
@@ -159,19 +159,23 @@ pub fn run() {
     loop {
         select!(
             input = input_receiver.recv() => {
-                let input = input.unwrap();
-                let changes = instance.change(input.changes);
-                let text = format!("{}", Event{changes: changes}.to_json());
-                for sender in senders.iter_mut() {
-                    sender.send_message(Message::Text(text.clone())).unwrap();
-                }
+                time!("sending initial state", {
+                    let input = input.unwrap();
+                    let changes = instance.change(input.changes);
+                    let text = format!("{}", Event{changes: changes}.to_json());
+                    for sender in senders.iter_mut() {
+                        sender.send_message(Message::Text(text.clone())).unwrap();
+                    }
+                })
             },
             sender = sender_receiver.recv() => {
-                let mut sender = sender.unwrap();
-                let changes = instance.flow.changes_since(&instance.output, &empty_flow, &empty_output);
-                let text = format!("{}", Event{changes: changes}.to_json());
-                sender.send_message(Message::Text(text)).unwrap();
-                senders.push(sender)
+                time!("sending update", {
+                    let mut sender = sender.unwrap();
+                    let changes = instance.flow.changes_since(&instance.output, &empty_flow, &empty_output);
+                    let text = format!("{}", Event{changes: changes}.to_json());
+                    sender.send_message(Message::Text(text)).unwrap();
+                    senders.push(sender)
+                })
             }
             )
     }
