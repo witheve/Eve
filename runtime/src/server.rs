@@ -20,6 +20,7 @@ trait FromJson {
 impl ToJson for Value {
     fn to_json(&self) -> Json {
         match *self {
+            Value::Bool(bool) => Json::Bool(bool),
             Value::String(ref string) => Json::String(string.clone()),
             Value::Float(float) => Json::F64(float),
             Value::Tuple(ref tuple) => tuple.to_json(),
@@ -33,6 +34,7 @@ impl ToJson for Value {
 impl FromJson for Value {
     fn from_json(json: &Json) -> Self {
         match *json {
+            Json::Bool(bool) => Value::Bool(bool),
             Json::String(ref string) => Value::String(string.clone()),
             Json::F64(float) => Value::Float(float),
             Json::I64(int) => Value::Float(int.to_f64().unwrap()),
