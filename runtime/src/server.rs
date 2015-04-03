@@ -115,7 +115,7 @@ pub enum ServerEvent {
 pub fn serve() -> mpsc::Receiver<ServerEvent> {
     let (event_sender, event_receiver) = mpsc::channel();
     thread::spawn(move || {
-        let server = Server::bind("127.0.0.1:2794").unwrap();
+        let server = Server::bind("0.0.0.0:2794").unwrap();
         for connection in server {
             let event_sender = event_sender.clone();
             thread::spawn(move || {
