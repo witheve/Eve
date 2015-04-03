@@ -3,7 +3,7 @@ var Indexing = (function() {
 
   function arraysIdentical(a, b) {
     var i = a.length;
-    if (i != b.length) return false;
+    if (!b || i != b.length) return false;
     while (i--) {
       if(a[i] && a[i].constructor === Array) {
         if(!arraysIdentical(a[i], b[i])) return false;
@@ -51,6 +51,13 @@ var Indexing = (function() {
   }
 
   Indexer.prototype = {
+    clear: function() {
+      var final = {};
+      for(var table in this.tables) {
+        this.handleDiff(table, [], this.tables[table]);
+      }
+      return {changes: final};
+    },
     load: function(pickle) {
       var diffs = {};
       for(var table in pickle) {

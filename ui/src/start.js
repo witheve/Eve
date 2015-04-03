@@ -2912,10 +2912,12 @@ function dispatch(event, arg, noRedraw) {
       diffs.push(["activeGrid", "inserted", [arg.target]]);
       break;
     case "addSource":
+      var schemaId = ixer.index("view")[arg.view][1];
       var ix = (ixer.index("viewToSources")[arg.view] || []).length;
       var sourceId = uuid();
       diffs = code.diffs.autoJoins(arg.view, arg.source, sourceId);
       diffs.push(["source", "inserted", [sourceId, arg.view, ix, ["view", arg.source], "get-tuple"]]);
+      diffs.push(["field", "inserted", [sourceId + "-field", schemaId, ix, "tuple"]]);
       break;
     case "addCalculationSource":
       var ix = (ixer.index("viewToSources")[arg.view] || []).length;
@@ -2985,7 +2987,8 @@ var code = {
       id = id || uuid();
       var schema = uuid();
       var fieldIx = 0;
-      var diffs = [["displayName", "inserted", [id, name]]];
+      var diffs = [["displayName", "inserted", [id, name]],
+                   ["schema", "inserted", [schema]]];
       for(var fieldName in fields) {
         if(!fields.hasOwnProperty(fieldName)) { continue; }
         var fieldId = uuid()
@@ -3291,6 +3294,7 @@ function connectToServer() {
     if(!server.initialized && !data.changes["view"]) {
       dispatch("initServer");
       sendToServer(ixer.dumpMapDiffs());
+      ixer.clear();
       server.initialized = true;
     }
 //     console.log('Server: ' + e.data);
