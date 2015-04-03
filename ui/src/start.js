@@ -770,7 +770,7 @@ var tableSelectorItem = reactFactory({
     var displayNames = ixer.index("displayName");
     var fields = code.viewToFields(this.props.view) || [];
     var items = fields.map(function(cur) {
-      return ["li", displayNames[cur[0]]];
+      return ["li", displayNames[cur[2]]];
     });
     var className = "result";
     if(this.props.selected) {
@@ -1013,10 +1013,10 @@ var factTable = reactFactory({
     var fields = code.viewToFields(this.props.tableId);
     var rows = ixer.facts(this.props.tableId);
     fields.sort(function(a, b) {
-      return a[2] - b[2];
+      return a[1] - b[1];
     });
     fields = fields.map(function(cur) {
-      return {name: code.name(cur[0]), id: cur[0]};
+      return {name: code.name(cur[2]), id: cur[2]};
     });
     var rowIds = ixer.index("editId")[this.props.tableId];
     if(rowIds) {
@@ -1034,10 +1034,10 @@ var resultTable = reactFactory({
     var fields = code.viewToFields(this.props.tableId);
     var rows = ixer.facts(this.props.tableId);
     fields.sort(function(a, b) {
-      return a[2] - b[2];
+      return a[1] - b[1];
     });
     fields = fields.map(function(cur) {
-      return {name: code.name(cur[0]), id: cur[0]};
+      return {name: code.name(cur[2]), id: cur[2]};
     });
     var rowIds = ixer.index("editId")[this.props.tableId];
     if(rowIds) {
@@ -1487,24 +1487,24 @@ var astComponents = {
     },
     setLeft: function(ref) {
       var neue = this.props.constraint.slice();
-      neue[2] = ref;
+      neue[0] = ref;
       this.setState({editing: false});
       dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
     },
     setRight: function(ref) {
       var neue = this.props.constraint.slice();
-      neue[3] = ref;
+      neue[2] = ref;
       this.setState({editing: false});
       dispatch("swapConstraint", {old: this.props.constraint, neue: neue});
     },
     validateRight: function(selected, raw) {
       //@TODO: can either be a constant or a ref
       //left and right have to type check
-      var left = code.refToType(this.props.constraint[2]);
-      if(this.props.constraint[3][0] === "column") {
-        var right = code.refToType(this.props.constraint[3]);
+      var left = code.refToType(this.props.constraint[0]);
+      if(this.props.constraint[2][0] === "column") {
+        var right = code.refToType(this.props.constraint[2]);
       } else {
-        var right = typeof this.props.constraint[3].value;
+        var right = typeof this.props.constraint[2][1];
       }
       return code.typesEqual(left, right);
     },
@@ -1539,15 +1539,15 @@ var astComponents = {
       this.setState({editing:false});
     },
     render: function() {
-      var view = this.props.source[1];
-      var sourceId = this.props.source[0];
+      var view = this.props.source[0];
+      var sourceId = this.props.source[2];
       var viewOrData = this.props.source[3];
       var allRefs = code.viewToRefs(view);
       var cur = this.props.constraint;
       var editing = this.state.editing;
-      var left = astComponents["column"]({value: cur[2], onSelect: this.editingLeft, path: ["left"], activePath: [editing]});
+      var left = astComponents["column"]({value: cur[0], onSelect: this.editingLeft, path: ["left"], activePath: [editing]});
       //@TODO: right can be a constant or a ref...
-      var right = astComponents[cur[3][0]]({value: cur[3], onSelect: this.editingRight, path: ["right"], activePath: [editing], invalid: !this.validateRight()});
+      var right = astComponents[cur[2][0]]({value: cur[2], onSelect: this.editingRight, path: ["right"], activePath: [editing], invalid: !this.validateRight()});
       var op = astComponents["op"]({value: cur[1], path: ["op"], activePath: [editing], onSelect: this.editingOp});
       var content = ["div", {className: "structured-constraint",
                              onClick: this.startEditing},
@@ -1558,6 +1558,7 @@ var astComponents = {
           return cur[1] === sourceId;
         }).map(function(cur) {
           var name = code.refToName(cur);
+          console.log(name);
           return {id: cur, text: ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], name.field]};
         });
         editor = structuredMultiSelector({fields: localRefs,
@@ -1569,7 +1570,7 @@ var astComponents = {
                                                      "match": "Only a field is allowed here.",
                                                      "constant": "Only a field is allowed here."}});
       } else if(this.state.editing === "right") {
-        var leftType = code.refToType(this.props.constraint[2]);
+        var leftType = code.refToType(this.props.constraint[0]);
         var rightRefs = allRefs.filter(function(cur) {
           return code.typesEqual(leftType, code.refToType(cur));
         }).map(function(cur) {
@@ -1578,8 +1579,8 @@ var astComponents = {
         });
         var value = "";
         var mode = "field";
-        if(cur[3][0] === "constant") {
-          value = cur[3].value;
+        if(cur[2][0] === "constant") {
+          value = cur[2][0];
           mode = "constant";
         }
         editor = structuredMultiSelector({fields: rightRefs,
@@ -1669,10 +1670,12 @@ tiles.view = {
       var self = this;
       var view = this.getView();
       var sources = ixer.index("viewToSources")[view] || [];
-      var constraints = ixer.index("viewToConstraints")[view] || [];
+//       var constraints = ixer.index("viewToConstraints")[view] || [];
+      //@TODO: constraints are now totally different
+      var constraints = ixer.facts("constraint");
       var sourceToConstraints = {};
       constraints.forEach(function(cur) {
-        var source = cur[2][1];
+        var source = cur[0][1];
         if(!sourceToConstraints[source]) {
           sourceToConstraints[source] = [];
         }
@@ -1680,10 +1683,10 @@ tiles.view = {
       })
       sources.sort(function(a, b) {
         //sort by ix
-        return a[2] - b[2];
+        return a[1] - b[1];
       });
       var items = sources.map(function(cur) {
-        return viewSource({key: cur[0], tileId: self.props.tileId, viewId: view, source: cur, constraints: sourceToConstraints[cur[0]] || []});
+        return viewSource({key: cur[2], tileId: self.props.tileId, viewId: view, source: cur, constraints: sourceToConstraints[cur[2]] || []});
       });
       var add;
       if(this.state.addingSource) {
@@ -2916,14 +2919,14 @@ function dispatch(event, arg, noRedraw) {
       var ix = (ixer.index("viewToSources")[arg.view] || []).length;
       var sourceId = uuid();
       diffs = code.diffs.autoJoins(arg.view, arg.source, sourceId);
-      diffs.push(["source", "inserted", [sourceId, arg.view, ix, ["view", arg.source], "get-tuple"]]);
-      diffs.push(["field", "inserted", [sourceId + "-field", schemaId, ix, "tuple"]]);
+      diffs.push(["source", "inserted", [arg.view, ix, sourceId, ["view", arg.source], "get-tuple"]]);
+      diffs.push(["field", "inserted", [schemaId, ix, sourceId, "tuple"]]);
       break;
     case "addCalculationSource":
       var ix = (ixer.index("viewToSources")[arg.view] || []).length;
       var sourceId = uuid();
       //@TODO: should we auto-join calculations?
-      diffs.push(["source", "inserted", [sourceId, arg.view, ix, arg.source, "get-tuple"]]);
+      diffs.push(["source", "inserted", [arg.view, ix, sourceId, arg.source, "get-tuple"]]);
       break;
     case "swapCalculationSource":
       diffs.push(["source", "inserted", arg.neue.slice()],
@@ -2975,7 +2978,7 @@ var code = {
       var fields = code.viewToFields(viewId) || [];
       var schema = view[1];
       var fieldId = uuid();
-      return [["field", "inserted", [fieldId, schema, fields.length, "unknown"]],
+      return [["field", "inserted", [schema, fields.length, fieldId, "unknown"]],
               ["displayName", "inserted", [fieldId, alphabet[fields.length]]]];
     },
     changeDisplayName: function(id, neue) {
@@ -2992,7 +2995,7 @@ var code = {
       for(var fieldName in fields) {
         if(!fields.hasOwnProperty(fieldName)) { continue; }
         var fieldId = uuid()
-        diffs.push(["field", "inserted", [fieldId, schema, fieldIx++, fields[fieldName]]],
+        diffs.push(["field", "inserted", [schema, fieldIx++, fieldId, fields[fieldName]]],
                    ["displayName", "inserted", [fieldId, fieldName]]);
       }
 
@@ -3015,7 +3018,7 @@ var code = {
       var fields = code.viewToFields(sourceView);
       var diffs = [];
       fields = fields.map(function(cur) {
-        return [cur[0], displayNames[cur[0]]];
+        return [cur[2], displayNames[cur[2]]];
       });
       sources.forEach(function(cur) {
         theirFields = code.viewToFields(cur[3][1]);
@@ -3025,13 +3028,13 @@ var code = {
           var theirs = theirFields[i];
           for(var x in fields) {
             var myField = fields[x];
-            if(displayNames[theirs[0]] === myField[1]) {
+            if(displayNames[theirs[2]] === myField[1]) {
               //same name, join them.
               diffs.push(
                 ["constraint", "inserted",
-                 [view, "=",
-                  code.ast.fieldSourceRef(sourceId, myField[0]),
-                  code.ast.fieldSourceRef(cur[0], theirs[0])]]);
+                 [code.ast.fieldSourceRef(sourceId, myField[0]),
+                  "=",
+                  code.ast.fieldSourceRef(cur[2], theirs[2])]]);
             }
           }
         }
@@ -3067,12 +3070,6 @@ var code = {
     fieldSourceRef: function(source, field) {
       return ["column", source, field];
     },
-    sourceRef: function(source) {
-      return {"": "source-ref", source: source};
-    },
-    fieldRef: function(field) {
-      return {"": "field-ref", field: field};
-    },
     constant: function(value) {
       return {"": "constant", value: value};
     },
@@ -3096,6 +3093,7 @@ var code = {
   refToName: function(ref) {
     switch(ref[0]) {
       case "column":
+        console.log(ref);
         var view = code.name(ixer.index("sourceToData")[ref[1]][1]);
         var field = code.name(ref[2]);
         return {string: view + "." + field, view: view, field: field};
@@ -3125,7 +3123,7 @@ var code = {
       } else {
         code.viewToFields(sourceView).forEach(function(field) {
           if(!ofType || ofType === field[3]) {
-            refs.push(code.ast.fieldSourceRef(source[0], field[0]));
+            refs.push(code.ast.fieldSourceRef(source[2], field[2]));
           }
         });
       }
@@ -3169,13 +3167,12 @@ window.addEventListener("unload", function(e) {
 ixer.addIndex("tag", "tag", Indexing.create.collector([0]));
 ixer.addIndex("displayName", "displayName", Indexing.create.lookup([0, 1]));
 ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
-ixer.addIndex("field", "field", Indexing.create.lookup([0, false]));
-ixer.addIndex("sourceToData", "source", Indexing.create.lookup([0, 3]));
+ixer.addIndex("field", "field", Indexing.create.lookup([2, false]));
+ixer.addIndex("sourceToData", "source", Indexing.create.lookup([2, 3]));
 ixer.addIndex("editId", "editId", Indexing.create.lookup([0,1,2]));
 ixer.addIndex("viewToSchema", "view", Indexing.create.lookup([0, 1]));
-ixer.addIndex("viewToSources", "source", Indexing.create.collector([1]));
-ixer.addIndex("viewToConstraints", "constraint", Indexing.create.collector([0]));
-ixer.addIndex("schemaToFields", "field", Indexing.create.collector([1]));
+ixer.addIndex("viewToSources", "source", Indexing.create.collector([0]));
+ixer.addIndex("schemaToFields", "field", Indexing.create.collector([0]));
 // ui
 ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.lookup([0, false]));
 ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([1]));
@@ -3194,15 +3191,15 @@ function initIndexer() {
   ixer.handleDiffs(
     code.diffs.addView("schema", {id: "id"}, [], "schema", ["table"]));
   ixer.handleDiffs(
-    code.diffs.addView("field", {id: "id", schema: "id", ix: "int", type: "type"}, [], "field", ["table"]));
+    code.diffs.addView("field", {schema: "id", ix: "int", id: "id", type: "type"}, [], "field", ["table"]));
   ixer.handleDiffs(
     code.diffs.addView("primitive", {id: "id", inSchema: "id", outSchema: "id"}, [], "primitive", ["table"]));
   ixer.handleDiffs(
     code.diffs.addView("view", {id: "id", schema: "id", kind: "query|union"}, [], "view", ["table"]));
   ixer.handleDiffs(
-    code.diffs.addView("source", {id: "id", view: "id", ix: "int", data: "data", splat: "bool"}, [], "source", ["table"]));
+    code.diffs.addView("source", {view: "id", ix: "int", id: "id", data: "data", action: "get-tuple|get-relation"}, [], "source", ["table"]));
   ixer.handleDiffs(
-    code.diffs.addView("constraint", {view: "id", op: "op", left: "reference", right: "reference"}, [], "constraint", ["table"]));
+    code.diffs.addView("constraint", {left: "reference", op: "op", right: "reference"}, [], "constraint", ["table"]));
   ixer.handleDiffs(code.diffs.addView("tag", {id: "id", tag: "string"}, undefined, "tag", ["table"]));
   ixer.handleDiffs(code.diffs.addView("displayName", {id: "string", name: "string"}, undefined, "displayName", ["table"]));
   ixer.handleDiffs(code.diffs.addView("tableTile", {id: "string", view: "string"}, undefined, "tableTile", ["table"]));
