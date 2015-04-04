@@ -34,7 +34,12 @@ impl ToRef for f64 {
     fn to_constref(self) -> Ref { Ref::Constant{value: self.to_value() } }
     fn to_callref(self) -> Ref { panic!("Cannot convert f64 to CallRef"); } 
     fn to_valref(self) -> Ref { panic!("Cannot convert f64 to ValRef"); } 
+}
 
+impl<'a> ToRef for &'a str {
+    fn to_constref(self) -> Ref { Ref::Constant{value: self.to_value() } }
+    fn to_callref(self) -> Ref { panic!("Cannot convert f64 to CallRef"); } 
+    fn to_valref(self) -> Ref { panic!("Cannot convert f64 to ValRef"); } 
 }
 
 impl ToRef for i32 { 
@@ -78,6 +83,7 @@ impl Ref {
                 let value = &result[clause];
                 match *value {
                     Value::Float(..) => value,
+                    Value::String(..) => value,
                     _ => panic!("Expected a value"),
                 }
             },
