@@ -1936,6 +1936,7 @@ var uiAttrs = {
      }}
   ],
   typography: [
+    {displayName: "content", type: "string", group: "typography", prop: "content"},
     {displayName: "color", type: "color", group: "typography", prop: "color"},
     {displayName: "font", type: makeEnum(["Arial", "Comic Sans MS", "Georgia", "Times New Roman", "Trebuchet MS", "Verdana"]), group: "typography", prop: "fontFamily"},
     {displayName: "size", type: "number", group: "typography", prop: "fontSize"},
@@ -2247,6 +2248,7 @@ var uiElement = reactFactory({
     var width = el.right - el.left;
     var height = el.bottom - el.top;
     var locked = (el.locked ? "none" : undefined);
+    var content = el.control;
     var attrs = {className: "control",
                  style: {top: el.top, left: el.left, width: width, height: height, zIndex: el.layer, pointerEvents: locked}};
     if(!this.props.selected) {
@@ -2265,12 +2267,17 @@ var uiElement = reactFactory({
 
     var userAttrs = ixer.index("uiElementToAttrs")[this.props.id] || [];
     for(var ix = 0, len = userAttrs.length; ix < len; ix++) {
+      //@TODO: check isBinding.
       var userAttr = userAttrs[ix];
+      if(userAttr[1] === "content") {
+        content = userAttr[2];
+        continue;
+      }
       attrs.style[userAttr[1]] = userAttr[2];
     }
 
     return JSML(
-      ["div", attrs, el.control]
+      ["div", attrs, content]
     );
   }
 });
@@ -3205,7 +3212,7 @@ var code = {
   ui: {
     updateAttribute: function(attribute) {
       var diffs = [];
-      var neue = [attribute.id, attribute.property, attribute.value];
+      var neue = [attribute.id, attribute.property, attribute.value, false];
       var oldProps = ixer.index("uiElementToAttr")[attribute.id];
       diffs.push(["uiComponentAttribute", "inserted", neue]);
       if(oldProps) {
@@ -3425,7 +3432,7 @@ function initIndexer() {
   ixer.handleDiffs(
     code.diffs.addView("uiComponentLayer", {id: "string", component: "string", layer: "number", locked: "boolean", invisible: "boolean"}, [], "uiComponentLayer", ["table"]));
   ixer.handleDiffs(
-    code.diffs.addView("uiComponentAttribute", {id: "string", property: "string", value: "string"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
+    code.diffs.addView("uiComponentAttribute", {id: "string", property: "string", value: "string", isBinding: "boolean"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
 }
 
 
