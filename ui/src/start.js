@@ -482,14 +482,16 @@ var gridTile = reactFactory({
   flip: function(evt) {
     var self = this;
     var dir = (this.state.flipped ? "+=" : "-=");
+    console.log("start flip");
     Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {
-      duration: 1500,
+      duration: 150,
       easing: "easeInSine",
       complete: function() {
         self.setState({flipped: !self.state.flipped});
+        console.log("half flip");
       }
     });
-    Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {duration: 3500, easing: "easeOutCubic"});
+    Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {duration: 350, easing: "easeOutCubic", complete: function() {console.log("finish flip")}});
   },
 
   // Dragging
@@ -545,6 +547,7 @@ var gridTile = reactFactory({
 
   // Rendering
   render: function() {
+    console.log("rendering");
     var tile = tiles[this.props.type];
     if(!tile) { throw new Error("Invalid tile type specified: '" + this.props.type + "'."); }
     var style = {
@@ -1566,7 +1569,7 @@ var astComponents = {
           return cur[1] === sourceId;
         }).map(function(cur) {
           var name = code.refToName(cur);
-          console.log(name);
+          // console.log(name);
           return {id: cur, text: ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], name.field]};
         });
         editor = structuredMultiSelector({fields: localRefs,
@@ -1906,7 +1909,10 @@ var uiAttrs = {
        var oldBounds = uiGetBounds(elements);
        var neueBounds = extend({}, oldBounds);
        neueBounds.right = neueBounds.left + value;
-       var neue = uiTransformSelection(neueBounds, oldBounds, elements.slice());
+       var elems = elements.map(function(elem) {
+         return extend({}, elem);
+       });
+       var neue = uiTransformSelection(neueBounds, oldBounds, elems);
        dispatch("updateUiComponentElements", neue);
      },
      get: function(elements, canvas) {
@@ -1918,7 +1924,10 @@ var uiAttrs = {
        var oldBounds = uiGetBounds(elements);
        var neueBounds = extend({}, oldBounds);
        neueBounds.bottom = neueBounds.top + value;
-       var neue = uiTransformSelection(neueBounds, oldBounds, elements);
+       var elems = elements.map(function(elem) {
+         return extend({}, elem);
+       });
+       var neue = uiTransformSelection(neueBounds, oldBounds, elems);
        dispatch("updateUiComponentElements", neue);
      },
      get: function(elements, canvas) {
@@ -1929,7 +1938,6 @@ var uiAttrs = {
   typography: [
     {displayName: "color", type: "color", group: "typography", prop: "color"},
     {displayName: "font", type: makeEnum(["Arial", "Comic Sans MS", "Georgia", "Times New Roman", "Trebuchet MS", "Verdana"]), group: "typography", prop: "fontFamily"},
-    //{},
     {displayName: "size", type: "number", group: "typography", prop: "fontSize"},
     {displayName: "weight", type: makeEnum(["normal", "bold", 100, 200, 300, 500, 600, 800, 900]), group: "typography", prop: "fontWeight"},
   ],
@@ -1956,7 +1964,7 @@ function uiPropsGetter(prop) {
       if(attr[prop]) { return attr[prop][2]; }
     });
     var value = values[0];
-    var same = values.every(function(val) {
+    var same = elements.length === 1 || values.every(function(val) {
       return (val === value);
     });
     if(same) {
@@ -2127,6 +2135,9 @@ var uiLayers = reactFactory({
 
     dispatch("addUiComponentLayer", {component: this.props.component, layer: newLayer});
   },
+  renameLayer: function(layer, value) {
+    dispatch("rename", {id: layer.id, value: value});
+  },
   toggleVisible: function(layer, evt) {
     evt.stopPropagation();
     layer.invisible = !layer.invisible;
@@ -2210,13 +2221,15 @@ var uiLayers = reactFactory({
                      onClick: self.selectLayer.bind(self, layer),
                      draggable: true,
                      onDragStart: self.dragLayerStart.bind(self, layer)},
-              layer.name,
-             ["button", {className: "layer-toggle-visible icon-btn icon-btn-md " + (invisible ? "ion-eye-disabled" : "ion-eye"),
-                         onClick: self.toggleVisible.bind(self, layer)}],
-              ["button", {className: "layer-toggle-locked icon-btn icon-btn-md " + (locked ? "ion-locked" : "ion-unlocked"),
-                          onClick: self.toggleLocked.bind(self, layer)}],
-              ["button", {className: "layer-settings ion-gear-a icon-btn icon-btn-md ",
-                          onClick: self.settings.bind(self, layer)}]];
+              ["span", {className: "ion-drag"}],
+              editable({value: layer.name, onSubmit: self.renameLayer.bind(self, layer)}),
+              ["span", {className: "layer-controls"},
+               ["button", {className: "layer-toggle-visible icon-btn icon-btn-md " + (invisible ? "ion-eye-disabled" : "ion-eye"),
+                           onClick: self.toggleVisible.bind(self, layer)}],
+               ["button", {className: "layer-toggle-locked icon-btn icon-btn-md " + (locked ? "ion-locked" : "ion-unlocked"),
+                           onClick: self.toggleLocked.bind(self, layer)}],
+               ["button", {className: "layer-settings ion-gear-a icon-btn icon-btn-md ",
+                           onClick: self.settings.bind(self, layer)}]]];
     });
     return JSML(
       ["div", {className: "ui-layers"},
@@ -2494,7 +2507,7 @@ var uiCanvas = reactFactory({
       return self.props.selection.indexOf(cur) === -1 && cur.invisible === false;
     });
     var possibleSnaps = this.findPossibleSnaps(els, {edge: true, center: true});
-    return {snapGuides: [], possibleSnaps: possibleSnaps};
+    return {snapGuides: [], possibleSnaps: possibleSnaps, boxStart: undefined};
   },
   componentWillReceiveProps: function(nextProps) {
     var els = nextProps.elements.filter(function(cur) {
@@ -2633,6 +2646,40 @@ var uiCanvas = reactFactory({
     return true;
   },
 
+  boxSelectStart: function(evt) {
+    if(!evt.shiftKey) {
+      this.props.select();
+    }
+    var elem = this.getDOMNode();
+    this.setState({boxStart: relativeCoords(evt, elem, elem).canvas});
+  },
+  boxSelectEnd: function(evt) {
+    var initial = this.state.boxStart;
+    if(!initial) { return; }
+
+    var elem = this.getDOMNode();
+    var final = relativeCoords(evt, elem, elem).canvas
+    var bounds = {
+      top: (initial.top < final.top ? initial.top : final.top),
+      left: (initial.left < final.left ? initial.left : final.left),
+      bottom: (initial.top >= final.top ? initial.top : final.top),
+      right: (initial.left >= final.left ? initial.left : final.left)
+    };
+    console.log(bounds);
+    var neue = this.props.elements.filter(function(elem) {
+      return !(elem.top > bounds.bottom
+               || elem.left > bounds.right
+               || elem.bottom < bounds.top
+               || elem.right < bounds.left
+              );
+    }).map(function(elem) {
+      return elem.id;
+    });
+
+    this.setState({boxStart: undefined});
+    this.props.select(neue);
+  },
+
   render: function() {
     var self = this;
     // Remove selected and render separately.
@@ -2663,9 +2710,8 @@ var uiCanvas = reactFactory({
     return JSML(["div", {className: "ui-canvas",
                          onDragOver: this.elementOver,
                          onDrop: this.elementDropped,
-                         onMouseDown: function() {
-                           self.props.select();
-                         }
+                         onMouseDown: this.boxSelectStart,
+                         onMouseUp: this.boxSelectEnd
                         },
                  elems,
                  (this.props.selection.length ? selection : undefined),
@@ -2753,23 +2799,30 @@ tiles.ui = {
         }
       }
     },
-    select: function(id, modify) {
+    select: function(ids, modify) {
+      if(!ids) {
+        this.setState({selection: []});
+        return;
+      }
+      if(ids.constructor !== Array) { ids = [ids]; }
       var selection = [];
-      var el;
       if(modify) {
         selection = this.state.selection.slice();
-        el = findWhere(selection, "id", id);
+      }
+      for(var ix = 0, len = ids.length; ix < len; ix++) {
+        var id = ids[ix];
+        // Test if element is already in selection. If so, remove it.
+        var el = findWhere(selection, "id", id);
         if(el) {
           selection.splice(selection.indexOf(el), 1);
-          return;
+        } else {
+          // Find the element in elements and push that into the selection.
+          el = findWhere(this.state.elements, "id", id);
+          if(el) {
+            selection.push(el);
+          }
         }
       }
-
-      el = findWhere(this.state.elements, "id", id);
-      if(el) {
-        selection.push(el);
-      }
-
       this.setState({selection: selection});
     },
     selectLayer: function(layer) {
@@ -2781,7 +2834,7 @@ tiles.ui = {
       var layersMap = {};
       var layers = ixer.index("uiComponentToLayers")[this.props.tileId] || [];
       layers = layers.map(function(cur) {
-        var name = cur[2];
+        var name = ixer.index("displayName")[cur[0]];
         var layer = {id: cur[0], component: cur[1], layer: cur[2], locked: cur[3], invisible: cur[4], name: name};
         layersMap[layer.layer] = layer;
         return layer;
@@ -2924,8 +2977,10 @@ function dispatch(event, arg, noRedraw) {
       diffs.push(["uiComponentElement", "inserted", neue]);
       break;
     case "addUiComponentLayer":
-      var neue = [uuid(), arg.component, arg.layer, false, false];
-      diffs.push(["uiComponentLayer", "inserted", neue]);
+      var id = uuid();
+      var neue = [id, arg.component, arg.layer, false, false];
+      diffs.push(["uiComponentLayer", "inserted", neue],
+                 ["displayName", "inserted", [id, "Layer " + arg.layer]]);
       break;
     case "updateUiComponentLayers":
       for(var ix = 0; ix < arg.length; ix++) {
@@ -3383,7 +3438,7 @@ var server = {connected: false, queue: [], initialized: false};
 function connectToServer() {
   var queue = server.queue;
   var ws = new WebSocket('ws://localhost:2794', []);
-  // Chris: 192.168.1.148
+  // Chris: 192.168.1.148g
   server.ws = ws;
 
   // Log errors

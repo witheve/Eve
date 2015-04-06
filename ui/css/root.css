@@ -295,6 +295,9 @@ th:last-child { border-radius: 0 2px 2px 0; }
 .ui-layers { flex: none; }
 .ui-layers > ul { padding: 5px; background: rgba(255,255,255, 0.1); border-radius:2px; }
 .ui-layer.selected { background: rgba(255, 255, 255, 0.1); }
+.ui-layers .ui-layer { display: flex;}
+.ui-layer > [contenteditable="true"] { flex: 1; margin: auto 0.75em }
+.ui-layer > .layer-controls { flex: 0 0 auto; }
 
 /*****************************************************************************\
  * View editor
