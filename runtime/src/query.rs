@@ -1,7 +1,9 @@
 use std;
 use std::iter::IntoIterator;
 
-use value::{Value, Tuple, Relation};
+use value::{Value, ToValue, Tuple, Relation};
+use interpreter;
+use interpreter::{EveFn,ToExpression};
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum ConstraintOp {
@@ -19,6 +21,37 @@ pub enum Ref {
     Value{clause: usize, column: usize},
     Tuple{clause: usize},
     Relation{clause: usize},
+    Call{clause: usize},
+}
+
+pub trait ToRef { 
+    fn to_constref(self) -> Ref; 
+    fn to_callref(self) -> Ref;
+    fn to_valref(self) -> Ref;
+}
+
+impl ToRef for f64 { 
+    fn to_constref(self) -> Ref { Ref::Constant{value: self.to_value() } }
+    fn to_callref(self) -> Ref { panic!("Cannot convert f64 to CallRef"); } 
+    fn to_valref(self) -> Ref { panic!("Cannot convert f64 to ValRef"); } 
+}
+
+impl<'a> ToRef for &'a str {
+    fn to_constref(self) -> Ref { Ref::Constant{value: self.to_value() } }
+    fn to_callref(self) -> Ref { panic!("Cannot convert f64 to CallRef"); } 
+    fn to_valref(self) -> Ref { panic!("Cannot convert f64 to ValRef"); } 
+}
+
+impl ToRef for i32 { 
+    fn to_constref(self) -> Ref { Ref::Constant{value: self.to_value() } }
+    fn to_callref(self) -> Ref { Ref::Call{clause: self as usize } }
+    fn to_valref(self) -> Ref { panic!("Cannot convert i32 to ValRef"); }
+}
+
+impl ToRef for (i32,i32) {
+    fn to_constref(self) -> Ref { panic!("Cannot convert (i32,i32) to ConstRef"); }
+    fn to_callref(self) -> Ref { panic!("Cannot convert (i32,i32) to CallRef"); }
+    fn to_valref(self) -> Ref { match self { (a,b) => Ref::Value{clause: a as usize, column: b as usize}, } } 
 }
 
 impl Ref {
@@ -44,6 +77,14 @@ impl Ref {
                 match *value {
                     Value::Relation(..) => value,
                     _ => panic!("Expected a relation"),
+                }
+            },
+            Ref::Call{clause} => {
+                let value = &result[clause];
+                match *value {
+                    Value::Float(..) => value,
+                    Value::String(..) => value,
+                    _ => panic!("Expected a value"),
                 }
             },
         }
@@ -95,8 +136,6 @@ impl Source {
     }
 }
 
-pub type EveFn = fn(Vec<Value>) -> Value;
-
 #[derive(Clone)]
 pub struct Call {
     pub fun: EveFn,
@@ -111,11 +150,21 @@ impl std::fmt::Debug for Call {
 
 impl Call {
     fn eval(&self, result: &Vec<Value>) -> Value {
-        let args = self.arg_refs.iter().map(|arg_ref| arg_ref.resolve(result).clone()).collect();
-        let fun = self.fun;
-        fun(args)
+
+        let args: Vec<Value> = self.arg_refs.iter().map(|arg_ref| arg_ref.resolve(result).clone()).collect();
+
+        // Convert to an expression vector... this should be streamlined... make interpreter::Call take a value vector?
+        let mut eargs = interpreter::ExpressionVec::new();
+        for arg in args {
+            eargs.push(arg.to_expr());
+        }
+        let c4 = interpreter::build_call(self.fun.clone(),eargs);
+
+        interpreter::calculate(&c4.to_expr())
+
     }
 }
+
 
 #[derive(Clone, Debug)]
 pub enum Clause {
@@ -141,6 +190,25 @@ impl Clause {
             }
         }
     }
+}
+
+pub trait ToClause { fn to_clause(self) -> Clause; }
+
+impl ToClause for Clause { fn to_clause(self) -> Clause { self } } 
+impl ToClause for Call { fn to_clause(self) -> Clause { Clause::Call(self) } }
+
+// Macro for creating clause vectors
+#[macro_export]
+macro_rules! clausevec {
+    ( $( $x:expr ),* ) => {
+        {
+            let mut temp_vec = Vec::new();
+            $(
+                temp_vec.push($x.to_clause());
+            )*
+            temp_vec
+        }
+    };
 }
 
 #[derive(Clone, Debug)]

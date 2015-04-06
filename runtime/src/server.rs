@@ -5,6 +5,7 @@ use websocket::server::sender;
 use websocket::stream::WebSocketStream;
 use std::collections::{HashMap, BitSet};
 use std::io::prelude::*;
+use std::fs::OpenOptions;
 use std::num::ToPrimitive;
 use rustc_serialize::json::{Json, ToJson};
 
@@ -107,7 +108,7 @@ impl Instance {
 }
 
 pub enum ServerEvent {
-    Event(Event),
+    Message(String),
     NewClient(sender::Sender<WebSocketStream>),
 }
 
@@ -137,9 +138,7 @@ pub fn serve() -> mpsc::Receiver<ServerEvent> {
                     let message = message.unwrap();
                     match message {
                         Message::Text(text) => {
-                            let json = Json::from_str(&text).unwrap();
-                            let event = FromJson::from_json(&json);
-                            event_sender.send(ServerEvent::Event(event)).unwrap();
+                            event_sender.send(ServerEvent::Message(text)).unwrap();
                         }
                         _ => println!("Unknown message: {:?}", message)
                     }
@@ -159,6 +158,20 @@ pub fn run() {
         flow: empty_flow.clone(),
         output: empty_output.clone(),
     };
+
+    time!("reading saved state", {
+        let mut events = OpenOptions::new().create(true).open("./events").unwrap();
+        let mut old_events = String::new();
+        events.read_to_string(&mut old_events).unwrap();
+        for line in old_events.lines() {
+            let json = Json::from_str(&line).unwrap();
+            let event: Event = FromJson::from_json(&json);
+            instance.change(event.changes);
+        }
+        drop(events);
+        });
+    let mut events = OpenOptions::new().write(true).append(true).open("./events").unwrap();
+
     let mut senders: Vec<sender::Sender<_>> = Vec::new();
     let event_receiver = serve();
     for event in event_receiver.iter() {
@@ -174,10 +187,15 @@ pub fn run() {
                     senders.push(sender)
                 })
             }
-            ServerEvent::Event(event) => {
+            ServerEvent::Message(text) => {
                 time!("sending update", {
+                    let json = Json::from_str(&text).unwrap();
+                    let event: Event = FromJson::from_json(&json);
                     let changes = instance.change(event.changes);
                     let text = format!("{}", Event{changes: changes}.to_json());
+                    events.write_all(text.as_bytes()).unwrap();
+                    events.write_all("\n".as_bytes()).unwrap();
+                    events.flush().unwrap();
                     for sender in senders.iter_mut() {
                         match sender.send_message(Message::Text(text.clone())) {
                             Ok(_) => (),
