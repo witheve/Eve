@@ -913,12 +913,15 @@ var tableRow = reactFactory({
   getInitialState: function() {
     var row = [];
     var cur = this.props.row;
+    if(!cur) { return {row: row}; }
+
     for(var i = 0, len = this.props.length; i < len; i++) {
       row[i] = cur[i];
     }
     return {row: row};
   },
   componentDidUpdate: function(prev) {
+    if(!prev.row && !this.props.row) return;
     if(!Indexing.arraysIdentical(prev.row, this.props.row)) {
       var row = this.state.row;
       var cur = this.props.row;
@@ -952,20 +955,24 @@ var tableRow = reactFactory({
   },
   render: function() {
     var self = this;
-    var fields = range(this.props.length).map(function(cur) {
-      var content = self.state.row[cur];
-      if(content === undefined) {
-        content = "";
-      }
-      if(self.props.editable) {
-        return ["td", editable({value: content, onSubmit: function(value) {
-          self.setColumn(cur, value);
-        }})];
-      } else {
-        return ["td", content];
-      }
-    });
-    return JSML(["tr", fields]);
+    if(this.props.row) {
+      var fields = range(this.props.length).map(function(cur) {
+        var content = self.state.row[cur];
+        if(content === undefined) {
+          content = "";
+        }
+        if(self.props.editable) {
+          return ["td", editable({value: content, onSubmit: function(value) {
+            self.setColumn(cur, value);
+          }})];
+        } else {
+          return ["td", content];
+        }
+      });
+      return JSML(["tr", fields]);
+    } else {
+      return JSML(["tr", ["td", {className: "failed", colSpan: this.props.length}, "x"]]);
+    }
   }
 });
 
@@ -997,7 +1004,7 @@ var table = reactFactory({
         return tableHeader({field: cur.name, id: cur.id, editable: self.props.headersEditable});
       });
       var rowComponents = rows.map(function(cur, ix) {
-        return tableRow({table: self.props.tableId, row: cur, length: numColumns, key: JSON.stringify(cur) + ix, editable: self.props.rowsEditable});
+        return tableRow({table: self.props.tableId, row: cur, length: numColumns, key: "" + JSON.stringify(cur) + ix, editable: self.props.rowsEditable});
       });
       this.state.partialRows.forEach(function(cur) {
         rowComponents.push(tableRow({table: self.props.tableId, row: [], length: numColumns, editable: self.props.rowsEditable, isNewRow: true, onRowAdded: self.rowAdded, onRowModified: self.addedRowModified, key: cur, id: cur}));
@@ -1040,19 +1047,13 @@ var resultTable = reactFactory({
   render: function() {
     var self = this;
     var fields = code.viewToFields(this.props.tableId);
-    var rows = ixer.facts(this.props.tableId);
+    var rows = this.props.rows || [];
     fields.sort(function(a, b) {
       return a[1] - b[1];
     });
     fields = fields.map(function(cur) {
       return {name: code.name(cur[2]), id: cur[2]};
     });
-    var rowIds = ixer.index("editId")[this.props.tableId];
-    if(rowIds) {
-      rows.sort(function(a, b) {
-        return rowIds[JSON.stringify(a)] - rowIds[JSON.stringify(b)];
-      });
-    }
     return table({tableId: this.props.tableId, rows: rows, fields: fields});
   }
 });
@@ -1259,17 +1260,15 @@ var astComponents = {
       return JSML(["span", {className: "token" + activeClass + invalidClass, onClick: this.onSelect}, this.props.value])
     }
   }),
-  "field-source-ref": reactFactory({
-    render: function() {
-      var name = code.refToName(this.props.value);
-      var value = ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], name.field];
-      return tokenAtPath(this, value);
-    }
-  }),
   "column": reactFactory({
     render: function() {
       var name = code.refToName(this.props.value);
-      var value = ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], name.field];
+      var value;
+      if(!this.props.noSource) {
+        value = ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], name.field];
+      } else {
+        value = ["span", {className: "ref"}, name.field];
+      }
       return tokenAtPath(this, value);
     }
   }),
@@ -1553,7 +1552,7 @@ var astComponents = {
       var allRefs = code.viewToRefs(view);
       var cur = this.props.constraint;
       var editing = this.state.editing;
-      var left = astComponents["column"]({value: cur[0], onSelect: this.editingLeft, path: ["left"], activePath: [editing]});
+      var left = astComponents["column"]({value: cur[0], noSource: true, onSelect: this.editingLeft, path: ["left"], activePath: [editing]});
       //@TODO: right can be a constant or a ref...
       var right = astComponents[cur[2][0]]({value: cur[2], onSelect: this.editingRight, path: ["right"], activePath: [editing], invalid: !this.validateRight()});
       var op = astComponents["op"]({value: cur[1], path: ["op"], activePath: [editing], onSelect: this.editingOp});
@@ -1566,7 +1565,6 @@ var astComponents = {
           return cur[1] === sourceId;
         }).map(function(cur) {
           var name = code.refToName(cur);
-          console.log(name);
           return {id: cur, text: ["span", {className: "ref"}, ["span", {className: "namespace"}, "", name.view, " "], name.field]};
         });
         editor = structuredMultiSelector({fields: localRefs,
@@ -1638,17 +1636,50 @@ var viewSource = reactFactory({
       };
       return ["li", {onClick: remove}, astComponents["constraint"]({constraint: cur, source: self.props.source})];
     });
+    if(constraints.length < this.props.maxConstraints) {
+      for(var i = constraints.length; i < this.props.maxConstraints; i++) {
+        constraints.push(["li", {className: "constraintPlaceholder"}, "x"]);
+      }
+    }
+    var myIx = this.props.source[1];
+    var rows = this.props.viewRows.map(function(cur) {
+      return cur[myIx];
+    })
     var content;
     if(viewOrFunction[0] === "view") {
-      content = resultTable({tileId: this.props.tileId, tableId: viewOrFunction[1]});
+      content = resultTable({tileId: this.props.tileId, rows: rows, tableId: viewOrFunction[1]});
     } else {
       content = ["div", astComponents["expression"]({viewId: this.props.viewId, expression: viewOrFunction, onSet: this.updateCalculation})];
     }
     return JSML(["div", {className: "view-source"},
                  ["h1", code.name(viewOrFunction[1])],
-                 ["ul", constraints],
+//                  ["ul", constraints],
                  content
                 ]);
+  }
+});
+
+var viewSourceCode = reactFactory({
+  render: function() {
+    var self = this;
+    var viewOrFunction = this.props.source[3];
+    var constraints = this.props.constraints.map(function(cur) {
+      var remove = function() {
+//         dispatch("removeConstaint", {constraint: cur.slice()})
+      };
+      return ["div", {className: "constraint", onClick: remove}, "where ", astComponents["constraint"]({constraint: cur, source: self.props.source})];
+    });
+    var content;
+    if(viewOrFunction[0] === "view") {
+    } else {
+      content = ["div", astComponents["expression"]({viewId: this.props.viewId, expression: viewOrFunction, onSet: this.updateCalculation})];
+    }
+    return JSML(["div", {className: "view-source-code"},
+                 ["p", this.props.source[1] === 0 ? ["span", "with ", ["span", {className: "token"}, "each row"], " of "] : "and each row of ", ["h1", code.name(viewOrFunction[1])]],
+                 constraints.length ? constraints : undefined,
+                 content
+                ]);
+
   }
 });
 
@@ -1678,42 +1709,57 @@ tiles.view = {
       var self = this;
       var view = this.getView();
       var sources = ixer.index("viewToSources")[view] || [];
-//       var constraints = ixer.index("viewToConstraints")[view] || [];
-      //@TODO: constraints are now totally different
+      var rows = ixer.facts(view);
       var constraints = ixer.facts("constraint");
       var sourceToConstraints = {};
+      var maxConstraints = 0;
       constraints.forEach(function(cur) {
         var source = cur[0][1];
         if(!sourceToConstraints[source]) {
           sourceToConstraints[source] = [];
         }
         sourceToConstraints[source].push(cur);
+        var len = sourceToConstraints[source].length;
+        if(len > maxConstraints) { maxConstraints = len; }
       })
+      var constraintItems = constraints.map(function(cur) {
+        var remove = function() {
+          //         dispatch("removeConstaint", {constraint: cur.slice()})
+        };
+        return ["li", {onClick: remove}, astComponents["constraint"]({constraint: cur, source: self.props.source})];
+      });
       sources.sort(function(a, b) {
         //sort by ix
         return a[1] - b[1];
       });
       var items = sources.map(function(cur) {
-        return viewSource({key: cur[2], tileId: self.props.tileId, viewId: view, source: cur, constraints: sourceToConstraints[cur[2]] || []});
+        return viewSource({key: cur[2], viewRows: rows, maxConstraints: maxConstraints, tileId: self.props.tileId, viewId: view, source: cur, constraints: sourceToConstraints[cur[2]] || []});
       });
       var add;
       if(this.state.addingSource) {
         add = tableSelector({onSelect: this.stopAddingSource});
       } else {
-        add = ["div", {onClick: this.startAddingSource}, "add source"];
+        add = ["div", {onClick: this.startAddingSource}, ["span", {className: "icon ion-ios-box"}], "add step"];
       }
       var calculate;
       if(this.state.addingCalculation) {
         calculate = ["div", astComponents["expression"]({viewId: view, onSet: this.stopAddingCalculation})];
       } else {
-        calculate = ["div", {onClick: this.startAddingCalculation}, "add calculation"];
+        calculate = ["div", {onClick: this.startAddingCalculation}, ["span", {className: "icon ion-ios-calculator"}] , "calculate"];
       }
+
+      var code = sources.map(function(cur) {
+        return viewSourceCode({key: cur[2], tileId: self.props.tileId, viewId: view, source: cur, constraints: sourceToConstraints[cur[2]] || []});
+      });
       //edit view
       return JSML(["div", {className: "view-wrapper"},
-                   items,
-                   ["div",
-                    add,
-                    calculate]
+                   ["div", {className: "code-list"},
+                    ["ul", code],
+                    ["div", {className: "add-source"},
+                     add,
+                     calculate]
+                   ],
+                   items
                   ]);
     }
   }),
@@ -3198,7 +3244,6 @@ var code = {
   refToName: function(ref) {
     switch(ref[0]) {
       case "column":
-        console.log(ref);
         var view = code.name(ixer.index("sourceToData")[ref[1]][1]);
         var field = code.name(ref[2]);
         return {string: view + "." + field, view: view, field: field};
