@@ -208,6 +208,95 @@ var Indexing = (function() {
         return cur;
       }
     },
+    //OPTS:
+    // {
+    //   keys: [], //keys to index on
+    // }
+    latestLookup: function(opts) {
+      var keyIxes = opts.keys;
+      var valueIx = keyIxes.pop();
+      return function(cur, adds, removes) {
+        var cursor;
+        //in a latest scenario, we never remove so we only need to worry about
+        //adds
+        for(var addIx = 0, addLen = adds.length; addIx < addLen; addIx++) {
+          var add = adds[addIx];
+          cursor = cur;
+          for(var ix = 0, keyLen = keyIxes.length - 1; ix < keyLen; ix++) {
+            var next = cursor[add[keyIxes[ix]]];
+            if(!next) {
+              next = cursor[add[keyIxes[ix]]] = {};
+            }
+            cursor = next;
+          }
+          var finalKey = add[keyIxes[keyIxes.length - 1]];
+          if(valueIx !== false) {
+            //in the case where we only store the value, we just assume that later things
+            //will be later. This may or may not be what you want.
+            cursor[finalKey] = add[valueIx];
+          } else {
+            var finalValue = cursor[finalKey];
+            //if the added value's transaction time is not later, then there's nothing to do here.
+            if(finalValue && finalValue[0] >= add[0]) continue;
+            cursor[finalKey] = add;
+          }
+        }
+        return cur;
+      }
+    },
+    //OPTS:
+    // {
+    //   keys: [], //keys to index on
+    //   uniqueness: [] //keys that determine uniqueness when testing for latest
+    // }
+    latestCollector: function(opts) {
+      var keyIxes = opts.keys;
+      var uniques = opts.uniqueness;
+      return function(cur, adds, removes) {
+        var cursor;
+        //in a latest scenario, we never remove so we only need to worry about
+        //adds
+        for(var addIx = 0, addLen = adds.length; addIx < addLen; addIx++) {
+          var add = adds[addIx];
+          cursor = cur;
+          for(var ix = 0, keyLen = keyIxes.length - 1; ix < keyLen; ix++) {
+            var next = cursor[add[keyIxes[ix]]];
+            if(!next) {
+              next = cursor[add[keyIxes[ix]]] = {};
+            }
+            cursor = next;
+          }
+          next = cursor[add[keyIxes[keyIxes.length - 1]]];
+          if(!next) {
+            next = cursor[add[keyIxes[keyIxes.length - 1]]] = [];
+          }
+          if(next.length) {
+            var found = false;
+            //look through and determine if there is something with the same uniqueness
+            //that is older than the current value being inserted
+            filter: for(var filterIx = 0, filterLen = next.length; filterIx < filterLen; filterIx++) {
+              var nextItem = next[filterIx];
+              for(var uniqueIx = 0, uniqueLen = uniques.length; uniqueIx < uniqueLen; uniqueIx++) {
+                var uniqueKey = uniques[uniqueIx];
+                if(nextItem[uniqueKey] !== add[uniqueKey]) {
+                  continue filter;
+                }
+              }
+              if(nextItem[0] < add[0]) {
+                found = true;
+                next[filterIx] = add;
+              }
+            }
+            if(!found) {
+              next.push(add);
+            }
+          } else {
+            next.push(add);
+          }
+        }
+        return cur;
+      }
+    },
   };
 
   exports.create = create;
