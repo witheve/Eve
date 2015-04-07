@@ -547,7 +547,6 @@ var gridTile = reactFactory({
 
   // Rendering
   render: function() {
-    console.log("rendering");
     var tile = tiles[this.props.type];
     if(!tile) { throw new Error("Invalid tile type specified: '" + this.props.type + "'."); }
     var style = {
@@ -2248,9 +2247,11 @@ var uiElement = reactFactory({
     var width = el.right - el.left;
     var height = el.bottom - el.top;
     var locked = (el.locked ? "none" : undefined);
-    var content = el.control;
+    var properties = {content: el.control};
     var attrs = {className: "control",
                  style: {top: el.top, left: el.left, width: width, height: height, zIndex: el.layer, pointerEvents: locked}};
+
+
     if(!this.props.selected) {
       attrs.onMouseDown = function(evt) {
         self.props.select(el.id, evt.shiftKey);
@@ -2267,17 +2268,22 @@ var uiElement = reactFactory({
 
     var userAttrs = ixer.index("uiElementToAttrs")[this.props.id] || [];
     for(var ix = 0, len = userAttrs.length; ix < len; ix++) {
-      //@TODO: check isBinding.
       var userAttr = userAttrs[ix];
-      if(userAttr[1] === "content") {
-        content = userAttr[2];
-        continue;
+      var key = userAttr[1];
+      var val = userAttr[2];
+      var isBinding = userAttr[3];
+      if(isBinding) {
+        val = "Bound to " + ixer.index("displayName")[val];
       }
-      attrs.style[userAttr[1]] = userAttr[2];
+      if(key in properties) {
+        properties[key] = val;
+      } else {
+        attrs.style[key] = val;
+      }
     }
 
     return JSML(
-      ["div", attrs, content]
+      ["div", attrs, properties.content]
     );
   }
 });
@@ -2313,6 +2319,13 @@ var uiSelection = reactFactory({
       this.setState(this.getBounds(nextProps.elements));
     }
   },
+  componentDidMount: function() {
+    this.refs.container.getDOMNode().focus();
+  },
+  componentDidUpdate: function() {
+    this.refs.container.getDOMNode().focus();
+  },
+
   getBounds: uiGetBounds,
   localizeCoords: uiLocalizeCoords,
   globalizeCoords: uiGlobalizeCoords,
@@ -2455,6 +2468,13 @@ var uiSelection = reactFactory({
     return opts;
   },
 
+  keyDown: function(evt) {
+    if(evt.keyCode !== 8) { return; }
+    evt.preventDefault();
+    evt.stopPropagation();
+    dispatch("removeUiComponentElements", this.props.elements.slice());
+  },
+
   // Rendering
   render: function() {
     var self = this;
@@ -2473,9 +2493,11 @@ var uiSelection = reactFactory({
 
     return JSML(
       ["div", {
+        ref: "container",
         className: "ui-selection",
         style: {top: this.state.top, left: this.state.left, width: width, height: height},
-
+        tabIndex: 0,
+        onKeyDown: this.keyDown
       },
 
        ["div", this.wrapResizeHandle({className: resizeClass, x: "left", y: "top"})],
@@ -2589,7 +2611,7 @@ var uiCanvas = reactFactory({
       var opposite = this.opposite[side];
       if(only[opposite]) { continue; }
       snaps[side] = snapSet[axis][nearestNeighbor(snapSet[axis], elem[side])];
-      if(!snaps[side] || Math.abs(snaps[side] - elem[side]) > snapZone) {
+      if(snaps[side] === undefined || Math.abs(snaps[side] - elem[side]) > snapZone) {
         snaps[side] = undefined;
       } else {
         guides.push({side: side, axis: axis, pos: snaps[side]});
@@ -2672,7 +2694,6 @@ var uiCanvas = reactFactory({
       bottom: (initial.top >= final.top ? initial.top : final.top),
       right: (initial.left >= final.left ? initial.left : final.left)
     };
-    console.log(bounds);
     var neue = this.props.elements.filter(function(elem) {
       return !(elem.top > bounds.bottom
                || elem.left > bounds.right
@@ -2977,6 +2998,13 @@ function dispatch(event, arg, noRedraw) {
         diffs.push(["uiComponentElement", "inserted", neue],
                    ["uiComponentElement", "removed", prev]);
 
+      }
+      break;
+    case "removeUiComponentElements":
+      for(var ix = 0; ix < arg.length; ix++) {
+        var el = arg[ix];
+        var elem = [el.id, el.component, el.layer, el.control, el.left, el.top, el.right, el.bottom];
+        diffs.push(["uiComponentElement", "removed", elem]);
       }
       break;
     case "addUiComponentElement":
