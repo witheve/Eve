@@ -289,12 +289,17 @@ th:last-child { border-radius: 0 2px 2px 0; }
 .ui-canvas .resize-handle { position:absolute; background: rgba(170,204,255,0.3); border: 1px solid #acf; z-index: 1000; }
 .ui-canvas .resize-handle.invalid { background: rgba(255, 108, 128, 0.3); border: 1px solid #fab; }
 
+.ui-selection { outline: none; }
+
 .ui-tools {flex: none;}
 .ui-tools > ul { padding: 5px; background: rgba(255,255,255, 0.1); border-radius:2px; }
 
 .ui-layers { flex: none; }
 .ui-layers > ul { padding: 5px; background: rgba(255,255,255, 0.1); border-radius:2px; }
 .ui-layer.selected { background: rgba(255, 255, 255, 0.1); }
+.ui-layers .ui-layer { display: flex;}
+.ui-layer > [contenteditable="true"] { flex: 1; margin: auto 0.75em }
+.ui-layer > .layer-controls { flex: 0 0 auto; }
 
 /*****************************************************************************\
  * View editor

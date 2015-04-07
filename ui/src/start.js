@@ -482,14 +482,16 @@ var gridTile = reactFactory({
   flip: function(evt) {
     var self = this;
     var dir = (this.state.flipped ? "+=" : "-=");
+    console.log("start flip");
     Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {
-      duration: 1500,
+      duration: 150,
       easing: "easeInSine",
       complete: function() {
         self.setState({flipped: !self.state.flipped});
+        console.log("half flip");
       }
     });
-    Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {duration: 3500, easing: "easeOutCubic"});
+    Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {duration: 350, easing: "easeOutCubic", complete: function() {console.log("finish flip")}});
   },
 
   // Dragging
@@ -1952,7 +1954,10 @@ var uiAttrs = {
        var oldBounds = uiGetBounds(elements);
        var neueBounds = extend({}, oldBounds);
        neueBounds.right = neueBounds.left + value;
-       var neue = uiTransformSelection(neueBounds, oldBounds, elements.slice());
+       var elems = elements.map(function(elem) {
+         return extend({}, elem);
+       });
+       var neue = uiTransformSelection(neueBounds, oldBounds, elems);
        dispatch("updateUiComponentElements", neue);
      },
      get: function(elements, canvas) {
@@ -1964,7 +1969,10 @@ var uiAttrs = {
        var oldBounds = uiGetBounds(elements);
        var neueBounds = extend({}, oldBounds);
        neueBounds.bottom = neueBounds.top + value;
-       var neue = uiTransformSelection(neueBounds, oldBounds, elements);
+       var elems = elements.map(function(elem) {
+         return extend({}, elem);
+       });
+       var neue = uiTransformSelection(neueBounds, oldBounds, elems);
        dispatch("updateUiComponentElements", neue);
      },
      get: function(elements, canvas) {
@@ -1973,9 +1981,9 @@ var uiAttrs = {
      }}
   ],
   typography: [
+    {displayName: "content", type: "string", group: "typography", prop: "content"},
     {displayName: "color", type: "color", group: "typography", prop: "color"},
     {displayName: "font", type: makeEnum(["Arial", "Comic Sans MS", "Georgia", "Times New Roman", "Trebuchet MS", "Verdana"]), group: "typography", prop: "fontFamily"},
-    //{},
     {displayName: "size", type: "number", group: "typography", prop: "fontSize"},
     {displayName: "weight", type: makeEnum(["normal", "bold", 100, 200, 300, 500, 600, 800, 900]), group: "typography", prop: "fontWeight"},
   ],
@@ -2002,7 +2010,7 @@ function uiPropsGetter(prop) {
       if(attr[prop]) { return attr[prop][2]; }
     });
     var value = values[0];
-    var same = values.every(function(val) {
+    var same = elements.length === 1 || values.every(function(val) {
       return (val === value);
     });
     if(same) {
@@ -2173,6 +2181,9 @@ var uiLayers = reactFactory({
 
     dispatch("addUiComponentLayer", {component: this.props.component, layer: newLayer});
   },
+  renameLayer: function(layer, value) {
+    dispatch("rename", {id: layer.id, value: value});
+  },
   toggleVisible: function(layer, evt) {
     evt.stopPropagation();
     layer.invisible = !layer.invisible;
@@ -2256,13 +2267,15 @@ var uiLayers = reactFactory({
                      onClick: self.selectLayer.bind(self, layer),
                      draggable: true,
                      onDragStart: self.dragLayerStart.bind(self, layer)},
-              layer.name,
-             ["button", {className: "layer-toggle-visible icon-btn icon-btn-md " + (invisible ? "ion-eye-disabled" : "ion-eye"),
-                         onClick: self.toggleVisible.bind(self, layer)}],
-              ["button", {className: "layer-toggle-locked icon-btn icon-btn-md " + (locked ? "ion-locked" : "ion-unlocked"),
-                          onClick: self.toggleLocked.bind(self, layer)}],
-              ["button", {className: "layer-settings ion-gear-a icon-btn icon-btn-md ",
-                          onClick: self.settings.bind(self, layer)}]];
+              ["span", {className: "ion-drag"}],
+              editable({value: layer.name, onSubmit: self.renameLayer.bind(self, layer)}),
+              ["span", {className: "layer-controls"},
+               ["button", {className: "layer-toggle-visible icon-btn icon-btn-md " + (invisible ? "ion-eye-disabled" : "ion-eye"),
+                           onClick: self.toggleVisible.bind(self, layer)}],
+               ["button", {className: "layer-toggle-locked icon-btn icon-btn-md " + (locked ? "ion-locked" : "ion-unlocked"),
+                           onClick: self.toggleLocked.bind(self, layer)}],
+               ["button", {className: "layer-settings ion-gear-a icon-btn icon-btn-md ",
+                           onClick: self.settings.bind(self, layer)}]]];
     });
     return JSML(
       ["div", {className: "ui-layers"},
@@ -2280,8 +2293,11 @@ var uiElement = reactFactory({
     var width = el.right - el.left;
     var height = el.bottom - el.top;
     var locked = (el.locked ? "none" : undefined);
+    var properties = {content: el.control};
     var attrs = {className: "control",
                  style: {top: el.top, left: el.left, width: width, height: height, zIndex: el.layer, pointerEvents: locked}};
+
+
     if(!this.props.selected) {
       attrs.onMouseDown = function(evt) {
         self.props.select(el.id, evt.shiftKey);
@@ -2299,11 +2315,21 @@ var uiElement = reactFactory({
     var userAttrs = ixer.index("uiElementToAttrs")[this.props.id] || [];
     for(var ix = 0, len = userAttrs.length; ix < len; ix++) {
       var userAttr = userAttrs[ix];
-      attrs.style[userAttr[1]] = userAttr[2];
+      var key = userAttr[1];
+      var val = userAttr[2];
+      var isBinding = userAttr[3];
+      if(isBinding) {
+        val = "Bound to " + ixer.index("displayName")[val];
+      }
+      if(key in properties) {
+        properties[key] = val;
+      } else {
+        attrs.style[key] = val;
+      }
     }
 
     return JSML(
-      ["div", attrs, el.control]
+      ["div", attrs, properties.content]
     );
   }
 });
@@ -2339,6 +2365,13 @@ var uiSelection = reactFactory({
       this.setState(this.getBounds(nextProps.elements));
     }
   },
+  componentDidMount: function() {
+    this.refs.container.getDOMNode().focus();
+  },
+  componentDidUpdate: function() {
+    this.refs.container.getDOMNode().focus();
+  },
+
   getBounds: uiGetBounds,
   localizeCoords: uiLocalizeCoords,
   globalizeCoords: uiGlobalizeCoords,
@@ -2481,6 +2514,13 @@ var uiSelection = reactFactory({
     return opts;
   },
 
+  keyDown: function(evt) {
+    if(evt.keyCode !== 8) { return; }
+    evt.preventDefault();
+    evt.stopPropagation();
+    dispatch("removeUiComponentElements", this.props.elements.slice());
+  },
+
   // Rendering
   render: function() {
     var self = this;
@@ -2499,9 +2539,11 @@ var uiSelection = reactFactory({
 
     return JSML(
       ["div", {
+        ref: "container",
         className: "ui-selection",
         style: {top: this.state.top, left: this.state.left, width: width, height: height},
-
+        tabIndex: 0,
+        onKeyDown: this.keyDown
       },
 
        ["div", this.wrapResizeHandle({className: resizeClass, x: "left", y: "top"})],
@@ -2540,7 +2582,7 @@ var uiCanvas = reactFactory({
       return self.props.selection.indexOf(cur) === -1 && cur.invisible === false;
     });
     var possibleSnaps = this.findPossibleSnaps(els, {edge: true, center: true});
-    return {snapGuides: [], possibleSnaps: possibleSnaps};
+    return {snapGuides: [], possibleSnaps: possibleSnaps, boxStart: undefined};
   },
   componentWillReceiveProps: function(nextProps) {
     var els = nextProps.elements.filter(function(cur) {
@@ -2615,7 +2657,7 @@ var uiCanvas = reactFactory({
       var opposite = this.opposite[side];
       if(only[opposite]) { continue; }
       snaps[side] = snapSet[axis][nearestNeighbor(snapSet[axis], elem[side])];
-      if(!snaps[side] || Math.abs(snaps[side] - elem[side]) > snapZone) {
+      if(snaps[side] === undefined || Math.abs(snaps[side] - elem[side]) > snapZone) {
         snaps[side] = undefined;
       } else {
         guides.push({side: side, axis: axis, pos: snaps[side]});
@@ -2679,6 +2721,39 @@ var uiCanvas = reactFactory({
     return true;
   },
 
+  boxSelectStart: function(evt) {
+    if(!evt.shiftKey) {
+      this.props.select();
+    }
+    var elem = this.getDOMNode();
+    this.setState({boxStart: relativeCoords(evt, elem, elem).canvas});
+  },
+  boxSelectEnd: function(evt) {
+    var initial = this.state.boxStart;
+    if(!initial) { return; }
+
+    var elem = this.getDOMNode();
+    var final = relativeCoords(evt, elem, elem).canvas
+    var bounds = {
+      top: (initial.top < final.top ? initial.top : final.top),
+      left: (initial.left < final.left ? initial.left : final.left),
+      bottom: (initial.top >= final.top ? initial.top : final.top),
+      right: (initial.left >= final.left ? initial.left : final.left)
+    };
+    var neue = this.props.elements.filter(function(elem) {
+      return !(elem.top > bounds.bottom
+               || elem.left > bounds.right
+               || elem.bottom < bounds.top
+               || elem.right < bounds.left
+              );
+    }).map(function(elem) {
+      return elem.id;
+    });
+
+    this.setState({boxStart: undefined});
+    this.props.select(neue);
+  },
+
   render: function() {
     var self = this;
     // Remove selected and render separately.
@@ -2709,9 +2784,8 @@ var uiCanvas = reactFactory({
     return JSML(["div", {className: "ui-canvas",
                          onDragOver: this.elementOver,
                          onDrop: this.elementDropped,
-                         onMouseDown: function() {
-                           self.props.select();
-                         }
+                         onMouseDown: this.boxSelectStart,
+                         onMouseUp: this.boxSelectEnd
                         },
                  elems,
                  (this.props.selection.length ? selection : undefined),
@@ -2799,23 +2873,30 @@ tiles.ui = {
         }
       }
     },
-    select: function(id, modify) {
+    select: function(ids, modify) {
+      if(!ids) {
+        this.setState({selection: []});
+        return;
+      }
+      if(ids.constructor !== Array) { ids = [ids]; }
       var selection = [];
-      var el;
       if(modify) {
         selection = this.state.selection.slice();
-        el = findWhere(selection, "id", id);
+      }
+      for(var ix = 0, len = ids.length; ix < len; ix++) {
+        var id = ids[ix];
+        // Test if element is already in selection. If so, remove it.
+        var el = findWhere(selection, "id", id);
         if(el) {
           selection.splice(selection.indexOf(el), 1);
-          return;
+        } else {
+          // Find the element in elements and push that into the selection.
+          el = findWhere(this.state.elements, "id", id);
+          if(el) {
+            selection.push(el);
+          }
         }
       }
-
-      el = findWhere(this.state.elements, "id", id);
-      if(el) {
-        selection.push(el);
-      }
-
       this.setState({selection: selection});
     },
     selectLayer: function(layer) {
@@ -2827,7 +2908,7 @@ tiles.ui = {
       var layersMap = {};
       var layers = ixer.index("uiComponentToLayers")[this.props.tileId] || [];
       layers = layers.map(function(cur) {
-        var name = cur[2];
+        var name = ixer.index("displayName")[cur[0]];
         var layer = {id: cur[0], component: cur[1], layer: cur[2], locked: cur[3], invisible: cur[4], name: name};
         layersMap[layer.layer] = layer;
         return layer;
@@ -2965,13 +3046,22 @@ function dispatch(event, arg, noRedraw) {
 
       }
       break;
+    case "removeUiComponentElements":
+      for(var ix = 0; ix < arg.length; ix++) {
+        var el = arg[ix];
+        var elem = [el.id, el.component, el.layer, el.control, el.left, el.top, el.right, el.bottom];
+        diffs.push(["uiComponentElement", "removed", elem]);
+      }
+      break;
     case "addUiComponentElement":
       var neue = [uuid(), arg.component, arg.layer, arg.control, arg.left, arg.top, arg.right, arg.bottom];
       diffs.push(["uiComponentElement", "inserted", neue]);
       break;
     case "addUiComponentLayer":
-      var neue = [uuid(), arg.component, arg.layer, false, false];
-      diffs.push(["uiComponentLayer", "inserted", neue]);
+      var id = uuid();
+      var neue = [id, arg.component, arg.layer, false, false];
+      diffs.push(["uiComponentLayer", "inserted", neue],
+                 ["displayName", "inserted", [id, "Layer " + arg.layer]]);
       break;
     case "updateUiComponentLayers":
       for(var ix = 0; ix < arg.length; ix++) {
@@ -3196,7 +3286,7 @@ var code = {
   ui: {
     updateAttribute: function(attribute) {
       var diffs = [];
-      var neue = [attribute.id, attribute.property, attribute.value];
+      var neue = [attribute.id, attribute.property, attribute.value, false];
       var oldProps = ixer.index("uiElementToAttr")[attribute.id];
       diffs.push(["uiComponentAttribute", "inserted", neue]);
       if(oldProps) {
@@ -3415,7 +3505,7 @@ function initIndexer() {
   ixer.handleDiffs(
     code.diffs.addView("uiComponentLayer", {id: "string", component: "string", layer: "number", locked: "boolean", invisible: "boolean"}, [], "uiComponentLayer", ["table"]));
   ixer.handleDiffs(
-    code.diffs.addView("uiComponentAttribute", {id: "string", property: "string", value: "string"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
+    code.diffs.addView("uiComponentAttribute", {id: "string", property: "string", value: "string", isBinding: "boolean"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
 }
 
 
@@ -3428,7 +3518,7 @@ var server = {connected: false, queue: [], initialized: false};
 function connectToServer() {
   var queue = server.queue;
   var ws = new WebSocket('ws://localhost:2794', []);
-  // Chris: 192.168.1.148
+  // Chris: 192.168.1.148g
   server.ws = ws;
 
   // Log errors
