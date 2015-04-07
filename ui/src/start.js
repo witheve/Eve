@@ -368,6 +368,8 @@ var addTileTypes = {
   "ui": {
     name: "ui", description: "Visualize your data with a user interface.",
     add: function(id) {
+      //@TODO: make this atomic.
+      dispatch("addUiComponentLayer", {component: id, layer: 0});
       dispatch("updateTile", {id: id, type: "ui"});
     }
   },
@@ -3519,6 +3521,10 @@ function initIndexer() {
     code.diffs.addView("uiComponentLayer", {id: "string", component: "string", layer: "number", locked: "boolean", invisible: "boolean"}, [], "uiComponentLayer", ["table"]));
   ixer.handleDiffs(
     code.diffs.addView("uiComponentAttribute", {tx: "number", id: "string", property: "string", value: "string", isBinding: "boolean"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
+
+  var firstLayerId = uuid();
+  ixer.handleDiffs([["uiComponentLayer", "inserted", [firstLayerId, uiViewId, 0, false, false]],
+                   ["displayName", "inserted", [firstLayerId, "Layer 0"]]]);
 }
 
 
