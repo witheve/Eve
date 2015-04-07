@@ -1879,19 +1879,28 @@ var uiAttrControls = {
     getInitialState: function() {
       return {id: uuid()};
     },
+    shouldComponentUpdate: function(nextProps, nextState) {
+      if(nextState.value !== this.state.value) { return true; }
+      return false;
+    },
     setAttribute: function(evt) {
+      this.setState({value: evt.target.value});
       this.props.attr.set(this.props.selection, this.props.canvas, evt.target.value);
+    },
+    clearState: function(evt) {
+      this.setState({value: undefined});
     },
     render: function() {
       var id = this.state.id;
-      var value = this.props.attr.get(this.props.selection, this.props.canvas);
+      var value = this.state.value || this.props.attr.get(this.props.selection, this.props.canvas);
 
       return JSML(
         ["label", {for: id, className: "ui-color-control", style: {background: value}},
          ["input", {id: id,
                     type: "color",
                     value: value,
-                    onInput: this.setAttribute}]]
+                    onInput: this.setAttribute,
+                    onBlur: this.clearState}]]
       );
     }
   }),
@@ -2007,7 +2016,7 @@ function uiPropsGetter(prop) {
   return function getProperty(elements, canvas) {
     var values = elements.map(function(elem) {
       var attr = ixer.index("uiElementToAttr")[elem.id] || {};
-      if(attr[prop]) { return attr[prop][2]; }
+      if(attr[prop]) { return attr[prop][3]; }
     });
     var value = values[0];
     var same = elements.length === 1 || values.every(function(val) {
@@ -2315,9 +2324,9 @@ var uiElement = reactFactory({
     var userAttrs = ixer.index("uiElementToAttrs")[this.props.id] || [];
     for(var ix = 0, len = userAttrs.length; ix < len; ix++) {
       var userAttr = userAttrs[ix];
-      var key = userAttr[1];
-      var val = userAttr[2];
-      var isBinding = userAttr[3];
+      var key = userAttr[2];
+      var val = userAttr[3];
+      var isBinding = userAttr[4];
       if(isBinding) {
         val = "Bound to " + ixer.index("displayName")[val];
       }
@@ -3005,6 +3014,7 @@ function scaryRedoEvent() {
 function dispatch(event, arg, noRedraw) {
   var storeEvent = true;
   var diffs = [];
+  var txId = ixer.nextId();
 
   switch(event) {
     case "initServer":
@@ -3073,11 +3083,11 @@ function dispatch(event, arg, noRedraw) {
       }
       break;
     case "updateUiComponentAttribute":
-      diffs.push.apply(diffs, code.ui.updateAttribute(arg));
+      diffs.push.apply(diffs, code.ui.updateAttribute(arg, txId));
       break;
     case "updateUiComponentAttributes":
       for(var ix = 0; ix < arg.length; ix++) {
-        diffs.push.apply(diffs, code.ui.updateAttribute(arg[ix]));
+        diffs.push.apply(diffs, code.ui.updateAttribute(arg[ix], txId));
       }
       break;
     case "addTile":
@@ -3194,6 +3204,8 @@ function dispatch(event, arg, noRedraw) {
       break;
   }
 
+  diffs.push(["transaction", "inserted", [txId]]);
+
   if(storeEvent) {
     var eventItem = {event: event, diffs: diffs, children: [], parent: eventStack};
     eventStack.children.push(eventItem);
@@ -3284,15 +3296,15 @@ var code = {
     }
   },
   ui: {
-    updateAttribute: function(attribute) {
+    updateAttribute: function(attribute, txId) {
       var diffs = [];
-      var neue = [attribute.id, attribute.property, attribute.value, false];
+      var neue = [txId, attribute.id, attribute.property, attribute.value, false];
       var oldProps = ixer.index("uiElementToAttr")[attribute.id];
       diffs.push(["uiComponentAttribute", "inserted", neue]);
       if(oldProps) {
         var oldProp = oldProps[attribute.property];
         if(oldProp) {
-          diffs.push(["uiComponentAttribute", "removed", oldProp]);
+          diffs.push(["deletion", "inserted", [txId, oldProp[0]]]);
         }
       }
       return diffs;
@@ -3418,8 +3430,8 @@ ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.lookup
 ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([1]));
 ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.lookup([0, false]));
 ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.collector([1]));
-ixer.addIndex("uiElementToAttrs", "uiComponentAttribute", Indexing.create.collector([0]));
-ixer.addIndex("uiElementToAttr", "uiComponentAttribute", Indexing.create.lookup([0, 1, false]));
+ixer.addIndex("uiElementToAttrs", "uiComponentAttribute", Indexing.create.latestCollector({keys: [1], uniqueness: [1, 2]}));
+ixer.addIndex("uiElementToAttr", "uiComponentAttribute", Indexing.create.latestLookup({keys: [1, 2, false]}));
 
 // Grid Indexes
 ixer.addIndex("gridTarget", "gridTarget", Indexing.create.lookup([0, 1]));
@@ -3428,6 +3440,7 @@ ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
 ixer.addIndex("viewTile", "viewTile", Indexing.create.lookup([0, false]));
 
 function initIndexer() {
+  ixer.handleDiffs(code.diffs.addView("transaction", {id: "id"}, undefined, "transaction", ["table"]));
   ixer.handleDiffs(
     code.diffs.addView("schema", {id: "id"}, [], "schema", ["table"]));
   ixer.handleDiffs(
@@ -3505,7 +3518,7 @@ function initIndexer() {
   ixer.handleDiffs(
     code.diffs.addView("uiComponentLayer", {id: "string", component: "string", layer: "number", locked: "boolean", invisible: "boolean"}, [], "uiComponentLayer", ["table"]));
   ixer.handleDiffs(
-    code.diffs.addView("uiComponentAttribute", {id: "string", property: "string", value: "string", isBinding: "boolean"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
+    code.diffs.addView("uiComponentAttribute", {tx: "number", id: "string", property: "string", value: "string", isBinding: "boolean"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
 }
 
 
@@ -3535,10 +3548,26 @@ function connectToServer() {
       ixer.clear();
       server.initialized = true;
     }
-//     console.log('Server: ' + e.data);
-    console.log("recieved", performance.now(), data);
+    //console.log('Server: ' + e.data);
+    //console.log("received", performance.now(), data);
     ixer.handleMapDiffs(data.changes);
+
+    if(!server.initialized) {
+      var latestTx = ixer.facts("transaction").reduce(function(memo, tx) {
+        if(tx[0] > memo) {
+          return tx[0];
+        } else {
+          return memo;
+        }
+      }, 0);
+      ixer._id = latestTx + 1;
+      console.log("TX", latestTx + 1);
+      server.initialized = true;
+    }
+
+    console.time("render");
     React.render(root(), document.body);
+    console.timeEnd("render");
   };
 
   ws.onopen = function() {
@@ -3553,7 +3582,7 @@ function sendToServer(message) {
   if(!server.connected) {
     server.queue.push(message);
   } else {
-    console.log("sending: ", JSON.stringify(message), performance.now());
+    //console.log("sending: ", JSON.stringify(message), performance.now());
     server.ws.send(JSON.stringify(message));
   }
 }
