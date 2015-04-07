@@ -72,10 +72,15 @@ var Indexing = (function() {
         var cur = indexes[ix];
         cur.index = cur.indexer(cur.index, safeAdds, safeRemoves);
       }
-      if(!this.tables[table]) {
+      if(this.tables[table] === undefined) {
         this.tables[table] = [];
       }
-      applyTableDiff(this.tables[table], safeAdds, safeRemoves);
+      if(this.tables[table] !== false) {
+        applyTableDiff(this.tables[table], safeAdds, safeRemoves);
+      }
+    },
+    indexOnly: function(table) {
+      this.tables[table] = false;
     },
     dumpMapDiffs: function() {
       var final = {};
