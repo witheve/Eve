@@ -658,8 +658,8 @@ var stage = reactFactory({
       ],
       size: grid.viewSize
     });
-    el.scrollLeft = rect.left;
-    el.scrollTop = rect.top;
+    el.scrollLeft = rect.left - grid.gutter / 2;
+    el.scrollTop = rect.top - grid.gutter / 2;
   },
   getAddTiles: function(grid, tiles) {
     tiles = tiles.slice();
