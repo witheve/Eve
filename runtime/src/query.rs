@@ -22,7 +22,6 @@ pub enum Ref {
     Tuple{clause: usize},
     Relation{clause: usize},
     Call{clause: usize},
-    //SelfRef{column: usize},
 }
 
 pub trait ToRef { 
@@ -54,6 +53,13 @@ impl ToRef for (i32,i32) {
     fn to_callref(self) -> Ref { panic!("Cannot convert (i32,i32) to CallRef"); }
     fn to_valref(self) -> Ref { match self { (a,b) => Ref::Value{clause: a as usize, column: b as usize}, } } 
 }
+
+impl ToRef for (usize,usize) {
+    fn to_constref(self) -> Ref { panic!("Cannot convert (usize,usize) to ConstRef"); }
+    fn to_callref(self) -> Ref { panic!("Cannot convert (usize,usize) to CallRef"); }
+    fn to_valref(self) -> Ref { match self { (a,b) => Ref::Value{clause: a, column: b}, } } 
+}
+
 
 impl ToRef for Value {
     fn to_constref(self) -> Ref { 

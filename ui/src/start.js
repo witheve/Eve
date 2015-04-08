@@ -198,7 +198,7 @@ var toolbar = reactFactory({
 var root = reactFactory({
   displayName: "root",
   getInitialState: function() {
-    return {editingGrid: false, bounds: this.getBounds()};
+    return {editingGrid: false, zooming: false, bounds: this.getBounds()};
   },
   componentDidMount: function() {
     window.addEventListener("resize", this.updateGrid);
@@ -213,7 +213,7 @@ var root = reactFactory({
   getBounds: function() {
     var bounds = extend({}, document.body.getBoundingClientRect(), true);
     bounds.height -= 0;
-    bounds.width -= 0;
+    bounds.width -= 100;
     return bounds;
   },
   getTiles: function(grid) {
@@ -247,6 +247,9 @@ var root = reactFactory({
   },
   toggleEditGrid: function() {
     this.setState({editingGrid: !this.state.editingGrid});
+  },
+  toggleZooming: function() {
+    this.setState({zooming: !this.state.zooming});
   },
   render: function() {
     var activeGridInfo = ixer.facts("activeGrid")[0];
@@ -284,6 +287,7 @@ var root = reactFactory({
          tiles: tiles,
          bounds: this.state.bounds,
          editing: this.state.editingGrid,
+         zooming: this.state.zooming,
          onNavigate: this.navigate,
          animation: this.state.nav ? animations[1] : undefined
        }),
@@ -293,7 +297,7 @@ var root = reactFactory({
            ["button", {
              title: "choose program",
              className: "btn-choose-program icon-btn icon-btn-lg ion-ios-albums-outline pull-right",
-             onClick: this.chooseProgram,
+             onClick: this.toggleZooming,
              key: 0
            }],
            ["button", {
@@ -639,7 +643,7 @@ var stage = reactFactory({
     // @FIXME: This doesn't work on first render if called immediately for no good reason whatsoever.
     var self = this;
     setTimeout(function() {
-      self.centerGrid();
+//       self.centerGrid();
     }, 1);
   },
   componentDidUpdate: function(prevProps, prevState) {
@@ -768,6 +772,7 @@ var stage = reactFactory({
 
   render: function() {
     var isEditing = this.props.editing;
+    var isZooming = this.props.zooming;
     var tiles = this.props.tiles.concat(this.state.addTiles);
 
     var children = [];
@@ -785,7 +790,7 @@ var stage = reactFactory({
         children.push(child);
       }
     }
-    var attrs = {key: this.props.key, className: "tile-grid" + (isEditing ? " editing" : ""), style: this.props.style};
+    var attrs = {key: this.props.key, className: "tile-grid" + (isEditing ? " editing" : "") + (isZooming ? " zoom" : "") , style: this.props.style};
     var content = ["div", attrs];
     content.push.apply(content, children);
 
@@ -807,7 +812,7 @@ var stage = reactFactory({
       }, ""]);
     }
 
-    return JSML(content);
+    return JSML(["div", {className: "tile-grid-wrapper"}, content]);
   }
 });
 

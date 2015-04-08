@@ -66,16 +66,29 @@ body {
 .drag-handle:hover { background: rgba(96, 208, 255, 0.8); }
 .drag-handle:active { background: rgba(96, 208, 255, 1); }
 
-.tile-grid {
+.tile-grid-wrapper {
   position: absolute;
-  top: 0px; right: 0px; bottom: 0px; left: 0px;
-  overflow: scroll;
+  top: 0px; right: 100px; bottom: 0px; left: 0px;
+  overflow: auto;
   z-index: 1;
 
   perspective: 5000;
   -webkit-perspective: 5000;
   -moz-perspective: 5000;
 }
+
+.tile-grid {
+  position: absolute;
+  top: 0px; right: 0px; bottom: 0px; left: 0px;
+  z-index: 1;
+  transform-origin: top left;
+  transition: transform 0.2s ease-in-out;
+
+  perspective: 5000;
+  -webkit-perspective: 5000;
+  -moz-perspective: 5000;
+}
+.tile-grid.zoom { transform:scale(0.25,0.25); }
 .tile-grid.editing { background: #202020; }
 
 .tile-grid.editing > .grid-tile > .grid-tile-inner { pointer-events: none; }
@@ -325,10 +338,10 @@ th:last-child { border-radius: 0 2px 2px 0; }
 .view-wrapper .failed { background: rgba(255,79,109,0.1); color: transparent; border:1px solid rgba(255,79,109,0.); border-left:none; text-align:left; }
 .view-wrapper .constraintPlaceholder { visibility: hidden; }
 
-.view-wrapper .add-source { opacity: 0.2; display:flex; padding:10px; transition:opacity 0.2s ease-in-out;  }
+.view-wrapper .add-source { opacity: 1; display:flex; padding:10px; transition:opacity 0.2s ease-in-out;  }
 .view-wrapper .add-source:hover { opacity: 1; }
 .view-wrapper .add-source > * { white-space:nowrap; display:flex; flex:1; flex-direction:column; align-items:center; font-size:9pt; border-radius:2px; padding:5px; cursor:default; }
-.view-wrapper .add-source div:hover { background: #555; }
+.view-wrapper .add-source > div:hover { background: #555; }
 .view-wrapper .add-source .icon { display:flex; align-items:center; justify-content:center; font-size: 30px; border-radius:2px; margin-bottom:0px; }
 
 
