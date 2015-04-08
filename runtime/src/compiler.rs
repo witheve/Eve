@@ -239,7 +239,7 @@ fn create_clause(world: &World, source: &Vec<Value>) -> Clause {
     } else if source_data[0].to_string() == "column" {
 
         println!("{:?}",source_data);
-        Clause::Call(Call{fun: EveFn::Add, arg_refs: vec![1.to_constref(),2.to_constref()]})
+        Clause::Call(Call{fun: EveFn::None, arg_refs: vec![]})
 
     } else {
         
@@ -252,7 +252,7 @@ fn create_call(uifun: &Value, uiargvec: &Value) -> Call {
 
     // Match the uiop with an EveFn...
     // TODO Do some type checking here?
-    let evefn = match uifun.to_string().as_slice() {
+    let evefn = match uifun.to_string().as_ref() {
         "+" => EveFn::Add,
         "-" => EveFn::Subtract,
         "*" => EveFn::Multiply,
@@ -279,7 +279,7 @@ fn create_call(uifun: &Value, uiargvec: &Value) -> Call {
     } else {
        // Return a stupid dummy function if the call is not fully formed. 
        // There needs to be a discussion about this: e.g. why are we sending malformed calls (i.e. missing arguments) to the runtime?
-       Call{fun: EveFn::Add, arg_refs: vec![1.to_constref(),1.to_constref()]}
+       Call{fun: EveFn::None, arg_refs: vec![]}
     }
 }
 

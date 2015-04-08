@@ -1,7 +1,7 @@
 use std;
 use std::iter::IntoIterator;
 
-use value::{Value, ToValue, Tuple, ToRelation, Relation};
+use value::{Value, ToValue, Tuple, Relation};
 use interpreter;
 use interpreter::{EveFn,ToExpression};
 
@@ -151,7 +151,7 @@ impl Source {
         input.iter().filter(|row| self.constraints
                                       .iter()
                                       .zip(prepared.iter())
-                                      .all(|(constraint, value)| constraint.test(row, &row[1]) ) ) 
+                                      .all(|(constraint, value)| constraint.test(row, value) ) ) 
                     .map(|row| row.clone())
                     .collect()
     }

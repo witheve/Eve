@@ -1,6 +1,7 @@
 #![feature(test)]
 #![feature(slice_patterns)]
 #![feature(core)]
+#![allow(unused_imports)]
 
 extern crate rand;
 extern crate time;
@@ -27,7 +28,6 @@ fn main() {
     for result in query.iter(vec![]) {
         println!("{:?}",result);
     }
-
 
 	/*
  	let a = vec![(0.0, 1.0, 2.0), (5.0, 6.0, 6.0), (7.0, 8.0, 9.0)].to_relation();
