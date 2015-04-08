@@ -15,7 +15,7 @@ use flow::{Changes, FlowState, Flow};
 use compiler::{compile, World};
 
 trait FromJson {
-    fn from_json(json: &Json, next_eid: &mut usize) -> Self;
+    fn from_json(json: &Json, next_eid: &mut u64) -> Self;
 }
 
 impl ToJson for Value {
@@ -33,7 +33,7 @@ impl ToJson for Value {
 }
 
 impl FromJson for Value {
-    fn from_json(json: &Json, next_eid: &mut usize) -> Self {
+    fn from_json(json: &Json, next_eid: &mut u64) -> Self {
         match *json {
             Json::Boolean(bool) => Value::Bool(bool),
             Json::String(ref string) => Value::String(string.clone()),
@@ -62,7 +62,7 @@ impl FromJson for Value {
 }
 
 impl<T: FromJson> FromJson for Vec<T> {
-    fn from_json(json: &Json, next_eid: &mut usize) -> Self {
+    fn from_json(json: &Json, next_eid: &mut u64) -> Self {
         json.as_array().unwrap().iter().map(|t| FromJson::from_json(t, next_eid)).collect()
     }
 }
@@ -85,7 +85,7 @@ impl ToJson for Event {
 }
 
 impl FromJson for Event {
-    fn from_json(json: &Json, next_eid: &mut usize) -> Self {
+    fn from_json(json: &Json, next_eid: &mut u64) -> Self {
         Event{
             changes: json.as_object().unwrap()["changes"]
             .as_object().unwrap().iter().map(|(view_id, view_changes)| {
@@ -102,7 +102,7 @@ struct Instance {
     input: World,
     flow: Flow,
     output: FlowState,
-    next_eid: usize,
+    next_eid: u64,
 }
 
 impl Instance {
