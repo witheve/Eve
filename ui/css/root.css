@@ -62,7 +62,7 @@ body {
 
 .tile-grid {
   position: absolute;
-  top: 60px; right: 20px; bottom: 20px; left: 20px;
+  top: 50px; right: 0px; bottom: 0px; left: 0px;
   overflow: scroll;
   z-index: 1;
 

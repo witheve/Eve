@@ -212,8 +212,8 @@ var root = reactFactory({
   },
   getBounds: function() {
     var bounds = extend({}, document.body.getBoundingClientRect(), true);
-    bounds.height -= 80;
-    bounds.width -= 40;
+    bounds.height -= 50;
+    bounds.width -= 0;
     return bounds;
   },
   getTiles: function(grid) {
