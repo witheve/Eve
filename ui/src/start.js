@@ -3585,7 +3585,7 @@ function initIndexer() {
 
   var firstLayerId = uuid();
   ixer.handleDiffs([["uiComponentLayer", "inserted", [-4, firstLayerId, uiViewId, 0, false, false]],
-                   ["displayName", "inserted", [-4, firstLayerId, "Layer 0"]]]);
+                   ["displayName", "inserted", [-5, firstLayerId, "Layer 0"]]]);
 }
 
 
