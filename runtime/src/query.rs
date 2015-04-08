@@ -1,7 +1,7 @@
 use std;
 use std::iter::IntoIterator;
 
-use value::{Value, ToValue, Tuple, Relation};
+use value::{Value, ToValue, Tuple, ToRelation, Relation};
 use interpreter;
 use interpreter::{EveFn,ToExpression};
 
@@ -22,6 +22,7 @@ pub enum Ref {
     Tuple{clause: usize},
     Relation{clause: usize},
     Call{clause: usize},
+    //SelfRef{column: usize},
 }
 
 pub trait ToRef { 
@@ -38,8 +39,8 @@ impl ToRef for f64 {
 
 impl<'a> ToRef for &'a str {
     fn to_constref(self) -> Ref { Ref::Constant{value: self.to_value() } }
-    fn to_callref(self) -> Ref { panic!("Cannot convert f64 to CallRef"); } 
-    fn to_valref(self) -> Ref { panic!("Cannot convert f64 to ValRef"); } 
+    fn to_callref(self) -> Ref { panic!("Cannot convert &str to CallRef"); } 
+    fn to_valref(self) -> Ref { panic!("Cannot convert &str to ValRef"); } 
 }
 
 impl ToRef for i32 { 
@@ -54,14 +55,29 @@ impl ToRef for (i32,i32) {
     fn to_valref(self) -> Ref { match self { (a,b) => Ref::Value{clause: a as usize, column: b as usize}, } } 
 }
 
+impl ToRef for Value {
+    fn to_constref(self) -> Ref { 
+        match self {
+            Value::Float(_) => Ref::Constant{value: self},
+            _ => panic!("Cannot convert Value to ConstRef"),
+        }
+    }
+    fn to_callref(self) -> Ref { panic!("Cannot convert Value to CallRef"); }
+    fn to_valref(self) -> Ref { panic!("Cannot convert Value to ValRef"); }
+}
+
 impl Ref {
     fn resolve<'a>(&'a self, result: &'a Vec<Value>) -> &'a Value {
+
         match *self {
-            Ref::Constant{ref value} =>
-                value,
+            Ref::Constant{ref value} => {
+                value
+            },
             Ref::Value{clause, column} => {
                 match result[clause] {
-                    Value::Tuple(ref tuple) => &tuple[column],
+                    Value::Tuple(ref tuple) => {
+                        &tuple[column]
+                    },
                     _ => panic!("Expected a tuple"),
                 }
             },
@@ -99,6 +115,8 @@ pub struct Constraint {
 }
 
 impl Constraint {
+
+    // Resolves the RHS reference in the constraint to a value
     fn prepare<'a>(&'a self, result: &'a Vec<Value>) -> &'a Value {
         self.other_ref.resolve(result)
     }
@@ -125,14 +143,17 @@ pub struct Source {
 
 impl Source {
     fn constrained_to(&self, inputs: &Vec<&Relation>, result: &Vec<Value>) -> Relation {
-        // TODO apply constraints
-        let prepared: Vec<&Value> = self.constraints.iter().map(|constraint| constraint.prepare(result)).collect();
+   
+        let prepared: Vec<&Value> = self.constraints.iter()
+                                                    .map(|constraint| constraint.prepare(result))
+                                                    .collect();
         let input = inputs[self.relation];
-        input.iter().filter(|row|
-            self.constraints.iter().zip(prepared.iter()).all(|(constraint, value)|
-                constraint.test(row, value)
-            )
-        ).map(|row| row.clone()).collect()
+        input.iter().filter(|row| self.constraints
+                                      .iter()
+                                      .zip(prepared.iter())
+                                      .all(|(constraint, value)| constraint.test(row, &row[1]) ) ) 
+                    .map(|row| row.clone())
+                    .collect()
     }
 }
 

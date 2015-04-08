@@ -74,6 +74,24 @@ pub trait ToTuple {
     fn to_tuple(self) -> Tuple;
 }
 
+impl ToTuple for Value {
+    fn to_tuple(self) -> Tuple {
+        match self {
+            Value::Tuple(x) => x.clone(),
+            _ => panic!("Cannot convert Value to Tuple"),
+        }
+    }
+}
+
+impl<'a> ToTuple for &'a Value {
+    fn to_tuple(self) -> Tuple {
+        match self {
+            &Value::Tuple(ref x) => x.clone(),
+            _ => panic!("Cannot convert Value to Tuple"),
+        }
+    }
+}
+
 pub trait ToRelation {
     fn to_relation(self) -> Relation;
 }
