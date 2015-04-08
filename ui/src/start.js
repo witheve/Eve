@@ -3211,7 +3211,8 @@ function dispatch(event, arg, noRedraw) {
     case "swapConstraint":
       var neue = arg.neue.slice();
 //       neue[0] = txId;
-      diffs.push(["constraint", "inserted", neue]);
+      diffs.push(["constraint", "inserted", neue],
+                 ["constraint", "removed", arg.old.slice()]);
       break;
     case "undo":
       storeEvent = false;
