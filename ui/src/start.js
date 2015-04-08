@@ -1065,6 +1065,15 @@ var resultTable = reactFactory({
   }
 });
 
+var calculationTable = reactFactory({
+  render: function() {
+    var self = this;
+    var rows = this.props.rows || [];
+    fields = [{name: "result", id: "asdf"}];
+    return table({tableId: "calculation", rows: rows, fields: fields});
+  }
+});
+
 tiles.table = {
   content: function(opts) {
     var currentTable = ixer.index("tableTile")[opts.tileId];
@@ -1656,7 +1665,8 @@ var viewSource = reactFactory({
     if(viewOrFunction[0] === "view") {
       content = resultTable({tileId: this.props.tileId, rows: rows, tableId: viewOrFunction[1]});
     } else {
-      content = ["div", astComponents["expression"]({viewId: this.props.viewId, expression: viewOrFunction, onSet: this.updateCalculation})];
+      content = ["div", astComponents["expression"]({viewId: this.props.viewId, expression: viewOrFunction, onSet: this.updateCalculation}),
+                 calculationTable({rows: rows})];
     }
     return JSML(["div", {className: "view-source"},
                  ["h1", code.name(viewOrFunction[1])],
@@ -1667,6 +1677,11 @@ var viewSource = reactFactory({
 });
 
 var viewSourceCode = reactFactory({
+  updateCalculation: function(expression) {
+    var neue = this.props.source.slice();
+    neue[3] = expression;
+      dispatch("swapCalculationSource", {old: this.props.source, neue: neue});
+  },
   render: function() {
     var self = this;
     var viewOrFunction = this.props.source[3];
@@ -1678,13 +1693,17 @@ var viewSourceCode = reactFactory({
     });
     var content;
     if(viewOrFunction[0] === "view") {
+      var intro = "with ";
+      if(this.props.source[1] > 0) {
+        intro = "and with ";
+      }
+      content = ["p",  ["h1", ["span", intro, ["span", {className: "token"}, "each row"], " of "], code.name(viewOrFunction[1])]];
     } else {
-      content = ["div", astComponents["expression"]({viewId: this.props.viewId, expression: viewOrFunction, onSet: this.updateCalculation})];
+      content = ["p", "calculate ", ["div", astComponents["expression"]({viewId: this.props.viewId, expression: viewOrFunction, onSet: this.updateCalculation})]];
     }
     return JSML(["div", {className: "view-source-code"},
-                 ["p", this.props.source[1] === 0 ? ["span", "with ", ["span", {className: "token"}, "each row"], " of "] : "and each row of ", ["h1", code.name(viewOrFunction[1])]],
+                 content,
                  constraints.length ? constraints : undefined,
-                 content
                 ]);
 
   }
@@ -3186,7 +3205,8 @@ function dispatch(event, arg, noRedraw) {
     case "swapCalculationSource":
       var neue = arg.neue.slice();
 //       neue[0] = txId;
-      diffs.push(["source", "inserted", neue]);
+      diffs.push(["source", "inserted", neue],
+                 ["source", "removed", arg.old.slice()]);
       break;
     case "swapConstraint":
       var neue = arg.neue.slice();
@@ -3554,7 +3574,7 @@ function connectToServer() {
       ixer.clear();
       server.initialized = true;
     }
-    //console.log('Server: ' + e.data);
+//     console.log('Server: ' + e.data);
     //console.log("received", performance.now(), data);
     ixer.handleMapDiffs(data.changes);
 
