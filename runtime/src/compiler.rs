@@ -233,13 +233,11 @@ fn create_clause(world: &World, source: &Vec<Value>) -> Clause {
             other => panic!("Unknown view action: {}", other)
         }
     } else if source_data[0].to_string() == "call"  {
-
-        println!("{:?}",source_data);
+        
         Clause::Call(create_call(world,&source_data[CALL_FUN],&source_data[CALL_ARGS]))
 
     } else if source_data[0].to_string() == "column" {
 
-        println!("{:?}",source_data);
         Clause::Call(Call{fun: EveFn::None, arg_refs: vec![]})
 
     } else {
@@ -282,7 +280,7 @@ fn create_call(world: &World, uifun: &Value, uiargvec: &Value) -> Call {
                 println!("other_ref = ({:?} {:?})",other_source_ix,other_field_ix);
                 argvec.push((other_source_ix,other_field_ix).to_valref());
             },
-            _ => unimplemented!(),
+            other => panic!("Unhandled ref kind: {}", other),
         }
     }
 
