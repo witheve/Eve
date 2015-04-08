@@ -52,9 +52,9 @@ var Indexing = (function() {
   }
 
   Indexer.prototype = {
-    _id: 0, // @FIXME: load from txId table.
+    _id: -1, // @FIXME: load from txId table.
     nextId: function() {
-      return this._id++;
+      return ++this._id;
     },
     clear: function() {
       var final = {};
@@ -312,8 +312,8 @@ var Indexing = (function() {
                           continue filter;
                         }
                       }
+                      found = true;
                       if(nextItem[0] < add[0]) {
-                        found = true;
                         next[filterIx] = add;
                       }
                     }

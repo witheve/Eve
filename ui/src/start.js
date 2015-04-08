@@ -3588,6 +3588,12 @@ function connectToServer() {
       }, 0);
       ixer._id = latestTx + 1;
       server.initialized = true;
+    } else {
+      if(data.changes["transaction"].inserted.length) {
+        var sent = data.changes["transaction"].inserted[0][0];
+        console.log("sent", sent, ixer._id);
+        if(sent > ixer._id) ixer._id = sent + 1;
+      }
     }
 
     console.time("render");
