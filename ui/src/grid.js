@@ -48,7 +48,7 @@ var Grid = (function(document, React, Velocity) {
       if(!bounds) { throw new Error(ERR.NO_BOUNDS); }
 
       var grid = {
-        size: params.size || [36, 36],
+        size: params.size || [12, 120],
         viewSize: params.viewSize || [12, 12],
         bounds: {top: bounds.top, left: bounds.left, bottom: bounds.bottom, right: bounds.right, width: bounds.width, height: bounds.height},
         gutter: params.gutter || 0,
