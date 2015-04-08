@@ -5,12 +5,12 @@ use std::cmp::{Ordering};
 
 #[derive(Clone, Debug, PartialOrd, PartialEq, Ord, Eq)]
 pub struct Index<T> {
-    items: BTreeMap<T, usize>,
+    items: BTreeMap<T, i64>,
 }
 
 // #[derive(Debug)] Keys does not implement Debug :(
 pub struct Iter<'a, T> where T: 'a {
-    iter: btree_map::Iter<'a, T, usize>,
+    iter: btree_map::Iter<'a, T, i64>,
 }
 
 #[derive(Clone, Debug)]
@@ -134,7 +134,7 @@ impl<T: Ord> FromIterator<T> for Index<T> {
 }
 
 pub struct IntoIter<T> {
-    items: btree_map::IntoIter<T, usize>
+    items: btree_map::IntoIter<T, i64>
 }
 
 impl<T: Ord> Iterator for IntoIter<T> {

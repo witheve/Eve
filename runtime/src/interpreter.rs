@@ -1,7 +1,6 @@
 use std::fmt::{Debug,Formatter,Result};
-use std::num::Float;
 use std::num::ToPrimitive;
-use value::{Value,Tuple,ToValue};
+use value::{Value,ToValue,Tuple,ToTuple};
 
 // Enums...
 // Expression Enum ------------------------------------------------------------
@@ -68,6 +67,7 @@ pub enum EveFn {
 	StrReplace,
 	StrSplit,
 	None,
+	Foo,
 }
 
 #[derive(Clone)]
@@ -164,7 +164,7 @@ macro_rules! exprvec {
 // This is the main interface to the interpreter. Pass in an expression, get a constant back
 pub fn calculate(e: & Expression) -> Value {
 
-	process_expression(e)
+	process_expression(e).to_tuple().to_value()
 
 }
 
@@ -230,6 +230,8 @@ fn process_call(c: &Call) -> Value {
 		EveFn::StrLength => str_length(&c.args),
 		EveFn::StrReplace => str_replace(&c.args),
 		EveFn::StrSplit => str_split(&c.args),
+
+		EveFn::None => none(),
 
 		_ => unimplemented!(),
 	}
@@ -357,6 +359,12 @@ fn str_split(args: &ExpressionVec) -> Value {
 
 // End String Functions -------------------------------------------------------
 
+// Returns an empty string. For the purpose of handling incomplete function
+// calls sent from UI. This empty string is sent back as a result until the 
+// function call is completed
+fn none() -> Value {
+	"".to_value()
+}
 
 // Helper Functions -----------------------------------------------------------
 
