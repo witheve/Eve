@@ -1,4 +1,4 @@
-use value::{Id, Value, ToValue, Tuple, Relation, ToTuple};
+use value::{Id, Value, Tuple, Relation, ToTuple};
 use index::{Index};
 use query::{Ref, ConstraintOp, Constraint, Source, Clause, Query, ToRef, Call};
 use interpreter::EveFn;
@@ -233,12 +233,11 @@ fn create_clause(world: &World, source: &Vec<Value>) -> Clause {
             other => panic!("Unknown view action: {}", other)
         }
     } else if source_data[0].to_string() == "call"  {
-
-        Clause::Call(create_call(&source_data[CALL_FUN],&source_data[CALL_ARGS]))
+        
+        Clause::Call(create_call(world,&source_data[CALL_FUN],&source_data[CALL_ARGS]))
 
     } else if source_data[0].to_string() == "column" {
 
-        println!("{:?}",source_data);
         Clause::Call(Call{fun: EveFn::None, arg_refs: vec![]})
 
     } else {
@@ -248,7 +247,7 @@ fn create_clause(world: &World, source: &Vec<Value>) -> Clause {
 
 }
 
-fn create_call(uifun: &Value, uiargvec: &Value) -> Call {
+fn create_call(world: &World, uifun: &Value, uiargvec: &Value) -> Call {
 
     // Match the uiop with an EveFn...
     // TODO Do some type checking here?
@@ -267,10 +266,21 @@ fn create_call(uifun: &Value, uiargvec: &Value) -> Call {
         let argt = arg.to_tuple();
 
         // TODO super hacky. Should check arg number and type as prescribed by EveFn
-        assert_eq!(argt.len(),2 as usize);
-
-        if argt[0] == "constant".to_value() {
-            argvec.push(argt[1].clone().to_constref());
+        match argt[0].to_string().as_ref() {
+            "constant" => {
+                assert_eq!(argt.len(),2 as usize);
+                argvec.push(argt[1].clone().to_constref());
+            },
+            "column" => {
+                assert_eq!(argt.len(),3 as usize);
+                let other_source_id = &argt[1];
+                let other_field_id = &argt[2];
+                let other_source_ix = get_source_ix(world, other_source_id);
+                let other_field_ix = get_field_ix(world, other_field_id);
+                
+                argvec.push((other_source_ix,other_field_ix).to_valref());
+            },
+            other => panic!("Unhandled ref kind: {}", other),
         }
     }
 

@@ -2806,6 +2806,10 @@ var uiCanvas = reactFactory({
     var elem = this.getDOMNode();
     this.setState({boxStart: relativeCoords(evt, elem, elem).canvas});
   },
+  boxSelectMove: function(evt) {
+    var elem = this.getDOMNode();
+    this.setState({boxEnd: relativeCoords(evt, elem, elem).canvas});
+  },
   boxSelectEnd: function(evt) {
     var initial = this.state.boxStart;
     if(!initial) { return; }
@@ -2828,7 +2832,7 @@ var uiCanvas = reactFactory({
       return elem.id;
     });
 
-    this.setState({boxStart: undefined});
+    this.setState({boxStart: undefined, boxEnd: undefined});
     this.props.select(neue);
   },
 
@@ -2859,15 +2863,34 @@ var uiCanvas = reactFactory({
       }
       return ["div", {className: "ui-guide", style: style}];
     });
+
+    var bounds;
+    if(this.state.boxStart) {
+      var initial = this.state.boxStart;
+      var final = this.state.boxEnd;
+      bounds = {
+        top: (initial.top < final.top ? initial.top : final.top),
+        left: (initial.left < final.left ? initial.left : final.left),
+        bottom: (initial.top >= final.top ? initial.top : final.top),
+        right: (initial.left >= final.left ? initial.left : final.left)
+      };
+      bounds.width = bounds.right - bounds.left;
+      bounds.height = bounds.bottom - bounds.top;
+    }
     return JSML(["div", {className: "ui-canvas",
                          onDragOver: this.elementOver,
                          onDrop: this.elementDropped,
                          onMouseDown: this.boxSelectStart,
+                         onMouseMove: this.boxSelectMove,
                          onMouseUp: this.boxSelectEnd
                         },
                  elems,
                  (this.props.selection.length ? selection : undefined),
-                 snaps
+                 snaps,
+                 (bounds ? ["div", {
+                   className: "ui-box-selection",
+                   style: {left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height}
+                 }] : undefined)
                 ]);
   }
 });
@@ -3563,8 +3586,8 @@ function initIndexer() {
     w: "number",
     h: "number"
   }, [
-//     [-1, uiViewId, gridId, "ui", 12, 12, 12, 4],
-//     [-2, bigUiViewId, "grid://ui", "ui", 12, 12, 12, 12],
+    [-1, uiViewId, gridId, "ui", 0, 12, 12, 4],
+    [-2, bigUiViewId, "grid://ui", "ui", 0, 12, 12, 12],
   ], "gridTile", ["table"]));
 
   ixer.handleDiffs(code.diffs.addView(
