@@ -277,7 +277,7 @@ fn create_call(world: &World, uifun: &Value, uiargvec: &Value) -> Call {
                 let other_field_id = &argt[2];
                 let other_source_ix = get_source_ix(world, other_source_id);
                 let other_field_ix = get_field_ix(world, other_field_id);
-                println!("other_ref = ({:?} {:?})",other_source_ix,other_field_ix);
+                
                 argvec.push((other_source_ix,other_field_ix).to_valref());
             },
             other => panic!("Unhandled ref kind: {}", other),
