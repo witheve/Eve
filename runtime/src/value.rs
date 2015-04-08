@@ -78,7 +78,7 @@ impl ToTuple for Value {
     fn to_tuple(self) -> Tuple {
         match self {
             Value::Tuple(x) => x.clone(),
-            _ => panic!("Cannot convert Value to Tuple"),
+            _ => vec![self],
         }
     }
 }
