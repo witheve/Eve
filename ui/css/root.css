@@ -320,7 +320,7 @@ th:last-child { border-radius: 0 2px 2px 0; }
 .view-wrapper .add-source .icon { display:flex; align-items:center; justify-content:center; font-size: 30px; border-radius:2px; margin-bottom:0px; }
 
 
-.view-wrapper .code-list { flex:none; border-radius:2px; padding:0px 0; border-right:0px solid #444; background:#393939; margin-right: 15px; overflow:auto; }
+.view-wrapper .code-list { flex:none; border-radius:2px; padding:0px 0; border-right:0px solid #444; background:#393939; margin-right: 15px; }
 .view-wrapper .view-source-code { margin-bottom:0px; border-bottom:3px solid #303030; background: none; margin-right:0px; padding:5px 5px; border-radius:2px; }
 .view-wrapper .view-source-code { color: #aaa; }
 .view-wrapper .view-source-code p { display:inline-block; margin: 5px 0; margin-left: 5px; white-space:pre; }

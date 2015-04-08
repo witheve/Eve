@@ -217,7 +217,11 @@ var root = reactFactory({
     return bounds;
   },
   getTiles: function(grid) {
-    return ixer.index("gridToTile")[grid].map(factToTile);
+    var removed = ixer.index("remove");
+    var tiles = ixer.index("gridToTile")[grid] || [];
+    return tiles.map(factToTile).filter(function(cur) {
+      return !removed[cur.tx];
+    });
   },
   navigate: function(id) {
     var target = ixer.index("gridTarget")[id];
@@ -3419,6 +3423,7 @@ ixer.addIndex("editId", "editId", Indexing.create.latestLookup({keys: [1,2,3]}))
 ixer.addIndex("viewToSchema", "view", Indexing.create.lookup([0, 1]));
 ixer.addIndex("viewToSources", "source", Indexing.create.collector([0]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([0]));
+ixer.addIndex("remove", "remove", Indexing.create.lookup([0, 0]));
 // ui
 ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.latestLookup({keys: [1, false]}));
 ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
@@ -3436,6 +3441,7 @@ ixer.addIndex("viewTile", "viewTile", Indexing.create.lookup([0, false]));
 
 function initIndexer() {
   ixer.handleDiffs(code.diffs.addView("transaction", {id: "id"}, undefined, "transaction", ["table"]));
+  ixer.handleDiffs(code.diffs.addView("remove", {id: "id"}, undefined, "remove", ["table"]));
   ixer.handleDiffs(
     code.diffs.addView("schema", {id: "id"}, [], "schema", ["table"]));
   ixer.handleDiffs(
