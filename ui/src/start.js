@@ -3555,7 +3555,6 @@ function connectToServer() {
         }
       }, 0);
       ixer._id = latestTx + 1;
-      console.log("TX", latestTx + 1);
       server.initialized = true;
     }
 
@@ -3576,7 +3575,7 @@ function sendToServer(message) {
   if(!server.connected) {
     server.queue.push(message);
   } else {
-    console.log("sending: ", JSON.stringify(message), performance.now());
+//     console.log("sending: ", JSON.stringify(message), performance.now());
     server.ws.send(JSON.stringify(message));
   }
 }
