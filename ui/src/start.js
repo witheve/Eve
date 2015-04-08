@@ -246,7 +246,7 @@ var root = reactFactory({
   },
   render: function() {
     var activeGridInfo = ixer.facts("activeGrid")[0];
-    var activeGrid = "default";
+    var activeGrid = "grid://default";
     if(activeGridInfo) {
       activeGrid = activeGridInfo[1];
     }
@@ -3097,7 +3097,7 @@ function dispatch(event, arg, noRedraw) {
     case "addTile":
       // @FIXME: active grid
       var activeGridInfo = ixer.facts("activeGrid")[0];
-      var activeGrid = "default";
+      var activeGrid = "grid://default";
       if(activeGridInfo) {
         activeGrid = activeGridInfo[1];
       }
@@ -3112,12 +3112,12 @@ function dispatch(event, arg, noRedraw) {
       fact[2] = arg.grid || fact[2];
       fact[3] = arg.type || fact[3];
       if(arg.pos) {
-        fact[4] = arg.pos[4];
-        fact[5] = arg.pos[5];
+        fact[4] = arg.pos[0];
+        fact[5] = arg.pos[1];
       }
       if(arg.size) {
-        fact[6] = arg.size[6];
-        fact[7] = arg.size[7];
+        fact[6] = arg.size[0];
+        fact[7] = arg.size[1];
       }
       diffs.push(["gridTile", "inserted", fact]);
       break;
