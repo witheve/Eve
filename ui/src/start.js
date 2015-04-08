@@ -635,11 +635,31 @@ var stage = reactFactory({
       this.animate.apply(this, this.props.animation);
     }
     this.setState({initialized: true});
+
+    // @FIXME: This doesn't work on first render if called immediately for no good reason whatsoever.
+    var self = this;
+    setTimeout(function() {
+      self.centerGrid();
+    }, 1);
   },
   componentDidUpdate: function(prevProps, prevState) {
     if(this.props.animation) {
       this.animate.apply(this, this.props.animation);
     }
+  },
+  centerGrid: function() {
+    // @FIXME: this needs to be triggered each navigation.
+    var grid = this.state.grid;
+    var el = this.getDOMNode();
+    var rect = Grid.getRect(grid, {
+      pos: [
+        grid.size[0] / 2 - grid.viewSize[0] / 2,
+        grid.size[1] / 2 - grid.viewSize[1] / 2
+      ],
+      size: grid.viewSize
+    });
+    el.scrollLeft = rect.left;
+    el.scrollTop = rect.top;
   },
   getAddTiles: function(grid, tiles) {
     tiles = tiles.slice();
@@ -3538,8 +3558,8 @@ function initIndexer() {
     w: "number",
     h: "number"
   }, [
-    [-1, uiViewId, gridId, "ui", 0, 0, 6, 3],
-    [-2, bigUiViewId, "grid://ui", "ui", 0, 0, 12, 12],
+    [-1, uiViewId, gridId, "ui", 12, 12, 12, 4],
+    [-2, bigUiViewId, "grid://ui", "ui", 12, 12, 12, 12],
   ], "gridTile", ["table"]));
 
   ixer.handleDiffs(code.diffs.addView(
@@ -3564,8 +3584,8 @@ function initIndexer() {
     code.diffs.addView("uiComponentAttribute", {tx: "number", id: "string", property: "string", value: "string", isBinding: "boolean"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
 
   var firstLayerId = uuid();
-  ixer.handleDiffs([["uiComponentLayer", "inserted", [firstLayerId, uiViewId, 0, false, false]],
-                   ["displayName", "inserted", [firstLayerId, "Layer 0"]]]);
+  ixer.handleDiffs([["uiComponentLayer", "inserted", [-4, firstLayerId, uiViewId, 0, false, false]],
+                   ["displayName", "inserted", [-4, firstLayerId, "Layer 0"]]]);
 }
 
 
