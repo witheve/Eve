@@ -140,8 +140,9 @@ function verticalTable(rows) {
 
 function factToTile(tile) {
   return {
-    id: tile[0], grid: tile[1], type: tile[2],
-    pos: [tile[3], tile[4]], size: [tile[5], tile[6]]
+    tx: tile[0],
+    id: tile[1], grid: tile[2], type: tile[3],
+    pos: [tile[4], tile[5]], size: [tile[6], tile[7]]
   };
 }
 
@@ -216,9 +217,7 @@ var root = reactFactory({
     return bounds;
   },
   getTiles: function(grid) {
-    return ixer.facts("gridTile").filter(function(fact) {
-      return fact[1] === grid;
-    }).map(factToTile);
+    return ixer.index("gridToTile")[grid].map(factToTile);
   },
   navigate: function(id) {
     var target = ixer.index("gridTarget")[id];
@@ -249,7 +248,7 @@ var root = reactFactory({
     var activeGridInfo = ixer.facts("activeGrid")[0];
     var activeGrid = "default";
     if(activeGridInfo) {
-      activeGrid = activeGridInfo[0];
+      activeGrid = activeGridInfo[1];
     }
     var tiles = this.getTiles(activeGrid);
     var animTiles = [];
@@ -436,7 +435,7 @@ var tileProperties = reactFactory({
 var tableProperties = reactFactory({
   displayName: "table-properties",
   getInitialState: function() {
-    var type = ixer.index("gridTile")[this.props.tileId][2];
+    var type = ixer.index("gridTile")[this.props.tileId][3];
     return {type: type};
   },
   getView: function() {
@@ -2917,8 +2916,8 @@ tiles.ui = {
       var layersMap = {};
       var layers = ixer.index("uiComponentToLayers")[this.props.tileId] || [];
       layers = layers.map(function(cur) {
-        var name = ixer.index("displayName")[cur[0]];
-        var layer = {id: cur[0], component: cur[1], layer: cur[2], locked: cur[3], invisible: cur[4], name: name};
+        var name = ixer.index("displayName")[cur[1]];
+        var layer = {tx: cur[0], id: cur[1], component: cur[2], layer: cur[3], locked: cur[4], invisible: cur[5], name: name};
         layersMap[layer.layer] = layer;
         return layer;
       });
@@ -2935,7 +2934,7 @@ tiles.ui = {
       layersMap = layersMap || this.getLayers().map;
       var elements = ixer.index("uiComponentToElements")[this.props.tileId] || [];
       elements = elements.map(function(cur, ix) {
-        var element = {id: cur[0], component: cur[1], layer: cur[2], control: cur[3], left: cur[4], top: cur[5], right: cur[6], bottom: cur[7]};
+        var element = {tx: cur[0], id: cur[1], component: cur[2], layer: cur[3], control: cur[4], left: cur[5], top: cur[6], right: cur[7], bottom: cur[8]};
         var layer = layersMap[element.layer];
         element.locked = layer.locked;
         element.invisible = layer.invisible;
@@ -3001,6 +3000,14 @@ function scaryUndoEvent() {
 
   var old = eventStack;
   eventStack = old.parent;
+  var tables = {};
+  //we have to rebuild ixes in the case of going backward
+  old.diffs.forEach(function(cur) {
+    if(!tables[cur[0]]) {
+      ixer.markForRebuild(cur[0]);
+    }
+    tables[cur[0]] = true;
+  });
   return reverseDiff(old.diffs);
 }
 
@@ -3034,52 +3041,47 @@ function dispatch(event, arg, noRedraw) {
       var oldKey = JSON.stringify(arg.old);
       var edits = ixer.index("editId")[arg.table]
       var time = edits ? edits[oldKey] : 0;
-      diffs.push(["editId", "inserted", [arg.table, JSON.stringify(arg.neue), time]],
-                 ["editId", "removed", [arg.table, oldKey, time]],
+      diffs.push(["editId", "inserted", [txId, arg.table, JSON.stringify(arg.neue)]],
+                 //@TODO: what should we do about removal of rows?
                  [arg.table, "inserted", arg.neue.slice()],
                  [arg.table, "removed", arg.old.slice()]);
       break;
     case "addRow":
-      diffs.push(["editId", "inserted", [arg.table, JSON.stringify(arg.neue), (new Date()).getTime()]],
+      diffs.push(["editId", "inserted", [txId, arg.table, JSON.stringify(arg.neue), (new Date()).getTime()]],
                  [arg.table, "inserted", arg.neue.slice()]);
       break;
     case "rename":
-      diffs = code.diffs.changeDisplayName(arg.id, arg.value);
+      diffs.push(["displayName", "inserted", [txId, id, neue]]);
       break;
     case "updateUiComponentElements":
       for(var ix = 0; ix < arg.length; ix++) {
         var el = arg[ix];
-        var prev = ixer.index("uiComponentElement")[el.id];
-        var neue = [el.id, el.component, el.layer, el.control, el.left, el.top, el.right, el.bottom];
-        diffs.push(["uiComponentElement", "inserted", neue],
-                   ["uiComponentElement", "removed", prev]);
+        var neue = [txId, el.id, el.component, el.layer, el.control, el.left, el.top, el.right, el.bottom];
+        diffs.push(["uiComponentElement", "inserted", neue]);
 
       }
       break;
     case "removeUiComponentElements":
       for(var ix = 0; ix < arg.length; ix++) {
         var el = arg[ix];
-        var elem = [el.id, el.component, el.layer, el.control, el.left, el.top, el.right, el.bottom];
-        diffs.push(["uiComponentElement", "removed", elem]);
+        diffs.push(["remove", "inserted", [el.tx]]);
       }
       break;
     case "addUiComponentElement":
-      var neue = [uuid(), arg.component, arg.layer, arg.control, arg.left, arg.top, arg.right, arg.bottom];
+      var neue = [txId, uuid(), arg.component, arg.layer, arg.control, arg.left, arg.top, arg.right, arg.bottom];
       diffs.push(["uiComponentElement", "inserted", neue]);
       break;
     case "addUiComponentLayer":
       var id = uuid();
-      var neue = [id, arg.component, arg.layer, false, false];
+      var neue = [txId, id, arg.component, arg.layer, false, false];
       diffs.push(["uiComponentLayer", "inserted", neue],
                  ["displayName", "inserted", [id, "Layer " + arg.layer]]);
       break;
     case "updateUiComponentLayers":
       for(var ix = 0; ix < arg.length; ix++) {
         var layer = arg[ix];
-        var neue = [layer.id, layer.component, layer.layer, layer.locked, layer.invisible];
-        var old = ixer.index("uiComponentLayer")[layer.id];
-        diffs.push(["uiComponentLayer", "inserted", neue],
-                   ["uiComponentLayer", "removed", old]);
+        var neue = [txId, layer.id, layer.component, layer.layer, layer.locked, layer.invisible];
+        diffs.push(["uiComponentLayer", "inserted", neue]);
       }
       break;
     case "updateUiComponentAttribute":
@@ -3095,75 +3097,71 @@ function dispatch(event, arg, noRedraw) {
       var activeGridInfo = ixer.facts("activeGrid")[0];
       var activeGrid = "default";
       if(activeGridInfo) {
-        activeGrid = activeGridInfo[0];
+        activeGrid = activeGridInfo[1];
       }
-      var fact = [arg.id, activeGrid, arg.type, arg.pos[0], arg.pos[1], arg.size[0], arg.size[1]];
+      console.log("ACTIVE:", activeGrid, activeGridInfo);
+      var fact = [txId, arg.id, activeGrid, arg.type, arg.pos[0], arg.pos[1], arg.size[0], arg.size[1]];
       diffs.push(["gridTile", "inserted", fact]);
       break;
     case "updateTile":
       var fact = ixer.index("gridTile")[arg.id].slice();
       var oldFact = fact.slice();
-      fact[1] = arg.grid || fact[1];
-      fact[2] = arg.type || fact[2];
+      fact[0] = txId;
+      fact[2] = arg.grid || fact[2];
+      fact[3] = arg.type || fact[3];
       if(arg.pos) {
-        fact[3] = arg.pos[0];
-        fact[4] = arg.pos[1];
+        fact[4] = arg.pos[4];
+        fact[5] = arg.pos[5];
       }
       if(arg.size) {
-        fact[5] = arg.size[0];
-        fact[6] = arg.size[1];
+        fact[6] = arg.size[6];
+        fact[7] = arg.size[7];
       }
-      diffs.push(["gridTile", "inserted", fact],
-                 ["gridTile", "removed", oldFact]);
+      diffs.push(["gridTile", "inserted", fact]);
       break;
     case "closeTile":
       // @TODO: clean up old dependent facts.
       var fact = ixer.index("gridTile")[arg].slice();
-      diffs.push(["gridTile", "removed", fact]);
+      diffs.push(["remove", "inserted", [fact[0]]]);
       break;
     case "setTileView":
       var oldTile = ixer.index("gridTile")[arg.tileId].slice();
       var tile = oldTile.slice();
       //set to a tile type
-      var type = tile[2] = (code.hasTag(arg.view, "table") ? "table" : "view");
-      diffs.push(["gridTile", "removed", oldTile],
-                 ["gridTile", "inserted", tile],
-                 [type + "Tile", "inserted", [tile[0], arg.view]]);
+      tile[0] = txId;
+      var type = tile[3] = (code.hasTag(arg.view, "table") ? "table" : "view");
+      diffs.push(["gridTile", "inserted", tile],
+                 [type + "Tile", "inserted", [tile[1], arg.view]]);
       break;
     case "addTable":
       var oldTile = ixer.index("gridTile")[arg].slice();
       var tile = oldTile.slice();
       //set to a table tile
-      tile[2] = "table";
+      tile[0] = txId;
+      tile[3] = "table";
       var tableId = uuid();
       diffs = code.diffs.addView("Untitled Table", {A: "string"}, undefined, tableId, ["table"]);
       diffs.push(["gridTile", "inserted", tile],
-                 ["gridTile", "removed", oldTile],
                  ["tableTile", "inserted", [arg, tableId]]);
       break;
     case "addView":
       var oldTile = ixer.index("gridTile")[arg].slice();
       var tile = oldTile.slice();
       //set to a table tile
-      tile[2] = "view";
+      tile[0] = txId;
+      tile[3] = "view";
       var viewId = uuid();
       diffs = code.diffs.addView("Untitled View", {}, undefined, viewId, ["view"], "query");
       diffs.push(["gridTile", "inserted", tile],
-                 ["gridTile", "removed", oldTile],
                  ["viewTile", "inserted", [arg, viewId]]);
       break;
 
     case "setTarget":
-      diffs.push(["gridTarget", "inserted", [arg.id, arg.target]],
-                 ["gridTarget", "removed", [arg.id, ixer.index("gridTarget")[arg.id]]]);
+      diffs.push(["gridTarget", "inserted", [txId, arg.id, arg.target]]);
       break;
     case "navigate":
       if(!arg.target.indexOf("grid://") === 0) { throw new Error("Cannot handle non grid:// urls yet."); }
-      var old = ixer.facts("activeGrid")[0];
-      if(old) {
-        diffs.push(["activeGrid", "removed", old]);
-      }
-      diffs.push(["activeGrid", "inserted", [arg.target]]);
+      diffs.push(["activeGrid", "inserted", [txId, arg.target]]);
       break;
     case "addSource":
       var schemaId = ixer.index("view")[arg.view][1];
@@ -3180,15 +3178,14 @@ function dispatch(event, arg, noRedraw) {
       diffs.push(["source", "inserted", [arg.view, ix, sourceId, arg.source, "get-tuple"]]);
       break;
     case "swapCalculationSource":
-      diffs.push(["source", "inserted", arg.neue.slice()],
-                 ["source", "removed", arg.old.slice()]);
-      break;
-    case "removeConstraint":
-      diffs.push(["constraint", "removed", arg.constraint]);
+      var neue = arg.neue.slice();
+//       neue[0] = txId;
+      diffs.push(["source", "inserted", neue]);
       break;
     case "swapConstraint":
-      diffs.push(["constraint", "removed", arg.old.slice()],
-                 ["constraint", "inserted", arg.neue.slice()]);
+      var neue = arg.neue.slice();
+//       neue[0] = txId;
+      diffs.push(["constraint", "inserted", neue]);
       break;
     case "undo":
       storeEvent = false;
@@ -3233,11 +3230,6 @@ var code = {
       var fieldId = uuid();
       return [["field", "inserted", [schema, fields.length, fieldId, "unknown"]],
               ["displayName", "inserted", [fieldId, alphabet[fields.length]]]];
-    },
-    changeDisplayName: function(id, neue) {
-      var cur = ixer.index("displayName")[id];
-      return [["displayName", "inserted", [id, neue]],
-              ["displayName", "removed", [id, cur]]];
     },
     addView: function(name, fields, initial, id, tags, type) { // (S, {[S]: Type}, Fact[]?, Uuid?, S[]?) -> Diffs
       id = id || uuid();
@@ -3417,25 +3409,26 @@ window.addEventListener("unload", function(e) {
 
 // Core
 ixer.addIndex("tag", "tag", Indexing.create.collector([0]));
-ixer.addIndex("displayName", "displayName", Indexing.create.lookup([0, 1]));
+ixer.addIndex("displayName", "displayName", Indexing.create.latestLookup({keys: [0, 1]}));
 ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
 ixer.addIndex("field", "field", Indexing.create.lookup([2, false]));
 ixer.addIndex("sourceToData", "source", Indexing.create.lookup([2, 3]));
-ixer.addIndex("editId", "editId", Indexing.create.lookup([0,1,2]));
+ixer.addIndex("editId", "editId", Indexing.create.latestLookup({keys: [1,2,3]}));
 ixer.addIndex("viewToSchema", "view", Indexing.create.lookup([0, 1]));
 ixer.addIndex("viewToSources", "source", Indexing.create.collector([0]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([0]));
 // ui
-ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.lookup([0, false]));
-ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([1]));
-ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.lookup([0, false]));
-ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.collector([1]));
+ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.latestLookup({keys: [1, false]}));
+ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
+ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.latestLookup({keys: [1, false]}));
+ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
 ixer.addIndex("uiElementToAttrs", "uiComponentAttribute", Indexing.create.latestCollector({keys: [1], uniqueness: [1, 2]}));
 ixer.addIndex("uiElementToAttr", "uiComponentAttribute", Indexing.create.latestLookup({keys: [1, 2, false]}));
 
 // Grid Indexes
-ixer.addIndex("gridTarget", "gridTarget", Indexing.create.lookup([0, 1]));
-ixer.addIndex("gridTile", "gridTile", Indexing.create.lookup([0, false]));
+ixer.addIndex("gridTarget", "gridTarget", Indexing.create.latestLookup({keys: [1, 2]}));
+ixer.addIndex("gridTile", "gridTile", Indexing.create.latestLookup({keys: [1, false]}));
+ixer.addIndex("gridToTile", "gridTile", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
 ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
 ixer.addIndex("viewTile", "viewTile", Indexing.create.lookup([0, false]));
 
@@ -3454,7 +3447,7 @@ function initIndexer() {
   ixer.handleDiffs(
     code.diffs.addView("constraint", {left: "reference", op: "op", right: "reference"}, [], "constraint", ["table"]));
   ixer.handleDiffs(code.diffs.addView("tag", {id: "id", tag: "string"}, undefined, "tag", ["table"]));
-  ixer.handleDiffs(code.diffs.addView("displayName", {id: "string", name: "string"}, undefined, "displayName", ["table"]));
+  ixer.handleDiffs(code.diffs.addView("displayName", {tx: "number", id: "string", name: "string"}, undefined, "displayName", ["table"]));
   ixer.handleDiffs(code.diffs.addView("tableTile", {id: "string", view: "string"}, undefined, "tableTile", ["table"]));
   ixer.handleDiffs(code.diffs.addView("viewTile", {id: "string", view: "string"}, undefined, "viewTile", ["table"]));
 
@@ -3487,6 +3480,7 @@ function initIndexer() {
   var uiViewId = uuid();
   var bigUiViewId = uuid();
   ixer.handleDiffs(code.diffs.addView("gridTile", {
+    tx: "number",
     tile: "string",
     grid: "string",
     type: "string",
@@ -3495,28 +3489,28 @@ function initIndexer() {
     w: "number",
     h: "number"
   }, [
-    [uiViewId, gridId, "ui", 0, 0, 6, 3],
-    [bigUiViewId, "grid://ui", "ui", 0, 0, 12, 12],
+    [-1, uiViewId, gridId, "ui", 0, 0, 6, 3],
+    [-2, bigUiViewId, "grid://ui", "ui", 0, 0, 12, 12],
   ], "gridTile", ["table"]));
 
   ixer.handleDiffs(code.diffs.addView(
     "activeGrid",
-    {grid: "string"},
-    [[gridId]],
+    {tx: "number", grid: "string"},
+    [[-3, gridId]],
     "activeGrid", ["table"]));
 
   ixer.handleDiffs(code.diffs.addView(
     "gridTarget",
-    {tile: "string", target: "string"}, [
+    {tx: "number", tile: "string", target: "string"}, [
       [uiViewId, "grid://ui"],
       [bigUiViewId, "grid://default"]
     ], "gridTarget", ["table"]));
 
   // ui views
   ixer.handleDiffs(
-    code.diffs.addView("uiComponentElement", {id: "string", component: "string", layer: "number", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]));
+    code.diffs.addView("uiComponentElement", {tx: "number", id: "string", component: "string", layer: "number", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]));
   ixer.handleDiffs(
-    code.diffs.addView("uiComponentLayer", {id: "string", component: "string", layer: "number", locked: "boolean", invisible: "boolean"}, [], "uiComponentLayer", ["table"]));
+    code.diffs.addView("uiComponentLayer", {tx: "number", id: "string", component: "string", layer: "number", locked: "boolean", invisible: "boolean"}, [], "uiComponentLayer", ["table"]));
   ixer.handleDiffs(
     code.diffs.addView("uiComponentAttribute", {tx: "number", id: "string", property: "string", value: "string", isBinding: "boolean"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
 }
@@ -3582,7 +3576,7 @@ function sendToServer(message) {
   if(!server.connected) {
     server.queue.push(message);
   } else {
-    //console.log("sending: ", JSON.stringify(message), performance.now());
+    console.log("sending: ", JSON.stringify(message), performance.now());
     server.ws.send(JSON.stringify(message));
   }
 }
