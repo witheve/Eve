@@ -19,6 +19,45 @@ use core::num::ToPrimitive;
 
 fn main() {
 
+    let c0 = Call{fun: EveFn::Add, arg_refs: vec![1.to_constref(),2.to_constref()]};
+
+    // Build the query
+    let query = Query{clauses: clausevec![c0]};
+
+    for result in query.iter(vec![]) {
+        println!("{:?}",result);
+    }
+
+
+	/*
+ 	let a = vec![(0.0, 1.0, 2.0), (5.0, 6.0, 6.0), (7.0, 8.0, 9.0)].to_relation();
+    let b = vec![(-7.0,), (8.0,), (10.0,)].to_relation();
+    let a0_lt_b0 = Constraint{
+        my_column: 0,
+        op: ConstraintOp::LT,
+        other_ref: 1.to_constref(),
+    };
+
+    let query = Query{clauses: vec![
+        Clause::Tuple(Source{relation: 0, constraints: vec![a0_lt_b0]}),
+    ]};
+
+ 	let mut resultvec = Vec::new();
+
+    for result in query.iter(vec![&a]) {
+    	println!("--------------------------------");
+    	println!("{:?}",result);
+    	println!("--------------------------------");
+        resultvec.push(result);
+    }
+    */
+
+	// Build the correct answer
+    //let e1 = ((0.0,1.0,2.0).to_tuple(),(-4.0,-5.0,-6.0).to_tuple()).to_tuple();
+    //let e2 = ((4.0,5.0,6.0).to_tuple(),(-4.0,-5.0,-6.0).to_tuple()).to_tuple();
+    //let e3 = ((4.0,5.0,6.0).to_tuple(),(0.0,-1.0,-2.0).to_tuple()).to_tuple();
+    //let correct = vec![e1,e2,e3];
+    
 /*
     let a = vec![(0.0, 1.0, 2.0), (4.0, 5.0, 6.0)].to_relation();
     let b = vec![(-0.0, -1.0, -2.0), (-4.0, -5.0, -6.0)].to_relation();
@@ -216,12 +255,12 @@ fn opstest() {
 
 	// General math with a relation (((1.3 + 2) * [1 2 3 4]) + (7 - 4) / 10) ^ 2
     let a = vec![(1.0,),(2.0,),(3.0,),(4.0,)].to_relation();
-    let c0 = Call{fun: EveFn::Add, arg_refs: vec![1.3.to_constref(),2.to_constref()]};            // C0 = 1.3 + 2
-    let c1 = Call{fun: EveFn::Multiply, arg_refs: vec![1.to_callref(),(0,0).to_valref()]};        // C1 = C0 * [1 2 3 4]
-    let c2 = Call{fun: EveFn::Subtract, arg_refs: vec![7.to_constref(),4.to_constref()]};         // C2 = 7 - 4
-    let c3 = Call{fun: EveFn::Divide, arg_refs: vec![3.to_callref(),10.to_constref()]};           // C3 = C2 / 10
-    let c4 = Call{fun: EveFn::Add, arg_refs: vec![2.to_callref(),4.to_callref()]};                // C4 = C1 + C3
-    let c5 = Call{fun: EveFn::Exponentiate, arg_refs: vec![5.to_callref(),2.to_constref()]};      // C5 = C4 ^ 2
+    let c0 = Call{fun: EveFn::Add, arg_refs: vec![1.3.to_constref(),2.to_constref()]};       // C0 = 1.3 + 2
+    let c1 = Call{fun: EveFn::Multiply, arg_refs: vec![1.to_callref(),(0,0).to_valref()]};   // C1 = C0 * [1 2 3 4]
+    let c2 = Call{fun: EveFn::Subtract, arg_refs: vec![7.to_constref(),4.to_constref()]};    // C2 = 7 - 4
+    let c3 = Call{fun: EveFn::Divide, arg_refs: vec![3.to_callref(),10.to_constref()]};      // C3 = C2 / 10
+    let c4 = Call{fun: EveFn::Add, arg_refs: vec![2.to_callref(),4.to_callref()]};           // C4 = C1 + C3
+    let c5 = Call{fun: EveFn::Exponentiate, arg_refs: vec![5.to_callref(),2.to_constref()]}; // C5 = C4 ^ 2
 
     // Build the query
     let query = Query{clauses: clausevec![Clause::Tuple(Source{relation: 0, constraints: vec![]}),c0,c1,c2,c3,c4,c5]};
@@ -246,12 +285,12 @@ fn opsbench(b: &mut test::Bencher) {
 
      // General math with a relation (((1.3 + 2) * [1 2 3 4]) + (7 - 4) / 10) ^ 2
     let a = vec![(1.0,),(2.0,),(3.0,),(4.0,)].to_relation();
-    let c0 = Call{fun: EveFn::Add, arg_refs: vec![1.3.to_constref(),2.to_constref()]};            // C0 = 1.3 + 2
-    let c1 = Call{fun: EveFn::Multiply, arg_refs: vec![1.to_callref(),(0,0).to_valref()]};        // C1 = C0 * [1 2 3 4]
-    let c2 = Call{fun: EveFn::Subtract, arg_refs: vec![7.to_constref(),4.to_constref()]};         // C2 = 7 - 4
-    let c3 = Call{fun: EveFn::Divide, arg_refs: vec![3.to_callref(),10.to_constref()]};           // C3 = C2 / 10
-    let c4 = Call{fun: EveFn::Add, arg_refs: vec![2.to_callref(),4.to_callref()]};                // C4 = C1 + C3
-    let c5 = Call{fun: EveFn::Exponentiate, arg_refs: vec![5.to_callref(),2.to_constref()]};    // C5 = C4 ^ 2
+    let c0 = Call{fun: EveFn::Add, arg_refs: vec![1.3.to_constref(),2.to_constref()]};       // C0 = 1.3 + 2
+    let c1 = Call{fun: EveFn::Multiply, arg_refs: vec![1.to_callref(),(0,0).to_valref()]};   // C1 = C0 * [1 2 3 4]
+    let c2 = Call{fun: EveFn::Subtract, arg_refs: vec![7.to_constref(),4.to_constref()]};    // C2 = 7 - 4
+    let c3 = Call{fun: EveFn::Divide, arg_refs: vec![3.to_callref(),10.to_constref()]};      // C3 = C2 / 10
+    let c4 = Call{fun: EveFn::Add, arg_refs: vec![2.to_callref(),4.to_callref()]};           // C4 = C1 + C3
+    let c5 = Call{fun: EveFn::Exponentiate, arg_refs: vec![5.to_callref(),2.to_constref()]}; // C5 = C4 ^ 2
 
     // Build the query
     let query = Query{clauses: clausevec![Clause::Tuple(Source{relation: 0, constraints: vec![]}),c0,c1,c2,c3,c4,c5]};

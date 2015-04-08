@@ -1,6 +1,7 @@
-use value::{Id, Value, Tuple, Relation, ToTuple};
+use value::{Id, Value, ToValue, Tuple, Relation, ToTuple};
 use index::{Index};
-use query::{Ref, ConstraintOp, Constraint, Source, Clause, Query};
+use query::{Ref, ConstraintOp, Constraint, Source, Clause, Query, ToRef, Call};
+use interpreter::EveFn;
 use flow::{Changes, View, Union, Node, FlowState, Flow};
 
 use std::collections::{HashMap, BitSet};
@@ -87,6 +88,9 @@ static FIELDMAPPING_VIEWMAPPING: usize = 0;
 static FIELDMAPPING_SOURCEFIELD: usize = 1;
 static FIELDMAPPING_SOURCECOLUMN: usize = 2;
 static FIELDMAPPING_SINKFIELD: usize = 3;
+
+static CALL_FUN: usize = 1;
+static CALL_ARGS: usize = 2;
 
 static SCHEDULE_IX: usize = 0;
 static SCHEDULE_VIEW: usize = 1;
@@ -228,17 +232,64 @@ fn create_clause(world: &World, source: &Vec<Value>) -> Clause {
             }
             other => panic!("Unknown view action: {}", other)
         }
+    } else if source_data[0].to_string() == "call"  {
+
+        Clause::Call(create_call(&source_data[CALL_FUN],&source_data[CALL_ARGS]))
+
+    } else if source_data[0].to_string() == "column" {
+
+        println!("{:?}",source_data);
+        Clause::Call(Call{fun: EveFn::Add, arg_refs: vec![1.to_constref(),2.to_constref()]})
+
     } else {
-        panic!("Can't compile functions yet")
+        
+        panic!("Can't compile {:?} yet",source_data[0].to_string())
     }
 
 }
 
+fn create_call(uifun: &Value, uiargvec: &Value) -> Call {
+
+    // Match the uiop with an EveFn...
+    // TODO Do some type checking here?
+    let evefn = match uifun.to_string().as_slice() {
+        "+" => EveFn::Add,
+        "-" => EveFn::Subtract,
+        "*" => EveFn::Multiply,
+        "/" => EveFn::Divide,
+        _ => unimplemented!(),
+    };
+
+    // Collect arguments from the UI in a vector for the clause
+    let mut argvec = Vec::new();
+    for arg in uiargvec.to_tuple() {
+
+        let argt = arg.to_tuple();
+
+        // TODO super hacky. Should check arg number and type as prescribed by EveFn
+        assert_eq!(argt.len(),2 as usize);
+
+        if argt[0] == "constant".to_value() {
+            argvec.push(argt[1].clone().to_constref());
+        }
+    }
+
+    if argvec.len() == 2 {
+        Call{fun: evefn, arg_refs: argvec}
+    } else {
+       // Return a stupid dummy function if the call is not fully formed. 
+       // There needs to be a discussion about this: e.g. why are we sending malformed calls (i.e. missing arguments) to the runtime?
+       Call{fun: EveFn::Add, arg_refs: vec![1.to_constref(),1.to_constref()]}
+    }
+}
+
 fn create_query(world: &World, view_id: &Value) -> Query {
     // arrives in ix order
-    let clauses = world.view("source").find_all(SOURCE_VIEW, view_id).iter().map(|source|
-        create_clause(world, source)
-        ).collect();
+    let clauses = world.view("source")
+                       .find_all(SOURCE_VIEW, view_id)
+                       .iter()
+                       .map(|source| create_clause(world, source))
+                       .collect();
     Query{clauses: clauses}
 }
 
