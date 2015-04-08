@@ -212,8 +212,8 @@ var root = reactFactory({
   },
   getBounds: function() {
     var bounds = extend({}, document.body.getBoundingClientRect(), true);
-    bounds.height -= 80;
-    bounds.width -= 40;
+    bounds.height -= 0;
+    bounds.width -= 0;
     return bounds;
   },
   getTiles: function(grid) {
@@ -270,7 +270,7 @@ var root = reactFactory({
     }
 
     return JSML(
-      ["div",
+      ["div", {id: "root"},
        ["canvas", {width: 1, height: 1, id: "clear-pixel", key: "root-clear-pixel"}],
       (animTiles.length ? stage({
          key: "anim-stage",
@@ -658,8 +658,8 @@ var stage = reactFactory({
       ],
       size: grid.viewSize
     });
-    el.scrollLeft = rect.left;
-    el.scrollTop = rect.top;
+    el.scrollLeft = rect.left - grid.gutter / 2;
+    el.scrollTop = rect.top - grid.gutter / 2;
   },
   getAddTiles: function(grid, tiles) {
     tiles = tiles.slice();
