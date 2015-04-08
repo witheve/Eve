@@ -305,6 +305,12 @@ th:last-child { border-radius: 0 2px 2px 0; }
 .ui-layer > [contenteditable="true"] { flex: 1; margin: auto 0.75em }
 .ui-layer > .layer-controls { flex: 0 0 auto; }
 
+.ui-box-selection {
+  pointer-events: none;
+  position: absolute;
+  border: 1px solid teal;
+}
+
 /*****************************************************************************\
  * View editor
 \*****************************************************************************/
