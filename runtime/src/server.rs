@@ -15,7 +15,7 @@ use flow::{Changes, FlowState, Flow};
 use compiler::{compile, World};
 
 trait FromJson {
-    fn from_json(json: &Json) -> Self;
+    fn from_json(json: &Json, next_eid: &mut usize) -> Self;
 }
 
 impl ToJson for Value {
@@ -33,18 +33,28 @@ impl ToJson for Value {
 }
 
 impl FromJson for Value {
-    fn from_json(json: &Json) -> Self {
+    fn from_json(json: &Json, next_eid: &mut usize) -> Self {
         match *json {
             Json::Boolean(bool) => Value::Bool(bool),
             Json::String(ref string) => Value::String(string.clone()),
             Json::F64(float) => Value::Float(float),
             Json::I64(int) => Value::Float(int.to_f64().unwrap()),
             Json::U64(uint) => Value::Float(uint.to_f64().unwrap()),
-            Json::Array(ref array) => Value::Tuple(array.iter().map(|j| Value::from_json(j)).collect()),
+            Json::Array(ref array) => Value::Tuple(array.iter().map(|j| Value::from_json(j, next_eid)).collect()),
             Json::Object(ref object) => {
                 assert!(object.len() == 1);
-                let relation: Vec<Tuple> = FromJson::from_json(&object["relation"]);
-                Value::Relation(relation.into_iter().collect())
+                match object.get("eid") {
+                    Some(value) => {
+                        assert_eq!(value.as_string().unwrap(), "auto");
+                        let eid = next_eid.to_f64().unwrap();
+                        *next_eid += 1;
+                        Value::Float(eid)
+                    }
+                    None => {
+                        let relation: Vec<Tuple> = FromJson::from_json(&object["relation"], next_eid);
+                        Value::Relation(relation.into_iter().collect())
+                    }
+                }
             },
             _ => panic!("Cannot decode {:?} as Value", json),
         }
@@ -52,8 +62,8 @@ impl FromJson for Value {
 }
 
 impl<T: FromJson> FromJson for Vec<T> {
-    fn from_json(json: &Json) -> Self {
-        json.as_array().unwrap().iter().map(FromJson::from_json).collect()
+    fn from_json(json: &Json, next_eid: &mut usize) -> Self {
+        json.as_array().unwrap().iter().map(|t| FromJson::from_json(t, next_eid)).collect()
     }
 }
 
@@ -75,13 +85,13 @@ impl ToJson for Event {
 }
 
 impl FromJson for Event {
-    fn from_json(json: &Json) -> Self {
+    fn from_json(json: &Json, next_eid: &mut usize) -> Self {
         Event{
             changes: json.as_object().unwrap()["changes"]
             .as_object().unwrap().iter().map(|(view_id, view_changes)| {
                 (view_id.to_string(), index::Changes{
-                    inserted: FromJson::from_json(&view_changes.as_object().unwrap()["inserted"]),
-                    removed: FromJson::from_json(&view_changes.as_object().unwrap()["removed"]),
+                    inserted: FromJson::from_json(&view_changes.as_object().unwrap()["inserted"], next_eid),
+                    removed: FromJson::from_json(&view_changes.as_object().unwrap()["removed"], next_eid),
                 })
             }).collect()
         }
@@ -92,6 +102,7 @@ struct Instance {
     input: World,
     flow: Flow,
     output: FlowState,
+    next_eid: usize,
 }
 
 impl Instance {
@@ -157,6 +168,7 @@ pub fn run() {
         input: empty_world,
         flow: empty_flow.clone(),
         output: empty_output.clone(),
+        next_eid: 0,
     };
 
     time!("reading saved state", {
@@ -164,8 +176,11 @@ pub fn run() {
         let mut old_events = String::new();
         events.read_to_string(&mut old_events).unwrap();
         for line in old_events.lines() {
-            let json = Json::from_str(&line).unwrap();
-            let event: Event = FromJson::from_json(&json);
+            let event: Event = {
+                let Instance {ref mut next_eid, ..} = instance;
+                let json = Json::from_str(&line).unwrap();
+                FromJson::from_json(&json, next_eid)
+            };
             instance.change(event.changes);
         }
         drop(events);
@@ -187,17 +202,20 @@ pub fn run() {
                     senders.push(sender)
                 })
             }
-            ServerEvent::Message(text) => {
+            ServerEvent::Message(input_text) => {
                 time!("sending update", {
-                    let json = Json::from_str(&text).unwrap();
-                    let event: Event = FromJson::from_json(&json);
-                    let changes = instance.change(event.changes);
-                    let text = format!("{}", Event{changes: changes}.to_json());
-                    events.write_all(text.as_bytes()).unwrap();
+                    let input_event: Event = {
+                        let Instance {ref mut next_eid, ..} = instance;
+                        let json = Json::from_str(&input_text).unwrap();
+                        FromJson::from_json(&json, next_eid)
+                    };
+                    let output_event = Event{changes: instance.change(input_event.changes)};
+                    let output_text = format!("{}", output_event.to_json());
+                    events.write_all(input_text.as_bytes()).unwrap();
                     events.write_all("\n".as_bytes()).unwrap();
                     events.flush().unwrap();
                     for sender in senders.iter_mut() {
-                        match sender.send_message(Message::Text(text.clone())) {
+                        match sender.send_message(Message::Text(output_text.clone())) {
                             Ok(_) => (),
                             Err(error) => println!("Send error: {}", error),
                         };
