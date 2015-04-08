@@ -126,7 +126,7 @@ function verticalTable(rows) {
       }
     }
     for(var ix = 1, len = row.length; ix < len; ix++) {
-      if(row[ix].content) {
+      if(row[ix] && row[ix].content) {
         rowEl.push(["td", row[ix], row[ix].content]);
       } else {
         rowEl.push(["td", row[ix]]);
@@ -485,18 +485,20 @@ var gridTile = reactFactory({
   },
 
   flip: function(evt) {
-    var self = this;
-    var dir = (this.state.flipped ? "+=" : "-=");
-    console.log("start flip");
-    Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {
-      duration: 150,
-      easing: "easeInSine",
-      complete: function() {
-        self.setState({flipped: !self.state.flipped});
-        console.log("half flip");
-      }
-    });
-    Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {duration: 350, easing: "easeOutCubic", complete: function() {console.log("finish flip")}});
+    this.setState({flipped: !this.state.flipped});
+
+//     var self = this;
+//     var dir = (this.state.flipped ? "+=" : "-=");
+//     console.log("start flip");
+//     Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {
+//       duration: 150,
+//       easing: "easeInSine",
+//       complete: function() {
+//         self.setState({flipped: !self.state.flipped});
+//         console.log("half flip");
+//       }
+//     });
+//     Velocity(this.getDOMNode(), {rotateY: dir + "90deg"}, {duration: 350, easing: "easeOutCubic", complete: function() {console.log("finish flip")}});
   },
 
   // Dragging
@@ -604,7 +606,7 @@ var gridTile = reactFactory({
       inner = tile.content({tileId: this.props.id, pos: this.props.pos, size: this.props.size});
     }
     var content = ["div", attrs,
-                   ["div", {className: "grid-tile-inner", style: {transform: (this.state.flipped ? "rotateY(180deg)" : undefined)}},
+                   ["div", {className: "grid-tile-inner", /*style: {transform: (this.state.flipped ? "rotateY(180deg)" : undefined)}*/},
                     inner,
                     toolbar({key: "toolbar", controls: controls}),
                     children
