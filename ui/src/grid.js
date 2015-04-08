@@ -48,28 +48,35 @@ var Grid = (function(document, React, Velocity) {
       if(!bounds) { throw new Error(ERR.NO_BOUNDS); }
 
       var grid = {
-        size: params.size || [12, 12],
+        size: params.size || [36, 36],
+        viewSize: params.viewSize || [12, 12],
         bounds: {top: bounds.top, left: bounds.left, bottom: bounds.bottom, right: bounds.right, width: bounds.width, height: bounds.height},
         gutter: params.gutter || 0,
       };
 
-      var gapWidth = grid.gutter * (grid.size[0] - 1);
-      var gapHeight = grid.gutter * (grid.size[1] - 1);
+      var gapWidth = grid.gutter * (grid.viewSize[0] - 1);
+      var gapHeight = grid.gutter * (grid.viewSize[1] - 1);
       grid.calculated = {
-        cellWidth: (grid.bounds.width - gapWidth) / grid.size[0],
-        cellHeight: (grid.bounds.height - gapHeight) / grid.size[1],
-        snapWidth: grid.bounds.width / grid.size[0],
-        snapHeight: grid.bounds.height / grid.size[1]
+        cellWidth: (grid.bounds.width - gapWidth) / grid.viewSize[0],
+        cellHeight: (grid.bounds.height - gapHeight) / grid.viewSize[1],
+        snapWidth: grid.bounds.width / grid.viewSize[0],
+        snapHeight: grid.bounds.height / grid.viewSize[1]
       };
+      return grid;
+    },
+    calculate: function(grid) {
       return grid;
     },
     getRect: function getRect(grid, tile) { // (Grid, Tile) -> Rect
       if(!grid) { throw new Error(ERR.NO_GRID); }
       assertTile(tile);
 
+      var left = grid.bounds.left;
+      var top = grid.bounds.top;
+
       var rect = {
-        left: grid.bounds.left + tile.pos[0] * grid.calculated.cellWidth + tile.pos[0] * grid.gutter,
-        top: grid.bounds.top + tile.pos[1] * grid.calculated.cellHeight + tile.pos[1] * grid.gutter,
+        left: left + tile.pos[0] * grid.calculated.cellWidth + tile.pos[0] * grid.gutter,
+        top: top + tile.pos[1] * grid.calculated.cellHeight + tile.pos[1] * grid.gutter,
         width: tile.size[0] * grid.calculated.cellWidth + (tile.size[0] - 1) * grid.gutter,
         height: tile.size[1] * grid.calculated.cellHeight + (tile.size[1] - 1) * grid.gutter
       };
@@ -120,6 +127,7 @@ var Grid = (function(document, React, Velocity) {
     },
     coordsToPos: function coordsToPos(grid, x, y, round) { // (Grid, N, N, Bool?) -> Pos
       if(!grid) { throw new Error(ERR.NO_GRID); }
+
       x = (x - grid.bounds.left) / grid.calculated.snapWidth;
       y = (y - grid.bounds.top) / grid.calculated.snapHeight;
       if(round) { return [Math.round(x), Math.round(y)]; }

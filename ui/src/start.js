@@ -618,23 +618,56 @@ var gridTile = reactFactory({
 var stage = reactFactory({
   displayName: "stage",
   getInitialState: function() {
+    var grid = Grid.makeGrid({bounds: this.props.bounds, gutter: 8});
     return {
       accepts: ["tile/generic"],
-      grid: Grid.makeGrid({bounds: this.props.bounds, gutter: 8}),
+      grid: grid,
+      addTiles: this.getAddTiles(grid, this.props.tiles),
+      gridShadows: this.getGridShadows(grid)
     };
   },
   componentWillReceiveProps: function(nextProps) {
-    this.setState({grid: Grid.makeGrid({bounds: nextProps.bounds, gutter: 8})});
+    var grid = Grid.makeGrid({bounds: nextProps.bounds, gutter: 8});
+    this.setState({grid: grid, addTiles: this.getAddTiles(grid, nextProps.tiles), gridShadows: this.getGridShadows(grid)});
   },
   componentDidMount: function() {
     if(this.props.animation) {
       this.animate.apply(this, this.props.animation);
     }
+    this.setState({initialized: true});
   },
   componentDidUpdate: function(prevProps, prevState) {
     if(this.props.animation) {
       this.animate.apply(this, this.props.animation);
     }
+  },
+  getAddTiles: function(grid, tiles) {
+    tiles = tiles.slice();
+    var addTiles = [];
+    var addPos;
+    while(addPos = Grid.findGap(grid, tiles, Grid.DEFAULT_SIZE)) {
+      var addTile = {
+        pos: addPos,
+        size: Grid.DEFAULT_SIZE,
+        type: "add",
+        id: uuid()
+      };
+      addTiles.push(addTile);
+      tiles.push(addTile);
+    }
+    return addTiles;
+  },
+  getGridShadows: function(grid) {
+    var gridShadows = ["div", {className: "grid-shadows"}];
+    for(var x = 0, w = grid.size[0]; x < w; x++) {
+      for(var y = 0, h = grid.size[1]; y < h; y++) {
+        var shadowStyle = Grid.getRect(grid, {pos: [x, y], size: [1, 1]});
+        gridShadows.push(["div", {className: "grid-shadow", key: x + "," + y, style: shadowStyle}]);
+      }
+    }
+    // @FIXME: 1296 elements is too much for react to render. Uncomment this line to try it.
+    // return JSML(gridShadows);
+    return undefined;
   },
   animate: function(type, arg) {
     for(var tileIx = 0, len = this.props.tiles.length; tileIx < len; tileIx++) {
@@ -715,30 +748,22 @@ var stage = reactFactory({
 
   render: function() {
     var isEditing = this.props.editing;
-    var tiles = this.props.tiles.slice();
-
-    var addPos;
-    while(addPos = Grid.findGap(this.state.grid, tiles, Grid.DEFAULT_SIZE)) {
-      tiles.push({
-        pos: addPos,
-        size: Grid.DEFAULT_SIZE,
-        type: "add",
-        id: uuid()
-      });
-    }
+    var tiles = this.props.tiles.concat(this.state.addTiles);
 
     var children = [];
-    for(var tileIx = 0, tilesLength = tiles.length; tileIx < tilesLength; tileIx++) {
-      var tileRaw = tiles[tileIx];
-      var tileRect = Grid.getRect(this.state.grid, tileRaw);
-      var tile = extend(extend({}, tileRaw), tileRect);
-      tile.ref = "tile-" + tileIx;
-      tile.key = tile.id;
-      tile.draggable = tile.resizable = isEditing;
-      tile.updateFootprint = this.updateFootprint;
-      tile.onNavigate = this.props.onNavigate;
-      var child = gridTile(tile);
-      children.push(child);
+    if(this.state.initialized) {
+      for(var tileIx = 0, tilesLength = tiles.length; tileIx < tilesLength; tileIx++) {
+        var tileRaw = tiles[tileIx];
+        var tileRect = Grid.getRect(this.state.grid, tileRaw);
+        var tile = extend(extend({}, tileRaw), tileRect);
+        tile.ref = "tile-" + tileIx;
+        tile.key = tile.id;
+        tile.draggable = tile.resizable = isEditing;
+        tile.updateFootprint = this.updateFootprint;
+        tile.onNavigate = this.props.onNavigate;
+        var child = gridTile(tile);
+        children.push(child);
+      }
     }
     var attrs = {key: this.props.key, className: "tile-grid" + (isEditing ? " editing" : ""), style: this.props.style};
     var content = ["div", attrs];
@@ -749,14 +774,7 @@ var stage = reactFactory({
       attrs.onDragLeave = this.dragTileOut;
       attrs.onDrop = this.dropTile;
 
-      var gridShadows = [];
-      for(var x = 0; x < this.state.grid.size[0]; x++) {
-        for(var y = 0; y < this.state.grid.size[1]; y++) {
-          var shadowStyle = Grid.getRect(this.state.grid, {pos: [x, y], size: [1, 1]});
-          gridShadows.push(["div", {className: "grid-shadow", key: x + "," + y, style: shadowStyle}]);
-        }
-      }
-      content.push.apply(content, gridShadows);
+      content.push(this.state.gridShadows);
     }
 
     if(this.state.dragId && this.state.dragPos) {
