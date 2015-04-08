@@ -212,7 +212,7 @@ var root = reactFactory({
   },
   getBounds: function() {
     var bounds = extend({}, document.body.getBoundingClientRect(), true);
-    bounds.height -= 50;
+    bounds.height -= 0;
     bounds.width -= 0;
     return bounds;
   },
@@ -270,7 +270,7 @@ var root = reactFactory({
     }
 
     return JSML(
-      ["div",
+      ["div", {id: "root"},
        ["canvas", {width: 1, height: 1, id: "clear-pixel", key: "root-clear-pixel"}],
       (animTiles.length ? stage({
          key: "anim-stage",
