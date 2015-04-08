@@ -1,5 +1,4 @@
 use std::fmt::{Debug,Formatter,Result};
-use std::num::Float;
 use std::num::ToPrimitive;
 use value::{Value,ToValue,Tuple,ToTuple};
 

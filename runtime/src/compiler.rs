@@ -252,7 +252,7 @@ fn create_call(uifun: &Value, uiargvec: &Value) -> Call {
 
     // Match the uiop with an EveFn...
     // TODO Do some type checking here?
-    let evefn = match uifun.to_string().as_slice() {
+    let evefn = match uifun.to_string().as_ref() {
         "+" => EveFn::Add,
         "-" => EveFn::Subtract,
         "*" => EveFn::Multiply,
