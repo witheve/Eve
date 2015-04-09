@@ -203,7 +203,7 @@ var minimap = reactFactory({
       var pos = Grid.getRect(grid, cur);
       return ["div", {className: "minimap-tile " + cur.type, style: {top: pos.top, left: pos.left, width:pos.width, height:pos.height}}];
     });
-    var thumb = ["div", {className: "thumb", style: {top: this.props.scroll / 10 || 0, left: 0, width: bounds.width, height:bounds.height}}];
+    var thumb = ["div", {className: "thumb", style: {top: (this.props.scroll / 10) / this.props.zoomFactor || 0, left: 0, width: bounds.width, height:bounds.height / this.props.zoomFactor}}];
     return JSML(["div", {className: "minimap"}, tileItems, thumb]);
   }
 });
@@ -308,7 +308,7 @@ var root = reactFactory({
          onNavigate: this.navigate,
          animation: this.state.nav ? animations[1] : undefined
        }),
-       minimap({tiles: tiles, bounds: this.state.bounds, scroll: this.state.scroll}),
+       minimap({tiles: tiles, bounds: this.state.bounds, scroll: this.state.scroll, zoomFactor: this.state.zooming ? 0.25 : 1}),
        toolbar({
          key: "root-toolbar",
          controls: [
