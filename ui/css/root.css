@@ -66,13 +66,16 @@ body {
 
 .tile-grid-wrapper {
   position: absolute;
-  top: 0px; right: 100px; bottom: 0px; left: 0px;
+  top: 10px; right: 110px; bottom: 10px; left: 10px;
   overflow: auto;
   z-index: 1;
 
   perspective: 5000;
   -webkit-perspective: 5000;
   -moz-perspective: 5000;
+}
+.tile-grid-wrapper::-webkit-scrollbar {
+  display:none;
 }
 
 .tile-grid {
@@ -196,6 +199,13 @@ body {
 .grid-tile.table > .grid-tile-inner {
   background: rgba(0, 0, 0, 0.7);
 }
+
+.minimap { position:absolute; top:0; bottom:0; right:0; width:100px; border-left:0px solid #111; overflow:hidden;}
+.minimap .thumb { position:absolute; z-index: 10; background:rgba(255,255,255,0.2); border:1px solid rgba(255,255,255, 0.2); border-radius:2px; }
+.minimap .minimap-tile { position:absolute; background: #333; z-index:1; }
+/* .minimap .minimap-tile.ui { background: #635; }
+.minimap .minimap-tile.view { background: #355; }
+.minimap .minimap-tile.table { background: #346; } */
 
 /*****************************************************************************\
  * Table

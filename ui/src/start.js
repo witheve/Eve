@@ -195,6 +195,19 @@ var toolbar = reactFactory({
   }
 });
 
+var minimap = reactFactory({
+  render: function() {
+    var bounds = {top:0, left: 0, width: 100, height: this.props.bounds.height / 10};
+    var grid = Grid.makeGrid({bounds: bounds, gutter: 1})
+    var tileItems = this.props.tiles.map(function(cur) {
+      var pos = Grid.getRect(grid, cur);
+      return ["div", {className: "minimap-tile " + cur.type, style: {top: pos.top, left: pos.left, width:pos.width, height:pos.height}}];
+    });
+    var thumb = ["div", {className: "thumb", style: {top: this.props.scroll / 10 || 0, left: 0, width: bounds.width, height:bounds.height}}];
+    return JSML(["div", {className: "minimap"}, tileItems, thumb]);
+  }
+});
+
 var root = reactFactory({
   displayName: "root",
   getInitialState: function() {
@@ -213,7 +226,7 @@ var root = reactFactory({
   getBounds: function() {
     var bounds = extend({}, document.body.getBoundingClientRect(), true);
     bounds.height -= 0;
-    bounds.width -= 100;
+    bounds.width -= 120;
     return bounds;
   },
   getTiles: function(grid) {
@@ -250,6 +263,9 @@ var root = reactFactory({
   },
   toggleZooming: function() {
     this.setState({zooming: !this.state.zooming});
+  },
+  setScroll: function(e) {
+    this.setState({scroll: e.currentTarget.scrollTop});
   },
   render: function() {
     var activeGridInfo = ixer.facts("activeGrid")[0];
@@ -288,9 +304,11 @@ var root = reactFactory({
          bounds: this.state.bounds,
          editing: this.state.editingGrid,
          zooming: this.state.zooming,
+         onScroll: this.setScroll,
          onNavigate: this.navigate,
          animation: this.state.nav ? animations[1] : undefined
        }),
+       minimap({tiles: tiles, bounds: this.state.bounds, scroll: this.state.scroll}),
        toolbar({
          key: "root-toolbar",
          controls: [
@@ -811,8 +829,7 @@ var stage = reactFactory({
         }
       }, ""]);
     }
-
-    return JSML(["div", {className: "tile-grid-wrapper"}, content]);
+    return JSML(["div", {className: "tile-grid-wrapper", onScroll: this.props.onScroll}, content]);
   }
 });
 
