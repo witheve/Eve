@@ -1781,7 +1781,7 @@ var viewSourceCode = reactFactory({
       if(this.props.source[1] > 0) {
         intro = "and with ";
       }
-      content = ["p",  ["h1", ["span", intro, ["span", {className: "token"}, "each row"], " of "], code.name(viewOrFunction[1])]];
+      content = ["p", ["span", intro, ["span", {className: "token"}, "each row"], " of "], ["h1", code.name(viewOrFunction[1])]];
     } else {
       content = ["p", "calculate ", ["div", astComponents["expression"]({viewId: this.props.viewId, expression: viewOrFunction, onSet: this.updateCalculation})]];
     }

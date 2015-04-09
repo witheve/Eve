@@ -354,7 +354,7 @@ th:last-child { border-radius: 0 2px 2px 0; }
 .view-wrapper .add-source { opacity: 1; display:flex; padding:10px; transition:opacity 0.2s ease-in-out;  }
 .view-wrapper .add-source:hover { opacity: 1; }
 .view-wrapper .add-source > * { white-space:nowrap; display:flex; flex:1; flex-direction:column; align-items:center; font-size:9pt; border-radius:2px; padding:5px; cursor:default; }
-.view-wrapper .add-source > div:hover { background: #555; }
+.view-wrapper .add-source div:hover { background: #555; }
 .view-wrapper .add-source .icon { display:flex; align-items:center; justify-content:center; font-size: 30px; border-radius:2px; margin-bottom:0px; }
 
 
