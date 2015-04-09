@@ -3068,15 +3068,16 @@ tiles.ui = {
                              layer: this.state.layer,
                              selection: this.state.selection,
                              select: this.select}),
-                   uiLayers({component: id,
-                             elements: this.state.elements,
-                             layers: this.state.layers.list,
-                             layer: this.state.layer,
-                             selection: this.state.selection,
-                             select: this.select,
-                             selectLayer: this.selectLayer}),
-                  uiInspector({component: id,
-                               selection: this.state.selection})]);
+                   ["div", {className: "flex-column"},
+                    uiLayers({component: id,
+                              elements: this.state.elements,
+                              layers: this.state.layers.list,
+                              layer: this.state.layer,
+                              selection: this.state.selection,
+                              select: this.select,
+                              selectLayer: this.selectLayer}),
+                    uiInspector({component: id,
+                                 selection: this.state.selection})]]);
     }
   })
 };
@@ -3603,7 +3604,7 @@ function initIndexer() {
     w: "number",
     h: "number"
   }, [
-    [-1, uiViewId, gridId, "ui", 0, 12, 12, 4],
+    [-1, uiViewId, gridId, "ui", 0, 12, 12, 6],
     [-2, bigUiViewId, "grid://ui", "ui", 0, 12, 12, 12],
   ], "gridTile", ["table"]));
 
