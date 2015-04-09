@@ -196,15 +196,22 @@ var toolbar = reactFactory({
 });
 
 var minimap = reactFactory({
+  navigate: function(e) {
+    var y = e.clientY;
+    var adjusted = (y * 10) - (this.props.bounds.height / 2);
+    if(this.props.scrollTo) {
+      this.props.scrollTo(adjusted);
+    }
+  },
   render: function() {
     var bounds = {top:0, left: 5, width: 90, height: this.props.bounds.height / 10};
     var grid = Grid.makeGrid({bounds: bounds, gutter: 1})
     var tileItems = this.props.tiles.map(function(cur) {
       var pos = Grid.getRect(grid, cur);
-      return ["div", {className: "minimap-tile " + cur.type, style: {top: pos.top, left: pos.left, width:pos.width, height:pos.height}}, cur.type];
+      return ["div", {className: "minimap-tile " + cur.type, style: {top: pos.top, left: pos.left, width:pos.width, height:pos.height}}, code.tileToName(cur)];
     });
     var thumb = ["div", {className: "thumb", style: {top: (this.props.scroll / 10) / this.props.zoomFactor || 0, left: 0, width: bounds.width + bounds.left * 2, height:bounds.height / this.props.zoomFactor}}];
-    return JSML(["div", {className: "minimap"}, tileItems, thumb]);
+    return JSML(["div", {className: "minimap", onClick: this.navigate}, tileItems, thumb]);
   }
 });
 
@@ -265,7 +272,10 @@ var root = reactFactory({
     this.setState({zooming: !this.state.zooming});
   },
   setScroll: function(e) {
-    this.setState({scroll: e.currentTarget.scrollTop});
+    this.scrollTo(e.currentTarget.scrollTop);
+  },
+  scrollTo: function(pos) {
+    this.setState({scroll: pos});
   },
   render: function() {
     var activeGridInfo = ixer.facts("activeGrid")[0];
@@ -288,6 +298,23 @@ var root = reactFactory({
                    );
     }
 
+    var map =  minimap({tiles: tiles,
+                        scrollTo: this.scrollTo,
+                        bounds: this.state.bounds,
+                        scroll: this.state.scroll,
+                        zoomFactor: this.state.zooming ? 0.25 : 1});
+    var rootStage = stage({
+      key: "root-stage",
+      tiles: tiles,
+      scrollTop: this.state.scroll,
+      bounds: this.state.bounds,
+      editing: this.state.editingGrid,
+      zooming: this.state.zooming,
+      onScroll: this.setScroll,
+      onNavigate: this.navigate,
+      animation: this.state.nav ? animations[1] : undefined
+    });
+
     return JSML(
       ["div", {id: "root"},
        ["canvas", {width: 1, height: 1, id: "clear-pixel", key: "root-clear-pixel"}],
@@ -298,17 +325,8 @@ var root = reactFactory({
          animation: animations[0],
          style: {zIndex: this.state.nav.inward ? 2 : 1}
        }) : undefined),
-       stage({
-         key: "root-stage",
-         tiles: tiles,
-         bounds: this.state.bounds,
-         editing: this.state.editingGrid,
-         zooming: this.state.zooming,
-         onScroll: this.setScroll,
-         onNavigate: this.navigate,
-         animation: this.state.nav ? animations[1] : undefined
-       }),
-       minimap({tiles: tiles, bounds: this.state.bounds, scroll: this.state.scroll, zoomFactor: this.state.zooming ? 0.25 : 1}),
+       rootStage,
+       map,
        toolbar({
          key: "root-toolbar",
          controls: [
@@ -667,6 +685,10 @@ var stage = reactFactory({
   componentDidUpdate: function(prevProps, prevState) {
     if(this.props.animation) {
       this.animate.apply(this, this.props.animation);
+    }
+    var elem = this.getDOMNode();
+    if(this.props.scrollTop && elem.scrollTop !== this.props.scrollTop) {
+      elem.scrollTop = this.props.scrollTop;
     }
   },
   centerGrid: function() {
@@ -3132,7 +3154,7 @@ function scaryRedoEvent() {
 function dispatch(event, arg, noRedraw) {
   var storeEvent = true;
   var diffs = [];
-  var txId = ixer.nextId();
+  var txId = {"eid": "auto"};
 
   switch(event) {
     case "initServer":
@@ -3487,6 +3509,21 @@ var code = {
     });
     return refs;
   },
+  tileToName: function(tile) {
+    switch(tile.type) {
+      case "ui":
+        return "ui";
+        break;
+      case "table":
+        var table = ixer.index("tableTile")[tile.id][1];
+        return code.name(table);
+        break;
+      case "view":
+        var table = ixer.index("viewTile")[tile.id][1];
+        return code.name(table);
+        break;
+    }
+  },
   name: function(id) {
     return ixer.index("displayName")[id];
   }
@@ -3664,24 +3701,6 @@ function connectToServer() {
 //     console.log('Server: ' + e.data);
     //console.log("received", performance.now(), data);
     ixer.handleMapDiffs(data.changes);
-
-    if(!server.initialized) {
-      var latestTx = ixer.facts("transaction").reduce(function(memo, tx) {
-        if(tx[0] > memo) {
-          return tx[0];
-        } else {
-          return memo;
-        }
-      }, 0);
-      ixer._id = latestTx + 1;
-      server.initialized = true;
-    } else {
-      if(data.changes["transaction"].inserted.length) {
-        var sent = data.changes["transaction"].inserted[0][0];
-        console.log("sent", sent, ixer._id);
-        if(sent > ixer._id) ixer._id = sent + 1;
-      }
-    }
 
     console.time("render");
     React.render(root(), document.body);

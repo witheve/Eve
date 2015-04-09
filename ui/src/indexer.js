@@ -52,10 +52,6 @@ var Indexing = (function() {
   }
 
   Indexer.prototype = {
-    _id: -1, // @FIXME: load from txId table.
-    nextId: function() {
-      return ++this._id;
-    },
     clear: function() {
       var final = {};
       for(var table in this.tables) {

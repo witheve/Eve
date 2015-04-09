@@ -84,7 +84,7 @@ body {
   position: absolute;
   top: 0px; right: 0px; bottom: 0px; left: 0px;
   z-index: 1;
-  transform-origin: top left;
+  transform-origin: top right;
   transition: transform 0.2s ease-in-out;
 
   perspective: 5000;
