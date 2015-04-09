@@ -202,12 +202,12 @@ body {
   background: rgba(0, 0, 0, 0.7);
 }
 
-.minimap { position:absolute; top:0; bottom:0; right:0; width:100px; border-left:0px solid #111; overflow:hidden;}
-.minimap .thumb { position:absolute; z-index: 10; background:rgba(255,255,255,0.2); border:1px solid rgba(255,255,255, 0.2); border-radius:2px; }
-.minimap .minimap-tile { position:absolute; background: #333; z-index:1; }
-/* .minimap .minimap-tile.ui { background: #635; }
+.minimap { position:absolute; top:0; bottom:0; right:0; width:100px; background:#1c1c1c; box-shadow:inset 0 0 5px #171717; border-left:0px solid #111; overflow:hidden;}
+.minimap .thumb { position:absolute; transition: all 0.1s ease-in-out;  z-index: 10; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255, 0.25); border-radius:2px; }
+.minimap .minimap-tile { position:absolute; background: #333; z-index:1; color:rgba(255,255,255, 0.5); font-size: 8pt; overflow:hidden; display:flex; justify-content:center; align-items:center; }
+.minimap .minimap-tile.ui { background: #555; }
 .minimap .minimap-tile.view { background: #355; }
-.minimap .minimap-tile.table { background: #346; } */
+.minimap .minimap-tile.table { background: #346; }
 
 /*****************************************************************************\
  * Table

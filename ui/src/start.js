@@ -197,13 +197,13 @@ var toolbar = reactFactory({
 
 var minimap = reactFactory({
   render: function() {
-    var bounds = {top:0, left: 0, width: 100, height: this.props.bounds.height / 10};
+    var bounds = {top:0, left: 5, width: 90, height: this.props.bounds.height / 10};
     var grid = Grid.makeGrid({bounds: bounds, gutter: 1})
     var tileItems = this.props.tiles.map(function(cur) {
       var pos = Grid.getRect(grid, cur);
-      return ["div", {className: "minimap-tile " + cur.type, style: {top: pos.top, left: pos.left, width:pos.width, height:pos.height}}];
+      return ["div", {className: "minimap-tile " + cur.type, style: {top: pos.top, left: pos.left, width:pos.width, height:pos.height}}, cur.type];
     });
-    var thumb = ["div", {className: "thumb", style: {top: (this.props.scroll / 10) / this.props.zoomFactor || 0, left: 0, width: bounds.width, height:bounds.height / this.props.zoomFactor}}];
+    var thumb = ["div", {className: "thumb", style: {top: (this.props.scroll / 10) / this.props.zoomFactor || 0, left: 0, width: bounds.width + bounds.left * 2, height:bounds.height / this.props.zoomFactor}}];
     return JSML(["div", {className: "minimap"}, tileItems, thumb]);
   }
 });
