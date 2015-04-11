@@ -198,7 +198,7 @@
       this.postDomify();
       var postDomify = now();
       var time = now() - start;
-      if(time > 2) {
+      if(time > 5) {
         console.log("slow render (> 5ms): ", time, {prepare: prepare - start,
                                                     diff: diff - prepare,
                                                     domify: domify - diff,

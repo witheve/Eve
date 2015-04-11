@@ -110,8 +110,6 @@ function minimapTile(grid, tile) {
 // input
 //---------------------------------------------------------
 
-
-
 function input(value, key, oninput, onsubmit) {
   var blur, keydown;
   if(onsubmit) {
@@ -516,7 +514,7 @@ var code = {
         if(!fields.hasOwnProperty(fieldName)) { continue; }
         var fieldId = uuid()
         diffs.push(["field", "inserted", [schema, fieldIx++, fieldId, fields[fieldName]]],
-                   ["displayName", "inserted", [fieldId, fieldName]]);
+                   ["displayName", "inserted", [{"eid": "auto"}, fieldId, fieldName]]);
       }
 
       diffs.push(["view", "inserted", [id, schema, type || "input"]]);
