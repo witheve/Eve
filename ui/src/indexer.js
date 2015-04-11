@@ -52,6 +52,13 @@ var Indexing = (function() {
   }
 
   Indexer.prototype = {
+    totalFacts: function() {
+      var total = 0;
+      for(var table in this.tables) {
+        total += this.tables[table].length;
+      }
+      return total;
+    },
     clear: function() {
       var final = {};
       for(var table in this.tables) {

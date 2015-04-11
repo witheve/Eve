@@ -29,8 +29,6 @@ var Grid = (function(document, React, Velocity) {
 
   function assertTile(tile) {
     if(!tile) { throw new Error(ERR.NO_TILE); }
-    if(!tile.pos) { throw new Error(ERR.NO_POS); }
-    if(!tile.size) { throw new Error(ERR.NO_SIZE); }
     return true;
   }
 
@@ -75,10 +73,10 @@ var Grid = (function(document, React, Velocity) {
       var top = grid.bounds.top;
 
       var rect = {
-        left: left + tile.pos[0] * grid.calculated.cellWidth + tile.pos[0] * grid.gutter,
-        top: top + tile.pos[1] * grid.calculated.cellHeight + tile.pos[1] * grid.gutter,
-        width: tile.size[0] * grid.calculated.cellWidth + (tile.size[0] - 1) * grid.gutter,
-        height: tile.size[1] * grid.calculated.cellHeight + (tile.size[1] - 1) * grid.gutter
+        left: left + tile[4] * grid.calculated.cellWidth + tile[4] * grid.gutter,
+        top: top + tile[5] * grid.calculated.cellHeight + tile[5] * grid.gutter,
+        width: tile[6] * grid.calculated.cellWidth + (tile[6] - 1) * grid.gutter,
+        height: tile[7] * grid.calculated.cellHeight + (tile[7] - 1) * grid.gutter
       };
       // rect.right = grid.bounds.right - (rect.left + rect.width);
       // rect.bottom = grid.bounds.bottom - (rect.top + rect.height);
