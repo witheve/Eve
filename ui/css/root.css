@@ -1,6 +1,7 @@
 * { box-sizing: border-box }
 body { height:100vh; -webkit-user-select: none; background: #202020; color: #ccc; font-family: Avenir, Arial; display:flex; }
 div { display:flex; }
+div[contenteditable] { display:inline-block; }
 .__root { flex: 1; display:flex; }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; background: rgba(0, 0, 0, 0.1); border-radius: 3px; }
@@ -13,6 +14,7 @@ div { display:flex; }
 
 th { background: rgba(255,255,255, 0.1); }
 td, th { padding:3px 8px; min-width: 50px; text-align:left; }
+td > *, th > * { min-width:30px; }
 th:first-child { border-radius: 2px 0 0 2px; }
 th:last-child { border-radius: 0 2px 2px 0; }
 

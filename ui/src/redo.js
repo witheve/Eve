@@ -9,6 +9,14 @@ var grid;
 // utils
 //---------------------------------------------------------
 
+var alphabet = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+                "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"];
+
+var KEYS = {UP: 38,
+            DOWN: 40,
+            ENTER: 13,
+            Z: 90};
+
 function stopPropagation(e) {
   e.stopPropagation();
 }
@@ -102,19 +110,21 @@ function minimapTile(grid, tile) {
 // input
 //---------------------------------------------------------
 
-function input(value, oninput, onsubmit) {
+
+
+function input(value, key, oninput, onsubmit) {
   var blur, keydown;
   if(onsubmit) {
-    blur = function(e) {
-      onsubmit(e, "blurred");
+    blur = function inputBlur(e, elem) {
+      onsubmit(e, elem, "blurred");
     }
-    keydown = function(e) {
+    keydown = function inputKeyDown(e, elem) {
       if(e.keyCode === KEYS.ENTER) {
-        onsubmit(e, "enter");
+        onsubmit(e, elem, "enter");
       }
     }
   }
-  return {c: "foo", contentEditable: true, input: oninput, text: value, blur: blur, keydown: keydown};
+  return {c: "foo", contentEditable: true, input: oninput, text: value, key: key, blur: blur, keydown: keydown};
 }
 
 //---------------------------------------------------------
@@ -134,9 +144,20 @@ function gridTile(cur) {
 // - adder rows
 //---------------------------------------------------------
 
+function rename(e, elem) {
+  var value = e.currentTarget.textContent;
+  if(value !== code.name(elem.key)) {
+    dispatch("rename", {value: value, id: elem.key});
+  }
+}
+
 function table(id, fields, rows) {
   var ths = fields.map(function(cur) {
-    return {t: "th", children: [input(cur)]};
+    var oninput, onsubmit;
+    if(cur.id) {
+      oninput = onsubmit = rename;
+    }
+    return {t: "th", children: [input(cur.name, cur.id, oninput, onsubmit)]};
   });
   var trs = rows.map(function(cur) {
     var tds = [];
@@ -160,7 +181,7 @@ function table(id, fields, rows) {
 function tableTile(cur) {
   var view = ixer.index("tableTile")[cur[1]][1];
   var fields = code.viewToFields(view).map(function(cur) {
-    return code.name(cur[2]);
+    return {name: code.name(cur[2]), id: cur[2]};
   });
   var rows = ixer.facts(view);
   return {c: "table-tile", children: [table("foo", fields, rows)]};
@@ -180,7 +201,7 @@ var attrMappings = {"content": "text"};
 
 function uiTile(cur) {
   var tileId = cur[1];
-  var elements = ixer.index("uiComponentToElements")[tileId];
+  var elements = ixer.index("uiComponentToElements")[tileId] || [];
   var layers = ixer.index("uiComponentToLayers")[tileId];
   var attrs = ixer.index("uiElementToAttrs");
   var els = elements.map(function(cur) {
@@ -341,17 +362,21 @@ function viewResults(sources, results) {
 // chooser tile
 //---------------------------------------------------------
 
+function chooseTile(e, info) {
+  dispatch(info.type, {tileId: info.tile[1]});
+}
+
 function chooserTile(cur) {
   return {c: "chooser-tile", children: [
-    {c: "option", children: [
+    {c: "option", click: chooseTile, type: "addUi", tile: cur, children: [
       {c: "icon ion-image",},
       {c: "description", text: "Present your data in a new drawing."},
     ]},
-    {c: "option", children: [
+    {c: "option", click: chooseTile, type: "addTable", tile: cur, children: [
       {c: "icon ion-compose"},
       {c: "description", text: "Record data in a new table."},
     ]},
-    {c: "option", children: [
+    {c: "option",click: chooseTile, type: "addView", tile: cur, children: [
       {c: "icon ion-ios-calculator"},
       {c: "description", text: "Work with your data in a new view."},
     ]},
@@ -359,6 +384,94 @@ function chooserTile(cur) {
 }
 
 var tiles = {ui: uiTile, table: tableTile, view: viewTile, addChooser: chooserTile};
+
+//---------------------------------------------------------
+// Dispatch
+//---------------------------------------------------------
+
+function dispatch(event, info) {
+  var storeEvent = true;
+  var diffs = [];
+  var txId = {"eid": "auto"};
+
+  switch(event) {
+    case "rename":
+      diffs.push(["displayName", "inserted", [txId, info.id, info.value]]);
+      break;
+    case "addTable":
+      var tileId = info.tileId;
+      var oldTile = ixer.index("gridTile")[tileId].slice();
+      var tile = oldTile.slice();
+      //set to a table tile
+      tile[0] = txId;
+      tile[3] = "table";
+      var tableId = uuid();
+      diffs = code.diffs.addView("Untitled Table", {A: "string"}, undefined, tableId, ["table"]);
+      diffs.push(["gridTile", "inserted", tile],
+                 ["tableTile", "inserted", [tileId, tableId]]);
+      break;
+    case "addView":
+      var tileId = info.tileId;
+      var oldTile = ixer.index("gridTile")[tileId].slice();
+      var tile = oldTile.slice();
+      //set to a table tile
+      tile[0] = txId;
+      tile[3] = "view";
+      var viewId = uuid();
+      diffs = code.diffs.addView("Untitled View", {}, undefined, viewId, ["view"], "query");
+      diffs.push(["gridTile", "inserted", tile],
+                 ["viewTile", "inserted", [tileId, viewId]]);
+      break;
+    case "addUi":
+      var tileId = info.tileId;
+      var oldTile = ixer.index("gridTile")[tileId].slice();
+      var tile = oldTile.slice();
+      //set to a table tile
+      tile[0] = txId;
+      tile[3] = "ui";
+      diffs.push(["gridTile", "inserted", tile]);
+      var id = uuid();
+      var neue = [txId, id, tileId, 0, false, false];
+      diffs.push(["uiComponentLayer", "inserted", neue],
+                 ["displayName", "inserted", [id, "Layer " + 0]]);
+      break;
+    case "updateTile":
+      var fact = ixer.index("gridTile")[info.id].slice();
+      var oldFact = fact.slice();
+      fact[0] = txId;
+      fact[2] = info.grid || fact[2];
+      fact[3] = info.type || fact[3];
+      if(info.pos) {
+        fact[4] = info.pos[0];
+        fact[5] = info.pos[1];
+      }
+      if(info.size) {
+        fact[6] = info.size[0];
+        fact[7] = info.size[1];
+      }
+      diffs.push(["gridTile", "inserted", fact]);
+      break;
+    case "addUiComponentLayer":
+      var id = uuid();
+      var neue = [txId, id, info.component, info.layer, false, false];
+      diffs.push(["uiComponentLayer", "inserted", neue],
+                 ["displayName", "inserted", [id, "Layer " + info.layer]]);
+      break;
+    default:
+      console.error("Dispatch for unknown event: ", event, info);
+      return;
+      break;
+  }
+
+//   if(storeEvent) {
+//     var eventItem = {event: event, diffs: diffs, children: [], parent: eventStack};
+//     eventStack.children.push(eventItem);
+//     eventStack = eventItem;
+//   }
+
+  sendToServer(toMapDiffs(diffs));
+
+}
 
 //---------------------------------------------------------
 // Rendering
@@ -391,13 +504,13 @@ var code = {
       var schema = view[1];
       var fieldId = uuid();
       return [["field", "inserted", [schema, fields.length, fieldId, "unknown"]],
-              ["displayName", "inserted", [fieldId, alphabet[fields.length]]]];
+              ["displayName", "inserted", [{"eid": "auto"}, fieldId, alphabet[fields.length]]]];
     },
     addView: function(name, fields, initial, id, tags, type) { // (S, {[S]: Type}, Fact[]?, Uuid?, S[]?) -> Diffs
       id = id || uuid();
       var schema = uuid();
       var fieldIx = 0;
-      var diffs = [["displayName", "inserted", [id, name]],
+      var diffs = [["displayName", "inserted", [{"eid": "auto"}, id, name]],
                    ["schema", "inserted", [schema]]];
       for(var fieldName in fields) {
         if(!fields.hasOwnProperty(fieldName)) { continue; }
@@ -547,7 +660,7 @@ var code = {
 
 // Core
 ixer.addIndex("tag", "tag", Indexing.create.collector([0]));
-ixer.addIndex("displayName", "displayName", Indexing.create.latestLookup({keys: [0, 1]}));
+ixer.addIndex("displayName", "displayName", Indexing.create.latestLookup({keys: [1, 2]}));
 ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
 ixer.addIndex("field", "field", Indexing.create.lookup([2, false]));
 ixer.addIndex("sourceToData", "source", Indexing.create.lookup([2, 3]));
@@ -676,11 +789,12 @@ function connectToServer() {
   ws.onmessage = function (e) {
     var data = JSON.parse(e.data);
     if(!server.initialized && !data.changes["view"]) {
-      dispatch("initServer");
+      initIndexer();
       sendToServer(ixer.dumpMapDiffs());
       ixer.clear();
       server.initialized = true;
     }
+//     console.log("received", data.changes);
     ixer.handleMapDiffs(data.changes);
 
     rerender();
@@ -698,6 +812,7 @@ function sendToServer(message) {
   if(!server.connected) {
     server.queue.push(message);
   } else {
+//     console.log("sending", message);
     server.ws.send(JSON.stringify(message));
   }
 }

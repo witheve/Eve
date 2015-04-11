@@ -42,7 +42,13 @@
         var cur = elements[id];
         var type = diff[id];
         var div;
-        if(type === "added") {
+        if(type === "replaced") {
+          var me = elementCache[id];
+          me.parentNode.removeChild(me);
+          div = document.createElement(cur.t || "div");
+          div._id = id;
+          elementCache[id] = div;
+        } else if(type === "added") {
           div = document.createElement(cur.t || "div");
           div._id = id;
           elementCache[id] = div;
@@ -56,8 +62,8 @@
         }
 
         style = div.style;
-        if(cur.c !== undefined && cur.c !== div.className) {
-          div.className = cur.c;
+        if(cur.c !== div.className) {
+          div.className = cur.c || "";
         }
 
         div.contentEditable = cur.contentEditable || "inherit";
@@ -85,7 +91,7 @@
         if(cur.text !== undefined && cur.text !== div.textContent) {
           div.textContent = cur.text;
         }
-        if(type === "added") {
+        if(type === "added" || type === "replaced") {
           for(var evIx = 0, evLen = events.length; evIx < evLen; evIx++) {
             var event = events[evIx];
             if(cur[event]) { div.addEventListener(event, this.handleEvent); }
@@ -108,6 +114,10 @@
           updated[as[i]] = "removed";
           continue;
         }
+        if(curA.t !== curB.t) {
+          updated[as[i]] = "replaced";
+          continue;
+        }
         if(curA.top === curB.top
            && curA.left === curB.left
            && curA.width === curB.width
@@ -123,6 +133,10 @@
         var curB = b[bs[i]];
         if(!curA) {
           updated[bs[i]] = "added";
+          continue;
+        }
+        if(curA.t !== curB.t) {
+          updated[bs[i]] = "replaced";
           continue;
         }
         if(curA.top === curB.top
@@ -184,7 +198,7 @@
       this.postDomify();
       var postDomify = now();
       var time = now() - start;
-      if(time > 5) {
+      if(time > 2) {
         console.log("slow render (> 5ms): ", time, {prepare: prepare - start,
                                                     diff: diff - prepare,
                                                     domify: domify - diff,

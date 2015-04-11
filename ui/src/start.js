@@ -3336,8 +3336,6 @@ function dispatch(event, arg, noRedraw) {
       break;
   }
 
-  diffs.push(["transaction", "inserted", [txId]]);
-
   if(storeEvent) {
     var eventItem = {event: event, diffs: diffs, children: [], parent: eventStack};
     eventStack.children.push(eventItem);
