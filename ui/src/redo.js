@@ -20,6 +20,17 @@ function now() {
   return (new Date()).getTime();
 }
 
+function canvasRatio(context) {
+  var devicePixelRatio = window.devicePixelRatio || 1;
+  var backingStoreRatio = context.webkitBackingStorePixelRatio ||
+      context.mozBackingStorePixelRatio ||
+      context.msBackingStorePixelRatio ||
+      context.oBackingStorePixelRatio ||
+      context.backingStorePixelRatio || 1;
+
+  return devicePixelRatio / backingStoreRatio;
+}
+
 //---------------------------------------------------------
 // Root
 //---------------------------------------------------------
@@ -187,7 +198,8 @@ function uiTile(cur) {
   return {c: "ui-editor", children: [
     {c: "controls", children: [{text: "text"}, {text: "box"}, {text: "button"}]},
     {c: "ui-canvas", children: els},
-    {c: "inspector", children: [layersControl(layers)]}
+    {c: "inspector", children: [layersControl(layers)]},
+//     uiGrid({width: 1000, height: 300}),
   ]};
 }
 
@@ -204,6 +216,36 @@ function layersControl(layers) {
     ]};
   });
   return {c: "layers", children: layerElems};
+}
+
+function uiGrid(size) {
+  return {t: "canvas", top: 10, left: 50, width: size.width, height: size.height,
+         postRender: function(canvas) {
+           var ctx = canvas.getContext("2d");
+           var ratio = canvasRatio(ctx);
+           console.time("drawGrid");
+           canvas.width = size.width * ratio;
+           canvas.height = size.height * ratio;
+           ctx.scale(ratio, ratio);
+           ctx.lineWidth = 1;
+           ctx.strokeStyle = "white";
+           for(var i = 0; i < 300; i++) {
+             if(i % 10 === 0) {
+               ctx.globalAlpha = 0.4;
+             } else {
+               ctx.globalAlpha = 0.2;
+             }
+             ctx.beginPath();
+             ctx.moveTo(i * 10,0);
+             ctx.lineTo(i * 10,size.height * 2);
+             ctx.stroke();
+             ctx.beginPath();
+             ctx.moveTo(0, i * 10);
+             ctx.lineTo(size.width * 2, i * 10);
+             ctx.stroke();
+           }
+           console.timeEnd("drawGrid");
+         }};
 }
 
 //---------------------------------------------------------
@@ -322,8 +364,9 @@ var tiles = {ui: uiTile, table: tableTile, view: viewTile, addChooser: chooserTi
 // Rendering
 //---------------------------------------------------------
 
+var renderer = new microReact.Renderer();
+document.body.appendChild(renderer.content);
 var queued = false;
-var prevTree = {};
 function rerender() {
   if(!queued) {
     queued = true;
@@ -332,16 +375,7 @@ function rerender() {
 }
 
 function forceRender() {
-  var start = now();
-  var neueTree = {};
-  microReact.prepare(neueTree, root());
-  var d = microReact.diff(prevTree, neueTree);
-  prevTree = neueTree;
-  microReact.render(neueTree, d);
-  var time = now() - start;
-  if(time > 5) {
-    console.log("slow render (> 5ms): ", time);
-  }
+  renderer.render(root());
   queued = false;
 }
 
