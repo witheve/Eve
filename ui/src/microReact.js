@@ -7,7 +7,7 @@
     return (new Date()).getTime();
   }
 
-  var events = ["scroll", "click", "contextmenu", "focus", "blur", "input", "keydown"];
+  var events = ["scroll", "click", "contextmenu", "focus", "blur", "input", "keydown", "drag", "dragOver", "dragStart", "dragEnd", "drop"];
 
   function Renderer() {
     this.content = document.createElement("div");

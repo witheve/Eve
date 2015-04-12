@@ -18,6 +18,8 @@ td > *, th > * { min-width:30px; }
 th:first-child { border-radius: 2px 0 0 2px; }
 th:last-child { border-radius: 0 2px 2px 0; }
 
+td .input { width:100%; }
+
 .table-headers th { background: none; text-align:center; }
 tr:hover td { background: rgba(255,255,255,0.05); }
 

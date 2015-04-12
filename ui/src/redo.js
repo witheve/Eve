@@ -17,6 +17,15 @@ var KEYS = {UP: 38,
             ENTER: 13,
             Z: 90};
 
+function coerceInput(input) {
+  if(input.match(/^-?[\d]+$/gim)) {
+    return parseInt(input);
+  } else if(input.match(/^-?[\d]+\.[\d]+$/gim)) {
+    return parseFloat(input);
+  }
+  return input;
+}
+
 function stopPropagation(e) {
   e.stopPropagation();
 }
@@ -122,7 +131,7 @@ function input(value, key, oninput, onsubmit) {
       }
     }
   }
-  return {c: "foo", contentEditable: true, input: oninput, text: value, key: key, blur: blur, keydown: keydown};
+  return {c: "input", contentEditable: true, input: oninput, text: value, key: key, blur: blur, keydown: keydown};
 }
 
 //---------------------------------------------------------
@@ -149,7 +158,13 @@ function rename(e, elem) {
   }
 }
 
-function table(id, fields, rows) {
+function updateAdder(e, elem) {
+  dispatch("updateAdderRow", {value: coerceInput(e.currentTarget.textContent),
+                              row: elem.key.row,
+                              ix: elem.key.ix});
+}
+
+function table(id, fields, rows, adderRows) {
   var ths = fields.map(function(cur) {
     var oninput, onsubmit;
     if(cur.id) {
@@ -164,6 +179,14 @@ function table(id, fields, rows) {
     }
     return {t: "tr", children: tds};
   });
+  adderRows.forEach(function(adder) {
+    var cur = adder[3];
+    var tds = [];
+    for(var i = 0, len = fields.length; i < len; i++) {
+      tds[i] = {t: "td", children: [input(cur[i], {row: adder, ix: i}, updateAdder)]};
+    }
+    trs.push({t: "tr", children: tds});
+  });
   return {t: "table", children: [
     {t: "thead", children: [
       {t: "tr", children: ths}
@@ -176,13 +199,19 @@ function table(id, fields, rows) {
 // table tile
 //---------------------------------------------------------
 
+function addColumn(e, elem) {
+  dispatch("addColumn", {view: elem.view});
+}
+
 function tableTile(cur) {
   var view = ixer.index("tableTile")[cur[1]][1];
   var fields = code.viewToFields(view).map(function(cur) {
     return {name: code.name(cur[2]), id: cur[2]};
   });
   var rows = ixer.facts(view);
-  return {c: "table-tile", children: [table("foo", fields, rows)]};
+  var adderRows = ixer.index("adderRows")[view] || [];
+  return {c: "table-tile", children: [table("foo", fields, rows, adderRows),
+                                     {c: "add-column ion-plus", view: view, click: addColumn}]};
 }
 
 
@@ -406,7 +435,8 @@ function dispatch(event, info) {
       var tableId = uuid();
       diffs = code.diffs.addView("Untitled Table", {A: "string"}, undefined, tableId, ["table"]);
       diffs.push(["gridTile", "inserted", tile],
-                 ["tableTile", "inserted", [tileId, tableId]]);
+                 ["tableTile", "inserted", [tileId, tableId]],
+                 ["adderRow", "inserted", [txId, txId, tableId, []]]);
       break;
     case "addView":
       var tileId = info.tileId;
@@ -455,6 +485,26 @@ function dispatch(event, info) {
       diffs.push(["uiComponentLayer", "inserted", neue],
                  ["displayName", "inserted", [id, "Layer " + info.layer]]);
       break;
+
+    case "updateAdderRow":
+      var neue = info.row.slice();
+      if(neue[3].length === 0) {
+        //this was the last empty adderRow, which means we need to add a new one
+        diffs.push(["adderRow", "inserted", [txId, txId, neue[2], []]]);
+      }
+      neue[0] = txId;
+      neue[3][info.ix] = info.value;
+      diffs.push(["adderRow", "inserted", neue])
+      break;
+    case "addColumn":
+      var viewId = info.view;
+      var view = ixer.index("view")[viewId];
+      var fields = code.viewToFields(viewId) || [];
+      var schema = view[1];
+      var fieldId = uuid();
+      diffs.push(["field", "inserted", [schema, fields.length, fieldId, "unknown"]],
+                 ["displayName", "inserted", [{"eid": "auto"}, fieldId, alphabet[fields.length]]]);
+      break;
     default:
       console.error("Dispatch for unknown event: ", event, info);
       return;
@@ -496,14 +546,6 @@ function forceRender() {
 
 var code = {
   diffs: {
-    addColumn: function(viewId) {
-      var view = ixer.index("view")[viewId];
-      var fields = code.viewToFields(viewId) || [];
-      var schema = view[1];
-      var fieldId = uuid();
-      return [["field", "inserted", [schema, fields.length, fieldId, "unknown"]],
-              ["displayName", "inserted", [{"eid": "auto"}, fieldId, alphabet[fields.length]]]];
-    },
     addView: function(name, fields, initial, id, tags, type) { // (S, {[S]: Type}, Fact[]?, Uuid?, S[]?) -> Diffs
       id = id || uuid();
       var schema = uuid();
@@ -667,6 +709,7 @@ ixer.addIndex("viewToSchema", "view", Indexing.create.lookup([0, 1]));
 ixer.addIndex("viewToSources", "source", Indexing.create.collector([0]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([0]));
 ixer.addIndex("remove", "remove", Indexing.create.lookup([0, 0]));
+ixer.addIndex("adderRows", "adderRow", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
 // ui
 ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.latestLookup({keys: [1, false]}));
 ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
@@ -681,6 +724,8 @@ ixer.addIndex("gridTile", "gridTile", Indexing.create.latestLookup({keys: [1, fa
 ixer.addIndex("gridToTile", "gridTile", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
 ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
 ixer.addIndex("viewTile", "viewTile", Indexing.create.lookup([0, false]));
+
+
 
 function initIndexer() {
   ixer.handleDiffs(code.diffs.addView("transaction", {id: "id"}, undefined, "transaction", ["table"]));
@@ -701,6 +746,9 @@ function initIndexer() {
   ixer.handleDiffs(code.diffs.addView("displayName", {tx: "number", id: "string", name: "string"}, undefined, "displayName", ["table"]));
   ixer.handleDiffs(code.diffs.addView("tableTile", {id: "string", view: "string"}, undefined, "tableTile", ["table"]));
   ixer.handleDiffs(code.diffs.addView("viewTile", {id: "string", view: "string"}, undefined, "viewTile", ["table"]));
+
+
+  ixer.handleDiffs(code.diffs.addView("adderRow", {tx: "id", id: "id", table: "id", row: "tuple"}, undefined, "adderRow", ["table"]));
 
   ixer.handleDiffs(code.diffs.addView("zomg", {
     a: "string",
@@ -792,7 +840,7 @@ function connectToServer() {
       ixer.clear();
       server.initialized = true;
     }
-//     console.log("received", data.changes);
+    console.log("received", data.changes);
     ixer.handleMapDiffs(data.changes);
 
     rerender();
@@ -810,7 +858,7 @@ function sendToServer(message) {
   if(!server.connected) {
     server.queue.push(message);
   } else {
-//     console.log("sending", message);
+    console.log("sending", message);
     server.ws.send(JSON.stringify(message));
   }
 }
