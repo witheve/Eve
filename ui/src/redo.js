@@ -6,6 +6,9 @@ var toolbarOffset = 50;
 var ixer = new Indexing.Indexer();
 var grid;
 
+//@HACK: global vars for tracking drag position in FF.
+var __clientX, clientY;
+
 //---------------------------------------------------------
 // utils
 //---------------------------------------------------------
@@ -53,7 +56,6 @@ function canvasRatio(context) {
 }
 
 function clearDragImage(e, elem) {
-  console.log("start drag");
   e.dataTransfer.setData("text", "foo");
   e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0, 0);
 }
@@ -63,7 +65,13 @@ function clearDragImage(e, elem) {
 //---------------------------------------------------------
 
 window.addEventListener("resize", rerender);
-document.body.addEventListener("dragover", preventDefault);
+document.body.addEventListener("dragover", function(e) {
+  //@HACK: because Firefox is a browser full of sadness, they refuse to
+  //set clientX and clientY on drag events. As such we have this ridiculous
+  //workaround of tracking position at the body.
+  __clientX = e.clientX;
+  __clientY = e.clientY;
+});
 document.body.addEventListener("drop", preventDefault);
 
 function root() {
@@ -186,9 +194,10 @@ function removeTile(e, elem) {
 }
 
 function moveTile(e, elem) {
-  if(e.clientX === 0 && e.clientY === 0) return;
-  var x = e.clientX;
-  var y = e.clientY - toolbarOffset;
+  var x = e.clientX || __clientX;
+  var y = e.clientY || __clientY;
+  if(x === 0 && y === 0) return;
+  y = y - toolbarOffset;
   var tile = elem.tile;
   var tiles = elem.tiles;
   var rect = Grid.getRect(grid, tile);
@@ -206,10 +215,11 @@ function moveTile(e, elem) {
 }
 
 function resizeTile(e, elem) {
-  console.log(e);
-  if(e.clientX === 0 && e.clientY === 0) return;
-  var x = e.clientX + document.getElementsByClassName("stage-tiles-wrapper")[0].scrollLeft;
-  var y = e.clientY + document.getElementsByClassName("stage-tiles-wrapper")[0].scrollTop - toolbarOffset;
+  var x = e.clientX || __clientX;
+  var y = e.clientY || __clientY;
+  if(x === 0 && y === 0) return;
+  x = x + document.getElementsByClassName("stage-tiles-wrapper")[0].scrollLeft;
+  y = y + document.getElementsByClassName("stage-tiles-wrapper")[0].scrollTop - toolbarOffset;
   var tile = elem.tile;
   var tiles = elem.tiles;
   var rect = Grid.getRect(grid, tile);
