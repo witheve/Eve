@@ -123,6 +123,27 @@ var Grid = (function(document, React, Velocity) {
 
       return res;
     },
+    hasOverlap: function(tiles, tile) {
+      //bottom < top && right < left
+      var left = tile[4];
+      var top = tile[5];
+      var right = left + tile[6];
+      var bottom = top + tile[7];
+      return tiles.some(function(cur) {
+        if(cur[1] === tile[1]) return;
+        var curLeft = cur[4];
+        var curTop = cur[5];
+        var curRight = curLeft + cur[6];
+        var curBottom = curTop + cur[7];
+        if(curLeft < right &&
+           curRight > left &&
+           curTop < bottom &&
+           curBottom > top) {
+          return true;
+        }
+        return false;
+      })
+    },
     coordsToPos: function coordsToPos(grid, x, y, round) { // (Grid, N, N, Bool?) -> Pos
       if(!grid) { throw new Error(ERR.NO_GRID); }
 

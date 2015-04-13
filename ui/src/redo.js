@@ -2,6 +2,7 @@
 // Globals
 //---------------------------------------------------------
 
+var toolbarOffset = 50;
 var ixer = new Indexing.Indexer();
 var grid;
 
@@ -77,12 +78,14 @@ function toolbar() {
 
 function stage() {
   var rect = window.document.body.getBoundingClientRect();
-  grid = Grid.makeGrid({bounds: {top: rect.top, left: rect.left + 10, width: rect.width - 120, height: rect.height - 50}, gutter: 8});
+  grid = Grid.makeGrid({bounds: {top: rect.top, left: rect.left + 10, width: rect.width - 120, height: rect.height - toolbarOffset}, gutter: 8});
   var active = "grid://default";
   var tiles = ixer.index("gridToTile")[active];
-  var drawnTiles = tiles.map(gridTile);
+  var drawnTiles = tiles.map(function(cur) {
+    return gridTile(cur, tiles);
+  });
   return {c: "stage", children: [{c: "stage-tiles-wrapper", scroll: rerender,
-                                  children: [{c: "stage-tiles", top:0, left:0, height:(rect.height - 50) * 10, children: drawnTiles}]},
+                                  children: [{c: "stage-tiles", top:0, left:0, height:(rect.height - toolbarOffset) * 10, children: drawnTiles}]},
                                  minimap(rect, tiles)]};
 }
 
@@ -91,14 +94,14 @@ function stage() {
 //---------------------------------------------------------
 
 function navigateMinimap(e) {
-  var y = e.clientY - 50;
+  var y = e.clientY - toolbarOffset;
   var stageNode = document.getElementsByClassName("stage-tiles-wrapper")[0];
   var rect = window.document.body.getBoundingClientRect();
-  stageNode.scrollTop = (y * 10) - ((rect.height - 50) / 2)
+  stageNode.scrollTop = (y * 10) - ((rect.height - toolbarOffset) / 2)
 }
 
 function minimap(bounds, tiles) {
-  var gridBounds = {top: 0, left: 0, width: 100, height: (bounds.height - 50) / 10};
+  var gridBounds = {top: 0, left: 0, width: 100, height: (bounds.height - toolbarOffset) / 10};
   var grid = Grid.makeGrid({bounds: gridBounds, gutter: 2});
   var drawnTiles = tiles.map(function(cur) {
     return minimapTile(grid, cur);
@@ -138,11 +141,59 @@ function input(value, key, oninput, onsubmit) {
 // Grid tile
 //---------------------------------------------------------
 
-function gridTile(cur) {
+function gridTile(cur, activeTiles) {
   var pos = Grid.getRect(grid, cur);
   return {c: "grid-tile", top: pos.top, left: pos.left, width: pos.width, height: pos.height,
-          children: [tiles[cur[3]](cur)]};
+          children: [tiles[cur[3]](cur), tileControls(cur, activeTiles)]};
 }
+
+function tileControls(cur, activeTiles) {
+  return {c: "controls", children: [
+    {c: "close-tile ion-close"},
+    {c: "move-tile ion-arrow-move", tile: cur, tiles: activeTiles, draggable: true, drag: moveTile},
+    {c: "resize-tile ion-drag", tile: cur, tiles: activeTiles, draggable: true, drag: resizeTile}
+  ]}
+}
+
+function moveTile(e, elem) {
+  if(e.clientX === 0 && e.clientY === 0) return;
+  var x = e.clientX;
+  var y = e.clientY - toolbarOffset;
+  var tile = elem.tile;
+  var tiles = elem.tiles;
+  var rect = Grid.getRect(grid, tile);
+  var handlePos = e.currentTarget.getBoundingClientRect();
+  var top = rect.top + (y - handlePos.top);
+  var left = rect.left + (x - handlePos.left);
+  var pos = Grid.coordsToPos(grid, left, top, true);
+  var neue = tile.slice();
+  neue[4] = Math.max(pos[0], 0);
+  neue[5] = Math.max(pos[1], 0);
+  if((neue[4] !== tile[4] || neue[5] !== tile[5]) &&
+     !Grid.hasOverlap(tiles, neue)) {
+    dispatch("updateTile", {neue: neue});
+  }
+}
+
+function resizeTile(e, elem) {
+  if(e.clientX === 0 && e.clientY === 0) return;
+  var x = e.clientX + document.getElementsByClassName("stage-tiles-wrapper")[0].scrollLeft;
+  var y = e.clientY + document.getElementsByClassName("stage-tiles-wrapper")[0].scrollTop - toolbarOffset;
+  var tile = elem.tile;
+  var tiles = elem.tiles;
+  var rect = Grid.getRect(grid, tile);
+  var width = Math.max(x - rect.left, 0);
+  var height = Math.max(y - rect.top, 0);
+  var size = Grid.coordsToSize(grid, width, height, true);
+  var neue = tile.slice();
+  neue[6] = size[0];
+  neue[7] = size[1];
+  if((neue[6] !== tile[6] || neue[7] !== tile[7]) &&
+     !Grid.hasOverlap(tiles, neue)) {
+    dispatch("updateTile", {neue: neue});
+  }
+}
+
 
 //---------------------------------------------------------
 // table
@@ -210,7 +261,7 @@ function tableTile(cur) {
   });
   var rows = ixer.facts(view);
   var adderRows = ixer.index("adderRows")[view] || [];
-  return {c: "table-tile", children: [table("foo", fields, rows, adderRows),
+  return {c: "tile table-tile", children: [table("foo", fields, rows, adderRows),
                                      {c: "add-column ion-plus", view: view, click: addColumn}]};
 }
 
@@ -243,12 +294,30 @@ function uiTile(cur) {
     }
     return elem;
   });
-  return {c: "ui-editor", children: [
-    {c: "controls", children: [{text: "text"}, {text: "box"}, {text: "button"}]},
+  return {c: "tile ui-editor", children: [
+    uiControls(tileId, layers[0]),
     {c: "ui-canvas", children: els},
     {c: "inspector", children: [layersControl(layers)]},
 //     uiGrid({width: 1000, height: 300}),
   ]};
+}
+
+function addControl(e, elem) {
+  dispatch("addUiComponentElement", {component: elem.component,
+                                     layer: elem.layer,
+                                     control: elem.control,
+                                     left: elem.left || 100,
+                                     right: elem.right || 200,
+                                     top: elem.top || 100,
+                                     bottom: elem.bottom || 200})
+}
+
+function uiControls(component, activeLayer) {
+  var controls = ["text", "box", "button"];
+  var items = controls.map(function(cur) {
+    return {text: cur, click: addControl, control: cur, component: component, layer: activeLayer};
+  })
+  return {c: "controls", children: items};
 }
 
 function layersControl(layers) {
@@ -308,7 +377,7 @@ function viewTile(cur) {
   var view = ixer.index("viewTile")[cur[1]][1];
   var sources = ixer.index("viewToSources")[view] || [];
   var results = ixer.facts(view);
-  return {c: "view-tile", children: [
+  return {c: "tile view-tile", children: [
     viewCode(view, sources),
     viewResults(sources, results)
   ]};
@@ -397,15 +466,15 @@ function chooserTile(cur) {
   return {c: "chooser-tile", children: [
     {c: "option", click: chooseTile, type: "addUi", tile: cur, children: [
       {c: "icon ion-image",},
-      {c: "description", text: "Present your data in a new drawing."},
+      {c: "description", text: "Present data in a new drawing"},
     ]},
     {c: "option", click: chooseTile, type: "addTable", tile: cur, children: [
       {c: "icon ion-compose"},
-      {c: "description", text: "Record data in a new table."},
+      {c: "description", text: "Record data in a new table"},
     ]},
     {c: "option",click: chooseTile, type: "addView", tile: cur, children: [
       {c: "icon ion-ios-calculator"},
-      {c: "description", text: "Work with your data in a new view."},
+      {c: "description", text: "Work with data in a new view"},
     ]},
   ]};
 }
@@ -464,20 +533,13 @@ function dispatch(event, info) {
                  ["displayName", "inserted", [id, "Layer " + 0]]);
       break;
     case "updateTile":
-      var fact = ixer.index("gridTile")[info.id].slice();
-      var oldFact = fact.slice();
-      fact[0] = txId;
-      fact[2] = info.grid || fact[2];
-      fact[3] = info.type || fact[3];
-      if(info.pos) {
-        fact[4] = info.pos[0];
-        fact[5] = info.pos[1];
-      }
-      if(info.size) {
-        fact[6] = info.size[0];
-        fact[7] = info.size[1];
-      }
-      diffs.push(["gridTile", "inserted", fact]);
+      var neue = info.neue.slice();
+      neue[0] = txId;
+      diffs.push(["gridTile", "inserted", neue]);
+      break;
+    case "addUiComponentElement":
+      var neue = [txId, uuid(), info.component, info.layer, info.control, info.left, info.top, info.right, info.bottom];
+      diffs.push(["uiComponentElement", "inserted", neue]);
       break;
     case "addUiComponentLayer":
       var id = uuid();
@@ -517,7 +579,7 @@ function dispatch(event, info) {
 //     eventStack = eventItem;
 //   }
 
-  sendToServer(toMapDiffs(diffs));
+  sendToServer(diffs);
 
 }
 
@@ -822,7 +884,7 @@ function initIndexer() {
 // Websocket
 //---------------------------------------------------------
 
-var server = {connected: false, queue: [], initialized: false};
+var server = {connected: false, queue: [], initialized: false, lastSent: []};
 function connectToServer() {
   var queue = server.queue;
   var ws = new WebSocket('ws://localhost:2794', []);
@@ -858,8 +920,11 @@ function sendToServer(message) {
   if(!server.connected) {
     server.queue.push(message);
   } else {
-    console.log("sending", message);
-    server.ws.send(JSON.stringify(message));
+    if(!Indexing.arraysIdentical(server.lastSent, message)) {
+      console.log("sending", message);
+      server.lastSent = message;
+      server.ws.send(JSON.stringify(toMapDiffs(message)));
+    }
   }
 }
 

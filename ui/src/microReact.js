@@ -66,6 +66,7 @@
           div.className = cur.c || "";
         }
 
+        div.draggable = cur.draggable;
         div.contentEditable = cur.contentEditable || "inherit";
         if(cur.colspan) {
           div.colSpan = cur.colspan;

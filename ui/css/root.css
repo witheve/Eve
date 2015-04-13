@@ -47,6 +47,9 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .minimap .minimap-tile.table { background: #346; }
 
 .grid-tile { display:flex; position: absolute; z-index: 1;  background: #2c2c2c; border-radius: 3px; transform-style: preserve-3d;  }
+.grid-tile .tile { flex: 1; overflow:hidden; }
+.grid-tile > .controls { opacity:0; padding: 5px 5px; flex:none; transition:opacity 0.2s ease-in-out; }
+.grid-tile:hover > .controls { opacity:1; }
 
 .ui-editor { flex: 1; }
 .inspector { flex-direction:column; }
@@ -67,3 +70,5 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .ui-canvas {flex: 1; position:relative; overflow:hidden; background:#111; margin:10px; }
 .ui-canvas .control { background:rgba(255,255,255, 0.08); }
 .ui-canvas .resize-handle { position:absolute; background: rgba(170,204,255,0.3); border: 1px solid #acf; z-index: 1000; }
+
+.resize-tile { transform: rotateZ(-45deg); overflow:hidden; position:absolute; bottom:0; }
