@@ -52,6 +52,8 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .grid-tile > .controls { opacity:0; padding: 5px 5px; flex:none; transition:opacity 0.2s ease-in-out; }
 .grid-tile:hover > .controls { opacity:1; }
 
+.tile-outline { border: 1px solid #acf; }
+
 .ui-editor { flex: 1; }
 .inspector { flex-direction:column; }
 .controls { flex-direction:column; }

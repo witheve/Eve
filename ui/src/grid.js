@@ -65,6 +65,20 @@ var Grid = (function(document, React, Velocity) {
     calculate: function(grid) {
       return grid;
     },
+    getOutlineRect: function getOutlineRect(grid, outline) { // (Grid, Tile) -> Rect
+      if(!grid) { throw new Error(ERR.NO_GRID); }
+
+      var left = grid.bounds.left;
+      var top = grid.bounds.top;
+
+      var rect = {
+        left: left + outline[2] * grid.calculated.cellWidth + outline[2] * grid.gutter,
+        top: top + outline[3] * grid.calculated.cellHeight + outline[3] * grid.gutter,
+        width: outline[4] * grid.calculated.cellWidth + (outline[4] - 1) * grid.gutter,
+        height: outline[5] * grid.calculated.cellHeight + (outline[5] - 1) * grid.gutter
+      };
+      return rect;
+    },
     getRect: function getRect(grid, tile) { // (Grid, Tile) -> Rect
       if(!grid) { throw new Error(ERR.NO_GRID); }
       assertTile(tile);
@@ -78,8 +92,6 @@ var Grid = (function(document, React, Velocity) {
         width: tile[6] * grid.calculated.cellWidth + (tile[6] - 1) * grid.gutter,
         height: tile[7] * grid.calculated.cellHeight + (tile[7] - 1) * grid.gutter
       };
-      // rect.right = grid.bounds.right - (rect.left + rect.width);
-      // rect.bottom = grid.bounds.bottom - (rect.top + rect.height);
       return rect;
     },
     evacuateTile: function evacuateRect(grid, tile, from, force) { // (Grid, Tile, Pos?, Bool?) -> Tile

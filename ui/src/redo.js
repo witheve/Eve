@@ -5,6 +5,8 @@
 var toolbarOffset = 50;
 var ixer = new Indexing.Indexer();
 var grid;
+var client = localStorage["client"] || uuid();
+localStorage["client"] = client;
 
 //@HACK: global vars for tracking drag position in FF.
 var __clientX, clientY;
@@ -95,6 +97,10 @@ function toolbar() {
 // Stage
 //---------------------------------------------------------
 
+function stageScrollTop() {
+  return document.getElementsByClassName("stage-tiles-wrapper")[0].scrollTop;
+}
+
 function stage() {
   var rect = window.document.body.getBoundingClientRect();
   grid = Grid.makeGrid({bounds: {top: rect.top, left: rect.left + 10, width: rect.width - 120, height: rect.height - toolbarOffset}, gutter: 8});
@@ -106,9 +112,19 @@ function stage() {
   var drawnTiles = tiles.map(function(cur) {
     return gridTile(cur, tiles);
   });
-  return {c: "stage", children: [{c: "stage-tiles-wrapper", scroll: onStageScroll,
+  var outline = ixer.index("tileOutline")[client];
+  if(!removed[outline[0]]) {
+    drawnTiles.push(tileOutline(outline));
+  }
+  return {c: "stage", children: [{c: "stage-tiles-wrapper", scroll: onStageScroll, tiles: tiles,
+                                  draggable: true, dragstart: startTile, drag: layoutTile, dragend: createTile, outline: outline,
                                   children: [{c: "stage-tiles", top:0, left:0, height:(rect.height - toolbarOffset) * 10, children: drawnTiles}]},
                                  minimap(rect, tiles)]};
+}
+
+function tileOutline(outline) {
+  var pos = Grid.getOutlineRect(grid, outline);
+  return {c: "tile-outline", top: pos.top, left: pos.left, width: pos.width, height: pos.height};
 }
 
 var scrollTimer;
@@ -121,6 +137,40 @@ function onStageScroll() {
   scrollTimer = setTimeout(stopScrolling, 100)
   document.body.classList.add("scrolling");
   rerender();
+}
+
+function startTile(e, elem) {
+  clearDragImage(e);
+  var x = e.clientX || __clientX;
+  var y = (e.clientY || __clientY) + stageScrollTop() - toolbarOffset;
+  var pos = Grid.coordsToPos(grid, x, y, true);
+  dispatch("tileOutline", {outline: [null, client, pos[0], pos[1], 1, 1]});
+}
+
+function layoutTile(e, elem) {
+  if(!elem.outline) return;
+  var x = e.clientX || __clientX;
+  var y = (e.clientY || __clientY)
+  if(x === 0 && y === 0) return;
+  y = y + stageScrollTop() - toolbarOffset;
+  var outline = elem.outline;
+  var tiles = elem.tiles;
+  var rect = Grid.getOutlineRect(grid, outline);
+  var width = Math.max(x - rect.left, 1);
+  var height = Math.max(y - rect.top, 1);
+  var size = Grid.coordsToSize(grid, width, height, true);
+  var neue = outline.slice();
+  neue[4] = size[0];
+  neue[5] = size[1];
+  if((neue[4] !== outline[4] || neue[5] !== outline[5]) &&
+     !Grid.hasOverlap(tiles, [null, null, null, null, outline[2], outline[3], neue[4], neue[5]])) {
+    dispatch("tileOutline", {outline: neue});
+  }
+
+}
+
+function createTile(e, elem) {
+  dispatch("addTileFromOutline", {outline: elem.outline});
 }
 
 //---------------------------------------------------------
@@ -223,8 +273,8 @@ function resizeTile(e, elem) {
   var tile = elem.tile;
   var tiles = elem.tiles;
   var rect = Grid.getRect(grid, tile);
-  var width = Math.max(x - rect.left, 0);
-  var height = Math.max(y - rect.top, 0);
+  var width = Math.max(x - rect.left, 1);
+  var height = Math.max(y - rect.top, 1);
   var size = Grid.coordsToSize(grid, width, height, true);
   var neue = tile.slice();
   neue[6] = size[0];
@@ -578,6 +628,21 @@ function dispatch(event, info) {
       neue[0] = txId;
       diffs.push(["gridTile", "inserted", neue]);
       break;
+    case "tileOutline":
+      var neue = info.outline;
+      neue[0] = txId;
+      diffs.push(["tileOutline", "inserted", neue]);
+      break;
+    case "addTileFromOutline":
+      var outline = info.outline;
+      var x = outline[2];
+      var y = outline[3];
+      var w = outline[4];
+      var h = outline[5];
+      var neue = [txId, uuid(), "grid://default", "addChooser", x, y, w, h];
+      diffs.push(["gridTile", "inserted", neue],
+                 ["remove", "inserted", [outline[0]]]);
+      break;
     case "addUiComponentElement":
       var neue = [txId, uuid(), info.component, info.layer, info.control, info.left, info.top, info.right, info.bottom];
       diffs.push(["uiComponentElement", "inserted", neue]);
@@ -816,6 +881,7 @@ ixer.addIndex("viewToSources", "source", Indexing.create.collector([0]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([0]));
 ixer.addIndex("remove", "remove", Indexing.create.lookup([0, 0]));
 ixer.addIndex("adderRows", "adderRow", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
+
 // ui
 ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.latestLookup({keys: [1, false]}));
 ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
@@ -830,6 +896,7 @@ ixer.addIndex("gridTile", "gridTile", Indexing.create.latestLookup({keys: [1, fa
 ixer.addIndex("gridToTile", "gridTile", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
 ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
 ixer.addIndex("viewTile", "viewTile", Indexing.create.lookup([0, false]));
+ixer.addIndex("tileOutline", "tileOutline", Indexing.create.latestLookup({keys: [1, false]}));
 
 
 
@@ -855,6 +922,7 @@ function initIndexer() {
 
 
   ixer.handleDiffs(code.diffs.addView("adderRow", {tx: "id", id: "id", table: "id", row: "tuple"}, undefined, "adderRow", ["table"]));
+  ixer.handleDiffs(code.diffs.addView("tileOutline", {tx: "id", client: "id", x: "number", y: "number", w: "number", h: "number"}, undefined, "tileOutline", ["table"]));
 
   ixer.handleDiffs(code.diffs.addView("zomg", {
     a: "string",
@@ -946,7 +1014,7 @@ function connectToServer() {
       ixer.clear();
       server.initialized = true;
     }
-    console.log("received", data.changes);
+//     console.log("received", data.changes);
     ixer.handleMapDiffs(data.changes);
 
     rerender();
@@ -965,7 +1033,7 @@ function sendToServer(message) {
     server.queue.push(message);
   } else {
     if(!Indexing.arraysIdentical(server.lastSent, message)) {
-      console.log("sending", message);
+//       console.log("sending", message);
       server.lastSent = message;
       server.ws.send(JSON.stringify(toMapDiffs(message)));
     }
