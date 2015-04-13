@@ -113,7 +113,7 @@ function stage() {
     return gridTile(cur, tiles);
   });
   var outline = ixer.index("tileOutline")[client];
-  if(!removed[outline[0]]) {
+  if(outline && !removed[outline[0]]) {
     drawnTiles.push(tileOutline(outline));
   }
   return {c: "stage", children: [{c: "stage-tiles-wrapper", scroll: onStageScroll, tiles: tiles,
@@ -170,6 +170,7 @@ function layoutTile(e, elem) {
 }
 
 function createTile(e, elem) {
+  if(!elem.outline) return;
   dispatch("addTileFromOutline", {outline: elem.outline});
 }
 
