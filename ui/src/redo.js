@@ -30,6 +30,9 @@ function coerceInput(input) {
 function stopPropagation(e) {
   e.stopPropagation();
 }
+function preventDefault(e) {
+  e.preventDefault();
+}
 
 function now() {
   if(window.performance) {
@@ -49,11 +52,19 @@ function canvasRatio(context) {
   return devicePixelRatio / backingStoreRatio;
 }
 
+function clearDragImage(e, elem) {
+  console.log("start drag");
+  e.dataTransfer.setData("text", "foo");
+  e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0, 0);
+}
+
 //---------------------------------------------------------
 // Root
 //---------------------------------------------------------
 
 window.addEventListener("resize", rerender);
+document.body.addEventListener("dragover", preventDefault);
+document.body.addEventListener("drop", preventDefault);
 
 function root() {
   return {id: "root",
@@ -80,13 +91,28 @@ function stage() {
   var rect = window.document.body.getBoundingClientRect();
   grid = Grid.makeGrid({bounds: {top: rect.top, left: rect.left + 10, width: rect.width - 120, height: rect.height - toolbarOffset}, gutter: 8});
   var active = "grid://default";
-  var tiles = ixer.index("gridToTile")[active];
+  var removed = ixer.index("remove");
+  var tiles = ixer.index("gridToTile")[active].filter(function(cur) {
+    return !removed[cur[0]];
+  });
   var drawnTiles = tiles.map(function(cur) {
     return gridTile(cur, tiles);
   });
-  return {c: "stage", children: [{c: "stage-tiles-wrapper", scroll: rerender,
+  return {c: "stage", children: [{c: "stage-tiles-wrapper", scroll: onStageScroll,
                                   children: [{c: "stage-tiles", top:0, left:0, height:(rect.height - toolbarOffset) * 10, children: drawnTiles}]},
                                  minimap(rect, tiles)]};
+}
+
+var scrollTimer;
+function stopScrolling() {
+  document.body.classList.remove("scrolling");
+}
+
+function onStageScroll() {
+  clearTimeout(scrollTimer);
+  scrollTimer = setTimeout(stopScrolling, 100)
+  document.body.classList.add("scrolling");
+  rerender();
 }
 
 //---------------------------------------------------------
@@ -149,10 +175,14 @@ function gridTile(cur, activeTiles) {
 
 function tileControls(cur, activeTiles) {
   return {c: "controls", children: [
-    {c: "close-tile ion-close"},
-    {c: "move-tile ion-arrow-move", tile: cur, tiles: activeTiles, draggable: true, drag: moveTile},
-    {c: "resize-tile ion-drag", tile: cur, tiles: activeTiles, draggable: true, drag: resizeTile}
+    {c: "close-tile ion-close", tx: cur[0], click: removeTile},
+    {c: "move-tile ion-arrow-move", tile: cur, tiles: activeTiles, draggable: true, drag: moveTile, dragstart: clearDragImage},
+    {c: "resize-tile ion-drag", tile: cur, tiles: activeTiles, dragover: preventDefault, draggable: true, drag: resizeTile, dragstart: clearDragImage}
   ]}
+}
+
+function removeTile(e, elem) {
+  dispatch("remove", {tx: elem.tx});
 }
 
 function moveTile(e, elem) {
@@ -176,6 +206,7 @@ function moveTile(e, elem) {
 }
 
 function resizeTile(e, elem) {
+  console.log(e);
   if(e.clientX === 0 && e.clientY === 0) return;
   var x = e.clientX + document.getElementsByClassName("stage-tiles-wrapper")[0].scrollLeft;
   var y = e.clientY + document.getElementsByClassName("stage-tiles-wrapper")[0].scrollTop - toolbarOffset;
@@ -566,6 +597,9 @@ function dispatch(event, info) {
       var fieldId = uuid();
       diffs.push(["field", "inserted", [schema, fields.length, fieldId, "unknown"]],
                  ["displayName", "inserted", [{"eid": "auto"}, fieldId, alphabet[fields.length]]]);
+      break;
+    case "remove":
+      diffs.push(["remove", "inserted", [info.tx]]);
       break;
     default:
       console.error("Dispatch for unknown event: ", event, info);

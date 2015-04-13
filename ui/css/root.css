@@ -36,6 +36,7 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 
 .stage-tiles-wrapper { overflow:auto; position:absolute; top:50px; bottom:0; left: 0; right:100px; }
 .stage-tiles-wrapper::-webkit-scrollbar { display:none; }
+.scrolling .stage-tiles-wrapper * { pointer-events:none !important;}
 
 .stage-tiles { width:100%; }
 

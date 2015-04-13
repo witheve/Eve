@@ -7,7 +7,7 @@
     return (new Date()).getTime();
   }
 
-  var events = ["scroll", "click", "contextmenu", "focus", "blur", "input", "keydown", "drag", "dragOver", "dragStart", "dragEnd", "drop"];
+  var events = ["scroll", "click", "contextmenu", "focus", "blur", "input", "keydown", "drag", "dragover", "dragstart", "dragend", "drop"];
 
   function Renderer() {
     this.content = document.createElement("div");
@@ -66,7 +66,7 @@
           div.className = cur.c || "";
         }
 
-        div.draggable = cur.draggable;
+        div.draggable = cur.draggable ? "draggable" : null;
         div.contentEditable = cur.contentEditable || "inherit";
         if(cur.colspan) {
           div.colSpan = cur.colspan;
