@@ -6,7 +6,7 @@
  * Grid - {size:Size, bounds:Rect, gutter:N}
  */
 
-var Grid = (function(document, React, Velocity) {
+var Grid = (function(document, Velocity) {
   const ERR = {
     NO_PARAMS: "Must specify parameter object.",
     NO_BOUNDS: "Must specify either explicit bounds or a bounding container.",
@@ -229,5 +229,5 @@ var Grid = (function(document, React, Velocity) {
       return result.map(function(row) { return row.join(" | "); }).join("\n");
     }
   };
-})(window.document, React, Velocity);
+})(window.document, Velocity);
 window.Grid = Grid;
