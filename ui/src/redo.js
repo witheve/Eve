@@ -261,8 +261,10 @@ function tableTile(cur) {
   });
   var rows = ixer.facts(view);
   var adderRows = ixer.index("adderRows")[view] || [];
-  return {c: "tile table-tile", children: [table("foo", fields, rows, adderRows),
-                                     {c: "add-column ion-plus", view: view, click: addColumn}]};
+  return {c: "tile table-tile", children: [
+    {t: "pre", c: "lifted", text: JSON.stringify(view)},
+    table("foo", fields, rows, adderRows),
+    {c: "add-column ion-plus", view: view, click: addColumn}]};
 }
 
 
@@ -371,6 +373,9 @@ function uiGrid(size) {
 
 //---------------------------------------------------------
 // view tile
+// - @TODO: token renderer
+// - @TODO: expression renderer
+// - @TODO: token menu renderer
 //---------------------------------------------------------
 
 function viewTile(cur) {
@@ -378,6 +383,7 @@ function viewTile(cur) {
   var sources = ixer.index("viewToSources")[view] || [];
   var results = ixer.facts(view);
   return {c: "tile view-tile", children: [
+    {t: "pre", c: "lifted", text: JSON.stringify(view)},
     viewCode(view, sources),
     viewResults(sources, results)
   ]};
@@ -390,7 +396,7 @@ function viewCode(view, sources) {
       return {c: "step", children: [
         {children: [
           {text: "with "},
-          {c: "token", text: "each row"},
+          viewToken("each row"),
           {text: " of "},
           {text: code.name(data[1])}
         ]}
@@ -452,6 +458,10 @@ function viewResults(sources, results) {
     ]},
     {t: "tbody", children: rows}
   ]};
+}
+
+function viewToken(cur) {
+  return {c: "token", text: cur};
 }
 
 //---------------------------------------------------------
@@ -567,6 +577,18 @@ function dispatch(event, info) {
       diffs.push(["field", "inserted", [schema, fields.length, fieldId, "unknown"]],
                  ["displayName", "inserted", [{"eid": "auto"}, fieldId, alphabet[fields.length]]]);
       break;
+
+    case "addViewSource":
+      var viewId = info.view;
+      var sourceId = uuid();
+      var view = ixer.index("view")[viewId];
+      var nextIx = (ixer.index("viewToSources")[viewId] || []).length;
+      console.log(viewId, info.source, sourceId);
+      diffs = code.diffs.autoJoins(viewId, info.source, sourceId);
+      diffs.push(["field", "inserted", view[1], nextIx, sourceId, "tuple"]);
+      diffs.push(["source", "inserted", [viewId, nextIx, sourceId, ["view", info.source], "get-tuple"]]);
+      break;
+
     default:
       console.error("Dispatch for unknown event: ", event, info);
       return;
@@ -639,6 +661,7 @@ var code = {
       var sources = ixer.index("viewToSources")[view] || [];
       var fields = code.viewToFields(sourceView);
       var diffs = [];
+
       fields = fields.map(function(cur) {
         return [cur[2], displayNames[cur[2]]];
       });

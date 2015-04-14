@@ -8,6 +8,9 @@ div[contenteditable] { display:inline-block; }
 ::-webkit-scrollbar-corner { display: none; }
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.5); }
 
+
+.lifted { position: absolute; top: -20px; -webkit-user-select: initial; }
+
 /*-----------------------------------------------------------------------------
 - table
 -----------------------------------------------------------------------------*/
