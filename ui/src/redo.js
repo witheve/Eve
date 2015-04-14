@@ -377,13 +377,25 @@ var attrMappings = {"content": "text"};
 
 function uiTile(cur) {
   var tileId = cur[1];
+  var removed = ixer.index("remove");
   var elements = ixer.index("uiComponentToElements")[tileId] || [];
   var layers = ixer.index("uiComponentToLayers")[tileId];
   var attrs = ixer.index("uiElementToAttrs");
+  var sel = ixer.index("uiSelection")[client];
+  var selectedElements = [];
+  if(sel && !removed[sel[0]]) {
+    selectedElements = ixer.index("uiSelectionElements")[sel[1]].map(function(cur) {
+      return cur[1];
+    });
+  }
   var els = elements.map(function(cur) {
     var id = cur[1];
-    return control(cur, attrs[id]);
+    var selected = selectedElements.indexOf(id) > -1;
+    return control(cur, attrs[id], selected);
   });
+  if(selectedElements.length) {
+    els.push(selection(sel[1], selectedElements));
+  }
   return {c: "tile ui-editor", children: [
     uiControls(tileId, layers[0]),
     {c: "ui-canvas", children: els},
@@ -392,10 +404,11 @@ function uiTile(cur) {
   ]};
 }
 
-function control(cur, attrs) {
+function control(cur, attrs, selected) {
     var id = cur[1];
-    var elem = {c: "control", left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6],
-                control: cur, mousedown: addToSelection};
+    var elem = {c: "control", id: id, left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6],
+                control: cur, mousedown: addToSelection, selected: selected,
+                draggable: true, drag: moveSelection, dragstart: startMoveSelection};
     if(!attrs) return elem;
     for(var i = 0, len = attrs.length; i < len; i++) {
       var curAttr = attrs[i];
@@ -406,12 +419,12 @@ function control(cur, attrs) {
 }
 
 function boundElements(elems) {
-  var bounds = {top: Infinity, left: Infinity, bottom: 0, right: 0};
+  var bounds = {top: Infinity, left: Infinity, bottom: -Infinity, right: -Infinity};
   elems.forEach(function(cur) {
-    var left = cur[4]
-    var top = cur[5]
-    var right = cur[6]
-    var bottom = cur[7];
+    var left = cur[5]
+    var top = cur[6]
+    var right = cur[7]
+    var bottom = cur[8];
     if(left < bounds.left) {
       bounds.left = left;
     }
@@ -428,9 +441,12 @@ function boundElements(elems) {
   return bounds;
 }
 
-function selection(selection) {
+function selection(sel, elementIds) {
   //get the things in the selection
-  var elements;
+  var elementIndex = ixer.index("uiComponentElement");
+  var elements = elementIds.map(function(cur) {
+    return elementIndex[cur];
+  });
   //get the bounding box of those
   var bounds = boundElements(elements);
   //draw a box around it
@@ -442,13 +458,38 @@ function selection(selection) {
 }
 
 function addToSelection(e, elem) {
+  if(elem.selected) return;
+  var createNew = false;
   if(!e.shiftKey) {
-    console.log("create new selection");
+    createNew = true;
   }
-  console.log("add this to selection", elem.control)
+  dispatch("selectElements", {createNew: createNew, elements: [elem.control[1]]});
+}
+
+var dragOffsetX = 0;
+var dragOffsetY = 0;
+function startMoveSelection(e, elem) {
+  var x = e.clientX || __clientX;
+  var y = e.clientY || __clientY;
+  if(x === 0 && y === 0) return;
+  var canvasRect = e.currentTarget.parentNode.getBoundingClientRect();
+  dragOffsetX = x - elem.left - canvasRect.left;
+  dragOffsetY = y - elem.top - canvasRect.top;
+  clearDragImage(e);
 }
 
 function moveSelection(e, elem) {
+  var x = Math.floor(e.clientX || __clientX);
+  var y = Math.floor(e.clientY || __clientY);
+  if(x === 0 && y === 0) return;
+  var canvasRect = e.currentTarget.parentNode.getBoundingClientRect();
+  x -= Math.floor(canvasRect.left);
+  y -= Math.floor(canvasRect.top);
+  var diffX = Math.floor(x - elem.control[5] - dragOffsetX);
+  var diffY = Math.floor(y - elem.control[6] - dragOffsetY);
+  if(diffX || diffY) {
+    dispatch("moveSelection", {diffX: diffX, diffY: diffY});
+  }
 }
 
 function resizeSelection(e, elem) {
@@ -715,6 +756,38 @@ function dispatch(event, info) {
       diffs.push(["uiComponentLayer", "inserted", neue],
                  ["displayName", "inserted", [id, "Layer " + info.layer]]);
       break;
+    case "selectElements":
+      var sel = ixer.index("uiSelection")[client]
+      if(sel && ixer.index("remove")[sel[0]]) { sel = null; }
+      var id = uuid();
+      if(info.createNew || !sel) {
+        diffs.push(["uiSelection", "inserted", [txId, id, client]]);
+      } else {
+        id = sel[1];
+      }
+      info.elements.forEach(function(cur) {
+        diffs.push(["uiSelectionElement", "inserted", [id, cur]]);
+      });
+      break;
+    case "moveSelection":
+      var sel = ixer.index("uiSelection")[client];
+      var els = ixer.index("uiSelectionElements")[sel[1]];
+      var elementIndex = ixer.index("uiComponentElement");
+      var diffX = info.diffX;
+      var diffY = info.diffY;
+      els.forEach(function(cur) {
+        var elem = elementIndex[cur[1]];
+        var neue = elem.slice();
+        neue[0] = txId;
+        neue[5] += diffX; //left
+        neue[7] += diffX; //right
+        neue[6] += diffY; //top
+        neue[8] += diffY; //bottom
+        diffs.push(["uiComponentElement", "inserted", neue]);
+      });
+
+
+      break;
 
     case "updateAdderRow":
       var neue = info.row.slice();
@@ -764,7 +837,8 @@ var queued = false;
 function rerender() {
   if(!queued) {
     queued = true;
-    requestAnimationFrame(forceRender);
+//     requestAnimationFrame(forceRender);
+    forceRender();
   }
 }
 
@@ -951,6 +1025,8 @@ ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.latestLook
 ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
 ixer.addIndex("uiElementToAttrs", "uiComponentAttribute", Indexing.create.latestCollector({keys: [1], uniqueness: [1, 2]}));
 ixer.addIndex("uiElementToAttr", "uiComponentAttribute", Indexing.create.latestLookup({keys: [1, 2, false]}));
+ixer.addIndex("uiSelection", "uiSelection", Indexing.create.latestLookup({keys: [2, false]}));
+ixer.addIndex("uiSelectionElements", "uiSelectionElement", Indexing.create.collector([0]));
 
 // Grid Indexes
 ixer.addIndex("gridTarget", "gridTarget", Indexing.create.latestLookup({keys: [1, 2]}));
@@ -1048,6 +1124,8 @@ function initIndexer() {
     code.diffs.addView("uiComponentLayer", {tx: "number", id: "string", component: "string", layer: "number", locked: "boolean", invisible: "boolean"}, [], "uiComponentLayer", ["table"]));
   ixer.handleDiffs(
     code.diffs.addView("uiComponentAttribute", {tx: "number", id: "string", property: "string", value: "string", isBinding: "boolean"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
+  ixer.handleDiffs(code.diffs.addView("uiSelection", {tx: "number", id: "id", client: "string"}, [], "uiSelection", ["table"])); // @FIXME: value: any
+  ixer.handleDiffs(code.diffs.addView("uiSelectionElement", {id: "id", element: "id"}, [], "uiSelectionElement", ["table"])); // @FIXME: value: any
 
   var firstLayerId = uuid();
   ixer.handleDiffs([["uiComponentLayer", "inserted", [0, firstLayerId, uiViewId, 0, false, false]],

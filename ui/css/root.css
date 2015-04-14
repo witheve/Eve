@@ -59,6 +59,7 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .controls { flex-direction:column; }
 .layers { flex-direction: column; }
 .layer { display:flex; }
+.selection { border: 1px solid red; pointer-events: none; }
 
 
 .view-tile { display:flex; }
