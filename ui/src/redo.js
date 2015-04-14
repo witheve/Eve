@@ -543,8 +543,16 @@ function resizeSelection(e, elem) {
   }
   var neueWidth = neueBounds.right - neueBounds.left;
   var neueHeight = neueBounds.bottom - neueBounds.top;
-  if(neueWidth < 10) { neueWidth = 10; }
-  if(neueHeight < 10) { neueHeight = 10; }
+  if(neueWidth < 10) {
+    neueWidth = 10;
+    if(elem.x === "left") { neueBounds.left = neueBounds.right - 10; }
+    else { neueBounds.right = neueBounds.left + 10; }
+  }
+  if(neueHeight < 10) {
+    neueHeight = 10;
+    if(elem.x === "top") { neueBounds.top = neueBounds.bottom - 10; }
+    else { neueBounds.bottom = neueBounds.top + 10; }
+  }
   var widthRatio = neueWidth / (old.right - old.left);
   var heightRatio = neueHeight / (old.bottom - old.top);
 
