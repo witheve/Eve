@@ -550,7 +550,7 @@ function resizeSelection(e, elem) {
   }
   if(neueHeight < 10) {
     neueHeight = 10;
-    if(elem.x === "top") { neueBounds.top = neueBounds.bottom - 10; }
+    if(elem.y === "top") { neueBounds.top = neueBounds.bottom - 10; }
     else { neueBounds.bottom = neueBounds.top + 10; }
   }
   var widthRatio = neueWidth / (old.right - old.left);
