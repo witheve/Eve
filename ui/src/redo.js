@@ -140,6 +140,7 @@ function onStageScroll() {
 }
 
 function startTile(e, elem) {
+  if(e.target !== e.currentTarget) return;
   clearDragImage(e);
   var x = e.clientX || __clientX;
   var y = (e.clientY || __clientY) + stageScrollTop() - toolbarOffset;
@@ -170,7 +171,7 @@ function layoutTile(e, elem) {
 }
 
 function createTile(e, elem) {
-  if(!elem.outline) return;
+  if(!elem.outline || e.target !== e.currentTarget) return;
   dispatch("addTileFromOutline", {outline: elem.outline});
 }
 
@@ -263,6 +264,7 @@ function moveTile(e, elem) {
      !Grid.hasOverlap(tiles, neue)) {
     dispatch("updateTile", {neue: neue});
   }
+  e.stopPropagation();
 }
 
 function resizeTile(e, elem) {
@@ -284,6 +286,7 @@ function resizeTile(e, elem) {
      !Grid.hasOverlap(tiles, neue)) {
     dispatch("updateTile", {neue: neue});
   }
+  e.stopPropagation();
 }
 
 
@@ -963,14 +966,14 @@ function initIndexer() {
     w: "number",
     h: "number"
   }, [
-    [-1, uiViewId, gridId, "ui", 0, 12, 12, 6],
-    [-2, bigUiViewId, "grid://ui", "ui", 0, 12, 12, 12],
+    [0, uiViewId, gridId, "ui", 0, 12, 12, 6],
+    [0, bigUiViewId, "grid://ui", "ui", 0, 12, 12, 12],
   ], "gridTile", ["table"]));
 
   ixer.handleDiffs(code.diffs.addView(
     "activeGrid",
     {tx: "number", grid: "string"},
-    [[-3, gridId]],
+    [[0, gridId]],
     "activeGrid", ["table"]));
 
   ixer.handleDiffs(code.diffs.addView(
@@ -989,8 +992,8 @@ function initIndexer() {
     code.diffs.addView("uiComponentAttribute", {tx: "number", id: "string", property: "string", value: "string", isBinding: "boolean"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
 
   var firstLayerId = uuid();
-  ixer.handleDiffs([["uiComponentLayer", "inserted", [-4, firstLayerId, uiViewId, 0, false, false]],
-                   ["displayName", "inserted", [-5, firstLayerId, "Layer 0"]]]);
+  ixer.handleDiffs([["uiComponentLayer", "inserted", [0, firstLayerId, uiViewId, 0, false, false]],
+                   ["displayName", "inserted", [0, firstLayerId, "Layer 0"]]]);
 }
 
 //---------------------------------------------------------
@@ -1011,7 +1014,7 @@ function connectToServer() {
     var data = JSON.parse(e.data);
     if(!server.initialized && !data.changes["view"]) {
       initIndexer();
-      sendToServer(ixer.dumpMapDiffs());
+      server.ws.send(JSON.stringify(ixer.dumpMapDiffs()));
       ixer.clear();
       server.initialized = true;
     }
