@@ -396,12 +396,16 @@ function uiTile(cur) {
   if(selectedElements.length) {
     els.push(selection(sel[1], selectedElements));
   }
-  return {c: "tile ui-editor", children: [
+  return {c: "tile ui-editor", mousedown: clearSelection, children: [
     uiControls(tileId, layers[0]),
     {c: "ui-canvas", children: els},
     {c: "inspector", children: [layersControl(layers)]},
 //     uiGrid({width: 1000, height: 300}),
   ]};
+}
+
+function clearSelection(e, elem) {
+  dispatch("clearSelection");
 }
 
 function control(cur, attrs, selected) {
@@ -461,7 +465,7 @@ function resizeHandle(bounds, y, x) {
     top = (height / 2) - halfSize;
   }
   return {c: "resize-handle", y: y, x: x, top: top, left: left, width: resizeHandleSize, height: resizeHandleSize,
-          draggable: true, drag: resizeSelection, bounds: bounds, dragstart: clearDragImage};
+          draggable: true, drag: resizeSelection, bounds: bounds, dragstart: clearDragImage, mousedown: stopPropagation};
 }
 
 function selection(sel, elementIds) {
@@ -488,6 +492,7 @@ function selection(sel, elementIds) {
 }
 
 function addToSelection(e, elem) {
+  e.stopPropagation();
   if(elem.selected) return;
   var createNew = false;
   if(!e.shiftKey) {
@@ -587,12 +592,24 @@ function layersControl(layers) {
     var name = code.name(cur[1]);
     return {c: "layer", children: [
       {c: "ion-drag"},
-      input(name),
-      {c: hidden ? "ion-eye-disabled" : "ion-eye"},
-      {c: locked ? "ion-locked" : "ion-unlocked"}
+      input(name, cur[1], rename),
+      {c: hidden ? "ion-eye-disabled" : "ion-eye", click: toggleHidden, layer: cur},
+      {c: locked ? "ion-locked" : "ion-unlocked", click: toggleLocked, layer: cur}
     ]};
   });
   return {c: "layers", children: layerElems};
+}
+
+function toggleHidden(e, elem) {
+  var neue = elem.layer.slice();
+  neue[5] = !neue[5];
+  dispatch("updateUiLayer", {neue: neue});
+}
+
+function toggleLocked(e, elem) {
+  var neue = elem.layer.slice();
+  neue[4] = !neue[4];
+  dispatch("updateUiLayer", {neue: neue});
 }
 
 function uiGrid(size) {
@@ -790,7 +807,7 @@ function dispatch(event, info) {
       var id = uuid();
       var neue = [txId, id, tileId, 0, false, false];
       diffs.push(["uiComponentLayer", "inserted", neue],
-                 ["displayName", "inserted", [id, "Layer " + 0]]);
+                 ["displayName", "inserted", [txId, id, "Layer " + 0]]);
       break;
     case "updateTile":
       var neue = info.neue.slice();
@@ -820,7 +837,19 @@ function dispatch(event, info) {
       var id = uuid();
       var neue = [txId, id, info.component, info.layer, false, false];
       diffs.push(["uiComponentLayer", "inserted", neue],
-                 ["displayName", "inserted", [id, "Layer " + info.layer]]);
+                 ["displayName", "inserted", [txId, id, "Layer " + info.layer]]);
+      break;
+    case "updateUiLayer":
+      var neue = info.neue;
+      neue[0] = txId;
+      diffs.push(["uiComponentLayer", "inserted", neue]);
+      break;
+    case "clearSelection":
+      var sel = ixer.index("uiSelection")[client]
+      if(sel && !ixer.index("remove")[sel[0]]) {
+        console.log("here");
+        diffs.push(["remove", "inserted", [sel[0]]]);
+      }
       break;
     case "selectElements":
       var sel = ixer.index("uiSelection")[client]
