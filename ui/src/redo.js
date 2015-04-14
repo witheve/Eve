@@ -538,6 +538,10 @@ function viewTile(cur) {
   return {c: "tile view-tile", children: [
     {t: "pre", c: "lifted", text: JSON.stringify(view)},
     viewCode(view, sources),
+    // Add Source btn
+    {t: "button", c: "add-source-btn btn", text: "Add Source", click: function() {
+      console.log("clicked", arguments);
+    }},
     viewResults(sources, results)
   ]};
 }
