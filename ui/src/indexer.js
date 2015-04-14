@@ -39,8 +39,8 @@ var Indexing = (function() {
     }
     for(var addIx = 0, addLen = adds.length; addIx < addLen; addIx++) {
       var add = adds[addIx];
-      var foundIx = indexOfArray(table, add);
-      if(foundIx !== -1) continue;
+//       var foundIx = indexOfArray(table, add);
+//       if(foundIx !== -1) continue;
       table.push(add);
     }
   }

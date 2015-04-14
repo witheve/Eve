@@ -60,6 +60,8 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .layers { flex-direction: column; }
 .layer { display:flex; }
 .selection { border: 1px solid red; pointer-events: none; }
+.resize-handle { pointer-events: auto; }
+.ui-canvas .control.selected { background: red; }
 
 
 .view-tile { display:flex; }

@@ -406,7 +406,8 @@ function uiTile(cur) {
 
 function control(cur, attrs, selected) {
     var id = cur[1];
-    var elem = {c: "control", id: id, left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6],
+    var selClass = selected ? " selected" : "";
+    var elem = {c: "control" + selClass, id: id, left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6],
                 control: cur, mousedown: addToSelection, selected: selected,
                 draggable: true, drag: moveSelection, dragstart: startMoveSelection};
     if(!attrs) return elem;
@@ -441,6 +442,31 @@ function boundElements(elems) {
   return bounds;
 }
 
+var resizeHandleSize = 7;
+function resizeHandle(bounds, y, x) {
+  var top, left;
+  var halfSize = Math.floor(resizeHandleSize / 2);
+  var height = bounds.bottom - bounds.top;
+  var width = bounds.right - bounds.left;
+  if(x === "left") {
+    left = 0 - halfSize - 1;
+  } else if(x === "right") {
+    left = width - halfSize - 2;
+  } else {
+    left = (width / 2) - halfSize;
+  }
+
+  if(y === "top") {
+    top = 0 - halfSize - 1;
+  } else if(y === "bottom") {
+    top = height - halfSize - 2;
+  } else {
+    top = (height / 2) - halfSize;
+  }
+  return {c: "resize-handle", y: y, x: x, top: top, left: left, width: resizeHandleSize, height: resizeHandleSize,
+          draggable: true, drag: resizeSelection, bounds: bounds};
+}
+
 function selection(sel, elementIds) {
   //get the things in the selection
   var elementIndex = ixer.index("uiComponentElement");
@@ -453,7 +479,14 @@ function selection(sel, elementIds) {
   return {c: "selection", top: bounds.top, left: bounds.left,
           width: bounds.right - bounds.left, height: bounds.bottom - bounds.top,
           children: [
-//             {c: "resize-handle", }
+            resizeHandle(bounds, "top", "left"),
+            resizeHandle(bounds, "top", "center"),
+            resizeHandle(bounds, "top", "right"),
+            resizeHandle(bounds, "middle", "right"),
+            resizeHandle(bounds, "bottom", "right"),
+            resizeHandle(bounds, "bottom", "center"),
+            resizeHandle(bounds, "bottom", "left"),
+            resizeHandle(bounds, "middle", "left")
           ]};
 }
 
@@ -493,6 +526,34 @@ function moveSelection(e, elem) {
 }
 
 function resizeSelection(e, elem) {
+  var x = Math.floor(e.clientX || __clientX);
+  var y = Math.floor(e.clientY || __clientY);
+  if(x === 0 && y === 0) return;
+  var canvasRect = e.currentTarget.parentNode.parentNode.getBoundingClientRect();
+  x -= Math.floor(canvasRect.left);
+  y -= Math.floor(canvasRect.top);
+  var old = elem.bounds;
+  var neueBounds = {left: old.left, right: old.right, top: old.top, bottom: old.bottom};
+  if(elem.x === "left") {
+    neueBounds.left = x;
+  } else if(elem.x === "right") {
+    neueBounds.right = x;
+  }
+  if(elem.y === "top") {
+    neueBounds.top = y;
+  } else if(elem.y === "bottom") {
+    neueBounds.bottom = y;
+  }
+  var neueWidth = neueBounds.right - neueBounds.left;
+  var neueHeight = neueBounds.bottom - neueBounds.top;
+  if(neueWidth < 10) { neueWidth = 10; }
+  if(neueHeight < 10) { neueHeight = 10; }
+  var widthRatio = neueWidth / (old.right - old.left);
+  var heightRatio = neueHeight / (old.bottom - old.top);
+
+  if(widthRatio !== 1 || heightRatio !== 1) {
+    dispatch("resizeSelection", {widthRatio: widthRatio, heightRatio: heightRatio, oldBounds: old, neueBounds: neueBounds});
+  }
 }
 
 
@@ -785,8 +846,28 @@ function dispatch(event, info) {
         neue[8] += diffY; //bottom
         diffs.push(["uiComponentElement", "inserted", neue]);
       });
-
-
+      break;
+    case "resizeSelection":
+      var sel = ixer.index("uiSelection")[client];
+      var els = ixer.index("uiSelectionElements")[sel[1]];
+      var elementIndex = ixer.index("uiComponentElement");
+      var ratioX = info.widthRatio;
+      var ratioY = info.heightRatio;
+      var oldBounds = info.oldBounds;
+      var neueBounds = info.neueBounds;
+      els.forEach(function(cur) {
+        var elem = elementIndex[cur[1]];
+        var neue = elem.slice();
+        neue[0] = txId;
+        //We first find out the relative position of the item in the selection
+        //then adjust by the given ratio and finall add the position of the selection
+        //back in to get the new absolute coordinates
+        neue[5] = ((neue[5] - oldBounds.left) * ratioX) + neueBounds.left; //left
+        neue[7] = ((neue[7] - oldBounds.right) * ratioX) + neueBounds.right; //right
+        neue[6] = ((neue[6] - oldBounds.top) * ratioY) + neueBounds.top; //top
+        neue[8] = ((neue[8] - oldBounds.bottom) * ratioY) + neueBounds.bottom; //bottom
+        diffs.push(["uiComponentElement", "inserted", neue]);
+      });
       break;
 
     case "updateAdderRow":
