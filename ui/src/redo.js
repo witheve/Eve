@@ -97,9 +97,7 @@ function toolbar() {
 // Stage
 //---------------------------------------------------------
 
-function stageScrollTop() {
-  return document.getElementsByClassName("stage-tiles-wrapper")[0].scrollTop;
-}
+function stageElement() { return document.getElementsByClassName("stage-tiles-wrapper")[0]; }
 
 function stage() {
   var rect = window.document.body.getBoundingClientRect();
@@ -113,7 +111,10 @@ function stage() {
     return gridTile(cur, tiles);
   });
   var outline = ixer.index("tileOutline")[client];
-  if(outline && !removed[outline[0]]) {
+  if(outline && removed[outline[0]]) {
+    outline = null;
+  }
+  if(outline) {
     drawnTiles.push(tileOutline(outline));
   }
   return {c: "stage", children: [{c: "stage-tiles-wrapper", scroll: onStageScroll, tiles: tiles,
@@ -143,9 +144,11 @@ function startTile(e, elem) {
   if(e.target !== e.currentTarget) return;
   clearDragImage(e);
   var x = e.clientX || __clientX;
-  var y = (e.clientY || __clientY) + stageScrollTop() - toolbarOffset;
+  var y = (e.clientY || __clientY) + stageElement().scrollTop - toolbarOffset;
   var pos = Grid.coordsToPos(grid, x, y, true);
-  dispatch("tileOutline", {outline: [null, client, pos[0], pos[1], 1, 1]});
+  if(!Grid.hasOverlap(elem.tiles, [null, null, null, null, pos[0], pos[1], 1, 1])) {
+    dispatch("tileOutline", {outline: [null, client, pos[0], pos[1], 1, 1]});
+  }
 }
 
 function layoutTile(e, elem) {
@@ -153,7 +156,7 @@ function layoutTile(e, elem) {
   var x = e.clientX || __clientX;
   var y = (e.clientY || __clientY)
   if(x === 0 && y === 0) return;
-  y = y + stageScrollTop() - toolbarOffset;
+  y = y + stageElement().scrollTop - toolbarOffset;
   var outline = elem.outline;
   var tiles = elem.tiles;
   var rect = Grid.getOutlineRect(grid, outline);
@@ -271,8 +274,8 @@ function resizeTile(e, elem) {
   var x = e.clientX || __clientX;
   var y = e.clientY || __clientY;
   if(x === 0 && y === 0) return;
-  x = x + document.getElementsByClassName("stage-tiles-wrapper")[0].scrollLeft;
-  y = y + document.getElementsByClassName("stage-tiles-wrapper")[0].scrollTop - toolbarOffset;
+  x = x + stageElement().scrollLeft;
+  y = y + stageElement().scrollTop - toolbarOffset;
   var tile = elem.tile;
   var tiles = elem.tiles;
   var rect = Grid.getRect(grid, tile);
@@ -379,15 +382,7 @@ function uiTile(cur) {
   var attrs = ixer.index("uiElementToAttrs");
   var els = elements.map(function(cur) {
     var id = cur[1];
-    var elem = {c: "control", left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6]};
-    var elemAttrs = attrs[id];
-    if(!elemAttrs) return elem;
-    for(var i = 0, len = elemAttrs.length; i < len; i++) {
-      var curAttr = elemAttrs[i];
-      var name = attrMappings[curAttr[2]] || curAttr[2];
-      elem[name] = curAttr[3];
-    }
-    return elem;
+    return control(cur, attrs[id]);
   });
   return {c: "tile ui-editor", children: [
     uiControls(tileId, layers[0]),
@@ -397,9 +392,72 @@ function uiTile(cur) {
   ]};
 }
 
+function control(cur, attrs) {
+    var id = cur[1];
+    var elem = {c: "control", left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6],
+                control: cur, mousedown: addToSelection};
+    if(!attrs) return elem;
+    for(var i = 0, len = attrs.length; i < len; i++) {
+      var curAttr = attrs[i];
+      var name = attrMappings[curAttr[2]] || curAttr[2];
+      elem[name] = curAttr[3];
+    }
+    return elem;
+}
+
+function boundElements(elems) {
+  var bounds = {top: Infinity, left: Infinity, bottom: 0, right: 0};
+  elems.forEach(function(cur) {
+    var left = cur[4]
+    var top = cur[5]
+    var right = cur[6]
+    var bottom = cur[7];
+    if(left < bounds.left) {
+      bounds.left = left;
+    }
+    if(top < bounds.top) {
+      bounds.top = top;
+    }
+    if(right > bounds.right) {
+      bounds.right = right;
+    }
+    if(bottom > bounds.bottom) {
+      bounds.bottom = bottom;
+    }
+  });
+  return bounds;
+}
+
+function selection(selection) {
+  //get the things in the selection
+  var elements;
+  //get the bounding box of those
+  var bounds = boundElements(elements);
+  //draw a box around it
+  return {c: "selection", top: bounds.top, left: bounds.left,
+          width: bounds.right - bounds.left, height: bounds.bottom - bounds.top,
+          children: [
+//             {c: "resize-handle", }
+          ]};
+}
+
+function addToSelection(e, elem) {
+  if(!e.shiftKey) {
+    console.log("create new selection");
+  }
+  console.log("add this to selection", elem.control)
+}
+
+function moveSelection(e, elem) {
+}
+
+function resizeSelection(e, elem) {
+}
+
+
 function addControl(e, elem) {
   dispatch("addUiComponentElement", {component: elem.component,
-                                     layer: elem.layer,
+                                     layer: elem.layer[1],
                                      control: elem.control,
                                      left: elem.left || 100,
                                      right: elem.right || 200,
