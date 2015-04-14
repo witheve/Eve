@@ -1,7 +1,7 @@
 use std;
 use std::iter::IntoIterator;
 
-use value::{Value, ToValue, Tuple, Relation};
+use value::{Value, Tuple, Relation};
 use interpreter;
 use interpreter::{EveFn,ToExpression};
 
@@ -22,54 +22,6 @@ pub enum Ref {
     Tuple{clause: usize},
     Relation{clause: usize},
     Call{clause: usize},
-}
-
-pub trait ToRef { 
-    fn to_constref(self) -> Ref; 
-    fn to_callref(self) -> Ref;
-    fn to_valref(self) -> Ref;
-}
-
-impl ToRef for f64 { 
-    fn to_constref(self) -> Ref { Ref::Constant{value: self.to_value() } }
-    fn to_callref(self) -> Ref { panic!("Cannot convert f64 to CallRef"); } 
-    fn to_valref(self) -> Ref { panic!("Cannot convert f64 to ValRef"); } 
-}
-
-impl<'a> ToRef for &'a str {
-    fn to_constref(self) -> Ref { Ref::Constant{value: self.to_value() } }
-    fn to_callref(self) -> Ref { panic!("Cannot convert &str to CallRef"); } 
-    fn to_valref(self) -> Ref { panic!("Cannot convert &str to ValRef"); } 
-}
-
-impl ToRef for i32 { 
-    fn to_constref(self) -> Ref { Ref::Constant{value: self.to_value() } }
-    fn to_callref(self) -> Ref { Ref::Call{clause: self as usize } }
-    fn to_valref(self) -> Ref { panic!("Cannot convert i32 to ValRef"); }
-}
-
-impl ToRef for (i32,i32) {
-    fn to_constref(self) -> Ref { panic!("Cannot convert (i32,i32) to ConstRef"); }
-    fn to_callref(self) -> Ref { panic!("Cannot convert (i32,i32) to CallRef"); }
-    fn to_valref(self) -> Ref { match self { (a,b) => Ref::Value{clause: a as usize, column: b as usize}, } } 
-}
-
-impl ToRef for (usize,usize) {
-    fn to_constref(self) -> Ref { panic!("Cannot convert (usize,usize) to ConstRef"); }
-    fn to_callref(self) -> Ref { panic!("Cannot convert (usize,usize) to CallRef"); }
-    fn to_valref(self) -> Ref { match self { (a,b) => Ref::Value{clause: a, column: b}, } } 
-}
-
-
-impl ToRef for Value {
-    fn to_constref(self) -> Ref { 
-        match self {
-            Value::Float(_) => Ref::Constant{value: self},
-            _ => panic!("Cannot convert Value to ConstRef"),
-        }
-    }
-    fn to_callref(self) -> Ref { panic!("Cannot convert Value to CallRef"); }
-    fn to_valref(self) -> Ref { panic!("Cannot convert Value to ValRef"); }
 }
 
 impl Ref {
@@ -105,8 +57,9 @@ impl Ref {
                 let value = &result[clause];
                 match *value {
                     Value::Float(..) => value,
-                    Value::String(..) => value,
-                    _ => panic!("Expected a value"),
+                    Value::String(..) => value, 
+                    Value::Tuple(..) => value,
+                    _ => panic!("Expected a value: {:?}",value),
                 }
             },
         }
@@ -185,9 +138,10 @@ impl Call {
         for arg in args {
             eargs.push(arg.to_expr());
         }
-        let c4 = interpreter::build_call(self.fun.clone(),eargs);
+        
+        let call = interpreter::Call{fun: self.fun.clone(), args: eargs};
 
-        interpreter::calculate(&c4.to_expr())
+        interpreter::calculate(&call.to_expr())
 
     }
 }
