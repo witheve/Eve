@@ -422,10 +422,7 @@ function control(cur, attrs, selected) {
 function boundElements(elems) {
   var bounds = {top: Infinity, left: Infinity, bottom: -Infinity, right: -Infinity};
   elems.forEach(function(cur) {
-    var left = cur[5]
-    var top = cur[6]
-    var right = cur[7]
-    var bottom = cur[8];
+    var left = cur[5], top = cur[6], right = cur[7], bottom = cur[8];
     if(left < bounds.left) {
       bounds.left = left;
     }
@@ -464,7 +461,7 @@ function resizeHandle(bounds, y, x) {
     top = (height / 2) - halfSize;
   }
   return {c: "resize-handle", y: y, x: x, top: top, left: left, width: resizeHandleSize, height: resizeHandleSize,
-          draggable: true, drag: resizeSelection, bounds: bounds};
+          draggable: true, drag: resizeSelection, bounds: bounds, dragstart: clearDragImage};
 }
 
 function selection(sel, elementIds) {
