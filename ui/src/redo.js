@@ -381,6 +381,7 @@ function uiTile(cur) {
   var elements = ixer.index("uiComponentToElements")[tileId] || [];
   var layers = ixer.index("uiComponentToLayers")[tileId];
   var layerLookup = ixer.index("uiComponentLayer");
+  var activeLayer = ixer.index("uiActiveLayer")[client] ? layerLookup[ixer.index("uiActiveLayer")[client][tileId]] : layers[0];
   var attrs = ixer.index("uiElementToAttrs");
   var sel = getUiSelection(tileId);
   var selectedElements = [];
@@ -398,9 +399,9 @@ function uiTile(cur) {
     els.push(selection(sel, selectedElements));
   }
   return {c: "tile ui-editor", mousedown: clearSelection, component: tileId, children: [
-    uiControls(tileId, layers[0]),
+    uiControls(tileId, activeLayer),
     {c: "ui-canvas", children: els},
-    {c: "inspector", children: [layersControl(layers)]},
+    {c: "inspector", children: [layersControl(tileId, layers, activeLayer)]},
 //     uiGrid({width: 1000, height: 300}),
   ]};
 }
@@ -412,6 +413,7 @@ function getUiSelection(component) {
   }
   return false;
 }
+
 
 function clearSelection(e, elem) {
   dispatch("clearSelection", {component: elem.component});
@@ -597,19 +599,29 @@ function uiControls(component, activeLayer) {
   return {c: "controls", children: items};
 }
 
-function layersControl(layers) {
+function layersControl(componentId, layers, activeLayer) {
   var layerElems = layers.map(function(cur) {
     var hidden = cur[5];
     var locked = cur[4];
     var name = code.name(cur[1]);
-    return {c: "layer", children: [
+    var active = activeLayer === cur ? " active" : "";
+    return {c: "layer" + active, click: activateLayer, layer: cur, children: [
       {c: "ion-drag"},
       input(name, cur[1], rename),
       {c: hidden ? "ion-eye-disabled" : "ion-eye", click: toggleHidden, layer: cur},
       {c: locked ? "ion-locked" : "ion-unlocked", click: toggleLocked, layer: cur}
     ]};
   });
+  layerElems.push({c: "add-layer ion-plus", component: componentId, click: addLayer});
   return {c: "layers", children: layerElems};
+}
+
+function addLayer(e, elem) {
+  dispatch("addUiComponentLayer", {component: elem.component});
+}
+
+function activateLayer(e, elem) {
+  dispatch("activateUiLayer", {layer: elem.layer[1], component: elem.layer[2]});
 }
 
 function toggleHidden(e, elem) {
@@ -846,10 +858,19 @@ function dispatch(event, info) {
       diffs.push(["uiComponentElement", "inserted", neue]);
       break;
     case "addUiComponentLayer":
+      var layers = ixer.index("uiComponentToLayers")[info.component];
+      var layerIx = 0;
+      if(layers) {
+        layerIx = layers.length;
+      }
       var id = uuid();
-      var neue = [txId, id, info.component, info.layer, false, false];
+      var neue = [txId, id, info.component, layerIx, false, false];
       diffs.push(["uiComponentLayer", "inserted", neue],
-                 ["displayName", "inserted", [txId, id, "Layer " + info.layer]]);
+                 ["displayName", "inserted", [txId, id, "Layer " + layerIx]]);
+      console.log(diffs);
+      break;
+    case "activateUiLayer":
+      diffs.push(["uiActiveLayer", "inserted", [txId, info.component, client, info.layer]])
       break;
     case "updateUiLayer":
       var neue = info.neue;
@@ -875,6 +896,11 @@ function dispatch(event, info) {
       info.elements.forEach(function(cur) {
         diffs.push(["uiSelectionElement", "inserted", [id, cur]]);
       });
+      var first = ixer.index("uiComponentElement")[info.elements[0]];
+      var activeLayer = ixer.index("uiActiveLayer")[client][info.component];
+      if(first[3] !== activeLayer) {
+        diffs.push(["uiActiveLayer", "inserted", [txId, info.component, client, first[3]]])
+      }
       break;
     case "moveSelection":
       var sel = ixer.index("uiSelection")[client][info.component];
@@ -1254,7 +1280,7 @@ function initIndexer() {
     code.diffs.addView("uiComponentAttribute", {tx: "number", id: "string", property: "string", value: "string", isBinding: "boolean"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
   ixer.handleDiffs(code.diffs.addView("uiSelection", {tx: "number", id: "id", client: "string", component: "id"}, [], "uiSelection", ["table"]));
   ixer.handleDiffs(code.diffs.addView("uiSelectionElement", {id: "id", element: "id"}, [], "uiSelectionElement", ["table"]));
-  ixer.handleDiffs(code.diffs.addView("uiActiveLayer", {tx: "number", component: "id",  client: "id", layer: "id"}, [], "uiActiveLayer", ["table"]));
+  ixer.handleDiffs(code.diffs.addView("uiActiveLayer", {tx: "number", component: "id", client: "id", layer: "id"}, [], "uiActiveLayer", ["table"]));
 
   var firstLayerId = uuid();
   ixer.handleDiffs([["uiComponentLayer", "inserted", [0, firstLayerId, uiViewId, 0, false, false]],
