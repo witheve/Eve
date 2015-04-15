@@ -11,6 +11,13 @@ div[contenteditable] { display:inline-block; }
 
 .lifted { position: absolute; top: -20px; -webkit-user-select: initial; }
 
+.dropdown { overflow-y: auto; overflow-x: hidden; }
+.dropdown > .dropdown-item { padding: 0.2em; }
+
+.searcher { flex-direction: column; }
+.searcher > .searcher-input { height: 1.5rem; flex: 0 0 auto; }
+.searcher > .searcher-results { flex: 1; }
+
 /*-----------------------------------------------------------------------------
 - table
 -----------------------------------------------------------------------------*/
@@ -69,6 +76,15 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 
 .view-tile { display:flex; }
 .view-source-code { flex-direction: column; }
+.view-source-code > .step { flex: 0 0 auto; }
+.view-source-code > .view-query-builder { flex: 0 0 auto; }
+.view-source-code > .searcher { flex: 1; }
+
+.token { display: inline-block; margin: 0.2em; white-space: nowrap; }
+.token.editable { border-bottom: 1px solid rgba(0, 192, 255, 0.5); }
+.token.editable:hover { border-bottom: 1px solid rgba(16, 208, 255, 0.8); box-shadow: 0 1px 2px -1px rgba(16, 208, 255, 0.8); }
+.token.editable:active { border-bottom: 1px solid rgba(16, 208, 255, 1); box-shadow: 0 2px 2px -1px rgba(16, 208, 255, 1); }
+
 
 .chooser-tile { display:flex; flex: 1; }
 .chooser-tile .option { flex: 1; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:2px; padding:0 15px; }

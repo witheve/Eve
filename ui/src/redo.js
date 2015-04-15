@@ -216,10 +216,12 @@ function input(value, key, oninput, onsubmit) {
   if(onsubmit) {
     blur = function inputBlur(e, elem) {
       onsubmit(e, elem, "blurred");
+      e.preventDefault();
     }
     keydown = function inputKeyDown(e, elem) {
       if(e.keyCode === KEYS.ENTER) {
         onsubmit(e, elem, "enter");
+        e.preventDefault();
       }
     }
   }
@@ -628,6 +630,74 @@ function uiGrid(size) {
 }
 
 //---------------------------------------------------------
+// View List
+//---------------------------------------------------------
+
+// The filter parameter is an optional callback that can narrow views by type, tag, or what have you.
+function search(ids, needle) { // (Id[], String) -> Id[]
+  if(!ids) { throw new Error("Must provide an array of named ids to search."); }
+  var displayName = ixer.index("displayName");
+  var matches = [];
+
+  for(var ix = 0, len = ids.length; ix < len; ix++) {
+    var cur = ids[ix];
+    if(!needle || displayName[cur].indexOf(needle) !== -1) {
+      matches.push(cur);
+    }
+  }
+
+  return matches;
+}
+
+function searcher(id, ids, opts, onClose) { // (Id, Id[], Any?, Fn((Id) -> Boolean)?, Fn((Id) -> undefined)) -> undefined
+  if(!onClose) { onClose = opts; opts = undefined; }
+  if(!onClose) { throw new Error("Must provide a callback for onClose."); }
+  opts = opts || {};
+
+  var needle = ixer.index("searchValue")[id]; // Load from ixer.
+  var matches = search(ids, needle);
+  var results = matches.map(function(cur, ix) {
+    if(opts.limit && ix > opts.limit) { return; }
+    return searcherResult(cur, opts, onClose);
+  })
+  .filter(Boolean);
+
+  var searchInput = input(
+    needle, id + "-input",
+    function onInput(evt, el) {
+      dispatch("updateSearchValue", {id: id, value: evt.target.innerHTML});
+    },
+    function onSubmit(evt, el) {
+      var matches = search(ids, needle);
+      if(!matches.length) { return; }
+      dispatch("updateSearchValue", {id: id, value: ""});
+      onClose(matches[0]);
+    });
+  searchInput.c = "searcher-input";
+  return {c: "searcher", children: [
+    searchInput,
+    {t: "ul", c: "dropdown searcher-results", children: results}
+  ]};
+}
+
+function searcherResult(id, opts, onClose) {
+  return {t: "li", c: "dropdown-item search-result",
+          text: ixer.index("displayName")[id] || "Untitled",
+          viewId: id,
+          click: function(evt, el) {
+            onClose(el.viewId);
+          }};
+}
+
+function viewList(id, onClose) {
+  var views = ixer.facts("view").map(function(cur) {
+    return cur[0];
+  });
+
+  return searcher(id, views, {limit: 25}, onClose);
+}
+
+//---------------------------------------------------------
 // Expression
 //---------------------------------------------------------
 
@@ -645,11 +715,9 @@ function viewTile(cur) {
   return {c: "tile view-tile", children: [
     {t: "pre", c: "lifted", text: JSON.stringify(view)},
     viewCode(view, sources),
-    // Add Source btn
-    {t: "button", c: "add-source-btn btn", text: "Add Source", click: function() {
-      console.log("clicked", arguments);
-    }},
-    viewResults(sources, results)
+
+    viewResults(sources, results),
+
   ]};
 }
 
@@ -659,15 +727,32 @@ function viewCode(view, sources) {
     if(data[0] === "view") {
       return {c: "step", children: [
         {children: [
-          {text: "with "},
+          {t: "span", c: "token", text: "with "},
           viewToken("each row"),
-          {text: " of "},
-          {text: code.name(data[1])}
+          {t: "span", c: "token", text: " of "},
+          {t: "span", c: "token", text: code.name(data[1])}
         ]}
       ]};
     }
     return {text: "calculate"};
   });
+
+  // Add Source btn
+  sourceElems.push({c: "view-query-builder", children: [
+    {t: "button", c: "add-source-btn btn", text: "Add Step", click: function() {
+      console.log("clicked", arguments);
+    }},
+    {t: "button", c: "add-calculation-btn btn", text: "Calculate", click: function() {
+      console.log("clicked", arguments);
+    }}
+  ]});
+  sourceElems.push(
+    viewList(view + "-searcher", function addSource(sourceId) {
+      // Bail if no view was selected.
+      if(!sourceId) { return; }
+      dispatch("addViewSource", {view: view, source: sourceId});
+    }));
+
   return {c: "view-source-code", children: sourceElems};
 }
 
@@ -725,7 +810,7 @@ function viewResults(sources, results) {
 }
 
 function viewToken(cur) {
-  return {c: "token", text: cur};
+  return {t: "span", c: "token editable", text: cur};
 }
 
 //---------------------------------------------------------
@@ -916,10 +1001,12 @@ function dispatch(event, info) {
       var sourceId = uuid();
       var view = ixer.index("view")[viewId];
       var nextIx = (ixer.index("viewToSources")[viewId] || []).length;
-      console.log(viewId, info.source, sourceId);
       diffs = code.diffs.autoJoins(viewId, info.source, sourceId);
-      diffs.push(["field", "inserted", view[1], nextIx, sourceId, "tuple"]);
+      diffs.push(["field", "inserted", [view[1], nextIx, sourceId, "tuple"]]);
       diffs.push(["source", "inserted", [viewId, nextIx, sourceId, ["view", info.source], "get-tuple"]]);
+      break;
+    case "updateSearchValue":
+      diffs = [["searchValue", "inserted", [{"eid": "auto"}, info.id, info.value]]];
       break;
     default:
       console.error("Dispatch for unknown event: ", event, info);
@@ -1147,6 +1234,8 @@ ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
 ixer.addIndex("viewTile", "viewTile", Indexing.create.lookup([0, false]));
 ixer.addIndex("tileOutline", "tileOutline", Indexing.create.latestLookup({keys: [1, false]}));
 
+// State
+ixer.addIndex("searchValue", "searchValue", Indexing.create.latestLookup({keys: [1, 2]}));
 
 
 function initIndexer() {
@@ -1172,6 +1261,9 @@ function initIndexer() {
 
   ixer.handleDiffs(code.diffs.addView("adderRow", {tx: "id", id: "id", table: "id", row: "tuple"}, undefined, "adderRow", ["table"]));
   ixer.handleDiffs(code.diffs.addView("tileOutline", {tx: "id", client: "id", x: "number", y: "number", w: "number", h: "number"}, undefined, "tileOutline", ["table"]));
+
+  ixer.handleDiffs(
+    code.diffs.addView("searchValue", {tx: "number", id: "id", value: "string"}, [], "searchValue", ["table"]));
 
   ixer.handleDiffs(code.diffs.addView("zomg", {
     a: "string",
@@ -1284,7 +1376,7 @@ function sendToServer(message) {
     server.queue.push(message);
   } else {
     if(!Indexing.arraysIdentical(server.lastSent, message)) {
-//       console.log("sending", message);
+//     console.log("sending", message);
       server.lastSent = message;
       server.ws.send(JSON.stringify(toMapDiffs(message)));
     }
