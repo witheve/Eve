@@ -12,7 +12,7 @@ use core::num::ToPrimitive;
 
 fn main() {
 
-	
+
 	let c1 = Call{fun: EveFn::StrSplit, args: exprvec!["Hello World"]};
 	let result = calculate(&c1.to_expr());
 

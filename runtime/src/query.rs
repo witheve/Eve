@@ -57,7 +57,7 @@ impl Ref {
                 let value = &result[clause];
                 match *value {
                     Value::Float(..) => value,
-                    Value::String(..) => value, 
+                    Value::String(..) => value,
                     Value::Tuple(..) => value,
                     _ => panic!("Expected a value: {:?}",value),
                 }
@@ -102,7 +102,7 @@ pub struct Source {
 
 impl Source {
     fn constrained_to(&self, inputs: &Vec<&Relation>, result: &Vec<Value>) -> Relation {
-   
+
         let prepared: Vec<&Value> = self.constraints.iter()
                                                     .map(|constraint| constraint.prepare(result))
                                                     .collect();
@@ -110,7 +110,7 @@ impl Source {
         input.iter().filter(|row| self.constraints
                                       .iter()
                                       .zip(prepared.iter())
-                                      .all(|(constraint, value)| constraint.test(row, value) ) ) 
+                                      .all(|(constraint, value)| constraint.test(row, value) ) )
                     .map(|row| row.clone())
                     .collect()
     }
@@ -138,7 +138,7 @@ impl Call {
         for arg in args {
             eargs.push(arg.to_expr());
         }
-        
+
         let call = interpreter::Call{fun: self.fun.clone(), args: eargs};
 
         interpreter::calculate(&call.to_expr())
@@ -175,7 +175,7 @@ impl Clause {
 
 pub trait ToClause { fn to_clause(self) -> Clause; }
 
-impl ToClause for Clause { fn to_clause(self) -> Clause { self } } 
+impl ToClause for Clause { fn to_clause(self) -> Clause { self } }
 impl ToClause for Call { fn to_clause(self) -> Clause { Clause::Call(self) } }
 
 // Macro for creating clause vectors
