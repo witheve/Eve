@@ -8,31 +8,6 @@ use std::collections::{HashMap, BitSet};
 use std::cell::{RefCell, RefMut};
 use std::num::ToPrimitive;
 
-#[derive(Clone, Debug)]
-pub struct World {
-    pub views: HashMap<Id, RefCell<Relation>>,
-}
-
-impl World {
-    pub fn get_or_create<Id: ToString>(&mut self, id: Id) -> &mut RefCell<Relation> {
-        self.views.entry(id.to_string()).or_insert_with(|| RefCell::new(Index::new()))
-    }
-
-    pub fn change(&mut self, changes: Changes) {
-        for (view_id, changes) in changes.into_iter() {
-            self.get_or_create(&view_id).borrow_mut().change(changes)
-        }
-    }
-
-    fn view<Id: ToString>(&self, id: Id) -> ::std::cell::Ref<Relation> {
-        self.views.get(&id.to_string()).expect(&id.to_string()).borrow()
-    }
-
-    fn view_mut<Id: ToString>(&self, id: Id) -> RefMut<Relation> {
-        self.views.get(&id.to_string()).expect(&id.to_string()).borrow_mut()
-    }
-}
-
 impl Index<Tuple> {
     pub fn find_all(&self, ix: usize, value: &Value) -> Vec<&Tuple> {
         self.iter().filter(|t| &t[ix] == value).collect()
@@ -99,16 +74,22 @@ static UPSTREAM_DOWNSTREAM: usize = 0;
 static UPSTREAM_IX: usize = 1;
 static UPSTREAM_UPSTREAM: usize = 2;
 
-fn create_upstream(world: &mut World) {
-    let mut upstream = world.view_mut("upstream");
-    for view in world.view("view").iter() {
+struct Compiler {
+    flow: Flow,
+    upstream: Relation,
+    schedule: Relation,
+}
+
+fn create_upstream(flow: &Flow) -> Relation {
+    let mut upstream = Index::new();
+    for view in flow.get_state("view").iter() {
         let downstream_id = &view[VIEW_ID];
         let kind = &view[VIEW_KIND];
         let mut ix = 0.0;
         match &*kind.to_string() {
             "input" => (),
             "query" => {
-                for source in world.view("source").find_all(SOURCE_VIEW, downstream_id) {
+                for source in flow.get_state("source").find_all(SOURCE_VIEW, downstream_id) {
                     let data = &source[SOURCE_DATA];
                     if &*data[0].to_string() == "view"  {
                         let upstream_id = &data[1];
@@ -118,7 +99,7 @@ fn create_upstream(world: &mut World) {
                 }
             }
             "union" => {
-                for view_mapping in world.view("view-mapping").find_all(VIEWMAPPING_SINKVIEW, downstream_id) {
+                for view_mapping in flow.get_state("view-mapping").find_all(VIEWMAPPING_SINKVIEW, downstream_id) {
                     let upstream_id = &view_mapping[VIEWMAPPING_SOURCEVIEW];
                     upstream.insert((downstream_id.clone(), ix, upstream_id.clone()).to_tuple());
                     ix += 1.0;
@@ -127,43 +108,45 @@ fn create_upstream(world: &mut World) {
             other => panic!("Unknown view kind: {}", other)
         }
     }
+    upstream
 }
 
-fn create_schedule(world: &mut World) {
+fn create_schedule(flow: &Flow) -> Relation {
     // TODO actually schedule sensibly
     // TODO warn about cycles through aggregates
-    let mut schedule = world.view_mut("schedule");
+    let mut schedule = Index::new();
     let mut ix = 0.0;
-    for view in world.view("view").iter() {
+    for view in flow.get_state("view").iter() {
         let view_id = &view[VIEW_ID];
         schedule.insert((ix, view_id.clone()).to_tuple());
         ix += 1.0;
     }
+    schedule
 }
 
-fn get_view_ix(world: &World, view_id: &Value) -> usize {
-    let schedule = world.view("schedule").find_one(SCHEDULE_VIEW, view_id).clone();
+fn get_view_ix(compiler: &Compiler, view_id: &Value) -> usize {
+    let schedule = compiler.schedule.find_one(SCHEDULE_VIEW, view_id).clone();
     schedule[SCHEDULE_IX].to_usize().unwrap()
 }
 
-fn get_source_ix(world: &World, source_id: &Value) -> usize {
-    let source = world.view("source").find_one(SOURCE_ID, source_id).clone();
+fn get_source_ix(compiler: &Compiler, source_id: &Value) -> usize {
+    let source = compiler.flow.get_state("source").find_one(SOURCE_ID, source_id).clone();
     source[SOURCE_IX].to_usize().unwrap()
 }
 
-fn get_field_ix(world: &World, field_id: &Value) -> usize {
-    let field = world.view("field").find_one(FIELD_ID, field_id).clone();
+fn get_field_ix(compiler: &Compiler, field_id: &Value) -> usize {
+    let field = compiler.flow.get_state("field").find_one(FIELD_ID, field_id).clone();
     field[FIELD_IX].to_usize().unwrap()
 }
 
-fn get_num_fields(world: &World, view_id: &Value) -> usize {
-    let view = world.view("view").find_one(VIEW_ID, view_id).clone();
+fn get_num_fields(compiler: &Compiler, view_id: &Value) -> usize {
+    let view = compiler.flow.get_state("view").find_one(VIEW_ID, view_id).clone();
     let schema_id = &view[VIEW_SCHEMA];
-    world.view("field").find_all(FIELD_SCHEMA, schema_id).len()
+    compiler.flow.get_state("field").find_all(FIELD_SCHEMA, schema_id).len()
 }
 
-fn create_constraint(world: &World, constraint: &Vec<Value>) -> Constraint {
-    let my_column = get_field_ix(world, &constraint[CONSTRAINT_LEFT][2]);
+fn create_constraint(compiler: &Compiler, constraint: &Vec<Value>) -> Constraint {
+    let my_column = get_field_ix(compiler, &constraint[CONSTRAINT_LEFT][2]);
     let op = match &*constraint[CONSTRAINT_OP].to_string() {
           "<" => ConstraintOp::LT,
           "<=" => ConstraintOp::LTE,
@@ -178,8 +161,8 @@ fn create_constraint(world: &World, constraint: &Vec<Value>) -> Constraint {
         "column" => {
             let other_source_id = &constraint_right[1];
             let other_field_id = &constraint_right[2];
-            let other_source_ix = get_source_ix(world, other_source_id);
-            let other_field_ix = get_field_ix(world, other_field_id);
+            let other_source_ix = get_source_ix(compiler, other_source_id);
+            let other_field_ix = get_field_ix(compiler, other_field_id);
             Ref::Value{
                 clause: other_source_ix,
                 column: other_field_ix,
@@ -200,22 +183,21 @@ fn create_constraint(world: &World, constraint: &Vec<Value>) -> Constraint {
     }
 }
 
-fn create_clause(world: &World, source: &Vec<Value>) -> Clause {
+fn create_clause(compiler: &Compiler, source: &Vec<Value>) -> Clause {
     let source_id = &source[SOURCE_ID];
     let source_view_id = &source[SOURCE_VIEW];
     let source_data = &source[SOURCE_DATA];
     if source_data[0].to_string() == "view" {
         let other_view_id = &source_data[1];
-        let upstreams = world.view("upstream");
-        let upstream = upstreams.iter().filter(|upstream| {
+        let upstream = compiler.upstream.iter().filter(|upstream| {
             (upstream[UPSTREAM_DOWNSTREAM] == *source_view_id) &&
             (upstream[UPSTREAM_UPSTREAM] == *other_view_id)
         }).next().unwrap();
         let other_view_ix = &upstream[UPSTREAM_IX];
-        let constraints = world.view("constraint").iter().filter(|constraint| {
+        let constraints = compiler.flow.get_state("constraint").iter().filter(|constraint| {
             constraint[CONSTRAINT_LEFT][1] == *source_id
         }).map(|constraint| {
-            create_constraint(world, constraint)
+            create_constraint(compiler, constraint)
         }).collect::<Vec<_>>();
         match &*source[SOURCE_ACTION].to_string() {
             "get-tuple" => {
@@ -234,7 +216,7 @@ fn create_clause(world: &World, source: &Vec<Value>) -> Clause {
         }
     } else if source_data[0].to_string() == "call"  {
 
-        Clause::Call(create_call(world,&source_data[CALL_FUN],&source_data[CALL_ARGS]))
+        Clause::Call(create_call(compiler,&source_data[CALL_FUN],&source_data[CALL_ARGS]))
 
     } else if source_data[0].to_string() == "column" {
 
@@ -247,7 +229,7 @@ fn create_clause(world: &World, source: &Vec<Value>) -> Clause {
 
 }
 
-fn create_call(world: &World, uifun: &Value, uiargvec: &Value) -> Call {
+fn create_call(compiler: &Compiler, uifun: &Value, uiargvec: &Value) -> Call {
 
     // Match the uiop with an EveFn...
     // TODO Do some type checking here?
@@ -275,8 +257,8 @@ fn create_call(world: &World, uifun: &Value, uiargvec: &Value) -> Call {
                 assert_eq!(argt.len(),3 as usize);
                 let other_source_id = &argt[1];
                 let other_field_id = &argt[2];
-                let other_source_ix = get_source_ix(world, other_source_id);
-                let other_field_ix = get_field_ix(world, other_field_id);
+                let other_source_ix = get_source_ix(compiler, other_source_id);
+                let other_field_ix = get_field_ix(compiler, other_field_id);
 
                 argvec.push( Ref::Value{ clause: other_source_ix, column: other_field_ix } );
             },
@@ -293,52 +275,52 @@ fn create_call(world: &World, uifun: &Value, uiargvec: &Value) -> Call {
     }
 }
 
-fn create_query(world: &World, view_id: &Value) -> Query {
+fn create_query(compiler: &Compiler, view_id: &Value) -> Query {
     // arrives in ix order
-    let clauses = world.view("source")
+    let clauses = compiler.flow.get_state("source")
                        .find_all(SOURCE_VIEW, view_id)
                        .iter()
-                       .map(|source| create_clause(world, source))
+                       .map(|source| create_clause(compiler, source))
                        .collect();
     Query{clauses: clauses}
 }
 
-fn create_union(world: &World, view_id: &Value) -> Union {
-    let num_sink_fields = get_num_fields(world, view_id);
+fn create_union(compiler: &Compiler, view_id: &Value) -> Union {
+    let num_sink_fields = get_num_fields(compiler, view_id);
     let mut view_mappings = Vec::new();
-    for upstream in world.view("upstream").find_all(UPSTREAM_DOWNSTREAM, view_id) { // arrives in ix order
+    for upstream in compiler.upstream.find_all(UPSTREAM_DOWNSTREAM, view_id) { // arrives in ix order
         let source_view_id = &upstream[UPSTREAM_UPSTREAM];
-        let view_mapping = world.view("view-mapping").find_one(VIEWMAPPING_SOURCEVIEW, source_view_id).clone();
+        let view_mapping = compiler.flow.get_state("view-mapping").find_one(VIEWMAPPING_SOURCEVIEW, source_view_id).clone();
         let view_mapping_id = &view_mapping[VIEWMAPPING_ID];
         let invalid = ::std::usize::MAX;
         let mut field_mappings = vec![(invalid, invalid); num_sink_fields];
-        for field_mapping in world.view("field-mapping").find_all(FIELDMAPPING_VIEWMAPPING, &view_mapping_id) {
+        for field_mapping in compiler.flow.get_state("field-mapping").find_all(FIELDMAPPING_VIEWMAPPING, &view_mapping_id) {
             let source_field_id = &field_mapping[FIELDMAPPING_SOURCEFIELD];
-            let source_field_ix = get_field_ix(world, source_field_id);
+            let source_field_ix = get_field_ix(compiler, source_field_id);
             let source_column_id = &field_mapping[FIELDMAPPING_SOURCECOLUMN];
-            let source_column_ix = get_field_ix(world, source_column_id);
+            let source_column_ix = get_field_ix(compiler, source_column_id);
             let sink_field_id = &field_mapping[FIELDMAPPING_SINKFIELD];
-            let sink_field_ix = get_field_ix(world, sink_field_id);
+            let sink_field_ix = get_field_ix(compiler, sink_field_id);
             field_mappings[sink_field_ix] = (source_field_ix, source_column_ix);
         }
-        let num_source_fields = get_num_fields(world, source_view_id);
+        let num_source_fields = get_num_fields(compiler, source_view_id);
         view_mappings.push((num_source_fields, field_mappings));
     }
     Union{mappings: view_mappings}
 }
 
-fn create_node(world: &World, view_id: &Value, view_kind: &Value) -> Node {
+fn create_node(compiler: &Compiler, view_id: &Value, view_kind: &Value) -> Node {
     let view = match &*view_kind.to_string() {
         "input" => View::Input,
-        "query" => View::Query(create_query(world, view_id)),
-        "union" => View::Union(create_union(world, view_id)),
+        "query" => View::Query(create_query(compiler, view_id)),
+        "union" => View::Union(create_union(compiler, view_id)),
         other => panic!("Unknown view kind: {}", other)
     };
-    let upstream = world.view("upstream").find_all(UPSTREAM_DOWNSTREAM, view_id).iter().map(|upstream| {
-        get_view_ix(world, &upstream[UPSTREAM_UPSTREAM])
+    let upstream = compiler.upstream.find_all(UPSTREAM_DOWNSTREAM, view_id).iter().map(|upstream| {
+        get_view_ix(compiler, &upstream[UPSTREAM_UPSTREAM])
     }).collect(); // arrives in ix order so it will match the arg order selected by create_query/union
-    let downstream = world.view("upstream").find_all(UPSTREAM_UPSTREAM, view_id).iter().map(|upstream| {
-        get_view_ix(world, &upstream[UPSTREAM_DOWNSTREAM])
+    let downstream = compiler.upstream.find_all(UPSTREAM_UPSTREAM, view_id).iter().map(|upstream| {
+        get_view_ix(compiler, &upstream[UPSTREAM_DOWNSTREAM])
     }).collect();
     Node{
         id: view_id.to_string(),
@@ -348,24 +330,27 @@ fn create_node(world: &World, view_id: &Value, view_kind: &Value) -> Node {
     }
 }
 
-fn create_flow(world: &World) -> Flow {
+fn create_flow(compiler: &Compiler) -> Flow {
     let mut nodes = Vec::new();
     let mut dirty = BitSet::new();
     let mut states = Vec::new();
-    for (ix, schedule) in world.view("schedule").iter().enumerate() { // arrives in ix order
+    for (ix, schedule) in compiler.schedule.iter().enumerate() { // arrives in ix order
         let view_id = &schedule[SCHEDULE_VIEW];
-        let view = world.view("view").find_one(VIEW_ID, view_id).clone();
+        let view = compiler.flow.get_state("view").find_one(VIEW_ID, view_id).clone();
         let view_kind = &view[VIEW_KIND];
-        let node = create_node(world, view_id, view_kind);
-        match node.view {
-            View::Input => (),
-            _ => {dirty.insert(ix);},
-        }
-        states.push(world.views.get(&node.id).map_or_else(
-            || RefCell::new(Index::new()),
-            |r| r.clone()
-            ));
+        let node = create_node(compiler, view_id, view_kind);
+        let state = match &view_id.to_string()[..] {
+            "upstream" => RefCell::new(compiler.upstream.clone()),
+            "schedule" => RefCell::new(compiler.schedule.clone()),
+            _ => compiler.flow.get_ix(&node.id).map_or_else(
+                || RefCell::new(Index::new()),
+                |ix| compiler.flow.states[ix].clone()
+                )
+        };
+        let is_calculated = match node.view {View::Input => false, _ => true};
         nodes.push(node);
+        states.push(state);
+        if is_calculated { dirty.insert(ix); }
     }
     Flow{
         nodes: nodes,
@@ -374,11 +359,16 @@ fn create_flow(world: &World) -> Flow {
     }
 }
 
-pub fn compile(world: &mut World) -> Flow {
-    for view_id in COMPILER_VIEWS.iter() {
-        world.get_or_create(view_id);
+pub fn compile(mut flow: Flow) -> Flow {
+    for view in COMPILER_VIEWS.iter() {
+        flow.ensure_input_exists(view);
     }
-    create_upstream(world);
-    create_schedule(world);
-    create_flow(world)
+    let upstream = create_upstream(&flow);
+    let schedule = create_schedule(&flow);
+    let compiler = Compiler{
+        flow: flow,
+        upstream: upstream,
+        schedule: schedule,
+    };
+    create_flow(&compiler)
 }

@@ -3,7 +3,7 @@ use index;
 use index::Index;
 use query::Query;
 
-use std::cell::RefCell;
+use std::cell::{RefCell, Ref, RefMut};
 use std::collections::BitSet;
 
 #[derive(Clone, Debug)]
@@ -67,6 +67,51 @@ impl View {
 }
 
 impl Flow {
+    pub fn new() -> Flow {
+        Flow {
+            nodes: Vec::new(),
+            states: Vec::new(),
+            dirty: BitSet::new(),
+        }
+    }
+
+    pub fn get_ix(&self, id: &str) -> Option<usize> {
+        self.nodes.iter().position(|node| &node.id[..] == id)
+    }
+
+    pub fn get_state(&self, id: &str) -> Ref<Relation> {
+        self.states[self.get_ix(id).unwrap()].borrow()
+    }
+
+    pub fn get_state_mut(&self, id: &str) -> RefMut<Relation> {
+        self.states[self.get_ix(id).unwrap()].borrow_mut()
+    }
+
+    pub fn ensure_input_exists(&mut self, id: &str) {
+        match self.get_ix(id) {
+            Some(ix) => {
+                let node = &self.nodes[ix];
+                assert!(match node.view {View::Input => true, _ => false});
+            }
+            None => {
+                self.nodes.push(Node{
+                    id: id.to_string(),
+                    view: View::Input,
+                    upstream: vec![],
+                    downstream: vec![],
+                });
+                self.states.push(RefCell::new(Index::new()))
+            }
+        }
+    }
+
+    pub fn change(&mut self, changes: Changes) {
+        for (id, changes) in changes.into_iter() {
+            self.ensure_input_exists(&id);
+            self.get_state_mut(&id).change(changes);
+        }
+    }
+
     pub fn run(&mut self) {
         loop {
             match self.dirty.iter().next() {
@@ -98,7 +143,7 @@ impl Flow {
         let mut changes = Vec::new();
         for (after_ix, after_node) in after.nodes.iter().enumerate() {
             let id = &after_node.id;
-            match before.nodes.iter().position(|before_node| before_node.id == *id) {
+            match before.get_ix(id) {
                 Some(before_ix) => {
                     let after_state = after.states[after_ix].borrow();
                     let before_state = before.states[before_ix].borrow();
@@ -113,7 +158,7 @@ impl Flow {
         }
         for (before_ix, before_node) in before.nodes.iter().enumerate() {
             let id = &before_node.id;
-            match after.nodes.iter().position(|after_node| after_node.id == *id) {
+            match after.get_ix(id) {
                 Some(_) => (), // already handled above
                 None => {
                     let before_state = before.states[before_ix].borrow();

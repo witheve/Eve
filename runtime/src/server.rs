@@ -12,7 +12,7 @@ use rustc_serialize::json::{Json, ToJson};
 use value::{Value, Tuple};
 use index;
 use flow::{Changes, Flow};
-use compiler::{compile, World};
+use compiler::compile;
 
 trait FromJson {
     fn from_json(json: &Json, next_eid: &mut u64) -> Self;
@@ -99,15 +99,13 @@ impl FromJson for Event {
 }
 
 struct Instance {
-    input: World,
     flow: Flow,
     next_eid: u64,
 }
 
 impl Instance {
     pub fn run(&mut self) -> Changes {
-        let mut input_clone = self.input.clone();
-        let mut flow = compile(&mut input_clone);
+        let mut flow = compile(self.flow.clone());
         flow.run();
         let changes = flow.changes_since(&self.flow);
         self.flow = flow;
@@ -172,10 +170,8 @@ fn recv_batch(event_receiver: &mpsc::Receiver<ServerEvent>, server_events: &mut 
 }
 
 pub fn run() {
-    let empty_world = World{views: HashMap::new()};
-    let empty_flow = Flow{nodes: Vec::new(), states: Vec::new(), dirty: BitSet::new()};
+    let empty_flow = Flow::new();
     let mut instance = Instance{
-        input: empty_world,
         flow: empty_flow.clone(),
         next_eid: 0,
     };
@@ -190,7 +186,7 @@ pub fn run() {
                 let json = Json::from_str(&line).unwrap();
                 FromJson::from_json(&json, next_eid)
             };
-            instance.input.change(event.changes);
+            instance.flow.change(event.changes);
         }
         drop(events);
         instance.run();
@@ -227,7 +223,7 @@ pub fn run() {
                             };
                             events.write_all(input_text.as_bytes()).unwrap();
                             events.write_all("\n".as_bytes()).unwrap();
-                            instance.input.change(input_event.changes);
+                            instance.flow.change(input_event.changes);
                         })
                     }
                 }
