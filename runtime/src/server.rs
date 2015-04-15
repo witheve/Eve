@@ -3,7 +3,6 @@ use std::sync::mpsc;
 use websocket::{Server, Message, Sender, Receiver};
 use websocket::server::sender;
 use websocket::stream::WebSocketStream;
-use std::collections::{HashMap, BitSet};
 use std::io::prelude::*;
 use std::fs::OpenOptions;
 use std::num::ToPrimitive;

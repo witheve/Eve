@@ -1,11 +1,11 @@
-use value::{Id, Value, Tuple, Relation, ToTuple};
+use value::{Value, Tuple, Relation, ToTuple};
 use index::{Index};
 use query::{Ref, ConstraintOp, Constraint, Source, Clause, Query, Call};
 use interpreter::EveFn;
-use flow::{Changes, View, Union, Node, Flow};
+use flow::{View, Union, Node, Flow};
 
-use std::collections::{HashMap, BitSet};
-use std::cell::{RefCell, RefMut};
+use std::collections::{BitSet};
+use std::cell::{RefCell};
 use std::num::ToPrimitive;
 
 impl Index<Tuple> {
