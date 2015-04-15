@@ -404,8 +404,9 @@ function uiTile(cur) {
     return control(cur, attrs[id], selected, layerLookup[cur[3]]);
   });
   if(selectedElements.length) {
-    els.push(selection(sel, selectedElements),
-             uiGrid(componentId, activeLayer[3], {width: 1300, height: 800}));
+    els.push(selection(sel, selectedElements));
+    var tileRect = Grid.getRect(grid, cur);
+    els.push(uiGrid(componentId, activeLayer[3], {width: tileRect.width,  height: tileRect.height}));
   }
   return {c: "tile ui-editor", mousedown: clearSelection, componentId: componentId, children: [
     uiControls(componentId, activeLayer),
@@ -414,18 +415,9 @@ function uiTile(cur) {
   ]};
 }
 
-function getUiSelection(componentId) {
-  var sel = ixer.index("uiSelection")[client];
-  if(sel) {
-    return sel[componentId];
-  }
-  return false;
-}
-
-
-function clearSelection(e, elem) {
-  dispatch("clearSelection", {componentId: elem.componentId});
-}
+//---------------------------------------------------------
+// ui control
+//---------------------------------------------------------
 
 function control(cur, attrs, selected, layer) {
   var id = cur[1];
@@ -445,24 +437,91 @@ function control(cur, attrs, selected, layer) {
   return elem;
 }
 
-function boundElements(elems) {
-  var bounds = {top: Infinity, left: Infinity, bottom: -Infinity, right: -Infinity};
-  elems.forEach(function(cur) {
-    var left = cur[5], top = cur[6], right = cur[7], bottom = cur[8];
-    if(left < bounds.left) {
-      bounds.left = left;
-    }
-    if(top < bounds.top) {
-      bounds.top = top;
-    }
-    if(right > bounds.right) {
-      bounds.right = right;
-    }
-    if(bottom > bounds.bottom) {
-      bounds.bottom = bottom;
-    }
+function addControl(e, elem) {
+  dispatch("addUiComponentElement", {componentId: elem.componentId,
+                                     layerId: elem.layer[1],
+                                     control: elem.control,
+                                     left: elem.left || 100,
+                                     right: elem.right || 200,
+                                     top: elem.top || 100,
+                                     bottom: elem.bottom || 200})
+}
+
+function uiControls(componentId, activeLayer) {
+  var controls = ["text", "box", "button"];
+  var items = controls.map(function(cur) {
+    return {text: cur, click: addControl, control: cur, componentId: componentId, layer: activeLayer};
+  })
+  return {c: "controls", children: items};
+}
+
+//---------------------------------------------------------
+// ui grid
+//---------------------------------------------------------
+
+var uiGridSize = 10;
+function toGrid(size, value) {
+  return Math.round(value / size) * size;
+}
+
+function uiGrid(componentId, layerIndex, size) {
+  var id = componentId + "-grid";
+  return {c: "grid", id: id, t: "canvas", top: 0, left: 0, width: size.width, height: size.height, zIndex: layerIndex,
+         postRender: function(canvas) {
+           if(canvas._rendered) return;
+           var ctx = canvas.getContext("2d");
+           var ratio = canvasRatio(ctx);
+           console.time("drawGrid");
+           canvas.width = size.width * ratio;
+           canvas.height = size.height * ratio;
+           ctx.scale(ratio, ratio);
+           ctx.lineWidth = 1;
+           ctx.strokeStyle = "white";
+           for(var i = 0; i < 300; i++) {
+             if(i % uiGridSize === 0) {
+               ctx.globalAlpha = 0.3;
+             } else {
+               ctx.globalAlpha = 0.1;
+             }
+             ctx.beginPath();
+             ctx.moveTo(i * uiGridSize,0);
+             ctx.lineTo(i * uiGridSize,size.height * 2);
+             ctx.stroke();
+             ctx.beginPath();
+             ctx.moveTo(0, i * uiGridSize);
+             ctx.lineTo(size.width * 2, i * uiGridSize);
+             ctx.stroke();
+           }
+           canvas._rendered = true;
+           console.timeEnd("drawGrid");
+         }};
+}
+
+//---------------------------------------------------------
+// ui selection
+//---------------------------------------------------------
+
+function selection(sel, elementIds) {
+  //get the things in the selection
+  var elementIndex = ixer.index("uiComponentElement");
+  var elements = elementIds.map(function(cur) {
+    return elementIndex[cur];
   });
-  return bounds;
+  //get the bounding box of those
+  var bounds = boundElements(elements);
+  //draw a box around it
+  return {c: "selection", top: bounds.top, left: bounds.left,
+          width: bounds.right - bounds.left, height: bounds.bottom - bounds.top,
+          children: [
+            resizeHandle(sel[3], bounds, "top", "left"),
+            resizeHandle(sel[3], bounds, "top", "center"),
+            resizeHandle(sel[3], bounds, "top", "right"),
+            resizeHandle(sel[3], bounds, "middle", "right"),
+            resizeHandle(sel[3], bounds, "bottom", "right"),
+            resizeHandle(sel[3], bounds, "bottom", "center"),
+            resizeHandle(sel[3], bounds, "bottom", "left"),
+            resizeHandle(sel[3], bounds, "middle", "left")
+          ]};
 }
 
 var resizeHandleSize = 7;
@@ -490,27 +549,36 @@ function resizeHandle(componentId, bounds, y, x) {
           draggable: true, drag: resizeSelection, bounds: bounds, dragstart: clearDragImage, mousedown: stopPropagation};
 }
 
-function selection(sel, elementIds) {
-  //get the things in the selection
-  var elementIndex = ixer.index("uiComponentElement");
-  var elements = elementIds.map(function(cur) {
-    return elementIndex[cur];
+function getUiSelection(componentId) {
+  var sel = ixer.index("uiSelection")[client];
+  if(sel) {
+    return sel[componentId];
+  }
+  return false;
+}
+
+function boundElements(elems) {
+  var bounds = {top: Infinity, left: Infinity, bottom: -Infinity, right: -Infinity};
+  elems.forEach(function(cur) {
+    var left = cur[5], top = cur[6], right = cur[7], bottom = cur[8];
+    if(left < bounds.left) {
+      bounds.left = left;
+    }
+    if(top < bounds.top) {
+      bounds.top = top;
+    }
+    if(right > bounds.right) {
+      bounds.right = right;
+    }
+    if(bottom > bounds.bottom) {
+      bounds.bottom = bottom;
+    }
   });
-  //get the bounding box of those
-  var bounds = boundElements(elements);
-  //draw a box around it
-  return {c: "selection", top: bounds.top, left: bounds.left,
-          width: bounds.right - bounds.left, height: bounds.bottom - bounds.top,
-          children: [
-            resizeHandle(sel[3], bounds, "top", "left"),
-            resizeHandle(sel[3], bounds, "top", "center"),
-            resizeHandle(sel[3], bounds, "top", "right"),
-            resizeHandle(sel[3], bounds, "middle", "right"),
-            resizeHandle(sel[3], bounds, "bottom", "right"),
-            resizeHandle(sel[3], bounds, "bottom", "center"),
-            resizeHandle(sel[3], bounds, "bottom", "left"),
-            resizeHandle(sel[3], bounds, "middle", "left")
-          ]};
+  return bounds;
+}
+
+function clearSelection(e, elem) {
+  dispatch("clearSelection", {componentId: elem.componentId});
 }
 
 function addToSelection(e, elem) {
@@ -523,10 +591,6 @@ function addToSelection(e, elem) {
   dispatch("selectElements", {createNew: createNew, elements: [elem.control[1]], componentId: elem.control[2]});
 }
 
-var uiGridSize = 10;
-function toGrid(size, value) {
-  return Math.round(value / size) * size;
-}
 
 var dragOffsetX = 0;
 var dragOffsetY = 0;
@@ -593,24 +657,9 @@ function resizeSelection(e, elem) {
   }
 }
 
-
-function addControl(e, elem) {
-  dispatch("addUiComponentElement", {componentId: elem.componentId,
-                                     layerId: elem.layer[1],
-                                     control: elem.control,
-                                     left: elem.left || 100,
-                                     right: elem.right || 200,
-                                     top: elem.top || 100,
-                                     bottom: elem.bottom || 200})
-}
-
-function uiControls(componentId, activeLayer) {
-  var controls = ["text", "box", "button"];
-  var items = controls.map(function(cur) {
-    return {text: cur, click: addControl, control: cur, componentId: componentId, layer: activeLayer};
-  })
-  return {c: "controls", children: items};
-}
+//---------------------------------------------------------
+// ui layers
+//---------------------------------------------------------
 
 function layersControl(componentId, layers, activeLayer) {
   var layerElems = layers.map(function(cur) {
@@ -649,38 +698,6 @@ function toggleLocked(e, elem) {
   dispatch("updateUiLayer", {neue: neue});
 }
 
-function uiGrid(componentId, layerIndex, size) {
-  var id = componentId + "-grid";
-  return {c: "grid", id: id, t: "canvas", top: 0, left: 0, width: size.width, height: size.height, zIndex: layerIndex,
-         postRender: function(canvas) {
-           if(canvas._rendered) return;
-           var ctx = canvas.getContext("2d");
-           var ratio = canvasRatio(ctx);
-           console.time("drawGrid");
-           canvas.width = size.width * ratio;
-           canvas.height = size.height * ratio;
-           ctx.scale(ratio, ratio);
-           ctx.lineWidth = 1;
-           ctx.strokeStyle = "white";
-           for(var i = 0; i < 300; i++) {
-             if(i % uiGridSize === 0) {
-               ctx.globalAlpha = 0.3;
-             } else {
-               ctx.globalAlpha = 0.1;
-             }
-             ctx.beginPath();
-             ctx.moveTo(i * uiGridSize,0);
-             ctx.lineTo(i * uiGridSize,size.height * 2);
-             ctx.stroke();
-             ctx.beginPath();
-             ctx.moveTo(0, i * uiGridSize);
-             ctx.lineTo(size.width * 2, i * uiGridSize);
-             ctx.stroke();
-           }
-           canvas._rendered = true;
-           console.timeEnd("drawGrid");
-         }};
-}
 
 //---------------------------------------------------------
 // View List
