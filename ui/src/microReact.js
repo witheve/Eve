@@ -80,6 +80,9 @@
           style.left = cur.left;
           style.height = cur.height;
           style.width = cur.width;
+          if(cur.zIndex !== undefined) {
+            style.zIndex = cur.zIndex;
+          }
         }
 
         style.backgroundColor = cur.backgroundColor;
@@ -124,6 +127,7 @@
            && curA.left === curB.left
            && curA.width === curB.width
            && curA.height === curB.height
+           && curA.zIndex === curB.zIndex
            && curA.c === curB.c
            && curA.text === curB.text) {
           continue;
@@ -145,6 +149,7 @@
            && curA.left === curB.left
            && curA.width === curB.width
            && curA.height === curB.height
+           && curA.zIndex === curB.zIndex
            && curA.c === curB.c
            && curA.text === curB.text) {
           continue;

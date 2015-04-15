@@ -70,11 +70,12 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .layers { flex-direction: column; }
 .layer { display:flex; }
 .layer.active { background:red; }
-.selection { border: 1px solid red; pointer-events: none; }
+.selection { border: 1px solid red; pointer-events: none; z-index:100; }
 .resize-handle { pointer-events: auto; }
 .ui-canvas .control.selected { background: red; }
 .hidden { display:none; }
 .locked { pointer-events: none; }
+.grid { z-index: 0; pointer-events:none; }
 
 
 .view-tile { display:flex; }
@@ -96,7 +97,7 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .chooser-tile .icon { font-size: 40px; margin-bottom:10px; }
 
 .ui-canvas {flex: 1; position:relative; overflow:hidden; background:#111; margin:10px; }
-.ui-canvas .control { background:rgba(255,255,255, 0.08); }
+.ui-canvas .control { background:#555; }
 .ui-canvas .resize-handle { position:absolute; background: rgba(170,204,255,0.3); border: 1px solid #acf; z-index: 1000; }
 
 .resize-tile { transform: rotateZ(-45deg); overflow:hidden; position:absolute; bottom:0; }
