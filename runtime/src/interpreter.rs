@@ -1,6 +1,7 @@
 use std::fmt::{Debug,Formatter,Result};
-use std::num::ToPrimitive;
 use value::{Value,ToValue,Tuple,ToTuple};
+use self::EveFn::*;
+use value::Value::Float;
 
 // Enums...
 // Expression Enum ------------------------------------------------------------
@@ -38,34 +39,21 @@ impl ToExpression for Value { fn to_expr(self) -> Expression { Expression::Value
 
 #[derive(Clone,Debug)]
 pub enum EveFn {
-	Add,
-	Subtract,
-	Multiply,
-	Divide,
-	Exponentiate,
-	Exp,
-	Sqrt,
-	Log,
-	Log10,
-	Log2,
-	Ln,
-	Abs,
-	Sign,
-	Sin,
-	Cos,
-	Tan,
-	ASin,
-	ACos,
-	ATan,
-	ATan2,
-	Sum,
-	Prod,
-	StrConcat,
-	StrUpper,
-	StrLower,
-	StrLength,
-	StrReplace,
-	StrSplit,
+	// Basic ops
+	Add,Subtract,Multiply,Divide,Exponentiate,
+
+	// General math
+	Sqrt,Log,Log10,Log2,Ln,Abs,Sign,Exp,
+
+	//Trig
+	Sin,Cos,Tan,ASin,ACos,ATan,ATan2,
+
+	// Aggregates
+	Sum,Prod,
+
+	// Strings
+	StrConcat,StrUpper,StrLower,StrLength,StrReplace,StrSplit,
+
 	None,
 	Foo,
 }
@@ -105,25 +93,6 @@ impl Debug for Constant {
 	}
 }
 
-pub trait ToConstant { fn to_const(&self) -> Constant; }
-
-impl ToConstant for Constant { fn to_const(&self) -> Constant { self.clone() } }
-impl ToConstant for f64 { fn to_const(&self) -> Constant { Constant::Value(self.to_value()) } }
-impl ToConstant for i32 { fn to_const(&self) -> Constant { Constant::Value(self.to_value()) } }
-impl ToConstant for usize { fn to_const(&self) -> Constant { Constant::Value(self.to_value()) } }
-impl ToConstant for str { fn to_const(&self) -> Constant { Constant::StringConstant(self.to_string()) } }
-impl ToConstant for String { fn to_const(&self) -> Constant { Constant::StringConstant(self.clone())} }
-
-impl ToString for Constant {
-	fn to_string(&self) -> String {
-		match self {
-			&Constant::StringConstant(ref x) => x.clone(),
-			_ => unimplemented!(),
-		}
-	}
-}
-
-
 // End Constant Enum ----------------------------------------------------------
 
 // Structs...
@@ -131,10 +100,6 @@ impl ToString for Constant {
 pub struct Call {
 	pub fun: EveFn,
 	pub args: ExpressionVec,
-}
-
-pub fn build_call(fun: EveFn, args: ExpressionVec) -> Call {
-	Call{fun: fun, args: args}
 }
 
 #[derive(Clone)]
@@ -161,7 +126,7 @@ macro_rules! exprvec {
     };
 }
 
-// This is the main interface to the interpreter. Pass in an expression, get a constant back
+// This is the main interface to the interpreter. Pass in an expression, get a value back
 pub fn calculate(e: & Expression) -> Value {
 
 	process_expression(e).to_tuple().to_value()
@@ -189,81 +154,61 @@ fn process_constant(c: & Constant) -> &Value {
 	}
 }
 */
+
 fn process_call(c: &Call) -> Value {
 
+	let args: Vec<Value> = c.args.iter().map(process_expression).collect();
 
-	match c.fun {
-		// Infix ops
-		EveFn::Add => twoargs(|x,y|{x+y},&c.args),
-		EveFn::Subtract => twoargs(|x,y|{x-y},&c.args),
-		EveFn::Multiply => twoargs(|x,y|{x*y},&c.args),
-		EveFn::Divide => twoargs(|x,y|{x/y},&c.args),
-		EveFn::Exponentiate => twoargs(|x,y|{x.powf(y)},&c.args),
+	match(&c.fun, &args[..]) {
+
+		// Basic Math
+		(&Add,[Float(x),Float(y)]) => Float(x+y),
+		(&Subtract,[Float(x),Float(y)]) => Float(x-y),
+		(&Multiply,[Float(x),Float(y)]) => Float(x*y),
+		(&Divide,[Float(x),Float(y)]) => Float(x/y),
+		(&Exponentiate,[Float(x),Float(y)]) => Float(x.powf(y)),
 
 		// Some general math functions
-		EveFn::Abs => onearg(|x|{x.abs()},&c.args),
-		EveFn::Sqrt => onearg(|x|{x.sqrt()},&c.args),
-		EveFn::Sign => onearg(|x|{x.signum()},&c.args),
-		EveFn::Exp => onearg(|x|{x.exp()},&c.args),
-		EveFn::Ln => onearg(|x|{x.ln()},&c.args),
-		EveFn::Log => twoargs(|x,y|{x.log(y)},&c.args),
-		EveFn::Log10 => onearg(|x|{x.log10()},&c.args),
-		EveFn::Log2 => onearg(|x|{x.log2()},&c.args),
+		(&Abs,[Float(x)]) => Float(x.abs()),
+		(&Sqrt,[Float(x)]) => Float(x.sqrt()),
+		(&Sign,[Float(x)]) => Float(x.signum()),
+		(&Exp,[Float(x)]) => Float(x.exp()),
+		(&Ln,[Float(x)]) => Float(x.ln()),
+		(&Log10,[Float(x)]) => Float(x.log10()),
+		(&Log2,[Float(x)]) => Float(x.log2()),
 
 		// Trig functions
-		EveFn::Sin => onearg(|x|{x.sin()},&c.args),
-		EveFn::Cos => onearg(|x|{x.cos()},&c.args),
-		EveFn::Tan => onearg(|x|{x.tan()},&c.args),
-		EveFn::ASin => onearg(|x|{x.atan()},&c.args),
-		EveFn::ACos => onearg(|x|{x.atan()},&c.args),
-		EveFn::ATan => onearg(|x|{x.atan()},&c.args),
-		EveFn::ATan2 => twoargs(|x,y|{x.atan2(y)},&c.args),
-
-		// Aggregate functions
-		EveFn::Sum => general_agg(|x,y|{x+y},0f64,&c.args),
-		EveFn::Prod => general_agg(|x,y|{x*y},1f64,&c.args),
+		(&Sin,[Float(x)]) => Float(x.sin()),
+		(&Cos,[Float(x)]) => Float(x.cos()),
+		(&Tan,[Float(x)]) => Float(x.tan()),
+		(&ASin,[Float(x)]) => Float(x.asin()),
+		(&ACos,[Float(x)]) => Float(x.acos()),
+		(&ATan,[Float(x)]) => Float(x.atan()),
+		(&ATan2,[Float(x),Float(y)]) => Float(x.atan2(y)),
 
 		// String functions
-		EveFn::StrConcat => str_cat(&c.args),
-		EveFn::StrUpper => str_to_upper(&c.args),
-		EveFn::StrLower => str_to_lower(&c.args),
-		EveFn::StrLength => str_length(&c.args),
-		EveFn::StrReplace => str_replace(&c.args),
-		EveFn::StrSplit => str_split(&c.args),
+		(&StrConcat,[Value::String(ref s1),Value::String(ref s2)]) => Value::String(s1.to_string()+&s2[..]),
+		(&StrUpper,[Value::String(ref s)]) => Value::String(s.to_uppercase()),
+		(&StrLower,[Value::String(ref s)]) => Value::String(s.to_lowercase()),
+		(&StrLength,[Value::String(ref s)]) => Float(s.len() as f64),
+		(&StrReplace,[Value::String(ref s),Value::String(ref q),Value::String(ref r)]) => Value::String(s.replace(&q[..],&r[..])),
+		(&StrSplit,[Value::String(ref s)]) => {
+			let w: Vec<Value> = s.words().map(|x| x.to_value()).collect();
+			Value::Tuple(w)
+		},
 
-		EveFn::None => none(),
+		// Aggregate functions
+		//&Sum => general_agg(|x,y|{x+y},0f64,&c.args),
+		//&Prod => general_agg(|x,y|{x*y},1f64,&c.args),
 
-		_ => unimplemented!(),
+		// Returns an empty string for the purpose of handling incomplete function
+		// calls sent from UI.
+		(&None,_) => Value::String("".to_string()),
+		(fun, args) => panic!("Bad function call: {:?} {:?}", fun, args),
 	}
-
 }
 
-// Math Functions  ------------------------------------------------------------
-
-// Execute a provided function that takes one argument in an expression vector
-fn onearg<F: Fn(f64) -> f64>(f: F, args: &ExpressionVec) -> Value {
-
-	argcheck(args,1);
-
-	let x = process_expression(&args[0]).to_f64().unwrap();
-
-	f(x).to_value()
-}
-
-// Execute a provided function that takes two arguments in an expression vector
-fn twoargs<F: Fn(f64,f64) -> f64>(f: F, args: &ExpressionVec) -> Value {
-
-	argcheck(args,2);
-
-	let x = process_expression(&args[0]).to_f64().unwrap();
-	let y = process_expression(&args[1]).to_f64().unwrap();
-
-	f(x,y).to_value()
-
-}
-
-// End Math Functions  --------------------------------------------------------
-
+/*
 // Aggregate Functions --------------------------------------------------------
 
 fn general_agg<F: Fn(f64,f64) -> f64>(f: F, base: f64, args: &ExpressionVec) -> Value {
@@ -274,102 +219,5 @@ fn general_agg<F: Fn(f64,f64) -> f64>(f: F, base: f64, args: &ExpressionVec) -> 
 	acc.to_value()
 
 }
-
 // End Aggregate Functions ----------------------------------------------------
-
-
-// String Functions  ----------------------------------------------------------
-fn str_cat(args: &ExpressionVec) -> Value {
-
-	argcheck(args,2);
-
-	let s1 = process_expression(&args[0]).to_string();
-	let s2 = process_expression(&args[1]).to_string();
-
-	(s1 + &s2[..]).to_value()
-
-}
-
-// Convert all characters to upper case
-fn str_to_upper(args: &ExpressionVec) -> Value {
-
-	argcheck(args,1);
-
-	process_expression(&args[0])
-		.to_string()
-		.to_uppercase()
-		.to_value()
-}
-
-// Convert all characters to lower case
-fn str_to_lower(args: &ExpressionVec) -> Value {
-
-	argcheck(args,1);
-
-	process_expression(&args[0])
-		.to_string()
-		.to_lowercase()
-		.to_value()
-}
-
-// Return length of the string
-fn str_length(args: &ExpressionVec) -> Value {
-
-	argcheck(args,1);
-
-	process_expression(&args[0])
-		.to_string()
-		.len()
-		.to_value()
-}
-
-// Replace all occurances of a query string with a new string
-fn str_replace(args: &ExpressionVec) -> Value {
-
-	argcheck(args,3);
-
-	let s = process_expression(&args[0]).to_string();
-	let query = process_expression(&args[1]).to_string();
-	let replacement = process_expression(&args[2]).to_string();
-
-	s.replace(&query[..],&replacement[..]).to_value()
-
-}
-
-// Spits
-fn str_split(args: &ExpressionVec) -> Value {
-
-	argcheck(args,1);
-
-	let s = process_expression(&args[0]).to_string();
-
-	let words = s.words();
-
-	let mut t = Tuple::new();
-
-	for word in words {
-
-		t.push(word.to_string().to_value());
-
-	}
-
-	t.to_value()
-
-}
-
-// End String Functions -------------------------------------------------------
-
-// Returns an empty string. For the purpose of handling incomplete function
-// calls sent from UI. This empty string is sent back as a result until the 
-// function call is completed
-fn none() -> Value {
-	"".to_value()
-}
-
-// Helper Functions -----------------------------------------------------------
-
-fn argcheck(args: &ExpressionVec, n: usize) {
-	if args.len() != n { panic!("argcheck: Incorrect number of arguments! Expected {}. Given {}.",n,args.len()) };
-}
-
-// End Helper Functions -------------------------------------------------------
+*/

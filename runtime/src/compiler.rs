@@ -1,6 +1,6 @@
 use value::{Id, Value, Tuple, Relation, ToTuple};
 use index::{Index};
-use query::{Ref, ConstraintOp, Constraint, Source, Clause, Query, ToRef, Call};
+use query::{Ref, ConstraintOp, Constraint, Source, Clause, Query, Call};
 use interpreter::EveFn;
 use flow::{Changes, View, Union, Node, Flow};
 
@@ -269,7 +269,7 @@ fn create_call(world: &World, uifun: &Value, uiargvec: &Value) -> Call {
         match argt[0].to_string().as_ref() {
             "constant" => {
                 assert_eq!(argt.len(),2 as usize);
-                argvec.push(argt[1].clone().to_constref());
+                argvec.push(Ref::Constant{value: argt[1].clone()});
             },
             "column" => {
                 assert_eq!(argt.len(),3 as usize);
@@ -278,7 +278,7 @@ fn create_call(world: &World, uifun: &Value, uiargvec: &Value) -> Call {
                 let other_source_ix = get_source_ix(world, other_source_id);
                 let other_field_ix = get_field_ix(world, other_field_id);
 
-                argvec.push((other_source_ix,other_field_ix).to_valref());
+                argvec.push( Ref::Value{ clause: other_source_ix, column: other_field_ix } );
             },
             other => panic!("Unhandled ref kind: {}", other),
         }
