@@ -371,10 +371,9 @@ function tableTile(cur) {
 //---------------------------------------------------------
 // ui tile
 // @TODO
-// - grid
 // - attributes
-// - stopPropagation doesn't appear to stop the outer div from
-//   scrolling
+// - stopPropagation doesn't appear to stop the outer div from scrolling
+// - grid doesn't resize correctly
 //---------------------------------------------------------
 
 var attrMappings = {"content": "text"};

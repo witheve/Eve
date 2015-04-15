@@ -38,7 +38,7 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .failed { background: rgba(255,79,109,0.1); color: transparent; border:1px solid rgba(255,79,109,0.); border-left:none; text-align:left; }
 
 /*-----------------------------------------------------------------------------
-- neue
+- stage
 -----------------------------------------------------------------------------*/
 
 .stage { display:flex; }
@@ -49,6 +49,21 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .scrolling .stage-tiles-wrapper * { pointer-events:none !important;}
 
 .stage-tiles { width:100%; }
+.tile-outline { border: 1px solid #acf; }
+
+/*-----------------------------------------------------------------------------
+- grid tile
+-----------------------------------------------------------------------------*/
+
+.grid-tile { display:flex; position: absolute; z-index: 1;  background: #2c2c2c; border-radius: 3px; transform-style: preserve-3d;  }
+.grid-tile .tile { flex: 1; overflow:hidden; }
+.grid-tile > .controls { opacity:0; padding: 5px 5px; flex:none; transition:opacity 0.2s ease-in-out; }
+.grid-tile:hover > .controls { opacity:1; }
+.resize-tile { transform: rotateZ(-45deg); overflow:hidden; position:absolute; bottom:0; }
+
+/*-----------------------------------------------------------------------------
+- minimap
+-----------------------------------------------------------------------------*/
 
 .minimap { position:absolute; top:50px; bottom:0; right:0; width:100px; background:#1c1c1c; box-shadow:inset 0 0 5px #171717; border-left:0px solid #111; overflow:hidden;}
 .minimap .thumb { position:absolute; z-index: 10; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255, 0.25); border-radius:2px; }
@@ -57,26 +72,35 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .minimap .minimap-tile.view { background: #355; }
 .minimap .minimap-tile.table { background: #346; }
 
-.grid-tile { display:flex; position: absolute; z-index: 1;  background: #2c2c2c; border-radius: 3px; transform-style: preserve-3d;  }
-.grid-tile .tile { flex: 1; overflow:hidden; }
-.grid-tile > .controls { opacity:0; padding: 5px 5px; flex:none; transition:opacity 0.2s ease-in-out; }
-.grid-tile:hover > .controls { opacity:1; }
-
-.tile-outline { border: 1px solid #acf; }
+/*-----------------------------------------------------------------------------
+- ui editor
+-----------------------------------------------------------------------------*/
 
 .ui-editor { flex: 1; }
-.inspector { flex-direction:column; }
+
 .controls { flex-direction:column; }
+
+.ui-canvas {flex: 1; position:relative; overflow:hidden; background:#111; margin:10px; }
+.ui-canvas .control { background:#555; }
+.ui-canvas .control.selected { border: 1px solid #acf; }
+.ui-canvas .resize-handle { position:absolute; background: rgba(170,204,255,0.3); border: 1px solid #acf; z-index: 1000; }
+.selection { border: 1px solid #acf; pointer-events: none; z-index:100; }
+.resize-handle { pointer-events: auto; }
+
+.grid { z-index: 0; pointer-events:none; }
+
+.inspector { flex-direction:column; width:150px; }
 .layers { flex-direction: column; }
 .layer { display:flex; }
 .layer.active { background:red; }
-.selection { border: 1px solid red; pointer-events: none; z-index:100; }
-.resize-handle { pointer-events: auto; }
-.ui-canvas .control.selected { background: red; }
+.layer > * + *  { margin-left:10px; }
+.layer .input { flex:1; }
 .hidden { display:none; }
 .locked { pointer-events: none; }
-.grid { z-index: 0; pointer-events:none; }
 
+/*-----------------------------------------------------------------------------
+- view editor
+-----------------------------------------------------------------------------*/
 
 .view-tile { display:flex; }
 .view-source-code { flex-direction: column; }
@@ -89,6 +113,9 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .token.editable:hover { border-bottom: 1px solid rgba(16, 208, 255, 0.8); box-shadow: 0 1px 2px -1px rgba(16, 208, 255, 0.8); }
 .token.editable:active { border-bottom: 1px solid rgba(16, 208, 255, 1); box-shadow: 0 2px 2px -1px rgba(16, 208, 255, 1); }
 
+/*-----------------------------------------------------------------------------
+- chooser tile
+-----------------------------------------------------------------------------*/
 
 .chooser-tile { display:flex; flex: 1; }
 .chooser-tile .option { flex: 1; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:2px; padding:0 15px; }
@@ -96,8 +123,4 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .chooser-tile .description { text-align:center; }
 .chooser-tile .icon { font-size: 40px; margin-bottom:10px; }
 
-.ui-canvas {flex: 1; position:relative; overflow:hidden; background:#111; margin:10px; }
-.ui-canvas .control { background:#555; }
-.ui-canvas .resize-handle { position:absolute; background: rgba(170,204,255,0.3); border: 1px solid #acf; z-index: 1000; }
 
-.resize-tile { transform: rotateZ(-45deg); overflow:hidden; position:absolute; bottom:0; }
