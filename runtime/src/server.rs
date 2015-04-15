@@ -11,7 +11,7 @@ use rustc_serialize::json::{Json, ToJson};
 
 use value::{Value, Tuple};
 use index;
-use flow::{Changes, FlowState, Flow};
+use flow::{Changes, Flow};
 use compiler::{compile, World};
 
 trait FromJson {
@@ -101,18 +101,16 @@ impl FromJson for Event {
 struct Instance {
     input: World,
     flow: Flow,
-    output: FlowState,
     next_eid: u64,
 }
 
 impl Instance {
     pub fn run(&mut self) -> Changes {
         let mut input_clone = self.input.clone();
-        let (flow, mut output) = compile(&mut input_clone);
-        flow.run(&mut output);
-        let changes = flow.changes_since(&output, &self.flow, &self.output);
+        let mut flow = compile(&mut input_clone);
+        flow.run();
+        let changes = flow.changes_since(&self.flow);
         self.flow = flow;
-        self.output = output;
         changes
     }
 }
@@ -175,12 +173,10 @@ fn recv_batch(event_receiver: &mpsc::Receiver<ServerEvent>, server_events: &mut 
 
 pub fn run() {
     let empty_world = World{views: HashMap::new()};
-    let empty_flow = Flow{nodes: Vec::new()};
-    let empty_output = FlowState{outputs: Vec::new(), dirty: BitSet::new()};
+    let empty_flow = Flow{nodes: Vec::new(), states: Vec::new(), dirty: BitSet::new()};
     let mut instance = Instance{
         input: empty_world,
         flow: empty_flow.clone(),
-        output: empty_output.clone(),
         next_eid: 0,
     };
 
@@ -213,7 +209,7 @@ pub fn run() {
                 match event {
                     ServerEvent::NewClient(mut sender) => {
                         time!("sending initial state", {
-                            let changes = instance.flow.changes_since(&instance.output, &empty_flow, &empty_output);
+                            let changes = instance.flow.changes_since(&empty_flow);
                             let text = format!("{}", Event{changes: changes}.to_json());
                             match sender.send_message(Message::Text(text)) {
                                 Ok(_) => (),

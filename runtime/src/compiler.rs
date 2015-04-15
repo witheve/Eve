@@ -2,7 +2,7 @@ use value::{Id, Value, Tuple, Relation, ToTuple};
 use index::{Index};
 use query::{Ref, ConstraintOp, Constraint, Source, Clause, Query, ToRef, Call};
 use interpreter::EveFn;
-use flow::{Changes, View, Union, Node, FlowState, Flow};
+use flow::{Changes, View, Union, Node, Flow};
 
 use std::collections::{HashMap, BitSet};
 use std::cell::{RefCell, RefMut};
@@ -233,7 +233,7 @@ fn create_clause(world: &World, source: &Vec<Value>) -> Clause {
             other => panic!("Unknown view action: {}", other)
         }
     } else if source_data[0].to_string() == "call"  {
-        
+
         Clause::Call(create_call(world,&source_data[CALL_FUN],&source_data[CALL_ARGS]))
 
     } else if source_data[0].to_string() == "column" {
@@ -241,7 +241,7 @@ fn create_clause(world: &World, source: &Vec<Value>) -> Clause {
         Clause::Call(Call{fun: EveFn::None, arg_refs: vec![]})
 
     } else {
-        
+
         panic!("Can't compile {:?} yet",source_data[0].to_string())
     }
 
@@ -277,7 +277,7 @@ fn create_call(world: &World, uifun: &Value, uiargvec: &Value) -> Call {
                 let other_field_id = &argt[2];
                 let other_source_ix = get_source_ix(world, other_source_id);
                 let other_field_ix = get_field_ix(world, other_field_id);
-                
+
                 argvec.push((other_source_ix,other_field_ix).to_valref());
             },
             other => panic!("Unhandled ref kind: {}", other),
@@ -287,7 +287,7 @@ fn create_call(world: &World, uifun: &Value, uiargvec: &Value) -> Call {
     if argvec.len() == 2 {
         Call{fun: evefn, arg_refs: argvec}
     } else {
-       // Return a stupid dummy function if the call is not fully formed. 
+       // Return a stupid dummy function if the call is not fully formed.
        // There needs to be a discussion about this: e.g. why are we sending malformed calls (i.e. missing arguments) to the runtime?
        Call{fun: EveFn::None, arg_refs: vec![]}
     }
@@ -350,44 +350,35 @@ fn create_node(world: &World, view_id: &Value, view_kind: &Value) -> Node {
 
 fn create_flow(world: &World) -> Flow {
     let mut nodes = Vec::new();
-    for schedule in world.view("schedule").iter() { // arrives in ix order
+    let mut dirty = BitSet::new();
+    let mut states = Vec::new();
+    for (ix, schedule) in world.view("schedule").iter().enumerate() { // arrives in ix order
         let view_id = &schedule[SCHEDULE_VIEW];
         let view = world.view("view").find_one(VIEW_ID, view_id).clone();
         let view_kind = &view[VIEW_KIND];
         let node = create_node(world, view_id, view_kind);
-        nodes.push(node);
-    }
-    Flow{
-        nodes: nodes
-    }
-}
-
-fn create_flow_state(world: &World, flow: &Flow) -> FlowState {
-    let mut dirty = BitSet::new();
-    let mut outputs = Vec::new();
-    for (ix, node) in flow.nodes.iter().enumerate() {
-        outputs.push(world.views.get(&node.id).map_or_else(
-            || RefCell::new(Index::new()),
-            |r| r.clone()
-            ));
         match node.view {
             View::Input => (),
             _ => {dirty.insert(ix);},
         }
+        states.push(world.views.get(&node.id).map_or_else(
+            || RefCell::new(Index::new()),
+            |r| r.clone()
+            ));
+        nodes.push(node);
     }
-    FlowState{
+    Flow{
+        nodes: nodes,
         dirty: dirty,
-        outputs: outputs
+        states: states,
     }
 }
 
-pub fn compile(world: &mut World) -> (Flow, FlowState) {
+pub fn compile(world: &mut World) -> Flow {
     for view_id in COMPILER_VIEWS.iter() {
         world.get_or_create(view_id);
     }
     create_upstream(world);
     create_schedule(world);
-    let flow = create_flow(world);
-    let flow_state = create_flow_state(world, &flow);
-    (flow, flow_state)
+    create_flow(world)
 }

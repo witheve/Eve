@@ -30,11 +30,7 @@ pub struct Node {
 #[derive(Clone, Debug)]
 pub struct Flow {
     pub nodes: Vec<Node>,
-}
-
-#[derive(Clone, Debug)]
-pub struct FlowState {
-    pub outputs: Vec<RefCell<Relation>>,
+    pub states: Vec<RefCell<Relation>>,
     pub dirty: BitSet,
 }
 
@@ -48,11 +44,11 @@ impl Union {
             for tuple in input.iter() {
                 // TODO this ugliness is due to storing backtrack info inline with results
                 if tuple.len() == max_len {
-                    let mut output = Vec::with_capacity(mapping.len());
+                    let mut state = Vec::with_capacity(mapping.len());
                     for &(outer, inner) in mapping.iter() {
-                        output.push(tuple[outer][inner].clone());
+                        state.push(tuple[outer][inner].clone());
                     }
-                    index.insert(output);
+                    index.insert(state);
                 }
             }
         }
@@ -71,23 +67,23 @@ impl View {
 }
 
 impl Flow {
-    pub fn run(&self, state: &mut FlowState) {
+    pub fn run(&mut self) {
         loop {
-            match state.dirty.iter().next() {
+            match self.dirty.iter().next() {
                 Some(ix) => {
-                    state.dirty.remove(&ix);
+                    self.dirty.remove(&ix);
                     let node = &self.nodes[ix];
-                    let new_output = {
-                        let upstream = node.upstream.iter().map(|uix| state.outputs[*uix].borrow()).collect::<Vec<_>>();
-                        let inputs = upstream.iter().map(|output_ref| &**output_ref).collect();
+                    let new_state = {
+                        let upstream = node.upstream.iter().map(|uix| self.states[*uix].borrow()).collect::<Vec<_>>();
+                        let inputs = upstream.iter().map(|state_ref| &**state_ref).collect();
                         node.view.run(inputs)
                     };
-                    if new_output != *state.outputs[ix].borrow() {
+                    if new_state != *self.states[ix].borrow() {
                         for dix in node.downstream.iter() {
-                            state.dirty.insert(*dix);
+                            self.dirty.insert(*dix);
                         }
                     }
-                    *state.outputs[ix].borrow_mut() = new_output;
+                    *self.states[ix].borrow_mut() = new_state;
                     continue;
                 }
                 None => {
@@ -97,20 +93,20 @@ impl Flow {
         }
     }
 
-    pub fn changes_since(&self, after_state: &FlowState, before: &Flow, before_state: &FlowState) -> Changes {
+    pub fn changes_since(&self, before: &Flow) -> Changes {
         let after = self;
         let mut changes = Vec::new();
         for (after_ix, after_node) in after.nodes.iter().enumerate() {
             let id = &after_node.id;
             match before.nodes.iter().position(|before_node| before_node.id == *id) {
                 Some(before_ix) => {
-                    let after_output = after_state.outputs[after_ix].borrow();
-                    let before_output = before_state.outputs[before_ix].borrow();
-                    changes.push((id.clone(), after_output.changes_since(&*before_output)));
+                    let after_state = after.states[after_ix].borrow();
+                    let before_state = before.states[before_ix].borrow();
+                    changes.push((id.clone(), after_state.changes_since(&*before_state)));
                 }
                 None => {
-                    let after_output = after_state.outputs[after_ix].borrow();
-                    let inserted = after_output.iter().map(|t| t.clone()).collect();
+                    let after_state = after.states[after_ix].borrow();
+                    let inserted = after_state.iter().map(|t| t.clone()).collect();
                     changes.push((id.clone(), index::Changes{inserted: inserted, removed: Vec::new()}));
                 }
             }
@@ -120,8 +116,8 @@ impl Flow {
             match after.nodes.iter().position(|after_node| after_node.id == *id) {
                 Some(_) => (), // already handled above
                 None => {
-                    let before_output = before_state.outputs[before_ix].borrow();
-                    let removed = before_output.iter().map(|t| t.clone()).collect();
+                    let before_state = before.states[before_ix].borrow();
+                    let removed = before_state.iter().map(|t| t.clone()).collect();
                     changes.push((id.clone(), index::Changes{inserted: Vec::new(), removed: removed}));
                 }
             }

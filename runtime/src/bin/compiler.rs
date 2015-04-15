@@ -66,8 +66,7 @@ fn main() {
         ("first_step".to_string(), RefCell::new(Index::new())),
         ].into_iter().collect()
     };
-    let (flow, mut flow_state) = compile(&mut world);
-    flow.run(&mut flow_state);
+    let mut flow = compile(&mut world);
+    flow.run();
     println!("{:?}", flow);
-    println!("{:?}", flow_state);
 }
