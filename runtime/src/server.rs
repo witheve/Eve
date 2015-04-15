@@ -106,8 +106,7 @@ struct Instance {
 }
 
 impl Instance {
-    pub fn change(&mut self, changes: Changes) -> Changes {
-        self.input.change(changes);
+    pub fn run(&mut self) -> Changes {
         let mut input_clone = self.input.clone();
         let (flow, mut output) = compile(&mut input_clone);
         flow.run(&mut output);
@@ -160,6 +159,20 @@ pub fn serve() -> mpsc::Receiver<ServerEvent> {
     event_receiver
 }
 
+// TODO arbitrary limit - needs tuning
+static MAX_BATCH_SIZE: usize = 100;
+
+fn recv_batch(event_receiver: &mpsc::Receiver<ServerEvent>, server_events: &mut Vec<ServerEvent>) {
+    server_events.push(event_receiver.recv().unwrap()); // block until first event
+    for _ in 0..MAX_BATCH_SIZE {
+        match event_receiver.try_recv() {
+            Ok(event) => server_events.push(event),
+            Err(mpsc::TryRecvError::Empty) => break,
+            Err(mpsc::TryRecvError::Disconnected) => panic!(),
+        }
+    }
+}
+
 pub fn run() {
     let empty_world = World{views: HashMap::new()};
     let empty_flow = Flow{nodes: Vec::new()};
@@ -181,47 +194,58 @@ pub fn run() {
                 let json = Json::from_str(&line).unwrap();
                 FromJson::from_json(&json, next_eid)
             };
-            instance.change(event.changes);
+            instance.input.change(event.changes);
         }
         drop(events);
+        instance.run();
         });
-    let mut events = OpenOptions::new().write(true).append(true).open("./events").unwrap();
 
+    let mut events = OpenOptions::new().write(true).append(true).open("./events").unwrap();
     let mut senders: Vec<sender::Sender<_>> = Vec::new();
+    let mut server_events: Vec<ServerEvent> = Vec::with_capacity(MAX_BATCH_SIZE);
     let event_receiver = serve();
-    for event in event_receiver.iter() {
-        match event {
-            ServerEvent::NewClient(mut sender) => {
-                time!("sending initial state", {
-                    let changes = instance.flow.changes_since(&instance.output, &empty_flow, &empty_output);
-                    let text = format!("{}", Event{changes: changes}.to_json());
-                    match sender.send_message(Message::Text(text)) {
-                        Ok(_) => (),
-                        Err(error) => println!("Send error: {}", error),
-                    };
-                    senders.push(sender)
-                })
-            }
-            ServerEvent::Message(input_text) => {
-                time!("sending update", {
-                    let input_event: Event = {
-                        let Instance {ref mut next_eid, ..} = instance;
-                        let json = Json::from_str(&input_text).unwrap();
-                        FromJson::from_json(&json, next_eid)
-                    };
-                    let output_event = Event{changes: instance.change(input_event.changes)};
-                    let output_text = format!("{}", output_event.to_json());
-                    events.write_all(input_text.as_bytes()).unwrap();
-                    events.write_all("\n".as_bytes()).unwrap();
-                    events.flush().unwrap();
-                    for sender in senders.iter_mut() {
-                        match sender.send_message(Message::Text(output_text.clone())) {
-                            Ok(_) => (),
-                            Err(error) => println!("Send error: {}", error),
-                        };
+    loop {
+        time!("entire batch", {
+            recv_batch(&event_receiver, &mut server_events);
+            println!("batch size: {:?}", server_events.len());
+
+            for event in server_events.drain() {
+                match event {
+                    ServerEvent::NewClient(mut sender) => {
+                        time!("sending initial state", {
+                            let changes = instance.flow.changes_since(&instance.output, &empty_flow, &empty_output);
+                            let text = format!("{}", Event{changes: changes}.to_json());
+                            match sender.send_message(Message::Text(text)) {
+                                Ok(_) => (),
+                                Err(error) => println!("Send error: {}", error),
+                            };
+                            senders.push(sender)
+                        })
                     }
-                })
+                    ServerEvent::Message(input_text) => {
+                        time!("sending update", {
+                            let input_event: Event = {
+                                let Instance {ref mut next_eid, ..} = instance;
+                                let json = Json::from_str(&input_text).unwrap();
+                                FromJson::from_json(&json, next_eid)
+                            };
+                            events.write_all(input_text.as_bytes()).unwrap();
+                            events.write_all("\n".as_bytes()).unwrap();
+                            instance.input.change(input_event.changes);
+                        })
+                    }
+                }
             }
-        }
+
+            let output_event = Event{changes: instance.run()};
+            let output_text = format!("{}", output_event.to_json());
+            events.flush().unwrap();
+            for sender in senders.iter_mut() {
+                match sender.send_message(Message::Text(output_text.clone())) {
+                    Ok(_) => (),
+                    Err(error) => println!("Send error: {}", error),
+                };
+            }
+        })
     }
 }

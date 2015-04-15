@@ -12,8 +12,8 @@ use core::num::ToPrimitive;
 
 fn main() {
 
-	let c0 = Call{fun: EveFn::Add, args: exprvec![1,2]};
-	let c1 = Call{fun: EveFn::Sum, args: exprvec![c0,2,3.4,5,6.7]};
+	
+	let c1 = Call{fun: EveFn::StrSplit, args: exprvec!["Hello World"]};
 	let result = calculate(&c1.to_expr());
 
 	println!("{:?}",result);
@@ -30,7 +30,7 @@ fn opstest() {
 	let c5 = Call{fun: EveFn::Add, args: exprvec![c2,c4]};				// C5 = C2 + C4
 	let c6 = Call{fun: EveFn::Exponentiate, args: exprvec![c5,2.5]};	// C6 = C5 ^ 2.5
 	let result = calculate(&c6.to_expr());
-	assert_eq!(result.to_f64().unwrap(),(((1.3f64 + 2f64) * 3f64) + (7f64 - 4f64) / 10f64).powf(2.5f64));
+	assert_eq!(result[0].to_f64().unwrap(),(((1.3f64 + 2f64) * 3f64) + (7f64 - 4f64) / 10f64).powf(2.5f64));
 
 }
 
@@ -40,7 +40,7 @@ fn stringtest() {
 	// Test a text replacement
 	let c1 = Call{fun: EveFn::StrReplace, args: exprvec!["Hello World","l","q"] };
 	let result = calculate(&c1.to_expr());
-	assert_eq!(result.to_string(),"Heqqo Worqd".to_string());
+	assert_eq!(result[0].to_string(),"Heqqo Worqd".to_string());
 
 }
 
@@ -52,22 +52,22 @@ fn trigtest() {
 	// sin
 	let c1 = Call{fun: EveFn::Sin, args: exprvec![pi]};
 	let result = calculate(&c1.to_expr());
-	assert_eq!(result.to_f64().unwrap(),pi.sin());
+	assert_eq!(result[0].to_f64().unwrap(),pi.sin());
 
 	// cos
 	let c1 = Call{fun: EveFn::Cos, args: exprvec![pi]};
 	let result = calculate(&c1.to_expr());
-	assert_eq!(result.to_f64().unwrap(),pi.cos());
+	assert_eq!(result[0].to_f64().unwrap(),pi.cos());
 
 	// tan
 	let c1 = Call{fun: EveFn::Tan, args: exprvec![pi]};
 	let result = calculate(&c1.to_expr());
-	assert_eq!(result.to_f64().unwrap(),pi.tan());
+	assert_eq!(result[0].to_f64().unwrap(),pi.tan());
 
 	// atan2
 	let c1 = Call{fun: EveFn::ATan2, args: exprvec![1.2,2.3]};
 	let result = calculate(&c1.to_expr());
-	assert_eq!(result.to_f64().unwrap(),1.2f64.atan2(2.3f64));
+	assert_eq!(result[0].to_f64().unwrap(),1.2f64.atan2(2.3f64));
 }
 
 #[test]
@@ -113,7 +113,7 @@ fn bigmathtest() {
 
 	let result = calculate(&c17.to_expr());
 
-	assert_eq!(result.to_f64().unwrap(),(2f64*ma/(wa*rh*va*mu.cos())*(gd+g*ga.cos()/va-wx*(ga.sin().powf(2f64))*ps.sin())));
+	assert_eq!(result[0].to_f64().unwrap(),(2f64*ma/(wa*rh*va*mu.cos())*(gd+g*ga.cos()/va-wx*(ga.sin().powf(2f64))*ps.sin())));
 
 }
 
