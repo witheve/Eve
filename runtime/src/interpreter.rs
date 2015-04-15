@@ -1,5 +1,5 @@
 use std::fmt::{Debug,Formatter,Result};
-use value::{Value,ToValue,Tuple,ToTuple};
+use value::{Value,ToValue,Tuple};
 use self::EveFn::*;
 use value::Value::Float;
 
@@ -199,7 +199,7 @@ fn process_call(c: &Call) -> Value {
 		//&Prod => general_agg(|x,y|{x*y},1f64,&c.args),
 
 		// Returns an empty string for the purpose of handling incomplete function
-		(fun, args) => Value::String("".to_string()),
+		(_, _) => Value::String("".to_string()),
 	}
 }
 
