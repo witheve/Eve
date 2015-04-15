@@ -402,7 +402,7 @@ function uiTile(cur) {
   if(selectedElements.length) {
     els.push(selection(sel, selectedElements));
   }
-  return {c: "tile ui-editor", mousedown: clearSelection, component: tileId, children: [
+  return {c: "tile ui-editor", mousedown: clearSelection, componentId: tileId, children: [
     uiControls(tileId, activeLayer),
     {c: "ui-canvas", children: els},
     {c: "inspector", children: [layersControl(tileId, layers, activeLayer)]},
@@ -410,17 +410,17 @@ function uiTile(cur) {
   ]};
 }
 
-function getUiSelection(component) {
+function getUiSelection(componentId) {
   var sel = ixer.index("uiSelection")[client];
   if(sel) {
-    return sel[component];
+    return sel[componentId];
   }
   return false;
 }
 
 
 function clearSelection(e, elem) {
-  dispatch("clearSelection", {component: elem.component});
+  dispatch("clearSelection", {componentId: elem.componentId});
 }
 
 function control(cur, attrs, selected, layer) {
@@ -462,7 +462,7 @@ function boundElements(elems) {
 }
 
 var resizeHandleSize = 7;
-function resizeHandle(component, bounds, y, x) {
+function resizeHandle(componentId, bounds, y, x) {
   var top, left;
   var halfSize = Math.floor(resizeHandleSize / 2);
   var height = bounds.bottom - bounds.top;
@@ -482,7 +482,7 @@ function resizeHandle(component, bounds, y, x) {
   } else {
     top = (height / 2) - halfSize;
   }
-  return {c: "resize-handle", y: y, x: x, top: top, left: left, width: resizeHandleSize, height: resizeHandleSize,  component: component,
+  return {c: "resize-handle", y: y, x: x, top: top, left: left, width: resizeHandleSize, height: resizeHandleSize,  componentId: componentId,
           draggable: true, drag: resizeSelection, bounds: bounds, dragstart: clearDragImage, mousedown: stopPropagation};
 }
 
@@ -516,7 +516,7 @@ function addToSelection(e, elem) {
   if(!e.shiftKey) {
     createNew = true;
   }
-  dispatch("selectElements", {createNew: createNew, elements: [elem.control[1]], component: elem.control[2]});
+  dispatch("selectElements", {createNew: createNew, elements: [elem.control[1]], componentId: elem.control[2]});
 }
 
 var dragOffsetX = 0;
@@ -541,7 +541,7 @@ function moveSelection(e, elem) {
   var diffX = Math.floor(x - elem.control[5] - dragOffsetX);
   var diffY = Math.floor(y - elem.control[6] - dragOffsetY);
   if(diffX || diffY) {
-    dispatch("moveSelection", {diffX: diffX, diffY: diffY, component: elem.control[2]});
+    dispatch("moveSelection", {diffX: diffX, diffY: diffY, componentId: elem.control[2]});
   }
 }
 
@@ -580,14 +580,14 @@ function resizeSelection(e, elem) {
   var heightRatio = neueHeight / (old.bottom - old.top);
 
   if(widthRatio !== 1 || heightRatio !== 1) {
-    dispatch("resizeSelection", {widthRatio: widthRatio, heightRatio: heightRatio, oldBounds: old, neueBounds: neueBounds, component: elem.component});
+    dispatch("resizeSelection", {widthRatio: widthRatio, heightRatio: heightRatio, oldBounds: old, neueBounds: neueBounds, componentId: elem.componentId});
   }
 }
 
 
 function addControl(e, elem) {
-  dispatch("addUiComponentElement", {component: elem.component,
-                                     layer: elem.layer[1],
+  dispatch("addUiComponentElement", {componentId: elem.componentId,
+                                     layerId: elem.layer[1],
                                      control: elem.control,
                                      left: elem.left || 100,
                                      right: elem.right || 200,
@@ -595,10 +595,10 @@ function addControl(e, elem) {
                                      bottom: elem.bottom || 200})
 }
 
-function uiControls(component, activeLayer) {
+function uiControls(componentId, activeLayer) {
   var controls = ["text", "box", "button"];
   var items = controls.map(function(cur) {
-    return {text: cur, click: addControl, control: cur, component: component, layer: activeLayer};
+    return {text: cur, click: addControl, control: cur, componentId: componentId, layer: activeLayer};
   })
   return {c: "controls", children: items};
 }
@@ -616,16 +616,16 @@ function layersControl(componentId, layers, activeLayer) {
       {c: locked ? "ion-locked" : "ion-unlocked", click: toggleLocked, layer: cur}
     ]};
   });
-  layerElems.push({c: "add-layer ion-plus", component: componentId, click: addLayer});
+  layerElems.push({c: "add-layer ion-plus", componentId: componentId, click: addLayer});
   return {c: "layers", children: layerElems};
 }
 
 function addLayer(e, elem) {
-  dispatch("addUiComponentLayer", {component: elem.component});
+  dispatch("addUiComponentLayer", {componentId: elem.componentId});
 }
 
 function activateLayer(e, elem) {
-  dispatch("activateUiLayer", {layer: elem.layer[1], component: elem.layer[2]});
+  dispatch("activateUiLayer", {layerId: elem.layer[1], componentId: elem.layer[2]});
 }
 
 function toggleHidden(e, elem) {
@@ -953,23 +953,23 @@ function dispatch(event, info) {
                  ["remove", "inserted", [outline[0]]]);
       break;
     case "addUiComponentElement":
-      var neue = [txId, uuid(), info.component, info.layer, info.control, info.left, info.top, info.right, info.bottom];
+      var neue = [txId, uuid(), info.componentId, info.layerId, info.control, info.left, info.top, info.right, info.bottom];
       diffs.push(["uiComponentElement", "inserted", neue]);
       break;
     case "addUiComponentLayer":
-      var layers = ixer.index("uiComponentToLayers")[info.component];
+      var layers = ixer.index("uiComponentToLayers")[info.componentId];
       var layerIx = 0;
       if(layers) {
         layerIx = layers.length;
       }
       var id = uuid();
-      var neue = [txId, id, info.component, layerIx, false, false];
+      var neue = [txId, id, info.componentId, layerIx, false, false];
       diffs.push(["uiComponentLayer", "inserted", neue],
                  ["displayName", "inserted", [txId, id, "Layer " + layerIx]]);
       console.log(diffs);
       break;
     case "activateUiLayer":
-      diffs.push(["uiActiveLayer", "inserted", [txId, info.component, client, info.layer]])
+      diffs.push(["uiActiveLayer", "inserted", [txId, info.componentId, client, info.layerId]])
       break;
     case "updateUiLayer":
       var neue = info.neue;
@@ -977,18 +977,18 @@ function dispatch(event, info) {
       diffs.push(["uiComponentLayer", "inserted", neue]);
       break;
     case "clearSelection":
-      var sel = getUiSelection(info.component);
+      var sel = getUiSelection(info.componentId);
       if(sel && !ixer.index("remove")[sel[0]]) {
         console.log("here");
         diffs.push(["remove", "inserted", [sel[0]]]);
       }
       break;
     case "selectElements":
-      var sel = getUiSelection(info.component);
+      var sel = getUiSelection(info.componentId);
       if(sel && ixer.index("remove")[sel[0]]) { sel = null; }
       var id = uuid();
       if(info.createNew || !sel) {
-        diffs.push(["uiSelection", "inserted", [txId, id, client, info.component]]);
+        diffs.push(["uiSelection", "inserted", [txId, id, client, info.componentId]]);
       } else {
         id = sel[1];
       }
@@ -996,13 +996,13 @@ function dispatch(event, info) {
         diffs.push(["uiSelectionElement", "inserted", [id, cur]]);
       });
       var first = ixer.index("uiComponentElement")[info.elements[0]];
-      var activeLayer = ixer.index("uiActiveLayer")[client][info.component];
+      var activeLayer = ixer.index("uiActiveLayer")[client][info.componentId];
       if(first[3] !== activeLayer) {
-        diffs.push(["uiActiveLayer", "inserted", [txId, info.component, client, first[3]]])
+        diffs.push(["uiActiveLayer", "inserted", [txId, info.componentId, client, first[3]]])
       }
       break;
     case "moveSelection":
-      var sel = ixer.index("uiSelection")[client][info.component];
+      var sel = ixer.index("uiSelection")[client][info.componentId];
       var els = ixer.index("uiSelectionElements")[sel[1]];
       var elementIndex = ixer.index("uiComponentElement");
       var diffX = info.diffX;
@@ -1019,7 +1019,7 @@ function dispatch(event, info) {
       });
       break;
     case "resizeSelection":
-      var sel = ixer.index("uiSelection")[client][info.component];
+      var sel = ixer.index("uiSelection")[client][info.componentId];
       var els = ixer.index("uiSelectionElements")[sel[1]];
       var elementIndex = ixer.index("uiComponentElement");
       var ratioX = info.widthRatio;
