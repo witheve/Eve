@@ -352,7 +352,7 @@ fn create_flow(compiler: Compiler) -> Flow {
     }
 
     // grab state from old flow
-    let Compiler{flow: flow, upstream: upstream, schedule: schedule} = compiler;
+    let Compiler{flow, upstream, schedule} = compiler;
     let upstream_ix = nodes.iter().position(|node| &node.id[..] == "upstream").unwrap();
     states[upstream_ix] = Some(RefCell::new(upstream));
     let schedule_ix = nodes.iter().position(|node| &node.id[..] == "schedule").unwrap();

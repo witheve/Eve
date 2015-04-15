@@ -8,7 +8,6 @@ extern crate core;
 
 //use test::Bencher;
 use eve::interpreter::*;
-use core::num::ToPrimitive;
 
 fn main() {
 
