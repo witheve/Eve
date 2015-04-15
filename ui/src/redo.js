@@ -104,7 +104,8 @@ function stage() {
   grid = Grid.makeGrid({bounds: {top: rect.top, left: rect.left + 10, width: rect.width - 120, height: rect.height - toolbarOffset}, gutter: 8});
   var active = "grid://default";
   var removed = ixer.index("remove");
-  var tiles = ixer.index("gridToTile")[active].filter(function(cur) {
+  var allTiles = ixer.index("gridToTile")[active] || [];
+  var tiles = allTiles.filter(function(cur) {
     return !removed[cur[0]];
   });
   var drawnTiles = tiles.map(function(cur) {
@@ -398,6 +399,7 @@ function uiTile(cur) {
     });
   }
   var els = elements.map(function(cur) {
+    if(removed[cur[0]]) return;
     var id = cur[1];
     var selected = selectedElements.indexOf(id) > -1;
     return control(cur, attrs[id], selected, layerLookup[cur[3]]);
@@ -446,10 +448,16 @@ function addControl(e, elem) {
                                      bottom: elem.bottom || 200})
 }
 
+var uiControlInfo = [{text: "text", icon: ""},
+                     {text: "box", icon: ""},
+                     {text: "button", icon: ""}];
 function uiControls(componentId, activeLayer) {
-  var controls = ["text", "box", "button"];
-  var items = controls.map(function(cur) {
-    return {text: cur, click: addControl, control: cur, componentId: componentId, layer: activeLayer};
+  var items = uiControlInfo.map(function(cur) {
+    return {c: "control-item", click: addControl, control: cur.text, componentId: componentId, layer: activeLayer,
+            children: [
+              {c: "icon"},
+              {text: cur.text}
+            ]};
   })
   return {c: "controls", children: items};
 }
@@ -519,7 +527,8 @@ function selection(sel, elementIds) {
             resizeHandle(sel[3], bounds, "bottom", "right"),
             resizeHandle(sel[3], bounds, "bottom", "center"),
             resizeHandle(sel[3], bounds, "bottom", "left"),
-            resizeHandle(sel[3], bounds, "middle", "left")
+            resizeHandle(sel[3], bounds, "middle", "left"),
+            {c: "trash ion-ios-trash", componentId: sel[3], mousedown:stopPropagation, click: deleteSelection}
           ]};
 }
 
@@ -576,6 +585,10 @@ function boundElements(elems) {
   return bounds;
 }
 
+function deleteSelection(e, elem) {
+  dispatch("deleteSelection", {componentId: elem.componentId});
+}
+
 function clearSelection(e, elem) {
   dispatch("clearSelection", {componentId: elem.componentId});
 }
@@ -601,6 +614,9 @@ function startMoveSelection(e, elem) {
   dragOffsetX = x - elem.left - canvasRect.left;
   dragOffsetY = y - elem.top - canvasRect.top;
   clearDragImage(e);
+  if(e.altKey) {
+    dispatch("duplicateSelection", {componentId: elem.control[2]});
+  }
 }
 
 function moveSelection(e, elem) {
@@ -667,9 +683,9 @@ function layersControl(componentId, layers, activeLayer) {
     var name = code.name(cur[1]);
     var active = activeLayer === cur ? " active" : "";
     return {c: "layer" + active, click: activateLayer, layer: cur, children: [
-      {c: "ion-drag"},
-      input(name, cur[1], rename),
       {c: hidden ? "ion-eye-disabled" : "ion-eye", click: toggleHidden, layer: cur},
+//       {c: "ion-drag"},
+      input(name, cur[1], rename),
       {c: locked ? "ion-locked" : "ion-unlocked", click: toggleLocked, layer: cur}
     ]};
   });
@@ -913,7 +929,7 @@ var tiles = {ui: uiTile, table: tableTile, view: viewTile, addChooser: chooserTi
 // Dispatch
 //---------------------------------------------------------
 
-function dispatch(event, info) {
+function dispatch(event, info, returnInsteadOfSend) {
   var storeEvent = true;
   var diffs = [];
   var txId = {"eid": "auto"};
@@ -955,10 +971,7 @@ function dispatch(event, info) {
       tile[0] = txId;
       tile[3] = "ui";
       diffs.push(["gridTile", "inserted", tile]);
-      var id = uuid();
-      var neue = [txId, id, tileId, 0, false, false];
-      diffs.push(["uiComponentLayer", "inserted", neue],
-                 ["displayName", "inserted", [txId, id, "Layer " + 0]]);
+      diffs.push.apply(diffs, dispatch("addUiComponentLayer", {componentId: info.tileId}));
       break;
     case "updateTile":
       var neue = info.neue.slice();
@@ -983,6 +996,11 @@ function dispatch(event, info) {
     case "addUiComponentElement":
       var neue = [txId, uuid(), info.componentId, info.layerId, info.control, info.left, info.top, info.right, info.bottom];
       diffs.push(["uiComponentElement", "inserted", neue]);
+      diffs.push.apply(diffs, dispatch("selectElements", {componentId: info.componentId,
+                                                          createNew: true,
+                                                          elements: [neue[1]]},
+                                      true));
+      console.log(diffs);
       break;
     case "addUiComponentLayer":
       var layers = ixer.index("uiComponentToLayers")[info.componentId];
@@ -994,7 +1012,7 @@ function dispatch(event, info) {
       var neue = [txId, id, info.componentId, layerIx, false, false];
       diffs.push(["uiComponentLayer", "inserted", neue],
                  ["displayName", "inserted", [txId, id, "Layer " + layerIx]]);
-      console.log(diffs);
+      diffs.push.apply(diffs, dispatch("activateUiLayer", {componentId: info.componentId, layerId: id}));
       break;
     case "activateUiLayer":
       diffs.push(["uiActiveLayer", "inserted", [txId, info.componentId, client, info.layerId]])
@@ -1024,10 +1042,30 @@ function dispatch(event, info) {
         diffs.push(["uiSelectionElement", "inserted", [id, cur]]);
       });
       var first = ixer.index("uiComponentElement")[info.elements[0]];
-      var activeLayer = ixer.index("uiActiveLayer")[client][info.componentId];
-      if(first[3] !== activeLayer) {
+      var activeLayer = ixer.index("uiActiveLayer")[client] ? ixer.index("uiActiveLayer")[client][info.componentId] : null;
+      if(first && first[3] !== activeLayer) {
         diffs.push(["uiActiveLayer", "inserted", [txId, info.componentId, client, first[3]]])
       }
+      break;
+    case "deleteSelection":
+      var sel = ixer.index("uiSelection")[client][info.componentId];
+      var els = ixer.index("uiSelectionElements")[sel[1]];
+      var elementIndex = ixer.index("uiComponentElement");
+      els.forEach(function(cur) {
+        var elem = elementIndex[cur[1]];
+        diffs.push(["remove", "inserted", [elem[0]]]);
+      });
+      diffs.push.apply(diffs, dispatch("clearSelection", info));
+      console.log(diffs);
+      break;
+    case "duplicateSelection":
+      var sel = ixer.index("uiSelection")[client][info.componentId];
+      var els = ixer.index("uiSelectionElements")[sel[1]];
+      var elementIndex = ixer.index("uiComponentElement");
+      els.forEach(function(cur) {
+        var elem = elementIndex[cur[1]];
+        diffs.push.apply(diffs, code.ui.duplicateElement(elem, txId));
+      });
       break;
     case "moveSelection":
       var sel = ixer.index("uiSelection")[client][info.componentId];
@@ -1115,8 +1153,10 @@ function dispatch(event, info) {
 //     eventStack = eventItem;
 //   }
 
+  if(returnInsteadOfSend) {
+    return diffs;
+  }
   sendToServer(diffs);
-
 }
 
 //---------------------------------------------------------
@@ -1213,6 +1253,26 @@ var code = {
         if(oldProp) {
           diffs.push(["deletion", "inserted", [txId, oldProp[0]]]);
         }
+      }
+      return diffs;
+    },
+    duplicateElement: function(element, txId) {
+      var diffs = [];
+      var neue = element.slice();
+      //generate new ids for the element, everything else remains
+      var id = uuid();
+      neue[0] = txId;
+      neue[1] = id;
+      diffs.push(["uiComponentElement", "inserted", neue]);
+      //duplicate all of the attributes
+      var attrs = ixer.index("uiElementToAttrs")[element[1]];
+      if(attrs) {
+        attrs.forEach(function(cur) {
+          var attr = cur.slice();
+          attr[0] = txId;
+          attr[1] = id;
+          diffs.push(["uiComponentAttribute", "inserted", attr]);
+        });
       }
       return diffs;
     }
@@ -1398,10 +1458,7 @@ function initIndexer() {
     y: "number",
     w: "number",
     h: "number"
-  }, [
-    [0, uiViewId, gridId, "ui", 0, 12, 12, 6],
-    [0, bigUiViewId, "grid://ui", "ui", 0, 12, 12, 12],
-  ], "gridTile", ["table"]));
+  }, [], "gridTile", ["table"]));
 
   ixer.handleDiffs(code.diffs.addView(
     "activeGrid",
@@ -1411,10 +1468,7 @@ function initIndexer() {
 
   ixer.handleDiffs(code.diffs.addView(
     "gridTarget",
-    {tx: "number", tile: "string", target: "string"}, [
-      [uiViewId, "grid://ui"],
-      [bigUiViewId, "grid://default"]
-    ], "gridTarget", ["table"]));
+    {tx: "number", tile: "string", target: "string"}, [], "gridTarget", ["table"]));
 
   // ui views
   ixer.handleDiffs(
@@ -1426,10 +1480,6 @@ function initIndexer() {
   ixer.handleDiffs(code.diffs.addView("uiSelection", {tx: "number", id: "id", client: "string", component: "id"}, [], "uiSelection", ["table"]));
   ixer.handleDiffs(code.diffs.addView("uiSelectionElement", {id: "id", element: "id"}, [], "uiSelectionElement", ["table"]));
   ixer.handleDiffs(code.diffs.addView("uiActiveLayer", {tx: "number", component: "id", client: "id", layer: "id"}, [], "uiActiveLayer", ["table"]));
-
-  var firstLayerId = uuid();
-  ixer.handleDiffs([["uiComponentLayer", "inserted", [0, firstLayerId, uiViewId, 0, false, false]],
-                   ["displayName", "inserted", [0, firstLayerId, "Layer 0"]]]);
 }
 
 //---------------------------------------------------------

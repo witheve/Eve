@@ -60,6 +60,7 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .grid-tile > .controls { opacity:0; padding: 5px 5px; flex:none; transition:opacity 0.2s ease-in-out; }
 .grid-tile:hover > .controls { opacity:1; }
 .resize-tile { transform: rotateZ(-45deg); overflow:hidden; position:absolute; bottom:0; }
+.grid-tile > .controls { flex-direction:column; }
 
 /*-----------------------------------------------------------------------------
 - minimap
@@ -73,28 +74,45 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .minimap .minimap-tile.table { background: #346; }
 
 /*-----------------------------------------------------------------------------
+- input
+-----------------------------------------------------------------------------*/
+
+.input { outline:none; }
+
+/*-----------------------------------------------------------------------------
 - ui editor
 -----------------------------------------------------------------------------*/
 
 .ui-editor { flex: 1; }
 
-.controls { flex-direction:column; }
+.ui-editor .controls { flex-direction:column; margin-top:10px; }
+.ui-editor .controls .control-item { flex:none; flex-direction:column; padding:5px 15px; align-items:center; font-size:10pt; }
+.ui-editor .controls .control-item:hover { background:#555; }
+.ui-editor .controls .icon { width:30px; height:30px; border: 1px solid #999;  border-radius:2px; margin-bottom:5px; }
 
-.ui-canvas {flex: 1; position:relative; overflow:hidden; background:#111; margin:10px; }
+.ui-canvas {flex: 1; position:relative; overflow:hidden; background:#111; margin:10px 0; }
 .ui-canvas .control { background:#555; }
 .ui-canvas .control.selected { border: 1px solid #acf; }
 .ui-canvas .resize-handle { position:absolute; background: rgba(170,204,255,0.3); border: 1px solid #acf; z-index: 1000; }
+
 .selection { border: 1px solid #acf; pointer-events: none; z-index:100; }
+.selection .trash { position:absolute; top: -40px; right: -40px; font-size: 20pt; color: #acf; padding:4px 10px; pointer-events:auto; border-radius:2px; }
+.selection .trash:hover { background: #833; color: #fcc; }
 .resize-handle { pointer-events: auto; }
 
 .grid { z-index: 0; pointer-events:none; }
 
-.inspector { flex-direction:column; width:150px; }
-.layers { flex-direction: column; }
-.layer { display:flex; }
-.layer.active { background:red; }
+.inspector { flex-direction:column; width:150px; margin-left:10px; }
+.layers { flex-direction: column; margin-top:10px }
+.layer { display:flex; padding:5px; border-radius:2px; background:#444; }
+.layer + .layer { margin-top:1px; }
+.layer.active { background:#777; color: #eee; }
 .layer > * + *  { margin-left:10px; }
 .layer .input { flex:1; }
+.add-layer { padding:5px; border-radius:2px; flex:none; width:25px; justify-content:center; }
+.add-layer:hover { background: #666; }
+.layers .ion-eye-disabled { color: #f88; }
+.layers .ion-locked { color: #f88; }
 .hidden { display:none; }
 .locked { pointer-events: none; }
 

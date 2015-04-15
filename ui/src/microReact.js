@@ -35,12 +35,14 @@
 
     domify: function domify() {
       var elements = this.tree;
+      var prevElements = this.prevTree;
       var diff = this.lastDiff;
       var elemKeys = Object.keys(diff);
       var elementCache = this.elementCache;
       for(var i = 0, len = elemKeys.length; i < len; i++) {
         var id = elemKeys[i];
         var cur = elements[id];
+        var prev = prevElements[id];
         var type = diff[id];
         var div;
         if(type === "replaced") {
@@ -67,7 +69,9 @@
           div.className = cur.c || "";
         }
 
-        div.draggable = cur.draggable ? "draggable" : null;
+        if(cur.draggable) {
+          div.draggable = true;
+        }
         div.contentEditable = cur.contentEditable || "inherit";
         if(cur.colspan) {
           div.colSpan = cur.colspan;
@@ -93,10 +97,23 @@
           style.fontFamily = cur.fontFamily;
         }
 
-        if(cur.text !== undefined && cur.text !== div.textContent) {
-          div.textContent = cur.text;
+
+        if(type === "updated") {
+          if(cur.text !== prev.text) {
+            div.textContent = cur.text;
+          }
+          for(var evIx = 0, evLen = events.length; evIx < evLen; evIx++) {
+            var event = events[evIx];
+            if(cur[event] && prev[event] !== cur[event]) {
+              div.addEventListener(event, this.handleEvent);
+            }
+          }
         }
+
         if(type === "added" || type === "replaced") {
+          if(cur.text !== undefined) {
+            div.textContent = cur.text;
+          }
           for(var evIx = 0, evLen = events.length; evIx < evLen; evIx++) {
             var event = events[evIx];
             if(cur[event]) { div.addEventListener(event, this.handleEvent); }
@@ -171,6 +188,7 @@
       if(children) {
         for(var childIx = 0, len = children.length; childIx < len; childIx++) {
           var child = children[childIx];
+          if(child === undefined) continue;
           if(!child.id) { child.id = elem.id + "__" + childIx; }
           child.parent = elem.id;
           child.ix = childIx;
