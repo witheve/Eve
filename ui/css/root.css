@@ -62,6 +62,8 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .selection { border: 1px solid red; pointer-events: none; }
 .resize-handle { pointer-events: auto; }
 .ui-canvas .control.selected { background: red; }
+.hidden { display:none; }
+.locked { pointer-events: none; }
 
 
 .view-tile { display:flex; }

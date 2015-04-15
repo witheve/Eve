@@ -380,6 +380,7 @@ function uiTile(cur) {
   var removed = ixer.index("remove");
   var elements = ixer.index("uiComponentToElements")[tileId] || [];
   var layers = ixer.index("uiComponentToLayers")[tileId];
+  var layerLookup = ixer.index("uiComponentLayer");
   var attrs = ixer.index("uiElementToAttrs");
   var sel = ixer.index("uiSelection")[client];
   var selectedElements = [];
@@ -391,7 +392,7 @@ function uiTile(cur) {
   var els = elements.map(function(cur) {
     var id = cur[1];
     var selected = selectedElements.indexOf(id) > -1;
-    return control(cur, attrs[id], selected);
+    return control(cur, attrs[id], selected, layerLookup[cur[3]]);
   });
   if(selectedElements.length) {
     els.push(selection(sel[1], selectedElements));
@@ -408,19 +409,22 @@ function clearSelection(e, elem) {
   dispatch("clearSelection");
 }
 
-function control(cur, attrs, selected) {
-    var id = cur[1];
-    var selClass = selected ? " selected" : "";
-    var elem = {c: "control" + selClass, id: id, left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6],
-                control: cur, mousedown: addToSelection, selected: selected,
-                draggable: true, drag: moveSelection, dragstart: startMoveSelection};
-    if(!attrs) return elem;
-    for(var i = 0, len = attrs.length; i < len; i++) {
-      var curAttr = attrs[i];
-      var name = attrMappings[curAttr[2]] || curAttr[2];
-      elem[name] = curAttr[3];
-    }
-    return elem;
+function control(cur, attrs, selected, layer) {
+  var id = cur[1];
+  var selClass = selected ? " selected" : "";
+  var hidden = layer[5] ? " hidden" : "";
+  var locked = layer[4] ? " locked" : "";
+  var klass = "control" + selClass + hidden + locked;
+  var elem = {c: klass, id: id, left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6],
+              control: cur, mousedown: addToSelection, selected: selected,
+              draggable: true, drag: moveSelection, dragstart: startMoveSelection};
+  if(!attrs) return elem;
+  for(var i = 0, len = attrs.length; i < len; i++) {
+    var curAttr = attrs[i];
+    var name = attrMappings[curAttr[2]] || curAttr[2];
+    elem[name] = curAttr[3];
+  }
+  return elem;
 }
 
 function boundElements(elems) {
@@ -1142,6 +1146,7 @@ ixer.addIndex("uiElementToAttrs", "uiComponentAttribute", Indexing.create.latest
 ixer.addIndex("uiElementToAttr", "uiComponentAttribute", Indexing.create.latestLookup({keys: [1, 2, false]}));
 ixer.addIndex("uiSelection", "uiSelection", Indexing.create.latestLookup({keys: [2, false]}));
 ixer.addIndex("uiSelectionElements", "uiSelectionElement", Indexing.create.collector([0]));
+ixer.addIndex("uiActiveLayer", "uiActiveLayer", Indexing.create.latestLookup({keys: [2, 1, 3]}));
 
 // Grid Indexes
 ixer.addIndex("gridTarget", "gridTarget", Indexing.create.latestLookup({keys: [1, 2]}));
@@ -1239,8 +1244,9 @@ function initIndexer() {
     code.diffs.addView("uiComponentLayer", {tx: "number", id: "string", component: "string", layer: "number", locked: "boolean", invisible: "boolean"}, [], "uiComponentLayer", ["table"]));
   ixer.handleDiffs(
     code.diffs.addView("uiComponentAttribute", {tx: "number", id: "string", property: "string", value: "string", isBinding: "boolean"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
-  ixer.handleDiffs(code.diffs.addView("uiSelection", {tx: "number", id: "id", client: "string"}, [], "uiSelection", ["table"])); // @FIXME: value: any
-  ixer.handleDiffs(code.diffs.addView("uiSelectionElement", {id: "id", element: "id"}, [], "uiSelectionElement", ["table"])); // @FIXME: value: any
+  ixer.handleDiffs(code.diffs.addView("uiSelection", {tx: "number", id: "id", client: "string"}, [], "uiSelection", ["table"]));
+  ixer.handleDiffs(code.diffs.addView("uiSelectionElement", {id: "id", element: "id"}, [], "uiSelectionElement", ["table"]));
+  ixer.handleDiffs(code.diffs.addView("uiActiveLayer", {tx: "number", component: "id",  client: "id", layer: "id"}, [], "uiActiveLayer", ["table"]));
 
   var firstLayerId = uuid();
   ixer.handleDiffs([["uiComponentLayer", "inserted", [0, firstLayerId, uiViewId, 0, false, false]],
