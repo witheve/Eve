@@ -507,6 +507,7 @@ function uiGrid(componentId, layerIndex, size) {
 //---------------------------------------------------------
 // ui selection
 //---------------------------------------------------------
+var isResizing = false;
 
 function selection(sel, elementIds) {
   //get the things in the selection
@@ -516,7 +517,12 @@ function selection(sel, elementIds) {
   });
   //get the bounding box of those
   var bounds = boundElements(elements);
-  //draw a box around it
+  var coordinates;
+  if(isResizing) {
+    coordinates = [{text: "w: " + (bounds.right - bounds.left)}, {text: "h: " + (bounds.bottom - bounds.top)}];
+  } else {
+    coordinates = [{text: "x: " + bounds.left}, {text: "y: " + bounds.top}];
+  }
   return {c: "selection", top: bounds.top, left: bounds.left,
           width: bounds.right - bounds.left, height: bounds.bottom - bounds.top,
           children: [
@@ -528,7 +534,8 @@ function selection(sel, elementIds) {
             resizeHandle(sel[3], bounds, "bottom", "center"),
             resizeHandle(sel[3], bounds, "bottom", "left"),
             resizeHandle(sel[3], bounds, "middle", "left"),
-            {c: "trash ion-ios-trash", componentId: sel[3], mousedown:stopPropagation, click: deleteSelection}
+            {c: "trash ion-ios-trash", componentId: sel[3], mousedown:stopPropagation, click: deleteSelection},
+            {c: "coordinates", children: coordinates}
           ]};
 }
 
@@ -554,7 +561,7 @@ function resizeHandle(componentId, bounds, y, x) {
     top = (height / 2) - halfSize;
   }
   return {c: "resize-handle", y: y, x: x, top: top, left: left, width: resizeHandleSize, height: resizeHandleSize,  componentId: componentId,
-          draggable: true, drag: resizeSelection, bounds: bounds, dragstart: clearDragImage, mousedown: stopPropagation};
+          draggable: true, drag: resizeSelection, bounds: bounds, dragstart: clearDragImage, mousedown: stopPropagation, dragend: doneResizing};
 }
 
 function getUiSelection(componentId) {
@@ -633,7 +640,12 @@ function moveSelection(e, elem) {
   }
 }
 
+function doneResizing(e, elem) {
+  isResizing = false;
+}
+
 function resizeSelection(e, elem) {
+  isResizing = true;
   var x = Math.floor(e.clientX || __clientX);
   var y = Math.floor(e.clientY || __clientY);
   if(x === 0 && y === 0) return;
