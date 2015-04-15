@@ -330,28 +330,49 @@ fn create_node(compiler: &Compiler, view_id: &Value, view_kind: &Value) -> Node 
     }
 }
 
-fn create_flow(compiler: &Compiler) -> Flow {
+fn create_flow(compiler: Compiler) -> Flow {
     let mut nodes = Vec::new();
     let mut dirty = BitSet::new();
-    let mut states = Vec::new();
+    let mut states: Vec<Option<RefCell<Relation>>> = Vec::new();
+
+    // compile nodes
     for (ix, schedule) in compiler.schedule.iter().enumerate() { // arrives in ix order
         let view_id = &schedule[SCHEDULE_VIEW];
         let view = compiler.flow.get_state("view").find_one(VIEW_ID, view_id).clone();
         let view_kind = &view[VIEW_KIND];
-        let node = create_node(compiler, view_id, view_kind);
-        let state = match &view_id.to_string()[..] {
-            "upstream" => RefCell::new(compiler.upstream.clone()),
-            "schedule" => RefCell::new(compiler.schedule.clone()),
-            _ => compiler.flow.get_ix(&node.id).map_or_else(
-                || RefCell::new(Index::new()),
-                |ix| compiler.flow.states[ix].clone()
-                )
-        };
-        let is_calculated = match node.view {View::Input => false, _ => true};
+        let node = create_node(&compiler, view_id, view_kind);
+        match node.view {
+            View::Input => (),
+            _ => {
+                dirty.insert(ix);
+            },
+        }
         nodes.push(node);
-        states.push(state);
-        if is_calculated { dirty.insert(ix); }
+        states.push(None);
     }
+
+    // grab state from old flow
+    let Compiler{flow: flow, upstream: upstream, schedule: schedule} = compiler;
+    let upstream_ix = nodes.iter().position(|node| &node.id[..] == "upstream").unwrap();
+    states[upstream_ix] = Some(RefCell::new(upstream));
+    let schedule_ix = nodes.iter().position(|node| &node.id[..] == "schedule").unwrap();
+    states[schedule_ix] = Some(RefCell::new(schedule));
+    let Flow{nodes: old_nodes, states: old_states, ..} = flow;
+    for (old_node, old_state) in old_nodes.iter().zip(old_states.into_iter()) {
+        if (old_node.id != "upstream") || (old_node.id != "schedule") {
+            match nodes.iter().position(|node| node.id == old_node.id) {
+                Some(ix) => states[ix] = Some(old_state),
+                None => (),
+            }
+        }
+    }
+
+    // fill in state for new nodes
+    let states = states.map_in_place(|state_option| match state_option {
+        Some(state) => state,
+        None => RefCell::new(Index::new()),
+    });
+
     Flow{
         nodes: nodes,
         dirty: dirty,
@@ -370,5 +391,5 @@ pub fn compile(mut flow: Flow) -> Flow {
         upstream: upstream,
         schedule: schedule,
     };
-    create_flow(&compiler)
+    create_flow(compiler)
 }
