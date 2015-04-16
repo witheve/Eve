@@ -403,32 +403,23 @@ function uiTile(cur) {
   if(activeLayerId) {
     activeLayer = layerLookup[activeLayerId];
   }
-  var attrs = ixer.index("uiElementToAttrs");
-  var sel = getUiSelection(componentId);
-  var selectedElements = [];
-  if(sel && !removed[sel[0]]) {
-    selectedElements = ixer.index("uiSelectionElements")[sel[1]].map(function(cur) {
-      return cur[1];
-    });
-  }
+  var attrsIndex = ixer.index("uiElementToAttrs");
+  var selectionInfo = getSelectionInfo(componentId);
   var els = elements.map(function(cur) {
     if(removed[cur[0]]) return;
     var id = cur[1];
-    var selected = selectedElements.indexOf(id) > -1;
-    return control(cur, attrs[id], selected, layerLookup[cur[3]]);
+    var selected = selectionInfo ? selectionInfo.selectedIds[id] : false;
+    return control(cur, attrsIndex[id], selected, layerLookup[cur[3]]);
   });
-  if(selectedElements.length) {
-    els.push(selection(sel, selectedElements));
+  if(selectionInfo) {
+    els.push(selection(selectionInfo));
     var tileRect = Grid.getRect(grid, cur);
     els.push(uiGrid(componentId, activeLayer[3], {width: tileRect.width,  height: tileRect.height}));
   }
   return {c: "tile ui-editor", mousedown: clearSelection, componentId: componentId, children: [
     uiControls(componentId, activeLayer),
     {c: "ui-canvas", children: els},
-    {c: "inspector", children: [layersControl(componentId, layers, activeLayer),
-                                layoutInspector(),
-                                appearanceInspector(),
-                                textInspector()]},
+    inspector(componentId, selectionInfo, layers, activeLayer)
   ]};
 }
 
@@ -482,14 +473,68 @@ function uiControls(componentId, activeLayer) {
 // ui inspectors
 //---------------------------------------------------------
 
-function layoutInspector() {
+function inspector(componentId, selectionInfo, layers, activeLayer) {
+  var inspectors = [layersControl(componentId, layers, activeLayer)];
+  if(selectionInfo) {
+    inspectors.push(layoutInspector(selectionInfo),
+                    appearanceInspector(selectionInfo),
+                    textInspector(selectionInfo));
+  }
+  return {c: "inspector", children: inspectors};
+}
+
+function inspectorInput(value, key, onChange) {
+  var field = input(value, key, onChange, preventDefault);
+  field.mousedown = stopPropagation;
+  return field;
+}
+
+function layoutInspector(selectionInfo) {
+  var componentId = selectionInfo.componentId;
+  var bounds = selectionInfo.bounds;
   //pos, size
   return {c: "inspector-panel", children: [
-    {c: "pair", children: [{c: "label", text: "top"}, input("top") ]},
-    {c: "pair", children: [{c: "label", text: "left"}, input("left") ]},
-    {c: "pair", children: [{c: "label", text: "bottom"}, input("bottom") ]},
-    {c: "pair", children: [{c: "label", text: "right"}, input("right") ]},
+    {c: "pair", children: [{c: "label", text: "top"}, inspectorInput(bounds.top, [componentId, "top"], adjustPosition) ]},
+    {c: "pair", children: [{c: "label", text: "left"}, inspectorInput(bounds.left, [componentId, "left"], adjustPosition) ]},
+    {c: "pair", children: [{c: "label", text: "width"}, inspectorInput(bounds.right - bounds.left, selectionInfo, adjustWidth) ]},
+    {c: "pair", children: [{c: "label", text: "height"}, inspectorInput(bounds.bottom - bounds.top, selectionInfo, adjustHeight) ]},
   ]};
+}
+
+function adjustWidth(e, elem) {
+  var value = parseInt(e.currentTarget.textContent);
+  if(isNaN(value)) return;
+  if(value <= 0) value = 1;
+  var componentId = elem.key.componentId;
+  var old = elem.key.bounds;
+  var neue = {left: old.left, right: (old.left + value), top: old.top,  bottom: old.bottom};
+  var widthRatio = value / elem.text;
+  dispatch("resizeSelection", {widthRatio: widthRatio, heightRatio: 1, oldBounds: old, neueBounds: neue, componentId: componentId});
+}
+
+function adjustHeight(e, elem) {
+  var value = parseInt(e.currentTarget.textContent);
+  if(isNaN(value)) return;
+  if(value <= 0) value = 1;
+  var componentId = elem.key.componentId;
+  var old = elem.key.bounds;
+  var neue = {left: old.left, right: old.right, top: old.top,  bottom: (old.top + value)};
+  var heightRatio = value / elem.text;
+  dispatch("resizeSelection", {widthRatio: 1, heightRatio: heightRatio, oldBounds: old, neueBounds: neue, componentId: componentId});
+}
+
+function adjustPosition(e, elem) {
+  var value = parseInt(e.currentTarget.textContent);
+  if(isNaN(value)) return;
+  var componentId = elem.key[0];
+  var coord = elem.key[1];
+  var diffX = 0, diffY = 0;
+  if(coord === "top") {
+    diffY = value - elem.text;
+  } else {
+    diffX = value - elem.text;
+  }
+  dispatch("moveSelection", {diffX: diffX, diffY: diffY, componentId: componentId});
 }
 
 function appearanceInspector() {
@@ -562,14 +607,9 @@ function uiGrid(componentId, layerIndex, size) {
 var isResizing = false;
 var color = "#ff0000";
 
-function selection(sel, elementIds) {
-  //get the things in the selection
-  var elementIndex = ixer.index("uiComponentElement");
-  var elements = elementIds.map(function(cur) {
-    return elementIndex[cur];
-  });
-  //get the bounding box of those
-  var bounds = boundElements(elements);
+function selection(selectionInfo) {
+  var componentId = selectionInfo.componentId;
+  var bounds = selectionInfo.bounds;
   var coordinates;
   if(isResizing) {
     coordinates = [{text: "w: " + (bounds.right - bounds.left)}, {text: "h: " + (bounds.bottom - bounds.top)}];
@@ -579,20 +619,54 @@ function selection(sel, elementIds) {
   return {c: "selection", top: bounds.top, left: bounds.left,
           width: bounds.right - bounds.left, height: bounds.bottom - bounds.top,
           children: [
-            resizeHandle(sel[3], bounds, "top", "left"),
-            resizeHandle(sel[3], bounds, "top", "center"),
-            resizeHandle(sel[3], bounds, "top", "right"),
-            resizeHandle(sel[3], bounds, "middle", "right"),
-            resizeHandle(sel[3], bounds, "bottom", "right"),
-            resizeHandle(sel[3], bounds, "bottom", "center"),
-            resizeHandle(sel[3], bounds, "bottom", "left"),
-            resizeHandle(sel[3], bounds, "middle", "left"),
+            resizeHandle(componentId, bounds, "top", "left"),
+            resizeHandle(componentId, bounds, "top", "center"),
+            resizeHandle(componentId, bounds, "top", "right"),
+            resizeHandle(componentId, bounds, "middle", "right"),
+            resizeHandle(componentId, bounds, "bottom", "right"),
+            resizeHandle(componentId, bounds, "bottom", "center"),
+            resizeHandle(componentId, bounds, "bottom", "left"),
+            resizeHandle(componentId, bounds, "middle", "left"),
             {c: "color ion-waterdrop", children: [
-              {t: "input", type: "color", value: color, mousedown: stopPropagation, input: changeColor, componentId: sel[3]},
+              {t: "input", type: "color", value: color, mousedown: stopPropagation, input: changeColor, componentId: componentId},
             ]},
-            {c: "trash ion-ios-trash", componentId: sel[3], mousedown:stopPropagation, click: deleteSelection},
+            {c: "trash ion-ios-trash", componentId: componentId, mousedown:stopPropagation, click: deleteSelection},
             {c: "coordinates", children: coordinates}
           ]};
+}
+
+function getSelectionInfo(componentId, withAttributes) {
+  var sel = getUiSelection(componentId);
+  var removed = ixer.index("remove");
+  if(sel && !removed[sel[0]]) {
+    var ids = {};
+    var attributes = {};
+    var elementIndex = ixer.index("uiComponentElement");
+    var attrsIndex = ixer.index("uiElementToAttrs");
+    elements = ixer.index("uiSelectionElements")[sel[1]].map(function(cur) {
+      var id = cur[1];
+      ids[id] = true;
+      if(withAttributes !== undefined) {
+        var attrs = attrsIndex[id];
+        if(attrs) {
+          attrs.forEach(function(cur) {
+            var key = cur[2];
+            var value = cur[3];
+            if(attributes[key] === undefined) {
+              attributes[key] = value;
+            } else if(attributes[key] !== value) {
+              attributes[key] = false;
+            }
+          });
+        }
+      }
+      return elementIndex[id];
+    });
+    //get the bounding box of those
+    var bounds = boundElements(elements);
+    return {componentId: componentId, selectedIds: ids, elements: elements, bounds: bounds, attributes: attributes}
+  }
+  return false;
 }
 
 function changeColor(e, elem) {
