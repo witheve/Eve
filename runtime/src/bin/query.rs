@@ -18,8 +18,9 @@ use eve::value::Value::*;
 use eve::interpreter::EveFn;
 use core::num::ToPrimitive;
 
-/*
+
 fn main() {
+/*
 
     let c0 = Call{fun: EveFn::Add, arg_refs: vec![Ref::Constant{value: 1.to_value()},Ref::Constant{value: 2.to_value()}]};
 
@@ -30,7 +31,7 @@ fn main() {
         println!("{:?}",result);
     }
 
-	
+
  	let a = vec![(0.0, 1.0, 2.0), (5.0, 6.0, 6.0), (7.0, 8.0, 9.0)].to_relation();
     let b = vec![(-7.0,), (8.0,), (10.0,)].to_relation();
     let a0_lt_b0 = Constraint{
@@ -51,14 +52,14 @@ fn main() {
     	println!("--------------------------------");
         resultvec.push(result);
     }
-    
+
 
 	// Build the correct answer
     //let e1 = ((0.0,1.0,2.0).to_tuple(),(-4.0,-5.0,-6.0).to_tuple()).to_tuple();
     //let e2 = ((4.0,5.0,6.0).to_tuple(),(-4.0,-5.0,-6.0).to_tuple()).to_tuple();
     //let e3 = ((4.0,5.0,6.0).to_tuple(),(0.0,-1.0,-2.0).to_tuple()).to_tuple();
     //let correct = vec![e1,e2,e3];
-    
+
 
     let a = vec![(0.0, 1.0, 2.0), (4.0, 5.0, 6.0)].to_relation();
     let b = vec![(-0.0, -1.0, -2.0), (-4.0, -5.0, -6.0)].to_relation();
@@ -84,9 +85,9 @@ fn main() {
     }
     println!("");
 
-
-}
 */
+}
+
 
 #[test]
 fn test1() {
@@ -142,7 +143,7 @@ fn constrainttest() {
     let e2 = ((4.0,5.0,6.0).to_tuple(),(-4.0,-5.0,-6.0).to_tuple()).to_tuple();
     let e3 = ((4.0,5.0,6.0).to_tuple(),(0.0,-1.0,-2.0).to_tuple()).to_tuple();
     let correct = vec![e1,e2,e3];
-    
+
     // Test correctness
     assert_eq!(resultvec,correct);
 
@@ -165,17 +166,17 @@ fn stringtest() {
         resultvec.push(result);
     }
 
-    
+
     let s0 = ("ANDY","WARHOL").to_tuple();
     let s1 = ("LEONARDO","DA","VINCI").to_tuple();
-    
+
     // Test equality hack
 	assert_eq!(resultvec[0][2][0],s0[0]); // ANDY
 	assert_eq!(resultvec[0][2][1],s0[1]); // WARHOL
     assert_eq!(resultvec[1][2][0],s1[0]); // LEONARDO
     assert_eq!(resultvec[1][2][1],s1[1]); // DA
     assert_eq!(resultvec[1][2][2],s1[2]); // VINCI
-    
+
 }
 
 
@@ -206,7 +207,7 @@ fn opstest() {
 	assert_eq!(resultvec[1][6].to_f64().unwrap() as f32, 47.61f32);
 	assert_eq!(resultvec[2][6].to_f64().unwrap() as f32, 104.04f32);
 	assert_eq!(resultvec[3][6].to_f64().unwrap() as f32, 182.25f32);
-    
+
 
 }
 
@@ -221,7 +222,7 @@ fn simplemath(b: &mut test::Bencher) {
 
     b.iter(|| {
         query.iter(vec![]).count()
-    });  
+    });
 }
 
 #[bench]
@@ -282,7 +283,7 @@ fn userip(b: &mut test::Bencher) {
         op: ConstraintOp::EQ,
         other_ref: Ref::Value{clause: 0, column: 0},
     };
-    
+
     let ip_eq_ip = Constraint{
         my_column: 0,
         op: ConstraintOp::EQ,

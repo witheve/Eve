@@ -1,5 +1,5 @@
 use std::fmt::{Debug,Formatter,Result};
-use value::{Value,ToValue,Tuple,ToTuple};
+use value::{Value,ToValue,Tuple};
 use self::EveFn::*;
 use value::Value::Float;
 
@@ -53,9 +53,6 @@ pub enum EveFn {
 
 	// Strings
 	StrConcat,StrUpper,StrLower,StrLength,StrReplace,StrSplit,
-
-	None,
-	Foo,
 }
 
 #[derive(Clone)]
@@ -129,7 +126,7 @@ macro_rules! exprvec {
 // This is the main interface to the interpreter. Pass in an expression, get a value back
 pub fn calculate(e: & Expression) -> Value {
 
-	process_expression(e).to_tuple().to_value()
+	process_expression(e)
 
 }
 
@@ -202,9 +199,7 @@ fn process_call(c: &Call) -> Value {
 		//&Prod => general_agg(|x,y|{x*y},1f64,&c.args),
 
 		// Returns an empty string for the purpose of handling incomplete function
-		// calls sent from UI.
-		(&None,_) => Value::String("".to_string()),
-		(fun, args) => panic!("Bad function call: {:?} {:?}", fun, args),
+		(_, _) => Value::String("".to_string()),
 	}
 }
 

@@ -28,7 +28,7 @@ fn main() {
         Clause::Tuple(Source{relation: 0, constraints: vec![]}),
         Clause::Tuple(Source{relation: 1, constraints: vec![from_eq_to]}),
     ]};
-    let flow = Flow{
+    let mut flow = Flow{
         nodes: vec![
             Node{
                 id: "edge".to_string(),
@@ -54,17 +54,17 @@ fn main() {
                 upstream: vec![0],
                 downstream: vec![1],
             },
-        ]
-    };
-    let mut state = FlowState{
-        outputs: vec![
+        ],
+        states: vec![
             RefCell::new(edges.to_relation()),
             RefCell::new(Index::new()),
             RefCell::new(Index::new()),
             RefCell::new(Index::new()),
             ],
         dirty: vec![1,2,3].into_iter().collect(),
+        changes: Vec::new(),
     };
-    flow.run(&mut state);
-    println!("{:?}", state.outputs[1]);
+    flow.run();
+    println!("{:?}", flow.changes);
+    println!("{:?}", flow.get_state("path"));
 }

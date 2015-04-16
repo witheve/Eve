@@ -3,16 +3,16 @@ use std::sync::mpsc;
 use websocket::{Server, Message, Sender, Receiver};
 use websocket::server::sender;
 use websocket::stream::WebSocketStream;
-use std::collections::{HashMap, BitSet};
 use std::io::prelude::*;
 use std::fs::OpenOptions;
 use std::num::ToPrimitive;
 use rustc_serialize::json::{Json, ToJson};
+use std::mem::replace;
 
 use value::{Value, Tuple};
 use index;
-use flow::{Changes, FlowState, Flow};
-use compiler::{compile, World};
+use flow::{Changes, Flow};
+use compiler::compile;
 
 trait FromJson {
     fn from_json(json: &Json, next_eid: &mut u64) -> Self;
@@ -71,6 +71,8 @@ pub struct Event {
     changes: Changes,
 }
 
+// TODO need to change encoding to list of changes instead of object
+
 impl ToJson for Event {
     fn to_json(&self) -> Json {
         Json::Object(vec![
@@ -95,25 +97,6 @@ impl FromJson for Event {
                 })
             }).collect()
         }
-    }
-}
-
-struct Instance {
-    input: World,
-    flow: Flow,
-    output: FlowState,
-    next_eid: u64,
-}
-
-impl Instance {
-    pub fn run(&mut self) -> Changes {
-        let mut input_clone = self.input.clone();
-        let (flow, mut output) = compile(&mut input_clone);
-        flow.run(&mut output);
-        let changes = flow.changes_since(&output, &self.flow, &self.output);
-        self.flow = flow;
-        self.output = output;
-        changes
     }
 }
 
@@ -173,31 +156,33 @@ fn recv_batch(event_receiver: &mpsc::Receiver<ServerEvent>, server_events: &mut 
     }
 }
 
-pub fn run() {
-    let empty_world = World{views: HashMap::new()};
-    let empty_flow = Flow{nodes: Vec::new()};
-    let empty_output = FlowState{outputs: Vec::new(), dirty: BitSet::new()};
-    let mut instance = Instance{
-        input: empty_world,
-        flow: empty_flow.clone(),
-        output: empty_output.clone(),
-        next_eid: 0,
+pub fn compile_and_run(flow: Flow) -> (Flow, Changes) {
+    let mut new_flow = compile(flow);
+    new_flow.run();
+    let changes = {
+        let Flow {ref mut changes, ..} = new_flow;
+        replace(changes, Vec::new())
     };
+    (new_flow, changes)
+}
+
+pub fn run() {
+    let empty_flow = Flow::new();
+    let next_eid = &mut 0;
+    let mut flow = Flow::new();
 
     time!("reading saved state", {
         let mut events = OpenOptions::new().create(true).open("./events").unwrap();
         let mut old_events = String::new();
         events.read_to_string(&mut old_events).unwrap();
         for line in old_events.lines() {
-            let event: Event = {
-                let Instance {ref mut next_eid, ..} = instance;
-                let json = Json::from_str(&line).unwrap();
-                FromJson::from_json(&json, next_eid)
-            };
-            instance.input.change(event.changes);
+            let json = Json::from_str(&line).unwrap();
+            let event: Event = FromJson::from_json(&json, next_eid);
+            flow.change(event.changes);
         }
         drop(events);
-        instance.run();
+        let (new_flow, _changes) = compile_and_run(flow);
+        flow = new_flow;
         });
 
     let mut events = OpenOptions::new().write(true).append(true).open("./events").unwrap();
@@ -205,15 +190,15 @@ pub fn run() {
     let mut server_events: Vec<ServerEvent> = Vec::with_capacity(MAX_BATCH_SIZE);
     let event_receiver = serve();
     loop {
-        time!("entire batch", {
             recv_batch(&event_receiver, &mut server_events);
             println!("batch size: {:?}", server_events.len());
 
+        time!("entire batch", {
             for event in server_events.drain() {
                 match event {
                     ServerEvent::NewClient(mut sender) => {
                         time!("sending initial state", {
-                            let changes = instance.flow.changes_since(&instance.output, &empty_flow, &empty_output);
+                            let changes = flow.changes_since(&empty_flow);
                             let text = format!("{}", Event{changes: changes}.to_json());
                             match sender.send_message(Message::Text(text)) {
                                 Ok(_) => (),
@@ -224,20 +209,19 @@ pub fn run() {
                     }
                     ServerEvent::Message(input_text) => {
                         time!("sending update", {
-                            let input_event: Event = {
-                                let Instance {ref mut next_eid, ..} = instance;
-                                let json = Json::from_str(&input_text).unwrap();
-                                FromJson::from_json(&json, next_eid)
-                            };
+                            let json = Json::from_str(&input_text).unwrap();
+                            let input_event: Event = FromJson::from_json(&json, next_eid);
                             events.write_all(input_text.as_bytes()).unwrap();
                             events.write_all("\n".as_bytes()).unwrap();
-                            instance.input.change(input_event.changes);
+                            flow.change(input_event.changes);
                         })
                     }
                 }
             }
 
-            let output_event = Event{changes: instance.run()};
+            let (new_flow, changes) = compile_and_run(flow);
+            flow = new_flow;
+            let output_event = Event{changes: changes};
             let output_text = format!("{}", output_event.to_json());
             events.flush().unwrap();
             for sender in senders.iter_mut() {
