@@ -1527,91 +1527,45 @@ ixer.addIndex("searchValue", "searchValue", Indexing.create.latestLookup({keys: 
 
 
 function initIndexer() {
-  ixer.handleDiffs(code.diffs.addView("transaction", {id: "id"}, undefined, "transaction", ["table"]));
-  ixer.handleDiffs(code.diffs.addView("remove", {id: "id"}, undefined, "remove", ["table"]));
-  ixer.handleDiffs(
-    code.diffs.addView("schema", {id: "id"}, [], "schema", ["table"]));
-  ixer.handleDiffs(
-    code.diffs.addView("field", {schema: "id", ix: "int", id: "id", type: "type"}, [], "field", ["table"]));
-  ixer.handleDiffs(
-    code.diffs.addView("primitive", {id: "id", inSchema: "id", outSchema: "id"}, [], "primitive", ["table"]));
-  ixer.handleDiffs(
-    code.diffs.addView("view", {id: "id", schema: "id", kind: "query|union"}, [], "view", ["table"]));
-  ixer.handleDiffs(
-    code.diffs.addView("source", {view: "id", ix: "int", id: "id", data: "data", action: "get-tuple|get-relation"}, [], "source", ["table"]));
-  ixer.handleDiffs(
-    code.diffs.addView("constraint", {left: "reference", op: "op", right: "reference"}, [], "constraint", ["table"]));
-  ixer.handleDiffs(code.diffs.addView("tag", {id: "id", tag: "string"}, undefined, "tag", ["table"]));
-  ixer.handleDiffs(code.diffs.addView("displayName", {tx: "number", id: "string", name: "string"}, undefined, "displayName", ["table"]));
-  ixer.handleDiffs(code.diffs.addView("tableTile", {id: "string", view: "string"}, undefined, "tableTile", ["table"]));
-  ixer.handleDiffs(code.diffs.addView("viewTile", {id: "string", view: "string"}, undefined, "viewTile", ["table"]));
+  var add = function(name, info, fields, id, tags) {
+    ixer.handleDiffs(code.diffs.addView(name, info, fields, id, tags));
+  }
+  add("schema", {id: "id"}, [], "schema", ["table"]);
+  add("field", {schema: "id", ix: "int", id: "id", type: "type"}, [], "field", ["table"]);
+  add("primitive", {id: "id", inSchema: "id", outSchema: "id"}, [], "primitive", ["table"]);
+  add("view", {id: "id", schema: "id", kind: "query|union"}, [], "view", ["table"]);
+  add("source", {view: "id", ix: "int", id: "id", data: "data", action: "get-tuple|get-relation"}, [], "source", ["table"]);
+  add("constraint", {left: "reference", op: "op", right: "reference"}, [], "constraint", ["table"]);
+  add("tag", {id: "id", tag: "string"}, undefined, "tag", ["table"]);
+  add("displayName", {tx: "number", id: "string", name: "string"}, undefined, "displayName", ["table"]);
 
-
-  ixer.handleDiffs(code.diffs.addView("adderRow", {tx: "id", id: "id", table: "id", row: "tuple"}, undefined, "adderRow", ["table"]));
-  ixer.handleDiffs(code.diffs.addView("tileOutline", {tx: "id", client: "id", x: "number", y: "number", w: "number", h: "number"}, undefined, "tileOutline", ["table"]));
-
-  ixer.handleDiffs(
-    code.diffs.addView("searchValue", {tx: "number", id: "id", value: "string"}, [], "searchValue", ["table"]));
-
-  ixer.handleDiffs(code.diffs.addView("zomg", {
-    a: "string",
-    e: "number",
-    f: "number"
-  }, [
-    ["a", "b", "c"],
-    ["d", "e", "f"]
-  ], "zomg", ["table"]));
-
-  ixer.handleDiffs(code.diffs.addView("foo", {
-    a: "string",
-    b: "number",
-  }, [
-    ["a", "b"],
-    ["d", "e"]
-  ], "foo", ["table"]));
-
-  //example tables
-  ixer.handleDiffs(
-    code.diffs.addView("employees", {department: "string", name: "string", salary: "float"}, [], false, ["table"]));
-  ixer.handleDiffs(
-    code.diffs.addView("department heads", {department: "string", head: "string"}, [], false, ["table"]));
-
+  add("adderRow", {tx: "id", id: "id", table: "id", row: "tuple"}, undefined, "adderRow", ["table"]);
+  add("remove", {id: "id"}, undefined, "remove", ["table"]);
 
   // grid views
-  var gridId = "grid://default";
-  var uiViewId = uuid();
-  var bigUiViewId = uuid();
-  ixer.handleDiffs(code.diffs.addView("gridTile", {
-    tx: "number",
-    tile: "string",
-    grid: "string",
-    type: "string",
-    x: "number",
-    y: "number",
-    w: "number",
-    h: "number"
-  }, [], "gridTile", ["table"]));
-
-  ixer.handleDiffs(code.diffs.addView(
-    "activeGrid",
-    {tx: "number", grid: "string"},
-    [[0, gridId]],
-    "activeGrid", ["table"]));
-
-  ixer.handleDiffs(code.diffs.addView(
-    "gridTarget",
-    {tx: "number", tile: "string", target: "string"}, [], "gridTarget", ["table"]));
+  add("gridTile", {tx: "number", tile: "string", grid: "string", type: "string", x: "number", y: "number", w: "number", h: "number"}, [], "gridTile", ["table"]);
+  add("gridTarget", {tx: "number", tile: "string", target: "string"}, [], "gridTarget", ["table"]);
+  add("tableTile", {id: "string", view: "string"}, undefined, "tableTile", ["table"]);
+  add("viewTile", {id: "string", view: "string"}, undefined, "viewTile", ["table"]);
+  add("tileOutline", {tx: "id", client: "id", x: "number", y: "number", w: "number", h: "number"}, undefined, "tileOutline", ["table"]);
+  add("activeGrid", {tx: "number", grid: "string"}, [[0, "grid://default"]], "activeGrid", ["table"]);
 
   // ui views
-  ixer.handleDiffs(
-    code.diffs.addView("uiComponentElement", {tx: "number", id: "string", component: "string", layer: "number", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]));
-  ixer.handleDiffs(
-    code.diffs.addView("uiComponentLayer", {tx: "number", id: "string", component: "string", layer: "number", locked: "boolean", invisible: "boolean"}, [], "uiComponentLayer", ["table"]));
-  ixer.handleDiffs(
-    code.diffs.addView("uiComponentAttribute", {tx: "number", id: "string", property: "string", value: "string", isBinding: "boolean"}, [], "uiComponentAttribute", ["table"])); // @FIXME: value: any
-  ixer.handleDiffs(code.diffs.addView("uiSelection", {tx: "number", id: "id", client: "string", component: "id"}, [], "uiSelection", ["table"]));
-  ixer.handleDiffs(code.diffs.addView("uiSelectionElement", {id: "id", element: "id"}, [], "uiSelectionElement", ["table"]));
-  ixer.handleDiffs(code.diffs.addView("uiActiveLayer", {tx: "number", component: "id", client: "id", layer: "id"}, [], "uiActiveLayer", ["table"]));
+  add("uiComponentElement", {tx: "number", id: "string", component: "string", layer: "number", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]);
+  add("uiComponentLayer", {tx: "number", id: "string", component: "string", layer: "number", locked: "boolean", invisible: "boolean"}, [], "uiComponentLayer", ["table"]);
+  add("uiComponentAttribute", {tx: "number", id: "string", property: "string", value: "string", isBinding: "boolean"}, [], "uiComponentAttribute", ["table"]); // @FIXME: value: any
+  add("uiSelection", {tx: "number", id: "id", client: "string", component: "id"}, [], "uiSelection", ["table"]);
+  add("uiSelectionElement", {id: "id", element: "id"}, [], "uiSelectionElement", ["table"]);
+  add("uiActiveLayer", {tx: "number", component: "id", client: "id", layer: "id"}, [], "uiActiveLayer", ["table"]);
+
+  //misc transient state
+  add("searchValue", {tx: "number", id: "id", value: "string"}, [], "searchValue", ["table"]);
+
+  //example tables
+  add("zomg", {a: "string", e: "number", f: "number"}, [["a", "b", "c"], ["d", "e", "f"]], "zomg", ["table"]);
+  add("foo", {a: "string", b: "number"}, [["a", "b"], ["d", "e"]], "foo", ["table"]);
+  add("employees", {department: "string", name: "string", salary: "float"}, [], false, ["table"]);
+  add("department heads", {department: "string", head: "string"}, [], false, ["table"]);
 }
 
 //---------------------------------------------------------
