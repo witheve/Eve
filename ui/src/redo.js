@@ -217,12 +217,10 @@ function input(value, key, oninput, onsubmit) {
   if(onsubmit) {
     blur = function inputBlur(e, elem) {
       onsubmit(e, elem, "blurred");
-      e.preventDefault();
     }
     keydown = function inputKeyDown(e, elem) {
       if(e.keyCode === KEYS.ENTER) {
         onsubmit(e, elem, "enter");
-        e.preventDefault();
       }
     }
   }
@@ -898,11 +896,15 @@ function searcher(id, ids, opts, onClose) { // (Id, Id[], Any?, Fn((Id) -> Boole
     function onInput(evt, el) {
       dispatch("updateSearchValue", {id: id, value: evt.target.innerHTML});
     },
-    function onSubmit(evt, el) {
+    function onSubmit(evt, el, type) {
+      if(type === "blurred") { return; }
       var matches = search(ids, needle);
       if(!matches.length) { return; }
       dispatch("updateSearchValue", {id: id, value: ""});
       onClose(matches[0]);
+
+      evt.preventDefault();
+      evt.target.blur();
     });
   searchInput.c = "searcher-input";
   return {c: "searcher", children: [
