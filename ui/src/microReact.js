@@ -97,6 +97,14 @@
           style.fontFamily = cur.fontFamily;
         }
 
+        if(cur.t === "input") {
+          div.type = cur.type;
+          if(div.value !== cur.value) {
+            console.log("value!");
+            div.value = cur.value;
+          }
+        }
+
 
         if(type === "updated") {
           if(cur.text !== prev.text) {
@@ -145,6 +153,7 @@
            && curA.width === curB.width
            && curA.height === curB.height
            && curA.zIndex === curB.zIndex
+           && curA.backgroundColor === curB.backgroundColor
            && curA.c === curB.c
            && curA.text === curB.text) {
           continue;
@@ -167,6 +176,7 @@
            && curA.width === curB.width
            && curA.height === curB.height
            && curA.zIndex === curB.zIndex
+           && curA.backgroundColor === curB.backgroundColor
            && curA.c === curB.c
            && curA.text === curB.text) {
           continue;
