@@ -507,6 +507,8 @@ function uiGrid(componentId, layerIndex, size) {
 //---------------------------------------------------------
 // ui selection
 //---------------------------------------------------------
+var isResizing = false;
+var color = "#ff0000";
 
 function selection(sel, elementIds) {
   //get the things in the selection
@@ -516,7 +518,12 @@ function selection(sel, elementIds) {
   });
   //get the bounding box of those
   var bounds = boundElements(elements);
-  //draw a box around it
+  var coordinates;
+  if(isResizing) {
+    coordinates = [{text: "w: " + (bounds.right - bounds.left)}, {text: "h: " + (bounds.bottom - bounds.top)}];
+  } else {
+    coordinates = [{text: "x: " + bounds.left}, {text: "y: " + bounds.top}];
+  }
   return {c: "selection", top: bounds.top, left: bounds.left,
           width: bounds.right - bounds.left, height: bounds.bottom - bounds.top,
           children: [
@@ -528,8 +535,16 @@ function selection(sel, elementIds) {
             resizeHandle(sel[3], bounds, "bottom", "center"),
             resizeHandle(sel[3], bounds, "bottom", "left"),
             resizeHandle(sel[3], bounds, "middle", "left"),
-            {c: "trash ion-ios-trash", componentId: sel[3], mousedown:stopPropagation, click: deleteSelection}
+            {c: "color ion-waterdrop", children: [
+              {t: "input", type: "color", value: color, mousedown: stopPropagation, input: changeColor, componentId: sel[3]},
+            ]},
+            {c: "trash ion-ios-trash", componentId: sel[3], mousedown:stopPropagation, click: deleteSelection},
+            {c: "coordinates", children: coordinates}
           ]};
+}
+
+function changeColor(e, elem) {
+  dispatch("setAttributeForSelection", {componentId: elem.componentId, property: "backgroundColor", value: e.currentTarget.value});
 }
 
 var resizeHandleSize = 7;
@@ -554,7 +569,7 @@ function resizeHandle(componentId, bounds, y, x) {
     top = (height / 2) - halfSize;
   }
   return {c: "resize-handle", y: y, x: x, top: top, left: left, width: resizeHandleSize, height: resizeHandleSize,  componentId: componentId,
-          draggable: true, drag: resizeSelection, bounds: bounds, dragstart: clearDragImage, mousedown: stopPropagation};
+          draggable: true, drag: resizeSelection, bounds: bounds, dragstart: clearDragImage, mousedown: stopPropagation, dragend: doneResizing};
 }
 
 function getUiSelection(componentId) {
@@ -633,7 +648,12 @@ function moveSelection(e, elem) {
   }
 }
 
+function doneResizing(e, elem) {
+  isResizing = false;
+}
+
 function resizeSelection(e, elem) {
+  isResizing = true;
   var x = Math.floor(e.clientX || __clientX);
   var y = Math.floor(e.clientY || __clientY);
   if(x === 0 && y === 0) return;
@@ -1058,6 +1078,15 @@ function dispatch(event, info, returnInsteadOfSend) {
       diffs.push.apply(diffs, dispatch("clearSelection", info));
       console.log(diffs);
       break;
+    case "setAttributeForSelection":
+      var sel = ixer.index("uiSelection")[client][info.componentId];
+      var els = ixer.index("uiSelectionElements")[sel[1]];
+      els.forEach(function(cur) {
+        var id = cur[1];
+        diffs.push.apply(diffs, code.ui.updateAttribute(id, info.property, info.value, txId));
+      });
+      console.log(diffs);
+      break;
     case "duplicateSelection":
       var sel = ixer.index("uiSelection")[client][info.componentId];
       var els = ixer.index("uiSelectionElements")[sel[1]];
@@ -1243,17 +1272,11 @@ var code = {
     }
   },
   ui: {
-    updateAttribute: function(attribute, txId) {
+    updateAttribute: function(id, property, value, txId) {
       var diffs = [];
-      var neue = [txId, attribute.id, attribute.property, attribute.value, false];
-      var oldProps = ixer.index("uiElementToAttr")[attribute.id];
+      var neue = [txId, id, property, value, false];
+      var oldProps = ixer.index("uiElementToAttr")[id];
       diffs.push(["uiComponentAttribute", "inserted", neue]);
-      if(oldProps) {
-        var oldProp = oldProps[attribute.property];
-        if(oldProp) {
-          diffs.push(["deletion", "inserted", [txId, oldProp[0]]]);
-        }
-      }
       return diffs;
     },
     duplicateElement: function(element, txId) {

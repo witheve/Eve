@@ -98,6 +98,9 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .selection { border: 1px solid #acf; pointer-events: none; z-index:100; }
 .selection .trash { position:absolute; top: -40px; right: -40px; font-size: 20pt; color: #acf; padding:4px 10px; pointer-events:auto; border-radius:2px; }
 .selection .trash:hover { background: #833; color: #fcc; }
+.selection .coordinates { position:absolute; right: -70px; width:50px; flex-direction:column; align-items:flex-start; font-size:10pt; color:#acf; }
+.selection .color { position:absolute; color:#acf; font-size:24px; right: 0px; width:20px; height:20px; top: -35px; border-radius:2px; border:none; pointer-events:auto; outline:none; }
+.selection .color input { width:20px; height:20px; opacity:0; }
 .resize-handle { pointer-events: auto; }
 
 .grid { z-index: 0; pointer-events:none; }
