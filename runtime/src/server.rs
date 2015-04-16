@@ -7,6 +7,7 @@ use std::io::prelude::*;
 use std::fs::OpenOptions;
 use std::num::ToPrimitive;
 use rustc_serialize::json::{Json, ToJson};
+use std::mem::replace;
 
 use value::{Value, Tuple};
 use index;
@@ -70,6 +71,8 @@ pub struct Event {
     changes: Changes,
 }
 
+// TODO need to change encoding to list of changes instead of object
+
 impl ToJson for Event {
     fn to_json(&self) -> Json {
         Json::Object(vec![
@@ -94,21 +97,6 @@ impl FromJson for Event {
                 })
             }).collect()
         }
-    }
-}
-
-struct Instance {
-    flow: Flow,
-    next_eid: u64,
-}
-
-impl Instance {
-    pub fn run(&mut self) -> Changes {
-        let mut flow = compile(self.flow.clone());
-        flow.run();
-        let changes = flow.changes_since(&self.flow);
-        self.flow = flow;
-        changes
     }
 }
 
@@ -168,27 +156,33 @@ fn recv_batch(event_receiver: &mpsc::Receiver<ServerEvent>, server_events: &mut 
     }
 }
 
+pub fn compile_and_run(flow: Flow) -> (Flow, Changes) {
+    let mut new_flow = compile(flow);
+    new_flow.run();
+    let changes = {
+        let Flow {ref mut changes, ..} = new_flow;
+        replace(changes, Vec::new())
+    };
+    (new_flow, changes)
+}
+
 pub fn run() {
     let empty_flow = Flow::new();
-    let mut instance = Instance{
-        flow: empty_flow.clone(),
-        next_eid: 0,
-    };
+    let next_eid = &mut 0;
+    let mut flow = Flow::new();
 
     time!("reading saved state", {
         let mut events = OpenOptions::new().create(true).open("./events").unwrap();
         let mut old_events = String::new();
         events.read_to_string(&mut old_events).unwrap();
         for line in old_events.lines() {
-            let event: Event = {
-                let Instance {ref mut next_eid, ..} = instance;
-                let json = Json::from_str(&line).unwrap();
-                FromJson::from_json(&json, next_eid)
-            };
-            instance.flow.change(event.changes);
+            let json = Json::from_str(&line).unwrap();
+            let event: Event = FromJson::from_json(&json, next_eid);
+            flow.change(event.changes);
         }
         drop(events);
-        instance.run();
+        let (new_flow, _changes) = compile_and_run(flow);
+        flow = new_flow;
         });
 
     let mut events = OpenOptions::new().write(true).append(true).open("./events").unwrap();
@@ -204,7 +198,7 @@ pub fn run() {
                 match event {
                     ServerEvent::NewClient(mut sender) => {
                         time!("sending initial state", {
-                            let changes = instance.flow.changes_since(&empty_flow);
+                            let changes = flow.changes_since(&empty_flow);
                             let text = format!("{}", Event{changes: changes}.to_json());
                             match sender.send_message(Message::Text(text)) {
                                 Ok(_) => (),
@@ -215,20 +209,19 @@ pub fn run() {
                     }
                     ServerEvent::Message(input_text) => {
                         time!("sending update", {
-                            let input_event: Event = {
-                                let Instance {ref mut next_eid, ..} = instance;
-                                let json = Json::from_str(&input_text).unwrap();
-                                FromJson::from_json(&json, next_eid)
-                            };
+                            let json = Json::from_str(&input_text).unwrap();
+                            let input_event: Event = FromJson::from_json(&json, next_eid);
                             events.write_all(input_text.as_bytes()).unwrap();
                             events.write_all("\n".as_bytes()).unwrap();
-                            instance.flow.change(input_event.changes);
+                            flow.change(input_event.changes);
                         })
                     }
                 }
             }
 
-            let output_event = Event{changes: instance.run()};
+            let (new_flow, changes) = compile_and_run(flow);
+            flow = new_flow;
+            let output_event = Event{changes: changes};
             let output_text = format!("{}", output_event.to_json());
             events.flush().unwrap();
             for sender in senders.iter_mut() {

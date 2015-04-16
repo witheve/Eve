@@ -361,7 +361,7 @@ fn create_flow(compiler: Compiler) -> Flow {
         Some(ix) => states[ix] = Some(RefCell::new(schedule)),
         None => (),
     }
-    let Flow{nodes: old_nodes, states: old_states, ..} = flow;
+    let Flow{nodes: old_nodes, states: old_states, changes, ..} = flow;
     for (old_node, old_state) in old_nodes.iter().zip(old_states.into_iter()) {
         if (old_node.id != "upstream") || (old_node.id != "schedule") {
             match nodes.iter().position(|node| node.id == old_node.id) {
@@ -381,6 +381,7 @@ fn create_flow(compiler: Compiler) -> Flow {
         nodes: nodes,
         dirty: dirty,
         states: states,
+        changes: changes,
     }
 }
 

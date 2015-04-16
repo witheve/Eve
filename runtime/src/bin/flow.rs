@@ -62,7 +62,9 @@ fn main() {
             RefCell::new(Index::new()),
             ],
         dirty: vec![1,2,3].into_iter().collect(),
+        changes: Vec::new(),
     };
     flow.run();
-    println!("{:?}", flow.states[1]);
+    println!("{:?}", flow.changes);
+    println!("{:?}", flow.get_state("path"));
 }

@@ -74,5 +74,6 @@ fn main() {
         ]);
     let mut flow = compile(flow);
     flow.run();
+    println!("{:?}", flow.changes);
     println!("{:?}", flow.get_state("path"));
 }

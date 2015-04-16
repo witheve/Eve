@@ -27,14 +27,15 @@ pub struct Node {
     pub downstream: Vec<usize>,
 }
 
+pub type Changes = Vec<(Id, index::Changes<Tuple>)>;
+
 #[derive(Clone, Debug)]
 pub struct Flow {
     pub nodes: Vec<Node>,
     pub states: Vec<RefCell<Relation>>,
     pub dirty: BitSet,
+    pub changes: Changes,
 }
-
-pub type Changes = Vec<(Id, index::Changes<Tuple>)>;
 
 impl Union {
     fn run(&self, inputs: Vec<&Relation>) -> Relation {
@@ -72,6 +73,7 @@ impl Flow {
             nodes: Vec::new(),
             states: Vec::new(),
             dirty: BitSet::new(),
+            changes: Vec::new(),
         }
     }
 
@@ -108,7 +110,8 @@ impl Flow {
     pub fn change(&mut self, changes: Changes) {
         for (id, changes) in changes.into_iter() {
             self.ensure_input_exists(&id);
-            self.get_state_mut(&id).change(changes);
+            self.get_state_mut(&id).change(changes.clone());
+            self.changes.push((id, changes));
         }
     }
 
@@ -123,12 +126,15 @@ impl Flow {
                         let inputs = upstream.iter().map(|state_ref| &**state_ref).collect();
                         node.view.run(inputs)
                     };
-                    if new_state != *self.states[ix].borrow() {
+                    let mut old_state = self.states[ix].borrow_mut();
+                    if new_state != *old_state {
                         for dix in node.downstream.iter() {
                             self.dirty.insert(*dix);
                         }
+                        let changes = new_state.changes_since(&*old_state);
+                        self.changes.push((node.id.clone(), changes));
                     }
-                    *self.states[ix].borrow_mut() = new_state;
+                    *old_state = new_state;
                     continue;
                 }
                 None => {
