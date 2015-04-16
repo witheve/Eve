@@ -190,10 +190,10 @@ pub fn run() {
     let mut server_events: Vec<ServerEvent> = Vec::with_capacity(MAX_BATCH_SIZE);
     let event_receiver = serve();
     loop {
-        time!("entire batch", {
             recv_batch(&event_receiver, &mut server_events);
             println!("batch size: {:?}", server_events.len());
 
+        time!("entire batch", {
             for event in server_events.drain() {
                 match event {
                     ServerEvent::NewClient(mut sender) => {
