@@ -3692,10 +3692,12 @@ function connectToServer() {
   // Log messages from the server
   ws.onmessage = function (e) {
     var data = JSON.parse(e.data);
-    if(!server.initialized && !data.changes["view"]) {
+    if(!server.initialized && !data.changes.length) {
       dispatch("initServer");
       sendToServer(ixer.dumpMapDiffs());
       ixer.clear();
+      server.initialized = true;
+    } else if(!server.initialized) {
       server.initialized = true;
     }
 //     console.log('Server: ' + e.data);
