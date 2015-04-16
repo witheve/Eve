@@ -1,7 +1,7 @@
 use std;
 use std::iter::IntoIterator;
 
-use value::{Value, Tuple, Relation};
+use value::{Value, ToValue, Tuple, ToTuple, Relation};
 use interpreter;
 use interpreter::{EveFn,ToExpression};
 
@@ -179,12 +179,12 @@ impl Clause {
                 vec![Value::Relation(relation)]
             },
             Clause::Call(ref call) => {
-                let value = call.eval(result);
-                let tuple_value = match value {
+                let value = call.eval(result).to_tuple().to_value();
+                /*let tuple_value = match value {
                     Value::Tuple(_) => value,
                     _ => Value::Tuple(vec![value]),
-                };
-                vec![tuple_value]
+                };*/
+                vec![value]
             }
         }
     }
