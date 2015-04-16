@@ -142,11 +142,15 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 /*-----------------------------------------------------------------------------
 - chooser tile
 -----------------------------------------------------------------------------*/
-
 .chooser-tile { display:flex; flex: 1; }
-.chooser-tile .option { flex: 1; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:2px; padding:0 15px; }
+.chooser-tile .option { flex: 1 0 auto; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:2px; padding:0 15px; }
 .chooser-tile .option:hover { background:rgba(255,255,255,0.1); }
-.chooser-tile .description { text-align:center; }
-.chooser-tile .icon { font-size: 40px; margin-bottom:10px; }
+.chooser-tile .description { text-align:center; flex: 1 0; }
+.chooser-tile .icon { font-size: 40px; margin-bottom:10px; width: 40px; flex: 0 0 auto; }
+
+.width-small > .chooser-tile, .width-tiny > .chooser-tile { flex-direction: column; overflow-y: auto; }
+.width-small > .chooser-tile .option { flex-direction: row;}
+.width-small > .chooser-tile .description { text-align: left; }
+.width-tiny > .chooser-tile .description { display: none; }
 
 

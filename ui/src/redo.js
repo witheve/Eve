@@ -235,7 +235,20 @@ function input(value, key, oninput, onsubmit) {
 
 function gridTile(cur, activeTiles) {
   var pos = Grid.getRect(grid, cur);
-  return {c: "grid-tile", top: pos.top, left: pos.left, width: pos.width, height: pos.height,
+
+  var sizeClasses = "";
+  if(pos.width <= 160) { sizeClasses += "width-tiny"; }
+  else if(pos.width <= 320) { sizeClasses += "width-small"; }
+  else if(pos.width <= 800) { sizeClasses += "width-medium"; }
+  else if(pos.width <= 960) { sizeClasses += "width-large"; }
+  else { sizeClasses += "width-huge"; }
+  if(pos.height < 160) { sizeClasses += " height-tiny"; }
+  else if(pos.height < 320) { sizeClasses += " height-small"; }
+  else if(pos.height < 800) { sizeClasses += " height-medium"; }
+  else if(pos.height < 960) { sizeClasses += " height-large"; }
+  else { sizeClasses += " height-huge"; }
+
+  return {c: "grid-tile " + sizeClasses, top: pos.top, left: pos.left, width: pos.width, height: pos.height,
           children: [tiles[cur[3]](cur), tileControls(cur, activeTiles)]};
 }
 
@@ -979,10 +992,31 @@ function chooserTile(cur) {
       {c: "icon ion-ios-calculator"},
       {c: "description", text: "Work with data in a new view"},
     ]},
+    {c: "option",click: chooseTile, type: "addExisting", tile: cur, children: [
+      {c: "icon ion-ios-search"},
+      {c: "description", text: "Open an existing view or table"},
+    ]},
   ]};
 }
 
-var tiles = {ui: uiTile, table: tableTile, view: viewTile, addChooser: chooserTile};
+function viewSearcherTile(cur) {
+  var tileId = cur[1];
+  return {c: "view-searcher-tile tile", children: [
+    viewList(tileId + "-searcher", function chooseView(viewId) {
+      // Bail if no view was selected.
+      if(!viewId) { return; }
+      var view = ixer.index("view")[viewId];
+      var type = view[2];
+      var action = "openTable";
+      if(type === "query" || type === "union") {
+        action = "openView";
+      }
+      dispatch(action, {tileId: tileId, view: viewId});
+    })
+  ]};
+}
+
+var tiles = {ui: uiTile, table: tableTile, view: viewTile, addChooser: chooserTile, viewSearcher: viewSearcherTile};
 
 //---------------------------------------------------------
 // Dispatch
@@ -1032,6 +1066,39 @@ function dispatch(event, info, returnInsteadOfSend) {
       diffs.push(["gridTile", "inserted", tile]);
       diffs.push.apply(diffs, dispatch("addUiComponentLayer", {componentId: info.tileId}));
       break;
+    case "addExisting":
+      var tileId = info.tileId;
+      var oldTile = ixer.index("gridTile")[tileId].slice();
+      var tile = oldTile.slice();
+      //set to a table tile
+      tile[0] = txId;
+      tile[3] = "viewSearcher";
+      diffs.push(["gridTile", "inserted", tile]);
+      break;
+    case "openTable":
+      var tileId = info.tileId;
+      var tableId = info.view;
+      var oldTile = ixer.index("gridTile")[tileId].slice();
+      var tile = oldTile.slice();
+      //set to a table tile
+      tile[0] = txId;
+      tile[3] = "table";
+      diffs.push(["gridTile", "inserted", tile],
+                 ["tableTile", "inserted", [tileId, tableId]],
+                 ["adderRow", "inserted", [txId, txId, tableId, []]]);
+      break;
+    case "openView":
+      var tileId = info.tileId;
+      var viewId = info.view;
+      var oldTile = ixer.index("gridTile")[tileId].slice();
+      var tile = oldTile.slice();
+      //set to a table tile
+      tile[0] = txId;
+      tile[3] = "view";
+      diffs.push(["gridTile", "inserted", tile],
+                 ["viewTile", "inserted", [tileId, viewId]]);
+      break;
+
     case "updateTile":
       var neue = info.neue.slice();
       neue[0] = txId;
@@ -1450,6 +1517,9 @@ ixer.addIndex("tileOutline", "tileOutline", Indexing.create.latestLookup({keys: 
 
 // State
 ixer.addIndex("searchValue", "searchValue", Indexing.create.latestLookup({keys: [1, 2]}));
+ixer.addIndex("modal", "modal", Indexing.create.latestLookup({keys: [1, false]}));
+ixer.addIndex("searchModal", "searchModal", Indexing.create.latestLookup({keys: [1, false]}));
+
 
 
 function initIndexer() {
@@ -1478,6 +1548,10 @@ function initIndexer() {
 
   ixer.handleDiffs(
     code.diffs.addView("searchValue", {tx: "number", id: "id", value: "string"}, [], "searchValue", ["table"]));
+  ixer.handleDiffs(
+    code.diffs.addView("modal", {tx: "number", id: "id", type: "string"}, [], "searchValue", ["table"]));
+  ixer.handleDiffs(
+    code.diffs.addView("searchModal", {tx: "number", id: "id", type: "string"}, [], "searchValue", ["table"]));
 
   ixer.handleDiffs(code.diffs.addView("zomg", {
     a: "string",
