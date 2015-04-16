@@ -1623,9 +1623,9 @@ function initIndexer() {
   ixer.handleDiffs(
     code.diffs.addView("searchValue", {tx: "number", id: "id", value: "string"}, [], "searchValue", ["table"]));
   ixer.handleDiffs(
-    code.diffs.addView("modal", {tx: "number", id: "id", type: "string"}, [], "searchValue", ["table"]));
+    code.diffs.addView("modal", {tx: "number", id: "id", type: "string"}, [], "modal", ["table"]));
   ixer.handleDiffs(
-    code.diffs.addView("searchModal", {tx: "number", id: "id", type: "string"}, [], "searchValue", ["table"]));
+    code.diffs.addView("searchModal", {tx: "number", id: "id", type: "string"}, [], "searchModal", ["table"]));
 
   ixer.handleDiffs(code.diffs.addView("zomg", {
     a: "string",
