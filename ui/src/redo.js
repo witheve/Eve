@@ -483,12 +483,12 @@ function uiGrid(componentId, layerIndex, size) {
            canvas.height = size.height * ratio;
            ctx.scale(ratio, ratio);
            ctx.lineWidth = 1;
-           ctx.strokeStyle = "white";
+           ctx.strokeStyle = "#999999";
            for(var i = 0; i < 300; i++) {
              if(i % uiGridSize === 0) {
-               ctx.globalAlpha = 0.3;
+               ctx.globalAlpha = 0.5;
              } else {
-               ctx.globalAlpha = 0.1;
+               ctx.globalAlpha = 0.3;
              }
              ctx.beginPath();
              ctx.moveTo(i * uiGridSize,0);
@@ -1521,6 +1521,8 @@ function connectToServer() {
       initIndexer();
       server.ws.send(JSON.stringify(ixer.dumpMapDiffs()));
       ixer.clear();
+      server.initialized = true;
+    } else if(!server.initialized) {
       server.initialized = true;
     }
 //     console.log("received", data.changes);
