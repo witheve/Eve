@@ -76,13 +76,15 @@ pub struct Event {
 impl ToJson for Event {
     fn to_json(&self) -> Json {
         Json::Object(vec![
-            ("changes".to_string(), Json::Object(
+            ("changes".to_string(), Json::Array(
                 self.changes.iter().map(|&(ref view_id, ref view_changes)| {
-                    (view_id.to_string(), Json::Object(vec![
-                        ("inserted".to_string(), view_changes.inserted.to_json()),
-                        ("removed".to_string(), view_changes.removed.to_json()),
-                        ].into_iter().collect()))
-                }).collect()))].into_iter().collect())
+                    Json::Array(vec![
+                        view_id.to_json(),
+                        view_changes.inserted.to_json(),
+                        view_changes.removed.to_json(),
+                        ])
+                }).collect())
+            )].into_iter().collect())
     }
 }
 
@@ -90,11 +92,13 @@ impl FromJson for Event {
     fn from_json(json: &Json, next_eid: &mut u64) -> Self {
         Event{
             changes: json.as_object().unwrap()["changes"]
-            .as_object().unwrap().iter().map(|(view_id, view_changes)| {
-                (view_id.to_string(), index::Changes{
-                    inserted: FromJson::from_json(&view_changes.as_object().unwrap()["inserted"], next_eid),
-                    removed: FromJson::from_json(&view_changes.as_object().unwrap()["removed"], next_eid),
-                })
+            .as_array().unwrap().iter().map(|change| {
+                let change = change.as_array().unwrap();
+                assert_eq!(change.len(), 3);
+                let view_id = change[0].as_string().unwrap().to_string();
+                let inserted = FromJson::from_json(&change[1], next_eid);
+                let removed = FromJson::from_json(&change[2], next_eid);
+                (view_id, index::Changes{inserted: inserted, removed: removed})
             }).collect()
         }
     }
@@ -190,8 +194,8 @@ pub fn run() {
     let mut server_events: Vec<ServerEvent> = Vec::with_capacity(MAX_BATCH_SIZE);
     let event_receiver = serve();
     loop {
-            recv_batch(&event_receiver, &mut server_events);
-            println!("batch size: {:?}", server_events.len());
+        recv_batch(&event_receiver, &mut server_events);
+        println!("batch size: {:?}", server_events.len());
 
         time!("entire batch", {
             for event in server_events.drain() {
@@ -209,6 +213,7 @@ pub fn run() {
                     }
                     ServerEvent::Message(input_text) => {
                         time!("sending update", {
+                            println!("{:?}", input_text);
                             let json = Json::from_str(&input_text).unwrap();
                             let input_event: Event = FromJson::from_json(&json, next_eid);
                             events.write_all(input_text.as_bytes()).unwrap();

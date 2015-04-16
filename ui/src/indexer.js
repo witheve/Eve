@@ -97,17 +97,20 @@ var Indexing = (function() {
       this.tables[table] = false;
     },
     dumpMapDiffs: function() {
-      var final = {};
+      var final = [];
       for(var table in this.tables) {
-        final[table] = {inserted: this.tables[table], removed: []};
+        final.push([table, this.tables[table], []]);
       }
       return {changes: final};
     },
     handleMapDiffs: function(diffs) {
-      for(var table in diffs) {
-        var diff = diffs[table];
-        if(diff.inserted.length || diff.removed.length) {
-          this.handleDiff(table, diff.inserted, diff.removed);
+      for(var diffIx = 0, diffLen = diffs.length; diffIx < diffLen; diffIx++) {
+        var diff = diffs[diffIx];
+        var table = diff[0];
+        var inserted = diff[1];
+        var removed = diff[2];
+        if(inserted.length || removed.length) {
+          this.handleDiff(table, inserted, removed);
         }
       }
     },
