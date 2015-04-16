@@ -1563,7 +1563,11 @@ function toMapDiffs(diffs) {
     }
     final[table][action].push(fact);
   }
-  return {changes: final};
+  var changes = [];
+  for (var table in final) {
+    changes.push([table, final[table].inserted, final[table].removed]);
+  }
+  return {changes: changes};
 }
 
 connectToServer();
