@@ -412,7 +412,10 @@ function uiTile(cur) {
   return {c: "tile ui-editor", mousedown: clearSelection, componentId: componentId, children: [
     uiControls(componentId, activeLayer),
     {c: "ui-canvas", children: els},
-    {c: "inspector", children: [layersControl(componentId, layers, activeLayer)]},
+    {c: "inspector", children: [layersControl(componentId, layers, activeLayer),
+                                layoutInspector(),
+                                appearanceInspector(),
+                                textInspector()]},
   ]};
 }
 
@@ -463,6 +466,44 @@ function uiControls(componentId, activeLayer) {
 }
 
 //---------------------------------------------------------
+// ui inspectors
+//---------------------------------------------------------
+
+function layoutInspector() {
+  //pos, size
+  return {c: "inspector-panel", children: [
+    {c: "pair", children: [{c: "label", text: "top"}, input("top") ]},
+    {c: "pair", children: [{c: "label", text: "left"}, input("left") ]},
+    {c: "pair", children: [{c: "label", text: "bottom"}, input("bottom") ]},
+    {c: "pair", children: [{c: "label", text: "right"}, input("right") ]},
+  ]};
+}
+
+function appearanceInspector() {
+  //background, image, border
+  return {c: "inspector-panel", children: [
+    {c: "pair", children: [{c: "label", text: "background"}, input("background") ]},
+    {c: "pair", children: [{c: "label", text: "image"}, input("image") ]},
+    {c: "pair", children: [{c: "label", text: "border"}, input("border") ]},
+  ]};
+}
+
+function textInspector() {
+  //font, size, color, align vertical, align horizontal, bold/italic/underline
+  return {c: "inspector-panel", children: [
+    {c: "pair", children: [{c: "label", text: "font"}, input("font") ]},
+    {c: "pair", children: [{c: "label", text: "size"}, input("size") ]},
+    {c: "pair", children: [{c: "label", text: "color"}, input("color") ]},
+    {c: "pair", children: [{c: "label", text: "align"} ]},
+    {c: "pair", children: [{c: "label", text: "valign"} ]},
+    {c: "pair", children: [{c: "label", text: "bold/italic/underline"} ]},
+  ]};
+}
+
+function repeatInspector() {
+}
+
+//---------------------------------------------------------
 // ui grid
 //---------------------------------------------------------
 
@@ -486,9 +527,9 @@ function uiGrid(componentId, layerIndex, size) {
            ctx.strokeStyle = "#999999";
            for(var i = 0; i < 300; i++) {
              if(i % uiGridSize === 0) {
-               ctx.globalAlpha = 0.5;
-             } else {
                ctx.globalAlpha = 0.3;
+             } else {
+               ctx.globalAlpha = 0.1;
              }
              ctx.beginPath();
              ctx.moveTo(i * uiGridSize,0);
@@ -1517,7 +1558,7 @@ function connectToServer() {
 
   ws.onmessage = function (e) {
     var data = JSON.parse(e.data);
-    if(!server.initialized && !data.changes["view"]) {
+    if(!server.initialized && !data.changes.length) {
       initIndexer();
       server.ws.send(JSON.stringify(ixer.dumpMapDiffs()));
       ixer.clear();
