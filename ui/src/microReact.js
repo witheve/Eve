@@ -22,6 +22,7 @@
     this.handleEvent = function handleEvent(e) {
       var id = e.currentTarget._id;
       var elem = self.tree[id];
+      if(!elem) return;
       var handler = elem[e.type];
       if(handler) { handler(e, elem); }
     };
@@ -47,7 +48,7 @@
         var div;
         if(type === "replaced") {
           var me = elementCache[id];
-          me.parentNode.removeChild(me);
+          if(me.parentNode) me.parentNode.removeChild(me);
           div = document.createElement(cur.t || "div");
           div._id = id;
           elementCache[id] = div;
@@ -59,7 +60,7 @@
           div = elementCache[id];
         } else {
           var me = elementCache[id];
-          me.parentNode.removeChild(me);
+          if(me.parentNode) me.parentNode.removeChild(me);
           elementCache[id] = null;
           continue;
         }
