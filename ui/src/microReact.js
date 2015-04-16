@@ -100,7 +100,6 @@
         if(cur.t === "input") {
           div.type = cur.type;
           if(div.value !== cur.value) {
-            console.log("value!");
             div.value = cur.value;
           }
         }

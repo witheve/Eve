@@ -9,7 +9,7 @@ var client = localStorage["client"] || uuid();
 localStorage["client"] = client;
 
 //@HACK: global vars for tracking drag position in FF.
-var __clientX, clientY;
+var __clientX, __clientY;
 
 //---------------------------------------------------------
 // utils
@@ -519,7 +519,6 @@ function uiGrid(componentId, layerIndex, size) {
            if(canvas._rendered) return;
            var ctx = canvas.getContext("2d");
            var ratio = canvasRatio(ctx);
-           console.time("drawGrid");
            canvas.width = size.width * ratio;
            canvas.height = size.height * ratio;
            ctx.scale(ratio, ratio);
@@ -541,7 +540,6 @@ function uiGrid(componentId, layerIndex, size) {
              ctx.stroke();
            }
            canvas._rendered = true;
-           console.timeEnd("drawGrid");
          }};
 }
 
@@ -1557,7 +1555,13 @@ function connectToServer() {
   };
 
   ws.onmessage = function (e) {
+    var start = now();
     var data = JSON.parse(e.data);
+    var time = now() - start;
+    if(time > 5) {
+      console.log("slow parse (> 5ms):", time);
+    }
+
     if(!server.initialized && !data.changes.length) {
       initIndexer();
       server.ws.send(JSON.stringify(ixer.dumpMapDiffs()));
@@ -1567,7 +1571,12 @@ function connectToServer() {
       server.initialized = true;
     }
 //     console.log("received", data.changes);
+    var start = now();
     ixer.handleMapDiffs(data.changes);
+    var time = now() - start;
+    if(time > 5) {
+      console.log("slow handleDiffs (> 5ms):", time);
+    }
 
     rerender();
   };
