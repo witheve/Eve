@@ -1,6 +1,6 @@
 use value::{Value, Tuple, Relation, ToTuple};
 use index::{Index};
-use query::{Ref, ConstraintOp, Constraint, Source, Clause, Query, Call};
+use query::{Ref, ConstraintOp, Constraint, Source, Clause, Query, Call, CallArg, CallArgs};
 use interpreter::EveFn;
 use flow::{View, Union, Node, Flow};
 
@@ -220,7 +220,7 @@ fn create_clause(compiler: &Compiler, source: &Vec<Value>) -> Clause {
 
     } else if source_data[0].to_string() == "column" {
 
-        Clause::Call(Call{fun: EveFn::None, arg_refs: vec![]})
+        Clause::Call(Call{fun: EveFn::Add, args: vec![]})
 
     } else {
 
@@ -231,18 +231,19 @@ fn create_clause(compiler: &Compiler, source: &Vec<Value>) -> Clause {
 
 fn create_call(compiler: &Compiler, uifun: &Value, uiargvec: &Value) -> Call {
 
-    // Match the uiop with an EveFn...
-    // TODO Do some type checking here?
+    // Match the uifun with an EveFn...
     let evefn = match uifun.to_string().as_ref() {
-        "+" => EveFn::Add,
-        "-" => EveFn::Subtract,
-        "*" => EveFn::Multiply,
-        "/" => EveFn::Divide,
-        _ => unimplemented!(),
+        "+"   => EveFn::Add,
+        "-"   => EveFn::Subtract,
+        "*"   => EveFn::Multiply,
+        "/"   => EveFn::Divide,
+        "sum" => EveFn::Sum,
+        _ => panic!("Unknown Function Call: {:?}",uifun),
     };
 
-    // Collect arguments from the UI in a vector for the clause
-    let mut argvec = Vec::new();
+    // Collect arguments from the UI in a vector for the call
+    let mut argvec = CallArgs::new();
+
     for arg in uiargvec.to_tuple() {
 
         let argt = arg.to_tuple();
@@ -251,7 +252,7 @@ fn create_call(compiler: &Compiler, uifun: &Value, uiargvec: &Value) -> Call {
         match argt[0].to_string().as_ref() {
             "constant" => {
                 assert_eq!(argt.len(),2 as usize);
-                argvec.push(Ref::Constant{value: argt[1].clone()});
+                argvec.push(CallArg::Ref(Ref::Constant{value: argt[1].clone()}));
             },
             "column" => {
                 assert_eq!(argt.len(),3 as usize);
@@ -260,19 +261,17 @@ fn create_call(compiler: &Compiler, uifun: &Value, uiargvec: &Value) -> Call {
                 let other_source_ix = get_source_ix(compiler, other_source_id);
                 let other_field_ix = get_field_ix(compiler, other_field_id);
 
-                argvec.push( Ref::Value{ clause: other_source_ix, column: other_field_ix } );
+                argvec.push(CallArg::Ref( Ref::Value{ clause: other_source_ix, column: other_field_ix } ));
             },
-            other => panic!("Unhandled ref kind: {}", other),
+            "call" => {
+                let c = create_call(compiler,&argt[CALL_FUN],&argt[CALL_ARGS]);
+                argvec.push(CallArg::Call(c));
+            },
+            other => panic!("Unhandled ref kind: {:?}", other),
         }
     }
 
-    if argvec.len() == 2 {
-        Call{fun: evefn, arg_refs: argvec}
-    } else {
-       // Return a stupid dummy function if the call is not fully formed.
-       // There needs to be a discussion about this: e.g. why are we sending malformed calls (i.e. missing arguments) to the runtime?
-       Call{fun: EveFn::None, arg_refs: vec![]}
-    }
+    Call{fun: evefn, args: argvec}
 }
 
 fn create_query(compiler: &Compiler, view_id: &Value) -> Query {

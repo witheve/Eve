@@ -21,7 +21,6 @@ pub enum Ref {
     Value{clause: usize, column: usize},
     Tuple{clause: usize},
     Relation{clause: usize},
-    Call{clause: usize},
 }
 
 impl Ref {
@@ -51,15 +50,6 @@ impl Ref {
                 match *value {
                     Value::Relation(..) => value,
                     _ => panic!("Expected a relation"),
-                }
-            },
-            Ref::Call{clause} => {
-                let value = &result[clause];
-                match *value {
-                    Value::Float(..) => value,
-                    Value::String(..) => value,
-                    Value::Tuple(..) => value,
-                    _ => panic!("Expected a value: {:?}",value),
                 }
             },
         }
@@ -119,33 +109,56 @@ impl Source {
 #[derive(Clone)]
 pub struct Call {
     pub fun: EveFn,
-    pub arg_refs: Vec<Ref>,
+    pub args: CallArgs,
 }
 
 impl std::fmt::Debug for Call {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        formatter.write_str(&*format!("Call{{fun: <fun>, arg_refs:{:?}}}", self.arg_refs))
+        formatter.write_str(&*format!("Call{{fun: {:?}, args:{:?}}}", self.fun, self.args))
     }
 }
 
 impl Call {
     fn eval(&self, result: &Vec<Value>) -> Value {
 
-        let args: Vec<Value> = self.arg_refs.iter().map(|arg_ref| arg_ref.resolve(result).clone()).collect();
+        let args: Vec<Value> = self.args.iter().map(|arg_ref| arg_ref.resolve(result).clone()).collect();
 
         // Convert to an expression vector... this should be streamlined... make interpreter::Call take a value vector?
-        let mut eargs = interpreter::ExpressionVec::new();
-        for arg in args {
-            eargs.push(arg.to_expr());
-        }
+        let eargs: Vec<interpreter::Expression> = args.iter()
+                        .map(|arg| arg.clone().to_expr())
+                        .collect();
 
         let call = interpreter::Call{fun: self.fun.clone(), args: eargs};
 
-        interpreter::calculate(&call.to_expr())
-
+        interpreter::calculate(&interpreter::Expression::Call(call))
     }
 }
 
+#[derive(Clone)]
+pub enum CallArg {
+    Ref(Ref),
+    Call(Call),
+}
+
+pub type CallArgs = Vec<CallArg>;
+
+impl CallArg {
+    fn resolve(&self, result: &Vec<Value>) -> Value {
+        match self {
+            &CallArg::Ref(ref arg_ref) => arg_ref.resolve(result).clone(),
+            &CallArg::Call(ref arg_call) => arg_call.eval(result).clone(),
+        }
+    }
+}
+
+impl std::fmt::Debug for CallArg {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        match self {
+            &CallArg::Ref(ref x) => formatter.write_str(&*format!("{:?}",x)),
+            &CallArg::Call(ref x) => formatter.write_str(&*format!("{:?}",x)),
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum Clause {
@@ -167,7 +180,11 @@ impl Clause {
             },
             Clause::Call(ref call) => {
                 let value = call.eval(result);
-                vec![value]
+                let tuple_value = match value {
+                    Value::Tuple(_) => value,
+                    _ => Value::Tuple(vec![value]),
+                };
+                vec![tuple_value]
             }
         }
     }
