@@ -1020,7 +1020,6 @@ function dispatch(event, info, returnInsteadOfSend) {
                                                           createNew: true,
                                                           elements: [neue[1]]},
                                       true));
-      console.log(diffs);
       break;
     case "addUiComponentLayer":
       var layers = ixer.index("uiComponentToLayers")[info.componentId];
@@ -1045,7 +1044,6 @@ function dispatch(event, info, returnInsteadOfSend) {
     case "clearSelection":
       var sel = getUiSelection(info.componentId);
       if(sel && !ixer.index("remove")[sel[0]]) {
-        console.log("here");
         diffs.push(["remove", "inserted", [sel[0]]]);
       }
       break;
@@ -1076,7 +1074,6 @@ function dispatch(event, info, returnInsteadOfSend) {
         diffs.push(["remove", "inserted", [elem[0]]]);
       });
       diffs.push.apply(diffs, dispatch("clearSelection", info));
-      console.log(diffs);
       break;
     case "setAttributeForSelection":
       var sel = ixer.index("uiSelection")[client][info.componentId];
@@ -1085,7 +1082,6 @@ function dispatch(event, info, returnInsteadOfSend) {
         var id = cur[1];
         diffs.push.apply(diffs, code.ui.updateAttribute(id, info.property, info.value, txId));
       });
-      console.log(diffs);
       break;
     case "duplicateSelection":
       var sel = ixer.index("uiSelection")[client][info.componentId];
