@@ -206,10 +206,10 @@ function uiGroupItem(group, activeLayerId) {
 
     })
   }
-  return {c: "tree-item", children: [
+  return {c: "tree-item ui-group", children: [
     {c: "item", click: activateLayer, layer: group, children: [
       {c: "icon " + activeClass},
-      {text: code.name(groupId)},
+      {c: "name", text: code.name(groupId)},
       {c: hidden ? "ion-eye-disabled" : "ion-eye", click: toggleHidden, layer: group},
       {c: locked ? "ion-locked" : "ion-unlocked", click: toggleLocked, layer: group}
     ]},
