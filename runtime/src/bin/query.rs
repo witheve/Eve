@@ -19,6 +19,7 @@ use eve::interpreter::EveFn;
 use core::num::ToPrimitive;
 
 
+#[allow(dead_code)]
 fn main() {
 /*
 
