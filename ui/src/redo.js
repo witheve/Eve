@@ -4,7 +4,6 @@
 
 var toolbarOffset = 50;
 var ixer = new Indexing.Indexer();
-var grid;
 var client = localStorage["client"] || uuid();
 localStorage["client"] = client;
 
@@ -80,134 +79,189 @@ function root() {
   return {id: "root",
           c: "root",
           children: [
-            toolbar(),
-            stage(),
+            leftBar(),
+            workspace()
           ]};
 }
 
 //---------------------------------------------------------
-// Toolbar
+// Left Bar
 //---------------------------------------------------------
 
-function toolbar() {
-  return {c: "toolbar", text: "toolbar"};
+function leftBar() {
+  return {c: "left-bar column", children: [
+    {c: "adder", children: [
+      {c: "button add-table", click: addItem, event: "addTable", children: [
+        {c: "ion-grid"},
+        {c: "ion-plus"},
+      ]},
+      {c: "button add-view", click: addItem, event: "addQuery", children: [
+        {c: "ion-cube"},
+        {c: "ion-plus"},
+      ]},
+      {c: "button add-ui", click: addItem, event: "addUi", children: [
+        {c: "ion-image"},
+        {c: "ion-plus"},
+      ]},
+    ]},
+    treeSelector()
+  ]};
+}
+
+function addItem(e, elem) {
+  dispatch(elem.event, {});
 }
 
 //---------------------------------------------------------
-// Stage
+// Tree selector
 //---------------------------------------------------------
 
-function stageElement() { return document.getElementsByClassName("stage-tiles-wrapper")[0]; }
-
-function stage() {
-  var rect = window.document.body.getBoundingClientRect();
-  grid = Grid.makeGrid({bounds: {top: rect.top, left: rect.left + 10, width: rect.width - 120, height: rect.height - toolbarOffset}, gutter: 8});
-  var active = "grid://default";
-  var removed = ixer.index("remove");
-  var allTiles = ixer.index("gridToTile")[active] || [];
-  var tiles = allTiles.filter(function(cur) {
-    return !removed[cur[0]];
+function treeSelector() {
+  //Get all the tables and queries
+  var tables = [];
+  var queries = [];
+  ixer.facts("view").forEach(function(cur) {
+    if(cur[2] === "union" || cur[2] === "input") {
+      tables.push(cur);
+    } else {
+      queries.push(cur);
+    }
   });
-  var drawnTiles = tiles.map(function(cur) {
-    return gridTile(cur, tiles);
-  });
-  var outline = ixer.index("tileOutline")[client];
-  if(outline && removed[outline[0]]) {
-    outline = null;
+  //sort them by name
+
+  var tableItems = tables.map(tableItem);
+  var queryItems = queries.map(queryItem);
+
+  //Get all the ui elements
+  var uis = [];
+  var componentIndex = ixer.index("uiComponentToLayers");
+  for(var componentId in componentIndex) {
+    uis.push({componentId: componentId,
+             children: componentIndex[componentId]})
   }
-  if(outline) {
-    drawnTiles.push(tileOutline(outline));
+  //sort
+  var uiItems = uis.map(uiItem);
+
+  var items = tableItems.concat(queryItems, uiItems);
+  return {c: "tree-selector", children: items};
+}
+
+function tableItem(table) {
+  var tableId = table[0];
+  var name = code.name(tableId);
+  return {c: "tree-item table", click: openItem, id:tableId, children: [
+    {c: "item", children: [
+      {c: "icon ion-grid"},
+      {text: name},
+    ]}
+  ]};
+}
+
+function queryItem(query) {
+  var queryId = query[0];
+  var name = code.name(queryId);
+  var open = ixer.index("openEditorItem")[client] === queryId;
+  if(open) {
+    var sources = ixer.index("viewToSources")[queryId] || [];
+    var sourceItems = sources.map(function(cur) {
+      var viewOrData = cur[3];
+      if(viewOrData[0] === "view") {
+        return {c: "tree-item query source", children: [
+          {c: "item", children: [
+            {c: "icon ion-android-arrow-back"},
+            {text: code.name(viewOrData[1])}
+          ]}
+        ]};
+      } else {
+        return {c: "tree-item query calculation", text: "calculation"};
+      }
+    });
   }
-  return {c: "stage", children: [{c: "stage-tiles-wrapper", scroll: onStageScroll, tiles: tiles,
-                                  draggable: true, dragstart: startTile, drag: layoutTile, dragend: createTile, outline: outline,
-                                  children: [{c: "stage-tiles", top:0, left:0, height:(rect.height - toolbarOffset) * 10, children: drawnTiles}]},
-                                 minimap(rect, tiles)]};
+  return {c: "tree-item query", click: openItem, id:queryId, children: [
+    {c: "item", children: [
+      {c: "icon ion-cube"},
+      {text: name},
+    ]},
+    {c: "sub-items", children: sourceItems}
+  ]};
 }
 
-function tileOutline(outline) {
-  var pos = Grid.getOutlineRect(grid, outline);
-  return {c: "tile-outline", top: pos.top, left: pos.left, width: pos.width, height: pos.height};
-}
+function uiGroupItem(group, activeLayerId) {
+  var groupId = group[1];
+  var active = groupId === activeLayerId;
+  var activeClass = "ion-android-checkbox-outline-blank";
+  var hidden = group[5];
+  var locked = group[4];
+  var children;
+  if(active) {
+    activeClass = "ion-android-checkbox-blank";
+    var items = ixer.index("uiLayerToElements")[groupId] || [];
+    var children = items.map(function(cur) {
+      return {c: "tree-item", children: [
+        {c: "item", children: [
+          {c: "icon ion-ios-crop-strong"},
+          {text: cur[4]},
+        ]},
+      ]}
 
-var scrollTimer;
-function stopScrolling() {
-  document.body.classList.remove("scrolling");
-}
-
-function onStageScroll() {
-  clearTimeout(scrollTimer);
-  scrollTimer = setTimeout(stopScrolling, 100)
-  document.body.classList.add("scrolling");
-  rerender();
-}
-
-function startTile(e, elem) {
-  if(e.target !== e.currentTarget) return;
-  clearDragImage(e);
-  var x = e.clientX || __clientX;
-  var y = (e.clientY || __clientY) + stageElement().scrollTop - toolbarOffset;
-  var pos = Grid.coordsToPos(grid, x, y, true);
-  if(!Grid.hasOverlap(elem.tiles, [null, null, null, null, pos[0], pos[1], 1, 1])) {
-    dispatch("tileOutline", {outline: [null, client, pos[0], pos[1], 1, 1]});
+    })
   }
+  return {c: "tree-item", children: [
+    {c: "item", click: activateLayer, layer: group, children: [
+      {c: "icon " + activeClass},
+      {text: code.name(groupId)},
+      {c: hidden ? "ion-eye-disabled" : "ion-eye", click: toggleHidden, layer: group},
+      {c: locked ? "ion-locked" : "ion-unlocked", click: toggleLocked, layer: group}
+    ]},
+    {c: "sub-items", children: children}
+  ]}
 }
 
-function layoutTile(e, elem) {
-  if(!elem.outline) return;
-  var x = e.clientX || __clientX;
-  var y = (e.clientY || __clientY)
-  if(x === 0 && y === 0) return;
-  y = y + stageElement().scrollTop - toolbarOffset;
-  var outline = elem.outline;
-  var tiles = elem.tiles;
-  var rect = Grid.getOutlineRect(grid, outline);
-  var width = Math.max(x - rect.left, 1);
-  var height = Math.max(y - rect.top, 1);
-  var size = Grid.coordsToSize(grid, width, height, true);
-  var neue = outline.slice();
-  neue[4] = size[0];
-  neue[5] = size[1];
-  if((neue[4] !== outline[4] || neue[5] !== outline[5]) &&
-     !Grid.hasOverlap(tiles, [null, null, null, null, outline[2], outline[3], neue[4], neue[5]])) {
-    dispatch("tileOutline", {outline: neue});
+function uiItem(ui) {
+  var name = code.name(ui.componentId);
+  var open = ixer.index("openEditorItem")[client] === ui.componentId;
+  var elements = [];
+  if(open) {
+    var activeLayerId = ixer.index("uiActiveLayer")[client][ui.componentId];
+    elements = (ui.children || []).map(function(cur) {
+      return uiGroupItem(cur, activeLayerId);
+    });
   }
-
+  return {c: "tree-item ui", click: openItem, id:ui.componentId, children: [
+    {c: "item", children: [
+      {c: "icon ion-image"},
+      {text: name || "ui"},
+    ]},
+    {c: "sub-items", children: elements}
+  ]};
 }
 
-function createTile(e, elem) {
-  if(!elem.outline || e.target !== e.currentTarget) return;
-  dispatch("addTileFromOutline", {outline: elem.outline});
+function openItem(e, elem) {
+  dispatch("openItem", {id: elem.id});
 }
 
 //---------------------------------------------------------
-// Minimap
+// Workspace
 //---------------------------------------------------------
 
-function navigateMinimap(e) {
-  var y = e.clientY - toolbarOffset;
-  var stageNode = document.getElementsByClassName("stage-tiles-wrapper")[0];
-  var rect = window.document.body.getBoundingClientRect();
-  stageNode.scrollTop = (y * 10) - ((rect.height - toolbarOffset) / 2)
+function workspace() {
+  var openItem = ixer.index("openEditorItem")[client];
+  if(!openItem) { return {c: "workspace"}; }
+  var content;
+  var type = ixer.index("itemToType")[openItem];
+  if(!type || type === "table") {
+    content = tableWorkspace(openItem);
+  } else if(type === "query") {
+    content = queryWorkspace(openItem);
+  } else if(type === "ui") {
+    content = uiWorkspace(openItem)
+  }
+  return {c: "workspace", children: [
+    content
+  ]};
 }
 
-function minimap(bounds, tiles) {
-  var gridBounds = {top: 0, left: 0, width: 100, height: (bounds.height - toolbarOffset) / 10};
-  var grid = Grid.makeGrid({bounds: gridBounds, gutter: 2});
-  var drawnTiles = tiles.map(function(cur) {
-    return minimapTile(grid, cur);
-  });
-  var stageNode = document.getElementsByClassName("stage-tiles-wrapper");
-  var scroll = stageNode[0] ? stageNode[0].scrollTop / 10 : 0;
-  var thumb = {c: "thumb", top: scroll, left: 0, width:100, height: gridBounds.height}
-  return {c: "minimap", click: navigateMinimap, children: [thumb, {children: drawnTiles}]};
-}
-
-function minimapTile(grid, tile) {
-  var pos = Grid.getRect(grid, tile);
-  var name = code.tileToName(tile);
-  return {c: "minimap-tile " + tile[3], top: pos.top, left: pos.left, width: pos.width, height: pos.height, text: name };
-}
-
+//---------------------------------------------------------
 //---------------------------------------------------------
 // input
 //---------------------------------------------------------
@@ -226,86 +280,6 @@ function input(value, key, oninput, onsubmit) {
   }
   return {c: "input", contentEditable: true, input: oninput, text: value, key: key, blur: blur, keydown: keydown};
 }
-
-//---------------------------------------------------------
-// Grid tile
-//---------------------------------------------------------
-
-function gridTile(cur, activeTiles) {
-  var pos = Grid.getRect(grid, cur);
-
-  var sizeClasses = "";
-  if(pos.width <= 160) { sizeClasses += "width-tiny"; }
-  else if(pos.width <= 320) { sizeClasses += "width-small"; }
-  else if(pos.width <= 800) { sizeClasses += "width-medium"; }
-  else if(pos.width <= 960) { sizeClasses += "width-large"; }
-  else { sizeClasses += "width-huge"; }
-  if(pos.height < 160) { sizeClasses += " height-tiny"; }
-  else if(pos.height < 320) { sizeClasses += " height-small"; }
-  else if(pos.height < 800) { sizeClasses += " height-medium"; }
-  else if(pos.height < 960) { sizeClasses += " height-large"; }
-  else { sizeClasses += " height-huge"; }
-
-  return {c: "grid-tile " + sizeClasses, top: pos.top, left: pos.left, width: pos.width, height: pos.height,
-          children: [tiles[cur[3]](cur), tileControls(cur, activeTiles)]};
-}
-
-function tileControls(cur, activeTiles) {
-  return {c: "controls", children: [
-    {c: "close-tile ion-close", tx: cur[0], click: removeTile},
-    {c: "move-tile ion-arrow-move", tile: cur, tiles: activeTiles, draggable: true, drag: moveTile, dragstart: clearDragImage},
-    {c: "resize-tile ion-drag", tile: cur, tiles: activeTiles, dragover: preventDefault, draggable: true, drag: resizeTile, dragstart: clearDragImage}
-  ]}
-}
-
-function removeTile(e, elem) {
-  dispatch("remove", {tx: elem.tx});
-}
-
-function moveTile(e, elem) {
-  var x = e.clientX || __clientX;
-  var y = e.clientY || __clientY;
-  if(x === 0 && y === 0) return;
-  y = y - toolbarOffset;
-  var tile = elem.tile;
-  var tiles = elem.tiles;
-  var rect = Grid.getRect(grid, tile);
-  var handlePos = e.currentTarget.getBoundingClientRect();
-  var top = rect.top + (y - handlePos.top);
-  var left = rect.left + (x - handlePos.left);
-  var pos = Grid.coordsToPos(grid, left, top, true);
-  var neue = tile.slice();
-  neue[4] = Math.max(pos[0], 0);
-  neue[5] = Math.max(pos[1], 0);
-  if((neue[4] !== tile[4] || neue[5] !== tile[5]) &&
-     !Grid.hasOverlap(tiles, neue)) {
-    dispatch("updateTile", {neue: neue});
-  }
-  e.stopPropagation();
-}
-
-function resizeTile(e, elem) {
-  var x = e.clientX || __clientX;
-  var y = e.clientY || __clientY;
-  if(x === 0 && y === 0) return;
-  x = x + stageElement().scrollLeft;
-  y = y + stageElement().scrollTop - toolbarOffset;
-  var tile = elem.tile;
-  var tiles = elem.tiles;
-  var rect = Grid.getRect(grid, tile);
-  var width = Math.max(x - rect.left, 1);
-  var height = Math.max(y - rect.top, 1);
-  var size = Grid.coordsToSize(grid, width, height, true);
-  var neue = tile.slice();
-  neue[6] = size[0];
-  neue[7] = size[1];
-  if((neue[6] !== tile[6] || neue[7] !== tile[7]) &&
-     !Grid.hasOverlap(tiles, neue)) {
-    dispatch("updateTile", {neue: neue});
-  }
-  e.stopPropagation();
-}
-
 
 //---------------------------------------------------------
 // table
@@ -366,17 +340,20 @@ function addColumn(e, elem) {
   dispatch("addColumn", {view: elem.view});
 }
 
-function tableTile(cur) {
-  var view = ixer.index("tableTile")[cur[1]][1];
+function tableWorkspace(view) {
   var fields = code.viewToFields(view).map(function(cur) {
     return {name: code.name(cur[2]), id: cur[2]};
   });
   var rows = ixer.facts(view);
   var adderRows = ixer.index("adderRows")[view] || [];
-  return {c: "tile table-tile", children: [
-    {t: "pre", c: "lifted", text: JSON.stringify(view)},
-    table("foo", fields, rows, adderRows),
-    {c: "add-column ion-plus", view: view, click: addColumn}]};
+  return {c: "workspace-content column", children: [
+    {c: "title", children: [
+      input(code.name(view), view, rename)
+    ]},
+    {c: "container", children: [
+      table("foo", fields, rows, adderRows),
+      {c: "add-column ion-plus", view: view, click: addColumn}
+    ]}]};
 }
 
 
@@ -390,8 +367,7 @@ function tableTile(cur) {
 
 var attrMappings = {"content": "text"};
 
-function uiTile(cur) {
-  var componentId = cur[1];
+function uiWorkspace(componentId) {
   var removed = ixer.index("remove");
   var elements = ixer.index("uiComponentToElements")[componentId] || [];
   var layers = ixer.index("uiComponentToLayers")[componentId];
@@ -411,13 +387,17 @@ function uiTile(cur) {
   });
   if(selectionInfo) {
     els.push(selection(selectionInfo));
-    var tileRect = Grid.getRect(grid, cur);
-    els.push(uiGrid(componentId, activeLayer[3], {width: tileRect.width,  height: tileRect.height}));
+//     els.push(uiGrid(componentId, activeLayer[3], {width: tileRect.width,  height: tileRect.height}));
   }
-  return {c: "tile ui-editor", mousedown: clearSelection, componentId: componentId, children: [
-    uiControls(componentId, activeLayer),
-    {c: "ui-canvas", children: els},
-    inspector(componentId, selectionInfo, layers, activeLayer)
+  return {c: "workspace-content column ui-workspace", mousedown: clearSelection, componentId: componentId, children: [
+    {c: "title", children: [
+      input(code.name(componentId), componentId, rename)
+    ]},
+    {c: "container", children: [
+      uiControls(componentId, activeLayer),
+      {c: "ui-canvas", children: els},
+      inspector(componentId, selectionInfo, layers, activeLayer)
+    ]}
   ]};
 }
 
@@ -966,16 +946,17 @@ function viewList(id, onClose) {
 // - @TODO: token menu renderer
 //---------------------------------------------------------
 
-function viewTile(cur) {
-  var view = ixer.index("viewTile")[cur[1]][1];
+function queryWorkspace(view) {
   var sources = ixer.index("viewToSources")[view] || [];
   var results = ixer.facts(view);
-  return {c: "tile view-tile", children: [
-    {t: "pre", c: "lifted", text: JSON.stringify(view)},
-    viewCode(view, sources),
-
-    viewResults(sources, results),
-
+  return {c: "workspace-content column query-workspace", children: [
+    {c: "title", children: [
+      input(code.name(view), view, rename)
+    ]},
+    {c: "container", children: [
+      viewCode(view, sources),
+      viewResults(sources, results),
+    ]}
   ]};
 }
 
@@ -1072,54 +1053,6 @@ function viewToken(cur) {
 }
 
 //---------------------------------------------------------
-// chooser tile
-//---------------------------------------------------------
-
-function chooseTile(e, info) {
-  dispatch(info.type, {tileId: info.tile[1]});
-}
-
-function chooserTile(cur) {
-  return {c: "chooser-tile", children: [
-    {c: "option", click: chooseTile, type: "addUi", tile: cur, children: [
-      {c: "icon ion-image",},
-      {c: "description", text: "Present data in a new drawing"},
-    ]},
-    {c: "option", click: chooseTile, type: "addTable", tile: cur, children: [
-      {c: "icon ion-compose"},
-      {c: "description", text: "Record data in a new table"},
-    ]},
-    {c: "option",click: chooseTile, type: "addView", tile: cur, children: [
-      {c: "icon ion-ios-calculator"},
-      {c: "description", text: "Work with data in a new view"},
-    ]},
-    {c: "option",click: chooseTile, type: "addExisting", tile: cur, children: [
-      {c: "icon ion-ios-search"},
-      {c: "description", text: "Open an existing view or table"},
-    ]},
-  ]};
-}
-
-function viewSearcherTile(cur) {
-  var tileId = cur[1];
-  return {c: "view-searcher-tile tile", children: [
-    viewList(tileId + "-searcher", function chooseView(viewId) {
-      // Bail if no view was selected.
-      if(!viewId) { return; }
-      var view = ixer.index("view")[viewId];
-      var type = view[2];
-      var action = "openTable";
-      if(type === "query" || type === "union") {
-        action = "openView";
-      }
-      dispatch(action, {tileId: tileId, view: viewId});
-    })
-  ]};
-}
-
-var tiles = {ui: uiTile, table: tableTile, view: viewTile, addChooser: chooserTile, viewSearcher: viewSearcherTile};
-
-//---------------------------------------------------------
 // Dispatch
 //---------------------------------------------------------
 
@@ -1132,93 +1065,27 @@ function dispatch(event, info, returnInsteadOfSend) {
     case "rename":
       diffs.push(["displayName", "inserted", [txId, info.id, info.value]]);
       break;
+    case "openItem":
+      diffs.push(["openEditorItem", "inserted", [txId, info.id, client]]);
+      break;
     case "addTable":
-      var tileId = info.tileId;
-      var oldTile = ixer.index("gridTile")[tileId].slice();
-      var tile = oldTile.slice();
-      //set to a table tile
-      tile[0] = txId;
-      tile[3] = "table";
       var tableId = uuid();
       diffs = code.diffs.addView("Untitled Table", {A: "string"}, undefined, tableId, ["table"]);
-      diffs.push(["gridTile", "inserted", tile],
-                 ["tableTile", "inserted", [tileId, tableId]],
-                 ["adderRow", "inserted", [txId, txId, tableId, []]]);
+      diffs.push(["adderRow", "inserted", [txId, txId, tableId, []]]);
+      diffs.push(["editorItem", "inserted", [tableId, "table"]]);
+      diffs.push.apply(diffs, dispatch("openItem", {id: tableId}, true));
       break;
-    case "addView":
-      var tileId = info.tileId;
-      var oldTile = ixer.index("gridTile")[tileId].slice();
-      var tile = oldTile.slice();
-      //set to a table tile
-      tile[0] = txId;
-      tile[3] = "view";
+    case "addQuery":
       var viewId = uuid();
-      diffs = code.diffs.addView("Untitled View", {}, undefined, viewId, ["view"], "query");
-      diffs.push(["gridTile", "inserted", tile],
-                 ["viewTile", "inserted", [tileId, viewId]]);
+      diffs = code.diffs.addView("Untitled Query", {}, undefined, viewId, ["view"], "query");
+      diffs.push(["editorItem", "inserted", [viewId, "query"]]);
+      diffs.push.apply(diffs, dispatch("openItem", {id: viewId}, true));
       break;
     case "addUi":
-      var tileId = info.tileId;
-      var oldTile = ixer.index("gridTile")[tileId].slice();
-      var tile = oldTile.slice();
-      //set to a table tile
-      tile[0] = txId;
-      tile[3] = "ui";
-      diffs.push(["gridTile", "inserted", tile]);
-      diffs.push.apply(diffs, dispatch("addUiComponentLayer", {componentId: info.tileId}));
-      break;
-    case "addExisting":
-      var tileId = info.tileId;
-      var oldTile = ixer.index("gridTile")[tileId].slice();
-      var tile = oldTile.slice();
-      //set to a table tile
-      tile[0] = txId;
-      tile[3] = "viewSearcher";
-      diffs.push(["gridTile", "inserted", tile]);
-      break;
-    case "openTable":
-      var tileId = info.tileId;
-      var tableId = info.view;
-      var oldTile = ixer.index("gridTile")[tileId].slice();
-      var tile = oldTile.slice();
-      //set to a table tile
-      tile[0] = txId;
-      tile[3] = "table";
-      diffs.push(["gridTile", "inserted", tile],
-                 ["tableTile", "inserted", [tileId, tableId]],
-                 ["adderRow", "inserted", [txId, txId, tableId, []]]);
-      break;
-    case "openView":
-      var tileId = info.tileId;
-      var viewId = info.view;
-      var oldTile = ixer.index("gridTile")[tileId].slice();
-      var tile = oldTile.slice();
-      //set to a table tile
-      tile[0] = txId;
-      tile[3] = "view";
-      diffs.push(["gridTile", "inserted", tile],
-                 ["viewTile", "inserted", [tileId, viewId]]);
-      break;
-
-    case "updateTile":
-      var neue = info.neue.slice();
-      neue[0] = txId;
-      diffs.push(["gridTile", "inserted", neue]);
-      break;
-    case "tileOutline":
-      var neue = info.outline;
-      neue[0] = txId;
-      diffs.push(["tileOutline", "inserted", neue]);
-      break;
-    case "addTileFromOutline":
-      var outline = info.outline;
-      var x = outline[2];
-      var y = outline[3];
-      var w = outline[4];
-      var h = outline[5];
-      var neue = [txId, uuid(), "grid://default", "addChooser", x, y, w, h];
-      diffs.push(["gridTile", "inserted", neue],
-                 ["remove", "inserted", [outline[0]]]);
+      var uiId = uuid();
+      diffs.push.apply(diffs, dispatch("addUiComponentLayer", {componentId: uiId}));
+      diffs.push(["editorItem", "inserted", [uiId, "ui"]]);
+      diffs.push.apply(diffs, dispatch("openItem", {id: uiId}, true));
       break;
     case "addUiComponentElement":
       var neue = [txId, uuid(), info.componentId, info.layerId, info.control, info.left, info.top, info.right, info.bottom];
@@ -1407,8 +1274,8 @@ function rerender() {
 }
 
 function forceRender() {
-  renderer.render(root());
   queued = false;
+  renderer.render(root());
 }
 
 //---------------------------------------------------------
@@ -1597,24 +1464,21 @@ ixer.addIndex("schemaToFields", "field", Indexing.create.collector([0]));
 ixer.addIndex("remove", "remove", Indexing.create.lookup([0, 0]));
 ixer.addIndex("adderRows", "adderRow", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
 
+//editorItem
+ixer.addIndex("itemToType", "editorItem", Indexing.create.lookup([0,1]));
+ixer.addIndex("openEditorItem", "openEditorItem", Indexing.create.latestLookup({keys: [2, 1]}));
+
 // ui
 ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.latestLookup({keys: [1, false]}));
 ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
 ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.latestLookup({keys: [1, false]}));
 ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
+ixer.addIndex("uiLayerToElements", "uiComponentElement", Indexing.create.latestCollector({keys: [3], uniqueness: [1]}));
 ixer.addIndex("uiElementToAttrs", "uiComponentAttribute", Indexing.create.latestCollector({keys: [1], uniqueness: [1, 2]}));
 ixer.addIndex("uiElementToAttr", "uiComponentAttribute", Indexing.create.latestLookup({keys: [1, 2, false]}));
 ixer.addIndex("uiSelection", "uiSelection", Indexing.create.latestLookup({keys: [2, 3, false]}));
 ixer.addIndex("uiSelectionElements", "uiSelectionElement", Indexing.create.collector([0]));
 ixer.addIndex("uiActiveLayer", "uiActiveLayer", Indexing.create.latestLookup({keys: [2, 1, 3]}));
-
-// Grid Indexes
-ixer.addIndex("gridTarget", "gridTarget", Indexing.create.latestLookup({keys: [1, 2]}));
-ixer.addIndex("gridTile", "gridTile", Indexing.create.latestLookup({keys: [1, false]}));
-ixer.addIndex("gridToTile", "gridTile", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
-ixer.addIndex("tableTile", "tableTile", Indexing.create.lookup([0, false]));
-ixer.addIndex("viewTile", "viewTile", Indexing.create.lookup([0, false]));
-ixer.addIndex("tileOutline", "tileOutline", Indexing.create.latestLookup({keys: [1, false]}));
 
 // State
 ixer.addIndex("searchValue", "searchValue", Indexing.create.latestLookup({keys: [1, 2]}));
@@ -1639,21 +1503,17 @@ function initIndexer() {
   add("adderRow", {tx: "id", id: "id", table: "id", row: "tuple"}, undefined, "adderRow", ["table"]);
   add("remove", {id: "id"}, undefined, "remove", ["table"]);
 
-  // grid views
-  add("gridTile", {tx: "number", tile: "string", grid: "string", type: "string", x: "number", y: "number", w: "number", h: "number"}, [], "gridTile", ["table"]);
-  add("gridTarget", {tx: "number", tile: "string", target: "string"}, [], "gridTarget", ["table"]);
-  add("tableTile", {id: "string", view: "string"}, undefined, "tableTile", ["table"]);
-  add("viewTile", {id: "string", view: "string"}, undefined, "viewTile", ["table"]);
-  add("tileOutline", {tx: "id", client: "id", x: "number", y: "number", w: "number", h: "number"}, undefined, "tileOutline", ["table"]);
-  add("activeGrid", {tx: "number", grid: "string"}, [[0, "grid://default"]], "activeGrid", ["table"]);
-
   // ui views
-  add("uiComponentElement", {tx: "number", id: "string", component: "string", layer: "number", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]);
+  add("uiComponentElement", {tx: "number", id: "string", component: "string", layer: "id", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]);
   add("uiComponentLayer", {tx: "number", id: "string", component: "string", layer: "number", locked: "boolean", invisible: "boolean"}, [], "uiComponentLayer", ["table"]);
   add("uiComponentAttribute", {tx: "number", id: "string", property: "string", value: "string", isBinding: "boolean"}, [], "uiComponentAttribute", ["table"]); // @FIXME: value: any
   add("uiSelection", {tx: "number", id: "id", client: "string", component: "id"}, [], "uiSelection", ["table"]);
   add("uiSelectionElement", {id: "id", element: "id"}, [], "uiSelectionElement", ["table"]);
   add("uiActiveLayer", {tx: "number", component: "id", client: "id", layer: "id"}, [], "uiActiveLayer", ["table"]);
+
+  // editor item
+  add("editorItem", {id: "id", type: "table|query|ui"}, [], "editorItem", ["table"]);
+  add("openEditorItem", {tx: "number", id: "id", client: "client"}, [], "openEditorItem", ["table"]);
 
   //misc transient state
   add("searchValue", {tx: "number", id: "id", value: "string"}, [], "searchValue", ["table"]);
