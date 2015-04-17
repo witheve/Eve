@@ -162,7 +162,10 @@ fn process_call(c: &Call) -> Value {
 		(&Add,[Float(x),Float(y)]) => Float(x+y),
 		(&Subtract,[Float(x),Float(y)]) => Float(x-y),
 		(&Multiply,[Float(x),Float(y)]) => Float(x*y),
-		(&Divide,[Float(x),Float(y)]) => Float(x/y),
+		(&Divide,[Float(x),Float(y)]) => {
+			if y == 0f64 { panic!("Error: Division by 0"); }
+			Float(x/y)
+		},
 		(&Exponentiate,[Float(x),Float(y)]) => Float(x.powf(y)),
 
 		// Some general math functions
