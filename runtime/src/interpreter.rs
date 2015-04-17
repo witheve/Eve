@@ -1,5 +1,5 @@
 use std::fmt::{Debug,Formatter,Result};
-use value::{Value,ToValue,Tuple};
+use value::{Value,ToValue};
 use self::EveFn::*;
 use value::Value::Float;
 
@@ -10,7 +10,7 @@ pub enum Expression {
 	Constant(Constant),
 	Variable(Variable),
 	Call(Call),
-	Match(Match),
+	Match(Box<Match>),
 	Value(Value),
 }
 
@@ -20,7 +20,9 @@ impl Debug for Expression {
 		match *self {
 			Expression::Constant(ref x) => write!(f,"{:?}",*x),
 			Expression::Call(ref x) => write!(f,"{:?}",*x),
-			_ => unimplemented!(),
+			Expression::Variable(ref x) => write!(f,"{:?}",*x),
+			Expression::Value(ref x) => write!(f,"{:?}",*x),
+			Expression::Match(ref x) => write!(f,"{:?}",*x),
 		}
 	}
 }
@@ -28,12 +30,12 @@ impl Debug for Expression {
 pub trait ToExpression { fn to_expr(self) -> Expression; }
 
 impl ToExpression for Expression { fn to_expr(self) -> Expression { self } }
-impl ToExpression for Constant { fn to_expr(self) -> Expression { Expression::Constant(self) } }
 impl ToExpression for Call { fn to_expr(self) -> Expression { Expression::Call(self) } }
 impl ToExpression for i32 { fn to_expr(self) -> Expression { Expression::Value(self.to_value()) } }
 impl ToExpression for f64 { fn to_expr(self) -> Expression { Expression::Value(self.to_value()) } }
 impl<'a> ToExpression for &'a str { fn to_expr(self) -> Expression { Expression::Value(self.to_value()) } }
 impl ToExpression for Value { fn to_expr(self) -> Expression { Expression::Value(self) } }
+impl ToExpression for Match { fn to_expr(self) -> Expression { Expression::Match( Box::new(self)) } }
 
 // End Expression Enum --------------------------------------------------------
 
@@ -55,57 +57,41 @@ pub enum EveFn {
 	StrConcat,StrUpper,StrLower,StrLength,StrReplace,StrSplit,
 }
 
-#[derive(Clone)]
-pub enum Variable {
-	Variable(String),
+#[derive(Clone,Debug)]
+pub struct Match {
+	pub input: Expression,
+	pub patterns: PatternVec,
+	pub handlers: ExpressionVec,
 }
 
-#[derive(Clone)]
+// Begin Pattern Enum ---------------------------------------------------------
+#[derive(Clone,Debug)]
 pub enum Pattern {
 	Constant(Constant),
-	Tuple(Tuple),
+	Variable(Variable),
+	Tuple(PatternVec),
 }
 
-/*
-#[derive(Clone)]
-pub enum Tuple {
-	Patterns(PatternVec),
-}
-*/
-
-// Constant Enum --------------------------------------------------------------
-#[derive(Clone,PartialEq)]
-pub enum Constant {
-	StringConstant(String),
-	Value(Value),
-}
-
-impl Debug for Constant {
-
-	fn fmt(&self, f: &mut Formatter) -> Result {
-		match *self {
-			Constant::StringConstant(ref x) => write!(f,"{:?}",*x),
-			_ => unimplemented!(),
+impl<'a> PartialEq<Value> for &'a Pattern {
+	fn eq(&self, other: &Value) -> bool {
+		match self {
+			&&Pattern::Constant(ref x) => x == other,
+			&&Pattern::Variable(_) => panic!("Cannot match Variable against Value"),
+			&&Pattern::Tuple(_) => panic!("Cannot match Tuple against Value"),
 		}
 	}
 }
+// End Pattern Enum -----------------------------------------------------------
 
-// End Constant Enum ----------------------------------------------------------
-
-// Structs...
 #[derive(Clone,Debug)]
 pub struct Call {
 	pub fun: EveFn,
 	pub args: ExpressionVec,
 }
 
-#[derive(Clone)]
-pub struct Match {
-	pub patterns: PatternVec,
-	pub handlers: ExpressionVec,
-}
-
 // Some type aliases
+pub type Constant = Value;
+pub type Variable = String;
 pub type PatternVec = Vec<Pattern>;
 pub type ExpressionVec = Vec<Expression>;
 
@@ -123,38 +109,47 @@ macro_rules! exprvec {
     };
 }
 
-// This is the main interface to the interpreter. Pass in an expression, get a value back
-pub fn calculate(e: & Expression) -> Value {
+// This is the main interface to the interpreter. Pass in an expression, get
+// back a value
+pub fn evaluate(e: & Expression) -> Value {
 
-	process_expression(e)
+	eval_expression(e)
 
 }
 
-fn process_expression(e: & Expression) -> Value {
+fn eval_expression(e: &Expression) -> Value {
 
 	match *e {
-		//Expression::Constant(ref x) =>  x.clone(),
-		Expression::Call(ref x) => process_call(x),
-		//Expression::Constant(ref x) => process_constant(x),
+		Expression::Call(ref x) => eval_call(x),
+		Expression::Constant(ref x) => x.clone(),
 		Expression::Value(ref x) => x.clone(),
+		Expression::Match(ref x) => eval_match(x),
 		_ => unimplemented!(),
 	}
 }
 
-/*
-fn process_constant(c: & Constant) -> &Value {
+fn eval_match(m: &Match) -> Value {
 
-	match *c {
-		Constant::NumericConstant(ref x) => unwrap_numeric(x).to_value(),
-		Constant::StringConstant(ref x) => x.to_value(),
-		_ => unimplemented!(),
-	}
+	// Before we do anything, make sure we have the same number of patterns and
+	// handlers
+	assert_eq!(m.patterns.len(),m.handlers.len());
+
+	let input = eval_expression(&m.input);
+	let tests: Vec<Value> = m.patterns.iter()
+						  			  .zip(m.handlers.iter())
+						  			  .filter_map(|ph| -> Option<Value> {
+													let (pattern,handler) = ph;
+													if pattern == input { Some(eval_expression(&handler)) }
+													else { None }
+												})
+						  			  .collect();
+
+	Value::Tuple(tests)
 }
-*/
 
-fn process_call(c: &Call) -> Value {
+fn eval_call(c: &Call) -> Value {
 
-	let args: Vec<Value> = c.args.iter().map(process_expression).collect();
+	let args: Vec<Value> = c.args.iter().map(eval_expression).collect();
 
 	match(&c.fun, &args[..]) {
 
@@ -163,8 +158,10 @@ fn process_call(c: &Call) -> Value {
 		(&Subtract,[Float(x),Float(y)]) => Float(x-y),
 		(&Multiply,[Float(x),Float(y)]) => Float(x*y),
 		(&Divide,[Float(x),Float(y)]) => {
-			if y == 0f64 { panic!("Error: Division by 0"); }
-			Float(x/y)
+			match (x,y) {
+				(_,0f64) => panic!("Error: Division by 0"),
+				(x,y) => Float(x/y),
+			}
 		},
 		(&Exponentiate,[Float(x),Float(y)]) => Float(x.powf(y)),
 
@@ -212,7 +209,7 @@ fn process_call(c: &Call) -> Value {
 fn general_agg<F: Fn(f64,f64) -> f64>(f: F, base: f64, args: &ExpressionVec) -> Value {
 
 	// Some fold magic!
-	let acc = args.iter().fold(base,|acc,next_arg| f(acc,process_expression(next_arg).to_f64().unwrap()) );
+	let acc = args.iter().fold(base,|acc,next_arg| f(acc,eval_expression(next_arg).to_f64().unwrap()) );
 
 	acc.to_value()
 
