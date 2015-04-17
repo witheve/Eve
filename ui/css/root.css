@@ -94,6 +94,7 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .ui-canvas .control.box { background:#555; }
 .ui-canvas .control.button { background:#555; }
 .ui-canvas .control.selected { border: 1px solid #555; }
+.ui-canvas .control { background-size:contain !important; background-repeat: no-repeat !important; }
 
 .selection { border: 1px solid #555; pointer-events: none; z-index:100; }
 .selection .trash { position:absolute; top: -40px; right: -40px; font-size: 20pt; color: #555; padding:4px 10px; pointer-events:auto; border-radius:2px; }

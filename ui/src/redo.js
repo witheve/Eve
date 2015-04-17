@@ -456,7 +456,8 @@ function addControl(e, elem) {
 
 var uiControlInfo = [{text: "text", icon: ""},
                      {text: "box", icon: ""},
-                     {text: "button", icon: ""}];
+                     {text: "button", icon: ""},
+                     {text: "input", icon: ""}];
 function uiControls(componentId, activeLayer) {
   var items = uiControlInfo.map(function(cur) {
     return {c: "control-item", click: addControl, control: cur.text, componentId: componentId, layer: activeLayer,
