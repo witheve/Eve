@@ -184,25 +184,6 @@ impl Clause {
     }
 }
 
-pub trait ToClause { fn to_clause(self) -> Clause; }
-
-impl ToClause for Clause { fn to_clause(self) -> Clause { self } }
-impl ToClause for Call { fn to_clause(self) -> Clause { Clause::Call(self) } }
-
-// Macro for creating clause vectors
-#[macro_export]
-macro_rules! clausevec {
-    ( $( $x:expr ),* ) => {
-        {
-            let mut temp_vec = Vec::new();
-            $(
-                temp_vec.push($x.to_clause());
-            )*
-            temp_vec
-        }
-    };
-}
-
 #[derive(Clone, Debug)]
 pub struct Query {
     pub clauses: Vec<Clause>,
