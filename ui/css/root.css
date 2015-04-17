@@ -91,17 +91,17 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .ui-editor .controls .icon { width:30px; height:30px; border: 1px solid #999;  border-radius:2px; margin-bottom:5px; }
 
 .ui-canvas {flex: 1; position:relative; overflow:hidden; background:#fff; margin:10px 0; }
-.ui-canvas .control { background:#555; }
-.ui-canvas .control.selected { border: 1px solid #acf; }
-.ui-canvas .resize-handle { position:absolute; background: rgba(170,204,255,0.3); border: 1px solid #acf; z-index: 1000; }
+.ui-canvas .control.box { background:#555; }
+.ui-canvas .control.button { background:#555; }
+.ui-canvas .control.selected { border: 1px solid #555; }
 
-.selection { border: 1px solid #acf; pointer-events: none; z-index:100; }
-.selection .trash { position:absolute; top: -40px; right: -40px; font-size: 20pt; color: #acf; padding:4px 10px; pointer-events:auto; border-radius:2px; }
+.selection { border: 1px solid #555; pointer-events: none; z-index:100; }
+.selection .trash { position:absolute; top: -40px; right: -40px; font-size: 20pt; color: #555; padding:4px 10px; pointer-events:auto; border-radius:2px; }
 .selection .trash:hover { background: #833; color: #fcc; }
-.selection .coordinates { position:absolute; right: -70px; width:50px; flex-direction:column; align-items:flex-start; font-size:10pt; color:#acf; }
-.selection .color { position:absolute; color:#acf; font-size:24px; right: 0px; width:20px; height:24px; top: -35px; border-radius:2px; border:none; pointer-events:auto; outline:none; }
+.selection .coordinates { position:absolute; right: -70px; width:50px; flex-direction:column; align-items:flex-start; font-size:10pt; color:#555; }
+.selection .color { position:absolute; color:#555; font-size:24px; right: 0px; width:20px; height:24px; top: -35px; border-radius:2px; border:none; pointer-events:auto; outline:none; }
 .selection .color input { width:2px; height:24px; opacity:0; }
-.resize-handle { pointer-events: auto; }
+.selection .resize-handle { position:absolute; background: rgba(0,0,0,0.3); border: 1px solid #555; z-index: 1000; pointer-events:auto; }
 
 .grid { z-index: 0; pointer-events:none; }
 
@@ -123,6 +123,9 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .inspector-panel .pair + .pair { margin-top:1px; }
 .inspector-panel .label { padding: 5px; }
 .inspector-panel .input { background: #111; flex:1; padding:5px; }
+
+.color-picker { flex: 1; }
+.color-picker input { flex:1; opacity:0; }
 
 /*-----------------------------------------------------------------------------
 - view editor

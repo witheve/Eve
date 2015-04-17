@@ -91,8 +91,14 @@
         }
 
         style.backgroundColor = cur.backgroundColor;
-        style.backgroundImage = cur.backgroundImage;
+        if(cur.backgroundImage) {
+          style.backgroundImage = "url('" + cur.backgroundImage + "')";
+        }
+        style.border = cur.border;
+        style.borderRadius = cur.borderRadius;
         style.fontSize = cur.fontSize;
+        style.justifyContent = cur.textAlign;
+        style.alignItems = cur.verticalAlign;
         style.color = cur.color;
         if(cur.fontFamily) {
           style.fontFamily = cur.fontFamily;
@@ -154,6 +160,13 @@
            && curA.height === curB.height
            && curA.zIndex === curB.zIndex
            && curA.backgroundColor === curB.backgroundColor
+           && curA.color === curB.color
+           && curA.border === curB.border
+           && curA.borderRadius === curB.borderRadius
+           && curA.fontFamily === curB.fontFamily
+           && curA.fontSize === curB.fontSize
+           && curA.textAlign === curB.textAlign
+           && curA.verticalAlign === curB.verticalAlign
            && curA.c === curB.c
            && curA.text === curB.text) {
           continue;
@@ -177,6 +190,13 @@
            && curA.height === curB.height
            && curA.zIndex === curB.zIndex
            && curA.backgroundColor === curB.backgroundColor
+           && curA.color === curB.color
+           && curA.border === curB.border
+           && curA.borderRadius === curB.borderRadius
+           && curA.fontFamily === curB.fontFamily
+           && curA.fontSize === curB.fontSize
+           && curA.textAlign === curB.textAlign
+           && curA.verticalAlign === curB.verticalAlign
            && curA.c === curB.c
            && curA.text === curB.text) {
           continue;
