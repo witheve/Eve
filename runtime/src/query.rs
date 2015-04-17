@@ -121,16 +121,14 @@ impl std::fmt::Debug for Call {
 impl Call {
     fn eval(&self, result: &Vec<Value>) -> Value {
 
-        let args: Vec<Value> = self.args.iter().map(|arg_ref| arg_ref.resolve(result).clone()).collect();
+        // Resolve references and covert to an expression vector
+        let args: Vec<interpreter::Expression> = self.args.iter()
+                                                           .map(|arg_ref| arg_ref.resolve(result).to_expr())
+                                                           .collect();
 
-        // Convert to an expression vector... this should be streamlined... make interpreter::Call take a value vector?
-        let eargs: Vec<interpreter::Expression> = args.iter()
-                        .map(|arg| arg.clone().to_expr())
-                        .collect();
+        let call = interpreter::Call{fun: self.fun.clone(), args: args};
 
-        let call = interpreter::Call{fun: self.fun.clone(), args: eargs};
-
-        interpreter::calculate(&interpreter::Expression::Call(call))
+        interpreter::evaluate(&interpreter::Expression::Call(call))
     }
 }
 
@@ -180,10 +178,6 @@ impl Clause {
             },
             Clause::Call(ref call) => {
                 let value = call.eval(result).to_tuple().to_value();
-                /*let tuple_value = match value {
-                    Value::Tuple(_) => value,
-                    _ => Value::Tuple(vec![value]),
-                };*/
                 vec![value]
             }
         }
