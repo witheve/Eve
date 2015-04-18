@@ -7,8 +7,6 @@
     return (new Date()).getTime();
   }
 
-  var events = ["scroll", "click", "contextmenu", "focus", "blur", "input", "keydown", "drag",
-                "dragover", "dragstart", "dragend", "drop", "mousedown"];
 
   function Renderer() {
     this.content = document.createElement("div");
@@ -35,6 +33,7 @@
     },
 
     domify: function domify() {
+      var fakePrev = {}; //create an empty object once instead of every instance of the loop
       var elements = this.tree;
       var prevElements = this.prevTree;
       var diff = this.lastDiff;
@@ -43,7 +42,7 @@
       for(var i = 0, len = elemKeys.length; i < len; i++) {
         var id = elemKeys[i];
         var cur = elements[id];
-        var prev = prevElements[id];
+        var prev = prevElements[id] || fakePrev;
         var type = diff[id];
         var div;
         if(type === "replaced") {
@@ -59,79 +58,61 @@
         } else if(type === "updated") {
           div = elementCache[id];
         } else {
-          var me = elementCache[id];
+          //NOTE: Batching the removes such that you only remove the parent
+          //didn't actually make this faster surprisingly. Given that this
+          //strategy is much simpler and there's no noticable perf difference
+          //we'll just do the dumb thing and remove all the children one by one.
+          var me = elementCache[id]
           if(me.parentNode) me.parentNode.removeChild(me);
           elementCache[id] = null;
           continue;
         }
 
         style = div.style;
-        if(cur.c !== div.className) {
-          div.className = cur.c || "";
-        }
 
-        if(cur.draggable) {
-          div.draggable = true;
-        }
-        div.contentEditable = cur.contentEditable || "inherit";
-        if(cur.colspan) {
-          div.colSpan = cur.colspan;
-        }
+        if(cur.c !== prev.c) div.className = cur.c;
+        if(cur.draggable !== prev.draggable) div.draggable = cur.draggable;
+        if(cur.contentEditable !== prev.contentEditable) div.contentEditable = cur.contentEditable;
+        if(cur.colspan !== prev.colspan) div.colSpan = cur.colspan;
 
-        if(cur.left !== undefined) {
-          style.position = "absolute";
-          //         style.transform = "translate(" + cur.left + "px, " + cur.top + "px)";
-          style.top = cur.top;
-          style.left = cur.left;
-          style.height = cur.height;
-          style.width = cur.width;
-          if(cur.zIndex !== undefined) {
-            style.zIndex = cur.zIndex;
-          }
-        }
+        if(cur.left !== prev.left)  style.left = cur.left;
+        if(cur.top !== prev.top) style.top = cur.top;
+        if(cur.height !== prev.height) style.height = cur.height;
+        if(cur.width !== prev.width)  style.width = cur.width;
+        if(cur.zIndex !== prev.zIndex) style.zIndex = cur.zIndex;
 
-        style.backgroundColor = cur.backgroundColor;
-        if(cur.backgroundImage) {
+        if(cur.backgroundColor !== prev.backgroundColor) style.backgroundColor = cur.backgroundColor;
+        if(cur.backgroundImage !== prev.backgroundImage) {
           style.backgroundImage = "url('" + cur.backgroundImage + "')";
         }
-        style.border = cur.border;
-        style.borderRadius = cur.borderRadius;
-        style.fontSize = cur.fontSize;
-        style.justifyContent = cur.textAlign;
-        style.alignItems = cur.verticalAlign;
-        style.color = cur.color;
-        if(cur.fontFamily) {
-          style.fontFamily = cur.fontFamily;
-        }
+        if(cur.border !== prev.border) style.border = cur.border;
+        if(cur.borderRadius !== prev.borderRadius) style.borderRadius = cur.borderRadius;
+        if(cur.fontSize !== prev.fontSize) style.fontSize = cur.fontSize;
+        if(cur.textAlign !== prev.textAlign) style.justifyContent = cur.textAlign;
+        if(cur.verticalAlign !== prev.verticalAlign) style.alignItems = cur.verticalAlign;
+        if(cur.color !== prev.color) style.color = cur.color;
+        if(cur.fontFamily !== prev.fontFamily) style.fontFamily = cur.fontFamily;
+        if(cur.value !== prev.value) div.value = cur.value;
+        if(cur.t === "input" && cur.type !== prev.type) div.type = cur.type;
+        if(cur.text !== prev.text) div.textContent = cur.text;
 
-        if(cur.t === "input") {
-          div.type = cur.type;
-          if(div.value !== cur.value) {
-            div.value = cur.value;
-          }
-        }
-
-
-        if(type === "updated") {
-          if(cur.text !== prev.text) {
-            div.textContent = cur.text;
-          }
-          for(var evIx = 0, evLen = events.length; evIx < evLen; evIx++) {
-            var event = events[evIx];
-            if(cur[event] && prev[event] !== cur[event]) {
-              div.addEventListener(event, this.handleEvent);
-            }
-          }
-        }
+        //events
+        if(cur.click !== prev.click) div.onclick = cur.click !== undefined ? this.handleEvent : undegined;
+        if(cur.contextmenu !== prev.contextmenu) div.oncontextmenu = cur.contextmenu !== undefined ? this.handleEvent : undefined;
+        if(cur.mousedown !== prev.mousedown) div.onmousedown = cur.mousedown !== undefined ? this.handleEvent : undefined;
+        if(cur.dragover !== prev.dragover) div.ondragover = cur.dragover !== undefined ? this.handleEvent : undefined;
+        if(cur.dragstart !== prev.dragstart) div.ondragstart = cur.dragstart !== undefined ? this.handleEvent : undefined;
+        if(cur.dragend !== prev.dragend) div.ondragend = cur.dragend !== undefined ? this.handleEvent : undefined;
+        if(cur.drag !== prev.drag) div.ondrag = cur.drag !== undefined ? this.handleEvent : undefined;
+        if(cur.drop !== prev.drop) div.ondrop = cur.drop !== undefined ? this.handleEvent : undefined;
+        if(cur.scroll !== prev.scroll) div.onscroll = cur.scroll !== undefined ? this.handleEvent : undefined;
+        if(cur.focus !== prev.focus) div.onfocus = cur.focus !== undefined ? this.handleEvent : undefined;
+        if(cur.blur !== prev.blur) div.onblur = cur.blur !== undefined ? this.handleEvent : undefined;
+        if(cur.input !== prev.input) div.oninput = cur.input !== undefined ? this.handleEvent : undefined;
+        if(cur.keydown !== prev.keydown) div.onkeydown = cur.keydown !== undefined ? this.handleEvent : undefined;
 
         if(type === "added" || type === "replaced") {
-          if(cur.text !== undefined) {
-            div.textContent = cur.text;
-          }
-          for(var evIx = 0, evLen = events.length; evIx < evLen; evIx++) {
-            var event = events[evIx];
-            if(cur[event]) { div.addEventListener(event, this.handleEvent); }
-          }
+          //TODO: we aren't inserting in order.
           elementCache[cur.parent].appendChild(div);
         }
       }
@@ -146,7 +127,7 @@
       for(var i = 0, len = as.length; i < len; i++) {
         var curA = a[as[i]];
         var curB = b[as[i]];
-        if(!curB) {
+        if(curB === undefined) {
           updated[as[i]] = "removed";
           continue;
         }
@@ -154,21 +135,23 @@
           updated[as[i]] = "replaced";
           continue;
         }
-        if(curA.top === curB.top
+        if(curA.c === curB.c
+           && curA.value === curB.value
+           && curA.text === curB.text
+           && curA.top === curB.top
            && curA.left === curB.left
            && curA.width === curB.width
            && curA.height === curB.height
            && curA.zIndex === curB.zIndex
            && curA.backgroundColor === curB.backgroundColor
+           && curA.backgroundImage === curB.backgroundImage
            && curA.color === curB.color
            && curA.border === curB.border
            && curA.borderRadius === curB.borderRadius
            && curA.fontFamily === curB.fontFamily
            && curA.fontSize === curB.fontSize
            && curA.textAlign === curB.textAlign
-           && curA.verticalAlign === curB.verticalAlign
-           && curA.c === curB.c
-           && curA.text === curB.text) {
+           && curA.verticalAlign === curB.verticalAlign) {
           continue;
         }
         updated[as[i]] = "updated";
@@ -176,7 +159,7 @@
       for(var i = 0, len = bs.length; i < len; i++) {
         var curA = a[bs[i]];
         var curB = b[bs[i]];
-        if(!curA) {
+        if(curA === undefined) {
           updated[bs[i]] = "added";
           continue;
         }
@@ -184,21 +167,23 @@
           updated[bs[i]] = "replaced";
           continue;
         }
-        if(curA.top === curB.top
+        if(curA.c === curB.c
+           && curA.value === curB.value
+           && curA.text === curB.text
+           && curA.top === curB.top
            && curA.left === curB.left
            && curA.width === curB.width
            && curA.height === curB.height
            && curA.zIndex === curB.zIndex
            && curA.backgroundColor === curB.backgroundColor
+           && curA.backgroundImage === curB.backgroundImage
            && curA.color === curB.color
            && curA.border === curB.border
            && curA.borderRadius === curB.borderRadius
            && curA.fontFamily === curB.fontFamily
            && curA.fontSize === curB.fontSize
            && curA.textAlign === curB.textAlign
-           && curA.verticalAlign === curB.verticalAlign
-           && curA.c === curB.c
-           && curA.text === curB.text) {
+           && curA.verticalAlign === curB.verticalAlign) {
           continue;
         }
         updated[bs[i]] = "updated";
