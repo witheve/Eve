@@ -65,6 +65,9 @@ var Indexing = (function() {
       for(var table in this.tables) {
         this.handleDiff(table, [], this.tables[table]);
       }
+      for(var index in this.indexes) {
+        this.indexes[index].index = {};
+      }
       return {changes: final};
     },
     load: function(pickle) {

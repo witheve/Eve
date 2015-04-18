@@ -410,7 +410,7 @@ function uiTile(cur) {
     activeLayer = layerLookup[activeLayerId];
   }
   var attrsIndex = ixer.index("uiElementToAttrs");
-  var selectionInfo = getSelectionInfo(componentId);
+  var selectionInfo = getSelectionInfo(componentId, true);
   var els = elements.map(function(cur) {
     if(removed[cur[0]]) return;
     var id = cur[1];
@@ -435,10 +435,11 @@ function uiTile(cur) {
 
 function control(cur, attrs, selected, layer) {
   var id = cur[1];
+  var type = cur[4];
   var selClass = selected ? " selected" : "";
   var hidden = layer[5] ? " hidden" : "";
   var locked = layer[4] ? " locked" : "";
-  var klass = "control" + selClass + hidden + locked;
+  var klass = type + " control" + selClass + hidden + locked;
   var elem = {c: klass, id: id, left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6],
               control: cur, mousedown: addToSelection, selected: selected, zIndex: layer[3] + 1,
               draggable: true, drag: moveSelection, dragstart: startMoveSelection};
@@ -543,24 +544,51 @@ function adjustPosition(e, elem) {
   dispatch("moveSelection", {diffX: diffX, diffY: diffY, componentId: componentId});
 }
 
-function appearanceInspector() {
+function appearanceInspector(selectionInfo) {
+  var attrs = selectionInfo.attributes;
+  var componentId = selectionInfo.componentId;
   //background, image, border
   return {c: "inspector-panel", children: [
-    {c: "pair", children: [{c: "label", text: "background"}, input("background") ]},
-    {c: "pair", children: [{c: "label", text: "image"}, input("image") ]},
-    {c: "pair", children: [{c: "label", text: "border"}, input("border") ]},
+    {c: "pair", children: [{c: "label", text: "background"},
+                           colorSelector(componentId, "backgroundColor", attrs["backgroundColor"])]},
+    {c: "pair", children: [{c: "label", text: "image"},
+                           inspectorInput(attrs["backgroundImage"], [componentId, "backgroundImage"], setAttribute)]},
+    {c: "pair", children: [{c: "label", text: "border"},
+                          inspectorInput(attrs["border"], [componentId, "border"], setAttribute)]},
+    {c: "pair", children: [{c: "label", text: "radius"},
+                          inspectorInput(attrs["borderRadius"], [componentId, "borderRadius"], setAttribute)]},
   ]};
 }
 
-function textInspector() {
+function colorSelector(componentId, attr, value) {
+  return {c: "color-picker", backgroundColor: value || "#999999", mousedown: stopPropagation, children: [
+    {t: "input", type: "color", key: [componentId, attr],
+      value: value, input: setAttribute}
+  ]};
+}
+
+function setAttribute(e, elem) {
+  var componentId = elem.key[0];
+  var property = elem.key[1];
+  dispatch("setAttributeForSelection", {componentId: componentId, property: property, value: e.currentTarget.value || e.currentTarget.textContent});
+}
+
+function textInspector(selectionInfo) {
+  var componentId = selectionInfo.componentId;
+  var attrs = selectionInfo.attributes;
   //font, size, color, align vertical, align horizontal, bold/italic/underline
   return {c: "inspector-panel", children: [
-    {c: "pair", children: [{c: "label", text: "font"}, input("font") ]},
-    {c: "pair", children: [{c: "label", text: "size"}, input("size") ]},
-    {c: "pair", children: [{c: "label", text: "color"}, input("color") ]},
-    {c: "pair", children: [{c: "label", text: "align"} ]},
-    {c: "pair", children: [{c: "label", text: "valign"} ]},
-    {c: "pair", children: [{c: "label", text: "bold/italic/underline"} ]},
+    {c: "pair", children: [{c: "label", text: "content"}, inspectorInput(attrs["text"], [componentId, "text"], setAttribute)]},
+    {c: "pair", children: [{c: "label", text: "font"},
+                           inspectorInput(attrs["fontFamily"], [componentId, "fontFamily"], setAttribute)]},
+    {c: "pair", children: [{c: "label", text: "size"},
+                           inspectorInput(attrs["fontSize"], [componentId, "fontSize"], setAttribute)]},
+    {c: "pair", children: [{c: "label", text: "color"}, colorSelector(componentId, "color", attrs["color"])]},
+    {c: "pair", children: [{c: "label", text: "align"},
+                           inspectorInput(attrs["textAlign"], [componentId, "textAlign"], setAttribute)]},
+    {c: "pair", children: [{c: "label", text: "valign"},
+                           inspectorInput(attrs["verticalAlign"], [componentId, "verticalAlign"], setAttribute)]},
+    {c: "pair", children: [{c: "label", text: "bold/italic/underline"}]},
   ]};
 }
 
@@ -634,7 +662,7 @@ function selection(selectionInfo) {
             resizeHandle(componentId, bounds, "bottom", "left"),
             resizeHandle(componentId, bounds, "middle", "left"),
             {c: "color ion-waterdrop", children: [
-              {t: "input", type: "color", value: color, mousedown: stopPropagation, input: changeColor, componentId: componentId},
+              {t: "input", type: "color", value: color, mousedown: stopPropagation, input: setAttribute, key: [componentId, "backgroundColor"]},
             ]},
             {c: "trash ion-ios-trash", componentId: componentId, mousedown:stopPropagation, click: deleteSelection},
             {c: "coordinates", children: coordinates}
@@ -673,10 +701,6 @@ function getSelectionInfo(componentId, withAttributes) {
     return {componentId: componentId, selectedIds: ids, elements: elements, bounds: bounds, attributes: attributes}
   }
   return false;
-}
-
-function changeColor(e, elem) {
-  dispatch("setAttributeForSelection", {componentId: elem.componentId, property: "backgroundColor", value: e.currentTarget.value});
 }
 
 var resizeHandleSize = 7;
