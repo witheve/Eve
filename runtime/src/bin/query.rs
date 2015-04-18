@@ -15,12 +15,42 @@ use rand::distributions::{IndependentSample, Range};
 use eve::query::*;
 use eve::value::*;
 use eve::value::Value::*;
-use eve::interpreter::EveFn;
+use eve::interpreter::{EveFn,Pattern};
 use core::num::ToPrimitive;
 
 
 #[allow(dead_code)]
 fn main() {
+
+    let p = vec!(Pattern::Constant(1f64.to_value()),
+                 Pattern::Constant(2f64.to_value()),
+                 Pattern::Constant(3f64.to_value()),
+                 Pattern::Constant(4f64.to_value()),
+                 Pattern::Constant(5f64.to_value()),
+                );
+
+    let h = vec!(CallArg::Ref(Ref::Constant{value: "one".to_value()}),
+                 CallArg::Ref(Ref::Constant{value: "two".to_value()}),
+                 CallArg::Ref(Ref::Constant{value: "three".to_value()}),
+                 CallArg::Ref(Ref::Constant{value: "four".to_value()}),
+                 CallArg::Ref(Ref::Constant{value: "five".to_value()}),
+                );
+
+    let i = CallArg::Ref(Ref::Constant{value: 5f64.to_value()});
+
+    let query = Query{clauses: vec![
+        Clause::Match(Match{input: i, patterns: p, handlers: h}),
+    ]};
+
+
+    let mut resultvec = Vec::new();
+
+    for result in query.iter(vec![]) {
+        resultvec.push(result);
+    }
+
+    println!("{:?}",resultvec);
+
 /*
 
     let c0 = Call{fun: EveFn::Add, arg_refs: vec![Ref::Constant{value: 1.to_value()},Ref::Constant{value: 2.to_value()}]};
