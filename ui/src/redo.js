@@ -222,7 +222,7 @@ function uiItem(ui) {
   var open = ixer.index("openEditorItem")[client] === ui.componentId;
   var elements = [];
   if(open) {
-    var activeLayerId = ixer.index("uiActiveLayer")[client][ui.componentId];
+    var activeLayerId = ixer.index("uiActiveLayer")[client] ? ixer.index("uiActiveLayer")[client][ui.componentId] : undefined;
     elements = (ui.children || []).map(function(cur) {
       return uiGroupItem(cur, activeLayerId);
     });
