@@ -685,11 +685,7 @@ function selection(selectionInfo) {
             resizeHandle(componentId, bounds, "bottom", "center"),
             resizeHandle(componentId, bounds, "bottom", "left"),
             resizeHandle(componentId, bounds, "middle", "left"),
-            {c: "color ion-waterdrop", children: [
-              {t: "input", type: "color", value: color, mousedown: stopPropagation, input: setAttribute, key: [componentId, "backgroundColor"]},
-            ]},
             {c: "trash ion-ios-trash", componentId: componentId, mousedown:stopPropagation, click: deleteSelection},
-            {c: "coordinates", children: coordinates}
           ]};
 }
 
