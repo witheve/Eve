@@ -72,7 +72,7 @@
 
         if(cur.c !== prev.c) div.className = cur.c;
         if(cur.draggable !== prev.draggable) div.draggable = cur.draggable;
-        if(cur.contentEditable !== prev.contentEditable) div.contentEditable = cur.contentEditable;
+        if(cur.contentEditable !== prev.contentEditable) div.contentEditable = cur.contentEditable || "inherit";
         if(cur.colspan !== prev.colspan) div.colSpan = cur.colspan;
 
         if(cur.left !== prev.left)  style.left = cur.left;
