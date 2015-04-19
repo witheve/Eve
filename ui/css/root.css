@@ -43,6 +43,13 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 
 .failed { background: rgba(255,79,109,0.1); color: transparent; border:1px solid rgba(255,79,109,0.); border-left:none; text-align:left; }
 
+.table { flex-direction:column; }
+.headers { flex:none; background: rgba(255,255,255,0.1);  }
+.rows { flex-direction:column; overflow:auto; }
+.row { flex:none; }
+.field, .header { width:180px; overflow:hidden; white-space:nowrap; padding:3px 15px; }
+.spacer { flex: none; }
+
 /*-----------------------------------------------------------------------------
 - input
 -----------------------------------------------------------------------------*/
@@ -64,9 +71,9 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .ui-canvas .control.box { background:#555; }
 .ui-canvas .control.button { background:#555; }
 .ui-canvas .control.selected { border: 1px solid #555; }
-.ui-canvas .control { background-size:contain !important; background-repeat: no-repeat !important; }
+.ui-canvas .control { position:absolute; background-size:contain !important; background-repeat: no-repeat !important; }
 
-.selection { border: 1px solid #555; pointer-events: none; z-index:100; }
+.selection { position:absolute; border: 1px solid #555; pointer-events: none; z-index:100; }
 .selection .trash { position:absolute; top: -40px; right: -40px; font-size: 20pt; color: #555; padding:4px 10px; pointer-events:auto; border-radius:2px; }
 .selection .trash:hover { background: #833; color: #fcc; }
 .selection .coordinates { position:absolute; right: -70px; width:50px; flex-direction:column; align-items:flex-start; font-size:10pt; color:#555; }

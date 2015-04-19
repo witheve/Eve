@@ -301,6 +301,57 @@ function updateAdder(e, elem) {
                               ix: elem.key.ix});
 }
 
+
+var virtualPos = 0;
+function virtualScroll(e, elem) {
+//   virtualPos = e.currentTarget.scrollTop;
+//   rerender();
+}
+
+function virtualizedTable(id, fields, rows, adderRows) {
+  var ths = fields.map(function(cur) {
+    var oninput, onsubmit;
+    if(cur.id) {
+      oninput = onsubmit = rename;
+    }
+    return {c: "header", children: [input(cur.name, cur.id, oninput, onsubmit)]};
+  });
+//   var numRows = 50;
+//   var itemHeight = 22;
+//   var totalRows = rows.length + adderRows.length;
+//   var start = Math.max(Math.min(Math.floor(virtualPos / itemHeight) - (numRows  / 2), totalRows - numRows), 0);
+//   var trs = [{id: "spacer1", c: "spacer", height: start * itemHeight}];
+//   for(var i = 0; i < numRows * 1.5 && i + start < totalRows; i++) {
+//     var cur = rows[i + start];
+//     var tds = [];
+//     for(var tdIx = 0, len = cur.length; tdIx < len; tdIx++) {
+//       tds[tdIx] = {c: "field", text: cur[tdIx]};
+//     }
+//     trs.push({c: "row", children: tds});
+//   }
+  var trs = [];
+  rows.forEach(function(cur) {
+    var tds = [];
+    for(var tdIx = 0, len = cur.length; tdIx < len; tdIx++) {
+      tds[tdIx] = {c: "field", text: cur[tdIx]};
+    }
+    trs.push({c: "row", children: tds});
+  })
+  adderRows.forEach(function(adder) {
+    var cur = adder[3];
+    var tds = [];
+    for(var i = 0, len = fields.length; i < len; i++) {
+      tds[i] = {c: "field", children: [input(cur[i], {row: adder, ix: i}, updateAdder)]};
+    }
+    trs.push({c: "row", children: tds});
+  });
+//   trs.push({id: "spacer2", c: "spacer", height: Math.max(totalRows - start - numRows, 0) * itemHeight});
+  return {c: "table", children: [
+    {c: "headers", children: ths},
+    {c: "rows", scroll: virtualScroll, children: trs}
+  ]};
+}
+
 function table(id, fields, rows, adderRows) {
   var ths = fields.map(function(cur) {
     var oninput, onsubmit;
@@ -351,7 +402,7 @@ function tableWorkspace(view) {
       input(code.name(view), view, rename)
     ]},
     {c: "container", children: [
-      table("foo", fields, rows, adderRows),
+      virtualizedTable(view, fields, rows, adderRows),
       {c: "add-column ion-plus", view: view, click: addColumn}
     ]}]};
 }
