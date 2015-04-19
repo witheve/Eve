@@ -146,15 +146,21 @@ function treeSelector() {
   return {c: "tree-selector", children: items};
 }
 
+function treeItem(klass, id, name, icon, children) {
+  return {c: "tree-item " + klass, draggable: true, dragstart: startDragItem, dragend: stopDragItem,
+          click: openItem, id:id, children: [
+            {c: "item", children: [
+              {c: "icon " + icon},
+              {text: name},
+            ]},
+            children ? {c: "sub-items", children: children} : undefined
+          ]};
+}
+
 function tableItem(table) {
   var tableId = table[0];
   var name = code.name(tableId);
-  return {c: "tree-item table", click: openItem, id:tableId, children: [
-    {c: "item", children: [
-      {c: "icon ion-grid"},
-      {text: name},
-    ]}
-  ]};
+  return treeItem("table", tableId, name, "ion-grid");
 }
 
 function queryItem(query) {
@@ -177,13 +183,7 @@ function queryItem(query) {
       }
     });
   }
-  return {c: "tree-item query", click: openItem, id:queryId, children: [
-    {c: "item", children: [
-      {c: "icon ion-cube"},
-      {text: name},
-    ]},
-    {c: "sub-items", children: sourceItems}
-  ]};
+  return treeItem("query", queryId, name, "ion-cube", sourceItems);
 }
 
 function uiGroupItem(group, activeLayerId) {
@@ -220,20 +220,24 @@ function uiGroupItem(group, activeLayerId) {
 function uiItem(ui) {
   var name = code.name(ui.componentId);
   var open = ixer.index("openEditorItem")[client] === ui.componentId;
-  var elements = [];
+  var layers = [];
   if(open) {
     var activeLayerId = ixer.index("uiActiveLayer")[client] ? ixer.index("uiActiveLayer")[client][ui.componentId] : undefined;
-    elements = (ui.children || []).map(function(cur) {
+    layers = (ui.children || []).map(function(cur) {
       return uiGroupItem(cur, activeLayerId);
     });
   }
-  return {c: "tree-item ui", click: openItem, id:ui.componentId, children: [
-    {c: "item", children: [
-      {c: "icon ion-image"},
-      {text: name || "ui"},
-    ]},
-    {c: "sub-items", children: elements}
-  ]};
+  return treeItem("ui", ui.componentId, name, "ion-image", layers);
+}
+
+var draggedItemId;
+function startDragItem(e, elem) {
+  draggedItemId = elem.id;
+  e.dataTransfer.setData("type", "treeItem");
+}
+
+function stopDragItem(e, elem) {
+  draggedItemId = null;
 }
 
 function openItem(e, elem) {
@@ -996,20 +1000,40 @@ function viewList(id, onClose) {
 function queryWorkspace(view) {
   var sources = ixer.index("viewToSources")[view] || [];
   var results = ixer.facts(view);
-  return {c: "workspace-content column query-workspace", children: [
-    {c: "title", children: [
-      input(code.name(view), view, rename)
-    ]},
-    {c: "container", children: [
-      viewCode(view, sources),
-      viewResults(sources, results),
-    ]}
-  ]};
+  return {c: "workspace-content column query-workspace", view: view, dragover: preventDefault, drop: queryDrop,
+          children: [
+            {c: "title", children: [
+              input(code.name(view), view, rename)
+            ]},
+            {c: "container", children: [
+              viewCode(view, sources),
+              viewResults(sources, results),
+            ]}
+          ]};
+}
+
+function queryDrop(e, elem) {
+  if(e.dataTransfer.getData("type") === "treeItem") {
+    dispatch("addViewSource", {view: elem.view, sourceId: draggedItemId});
+  }
 }
 
 function viewCode(view, sources) {
+  var sourceToConstraints = {};
+  ixer.facts("constraint").forEach(function(constraint) {
+    var leftSource = constraint[0][1];
+    var entry = sourceToConstraints[leftSource];
+    if(!entry) {
+      entry = sourceToConstraints[leftSource] = [];
+    }
+    entry.push(constraint);
+  });
+
   var sourceElems = sources.map(function(cur) {
+    var id = cur[2];
     var data = cur[3];
+    var constraints = sourceToConstraints[id] || [];
+    var constraintItems = constraints.map(constraintItem);
     if(data[0] === "view") {
       return {c: "step", children: [
         {children: [
@@ -1017,7 +1041,8 @@ function viewCode(view, sources) {
           viewToken("each row"),
           {t: "span", c: "token", text: " of "},
           {t: "span", c: "token", text: code.name(data[1])}
-        ]}
+        ]},
+        constraints.length ? {c: "constraints", children: constraintItems} : undefined
       ]};
     }
     return {text: "calculate"};
@@ -1032,14 +1057,16 @@ function viewCode(view, sources) {
       console.log("clicked", arguments);
     }}
   ]});
-  sourceElems.push(
-    viewList(view + "-searcher", function addSource(sourceId) {
-      // Bail if no view was selected.
-      if(!sourceId) { return; }
-      dispatch("addViewSource", {view: view, source: sourceId});
-    }));
-
   return {c: "view-source-code", children: sourceElems};
+}
+
+function constraintItem(constraint) {
+  return {c: "constraint", children: [
+    {text: "where "},
+    {c: "token editable", text: code.refToName(constraint[0]).field},
+    {c: "token editable", text: constraint[1]},
+    {c: "token editable", text: code.refToName(constraint[2]).string},
+  ]};
 }
 
 function viewResults(sources, results) {
@@ -1280,9 +1307,9 @@ function dispatch(event, info, returnInsteadOfSend) {
       var sourceId = uuid();
       var view = ixer.index("view")[viewId];
       var nextIx = (ixer.index("viewToSources")[viewId] || []).length;
-      diffs = code.diffs.autoJoins(viewId, info.source, sourceId);
+      diffs = code.diffs.autoJoins(viewId, info.sourceId, sourceId);
       diffs.push(["field", "inserted", [view[1], nextIx, sourceId, "tuple"]]);
-      diffs.push(["source", "inserted", [viewId, nextIx, sourceId, ["view", info.source], "get-tuple"]]);
+      diffs.push(["source", "inserted", [viewId, nextIx, sourceId, ["view", info.sourceId], "get-tuple"]]);
       break;
     case "updateSearchValue":
       diffs = [["searchValue", "inserted", [{"eid": "auto"}, info.id, info.value]]];

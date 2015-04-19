@@ -120,6 +120,9 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .token.editable:hover { border-bottom: 1px solid rgba(16, 208, 255, 0.8); box-shadow: 0 1px 2px -1px rgba(16, 208, 255, 0.8); }
 .token.editable:active { border-bottom: 1px solid rgba(16, 208, 255, 1); box-shadow: 0 2px 2px -1px rgba(16, 208, 255, 1); }
 
+.step { flex-direction: column; }
+.constraints { flex-direction: column; }
+
 /*-----------------------------------------------------------------------------
 - left bar
 -----------------------------------------------------------------------------*/
