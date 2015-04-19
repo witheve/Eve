@@ -97,7 +97,7 @@
         if(cur.text !== prev.text) div.textContent = cur.text;
 
         //events
-        if(cur.click !== prev.click) div.onclick = cur.click !== undefined ? this.handleEvent : undegined;
+        if(cur.click !== prev.click) div.onclick = cur.click !== undefined ? this.handleEvent : undefined;
         if(cur.contextmenu !== prev.contextmenu) div.oncontextmenu = cur.contextmenu !== undefined ? this.handleEvent : undefined;
         if(cur.mousedown !== prev.mousedown) div.onmousedown = cur.mousedown !== undefined ? this.handleEvent : undefined;
         if(cur.dragover !== prev.dragover) div.ondragover = cur.dragover !== undefined ? this.handleEvent : undefined;
