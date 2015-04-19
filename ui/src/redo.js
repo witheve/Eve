@@ -987,10 +987,6 @@ function viewList(id, onClose) {
 }
 
 //---------------------------------------------------------
-// Expression
-//---------------------------------------------------------
-
-//---------------------------------------------------------
 // view tile
 // - @TODO: token renderer
 // - @TODO: expression renderer
@@ -1028,7 +1024,9 @@ function viewCode(view, sources) {
     }
     entry.push(constraint);
   });
-
+  //@FIXME: add a calculation for testing
+//   var sources = sources.slice();
+//   sources.push([view, sources.length, uuid(), ["expression", ["call", "+", ["column", "e187047c-a957-43e3-a7a4-7ddb548fd5f2", "4d630964-96a9-4853-8ae8-1bdb411e53c7"], ["call", "-", ["constant", 4], ["constant", 2]]]], "get-tuple"]);
   var sourceElems = sources.map(function(cur) {
     var id = cur[2];
     var data = cur[3];
@@ -1045,7 +1043,14 @@ function viewCode(view, sources) {
         constraints.length ? {c: "constraints", children: constraintItems} : undefined
       ]};
     }
-    return {text: "calculate"};
+    //otherwise it's an expression
+    return {c: "step", children: [
+      {children: [
+        {t: "span", c: "token", text: "calculate "},
+        expressionItem(data[1], [id])
+      ]},
+      constraints.length ? {c: "constraints", children: constraintItems} : undefined
+    ]};
   });
 
   // Add Source btn
@@ -1060,14 +1065,6 @@ function viewCode(view, sources) {
   return {c: "view-source-code", children: sourceElems};
 }
 
-function constraintItem(constraint) {
-  return {c: "constraint", children: [
-    {text: "where "},
-    {c: "token editable", text: code.refToName(constraint[0]).field},
-    {c: "token editable", text: constraint[1]},
-    {c: "token editable", text: code.refToName(constraint[2]).string},
-  ]};
-}
 
 function viewResults(sources, results) {
   var tableHeaders = [];
@@ -1100,7 +1097,11 @@ function viewResults(sources, results) {
     for(var i = 0; i < sourcesLen; i++) {
       var fields = row[i];
       if(!fields) {
-        neue.push({t: "td", colspan: sourceFieldsLength[i], c: "failed"});
+        var text = undefined;
+        if(neue.length === 0 || neue[neue.length - 1].c === "gap") {
+          text = "no match";
+        }
+        neue.push({t: "td", colspan: sourceFieldsLength[i], c: "failed", text: text});
         neue.push({t: "td", c: "gap failed"});
       } else {
         var fieldsLen = fields.length;
@@ -1123,7 +1124,61 @@ function viewResults(sources, results) {
 }
 
 function viewToken(cur) {
-  return {t: "span", c: "token editable", text: cur};
+  return {c: "token editable", text: cur};
+}
+
+//---------------------------------------------------------
+// Expression
+//---------------------------------------------------------
+
+function expressionItem(expression, path) {
+  var type = expression[0];
+  if(type === "call") {
+    return callItem(expression, path);
+  } else if(type === "column") {
+    return viewToken(code.refToName(expression).string, path);
+  } else if(type === "constant") {
+    return viewToken(expression[1], path.concat([1]));
+  } else if(type === "variable") {
+    return {text: "variable"};
+  } else if(type === "match") {
+    return {text: "match"};
+  } else if(type === "placeholder") {
+    return {text: "placeholder"};
+  }
+}
+
+var callInfo = {
+  "+": {args: ["number", "number"], infix: true},
+  "-": {args: ["number", "number"], infix: true},
+  "*": {args: ["number", "number"], infix: true},
+  "/": {args: ["number", "number"], infix: true},
+};
+function callItem(call, path) {
+  var op = call[1];
+  var info = callInfo[op];
+  var expression = [];
+  var opItem = {c: "token editable", text: op};
+  if(info.infix) {
+    expression.push(expressionItem(call[2], path),
+                    opItem,
+                    expressionItem(call[3], path))
+  } else {
+    expression.push(opItem);
+    for(var i = 2, len = call.length; i < len; i++) {
+      expression.push(expressionItem(call[i], path.concat([i])));
+    }
+  }
+  return {c: "call", children: expression};
+}
+
+function constraintItem(constraint) {
+  return {c: "constraint", children: [
+    {text: "where "},
+    {c: "token editable", text: code.refToName(constraint[0]).field},
+    {c: "token editable", text: constraint[1]},
+    {c: "token editable", text: code.refToName(constraint[2]).string},
+  ]};
 }
 
 //---------------------------------------------------------

@@ -41,7 +41,7 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 
 .gap {background: none; padding: 0; min-width:10px;}
 
-.failed { background: rgba(255,79,109,0.1); color: transparent; border:1px solid rgba(255,79,109,0.); border-left:none; text-align:left; }
+.failed { background: rgba(255,79,109,0.1); color: #b68; border:1px solid rgba(255,79,109,0.); border-left:none; text-align:left; }
 
 .table { flex-direction:column; }
 .headers { flex:none; background: rgba(255,255,255,0.1);  }
