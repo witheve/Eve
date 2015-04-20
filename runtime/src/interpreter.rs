@@ -213,7 +213,7 @@ fn eval_call(c: &Call) -> Value {
 	}
 }
 
-/*
+
 // Aggregate Functions --------------------------------------------------------
 
 //fn general_agg<F: Fn(f64,f64) -> f64>(f: F, base: f64, args: &ExpressionVec) -> Value {
@@ -226,4 +226,3 @@ fn general_agg(x: &value::Tuple) -> Value {
 
 }
 // End Aggregate Functions ----------------------------------------------------
-*/

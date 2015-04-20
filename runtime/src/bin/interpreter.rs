@@ -18,7 +18,27 @@ fn main() {
 					    Pattern::Constant(2.to_value()),
 					    Pattern::Constant(3.to_value()),
 					    Pattern::Constant(4.to_value()),
-					    Pattern::Constant(5.to_value()),
+					    Pattern::Constant(3.to_value()),
+					   );
+	let handlers = exprvec!["one","two","three","four","five"];
+
+	let m = Match{input: input, patterns: patterns, handlers: handlers};
+
+	let result = evaluate(&m.to_expr());
+
+	println!("{:?}",result);
+}
+
+#[test]
+fn match_test(){
+
+	let input = Expression::Constant(3.to_value());
+
+	let patterns = vec!(Pattern::Constant(1.to_value()),
+					    Pattern::Constant(2.to_value()),
+					    Pattern::Constant(3.to_value()),
+					    Pattern::Constant(4.to_value()),
+					    Pattern::Constant(3.to_value()),
 					   );
 	let handlers = exprvec!["one","two","three","four","five"];
 
