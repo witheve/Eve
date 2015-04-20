@@ -1,5 +1,6 @@
 use std::fmt::{Debug,Formatter,Result};
 use value::{Value,ToValue};
+use value;
 use self::EveFn::*;
 use value::Value::Float;
 
@@ -137,11 +138,11 @@ fn eval_match(m: &Match) -> Value {
 	let input = eval_expression(&m.input);
 	let tests: Vec<Value> = m.patterns.iter()
 						  			  .zip(m.handlers.iter())
-						  			  .filter_map(|ph| -> Option<Value> {
-													let (pattern,handler) = ph;
+						  			  .filter_map(|(pattern,handler)| -> Option<Value> {
 													if pattern == input { Some(eval_expression(&handler)) }
 													else { None }
 												})
+						  			  .take(1)
 						  			  .collect();
 
 	Value::Tuple(tests)
@@ -170,9 +171,18 @@ fn eval_call(c: &Call) -> Value {
 		(&Sqrt,[Float(x)]) => Float(x.sqrt()),
 		(&Sign,[Float(x)]) => Float(x.signum()),
 		(&Exp,[Float(x)]) => Float(x.exp()),
-		(&Ln,[Float(x)]) => Float(x.ln()),
-		(&Log10,[Float(x)]) => Float(x.log10()),
-		(&Log2,[Float(x)]) => Float(x.log2()),
+		(&Ln,[Float(x)]) => {
+			if x <= 0f64 {panic!("Error: ln(x<=0) is undefined")}
+			else {Float(x.ln())}
+		},
+		(&Log10,[Float(x)]) => {
+			if x <= 0f64 {panic!("Error: log10(x<=0) is undefined")}
+			else {Float(x.log10())}
+		},
+		(&Log2,[Float(x)]) => {
+			if x <= 0f64 {panic!("Error: log2(x<=0) is undefined")}
+			else {Float(x.log2())}
+		},
 
 		// Trig functions
 		(&Sin,[Float(x)]) => Float(x.sin()),
@@ -195,23 +205,24 @@ fn eval_call(c: &Call) -> Value {
 		},
 
 		// Aggregate functions
-		//&Sum => general_agg(|x,y|{x+y},0f64,&c.args),
+		(&Sum,[Value::Tuple(ref x)]) => general_agg(x),
 		//&Prod => general_agg(|x,y|{x*y},1f64,&c.args),
 
 		// Returns an empty string for the purpose of handling incomplete function
-		(_, _) => Value::String("".to_string()),
+		(_, _) => Value::String("No Result".to_string()),
 	}
 }
 
 /*
 // Aggregate Functions --------------------------------------------------------
 
-fn general_agg<F: Fn(f64,f64) -> f64>(f: F, base: f64, args: &ExpressionVec) -> Value {
+//fn general_agg<F: Fn(f64,f64) -> f64>(f: F, base: f64, args: &ExpressionVec) -> Value {
+fn general_agg(x: &value::Tuple) -> Value {
 
 	// Some fold magic!
-	let acc = args.iter().fold(base,|acc,next_arg| f(acc,eval_expression(next_arg).to_f64().unwrap()) );
+	println!("{:?}",x);
 
-	acc.to_value()
+	10f64.to_value()
 
 }
 // End Aggregate Functions ----------------------------------------------------
