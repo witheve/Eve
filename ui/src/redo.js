@@ -465,17 +465,44 @@ function uiWorkspace(componentId) {
     els.push(selection(selectionInfo));
 //     els.push(uiGrid(componentId, activeLayer[3], {width: tileRect.width,  height: tileRect.height}));
   }
-  return {c: "workspace-content column ui-workspace", mousedown: clearSelection, componentId: componentId, children: [
+  return {c: "workspace-content column ui-workspace", componentId: componentId, children: [
     {c: "title", children: [
       input(code.name(componentId), componentId, rename)
     ]},
     {c: "container", children: [
       uiControls(componentId, activeLayer),
-      {c: "ui-canvas", children: els},
+      {c: "ui-canvas", componentId: componentId, mousedown: startBoxSelect, mousemove: updateBoxSelect, mouseup: endBoxSelect, children: els},
       inspector(componentId, selectionInfo, layers, activeLayer)
     ]}
   ]};
 }
+
+function startBoxSelect(evt, el) {
+  if(!evt.shiftKey) { clearSelection(evt, el); }
+  return updateBoxSelect(evt, el, true);
+}
+function updateBoxSelect(evt, el, forceUpdate) {
+  var box = ixer.index("uiBoxSelection")[el.componentId];
+  if(box && ixer.index("remove")[box[0]]) { box = undefined; }
+  if(!forceUpdate && !box) { return; }
+  evt.stopPropagation();
+  var x = Math.floor(evt.clientX);
+  var y = Math.floor(evt.clientY);
+  var canvasRect = evt.currentTarget.getBoundingClientRect();
+  x -= Math.floor(canvasRect.left);
+  y -= Math.floor(canvasRect.top);
+  dispatch("updateBoxSelect", {componentId: el.componentId, x: x, y: y});
+}
+function endBoxSelect(evt, el) {
+  evt.stopPropagation();
+  var x = Math.floor(evt.clientX);
+  var y = Math.floor(evt.clientY);
+  var canvasRect = evt.currentTarget.getBoundingClientRect();
+  x -= Math.floor(canvasRect.left);
+  y -= Math.floor(canvasRect.top);
+  dispatch("endBoxSelect", {componentId: el.componentId, x: x, y: y});
+}
+
 
 //---------------------------------------------------------
 // ui control
@@ -1297,6 +1324,7 @@ function dispatch(event, info, returnInsteadOfSend) {
       }
       break;
     case "selectElements":
+      var diffs = [];
       var sel = getUiSelection(info.componentId);
       if(sel && ixer.index("remove")[sel[0]]) { sel = null; }
       var elIds = [];
@@ -1399,6 +1427,50 @@ function dispatch(event, info, returnInsteadOfSend) {
         neue[8] = ((neue[8] - oldBounds.bottom) * ratioY) + neueBounds.bottom; //bottom
         diffs.push(["uiComponentElement", "inserted", neue]);
       });
+      break;
+    case "updateBoxSelect":
+      var box = ixer.index("uiBoxSelection")[info.componentId];
+      if(box && ixer.index("remove")[box[0]]) { box = undefined; }
+      if(!box) {
+        box = [txId, info.componentId, info.x, info.y, -1, -1];
+      } else {
+        box = box.slice();
+        box[0] = txId;
+        box[4] = info.x;
+        box[5] = info.y;
+      }
+      diffs.push(["uiBoxSelection", "inserted", box]);
+      break;
+    case "endBoxSelect":
+      var box = ixer.index("uiBoxSelection")[info.componentId];
+      if(box && ixer.index("remove")[box[0]]) { box = undefined; }
+      if(!box || box[4] == -1) { break; }
+      var elements = ixer.index("uiComponentToElements")[info.componentId];
+      if(!elements) { break; }
+      var layers = ixer.index("uiComponentLayer");
+      var bounds = {left: (box[2] <= box[4] ? box[2] : box[4]),
+                    right: (box[2] > box[4] ? box[2] : box[4]),
+                    top: (box[3] <= box[5] ? box[3] : box[5]),
+                    bottom: (box[3] > box[5] ? box[3] : box[5])};
+
+      var selections = [];
+      elements.forEach(function(el) {
+        // If element is out of bounds, skip it.
+        var elBounds = {left: el[5], top: el[6], right: el[7], bottom: el[8]};
+        if(elBounds.left > bounds.right
+           || elBounds.right < bounds.left
+           || elBounds.top > bounds.bottom
+           || elBounds.bottom < bounds.top) {
+          return;
+        }
+        // If layer is locked or hidden, skip it.
+        var layer = layers[el[3]];
+        if(!layer || layer[4] || layer[5]) { return; }
+        selections.push(el[1]);
+      });
+
+      diffs = dispatch("selectElements", {createNew: false, elements: selections, componentId: info.componentId}, true);
+      diffs.push(["remove", "inserted", [box[0]]]);
       break;
 
     case "updateAdderRow":
@@ -1699,6 +1771,7 @@ ixer.addIndex("uiElementToAttr", "uiComponentAttribute", Indexing.create.latestL
 ixer.addIndex("uiSelection", "uiSelection", Indexing.create.latestLookup({keys: [2, 3, false]}));
 ixer.addIndex("uiSelectionElements", "uiSelectionElement", Indexing.create.collector([0]));
 ixer.addIndex("uiActiveLayer", "uiActiveLayer", Indexing.create.latestLookup({keys: [2, 1, 3]}));
+ixer.addIndex("uiBoxSelection", "uiBoxSelection", Indexing.create.latestLookup({keys: [1, false]}));
 
 // State
 ixer.addIndex("searchValue", "searchValue", Indexing.create.latestLookup({keys: [1, 2]}));
@@ -1730,6 +1803,7 @@ function initIndexer() {
   add("uiSelection", {tx: "number", id: "id", client: "string", component: "id"}, [], "uiSelection", ["table"]);
   add("uiSelectionElement", {id: "id", element: "id"}, [], "uiSelectionElement", ["table"]);
   add("uiActiveLayer", {tx: "number", component: "id", client: "id", layer: "id"}, [], "uiActiveLayer", ["table"]);
+  add("uiBoxSelection", {tx: "number", component: "id", x0: "number", y0: "number", x1: "number", y1: "number"}, [], "uiBoxSelection", ["table"]);
 
   // editor item
   add("editorItem", {id: "id", type: "table|query|ui"}, [], "editorItem", ["table"]);
