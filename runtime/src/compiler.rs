@@ -1,7 +1,7 @@
 use value::{Value, Tuple, Relation, ToTuple};
 use index::{Index};
-use query::{Ref, ConstraintOp, Constraint, Source, Clause, Query, Call, CallArg};
-use interpreter::EveFn;
+use query::{Ref, ConstraintOp, Constraint, Source, Clause, Query, Call, CallArg, Match};
+use interpreter::{EveFn,Pattern};
 use flow::{View, Union, Node, Flow};
 
 use std::collections::{BitSet};
@@ -66,6 +66,10 @@ static FIELDMAPPING_SINKFIELD: usize = 3;
 
 static CALL_FUN: usize = 1;
 static CALL_ARGS: usize = 2;
+
+static MATCH_INPUT: usize = 1;
+static MATCH_PATTERNS: usize = 2;
+static MATCH_HANDLES: usize = 3;
 
 static COLUMN_SOURCE_ID: usize = 1;
 static COLUMN_FIELD_ID: usize = 2;
@@ -221,15 +225,36 @@ fn create_clause(compiler: &Compiler, source: &Vec<Value>) -> Clause {
 
         Clause::Call(create_call(compiler,&source_data[CALL_FUN],&source_data[CALL_ARGS]))
 
-    } else if source_data[0].to_string() == "column" {
+    } else if source_data[0].to_string() == "match" {
 
-        Clause::Call(Call{fun: EveFn::Add, args: vec![]})
+        Clause::Match(create_match(compiler,&source_data[MATCH_INPUT],&source_data[MATCH_PATTERNS],&source_data[MATCH_HANDLES]))
 
     } else {
 
         panic!("Can't compile {:?} yet",source_data[0].to_string())
     }
 
+}
+
+fn create_match(compiler: &Compiler, uiinput: &Value, uipatterns: &Value, uihandles: &Value) -> Match {
+
+	// Create the input
+	let match_input = create_call_arg(compiler,uiinput.to_tuple());
+
+	// Create the pattern vector
+	let match_patterns = uipatterns.to_tuple()
+							 .iter()
+							 .map(|arg| Pattern::Constant(arg.clone()))
+							 .collect();
+
+    // Create handles vector
+	let match_handles = uihandles.to_tuple()
+							.iter()
+							.map(|arg| create_call_arg(compiler,arg.to_tuple()))
+							.collect();
+
+	// Compile the call
+	Match{input: match_input, patterns: match_patterns, handlers: match_handles}
 }
 
 fn create_call(compiler: &Compiler, uifun: &Value, uiargvec: &Value) -> Call {
