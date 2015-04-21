@@ -606,6 +606,8 @@ function appearanceInspector(selectionInfo) {
                           inspectorInput(attrs["border"], [componentId, "border"], setAttribute)]},
     {c: "pair", children: [{c: "label", text: "radius"},
                           inspectorInput(attrs["borderRadius"], [componentId, "borderRadius"], setAttribute)]},
+    {c: "pair", children: [{c: "label", text: "opacity"},
+                          inspectorInput(attrs["opacity"], [componentId, "opacity"], setAttribute)]},
   ]};
 }
 
@@ -813,7 +815,7 @@ function addToSelection(e, elem) {
   e.stopPropagation();
   if(elem.selected) return;
   var createNew = false;
-  if(!e.shiftKey) {
+  if(!e.shiftKey) { // @TODO: Enable removal.
     createNew = true;
   }
   dispatch("selectElements", {createNew: createNew, elements: [elem.control[1]], componentId: elem.control[2]});
@@ -1403,9 +1405,7 @@ function dispatch(event, info, returnInsteadOfSend) {
       var neue = info.row.slice();
       neue[info.ix] = info.value;
 
-      console.log("update", neue);
       //we may need to remove the old one
-      console.log("removing", info.row);
       diffs.push([info.view, "removed", info.row]);
       diffs.push([info.view, "inserted", neue]);
       break;

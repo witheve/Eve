@@ -68,7 +68,7 @@
           continue;
         }
 
-        style = div.style;
+        var style = div.style;
 
         if(cur.c !== prev.c) div.className = cur.c;
         if(cur.draggable !== prev.draggable) div.draggable = cur.draggable;
@@ -87,6 +87,7 @@
         }
         if(cur.border !== prev.border) style.border = cur.border;
         if(cur.borderRadius !== prev.borderRadius) style.borderRadius = cur.borderRadius;
+        if(cur.opacity !== prev.opacity) style.opacity = cur.opacity;
         if(cur.fontSize !== prev.fontSize) style.fontSize = cur.fontSize;
         if(cur.textAlign !== prev.textAlign) style.justifyContent = cur.textAlign;
         if(cur.verticalAlign !== prev.verticalAlign) style.alignItems = cur.verticalAlign;
@@ -153,6 +154,7 @@
            && curA.color === curB.color
            && curA.border === curB.border
            && curA.borderRadius === curB.borderRadius
+           && curA.opacity === curB.opacity
            && curA.fontFamily === curB.fontFamily
            && curA.fontSize === curB.fontSize
            && curA.textAlign === curB.textAlign
@@ -185,6 +187,7 @@
            && curA.color === curB.color
            && curA.border === curB.border
            && curA.borderRadius === curB.borderRadius
+           && curA.opacity === curB.opacity
            && curA.fontFamily === curB.fontFamily
            && curA.fontSize === curB.fontSize
            && curA.textAlign === curB.textAlign
