@@ -1361,13 +1361,25 @@ function dispatch(event, info, returnInsteadOfSend) {
 
     case "updateAdderRow":
       var neue = info.row.slice();
+      var view = neue[2];
+      var fieldsLength = code.viewToFields(view).length;
       if(neue[3].length === 0) {
         //this was the last empty adderRow, which means we need to add a new one
-        diffs.push(["adderRow", "inserted", [txId, txId, neue[2], []]]);
+        diffs.push(["adderRow", "inserted", [txId, txId, view, []]]);
       }
       neue[0] = txId;
+      neue[3] = neue[3].slice();
       neue[3][info.ix] = info.value;
-      diffs.push(["adderRow", "inserted", neue])
+      diffs.push(["adderRow", "inserted", neue]);
+      if(neue[3].length === fieldsLength) {
+        console.log("adding", neue[3]);
+        //we may need to remove the old one
+        if(info.row[3].length === fieldsLength) {
+        console.log("removing", info.row[3]);
+          diffs.push([view, "removed", info.row[3]]);
+        }
+        diffs.push([view, "inserted", neue[3]]);
+      }
       break;
     case "addColumn":
       var viewId = info.view;
@@ -1445,9 +1457,10 @@ var code = {
   diffs: {
     addView: function(name, fields, initial, id, tags, type) { // (S, {[S]: Type}, Fact[]?, Uuid?, S[]?) -> Diffs
       id = id || uuid();
+      var txId = {"eid": "auto"};
       var schema = uuid();
       var fieldIx = 0;
-      var diffs = [["displayName", "inserted", [{"eid": "auto"}, id, name]],
+      var diffs = [["displayName", "inserted", [txId, id, name]],
                    ["schema", "inserted", [schema]]];
       for(var fieldName in fields) {
         if(!fields.hasOwnProperty(fieldName)) { continue; }
@@ -1467,6 +1480,7 @@ var code = {
           diffs.push(["tag", "inserted", [id, tags[tagIx]]]);
         }
       }
+      diffs.push(["adderRow", "inserted", [txId, txId, id, []]]);
       return diffs;
     },
     autoJoins: function(view, sourceView, sourceId) {

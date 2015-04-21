@@ -50,6 +50,7 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .rows { flex-direction:column; overflow:auto; }
 .row { flex:none; }
 .field, .header { width:180px; overflow:hidden; white-space:nowrap; padding:3px 15px; }
+.field .input { width:100%; }
 .spacer { flex: none; }
 
 /*-----------------------------------------------------------------------------
@@ -70,8 +71,8 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .ui-workspace .controls .icon { width:30px; height:30px; border: 1px solid #999;  border-radius:2px; margin-bottom:5px; }
 
 .ui-canvas {flex: 1; position:relative; overflow:auto; background:#fff; margin:10px 0; }
-.ui-canvas .control.box { background:#555; }
-.ui-canvas .control.button { background:#555; }
+.ui-canvas .control.box { background:#ddd; }
+.ui-canvas .control.button { background:#ddd; }
 .ui-canvas .control.selected { border: 1px solid #555; }
 .ui-canvas .control { position:absolute; background-size:contain !important; background-repeat: no-repeat !important; }
 
