@@ -113,8 +113,12 @@
         if(cur.keydown !== prev.keydown) div.onkeydown = cur.keydown !== undefined ? this.handleEvent : undefined;
 
         if(type === "added" || type === "replaced") {
-          //TODO: we aren't inserting in order.
-          elementCache[cur.parent].appendChild(div);
+          var parentEl = elementCache[cur.parent];
+          if(cur.ix >= parentEl.children.length) {
+            parentEl.appendChild(div);
+          } else {
+            parentEl.insertBefore(div, parentEl.children[cur.ix]);
+          }
         }
       }
     },
