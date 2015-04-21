@@ -400,7 +400,11 @@ function tableWorkspace(view) {
     return {name: code.name(cur[2]), id: cur[2]};
   });
   var rows = ixer.facts(view);
-  var adderRows = ixer.index("adderRows")[view] || [];
+  var adderRows = (ixer.index("adderRows")[view] || [])
+  .filter(function(row) {
+    var txId = row[0];
+    return !ixer.index("remove")[txId];
+  });
   return {c: "workspace-content column", children: [
     {c: "title", children: [
       input(code.name(view), view, rename)
@@ -1370,15 +1374,18 @@ function dispatch(event, info, returnInsteadOfSend) {
       neue[0] = txId;
       neue[3] = neue[3].slice();
       neue[3][info.ix] = info.value;
-      diffs.push(["adderRow", "inserted", neue]);
+
       if(neue[3].length === fieldsLength) {
         console.log("adding", neue[3]);
+        diffs.push(["remove", "inserted", [info.row[0]]]);
         //we may need to remove the old one
-        if(info.row[3].length === fieldsLength) {
-        console.log("removing", info.row[3]);
-          diffs.push([view, "removed", info.row[3]]);
-        }
+        //         if(info.row[3].length === fieldsLength) {
+        //           console.log("removing", info.row[3]);
+        //           diffs.push([view, "removed", info.row[3]]);
+        //         }
         diffs.push([view, "inserted", neue[3]]);
+      } else {
+        diffs.push(["adderRow", "inserted", neue]);
       }
       break;
     case "addColumn":
