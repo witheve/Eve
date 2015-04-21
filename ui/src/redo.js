@@ -80,7 +80,8 @@ function root() {
           c: "root",
           children: [
             leftBar(),
-            workspace()
+            workspace(),
+            modalLayer()
           ]};
 }
 
@@ -141,7 +142,6 @@ function treeSelector() {
   }
   //sort
   var uiItems = uis.map(uiItem);
-  // @FIXME: {c: "stage-modals", children: drawnModals}
   var items = tableItems.concat(queryItems, uiItems);
   return {c: "tree-selector", children: items};
 }
@@ -1184,12 +1184,18 @@ function constraintItem(constraint) {
 //---------------------------------------------------------
 // Modals
 //---------------------------------------------------------
-function modal(cur) {
-  var type = cur[2];
-  if(!modals[type]) { console.error("Modal type: '" + type + "' does not exist."); }
-  var renderedModals = [];
-  renderedModals.push(modals[type](cur));
-  return {c: "modal-layer", children: renderedModals};
+function modalLayer() {
+  var items = ixer.index("modal");
+  var drawn = [];
+  for(var id in items) {
+    var cur = items[id];
+    var type = cur[2];
+    if(!modals[type]) { console.error("Modal type: '" + type + "' does not exist."); }
+    drawn.push(modals[type](cur));
+  }
+  if(drawn.length) {
+    return {c: "modal-layer", children: drawn};
+  }
 }
 
 function searcherModal(cur) {
@@ -1390,11 +1396,7 @@ function dispatch(event, info, returnInsteadOfSend) {
     case "openSearcher":
       // @NOTE: info.action is a mandatory dispatch event name to call with the selected item, if any.
       var modalId = uuid();
-      var x = info.x !== undefined ? info.x : "auto";
-      var y = info.y !== undefined ? info.y : "auto";
-      var w = info.w !== undefined ? info.w : "auto";
-      var h = info.h !== undefined ? info.h : "auto";
-      diffs = [["modal", "inserted", [{eid: "auto"}, modalId, "searcher", x, y, w, h]],
+      diffs = [["modal", "inserted", [{eid: "auto"}, modalId, "searcher"]],
                ["searchModal", "inserted", [{eid: "auto"}, modalId, info.type || "view", info.action]]];
       break;
     default:
@@ -1674,7 +1676,7 @@ function initIndexer() {
 
   //misc transient state
   add("searchValue", {tx: "number", id: "id", value: "string"}, [], "searchValue", ["table"]);
-  add("modal", {tx: "number", id: "id", type: "string", x: "number|auto", y: "number|auto", w: "number|auto", h: "number|auto"}, [], "modal", ["table"]);
+  add("modal", {tx: "number", id: "id", type: "string"}, [], "modal", ["table"]);
   add("searchModal", {tx: "number", id: "id", type: "string", action: "string"}, [], "searchModal", ["table"]);
 
   //example tables
