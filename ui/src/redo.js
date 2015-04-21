@@ -490,7 +490,7 @@ function control(cur, attrs, selected, layer) {
   var klass = type + " control" + selClass + hidden + locked;
   var elem = {c: klass, id: id, left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6],
               control: cur, mousedown: addToSelection, selected: selected, zIndex: layer[3] + 1,
-              draggable: true, drag: moveSelection, dragstart: startMoveSelection};
+              draggable: true, drag: moveSelection, dragstart: startMoveSelection, opacity: 3};
   if(!attrs) return elem;
   for(var i = 0, len = attrs.length; i < len; i++) {
     var curAttr = attrs[i];
@@ -724,7 +724,7 @@ function getSelectionInfo(componentId, withAttributes) {
     var attributes = {};
     var elementIndex = ixer.index("uiComponentElement");
     var attrsIndex = ixer.index("uiElementToAttrs");
-    elements = ixer.index("uiSelectionElements")[sel[1]].map(function(cur) {
+    elements = (ixer.index("uiSelectionElements")[sel[1]] || []).map(function(cur) {
       var id = cur[1];
       ids[id] = true;
       if(withAttributes !== undefined) {
@@ -813,9 +813,8 @@ function clearSelection(e, elem) {
 
 function addToSelection(e, elem) {
   e.stopPropagation();
-  if(elem.selected) return;
   var createNew = false;
-  if(!e.shiftKey) { // @TODO: Enable removal.
+  if(!e.shiftKey) {
     createNew = true;
   }
   dispatch("selectElements", {createNew: createNew, elements: [elem.control[1]], componentId: elem.control[2]});
@@ -1300,15 +1299,35 @@ function dispatch(event, info, returnInsteadOfSend) {
     case "selectElements":
       var sel = getUiSelection(info.componentId);
       if(sel && ixer.index("remove")[sel[0]]) { sel = null; }
+      var elIds = [];
+      var neueElIds = [];
+
       var id = uuid();
-      if(info.createNew || !sel) {
-        diffs.push(["uiSelection", "inserted", [txId, id, client, info.componentId]]);
-      } else {
-        id = sel[1];
+      if(!info.createNew && sel) {
+        elIds = (ixer.index("uiSelectionElements")[sel[1]] || elIds).map(function(el) {
+          return el[1];
+        });
       }
+
       info.elements.forEach(function(cur) {
+        var existingIx = elIds && elIds.indexOf(cur);
+        if(!elIds || existingIx === -1) {
+          elIds.push(cur);
+        } else {
+          elIds.splice(existingIx, 1);
+        }
+      });
+
+      elIds.forEach(function(cur) {
         diffs.push(["uiSelectionElement", "inserted", [id, cur]]);
       });
+
+      if(elIds.length) {
+        diffs.push(["uiSelection", "inserted", [txId, id, client, info.componentId]]);
+      } else if(sel) {
+        diffs.push(["remove", "inserted", [sel[0]]]);
+      }
+
       var first = ixer.index("uiComponentElement")[info.elements[0]];
       var activeLayer = ixer.index("uiActiveLayer")[client] ? ixer.index("uiActiveLayer")[client][info.componentId] : null;
       if(first && first[3] !== activeLayer) {
