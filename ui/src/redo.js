@@ -305,6 +305,13 @@ function updateAdder(e, elem) {
                               ix: elem.key.ix});
 }
 
+function updateRow(e, elem) {
+  dispatch("updateRow", {value: coerceInput(e.currentTarget.textContent),
+                         view: elem.key.view,
+                         row: elem.key.row,
+                         ix: elem.key.ix});
+}
+
 
 var virtualPos = 0;
 function virtualScroll(e, elem) {
@@ -333,11 +340,21 @@ function virtualizedTable(id, fields, rows, adderRows) {
 //     }
 //     trs.push({c: "row", children: tds});
 //   }
+
+  // @NOTE: We check for the existence of adderRows to determine if the table is editable. This is somewhat surprising.
+  var isEditable = adderRows && adderRows.length;
   var trs = [];
   rows.forEach(function(cur) {
     var tds = [];
     for(var tdIx = 0, len = cur.length; tdIx < len; tdIx++) {
-      tds[tdIx] = {c: "field", text: cur[tdIx]};
+      tds[tdIx] = {c: "field"};
+
+      // @NOTE: We can hoist this if perf is an issue.
+      if(isEditable) {
+        tds[tdIx].children = [input(cur[tdIx], {row: cur, ix: tdIx, view: id}, updateRow)];
+      } else {
+        tds[tdIx].text = cur[tdIx];
+      }
     }
     trs.push({c: "row", children: tds});
   })
@@ -1376,17 +1393,21 @@ function dispatch(event, info, returnInsteadOfSend) {
       neue[3][info.ix] = info.value;
 
       if(neue[3].length === fieldsLength) {
-        console.log("adding", neue[3]);
         diffs.push(["remove", "inserted", [info.row[0]]]);
-        //we may need to remove the old one
-        //         if(info.row[3].length === fieldsLength) {
-        //           console.log("removing", info.row[3]);
-        //           diffs.push([view, "removed", info.row[3]]);
-        //         }
         diffs.push([view, "inserted", neue[3]]);
       } else {
         diffs.push(["adderRow", "inserted", neue]);
       }
+      break;
+    case "updateRow":
+      var neue = info.row.slice();
+      neue[info.ix] = info.value;
+
+      console.log("update", neue);
+      //we may need to remove the old one
+      console.log("removing", info.row);
+      diffs.push([info.view, "removed", info.row]);
+      diffs.push([info.view, "inserted", neue]);
       break;
     case "addColumn":
       var viewId = info.view;
