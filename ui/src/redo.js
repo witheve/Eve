@@ -662,10 +662,18 @@ function uiControls(componentId, activeLayer) {
 
 function inspector(componentId, selectionInfo, layers, activeLayer) {
   var inspectors = [];
+  var activeLayerId;
+  var elements;
+  if(activeLayer) {
+    activeLayerId = activeLayer[1];
+    elements = ixer.index("uiLayerToElements")[activeLayerId];
+  }
   if(selectionInfo) {
     inspectors.push(layoutInspector(selectionInfo),
                     appearanceInspector(selectionInfo),
                     textInspector(selectionInfo));
+  } else if(activeLayer && elements && elements.length) {
+    inspectors.push(layerInspector(activeLayer));
   }
   return {c: "inspector", children: inspectors};
 }
@@ -754,6 +762,13 @@ function setAttribute(e, elem) {
   var property = elem.key[1];
   dispatch("setAttributeForSelection", {componentId: componentId, property: property, value: e.currentTarget.value || e.currentTarget.textContent});
 }
+function setLayerAttribute(e, elem) {
+  var layerId = elem.key[0];
+  var property = elem.key[1];
+  var elements = ixer.index("uiLayerToElements")[layerId];
+  if(!elements) { return; };
+  dispatch("setUiAttribute", {elements: elements, property: property, value: e.currentTarget.value || e.currentTarget.textContent});
+}
 
 function textInspector(selectionInfo) {
   var componentId = selectionInfo.componentId;
@@ -771,6 +786,14 @@ function textInspector(selectionInfo) {
     {c: "pair", children: [{c: "label", text: "valign"},
                            inspectorInput(attrs["verticalAlign"], [componentId, "verticalAlign"], setAttribute)]},
     {c: "pair", children: [{c: "label", text: "bold/italic/underline"}]},
+  ]};
+}
+
+function layerInspector(layer) {
+  var componentId = layer[2];
+  var attrs = {}; // @FIXME: Layer attributes.
+  return {c: "inspector-panel", children: [
+    {c: "pair", children: [{c: "label", text: "opacity"}, inspectorInput(attrs["opacity"], [layer[1], "opacity"], setLayerAttribute)]},
   ]};
 }
 
@@ -1497,6 +1520,12 @@ function dispatch(event, info, returnInsteadOfSend) {
       info.neue.map(function(neue) {
         neue[0] = txId;
         diffs.push(["uiComponentLayer", "inserted", neue]);
+      });
+      break;
+    case "setUiAttribute":
+      info.elements.forEach(function(cur) {
+        var id = cur[1];
+        diffs.push.apply(diffs, code.ui.updateAttribute(id, info.property, info.value, txId));
       });
       break;
     case "clearSelection":
