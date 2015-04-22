@@ -1005,79 +1005,6 @@ function toggleLocked(e, elem) {
   dispatch("updateUiLayer", {neue: neue});
 }
 
-
-//---------------------------------------------------------
-// View List
-//---------------------------------------------------------
-
-// The filter parameter is an optional callback that can narrow views by type, tag, or what have you.
-function search(ids, needle) { // (Id[], String) -> Id[]
-  if(!ids) { throw new Error("Must provide an array of named ids to search."); }
-  var displayName = ixer.index("displayName");
-  var matches = [];
-
-  for(var ix = 0, len = ids.length; ix < len; ix++) {
-    var cur = ids[ix];
-    if(!needle || displayName[cur].indexOf(needle) !== -1) {
-      matches.push(cur);
-    }
-  }
-
-  return matches;
-}
-
-function searcher(id, ids, opts, onClose) { // (Id, Id[], Any?, Fn((Id) -> Boolean)?, Fn((Id) -> undefined)) -> undefined
-  if(!onClose) { onClose = opts; opts = undefined; }
-  if(!onClose) { throw new Error("Must provide a callback for onClose."); }
-  opts = opts || {};
-
-  var needle = ixer.index("searchValue")[id]; // Load from ixer.
-  var matches = search(ids, needle);
-  var results = matches.map(function(cur, ix) {
-    if(opts.limit && ix > opts.limit) { return; }
-    return searcherResult(cur, opts, onClose);
-  })
-  .filter(Boolean);
-
-  var searchInput = input(
-    needle, id + "-input",
-    function onInput(evt, el) {
-      dispatch("updateSearchValue", {id: id, value: evt.target.innerHTML});
-    },
-    function onSubmit(evt, el, type) {
-      if(type === "blurred") { return; }
-      var matches = search(ids, needle);
-      if(!matches.length) { return; }
-      dispatch("updateSearchValue", {id: id, value: ""});
-      onClose(matches[0]);
-
-      evt.preventDefault();
-      evt.target.blur();
-    });
-  searchInput.c = "searcher-input";
-  return {c: "searcher", children: [
-    searchInput,
-    {t: "ul", c: "dropdown searcher-results", children: results}
-  ]};
-}
-
-function searcherResult(id, opts, onClose) {
-  return {t: "li", c: "dropdown-item search-result",
-          text: ixer.index("displayName")[id] || "Untitled",
-          viewId: id,
-          click: function(evt, el) {
-            onClose(el.viewId);
-          }};
-}
-
-function viewList(id, onClose) {
-  var views = ixer.facts("view").map(function(cur) {
-    return cur[0];
-  });
-
-  return searcher(id, views, {limit: 25}, onClose);
-}
-
 //---------------------------------------------------------
 // view tile
 // - @TODO: token renderer
@@ -1108,6 +1035,7 @@ function queryDrop(e, elem) {
 
 function viewCode(view, sources) {
   var sourceToConstraints = {};
+  var removed = ixer.index("remove");
   ixer.facts("constraint").forEach(function(constraint) {
     var leftSource = constraint[0][1];
     var entry = sourceToConstraints[leftSource];
@@ -1126,46 +1054,35 @@ function viewCode(view, sources) {
     var constraints = sourceToConstraints[id] || [];
     var constraintItems = constraints.map(function(constraint) {
 
-      globalFilters.push(constraintItem(cur, constraint));
+      globalFilters.push(constraintItem(view, constraint));
     });
-//     if(data[0] === "view") {
-//       return {c: "step", children: [
-//         {children: [
-//           {c: "token", text: "with "},
-//           sourceToken(cur, 4,"each row"),
-//           {c: "token", text: " of "},
-//           {c: "token source", text: code.name(data[1])}
-//         ]},
-//         constraints.length ? {c: "constraints", children: constraintItems} : undefined
-//       ]};
-//     }
-//     //otherwise it's an expression
-//     return {c: "step", children: [
-//       {children: [
-//         {t: "span", c: "token", text: "calculate "},
-//         expressionItem(data[1], [id])
-//       ]},
-//       constraints.length ? {c: "constraints", children: constraintItems} : undefined
-//     ]};
+  });
+  var adderConstraints = ixer.index("adderConstraint")[view] || [];
+  adderConstraints.forEach(function(cur) {
+    if(!removed[cur[1]]) {
+      globalFilters.push(constraintItem(view, cur, true));
+    }
   });
 
-  // Add Source btn
-//   sourceElems.push({c: "add-calculation", children: [
-//     {c: "icon ion-ios-calculator"},
-//     {text: "Add calculation"}
-//   ]});
   return {c: "view-source-code", children: [
     {c: "view-container", children: [
-      {children: [{c: "sub-title", text: "filters"}, {c: "icon ion-plus"}]},
+      {children: [{c: "sub-title", text: "filters"}, {c: "icon ion-plus", click: newFilter, view: view}]},
       {c: "filters", children: globalFilters}
     ]},
     {c: "view-container", children: [
-      {children: [{c: "sub-title", text: "calculations"}, {c: "icon ion-plus"}]},
+      {children: [{c: "sub-title", text: "calculations"}, {c: "icon ion-plus", click: newCalculation, view: view}]},
       {c: "caluculations", children: []}
     ]}
   ]};
 }
 
+function newFilter(e, elem) {
+  dispatch("newFilter", {view: elem.view});
+}
+
+function newCalculation(e, elem) {
+  dispatch("newCalculation", {view: elem.view});
+}
 
 function viewResults(sources, results) {
   var tableHeaders = [];
@@ -1254,37 +1171,39 @@ function expressionEditor(tokenInfo) {
 
 function constraintEditor(tokenInfo) {
   var path = tokenInfo.info.path;
-  var source = tokenInfo.info.source;
+  var viewId = tokenInfo.info.view;
   var constraint = tokenInfo.info.constraint;
   if(path === "op") {
     return genericEditor(false, ["=", "!=", ">", "<", ">=", "<="], false, false, "function", updateConstraint);
   } else if(path === "left") {
-    var data = source[3];
-    if(data[0] === "view") {
-      var refs = code.viewToRefs(source[0], source[2])
-      return genericEditor(refs, false, false, false, "column", updateConstraint);
-    } else {
-      //calculation
-      return genericEditor([], false, false, false, "column", updateConstraint);
-    }
+    var refs = code.viewToRefs(viewId)
+    return genericEditor(refs, false, false, false, "column", updateConstraint);
   } else if(path === "right") {
-    var type = code.refToType(constraint[0]);
-    var refs = code.viewToRefs(source[0], false, type);
+//     var type = code.refToType(constraint[0]);
+    var refs = code.viewToRefs(viewId);
     return genericEditor(refs, false, false, true, "column", updateConstraint);
   }
 }
 
 function updateConstraint(e, elem) {
+  var isAdder = editorInfo.info.isAdder;
   var path = editorInfo.info.path;
-  var neue = editorInfo.info.constraint.slice();
+  var neue;
+  if(isAdder) {
+    neue = editorInfo.info.constraint[3].slice();
+  } else {
+    neue = editorInfo.info.constraint.slice();
+  }
   if(path === "left") {
     neue[0] = elem.cur;
-    dispatch("updateConstraint", {old: editorInfo.info.constraint, neue: neue});
   } else if(path === "right") {
     neue[2] = elem.cur;
-    dispatch("updateConstraint", {old: editorInfo.info.constraint, neue: neue});
   } else if(path === "op") {
     neue[1] = elem.cur;
+  }
+  if(isAdder) {
+    dispatch("updateFilter", {old: editorInfo.info.constraint, neue: neue})
+  } else {
     dispatch("updateConstraint", {old: editorInfo.info.constraint, neue: neue});
   }
   editorInfo = false;
@@ -1408,19 +1327,32 @@ function expressionToken(source, path, content) {
   return {c: "token editable", editorType: "expression", source: source, click: activateTokenEditor, path: path, text: content};
 }
 
-function constraintItem(source, constraint) {
-  var left = code.refToName(constraint[0]);
-  var right = code.refToName(constraint[2]);
+function constraintItem(view, constraintOrAdder, isAdder) {
+  var constraint = constraintOrAdder;
+  if(isAdder) {
+    constraint = constraint[3];
+  }
+  var left = "select a column";
+  if(constraint[0][0] === "column") {
+    var leftName = code.refToName(constraint[0]);
+    left = [{c: "table", text: leftName.view}, {c: "field", text: leftName.field}];
+  }
+  var right = "select a column or enter a value";
+  if(constraint[2][0] === "column") {
+    var rightName = code.refToName(constraint[2]);
+    right = [{c: "table", text: rightName.view}, {c: "field", text: rightName.field}]
+  } else if(constraint[2][0] === "constant") {
+    right = constraint[2][1];
+  }
   return {c: "constraint", children: [
-//     {c: "token", text: "where "},
-    constraintToken(source, constraint, "right", [{c: "table", text: right.view}, {c: "field", text: right.field}]),
-    constraintToken(source, constraint, "op", constraint[1]),
-    constraintToken(source, constraint, "left", [{c: "table", text: left.view}, {c: "field", text: left.field}]),
+    constraintToken(view, constraintOrAdder, "right", right, isAdder),
+    constraintToken(view, constraintOrAdder, "op", constraint[1]),
+    constraintToken(view, constraintOrAdder, "left", left, isAdder),
   ]};
 }
 
-function constraintToken(source, constraint, path, content) {
-  var token = {c: "token editable", editorType: "constraint", source: source, constraint: constraint, click: activateTokenEditor, path: path};
+function constraintToken(view, constraint, path, content, isAdder) {
+  var token = {c: "token editable", editorType: "constraint", isAdder: isAdder, value: content, view: view, constraint: constraint, click: activateTokenEditor, path: path};
   if(typeof content === "string") {
     token.text = content;
   } else {
@@ -1698,6 +1630,27 @@ function dispatch(event, info, returnInsteadOfSend) {
         diffs.push(["adderRow", "inserted", neue]);
       }
       break;
+    case "newFilter":
+      diffs.push(["adderConstraint", "inserted", [txId, txId, info.view, [["placeholder"], "=", ["placeholder"]]]]);
+      break;
+    case "updateFilter":
+      var neueConstraint = info.neue;
+      if(neueConstraint[0][0] === "placeholder" || neueConstraint[2][0] === "placeholder") {
+        //still unfinished
+        var neueAdder = info.old.slice();
+        neueAdder[0] = txId;
+        neueAdder[3] = neueConstraint;
+        diffs.push(["adderConstraint", "inserted", neueAdder]);
+      } else {
+        //this is now a complete constraint, remove the adder and
+        //add a real constraint for it
+        diffs.push(["constraint", "inserted", neueConstraint],
+                   ["remove", "inserted", [info.old[1]]]);
+      }
+      break;
+    case "newCalculation":
+      diffs.push(["adderCalculation", "inserted", [txId, txId, info.view, [["placeholder"]]]]);
+      break;
     case "updateRow":
       var neue = info.row.slice();
       neue[info.ix] = info.value;
@@ -1968,6 +1921,8 @@ ixer.addIndex("viewToSources", "source", Indexing.create.collector([0]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([0]));
 ixer.addIndex("remove", "remove", Indexing.create.lookup([0, 0]));
 ixer.addIndex("adderRows", "adderRow", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
+ixer.addIndex("adderConstraint", "adderConstraint", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
+ixer.addIndex("adderCalculation", "adderCalculation", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
 
 //editorItem
 ixer.addIndex("itemToType", "editorItem", Indexing.create.lookup([0,1]));
@@ -1991,6 +1946,7 @@ ixer.addIndex("searchValue", "searchValue", Indexing.create.latestLookup({keys: 
 ixer.addIndex("modal", "modal", Indexing.create.latestLookup({keys: [1, false]}));
 ixer.addIndex("searchModal", "searchModal", Indexing.create.latestLookup({keys: [1, false]}));
 
+
 function initIndexer() {
   var add = function(name, info, fields, id, tags) {
     ixer.handleDiffs(code.diffs.addView(name, info, fields, id, tags));
@@ -2005,6 +1961,8 @@ function initIndexer() {
   add("displayName", {tx: "number", id: "string", name: "string"}, undefined, "displayName", ["table"]);
 
   add("adderRow", {tx: "id", id: "id", table: "id", row: "tuple"}, undefined, "adderRow", ["table"]);
+  add("adderConstraint", {tx: "id", id: "id", query: "id", constraint: "tuple"}, undefined, "adderConstraint", ["table"]);
+  add("adderCalculation", {tx: "id", id: "id", query: "id", calculation: "tuple"}, undefined, "adderCalculation", ["table"]);
   add("remove", {id: "id"}, undefined, "remove", ["table"]);
 
   // ui views
