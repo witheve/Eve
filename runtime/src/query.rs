@@ -3,7 +3,7 @@ use std::iter::IntoIterator;
 
 use value::{Value, ToValue, Tuple, ToTuple, Relation};
 use interpreter;
-use interpreter::{EveFn,ToExpression};
+use interpreter::{Expression,EveFn,ToExpression,PatternVec};
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum ConstraintOp {
@@ -121,16 +121,14 @@ impl std::fmt::Debug for Call {
 impl Call {
     fn eval(&self, result: &Vec<Value>) -> Value {
 
-        let args: Vec<Value> = self.args.iter().map(|arg_ref| arg_ref.resolve(result).clone()).collect();
+        // Resolve references and covert to an expression vector
+        let args: Vec<Expression> = self.args.iter()
+                                                           .map(|arg_ref| arg_ref.resolve(result).to_expr())
+                                                           .collect();
 
-        // Convert to an expression vector... this should be streamlined... make interpreter::Call take a value vector?
-        let eargs: Vec<interpreter::Expression> = args.iter()
-                        .map(|arg| arg.clone().to_expr())
-                        .collect();
+        let call = interpreter::Call{fun: self.fun.clone(), args: args};
 
-        let call = interpreter::Call{fun: self.fun.clone(), args: eargs};
-
-        interpreter::calculate(&interpreter::Expression::Call(call))
+        interpreter::evaluate(&Expression::Call(call))
     }
 }
 
@@ -160,11 +158,36 @@ impl std::fmt::Debug for CallArg {
     }
 }
 
+#[derive(Clone,Debug)]
+pub struct Match {
+    pub input: CallArg,
+    pub patterns: PatternVec,
+    pub handlers: CallArgs,
+}
+
+impl Match {
+    fn eval(&self, result: &Vec<Value>) -> Value {
+
+        // Resolve references
+        let input = self.input.resolve(result);
+        let handlers: Vec<Expression> = self.handlers.iter()
+                               .map(|handler| handler.resolve(result).to_expr())
+                               .collect();
+
+        // Build the interpreter match
+        let evematch = interpreter::Match{input: input.to_expr(), patterns: self.patterns.clone(), handlers: handlers};
+
+        interpreter::evaluate(&Expression::Match(Box::new(evematch)))
+
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum Clause {
     Tuple(Source),
     Relation(Source),
     Call(Call),
+    Match(Match),
 }
 
 impl Clause {
@@ -180,33 +203,14 @@ impl Clause {
             },
             Clause::Call(ref call) => {
                 let value = call.eval(result).to_tuple().to_value();
-                /*let tuple_value = match value {
-                    Value::Tuple(_) => value,
-                    _ => Value::Tuple(vec![value]),
-                };*/
                 vec![value]
-            }
+            },
+            Clause::Match(ref evematch) => {
+                let value = evematch.eval(result).to_tuple().to_value();
+                vec![value]
+            },
         }
     }
-}
-
-pub trait ToClause { fn to_clause(self) -> Clause; }
-
-impl ToClause for Clause { fn to_clause(self) -> Clause { self } }
-impl ToClause for Call { fn to_clause(self) -> Clause { Clause::Call(self) } }
-
-// Macro for creating clause vectors
-#[macro_export]
-macro_rules! clausevec {
-    ( $( $x:expr ),* ) => {
-        {
-            let mut temp_vec = Vec::new();
-            $(
-                temp_vec.push($x.to_clause());
-            )*
-            temp_vec
-        }
-    };
 }
 
 #[derive(Clone, Debug)]

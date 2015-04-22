@@ -8,6 +8,7 @@ use eve::flow::*;
 
 use std::cell::RefCell;
 
+#[allow(dead_code)]
 fn main() {
     let edges = vec![("a","b"), ("b", "c"), ("c", "d"), ("d", "b")];
     let path_union = Union{

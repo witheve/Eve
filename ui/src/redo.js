@@ -81,7 +81,7 @@ function root() {
           children: [
             leftBar(),
             workspace(),
-            modalLayer()
+            tokenEditor(),
           ]};
 }
 
@@ -1050,79 +1050,6 @@ function toggleLocked(e, elem) {
   dispatch("updateUiLayer", {neue: neue});
 }
 
-
-//---------------------------------------------------------
-// View List
-//---------------------------------------------------------
-
-// The filter parameter is an optional callback that can narrow views by type, tag, or what have you.
-function search(ids, needle) { // (Id[], String) -> Id[]
-  if(!ids) { throw new Error("Must provide an array of named ids to search."); }
-  var displayName = ixer.index("displayName");
-  var matches = [];
-
-  for(var ix = 0, len = ids.length; ix < len; ix++) {
-    var cur = ids[ix];
-    if(!needle || displayName[cur].indexOf(needle) !== -1) {
-      matches.push(cur);
-    }
-  }
-
-  return matches;
-}
-
-function searcher(id, ids, opts, onClose) { // (Id, Id[], Any?, Fn((Id) -> Boolean)?, Fn((Id) -> undefined)) -> undefined
-  if(!onClose) { onClose = opts; opts = undefined; }
-  if(!onClose) { throw new Error("Must provide a callback for onClose."); }
-  opts = opts || {};
-
-  var needle = ixer.index("searchValue")[id]; // Load from ixer.
-  var matches = search(ids, needle);
-  var results = matches.map(function(cur, ix) {
-    if(opts.limit && ix > opts.limit) { return; }
-    return searcherResult(cur, opts, onClose);
-  })
-  .filter(Boolean);
-
-  var searchInput = input(
-    needle, id + "-input",
-    function onInput(evt, el) {
-      dispatch("updateSearchValue", {id: id, value: evt.target.innerHTML});
-    },
-    function onSubmit(evt, el, type) {
-      if(type === "blurred") { return; }
-      var matches = search(ids, needle);
-      if(!matches.length) { return; }
-      dispatch("updateSearchValue", {id: id, value: ""});
-      onClose(matches[0]);
-
-      evt.preventDefault();
-      evt.target.blur();
-    });
-  searchInput.c = "searcher-input";
-  return {c: "searcher", children: [
-    searchInput,
-    {t: "ul", c: "dropdown searcher-results", children: results}
-  ]};
-}
-
-function searcherResult(id, opts, onClose) {
-  return {t: "li", c: "dropdown-item search-result",
-          text: ixer.index("displayName")[id] || "Untitled",
-          viewId: id,
-          click: function(evt, el) {
-            onClose(el.viewId);
-          }};
-}
-
-function viewList(id, onClose) {
-  var views = ixer.facts("view").map(function(cur) {
-    return cur[0];
-  });
-
-  return searcher(id, views, {limit: 25}, onClose);
-}
-
 //---------------------------------------------------------
 // view tile
 // - @TODO: token renderer
@@ -1153,6 +1080,7 @@ function queryDrop(e, elem) {
 
 function viewCode(view, sources) {
   var sourceToConstraints = {};
+  var removed = ixer.index("remove");
   ixer.facts("constraint").forEach(function(constraint) {
     var leftSource = constraint[0][1];
     var entry = sourceToConstraints[leftSource];
@@ -1164,44 +1092,42 @@ function viewCode(view, sources) {
   //@FIXME: add a calculation for testing
 //   var sources = sources.slice();
 //   sources.push([view, sources.length, uuid(), ["expression", ["call", "+", ["column", "e187047c-a957-43e3-a7a4-7ddb548fd5f2", "4d630964-96a9-4853-8ae8-1bdb411e53c7"], ["call", "-", ["constant", 4], ["constant", 2]]]], "get-tuple"]);
+  var globalFilters = [];
   var sourceElems = sources.map(function(cur) {
     var id = cur[2];
     var data = cur[3];
     var constraints = sourceToConstraints[id] || [];
-    var constraintItems = constraints.map(constraintItem);
-    if(data[0] === "view") {
-      return {c: "step", children: [
-        {children: [
-          {t: "span", c: "token", text: "with "},
-          viewToken("each row"),
-          {t: "span", c: "token", text: " of "},
-          {t: "span", c: "token", text: code.name(data[1])}
-        ]},
-        constraints.length ? {c: "constraints", children: constraintItems} : undefined
-      ]};
+    var constraintItems = constraints.map(function(constraint) {
+
+      globalFilters.push(constraintItem(view, constraint));
+    });
+  });
+  var adderConstraints = ixer.index("adderConstraint")[view] || [];
+  adderConstraints.forEach(function(cur) {
+    if(!removed[cur[1]]) {
+      globalFilters.push(constraintItem(view, cur, true));
     }
-    //otherwise it's an expression
-    return {c: "step", children: [
-      {children: [
-        {t: "span", c: "token", text: "calculate "},
-        expressionItem(data[1], [id])
-      ]},
-      constraints.length ? {c: "constraints", children: constraintItems} : undefined
-    ]};
   });
 
-  // Add Source btn
-  sourceElems.push({c: "view-query-builder", children: [
-    {t: "button", c: "add-source-btn btn", text: "Add Step", click: function() {
-      console.log("clicked", arguments);
-    }},
-    {t: "button", c: "add-calculation-btn btn", text: "Calculate", click: function() {
-      console.log("clicked", arguments);
-    }}
-  ]});
-  return {c: "view-source-code", children: sourceElems};
+  return {c: "view-source-code", children: [
+    {c: "view-container", children: [
+      {children: [{c: "sub-title", text: "filters"}, {c: "icon ion-plus", click: newFilter, view: view}]},
+      {c: "filters", children: globalFilters}
+    ]},
+    {c: "view-container", children: [
+      {children: [{c: "sub-title", text: "calculations"}, {c: "icon ion-plus", click: newCalculation, view: view}]},
+      {c: "caluculations", children: []}
+    ]}
+  ]};
 }
 
+function newFilter(e, elem) {
+  dispatch("newFilter", {view: elem.view});
+}
+
+function newCalculation(e, elem) {
+  dispatch("newCalculation", {view: elem.view});
+}
 
 function viewResults(sources, results) {
   var tableHeaders = [];
@@ -1260,22 +1186,155 @@ function viewResults(sources, results) {
   ]};
 }
 
-function viewToken(cur) {
-  return {c: "token editable", text: cur};
+function sourceToken(source, path, content) {
+  return {c: "token editable", editorType: "source", source: source, click: activateTokenEditor, path: path, text: content};
 }
 
 //---------------------------------------------------------
 // Expression
 //---------------------------------------------------------
 
-function expressionItem(expression, path) {
+var editorInfo = false;
+
+function tokenEditor()  {
+  if(editorInfo === false) return;
+  var rect = editorInfo.element.getBoundingClientRect();
+  var editor;
+  if(editorInfo.editorType === "constraint") {
+    editor = constraintEditor(editorInfo);
+  } else if(editorInfo.editorType === "expression") {
+    editor = expressionEditor(editorInfo);
+  } else if(editorInfo.editorType === "source") {
+    editor = sourceEditor(editorInfo);
+  }
+  return {c: "token-editor", top: rect.bottom + 5, left: rect.left - 35, children: [editor]};
+}
+
+function expressionEditor(tokenInfo) {
+  return genericEditor();
+}
+
+function constraintEditor(tokenInfo) {
+  var path = tokenInfo.info.path;
+  var viewId = tokenInfo.info.view;
+  var constraint = tokenInfo.info.constraint;
+  if(path === "op") {
+    return genericEditor(false, ["=", "!=", ">", "<", ">=", "<="], false, false, "function", updateConstraint);
+  } else if(path === "left") {
+    var refs = code.viewToRefs(viewId)
+    return genericEditor(refs, false, false, false, "column", updateConstraint);
+  } else if(path === "right") {
+//     var type = code.refToType(constraint[0]);
+    var refs = code.viewToRefs(viewId);
+    return genericEditor(refs, false, false, true, "column", updateConstraint);
+  }
+}
+
+function updateConstraint(e, elem) {
+  var isAdder = editorInfo.info.isAdder;
+  var path = editorInfo.info.path;
+  var neue;
+  if(isAdder) {
+    neue = editorInfo.info.constraint[3].slice();
+  } else {
+    neue = editorInfo.info.constraint.slice();
+  }
+  if(path === "left") {
+    neue[0] = elem.cur;
+  } else if(path === "right") {
+    neue[2] = elem.cur;
+  } else if(path === "op") {
+    neue[1] = elem.cur;
+  }
+  if(isAdder) {
+    dispatch("updateFilter", {old: editorInfo.info.constraint, neue: neue})
+  } else {
+    dispatch("updateConstraint", {old: editorInfo.info.constraint, neue: neue});
+  }
+  editorInfo = false;
+}
+
+function sourceEditor(tokenInfo) {
+  return genericEditor();
+}
+
+var editorInfo = false;
+
+function genericEditor(fields, functions, match, constant, defaultActive, onSelect) {
+  var active = defaultActive;
+  if(editorInfo !== false) {
+    active = editorInfo.tab || active;
+  }
+
+  var content;
+  if(active === "column") {
+    content = fields.map(function(cur) {
+      var name = code.refToName(cur);
+      return genericEditorOption(cur, onSelect, [
+        {c: "view", text: name.view},
+        {c: "field", text: name.field},
+      ]);
+    });
+  } else if(active === "function") {
+    content = functions.map(function(cur) {
+      return genericEditorOption(cur, onSelect, cur);
+    });
+  } else if(active === "match") {
+
+  } else if(active === "constant") {
+    content = [{children: [input()]}];
+  }
+  return {children: [
+    {c: "tabs", children: [
+      genericEditorTab("column", "ion-grid", active, fields),
+      genericEditorTab("function", "ion-ios-calculator", active, functions),
+      genericEditorTab("match", "ion-checkmark", active, match),
+      genericEditorTab("constant", "ion-compose", active, constant),
+    ]},
+    {c: "options", children: content}
+  ]}
+}
+
+function genericEditorTab(type, icon, active, allowed) {
+  if(allowed) {
+    return {c: active === type ? "active" : "", tab: type, click: setTab, children: [{c: "icon " + icon}]};
+  }
+  return {c: "disabled", children: [{c: "icon " + icon}]};
+}
+
+function genericEditorOption(cur, selectOption, content) {
+  if(typeof content === "string") {
+    return {click: selectOption, cur: cur, text: content};
+  }
+  return {click: selectOption, cur: cur, children: content};
+}
+
+function setTab(e, elem) {
+  editorInfo.tab = elem.tab;
+  rerender();
+}
+
+function activateTokenEditor(e, elem) {
+  if(editorInfo && editorInfo.info.path === elem.path) {
+    editorInfo = false;
+  } else {
+    editorInfo = {
+      editorType: elem.editorType,
+      element: e.currentTarget,
+      info: elem
+    }
+  }
+  rerender();
+}
+
+function expressionItem(expression, path, source) {
   var type = expression[0];
   if(type === "call") {
-    return callItem(expression, path);
+    return callItem(expression, path, source);
   } else if(type === "column") {
-    return viewToken(code.refToName(expression).string, path);
+    return expressionToken(source, path, code.refToName(expression).string, path);
   } else if(type === "constant") {
-    return viewToken(expression[1], path.concat([1]));
+    return expressionToken(source, path.concat([1]), expression[1]);
   } else if(type === "variable") {
     return {text: "variable"};
   } else if(type === "match") {
@@ -1291,31 +1350,60 @@ var callInfo = {
   "*": {args: ["number", "number"], infix: true},
   "/": {args: ["number", "number"], infix: true},
 };
-function callItem(call, path) {
+function callItem(call, path, source) {
   var op = call[1];
   var info = callInfo[op];
   var expression = [];
   var opItem = {c: "token editable", text: op};
   if(info.infix) {
-    expression.push(expressionItem(call[2], path),
+    expression.push(expressionItem(call[2], path, source),
                     opItem,
-                    expressionItem(call[3], path))
+                    expressionItem(call[3], path, source))
   } else {
     expression.push(opItem);
     for(var i = 2, len = call.length; i < len; i++) {
-      expression.push(expressionItem(call[i], path.concat([i])));
+      expression.push(expressionItem(call[i], path.concat([i]), source));
     }
   }
   return {c: "call", children: expression};
 }
 
-function constraintItem(constraint) {
+function expressionToken(source, path, content) {
+  return {c: "token editable", editorType: "expression", source: source, click: activateTokenEditor, path: path, text: content};
+}
+
+function constraintItem(view, constraintOrAdder, isAdder) {
+  var constraint = constraintOrAdder;
+  if(isAdder) {
+    constraint = constraint[3];
+  }
+  var left = "select a column";
+  if(constraint[0][0] === "column") {
+    var leftName = code.refToName(constraint[0]);
+    left = [{c: "table", text: leftName.view}, {c: "field", text: leftName.field}];
+  }
+  var right = "select a column or enter a value";
+  if(constraint[2][0] === "column") {
+    var rightName = code.refToName(constraint[2]);
+    right = [{c: "table", text: rightName.view}, {c: "field", text: rightName.field}]
+  } else if(constraint[2][0] === "constant") {
+    right = constraint[2][1];
+  }
   return {c: "constraint", children: [
-    {text: "where "},
-    {c: "token editable", text: code.refToName(constraint[0]).field},
-    {c: "token editable", text: constraint[1]},
-    {c: "token editable", text: code.refToName(constraint[2]).string},
+    constraintToken(view, constraintOrAdder, "right", right, isAdder),
+    constraintToken(view, constraintOrAdder, "op", constraint[1]),
+    constraintToken(view, constraintOrAdder, "left", left, isAdder),
   ]};
+}
+
+function constraintToken(view, constraint, path, content, isAdder) {
+  var token = {c: "token editable", editorType: "constraint", isAdder: isAdder, value: content, view: view, constraint: constraint, click: activateTokenEditor, path: path};
+  if(typeof content === "string") {
+    token.text = content;
+  } else {
+    token.children = content;
+  }
+  return token;
 }
 
 //---------------------------------------------------------
@@ -1593,6 +1681,27 @@ function dispatch(event, info, returnInsteadOfSend) {
         diffs.push(["adderRow", "inserted", neue]);
       }
       break;
+    case "newFilter":
+      diffs.push(["adderConstraint", "inserted", [txId, txId, info.view, [["placeholder"], "=", ["placeholder"]]]]);
+      break;
+    case "updateFilter":
+      var neueConstraint = info.neue;
+      if(neueConstraint[0][0] === "placeholder" || neueConstraint[2][0] === "placeholder") {
+        //still unfinished
+        var neueAdder = info.old.slice();
+        neueAdder[0] = txId;
+        neueAdder[3] = neueConstraint;
+        diffs.push(["adderConstraint", "inserted", neueAdder]);
+      } else {
+        //this is now a complete constraint, remove the adder and
+        //add a real constraint for it
+        diffs.push(["constraint", "inserted", neueConstraint],
+                   ["remove", "inserted", [info.old[1]]]);
+      }
+      break;
+    case "newCalculation":
+      diffs.push(["adderCalculation", "inserted", [txId, txId, info.view, [["placeholder"]]]]);
+      break;
     case "updateRow":
       var neue = info.row.slice();
       neue[info.ix] = info.value;
@@ -1630,6 +1739,12 @@ function dispatch(event, info, returnInsteadOfSend) {
       var modalId = uuid();
       diffs = [["modal", "inserted", [{eid: "auto"}, modalId, "searcher"]],
                ["searchModal", "inserted", [{eid: "auto"}, modalId, info.type || "view", info.action]]];
+      break;
+
+    case "updateConstraint":
+      console.log(info.old, info.neue);
+      diffs.push(["constraint", "removed", info.old],
+                 ["constraint", "inserted", info.neue])
       break;
     default:
       console.error("Dispatch for unknown event: ", event, info);
@@ -1800,10 +1915,11 @@ var code = {
     //@TODO: equivalence. e.g. int = number
     return a === b;
   },
-  viewToRefs: function(view, ofType) {
+  viewToRefs: function(view, sourceFilter, typeFilter) {
     var refs = [];
     var sources = ixer.index("viewToSources")[view] || [];
     sources.forEach(function(source) {
+      if(sourceFilter && sourceFilter !== source[2]) return;
       var viewOrData = source[3];
       var sourceView = viewOrData[1];
       //view
@@ -1812,7 +1928,7 @@ var code = {
         sourceView = null;
       } else {
         code.viewToFields(sourceView).forEach(function(field) {
-          if(!ofType || ofType === field[3]) {
+          if(!typeFilter || typeFilter === field[3]) {
             refs.push(code.ast.fieldSourceRef(source[2], field[2]));
           }
         });
@@ -1856,6 +1972,8 @@ ixer.addIndex("viewToSources", "source", Indexing.create.collector([0]));
 ixer.addIndex("schemaToFields", "field", Indexing.create.collector([0]));
 ixer.addIndex("remove", "remove", Indexing.create.lookup([0, 0]));
 ixer.addIndex("adderRows", "adderRow", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
+ixer.addIndex("adderConstraint", "adderConstraint", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
+ixer.addIndex("adderCalculation", "adderCalculation", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
 
 //editorItem
 ixer.addIndex("itemToType", "editorItem", Indexing.create.lookup([0,1]));
@@ -1880,7 +1998,6 @@ ixer.addIndex("modal", "modal", Indexing.create.latestLookup({keys: [1, false]})
 ixer.addIndex("searchModal", "searchModal", Indexing.create.latestLookup({keys: [1, false]}));
 
 
-
 function initIndexer() {
   var add = function(name, info, fields, id, tags) {
     ixer.handleDiffs(code.diffs.addView(name, info, fields, id, tags));
@@ -1895,6 +2012,8 @@ function initIndexer() {
   add("displayName", {tx: "number", id: "string", name: "string"}, undefined, "displayName", ["table"]);
 
   add("adderRow", {tx: "id", id: "id", table: "id", row: "tuple"}, undefined, "adderRow", ["table"]);
+  add("adderConstraint", {tx: "id", id: "id", query: "id", constraint: "tuple"}, undefined, "adderConstraint", ["table"]);
+  add("adderCalculation", {tx: "id", id: "id", query: "id", calculation: "tuple"}, undefined, "adderCalculation", ["table"]);
   add("remove", {id: "id"}, undefined, "remove", ["table"]);
 
   // ui views
