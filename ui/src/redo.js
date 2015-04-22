@@ -187,20 +187,30 @@ function queryItem(query) {
   return treeItem("query", queryId, name, "ion-cube", sourceItems);
 }
 
-function uiGroupItem(group, activeLayerId) {
+function uiGroupItem(group, activeLayerId, componentId) {
   var groupId = group[1];
   var active = groupId === activeLayerId;
   var activeClass = "ion-android-checkbox-outline-blank";
   var hidden = group[5];
   var locked = group[4];
   var children;
+  // @TODO: or contains selected elements.
   if(active) {
     activeClass = "ion-android-checkbox-blank";
     var items = ixer.index("uiLayerToElements")[groupId] || [];
+    var selectedIds = [];
+    var sel = ixer.index("uiSelection")[client][componentId];
+    if(sel && !ixer.index("remove")[sel[0]]) {
+      selectedIds = (ixer.index("uiSelectionElements")[sel[1]] || selectedIds)
+      .map(function(el) {
+        return el[1];
+      });
+    }
     var children = [];
     items.forEach(function(cur) {
       if(ixer.index("remove")[cur[0]]){ return; }
-      var item = treeItem("", undefined, cur[4], "ion-ios-crop-strong");
+      var isSelected = selectedIds.indexOf(cur[1]) !== -1;
+      var item = treeItem("", undefined, cur[4], isSelected ? "ion-crop" : "ion-ios-crop-strong");
       item.control = cur;
       item.click = addToSelection;
       children.push(item);
@@ -224,7 +234,7 @@ function uiItem(ui) {
   if(open) {
     var activeLayerId = ixer.index("uiActiveLayer")[client] ? ixer.index("uiActiveLayer")[client][ui.componentId] : undefined;
     layers = (ui.children || []).map(function(cur) {
-      return uiGroupItem(cur, activeLayerId);
+      return uiGroupItem(cur, activeLayerId, ui.componentId);
     });
     controls = [{c: "add-layer ion-plus", componentId: ui.componentId, click: addLayer}];
   }
