@@ -87,7 +87,7 @@ impl<'a> ToTuple for &'a Value {
     fn to_tuple(self) -> Tuple {
         match self {
             &Value::Tuple(ref x) => x.clone(),
-            _ => vec![self.clone()],
+            other => panic!("Not a tuple: {:?}", other),
         }
     }
 }
