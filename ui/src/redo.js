@@ -197,25 +197,23 @@ function uiGroupItem(group, activeLayerId) {
   if(active) {
     activeClass = "ion-android-checkbox-blank";
     var items = ixer.index("uiLayerToElements")[groupId] || [];
-    var children = items.map(function(cur) {
-      return {c: "tree-item", children: [
-        {c: "item", children: [
-          {c: "icon ion-ios-crop-strong"},
-          {text: cur[4]},
-        ]},
-      ]}
-
+    var children = [];
+    items.forEach(function(cur) {
+      if(ixer.index("remove")[cur[0]]){ return; }
+      var item = treeItem("", undefined, cur[4], "ion-ios-crop-strong");
+      item.control = cur;
+      item.click = addToSelection;
+      children.push(item);
     })
   }
-  return {c: "tree-item ui-group", children: [
-    {c: "item", click: activateLayer, layer: group, children: [
-      {c: "icon " + activeClass},
-      {c: "name", text: code.name(groupId)},
-      {c: hidden ? "ion-eye-disabled" : "ion-eye", click: toggleHidden, layer: group},
-      {c: locked ? "ion-locked" : "ion-unlocked", click: toggleLocked, layer: group}
-    ]},
-    {c: "sub-items", children: children}
-  ]}
+
+  var controls = [{c: hidden ? "ion-eye-disabled" : "ion-eye", click: toggleHidden, layer: group},
+                  {c: locked ? "ion-locked" : "ion-unlocked", click: toggleLocked, layer: group}];
+
+  var groupEl = treeItem("ui-group", undefined, code.name(groupId), activeClass, children, controls);
+  groupEl.layer = group;
+  groupEl.click = activateLayer;
+  return groupEl;
 }
 
 function uiItem(ui) {

@@ -161,8 +161,8 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .tree-item .ui-group .name { flex: 1; }
 .tree-item .ion-eye { visibility:hidden; }
 .tree-item .ion-unlocked { visibility:hidden; margin-left: 8px }
-.ui-group:hover > .item > .ion-eye { visibility:visible; color: #777; }
-.ui-group:hover > .item > .ion-unlocked { visibility:visible; color: #777;  }
+.ui-group:hover > .item > .controls > .ion-eye { visibility:visible; color: #777; }
+.ui-group:hover > .item > .controls > .ion-unlocked { visibility:visible; color: #777;  }
 .tree-item .ion-eye-disabled { color: #f88; color: #c8f; }
 .tree-item .ion-locked { color: #f88; color: #c8f; margin-left: 8px; }
 
