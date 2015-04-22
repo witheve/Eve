@@ -1,10 +1,10 @@
 extern crate eve;
 
 use eve::index::Index;
-use eve::value::ToRelation;
 use eve::value::Value::*;
 use eve::query::*;
 use eve::flow::*;
+use eve::test::*;
 
 use std::cell::RefCell;
 

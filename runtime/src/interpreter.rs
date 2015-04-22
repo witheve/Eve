@@ -1,5 +1,5 @@
 use std::fmt::{Debug,Formatter,Result};
-use value::{Value,ToValue};
+use value::{Value};
 use value;
 use self::EveFn::*;
 use value::Value::Float;
@@ -27,16 +27,6 @@ impl Debug for Expression {
 		}
 	}
 }
-
-pub trait ToExpression { fn to_expr(self) -> Expression; }
-
-impl ToExpression for Expression { fn to_expr(self) -> Expression { self } }
-impl ToExpression for Call { fn to_expr(self) -> Expression { Expression::Call(self) } }
-impl ToExpression for i32 { fn to_expr(self) -> Expression { Expression::Value(self.to_value()) } }
-impl ToExpression for f64 { fn to_expr(self) -> Expression { Expression::Value(self.to_value()) } }
-impl<'a> ToExpression for &'a str { fn to_expr(self) -> Expression { Expression::Value(self.to_value()) } }
-impl ToExpression for Value { fn to_expr(self) -> Expression { Expression::Value(self) } }
-impl ToExpression for Match { fn to_expr(self) -> Expression { Expression::Match( Box::new(self)) } }
 
 // End Expression Enum --------------------------------------------------------
 
@@ -200,7 +190,7 @@ fn eval_call(c: &Call) -> Value {
 		(&StrLength,[Value::String(ref s)]) => Float(s.len() as f64),
 		(&StrReplace,[Value::String(ref s),Value::String(ref q),Value::String(ref r)]) => Value::String(s.replace(&q[..],&r[..])),
 		(&StrSplit,[Value::String(ref s)]) => {
-			let w: Vec<Value> = s.words().map(|x| x.to_value()).collect();
+			let w: Vec<Value> = s.words().map(|x| Value::String(x.to_string())).collect();
 			Value::Tuple(w)
 		},
 
@@ -222,7 +212,7 @@ fn general_agg(x: &value::Tuple) -> Value {
 	// Some fold magic!
 	println!("{:?}",x);
 
-	10f64.to_value()
+	Value::Float(10f64)
 
 }
 // End Aggregate Functions ----------------------------------------------------

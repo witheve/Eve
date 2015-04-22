@@ -1,9 +1,9 @@
 extern crate eve;
 
-use eve::value::*;
 use eve::index::*;
 use eve::flow::Flow;
 use eve::compiler::*;
+use eve::test::*;
 
 #[allow(dead_code)]
 fn main() {

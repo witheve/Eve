@@ -9,6 +9,7 @@ extern crate core;
 
 use eve::interpreter::*;
 use eve::value::*;
+use eve::test::*;
 
 #[allow(dead_code)]
 fn main() {

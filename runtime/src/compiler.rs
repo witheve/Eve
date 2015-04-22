@@ -1,4 +1,4 @@
-use value::{Value, Tuple, Relation, ToTuple};
+use value::{Value, Tuple, Relation};
 use index::{Index};
 use query::{Ref, ConstraintOp, Constraint, Source, Expression, Clause, Query, Call, CallArg, Match};
 use interpreter::{EveFn,Pattern};
@@ -100,7 +100,11 @@ fn create_upstream(flow: &Flow) -> Relation {
                     let data = &source[SOURCE_DATA];
                     if data[0].as_str() == "view"  {
                         let upstream_id = &data[1];
-                        upstream.insert((downstream_id.clone(), ix, upstream_id.clone()).to_tuple());
+                        upstream.insert(vec![
+                            downstream_id.clone(),
+                            Value::Float(ix),
+                            upstream_id.clone(),
+                            ]);
                         ix += 1.0;
                     }
                 }
@@ -108,7 +112,11 @@ fn create_upstream(flow: &Flow) -> Relation {
             "union" => {
                 for view_mapping in flow.get_state("view-mapping").find_all(VIEWMAPPING_SINKVIEW, downstream_id) {
                     let upstream_id = &view_mapping[VIEWMAPPING_SOURCEVIEW];
-                    upstream.insert((downstream_id.clone(), ix, upstream_id.clone()).to_tuple());
+                        upstream.insert(vec![
+                            downstream_id.clone(),
+                            Value::Float(ix),
+                            upstream_id.clone(),
+                            ]);
                     ix += 1.0;
                 }
             }
@@ -125,7 +133,7 @@ fn create_schedule(flow: &Flow) -> Relation {
     let mut ix = 0.0;
     for view in flow.get_state("view").iter() {
         let view_id = &view[VIEW_ID];
-        schedule.insert((ix, view_id.clone()).to_tuple());
+        schedule.insert(vec![Value::Float(ix), view_id.clone()]);
         ix += 1.0;
     }
     schedule

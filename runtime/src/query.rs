@@ -3,7 +3,8 @@ use std::iter::IntoIterator;
 
 use value::{Value, Tuple, Relation};
 use interpreter;
-use interpreter::{EveFn,ToExpression,PatternVec};
+use interpreter::{EveFn,PatternVec};
+use test::ToExpression; // TODO dont use test code in production!
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum ConstraintOp {
