@@ -115,18 +115,29 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 - view editor
 -----------------------------------------------------------------------------*/
 
-.view-source-code { flex-direction: column; }
-.view-source-code > .step { flex: 0 0 auto; }
+.view-source-code { flex-direction: column; margin-right: 20px; }
+.view-source-code > .step { flex: 0 0 auto; padding: 10px 10px; background: #333; margin-bottom:2px;  }
 .view-source-code > .view-query-builder { flex: 0 0 auto; }
 .view-source-code > .searcher { flex: 1; }
 
-.token { display: inline-block; margin: 0.2em; white-space: nowrap; cursor: default; }
-.token.editable { border-bottom: 1px solid rgba(0, 192, 255, 0.5); }
-.token.editable:hover { border-bottom: 1px solid rgba(16, 208, 255, 0.8); box-shadow: 0 1px 2px -1px rgba(16, 208, 255, 0.8); }
-.token.editable:active { border-bottom: 1px solid rgba(16, 208, 255, 1); box-shadow: 0 2px 2px -1px rgba(16, 208, 255, 1); }
+.token { margin: 0.2em; white-space: nowrap; cursor: default; color: #999;  flex-direction:column; align-items:center; justify-content:center; border-radius:3px; }
+.token.editable {color: #ccc; background: #555; padding:5px; }
+.token.editable.active { border-bottom: 2px solid #fff; }
+.token.source { color: #ccc; }
+.token .table { font-size: 9pt; color: #999; }
 
 .step { flex-direction: column; }
 .constraints { flex-direction: column; }
+
+.add-calculation { padding: 10px; background: #333; flex-direction:column; font-size: 9pt; justify-content:center; align-items:center; }
+.add-calculation .icon { font-size: 18pt; }
+
+.view-container { position:relative; flex-direction:column; background: #333; padding: 10px; margin-bottom:2px; border-radius:2px; color: #999; }
+.view-container .sub-title { flex: 1; }
+.view-container .icon { position:absolute; top:0; right:0; font-size: 12pt; flex:none; padding:10px; border-radius:3px; }
+.view-container .icon:hover { background: #777; color: #eee; }
+.calculations { margin-top: 5px; flex-direction:column; }
+.filters { margin-top: 5px; flex-direction:column; }
 
 /*-----------------------------------------------------------------------------
 - token editor
@@ -140,7 +151,7 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .token-editor .tabs .icon { font-size: 14pt; }
 .token-editor .options { flex:none; flex-wrap: wrap; width:200px; overflow-y: auto; align-content: flex-start; }
 .token-editor .options > div { flex: none; flex-direction:column; width:99px; height:36px;  padding:0 5px; background: #555; margin-left: 1px; margin-bottom:1px; justify-content:center; align-items:center; cursor: default; overflow: hidden; }
-.token-editor .options > div:hover { background: #777; color: #eee; }
+.token-editor .options > div:hover { background: #555; color: #ccc; }
 .token-editor .options > div:hover .view { color: #bbb; }
 .token-editor .options .view { display:block; font-size: 8pt; justify-content:center; align-items:center; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color: #999; max-width: 80px; }
 

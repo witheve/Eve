@@ -1078,41 +1078,51 @@ function viewCode(view, sources) {
   //@FIXME: add a calculation for testing
 //   var sources = sources.slice();
 //   sources.push([view, sources.length, uuid(), ["expression", ["call", "+", ["column", "e187047c-a957-43e3-a7a4-7ddb548fd5f2", "4d630964-96a9-4853-8ae8-1bdb411e53c7"], ["call", "-", ["constant", 4], ["constant", 2]]]], "get-tuple"]);
+  var globalFilters = [];
   var sourceElems = sources.map(function(cur) {
     var id = cur[2];
     var data = cur[3];
     var constraints = sourceToConstraints[id] || [];
     var constraintItems = constraints.map(function(constraint) {
-      return constraintItem(cur, constraint);
+
+      globalFilters.push(constraintItem(cur, constraint));
     });
-    if(data[0] === "view") {
-      return {c: "step", children: [
-        {children: [
-          {t: "span", c: "token", text: "with "},
-          sourceToken(cur, 4,"each row"),
-          {t: "span", c: "token", text: " of "},
-          {t: "span", c: "token", text: code.name(data[1])}
-        ]},
-        constraints.length ? {c: "constraints", children: constraintItems} : undefined
-      ]};
-    }
-    //otherwise it's an expression
-    return {c: "step", children: [
-      {children: [
-        {t: "span", c: "token", text: "calculate "},
-        expressionItem(data[1], [id])
-      ]},
-      constraints.length ? {c: "constraints", children: constraintItems} : undefined
-    ]};
+//     if(data[0] === "view") {
+//       return {c: "step", children: [
+//         {children: [
+//           {c: "token", text: "with "},
+//           sourceToken(cur, 4,"each row"),
+//           {c: "token", text: " of "},
+//           {c: "token source", text: code.name(data[1])}
+//         ]},
+//         constraints.length ? {c: "constraints", children: constraintItems} : undefined
+//       ]};
+//     }
+//     //otherwise it's an expression
+//     return {c: "step", children: [
+//       {children: [
+//         {t: "span", c: "token", text: "calculate "},
+//         expressionItem(data[1], [id])
+//       ]},
+//       constraints.length ? {c: "constraints", children: constraintItems} : undefined
+//     ]};
   });
 
   // Add Source btn
-  sourceElems.push({c: "view-query-builder", children: [
-    {t: "button", c: "add-calculation-btn btn", text: "Calculate", click: function() {
-      console.log("clicked", arguments);
-    }}
-  ]});
-  return {c: "view-source-code", children: sourceElems};
+//   sourceElems.push({c: "add-calculation", children: [
+//     {c: "icon ion-ios-calculator"},
+//     {text: "Add calculation"}
+//   ]});
+  return {c: "view-source-code", children: [
+    {c: "view-container", children: [
+      {children: [{c: "sub-title", text: "filters"}, {c: "icon ion-plus"}]},
+      {c: "filters", children: globalFilters}
+    ]},
+    {c: "view-container", children: [
+      {children: [{c: "sub-title", text: "calculations"}, {c: "icon ion-plus"}]},
+      {c: "caluculations", children: []}
+    ]}
+  ]};
 }
 
 
@@ -1256,8 +1266,8 @@ function genericEditor(fields, functions, match, constant, defaultActive, onSele
     content = fields.map(function(cur) {
       var name = code.refToName(cur);
       return genericEditorOption(cur, onSelect, [
+        {c: "view", text: name.view},
         {c: "field", text: name.field},
-        {c: "view", text: name.view}
       ]);
     });
   } else if(active === "function") {
@@ -1358,16 +1368,24 @@ function expressionToken(source, path, content) {
 }
 
 function constraintItem(source, constraint) {
+  var left = code.refToName(constraint[0]);
+  var right = code.refToName(constraint[2]);
   return {c: "constraint", children: [
-    {text: "where "},
-    constraintToken(source, constraint, "left", code.refToName(constraint[0]).field),
+//     {c: "token", text: "where "},
+    constraintToken(source, constraint, "right", [{c: "table", text: right.view}, {c: "field", text: right.field}]),
     constraintToken(source, constraint, "op", constraint[1]),
-    constraintToken(source, constraint, "right", code.refToName(constraint[2]).string)
+    constraintToken(source, constraint, "left", [{c: "table", text: left.view}, {c: "field", text: left.field}]),
   ]};
 }
 
 function constraintToken(source, constraint, path, content) {
-  return {c: "token editable", editorType: "constraint", source: source, constraint: constraint, click: activateTokenEditor, path: path, text: content};
+  var token = {c: "token editable", editorType: "constraint", source: source, constraint: constraint, click: activateTokenEditor, path: path};
+  if(typeof content === "string") {
+    token.text = content;
+  } else {
+    token.children = content;
+  }
+  return token;
 }
 
 //---------------------------------------------------------
