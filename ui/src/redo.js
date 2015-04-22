@@ -465,13 +465,28 @@ function uiWorkspace(componentId) {
     els.push(selection(selectionInfo));
 //     els.push(uiGrid(componentId, activeLayer[3], {width: tileRect.width,  height: tileRect.height}));
   }
+  var box = ixer.index("uiBoxSelection")[componentId];
+  if(box) {
+    if(!ixer.index("remove")[box[0]] && box[4] != -1) {
+      var boxEl = {c: "ui-box-selection",
+                   left: (box[2] <= box[4] ? box[2] : box[4]),
+                   right: (box[2] > box[4] ? box[2] : box[4]),
+                   top: (box[3] <= box[5] ? box[3] : box[5]),
+                   bottom: (box[3] > box[5] ? box[3] : box[5])};
+      boxEl.width = boxEl.right - boxEl.left;
+      boxEl.right = undefined;
+      boxEl.height = boxEl.bottom - boxEl.top;
+      boxEl.bottom = undefined;
+      els.push(boxEl);
+    }
+  }
   return {c: "workspace-content column ui-workspace", componentId: componentId, children: [
     {c: "title", children: [
       input(code.name(componentId), componentId, rename)
     ]},
     {c: "container", children: [
       uiControls(componentId, activeLayer),
-      {c: "ui-canvas", componentId: componentId, mousedown: startBoxSelect, mousemove: updateBoxSelect, mouseup: endBoxSelect, children: els},
+      {c: "ui-canvas", componentId: componentId, children: els, mousedown: startBoxSelect, mousemove: updateBoxSelect, mouseup: endBoxSelect, mouseleave: endBoxSelect},
       inspector(componentId, selectionInfo, layers, activeLayer)
     ]}
   ]};
@@ -840,6 +855,7 @@ function clearSelection(e, elem) {
 
 function addToSelection(e, elem) {
   e.stopPropagation();
+  if(!e.shiftKey && elem.selected) { return; }
   var createNew = false;
   if(!e.shiftKey) {
     createNew = true;
@@ -1442,16 +1458,22 @@ function dispatch(event, info, returnInsteadOfSend) {
       diffs.push(["uiBoxSelection", "inserted", box]);
       break;
     case "endBoxSelect":
+      var SELECTION_THRESHOLD = 16;
       var box = ixer.index("uiBoxSelection")[info.componentId];
       if(box && ixer.index("remove")[box[0]]) { box = undefined; }
-      if(!box || box[4] == -1) { break; }
+      if(!box) { break; }
+      diffs.push(["remove", "inserted", [box[0]]]);
+
       var elements = ixer.index("uiComponentToElements")[info.componentId];
-      if(!elements) { break; }
       var layers = ixer.index("uiComponentLayer");
       var bounds = {left: (box[2] <= box[4] ? box[2] : box[4]),
                     right: (box[2] > box[4] ? box[2] : box[4]),
                     top: (box[3] <= box[5] ? box[3] : box[5]),
                     bottom: (box[3] > box[5] ? box[3] : box[5])};
+
+      if(!elements || box[4] == -1
+         || bounds.right - bounds.left < SELECTION_THRESHOLD
+         && bounds.bottom - bounds.top < SELECTION_THRESHOLD) { break; }
 
       var selections = [];
       elements.forEach(function(el) {
@@ -1469,8 +1491,7 @@ function dispatch(event, info, returnInsteadOfSend) {
         selections.push(el[1]);
       });
 
-      diffs = dispatch("selectElements", {createNew: false, elements: selections, componentId: info.componentId}, true);
-      diffs.push(["remove", "inserted", [box[0]]]);
+      diffs = diffs.concat(dispatch("selectElements", {createNew: false, elements: selections, componentId: info.componentId}, true));
       break;
 
     case "updateAdderRow":

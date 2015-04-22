@@ -103,6 +103,9 @@
         if(cur.mousedown !== prev.mousedown) div.onmousedown = cur.mousedown !== undefined ? this.handleEvent : undefined;
         if(cur.mousemove !== prev.mousemove) div.onmousemove = cur.mousemove !== undefined ? this.handleEvent : undefined;
         if(cur.mouseup !== prev.mouseup) div.onmouseup = cur.mouseup !== undefined ? this.handleEvent : undefined;
+        if(cur.mousein !== prev.mousein) div.onmousein = cur.mousein !== undefined ? this.handleEvent : undefined;
+        if(cur.mouseout !== prev.mouseout) div.onmouseout = cur.mouseout !== undefined ? this.handleEvent : undefined;
+        if(cur.mouseleave !== prev.mouseleave) div.onmouseleave = cur.mouseleave !== undefined ? this.handleEvent : undefined;
         if(cur.mousewheel !== prev.mousewheel) div.onmouseheel = cur.mousewheel !== undefined ? this.handleEvent : undefined;
         if(cur.dragover !== prev.dragover) div.ondragover = cur.dragover !== undefined ? this.handleEvent : undefined;
         if(cur.dragstart !== prev.dragstart) div.ondragstart = cur.dragstart !== undefined ? this.handleEvent : undefined;
