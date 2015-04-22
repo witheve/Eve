@@ -1,6 +1,6 @@
 use value::{Value, Tuple, Relation, ToTuple};
 use index::{Index};
-use query::{Ref, ConstraintOp, Constraint, Source, Clause, Query, Call, CallArg, Match};
+use query::{Ref, ConstraintOp, Constraint, Source, Expression, Clause, Query, Call, CallArg, Match};
 use interpreter::{EveFn,Pattern};
 use flow::{View, Union, Node, Flow};
 
@@ -190,50 +190,50 @@ fn create_constraint(compiler: &Compiler, constraint: &Vec<Value>) -> Constraint
     }
 }
 
-fn create_clause(compiler: &Compiler, source: &Vec<Value>) -> Clause {
+fn create_source(compiler: &Compiler, source: &Vec<Value>) -> Source {
     let source_id = &source[SOURCE_ID];
     let source_view_id = &source[SOURCE_VIEW];
     let source_data = &source[SOURCE_DATA];
-    if source_data[0].to_string() == "view" {
-        let other_view_id = &source_data[1];
-        let upstream = compiler.upstream.iter().filter(|upstream| {
-            (upstream[UPSTREAM_DOWNSTREAM] == *source_view_id) &&
-            (upstream[UPSTREAM_UPSTREAM] == *other_view_id)
-        }).next().unwrap();
-        let other_view_ix = &upstream[UPSTREAM_IX];
-        let constraints = compiler.flow.get_state("constraint").iter().filter(|constraint| {
-            constraint[CONSTRAINT_LEFT][1] == *source_id
-        }).map(|constraint| {
-            create_constraint(compiler, constraint)
-        }).collect::<Vec<_>>();
-        match &*source[SOURCE_ACTION].to_string() {
-            "get-tuple" => {
-                Clause::Tuple(Source{
-                    relation: other_view_ix.to_usize().unwrap(),
-                    constraints: constraints,
-                })
-            }
-            "get-relation" => {
-                Clause::Relation(Source{
-                    relation: other_view_ix.to_usize().unwrap(),
-                    constraints: constraints,
-                })
-            }
-            other => panic!("Unknown view action: {}", other)
-        }
-    } else if source_data[0].to_string() == "call"  {
-
-        Clause::Call(create_call(compiler,&source_data[CALL_FUN],&source_data[CALL_ARGS]))
-
-    } else if source_data[0].to_string() == "match" {
-
-        Clause::Match(create_match(compiler,&source_data[MATCH_INPUT],&source_data[MATCH_PATTERNS],&source_data[MATCH_HANDLES]))
-
-    } else {
-
-        panic!("Can't compile {:?} yet",source_data[0].to_string())
+    let other_view_id = &source_data[1];
+    let upstream = compiler.upstream.iter().filter(|upstream| {
+        (upstream[UPSTREAM_DOWNSTREAM] == *source_view_id) &&
+        (upstream[UPSTREAM_UPSTREAM] == *other_view_id)
+    }).next().unwrap();
+    let other_view_ix = &upstream[UPSTREAM_IX];
+    let constraints = compiler.flow.get_state("constraint").iter().filter(|constraint| {
+        constraint[CONSTRAINT_LEFT][1] == *source_id
+    }).map(|constraint| {
+        create_constraint(compiler, constraint)
+    }).collect::<Vec<_>>();
+    Source{
+        relation: other_view_ix.to_usize().unwrap(),
+        constraints: constraints,
     }
+}
 
+fn create_expression(compiler: &Compiler, source_data: &Value) -> Expression {
+    match &*source_data[0].to_string() {
+        "call" => Expression::Call(create_call(compiler,&source_data[CALL_FUN],&source_data[CALL_ARGS])),
+        "match" => Expression::Match(create_match(compiler,&source_data[MATCH_INPUT],&source_data[MATCH_PATTERNS],&source_data[MATCH_HANDLES])),
+        other => panic!("Unknown expression type: {:?}", other),
+    }
+}
+
+fn create_clause(compiler: &Compiler, source: &Vec<Value>) -> Clause {
+    let source_data = &source[SOURCE_DATA];
+    match &*source_data[0].to_string() {
+        "view" => {
+            match &*source[SOURCE_ACTION].to_string() {
+                "get-tuple" => Clause::Tuple(create_source(compiler, source)),
+                "get-relation" => Clause::Relation(create_source(compiler, source)),
+                other => panic!("Unknown view action: {}", other),
+            }
+        }
+        "expression" => {
+            Clause::Expression(create_expression(compiler, source_data))
+        }
+        other => panic!("Unknown clause type: {:?}", other)
+    }
 }
 
 fn create_match(compiler: &Compiler, uiinput: &Value, uipatterns: &Value, uihandles: &Value) -> Match {
