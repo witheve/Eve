@@ -45,6 +45,27 @@ function now() {
   return (new Date()).getTime();
 }
 
+function clone(item) {
+  if (!item) { return item; }
+  var result;
+
+  if(item.constructor === Array) {
+    result = [];
+    item.forEach(function(child, index, array) {
+      result[index] = clone( child );
+    });
+  } else if(typeof item == "object") {
+    result = {};
+    for (var i in item) {
+      result[i] = clone( item[i] );
+    }
+  } else {
+    //it's a primitive
+    result = item;
+  }
+  return result;
+}
+
 function canvasRatio(context) {
   var devicePixelRatio = window.devicePixelRatio || 1;
   var backingStoreRatio = context.webkitBackingStorePixelRatio ||
@@ -129,6 +150,12 @@ function treeSelector() {
     }
   });
   //sort them by name
+  tables.sort(function(a, b) {
+    return code.name(a[0]).localeCompare(code.name(b[0]));
+  })
+  queries.sort(function(a, b) {
+    return code.name(a[0]).localeCompare(code.name(b[0]));
+  })
 
   var tableItems = tables.map(tableItem);
   var queryItems = queries.map(queryItem);
@@ -1044,10 +1071,8 @@ function viewCode(view, sources) {
     }
     entry.push(constraint);
   });
-  //@FIXME: add a calculation for testing
-//   var sources = sources.slice();
-//   sources.push([view, sources.length, uuid(), ["expression", ["call", "+", ["column", "e187047c-a957-43e3-a7a4-7ddb548fd5f2", "4d630964-96a9-4853-8ae8-1bdb411e53c7"], ["call", "-", ["constant", 4], ["constant", 2]]]], "get-tuple"]);
   var globalFilters = [];
+  var globalCalculations = [];
   var sourceElems = sources.map(function(cur) {
     var id = cur[2];
     var data = cur[3];
@@ -1056,14 +1081,22 @@ function viewCode(view, sources) {
 
       globalFilters.push(constraintItem(view, constraint));
     });
+    if(data[0] !== "view") {
+      globalCalculations.push(expressionItem(cur[3][1], [], cur));
+    }
   });
   var adderConstraints = ixer.index("adderConstraint")[view] || [];
   adderConstraints.forEach(function(cur) {
-    if(!removed[cur[1]]) {
+    if(!removed[cur[0]]) {
       globalFilters.push(constraintItem(view, cur, true));
     }
   });
-
+  var adderCalculations = ixer.index("adderCalculation")[view] || [];
+  adderCalculations.forEach(function(cur) {
+    if(!removed[cur[0]]) {
+      globalCalculations.push(expressionItem(cur[3], [], cur));
+    }
+  });
   return {c: "view-source-code", children: [
     {c: "view-container", children: [
       {children: [{c: "sub-title", text: "filters"}, {c: "icon ion-plus", click: newFilter, view: view}]},
@@ -1071,7 +1104,7 @@ function viewCode(view, sources) {
     ]},
     {c: "view-container", children: [
       {children: [{c: "sub-title", text: "calculations"}, {c: "icon ion-plus", click: newCalculation, view: view}]},
-      {c: "caluculations", children: []}
+      {c: "calculations", children: globalCalculations}
     ]}
   ]};
 }
@@ -1146,7 +1179,7 @@ function sourceToken(source, path, content) {
 }
 
 //---------------------------------------------------------
-// Expression
+// Token editor
 //---------------------------------------------------------
 
 var editorInfo = false;
@@ -1159,15 +1192,98 @@ function tokenEditor()  {
     editor = constraintEditor(editorInfo);
   } else if(editorInfo.editorType === "expression") {
     editor = expressionEditor(editorInfo);
-  } else if(editorInfo.editorType === "source") {
-    editor = sourceEditor(editorInfo);
   }
   return {c: "token-editor", top: rect.bottom + 5, left: rect.left - 35, children: [editor]};
 }
 
-function expressionEditor(tokenInfo) {
-  return genericEditor();
+function genericEditor(fields, functions, match, constant, defaultActive, onSelect, onInput) {
+  var active = defaultActive;
+  if(editorInfo !== false) {
+    active = editorInfo.tab || active;
+  }
+
+  var content;
+  if(active === "column") {
+    content = fields.map(function(cur) {
+      var name = code.refToName(cur);
+      return genericEditorOption(cur, onSelect, [
+        {c: "view", text: name.view},
+        {c: "field", text: name.field},
+      ]);
+    });
+  } else if(active === "function") {
+    content = functions.map(function(cur) {
+      if(typeof cur === "string") {
+        return genericEditorOption(cur, onSelect, cur);
+      } else {
+        return genericEditorOption(cur, onSelect, cur[1]);
+      }
+    });
+  } else if(active === "match") {
+
+  } else if(active === "constant") {
+    content = [{id: "constantEditor", c: "constant", click: focusChildInput, postRender: focusChildInput, children: [input(constant, null, onInput, closeTokenEditor)]}];
+  }
+  return {children: [
+    {c: "tabs", children: [
+      genericEditorTab("column", "ion-grid", active, fields),
+      genericEditorTab("function", "ion-ios-calculator", active, functions),
+      genericEditorTab("match", "ion-checkmark", active, match),
+      genericEditorTab("constant", "ion-compose", active, constant !== false),
+    ]},
+    {c: "options", children: content}
+  ]}
 }
+
+function closeTokenEditor(e, elem) {
+  e.preventDefault();
+  editorInfo = false;
+  rerender();
+}
+
+function focusChildInput(eventOrElement) {
+  if(eventOrElement.currentTarget && eventOrElement.currentTarget.firstChild) {
+    eventOrElement.currentTarget.firstChild.focus();
+  } else if(eventOrElement.firstChild) {
+    eventOrElement.firstChild.focus();
+  }
+}
+
+function genericEditorTab(type, icon, active, allowed) {
+  if(allowed) {
+    return {c: active === type ? "active" : "", tab: type, click: setTab, children: [{c: "icon " + icon}]};
+  }
+  return {c: "disabled", children: [{c: "icon " + icon}]};
+}
+
+function genericEditorOption(cur, selectOption, content) {
+  if(typeof content === "string") {
+    return {click: selectOption, cur: cur, text: content};
+  }
+  return {click: selectOption, cur: cur, children: content};
+}
+
+function setTab(e, elem) {
+  editorInfo.tab = elem.tab;
+  rerender();
+}
+
+function activateTokenEditor(e, elem) {
+  if(editorInfo && editorInfo.element === e.currentTarget) {
+    editorInfo = false;
+  } else {
+    editorInfo = {
+      editorType: elem.editorType,
+      element: e.currentTarget,
+      info: elem
+    }
+  }
+  rerender();
+}
+
+//---------------------------------------------------------
+// Constraint
+//---------------------------------------------------------
 
 function constraintEditor(tokenInfo) {
   var path = tokenInfo.info.path;
@@ -1181,8 +1297,11 @@ function constraintEditor(tokenInfo) {
   } else if(path === "right") {
 //     var type = code.refToType(constraint[0]);
     var refs = code.viewToRefs(viewId);
-    return genericEditor(refs, false, false, true, "column", updateConstraint);
+    return genericEditor(refs, false, false, "", "column", updateConstraint, updateConstraintConstant);
   }
+}
+
+function updateConstraintConstant(e, elem) {
 }
 
 function updateConstraint(e, elem) {
@@ -1207,124 +1326,6 @@ function updateConstraint(e, elem) {
     dispatch("updateConstraint", {old: editorInfo.info.constraint, neue: neue});
   }
   editorInfo = false;
-}
-
-function sourceEditor(tokenInfo) {
-  return genericEditor();
-}
-
-var editorInfo = false;
-
-function genericEditor(fields, functions, match, constant, defaultActive, onSelect) {
-  var active = defaultActive;
-  if(editorInfo !== false) {
-    active = editorInfo.tab || active;
-  }
-
-  var content;
-  if(active === "column") {
-    content = fields.map(function(cur) {
-      var name = code.refToName(cur);
-      return genericEditorOption(cur, onSelect, [
-        {c: "view", text: name.view},
-        {c: "field", text: name.field},
-      ]);
-    });
-  } else if(active === "function") {
-    content = functions.map(function(cur) {
-      return genericEditorOption(cur, onSelect, cur);
-    });
-  } else if(active === "match") {
-
-  } else if(active === "constant") {
-    content = [{children: [input()]}];
-  }
-  return {children: [
-    {c: "tabs", children: [
-      genericEditorTab("column", "ion-grid", active, fields),
-      genericEditorTab("function", "ion-ios-calculator", active, functions),
-      genericEditorTab("match", "ion-checkmark", active, match),
-      genericEditorTab("constant", "ion-compose", active, constant),
-    ]},
-    {c: "options", children: content}
-  ]}
-}
-
-function genericEditorTab(type, icon, active, allowed) {
-  if(allowed) {
-    return {c: active === type ? "active" : "", tab: type, click: setTab, children: [{c: "icon " + icon}]};
-  }
-  return {c: "disabled", children: [{c: "icon " + icon}]};
-}
-
-function genericEditorOption(cur, selectOption, content) {
-  if(typeof content === "string") {
-    return {click: selectOption, cur: cur, text: content};
-  }
-  return {click: selectOption, cur: cur, children: content};
-}
-
-function setTab(e, elem) {
-  editorInfo.tab = elem.tab;
-  rerender();
-}
-
-function activateTokenEditor(e, elem) {
-  if(editorInfo && editorInfo.info.path === elem.path) {
-    editorInfo = false;
-  } else {
-    editorInfo = {
-      editorType: elem.editorType,
-      element: e.currentTarget,
-      info: elem
-    }
-  }
-  rerender();
-}
-
-function expressionItem(expression, path, source) {
-  var type = expression[0];
-  if(type === "call") {
-    return callItem(expression, path, source);
-  } else if(type === "column") {
-    return expressionToken(source, path, code.refToName(expression).string, path);
-  } else if(type === "constant") {
-    return expressionToken(source, path.concat([1]), expression[1]);
-  } else if(type === "variable") {
-    return {text: "variable"};
-  } else if(type === "match") {
-    return {text: "match"};
-  } else if(type === "placeholder") {
-    return {text: "placeholder"};
-  }
-}
-
-var callInfo = {
-  "+": {args: ["number", "number"], infix: true},
-  "-": {args: ["number", "number"], infix: true},
-  "*": {args: ["number", "number"], infix: true},
-  "/": {args: ["number", "number"], infix: true},
-};
-function callItem(call, path, source) {
-  var op = call[1];
-  var info = callInfo[op];
-  var expression = [];
-  var opItem = {c: "token editable", text: op};
-  if(info.infix) {
-    expression.push(expressionItem(call[2], path, source),
-                    opItem,
-                    expressionItem(call[3], path, source))
-  } else {
-    expression.push(opItem);
-    for(var i = 2, len = call.length; i < len; i++) {
-      expression.push(expressionItem(call[i], path.concat([i]), source));
-    }
-  }
-  return {c: "call", children: expression};
-}
-
-function expressionToken(source, path, content) {
-  return {c: "token editable", editorType: "expression", source: source, click: activateTokenEditor, path: path, text: content};
 }
 
 function constraintItem(view, constraintOrAdder, isAdder) {
@@ -1362,8 +1363,154 @@ function constraintToken(view, constraint, path, content, isAdder) {
 }
 
 //---------------------------------------------------------
+// Expression
+//---------------------------------------------------------
+
+function expressionEditor(tokenInfo) {
+  var path = tokenInfo.info.path;
+  //This will either be an actual source or an adderCalculation
+  //row, we need to make sure we get the right index for the
+  //view.
+  var sourceOrAdder = tokenInfo.info.source;
+  var item = atPath(sourceOrAdder[3], path);
+  var viewId = sourceOrAdder[0];
+  if(sourceOrAdder.length === 4) {
+    viewId = sourceOrAdder[2];
+  }
+  var refs = code.viewToRefs(viewId)
+  var funcs = [];
+  for(var func in callInfo) {
+    funcs.push(["call", func]);
+  }
+  var startingTab = "function";
+  var constantValue = ""
+  if(path.length) {
+    var type = item[0];
+    if(type === "placeholder") {
+      startingTab = "column";
+    } else if(type === "constant") {
+      startingTab = "constant";
+      constantValue = item[1];
+    }
+  }
+  return genericEditor(refs, funcs, false, constantValue, startingTab, updateExpression, updateExpressionConstant);
+}
+
+function atPath(expression, path, offset) {
+  var offset = offset || 0;
+  var cursor = expression;
+  for(var ix = 0, len = path.length - offset; ix < len; ix++) {
+    cursor = cursor[path[ix]];
+  }
+  return cursor;
+}
+
+function updateExpressionConstant(e, elem) {
+  var value = coerceInput(e.currentTarget.textContent);
+  updateExpression(e, {cur: ["constant", value]}, true);
+}
+
+function updateExpression(e, elem, noDismiss) {
+  var isAdder = editorInfo.info.source.length === 4;
+  var expression;
+  if(isAdder) {
+    expression = clone(editorInfo.info.source[3]);
+  } else {
+    expression = clone(editorInfo.info.source[3][1]);
+  }
+  var path = editorInfo.info.path;
+  var finalValue = elem.cur;
+  if(path.length) {
+    var cursor = atPath(expression, path, 1);
+    cursor[path[path.length - 1]] = finalValue;
+  } else {
+    expression = finalValue;
+  }
+  //if it's a call, we need to add placeholders
+  if(finalValue[0] === "call") {
+    var info = callInfo[finalValue[1]];
+    info.args.forEach(function(cur) {
+      finalValue.push(["placeholder"]);
+    })
+  }
+  if(isAdder) {
+    dispatch("updateCalculation", {old: editorInfo.info.source, neue: expression});
+  } else {
+    var neue = editor.info.source.slice();
+    neue[3] = ["expression", expression];
+    dispatch("updateSource", {old: editorInfo.info.source, neue: neue});
+  }
+  if(!noDismiss) editorInfo = false;
+}
+
+function expressionItem(expression, path, source) {
+  var type = expression[0];
+  if(type === "call") {
+    return callItem(expression, path, source);
+  } else if(type === "column") {
+    var name = code.refToName(expression);
+    return expressionToken(source, path, [{c: "table", text: name.view}, {c: "field", text: name.field}], path);
+  } else if(type === "constant") {
+    return expressionToken(source, path, expression[1].toString());
+  } else if(type === "variable") {
+    return {text: "variable"};
+  } else if(type === "match") {
+    return {text: "match"};
+  } else if(type === "placeholder") {
+    return expressionToken(source, path, [{c: "placeholder", text: "placeholder"}]);
+  }
+}
+
+var callInfo = {
+  "+": {args: ["number", "number"], infix: true},
+  "-": {args: ["number", "number"], infix: true},
+  "*": {args: ["number", "number"], infix: true},
+  "/": {args: ["number", "number"], infix: true},
+};
+
+function callItem(call, path, source) {
+  var op = call[1];
+  var info = callInfo[op];
+  var expression = [];
+  var opItem = expressionToken(source, path, op);
+  if(info.infix) {
+    expression.push(expressionItem(call[2], path.concat([2]), source),
+                    opItem,
+                    expressionItem(call[3], path.concat([3]), source))
+  } else {
+    expression.push(opItem);
+    for(var i = 2, len = call.length; i < len; i++) {
+      expression.push(expressionItem(call[i], path.concat([i]), source));
+    }
+  }
+  return {c: "call", children: expression};
+}
+
+function expressionToken(source, path, content) {
+  var token = {c: "token editable", editorType: "expression", cur: content, source: source, click: activateTokenEditor, path: path};
+  if(typeof content === "string") {
+    token.text = content;
+  } else {
+    token.children = content;
+  }
+  return token;
+}
+
+function completedExpression(expression) {
+  //this means that there are no placeholders left in the tree
+  if(expression.constructor === Array) {
+    if(expression[0] === "placeholder") return false;
+    for(var i = 0, len = expression.length; i < len; i++) {
+      if(!completedExpression(expression[i])) return false;
+    }
+  }
+  return true;
+}
+
+//---------------------------------------------------------
 // Modals
 //---------------------------------------------------------
+
 function modalLayer() {
   var items = ixer.index("modal");
   var drawn = [];
@@ -1631,7 +1778,7 @@ function dispatch(event, info, returnInsteadOfSend) {
       }
       break;
     case "newFilter":
-      diffs.push(["adderConstraint", "inserted", [txId, txId, info.view, [["placeholder"], "=", ["placeholder"]]]]);
+      diffs.push(["adderConstraint", "inserted", [txId, uuid(), info.view, [["placeholder"], "=", ["placeholder"]]]]);
       break;
     case "updateFilter":
       var neueConstraint = info.neue;
@@ -1645,11 +1792,33 @@ function dispatch(event, info, returnInsteadOfSend) {
         //this is now a complete constraint, remove the adder and
         //add a real constraint for it
         diffs.push(["constraint", "inserted", neueConstraint],
-                   ["remove", "inserted", [info.old[1]]]);
+                   ["remove", "inserted", [info.old[0]]]);
       }
       break;
     case "newCalculation":
-      diffs.push(["adderCalculation", "inserted", [txId, txId, info.view, [["placeholder"]]]]);
+      diffs.push(["adderCalculation", "inserted", [txId, uuid(), info.view, ["placeholder"]]]);
+      break;
+    case "updateCalculation":
+      var neueCalculation = info.neue;
+      console.log("complete?", completedExpression(neueCalculation));
+      if(!completedExpression(neueCalculation)) {
+        //still unfinished
+        var neueAdder = info.old.slice();
+        neueAdder[0] = txId;
+        neueAdder[3] = neueCalculation;
+        diffs.push(["adderCalculation", "inserted", neueAdder]);
+      } else {
+        //this is now a complete calculation, remove the adder and
+        //add a source for it
+        var view = info.old[2];
+        var sources = ixer.index("viewToSources")[view];
+        diffs.push(["remove", "inserted", [info.old[0]]],
+                   ["source", "inserted", [view, sources.length, info.old[1], ["expression", neueCalculation], "get-tuple"]]);
+      }
+      break;
+    case "updateSource":
+      diffs.push(["source", "removed", info.old],
+                 ["source", "inserted", info.neue])
       break;
     case "updateRow":
       var neue = info.row.slice();
@@ -1691,7 +1860,6 @@ function dispatch(event, info, returnInsteadOfSend) {
       break;
 
     case "updateConstraint":
-      console.log(info.old, info.neue);
       diffs.push(["constraint", "removed", info.old],
                  ["constraint", "inserted", info.neue])
       break;

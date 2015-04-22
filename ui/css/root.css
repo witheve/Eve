@@ -125,6 +125,7 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .token.editable.active { border-bottom: 2px solid #fff; }
 .token.source { color: #ccc; }
 .token .table { font-size: 9pt; color: #999; }
+.token .placeholder { font-size: 9pt; color: #999; }
 
 .step { flex-direction: column; }
 .constraints { flex-direction: column; }
@@ -151,9 +152,12 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .token-editor .tabs .icon { font-size: 14pt; }
 .token-editor .options { flex:none; flex-wrap: wrap; width:200px; overflow-y: auto; align-content: flex-start; }
 .token-editor .options > div { flex: none; flex-direction:column; width:99px; height:36px;  padding:0 5px; background: #555; margin-left: 1px; margin-bottom:1px; justify-content:center; align-items:center; cursor: default; overflow: hidden; }
-.token-editor .options > div:hover { background: #555; color: #ccc; }
+.token-editor .options > div:hover { background: #777; color: #ddd; }
 .token-editor .options > div:hover .view { color: #bbb; }
 .token-editor .options .view { display:block; font-size: 8pt; justify-content:center; align-items:center; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color: #999; max-width: 80px; }
+.token-editor .options .constant { flex: 1; height:auto; }
+.token-editor .options .constant:hover { background: #555; }
+.token-editor .input { width: 100%; text-align:center;}
 
 /*-----------------------------------------------------------------------------
 - left bar
