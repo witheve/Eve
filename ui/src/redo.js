@@ -164,11 +164,13 @@ function treeSelector() {
   var uis = [];
   var componentIndex = ixer.index("uiComponentToLayers");
   for(var componentId in componentIndex) {
+    var uiChildren = componentIndex[componentId].slice();
     uis.push({componentId: componentId,
-             children: componentIndex[componentId]})
+             children: uiChildren})
   }
   //sort
   var uiItems = uis.map(uiItem);
+
   var items = tableItems.concat(queryItems, uiItems);
   return {c: "tree-selector", children: items};
 }
@@ -252,7 +254,8 @@ function uiGroupItem(group, activeLayerId, componentId) {
   groupEl.component = componentId;
   groupEl.layer = group.slice();
   groupEl.click = activateLayer;
-  groupEl.drop = uiElementDrop;
+  groupEl.drop = uiGroupDrop;
+  groupEl.dragstart = startDragUiGroup;
   groupEl.dragover = preventDefault;
   return groupEl;
 }
@@ -264,7 +267,11 @@ function uiItem(ui) {
   var controls = [];
   if(open) {
     var activeLayerId = ixer.index("uiActiveLayer")[client] ? ixer.index("uiActiveLayer")[client][ui.componentId] : undefined;
-    layers = (ui.children || []).map(function(cur) {
+    layers = (ui.children || [])
+    .sort(function(a, b) {
+      return a[3] - b[3];
+    })
+    .map(function(cur) {
       return uiGroupItem(cur, activeLayerId, ui.componentId);
     });
     controls = [{c: "add-layer ion-plus", componentId: ui.componentId, click: addLayer}];
@@ -298,19 +305,57 @@ function startDragUiItem(e, elem) {
   if(!elIds || elIds.indexOf(elem.control[1]) === -1) {
     elem.click(e, elem);
   }
-  startDragItem(e, elem);
+
+  e.dataTransfer.setData("type", "uiElementItem");
+  e.dataTransfer.setData("id", elem.id.slice(5));
+  e.stopPropagation();
+}
+function startDragUiGroup(e, elem) {
+  e.dataTransfer.setData("type", "uiGroupItem");
+  e.dataTransfer.setData("id", elem.id.slice(5));
+  e.stopPropagation();
 }
 
-function uiElementDrop(e, elem) {
+function uiGroupDrop(e, elem) {
   // @NOTE: Is there a way to retrieve element state by id?
-  if(e.dataTransfer.getData("type") === "treeItem") {
-    var id = draggedItemId.slice(5);
-
-    var sel = ixer.index("uiSelection")[client][elem.component];
-    var els = ixer.index("uiSelectionElements")[sel[1]];
-
+  if(e.dataTransfer.getData("type") === "uiElementItem") {
+    var id = e.dataTransfer.getData("id");
     dispatch("moveSelection", {componentId: elem.component, layer: elem.layer[1]});
     dispatch("activateUiLayer", {componentId: elem.component, layerId: elem.layer[1]});
+
+  } else if(e.dataTransfer.getData("type") === "uiGroupItem") {
+    var bounds = e.currentTarget.getBoundingClientRect();
+    var y = Math.floor(e.clientY - bounds.top);
+    var toLayer = (y / bounds.height > 0.5) ? elem.layer[3] + 1 : elem.layer[3];
+
+    var id = e.dataTransfer.getData("id");
+    var dropped = ixer.index("uiComponentLayer")[id].slice();
+    var fromLayer = dropped[3];
+    dropped[3] = toLayer;
+
+    var old = ixer.index("uiComponentToLayers")[elem.layer[2]].slice();
+    old.sort(function(a, b) {
+      return a[3] - b[3];
+    });
+    var neue = [];
+    // Collapse empty space before target.
+    for(var ix = fromLayer + 1; ix <= toLayer; ix++) {
+      if(old[ix]) {
+        var layer = old[ix].slice();
+        layer[3] -= 1;
+        neue.push(layer);
+      }
+    }
+    // Make space after target.
+    for(var ix = toLayer; ix < fromLayer; ix++) {
+      if(old[ix]) {
+        var layer = old[ix].slice();
+        layer[3] += 1;
+        neue.push(layer);
+      }
+    }
+    neue.push(dropped);
+    dispatch("updateUiLayers", {neue: neue});
   }
 }
 
@@ -1594,6 +1639,12 @@ function dispatch(event, info, returnInsteadOfSend) {
       var neue = info.neue;
       neue[0] = txId;
       diffs.push(["uiComponentLayer", "inserted", neue]);
+      break;
+    case "updateUiLayers":
+      info.neue.map(function(neue) {
+        neue[0] = txId;
+        diffs.push(["uiComponentLayer", "inserted", neue]);
+      });
       break;
     case "clearSelection":
       var sel = getUiSelection(info.componentId);

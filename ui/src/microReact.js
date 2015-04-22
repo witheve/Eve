@@ -55,7 +55,7 @@
           div = document.createElement(cur.t || "div");
           div._id = id;
           elementCache[id] = div;
-        } else if(type === "updated") {
+        } else if(type === "updated" || type === "moved") {
           div = elementCache[id];
         } else {
           //NOTE: Batching the removes such that you only remove the parent
@@ -118,7 +118,7 @@
         if(cur.input !== prev.input) div.oninput = cur.input !== undefined ? this.handleEvent : undefined;
         if(cur.keydown !== prev.keydown) div.onkeydown = cur.keydown !== undefined ? this.handleEvent : undefined;
 
-        if(type === "added" || type === "replaced") {
+        if(type === "added" || type === "replaced" || type === "moved") {
           var parentEl = elementCache[cur.parent];
           if(cur.ix >= parentEl.children.length) {
             parentEl.appendChild(div);
@@ -144,6 +144,10 @@
         }
         if(curA.t !== curB.t) {
           updated[as[i]] = "replaced";
+          continue;
+        }
+        if(curA.ix !== curB.ix) {
+          updated[as[i]] = "moved";
           continue;
         }
         if(curA.c === curB.c
@@ -177,6 +181,10 @@
         }
         if(curA.t !== curB.t) {
           updated[bs[i]] = "replaced";
+          continue;
+        }
+        if(curA.ix !== curB.ix) {
+          updated[as[i]] = "moved";
           continue;
         }
         if(curA.c === curB.c
