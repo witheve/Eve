@@ -5,6 +5,7 @@ use eve::index::*;
 use eve::flow::Flow;
 use eve::compiler::*;
 
+#[allow(dead_code)]
 fn main() {
     let mut flow = Flow::new();
     flow.change(vec![

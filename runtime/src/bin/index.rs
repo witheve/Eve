@@ -4,6 +4,7 @@ extern crate eve;
 
 use eve::index::*;
 
+#[allow(dead_code)]
 fn main() {
     let mut before = Index::new();
     before.insert("foo");
