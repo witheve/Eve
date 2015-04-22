@@ -575,7 +575,7 @@ function uiControls(componentId, activeLayer) {
 //---------------------------------------------------------
 
 function inspector(componentId, selectionInfo, layers, activeLayer) {
-  var inspectors = [layersControl(componentId, layers, activeLayer)];
+  var inspectors = [];
   if(selectionInfo) {
     inspectors.push(layoutInspector(selectionInfo),
                     appearanceInspector(selectionInfo),
@@ -943,23 +943,6 @@ function resizeSelection(e, elem) {
 //---------------------------------------------------------
 // ui layers
 //---------------------------------------------------------
-
-function layersControl(componentId, layers, activeLayer) {
-  var layerElems = layers.map(function(cur) {
-    var hidden = cur[5];
-    var locked = cur[4];
-    var name = code.name(cur[1]);
-    var active = activeLayer === cur ? " active" : "";
-    return {c: "layer" + active, click: activateLayer, layer: cur, children: [
-      {c: hidden ? "ion-eye-disabled" : "ion-eye", click: toggleHidden, layer: cur},
-//       {c: "ion-drag"},
-      input(name, cur[1], rename),
-      {c: locked ? "ion-locked" : "ion-unlocked", click: toggleLocked, layer: cur}
-    ]};
-  });
-  layerElems.push({c: "add-layer ion-plus", componentId: componentId, click: addLayer});
-  return {c: "layers", children: layerElems};
-}
 
 function addLayer(e, elem) {
   dispatch("addUiComponentLayer", {componentId: elem.componentId});
