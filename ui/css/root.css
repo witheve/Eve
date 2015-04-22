@@ -148,6 +148,9 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 
 .tree-selector { flex-direction:column; overflow:auto; }
 .tree-item { padding:3px 10px; flex: none; flex-direction:column; cursor: default; }
+.tree-item > .item { flex-direction: row; }
+.tree-item > .item > .name { flex: 1; text-overflow: ellipsis; }
+.tree-item > .controls { float: right; }
 .sub-items { flex-direction: column; }
 .sub-items .tree-item { padding-left: 15px; }
 .tree-item .icon { width: 24px; justify-content:center; }

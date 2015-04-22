@@ -146,12 +146,13 @@ function treeSelector() {
   return {c: "tree-selector", children: items};
 }
 
-function treeItem(klass, id, name, icon, children) {
+function treeItem(klass, id, name, icon, children, controls) {
   return {c: "tree-item " + klass, draggable: true, dragstart: startDragItem, dragend: stopDragItem,
           click: openItem, id:id, children: [
             {c: "item", children: [
               {c: "icon " + icon},
-              {text: name},
+              {c: "name", text: name},
+              controls ? {c: "controls", children: controls} : undefined
             ]},
             children ? {c: "sub-items", children: children} : undefined
           ]};
@@ -221,13 +222,15 @@ function uiItem(ui) {
   var name = code.name(ui.componentId);
   var open = ixer.index("openEditorItem")[client] === ui.componentId;
   var layers = [];
+  var controls = [];
   if(open) {
     var activeLayerId = ixer.index("uiActiveLayer")[client] ? ixer.index("uiActiveLayer")[client][ui.componentId] : undefined;
     layers = (ui.children || []).map(function(cur) {
       return uiGroupItem(cur, activeLayerId);
     });
+    controls = [{c: "add-layer ion-plus", componentId: ui.componentId, click: addLayer}];
   }
-  return treeItem("ui", ui.componentId, name, "ion-image", layers);
+  return treeItem("ui", ui.componentId, name, "ion-image", layers, controls);
 }
 
 var draggedItemId;
