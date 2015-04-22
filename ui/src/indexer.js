@@ -288,6 +288,7 @@ var Indexing = (function() {
     //   keys: [], //keys to index on
     //   uniqueness: [] //keys that determine uniqueness when testing for latest
     // }
+    // @FIXME: Broken leaves ghost copies when migrating across keys.
     latestCollector: function(opts) {
       var keyIxes = opts.keys;
       var uniques = opts.uniqueness;
