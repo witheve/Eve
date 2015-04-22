@@ -39,7 +39,9 @@ fn main() {
     let i = CallArg::Ref(Ref::Constant{value: 5f64.to_value()});
 
     let query = Query{clauses: vec![
-        Clause::Match(Match{input: i, patterns: p, handlers: h}),
+        Clause::Expression(
+            Expression::Match(Match{input: i, patterns: p, handlers: h})
+            ),
     ]};
 
 
