@@ -30,7 +30,7 @@ impl ops::Index<usize> for Value {
     fn index(&self, index: usize) -> &Value {
         match *self {
             Value::Tuple(ref tuple) => tuple.index(index),
-            _ => panic!("Indexing a non-tuple value"),
+            _ => panic!("Cannot index into this non-tuple value: {:?}", self),
         }
     }
 }
@@ -60,14 +60,14 @@ impl Value {
     pub fn as_str(&self) -> &str {
         match *self {
             Value::String(ref string) => &*string,
-            _ => panic!("Not a string: {:?}", self),
+            _ => panic!("Cannot convert this to string: {:?}", self),
         }
     }
 
     pub fn as_slice(&self) -> &[Value] {
         match *self {
             Value::Tuple(ref tuple) => &*tuple,
-            _ => panic!("Not a tuple: {:?}", self),
+            _ => panic!("Cannot convert this to tuple: {:?}", self),
         }
     }
 }
