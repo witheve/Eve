@@ -146,12 +146,13 @@ function treeSelector() {
   return {c: "tree-selector", children: items};
 }
 
-function treeItem(klass, id, name, icon, children) {
+function treeItem(klass, id, name, icon, children, controls) {
   return {c: "tree-item " + klass, draggable: true, dragstart: startDragItem, dragend: stopDragItem,
           click: openItem, id:id, children: [
             {c: "item", children: [
               {c: "icon " + icon},
-              {text: name},
+              {c: "name", text: name},
+              controls ? {c: "controls", children: controls} : undefined
             ]},
             children ? {c: "sub-items", children: children} : undefined
           ]};
@@ -221,13 +222,15 @@ function uiItem(ui) {
   var name = code.name(ui.componentId);
   var open = ixer.index("openEditorItem")[client] === ui.componentId;
   var layers = [];
+  var controls = [];
   if(open) {
     var activeLayerId = ixer.index("uiActiveLayer")[client] ? ixer.index("uiActiveLayer")[client][ui.componentId] : undefined;
     layers = (ui.children || []).map(function(cur) {
       return uiGroupItem(cur, activeLayerId);
     });
+    controls = [{c: "add-layer ion-plus", componentId: ui.componentId, click: addLayer}];
   }
-  return treeItem("ui", ui.componentId, name, "ion-image", layers);
+  return treeItem("ui", ui.componentId, name, "ion-image", layers, controls);
 }
 
 var draggedItemId;
@@ -305,6 +308,13 @@ function updateAdder(e, elem) {
                               ix: elem.key.ix});
 }
 
+function updateRow(e, elem) {
+  dispatch("updateRow", {value: coerceInput(e.currentTarget.textContent),
+                         view: elem.key.view,
+                         row: elem.key.row,
+                         ix: elem.key.ix});
+}
+
 
 var virtualPos = 0;
 function virtualScroll(e, elem) {
@@ -333,11 +343,21 @@ function virtualizedTable(id, fields, rows, adderRows) {
 //     }
 //     trs.push({c: "row", children: tds});
 //   }
+
+  // @NOTE: We check for the existence of adderRows to determine if the table is editable. This is somewhat surprising.
+  var isEditable = adderRows && adderRows.length;
   var trs = [];
   rows.forEach(function(cur) {
     var tds = [];
     for(var tdIx = 0, len = cur.length; tdIx < len; tdIx++) {
-      tds[tdIx] = {c: "field", text: cur[tdIx]};
+      tds[tdIx] = {c: "field"};
+
+      // @NOTE: We can hoist this if perf is an issue.
+      if(isEditable) {
+        tds[tdIx].children = [input(cur[tdIx], {row: cur, ix: tdIx, view: id}, updateRow)];
+      } else {
+        tds[tdIx].text = cur[tdIx];
+      }
     }
     trs.push({c: "row", children: tds});
   })
@@ -400,7 +420,11 @@ function tableWorkspace(view) {
     return {name: code.name(cur[2]), id: cur[2]};
   });
   var rows = ixer.facts(view);
-  var adderRows = ixer.index("adderRows")[view] || [];
+  var adderRows = (ixer.index("adderRows")[view] || [])
+  .filter(function(row) {
+    var txId = row[0];
+    return !ixer.index("remove")[txId];
+  });
   return {c: "workspace-content column", children: [
     {c: "title", children: [
       input(code.name(view), view, rename)
@@ -444,17 +468,59 @@ function uiWorkspace(componentId) {
     els.push(selection(selectionInfo));
 //     els.push(uiGrid(componentId, activeLayer[3], {width: tileRect.width,  height: tileRect.height}));
   }
-  return {c: "workspace-content column ui-workspace", mousedown: clearSelection, componentId: componentId, children: [
+  var box = ixer.index("uiBoxSelection")[componentId];
+  if(box) {
+    if(!ixer.index("remove")[box[0]] && box[4] != -1) {
+      var boxEl = {c: "ui-box-selection",
+                   left: (box[2] <= box[4] ? box[2] : box[4]),
+                   right: (box[2] > box[4] ? box[2] : box[4]),
+                   top: (box[3] <= box[5] ? box[3] : box[5]),
+                   bottom: (box[3] > box[5] ? box[3] : box[5])};
+      boxEl.width = boxEl.right - boxEl.left;
+      boxEl.right = undefined;
+      boxEl.height = boxEl.bottom - boxEl.top;
+      boxEl.bottom = undefined;
+      els.push(boxEl);
+    }
+  }
+  return {c: "workspace-content column ui-workspace", componentId: componentId, children: [
     {c: "title", children: [
       input(code.name(componentId), componentId, rename)
     ]},
     {c: "container", children: [
       uiControls(componentId, activeLayer),
-      {c: "ui-canvas", children: els},
+      {c: "ui-canvas", componentId: componentId, children: els, mousedown: startBoxSelect, mousemove: updateBoxSelect, mouseup: endBoxSelect, mouseleave: endBoxSelect},
       inspector(componentId, selectionInfo, layers, activeLayer)
     ]}
   ]};
 }
+
+function startBoxSelect(evt, el) {
+  if(!evt.shiftKey) { clearSelection(evt, el); }
+  return updateBoxSelect(evt, el, true);
+}
+function updateBoxSelect(evt, el, forceUpdate) {
+  var box = ixer.index("uiBoxSelection")[el.componentId];
+  if(box && ixer.index("remove")[box[0]]) { box = undefined; }
+  if(!forceUpdate && !box) { return; }
+  evt.stopPropagation();
+  var x = Math.floor(evt.clientX);
+  var y = Math.floor(evt.clientY);
+  var canvasRect = evt.currentTarget.getBoundingClientRect();
+  x -= Math.floor(canvasRect.left);
+  y -= Math.floor(canvasRect.top);
+  dispatch("updateBoxSelect", {componentId: el.componentId, x: x, y: y});
+}
+function endBoxSelect(evt, el) {
+  evt.stopPropagation();
+  var x = Math.floor(evt.clientX);
+  var y = Math.floor(evt.clientY);
+  var canvasRect = evt.currentTarget.getBoundingClientRect();
+  x -= Math.floor(canvasRect.left);
+  y -= Math.floor(canvasRect.top);
+  dispatch("endBoxSelect", {componentId: el.componentId, x: x, y: y});
+}
+
 
 //---------------------------------------------------------
 // ui control
@@ -469,7 +535,7 @@ function control(cur, attrs, selected, layer) {
   var klass = type + " control" + selClass + hidden + locked;
   var elem = {c: klass, id: id, left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6],
               control: cur, mousedown: addToSelection, selected: selected, zIndex: layer[3] + 1,
-              draggable: true, drag: moveSelection, dragstart: startMoveSelection};
+              draggable: true, drag: moveSelection, dragstart: startMoveSelection, opacity: 3};
   if(!attrs) return elem;
   for(var i = 0, len = attrs.length; i < len; i++) {
     var curAttr = attrs[i];
@@ -509,7 +575,7 @@ function uiControls(componentId, activeLayer) {
 //---------------------------------------------------------
 
 function inspector(componentId, selectionInfo, layers, activeLayer) {
-  var inspectors = [layersControl(componentId, layers, activeLayer)];
+  var inspectors = [];
   if(selectionInfo) {
     inspectors.push(layoutInspector(selectionInfo),
                     appearanceInspector(selectionInfo),
@@ -585,6 +651,8 @@ function appearanceInspector(selectionInfo) {
                           inspectorInput(attrs["border"], [componentId, "border"], setAttribute)]},
     {c: "pair", children: [{c: "label", text: "radius"},
                           inspectorInput(attrs["borderRadius"], [componentId, "borderRadius"], setAttribute)]},
+    {c: "pair", children: [{c: "label", text: "opacity"},
+                          inspectorInput(attrs["opacity"], [componentId, "opacity"], setAttribute)]},
   ]};
 }
 
@@ -701,7 +769,7 @@ function getSelectionInfo(componentId, withAttributes) {
     var attributes = {};
     var elementIndex = ixer.index("uiComponentElement");
     var attrsIndex = ixer.index("uiElementToAttrs");
-    elements = ixer.index("uiSelectionElements")[sel[1]].map(function(cur) {
+    elements = (ixer.index("uiSelectionElements")[sel[1]] || []).map(function(cur) {
       var id = cur[1];
       ids[id] = true;
       if(withAttributes !== undefined) {
@@ -790,7 +858,7 @@ function clearSelection(e, elem) {
 
 function addToSelection(e, elem) {
   e.stopPropagation();
-  if(elem.selected) return;
+  if(!e.shiftKey && elem.selected) { return; }
   var createNew = false;
   if(!e.shiftKey) {
     createNew = true;
@@ -875,23 +943,6 @@ function resizeSelection(e, elem) {
 //---------------------------------------------------------
 // ui layers
 //---------------------------------------------------------
-
-function layersControl(componentId, layers, activeLayer) {
-  var layerElems = layers.map(function(cur) {
-    var hidden = cur[5];
-    var locked = cur[4];
-    var name = code.name(cur[1]);
-    var active = activeLayer === cur ? " active" : "";
-    return {c: "layer" + active, click: activateLayer, layer: cur, children: [
-      {c: hidden ? "ion-eye-disabled" : "ion-eye", click: toggleHidden, layer: cur},
-//       {c: "ion-drag"},
-      input(name, cur[1], rename),
-      {c: locked ? "ion-locked" : "ion-unlocked", click: toggleLocked, layer: cur}
-    ]};
-  });
-  layerElems.push({c: "add-layer ion-plus", componentId: componentId, click: addLayer});
-  return {c: "layers", children: layerElems};
-}
 
 function addLayer(e, elem) {
   dispatch("addUiComponentLayer", {componentId: elem.componentId});
@@ -1413,17 +1464,38 @@ function dispatch(event, info, returnInsteadOfSend) {
       }
       break;
     case "selectElements":
+      var diffs = [];
       var sel = getUiSelection(info.componentId);
       if(sel && ixer.index("remove")[sel[0]]) { sel = null; }
+      var elIds = [];
+      var neueElIds = [];
+
       var id = uuid();
-      if(info.createNew || !sel) {
-        diffs.push(["uiSelection", "inserted", [txId, id, client, info.componentId]]);
-      } else {
-        id = sel[1];
+      if(!info.createNew && sel) {
+        elIds = (ixer.index("uiSelectionElements")[sel[1]] || elIds).map(function(el) {
+          return el[1];
+        });
       }
+
       info.elements.forEach(function(cur) {
+        var existingIx = elIds && elIds.indexOf(cur);
+        if(!elIds || existingIx === -1) {
+          elIds.push(cur);
+        } else {
+          elIds.splice(existingIx, 1);
+        }
+      });
+
+      elIds.forEach(function(cur) {
         diffs.push(["uiSelectionElement", "inserted", [id, cur]]);
       });
+
+      if(elIds.length) {
+        diffs.push(["uiSelection", "inserted", [txId, id, client, info.componentId]]);
+      } else if(sel) {
+        diffs.push(["remove", "inserted", [sel[0]]]);
+      }
+
       var first = ixer.index("uiComponentElement")[info.elements[0]];
       var activeLayer = ixer.index("uiActiveLayer")[client] ? ixer.index("uiActiveLayer")[client][info.componentId] : null;
       if(first && first[3] !== activeLayer) {
@@ -1496,6 +1568,55 @@ function dispatch(event, info, returnInsteadOfSend) {
         diffs.push(["uiComponentElement", "inserted", neue]);
       });
       break;
+    case "updateBoxSelect":
+      var box = ixer.index("uiBoxSelection")[info.componentId];
+      if(box && ixer.index("remove")[box[0]]) { box = undefined; }
+      if(!box) {
+        box = [txId, info.componentId, info.x, info.y, -1, -1];
+      } else {
+        box = box.slice();
+        box[0] = txId;
+        box[4] = info.x;
+        box[5] = info.y;
+      }
+      diffs.push(["uiBoxSelection", "inserted", box]);
+      break;
+    case "endBoxSelect":
+      var SELECTION_THRESHOLD = 16;
+      var box = ixer.index("uiBoxSelection")[info.componentId];
+      if(box && ixer.index("remove")[box[0]]) { box = undefined; }
+      if(!box) { break; }
+      diffs.push(["remove", "inserted", [box[0]]]);
+
+      var elements = ixer.index("uiComponentToElements")[info.componentId];
+      var layers = ixer.index("uiComponentLayer");
+      var bounds = {left: (box[2] <= box[4] ? box[2] : box[4]),
+                    right: (box[2] > box[4] ? box[2] : box[4]),
+                    top: (box[3] <= box[5] ? box[3] : box[5]),
+                    bottom: (box[3] > box[5] ? box[3] : box[5])};
+
+      if(!elements || box[4] == -1
+         || bounds.right - bounds.left < SELECTION_THRESHOLD
+         && bounds.bottom - bounds.top < SELECTION_THRESHOLD) { break; }
+
+      var selections = [];
+      elements.forEach(function(el) {
+        // If element is out of bounds, skip it.
+        var elBounds = {left: el[5], top: el[6], right: el[7], bottom: el[8]};
+        if(elBounds.left > bounds.right
+           || elBounds.right < bounds.left
+           || elBounds.top > bounds.bottom
+           || elBounds.bottom < bounds.top) {
+          return;
+        }
+        // If layer is locked or hidden, skip it.
+        var layer = layers[el[3]];
+        if(!layer || layer[4] || layer[5]) { return; }
+        selections.push(el[1]);
+      });
+
+      diffs = diffs.concat(dispatch("selectElements", {createNew: false, elements: selections, componentId: info.componentId}, true));
+      break;
 
     case "updateAdderRow":
       var neue = info.row.slice();
@@ -1508,16 +1629,21 @@ function dispatch(event, info, returnInsteadOfSend) {
       neue[0] = txId;
       neue[3] = neue[3].slice();
       neue[3][info.ix] = info.value;
-      diffs.push(["adderRow", "inserted", neue]);
+
       if(neue[3].length === fieldsLength) {
-        console.log("adding", neue[3]);
-        //we may need to remove the old one
-        if(info.row[3].length === fieldsLength) {
-        console.log("removing", info.row[3]);
-          diffs.push([view, "removed", info.row[3]]);
-        }
+        diffs.push(["remove", "inserted", [info.row[0]]]);
         diffs.push([view, "inserted", neue[3]]);
+      } else {
+        diffs.push(["adderRow", "inserted", neue]);
       }
+      break;
+    case "updateRow":
+      var neue = info.row.slice();
+      neue[info.ix] = info.value;
+
+      //we may need to remove the old one
+      diffs.push([info.view, "removed", info.row]);
+      diffs.push([info.view, "inserted", neue]);
       break;
     case "addColumn":
       var viewId = info.view;
@@ -1797,6 +1923,7 @@ ixer.addIndex("uiElementToAttr", "uiComponentAttribute", Indexing.create.latestL
 ixer.addIndex("uiSelection", "uiSelection", Indexing.create.latestLookup({keys: [2, 3, false]}));
 ixer.addIndex("uiSelectionElements", "uiSelectionElement", Indexing.create.collector([0]));
 ixer.addIndex("uiActiveLayer", "uiActiveLayer", Indexing.create.latestLookup({keys: [2, 1, 3]}));
+ixer.addIndex("uiBoxSelection", "uiBoxSelection", Indexing.create.latestLookup({keys: [1, false]}));
 
 // State
 ixer.addIndex("searchValue", "searchValue", Indexing.create.latestLookup({keys: [1, 2]}));
@@ -1826,6 +1953,7 @@ function initIndexer() {
   add("uiSelection", {tx: "number", id: "id", client: "string", component: "id"}, [], "uiSelection", ["table"]);
   add("uiSelectionElement", {id: "id", element: "id"}, [], "uiSelectionElement", ["table"]);
   add("uiActiveLayer", {tx: "number", component: "id", client: "id", layer: "id"}, [], "uiActiveLayer", ["table"]);
+  add("uiBoxSelection", {tx: "number", component: "id", x0: "number", y0: "number", x1: "number", y1: "number"}, [], "uiBoxSelection", ["table"]);
 
   // editor item
   add("editorItem", {id: "id", type: "table|query|ui"}, [], "editorItem", ["table"]);

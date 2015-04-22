@@ -76,6 +76,8 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .ui-canvas .control.selected { border: 1px solid #555; }
 .ui-canvas .control { position:absolute; background-size:contain !important; background-repeat: no-repeat !important; }
 
+.ui-box-selection { position: absolute; border: 1px solid #555; pointer-events: none; z-index: 101; }
+
 .selection { position:absolute; border: 1px solid #555; pointer-events: none; z-index:100; }
 .selection .trash { position:absolute; top: -40px; right: -40px; font-size: 20pt; color: #555; padding:4px 10px; pointer-events:auto; border-radius:2px; }
 .selection .trash:hover { background: #833; color: #fcc; }
@@ -162,6 +164,9 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 
 .tree-selector { flex-direction:column; overflow:auto; }
 .tree-item { padding:3px 10px; flex: none; flex-direction:column; cursor: default; }
+.tree-item > .item { flex-direction: row; }
+.tree-item > .item > .name { flex: 1; text-overflow: ellipsis; }
+.tree-item > .controls { float: right; }
 .sub-items { flex-direction: column; }
 .sub-items .tree-item { padding-left: 15px; }
 .tree-item .icon { width: 24px; justify-content:center; }

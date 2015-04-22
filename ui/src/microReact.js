@@ -68,7 +68,7 @@
           continue;
         }
 
-        style = div.style;
+        var style = div.style;
 
         if(cur.c !== prev.c) div.className = cur.c;
         if(cur.draggable !== prev.draggable) div.draggable = cur.draggable;
@@ -87,6 +87,7 @@
         }
         if(cur.border !== prev.border) style.border = cur.border;
         if(cur.borderRadius !== prev.borderRadius) style.borderRadius = cur.borderRadius;
+        if(cur.opacity !== prev.opacity) style.opacity = cur.opacity;
         if(cur.fontSize !== prev.fontSize) style.fontSize = cur.fontSize;
         if(cur.textAlign !== prev.textAlign) style.justifyContent = cur.textAlign;
         if(cur.verticalAlign !== prev.verticalAlign) style.alignItems = cur.verticalAlign;
@@ -100,6 +101,11 @@
         if(cur.click !== prev.click) div.onclick = cur.click !== undefined ? this.handleEvent : undefined;
         if(cur.contextmenu !== prev.contextmenu) div.oncontextmenu = cur.contextmenu !== undefined ? this.handleEvent : undefined;
         if(cur.mousedown !== prev.mousedown) div.onmousedown = cur.mousedown !== undefined ? this.handleEvent : undefined;
+        if(cur.mousemove !== prev.mousemove) div.onmousemove = cur.mousemove !== undefined ? this.handleEvent : undefined;
+        if(cur.mouseup !== prev.mouseup) div.onmouseup = cur.mouseup !== undefined ? this.handleEvent : undefined;
+        if(cur.mousein !== prev.mousein) div.onmousein = cur.mousein !== undefined ? this.handleEvent : undefined;
+        if(cur.mouseout !== prev.mouseout) div.onmouseout = cur.mouseout !== undefined ? this.handleEvent : undefined;
+        if(cur.mouseleave !== prev.mouseleave) div.onmouseleave = cur.mouseleave !== undefined ? this.handleEvent : undefined;
         if(cur.mousewheel !== prev.mousewheel) div.onmouseheel = cur.mousewheel !== undefined ? this.handleEvent : undefined;
         if(cur.dragover !== prev.dragover) div.ondragover = cur.dragover !== undefined ? this.handleEvent : undefined;
         if(cur.dragstart !== prev.dragstart) div.ondragstart = cur.dragstart !== undefined ? this.handleEvent : undefined;
@@ -153,6 +159,7 @@
            && curA.color === curB.color
            && curA.border === curB.border
            && curA.borderRadius === curB.borderRadius
+           && curA.opacity === curB.opacity
            && curA.fontFamily === curB.fontFamily
            && curA.fontSize === curB.fontSize
            && curA.textAlign === curB.textAlign
@@ -185,6 +192,7 @@
            && curA.color === curB.color
            && curA.border === curB.border
            && curA.borderRadius === curB.borderRadius
+           && curA.opacity === curB.opacity
            && curA.fontFamily === curB.fontFamily
            && curA.fontSize === curB.fontSize
            && curA.textAlign === curB.textAlign
