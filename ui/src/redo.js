@@ -81,7 +81,7 @@ function root() {
           children: [
             leftBar(),
             workspace(),
-            modalLayer()
+            tokenEditor(),
           ]};
 }
 
@@ -1031,12 +1031,14 @@ function viewCode(view, sources) {
     var id = cur[2];
     var data = cur[3];
     var constraints = sourceToConstraints[id] || [];
-    var constraintItems = constraints.map(constraintItem);
+    var constraintItems = constraints.map(function(constraint) {
+      return constraintItem(cur, constraint);
+    });
     if(data[0] === "view") {
       return {c: "step", children: [
         {children: [
           {t: "span", c: "token", text: "with "},
-          viewToken("each row"),
+          sourceToken(cur, 4,"each row"),
           {t: "span", c: "token", text: " of "},
           {t: "span", c: "token", text: code.name(data[1])}
         ]},
@@ -1055,9 +1057,6 @@ function viewCode(view, sources) {
 
   // Add Source btn
   sourceElems.push({c: "view-query-builder", children: [
-    {t: "button", c: "add-source-btn btn", text: "Add Step", click: function() {
-      console.log("clicked", arguments);
-    }},
     {t: "button", c: "add-calculation-btn btn", text: "Calculate", click: function() {
       console.log("clicked", arguments);
     }}
@@ -1123,22 +1122,153 @@ function viewResults(sources, results) {
   ]};
 }
 
-function viewToken(cur) {
-  return {c: "token editable", text: cur};
+function sourceToken(source, path, content) {
+  return {c: "token editable", editorType: "source", source: source, click: activateTokenEditor, path: path, text: content};
 }
 
 //---------------------------------------------------------
 // Expression
 //---------------------------------------------------------
 
-function expressionItem(expression, path) {
+var editorInfo = false;
+
+function tokenEditor()  {
+  if(editorInfo === false) return;
+  var rect = editorInfo.element.getBoundingClientRect();
+  var editor;
+  if(editorInfo.editorType === "constraint") {
+    editor = constraintEditor(editorInfo);
+  } else if(editorInfo.editorType === "expression") {
+    editor = expressionEditor(editorInfo);
+  } else if(editorInfo.editorType === "source") {
+    editor = sourceEditor(editorInfo);
+  }
+  return {c: "token-editor", top: rect.bottom + 5, left: rect.left - 35, children: [editor]};
+}
+
+function expressionEditor(tokenInfo) {
+  return genericEditor();
+}
+
+function constraintEditor(tokenInfo) {
+  var path = tokenInfo.info.path;
+  var source = tokenInfo.info.source;
+  var constraint = tokenInfo.info.constraint;
+  if(path === "op") {
+    return genericEditor(false, ["=", "!=", ">", "<", ">=", "<="], false, false, "function", updateConstraint);
+  } else if(path === "left") {
+    var data = source[3];
+    if(data[0] === "view") {
+      var refs = code.viewToRefs(source[0], source[2])
+      return genericEditor(refs, false, false, false, "column", updateConstraint);
+    } else {
+      //calculation
+      return genericEditor([], false, false, false, "column", updateConstraint);
+    }
+  } else if(path === "right") {
+    var type = code.refToType(constraint[0]);
+    var refs = code.viewToRefs(source[0], false, type);
+    return genericEditor(refs, false, false, true, "column", updateConstraint);
+  }
+}
+
+function updateConstraint(e, elem) {
+  var path = editorInfo.info.path;
+  var neue = editorInfo.info.constraint.slice();
+  if(path === "left") {
+    neue[0] = elem.cur;
+    dispatch("updateConstraint", {old: editorInfo.info.constraint, neue: neue});
+  } else if(path === "right") {
+    neue[2] = elem.cur;
+    dispatch("updateConstraint", {old: editorInfo.info.constraint, neue: neue});
+  } else if(path === "op") {
+    neue[1] = elem.cur;
+    dispatch("updateConstraint", {old: editorInfo.info.constraint, neue: neue});
+  }
+  editorInfo = false;
+}
+
+function sourceEditor(tokenInfo) {
+  return genericEditor();
+}
+
+var editorInfo = false;
+
+function genericEditor(fields, functions, match, constant, defaultActive, onSelect) {
+  var active = defaultActive;
+  if(editorInfo !== false) {
+    active = editorInfo.tab || active;
+  }
+
+  var content;
+  if(active === "column") {
+    content = fields.map(function(cur) {
+      var name = code.refToName(cur);
+      return genericEditorOption(cur, onSelect, [
+        {c: "field", text: name.field},
+        {c: "view", text: name.view}
+      ]);
+    });
+  } else if(active === "function") {
+    content = functions.map(function(cur) {
+      return genericEditorOption(cur, onSelect, cur);
+    });
+  } else if(active === "match") {
+
+  } else if(active === "constant") {
+    content = [{children: [input()]}];
+  }
+  return {children: [
+    {c: "tabs", children: [
+      genericEditorTab("column", "ion-grid", active, fields),
+      genericEditorTab("function", "ion-ios-calculator", active, functions),
+      genericEditorTab("match", "ion-checkmark", active, match),
+      genericEditorTab("constant", "ion-compose", active, constant),
+    ]},
+    {c: "options", children: content}
+  ]}
+}
+
+function genericEditorTab(type, icon, active, allowed) {
+  if(allowed) {
+    return {c: active === type ? "active" : "", tab: type, click: setTab, children: [{c: "icon " + icon}]};
+  }
+  return {c: "disabled", children: [{c: "icon " + icon}]};
+}
+
+function genericEditorOption(cur, selectOption, content) {
+  if(typeof content === "string") {
+    return {click: selectOption, cur: cur, text: content};
+  }
+  return {click: selectOption, cur: cur, children: content};
+}
+
+function setTab(e, elem) {
+  editorInfo.tab = elem.tab;
+  rerender();
+}
+
+function activateTokenEditor(e, elem) {
+  if(editorInfo && editorInfo.info.path === elem.path) {
+    editorInfo = false;
+  } else {
+    editorInfo = {
+      editorType: elem.editorType,
+      element: e.currentTarget,
+      info: elem
+    }
+  }
+  rerender();
+}
+
+function expressionItem(expression, path, source) {
   var type = expression[0];
   if(type === "call") {
-    return callItem(expression, path);
+    return callItem(expression, path, source);
   } else if(type === "column") {
-    return viewToken(code.refToName(expression).string, path);
+    return expressionToken(source, path, code.refToName(expression).string, path);
   } else if(type === "constant") {
-    return viewToken(expression[1], path.concat([1]));
+    return expressionToken(source, path.concat([1]), expression[1]);
   } else if(type === "variable") {
     return {text: "variable"};
   } else if(type === "match") {
@@ -1154,31 +1284,39 @@ var callInfo = {
   "*": {args: ["number", "number"], infix: true},
   "/": {args: ["number", "number"], infix: true},
 };
-function callItem(call, path) {
+function callItem(call, path, source) {
   var op = call[1];
   var info = callInfo[op];
   var expression = [];
   var opItem = {c: "token editable", text: op};
   if(info.infix) {
-    expression.push(expressionItem(call[2], path),
+    expression.push(expressionItem(call[2], path, source),
                     opItem,
-                    expressionItem(call[3], path))
+                    expressionItem(call[3], path, source))
   } else {
     expression.push(opItem);
     for(var i = 2, len = call.length; i < len; i++) {
-      expression.push(expressionItem(call[i], path.concat([i])));
+      expression.push(expressionItem(call[i], path.concat([i]), source));
     }
   }
   return {c: "call", children: expression};
 }
 
-function constraintItem(constraint) {
+function expressionToken(source, path, content) {
+  return {c: "token editable", editorType: "expression", source: source, click: activateTokenEditor, path: path, text: content};
+}
+
+function constraintItem(source, constraint) {
   return {c: "constraint", children: [
     {text: "where "},
-    {c: "token editable", text: code.refToName(constraint[0]).field},
-    {c: "token editable", text: constraint[1]},
-    {c: "token editable", text: code.refToName(constraint[2]).string},
+    constraintToken(source, constraint, "left", code.refToName(constraint[0]).field),
+    constraintToken(source, constraint, "op", constraint[1]),
+    constraintToken(source, constraint, "right", code.refToName(constraint[2]).string)
   ]};
+}
+
+function constraintToken(source, constraint, path, content) {
+  return {c: "token editable", editorType: "constraint", source: source, constraint: constraint, click: activateTokenEditor, path: path, text: content};
 }
 
 //---------------------------------------------------------
@@ -1411,6 +1549,12 @@ function dispatch(event, info, returnInsteadOfSend) {
       diffs = [["modal", "inserted", [{eid: "auto"}, modalId, "searcher"]],
                ["searchModal", "inserted", [{eid: "auto"}, modalId, info.type || "view", info.action]]];
       break;
+
+    case "updateConstraint":
+      console.log(info.old, info.neue);
+      diffs.push(["constraint", "removed", info.old],
+                 ["constraint", "inserted", info.neue])
+      break;
     default:
       console.error("Dispatch for unknown event: ", event, info);
       return;
@@ -1580,10 +1724,11 @@ var code = {
     //@TODO: equivalence. e.g. int = number
     return a === b;
   },
-  viewToRefs: function(view, ofType) {
+  viewToRefs: function(view, sourceFilter, typeFilter) {
     var refs = [];
     var sources = ixer.index("viewToSources")[view] || [];
     sources.forEach(function(source) {
+      if(sourceFilter && sourceFilter !== source[2]) return;
       var viewOrData = source[3];
       var sourceView = viewOrData[1];
       //view
@@ -1592,7 +1737,7 @@ var code = {
         sourceView = null;
       } else {
         code.viewToFields(sourceView).forEach(function(field) {
-          if(!ofType || ofType === field[3]) {
+          if(!typeFilter || typeFilter === field[3]) {
             refs.push(code.ast.fieldSourceRef(source[2], field[2]));
           }
         });
@@ -1657,8 +1802,6 @@ ixer.addIndex("uiActiveLayer", "uiActiveLayer", Indexing.create.latestLookup({ke
 ixer.addIndex("searchValue", "searchValue", Indexing.create.latestLookup({keys: [1, 2]}));
 ixer.addIndex("modal", "modal", Indexing.create.latestLookup({keys: [1, false]}));
 ixer.addIndex("searchModal", "searchModal", Indexing.create.latestLookup({keys: [1, false]}));
-
-
 
 function initIndexer() {
   var add = function(name, info, fields, id, tags) {
