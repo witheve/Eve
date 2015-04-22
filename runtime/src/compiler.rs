@@ -211,10 +211,10 @@ fn create_source(compiler: &Compiler, source: &Vec<Value>) -> Source {
     }
 }
 
-fn create_expression(compiler: &Compiler, source_data: &Value) -> Expression {
-    match &*source_data[0].to_string() {
-        "call" => Expression::Call(create_call(compiler,&source_data[CALL_FUN],&source_data[CALL_ARGS])),
-        "match" => Expression::Match(create_match(compiler,&source_data[MATCH_INPUT],&source_data[MATCH_PATTERNS],&source_data[MATCH_HANDLES])),
+fn create_expression(compiler: &Compiler, expression: &Value) -> Expression {
+    match &*expression[0].to_string() {
+        "call" => Expression::Call(create_call(compiler,&expression[CALL_FUN],&expression[CALL_ARGS])),
+        "match" => Expression::Match(create_match(compiler,&expression[MATCH_INPUT],&expression[MATCH_PATTERNS],&expression[MATCH_HANDLES])),
         other => panic!("Unknown expression type: {:?}", other),
     }
 }
@@ -230,7 +230,7 @@ fn create_clause(compiler: &Compiler, source: &Vec<Value>) -> Clause {
             }
         }
         "expression" => {
-            Clause::Expression(create_expression(compiler, source_data))
+            Clause::Expression(create_expression(compiler, &source_data[1]))
         }
         other => panic!("Unknown clause type: {:?}", other)
     }
