@@ -187,35 +187,47 @@ function queryItem(query) {
   return treeItem("query", queryId, name, "ion-cube", sourceItems);
 }
 
-function uiGroupItem(group, activeLayerId) {
+function uiGroupItem(group, activeLayerId, componentId) {
   var groupId = group[1];
   var active = groupId === activeLayerId;
   var activeClass = "ion-android-checkbox-outline-blank";
   var hidden = group[5];
   var locked = group[4];
-  var children;
+  var children = [];
+  // @TODO: or contains selected elements.
   if(active) {
     activeClass = "ion-android-checkbox-blank";
     var items = ixer.index("uiLayerToElements")[groupId] || [];
-    var children = items.map(function(cur) {
-      return {c: "tree-item", children: [
-        {c: "item", children: [
-          {c: "icon ion-ios-crop-strong"},
-          {text: cur[4]},
-        ]},
-      ]}
-
+    var selectedIds = [];
+    var sel = ixer.index("uiSelection")[client];
+    if(sel) { sel = sel[componentId]; }
+    if(sel && !ixer.index("remove")[sel[0]]) {
+      selectedIds = (ixer.index("uiSelectionElements")[sel[1]] || selectedIds)
+      .map(function(el) {
+        return el[1];
+      });
+    }
+    items.forEach(function(cur) {
+      if(ixer.index("remove")[cur[0]]){ return; }
+      var isSelected = selectedIds.indexOf(cur[1]) !== -1;
+      var item = treeItem("", "item-" + cur[1], cur[4], isSelected ? "ion-crop" : "ion-ios-crop-strong");
+      item.control = cur;
+      item.click = addToSelection;
+      item.dragstart = startDragUiItem;
+      children.push(item);
     })
   }
-  return {c: "tree-item ui-group", children: [
-    {c: "item", click: activateLayer, layer: group, children: [
-      {c: "icon " + activeClass},
-      {c: "name", text: code.name(groupId)},
-      {c: hidden ? "ion-eye-disabled" : "ion-eye", click: toggleHidden, layer: group},
-      {c: locked ? "ion-locked" : "ion-unlocked", click: toggleLocked, layer: group}
-    ]},
-    {c: "sub-items", children: children}
-  ]}
+
+  var controls = [{c: hidden ? "ion-eye-disabled" : "ion-eye", click: toggleHidden, layer: group},
+                  {c: locked ? "ion-locked" : "ion-unlocked", click: toggleLocked, layer: group}];
+
+  var groupEl = treeItem("ui-group", "item-" + groupId, code.name(groupId), activeClass, children, controls);
+  groupEl.component = componentId;
+  groupEl.layer = group.slice();
+  groupEl.click = activateLayer;
+  groupEl.drop = uiElementDrop;
+  groupEl.dragover = preventDefault;
+  return groupEl;
 }
 
 function uiItem(ui) {
@@ -226,17 +238,18 @@ function uiItem(ui) {
   if(open) {
     var activeLayerId = ixer.index("uiActiveLayer")[client] ? ixer.index("uiActiveLayer")[client][ui.componentId] : undefined;
     layers = (ui.children || []).map(function(cur) {
-      return uiGroupItem(cur, activeLayerId);
+      return uiGroupItem(cur, activeLayerId, ui.componentId);
     });
     controls = [{c: "add-layer ion-plus", componentId: ui.componentId, click: addLayer}];
   }
   return treeItem("ui", ui.componentId, name, "ion-image", layers, controls);
 }
 
-var draggedItemId;
+var draggedItemId; // @NOTE: Why don't we set it as dataTransfer metadata?
 function startDragItem(e, elem) {
   draggedItemId = elem.id;
   e.dataTransfer.setData("type", "treeItem");
+  e.stopPropagation();
 }
 
 function stopDragItem(e, elem) {
@@ -246,6 +259,34 @@ function stopDragItem(e, elem) {
 function openItem(e, elem) {
   dispatch("openItem", {id: elem.id});
 }
+function startDragUiItem(e, elem) {
+  var elIds;
+  var sel = ixer.index("uiSelection")[client][elem.control[2]];
+  if(sel) {
+    elIds = (ixer.index("uiSelectionElements")[sel[1]] || [])
+    .map(function(el) {
+      return el[1];
+    });
+  }
+  if(!elIds || elIds.indexOf(elem.control[1]) === -1) {
+    elem.click(e, elem);
+  }
+  startDragItem(e, elem);
+}
+
+function uiElementDrop(e, elem) {
+  // @NOTE: Is there a way to retrieve element state by id?
+  if(e.dataTransfer.getData("type") === "treeItem") {
+    var id = draggedItemId.slice(5);
+
+    var sel = ixer.index("uiSelection")[client][elem.component];
+    var els = ixer.index("uiSelectionElements")[sel[1]];
+
+    dispatch("moveSelection", {componentId: elem.component, layer: elem.layer[1]});
+    dispatch("activateUiLayer", {componentId: elem.component, layerId: elem.layer[1]});
+  }
+}
+
 
 //---------------------------------------------------------
 // Workspace
@@ -1551,12 +1592,14 @@ function dispatch(event, info, returnInsteadOfSend) {
       var sel = ixer.index("uiSelection")[client][info.componentId];
       var els = ixer.index("uiSelectionElements")[sel[1]];
       var elementIndex = ixer.index("uiComponentElement");
-      var diffX = info.diffX;
-      var diffY = info.diffY;
+      var diffX = info.diffX || 0;
+      var diffY = info.diffY || 0;
       els.forEach(function(cur) {
         var elem = elementIndex[cur[1]];
         var neue = elem.slice();
+        diffs.push(["remove", "inserted", [neue[0]]]); // @FIXME: hack to fix latestCollector GC bug.
         neue[0] = txId;
+        neue[3] = info.layer || neue[3];
         neue[5] += diffX; //left
         neue[7] += diffX; //right
         neue[6] += diffY; //top
