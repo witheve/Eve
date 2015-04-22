@@ -1,7 +1,7 @@
 use std;
 use std::iter::IntoIterator;
 
-use value::{Value, ToValue, Tuple, ToTuple, Relation};
+use value::{Value, Tuple, Relation};
 use interpreter;
 use interpreter::{EveFn,ToExpression,PatternVec};
 
@@ -192,11 +192,11 @@ impl Expression {
     fn constrained_to(&self, result: &Vec<Value>) -> Vec<Value> {
         match *self {
             Expression::Call(ref call) => {
-                let value = call.eval(result).to_tuple().to_value();
+                let value = call.eval(result);
                 vec![value]
             }
             Expression::Match(ref evematch) => {
-                let value = evematch.eval(result).to_tuple().to_value();
+                let value = evematch.eval(result);
                 vec![value]
             }
         }

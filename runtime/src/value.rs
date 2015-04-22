@@ -36,15 +36,6 @@ impl ops::Index<usize> for Value {
     }
 }
 
-impl ToString for Value {
-    fn to_string(&self) -> String {
-        match *self {
-            Value::String(ref string) => string.clone(),
-            _ => panic!("Stringifying a non-string value"),
-        }
-    }
-}
-
 impl ToPrimitive for Value {
     fn to_f64(&self) -> Option<f64> {
         match *self {
@@ -66,30 +57,31 @@ impl ToPrimitive for Value {
     }
 }
 
+impl Value {
+    pub fn as_str(&self) -> &str {
+        match *self {
+            Value::String(ref string) => &*string,
+            _ => panic!("Not a string: {:?}", self),
+        }
+    }
+
+    pub fn as_slice(&self) -> &[Value] {
+        match *self {
+            Value::Tuple(ref tuple) => &*tuple,
+            _ => panic!("Not a tuple: {:?}", self),
+        }
+    }
+}
+
+// Convenient hacks for writing tests
+// Do not use in production code
+
 pub trait ToValue {
     fn to_value(self) -> Value;
 }
 
 pub trait ToTuple {
     fn to_tuple(self) -> Tuple;
-}
-
-impl ToTuple for Value {
-    fn to_tuple(self) -> Tuple {
-        match self {
-            Value::Tuple(x) => x.clone(),
-            _ => vec![self],
-        }
-    }
-}
-
-impl<'a> ToTuple for &'a Value {
-    fn to_tuple(self) -> Tuple {
-        match self {
-            &Value::Tuple(ref x) => x.clone(),
-            other => panic!("Not a tuple: {:?}", other),
-        }
-    }
 }
 
 pub trait ToRelation {
