@@ -147,6 +147,7 @@ pub fn serve() -> mpsc::Receiver<ServerEvent> {
 // TODO arbitrary limit - needs tuning
 static MAX_BATCH_SIZE: usize = 100;
 
+// TODO can batching cause missed outputs?
 fn recv_batch(event_receiver: &mpsc::Receiver<ServerEvent>, server_events: &mut Vec<ServerEvent>) {
     server_events.push(event_receiver.recv().unwrap()); // block until first event
     for _ in 0..MAX_BATCH_SIZE {

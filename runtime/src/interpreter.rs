@@ -6,26 +6,13 @@ use value::Value::Float;
 
 // Enums...
 // Expression Enum ------------------------------------------------------------
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Expression {
 	Constant(Constant),
 	Variable(Variable),
 	Call(Call),
 	Match(Box<Match>),
 	Value(Value),
-}
-
-impl Debug for Expression {
-
-	fn fmt(&self, f: &mut Formatter) -> Result {
-		match *self {
-			Expression::Constant(ref x) => write!(f,"{:?}",*x),
-			Expression::Call(ref x) => write!(f,"{:?}",*x),
-			Expression::Variable(ref x) => write!(f,"{:?}",*x),
-			Expression::Value(ref x) => write!(f,"{:?}",*x),
-			Expression::Match(ref x) => write!(f,"{:?}",*x),
-		}
-	}
 }
 
 // End Expression Enum --------------------------------------------------------
