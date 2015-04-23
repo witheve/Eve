@@ -8,6 +8,7 @@ use std::collections::BitSet;
 
 #[derive(Clone, Debug)]
 pub struct Union{
+    // TODO mappings is messy - will be fixed if we unify unions and queries
     // max_len, vec[(column_ix, tuple_ix)]
     pub mappings: Vec<(usize, Vec<(usize, usize)>)>,
 }

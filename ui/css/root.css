@@ -107,6 +107,7 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .inspector-panel .pair + .pair { margin-top:1px; }
 .inspector-panel .label { padding: 5px; }
 .inspector-panel .input { background: #111; flex:1; padding:5px; }
+.inspector-panel > div.title { font-size: 1em; background: transparent; vertical-align: bottom; margin-bottom: 1px; margin-top: 0.5em; }
 
 .color-picker { flex: 1; }
 .color-picker input { flex:1; opacity:0; }
