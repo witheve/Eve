@@ -71,8 +71,6 @@ pub struct Event {
     changes: Changes,
 }
 
-// TODO need to change encoding to list of changes instead of object
-
 impl ToJson for Event {
     fn to_json(&self) -> Json {
         Json::Object(vec![
