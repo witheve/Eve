@@ -24,32 +24,48 @@ pub enum Ref {
 }
 
 impl Ref {
-    fn resolve<'a>(&'a self, result: &'a Vec<Value>) -> &'a Value {
-
+    // TODO extra_row is a gross hack to handle constraints where both sides reference the same source
+    fn resolve<'a>(&'a self, result: &'a Vec<Value>, extra_row: Option<&'a Vec<Value>>) -> &'a Value {
         match *self {
             Ref::Constant{ref value} => {
                 value
             },
             Ref::Value{clause, column} => {
-                match result[clause] {
-                    Value::Tuple(ref tuple) => {
-                        &tuple[column]
-                    },
-                    _ => panic!("Expected a tuple"),
+                if clause == result.len() {
+                    &extra_row.unwrap()[column]
+                } else {
+                    match result[clause] {
+                        Value::Tuple(ref tuple) => {
+                            &tuple[column]
+                        },
+                        _ => panic!("Expected a tuple"),
+                    }
                 }
             },
             Ref::Tuple{clause} => {
-                let value = &result[clause];
-                match *value {
-                    Value::Tuple(..) => value,
-                    _ => panic!("Expected a tuple"),
+                if clause == result.len() {
+                    panic!("Can't refer to whole tuple of same source")
+                } else {
+                    let value = &result[clause];
+                    match *value {
+                        Value::Tuple(ref tuple) => {
+                            value
+                        },
+                        _ => panic!("Expected a tuple"),
+                    }
                 }
             },
             Ref::Relation{clause} =>{
-                let value = &result[clause];
-                match *value {
-                    Value::Relation(..) => value,
-                    _ => panic!("Expected a relation"),
+                if clause == result.len() {
+                    panic!("Can't refer to whole relation of same source")
+                } else {
+                    let value = &result[clause];
+                    match *value {
+                        Value::Relation(ref relation) => {
+                            value
+                        },
+                        _ => panic!("Expected a relation"),
+                    }
                 }
             },
         }
@@ -64,15 +80,10 @@ pub struct Constraint {
 }
 
 impl Constraint {
-
-    // Resolves the RHS reference in the constraint to a value
-    fn prepare<'a>(&'a self, result: &'a Vec<Value>) -> &'a Value {
-        self.other_ref.resolve(result)
-    }
-
     // bearing in mind that Value is only PartialOrd so this may do weird things with NaN
-    fn test(&self, my_row: &Vec<Value>, other_value: &Value) -> bool {
-        let my_value = &my_row[self.my_column];
+    fn test(&self, result: &Vec<Value>, row: &Vec<Value>) -> bool {
+        let my_value = &row[self.my_column];
+        let other_value = self.other_ref.resolve(result, Some(row));
         match self.op {
             ConstraintOp::LT => my_value < other_value,
             ConstraintOp::LTE => my_value <= other_value,
@@ -92,15 +103,10 @@ pub struct Source {
 
 impl Source {
     fn constrained_to(&self, inputs: &Vec<&Relation>, result: &Vec<Value>) -> Relation {
-
-        let prepared: Vec<&Value> = self.constraints.iter()
-                                                    .map(|constraint| constraint.prepare(result))
-                                                    .collect();
         let input = inputs[self.relation];
         input.iter().filter(|row| self.constraints
                                       .iter()
-                                      .zip(prepared.iter())
-                                      .all(|(constraint, value)| constraint.test(row, value) ) )
+                                      .all(|constraint| constraint.test(result, row)))
                     .map(|row| row.clone())
                     .collect()
     }
@@ -137,7 +143,7 @@ pub type CallArgs = Vec<CallArg>;
 impl CallArg {
     fn resolve(&self, result: &Vec<Value>) -> Value {
         match self {
-            &CallArg::Ref(ref arg_ref) => arg_ref.resolve(result).clone(),
+            &CallArg::Ref(ref arg_ref) => arg_ref.resolve(result, None).clone(),
             &CallArg::Call(ref arg_call) => arg_call.eval(result).clone(),
         }
     }
@@ -156,7 +162,7 @@ impl Match {
         // Resolve references
         let input = self.input.resolve(result);
         let patterns: Vec<Pattern> = self.patterns.iter()
-                                                  .map(|pattern| Pattern::Constant(pattern.resolve(result).clone()))
+                                                  .map(|pattern| Pattern::Constant(pattern.resolve(result, None).clone()))
                                                   .collect();
 
         let handlers: Vec<interpreter::Expression> = self.handlers.iter()
