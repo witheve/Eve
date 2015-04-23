@@ -1,7 +1,7 @@
-use value::{Value};
-use value;
-use self::EveFn::*;
+use value::*;
 use value::Value::Float;
+use self::EveFn::*;
+
 
 // Enums...
 // Expression Enum ------------------------------------------------------------
@@ -162,29 +162,31 @@ fn eval_call(c: &Call) -> Value {
 		(&StrLength,[Value::String(ref s)]) => Float(s.len() as f64),
 		(&StrReplace,[Value::String(ref s),Value::String(ref q),Value::String(ref r)]) => Value::String(s.replace(&q[..],&r[..])),
 		(&StrSplit,[Value::String(ref s)]) => {
-			let w: Vec<Value> = s.words().map(|x| Value::String(x.to_string())).collect();
+			let w: Vec<Value> = s.words().map(|x| Value::String(String::from_str(x))).collect();
 			Value::Tuple(w)
 		},
 
+		/*
 		// Aggregate functions
-		(&Sum,[Value::Tuple(ref x)]) => general_agg(x),
-		//&Prod => general_agg(|x,y|{x*y},1f64,&c.args),
+		(&Sum,[Value::Tuple(ref x)]) => {
+			Value::Float(x.iter().fold(0f64, |acc: f64, ref item| {
+				match item {
+					&&Value::Float(ref y) => acc+y,
+					x => panic!("Cannot aggregate {:?}",x),
+				}
+			}))
+		},
+		(&Prod,[Value::Tuple(ref x)]) => {
+			Value::Float(x.iter().fold(1f64, |acc: f64, ref item| {
+				match item {
+					&&Value::Float(ref y) => acc*y,
+					x => panic!("Cannot aggregate {:?}",x),
+				}
+			}))
+		},
+		*/
 
 		// Returns an empty string for the purpose of handling incomplete function
-		(_, _) => Value::String("No Result".to_string()),
+		(_, _) => Value::String(String::from_str("Could not match with any function")),
 	}
 }
-
-
-// Aggregate Functions --------------------------------------------------------
-
-//fn general_agg<F: Fn(f64,f64) -> f64>(f: F, base: f64, args: &ExpressionVec) -> Value {
-fn general_agg(x: &value::Tuple) -> Value {
-
-	// Some fold magic!
-	println!("{:?}",x);
-
-	Value::Float(10f64)
-
-}
-// End Aggregate Functions ----------------------------------------------------
