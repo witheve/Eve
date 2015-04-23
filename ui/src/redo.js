@@ -708,10 +708,13 @@ function inspector(componentId, selectionInfo, layers, activeLayer) {
 }
 
 function inspectorInput(value, key, onChange) {
-  var field = input(value !== null ? value : "", key, onChange, preventDefault);
   if(value === null) {
     input.placeholder = "---";
+  } else if(value && !isNaN(value)) {
+
+    value = value.toFixed(2);
   }
+  var field = input(value !== null ? value : "", key, onChange, preventDefault);
   field.mousedown = stopPropagation;
   return field;
 }
@@ -721,6 +724,7 @@ function layoutInspector(selectionInfo) {
   var bounds = selectionInfo.bounds;
   //pos, size
   return {c: "inspector-panel", children: [
+    {c: "title", text: "Layout"},
     {c: "pair", children: [{c: "label", text: "top"}, inspectorInput(bounds.top, [componentId, "top"], adjustPosition) ]},
     {c: "pair", children: [{c: "label", text: "left"}, inspectorInput(bounds.left, [componentId, "left"], adjustPosition) ]},
     {c: "pair", children: [{c: "label", text: "width"}, inspectorInput(bounds.right - bounds.left, selectionInfo, adjustWidth) ]},
@@ -769,6 +773,9 @@ function appearanceInspector(selectionInfo) {
   var componentId = selectionInfo.componentId;
   //background, image, border
   return {c: "inspector-panel", children: [
+    {c: "title", text: "Appearance"},
+    {t: "select", c: "style-chooser pair", children: [
+      {t: "option", text: "Select style..."}]},
     {c: "pair", children: [{c: "label", text: "background"},
                            colorSelector(componentId, "backgroundColor", attrs["backgroundColor"])]},
     {c: "pair", children: [{c: "label", text: "image"},
@@ -807,6 +814,7 @@ function textInspector(selectionInfo) {
   var attrs = selectionInfo.attributes;
   //font, size, color, align vertical, align horizontal, bold/italic/underline
   return {c: "inspector-panel", children: [
+    {c: "title", text: "Typography"},
     {c: "pair", children: [{c: "label", text: "content"}, inspectorInput(attrs["text"], [componentId, "text"], setAttribute)]},
     {c: "pair", children: [{c: "label", text: "font"},
                            inspectorInput(attrs["fontFamily"], [componentId, "fontFamily"], setAttribute)]},
