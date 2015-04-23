@@ -71,7 +71,7 @@ fn stringtest() {
 	// Test a text replacement
 	let c1 = Call{fun: EveFn::StrReplace, args: exprvec!["Hello World","l","q"] };
 	let result = evaluate(&c1.to_expr());
-	assert_eq!(result.as_str(),"HeWorqd");
+	assert_eq!(result.as_str(),"Heqqo Worqd");
 
 }
 
