@@ -133,12 +133,17 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .add-calculation { padding: 10px; background: #333; flex-direction:column; font-size: 9pt; justify-content:center; align-items:center; }
 .add-calculation .icon { font-size: 18pt; }
 
-.view-container { position:relative; flex-direction:column; background: #333; padding: 10px; margin-bottom:2px; border-radius:2px; color: #999; }
+.view-container { position:relative; min-width:150px; flex-direction:column; background: #333; padding: 10px; margin-bottom:2px; border-radius:2px; color: #999; }
 .view-container .sub-title { flex: 1; }
 .view-container .icon { position:absolute; top:0; right:0; font-size: 12pt; flex:none; padding:10px; border-radius:3px; }
 .view-container .icon:hover { background: #777; color: #eee; }
 .calculations { margin-top: 5px; flex-direction:column; }
 .filters { margin-top: 5px; flex-direction:column; }
+.calculations .calculation { position:relative; align-items:center; justify-content:center; padding-right:40px; }
+.filters .filter { position:relative; align-items:center; justify-content:center; padding-right:40px; }
+.remove { position:absolute; visibility:hidden; right:-5px; top:8px; padding:5px; border-radius:2px;}
+.remove:hover { color: #f8a; background: #846; }
+.filter:hover .remove, .calculation:hover .remove { visibility: visible; }
 
 /*-----------------------------------------------------------------------------
 - token editor

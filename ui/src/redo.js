@@ -209,7 +209,8 @@ function queryItem(query) {
           ]}
         ]};
       } else {
-        return {c: "tree-item query calculation", text: "calculation"};
+        //@TODO: should we show calculations in the tree view? if so by what name?
+//         return {c: "tree-item query calculation", text: "calculation"};
       }
     });
   }
@@ -1123,23 +1124,34 @@ function viewCode(view, sources) {
     var data = cur[3];
     var constraints = sourceToConstraints[id] || [];
     var constraintItems = constraints.map(function(constraint) {
-
-      globalFilters.push(constraintItem(view, constraint));
+      globalFilters.push({c: "filter", children: [
+        constraintItem(view, constraint),
+        {c: "remove ion-close", click: removeConstraint, constraint: constraint}
+      ]});
     });
     if(data[0] !== "view") {
-      globalCalculations.push(expressionItem(cur[3][1], [], cur));
+      globalCalculations.push({c: "calculation", children: [
+        expressionItem(cur[3][1], [], cur),
+        {c: "remove ion-close", click: removeSource, source: cur}
+      ]});
     }
   });
   var adderConstraints = ixer.index("adderConstraint")[view] || [];
   adderConstraints.forEach(function(cur) {
     if(!removed[cur[0]]) {
-      globalFilters.push(constraintItem(view, cur, true));
+      globalFilters.push({c: "filter", children: [
+        constraintItem(view, cur, true),
+        {c: "remove ion-close", click: removeAdder, adder: cur}
+      ]});
     }
   });
   var adderCalculations = ixer.index("adderCalculation")[view] || [];
   adderCalculations.forEach(function(cur) {
     if(!removed[cur[0]]) {
-      globalCalculations.push(expressionItem(cur[3], [], cur));
+      globalCalculations.push({c: "calculation", children: [
+        expressionItem(cur[3], [], cur),
+        {c: "remove ion-close", click: removeAdder, adder: cur}
+      ]});
     }
   });
   return {c: "view-source-code", children: [
@@ -1160,6 +1172,18 @@ function newFilter(e, elem) {
 
 function newCalculation(e, elem) {
   dispatch("newCalculation", {view: elem.view});
+}
+
+function removeConstraint(e, elem) {
+  dispatch("removeConstraint", {constraint: elem.constraint});
+}
+
+function removeSource(e, elem) {
+  dispatch("removeSource", {source: elem.source});
+}
+
+function removeAdder(e, elem) {
+  dispatch("removeAdder", {txId: elem.adder[0]});
 }
 
 function viewResults(sources, results) {
@@ -1378,12 +1402,12 @@ function constraintItem(view, constraintOrAdder, isAdder) {
   if(isAdder) {
     constraint = constraint[3];
   }
-  var left = "select a column";
+  var left = [{c: "placeholder", text: "placeholder"}];
   if(constraint[0][0] === "column") {
     var leftName = code.refToName(constraint[0]);
     left = [{c: "table", text: leftName.view}, {c: "field", text: leftName.field}];
   }
-  var right = "select a column or enter a value";
+  var right = [{c: "placeholder", text: "placeholder"}];
   if(constraint[2][0] === "column") {
     var rightName = code.refToName(constraint[2]);
     right = [{c: "table", text: rightName.view}, {c: "field", text: rightName.field}]
@@ -1942,6 +1966,15 @@ function dispatch(event, info, returnInsteadOfSend) {
         //the previous source. This comes up when typing a constant value. editorInfo will still be
         //working off of the adder, to fix this, we pretend that it's now looking at the updated one
         editorInfo.info.constraint = info.neue;
+      break;
+    case "removeConstraint":
+      diffs.push(["constraint", "removed", info.constraint]);
+      break;
+    case "removeSource":
+      diffs.push(["source", "removed", info.source]);
+      break;
+    case "removeAdder":
+      diffs.push(["remove", "inserted", [info.txId]]);
       break;
     default:
       console.error("Dispatch for unknown event: ", event, info);
