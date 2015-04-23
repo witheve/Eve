@@ -182,7 +182,7 @@ fn constraint_test() {
 
 }
 
-/*
+
 #[test]
 fn match_test() {
 
@@ -210,7 +210,7 @@ fn match_test() {
 
     let query = Query{clauses: vec![
         Clause::Tuple(Source{relation: 0, constraints: vec![]}),
-        Clause::Expression(Match{input: i, patterns: p, handlers: h}),
+        Clause::Expression(Expression::Match(Match{input: i, patterns: p, handlers: h})),
     ]};
 
 
@@ -224,7 +224,7 @@ fn match_test() {
     assert_eq!(resultvec[1][1],("five".to_value(),).to_tuple().to_value());
 
 }
-*/
+
 /*
 #[test]
 fn stringtest() {
