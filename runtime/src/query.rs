@@ -2,7 +2,7 @@ use std::iter::IntoIterator;
 
 use value::{Value, Tuple, Relation};
 use interpreter;
-use interpreter::{EveFn,PatternVec};
+use interpreter::{EveFn,Pattern};
 use test::ToExpression; // TODO dont use test code in production!
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -146,7 +146,7 @@ impl CallArg {
 #[derive(Clone,Debug)]
 pub struct Match {
     pub input: CallArg,
-    pub patterns: PatternVec,
+    pub patterns: Vec<Ref>,
     pub handlers: CallArgs,
 }
 
@@ -155,12 +155,16 @@ impl Match {
 
         // Resolve references
         let input = self.input.resolve(result);
+        let patterns: Vec<Pattern> = self.patterns.iter()
+                                                  .map(|pattern| Pattern::Constant(pattern.resolve(result).clone()))
+                                                  .collect();
+
         let handlers: Vec<interpreter::Expression> = self.handlers.iter()
-                               .map(|handler| handler.resolve(result).to_expr())
-                               .collect();
+                                                     .map(|handler| handler.resolve(result).to_expr())
+                                                     .collect();
 
         // Build the interpreter match
-        let evematch = interpreter::Match{input: input.to_expr(), patterns: self.patterns.clone(), handlers: handlers};
+        let evematch = interpreter::Match{input: input.to_expr(), patterns: patterns, handlers: handlers};
 
         interpreter::evaluate(&interpreter::Expression::Match(Box::new(evematch)))
 

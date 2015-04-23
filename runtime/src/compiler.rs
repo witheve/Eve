@@ -1,7 +1,7 @@
 use value::{Value, Tuple, Relation};
 use index::{Index};
 use query::{Ref, ConstraintOp, Constraint, Source, Expression, Clause, Query, Call, CallArg, Match};
-use interpreter::{EveFn,Pattern};
+use interpreter::{EveFn};
 use flow::{View, Union, Node, Flow};
 
 use std::collections::{BitSet};
@@ -244,26 +244,34 @@ fn create_clause(compiler: &Compiler, source: &Vec<Value>) -> Clause {
     }
 }
 
-fn create_match(compiler: &Compiler, uiinput: &Value, uipatterns: &Value, uihandles: &Value) -> Match {
+fn create_match(compiler: &Compiler, uiinput: &Value, uipatterns: &Value, uihandlers: &Value) -> Match {
 
-	// Create the input
-	let match_input = create_call_arg(compiler,uiinput.as_slice());
+    // Create the input
+    let match_input = create_call_arg(compiler,uiinput.as_slice());
 
-	// Create the pattern vector
-	let match_patterns = uipatterns.as_slice()
-							 .iter()
-							 .map(|arg| Pattern::Constant(arg.clone()))
-							 .collect();
+    // Create the pattern vector
+    let match_patterns = uipatterns.as_slice()
+                        .iter()
+                        .map(|arg| {
+                            let call_arg = create_call_arg(compiler,arg.as_slice());
+                            match call_arg {
+                                CallArg::Ref(x) => x,
+                                CallArg::Call(_) => panic!("Pattern cannot be a call"),
+                                }
+                            }
+                        )
+                        .collect();
 
     // Create handles vector
-	let match_handles = uihandles.as_slice()
-							.iter()
-							.map(|arg| create_call_arg(compiler,arg.as_slice()))
-							.collect();
+    let match_handlers = uihandlers.as_slice()
+                            .iter()
+                            .map(|arg| create_call_arg(compiler,arg.as_slice()))
+                            .collect();
 
-	// Compile the call
-	Match{input: match_input, patterns: match_patterns, handlers: match_handles}
+    // Compile the match
+    Match{input: match_input, patterns: match_patterns, handlers: match_handlers}
 }
+
 
 fn create_call(compiler: &Compiler, uifun: &Value, uiargvec: &Value) -> Call {
 
