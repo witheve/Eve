@@ -129,7 +129,7 @@ impl Clause {
                 vec![Value::Relation(relation)]
             }
             Clause::Expression(ref expression) => {
-                expression.constrained_to(result)
+                vec![interpreter::evaluate(expression,result)]
             }
         }
     }

@@ -23,17 +23,30 @@ macro_rules! exprvec {
 #[allow(dead_code)]
 fn main() {
 
-	// Test a text replacement
-	let c1 = Call{fun: EveFn::StrReplace, args: exprvec!["Hello World","l","q"] };
-	let result = evaluate(&c1.to_expr(),&vec![]);
-	assert_eq!(result.as_str(),"Heqqo Worqd");
-
 }
 
 
 #[test]
 fn match_test(){
 
+	// Test a single match
+	let input2 = Expression::Constant(Constant::Value(4.to_value()));
+
+	let patterns2 = vec!(Pattern::Constant(Constant::Value(1.to_value())),
+					     Pattern::Constant(Constant::Value(2.to_value())),
+					     Pattern::Constant(Constant::Value(3.to_value())),
+					     Pattern::Constant(Constant::Value(4.to_value())),
+					     Pattern::Constant(Constant::Value(3.to_value())),
+					   );
+	let handlers2 = exprvec!["oneone","twotwo","threethree","fourfour","fivefive"];
+
+	let m2 = Match{input: input2, patterns: patterns2, handlers: handlers2};
+
+	let result = evaluate(&m2.clone().to_expr(),&vec![]);
+
+	assert_eq!(result,"fourfour".to_value());
+
+	// Test a nested match
 	let input = Expression::Constant(Constant::Value(3.to_value()));
 
 	let patterns = vec!(Pattern::Constant(Constant::Value(1.to_value())),
@@ -42,13 +55,13 @@ fn match_test(){
 					    Pattern::Constant(Constant::Value(4.to_value())),
 					    Pattern::Constant(Constant::Value(3.to_value())),
 					   );
-	let handlers = exprvec!["one","two","three","four","five"];
+	let handlers = exprvec!["one","two",m2,"four","five"];
 
-	let m = Match{input: input, patterns: patterns, handlers: handlers};
+	let m1 = Match{input: input, patterns: patterns, handlers: handlers};
 
-	let result = evaluate(&m.to_expr(),&vec![]);
+	let result = evaluate(&m1.to_expr(),&vec![]);
 
-	println!("{:?}",result);
+	assert_eq!(result,"fourfour".to_value());
 }
 
 

@@ -11,6 +11,8 @@ use eve::test::*;
 
 #[allow(dead_code)]
 fn main() {
+    // c4 = prod(input.B)
+    let c4 = ("call","sum",(("column", "rr", "B").to_tuple(),).to_tuple()).to_tuple();
 
     let mut flow = Flow::new();
     flow.change(vec![
@@ -27,36 +29,30 @@ fn main() {
             removed: vec![]}),
         ("view".to_string(), Changes{
             inserted: vec![
-            ("math_test", "input_schema", "query").to_tuple(),
-            ("math_test2", "input_schema", "query").to_tuple(),
             ("input", "input_schema", "input").to_tuple(),
-            ],
-            removed: vec![]}),
-        ("constraint".to_string(), Changes{
-            inserted: vec![
-            (("column", "qq", "A").to_tuple(), "=", ("column", "qq", "B").to_tuple()).to_tuple(),
-            (("column", "qq", "A").to_tuple(), ">", ("constant", 1.0f64).to_tuple()).to_tuple(),
-            (("column", "qq", "A").to_tuple(), "<", ("constant", 7.0f64).to_tuple()).to_tuple(),
+            ("agg_test", "input_schema", "query").to_tuple(),
             ],
             removed: vec![]}),
         ("source".to_string(), Changes{
             inserted: vec![
-            ("math_test", 0.0f64, "qq", ("view", "input").to_tuple(), "get-tuple").to_tuple(),
+            ("agg_test", 0.0f64, "rr", ("view", "input").to_tuple(), "get-tuple").to_tuple(),
+            ("agg_test", 1.0f64, "none", c4, "get-tuple").to_tuple(),
             ],
             removed: vec![]}),
         ("input".to_string(), Changes{
             inserted: vec![
-            (1, 1).to_tuple(),
-            (3, 4).to_tuple(),
-            (6, 6).to_tuple(),
-            (7, 8).to_tuple(),
+            (1, 8).to_tuple(),
+            (2, 7).to_tuple(),
+            (3, 6).to_tuple(),
+            (4, 5).to_tuple(),
             ],
             removed: vec![]}),
         ]);
     let mut flow = compile(flow);
     flow.run();
 
-    let result = flow.get_state("math_test");
+    // Test an aggregate
+    let result = flow.get_state("agg_test");
 
     println!("{:?}",result);
 }
@@ -312,7 +308,7 @@ fn match_test() {
     // Test match with a constant input
     let result = flow.get_state("simple_match_test");
     let answervec = vec![
-                    vec![("one",).to_tuple().to_value()],
+                    vec!["one".to_value()],
                     ];
     let q = result.iter().zip(answervec.iter()).all(|(q,r)| q[0]==r[0] );
     assert_eq!(q,true);
@@ -320,20 +316,87 @@ fn match_test() {
     // Test match with a call input
     let result = flow.get_state("simple_match_test2");
     let answervec = vec![
-                    vec![("two",).to_tuple().to_value()],
+                    vec!["two".to_value()],
                     ];
     let q = result.iter().zip(answervec.iter()).all(|(q,r)| q[0]==r[0] );
     assert_eq!(q,true);
 
     // Test match with column input
     let result = flow.get_state("match_test");
+
     let answervec = vec![
-                    vec![(1f64,8f64).to_tuple().to_value(),("one",).to_tuple().to_value()],
-                    vec![(2f64,7f64).to_tuple().to_value(),("two",).to_tuple().to_value()],
-                    vec![(3f64,6f64).to_tuple().to_value(),("three",).to_tuple().to_value()],
-                    vec![(4f64,5f64).to_tuple().to_value(),("four",).to_tuple().to_value()],
+                    vec![(1f64,8f64).to_tuple().to_value(),"one".to_value()],
+                    vec![(2f64,7f64).to_tuple().to_value(),"two".to_value()],
+                    vec![(3f64,6f64).to_tuple().to_value(),"three".to_value()],
+                    vec![(4f64,5f64).to_tuple().to_value(),"four".to_value()],
                     ];
     let q = result.iter().zip(answervec.iter()).all(|(q,r)| q[1]==r[1] );
+    assert_eq!(q,true);
+
+}
+
+#[test]
+fn constraint_test() {
+
+    let mut flow = Flow::new();
+    flow.change(vec![
+        ("schema".to_string(), Changes{
+            inserted: vec![
+            ("input_schema",).to_tuple(),
+            ],
+            removed: vec![]}),
+        ("field".to_string(), Changes{
+            inserted: vec![
+            ("input_schema", 0.0f64, "A", "tuple").to_tuple(),
+            ("input_schema", 1.0f64, "B", "tuple").to_tuple(),
+            ],
+            removed: vec![]}),
+        ("view".to_string(), Changes{
+            inserted: vec![
+            ("constraint_test", "input_schema", "query").to_tuple(),
+            ("input", "input_schema", "input").to_tuple(),
+            ],
+            removed: vec![]}),
+        ("constraint".to_string(), Changes{
+            inserted: vec![
+            (("column", "qq", "A").to_tuple(), "=", ("column", "qq", "B").to_tuple()).to_tuple(),
+            (("column", "qq", "A").to_tuple(), ">", ("constant", 1.0f64).to_tuple()).to_tuple(),
+            (("column", "qq", "A").to_tuple(), "<", ("constant", 11.0f64).to_tuple()).to_tuple(),
+            ],
+            removed: vec![]}),
+        ("source".to_string(), Changes{
+            inserted: vec![
+            ("constraint_test", 0.0f64, "qq", ("view", "input").to_tuple(), "get-tuple").to_tuple(),
+            ],
+            removed: vec![]}),
+        ("input".to_string(), Changes{
+            inserted: vec![
+            (1, 1).to_tuple(),
+            (3, 4).to_tuple(),
+            (6, 6).to_tuple(),
+            (7, 8).to_tuple(),
+            (9, 9).to_tuple(),
+            (10, 11).to_tuple(),
+            (12, 12).to_tuple(),
+            ],
+            removed: vec![]}),
+        ]);
+    let mut flow = compile(flow);
+    flow.run();
+
+
+    // Test constraint where LHS and RHS tables are the same
+    let result = flow.get_state("constraint_test");
+
+    let answervec = vec![
+                    vec![(6f64,6f64).to_tuple().to_value()],
+                    vec![(9f64,9f64).to_tuple().to_value()],
+                    ];
+
+    let (result_length,_) = result.iter().size_hint();
+    assert_eq!(result_length,answervec.len());
+
+    let q = result.iter().zip(answervec.iter()).all(|(q,r)| q==r);
     assert_eq!(q,true);
 
 }
