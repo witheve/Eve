@@ -74,6 +74,7 @@
         if(cur.draggable !== prev.draggable) div.draggable = cur.draggable;
         if(cur.contentEditable !== prev.contentEditable) div.contentEditable = cur.contentEditable || "inherit";
         if(cur.colspan !== prev.colspan) div.colSpan = cur.colspan;
+        if(cur.placeholder !== prev.placeholder) div.placeholder = cur.placeholder;
 
         if(cur.left !== prev.left)  style.left = cur.left;
         if(cur.top !== prev.top) style.top = cur.top;
@@ -98,6 +99,7 @@
         if(cur.text !== prev.text) div.textContent = cur.text;
 
         //events
+        if(cur.dblclick !== prev.dblclick) div.ondblclick = cur.dblclick !== undefined ? this.handleEvent : undefined;
         if(cur.click !== prev.click) div.onclick = cur.click !== undefined ? this.handleEvent : undefined;
         if(cur.contextmenu !== prev.contextmenu) div.oncontextmenu = cur.contextmenu !== undefined ? this.handleEvent : undefined;
         if(cur.mousedown !== prev.mousedown) div.onmousedown = cur.mousedown !== undefined ? this.handleEvent : undefined;
@@ -151,6 +153,7 @@
           continue;
         }
         if(curA.c === curB.c
+           && curA.placeholder === curB.placeholder
            && curA.value === curB.value
            && curA.text === curB.text
            && curA.top === curB.top
@@ -188,6 +191,7 @@
           continue;
         }
         if(curA.c === curB.c
+           && curA.placeholder === curB.placeholder
            && curA.value === curB.value
            && curA.text === curB.text
            && curA.top === curB.top
