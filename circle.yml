@@ -1,6 +1,6 @@
 machine:
   pre:
-  - curl -sf https://raw.githubusercontent.com/brson/multirust/master/blastoff.sh | sudo sh
+  - ./install-multirust.sh
   - multirust default nightly-2015-04-20
 
 test:
