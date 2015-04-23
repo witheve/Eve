@@ -11,7 +11,7 @@ use eve::test::*;
 
 #[allow(dead_code)]
 fn main() {
-    /*
+
     let mut flow = Flow::new();
     flow.change(vec![
         ("schema".to_string(), Changes{
@@ -36,7 +36,7 @@ fn main() {
             inserted: vec![
             (("column", "qq", "A").to_tuple(), "=", ("column", "qq", "B").to_tuple()).to_tuple(),
             (("column", "qq", "A").to_tuple(), ">", ("constant", 1.0f64).to_tuple()).to_tuple(),
-            //(("column", "qq", "A").to_tuple(), "<", ("constant", 7.0f64).to_tuple()).to_tuple(),
+            (("column", "qq", "A").to_tuple(), "<", ("constant", 7.0f64).to_tuple()).to_tuple(),
             ],
             removed: vec![]}),
         ("source".to_string(), Changes{
@@ -59,9 +59,9 @@ fn main() {
     let result = flow.get_state("math_test");
 
     println!("{:?}",result);
-    */
 
 
+    /*
     let mut flow = Flow::new();
     flow.change(vec![
         ("schema".to_string(), Changes{
@@ -132,7 +132,7 @@ fn main() {
     flow.run();
     println!("{:?}", flow.changes);
     println!("{:?}", flow.get_state("path"));
-
+    */
 
 }
 

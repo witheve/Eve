@@ -2,8 +2,6 @@ use std::iter::IntoIterator;
 
 use value::{Value, Tuple, Relation};
 use interpreter;
-use interpreter::{EveFn,Pattern};
-use test::ToExpression; // TODO dont use test code in production!
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum ConstraintOp {
@@ -25,7 +23,7 @@ pub enum Ref {
 
 impl Ref {
     // TODO extra_row is a gross hack to handle constraints where both sides reference the same source
-    fn resolve<'a>(&'a self, result: &'a Vec<Value>, extra_row: Option<&'a Vec<Value>>) -> &'a Value {
+    pub fn resolve<'a>(&'a self, result: &'a Vec<Value>, extra_row: Option<&'a Vec<Value>>) -> &'a Value {
         match *self {
             Ref::Constant{ref value} => {
                 value
@@ -48,7 +46,7 @@ impl Ref {
                 } else {
                     let value = &result[clause];
                     match *value {
-                        Value::Tuple(ref tuple) => {
+                        Value::Tuple(_) => {
                             value
                         },
                         _ => panic!("Expected a tuple"),
@@ -61,7 +59,7 @@ impl Ref {
                 } else {
                     let value = &result[clause];
                     match *value {
-                        Value::Relation(ref relation) => {
+                        Value::Relation(_) => {
                             value
                         },
                         _ => panic!("Expected a relation"),
@@ -112,97 +110,11 @@ impl Source {
     }
 }
 
-#[derive(Clone,Debug)]
-pub struct Call {
-    pub fun: EveFn,
-    pub args: CallArgs,
-}
-
-impl Call {
-    fn eval(&self, result: &Vec<Value>) -> Value {
-
-        // Resolve references and covert to an expression vector
-        let args: Vec<interpreter::Expression> = self.args.iter()
-                                                           .map(|arg_ref| arg_ref.resolve(result).to_expr())
-                                                           .collect();
-
-        let call = interpreter::Call{fun: self.fun.clone(), args: args};
-
-        interpreter::evaluate(&interpreter::Expression::Call(call))
-    }
-}
-
-#[derive(Clone,Debug)]
-pub enum CallArg {
-    Ref(Ref),
-    Call(Call),
-}
-
-pub type CallArgs = Vec<CallArg>;
-
-impl CallArg {
-    fn resolve(&self, result: &Vec<Value>) -> Value {
-        match self {
-            &CallArg::Ref(ref arg_ref) => arg_ref.resolve(result, None).clone(),
-            &CallArg::Call(ref arg_call) => arg_call.eval(result).clone(),
-        }
-    }
-}
-
-#[derive(Clone,Debug)]
-pub struct Match {
-    pub input: CallArg,
-    pub patterns: Vec<Ref>,
-    pub handlers: CallArgs,
-}
-
-impl Match {
-    fn eval(&self, result: &Vec<Value>) -> Value {
-
-        // Resolve references
-        let input = self.input.resolve(result);
-        let patterns: Vec<Pattern> = self.patterns.iter()
-                                                  .map(|pattern| Pattern::Constant(pattern.resolve(result, None).clone()))
-                                                  .collect();
-
-        let handlers: Vec<interpreter::Expression> = self.handlers.iter()
-                                                     .map(|handler| handler.resolve(result).to_expr())
-                                                     .collect();
-
-        // Build the interpreter match
-        let evematch = interpreter::Match{input: input.to_expr(), patterns: patterns, handlers: handlers};
-
-        interpreter::evaluate(&interpreter::Expression::Match(Box::new(evematch)))
-
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum Expression {
-    Call(Call),
-    Match(Match),
-}
-
-impl Expression {
-    fn constrained_to(&self, result: &Vec<Value>) -> Vec<Value> {
-        match *self {
-            Expression::Call(ref call) => {
-                let value = call.eval(result);
-                vec![value]
-            }
-            Expression::Match(ref evematch) => {
-                let value = evematch.eval(result);
-                vec![value]
-            }
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 pub enum Clause {
     Tuple(Source),
     Relation(Source),
-    Expression(Expression),
+    Expression(interpreter::Expression),
 }
 
 impl Clause {

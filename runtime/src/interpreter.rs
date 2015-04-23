@@ -1,5 +1,6 @@
 use value::*;
 use value::Value::Float;
+use query::Ref;
 use self::EveFn::*;
 
 
@@ -12,6 +13,22 @@ pub enum Expression {
 	Call(Call),
 	Match(Box<Match>),
 	Value(Value),
+}
+
+impl Expression {
+    pub fn constrained_to(&self, result: &Vec<Value>) -> Vec<Value> {
+        match *self {
+            Expression::Call(ref call) => {
+                let value = call.eval(result);
+                vec![value]
+            }
+            Expression::Match(ref evematch) => {
+                let value = evematch.eval(result);
+                vec![value]
+            }
+            _ => unimplemented!(),
+        }
+    }
 }
 
 // End Expression Enum --------------------------------------------------------
@@ -41,6 +58,15 @@ pub struct Match {
 	pub handlers: ExpressionVec,
 }
 
+impl Match {
+    fn eval(&self, result: &Vec<Value>) -> Value {
+
+        evaluate(&Expression::Match(Box::new(self.clone())),result)
+
+    }
+}
+
+
 // Begin Pattern Enum ---------------------------------------------------------
 #[derive(Clone,Debug)]
 pub enum Pattern {
@@ -49,15 +75,17 @@ pub enum Pattern {
 	Tuple(PatternVec),
 }
 
+/*
 impl<'a> PartialEq<Value> for &'a Pattern {
 	fn eq(&self, other: &Value) -> bool {
 		match self {
-			&&Pattern::Constant(ref x) => x == other,
+			&&Pattern::Constant(ref x) => eval_constant(x) == *other,
 			&&Pattern::Variable(_) => panic!("Cannot match Variable against Value"),
 			&&Pattern::Tuple(_) => panic!("Cannot match Tuple against Value"),
 		}
 	}
 }
+*/
 // End Pattern Enum -----------------------------------------------------------
 
 #[derive(Clone,Debug)]
@@ -66,43 +94,67 @@ pub struct Call {
 	pub args: ExpressionVec,
 }
 
+impl Call {
+    pub fn eval(&self, result: &Vec<Value>) -> Value {
+        evaluate(&Expression::Call(self.clone()),result)
+    }
+}
+
+#[derive(Clone,Debug)]
+pub enum Constant {
+	Value(Value),
+	Ref(Ref),
+}
+
 // Some type aliases
-pub type Constant = Value;
 pub type Variable = String;
 pub type PatternVec = Vec<Pattern>;
 pub type ExpressionVec = Vec<Expression>;
 
 // This is the main interface to the interpreter. Pass in an expression, get
 // back a value
-pub fn evaluate(e: & Expression) -> Value {
+pub fn evaluate(e: & Expression, result: &Vec<Value>) -> Value {
 
-	eval_expression(e)
+	eval_expression(e,result)
 
 }
 
-fn eval_expression(e: &Expression) -> Value {
+fn eval_expression(e: &Expression, result: &Vec<Value>) -> Value {
 
 	match *e {
-		Expression::Call(ref x) => eval_call(x),
-		Expression::Constant(ref x) => x.clone(),
+		Expression::Call(ref x) => eval_call(x,result),
+		Expression::Constant(ref x) => eval_constant(x,result),
 		Expression::Value(ref x) => x.clone(),
-		Expression::Match(ref x) => eval_match(x),
+		Expression::Match(ref x) => eval_match(x,result),
 		_ => unimplemented!(),
 	}
 }
 
-fn eval_match(m: &Match) -> Value {
+fn eval_constant(c: &Constant, result: &Vec<Value>) -> Value {
+	match c {
+		&Constant::Value(ref x) => x.clone(),
+		&Constant::Ref(ref x) => x.resolve(result,None).clone(),
+	}
+}
+
+
+fn eval_match(m: &Match, result: &Vec<Value>) -> Value {
 
 	// Before we do anything, make sure we have the same number of patterns and
 	// handlers
 	assert_eq!(m.patterns.len(),m.handlers.len());
 
-	let input = eval_expression(&m.input);
+	let input = eval_expression(&m.input,result);
 	let tests: Vec<Value> = m.patterns.iter()
 						  			  .zip(m.handlers.iter())
 						  			  .filter_map(|(pattern,handler)| -> Option<Value> {
-													if pattern == input { Some(eval_expression(&handler)) }
-													else { None }
+						  			  				match pattern {
+						  			  					&Pattern::Constant(ref x) => {
+						  			  						if eval_expression(&Expression::Constant(x.clone()),result) == input { Some(eval_expression(&handler,result)) }
+															else { None }
+						  			  					}
+						  			  					_ => panic!("TODO"),
+						  			  				}
 												})
 						  			  .take(1)
 						  			  .collect();
@@ -110,9 +162,10 @@ fn eval_match(m: &Match) -> Value {
 	Value::Tuple(tests)
 }
 
-fn eval_call(c: &Call) -> Value {
 
-	let args: Vec<Value> = c.args.iter().map(eval_expression).collect();
+fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
+
+	let args: Vec<Value> = c.args.iter().map(|ref e| eval_expression(e,result)).collect();
 
 	match(&c.fun, &args[..]) {
 

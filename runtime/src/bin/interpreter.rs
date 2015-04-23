@@ -23,41 +23,34 @@ macro_rules! exprvec {
 #[allow(dead_code)]
 fn main() {
 
-	let input = Expression::Constant(3.to_value());
-	let patterns = vec!(Pattern::Constant(1.to_value()),
-					    Pattern::Constant(2.to_value()),
-					    Pattern::Constant(3.to_value()),
-					    Pattern::Constant(4.to_value()),
-					    Pattern::Constant(3.to_value()),
-					   );
-	let handlers = exprvec!["one","two","three","four","five"];
+	// Test a text replacement
+	let c1 = Call{fun: EveFn::StrReplace, args: exprvec!["Hello World","l","q"] };
+	let result = evaluate(&c1.to_expr(),&vec![]);
+	assert_eq!(result.as_str(),"Heqqo Worqd");
 
-	let m = Match{input: input, patterns: patterns, handlers: handlers};
-
-	let result = evaluate(&m.to_expr());
-
-	println!("{:?}",result);
 }
+
 
 #[test]
 fn match_test(){
 
-	let input = Expression::Constant(3.to_value());
+	let input = Expression::Constant(Constant::Value(3.to_value()));
 
-	let patterns = vec!(Pattern::Constant(1.to_value()),
-					    Pattern::Constant(2.to_value()),
-					    Pattern::Constant(3.to_value()),
-					    Pattern::Constant(4.to_value()),
-					    Pattern::Constant(3.to_value()),
+	let patterns = vec!(Pattern::Constant(Constant::Value(1.to_value())),
+					    Pattern::Constant(Constant::Value(2.to_value())),
+					    Pattern::Constant(Constant::Value(3.to_value())),
+					    Pattern::Constant(Constant::Value(4.to_value())),
+					    Pattern::Constant(Constant::Value(3.to_value())),
 					   );
 	let handlers = exprvec!["one","two","three","four","five"];
 
 	let m = Match{input: input, patterns: patterns, handlers: handlers};
 
-	let result = evaluate(&m.to_expr());
+	let result = evaluate(&m.to_expr(),&vec![]);
 
 	println!("{:?}",result);
 }
+
 
 #[test]
 fn opstest() {
@@ -69,7 +62,7 @@ fn opstest() {
 	let c4 = Call{fun: EveFn::Divide, args: exprvec![c3,10]};			// C4 = C3 / 10
 	let c5 = Call{fun: EveFn::Add, args: exprvec![c2,c4]};				// C5 = C2 + C4
 	let c6 = Call{fun: EveFn::Exponentiate, args: exprvec![c5,2.5]};	// C6 = C5 ^ 2.5
-	let result = evaluate(&c6.to_expr());
+	let result = evaluate(&c6.to_expr(),&vec![]);
 	assert_eq!(result,(((1.3f64 + 2f64) * 3f64) + (7f64 - 4f64) / 10f64).powf(2.5f64).to_value());
 
 }
@@ -79,7 +72,7 @@ fn stringtest() {
 
 	// Test a text replacement
 	let c1 = Call{fun: EveFn::StrReplace, args: exprvec!["Hello World","l","q"] };
-	let result = evaluate(&c1.to_expr());
+	let result = evaluate(&c1.to_expr(),&vec![]);
 	assert_eq!(result.as_str(),"Heqqo Worqd");
 
 }
@@ -91,22 +84,22 @@ fn trigtest() {
 
 	// sin
 	let c1 = Call{fun: EveFn::Sin, args: exprvec![pi]};
-	let result = evaluate(&c1.to_expr());
+	let result = evaluate(&c1.to_expr(),&vec![]);
 	assert_eq!(result,pi.sin().to_value());
 
 	// cos
 	let c1 = Call{fun: EveFn::Cos, args: exprvec![pi]};
-	let result = evaluate(&c1.to_expr());
+	let result = evaluate(&c1.to_expr(),&vec![]);
 	assert_eq!(result,pi.cos().to_value());
 
 	// tan
 	let c1 = Call{fun: EveFn::Tan, args: exprvec![pi]};
-	let result = evaluate(&c1.to_expr());
+	let result = evaluate(&c1.to_expr(),&vec![]);
 	assert_eq!(result,pi.tan().to_value());
 
 	// atan2
 	let c1 = Call{fun: EveFn::ATan2, args: exprvec![1.2,2.3]};
-	let result = evaluate(&c1.to_expr());
+	let result = evaluate(&c1.to_expr(),&vec![]);
 	assert_eq!(result,1.2f64.atan2(2.3f64).to_value());
 }
 
@@ -148,7 +141,7 @@ fn bigmathtest() {
 
 	let c17 = Call{fun: EveFn::Multiply, args: exprvec![c16,c10]};	// (2*ma/wa*rh*va*cos(mu)) * (gd+g*cos(ga)/va) - (wx*sin(ga)^2*sin(ps))
 
-	let result = evaluate(&c17.to_expr());
+	let result = evaluate(&c17.to_expr(),&vec![]);
 
 	assert_eq!(result,(2f64*ma/(wa*rh*va*mu.cos())*(gd+g*ga.cos()/va-wx*(ga.sin().powf(2f64))*ps.sin())).to_value());
 
@@ -167,7 +160,7 @@ fn opsbench(b: &mut test::Bencher) {
 	let c6 = Call{fun: EveFn::Exponentiate, args: exprvec![c5,2.5]};	// C6 = C5 ^ 2.5
 	let e1 = c6.to_expr();
 	b.iter(|| {
-		evaluate(&e1)
+		evaluate(&e1,&vec![])
 	});
 }
 
@@ -212,7 +205,7 @@ fn bigmathbench(b: &mut test::Bencher) {
 	let e1 = c17.to_expr();
 
 	b.iter(|| {
-		evaluate(&e1)
+		evaluate(&e1,&vec![])
 	});
 
 }

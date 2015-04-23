@@ -1,7 +1,8 @@
 use value::{Value, Tuple, Relation};
 use index::{Index};
-use query::{Ref, ConstraintOp, Constraint, Source, Expression, Clause, Query, Call, CallArg, Match};
-use interpreter::{EveFn};
+use query::{Ref, ConstraintOp, Constraint, Source, Clause, Query};
+use interpreter::{EveFn,Constant,Pattern};
+use interpreter;
 use flow::{View, Union, Node, Flow};
 
 use std::collections::{BitSet};
@@ -219,10 +220,10 @@ fn create_source(compiler: &Compiler, source: &Vec<Value>) -> Source {
     }
 }
 
-fn create_expression(compiler: &Compiler, expression: &Value) -> Expression {
+fn create_expression(compiler: &Compiler, expression: &Value) -> interpreter::Expression {
     match expression[0].as_str() {
-        "call" => Expression::Call(create_call(compiler,&expression[CALL_FUN],&expression[CALL_ARGS])),
-        "match" => Expression::Match(create_match(compiler,&expression[MATCH_INPUT],&expression[MATCH_PATTERNS],&expression[MATCH_HANDLES])),
+        "call" => interpreter::Expression::Call(create_call(compiler,&expression[CALL_FUN],&expression[CALL_ARGS])),
+        "match" => interpreter::Expression::Match(Box::new(create_match(compiler,&expression[MATCH_INPUT],&expression[MATCH_PATTERNS],&expression[MATCH_HANDLES]))),
         other => panic!("Unknown expression type: {:?}", other),
     }
 }
@@ -244,7 +245,8 @@ fn create_clause(compiler: &Compiler, source: &Vec<Value>) -> Clause {
     }
 }
 
-fn create_match(compiler: &Compiler, uiinput: &Value, uipatterns: &Value, uihandlers: &Value) -> Match {
+
+fn create_match(compiler: &Compiler, uiinput: &Value, uipatterns: &Value, uihandlers: &Value) -> interpreter::Match {
 
     // Create the input
     let match_input = create_call_arg(compiler,uiinput.as_slice());
@@ -255,8 +257,8 @@ fn create_match(compiler: &Compiler, uiinput: &Value, uipatterns: &Value, uihand
                         .map(|arg| {
                             let call_arg = create_call_arg(compiler,arg.as_slice());
                             match call_arg {
-                                CallArg::Ref(x) => x,
-                                CallArg::Call(_) => panic!("Pattern cannot be a call"),
+                                interpreter::Expression::Constant(x) => Pattern::Constant(x),
+                                _ => panic!("TODO"),
                                 }
                             }
                         )
@@ -269,11 +271,10 @@ fn create_match(compiler: &Compiler, uiinput: &Value, uipatterns: &Value, uihand
                             .collect();
 
     // Compile the match
-    Match{input: match_input, patterns: match_patterns, handlers: match_handlers}
+    interpreter::Match{input: match_input, patterns: match_patterns, handlers: match_handlers}
 }
 
-
-fn create_call(compiler: &Compiler, uifun: &Value, uiargvec: &Value) -> Call {
+fn create_call(compiler: &Compiler, uifun: &Value, uiargvec: &Value) -> interpreter::Call {
 
     // Match the uifun with an EveFn...
     let evefn = match uifun.as_str() {
@@ -290,15 +291,15 @@ fn create_call(compiler: &Compiler, uifun: &Value, uiargvec: &Value) -> Call {
                        .map(|arg| create_call_arg(compiler, arg.as_slice()))
                        .collect();
 
-    Call{fun: evefn, args: args}
+    interpreter::Call{fun: evefn, args: args}
 }
 
-fn create_call_arg(compiler: &Compiler, arg: &[Value]) -> CallArg {
+fn create_call_arg(compiler: &Compiler, arg: &[Value]) -> interpreter::Expression {
 
     match arg[0].as_str() {
         "constant" => {
             assert_eq!(arg.len(),2 as usize);
-            CallArg::Ref(Ref::Constant{value: arg[1].clone()})
+            interpreter::Expression::Constant(Constant::Ref(Ref::Constant{value: arg[1].clone()}))
         },
         "column" => {
             assert_eq!(arg.len(),3 as usize);
@@ -307,9 +308,9 @@ fn create_call_arg(compiler: &Compiler, arg: &[Value]) -> CallArg {
             let other_source_ix = get_source_ix(compiler, other_source_id);
             let other_field_ix = get_field_ix(compiler, other_field_id);
 
-            CallArg::Ref(Ref::Value{ clause: other_source_ix, column: other_field_ix })
+            interpreter::Expression::Constant(Constant::Ref(Ref::Value{ clause: other_source_ix, column: other_field_ix }))
         },
-        "call" => CallArg::Call(create_call(compiler,&arg[CALL_FUN],&arg[CALL_ARGS])),
+        "call" => interpreter::Expression::Call(create_call(compiler,&arg[CALL_FUN],&arg[CALL_ARGS])),
         other  => panic!("Unhandled ref kind: {:?}", other),
     }
 }
