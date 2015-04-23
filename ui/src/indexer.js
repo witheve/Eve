@@ -9,6 +9,7 @@ var Indexing = (function() {
         if(!arraysIdentical(a[i], b[i])) return false;
         continue;
       }
+      if(a[i] && a[i].eid && b[i] && b[i].eid) { continue; }
       if (a[i] !== b[i]) return false;
     }
     return true;
@@ -38,8 +39,8 @@ var Indexing = (function() {
     }
     for(var addIx = 0, addLen = adds.length; addIx < addLen; addIx++) {
       var add = adds[addIx];
-      var foundIx = indexOfArray(table, add);
-      if(foundIx !== -1) continue;
+//       var foundIx = indexOfArray(table, add);
+//       if(foundIx !== -1) continue;
       table.push(add);
     }
   }
@@ -52,10 +53,20 @@ var Indexing = (function() {
   }
 
   Indexer.prototype = {
+    totalFacts: function() {
+      var total = 0;
+      for(var table in this.tables) {
+        total += this.tables[table].length;
+      }
+      return total;
+    },
     clear: function() {
       var final = {};
       for(var table in this.tables) {
         this.handleDiff(table, [], this.tables[table]);
+      }
+      for(var index in this.indexes) {
+        this.indexes[index].index = {};
       }
       return {changes: final};
     },
@@ -277,6 +288,7 @@ var Indexing = (function() {
     //   keys: [], //keys to index on
     //   uniqueness: [] //keys that determine uniqueness when testing for latest
     // }
+    // @FIXME: Broken leaves ghost copies when migrating across keys.
     latestCollector: function(opts) {
       var keyIxes = opts.keys;
       var uniques = opts.uniqueness;
