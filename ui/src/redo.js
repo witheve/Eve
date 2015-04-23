@@ -2023,6 +2023,40 @@ function forceRender() {
 
 var code = {
   diffs: {
+    createTable: function(name, fields, initial, tableId) {
+      //an input table
+      var inputId = uuid();
+      var diffs = code.diffs.addView(inputId, fields, initial, inputId, ["table"], "input");
+      //a union
+      diffs.push.apply(diffs, code.diffs.addView(name, fields, initial, tableId, ["table"], "union"));
+      //a merge of that query into the union
+      diffs.push.apply(diffs, code.diffs.merge(queryId, tableId, {}));
+      return diffs;
+    },
+    createQuery: function(unionId) {
+      //a query
+      var queryId = uuid();
+      var diffs = code.diffs.addView(queryId, {}, null, queryId, ["query"], "query");
+      //a union
+      diffs.push.apply(diffs, code.diffs.addView("Untitled Query", {}, null, unionId, ["query"], "union"));
+      //a merge of that query into the union
+      diffs.push.apply(diffs, code.diffs.merge(queryId, unionId, {}));
+      return diffs;
+    },
+    merge: function(source, sink, mappings) {
+      var mappingId = uuid();
+      var diffs = [["view-mapping", "inserted", [mappingId, source, sink]]];
+      diffs.push.apply(diffs, code.addMergeMappings(mappingId, mappings));
+      return diffs;
+    },
+    addMergeMappings: function(mappingId, mappings) {
+      var diffs = [];
+      for(var sinkField in mappings) {
+        var sourceField = mappings[sinkField];
+        diffs.push(["field-mapping", "inserted", [mappingId, sourceField[0], sourceField[1], sinkField]]);
+      }
+      return diffs;
+    },
     addView: function(name, fields, initial, id, tags, type) { // (S, {[S]: Type}, Fact[]?, Uuid?, S[]?) -> Diffs
       id = id || uuid();
       var txId = {"eid": "auto"};
@@ -2207,6 +2241,7 @@ ixer.addIndex("remove", "remove", Indexing.create.lookup([0, 0]));
 ixer.addIndex("adderRows", "adderRow", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
 ixer.addIndex("adderConstraint", "adderConstraint", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
 ixer.addIndex("adderCalculation", "adderCalculation", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
+ixer.addIndex("sinkToMappings", "view-mapping", Indexing.create.collector([3]));
 
 //editorItem
 ixer.addIndex("itemToType", "editorItem", Indexing.create.lookup([0,1]));
