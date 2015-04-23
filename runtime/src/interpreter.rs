@@ -72,20 +72,6 @@ pub type Variable = String;
 pub type PatternVec = Vec<Pattern>;
 pub type ExpressionVec = Vec<Expression>;
 
-// Macro for creating expression vectors
-#[macro_export]
-macro_rules! exprvec {
-    ( $( $x:expr ),* ) => {
-        {
-            let mut temp_vec = ExpressionVec::new();
-            $(
-                temp_vec.push($x.to_expr());
-            )*
-            temp_vec
-        }
-    };
-}
-
 // This is the main interface to the interpreter. Pass in an expression, get
 // back a value
 pub fn evaluate(e: & Expression) -> Value {

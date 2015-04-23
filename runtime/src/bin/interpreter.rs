@@ -11,6 +11,15 @@ use eve::interpreter::*;
 use eve::value::*;
 use eve::test::*;
 
+// Macro for creating expression vectors
+macro_rules! exprvec {
+    ( $( $x:expr ),* ) => {
+    	{
+    		vec![$($x.to_expr(),)*]
+        }
+    };
+}
+
 #[allow(dead_code)]
 fn main() {
 
