@@ -59,9 +59,10 @@ fn main() {
     let result = flow.get_state("math_test");
 
     println!("{:?}",result);
+}
 
-
-    /*
+#[test]
+fn recursion_test() {
     let mut flow = Flow::new();
     flow.change(vec![
         ("schema".to_string(), Changes{
@@ -102,7 +103,11 @@ fn main() {
             removed: vec![]}),
         ("constraint".to_string(), Changes{
             inserted: vec![
-            (("column", "next_step_path", "path_from").to_tuple(), "=", ("column", "next_step_edge", "edge_to").to_tuple()).to_tuple(),
+                (
+                    ("column", "next_step_edge", "edge_to").to_tuple(),
+                    "=",
+                    ("column", "next_step_path", "path_from").to_tuple(),
+                ).to_tuple()
             ],
             removed: vec![]}),
         ("view-mapping".to_string(), Changes{
@@ -130,10 +135,14 @@ fn main() {
         ]);
     let mut flow = compile(flow);
     flow.run();
-    println!("{:?}", flow.changes);
-    println!("{:?}", flow.get_state("path"));
-    */
-
+    assert_eq!(
+        flow.get_state("path").iter().collect::<Vec<_>>(),
+        vec![
+            ("a", "b"), ("a", "c"), ("a", "d"),
+            ("b", "b"), ("b", "c"), ("b", "d"),
+            ("c", "b"), ("c", "c"), ("c", "d"),
+            ("d", "b"), ("d", "c"), ("d", "d"),
+        ].to_relation().iter().collect::<Vec<_>>());
 }
 
 #[test]

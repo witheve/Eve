@@ -86,6 +86,7 @@ struct Compiler {
     flow: Flow,
     upstream: Relation,
     schedule: Relation,
+    ordered_constraint: Relation,
 }
 
 fn create_upstream(flow: &Flow) -> Relation {
@@ -140,29 +141,50 @@ fn create_schedule(flow: &Flow) -> Relation {
     schedule
 }
 
-fn get_view_ix(compiler: &Compiler, view_id: &Value) -> usize {
-    let schedule = compiler.schedule.find_one(SCHEDULE_VIEW, view_id).clone();
-    schedule[SCHEDULE_IX].to_usize().unwrap()
+// hackily reorder constraints to match old assumptions in create_constraint
+fn create_ordered_constraint(flow: &Flow) -> Relation {
+    let mut ordered_constraint = Index::new();
+    for constraint in flow.get_state("constraint").iter() {
+        let left = constraint[CONSTRAINT_LEFT].clone();
+        let op = constraint[CONSTRAINT_OP].clone();
+        let right = constraint[CONSTRAINT_RIGHT].clone();
+        assert!((left[0].as_str() != "constant") || (right[0].as_str() != "constant"));
+        if get_ref_ix(flow, &left) >= get_ref_ix(flow, &right) {
+            ordered_constraint.insert(vec![left, op, right]);
+        } else {
+            ordered_constraint.insert(vec![right, op, left]);
+        }
+    }
+    ordered_constraint
 }
 
-fn get_source_ix(compiler: &Compiler, source_id: &Value) -> usize {
-    let source = compiler.flow.get_state("source").find_one(SOURCE_ID, source_id).clone();
-    source[SOURCE_IX].to_usize().unwrap()
+fn get_view_ix(schedule: &Relation, view_id: &Value) -> usize {
+    schedule.find_one(SCHEDULE_VIEW, view_id)[SCHEDULE_IX].to_usize().unwrap()
 }
 
-fn get_field_ix(compiler: &Compiler, field_id: &Value) -> usize {
-    let field = compiler.flow.get_state("field").find_one(FIELD_ID, field_id).clone();
-    field[FIELD_IX].to_usize().unwrap()
+fn get_source_ix(flow: &Flow, source_id: &Value) -> usize {
+    flow.get_state("source").find_one(SOURCE_ID, source_id)[SOURCE_IX].to_usize().unwrap()
 }
 
-fn get_num_fields(compiler: &Compiler, view_id: &Value) -> usize {
-    let view = compiler.flow.get_state("view").find_one(VIEW_ID, view_id).clone();
-    let schema_id = &view[VIEW_SCHEMA];
-    compiler.flow.get_state("field").find_all(FIELD_SCHEMA, schema_id).len()
+fn get_field_ix(flow: &Flow, field_id: &Value) -> usize {
+    flow.get_state("field").find_one(FIELD_ID, field_id)[FIELD_IX].to_usize().unwrap()
+}
+
+fn get_num_fields(flow: &Flow, view_id: &Value) -> usize {
+    let schema_id = flow.get_state("view").find_one(VIEW_ID, view_id)[VIEW_SCHEMA].clone();
+    flow.get_state("field").find_all(FIELD_SCHEMA, &schema_id).len()
+}
+
+fn get_ref_ix(flow: &Flow, reference: &Value) -> i64 {
+    match reference[0].as_str() {
+        "constant" => -1, // constants effectively are calculated before any sources
+        "column" => get_source_ix(flow, &reference[1]) as i64,
+        other => panic!("Unknown ref type: {:?}", other),
+    }
 }
 
 fn create_constraint(compiler: &Compiler, constraint: &Vec<Value>) -> Constraint {
-    let my_column = get_field_ix(compiler, &constraint[CONSTRAINT_LEFT][2]);
+    let my_column = get_field_ix(&compiler.flow, &constraint[CONSTRAINT_LEFT][2]);
     let op = match constraint[CONSTRAINT_OP].as_str() {
         "<" => ConstraintOp::LT,
         "<=" => ConstraintOp::LTE,
@@ -174,20 +196,20 @@ fn create_constraint(compiler: &Compiler, constraint: &Vec<Value>) -> Constraint
     };
     let constraint_right = &constraint[CONSTRAINT_RIGHT];
     let other_ref = match constraint_right[0].as_str() {
-        "column" => {
-            let other_source_id = &constraint_right[COLUMN_SOURCE_ID];
-            let other_field_id = &constraint_right[COLUMN_FIELD_ID];
-            let other_source_ix = get_source_ix(compiler, other_source_id);
-            let other_field_ix = get_field_ix(compiler, other_field_id);
-            Ref::Value{
-                clause: other_source_ix,
-                column: other_field_ix,
-            }
-        }
         "constant" => {
             let value = constraint_right[1].clone();
             Ref::Constant{
                 value: value,
+            }
+        }
+        "column" => {
+            let other_source_id = &constraint_right[COLUMN_SOURCE_ID];
+            let other_field_id = &constraint_right[COLUMN_FIELD_ID];
+            let other_source_ix = get_source_ix(&compiler.flow, other_source_id);
+            let other_field_ix = get_field_ix(&compiler.flow, other_field_id);
+            Ref::Value{
+                clause: other_source_ix,
+                column: other_field_ix,
             }
         }
         other => panic!("Unknown ref kind: {}", other)
@@ -209,7 +231,7 @@ fn create_source(compiler: &Compiler, source: &Vec<Value>) -> Source {
         (upstream[UPSTREAM_UPSTREAM] == *other_view_id)
     }).next().unwrap();
     let other_view_ix = &upstream[UPSTREAM_IX];
-    let constraints = compiler.flow.get_state("constraint").iter().filter(|constraint| {
+    let constraints = compiler.ordered_constraint.iter().filter(|constraint| {
         constraint[CONSTRAINT_LEFT][1] == *source_id
     }).map(|constraint| {
         create_constraint(compiler, constraint)
@@ -305,8 +327,8 @@ fn create_call_arg(compiler: &Compiler, arg: &[Value]) -> interpreter::Expressio
             assert_eq!(arg.len(),3 as usize);
             let other_source_id = &arg[COLUMN_SOURCE_ID];
             let other_field_id = &arg[COLUMN_FIELD_ID];
-            let other_source_ix = get_source_ix(compiler, other_source_id);
-            let other_field_ix = get_field_ix(compiler, other_field_id);
+            let other_source_ix = get_source_ix(&compiler.flow, other_source_id);
+            let other_field_ix = get_field_ix(&compiler.flow, other_field_id);
 
             interpreter::Expression::Constant(Constant::Ref(Ref::Value{ clause: other_source_ix, column: other_field_ix }))
         },
@@ -326,7 +348,7 @@ fn create_query(compiler: &Compiler, view_id: &Value) -> Query {
 }
 
 fn create_union(compiler: &Compiler, view_id: &Value) -> Union {
-    let num_sink_fields = get_num_fields(compiler, view_id);
+    let num_sink_fields = get_num_fields(&compiler.flow, view_id);
     let mut view_mappings = Vec::new();
     for upstream in compiler.upstream.find_all(UPSTREAM_DOWNSTREAM, view_id) { // arrives in ix order
         let source_view_id = &upstream[UPSTREAM_UPSTREAM];
@@ -336,14 +358,14 @@ fn create_union(compiler: &Compiler, view_id: &Value) -> Union {
         let mut field_mappings = vec![(invalid, invalid); num_sink_fields];
         for field_mapping in compiler.flow.get_state("field-mapping").find_all(FIELDMAPPING_VIEWMAPPING, &view_mapping_id) {
             let source_field_id = &field_mapping[FIELDMAPPING_SOURCEFIELD];
-            let source_field_ix = get_field_ix(compiler, source_field_id);
+            let source_field_ix = get_field_ix(&compiler.flow, source_field_id);
             let source_column_id = &field_mapping[FIELDMAPPING_SOURCECOLUMN];
-            let source_column_ix = get_field_ix(compiler, source_column_id);
+            let source_column_ix = get_field_ix(&compiler.flow, source_column_id);
             let sink_field_id = &field_mapping[FIELDMAPPING_SINKFIELD];
-            let sink_field_ix = get_field_ix(compiler, sink_field_id);
+            let sink_field_ix = get_field_ix(&compiler.flow, sink_field_id);
             field_mappings[sink_field_ix] = (source_field_ix, source_column_ix);
         }
-        let num_source_fields = get_num_fields(compiler, source_view_id);
+        let num_source_fields = get_num_fields(&compiler.flow, source_view_id);
         view_mappings.push((num_source_fields, field_mappings));
     }
     Union{mappings: view_mappings}
@@ -357,10 +379,10 @@ fn create_node(compiler: &Compiler, view_id: &Value, view_kind: &Value) -> Node 
         other => panic!("Unknown view kind: {}", other)
     };
     let upstream = compiler.upstream.find_all(UPSTREAM_DOWNSTREAM, view_id).iter().map(|upstream| {
-        get_view_ix(compiler, &upstream[UPSTREAM_UPSTREAM])
+        get_view_ix(&compiler.schedule, &upstream[UPSTREAM_UPSTREAM])
     }).collect(); // arrives in ix order so it will match the arg order selected by create_query/union
     let downstream = compiler.upstream.find_all(UPSTREAM_UPSTREAM, view_id).iter().map(|upstream| {
-        get_view_ix(compiler, &upstream[UPSTREAM_DOWNSTREAM])
+        get_view_ix(&compiler.schedule, &upstream[UPSTREAM_DOWNSTREAM])
     }).collect();
     Node{
         id: view_id.as_str().to_string(),
@@ -392,7 +414,7 @@ fn create_flow(compiler: Compiler) -> Flow {
     }
 
     // grab state from old flow
-    let Compiler{flow, upstream, schedule} = compiler;
+    let Compiler{flow, upstream, schedule, ..} = compiler;
     match nodes.iter().position(|node| &node.id[..] == "upstream") {
         Some(ix) => states[ix] = Some(RefCell::new(upstream)),
         None => (),
@@ -431,10 +453,12 @@ pub fn compile(mut flow: Flow) -> Flow {
     }
     let upstream = create_upstream(&flow);
     let schedule = create_schedule(&flow);
+    let ordered_constraint = create_ordered_constraint(&flow);
     let compiler = Compiler{
         flow: flow,
         upstream: upstream,
         schedule: schedule,
+        ordered_constraint: ordered_constraint,
     };
     create_flow(compiler)
 }
