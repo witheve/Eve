@@ -227,6 +227,7 @@ function uiGroupItem(group, activeLayerId, componentId) {
   groupEl.component = componentId;
   groupEl.layer = group.slice();
   groupEl.click = activateLayer;
+  groupEl.dblclick = selectAllFromLayer;
   groupEl.drop = uiGroupDrop;
   groupEl.dragstart = startDragUiGroup;
   groupEl.dragover = preventDefault;
@@ -672,14 +673,17 @@ function inspector(componentId, selectionInfo, layers, activeLayer) {
     inspectors.push(layoutInspector(selectionInfo),
                     appearanceInspector(selectionInfo),
                     textInspector(selectionInfo));
-  } else if(activeLayer && elements && elements.length) {
-    inspectors.push(layerInspector(activeLayer));
+  } else if(activeLayer) {
+    inspectors.push(layerInspector(activeLayer, elements));
   }
   return {c: "inspector", children: inspectors};
 }
 
 function inspectorInput(value, key, onChange) {
-  var field = input(value, key, onChange, preventDefault);
+  var field = input(value !== null ? value : "", key, onChange, preventDefault);
+  if(value === null) {
+    input.placeholder = "---";
+  }
   field.mousedown = stopPropagation;
   return field;
 }
@@ -789,12 +793,13 @@ function textInspector(selectionInfo) {
   ]};
 }
 
-function layerInspector(layer) {
+function layerInspector(layer, elements) {
   var componentId = layer[2];
-  var attrs = {}; // @FIXME: Layer attributes.
-  return {c: "inspector-panel", children: [
-    {c: "pair", children: [{c: "label", text: "opacity"}, inspectorInput(attrs["opacity"], [layer[1], "opacity"], setLayerAttribute)]},
-  ]};
+  var info = getGroupInfo(elements, true);
+  var attrs = info.attributes; // @FIXME: Layer attributes.
+  var bounds = info.bounds;
+
+  return {c: "inspector-panel", children: []};
 }
 
 function repeatInspector() {
@@ -870,36 +875,52 @@ function selection(selectionInfo) {
           ]};
 }
 
+function getGroupInfo(elements, withAttributes) {
+  elements = elements || [];
+
+  var attrsIndex = ixer.index("uiElementToAttrs");
+
+  var ids = {};
+  var attributes = {};
+  var els = elements.map(function(cur) {
+    var id = cur[1];
+    ids[id] = true;
+    if(withAttributes !== undefined) {
+      var attrs = attrsIndex[id];
+      if(attrs) {
+        attrs.forEach(function(cur) {
+          var key = cur[2];
+          var value = cur[3];
+          if(attributes[key] === undefined) {
+            attributes[key] = value;
+          } else if(attributes[key] !== value) {
+            attributes[key] = null;
+          }
+        });
+      }
+    }
+    return cur;
+  });
+  var bounds = boundElements(els);
+  return {ids: ids, elements: els, bounds: bounds, attributes: attributes};
+}
+
 function getSelectionInfo(componentId, withAttributes) {
   var sel = getUiSelection(componentId);
   var removed = ixer.index("remove");
   if(sel && !removed[sel[0]]) {
-    var ids = {};
-    var attributes = {};
     var elementIndex = ixer.index("uiComponentElement");
-    var attrsIndex = ixer.index("uiElementToAttrs");
-    elements = (ixer.index("uiSelectionElements")[sel[1]] || []).map(function(cur) {
-      var id = cur[1];
-      ids[id] = true;
-      if(withAttributes !== undefined) {
-        var attrs = attrsIndex[id];
-        if(attrs) {
-          attrs.forEach(function(cur) {
-            var key = cur[2];
-            var value = cur[3];
-            if(attributes[key] === undefined) {
-              attributes[key] = value;
-            } else if(attributes[key] !== value) {
-              attributes[key] = false;
-            }
-          });
-        }
-      }
-      return elementIndex[id];
+    var elements = (ixer.index("uiSelectionElements")[sel[1]] || []);
+    elements = elements
+    .map(function(cur) {
+      return elementIndex[cur[1]];
     });
-    //get the bounding box of those
-    var bounds = boundElements(elements);
-    return {componentId: componentId, selectedIds: ids, elements: elements, bounds: bounds, attributes: attributes}
+
+    var result = getGroupInfo(elements, withAttributes);
+
+    result.componentId = componentId;
+    result.selectedIds = result.ids;
+    return result;
   }
   return false;
 }
@@ -1059,6 +1080,13 @@ function addLayer(e, elem) {
 
 function activateLayer(e, elem) {
   dispatch("activateUiLayer", {layerId: elem.layer[1], componentId: elem.layer[2]});
+}
+function selectAllFromLayer(e, elem) {
+  var elements = ixer.index("uiLayerToElements")[elem.layer[1]] || [];
+  var elIds = elements.map(function(cur) {
+    return cur[1];
+  });
+  dispatch("selectElements", {elements: elIds || [], createNew: !e.shiftKey, componentId: elem.layer[2]});
 }
 
 function toggleHidden(e, elem) {
