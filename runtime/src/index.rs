@@ -8,7 +8,7 @@ pub struct Index<T> {
     items: BTreeMap<T, i64>,
 }
 
-// #[derive(Debug)] Keys does not implement Debug :(
+// Keys does not implement Debug :(
 pub struct Iter<'a, T> where T: 'a {
     iter: btree_map::Iter<'a, T, i64>,
 }
