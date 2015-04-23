@@ -175,8 +175,8 @@ function treeSelector() {
   return {c: "tree-selector", children: items};
 }
 
-function treeItem(klass, id, name, icon, children, controls) {
-  return {c: "tree-item " + klass, draggable: true, dragstart: startDragItem, dragend: stopDragItem,
+function treeItem(klass, id, name, icon, children, controls, dragType) {
+  return {c: "tree-item " + klass, draggable: true, dragstart: startDragItem, dragend: stopDragItem, dragType: dragType,
           click: openItem, id:id, children: [
             {c: "item", children: [
               {c: "icon " + icon},
@@ -190,7 +190,7 @@ function treeItem(klass, id, name, icon, children, controls) {
 function tableItem(table) {
   var tableId = table[0];
   var name = code.name(tableId);
-  return treeItem("table", tableId, name, "ion-grid");
+  return treeItem("table", tableId, name, "ion-grid", null, null, "table");
 }
 
 function queryItem(query) {
@@ -214,7 +214,7 @@ function queryItem(query) {
       }
     });
   }
-  return treeItem("query", queryId, name, "ion-cube", sourceItems);
+  return treeItem("query", queryId, name, "ion-cube", sourceItems, null, "query");
 }
 
 function uiGroupItem(group, activeLayerId, componentId) {
@@ -226,6 +226,16 @@ function uiGroupItem(group, activeLayerId, componentId) {
   var children = [];
   // @TODO: or contains selected elements.
   if(active) {
+    var binding = ixer.index("groupToBinding")[groupId];
+    if(binding) {
+      children.push({c: "tree-item query source", children: [
+        {c: "item", children: [
+          {c: "icon ion-android-arrow-back"},
+          {text: code.name(binding)}
+        ]}
+      ]});
+    }
+
     activeClass = "ion-android-checkbox-blank";
     var items = ixer.index("uiLayerToElements")[groupId] || [];
     var selectedIds = [];
@@ -284,7 +294,7 @@ function uiItem(ui) {
 var draggedItemId; // @NOTE: Why don't we set it as dataTransfer metadata?
 function startDragItem(e, elem) {
   draggedItemId = elem.id;
-  e.dataTransfer.setData("type", "treeItem");
+  e.dataTransfer.setData("type", elem.dragType || "treeItem");
   e.stopPropagation();
 }
 
@@ -320,12 +330,13 @@ function startDragUiGroup(e, elem) {
 
 function uiGroupDrop(e, elem) {
   // @NOTE: Is there a way to retrieve element state by id?
-  if(e.dataTransfer.getData("type") === "uiElementItem") {
+  var type = e.dataTransfer.getData("type");
+  if(type === "uiElementItem") {
     var id = e.dataTransfer.getData("id");
     dispatch("moveSelection", {componentId: elem.component, layer: elem.layer[1]});
     dispatch("activateUiLayer", {componentId: elem.component, layerId: elem.layer[1]});
 
-  } else if(e.dataTransfer.getData("type") === "uiGroupItem") {
+  } else if(type === "uiGroupItem") {
     var bounds = e.currentTarget.getBoundingClientRect();
     var y = Math.floor(e.clientY - bounds.top);
     var toLayer = (y / bounds.height > 0.5) ? elem.layer[3] + 1 : elem.layer[3];
@@ -358,6 +369,8 @@ function uiGroupDrop(e, elem) {
     }
     neue.push(dropped);
     dispatch("updateUiLayers", {neue: neue});
+  } else if(type === "table" || type === "query") {
+    dispatch("addGroupBinding", {groupId: elem.layer[1], unionId: draggedItemId});
   }
 }
 
@@ -1160,7 +1173,8 @@ function queryWorkspace(view) {
 }
 
 function queryDrop(e, elem) {
-  if(e.dataTransfer.getData("type") === "treeItem") {
+  var type = e.dataTransfer.getData("type");
+  if(type === "table" || type === "query") {
     dispatch("addViewSource", {view: elem.view, sourceId: draggedItemId});
   }
 }
@@ -1704,7 +1718,8 @@ function dispatch(event, info, returnInsteadOfSend) {
     case "addUi":
       var uiId = uuid();
       diffs.push.apply(diffs, dispatch("addUiComponentLayer", {componentId: uiId}));
-      diffs.push(["editorItem", "inserted", [uiId, "ui"]]);
+      diffs.push(["editorItem", "inserted", [uiId, "ui"]],
+                 ["displayName", "inserted", [txId, uiId, "Untitled UI"]]);
       diffs.push.apply(diffs, dispatch("openItem", {id: uiId}, true));
       break;
     case "addUiComponentElement":
@@ -2044,6 +2059,14 @@ function dispatch(event, info, returnInsteadOfSend) {
     case "removeAdder":
       diffs.push(["remove", "inserted", [info.txId]]);
       break;
+    case "addGroupBinding":
+      var groupId = info.groupId;
+      var prev = ixer.index("groupToBinding")[groupId];
+      if(prev) {
+        diffs.push(["uiGroupBinding", "removed", [groupId, prev]]);
+      }
+      diffs.push(["uiGroupBinding", "inserted", [groupId, info.unionId]]);
+      break;
     default:
       console.error("Dispatch for unknown event: ", event, info);
       return;
@@ -2324,6 +2347,7 @@ ixer.addIndex("uiSelection", "uiSelection", Indexing.create.latestLookup({keys: 
 ixer.addIndex("uiSelectionElements", "uiSelectionElement", Indexing.create.collector([0]));
 ixer.addIndex("uiActiveLayer", "uiActiveLayer", Indexing.create.latestLookup({keys: [2, 1, 3]}));
 ixer.addIndex("uiBoxSelection", "uiBoxSelection", Indexing.create.latestLookup({keys: [1, false]}));
+ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup([0, 1]));
 
 // State
 ixer.addIndex("searchValue", "searchValue", Indexing.create.latestLookup({keys: [1, 2]}));
@@ -2357,6 +2381,7 @@ function initIndexer() {
   add("uiSelectionElement", {id: "id", element: "id"}, [], "uiSelectionElement", ["table"]);
   add("uiActiveLayer", {tx: "number", component: "id", client: "id", layer: "id"}, [], "uiActiveLayer", ["table"]);
   add("uiBoxSelection", {tx: "number", component: "id", x0: "number", y0: "number", x1: "number", y1: "number"}, [], "uiBoxSelection", ["table"]);
+  add("uiGroupBinding", {id: "id", union: "id"}, [], "uiGroupBinding", ["table"]);
 
   // editor item
   add("editorItem", {id: "id", type: "table|query|ui"}, [], "editorItem", ["table"]);
