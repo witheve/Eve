@@ -3,7 +3,7 @@ use std::iter::IntoIterator;
 
 use value::{Value, ToValue, Tuple, ToTuple, Relation};
 use interpreter;
-use interpreter::{Expression,EveFn,ToExpression,PatternVec};
+use interpreter::{EveFn,ToExpression,PatternVec};
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum ConstraintOp {
@@ -122,13 +122,13 @@ impl Call {
     fn eval(&self, result: &Vec<Value>) -> Value {
 
         // Resolve references and covert to an expression vector
-        let args: Vec<Expression> = self.args.iter()
+        let args: Vec<interpreter::Expression> = self.args.iter()
                                                            .map(|arg_ref| arg_ref.resolve(result).to_expr())
                                                            .collect();
 
         let call = interpreter::Call{fun: self.fun.clone(), args: args};
 
-        interpreter::evaluate(&Expression::Call(call))
+        interpreter::evaluate(&interpreter::Expression::Call(call))
     }
 }
 
@@ -170,15 +170,36 @@ impl Match {
 
         // Resolve references
         let input = self.input.resolve(result);
-        let handlers: Vec<Expression> = self.handlers.iter()
+        let handlers: Vec<interpreter::Expression> = self.handlers.iter()
                                .map(|handler| handler.resolve(result).to_expr())
                                .collect();
 
         // Build the interpreter match
         let evematch = interpreter::Match{input: input.to_expr(), patterns: self.patterns.clone(), handlers: handlers};
 
-        interpreter::evaluate(&Expression::Match(Box::new(evematch)))
+        interpreter::evaluate(&interpreter::Expression::Match(Box::new(evematch)))
 
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum Expression {
+    Call(Call),
+    Match(Match),
+}
+
+impl Expression {
+    fn constrained_to(&self, result: &Vec<Value>) -> Vec<Value> {
+        match *self {
+            Expression::Call(ref call) => {
+                let value = call.eval(result).to_tuple().to_value();
+                vec![value]
+            }
+            Expression::Match(ref evematch) => {
+                let value = evematch.eval(result).to_tuple().to_value();
+                vec![value]
+            }
+        }
     }
 }
 
@@ -186,8 +207,7 @@ impl Match {
 pub enum Clause {
     Tuple(Source),
     Relation(Source),
-    Call(Call),
-    Match(Match),
+    Expression(Expression),
 }
 
 impl Clause {
@@ -196,19 +216,14 @@ impl Clause {
             Clause::Tuple(ref source) => {
                 let relation = source.constrained_to(inputs, result);
                 relation.into_iter().map(|tuple| Value::Tuple(tuple)).collect()
-            },
+            }
             Clause::Relation(ref source) => {
                 let relation = source.constrained_to(inputs, result);
                 vec![Value::Relation(relation)]
-            },
-            Clause::Call(ref call) => {
-                let value = call.eval(result).to_tuple().to_value();
-                vec![value]
-            },
-            Clause::Match(ref evematch) => {
-                let value = evematch.eval(result).to_tuple().to_value();
-                vec![value]
-            },
+            }
+            Clause::Expression(ref expression) => {
+                expression.constrained_to(result)
+            }
         }
     }
 }
