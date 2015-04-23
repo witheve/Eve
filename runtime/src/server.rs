@@ -71,8 +71,6 @@ pub struct Event {
     changes: Changes,
 }
 
-// TODO need to change encoding to list of changes instead of object
-
 impl ToJson for Event {
     fn to_json(&self) -> Json {
         Json::Object(vec![
@@ -149,6 +147,7 @@ pub fn serve() -> mpsc::Receiver<ServerEvent> {
 // TODO arbitrary limit - needs tuning
 static MAX_BATCH_SIZE: usize = 100;
 
+// TODO can batching cause missed outputs?
 fn recv_batch(event_receiver: &mpsc::Receiver<ServerEvent>, server_events: &mut Vec<ServerEvent>) {
     server_events.push(event_receiver.recv().unwrap()); // block until first event
     for _ in 0..MAX_BATCH_SIZE {
