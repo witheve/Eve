@@ -1,4 +1,3 @@
-use std;
 use std::iter::IntoIterator;
 
 use value::{Value, Tuple, Relation};

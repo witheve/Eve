@@ -1,4 +1,3 @@
-use std::fmt::{Debug,Formatter,Result};
 use value::{Value};
 use value;
 use self::EveFn::*;
