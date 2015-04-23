@@ -23,10 +23,21 @@ macro_rules! exprvec {
 #[allow(dead_code)]
 fn main() {
 
-	// Test a text replacement
-	let c1 = Call{fun: EveFn::StrReplace, args: exprvec!["Hello World","l","q"] };
-	let result = evaluate(&c1.to_expr(),&vec![]);
-	assert_eq!(result.as_str(),"Heqqo Worqd");
+	let input = Expression::Constant(Constant::Value(3.to_value()));
+
+	let patterns = vec!(Pattern::Constant(Constant::Value(1.to_value())),
+					    Pattern::Constant(Constant::Value(2.to_value())),
+					    Pattern::Constant(Constant::Value(3.to_value())),
+					    Pattern::Constant(Constant::Value(4.to_value())),
+					    Pattern::Constant(Constant::Value(3.to_value())),
+					   );
+	let handlers = exprvec!["one","two","three","four","five"];
+
+	let m = Match{input: input, patterns: patterns, handlers: handlers};
+
+	let result = evaluate(&m.to_expr(),&vec![]);
+
+	println!("{:?}",result);
 
 }
 

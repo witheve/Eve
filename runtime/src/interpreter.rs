@@ -145,21 +145,20 @@ fn eval_match(m: &Match, result: &Vec<Value>) -> Value {
 	assert_eq!(m.patterns.len(),m.handlers.len());
 
 	let input = eval_expression(&m.input,result);
-	let tests: Vec<Value> = m.patterns.iter()
-						  			  .zip(m.handlers.iter())
-						  			  .filter_map(|(pattern,handler)| -> Option<Value> {
-						  			  				match pattern {
-						  			  					&Pattern::Constant(ref x) => {
-						  			  						if eval_expression(&Expression::Constant(x.clone()),result) == input { Some(eval_expression(&handler,result)) }
-															else { None }
-						  			  					}
-						  			  					_ => panic!("TODO"),
-						  			  				}
-												})
-						  			  .take(1)
-						  			  .collect();
 
-	Value::Tuple(tests)
+
+	for (pattern, handler) in m.patterns.iter().zip(m.handlers.iter()) {
+		match pattern {
+			&Pattern::Constant(ref x) => {
+				if eval_expression(&Expression::Constant(x.clone()),result) == input {
+					return eval_expression(&handler,result)
+				}
+			}
+			_ => panic!("TODO"),
+		}
+	};
+
+	Value::String(String::from_str("TODO: No match found"))
 }
 
 
@@ -219,7 +218,7 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 			Value::Tuple(w)
 		},
 
-		/*
+
 		// Aggregate functions
 		(&Sum,[Value::Tuple(ref x)]) => {
 			Value::Float(x.iter().fold(0f64, |acc: f64, ref item| {
@@ -228,7 +227,9 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 					x => panic!("Cannot aggregate {:?}",x),
 				}
 			}))
+
 		},
+		/*
 		(&Prod,[Value::Tuple(ref x)]) => {
 			Value::Float(x.iter().fold(1f64, |acc: f64, ref item| {
 				match item {
