@@ -1179,7 +1179,7 @@ function viewResults(sources, results) {
       });
       fieldHeaders.push({t: "th", c: "gap"});
     } else {
-      tableHeaders.push({t: "th", text: "TODO: calculations"}, {t: "th", c: "gap"});
+      tableHeaders.push({t: "th", children: [expressionItem(data[1], [], cur)]}, {t: "th", c: "gap"});
       fieldHeaders.push({t: "th", text: "result"}, {t: "th", c: "gap"});
       sourceFieldsLength.push(1);
     }
@@ -1417,10 +1417,14 @@ function expressionEditor(tokenInfo) {
   //row, we need to make sure we get the right index for the
   //view.
   var sourceOrAdder = tokenInfo.info.source;
-  var item = atPath(sourceOrAdder[3], path);
+  var isAdder = sourceOrAdder.length === 4;
   var viewId = sourceOrAdder[0];
-  if(sourceOrAdder.length === 4) {
+  var item;
+  if(isAdder) {
+    item = atPath(sourceOrAdder[3], path);
     viewId = sourceOrAdder[2];
+  } else {
+    item = atPath(sourceOrAdder[3][1], path);
   }
   var refs = code.viewToRefs(viewId)
   var funcs = [];
@@ -1436,6 +1440,8 @@ function expressionEditor(tokenInfo) {
     } else if(type === "constant") {
       startingTab = "constant";
       constantValue = item[1];
+    } else if(type === "column") {
+      startingTab = "column";
     }
   }
   return genericEditor(refs, funcs, false, constantValue, startingTab, updateExpression, updateExpressionConstant);
@@ -1474,14 +1480,16 @@ function updateExpression(e, elem, noDismiss) {
   //if it's a call, we need to add placeholders
   if(finalValue[0] === "call") {
     var info = callInfo[finalValue[1]];
-    info.args.forEach(function(cur) {
-      finalValue.push(["placeholder"]);
+    var args = info.args.map(function(cur) {
+      return ["placeholder"];
     })
+    finalValue[2] = args;
   }
   if(isAdder) {
     dispatch("updateCalculation", {old: editorInfo.info.source, neue: expression});
   } else {
-    var neue = editor.info.source.slice();
+    var neue = editorInfo.info.source.slice();
+    console.log(neue);
     neue[3] = ["expression", expression];
     dispatch("updateSource", {old: editorInfo.info.source, neue: neue});
   }
@@ -1515,17 +1523,18 @@ var callInfo = {
 
 function callItem(call, path, source) {
   var op = call[1];
+  var args = call[2];
   var info = callInfo[op];
   var expression = [];
   var opItem = expressionToken(source, path, op);
   if(info.infix) {
-    expression.push(expressionItem(call[2], path.concat([2]), source),
+    expression.push(expressionItem(args[0], path.concat([2, 0]), source),
                     opItem,
-                    expressionItem(call[3], path.concat([3]), source))
+                    expressionItem(args[1], path.concat([2, 1]), source))
   } else {
     expression.push(opItem);
-    for(var i = 2, len = call.length; i < len; i++) {
-      expression.push(expressionItem(call[i], path.concat([i]), source));
+    for(var i = 0, len = args.length; i < len; i++) {
+      expression.push(expressionItem(args[i], path.concat([2, i]), source));
     }
   }
   return {c: "call", children: expression};
@@ -1844,6 +1853,11 @@ function dispatch(event, info, returnInsteadOfSend) {
         //add a real constraint for it
         diffs.push(["constraint", "inserted", neueConstraint],
                    ["remove", "inserted", [info.old[0]]]);
+        //@HACK: this is a horrible hack to get around the fact that editorInfo will now be referencing
+        //the wrong kind of fact. This comes up when typing a constant value that completes the expression
+        //for the first time. editorInfo will still be working off of the adder, to fix this, we pretend
+        //that it's now looking at the source
+        editorInfo.info.constraint = neueConstraint;
       }
       break;
     case "newCalculation":
@@ -1863,13 +1877,24 @@ function dispatch(event, info, returnInsteadOfSend) {
         //add a source for it
         var view = info.old[2];
         var sources = ixer.index("viewToSources")[view];
+        var source = [view, sources.length, info.old[1], ["expression", neueCalculation], "get-tuple"];
         diffs.push(["remove", "inserted", [info.old[0]]],
-                   ["source", "inserted", [view, sources.length, info.old[1], ["expression", neueCalculation], "get-tuple"]]);
+                   ["source", "inserted", source]);
+        //@HACK: this is a horrible hack to get around the fact that editorInfo will now be referencing
+        //the wrong kind of fact. This comes up when typing a constant value that completes the expression
+        //for the first time. editorInfo will still be working off of the adder, to fix this, we pretend
+        //that it's now looking at the source
+        editorInfo.info.source = source;
       }
       break;
     case "updateSource":
+      console.log(info.old, info.neue);
       diffs.push(["source", "removed", info.old],
                  ["source", "inserted", info.neue])
+        //@HACK: this is a horrible hack to get around the fact that editorInfo will now be referencing
+        //the previous source. This comes up when typing a constant value. editorInfo will still be
+        //working off of the adder, to fix this, we pretend that it's now looking at the updated one
+        editorInfo.info.source = info.neue;
       break;
     case "updateRow":
       var neue = info.row.slice();
@@ -1913,6 +1938,10 @@ function dispatch(event, info, returnInsteadOfSend) {
     case "updateConstraint":
       diffs.push(["constraint", "removed", info.old],
                  ["constraint", "inserted", info.neue])
+        //@HACK: this is a horrible hack to get around the fact that editorInfo will now be referencing
+        //the previous source. This comes up when typing a constant value. editorInfo will still be
+        //working off of the adder, to fix this, we pretend that it's now looking at the updated one
+        editorInfo.info.constraint = info.neue;
       break;
     default:
       console.error("Dispatch for unknown event: ", event, info);
@@ -2247,7 +2276,9 @@ function connectToServer() {
       console.log("slow handleDiffs (> 5ms):", time);
     }
 
-    rerender();
+    if(data.changes.length) {
+      rerender();
+    }
   };
 
   ws.onopen = function() {
