@@ -1,4 +1,4 @@
-use value::{Value, Tuple, Relation, ToTuple};
+use value::{Value, Tuple, Relation};
 use index::{Index};
 use query::{Ref, ConstraintOp, Constraint, Source, Expression, Clause, Query, Call, CallArg, Match};
 use interpreter::{EveFn,Pattern};
@@ -93,14 +93,18 @@ fn create_upstream(flow: &Flow) -> Relation {
         let downstream_id = &view[VIEW_ID];
         let kind = &view[VIEW_KIND];
         let mut ix = 0.0;
-        match &*kind.to_string() {
+        match kind.as_str() {
             "input" => (),
             "query" => {
                 for source in flow.get_state("source").find_all(SOURCE_VIEW, downstream_id) {
                     let data = &source[SOURCE_DATA];
-                    if &*data[0].to_string() == "view"  {
+                    if data[0].as_str() == "view"  {
                         let upstream_id = &data[1];
-                        upstream.insert((downstream_id.clone(), ix, upstream_id.clone()).to_tuple());
+                        upstream.insert(vec![
+                            downstream_id.clone(),
+                            Value::Float(ix),
+                            upstream_id.clone(),
+                            ]);
                         ix += 1.0;
                     }
                 }
@@ -108,7 +112,11 @@ fn create_upstream(flow: &Flow) -> Relation {
             "union" => {
                 for view_mapping in flow.get_state("view-mapping").find_all(VIEWMAPPING_SINKVIEW, downstream_id) {
                     let upstream_id = &view_mapping[VIEWMAPPING_SOURCEVIEW];
-                    upstream.insert((downstream_id.clone(), ix, upstream_id.clone()).to_tuple());
+                        upstream.insert(vec![
+                            downstream_id.clone(),
+                            Value::Float(ix),
+                            upstream_id.clone(),
+                            ]);
                     ix += 1.0;
                 }
             }
@@ -125,7 +133,7 @@ fn create_schedule(flow: &Flow) -> Relation {
     let mut ix = 0.0;
     for view in flow.get_state("view").iter() {
         let view_id = &view[VIEW_ID];
-        schedule.insert((ix, view_id.clone()).to_tuple());
+        schedule.insert(vec![Value::Float(ix), view_id.clone()]);
         ix += 1.0;
     }
     schedule
@@ -154,17 +162,17 @@ fn get_num_fields(compiler: &Compiler, view_id: &Value) -> usize {
 
 fn create_constraint(compiler: &Compiler, constraint: &Vec<Value>) -> Constraint {
     let my_column = get_field_ix(compiler, &constraint[CONSTRAINT_LEFT][2]);
-    let op = match &*constraint[CONSTRAINT_OP].to_string() {
-          "<" => ConstraintOp::LT,
-          "<=" => ConstraintOp::LTE,
-          "=" => ConstraintOp::EQ,
-          "!=" => ConstraintOp::NEQ,
-          ">" => ConstraintOp::GT,
-          ">=" => ConstraintOp::GTE,
-          other => panic!("Unknown constraint op: {}", other),
+    let op = match constraint[CONSTRAINT_OP].as_str() {
+        "<" => ConstraintOp::LT,
+        "<=" => ConstraintOp::LTE,
+        "=" => ConstraintOp::EQ,
+        "!=" => ConstraintOp::NEQ,
+        ">" => ConstraintOp::GT,
+        ">=" => ConstraintOp::GTE,
+        other => panic!("Unknown constraint op: {}", other),
     };
     let constraint_right = &constraint[CONSTRAINT_RIGHT];
-    let other_ref = match &*constraint_right[0].to_string() {
+    let other_ref = match constraint_right[0].as_str() {
         "column" => {
             let other_source_id = &constraint_right[COLUMN_SOURCE_ID];
             let other_field_id = &constraint_right[COLUMN_FIELD_ID];
@@ -212,7 +220,7 @@ fn create_source(compiler: &Compiler, source: &Vec<Value>) -> Source {
 }
 
 fn create_expression(compiler: &Compiler, expression: &Value) -> Expression {
-    match &*expression[0].to_string() {
+    match expression[0].as_str() {
         "call" => Expression::Call(create_call(compiler,&expression[CALL_FUN],&expression[CALL_ARGS])),
         "match" => Expression::Match(create_match(compiler,&expression[MATCH_INPUT],&expression[MATCH_PATTERNS],&expression[MATCH_HANDLES])),
         other => panic!("Unknown expression type: {:?}", other),
@@ -221,9 +229,9 @@ fn create_expression(compiler: &Compiler, expression: &Value) -> Expression {
 
 fn create_clause(compiler: &Compiler, source: &Vec<Value>) -> Clause {
     let source_data = &source[SOURCE_DATA];
-    match &*source_data[0].to_string() {
+    match source_data[0].as_str() {
         "view" => {
-            match &*source[SOURCE_ACTION].to_string() {
+            match source[SOURCE_ACTION].as_str() {
                 "get-tuple" => Clause::Tuple(create_source(compiler, source)),
                 "get-relation" => Clause::Relation(create_source(compiler, source)),
                 other => panic!("Unknown view action: {}", other),
@@ -239,18 +247,18 @@ fn create_clause(compiler: &Compiler, source: &Vec<Value>) -> Clause {
 fn create_match(compiler: &Compiler, uiinput: &Value, uipatterns: &Value, uihandles: &Value) -> Match {
 
 	// Create the input
-	let match_input = create_call_arg(compiler,uiinput.to_tuple());
+	let match_input = create_call_arg(compiler,uiinput.as_slice());
 
 	// Create the pattern vector
-	let match_patterns = uipatterns.to_tuple()
+	let match_patterns = uipatterns.as_slice()
 							 .iter()
 							 .map(|arg| Pattern::Constant(arg.clone()))
 							 .collect();
 
     // Create handles vector
-	let match_handles = uihandles.to_tuple()
+	let match_handles = uihandles.as_slice()
 							.iter()
-							.map(|arg| create_call_arg(compiler,arg.to_tuple()))
+							.map(|arg| create_call_arg(compiler,arg.as_slice()))
 							.collect();
 
 	// Compile the call
@@ -260,7 +268,7 @@ fn create_match(compiler: &Compiler, uiinput: &Value, uipatterns: &Value, uihand
 fn create_call(compiler: &Compiler, uifun: &Value, uiargvec: &Value) -> Call {
 
     // Match the uifun with an EveFn...
-    let evefn = match uifun.to_string().as_ref() {
+    let evefn = match uifun.as_str() {
         "+"   => EveFn::Add,
         "-"   => EveFn::Subtract,
         "*"   => EveFn::Multiply,
@@ -269,17 +277,17 @@ fn create_call(compiler: &Compiler, uifun: &Value, uiargvec: &Value) -> Call {
         _     => panic!("Unknown Function Call: {:?}",uifun),
     };
 
-    let args = uiargvec.to_tuple()
+    let args = uiargvec.as_slice()
                        .iter()
-                       .map(|arg| create_call_arg(compiler, arg.to_tuple()))
+                       .map(|arg| create_call_arg(compiler, arg.as_slice()))
                        .collect();
 
     Call{fun: evefn, args: args}
 }
 
-fn create_call_arg(compiler: &Compiler, arg: Tuple) -> CallArg {
+fn create_call_arg(compiler: &Compiler, arg: &[Value]) -> CallArg {
 
-    match arg[0].to_string().as_ref() {
+    match arg[0].as_str() {
         "constant" => {
             assert_eq!(arg.len(),2 as usize);
             CallArg::Ref(Ref::Constant{value: arg[1].clone()})
@@ -333,7 +341,7 @@ fn create_union(compiler: &Compiler, view_id: &Value) -> Union {
 }
 
 fn create_node(compiler: &Compiler, view_id: &Value, view_kind: &Value) -> Node {
-    let view = match &*view_kind.to_string() {
+    let view = match view_kind.as_str() {
         "input" => View::Input,
         "query" => View::Query(create_query(compiler, view_id)),
         "union" => View::Union(create_union(compiler, view_id)),
@@ -346,7 +354,7 @@ fn create_node(compiler: &Compiler, view_id: &Value, view_kind: &Value) -> Node 
         get_view_ix(compiler, &upstream[UPSTREAM_DOWNSTREAM])
     }).collect();
     Node{
-        id: view_id.to_string(),
+        id: view_id.as_str().to_string(),
         view: view,
         upstream: upstream,
         downstream: downstream,

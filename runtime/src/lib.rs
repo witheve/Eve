@@ -24,3 +24,4 @@ pub mod query;
 pub mod flow;
 pub mod compiler;
 pub mod server;
+pub mod test;

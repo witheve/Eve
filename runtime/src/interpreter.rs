@@ -1,12 +1,11 @@
-use std::fmt::{Debug,Formatter,Result};
-use value::{Value,ToValue};
+use value::{Value};
 use value;
 use self::EveFn::*;
 use value::Value::Float;
 
 // Enums...
 // Expression Enum ------------------------------------------------------------
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Expression {
 	Constant(Constant),
 	Variable(Variable),
@@ -14,29 +13,6 @@ pub enum Expression {
 	Match(Box<Match>),
 	Value(Value),
 }
-
-impl Debug for Expression {
-
-	fn fmt(&self, f: &mut Formatter) -> Result {
-		match *self {
-			Expression::Constant(ref x) => write!(f,"{:?}",*x),
-			Expression::Call(ref x) => write!(f,"{:?}",*x),
-			Expression::Variable(ref x) => write!(f,"{:?}",*x),
-			Expression::Value(ref x) => write!(f,"{:?}",*x),
-			Expression::Match(ref x) => write!(f,"{:?}",*x),
-		}
-	}
-}
-
-pub trait ToExpression { fn to_expr(self) -> Expression; }
-
-impl ToExpression for Expression { fn to_expr(self) -> Expression { self } }
-impl ToExpression for Call { fn to_expr(self) -> Expression { Expression::Call(self) } }
-impl ToExpression for i32 { fn to_expr(self) -> Expression { Expression::Value(self.to_value()) } }
-impl ToExpression for f64 { fn to_expr(self) -> Expression { Expression::Value(self.to_value()) } }
-impl<'a> ToExpression for &'a str { fn to_expr(self) -> Expression { Expression::Value(self.to_value()) } }
-impl ToExpression for Value { fn to_expr(self) -> Expression { Expression::Value(self) } }
-impl ToExpression for Match { fn to_expr(self) -> Expression { Expression::Match( Box::new(self)) } }
 
 // End Expression Enum --------------------------------------------------------
 
@@ -95,20 +71,6 @@ pub type Constant = Value;
 pub type Variable = String;
 pub type PatternVec = Vec<Pattern>;
 pub type ExpressionVec = Vec<Expression>;
-
-// Macro for creating expression vectors
-#[macro_export]
-macro_rules! exprvec {
-    ( $( $x:expr ),* ) => {
-        {
-            let mut temp_vec = ExpressionVec::new();
-            $(
-                temp_vec.push($x.to_expr());
-            )*
-            temp_vec
-        }
-    };
-}
 
 // This is the main interface to the interpreter. Pass in an expression, get
 // back a value
@@ -200,7 +162,7 @@ fn eval_call(c: &Call) -> Value {
 		(&StrLength,[Value::String(ref s)]) => Float(s.len() as f64),
 		(&StrReplace,[Value::String(ref s),Value::String(ref q),Value::String(ref r)]) => Value::String(s.replace(&q[..],&r[..])),
 		(&StrSplit,[Value::String(ref s)]) => {
-			let w: Vec<Value> = s.words().map(|x| x.to_value()).collect();
+			let w: Vec<Value> = s.words().map(|x| Value::String(x.to_string())).collect();
 			Value::Tuple(w)
 		},
 
@@ -222,7 +184,7 @@ fn general_agg(x: &value::Tuple) -> Value {
 	// Some fold magic!
 	println!("{:?}",x);
 
-	10f64.to_value()
+	Value::Float(10f64)
 
 }
 // End Aggregate Functions ----------------------------------------------------

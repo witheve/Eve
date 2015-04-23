@@ -1,9 +1,9 @@
-use std;
 use std::iter::IntoIterator;
 
-use value::{Value, ToValue, Tuple, ToTuple, Relation};
+use value::{Value, Tuple, Relation};
 use interpreter;
-use interpreter::{EveFn,ToExpression,PatternVec};
+use interpreter::{EveFn,PatternVec};
+use test::ToExpression; // TODO dont use test code in production!
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum ConstraintOp {
@@ -106,16 +106,10 @@ impl Source {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct Call {
     pub fun: EveFn,
     pub args: CallArgs,
-}
-
-impl std::fmt::Debug for Call {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        formatter.write_str(&*format!("Call{{fun: {:?}, args:{:?}}}", self.fun, self.args))
-    }
 }
 
 impl Call {
@@ -132,7 +126,7 @@ impl Call {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub enum CallArg {
     Ref(Ref),
     Call(Call),
@@ -145,15 +139,6 @@ impl CallArg {
         match self {
             &CallArg::Ref(ref arg_ref) => arg_ref.resolve(result).clone(),
             &CallArg::Call(ref arg_call) => arg_call.eval(result).clone(),
-        }
-    }
-}
-
-impl std::fmt::Debug for CallArg {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        match self {
-            &CallArg::Ref(ref x) => formatter.write_str(&*format!("{:?}",x)),
-            &CallArg::Call(ref x) => formatter.write_str(&*format!("{:?}",x)),
         }
     }
 }
@@ -192,11 +177,11 @@ impl Expression {
     fn constrained_to(&self, result: &Vec<Value>) -> Vec<Value> {
         match *self {
             Expression::Call(ref call) => {
-                let value = call.eval(result).to_tuple().to_value();
+                let value = call.eval(result);
                 vec![value]
             }
             Expression::Match(ref evematch) => {
-                let value = evematch.eval(result).to_tuple().to_value();
+                let value = evematch.eval(result);
                 vec![value]
             }
         }

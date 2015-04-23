@@ -1,7 +1,6 @@
 use std::ops;
 use std::num::ToPrimitive;
 use std::cmp::Ordering;
-use std::iter::IntoIterator;
 
 use index::Index;
 
@@ -31,16 +30,7 @@ impl ops::Index<usize> for Value {
     fn index(&self, index: usize) -> &Value {
         match *self {
             Value::Tuple(ref tuple) => tuple.index(index),
-            _ => panic!("Indexing a non-tuple value"),
-        }
-    }
-}
-
-impl ToString for Value {
-    fn to_string(&self) -> String {
-        match *self {
-            Value::String(ref string) => string.clone(),
-            _ => panic!("Stringifying a non-string value"),
+            _ => panic!("Cannot index into this non-tuple value: {:?}", self),
         }
     }
 }
@@ -66,140 +56,18 @@ impl ToPrimitive for Value {
     }
 }
 
-pub trait ToValue {
-    fn to_value(self) -> Value;
-}
-
-pub trait ToTuple {
-    fn to_tuple(self) -> Tuple;
-}
-
-impl ToTuple for Value {
-    fn to_tuple(self) -> Tuple {
-        match self {
-            Value::Tuple(x) => x.clone(),
-            _ => vec![self],
+impl Value {
+    pub fn as_str(&self) -> &str {
+        match *self {
+            Value::String(ref string) => &*string,
+            _ => panic!("Cannot convert this to string: {:?}", self),
         }
     }
-}
 
-impl<'a> ToTuple for &'a Value {
-    fn to_tuple(self) -> Tuple {
-        match self {
-            &Value::Tuple(ref x) => x.clone(),
-            _ => vec![self.clone()],
+    pub fn as_slice(&self) -> &[Value] {
+        match *self {
+            Value::Tuple(ref tuple) => &*tuple,
+            _ => panic!("Cannot convert this to tuple: {:?}", self),
         }
-    }
-}
-
-pub trait ToRelation {
-    fn to_relation(self) -> Relation;
-}
-
-impl ToValue for Value {
-    fn to_value(self) -> Value {
-        self
-    }
-}
-
-impl ToValue for bool {
-    fn to_value(self) -> Value {
-        Value::Bool(self)
-    }
-}
-
-impl<'a> ToValue for &'a str {
-    fn to_value(self) -> Value {
-        Value::String(self.to_string())
-    }
-}
-
-impl ToValue for String {
-    fn to_value(self) -> Value {
-        Value::String(self)
-    }
-}
-
-impl ToValue for f64 {
-    fn to_value(self) -> Value {
-        Value::Float(self)
-    }
-}
-
-impl ToValue for i32 {
-     fn to_value(self) -> Value {
-        Value::Float(self as f64)
-    }
-}
-
-impl ToValue for i64 {
-     fn to_value(self) -> Value {
-        Value::Float(self as f64)
-    }
-}
-
-impl ToValue for Tuple {
-    fn to_value(self) -> Value {
-        Value::Tuple(self)
-    }
-
-}
-
-impl ToValue for usize {
-    fn to_value(self) -> Value {
-        Value::Float(self.to_f64().unwrap())
-    }
-}
-
-// impl<T: ToTuple> ToValue for T {
-//     fn to_value(self) -> Value {
-//         Value::Tuple(self.to_tuple())
-//     }
-// }
-
-// impl<T: ToRelation> ToValue for T where T: !ToTuple {
-//     fn to_value(self) -> Value {
-//         Value::Relation(self.to_relation())
-//     }
-// }
-
-impl<A: ToValue> ToTuple for (A,) {
-    fn to_tuple(self) -> Vec<Value> {
-        let (a,) = self;
-        vec![a.to_value()]
-    }
-}
-
-impl<A: ToValue, B: ToValue> ToTuple for (A,B) {
-    fn to_tuple(self) -> Vec<Value> {
-        let (a,b) = self;
-        vec![a.to_value(), b.to_value()]
-    }
-}
-
-impl<A: ToValue, B: ToValue, C: ToValue> ToTuple for (A,B,C) {
-    fn to_tuple(self) -> Vec<Value> {
-        let (a,b,c) = self;
-        vec![a.to_value(), b.to_value(), c.to_value()]
-    }
-}
-
-impl<A: ToValue, B: ToValue, C: ToValue, D: ToValue> ToTuple for (A,B,C,D) {
-    fn to_tuple(self) -> Vec<Value> {
-        let (a,b,c,d) = self;
-        vec![a.to_value(), b.to_value(), c.to_value(), d.to_value()]
-    }
-}
-
-impl<A: ToValue, B: ToValue, C: ToValue, D: ToValue, E: ToValue> ToTuple for (A,B,C,D,E) {
-    fn to_tuple(self) -> Vec<Value> {
-        let (a,b,c,d,e) = self;
-        vec![a.to_value(), b.to_value(), c.to_value(), d.to_value(), e.to_value()]
-    }
-}
-
-impl<T: ToTuple> ToRelation for Vec<T> {
-    fn to_relation(self) -> Relation {
-        self.into_iter().map(|t| t.to_tuple()).collect()
     }
 }
