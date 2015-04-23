@@ -19,40 +19,39 @@ use eve::interpreter::{EveFn,Pattern};
 use core::num::ToPrimitive;
 use eve::test::*;
 
-
 #[allow(dead_code)]
 fn main() {
 
-    let p = vec!(Pattern::Constant(1f64.to_value()),
-                 Pattern::Constant(2f64.to_value()),
-                 Pattern::Constant(3f64.to_value()),
-                 Pattern::Constant(4f64.to_value()),
-                 Pattern::Constant(5f64.to_value()),
-                );
+    let a0 = vec![(1.0, "A", 1.0),
+                  (3.0, "B", 2.0),
+                  (5.0, "C", 3.0),
+                  (7.0, "D", 7.0),
+                  (1.0, "E", 8.0)].to_relation();
 
-    let h = vec!(CallArg::Ref(Ref::Constant{value: "one".to_value()}),
-                 CallArg::Ref(Ref::Constant{value: "two".to_value()}),
-                 CallArg::Ref(Ref::Constant{value: "three".to_value()}),
-                 CallArg::Ref(Ref::Constant{value: "four".to_value()}),
-                 CallArg::Ref(Ref::Constant{value: "five".to_value()}),
-                );
+    let a1 = vec![(1.0, "A", 1.0),
+                  (3.0, "B", 2.0),
+                  (5.0, "C", 3.0),
+                  (7.0, "D", 7.0),
+                  (1.0, "E", 8.0)].to_relation();
 
-    let i = CallArg::Ref(Ref::Constant{value: 5f64.to_value()});
-
+    let a0_eq_a1 = Constraint{
+        my_column: 0,
+        op: ConstraintOp::EQ,
+        other_ref: Ref::Value{clause: 0, column: 2},
+    };
     let query = Query{clauses: vec![
-        Clause::Expression(
-            Expression::Match(Match{input: i, patterns: p, handlers: h})
-            ),
+        Clause::Tuple(Source{relation: 0, constraints: vec![]}),
+        Clause::Tuple(Source{relation: 1, constraints: vec![a0_eq_a1]}),
     ]};
-
 
     let mut resultvec = Vec::new();
 
-    for result in query.iter(vec![]) {
+    for result in query.iter(vec![&a1,&a0]) {
         resultvec.push(result);
     }
 
     println!("{:?}",resultvec);
+
 
 /*
 
@@ -66,7 +65,7 @@ fn main() {
     }
 
 
- 	let a = vec![(0.0, 1.0, 2.0), (5.0, 6.0, 6.0), (7.0, 8.0, 9.0)].to_relation();
+    let a = vec![(0.0, 1.0, 2.0), (5.0, 6.0, 6.0), (7.0, 8.0, 9.0)].to_relation();
     let b = vec![(-7.0,), (8.0,), (10.0,)].to_relation();
     let a0_lt_b0 = Constraint{
         my_column: 0,
@@ -78,17 +77,17 @@ fn main() {
         Clause::Tuple(Source{relation: 0, constraints: vec![a0_lt_b0]}),
     ]};
 
- 	let mut resultvec = Vec::new();
+    let mut resultvec = Vec::new();
 
     for result in query.iter(vec![&a]) {
-    	println!("--------------------------------");
-    	println!("{:?}",result);
-    	println!("--------------------------------");
+        println!("--------------------------------");
+        println!("{:?}",result);
+        println!("--------------------------------");
         resultvec.push(result);
     }
 
 
-	// Build the correct answer
+    // Build the correct answer
     //let e1 = ((0.0,1.0,2.0).to_tuple(),(-4.0,-5.0,-6.0).to_tuple()).to_tuple();
     //let e2 = ((4.0,5.0,6.0).to_tuple(),(-4.0,-5.0,-6.0).to_tuple()).to_tuple();
     //let e3 = ((4.0,5.0,6.0).to_tuple(),(0.0,-1.0,-2.0).to_tuple()).to_tuple();
@@ -126,14 +125,14 @@ fn main() {
 #[test]
 fn test1() {
 
-	let a = vec![(0.0, 1.0, 2.0), (4.0, 5.0, 6.0)].to_relation();
+    let a = vec![(0.0, 1.0, 2.0), (4.0, 5.0, 6.0)].to_relation();
     let b = vec![(-0.0, -1.0, -2.0), (-4.0, -5.0, -6.0)].to_relation();
     let query = Query{clauses: vec![
         Clause::Tuple(Source{relation: 0, constraints: vec![]}),
         Clause::Tuple(Source{relation: 1, constraints: vec![]}),
     ]};
 
- 	let mut resultvec = Vec::new();
+    let mut resultvec = Vec::new();
 
     for result in query.iter(vec![&a, &b]) {
         resultvec.push(result);
@@ -152,7 +151,7 @@ fn test1() {
 
 
 #[test]
-fn constrainttest() {
+fn constraint_test() {
 
     let a = vec![(0.0, 1.0, 2.0), (4.0, 5.0, 6.0)].to_relation();
     let b = vec![(-0.0, -1.0, -2.0), (-4.0, -5.0, -6.0)].to_relation();
@@ -166,13 +165,13 @@ fn constrainttest() {
         Clause::Tuple(Source{relation: 1, constraints: vec![b0_lt_a0]}),
     ]};
 
- 	let mut resultvec = Vec::new();
+    let mut resultvec = Vec::new();
 
     for result in query.iter(vec![&a, &b]) {
         resultvec.push(result);
     }
 
-	// Build the correct answer
+    // Build the correct answer
     let e1 = ((0.0,1.0,2.0).to_tuple(),(-4.0,-5.0,-6.0).to_tuple()).to_tuple();
     let e2 = ((4.0,5.0,6.0).to_tuple(),(-4.0,-5.0,-6.0).to_tuple()).to_tuple();
     let e3 = ((4.0,5.0,6.0).to_tuple(),(0.0,-1.0,-2.0).to_tuple()).to_tuple();
@@ -185,16 +184,59 @@ fn constrainttest() {
 
 /*
 #[test]
+fn match_test() {
+
+    let a = vec![(0.0f64, 1.0f64, 2.0f64), (4.0f64, 5.0f64, 6.0f64)].to_relation();
+
+    let p = vec!(Ref::Constant{value: 1f64.to_value()},
+                 Ref::Constant{value: 2f64.to_value()},
+                 Ref::Constant{value: 3f64.to_value()},
+                 Ref::Constant{value: 4f64.to_value()},
+                 Ref::Constant{value: 5f64.to_value()},
+                 Ref::Constant{value: 6f64.to_value()},
+                 Ref::Constant{value: 7f64.to_value()},
+                );
+
+    let h = vec!(CallArg::Ref(Ref::Constant{value: "zero".to_value()}),
+                 CallArg::Ref(Ref::Constant{value: "one".to_value()}),
+                 CallArg::Ref(Ref::Constant{value: "two".to_value()}),
+                 CallArg::Ref(Ref::Constant{value: "three".to_value()}),
+                 CallArg::Ref(Ref::Constant{value: "four".to_value()}),
+                 CallArg::Ref(Ref::Constant{value: "five".to_value()}),
+                 CallArg::Ref(Ref::Constant{value: "six".to_value()}),
+                );
+
+    let i = CallArg::Ref(Ref::Value{clause: 0, column: 2});
+
+    let query = Query{clauses: vec![
+        Clause::Tuple(Source{relation: 0, constraints: vec![]}),
+        Clause::Expression(Match{input: i, patterns: p, handlers: h}),
+    ]};
+
+
+    let mut resultvec = Vec::new();
+
+    for result in query.iter(vec![&a]) {
+        resultvec.push(result);
+    }
+
+    assert_eq!(resultvec[0][1],("one".to_value(),).to_tuple().to_value());
+    assert_eq!(resultvec[1][1],("five".to_value(),).to_tuple().to_value());
+
+}
+*/
+/*
+#[test]
 fn stringtest() {
 
-	let a = vec![("Andy Warhol",), ("Leonardo da Vinci",)].to_relation();
-	let c0 = Call{fun: EveFn::StrUpper, arg_refs: vec![Ref::Value{clause: 0, column: 0}]};
-	let c1 = Call{fun: EveFn::StrSplit, arg_refs: vec![Ref::Call{clause: 1}]};
+    let a = vec![("Andy Warhol",), ("Leonardo da Vinci",)].to_relation();
+    let c0 = Call{fun: EveFn::StrUpper, arg_refs: vec![Ref::Value{clause: 0, column: 0}]};
+    let c1 = Call{fun: EveFn::StrSplit, arg_refs: vec![Ref::Call{clause: 1}]};
 
-	// Query takes a relation and nested function calls on a set of strings
-	let query = Query{clauses: clausevec![Clause::Tuple(Source{relation: 0, constraints: vec![]}),c0,c1]};
+    // Query takes a relation and nested function calls on a set of strings
+    let query = Query{clauses: clausevec![Clause::Tuple(Source{relation: 0, constraints: vec![]}),c0,c1]};
 
- 	let mut resultvec = Vec::new();
+    let mut resultvec = Vec::new();
 
     for result in query.iter(vec![&a]) {
         resultvec.push(result);
@@ -205,8 +247,8 @@ fn stringtest() {
     let s1 = ("LEONARDO","DA","VINCI").to_tuple();
 
     // Test equality hack
-	assert_eq!(resultvec[0][2][0],s0[0]); // ANDY
-	assert_eq!(resultvec[0][2][1],s0[1]); // WARHOL
+    assert_eq!(resultvec[0][2][0],s0[0]); // ANDY
+    assert_eq!(resultvec[0][2][1],s0[1]); // WARHOL
     assert_eq!(resultvec[1][2][0],s1[0]); // LEONARDO
     assert_eq!(resultvec[1][2][1],s1[1]); // DA
     assert_eq!(resultvec[1][2][2],s1[2]); // VINCI
@@ -217,7 +259,7 @@ fn stringtest() {
 #[test]
 fn opstest() {
 
-	// General math with a relation (((1.3 + 2) * [1 2 3 4]) + (7 - 4) / 10) ^ 2
+    // General math with a relation (((1.3 + 2) * [1 2 3 4]) + (7 - 4) / 10) ^ 2
     let a = vec![(1.0,),(2.0,),(3.0,),(4.0,)].to_relation();
     let c0 = Call{fun: EveFn::Add, arg_refs: vec![Ref::Constant{value: 1.3.to_value()},Ref::Constant{value: 2.to_value()}]};       // C0 = 1.3 + 2
     let c1 = Call{fun: EveFn::Multiply, arg_refs: vec![Ref::Call{clause: 1},Ref::Value{clause: 0, column: 0}]};                    // C1 = C0 * [1 2 3 4]
@@ -229,18 +271,18 @@ fn opstest() {
     // Build the query
     let query = Query{clauses: clausevec![Clause::Tuple(Source{relation: 0, constraints: vec![]}),c0,c1,c2,c3,c4,c5]};
 
- 	let mut resultvec = Vec::new();
+    let mut resultvec = Vec::new();
 
 
     for result in query.iter(vec![&a]) {
         resultvec.push(result);
     }
 
-   	// Test against the correct answer
-	assert_eq!(resultvec[0][6].to_f64().unwrap() as f32, 12.96f32);
-	assert_eq!(resultvec[1][6].to_f64().unwrap() as f32, 47.61f32);
-	assert_eq!(resultvec[2][6].to_f64().unwrap() as f32, 104.04f32);
-	assert_eq!(resultvec[3][6].to_f64().unwrap() as f32, 182.25f32);
+    // Test against the correct answer
+    assert_eq!(resultvec[0][6].to_f64().unwrap() as f32, 12.96f32);
+    assert_eq!(resultvec[1][6].to_f64().unwrap() as f32, 47.61f32);
+    assert_eq!(resultvec[2][6].to_f64().unwrap() as f32, 104.04f32);
+    assert_eq!(resultvec[3][6].to_f64().unwrap() as f32, 182.25f32);
 
 
 }

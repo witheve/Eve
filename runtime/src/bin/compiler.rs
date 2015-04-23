@@ -1,5 +1,9 @@
-extern crate eve;
+#![feature(test)]
 
+extern crate eve;
+extern crate test;
+
+use eve::value::*;
 use eve::index::*;
 use eve::flow::Flow;
 use eve::compiler::*;
@@ -7,6 +11,57 @@ use eve::test::*;
 
 #[allow(dead_code)]
 fn main() {
+
+    let mut flow = Flow::new();
+    flow.change(vec![
+        ("schema".to_string(), Changes{
+            inserted: vec![
+            ("input_schema",).to_tuple(),
+            ],
+            removed: vec![]}),
+        ("field".to_string(), Changes{
+            inserted: vec![
+            ("input_schema", 0.0f64, "A", "tuple").to_tuple(),
+            ("input_schema", 1.0f64, "B", "tuple").to_tuple(),
+            ],
+            removed: vec![]}),
+        ("view".to_string(), Changes{
+            inserted: vec![
+            ("math_test", "input_schema", "query").to_tuple(),
+            ("math_test2", "input_schema", "query").to_tuple(),
+            ("input", "input_schema", "input").to_tuple(),
+            ],
+            removed: vec![]}),
+        ("constraint".to_string(), Changes{
+            inserted: vec![
+            (("column", "qq", "A").to_tuple(), "=", ("column", "qq", "B").to_tuple()).to_tuple(),
+            (("column", "qq", "A").to_tuple(), ">", ("constant", 1.0f64).to_tuple()).to_tuple(),
+            //(("column", "qq", "A").to_tuple(), "<", ("constant", 7.0f64).to_tuple()).to_tuple(),
+            ],
+            removed: vec![]}),
+        ("source".to_string(), Changes{
+            inserted: vec![
+            ("math_test", 0.0f64, "qq", ("view", "input").to_tuple(), "get-tuple").to_tuple(),
+            ],
+            removed: vec![]}),
+        ("input".to_string(), Changes{
+            inserted: vec![
+            (1, 1).to_tuple(),
+            (3, 4).to_tuple(),
+            (6, 6).to_tuple(),
+            (7, 8).to_tuple(),
+            ],
+            removed: vec![]}),
+        ]);
+    let mut flow = compile(flow);
+    flow.run();
+
+    let result = flow.get_state("math_test");
+
+    println!("{:?}",result);
+
+
+    /*
     let mut flow = Flow::new();
     flow.change(vec![
         ("schema".to_string(), Changes{
@@ -77,4 +132,199 @@ fn main() {
     flow.run();
     println!("{:?}", flow.changes);
     println!("{:?}", flow.get_state("path"));
+    */
+
+}
+
+#[test]
+fn call_test() {
+
+    // c1 = 10 + 20
+    let c1 = ("call","+",(("constant",10f64).to_tuple(),("constant",20f64).to_tuple()).to_tuple()).to_tuple();
+    // c2 = 10 * c1
+    let c2 = ("call","*",(("constant",10f64).to_tuple(),c1.clone()).to_tuple()).to_tuple();
+    // c3 = input.A = input.B
+    let c3 = ("call","*",(("column", "qq", "A").to_tuple(),("column", "qq", "B").to_tuple()).to_tuple()).to_tuple();
+    // c4 = prod(input.B)
+    //let c4 = ("call","prod",(("column", "rr", "B").to_tuple(),).to_tuple()).to_tuple();
+
+    let mut flow = Flow::new();
+    flow.change(vec![
+        ("schema".to_string(), Changes{
+            inserted: vec![
+            ("input_schema",).to_tuple(),
+            ],
+            removed: vec![]}),
+        ("field".to_string(), Changes{
+            inserted: vec![
+            ("input_schema", 0.0f64, "A", "tuple").to_tuple(),
+            ("input_schema", 1.0f64, "B", "tuple").to_tuple(),
+            ],
+            removed: vec![]}),
+        ("view".to_string(), Changes{
+            inserted: vec![
+            ("input", "input_schema", "input").to_tuple(),
+            ("math_test", "input_schema", "query").to_tuple(),
+            ("agg_test", "input_schema", "query").to_tuple(),
+            ("simple_call_test", "", "query").to_tuple(),
+            ("nested_call_test", "", "query").to_tuple(),
+            ],
+            removed: vec![]}),
+        ("source".to_string(), Changes{
+            inserted: vec![
+            ("math_test", 0.0f64, "qq", ("view", "input").to_tuple(), "get-tuple").to_tuple(),
+            ("math_test", 1.0f64, "none", ("expression",c3).to_tuple(), "get-tuple").to_tuple(),
+            //("agg_test", 0.0f64, "rr", ("view", "input").to_tuple(), "get-tuple").to_tuple(),
+            //("agg_test", 1.0f64, "none", c4, "get-tuple").to_tuple(),
+            ("simple_call_test", 0.0f64, "none", ("expression",c1).to_tuple(), "get-tuple").to_tuple(),
+            ("nested_call_test", 0.0f64, "none", ("expression",c2).to_tuple(), "get-tuple").to_tuple(),
+            ],
+            removed: vec![]}),
+        ("input".to_string(), Changes{
+            inserted: vec![
+            (1, 8).to_tuple(),
+            (2, 7).to_tuple(),
+            (3, 6).to_tuple(),
+            (4, 5).to_tuple(),
+            ],
+            removed: vec![]}),
+        ]);
+    let mut flow = compile(flow);
+    flow.run();
+
+    // Test simple addition of two constants
+    let result = flow.get_state("simple_call_test");
+    let answervec = vec![
+                    vec![30f64.to_value()],
+                    ];
+    let q = result.iter().zip(answervec.iter()).all(|(q,r)| q[0]==r[0] );
+    assert_eq!(q,true);
+
+    // Test nested call
+    let result = flow.get_state("nested_call_test");
+    let answervec = vec![
+                    vec![300f64.to_value()],
+                    ];
+    let q = result.iter().zip(answervec.iter()).all(|(q,r)| q[0]==r[0] );
+    assert_eq!(q,true);
+
+    // Test call over columns
+    let result = flow.get_state("math_test");
+    let answervec = vec![
+                    vec![(1f64,8f64).to_tuple().to_value(),8f64.to_value()],
+                    vec![(2f64,7f64).to_tuple().to_value(),14f64.to_value()],
+                    vec![(3f64,6f64).to_tuple().to_value(),18f64.to_value()],
+                    vec![(4f64,5f64).to_tuple().to_value(),20f64.to_value()],
+                    ];
+    let q = result.iter().zip(answervec.iter()).all(|(q,r)| q[1]==r[1] );
+    assert_eq!(q,true);
+
+    // Test an aggregate
+    /*
+    let result = flow.get_state("agg_test");
+    let answervec = vec![
+                    vec![(1f64,8f64).to_tuple().to_value(),(1680f64,).to_tuple().to_value()],
+                    vec![(2f64,7f64).to_tuple().to_value(),(1680f64,).to_tuple().to_value()],
+                    vec![(3f64,6f64).to_tuple().to_value(),(1680f64,).to_tuple().to_value()],
+                    vec![(4f64,5f64).to_tuple().to_value(),(1680f64,).to_tuple().to_value()],
+                    ];
+
+    let q = result.iter().zip(answervec.iter()).all(|(q,r)| q[1]==r[1] );
+    assert_eq!(q,true);
+    */
+}
+
+
+#[test]
+fn match_test() {
+
+    let i1 = ("constant",1f64).to_tuple();
+    let i2 = ("call","+",(("constant",1f64).to_tuple(),("constant",1f64).to_tuple()).to_tuple()).to_tuple();
+    let i3 = ("column", "qq", "A").to_tuple();
+
+    let patterns = (("constant",1f64).to_tuple(),
+                    ("constant",2f64).to_tuple(),
+                    ("constant",3f64).to_tuple(),
+                    ("constant",4f64).to_tuple(),
+                    ).to_tuple();
+
+    let handlers = (("constant","one").to_tuple(),
+                    ("constant","two").to_tuple(),
+                    ("constant","three").to_tuple(),
+                    ("constant","four").to_tuple(),
+                    ).to_tuple();
+
+    let m1 = ("match",i1,patterns.clone(),handlers.clone()).to_tuple();
+    let m2 = ("match",i2,patterns.clone(),handlers.clone()).to_tuple();
+    let m3 = ("match",i3,patterns.clone(),handlers.clone()).to_tuple();
+
+    let mut flow = Flow::new();
+    flow.change(vec![
+        ("schema".to_string(), Changes{
+            inserted: vec![
+            ("input_schema",).to_tuple(),
+            ],
+            removed: vec![]}),
+        ("field".to_string(), Changes{
+            inserted: vec![
+            ("input_schema", 0.0f64, "A", "tuple").to_tuple(),
+            ("input_schema", 1.0f64, "B", "tuple").to_tuple(),
+            ],
+            removed: vec![]}),
+        ("view".to_string(), Changes{
+            inserted: vec![
+            ("input", "input_schema", "input").to_tuple(),
+            ("match_test", "input_schema", "query").to_tuple(),
+            ("simple_match_test", "", "query").to_tuple(),
+            ("simple_match_test2", "", "query").to_tuple(),
+            ],
+            removed: vec![]}),
+        ("source".to_string(), Changes{
+            inserted: vec![
+            ("match_test", 0.0f64, "qq", ("view", "input").to_tuple(), "get-tuple").to_tuple(),
+            ("match_test", 1.0f64, "none", ("expression",m3).to_tuple(), "get-tuple").to_tuple(),
+            ("simple_match_test", 0.0f64, "none", ("expression",m1).to_tuple(), "get-tuple").to_tuple(),
+            ("simple_match_test2", 0.0f64, "none", ("expression",m2).to_tuple(), "get-tuple").to_tuple(),
+            ],
+            removed: vec![]}),
+        ("input".to_string(), Changes{
+            inserted: vec![
+            (1, 8).to_tuple(),
+            (2, 7).to_tuple(),
+            (3, 6).to_tuple(),
+            (4, 5).to_tuple(),
+            ],
+            removed: vec![]}),
+        ]);
+    let mut flow = compile(flow);
+    flow.run();
+
+
+    // Test match with a constant input
+    let result = flow.get_state("simple_match_test");
+    let answervec = vec![
+                    vec![("one",).to_tuple().to_value()],
+                    ];
+    let q = result.iter().zip(answervec.iter()).all(|(q,r)| q[0]==r[0] );
+    assert_eq!(q,true);
+
+    // Test match with a call input
+    let result = flow.get_state("simple_match_test2");
+    let answervec = vec![
+                    vec![("two",).to_tuple().to_value()],
+                    ];
+    let q = result.iter().zip(answervec.iter()).all(|(q,r)| q[0]==r[0] );
+    assert_eq!(q,true);
+
+    // Test match with column input
+    let result = flow.get_state("match_test");
+    let answervec = vec![
+                    vec![(1f64,8f64).to_tuple().to_value(),("one",).to_tuple().to_value()],
+                    vec![(2f64,7f64).to_tuple().to_value(),("two",).to_tuple().to_value()],
+                    vec![(3f64,6f64).to_tuple().to_value(),("three",).to_tuple().to_value()],
+                    vec![(4f64,5f64).to_tuple().to_value(),("four",).to_tuple().to_value()],
+                    ];
+    let q = result.iter().zip(answervec.iter()).all(|(q,r)| q[1]==r[1] );
+    assert_eq!(q,true);
+
 }
