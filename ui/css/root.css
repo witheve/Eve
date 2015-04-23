@@ -58,6 +58,8 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 -----------------------------------------------------------------------------*/
 
 .input { outline:none; }
+.icon-btn { padding:5px; border-radius:2px; flex:none; width:25px; justify-content:center; }
+.icon-btn:hover { background: #666; }
 
 /*-----------------------------------------------------------------------------
 - ui editor
@@ -95,8 +97,7 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 .layer.active { background:#777; color: #eee; }
 .layer > * + *  { margin-left:10px; }
 .layer .input { flex:1; }
-.add-layer { padding:5px; border-radius:2px; flex:none; width:25px; justify-content:center; }
-.add-layer:hover { background: #666; }
+
 .layers .ion-eye-disabled { color: #f88; }
 .layers .ion-eye-disabled { color: #f88; }
 .layers .ion-locked { color: #f88; }
