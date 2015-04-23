@@ -1701,6 +1701,10 @@ function dispatch(event, info, returnInsteadOfSend) {
       break;
     case "openItem":
       diffs.push(["openEditorItem", "inserted", [txId, info.id, client]]);
+      //@HACK: we're lacking a context/focus system at this point, so we're forced to account
+      //for what actions would disable things. In this case, anytime you switch the workspace,
+      //the code editor should go away.
+      editorInfo = false;
       break;
     case "addTable":
       var tableId = uuid();
@@ -2102,7 +2106,13 @@ function rerender() {
 
 function forceRender() {
   queued = false;
-  renderer.render(root());
+  var start = now();
+  var elems = root();
+  var time = now() - start;
+  if(time > 5) {
+    console.log("long root()", time);
+  }
+  renderer.render(elems);
 }
 
 //---------------------------------------------------------
