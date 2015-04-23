@@ -1223,11 +1223,14 @@ function viewResults(sources, results) {
         }
         neue.push({t: "td", colspan: sourceFieldsLength[i], c: "failed", text: text});
         neue.push({t: "td", c: "gap failed"});
-      } else {
+      } else if(fields.constructor === Array) {
         var fieldsLen = fields.length;
         for(var fieldIx = 0; fieldIx < fieldsLen; fieldIx++) {
           neue.push({t: "td", text: fields[fieldIx]});
         }
+        neue.push({t: "td", c: "gap"});
+      } else {
+        neue.push({t: "td", text: fields});
         neue.push({t: "td", c: "gap"});
       }
     }
