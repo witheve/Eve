@@ -2,8 +2,6 @@ use std::iter::IntoIterator;
 
 use value::{Value, Tuple, Relation};
 use interpreter;
-use interpreter::{EveFn,PatternVec};
-use test::ToExpression; // TODO dont use test code in production!
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum ConstraintOp {
@@ -24,32 +22,48 @@ pub enum Ref {
 }
 
 impl Ref {
-    fn resolve<'a>(&'a self, result: &'a Vec<Value>) -> &'a Value {
-
+    // TODO extra_row is a gross hack to handle constraints where both sides reference the same source
+    pub fn resolve<'a>(&'a self, result: &'a Vec<Value>, extra_row: Option<&'a Vec<Value>>) -> &'a Value {
         match *self {
             Ref::Constant{ref value} => {
                 value
             },
             Ref::Value{clause, column} => {
-                match result[clause] {
-                    Value::Tuple(ref tuple) => {
-                        &tuple[column]
-                    },
-                    _ => panic!("Expected a tuple"),
+                if clause == result.len() {
+                    &extra_row.unwrap()[column]
+                } else {
+                    match result[clause] {
+                        Value::Tuple(ref tuple) => {
+                            &tuple[column]
+                        },
+                        _ => panic!("Expected a tuple"),
+                    }
                 }
             },
             Ref::Tuple{clause} => {
-                let value = &result[clause];
-                match *value {
-                    Value::Tuple(..) => value,
-                    _ => panic!("Expected a tuple"),
+                if clause == result.len() {
+                    panic!("Can't refer to whole tuple of same source")
+                } else {
+                    let value = &result[clause];
+                    match *value {
+                        Value::Tuple(_) => {
+                            value
+                        },
+                        _ => panic!("Expected a tuple"),
+                    }
                 }
             },
             Ref::Relation{clause} =>{
-                let value = &result[clause];
-                match *value {
-                    Value::Relation(..) => value,
-                    _ => panic!("Expected a relation"),
+                if clause == result.len() {
+                    panic!("Can't refer to whole relation of same source")
+                } else {
+                    let value = &result[clause];
+                    match *value {
+                        Value::Relation(_) => {
+                            value
+                        },
+                        _ => panic!("Expected a relation"),
+                    }
                 }
             },
         }
@@ -64,15 +78,10 @@ pub struct Constraint {
 }
 
 impl Constraint {
-
-    // Resolves the RHS reference in the constraint to a value
-    fn prepare<'a>(&'a self, result: &'a Vec<Value>) -> &'a Value {
-        self.other_ref.resolve(result)
-    }
-
     // bearing in mind that Value is only PartialOrd so this may do weird things with NaN
-    fn test(&self, my_row: &Vec<Value>, other_value: &Value) -> bool {
-        let my_value = &my_row[self.my_column];
+    fn test(&self, result: &Vec<Value>, row: &Vec<Value>) -> bool {
+        let my_value = &row[self.my_column];
+        let other_value = self.other_ref.resolve(result, Some(row));
         match self.op {
             ConstraintOp::LT => my_value < other_value,
             ConstraintOp::LTE => my_value <= other_value,
@@ -92,99 +101,12 @@ pub struct Source {
 
 impl Source {
     fn constrained_to(&self, inputs: &Vec<&Relation>, result: &Vec<Value>) -> Relation {
-
-        let prepared: Vec<&Value> = self.constraints.iter()
-                                                    .map(|constraint| constraint.prepare(result))
-                                                    .collect();
         let input = inputs[self.relation];
         input.iter().filter(|row| self.constraints
                                       .iter()
-                                      .zip(prepared.iter())
-                                      .all(|(constraint, value)| constraint.test(row, value) ) )
+                                      .all(|constraint| constraint.test(result, row)))
                     .map(|row| row.clone())
                     .collect()
-    }
-}
-
-#[derive(Clone,Debug)]
-pub struct Call {
-    pub fun: EveFn,
-    pub args: CallArgs,
-}
-
-impl Call {
-    fn eval(&self, result: &Vec<Value>) -> Value {
-
-        // Resolve references and covert to an expression vector
-        let args: Vec<interpreter::Expression> = self.args.iter()
-                                                           .map(|arg_ref| arg_ref.resolve(result).to_expr())
-                                                           .collect();
-
-        let call = interpreter::Call{fun: self.fun.clone(), args: args};
-
-        interpreter::evaluate(&interpreter::Expression::Call(call))
-    }
-}
-
-#[derive(Clone,Debug)]
-pub enum CallArg {
-    Ref(Ref),
-    Call(Call),
-}
-
-pub type CallArgs = Vec<CallArg>;
-
-impl CallArg {
-    fn resolve(&self, result: &Vec<Value>) -> Value {
-        match self {
-            &CallArg::Ref(ref arg_ref) => arg_ref.resolve(result).clone(),
-            &CallArg::Call(ref arg_call) => arg_call.eval(result).clone(),
-        }
-    }
-}
-
-#[derive(Clone,Debug)]
-pub struct Match {
-    pub input: CallArg,
-    pub patterns: PatternVec,
-    pub handlers: CallArgs,
-}
-
-impl Match {
-    fn eval(&self, result: &Vec<Value>) -> Value {
-
-        // Resolve references
-        let input = self.input.resolve(result);
-        let handlers: Vec<interpreter::Expression> = self.handlers.iter()
-                               .map(|handler| handler.resolve(result).to_expr())
-                               .collect();
-
-        // Build the interpreter match
-        let evematch = interpreter::Match{input: input.to_expr(), patterns: self.patterns.clone(), handlers: handlers};
-
-        interpreter::evaluate(&interpreter::Expression::Match(Box::new(evematch)))
-
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum Expression {
-    Call(Call),
-    Match(Match),
-}
-
-impl Expression {
-    fn constrained_to(&self, result: &Vec<Value>) -> Vec<Value> {
-        match *self {
-            Expression::Call(ref call) => {
-                let value = call.eval(result);
-                vec![value]
-            }
-            Expression::Match(ref evematch) => {
-                let value = evematch.eval(result);
-                vec![value]
-            }
-        }
     }
 }
 
@@ -192,7 +114,7 @@ impl Expression {
 pub enum Clause {
     Tuple(Source),
     Relation(Source),
-    Expression(Expression),
+    Expression(interpreter::Expression),
 }
 
 impl Clause {
@@ -207,7 +129,7 @@ impl Clause {
                 vec![Value::Relation(relation)]
             }
             Clause::Expression(ref expression) => {
-                expression.constrained_to(result)
+                vec![interpreter::evaluate(expression,result)]
             }
         }
     }

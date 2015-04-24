@@ -189,7 +189,7 @@
           continue;
         }
         if(curA.ix !== curB.ix) {
-          updated[as[i]] = "moved";
+          updated[bs[i]] = "moved";
           continue;
         }
         if(curA.c === curB.c

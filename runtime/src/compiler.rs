@@ -1,7 +1,8 @@
 use value::{Value, Tuple, Relation};
 use index::{Index};
-use query::{Ref, ConstraintOp, Constraint, Source, Expression, Clause, Query, Call, CallArg, Match};
+use query::{Ref, ConstraintOp, Constraint, Source, Clause, Query};
 use interpreter::{EveFn,Pattern};
+use interpreter;
 use flow::{View, Union, Node, Flow};
 
 use std::collections::{BitSet};
@@ -60,9 +61,8 @@ static VIEWMAPPING_SOURCEVIEW: usize = 1;
 static VIEWMAPPING_SINKVIEW: usize = 2;
 
 static FIELDMAPPING_VIEWMAPPING: usize = 0;
-static FIELDMAPPING_SOURCEFIELD: usize = 1;
-static FIELDMAPPING_SOURCECOLUMN: usize = 2;
-static FIELDMAPPING_SINKFIELD: usize = 3;
+static FIELDMAPPING_SOURCEREF: usize = 1;
+static FIELDMAPPING_SINKFIELD: usize = 2;
 
 static CALL_FUN: usize = 1;
 static CALL_ARGS: usize = 2;
@@ -85,6 +85,7 @@ struct Compiler {
     flow: Flow,
     upstream: Relation,
     schedule: Relation,
+    ordered_constraint: Relation,
 }
 
 fn create_upstream(flow: &Flow) -> Relation {
@@ -139,29 +140,72 @@ fn create_schedule(flow: &Flow) -> Relation {
     schedule
 }
 
-fn get_view_ix(compiler: &Compiler, view_id: &Value) -> usize {
-    let schedule = compiler.schedule.find_one(SCHEDULE_VIEW, view_id).clone();
-    schedule[SCHEDULE_IX].to_usize().unwrap()
+// hackily reorder constraints to match old assumptions in create_constraint
+fn create_ordered_constraint(flow: &Flow) -> Relation {
+    let mut ordered_constraint = Index::new();
+    for constraint in flow.get_state("constraint").iter() {
+        let left = constraint[CONSTRAINT_LEFT].clone();
+        let op = constraint[CONSTRAINT_OP].clone();
+        let right = constraint[CONSTRAINT_RIGHT].clone();
+        assert!((left[0].as_str() != "constant") || (right[0].as_str() != "constant"));
+        if get_ref_ix(flow, &left) >= get_ref_ix(flow, &right) {
+            ordered_constraint.insert(vec![left, op, right]);
+        } else {
+            ordered_constraint.insert(vec![right, op, left]);
+        }
+    }
+    ordered_constraint
 }
 
-fn get_source_ix(compiler: &Compiler, source_id: &Value) -> usize {
-    let source = compiler.flow.get_state("source").find_one(SOURCE_ID, source_id).clone();
-    source[SOURCE_IX].to_usize().unwrap()
+fn get_view_ix(schedule: &Relation, view_id: &Value) -> usize {
+    schedule.find_one(SCHEDULE_VIEW, view_id)[SCHEDULE_IX].to_usize().unwrap()
 }
 
-fn get_field_ix(compiler: &Compiler, field_id: &Value) -> usize {
-    let field = compiler.flow.get_state("field").find_one(FIELD_ID, field_id).clone();
-    field[FIELD_IX].to_usize().unwrap()
+fn get_source_ix(flow: &Flow, source_id: &Value) -> usize {
+    flow.get_state("source").find_one(SOURCE_ID, source_id)[SOURCE_IX].to_usize().unwrap()
 }
 
-fn get_num_fields(compiler: &Compiler, view_id: &Value) -> usize {
-    let view = compiler.flow.get_state("view").find_one(VIEW_ID, view_id).clone();
-    let schema_id = &view[VIEW_SCHEMA];
-    compiler.flow.get_state("field").find_all(FIELD_SCHEMA, schema_id).len()
+fn get_field_ix(flow: &Flow, field_id: &Value) -> usize {
+    flow.get_state("field").find_one(FIELD_ID, field_id)[FIELD_IX].to_usize().unwrap()
+}
+
+fn get_num_fields(flow: &Flow, view_id: &Value) -> usize {
+    let schema_id = flow.get_state("view").find_one(VIEW_ID, view_id)[VIEW_SCHEMA].clone();
+    flow.get_state("field").find_all(FIELD_SCHEMA, &schema_id).len()
+}
+
+fn get_ref_ix(flow: &Flow, reference: &Value) -> i64 {
+    match reference[0].as_str() {
+        "constant" => -1, // constants effectively are calculated before any sources
+        "column" => get_source_ix(flow, &reference[1]) as i64,
+        other => panic!("Unknown ref type: {:?}", other),
+    }
+}
+
+fn create_reference(compiler: &Compiler, reference: &Value) -> Ref {
+    match reference[0].as_str() {
+        "constant" => {
+            let value = reference[1].clone();
+            Ref::Constant{
+                value: value,
+            }
+        }
+        "column" => {
+            let other_source_id = &reference[COLUMN_SOURCE_ID];
+            let other_field_id = &reference[COLUMN_FIELD_ID];
+            let other_source_ix = get_source_ix(&compiler.flow, other_source_id);
+            let other_field_ix = get_field_ix(&compiler.flow, other_field_id);
+            Ref::Value{
+                clause: other_source_ix,
+                column: other_field_ix,
+            }
+        }
+        other => panic!("Unknown ref kind: {}", other)
+    }
 }
 
 fn create_constraint(compiler: &Compiler, constraint: &Vec<Value>) -> Constraint {
-    let my_column = get_field_ix(compiler, &constraint[CONSTRAINT_LEFT][2]);
+    let my_column = get_field_ix(&compiler.flow, &constraint[CONSTRAINT_LEFT][2]);
     let op = match constraint[CONSTRAINT_OP].as_str() {
         "<" => ConstraintOp::LT,
         "<=" => ConstraintOp::LTE,
@@ -171,26 +215,7 @@ fn create_constraint(compiler: &Compiler, constraint: &Vec<Value>) -> Constraint
         ">=" => ConstraintOp::GTE,
         other => panic!("Unknown constraint op: {}", other),
     };
-    let constraint_right = &constraint[CONSTRAINT_RIGHT];
-    let other_ref = match constraint_right[0].as_str() {
-        "column" => {
-            let other_source_id = &constraint_right[COLUMN_SOURCE_ID];
-            let other_field_id = &constraint_right[COLUMN_FIELD_ID];
-            let other_source_ix = get_source_ix(compiler, other_source_id);
-            let other_field_ix = get_field_ix(compiler, other_field_id);
-            Ref::Value{
-                clause: other_source_ix,
-                column: other_field_ix,
-            }
-        }
-        "constant" => {
-            let value = constraint_right[1].clone();
-            Ref::Constant{
-                value: value,
-            }
-        }
-        other => panic!("Unknown ref kind: {}", other)
-    };
+    let other_ref = create_reference(compiler, &constraint[CONSTRAINT_RIGHT]);
     Constraint{
         my_column: my_column,
         op: op,
@@ -208,7 +233,7 @@ fn create_source(compiler: &Compiler, source: &Vec<Value>) -> Source {
         (upstream[UPSTREAM_UPSTREAM] == *other_view_id)
     }).next().unwrap();
     let other_view_ix = &upstream[UPSTREAM_IX];
-    let constraints = compiler.flow.get_state("constraint").iter().filter(|constraint| {
+    let constraints = compiler.ordered_constraint.iter().filter(|constraint| {
         constraint[CONSTRAINT_LEFT][1] == *source_id
     }).map(|constraint| {
         create_constraint(compiler, constraint)
@@ -219,10 +244,10 @@ fn create_source(compiler: &Compiler, source: &Vec<Value>) -> Source {
     }
 }
 
-fn create_expression(compiler: &Compiler, expression: &Value) -> Expression {
+fn create_expression(compiler: &Compiler, expression: &Value) -> interpreter::Expression {
     match expression[0].as_str() {
-        "call" => Expression::Call(create_call(compiler,&expression[CALL_FUN],&expression[CALL_ARGS])),
-        "match" => Expression::Match(create_match(compiler,&expression[MATCH_INPUT],&expression[MATCH_PATTERNS],&expression[MATCH_HANDLES])),
+        "call" => interpreter::Expression::Call(create_call(compiler,&expression[CALL_FUN],&expression[CALL_ARGS])),
+        "match" => interpreter::Expression::Match(Box::new(create_match(compiler,&expression[MATCH_INPUT],&expression[MATCH_PATTERNS],&expression[MATCH_HANDLES]))),
         other => panic!("Unknown expression type: {:?}", other),
     }
 }
@@ -244,28 +269,36 @@ fn create_clause(compiler: &Compiler, source: &Vec<Value>) -> Clause {
     }
 }
 
-fn create_match(compiler: &Compiler, uiinput: &Value, uipatterns: &Value, uihandles: &Value) -> Match {
 
-	// Create the input
-	let match_input = create_call_arg(compiler,uiinput.as_slice());
+fn create_match(compiler: &Compiler, uiinput: &Value, uipatterns: &Value, uihandlers: &Value) -> interpreter::Match {
 
-	// Create the pattern vector
-	let match_patterns = uipatterns.as_slice()
-							 .iter()
-							 .map(|arg| Pattern::Constant(arg.clone()))
-							 .collect();
+    // Create the input
+    let match_input = create_call_arg(compiler,uiinput.as_slice());
+
+    // Create the pattern vector
+    let match_patterns = uipatterns.as_slice()
+                        .iter()
+                        .map(|arg| {
+                            let call_arg = create_call_arg(compiler,arg.as_slice());
+                            match call_arg {
+                                interpreter::Expression::Ref(x) => Pattern::Constant(x),
+                                _ => panic!("TODO"),
+                                }
+                            }
+                        )
+                        .collect();
 
     // Create handles vector
-	let match_handles = uihandles.as_slice()
-							.iter()
-							.map(|arg| create_call_arg(compiler,arg.as_slice()))
-							.collect();
+    let match_handlers = uihandlers.as_slice()
+                            .iter()
+                            .map(|arg| create_call_arg(compiler,arg.as_slice()))
+                            .collect();
 
-	// Compile the call
-	Match{input: match_input, patterns: match_patterns, handlers: match_handles}
+    // Compile the match
+    interpreter::Match{input: match_input, patterns: match_patterns, handlers: match_handlers}
 }
 
-fn create_call(compiler: &Compiler, uifun: &Value, uiargvec: &Value) -> Call {
+fn create_call(compiler: &Compiler, uifun: &Value, uiargvec: &Value) -> interpreter::Call {
 
     // Match the uifun with an EveFn...
     let evefn = match uifun.as_str() {
@@ -282,26 +315,26 @@ fn create_call(compiler: &Compiler, uifun: &Value, uiargvec: &Value) -> Call {
                        .map(|arg| create_call_arg(compiler, arg.as_slice()))
                        .collect();
 
-    Call{fun: evefn, args: args}
+    interpreter::Call{fun: evefn, args: args}
 }
 
-fn create_call_arg(compiler: &Compiler, arg: &[Value]) -> CallArg {
+fn create_call_arg(compiler: &Compiler, arg: &[Value]) -> interpreter::Expression {
 
     match arg[0].as_str() {
         "constant" => {
             assert_eq!(arg.len(),2 as usize);
-            CallArg::Ref(Ref::Constant{value: arg[1].clone()})
+            interpreter::Expression::Ref(Ref::Constant{value: arg[1].clone()})
         },
         "column" => {
             assert_eq!(arg.len(),3 as usize);
             let other_source_id = &arg[COLUMN_SOURCE_ID];
             let other_field_id = &arg[COLUMN_FIELD_ID];
-            let other_source_ix = get_source_ix(compiler, other_source_id);
-            let other_field_ix = get_field_ix(compiler, other_field_id);
+            let other_source_ix = get_source_ix(&compiler.flow, other_source_id);
+            let other_field_ix = get_field_ix(&compiler.flow, other_field_id);
 
-            CallArg::Ref(Ref::Value{ clause: other_source_ix, column: other_field_ix })
+            interpreter::Expression::Ref(Ref::Value{ clause: other_source_ix, column: other_field_ix })
         },
-        "call" => CallArg::Call(create_call(compiler,&arg[CALL_FUN],&arg[CALL_ARGS])),
+        "call" => interpreter::Expression::Call(create_call(compiler,&arg[CALL_FUN],&arg[CALL_ARGS])),
         other  => panic!("Unhandled ref kind: {:?}", other),
     }
 }
@@ -317,24 +350,21 @@ fn create_query(compiler: &Compiler, view_id: &Value) -> Query {
 }
 
 fn create_union(compiler: &Compiler, view_id: &Value) -> Union {
-    let num_sink_fields = get_num_fields(compiler, view_id);
+    let num_sink_fields = get_num_fields(&compiler.flow, view_id);
     let mut view_mappings = Vec::new();
     for upstream in compiler.upstream.find_all(UPSTREAM_DOWNSTREAM, view_id) { // arrives in ix order
         let source_view_id = &upstream[UPSTREAM_UPSTREAM];
         let view_mapping = compiler.flow.get_state("view-mapping").find_one(VIEWMAPPING_SOURCEVIEW, source_view_id).clone();
         let view_mapping_id = &view_mapping[VIEWMAPPING_ID];
-        let invalid = ::std::usize::MAX;
-        let mut field_mappings = vec![(invalid, invalid); num_sink_fields];
+        let mut field_mappings = vec![None; num_sink_fields];
         for field_mapping in compiler.flow.get_state("field-mapping").find_all(FIELDMAPPING_VIEWMAPPING, &view_mapping_id) {
-            let source_field_id = &field_mapping[FIELDMAPPING_SOURCEFIELD];
-            let source_field_ix = get_field_ix(compiler, source_field_id);
-            let source_column_id = &field_mapping[FIELDMAPPING_SOURCECOLUMN];
-            let source_column_ix = get_field_ix(compiler, source_column_id);
+            let source_ref = create_reference(compiler, &field_mapping[FIELDMAPPING_SOURCEREF]);
             let sink_field_id = &field_mapping[FIELDMAPPING_SINKFIELD];
-            let sink_field_ix = get_field_ix(compiler, sink_field_id);
-            field_mappings[sink_field_ix] = (source_field_ix, source_column_ix);
+            let sink_field_ix = get_field_ix(&compiler.flow, sink_field_id);
+            field_mappings[sink_field_ix] = Some(source_ref);
         }
-        let num_source_fields = get_num_fields(compiler, source_view_id);
+        let field_mappings = field_mappings.drain().map(|reference| reference.unwrap()).collect();
+        let num_source_fields = get_num_fields(&compiler.flow, source_view_id);
         view_mappings.push((num_source_fields, field_mappings));
     }
     Union{mappings: view_mappings}
@@ -348,10 +378,10 @@ fn create_node(compiler: &Compiler, view_id: &Value, view_kind: &Value) -> Node 
         other => panic!("Unknown view kind: {}", other)
     };
     let upstream = compiler.upstream.find_all(UPSTREAM_DOWNSTREAM, view_id).iter().map(|upstream| {
-        get_view_ix(compiler, &upstream[UPSTREAM_UPSTREAM])
+        get_view_ix(&compiler.schedule, &upstream[UPSTREAM_UPSTREAM])
     }).collect(); // arrives in ix order so it will match the arg order selected by create_query/union
     let downstream = compiler.upstream.find_all(UPSTREAM_UPSTREAM, view_id).iter().map(|upstream| {
-        get_view_ix(compiler, &upstream[UPSTREAM_DOWNSTREAM])
+        get_view_ix(&compiler.schedule, &upstream[UPSTREAM_DOWNSTREAM])
     }).collect();
     Node{
         id: view_id.as_str().to_string(),
@@ -383,7 +413,7 @@ fn create_flow(compiler: Compiler) -> Flow {
     }
 
     // grab state from old flow
-    let Compiler{flow, upstream, schedule} = compiler;
+    let Compiler{flow, upstream, schedule, ..} = compiler;
     match nodes.iter().position(|node| &node.id[..] == "upstream") {
         Some(ix) => states[ix] = Some(RefCell::new(upstream)),
         None => (),
@@ -422,10 +452,12 @@ pub fn compile(mut flow: Flow) -> Flow {
     }
     let upstream = create_upstream(&flow);
     let schedule = create_schedule(&flow);
+    let ordered_constraint = create_ordered_constraint(&flow);
     let compiler = Compiler{
         flow: flow,
         upstream: upstream,
         schedule: schedule,
+        ordered_constraint: ordered_constraint,
     };
     create_flow(compiler)
 }

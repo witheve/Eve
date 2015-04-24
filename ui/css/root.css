@@ -195,8 +195,8 @@ select.input { font-size: 0.9em;}
 .sub-items .tree-item { padding-left: 15px; }
 .tree-item .icon { width: 24px; justify-content:center; }
 .tree-item.table .icon { color: #8da;}
-.tree-item.query .icon { color: #ea8;}
 .tree-item.ui .icon { color: #c8f;}
+.tree-item.query .icon { color: #ea8;}
 
 .tree-item .ui-group .name { flex: 1; }
 .tree-item .ion-eye { visibility:hidden; }

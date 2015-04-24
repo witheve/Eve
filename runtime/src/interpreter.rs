@@ -1,17 +1,17 @@
-use value::{Value};
-use value;
-use self::EveFn::*;
+use value::*;
 use value::Value::Float;
+use query::Ref;
+use self::EveFn::*;
+
 
 // Enums...
 // Expression Enum ------------------------------------------------------------
 #[derive(Clone, Debug)]
 pub enum Expression {
-	Constant(Constant),
+	Ref(Ref),
 	Variable(Variable),
 	Call(Call),
 	Match(Box<Match>),
-	Value(Value),
 }
 
 // End Expression Enum --------------------------------------------------------
@@ -44,20 +44,22 @@ pub struct Match {
 // Begin Pattern Enum ---------------------------------------------------------
 #[derive(Clone,Debug)]
 pub enum Pattern {
-	Constant(Constant),
+	Constant(Ref),
 	Variable(Variable),
 	Tuple(PatternVec),
 }
 
+/*
 impl<'a> PartialEq<Value> for &'a Pattern {
 	fn eq(&self, other: &Value) -> bool {
 		match self {
-			&&Pattern::Constant(ref x) => x == other,
+			&&Pattern::Constant(ref x) => eval_constant(x) == *other,
 			&&Pattern::Variable(_) => panic!("Cannot match Variable against Value"),
 			&&Pattern::Tuple(_) => panic!("Cannot match Tuple against Value"),
 		}
 	}
 }
+*/
 // End Pattern Enum -----------------------------------------------------------
 
 #[derive(Clone,Debug)]
@@ -67,52 +69,61 @@ pub struct Call {
 }
 
 // Some type aliases
-pub type Constant = Value;
 pub type Variable = String;
 pub type PatternVec = Vec<Pattern>;
 pub type ExpressionVec = Vec<Expression>;
 
 // This is the main interface to the interpreter. Pass in an expression, get
 // back a value
-pub fn evaluate(e: & Expression) -> Value {
+pub fn evaluate(e: & Expression, result: &Vec<Value>) -> Value {
 
-	eval_expression(e)
+	eval_expression(e,result)
 
 }
 
-fn eval_expression(e: &Expression) -> Value {
+fn eval_expression(e: &Expression, result: &Vec<Value>) -> Value {
 
 	match *e {
-		Expression::Call(ref x) => eval_call(x),
-		Expression::Constant(ref x) => x.clone(),
-		Expression::Value(ref x) => x.clone(),
-		Expression::Match(ref x) => eval_match(x),
+		Expression::Ref(ref r) => r.resolve(result,None).clone(),
+		Expression::Call(ref c) => eval_call(c,result),
+		Expression::Match(ref m) => eval_match(m,result),
 		_ => unimplemented!(),
 	}
 }
 
-fn eval_match(m: &Match) -> Value {
+
+fn eval_match(m: &Match, result: &Vec<Value>) -> Value {
 
 	// Before we do anything, make sure we have the same number of patterns and
 	// handlers
 	assert_eq!(m.patterns.len(),m.handlers.len());
 
-	let input = eval_expression(&m.input);
-	let tests: Vec<Value> = m.patterns.iter()
-						  			  .zip(m.handlers.iter())
-						  			  .filter_map(|(pattern,handler)| -> Option<Value> {
-													if pattern == input { Some(eval_expression(&handler)) }
-													else { None }
-												})
-						  			  .take(1)
-						  			  .collect();
+	let input = eval_expression(&m.input,result);
 
-	Value::Tuple(tests)
+
+	for (pattern, handler) in m.patterns.iter().zip(m.handlers.iter()) {
+		match pattern {
+			&Pattern::Constant(ref x) => {
+				match x {
+					&Ref::Constant{ref value} => {
+						if input == value.clone() {
+							return eval_expression(&handler,result)
+						}
+					}
+					_ => panic!("TODO"),
+				}
+			}
+			_ => panic!("TODO"),
+		}
+	};
+
+	Value::String(String::from_str("TODO: No match found"))
 }
 
-fn eval_call(c: &Call) -> Value {
 
-	let args: Vec<Value> = c.args.iter().map(eval_expression).collect();
+fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
+
+	let args: Vec<Value> = c.args.iter().map(|ref e| eval_expression(e,result)).collect();
 
 	match(&c.fun, &args[..]) {
 
@@ -162,29 +173,33 @@ fn eval_call(c: &Call) -> Value {
 		(&StrLength,[Value::String(ref s)]) => Float(s.len() as f64),
 		(&StrReplace,[Value::String(ref s),Value::String(ref q),Value::String(ref r)]) => Value::String(s.replace(&q[..],&r[..])),
 		(&StrSplit,[Value::String(ref s)]) => {
-			let w: Vec<Value> = s.words().map(|x| Value::String(x.to_string())).collect();
+			let w: Vec<Value> = s.words().map(|x| Value::String(String::from_str(x))).collect();
 			Value::Tuple(w)
 		},
 
+
 		// Aggregate functions
-		(&Sum,[Value::Tuple(ref x)]) => general_agg(x),
-		//&Prod => general_agg(|x,y|{x*y},1f64,&c.args),
+		(&Sum,[Value::Tuple(ref x)]) => {
+			Value::Float(x.iter().fold(0f64, |acc: f64, ref item| {
+				match item {
+					&&Value::Float(ref y) => acc+y,
+					x => panic!("Cannot aggregate {:?}",x),
+				}
+			}))
+
+		},
+		/*
+		(&Prod,[Value::Tuple(ref x)]) => {
+			Value::Float(x.iter().fold(1f64, |acc: f64, ref item| {
+				match item {
+					&&Value::Float(ref y) => acc*y,
+					x => panic!("Cannot aggregate {:?}",x),
+				}
+			}))
+		},
+		*/
 
 		// Returns an empty string for the purpose of handling incomplete function
-		(_, _) => Value::String("No Result".to_string()),
+		(_, _) => Value::String(String::from_str("Could not match with any function")),
 	}
 }
-
-
-// Aggregate Functions --------------------------------------------------------
-
-//fn general_agg<F: Fn(f64,f64) -> f64>(f: F, base: f64, args: &ExpressionVec) -> Value {
-fn general_agg(x: &value::Tuple) -> Value {
-
-	// Some fold magic!
-	println!("{:?}",x);
-
-	Value::Float(10f64)
-
-}
-// End Aggregate Functions ----------------------------------------------------

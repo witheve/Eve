@@ -1,15 +1,14 @@
 use value::{Id, Tuple, Relation};
 use index;
 use index::Index;
-use query::Query;
+use query::{Ref, Query};
 
-use std::cell::{RefCell, Ref, RefMut};
+use std::cell;
 use std::collections::BitSet;
 
 #[derive(Clone, Debug)]
 pub struct Union{
-    // max_len, vec[(column_ix, tuple_ix)]
-    pub mappings: Vec<(usize, Vec<(usize, usize)>)>,
+    pub mappings: Vec<(usize, Vec<Ref>)>,
 }
 
 #[derive(Clone, Debug)]
@@ -32,7 +31,7 @@ pub type Changes = Vec<(Id, index::Changes<Tuple>)>;
 #[derive(Clone, Debug)]
 pub struct Flow {
     pub nodes: Vec<Node>,
-    pub states: Vec<RefCell<Relation>>,
+    pub states: Vec<cell::RefCell<Relation>>,
     pub dirty: BitSet,
     pub changes: Changes,
 }
@@ -41,13 +40,13 @@ impl Union {
     fn run(&self, inputs: Vec<&Relation>) -> Relation {
         assert_eq!(inputs.len(), self.mappings.len());
         let mut index = Index::new();
-        for (input, &(max_len, ref mapping)) in inputs.iter().zip(self.mappings.iter()) {
+        for (input, &(max_len, ref references)) in inputs.iter().zip(self.mappings.iter()) {
             for tuple in input.iter() {
                 // TODO this ugliness is due to storing backtrack info inline with results
                 if tuple.len() == max_len {
-                    let mut state = Vec::with_capacity(mapping.len());
-                    for &(outer, inner) in mapping.iter() {
-                        state.push(tuple[outer][inner].clone());
+                    let mut state = Vec::with_capacity(references.len());
+                    for reference in references.iter() {
+                        state.push(reference.resolve(tuple, None).clone());
                     }
                     index.insert(state);
                 }
@@ -81,11 +80,11 @@ impl Flow {
         self.nodes.iter().position(|node| &node.id[..] == id)
     }
 
-    pub fn get_state(&self, id: &str) -> Ref<Relation> {
+    pub fn get_state(&self, id: &str) -> cell::Ref<Relation> {
         self.states[self.get_ix(id).unwrap()].borrow()
     }
 
-    pub fn get_state_mut(&self, id: &str) -> RefMut<Relation> {
+    pub fn get_state_mut(&self, id: &str) -> cell::RefMut<Relation> {
         self.states[self.get_ix(id).unwrap()].borrow_mut()
     }
 
@@ -102,7 +101,7 @@ impl Flow {
                     upstream: vec![],
                     downstream: vec![],
                 });
-                self.states.push(RefCell::new(Index::new()))
+                self.states.push(cell::RefCell::new(Index::new()))
             }
         }
     }
