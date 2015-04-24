@@ -445,19 +445,47 @@ fn create_flow(compiler: Compiler) -> Flow {
         changes: changes,
     }
 }
-
-pub fn compile(mut flow: Flow) -> Flow {
-    for view in COMPILER_VIEWS.iter() {
-        flow.ensure_input_exists(view);
+impl Flow {
+    fn compiler_views_changed_since(&self, changes_seen: usize) -> bool {
+        self.changes[changes_seen..].iter().any(|&(ref change_id, _)|
+            COMPILER_VIEWS.iter().any(|view_id| *view_id == change_id)
+            ));
+        self.changes[changes_seen..].iter().any(|&(ref change_id, _)|
+            COMPILER_VIEWS.iter().any(|view_id| *view_id == change_id)
+            )
     }
-    let upstream = create_upstream(&flow);
-    let schedule = create_schedule(&flow);
-    let ordered_constraint = create_ordered_constraint(&flow);
-    let compiler = Compiler{
-        flow: flow,
-        upstream: upstream,
-        schedule: schedule,
-        ordered_constraint: ordered_constraint,
-    };
-    create_flow(compiler)
+
+    pub fn compile(mut self) -> Self {
+        for view in COMPILER_VIEWS.iter() {
+            self.ensure_input_exists(view);
+        }
+        let upstream = create_upstream(&self);
+        let schedule = create_schedule(&self);
+        let ordered_constraint = create_ordered_constraint(&self);
+        let compiler = Compiler{
+            flow: self,
+            upstream: upstream,
+            schedule: schedule,
+            ordered_constraint: ordered_constraint,
+        };
+        create_flow(compiler)
+    }
+
+    pub fn compile_and_run(self) -> Self {
+        let mut flow = self;
+        let mut changes_seen = 0;
+        if flow.compiler_views_changed_since(changes_seen) {
+            changes_seen = flow.changes.len();
+            flow = flow.compile();
+        }
+        loop {
+            flow.run();
+            if flow.compiler_views_changed_since(changes_seen) {
+                changes_seen = flow.changes.len();
+                flow = flow.compile();
+            } else {
+                return flow;
+            }
+        }
+    }
 }

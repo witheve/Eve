@@ -5,6 +5,7 @@ use query::{Ref, Query};
 
 use std::cell;
 use std::collections::BitSet;
+use std::mem::replace;
 
 #[derive(Clone, Debug)]
 pub struct Union{
@@ -173,5 +174,10 @@ impl Flow {
             }
         }
         changes
+    }
+
+    pub fn take_changes(&mut self) -> Changes {
+        let &mut Flow {ref mut changes, ..} = self;
+        replace(changes, Vec::new())
     }
 }

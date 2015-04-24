@@ -48,8 +48,7 @@ fn main() {
             ],
             removed: vec![]}),
         ]);
-    let mut flow = compile(flow);
-    flow.run();
+    flow = flow.compile_and_run();
 
     // Test an aggregate
     let result = flow.get_state("agg_test");
@@ -129,8 +128,7 @@ fn recursion_test() {
             ],
             removed: vec![]}),
         ]);
-    let mut flow = compile(flow);
-    flow.run();
+    flow = flow.compile_and_run();
     assert_eq!(
         flow.get_state("path").iter().collect::<Vec<_>>(),
         vec![
@@ -194,8 +192,7 @@ fn call_test() {
             ],
             removed: vec![]}),
         ]);
-    let mut flow = compile(flow);
-    flow.run();
+    flow = flow.compile_and_run();
 
     // Test simple addition of two constants
     let result = flow.get_state("simple_call_test");
@@ -301,9 +298,7 @@ fn match_test() {
             ],
             removed: vec![]}),
         ]);
-    let mut flow = compile(flow);
-    flow.run();
-
+    flow = flow.compile_and_run();
 
     // Test match with a constant input
     let result = flow.get_state("simple_match_test");
@@ -381,9 +376,7 @@ fn constraint_test() {
             ],
             removed: vec![]}),
         ]);
-    let mut flow = compile(flow);
-    flow.run();
-
+    flow = flow.compile_and_run();
 
     // Test constraint where LHS and RHS tables are the same
     let result = flow.get_state("constraint_test");
