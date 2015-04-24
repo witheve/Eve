@@ -25,6 +25,8 @@ div[contenteditable] { display:inline-block; }
 
 .modal-layer { position: absolute; top: 0; left: 0; bottom: 0; right: 0; pointer-events: none; }
 
+canvas.grid { width: 100%; height: 100%; }
+
 /*-----------------------------------------------------------------------------
 - table
 -----------------------------------------------------------------------------*/
@@ -92,7 +94,7 @@ select.input { font-size: 0.9em;}
 
 .grid { z-index: 0; pointer-events:none; }
 
-.inspector { flex-direction:column; width:150px; margin-left:10px; }
+.inspector { flex-direction:column; width:200px; margin-left:10px; }
 .layers { flex-direction: column; margin-top:10px }
 .layer { display:flex; padding:5px; border-radius:2px; background:#444; }
 .layer + .layer { margin-top:1px; }
