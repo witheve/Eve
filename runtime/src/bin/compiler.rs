@@ -11,51 +11,6 @@ use eve::test::*;
 
 #[allow(dead_code)]
 fn main() {
-<<<<<<< HEAD
-    // c4 = prod(input.B)
-    let c4 = ("call","sum",(("column", "rr", "B").to_tuple(),).to_tuple()).to_tuple();
-
-    let mut flow = Flow::new();
-    flow.change(vec![
-        ("schema".to_string(), Changes{
-            inserted: vec![
-            ("input_schema",).to_tuple(),
-            ],
-            removed: vec![]}),
-        ("field".to_string(), Changes{
-            inserted: vec![
-            ("input_schema", 0.0f64, "A", "tuple").to_tuple(),
-            ("input_schema", 1.0f64, "B", "tuple").to_tuple(),
-            ],
-            removed: vec![]}),
-        ("view".to_string(), Changes{
-            inserted: vec![
-            ("input", "input_schema", "input").to_tuple(),
-            ("agg_test", "input_schema", "query").to_tuple(),
-            ],
-            removed: vec![]}),
-        ("source".to_string(), Changes{
-            inserted: vec![
-            ("agg_test", 0.0f64, "rr", ("view", "input").to_tuple(), "get-tuple").to_tuple(),
-            ("agg_test", 1.0f64, "none", c4, "get-tuple").to_tuple(),
-            ],
-            removed: vec![]}),
-        ("input".to_string(), Changes{
-            inserted: vec![
-            (1, 8).to_tuple(),
-            (2, 7).to_tuple(),
-            (3, 6).to_tuple(),
-            (4, 5).to_tuple(),
-            ],
-            removed: vec![]}),
-        ]);
-    flow = flow.compile_and_run();
-
-    // Test an aggregate
-    let result = flow.get_state("agg_test");
-=======
->>>>>>> e3151f270226623b66fca868132cd1730abfe106
-
 }
 
 #[test]

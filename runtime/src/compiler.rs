@@ -449,9 +449,6 @@ impl Flow {
     fn compiler_views_changed_since(&self, changes_seen: usize) -> bool {
         self.changes[changes_seen..].iter().any(|&(ref change_id, _)|
             COMPILER_VIEWS.iter().any(|view_id| *view_id == change_id)
-            ));
-        self.changes[changes_seen..].iter().any(|&(ref change_id, _)|
-            COMPILER_VIEWS.iter().any(|view_id| *view_id == change_id)
             )
     }
 
