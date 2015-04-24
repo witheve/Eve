@@ -11,8 +11,6 @@ use eve::test::*;
 
 #[allow(dead_code)]
 fn main() {
-
-    /*
     // c4 = prod(input.B)
     let c4 = ("call","sum",(("column", "rr", "B").to_tuple(),).to_tuple()).to_tuple();
 
@@ -57,9 +55,10 @@ fn main() {
     let result = flow.get_state("agg_test");
 
     println!("{:?}",result);
-    */
+}
 
-    /*
+#[test]
+fn recursion_test() {
     let mut flow = Flow::new();
     flow.change(vec![
         ("schema".to_string(), Changes{
@@ -100,7 +99,11 @@ fn main() {
             removed: vec![]}),
         ("constraint".to_string(), Changes{
             inserted: vec![
-            (("column", "next_step_path", "path_from").to_tuple(), "=", ("column", "next_step_edge", "edge_to").to_tuple()).to_tuple(),
+                (
+                    ("column", "next_step_edge", "edge_to").to_tuple(),
+                    "=",
+                    ("column", "next_step_path", "path_from").to_tuple(),
+                ).to_tuple()
             ],
             removed: vec![]}),
         ("view-mapping".to_string(), Changes{
@@ -111,10 +114,10 @@ fn main() {
             removed: vec![]}),
         ("field-mapping".to_string(), Changes{
             inserted: vec![
-            ("next_step_mapping", "next_step_edge", "edge_from", "path_from").to_tuple(),
-            ("next_step_mapping", "next_step_path", "path_to", "path_to").to_tuple(),
-            ("first_step_mapping", "first_step_edge", "edge_from", "path_from").to_tuple(),
-            ("first_step_mapping", "first_step_edge", "edge_to", "path_to").to_tuple(),
+            ("next_step_mapping", ("column", "next_step_edge", "edge_from").to_tuple(), "path_from").to_tuple(),
+            ("next_step_mapping", ("column", "next_step_path", "path_to").to_tuple(), "path_to").to_tuple(),
+            ("first_step_mapping", ("column", "first_step_edge", "edge_from").to_tuple(), "path_from").to_tuple(),
+            ("first_step_mapping", ("column", "first_step_edge", "edge_to").to_tuple(), "path_to").to_tuple(),
             ],
             removed: vec![]}),
         ("edge".to_string(), Changes{
@@ -128,10 +131,14 @@ fn main() {
         ]);
     let mut flow = compile(flow);
     flow.run();
-    println!("{:?}", flow.changes);
-    println!("{:?}", flow.get_state("path"));
-    */
-
+    assert_eq!(
+        flow.get_state("path").iter().collect::<Vec<_>>(),
+        vec![
+            ("a", "b"), ("a", "c"), ("a", "d"),
+            ("b", "b"), ("b", "c"), ("b", "d"),
+            ("c", "b"), ("c", "c"), ("c", "d"),
+            ("d", "b"), ("d", "c"), ("d", "d"),
+        ].to_relation().iter().collect::<Vec<_>>());
 }
 
 #[test]
