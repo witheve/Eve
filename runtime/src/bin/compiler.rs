@@ -11,50 +11,7 @@ use eve::test::*;
 
 #[allow(dead_code)]
 fn main() {
-    // c4 = prod(input.B)
-    let c4 = ("call","sum",(("column", "rr", "B").to_tuple(),).to_tuple()).to_tuple();
 
-    let mut flow = Flow::new();
-    flow.change(vec![
-        ("schema".to_string(), Changes{
-            inserted: vec![
-            ("input_schema",).to_tuple(),
-            ],
-            removed: vec![]}),
-        ("field".to_string(), Changes{
-            inserted: vec![
-            ("input_schema", 0.0f64, "A", "tuple").to_tuple(),
-            ("input_schema", 1.0f64, "B", "tuple").to_tuple(),
-            ],
-            removed: vec![]}),
-        ("view".to_string(), Changes{
-            inserted: vec![
-            ("input", "input_schema", "input").to_tuple(),
-            ("agg_test", "input_schema", "query").to_tuple(),
-            ],
-            removed: vec![]}),
-        ("source".to_string(), Changes{
-            inserted: vec![
-            ("agg_test", 0.0f64, "rr", ("view", "input").to_tuple(), "get-tuple").to_tuple(),
-            ("agg_test", 1.0f64, "none", c4, "get-tuple").to_tuple(),
-            ],
-            removed: vec![]}),
-        ("input".to_string(), Changes{
-            inserted: vec![
-            (1, 8).to_tuple(),
-            (2, 7).to_tuple(),
-            (3, 6).to_tuple(),
-            (4, 5).to_tuple(),
-            ],
-            removed: vec![]}),
-        ]);
-    let mut flow = compile(flow);
-    flow.run();
-
-    // Test an aggregate
-    let result = flow.get_state("agg_test");
-
-    println!("{:?}",result);
 }
 
 #[test]
@@ -151,7 +108,7 @@ fn call_test() {
     // c3 = input.A = input.B
     let c3 = ("call","*",(("column", "qq", "A").to_tuple(),("column", "qq", "B").to_tuple()).to_tuple()).to_tuple();
     // c4 = prod(input.B)
-    //let c4 = ("call","prod",(("column", "rr", "B").to_tuple(),).to_tuple()).to_tuple();
+    let c4 = ("call","sum",(("column", "rr", "B").to_tuple(),).to_tuple()).to_tuple();
 
     let mut flow = Flow::new();
     flow.change(vec![
@@ -179,8 +136,8 @@ fn call_test() {
             inserted: vec![
             ("math_test", 0.0f64, "qq", ("view", "input").to_tuple(), "get-tuple").to_tuple(),
             ("math_test", 1.0f64, "none", ("expression",c3).to_tuple(), "get-tuple").to_tuple(),
-            //("agg_test", 0.0f64, "rr", ("view", "input").to_tuple(), "get-tuple").to_tuple(),
-            //("agg_test", 1.0f64, "none", c4, "get-tuple").to_tuple(),
+            ("agg_test", 0.0f64, "rr", ("view", "input").to_tuple(), "get-relation").to_tuple(),
+            ("agg_test", 1.0f64, "none", ("expression", c4).to_tuple(), "get-tuple").to_tuple(),
             ("simple_call_test", 0.0f64, "none", ("expression",c1).to_tuple(), "get-tuple").to_tuple(),
             ("nested_call_test", 0.0f64, "none", ("expression",c2).to_tuple(), "get-tuple").to_tuple(),
             ],
@@ -225,18 +182,11 @@ fn call_test() {
     assert_eq!(q,true);
 
     // Test an aggregate
-    /*
     let result = flow.get_state("agg_test");
-    let answervec = vec![
-                    vec![(1f64,8f64).to_tuple().to_value(),(1680f64,).to_tuple().to_value()],
-                    vec![(2f64,7f64).to_tuple().to_value(),(1680f64,).to_tuple().to_value()],
-                    vec![(3f64,6f64).to_tuple().to_value(),(1680f64,).to_tuple().to_value()],
-                    vec![(4f64,5f64).to_tuple().to_value(),(1680f64,).to_tuple().to_value()],
-                    ];
-
-    let q = result.iter().zip(answervec.iter()).all(|(q,r)| q[1]==r[1] );
+    let answervec = vec![26f64.to_value()];
+    let q = result.iter().zip(answervec.iter()).all(|(q,r)| q[1]==r.clone() );
     assert_eq!(q,true);
-    */
+
 }
 
 

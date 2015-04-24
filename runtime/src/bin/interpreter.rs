@@ -24,6 +24,11 @@ macro_rules! exprvec {
 #[allow(dead_code)]
 fn main() {
 
+	/*
+	let c1 = Call{fun: EveFn::Sum, args: exprvec![1.3,2]};
+	let result = evaluate(&c1.to_expr(),&vec![]);
+	println!("{:?}",result);
+	*/
 }
 
 
