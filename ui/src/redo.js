@@ -400,7 +400,29 @@ function input(value, key, oninput, onsubmit) {
       }
     }
   }
-  return {c: "input", contentEditable: true, input: oninput, text: value, key: key, blur: blur, keydown: keydown};
+  return {c: "input text-input", contentEditable: true, input: oninput, text: value, key: key, blur: blur, keydown: keydown};
+}
+
+function selectInput(value, key, options, onsubmit) {
+  var blur, input;
+  if(onsubmit) {
+    blur = function inputBlur(e, elem) {
+      onsubmit(e, elem, "blurred");
+    }
+    input = function inputInput(e, elem) {
+      onsubmit(e, elem, "enter");
+    }
+  }
+  var children = [];
+  for(var key in options) {
+    var val = options[key];
+    if(val === value) {
+      console.log("selected", key, val);
+    }
+    children.push({t: "option", value: key, text: val, selected: val === value});
+  }
+
+  return {t: "select", c: "input", input: input, blur: blur, children: children};
 }
 
 //---------------------------------------------------------
@@ -737,13 +759,23 @@ uiProperties.appearance = ["backgroundColor", "backgroundImage", "border", "bord
 function appearanceInspector(selectionInfo) {
   var attrs = selectionInfo.attributes;
   var componentId = selectionInfo.componentId;
+  var styleName;
+  console.log("info", selectionInfo);
+  if(selectionInfo.styles.appearance) {
+    styleName = code.name(selectionInfo.styles.appearance[1]);
+  }
   //background, image, border
   return {c: "inspector-panel", children: [
     {c: "title", text: "Appearance"},
     {c: "pair", children: [
-      {t: "select", c: "style-chooser", children: [
-        {t: "option", text: "Select style..."}]},
-      {c: "add-style-btn ion-plus icon-btn"}]},
+      styleChooser("appearance-style-searcher", {initial: styleName, type: "appearance"}, function onClose(evt, elem, type) {
+        if(type !== "blurred") {
+          var val = evt.target.value;
+          dispatch("setSelectionStyle", {type: "appearance", style: val, componentId: componentId});
+        }
+      }),
+      //{c: "add-style-btn ion-plus icon-btn"}
+    ]},
     {c: "pair", children: [{c: "label", text: "background"},
                            colorSelector(componentId, "backgroundColor", attrs["backgroundColor"])]},
     {c: "pair", children: [{c: "label", text: "image"},
@@ -976,16 +1008,21 @@ function getGroupInfo(elements, withAttributes) {
 
   var ids = {};
   var attributes = {};
+  var styles = {};
   var els = elements.map(function(cur) {
     var id = cur[1];
     ids[id] = true;
     if(withAttributes !== undefined) {
-      var styles = stylesIndex[id];
-      if(!styles) { return cur; }
+      var elStyles = stylesIndex[id];
+      if(!elStyles) { return cur; }
 
       var attrs = [];
-      for(var ix = 0, len = styles.length; ix < len; ix++) {
-        var style = styles[ix];
+      for(var ix = 0, len = elStyles.length; ix < len; ix++) {
+        var style = elStyles[ix];
+        var type = style[2];
+        if(styles[type] === undefined) { styles[type] = style; }
+        else if(styles[type] !== style) { styles[type] = null; }
+
         attrs.push.apply(attrs, attrsIndex[style[1]]);
       }
 
@@ -1004,7 +1041,7 @@ function getGroupInfo(elements, withAttributes) {
     return cur;
   });
   var bounds = boundElements(els);
-  return {ids: ids, elements: els, bounds: bounds, attributes: attributes};
+  return {ids: ids, elements: els, bounds: bounds, attributes: attributes, styles: styles};
 }
 
 function getSelectionInfo(componentId, withAttributes) {
@@ -1692,13 +1729,13 @@ function search(ids, needle, opts) { // (Id[], String) -> Id[]
   opts = opts || {};
   if(!ids) { throw new Error("Must provide an array of named ids to search."); }
   if(!needle) { return ids.slice(); }
-  var displayName = ixer.index("displayName");
   var matches = [];
 
   var len = ids.length;
   var limit = opts.limit || len;
   for(var ix = 0; ix < len && matches.length < limit; ix++) {
-    if(displayName[ids[ix]].indexOf(needle) !== -1) {
+    var name = code.name(ids[ix]);
+    if(name && name.indexOf(needle) !== -1) {
       matches.push(ids[ix]);
     }
   }
@@ -1709,44 +1746,100 @@ function searcherHandleInput(evt, elem) {
   dispatch("updateSearchValue", {id: elem.key, value: evt.target.innerHTML});
 }
 function searcherHandleSubmit(evt, elem, type) {
-  var needle = evt.target.innerHTML;
   var state = searchState[elem.key];
   if(!state) { return; }
-  var matches = search(state.ids, needle, {limit: 1});
-  dispatch("updateSearchValue", {id: elem.key, value: ""});
-  state.onClose(matches[0], type);
-  delete searchState[elem.key];
+  var match;
+  if(type !== "blurred") {
+    var needle = evt.target.innerHTML;
+    match = search(state.ids, needle, {limit: 1})[0];
+    dispatch("updateSearchValue", {id: elem.key, value: ""});
+  }
 
-  evt.preventDefault();
-  evt.target.blur();
+  if(!state.onClose(match, type, evt)) {
+    delete searchState[elem.key];
+    if(!elem.fixed) { dispatch("removeTag", {id: elem.key, tag: "open"}); }
+    evt.preventDefault();
+    evt.target.blur();
+  }
 }
 function searcher(id, ids, opts, onClose) { // (Id, Id[], Any?, Fn((Id) -> Boolean)?, Fn((Id) -> undefined)) -> undefined
   if(!onClose) { onClose = opts; opts = undefined; }
   if(!onClose) { throw new Error("Must provide a callback for onClose."); }
   opts = opts || {};
+  if(opts.open === undefined) { opts.open = opts.fixed; }
   searchState[id] = {ids: ids, onClose: onClose};
 
-  var needle = ixer.index("searchValue")[id]; // Load from ixer.
+  var needle = ixer.index("searchValue")[id] || opts.initial; // Load from ixer.
   var template = opts.template || searcherResult;
+  console.log(ids, needle);
   var results = search(ids, needle).map(function(cur) {
-    return template(cur, opts, onClose);
+    console.log("res", cur);
+    return template(cur, id, opts, onClose);
   });
 
   var searchInput = input(needle, "input-" + id, searcherHandleInput, searcherHandleSubmit);
-  searchInput.c += "searcher-input";
+    searchInput.fixed = opts.fixed;
+  if(!opts.open) {
+    searchInput.key = id;
+    searchInput.click = addOpenTag;
+  }
   searchInput.key = id;
   return {c: "searcher", children: [
-    searchInput,
-    {t: "ul", c: "dropdown, searcher-results", children: results}]};
+    {c: "searcher-input-box", children: [searchInput, opts.control]},
+    (opts.open ? {t: "ul", c: "dropdown searcher-results", children: results} : undefined)
+  ]};
 }
 
-function searcherResult(id, opts, onClose) {
+function searcherResult(id, searchId, opts, onClose) {
   return {t: "li", c: "dropdown-item search-result",
-          text: ixer.index("displayName")[id] || "Untitled",
-          resultId: id,
-          click: function(evt, elem) {
-            onClose(elem.resultId, "clicked");
+          text: code.name(id) || "Untitled",
+          mousedown: function(evt, elem) {
+            console.log("hi");
+            if(!onClose(id, "clicked", evt)) {
+              delete searchState[searchId];
+              if(!opts.fixed) { dispatch("removeTag", {id: searchId, tag: "open"}); }
+            }
           }};
+}
+
+function addOpenTag(evt, elem) {
+  dispatch("addTag", {id: elem.key, tag: "open"});
+}
+
+function toggleOpenTag(evt, elem) {
+  if(code.hasTag(elem.key, "open")) {
+    dispatch("removeTag", {id: elem.key, tag: "open"});
+  } else {
+    dispatch("addTag", {id: elem.key, tag: "open"});
+  }
+}
+
+function styleSearcher(id, opts, onClose) {
+  console.log(opts);
+  if(!onClose) { onClose = opts; opts = undefined; }
+  opts = opts || {};
+  opts.open = code.hasTag(id, "open");
+  var ids;
+  if(opts.type) {
+  } else {
+    ids = Object.keys(ixer.index("uiStyles"));
+  }
+  console.log("ids", ids);
+  return searcher(id, ids, opts, onClose);
+}
+
+function styleChooser(id, opts, onClose) {
+  var options = {};
+  var styles = ixer.index("uiStyles");
+  for(var key in styles) {
+    var cur = styles[key][0];
+    console.log(cur, cur[2], opts.type);
+    if(cur[2] === opts.type) {
+      options[cur[1]] = code.name(cur[1]);
+    }
+  }
+
+  return selectInput(opts.initial, opts.id, options, onClose);
 }
 
 //---------------------------------------------------------
@@ -1787,6 +1880,12 @@ function dispatch(event, info, returnInsteadOfSend) {
     case "rename":
       diffs.push(["displayName", "inserted", [txId, info.id, info.value]]);
       break;
+    case "addTag":
+      diffs.push(["tag", "inserted", [info.id, info.tag]]);
+      break;
+    case "removeTag":
+      diffs.push(["tag", "removed", [info.id, info.tag]]);
+      break;
     case "openItem":
       diffs.push(["openEditorItem", "inserted", [txId, info.id, client]]);
       break;
@@ -1812,9 +1911,14 @@ function dispatch(event, info, returnInsteadOfSend) {
     case "addUiComponentElement":
       var elemId = uuid();
       var neue = [txId, elemId, info.componentId, info.layerId, info.control, info.left, info.top, info.right, info.bottom];
+      var styleName = info.control + " " + elemId.slice(0, 5);
+      var appStyleId = uuid();
+      var typStyleId = uuid();
       diffs.push(["uiComponentElement", "inserted", neue]);
-      diffs.push(["uiStyle", "inserted", [txId, uuid(), "appearance", elemId]],
-                 ["uiStyle", "inserted", [txId, uuid(), "typography", elemId]]);
+      diffs.push(["uiStyle", "inserted", [txId, appStyleId, "appearance", elemId]],
+                 ["uiStyle", "inserted", [txId, typStyleId, "typography", elemId]],
+                 ["displayName", "inserted", [txId, appStyleId, styleName]],
+                 ["displayName", "inserted", [txId, typStyleId, styleName]]);
       diffs.push.apply(diffs, dispatch("selectElements", {componentId: info.componentId,
                                                           createNew: true,
                                                           elements: [neue[1]]},
@@ -1915,6 +2019,13 @@ function dispatch(event, info, returnInsteadOfSend) {
       var sel = ixer.index("uiSelection")[client][info.componentId];
       var els = ixer.index("uiSelectionElements")[sel[1]];
       diffs = dispatch("setUiAttribute", {elements: els, property: info.property, value: info.value}, true);
+      break;
+    case "setSelectionStyle":
+      var sel = ixer.index("uiSelection")[client][info.componentId];
+      var els = ixer.index("uiSelectionElements")[sel[1]];
+      els.forEach(function(cur) {
+        diffs.push(["uiStyle", "inserted", [txId, info.style, info.type, cur[1]]]);
+      });
       break;
     case "duplicateSelection":
       var sel = ixer.index("uiSelection")[client][info.componentId];
@@ -2393,6 +2504,7 @@ ixer.addIndex("uiSelection", "uiSelection", Indexing.create.latestLookup({keys: 
 ixer.addIndex("uiSelectionElements", "uiSelectionElement", Indexing.create.collector([0]));
 ixer.addIndex("uiActiveLayer", "uiActiveLayer", Indexing.create.latestLookup({keys: [2, 1, 3]}));
 ixer.addIndex("uiBoxSelection", "uiBoxSelection", Indexing.create.latestLookup({keys: [1, false]}));
+ixer.addIndex("uiStyles", "uiStyle", Indexing.create.latestCollector({keys: [1], uniqueness: [1]}));
 ixer.addIndex("uiStyle", "uiStyle", Indexing.create.latestLookup({keys: [1, false]}));
 ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.latestLookup({keys: [3, 2, false]}));
 ixer.addIndex("uiElementToStyles", "uiStyle", Indexing.create.latestCollector({keys: [3], uniqueness: [1]}));

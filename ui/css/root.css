@@ -16,8 +16,9 @@ div[contenteditable] { display:inline-block; }
 .dropdown { overflow-y: auto; overflow-x: hidden; }
 .dropdown > .dropdown-item { padding: 0.2em; }
 
-.searcher { flex-direction: column; }
-.searcher > .searcher-input { height: 1.5rem; flex: 0 0 auto; }
+.searcher { display: flex; flex: 1; flex-direction: column; align-items: stretch; }
+.searcher > .searcher-input-box { height: 1.5rem; display: flex; flex-direction: row; }
+.searcher > .searcher-input-box > .input { flex: 1; }
 .searcher > .searcher-results { flex: 1; }
 
 .root { flex:1; flex-direction:row; }
