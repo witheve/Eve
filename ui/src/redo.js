@@ -1734,6 +1734,13 @@ var modals = {searcher: searcherModal};
 // Dispatch
 //---------------------------------------------------------
 
+function reverseDiffs(diffs) {
+  for(var i = 0, len = diffs.length; i < len; i++) {
+    diffs[i][1] = diffs[i][1] === "inserted" ? "removed" : "inserted";
+  }
+  return diffs;
+}
+
 function dispatch(event, info, returnInsteadOfSend) {
   var storeEvent = true;
   var diffs = [];
@@ -2108,11 +2115,21 @@ function dispatch(event, info, returnInsteadOfSend) {
       diffs.push(["remove", "inserted", [info.txId]]);
       break;
     case "addGroupBinding":
+      //@HACK: because the only way to map into a union right now is from a query, we have to create a query
+      //for our binding.
       var groupId = info.groupId;
+      var bindingQueryId = groupId + "-binding";
       var prev = ixer.index("groupToBinding")[groupId];
       if(prev) {
         diffs.push(["uiGroupBinding", "removed", [groupId, prev]]);
+        //remove the source
+        diffs.push(["source", "remove", [bindingQueryId, 0, groupId + prev, ["view", prev], "get-tuple"]]);
+      } else {
+        //add a query
+        diffs.push.apply(addView(bindingQueryId, {binding: "tuple"}, [], bindingQueryId, ["generated"], "query"));
       }
+      //add a source
+      diffs.push(["source", "inserted", [bindingQueryId, 0, groupId + info.unionId, ["view", unionId], "get-tuple"]]);
       diffs.push(["uiGroupBinding", "inserted", [groupId, info.unionId]]);
       break;
     default:
