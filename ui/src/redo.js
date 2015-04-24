@@ -600,7 +600,7 @@ function uiWorkspace(componentId) {
   var layerLookup = ixer.index("uiComponentLayer");
   var activeLayerId = ixer.index("uiActiveLayer")[client] ? ixer.index("uiActiveLayer")[client][componentId] : undefined;
   var activeLayer = layers[0];
-  if(activeLayerId) {
+  if(activeLayerId && layerLookup[activeLayerId]) {
     activeLayer = layerLookup[activeLayerId];
   }
 
