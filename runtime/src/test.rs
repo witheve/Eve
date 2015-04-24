@@ -1,6 +1,7 @@
 use value::{Value, Tuple, Relation};
 use interpreter::{Call, Match, Expression};
 use std::num::ToPrimitive;
+use query::Ref;
 
 // Convenient hacks for writing tests
 // Do not use in production code
@@ -129,8 +130,7 @@ pub trait ToExpression { fn to_expr(self) -> Expression; }
 
 impl ToExpression for Expression { fn to_expr(self) -> Expression { self } }
 impl ToExpression for Call { fn to_expr(self) -> Expression { Expression::Call(self) } }
-impl ToExpression for i32 { fn to_expr(self) -> Expression { Expression::Value(self.to_value()) } }
-impl ToExpression for f64 { fn to_expr(self) -> Expression { Expression::Value(self.to_value()) } }
-impl<'a> ToExpression for &'a str { fn to_expr(self) -> Expression { Expression::Value(self.to_value()) } }
-impl ToExpression for Value { fn to_expr(self) -> Expression { Expression::Value(self) } }
+impl ToExpression for i32 { fn to_expr(self) -> Expression { Expression::Ref(Ref::Constant{value: self.to_value()}) } }
+impl ToExpression for f64 { fn to_expr(self) -> Expression { Expression::Ref(Ref::Constant{value: self.to_value()}) } }
+impl<'a> ToExpression for &'a str { fn to_expr(self) -> Expression { Expression::Ref(Ref::Constant{value: self.to_value()}) } }
 impl ToExpression for Match { fn to_expr(self) -> Expression { Expression::Match( Box::new(self)) } }
