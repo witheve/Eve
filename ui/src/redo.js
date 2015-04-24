@@ -600,7 +600,7 @@ function uiWorkspace(componentId) {
   var layerLookup = ixer.index("uiComponentLayer");
   var activeLayerId = ixer.index("uiActiveLayer")[client] ? ixer.index("uiActiveLayer")[client][componentId] : undefined;
   var activeLayer = layers[0];
-  if(activeLayerId) {
+  if(activeLayerId && layerLookup[activeLayerId]) {
     activeLayer = layerLookup[activeLayerId];
   }
 
@@ -1032,8 +1032,11 @@ function uiGrid(componentId, layerIndex) {
            var ctx = canvas.getContext("2d");
            var ratio = canvasRatio(ctx);
            console.log(Math.round(bounds.width), Math.round(bounds.height), Math.round(ratio));
+           console.log(canvas);
            canvas.width = bounds.width * ratio;
            canvas.height = bounds.height * ratio;
+           canvas.style.width = bounds.width;
+           canvas.style.height = bounds.height;
            ctx.scale(ratio, ratio);
            ctx.lineWidth = 1;
            ctx.strokeStyle = "#999999";
