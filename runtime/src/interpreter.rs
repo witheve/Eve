@@ -8,11 +8,10 @@ use self::EveFn::*;
 // Expression Enum ------------------------------------------------------------
 #[derive(Clone, Debug)]
 pub enum Expression {
-	Constant(Constant),
+	Ref(Ref),
 	Variable(Variable),
 	Call(Call),
 	Match(Box<Match>),
-	Value(Value),
 }
 
 // End Expression Enum --------------------------------------------------------
@@ -45,7 +44,7 @@ pub struct Match {
 // Begin Pattern Enum ---------------------------------------------------------
 #[derive(Clone,Debug)]
 pub enum Pattern {
-	Constant(Constant),
+	Constant(Ref),
 	Variable(Variable),
 	Tuple(PatternVec),
 }
@@ -69,12 +68,6 @@ pub struct Call {
 	pub args: ExpressionVec,
 }
 
-#[derive(Clone,Debug)]
-pub enum Constant {
-	Value(Value),
-	Ref(Ref),
-}
-
 // Some type aliases
 pub type Variable = String;
 pub type PatternVec = Vec<Pattern>;
@@ -91,18 +84,10 @@ pub fn evaluate(e: & Expression, result: &Vec<Value>) -> Value {
 fn eval_expression(e: &Expression, result: &Vec<Value>) -> Value {
 
 	match *e {
-		Expression::Call(ref x) => eval_call(x,result),
-		Expression::Constant(ref x) => eval_constant(x,result),
-		Expression::Value(ref x) => x.clone(),
-		Expression::Match(ref x) => eval_match(x,result),
+		Expression::Ref(ref r) => r.resolve(result,None).clone(),
+		Expression::Call(ref c) => eval_call(c,result),
+		Expression::Match(ref m) => eval_match(m,result),
 		_ => unimplemented!(),
-	}
-}
-
-fn eval_constant(c: &Constant, result: &Vec<Value>) -> Value {
-	match c {
-		&Constant::Value(ref x) => x.clone(),
-		&Constant::Ref(ref x) => x.resolve(result,None).clone(),
 	}
 }
 
@@ -119,8 +104,13 @@ fn eval_match(m: &Match, result: &Vec<Value>) -> Value {
 	for (pattern, handler) in m.patterns.iter().zip(m.handlers.iter()) {
 		match pattern {
 			&Pattern::Constant(ref x) => {
-				if eval_expression(&Expression::Constant(x.clone()),result) == input {
-					return eval_expression(&handler,result)
+				match x {
+					&Ref::Constant{ref value} => {
+						if input == value.clone() {
+							return eval_expression(&handler,result)
+						}
+					}
+					_ => panic!("TODO"),
 				}
 			}
 			_ => panic!("TODO"),
@@ -187,17 +177,23 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 			Value::Tuple(w)
 		},
 
-
 		// Aggregate functions
-		(&Sum,[Value::Tuple(ref x)]) => {
-			Value::Float(x.iter().fold(0f64, |acc: f64, ref item| {
-				match item {
-					&&Value::Float(ref y) => acc+y,
-					x => panic!("Cannot aggregate {:?}",x),
-				}
-			}))
+		(&Sum,[Value::Relation(ref rel)]) => {
 
+			assert_eq!(c.args.len(),1);
+
+			let sum = rel.iter()
+						 .map(|r| r[get_ref_column(&c.args[0])].clone())
+						 .fold(0f64,|acc,x| {
+							acc + match x {
+								Value::Float(y) => y,
+							  	other => panic!("Cannot accumulate {:?}",other),
+						 	}
+						 });
+
+			Value::Float(sum)
 		},
+
 		/*
 		(&Prod,[Value::Tuple(ref x)]) => {
 			Value::Float(x.iter().fold(1f64, |acc: f64, ref item| {
@@ -212,4 +208,17 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 		// Returns an empty string for the purpose of handling incomplete function
 		(_, _) => Value::String(String::from_str("Could not match with any function")),
 	}
+}
+
+// This is as little hacky, but works for now
+fn get_ref_column(e: &Expression) -> usize {
+
+	match e {
+		&Expression::Ref(ref r) => match r {
+			&Ref::Value{column,..} => column,
+			_ => panic!("Expected Ref::Value"),
+		},
+		_ => panic!("Expected Expression::Ref"),
+	}
+
 }

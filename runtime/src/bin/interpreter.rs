@@ -2,7 +2,6 @@
 #![feature(core)]
 #![allow(unused_imports)]
 
-#[macro_use]
 extern crate eve;
 extern crate test;
 extern crate core;
@@ -10,6 +9,7 @@ extern crate core;
 use eve::interpreter::*;
 use eve::value::*;
 use eve::test::*;
+use eve::query::Ref;
 
 // Macro for creating expression vectors
 macro_rules! exprvec {
@@ -20,9 +20,15 @@ macro_rules! exprvec {
     };
 }
 
+
 #[allow(dead_code)]
 fn main() {
 
+	/*
+	let c1 = Call{fun: EveFn::Sum, args: exprvec![1.3,2]};
+	let result = evaluate(&c1.to_expr(),&vec![]);
+	println!("{:?}",result);
+	*/
 }
 
 
@@ -30,13 +36,13 @@ fn main() {
 fn match_test(){
 
 	// Test a single match
-	let input2 = Expression::Constant(Constant::Value(4.to_value()));
+	let input2 = Expression::Ref(Ref::Constant{value: 4.to_value()});
 
-	let patterns2 = vec!(Pattern::Constant(Constant::Value(1.to_value())),
-					     Pattern::Constant(Constant::Value(2.to_value())),
-					     Pattern::Constant(Constant::Value(3.to_value())),
-					     Pattern::Constant(Constant::Value(4.to_value())),
-					     Pattern::Constant(Constant::Value(3.to_value())),
+	let patterns2 = vec!(Pattern::Constant(Ref::Constant{value: 1.to_value()}),
+					     Pattern::Constant(Ref::Constant{value: 2.to_value()}),
+					     Pattern::Constant(Ref::Constant{value: 3.to_value()}),
+					     Pattern::Constant(Ref::Constant{value: 4.to_value()}),
+					     Pattern::Constant(Ref::Constant{value: 5.to_value()}),
 					   );
 	let handlers2 = exprvec!["oneone","twotwo","threethree","fourfour","fivefive"];
 
@@ -47,13 +53,13 @@ fn match_test(){
 	assert_eq!(result,"fourfour".to_value());
 
 	// Test a nested match
-	let input = Expression::Constant(Constant::Value(3.to_value()));
+	let input = Expression::Ref(Ref::Constant{value: 3.to_value()});
 
-	let patterns = vec!(Pattern::Constant(Constant::Value(1.to_value())),
-					    Pattern::Constant(Constant::Value(2.to_value())),
-					    Pattern::Constant(Constant::Value(3.to_value())),
-					    Pattern::Constant(Constant::Value(4.to_value())),
-					    Pattern::Constant(Constant::Value(3.to_value())),
+	let patterns = vec!(Pattern::Constant(Ref::Constant{value: 1.to_value()}),
+					     Pattern::Constant(Ref::Constant{value: 2.to_value()}),
+					     Pattern::Constant(Ref::Constant{value: 3.to_value()}),
+					     Pattern::Constant(Ref::Constant{value: 4.to_value()}),
+					     Pattern::Constant(Ref::Constant{value: 5.to_value()}),
 					   );
 	let handlers = exprvec!["one","two",m2,"four","five"];
 
@@ -172,6 +178,7 @@ fn opsbench(b: &mut test::Bencher) {
 	let c5 = Call{fun: EveFn::Add, args: exprvec![c2,c4]};				// C5 = C2 + C4
 	let c6 = Call{fun: EveFn::Exponentiate, args: exprvec![c5,2.5]};	// C6 = C5 ^ 2.5
 	let e1 = c6.to_expr();
+
 	b.iter(|| {
 		evaluate(&e1,&vec![])
 	});

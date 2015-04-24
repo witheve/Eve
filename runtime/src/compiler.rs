@@ -1,7 +1,7 @@
 use value::{Value, Tuple, Relation};
 use index::{Index};
 use query::{Ref, ConstraintOp, Constraint, Source, Clause, Query};
-use interpreter::{EveFn,Constant,Pattern};
+use interpreter::{EveFn,Pattern};
 use interpreter;
 use flow::{View, Union, Node, Flow};
 
@@ -281,7 +281,7 @@ fn create_match(compiler: &Compiler, uiinput: &Value, uipatterns: &Value, uihand
                         .map(|arg| {
                             let call_arg = create_call_arg(compiler,arg.as_slice());
                             match call_arg {
-                                interpreter::Expression::Constant(x) => Pattern::Constant(x),
+                                interpreter::Expression::Ref(x) => Pattern::Constant(x),
                                 _ => panic!("TODO"),
                                 }
                             }
@@ -323,7 +323,7 @@ fn create_call_arg(compiler: &Compiler, arg: &[Value]) -> interpreter::Expressio
     match arg[0].as_str() {
         "constant" => {
             assert_eq!(arg.len(),2 as usize);
-            interpreter::Expression::Constant(Constant::Ref(Ref::Constant{value: arg[1].clone()}))
+            interpreter::Expression::Ref(Ref::Constant{value: arg[1].clone()})
         },
         "column" => {
             assert_eq!(arg.len(),3 as usize);
@@ -332,7 +332,7 @@ fn create_call_arg(compiler: &Compiler, arg: &[Value]) -> interpreter::Expressio
             let other_source_ix = get_source_ix(&compiler.flow, other_source_id);
             let other_field_ix = get_field_ix(&compiler.flow, other_field_id);
 
-            interpreter::Expression::Constant(Constant::Ref(Ref::Value{ clause: other_source_ix, column: other_field_ix }))
+            interpreter::Expression::Ref(Ref::Value{ clause: other_source_ix, column: other_field_ix })
         },
         "call" => interpreter::Expression::Call(create_call(compiler,&arg[CALL_FUN],&arg[CALL_ARGS])),
         other  => panic!("Unhandled ref kind: {:?}", other),
