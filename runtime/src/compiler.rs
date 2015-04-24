@@ -61,9 +61,8 @@ static VIEWMAPPING_SOURCEVIEW: usize = 1;
 static VIEWMAPPING_SINKVIEW: usize = 2;
 
 static FIELDMAPPING_VIEWMAPPING: usize = 0;
-static FIELDMAPPING_SOURCEFIELD: usize = 1;
-static FIELDMAPPING_SOURCECOLUMN: usize = 2;
-static FIELDMAPPING_SINKFIELD: usize = 3;
+static FIELDMAPPING_SOURCEREF: usize = 1;
+static FIELDMAPPING_SINKFIELD: usize = 2;
 
 static CALL_FUN: usize = 1;
 static CALL_ARGS: usize = 2;
@@ -183,6 +182,28 @@ fn get_ref_ix(flow: &Flow, reference: &Value) -> i64 {
     }
 }
 
+fn create_reference(compiler: &Compiler, reference: &Value) -> Ref {
+    match reference[0].as_str() {
+        "constant" => {
+            let value = reference[1].clone();
+            Ref::Constant{
+                value: value,
+            }
+        }
+        "column" => {
+            let other_source_id = &reference[COLUMN_SOURCE_ID];
+            let other_field_id = &reference[COLUMN_FIELD_ID];
+            let other_source_ix = get_source_ix(&compiler.flow, other_source_id);
+            let other_field_ix = get_field_ix(&compiler.flow, other_field_id);
+            Ref::Value{
+                clause: other_source_ix,
+                column: other_field_ix,
+            }
+        }
+        other => panic!("Unknown ref kind: {}", other)
+    }
+}
+
 fn create_constraint(compiler: &Compiler, constraint: &Vec<Value>) -> Constraint {
     let my_column = get_field_ix(&compiler.flow, &constraint[CONSTRAINT_LEFT][2]);
     let op = match constraint[CONSTRAINT_OP].as_str() {
@@ -194,26 +215,7 @@ fn create_constraint(compiler: &Compiler, constraint: &Vec<Value>) -> Constraint
         ">=" => ConstraintOp::GTE,
         other => panic!("Unknown constraint op: {}", other),
     };
-    let constraint_right = &constraint[CONSTRAINT_RIGHT];
-    let other_ref = match constraint_right[0].as_str() {
-        "constant" => {
-            let value = constraint_right[1].clone();
-            Ref::Constant{
-                value: value,
-            }
-        }
-        "column" => {
-            let other_source_id = &constraint_right[COLUMN_SOURCE_ID];
-            let other_field_id = &constraint_right[COLUMN_FIELD_ID];
-            let other_source_ix = get_source_ix(&compiler.flow, other_source_id);
-            let other_field_ix = get_field_ix(&compiler.flow, other_field_id);
-            Ref::Value{
-                clause: other_source_ix,
-                column: other_field_ix,
-            }
-        }
-        other => panic!("Unknown ref kind: {}", other)
-    };
+    let other_ref = create_reference(compiler, &constraint[CONSTRAINT_RIGHT]);
     Constraint{
         my_column: my_column,
         op: op,
@@ -354,17 +356,14 @@ fn create_union(compiler: &Compiler, view_id: &Value) -> Union {
         let source_view_id = &upstream[UPSTREAM_UPSTREAM];
         let view_mapping = compiler.flow.get_state("view-mapping").find_one(VIEWMAPPING_SOURCEVIEW, source_view_id).clone();
         let view_mapping_id = &view_mapping[VIEWMAPPING_ID];
-        let invalid = ::std::usize::MAX;
-        let mut field_mappings = vec![(invalid, invalid); num_sink_fields];
+        let mut field_mappings = vec![None; num_sink_fields];
         for field_mapping in compiler.flow.get_state("field-mapping").find_all(FIELDMAPPING_VIEWMAPPING, &view_mapping_id) {
-            let source_field_id = &field_mapping[FIELDMAPPING_SOURCEFIELD];
-            let source_field_ix = get_field_ix(&compiler.flow, source_field_id);
-            let source_column_id = &field_mapping[FIELDMAPPING_SOURCECOLUMN];
-            let source_column_ix = get_field_ix(&compiler.flow, source_column_id);
+            let source_ref = create_reference(compiler, &field_mapping[FIELDMAPPING_SOURCEREF]);
             let sink_field_id = &field_mapping[FIELDMAPPING_SINKFIELD];
             let sink_field_ix = get_field_ix(&compiler.flow, sink_field_id);
-            field_mappings[sink_field_ix] = (source_field_ix, source_column_ix);
+            field_mappings[sink_field_ix] = Some(source_ref);
         }
+        let field_mappings = field_mappings.drain().map(|reference| reference.unwrap()).collect();
         let num_source_fields = get_num_fields(&compiler.flow, source_view_id);
         view_mappings.push((num_source_fields, field_mappings));
     }

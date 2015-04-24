@@ -12,7 +12,10 @@ use std::cell::RefCell;
 fn main() {
     let edges = vec![("a","b"), ("b", "c"), ("c", "d"), ("d", "b")];
     let path_union = Union{
-        mappings: vec![(2, vec![(0, 0), (1, 1)]), (1, vec![(0, 0), (0, 1)])],
+        mappings: vec![
+        (2, vec![Ref::Value{clause: 0, column: 0}, Ref::Value{clause: 1, column: 1}]),
+        (1, vec![Ref::Value{clause: 0, column: 0}, Ref::Value{clause: 0, column: 1}])
+        ],
     };
     let first_step_query = Query{clauses: vec![
         Clause::Tuple(Source{relation: 0, constraints: vec![]}),

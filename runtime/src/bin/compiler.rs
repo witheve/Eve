@@ -114,10 +114,10 @@ fn recursion_test() {
             removed: vec![]}),
         ("field-mapping".to_string(), Changes{
             inserted: vec![
-            ("next_step_mapping", "next_step_edge", "edge_from", "path_from").to_tuple(),
-            ("next_step_mapping", "next_step_path", "path_to", "path_to").to_tuple(),
-            ("first_step_mapping", "first_step_edge", "edge_from", "path_from").to_tuple(),
-            ("first_step_mapping", "first_step_edge", "edge_to", "path_to").to_tuple(),
+            ("next_step_mapping", ("column", "next_step_edge", "edge_from").to_tuple(), "path_from").to_tuple(),
+            ("next_step_mapping", ("column", "next_step_path", "path_to").to_tuple(), "path_to").to_tuple(),
+            ("first_step_mapping", ("column", "first_step_edge", "edge_from").to_tuple(), "path_from").to_tuple(),
+            ("first_step_mapping", ("column", "first_step_edge", "edge_to").to_tuple(), "path_to").to_tuple(),
             ],
             removed: vec![]}),
         ("edge".to_string(), Changes{
