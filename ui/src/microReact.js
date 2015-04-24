@@ -75,6 +75,7 @@
         if(cur.contentEditable !== prev.contentEditable) div.contentEditable = cur.contentEditable || "inherit";
         if(cur.colspan !== prev.colspan) div.colSpan = cur.colspan;
         if(cur.placeholder !== prev.placeholder) div.placeholder = cur.placeholder;
+        if(cur.selected !== prev.selected) div.selected = cur.selected;
 
         if(cur.left !== prev.left)  style.left = cur.left;
         if(cur.top !== prev.top) style.top = cur.top;
@@ -154,6 +155,7 @@
         }
         if(curA.c === curB.c
            && curA.placeholder === curB.placeholder
+           && curA.selected === curB.selected
            && curA.value === curB.value
            && curA.text === curB.text
            && curA.top === curB.top
@@ -192,6 +194,7 @@
         }
         if(curA.c === curB.c
            && curA.placeholder === curB.placeholder
+           && curA.selected === curB.selected
            && curA.value === curB.value
            && curA.text === curB.text
            && curA.top === curB.top
