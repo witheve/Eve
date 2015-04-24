@@ -69,12 +69,12 @@
         }
 
         var style = div.style;
-
         if(cur.c !== prev.c) div.className = cur.c;
         if(cur.draggable !== prev.draggable) div.draggable = cur.draggable;
         if(cur.contentEditable !== prev.contentEditable) div.contentEditable = cur.contentEditable || "inherit";
         if(cur.colspan !== prev.colspan) div.colSpan = cur.colspan;
         if(cur.placeholder !== prev.placeholder) div.placeholder = cur.placeholder;
+        if(cur.selected !== prev.selected) div.selected = cur.selected;
 
         if(cur.left !== prev.left)  style.left = cur.left;
         if(cur.top !== prev.top) style.top = cur.top;
@@ -82,22 +82,21 @@
         if(cur.width !== prev.width)  style.width = cur.width;
         if(cur.zIndex !== prev.zIndex) style.zIndex = cur.zIndex;
 
-        if(cur.backgroundColor !== prev.backgroundColor) style.backgroundColor = cur.backgroundColor;
+        if(cur.backgroundColor !== prev.backgroundColor) style.backgroundColor = cur.backgroundColor || "transparent";
         if(cur.backgroundImage !== prev.backgroundImage) {
           style.backgroundImage = "url('" + cur.backgroundImage + "')";
         }
-        if(cur.border !== prev.border) style.border = cur.border;
-        if(cur.borderRadius !== prev.borderRadius) style.borderRadius = cur.borderRadius;
-        if(cur.opacity !== prev.opacity) style.opacity = cur.opacity;
+        if(cur.border !== prev.border) style.border = cur.border || "none";
+        if(cur.borderRadius !== prev.borderRadius) style.borderRadius = cur.borderRadius || 0;
+        if(cur.opacity !== prev.opacity) style.opacity = cur.opacity || 1;
         if(cur.fontSize !== prev.fontSize) style.fontSize = cur.fontSize;
         if(cur.textAlign !== prev.textAlign) style.justifyContent = cur.textAlign;
         if(cur.verticalAlign !== prev.verticalAlign) style.alignItems = cur.verticalAlign;
-        if(cur.color !== prev.color) style.color = cur.color;
-        if(cur.fontFamily !== prev.fontFamily) style.fontFamily = cur.fontFamily;
+        if(cur.color !== prev.color) style.color = cur.color || "inherit";
+        if(cur.fontFamily !== prev.fontFamily) style.fontFamily = cur.fontFamily || "inherit";
         if(cur.value !== prev.value) div.value = cur.value;
         if(cur.t === "input" && cur.type !== prev.type) div.type = cur.type;
         if(cur.text !== prev.text) div.textContent = cur.text;
-
         //events
         if(cur.dblclick !== prev.dblclick) div.ondblclick = cur.dblclick !== undefined ? this.handleEvent : undefined;
         if(cur.click !== prev.click) div.onclick = cur.click !== undefined ? this.handleEvent : undefined;
@@ -154,6 +153,7 @@
         }
         if(curA.c === curB.c
            && curA.placeholder === curB.placeholder
+           && curA.selected === curB.selected
            && curA.value === curB.value
            && curA.text === curB.text
            && curA.top === curB.top
@@ -192,6 +192,7 @@
         }
         if(curA.c === curB.c
            && curA.placeholder === curB.placeholder
+           && curA.selected === curB.selected
            && curA.value === curB.value
            && curA.text === curB.text
            && curA.top === curB.top
