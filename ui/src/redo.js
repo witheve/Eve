@@ -624,7 +624,10 @@ function uiWorkspace(componentId) {
 }
 
 function startBoxSelect(evt, el) {
-  if(!evt.shiftKey) { clearSelection(evt, el); }
+  if(!evt.shiftKey) {
+    editorInfo = false;
+    clearSelection(evt, el);
+  }
   return updateBoxSelect(evt, el, true);
 }
 function updateBoxSelect(evt, el, forceUpdate) {
@@ -668,7 +671,9 @@ function control(cur, attrs, selected, layer) {
   for(var i = 0, len = attrs.length; i < len; i++) {
     var curAttr = attrs[i];
     var name = attrMappings[curAttr[2]] || curAttr[2];
-    elem[name] = curAttr[3];
+    if(curAttr[3].constructor !== Array) {
+      elem[name] = curAttr[3];
+    }
   }
   return elem;
 }
@@ -705,43 +710,74 @@ function uiControls(componentId, activeLayer) {
 function inspector(componentId, selectionInfo, layers, activeLayer) {
   var inspectors = [];
   var activeLayerId;
+  var binding;
   var elements;
   if(activeLayer) {
     activeLayerId = activeLayer[1];
     elements = ixer.index("uiLayerToElements")[activeLayerId];
+    binding = ixer.index("groupToBinding")[activeLayerId];
   }
   if(selectionInfo) {
-    inspectors.push(layoutInspector(selectionInfo),
-                    appearanceInspector(selectionInfo),
-                    textInspector(selectionInfo));
+    inspectors.push(layoutInspector(selectionInfo, binding),
+                    appearanceInspector(selectionInfo, binding),
+                    textInspector(selectionInfo, binding));
   } else if(activeLayer) {
     inspectors.push(layerInspector(activeLayer, elements));
   }
   return {c: "inspector", children: inspectors};
 }
 
-function inspectorInput(value, key, onChange) {
+function inspectorInput(value, key, onChange, binding) {
   if(value === null) {
     input.placeholder = "---";
-  } else if(value && !isNaN(value)) {
-
+  } else if(typeof value === "number" && !isNaN(value)) {
     value = value.toFixed(2);
+  } else if(value && value.constructor === Array) {
+    value = "Bound to " + code.name(value[2]);
   }
-  var field = input(value !== null ? value : "", key, onChange, preventDefault);
+  var field = input(value, key, onChange, preventDefault);
   field.mousedown = stopPropagation;
+  field.editorType = "binding";
+  field.binding = binding;
+  field.focus = activateTokenEditor;
+  field.blur = closeTokenEditor;
   return field;
 }
 
-function layoutInspector(selectionInfo) {
+function closeBindingEditor(e, elem) {
+  if(editorInfo.element === e.currentTarget) {
+    setTimeout(function() { editorInfo = false; rerender(); }, 0);
+  }
+}
+
+function bindingEditor(editorInfo) {
+  var binding = editorInfo.info.binding;
+  if(!binding) return;
+  var fields = code.viewToFields(binding).map(function(cur) {
+    return ["field", binding, cur[2]];
+  });
+  return genericEditor(fields, false, false, false, "column", setBinding);
+}
+
+function setBinding(e, elem) {
+  var info = editorInfo.info;
+  var componentId = info.key[0];
+  var property = info.key[1];
+  console.log("SET", componentId, property, elem.cur);
+  editorInfo = false;
+  dispatch("setAttributeForSelection", {componentId: componentId, property: property, value: ["binding", elem.cur[1], elem.cur[2]]});
+}
+
+function layoutInspector(selectionInfo, binding) {
   var componentId = selectionInfo.componentId;
   var bounds = selectionInfo.bounds;
   //pos, size
   return {c: "inspector-panel", children: [
     {c: "title", text: "Layout"},
-    {c: "pair", children: [{c: "label", text: "top"}, inspectorInput(bounds.top, [componentId, "top"], adjustPosition) ]},
-    {c: "pair", children: [{c: "label", text: "left"}, inspectorInput(bounds.left, [componentId, "left"], adjustPosition) ]},
-    {c: "pair", children: [{c: "label", text: "width"}, inspectorInput(bounds.right - bounds.left, selectionInfo, adjustWidth) ]},
-    {c: "pair", children: [{c: "label", text: "height"}, inspectorInput(bounds.bottom - bounds.top, selectionInfo, adjustHeight) ]},
+    {c: "pair", children: [{c: "label", text: "top"}, inspectorInput(bounds.top, [componentId, "top"], adjustPosition, binding) ]},
+    {c: "pair", children: [{c: "label", text: "left"}, inspectorInput(bounds.left, [componentId, "left"], adjustPosition, binding) ]},
+    {c: "pair", children: [{c: "label", text: "width"}, inspectorInput(bounds.right - bounds.left, selectionInfo, adjustWidth, binding) ]},
+    {c: "pair", children: [{c: "label", text: "height"}, inspectorInput(bounds.bottom - bounds.top, selectionInfo, adjustHeight, binding) ]},
   ]};
 }
 
@@ -781,7 +817,7 @@ function adjustPosition(e, elem) {
   dispatch("moveSelection", {diffX: diffX, diffY: diffY, componentId: componentId});
 }
 
-function appearanceInspector(selectionInfo) {
+function appearanceInspector(selectionInfo, binding) {
   var attrs = selectionInfo.attributes;
   var componentId = selectionInfo.componentId;
   //background, image, border
@@ -792,13 +828,13 @@ function appearanceInspector(selectionInfo) {
     {c: "pair", children: [{c: "label", text: "background"},
                            colorSelector(componentId, "backgroundColor", attrs["backgroundColor"])]},
     {c: "pair", children: [{c: "label", text: "image"},
-                           inspectorInput(attrs["backgroundImage"], [componentId, "backgroundImage"], setAttribute)]},
+                           inspectorInput(attrs["backgroundImage"], [componentId, "backgroundImage"], setAttribute, binding)]},
     {c: "pair", children: [{c: "label", text: "border"},
-                          inspectorInput(attrs["border"], [componentId, "border"], setAttribute)]},
+                          inspectorInput(attrs["border"], [componentId, "border"], setAttribute, binding)]},
     {c: "pair", children: [{c: "label", text: "radius"},
-                          inspectorInput(attrs["borderRadius"], [componentId, "borderRadius"], setAttribute)]},
+                          inspectorInput(attrs["borderRadius"], [componentId, "borderRadius"], setAttribute, binding)]},
     {c: "pair", children: [{c: "label", text: "opacity"},
-                          inspectorInput(attrs["opacity"], [componentId, "opacity"], setAttribute)]},
+                          inspectorInput(attrs["opacity"], [componentId, "opacity"], setAttribute, binding)]},
   ]};
 }
 
@@ -822,22 +858,22 @@ function setLayerAttribute(e, elem) {
   dispatch("setUiAttribute", {elements: elements, property: property, value: e.currentTarget.value || e.currentTarget.textContent});
 }
 
-function textInspector(selectionInfo) {
+function textInspector(selectionInfo, binding) {
   var componentId = selectionInfo.componentId;
   var attrs = selectionInfo.attributes;
   //font, size, color, align vertical, align horizontal, bold/italic/underline
   return {c: "inspector-panel", children: [
     {c: "title", text: "Typography"},
-    {c: "pair", children: [{c: "label", text: "content"}, inspectorInput(attrs["text"], [componentId, "text"], setAttribute)]},
+    {c: "pair", children: [{c: "label", text: "content"}, inspectorInput(attrs["text"], [componentId, "text"], setAttribute, binding)]},
     {c: "pair", children: [{c: "label", text: "font"},
-                           inspectorInput(attrs["fontFamily"], [componentId, "fontFamily"], setAttribute)]},
+                           inspectorInput(attrs["fontFamily"], [componentId, "fontFamily"], setAttribute, binding)]},
     {c: "pair", children: [{c: "label", text: "size"},
-                           inspectorInput(attrs["fontSize"], [componentId, "fontSize"], setAttribute)]},
+                           inspectorInput(attrs["fontSize"], [componentId, "fontSize"], setAttribute, binding)]},
     {c: "pair", children: [{c: "label", text: "color"}, colorSelector(componentId, "color", attrs["color"])]},
     {c: "pair", children: [{c: "label", text: "align"},
-                           inspectorInput(attrs["textAlign"], [componentId, "textAlign"], setAttribute)]},
+                           inspectorInput(attrs["textAlign"], [componentId, "textAlign"], setAttribute, binding)]},
     {c: "pair", children: [{c: "label", text: "valign"},
-                           inspectorInput(attrs["verticalAlign"], [componentId, "verticalAlign"], setAttribute)]},
+                           inspectorInput(attrs["verticalAlign"], [componentId, "verticalAlign"], setAttribute, binding)]},
     {c: "pair", children: [{c: "label", text: "bold/italic/underline"}]},
   ]};
 }
@@ -1331,14 +1367,22 @@ var editorInfo = false;
 
 function tokenEditor()  {
   if(editorInfo === false) return;
+  var editorWidth = 235;
+  var windowWidth = window.innerWidth;
   var rect = editorInfo.element.getBoundingClientRect();
   var editor;
   if(editorInfo.editorType === "constraint") {
     editor = constraintEditor(editorInfo);
   } else if(editorInfo.editorType === "expression") {
     editor = expressionEditor(editorInfo);
+  } else if(editorInfo.editorType === "binding") {
+    editor = bindingEditor(editorInfo);
   }
-  return {c: "token-editor", top: rect.bottom + 5, left: rect.left - 35, children: [editor]};
+  var left = rect.left - 35;
+  if(left + editorWidth >= windowWidth) {
+    left = windowWidth - editorWidth - 10;
+  }
+  return {c: "token-editor", top: rect.bottom + 5, left: left, children: [editor]};
 }
 
 function genericEditor(fields, functions, match, constant, defaultActive, onSelect, onInput) {
@@ -1403,9 +1447,9 @@ function genericEditorTab(type, icon, active, allowed) {
 
 function genericEditorOption(cur, selectOption, content) {
   if(typeof content === "string") {
-    return {click: selectOption, cur: cur, text: content};
+    return {mousedown: selectOption, cur: cur, text: content};
   }
-  return {click: selectOption, cur: cur, children: content};
+  return {mousedown: selectOption, cur: cur, children: content};
 }
 
 function setTab(e, elem) {
@@ -2268,6 +2312,11 @@ var code = {
         var field = code.name(ref[2]);
         return {string: view + "." + field, view: view, field: field};
         break;
+      case "field":
+        var view = code.name(ref[1]);
+        var field = code.name(ref[2]);
+        return {string: view + "." + field, view: view, field: field};
+        break;
       default:
         return "Unknown ref: " + JSON.stringify(ref);
         break;
@@ -2386,7 +2435,7 @@ function initIndexer() {
   // ui views
   add("uiComponentElement", {tx: "number", id: "string", component: "string", layer: "id", control: "string", left: "number", top: "number", right: "number", bottom: "number"}, [], "uiComponentElement", ["table"]);
   add("uiComponentLayer", {tx: "number", id: "string", component: "string", layer: "number", locked: "boolean", invisible: "boolean"}, [], "uiComponentLayer", ["table"]);
-  add("uiComponentAttribute", {tx: "number", id: "string", property: "string", value: "string", isBinding: "boolean"}, [], "uiComponentAttribute", ["table"]); // @FIXME: value: any
+  add("uiComponentAttribute", {tx: "number", id: "string", property: "string", value: "tuple"}, [], "uiComponentAttribute", ["table"]); // @FIXME: value: any
   add("uiSelection", {tx: "number", id: "id", client: "string", component: "id"}, [], "uiSelection", ["table"]);
   add("uiSelectionElement", {id: "id", element: "id"}, [], "uiSelectionElement", ["table"]);
   add("uiActiveLayer", {tx: "number", component: "id", client: "id", layer: "id"}, [], "uiActiveLayer", ["table"]);

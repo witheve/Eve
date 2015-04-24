@@ -88,7 +88,7 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 
 .grid { z-index: 0; pointer-events:none; }
 
-.inspector { flex-direction:column; width:150px; margin-left:10px; }
+.inspector { flex-direction:column; width:200px; margin-left:10px; }
 .layers { flex-direction: column; margin-top:10px }
 .layer { display:flex; padding:5px; border-radius:2px; background:#444; }
 .layer + .layer { margin-top:1px; }
