@@ -58,7 +58,8 @@ tr:hover td { background: rgba(255,255,255,0.05); }
 - input
 -----------------------------------------------------------------------------*/
 
-.input { outline:none; }
+.input { outline:none; color: #ccc; border: none; border-radius: 0; margin: 0;}
+select.input { font-size: 0.9em;}
 .icon-btn { padding:5px; border-radius:2px; flex:none; width:25px; justify-content:center; }
 .icon-btn:hover { background: #666; }
 
