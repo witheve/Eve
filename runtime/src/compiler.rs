@@ -1,5 +1,5 @@
 use value::{Value, Tuple, Relation};
-use index::{Index};
+use index::{Index, Changes};
 use query::{Ref, ConstraintOp, Constraint, Source, Clause, Query};
 use interpreter::{EveFn,Pattern};
 use interpreter;
@@ -23,20 +23,12 @@ impl Index<Tuple> {
     }
 }
 
-// TODO
-// check schema, field, view
-// check schemas on every view
-// check every view has a schema
-// check every non-empty view is a view with kind=input
-// fill in missing views with empty indexes
-// check upstream etc are empty
-// gather function refs
-// poison rows in rounds until changes stop
-//   foreign keys don't exist or are poisoned
-//   ixes are not 0-n
-
-static COMPILER_VIEWS: [&'static str; 7] =
-["view", "source", "constraint", "view-mapping", "field-mapping", "schedule", "upstream"];
+static COMPILER_VIEWS: [&'static str; 9] = [
+    "schema", "field", "view",
+    "source", "constraint",
+    "view-mapping", "field-mapping",
+    "schedule", "upstream"
+    ];
 
 static VIEW_ID: usize = 0;
 static VIEW_SCHEMA: usize = 1;
@@ -90,14 +82,14 @@ struct Compiler {
 
 fn create_upstream(flow: &Flow) -> Relation {
     let mut upstream = Index::new();
-    for view in flow.get_state("view").iter() {
+    for view in flow.get_output("view").iter() {
         let downstream_id = &view[VIEW_ID];
         let kind = &view[VIEW_KIND];
         let mut ix = 0.0;
         match kind.as_str() {
             "input" => (),
             "query" => {
-                for source in flow.get_state("source").find_all(SOURCE_VIEW, downstream_id) {
+                for source in flow.get_output("source").find_all(SOURCE_VIEW, downstream_id) {
                     let data = &source[SOURCE_DATA];
                     if data[0].as_str() == "view"  {
                         let upstream_id = &data[1];
@@ -111,7 +103,7 @@ fn create_upstream(flow: &Flow) -> Relation {
                 }
             }
             "union" => {
-                for view_mapping in flow.get_state("view-mapping").find_all(VIEWMAPPING_SINKVIEW, downstream_id) {
+                for view_mapping in flow.get_output("view-mapping").find_all(VIEWMAPPING_SINKVIEW, downstream_id) {
                     let upstream_id = &view_mapping[VIEWMAPPING_SOURCEVIEW];
                         upstream.insert(vec![
                             downstream_id.clone(),
@@ -132,7 +124,7 @@ fn create_schedule(flow: &Flow) -> Relation {
     // TODO warn about cycles through aggregates
     let mut schedule = Index::new();
     let mut ix = 0.0;
-    for view in flow.get_state("view").iter() {
+    for view in flow.get_output("view").iter() {
         let view_id = &view[VIEW_ID];
         schedule.insert(vec![Value::Float(ix), view_id.clone()]);
         ix += 1.0;
@@ -143,7 +135,7 @@ fn create_schedule(flow: &Flow) -> Relation {
 // hackily reorder constraints to match old assumptions in create_constraint
 fn create_ordered_constraint(flow: &Flow) -> Relation {
     let mut ordered_constraint = Index::new();
-    for constraint in flow.get_state("constraint").iter() {
+    for constraint in flow.get_output("constraint").iter() {
         let left = constraint[CONSTRAINT_LEFT].clone();
         let op = constraint[CONSTRAINT_OP].clone();
         let right = constraint[CONSTRAINT_RIGHT].clone();
@@ -162,16 +154,16 @@ fn get_view_ix(schedule: &Relation, view_id: &Value) -> usize {
 }
 
 fn get_source_ix(flow: &Flow, source_id: &Value) -> usize {
-    flow.get_state("source").find_one(SOURCE_ID, source_id)[SOURCE_IX].to_usize().unwrap()
+    flow.get_output("source").find_one(SOURCE_ID, source_id)[SOURCE_IX].to_usize().unwrap()
 }
 
 fn get_field_ix(flow: &Flow, field_id: &Value) -> usize {
-    flow.get_state("field").find_one(FIELD_ID, field_id)[FIELD_IX].to_usize().unwrap()
+    flow.get_output("field").find_one(FIELD_ID, field_id)[FIELD_IX].to_usize().unwrap()
 }
 
 fn get_num_fields(flow: &Flow, view_id: &Value) -> usize {
-    let schema_id = flow.get_state("view").find_one(VIEW_ID, view_id)[VIEW_SCHEMA].clone();
-    flow.get_state("field").find_all(FIELD_SCHEMA, &schema_id).len()
+    let schema_id = flow.get_output("view").find_one(VIEW_ID, view_id)[VIEW_SCHEMA].clone();
+    flow.get_output("field").find_all(FIELD_SCHEMA, &schema_id).len()
 }
 
 fn get_ref_ix(flow: &Flow, reference: &Value) -> i64 {
@@ -341,7 +333,7 @@ fn create_call_arg(compiler: &Compiler, arg: &[Value]) -> interpreter::Expressio
 
 fn create_query(compiler: &Compiler, view_id: &Value) -> Query {
     // arrives in ix order
-    let clauses = compiler.flow.get_state("source")
+    let clauses = compiler.flow.get_output("source")
                        .find_all(SOURCE_VIEW, view_id)
                        .iter()
                        .map(|source| create_clause(compiler, source))
@@ -354,10 +346,10 @@ fn create_union(compiler: &Compiler, view_id: &Value) -> Union {
     let mut view_mappings = Vec::new();
     for upstream in compiler.upstream.find_all(UPSTREAM_DOWNSTREAM, view_id) { // arrives in ix order
         let source_view_id = &upstream[UPSTREAM_UPSTREAM];
-        let view_mapping = compiler.flow.get_state("view-mapping").find_one(VIEWMAPPING_SOURCEVIEW, source_view_id).clone();
+        let view_mapping = compiler.flow.get_output("view-mapping").find_one(VIEWMAPPING_SOURCEVIEW, source_view_id).clone();
         let view_mapping_id = &view_mapping[VIEWMAPPING_ID];
         let mut field_mappings = vec![None; num_sink_fields];
-        for field_mapping in compiler.flow.get_state("field-mapping").find_all(FIELDMAPPING_VIEWMAPPING, &view_mapping_id) {
+        for field_mapping in compiler.flow.get_output("field-mapping").find_all(FIELDMAPPING_VIEWMAPPING, &view_mapping_id) {
             let source_ref = create_reference(compiler, &field_mapping[FIELDMAPPING_SOURCEREF]);
             let sink_field_id = &field_mapping[FIELDMAPPING_SINKFIELD];
             let sink_field_ix = get_field_ix(&compiler.flow, sink_field_id);
@@ -372,7 +364,6 @@ fn create_union(compiler: &Compiler, view_id: &Value) -> Union {
 
 fn create_node(compiler: &Compiler, view_id: &Value, view_kind: &Value) -> Node {
     let view = match view_kind.as_str() {
-        "input" => View::Input,
         "query" => View::Query(create_query(compiler, view_id)),
         "union" => View::Union(create_union(compiler, view_id)),
         other => panic!("Unknown view kind: {}", other)
@@ -394,68 +385,98 @@ fn create_node(compiler: &Compiler, view_id: &Value, view_kind: &Value) -> Node 
 fn create_flow(compiler: Compiler) -> Flow {
     let mut nodes = Vec::new();
     let mut dirty = BitSet::new();
-    let mut states: Vec<Option<RefCell<Relation>>> = Vec::new();
+    let mut inputs: Vec<Option<RefCell<Relation>>> = Vec::new();
+    let mut outputs: Vec<Option<RefCell<Relation>>> = Vec::new();
 
     // compile nodes
     for (ix, schedule) in compiler.schedule.iter().enumerate() { // arrives in ix order
         let view_id = &schedule[SCHEDULE_VIEW];
-        let view = compiler.flow.get_state("view").find_one(VIEW_ID, view_id).clone();
+        let view = compiler.flow.get_output("view").find_one(VIEW_ID, view_id).clone();
         let view_kind = &view[VIEW_KIND];
         let node = create_node(&compiler, view_id, view_kind);
-        match node.view {
-            View::Input => (),
-            _ => {
-                dirty.insert(ix);
-            },
-        }
         nodes.push(node);
-        states.push(None);
+        dirty.insert(ix);
+        inputs.push(None);
+        outputs.push(None);
     }
 
     // grab state from old flow
     let Compiler{flow, upstream, schedule, ..} = compiler;
     match nodes.iter().position(|node| &node.id[..] == "upstream") {
-        Some(ix) => states[ix] = Some(RefCell::new(upstream)),
+        Some(ix) => outputs[ix] = Some(RefCell::new(upstream)),
         None => (),
     }
     match nodes.iter().position(|node| &node.id[..] == "schedule") {
-        Some(ix) => states[ix] = Some(RefCell::new(schedule)),
+        Some(ix) => outputs[ix] = Some(RefCell::new(schedule)),
         None => (),
     }
-    let Flow{nodes: old_nodes, states: old_states, changes, ..} = flow;
-    for (old_node, old_state) in old_nodes.iter().zip(old_states.into_iter()) {
+    let Flow{nodes: old_nodes, inputs: old_inputs, outputs: old_outputs, changes, ..} = flow;
+    for ((old_node, old_input), old_output) in old_nodes.iter().zip(old_inputs.into_iter()).zip(old_outputs.into_iter()) {
         if (old_node.id != "upstream") || (old_node.id != "schedule") {
             match nodes.iter().position(|node| node.id == old_node.id) {
-                Some(ix) => states[ix] = Some(old_state),
+                Some(ix) => {
+                    inputs[ix] = Some(old_input);
+                    outputs[ix] = Some(old_output);
+                }
                 None => (),
             }
         }
     }
 
-    // fill in state for new nodes
-    let states = states.map_in_place(|state_option| match state_option {
-        Some(state) => state,
+    // fill in input for new nodes
+    let inputs = inputs.map_in_place(|input_option| match input_option {
+        Some(input) => input,
+        None => RefCell::new(Index::new()),
+    });
+    let outputs = outputs.map_in_place(|output_option| match output_option {
+        Some(output) => output,
         None => RefCell::new(Index::new()),
     });
 
     Flow{
         nodes: nodes,
         dirty: dirty,
-        states: states,
+        inputs: inputs,
+        outputs: outputs,
         changes: changes,
     }
 }
+
 impl Flow {
+    pub fn new() -> Self {
+        let mut flow =
+            Flow {
+                nodes: Vec::new(),
+                inputs: Vec::new(),
+                outputs: Vec::new(),
+                dirty: BitSet::new(),
+                changes: Vec::new(),
+            };
+        for view in COMPILER_VIEWS.iter() {
+            flow.ensure_union_exists(view);
+        }
+        // TODO add schemas and fields as well
+        flow.get_input_mut("view").change(
+            Changes{
+                inserted: COMPILER_VIEWS.iter().map(|id|
+                    vec![
+                        Value::String(id.to_string()),
+                        Value::String(format!("{}-schema", id)),
+                        Value::String("union".to_string()),
+                    ]
+                    ).collect(),
+                removed: vec![],
+            });
+        flow
+    }
+
     fn compiler_views_changed_since(&self, changes_seen: usize) -> bool {
         self.changes[changes_seen..].iter().any(|&(ref change_id, _)|
             COMPILER_VIEWS.iter().any(|view_id| *view_id == change_id)
             )
     }
 
-    pub fn compile(mut self) -> Self {
-        for view in COMPILER_VIEWS.iter() {
-            self.ensure_input_exists(view);
-        }
+    pub fn compile(self) -> Self {
         let upstream = create_upstream(&self);
         let schedule = create_schedule(&self);
         let ordered_constraint = create_ordered_constraint(&self);
@@ -471,10 +492,6 @@ impl Flow {
     pub fn compile_and_run(self) -> Self {
         let mut flow = self;
         let mut changes_seen = 0;
-        if flow.compiler_views_changed_since(changes_seen) {
-            changes_seen = flow.changes.len();
-            flow = flow.compile();
-        }
         loop {
             flow.run();
             if flow.compiler_views_changed_since(changes_seen) {

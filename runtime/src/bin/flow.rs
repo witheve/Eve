@@ -11,6 +11,7 @@ use std::cell::RefCell;
 #[allow(dead_code)]
 fn main() {
     let edges = vec![("a","b"), ("b", "c"), ("c", "d"), ("d", "b")];
+    let edge_union = Union{mappings:vec![]};
     let path_union = Union{
         mappings: vec![
         (2, vec![Ref::Value{clause: 0, column: 0}, Ref::Value{clause: 1, column: 1}]),
@@ -36,7 +37,7 @@ fn main() {
         nodes: vec![
             Node{
                 id: "edge".to_string(),
-                view: View::Input,
+                view: View::Union(edge_union),
                 upstream: vec![],
                 downstream: vec![2,3],
             },
@@ -59,16 +60,22 @@ fn main() {
                 downstream: vec![1],
             },
         ],
-        states: vec![
+        inputs: vec![
             RefCell::new(edges.to_relation()),
             RefCell::new(Index::new()),
             RefCell::new(Index::new()),
             RefCell::new(Index::new()),
             ],
-        dirty: vec![1,2,3].into_iter().collect(),
+        outputs: vec![
+            RefCell::new(Index::new()),
+            RefCell::new(Index::new()),
+            RefCell::new(Index::new()),
+            RefCell::new(Index::new()),
+            ],
+        dirty: vec![0,1,2,3].into_iter().collect(),
         changes: Vec::new(),
     };
     flow.run();
     println!("{:?}", flow.changes);
-    println!("{:?}", flow.get_state("path"));
+    println!("{:?}", flow.get_output("path"));
 }

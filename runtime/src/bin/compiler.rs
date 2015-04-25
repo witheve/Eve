@@ -6,7 +6,6 @@ extern crate test;
 //use eve::value::*;
 use eve::index::*;
 use eve::flow::Flow;
-use eve::compiler::*;
 use eve::test::*;
 
 #[allow(dead_code)]
@@ -38,12 +37,10 @@ fn recursion_test() {
             removed: vec![]}),
         ("view".to_string(), Changes{
             inserted: vec![
-            ("edge", "edge_schema", "input").to_tuple(),
+            ("edge", "edge_schema", "union").to_tuple(),
             ("path", "path_schema", "union").to_tuple(),
             ("next_step", "next_step_schema", "query").to_tuple(),
             ("first_step", "first_step_schema", "query").to_tuple(),
-            ("upstream", "--none--", "input").to_tuple(),
-            ("schedule", "--none--", "input").to_tuple(),
             ],
             removed: vec![]}),
         ("source".to_string(), Changes{
@@ -87,7 +84,7 @@ fn recursion_test() {
         ]);
     flow = flow.compile_and_run();
     assert_eq!(
-        flow.get_state("path").iter().collect::<Vec<_>>(),
+        flow.get_output("path").iter().collect::<Vec<_>>(),
         vec![
             ("a", "b"), ("a", "c"), ("a", "d"),
             ("b", "b"), ("b", "c"), ("b", "d"),
@@ -123,7 +120,7 @@ fn call_test() {
             removed: vec![]}),
         ("view".to_string(), Changes{
             inserted: vec![
-            ("input", "input_schema", "input").to_tuple(),
+            ("union", "input_schema", "union").to_tuple(),
             ("math_test", "input_schema", "query").to_tuple(),
             ("agg_test", "input_schema", "query").to_tuple(),
             ("simple_call_test", "", "query").to_tuple(),
@@ -132,15 +129,15 @@ fn call_test() {
             removed: vec![]}),
         ("source".to_string(), Changes{
             inserted: vec![
-            ("math_test", 0.0f64, "qq", ("view", "input").to_tuple(), "get-tuple").to_tuple(),
+            ("math_test", 0.0f64, "qq", ("view", "union").to_tuple(), "get-tuple").to_tuple(),
             ("math_test", 1.0f64, "none", ("expression",c3).to_tuple(), "get-tuple").to_tuple(),
-            ("agg_test", 0.0f64, "rr", ("view", "input").to_tuple(), "get-relation").to_tuple(),
+            ("agg_test", 0.0f64, "rr", ("view", "union").to_tuple(), "get-relation").to_tuple(),
             ("agg_test", 1.0f64, "none", ("expression", c4).to_tuple(), "get-tuple").to_tuple(),
             ("simple_call_test", 0.0f64, "none", ("expression",c1).to_tuple(), "get-tuple").to_tuple(),
             ("nested_call_test", 0.0f64, "none", ("expression",c2).to_tuple(), "get-tuple").to_tuple(),
             ],
             removed: vec![]}),
-        ("input".to_string(), Changes{
+        ("union".to_string(), Changes{
             inserted: vec![
             (1, 8).to_tuple(),
             (2, 7).to_tuple(),
@@ -152,7 +149,7 @@ fn call_test() {
     flow = flow.compile_and_run();
 
     // Test simple addition of two constants
-    let result = flow.get_state("simple_call_test");
+    let result = flow.get_output("simple_call_test");
     let answervec = vec![
                     vec![30f64.to_value()],
                     ];
@@ -160,7 +157,7 @@ fn call_test() {
     assert_eq!(q,true);
 
     // Test nested call
-    let result = flow.get_state("nested_call_test");
+    let result = flow.get_output("nested_call_test");
     let answervec = vec![
                     vec![300f64.to_value()],
                     ];
@@ -168,7 +165,7 @@ fn call_test() {
     assert_eq!(q,true);
 
     // Test call over columns
-    let result = flow.get_state("math_test");
+    let result = flow.get_output("math_test");
     let answervec = vec![
                     vec![(1f64,8f64).to_tuple().to_value(),8f64.to_value()],
                     vec![(2f64,7f64).to_tuple().to_value(),14f64.to_value()],
@@ -179,7 +176,7 @@ fn call_test() {
     assert_eq!(q,true);
 
     // Test an aggregate
-    let result = flow.get_state("agg_test");
+    let result = flow.get_output("agg_test");
     let answervec = vec![26f64.to_value()];
     let q = result.iter().zip(answervec.iter()).all(|(q,r)| q[1]==r.clone() );
     assert_eq!(q,true);
@@ -225,7 +222,7 @@ fn match_test() {
             removed: vec![]}),
         ("view".to_string(), Changes{
             inserted: vec![
-            ("input", "input_schema", "input").to_tuple(),
+            ("union", "input_schema", "union").to_tuple(),
             ("match_test", "input_schema", "query").to_tuple(),
             ("simple_match_test", "", "query").to_tuple(),
             ("simple_match_test2", "", "query").to_tuple(),
@@ -233,13 +230,13 @@ fn match_test() {
             removed: vec![]}),
         ("source".to_string(), Changes{
             inserted: vec![
-            ("match_test", 0.0f64, "qq", ("view", "input").to_tuple(), "get-tuple").to_tuple(),
+            ("match_test", 0.0f64, "qq", ("view", "union").to_tuple(), "get-tuple").to_tuple(),
             ("match_test", 1.0f64, "none", ("expression",m3).to_tuple(), "get-tuple").to_tuple(),
             ("simple_match_test", 0.0f64, "none", ("expression",m1).to_tuple(), "get-tuple").to_tuple(),
             ("simple_match_test2", 0.0f64, "none", ("expression",m2).to_tuple(), "get-tuple").to_tuple(),
             ],
             removed: vec![]}),
-        ("input".to_string(), Changes{
+        ("union".to_string(), Changes{
             inserted: vec![
             (1, 8).to_tuple(),
             (2, 7).to_tuple(),
@@ -251,7 +248,7 @@ fn match_test() {
     flow = flow.compile_and_run();
 
     // Test match with a constant input
-    let result = flow.get_state("simple_match_test");
+    let result = flow.get_output("simple_match_test");
     let answervec = vec![
                     vec!["one".to_value()],
                     ];
@@ -259,7 +256,7 @@ fn match_test() {
     assert_eq!(q,true);
 
     // Test match with a call input
-    let result = flow.get_state("simple_match_test2");
+    let result = flow.get_output("simple_match_test2");
     let answervec = vec![
                     vec!["two".to_value()],
                     ];
@@ -267,7 +264,7 @@ fn match_test() {
     assert_eq!(q,true);
 
     // Test match with column input
-    let result = flow.get_state("match_test");
+    let result = flow.get_output("match_test");
 
     let answervec = vec![
                     vec![(1f64,8f64).to_tuple().to_value(),"one".to_value()],
@@ -299,7 +296,7 @@ fn constraint_test() {
         ("view".to_string(), Changes{
             inserted: vec![
             ("constraint_test", "input_schema", "query").to_tuple(),
-            ("input", "input_schema", "input").to_tuple(),
+            ("union", "input_schema", "union").to_tuple(),
             ],
             removed: vec![]}),
         ("constraint".to_string(), Changes{
@@ -311,10 +308,10 @@ fn constraint_test() {
             removed: vec![]}),
         ("source".to_string(), Changes{
             inserted: vec![
-            ("constraint_test", 0.0f64, "qq", ("view", "input").to_tuple(), "get-tuple").to_tuple(),
+            ("constraint_test", 0.0f64, "qq", ("view", "union").to_tuple(), "get-tuple").to_tuple(),
             ],
             removed: vec![]}),
-        ("input".to_string(), Changes{
+        ("union".to_string(), Changes{
             inserted: vec![
             (1, 1).to_tuple(),
             (3, 4).to_tuple(),
@@ -327,9 +324,10 @@ fn constraint_test() {
             removed: vec![]}),
         ]);
     flow = flow.compile_and_run();
+    println!("{:?}", flow);
 
     // Test constraint where LHS and RHS tables are the same
-    let result = flow.get_state("constraint_test");
+    let result = flow.get_output("constraint_test");
 
     let answervec = vec![
                     vec![(6f64,6f64).to_tuple().to_value()],
