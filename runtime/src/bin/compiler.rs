@@ -125,7 +125,7 @@ fn call_test() {
             removed: vec![]}),
         ("view".to_string(), Changes{
             inserted: vec![
-            ("union", "input_schema", "union").to_tuple(),
+            ("input", "input_schema", "union").to_tuple(),
             ("math_test", "input_schema", "query").to_tuple(),
             ("agg_test", "input_schema", "query").to_tuple(),
             ("simple_call_test", "", "query").to_tuple(),
@@ -135,9 +135,9 @@ fn call_test() {
             removed: vec![]}),
         ("source".to_string(), Changes{
             inserted: vec![
-            ("math_test", 0.0f64, "qq", ("view", "union").to_tuple(), "get-tuple").to_tuple(),
+            ("math_test", 0.0f64, "qq", ("view", "input").to_tuple(), "get-tuple").to_tuple(),
             ("math_test", 1.0f64, "none", ("expression",c3).to_tuple(), "get-tuple").to_tuple(),
-            ("agg_test", 0.0f64, "rr", ("view", "union").to_tuple(), "get-relation").to_tuple(),
+            ("agg_test", 0.0f64, "rr", ("view", "input").to_tuple(), "get-relation").to_tuple(),
             ("agg_test", 1.0f64, "none", ("expression", c4).to_tuple(), "get-tuple").to_tuple(),
             ("simple_call_test", 0.0f64, "none", ("expression",c1).to_tuple(), "get-tuple").to_tuple(),
             ("nested_call_test", 0.0f64, "none", ("expression",c2).to_tuple(), "get-tuple").to_tuple(),
@@ -145,7 +145,7 @@ fn call_test() {
             ("limit_test", 1.0f64, "none", ("expression",c5).to_tuple(), "get-tuple").to_tuple(),
             ],
             removed: vec![]}),
-        ("union".to_string(), Changes{
+        ("input".to_string(), Changes{
             inserted: vec![
             (1, 8).to_tuple(),
             (2, 7).to_tuple(),
@@ -190,7 +190,7 @@ fn call_test() {
     assert_eq!(q,true);
 
     // Test limit
-    let result = flow.get_state("limit_test");
+    let result = flow.get_output("limit_test");
     let answervec = vec![Value::Relation(vec![(1, 8),(2, 7)].to_relation())];
 
     let q = result.iter().zip(answervec.iter()).all(|(q,r)| q[1] == r.clone());
