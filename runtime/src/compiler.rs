@@ -299,6 +299,7 @@ fn create_call(compiler: &Compiler, uifun: &Value, uiargvec: &Value) -> interpre
         "*"   => EveFn::Multiply,
         "/"   => EveFn::Divide,
         "sum" => EveFn::Sum,
+        "limit" => EveFn::Limit,
         _     => panic!("Unknown Function Call: {:?}",uifun),
     };
 
