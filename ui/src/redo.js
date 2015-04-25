@@ -2320,7 +2320,7 @@ var code = {
     createTable: function(name, fields, initial, tableId) {
       //an input table
       var inputId = uuid();
-      var diffs = code.diffs.addView(inputId, fields, initial, inputId, ["table"], "input");
+      var diffs = code.diffs.addView(inputId, fields, initial, inputId, ["table"], "union");
       //a union
       diffs.push.apply(diffs, code.diffs.addView(name, fields, initial, tableId, ["table"], "union"));
       //a merge of that query into the union
@@ -2365,7 +2365,7 @@ var code = {
                    ["displayName", "inserted", [{"eid": "auto"}, fieldId, fieldName]]);
       }
 
-      diffs.push(["view", "inserted", [id, schema, type || "input"]]);
+      diffs.push(["view", "inserted", [id, schema, type || "union"]]);
       if(initial && initial.length) {
         for(var initIx = 0, initLen = initial.length; initIx < initLen; initIx++) {
           diffs.push([id, "inserted", initial[initIx]]);
@@ -2377,6 +2377,20 @@ var code = {
         }
       }
       diffs.push(["adderRow", "inserted", [txId, txId, id, []]]);
+      return diffs;
+    },
+    compilerView: function(name, fields) { // (S, {[S]: Type}, Fact[]?, Uuid?, S[]?) -> Diffs
+      var txId = {"eid": "auto"};
+      var schema = name + "-schema";
+      var fieldIx = 0;
+      var diffs = [["displayName", "inserted", [txId, name, name]]];
+      for(var fieldName in fields) {
+        if(!fields.hasOwnProperty(fieldName)) { continue; }
+        var fieldId = uuid()
+        diffs.push(["field", "inserted", [schema, fieldIx++, fieldId, fields[fieldName]]],
+                   ["displayName", "inserted", [{"eid": "auto"}, fieldId, fieldName]]);
+      }
+      diffs.push(["adderRow", "inserted", [txId, txId, name, []]]);
       return diffs;
     },
     autoJoins: function(view, sourceView, sourceId) {
@@ -2573,16 +2587,29 @@ ixer.addIndex("searchModal", "searchModal", Indexing.create.latestLookup({keys: 
 
 function initIndexer() {
   var add = function(name, info, fields, id, tags) {
-    ixer.handleDiffs(code.diffs.addView(name, info, fields, id, tags));
+    ixer.handleDiffs(code.diffs.addView(name, info, fields, id, tags, "union"));
   }
-  add("schema", {id: "id"}, [], "schema", ["table"]);
-  add("field", {schema: "id", ix: "int", id: "id", type: "type"}, [], "field", ["table"]);
-  add("primitive", {id: "id", inSchema: "id", outSchema: "id"}, [], "primitive", ["table"]);
-  add("view", {id: "id", schema: "id", kind: "query|union"}, [], "view", ["table"]);
-  add("source", {view: "id", ix: "int", id: "id", data: "data", action: "get-tuple|get-relation"}, [], "source", ["table"]);
-  add("constraint", {left: "reference", op: "op", right: "reference"}, [], "constraint", ["table"]);
+  var compiler = function(name, info) {
+    ixer.handleDiffs(code.diffs.compilerView(name, info));
+  }
+  compiler("schema", {id: "id"});
+  compiler("field", {schema: "id", ix: "int", id: "id", type: "type"});
+  compiler("primitive", {id: "id", inSchema: "id", outSchema: "id"});
+  compiler("view", {id: "id", schema: "id", kind: "query|union"});
+  compiler("source", {view: "id", ix: "int", id: "id", data: "data", action: "get-tuple|get-relation"});
+  compiler("constraint", {left: "reference", op: "op", right: "reference"});
+  compiler("field-mapping", {viewMapping: "id", sourceRef: "ref", sinkField: "id"});
+  compiler("view-mapping", {id: "id", sourceView: "id", sinkView: "id"});
+  compiler("upstream", {downstream: "view", ix: "number", upstream: "view"});
+  compiler("schedule", {ix: "number", view: "id"});
+
   add("tag", {id: "id", tag: "string"}, undefined, "tag", ["table"]);
-  add("displayName", {tx: "number", id: "string", name: "string"}, undefined, "displayName", ["table"]);
+  add("displayName", {tx: "number", id: "string", name: "string"}, [
+    [0, "field-mapping", "field-mapping"],
+    [0, "view-mapping", "view-mapping"],
+    [0, "upstream", "upstream"],
+    [0, "schedule", "schedule"],
+  ], "displayName", ["table"]);
 
   add("adderRow", {tx: "id", id: "id", table: "id", row: "tuple"}, undefined, "adderRow", ["table"]);
   add("adderConstraint", {tx: "id", id: "id", query: "id", constraint: "tuple"}, undefined, "adderConstraint", ["table"]);
@@ -2638,11 +2665,10 @@ function connectToServer() {
       console.log("slow parse (> 5ms):", time);
     }
 
-    if(!server.initialized && !data.changes.length) {
+    if(!server.initialized && data.changes.length === 9) {
       initIndexer();
       server.ws.send(JSON.stringify(ixer.dumpMapDiffs()));
       ixer.clear();
-      server.initialized = true;
     } else if(!server.initialized) {
       server.initialized = true;
     }
@@ -2654,7 +2680,7 @@ function connectToServer() {
       console.log("slow handleDiffs (> 5ms):", time);
     }
 
-    if(data.changes.length) {
+    if(server.initialized && data.changes.length) {
       rerender();
     }
   };
