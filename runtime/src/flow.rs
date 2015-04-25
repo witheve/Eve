@@ -5,6 +5,7 @@ use query::{Ref, Query};
 
 use std::cell;
 use std::collections::BitSet;
+use std::mem::replace;
 
 #[derive(Clone, Debug)]
 pub struct Union{
@@ -13,7 +14,6 @@ pub struct Union{
 
 #[derive(Clone, Debug)]
 pub enum View {
-    Input,
     Query(Query),
     Union(Union),
 }
@@ -31,85 +31,79 @@ pub type Changes = Vec<(Id, index::Changes<Tuple>)>;
 #[derive(Clone, Debug)]
 pub struct Flow {
     pub nodes: Vec<Node>,
-    pub states: Vec<cell::RefCell<Relation>>,
+    pub inputs: Vec<cell::RefCell<Relation>>,
+    pub outputs: Vec<cell::RefCell<Relation>>,
     pub dirty: BitSet,
     pub changes: Changes,
 }
 
 impl Union {
-    fn run(&self, inputs: Vec<&Relation>) -> Relation {
+    fn run(&self, old_input: &Relation, inputs: Vec<&Relation>) -> Relation {
         assert_eq!(inputs.len(), self.mappings.len());
-        let mut index = Index::new();
+        let mut output = old_input.clone();
         for (input, &(max_len, ref references)) in inputs.iter().zip(self.mappings.iter()) {
             for tuple in input.iter() {
                 // TODO this ugliness is due to storing backtrack info inline with results
                 if tuple.len() == max_len {
-                    let mut state = Vec::with_capacity(references.len());
+                    let mut mapped_tuple = Vec::with_capacity(references.len());
                     for reference in references.iter() {
-                        state.push(reference.resolve(tuple, None).clone());
+                        mapped_tuple.push(reference.resolve(tuple, None).clone());
                     }
-                    index.insert(state);
+                    output.insert(mapped_tuple);
                 }
             }
         }
-        index
+        output
     }
 }
 
 impl View {
-    fn run(&self, inputs: Vec<&Relation>) -> Relation {
+    fn run(&self, old_input: &Relation, inputs: Vec<&Relation>) -> Relation {
         match *self {
-            View::Input => panic!("Input should never be dirty"),
             View::Query(ref query) => query.iter(inputs).collect(),
-            View::Union(ref union) => union.run(inputs),
+            View::Union(ref union) => union.run(old_input, inputs),
         }
     }
 }
 
 impl Flow {
-    pub fn new() -> Flow {
-        Flow {
-            nodes: Vec::new(),
-            states: Vec::new(),
-            dirty: BitSet::new(),
-            changes: Vec::new(),
-        }
-    }
-
     pub fn get_ix(&self, id: &str) -> Option<usize> {
         self.nodes.iter().position(|node| &node.id[..] == id)
     }
 
-    pub fn get_state(&self, id: &str) -> cell::Ref<Relation> {
-        self.states[self.get_ix(id).unwrap()].borrow()
+    pub fn get_input_mut(&self, id: &str) -> cell::RefMut<Relation> {
+        self.inputs[self.get_ix(id).unwrap()].borrow_mut()
     }
 
-    pub fn get_state_mut(&self, id: &str) -> cell::RefMut<Relation> {
-        self.states[self.get_ix(id).unwrap()].borrow_mut()
+    pub fn get_output(&self, id: &str) -> cell::Ref<Relation> {
+        self.outputs[self.get_ix(id).unwrap()].borrow()
     }
 
-    pub fn ensure_input_exists(&mut self, id: &str) {
+    pub fn ensure_union_exists(&mut self, id: &str) {
         match self.get_ix(id) {
             Some(ix) => {
                 let node = &self.nodes[ix];
-                assert!(match node.view {View::Input => true, _ => false});
+                assert!(match node.view {View::Union(_) => true, _ => false});
             }
             None => {
                 self.nodes.push(Node{
                     id: id.to_string(),
-                    view: View::Input,
+                    view: View::Union(Union{mappings: vec![]}),
                     upstream: vec![],
                     downstream: vec![],
                 });
-                self.states.push(cell::RefCell::new(Index::new()))
+                self.inputs.push(cell::RefCell::new(Index::new()));
+                self.outputs.push(cell::RefCell::new(Index::new()));
             }
         }
     }
 
     pub fn change(&mut self, changes: Changes) {
         for (id, changes) in changes.into_iter() {
-            self.ensure_input_exists(&id);
-            self.get_state_mut(&id).change(changes.clone());
+            self.ensure_union_exists(&id);
+            let ix = self.get_ix(&id).unwrap();
+            self.inputs[ix].borrow_mut().change(changes.clone());
+            self.dirty.insert(ix);
             self.changes.push((id, changes));
         }
     }
@@ -120,20 +114,21 @@ impl Flow {
                 Some(ix) => {
                     self.dirty.remove(&ix);
                     let node = &self.nodes[ix];
-                    let new_state = {
-                        let upstream = node.upstream.iter().map(|uix| self.states[*uix].borrow()).collect::<Vec<_>>();
-                        let inputs = upstream.iter().map(|state_ref| &**state_ref).collect();
-                        node.view.run(inputs)
+                    let new_output = {
+                        let old_input = self.inputs[ix].borrow();
+                        let upstream = node.upstream.iter().map(|uix| self.outputs[*uix].borrow()).collect::<Vec<_>>();
+                        let inputs = upstream.iter().map(|output_ref| &**output_ref).collect();
+                        node.view.run(&*old_input, inputs)
                     };
-                    let mut old_state = self.states[ix].borrow_mut();
-                    if new_state != *old_state {
+                    let mut old_output = self.outputs[ix].borrow_mut();
+                    if new_output != *old_output {
                         for dix in node.downstream.iter() {
                             self.dirty.insert(*dix);
                         }
-                        let changes = new_state.changes_since(&*old_state);
+                        let changes = new_output.changes_since(&*old_output);
                         self.changes.push((node.id.clone(), changes));
                     }
-                    *old_state = new_state;
+                    *old_output = new_output;
                     continue;
                 }
                 None => {
@@ -150,13 +145,13 @@ impl Flow {
             let id = &after_node.id;
             match before.get_ix(id) {
                 Some(before_ix) => {
-                    let after_state = after.states[after_ix].borrow();
-                    let before_state = before.states[before_ix].borrow();
-                    changes.push((id.clone(), after_state.changes_since(&*before_state)));
+                    let after_output = after.outputs[after_ix].borrow();
+                    let before_output = before.outputs[before_ix].borrow();
+                    changes.push((id.clone(), after_output.changes_since(&*before_output)));
                 }
                 None => {
-                    let after_state = after.states[after_ix].borrow();
-                    let inserted = after_state.iter().map(|t| t.clone()).collect();
+                    let after_output = after.outputs[after_ix].borrow();
+                    let inserted = after_output.iter().map(|t| t.clone()).collect();
                     changes.push((id.clone(), index::Changes{inserted: inserted, removed: Vec::new()}));
                 }
             }
@@ -166,12 +161,17 @@ impl Flow {
             match after.get_ix(id) {
                 Some(_) => (), // already handled above
                 None => {
-                    let before_state = before.states[before_ix].borrow();
-                    let removed = before_state.iter().map(|t| t.clone()).collect();
+                    let before_output = before.outputs[before_ix].borrow();
+                    let removed = before_output.iter().map(|t| t.clone()).collect();
                     changes.push((id.clone(), index::Changes{inserted: Vec::new(), removed: removed}));
                 }
             }
         }
         changes
+    }
+
+    pub fn take_changes(&mut self) -> Changes {
+        let &mut Flow {ref mut changes, ..} = self;
+        replace(changes, Vec::new())
     }
 }

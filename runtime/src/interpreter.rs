@@ -3,7 +3,6 @@ use value::Value::Float;
 use query::Ref;
 use self::EveFn::*;
 
-
 // Enums...
 // Expression Enum ------------------------------------------------------------
 #[derive(Clone, Debug)]
@@ -24,11 +23,14 @@ pub enum EveFn {
 	// General math
 	Sqrt,Log,Log10,Log2,Ln,Abs,Sign,Exp,
 
-	//Trig
+	// Trig
 	Sin,Cos,Tan,ASin,ACos,ATan,ATan2,
 
 	// Aggregates
 	Sum,Prod,
+
+	// Relations
+	Limit,
 
 	// Strings
 	StrConcat,StrUpper,StrLower,StrLength,StrReplace,StrSplit,
@@ -177,17 +179,23 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 			Value::Tuple(w)
 		},
 
-
 		// Aggregate functions
-		(&Sum,[Value::Tuple(ref x)]) => {
-			Value::Float(x.iter().fold(0f64, |acc: f64, ref item| {
-				match item {
-					&&Value::Float(ref y) => acc+y,
-					x => panic!("Cannot aggregate {:?}",x),
-				}
-			}))
+		(&Sum,[Value::Relation(ref rel)]) => {
 
+			assert_eq!(c.args.len(),1);
+
+			let sum = rel.iter()
+						 .map(|r| r[get_ref_column(&c.args[0])].clone())
+						 .fold(0f64,|acc,x| {
+							acc + match x {
+								Value::Float(y) => y,
+							  	other => panic!("Cannot accumulate {:?}",other),
+						 	}
+						 });
+
+			Value::Float(sum)
 		},
+
 		/*
 		(&Prod,[Value::Tuple(ref x)]) => {
 			Value::Float(x.iter().fold(1f64, |acc: f64, ref item| {
@@ -199,7 +207,35 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 		},
 		*/
 
+		// Relation returning functions
+		(&Limit,[Value::Relation(ref rel),Float(n)]) => {
+
+			// TODO should limit to more elements than we have
+			// give an error?
+
+			let q: Vec<_> = rel.iter()
+							   .map(|r| r.clone())
+							   .take(n as usize)
+							   .collect();
+
+ 			Value::Relation(q.into_iter().collect())
+
+		}
+
 		// Returns an empty string for the purpose of handling incomplete function
 		(_, _) => Value::String(String::from_str("Could not match with any function")),
 	}
+}
+
+// This is as little hacky, but works for now
+fn get_ref_column(e: &Expression) -> usize {
+
+	match e {
+		&Expression::Ref(ref r) => match r {
+			&Ref::Value{column,..} => column,
+			_ => panic!("Expected Ref::Value"),
+		},
+		_ => panic!("Expected Expression::Ref"),
+	}
+
 }

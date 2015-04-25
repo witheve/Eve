@@ -36,7 +36,10 @@ impl Ref {
                         Value::Tuple(ref tuple) => {
                             &tuple[column]
                         },
-                        _ => panic!("Expected a tuple"),
+                        Value::Relation(_) => {
+                            &result[clause]
+                        },
+                        _ => panic!("Expected a tuple or relation"),
                     }
                 }
             },
