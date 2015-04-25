@@ -6,11 +6,13 @@ extern crate test;
 //use eve::value::*;
 use eve::index::*;
 use eve::flow::Flow;
-use eve::compiler::*;
 use eve::test::*;
+use eve::value::*;
 
 #[allow(dead_code)]
 fn main() {
+
+
 }
 
 #[test]
@@ -107,6 +109,8 @@ fn call_test() {
     let c3 = ("call","*",(("column", "qq", "A").to_tuple(),("column", "qq", "B").to_tuple()).to_tuple()).to_tuple();
     // c4 = prod(input.B)
     let c4 = ("call","sum",(("column", "rr", "B").to_tuple(),).to_tuple()).to_tuple();
+    // c5 = limit(input,2)
+    let c5 = ("call","limit",(("column", "ss", "B").to_tuple(),("constant",2f64).to_tuple()).to_tuple()).to_tuple();
 
     let mut flow = Flow::new();
     flow.change(vec![
@@ -128,6 +132,7 @@ fn call_test() {
             ("agg_test", "input_schema", "query").to_tuple(),
             ("simple_call_test", "", "query").to_tuple(),
             ("nested_call_test", "", "query").to_tuple(),
+            ("limit_test", "input_schema", "query").to_tuple(),
             ],
             removed: vec![]}),
         ("source".to_string(), Changes{
@@ -138,6 +143,8 @@ fn call_test() {
             ("agg_test", 1.0f64, "none", ("expression", c4).to_tuple(), "get-tuple").to_tuple(),
             ("simple_call_test", 0.0f64, "none", ("expression",c1).to_tuple(), "get-tuple").to_tuple(),
             ("nested_call_test", 0.0f64, "none", ("expression",c2).to_tuple(), "get-tuple").to_tuple(),
+            ("limit_test", 0.0f64, "ss", ("view", "input").to_tuple(), "get-relation").to_tuple(),
+            ("limit_test", 1.0f64, "none", ("expression",c5).to_tuple(), "get-tuple").to_tuple(),
             ],
             removed: vec![]}),
         ("input".to_string(), Changes{
@@ -182,6 +189,14 @@ fn call_test() {
     let result = flow.get_state("agg_test");
     let answervec = vec![26f64.to_value()];
     let q = result.iter().zip(answervec.iter()).all(|(q,r)| q[1]==r.clone() );
+    assert_eq!(q,true);
+
+    // Test limit
+    let result = flow.get_state("limit_test");
+    let answervec = vec![Value::Relation(vec![(1, 8),(2, 7)].to_relation())];
+
+    let q = result.iter().zip(answervec.iter()).all(|(q,r)| q[1] == r.clone());
+
     assert_eq!(q,true);
 
 }
