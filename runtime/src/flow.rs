@@ -104,7 +104,6 @@ impl Flow {
             let ix = self.get_ix(&id).unwrap();
             self.inputs[ix].borrow_mut().change(changes.clone());
             self.dirty.insert(ix);
-            self.changes.push((id, changes));
         }
     }
 

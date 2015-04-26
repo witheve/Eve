@@ -115,16 +115,13 @@ var Indexing = (function() {
       return {changes: final};
     },
     handleMapDiffs: function(diffs) {
-      var handled = {};
       for(var diffIx = 0, diffLen = diffs.length; diffIx < diffLen; diffIx++) {
         var diff = diffs[diffIx];
         var table = diff[0];
-        if(handled[table]) continue;
         var inserted = diff[1];
         var removed = diff[2];
         if(inserted.length || removed.length) {
           this.handleDiff(table, inserted, removed);
-          handled[table] = true;
         }
       }
     },
