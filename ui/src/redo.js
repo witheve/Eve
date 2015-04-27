@@ -1316,8 +1316,8 @@ function queryWorkspace(view) {
               input(code.name(view), view, rename)
             ]},
             {c: "container", children: [
-              viewCode(view, sources),
-              {c: "results-container", children: [viewResults(sources, results)]}
+              {c: "results-container", children: [viewResults(sources, results)]},
+              viewCode(view, sources)
             ]}
           ]};
 }

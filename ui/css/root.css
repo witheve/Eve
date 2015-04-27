@@ -122,7 +122,9 @@ select.input { font-size: 0.9em;}
 - view editor
 -----------------------------------------------------------------------------*/
 
-.view-source-code { flex-direction: column; margin-right: 20px; flex:none; }
+.query-workspace .container { flex-direction:column; }
+
+.view-source-code { flex-direction: row; margin-top: 20px; flex:1; }
 .view-source-code > .step { flex: 0 0 auto; padding: 10px 10px; background: #333; margin-bottom:2px;  }
 .view-source-code > .view-query-builder { flex: 0 0 auto; }
 .view-source-code > .searcher { flex: 1; }
@@ -140,7 +142,8 @@ select.input { font-size: 0.9em;}
 .add-calculation { padding: 10px; background: #333; flex-direction:column; font-size: 9pt; justify-content:center; align-items:center; }
 .add-calculation .icon { font-size: 18pt; }
 
-.view-container { position:relative; min-width:150px; flex-direction:column; background: #333; padding: 10px; margin-bottom:2px; border-radius:2px; color: #999; }
+.view-container { position:relative; flex:1; flex-direction:column; background: #333; padding: 10px; margin-bottom:2px; border-radius:2px; color: #999; }
+.view-container + .view-container { margin-left:10px; }
 .view-container .sub-title { flex: 1; }
 .view-container .icon { position:absolute; top:0; right:0; font-size: 12pt; flex:none; padding:10px; border-radius:3px; }
 .view-container .icon:hover { background: #777; color: #eee; }
@@ -152,7 +155,7 @@ select.input { font-size: 0.9em;}
 .remove:hover { color: #f8a; background: #846; }
 .filter:hover .remove, .calculation:hover .remove { visibility: visible; }
 
-.results-container { overflow:auto; }
+.results-container { overflow:auto; flex:2; }
 
 /*-----------------------------------------------------------------------------
 - token editor
