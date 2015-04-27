@@ -124,8 +124,13 @@ impl Flow {
                         for dix in node.downstream.iter() {
                             self.dirty.insert(*dix);
                         }
-                        let changes = new_output.changes_since(&*old_output);
-                        self.changes.push((node.id.clone(), changes));
+                        match node.view {
+                            View::Union(_) => {
+                                let changes = new_output.changes_since(&*old_output);
+                                self.changes.push((node.id.clone(), changes));
+                            }
+                            _ => ()
+                        }
                     }
                     *old_output = new_output;
                     continue;
@@ -137,33 +142,44 @@ impl Flow {
         }
     }
 
+    // TODO this is only ever used to compare to Flow::new() - could be much simpler
     pub fn changes_since(&self, before: &Flow) -> Changes {
         let after = self;
         let mut changes = Vec::new();
         for (after_ix, after_node) in after.nodes.iter().enumerate() {
-            let id = &after_node.id;
-            match before.get_ix(id) {
-                Some(before_ix) => {
-                    let after_output = after.outputs[after_ix].borrow();
-                    let before_output = before.outputs[before_ix].borrow();
-                    changes.push((id.clone(), after_output.changes_since(&*before_output)));
-                }
-                None => {
-                    let after_output = after.outputs[after_ix].borrow();
-                    let inserted = after_output.iter().map(|t| t.clone()).collect();
-                    changes.push((id.clone(), index::Changes{inserted: inserted, removed: Vec::new()}));
-                }
+            match after_node.view {
+                View::Union(_) => {
+                    let id = &after_node.id;
+                    match before.get_ix(id) {
+                        Some(before_ix) => {
+                            let after_output = after.outputs[after_ix].borrow();
+                            let before_output = before.outputs[before_ix].borrow();
+                            changes.push((id.clone(), after_output.changes_since(&*before_output)));
+                        }
+                        None => {
+                            let after_output = after.outputs[after_ix].borrow();
+                            let inserted = after_output.iter().map(|t| t.clone()).collect();
+                            changes.push((id.clone(), index::Changes{inserted: inserted, removed: Vec::new()}));
+                        }
+                    }
+                },
+                _ => ()
             }
         }
         for (before_ix, before_node) in before.nodes.iter().enumerate() {
-            let id = &before_node.id;
-            match after.get_ix(id) {
-                Some(_) => (), // already handled above
-                None => {
-                    let before_output = before.outputs[before_ix].borrow();
-                    let removed = before_output.iter().map(|t| t.clone()).collect();
-                    changes.push((id.clone(), index::Changes{inserted: Vec::new(), removed: removed}));
+            match before_node.view {
+                View::Union(_) => {
+                    let id = &before_node.id;
+                    match after.get_ix(id) {
+                        Some(_) => (), // already handled above
+                        None => {
+                            let before_output = before.outputs[before_ix].borrow();
+                            let removed = before_output.iter().map(|t| t.clone()).collect();
+                            changes.push((id.clone(), index::Changes{inserted: Vec::new(), removed: removed}));
+                        }
+                    }
                 }
+                _ => ()
             }
         }
         changes
