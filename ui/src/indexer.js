@@ -9,6 +9,10 @@ var Indexing = (function() {
         if(!arraysIdentical(a[i], b[i])) return false;
         continue;
       }
+      if(a[i] && a[i].relation && b[i] && b[i].relation) {
+        if(!arraysIdentical(a[i].relation, b[i].relation)) return false;
+        continue;
+      }
       if(a[i] && a[i].eid && b[i] && b[i].eid) { continue; }
       if (a[i] !== b[i]) return false;
     }

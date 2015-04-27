@@ -7,12 +7,10 @@ use std::io::prelude::*;
 use std::fs::OpenOptions;
 use std::num::ToPrimitive;
 use rustc_serialize::json::{Json, ToJson};
-use std::mem::replace;
 
 use value::{Value, Tuple};
 use index;
 use flow::{Changes, Flow};
-use compiler::compile;
 
 trait FromJson {
     fn from_json(json: &Json, next_eid: &mut u64) -> Self;
@@ -159,16 +157,6 @@ fn recv_batch(event_receiver: &mpsc::Receiver<ServerEvent>, server_events: &mut 
     }
 }
 
-pub fn compile_and_run(flow: Flow) -> (Flow, Changes) {
-    let mut new_flow = compile(flow);
-    new_flow.run();
-    let changes = {
-        let Flow {ref mut changes, ..} = new_flow;
-        replace(changes, Vec::new())
-    };
-    (new_flow, changes)
-}
-
 pub fn run() {
     let empty_flow = Flow::new();
     let next_eid = &mut 0;
@@ -184,8 +172,8 @@ pub fn run() {
             flow.change(event.changes);
         }
         drop(events);
-        let (new_flow, _changes) = compile_and_run(flow);
-        flow = new_flow;
+        flow = flow.compile_and_run();
+        flow.take_changes();
         });
 
     let mut events = OpenOptions::new().write(true).append(true).open("./events").unwrap();
@@ -223,8 +211,8 @@ pub fn run() {
                 }
             }
 
-            let (new_flow, changes) = compile_and_run(flow);
-            flow = new_flow;
+            flow = flow.compile_and_run();
+            let changes = flow.take_changes();
             let output_event = Event{changes: changes};
             let output_text = format!("{}", output_event.to_json());
             events.flush().unwrap();

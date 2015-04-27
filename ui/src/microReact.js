@@ -164,6 +164,7 @@
            && curA.backgroundColor === curB.backgroundColor
            && curA.backgroundImage === curB.backgroundImage
            && curA.color === curB.color
+           && curA.colspan === curB.colspan
            && curA.border === curB.border
            && curA.borderRadius === curB.borderRadius
            && curA.opacity === curB.opacity
@@ -203,6 +204,7 @@
            && curA.backgroundColor === curB.backgroundColor
            && curA.backgroundImage === curB.backgroundImage
            && curA.color === curB.color
+           && curA.colspan === curB.colspan
            && curA.border === curB.border
            && curA.borderRadius === curB.borderRadius
            && curA.opacity === curB.opacity
