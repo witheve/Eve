@@ -24,11 +24,6 @@ macro_rules! exprvec {
 #[allow(dead_code)]
 fn main() {
 
-	/*
-	let c1 = Call{fun: EveFn::Sum, args: exprvec![1.3,2]};
-	let result = evaluate(&c1.to_expr(),&vec![]);
-	println!("{:?}",result);
-	*/
 }
 
 
@@ -93,6 +88,12 @@ fn stringtest() {
 	let c1 = Call{fun: EveFn::StrReplace, args: exprvec!["Hello World","l","q"] };
 	let result = evaluate(&c1.to_expr(),&vec![]);
 	assert_eq!(result.as_str(),"Heqqo Worqd");
+
+	// Test splitting words
+	let c1 = Call{fun: EveFn::StrSplit, args: exprvec!["Hello World"] };
+	let result = evaluate(&c1.to_expr(),&vec![]);
+	assert_eq!(result[0].as_str(),"Hello");
+	assert_eq!(result[1].as_str(),"World");
 
 }
 
