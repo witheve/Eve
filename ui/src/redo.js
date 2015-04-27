@@ -1038,8 +1038,6 @@ function uiGrid(componentId, layerIndex) {
            var bounds = document.querySelector(".ui-canvas").getBoundingClientRect();
            var ctx = canvas.getContext("2d");
            var ratio = canvasRatio(ctx);
-           console.log(Math.round(bounds.width), Math.round(bounds.height), Math.round(ratio));
-           console.log(canvas);
            canvas.width = bounds.width * ratio;
            canvas.height = bounds.height * ratio;
            canvas.style.width = bounds.width;
@@ -1423,7 +1421,6 @@ function viewResults(sources, results) {
   var fieldHeaders = [];
   var rows = [];
   var sourceFieldsLength = [];
-  console.log(results);
   sources.forEach(function(cur) {
     var data = cur[3];
     if(data[0] === "view") {
@@ -1702,7 +1699,7 @@ function constraintItem(view, constraintOrAdder, isAdder) {
   }
   return {c: "constraint", children: [
     constraintToken(view, constraintOrAdder, "right", right, isAdder),
-    constraintToken(view, constraintOrAdder, "op", constraint[1]),
+    constraintToken(view, constraintOrAdder, "op", constraint[1], isAdder),
     constraintToken(view, constraintOrAdder, "left", left, isAdder),
   ]};
 }
@@ -1799,7 +1796,6 @@ function updateExpression(e, elem, noDismiss) {
     dispatch("updateCalculation", {old: editorInfo.info.source, neue: expression});
   } else {
     var neue = editorInfo.info.source.slice();
-    console.log(neue);
     neue[3] = ["expression", expression];
     dispatch("updateSource", {old: editorInfo.info.source, neue: neue});
   }
@@ -1892,7 +1888,6 @@ function modalLayer() {
 }
 
 function searcherModal(cur) {
-  console.log("HI");
   return {c: "searcher-modal", text: "sup"};
 }
 
@@ -2217,7 +2212,6 @@ function dispatch(event, info, returnInsteadOfSend) {
       break;
     case "updateCalculation":
       var neueCalculation = info.neue;
-      console.log("complete?", completedExpression(neueCalculation));
       if(!completedExpression(neueCalculation)) {
         //still unfinished
         var neueAdder = info.old.slice();
@@ -2245,7 +2239,7 @@ function dispatch(event, info, returnInsteadOfSend) {
       //@HACK: this is a horrible hack to get around the fact that editorInfo will now be referencing
       //the previous source. This comes up when typing a constant value. editorInfo will still be
       //working off of the adder, to fix this, we pretend that it's now looking at the updated one
-      if(editorInfo) editorInfo.info.source = info.neue;
+      if(editorInfo && editorInfo.info.source[2] === info.old[2]) editorInfo.info.source = info.neue;
       break;
     case "updateRow":
       var neue = info.row.slice();
