@@ -176,11 +176,14 @@ function treeSelector() {
 }
 
 function treeItem(klass, id, name, icon, children, controls, dragType) {
+  var nameStr, nameChildren;
+  if(!name || typeof name === "string") { nameStr = name; }
+  else { nameChildren.push(name); }
   return {c: "tree-item " + klass, draggable: true, dragstart: startDragItem, dragend: stopDragItem, dragType: dragType,
           click: openItem, id:id, children: [
             {c: "item", children: [
               {c: "icon " + icon},
-              {c: "name", text: name},
+              {c: "name", text: nameStr, children: nameChildren},
               controls ? {c: "controls", children: controls} : undefined
             ]},
             children ? {c: "sub-items", children: children} : undefined
@@ -981,10 +984,14 @@ function activateLayer(e, elem) {
 }
 function selectAllFromLayer(e, elem) {
   var elements = ixer.index("uiLayerToElements")[elem.layer[1]] || [];
-  var elIds = elements.map(function(cur) {
-    return cur[1];
+  var elIds = [];
+  elements.forEach(function(cur) {
+    if(!ixer.index("remove")[cur[0]]) {
+      elIds.push(cur[1]);
+    }
   });
   dispatch("selectElements", {elements: elIds || [], createNew: !e.shiftKey, componentId: elem.layer[2]});
+
 }
 
 function toggleHidden(e, elem) {
@@ -2583,6 +2590,11 @@ function initIndexer() {
   add("uiStyle", {tx: "number", id: "id", type: "string", element: "id"}, [], "uiStyle", ["table"]);
   add("uiGroupBinding", {id: "id", union: "id"}, [], "uiGroupBinding", ["table"]);
 
+  // rendered ui views
+  add("uiRenderedElement", {id: "id", client: "id", type: "string", parent: "id", pos: "number"}, [], "uiRenderedElement");
+  add("uiRenderedAttr", {id: "id", client: "id", attr: "string", value: "string"}, [], "uiRenderedAttr");
+  add("uiClientEvent", {id: "id", client: "id", event: "string", element: "id", value: "string"});
+
   // editor item
   add("editorItem", {id: "id", type: "table|query|ui"}, [], "editorItem", ["table"]);
   add("openEditorItem", {tx: "number", id: "id", client: "client"}, [], "openEditorItem", ["table"]);
@@ -2629,7 +2641,7 @@ function connectToServer() {
     } else if(!server.initialized) {
       server.initialized = true;
     }
-//     console.log("received", data.changes);
+    //console.log("received", data.changes);
     var start = now();
     ixer.handleMapDiffs(data.changes);
     var time = now() - start;
@@ -2639,6 +2651,20 @@ function connectToServer() {
 
     if(data.changes.length) {
       rerender();
+
+      var uiDiffs = {};
+      for(var ix = 0, len = data.changes.length; ix < len; ix++) {
+        var diff = data.changes[ix];
+        if(diff[0] === "uiRenderedElement") {
+          uiDiffs.element = diff;
+        } else if(diff[0] === "uiRenderedAttr") {
+          uiDiffs.attr = diff;
+        }
+      }
+
+      if(uiDiffs.element || uiDiffs.attr) {
+        uiRenderer.renderDiffs(uiDiffs.element, uiDiffs.attr);
+      }
     }
   };
 

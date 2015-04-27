@@ -218,3 +218,16 @@ select.input { font-size: 0.9em;}
 .workspace .title { flex:none; margin-bottom:10px; font-size:16pt; border-radius:2px; min-width: 30px; min-height:20px; padding:5px 10px; background: rgba(255,255,255, 0.15); }
 .workspace .title .input { flex: 1; }
 
+/*-----------------------------------------------------------------------------
+- debug
+-----------------------------------------------------------------------------*/
+
+#eve-root {
+  width: 400px;
+  background: pink;
+}
+
+#eve-root > * {
+  min-width: 40px;
+  min-height: 40px;
+}
