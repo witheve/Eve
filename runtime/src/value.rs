@@ -70,7 +70,7 @@ impl Value {
     pub fn to_usize(&self) -> Option<usize> {
         match *self {
             Value::Float(float) => {
-                let result = float as u64;
+                let result = float as usize;
                 if (float == (result as f64)) {
                     Some(result)
                 } else {
