@@ -26,7 +26,6 @@ fn main() {
 
 }
 
-
 #[test]
 fn match_test(){
 
@@ -39,7 +38,7 @@ fn match_test(){
 					     Pattern::Constant(Ref::Constant{value: 4.to_value()}),
 					     Pattern::Constant(Ref::Constant{value: 5.to_value()}),
 					   );
-	let handlers2 = exprvec!["oneone","twotwo","threethree","fourfour","fivefive"];
+	let handlers2 = exprvec!["oneone","twotwo","threethree","fourfour","fivefive","no match"];
 
 	let m2 = Match{input: input2, patterns: patterns2, handlers: handlers2};
 
@@ -56,7 +55,7 @@ fn match_test(){
 					     Pattern::Constant(Ref::Constant{value: 4.to_value()}),
 					     Pattern::Constant(Ref::Constant{value: 5.to_value()}),
 					   );
-	let handlers = exprvec!["one","two",m2,"four","five"];
+	let handlers = exprvec!["one","two",m2,"four","five","no match"];
 
 	let m1 = Match{input: input, patterns: patterns, handlers: handlers};
 
@@ -64,7 +63,6 @@ fn match_test(){
 
 	assert_eq!(result,"fourfour".to_value());
 }
-
 
 #[test]
 fn opstest() {
@@ -166,7 +164,6 @@ fn bigmathtest() {
 	assert_eq!(result,(2f64*ma/(wa*rh*va*mu.cos())*(gd+g*ga.cos()/va-wx*(ga.sin().powf(2f64))*ps.sin())).to_value());
 
 }
-
 
 #[bench]
 fn opsbench(b: &mut test::Bencher) {

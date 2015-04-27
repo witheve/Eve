@@ -70,8 +70,11 @@ pub struct Call {
 	pub args: ExpressionVec,
 }
 
-// Some type aliases
-pub type Variable = String;
+#[derive(Clone,Debug)]
+pub struct Variable {
+	pub variable: String,
+}
+
 pub type PatternVec = Vec<Pattern>;
 pub type ExpressionVec = Vec<Expression>;
 
@@ -98,7 +101,7 @@ fn eval_match(m: &Match, result: &Vec<Value>) -> Value {
 
 	// Before we do anything, make sure we have the same number of patterns and
 	// handlers
-	assert_eq!(m.patterns.len(),m.handlers.len());
+	assert_eq!(m.patterns.len(),m.handlers.len()-1);
 
 	let input = eval_expression(&m.input,result);
 
@@ -119,7 +122,9 @@ fn eval_match(m: &Match, result: &Vec<Value>) -> Value {
 		}
 	};
 
-	Value::String(String::from_str("TODO: No match found"))
+	// The last handler is used to perform the default case
+	eval_expression(&m.handlers.iter().last().unwrap(),result)
+
 }
 
 
