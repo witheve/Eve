@@ -58,7 +58,7 @@ impl Value {
         match *self {
             Value::Float(float) => {
                 let result = float as i64;
-                if (float == (result as f64)) {
+                if float == (result as f64) {
                     Some(result)
                 } else {
                     None
@@ -71,7 +71,7 @@ impl Value {
         match *self {
             Value::Float(float) => {
                 let result = float as usize;
-                if (float == (result as f64)) {
+                if float == (result as f64) {
                     Some(result)
                 } else {
                     None
