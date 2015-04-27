@@ -38,22 +38,23 @@ th:first-child { border-radius: 2px 0 0 2px; }
 th:last-child { border-radius: 0 2px 2px 0; }
 table { overflow: auto; flex:1; }
 
-td { -webkit-user-select:auto; }
+td { -webkit-user-select:auto; border-bottom:1px solid #444; width:100px; white-space:nowrap; max-width:150px; overflow:hidden; text-overflow:ellipsis; }
+td > * { text-overflow:ellipsis; overflow:hidden; display:block; }
 td .input { width:100%; }
 
 .table-headers th { background: none; text-align:center; }
 tr:hover td { background: rgba(255,255,255,0.05); }
 
-.gap {background: none; padding: 0; min-width:10px;}
-
 .failed { background: rgba(255,79,109,0.1); color: #b68; border:1px solid rgba(255,79,109,0.); border-left:none; text-align:left; }
+.gap {background: none; padding: 0; min-width:10px; width:10px; border:none; }
+.gap .failed { background:none; }
 
 .table { flex-direction:column; }
 .headers { flex:none; background: rgba(255,255,255,0.1);  }
 .rows { flex-direction:column; overflow:auto; }
 .row { flex:none; }
 .table .field, .header { width:180px; overflow:hidden; white-space:nowrap; padding:3px 15px; }
-.table .field .input { width:100%; }
+.table .input { width:100%; }
 .spacer { flex: none; }
 
 /*-----------------------------------------------------------------------------
@@ -121,7 +122,7 @@ select.input { font-size: 0.9em;}
 - view editor
 -----------------------------------------------------------------------------*/
 
-.view-source-code { flex-direction: column; margin-right: 20px; }
+.view-source-code { flex-direction: column; margin-right: 20px; flex:none; }
 .view-source-code > .step { flex: 0 0 auto; padding: 10px 10px; background: #333; margin-bottom:2px;  }
 .view-source-code > .view-query-builder { flex: 0 0 auto; }
 .view-source-code > .searcher { flex: 1; }
@@ -145,11 +146,13 @@ select.input { font-size: 0.9em;}
 .view-container .icon:hover { background: #777; color: #eee; }
 .calculations { margin-top: 5px; flex-direction:column; }
 .filters { margin-top: 5px; flex-direction:column; }
-.calculations .calculation { position:relative; align-items:center; justify-content:center; padding-right:40px; }
-.filters .filter { position:relative; align-items:center; justify-content:center; padding-right:40px; }
+.calculations .calculation { position:relative; align-items:center; padding-right:40px; }
+.filters .filter { position:relative; align-items:center; padding-right:40px; }
 .remove { position:absolute; visibility:hidden; right:-5px; top:8px; padding:5px; border-radius:2px;}
 .remove:hover { color: #f8a; background: #846; }
 .filter:hover .remove, .calculation:hover .remove { visibility: visible; }
+
+.results-container { overflow:auto; }
 
 /*-----------------------------------------------------------------------------
 - token editor

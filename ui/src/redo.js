@@ -1308,6 +1308,9 @@ function resizeSelection(e, elem) {
 
 function queryWorkspace(view) {
   var sources = ixer.index("viewToSources")[view] || [];
+  sources.sort(function(a, b) {
+    return a[1] - b[1];
+  });
   var results = ixer.facts(view);
   return {c: "workspace-content column query-workspace", view: view, dragover: preventDefault, drop: queryDrop,
           children: [
@@ -1316,7 +1319,7 @@ function queryWorkspace(view) {
             ]},
             {c: "container", children: [
               viewCode(view, sources),
-              viewResults(sources, results),
+              {c: "results-container", children: [viewResults(sources, results)]}
             ]}
           ]};
 }
@@ -1413,21 +1416,41 @@ function viewResults(sources, results) {
   var fieldHeaders = [];
   var rows = [];
   var sourceFieldsLength = [];
+  console.log(results);
   sources.forEach(function(cur) {
     var data = cur[3];
     if(data[0] === "view") {
       var view = data[1];
       var fields = code.viewToFields(view);
       sourceFieldsLength.push(fields.length);
-      tableHeaders.push({t: "th", colspan: fields.length, text: code.name(view)}, {t: "th", c: "gap"})
+      tableHeaders.push({t: "th", colspan: fields.length, children: [
+        {text: code.name(view)},
+        {text: "group", source: cur, click: toggleGrouping}
+      ]}, {t: "th", c: "gap"});
       fields.forEach(function(field) {
         fieldHeaders.push({t: "th", text: code.name(field[2])});
       });
       fieldHeaders.push({t: "th", c: "gap"});
     } else {
-      tableHeaders.push({t: "th", children: [expressionItem(data[1], [], cur)]}, {t: "th", c: "gap"});
-      fieldHeaders.push({t: "th", text: "result"}, {t: "th", c: "gap"});
-      sourceFieldsLength.push(1);
+      var expr = data[1];
+      var op = expr[1];
+      var info = callInfo[op];
+      if(!op || info.adoptSchema === undefined) {
+        tableHeaders.push({t: "th", children: [expressionItem(data[1], [], cur)]}, {t: "th", c: "gap"});
+        fieldHeaders.push({t: "th", text: "result"});
+        sourceFieldsLength.push(1);
+      } else if(info.adoptSchema !== undefined) {
+        var ref = expr[2][info.adoptSchema];
+        var source = ref[1];
+        var view = ixer.index("sourceToData")[source][1];
+        var fields = code.viewToFields(view);
+        fields.forEach(function(field) {
+          fieldHeaders.push({t: "th", text: code.name(field[2])});
+        });
+        tableHeaders.push({t: "th", colspan: fields.length, children: [expressionItem(data[1], [], cur)]}, {t: "th", c: "gap"});
+        sourceFieldsLength.push(fields.length);
+      }
+      fieldHeaders.push({t: "th", c: "gap"});
     }
   });
   //remove trailing gaps
@@ -1438,7 +1461,7 @@ function viewResults(sources, results) {
     var neue = [];
     for(var i = 0; i < sourcesLen; i++) {
       var fields = row[i];
-      if(!fields) {
+      if(fields === undefined) {
         var text = undefined;
         if(neue.length === 0 || neue[neue.length - 1].c === "gap") {
           text = "no match";
@@ -1449,6 +1472,23 @@ function viewResults(sources, results) {
         var fieldsLen = fields.length;
         for(var fieldIx = 0; fieldIx < fieldsLen; fieldIx++) {
           neue.push({t: "td", text: fields[fieldIx]});
+        }
+        neue.push({t: "td", c: "gap"});
+      } else if(fields.relation) {
+        var relRows = fields.relation;
+        var relLen = sourceFieldsLength[i];
+        var columns = [];
+        for(var fieldIx = 0; fieldIx < relLen; fieldIx++) {
+          columns[fieldIx] = [];
+        }
+        for(var rowIx = 0, rowLen = Math.min(relRows.length, 5); rowIx < rowLen; rowIx++) {
+          var relRow = relRows[rowIx];
+          for(var fieldIx = 0; fieldIx < relLen; fieldIx++) {
+            columns[fieldIx].push({text: relRow[fieldIx]});
+          }
+        }
+        for(var fieldIx = 0; fieldIx < relLen; fieldIx++) {
+          neue.push({t: "td", children: columns[fieldIx]});
         }
         neue.push({t: "td", c: "gap"});
       } else {
@@ -1468,8 +1508,14 @@ function viewResults(sources, results) {
   ]};
 }
 
-function sourceToken(source, path, content) {
-  return {c: "token editable", editorType: "source", source: source, click: activateTokenEditor, path: path, text: content};
+function toggleGrouping(e, elem) {
+  var neue = elem.source.slice();
+  if(neue[4] === "get-tuple") {
+    neue[4] = "get-relation";
+  } else {
+    neue[4] = "get-tuple";
+  }
+  dispatch("updateSource", {old: elem.source, neue: neue});
 }
 
 //---------------------------------------------------------
@@ -1776,6 +1822,8 @@ var callInfo = {
   "-": {args: ["number", "number"], infix: true},
   "*": {args: ["number", "number"], infix: true},
   "/": {args: ["number", "number"], infix: true},
+  "sum": {args: ["relation"]},
+  "limit": {args: ["relation", "number"], adoptSchema: 0},
 };
 
 function callItem(call, path, source) {
@@ -2185,13 +2233,12 @@ function dispatch(event, info, returnInsteadOfSend) {
       }
       break;
     case "updateSource":
-      console.log(info.old, info.neue);
       diffs.push(["source", "removed", info.old],
                  ["source", "inserted", info.neue])
-        //@HACK: this is a horrible hack to get around the fact that editorInfo will now be referencing
-        //the previous source. This comes up when typing a constant value. editorInfo will still be
-        //working off of the adder, to fix this, we pretend that it's now looking at the updated one
-        editorInfo.info.source = info.neue;
+      //@HACK: this is a horrible hack to get around the fact that editorInfo will now be referencing
+      //the previous source. This comes up when typing a constant value. editorInfo will still be
+      //working off of the adder, to fix this, we pretend that it's now looking at the updated one
+      if(editorInfo) editorInfo.info.source = info.neue;
       break;
     case "updateRow":
       var neue = info.row.slice();
@@ -2250,21 +2297,11 @@ function dispatch(event, info, returnInsteadOfSend) {
       diffs.push(["remove", "inserted", [info.txId]]);
       break;
     case "addGroupBinding":
-      //@HACK: because the only way to map into a union right now is from a query, we have to create a query
-      //for our binding.
       var groupId = info.groupId;
-      var bindingQueryId = groupId + "-binding";
       var prev = ixer.index("groupToBinding")[groupId];
       if(prev) {
         diffs.push(["uiGroupBinding", "removed", [groupId, prev]]);
-        //remove the source
-        diffs.push(["source", "remove", [bindingQueryId, 0, groupId + prev, ["view", prev], "get-tuple"]]);
-      } else {
-        //add a query
-        diffs.push.apply(addView(bindingQueryId, {binding: "tuple"}, [], bindingQueryId, ["generated"], "query"));
       }
-      //add a source
-      diffs.push(["source", "inserted", [bindingQueryId, 0, groupId + info.unionId, ["view", unionId], "get-tuple"]]);
       diffs.push(["uiGroupBinding", "inserted", [groupId, info.unionId]]);
       break;
     default:
@@ -2625,7 +2662,7 @@ function initIndexer() {
   add("uiActiveLayer", {tx: "number", component: "id", client: "id", layer: "id"}, [], "uiActiveLayer", ["table"]);
   add("uiBoxSelection", {tx: "number", component: "id", x0: "number", y0: "number", x1: "number", y1: "number"}, [], "uiBoxSelection", ["table"]);
   add("uiStyle", {tx: "number", id: "id", type: "string", element: "id"}, [], "uiStyle", ["table"]);
-  add("uiGroupBinding", {id: "id", union: "id"}, [], "uiGroupBinding", ["table"]);
+  add("uiGroupBinding", {group: "id", union: "id"}, [], "uiGroupBinding", ["table"]);
 
   // editor item
   add("editorItem", {id: "id", type: "table|query|ui"}, [], "editorItem", ["table"]);
