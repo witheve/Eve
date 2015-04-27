@@ -27,7 +27,7 @@ pub enum EveFn {
 	Sin,Cos,Tan,ASin,ACos,ATan,ATan2,
 
 	// Aggregates
-	Sum,Prod,
+	Sum,Prod,Min,Max,
 
 	// Relations
 	Limit,
@@ -195,17 +195,48 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 
 			Value::Float(sum)
 		},
+		(&Prod,[Value::Relation(ref rel)]) => {
 
-		/*
-		(&Prod,[Value::Tuple(ref x)]) => {
-			Value::Float(x.iter().fold(1f64, |acc: f64, ref item| {
-				match item {
-					&&Value::Float(ref y) => acc*y,
-					x => panic!("Cannot aggregate {:?}",x),
-				}
-			}))
+			assert_eq!(c.args.len(),1);
+
+			let prod = rel.iter()
+						 .map(|r| r[get_ref_column(&c.args[0])].clone())
+						 .fold(1f64,|acc,x| {
+							acc * match x {
+								Value::Float(y) => y,
+							  	other => panic!("Cannot accumulate {:?}",other),
+						 	}
+						 });
+
+			Value::Float(prod)
 		},
-		*/
+		// TODO should min/max with columns of mixed types throw an error?
+		(&Max,[Value::Relation(ref rel)]) => {
+
+			assert_eq!(c.args.len(),1);
+
+			let max = rel.iter()
+						 .map(|r| r[get_ref_column(&c.args[0])].clone())
+						 .max();
+
+			match max {
+				Some(x) => x,
+				None => panic!("Could not compare elements."),
+			}
+		},
+		(&Min,[Value::Relation(ref rel)]) => {
+
+			assert_eq!(c.args.len(),1);
+
+			let min = rel.iter()
+						 .map(|r| r[get_ref_column(&c.args[0])].clone())
+						 .min();
+
+			match min {
+				Some(x) => x,
+				None => panic!("Could not compare elements."),
+			}
+		},
 
 		// Relation returning functions
 		(&Limit,[Value::Relation(ref rel),Float(n)]) => {
