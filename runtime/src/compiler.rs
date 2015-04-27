@@ -7,7 +7,6 @@ use flow::{View, Union, Node, Flow};
 
 use std::collections::{BitSet};
 use std::cell::{RefCell};
-use std::num::ToPrimitive;
 
 impl Index<Tuple> {
     pub fn find_all(&self, ix: usize, value: &Value) -> Vec<&Tuple> {
@@ -299,6 +298,8 @@ fn create_call(compiler: &Compiler, uifun: &Value, uiargvec: &Value) -> interpre
         "*"   => EveFn::Multiply,
         "/"   => EveFn::Divide,
         "sum" => EveFn::Sum,
+        "max" => EveFn::Max,
+        "min" => EveFn::Min,
         "limit" => EveFn::Limit,
         _     => panic!("Unknown Function Call: {:?}",uifun),
     };

@@ -16,7 +16,6 @@ use eve::query::*;
 use eve::value::*;
 use eve::value::Value::*;
 use eve::interpreter::*;
-use core::num::ToPrimitive;
 use eve::test::*;
 
 #[allow(dead_code)]

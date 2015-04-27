@@ -1,6 +1,5 @@
 use value::{Value, Tuple, Relation};
 use interpreter::{Call, Match, Expression};
-use std::num::ToPrimitive;
 use query::Ref;
 
 // Convenient hacks for writing tests
@@ -50,13 +49,13 @@ impl ToValue for f64 {
 
 impl ToValue for i32 {
      fn to_value(self) -> Value {
-        Value::Float(self as f64)
+        Value::Float(self.clone() as f64)
     }
 }
 
 impl ToValue for i64 {
      fn to_value(self) -> Value {
-        Value::Float(self as f64)
+        Value::Float(self.clone() as f64)
     }
 }
 
@@ -69,7 +68,7 @@ impl ToValue for Tuple {
 
 impl ToValue for usize {
     fn to_value(self) -> Value {
-        Value::Float(self.to_f64().unwrap())
+        Value::Float(self as f64)
     }
 }
 
