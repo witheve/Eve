@@ -7,7 +7,6 @@ use flow::{View, Union, Node, Flow};
 
 use std::collections::{BitSet};
 use std::cell::{RefCell};
-use std::num::ToPrimitive;
 
 impl Index<Tuple> {
     pub fn find_all(&self, ix: usize, value: &Value) -> Vec<&Tuple> {

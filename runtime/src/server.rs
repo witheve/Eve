@@ -5,7 +5,6 @@ use websocket::server::sender;
 use websocket::stream::WebSocketStream;
 use std::io::prelude::*;
 use std::fs::OpenOptions;
-use std::num::ToPrimitive;
 use rustc_serialize::json::{Json, ToJson};
 
 use value::{Value, Tuple};
@@ -36,15 +35,15 @@ impl FromJson for Value {
             Json::Boolean(bool) => Value::Bool(bool),
             Json::String(ref string) => Value::String(string.clone()),
             Json::F64(float) => Value::Float(float),
-            Json::I64(int) => Value::Float(int.to_f64().unwrap()),
-            Json::U64(uint) => Value::Float(uint.to_f64().unwrap()),
+            Json::I64(int) => Value::Float(int as f64),
+            Json::U64(uint) => Value::Float(uint as f64),
             Json::Array(ref array) => Value::Tuple(array.iter().map(|j| Value::from_json(j, next_eid)).collect()),
             Json::Object(ref object) => {
                 assert!(object.len() == 1);
                 match object.get("eid") {
                     Some(value) => {
                         assert_eq!(value.as_string().unwrap(), "auto");
-                        let eid = next_eid.to_f64().unwrap();
+                        let eid = next_eid.clone() as f64;
                         *next_eid += 1;
                         Value::Float(eid)
                     }

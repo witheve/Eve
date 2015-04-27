@@ -175,7 +175,7 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 		(&StrLength,[Value::String(ref s)]) => Float(s.len() as f64),
 		(&StrReplace,[Value::String(ref s),Value::String(ref q),Value::String(ref r)]) => Value::String(s.replace(&q[..],&r[..])),
 		(&StrSplit,[Value::String(ref s)]) => {
-			let w: Vec<Value> = s.words().map(|x| Value::String(String::from_str(x))).collect();
+			let w: Vec<Value> = s.split_whitespace().map(|x| Value::String(String::from_str(x))).collect();
 			Value::Tuple(w)
 		},
 
