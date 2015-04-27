@@ -198,7 +198,7 @@ pub fn run() {
                         })
                     }
                     ServerEvent::Message(input_text) => {
-                        time!("sending update", {
+                        time!("applying update", {
                             println!("{:?}", input_text);
                             let json = Json::from_str(&input_text).unwrap();
                             let input_event: Event = FromJson::from_json(&json, next_eid);
@@ -210,17 +210,21 @@ pub fn run() {
                 }
             }
 
-            flow = flow.compile_and_run();
-            let changes = flow.take_changes();
-            let output_event = Event{changes: changes};
-            let output_text = format!("{}", output_event.to_json());
-            events.flush().unwrap();
-            for sender in senders.iter_mut() {
-                match sender.send_message(Message::Text(output_text.clone())) {
-                    Ok(_) => (),
-                    Err(error) => println!("Send error: {}", error),
-                };
-            }
+            time!("running batch", {
+                flow = flow.compile_and_run();
+            });
+            time!("sending update", {
+                let changes = flow.take_changes();
+                let output_event = Event{changes: changes};
+                let output_text = format!("{}", output_event.to_json());
+                events.flush().unwrap();
+                for sender in senders.iter_mut() {
+                    match sender.send_message(Message::Text(output_text.clone())) {
+                        Ok(_) => (),
+                        Err(error) => println!("Send error: {}", error),
+                    };
+                }
+            });
         })
     }
 }
