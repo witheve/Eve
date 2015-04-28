@@ -75,6 +75,10 @@
         if(cur.colspan !== prev.colspan) div.colSpan = cur.colspan;
         if(cur.placeholder !== prev.placeholder) div.placeholder = cur.placeholder;
         if(cur.selected !== prev.selected) div.selected = cur.selected;
+        if(cur.value !== prev.value) div.value = cur.value;
+        if(cur.t === "input" && cur.type !== prev.type) div.type = cur.type;
+        if(cur.t === "input" && cur.checked !== prev.checked) div.checked = cur.checked;
+        if(cur.text !== prev.text) div.textContent = cur.text;
 
         if(cur.left !== prev.left)  style.left = cur.left === undefined ? "auto" : cur.left;
         if(cur.top !== prev.top) style.top = cur.top === undefined ? "auto" : cur.top;
@@ -94,9 +98,7 @@
         if(cur.verticalAlign !== prev.verticalAlign) style.alignItems = cur.verticalAlign;
         if(cur.color !== prev.color) style.color = cur.color || "inherit";
         if(cur.fontFamily !== prev.fontFamily) style.fontFamily = cur.fontFamily || "inherit";
-        if(cur.value !== prev.value) div.value = cur.value;
-        if(cur.t === "input" && cur.type !== prev.type) div.type = cur.type;
-        if(cur.text !== prev.text) div.textContent = cur.text;
+
         //events
         if(cur.dblclick !== prev.dblclick) div.ondblclick = cur.dblclick !== undefined ? this.handleEvent : undefined;
         if(cur.click !== prev.click) div.onclick = cur.click !== undefined ? this.handleEvent : undefined;
@@ -117,6 +119,7 @@
         if(cur.focus !== prev.focus) div.onfocus = cur.focus !== undefined ? this.handleEvent : undefined;
         if(cur.blur !== prev.blur) div.onblur = cur.blur !== undefined ? this.handleEvent : undefined;
         if(cur.input !== prev.input) div.oninput = cur.input !== undefined ? this.handleEvent : undefined;
+        if(cur.change !== prev.change) div.onchange = cur.change !== undefined ? this.handleEvent : undefined;
         if(cur.keydown !== prev.keydown) div.onkeydown = cur.keydown !== undefined ? this.handleEvent : undefined;
 
         if(type === "added" || type === "replaced" || type === "moved") {
@@ -155,6 +158,8 @@
            && curA.placeholder === curB.placeholder
            && curA.selected === curB.selected
            && curA.value === curB.value
+           && curA.type === curB.type
+           && curA.checked === curB.checked
            && curA.text === curB.text
            && curA.top === curB.top
            && curA.left === curB.left
@@ -195,6 +200,8 @@
            && curA.placeholder === curB.placeholder
            && curA.selected === curB.selected
            && curA.value === curB.value
+           && curA.type === curB.type
+           && curA.checked === curB.checked
            && curA.text === curB.text
            && curA.top === curB.top
            && curA.left === curB.left

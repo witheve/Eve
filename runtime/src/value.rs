@@ -50,23 +50,32 @@ impl Value {
     }
     pub fn to_f64(&self) -> Option<f64> {
         match *self {
-            Value::Float(ref float) => Some(float.clone() as f64),
+            Value::Float(float) => Some(float as f64),
             _ => None,
         }
     }
     pub fn to_i64(&self) -> Option<i64> {
         match *self {
-            Value::Float(ref float) => Some(float.clone() as i64),
+            Value::Float(float) => {
+                let result = float as i64;
+                if float == (result as f64) {
+                    Some(result)
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
     pub fn to_usize(&self) -> Option<usize> {
         match *self {
-            Value::Float(ref float) => {
-                if float >= &0.0f64 {
-                    Some(float.clone() as usize)
+            Value::Float(float) => {
+                let result = float as usize;
+                if float == (result as f64) {
+                    Some(result)
+                } else {
+                    None
                 }
-                else {None}
             },
             _ => None,
         }

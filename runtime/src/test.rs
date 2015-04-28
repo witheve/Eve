@@ -1,5 +1,5 @@
 use value::{Value, Tuple, Relation};
-use interpreter::{Call, Match, Expression};
+use interpreter::{Call, Match, Expression, Variable};
 use query::Ref;
 
 // Convenient hacks for writing tests
@@ -133,3 +133,4 @@ impl ToExpression for i32 { fn to_expr(self) -> Expression { Expression::Ref(Ref
 impl ToExpression for f64 { fn to_expr(self) -> Expression { Expression::Ref(Ref::Constant{value: self.to_value()}) } }
 impl<'a> ToExpression for &'a str { fn to_expr(self) -> Expression { Expression::Ref(Ref::Constant{value: self.to_value()}) } }
 impl ToExpression for Match { fn to_expr(self) -> Expression { Expression::Match( Box::new(self)) } }
+impl ToExpression for Variable { fn to_expr(self) -> Expression { Expression::Variable(self) } }

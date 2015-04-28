@@ -3,8 +3,6 @@ use value::Value::Float;
 use query::Ref;
 use self::EveFn::*;
 
-// Enums...
-// Expression Enum ------------------------------------------------------------
 #[derive(Clone, Debug)]
 pub enum Expression {
 	Ref(Ref),
@@ -12,8 +10,6 @@ pub enum Expression {
 	Call(Call),
 	Match(Box<Match>),
 }
-
-// End Expression Enum --------------------------------------------------------
 
 #[derive(Clone,Debug)]
 pub enum EveFn {
@@ -43,26 +39,12 @@ pub struct Match {
 	pub handlers: ExpressionVec,
 }
 
-// Begin Pattern Enum ---------------------------------------------------------
 #[derive(Clone,Debug)]
 pub enum Pattern {
 	Constant(Ref),
 	Variable(Variable),
 	Tuple(PatternVec),
 }
-
-/*
-impl<'a> PartialEq<Value> for &'a Pattern {
-	fn eq(&self, other: &Value) -> bool {
-		match self {
-			&&Pattern::Constant(ref x) => eval_constant(x) == *other,
-			&&Pattern::Variable(_) => panic!("Cannot match Variable against Value"),
-			&&Pattern::Tuple(_) => panic!("Cannot match Tuple against Value"),
-		}
-	}
-}
-*/
-// End Pattern Enum -----------------------------------------------------------
 
 #[derive(Clone,Debug)]
 pub struct Call {
@@ -71,9 +53,7 @@ pub struct Call {
 }
 
 #[derive(Clone,Debug)]
-pub struct Variable {
-	pub variable: String,
-}
+pub struct Variable { pub variable: String }
 
 pub type PatternVec = Vec<Pattern>;
 pub type ExpressionVec = Vec<Expression>;
@@ -89,42 +69,92 @@ pub fn evaluate(e: & Expression, result: &Vec<Value>) -> Value {
 fn eval_expression(e: &Expression, result: &Vec<Value>) -> Value {
 
 	match *e {
-		Expression::Ref(ref r) => r.resolve(result,None).clone(),
+		Expression::Ref(ref r) => resolve_ref(r,result).clone(),
 		Expression::Call(ref c) => eval_call(c,result),
 		Expression::Match(ref m) => eval_match(m,result),
-		_ => unimplemented!(),
+		Expression::Variable(ref v) => panic!("TODO: Evaluate Variable {:?}",v),
 	}
 }
 
 
 fn eval_match(m: &Match, result: &Vec<Value>) -> Value {
 
-	// Before we do anything, make sure we have the same number of patterns and
-	// handlers
+	// Before we do anything, make sure we have the correct number of patterns
+	// and handlers
 	assert_eq!(m.patterns.len(),m.handlers.len()-1);
+
 
 	let input = eval_expression(&m.input,result);
 
-
 	for (pattern, handler) in m.patterns.iter().zip(m.handlers.iter()) {
-		match pattern {
-			&Pattern::Constant(ref x) => {
-				match x {
-					&Ref::Constant{ref value} => {
-						if input == value.clone() {
-							return eval_expression(&handler,result)
-						}
-					}
-					_ => panic!("TODO"),
-				}
-			}
-			_ => panic!("TODO"),
+		match test_pattern(&input,&pattern) {
+			PatternTestResult::False => continue,
+			_ => return eval_expression(&handler,result),
 		}
 	};
 
 	// The last handler is used to perform the default case
 	eval_expression(&m.handlers.iter().last().unwrap(),result)
 
+}
+
+#[derive(Clone,Debug)]
+enum PatternTestResult {
+	True,
+	False,
+	Variables(Vec<Value>),
+}
+
+fn test_pattern(input: &Value, pattern: &Pattern) -> PatternTestResult {
+
+	match pattern {
+		&Pattern::Constant(ref c) => {
+			match c {
+				&Ref::Constant{ref value} => {
+					if input == value {
+						return PatternTestResult::True
+					}
+					else { return PatternTestResult::False }
+				}
+				_ => panic!("Expected constant reference"),
+			}
+		},
+		&Pattern::Tuple(ref pattern_tuple) => {
+			match input {
+            	&Value::Tuple(ref input_tuple) => {
+
+            		// Only test the pattern if we have the same number of
+            		// elements in the input and pattern tuples
+            		if input_tuple.len() == pattern_tuple.len() {
+
+            			// Test each pattern against the input
+            			let test_results = input_tuple.iter()
+            								 .zip(pattern_tuple.iter())
+            								 .map(|(ref input,ref pattern)| test_pattern(input,pattern))
+            								 .collect::<Vec<_>>();
+
+            			// If any of the test results are false, the match
+            			// fails. Otherwise return the variables, or true
+            			let any_false = test_results.iter()
+            										.any(|r| match r {
+            													&PatternTestResult::False => true,
+            													_ => false,
+            												}
+            											);
+            			if !any_false { PatternTestResult::True }
+            			else { PatternTestResult::False }
+            		}
+            		else { PatternTestResult::False }
+            	},
+            	_ => PatternTestResult::False,
+        	}
+		},
+		&Pattern::Variable(ref v) => PatternTestResult::Variables(
+										vec![
+											Value::Tuple( vec![Value::String(v.clone().variable),input.clone()] )
+											]
+									 ),
+	}
 }
 
 
@@ -189,11 +219,10 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 
 			assert_eq!(c.args.len(),1);
 
-			let sum = rel.iter()
-						 .map(|r| r[get_ref_column(&c.args[0])].clone())
+			let sum = get_ref_column(&rel,&c.args[0]).iter()
 						 .fold(0f64,|acc,x| {
 							acc + match x {
-								Value::Float(y) => y,
+								&Value::Float(y) => y,
 							  	other => panic!("Cannot accumulate {:?}",other),
 						 	}
 						 });
@@ -204,11 +233,10 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 
 			assert_eq!(c.args.len(),1);
 
-			let prod = rel.iter()
-						 .map(|r| r[get_ref_column(&c.args[0])].clone())
+			let prod = get_ref_column(&rel,&c.args[0]).iter()
 						 .fold(1f64,|acc,x| {
 							acc * match x {
-								Value::Float(y) => y,
+								&Value::Float(y) => y,
 							  	other => panic!("Cannot accumulate {:?}",other),
 						 	}
 						 });
@@ -220,12 +248,11 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 
 			assert_eq!(c.args.len(),1);
 
-			let max = rel.iter()
-						 .map(|r| r[get_ref_column(&c.args[0])].clone())
-						 .max();
+			let column = get_ref_column(&rel,&c.args[0]);
+			let max = column.iter().max();
 
 			match max {
-				Some(x) => x,
+				Some(x) => x.clone(),
 				None => panic!("Could not compare elements."),
 			}
 		},
@@ -233,12 +260,11 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 
 			assert_eq!(c.args.len(),1);
 
-			let min = rel.iter()
-						 .map(|r| r[get_ref_column(&c.args[0])].clone())
-						 .min();
+			let column = get_ref_column(&rel,&c.args[0]);
+			let min = column.iter().min();
 
 			match min {
-				Some(x) => x,
+				Some(x) => x.clone(),
 				None => panic!("Could not compare elements."),
 			}
 		},
@@ -264,14 +290,33 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 }
 
 // This is as little hacky, but works for now
-fn get_ref_column(e: &Expression) -> usize {
+fn get_ref_column(rel: &Relation, e: &Expression) -> Vec<Value> {
 
-	match e {
-		&Expression::Ref(ref r) => match r {
-			&Ref::Value{column,..} => column,
-			_ => panic!("Expected Ref::Value"),
+	let column = match e {
+		&Expression::Ref(ref r) => {
+			match r {
+				&Ref::Value{column,..} => {
+					column
+				},
+				_ => panic!("Expected Ref::Value"),
+			}
 		},
-		_ => panic!("Expected Expression::Ref"),
-	}
+		_ => panic!("Expected an Expression::Ref"),
+	};
 
+	rel.iter().map(|r| r[column].clone()).collect::<Vec<_>>().clone()
+}
+
+fn resolve_ref<'a>(reference: &'a Ref, result: &'a Vec<Value>) -> &'a Value {
+	match *reference {
+	    Ref::Value{clause, ..} => {
+			match result[clause] {
+			    Value::Relation(_) => {
+			    	&result[clause]
+			    },
+			    _ => reference.resolve(result,None),
+			}
+	    },
+	    _ => reference.resolve(result,None),
+	}
 }
