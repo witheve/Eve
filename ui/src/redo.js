@@ -2888,6 +2888,15 @@ function connectToServer() {
           uiDiffs.attr = diff;
         } else if(diff[0] === "uiMapAttr") {
           renderMapDiffs(diff);
+        } else if(diff[0] === "uiComponentElement") {
+          // @FIXME: Hacky. This needs to be called after each size change in dev and production for map controls.
+          diff[1].forEach(function(cur) {
+            if(cur[4] === "map") {
+              var map = ixer.index("uiElementToMap")[cur[1]];
+              var mapEl = uiMapEl[map[1]];
+              google.maps.event.trigger(mapEl, "resize");
+            }
+          });
         }
       }
 
