@@ -400,7 +400,6 @@ function workspace() {
 }
 
 //---------------------------------------------------------
-//---------------------------------------------------------
 // input
 //---------------------------------------------------------
 
@@ -419,6 +418,10 @@ function input(value, key, oninput, onsubmit) {
   return {c: "input text-input", contentEditable: true, input: oninput, text: value, key: key, blur: blur, keydown: keydown};
 }
 
+function checkboxInput(value, key, onsubmit) {
+  return {t: "input", c: "input checkbox-input", type: "checkbox", key: key, change: onsubmit, checked: value}
+}
+
 function selectInput(value, key, options, onsubmit) {
   var blur, input;
   if(onsubmit) {
@@ -435,7 +438,7 @@ function selectInput(value, key, options, onsubmit) {
     children.push({t: "option", value: key, text: val, selected: val === value});
   }
 
-  return {t: "select", c: "input", input: input, blur: blur, children: children};
+  return {t: "select", c: "input", key: key, input: input, blur: blur, children: children};
 }
 
 //---------------------------------------------------------
@@ -690,6 +693,28 @@ function endBoxSelect(evt, el) {
 // ui control
 //---------------------------------------------------------
 
+var uiCustomControlRender = {
+  map: function(elem) {
+    elem.children = elem.children || [];
+    elem.children.push({c: "map-overlay", children: [
+      {t: "span", text: "Map not interactive in development"}]});
+    elem.postRender = function(container) {
+      if(!container.rendered) {
+        var opts = {
+          center: {lat: -34.397, lng: 150.644},
+          zoom: 8,
+          noClear: true,
+          disableDefaultUI: true,
+          draggable: false};
+        var map = new google.maps.Map(container, opts);
+
+        container.rendered = true;
+      }
+    }
+    return elem;
+  }
+};
+
 function control(cur, attrs, selected, layer) {
   var id = cur[1];
   var type = cur[4];
@@ -699,14 +724,19 @@ function control(cur, attrs, selected, layer) {
   var klass = type + " control" + selClass + hidden + locked;
   var elem = {c: klass, id: id, left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6],
               control: cur, mousedown: addToSelection, selected: selected, zIndex: layer[3] + 1,
-              draggable: true, drag: moveSelection, dragstart: startMoveSelection, opacity: 3};
-  if(!attrs) return elem;
-  for(var i = 0, len = attrs.length; i < len; i++) {
-    var curAttr = attrs[i];
-    var name = attrMappings[curAttr[2]] || curAttr[2];
-    if(curAttr[3].constructor !== Array) {
-      elem[name] = curAttr[3];
+              draggable: true, drag: moveSelection, dragstart: startMoveSelection};
+  if(attrs) {
+    for(var i = 0, len = attrs.length; i < len; i++) {
+      var curAttr = attrs[i];
+      var name = attrMappings[curAttr[2]] || curAttr[2];
+      if(curAttr[3].constructor !== Array) {
+        elem[name] = curAttr[3];
+      }
     }
+  }
+
+  if(uiCustomControlRender[type]) {
+    elem = uiCustomControlRender[type](elem);
   }
   return elem;
 }
@@ -724,7 +754,8 @@ function addControl(e, elem) {
 var uiControlInfo = [{text: "text", icon: ""},
                      {text: "box", icon: ""},
                      {text: "button", icon: ""},
-                     {text: "input", icon: ""}];
+                     {text: "input", icon: ""},
+                     {text: "map", icon: ""}];
 function uiControls(componentId, activeLayer) {
   var items = uiControlInfo.map(function(cur) {
     return {c: "control-item", click: addControl, control: cur.text, componentId: componentId, layer: activeLayer,
@@ -752,9 +783,17 @@ function inspector(componentId, selectionInfo, layers, activeLayer) {
     binding = ixer.index("groupToBinding")[activeLayerId];
   }
   if(selectionInfo) {
+    // @TODO: Only show appropriate inspectors for each type based on trait instead of hardcoding.
     inspectors.push(layoutInspector(selectionInfo, binding),
                     appearanceInspector(selectionInfo, binding),
                     textInspector(selectionInfo, binding));
+
+    var showMapInspector = selectionInfo.elements.every(function(cur) {
+      return cur[4] === "map";
+    });
+    if(showMapInspector) {
+      inspectors.push(mapInspector(selectionInfo, binding));
+    }
   } else if(activeLayer) {
     inspectors.push(layerInspector(activeLayer, elements));
   }
@@ -861,6 +900,24 @@ function layerInspector(layer, elements) {
   return {c: "inspector-panel", children: []};
 }
 
+uiProperties.map = [];
+function mapInspector(selectionInfo, binding) {
+  var componentId = selectionInfo.componentId;
+  var attrs = {};
+
+  return {c: "inspector-panel", children: [
+    {c: "title", text: "Map"},
+    {c: "pair", children: [{c: "label", text: "lat."},
+                          inspectorInput(attrs["lattitude"], [componentId, "lattitude"], setMapAttribute, binding)]},
+    {c: "pair", children: [{c: "label", text: "long."},
+                          inspectorInput(attrs["longitude"], [componentId, "longitude"], setMapAttribute, binding)]},
+    {c: "pair", children: [{c: "label", text: "zoom"},
+                          inspectorInput(attrs["zoom"], [componentId, "zoom"], setMapAttribute, binding)]},
+    {c: "pair", children: [{c: "label", text: "interactive"},
+                          inspectorCheckbox(attrs["draggable"], [componentId, "draggable"], setMapAttribute, binding)]},
+  ]};
+}
+
 uiProperties.repeat = [];
 function repeatInspector() {
 }
@@ -875,6 +932,19 @@ function inspectorInput(value, key, onChange, binding) {
     value = "Bound to " + code.name(value[2]);
   }
   var field = input(value, key, onChange, preventDefault);
+  field.mousedown = stopPropagation;
+  field.editorType = "binding";
+  field.binding = binding;
+  field.focus = activateTokenEditor;
+  field.blur = closeTokenEditor;
+  return field;
+}
+
+function inspectorCheckbox(value, key, onChange, binding) {
+  if(value && value.constructor === Array) {
+    value = "Bound to " + code.name(value[2]);
+  }
+  var field = checkboxInput(value, key, onChange);
   field.mousedown = stopPropagation;
   field.editorType = "binding";
   field.binding = binding;
@@ -971,8 +1041,20 @@ function adjustPosition(e, elem) {
 function setAttribute(e, elem) {
   var componentId = elem.key[0];
   var property = elem.key[1];
-  dispatch("setAttributeForSelection", {componentId: componentId, property: property, value: e.currentTarget.value || e.currentTarget.textContent});
+  var target = e.currentTarget;
+  var value = target.checked !== undefined ? target.checked : target.value !== undefined ? target.value : target.textContent;
+  dispatch("setAttributeForSelection", {componentId: componentId, property: property, value: value});
 }
+
+// Map attribute handler
+function setMapAttribute(e, elem) {
+  var componentId = elem.key[0];
+  var property = elem.key[1];
+  var target = e.currentTarget;
+  var value = target.checked !== undefined ? target.checked : target.value !== undefined ? target.value : target.textContent;
+  dispatch("setMapAttributeForSelection", {componentId: componentId, property: property, value: value});
+}
+
 
 // Ui layer handlers
 function addLayer(e, elem) {
@@ -2664,6 +2746,11 @@ function initIndexer() {
   add("uiBoxSelection", {tx: "number", component: "id", x0: "number", y0: "number", x1: "number", y1: "number"}, [], "uiBoxSelection", ["table"]);
   add("uiStyle", {tx: "number", id: "id", type: "string", element: "id"}, [], "uiStyle", ["table"]);
   add("uiGroupBinding", {group: "id", union: "id"}, [], "uiGroupBinding", ["table"]);
+
+  // map ui views
+  add("uiMap", {tx: "number", id: "id", element: "id", lat: "number", lng: "number", zoom: "number"}, [], "uiMap");
+  add("uiMapAttr", {id: "id", property: "string", value: "string"}, [], "uiMapAttr");
+  add("uiMapMarker", {id: "id", map: "id", lat: "number", lng: "number"}, [], "uiMapAttr");
 
   // rendered ui views
   add("uiRenderedElement", {id: "id", client: "id", type: "string", parent: "id", pos: "number"}, [], "uiRenderedElement");

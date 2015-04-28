@@ -83,6 +83,9 @@ select.input { font-size: 0.9em;}
 .ui-canvas .control.selected { border: 1px solid #555; }
 .ui-canvas .control { position:absolute; background-size:contain !important; background-repeat: no-repeat !important; }
 
+.ui-canvas .control.map .map-overlay { display: flex; width: 100%; z-index: 2; background: rgba(0, 0, 0, 0.3); }
+.ui-canvas .control.map .map-overlay > span { margin: auto; background: rgba(0, 0, 0, 0.5); box-shadow: 0 0 5px 10px rgba(0, 0, 0, 0.5); }
+
 .ui-box-selection { position: absolute; border: 1px solid #555; pointer-events: none; z-index: 101; }
 
 .selection { position:absolute; border: 1px solid #555; pointer-events: none; z-index:100; }
@@ -106,13 +109,13 @@ select.input { font-size: 0.9em;}
 .layers .ion-eye-disabled { color: #f88; }
 .layers .ion-eye-disabled { color: #f88; }
 .layers .ion-locked { color: #f88; }
-.hidden { display:none; }
+.hidden { display:none !important; }
 .locked { pointer-events: none; }
 
 .inspector-panel { flex-direction:column; margin-bottom:1px; }
 .inspector-panel .pair + .pair { margin-top:1px; }
 .inspector-panel .label { padding: 5px; }
-.inspector-panel .input { background: #111; flex:1; padding:5px; }
+.inspector-panel .input { background: #111; flex:1; padding:5px; align-self: center; }
 .inspector-panel > div.title { font-size: 1em; background: transparent; vertical-align: bottom; margin-bottom: 1px; margin-top: 0.5em; }
 
 .color-picker { flex: 1; }
