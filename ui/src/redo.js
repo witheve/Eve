@@ -692,28 +692,51 @@ function endBoxSelect(evt, el) {
 //---------------------------------------------------------
 // ui control
 //---------------------------------------------------------
+var uiMapEl = {};
 
 var uiCustomControlRender = {
   map: function(elem) {
     elem.children = elem.children || [];
     elem.children.push({c: "map-overlay", children: [
       {t: "span", text: "Map not interactive in development"}]});
+
+    var uiMap = ixer.index("uiElementToMap")[elem.id];
     elem.postRender = function(container) {
       if(!container.rendered) {
-        var opts = {
-          center: {lat: -34.397, lng: 150.644},
-          zoom: 8,
-          noClear: true,
-          disableDefaultUI: true,
-          draggable: false};
-        var map = new google.maps.Map(container, opts);
-
+        // @TODO: test for and handle binding.
+        var opts = {};
+        opts.noClear = true;
+        opts.disableDefaultUI = true;
+        opts.draggable = false;
+        uiMapEl[uiMap[1]] = new google.maps.Map(container, opts);
         container.rendered = true;
       }
     }
     return elem;
   }
 };
+
+function renderMapDiffs(diffs) {
+  var adds = diffs[1];
+  for(var ix = 0, len = adds.length; ix < len; ix++) {
+    var id = adds[ix][1];
+    var prop = adds[ix][2];
+    var value = adds[ix][3]; // @FIXME: Handle bindings
+    var mapEl = uiMapEl[id];
+    if(mapEl) {
+      var attr = ixer.index("uiMapAttr")[id];
+      if(prop === "lat") {
+        mapEl.panTo({lat: +value || 0, lng: +attr.lng || 0});
+      } else if(prop === "lng") {
+        mapEl.panTo({lat: +attr.lat || 0, lng: +value || 0});
+      } else if(prop === "zoom") {
+        mapEl.setZoom(+value);
+      } else {
+        console.error("Unknown map attr:", prop, "=", value);
+      }
+    }
+  }
+}
 
 function control(cur, attrs, selected, layer) {
   var id = cur[1];
@@ -792,7 +815,8 @@ function inspector(componentId, selectionInfo, layers, activeLayer) {
       return cur[4] === "map";
     });
     if(showMapInspector) {
-      inspectors.push(mapInspector(selectionInfo, binding));
+      var mapInfo = getMapGroupInfo(selectionInfo.elements, true)
+      inspectors.push(mapInspector(selectionInfo, mapInfo, binding));
     }
   } else if(activeLayer) {
     inspectors.push(layerInspector(activeLayer, elements));
@@ -901,16 +925,15 @@ function layerInspector(layer, elements) {
 }
 
 uiProperties.map = [];
-function mapInspector(selectionInfo, binding) {
+function mapInspector(selectionInfo, mapInfo, binding) {
   var componentId = selectionInfo.componentId;
-  var attrs = {};
-
+  var attrs = mapInfo.attributes;
   return {c: "inspector-panel", children: [
     {c: "title", text: "Map"},
     {c: "pair", children: [{c: "label", text: "lat."},
-                          inspectorInput(attrs["lattitude"], [componentId, "lattitude"], setMapAttribute, binding)]},
+                          inspectorInput(attrs["lat"], [componentId, "lat"], setMapAttribute, binding)]},
     {c: "pair", children: [{c: "label", text: "long."},
-                          inspectorInput(attrs["longitude"], [componentId, "longitude"], setMapAttribute, binding)]},
+                          inspectorInput(attrs["lng"], [componentId, "lng"], setMapAttribute, binding)]},
     {c: "pair", children: [{c: "label", text: "zoom"},
                           inspectorInput(attrs["zoom"], [componentId, "zoom"], setMapAttribute, binding)]},
     {c: "pair", children: [{c: "label", text: "interactive"},
@@ -1175,6 +1198,22 @@ function selection(selectionInfo) {
             resizeHandle(componentId, bounds, "middle", "left"),
             {c: "trash ion-ios-trash", componentId: componentId, mousedown:stopPropagation, click: deleteSelection},
           ]};
+}
+
+function getMapGroupInfo(elements) {
+  var attrs = {};
+  var els = elements.map(function(cur) {
+    var uiMap = ixer.index("uiElementToMap")[cur[1]];
+    var mapAttr = ixer.index("uiMapAttr")[uiMap[1]] || {};
+    var props = Object.keys(mapAttr);
+    for(var ix = 0, len = props.length; ix < len; ix++) {
+      var prop = props[ix];
+      if(attrs[prop] === undefined) { attrs[prop] = mapAttr[prop]; }
+      else if(attrs[prop] !== mapAttr[prop]) { attrs[prop] = null; }
+    }
+  });
+
+  return {attributes: attrs};
 }
 
 function getGroupInfo(elements, withAttributes) {
@@ -2039,6 +2078,16 @@ function dispatch(event, info, returnInsteadOfSend) {
                  ["uiStyle", "inserted", [txId, typStyleId, "typography", elemId]],
                  ["displayName", "inserted", [txId, appStyleId, styleName]],
                  ["displayName", "inserted", [txId, typStyleId, styleName]]);
+
+      // @TODO: Instead of hardcoding, have a map of special element diff handlers.
+      if(info.control === "map") {
+        var mapId = uuid();
+        diffs.push(["uiMap", "inserted", [txId, mapId, elemId, 0, 0, 4]],
+                   ["uiMapAttr", "inserted", [txId, mapId, "lat", 0]],
+                   ["uiMapAttr", "inserted", [txId, mapId, "lng", 0]],
+                   ["uiMapAttr", "inserted", [txId, mapId, "zoom", 0]]);
+      }
+
       diffs.push.apply(diffs, dispatch("selectElements", {componentId: info.componentId,
                                                           createNew: true,
                                                           elements: [neue[1]]},
@@ -2080,6 +2129,15 @@ function dispatch(event, info, returnInsteadOfSend) {
         diffs.push.apply(diffs, code.ui.updateAttribute(styleId, info.property, info.value, txId));
       });
       break;
+    case "setMapAttribute":
+      info.elements.forEach(function(cur) {
+        var id = cur[1];
+        var mapId = ixer.index("uiElementToMap")[id][1];
+        var neue = [txId, mapId, info.property, info.value];
+        diffs.push(["uiMapAttr", "inserted", neue]);
+      });
+      break;
+
     case "clearSelection":
       var sel = getUiSelection(info.componentId);
       if(sel && !ixer.index("remove")[sel[0]]) {
@@ -2139,6 +2197,11 @@ function dispatch(event, info, returnInsteadOfSend) {
       var sel = ixer.index("uiSelection")[client][info.componentId];
       var els = ixer.index("uiSelectionElements")[sel[1]];
       diffs = dispatch("setUiAttribute", {elements: els, property: info.property, value: info.value}, true);
+      break;
+    case "setMapAttributeForSelection":
+      var sel = ixer.index("uiSelection")[client][info.componentId];
+      var els = ixer.index("uiSelectionElements")[sel[1]];
+      diffs = dispatch("setMapAttribute", {elements: els, property: info.property, value: info.value}, true);
       break;
     case "setSelectionStyle":
       var sel = ixer.index("uiSelection")[client][info.componentId];
@@ -2698,6 +2761,9 @@ ixer.addIndex("uiStyleToAttr", "uiComponentAttribute", Indexing.create.latestLoo
 ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.latestCollector({keys: [1], uniqueness: [2]}));
 ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup([0, 1]));
 
+ixer.addIndex("uiElementToMap", "uiMap", Indexing.create.latestLookup({keys: [2, false]}));
+ixer.addIndex("uiMapAttr", "uiMapAttr", Indexing.create.latestLookup({keys: [1, 2, 3]}));
+
 
 // State
 ixer.addIndex("searchValue", "searchValue", Indexing.create.latestLookup({keys: [1, 2]}));
@@ -2748,7 +2814,7 @@ function initIndexer() {
   add("uiGroupBinding", {group: "id", union: "id"}, [], "uiGroupBinding", ["table"]);
 
   // map ui views
-  add("uiMap", {tx: "number", id: "id", element: "id", lat: "number", lng: "number", zoom: "number"}, [], "uiMap");
+  add("uiMap", {tx: "number", id: "id", element: "id"}, [], "uiMap");
   add("uiMapAttr", {id: "id", property: "string", value: "tuple"}, [], "uiMapAttr");
   add("uiMapMarker", {id: "id", map: "id", lat: "number", lng: "number"}, [], "uiMapMarker");
 
@@ -2820,6 +2886,17 @@ function connectToServer() {
           uiDiffs.element = diff;
         } else if(diff[0] === "uiRenderedAttr") {
           uiDiffs.attr = diff;
+        } else if(diff[0] === "uiMapAttr") {
+          renderMapDiffs(diff);
+        } else if(diff[0] === "uiComponentElement") {
+          // @FIXME: Hacky. This needs to be called after each size change in dev and production for map controls.
+          diff[1].forEach(function(cur) {
+            if(cur[4] === "map") {
+              var map = ixer.index("uiElementToMap")[cur[1]];
+              var mapEl = uiMapEl[map[1]];
+              google.maps.event.trigger(mapEl, "resize");
+            }
+          });
         }
       }
 
