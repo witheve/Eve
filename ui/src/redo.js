@@ -2749,8 +2749,8 @@ function initIndexer() {
 
   // map ui views
   add("uiMap", {tx: "number", id: "id", element: "id", lat: "number", lng: "number", zoom: "number"}, [], "uiMap");
-  add("uiMapAttr", {id: "id", property: "string", value: "string"}, [], "uiMapAttr");
-  add("uiMapMarker", {id: "id", map: "id", lat: "number", lng: "number"}, [], "uiMapAttr");
+  add("uiMapAttr", {id: "id", property: "string", value: "tuple"}, [], "uiMapAttr");
+  add("uiMapMarker", {id: "id", map: "id", lat: "number", lng: "number"}, [], "uiMapMarker");
 
   // rendered ui views
   add("uiRenderedElement", {id: "id", client: "id", type: "string", parent: "id", pos: "number"}, [], "uiRenderedElement");
