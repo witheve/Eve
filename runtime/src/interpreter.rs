@@ -69,7 +69,7 @@ pub fn evaluate(e: & Expression, result: &Vec<Value>) -> Value {
 fn eval_expression(e: &Expression, result: &Vec<Value>) -> Value {
 
 	match *e {
-		Expression::Ref(ref r) => r.resolve(result,None).clone(),
+		Expression::Ref(ref r) => resolve_ref(r,result).clone(),
 		Expression::Call(ref c) => eval_call(c,result),
 		Expression::Match(ref m) => eval_match(m,result),
 		Expression::Variable(ref v) => panic!("TODO: Evaluate Variable {:?}",v),
@@ -219,11 +219,10 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 
 			assert_eq!(c.args.len(),1);
 
-			let sum = rel.iter()
-						 .map(|r| r[get_ref_column(&c.args[0])].clone())
+			let sum = get_ref_column(&rel,&c.args[0]).iter()
 						 .fold(0f64,|acc,x| {
 							acc + match x {
-								Value::Float(y) => y,
+								&Value::Float(y) => y,
 							  	other => panic!("Cannot accumulate {:?}",other),
 						 	}
 						 });
@@ -234,11 +233,10 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 
 			assert_eq!(c.args.len(),1);
 
-			let prod = rel.iter()
-						 .map(|r| r[get_ref_column(&c.args[0])].clone())
+			let prod = get_ref_column(&rel,&c.args[0]).iter()
 						 .fold(1f64,|acc,x| {
 							acc * match x {
-								Value::Float(y) => y,
+								&Value::Float(y) => y,
 							  	other => panic!("Cannot accumulate {:?}",other),
 						 	}
 						 });
@@ -250,12 +248,11 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 
 			assert_eq!(c.args.len(),1);
 
-			let max = rel.iter()
-						 .map(|r| r[get_ref_column(&c.args[0])].clone())
-						 .max();
+			let column = get_ref_column(&rel,&c.args[0]);
+			let max = column.iter().max();
 
 			match max {
-				Some(x) => x,
+				Some(x) => x.clone(),
 				None => panic!("Could not compare elements."),
 			}
 		},
@@ -263,12 +260,11 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 
 			assert_eq!(c.args.len(),1);
 
-			let min = rel.iter()
-						 .map(|r| r[get_ref_column(&c.args[0])].clone())
-						 .min();
+			let column = get_ref_column(&rel,&c.args[0]);
+			let min = column.iter().min();
 
 			match min {
-				Some(x) => x,
+				Some(x) => x.clone(),
 				None => panic!("Could not compare elements."),
 			}
 		},
@@ -294,14 +290,33 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 }
 
 // This is as little hacky, but works for now
-fn get_ref_column(e: &Expression) -> usize {
+fn get_ref_column(rel: &Relation, e: &Expression) -> Vec<Value> {
 
-	match e {
-		&Expression::Ref(ref r) => match r {
-			&Ref::Value{column,..} => column,
-			_ => panic!("Expected Ref::Value"),
+	let column = match e {
+		&Expression::Ref(ref r) => {
+			match r {
+				&Ref::Value{column,..} => {
+					column
+				},
+				_ => panic!("Expected Ref::Value"),
+			}
 		},
-		_ => panic!("Expected Expression::Ref"),
-	}
+		_ => panic!("Expected an Expression::Ref"),
+	};
 
+	rel.iter().map(|r| r[column].clone()).collect::<Vec<_>>().clone()
+}
+
+fn resolve_ref<'a>(reference: &'a Ref, result: &'a Vec<Value>) -> &'a Value {
+	match *reference {
+	    Ref::Value{clause, ..} => {
+			match result[clause] {
+			    Value::Relation(_) => {
+			    	&result[clause]
+			    },
+			    _ => reference.resolve(result,None),
+			}
+	    },
+	    _ => reference.resolve(result,None),
+	}
 }
