@@ -50,7 +50,7 @@ impl Value {
     }
     pub fn to_f64(&self) -> Option<f64> {
         match *self {
-            Value::Float(float) => Some(float as f64),
+            Value::Float(float) => Some(float),
             _ => None,
         }
     }
