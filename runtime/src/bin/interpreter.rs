@@ -24,13 +24,7 @@ macro_rules! exprvec {
 #[allow(dead_code)]
 fn main() {
 
-	/*
-	let c1 = Call{fun: EveFn::Sum, args: exprvec![1.3,2]};
-	let result = evaluate(&c1.to_expr(),&vec![]);
-	println!("{:?}",result);
-	*/
 }
-
 
 #[test]
 fn match_test(){
@@ -44,7 +38,7 @@ fn match_test(){
 					     Pattern::Constant(Ref::Constant{value: 4.to_value()}),
 					     Pattern::Constant(Ref::Constant{value: 5.to_value()}),
 					   );
-	let handlers2 = exprvec!["oneone","twotwo","threethree","fourfour","fivefive"];
+	let handlers2 = exprvec!["oneone","twotwo","threethree","fourfour","fivefive","no match"];
 
 	let m2 = Match{input: input2, patterns: patterns2, handlers: handlers2};
 
@@ -61,7 +55,7 @@ fn match_test(){
 					     Pattern::Constant(Ref::Constant{value: 4.to_value()}),
 					     Pattern::Constant(Ref::Constant{value: 5.to_value()}),
 					   );
-	let handlers = exprvec!["one","two",m2,"four","five"];
+	let handlers = exprvec!["one","two",m2,"four","five","no match"];
 
 	let m1 = Match{input: input, patterns: patterns, handlers: handlers};
 
@@ -69,7 +63,6 @@ fn match_test(){
 
 	assert_eq!(result,"fourfour".to_value());
 }
-
 
 #[test]
 fn opstest() {
@@ -93,6 +86,12 @@ fn stringtest() {
 	let c1 = Call{fun: EveFn::StrReplace, args: exprvec!["Hello World","l","q"] };
 	let result = evaluate(&c1.to_expr(),&vec![]);
 	assert_eq!(result.as_str(),"Heqqo Worqd");
+
+	// Test splitting words
+	let c1 = Call{fun: EveFn::StrSplit, args: exprvec!["Hello World"] };
+	let result = evaluate(&c1.to_expr(),&vec![]);
+	assert_eq!(result[0].as_str(),"Hello");
+	assert_eq!(result[1].as_str(),"World");
 
 }
 
@@ -165,7 +164,6 @@ fn bigmathtest() {
 	assert_eq!(result,(2f64*ma/(wa*rh*va*mu.cos())*(gd+g*ga.cos()/va-wx*(ga.sin().powf(2f64))*ps.sin())).to_value());
 
 }
-
 
 #[bench]
 fn opsbench(b: &mut test::Bencher) {

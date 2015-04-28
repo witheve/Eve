@@ -5,7 +5,6 @@ use websocket::server::sender;
 use websocket::stream::WebSocketStream;
 use std::io::prelude::*;
 use std::fs::OpenOptions;
-use std::num::ToPrimitive;
 use rustc_serialize::json::{Json, ToJson};
 
 use value::{Value, Tuple};
@@ -36,15 +35,15 @@ impl FromJson for Value {
             Json::Boolean(bool) => Value::Bool(bool),
             Json::String(ref string) => Value::String(string.clone()),
             Json::F64(float) => Value::Float(float),
-            Json::I64(int) => Value::Float(int.to_f64().unwrap()),
-            Json::U64(uint) => Value::Float(uint.to_f64().unwrap()),
+            Json::I64(int) => Value::Float(int as f64),
+            Json::U64(uint) => Value::Float(uint as f64),
             Json::Array(ref array) => Value::Tuple(array.iter().map(|j| Value::from_json(j, next_eid)).collect()),
             Json::Object(ref object) => {
                 assert!(object.len() == 1);
                 match object.get("eid") {
                     Some(value) => {
                         assert_eq!(value.as_string().unwrap(), "auto");
-                        let eid = next_eid.to_f64().unwrap();
+                        let eid = next_eid.clone() as f64;
                         *next_eid += 1;
                         Value::Float(eid)
                     }
@@ -199,7 +198,7 @@ pub fn run() {
                         })
                     }
                     ServerEvent::Message(input_text) => {
-                        time!("sending update", {
+                        time!("applying update", {
                             println!("{:?}", input_text);
                             let json = Json::from_str(&input_text).unwrap();
                             let input_event: Event = FromJson::from_json(&json, next_eid);
@@ -211,17 +210,21 @@ pub fn run() {
                 }
             }
 
-            flow = flow.compile_and_run();
-            let changes = flow.take_changes();
-            let output_event = Event{changes: changes};
-            let output_text = format!("{}", output_event.to_json());
-            events.flush().unwrap();
-            for sender in senders.iter_mut() {
-                match sender.send_message(Message::Text(output_text.clone())) {
-                    Ok(_) => (),
-                    Err(error) => println!("Send error: {}", error),
-                };
-            }
+            time!("running batch", {
+                flow = flow.compile_and_run();
+            });
+            time!("sending update", {
+                let changes = flow.take_changes();
+                let output_event = Event{changes: changes};
+                let output_text = format!("{}", output_event.to_json());
+                events.flush().unwrap();
+                for sender in senders.iter_mut() {
+                    match sender.send_message(Message::Text(output_text.clone())) {
+                        Ok(_) => (),
+                        Err(error) => println!("Send error: {}", error),
+                    };
+                }
+            });
         })
     }
 }

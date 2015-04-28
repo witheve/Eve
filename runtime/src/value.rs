@@ -1,5 +1,4 @@
 use std::ops;
-use std::num::ToPrimitive;
 use std::cmp::Ordering;
 
 use index::Index;
@@ -35,27 +34,6 @@ impl ops::Index<usize> for Value {
     }
 }
 
-impl ToPrimitive for Value {
-    fn to_f64(&self) -> Option<f64> {
-        match *self {
-            Value::Float(ref float) => float.to_f64(),
-            _ => None,
-        }
-    }
-    fn to_i64(&self) -> Option<i64> {
-        match *self {
-            Value::Float(ref float) => float.to_i64(),
-            _ => None,
-        }
-    }
-    fn to_u64(&self) -> Option<u64> {
-        match *self {
-            Value::Float(ref float) => float.to_u64(),
-            _ => None,
-        }
-    }
-}
-
 impl Value {
     pub fn as_str(&self) -> &str {
         match *self {
@@ -68,6 +46,38 @@ impl Value {
         match *self {
             Value::Tuple(ref tuple) => &*tuple,
             _ => panic!("Cannot convert this to tuple: {:?}", self),
+        }
+    }
+    pub fn to_f64(&self) -> Option<f64> {
+        match *self {
+            Value::Float(float) => Some(float as f64),
+            _ => None,
+        }
+    }
+    pub fn to_i64(&self) -> Option<i64> {
+        match *self {
+            Value::Float(float) => {
+                let result = float as i64;
+                if float == (result as f64) {
+                    Some(result)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+    pub fn to_usize(&self) -> Option<usize> {
+        match *self {
+            Value::Float(float) => {
+                let result = float as usize;
+                if float == (result as f64) {
+                    Some(result)
+                } else {
+                    None
+                }
+            },
+            _ => None,
         }
     }
 }

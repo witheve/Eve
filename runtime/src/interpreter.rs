@@ -27,7 +27,7 @@ pub enum EveFn {
 	Sin,Cos,Tan,ASin,ACos,ATan,ATan2,
 
 	// Aggregates
-	Sum,Prod,
+	Sum,Prod,Min,Max,
 
 	// Relations
 	Limit,
@@ -70,8 +70,11 @@ pub struct Call {
 	pub args: ExpressionVec,
 }
 
-// Some type aliases
-pub type Variable = String;
+#[derive(Clone,Debug)]
+pub struct Variable {
+	pub variable: String,
+}
+
 pub type PatternVec = Vec<Pattern>;
 pub type ExpressionVec = Vec<Expression>;
 
@@ -98,7 +101,7 @@ fn eval_match(m: &Match, result: &Vec<Value>) -> Value {
 
 	// Before we do anything, make sure we have the same number of patterns and
 	// handlers
-	assert_eq!(m.patterns.len(),m.handlers.len());
+	assert_eq!(m.patterns.len(),m.handlers.len()-1);
 
 	let input = eval_expression(&m.input,result);
 
@@ -119,7 +122,9 @@ fn eval_match(m: &Match, result: &Vec<Value>) -> Value {
 		}
 	};
 
-	Value::String(String::from_str("TODO: No match found"))
+	// The last handler is used to perform the default case
+	eval_expression(&m.handlers.iter().last().unwrap(),result)
+
 }
 
 
@@ -175,7 +180,7 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 		(&StrLength,[Value::String(ref s)]) => Float(s.len() as f64),
 		(&StrReplace,[Value::String(ref s),Value::String(ref q),Value::String(ref r)]) => Value::String(s.replace(&q[..],&r[..])),
 		(&StrSplit,[Value::String(ref s)]) => {
-			let w: Vec<Value> = s.words().map(|x| Value::String(String::from_str(x))).collect();
+			let w: Vec<Value> = s.split_whitespace().map(|x| Value::String(String::from_str(x))).collect();
 			Value::Tuple(w)
 		},
 
@@ -195,17 +200,48 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 
 			Value::Float(sum)
 		},
+		(&Prod,[Value::Relation(ref rel)]) => {
 
-		/*
-		(&Prod,[Value::Tuple(ref x)]) => {
-			Value::Float(x.iter().fold(1f64, |acc: f64, ref item| {
-				match item {
-					&&Value::Float(ref y) => acc*y,
-					x => panic!("Cannot aggregate {:?}",x),
-				}
-			}))
+			assert_eq!(c.args.len(),1);
+
+			let prod = rel.iter()
+						 .map(|r| r[get_ref_column(&c.args[0])].clone())
+						 .fold(1f64,|acc,x| {
+							acc * match x {
+								Value::Float(y) => y,
+							  	other => panic!("Cannot accumulate {:?}",other),
+						 	}
+						 });
+
+			Value::Float(prod)
 		},
-		*/
+		// TODO should min/max with columns of mixed types throw an error?
+		(&Max,[Value::Relation(ref rel)]) => {
+
+			assert_eq!(c.args.len(),1);
+
+			let max = rel.iter()
+						 .map(|r| r[get_ref_column(&c.args[0])].clone())
+						 .max();
+
+			match max {
+				Some(x) => x,
+				None => panic!("Could not compare elements."),
+			}
+		},
+		(&Min,[Value::Relation(ref rel)]) => {
+
+			assert_eq!(c.args.len(),1);
+
+			let min = rel.iter()
+						 .map(|r| r[get_ref_column(&c.args[0])].clone())
+						 .min();
+
+			match min {
+				Some(x) => x,
+				None => panic!("Could not compare elements."),
+			}
+		},
 
 		// Relation returning functions
 		(&Limit,[Value::Relation(ref rel),Float(n)]) => {
