@@ -357,9 +357,15 @@ fn create_union(compiler: &Compiler, view_id: &Value) -> Union {
             let sink_field_ix = get_field_ix(&compiler.flow, sink_field_id);
             field_mappings[sink_field_ix] = Some(source_ref);
         }
-        let field_mappings = field_mappings.drain().map(|reference| reference.unwrap()).collect();
         let num_source_fields = get_num_fields(&compiler.flow, source_view_id);
-        view_mappings.push((num_source_fields, field_mappings));
+        // TODO this should be checked by the validator
+        if field_mappings.iter().any(|reference| reference.is_none()) {
+            println!("Warning, missing field mappings on view mapping: {:?}", view_mapping_id);
+            view_mappings.push((num_source_fields, vec![])); // TODO total hack
+        } else {
+            let field_mappings = field_mappings.drain().map(|reference| reference.unwrap()).collect();
+            view_mappings.push((num_source_fields, field_mappings));
+        }
     }
     Union{mappings: view_mappings}
 }
