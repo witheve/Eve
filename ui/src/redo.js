@@ -709,7 +709,7 @@ var uiCustomControlRender = {
         if(uiMapContainerEl[uiMap[1]]) {
           container = uiMapContainerEl[uiMap[1]];
         } else {
-          var opts = {noClear: true, disableDefaultUI: true, draggable: false};
+          var opts = {noClear: true, disableDefaultUI: true, draggable: false, center: {lat: 0, lng: 0}, zoom: 2};
           container = document.createElement("div");
           container.className = "full-size-wrapper";
           uiMapEl[uiMap[1]] = new google.maps.Map(container, opts);
@@ -723,54 +723,6 @@ var uiCustomControlRender = {
   }
 };
 
-function renderMapDiffs(diffs) {
-  var adds = diffs[1];
-  for(var ix = 0, len = adds.length; ix < len; ix++) {
-    var id = adds[ix][1];
-    var prop = adds[ix][2];
-    var value = adds[ix][3]; // @FIXME: Handle bindings
-    var mapEl = uiMapEl[id];
-    if(mapEl) {
-      var attr = ixer.index("uiMapAttr")[id] || {};
-      if(prop === "lat") {
-        mapEl.panTo({lat: +value || 0, lng: +attr.lng || 0});
-      } else if(prop === "lng") {
-        mapEl.panTo({lat: +attr.lat || 0, lng: +value || 0});
-      } else if(prop === "zoom") {
-        mapEl.setZoom(+value);
-      } else {
-        console.error("Unknown map attr:", prop, "=", value);
-      }
-    }
-  }
-}
-
-function renderMapMarkerDiffs(diffs) {
-  console.log(diffs);
-  var removes = diffs[2];
-  for(var ix = 0, len = removes.length; ix < len; ix++) {
-    var cur = removes[ix];
-    console.log("remove", cur);
-    var marker = uiMapMarkerEl[cur[0]];
-    if(!marker) { continue; }
-    marker.setMap(null);
-    uiMapMarkerEl[cur[0]] = null;
-  }
-
-  var adds = diffs[1];
-  for(var ix = 0, len = adds.length; ix < len; ix++) {
-    var cur = adds[ix];
-    console.log("add", cur);
-    var mapEl = uiMapEl[cur[1]];
-    if(!mapEl) { console.error("Cannot add marker before map is initialized."); continue; }
-    var marker = new google.maps.Marker({
-      position: {lat: +cur[2], lng: +cur[3]},
-      map: mapEl,
-      title: code.name(cur[0]) || ""
-    });
-    uiMapMarkerEl[cur[0]] = marker;
-  }
-}
 
 function control(cur, attrs, selected, layer) {
   var id = cur[1];
@@ -2849,6 +2801,7 @@ function initIndexer() {
 
   // map ui views
   add("uiMap", {tx: "number", id: "id", element: "id"}, [], "uiMap");
+  add("uiRenderedMap", {tx: "number", id: "id", element: "id"}, [], "uiMap");
   add("uiMapAttr", {id: "id", property: "string", value: "tuple"}, [], "uiMapAttr");
   add("uiMapMarker", {id: "id", map: "id", lat: "number", lng: "number"}, [], "uiMapMarker");
 
@@ -2876,6 +2829,11 @@ function initIndexer() {
 //---------------------------------------------------------
 // Websocket
 //---------------------------------------------------------
+
+var ENVIRONMENT = "dev";
+if(ENVIRONMENT === "prod") {
+  document.body.appendChild(uiRenderer.__storage.renderCache.root);
+}
 
 var server = {connected: false, queue: [], initialized: false, lastSent: []};
 function connectToServer() {
@@ -2914,14 +2872,19 @@ function connectToServer() {
       rerender();
 
       var uiDiffs = {};
+      var mapDiffs = {};
       for(var ix = 0, len = data.changes.length; ix < len; ix++) {
         var diff = data.changes[ix];
         if(diff[0] === "uiRenderedElement") {
           uiDiffs.element = diff;
         } else if(diff[0] === "uiRenderedAttr") {
           uiDiffs.attr = diff;
+        } else if(diff[0] === "uiMap") {
+          mapDiffs.element = diff;
         } else if(diff[0] === "uiMapAttr") {
-          renderMapDiffs(diff);
+          mapDiffs.attr = diff;
+        } else if(diff[0] === "uiMapMarker") {
+          mapDiffs.marker = diff;
         } else if(diff[0] === "uiComponentElement") {
           // @FIXME: Hacky. This needs to be called after each size change in dev and production for map controls.
           diff[1].forEach(function(cur) {
@@ -2933,13 +2896,14 @@ function connectToServer() {
               }
             }
           });
-        } else if(diff[0] === "uiMapMarker") {
-          renderMapMarkerDiffs(diff);
         }
       }
 
       if(uiDiffs.element || uiDiffs.attr) {
         uiRenderer.renderDiffs(uiDiffs.element, uiDiffs.attr);
+      }
+      if(mapDiffs.element || mapDiffs.attr || mapDiffs.marker) {
+        uiRenderer.renderMapDiffs(mapDiffs.element, mapDiffs.attr, mapDiffs.marker);
       }
     }
   };
