@@ -216,7 +216,6 @@ fn match_test() {
                     ("constant","two").to_tuple(),
                     ("constant","three").to_tuple(),
                     ("constant","four").to_tuple(),
-                    ("constant","no match").to_tuple(),
                     ).to_tuple();
 
     let m1 = ("match",i1,patterns.clone(),handlers.clone()).to_tuple();
