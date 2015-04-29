@@ -24,25 +24,67 @@ macro_rules! exprvec {
 #[allow(dead_code)]
 fn main() {
 
+	let input1 = Expression::Ref(Ref::Constant{value: (1,2,3).to_tuple().to_value()});
+	let input2 = Expression::Ref(Ref::Constant{value: (2,"two").to_tuple().to_value()});
+	let input3 = Expression::Ref(Ref::Constant{value: (1,15,163.42).to_tuple().to_value()});
+
+	let patterns = vec!(
+						Pattern::Constant(Ref::Constant{value: (1,2,3).to_tuple().to_value()}),
+						Pattern::Tuple(
+								vec![
+									Pattern::Constant(Ref::Constant{value: 1.to_value()}),
+									Pattern::Constant(Ref::Constant{value: "two".to_value()}),
+									]
+								),
+						Pattern::Tuple(
+								vec![
+									Pattern::Constant(Ref::Constant{value: 2.to_value()}),
+									Pattern::Constant(Ref::Constant{value: "two".to_value()}),
+									]
+								),
+						Pattern::Tuple(
+								vec![
+									Pattern::Constant(Ref::Constant{value: 1.to_value()}),
+									Pattern::Variable(Variable{variable: "v1".to_string()}),
+									Pattern::Variable(Variable{variable: "v2".to_string()}),
+									]
+								),
+					    );
+
+	let c1 = Call{fun: EveFn::Add, args: exprvec![Variable{variable: "v1".to_string()},Variable{variable: "v2".to_string()}]};
+	let handlers = exprvec!["input1","none","input2",c1];
+
+	let m = Match{input: input1, patterns: patterns.clone(), handlers: handlers.clone()};
+	let result = evaluate(&m.clone().to_expr(),&vec![]);
+	println!("{:?}",result);
+
+	let m = Match{input: input2, patterns: patterns.clone(), handlers: handlers.clone()};
+	let result = evaluate(&m.clone().to_expr(),&vec![]);
+	println!("{:?}",result);
+
+	let m = Match{input: input3, patterns: patterns.clone(), handlers: handlers.clone()};
+	let result = evaluate(&m.clone().to_expr(),&vec![]);
+	println!("{:?}",result);
+
 }
 
 #[test]
 fn match_test(){
 
 	// Test a single match
-	let input2 = Expression::Ref(Ref::Constant{value: 4.to_value()});
+	let input = Expression::Ref(Ref::Constant{value: 4.to_value()});
 
-	let patterns2 = vec!(Pattern::Constant(Ref::Constant{value: 1.to_value()}),
+	let patterns = vec!(Pattern::Constant(Ref::Constant{value: 1.to_value()}),
 					     Pattern::Constant(Ref::Constant{value: 2.to_value()}),
 					     Pattern::Constant(Ref::Constant{value: 3.to_value()}),
 					     Pattern::Constant(Ref::Constant{value: 4.to_value()}),
 					     Pattern::Constant(Ref::Constant{value: 5.to_value()}),
 					   );
-	let handlers2 = exprvec!["oneone","twotwo","threethree","fourfour","fivefive","no match"];
+	let handlers = exprvec!["oneone","twotwo","threethree","fourfour","fivefive"];
 
-	let m2 = Match{input: input2, patterns: patterns2, handlers: handlers2};
+	let m1 = Match{input: input.clone(), patterns: patterns.clone(), handlers: handlers.clone()};
 
-	let result = evaluate(&m2.clone().to_expr(),&vec![]);
+	let result = evaluate(&m1.clone().to_expr(),&vec![]);
 
 	assert_eq!(result,"fourfour".to_value());
 
@@ -55,11 +97,11 @@ fn match_test(){
 					     Pattern::Constant(Ref::Constant{value: 4.to_value()}),
 					     Pattern::Constant(Ref::Constant{value: 5.to_value()}),
 					   );
-	let handlers = exprvec!["one","two",m2,"four","five","no match"];
+	let handlers = exprvec!["one","two",m1,"four","five"];
 
-	let m1 = Match{input: input, patterns: patterns, handlers: handlers};
+	let m2 = Match{input: input, patterns: patterns, handlers: handlers};
 
-	let result = evaluate(&m1.to_expr(),&vec![]);
+	let result = evaluate(&m2.to_expr(),&vec![]);
 
 	assert_eq!(result,"fourfour".to_value());
 }
@@ -224,6 +266,46 @@ fn bigmathbench(b: &mut test::Bencher) {
 
 	b.iter(|| {
 		evaluate(&e1,&vec![])
+	});
+
+}
+
+#[bench]
+fn matchbench(b: &mut test::Bencher) {
+
+	//let input1 = Expression::Ref(Ref::Constant{value: (1,2,3).to_tuple().to_value()});
+	//let input2 = Expression::Ref(Ref::Constant{value: (2,"two").to_tuple().to_value()});
+	let input3 = Expression::Ref(Ref::Constant{value: (1,15,163.42).to_tuple().to_value()});
+
+	let patterns = vec!(
+						Pattern::Constant(Ref::Constant{value: (1,2,3).to_tuple().to_value()}),
+						Pattern::Tuple(
+								vec![
+									Pattern::Constant(Ref::Constant{value: 1.to_value()}),
+									Pattern::Constant(Ref::Constant{value: "two".to_value()}),
+									]
+								),
+						Pattern::Tuple(
+								vec![
+									Pattern::Constant(Ref::Constant{value: 2.to_value()}),
+									Pattern::Constant(Ref::Constant{value: "two".to_value()}),
+									]
+								),
+						Pattern::Tuple(
+								vec![
+									Pattern::Constant(Ref::Constant{value: 1.to_value()}),
+									Pattern::Variable(Variable{variable: "v1".to_string()}),
+									Pattern::Variable(Variable{variable: "v2".to_string()}),
+									]
+								),
+					    );
+
+	let c1 = Call{fun: EveFn::Add, args: exprvec![Variable{variable: "v1".to_string()},Variable{variable: "v2".to_string()}]};
+	let handlers = exprvec!["input1","none","input2",c1];
+
+	let m1 = Match{input: input3, patterns: patterns.clone(), handlers: handlers.clone()}.to_expr();
+	b.iter(|| {
+		evaluate(&m1,&vec![]);
 	});
 
 }

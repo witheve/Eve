@@ -185,7 +185,7 @@ fn constraint_test() {
 #[test]
 fn match_test() {
 
-    let a = vec![(0.0f64, 1.0f64, 2.0f64), (3.0f64, 2.0f64, 4.0f64)].to_relation();
+    let a = vec![(0.0f64, 1.0f64, 2.0f64), (3.0f64, 2.0f64,3.0f64)].to_relation();
 
     let p = vec!(Pattern::Constant(Ref::Constant{value: 0f64.to_value()}),
                  Pattern::Constant(Ref::Constant{value: 1f64.to_value()}),
@@ -197,7 +197,6 @@ fn match_test() {
                  Expression::Ref(Ref::Constant{value: "one".to_value()}),
                  Expression::Ref(Ref::Constant{value: "two".to_value()}),
                  Expression::Ref(Ref::Constant{value: "three".to_value()}),
-                 Expression::Ref(Ref::Constant{value: "no match".to_value()}),
                 );
 
     let i = Expression::Ref(Ref::Value{clause: 0, column: 2});
@@ -215,7 +214,7 @@ fn match_test() {
     }
 
     assert_eq!(resultvec[0][1],"two".to_value());
-    assert_eq!(resultvec[1][1],"no match".to_value());
+    assert_eq!(resultvec[1][1],"three".to_value());
 
 }
 

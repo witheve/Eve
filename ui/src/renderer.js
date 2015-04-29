@@ -1,7 +1,8 @@
-var uiRenderer = (function uiRenderer(document) {
+var uiRenderer = (function uiRenderer(document, google) {
   var root = document.createElement("div");
   root.id = "eve-root";
-  var renderedEls = {root: root};
+  var storage = {};
+  storage.renderCache = {root: root};
 
   function eveSortComparator(a, b) {
     if(a[0] !== b[0]) {
@@ -82,7 +83,7 @@ var uiRenderer = (function uiRenderer(document) {
 
 
   // @TODO: Svg, canvas, etc. support.
-  function createElement(type) {
+  function createElement(type, id) {
     switch(type) {
       case "button":
         return document.createElement("button");
@@ -102,8 +103,8 @@ var uiRenderer = (function uiRenderer(document) {
     var removedEls = elements[2];
     for(var ix = 0, len = removedEls.length; ix < len; ix++) {
       var id = removedEls[ix][1];
-      removed[id] = renderedEls[id];
-      renderedEls[id] = null;
+      removed[id] = storage.renderCache[id];
+      storage.renderCache[id] = null;
       if(removed[id].parentNode) {
         removed[id].parentNode.removeChild(removed[id]);
       }
@@ -117,7 +118,7 @@ var uiRenderer = (function uiRenderer(document) {
       var type = cur[2];
       var parentId = cur[3] || "root";
       var sortValue = cur[4];
-      var el = renderedEls[id] = createElement(type);
+      var el = storage.renderCache[id] = createElement(type, id);
       el.eveSortValue = sortValue;
       el.eveId = id;
       el.setAttribute("data-eve-id", id);
@@ -149,9 +150,9 @@ var uiRenderer = (function uiRenderer(document) {
 
       // Insert element into the DOM.
 
-      var parentEl = renderedEls[parentId];
+      var parentEl = storage.renderCache[parentId];
       if(!parentEl) {
-        renderedEls[parentId] = parentEl = createElement("box");
+        storage.renderCache[parentId] = parentEl = createElement("box");
       }
       if(parentEl.childNodes.length === 0) {
         parentEl.appendChild(el);
@@ -166,7 +167,7 @@ var uiRenderer = (function uiRenderer(document) {
       var cur = insertedAttrs[ix];
       var attr = cur[2];
       var value = cur[3];
-      var el = renderedEls[cur[0]];
+      var el = storage.renderCache[cur[0]];
       if(!cur) { console.error("Styled element does not exist:", el); continue; }
 
       switch(attr) {
@@ -223,11 +224,99 @@ var uiRenderer = (function uiRenderer(document) {
     dispatch("addUiKeyboardEvent", {element: id, type: type, value: el.value});
   }
 
+  // Map specific stuff
+  storage.mapCache = {
+    map: {},
+    container: {},
+    marker: {}
+  };
+  function renderMapDiffs(elements, attrs, markers) {
+    // @TODO: create elements.
+    if(elements) {
+      var removes = elements[2];
+      for(var ix = 0, len = removes.length; ix < len; ix++) {
+        var cur = removes[ix];
+        var map = storage.mapCache.map[cur[1]];
+        if(!map) { continue; }
+        storage.mapCache.map[cur[1]] = null;
+      }
+
+      var adds = elements[1];
+      for(var ix = 0, len = adds.length; ix < len; ix++) {
+        var cur = adds[ix];
+        var map = storage.mapCache.map[cur[1]];
+        var container = storage.mapCache.container[cur[1]];
+        if(!map) {
+          storage.mapCache.container[cur[1]] = container = document.createElement("div");
+          container.className = "full-size-wrapper";
+          storage.mapCache.map[cur[1]] = map = new google.maps.Map(container);
+        }
+
+        var parent = storage.renderCache[cur[2]];
+        if(!parent) {
+          throw new Error("Cannot insert map " + cur[1] + " into non-existent parent " + cur[2]);
+        }
+        parent.appendChild(container);
+      }
+    }
+
+    if(attrs) {
+      var adds = attrs[1];
+      for(var ix = 0, len = adds.length; ix < len; ix++) {
+        var id = adds[ix][1];
+        var prop = adds[ix][2];
+        var value = adds[ix][3]; // @FIXME: Handle bindings
+        var mapEl = storage.mapCache.map[id];
+        if(mapEl) {
+          // @FIXME: We can't rely on the indexer in production. How do we access facts?
+          var attr = ixer.index("uiMapAttr")[id] || {};
+          if(prop === "lat") {
+            mapEl.panTo({lat: +value || 0, lng: +attr.lng || 0});
+          } else if(prop === "lng") {
+            mapEl.panTo({lat: +attr.lat || 0, lng: +value || 0});
+          } else if(prop === "zoom") {
+            mapEl.setZoom(+value);
+          } else {
+            console.error("Unknown map attr:", prop, "=", value);
+          }
+        }
+      }
+    }
+
+    if(markers) {
+      var removes = markers[2];
+      for(var ix = 0, len = removes.length; ix < len; ix++) {
+        var cur = removes[ix];
+        var marker = storage.mapCache.marker[cur[0]];
+        if(!marker) { continue; }
+        marker.setMap(null);
+        storage.mapCache.marker[cur[0]] = null;
+      }
+
+      var adds = markers[1];
+      for(var ix = 0, len = adds.length; ix < len; ix++) {
+        var cur = adds[ix];
+        var mapEl = storage.mapCache.map[cur[1]];
+        if(!mapEl) { console.error("Cannot add marker before map is initialized."); continue; }
+        var marker = storage.mapCache.marker[cur[0]];
+        if(!marker) {
+          storage.mapCache.marker[cur[0]] = marker = new google.maps.Marker();
+        }
+        marker.setOptions({
+          position: {lat: +cur[2], lng: +cur[3]},
+          map: mapEl,
+          title: code.name(cur[0]) || ""
+        });
+      }
+    }
+  }
+
   return {
-    __renderedEls: renderedEls,
+    __storage: storage,
     eveSortComparator: eveSortComparator,
     insertChildSortedAsc: insertChildSortedAsc,
     insertChildSortedDesc: insertChildSortedDesc,
-    renderDiffs: renderDiffs
+    renderDiffs: renderDiffs,
+    renderMapDiffs: renderMapDiffs
   };
-})(window.document);
+})(window.document, google);
