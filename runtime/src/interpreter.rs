@@ -72,49 +72,74 @@ fn eval_expression(e: &Expression, result: &Vec<Value>) -> Value {
 		Expression::Ref(ref r) => resolve_ref(r,result).clone(),
 		Expression::Call(ref c) => eval_call(c,result),
 		Expression::Match(ref m) => eval_match(m,result),
-		Expression::Variable(ref v) => panic!("TODO: Evaluate Variable {:?}",v),
+		Expression::Variable(ref v) => eval_variable(v,result),
+	}
+}
+
+// Returns the value of the first matching variable in the results vector
+fn eval_variable(v: &Variable, result: &Vec<Value>) -> Value {
+
+	let find_variable = result.iter()
+							  .find(|value| {
+									match *value {
+										&Value::Tuple(ref x) => {
+											match &x[..] {
+												[Value::String(ref s),_] => {
+													if v.variable == s.clone() {
+														true
+													}
+													else { false }
+
+												},
+												_ => false,
+											}
+										},
+										_ => false,
+									}
+								});
+
+	match find_variable {
+		Some(x) => x[1].clone(),
+		None => panic!("Could not match {:?} to a pattern.",v),
 	}
 }
 
 
 fn eval_match(m: &Match, result: &Vec<Value>) -> Value {
 
-	// Before we do anything, make sure we have the correct number of patterns
-	// and handlers
-	assert_eq!(m.patterns.len(),m.handlers.len()-1);
-
+	// Make sure we have the correct number of patterns and handlers
+	assert_eq!(m.patterns.len(),m.handlers.len());
 
 	let input = eval_expression(&m.input,result);
 
 	for (pattern, handler) in m.patterns.iter().zip(m.handlers.iter()) {
 		match test_pattern(&input,&pattern) {
-			PatternTestResult::False => continue,
-			_ => return eval_expression(&handler,result),
+			(false, _) => continue,
+			(true, None) => return eval_expression(&handler,result),
+			(true, Some(ref x)) => {
+				let mut pattern_result: Vec<Value> = Vec::new();
+				pattern_result.push_all(result);
+				pattern_result.push_all(x);
+				return eval_expression(&handler,&pattern_result)
+			},
 		}
 	};
 
 	// The last handler is used to perform the default case
-	eval_expression(&m.handlers.iter().last().unwrap(),result)
+	panic!("Could not match {:?} to any pattern",input);
 
 }
 
-#[derive(Clone,Debug)]
-enum PatternTestResult {
-	True,
-	False,
-	Variables(Vec<Value>),
-}
-
-fn test_pattern(input: &Value, pattern: &Pattern) -> PatternTestResult {
+fn test_pattern(input: &Value, pattern: &Pattern) -> (bool,Option<Vec<Value>>) {
 
 	match pattern {
 		&Pattern::Constant(ref c) => {
 			match c {
 				&Ref::Constant{ref value} => {
 					if input == value {
-						return PatternTestResult::True
+						return (true,None)
 					}
-					else { return PatternTestResult::False }
+					else { return (false,None) }
 				}
 				_ => panic!("Expected constant reference"),
 			}
@@ -123,37 +148,39 @@ fn test_pattern(input: &Value, pattern: &Pattern) -> PatternTestResult {
 			match input {
             	&Value::Tuple(ref input_tuple) => {
 
-            		// Only test the pattern if we have the same number of
-            		// elements in the input and pattern tuples
-            		if input_tuple.len() == pattern_tuple.len() {
+					// Only test the pattern if we have the same number of
+					// elements in the input and pattern tuples
+					if input_tuple.len() == pattern_tuple.len() {
 
-            			// Test each pattern against the input
-            			let test_results = input_tuple.iter()
-            								 .zip(pattern_tuple.iter())
-            								 .map(|(ref input,ref pattern)| test_pattern(input,pattern))
-            								 .collect::<Vec<_>>();
+						// Test each pattern against the input
+						let test_results = input_tuple.iter()
+											 .zip(pattern_tuple.iter())
+											 .map(|(ref input, ref pattern)| test_pattern(input,pattern))
+											 .collect::<Vec<_>>();
 
-            			// If any of the test results are false, the match
-            			// fails. Otherwise return the variables, or true
-            			let any_false = test_results.iter()
-            										.any(|r| match r {
-            													&PatternTestResult::False => true,
-            													_ => false,
-            												}
-            											);
-            			if !any_false { PatternTestResult::True }
-            			else { PatternTestResult::False }
-            		}
-            		else { PatternTestResult::False }
-            	},
-            	_ => PatternTestResult::False,
+						// If any of the test results are false, the match
+						// fails. Otherwise return true and any variables
+						let mut variables = Vec::new();
+						for result in test_results {
+							match result {
+								(true, Some(ref x)) => variables.push_all(x),
+								(true, None) => continue,
+								(false,_) => return (false,None),
+							};
+						}
+
+						if variables.len() == 0 {
+							(true,None)
+						}
+						else {(true,Some(variables))}
+					}
+					else { (false,None) }
+				},
+				_ => (false,None),
         	}
 		},
-		&Pattern::Variable(ref v) => PatternTestResult::Variables(
-										vec![
-											Value::Tuple( vec![Value::String(v.clone().variable),input.clone()] )
-											]
-									 ),
+		// Returns a vec<value::tuple> containing (var_name,var_value).
+		&Pattern::Variable(ref v) => (true,Some(vec![Value::Tuple(vec![Value::String(v.variable.clone()),input.clone()])])),
 	}
 }
 
@@ -292,19 +319,17 @@ fn eval_call(c: &Call, result: &Vec<Value>) -> Value {
 // This is as little hacky, but works for now
 fn get_ref_column(rel: &Relation, e: &Expression) -> Vec<Value> {
 
-	let column = match e {
+	match e {
 		&Expression::Ref(ref r) => {
 			match r {
 				&Ref::Value{column,..} => {
-					column
+					rel.iter().map(|r| r[column].clone()).collect()
 				},
 				_ => panic!("Expected Ref::Value"),
 			}
 		},
 		_ => panic!("Expected an Expression::Ref"),
-	};
-
-	rel.iter().map(|r| r[column].clone()).collect::<Vec<_>>().clone()
+	}
 }
 
 fn resolve_ref<'a>(reference: &'a Ref, result: &'a Vec<Value>) -> &'a Value {
