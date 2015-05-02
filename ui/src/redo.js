@@ -693,6 +693,8 @@ function endBoxSelect(evt, el) {
 // ui control
 //---------------------------------------------------------
 var uiMapEl = {};
+var uiMapContainerEl = {};
+var uiMapMarkerEl = {};
 
 var uiCustomControlRender = {
   map: function(elem) {
@@ -701,42 +703,26 @@ var uiCustomControlRender = {
       {t: "span", text: "Map not interactive in development"}]});
 
     var uiMap = ixer.index("uiElementToMap")[elem.id];
-    elem.postRender = function(container) {
-      if(!container.rendered) {
-        // @TODO: test for and handle binding.
-        var opts = {};
-        opts.noClear = true;
-        opts.disableDefaultUI = true;
-        opts.draggable = false;
-        uiMapEl[uiMap[1]] = new google.maps.Map(container, opts);
-        container.rendered = true;
+    elem.postRender = function(node) {
+      if(!node.rendered) {
+        var container;
+        if(uiMapContainerEl[uiMap[1]]) {
+          container = uiMapContainerEl[uiMap[1]];
+        } else {
+          var opts = {noClear: true, disableDefaultUI: true, draggable: false, center: {lat: 0, lng: 0}, zoom: 2};
+          container = document.createElement("div");
+          container.className = "full-size-wrapper";
+          uiMapEl[uiMap[1]] = new google.maps.Map(container, opts);
+          uiMapContainerEl[uiMap[1]] = container;
+        }
+        node.appendChild(container);
+        node.rendered = true;
       }
     }
     return elem;
   }
 };
 
-function renderMapDiffs(diffs) {
-  var adds = diffs[1];
-  for(var ix = 0, len = adds.length; ix < len; ix++) {
-    var id = adds[ix][1];
-    var prop = adds[ix][2];
-    var value = adds[ix][3]; // @FIXME: Handle bindings
-    var mapEl = uiMapEl[id];
-    if(mapEl) {
-      var attr = ixer.index("uiMapAttr")[id];
-      if(prop === "lat") {
-        mapEl.panTo({lat: +value || 0, lng: +attr.lng || 0});
-      } else if(prop === "lng") {
-        mapEl.panTo({lat: +attr.lat || 0, lng: +value || 0});
-      } else if(prop === "zoom") {
-        mapEl.setZoom(+value);
-      } else {
-        console.error("Unknown map attr:", prop, "=", value);
-      }
-    }
-  }
-}
 
 function control(cur, attrs, selected, layer) {
   var id = cur[1];
@@ -2762,7 +2748,7 @@ ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.latestCo
 ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup([0, 1]));
 
 ixer.addIndex("uiElementToMap", "uiMap", Indexing.create.latestLookup({keys: [2, false]}));
-ixer.addIndex("uiMapAttr", "uiMapAttr", Indexing.create.latestLookup({keys: [1, 2, 3]}));
+ixer.addIndex("uiMapAttr", "uiMapAttr", Indexing.create.lookup([0, 1, 2]));
 
 
 // State
@@ -2815,6 +2801,7 @@ function initIndexer() {
 
   // map ui views
   add("uiMap", {tx: "number", id: "id", element: "id"}, [], "uiMap");
+  add("uiRenderedMap", {tx: "number", id: "id", element: "id"}, [], "uiMap");
   add("uiMapAttr", {id: "id", property: "string", value: "tuple"}, [], "uiMapAttr");
   add("uiMapMarker", {id: "id", map: "id", lat: "number", lng: "number"}, [], "uiMapMarker");
 
@@ -2842,6 +2829,11 @@ function initIndexer() {
 //---------------------------------------------------------
 // Websocket
 //---------------------------------------------------------
+
+var ENVIRONMENT = "dev";
+if(ENVIRONMENT === "prod") {
+  document.body.appendChild(uiRenderer.__storage.renderCache.root);
+}
 
 var server = {connected: false, queue: [], initialized: false, lastSent: []};
 function connectToServer() {
@@ -2880,21 +2872,28 @@ function connectToServer() {
       rerender();
 
       var uiDiffs = {};
+      var mapDiffs = {};
       for(var ix = 0, len = data.changes.length; ix < len; ix++) {
         var diff = data.changes[ix];
         if(diff[0] === "uiRenderedElement") {
           uiDiffs.element = diff;
         } else if(diff[0] === "uiRenderedAttr") {
           uiDiffs.attr = diff;
+        } else if(diff[0] === "uiMap") {
+          mapDiffs.element = diff;
         } else if(diff[0] === "uiMapAttr") {
-          renderMapDiffs(diff);
+          mapDiffs.attr = diff;
+        } else if(diff[0] === "uiMapMarker") {
+          mapDiffs.marker = diff;
         } else if(diff[0] === "uiComponentElement") {
           // @FIXME: Hacky. This needs to be called after each size change in dev and production for map controls.
           diff[1].forEach(function(cur) {
             if(cur[4] === "map") {
               var map = ixer.index("uiElementToMap")[cur[1]];
               var mapEl = uiMapEl[map[1]];
-              google.maps.event.trigger(mapEl, "resize");
+              if(mapEl) {
+                google.maps.event.trigger(mapEl, "resize");
+              }
             }
           });
         }
@@ -2902,6 +2901,9 @@ function connectToServer() {
 
       if(uiDiffs.element || uiDiffs.attr) {
         uiRenderer.renderDiffs(uiDiffs.element, uiDiffs.attr);
+      }
+      if(mapDiffs.element || mapDiffs.attr || mapDiffs.marker) {
+        uiRenderer.renderMapDiffs(mapDiffs.element, mapDiffs.attr, mapDiffs.marker);
       }
     }
   };

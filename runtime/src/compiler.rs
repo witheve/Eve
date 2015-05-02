@@ -62,6 +62,8 @@ static MATCH_INPUT: usize = 1;
 static MATCH_PATTERNS: usize = 2;
 static MATCH_HANDLES: usize = 3;
 
+static VARIABLE_NAME: usize = 1;
+
 static COLUMN_SOURCE_ID: usize = 1;
 static COLUMN_FIELD_ID: usize = 2;
 
@@ -273,6 +275,7 @@ fn create_match(compiler: &Compiler, uiinput: &Value, uipatterns: &Value, uihand
                             let call_arg = create_call_arg(compiler,arg.as_slice());
                             match call_arg {
                                 interpreter::Expression::Ref(x) => Pattern::Constant(x),
+                                interpreter::Expression::Variable(x) => Pattern::Variable(x),
                                 _ => panic!("TODO"),
                                 }
                             }
@@ -298,6 +301,7 @@ fn create_call(compiler: &Compiler, uifun: &Value, uiargvec: &Value) -> interpre
         "*"   => EveFn::Multiply,
         "/"   => EveFn::Divide,
         "sum" => EveFn::Sum,
+        "prod" => EveFn::Prod,
         "max" => EveFn::Max,
         "min" => EveFn::Min,
         "limit" => EveFn::Limit,
@@ -328,7 +332,15 @@ fn create_call_arg(compiler: &Compiler, arg: &[Value]) -> interpreter::Expressio
 
             interpreter::Expression::Ref(Ref::Value{ clause: other_source_ix, column: other_field_ix })
         },
+        "variable" => {
+            match &arg[VARIABLE_NAME] {
+                &Value::String(ref s) => interpreter::Expression::Variable(interpreter::Variable{variable: s.clone()}),
+                other => panic!("Could not compile variable with argument {:?}",other),
+            }
+
+        },
         "call" => interpreter::Expression::Call(create_call(compiler,&arg[CALL_FUN],&arg[CALL_ARGS])),
+        "match" => interpreter::Expression::Match(Box::new(create_match(compiler,&arg[MATCH_INPUT],&arg[MATCH_PATTERNS],&arg[MATCH_HANDLES]))),
         other  => panic!("Unhandled ref kind: {:?}", other),
     }
 }
