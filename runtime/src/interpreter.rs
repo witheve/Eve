@@ -84,13 +84,7 @@ fn eval_variable(v: &Variable, result: &Vec<Value>) -> Value {
 									match *value {
 										&Value::Tuple(ref x) => {
 											match &x[..] {
-												[Value::String(ref s),_] => {
-													if v.variable == s.clone() {
-														true
-													}
-													else { false }
-
-												},
+												[Value::String(ref s),_] if v.variable == s.clone() => true,
 												_ => false,
 											}
 										},
@@ -146,35 +140,31 @@ fn test_pattern(input: &Value, pattern: &Pattern) -> (bool,Option<Vec<Value>>) {
 		},
 		&Pattern::Tuple(ref pattern_tuple) => {
 			match input {
-            	&Value::Tuple(ref input_tuple) => {
+				// Only test the pattern if we have the same number of elements
+				// in the input and pattern tuples
+            	&Value::Tuple(ref input_tuple) if input_tuple.len() == pattern_tuple.len() => {
 
-					// Only test the pattern if we have the same number of
-					// elements in the input and pattern tuples
-					if input_tuple.len() == pattern_tuple.len() {
+					// Test each pattern against the input
+					let test_results = input_tuple.iter()
+										 .zip(pattern_tuple.iter())
+										 .map(|(ref input, ref pattern)| test_pattern(input,pattern))
+										 .collect::<Vec<_>>();
 
-						// Test each pattern against the input
-						let test_results = input_tuple.iter()
-											 .zip(pattern_tuple.iter())
-											 .map(|(ref input, ref pattern)| test_pattern(input,pattern))
-											 .collect::<Vec<_>>();
-
-						// If any of the test results are false, the match
-						// fails. Otherwise return true and any variables
-						let mut variables = Vec::new();
-						for result in test_results {
-							match result {
-								(true, Some(ref x)) => variables.push_all(x),
-								(true, None) => continue,
-								(false,_) => return (false,None),
-							};
-						}
-
-						if variables.len() == 0 {
-							(true,None)
-						}
-						else {(true,Some(variables))}
+					// If any of the test results are false, the match
+					// fails. Otherwise return true and any variables
+					let mut variables = Vec::new();
+					for result in test_results {
+						match result {
+							(true, Some(ref x)) => variables.push_all(x),
+							(true, None) => continue,
+							(false,_) => return (false,None),
+						};
 					}
-					else { (false,None) }
+
+					if variables.len() == 0 {
+						(true,None)
+					}
+					else {(true,Some(variables))}
 				},
 				_ => (false,None),
         	}
