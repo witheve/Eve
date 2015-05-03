@@ -142,8 +142,12 @@ function treeSelector() {
   //Get all the tables and queries
   var tables = [];
   var queries = [];
+  var editorItemIndex = ixer.index("itemToType");
   ixer.facts("view").forEach(function(cur) {
-    if(cur[2] === "union" || cur[2] === "input") {
+    if(cur[2] !== "union") return;
+    var type = editorItemIndex[cur[0]];
+    console.log(type);
+    if(!type || type === "table") {
       tables.push(cur);
     } else {
       queries.push(cur);
@@ -191,9 +195,23 @@ function treeItem(klass, id, name, icon, children, controls, dragType) {
 }
 
 function tableItem(table) {
-  var tableId = table[0];
-  var name = code.name(tableId);
-  return treeItem("table", tableId, name, "ion-grid", null, null, "table");
+  var unionId = table[0];
+  var name = code.name(unionId);
+  var open = ixer.index("openEditorItem")[client] === unionId;
+  if(open) {
+    var viewIndex = ixer.index("view");
+    var mappings = ixer.index("sinkToMappings")[unionId] || [];
+    var queryItems = mappings.map(function(mapping) {
+      var queryId = mapping[1];
+      return queryItem(viewIndex[queryId]);
+    });
+  }
+  var controls = [{c: "ion-plus", unionId: unionId, click: addQueryToTable}];
+  return treeItem("table", unionId, name, "ion-grid", queryItems, controls, "table");
+}
+
+function addQueryToTable(e, elem) {
+  dispatch("addQueryToTable", {unionId: elem.unionId});
 }
 
 function queryItem(query) {
@@ -1418,7 +1436,9 @@ function resizeSelection(e, elem) {
 // - @TODO: token menu renderer
 //---------------------------------------------------------
 
-function queryWorkspace(view) {
+function queryWorkspace(unionId) {
+//   var view = code.unionToQueryId(unionId);
+  var view = unionId;
   var sources = ixer.index("viewToSources")[view] || [];
   sources.sort(function(a, b) {
     return a[1] - b[1];
@@ -1427,11 +1447,14 @@ function queryWorkspace(view) {
   return {c: "workspace-content column query-workspace", view: view, dragover: preventDefault, drop: queryDrop,
           children: [
             {c: "title", children: [
-              input(code.name(view), view, rename)
+              input(code.name(unionId), unionId, rename)
             ]},
             {c: "container", children: [
-              {c: "results-container", children: [viewResults(sources, results)]},
-              viewCode(view, sources)
+              viewCode(view, sources),
+              {c: "results-container", children: [
+                {c: "feed", text: "Feed me columns"},
+                {text: "Build your final view by dragging columns in here"}
+              ]}
             ]}
           ]};
 }
@@ -1461,16 +1484,36 @@ function viewCode(view, sources) {
     var data = cur[3];
     var constraints = sourceToConstraints[id] || [];
     var constraintItems = constraints.map(function(constraint) {
-      globalFilters.push({c: "filter", children: [
+      return {c: "filter", children: [
         constraintItem(view, constraint),
         {c: "remove ion-close", click: removeConstraint, constraint: constraint}
-      ]});
+      ]};
     });
     if(data[0] !== "view") {
-      globalCalculations.push({c: "calculation", children: [
-        expressionItem(cur[3][1], [], cur),
-        {c: "remove ion-close", click: removeSource, source: cur}
-      ]});
+      return {c: "source calculation", children: [
+        {c: "source-description", children: [
+          {text: "calculate"},
+          expressionItem(cur[3][1], [], cur),
+        ]},
+        {c: "source-result", children:[
+        ]}
+      ]}
+    } else {
+      var fields = code.viewToFields(data[1]).map(function(field) {
+        return {name: code.name(field[2]), id: field[2]};
+      });
+      return {c: "source", children: [
+        {c: "source-description", children: [
+          {text: "get "},
+          {c: "token editable", text: code.name(data[1])},
+          constraintItems.length ? {text: " where"} : undefined,
+          {c: "constraints", children: constraintItems},
+        ]},
+//         {text: "get " + code.name(data[1]) + (constraintItems.length ? " where" : "") },
+        {c: "source-result", children:[
+          table(view, fields, [[1,2]], []),
+        ]}
+      ]};
     }
   });
   var adderConstraints = ixer.index("adderConstraint")[view] || [];
@@ -1478,28 +1521,37 @@ function viewCode(view, sources) {
     if(!removed[cur[0]]) {
       globalFilters.push({c: "filter", children: [
         constraintItem(view, cur, true),
-        {c: "remove ion-close", click: removeAdder, adder: cur}
+        {c: "remove ion-trash", click: removeAdder, adder: cur}
       ]});
     }
   });
   var adderCalculations = ixer.index("adderCalculation")[view] || [];
   adderCalculations.forEach(function(cur) {
     if(!removed[cur[0]]) {
-      globalCalculations.push({c: "calculation", children: [
-        expressionItem(cur[3], [], cur),
-        {c: "remove ion-close", click: removeAdder, adder: cur}
+      sourceElems.push({c: "source calculation", children: [
+        {c: "source-description", children: [
+          {text: "calculate"},
+          expressionItem(cur[3], [], cur),
+        ]},
+        {c: "source-result", children:[
+        ]}
       ]});
     }
   });
+  sourceElems.push({c: "add-calculation", click: newCalculation, view:view, children: [
+    {c: "icon ion-calculator"},
+    {c: "icon ion-plus"},
+  ]});
   return {c: "view-source-code", children: [
-    {c: "view-container", children: [
-      {children: [{c: "sub-title", text: "filters"}, {c: "icon ion-plus", click: newFilter, view: view}]},
-      {c: "filters", children: globalFilters}
-    ]},
-    {c: "view-container", children: [
-      {children: [{c: "sub-title", text: "calculations"}, {c: "icon ion-plus", click: newCalculation, view: view}]},
-      {c: "calculations", children: globalCalculations}
-    ]}
+    {c: "view-container", children: sourceElems}
+//     {c: "view-container", children: [
+//       {children: [{c: "sub-title", text: "filters"}, {c: "icon ion-plus", click: newFilter, view: view}]},
+//       {c: "filters", children: globalFilters}
+//     ]},
+//     {c: "view-container", children: [
+//       {children: [{c: "sub-title", text: "calculations"}, {c: "icon ion-plus", click: newCalculation, view: view}]},
+//       {c: "calculations", children: globalCalculations}
+//     ]}
   ]};
 }
 
@@ -1666,8 +1718,8 @@ function genericEditor(fields, functions, match, constant, defaultActive, onSele
     content = fields.map(function(cur) {
       var name = code.refToName(cur);
       return genericEditorOption(cur, onSelect, [
-        {c: "view", text: name.view},
         {c: "field", text: name.field},
+        {c: "view", text: name.view},
       ]);
     });
   } else if(active === "function") {
@@ -1795,19 +1847,19 @@ function constraintItem(view, constraintOrAdder, isAdder) {
   var left = [{c: "placeholder", text: "placeholder"}];
   if(constraint[0][0] === "column") {
     var leftName = code.refToName(constraint[0]);
-    left = [{c: "table", text: leftName.view}, {c: "field", text: leftName.field}];
+    left = [{c: "field", text: leftName.field}, {c: "table", text: "(" + leftName.view + ")"}];
   }
   var right = [{c: "placeholder", text: "placeholder"}];
   if(constraint[2][0] === "column") {
     var rightName = code.refToName(constraint[2]);
-    right = [{c: "table", text: rightName.view}, {c: "field", text: rightName.field}]
+    right = [{c: "field", text: rightName.field}, {c: "table", text: "(" + rightName.view + ")"}]
   } else if(constraint[2][0] === "constant") {
     right = constraint[2][1];
   }
   return {c: "constraint", children: [
-    constraintToken(view, constraintOrAdder, "right", right, isAdder),
-    constraintToken(view, constraintOrAdder, "op", constraint[1], isAdder),
     constraintToken(view, constraintOrAdder, "left", left, isAdder),
+    constraintToken(view, constraintOrAdder, "op", constraint[1], isAdder),
+    constraintToken(view, constraintOrAdder, "right", right, isAdder),
   ]};
 }
 
@@ -1915,7 +1967,7 @@ function expressionItem(expression, path, source) {
     return callItem(expression, path, source);
   } else if(type === "column") {
     var name = code.refToName(expression);
-    return expressionToken(source, path, [{c: "table", text: name.view}, {c: "field", text: name.field}], path);
+    return expressionToken(source, path, [{c: "field", text: name.field}, {c: "table", text: "(" + name.view + ")"}], path);
   } else if(type === "constant") {
     return expressionToken(source, path, expression[1].toString());
   } else if(type === "variable") {
@@ -2042,9 +2094,16 @@ function dispatch(event, info, returnInsteadOfSend) {
       break;
     case "addQuery":
       var viewId = uuid();
-      diffs = code.diffs.addView("Untitled Query", {}, undefined, viewId, ["view"], "query");
+      diffs = code.diffs.createQuery(viewId);
       diffs.push(["editorItem", "inserted", [viewId, "query"]]);
       diffs.push.apply(diffs, dispatch("openItem", {id: viewId}, true));
+      break;
+    case "addQueryToTable":
+      var queryId = uuid();
+      diffs = code.diffs.addView("Untitled Query", {}, undefined, queryId, ["query"], "query");
+      diffs.push.apply(diffs, code.diffs.merge(queryId, info.unionId, {}));
+      diffs.push(["editorItem", "inserted", [queryId, "query"]]);
+      diffs.push.apply(diffs, dispatch("openItem", {id: queryId}, true));
       break;
     case "addUi":
       var uiId = uuid();
@@ -2393,7 +2452,7 @@ function dispatch(event, info, returnInsteadOfSend) {
       diffs.push(["remove", "inserted", [info.tx]]);
       break;
     case "addViewSource":
-      var viewId = info.view;
+      var viewId = ixer.index("sinkToMappings")[info.view][0][1];
       var sourceId = uuid();
       var view = ixer.index("view")[viewId];
       var nextIx = (ixer.index("viewToSources")[viewId] || []).length;
@@ -2487,13 +2546,8 @@ function forceRender() {
 var code = {
   diffs: {
     createTable: function(name, fields, initial, tableId) {
-      //an input table
-      var inputId = uuid();
-      var diffs = code.diffs.addView(inputId, fields, initial, inputId, ["table"], "union");
       //a union
-      diffs.push.apply(diffs, code.diffs.addView(name, fields, initial, tableId, ["table"], "union"));
-      //a merge of that query into the union
-      diffs.push.apply(diffs, code.diffs.merge(queryId, tableId, {}));
+      diffs = code.diffs.addView(name, fields, initial, tableId, ["table"], "union");
       return diffs;
     },
     createQuery: function(unionId) {
@@ -2509,7 +2563,8 @@ var code = {
     merge: function(source, sink, mappings) {
       var mappingId = uuid();
       var diffs = [["view-mapping", "inserted", [mappingId, source, sink]]];
-      diffs.push.apply(diffs, code.addMergeMappings(mappingId, mappings));
+      diffs.push.apply(diffs, code.diffs.addMergeMappings(mappingId, mappings));
+      console.log(diffs);
       return diffs;
     },
     addMergeMappings: function(mappingId, mappings) {
@@ -2700,6 +2755,9 @@ var code = {
         break;
     }
   },
+  unionToQueryId: function(unionId) {
+    return ixer.index("sinkToMappings")[unionId][0][1];
+  },
   name: function(id) {
     return ixer.index("displayName")[id];
   }
@@ -2723,7 +2781,7 @@ ixer.addIndex("remove", "remove", Indexing.create.lookup([0, 0]));
 ixer.addIndex("adderRows", "adderRow", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
 ixer.addIndex("adderConstraint", "adderConstraint", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
 ixer.addIndex("adderCalculation", "adderCalculation", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
-ixer.addIndex("sinkToMappings", "view-mapping", Indexing.create.collector([3]));
+ixer.addIndex("sinkToMappings", "view-mapping", Indexing.create.collector([2]));
 
 //editorItem
 ixer.addIndex("itemToType", "editorItem", Indexing.create.lookup([0,1]));
@@ -2776,12 +2834,7 @@ function initIndexer() {
   compiler("schedule", {ix: "number", view: "id"});
 
   add("tag", {id: "id", tag: "string"}, undefined, "tag", ["table"]);
-  add("displayName", {tx: "number", id: "string", name: "string"}, [
-    [0, "field-mapping", "field-mapping"],
-    [0, "view-mapping", "view-mapping"],
-    [0, "upstream", "upstream"],
-    [0, "schedule", "schedule"],
-  ], "displayName", ["table"]);
+  add("displayName", {tx: "number", id: "string", name: "string"}, [], "displayName", ["table"]);
 
   add("adderRow", {tx: "id", id: "id", table: "id", row: "tuple"}, undefined, "adderRow", ["table"]);
   add("adderConstraint", {tx: "id", id: "id", query: "id", constraint: "tuple"}, undefined, "adderConstraint", ["table"]);
