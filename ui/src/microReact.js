@@ -79,6 +79,7 @@
         if(cur.t === "input" && cur.type !== prev.type) div.type = cur.type;
         if(cur.t === "input" && cur.checked !== prev.checked) div.checked = cur.checked;
         if(cur.text !== prev.text) div.textContent = cur.text;
+        if(cur.tabindex !== prev.tabindex) div.setAttribute("tabindex", cur.tabindex);
 
         if(cur.left !== prev.left)  style.left = cur.left === undefined ? "auto" : cur.left;
         if(cur.top !== prev.top) style.top = cur.top === undefined ? "auto" : cur.top;
@@ -155,6 +156,7 @@
           continue;
         }
         if(curA.c === curB.c
+           && curA.tabindex === curB.tabindex
            && curA.placeholder === curB.placeholder
            && curA.selected === curB.selected
            && curA.value === curB.value
@@ -197,6 +199,7 @@
           continue;
         }
         if(curA.c === curB.c
+           && curA.tabindex === curB.tabindex
            && curA.placeholder === curB.placeholder
            && curA.selected === curB.selected
            && curA.value === curB.value
