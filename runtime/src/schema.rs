@@ -54,12 +54,10 @@ type Program = {
     // each aggregate field is bound exactly once and can only bind constants, inner fields or reducer outputs
     view_outputfield_inputsource_inputfield: KV<(Id, Id), (Id, Id)>,
 
-    // things that live in an ordered list are sorted by some f64
-    // ties are broken by Id
-    thing_order: KV<Id, f64>,
-
+    // things that live in an ordered list are sorted by some f64 (ties are broken by Id)
+    thing_displayorder: KV<Id, f64>,
     // things can have human readable names
-    thing_name: KV<Id, String>,
+    thing_displayname: KV<Id, String>,
 }
 
 enum ViewKind {
