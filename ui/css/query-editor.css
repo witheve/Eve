@@ -3,10 +3,14 @@ body { height:100vh; -webkit-user-select: none; background: #202020; color: #ccc
 .__root * { display: flex; }
 
 .query-editor { flex-direction: row; flex: 1;}
+.query-editor > .pane { border-right: 1px solid #404040; }
 
 /* tree */
-.query-editor > .tree.pane { flex-direction: column; border-right: 1px solid #404040; }
-.query-editor .tree-item { padding: 0.2em 0.5em; }
+.tree.pane { flex-direction: column !important; }
+.tree.bar { flex-direction: row !important; }
+.tree .tree-item { padding: 0.2em 0.5em; }
+
+.tree-item.pill { margin: 0 2px; background: #202020; border-radius: 24px; }
 
 /* workspace */
 .workspace { position: relative; flex: 1; flex-direction: column; }
@@ -15,14 +19,15 @@ body { height:100vh; -webkit-user-select: none; background: #202020; color: #ccc
 .workspace > .query-toolbar { flex-direction: row; }
 .workspace .query-tool { padding: 0.2em 0.5em; }
 
-.workspace > .view-block { flex-direction: column; min-height: 4em; background: #404040; margin-bottom: 5px; padding: 0.2em 0.5em; }
+.workspace > .view-block { flex-direction: column; min-height: 4em; background: #404040; margin-bottom: 5px; }
 .workspace > .block h3 { font-weight: 100; font-size: 1.1em; color: #eee; }
-.workspace > .block > .block-section { min-height: 2em; flex-direction: column; }
+.workspace .block-section { min-height: 2em; flex-direction: column; padding: 0.2em 0.5em; }
+
+.workspace .block-section.selections { align-items: center; background: #303030; }
 
 .sources > .viewlet-source { flex-direction: column; min-height: 2em; border-bottom: 1px solid #999; padding: 0.5em 0; }
-.viewlet-source-title { margin-bottom: 4px; }
-.viewlet-source-fields { flex-direction: row; margin-bottom: 4px; }
-.viewlet-source-fields > .field { margin: 0 2px; background: #202020; border-radius: 24px; font-size: 14px; }
+.sources > .viewlet-source > * { margin-bottom: 4px; }
+.viewlet-source-fields > .field {  font-size: 14px; }
 
 .workspace .viewlet-source-filters { flex-direction: column; }
 .workspace .viewlet-source-filter { flex-direction: row; padding-left: 0.3em; }

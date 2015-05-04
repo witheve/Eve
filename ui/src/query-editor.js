@@ -164,6 +164,15 @@ var queryEditor = (function(window, microReact, Indexing) {
       var old = ixer.index("block")[blockId];
       return [["block", "removed", old]];
     },
+    addViewletSelection: function addViewletSelection(viewletId, sourceFieldId) {
+      // @FIXME: Actually map fieldId --> sourceFieldId
+
+      var schemaId = ixer.index("viewletToSchema")[viewletId];
+      var fields = ixer.index("schemaToFields")[schemaId] || [];
+      var fieldId = uuid();
+      return [["field", "inserted", [fieldId, schemaId, fields.length]],
+             ["displayName", "inserted", [fieldId, code.name(sourceFieldId)]]];
+    },
     addViewletSource: function addViewletSource(viewletId, sourceViewId) {
       var schemaId = ixer.index("viewletToSchema")[sourceViewId];
       if(!schemaId) { schemaId = ixer.index("viewToSchema")[sourceViewId]; }
@@ -205,6 +214,10 @@ var queryEditor = (function(window, microReact, Indexing) {
       case "addViewBlock":
         diffs = diff.addViewBlock(code.activeQueryId(), info.sourceId);
         break;
+      case "addViewletSelection":
+        diffs = diff.addViewletSelection(info.viewletId, info.fieldId);
+        console.log("addViewletSelection", info, diffs);
+        break;
       case "addViewletSource":
         diffs = diff.addViewletSource(info.viewletId, info.sourceId);
         break;
@@ -221,8 +234,6 @@ var queryEditor = (function(window, microReact, Indexing) {
         }
         diffs = [["viewletSourceFilter", "removed", old],
                 ["viewletSourceFilter", "inserted", neue]];
-
-
         break;
       default:
         console.error("Unhandled dispatch:", evt, info);
@@ -336,14 +347,19 @@ var queryEditor = (function(window, microReact, Indexing) {
       return viewletSourceItem(viewletId, source);
     });
 
-//     var fields = ixer.index("schemaToFields")[schemaId] || [];
-//     var fieldItems = fields.map(function(field) {
-//       var id = field[code.ix("field", "field")];
-//       return treeItem(code.name(id) || "Untitled", id, "field", {c: "field"});
-//     });
+    var schemaId = ixer.index("viewletToSchema")[viewletId];
+    var fields = ixer.index("schemaToFields")[schemaId] || [];
+    var selectionItems = fields.map(function(field) {
+      var id = field[code.ix("field", "field")];
+      return treeItem(code.name(id) || "Untitled", id, "queryField", {c: "pill field"});
+    });
+    if(!selectionItems.length) {
+      selectionItems.push({text: "Drag local fields into me to make them available in the query."});
+    }
 
     return {c: "block view-block", viewletId: viewletId, drop: viewBlockDrop, dragover: preventDefault, children: [
-      {c: "block-section sources", children: sourceItems}
+      {c: "block-section sources", children: sourceItems},
+      {c: "block-section selections tree bar", viewletId: viewletId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems}
     ]};
   }
 
@@ -354,6 +370,16 @@ var queryEditor = (function(window, microReact, Indexing) {
     var sourceId = evt.dataTransfer.getData("value");
     if(viewletId === sourceId) { return console.error("Cannot join viewlet with self."); }
     dispatch("addViewletSource", {viewletId: viewletId, sourceId: sourceId});
+    evt.stopPropagation();
+  }
+
+  function viewSelectionsDrop(evt, elem) {
+    var type = evt.dataTransfer.getData("type");
+    console.log("viewSelectionsDrop", type);
+    if(type !== "localField") { return; }
+    var viewletId = elem.viewletId;
+    var fieldId = evt.dataTransfer.getData("value");
+    dispatch("addViewletSelection", {viewletId: viewletId, fieldId: fieldId});
     evt.stopPropagation();
   }
 
@@ -369,7 +395,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     var fields = ixer.index("schemaToFields")[schemaId] || [];
     var fieldItems = fields.map(function(field) {
       var id = field[code.ix("field", "field")];
-      return treeItem(code.name(id) || "Untitled", id, "field", {c: "field"});
+      return treeItem(code.name(id) || "Untitled", id, "localField", {c: "pill field"});
     });
 
     var filters = ixer.index("viewletSourceToFilters")[viewletId];
@@ -390,7 +416,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     });
     return {c: "viewlet-source", viewletId: viewletId, sourceId: sourceId, drop: viewletSourceDrop, dragover: preventDefault, children: [
       {t: "h4", c: "viewlet-source-title", text:  code.name(sourceId) || "Untitled"},
-      (fieldItems.length ? {c: "viewlet-source-fields", children: fieldItems} : undefined),
+      (fieldItems.length ? {c: "tree bar viewlet-source-fields", children: fieldItems} : undefined),
       (filterItems.length ? {c: "viewlet-source-filters", children: filterItems} : undefined)
     ]};
   }
@@ -462,7 +488,7 @@ var queryEditor = (function(window, microReact, Indexing) {
 
   function tokenFieldDrop(evt, elem) {
     var type = evt.dataTransfer.getData("type");
-    if(type !== "field") { return; }
+    if(type !== "localField") { return; }
     var schemaId = elem.schemaId;
     var fieldId = evt.dataTransfer.getData("value");
     var draggedSchemaId = ixer.index("fieldToSchema")[fieldId];
@@ -473,17 +499,17 @@ var queryEditor = (function(window, microReact, Indexing) {
 
   function tokenValueDrop(evt, elem) {
     var type = evt.dataTransfer.getData("type");
-    if(type !== "field") { return; }
-
     var fieldId = evt.dataTransfer.getData("value");
-    var draggedSchemaId = ixer.index("fieldToSchema")[fieldId];
-    var viewlets = ixer.index("schemaToViewlets")[draggedSchemaId];
-    if(viewlets && viewlets.indexOf(elem.viewletId)) {
+
+    if(type === "localField") {
+      var schemaId = ixer.index("fieldToSchema")[fieldId];
+      var viewlets = ixer.index("schemaToViewlets")[schemaId] || [];
+      if(viewlets.indexOf(elem.viewletId) === -1) { return; }
       // Filter
       dispatch("updateViewletSourceFilter", {filterId: elem.key, type: "type", value: "filter"});
       dispatch("updateViewletSourceFilter", {filterId: elem.key, type: "value", value: fieldId});
 
-    } else {
+    } else if(type === "queryField") {
       // Group
       dispatch("updateViewletSourceFilter", {filterId: elem.key, type: "type", value: "group"});
       dispatch("updateViewletSourceFilter", {filterId: elem.key, type: "value", value: fieldId});
@@ -501,7 +527,6 @@ var queryEditor = (function(window, microReact, Indexing) {
     var state = tokenState[elem.key];
     state[elem.tokenType] = 0;
     render();
-
   }
 
   var tokenEditor = {
