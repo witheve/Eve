@@ -36,41 +36,42 @@ type Program = {
     constraint_rightsource_rightfield: KV<Id, (Id, Id)>,
 
     // aggregates group an "inner" source by the rows of an "outer" source
-    // the groups are reduced by joining against a "primitive" source
     // the grouping is determined by binding inner fields to outer fields or constants
-    aggregate_innerfield_source_sourcefield: KV<(Id, Id), (Id, Id)>,
-    // inner fields and constants can also be used as arguments to the aggregate function
-    aggregate_primitivefield_source_sourcefield: KV<(Id, Id), (Id, Id)>,
+    aggregate_innerfield_groupsource_groupfield: KV<(Id, Id), (Id, Id)>,
+    // before aggregation the groups are sorted
+    aggregate_innerfield_order: KV<(Id, Id), f64>,
+    // groups may be limited by an inner field or constant
+    aggregate_fromsource_fromfield: KV<Id, (Id, Id)>,
+    aggregate_tosource_tofield: KV<Id, (Id, Id)>,
+    // the groups are reduced by binding against reducer sources
+    // constants and inner fields which are bound to outer fields may both be used as ScalarInput arguments
+    // inner fields which are not bound to outer fields may be used as VectorInput arguments
+    aggregate_reducersource_reducerfield_argumentsource_argumentfield: KV<(Id, Id, Id), (Id, Id)>,
 
     // views produce output by binding fields from sources
     // each join field is bound exactly once
-    join_joinfield_source_sourcefield: KV<(Id, Id), (Id, Id)>,
     // each union field is bound exactly once per source
-    union_unionfield_source_sourcefield: KV<(Id, Id, Id), Id>,
-    // each aggregate field is bound exactly once and cannot bind "outer"
-    aggregate_aggregatefield_source_sourcefield: KV<(Id, Id), (Id, Id)>,
+    // each aggregate field is bound exactly once and can only bind constants, inner fields or reducer outputs
+    view_outputfield_inputsource_inputfield: KV<(Id, Id), (Id, Id)>,
 
     // things that live in an ordered list are sorted by some f64
+    // ties are broken by Id
     thing_order: KV<Id, f64>,
 
     // things can have human readable names
     thing_name: KV<Id, String>,
-
-    // TODO primitives cannot represent limit
-    // TODO want multiple primitives per aggregate?
-    // TODO sort order for aggregates?
 }
 
 enum ViewKind {
     Table, // a view which can depend on the past
     Join, // take the product of multiple views and filter the results
     Union, // take the union of multiple views
-    Aggregate, // group one view by the contents of another and run some primitive on the groups
+    Aggregate, // group one view by the contents of another and run reducing functions on the groups
     Primitive, // a built-in function, represented as a view with one or more non-Data fields
 }
 
 enum FieldKind {
-    Data, // a normal field
+    Output, // a normal field
     ScalarInput, // a field that must be constrained to a single scalar value
     VectorInput, // a field that must be constrained to a single vector value (in an aggregate)
 }
