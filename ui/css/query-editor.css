@@ -23,7 +23,10 @@ body { height:100vh; -webkit-user-select: none; background: #202020; color: #ccc
 
 .workspace .token {position: relative; }
 .workspace .token-selector { position: absolute; padding: 0.2em; z-index: 10; background: #101010; outline: none; }
-.workspace .token-selector-item:hover { background: rgba(255, 255, 255, 0.2); }
+.workspace .selector-item:hover { background: rgba(255, 255, 255, 0.2); }
+
+.workspace .token-selector.value { display: flex; flex-direction: row; }
+.token-selector.value > .type-selector li { display: flex; flex: 0; padding: 0.2em; }
 
 /* inspector */
 .query-editor > .inspector { display: flex; flex: 1; border-left: 1px solid #404040; }

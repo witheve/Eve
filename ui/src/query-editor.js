@@ -24,7 +24,6 @@ var queryEditor = (function(window, microReact, Indexing) {
   }
 
   function focusOnce(node, elem) {
-    console.log("focusOnce", node, elem);
     if(!elem.__focused) {
       setTimeout(function() { node.focus(); }, 5);
       elem.__focused = true;
@@ -73,6 +72,7 @@ var queryEditor = (function(window, microReact, Indexing) {
   ixer.addIndex("block", "block", Indexing.create.lookup([0, false]));
   ixer.addIndex("queryToBlocks", "block", Indexing.create.collector([1]));
   ixer.addIndex("viewlet", "viewlet", Indexing.create.lookup([0, false]));
+  ixer.addIndex("viewletToQuery", "viewlet", Indexing.create.lookup([0, 1]));
   ixer.addIndex("viewletToSchema", "viewlet", Indexing.create.lookup([0, 2]));
   ixer.addIndex("queryToViewlets", "viewlet", Indexing.create.collector([1]));
   ixer.addIndex("viewletToSources", "viewletSource", Indexing.create.collector([1]));
@@ -191,12 +191,13 @@ var queryEditor = (function(window, microReact, Indexing) {
         var old = ixer.index("viewletSourceFilter")[info.filterId];
         var neue = old.slice();
         neue[ix] = info.value;
+        if(info.type === "type") {
+          neue[code.ix("viewletSourceFilter", "value")] = ""; // Clear value on type change.
+        }
         diffs = [["viewletSourceFilter", "removed", old],
                 ["viewletSourceFilter", "inserted", neue]];
 
-        if(info.type === "value") {
-          console.error("@FIXME: test for type change.");
-        }
+
         break;
       default:
         console.error("Unhandled dispatch:", evt, info);
@@ -333,10 +334,10 @@ var queryEditor = (function(window, microReact, Indexing) {
   }
 
   function viewletSourceItem(viewletId, sourceId) {
+    var queryId = ixer.index("viewletToQuery")[viewletId];
     var schemaId = ixer.index("viewletToSchema")[sourceId];
     if(!schemaId) {
       schemaId = ixer.index("viewToSchema")[sourceId];
-
     }
     var filters = ixer.index("viewletSourceToFilters")[viewletId];
     if(filters) { filters = filters[sourceId]; }
@@ -351,7 +352,7 @@ var queryEditor = (function(window, microReact, Indexing) {
       return {c: "viewlet-source-filter", children: [
         token.field({schema: schemaId, value: field, key: filterId}, updateViewletSourceFilter),
         token.relation({value: relation, key: filterId}, updateViewletSourceFilter),
-        token.value({value: value, key: filterId, type: type}, updateViewletSourceFilter)
+        token.value({value: (type === "constant" ? value : code.name(value)) || "<value>", key: filterId, type: type, viewletId: viewletId, queryId}, updateViewletSourceFilter)
       ]};
     });
     return {c: "viewlet-source", viewletId: viewletId, sourceId: sourceId, drop: viewletSourceDrop, dragover: preventDefault, children: [
@@ -374,7 +375,7 @@ var queryEditor = (function(window, microReact, Indexing) {
   }
 
   function updateViewletSourceFilter(evt, elem) {
-    dispatch("updateViewletSourceFilter", {filterId: elem.key, type: elem.tokenType, value: elem.itemId});
+    dispatch("updateViewletSourceFilter", {filterId: elem.key, type: elem.tokenType, value: elem.value});
     stopEditToken(evt, elem);
     evt.stopPropagation();
   }
@@ -430,37 +431,107 @@ var queryEditor = (function(window, microReact, Indexing) {
   }
 
   function stopEditToken(evt, elem) {
-    console.log("stop");
     var state = tokenState[elem.key];
     state[elem.tokenType] = 0;
     render();
 
   }
 
-
   var tokenEditor = {
     field: function(params, onChange) {
-      var fields = ixer.index("schemaToFields")[params.schema] || [];
+      var fields = getSchemaFields(params.schema);
       var items = fields.map(function fieldItem(field) {
         var fieldId = field[code.ix("field", "field")];
-        return {t: "li", c: "token-selector-item field", key: params.key, tokenType: "field", itemId: fieldId, text: code.name(fieldId) || "Untitled", click: onChange};
+        var item = selectorItem({c: "field", key: params.key, name: code.name(fieldId) || "Untitled", value: fieldId}, onChange);
+        item.tokenType = "field";
+        return item;
       });
-      return {t: "ul", c: "token-selector field", tabindex: -1, tokenType: "field", key: params.key,
-              postRender: focusOnce, blur: stopEditToken, children: items};
+      var select = selector(items, {c: "field", tabindex: -1, key: params.key, focus: true}, stopEditToken);
+      select.tokenType = "field";
+      return select;
     },
     relation: function(params, onChange) {
       var items = ["=", "<", "≤", ">", "≥", "≠"].map(function(rel) {
-        return {t: "li", c: "token-selector-item relation", key: params.key, tokenType: "relation", itemId: rel, text: rel, click: onChange};
+        var item = selectorItem({c: "relation", key: params.key, name: rel, value: rel}, onChange);
+        item.tokenType = "relation";
+        return item;
       });
-      return {t: "ul", c: "token-selector relation", tabindex: -1, tokenType: "relation", key: params.key,
-              postRender: focusOnce, blur: stopEditToken, children: items};
+      var select = selector(items, {c: "relation", tabindex: -1, key: params.key, focus: true}, stopEditToken);
+      select.tokenType = "relation";
+      return select;
     },
     value: function(params, onChange) {
-      return {text: "@TODO: me", c: "token-selector value", tabindex: -1, tokenType: "value", key: params.key,
-              postRender: focusOnce, blur: stopEditToken, children: []};
+      var type = params.type;
+      var typeItems = ["constant", "filter", "gather"].map(function(cur) {
+        var item = selectorItem({c: "value-type" + (type === "cur" ? " active" : ""), key: params.key, name: cur, value: cur}, onChange);
+        item.tokenType = "type";
+        return item;
+      });
+      var valueEditor;
+      var fields;
+      if(type === "constant") {
+        valueEditor = {t: "input"};
+      } else if(type === "filter") {
+        fields = getViewletFields(params.viewletId);
+      } else if(type === "gather") {
+        fields = getQueryFields(params.queryId, params.viewletId);
+      }
+      if(!valueEditor && fields) {
+        var items = fields.map(function fieldItem(field) {
+          var fieldId = field[code.ix("field", "field")];
+          var item = selectorItem({c: "value", key: params.key, name: code.name(fieldId) || "Untitled", value: fieldId}, onChange);
+          item.tokenType = "value";
+          return item;
+        });
+        valueEditor = selector(items, {c: "value", key: params.key}, stopEditToken);
+        valueEditor.tokenType = "value";
+      }
+
+      return {c: "token-selector value", tabindex: -1, tokenType: "value", key: params.key,
+              postRender: focusOnce, blur: stopEditToken, children: [
+                {t: "ul", c: "type-selector", children: typeItems},
+                {c: "value-pane", children: [valueEditor]}
+              ]};
     }
   };
 
+  function getSchemaFields(schemaId) {
+    return ixer.index("schemaToFields")[schemaId] || [];
+  }
+
+  function getViewletFields(viewletId) {
+    var sources = ixer.index("viewletToSources")[viewletId] || [];
+    return sources.reduce(function(memo, source) {
+      var sourceViewId = source[code.ix("viewletSource", "sourceView")];
+      var schemaId = ixer.index("viewletToSchema")[sourceViewId];
+      if(!schemaId) {
+        schemaId = ixer.index("viewToSchema")[sourceViewId];
+      }
+      memo.push.apply(memo, getSchemaFields(schemaId));
+      return memo;
+    }, []);
+  }
+
+  function getQueryFields(queryId, exclude) {
+    var viewlets = ixer.index("queryToViewlets")[queryId] || [];
+    return viewlets.reduce(function(memo, viewlet) {
+      var viewletId = viewlet[code.ix("viewlet", "viewlet")];
+      if(viewletId !== exclude && viewletId) {
+        memo.push.apply(memo, getViewletFields(viewletId));
+      }
+
+      return memo;
+    }, []);
+  }
+
+  function selector(options, opts, onBlur) {
+    return {t: "ul", c: "selector " + opts.c, tabindex: opts.tabindex, key: opts.key,
+            postRender: (opts.focus ? focusOnce : undefined), blur: onBlur, children: options};
+  }
+
+  function selectorItem(opts, onChange) {
+    return {t: "li", c: "selector-item field " + opts.c, key: opts.key, text: opts.name, value: opts.value, click: onChange};
+  }
 
   //---------------------------------------------------------
   // Inspector
