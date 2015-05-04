@@ -308,8 +308,7 @@ var queryEditor = (function(window, microReact, Indexing) {
       return a[ixIx] - b[ixIx];
     });
     var sourceItems = sources.map(function(source) {
-      var sourceId = source[code.ix("viewletSource", "sourceView")];
-      return viewletSourceItem(viewletId, sourceId);
+      return viewletSourceItem(viewletId, source);
     });
 
     return {c: "block view-block", viewletId: viewletId, drop: viewBlockDrop, dragover: preventDefault, children: [
@@ -333,11 +332,13 @@ var queryEditor = (function(window, microReact, Indexing) {
     evt.stopPropagation();
   }
 
-  function viewletSourceItem(viewletId, sourceId) {
+  function viewletSourceItem(viewletId, source) {
+    var sourceId = source[code.ix("viewletSource", "source")];
+    var sourceViewId = source[code.ix("viewletSource", "sourceView")];
     var queryId = ixer.index("viewletToQuery")[viewletId];
-    var schemaId = ixer.index("viewletToSchema")[sourceId];
+    var schemaId = ixer.index("viewletToSchema")[sourceViewId];
     if(!schemaId) {
-      schemaId = ixer.index("viewToSchema")[sourceId];
+      schemaId = ixer.index("viewToSchema")[sourceViewId];
     }
     var filters = ixer.index("viewletSourceToFilters")[viewletId];
     if(filters) { filters = filters[sourceId]; }
@@ -356,7 +357,7 @@ var queryEditor = (function(window, microReact, Indexing) {
       ]};
     });
     return {c: "viewlet-source", viewletId: viewletId, sourceId: sourceId, drop: viewletSourceDrop, dragover: preventDefault, children: [
-      {t: "h4", c: "title", text: code.name(sourceId) || "Untitled"},
+      {t: "h4", c: "title", text: code.name(sourceViewId) || "Untitled"},
       (filterItems.length ? {c: "filters", children: filterItems} : undefined)
     ]};
   }
