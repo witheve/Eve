@@ -184,7 +184,7 @@ pub fn run() {
         println!("batch size: {:?}", server_events.len());
 
         time!("entire batch", {
-            for event in server_events.drain() {
+            for event in server_events.drain(..) {
                 match event {
                     ServerEvent::NewClient(mut sender) => {
                         time!("sending initial state", {
