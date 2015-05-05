@@ -146,7 +146,6 @@ function treeSelector() {
   ixer.facts("view").forEach(function(cur) {
     if(cur[2] !== "union") return;
     var type = editorItemIndex[cur[0]];
-    console.log(type);
     if(!type || type === "table") {
       tables.push(cur);
     } else {
@@ -1069,7 +1068,14 @@ function setAttribute(e, elem) {
   var componentId = elem.key[0];
   var property = elem.key[1];
   var target = e.currentTarget;
-  var value = target.checked !== undefined ? target.checked : target.value !== undefined ? target.value : target.textContent;
+  var value = target.value;
+  if(target.type === "color") {
+    value = target.value;
+  } if(target.type === "checkbox") {
+    value = target.checked;
+  } else if(e.type === undefined) {
+    value = target.textContent;
+  }
   dispatch("setAttributeForSelection", {componentId: componentId, property: property, value: value});
 }
 
