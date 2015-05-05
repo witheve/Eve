@@ -1,95 +1,71 @@
 use value::Value;
 
-type Id = String;
+fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
+    // the schema is arranged as (table name, unique key fields, other fields)
 
-// K is the unique key
-type KV<K, V> = Hashtable<K, V>;
-
-// two columns - no unique keys
-type VV<K,V> = Hashtable<K, V>;
-
-// two columns - first two are the unique key
-type KKV<K1, K2, V> = Hashtable<K1, Hashtable<K2, V>>;
-
-type Program = {
+    vec![
     // all state lives in a view of some kind
-    view_kind: KV<Id, ViewKind>,
+    // `kind` is one of:
+    // "table" - a view which can depend on the past
+    // "join" - take the product of multiple views and filter the results
+    // "union" - take the union of multiple views
+    // "aggregate" - group one view by the contents of another and run reducing functions on the groups
+    // "primitive" - a built-in function, represented as a view with one or more non-Data fields
+    ("view", vec!["view"], vec!["kind"]),
 
-    // views have fields, fields may belong to multiple views
-    field_view: VV<Id, Id>,
+    // views have fields
+    // some fields have constraints on how they can be queried
+    // `kind` is one of:
+    // "output" - a normal field
+    // "scalar input" - a field that must be constrained to a single scalar value
+    // "vector input" - a field that must be constrained to a single vector value (in an aggregate)
+    ("field", vec!["view", "field"], vec!["kind"]),
 
-    // a table has an insert view and a remove view
-    table_insert: KV<Id, Id>,
-    table_remove: KV<Id, Id>,
+    // sources uniquely identify a copy of a child view inside a parent join or union
+    // a table has an "insert" source and a "remove" source
+    // a join or union can query multiple copies of some child view, with different source ids
+    // an aggregate has an "outer" source, an "inner" source and a "reducer" source
+    ("source", vec!["parent view", "source"], vec!["child view"]),
 
-    // a query just indirects to another view
-    query_view: KV<Id, Id>,
-
-    // sources uniquely identify a copy of a child view inside a parent view
-    // eg a parent join can have multiple copies of some child view, with different source ids
-    source_parent: KV<Id, Id>,
-    source_child: KV<Id, Id>,
+    // every view also has an implicit "constant" source
+    // anywhere source-field is expected, you can instead use "constant"-id
+    // `value` may be any valid eve value
+    ("constant", vec!["constant"], vec!["value"]),
 
     // constraints belong to a join view
-    // the left and right are references which are compared using the operation
-    constraint_parent: KV<Id, Id>,
-    constraint_left: KV<Id, Id>,
-    constraint_operation: KV<Id, ConstraintOperation>,
-    constraint_right: KV<Id, Id>,
+    // the left and right fields are compared using the operation
+    // `operation` is one of "==", "/=", "<", "<=", ">", ">="
+    ("constraint parent", vec!["constraint"], vec!["parent view"]),
+    ("constraint left", vec!["constraint"], vec!["left source", "left field"]),
+    ("constraint right", vec!["constraint"], vec!["right source", "right field"]),
+    ("constraint operation", vec!["constraint"], vec!["operation"]),
 
-    // aggregates group an inner view by the rows of an outer view
-    // the groups are reduced using some primitive
-    aggregate_primitive: KV<Id, Id>,
-    aggregate_outer: KV<Id, Id>,
-    aggregate_inner: KV<Id, Id>,
+    // aggregates group an "inner" source by the rows of an "outer" source
+    // the grouping is determined by binding inner fields to outer fields or constants
+    ("aggregate grouping", vec!["aggregate", "inner field"], vec!["group source", "group field"]),
+    // before aggregation the groups are sorted
+    // `order` is an f64
+    ("aggregate sorting", vec!["aggregate", "inner field"], vec!["order"]),
+    // groups may optionally be limited by an inner field or constant
+    ("aggregate limit from", vec!["aggregate"], vec!["from source", "from field"]),
+    ("aggregate limit to", vec!["aggregate"], vec!["to source", "to field"]),
+    // the groups are reduced by binding against the "reducer" source
+    // constants and inner fields which are bound to outer fields may both be used as ScalarInput arguments
+    // inner fields which are not bound to outer fields may be used as VectorInput arguments
+    ("aggregate arguments", vec!["aggregate", "reducer field"], vec!["argument source", "argument field"]),
 
-    // the aggregate grouping is determined by binding outer fields to inner fields
-    // bound fields can optionally be passed to the aggregate primitive as arguments
-    aggregate_outerfield_binding: KKV<Id, Id, Id>,
-    binding_innerfield: KV<Id, Id>,
-    binding_primitivefield: KV<Id, ID>,
+    // views produce output by binding fields from sources
+    // each table or join field must be bound exactly once
+    // each aggregate field must be bound exactly once and can only bind constants, inner fields or reducer outputs
+    // each union field must be bound exactly once per source
+    // (the unique key is different for union than for other kinds, so I don't give a key at all)
+    ("select", vec![], vec!["view", "view field", "source", "source field"]),
 
-    // primitives are used to access built-in operations
-    primitive: K<Id>,
-
-    // constant references just refer to some value
-    reference_value: KV<Id, Value>,
-
-    // field references refer to a field in either a source (for join) or TODO
-    reference_field: KV<Id, Id>,
-    reference_source: KV<Id, Id>,
-
-    // things that live in an ordered list are sorted by some f64
-    thing_order: KV<Id, f64>,
-
+    // things that live in an ordered list are sorted by some f64 (ties are broken by Id)
+    // `order` is an f64
+    ("display order", vec!["id"], vec!["order"]),
     // things can have human readable names
-    thing_name: KV<Id, String>,
-
-    // TODO functions
-    // TODO function and aggregate arguments (FieldKind?)
-    // TODO select
-    // TODO union
-    // TODO negate
-}
-
-enum ViewKind {
-    Table, // a view which can depend on the past
-    Query, // a wrapper around some workspace full of views
-    Join, // take the product of multiple views and filter the results
-    Union, // take the union of multiple views
-    Aggregate, // group one view by the contents of another and run some primitive on the groups
-}
-
-enum ConstraintOperation {
-    Equal,
-    NotEqual,
-    LessThan,
-    LessThanOrEqual,
-    GreaterThan,
-    GreaterThanOrEqual,
-}
-
-enum PrimitiveKind {
-    Function,
-    Aggregate,
+    // `name` is a string
+    ("display name", vec!["id"], vec!["name"]),
+    ]
 }
