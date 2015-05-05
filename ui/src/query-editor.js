@@ -40,7 +40,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     "activeQuery": {name: "activeQuery", fields: ["query"], facts: [[1]]},
     "block": {name: "block", fields: ["block", "query", "viewlet"]},
     "viewlet": {name: "viewlet", fields: ["viewlet", "query", "schema"]},
-    "viewletSource": {name: "viewletSource", fields: ["source", "viewlet", "sourceView", "ix"]},
+    "viewletSource": {name: "viewletSource", fields: ["source", "viewlet", "schema", "ix"]},
     "viewletSourceFilter": {name: "viewletSourceFilter", fields: ["filter", "viewlet", "source", "field", "relation", "value", "type"]},
 
     // Examples
@@ -78,6 +78,7 @@ var queryEditor = (function(window, microReact, Indexing) {
   ixer.addIndex("queryToViewlets", "viewlet", Indexing.create.collector([1]));
   ixer.addIndex("schemaToViewlets", "viewlet", Indexing.create.collector([2]));
   ixer.addIndex("viewletToSources", "viewletSource", Indexing.create.collector([1]));
+  ixer.addIndex("schemaToSources", "viewletSource", Indexing.create.collector([2]));
   ixer.addIndex("viewletSourceToFilters", "viewletSourceFilter", Indexing.create.collector([1, 2]));
   ixer.addIndex("viewletSourceFilter", "viewletSourceFilter", Indexing.create.lookup([0, false]));
 
@@ -114,8 +115,12 @@ var queryEditor = (function(window, microReact, Indexing) {
         return memo.concat(ixer.index("viewletToSources")[viewletId] || []);
       }, []);
 
+      var schemaId = ixer.index("viewToSchema")[sourceViewId];
+      if(!schemaId) {
+        schemaId = ixer.index("viewletToSchema")[sourceViewId];
+      }
       var count = sources.filter(function(source) {
-        return source[code.ix("viewletSource", "sourceView")] === sourceViewId;
+        return source[code.ix("viewletSource", "schema")] === schemaId;
       }).length;
 
       return count;
@@ -184,7 +189,7 @@ var queryEditor = (function(window, microReact, Indexing) {
       var name = code.name(sourceViewId) + (count ? " (" + (count + 1) + ")" : "");
 
       var sourceId = uuid();
-      return [["viewletSource", "inserted", [sourceId, viewletId, sourceViewId, sources.length]],
+      return [["viewletSource", "inserted", [sourceId, viewletId, schemaId, sources.length]],
               ["displayName", "inserted", [sourceId, name]]];
     },
     addViewletSourceFilter: function addViewletSourceFilter(viewletId, sourceId) {
@@ -257,9 +262,12 @@ var queryEditor = (function(window, microReact, Indexing) {
     return {id: "root",
             c: "query-editor",
             children: [
-              treePane(queryId),
-              editor(queryId),
-              inspectorPane(queryId)
+              {c: "query-workspace", children: [
+                treePane(queryId),
+                editor(queryId),
+                inspectorPane(queryId)
+              ]},
+              queryResult(queryId)
             ]};
   }
 
@@ -358,6 +366,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     }
 
     return {c: "block view-block", viewletId: viewletId, drop: viewBlockDrop, dragover: preventDefault, children: [
+      {t: "h3", c: ""},
       {c: "block-section sources", children: sourceItems},
       {c: "block-section selections tree bar", viewletId: viewletId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems}
     ]};
@@ -385,13 +394,8 @@ var queryEditor = (function(window, microReact, Indexing) {
 
   function viewletSourceItem(viewletId, source) {
     var sourceId = source[code.ix("viewletSource", "source")];
-    var sourceViewId = source[code.ix("viewletSource", "sourceView")];
+    var schemaId = source[code.ix("viewletSource", "schema")];
     var queryId = ixer.index("viewletToQuery")[viewletId];
-    var schemaId = ixer.index("viewletToSchema")[sourceViewId];
-    if(!schemaId) {
-      schemaId = ixer.index("viewToSchema")[sourceViewId];
-    }
-
     var fields = ixer.index("schemaToFields")[schemaId] || [];
     var fieldItems = fields.map(function(field) {
       var id = field[code.ix("field", "field")];
@@ -408,15 +412,28 @@ var queryEditor = (function(window, microReact, Indexing) {
       var relation = filter[code.ix("viewletSourceFilter", "relation")];
       var value = filter[code.ix("viewletSourceFilter", "value")];
       var type = filter[code.ix("viewletSourceFilter", "type")];
+
+      var valueText = value;
+      if(type !== "constant") {
+        var fieldSchemaId = ixer.index("fieldToSchema")[value];
+        var sources = ixer.index("schemaToSources")[fieldSchemaId] || [];
+        if(sources.length > 1) { console.warn("Need to dedupe schemas in viewletSource, could be any of:", sources); }
+        var sourceName = (sources.length ? code.name(sources[0][code.ix("viewletSource", "source")]) : "");
+        valueText = code.name(value) + sourceName;
+      }
+
+      console.log("name", valueText);
+
       return {c: "viewlet-source-filter", children: [
         token.field({schema: schemaId, value: field, key: filterId}, updateViewletSourceFilter),
         token.relation({value: relation, key: filterId}, updateViewletSourceFilter),
-        token.value({value: (type === "constant" ? value : code.name(value)) || "<value>", key: filterId, type: type, viewletId: viewletId, queryId}, updateViewletSourceFilter)
+        token.value({value: valueText || "<value>", key: filterId, type: type, viewletId: viewletId, queryId}, updateViewletSourceFilter)
       ]};
     });
+
+    var viewletSourceItems = [{t: "h4", c: "viewlet-source-title", text:  code.name(sourceId) || "Untitled"}].concat(fieldItems);
     return {c: "viewlet-source", viewletId: viewletId, sourceId: sourceId, drop: viewletSourceDrop, dragover: preventDefault, children: [
-      {t: "h4", c: "viewlet-source-title", text:  code.name(sourceId) || "Untitled"},
-      (fieldItems.length ? {c: "tree bar viewlet-source-fields", children: fieldItems} : undefined),
+      {c: "tree bar viewlet-source-row", children: viewletSourceItems},
       (filterItems.length ? {c: "viewlet-source-filters", children: filterItems} : undefined)
     ]};
   }
@@ -504,7 +521,13 @@ var queryEditor = (function(window, microReact, Indexing) {
     if(type === "localField") {
       var schemaId = ixer.index("fieldToSchema")[fieldId];
       var viewlets = ixer.index("schemaToViewlets")[schemaId] || [];
-      if(viewlets.indexOf(elem.viewletId) === -1) { return; }
+      console.log(schemaId, viewlets, ixer.index("schemaToViewlets"));
+      var ix = code.ix("viewlet", "viewlet");
+      var isLocal = viewlets.some(function(viewlet) {
+        console.log(viewlet, ix, elem.viewletId);
+        return viewlet[ix] === elem.viewletId;
+      });
+      if(!isLocal) { return; }
       // Filter
       dispatch("updateViewletSourceFilter", {filterId: elem.key, type: "type", value: "filter"});
       dispatch("updateViewletSourceFilter", {filterId: elem.key, type: "value", value: fieldId});
@@ -594,11 +617,7 @@ var queryEditor = (function(window, microReact, Indexing) {
   function getViewletFields(viewletId) {
     var sources = ixer.index("viewletToSources")[viewletId] || [];
     return sources.reduce(function(memo, source) {
-      var sourceViewId = source[code.ix("viewletSource", "sourceView")];
-      var schemaId = ixer.index("viewletToSchema")[sourceViewId];
-      if(!schemaId) {
-        schemaId = ixer.index("viewToSchema")[sourceViewId];
-      }
+      var schemaId = source[code.ix("viewletSource", "schema")];
       memo.push.apply(memo, getSchemaFields(schemaId));
       return memo;
     }, []);
@@ -637,8 +656,8 @@ var queryEditor = (function(window, microReact, Indexing) {
   // Result
   //---------------------------------------------------------
 
-  function resultPane(queryId) {
-    return {c: "result pane"};
+  function queryResult(queryId) {
+    return {c: "query-result"};
   }
 
 
