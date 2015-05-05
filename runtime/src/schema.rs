@@ -20,6 +20,9 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)
     // "scalar input" - a field that must be constrained to a single scalar value
     // "vector input" - a field that must be constrained to a single vector value (in an aggregate)
     ("field", vec!["view", "field"], vec!["kind"]),
+    // fields are displayed in order
+    // `priority` is an f64. higher priority fields are displayed first. ties are broken by field id
+    ("field display order", vec!["view", "field"], vec!["priority"]),
 
     // source ids have two purposes
     // a) uniquely generated ids to disambiguate multiple uses of the same view
@@ -64,10 +67,6 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)
     // (the unique key is different for union than for other kinds, so I don't give a key at all)
     ("select", vec![], vec!["view", "view field", "source", "source field"]),
 
-    // things that live in an ordered list are sorted by some f64 (ties are broken by Id)
-    // `priority` is an f64. higher priority things are displayed first. ties are broken by field id
-    // things which have no entry default to 0
-    ("display order", vec!["id"], vec!["priority"]),
     // things can have human readable names
     // `name` is a string
     ("display name", vec!["id"], vec!["name"]),
