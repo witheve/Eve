@@ -40,7 +40,7 @@ th:first-child { border-radius: 2px 0 0 2px; }
 th:last-child { border-radius: 0 2px 2px 0; }
 table { overflow: auto; flex:1; }
 
-td { -webkit-user-select:auto; border-bottom:1px solid #444; width:100px; white-space:nowrap; max-width:150px; overflow:hidden; text-overflow:ellipsis; }
+td { -webkit-user-select:auto; border-bottom:0px solid #444; width:100px; white-space:nowrap; max-width:150px; overflow:hidden; text-overflow:ellipsis; }
 td > * { text-overflow:ellipsis; overflow:hidden; display:block; }
 td .input { width:100%; }
 
@@ -128,37 +128,37 @@ select.input { font-size: 0.9em;}
 - view editor
 -----------------------------------------------------------------------------*/
 
-.view-source-code { flex-direction: column; margin-right: 20px; flex:none; }
-.view-source-code > .step { flex: 0 0 auto; padding: 10px 10px; background: #333; margin-bottom:2px;  }
-.view-source-code > .view-query-builder { flex: 0 0 auto; }
-.view-source-code > .searcher { flex: 1; }
+.query-workspace .container { flex-direction:column; }
 
-.token { margin: 0.2em; white-space: nowrap; cursor: default; color: #999;  flex-direction:column; align-items:center; justify-content:center; border-radius:3px; }
-.token.editable {color: #ccc; background: #555; padding:5px; }
+.view-source-code { flex-direction: column; flex:none; }
+
+.token { margin: 0.2em; white-space: nowrap; cursor: default; color: #999;  flex-direction:row; align-items:center; justify-content:center; border-radius:6px; }
+.token.editable {color: #ccc; background: #444; border:1px solid #4c4c4c; padding:3px 5px; }
 .token.editable.active { border-bottom: 2px solid #fff; }
 .token.source { color: #ccc; }
-.token .table { font-size: 9pt; color: #999; }
+.token .table { font-size: 9pt; color: #999; margin-left: 3px; }
 .token .placeholder { font-size: 9pt; color: #999; }
 
-.step { flex-direction: column; }
+.query-workspace .source { flex-direction: row; justify-content:center; border-bottom:2px solid #202020; }
+.query-workspace .source-description { padding:10px; background: #555; flex-direction:column; align-items:flex-start; flex:1; }
+.query-workspace .source-result { background:#444; justify-content:center; flex:1; padding:10px 0 0 10px; }
 .constraints { flex-direction: column; }
 
-.add-calculation { padding: 10px; background: #333; flex-direction:column; font-size: 9pt; justify-content:center; align-items:center; }
+.add-calculation { padding: 10px; background: #333; flex-direction:row; font-size: 9pt; justify-content:center; align-items:center; }
 .add-calculation .icon { font-size: 18pt; }
+.add-calculation .ion-plus { font-size: 9pt; margin-top:-12px; margin-left:4px; }
 
-.view-container { position:relative; min-width:150px; flex-direction:column; background: #333; padding: 10px; margin-bottom:2px; border-radius:2px; color: #999; }
-.view-container .sub-title { flex: 1; }
-.view-container .icon { position:absolute; top:0; right:0; font-size: 12pt; flex:none; padding:10px; border-radius:3px; }
-.view-container .icon:hover { background: #777; color: #eee; }
+.view-container { position:relative; flex:1; flex-direction:column; background: #333; margin-bottom:2px; border-radius:2px; color: #999; }
 .calculations { margin-top: 5px; flex-direction:column; }
 .filters { margin-top: 5px; flex-direction:column; }
 .calculations .calculation { position:relative; align-items:center; padding-right:40px; }
 .filters .filter { position:relative; align-items:center; padding-right:40px; }
-.remove { position:absolute; visibility:hidden; right:-5px; top:8px; padding:5px; border-radius:2px;}
-.remove:hover { color: #f8a; background: #846; }
+.remove { visibility:hidden; font-size: 10pt; margin-left: 5px; align-items:center; padding:5px; border-radius:2px;}
+.remove:hover { color: #f8a; background: #744; }
 .filter:hover .remove, .calculation:hover .remove { visibility: visible; }
 
-.results-container { overflow:auto; }
+.results-container { overflow:auto; flex:1; background: #555; flex-direction:column; align-items:center; justify-content:center; }
+.results-container .feed { font-size: 36pt; margin-bottom:10px; }
 
 /*-----------------------------------------------------------------------------
 - token editor

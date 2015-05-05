@@ -81,10 +81,10 @@
         if(cur.text !== prev.text) div.textContent = cur.text;
         if(cur.tabindex !== prev.tabindex) div.setAttribute("tabindex", cur.tabindex);
 
-        if(cur.left !== prev.left)  style.left = cur.left;
-        if(cur.top !== prev.top) style.top = cur.top;
-        if(cur.height !== prev.height) style.height = cur.height;
-        if(cur.width !== prev.width)  style.width = cur.width;
+        if(cur.left !== prev.left)  style.left = cur.left === undefined ? "auto" : cur.left;
+        if(cur.top !== prev.top) style.top = cur.top === undefined ? "auto" : cur.top;
+        if(cur.height !== prev.height) style.height = cur.height === undefined ? "auto" : cur.height;
+        if(cur.width !== prev.width)  style.width = cur.width === undefined ? "auto" : cur.width;
         if(cur.zIndex !== prev.zIndex) style.zIndex = cur.zIndex;
 
         if(cur.backgroundColor !== prev.backgroundColor) style.backgroundColor = cur.backgroundColor || "transparent";
