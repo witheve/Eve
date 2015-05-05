@@ -16,6 +16,7 @@ macro_rules! time {
     }};
 }
 
+pub mod schema;
 pub mod value;
 pub mod index;
 pub mod interpreter;
