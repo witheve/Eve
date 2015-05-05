@@ -375,7 +375,7 @@ fn create_union(compiler: &Compiler, view_id: &Value) -> Union {
             println!("Warning, missing field mappings on view mapping: {:?}", view_mapping_id);
             view_mappings.push((num_source_fields, vec![])); // TODO total hack
         } else {
-            let field_mappings = field_mappings.drain().map(|reference| reference.unwrap()).collect();
+            let field_mappings = field_mappings.drain(..).map(|reference| reference.unwrap()).collect();
             view_mappings.push((num_source_fields, field_mappings));
         }
     }
