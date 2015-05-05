@@ -21,11 +21,12 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)
     // "vector input" - a field that must be constrained to a single vector value (in an aggregate)
     ("field", vec!["view", "field"], vec!["kind"]),
 
-    // sources uniquely identify a copy of a child view inside a parent join or union
-    // a table has an "insert" source and a "remove" source
-    // a join or union can query multiple copies of some child view, with different source ids
-    // an aggregate has an "outer" source, an "inner" source and a "reducer" source
-    ("source", vec!["parent view", "source"], vec!["child view"]),
+    // source ids have two purposes
+    // a) uniquely generated ids to disambiguate multiple uses of the same view
+    // (eg when joining a view with itself)
+    // b) fixed ids to identify views which are used for some specific purpose
+    // (these are "insert" and "remove" in tables and "inner" and "outer" in aggregates)
+    ("source", vec!["view", "source"], vec!["source view"]),
 
     // every view also has an implicit "constant" source
     // anywhere source-field is expected, you can instead use "constant"-id
@@ -35,7 +36,7 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)
     // constraints belong to a join view
     // the left and right fields are compared using the operation
     // `operation` is one of "==", "/=", "<", "<=", ">", ">="
-    ("constraint parent", vec!["constraint"], vec!["parent view"]),
+    ("constraint", vec!["constraint"], vec!["view"]),
     ("constraint left", vec!["constraint"], vec!["left source", "left field"]),
     ("constraint right", vec!["constraint"], vec!["right source", "right field"]),
     ("constraint operation", vec!["constraint"], vec!["operation"]),
@@ -44,15 +45,17 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)
     // the grouping is determined by binding inner fields to outer fields or constants
     ("aggregate grouping", vec!["aggregate", "inner field"], vec!["group source", "group field"]),
     // before aggregation the groups are sorted
-    // `order` is an f64
-    ("aggregate sorting", vec!["aggregate", "inner field"], vec!["order"]),
+    // `priority` is an f64. higher priority fields are compared first. ties are broken by field id
+    // `direction` is one of "ascending" or "descending"
+    // fields which have no entry default to 0, "ascending"
+    ("aggregate sorting", vec!["aggregate", "inner field"], vec!["priority", "direction"]),
     // groups may optionally be limited by an inner field or constant
     ("aggregate limit from", vec!["aggregate"], vec!["from source", "from field"]),
     ("aggregate limit to", vec!["aggregate"], vec!["to source", "to field"]),
-    // the groups are reduced by binding against the "reducer" source
-    // constants and inner fields which are bound to outer fields may both be used as ScalarInput arguments
-    // inner fields which are not bound to outer fields may be used as VectorInput arguments
-    ("aggregate arguments", vec!["aggregate", "reducer field"], vec!["argument source", "argument field"]),
+    // the groups may be reduced by binding against reducer sources
+    // constants and grouped inner fields may both be used as ScalarInput arguments
+    // ungrouped inner fields which are not bound to outer fields may be used as VectorInput arguments
+    ("aggregate argument", vec!["aggregate", "reducer source", "reducer field"], vec!["argument source", "argument field"]),
 
     // views produce output by binding fields from sources
     // each table or join field must be bound exactly once
@@ -62,8 +65,9 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)
     ("select", vec![], vec!["view", "view field", "source", "source field"]),
 
     // things that live in an ordered list are sorted by some f64 (ties are broken by Id)
-    // `order` is an f64
-    ("display order", vec!["id"], vec!["order"]),
+    // `priority` is an f64. higher priority things are displayed first. ties are broken by field id
+    // things which have no entry default to 0
+    ("display order", vec!["id"], vec!["priority"]),
     // things can have human readable names
     // `name` is a string
     ("display name", vec!["id"], vec!["name"]),
