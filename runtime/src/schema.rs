@@ -2,7 +2,7 @@ use value::Value;
 
 fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // the schema is arranged as (table name, unique key fields, other fields)
-    /// any field whose type is not described is a UUID
+    // any field whose type is not described is a UUID
 
     vec![
     // all state lives in a view of some kind
