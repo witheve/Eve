@@ -1,3 +1,0 @@
-* hasUI
-  > uiElem | count = count(@uiElem.id)
-  hasUI = @count > 0
