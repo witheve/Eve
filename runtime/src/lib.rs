@@ -1,6 +1,6 @@
 #![feature(collections)]
-#![feature(slice_patterns)]
 #![feature(collections_drain)]
+#![feature(slice_patterns)]
 
 extern crate rustc_serialize;
 extern crate websocket;
@@ -16,11 +16,11 @@ macro_rules! time {
     }};
 }
 
-pub mod schema;
 pub mod value;
-pub mod index;
-pub mod query;
-// pub mod flow;
-// pub mod compiler;
-// pub mod server;
+pub mod relation;
+// pub mod query;
+pub mod view;
+pub mod flow;
+pub mod compiler;
+pub mod server;
 // pub mod test;
