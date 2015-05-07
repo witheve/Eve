@@ -166,9 +166,9 @@ var queryEditor = (function(window, microReact, Indexing) {
   };
 
   var diff = {
-    remove: function remove(index, id) {
+    remove: function remove(index, view, id) {
       var old = ixer.index(index)[id];
-      return [["view", "removed", old]];
+      return [[view, "removed", old]];
     },
 
     addView: function addView(viewId, view) {
@@ -480,8 +480,9 @@ var queryEditor = (function(window, microReact, Indexing) {
 
   function viewSource(viewId, source) {
     var sourceId = source[code.ix("source", "source")];
+    var sourceViewId = source[code.ix("source", "source view")];
     var queryId = ixer.index("view to query")[viewId];
-    var fields = ixer.index("view to fields")[viewId] || [];
+    var fields = ixer.index("view to fields")[sourceViewId] || [];
     var fieldItems = fields.map(function(field) {
       var id = field[code.ix("field", "field")];
       return treeItem(code.name(id) || "Untitled", id, "localField", {c: "pill field"});
