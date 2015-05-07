@@ -198,14 +198,6 @@ var queryEditor = (function(window, microReact, Indexing) {
   };
 
   var diff = {
-    remove: function remove(index, view, id) {
-      var old = ixer.index(index)[id];
-      if(old) {
-        return [[view, "removed", old]];
-      }
-      return [];
-    },
-
     addView: function addView(viewId, view) {
       var diffs = [["display name", "inserted", [viewId, view.name]],
                    ["view", "inserted", [viewId, view.kind || "table"]]];
@@ -303,6 +295,18 @@ var queryEditor = (function(window, microReact, Indexing) {
       if(opts.operation) { diffs.push(["constraint operation", "inserted", [constraintId, opts.operation]]); }
 
       return diffs;
+    },
+    removeViewConstraint: function removeConstraint(constraintId) {
+      var diffs = [];
+      var oldConstraint = ixer.index("constraint")[constraintId];
+      var oldConstraintLeft = ixer.index("constraint left")[constraintId];
+      var oldConstraintRight = ixer.index("constraint right")[constraintId];
+      var oldConstraintOperation = ixer.index("constraint operation")[constraintId];
+      if(oldConstraint) { diffs.push(["constraint", "removed", oldConstraint]); }
+      if(oldConstraintLeft) { diffs.push(["constraint left", "removed", oldConstraintLeft]); }
+      if(oldConstraintRight) { diffs.push(["constraint right", "removed", oldConstraintRight]); }
+      if(oldConstraintOperation) { diffs.push(["constraint operation", "removed", oldConstraintOperation]); }
+      return diffs;
     }
   };
 
@@ -333,6 +337,15 @@ var queryEditor = (function(window, microReact, Indexing) {
       case "addViewSource":
         diffs = diff.addViewSource(info.viewId, info.sourceId);
         break;
+      case "removeViewSource":
+        diffs = [["source", "removed", info.source]];
+        var viewId = info.source[code.ix("source", "view")];
+        var constraints = ixer.index("view to constraints")[viewId] || [];
+        for(var ix = 0; ix < constraints.length; ix++) {
+          var constraintId = constraints[ix][code.ix("constraint", "constraint")];
+          diffs = diffs.concat(diff.removeViewConstraint(constraintId));
+        }
+        break;
       case "addViewConstraint":
         diffs = diff.addViewConstraint(info.viewId, {leftSource: info.sourceId, operation: "="});
         break;
@@ -353,10 +366,7 @@ var queryEditor = (function(window, microReact, Indexing) {
         diffs = diff.updateViewConstraint(info.constraintId, opts);
         break;
       case "removeViewConstraint":
-        diffs = diffs.concat(diff.remove("constraint", "constraint", info.constraintId));
-        diffs = diffs.concat(diff.remove("constraint left", "constraint left", info.constraintId));
-        diffs = diffs.concat(diff.remove("constraint right", "constraint right", info.constraintId));
-        diffs = diffs.concat(diff.remove("constraint operation", "constraint operation", info.constraintId));
+        diffs = diff.removeViewConstraint(info.constraintId);
         break;
       default:
         console.error("Unhandled dispatch:", evt, info);
@@ -677,7 +687,12 @@ var queryEditor = (function(window, microReact, Indexing) {
       ]};
     });
 
-    var viewSourceItems = [{t: "h4", c: "view-source-title", text: code.name(sourceId) || "Untitled"}].concat(fieldItems);
+    var viewSourceItems = [
+      {c: "view-source-title", children: [
+        {t: "h4", text: code.name(sourceId) || "Untitled"},
+        {c: "hover-reveal close-btn ion-android-close", source: source, click: removeSource}
+      ]}
+    ].concat(fieldItems);
     return {c: "view-source", viewId: viewId, sourceId: sourceId, drop: viewSourceDrop, dragover: preventDefault, children: [
       {c: "tree bar view-source-row", children: viewSourceItems},
       (constraintItems.length ? {c: "view-constraints", children: constraintItems} : undefined)
@@ -704,6 +719,10 @@ var queryEditor = (function(window, microReact, Indexing) {
 
   function removeConstraint(evt, elem) {
     dispatch("removeViewConstraint", {constraintId: elem.constraintId});
+  }
+
+  function removeSource(evt, elem) {
+    dispatch("removeViewSource", {source: elem.source});
   }
 
   //---------------------------------------------------------
