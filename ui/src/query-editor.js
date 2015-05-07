@@ -200,7 +200,10 @@ var queryEditor = (function(window, microReact, Indexing) {
   var diff = {
     remove: function remove(index, view, id) {
       var old = ixer.index(index)[id];
-      return [[view, "removed", old]];
+      if(old) {
+        return [[view, "removed", old]];
+      }
+      return [];
     },
 
     addView: function addView(viewId, view) {
@@ -348,6 +351,12 @@ var queryEditor = (function(window, microReact, Indexing) {
           opts.operation = info.value;
         }
         diffs = diff.updateViewConstraint(info.constraintId, opts);
+        break;
+      case "removeViewConstraint":
+        diffs = diffs.concat(diff.remove("constraint", "constraint", info.constraintId));
+        diffs = diffs.concat(diff.remove("constraint left", "constraint left", info.constraintId));
+        diffs = diffs.concat(diff.remove("constraint right", "constraint right", info.constraintId));
+        diffs = diffs.concat(diff.remove("constraint operation", "constraint operation", info.constraintId));
         break;
       default:
         console.error("Unhandled dispatch:", evt, info);
@@ -576,9 +585,13 @@ var queryEditor = (function(window, microReact, Indexing) {
 
   function editorDrop(evt, elem) {
     var type = evt.dataTransfer.getData("type");
-    if(type !== "view") { return; }
-    var sourceId = evt.dataTransfer.getData("value");
-    dispatch("addViewBlock", {sourceId: sourceId});
+    var value = evt.dataTransfer.getData("value");
+    if(type === "view") {
+      dispatch("addViewBlock", {sourceId: value});
+    }
+    if(type === "tool" && value === "aggregate") {
+      dispatch("addAggregateBlock", {});
+    }
   }
 
   function viewBlock(viewId) {
@@ -656,9 +669,11 @@ var queryEditor = (function(window, microReact, Indexing) {
     var constraintItems = constraints.map(function(constraint) {
       var id = constraint[constraintIdIx];
       return {c: "view-constraint", children: [
+        {c: "hover-reveal grip", children: [{c: "ion-android-more-vertical"}, {c: "ion-android-more-vertical"}]},
         token.sourceField({key: "field", sourceId: sourceId, constraintId: id}, updateViewConstraint),
         token.operation({key: "operation", sourceId: sourceId, constraintId: id}, updateViewConstraint),
-        token.blockField({key: "value", viewId: viewId, sourceId: sourceId, constraintId: id}, updateViewConstraint)
+        token.blockField({key: "value", viewId: viewId, sourceId: sourceId, constraintId: id}, updateViewConstraint),
+        {c: "hover-reveal close-btn ion-android-close", constraintId: id, click: removeConstraint}
       ]};
     });
 
@@ -685,6 +700,10 @@ var queryEditor = (function(window, microReact, Indexing) {
     dispatch("updateViewConstraint", {constraintId: id, type: elem.key, value: elem.value});
     stopEditToken(evt, elem);
     evt.stopPropagation();
+  }
+
+  function removeConstraint(evt, elem) {
+    dispatch("removeViewConstraint", {constraintId: elem.constraintId});
   }
 
   //---------------------------------------------------------
