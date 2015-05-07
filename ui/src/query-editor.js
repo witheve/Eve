@@ -807,7 +807,8 @@ var queryEditor = (function(window, microReact, Indexing) {
         item.constraintId = params.constraintId;
         return item;
       });
-      var select = selector(items, {c: "field", key: params.key, tabindex: -1, constraintId: params.constraintId, focus: true}, stopEditToken);
+      var select = selector(items, {c: "field", key: params.key, tabindex: -1, focus: true}, stopEditToken);
+      select.constraintId = params.constraintId;
       return select;
     },
     operation: function(params, onChange) {
@@ -816,7 +817,8 @@ var queryEditor = (function(window, microReact, Indexing) {
         item.constraintId = params.constraintId;
         return item;
       });
-      var select = selector(items, {c: "operation", key: params.key, tabindex: -1, constraintId: params.constraintId, focus: true}, stopEditToken);
+      var select = selector(items, {c: "operation", key: params.key, tabindex: -1, focus: true}, stopEditToken);
+      select.constraintId = params.constraintId;
       return select;
     },
     blockField: function(params, onChange) {
@@ -828,7 +830,8 @@ var queryEditor = (function(window, microReact, Indexing) {
         item.constraintId = params.constraintId;
         return item;
       });
-      var select = selector(items, {c: "field", key: params.key, tabindex: -1, constraintId: params.constraintId, focus: true}, stopEditToken);
+      var select = selector(items, {c: "field", key: params.key, tabindex: -1, focus: true}, stopEditToken);
+      select.constraintId = params.constraintId;
       return select;
     }
   };
