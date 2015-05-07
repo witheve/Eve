@@ -1,5 +1,5 @@
 * { box-sizing: border-box }
-body { height:100vh; -webkit-user-select: none; background: #202020; color: #ccc; font-family: Avenir, Arial; display:flex; }
+body { height:100vh; -webkit-user-select: none; background: rgba(36,41,41,1); color: #ccc; font-family: Avenir, Arial; display:flex; }
 div { display:flex; }
 div[contenteditable] { display:inline-block; }
 .__root { flex: 1; display:flex; }
@@ -74,12 +74,12 @@ select.input { font-size: 0.9em;}
 
 .ui-workspace { flex: 1; }
 
-.ui-workspace .controls { flex-direction:column; margin-top:10px; }
+.ui-workspace .controls { flex-direction:row; background: rgba(62,73,75,1); }
 .ui-workspace .controls .control-item { flex:none; flex-direction:column; padding:5px 15px; align-items:center; font-size:10pt; }
 .ui-workspace .controls .control-item:hover { background:#555; }
 .ui-workspace .controls .icon { width:30px; height:30px; border: 1px solid #999;  border-radius:2px; margin-bottom:5px; }
 
-.ui-canvas {flex: 1; position:relative; overflow:auto; background:#fff; margin:10px 0; }
+.ui-canvas {flex: 1; position:relative; overflow:auto; background:rgba(47,52,55,1); margin:10px; }
 .ui-canvas .control.box { background:#ddd; }
 .ui-canvas .control.button { background:#ddd; }
 .ui-canvas .control.selected { border: 1px solid #555; }
@@ -91,6 +91,26 @@ select.input { font-size: 0.9em;}
 
 .ui-box-selection { position: absolute; border: 1px solid #555; pointer-events: none; z-index: 101; }
 
+.layout-box-wrapper { justify-content:center; align-items:center; }
+.layoutBox { justify-content: center; align-items:center;  }
+.layoutBoxOutline { box-shadow:0 0 4px #333; border:1px solid #ccc; width:20px; height:20px; overflow:hidden; }
+.adjustable + .adjustable, .selectable + .selectable { margin-left: 5px; }
+.adjustable { border-bottom:1px dashed #21DBFF; color: #21DBFF; cursor:ew-resize; font-size: 10pt; min-width:30px; justify-content:center; }
+.adjustable-shade { position:absolute; top:0; bottom:0; left:0; right:0; cursor:ew-resize; }
+
+.font-color { margin: 0 5px; margin-left: 10px}
+
+.layoutBox .color-picker input { height:20px; width:20px; }
+.layoutBoxFilled { width:20px; height:20px; box-shadow:0 0 4px #333; overflow:hidden;  margin:0 10px; }
+
+.selectable { position:relative; }
+.selectable select { position:absolute; opacity:0; width: 100%; cursor:ns-resize; }
+.selectable-value {  border-bottom:1px dashed #21DBFF; color: #21DBFF; cursor:ns-resize; font-size: 10pt; }
+
+.styleSelector { align-items: center; justify-content:center; }
+
+.text-attributes .color-picker input { position:absolute; }
+
 .selection { position:absolute; border: 1px solid #555; pointer-events: none; z-index:100; }
 .selection .trash { position:absolute; top: -40px; right: -40px; font-size: 20pt; color: #555; padding:4px 10px; pointer-events:auto; border-radius:2px; }
 .selection .trash:hover { background: #833; color: #fcc; }
@@ -101,28 +121,22 @@ select.input { font-size: 0.9em;}
 
 .grid { z-index: 0; pointer-events:none; }
 
-.inspector { flex-direction:column; width:200px; margin-left:10px; }
-.layers { flex-direction: column; margin-top:10px }
-.layer { display:flex; padding:5px; border-radius:2px; background:#444; }
-.layer + .layer { margin-top:1px; }
-.layer.active { background:#777; color: #eee; }
-.layer > * + *  { margin-left:10px; }
-.layer .input { flex:1; }
-
-.layers .ion-eye-disabled { color: #f88; }
-.layers .ion-eye-disabled { color: #f88; }
-.layers .ion-locked { color: #f88; }
+.inspector { flex-direction:row; background: rgba(89,100,102,1); padding:5px 10px; }
 .hidden { display:none !important; }
 .locked { pointer-events: none; }
 
-.inspector-panel { flex-direction:column; margin-bottom:1px; }
-.inspector-panel .pair + .pair { margin-top:1px; }
-.inspector-panel .label { padding: 5px; }
+.inspector-panel { flex-direction:row; }
+.inspector-panel + .inspector-panel { margin-left: 10px; padding-left:10px; border-left:1px solid rgba(64,75,77,1);}
+.inspector-panel .label { padding: 5px; font-size: 10pt; }
 .inspector-panel .input { background: #111; flex:1; padding:5px; align-self: center; }
 .inspector-panel > div.title { font-size: 1em; background: transparent; vertical-align: bottom; margin-bottom: 1px; margin-top: 0.5em; }
 
-.color-picker { flex: 1; }
+.color-picker { flex: 1; justify-content:stretch; align-items:stretch; }
 .color-picker input { flex:1; opacity:0; }
+
+.controlBar { background: rgba(62,73,75,1); border-bottom:1px solid rgba(53,64,76,1); }
+.controlBar .controlGroup + .controlGroup { border-left: 1px solid rgba(45,56,57,1); }
+.controlBar .file-menu { border-right: 1px solid rgba(45,56,57,1); padding: 0 15px; align-items:center; }
 
 /*-----------------------------------------------------------------------------
 - view editor
@@ -183,7 +197,7 @@ select.input { font-size: 0.9em;}
 - left bar
 -----------------------------------------------------------------------------*/
 
-.left-bar { padding: 10px 10px; }
+.left-bar { padding: 10px 10px; position:absolute; z-index:10000; background: rgba(62,73,75,1); background: rgba(89,100,102,1); top: 60px; bottom:0px; }
 
 .adder { flex:none; padding: 10px; }
 .adder .button { justify-content:center; font-size:16pt; flex:1; margin-left: 2px; background: rgba(255,255,255,0.15); padding:5px; border-radius:2px; }
@@ -197,7 +211,7 @@ select.input { font-size: 0.9em;}
 - tree selector
 -----------------------------------------------------------------------------*/
 
-.tree-selector { flex-direction:column; overflow:auto; }
+.tree-selector { flex-direction:column; overflow:auto; height:100%; }
 .tree-item { padding:3px 10px; flex: none; flex-direction:column; cursor: default; }
 .tree-item > .item { flex-direction: row; }
 .tree-item > .item > .name { flex: 1; text-overflow: ellipsis; }
@@ -221,7 +235,7 @@ select.input { font-size: 0.9em;}
 - workspace
 -----------------------------------------------------------------------------*/
 
-.workspace { flex: 1; padding: 20px; overflow:hidden; }
+.workspace { flex: 1; overflow:hidden; }
 .workspace-content { flex: 1; }
 .workspace-content .container { flex: 1; }
 .workspace .title { flex:none; margin-bottom:10px; font-size:16pt; border-radius:2px; min-width: 30px; min-height:20px; padding:5px 10px; background: rgba(255,255,255, 0.15); }

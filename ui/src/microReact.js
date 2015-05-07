@@ -92,8 +92,11 @@
           style.backgroundImage = "url('" + cur.backgroundImage + "')";
         }
         if(cur.border !== prev.border) style.border = cur.border || "none";
-        if(cur.borderRadius !== prev.borderRadius) style.borderRadius = cur.borderRadius || 0;
-        if(cur.opacity !== prev.opacity) style.opacity = cur.opacity || 1;
+        if(cur.borderColor !== prev.borderColor) style.borderColor = cur.borderColor || "none";
+        if(cur.borderWidth !== prev.borderWidth) style.borderWidth = cur.borderWidth || 0;
+        if(cur.borderWidth !== prev.borderWidth) style.borderStyle = "solid";
+        if(cur.borderRadius !== prev.borderRadius) style.borderRadius = (cur.borderRadius || 0) + "px";
+        if(cur.opacity !== prev.opacity) style.opacity = cur.opacity === undefined ? 1 : cur.opacity;
         if(cur.fontSize !== prev.fontSize) style.fontSize = cur.fontSize;
         if(cur.textAlign !== prev.textAlign) style.justifyContent = cur.textAlign;
         if(cur.verticalAlign !== prev.verticalAlign) style.alignItems = cur.verticalAlign;
@@ -172,7 +175,8 @@
            && curA.backgroundImage === curB.backgroundImage
            && curA.color === curB.color
            && curA.colspan === curB.colspan
-           && curA.border === curB.border
+           && curA.borderColor === curB.borderColor
+           && curA.borderWidth === curB.borderWidth
            && curA.borderRadius === curB.borderRadius
            && curA.opacity === curB.opacity
            && curA.fontFamily === curB.fontFamily
@@ -215,7 +219,8 @@
            && curA.backgroundImage === curB.backgroundImage
            && curA.color === curB.color
            && curA.colspan === curB.colspan
-           && curA.border === curB.border
+           && curA.borderColor === curB.borderColor
+           && curA.borderWidth === curB.borderWidth
            && curA.borderRadius === curB.borderRadius
            && curA.opacity === curB.opacity
            && curA.fontFamily === curB.fontFamily

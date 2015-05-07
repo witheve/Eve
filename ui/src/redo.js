@@ -111,6 +111,7 @@ function root() {
 //---------------------------------------------------------
 
 function leftBar() {
+  if(!menuShown) return;
   return {c: "left-bar column", children: [
     {c: "adder", children: [
       {c: "button add-table", click: addItem, event: "addTable", children: [
@@ -205,8 +206,7 @@ function tableItem(table) {
       return queryItem(viewIndex[queryId]);
     });
   }
-  var controls = [{c: "ion-plus", unionId: unionId, click: addQueryToTable}];
-  return treeItem("table", unionId, name, "ion-grid", queryItems, controls, "table");
+  return treeItem("table", unionId, name, "ion-grid", queryItems, null, "table");
 }
 
 function addQueryToTable(e, elem) {
@@ -665,15 +665,30 @@ function uiWorkspace(componentId) {
     }
   }
   return {c: "workspace-content column ui-workspace", componentId: componentId, children: [
-    {c: "title", children: [
-      input(code.name(componentId), componentId, rename)
-    ]},
+//     {c: "title", children: [
+//       input(code.name(componentId), componentId, rename)
+//     ]},
+    controlBar([uiControls(componentId, activeLayer)]),
+    inspector(componentId, selectionInfo, layers, activeLayer),
     {c: "container", children: [
-      uiControls(componentId, activeLayer),
       {c: "ui-canvas", componentId: componentId, children: els, mousedown: startBoxSelect, mousemove: updateBoxSelect, mouseup: endBoxSelect, mouseleave: endBoxSelect},
-      inspector(componentId, selectionInfo, layers, activeLayer)
     ]}
   ]};
+}
+
+function controlBar(items) {
+  var final = [
+    {c: "file-menu", text: "open", click: openMenu}
+  ];
+  final = final.concat(items);
+  return {c: "controlBar", children: final};
+}
+
+var menuShown = false;
+function openMenu(e, elem) {
+  console.log("open menu");
+  menuShown = !menuShown;
+  rerender();
 }
 
 function startBoxSelect(evt, el) {
@@ -827,21 +842,83 @@ function inspector(componentId, selectionInfo, layers, activeLayer) {
   return {c: "inspector", children: inspectors};
 }
 
+function adjustable(value, start, stop, step) {
+  return {c: "adjustable", mousedown: startAdjusting, adjustHandler: adjustAdjustable,
+          value: value, start: start, stop: stop, step: step,  text: value};
+}
+
+var adjustableShade = document.createElement("div");
+adjustableShade.className = "adjustable-shade";
+adjustableShade.addEventListener("mousemove", function(e) {
+  if(adjusterInfo) {
+    adjusterInfo.handler(e, renderer.tree[adjusterInfo.elem.id]);
+  }
+})
+
+adjustableShade.addEventListener("mouseup", function(e) {
+  adjusterInfo = false;
+  document.body.removeChild(adjustableShade);
+})
+
+var adjusterInfo;
+function startAdjusting(e, elem) {
+  adjusterInfo = {elem: elem, startValue: elem.value, handler: elem.adjustHandler, bounds: {left: e.clientX, top: e.clientY}};
+  document.body.appendChild(adjustableShade);
+}
+
+function adjustAdjustable(e, elem) {
+  var x = e.clientX || __clientX;
+  var y = e.clientY || __clientY;
+  if(x === 0 && y === 0) return;
+  var rect = adjusterInfo.bounds;
+  var offsetX = Math.floor(x - rect.left);
+  var offsetY = Math.floor(y - rect.top);
+  var adjusted = Math.floor(adjusterInfo.startValue + offsetX);
+  var neue = Math.min(Math.max(elem.start, adjusted), elem.stop);
+  if(elem.handler) {
+    elem.handler(elem, neue);
+  }
+}
+
 uiProperties.layout = ["top", "left", "width", "height"];
 function layoutInspector(selectionInfo, binding) {
   var componentId = selectionInfo.componentId;
   var bounds = selectionInfo.bounds;
+  var width = bounds.right - bounds.left;
+  var height = bounds.bottom - bounds.top;
+  var widthAdjuster = adjustable(width, 1, 1000, 1);
+  widthAdjuster.handler = adjustWidth;
+  widthAdjuster.componentId = componentId;
+  widthAdjuster.bounds = bounds;
+  var heightAdjuster = adjustable(height, 1, 1000, 1);
+  heightAdjuster.handler = adjustHeight;
+  heightAdjuster.componentId = componentId;
+  heightAdjuster.bounds = bounds;
+  var topAdjuster = adjustable(bounds.top, 0, 100000, 1);
+  topAdjuster.handler = adjustPosition;
+  topAdjuster.componentId = componentId;
+  topAdjuster.coord = "top";
+  var leftAdjuster = adjustable(bounds.left, 0, 100000, 1);
+  leftAdjuster.handler = adjustPosition;
+  leftAdjuster.componentId = componentId;
+  leftAdjuster.coord = "left";
   //pos, size
   return {c: "inspector-panel", children: [
-    {c: "title", text: "Layout"},
-    {c: "pair", children: [{c: "label", text: "top"}, inspectorInput(bounds.top, [componentId, "top"], adjustPosition, binding) ]},
-    {c: "pair", children: [{c: "label", text: "left"}, inspectorInput(bounds.left, [componentId, "left"], adjustPosition, binding) ]},
-    {c: "pair", children: [{c: "label", text: "width"}, inspectorInput(bounds.right - bounds.left, selectionInfo, adjustWidth, binding) ]},
-    {c: "pair", children: [{c: "label", text: "height"}, inspectorInput(bounds.bottom - bounds.top, selectionInfo, adjustHeight, binding) ]},
+//     {c: "title", text: "Layout"},
+      {c: "layoutBox", children: [
+        {c: "label", text: "x:"},
+        leftAdjuster,
+        {c: "label", text: "y:"},
+        topAdjuster,
+        {c: "label", text: "w:"},
+        widthAdjuster,
+        {c: "label", text: "h:"},
+        heightAdjuster,
+      ]},
   ]};
 }
 
-uiProperties.appearance = ["backgroundColor", "backgroundImage", "border", "borderRadius", "opacity"];
+uiProperties.appearance = ["backgroundColor", "backgroundImage", "borderColor", "borderWidth", "borderRadius", "opacity"];
 function appearanceInspector(selectionInfo, binding) {
   var attrs = selectionInfo.attributes;
   var componentId = selectionInfo.componentId;
@@ -852,32 +929,122 @@ function appearanceInspector(selectionInfo, binding) {
     styleName = "---";
   }
 
+  var borderColorPicker = colorSelector(componentId, "borderColor", attrs["borderColor"]);
+  borderColorPicker.backgroundColor = undefined;
+
+  var opacity = attrs["opacity"] == undefined ? 100 : attrs["opacity"] * 100;
+  var opacityAdjuster = adjustable(opacity, 0, 100, 1);
+  opacityAdjuster.text = Math.floor(opacity) + "%";
+  opacityAdjuster.handler = adjustOpacity;
+  opacityAdjuster.componentId = componentId;
+
+  var borderWidth = attrs["borderWidth"] === undefined ? 0 : attrs["borderWidth"];
+  var borderWidthAdjuster = adjustable(borderWidth, 0, 20, 1);
+  borderWidthAdjuster.text = borderWidth + "px";
+  borderWidthAdjuster.handler = adjustAttr;
+  borderWidthAdjuster.attr = "borderWidth";
+  borderWidthAdjuster.componentId = componentId;
+
+  var borderRadius = attrs["borderRadius"] === undefined ? 0 : attrs["borderRadius"];
+  var borderRadiusAdjuster = adjustable(borderRadius, 0, 100, 1);
+  borderRadiusAdjuster.text = borderRadius + "px";
+  borderRadiusAdjuster.handler = adjustAttr;
+  borderRadiusAdjuster.attr = "borderRadius";
+  borderRadiusAdjuster.componentId = componentId;
+
+
+  var visualStyle = selectable("No visual style", ["No visual style", "Foo", "Bar", "Add a new style"]);
+  visualStyle.c += " styleSelector";
+  visualStyle.handler = function(elem, value) {
+    console.log("got style", value);
+  }
+
   return {c: "inspector-panel", children: [
-    {c: "title", text: "Appearance"},
-    {c: "pair", children: [
-      styleSelector("appearance-style-searcher", {initial: styleName, type: "appearance"}, function onClose(evt, elem, type) {
-        if(type !== "blurred") {
-          var val = evt.target.value;
-          if(val !== "default") {
-            dispatch("setSelectionStyle", {type: "appearance", style: val, componentId: componentId});
-          }
-        }
-      }),
-      {c: "add-style-btn ion-plus icon-btn"}
+    visualStyle,
+    {c: "layoutBox", children: [
+      {c: "layoutBoxFilled", borderRadius: attrs["borderRadius"], children: [
+        colorSelector(componentId, "backgroundColor", attrs["backgroundColor"])
+      ]},
+      {c: "layoutBoxOutline", borderRadius: attrs["borderRadius"], borderWidth: attrs["borderWidth"], borderColor: attrs["borderColor"], children: [borderColorPicker]},
+      {c: "label", text: "w:"},
+      borderWidthAdjuster,
+      {c: "label", text: "r:"},
+      borderRadiusAdjuster,
+      {c: "label", text: "opacity:"},
+      opacityAdjuster
     ]},
-    {c: "pair", children: [{c: "label", text: "background"},
-                           colorSelector(componentId, "backgroundColor", attrs["backgroundColor"])]},
-    {c: "pair", children: [{c: "label", text: "image"},
-                           inspectorInput(attrs["backgroundImage"], [componentId, "backgroundImage"], setAttribute, binding)]},
-    {c: "pair", children: [{c: "label", text: "border"},
-                          inspectorInput(attrs["border"], [componentId, "border"], setAttribute, binding)]},
-    {c: "pair", children: [{c: "label", text: "radius"},
-                          inspectorInput(attrs["borderRadius"], [componentId, "borderRadius"], setAttribute, binding)]},
-    {c: "pair", children: [{c: "label", text: "opacity"},
-                          inspectorInput(attrs["opacity"], [componentId, "opacity"], setAttribute, binding)]},
+//     {c: "pair", children: [
+//       styleSelector("appearance-style-searcher", {initial: styleName, type: "appearance"}, function onClose(evt, elem, type) {
+//         if(type !== "blurred") {
+//           var val = evt.target.value;
+//           if(val !== "default") {
+//             dispatch("setSelectionStyle", {type: "appearance", style: val, componentId: componentId});
+//           }
+//         }
+//       }),
+//       {c: "add-style-btn ion-plus icon-btn"}
+//     ]},
+//     {c: "pair", children: [{c: "label", text: "image"},
+//                            inspectorInput(attrs["backgroundImage"], [componentId, "backgroundImage"], setAttribute, binding)]},
   ]};
 }
 
+function selectable(value, items, setFont) {
+  var options = items.map(function(cur) {
+    var item = {t: "option", value: cur, text: cur};
+    if(setFont) {
+      item.fontFamily = cur;
+    }
+    if(cur === value) {
+      item.selected = "selected";
+    }
+    return item;
+  })
+  return {c: "selectable", change: selectSelectable, children: [
+    {t: "select", children: options},
+    {c: "selectable-value", text: value}
+  ]}
+}
+
+function selectSelectable(e, elem) {
+  if(elem.handler) {
+    elem.handler(elem, e.target.value);
+  }
+}
+
+var alignMapping = {
+  "flex-start": "Left",
+  "center": "Center",
+  "flex-end": "Right",
+}
+var vAlignMapping = {
+  "flex-start": "Top",
+  "center": "Center",
+  "flex-end": "Bottom",
+}
+function selectVerticalAlign(elem, value) {
+  var final = "center";
+  if(value === "Top") {
+    final = "flex-start";
+  } else if(value === "Bottom") {
+    final = "flex-end";
+  }
+  dispatch("setAttributeForSelection", {componentId: elem.componentId, property: "verticalAlign", value: final});
+}
+
+function selectAlign(elem, value) {
+  var final = "center";
+  if(value === "Left") {
+    final = "flex-start";
+  } else if(value === "Right") {
+    final = "flex-end";
+  }
+  dispatch("setAttributeForSelection", {componentId: elem.componentId, property: "textAlign", value: final});
+}
+
+function selectFont(elem, value) {
+  dispatch("setAttributeForSelection", {componentId: elem.componentId, property: "fontFamily", value: value});
+}
 
 uiProperties.typography = ["text", "fontFamily", "fontSize", "color", "textAlign", "verticalAlign"];
 function textInspector(selectionInfo, binding) {
@@ -887,33 +1054,68 @@ function textInspector(selectionInfo, binding) {
   if(selectionInfo.styles.appearance) {
     styleName = code.name(selectionInfo.styles.appearance[1]);
   } else {
-    styleName = "---";
+    styleName = "no shared style";
+  }
+
+  var font = attrs["fontFamily"] || "Helvetica Neue";
+  var fontPicker = selectable(font, ["Times New Roman", "Verdana", "Arial", "Georgia", "Avenir", "Helvetica Neue"], true);
+  fontPicker.componentId = componentId;
+  fontPicker.handler = selectFont;
+
+  var fontSize = attrs["fontSize"] === undefined ? 16 : attrs["fontSize"];
+  var fontSizeAdjuster = adjustable(fontSize, 0, 300, 1);
+  fontSizeAdjuster.handler = adjustAttr;
+  fontSizeAdjuster.attr = "fontSize";
+  fontSizeAdjuster.componentId = componentId;
+
+  var fontColor = colorSelector(componentId, "color", attrs["color"]);
+  fontColor.color = attrs["color"];
+  fontColor.c += " font-color";
+
+  var verticalAlign = vAlignMapping[attrs["verticalAlign"]] || "Top";
+  var valign = selectable(verticalAlign, ["Top", "Center", "Bottom"]);
+  valign.componentId = componentId;
+  valign.handler = selectVerticalAlign;
+
+  var textAlign = alignMapping[attrs["textAlign"]] || "Left";
+  var align = selectable(textAlign, ["Left", "Center", "Right"]);
+  align.componentId = componentId;
+  align.handler = selectAlign;
+
+  var typographyStyle = selectable("No text style", ["No typorgaphy style", "Foo", "Bar", "Add a new style"]);
+  typographyStyle.c += " styleSelector";
+  typographyStyle.handler = function(elem, value) {
+    console.log("got style", value);
   }
 
   return {c: "inspector-panel", children: [
-    {c: "title", text: "Typography"},
-    {c: "pair", children: [
-      styleSelector("typography-style-searcher", {initial: styleName, type: "typography"}, function onClose(evt, elem, type) {
-        if(type !== "blurred") {
-          var val = evt.target.value;
-          if(val !== "default") {
-            dispatch("setSelectionStyle", {type: "typography", style: val, componentId: componentId});
-          }
-        }
-      }),
-      {c: "add-style-btn ion-plus icon-btn"}
+    typographyStyle,
+    {c: "layoutBox", children: [
+        fontColor,
+        {c: "label", text: "size:"},
+        fontSizeAdjuster
     ]},
-    {c: "pair", children: [{c: "label", text: "content"}, inspectorInput(attrs["text"], [componentId, "text"], setAttribute, binding)]},
-    {c: "pair", children: [{c: "label", text: "font"},
-                           inspectorInput(attrs["fontFamily"], [componentId, "fontFamily"], setAttribute, binding)]},
-    {c: "pair", children: [{c: "label", text: "size"},
-                           inspectorInput(attrs["fontSize"], [componentId, "fontSize"], setAttribute, binding)]},
-    {c: "pair", children: [{c: "label", text: "color"}, colorSelector(componentId, "color", attrs["color"])]},
-    {c: "pair", children: [{c: "label", text: "align"},
-                           inspectorInput(attrs["textAlign"], [componentId, "textAlign"], setAttribute, binding)]},
-    {c: "pair", children: [{c: "label", text: "valign"},
-                           inspectorInput(attrs["verticalAlign"], [componentId, "verticalAlign"], setAttribute, binding)]},
-    {c: "pair", children: [{c: "label", text: "bold/italic/underline"}]},
+
+    {c: "layoutBox", children: [
+      {c: "label", text: "font:"},
+      fontPicker,
+      {c: "label", text: "align:"},
+        valign,
+        align,
+    ]},
+
+//     {c: "pair", children: [
+//       styleSelector("typography-style-searcher", {initial: styleName, type: "typography"}, function onClose(evt, elem, type) {
+//         if(type !== "blurred") {
+//           var val = evt.target.value;
+//           if(val !== "default") {
+//             dispatch("setSelectionStyle", {type: "typography", style: val, componentId: componentId});
+//           }
+//         }
+//       }),
+//       {c: "add-style-btn ion-plus icon-btn"}
+//     ]},
+//     {c: "pair", children: [{c: "label", text: "content"}, inspectorInput(attrs["text"], [componentId, "text"], setAttribute, binding)]},
   ]};
 }
 
@@ -1027,40 +1229,41 @@ function styleSelector(id, opts, onClose) {
 }
 
 // Layout handlers
-function adjustWidth(e, elem) {
-  var value = parseInt(e.currentTarget.textContent);
-  if(isNaN(value)) return;
-  if(value <= 0) value = 1;
-  var componentId = elem.key.componentId;
-  var old = elem.key.bounds;
+function adjustWidth(elem, value) {
+  var componentId = elem.componentId;
+  var old = elem.bounds;
   var neue = {left: old.left, right: (old.left + value), top: old.top,  bottom: old.bottom};
-  var widthRatio = value / elem.text;
+  var widthRatio = value / (old.right - old.left);
+  if(widthRatio === 1) return;
   dispatch("resizeSelection", {widthRatio: widthRatio, heightRatio: 1, oldBounds: old, neueBounds: neue, componentId: componentId});
 }
 
-function adjustHeight(e, elem) {
-  var value = parseInt(e.currentTarget.textContent);
-  if(isNaN(value)) return;
-  if(value <= 0) value = 1;
-  var componentId = elem.key.componentId;
-  var old = elem.key.bounds;
+function adjustHeight(elem, value) {
+  var componentId = elem.componentId;
+  var old = elem.bounds;
   var neue = {left: old.left, right: old.right, top: old.top,  bottom: (old.top + value)};
-  var heightRatio = value / elem.text;
+  var heightRatio = value / (old.bottom - old.top);
+  if(heightRatio === 1) return;
   dispatch("resizeSelection", {widthRatio: 1, heightRatio: heightRatio, oldBounds: old, neueBounds: neue, componentId: componentId});
 }
 
-function adjustPosition(e, elem) {
-  var value = parseInt(e.currentTarget.textContent);
-  if(isNaN(value)) return;
-  var componentId = elem.key[0];
-  var coord = elem.key[1];
+function adjustPosition(elem, value) {
+  var componentId = elem.componentId;
+  var coord = elem.coord;
   var diffX = 0, diffY = 0;
   if(coord === "top") {
-    diffY = value - elem.text;
+    diffY = value - elem.value;
   } else {
-    diffX = value - elem.text;
+    diffX = value - elem.value;
   }
   dispatch("moveSelection", {diffX: diffX, diffY: diffY, componentId: componentId});
+}
+
+function adjustOpacity(elem, value) {
+  dispatch("setAttributeForSelection", {componentId: elem.componentId, property: "opacity", value: value / 100});
+}
+function adjustAttr(elem, value) {
+  dispatch("setAttributeForSelection", {componentId: elem.componentId, property: elem.attr, value: value});
 }
 
 // Generic attribute handler
@@ -1071,9 +1274,9 @@ function setAttribute(e, elem) {
   var value = target.value;
   if(target.type === "color") {
     value = target.value;
-  } if(target.type === "checkbox") {
+  } else if(target.type === "checkbox") {
     value = target.checked;
-  } else if(e.type === undefined) {
+  } else if(target.type === undefined) {
     value = target.textContent;
   }
   dispatch("setAttributeForSelection", {componentId: componentId, property: property, value: value});
@@ -2304,10 +2507,10 @@ function dispatch(event, info, returnInsteadOfSend) {
         //We first find out the relative position of the item in the selection
         //then adjust by the given ratio and finall add the position of the selection
         //back in to get the new absolute coordinates
-        neue[5] = ((neue[5] - oldBounds.left) * ratioX) + neueBounds.left; //left
-        neue[7] = ((neue[7] - oldBounds.right) * ratioX) + neueBounds.right; //right
-        neue[6] = ((neue[6] - oldBounds.top) * ratioY) + neueBounds.top; //top
-        neue[8] = ((neue[8] - oldBounds.bottom) * ratioY) + neueBounds.bottom; //bottom
+        neue[5] = Math.floor(((neue[5] - oldBounds.left) * ratioX) + neueBounds.left); //left
+        neue[7] = Math.floor(((neue[7] - oldBounds.right) * ratioX) + neueBounds.right); //right
+        neue[6] = Math.floor(((neue[6] - oldBounds.top) * ratioY) + neueBounds.top); //top
+        neue[8] = Math.floor(((neue[8] - oldBounds.bottom) * ratioY) + neueBounds.bottom); //bottom
         diffs.push(["uiComponentElement", "inserted", neue]);
       });
       break;
@@ -2326,6 +2529,7 @@ function dispatch(event, info, returnInsteadOfSend) {
       break;
     case "endBoxSelect":
       var SELECTION_THRESHOLD = 16;
+      var removed = ixer.index("remove");
       var box = ixer.index("uiBoxSelection")[info.componentId];
       if(box && ixer.index("remove")[box[0]]) { box = undefined; }
       if(!box) { break; }
@@ -2354,7 +2558,7 @@ function dispatch(event, info, returnInsteadOfSend) {
         }
         // If layer is locked or hidden, skip it.
         var layer = layers[el[3]];
-        if(!layer || layer[4] || layer[5]) { return; }
+        if(!layer || layer[4] || layer[5] || removed[el[0]]) { return; }
         selections.push(el[1]);
       });
 
@@ -2860,7 +3064,7 @@ function initIndexer() {
 
   // map ui views
   add("uiMap", {tx: "number", id: "id", element: "id"}, [], "uiMap");
-  add("uiRenderedMap", {tx: "number", id: "id", element: "id"}, [], "uiMap");
+  add("uiRenderedMap", {tx: "number", id: "id", element: "id"}, [], "uiRenderedMap");
   add("uiMapAttr", {id: "id", property: "string", value: "tuple"}, [], "uiMapAttr");
   add("uiMapMarker", {id: "id", map: "id", lat: "number", lng: "number"}, [], "uiMapMarker");
 
@@ -2913,6 +3117,7 @@ function connectToServer() {
     }
 
     if(!server.initialized && data.changes.length === 9) {
+      console.log("initing");
       initIndexer();
       server.ws.send(JSON.stringify(ixer.dumpMapDiffs()));
       ixer.clear();
