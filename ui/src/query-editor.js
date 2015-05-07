@@ -452,7 +452,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     }
 
     return {c: "block view-block", viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, children: [
-      {t: "h3", c: "", text: "Untitled Block"},
+      {t: "h3", c: "block-title", text: "Untitled Block"},
       {c: "block-section sources", children: sourceItems},
       {c: "block-section selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems}
     ]};
