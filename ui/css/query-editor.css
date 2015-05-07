@@ -28,16 +28,16 @@ body { height:100vh; -webkit-user-select: none; background: #202020; color: #ccc
 .query-editor .workspace .block-section.selections { align-items: center; background: #303030; padding: 0 4px; }
 
 .query-editor .sources { padding: 0 4px; }
-.query-editor .sources > .viewlet-source { flex-direction: column; padding-bottom: 1em; background: #202020; margin-bottom: 4px; }
-.query-editor .sources > .viewlet-source > * { margin-bottom: 4px; }
+.query-editor .sources > .view-source { flex-direction: column; padding-bottom: 1em; background: #202020; margin-bottom: 4px; }
+.query-editor .sources > .view-source > * { margin-bottom: 4px; }
 
-.query-editor .viewlet-source-row { flex-direction: row; flex-wrap: wrap; align-items: baseline; }
-.query-editor .viewlet-source-title { flex-shrink: 0; margin-right: 2px; margin-bottom: 2px; padding: 4px; background: #303030; }
+.query-editor .view-source-row { flex-direction: row; flex-wrap: wrap; align-items: baseline; }
+.query-editor .view-source-title { flex-shrink: 0; margin-right: 2px; margin-bottom: 2px; padding: 4px; background: #303030; }
 .query-editor .field.pill { font-size: 14px; margin: 2px; background-color: #505050; color: #eee; }
 
-.query-editor .workspace .viewlet-source-filters { flex-direction: column; }
-.query-editor .workspace .viewlet-source-filter { flex-direction: row; padding-left: 0.3em; }
-.query-editor .workspace .viewlet-source-filter > * { padding: 0.2em 0.2em; }
+.query-editor .workspace .view-constraint { flex-direction: column; }
+.query-editor .workspace .view-constraint { flex-direction: row; padding-left: 0.3em; }
+.query-editor .workspace .view-constraint > * { padding: 0.2em 0.2em; }
 
 .query-editor .workspace .token {position: relative; }
 .query-editor .workspace .token-selector, .workspace .selector { position: absolute; padding: 0.2em; z-index: 10; background: #101010; outline: none; }
