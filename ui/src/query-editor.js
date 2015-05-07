@@ -58,7 +58,8 @@ var queryEditor = (function(window, microReact, Indexing) {
     "display name": {name: "display name", fields: ["id", "name"]},
 
     // Editor
-    "active query": {name: "active query", fields: ["query"], facts: [[1]]},
+    "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"], [2, "ui"]]},
+//     "active editor item": {name: "active editor item", fields: ["item"], facts: [[1]]},
     block: {name: "block", fields: ["query", "block", "view"]},
 
     // Examples
@@ -79,6 +80,14 @@ var queryEditor = (function(window, microReact, Indexing) {
     "placeToRating": {name: "placeToRating", fields: ["place", "rating", "reviewCount"]},
     "user": {name: "user", fields: ["id", "token", "name"]},
     "userCheckin": {name: "userCheckin", fields: ["tick", "user", "place"]},
+
+    //ui
+    "uiComponentelement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"]},
+    "uiComponentlayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden"]},
+    "uiComponentattribute": {name: "uiComponentAttribute", fields: ["tx", "id", "property", "value"]},
+    "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element"]},
+    "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "union"]},
+
   };
 
   // This index needs to be hardcoded for code.ix to work.
@@ -106,6 +115,28 @@ var queryEditor = (function(window, microReact, Indexing) {
   ixer.addIndex("query to blocks", "block", Indexing.create.collector([0]));
   ixer.addIndex("query to views", "block", Indexing.create.collector([0, 2]));
 
+  ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
+
+  // ui
+  ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.latestLookup({keys: [1, false]}));
+  ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
+  ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.latestLookup({keys: [1, false]}));
+  ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
+  ixer.addIndex("uiLayerToElements", "uiComponentElement", Indexing.create.latestCollector({keys: [3], uniqueness: [1]}));
+  ixer.addIndex("uiSelection", "uiSelection", Indexing.create.latestLookup({keys: [2, 3, false]}));
+  ixer.addIndex("uiSelectionElements", "uiSelectionElement", Indexing.create.collector([0]));
+  ixer.addIndex("uiActiveLayer", "uiActiveLayer", Indexing.create.latestLookup({keys: [2, 1, 3]}));
+  ixer.addIndex("uiBoxSelection", "uiBoxSelection", Indexing.create.latestLookup({keys: [1, false]}));
+  ixer.addIndex("uiStyles", "uiStyle", Indexing.create.latestCollector({keys: [1], uniqueness: [1]}));
+  ixer.addIndex("uiStyle", "uiStyle", Indexing.create.latestLookup({keys: [1, false]}));
+  ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.latestLookup({keys: [3, 2, false]}));
+  ixer.addIndex("uiElementToStyles", "uiStyle", Indexing.create.latestCollector({keys: [3], uniqueness: [2]}));
+  ixer.addIndex("uiStyleToAttr", "uiComponentAttribute", Indexing.create.latestLookup({keys: [1, 2, false]}));
+  ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.latestCollector({keys: [1], uniqueness: [2]}));
+  ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup([0, 1]));
+
+  ixer.addIndex("uiElementToMap", "uiMap", Indexing.create.latestLookup({keys: [2, false]}));
+  ixer.addIndex("uiMapAttr", "uiMapAttr", Indexing.create.lookup([0, 1, 2]));
 
   //---------------------------------------------------------
   // Data interaction code
@@ -115,8 +146,9 @@ var queryEditor = (function(window, microReact, Indexing) {
     name: function(id) {
       return ixer.index("display name")[id];
     },
-    activeQueryId: function() {
-      return (ixer.first("active query") || [])[0];
+    activeItemId: function() {
+//       return (ixer.first("active editor item") || [])[0];
+      return localState.activeItem;
     },
     nameToField(viewId, fieldName) {
       var fields = ixer.index("view to fields")[viewId];
@@ -212,7 +244,7 @@ var queryEditor = (function(window, microReact, Indexing) {
       var sourceId = kind || uuid();
       var queryId = ixer.index("view to query")[viewId];
 
-      if(queryId === undefined) { queryId = code.activeQueryId(); }
+      if(queryId === undefined) { queryId = code.activeItemId(); }
       var count = code.countSource(queryId, sourceViewId);
       var name = code.name(sourceViewId) + (count ? " (" + (count + 1) + ")" : "");
 
@@ -290,7 +322,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     var diffs = [];
     switch(evt) {
       case "addViewBlock":
-        diffs = diff.addViewBlock(code.activeQueryId(), info.sourceId);
+        diffs = diff.addViewBlock(code.activeItemId(), info.sourceId);
         break;
       case "addViewSelection":
         diffs = diff.addViewSelection(info.viewId, info.fieldId);
@@ -335,22 +367,150 @@ var queryEditor = (function(window, microReact, Indexing) {
   }
 
   //---------------------------------------------------------
+  // Local state
+  //---------------------------------------------------------
+
+  var localState = {activeItem: 1,
+                    showMenu: false};
+
+  //---------------------------------------------------------
   // Root
   //---------------------------------------------------------
 
   function root() {
-    var queryId = code.activeQueryId();
+    var itemId = code.activeItemId();
+    var type = ixer.index("editor item to type")[itemId];
 
+    if(type === "query") {
+      return queryWorkspace(itemId);
+    } else if(type === "ui") {
+      return uiWorkspace(itemId);
+    } else if(type === "table") {
+      return tableWorkspace(itemId);
+    }
+  }
+
+  function genericWorkspace(klass, controls, options, content) {
+    var finalControls = [{c: "menu-toggle", text: "open"}].concat(controls);
     return {id: "root",
-            c: "query-editor",
+            c: "root " + klass,
             children: [
-              {c: "query-workspace", children: [
-                treePane(queryId),
-                editor(queryId),
-                inspectorPane(queryId)
-              ]},
-              queryResult(queryId)
+              {c: "control-bar", children: finalControls},
+              {c: "option-bar", children: options},
+              {c: "content", children: [content]}
             ]};
+  }
+
+  function controlGroup(controls) {
+    return {c: "control-group", children: controls};
+  }
+
+  //---------------------------------------------------------
+  // Table workspace
+  //---------------------------------------------------------
+
+  function tableWorkspace(tableId) {
+    return genericWorkspace("", [], [],
+                            {c: "table-editor",
+                             children: [
+                               {text: "table!"}
+                             ]});
+  }
+
+  //---------------------------------------------------------
+  // UI workspace
+  //---------------------------------------------------------
+
+  function uiWorkspace(componentId) {
+    var removed = ixer.index("remove");
+    var elements = ixer.index("uiComponentToElements")[componentId] || [];
+    var layers = ixer.index("uiComponentToLayers")[componentId];
+    var layerLookup = ixer.index("uiComponentLayer");
+    var activeLayerId = ixer.index("uiActiveLayer")[client] ? ixer.index("uiActiveLayer")[client][componentId] : undefined;
+    var activeLayer = layers[0];
+    if(activeLayerId && layerLookup[activeLayerId]) {
+      activeLayer = layerLookup[activeLayerId];
+    }
+
+    var attrsIndex = ixer.index("uiStyleToAttrs");
+    var stylesIndex = ixer.index("uiElementToStyles");
+
+    var selectionInfo = getSelectionInfo(componentId, true);
+    var els = elements.map(function(cur) {
+      if(removed[cur[0]]) return;
+      var id = cur[1];
+      var selected = selectionInfo ? selectionInfo.selectedIds[id] : false;
+
+      var attrs = [];
+      var styles = stylesIndex[id];
+      for(var ix = 0, len = styles.length; ix < len; ix++) {
+        var style = styles[ix];
+        attrs.push.apply(attrs, attrsIndex[style[1]]);
+      }
+
+      return control(cur, attrs, selected, layerLookup[cur[3]]);
+    });
+    if(selectionInfo) {
+      els.push(selection(selectionInfo));
+      els.push(uiGrid(componentId, activeLayer[3]));
+    }
+    var box = ixer.index("uiBoxSelection")[componentId];
+    if(box) {
+      if(!ixer.index("remove")[box[0]] && box[4] != -1) {
+        var boxEl = {c: "ui-box-selection",
+                     left: (box[2] <= box[4] ? box[2] : box[4]),
+                     right: (box[2] > box[4] ? box[2] : box[4]),
+                     top: (box[3] <= box[5] ? box[3] : box[5]),
+                     bottom: (box[3] > box[5] ? box[3] : box[5])};
+        boxEl.width = boxEl.right - boxEl.left;
+        boxEl.right = undefined;
+        boxEl.height = boxEl.bottom - boxEl.top;
+        boxEl.bottom = undefined;
+        els.push(boxEl);
+      }
+    }
+    return genericWorkspace("query", [uiControls(componentId)], [],
+                            {c: "ui-editor",
+                             children: [
+                               {c: "ui-canvas", componentId: componentId, children: els, mousedown: startBoxSelect, mousemove: updateBoxSelect, mouseup: endBoxSelect, mouseleave: endBoxSelect},
+                             ]});
+  }
+
+  var uiControlInfo = [{text: "text", icon: ""},
+                       {text: "box", icon: ""},
+                       {text: "button", icon: ""},
+                       {text: "input", icon: ""},
+                       {text: "map", icon: ""}];
+
+  function uiControls(componentId) {
+    var items = uiControlInfo.map(function(cur) {
+      return {c: "control", click: addControl, control: cur.text, componentId: componentId,
+              children: [
+                {c: "icon"},
+                {text: cur.text}
+              ]};
+    })
+    return controlGroup(items);
+  }
+
+  function addControl(e, elem) {
+  }
+
+  //---------------------------------------------------------
+  // Query workspace
+  //---------------------------------------------------------
+
+  function queryWorkspace(queryId) {
+    return genericWorkspace("query", [queryControls(queryId)], [],
+                            {c: "query-editor",
+                             children: [
+                               {c: "query-workspace", children: [
+                                 treePane(queryId),
+                                 editor(queryId),
+                                 inspectorPane(queryId)
+                               ]},
+                               queryResult(queryId)
+                             ]});
   }
 
   //---------------------------------------------------------
@@ -391,13 +551,13 @@ var queryEditor = (function(window, microReact, Indexing) {
     evt.dataTransfer.setData("value", elem.value);
   }
 
-  function queryToolbar(queryId) {
+  function queryControls(queryId) {
     var items = ["filter", "aggregate"].map(queryToolbarItem);
-    return {c: "toolbar query-toolbar", children: items};
+    return controlGroup(items);
   }
 
   function queryToolbarItem(type) {
-    return treeItem(type, type, "tool", {c: "tool query-tool"});
+    return treeItem(type, type, "tool", {c: "control tool query-tool"});
   }
 
   //---------------------------------------------------------
@@ -409,10 +569,6 @@ var queryEditor = (function(window, microReact, Indexing) {
     for(var ix = 0; ix < blocks.length; ix++) {
       var viewId = blocks[ix][code.ix("block", "view")];
       items.push(viewBlock(viewId));
-    }
-
-    if(items.length) {
-      items.unshift(queryToolbar(queryId));
     }
 
     return {c: "workspace", drop: editorDrop, dragover: preventDefault, children: items.length ? items : [
@@ -734,7 +890,7 @@ var queryEditor = (function(window, microReact, Indexing) {
   // Go
   //---------------------------------------------------------
   injectViews(tables, ixer);
-  ixer.handleDiffs(diff.addViewBlock(code.activeQueryId()));
+  ixer.handleDiffs(diff.addViewBlock(code.activeItemId()));
   render();
 
   return { container: renderer.content, ixer: ixer };

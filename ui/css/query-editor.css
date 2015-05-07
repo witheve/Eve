@@ -1,6 +1,28 @@
-body { height:100vh; -webkit-user-select: none; background: #202020; color: #ccc; font-family: Avenir, Arial; overflow: hidden;}
+body { height:100vh; -webkit-user-select: none; background: rgba(36,41,41,1); color: #ccc; font-family: Avenir, Arial; overflow: hidden;}
 .__root {width: 100%; height: 100%; }
 .__root * { display: flex; flex-direction: column; }
+
+/*---------------------------------------------------------
+- control bar
+---------------------------------------------------------*/
+
+.control-bar { background: rgba(62,73,75,1); border-bottom:1px solid rgba(53,64,76,1); align-items:flex-start; flex-direction:row; }
+.control-bar .control-group { flex-direction:row; }
+.control-bar .control-group + .control-group { border-left: 1px solid rgba(45,56,57,1); }
+.control-bar .control { height:40px; padding: 0 15px; justify-content:center;  }
+.control-bar .control + .control { padding-left: 0; }
+.control-bar .menu-toggle { border-right: 1px solid rgba(45,56,57,1); padding: 0 15px; align-items:center; height:40px; justify-content:center; }
+
+/*---------------------------------------------------------
+- option bar
+---------------------------------------------------------*/
+
+.option-bar { background: rgba(89,100,102,1); min-height:30px;}
+.option-bar .inspector-group + .inspector-group { border-left: 1px solid rgba(45,56,57,1); }
+
+/*---------------------------------------------------------
+- query editor
+---------------------------------------------------------*/
 
 .query-editor { height: 100%; }
 
@@ -17,9 +39,6 @@ body { height:100vh; -webkit-user-select: none; background: #202020; color: #ccc
 /* workspace */
 .query-editor .workspace { position: relative; flex: 1; flex-direction: column; overflow-x: auto; padding-bottom: 4em;  }
 .query-editor .workspace > .feed {margin: auto; background: black; box-shadow: 0 0 320px 320px black; }
-
-.query-editor .workspace > .query-toolbar { flex-direction: row; }
-.query-editor .workspace .query-tool { padding: 0.2em 0.5em; }
 
 .query-editor .workspace > .block { flex-shrink: 0; flex-direction: column; min-height: 4em; background: #303030; margin-bottom: 16px; }
 .query-editor .workspace > .block h3 { font-weight: 100; font-size: 1.1em; color: #eee; padding: 2px; }
