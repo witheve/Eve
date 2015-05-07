@@ -37,21 +37,22 @@ body { height:100vh; -webkit-user-select: none; background: rgba(36,41,41,1); co
 .tree-item.pill {flex-shrink: 0; margin: 0 2px; border-radius: 0px; }
 
 /* workspace */
-.query-editor .workspace { position: relative; flex: 1; flex-direction: column; overflow-x: auto; padding-bottom: 4em;  }
+.query-editor .workspace { position: relative; flex: 1; flex-direction: column; overflow-x: auto; padding-bottom: 3em;  }
 .query-editor .workspace > .feed {margin: auto; background: black; box-shadow: 0 0 320px 320px black; }
 
-.query-editor .workspace > .block { flex-shrink: 0; flex-direction: column; min-height: 4em; background: #303030; margin-bottom: 16px; }
-.query-editor .workspace > .block h3 { font-weight: 100; font-size: 1.1em; color: #eee; padding: 2px; }
+.query-editor .workspace > .block { flex-shrink: 0; flex-direction: column; min-height: 4em; background: #404040; margin-bottom: 16px; }
+.query-editor .workspace > .block .block-title { font-weight: 100; font-size: 1.1em; color: #eee; padding: 2px; padding-bottom: 8px; text-align: center; }
+
 .query-editor .workspace .block-section { min-height: 1em; flex-direction: column; }
 
-.query-editor .workspace .block-section.selections { align-items: center; background: #303030; padding: 0 4px; }
+.query-editor .workspace .block-section.selections { align-items: center; padding: 2px 4px; }
 
 .query-editor .sources { padding: 0 4px; }
-.query-editor .sources > .view-source { flex-direction: column; padding-bottom: 1em; background: #202020; margin-bottom: 4px; }
+.query-editor .sources > .view-source { flex-direction: column; padding-bottom: 1em; background: #303030; margin-bottom: 4px; }
 .query-editor .sources > .view-source > * { margin-bottom: 4px; }
 
 .query-editor .view-source-row { flex-direction: row; flex-wrap: wrap; align-items: baseline; }
-.query-editor .view-source-title { flex-shrink: 0; margin-right: 2px; margin-bottom: 2px; padding: 4px; background: #303030; }
+.query-editor .view-source-title { flex-shrink: 0; margin-right: 2px; margin-bottom: 2px; padding: 4px; background: #404040; color: #ddd; }
 .query-editor .field.pill { font-size: 14px; margin: 2px; background-color: #505050; color: #eee; }
 
 .query-editor .workspace .view-constraint { flex-direction: column; }

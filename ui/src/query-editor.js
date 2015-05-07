@@ -198,9 +198,9 @@ var queryEditor = (function(window, microReact, Indexing) {
   };
 
   var diff = {
-    remove: function remove(index, id) {
+    remove: function remove(index, view, id) {
       var old = ixer.index(index)[id];
-      return [["view", "removed", old]];
+      return [[view, "removed", old]];
     },
 
     addView: function addView(viewId, view) {
@@ -608,7 +608,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     }
 
     return {c: "block view-block", viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, children: [
-      {t: "h3", c: "", text: "Untitled Block"},
+      {t: "h3", c: "block-title", text: "Untitled Block"},
       {c: "block-section sources", children: sourceItems},
       {c: "block-section selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems}
     ]};
@@ -636,8 +636,9 @@ var queryEditor = (function(window, microReact, Indexing) {
 
   function viewSource(viewId, source) {
     var sourceId = source[code.ix("source", "source")];
+    var sourceViewId = source[code.ix("source", "source view")];
     var queryId = ixer.index("view to query")[viewId];
-    var fields = ixer.index("view to fields")[viewId] || [];
+    var fields = ixer.index("view to fields")[sourceViewId] || [];
     var fieldItems = fields.map(function(field) {
       var id = field[code.ix("field", "field")];
       return treeItem(code.name(id) || "Untitled", id, "localField", {c: "pill field"});
@@ -760,26 +761,26 @@ var queryEditor = (function(window, microReact, Indexing) {
     });
     if(!isLocal) { return; }
     // @NOTE: This probably shouldn't be hardcoded.
-    dispatch("updateViewConstraint", {constraintId: elem.key, type: "field", value: fieldId});
+    dispatch("updateViewConstraint", {constraintId: elem.constraintId, type: "field", value: fieldId});
   }
 
   // @FIXME: Simplify this by passing source information along with field.
   function tokenBlockFieldDrop(evt, elem) {
     var type = evt.dataTransfer.getData("type");
     var fieldId = evt.dataTransfer.getData("value");
-    var sourceId = elem.sourceId;
+    var viewId = ixer.index("constraint to view")[elem.constraintId];
 
     if(type === "localField") {
       var draggedViewId = ixer.index("field to view")[fieldId];
       var sourcesContainingDraggedView = ixer.index("source view to sources")[draggedViewId];
-      var sourceIdIx = code.ix("source", "source");
+      var sourceViewIx = code.ix("source", "view");
       var isLocal = sourcesContainingDraggedView.some(function(source) {
-        return source[sourceIdIx] === sourceId;
+        return source[sourceViewIx] === viewId;
       });
       if(!isLocal) { return; }
 
-      dispatch("updateViewConstraint", {constraintId: elem.key, type: "type", value: "filter"});
-      dispatch("updateViewConstraint", {constraintId: elem.key, type: "value", value: fieldId});
+      dispatch("updateViewConstraint", {constraintId: elem.constraintId, type: "type", value: "filter"});
+      dispatch("updateViewConstraint", {constraintId: elem.constraintId, type: "value", value: fieldId});
     }
   }
 
