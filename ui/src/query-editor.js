@@ -339,19 +339,14 @@ var queryEditor = (function(window, microReact, Indexing) {
         // @TODO: redesign this to pass in opts directly.
         var opts = {};
         if(info.type === "field") {
-          var sourceViewId = ixer.index("field to view")[info.value];
-          var source = ixer.index("view and source view to source")[viewId][sourceViewId];
           opts.leftField = info.value;
-          opts.leftSource = source[code.ix("source", "source")];
+          opts.leftSource = info.source;
         } else if(info.type === "value") {
-          var sourceViewId = ixer.index("field to view")[info.value];
-          var source = ixer.index("view and source view to source")[viewId][sourceViewId];
           opts.rightField = info.value;
-          opts.rightSource = source[code.ix("source", "source")];
+          opts.rightSource = info.source;
         } else if(info.type === "operation") {
           opts.operation = info.value;
         }
-        console.log(opts);
         diffs = diff.updateViewConstraint(info.constraintId, opts);
         break;
       default:
@@ -519,15 +514,6 @@ var queryEditor = (function(window, microReact, Indexing) {
 
   function treePane(queryId) {
     var items = [];
-
-//     var viewlets = ixer.index("queryToViewlets")[queryId];
-//     for(var ix = 0; ix < viewlets.length; ix++) {
-//       var id = viewlets[ix][0];
-//       items.push(treeItem(code.name(id) || "Untitled", id, "view"));
-//     }
-
-//     items.push({t: "hr", c: "sep"});
-
     var views = ixer.facts("view");
     for(var ix = 0; ix < views.length; ix++) {
       var id = views[ix][code.ix("view", "view")];
@@ -539,7 +525,18 @@ var queryEditor = (function(window, microReact, Indexing) {
 
   function treeItem(name, value, type, opts) {
     opts = opts || {};
-    return {c: "tree-item " + opts.c, value: value, type: type, draggable: true, dragstart: dragItem, children: [
+    return {c: "tree-item " + opts.c, dragData: {value: value, type: type}, draggable: true, dragstart: dragItem, children: [
+      (opts.icon ? {c: "opts.icon"} : undefined),
+      (name ? {text: name} : undefined),
+      opts.content
+    ]};
+  }
+
+  function fieldItem(name, fieldId, sourceId, opts) {
+    opts = opts || {};
+    var type = "sourceField";
+    if(!sourceId) { type = "queryField"; }
+    return {c: "tree-item " + opts.c, dragData: {fieldId: fieldId, sourceId: sourceId, type: type}, draggable: true, dragstart: dragItem, children: [
       (opts.icon ? {c: "opts.icon"} : undefined),
       (name ? {text: name} : undefined),
       opts.content
@@ -547,8 +544,9 @@ var queryEditor = (function(window, microReact, Indexing) {
   }
 
   function dragItem(evt, elem) {
-    evt.dataTransfer.setData("type", elem.type || "tree-item");
-    evt.dataTransfer.setData("value", elem.value);
+    for(var key in elem.dragData) {
+      evt.dataTransfer.setData(key, elem.dragData[key]);
+    }
   }
 
   function queryControls(queryId) {
@@ -601,7 +599,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     var fields = ixer.index("view to fields")[viewId] || [];
     var selectionItems = fields.map(function(field) {
       var id = field[code.ix("field", "field")];
-      return treeItem(code.name(id) || "Untitled", id, "queryField", {c: "pill field"});
+      return fieldItem(code.name(id) || "Untitled", id, undefined, {c: "pill field"});
     });
     if(!selectionItems.length) {
       selectionItems.push({text: "Drag local fields into me to make them available in the query."});
@@ -627,10 +625,11 @@ var queryEditor = (function(window, microReact, Indexing) {
   function viewSelectionsDrop(evt, elem) {
     var type = evt.dataTransfer.getData("type");
     console.log("viewSelectionsDrop", type);
-    if(type !== "localField") { return; }
+    if(type !== "sourceField") { return; }
     var viewId = elem.viewId;
-    var fieldId = evt.dataTransfer.getData("value");
-    dispatch("addViewSelection", {viewId: viewId, fieldId: fieldId});
+    var fieldId = evt.dataTransfer.getData("fieldId");
+    var sourceId = evt.dataTransfer.getData("sourceId");
+    dispatch("addViewSelection", {viewId: viewId, fieldId: fieldId, sourceId: sourceId});
     evt.stopPropagation();
   }
 
@@ -641,7 +640,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     var fields = ixer.index("view to fields")[sourceViewId] || [];
     var fieldItems = fields.map(function(field) {
       var id = field[code.ix("field", "field")];
-      return treeItem(code.name(id) || "Untitled", id, "localField", {c: "pill field"});
+      return fieldItem(code.name(id) || "Untitled", id, sourceId, {c: "pill field"});
     });
 
     var constraintIdIx = code.ix("constraint", "constraint");
@@ -659,7 +658,7 @@ var queryEditor = (function(window, microReact, Indexing) {
       return {c: "view-constraint", children: [
         token.sourceField({key: "field", sourceId: sourceId, constraintId: id}, updateViewConstraint),
         token.operation({key: "operation", sourceId: sourceId, constraintId: id}, updateViewConstraint),
-        token.blockField({key: "value", sourceId: sourceId, constraintId: id}, updateViewConstraint)
+        token.blockField({key: "value", viewId: viewId, sourceId: sourceId, constraintId: id}, updateViewConstraint)
       ]};
     });
 
@@ -737,6 +736,7 @@ var queryEditor = (function(window, microReact, Indexing) {
 
       return {c: "token field",
               key: params.key,
+              viewId: params.viewId,
               sourceId: params.sourceId,
               constraintId: params.constraintId,
               children: [{c: "name", text: value || "<field>"},
@@ -750,38 +750,25 @@ var queryEditor = (function(window, microReact, Indexing) {
   // @FIXME: Simplify this by passing source information along with field.
   function tokenSourceFieldDrop(evt, elem) {
     var type = evt.dataTransfer.getData("type");
-    if(type !== "localField") { return; }
-    var sourceId = elem.sourceId;
-    var fieldId = evt.dataTransfer.getData("value");
-    var draggedViewId = ixer.index("field to view")[fieldId];
-    var sourcesContainingDraggedView = ixer.index("source view to sources")[draggedViewId];
-    var sourceIdIx = code.ix("source", "source");
-    var isLocal = sourcesContainingDraggedView.some(function(source) {
-      return source[sourceIdIx] === sourceId;
-    });
-    if(!isLocal) { return; }
+    if(type !== "sourceField") { return; }
+    var fieldId = evt.dataTransfer.getData("fieldId");
+    var draggedSourceId = evt.dataTransfer.getData("sourceId");
+    if(elem.sourceId !== draggedSourceId) { return; }
     // @NOTE: This probably shouldn't be hardcoded.
-    dispatch("updateViewConstraint", {constraintId: elem.constraintId, type: "field", value: fieldId});
+    dispatch("updateViewConstraint", {constraintId: elem.constraintId, type: elem.key, value: fieldId, source: draggedSourceId});
   }
 
-  // @FIXME: Simplify this by passing source information along with field.
   function tokenBlockFieldDrop(evt, elem) {
     var type = evt.dataTransfer.getData("type");
-    var fieldId = evt.dataTransfer.getData("value");
-    var viewId = ixer.index("constraint to view")[elem.constraintId];
+    if(type !== "sourceField") { return; }
+    var sources = ixer.index("source")[elem.viewId] || {};
 
-    if(type === "localField") {
-      var draggedViewId = ixer.index("field to view")[fieldId];
-      var sourcesContainingDraggedView = ixer.index("source view to sources")[draggedViewId];
-      var sourceViewIx = code.ix("source", "view");
-      var isLocal = sourcesContainingDraggedView.some(function(source) {
-        return source[sourceViewIx] === viewId;
-      });
-      if(!isLocal) { return; }
-
-      dispatch("updateViewConstraint", {constraintId: elem.constraintId, type: "type", value: "filter"});
-      dispatch("updateViewConstraint", {constraintId: elem.constraintId, type: "value", value: fieldId});
-    }
+    var fieldId = evt.dataTransfer.getData("fieldId");
+    var draggedSourceId = evt.dataTransfer.getData("sourceId");
+    var draggedSource = sources[draggedSourceId];
+    if(!draggedSource) { return; }
+    // @NOTE: This probably shouldn't be hardcoded.
+    dispatch("updateViewConstraint", {constraintId: elem.constraintId, type: elem.key, value: fieldId, source: draggedSourceId});
   }
 
   function editToken(evt, elem) {
@@ -801,7 +788,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     sourceField: function(params, onChange) {
       var viewId = ixer.index("constraint to view")[params.constraintId];
       var fields = getSourceFields(viewId, params.sourceId);
-      var items = fields.map(function fieldItem(field) {
+      var items = fields.map(function(field) {
         var fieldId = field[code.ix("field", "field")];
         var item = selectorItem({c: "field", key: params.key, name: code.name(fieldId) || "Untitled", value: fieldId}, onChange);
         item.constraintId = params.constraintId;
@@ -824,7 +811,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     blockField: function(params, onChange) {
       var viewId = ixer.index("constraint to view")[params.constraintId];
       var fields = getBlockFields(viewId);
-      var items = fields.map(function fieldItem(field) {
+      var items = fields.map(function(field) {
         var fieldId = field[code.ix("field", "field")];
         var item = selectorItem({c: "field", key: params.key, name: code.name(fieldId) || "Untitled", value: fieldId}, onChange);
         item.constraintId = params.constraintId;
