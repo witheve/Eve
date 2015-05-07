@@ -299,7 +299,7 @@ var queryEditor = (function(window, microReact, Indexing) {
         diffs = diff.addViewSource(info.viewId, info.sourceId);
         break;
       case "addViewConstraint":
-        diffs = diff.addViewConstraint(info.viewId, {leftSource: info.sourceId});
+        diffs = diff.addViewConstraint(info.viewId, {leftSource: info.sourceId, operation: "="});
         break;
       case "updateViewConstraint":
         var viewId = ixer.index("constraint to view")[info.constraintId];
