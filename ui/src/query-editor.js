@@ -31,6 +31,27 @@ var queryEditor = (function(window, microReact, Indexing) {
   }
 
   //---------------------------------------------------------
+  // utils
+  //---------------------------------------------------------
+
+  var alphabet = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+                  "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"];
+
+  var KEYS = {UP: 38,
+              DOWN: 40,
+              ENTER: 13,
+              Z: 90};
+
+  function coerceInput(input) {
+    if(input.match(/^-?[\d]+$/gim)) {
+      return parseInt(input);
+    } else if(input.match(/^-?[\d]+\.[\d]+$/gim)) {
+      return parseFloat(input);
+    }
+    return input;
+  }
+
+  //---------------------------------------------------------
   // Data
   //---------------------------------------------------------
 
@@ -58,8 +79,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     "display name": {name: "display name", fields: ["id", "name"]},
 
     // Editor
-    "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"], [2, "ui"]]},
-    //     "active editor item": {name: "active editor item", fields: ["item"], facts: [[1]]},
+    "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"]]},
     block: {name: "block", fields: ["query", "block", "view"]},
 
     // Examples
@@ -83,7 +103,7 @@ var queryEditor = (function(window, microReact, Indexing) {
 
     //ui
     "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"], facts: []},
-    "uiComponentLayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden"], facts: [[0,3,2,0,false,false]]},
+    "uiComponentLayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden"], facts: []},
     "uiComponentAttribute": {name: "uiComponentAttribute", fields: ["tx", "id", "property", "value"]},
     "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element"]},
     "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "union"]},
@@ -339,6 +359,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     var diffs = [];
     var add = function(viewId, view) {
       diffs = diffs.concat(diff.addView(viewId, view));
+      diffs.push(["editor item", "inserted", [viewId, "table"]]);
     };
 
     for(var tableId in tables) {
@@ -349,11 +370,40 @@ var queryEditor = (function(window, microReact, Indexing) {
   }
 
   function dispatch(evt, info) {
-//     console.info("[dispatch]", evt, info);
+//         console.info("[dispatch]", evt, info);
     var txId = ++localState.txId;
 
     var diffs = [];
     switch(evt) {
+      case "addTable":
+        var id = uuid();
+        var fieldId = uuid();
+        diffs.push(["editor item", "inserted", [id, "table"]],
+                   ["view", "inserted", [id, "table"]],
+                   ["field", "inserted", [id, fieldId, "output"]],
+                   ["display order", "inserted", [fieldId, 0]],
+                   ["display name", "inserted", [id, "Untitled Table"]],
+                   ["display name", "inserted", [fieldId, "A"]]);
+        localState.activeItem = id;
+        break;
+      case "addQuery":
+        var id = uuid();
+        diffs.push(["editor item", "inserted", [id, "query"]],
+                   ["display name", "inserted", [id, "Untitled Query"]]);
+        localState.activeItem = id;
+        break;
+      case "addUi":
+        var id = uuid();
+        diffs.push(["editor item", "inserted", [id, "ui"]],
+                   ["display name", "inserted", [id, "Untitled Page"]],
+                   ["uiComponentLayer", "inserted", [txId, uuid(), id, 0, false, false]]);
+        localState.activeItem = id;
+        break;
+      case "rename":
+        var id = info.id;
+        diffs.push(["display name", "inserted", [id, info.value]],
+                   ["display name", "removed", [id, code.name(id)]])
+        break;
       case "addViewBlock":
         diffs = diff.addViewBlock(code.activeItemId(), info.sourceId);
         break;
@@ -516,7 +566,7 @@ var queryEditor = (function(window, microReact, Indexing) {
   var localState = {txId: 0,
                     uiActiveLayer: null,
                     activeItem: 1,
-                    showMenu: false,
+                    showMenu: true,
                     uiGridSize: 10};
 
   //---------------------------------------------------------
@@ -527,24 +577,94 @@ var queryEditor = (function(window, microReact, Indexing) {
     var itemId = code.activeItemId();
     var type = ixer.index("editor item to type")[itemId];
 
+    var workspace;
     if(type === "query") {
-      return queryWorkspace(itemId);
+      workspace = queryWorkspace(itemId);
     } else if(type === "ui") {
-      return uiWorkspace(itemId);
+      workspace = uiWorkspace(itemId);
     } else if(type === "table") {
-      return tableWorkspace(itemId);
+      workspace = tableWorkspace(itemId);
     }
+    return {id: "root", c: "root", children: [
+      editorItemList(itemId),
+      workspace,
+    ]};
+  }
+
+  function editorItemList(itemId) {
+    var items = ixer.facts("editor item").map(function(cur) {
+      var id = cur[0];
+      var type = cur[1];
+      var klass = "editor-item " + type;
+      var icon = "ion-grid";
+      if(type === "query") {
+        icon = "ion-cube";
+      } else if(type === "ui") {
+        icon = "ion-image";
+      }
+      if(itemId === id) {
+        klass += " selected";
+      }
+      return {c: klass, click: selectEditorItem, dblclick: closeSelectEditorItem, itemId: id, children: [
+        {c: "icon " + icon},
+        {text: code.name(id)},
+      ]};
+    })
+    var width = 0;
+    if(localState.showMenu) {
+      width = 200;
+    }
+    return {c: "editor-item-list", width:width, children: [
+      {c: "title", click: toggleMenu, text: "items"},
+      {c: "adder", children: [
+        {c: "button table", click: addItem, event: "addTable", children: [
+          {c: "ion-grid"},
+          {c: "ion-plus"},
+        ]},
+        {c: "button query", click: addItem, event: "addQuery", children: [
+          {c: "ion-cube"},
+          {c: "ion-plus"},
+        ]},
+        {c: "button ui", click: addItem, event: "addUi", children: [
+          {c: "ion-image"},
+          {c: "ion-plus"},
+        ]},
+      ]},
+      {c: "items", children: items}
+    ]};
+  }
+
+  function addItem(e, elem) {
+    dispatch(elem.event, {});
+  }
+
+  function selectEditorItem(e, elem) {
+    localState.activeItem = elem.itemId;
+    render();
+  }
+
+  function closeSelectEditorItem(e, elem) {
+    localState.showMenu = false;
+    selectEditorItem(e, elem);
   }
 
   function genericWorkspace(klass, controls, options, content) {
-    var finalControls = [{c: "menu-toggle", text: "open"}].concat(controls);
-    return {id: "root",
-            c: "root " + klass,
+    var finalControls = controls;
+    if(!localState.showMenu) {
+      var finalControls = [{c: "menu-toggle", click: toggleMenu, text: "items"}].concat(controls);
+    }
+    return {id: "workspace",
+            c: "workspace-container " + klass,
             children: [
               {c: "control-bar", children: finalControls},
               {c: "option-bar", children: options},
               {c: "content", children: [content]}
             ]};
+  }
+
+  function toggleMenu() {
+    localState.showMenu = !localState.showMenu;
+    render();
   }
 
   function controlGroup(controls) {
@@ -556,11 +676,84 @@ var queryEditor = (function(window, microReact, Indexing) {
   //---------------------------------------------------------
 
   function tableWorkspace(tableId) {
-    return genericWorkspace("", [], [],
+    var fields = ixer.index("view to fields")[tableId].map(function(cur) {
+      return {name: code.name(cur[1]), id: cur[1]};
+    });
+    var rows = ixer.facts(tableId);
+    //     var adderRows = (ixer.index("adderRows")[tableId] || []).filter(function(row) {
+    //       var txId = row[0];
+    //       return !ixer.index("remove")[txId];
+    //     });
+    return genericWorkspace("",
+                            [],
+                            [input(code.name(tableId), tableId, rename, rename)],
                             {c: "table-editor",
                              children: [
-                               {text: "table!"}
+                               virtualizedTable(tableId, fields, rows, [])
                              ]});
+  }
+
+  function rename(e, elem) {
+    var value = e.currentTarget.textContent;
+    if(value !== code.name(elem.key)) {
+      dispatch("rename", {value: value, id: elem.key});
+    }
+  }
+
+  function virtualizedTable(id, fields, rows, adderRows) {
+    var ths = fields.map(function(cur) {
+      var oninput, onsubmit;
+      if(cur.id) {
+        oninput = onsubmit = rename;
+      }
+      return {c: "header", children: [input(cur.name, cur.id, oninput, onsubmit)]};
+    });
+    // @NOTE: We check for the existence of adderRows to determine if the table is editable. This is somewhat surprising.
+    var isEditable = adderRows && adderRows.length;
+    var trs = [];
+    rows.forEach(function(cur) {
+      var tds = [];
+      for(var tdIx = 0, len = cur.length; tdIx < len; tdIx++) {
+        tds[tdIx] = {c: "field"};
+
+        // @NOTE: We can hoist this if perf is an issue.
+        if(isEditable) {
+          tds[tdIx].children = [input(cur[tdIx], {row: cur, ix: tdIx, view: id}, updateRow)];
+        } else {
+          tds[tdIx].text = cur[tdIx];
+        }
+      }
+      trs.push({c: "row", children: tds});
+    })
+    adderRows.forEach(function(adder) {
+      var cur = adder[3];
+      var tds = [];
+      for(var i = 0, len = fields.length; i < len; i++) {
+        tds[i] = {c: "field", children: [input(cur[i], {row: adder, ix: i}, updateAdder)]};
+      }
+      trs.push({c: "row", children: tds});
+    });
+    //   trs.push({id: "spacer2", c: "spacer", height: Math.max(totalRows - start - numRows, 0) * itemHeight});
+    return {c: "table", children: [
+      {c: "headers", children: ths},
+      {c: "rows", children: trs}
+    ]};
+  }
+
+
+  function input(value, key, oninput, onsubmit) {
+    var blur, keydown;
+    if(onsubmit) {
+      blur = function inputBlur(e, elem) {
+        onsubmit(e, elem, "blurred");
+      }
+      keydown = function inputKeyDown(e, elem) {
+        if(e.keyCode === KEYS.ENTER) {
+          onsubmit(e, elem, "enter");
+        }
+      }
+    }
+    return {c: "input text-input", contentEditable: true, input: oninput, text: value, key: key, blur: blur, keydown: keydown};
   }
 
   //---------------------------------------------------------

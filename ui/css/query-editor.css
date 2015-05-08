@@ -3,16 +3,60 @@ body * { box-sizing: border-box; }
 .__root {width: 100%; height: 100%; display:flex; }
 .__root * { display: flex; flex-direction: column; }
 
-.root { flex: 1; }
 
 .hover-reveal { opacity: 0; transition: all 0.2s ease-in-out; }
 div:hover > .hover-reveal { opacity: 1; }
 
 /*---------------------------------------------------------
+- root
+---------------------------------------------------------*/
+
+.root { flex: 1; flex-direction:row; }
+
+/*---------------------------------------------------------
+- editor item list
+---------------------------------------------------------*/
+
+.editor-item-list { background: rgba(0,0,0,0.3); overflow:hidden; transition:width 0.2s ease-in-out;  }
+
+.editor-item-list .title { height:41px; flex:none; justify-content:center; padding-left:10px; background: rgba(62,73,75,1); border-bottom:1px solid rgba(53,64,76,1); border-right: 1px solid rgba(45,56,57,1);  }
+
+.editor-item-list .adder { flex-direction:row; flex:none; background: rgba(89,100,102,1); height:30px; border-right: 1px solid rgba(45,56,57,1); }
+.editor-item-list .adder .button { flex-direction:row; font-size: 14pt; padding: 5px 0px; width:57px; flex:none; justify-content: center; margin-right:10px; }
+.editor-item-list .adder .ion-plus { font-size: 7pt; margin-left: 4px; }
+
+.editor-item-list .adder .query { color: rgba(266,146,253, 1); }
+.editor-item-list .adder .table { color: #88FFCD; }
+.editor-item-list .adder .ui { color: rgba(156,192,255, 1); }
+.editor-item-list .adder .button:hover { background: rgba(255,255,255, 0.2); }
+
+.editor-item-list .items { margin-top:10px; overflow-y:auto;}
+
+.editor-item { padding: 5px; padding-left:10px; margin-right: 10px; width:190px; flex:none; flex-direction:row; align-items:center; cursor:default; }
+.editor-item.selected { background: rgba(62,73,75,1); }
+.editor-item .icon { margin-right: 10px; }
+
+.editor-item.query .icon { color: #E292FD; }
+.editor-item.query.selected { background: rgba(266,146,253, 0.2); }
+
+.editor-item.table .icon { color: #88FFCD; }
+.editor-item.table.selected { background: rgba(136,237,255, 0.2); }
+
+.editor-item.ui .icon { color: #9DC0FF; }
+.editor-item.ui.selected { background: rgba(156,192,255, 0.2); }
+
+/*---------------------------------------------------------
+- workspace
+---------------------------------------------------------*/
+
+.workspace-container { flex: 1; box-shadow: 0 0 0px #000;}
+.workspace-container .content { flex: 1; }
+
+/*---------------------------------------------------------
 - control bar
 ---------------------------------------------------------*/
 
-.control-bar { background: rgba(62,73,75,1); border-bottom:1px solid rgba(53,64,76,1); align-items:flex-start; flex-direction:row; }
+.control-bar { height:41px; background: rgba(62,73,75,1); border-bottom:1px solid rgba(53,64,76,1); align-items:flex-start; flex-direction:row; flex:none; }
 .control-bar .control-group { flex-direction:row; }
 .control-bar .control-group + .control-group { border-left: 1px solid rgba(45,56,57,1); }
 .control-bar .control { height:40px; padding: 0 15px; justify-content:center;  }
@@ -23,15 +67,30 @@ div:hover > .hover-reveal { opacity: 1; }
 - option bar
 ---------------------------------------------------------*/
 
-.option-bar { background: rgba(89,100,102,1); min-height:30px; flex-direction:row; align-items:center; }
+.option-bar { background: rgba(89,100,102,1); min-height:30px; flex-direction:row; align-items:center; padding-left:15px; }
 .option-bar .option-group { flex-direction:row; }
 .option-bar .option-group + .option-group { border-left: 1px solid rgba(45,56,57,1); }
 
 /*---------------------------------------------------------
-- workspace content
+- Table
 ---------------------------------------------------------*/
 
-.content { flex: 1; }
+.table { overflow-x: auto; flex-shrink: 0 1; }
+.table .headers { flex-direction:row; background: rgba(255,255,255,0.1); flex:none; }
+.table .rows { overflow-y: auto; }
+.table .rows > div { flex-direction:row; }
+.table .row { flex: none; }
+.table .header { width: 200px; padding: 5px; flex:none; }
+.table .field { width: 200px; padding: 5px; flex:none; white-space: nowrap; overflow:hidden; }
+
+.table-editor > .table .headers { padding-left: 10px;  }
+.table-editor > .table .rows { padding-left: 10px;  }
+
+/*---------------------------------------------------------
+- input
+---------------------------------------------------------*/
+
+.input { min-width: 30px; min-height: 10px; display:inline-block;}
 
 /*---------------------------------------------------------
 - color picker
