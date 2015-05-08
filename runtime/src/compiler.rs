@@ -1,3 +1,5 @@
+use flow::{Node, Flow};
+
 pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // the schema is arranged as (table name, unique key fields, other fields)
     // any field whose type is not described is a UUID
@@ -71,3 +73,33 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static s
     ("display order", vec!["field"], vec!["priority"]),
     ]
 }
+
+// fn compile_nodes(flow: &Flow) -> Vec<Node> {
+//     unimplemented!()
+// }
+
+// impl Flow {
+//     fn recompile(self) -> Self {
+//         let new_nodes = compile_nodes(&self);
+//         let new_dirty = (0..new_nodes.len()).collect();
+//         let new_outputs = vec![None; new_nodes.len()];
+//         let Flow{
+//             nodes: old_nodes,
+//             outputs: old_outputs,
+//             changes: old_changes,
+//             dirty: old_dirty
+//         } = self;
+//         for (old_node, old_output) in old_nodes.into_iter().zip(old_outputs.into_iter()) {
+//             match flow.get_ix(&*old_node.id) {
+//                 Some(ix) => new_outputs[ix] = nodes[ix].view.import_state_from(old_node.view, old_output),
+//                 None => (),
+//             }
+//         }
+//         Flow{
+//             nodes: new_nodes,
+//             outputs: new_outputs,
+//             changes: old_changes,
+//             dirty: new_dirty
+//         }
+//     }
+// }
