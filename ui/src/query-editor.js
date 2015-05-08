@@ -515,7 +515,7 @@ var queryEditor = (function(window, microReact, Indexing) {
 
   var localState = {txId: 0,
                     uiActiveLayer: null,
-                    activeItem: 2,
+                    activeItem: 1,
                     showMenu: false,
                     uiGridSize: 10};
 
