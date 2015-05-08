@@ -515,7 +515,7 @@ var queryEditor = (function(window, microReact, Indexing) {
 
   var localState = {txId: 0,
                     uiActiveLayer: null,
-                    activeItem: 1,
+                    activeItem: 2,
                     showMenu: false,
                     uiGridSize: 10};
 
@@ -814,8 +814,9 @@ var queryEditor = (function(window, microReact, Indexing) {
     var canvasRect = e.currentTarget.parentNode.getBoundingClientRect();
     localState.dragOffsetX = x - elem.left - canvasRect.left;
     localState.dragOffsetY = y - elem.top - canvasRect.top;
-      clearDragImage(e);
+    clearDragImage(e);
     if(e.altKey) {
+      //@HACK: if you cause a rerender before the event finishes, the drag is killed?
       setTimeout(function() {
         dispatch("duplicateSelection", {componentId: elem.control[2]});
       }, 0);
