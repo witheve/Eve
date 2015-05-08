@@ -33,7 +33,7 @@ div:hover > .hover-reveal { opacity: 1; }
 .query-workspace > .pane { border-right: 1px solid #404040; }
 
 /* shared */
-.query-editor .close-btn { margin-left: auto; }
+.query-editor .close-btn { flex: 0 0 auto; margin-left: auto; }
 .query-editor .close-btn:hover { margin-left: auto; color: #FF7070; }
 .query-editor .close-btn:active { margin-left: auto; color: #CC5050; }
 
@@ -46,10 +46,12 @@ div:hover > .hover-reveal { opacity: 1; }
 
 /* workspace */
 .query-editor .workspace { position: relative; flex: 1; flex-direction: column; overflow-x: auto; padding-bottom: 3em;  }
-.query-editor .workspace > .feed {margin: auto; background: black; box-shadow: 0 0 320px 320px black; }
+.query-editor .workspace > .feed {margin: auto; background: rgba(0, 0, 0, 0.25); box-shadow: 0 0 128px 128px rgba(0, 0, 0, 0.25); }
 
 .query-editor .workspace > .block { flex-shrink: 0; flex-direction: column; min-height: 4em; background: #404040; margin-bottom: 16px; }
-.query-editor .workspace > .block .block-title { font-weight: 100; font-size: 1.1em; color: #eee; padding: 4px; text-align: center; }
+.query-editor .workspace > .block .block-title { flex-direction: row; font-weight: 100; font-size: 1.1em; color: #eee; padding: 4px; }
+.query-editor .workspace > .block .block-title > h3 { margin: auto; }
+.query-editor .workspace > .block .block-title > .close-btn { margin-left: 0; }
 
 .query-editor .workspace .block-section { min-height: 1em; flex-direction: column; }
 

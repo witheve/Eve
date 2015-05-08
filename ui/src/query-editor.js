@@ -108,7 +108,7 @@ var queryEditor = (function(window, microReact, Indexing) {
   ixer.addIndex("constraint operation", "constraint operation", Indexing.create.lookup([0, false]));
   ixer.addIndex("display order", "display order", Indexing.create.lookup([0, 1]));
 
-  ixer.addIndex("block", "block", Indexing.create.lookup([0, false]));
+  ixer.addIndex("block", "block", Indexing.create.lookup([1, false]));
   ixer.addIndex("block to query", "block", Indexing.create.lookup([1, 0]));
   ixer.addIndex("view to query", "block", Indexing.create.lookup([2, 0]));
   ixer.addIndex("view to block", "block", Indexing.create.lookup([2, 1]));
@@ -248,6 +248,16 @@ var queryEditor = (function(window, microReact, Indexing) {
               ["display name", "inserted", [sourceId, name]],
               ["display order", "inserted", [sourceId, 0]]];
     },
+    removeViewSource(viewId, sourceId) {
+      var source = ixer.index("source")[viewId][sourceId];
+      var diffs = [["source", "removed", source]];
+      var constraints = ixer.index("view to constraints")[viewId] || [];
+      for(var ix = 0; ix < constraints.length; ix++) {
+        var constraintId = constraints[ix][code.ix("constraint", "constraint")];
+        diffs = diffs.concat(diff.removeViewConstraint(constraintId));
+      }
+      return diffs;
+    },
     addViewConstraint: function addViewConstraint(viewId, opts) {
       var constraintId = uuid();
       var diffs = [["constraint", "inserted", [constraintId, viewId]]];
@@ -331,6 +341,18 @@ var queryEditor = (function(window, microReact, Indexing) {
       case "addViewBlock":
         diffs = diff.addViewBlock(code.activeItemId(), info.sourceId);
         break;
+      case "removeViewBlock":
+        var view = ixer.index("view")[info.viewId];
+        var blockId = ixer.index("view to block")[info.viewId];
+        var block = ixer.index("block")[blockId];
+        var sources = ixer.index("view to sources")[info.viewId];
+        diffs = [["view", "removed", view],
+                 ["block", "removed", block]];
+        for(var ix = 0; ix < sources.length; ix++) {
+          var sourceId = sources[ix][code.ix("source", "source")];
+          diffs = diffs.concat(diff.removeViewSource(info.viewId, sourceId));
+        }
+        break;
       case "addViewSelection":
         diffs = diff.addViewSelection(info.viewId, info.fieldId);
         break;
@@ -338,13 +360,7 @@ var queryEditor = (function(window, microReact, Indexing) {
         diffs = diff.addViewSource(info.viewId, info.sourceId);
         break;
       case "removeViewSource":
-        diffs = [["source", "removed", info.source]];
-        var viewId = info.source[code.ix("source", "view")];
-        var constraints = ixer.index("view to constraints")[viewId] || [];
-        for(var ix = 0; ix < constraints.length; ix++) {
-          var constraintId = constraints[ix][code.ix("constraint", "constraint")];
-          diffs = diffs.concat(diff.removeViewConstraint(constraintId));
-        }
+        diffs = diff.removeViewSource(info.viewId, info.sourceId);
         break;
       case "addViewConstraint":
         diffs = diff.addViewConstraint(info.viewId, {leftSource: info.sourceId, operation: "="});
@@ -629,10 +645,17 @@ var queryEditor = (function(window, microReact, Indexing) {
     }
 
     return {c: "block view-block", viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, children: [
-      {t: "h3", c: "block-title", text: "Untitled Block"},
+      {c: "block-title", children: [
+        {t: "h3", text: "Untitled Block"},
+        {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock}
+      ]},
       {c: "block-section sources", children: sourceItems},
       {c: "block-section selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems}
     ]};
+  }
+
+  function removeViewBlock(evt, elem) {
+    dispatch("removeViewBlock", {viewId: elem.viewId});
   }
 
   function viewBlockDrop(evt, elem) {
@@ -690,7 +713,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     var viewSourceItems = [
       {c: "view-source-title", children: [
         {t: "h4", text: code.name(sourceId) || "Untitled"},
-        {c: "hover-reveal close-btn ion-android-close", source: source, click: removeSource}
+        {c: "hover-reveal close-btn ion-android-close", viewId: viewId, sourceId: sourceId, click: removeSource}
       ]}
     ].concat(fieldItems);
     return {c: "view-source", viewId: viewId, sourceId: sourceId, drop: viewSourceDrop, dragover: preventDefault, children: [
@@ -722,7 +745,7 @@ var queryEditor = (function(window, microReact, Indexing) {
   }
 
   function removeSource(evt, elem) {
-    dispatch("removeViewSource", {source: elem.source});
+    dispatch("removeViewSource", {viewId: elem.viewId, sourceId: elem.sourceId});
   }
 
   //---------------------------------------------------------
