@@ -1711,7 +1711,7 @@ var queryEditor = (function(window, microReact, Indexing) {
               key: params.key,
               constraintId: params.constraintId,
               children: [{c: "name", text: name},
-                         (source ? {c: "source", text: source} : undefined),
+                         (source ? {c: "source", text: "(" + source +")"} : undefined),
                          (state === 1) ? tokenEditor.blockField(params, onChange) : undefined],
               click: editToken,
               dragover: preventDefault,

@@ -107,13 +107,13 @@ div:hover > .hover-reveal { opacity: 1; }
 .query-editor .field.pill:active { background-color: #606060; box-shadow: 0 2px 4px 0 #202030; }
 
 .query-editor .view-constraints { flex-direction: column; padding-bottom: 1em; }
-.query-editor .view-constraint { flex-direction: row; padding-left: 0.3em; }
-.query-editor .view-constraint > * { padding: 0.2em 0.2em; }
+.query-editor .view-constraint { flex-direction: row; padding-left: 0.3em; overflow: hidden; text-overflow: ellipsis; }
+.query-editor .view-constraint > * { padding: 0.2em; }
 .query-editor .view-constraint .grip { flex-direction: row; }
 
 
-.query-editor .workspace .token { position: relative; }
-.query-editor .workspace .token.field .source { font-size: 0.8em; color: #aaa; }
+.query-editor .workspace .token { flex: 1 0 auto; flex-direction: row; align-items: baseline; position: relative; }
+.query-editor .workspace .token.field .source { flex-shrink: 0; margin-left: 0.25em; font-size: 0.75em; color: #aaa; text-overflow: ellipis; white-space: nowrap; }
 .query-editor .workspace .token-selector, .workspace .selector { position: absolute; padding: 0.2em; z-index: 10; background: #101010; outline: none; }
 .query-editor .workspace .selector-item:hover { background: rgba(255, 255, 255, 0.2); }
 
