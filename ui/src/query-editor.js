@@ -59,7 +59,7 @@ var queryEditor = (function(window, microReact, Indexing) {
 
     // Editor
     "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"], [2, "ui"]]},
-//     "active editor item": {name: "active editor item", fields: ["item"], facts: [[1]]},
+    //     "active editor item": {name: "active editor item", fields: ["item"], facts: [[1]]},
     block: {name: "block", fields: ["query", "block", "view"]},
 
     // Examples
@@ -82,9 +82,9 @@ var queryEditor = (function(window, microReact, Indexing) {
     "userCheckin": {name: "userCheckin", fields: ["tick", "user", "place"]},
 
     //ui
-    "uiComponentelement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"]},
-    "uiComponentlayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden"]},
-    "uiComponentattribute": {name: "uiComponentAttribute", fields: ["tx", "id", "property", "value"]},
+    "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"], facts: []},
+    "uiComponentLayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden"], facts: [[0,3,2,0,false,false]]},
+    "uiComponentAttribute": {name: "uiComponentAttribute", fields: ["tx", "id", "property", "value"]},
     "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element"]},
     "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "union"]},
 
@@ -118,15 +118,11 @@ var queryEditor = (function(window, microReact, Indexing) {
   ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
 
   // ui
-  ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.latestLookup({keys: [1, false]}));
-  ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
+  ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.lookup([1, false]));
+  ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([2]));
   ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.latestLookup({keys: [1, false]}));
   ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
   ixer.addIndex("uiLayerToElements", "uiComponentElement", Indexing.create.latestCollector({keys: [3], uniqueness: [1]}));
-  ixer.addIndex("uiSelection", "uiSelection", Indexing.create.latestLookup({keys: [2, 3, false]}));
-  ixer.addIndex("uiSelectionElements", "uiSelectionElement", Indexing.create.collector([0]));
-  ixer.addIndex("uiActiveLayer", "uiActiveLayer", Indexing.create.latestLookup({keys: [2, 1, 3]}));
-  ixer.addIndex("uiBoxSelection", "uiBoxSelection", Indexing.create.latestLookup({keys: [1, false]}));
   ixer.addIndex("uiStyles", "uiStyle", Indexing.create.latestCollector({keys: [1], uniqueness: [1]}));
   ixer.addIndex("uiStyle", "uiStyle", Indexing.create.latestLookup({keys: [1, false]}));
   ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.latestLookup({keys: [3, 2, false]}));
@@ -147,7 +143,7 @@ var queryEditor = (function(window, microReact, Indexing) {
       return ixer.index("display name")[id];
     },
     activeItemId: function() {
-//       return (ixer.first("active editor item") || [])[0];
+      //       return (ixer.first("active editor item") || [])[0];
       return localState.activeItem;
     },
     nameToField(viewId, fieldName) {
@@ -300,6 +296,25 @@ var queryEditor = (function(window, microReact, Indexing) {
       if(opts.operation) { diffs.push(["constraint operation", "inserted", [constraintId, opts.operation]]); }
 
       return diffs;
+    },
+    duplicateElement: function(element, id, txId) {
+      var diffs = [];
+      var neue = element.slice();
+      //generate new ids for the element, everything else remains
+      neue[0] = txId;
+      neue[1] = id;
+      diffs.push(["uiComponentElement", "inserted", neue]);
+      //duplicate all of the attributes
+      var styles = ixer.index("uiElementToStyles")[element[1]];
+      if(styles) {
+        styles.forEach(function(cur) {
+          var style = cur.slice();
+          style[0] = txId;
+          style[3] = id;
+          diffs.push(["uiStyle", "inserted", style]);
+        });
+      }
+      return diffs;
     }
   };
 
@@ -317,7 +332,8 @@ var queryEditor = (function(window, microReact, Indexing) {
   }
 
   function dispatch(evt, info) {
-    console.info("[dispatch]", evt, info);
+//     console.info("[dispatch]", evt, info);
+    var txId = ++localState.txId;
 
     var diffs = [];
     switch(evt) {
@@ -332,6 +348,103 @@ var queryEditor = (function(window, microReact, Indexing) {
         break;
       case "addViewConstraint":
         diffs = diff.addViewConstraint(info.viewId, {leftSource: info.sourceId});
+        break;
+      case "addUiComponentElement":
+        var elemId = uuid();
+        var neue = [txId, elemId, info.componentId, info.layerId, info.control, info.left, info.top, info.right, info.bottom];
+        var appStyleId = uuid();
+        var typStyleId = uuid();
+        diffs.push(["uiComponentElement", "inserted", neue]);
+        diffs.push(["uiStyle", "inserted", [txId, appStyleId, "appearance", elemId]],
+                   ["uiStyle", "inserted", [txId, typStyleId, "typography", elemId]]);
+
+        // @TODO: Instead of hardcoding, have a map of special element diff handlers.
+        if(info.control === "map") {
+          var mapId = uuid();
+          diffs.push(["uiMap", "inserted", [txId, mapId, elemId, 0, 0, 4]],
+                     ["uiMapAttr", "inserted", [txId, mapId, "lat", 0]],
+                     ["uiMapAttr", "inserted", [txId, mapId, "lng", 0]],
+                     ["uiMapAttr", "inserted", [txId, mapId, "zoom", 0]]);
+        }
+        localState.uiSelection = [elemId];
+        break;
+      case "resizeSelection":
+        var sel = localState.uiSelection;
+        var elementIndex = ixer.index("uiComponentElement");
+        var ratioX = info.widthRatio;
+        var ratioY = info.heightRatio;
+        var oldBounds = info.oldBounds;
+        var neueBounds = info.neueBounds;
+        sel.forEach(function(cur) {
+          var elem = elementIndex[cur];
+          var neue = elem.slice();
+          neue[0] = txId;
+          //We first find out the relative position of the item in the selection
+          //then adjust by the given ratio and finall add the position of the selection
+          //back in to get the new absolute coordinates
+          neue[5] = Math.floor(((neue[5] - oldBounds.left) * ratioX) + neueBounds.left); //left
+          neue[7] = Math.floor(((neue[7] - oldBounds.right) * ratioX) + neueBounds.right); //right
+          neue[6] = Math.floor(((neue[6] - oldBounds.top) * ratioY) + neueBounds.top); //top
+          neue[8] = Math.floor(((neue[8] - oldBounds.bottom) * ratioY) + neueBounds.bottom); //bottom
+          diffs.push(["uiComponentElement", "inserted", neue], ["uiComponentElement", "removed", elem]);
+        });
+        break;
+      case "moveSelection":
+        var sel = localState.uiSelection;
+        var elementIndex = ixer.index("uiComponentElement");
+        var diffX = info.diffX || 0;
+        var diffY = info.diffY || 0;
+        sel.forEach(function(cur) {
+          var elem = elementIndex[cur];
+          var neue = elem.slice();
+          neue[0] = txId;
+          neue[3] = info.layer || neue[3];
+          neue[5] += diffX; //left
+          neue[7] += diffX; //right
+          neue[6] += diffY; //top
+          neue[8] += diffY; //bottom
+          diffs.push(["uiComponentElement", "inserted", neue],
+                     ["uiComponentElement", "removed", elem]);
+        });
+        break;
+      case "deleteSelection":
+        var sel = localState.uiSelection;
+        var elementIndex = ixer.index("uiComponentElement");
+        sel.forEach(function(cur) {
+          var elem = elementIndex[cur];
+          diffs.push(["uiComponentElement", "removed", elem]);
+        });
+        localState.uiSelection = null;
+        break;
+      case "setAttributeForSelection":
+        var style = getUiPropertyType(info.property);
+        if(!style) { throw new Error("Unknown attribute type for property:", info.property, "known types:", uiProperties); }
+
+        var sel = localState.uiSelection;
+        sel.forEach(function(cur) {
+          var id = cur;
+          var styleId = ixer.index("uiElementToStyle")[id][style][1];
+          var oldProps = ixer.index("uiStyleToAttr")[styleId];
+          if(oldProps) {
+            diffs.push(["uiComponentAttribute", "removed", oldProps]);
+          }
+          diffs.push(["uiComponentAttribute", "inserted", [txId, styleId, info.property, info.value, false]]);
+        });
+        break;
+      case "setSelectionStyle":
+        var sel = localState.uiSelection;
+        sel.forEach(function(cur) {
+          diffs.push(["uiStyle", "inserted", [txId, info.style, info.type, cur[1]]]);
+        });
+        break;
+      case "duplicateSelection":
+        var sel = localState.uiSelection;
+        var elementIndex = ixer.index("uiComponentElement");
+        sel.forEach(function(cur) {
+          var elem = elementIndex[cur];
+          var neueId = uuid();
+          diffs.push.apply(diffs, diff.duplicateElement(elem, neueId, localState.txId++));
+        });
         break;
       case "updateViewConstraint":
         var viewId = ixer.index("constraint to view")[info.constraintId];
@@ -370,8 +483,11 @@ var queryEditor = (function(window, microReact, Indexing) {
   // Local state
   //---------------------------------------------------------
 
-  var localState = {activeItem: 1,
-                    showMenu: false};
+  var localState = {txId: 0,
+                    uiActiveLayer: null,
+                    activeItem: 2,
+                    showMenu: false,
+                    uiGridSize: 10};
 
   //---------------------------------------------------------
   // Root
@@ -422,11 +538,10 @@ var queryEditor = (function(window, microReact, Indexing) {
   //---------------------------------------------------------
 
   function uiWorkspace(componentId) {
-    var removed = ixer.index("remove");
     var elements = ixer.index("uiComponentToElements")[componentId] || [];
-    var layers = ixer.index("uiComponentToLayers")[componentId];
+    var layers = ixer.index("uiComponentToLayers")[componentId] || [];
     var layerLookup = ixer.index("uiComponentLayer");
-    var activeLayerId = ixer.index("uiActiveLayer")[client] ? ixer.index("uiActiveLayer")[client][componentId] : undefined;
+    var activeLayerId = localState.uiActiveLayer;
     var activeLayer = layers[0];
     if(activeLayerId && layerLookup[activeLayerId]) {
       activeLayer = layerLookup[activeLayerId];
@@ -437,12 +552,11 @@ var queryEditor = (function(window, microReact, Indexing) {
 
     var selectionInfo = getSelectionInfo(componentId, true);
     var els = elements.map(function(cur) {
-      if(removed[cur[0]]) return;
       var id = cur[1];
       var selected = selectionInfo ? selectionInfo.selectedIds[id] : false;
 
       var attrs = [];
-      var styles = stylesIndex[id];
+      var styles = stylesIndex[id] || [];
       for(var ix = 0, len = styles.length; ix < len; ix++) {
         var style = styles[ix];
         attrs.push.apply(attrs, attrsIndex[style[1]]);
@@ -454,27 +568,328 @@ var queryEditor = (function(window, microReact, Indexing) {
       els.push(selection(selectionInfo));
       els.push(uiGrid(componentId, activeLayer[3]));
     }
-    var box = ixer.index("uiBoxSelection")[componentId];
-    if(box) {
-      if(!ixer.index("remove")[box[0]] && box[4] != -1) {
-        var boxEl = {c: "ui-box-selection",
-                     left: (box[2] <= box[4] ? box[2] : box[4]),
-                     right: (box[2] > box[4] ? box[2] : box[4]),
-                     top: (box[3] <= box[5] ? box[3] : box[5]),
-                     bottom: (box[3] > box[5] ? box[3] : box[5])};
-        boxEl.width = boxEl.right - boxEl.left;
-        boxEl.right = undefined;
-        boxEl.height = boxEl.bottom - boxEl.top;
-        boxEl.bottom = undefined;
-        els.push(boxEl);
-      }
-    }
-    return genericWorkspace("query", [uiControls(componentId)], [],
+    return genericWorkspace("query",
+                            [uiControls(componentId, activeLayer)],
+                            uiInspectors(componentId, selectionInfo, layers, activeLayer),
                             {c: "ui-editor",
                              children: [
-                               {c: "ui-canvas", componentId: componentId, children: els, mousedown: startBoxSelect, mousemove: updateBoxSelect, mouseup: endBoxSelect, mouseleave: endBoxSelect},
+                               {c: "ui-canvas", componentId: componentId, children: els, mousedown: clearSelection},
                              ]});
   }
+
+  function canvasRatio(context) {
+    var devicePixelRatio = window.devicePixelRatio || 1;
+    var backingStoreRatio = context.webkitBackingStorePixelRatio ||
+        context.mozBackingStorePixelRatio ||
+        context.msBackingStorePixelRatio ||
+        context.oBackingStorePixelRatio ||
+        context.backingStorePixelRatio || 1;
+
+    return devicePixelRatio / backingStoreRatio;
+  }
+
+  function uiGrid(componentId, layerIndex) {
+    var id = componentId + "-grid";
+    return {c: "grid", id: id, t: "canvas", top: 0, left: 0, zIndex: layerIndex,
+            postRender: function(canvas) {
+              var uiGridCount = 3000;
+              if(canvas._rendered) return;
+
+              var bounds = document.querySelector(".ui-canvas").getBoundingClientRect();
+              var ctx = canvas.getContext("2d");
+              var ratio = canvasRatio(ctx);
+              canvas.width = bounds.width * ratio;
+              canvas.height = bounds.height * ratio;
+              canvas.style.width = bounds.width;
+              canvas.style.height = bounds.height;
+              ctx.scale(ratio, ratio);
+              ctx.lineWidth = 1;
+              ctx.strokeStyle = "#999999";
+              for(var i = 0; i < uiGridCount; i++) {
+                if(i % localState.uiGridSize === 0) {
+                  ctx.globalAlpha = 0.3;
+                } else {
+                  ctx.globalAlpha = 0.1;
+                }
+                ctx.beginPath();
+                ctx.moveTo(i * localState.uiGridSize, 0);
+                ctx.lineTo(i * localState.uiGridSize, bounds.height * 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i * localState.uiGridSize);
+                ctx.lineTo(bounds.width * 2, i * localState.uiGridSize);
+                ctx.stroke();
+              }
+              canvas._rendered = true;
+            }};
+  }
+
+  var resizeHandleSize = 7;
+  function resizeHandle(componentId, bounds, y, x) {
+    var top, left;
+    var halfSize = Math.floor(resizeHandleSize / 2);
+    var height = bounds.bottom - bounds.top;
+    var width = bounds.right - bounds.left;
+    if(x === "left") {
+      left = 0 - halfSize - 1;
+    } else if(x === "right") {
+      left = width - halfSize - 2;
+    } else {
+      left = (width / 2) - halfSize;
+    }
+
+    if(y === "top") {
+      top = 0 - halfSize - 1;
+    } else if(y === "bottom") {
+      top = height - halfSize - 2;
+    } else {
+      top = (height / 2) - halfSize;
+    }
+    return {c: "resize-handle", y: y, x: x, top: top, left: left, width: resizeHandleSize, height: resizeHandleSize,  componentId: componentId,
+            draggable: true, drag: resizeSelection, bounds: bounds, dragstart: clearDragImage, mousedown: stopPropagation};
+  }
+
+  function stopPropagation(e) {
+    e.stopPropagation();
+  }
+  function preventDefault(e) {
+    e.preventDefault();
+  }
+
+  function clearDragImage(e, elem) {
+    e.dataTransfer.setData("text", "foo");
+    e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0, 0);
+  }
+
+  function resizeSelection(e, elem) {
+    var x = Math.floor(e.clientX || __clientX);
+    var y = Math.floor(e.clientY || __clientY);
+    if(x === 0 && y === 0) return;
+    var canvasRect = e.currentTarget.parentNode.parentNode.getBoundingClientRect();
+    x -= Math.floor(canvasRect.left);
+    y -= Math.floor(canvasRect.top);
+    var old = elem.bounds;
+    var neueBounds = {left: old.left, right: old.right, top: old.top, bottom: old.bottom};
+    if(elem.x === "left") {
+      neueBounds.left = toGrid(localState.uiGridSize, x);
+    } else if(elem.x === "right") {
+      neueBounds.right = toGrid(localState.uiGridSize, x);
+    }
+    if(elem.y === "top") {
+      neueBounds.top = toGrid(localState.uiGridSize, y);
+    } else if(elem.y === "bottom") {
+      neueBounds.bottom = toGrid(localState.uiGridSize, y);
+    }
+    var neueWidth = neueBounds.right - neueBounds.left;
+    var neueHeight = neueBounds.bottom - neueBounds.top;
+    if(neueWidth < 10) {
+      neueWidth = 10;
+      if(elem.x === "left") { neueBounds.left = neueBounds.right - 10; }
+      else { neueBounds.right = neueBounds.left + 10; }
+    }
+    if(neueHeight < 10) {
+      neueHeight = 10;
+      if(elem.y === "top") { neueBounds.top = neueBounds.bottom - 10; }
+      else { neueBounds.bottom = neueBounds.top + 10; }
+    }
+    var widthRatio = neueWidth / (old.right - old.left);
+    var heightRatio = neueHeight / (old.bottom - old.top);
+
+    if(widthRatio !== 1 || heightRatio !== 1) {
+      dispatch("resizeSelection", {widthRatio: widthRatio, heightRatio: heightRatio, oldBounds: old, neueBounds: neueBounds, componentId: elem.componentId});
+    }
+  }
+
+  function selection(selectionInfo) {
+    var componentId = selectionInfo.componentId;
+    var bounds = selectionInfo.bounds;
+    return {c: "selection", top: bounds.top, left: bounds.left,
+            width: bounds.right - bounds.left, height: bounds.bottom - bounds.top,
+            children: [
+              resizeHandle(componentId, bounds, "top", "left"),
+              resizeHandle(componentId, bounds, "top", "center"),
+              resizeHandle(componentId, bounds, "top", "right"),
+              resizeHandle(componentId, bounds, "middle", "right"),
+              resizeHandle(componentId, bounds, "bottom", "right"),
+              resizeHandle(componentId, bounds, "bottom", "center"),
+              resizeHandle(componentId, bounds, "bottom", "left"),
+              resizeHandle(componentId, bounds, "middle", "left"),
+              {c: "trash ion-ios-trash", componentId: componentId, mousedown:stopPropagation, click: deleteSelection},
+            ]};
+  }
+
+  function deleteSelection(e, elem) {
+    dispatch("deleteSelection", {componentId: elem.componentId});
+  }
+
+  function clearSelection(e, elem) {
+    localState.uiSelection = null;
+    render();
+  }
+
+  function control(cur, attrs, selected, layer) {
+    var id = cur[1];
+    var type = cur[4];
+    var selClass = selected ? " selected" : "";
+    var hidden = layer[5] ? " hidden" : "";
+    var locked = layer[4] ? " locked" : "";
+    var klass = type + " ui-element" + selClass + hidden + locked;
+    var elem = {c: klass, id: "elem" + id, left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6],
+                control: cur, mousedown: addToSelection, selected: selected, zIndex: layer[3] + 1,
+                draggable: true, drag: moveSelection, dragstart: startMoveSelection};
+    if(attrs) {
+      for(var i = 0, len = attrs.length; i < len; i++) {
+        var curAttr = attrs[i];
+        var name = attrMappings[curAttr[2]] || curAttr[2];
+        if(curAttr[3].constructor !== Array) {
+          elem[name] = curAttr[3];
+        }
+      }
+    }
+
+    //   if(uiCustomControlRender[type]) {
+    //     elem = uiCustomControlRender[type](elem);
+    //   }
+    return elem;
+  }
+
+  function addToSelection(e, elem) {
+    e.stopPropagation();
+    if(elem.selected) return;
+    if(!e.shiftKey || !localState.uiSelection) {
+      localState.uiSelection = [];
+    }
+    localState.uiSelection.push(elem.control[1]);
+    render();
+  }
+
+
+  var __clientX, __clientY;
+  document.body.addEventListener("dragover", function(e) {
+    //@HACK: because Firefox is a browser full of sadness, they refuse to
+    //set clientX and clientY on drag events. As such we have this ridiculous
+    //workaround of tracking position at the body.
+    __clientX = e.clientX;
+    __clientY = e.clientY;
+  });
+
+  function toGrid(size, value) {
+    return Math.round(value / size) * size;
+  }
+
+  function startMoveSelection(e, elem) {
+    var x = e.clientX || __clientX;
+    var y = e.clientY || __clientY;
+    if(x === 0 && y === 0) return;
+    var canvasRect = e.currentTarget.parentNode.getBoundingClientRect();
+    localState.dragOffsetX = x - elem.left - canvasRect.left;
+    localState.dragOffsetY = y - elem.top - canvasRect.top;
+      clearDragImage(e);
+    if(e.altKey) {
+      setTimeout(function() {
+        dispatch("duplicateSelection", {componentId: elem.control[2]});
+      }, 0);
+    }
+  }
+
+  function moveSelection(e, elem) {
+    var x = Math.floor(e.clientX || __clientX);
+    var y = Math.floor(e.clientY || __clientY);
+    if(x === 0 && y === 0) return;
+    var canvasRect = e.currentTarget.parentNode.getBoundingClientRect();
+    x -= Math.floor(canvasRect.left);
+    y -= Math.floor(canvasRect.top);
+    var diffX = toGrid(localState.uiGridSize, Math.floor(x - elem.control[5] - localState.dragOffsetX));
+    var diffY = toGrid(localState.uiGridSize, Math.floor(y - elem.control[6] - localState.dragOffsetY));
+    if(diffX || diffY) {
+      dispatch("moveSelection", {diffX: diffX, diffY: diffY, componentId: elem.control[2]});
+    }
+  }
+
+
+  function getSelectionInfo(componentId, withAttributes) {
+    var sel = localState.uiSelection;
+    var elements;
+    if(sel) {
+      var elementIndex = ixer.index("uiComponentElement");
+      elements = sel.map(function(cur) {
+        return elementIndex[cur];
+      });
+
+      var result = getGroupInfo(elements, withAttributes);
+
+      result.componentId = componentId;
+      result.selectedIds = result.ids;
+      return result;
+    }
+    return false;
+  }
+
+  function getGroupInfo(elements, withAttributes) {
+    elements = elements || [];
+
+    var attrsIndex = ixer.index("uiStyleToAttrs");
+    var stylesIndex = ixer.index("uiElementToStyles");
+
+    var ids = {};
+    var attributes = {};
+    var styles = {};
+    var els = elements.map(function(cur) {
+      var id = cur[1];
+      ids[id] = true;
+      if(withAttributes !== undefined) {
+        var elStyles = stylesIndex[id];
+        if(!elStyles) { return cur; }
+
+        var attrs = [];
+        for(var ix = 0, len = elStyles.length; ix < len; ix++) {
+          var style = elStyles[ix];
+          var type = style[2];
+          if(styles[type] === undefined) { styles[type] = style; }
+          else if(!style || !styles[type] || styles[type][1] !== style[1]) { styles[type] = null; }
+
+          attrs.push.apply(attrs, attrsIndex[style[1]]);
+        }
+
+        if(attrs) {
+          attrs.forEach(function(cur) {
+            var key = cur[2];
+            var value = cur[3];
+            if(attributes[key] === undefined) {
+              attributes[key] = value;
+            } else if(attributes[key] !== value) {
+              attributes[key] = null;
+            }
+          });
+        }
+      }
+      return cur;
+    });
+    var bounds = boundElements(els);
+    return {ids: ids, elements: els, bounds: bounds, attributes: attributes, styles: styles};
+  }
+
+
+  function boundElements(elems) {
+    var bounds = {top: Infinity, left: Infinity, bottom: -Infinity, right: -Infinity};
+    elems.forEach(function(cur) {
+      var left = cur[5], top = cur[6], right = cur[7], bottom = cur[8];
+      if(left < bounds.left) {
+        bounds.left = left;
+      }
+      if(top < bounds.top) {
+        bounds.top = top;
+      }
+      if(right > bounds.right) {
+        bounds.right = right;
+      }
+      if(bottom > bounds.bottom) {
+        bounds.bottom = bottom;
+      }
+    });
+    return bounds;
+  }
+
 
   var uiControlInfo = [{text: "text", icon: ""},
                        {text: "box", icon: ""},
@@ -482,9 +897,9 @@ var queryEditor = (function(window, microReact, Indexing) {
                        {text: "input", icon: ""},
                        {text: "map", icon: ""}];
 
-  function uiControls(componentId) {
+  function uiControls(componentId, activeLayer) {
     var items = uiControlInfo.map(function(cur) {
-      return {c: "control", click: addControl, control: cur.text, componentId: componentId,
+      return {c: "control", click: addElement, controlType: cur.text, componentId: componentId, layer: activeLayer,
               children: [
                 {c: "icon"},
                 {text: cur.text}
@@ -493,7 +908,505 @@ var queryEditor = (function(window, microReact, Indexing) {
     return controlGroup(items);
   }
 
-  function addControl(e, elem) {
+  function addElement(e, elem) {
+    dispatch("addUiComponentElement", {componentId: elem.componentId,
+                                       layerId: elem.layer[1],
+                                       control: elem.controlType,
+                                       left: elem.left || 100,
+                                       right: elem.right || 200,
+                                       top: elem.top || 100,
+                                       bottom: elem.bottom || 200})
+  }
+
+
+  var attrMappings = {"content": "text"};
+  var uiProperties = {};
+  function uiInspectors(componentId, selectionInfo, layers, activeLayer) {
+    var inspectors = [];
+    var activeLayerId;
+    var binding;
+    var elements;
+    if(activeLayer) {
+      activeLayerId = activeLayer[1];
+      elements = ixer.index("uiLayerToElements")[activeLayerId];
+      binding = ixer.index("groupToBinding")[activeLayerId];
+    }
+    if(selectionInfo) {
+      // @TODO: Only show appropriate inspectors for each type based on trait instead of hardcoding.
+      inspectors.push(layoutInspector(selectionInfo, binding),
+                      appearanceInspector(selectionInfo, binding),
+                      textInspector(selectionInfo, binding));
+
+      var showMapInspector = selectionInfo.elements.every(function(cur) {
+        return cur[4] === "map";
+      });
+      if(showMapInspector) {
+        var mapInfo = getMapGroupInfo(selectionInfo.elements, true)
+        inspectors.push(mapInspector(selectionInfo, mapInfo, binding));
+      }
+    } else if(activeLayer) {
+      inspectors.push(layerInspector(activeLayer, elements));
+    }
+    return inspectors;
+  }
+
+  function adjustable(value, start, stop, step) {
+    return {c: "adjustable", mousedown: startAdjusting, adjustHandler: adjustAdjustable,
+            value: value, start: start, stop: stop, step: step,  text: value};
+  }
+
+  var adjustableShade = document.createElement("div");
+  adjustableShade.className = "adjustable-shade";
+  adjustableShade.addEventListener("mousemove", function(e) {
+    if(adjusterInfo) {
+      adjusterInfo.handler(e, renderer.tree[adjusterInfo.elem.id]);
+    }
+  })
+
+  adjustableShade.addEventListener("mouseup", function(e) {
+    adjusterInfo = false;
+    document.body.removeChild(adjustableShade);
+  })
+
+  var adjusterInfo;
+  function startAdjusting(e, elem) {
+    adjusterInfo = {elem: elem, startValue: elem.value, handler: elem.adjustHandler, bounds: {left: e.clientX, top: e.clientY}};
+    document.body.appendChild(adjustableShade);
+  }
+
+  function adjustAdjustable(e, elem) {
+    var x = e.clientX || __clientX;
+    var y = e.clientY || __clientY;
+    if(x === 0 && y === 0) return;
+    var rect = adjusterInfo.bounds;
+    var offsetX = Math.floor(x - rect.left);
+    var offsetY = Math.floor(y - rect.top);
+    var adjusted = Math.floor(adjusterInfo.startValue + offsetX);
+    var neue = Math.min(Math.max(elem.start, adjusted), elem.stop);
+    if(elem.handler) {
+      elem.handler(elem, neue);
+    }
+  }
+
+  uiProperties.layout = ["top", "left", "width", "height"];
+  function layoutInspector(selectionInfo, binding) {
+    var componentId = selectionInfo.componentId;
+    var bounds = selectionInfo.bounds;
+    var width = bounds.right - bounds.left;
+    var height = bounds.bottom - bounds.top;
+    var widthAdjuster = adjustable(width, 1, 1000, 1);
+    widthAdjuster.handler = adjustWidth;
+    widthAdjuster.componentId = componentId;
+    widthAdjuster.bounds = bounds;
+    var heightAdjuster = adjustable(height, 1, 1000, 1);
+    heightAdjuster.handler = adjustHeight;
+    heightAdjuster.componentId = componentId;
+    heightAdjuster.bounds = bounds;
+    var topAdjuster = adjustable(bounds.top, 0, 100000, 1);
+    topAdjuster.handler = adjustPosition;
+    topAdjuster.componentId = componentId;
+    topAdjuster.coord = "top";
+    var leftAdjuster = adjustable(bounds.left, 0, 100000, 1);
+    leftAdjuster.handler = adjustPosition;
+    leftAdjuster.componentId = componentId;
+    leftAdjuster.coord = "left";
+    //pos, size
+    return {c: "option-group", children: [
+      {c: "label", text: "x:"},
+      leftAdjuster,
+      {c: "label", text: "y:"},
+      topAdjuster,
+      {c: "label", text: "w:"},
+      widthAdjuster,
+      {c: "label", text: "h:"},
+      heightAdjuster,
+    ]};
+  }
+
+  uiProperties.appearance = ["backgroundColor", "backgroundImage", "borderColor", "borderWidth", "borderRadius", "opacity"];
+  function appearanceInspector(selectionInfo, binding) {
+    var attrs = selectionInfo.attributes;
+    var componentId = selectionInfo.componentId;
+    var styleName;
+    if(selectionInfo.styles.appearance) {
+      styleName = code.name(selectionInfo.styles.appearance[1]);
+    } else {
+      styleName = "---";
+    }
+
+    var borderColorPicker = colorSelector(componentId, "borderColor", attrs["borderColor"]);
+    borderColorPicker.backgroundColor = undefined;
+
+    var opacity = attrs["opacity"] == undefined ? 100 : attrs["opacity"] * 100;
+    var opacityAdjuster = adjustable(opacity, 0, 100, 1);
+    opacityAdjuster.text = Math.floor(opacity) + "%";
+    opacityAdjuster.handler = adjustOpacity;
+    opacityAdjuster.componentId = componentId;
+
+    var borderWidth = attrs["borderWidth"] === undefined ? 0 : attrs["borderWidth"];
+    var borderWidthAdjuster = adjustable(borderWidth, 0, 20, 1);
+    borderWidthAdjuster.text = borderWidth + "px";
+    borderWidthAdjuster.handler = adjustAttr;
+    borderWidthAdjuster.attr = "borderWidth";
+    borderWidthAdjuster.componentId = componentId;
+
+    var borderRadius = attrs["borderRadius"] === undefined ? 0 : attrs["borderRadius"];
+    var borderRadiusAdjuster = adjustable(borderRadius, 0, 100, 1);
+    borderRadiusAdjuster.text = borderRadius + "px";
+    borderRadiusAdjuster.handler = adjustAttr;
+    borderRadiusAdjuster.attr = "borderRadius";
+    borderRadiusAdjuster.componentId = componentId;
+
+
+    var visualStyle = selectable("No visual style", ["No visual style", "Foo", "Bar", "Add a new style"]);
+    visualStyle.c += " styleSelector";
+    visualStyle.handler = function(elem, value) {
+      console.log("got style", value);
+    }
+
+    return {c: "option-group", children: [
+      visualStyle,
+      {c: "layoutBoxFilled", borderRadius: attrs["borderRadius"], children: [
+        colorSelector(componentId, "backgroundColor", attrs["backgroundColor"])
+      ]},
+      {c: "layoutBoxOutline", borderRadius: attrs["borderRadius"], borderWidth: attrs["borderWidth"], borderColor: attrs["borderColor"], children: [borderColorPicker]},
+      {c: "label", text: "w:"},
+      borderWidthAdjuster,
+      {c: "label", text: "r:"},
+      borderRadiusAdjuster,
+      {c: "label", text: "opacity:"},
+      opacityAdjuster
+    ]};
+  }
+
+  function selectable(value, items, setFont) {
+    var options = items.map(function(cur) {
+      var item = {t: "option", value: cur, text: cur};
+      if(setFont) {
+        item.fontFamily = cur;
+      }
+      if(cur === value) {
+        item.selected = "selected";
+      }
+      return item;
+    })
+    return {c: "selectable", change: selectSelectable, children: [
+      {t: "select", children: options},
+      {c: "selectable-value", text: value}
+    ]}
+  }
+
+  function selectSelectable(e, elem) {
+    if(elem.handler) {
+      elem.handler(elem, e.target.value);
+    }
+  }
+
+  var alignMapping = {
+    "flex-start": "Left",
+    "center": "Center",
+    "flex-end": "Right",
+  }
+  var vAlignMapping = {
+    "flex-start": "Top",
+    "center": "Center",
+    "flex-end": "Bottom",
+  }
+  function selectVerticalAlign(elem, value) {
+    var final = "center";
+    if(value === "Top") {
+      final = "flex-start";
+    } else if(value === "Bottom") {
+      final = "flex-end";
+    }
+    dispatch("setAttributeForSelection", {componentId: elem.componentId, property: "verticalAlign", value: final});
+  }
+
+  function selectAlign(elem, value) {
+    var final = "center";
+    if(value === "Left") {
+      final = "flex-start";
+    } else if(value === "Right") {
+      final = "flex-end";
+    }
+    dispatch("setAttributeForSelection", {componentId: elem.componentId, property: "textAlign", value: final});
+  }
+
+  function selectFont(elem, value) {
+    dispatch("setAttributeForSelection", {componentId: elem.componentId, property: "fontFamily", value: value});
+  }
+
+  uiProperties.typography = ["text", "fontFamily", "fontSize", "color", "textAlign", "verticalAlign"];
+  function textInspector(selectionInfo, binding) {
+    var componentId = selectionInfo.componentId;
+    var attrs = selectionInfo.attributes;
+    var styleName;
+    if(selectionInfo.styles.appearance) {
+      styleName = code.name(selectionInfo.styles.appearance[1]);
+    } else {
+      styleName = "no shared style";
+    }
+
+    var font = attrs["fontFamily"] || "Helvetica Neue";
+    var fontPicker = selectable(font, ["Times New Roman", "Verdana", "Arial", "Georgia", "Avenir", "Helvetica Neue"], true);
+    fontPicker.componentId = componentId;
+    fontPicker.handler = selectFont;
+
+    var fontSize = attrs["fontSize"] === undefined ? 16 : attrs["fontSize"];
+    var fontSizeAdjuster = adjustable(fontSize, 0, 300, 1);
+    fontSizeAdjuster.handler = adjustAttr;
+    fontSizeAdjuster.attr = "fontSize";
+    fontSizeAdjuster.componentId = componentId;
+
+    var fontColor = colorSelector(componentId, "color", attrs["color"]);
+    fontColor.color = attrs["color"];
+    fontColor.c += " font-color";
+
+    var verticalAlign = vAlignMapping[attrs["verticalAlign"]] || "Top";
+    var valign = selectable(verticalAlign, ["Top", "Center", "Bottom"]);
+    valign.componentId = componentId;
+    valign.handler = selectVerticalAlign;
+
+    var textAlign = alignMapping[attrs["textAlign"]] || "Left";
+    var align = selectable(textAlign, ["Left", "Center", "Right"]);
+    align.componentId = componentId;
+    align.handler = selectAlign;
+
+    var typographyStyle = selectable("No text style", ["No typorgaphy style", "Foo", "Bar", "Add a new style"]);
+    typographyStyle.c += " styleSelector";
+    typographyStyle.handler = function(elem, value) {
+      console.log("got style", value);
+    }
+
+    return {c: "option-group", children: [
+      typographyStyle,
+      fontColor,
+      {c: "label", text: "size:"},
+      fontSizeAdjuster,
+      {c: "label", text: "font:"},
+      fontPicker,
+      {c: "label", text: "align:"},
+      valign,
+      align,
+    ]};
+  }
+
+  uiProperties.layer = [];
+  function layerInspector(layer, elements) {
+    var componentId = layer[2];
+    var info = getGroupInfo(elements, true);
+    var attrs = info.attributes; // @FIXME: Layer attributes.
+    var bounds = info.bounds;
+
+    return {c: "inspector-panel", children: []};
+  }
+
+  uiProperties.map = [];
+  function mapInspector(selectionInfo, mapInfo, binding) {
+    var componentId = selectionInfo.componentId;
+    var attrs = mapInfo.attributes;
+    return {c: "inspector-panel", children: [
+      {c: "title", text: "Map"},
+      {c: "pair", children: [{c: "label", text: "lat."},
+                             inspectorInput(attrs["lat"], [componentId, "lat"], setMapAttribute, binding)]},
+      {c: "pair", children: [{c: "label", text: "long."},
+                             inspectorInput(attrs["lng"], [componentId, "lng"], setMapAttribute, binding)]},
+      {c: "pair", children: [{c: "label", text: "zoom"},
+                             inspectorInput(attrs["zoom"], [componentId, "zoom"], setMapAttribute, binding)]},
+      {c: "pair", children: [{c: "label", text: "interactive"},
+                             inspectorCheckbox(attrs["draggable"], [componentId, "draggable"], setMapAttribute, binding)]},
+    ]};
+  }
+
+  uiProperties.repeat = [];
+  function repeatInspector() {
+  }
+
+  // Inputs
+  function inspectorInput(value, key, onChange, binding) {
+    if(value === null) {
+      input.placeholder = "---";
+    } else if(typeof value === "number" && !isNaN(value)) {
+      value = value.toFixed(2);
+    } else if(value && value.constructor === Array) {
+      value = "Bound to " + code.name(value[2]);
+    }
+    var field = input(value, key, onChange, preventDefault);
+    field.mousedown = stopPropagation;
+    field.editorType = "binding";
+    field.binding = binding;
+    field.focus = activateTokenEditor;
+    field.blur = closeTokenEditor;
+    return field;
+  }
+
+  function inspectorCheckbox(value, key, onChange, binding) {
+    if(value && value.constructor === Array) {
+      value = "Bound to " + code.name(value[2]);
+    }
+    var field = checkboxInput(value, key, onChange);
+    field.mousedown = stopPropagation;
+    field.editorType = "binding";
+    field.binding = binding;
+    field.focus = activateTokenEditor;
+    field.blur = closeTokenEditor;
+    return field;
+  }
+
+  function closeBindingEditor(e, elem) {
+    if(editorInfo.element === e.currentTarget) {
+      setTimeout(function() { editorInfo = false; rerender(); }, 0);
+    }
+  }
+
+  function bindingEditor(editorInfo) {
+    var binding = editorInfo.info.binding;
+    if(!binding) return;
+    var fields = code.viewToFields(binding).map(function(cur) {
+      return ["field", binding, cur[2]];
+    });
+    return genericEditor(fields, false, false, false, "column", setBinding);
+  }
+
+  function setBinding(e, elem) {
+    var info = editorInfo.info;
+    var componentId = info.key[0];
+    var property = info.key[1];
+    console.log("SET", componentId, property, elem.cur);
+    editorInfo = false;
+    dispatch("setAttributeForSelection", {componentId: componentId, property: property, value: ["binding", elem.cur[1], elem.cur[2]]});
+  }
+
+  function colorSelector(componentId, attr, value) {
+    return {c: "color-picker", backgroundColor: value || "#999999", mousedown: stopPropagation, children: [
+      {t: "input", type: "color", key: [componentId, attr],
+       value: value, input: setAttribute}
+    ]};
+  }
+
+  function styleSelector(id, opts, onClose) {
+    var options = {};
+    if(opts.initial === "---") {
+      options["default"] = "---";
+    }
+    var styles = ixer.index("uiStyles");
+    for(var key in styles) {
+      var cur = styles[key][0];
+      if(cur[2] === opts.type && code.name(cur[1])) {
+        options[cur[1]] = code.name(cur[1]);
+      }
+    }
+
+    return selectInput(opts.initial, opts.id, options, onClose);
+  }
+
+  // Layout handlers
+  function adjustWidth(elem, value) {
+    var componentId = elem.componentId;
+    var old = elem.bounds;
+    var neue = {left: old.left, right: (old.left + value), top: old.top,  bottom: old.bottom};
+    var widthRatio = value / (old.right - old.left);
+    if(widthRatio === 1) return;
+    dispatch("resizeSelection", {widthRatio: widthRatio, heightRatio: 1, oldBounds: old, neueBounds: neue, componentId: componentId});
+  }
+
+  function adjustHeight(elem, value) {
+    var componentId = elem.componentId;
+    var old = elem.bounds;
+    var neue = {left: old.left, right: old.right, top: old.top,  bottom: (old.top + value)};
+    var heightRatio = value / (old.bottom - old.top);
+    if(heightRatio === 1) return;
+    dispatch("resizeSelection", {widthRatio: 1, heightRatio: heightRatio, oldBounds: old, neueBounds: neue, componentId: componentId});
+  }
+
+  function adjustPosition(elem, value) {
+    var componentId = elem.componentId;
+    var coord = elem.coord;
+    var diffX = 0, diffY = 0;
+    if(coord === "top") {
+      diffY = value - elem.value;
+    } else {
+      diffX = value - elem.value;
+    }
+    dispatch("moveSelection", {diffX: diffX, diffY: diffY, componentId: componentId});
+  }
+
+  function adjustOpacity(elem, value) {
+    dispatch("setAttributeForSelection", {componentId: elem.componentId, property: "opacity", value: value / 100});
+  }
+  function adjustAttr(elem, value) {
+    dispatch("setAttributeForSelection", {componentId: elem.componentId, property: elem.attr, value: value});
+  }
+
+  // Generic attribute handler
+  function setAttribute(e, elem) {
+    var componentId = elem.key[0];
+    var property = elem.key[1];
+    var target = e.currentTarget;
+    var value = target.value;
+    if(target.type === "color") {
+      value = target.value;
+    } else if(target.type === "checkbox") {
+      value = target.checked;
+    } else if(target.type === undefined) {
+      value = target.textContent;
+    }
+    dispatch("setAttributeForSelection", {componentId: componentId, property: property, value: value});
+  }
+
+  // Map attribute handler
+  function setMapAttribute(e, elem) {
+    var componentId = elem.key[0];
+    var property = elem.key[1];
+    var target = e.currentTarget;
+    var value = target.checked !== undefined ? target.checked : target.value !== undefined ? target.value : target.textContent;
+    dispatch("setMapAttributeForSelection", {componentId: componentId, property: property, value: value});
+  }
+
+
+  // Ui layer handlers
+  function addLayer(e, elem) {
+    dispatch("addUiComponentLayer", {componentId: elem.componentId});
+  }
+
+  function activateLayer(e, elem) {
+    dispatch("activateUiLayer", {layerId: elem.layer[1], componentId: elem.layer[2]});
+  }
+  function selectAllFromLayer(e, elem) {
+    var elements = ixer.index("uiLayerToElements")[elem.layer[1]] || [];
+    var elIds = [];
+    elements.forEach(function(cur) {
+      if(!ixer.index("remove")[cur[0]]) {
+        elIds.push(cur[1]);
+      }
+    });
+    dispatch("selectElements", {elements: elIds || [], createNew: !e.shiftKey, componentId: elem.layer[2]});
+
+  }
+
+  function toggleHidden(e, elem) {
+    var neue = elem.layer.slice();
+    neue[5] = !neue[5];
+    dispatch("updateUiLayer", {neue: neue});
+  }
+
+  function toggleLocked(e, elem) {
+    var neue = elem.layer.slice();
+    neue[4] = !neue[4];
+    dispatch("updateUiLayer", {neue: neue});
+  }
+
+  function getUiPropertyType(prop) {
+    if(uiProperties.typography.indexOf(prop) !== -1) {
+      return "typography";
+    }
+    if(uiProperties.appearance.indexOf(prop) !== -1) {
+      return "appearance";
+    }
+    if(uiProperties.layout.indexOf(prop) !== -1) {
+      return "layout";
+    }
+    return undefined;
   }
 
   //---------------------------------------------------------
@@ -520,13 +1433,13 @@ var queryEditor = (function(window, microReact, Indexing) {
   function treePane(queryId) {
     var items = [];
 
-//     var viewlets = ixer.index("queryToViewlets")[queryId];
-//     for(var ix = 0; ix < viewlets.length; ix++) {
-//       var id = viewlets[ix][0];
-//       items.push(treeItem(code.name(id) || "Untitled", id, "view"));
-//     }
+    //     var viewlets = ixer.index("queryToViewlets")[queryId];
+    //     for(var ix = 0; ix < viewlets.length; ix++) {
+    //       var id = viewlets[ix][0];
+    //       items.push(treeItem(code.name(id) || "Untitled", id, "view"));
+    //     }
 
-//     items.push({t: "hr", c: "sep"});
+    //     items.push({t: "hr", c: "sep"});
 
     var views = ixer.facts("view");
     for(var ix = 0; ix < views.length; ix++) {
@@ -894,5 +1807,5 @@ var queryEditor = (function(window, microReact, Indexing) {
   ixer.handleDiffs(diff.addViewBlock(code.activeItemId()));
   render();
 
-  return { container: renderer.content, ixer: ixer };
+  return { container: renderer.content, ixer: ixer, localState: localState };
 })(window, microReact, Indexing);

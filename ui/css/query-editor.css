@@ -1,6 +1,9 @@
 body { height:100vh; -webkit-user-select: none; background: rgba(36,41,41,1); color: #ccc; font-family: Avenir, Arial; overflow: hidden;}
-.__root {width: 100%; height: 100%; }
+body * { box-sizing: border-box; }
+.__root {width: 100%; height: 100%; display:flex; }
 .__root * { display: flex; flex-direction: column; }
+
+.root { flex: 1; }
 
 /*---------------------------------------------------------
 - control bar
@@ -17,8 +20,45 @@ body { height:100vh; -webkit-user-select: none; background: rgba(36,41,41,1); co
 - option bar
 ---------------------------------------------------------*/
 
-.option-bar { background: rgba(89,100,102,1); min-height:30px;}
-.option-bar .inspector-group + .inspector-group { border-left: 1px solid rgba(45,56,57,1); }
+.option-bar { background: rgba(89,100,102,1); min-height:30px; flex-direction:row; align-items:center; }
+.option-bar .option-group { flex-direction:row; }
+.option-bar .option-group + .option-group { border-left: 1px solid rgba(45,56,57,1); }
+
+/*---------------------------------------------------------
+- workspace content
+---------------------------------------------------------*/
+
+.content { flex: 1; }
+
+/*---------------------------------------------------------
+- color picker
+---------------------------------------------------------*/
+
+.color-picker { position:relative; min-width:20px; min-height:20px; }
+.color-picker input { opacity: 0; position:absolute; }
+
+/*---------------------------------------------------------
+- adjustable and selectable
+---------------------------------------------------------*/
+
+.adjustable-shade { z-index: 10000; position:absolute; top: 0; bottom:0; left:0; right:0;}
+.adjustable, .selectable { color: red; border-bottom:1px dashed red; }
+
+.selectable { position:relative; }
+.selectable select { opacity:0; position:absolute; width:100%; }
+
+/*---------------------------------------------------------
+- ui editor
+---------------------------------------------------------*/
+
+.ui-editor { flex: 1; }
+.ui-editor .ui-canvas { position: relative; flex:1; }
+.ui-editor .selection { position:absolute; border:1px solid red; z-index:2; pointer-events:none; }
+.ui-editor .selection .resize-handle { position:absolute; border:1px solid red; background: rgba(255,0,0,0.2); z-index:2; pointer-events:auto; }
+.ui-editor .selection .trash { position:absolute; right: -25px; top: -25px; font-size: 18pt; pointer-events:auto; }
+
+.ui-element { background:rgba(255,255,255,0.1); position:absolute; }
+.ui-element .selected { z-index: 10 !important; }
 
 /*---------------------------------------------------------
 - query editor
