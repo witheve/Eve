@@ -605,7 +605,7 @@ var queryEditor = (function(window, microReact, Indexing) {
       if(itemId === id) {
         klass += " selected";
       }
-      return {c: klass, click: selectEditorItem, dblclick: closeSelectEditorItem, itemId: id, children: [
+      return {c: klass, click: selectEditorItem, dblclick: closeSelectEditorItem, dragData: {value: id, type: "view"}, itemId: id, draggable: true, dragstart: dragItem, children: [
         {c: "icon " + icon},
         {text: code.name(id)},
       ]};
@@ -1642,7 +1642,6 @@ var queryEditor = (function(window, microReact, Indexing) {
                             {c: "query-editor",
                              children: [
                                {c: "query-workspace", children: [
-                                 treePane(queryId),
                                  editor(queryId),
                                  inspectorPane(queryId)
                                ]},
@@ -1653,17 +1652,6 @@ var queryEditor = (function(window, microReact, Indexing) {
   //---------------------------------------------------------
   // Tree + Toolbar
   //---------------------------------------------------------
-
-  function treePane(queryId) {
-    var items = [];
-    var views = ixer.facts("view");
-    for(var ix = 0; ix < views.length; ix++) {
-      var id = views[ix][code.ix("view", "view")];
-      items.push(treeItem(code.name(id) || "Untitled", id, "view"));
-    }
-
-    return {c: "tree pane", children: items};
-  }
 
   function treeItem(name, value, type, opts) {
     opts = opts || {};
