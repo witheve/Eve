@@ -88,33 +88,32 @@ div:hover > .hover-reveal { opacity: 1; }
 .query-editor .workspace { position: relative; flex: 1; flex-direction: column; overflow-x: auto; padding-bottom: 3em;  }
 .query-editor .workspace > .feed {margin: auto; background: rgba(0, 0, 0, 0.25); box-shadow: 0 0 128px 128px rgba(0, 0, 0, 0.25); }
 
-.query-editor .workspace > .block { flex-shrink: 0; flex-direction: column; min-height: 4em; background: #404040; margin-bottom: 16px; }
+.query-editor .workspace > .block { flex-shrink: 0; flex-direction: column; min-height: 4em; background: #404040; margin-bottom: 16px; padding-bottom: 4px; }
 .query-editor .workspace > .block .block-title { flex-direction: row; font-weight: 100; font-size: 1.1em; color: #eee; padding: 4px; }
 .query-editor .workspace > .block .block-title > h3 { margin: auto; }
 .query-editor .workspace > .block .block-title > .close-btn { margin-left: 0; }
 
-.query-editor .workspace .block-section { min-height: 1em; flex-direction: column; }
+.query-editor .workspace .block-section { min-height: 2em; flex-direction: column; background: #303030; margin: 0 4px; }
 
-.query-editor .workspace .block-section.selections { align-items: center; padding: 2px 4px; }
+.query-editor .workspace .view-selections { flex-wrap: wrap; align-items: center; padding: 2px 2px; }
 
-.query-editor .sources { padding: 0 4px; }
-.query-editor .sources > .view-source { flex-direction: column; padding-bottom: 1em; background: #303030; margin-bottom: 2px; } /* @NOTE: Experiment with a more open feel by removing the margin. */
-.query-editor .sources > .view-source > * { margin-bottom: 4px; }
+.query-editor .view-sources { padding: 0 0px; }
+.query-editor .view-sources > .view-source { flex-direction: row; flex-wrap: wrap; align-items: baseline; padding-bottom: 2px; border-bottom: 2px solid #404040; }
 
-.query-editor .view-source-row { flex-direction: row; flex-wrap: wrap; align-items: baseline; }
-.query-editor .view-source-title { flex-direction: row; flex-shrink: 0; margin-right: 2px; margin-bottom: 2px; padding: 4px; background: #404040; color: #ddd; }
+.query-editor .view-source-title { flex-direction: row; flex-shrink: 0; padding: 4px; background: #404040; color: #ddd; }
 .query-editor .view-source-title > h4 { margin-right: 6px; }
 .query-editor .field.pill { font-size: 14px; margin: 2px; background-color: #505050; color: #eee; }
 .query-editor .field.pill:hover { background-color: #606060; box-shadow: 0 1px 2px 0 #202030; }
 .query-editor .field.pill:active { background-color: #606060; box-shadow: 0 2px 4px 0 #202030; }
 
-.query-editor .view-constraint { flex-direction: column; }
+.query-editor .view-constraints { flex-direction: column; padding-bottom: 1em; }
 .query-editor .view-constraint { flex-direction: row; padding-left: 0.3em; }
 .query-editor .view-constraint > * { padding: 0.2em 0.2em; }
 .query-editor .view-constraint .grip { flex-direction: row; }
 
 
-.query-editor .workspace .token {position: relative; }
+.query-editor .workspace .token { position: relative; }
+.query-editor .workspace .token.field .source { font-size: 0.8em; color: #aaa; }
 .query-editor .workspace .token-selector, .workspace .selector { position: absolute; padding: 0.2em; z-index: 10; background: #101010; outline: none; }
 .query-editor .workspace .selector-item:hover { background: rgba(255, 255, 255, 0.2); }
 
