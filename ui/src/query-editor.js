@@ -339,6 +339,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     var diffs = [];
     var add = function(viewId, view) {
       diffs = diffs.concat(diff.addView(viewId, view));
+      diffs.push(["editor item", "inserted", [viewId, "table"]]);
     };
 
     for(var tableId in tables) {
@@ -349,7 +350,7 @@ var queryEditor = (function(window, microReact, Indexing) {
   }
 
   function dispatch(evt, info) {
-//     console.info("[dispatch]", evt, info);
+    //     console.info("[dispatch]", evt, info);
     var txId = ++localState.txId;
 
     var diffs = [];
@@ -515,7 +516,7 @@ var queryEditor = (function(window, microReact, Indexing) {
 
   var localState = {txId: 0,
                     uiActiveLayer: null,
-                    activeItem: 1,
+                    activeItem: "field",
                     showMenu: false,
                     uiGridSize: 10};
 
@@ -527,19 +528,42 @@ var queryEditor = (function(window, microReact, Indexing) {
     var itemId = code.activeItemId();
     var type = ixer.index("editor item to type")[itemId];
 
+    var workspace;
     if(type === "query") {
-      return queryWorkspace(itemId);
+      workspace = queryWorkspace(itemId);
     } else if(type === "ui") {
-      return uiWorkspace(itemId);
+      workspace = uiWorkspace(itemId);
     } else if(type === "table") {
-      return tableWorkspace(itemId);
+      workspace = tableWorkspace(itemId);
     }
+    return {id: "root", c: "root", children: [
+      editorItemList(itemId),
+      workspace,
+    ]};
+  }
+
+  function editorItemList(itemId) {
+    var items = ixer.facts("editor item").map(function(cur) {
+      var id = cur[0];
+      var type = cur[1];
+      var klass = "editor-item " + type;
+      if(itemId === id) {
+        klass += " selected";
+      }
+      return {c: klass, click: selectEditorItem, itemId: id, text: code.name(id)};
+    })
+    return {c: "editor-item-list", children: items}
+  }
+
+  function selectEditorItem(e, elem) {
+    localState.activeItem = elem.itemId;
+    render();
   }
 
   function genericWorkspace(klass, controls, options, content) {
     var finalControls = [{c: "menu-toggle", text: "open"}].concat(controls);
-    return {id: "root",
-            c: "root " + klass,
+    return {id: "workspace",
+            c: "workspace-container " + klass,
             children: [
               {c: "control-bar", children: finalControls},
               {c: "option-bar", children: options},
@@ -556,11 +580,84 @@ var queryEditor = (function(window, microReact, Indexing) {
   //---------------------------------------------------------
 
   function tableWorkspace(tableId) {
-    return genericWorkspace("", [], [],
+    var fields = ixer.index("view to fields")[tableId].map(function(cur) {
+      return {name: code.name(cur[1]), id: cur[1]};
+    });
+    var rows = ixer.facts(tableId);
+    //     var adderRows = (ixer.index("adderRows")[tableId] || []).filter(function(row) {
+    //       var txId = row[0];
+    //       return !ixer.index("remove")[txId];
+    //     });
+    return genericWorkspace("",
+                            [],
+                            [{text: code.name(tableId)}],
                             {c: "table-editor",
                              children: [
-                               {text: "table!"}
+                               virtualizedTable(tableId, fields, rows, [])
                              ]});
+  }
+
+  function rename(e, elem) {
+    var value = e.currentTarget.textContent;
+    if(value !== code.name(elem.key)) {
+      dispatch("rename", {value: value, id: elem.key});
+    }
+  }
+
+  function virtualizedTable(id, fields, rows, adderRows) {
+    var ths = fields.map(function(cur) {
+      var oninput, onsubmit;
+      if(cur.id) {
+        oninput = onsubmit = rename;
+      }
+      return {c: "header", children: [input(cur.name, cur.id, oninput, onsubmit)]};
+    });
+    // @NOTE: We check for the existence of adderRows to determine if the table is editable. This is somewhat surprising.
+    var isEditable = adderRows && adderRows.length;
+    var trs = [];
+    rows.forEach(function(cur) {
+      var tds = [];
+      for(var tdIx = 0, len = cur.length; tdIx < len; tdIx++) {
+        tds[tdIx] = {c: "field"};
+
+        // @NOTE: We can hoist this if perf is an issue.
+        if(isEditable) {
+          tds[tdIx].children = [input(cur[tdIx], {row: cur, ix: tdIx, view: id}, updateRow)];
+        } else {
+          tds[tdIx].text = cur[tdIx];
+        }
+      }
+      trs.push({c: "row", children: tds});
+    })
+    adderRows.forEach(function(adder) {
+      var cur = adder[3];
+      var tds = [];
+      for(var i = 0, len = fields.length; i < len; i++) {
+        tds[i] = {c: "field", children: [input(cur[i], {row: adder, ix: i}, updateAdder)]};
+      }
+      trs.push({c: "row", children: tds});
+    });
+    //   trs.push({id: "spacer2", c: "spacer", height: Math.max(totalRows - start - numRows, 0) * itemHeight});
+    return {c: "table", children: [
+      {c: "headers", children: ths},
+      {c: "rows", children: trs}
+    ]};
+  }
+
+
+  function input(value, key, oninput, onsubmit) {
+    var blur, keydown;
+    if(onsubmit) {
+      blur = function inputBlur(e, elem) {
+        onsubmit(e, elem, "blurred");
+      }
+      keydown = function inputKeyDown(e, elem) {
+        if(e.keyCode === KEYS.ENTER) {
+          onsubmit(e, elem, "enter");
+        }
+      }
+    }
+    return {c: "input text-input", contentEditable: true, input: oninput, text: value, key: key, blur: blur, keydown: keydown};
   }
 
   //---------------------------------------------------------
