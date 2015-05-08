@@ -31,6 +31,27 @@ var queryEditor = (function(window, microReact, Indexing) {
   }
 
   //---------------------------------------------------------
+  // utils
+  //---------------------------------------------------------
+
+  var alphabet = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+                  "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"];
+
+  var KEYS = {UP: 38,
+              DOWN: 40,
+              ENTER: 13,
+              Z: 90};
+
+  function coerceInput(input) {
+    if(input.match(/^-?[\d]+$/gim)) {
+      return parseInt(input);
+    } else if(input.match(/^-?[\d]+\.[\d]+$/gim)) {
+      return parseFloat(input);
+    }
+    return input;
+  }
+
+  //---------------------------------------------------------
   // Data
   //---------------------------------------------------------
 
@@ -58,8 +79,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     "display name": {name: "display name", fields: ["id", "name"]},
 
     // Editor
-    "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"], [2, "ui"]]},
-    //     "active editor item": {name: "active editor item", fields: ["item"], facts: [[1]]},
+    "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"]]},
     block: {name: "block", fields: ["query", "block", "view"]},
 
     // Examples
@@ -83,7 +103,7 @@ var queryEditor = (function(window, microReact, Indexing) {
 
     //ui
     "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"], facts: []},
-    "uiComponentLayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden"], facts: [[0,3,2,0,false,false]]},
+    "uiComponentLayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden"], facts: []},
     "uiComponentAttribute": {name: "uiComponentAttribute", fields: ["tx", "id", "property", "value"]},
     "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element"]},
     "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "union"]},
@@ -350,11 +370,40 @@ var queryEditor = (function(window, microReact, Indexing) {
   }
 
   function dispatch(evt, info) {
-    //     console.info("[dispatch]", evt, info);
+//         console.info("[dispatch]", evt, info);
     var txId = ++localState.txId;
 
     var diffs = [];
     switch(evt) {
+      case "addTable":
+        var id = uuid();
+        var fieldId = uuid();
+        diffs.push(["editor item", "inserted", [id, "table"]],
+                   ["view", "inserted", [id, "table"]],
+                   ["field", "inserted", [id, fieldId, "output"]],
+                   ["display order", "inserted", [fieldId, 0]],
+                   ["display name", "inserted", [id, "Untitled Table"]],
+                   ["display name", "inserted", [fieldId, "A"]]);
+        localState.activeItem = id;
+        break;
+      case "addQuery":
+        var id = uuid();
+        diffs.push(["editor item", "inserted", [id, "query"]],
+                   ["display name", "inserted", [id, "Untitled Query"]]);
+        localState.activeItem = id;
+        break;
+      case "addUi":
+        var id = uuid();
+        diffs.push(["editor item", "inserted", [id, "ui"]],
+                   ["display name", "inserted", [id, "Untitled Page"]],
+                   ["uiComponentLayer", "inserted", [txId, uuid(), id, 0, false, false]]);
+        localState.activeItem = id;
+        break;
+      case "rename":
+        var id = info.id;
+        diffs.push(["display name", "inserted", [id, info.value]],
+                   ["display name", "removed", [id, code.name(id)]])
+        break;
       case "addViewBlock":
         diffs = diff.addViewBlock(code.activeItemId(), info.sourceId);
         break;
@@ -516,8 +565,8 @@ var queryEditor = (function(window, microReact, Indexing) {
 
   var localState = {txId: 0,
                     uiActiveLayer: null,
-                    activeItem: "field",
-                    showMenu: false,
+                    activeItem: 1,
+                    showMenu: true,
                     uiGridSize: 10};
 
   //---------------------------------------------------------
@@ -547,12 +596,46 @@ var queryEditor = (function(window, microReact, Indexing) {
       var id = cur[0];
       var type = cur[1];
       var klass = "editor-item " + type;
+      var icon = "ion-grid";
+      if(type === "query") {
+        icon = "ion-cube";
+      } else if(type === "ui") {
+        icon = "ion-image";
+      }
       if(itemId === id) {
         klass += " selected";
       }
-      return {c: klass, click: selectEditorItem, itemId: id, text: code.name(id)};
+      return {c: klass, click: selectEditorItem, dblclick: closeSelectEditorItem, itemId: id, children: [
+        {c: "icon " + icon},
+        {text: code.name(id)},
+      ]};
     })
-    return {c: "editor-item-list", children: items}
+    var width = 0;
+    if(localState.showMenu) {
+      width = 200;
+    }
+    return {c: "editor-item-list", width:width, children: [
+      {c: "title", click: toggleMenu, text: "items"},
+      {c: "adder", children: [
+        {c: "button table", click: addItem, event: "addTable", children: [
+          {c: "ion-grid"},
+          {c: "ion-plus"},
+        ]},
+        {c: "button query", click: addItem, event: "addQuery", children: [
+          {c: "ion-cube"},
+          {c: "ion-plus"},
+        ]},
+        {c: "button ui", click: addItem, event: "addUi", children: [
+          {c: "ion-image"},
+          {c: "ion-plus"},
+        ]},
+      ]},
+      {c: "items", children: items}
+    ]};
+  }
+
+  function addItem(e, elem) {
+    dispatch(elem.event, {});
   }
 
   function selectEditorItem(e, elem) {
@@ -560,8 +643,16 @@ var queryEditor = (function(window, microReact, Indexing) {
     render();
   }
 
+  function closeSelectEditorItem(e, elem) {
+    localState.showMenu = false;
+    selectEditorItem(e, elem);
+  }
+
   function genericWorkspace(klass, controls, options, content) {
-    var finalControls = [{c: "menu-toggle", text: "open"}].concat(controls);
+    var finalControls = controls;
+    if(!localState.showMenu) {
+      var finalControls = [{c: "menu-toggle", click: toggleMenu, text: "items"}].concat(controls);
+    }
     return {id: "workspace",
             c: "workspace-container " + klass,
             children: [
@@ -569,6 +660,11 @@ var queryEditor = (function(window, microReact, Indexing) {
               {c: "option-bar", children: options},
               {c: "content", children: [content]}
             ]};
+  }
+
+  function toggleMenu() {
+    localState.showMenu = !localState.showMenu;
+    render();
   }
 
   function controlGroup(controls) {
@@ -590,7 +686,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     //     });
     return genericWorkspace("",
                             [],
-                            [{text: code.name(tableId)}],
+                            [input(code.name(tableId), tableId, rename, rename)],
                             {c: "table-editor",
                              children: [
                                virtualizedTable(tableId, fields, rows, [])
