@@ -1,6 +1,7 @@
 use std::collections::BitSet;
 use std::mem::replace;
 use std::ops::IndexMut;
+use std::cell::RefCell;
 
 use value::Id;
 use relation;
@@ -21,6 +22,7 @@ pub type Changes = Vec<(Id, relation::Changes)>;
 #[derive(Clone, Debug)]
 pub struct Flow {
     pub nodes: Vec<Node>,
+//    pub outputs: Vec<RefCell<Relation>>,
     pub changes: Changes,
     pub dirty: BitSet,
 }
@@ -35,8 +37,8 @@ impl Flow {
         for (id, unique_fields, other_fields) in compiler_schema().into_iter() {
             let fields = unique_fields.iter().chain(other_fields.iter())
                 .map(|&field| field.to_owned()).collect();
-            let relation = Relation::with_fieldset(vec![fields]);
-            let view = View::Table(Table{relation: relation});
+            let relation = Relation::with_fields(fields);
+            let view = View::Table(Table{relation: RefCell::new(relation)});
             let node = Node{
                 id: id.to_owned(),
                 view: view,
@@ -58,7 +60,7 @@ impl Flow {
             match self.get_ix(&*id) {
                 Some(ix) => match self.nodes.index_mut(ix).view {
                     View::Table(ref mut table) => {
-                        table.relation.change(&changes);
+                        table.relation.borrow_mut().change(&changes);
                         self.dirty.insert(ix);
                         self.changes.push((id, changes));
                     }
