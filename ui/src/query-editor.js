@@ -2015,5 +2015,5 @@ var queryEditor = (function(window, microReact, Indexing) {
   ixer.handleDiffs(diff.addViewBlock(code.activeItemId()));
   render();
 
-  return { container: renderer.content, ixer: ixer, localState: localState };
+  return { container: renderer.content, ixer: ixer, localState: localState, renderer: renderer };
 })(window, microReact, Indexing);
