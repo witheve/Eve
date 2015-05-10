@@ -30,6 +30,7 @@
     reset: function() {
       this.prevTree = this.tree;
       this.tree = {};
+      this.postRenders = [];
     },
 
     domify: function domify() {
@@ -282,10 +283,10 @@
       var postDomify = now();
       var time = now() - start;
       if(time > 5) {
-        console.log("slow render (> 5ms): ", time, {prepare: prepare - start,
-                                                    diff: diff - prepare,
-                                                    domify: domify - diff,
-                                                    postDomify: postDomify - domify});
+//         console.log("slow render (> 5ms): ", time, {prepare: prepare - start,
+//                                                     diff: diff - prepare,
+//                                                     domify: domify - diff,
+//                                                     postDomify: postDomify - domify});
       }
     }
 
