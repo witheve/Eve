@@ -114,10 +114,11 @@ var queryEditor = (function(window, microReact, Indexing) {
   // This index needs to be hardcoded for code.ix to work.
   ixer.addIndex("view to fields", "field", Indexing.create.collector([0]));
 
+  ixer.addIndex("display name", "display name", Indexing.create.lookup([0, 1]));
+  ixer.addIndex("display order", "display order", Indexing.create.lookup([0, 1]));
   ixer.addIndex("field to view", "field", Indexing.create.lookup([1, 0]));
   ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
   ixer.addIndex("view to kind", "view", Indexing.create.lookup([0, 1]));
-  ixer.addIndex("display name", "display name", Indexing.create.lookup([0, 1]));
   ixer.addIndex("source", "source", Indexing.create.lookup([0, 1, false]));
   ixer.addIndex("view and source view to source", "source", Indexing.create.lookup([0, 2, false]));
   ixer.addIndex("view to sources", "source", Indexing.create.collector([0]));
@@ -128,7 +129,8 @@ var queryEditor = (function(window, microReact, Indexing) {
   ixer.addIndex("constraint left", "constraint left", Indexing.create.lookup([0, false]));
   ixer.addIndex("constraint right", "constraint right", Indexing.create.lookup([0, false]));
   ixer.addIndex("constraint operation", "constraint operation", Indexing.create.lookup([0, false]));
-  ixer.addIndex("display order", "display order", Indexing.create.lookup([0, 1]));
+  ixer.addIndex("view and source field to select", "select", Indexing.create.lookup([0, 3, false]));
+
 
   ixer.addIndex("block", "block", Indexing.create.lookup([1, false]));
   ixer.addIndex("block to query", "block", Indexing.create.lookup([1, 0]));
@@ -255,13 +257,20 @@ var queryEditor = (function(window, microReact, Indexing) {
       return diffs;
     },
 
-    addViewSelection: function addViewSelection(viewId, sourceFieldId) {
+    addViewSelection: function addViewSelection(viewId, sourceId, sourceFieldId) {
       var fieldId = uuid();
+      var blockFieldId = uuid();
+      var name = code.name(sourceFieldId);
+      var order = ixer.index("display order")[sourceFieldId];
       var sourceViewId = ixer.index("field to view")[sourceFieldId];
       return [["field", "inserted", [viewId, fieldId]],
-              ["display order", "inserted", [fieldId, 0]],
               ["select", "inserted", [viewId, fieldId, sourceViewId, sourceFieldId]],
-              ["display name", "inserted", [fieldId, code.name(sourceFieldId)]]];
+              ["display order", "inserted", [fieldId, 0]],
+              ["display name", "inserted", [fieldId, name]],
+
+              ["block field", "inserted", [blockFieldId, viewId, "selection", sourceViewId, sourceFieldId]],
+              ["display order", "inserted", [blockFieldId, 0]],
+              ["display name", "inserted", [blockFieldId, name]]];
     },
     cacheViewSourceFields: function(viewId, sourceId, sourceViewId) {
       var diffs = [];
@@ -485,7 +494,7 @@ var queryEditor = (function(window, microReact, Indexing) {
         }
         break;
       case "addViewSelection":
-        diffs = diff.addViewSelection(info.viewId, info.fieldId);
+        diffs = diff.addViewSelection(info.viewId, info.sourceId, info.fieldId);
         break;
       case "addViewSource":
         diffs = diff.addViewSource(info.viewId, info.sourceId, info.kind);
@@ -1953,10 +1962,10 @@ var queryEditor = (function(window, microReact, Indexing) {
     if(type !== "field") { return; }
     var id = evt.dataTransfer.getData("fieldId");
     var blockField = ixer.index("block field")[id];
+    console.log(elem.viewId, blockField);
     if(blockField[code.ix("block field", "view")] !== elem.viewId) { return; }
     var fieldId = blockField[code.ix("block field", "field")];
     var sourceId = blockField[code.ix("block field", "source")];
-
     dispatch("addViewSelection", {viewId: elem.viewId, fieldId: fieldId, sourceId: sourceId});
     evt.stopPropagation();
   }
@@ -2063,11 +2072,25 @@ function viewConstraintsDrop(evt, elem) {
     var viewId = ixer.index("constraint to view")[elem.constraintId];
     var id = evt.dataTransfer.getData("fieldId");
     var blockField = ixer.index("block field")[id];
-    if(blockField[code.ix("block field", "view")] !== viewId) { return; }
+    var draggedViewId = blockField[code.ix("block field", "view")];
     var fieldId = blockField[code.ix("block field", "field")];
     var sourceId = blockField[code.ix("block field", "source")];
-    dispatch("updateViewConstraint", {constraintId: elem.constraintId, type: elem.key, value: fieldId, source: sourceId});
-    evt.stopPropagation();
+
+    if(draggedViewId === viewId) {
+      // If the field is block local, add it as a constraint.
+      dispatch("updateViewConstraint", {constraintId: elem.constraintId, type: elem.key, value: fieldId, source: sourceId});
+      evt.stopPropagation();
+    } else if(elem.key === "right") {
+      // If the field is accessible in the query, use it for grouping.
+      var select = ixer.index("view and source field to select")[draggedViewId] || {};
+      select = select[fieldId];
+      console.log("select", select, draggedViewId, fieldId);
+      if(!select) { return; }
+      console.log("query", ixer.index("view to query")[viewId], ixer.index("view to query")[draggedViewId]);
+      if(ixer.index("view to query")[viewId] !== ixer.index("view to query")[draggedViewId]) { return; }
+      console.warn("@TODO: group by", draggedViewId, fieldId);
+      evt.stopPropagation();
+    }
   }
 
   function removeConstraint(evt, elem) {
