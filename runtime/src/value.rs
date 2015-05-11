@@ -26,38 +26,38 @@ impl Value {
         }
     }
 
-    pub fn to_f64(&self) -> Option<f64> {
+    pub fn as_f64(&self) -> f64 {
         match *self {
-            Value::Float(float) => Some(float),
-            _ => None,
+            Value::Float(float) => float,
+            _ => panic!("Cannot convert this to f64: {:?}", self),
         }
     }
 
-    pub fn to_i64(&self) -> Option<i64> {
+    pub fn as_i64(&self) -> i64 {
         match *self {
             Value::Float(float) => {
                 let result = float as i64;
                 if float == (result as f64) {
-                    Some(result)
+                    result
                 } else {
-                    None
+                    panic!("Cannot convert this to i64: {:?}", self)
                 }
             }
-            _ => None,
+            _ => panic!("Cannot convert this to i64: {:?}", self),
         }
     }
 
-    pub fn to_usize(&self) -> Option<usize> {
+    pub fn as_usize(&self) -> usize {
         match *self {
             Value::Float(float) => {
                 let result = float as usize;
                 if float == (result as f64) {
-                    Some(result)
+                    result
                 } else {
-                    None
+                    panic!("Cannot convert this to usize: {:?}", self)
                 }
             },
-            _ => None,
+            _ => panic!("Cannot convert this to usize: {:?}", self),
         }
     }
 }

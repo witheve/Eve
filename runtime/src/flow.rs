@@ -63,6 +63,11 @@ impl Flow {
         self.outputs[self.get_ix(id).unwrap()].borrow_mut()
     }
 
+    pub fn set_output(&mut self, id: &str, output: RefCell<Relation>) {
+        let ix = self.get_ix(id).unwrap();
+        self.outputs[ix] = output;
+    }
+
     pub fn change(&mut self, changes: Changes) {
         for (id, changes) in changes.into_iter() {
             match self.get_ix(&*id) {
@@ -83,7 +88,7 @@ impl Flow {
         (0..self.nodes.len()).map(|ix|
             (
                 self.nodes[ix].id.clone(),
-                self.outputs[ix].borrow().as_changes()
+                self.outputs[ix].borrow().as_insert()
             )
         ).collect()
     }
@@ -92,4 +97,12 @@ impl Flow {
         let &mut Flow {ref mut changes, ..} = self;
         replace(changes, Vec::new())
     }
+
+    // pub fn recalculate(&mut self) {
+    //     // TODO
+    // }
+
+    // pub fn quiesce(self) -> Self {
+
+    // }
 }
