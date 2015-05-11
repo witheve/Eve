@@ -271,15 +271,18 @@ var queryEditor = (function(window, microReact, Indexing) {
         var oldFact = oldFacts[ix];
         var id = oldFact[code.ix("block field", "block field")];
         var oldOrder = ixer.index("display order")[id];
+        var oldName = ixer.index("display name")[id];
         diffs.push(["block field", "removed", oldFact],
-                   ["display order", "removed", oldOrder]);
+                   ["display order", "removed", [id, oldOrder]],
+                   ["display name", "removed", [id, oldName]]);
       };
       var fields = ixer.index("view to fields")[sourceViewId] || [];
       for(var ix = 0; ix < fields.length; ix++) {
         var blockId = uuid();
         var fieldId = fields[ix][code.ix("field", "field")];
         diffs.push(["block field", "inserted", [blockId, viewId, sourceId, sourceViewId, fieldId]],
-                   ["display order", "inserted", [blockId, ixer.index("display order")[fieldId]]]);
+                   ["display order", "inserted", [blockId, ixer.index("display order")[fieldId]]],
+                   ["display name", "inserted", [blockId, ixer.index("display name")[fieldId]]]);
       }
 
       return diffs;
@@ -1772,11 +1775,9 @@ var queryEditor = (function(window, microReact, Indexing) {
     ]};
   }
 
-  function fieldItem(name, fieldId, sourceId, opts) {
+  function fieldItem(name, fieldId, opts) {
     opts = opts || {};
-    var type = "sourceField";
-    if(!sourceId) { type = "queryField"; }
-    return {c: "tree-item " + opts.c, dragData: {fieldId: fieldId, sourceId: sourceId, type: type}, draggable: true, dragstart: dragItem, children: [
+    return {c: "tree-item " + opts.c, dragData: {fieldId: fieldId, type: "field"}, draggable: true, dragstart: dragItem, children: [
       (opts.icon ? {c: "opts.icon"} : undefined),
       (name ? {text: name} : undefined),
       opts.content
@@ -1838,10 +1839,11 @@ var queryEditor = (function(window, microReact, Indexing) {
    * View Block
    */
   function viewBlock(viewId) {
-    var fields = ixer.index("view to fields")[viewId] || [];
+    var fields = ixer.index("view and source to block fields")[viewId] || {};
+    fields = fields["selection"] || [];
     var selectionItems = fields.map(function(field) {
-      var id = field[code.ix("field", "field")];
-      return fieldItem(code.name(id) || "Untitled", id, undefined, {c: "pill field"});
+      var id = field[code.ix("block field", "block field")];
+      return fieldItem(code.name(id) || "Untitled", id, {c: "pill field"});
     });
     if(!selectionItems.length) {
       selectionItems.push({text: "Drag local fields into me to make them available in the query."});
@@ -1876,11 +1878,14 @@ var queryEditor = (function(window, microReact, Indexing) {
 
   function viewSelectionsDrop(evt, elem) {
     var type = evt.dataTransfer.getData("type");
-    if(type !== "sourceField") { return; }
-    var viewId = elem.viewId;
-    var fieldId = evt.dataTransfer.getData("fieldId");
-    var sourceId = evt.dataTransfer.getData("sourceId");
-    dispatch("addViewSelection", {viewId: viewId, fieldId: fieldId, sourceId: sourceId});
+    if(type !== "field") { return; }
+    var id = evt.dataTransfer.getData("fieldId");
+    var blockField = ixer.index("block field")[id];
+    if(blockField[code.ix("block field", "view")] !== elem.viewId) { return; }
+    var fieldId = blockField[code.ix("block field", "field")];
+    var sourceId = blockField[code.ix("block field", "source")];
+
+    dispatch("addViewSelection", {viewId: elem.viewId, fieldId: fieldId, sourceId: sourceId});
     evt.stopPropagation();
   }
 
@@ -1906,13 +1911,11 @@ var queryEditor = (function(window, microReact, Indexing) {
   }
 
   function viewSource(viewId, sourceId) {
-    var source = ixer.index("source")[viewId][sourceId];
-    var sourceViewId = source[code.ix("source", "source view")];
-
-    var fields = ixer.index("view to fields")[sourceViewId] || [];
+    var fields = ixer.index("view and source to block fields")[viewId] || {};
+    fields = fields[sourceId] || [];
     var fieldItems = fields.map(function(field) {
-      var id = field[code.ix("field", "field")];
-      return fieldItem(code.name(id) || "Untitled", id, sourceId, {c: "pill field"});
+      var id = field[code.ix("block field", "block field")];
+      return fieldItem(code.name(id) || "Untitled", id, {c: "pill field"});
     });
 
     var children = [
@@ -1964,13 +1967,14 @@ function viewConstraintsDrop(evt, elem) {
     evt.stopPropagation();
     return;
   }
-  if(type === "sourceField") {
-    var sources = ixer.index("source")[viewId] || {};
-    var fieldId = evt.dataTransfer.getData("fieldId");
-    var draggedSourceId = evt.dataTransfer.getData("sourceId");
-    var draggedSource = sources[draggedSourceId];
-    if(!draggedSource) { return; }
-    dispatch("addViewConstraint", {viewId: viewId, leftSource: draggedSourceId, leftField: fieldId});
+
+  if(type === "field") {
+    var id = evt.dataTransfer.getData("fieldId");
+    var blockField = ixer.index("block field")[id];
+    if(blockField[code.ix("block field", "view")] !== viewId) { return; }
+    var fieldId = blockField[code.ix("block field", "field")];
+    var sourceId = blockField[code.ix("block field", "source")];
+    dispatch("addViewConstraint", {viewId: viewId, leftSource: sourceId, leftField: fieldId});
   }
 }
 
@@ -1983,15 +1987,14 @@ function viewConstraintsDrop(evt, elem) {
 
   function dropConstraintField(evt, elem) {
     var type = evt.dataTransfer.getData("type");
-    if(type !== "sourceField") { return; }
+    if(type !== "field") { return; }
     var viewId = ixer.index("constraint to view")[elem.constraintId];
-    var sources = ixer.index("source")[viewId] || {};
-
-    var fieldId = evt.dataTransfer.getData("fieldId");
-    var draggedSourceId = evt.dataTransfer.getData("sourceId");
-    var draggedSource = sources[draggedSourceId];
-    if(!draggedSource) { return; }
-    dispatch("updateViewConstraint", {constraintId: elem.constraintId, type: elem.key, value: fieldId, source: draggedSourceId});
+    var id = evt.dataTransfer.getData("fieldId");
+    var blockField = ixer.index("block field")[id];
+    if(blockField[code.ix("block field", "view")] !== viewId) { return; }
+    var fieldId = blockField[code.ix("block field", "field")];
+    var sourceId = blockField[code.ix("block field", "source")];
+    dispatch("updateViewConstraint", {constraintId: elem.constraintId, type: elem.key, value: fieldId, source: sourceId});
     evt.stopPropagation();
   }
 
@@ -2116,10 +2119,11 @@ function viewConstraintsDrop(evt, elem) {
     var outerSource = sources.outer;
     var innerSource = sources.inner;
 
-    var fields = ixer.index("view to fields")[viewId] || [];
+    var fields = ixer.index("view and source to block fields")[viewId] || {};
+    fields = fields["selection"] || [];
     var selectionItems = fields.map(function(field) {
-      var id = field[code.ix("field", "field")];
-      return fieldItem(code.name(id) || "Untitled", id, undefined, {c: "pill field"});
+      var id = field[code.ix("block field", "block field")];
+      return fieldItem(code.name(id) || "Untitled", id, {c: "pill field"});
     });
     if(!selectionItems.length) {
       selectionItems.push({text: "Drag local fields into me to make them available in the query."});
