@@ -28,7 +28,7 @@ pub struct Relation {
 }
 
 #[derive(Clone, Debug)]
-pub struct Changes {
+pub struct Change {
     pub fields: Vec<Field>,
     pub insert: Vec<Vec<Value>>,
     pub remove: Vec<Vec<Value>>,
@@ -42,7 +42,7 @@ impl Relation {
         }
     }
 
-    pub fn change(&mut self, changes: &Changes) {
+    pub fn change(&mut self, changes: &Change) {
         let mapping = mapping(&*changes.fields, &*self.fields).unwrap();
         for values in changes.insert.iter() {
             self.index.insert(with_mapping(&values, &*mapping));
@@ -52,16 +52,16 @@ impl Relation {
         }
     }
 
-    pub fn as_insert(&self) -> Changes {
-        Changes{
+    pub fn as_insert(&self) -> Change {
+        Change{
             fields: self.fields.clone(),
             insert: self.index.iter().map(|values| values.clone()).collect(),
             remove: Vec::new(),
         }
     }
 
-    pub fn as_remove(&self) -> Changes {
-        Changes{
+    pub fn as_remove(&self) -> Change {
+        Change{
             fields: self.fields.clone(),
             insert: Vec::new(),
             remove: self.index.iter().map(|values| values.clone()).collect(),

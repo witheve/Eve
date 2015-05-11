@@ -3,10 +3,9 @@ use std::mem::replace;
 use std::cell::{RefCell, Ref, RefMut};
 
 use value::Id;
-use relation;
-use relation::Relation;
+use relation::{Change, Relation};
 use view::{View, Table};
-use compiler::compiler_schema;
+use compiler;
 
 #[derive(Clone, Debug)]
 pub struct Node {
@@ -16,13 +15,12 @@ pub struct Node {
     pub downstream: Vec<usize>,
 }
 
-pub type Changes = Vec<(Id, relation::Changes)>;
+pub type Changes = Vec<(Id, Change)>;
 
 #[derive(Clone, Debug)]
 pub struct Flow {
     pub nodes: Vec<Node>,
     pub outputs: Vec<RefCell<Relation>>,
-    pub changes: Changes,
     pub dirty: BitSet,
 }
 
@@ -31,10 +29,9 @@ impl Flow {
         let mut flow = Flow {
             nodes: Vec::new(),
             outputs: Vec::new(),
-            changes: Vec::new(),
             dirty: BitSet::new(),
         };
-        for (id, unique_fields, other_fields) in compiler_schema().into_iter() {
+        for (id, unique_fields, other_fields) in compiler::schema().into_iter() {
             let node = Node{
                 id: id.to_owned(),
                 view: View::Table(Table),
@@ -68,14 +65,13 @@ impl Flow {
         self.outputs[ix] = output;
     }
 
-    pub fn change(&mut self, changes: Changes) {
-        for (id, changes) in changes.into_iter() {
+    pub fn change(&mut self, changes: &Changes) {
+        for &(ref id, ref changes) in changes.iter() {
             match self.get_ix(&*id) {
                 Some(ix) => match self.nodes[ix].view {
                     View::Table(_) => {
-                        self.outputs[ix].borrow_mut().change(&changes);
+                        self.outputs[ix].borrow_mut().change(changes);
                         self.dirty.insert(ix);
-                        self.changes.push((id, changes));
                     }
                     // _ => panic!("Tried to insert into a non-table view with id: {:?}", id),
                 },
@@ -93,16 +89,29 @@ impl Flow {
         ).collect()
     }
 
-    pub fn take_changes(&mut self) -> Changes {
-        let &mut Flow {ref mut changes, ..} = self;
-        replace(changes, Vec::new())
+    pub fn recalculate(&mut self, changes: &mut Changes) {
+        // TODO
     }
 
-    // pub fn recalculate(&mut self) {
-    //     // TODO
-    // }
+    pub fn tick(&mut self, changes: &mut Changes) {
+        // TODO
+    }
 
-    // pub fn quiesce(self) -> Self {
-
-    // }
+    pub fn quiesce(mut self, mut changes: Changes) -> (Self, Changes) {
+        self.change(&changes);
+        let mut changes_seen = changes.len();
+        loop {
+            if compiler::needs_recompile(&changes[changes_seen..]) {
+                self = compiler::recompile(self, &mut changes);
+            }
+            self.recalculate(&mut changes);
+            self.tick(&mut changes);
+            if changes.len() == changes_seen {
+                break;
+            } else {
+                changes_seen = changes.len();
+            }
+        }
+        (self, changes)
+    }
 }

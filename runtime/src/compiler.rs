@@ -1,12 +1,12 @@
 use std::collections::BitSet;
 use std::cell::RefCell;
 
-use value::Value;
-use relation::{Relation, Changes};
+use value::{Id, Value};
+use relation::{Relation, Change};
 use view::{View, Table};
-use flow::{Node, Flow};
+use flow::{Node, Flow, Changes};
 
-pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
+pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // the schema is arranged as (table name, unique key fields, other fields)
     // any field whose type is not described is a UUID
 
@@ -168,12 +168,11 @@ fn create_flow(compiler: &Compiler) -> Flow {
         nodes: nodes,
         dirty: dirty,
         outputs: outputs,
-        changes: Vec::new(),
     }
 }
 
-fn reuse_state(compiler: Compiler, flow: &mut Flow) {
-    let Flow{nodes: nodes, outputs: outputs, changes: mut changes, ..} = compiler.flow;
+fn reuse_state(compiler: Compiler, flow: &mut Flow, changes: &mut Changes) {
+    let Flow{nodes, outputs, ..} = compiler.flow;
     for (node, output) in nodes.into_iter().zip(outputs.into_iter()) {
         let id = &node.id[..];
         if flow.get_ix(id) != None
@@ -183,10 +182,9 @@ fn reuse_state(compiler: Compiler, flow: &mut Flow) {
             changes.push((id.to_owned(), output.borrow().as_remove()));
         }
     }
-    flow.changes = changes;
 }
 
-pub fn recompile(old_flow: Flow) -> Flow {
+pub fn recompile(old_flow: Flow, changes: &mut Changes) -> Flow {
     let dependency = create_dependency(&old_flow);
     let schedule = create_schedule(&old_flow);
     let compiler = Compiler{
@@ -195,6 +193,13 @@ pub fn recompile(old_flow: Flow) -> Flow {
         schedule: schedule,
     };
     let mut new_flow = create_flow(&compiler);
-    reuse_state(compiler, &mut new_flow);
+    reuse_state(compiler, &mut new_flow, changes);
     new_flow
+}
+
+pub fn needs_recompile(changes: &[(Id, Change)]) -> bool {
+    let schema = schema();
+    changes.iter().any(|&(ref changed_id, _)|
+        schema.iter().any(|&(ref compiler_id, _, _)|
+            changed_id == compiler_id))
 }
