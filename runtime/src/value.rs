@@ -64,6 +64,7 @@ impl Value {
 
 pub type Field = Id;
 
+#[derive(Clone, Debug)]
 pub struct Tuple<'a> {
     pub fields: &'a [Field],
     pub values: &'a [Value],
