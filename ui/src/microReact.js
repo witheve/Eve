@@ -30,6 +30,7 @@
     reset: function() {
       this.prevTree = this.tree;
       this.tree = {};
+      this.postRenders = [];
     },
 
     domify: function domify() {
@@ -78,7 +79,7 @@
         if(cur.value !== prev.value) div.value = cur.value;
         if(cur.t === "input" && cur.type !== prev.type) div.type = cur.type;
         if(cur.t === "input" && cur.checked !== prev.checked) div.checked = cur.checked;
-        if(cur.text !== prev.text) div.textContent = cur.text;
+        if(cur.text !== prev.text) div.textContent = cur.text === undefined ? "" : cur.text;
         if(cur.tabindex !== prev.tabindex) div.setAttribute("tabindex", cur.tabindex);
 
         if(cur.left !== prev.left)  style.left = cur.left === undefined ? "auto" : cur.left;
@@ -282,10 +283,10 @@
       var postDomify = now();
       var time = now() - start;
       if(time > 5) {
-        console.log("slow render (> 5ms): ", time, {prepare: prepare - start,
-                                                    diff: diff - prepare,
-                                                    domify: domify - diff,
-                                                    postDomify: postDomify - domify});
+//         console.log("slow render (> 5ms): ", time, {prepare: prepare - start,
+//                                                     diff: diff - prepare,
+//                                                     domify: domify - diff,
+//                                                     postDomify: postDomify - domify});
       }
     }
 
