@@ -1,5 +1,9 @@
+use std::collections::BitSet;
+use std::cell::RefCell;
+
 use value::Value;
 use relation::Relation;
+use view::{View, Table};
 use flow::{Node, Flow};
 
 pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
@@ -124,33 +128,63 @@ fn create_schedule(flow: &Flow) -> Relation {
     }
 }
 
+fn create_node(compiler: &Compiler, view_id: &Value, view_kind: &Value) -> Node {
+    let view = match view_kind.as_str() {
+        "table" => View::Table(Table),
+        other => panic!("Unknown view kind: {}", other),
+    };
+    let upstream = compiler.dependency.find_all("downstream view", view_id).iter().map(|dependency| {
+        compiler.schedule.find_one("view", &dependency["upstream view"])["ix"].as_usize()
+    }).collect(); // arrives in ix order so will match the arg order selected by create_query/union
+    let downstream = compiler.dependency.find_all("upstream view", view_id).iter().map(|dependency| {
+        compiler.schedule.find_one("view", &dependency["downstream view"])["ix"].as_usize()
+    }).collect();
+    Node{
+        id: view_id.as_str().to_owned(),
+        view: view,
+        upstream: upstream,
+        downstream: downstream,
+    }
+}
 
-// fn compile_nodes(flow: &Flow) -> Vec<Node> {
-//     unimplemented!()
-// }
+fn create_flow(compiler: &Compiler) -> Flow {
+    let mut nodes = Vec::new();
+    let mut dirty = BitSet::new();
+    let mut outputs = Vec::new();
+
+    for schedule in compiler.schedule.iter() {
+        let view_table = compiler.flow.get_output("view");
+        let view = view_table.find_one("view", &schedule["view"]);
+        nodes.push(create_node(compiler, &view["view"], &view["kind"]));
+        dirty.insert(schedule["ix"].as_usize());
+        let fields = compiler.flow.get_output("field").find_all("view", &view["view"])
+            .iter().map(|field| field["field"].as_str().to_owned()).collect();
+        outputs.push(RefCell::new(Relation::with_fields(fields)));
+    }
+
+    Flow{
+        nodes: nodes,
+        dirty: dirty,
+        outputs: outputs,
+        changes: Vec::new(),
+    }
+}
+
+fn reuse_state(compiler: Compiler, flow: &mut Flow) {
+    let Flow{nodes: nodes, outputs: outputs, changes: changes, ..} = compiler.flow;
+    for (node, output) in nodes.into_iter().zip(outputs.into_iter()) {
+        let id = &node.id[..];
+        if node.view.is_table()
+           && flow.get_ix(id) != None
+           && flow.get_node(id).view.is_table()
+           && output.borrow().fields == flow.get_output(id).fields {
+            flow.set_output(id, output)
+        }
+    }
+    flow.changes = changes;
+}
 
 // impl Flow {
 //     fn recompile(self) -> Self {
-//         let new_nodes = compile_nodes(&self);
-//         let new_dirty = (0..new_nodes.len()).collect();
-//         let new_outputs = vec![None; new_nodes.len()];
-//         let Flow{
-//             nodes: old_nodes,
-//             outputs: old_outputs,
-//             changes: old_changes,
-//             dirty: old_dirty
-//         } = self;
-//         for (old_node, old_output) in old_nodes.into_iter().zip(old_outputs.into_iter()) {
-//             match flow.get_ix(&*old_node.id) {
-//                 Some(ix) => new_outputs[ix] = nodes[ix].view.import_state_from(old_node.view, old_output),
-//                 None => (),
-//             }
-//         }
-//         Flow{
-//             nodes: new_nodes,
-//             outputs: new_outputs,
-//             changes: old_changes,
-//             dirty: new_dirty
-//         }
 //     }
 // }

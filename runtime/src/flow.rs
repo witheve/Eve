@@ -55,12 +55,21 @@ impl Flow {
         self.nodes.iter().position(|node| &node.id[..] == id)
     }
 
+    pub fn get_node(&self, id: &str) -> &Node {
+        self.nodes.iter().find(|node| &node.id[..] == id).unwrap()
+    }
+
     pub fn get_output(&self, id: &str) -> Ref<Relation> {
         self.outputs[self.get_ix(id).unwrap()].borrow()
     }
 
     pub fn get_output_mut(&self, id: &str) -> RefMut<Relation> {
         self.outputs[self.get_ix(id).unwrap()].borrow_mut()
+    }
+
+    pub fn set_output(&mut self, id: &str, output: RefCell<Relation>) {
+        let ix = self.get_ix(id).unwrap();
+        self.outputs[ix] = output;
     }
 
     pub fn change(&mut self, changes: Changes) {
