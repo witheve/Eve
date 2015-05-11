@@ -81,6 +81,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     // Editor
     "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"]]},
     block: {name: "block", fields: ["query", "block", "view"]},
+    "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
 
     // Examples
     "department heads": {name: "department heads", fields: ["department", "head"]},
@@ -135,6 +136,8 @@ var queryEditor = (function(window, microReact, Indexing) {
   ixer.addIndex("view to block", "block", Indexing.create.lookup([2, 1]));
   ixer.addIndex("query to blocks", "block", Indexing.create.collector([0]));
   ixer.addIndex("query to views", "block", Indexing.create.collector([0, 2]));
+  ixer.addIndex("block field", "block field", Indexing.create.lookup([0, false]));
+  ixer.addIndex("view and source to block fields", "block field", Indexing.create.collector([1, 2]));
 
   ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
 
@@ -260,6 +263,30 @@ var queryEditor = (function(window, microReact, Indexing) {
               ["select", "inserted", [viewId, fieldId, sourceViewId, sourceFieldId]],
               ["display name", "inserted", [fieldId, code.name(sourceFieldId)]]];
     },
+    cacheViewSourceFields: function(viewId, sourceId, sourceViewId) {
+      var diffs = [];
+      var oldFacts = ixer.index("view and source to block fields")[viewId] || {};
+      oldFacts = oldFacts[sourceId] || [];
+      for(var ix = 0; ix < oldFacts.length; ix++) {
+        var oldFact = oldFacts[ix];
+        var id = oldFact[code.ix("block field", "block field")];
+        var oldOrder = ixer.index("display order")[id];
+        var oldName = ixer.index("display name")[id];
+        diffs.push(["block field", "removed", oldFact],
+                   ["display order", "removed", [id, oldOrder]],
+                   ["display name", "removed", [id, oldName]]);
+      };
+      var fields = ixer.index("view to fields")[sourceViewId] || [];
+      for(var ix = 0; ix < fields.length; ix++) {
+        var blockId = uuid();
+        var fieldId = fields[ix][code.ix("field", "field")];
+        diffs.push(["block field", "inserted", [blockId, viewId, sourceId, sourceViewId, fieldId]],
+                   ["display order", "inserted", [blockId, ixer.index("display order")[fieldId]]],
+                   ["display name", "inserted", [blockId, ixer.index("display name")[fieldId]]]);
+      }
+
+      return diffs;
+    },
     addViewSource: function addViewSource(viewId, sourceViewId, kind) {
       var sourceId = kind || uuid();
       var queryId = ixer.index("view to query")[viewId];
@@ -267,9 +294,13 @@ var queryEditor = (function(window, microReact, Indexing) {
       if(queryId === undefined) { queryId = code.activeItemId(); }
       var count = code.countSource(queryId, sourceViewId);
       var name = code.name(sourceViewId) + (count ? " (" + (count + 1) + ")" : "");
-      return [["source", "inserted", [viewId, sourceId, sourceViewId]],
-              ["display name", "inserted", [sourceId, name]],
-              ["display order", "inserted", [sourceId, 0]]];
+      var diffs = [["source", "inserted", [viewId, sourceId, sourceViewId]],
+                   ["display name", "inserted", [sourceId, name]],
+                   ["display order", "inserted", [sourceId, 0]]];
+
+      diffs = diffs.concat(diff.cacheViewSourceFields(viewId, sourceId, sourceViewId));
+
+      return diffs;
     },
     removeViewSource(viewId, sourceId) {
       var source = ixer.index("source")[viewId][sourceId];
@@ -852,13 +883,85 @@ var queryEditor = (function(window, microReact, Indexing) {
       els.push(selection(selectionInfo));
       els.push(uiGrid(componentId, activeLayer[3]));
     }
+    if(localState.boxSelectStart) {
+      var rect = boxSelectRect();
+      els.push({c: "box-selection", top: rect.top, left: rect.left, width: rect.width, height: rect.height});
+    }
     return genericWorkspace("query",
                             [uiControls(componentId, activeLayer)],
                             uiInspectors(componentId, selectionInfo, layers, activeLayer),
                             {c: "ui-editor",
                              children: [
-                               {c: "ui-canvas", componentId: componentId, children: els, mousedown: clearSelection},
+                               {c: "ui-canvas", componentId: componentId, children: els, mousedown: startBoxSelection, mouseup: stopBoxSelection, mousemove: adjustBoxSelection},
                              ]});
+  }
+
+  function boxSelectRect() {
+    var start = localState.boxSelectStart;
+    var stop = localState.boxSelectStop;
+    var topBottom = start[1] < stop[1] ? [start[1], stop[1]] : [stop[1], start[1]];
+    var leftRight = start[0] < stop[0] ? [start[0], stop[0]] : [stop[0], start[0]];
+    var width = leftRight[1] - leftRight[0];
+    var height = topBottom[1] - topBottom[0];
+    return {top: topBottom[0], bottom: topBottom[1], left: leftRight[0], right: leftRight[1], width: width, height: height};
+  }
+
+  function startBoxSelection(e, elem) {
+    if(!e.shiftKey) { clearSelection(e, elem); }
+    var x = e.clientX;
+    var y = e.clientY;
+    var canvasRect = e.currentTarget.getBoundingClientRect();
+    x -= Math.floor(canvasRect.left);
+    y -= Math.floor(canvasRect.top);
+    localState.boxSelectStart = [x, y];
+    localState.boxSelectStop = [x, y];
+    render();
+  }
+
+  function adjustBoxSelection(e, elem) {
+    if(!localState.boxSelectStart) return;
+    var x = e.clientX;
+    var y = e.clientY;
+    var canvasRect = e.currentTarget.getBoundingClientRect();
+    x -= Math.floor(canvasRect.left);
+    y -= Math.floor(canvasRect.top);
+    localState.boxSelectStop[0] = x;
+    localState.boxSelectStop[1] = y;
+    render();
+  }
+
+  function elementIntersects(elem, rect) {
+    var left = elem[5];
+    var top = elem[6];
+    var right = elem[7];
+    var bottom = elem[8];
+    return !(rect.left > right
+             || rect.right < left
+             || rect.top > bottom
+             || rect.bottom < top);
+  }
+
+  function stopBoxSelection(e, elem) {
+    if(!localState.boxSelectStart) return;
+    var sel = e.shiftKey ? localState.uiSelection : [];
+    var rect = boxSelectRect();
+    var componentId = elem.componentId;
+    var elems = ixer.index("uiComponentToElements")[componentId];
+    elems.forEach(function(cur) {
+      // @TODO: this allows you to select from layers that are either hidden or locked
+      var elemId = cur[1];
+      if(elementIntersects(cur, rect)) {
+        sel.push(elemId);
+      }
+    });
+    localState.boxSelectStart = null;
+    localState.boxSelectStop = null;
+    if(sel.length) {
+      localState.uiSelection = sel;
+    } else {
+      localState.uiSelection = false;
+    }
+    render();
   }
 
   function canvasRatio(context) {
@@ -1243,13 +1346,13 @@ var queryEditor = (function(window, microReact, Indexing) {
                       appearanceInspector(selectionInfo, binding),
                       textInspector(selectionInfo, binding));
 
-      var showMapInspector = selectionInfo.elements.every(function(cur) {
-        return cur[4] === "map";
-      });
-      if(showMapInspector) {
-        var mapInfo = getMapGroupInfo(selectionInfo.elements, true)
-        inspectors.push(mapInspector(selectionInfo, mapInfo, binding));
-      }
+//       var showMapInspector = selectionInfo.elements.every(function(cur) {
+//         return cur[4] === "map";
+//       });
+//       if(showMapInspector) {
+//         var mapInfo = getMapGroupInfo(selectionInfo.elements, true)
+//         inspectors.push(mapInspector(selectionInfo, mapInfo, binding));
+//       }
     } else if(activeLayer) {
       inspectors.push(layerInspector(activeLayer, elements));
     }
@@ -1744,11 +1847,9 @@ var queryEditor = (function(window, microReact, Indexing) {
     ]};
   }
 
-  function fieldItem(name, fieldId, sourceId, opts) {
+  function fieldItem(name, fieldId, opts) {
     opts = opts || {};
-    var type = "sourceField";
-    if(!sourceId) { type = "queryField"; }
-    return {c: "tree-item " + opts.c, dragData: {fieldId: fieldId, sourceId: sourceId, type: type}, draggable: true, dragstart: dragItem, children: [
+    return {c: "tree-item " + opts.c, dragData: {fieldId: fieldId, type: "field"}, draggable: true, dragstart: dragItem, children: [
       (opts.icon ? {c: "opts.icon"} : undefined),
       (name ? {text: name} : undefined),
       opts.content
@@ -1761,14 +1862,12 @@ var queryEditor = (function(window, microReact, Indexing) {
     }
   }
 
-  var queryAggregates = ["sum", "count", "min", "max", "empty"];
+  var queryAggregates = ["sort+limit", "sum", "count", "min", "max", "empty"];
   function queryControls(queryId) {
-    var items = ["filter", "aggregate"].map(queryToolbarItem);
+    var items = queryAggregates.map(function(tool) {
+      return treeItem(tool, tool, "aggregate-tool", {c: "control tool query-tool"});
+    });
     return controlGroup(items);
-  }
-
-  function queryToolbarItem(type) {
-    return treeItem(type, type, "tool", {c: "control tool query-tool"});
   }
 
   //---------------------------------------------------------
@@ -1812,10 +1911,11 @@ var queryEditor = (function(window, microReact, Indexing) {
    * View Block
    */
   function viewBlock(viewId) {
-    var fields = ixer.index("view to fields")[viewId] || [];
+    var fields = ixer.index("view and source to block fields")[viewId] || {};
+    fields = fields["selection"] || [];
     var selectionItems = fields.map(function(field) {
-      var id = field[code.ix("field", "field")];
-      return fieldItem(code.name(id) || "Untitled", id, undefined, {c: "pill field"});
+      var id = field[code.ix("block field", "block field")];
+      return fieldItem(code.name(id) || "Untitled", id, {c: "pill field"});
     });
     if(!selectionItems.length) {
       selectionItems.push({text: "Drag local fields into me to make them available in the query."});
@@ -1850,11 +1950,14 @@ var queryEditor = (function(window, microReact, Indexing) {
 
   function viewSelectionsDrop(evt, elem) {
     var type = evt.dataTransfer.getData("type");
-    if(type !== "sourceField") { return; }
-    var viewId = elem.viewId;
-    var fieldId = evt.dataTransfer.getData("fieldId");
-    var sourceId = evt.dataTransfer.getData("sourceId");
-    dispatch("addViewSelection", {viewId: viewId, fieldId: fieldId, sourceId: sourceId});
+    if(type !== "field") { return; }
+    var id = evt.dataTransfer.getData("fieldId");
+    var blockField = ixer.index("block field")[id];
+    if(blockField[code.ix("block field", "view")] !== elem.viewId) { return; }
+    var fieldId = blockField[code.ix("block field", "field")];
+    var sourceId = blockField[code.ix("block field", "source")];
+
+    dispatch("addViewSelection", {viewId: elem.viewId, fieldId: fieldId, sourceId: sourceId});
     evt.stopPropagation();
   }
 
@@ -1880,13 +1983,11 @@ var queryEditor = (function(window, microReact, Indexing) {
   }
 
   function viewSource(viewId, sourceId) {
-    var source = ixer.index("source")[viewId][sourceId];
-    var sourceViewId = source[code.ix("source", "source view")];
-
-    var fields = ixer.index("view to fields")[sourceViewId] || [];
+    var fields = ixer.index("view and source to block fields")[viewId] || {};
+    fields = fields[sourceId] || [];
     var fieldItems = fields.map(function(field) {
-      var id = field[code.ix("field", "field")];
-      return fieldItem(code.name(id) || "Untitled", id, sourceId, {c: "pill field"});
+      var id = field[code.ix("block field", "block field")];
+      return fieldItem(code.name(id) || "Untitled", id, {c: "pill field"});
     });
 
     var children = [
@@ -1938,13 +2039,14 @@ function viewConstraintsDrop(evt, elem) {
     evt.stopPropagation();
     return;
   }
-  if(type === "sourceField") {
-    var sources = ixer.index("source")[viewId] || {};
-    var fieldId = evt.dataTransfer.getData("fieldId");
-    var draggedSourceId = evt.dataTransfer.getData("sourceId");
-    var draggedSource = sources[draggedSourceId];
-    if(!draggedSource) { return; }
-    dispatch("addViewConstraint", {viewId: viewId, leftSource: draggedSourceId, leftField: fieldId});
+
+  if(type === "field") {
+    var id = evt.dataTransfer.getData("fieldId");
+    var blockField = ixer.index("block field")[id];
+    if(blockField[code.ix("block field", "view")] !== viewId) { return; }
+    var fieldId = blockField[code.ix("block field", "field")];
+    var sourceId = blockField[code.ix("block field", "source")];
+    dispatch("addViewConstraint", {viewId: viewId, leftSource: sourceId, leftField: fieldId});
   }
 }
 
@@ -1957,15 +2059,14 @@ function viewConstraintsDrop(evt, elem) {
 
   function dropConstraintField(evt, elem) {
     var type = evt.dataTransfer.getData("type");
-    if(type !== "sourceField") { return; }
+    if(type !== "field") { return; }
     var viewId = ixer.index("constraint to view")[elem.constraintId];
-    var sources = ixer.index("source")[viewId] || {};
-
-    var fieldId = evt.dataTransfer.getData("fieldId");
-    var draggedSourceId = evt.dataTransfer.getData("sourceId");
-    var draggedSource = sources[draggedSourceId];
-    if(!draggedSource) { return; }
-    dispatch("updateViewConstraint", {constraintId: elem.constraintId, type: elem.key, value: fieldId, source: draggedSourceId});
+    var id = evt.dataTransfer.getData("fieldId");
+    var blockField = ixer.index("block field")[id];
+    if(blockField[code.ix("block field", "view")] !== viewId) { return; }
+    var fieldId = blockField[code.ix("block field", "field")];
+    var sourceId = blockField[code.ix("block field", "source")];
+    dispatch("updateViewConstraint", {constraintId: elem.constraintId, type: elem.key, value: fieldId, source: sourceId});
     evt.stopPropagation();
   }
 
@@ -2081,6 +2182,7 @@ function viewConstraintsDrop(evt, elem) {
     }, []);
   }
 
+
   /**
    * Aggregate Block
    */
@@ -2089,10 +2191,11 @@ function viewConstraintsDrop(evt, elem) {
     var outerSource = sources.outer;
     var innerSource = sources.inner;
 
-    var fields = ixer.index("view to fields")[viewId] || [];
+    var fields = ixer.index("view and source to block fields")[viewId] || {};
+    fields = fields["selection"] || [];
     var selectionItems = fields.map(function(field) {
-      var id = field[code.ix("field", "field")];
-      return fieldItem(code.name(id) || "Untitled", id, undefined, {c: "pill field"});
+      var id = field[code.ix("block field", "block field")];
+      return fieldItem(code.name(id) || "Untitled", id, {c: "pill field"});
     });
     if(!selectionItems.length) {
       selectionItems.push({text: "Drag local fields into me to make them available in the query."});

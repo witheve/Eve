@@ -121,6 +121,8 @@ div:hover > .hover-reveal { opacity: 1; }
 .ui-editor .selection .resize-handle { position:absolute; border:1px solid red; background: rgba(255,0,0,0.2); z-index:2; pointer-events:auto; }
 .ui-editor .selection .trash { position:absolute; right: -25px; top: -25px; font-size: 18pt; pointer-events:auto; }
 
+.ui-editor .box-selection { position:absolute; border:1px solid red; }
+
 .ui-element { background:rgba(255,255,255,0.1); position:absolute; overflow:hidden; }
 .ui-element .selected { z-index: 10 !important; }
 
