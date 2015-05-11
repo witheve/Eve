@@ -1,3 +1,5 @@
+use value::Value;
+use relation::Relation;
 use flow::{Node, Flow};
 
 pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
@@ -69,10 +71,59 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static s
     // `name` is a string
     ("display name", vec!["id"], vec!["name"]),
     // things can be displayed in ordered lists
-    // `priority` is an f64. higher priority thigs are displayed first. ties are broken by id
+    // `priority` is an f64. higher priority things are displayed first. ties are broken by id
     ("display order", vec!["field"], vec!["priority"]),
+
+    // the compiler reflects its decisions into some builtin views
+    // a dependency exists whenever the contents on one view depend directly on another
+    // `ix` is an integer identifying the edge
+    ("dependency", vec!["upstream view", "ix"], vec!["downstream view"]),
+    // the schedule determines what order views will be executed in
+    // `ix` is an integer. views with lower ixes are executed first.
+    ("schedule", vec!["view"], vec!["ix"]),
     ]
 }
+
+struct Compiler {
+    flow: Flow,
+    dependency: Relation,
+    schedule: Relation,
+}
+
+fn create_dependency(flow: &Flow) -> Relation {
+    let mut dependency = Vec::new();
+    for view in flow.get_output("view").iter() {
+        let mut ix = 0.0;
+        for source in flow.get_output("source").find_all("view", &view["view"]) {
+            dependency.push(vec![
+                view["view"].clone(),
+                Value::Float(ix),
+                source["source view"].clone(),
+                ]);
+            ix += 1.0;
+        }
+    }
+    Relation{
+        fields: vec!["upstream view".to_owned(), "ix".to_owned(), "downstream view".to_owned()],
+        index: dependency.into_iter().collect(),
+    }
+}
+
+fn create_schedule(flow: &Flow) -> Relation {
+    // TODO actually schedule sensibly
+    // TODO warn about cycles through aggregates
+    let mut schedule = Vec::new();
+    let mut ix = 0.0;
+    for view in flow.get_output("view").iter() {
+        schedule.push(vec![Value::Float(ix), view["view"].clone()]);
+        ix += 1.0;
+    }
+    Relation{
+        fields: vec!["view".to_owned(), "ix".to_owned()],
+        index: schedule.into_iter().collect(),
+    }
+}
+
 
 // fn compile_nodes(flow: &Flow) -> Vec<Node> {
 //     unimplemented!()

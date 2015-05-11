@@ -1,6 +1,8 @@
+use std::collections::btree_set;
 use std::collections::btree_set::BTreeSet;
+use std::iter::Iterator;
 
-use value::{Id, Value, Field, Tuple};
+use value::{Value, Field, Tuple};
 
 pub fn mapping(from_fields: &[Field], to_fields: &[Field]) -> Option<Vec<usize>> {
     let mut mapping = Vec::with_capacity(to_fields.len());
@@ -58,16 +60,35 @@ impl Relation {
         }
     }
 
-    pub fn find_one(&self, field: Field, value: Value) -> Tuple {
+    pub fn find_one(&self, field: &str, value: &Value) -> Tuple {
         let ix = self.fields.iter().position(|my_field| &my_field[..] == field).unwrap();
-        let values = self.index.iter().find(|values| values[ix] == value).unwrap();
+        let values = self.index.iter().find(|values| values[ix] == *value).unwrap();
         Tuple{fields: &self.fields[..], values: &values[..]}
     }
 
-    pub fn find_all(&self, field: Field, value: Value) -> Vec<Tuple> {
+    pub fn find_all(&self, field: &str, value: &Value) -> Vec<Tuple> {
         let ix = self.fields.iter().position(|my_field| &my_field[..] == field).unwrap();
-        self.index.iter().filter(|values| values[ix] == value)
+        self.index.iter().filter(|values| values[ix] == *value)
             .map(|values| Tuple{fields: &self.fields[..], values: &values[..]})
             .collect()
+    }
+
+    pub fn iter(&self) -> Iter {
+        Iter{fields: &self.fields[..], iter: self.index.iter()}
+    }
+}
+
+pub struct Iter<'a> {
+    fields: &'a [Field],
+    iter: btree_set::Iter<'a, Vec<Value>>,
+}
+
+impl<'a> Iterator for Iter<'a> {
+    type Item = Tuple<'a>;
+    fn next(&mut self) -> Option<Tuple<'a>> {
+        match self.iter.next() {
+            None => None,
+            Some(values) => Some(Tuple{fields: self.fields, values: &values[..]}),
+        }
     }
 }
