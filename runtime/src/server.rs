@@ -8,7 +8,7 @@ use std::fs::OpenOptions;
 use rustc_serialize::json::{Json, ToJson};
 
 use value::Value;
-use relation;
+use relation::Change;
 use flow::{Changes, Flow};
 
 trait FromJson {
@@ -81,15 +81,15 @@ impl FromJson for Event {
                 let fields = FromJson::from_json(&change[1]);
                 let insert = FromJson::from_json(&change[2]);
                 let remove = FromJson::from_json(&change[3]);
-                (view_id, relation::Changes{fields:fields, insert: insert, remove: remove})
+                (view_id, Change{fields:fields, insert: insert, remove: remove})
             }).collect()
         }
     }
 }
 
 pub enum ServerEvent {
-    Message(String),
-    NewClient(sender::Sender<WebSocketStream>),
+    Change(String),
+    Sync(sender::Sender<WebSocketStream>),
 }
 
 // TODO holy crap why is everything blocking? this is a mess
@@ -111,14 +111,14 @@ pub fn serve() -> mpsc::Receiver<ServerEvent> {
                 ::std::io::stdout().flush().unwrap(); // TODO is this actually necessary?
 
                 // hand over sender
-                event_sender.send(ServerEvent::NewClient(sender)).unwrap();
+                event_sender.send(ServerEvent::Sync(sender)).unwrap();
 
                 // handle messages
                 for message in receiver.incoming_messages() {
                     let message = message.unwrap();
                     match message {
                         Message::Text(text) => {
-                            event_sender.send(ServerEvent::Message(text)).unwrap();
+                            event_sender.send(ServerEvent::Change(text)).unwrap();
                         }
                         _ => println!("Unknown message: {:?}", message)
                     }
@@ -127,21 +127,6 @@ pub fn serve() -> mpsc::Receiver<ServerEvent> {
         }
     });
     event_receiver
-}
-
-// TODO arbitrary limit - needs tuning
-static MAX_BATCH_SIZE: usize = 100;
-
-// TODO can batching cause missed outputs?
-fn recv_batch(event_receiver: &mpsc::Receiver<ServerEvent>, server_events: &mut Vec<ServerEvent>) {
-    server_events.push(event_receiver.recv().unwrap()); // block until first event
-    for _ in 0..MAX_BATCH_SIZE {
-        match event_receiver.try_recv() {
-            Ok(event) => server_events.push(event),
-            Err(mpsc::TryRecvError::Empty) => break,
-            Err(mpsc::TryRecvError::Disconnected) => panic!(),
-        }
-    }
 }
 
 pub fn run() {
@@ -154,63 +139,49 @@ pub fn run() {
         for line in old_events.lines() {
             let json = Json::from_str(&line).unwrap();
             let event: Event = FromJson::from_json(&json);
-            flow.change(event.changes);
+            let (new_flow, _changes) = flow.quiesce(event.changes);
+            flow = new_flow;
         }
         drop(events);
-        // TODO run
-        flow.take_changes();
-        });
+    });
 
     let mut events = OpenOptions::new().write(true).append(true).open("./events").unwrap();
     let mut senders: Vec<sender::Sender<_>> = Vec::new();
-    let mut server_events: Vec<ServerEvent> = Vec::with_capacity(MAX_BATCH_SIZE);
-    let event_receiver = serve();
-    loop {
-        recv_batch(&event_receiver, &mut server_events);
-        println!("batch size: {:?}", server_events.len());
+    for server_event in serve() {
+        match server_event {
 
-        time!("entire batch", {
-            for event in server_events.drain(..) {
-                match event {
-                    ServerEvent::NewClient(mut sender) => {
-                        time!("sending initial state", {
-                            let changes = flow.as_changes();
-                            let text = format!("{}", Event{changes: changes}.to_json());
-                            match sender.send_message(Message::Text(text)) {
-                                Ok(_) => (),
-                                Err(error) => println!("Send error: {}", error),
-                            };
-                            senders.push(sender)
-                        })
-                    }
-                    ServerEvent::Message(input_text) => {
-                        time!("applying update", {
-                            println!("{:?}", input_text);
-                            let json = Json::from_str(&input_text).unwrap();
-                            let input_event: Event = FromJson::from_json(&json);
-                            events.write_all(input_text.as_bytes()).unwrap();
-                            events.write_all("\n".as_bytes()).unwrap();
-                            flow.change(input_event.changes);
-                        })
-                    }
-                }
-            }
-
-            time!("running batch", {
-                // TODO run
-            });
-            time!("sending update", {
-                let changes = flow.take_changes();
-                let output_event = Event{changes: changes};
-                let output_text = format!("{}", output_event.to_json());
-                events.flush().unwrap();
-                for sender in senders.iter_mut() {
-                    match sender.send_message(Message::Text(output_text.clone())) {
+            ServerEvent::Sync(mut sender) => {
+                time!("syncing", {
+                    let changes = flow.as_changes();
+                    let text = format!("{}", Event{changes: changes}.to_json());
+                    match sender.send_message(Message::Text(text)) {
                         Ok(_) => (),
                         Err(error) => println!("Send error: {}", error),
                     };
-                }
-            });
-        })
+                    senders.push(sender)
+                })
+            }
+
+            ServerEvent::Change(input_text) => {
+                time!("changing", {
+                    println!("{:?}", input_text);
+                    let json = Json::from_str(&input_text).unwrap();
+                    let event: Event = FromJson::from_json(&json);
+                    events.write_all(input_text.as_bytes()).unwrap();
+                    events.write_all("\n".as_bytes()).unwrap();
+                    let (new_flow, changes) = flow.quiesce(event.changes);
+                    flow = new_flow;
+                    let output_text = format!("{}", Event{changes: changes}.to_json());
+                    events.flush().unwrap();
+                    for sender in senders.iter_mut() {
+                        match sender.send_message(Message::Text(output_text.clone())) {
+                            Ok(_) => (),
+                            Err(error) => println!("Send error: {}", error),
+                        };
+                    }
+                })
+            }
+
+        }
     }
 }
