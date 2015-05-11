@@ -153,7 +153,6 @@ fn create_flow(compiler: &Compiler) -> Flow {
     let mut nodes = Vec::new();
     let mut dirty = BitSet::new();
     let mut outputs = Vec::new();
-
     for schedule in compiler.schedule.iter() {
         let view_table = compiler.flow.get_output("view");
         let view = view_table.find_one("view", &schedule["view"]);
@@ -163,7 +162,6 @@ fn create_flow(compiler: &Compiler) -> Flow {
             .iter().map(|field| field["field"].as_str().to_owned()).collect();
         outputs.push(RefCell::new(Relation::with_fields(fields)));
     }
-
     Flow{
         nodes: nodes,
         dirty: dirty,
