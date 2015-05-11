@@ -2,7 +2,7 @@ use std::collections::BitSet;
 use std::cell::RefCell;
 
 use value::Value;
-use relation::Relation;
+use relation::{Relation, Changes};
 use view::{View, Table};
 use flow::{Node, Flow};
 
@@ -173,12 +173,14 @@ fn create_flow(compiler: &Compiler) -> Flow {
 }
 
 fn reuse_state(compiler: Compiler, flow: &mut Flow) {
-    let Flow{nodes: nodes, outputs: outputs, changes: changes, ..} = compiler.flow;
+    let Flow{nodes: nodes, outputs: outputs, changes: mut changes, ..} = compiler.flow;
     for (node, output) in nodes.into_iter().zip(outputs.into_iter()) {
         let id = &node.id[..];
         if flow.get_ix(id) != None
            && output.borrow().fields == flow.get_output(id).fields {
-            flow.set_output(id, output)
+            flow.set_output(id, output);
+        } else {
+            changes.push((id.to_owned(), output.borrow().as_remove()));
         }
     }
     flow.changes = changes;

@@ -88,7 +88,7 @@ impl Flow {
         (0..self.nodes.len()).map(|ix|
             (
                 self.nodes[ix].id.clone(),
-                self.outputs[ix].borrow().as_changes()
+                self.outputs[ix].borrow().as_insert()
             )
         ).collect()
     }
@@ -98,11 +98,11 @@ impl Flow {
         replace(changes, Vec::new())
     }
 
-    pub fn recalculate(&mut self) {
-        // TODO
-    }
+    // pub fn recalculate(&mut self) {
+    //     // TODO
+    // }
 
-    pub fn quiesce(self) -> Self {
+    // pub fn quiesce(self) -> Self {
 
-    }
+    // }
 }
