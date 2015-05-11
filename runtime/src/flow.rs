@@ -2,7 +2,7 @@ use std::collections::BitSet;
 use std::mem::replace;
 use std::cell::{RefCell, Ref, RefMut};
 
-use value::Id;
+use value::{Id, Value};
 use relation::{Change, Relation};
 use view::{View, Table};
 use compiler;
@@ -31,20 +31,46 @@ impl Flow {
             outputs: Vec::new(),
             dirty: BitSet::new(),
         };
-        for (id, unique_fields, other_fields) in compiler::schema().into_iter() {
+        let schema = compiler::schema();
+        for &(ref id, ref unique_fields, ref other_fields) in schema.iter() {
             let node = Node{
-                id: id.to_owned(),
+                id: (*id).to_owned(),
                 view: View::Table(Table),
                 upstream: Vec::new(),
                 downstream: Vec::new(),
             };
-            let fields = unique_fields.iter().chain(other_fields.iter())
-                .map(|&field| field.to_owned()).collect();
+            let mut fields = unique_fields.iter().chain(other_fields.iter())
+                .map(|&field| field.to_owned()).collect::<Vec<_>>();
+            fields.sort(); // fields are implicitly sorted in the compiler - need to use the same ordering here
             let relation = RefCell::new(Relation::with_fields(fields));
             flow.nodes.push(node);
             flow.outputs.push(relation);
         }
-        // TODO insert compiler_schema as view / field
+        let mut view_values = Vec::new();
+        let mut field_values = Vec::new();
+        for &(ref id, ref unique_fields, ref other_fields) in schema.iter() {
+            view_values.push(vec![
+                Value::String((*id).to_owned()),
+                Value::String("table".to_owned())
+                ]);
+            for &field in unique_fields.iter().chain(other_fields.iter()) {
+                field_values.push(vec![
+                    Value::String((*field).to_owned()),
+                    Value::String((*id).to_owned()),
+                    Value::String("output".to_owned()),
+                    ]);
+            }
+        }
+        flow.get_output_mut("view").change(&Change{
+            fields: vec!["view".to_owned(), "kind".to_owned()],
+            insert: view_values,
+            remove: Vec::new(),
+        });
+        flow.get_output_mut("field").change(&Change{
+            fields: vec!["field".to_owned(), "view".to_owned(), "kind".to_owned()],
+            insert: field_values,
+            remove: Vec::new(),
+        });
         flow
     }
 
@@ -99,17 +125,16 @@ impl Flow {
 
     pub fn quiesce(mut self, mut changes: Changes) -> (Self, Changes) {
         self.change(&changes);
-        let mut changes_seen = changes.len();
+        let mut changes_seen = 0;
         loop {
             if compiler::needs_recompile(&changes[changes_seen..]) {
                 self = compiler::recompile(self, &mut changes);
             }
+            changes_seen = changes.len();
             self.recalculate(&mut changes);
             self.tick(&mut changes);
             if changes.len() == changes_seen {
                 break;
-            } else {
-                changes_seen = changes.len();
             }
         }
         (self, changes)

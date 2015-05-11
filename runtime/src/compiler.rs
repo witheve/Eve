@@ -123,7 +123,7 @@ fn create_schedule(flow: &Flow) -> Relation {
         ix += 1.0;
     }
     Relation{
-        fields: vec!["view".to_owned(), "ix".to_owned()],
+        fields: vec!["ix".to_owned(), "view".to_owned()],
         index: schedule.into_iter().collect(),
     }
 }
