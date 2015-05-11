@@ -31,6 +31,27 @@ var queryEditor = (function(window, microReact, Indexing) {
   }
 
   //---------------------------------------------------------
+  // utils
+  //---------------------------------------------------------
+
+  var alphabet = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+                  "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"];
+
+  var KEYS = {UP: 38,
+              DOWN: 40,
+              ENTER: 13,
+              Z: 90};
+
+  function coerceInput(input) {
+    if(input.match(/^-?[\d]+$/gim)) {
+      return parseInt(input);
+    } else if(input.match(/^-?[\d]+\.[\d]+$/gim)) {
+      return parseFloat(input);
+    }
+    return input;
+  }
+
+  //---------------------------------------------------------
   // Data
   //---------------------------------------------------------
 
@@ -58,8 +79,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     "display name": {name: "display name", fields: ["id", "name"]},
 
     // Editor
-    "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"], [2, "ui"]]},
-    //     "active editor item": {name: "active editor item", fields: ["item"], facts: [[1]]},
+    "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"]]},
     block: {name: "block", fields: ["query", "block", "view"]},
 
     // Examples
@@ -83,7 +103,7 @@ var queryEditor = (function(window, microReact, Indexing) {
 
     //ui
     "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"], facts: []},
-    "uiComponentLayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden"], facts: [[0,3,2,0,false,false]]},
+    "uiComponentLayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden"], facts: []},
     "uiComponentAttribute": {name: "uiComponentAttribute", fields: ["tx", "id", "property", "value"]},
     "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element"]},
     "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "union"]},
@@ -94,8 +114,9 @@ var queryEditor = (function(window, microReact, Indexing) {
   ixer.addIndex("view to fields", "field", Indexing.create.collector([0]));
 
   ixer.addIndex("field to view", "field", Indexing.create.lookup([1, 0]));
-  ixer.addIndex("display name", "display name", Indexing.create.lookup([0, 1]));
   ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
+  ixer.addIndex("view to kind", "view", Indexing.create.lookup([0, 1]));
+  ixer.addIndex("display name", "display name", Indexing.create.lookup([0, 1]));
   ixer.addIndex("source", "source", Indexing.create.lookup([0, 1, false]));
   ixer.addIndex("view and source view to source", "source", Indexing.create.lookup([0, 2, false]));
   ixer.addIndex("view to sources", "source", Indexing.create.collector([0]));
@@ -223,6 +244,14 @@ var queryEditor = (function(window, microReact, Indexing) {
       return diffs;
     },
 
+    addAggregateBlock: function addBlock(queryId) {
+      var viewId = uuid();
+      var blockId = uuid();
+      var diffs = [["block", "inserted", [queryId, blockId, viewId]],
+                   ["view", "inserted", [viewId, "aggregate"]]];
+      return diffs;
+    },
+
     addViewSelection: function addViewSelection(viewId, sourceFieldId) {
       var fieldId = uuid();
       var sourceViewId = ixer.index("field to view")[sourceFieldId];
@@ -238,8 +267,6 @@ var queryEditor = (function(window, microReact, Indexing) {
       if(queryId === undefined) { queryId = code.activeItemId(); }
       var count = code.countSource(queryId, sourceViewId);
       var name = code.name(sourceViewId) + (count ? " (" + (count + 1) + ")" : "");
-
-      var sourceId = uuid();
       return [["source", "inserted", [viewId, sourceId, sourceViewId]],
               ["display name", "inserted", [sourceId, name]],
               ["display order", "inserted", [sourceId, 0]]];
@@ -339,6 +366,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     var diffs = [];
     var add = function(viewId, view) {
       diffs = diffs.concat(diff.addView(viewId, view));
+      diffs.push(["editor item", "inserted", [viewId, "table"]]);
     };
 
     for(var tableId in tables) {
@@ -349,13 +377,47 @@ var queryEditor = (function(window, microReact, Indexing) {
   }
 
   function dispatch(evt, info) {
-//     console.info("[dispatch]", evt, info);
+//         console.info("[dispatch]", evt, info);
     var txId = ++localState.txId;
 
     var diffs = [];
     switch(evt) {
+      case "addTable":
+        var id = uuid();
+        var fieldId = uuid();
+        diffs.push(["editor item", "inserted", [id, "table"]],
+                   ["view", "inserted", [id, "table"]],
+                   ["field", "inserted", [id, fieldId, "output"]],
+                   ["display order", "inserted", [fieldId, 0]],
+                   ["display name", "inserted", [id, "Untitled Table"]],
+                   ["display name", "inserted", [fieldId, "A"]]);
+        localState.activeItem = id;
+        break;
+      case "addQuery":
+        var id = uuid();
+        diffs.push(["editor item", "inserted", [id, "query"]],
+                   ["display name", "inserted", [id, "Untitled Query"]]);
+        localState.activeItem = id;
+        break;
+      case "addUi":
+        var id = uuid();
+        diffs.push(["editor item", "inserted", [id, "ui"]],
+                   ["display name", "inserted", [id, "Untitled Page"]],
+                   ["uiComponentLayer", "inserted", [txId, uuid(), id, 0, false, false]]);
+        localState.activeItem = id;
+        break;
+      case "rename":
+        var id = info.id;
+        diffs.push(["display name", "inserted", [id, info.value]],
+                   ["display name", "removed", [id, code.name(id)]])
+        break;
       case "addViewBlock":
-        diffs = diff.addViewBlock(code.activeItemId(), info.sourceId);
+        var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
+        diffs = diff.addViewBlock(queryId, info.sourceId);
+        break;
+      case "addAggregateBlock":
+        var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
+        diffs = diff.addAggregateBlock(queryId);
         break;
       case "removeViewBlock":
         var view = ixer.index("view")[info.viewId];
@@ -373,13 +435,13 @@ var queryEditor = (function(window, microReact, Indexing) {
         diffs = diff.addViewSelection(info.viewId, info.fieldId);
         break;
       case "addViewSource":
-        diffs = diff.addViewSource(info.viewId, info.sourceId);
+        diffs = diff.addViewSource(info.viewId, info.sourceId, info.kind);
         break;
       case "removeViewSource":
         diffs = diff.removeViewSource(info.viewId, info.sourceId);
         break;
       case "addViewConstraint":
-        diffs = diff.addViewConstraint(info.viewId, {leftSource: info.sourceId, operation: "="});
+        diffs = diff.addViewConstraint(info.viewId, {operation: "=", leftSource: info.leftSource, leftField: info.leftField});
         break;
       case "addUiComponentElement":
         var elemId = uuid();
@@ -483,10 +545,10 @@ var queryEditor = (function(window, microReact, Indexing) {
 
         // @TODO: redesign this to pass in opts directly.
         var opts = {};
-        if(info.type === "field") {
+        if(info.type === "left") {
           opts.leftField = info.value;
           opts.leftSource = info.source;
-        } else if(info.type === "value") {
+        } else if(info.type === "right") {
           opts.rightField = info.value;
           opts.rightSource = info.source;
         } else if(info.type === "operation") {
@@ -516,7 +578,7 @@ var queryEditor = (function(window, microReact, Indexing) {
   var localState = {txId: 0,
                     uiActiveLayer: null,
                     activeItem: 1,
-                    showMenu: false,
+                    showMenu: true,
                     uiGridSize: 10};
 
   //---------------------------------------------------------
@@ -527,24 +589,94 @@ var queryEditor = (function(window, microReact, Indexing) {
     var itemId = code.activeItemId();
     var type = ixer.index("editor item to type")[itemId];
 
+    var workspace;
     if(type === "query") {
-      return queryWorkspace(itemId);
+      workspace = queryWorkspace(itemId);
     } else if(type === "ui") {
-      return uiWorkspace(itemId);
+      workspace = uiWorkspace(itemId);
     } else if(type === "table") {
-      return tableWorkspace(itemId);
+      workspace = tableWorkspace(itemId);
     }
+    return {id: "root", c: "root", children: [
+      editorItemList(itemId),
+      workspace,
+    ]};
+  }
+
+  function editorItemList(itemId) {
+    var items = ixer.facts("editor item").map(function(cur) {
+      var id = cur[0];
+      var type = cur[1];
+      var klass = "editor-item " + type;
+      var icon = "ion-grid";
+      if(type === "query") {
+        icon = "ion-cube";
+      } else if(type === "ui") {
+        icon = "ion-image";
+      }
+      if(itemId === id) {
+        klass += " selected";
+      }
+      return {c: klass, click: selectEditorItem, dblclick: closeSelectEditorItem, dragData: {value: id, type: "view"}, itemId: id, draggable: true, dragstart: dragItem, children: [
+        {c: "icon " + icon},
+        {text: code.name(id)},
+      ]};
+    })
+    var width = 0;
+    if(localState.showMenu) {
+      width = 200;
+    }
+    return {c: "editor-item-list", width:width, children: [
+      {c: "title", click: toggleMenu, text: "items"},
+      {c: "adder", children: [
+        {c: "button table", click: addItem, event: "addTable", children: [
+          {c: "ion-grid"},
+          {c: "ion-plus"},
+        ]},
+        {c: "button query", click: addItem, event: "addQuery", children: [
+          {c: "ion-cube"},
+          {c: "ion-plus"},
+        ]},
+        {c: "button ui", click: addItem, event: "addUi", children: [
+          {c: "ion-image"},
+          {c: "ion-plus"},
+        ]},
+      ]},
+      {c: "items", children: items}
+    ]};
+  }
+
+  function addItem(e, elem) {
+    dispatch(elem.event, {});
+  }
+
+  function selectEditorItem(e, elem) {
+    localState.activeItem = elem.itemId;
+    render();
+  }
+
+  function closeSelectEditorItem(e, elem) {
+    localState.showMenu = false;
+    selectEditorItem(e, elem);
   }
 
   function genericWorkspace(klass, controls, options, content) {
-    var finalControls = [{c: "menu-toggle", text: "open"}].concat(controls);
-    return {id: "root",
-            c: "root " + klass,
+    var finalControls = controls;
+    if(!localState.showMenu) {
+      var finalControls = [{c: "menu-toggle", click: toggleMenu, text: "items"}].concat(controls);
+    }
+    return {id: "workspace",
+            c: "workspace-container " + klass,
             children: [
               {c: "control-bar", children: finalControls},
               {c: "option-bar", children: options},
               {c: "content", children: [content]}
             ]};
+  }
+
+  function toggleMenu() {
+    localState.showMenu = !localState.showMenu;
+    render();
   }
 
   function controlGroup(controls) {
@@ -556,11 +688,84 @@ var queryEditor = (function(window, microReact, Indexing) {
   //---------------------------------------------------------
 
   function tableWorkspace(tableId) {
-    return genericWorkspace("", [], [],
+    var fields = ixer.index("view to fields")[tableId].map(function(cur) {
+      return {name: code.name(cur[1]), id: cur[1]};
+    });
+    var rows = ixer.facts(tableId);
+    //     var adderRows = (ixer.index("adderRows")[tableId] || []).filter(function(row) {
+    //       var txId = row[0];
+    //       return !ixer.index("remove")[txId];
+    //     });
+    return genericWorkspace("",
+                            [],
+                            [input(code.name(tableId), tableId, rename, rename)],
                             {c: "table-editor",
                              children: [
-                               {text: "table!"}
+                               virtualizedTable(tableId, fields, rows, [])
                              ]});
+  }
+
+  function rename(e, elem) {
+    var value = e.currentTarget.textContent;
+    if(value !== code.name(elem.key)) {
+      dispatch("rename", {value: value, id: elem.key});
+    }
+  }
+
+  function virtualizedTable(id, fields, rows, adderRows) {
+    var ths = fields.map(function(cur) {
+      var oninput, onsubmit;
+      if(cur.id) {
+        oninput = onsubmit = rename;
+      }
+      return {c: "header", children: [input(cur.name, cur.id, oninput, onsubmit)]};
+    });
+    // @NOTE: We check for the existence of adderRows to determine if the table is editable. This is somewhat surprising.
+    var isEditable = adderRows && adderRows.length;
+    var trs = [];
+    rows.forEach(function(cur) {
+      var tds = [];
+      for(var tdIx = 0, len = cur.length; tdIx < len; tdIx++) {
+        tds[tdIx] = {c: "field"};
+
+        // @NOTE: We can hoist this if perf is an issue.
+        if(isEditable) {
+          tds[tdIx].children = [input(cur[tdIx], {row: cur, ix: tdIx, view: id}, updateRow)];
+        } else {
+          tds[tdIx].text = cur[tdIx];
+        }
+      }
+      trs.push({c: "row", children: tds});
+    })
+    adderRows.forEach(function(adder) {
+      var cur = adder[3];
+      var tds = [];
+      for(var i = 0, len = fields.length; i < len; i++) {
+        tds[i] = {c: "field", children: [input(cur[i], {row: adder, ix: i}, updateAdder)]};
+      }
+      trs.push({c: "row", children: tds});
+    });
+    //   trs.push({id: "spacer2", c: "spacer", height: Math.max(totalRows - start - numRows, 0) * itemHeight});
+    return {c: "table", children: [
+      {c: "headers", children: ths},
+      {c: "rows", children: trs}
+    ]};
+  }
+
+
+  function input(value, key, oninput, onsubmit) {
+    var blur, keydown;
+    if(onsubmit) {
+      blur = function inputBlur(e, elem) {
+        onsubmit(e, elem, "blurred");
+      }
+      keydown = function inputKeyDown(e, elem) {
+        if(e.keyCode === KEYS.ENTER) {
+          onsubmit(e, elem, "enter");
+        }
+      }
+    }
+    return {c: "input text-input", contentEditable: true, input: oninput, text: value, key: key, blur: blur, keydown: keydown};
   }
 
   //---------------------------------------------------------
@@ -1449,7 +1654,6 @@ var queryEditor = (function(window, microReact, Indexing) {
                             {c: "query-editor",
                              children: [
                                {c: "query-workspace", children: [
-                                 treePane(queryId),
                                  editor(queryId),
                                  inspectorPane(queryId)
                                ]},
@@ -1460,17 +1664,6 @@ var queryEditor = (function(window, microReact, Indexing) {
   //---------------------------------------------------------
   // Tree + Toolbar
   //---------------------------------------------------------
-
-  function treePane(queryId) {
-    var items = [];
-    var views = ixer.facts("view");
-    for(var ix = 0; ix < views.length; ix++) {
-      var id = views[ix][code.ix("view", "view")];
-      items.push(treeItem(code.name(id) || "Untitled", id, "view"));
-    }
-
-    return {c: "tree pane", children: items};
-  }
 
   function treeItem(name, value, type, opts) {
     opts = opts || {};
@@ -1498,6 +1691,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     }
   }
 
+  var queryAggregates = ["sum", "count", "min", "max", "empty"];
   function queryControls(queryId) {
     var items = ["filter", "aggregate"].map(queryToolbarItem);
     return controlGroup(items);
@@ -1515,10 +1709,16 @@ var queryEditor = (function(window, microReact, Indexing) {
     var items = [];
     for(var ix = 0; ix < blocks.length; ix++) {
       var viewId = blocks[ix][code.ix("block", "view")];
-      items.push(viewBlock(viewId));
+      var viewKind = ixer.index("view to kind")[viewId];
+      if(viewKind === "join") { items.push(viewBlock(viewId)); }
+      if(viewKind === "aggregate") { items.push(aggregateBlock(viewId)); }
     }
 
-    return {c: "workspace", drop: editorDrop, dragover: preventDefault, children: items.length ? items : [
+    if(items.length) {
+      items.push({c: "add-aggregate-btn", text: "Add Aggregate", queryId: queryId, click: addAggregateBlock});
+    }
+
+    return {c: "workspace", queryId: queryId, drop: editorDrop, dragover: preventDefault, children: items.length ? items : [
       {c: "feed", text: "Feed me sources"}
     ]};
   }
@@ -1527,28 +1727,21 @@ var queryEditor = (function(window, microReact, Indexing) {
     var type = evt.dataTransfer.getData("type");
     var value = evt.dataTransfer.getData("value");
     if(type === "view") {
-      dispatch("addViewBlock", {sourceId: value});
+      dispatch("addViewBlock", {queryId: elem.queryId, sourceId: value});
     }
     if(type === "tool" && value === "aggregate") {
-      dispatch("addAggregateBlock", {});
+      dispatch("addAggregateBlock", {queryId: elem.queryId});
     }
   }
 
-  function viewBlock(viewId) {
-    var sources = ixer.index("view to sources")[viewId] || [];
-    var sourceIdIx = code.ix("source", "source");
-    sources.sort(function(a, b) {
-      var idA = a[sourceIdIx];
-      var idB = b[sourceIdIx];
-      var orderA = ixer.index("display order")[idA];
-      var orderB = ixer.index("display order")[idB];
-      if(orderA - orderB) { return orderA - orderB; }
-      else { return idA > idB }
-    });
-    var sourceItems = sources.map(function(source) {
-      return viewSource(viewId, source);
-    });
+  function addAggregateBlock(evt, elem) {
+    dispatch("addAggregateBlock", {queryId: elem.queryId});
+  }
 
+  /**
+   * View Block
+   */
+  function viewBlock(viewId) {
     var fields = ixer.index("view to fields")[viewId] || [];
     var selectionItems = fields.map(function(field) {
       var id = field[code.ix("field", "field")];
@@ -1563,28 +1756,30 @@ var queryEditor = (function(window, microReact, Indexing) {
         {t: "h3", text: "Untitled Block"},
         {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock}
       ]},
-      {c: "block-section sources", children: sourceItems},
-      {c: "block-section selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems}
+      viewSources(viewId),
+      viewConstraints(viewId),
+      {c: "block-section view-selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems}
     ]};
+  }
+
+  function viewBlockDrop(evt, elem) {
+    var viewId = elem.viewId;
+    var type = evt.dataTransfer.getData("type");
+    var value = evt.dataTransfer.getData("value");
+    if(type === "view") {
+      if(viewId === value) { return console.error("Cannot join view with parent."); }
+      dispatch("addViewSource", {viewId: viewId, sourceId: value});
+      evt.stopPropagation();
+      return;
+    }
   }
 
   function removeViewBlock(evt, elem) {
     dispatch("removeViewBlock", {viewId: elem.viewId});
   }
 
-  function viewBlockDrop(evt, elem) {
-    var type = evt.dataTransfer.getData("type");
-    if(type !== "view") { return; }
-    var viewId = elem.viewId;
-    var sourceId = evt.dataTransfer.getData("value");
-    if(viewId === sourceId) { return console.error("Cannot join view with parent."); }
-    dispatch("addViewSource", {viewId: viewId, sourceId: sourceId});
-    evt.stopPropagation();
-  }
-
   function viewSelectionsDrop(evt, elem) {
     var type = evt.dataTransfer.getData("type");
-    console.log("viewSelectionsDrop", type);
     if(type !== "sourceField") { return; }
     var viewId = elem.viewId;
     var fieldId = evt.dataTransfer.getData("fieldId");
@@ -1593,59 +1788,95 @@ var queryEditor = (function(window, microReact, Indexing) {
     evt.stopPropagation();
   }
 
-  function viewSource(viewId, source) {
-    var sourceId = source[code.ix("source", "source")];
+  // Sources
+  function viewSources(viewId) {
+    var sourceIdIx = code.ix("source", "source");
+    var sources = ixer.index("view to sources")[viewId] || [];
+    var sourceIds = sources.map(function(source) {
+      return source[sourceIdIx];
+    });
+
+    sources.sort(function(idA, idB) {
+      var orderA = ixer.index("display order")[idA];
+      var orderB = ixer.index("display order")[idB];
+      if(orderB - orderA) { return orderB - orderA; }
+      else { return idA > idB }
+    });
+    var sourceItems = sourceIds.map(function(sourceId) {
+      return viewSource(viewId, sourceId);
+    });
+
+    return {c: "block-section view-sources", children: sourceItems};
+  }
+
+  function viewSource(viewId, sourceId) {
+    var source = ixer.index("source")[viewId][sourceId];
     var sourceViewId = source[code.ix("source", "source view")];
-    var queryId = ixer.index("view to query")[viewId];
+
     var fields = ixer.index("view to fields")[sourceViewId] || [];
     var fieldItems = fields.map(function(field) {
       var id = field[code.ix("field", "field")];
       return fieldItem(code.name(id) || "Untitled", id, sourceId, {c: "pill field"});
     });
 
-    var constraintIdIx = code.ix("constraint", "constraint");
-    var constraints = ixer.index("view to constraints")[viewId] || [];
-    constraints = constraints.filter(function(constraint) {
-      var id = constraint[constraintIdIx];
-      var left = ixer.index("constraint left")[id];
-      if(!left) { return; }
-      var leftSource = left[code.ix("constraint left", "left source")];
-      return leftSource === sourceId;
-    });
-
-    var constraintItems = constraints.map(function(constraint) {
-      var id = constraint[constraintIdIx];
-      return {c: "view-constraint", children: [
-        {c: "hover-reveal grip", children: [{c: "ion-android-more-vertical"}, {c: "ion-android-more-vertical"}]},
-        token.sourceField({key: "field", sourceId: sourceId, constraintId: id}, updateViewConstraint),
-        token.operation({key: "operation", sourceId: sourceId, constraintId: id}, updateViewConstraint),
-        token.blockField({key: "value", viewId: viewId, sourceId: sourceId, constraintId: id}, updateViewConstraint),
-        {c: "hover-reveal close-btn ion-android-close", constraintId: id, click: removeConstraint}
-      ]};
-    });
-
-    var viewSourceItems = [
+    var children = [
       {c: "view-source-title", children: [
         {t: "h4", text: code.name(sourceId) || "Untitled"},
         {c: "hover-reveal close-btn ion-android-close", viewId: viewId, sourceId: sourceId, click: removeSource}
       ]}
     ].concat(fieldItems);
-    return {c: "view-source", viewId: viewId, sourceId: sourceId, drop: viewSourceDrop, dragover: preventDefault, children: [
-      {c: "tree bar view-source-row", children: viewSourceItems},
-      (constraintItems.length ? {c: "view-constraints", children: constraintItems} : undefined)
-    ]};
+    return {c: "tree bar view-source", children: children};
   }
 
-  function viewSourceDrop(evt, elem) {
-    var type = evt.dataTransfer.getData("type");
-    var tool = evt.dataTransfer.getData("value");
-    if(type === "tool" && tool === "filter") {
-      var viewId = elem.viewId;
-      var sourceId = elem.sourceId;
-      dispatch("addViewConstraint", {viewId: viewId, sourceId: sourceId});
-      evt.stopPropagation();
-    }
+  function removeSource(evt, elem) {
+    dispatch("removeViewSource", {viewId: elem.viewId, sourceId: elem.sourceId});
   }
+
+  // Constraints
+  function viewConstraints(viewId) {
+    var constraintIdIx = code.ix("constraint", "constraint");
+    var constraints = ixer.index("view to constraints")[viewId] || [];
+
+    var constraintItems = constraints.map(function(constraint) {
+      var id = constraint[constraintIdIx];
+      var op = ixer.index("constraint operation")[id] || [];
+      var operation = op[code.ix("constraint operation", "operation")];
+      var left = ixer.index("constraint left")[id] || [];
+      var leftSource = left[code.ix("constraint left", "left source")];
+      var leftField = left[code.ix("constraint left", "left field")];
+      var right = ixer.index("constraint right")[id] || [];
+      var rightSource = right[code.ix("constraint right", "right source")];
+      var rightField = right[code.ix("constraint right", "right field")];
+
+      return {c: "view-constraint", children: [
+        {c: "hover-reveal grip", children: [{c: "ion-android-more-vertical"}, {c: "ion-android-more-vertical"}]},
+        token.blockField({key: "left", constraintId: id, source: leftSource, field: leftField}, updateViewConstraint, dropConstraintField),
+        token.operation({key: "operation", constraintId: id, operation: operation}, updateViewConstraint),
+        token.blockField({key: "right", constraintId: id, source: rightSource, field: rightField}, updateViewConstraint, dropConstraintField),
+        {c: "hover-reveal close-btn ion-android-close", constraintId: id, click: removeConstraint}
+      ]};
+    });
+    return {c: "block-section view-constraints", viewId: viewId, drop: viewConstraintsDrop, dragover: preventDefault, children: constraintItems};
+  }
+
+function viewConstraintsDrop(evt, elem) {
+  var viewId = elem.viewId;
+  var type = evt.dataTransfer.getData("type");
+  var value = evt.dataTransfer.getData("value");
+  if(type === "tool" && value === "filter") {
+    dispatch("addViewConstraint", {viewId: viewId});
+    evt.stopPropagation();
+    return;
+  }
+  if(type === "sourceField") {
+    var sources = ixer.index("source")[viewId] || {};
+    var fieldId = evt.dataTransfer.getData("fieldId");
+    var draggedSourceId = evt.dataTransfer.getData("sourceId");
+    var draggedSource = sources[draggedSourceId];
+    if(!draggedSource) { return; }
+    dispatch("addViewConstraint", {viewId: viewId, leftSource: draggedSourceId, leftField: fieldId});
+  }
+}
 
   function updateViewConstraint(evt, elem) {
     var id = elem.constraintId;
@@ -1654,13 +1885,24 @@ var queryEditor = (function(window, microReact, Indexing) {
     evt.stopPropagation();
   }
 
+  function dropConstraintField(evt, elem) {
+    var type = evt.dataTransfer.getData("type");
+    if(type !== "sourceField") { return; }
+    var viewId = ixer.index("constraint to view")[elem.constraintId];
+    var sources = ixer.index("source")[viewId] || {};
+
+    var fieldId = evt.dataTransfer.getData("fieldId");
+    var draggedSourceId = evt.dataTransfer.getData("sourceId");
+    var draggedSource = sources[draggedSourceId];
+    if(!draggedSource) { return; }
+    dispatch("updateViewConstraint", {constraintId: elem.constraintId, type: elem.key, value: fieldId, source: draggedSourceId});
+    evt.stopPropagation();
+  }
+
   function removeConstraint(evt, elem) {
     dispatch("removeViewConstraint", {constraintId: elem.constraintId});
   }
 
-  function removeSource(evt, elem) {
-    dispatch("removeViewSource", {viewId: elem.viewId, sourceId: elem.sourceId});
-  }
 
   //---------------------------------------------------------
   // Tokens
@@ -1669,82 +1911,40 @@ var queryEditor = (function(window, microReact, Indexing) {
   var tokenState = {};
 
   var token = {
-    sourceField: function(params, onChange) {
+    operation: function(params, onChange, onDrop) {
       var state = tokenState[params.constraintId];
       if(state) { state = state[params.key]; }
-      var left = ixer.index("constraint left")[params.constraintId] || [];
-      var leftSource = left[code.ix("constraint left", "left source")];
-      var leftField = left[code.ix("constraint left", "left field")];
-      var value = code.name(leftField);
-
-      return {c: "token field",
-              key: params.key,
-              sourceId: params.sourceId,
-              constraintId: params.constraintId,
-              children: [{c: "name", text: value || "<field>"},
-                         (state === 1) ? tokenEditor.sourceField(params, onChange) : undefined],
-              click: editToken,
-              dragover: preventDefault,
-              drop: tokenSourceFieldDrop};
-    },
-    operation: function(params, onChange) {
-      var state = tokenState[params.constraintId];
-      if(state) { state = state[params.key]; }
-      var op = ixer.index("constraint operation")[params.constraintId] || [];
-      var operation = op[code.ix("constraint operation", "operation")];
 
       return {c: "token operation",
               key: params.key,
-              sourceId: params.sourceId,
               constraintId: params.constraintId,
-              children: [{c: "name", text: operation || "<op>"},
+              children: [{c: "name", text: params.operation || "<op>"},
                          (state === 1) ? tokenEditor.operation(params, onChange) : undefined],
               click: editToken};
     },
-    blockField: function(params, onChange) {
+    blockField: function(params, onChange, onDrop) {
       var state = tokenState[params.constraintId];
       if(state) { state = state[params.key]; }
-      var right = ixer.index("constraint right")[params.constraintId] || [];
-      var rightSource = right[code.ix("constraint right", "right source")];
-      var rightField = right[code.ix("constraint right", "right field")];
-      var value = rightSource ? code.name(rightField) + " from " + code.name(rightSource) : rightField; //@FIXME: implicit constant table link.
+      var name = "<field>";
+      var source;
+      if(params.field) {
+        name = code.name(params.field);
+        if(params.source) {
+          source = code.name(params.source);
+        }
+      }
 
       return {c: "token field",
               key: params.key,
-              viewId: params.viewId,
-              sourceId: params.sourceId,
               constraintId: params.constraintId,
-              children: [{c: "name", text: value || "<field>"},
+              children: [{c: "name", text: name},
+                         (source ? {c: "source", text: "(" + source +")"} : undefined),
                          (state === 1) ? tokenEditor.blockField(params, onChange) : undefined],
               click: editToken,
               dragover: preventDefault,
-              drop: tokenBlockFieldDrop};
+              drop: onDrop};
     }
   };
-
-  // @FIXME: Simplify this by passing source information along with field.
-  function tokenSourceFieldDrop(evt, elem) {
-    var type = evt.dataTransfer.getData("type");
-    if(type !== "sourceField") { return; }
-    var fieldId = evt.dataTransfer.getData("fieldId");
-    var draggedSourceId = evt.dataTransfer.getData("sourceId");
-    if(elem.sourceId !== draggedSourceId) { return; }
-    // @NOTE: This probably shouldn't be hardcoded.
-    dispatch("updateViewConstraint", {constraintId: elem.constraintId, type: elem.key, value: fieldId, source: draggedSourceId});
-  }
-
-  function tokenBlockFieldDrop(evt, elem) {
-    var type = evt.dataTransfer.getData("type");
-    if(type !== "sourceField") { return; }
-    var sources = ixer.index("source")[elem.viewId] || {};
-
-    var fieldId = evt.dataTransfer.getData("fieldId");
-    var draggedSourceId = evt.dataTransfer.getData("sourceId");
-    var draggedSource = sources[draggedSourceId];
-    if(!draggedSource) { return; }
-    // @NOTE: This probably shouldn't be hardcoded.
-    dispatch("updateViewConstraint", {constraintId: elem.constraintId, type: elem.key, value: fieldId, source: draggedSourceId});
-  }
 
   function editToken(evt, elem) {
     var state = tokenState[elem.constraintId];
@@ -1760,19 +1960,6 @@ var queryEditor = (function(window, microReact, Indexing) {
   }
 
   var tokenEditor = {
-    sourceField: function(params, onChange) {
-      var viewId = ixer.index("constraint to view")[params.constraintId];
-      var fields = getSourceFields(viewId, params.sourceId);
-      var items = fields.map(function(field) {
-        var fieldId = field[code.ix("field", "field")];
-        var item = selectorItem({c: "field", key: params.key, name: code.name(fieldId) || "Untitled", value: fieldId}, onChange);
-        item.constraintId = params.constraintId;
-        return item;
-      });
-      var select = selector(items, {c: "field", key: params.key, tabindex: -1, focus: true}, stopEditToken);
-      select.constraintId = params.constraintId;
-      return select;
-    },
     operation: function(params, onChange) {
       var items = ["=", "<", "≤", ">", "≥", "≠"].map(function(rel) {
         var item = selectorItem({c: "operation", key: params.key, name: rel, value: rel}, onChange);
@@ -1823,6 +2010,68 @@ var queryEditor = (function(window, microReact, Indexing) {
       return memo;
     }, []);
   }
+
+  /**
+   * Aggregate Block
+   */
+  function aggregateBlock(viewId) {
+    var sources = ixer.index("source")[viewId] || {};
+    var outerSource = sources.outer;
+    var innerSource = sources.inner;
+
+    var fields = ixer.index("view to fields")[viewId] || [];
+    var selectionItems = fields.map(function(field) {
+      var id = field[code.ix("field", "field")];
+      return fieldItem(code.name(id) || "Untitled", id, undefined, {c: "pill field"});
+    });
+    if(!selectionItems.length) {
+      selectionItems.push({text: "Drag local fields into me to make them available in the query."});
+    }
+
+    return {c: "block aggregate-block", viewId: viewId, children: [
+      {c: "block-title", children: [
+        {t: "h3", text: "Untitled Agg. Block"},
+        {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock}
+      ]},
+      {text: "For each"},
+      {c: "block-section view-sources", viewId: viewId, sourceId: "outer",
+       drop: aggregateSourceDrop, dragover: preventDefault, children: [
+         outerSource ? viewSource(viewId, "outer") : undefined
+       ]},
+      {text: "Gather"},
+      {c: "block-section view-sources", viewId: viewId, sourceId: "inner", drop: aggregateSourceDrop, dragover: preventDefault, children: [
+         innerSource ? viewSource(viewId, "inner") : undefined
+       ]},
+      {text: "Where"},
+      viewConstraints(viewId),
+      {text: "Sort by"},
+      {c: "block-section aggregate-sort", children: [
+        {text: "<field>"},
+        {text: "<direction>"}
+      ]},
+      {text: "Limit"},
+      {c: "block-section aggregate-limit", children: [
+        {text: "<constant>"},
+        {text: "<constant>"}
+      ]},
+      {c: "block-section view-selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems},
+    ]};
+  }
+
+  function aggregateSourceDrop(evt, elem) {
+    var viewId = elem.viewId;
+    var sourceId = elem.sourceId;
+    var type = evt.dataTransfer.getData("type");
+    var value = evt.dataTransfer.getData("value");
+    if(type === "view") {
+      if(viewId === value) { return console.error("Cannot join view with parent."); }
+      dispatch("addViewSource", {viewId: viewId, sourceId: value, kind: sourceId});
+      evt.stopPropagation();
+      return;
+    }
+
+  }
+
 
   function selector(options, opts, onBlur) {
     return {t: "ul", c: "selector " + opts.c, tabindex: opts.tabindex, key: opts.key,
