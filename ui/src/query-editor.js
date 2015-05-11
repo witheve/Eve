@@ -852,13 +852,85 @@ var queryEditor = (function(window, microReact, Indexing) {
       els.push(selection(selectionInfo));
       els.push(uiGrid(componentId, activeLayer[3]));
     }
+    if(localState.boxSelectStart) {
+      var rect = boxSelectRect();
+      els.push({c: "box-selection", top: rect.top, left: rect.left, width: rect.width, height: rect.height});
+    }
     return genericWorkspace("query",
                             [uiControls(componentId, activeLayer)],
                             uiInspectors(componentId, selectionInfo, layers, activeLayer),
                             {c: "ui-editor",
                              children: [
-                               {c: "ui-canvas", componentId: componentId, children: els, mousedown: clearSelection},
+                               {c: "ui-canvas", componentId: componentId, children: els, mousedown: startBoxSelection, mouseup: stopBoxSelection, mousemove: adjustBoxSelection},
                              ]});
+  }
+
+  function boxSelectRect() {
+    var start = localState.boxSelectStart;
+    var stop = localState.boxSelectStop;
+    var topBottom = start[1] < stop[1] ? [start[1], stop[1]] : [stop[1], start[1]];
+    var leftRight = start[0] < stop[0] ? [start[0], stop[0]] : [stop[0], start[0]];
+    var width = leftRight[1] - leftRight[0];
+    var height = topBottom[1] - topBottom[0];
+    return {top: topBottom[0], bottom: topBottom[1], left: leftRight[0], right: leftRight[1], width: width, height: height};
+  }
+
+  function startBoxSelection(e, elem) {
+    if(!e.shiftKey) { clearSelection(e, elem); }
+    var x = e.clientX;
+    var y = e.clientY;
+    var canvasRect = e.currentTarget.getBoundingClientRect();
+    x -= Math.floor(canvasRect.left);
+    y -= Math.floor(canvasRect.top);
+    localState.boxSelectStart = [x, y];
+    localState.boxSelectStop = [x, y];
+    render();
+  }
+
+  function adjustBoxSelection(e, elem) {
+    if(!localState.boxSelectStart) return;
+    var x = e.clientX;
+    var y = e.clientY;
+    var canvasRect = e.currentTarget.getBoundingClientRect();
+    x -= Math.floor(canvasRect.left);
+    y -= Math.floor(canvasRect.top);
+    localState.boxSelectStop[0] = x;
+    localState.boxSelectStop[1] = y;
+    render();
+  }
+
+  function elementIntersects(elem, rect) {
+    var left = elem[5];
+    var top = elem[6];
+    var right = elem[7];
+    var bottom = elem[8];
+    return !(rect.left > right
+             || rect.right < left
+             || rect.top > bottom
+             || rect.bottom < top);
+  }
+
+  function stopBoxSelection(e, elem) {
+    if(!localState.boxSelectStart) return;
+    var sel = e.shiftKey ? localState.uiSelection : [];
+    var rect = boxSelectRect();
+    var componentId = elem.componentId;
+    var elems = ixer.index("uiComponentToElements")[componentId];
+    elems.forEach(function(cur) {
+      // @TODO: this allows you to select from layers that are either hidden or locked
+      var elemId = cur[1];
+      if(elementIntersects(cur, rect)) {
+        sel.push(elemId);
+      }
+    });
+    localState.boxSelectStart = null;
+    localState.boxSelectStop = null;
+    if(sel.length) {
+      localState.uiSelection = sel;
+    } else {
+      localState.uiSelection = false;
+    }
+    render();
   }
 
   function canvasRatio(context) {
@@ -1243,13 +1315,13 @@ var queryEditor = (function(window, microReact, Indexing) {
                       appearanceInspector(selectionInfo, binding),
                       textInspector(selectionInfo, binding));
 
-      var showMapInspector = selectionInfo.elements.every(function(cur) {
-        return cur[4] === "map";
-      });
-      if(showMapInspector) {
-        var mapInfo = getMapGroupInfo(selectionInfo.elements, true)
-        inspectors.push(mapInspector(selectionInfo, mapInfo, binding));
-      }
+//       var showMapInspector = selectionInfo.elements.every(function(cur) {
+//         return cur[4] === "map";
+//       });
+//       if(showMapInspector) {
+//         var mapInfo = getMapGroupInfo(selectionInfo.elements, true)
+//         inspectors.push(mapInspector(selectionInfo, mapInfo, binding));
+//       }
     } else if(activeLayer) {
       inspectors.push(layerInspector(activeLayer, elements));
     }
