@@ -1,4 +1,3 @@
-use std::collections::hash_map::HashMap;
 use std::collections::btree_set::BTreeSet;
 
 use value::{Id, Tuple};
@@ -16,11 +15,9 @@ pub fn mapping(from_fields: &[Field], to_fields: &[Field]) -> Option<Vec<usize>>
     return Some(mapping);
 }
 
-pub fn with_mapping(tuples: &[Tuple], mapping: &[usize]) -> Vec<Tuple> {
-    tuples.iter().map(|tuple|
-        mapping.iter().map(|ix|
-            tuple[*ix].clone()
-            ).collect()
+pub fn with_mapping(tuple: &Tuple, mapping: &[usize]) -> Tuple {
+    mapping.iter().map(|ix|
+        tuple[*ix].clone()
         ).collect()
 }
 
@@ -47,11 +44,11 @@ impl Relation {
 
     pub fn change(&mut self, changes: &Changes) {
         let mapping = mapping(&*changes.fields, &*self.fields).unwrap();
-        for tuple in with_mapping(&*changes.insert, &*mapping) {
-            self.index.insert(tuple);
+        for tuple in changes.insert.iter() {
+            self.index.insert(with_mapping(&tuple, &*mapping));
         }
-        for tuple in with_mapping(&*changes.remove, &*mapping) {
-            self.index.remove(&tuple);
+        for tuple in changes.remove.iter() {
+            self.index.remove(&with_mapping(&tuple, &*mapping));
         }
     }
 
