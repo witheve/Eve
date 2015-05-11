@@ -135,10 +135,12 @@ fn create_node(compiler: &Compiler, view_id: &Value, view_kind: &Value) -> Node 
     };
     let upstream = compiler.dependency.find_all("downstream view", view_id).iter().map(|dependency| {
         compiler.schedule.find_one("view", &dependency["upstream view"])["ix"].as_usize()
-    }).collect(); // arrives in ix order so will match the arg order selected by create_query/union
-    let downstream = compiler.dependency.find_all("upstream view", view_id).iter().map(|dependency| {
+    }).collect(); // arrives in ix order so will match the arg order selected by create_join/union
+    let mut downstream = compiler.dependency.find_all("upstream view", view_id).iter().map(|dependency| {
         compiler.schedule.find_one("view", &dependency["downstream view"])["ix"].as_usize()
-    }).collect();
+    }).collect::<Vec<_>>();
+    downstream.sort();
+    downstream.dedup();
     Node{
         id: view_id.as_str().to_owned(),
         view: view,
@@ -174,9 +176,7 @@ fn reuse_state(compiler: Compiler, flow: &mut Flow) {
     let Flow{nodes: nodes, outputs: outputs, changes: changes, ..} = compiler.flow;
     for (node, output) in nodes.into_iter().zip(outputs.into_iter()) {
         let id = &node.id[..];
-        if node.view.is_table()
-           && flow.get_ix(id) != None
-           && flow.get_node(id).view.is_table()
+        if flow.get_ix(id) != None
            && output.borrow().fields == flow.get_output(id).fields {
             flow.set_output(id, output)
         }
@@ -184,7 +184,15 @@ fn reuse_state(compiler: Compiler, flow: &mut Flow) {
     flow.changes = changes;
 }
 
-// impl Flow {
-//     fn recompile(self) -> Self {
-//     }
-// }
+pub fn recompile(old_flow: Flow) -> Flow {
+    let dependency = create_dependency(&old_flow);
+    let schedule = create_schedule(&old_flow);
+    let compiler = Compiler{
+        flow: old_flow,
+        dependency: dependency,
+        schedule: schedule,
+    };
+    let mut new_flow = create_flow(&compiler);
+    reuse_state(compiler, &mut new_flow);
+    new_flow
+}
