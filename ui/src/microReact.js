@@ -99,8 +99,8 @@
         if(cur.borderRadius !== prev.borderRadius) style.borderRadius = (cur.borderRadius || 0) + "px";
         if(cur.opacity !== prev.opacity) style.opacity = cur.opacity === undefined ? 1 : cur.opacity;
         if(cur.fontSize !== prev.fontSize) style.fontSize = cur.fontSize;
-        if(cur.textAlign !== prev.textAlign) style.justifyContent = cur.textAlign;
-        if(cur.verticalAlign !== prev.verticalAlign) style.alignItems = cur.verticalAlign;
+        if(cur.textAlign !== prev.textAlign) style.alignItems = cur.textAlign;
+        if(cur.verticalAlign !== prev.verticalAlign) style.justifyContent = cur.verticalAlign;
         if(cur.color !== prev.color) style.color = cur.color || "inherit";
         if(cur.fontFamily !== prev.fontFamily) style.fontFamily = cur.fontFamily || "inherit";
 

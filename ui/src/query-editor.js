@@ -1020,7 +1020,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     var klass = type + " ui-element" + selClass + hidden + locked;
     var elem = {c: klass, id: "elem" + id, left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6],
                 control: cur, mousedown: addToSelection, selected: selected, zIndex: layer[3] + 1,
-                draggable: true, drag: moveSelection, dragstart: startMoveSelection};
+                draggable: true, drag: moveSelection, dragstart: startMoveSelection, dblclick: setModifyingText};
     if(attrs) {
       for(var i = 0, len = attrs.length; i < len; i++) {
         var curAttr = attrs[i];
@@ -1031,10 +1031,31 @@ var queryEditor = (function(window, microReact, Indexing) {
       }
     }
 
+    if(localState.modifyingUiText === id) {
+      elem.children = [input(elem.text, {id: id}, updateContent, submitContent)];
+      elem.text = undefined;
+    }
+
     //   if(uiCustomControlRender[type]) {
     //     elem = uiCustomControlRender[type](elem);
     //   }
     return elem;
+  }
+
+  function setModifyingText(e, elem) {
+    localState.modifyingUiText = elem.control[1];
+    render();
+    //focus the input
+    e.currentTarget.firstChild.focus();
+  }
+
+  function updateContent(e, elem) {
+    dispatch("setAttributeForSelection", {componentId: elem.key.id, property: "text", value: e.currentTarget.textContent});
+  }
+
+  function submitContent(e, elem) {
+    localState.modifyingUiText = false;
+    render();
   }
 
   function addToSelection(e, elem) {
