@@ -1,8 +1,6 @@
 use std::collections::btree_set::BTreeSet;
 
-use value::{Id, Tuple};
-
-pub type Field = Id;
+use value::{Id, Value, Field, Tuple};
 
 pub fn mapping(from_fields: &[Field], to_fields: &[Field]) -> Option<Vec<usize>> {
     let mut mapping = Vec::with_capacity(to_fields.len());
@@ -15,7 +13,7 @@ pub fn mapping(from_fields: &[Field], to_fields: &[Field]) -> Option<Vec<usize>>
     return Some(mapping);
 }
 
-pub fn with_mapping(tuple: &Tuple, mapping: &[usize]) -> Tuple {
+pub fn with_mapping(tuple: &[Value], mapping: &[usize]) -> Vec<Value> {
     mapping.iter().map(|ix|
         tuple[*ix].clone()
         ).collect()
@@ -24,14 +22,14 @@ pub fn with_mapping(tuple: &Tuple, mapping: &[usize]) -> Tuple {
 #[derive(Clone, Debug)]
 pub struct Relation {
     pub fields: Vec<Field>,
-    pub index: BTreeSet<Tuple>,
+    pub index: BTreeSet<Vec<Value>>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Changes {
     pub fields: Vec<Field>,
-    pub insert: Vec<Tuple>,
-    pub remove: Vec<Tuple>,
+    pub insert: Vec<Vec<Value>>,
+    pub remove: Vec<Vec<Value>>,
 }
 
 impl Relation {
@@ -58,5 +56,18 @@ impl Relation {
             insert: self.index.iter().map(|tuple| tuple.clone()).collect(),
             remove: Vec::new(),
         }
+    }
+
+    pub fn find_one(&self, field: Field, value: Value) -> Tuple {
+        let ix = self.fields.iter().position(|my_field| &my_field[..] == field).unwrap();
+        let values = self.index.iter().find(|values| values[ix] == value).unwrap();
+        Tuple{fields: &self.fields[..], values: &values[..]}
+    }
+
+    pub fn find_all(&self, field: Field, value: Value) -> Vec<Tuple> {
+        let ix = self.fields.iter().position(|my_field| &my_field[..] == field).unwrap();
+        self.index.iter().filter(|values| values[ix] == value)
+            .map(|values| Tuple{fields: &self.fields[..], values: &values[..]})
+            .collect()
     }
 }

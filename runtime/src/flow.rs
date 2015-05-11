@@ -1,6 +1,6 @@
 use std::collections::BitSet;
 use std::mem::replace;
-use std::cell::RefCell;
+use std::cell::{RefCell, Ref, RefMut};
 
 use value::Id;
 use relation;
@@ -53,6 +53,14 @@ impl Flow {
 
     pub fn get_ix(&self, id: &str) -> Option<usize> {
         self.nodes.iter().position(|node| &node.id[..] == id)
+    }
+
+    pub fn get_output(&self, id: &str) -> Ref<Relation> {
+        self.outputs[self.get_ix(id).unwrap()].borrow()
+    }
+
+    pub fn get_output_mut(&self, id: &str) -> RefMut<Relation> {
+        self.outputs[self.get_ix(id).unwrap()].borrow_mut()
     }
 
     pub fn change(&mut self, changes: Changes) {

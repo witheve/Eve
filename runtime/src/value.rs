@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::ops::Index;
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Value {
@@ -6,7 +7,7 @@ pub enum Value {
     String(String),
     Float(f64),
 }
-pub type Tuple = Vec<Value>;
+
 pub type Id = String; // TODO use uuid?
 
 impl Ord for Value {
@@ -58,6 +59,21 @@ impl Value {
             },
             _ => None,
         }
+    }
+}
+
+pub type Field = Id;
+
+pub struct Tuple<'a> {
+    pub fields: &'a [Field],
+    pub values: &'a [Value],
+}
+
+impl<'a, 'b> Index<&'b str> for Tuple<'a> {
+    type Output = Value;
+    fn index<'c>(&'c self, index: &'b str) -> &'c Value {
+        let ix = self.fields.iter().position(|field| &field[..] == index).unwrap();
+        &self.values[ix]
     }
 }
 
