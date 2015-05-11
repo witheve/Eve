@@ -81,6 +81,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     // Editor
     "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"]]},
     block: {name: "block", fields: ["query", "block", "view"]},
+    "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
 
     // Examples
     "department heads": {name: "department heads", fields: ["department", "head"]},
@@ -135,6 +136,8 @@ var queryEditor = (function(window, microReact, Indexing) {
   ixer.addIndex("view to block", "block", Indexing.create.lookup([2, 1]));
   ixer.addIndex("query to blocks", "block", Indexing.create.collector([0]));
   ixer.addIndex("query to views", "block", Indexing.create.collector([0, 2]));
+  ixer.addIndex("block field", "block field", Indexing.create.lookup([0, false]));
+  ixer.addIndex("view and source to block fields", "block field", Indexing.create.collector([1, 2]));
 
   ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
 
@@ -260,6 +263,27 @@ var queryEditor = (function(window, microReact, Indexing) {
               ["select", "inserted", [viewId, fieldId, sourceViewId, sourceFieldId]],
               ["display name", "inserted", [fieldId, code.name(sourceFieldId)]]];
     },
+    cacheViewSourceFields: function(viewId, sourceId, sourceViewId) {
+      var diffs = [];
+      var oldFacts = ixer.index("view and source to block fields")[viewId] || {};
+      oldFacts = oldFacts[sourceId] || [];
+      for(var ix = 0; ix < oldFacts.length; ix++) {
+        var oldFact = oldFacts[ix];
+        var id = oldFact[code.ix("block field", "block field")];
+        var oldOrder = ixer.index("display order")[id];
+        diffs.push(["block field", "removed", oldFact],
+                   ["display order", "removed", oldOrder]);
+      };
+      var fields = ixer.index("view to fields")[sourceViewId] || [];
+      for(var ix = 0; ix < fields.length; ix++) {
+        var blockId = uuid();
+        var fieldId = fields[ix][code.ix("field", "field")];
+        diffs.push(["block field", "inserted", [blockId, viewId, sourceId, sourceViewId, fieldId]],
+                   ["display order", "inserted", [blockId, ixer.index("display order")[fieldId]]]);
+      }
+
+      return diffs;
+    },
     addViewSource: function addViewSource(viewId, sourceViewId, kind) {
       var sourceId = kind || uuid();
       var queryId = ixer.index("view to query")[viewId];
@@ -267,9 +291,13 @@ var queryEditor = (function(window, microReact, Indexing) {
       if(queryId === undefined) { queryId = code.activeItemId(); }
       var count = code.countSource(queryId, sourceViewId);
       var name = code.name(sourceViewId) + (count ? " (" + (count + 1) + ")" : "");
-      return [["source", "inserted", [viewId, sourceId, sourceViewId]],
-              ["display name", "inserted", [sourceId, name]],
-              ["display order", "inserted", [sourceId, 0]]];
+      var diffs = [["source", "inserted", [viewId, sourceId, sourceViewId]],
+                   ["display name", "inserted", [sourceId, name]],
+                   ["display order", "inserted", [sourceId, 0]]];
+
+      diffs = diffs.concat(diff.cacheViewSourceFields(viewId, sourceId, sourceViewId));
+
+      return diffs;
     },
     removeViewSource(viewId, sourceId) {
       var source = ixer.index("source")[viewId][sourceId];
@@ -1691,14 +1719,12 @@ var queryEditor = (function(window, microReact, Indexing) {
     }
   }
 
-  var queryAggregates = ["sum", "count", "min", "max", "empty"];
+  var queryAggregates = ["sort+limit", "sum", "count", "min", "max", "empty"];
   function queryControls(queryId) {
-    var items = ["filter", "aggregate"].map(queryToolbarItem);
+    var items = queryAggregates.map(function(tool) {
+      return treeItem(tool, tool, "aggregate-tool", {c: "control tool query-tool"});
+    });
     return controlGroup(items);
-  }
-
-  function queryToolbarItem(type) {
-    return treeItem(type, type, "tool", {c: "control tool query-tool"});
   }
 
   //---------------------------------------------------------
@@ -2010,6 +2036,7 @@ function viewConstraintsDrop(evt, elem) {
       return memo;
     }, []);
   }
+
 
   /**
    * Aggregate Block
