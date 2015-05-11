@@ -1,9 +1,8 @@
-use std::collections::hash_map::HashMap;
+use std::collections::btree_set;
 use std::collections::btree_set::BTreeSet;
+use std::iter::Iterator;
 
-use value::{Id, Tuple};
-
-pub type Field = Id;
+use value::{Value, Field, Tuple};
 
 pub fn mapping(from_fields: &[Field], to_fields: &[Field]) -> Option<Vec<usize>> {
     let mut mapping = Vec::with_capacity(to_fields.len());
@@ -16,25 +15,23 @@ pub fn mapping(from_fields: &[Field], to_fields: &[Field]) -> Option<Vec<usize>>
     return Some(mapping);
 }
 
-pub fn with_mapping(tuples: &[Tuple], mapping: &[usize]) -> Vec<Tuple> {
-    tuples.iter().map(|tuple|
-        mapping.iter().map(|ix|
-            tuple[*ix].clone()
-            ).collect()
+pub fn with_mapping(values: &[Value], mapping: &[usize]) -> Vec<Value> {
+    mapping.iter().map(|ix|
+        values[*ix].clone()
         ).collect()
 }
 
 #[derive(Clone, Debug)]
 pub struct Relation {
     pub fields: Vec<Field>,
-    pub index: BTreeSet<Tuple>,
+    pub index: BTreeSet<Vec<Value>>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Changes {
     pub fields: Vec<Field>,
-    pub insert: Vec<Tuple>,
-    pub remove: Vec<Tuple>,
+    pub insert: Vec<Vec<Value>>,
+    pub remove: Vec<Vec<Value>>,
 }
 
 impl Relation {
@@ -47,19 +44,59 @@ impl Relation {
 
     pub fn change(&mut self, changes: &Changes) {
         let mapping = mapping(&*changes.fields, &*self.fields).unwrap();
-        for tuple in with_mapping(&*changes.insert, &*mapping) {
-            self.index.insert(tuple);
+        for values in changes.insert.iter() {
+            self.index.insert(with_mapping(&values, &*mapping));
         }
-        for tuple in with_mapping(&*changes.remove, &*mapping) {
-            self.index.remove(&tuple);
+        for values in changes.remove.iter() {
+            self.index.remove(&with_mapping(&values, &*mapping));
         }
     }
 
-    pub fn as_changes(&self) -> Changes {
+    pub fn as_insert(&self) -> Changes {
         Changes{
             fields: self.fields.clone(),
-            insert: self.index.iter().map(|tuple| tuple.clone()).collect(),
+            insert: self.index.iter().map(|values| values.clone()).collect(),
             remove: Vec::new(),
+        }
+    }
+
+    pub fn as_remove(&self) -> Changes {
+        Changes{
+            fields: self.fields.clone(),
+            insert: Vec::new(),
+            remove: self.index.iter().map(|values| values.clone()).collect(),
+        }
+    }
+
+    pub fn find_one(&self, field: &str, value: &Value) -> Tuple {
+        let ix = self.fields.iter().position(|my_field| &my_field[..] == field).unwrap();
+        let values = self.index.iter().find(|values| values[ix] == *value).unwrap();
+        Tuple{fields: &self.fields[..], values: &values[..]}
+    }
+
+    pub fn find_all(&self, field: &str, value: &Value) -> Vec<Tuple> {
+        let ix = self.fields.iter().position(|my_field| &my_field[..] == field).unwrap();
+        self.index.iter().filter(|values| values[ix] == *value)
+            .map(|values| Tuple{fields: &self.fields[..], values: &values[..]})
+            .collect()
+    }
+
+    pub fn iter(&self) -> Iter {
+        Iter{fields: &self.fields[..], iter: self.index.iter()}
+    }
+}
+
+pub struct Iter<'a> {
+    fields: &'a [Field],
+    iter: btree_set::Iter<'a, Vec<Value>>,
+}
+
+impl<'a> Iterator for Iter<'a> {
+    type Item = Tuple<'a>;
+    fn next(&mut self) -> Option<Tuple<'a>> {
+        match self.iter.next() {
+            None => None,
+            Some(values) => Some(Tuple{fields: self.fields, values: &values[..]}),
         }
     }
 }

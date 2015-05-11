@@ -420,6 +420,7 @@ var queryEditor = (function(window, microReact, Indexing) {
                    ["display name", "inserted", [id, "Untitled Table"]],
                    ["display name", "inserted", [fieldId, "A"]]);
         localState.activeItem = id;
+        localState.adderRows = [[]];
         break;
       case "addQuery":
         var id = uuid();
@@ -438,6 +439,27 @@ var queryEditor = (function(window, microReact, Indexing) {
         var id = info.id;
         diffs.push(["display name", "inserted", [id, info.value]],
                    ["display name", "removed", [id, code.name(id)]])
+        break;
+
+      case "addField":
+        var fieldId = uuid();
+        var ix = ixer.index("view to fields")[info.table].length;
+        diffs.push(["field", "inserted", [info.table, fieldId, "output"]], // @NOTE: Can this be any other kind?
+                   ["display name", "inserted", [fieldId, alphabet[ix]]],
+                   ["display order", "inserted", [fieldId, ix]]);
+        break;
+      case "addRow":
+        var ix = ixer.facts(info.table).length;
+        diffs.push([info.table, "inserted", info.neue],
+                   ["display order", "inserted", [info.table + JSON.stringify(info.neue), ix]]);
+        break;
+      case "updateRow":
+        var oldString = info.table + JSON.stringify(info.old);
+        var ix = ixer.index("display order")[oldString];
+        diffs.push([info.table, "inserted", info.neue],
+                   [info.table, "removed", info.old],
+                   ["display order", "removed", [oldString, ix]],
+                   ["display order", "inserted", [info.table + JSON.stringify(info.neue), ix]]);
         break;
       case "addViewBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
@@ -680,6 +702,10 @@ var queryEditor = (function(window, microReact, Indexing) {
 
   function selectEditorItem(e, elem) {
     localState.activeItem = elem.itemId;
+    var type = ixer.index("editor item to type")[elem.itemId];
+    if(type === "table") {
+      localState.adderRows = [[]];
+    }
     render();
   }
 
@@ -720,16 +746,18 @@ var queryEditor = (function(window, microReact, Indexing) {
       return {name: code.name(cur[1]), id: cur[1]};
     });
     var rows = ixer.facts(tableId);
-    //     var adderRows = (ixer.index("adderRows")[tableId] || []).filter(function(row) {
-    //       var txId = row[0];
-    //       return !ixer.index("remove")[txId];
-    //     });
+    var order = ixer.index("display order");
+    rows.sort(function(a, b) {
+      var aIx = order[tableId + JSON.stringify(a)];
+      var bIx = order[tableId + JSON.stringify(b)];
+      return aIx - bIx;
+    });
     return genericWorkspace("",
                             [],
                             [input(code.name(tableId), tableId, rename, rename)],
                             {c: "table-editor",
                              children: [
-                               virtualizedTable(tableId, fields, rows, [])
+                               virtualizedTable(tableId, fields, rows, true)
                              ]});
   }
 
@@ -740,7 +768,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     }
   }
 
-  function virtualizedTable(id, fields, rows, adderRows) {
+  function virtualizedTable(id, fields, rows, isEditable) {
     var ths = fields.map(function(cur) {
       var oninput, onsubmit;
       if(cur.id) {
@@ -748,12 +776,11 @@ var queryEditor = (function(window, microReact, Indexing) {
       }
       return {c: "header", children: [input(cur.name, cur.id, oninput, onsubmit)]};
     });
-    // @NOTE: We check for the existence of adderRows to determine if the table is editable. This is somewhat surprising.
-    var isEditable = adderRows && adderRows.length;
+    ths.push({c: "header add-column ion-plus", click: addField, table: id});
     var trs = [];
     rows.forEach(function(cur) {
       var tds = [];
-      for(var tdIx = 0, len = cur.length; tdIx < len; tdIx++) {
+      for(var tdIx = 0, len = fields.length; tdIx < len; tdIx++) {
         tds[tdIx] = {c: "field"};
 
         // @NOTE: We can hoist this if perf is an issue.
@@ -765,11 +792,11 @@ var queryEditor = (function(window, microReact, Indexing) {
       }
       trs.push({c: "row", children: tds});
     })
-    adderRows.forEach(function(adder) {
-      var cur = adder[3];
+    var adderRows = localState.adderRows;
+    adderRows.forEach(function(cur, rowNum) {
       var tds = [];
       for(var i = 0, len = fields.length; i < len; i++) {
-        tds[i] = {c: "field", children: [input(cur[i], {row: adder, ix: i}, updateAdder)]};
+        tds[i] = {c: "field", children: [input(cur[i], {numFields:len, rowNum: rowNum, ix: i, view: id}, updateAdder)]};
       }
       trs.push({c: "row", children: tds});
     });
@@ -780,6 +807,28 @@ var queryEditor = (function(window, microReact, Indexing) {
     ]};
   }
 
+  function addField(e, elem) {
+    dispatch("addField", {table: elem.table});
+  }
+
+  function updateAdder(e, elem) {
+    var key = elem.key;
+    var row = localState.adderRows[key.rowNum];
+    row[key.ix] = coerceInput(e.currentTarget.textContent);
+    if(row.length === key.numFields) {
+      localState.adderRows.splice(key.rowNum, 1);
+      if(localState.adderRows.length === 0) {
+        localState.adderRows.push([]);
+      }
+      dispatch("addRow", {table: key.view, neue: row});
+    }
+  }
+
+  function updateRow(e, elem) {
+    var neue = elem.key.row.slice();
+    neue[elem.key.ix] = coerceInput(e.currentTarget.textContent);
+    dispatch("updateRow", {table: elem.key.view, old: elem.key.row, neue: neue})
+  }
 
   function input(value, key, oninput, onsubmit) {
     var blur, keydown;
@@ -999,7 +1048,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     var klass = type + " ui-element" + selClass + hidden + locked;
     var elem = {c: klass, id: "elem" + id, left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6],
                 control: cur, mousedown: addToSelection, selected: selected, zIndex: layer[3] + 1,
-                draggable: true, drag: moveSelection, dragstart: startMoveSelection};
+                draggable: true, drag: moveSelection, dragstart: startMoveSelection, dblclick: setModifyingText};
     if(attrs) {
       for(var i = 0, len = attrs.length; i < len; i++) {
         var curAttr = attrs[i];
@@ -1010,10 +1059,31 @@ var queryEditor = (function(window, microReact, Indexing) {
       }
     }
 
+    if(localState.modifyingUiText === id) {
+      elem.children = [input(elem.text, {id: id}, updateContent, submitContent)];
+      elem.text = undefined;
+    }
+
     //   if(uiCustomControlRender[type]) {
     //     elem = uiCustomControlRender[type](elem);
     //   }
     return elem;
+  }
+
+  function setModifyingText(e, elem) {
+    localState.modifyingUiText = elem.control[1];
+    render();
+    //focus the input
+    e.currentTarget.firstChild.focus();
+  }
+
+  function updateContent(e, elem) {
+    dispatch("setAttributeForSelection", {componentId: elem.key.id, property: "text", value: e.currentTarget.textContent});
+  }
+
+  function submitContent(e, elem) {
+    localState.modifyingUiText = false;
+    render();
   }
 
   function addToSelection(e, elem) {
@@ -2135,5 +2205,5 @@ function viewConstraintsDrop(evt, elem) {
   ixer.handleDiffs(diff.addViewBlock(code.activeItemId()));
   render();
 
-  return { container: renderer.content, ixer: ixer, localState: localState };
+  return { container: renderer.content, ixer: ixer, localState: localState, renderer: renderer };
 })(window, microReact, Indexing);

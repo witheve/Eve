@@ -1,3 +1,9 @@
+use std::collections::BitSet;
+use std::cell::RefCell;
+
+use value::Value;
+use relation::{Relation, Changes};
+use view::{View, Table};
 use flow::{Node, Flow};
 
 pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
@@ -69,37 +75,126 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static s
     // `name` is a string
     ("display name", vec!["id"], vec!["name"]),
     // things can be displayed in ordered lists
-    // `priority` is an f64. higher priority thigs are displayed first. ties are broken by id
+    // `priority` is an f64. higher priority things are displayed first. ties are broken by id
     ("display order", vec!["field"], vec!["priority"]),
+
+    // the compiler reflects its decisions into some builtin views
+    // a dependency exists whenever the contents on one view depend directly on another
+    // `ix` is an integer identifying the edge
+    ("dependency", vec!["upstream view", "ix"], vec!["downstream view"]),
+    // the schedule determines what order views will be executed in
+    // `ix` is an integer. views with lower ixes are executed first.
+    ("schedule", vec!["view"], vec!["ix"]),
     ]
 }
 
-// fn compile_nodes(flow: &Flow) -> Vec<Node> {
-//     unimplemented!()
-// }
+struct Compiler {
+    flow: Flow,
+    dependency: Relation,
+    schedule: Relation,
+}
 
-// impl Flow {
-//     fn recompile(self) -> Self {
-//         let new_nodes = compile_nodes(&self);
-//         let new_dirty = (0..new_nodes.len()).collect();
-//         let new_outputs = vec![None; new_nodes.len()];
-//         let Flow{
-//             nodes: old_nodes,
-//             outputs: old_outputs,
-//             changes: old_changes,
-//             dirty: old_dirty
-//         } = self;
-//         for (old_node, old_output) in old_nodes.into_iter().zip(old_outputs.into_iter()) {
-//             match flow.get_ix(&*old_node.id) {
-//                 Some(ix) => new_outputs[ix] = nodes[ix].view.import_state_from(old_node.view, old_output),
-//                 None => (),
-//             }
-//         }
-//         Flow{
-//             nodes: new_nodes,
-//             outputs: new_outputs,
-//             changes: old_changes,
-//             dirty: new_dirty
-//         }
-//     }
-// }
+fn create_dependency(flow: &Flow) -> Relation {
+    let mut dependency = Vec::new();
+    for view in flow.get_output("view").iter() {
+        let mut ix = 0.0;
+        for source in flow.get_output("source").find_all("view", &view["view"]) {
+            dependency.push(vec![
+                view["view"].clone(),
+                Value::Float(ix),
+                source["source view"].clone(),
+                ]);
+            ix += 1.0;
+        }
+    }
+    Relation{
+        fields: vec!["upstream view".to_owned(), "ix".to_owned(), "downstream view".to_owned()],
+        index: dependency.into_iter().collect(),
+    }
+}
+
+fn create_schedule(flow: &Flow) -> Relation {
+    // TODO actually schedule sensibly
+    // TODO warn about cycles through aggregates
+    let mut schedule = Vec::new();
+    let mut ix = 0.0;
+    for view in flow.get_output("view").iter() {
+        schedule.push(vec![Value::Float(ix), view["view"].clone()]);
+        ix += 1.0;
+    }
+    Relation{
+        fields: vec!["view".to_owned(), "ix".to_owned()],
+        index: schedule.into_iter().collect(),
+    }
+}
+
+fn create_node(compiler: &Compiler, view_id: &Value, view_kind: &Value) -> Node {
+    let view = match view_kind.as_str() {
+        "table" => View::Table(Table),
+        other => panic!("Unknown view kind: {}", other),
+    };
+    let upstream = compiler.dependency.find_all("downstream view", view_id).iter().map(|dependency| {
+        compiler.schedule.find_one("view", &dependency["upstream view"])["ix"].as_usize()
+    }).collect(); // arrives in ix order so will match the arg order selected by create_join/union
+    let mut downstream = compiler.dependency.find_all("upstream view", view_id).iter().map(|dependency| {
+        compiler.schedule.find_one("view", &dependency["downstream view"])["ix"].as_usize()
+    }).collect::<Vec<_>>();
+    downstream.sort();
+    downstream.dedup();
+    Node{
+        id: view_id.as_str().to_owned(),
+        view: view,
+        upstream: upstream,
+        downstream: downstream,
+    }
+}
+
+fn create_flow(compiler: &Compiler) -> Flow {
+    let mut nodes = Vec::new();
+    let mut dirty = BitSet::new();
+    let mut outputs = Vec::new();
+
+    for schedule in compiler.schedule.iter() {
+        let view_table = compiler.flow.get_output("view");
+        let view = view_table.find_one("view", &schedule["view"]);
+        nodes.push(create_node(compiler, &view["view"], &view["kind"]));
+        dirty.insert(schedule["ix"].as_usize());
+        let fields = compiler.flow.get_output("field").find_all("view", &view["view"])
+            .iter().map(|field| field["field"].as_str().to_owned()).collect();
+        outputs.push(RefCell::new(Relation::with_fields(fields)));
+    }
+
+    Flow{
+        nodes: nodes,
+        dirty: dirty,
+        outputs: outputs,
+        changes: Vec::new(),
+    }
+}
+
+fn reuse_state(compiler: Compiler, flow: &mut Flow) {
+    let Flow{nodes: nodes, outputs: outputs, changes: mut changes, ..} = compiler.flow;
+    for (node, output) in nodes.into_iter().zip(outputs.into_iter()) {
+        let id = &node.id[..];
+        if flow.get_ix(id) != None
+           && output.borrow().fields == flow.get_output(id).fields {
+            flow.set_output(id, output);
+        } else {
+            changes.push((id.to_owned(), output.borrow().as_remove()));
+        }
+    }
+    flow.changes = changes;
+}
+
+pub fn recompile(old_flow: Flow) -> Flow {
+    let dependency = create_dependency(&old_flow);
+    let schedule = create_schedule(&old_flow);
+    let compiler = Compiler{
+        flow: old_flow,
+        dependency: dependency,
+        schedule: schedule,
+    };
+    let mut new_flow = create_flow(&compiler);
+    reuse_state(compiler, &mut new_flow);
+    new_flow
+}

@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::ops::Index;
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Value {
@@ -6,7 +7,7 @@ pub enum Value {
     String(String),
     Float(f64),
 }
-pub type Tuple = Vec<Value>;
+
 pub type Id = String; // TODO use uuid?
 
 impl Ord for Value {
@@ -25,39 +26,54 @@ impl Value {
         }
     }
 
-    pub fn to_f64(&self) -> Option<f64> {
+    pub fn as_f64(&self) -> f64 {
         match *self {
-            Value::Float(float) => Some(float),
-            _ => None,
+            Value::Float(float) => float,
+            _ => panic!("Cannot convert this to f64: {:?}", self),
         }
     }
 
-    pub fn to_i64(&self) -> Option<i64> {
+    pub fn as_i64(&self) -> i64 {
         match *self {
             Value::Float(float) => {
                 let result = float as i64;
                 if float == (result as f64) {
-                    Some(result)
+                    result
                 } else {
-                    None
+                    panic!("Cannot convert this to i64: {:?}", self)
                 }
             }
-            _ => None,
+            _ => panic!("Cannot convert this to i64: {:?}", self),
         }
     }
 
-    pub fn to_usize(&self) -> Option<usize> {
+    pub fn as_usize(&self) -> usize {
         match *self {
             Value::Float(float) => {
                 let result = float as usize;
                 if float == (result as f64) {
-                    Some(result)
+                    result
                 } else {
-                    None
+                    panic!("Cannot convert this to usize: {:?}", self)
                 }
             },
-            _ => None,
+            _ => panic!("Cannot convert this to usize: {:?}", self),
         }
+    }
+}
+
+pub type Field = Id;
+
+pub struct Tuple<'a> {
+    pub fields: &'a [Field],
+    pub values: &'a [Value],
+}
+
+impl<'a, 'b> Index<&'b str> for Tuple<'a> {
+    type Output = Value;
+    fn index<'c>(&'c self, index: &'b str) -> &'c Value {
+        let ix = self.fields.iter().position(|field| &field[..] == index).unwrap();
+        &self.values[ix]
     }
 }
 
