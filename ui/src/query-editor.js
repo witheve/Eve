@@ -82,7 +82,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"]]},
     block: {name: "block", fields: ["query", "block", "view"]},
     "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
-    "grouped by": {name: "grouped by", fields: ["inner", "outer", "outer field"]},
+    "grouped by": {name: "grouped by", fields: ["inner", "inner field", "outer", "outer field"]},
 
     // Examples
     "department heads": {name: "department heads", fields: ["department", "head"]},
@@ -510,7 +510,10 @@ var queryEditor = (function(window, microReact, Indexing) {
       case "groupView":
         var old = ixer.index("grouped by")[info.inner];
         if(old) { throw new Error("Fuck you. -- Chris"); }
-        diffs = [["grouped by", "inserted", [info.inner, info.outer, info.outerField]]];
+        var left = ixer.index("constraint left")[info.constraintId] || [];
+        var innerField = left[code.ix("constraint left", "left field")];
+        diffs = [["grouped by", "inserted", [info.inner, innerField, info.outer, info.outerField]]];
+        diffs = diffs.concat(diff.removeViewConstraint(info.constraintId));
         break;
       case "addUiComponentElement":
         var elemId = uuid();
@@ -1937,6 +1940,9 @@ var queryEditor = (function(window, microReact, Indexing) {
       selectionItems.push({text: "Drag local fields into me to make them available in the query."});
     }
 
+    var groupedBy = ixer.index("grouped by")[viewId];
+    console.log(groupedBy);
+
     return {c: "block view-block", viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, children: [
       {c: "block-title", children: [
         {t: "h3", text: "Untitled Block"},
@@ -1944,6 +1950,12 @@ var queryEditor = (function(window, microReact, Indexing) {
       ]},
       viewSources(viewId),
       viewConstraints(viewId),
+      (groupedBy ? {c: "block-section view-grouping", children: [
+        {text: "Grouped by"},
+        {text: code.name(groupedBy[code.ix("grouped by", "inner field")])},
+        {text: "="},
+        {text: code.name(groupedBy[code.ix("grouped by", "outer field")])},
+      ]} : undefined),
       {c: "block-section view-selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems}
     ]};
   }
@@ -1969,7 +1981,6 @@ var queryEditor = (function(window, microReact, Indexing) {
     if(type !== "field") { return; }
     var id = evt.dataTransfer.getData("fieldId");
     var blockField = ixer.index("block field")[id];
-    console.log(elem.viewId, blockField);
     if(blockField[code.ix("block field", "view")] !== elem.viewId) { return; }
     var fieldId = blockField[code.ix("block field", "field")];
     var sourceId = blockField[code.ix("block field", "source")];
@@ -2096,7 +2107,7 @@ function viewConstraintsDrop(evt, elem) {
       console.log("query", ixer.index("view to query")[viewId], ixer.index("view to query")[draggedViewId]);
       if(ixer.index("view to query")[viewId] !== ixer.index("view to query")[draggedViewId]) { return; }
       console.warn("@TODO: group by", draggedViewId, fieldId);
-      dispatch("groupView", {inner: viewId, outer: draggedViewId, outerField: fieldId});
+      dispatch("groupView", {constraintId: elem.constraintId, inner: viewId, outer: draggedViewId, outerField: fieldId});
       evt.stopPropagation();
     }
   }
