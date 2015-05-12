@@ -82,6 +82,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"]]},
     block: {name: "block", fields: ["query", "block", "view"]},
     "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
+    "grouped by": {name: "grouped by", fields: ["inner", "outer", "outer field"]},
 
     // Examples
     "department heads": {name: "department heads", fields: ["department", "head"]},
@@ -140,6 +141,7 @@ var queryEditor = (function(window, microReact, Indexing) {
   ixer.addIndex("query to views", "block", Indexing.create.collector([0, 2]));
   ixer.addIndex("block field", "block field", Indexing.create.lookup([0, false]));
   ixer.addIndex("view and source to block fields", "block field", Indexing.create.collector([1, 2]));
+  ixer.addIndex("grouped by", "grouped by", Indexing.create.lookup([0, false]));
 
   ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
 
@@ -504,6 +506,11 @@ var queryEditor = (function(window, microReact, Indexing) {
         break;
       case "addViewConstraint":
         diffs = diff.addViewConstraint(info.viewId, {operation: "=", leftSource: info.leftSource, leftField: info.leftField});
+        break;
+      case "groupView":
+        var old = ixer.index("grouped by")[info.inner];
+        if(old) { throw new Error("Fuck you. -- Chris"); }
+        diffs = [["grouped by", "inserted", [info.inner, info.outer, info.outerField]]];
         break;
       case "addUiComponentElement":
         var elemId = uuid();
@@ -1893,7 +1900,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     }
 
     if(items.length) {
-      items.push({c: "add-aggregate-btn", text: "Add Aggregate", queryId: queryId, click: addAggregateBlock});
+      items.push({c: "add-aggregate-btn", text: "Add an aggregate by dragging it here...", queryId: queryId, click: addAggregateBlock});
     }
 
     return {c: "workspace", queryId: queryId, drop: editorDrop, dragover: preventDefault, children: items.length ? items : [
@@ -2089,6 +2096,7 @@ function viewConstraintsDrop(evt, elem) {
       console.log("query", ixer.index("view to query")[viewId], ixer.index("view to query")[draggedViewId]);
       if(ixer.index("view to query")[viewId] !== ixer.index("view to query")[draggedViewId]) { return; }
       console.warn("@TODO: group by", draggedViewId, fieldId);
+      dispatch("groupView", {inner: viewId, outer: draggedViewId, outerField: fieldId});
       evt.stopPropagation();
     }
   }
