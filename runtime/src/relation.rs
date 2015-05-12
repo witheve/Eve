@@ -146,14 +146,14 @@ impl<'a> Iterator for Iter<'a> {
 
 #[derive(Clone, Debug)]
 pub struct Select{
-    source: usize,
-    mapping: Vec<usize>,
+    pub fields: Vec<Field>,
 }
 
 impl Select {
     pub fn select_into(&self, output: &mut Relation, input: &Relation) {
+        let mapping = mapping(&input.fields[..], &self.fields[..]).unwrap();
         for values in input.index.iter() {
-            output.index.insert(with_mapping(&values[..], &self.mapping[..]));
+            output.index.insert(with_mapping(&values[..], &mapping[..]));
         }
     }
 }

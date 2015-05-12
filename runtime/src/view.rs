@@ -5,7 +5,7 @@ pub struct Table;
 
 #[derive(Clone, Debug)]
 pub struct Union {
-    selects: Vec<Select>,
+    pub selects: Vec<Select>,
 }
 
 #[derive(Clone, Debug)]

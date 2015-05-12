@@ -2,8 +2,8 @@ use std::collections::BitSet;
 use std::cell::RefCell;
 
 use value::{Id, Value};
-use relation::{Relation, Change};
-use view::{View, Table};
+use relation::{Relation, Change, Select};
+use view::{View, Table, Union};
 use flow::{Node, Flow, Changes};
 
 pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
@@ -128,9 +128,28 @@ fn create_schedule(flow: &Flow) -> Relation {
     }
 }
 
+fn create_union_select(compiler: &Compiler, view_id: &Value, source_id: &Value) -> Select {
+    let fields = compiler.flow.get_output("field").find_all("view", view_id).iter().map(|field| {
+            compiler.flow.get_output("select").iter().find(|select|
+                select["view"] == *view_id
+                && select["view field"] == field["field"]
+                && select["source"] == *source_id
+            ).unwrap()["source field"].as_str().to_owned()
+        }).collect();
+    Select{fields: fields}
+}
+
+fn create_union(compiler: &Compiler, view_id: &Value) -> Union {
+    let selects = compiler.dependency.find_all("downstream view", view_id).iter().map(|dependency| {
+        create_union_select(compiler, view_id, &dependency["upstream view"])
+    }).collect();
+    Union{selects: selects}
+}
+
 fn create_node(compiler: &Compiler, view_id: &Value, view_kind: &Value) -> Node {
     let view = match view_kind.as_str() {
         "table" => View::Table(Table),
+        "union" => View::Union(create_union(compiler, view_id)),
         other => panic!("Unknown view kind: {}", other),
     };
     let upstream = compiler.dependency.find_all("downstream view", view_id).iter().map(|dependency| {
