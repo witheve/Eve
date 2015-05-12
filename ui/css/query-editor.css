@@ -174,7 +174,6 @@ div:hover > .hover-reveal { opacity: 1; }
 .query-editor .view-constraint > * { padding: 0.2em; }
 .query-editor .view-constraint .grip { flex-direction: row; }
 
-
 .query-editor .workspace .token { flex: 0 1 auto; flex-direction: row; align-items: baseline; position: relative; white-space: nowrap;}
 .query-editor .workspace .token.field .name {flex-shrink: 0; }
 .query-editor .workspace .token.field .source { flex-shrink: 1; margin-left: 0.25em; font-size: 0.75em; color: #aaa; text-overflow: ellipis; white-space: nowrap; overflow: hidden; }
@@ -183,6 +182,9 @@ div:hover > .hover-reveal { opacity: 1; }
 
 .query-editor .workspace .token-selector.value { flex-direction: row; }
 .query-editor .token-selector.value > .type-selector li { flex: 0; padding: 0.2em; }
+
+.query-editor .block-section.view-grouping { flex-direction: row; }
+.query-editor .block-section.view-grouping > * { margin: 0 0.25em;}
 
 /* inspector */
 .query-workspace > .inspector { flex: 1; border-left: 1px solid #404040; }
