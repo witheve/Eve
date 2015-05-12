@@ -150,10 +150,8 @@ pub struct Select{
 }
 
 impl Select {
-    pub fn select_into(&self, output: &mut Relation, input: &Relation) {
+    pub fn select(&self, input: &Relation) -> Vec<Vec<Value>> {
         let mapping = mapping(&input.fields[..], &self.fields[..]).unwrap();
-        for values in input.index.iter() {
-            output.index.insert(with_mapping(&values[..], &mapping[..]));
-        }
+        input.index.iter().map(|values| with_mapping(&values[..], &mapping[..])).collect()
     }
 }

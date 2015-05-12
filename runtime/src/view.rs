@@ -18,14 +18,16 @@ pub enum View {
 }
 
 impl View {
-    pub fn run(&self, old_output: &Relation, sources: Vec<&Relation>) -> Option<Relation> {
+    pub fn run(&self, old_output: &Relation, inputs: Vec<&Relation>) -> Option<Relation> {
         match *self {
             View::Table(_) => None,
             View::Union(ref union) => {
-                assert_eq!(union.selects.len(), sources.len());
+                assert_eq!(union.selects.len(), inputs.len());
                 let mut output = Relation::with_fields(old_output.fields.clone());
-                for (select, upstream) in union.selects.iter().zip(sources.into_iter()) {
-                    select.select_into(&mut output, upstream);
+                for (select, input) in union.selects.iter().zip(inputs.into_iter()) {
+                    for values in select.select(input) {
+                        output.index.insert(values);
+                    }
                 }
                 Some(output)
             }

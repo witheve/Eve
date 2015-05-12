@@ -56,6 +56,7 @@ impl Flow {
             match self.get_ix(&*id) {
                 Some(ix) => match self.nodes[ix].view {
                     View::Table(_) => {
+                        // TODO should we be checking diffs after the fact?
                         self.outputs[ix].borrow_mut().change(changes);
                         self.dirty.insert(ix);
                     }
@@ -81,8 +82,8 @@ impl Flow {
             let node = &self.nodes[ix];
             let new_output = {
                 let upstream = node.upstream.iter().map(|&ix| self.outputs[ix].borrow()).collect::<Vec<_>>();
-                let sources = upstream.iter().map(|borrowed| &**borrowed).collect();
-                node.view.run(&*self.outputs[ix].borrow(), sources)
+                let inputs = upstream.iter().map(|borrowed| &**borrowed).collect();
+                node.view.run(&*self.outputs[ix].borrow(), inputs)
             };
             match new_output {
                 None => (), // view does not want to update
@@ -101,7 +102,19 @@ impl Flow {
     }
 
     pub fn tick(&mut self, changes: &mut Changes) {
-        // TODO
+        for (ix, node) in self.nodes.iter().enumerate() {
+            match node.view {
+                View::Table(Table{ref insert, ref remove}) => {
+                    let inserts = insert.select(&*self.outputs[node.upstream[0]].borrow());
+                    let removes = remove.select(&*self.outputs[node.upstream[0]].borrow());
+                    let mut output = self.outputs[ix].borrow_mut();
+                    let fields = output.fields.clone();
+                    output.change(&Change{fields: fields, insert: inserts, remove: removes});
+                    // TODO record changes, set dirty
+                }
+                _ => () // only tables tick
+            }
+        }
     }
 
     pub fn quiesce(mut self, mut changes: Changes) -> (Self, Changes) {
