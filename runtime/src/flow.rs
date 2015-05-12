@@ -99,7 +99,7 @@ impl Flow {
                         self.outputs[ix].borrow_mut().change(changes);
                         self.dirty.insert(ix);
                     }
-                    // _ => panic!("Tried to insert into a non-table view with id: {:?}", id),
+                    _ => panic!("Tried to insert into a non-table view with id: {:?}", id),
                 },
                 None => panic!("Tried to insert into a non-existent view with id: {:?}", id),
             }
@@ -116,7 +116,28 @@ impl Flow {
     }
 
     pub fn recalculate(&mut self, changes: &mut Changes) {
-        // TODO
+        while let Some(ix) = self.dirty.iter().next() {
+            self.dirty.remove(&ix);
+            let node = &self.nodes[ix];
+            let new_output = {
+                let upstream = node.upstream.iter().map(|&ix| self.outputs[ix].borrow()).collect::<Vec<_>>();
+                let sources = upstream.iter().map(|borrowed| &**borrowed).collect();
+                node.view.run(&*self.outputs[ix].borrow(), sources)
+            };
+            match new_output {
+                None => (), // view does not want to update
+                Some(new_output) => {
+                    let change = new_output.change_from(&*self.outputs[ix].borrow());
+                    if (change.insert.len() > 0) || (change.remove.len() > 0) {
+                        changes.push((node.id.clone(), change));
+                        for &ix in node.downstream.iter() {
+                            self.dirty.insert(ix);
+                        }
+                    }
+                    self.outputs[ix] = RefCell::new(new_output);
+                }
+            }
+        }
     }
 
     pub fn tick(&mut self, changes: &mut Changes) {
