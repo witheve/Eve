@@ -81,7 +81,7 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // the compiler reflects its decisions into some builtin views
     // a dependency exists whenever the contents on one view depend directly on another
     // `ix` is an integer identifying the edge
-    ("dependency", vec!["upstream view", "ix"], vec!["downstream view"]),
+    ("dependency", vec!["upstream view", "ix"], vec!["source", "downstream view"]),
     // the schedule determines what order views will be executed in
     // `ix` is an integer. views with lower ixes are executed first.
     ("schedule", vec!["view"], vec!["ix"]),
@@ -100,15 +100,16 @@ fn create_dependency(flow: &Flow) -> Relation {
         let mut ix = 0.0;
         for source in flow.get_output("source").find_all("view", &view["view"]) {
             dependency.push(vec![
-                view["view"].clone(),
-                Value::Float(ix),
                 source["source view"].clone(),
+                Value::Float(ix),
+                source["source"].clone(),
+                view["view"].clone(),
                 ]);
             ix += 1.0;
         }
     }
     Relation{
-        fields: vec!["upstream view".to_owned(), "ix".to_owned(), "downstream view".to_owned()],
+        fields: vec!["upstream view".to_owned(), "ix".to_owned(), "source".to_owned(), "downstream view".to_owned()],
         index: dependency.into_iter().collect(),
     }
 }
@@ -128,7 +129,7 @@ fn create_schedule(flow: &Flow) -> Relation {
     }
 }
 
-fn create_union_select(compiler: &Compiler, view_id: &Value, source_id: &Value) -> Select {
+fn create_single_select(compiler: &Compiler, view_id: &Value, source_id: &Value) -> Select {
     let fields = compiler.flow.get_output("field").find_all("view", view_id).iter().map(|field| {
             compiler.flow.get_output("select").iter().find(|select|
                 select["view"] == *view_id
@@ -139,16 +140,22 @@ fn create_union_select(compiler: &Compiler, view_id: &Value, source_id: &Value) 
     Select{fields: fields}
 }
 
+fn create_table(compiler: &Compiler, view_id: &Value) -> Table {
+    let insert = create_single_select(compiler, view_id, &Value::String("insert".to_owned()));
+    let remove = create_single_select(compiler, view_id, &Value::String("remove".to_owned()));
+    Table{insert: insert, remove: remove}
+}
+
 fn create_union(compiler: &Compiler, view_id: &Value) -> Union {
     let selects = compiler.dependency.find_all("downstream view", view_id).iter().map(|dependency| {
-        create_union_select(compiler, view_id, &dependency["upstream view"])
+        create_single_select(compiler, view_id, &dependency["source"])
     }).collect();
     Union{selects: selects}
 }
 
 fn create_node(compiler: &Compiler, view_id: &Value, view_kind: &Value) -> Node {
     let view = match view_kind.as_str() {
-        "table" => View::Table(Table),
+        "table" => View::Table(create_table(compiler, view_id)),
         "union" => View::Union(create_union(compiler, view_id)),
         other => panic!("Unknown view kind: {}", other),
     };
@@ -219,4 +226,59 @@ pub fn needs_recompile(changes: &[(Id, Change)]) -> bool {
     changes.iter().any(|&(ref changed_id, _)|
         schema.iter().any(|&(ref compiler_id, _, _)|
             changed_id == compiler_id))
+}
+
+pub fn bootstrap(mut flow: Flow) -> Flow {
+    let schema = schema();
+    for &(ref id, ref unique_fields, ref other_fields) in schema.iter() {
+        flow.nodes.push(Node{
+            id: format!("{}", id),
+                view: View::Union(Union{selects: Vec::new()}), // dummy node
+                upstream: Vec::new(),
+                downstream: Vec::new(),
+            });
+        let mut fields = unique_fields.iter().chain(other_fields.iter())
+            .map(|&field| field.to_owned()).collect::<Vec<_>>();
+        fields.sort(); // fields are implicitly sorted in the compiler - need to use the same ordering here
+        flow.outputs.push(RefCell::new(Relation::with_fields(fields)));
+    }
+    let mut view_values = Vec::new();
+    let mut field_values = Vec::new();
+    let mut select_values = Vec::new();
+    let mut source_values = Vec::new();
+    for &(ref id, ref unique_fields, ref other_fields) in schema.iter() {
+        view_values.push(vec![string!("{}", id), string!("table")]);
+        view_values.push(vec![string!("insert: {}", id), string!("union")]);
+        view_values.push(vec![string!("remove: {}", id), string!("union")]);
+        for &field in unique_fields.iter().chain(other_fields.iter()) {
+            field_values.push(vec![string!("{}", field), string!("{}", id), string!("output")]);
+            field_values.push(vec![string!("insert: {}", field), string!("insert: {}", id), string!("output")]);
+            field_values.push(vec![string!("remove: {}", field), string!("remove: {}", id), string!("output")]);
+            source_values.push(vec![string!("{}", id), string!("insert"), string!("insert: {}", id)]);
+            source_values.push(vec![string!("{}", id), string!("remove"), string!("remove: {}", id)]);
+            select_values.push(vec![string!("{}", id), string!("{}", field), string!("insert"), string!("insert: {}", field)]);
+            select_values.push(vec![string!("{}", id), string!("{}", field), string!("remove"), string!("remove: {}", field)]);
+        }
+    }
+    flow.get_output_mut("view").change(&Change{
+        fields: vec!["view".to_owned(), "kind".to_owned()],
+        insert: view_values,
+        remove: Vec::new(),
+    });
+    flow.get_output_mut("field").change(&Change{
+        fields: vec!["field".to_owned(), "view".to_owned(), "kind".to_owned()],
+        insert: field_values,
+        remove: Vec::new(),
+    });
+    flow.get_output_mut("source").change(&Change{
+        fields: vec!["view".to_owned(), "source".to_owned(), "source view".to_owned()],
+        insert: source_values,
+        remove: Vec::new(),
+    });
+    flow.get_output_mut("select").change(&Change{
+        fields: vec!["view".to_owned(), "view field".to_owned(), "source".to_owned(), "source field".to_owned()],
+        insert: select_values,
+        remove: Vec::new(),
+    });
+    recompile(flow, &mut Vec::new()) // bootstrap away our dummy nodes
 }

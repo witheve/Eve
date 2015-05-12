@@ -1,7 +1,10 @@
 use relation::{Relation, Select};
 
 #[derive(Clone, Debug)]
-pub struct Table;
+pub struct Table {
+    pub insert: Select,
+    pub remove: Select,
+}
 
 #[derive(Clone, Debug)]
 pub struct Union {

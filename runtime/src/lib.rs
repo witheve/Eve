@@ -16,6 +16,10 @@ macro_rules! time {
     }};
 }
 
+macro_rules! string {
+    ($($args:expr),*) => (::value::Value::String(format!($($args),*)))
+}
+
 pub mod value;
 pub mod relation;
 // pub mod query;
