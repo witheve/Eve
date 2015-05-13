@@ -20,51 +20,40 @@ pub trait Monoid {
 
 fn merge<K: Ord + Debug, V: Eq + Monoid + Debug>(a: Chunk<K,V>, b: Chunk<K,V>) -> Chunk<K,V> {
     // TODO just use ixes and replace instead? or dump into vec and then merge?
+    assert!(a.size > 0);
+    assert!(b.size > 0);
     let size = a.size + b.size;
     let mut items = Vec::with_capacity(size);
-    let mut a_iter = a.items.into_iter();
-    let mut b_iter = b.items.into_iter();
-    let mut a_next = a_iter.next();
-    let mut b_next = b_iter.next();
+    let mut active_iter = a.items.into_iter();
+    let mut waiting_iter = b.items.into_iter();
+    let (mut pivot_k, mut pivot_v) = waiting_iter.next().unwrap(); // we have at least one item
+    // invariant: pivot is always smaller than anything in waiting_iter
     loop {
-        let cmp = {
-            match (&a_next, &b_next) {
-                (&Some((ref ka, _)), &Some((ref kb, _))) => ka.cmp(kb),
-                _ => break,
+        match active_iter.next() {
+            None => {
+                items.push((pivot_k, pivot_v));
+                for (k, v) in waiting_iter {
+                    items.push((k, v))
+                }
+                break;
             }
-        };
-        match cmp {
-            Ordering::Less => {
-                let (ka, va) = ::std::mem::replace(&mut a_next, a_iter.next()).unwrap();
-                items.push((ka,va));
-            }
-            Ordering::Equal => {
-                let (ka, va) = ::std::mem::replace(&mut a_next, a_iter.next()).unwrap();
-                let (_kb, vb) = ::std::mem::replace(&mut b_next, b_iter.next()).unwrap();
-                let v = Monoid::add(va, vb);
-                if (v != Monoid::zero()) {
-                    items.push((ka, v));
+            Some((mut k, mut v)) => {
+                match k.cmp(&pivot_k) {
+                    Ordering::Less => {
+                        items.push((k,v));
+                    }
+                    Ordering::Equal => {
+                        pivot_v = Monoid::add(v, pivot_v);
+                    }
+                    Ordering::Greater => {
+                        ::std::mem::swap(&mut k, &mut pivot_k);
+                        ::std::mem::swap(&mut v, &mut pivot_v);
+                        ::std::mem::swap(&mut active_iter, &mut waiting_iter);
+                        items.push((k,v));
+                    }
                 }
             }
-            Ordering::Greater => {
-                let (kb, vb) = ::std::mem::replace(&mut b_next, b_iter.next()).unwrap();
-                items.push((kb,vb));
-            }
         }
-    }
-    match a_next {
-        Some((ka, va)) => items.push((ka, va)),
-        None => (),
-    }
-    match b_next {
-        Some((kb, vb)) => items.push((kb, vb)),
-        None => (),
-    }
-    for (k,v) in a_iter {
-        items.push((k,v));
-    }
-    for (k,v) in b_iter {
-        items.push((k,v));
     }
     Chunk{size: size, items: items} // TODO size should be next power of two >= items.len()
 }
