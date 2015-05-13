@@ -189,7 +189,11 @@ div:hover > .hover-reveal { opacity: 1; }
 .query-editor .block-section.view-grouping > * { margin: 0 0.25em;}
 
 .query-editor .union-block .content { flex-direction: row; }
-
+.query-editor .union-block .union-source { margin-bottom: 10px; }
+.query-editor .union-block .field-mapping { flex-direction: row; margin-bottom: 10px;}
+.query-editor .union-block .field-mapping .mapping-pair + .mapping-pair { border-left: 1px solid #404040; }
+.query-editor .union-block .field-mapping  .mapping-pair > * { padding: 0.1em 0.25em; }
+.query-editor .union-block .field-mapping .mapping-header { border-bottom: 1px solid #505050; }
 
 
 /* inspector */

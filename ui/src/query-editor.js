@@ -131,8 +131,7 @@ var queryEditor = (function(window, microReact, Indexing) {
   ixer.addIndex("constraint right", "constraint right", Indexing.create.lookup([0, false]));
   ixer.addIndex("constraint operation", "constraint operation", Indexing.create.lookup([0, false]));
   ixer.addIndex("view to selects", "select", Indexing.create.collector([0]));
-  ixer.addIndex("view and source to select", "select", Indexing.create.lookup([0, 2, false]));
-  ixer.addIndex("view and source field to select", "select", Indexing.create.lookup([0, 3, false]));
+  ixer.addIndex("view and source and field to select", "select", Indexing.create.lookup([0, 2, 1, false]));
 
 
   ixer.addIndex("block", "block", Indexing.create.lookup([1, false]));
@@ -269,20 +268,30 @@ var queryEditor = (function(window, microReact, Indexing) {
       return diffs;
     },
 
-    addViewSelection: function addViewSelection(viewId, sourceId, sourceFieldId) {
-      var fieldId = uuid();
-      var blockFieldId = uuid();
-      var name = code.name(sourceFieldId);
-      var order = ixer.index("display order")[sourceFieldId];
-      var sourceViewId = ixer.index("field to view")[sourceFieldId];
-      return [["field", "inserted", [viewId, fieldId]],
-              ["select", "inserted", [viewId, fieldId, sourceViewId, sourceFieldId]],
-              ["display order", "inserted", [fieldId, 0]],
-              ["display name", "inserted", [fieldId, name]],
+    addViewSelection: function addViewSelection(viewId, sourceId, sourceFieldId, fieldId) {
+      var diffs = [];
+      if(!fieldId) {
+        fieldId = uuid();
+        var blockFieldId = uuid();
+        var name = code.name(sourceFieldId);
+        var order = ixer.index("display order")[sourceFieldId];
+        diffs.push(["field", "inserted", [viewId, fieldId]],
+                   ["display order", "inserted", [fieldId, 0]],
+                   ["display name", "inserted", [fieldId, name]],
+                   ["block field", "inserted", [blockFieldId, viewId, "selection", viewId, fieldId]],
+                   ["display order", "inserted", [blockFieldId, 0]],
+                   ["display name", "inserted", [blockFieldId, name]]);
+      } else {
+        var old = ixer.index("view and source and field to select")[viewId] || {};
+        old = old[sourceId] || {};
+        old = old[fieldId];
+        if(old) {
+          diffs.push(["select", "removed", old]);
+        }
+      }
 
-              ["block field", "inserted", [blockFieldId, viewId, "selection", sourceViewId, sourceFieldId]],
-              ["display order", "inserted", [blockFieldId, 0]],
-              ["display name", "inserted", [blockFieldId, name]]];
+      diffs.push(["select", "inserted", [viewId, fieldId, sourceId, sourceFieldId]]);
+      return diffs;
     },
     cacheViewSourceFields: function(viewId, sourceId, sourceViewId) {
       var diffs = [];
@@ -513,7 +522,7 @@ var queryEditor = (function(window, microReact, Indexing) {
         }
         break;
       case "addViewSelection":
-        diffs = diff.addViewSelection(info.viewId, info.sourceId, info.fieldId);
+        diffs = diff.addViewSelection(info.viewId, info.sourceId, info.sourceFieldId, info.fieldId);
         break;
       case "addViewSource":
         diffs = diff.addViewSource(info.viewId, info.sourceId, info.kind);
@@ -2012,7 +2021,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     if(blockField[code.ix("block field", "view")] !== elem.viewId) { return; }
     var fieldId = blockField[code.ix("block field", "field")];
     var sourceId = blockField[code.ix("block field", "source")];
-    dispatch("addViewSelection", {viewId: elem.viewId, fieldId: fieldId, sourceId: sourceId});
+    dispatch("addViewSelection", {viewId: elem.viewId, sourceFieldId: fieldId, sourceId: sourceId});
     evt.stopPropagation();
   }
 
@@ -2254,9 +2263,9 @@ function viewConstraintsDrop(evt, elem) {
    * Union Block
    */
   function unionBlock(viewId) {
-    var fields = ixer.index("view to fields")[viewId] || [];
-    var selects = ixer.index("view and source to select")[viewId] || {}
-    var selectSourceIds = Object.keys(selects);
+    var fields = ixer.index("view and source to block fields")[viewId] || {};
+    fields = fields.selection || [];
+    var selectSources = ixer.index("view and source and field to select")[viewId] || {};
     var sources = ixer.index("source")[viewId] || {};
     var sourceIds = Object.keys(sources);
 
@@ -2265,8 +2274,6 @@ function viewConstraintsDrop(evt, elem) {
     for(var sourceIx = 0; sourceIx < sourceIds.length; sourceIx++) {
       var sourceId = sourceIds[sourceIx];
       var source = sources[sourceId];
-      var sourceViewId = source[code.ix("source", "source view")];
-      //var sourceFields = ixer.index("view to fields")[sourceViewId];
       var sourceFields = ixer.index("view and source to block fields")[viewId] || {};
       sourceFields = sourceFields[sourceId] || [];
       var fieldItems = [];
@@ -2280,30 +2287,28 @@ function viewConstraintsDrop(evt, elem) {
         {c: "tree bar union-source-fields", children: fieldItems}
       ]});
 
-      if(selectSourceIds.length) {
-        var mappingPairs = [];
-        for(var fieldIx = 0; fieldIx < fields.length; fieldIx++) {
-          var field = sourceFields[fieldIx];
-          var fieldId = field[code.ix("field", "field")];
-          var select = selects[sourceViewId];
-          var mappedFieldId = select[code.ix("select", "source field")];
-          mappingPairs.push({c: "mapping-pair", viewId: viewId, fieldId: fieldId, children: [
-            {c: "mapping-header", text: code.name(fieldId) || "Untitled"}, // @FIXME: code.name(fieldId) not set?
-            (select ? {c: "mapping-row", text: code.name(mappedFieldId) || "Untitled"}
-             : {c: "mapping-row", text: "---"})
-          ]});
-        }
-        fieldMappingItems.push({c: "field-mapping", children: mappingPairs});
+      if(!fields.length) { continue; }
+      var selectFields = selectSources[sourceId] || [];
+
+      var mappingPairs = [];
+      for(var fieldIx = 0; fieldIx < fields.length; fieldIx++) {
+        var field = fields[fieldIx];
+        var fieldId = field[code.ix("block field", "field")];
+        var selectField = selectFields[fieldId] || [];
+        var mappedFieldId = selectField[code.ix("select", "source field")];
+        mappingPairs.push({c: "mapping-pair", viewId: viewId, sourceId: sourceId, fieldId: fieldId, dragover: preventDefault, drop: unionSourceMappingDrop, children: [
+          {c: "mapping-header", text: code.name(fieldId) || "Untitled"}, // @FIXME: code.name(fieldId) not set?
+          (mappedFieldId ? {c: "mapping-row", text: code.name(mappedFieldId) || "Untitled"}
+           : {c: "mapping-row", text: "---"})
+        ]});
       }
+      fieldMappingItems.push({c: "field-mapping", children: mappingPairs});
     }
 
-    if(!selectSourceIds.length) {
+    if(!fields.length) {
       fieldMappingItems.push({c: "field-mapping", children: [{text: "drag fields to begin mapping; or"},
                                                              {text: "drag an existing union to begin merging"}]});
     }
-
-    var isValid = true;
-    if(selectSourceIds.length !== fields.length * sourceIds.length) { isValid = false; }
 
     return {c: "block union-block", viewId: viewId, dragover: preventDefault, drop: viewBlockDrop, children: [
       {c: "block-title", children: [
@@ -2315,6 +2320,19 @@ function viewConstraintsDrop(evt, elem) {
         {c: "block-pane mapping", viewId: viewId, dragover: preventDefault, drop: viewSelectionsDrop, children: fieldMappingItems},
       ]}
     ]};
+  }
+
+  function unionSourceMappingDrop(evt, elem) {
+    var type = evt.dataTransfer.getData("type");
+    if(type !== "field") { return; }
+    var fieldId = evt.dataTransfer.getData("fieldId");
+    var blockField = ixer.index("block field")[fieldId];
+    var viewId = blockField[code.ix("block field", "view")];
+    var sourceId = blockField[code.ix("block field", "source")];
+    if(viewId !== elem.viewId) { return; }
+
+    dispatch("addViewSelection", {viewId: viewId, sourceFieldId: fieldId, sourceId: sourceId, fieldId: elem.fieldId});
+    evt.stopPropagation();
   }
 
   /**
