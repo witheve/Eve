@@ -130,6 +130,8 @@ var queryEditor = (function(window, microReact, Indexing) {
   ixer.addIndex("constraint left", "constraint left", Indexing.create.lookup([0, false]));
   ixer.addIndex("constraint right", "constraint right", Indexing.create.lookup([0, false]));
   ixer.addIndex("constraint operation", "constraint operation", Indexing.create.lookup([0, false]));
+  ixer.addIndex("view to selects", "select", Indexing.create.collector([0]));
+  ixer.addIndex("view and source to select", "select", Indexing.create.lookup([0, 2, false]));
   ixer.addIndex("view and source field to select", "select", Indexing.create.lookup([0, 3, false]));
 
 
@@ -256,6 +258,14 @@ var queryEditor = (function(window, microReact, Indexing) {
       var blockId = uuid();
       var diffs = [["block", "inserted", [queryId, blockId, viewId]],
                    ["view", "inserted", [viewId, "aggregate"]]];
+      return diffs;
+    },
+
+    addUnionBlock: function addBlock(queryId) {
+      var viewId = uuid();
+      var blockId = uuid();
+      var diffs = [["block", "inserted", [queryId, blockId, viewId]],
+                   ["view", "inserted", [viewId, "union"]]];
       return diffs;
     },
 
@@ -483,16 +493,23 @@ var queryEditor = (function(window, microReact, Indexing) {
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
         diffs = diff.addAggregateBlock(queryId);
         break;
+      case "addUnionBlock":
+        var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
+        diffs = diff.addUnionBlock(queryId);
+        break;
       case "removeViewBlock":
         var view = ixer.index("view")[info.viewId];
         var blockId = ixer.index("view to block")[info.viewId];
         var block = ixer.index("block")[blockId];
-        var sources = ixer.index("view to sources")[info.viewId];
+        var sources = ixer.index("view to sources")[info.viewId] || [];
         diffs = [["view", "removed", view],
                  ["block", "removed", block]];
         for(var ix = 0; ix < sources.length; ix++) {
           var sourceId = sources[ix][code.ix("source", "source")];
           diffs = diffs.concat(diff.removeViewSource(info.viewId, sourceId));
+        }
+        if(view[code.ix("view", "kind")] === "aggregate") {
+          console.warn("@FIXME: Remove aggregate entries for view on removal.");
         }
         break;
       case "addViewSelection":
@@ -1881,11 +1898,21 @@ var queryEditor = (function(window, microReact, Indexing) {
     }
   }
 
-  var queryAggregates = ["sort+limit", "sum", "count", "min", "max", "empty"];
+  var queryTools = {
+    union: ["merge"],
+    aggregate: ["sort+limit", "sum", "count", "min", "max", "empty"]
+  };
   function queryControls(queryId) {
-    var items = queryAggregates.map(function(tool) {
-      return treeItem(tool, tool, "aggregate-tool", {c: "control tool query-tool"});
-    });
+    var items = [];
+    var toolTypes = Object.keys(queryTools);
+    for(var typeIx = 0; typeIx < toolTypes.length; typeIx++) {
+      var type = toolTypes[typeIx];
+      var tools = queryTools[type];
+      for(var toolIx = 0; toolIx < tools.length; toolIx++) {
+        var tool = tools[toolIx];
+        items.push(treeItem(tool, tool, type, {c: "control tool query-tool"}));
+      }
+    }
     return controlGroup(items);
   }
 
@@ -1899,11 +1926,11 @@ var queryEditor = (function(window, microReact, Indexing) {
       var viewId = blocks[ix][code.ix("block", "view")];
       var viewKind = ixer.index("view to kind")[viewId];
       if(viewKind === "join") { items.push(viewBlock(viewId)); }
+      if(viewKind === "union") { items.push(unionBlock(viewId));  }
       if(viewKind === "aggregate") { items.push(aggregateBlock(viewId)); }
     }
-
     if(items.length) {
-      items.push({c: "add-aggregate-btn", text: "Add an aggregate by dragging it here...", queryId: queryId, click: addAggregateBlock});
+      items.push({c: "add-aggregate-btn", text: "Add an aggregate by dragging it here...", queryId: queryId});
     }
 
     return {c: "workspace", queryId: queryId, drop: editorDrop, dragover: preventDefault, children: items.length ? items : [
@@ -1915,10 +1942,13 @@ var queryEditor = (function(window, microReact, Indexing) {
     var type = evt.dataTransfer.getData("type");
     var value = evt.dataTransfer.getData("value");
     if(type === "view") {
-      dispatch("addViewBlock", {queryId: elem.queryId, sourceId: value});
+      return dispatch("addViewBlock", {queryId: elem.queryId, sourceId: value});
     }
-    if(type === "tool" && value === "aggregate") {
-      dispatch("addAggregateBlock", {queryId: elem.queryId});
+    if(type === "aggregate") {
+      return dispatch("addAggregateBlock", {queryId: elem.queryId, kind: value});
+    }
+    if(type === "union") {
+      return dispatch("addUnionBlock", {queryId: elem.queryId});
     }
   }
 
@@ -1939,9 +1969,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     if(!selectionItems.length) {
       selectionItems.push({text: "Drag local fields into me to make them available in the query."});
     }
-
     var groupedBy = ixer.index("grouped by")[viewId];
-    console.log(groupedBy);
 
     return {c: "block view-block", viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, children: [
       {c: "block-title", children: [
@@ -2102,9 +2130,7 @@ function viewConstraintsDrop(evt, elem) {
       // If the field is accessible in the query, use it for grouping.
       var select = ixer.index("view and source field to select")[draggedViewId] || {};
       select = select[fieldId];
-      console.log("select", select, draggedViewId, fieldId);
       if(!select) { return; }
-      console.log("query", ixer.index("view to query")[viewId], ixer.index("view to query")[draggedViewId]);
       if(ixer.index("view to query")[viewId] !== ixer.index("view to query")[draggedViewId]) { return; }
       console.warn("@TODO: group by", draggedViewId, fieldId);
       dispatch("groupView", {constraintId: elem.constraintId, inner: viewId, outer: draggedViewId, outerField: fieldId});
@@ -2224,6 +2250,72 @@ function viewConstraintsDrop(evt, elem) {
     }, []);
   }
 
+  /**
+   * Union Block
+   */
+  function unionBlock(viewId) {
+    var fields = ixer.index("view to fields")[viewId] || [];
+    var selects = ixer.index("view and source to select")[viewId] || {}
+    var selectSourceIds = Object.keys(selects);
+    var sources = ixer.index("source")[viewId] || {};
+    var sourceIds = Object.keys(sources);
+
+    var sourceItems = [];
+    var fieldMappingItems = [];
+    for(var sourceIx = 0; sourceIx < sourceIds.length; sourceIx++) {
+      var sourceId = sourceIds[sourceIx];
+      var source = sources[sourceId];
+      var sourceViewId = source[code.ix("source", "source view")];
+      //var sourceFields = ixer.index("view to fields")[sourceViewId];
+      var sourceFields = ixer.index("view and source to block fields")[viewId] || {};
+      sourceFields = sourceFields[sourceId] || [];
+      var fieldItems = [];
+      for(var fieldIx = 0; fieldIx < sourceFields.length; fieldIx++) {
+        var field = sourceFields[fieldIx];
+        var fieldId = field[code.ix("block field", "block field")];
+        fieldItems.push(fieldItem(code.name(fieldId) || "Untitled", fieldId, {c: "pill field"}));
+      }
+      sourceItems.push({c: "union-source", children: [
+        {text: code.name(sourceId)},
+        {c: "tree bar union-source-fields", children: fieldItems}
+      ]});
+
+      if(selectSourceIds.length) {
+        var mappingPairs = [];
+        for(var fieldIx = 0; fieldIx < fields.length; fieldIx++) {
+          var field = sourceFields[fieldIx];
+          var fieldId = field[code.ix("field", "field")];
+          var select = selects[sourceViewId];
+          var mappedFieldId = select[code.ix("select", "source field")];
+          mappingPairs.push({c: "mapping-pair", viewId: viewId, fieldId: fieldId, children: [
+            {c: "mapping-header", text: code.name(fieldId) || "Untitled"}, // @FIXME: code.name(fieldId) not set?
+            (select ? {c: "mapping-row", text: code.name(mappedFieldId) || "Untitled"}
+             : {c: "mapping-row", text: "---"})
+          ]});
+        }
+        fieldMappingItems.push({c: "field-mapping", children: mappingPairs});
+      }
+    }
+
+    if(!selectSourceIds.length) {
+      fieldMappingItems.push({c: "field-mapping", children: [{text: "drag fields to begin mapping; or"},
+                                                             {text: "drag an existing union to begin merging"}]});
+    }
+
+    var isValid = true;
+    if(selectSourceIds.length !== fields.length * sourceIds.length) { isValid = false; }
+
+    return {c: "block union-block", viewId: viewId, dragover: preventDefault, drop: viewBlockDrop, children: [
+      {c: "block-title", children: [
+        {t: "h3", text: "Untitled Union Block"},
+        {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock}
+      ]},
+      {c: "content", children: [
+        {c: "block-pane", children: sourceItems},
+        {c: "block-pane mapping", viewId: viewId, dragover: preventDefault, drop: viewSelectionsDrop, children: fieldMappingItems},
+      ]}
+    ]};
+  }
 
   /**
    * Aggregate Block
