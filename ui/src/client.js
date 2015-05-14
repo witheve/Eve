@@ -105,7 +105,6 @@ var client = (function eveClient(ixer, dispatcher) {
     } else {
       console.log("sending", message);
       if(!formatted) {
-        console.log("unformatted");
         message = toMapDiffs(message);
       }
       var payload = {changes: []};
@@ -120,8 +119,8 @@ var client = (function eveClient(ixer, dispatcher) {
         }
       }
 
-      console.log("special --- ", "\n", JSON.stringify(specialPayload, null, 2));
-      //console.log("payload --- ", "\n", JSON.stringify(payload, null, 2));
+      console.log("\nspecial --- \n", JSON.stringify(specialPayload, null, 2));
+      console.log("\npayload --- \n", JSON.stringify(payload, null, 2));
 
       if(specialPayload.changes.length) {
         server.ws.send(JSON.stringify(specialPayload));
@@ -148,7 +147,8 @@ var client = (function eveClient(ixer, dispatcher) {
     }
 
     var neueFields = {};
-    for(var fieldIx = 0; fieldIx < final.field.inserted.length; fieldIx++) {
+
+    for(var fieldIx = 0; final.field && fieldIx < final.field.inserted.length; fieldIx++) {
       // @FIXME: These must be inserted in order to work.
       // @FIXME: Does not account for removed fields, only appended fields.
       var field = final.field.inserted[fieldIx];
@@ -164,7 +164,7 @@ var client = (function eveClient(ixer, dispatcher) {
       var fieldIds = fields.map(function(field) {
         return field[1];
       });
-      fieldIds = fields.concat(neueFields[table] || []);
+      fieldIds = fieldIds.concat(neueFields[table] || []);
 
       changes.push([table, fieldIds, final[table].inserted, final[table].removed]);
     }
