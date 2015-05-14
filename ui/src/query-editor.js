@@ -58,6 +58,27 @@ var queryEditor = (function(window, microReact, Indexing) {
     return input;
   }
 
+  function clone(item) {
+    if (!item) { return item; }
+    var result;
+
+    if(item.constructor === Array) {
+      result = [];
+      item.forEach(function(child, index, array) {
+        result[index] = clone( child );
+      });
+    } else if(typeof item == "object") {
+      result = {};
+      for (var i in item) {
+        result[i] = clone( item[i] );
+      }
+    } else {
+      //it's a primitive
+      result = item;
+    }
+    return result;
+  }
+
   //---------------------------------------------------------
   // Data
   //---------------------------------------------------------
@@ -155,6 +176,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
 
     // ui
+
     ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.lookup([1, false]));
     ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([2]));
     ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.lookup([1, false]));
@@ -165,8 +187,8 @@ var queryEditor = (function(window, microReact, Indexing) {
     ixer.addIndex("uiStyle", "uiStyle", Indexing.create.latestLookup({keys: [1, false]}));
     ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.latestLookup({keys: [3, 2, false]}));
     ixer.addIndex("uiElementToStyles", "uiStyle", Indexing.create.latestCollector({keys: [3], uniqueness: [2]}));
-    ixer.addIndex("uiStyleToAttr", "uiComponentAttribute", Indexing.create.latestLookup({keys: [1, 2, false]}));
-    ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.latestCollector({keys: [1], uniqueness: [2]}));
+    ixer.addIndex("uiStyleToAttr", "uiComponentAttribute", Indexing.create.lookup([1, 2, false]));
+    ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.collector([1]));
     ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup([0, 1]));
 
     ixer.addIndex("uiElementToMap", "uiMap", Indexing.create.latestLookup({keys: [2, false]}));
@@ -455,6 +477,20 @@ var queryEditor = (function(window, microReact, Indexing) {
     }
   };
 
+  function reverseDiff(diff) {
+    var neue = [];
+    for(var diffIx = 0, diffLen = diff.length; diffIx < diffLen; diffIx++) {
+      var copy = diff[diffIx].slice();
+      neue[diffIx] = copy
+      if(copy[1] === "inserted") {
+        copy[1] = "removed";
+      } else {
+        copy[1] = "inserted";
+      }
+    }
+    return neue;
+  }
+
   function injectViews(tables, ixer) {
     var diffs = [];
     var add = function(viewId, view) {
@@ -469,8 +505,45 @@ var queryEditor = (function(window, microReact, Indexing) {
     ixer.handleDiffs(diffs);
   }
 
+
+  //---------------------------------------------------------
+  // Local state
+  //---------------------------------------------------------
+
+  var localState = {txId: 0,
+                    uiActiveLayer: null,
+                    openLayers: {},
+                    activeItem: 1,
+                    showMenu: true,
+                    uiGridSize: 10};
+
+
+  var eventStack = {root: true, children: [], localState: clone(localState)};
+
+  function scaryUndoEvent() {
+    if(!eventStack.parent || !eventStack.diffs) return {};
+
+    var old = eventStack;
+    eventStack = old.parent;
+    localState = clone(eventStack.localState);
+    return reverseDiff(old.diffs);
+  }
+
+  function scaryRedoEvent() {
+    if(!eventStack.children.length) return {};
+
+    eventStack = eventStack.children[eventStack.children.length - 1];
+    localState = clone(eventStack.localState);
+    return eventStack.diffs;
+  }
+
+  //---------------------------------------------------------
+  // Dispatch
+  //---------------------------------------------------------
+
   function dispatch(evt, info) {
-//         console.info("[dispatch]", evt, info);
+    //         console.info("[dispatch]", evt, info);
+    var storeEvent = true;
     var txId = ++localState.txId;
 
     var diffs = [];
@@ -659,6 +732,7 @@ var queryEditor = (function(window, microReact, Indexing) {
         localState.uiSelection = [elemId];
         break;
       case "resizeSelection":
+        storeEvent = false;
         var sel = localState.uiSelection;
         var elementIndex = ixer.index("uiComponentElement");
         var ratioX = info.widthRatio;
@@ -680,6 +754,7 @@ var queryEditor = (function(window, microReact, Indexing) {
         });
         break;
       case "moveSelection":
+        storeEvent = false;
         var sel = localState.uiSelection;
         var elementIndex = ixer.index("uiComponentElement");
         var elem = elementIndex[info.elemId];
@@ -700,7 +775,20 @@ var queryEditor = (function(window, microReact, Indexing) {
           });
         }
         break;
+      case "stopChangingSelection":
+        var sel = localState.uiSelection;
+        var elementIndex = ixer.index("uiComponentElement");
+        var elem = elementIndex[info.elemId];
+        var oldElements = info.oldElements;
+        sel.forEach(function(cur, ix) {
+          var elem = elementIndex[cur];
+          var old = oldElements[ix];
+          diffs.push(["uiComponentElement", "inserted", elem],
+                     ["uiComponentElement", "removed", old]);
+        });
+        break;
       case "offsetSelection":
+        storeEvent = false;
         var sel = localState.uiSelection;
         var elementIndex = ixer.index("uiComponentElement");
         var diffX = info.diffX;
@@ -730,6 +818,7 @@ var queryEditor = (function(window, microReact, Indexing) {
         localState.uiSelection = null;
         break;
       case "setAttributeForSelection":
+        storeEvent = info.storeEvent;
         var style = getUiPropertyType(info.property);
         if(!style) { throw new Error("Unknown attribute type for property:", info.property, "known types:", uiProperties); }
 
@@ -738,10 +827,28 @@ var queryEditor = (function(window, microReact, Indexing) {
           var id = cur;
           var styleId = ixer.index("uiElementToStyle")[id][style][1];
           var oldProps = ixer.index("uiStyleToAttr")[styleId];
-          if(oldProps) {
-            diffs.push(["uiComponentAttribute", "removed", oldProps]);
+          if(oldProps && oldProps[info.property]) {
+            diffs.push(["uiComponentAttribute", "removed", oldProps[info.property]]);
           }
           diffs.push(["uiComponentAttribute", "inserted", [txId, styleId, info.property, info.value, false]]);
+        });
+        break;
+      case "stopSetAttributeForSelection":
+        var style = getUiPropertyType(info.property);
+        if(!style) { throw new Error("Unknown attribute type for property:", info.property, "known types:", uiProperties); }
+
+        var sel = localState.uiSelection;
+        var oldAttrs = info.oldAttrs;
+        sel.forEach(function(cur, ix) {
+          var id = cur;
+          var styleId = ixer.index("uiElementToStyle")[id][style][1];
+          var oldProps = ixer.index("uiStyleToAttr")[styleId];
+          if(oldProps && oldProps[info.property]) {
+            diffs.push(["uiComponentAttribute", "inserted", oldProps[info.property]]);
+          }
+          if(oldAttrs[ix]) {
+            diffs.push(["uiComponentAttribute", "removed", oldAttrs[ix]]);
+          }
         });
         break;
       case "setSelectionStyle":
@@ -778,29 +885,34 @@ var queryEditor = (function(window, microReact, Indexing) {
       case "removeViewConstraint":
         diffs = diff.removeViewConstraint(info.constraintId);
         break;
+      case "undo":
+        storeEvent = false;
+        diffs = scaryUndoEvent();
+        break;
+      case "redo":
+        storeEvent = false;
+        diffs = scaryRedoEvent();
+        break;
       default:
         console.error("Unhandled dispatch:", evt, info);
         break;
     }
+
+
     if(diffs && diffs.length) {
+      if(storeEvent) {
+        var eventItem = {event: event, diffs: diffs, children: [], parent: eventStack, localState: clone(localState)};
+        eventStack.children.push(eventItem);
+        eventStack = eventItem;
+      }
+
       ixer.handleDiffs(diffs);
       window.client.sendToServer(diffs);
       render();
     } else {
-//       console.warn("No diffs to index, skipping.");
+      //       console.warn("No diffs to index, skipping.");
     }
   }
-
-  //---------------------------------------------------------
-  // Local state
-  //---------------------------------------------------------
-
-  var localState = {txId: 0,
-                    uiActiveLayer: null,
-                    openLayers: {},
-                    activeItem: 1,
-                    showMenu: true,
-                    uiGridSize: 10};
 
   //---------------------------------------------------------
   // Root
@@ -1372,7 +1484,7 @@ var queryEditor = (function(window, microReact, Indexing) {
       top = (height / 2) - halfSize;
     }
     return {c: "resize-handle", y: y, x: x, top: top, left: left, width: resizeHandleSize, height: resizeHandleSize,  componentId: componentId,
-            draggable: true, drag: resizeSelection, bounds: bounds, dragstart: clearDragImage, mousedown: stopPropagation};
+            draggable: true, drag: resizeSelection, dragend: stopResizeSelection, bounds: bounds, dragstart: startResizeSelection, mousedown: stopPropagation};
   }
 
   function stopPropagation(e) {
@@ -1383,8 +1495,21 @@ var queryEditor = (function(window, microReact, Indexing) {
   }
 
   function clearDragImage(e, elem) {
-    e.dataTransfer.setData("text", "foo");
-    e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0, 0);
+    if(e.dataTransfer) {
+      e.dataTransfer.setData("text", "foo");
+      e.dataTransfer.setDragImage(document.getElementById("clear-pixel"), 0, 0);
+    }
+  }
+
+  function startResizeSelection(e, elem) {
+    localState.oldElements = selectionToElements();
+    clearDragImage(e);
+  }
+
+  function stopResizeSelection(e, elem) {
+    var elems = localState.oldElements;
+    localState.oldElements = null;
+    dispatch("stopChangingSelection", {oldElements: elems})
   }
 
   function resizeSelection(e, elem) {
@@ -1463,7 +1588,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     var klass = type + " ui-element" + selClass + hidden + locked;
     var elem = {c: klass, id: "elem" + id, left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6],
                 control: cur, mousedown: addToSelection, selected: selected, zIndex: layer[3] + 1,
-                draggable: true, drag: moveSelection, dragstart: startMoveSelection, dblclick: setModifyingText};
+                draggable: true, drag: moveSelection, dragend: stopMoveSelection, dragstart: startMoveSelection, dblclick: setModifyingText};
     if(attrs) {
       for(var i = 0, len = attrs.length; i < len; i++) {
         var curAttr = attrs[i];
@@ -1535,6 +1660,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     var canvasRect = e.currentTarget.parentNode.getBoundingClientRect();
     localState.dragOffsetX = x - elem.left - canvasRect.left;
     localState.dragOffsetY = y - elem.top - canvasRect.top;
+    localState.initialElements = selectionToElements();
     clearDragImage(e);
     if(e.altKey) {
       //@HACK: if you cause a rerender before the event finishes, the drag is killed?
@@ -1556,6 +1682,21 @@ var queryEditor = (function(window, microReact, Indexing) {
     dispatch("moveSelection", {x: neueX, y: neueY, elemId: elem.control[1], componentId: elem.control[2]});
   }
 
+  function stopMoveSelection(e, elem) {
+    var elems = localState.initialElements;
+    localState.initialElements = null;
+    dispatch("stopChangingSelection", {oldElements: elems})
+  }
+
+  function selectionToElements() {
+    if(localState.uiSelection) {
+      var elementIndex = ixer.index("uiComponentElement");
+      return localState.uiSelection.map(function(cur) {
+        return elementIndex[cur];
+      });
+    }
+    return [];
+  }
 
   function getSelectionInfo(componentId, withAttributes) {
     var sel = localState.uiSelection;
@@ -1687,13 +1828,13 @@ var queryEditor = (function(window, microReact, Indexing) {
                       appearanceInspector(selectionInfo, binding),
                       textInspector(selectionInfo, binding));
 
-//       var showMapInspector = selectionInfo.elements.every(function(cur) {
-//         return cur[4] === "map";
-//       });
-//       if(showMapInspector) {
-//         var mapInfo = getMapGroupInfo(selectionInfo.elements, true)
-//         inspectors.push(mapInspector(selectionInfo, mapInfo, binding));
-//       }
+      //       var showMapInspector = selectionInfo.elements.every(function(cur) {
+      //         return cur[4] === "map";
+      //       });
+      //       if(showMapInspector) {
+      //         var mapInfo = getMapGroupInfo(selectionInfo.elements, true)
+      //         inspectors.push(mapInspector(selectionInfo, mapInfo, binding));
+      //       }
     } else if(activeLayer) {
       inspectors.push(layerInspector(activeLayer, elements));
     }
@@ -1714,12 +1855,18 @@ var queryEditor = (function(window, microReact, Indexing) {
   })
 
   adjustableShade.addEventListener("mouseup", function(e) {
+    if(adjusterInfo.elem.finalizer) {
+      adjusterInfo.elem.finalizer(e, renderer.tree[adjusterInfo.elem.id]);
+    }
     adjusterInfo = false;
     document.body.removeChild(adjustableShade);
   })
 
   var adjusterInfo;
   function startAdjusting(e, elem) {
+    if(elem.initializer) {
+      elem.initializer(e, elem);
+    }
     adjusterInfo = {elem: elem, startValue: elem.value, handler: elem.adjustHandler, bounds: {left: e.clientX, top: e.clientY}};
     document.body.appendChild(adjustableShade);
   }
@@ -1748,18 +1895,26 @@ var queryEditor = (function(window, microReact, Indexing) {
     widthAdjuster.handler = adjustWidth;
     widthAdjuster.componentId = componentId;
     widthAdjuster.bounds = bounds;
+    widthAdjuster.initializer = startResizeSelection;
+    widthAdjuster.finalizer = stopResizeSelection;
     var heightAdjuster = adjustable(height, 1, 1000, 1);
     heightAdjuster.handler = adjustHeight;
     heightAdjuster.componentId = componentId;
     heightAdjuster.bounds = bounds;
+    heightAdjuster.initializer = startResizeSelection;
+    heightAdjuster.finalizer = stopResizeSelection;
     var topAdjuster = adjustable(bounds.top, 0, 100000, 1);
     topAdjuster.handler = adjustPosition;
     topAdjuster.componentId = componentId;
     topAdjuster.coord = "top";
+    topAdjuster.initializer = startMoveSelection;
+    topAdjuster.finalizer = stopMoveSelection;
     var leftAdjuster = adjustable(bounds.left, 0, 100000, 1);
     leftAdjuster.handler = adjustPosition;
     leftAdjuster.componentId = componentId;
     leftAdjuster.coord = "left";
+    leftAdjuster.initializer = startMoveSelection;
+    leftAdjuster.finalizer = stopMoveSelection;
     //pos, size
     return {c: "option-group", children: [
       {c: "label", text: "x:"},
@@ -1792,6 +1947,9 @@ var queryEditor = (function(window, microReact, Indexing) {
     opacityAdjuster.text = Math.floor(opacity) + "%";
     opacityAdjuster.handler = adjustOpacity;
     opacityAdjuster.componentId = componentId;
+    opacityAdjuster.initializer = startAdjustAttr;
+    opacityAdjuster.finalizer = stopAdjustAttr;
+    opacityAdjuster.attr = "opacity";
 
     var borderWidth = attrs["borderWidth"] === undefined ? 0 : attrs["borderWidth"];
     var borderWidthAdjuster = adjustable(borderWidth, 0, 20, 1);
@@ -1799,6 +1957,8 @@ var queryEditor = (function(window, microReact, Indexing) {
     borderWidthAdjuster.handler = adjustAttr;
     borderWidthAdjuster.attr = "borderWidth";
     borderWidthAdjuster.componentId = componentId;
+    borderWidthAdjuster.initializer = startAdjustAttr;
+    borderWidthAdjuster.finalizer = stopAdjustAttr;
 
     var borderRadius = attrs["borderRadius"] === undefined ? 0 : attrs["borderRadius"];
     var borderRadiusAdjuster = adjustable(borderRadius, 0, 100, 1);
@@ -1806,6 +1966,8 @@ var queryEditor = (function(window, microReact, Indexing) {
     borderRadiusAdjuster.handler = adjustAttr;
     borderRadiusAdjuster.attr = "borderRadius";
     borderRadiusAdjuster.componentId = componentId;
+    borderRadiusAdjuster.initializer = startAdjustAttr;
+    borderRadiusAdjuster.finalizer = stopAdjustAttr;
 
 
     var visualStyle = selectable("No visual style", ["No visual style", "Foo", "Bar", "Add a new style"]);
@@ -1869,7 +2031,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     } else if(value === "Bottom") {
       final = "flex-end";
     }
-    dispatch("setAttributeForSelection", {componentId: elem.componentId, property: "verticalAlign", value: final});
+    dispatch("setAttributeForSelection", {componentId: elem.componentId, property: "verticalAlign", value: final, storeEvent: true});
   }
 
   function selectAlign(elem, value) {
@@ -1879,11 +2041,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     } else if(value === "Right") {
       final = "flex-end";
     }
-    dispatch("setAttributeForSelection", {componentId: elem.componentId, property: "textAlign", value: final});
-  }
-
-  function selectFont(elem, value) {
-    dispatch("setAttributeForSelection", {componentId: elem.componentId, property: "fontFamily", value: value});
+    dispatch("setAttributeForSelection", {componentId: elem.componentId, property: "textAlign", value: final, storeEvent: true});
   }
 
   uiProperties.typography = ["text", "fontFamily", "fontSize", "color", "textAlign", "verticalAlign"];
@@ -1900,13 +2058,17 @@ var queryEditor = (function(window, microReact, Indexing) {
     var font = attrs["fontFamily"] || "Helvetica Neue";
     var fontPicker = selectable(font, ["Times New Roman", "Verdana", "Arial", "Georgia", "Avenir", "Helvetica Neue"], true);
     fontPicker.componentId = componentId;
-    fontPicker.handler = selectFont;
+    fontPicker.handler = adjustAttr;
+    fontPicker.attr = "fontFamily";
+    fontPicker.storeEvent = true;
 
     var fontSize = attrs["fontSize"] === undefined ? 16 : attrs["fontSize"];
     var fontSizeAdjuster = adjustable(fontSize, 0, 300, 1);
     fontSizeAdjuster.handler = adjustAttr;
     fontSizeAdjuster.attr = "fontSize";
     fontSizeAdjuster.componentId = componentId;
+    fontSizeAdjuster.initializer = startAdjustAttr;
+    fontSizeAdjuster.finalizer = stopAdjustAttr;
 
     var fontColor = colorSelector(componentId, "color", attrs["color"]);
     fontColor.color = attrs["color"];
@@ -2084,11 +2246,33 @@ var queryEditor = (function(window, microReact, Indexing) {
     elem.value = value;
   }
 
+  function startAdjustAttr(e, elem) {
+    var attrs = []
+    var style = getUiPropertyType(elem.attr);
+    if(!style) { throw new Error("Unknown attribute type for property:", elem.attr, "known types:", uiProperties); }
+    var sel = localState.uiSelection;
+    sel.forEach(function(cur) {
+      var id = cur;
+      var styleId = ixer.index("uiElementToStyle")[id][style][1];
+      var oldProps = ixer.index("uiStyleToAttr")[styleId];
+      if(oldProps) {
+        attrs.push(["uiComponentAttribute", "removed", oldProps[elem.attr]]);
+      }
+    });
+    localState.initialAttrs = attrs;
+  }
+
+  function stopAdjustAttr(e, elem) {
+    var initial = localState.initialAttrs;
+    localState.initialAttrs = null;
+    dispatch("stopSetAttributeForSelection", {oldAttrs: initial, property: elem.attr});
+  }
+
   function adjustOpacity(elem, value) {
-    dispatch("setAttributeForSelection", {componentId: elem.componentId, property: "opacity", value: value / 100});
+    dispatch("setAttributeForSelection", {componentId: elem.componentId, property: "opacity", value: value / 100, storeEvent: false});
   }
   function adjustAttr(elem, value) {
-    dispatch("setAttributeForSelection", {componentId: elem.componentId, property: elem.attr, value: value});
+    dispatch("setAttributeForSelection", {componentId: elem.componentId, property: elem.attr, value: value, storeEvent: elem.storeEvent});
   }
 
   // Generic attribute handler
@@ -2361,25 +2545,25 @@ var queryEditor = (function(window, microReact, Indexing) {
     return {c: "block-section view-constraints", viewId: viewId, drop: viewConstraintsDrop, dragover: preventDefault, children: constraintItems};
   }
 
-function viewConstraintsDrop(evt, elem) {
-  var viewId = elem.viewId;
-  var type = evt.dataTransfer.getData("type");
-  var value = evt.dataTransfer.getData("value");
-  if(type === "tool" && value === "filter") {
-    dispatch("addViewConstraint", {viewId: viewId});
-    evt.stopPropagation();
-    return;
-  }
+  function viewConstraintsDrop(evt, elem) {
+    var viewId = elem.viewId;
+    var type = evt.dataTransfer.getData("type");
+    var value = evt.dataTransfer.getData("value");
+    if(type === "tool" && value === "filter") {
+      dispatch("addViewConstraint", {viewId: viewId});
+      evt.stopPropagation();
+      return;
+    }
 
-  if(type === "field") {
-    var id = evt.dataTransfer.getData("fieldId");
-    var blockField = ixer.index("block field")[id];
-    if(blockField[code.ix("block field", "view")] !== viewId) { return; }
-    var fieldId = blockField[code.ix("block field", "field")];
-    var sourceId = blockField[code.ix("block field", "source")];
-    dispatch("addViewConstraint", {viewId: viewId, leftSource: sourceId, leftField: fieldId});
+    if(type === "field") {
+      var id = evt.dataTransfer.getData("fieldId");
+      var blockField = ixer.index("block field")[id];
+      if(blockField[code.ix("block field", "view")] !== viewId) { return; }
+      var fieldId = blockField[code.ix("block field", "field")];
+      var sourceId = blockField[code.ix("block field", "source")];
+      dispatch("addViewConstraint", {viewId: viewId, leftSource: sourceId, leftField: fieldId});
+    }
   }
-}
 
   function updateViewConstraint(evt, elem) {
     var id = elem.constraintId;
@@ -2632,8 +2816,8 @@ function viewConstraintsDrop(evt, elem) {
        ]},
       {text: "Gather"},
       {c: "block-section view-sources", viewId: viewId, sourceId: "inner", drop: aggregateSourceDrop, dragover: preventDefault, children: [
-         innerSource ? viewSource(viewId, "inner") : undefined
-       ]},
+        innerSource ? viewSource(viewId, "inner") : undefined
+      ]},
       {text: "Where"},
       viewConstraints(viewId),
       {text: "Sort by"},
@@ -2691,12 +2875,31 @@ function viewConstraintsDrop(evt, elem) {
   }
 
 
+  //---------------------------------------------------------
+  // Global key handling
+  //---------------------------------------------------------
 
+  document.addEventListener("keydown", function(e) {
+    //Don't capture keys if they are
+    if(e.defaultPrevented
+       || e.target.nodeName === "INPUT"
+       || e.target.getAttribute("contentEditable")) {
+      return;
+    }
+
+    //undo + redo
+    if((e.metaKey || e.ctrlKey) && e.shiftKey && e.keyCode === KEYS.Z) {
+      dispatch("redo");
+    } else if((e.metaKey || e.ctrlKey) && e.keyCode === KEYS.Z) {
+      dispatch("undo");
+    }
+
+  });
 
   //---------------------------------------------------------
   // Go
   //---------------------------------------------------------
   // initIndexer();
 
-  return { container: renderer.content, ixer: ixer, localState: localState, renderer: renderer, render: render, initIndexer: initIndexer };
+  return { container: renderer.content, ixer: ixer, localState: localState, renderer: renderer, render: render, initIndexer: initIndexer, eventStack: eventStack };
 })(window, microReact, Indexing);
