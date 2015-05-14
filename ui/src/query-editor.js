@@ -173,7 +173,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     ixer.addIndex("uiMapAttr", "uiMapAttr", Indexing.create.lookup([0, 1, 2]));
 
     injectViews(tables, ixer);
-    ixer.handleDiffs(diff.addViewBlock(code.activeItemId()));
+    //ixer.handleDiffs(diff.addViewBlock(code.activeItemId()));
   }
 
   //---------------------------------------------------------
@@ -260,7 +260,7 @@ var queryEditor = (function(window, microReact, Indexing) {
                    ["view", "inserted", [viewId, view.kind || "table"]]];
       for(var ix = 0; ix < view.fields.length; ix++) {
         var fieldName = view.fields[ix];
-        var fieldId = fieldName + "-" + uuid().slice(0, 8);
+        var fieldId = view.name + ": " + fieldName;
         diffs.push(["field", "inserted", [viewId, fieldId, "output"]]); // @NOTE: Can this be any other kind?
         diffs.push(["display name", "inserted", [fieldId, fieldName]]);
         diffs.push(["display order", "inserted", [fieldId, ix]]);
@@ -276,7 +276,7 @@ var queryEditor = (function(window, microReact, Indexing) {
       var viewId = uuid();
       var blockId = uuid();
       var diffs = [["block", "inserted", [queryId, blockId, viewId]],
-                   ["view", "inserted", [viewId, "join"]]];
+                   ["view", "inserted", [viewId, "union"]]];
 
       if(sourceViewId) {
         diffs.push.apply(diffs, diff.addViewSource(viewId, sourceViewId));
