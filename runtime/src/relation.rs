@@ -25,6 +25,7 @@ pub fn with_mapping(values: &[Value], mapping: &[usize]) -> Vec<Value> {
 #[derive(Clone, Debug)]
 pub struct Relation {
     pub fields: Vec<Field>,
+    pub names: Vec<String>,
     pub index: BTreeSet<Vec<Value>>,
 }
 
@@ -36,9 +37,10 @@ pub struct Change {
 }
 
 impl Relation {
-    pub fn with_fields(fields: Vec<Field>) -> Self {
+    pub fn with_fields(fields: Vec<Field>, names: Vec<String>) -> Self {
         Relation{
             fields: fields,
+            names: names,
             index: BTreeSet::new(),
         }
     }
@@ -111,26 +113,34 @@ impl Relation {
         Change{fields: self.fields.clone(), insert: insert, remove: remove}
     }
 
-    pub fn find_one(&self, field: &str, value: &Value) -> Tuple {
-        let ix = self.fields.iter().position(|my_field| &my_field[..] == field).unwrap();
-        let values = self.index.iter().find(|values| values[ix] == *value).unwrap();
-        Tuple{fields: &self.fields[..], values: &values[..]}
+    pub fn find_maybe(&self, name: &str, value: &Value) -> Option<Tuple> {
+        let ix = self.names.iter().position(|my_name| &my_name[..] == name).unwrap();
+        self.index.iter().find(|values| values[ix] == *value).map(|values|
+            Tuple{fields: &self.fields[..], names: &self.names[..], values: &values[..]}
+            )
     }
 
-    pub fn find_all(&self, field: &str, value: &Value) -> Vec<Tuple> {
-        let ix = self.fields.iter().position(|my_field| &my_field[..] == field).unwrap();
+    pub fn find_one(&self, name: &str, value: &Value) -> Tuple {
+        let ix = self.names.iter().position(|my_name| &my_name[..] == name).unwrap();
+        let values = self.index.iter().find(|values| values[ix] == *value).unwrap();
+        Tuple{fields: &self.fields[..], names: &self.names[..], values: &values[..]}
+    }
+
+    pub fn find_all(&self, name: &str, value: &Value) -> Vec<Tuple> {
+        let ix = self.names.iter().position(|my_name| &my_name[..] == name).unwrap();
         self.index.iter().filter(|values| values[ix] == *value)
-            .map(|values| Tuple{fields: &self.fields[..], values: &values[..]})
+            .map(|values| Tuple{fields: &self.fields[..], names: &self.names[..], values: &values[..]})
             .collect()
     }
 
     pub fn iter(&self) -> Iter {
-        Iter{fields: &self.fields[..], iter: self.index.iter()}
+        Iter{fields: &self.fields[..], names: &self.names[..], iter: self.index.iter()}
     }
 }
 
 pub struct Iter<'a> {
     fields: &'a [Field],
+    names: &'a [String],
     iter: btree_set::Iter<'a, Vec<Value>>,
 }
 
@@ -139,7 +149,7 @@ impl<'a> Iterator for Iter<'a> {
     fn next(&mut self) -> Option<Tuple<'a>> {
         match self.iter.next() {
             None => None,
-            Some(values) => Some(Tuple{fields: self.fields, values: &values[..]}),
+            Some(values) => Some(Tuple{fields: self.fields, names: self.names, values: &values[..]}),
         }
     }
 }

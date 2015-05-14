@@ -67,13 +67,14 @@ pub type Field = Id;
 #[derive(Clone, Debug)]
 pub struct Tuple<'a> {
     pub fields: &'a [Field],
+    pub names: &'a [String],
     pub values: &'a [Value],
 }
 
 impl<'a, 'b> Index<&'b str> for Tuple<'a> {
     type Output = Value;
     fn index<'c>(&'c self, index: &'b str) -> &'c Value {
-        let ix = self.fields.iter().position(|field| &field[..] == index).unwrap();
+        let ix = self.names.iter().position(|name| &name[..] == index).unwrap();
         &self.values[ix]
     }
 }
