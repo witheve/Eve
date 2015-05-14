@@ -1,10 +1,10 @@
 use std::cmp::Ordering;
-use std::fmt::Debug;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct Map<K,V> {
     max_adjacent_chunks: usize,
-    chunks: Vec<Chunk<K,V>>,
+    chunks: Vec<Rc<Chunk<K,V>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -18,15 +18,15 @@ pub trait Monoid {
     fn add(v1: Self, v2: Self) -> Self;
 }
 
-fn merge<K: Ord + Debug, V: Eq + Monoid + Debug>(a: Chunk<K,V>, b: Chunk<K,V>) -> Chunk<K,V> {
-    // TODO just use ixes and replace instead? or dump into vec and then merge?
+fn merge<K: Ord + Clone, V: Eq + Monoid + Clone>(a: &mut Chunk<K,V>, b: &mut Chunk<K,V>) -> Chunk<K,V> {
+    // TODO requires that Monoid::add is commutative because we don't track which side the pivot came from
     assert!(a.size > 0);
     assert!(b.size > 0);
     let size = a.size + b.size;
     let mut items = Vec::with_capacity(size);
-    let mut active_iter = a.items.into_iter();
-    let mut waiting_iter = b.items.into_iter();
-    let (mut pivot_k, mut pivot_v) = waiting_iter.next().unwrap(); // we have at least one item
+    let mut active_iter = a.items.drain(..);
+    let mut waiting_iter = b.items.drain(..);
+    let (mut pivot_k, mut pivot_v) = waiting_iter.next().unwrap();
     // invariant: pivot is always smaller than anything in waiting_iter
     loop {
         match active_iter.next() {
@@ -58,7 +58,7 @@ fn merge<K: Ord + Debug, V: Eq + Monoid + Debug>(a: Chunk<K,V>, b: Chunk<K,V>) -
     Chunk{size: size, items: items} // TODO size should be next power of two >= items.len()
 }
 
-impl<K: Ord + Debug, V: Eq + Monoid + Debug> Map<K,V> {
+impl<K: Ord + Clone, V: Eq + Monoid + Clone> Map<K,V> {
     pub fn new(max_adjacent_chunks: usize) -> Self {
         Map{
             max_adjacent_chunks: max_adjacent_chunks,
@@ -68,13 +68,14 @@ impl<K: Ord + Debug, V: Eq + Monoid + Debug> Map<K,V> {
 
     pub fn insert(&mut self, key: K, val: V) {
         if val != Monoid::zero() {
-            self.chunks.push(Chunk{size: 1, items: vec![(key, val)]});
+            self.chunks.push(Rc::new(Chunk{size: 1, items: vec![(key, val)]}));
             for i in (self.max_adjacent_chunks..self.chunks.len()).rev() {
                 // if there are more than self.max_adjacent_chunks with the same size, merge two of them
                 if self.chunks[i].size == self.chunks[i-self.max_adjacent_chunks].size {
-                    let right = self.chunks.remove(i-self.max_adjacent_chunks+1);
-                    let left = self.chunks.remove(i-self.max_adjacent_chunks);
-                    self.chunks.insert(i-self.max_adjacent_chunks, merge(left, right));
+                    let mut right = self.chunks.remove(i-self.max_adjacent_chunks+1);
+                    let mut left = self.chunks.remove(i-self.max_adjacent_chunks);
+                    let merged = Rc::new(merge(left.make_unique(), right.make_unique()));
+                    self.chunks.insert(i-self.max_adjacent_chunks, merged);
                 }
             }
         }
