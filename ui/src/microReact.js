@@ -38,13 +38,26 @@
       var elements = this.tree;
       var prevElements = this.prevTree;
       var diff = this.lastDiff;
-      var elemKeys = Object.keys(diff);
+      var adds = diff.adds;
+      var updates = diff.updates;
+      var elemKeys = Object.keys(updates);
       var elementCache = this.elementCache;
+
+      //Create all the new elements to ensure that they're there when they need to be
+      //parented
+      for(var i = 0, len = adds.length; i < len; i++) {
+        var id = adds[i];
+        var cur = elements[id];
+        var div = document.createElement(cur.t || "div");
+        div._id = id;
+        elementCache[id] = div;
+      }
+
       for(var i = 0, len = elemKeys.length; i < len; i++) {
         var id = elemKeys[i];
         var cur = elements[id];
         var prev = prevElements[id] || fakePrev;
-        var type = diff[id];
+        var type = updates[id];
         var div;
         if(type === "replaced") {
           var me = elementCache[id];
@@ -52,13 +65,7 @@
           div = document.createElement(cur.t || "div");
           div._id = id;
           elementCache[id] = div;
-        } else if(type === "added") {
-          div = document.createElement(cur.t || "div");
-          div._id = id;
-          elementCache[id] = div;
-        } else if(type === "updated" || type === "moved") {
-          div = elementCache[id];
-        } else {
+        } else if(type === "removed") {
           //NOTE: Batching the removes such that you only remove the parent
           //didn't actually make this faster surprisingly. Given that this
           //strategy is much simpler and there's no noticable perf difference
@@ -67,11 +74,13 @@
           if(me.parentNode) me.parentNode.removeChild(me);
           elementCache[id] = null;
           continue;
+        } else {
+          div = elementCache[id];
         }
 
         var style = div.style;
         if(cur.c !== prev.c) div.className = cur.c;
-        if(cur.draggable !== prev.draggable) div.draggable = cur.draggable;
+        if(cur.draggable !== prev.draggable) div.draggable = cur.draggable === undefined ? "false" : "true";
         if(cur.contentEditable !== prev.contentEditable) div.contentEditable = cur.contentEditable || "inherit";
         if(cur.colspan !== prev.colspan) div.colSpan = cur.colspan;
         if(cur.placeholder !== prev.placeholder) div.placeholder = cur.placeholder;
@@ -144,19 +153,21 @@
       var as = Object.keys(a);
       var bs = Object.keys(b);
       var updated = {};
+      var adds = [];
       for(var i = 0, len = as.length; i < len; i++) {
-        var curA = a[as[i]];
-        var curB = b[as[i]];
+        var id = as[i];
+        var curA = a[id];
+        var curB = b[id];
         if(curB === undefined) {
-          updated[as[i]] = "removed";
+          updated[id] = "removed";
           continue;
         }
         if(curA.t !== curB.t) {
-          updated[as[i]] = "replaced";
+          updated[id] = "replaced";
           continue;
         }
-        if(curA.ix !== curB.ix) {
-          updated[as[i]] = "moved";
+        if(curA.ix !== curB.ix || curA.parent !== curB.parent) {
+          updated[id] = "moved";
           continue;
         }
         if(curA.c === curB.c
@@ -186,72 +197,43 @@
            && curA.verticalAlign === curB.verticalAlign) {
           continue;
         }
-        updated[as[i]] = "updated";
+        updated[id] = "updated";
       }
       for(var i = 0, len = bs.length; i < len; i++) {
-        var curA = a[bs[i]];
-        var curB = b[bs[i]];
+        var id = bs[i];
+        var curA = a[id];
         if(curA === undefined) {
-          updated[bs[i]] = "added";
+          adds.push(id);
+          updated[id] = "added";
           continue;
         }
-        if(curA.t !== curB.t) {
-          updated[bs[i]] = "replaced";
-          continue;
-        }
-        if(curA.ix !== curB.ix) {
-          updated[bs[i]] = "moved";
-          continue;
-        }
-        if(curA.c === curB.c
-           && curA.tabindex === curB.tabindex
-           && curA.placeholder === curB.placeholder
-           && curA.selected === curB.selected
-           && curA.value === curB.value
-           && curA.type === curB.type
-           && curA.checked === curB.checked
-           && curA.text === curB.text
-           && curA.top === curB.top
-           && curA.left === curB.left
-           && curA.width === curB.width
-           && curA.height === curB.height
-           && curA.zIndex === curB.zIndex
-           && curA.backgroundColor === curB.backgroundColor
-           && curA.backgroundImage === curB.backgroundImage
-           && curA.color === curB.color
-           && curA.colspan === curB.colspan
-           && curA.borderColor === curB.borderColor
-           && curA.borderWidth === curB.borderWidth
-           && curA.borderRadius === curB.borderRadius
-           && curA.opacity === curB.opacity
-           && curA.fontFamily === curB.fontFamily
-           && curA.fontSize === curB.fontSize
-           && curA.textAlign === curB.textAlign
-           && curA.verticalAlign === curB.verticalAlign) {
-          continue;
-        }
-        updated[bs[i]] = "updated";
       }
-      this.lastDiff = updated;
-      return updated;
+      this.lastDiff = {adds: adds, updates: updated};
+      return this.lastDiff;
     },
 
-    prepare: function prepare(elem) {
+    prepare: function prepare(root) {
+      var elemLen = 1;
       var tree = this.tree;
-      if(!elem.parent) elem.parent = "__root";
-      tree[elem.id] = elem;
-      if(elem.postRender) {
-        this.postRenders.push(elem);
-      }
-      var children = elem.children;
-      if(children) {
-        for(var childIx = 0, len = children.length; childIx < len; childIx++) {
-          var child = children[childIx];
-          if(child === undefined) continue;
-          if(!child.id) { child.id = elem.id + "__" + childIx; }
-          child.parent = elem.id;
-          child.ix = childIx;
-          this.prepare(child);
+      var elements = [root];
+      for(var elemIx = 0; elemIx < elemLen; elemIx++) {
+        elem = elements[elemIx];
+        if(elem.parent === undefined) elem.parent = "__root";
+        tree[elem.id] = elem;
+        if(elem.postRender !== undefined) {
+          this.postRenders.push(elem);
+        }
+        var children = elem.children;
+        if(children !== undefined) {
+          for(var childIx = 0, len = children.length; childIx < len; childIx++) {
+            var child = children[childIx];
+            if(child === undefined) continue;
+            if(child.id === undefined) { child.id = elem.id + "__" + childIx; }
+            if(child.ix === undefined) { child.ix = childIx; }
+            if(child.parent === undefined) { child.parent = elem.id; }
+            elements.push(child);
+            elemLen++;
+          }
         }
       }
       return tree;
@@ -259,7 +241,7 @@
 
     postDomify: function postRender() {
       var postRenders = this.postRenders;
-      var diff = this.lastDiff;
+      var diff = this.lastDiff.updates;
       var elementCache = this.elementCache;
       for(var i = 0, len = postRenders.length; i < len; i++) {
         var elem = postRenders[i];
@@ -283,10 +265,10 @@
       var postDomify = now();
       var time = now() - start;
       if(time > 5) {
-//         console.log("slow render (> 5ms): ", time, {prepare: prepare - start,
-//                                                     diff: diff - prepare,
-//                                                     domify: domify - diff,
-//                                                     postDomify: postDomify - domify});
+//                 console.log("slow render (> 5ms): ", time, {prepare: prepare - start,
+//                                                             diff: diff - prepare,
+//                                                             domify: domify - diff,
+//                                                             postDomify: postDomify - domify});
       }
     }
 

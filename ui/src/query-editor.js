@@ -15,8 +15,15 @@ var queryEditor = (function(window, microReact, Indexing) {
 
   var renderer = new microReact.Renderer();
   document.body.appendChild(renderer.content);
+  renderer.queued = false;
   function render() {
-    renderer.render(root());
+    if(renderer.queued === false) {
+      renderer.queued = true;
+      requestAnimationFrame(function() {
+        renderer.queued = false;
+        renderer.render(root());
+      });
+    }
   }
 
   function preventDefault(evt) {
@@ -105,62 +112,69 @@ var queryEditor = (function(window, microReact, Indexing) {
 
     //ui
     "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"], facts: []},
-    "uiComponentLayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden"], facts: []},
+    "uiComponentLayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden", "parentLayer"], facts: []},
     "uiComponentAttribute": {name: "uiComponentAttribute", fields: ["tx", "id", "property", "value"]},
     "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element"]},
     "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "union"]},
 
   };
 
-  // This index needs to be hardcoded for code.ix to work.
-  ixer.addIndex("view to fields", "field", Indexing.create.collector([0]));
+  function initIndexer() {
+    // This index needs to be hardcoded for code.ix to work.
+    ixer.addIndex("view to fields", "field", Indexing.create.collector([0]));
 
-  ixer.addIndex("display name", "display name", Indexing.create.lookup([0, 1]));
-  ixer.addIndex("display order", "display order", Indexing.create.lookup([0, 1]));
-  ixer.addIndex("field to view", "field", Indexing.create.lookup([1, 0]));
-  ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
-  ixer.addIndex("view to kind", "view", Indexing.create.lookup([0, 1]));
-  ixer.addIndex("source", "source", Indexing.create.lookup([0, 1, false]));
-  ixer.addIndex("view and source view to source", "source", Indexing.create.lookup([0, 2, false]));
-  ixer.addIndex("view to sources", "source", Indexing.create.collector([0]));
-  ixer.addIndex("source view to sources", "source", Indexing.create.collector([2]));
-  ixer.addIndex("view to constraints", "constraint", Indexing.create.collector([1]));
-  ixer.addIndex("constraint", "constraint", Indexing.create.lookup([0, false]));
-  ixer.addIndex("constraint to view", "constraint", Indexing.create.lookup([0, 1]));
-  ixer.addIndex("constraint left", "constraint left", Indexing.create.lookup([0, false]));
-  ixer.addIndex("constraint right", "constraint right", Indexing.create.lookup([0, false]));
-  ixer.addIndex("constraint operation", "constraint operation", Indexing.create.lookup([0, false]));
-  ixer.addIndex("view and source field to select", "select", Indexing.create.lookup([0, 3, false]));
+    ixer.addIndex("display name", "display name", Indexing.create.lookup([0, 1]));
+    ixer.addIndex("display order", "display order", Indexing.create.lookup([0, 1]));
+    ixer.addIndex("field to view", "field", Indexing.create.lookup([1, 0]));
+    ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
+    ixer.addIndex("view to kind", "view", Indexing.create.lookup([0, 1]));
+    ixer.addIndex("source", "source", Indexing.create.lookup([0, 1, false]));
+    ixer.addIndex("view and source view to source", "source", Indexing.create.lookup([0, 2, false]));
+    ixer.addIndex("view to sources", "source", Indexing.create.collector([0]));
+    ixer.addIndex("source view to sources", "source", Indexing.create.collector([2]));
+    ixer.addIndex("view to constraints", "constraint", Indexing.create.collector([1]));
+    ixer.addIndex("constraint", "constraint", Indexing.create.lookup([0, false]));
+    ixer.addIndex("constraint to view", "constraint", Indexing.create.lookup([0, 1]));
+    ixer.addIndex("constraint left", "constraint left", Indexing.create.lookup([0, false]));
+    ixer.addIndex("constraint right", "constraint right", Indexing.create.lookup([0, false]));
+    ixer.addIndex("constraint operation", "constraint operation", Indexing.create.lookup([0, false]));
+    ixer.addIndex("view and source field to select", "select", Indexing.create.lookup([0, 3, false]));
+    ixer.addIndex("view and source and field to select", "select", Indexing.create.lookup([0, 2, 1, false]));
 
 
-  ixer.addIndex("block", "block", Indexing.create.lookup([1, false]));
-  ixer.addIndex("block to query", "block", Indexing.create.lookup([1, 0]));
-  ixer.addIndex("view to query", "block", Indexing.create.lookup([2, 0]));
-  ixer.addIndex("view to block", "block", Indexing.create.lookup([2, 1]));
-  ixer.addIndex("query to blocks", "block", Indexing.create.collector([0]));
-  ixer.addIndex("query to views", "block", Indexing.create.collector([0, 2]));
-  ixer.addIndex("block field", "block field", Indexing.create.lookup([0, false]));
-  ixer.addIndex("view and source to block fields", "block field", Indexing.create.collector([1, 2]));
-  ixer.addIndex("grouped by", "grouped by", Indexing.create.lookup([0, false]));
+    ixer.addIndex("block", "block", Indexing.create.lookup([1, false]));
+    ixer.addIndex("block to query", "block", Indexing.create.lookup([1, 0]));
+    ixer.addIndex("view to query", "block", Indexing.create.lookup([2, 0]));
+    ixer.addIndex("view to block", "block", Indexing.create.lookup([2, 1]));
+    ixer.addIndex("query to blocks", "block", Indexing.create.collector([0]));
+    ixer.addIndex("query to views", "block", Indexing.create.collector([0, 2]));
+    ixer.addIndex("block field", "block field", Indexing.create.lookup([0, false]));
+    ixer.addIndex("view and source to block fields", "block field", Indexing.create.collector([1, 2]));
+    ixer.addIndex("grouped by", "grouped by", Indexing.create.lookup([0, false]));
 
-  ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
+    ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
 
-  // ui
-  ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.lookup([1, false]));
-  ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([2]));
-  ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.latestLookup({keys: [1, false]}));
-  ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.latestCollector({keys: [2], uniqueness: [1]}));
-  ixer.addIndex("uiLayerToElements", "uiComponentElement", Indexing.create.latestCollector({keys: [3], uniqueness: [1]}));
-  ixer.addIndex("uiStyles", "uiStyle", Indexing.create.latestCollector({keys: [1], uniqueness: [1]}));
-  ixer.addIndex("uiStyle", "uiStyle", Indexing.create.latestLookup({keys: [1, false]}));
-  ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.latestLookup({keys: [3, 2, false]}));
-  ixer.addIndex("uiElementToStyles", "uiStyle", Indexing.create.latestCollector({keys: [3], uniqueness: [2]}));
-  ixer.addIndex("uiStyleToAttr", "uiComponentAttribute", Indexing.create.latestLookup({keys: [1, 2, false]}));
-  ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.latestCollector({keys: [1], uniqueness: [2]}));
-  ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup([0, 1]));
+    // ui
+    ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.lookup([1, false]));
+    ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([2]));
+    ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.lookup([1, false]));
+    ixer.addIndex("parentLayerToLayers", "uiComponentLayer", Indexing.create.collector([6]));
+    ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.collector([2]));
+    ixer.addIndex("uiLayerToElements", "uiComponentElement", Indexing.create.collector([3]));
+    ixer.addIndex("uiStyles", "uiStyle", Indexing.create.latestCollector({keys: [1], uniqueness: [1]}));
+    ixer.addIndex("uiStyle", "uiStyle", Indexing.create.latestLookup({keys: [1, false]}));
+    ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.latestLookup({keys: [3, 2, false]}));
+    ixer.addIndex("uiElementToStyles", "uiStyle", Indexing.create.latestCollector({keys: [3], uniqueness: [2]}));
+    ixer.addIndex("uiStyleToAttr", "uiComponentAttribute", Indexing.create.latestLookup({keys: [1, 2, false]}));
+    ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.latestCollector({keys: [1], uniqueness: [2]}));
+    ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup([0, 1]));
 
-  ixer.addIndex("uiElementToMap", "uiMap", Indexing.create.latestLookup({keys: [2, false]}));
-  ixer.addIndex("uiMapAttr", "uiMapAttr", Indexing.create.lookup([0, 1, 2]));
+    ixer.addIndex("uiElementToMap", "uiMap", Indexing.create.latestLookup({keys: [2, false]}));
+    ixer.addIndex("uiMapAttr", "uiMapAttr", Indexing.create.lookup([0, 1, 2]));
+
+    injectViews(tables, ixer);
+    ixer.handleDiffs(diff.addViewBlock(code.activeItemId()));
+  }
 
   //---------------------------------------------------------
   // Data interaction code
@@ -218,6 +232,25 @@ var queryEditor = (function(window, microReact, Indexing) {
       }).length;
 
       return count;
+    },
+    layerToChildLayers: function layerToChildLayers(layer) {
+      var result = [];
+      var lookup = ixer.index("parentLayerToLayers");
+      var childLayers = lookup[layer[1]];
+      if(!childLayers) {
+        return result;
+      } else {
+        childLayers = childLayers.slice();
+      }
+      while(childLayers.length !== 0) {
+        var curLayer = childLayers.pop();
+        result.push(curLayer);
+        var children = lookup[curLayer[1]];
+        if(children && children.length) {
+          childLayers.push.apply(childLayers, children);
+        }
+      }
+      return result;
     }
   };
 
@@ -259,20 +292,38 @@ var queryEditor = (function(window, microReact, Indexing) {
       return diffs;
     },
 
-    addViewSelection: function addViewSelection(viewId, sourceId, sourceFieldId) {
-      var fieldId = uuid();
-      var blockFieldId = uuid();
-      var name = code.name(sourceFieldId);
-      var order = ixer.index("display order")[sourceFieldId];
-      var sourceViewId = ixer.index("field to view")[sourceFieldId];
-      return [["field", "inserted", [viewId, fieldId]],
-              ["select", "inserted", [viewId, fieldId, sourceViewId, sourceFieldId]],
-              ["display order", "inserted", [fieldId, 0]],
-              ["display name", "inserted", [fieldId, name]],
+    addUnionBlock: function addBlock(queryId) {
+      var viewId = uuid();
+      var blockId = uuid();
+      var diffs = [["block", "inserted", [queryId, blockId, viewId]],
+                   ["view", "inserted", [viewId, "union"]]];
+      return diffs;
+    },
 
-              ["block field", "inserted", [blockFieldId, viewId, "selection", sourceViewId, sourceFieldId]],
-              ["display order", "inserted", [blockFieldId, 0]],
-              ["display name", "inserted", [blockFieldId, name]]];
+    addViewSelection: function addViewSelection(viewId, sourceId, sourceFieldId, fieldId) {
+      var diffs = [];
+      if(!fieldId) {
+        fieldId = uuid();
+        var blockFieldId = uuid();
+        var name = code.name(sourceFieldId);
+        var order = ixer.index("display order")[sourceFieldId];
+        diffs.push(["field", "inserted", [viewId, fieldId, "output"]],
+                   ["display order", "inserted", [fieldId, 0]],
+                   ["display name", "inserted", [fieldId, name]],
+                   ["block field", "inserted", [blockFieldId, viewId, "selection", viewId, fieldId]],
+                   ["display order", "inserted", [blockFieldId, 0]],
+                   ["display name", "inserted", [blockFieldId, name]]);
+      } else {
+        var old = ixer.index("view and source and field to select")[viewId] || {};
+        old = old[sourceId] || {};
+        old = old[fieldId];
+        if(old) {
+          diffs.push(["select", "removed", old]);
+        }
+      }
+
+      diffs.push(["select", "inserted", [viewId, fieldId, sourceId, sourceFieldId]]);
+      return diffs;
     },
     cacheViewSourceFields: function(viewId, sourceId, sourceViewId) {
       var diffs = [];
@@ -444,10 +495,76 @@ var queryEditor = (function(window, microReact, Indexing) {
         break;
       case "addUi":
         var id = uuid();
+        var layerId = uuid();
         diffs.push(["editor item", "inserted", [id, "ui"]],
                    ["display name", "inserted", [id, "Untitled Page"]],
-                   ["uiComponentLayer", "inserted", [txId, uuid(), id, 0, false, false]]);
+                   ["uiComponentLayer", "inserted", [txId, layerId, id, 0, false, false, id]],
+                   ["display name", "inserted", [layerId, "Page"]]);
         localState.activeItem = id;
+        localState.uiActiveLayer = layerId;
+        localState.openLayers[layerId] = true;
+        break;
+      case "addUiLayer":
+        var layerId = uuid();
+        var groupNum = ixer.index("uiComponentToLayers")[info.componentId].length;
+        var groupIx = (ixer.index("parentLayerToLayers")[info.parentLayer] || []).length;
+        diffs.push(["uiComponentLayer", "inserted", [txId, layerId, info.componentId, groupIx, false, false, info.parentLayer]],
+                   ["display name", "inserted", [layerId, "Group " + groupNum]]);
+        localState.uiActiveLayer = layerId;
+        localState.openLayers[layerId] = true;
+        break;
+
+      case "updateUiLayer":
+        var subLayers = code.layerToChildLayers(info.neue);
+        var neueLocked = info.neue[4];
+        var neueHidden = info.neue[5];
+        subLayers.forEach(function(sub) {
+          if(sub[4] !== neueLocked || sub[5] !== neueHidden) {
+            var neue = sub.slice();
+            neue[4] = neueLocked;
+            neue[5] = neueHidden;
+            diffs.push(["uiComponentLayer", "inserted", neue],
+                       ["uiComponentLayer", "removed", sub])
+          }
+        });
+        diffs.push(["uiComponentLayer", "inserted", info.neue],
+                   ["uiComponentLayer", "removed", info.old])
+        break;
+
+      case "deleteLayer":
+        var subLayers = code.layerToChildLayers(info.layer);
+        var elementsLookup = ixer.index("uiLayerToElements");
+        subLayers.push(info.layer);
+        subLayers.forEach(function(sub) {
+          diffs.push(["uiComponentLayer", "removed", sub]);
+          var elements = elementsLookup[sub[1]];
+          if(elements) {
+            elements.forEach(function(element) {
+              diffs.push(["uiComponentElement", "removed", element]);
+            });
+          }
+        });
+        break;
+
+      case "changeParentLayer":
+        var layer = ixer.index("uiComponentLayer")[info.layerId];
+        if(layer[6] !== info.parentLayerId) {
+          var neue = layer.slice();
+          neue[0] = txId;
+          neue[6] = info.parentLayerId;
+          diffs.push(["uiComponentLayer", "inserted", neue],
+                     ["uiComponentLayer", "removed", layer])
+        }
+        break;
+      case "changeElementLayer":
+        var elem = ixer.index("uiComponentElement")[info.elementId];
+        if(elem[3] !== info.parentLayerId) {
+          var neue = elem.slice();
+          neue[0] = txId;
+          neue[3] = info.parentLayerId;
+          diffs.push(["uiComponentElement", "inserted", neue],
+                     ["uiComponentElement", "removed", elem])
+        }
         break;
       case "rename":
         var id = info.id;
@@ -483,20 +600,27 @@ var queryEditor = (function(window, microReact, Indexing) {
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
         diffs = diff.addAggregateBlock(queryId);
         break;
+      case "addUnionBlock":
+        var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
+        diffs = diff.addUnionBlock(queryId);
+        break;
       case "removeViewBlock":
         var view = ixer.index("view")[info.viewId];
         var blockId = ixer.index("view to block")[info.viewId];
         var block = ixer.index("block")[blockId];
-        var sources = ixer.index("view to sources")[info.viewId];
+        var sources = ixer.index("view to sources")[info.viewId] || [];
         diffs = [["view", "removed", view],
                  ["block", "removed", block]];
         for(var ix = 0; ix < sources.length; ix++) {
           var sourceId = sources[ix][code.ix("source", "source")];
           diffs = diffs.concat(diff.removeViewSource(info.viewId, sourceId));
         }
+        if(view[code.ix("view", "kind")] === "aggregate") {
+          console.warn("@FIXME: Remove aggregate entries for view on removal.");
+        }
         break;
       case "addViewSelection":
-        diffs = diff.addViewSelection(info.viewId, info.sourceId, info.fieldId);
+        diffs = diff.addViewSelection(info.viewId, info.sourceId, info.sourceFieldId, info.fieldId);
         break;
       case "addViewSource":
         diffs = diff.addViewSource(info.viewId, info.sourceId, info.kind);
@@ -558,20 +682,43 @@ var queryEditor = (function(window, microReact, Indexing) {
       case "moveSelection":
         var sel = localState.uiSelection;
         var elementIndex = ixer.index("uiComponentElement");
-        var diffX = info.diffX || 0;
-        var diffY = info.diffY || 0;
-        sel.forEach(function(cur) {
-          var elem = elementIndex[cur];
-          var neue = elem.slice();
-          neue[0] = txId;
-          neue[3] = info.layer || neue[3];
-          neue[5] += diffX; //left
-          neue[7] += diffX; //right
-          neue[6] += diffY; //top
-          neue[8] += diffY; //bottom
-          diffs.push(["uiComponentElement", "inserted", neue],
-                     ["uiComponentElement", "removed", elem]);
-        });
+        var elem = elementIndex[info.elemId];
+        var diffX = info.x !== undefined ? info.x - elem[5] : 0;
+        var diffY = info.y !== undefined ? info.y - elem[6] : 0;
+        if(diffX || diffY) {
+          sel.forEach(function(cur) {
+            var elem = elementIndex[cur];
+            var neue = elem.slice();
+            neue[0] = txId;
+            neue[3] = info.layer || neue[3];
+            neue[5] += diffX; //left
+            neue[7] += diffX; //right
+            neue[6] += diffY; //top
+            neue[8] += diffY; //bottom
+            diffs.push(["uiComponentElement", "inserted", neue],
+                       ["uiComponentElement", "removed", elem]);
+          });
+        }
+        break;
+      case "offsetSelection":
+        var sel = localState.uiSelection;
+        var elementIndex = ixer.index("uiComponentElement");
+        var diffX = info.diffX;
+        var diffY = info.diffY;
+        if(diffX || diffY) {
+          sel.forEach(function(cur) {
+            var elem = elementIndex[cur];
+            var neue = elem.slice();
+            neue[0] = txId;
+            neue[3] = info.layer || neue[3];
+            neue[5] += diffX; //left
+            neue[7] += diffX; //right
+            neue[6] += diffY; //top
+            neue[8] += diffY; //bottom
+            diffs.push(["uiComponentElement", "inserted", neue],
+                       ["uiComponentElement", "removed", elem]);
+          });
+        }
         break;
       case "deleteSelection":
         var sel = localState.uiSelection;
@@ -637,9 +784,10 @@ var queryEditor = (function(window, microReact, Indexing) {
     }
     if(diffs && diffs.length) {
       ixer.handleDiffs(diffs);
+      window.client.sendToServer(diffs);
       render();
     } else {
-      console.warn("No diffs to index, skipping.");
+//       console.warn("No diffs to index, skipping.");
     }
   }
 
@@ -649,6 +797,7 @@ var queryEditor = (function(window, microReact, Indexing) {
 
   var localState = {txId: 0,
                     uiActiveLayer: null,
+                    openLayers: {},
                     activeItem: 1,
                     showMenu: true,
                     uiGridSize: 10};
@@ -727,6 +876,9 @@ var queryEditor = (function(window, microReact, Indexing) {
     var type = ixer.index("editor item to type")[elem.itemId];
     if(type === "table") {
       localState.adderRows = [[]];
+    } else if(type === "ui") {
+      var layer = ixer.index("parentLayerToLayers")[elem.itemId][0];
+      localState.uiActiveLayer = layer[1];
     }
     render();
   }
@@ -876,15 +1028,43 @@ var queryEditor = (function(window, microReact, Indexing) {
     var layers = ixer.index("uiComponentToLayers")[componentId] || [];
     var layerLookup = ixer.index("uiComponentLayer");
     var activeLayerId = localState.uiActiveLayer;
-    var activeLayer = layers[0];
     if(activeLayerId && layerLookup[activeLayerId]) {
       activeLayer = layerLookup[activeLayerId];
     }
 
+    var selectionInfo = getSelectionInfo(componentId, true);
+    var canvasLayers = (ixer.index("parentLayerToLayers")[componentId] || []).map(function(layer) {
+      return canvasLayer(layer, selectionInfo);
+    });
+
+    if(selectionInfo) {
+      canvasLayers.push(selection(selectionInfo));
+    }
+    if(localState.boxSelectStart) {
+      var rect = boxSelectRect();
+      canvasLayers.push({c: "box-selection", top: rect.top, left: rect.left, width: rect.width, height: rect.height});
+    }
+    return genericWorkspace("query",
+                            [uiControls(componentId, activeLayer)],
+                            uiInspectors(componentId, selectionInfo, layers, activeLayer),
+                            {c: "ui-editor",
+                             children: [
+                               {c: "ui-canvas", componentId: componentId, children: canvasLayers, mousedown: startBoxSelection, mouseup: stopBoxSelection, mousemove: adjustBoxSelection},
+                               layersBox(componentId, layers, activeLayer),
+                             ]});
+  }
+
+  function canvasLayer(layer, selectionInfo) {
+    var layerId = layer[1];
+    var subLayers = (ixer.index("parentLayerToLayers")[layerId] || []).map(function(sub) {
+      return canvasLayer(sub, selectionInfo);
+    });
+    if(selectionInfo && layerId === localState.uiActiveLayer) {
+      subLayers.unshift(uiGrid());
+    }
+    var elements = ixer.index("uiLayerToElements")[layerId] || [];
     var attrsIndex = ixer.index("uiStyleToAttrs");
     var stylesIndex = ixer.index("uiElementToStyles");
-
-    var selectionInfo = getSelectionInfo(componentId, true);
     var els = elements.map(function(cur) {
       var id = cur[1];
       var selected = selectionInfo ? selectionInfo.selectedIds[id] : false;
@@ -896,24 +1076,160 @@ var queryEditor = (function(window, microReact, Indexing) {
         attrs.push.apply(attrs, attrsIndex[style[1]]);
       }
 
-      return control(cur, attrs, selected, layerLookup[cur[3]]);
+      return control(cur, attrs, selected, layer);
     });
-    if(selectionInfo) {
-      els.push(selection(selectionInfo));
-      els.push(uiGrid(componentId, activeLayer[3]));
-    }
-    if(localState.boxSelectStart) {
-      var rect = boxSelectRect();
-      els.push({c: "box-selection", top: rect.top, left: rect.left, width: rect.width, height: rect.height});
-    }
-    return genericWorkspace("query",
-                            [uiControls(componentId, activeLayer)],
-                            uiInspectors(componentId, selectionInfo, layers, activeLayer),
-                            {c: "ui-editor",
-                             children: [
-                               {c: "ui-canvas", componentId: componentId, children: els, mousedown: startBoxSelection, mouseup: stopBoxSelection, mousemove: adjustBoxSelection},
-                             ]});
+    return {c: "ui-canvas-layer", id: layer[1], zIndex: layer[3] + 1, children: subLayers.concat(els)};
   }
+
+  function layersBox(componentId, layers, activeLayer) {
+    var parentIndex = ixer.index("parentLayerToLayers");
+    var rootLayers = parentIndex[componentId] || [];
+    rootLayers.sort(function(a, b) {
+      return a[3] - b[3];
+    });
+    var items = rootLayers.map(function(cur) {
+      return layerListItem(cur, 0)
+    });
+    return {c: "layers-box", children: [
+      {c: "controls", children: [
+        {c: "add-layer ion-plus", click: addLayer, componentId: componentId},
+        {c: "add-layer ion-ios-trash", click: deleteLayer, componentId: componentId},
+      ]},
+      {c: "layers-list", children: items}
+    ]};
+  }
+
+
+  function addLayer(e, elem) {
+    localState.openLayers[localState.uiActiveLayer] = true;
+    dispatch("addUiLayer", {componentId: elem.componentId, parentLayer: localState.uiActiveLayer})
+  }
+
+  function deleteLayer(e, elem) {
+    var layerId = localState.uiActiveLayer;
+    var layer = ixer.index("uiComponentLayer")[layerId];
+    localState.uiActiveLayer = layer[6];
+    localState.uiSelection = false;
+    dispatch("deleteLayer", {layer: layer});
+  }
+
+  function layerListItem(layer, depth) {
+    var layerId = layer[1];
+    var isOpen = localState.openLayers[layerId];
+    var subItems = [];
+    var indent = 15;
+    if(isOpen) {
+      var subLayers = ixer.index("parentLayerToLayers")[layerId];
+      if(subLayers) {
+        subLayers.sort(function(a, b) {
+          return a[3] - b[3];
+        });
+        subItems = subLayers.map(function(cur) {
+          return layerListItem(cur, depth+1);
+        });
+      }
+      var elements = ixer.index("uiLayerToElements")[layerId] || [];
+      elements.forEach(function(cur) {
+        var elemId = cur[1];
+        var selectedClass = "";
+        if(localState.uiSelection && localState.uiSelection.indexOf(elemId) > -1) {
+          selectedClass = " selected";
+        }
+        subItems.push({c: "layer-element depth-" + (depth + 1) + selectedClass, control: cur, click: addToSelection, children: [
+          {c: "layer-row", itemId: elemId, draggable:true, dragstart: layerDrag, type: "element", children:[
+            {c: "icon ion-ios-crop" + (selectedClass ? "-strong" : "")},
+            {text: cur[4]}
+          ]}
+        ]});
+      });
+    }
+    var icon = isOpen ? "ion-ios-arrow-down" : "ion-ios-arrow-right";
+    var activeClass = localState.uiActiveLayer === layerId ? " active" : "";
+    var lockedClass = layer[4] ? "ion-locked" : "ion-unlocked";
+    var hiddenClass = layer[5] ? "ion-eye-disabled" : "ion-eye";
+    return {c: "layer-item depth-" + depth + activeClass, layerId: layerId, dragover: preventDefault, drop: layerDrop, click: activateLayer, dblclick: selectAllFromLayer, children: [
+      {c: "layer-row", draggable: true, itemId: layerId, dragstart: layerDrag, type: "layer", children:[
+        {c: "icon " + icon, click: toggleOpenLayer, layerId: layerId},
+        input(code.name(layerId), layerId, rename, rename),
+        {c: "controls", children: [
+          {c: hiddenClass, click: toggleHidden, dblclick:stopPropagation, layer: layer},
+          {c: lockedClass, click: toggleLocked, dblclick:stopPropagation, layer: layer},
+        ]}
+      ]},
+      {c: "layer-items", children: subItems}
+    ]};
+  }
+
+  function toggleOpenLayer(e, elem) {
+    localState.openLayers[elem.layerId] = !localState.openLayers[elem.layerId];
+    render();
+  }
+
+  function layerDrag(e, elem) {
+    e.dataTransfer.setData("type", elem.type);
+    e.dataTransfer.setData("itemId", elem.itemId);
+    e.stopPropagation();
+  }
+
+  function layerDrop(e, elem) {
+    e.stopPropagation();
+    var type = e.dataTransfer.getData("type");
+    if(type === "table" || type === "query") {
+      //if it's a data item, then we need to setup a binding
+
+    } else if(type === "layer") {
+      //if it's a layer, we need to reparent it
+      var layerId = e.dataTransfer.getData("itemId");
+      if(layerId === elem.layerId) return;
+      dispatch("changeParentLayer", {parentLayerId: elem.layerId, layerId: layerId});
+    } else if(type === "element") {
+      //if it's an element, set the layer
+      var elementId = e.dataTransfer.getData("itemId");
+      dispatch("changeElementLayer", {parentLayerId: elem.layerId, elementId: elementId});
+    }
+  }
+
+  function activateLayer(e, elem) {
+    e.stopPropagation();
+    if(localState.uiActiveLayer !== elem.layerId) {
+      localState.uiActiveLayer = elem.layerId;
+      clearSelection();
+    }
+  }
+
+  function selectAllFromLayer(e, elem) {
+    e.stopPropagation();
+    var layer = ixer.index("uiComponentLayer")[elem.layerId];
+    if(layer[4] || layer[5]) return;
+    var elements = ixer.index("uiLayerToElements")[elem.layerId] || [];
+    var sel = e.shiftKey ? localState.uiSelection : [];
+    elements.forEach(function(cur) {
+      sel.push(cur[1]);
+    });
+    if(sel.length) {
+      localState.uiSelection = sel;
+    } else {
+      localState.uiSelection = false;
+    }
+    render();
+  }
+
+  function toggleHidden(e, elem) {
+    e.stopPropagation();
+    //@TODO: this needs to recursively hide or unhide sub groups
+    var neue = elem.layer.slice();
+    neue[5] = !neue[5];
+    dispatch("updateUiLayer", {neue: neue, old: elem.layer});
+  }
+
+  function toggleLocked(e, elem) {
+    e.stopPropagation();
+    //@TODO: this needs to recursively lock or unlock sub groups
+    var neue = elem.layer.slice();
+    neue[4] = !neue[4];
+    dispatch("updateUiLayer", {neue: neue, old: elem.layer});
+  }
+
 
   function boxSelectRect() {
     var start = localState.boxSelectStart;
@@ -966,13 +1282,18 @@ var queryEditor = (function(window, microReact, Indexing) {
     var rect = boxSelectRect();
     var componentId = elem.componentId;
     var elems = ixer.index("uiComponentToElements")[componentId];
-    elems.forEach(function(cur) {
-      // @TODO: this allows you to select from layers that are either hidden or locked
-      var elemId = cur[1];
-      if(elementIntersects(cur, rect)) {
-        sel.push(elemId);
-      }
-    });
+    var layerLookup = ixer.index("uiComponentLayer");
+    if(elems) {
+      elems.forEach(function(cur) {
+        // @TODO: this allows you to select from layers that are either hidden or locked
+        var elemId = cur[1];
+        var layer = layerLookup[cur[3]];
+        if(layer[4] || layer[5]) return;
+        if(elementIntersects(cur, rect)) {
+          sel.push(elemId);
+        }
+      });
+    }
     localState.boxSelectStart = null;
     localState.boxSelectStop = null;
     if(sel.length) {
@@ -994,9 +1315,8 @@ var queryEditor = (function(window, microReact, Indexing) {
     return devicePixelRatio / backingStoreRatio;
   }
 
-  function uiGrid(componentId, layerIndex) {
-    var id = componentId + "-grid";
-    return {c: "grid", id: id, t: "canvas", top: 0, left: 0, zIndex: layerIndex,
+  function uiGrid() {
+    return {c: "grid", id: "ui-editor-grid", t: "canvas", top: 0, left: 0,
             postRender: function(canvas) {
               var uiGridCount = 3000;
               if(canvas._rendered) return;
@@ -1103,6 +1423,7 @@ var queryEditor = (function(window, microReact, Indexing) {
 
     if(widthRatio !== 1 || heightRatio !== 1) {
       dispatch("resizeSelection", {widthRatio: widthRatio, heightRatio: heightRatio, oldBounds: old, neueBounds: neueBounds, componentId: elem.componentId});
+      elem.bounds = neueBounds;
     }
   }
 
@@ -1186,7 +1507,10 @@ var queryEditor = (function(window, microReact, Indexing) {
     if(!e.shiftKey || !localState.uiSelection) {
       localState.uiSelection = [];
     }
+    var layer = ixer.index("uiComponentLayer")[elem.control[3]];
+    if(layer[4] || layer[5]) return;
     localState.uiSelection.push(elem.control[1]);
+    localState.uiActiveLayer = elem.control[3];
     render();
   }
 
@@ -1227,11 +1551,9 @@ var queryEditor = (function(window, microReact, Indexing) {
     var canvasRect = e.currentTarget.parentNode.getBoundingClientRect();
     x -= Math.floor(canvasRect.left);
     y -= Math.floor(canvasRect.top);
-    var diffX = toGrid(localState.uiGridSize, Math.floor(x - elem.control[5] - localState.dragOffsetX));
-    var diffY = toGrid(localState.uiGridSize, Math.floor(y - elem.control[6] - localState.dragOffsetY));
-    if(diffX || diffY) {
-      dispatch("moveSelection", {diffX: diffX, diffY: diffY, componentId: elem.control[2]});
-    }
+    var neueX = toGrid(localState.uiGridSize, Math.floor(x - localState.dragOffsetX));
+    var neueY = toGrid(localState.uiGridSize, Math.floor(y - localState.dragOffsetY));
+    dispatch("moveSelection", {x: neueX, y: neueY, elemId: elem.control[1], componentId: elem.control[2]});
   }
 
 
@@ -1736,6 +2058,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     var widthRatio = value / (old.right - old.left);
     if(widthRatio === 1) return;
     dispatch("resizeSelection", {widthRatio: widthRatio, heightRatio: 1, oldBounds: old, neueBounds: neue, componentId: componentId});
+    elem.bounds = neue;
   }
 
   function adjustHeight(elem, value) {
@@ -1745,6 +2068,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     var heightRatio = value / (old.bottom - old.top);
     if(heightRatio === 1) return;
     dispatch("resizeSelection", {widthRatio: 1, heightRatio: heightRatio, oldBounds: old, neueBounds: neue, componentId: componentId});
+    elem.bounds = neue;
   }
 
   function adjustPosition(elem, value) {
@@ -1756,7 +2080,8 @@ var queryEditor = (function(window, microReact, Indexing) {
     } else {
       diffX = value - elem.value;
     }
-    dispatch("moveSelection", {diffX: diffX, diffY: diffY, componentId: componentId});
+    dispatch("offsetSelection", {diffX: diffX, diffY: diffY, componentId: componentId});
+    elem.value = value;
   }
 
   function adjustOpacity(elem, value) {
@@ -1791,38 +2116,6 @@ var queryEditor = (function(window, microReact, Indexing) {
     dispatch("setMapAttributeForSelection", {componentId: componentId, property: property, value: value});
   }
 
-
-  // Ui layer handlers
-  function addLayer(e, elem) {
-    dispatch("addUiComponentLayer", {componentId: elem.componentId});
-  }
-
-  function activateLayer(e, elem) {
-    dispatch("activateUiLayer", {layerId: elem.layer[1], componentId: elem.layer[2]});
-  }
-  function selectAllFromLayer(e, elem) {
-    var elements = ixer.index("uiLayerToElements")[elem.layer[1]] || [];
-    var elIds = [];
-    elements.forEach(function(cur) {
-      if(!ixer.index("remove")[cur[0]]) {
-        elIds.push(cur[1]);
-      }
-    });
-    dispatch("selectElements", {elements: elIds || [], createNew: !e.shiftKey, componentId: elem.layer[2]});
-
-  }
-
-  function toggleHidden(e, elem) {
-    var neue = elem.layer.slice();
-    neue[5] = !neue[5];
-    dispatch("updateUiLayer", {neue: neue});
-  }
-
-  function toggleLocked(e, elem) {
-    var neue = elem.layer.slice();
-    neue[4] = !neue[4];
-    dispatch("updateUiLayer", {neue: neue});
-  }
 
   function getUiPropertyType(prop) {
     if(uiProperties.typography.indexOf(prop) !== -1) {
@@ -1881,11 +2174,21 @@ var queryEditor = (function(window, microReact, Indexing) {
     }
   }
 
-  var queryAggregates = ["sort+limit", "sum", "count", "min", "max", "empty"];
+  var queryTools = {
+    union: ["merge"],
+    aggregate: ["sort+limit", "sum", "count", "min", "max", "empty"]
+  };
   function queryControls(queryId) {
-    var items = queryAggregates.map(function(tool) {
-      return treeItem(tool, tool, "aggregate-tool", {c: "control tool query-tool"});
-    });
+    var items = [];
+    var toolTypes = Object.keys(queryTools);
+    for(var typeIx = 0; typeIx < toolTypes.length; typeIx++) {
+      var type = toolTypes[typeIx];
+      var tools = queryTools[type];
+      for(var toolIx = 0; toolIx < tools.length; toolIx++) {
+        var tool = tools[toolIx];
+        items.push(treeItem(tool, tool, type, {c: "control tool query-tool"}));
+      }
+    }
     return controlGroup(items);
   }
 
@@ -1899,11 +2202,11 @@ var queryEditor = (function(window, microReact, Indexing) {
       var viewId = blocks[ix][code.ix("block", "view")];
       var viewKind = ixer.index("view to kind")[viewId];
       if(viewKind === "join") { items.push(viewBlock(viewId)); }
+      if(viewKind === "union") { items.push(unionBlock(viewId));  }
       if(viewKind === "aggregate") { items.push(aggregateBlock(viewId)); }
     }
-
     if(items.length) {
-      items.push({c: "add-aggregate-btn", text: "Add an aggregate by dragging it here...", queryId: queryId, click: addAggregateBlock});
+      items.push({c: "add-aggregate-btn", text: "Add an aggregate by dragging it here...", queryId: queryId});
     }
 
     return {c: "workspace", queryId: queryId, drop: editorDrop, dragover: preventDefault, children: items.length ? items : [
@@ -1915,10 +2218,13 @@ var queryEditor = (function(window, microReact, Indexing) {
     var type = evt.dataTransfer.getData("type");
     var value = evt.dataTransfer.getData("value");
     if(type === "view") {
-      dispatch("addViewBlock", {queryId: elem.queryId, sourceId: value});
+      return dispatch("addViewBlock", {queryId: elem.queryId, sourceId: value});
     }
-    if(type === "tool" && value === "aggregate") {
-      dispatch("addAggregateBlock", {queryId: elem.queryId});
+    if(type === "aggregate") {
+      return dispatch("addAggregateBlock", {queryId: elem.queryId, kind: value});
+    }
+    if(type === "union") {
+      return dispatch("addUnionBlock", {queryId: elem.queryId});
     }
   }
 
@@ -1939,9 +2245,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     if(!selectionItems.length) {
       selectionItems.push({text: "Drag local fields into me to make them available in the query."});
     }
-
     var groupedBy = ixer.index("grouped by")[viewId];
-    console.log(groupedBy);
 
     return {c: "block view-block", viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, children: [
       {c: "block-title", children: [
@@ -1984,7 +2288,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     if(blockField[code.ix("block field", "view")] !== elem.viewId) { return; }
     var fieldId = blockField[code.ix("block field", "field")];
     var sourceId = blockField[code.ix("block field", "source")];
-    dispatch("addViewSelection", {viewId: elem.viewId, fieldId: fieldId, sourceId: sourceId});
+    dispatch("addViewSelection", {viewId: elem.viewId, sourceFieldId: fieldId, sourceId: sourceId});
     evt.stopPropagation();
   }
 
@@ -2102,9 +2406,7 @@ function viewConstraintsDrop(evt, elem) {
       // If the field is accessible in the query, use it for grouping.
       var select = ixer.index("view and source field to select")[draggedViewId] || {};
       select = select[fieldId];
-      console.log("select", select, draggedViewId, fieldId);
       if(!select) { return; }
-      console.log("query", ixer.index("view to query")[viewId], ixer.index("view to query")[draggedViewId]);
       if(ixer.index("view to query")[viewId] !== ixer.index("view to query")[draggedViewId]) { return; }
       console.warn("@TODO: group by", draggedViewId, fieldId);
       dispatch("groupView", {constraintId: elem.constraintId, inner: viewId, outer: draggedViewId, outerField: fieldId});
@@ -2224,6 +2526,81 @@ function viewConstraintsDrop(evt, elem) {
     }, []);
   }
 
+  /**
+   * Union Block
+   */
+  function unionBlock(viewId) {
+    var fields = ixer.index("view and source to block fields")[viewId] || {};
+    fields = fields.selection || [];
+    var selectSources = ixer.index("view and source and field to select")[viewId] || {};
+    var sources = ixer.index("source")[viewId] || {};
+    var sourceIds = Object.keys(sources);
+
+    var sourceItems = [];
+    var fieldMappingItems = [];
+    for(var sourceIx = 0; sourceIx < sourceIds.length; sourceIx++) {
+      var sourceId = sourceIds[sourceIx];
+      var source = sources[sourceId];
+      var sourceFields = ixer.index("view and source to block fields")[viewId] || {};
+      sourceFields = sourceFields[sourceId] || [];
+      var fieldItems = [];
+      for(var fieldIx = 0; fieldIx < sourceFields.length; fieldIx++) {
+        var field = sourceFields[fieldIx];
+        var fieldId = field[code.ix("block field", "block field")];
+        fieldItems.push(fieldItem(code.name(fieldId) || "Untitled", fieldId, {c: "pill field"}));
+      }
+      sourceItems.push({c: "union-source", children: [
+        {text: code.name(sourceId)},
+        {c: "tree bar union-source-fields", children: fieldItems}
+      ]});
+
+      if(!fields.length) { continue; }
+      var selectFields = selectSources[sourceId] || [];
+
+      var mappingPairs = [];
+      for(var fieldIx = 0; fieldIx < fields.length; fieldIx++) {
+        var field = fields[fieldIx];
+        var fieldId = field[code.ix("block field", "field")];
+        var selectField = selectFields[fieldId] || [];
+        var mappedFieldId = selectField[code.ix("select", "source field")];
+        mappingPairs.push({c: "mapping-pair", viewId: viewId, sourceId: sourceId, fieldId: fieldId, dragover: preventDefault, drop: unionSourceMappingDrop, children: [
+          {c: "mapping-header", text: code.name(fieldId) || "Untitled"}, // @FIXME: code.name(fieldId) not set?
+          (mappedFieldId ? {c: "mapping-row", text: code.name(mappedFieldId) || "Untitled"}
+           : {c: "mapping-row", text: "---"})
+        ]});
+      }
+      fieldMappingItems.push({c: "field-mapping", children: mappingPairs});
+    }
+
+    if(!fields.length) {
+      fieldMappingItems.push({c: "field-mapping", children: [{text: "drag fields to begin mapping; or"},
+                                                             {text: "drag an existing union to begin merging"}]});
+    }
+
+    return {c: "block union-block", viewId: viewId, dragover: preventDefault, drop: viewBlockDrop, children: [
+      {c: "block-title", children: [
+        {t: "h3", text: "Untitled Union Block"},
+        {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock}
+      ]},
+      {c: "content", children: [
+        {c: "block-pane", children: sourceItems},
+        {c: "block-pane mapping", viewId: viewId, dragover: preventDefault, drop: viewSelectionsDrop, children: fieldMappingItems},
+      ]}
+    ]};
+  }
+
+  function unionSourceMappingDrop(evt, elem) {
+    var type = evt.dataTransfer.getData("type");
+    if(type !== "field") { return; }
+    var fieldId = evt.dataTransfer.getData("fieldId");
+    var blockField = ixer.index("block field")[fieldId];
+    var viewId = blockField[code.ix("block field", "view")];
+    var sourceId = blockField[code.ix("block field", "source")];
+    if(viewId !== elem.viewId) { return; }
+
+    dispatch("addViewSelection", {viewId: viewId, sourceFieldId: fieldId, sourceId: sourceId, fieldId: elem.fieldId});
+    evt.stopPropagation();
+  }
 
   /**
    * Aggregate Block
@@ -2319,9 +2696,7 @@ function viewConstraintsDrop(evt, elem) {
   //---------------------------------------------------------
   // Go
   //---------------------------------------------------------
-  injectViews(tables, ixer);
-  ixer.handleDiffs(diff.addViewBlock(code.activeItemId()));
-  render();
+  // initIndexer();
 
-  return { container: renderer.content, ixer: ixer, localState: localState, renderer: renderer };
+  return { container: renderer.content, ixer: ixer, localState: localState, renderer: renderer, render: render, initIndexer: initIndexer };
 })(window, microReact, Indexing);
