@@ -143,8 +143,16 @@ fn create_single_select(compiler: &Compiler, view_id: &Value, source_id: &Value)
 }
 
 fn create_table(compiler: &Compiler, view_id: &Value) -> Table {
-    let insert = create_single_select(compiler, view_id, &Value::String("insert".to_owned()));
-    let remove = create_single_select(compiler, view_id, &Value::String("remove".to_owned()));
+    let mut insert = None;
+    let mut remove = None;
+    for source in compiler.flow.get_output("source").find_all("view", view_id) {
+        let select = create_single_select(compiler, view_id, &source["source"]);
+        match source["source"].as_str() {
+            "insert" => insert = Some(select),
+            "remove" => remove = Some(select),
+            other => panic!("Unknown table source: {:?}", other),
+        }
+    }
     Table{insert: insert, remove: remove}
 }
 

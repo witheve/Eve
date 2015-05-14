@@ -105,16 +105,19 @@ impl Flow {
         for (ix, node) in self.nodes.iter().enumerate() {
             match node.view {
                 View::Table(Table{ref insert, ref remove}) => {
-                    if node.upstream.len() == 2 {
-                        let inserts = insert.select(&*self.outputs[node.upstream[0]].borrow());
-                        let removes = remove.select(&*self.outputs[node.upstream[1]].borrow());
-                        let mut output = self.outputs[ix].borrow_mut();
-                        let fields = output.fields.clone();
-                        output.change(&Change{fields: fields, insert: inserts, remove: removes});
-                        // TODO record changes, set dirty
-                    } else {
-                        println!("Warning, this table has no insert/remove: {:?}", &node.id);
-                    }
+                    let mut upstream = node.upstream.iter();
+                    let inserts = match *insert {
+                        Some(ref select) => select.select(&*self.outputs[*upstream.next().unwrap()].borrow()),
+                        None => vec![],
+                    };
+                    let removes = match *remove {
+                        Some(ref select) => select.select(&*self.outputs[*upstream.next().unwrap()].borrow()),
+                        None => vec![],
+                    };
+                    let mut output = self.outputs[ix].borrow_mut();
+                    let fields = output.fields.clone();
+                    output.change(&Change{fields: fields, insert: inserts, remove: removes});
+                    // TODO record changes, set dirty
                 }
                 _ => () // only tables tick
             }

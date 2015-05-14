@@ -2,8 +2,8 @@ use relation::{Relation, Select};
 
 #[derive(Clone, Debug)]
 pub struct Table {
-    pub insert: Select,
-    pub remove: Select,
+    pub insert: Option<Select>,
+    pub remove: Option<Select>,
 }
 
 #[derive(Clone, Debug)]
