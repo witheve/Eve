@@ -141,62 +141,63 @@ var queryEditor = (function(window, microReact, Indexing) {
   };
 
   function initIndexer() {
-    // This index needs to be hardcoded for code.ix to work.
-    ixer.addIndex("view to fields", "field", Indexing.create.collector([0]));
-
-    ixer.addIndex("display name", "display name", Indexing.create.lookup([0, 1]));
-    ixer.addIndex("display order", "display order", Indexing.create.lookup([0, 1]));
-    ixer.addIndex("field to view", "field", Indexing.create.lookup([1, 0]));
-    ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
-    ixer.addIndex("view to kind", "view", Indexing.create.lookup([0, 1]));
-    ixer.addIndex("source", "source", Indexing.create.lookup([0, 1, false]));
-    ixer.addIndex("view and source view to source", "source", Indexing.create.lookup([0, 2, false]));
-    ixer.addIndex("view to sources", "source", Indexing.create.collector([0]));
-    ixer.addIndex("source view to sources", "source", Indexing.create.collector([2]));
-    ixer.addIndex("view to constraints", "constraint", Indexing.create.collector([1]));
-    ixer.addIndex("constraint", "constraint", Indexing.create.lookup([0, false]));
-    ixer.addIndex("constraint to view", "constraint", Indexing.create.lookup([0, 1]));
-    ixer.addIndex("constraint left", "constraint left", Indexing.create.lookup([0, false]));
-    ixer.addIndex("constraint right", "constraint right", Indexing.create.lookup([0, false]));
-    ixer.addIndex("constraint operation", "constraint operation", Indexing.create.lookup([0, false]));
-    ixer.addIndex("view and source field to select", "select", Indexing.create.lookup([0, 3, false]));
-    ixer.addIndex("view and source and field to select", "select", Indexing.create.lookup([0, 2, 1, false]));
-
-
-    ixer.addIndex("block", "block", Indexing.create.lookup([1, false]));
-    ixer.addIndex("block to query", "block", Indexing.create.lookup([1, 0]));
-    ixer.addIndex("view to query", "block", Indexing.create.lookup([2, 0]));
-    ixer.addIndex("view to block", "block", Indexing.create.lookup([2, 1]));
-    ixer.addIndex("query to blocks", "block", Indexing.create.collector([0]));
-    ixer.addIndex("query to views", "block", Indexing.create.collector([0, 2]));
-    ixer.addIndex("block field", "block field", Indexing.create.lookup([0, false]));
-    ixer.addIndex("view and source to block fields", "block field", Indexing.create.collector([1, 2]));
-    ixer.addIndex("grouped by", "grouped by", Indexing.create.lookup([0, false]));
-
-    ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
-
-    // ui
-
-    ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.lookup([1, false]));
-    ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([2]));
-    ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.lookup([1, false]));
-    ixer.addIndex("parentLayerToLayers", "uiComponentLayer", Indexing.create.collector([6]));
-    ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.collector([2]));
-    ixer.addIndex("uiLayerToElements", "uiComponentElement", Indexing.create.collector([3]));
-    ixer.addIndex("uiStyles", "uiStyle", Indexing.create.latestCollector({keys: [1], uniqueness: [1]}));
-    ixer.addIndex("uiStyle", "uiStyle", Indexing.create.latestLookup({keys: [1, false]}));
-    ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.latestLookup({keys: [3, 2, false]}));
-    ixer.addIndex("uiElementToStyles", "uiStyle", Indexing.create.latestCollector({keys: [3], uniqueness: [2]}));
-    ixer.addIndex("uiStyleToAttr", "uiComponentAttribute", Indexing.create.lookup([1, 2, false]));
-    ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.collector([1]));
-    ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup([0, 1]));
-
-    ixer.addIndex("uiElementToMap", "uiMap", Indexing.create.latestLookup({keys: [2, false]}));
-    ixer.addIndex("uiMapAttr", "uiMapAttr", Indexing.create.lookup([0, 1, 2]));
-
     injectViews(tables, ixer);
     //ixer.handleDiffs(diff.addViewBlock(code.activeItemId()));
   }
+
+  // This index needs to be hardcoded for code.ix to work.
+  ixer.addIndex("view to fields", "field", Indexing.create.collector([0]));
+
+  ixer.addIndex("display name", "display name", Indexing.create.lookup([0, 1]));
+  ixer.addIndex("display order", "display order", Indexing.create.lookup([0, 1]));
+  ixer.addIndex("field to view", "field", Indexing.create.lookup([1, 0]));
+  ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
+  ixer.addIndex("view to kind", "view", Indexing.create.lookup([0, 1]));
+  ixer.addIndex("source", "source", Indexing.create.lookup([0, 1, false]));
+  ixer.addIndex("view and source view to source", "source", Indexing.create.lookup([0, 2, false]));
+  ixer.addIndex("view to sources", "source", Indexing.create.collector([0]));
+  ixer.addIndex("source view to sources", "source", Indexing.create.collector([2]));
+  ixer.addIndex("view to constraints", "constraint", Indexing.create.collector([1]));
+  ixer.addIndex("constraint", "constraint", Indexing.create.lookup([0, false]));
+  ixer.addIndex("constraint to view", "constraint", Indexing.create.lookup([0, 1]));
+  ixer.addIndex("constraint left", "constraint left", Indexing.create.lookup([0, false]));
+  ixer.addIndex("constraint right", "constraint right", Indexing.create.lookup([0, false]));
+  ixer.addIndex("constraint operation", "constraint operation", Indexing.create.lookup([0, false]));
+  ixer.addIndex("view and source field to select", "select", Indexing.create.lookup([0, 3, false]));
+  ixer.addIndex("view and source and field to select", "select", Indexing.create.lookup([0, 2, 1, false]));
+
+
+  ixer.addIndex("block", "block", Indexing.create.lookup([1, false]));
+  ixer.addIndex("block to query", "block", Indexing.create.lookup([1, 0]));
+  ixer.addIndex("view to query", "block", Indexing.create.lookup([2, 0]));
+  ixer.addIndex("view to block", "block", Indexing.create.lookup([2, 1]));
+  ixer.addIndex("query to blocks", "block", Indexing.create.collector([0]));
+  ixer.addIndex("query to views", "block", Indexing.create.collector([0, 2]));
+  ixer.addIndex("block field", "block field", Indexing.create.lookup([0, false]));
+  ixer.addIndex("view and source to block fields", "block field", Indexing.create.collector([1, 2]));
+  ixer.addIndex("grouped by", "grouped by", Indexing.create.lookup([0, false]));
+
+  ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
+
+  // ui
+
+  ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.lookup([1, false]));
+  ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([2]));
+  ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.lookup([1, false]));
+  ixer.addIndex("parentLayerToLayers", "uiComponentLayer", Indexing.create.collector([6]));
+  ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.collector([2]));
+  ixer.addIndex("uiLayerToElements", "uiComponentElement", Indexing.create.collector([3]));
+  ixer.addIndex("uiStyles", "uiStyle", Indexing.create.latestCollector({keys: [1], uniqueness: [1]}));
+  ixer.addIndex("uiStyle", "uiStyle", Indexing.create.latestLookup({keys: [1, false]}));
+  ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.latestLookup({keys: [3, 2, false]}));
+  ixer.addIndex("uiElementToStyles", "uiStyle", Indexing.create.latestCollector({keys: [3], uniqueness: [2]}));
+  ixer.addIndex("uiStyleToAttr", "uiComponentAttribute", Indexing.create.lookup([1, 2, false]));
+  ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.collector([1]));
+  ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup([0, 1]));
+
+  ixer.addIndex("uiElementToMap", "uiMap", Indexing.create.latestLookup({keys: [2, false]}));
+  ixer.addIndex("uiMapAttr", "uiMapAttr", Indexing.create.lookup([0, 1, 2]));
+
 
   //---------------------------------------------------------
   // Data interaction code
