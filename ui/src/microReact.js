@@ -33,66 +33,6 @@
       this.postRenders = [];
     },
 
-    setAttributes: function(cur, prev, div) {
-      var style = div.style;
-      if(cur.c !== prev.c) div.className = cur.c;
-      if(cur.draggable !== prev.draggable) div.draggable = cur.draggable === undefined ? "false" : "true";
-      if(cur.contentEditable !== prev.contentEditable) div.contentEditable = cur.contentEditable || "inherit";
-      if(cur.colspan !== prev.colspan) div.colSpan = cur.colspan;
-      if(cur.placeholder !== prev.placeholder) div.placeholder = cur.placeholder;
-      if(cur.selected !== prev.selected) div.selected = cur.selected;
-      if(cur.value !== prev.value) div.value = cur.value;
-      if(cur.t === "input" && cur.type !== prev.type) div.type = cur.type;
-      if(cur.t === "input" && cur.checked !== prev.checked) div.checked = cur.checked;
-      if(cur.text !== prev.text) div.textContent = cur.text === undefined ? "" : cur.text;
-      if(cur.tabindex !== prev.tabindex) div.setAttribute("tabindex", cur.tabindex);
-
-      if(cur.left !== prev.left)  style.left = cur.left === undefined ? "auto" : cur.left;
-      if(cur.top !== prev.top) style.top = cur.top === undefined ? "auto" : cur.top;
-      if(cur.height !== prev.height) style.height = cur.height === undefined ? "auto" : cur.height;
-      if(cur.width !== prev.width)  style.width = cur.width === undefined ? "auto" : cur.width;
-      if(cur.zIndex !== prev.zIndex) style.zIndex = cur.zIndex;
-
-      if(cur.backgroundColor !== prev.backgroundColor) style.backgroundColor = cur.backgroundColor || "transparent";
-      if(cur.backgroundImage !== prev.backgroundImage) {
-        style.backgroundImage = "url('" + cur.backgroundImage + "')";
-      }
-      if(cur.border !== prev.border) style.border = cur.border || "none";
-      if(cur.borderColor !== prev.borderColor) style.borderColor = cur.borderColor || "none";
-      if(cur.borderWidth !== prev.borderWidth) style.borderWidth = cur.borderWidth || 0;
-      if(cur.borderWidth !== prev.borderWidth) style.borderStyle = "solid";
-      if(cur.borderRadius !== prev.borderRadius) style.borderRadius = (cur.borderRadius || 0) + "px";
-      if(cur.opacity !== prev.opacity) style.opacity = cur.opacity === undefined ? 1 : cur.opacity;
-      if(cur.fontSize !== prev.fontSize) style.fontSize = cur.fontSize;
-      if(cur.textAlign !== prev.textAlign) style.alignItems = cur.textAlign;
-      if(cur.verticalAlign !== prev.verticalAlign) style.justifyContent = cur.verticalAlign;
-      if(cur.color !== prev.color) style.color = cur.color || "inherit";
-      if(cur.fontFamily !== prev.fontFamily) style.fontFamily = cur.fontFamily || "inherit";
-
-      //events
-      if(cur.dblclick !== prev.dblclick) div.ondblclick = cur.dblclick !== undefined ? this.handleEvent : undefined;
-      if(cur.click !== prev.click) div.onclick = cur.click !== undefined ? this.handleEvent : undefined;
-      if(cur.contextmenu !== prev.contextmenu) div.oncontextmenu = cur.contextmenu !== undefined ? this.handleEvent : undefined;
-      if(cur.mousedown !== prev.mousedown) div.onmousedown = cur.mousedown !== undefined ? this.handleEvent : undefined;
-      if(cur.mousemove !== prev.mousemove) div.onmousemove = cur.mousemove !== undefined ? this.handleEvent : undefined;
-      if(cur.mouseup !== prev.mouseup) div.onmouseup = cur.mouseup !== undefined ? this.handleEvent : undefined;
-      if(cur.mousein !== prev.mousein) div.onmousein = cur.mousein !== undefined ? this.handleEvent : undefined;
-      if(cur.mouseout !== prev.mouseout) div.onmouseout = cur.mouseout !== undefined ? this.handleEvent : undefined;
-      if(cur.mouseleave !== prev.mouseleave) div.onmouseleave = cur.mouseleave !== undefined ? this.handleEvent : undefined;
-      if(cur.mousewheel !== prev.mousewheel) div.onmouseheel = cur.mousewheel !== undefined ? this.handleEvent : undefined;
-      if(cur.dragover !== prev.dragover) div.ondragover = cur.dragover !== undefined ? this.handleEvent : undefined;
-      if(cur.dragstart !== prev.dragstart) div.ondragstart = cur.dragstart !== undefined ? this.handleEvent : undefined;
-      if(cur.dragend !== prev.dragend) div.ondragend = cur.dragend !== undefined ? this.handleEvent : undefined;
-      if(cur.drag !== prev.drag) div.ondrag = cur.drag !== undefined ? this.handleEvent : undefined;
-      if(cur.drop !== prev.drop) div.ondrop = cur.drop !== undefined ? this.handleEvent : undefined;
-      if(cur.scroll !== prev.scroll) div.onscroll = cur.scroll !== undefined ? this.handleEvent : undefined;
-      if(cur.focus !== prev.focus) div.onfocus = cur.focus !== undefined ? this.handleEvent : undefined;
-      if(cur.blur !== prev.blur) div.onblur = cur.blur !== undefined ? this.handleEvent : undefined;
-      if(cur.input !== prev.input) div.oninput = cur.input !== undefined ? this.handleEvent : undefined;
-      if(cur.change !== prev.change) div.onchange = cur.change !== undefined ? this.handleEvent : undefined;
-      if(cur.keydown !== prev.keydown) div.onkeydown = cur.keydown !== undefined ? this.handleEvent : undefined;
-    },
-
     domify: function domify() {
       var fakePrev = {}; //create an empty object once instead of every instance of the loop
       var elements = this.tree;
@@ -138,7 +78,63 @@
           div = elementCache[id];
         }
 
-        this.setAttributes(cur, prev, div);
+        var style = div.style;
+        if(cur.c !== prev.c) div.className = cur.c;
+        if(cur.draggable !== prev.draggable) div.draggable = cur.draggable === undefined ? "false" : "true";
+        if(cur.contentEditable !== prev.contentEditable) div.contentEditable = cur.contentEditable || "inherit";
+        if(cur.colspan !== prev.colspan) div.colSpan = cur.colspan;
+        if(cur.placeholder !== prev.placeholder) div.placeholder = cur.placeholder;
+        if(cur.selected !== prev.selected) div.selected = cur.selected;
+        if(cur.value !== prev.value) div.value = cur.value;
+        if(cur.t === "input" && cur.type !== prev.type) div.type = cur.type;
+        if(cur.t === "input" && cur.checked !== prev.checked) div.checked = cur.checked;
+        if(cur.text !== prev.text) div.textContent = cur.text === undefined ? "" : cur.text;
+        if(cur.tabindex !== prev.tabindex) div.setAttribute("tabindex", cur.tabindex);
+
+        if(cur.left !== prev.left)  style.left = cur.left === undefined ? "auto" : cur.left;
+        if(cur.top !== prev.top) style.top = cur.top === undefined ? "auto" : cur.top;
+        if(cur.height !== prev.height) style.height = cur.height === undefined ? "auto" : cur.height;
+        if(cur.width !== prev.width)  style.width = cur.width === undefined ? "auto" : cur.width;
+        if(cur.zIndex !== prev.zIndex) style.zIndex = cur.zIndex;
+
+        if(cur.backgroundColor !== prev.backgroundColor) style.backgroundColor = cur.backgroundColor || "transparent";
+        if(cur.backgroundImage !== prev.backgroundImage) {
+          style.backgroundImage = "url('" + cur.backgroundImage + "')";
+        }
+        if(cur.border !== prev.border) style.border = cur.border || "none";
+        if(cur.borderColor !== prev.borderColor) style.borderColor = cur.borderColor || "none";
+        if(cur.borderWidth !== prev.borderWidth) style.borderWidth = cur.borderWidth || 0;
+        if(cur.borderWidth !== prev.borderWidth) style.borderStyle = "solid";
+        if(cur.borderRadius !== prev.borderRadius) style.borderRadius = (cur.borderRadius || 0) + "px";
+        if(cur.opacity !== prev.opacity) style.opacity = cur.opacity === undefined ? 1 : cur.opacity;
+        if(cur.fontSize !== prev.fontSize) style.fontSize = cur.fontSize;
+        if(cur.textAlign !== prev.textAlign) style.alignItems = cur.textAlign;
+        if(cur.verticalAlign !== prev.verticalAlign) style.justifyContent = cur.verticalAlign;
+        if(cur.color !== prev.color) style.color = cur.color || "inherit";
+        if(cur.fontFamily !== prev.fontFamily) style.fontFamily = cur.fontFamily || "inherit";
+
+        //events
+        if(cur.dblclick !== prev.dblclick) div.ondblclick = cur.dblclick !== undefined ? this.handleEvent : undefined;
+        if(cur.click !== prev.click) div.onclick = cur.click !== undefined ? this.handleEvent : undefined;
+        if(cur.contextmenu !== prev.contextmenu) div.oncontextmenu = cur.contextmenu !== undefined ? this.handleEvent : undefined;
+        if(cur.mousedown !== prev.mousedown) div.onmousedown = cur.mousedown !== undefined ? this.handleEvent : undefined;
+        if(cur.mousemove !== prev.mousemove) div.onmousemove = cur.mousemove !== undefined ? this.handleEvent : undefined;
+        if(cur.mouseup !== prev.mouseup) div.onmouseup = cur.mouseup !== undefined ? this.handleEvent : undefined;
+        if(cur.mousein !== prev.mousein) div.onmousein = cur.mousein !== undefined ? this.handleEvent : undefined;
+        if(cur.mouseout !== prev.mouseout) div.onmouseout = cur.mouseout !== undefined ? this.handleEvent : undefined;
+        if(cur.mouseleave !== prev.mouseleave) div.onmouseleave = cur.mouseleave !== undefined ? this.handleEvent : undefined;
+        if(cur.mousewheel !== prev.mousewheel) div.onmouseheel = cur.mousewheel !== undefined ? this.handleEvent : undefined;
+        if(cur.dragover !== prev.dragover) div.ondragover = cur.dragover !== undefined ? this.handleEvent : undefined;
+        if(cur.dragstart !== prev.dragstart) div.ondragstart = cur.dragstart !== undefined ? this.handleEvent : undefined;
+        if(cur.dragend !== prev.dragend) div.ondragend = cur.dragend !== undefined ? this.handleEvent : undefined;
+        if(cur.drag !== prev.drag) div.ondrag = cur.drag !== undefined ? this.handleEvent : undefined;
+        if(cur.drop !== prev.drop) div.ondrop = cur.drop !== undefined ? this.handleEvent : undefined;
+        if(cur.scroll !== prev.scroll) div.onscroll = cur.scroll !== undefined ? this.handleEvent : undefined;
+        if(cur.focus !== prev.focus) div.onfocus = cur.focus !== undefined ? this.handleEvent : undefined;
+        if(cur.blur !== prev.blur) div.onblur = cur.blur !== undefined ? this.handleEvent : undefined;
+        if(cur.input !== prev.input) div.oninput = cur.input !== undefined ? this.handleEvent : undefined;
+        if(cur.change !== prev.change) div.onchange = cur.change !== undefined ? this.handleEvent : undefined;
+        if(cur.keydown !== prev.keydown) div.onkeydown = cur.keydown !== undefined ? this.handleEvent : undefined;
 
         if(type === "added" || type === "replaced" || type === "moved") {
           var parentEl = elementCache[cur.parent];
@@ -216,22 +212,28 @@
       return this.lastDiff;
     },
 
-    prepare: function prepare(elem) {
+    prepare: function prepare(root) {
+      var elemLen = 1;
       var tree = this.tree;
-      if(elem.parent === undefined) elem.parent = "__root";
-      tree[elem.id] = elem;
-      if(elem.postRender !== undefined) {
-        this.postRenders.push(elem);
-      }
-      var children = elem.children;
-      if(children !== undefined) {
-        for(var childIx = 0, len = children.length; childIx < len; childIx++) {
-          var child = children[childIx];
-          if(child === undefined) continue;
-          if(child.id === undefined) { child.id = elem.id + "__" + childIx; }
-          if(child.ix === undefined) { child.ix = childIx; }
-          if(child.parent === undefined) { child.parent = elem.id; }
-          this.prepare(child);
+      var elements = [root];
+      for(var elemIx = 0; elemIx < elemLen; elemIx++) {
+        elem = elements[elemIx];
+        if(elem.parent === undefined) elem.parent = "__root";
+        tree[elem.id] = elem;
+        if(elem.postRender !== undefined) {
+          this.postRenders.push(elem);
+        }
+        var children = elem.children;
+        if(children !== undefined) {
+          for(var childIx = 0, len = children.length; childIx < len; childIx++) {
+            var child = children[childIx];
+            if(child === undefined) continue;
+            if(child.id === undefined) { child.id = elem.id + "__" + childIx; }
+            if(child.ix === undefined) { child.ix = childIx; }
+            if(child.parent === undefined) { child.parent = elem.id; }
+            elements.push(child);
+            elemLen++;
+          }
         }
       }
       return tree;
@@ -263,10 +265,10 @@
       var postDomify = now();
       var time = now() - start;
       if(time > 5) {
-        console.log("slow render (> 5ms): ", time, {prepare: prepare - start,
-                                                    diff: diff - prepare,
-                                                    domify: domify - diff,
-                                                    postDomify: postDomify - domify});
+//                 console.log("slow render (> 5ms): ", time, {prepare: prepare - start,
+//                                                             diff: diff - prepare,
+//                                                             domify: domify - diff,
+//                                                             postDomify: postDomify - domify});
       }
     }
 
