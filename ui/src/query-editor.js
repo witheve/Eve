@@ -15,8 +15,15 @@ var queryEditor = (function(window, microReact, Indexing) {
 
   var renderer = new microReact.Renderer();
   document.body.appendChild(renderer.content);
+  renderer.queued = false;
   function render() {
-    renderer.render(root());
+    if(renderer.queued === false) {
+      renderer.queued = true;
+      requestAnimationFrame(function() {
+        renderer.queued = false;
+        renderer.render(root());
+      });
+    }
   }
 
   function preventDefault(evt) {
@@ -644,20 +651,43 @@ var queryEditor = (function(window, microReact, Indexing) {
       case "moveSelection":
         var sel = localState.uiSelection;
         var elementIndex = ixer.index("uiComponentElement");
-        var diffX = info.diffX || 0;
-        var diffY = info.diffY || 0;
-        sel.forEach(function(cur) {
-          var elem = elementIndex[cur];
-          var neue = elem.slice();
-          neue[0] = txId;
-          neue[3] = info.layer || neue[3];
-          neue[5] += diffX; //left
-          neue[7] += diffX; //right
-          neue[6] += diffY; //top
-          neue[8] += diffY; //bottom
-          diffs.push(["uiComponentElement", "inserted", neue],
-                     ["uiComponentElement", "removed", elem]);
-        });
+        var elem = elementIndex[info.elemId];
+        var diffX = info.x !== undefined ? info.x - elem[5] : 0;
+        var diffY = info.y !== undefined ? info.y - elem[6] : 0;
+        if(diffX || diffY) {
+          sel.forEach(function(cur) {
+            var elem = elementIndex[cur];
+            var neue = elem.slice();
+            neue[0] = txId;
+            neue[3] = info.layer || neue[3];
+            neue[5] += diffX; //left
+            neue[7] += diffX; //right
+            neue[6] += diffY; //top
+            neue[8] += diffY; //bottom
+            diffs.push(["uiComponentElement", "inserted", neue],
+                       ["uiComponentElement", "removed", elem]);
+          });
+        }
+        break;
+      case "offsetSelection":
+        var sel = localState.uiSelection;
+        var elementIndex = ixer.index("uiComponentElement");
+        var diffX = info.diffX;
+        var diffY = info.diffY;
+        if(diffX || diffY) {
+          sel.forEach(function(cur) {
+            var elem = elementIndex[cur];
+            var neue = elem.slice();
+            neue[0] = txId;
+            neue[3] = info.layer || neue[3];
+            neue[5] += diffX; //left
+            neue[7] += diffX; //right
+            neue[6] += diffY; //top
+            neue[8] += diffY; //bottom
+            diffs.push(["uiComponentElement", "inserted", neue],
+                       ["uiComponentElement", "removed", elem]);
+          });
+        }
         break;
       case "deleteSelection":
         var sel = localState.uiSelection;
@@ -725,7 +755,7 @@ var queryEditor = (function(window, microReact, Indexing) {
       ixer.handleDiffs(diffs);
       render();
     } else {
-      console.warn("No diffs to index, skipping.");
+//       console.warn("No diffs to index, skipping.");
     }
   }
 
@@ -977,7 +1007,6 @@ var queryEditor = (function(window, microReact, Indexing) {
 
     if(selectionInfo) {
       canvasLayers.push(selection(selectionInfo));
-//       canvasLayers.push(uiGrid(componentId, activeLayer[3]));
     }
     if(localState.boxSelectStart) {
       var rect = boxSelectRect();
@@ -1362,6 +1391,7 @@ var queryEditor = (function(window, microReact, Indexing) {
 
     if(widthRatio !== 1 || heightRatio !== 1) {
       dispatch("resizeSelection", {widthRatio: widthRatio, heightRatio: heightRatio, oldBounds: old, neueBounds: neueBounds, componentId: elem.componentId});
+      elem.bounds = neueBounds;
     }
   }
 
@@ -1489,11 +1519,9 @@ var queryEditor = (function(window, microReact, Indexing) {
     var canvasRect = e.currentTarget.parentNode.getBoundingClientRect();
     x -= Math.floor(canvasRect.left);
     y -= Math.floor(canvasRect.top);
-    var diffX = toGrid(localState.uiGridSize, Math.floor(x - elem.control[5] - localState.dragOffsetX));
-    var diffY = toGrid(localState.uiGridSize, Math.floor(y - elem.control[6] - localState.dragOffsetY));
-    if(diffX || diffY) {
-      dispatch("moveSelection", {diffX: diffX, diffY: diffY, componentId: elem.control[2]});
-    }
+    var neueX = toGrid(localState.uiGridSize, Math.floor(x - localState.dragOffsetX));
+    var neueY = toGrid(localState.uiGridSize, Math.floor(y - localState.dragOffsetY));
+    dispatch("moveSelection", {x: neueX, y: neueY, elemId: elem.control[1], componentId: elem.control[2]});
   }
 
 
@@ -1998,6 +2026,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     var widthRatio = value / (old.right - old.left);
     if(widthRatio === 1) return;
     dispatch("resizeSelection", {widthRatio: widthRatio, heightRatio: 1, oldBounds: old, neueBounds: neue, componentId: componentId});
+    elem.bounds = neue;
   }
 
   function adjustHeight(elem, value) {
@@ -2007,6 +2036,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     var heightRatio = value / (old.bottom - old.top);
     if(heightRatio === 1) return;
     dispatch("resizeSelection", {widthRatio: 1, heightRatio: heightRatio, oldBounds: old, neueBounds: neue, componentId: componentId});
+    elem.bounds = neue;
   }
 
   function adjustPosition(elem, value) {
@@ -2018,7 +2048,8 @@ var queryEditor = (function(window, microReact, Indexing) {
     } else {
       diffX = value - elem.value;
     }
-    dispatch("moveSelection", {diffX: diffX, diffY: diffY, componentId: componentId});
+    dispatch("offsetSelection", {diffX: diffX, diffY: diffY, componentId: componentId});
+    elem.value = value;
   }
 
   function adjustOpacity(elem, value) {
