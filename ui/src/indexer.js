@@ -34,19 +34,24 @@ var Indexing = (function() {
   }
 
   function applyTableDiff(table, adds, removes) {
+    var dedupedAdds = [];
+    var dedupedRemoves = [];
     for(var remIx = 0, remLen = removes.length; remIx < remLen; remIx++) {
       var rem = removes[remIx];
       var foundIx = indexOfArray(table, rem);
       if(foundIx !== -1) {
         table.splice(foundIx, 1);
+        dedupedRemoves.push(rem);
       }
     }
     for(var addIx = 0, addLen = adds.length; addIx < addLen; addIx++) {
       var add = adds[addIx];
-//       var foundIx = indexOfArray(table, add);
-//       if(foundIx !== -1) continue;
+      var foundIx = indexOfArray(table, add);
+      if(foundIx !== -1) continue;
       table.push(add);
+      dedupedAdds.push(add);
     }
+    return {adds: dedupedAdds, removes: dedupedRemoves};
   }
 
   function Indexer() {
@@ -86,12 +91,16 @@ var Indexing = (function() {
     handleDiff: function(table, adds, removes) {
       var safeAdds = adds || [];
       var safeRemoves = removes || [];
+      var dedupedAdds = safeAdds;
+      var dedupedRemoves = safeRemoves;
       //update table
       if(this.tables[table] === undefined) {
         this.tables[table] = [];
       }
       if(this.tables[table] !== false) {
-        applyTableDiff(this.tables[table], safeAdds, safeRemoves);
+        var deduped = applyTableDiff(this.tables[table], safeAdds, safeRemoves);
+        dedupedAdds = deduped.adds;
+        dedupedRemoves = deduped.removes;
       }
       //update indexes
       var shouldRebuild = this.needsRebuild[table];
@@ -101,7 +110,7 @@ var Indexing = (function() {
         if(shouldRebuild && cur.requiresRebuild) {
           cur.index = cur.indexer({}, this.tables[table], []);
         } else {
-          cur.index = cur.indexer(cur.index, safeAdds, safeRemoves);
+          cur.index = cur.indexer(cur.index, dedupedAdds, dedupedRemoves);
         }
       }
       if(shouldRebuild) {
