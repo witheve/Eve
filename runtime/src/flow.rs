@@ -26,7 +26,7 @@ pub struct Flow {
 
 impl Flow {
     pub fn new() -> Self {
-        let mut flow = Flow {
+        let flow = Flow {
             nodes: Vec::new(),
             outputs: Vec::new(),
             dirty: BitSet::new(),
@@ -105,8 +105,15 @@ impl Flow {
         for (ix, node) in self.nodes.iter().enumerate() {
             match node.view {
                 View::Table(Table{ref insert, ref remove}) => {
-                    let inserts = insert.select(&*self.outputs[node.upstream[0]].borrow());
-                    let removes = remove.select(&*self.outputs[node.upstream[0]].borrow());
+                    let mut upstream = node.upstream.iter();
+                    let inserts = match *insert {
+                        Some(ref select) => select.select(&*self.outputs[*upstream.next().unwrap()].borrow()),
+                        None => vec![],
+                    };
+                    let removes = match *remove {
+                        Some(ref select) => select.select(&*self.outputs[*upstream.next().unwrap()].borrow()),
+                        None => vec![],
+                    };
                     let mut output = self.outputs[ix].borrow_mut();
                     let fields = output.fields.clone();
                     output.change(&Change{fields: fields, insert: inserts, remove: removes});

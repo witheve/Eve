@@ -109,7 +109,8 @@ fn create_dependency(flow: &Flow) -> Relation {
         }
     }
     Relation{
-        fields: vec!["upstream view".to_owned(), "ix".to_owned(), "source".to_owned(), "downstream view".to_owned()],
+        fields: vec!["dependency: upstream view".to_owned(), "dependency: ix".to_owned(), "dependency: source".to_owned(), "dependency: downstream view".to_owned()],
+        names: vec!["upstream view".to_owned(), "ix".to_owned(), "source".to_owned(), "downstream view".to_owned()],
         index: dependency.into_iter().collect(),
     }
 }
@@ -124,7 +125,8 @@ fn create_schedule(flow: &Flow) -> Relation {
         ix += 1.0;
     }
     Relation{
-        fields: vec!["ix".to_owned(), "view".to_owned()],
+        fields: vec!["schedule: ix".to_owned(), "schedule: view".to_owned()],
+        names: vec!["ix".to_owned(), "view".to_owned()],
         index: schedule.into_iter().collect(),
     }
 }
@@ -141,8 +143,16 @@ fn create_single_select(compiler: &Compiler, view_id: &Value, source_id: &Value)
 }
 
 fn create_table(compiler: &Compiler, view_id: &Value) -> Table {
-    let insert = create_single_select(compiler, view_id, &Value::String("insert".to_owned()));
-    let remove = create_single_select(compiler, view_id, &Value::String("remove".to_owned()));
+    let mut insert = None;
+    let mut remove = None;
+    for source in compiler.flow.get_output("source").find_all("view", view_id) {
+        let select = create_single_select(compiler, view_id, &source["source"]);
+        match source["source"].as_str() {
+            "insert" => insert = Some(select),
+            "remove" => remove = Some(select),
+            other => panic!("Unknown table source: {:?}", other),
+        }
+    }
     Table{insert: insert, remove: remove}
 }
 
@@ -184,9 +194,17 @@ fn create_flow(compiler: &Compiler) -> Flow {
         let view = view_table.find_one("view", &schedule["view"]);
         nodes.push(create_node(compiler, &view["view"], &view["kind"]));
         dirty.insert(schedule["ix"].as_usize());
-        let fields = compiler.flow.get_output("field").find_all("view", &view["view"])
-            .iter().map(|field| field["field"].as_str().to_owned()).collect();
-        outputs.push(RefCell::new(Relation::with_fields(fields)));
+        let field_table = compiler.flow.get_output("field");
+        let fields = field_table.find_all("view", &view["view"]);
+        let field_ids = fields.iter().map(|field|
+            field["field"].as_str().to_owned()
+            ).collect();
+        let field_names = fields.iter().map(|field|
+            match compiler.flow.get_output("display name").find_maybe("id", &field["field"]) {
+                Some(display_name) => display_name["name"].as_str().to_owned(),
+                None => "<unnamed>".to_owned(),
+            }).collect();
+        outputs.push(RefCell::new(Relation::with_fields(field_ids, field_names)));
     }
     Flow{
         nodes: nodes,
@@ -237,46 +255,51 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
                 upstream: Vec::new(),
                 downstream: Vec::new(),
             });
-        let mut fields = unique_fields.iter().chain(other_fields.iter())
+        let mut names = unique_fields.iter().chain(other_fields.iter())
             .map(|&field| field.to_owned()).collect::<Vec<_>>();
-        fields.sort(); // fields are implicitly sorted in the compiler - need to use the same ordering here
-        flow.outputs.push(RefCell::new(Relation::with_fields(fields)));
+        names.sort(); // fields are implicitly sorted in the compiler - need to use the same ordering here
+        let fields = names.iter().map(|name| format!("{}: {}", id.clone(), name)).collect();
+        flow.outputs.push(RefCell::new(Relation::with_fields(fields, names)));
     }
     let mut view_values = Vec::new();
     let mut field_values = Vec::new();
     let mut select_values = Vec::new();
     let mut source_values = Vec::new();
+    let mut display_name_values = Vec::new();
     for &(ref id, ref unique_fields, ref other_fields) in schema.iter() {
         view_values.push(vec![string!("{}", id), string!("table")]);
         view_values.push(vec![string!("insert: {}", id), string!("union")]);
         view_values.push(vec![string!("remove: {}", id), string!("union")]);
         for &field in unique_fields.iter().chain(other_fields.iter()) {
-            field_values.push(vec![string!("{}", field), string!("{}", id), string!("output")]);
-            field_values.push(vec![string!("insert: {}", field), string!("insert: {}", id), string!("output")]);
-            field_values.push(vec![string!("remove: {}", field), string!("remove: {}", id), string!("output")]);
+            field_values.push(vec![string!("{}: {}", id, field), string!("{}", id), string!("output")]);
+            field_values.push(vec![string!("insert: {}: {}", id, field), string!("insert: {}", id), string!("output")]);
+            field_values.push(vec![string!("remove: {}: {}", id, field), string!("remove: {}", id), string!("output")]);
+            display_name_values.push(vec![string!("{}: {}", id, field), string!("{}", field)]);
+            display_name_values.push(vec![string!("insert: {}: {}", id, field), string!("{}", field)]);
+            display_name_values.push(vec![string!("remove: {}: {}", id, field), string!("{}", field)]);
             source_values.push(vec![string!("{}", id), string!("insert"), string!("insert: {}", id)]);
             source_values.push(vec![string!("{}", id), string!("remove"), string!("remove: {}", id)]);
-            select_values.push(vec![string!("{}", id), string!("{}", field), string!("insert"), string!("insert: {}", field)]);
-            select_values.push(vec![string!("{}", id), string!("{}", field), string!("remove"), string!("remove: {}", field)]);
+            select_values.push(vec![string!("{}", id), string!("{}: {}", id, field), string!("insert"), string!("insert: {}: {}", id, field)]);
+            select_values.push(vec![string!("{}", id), string!("{}: {}", id, field), string!("remove"), string!("remove: {}: {}", id, field)]);
         }
     }
     flow.get_output_mut("view").change(&Change{
-        fields: vec!["view".to_owned(), "kind".to_owned()],
+        fields: vec!["view: view".to_owned(), "view: kind".to_owned()],
         insert: view_values,
         remove: Vec::new(),
     });
     flow.get_output_mut("field").change(&Change{
-        fields: vec!["field".to_owned(), "view".to_owned(), "kind".to_owned()],
+        fields: vec!["field: field".to_owned(), "field: view".to_owned(), "field: kind".to_owned()],
         insert: field_values,
         remove: Vec::new(),
     });
     flow.get_output_mut("source").change(&Change{
-        fields: vec!["view".to_owned(), "source".to_owned(), "source view".to_owned()],
+        fields: vec!["source: view".to_owned(), "source: source".to_owned(), "source: source view".to_owned()],
         insert: source_values,
         remove: Vec::new(),
     });
     flow.get_output_mut("select").change(&Change{
-        fields: vec!["view".to_owned(), "view field".to_owned(), "source".to_owned(), "source field".to_owned()],
+        fields: vec!["select: view".to_owned(), "select: view field".to_owned(), "select: source".to_owned(), "select: source field".to_owned()],
         insert: select_values,
         remove: Vec::new(),
     });

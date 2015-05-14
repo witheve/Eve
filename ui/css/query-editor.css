@@ -159,6 +159,8 @@ div:hover > .hover-reveal { opacity: 1; }
 .query-editor .close-btn:hover { margin-left: auto; color: #FF7070; }
 .query-editor .close-btn:active { margin-left: auto; color: #CC5050; }
 
+.query-editor .block .block-pane { flex: 1 1 auto; background: #303030; margin: 0 4px; min-width: 30%; }
+
 /* tree */
 .tree.pane { flex-direction: column !important; }
 .tree.bar { flex-direction: row !important; }
@@ -204,6 +206,14 @@ div:hover > .hover-reveal { opacity: 1; }
 
 .query-editor .block-section.view-grouping { flex-direction: row; }
 .query-editor .block-section.view-grouping > * { margin: 0 0.25em;}
+
+.query-editor .union-block .content { flex-direction: row; }
+.query-editor .union-block .union-source { margin-bottom: 10px; }
+.query-editor .union-block .field-mapping { flex-direction: row; margin-bottom: 10px;}
+.query-editor .union-block .field-mapping .mapping-pair + .mapping-pair { border-left: 1px solid #404040; }
+.query-editor .union-block .field-mapping  .mapping-pair > * { padding: 0.1em 0.25em; }
+.query-editor .union-block .field-mapping .mapping-header { border-bottom: 1px solid #505050; }
+
 
 /* inspector */
 .query-workspace > .inspector { flex: 1; border-left: 1px solid #404040; }

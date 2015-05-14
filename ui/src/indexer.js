@@ -123,7 +123,11 @@ var Indexing = (function() {
     dumpMapDiffs: function() {
       var final = [];
       for(var table in this.tables) {
-        final.push([table, this.tables[table], []]);
+        var fields = this.index("view to fields")[table] || []; // @FIXME: Shouldn't hardcode knowledge of an external index.
+        fields = fields.map(function(field) {
+          return field[1];
+        });
+        final.push([table, fields, this.tables[table], []]);
       }
       return {changes: final};
     },
@@ -131,8 +135,9 @@ var Indexing = (function() {
       for(var diffIx = 0, diffLen = diffs.length; diffIx < diffLen; diffIx++) {
         var diff = diffs[diffIx];
         var table = diff[0];
-        var inserted = diff[1];
-        var removed = diff[2];
+        var fields = diff[1]; // @FIXME: Reorder fields as necessary to support concurrent editing of view structure.
+        var inserted = diff[2];
+        var removed = diff[3];
         if(inserted.length || removed.length) {
           this.handleDiff(table, inserted, removed);
         }
