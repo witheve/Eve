@@ -544,6 +544,7 @@ var queryEditor = (function(window, microReact, Indexing) {
   function dispatch(evt, info) {
     //         console.info("[dispatch]", evt, info);
     var storeEvent = true;
+    var sendToServer = true;
     var txId = ++localState.txId;
 
     var diffs = [];
@@ -733,6 +734,7 @@ var queryEditor = (function(window, microReact, Indexing) {
         break;
       case "resizeSelection":
         storeEvent = false;
+        sendToServer = false;
         var sel = localState.uiSelection;
         var elementIndex = ixer.index("uiComponentElement");
         var ratioX = info.widthRatio;
@@ -755,6 +757,7 @@ var queryEditor = (function(window, microReact, Indexing) {
         break;
       case "moveSelection":
         storeEvent = false;
+        sendToServer = false;
         var sel = localState.uiSelection;
         var elementIndex = ixer.index("uiComponentElement");
         var elem = elementIndex[info.elemId];
@@ -789,6 +792,7 @@ var queryEditor = (function(window, microReact, Indexing) {
         break;
       case "offsetSelection":
         storeEvent = false;
+        sendToServer = false;
         var sel = localState.uiSelection;
         var elementIndex = ixer.index("uiComponentElement");
         var diffX = info.diffX;
@@ -819,6 +823,7 @@ var queryEditor = (function(window, microReact, Indexing) {
         break;
       case "setAttributeForSelection":
         storeEvent = info.storeEvent;
+        sendToServer = info.storeEvent;
         var style = getUiPropertyType(info.property);
         if(!style) { throw new Error("Unknown attribute type for property:", info.property, "known types:", uiProperties); }
 
@@ -907,7 +912,9 @@ var queryEditor = (function(window, microReact, Indexing) {
       }
 
       ixer.handleDiffs(diffs);
-      window.client.sendToServer(diffs);
+      if(sendToServer) {
+        window.client.sendToServer(diffs);
+      }
       render();
     } else {
       //       console.warn("No diffs to index, skipping.");
