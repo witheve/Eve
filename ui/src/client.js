@@ -1,9 +1,15 @@
-(function eveClient(ixer, dispatcher) {
+var client = (function eveClient(ixer, dispatcher) {
   function now() {
     if(window.performance) {
       return window.performance.now();
     }
     return (new Date()).getTime();
+  }
+
+  function initialize() {
+    console.log("initing");
+    dispatcher.initIndexer();
+    sendToServer(ixer.dumpMapDiffs(), true);
   }
 
   var server = {connected: false, queue: [], initialized: false, lastSent: []};
@@ -14,6 +20,12 @@
 
     ws.onerror = function (error) {
       console.log('WebSocket Error ' + error);
+      server.dead = true;
+      if(!server.initialized) {
+        console.warn("Starting in local only mode, the server is dead.");
+        initialize();
+        dispatcher.render();
+      }
     };
 
     ws.onmessage = function (e) {
@@ -25,10 +37,7 @@
       }
 
       if(!server.initialized && data.changes.length === 54) { // @FIXME: Why is this the check?
-        console.log("initing");
-        dispatcher.initIndexer();
-        server.ws.send(JSON.stringify(ixer.dumpMapDiffs()));
-        ixer.clear();
+        initialize();
       } else if(!server.initialized) {
         server.initialized = true;
       }
@@ -89,14 +98,38 @@
     }
   }
 
-  function sendToServer(message) {
+  function sendToServer(message, formatted) {
     if(!server.connected) {
+      console.log("not connected");
       server.queue.push(message);
     } else {
-      if(!Indexing.arraysIdentical(server.lastSent, message)) {
-        //     console.log("sending", message);
-        server.lastSent = message;
-        server.ws.send(JSON.stringify(toMapDiffs(message)));
+      console.log("sending", message);
+      if(!formatted) {
+        console.log("unformatted");
+        message = toMapDiffs(message);
+      }
+      var payload = {changes: []};
+      var specialPayload = {changes: []};
+
+      for(var ix = 0; ix < message.changes.length; ix++) {
+        var table = message.changes[ix][0];
+        if(table === "view" || table === "field") {
+          specialPayload.changes.push(message.changes[ix]);
+        } else {
+          payload.changes.push(message.changes[ix]);
+        }
+      }
+
+      console.log("special --- ", "\n", JSON.stringify(specialPayload, null, 2));
+      //console.log("payload --- ", "\n", JSON.stringify(payload, null, 2));
+
+      if(specialPayload.changes.length) {
+        server.ws.send(JSON.stringify(specialPayload));
+      }
+      if(payload.changes.length) {
+        setTimeout(function() {
+          server.ws.send(JSON.stringify(payload));
+        }, 500);
       }
     }
   }
@@ -139,5 +172,7 @@
   }
 
   connectToServer();
+
+  return {sendToServer: sendToServer};
 
 })(queryEditor.ixer, queryEditor);

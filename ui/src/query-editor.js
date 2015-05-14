@@ -139,6 +139,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     ixer.addIndex("constraint right", "constraint right", Indexing.create.lookup([0, false]));
     ixer.addIndex("constraint operation", "constraint operation", Indexing.create.lookup([0, false]));
     ixer.addIndex("view and source field to select", "select", Indexing.create.lookup([0, 3, false]));
+    ixer.addIndex("view and source and field to select", "select", Indexing.create.lookup([0, 2, 1, false]));
 
 
     ixer.addIndex("block", "block", Indexing.create.lookup([1, false]));
@@ -306,7 +307,7 @@ var queryEditor = (function(window, microReact, Indexing) {
         var blockFieldId = uuid();
         var name = code.name(sourceFieldId);
         var order = ixer.index("display order")[sourceFieldId];
-        diffs.push(["field", "inserted", [viewId, fieldId]],
+        diffs.push(["field", "inserted", [viewId, fieldId, "output"]],
                    ["display order", "inserted", [fieldId, 0]],
                    ["display name", "inserted", [fieldId, name]],
                    ["block field", "inserted", [blockFieldId, viewId, "selection", viewId, fieldId]],
@@ -783,6 +784,7 @@ var queryEditor = (function(window, microReact, Indexing) {
     }
     if(diffs && diffs.length) {
       ixer.handleDiffs(diffs);
+      window.client.sendToServer(diffs);
       render();
     } else {
 //       console.warn("No diffs to index, skipping.");
