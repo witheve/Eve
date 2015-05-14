@@ -115,16 +115,35 @@ div:hover > .hover-reveal { opacity: 1; }
 - ui editor
 ---------------------------------------------------------*/
 
-.ui-editor { flex: 1; }
-.ui-editor .ui-canvas { position: relative; flex:1; overflow:hidden; }
+.ui-editor { flex: 1; flex-direction:row; }
+.ui-editor .ui-canvas { position: relative; flex:1; overflow:hidden; margin:20px; background: rgba(255,255,255,0.1); }
 .ui-editor .selection { position:absolute; border:1px solid red; z-index:2; pointer-events:none; }
 .ui-editor .selection .resize-handle { position:absolute; border:1px solid red; background: rgba(255,0,0,0.2); z-index:2; pointer-events:auto; }
 .ui-editor .selection .trash { position:absolute; right: -25px; top: -25px; font-size: 18pt; pointer-events:auto; }
 
-.ui-editor .box-selection { position:absolute; border:1px solid red; }
+.ui-editor .grid { pointer-events:none; }
+.ui-editor .ui-canvas-layer { pointer-events:none; }
 
-.ui-element { background:rgba(255,255,255,0.1); position:absolute; overflow:hidden; }
+.ui-editor .box-selection { position:absolute; border:1px solid red; z-index: 1000;}
+
+.ui-element { background:#666; position:absolute; overflow:hidden; pointer-events:auto; }
 .ui-element .selected { z-index: 10 !important; }
+.ui-element.locked, .ui-element.hidden { pointer-events:none; }
+.ui-element.hidden { display:none; }
+
+.layers-box { min-width:200px; margin-top:1px; flex:none; }
+.layers-box .layers-list { overflow:auto; }
+.layers-box > .controls { flex:none; flex-direction:row; padding: 10px 10px; background: rgba(62,73,75,1); margin-bottom:1px; }
+.layers-box .layer-row { flex:none; flex-direction:row; align-items:center; background: rgba(62,73,75,1); margin-bottom:1px; }
+.layers-box .layer-row .icon { padding:10px; }
+.layers-box .layer-element .layer-row { }
+.layers-box .layer-element.selected .icon { color:rgba(255,255,255,0.7); }
+.layers-box .layer-element.selected .layer-row { background: rgba(89,100,102,1); color:rgba(255,255,255,0.7); }
+.layers-box .layer-item.active > .layer-row { background: rgba(89,100,102,1); color: rgba(255,255,255,0.7); }
+.layers-box .input { flex:1; outline:none; }
+.layers-box .layer-row .controls { flex-direction:row; justify-self:flex-end; margin-right:10px; }
+.layers-box .layer-row .controls div + div { margin-left: 8px; }
+.layer-items { margin-left: 15px; flex:none; }
 
 /*---------------------------------------------------------
 - query editor
