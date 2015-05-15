@@ -151,7 +151,7 @@ div:hover > .hover-reveal { opacity: 1; }
 .layers-box .group-binding .layer-row { background: rgba(255, 172, 128, 0.35); color: rgba(255, 255,255, 0.85); }
 
 
-.attr-binding { padding:3px; align-items:center; border-radius:3px; flex-direction:row; background: rgba(255, 172, 128, 0.35); color: rgba(255, 255,255, 0.85); }
+.attr-binding { padding:3px; align-items:center; border-radius:3px; flex-direction:row; background: rgba(255, 172, 128, 0.35); }
 .attr-binding .icon { color: #fda; margin-right:5px; }
 
 /*---------------------------------------------------------

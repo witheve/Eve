@@ -520,7 +520,6 @@ var queryEditor = (function(window, microReact, api) {
         window.client.sendToServer(diffs);
       }
       render();
-      console.log("rendering");
     } else {
       //       console.warn("No diffs to index, skipping.");
     }
