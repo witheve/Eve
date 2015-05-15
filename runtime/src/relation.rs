@@ -2,6 +2,7 @@ use std::collections::btree_set;
 use std::collections::btree_set::BTreeSet;
 use std::iter::Iterator;
 use std::cmp::Ordering;
+use std::ops::IndexMut;
 
 use value::{Value, Field, Tuple};
 
@@ -16,9 +17,9 @@ pub fn mapping(from_fields: &[Field], to_fields: &[Field]) -> Option<Vec<usize>>
     return Some(mapping);
 }
 
-pub fn with_mapping(values: &[Value], mapping: &[usize]) -> Vec<Value> {
+pub fn with_mapping(mut values: Vec<Value>, mapping: &[usize]) -> Vec<Value> {
     mapping.iter().map(|ix|
-        values[*ix].clone()
+        ::std::mem::replace(values.index_mut(*ix), Value::Null)
         ).collect()
 }
 
@@ -45,13 +46,13 @@ impl Relation {
         }
     }
 
-    pub fn change(&mut self, changes: &Change) {
+    pub fn change(&mut self, changes: Change) {
         let mapping = mapping(&*changes.fields, &*self.fields).unwrap();
-        for values in changes.insert.iter() {
-            self.index.insert(with_mapping(&values, &*mapping));
+        for values in changes.insert.into_iter() {
+            self.index.insert(with_mapping(values, &*mapping));
         }
-        for values in changes.remove.iter() {
-            self.index.remove(&with_mapping(&values, &*mapping));
+        for values in changes.remove.into_iter() {
+            self.index.remove(&with_mapping(values, &*mapping));
         }
     }
 
@@ -162,6 +163,6 @@ pub struct Select{
 impl Select {
     pub fn select(&self, input: &Relation) -> Vec<Vec<Value>> {
         let mapping = mapping(&input.fields[..], &self.fields[..]).unwrap();
-        input.index.iter().map(|values| with_mapping(&values[..], &mapping[..])).collect()
+        input.index.iter().map(|values| with_mapping(values.clone(), &mapping[..])).collect()
     }
 }

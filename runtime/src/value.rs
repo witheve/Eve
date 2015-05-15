@@ -3,6 +3,7 @@ use std::ops::Index;
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Value {
+    Null, // only used internally - not visible to users
     Bool(bool),
     String(String),
     Float(f64),

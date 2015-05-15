@@ -18,6 +18,7 @@ trait FromJson {
 impl ToJson for Value {
     fn to_json(&self) -> Json {
         match *self {
+            Value::Null => panic!("Cannot allow the client to see nulls"),
             Value::Bool(bool) => Json::Boolean(bool),
             Value::String(ref string) => Json::String(string.clone()),
             Value::Float(float) => Json::F64(float),

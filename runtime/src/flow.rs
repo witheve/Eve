@@ -51,14 +51,16 @@ impl Flow {
         self.outputs[ix] = output;
     }
 
-    pub fn change(&mut self, changes: &Changes) {
-        for &(ref id, ref changes) in changes.iter() {
+    pub fn change(&mut self, changes: Changes) {
+        for (id, changes) in changes.into_iter() {
             match self.get_ix(&*id) {
                 Some(ix) => match self.nodes[ix].view {
                     View::Table(_) => {
                         // TODO should we be checking diffs after the fact?
                         self.outputs[ix].borrow_mut().change(changes);
-                        self.dirty.insert(ix);
+                        for ix in self.nodes[ix].downstream.iter() {
+                            self.dirty.insert(*ix);
+                        }
                     }
                     _ => panic!("Tried to insert into a non-table view with id: {:?}", id),
                 },
@@ -76,69 +78,112 @@ impl Flow {
         ).collect()
     }
 
-    pub fn recalculate(&mut self, changes: &mut Changes) {
-        while let Some(ix) = self.dirty.iter().next() {
-            self.dirty.remove(&ix);
-            let node = &self.nodes[ix];
+    pub fn changes_from(&self, old_self: Self) -> Changes {
+        let mut changes = Vec::new();
+        for (ix, node) in self.nodes.iter().enumerate() {
+            match old_self.get_ix(&node.id[..]) {
+                Some(old_ix) => {
+                    let output = self.outputs[ix].borrow();
+                    let old_output = old_self.outputs[old_ix].borrow();
+                    if output.fields == old_output.fields {
+                        let change = self.outputs[ix].borrow().change_from(&*old_self.outputs[old_ix].borrow());
+                        changes.push((node.id.clone(), change));
+                    } else {
+                        changes.push((node.id.clone(), output.as_insert()));
+                        changes.push((node.id.clone(), output.as_remove()));
+                    }
+                }
+                None => {
+                    let output = self.outputs[ix].borrow();
+                    changes.push((node.id.clone(), output.as_insert()));
+                }
+            }
+        }
+        for (old_ix, old_node) in old_self.nodes.iter().enumerate() {
+            match self.get_ix(&old_node.id[..]) {
+                Some(new_ix) => {
+                    () // already handled above
+                }
+                None => {
+                    let old_output = old_self.outputs[old_ix].borrow();
+                    changes.push((old_node.id.clone(), old_output.as_remove()));
+                }
+            }
+        }
+        changes
+    }
+
+    pub fn recalculate(&mut self) {
+        let Flow{ref nodes, ref mut outputs, ref mut dirty, ..} = *self;
+        while let Some(ix) = dirty.iter().next() {
+            dirty.remove(&ix);
+            let node = &nodes[ix];
             let new_output = {
-                let upstream = node.upstream.iter().map(|&ix| self.outputs[ix].borrow()).collect::<Vec<_>>();
+                let upstream = node.upstream.iter().map(|&ix| outputs[ix].borrow()).collect::<Vec<_>>();
                 let inputs = upstream.iter().map(|borrowed| &**borrowed).collect();
-                node.view.run(&*self.outputs[ix].borrow(), inputs)
+                node.view.run(&*outputs[ix].borrow(), inputs)
             };
             match new_output {
                 None => (), // view does not want to update
                 Some(new_output) => {
-                    let change = new_output.change_from(&*self.outputs[ix].borrow());
-                    if (change.insert.len() > 0) || (change.remove.len() > 0) {
-                        changes.push((node.id.clone(), change));
-                        for &ix in node.downstream.iter() {
-                            self.dirty.insert(ix);
+                    let change = new_output.change_from(&*outputs[ix].borrow());
+                    if (change.insert.len() != 0) || (change.remove.len() != 0) {
+                        for ix in node.downstream.iter() {
+                            dirty.insert(*ix);
                         }
                     }
-                    self.outputs[ix] = RefCell::new(new_output);
+                    outputs[ix] = RefCell::new(new_output);
                 }
             }
         }
     }
 
-    pub fn tick(&mut self, changes: &mut Changes) {
+    pub fn tick(&mut self) -> bool {
+        let mut changed = false;
         for (ix, node) in self.nodes.iter().enumerate() {
             match node.view {
                 View::Table(Table{ref insert, ref remove}) => {
                     let mut upstream = node.upstream.iter();
-                    let inserts = match *insert {
+                    let mut inserts = match *insert {
                         Some(ref select) => select.select(&*self.outputs[*upstream.next().unwrap()].borrow()),
                         None => vec![],
                     };
-                    let removes = match *remove {
+                    let mut removes = match *remove {
                         Some(ref select) => select.select(&*self.outputs[*upstream.next().unwrap()].borrow()),
                         None => vec![],
                     };
+                    inserts.sort();
+                    removes.sort();
+                    inserts.retain(|insert| removes.binary_search(&insert).is_err());
+                    removes.retain(|remove| inserts.binary_search(&remove).is_err());
                     let mut output = self.outputs[ix].borrow_mut();
-                    let fields = output.fields.clone();
-                    output.change(&Change{fields: fields, insert: inserts, remove: removes});
-                    // TODO record changes, set dirty
+                    let mut index = &mut output.index;
+                    for insert in inserts {
+                        changed = changed || index.insert(insert);
+                    }
+                    for remove in removes {
+                        changed = changed || !index.remove(&remove);
+                    }
                 }
                 _ => () // only tables tick
             }
         }
+        changed
     }
 
-    pub fn quiesce(mut self, mut changes: Changes) -> (Self, Changes) {
-        self.change(&changes);
-        let mut changes_seen = 0;
+    pub fn quiesce(mut self, changes: Changes) -> (Self, Changes) {
+        let old_self = self.clone();
+        self.change(changes);
         loop {
-            if compiler::needs_recompile(&changes[changes_seen..]) {
-                println!("Recompiling");
-                self = compiler::recompile(self, &mut changes);
-            }
-            changes_seen = changes.len();
-            self.recalculate(&mut changes);
-            self.tick(&mut changes);
-            if changes.len() == changes_seen {
-                break;
+            // TODO if compiler::needs_recompile...
+            self = compiler::recompile(self);
+            self.recalculate();
+            let changed = self.tick();
+            if !changed {
+                break
             }
         }
+        let changes = self.changes_from(old_self);
         (self, changes)
     }
 }
