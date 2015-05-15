@@ -170,11 +170,11 @@ fn create_multi_select(compiler: &Compiler, sources: &[Tuple], view_id: &Value) 
 fn create_table(compiler: &Compiler, view_id: &Value) -> Table {
     let mut insert = None;
     let mut remove = None;
-    for source in compiler.flow.get_output("source").find_all("view", view_id) {
+    for (ix, source) in compiler.flow.get_output("source").find_all("view", view_id).iter().enumerate() {
         let select = create_single_select(compiler, view_id, &source["source"]);
         match source["source"].as_str() {
-            "insert" => insert = Some(select),
-            "remove" => remove = Some(select),
+            "insert" => insert = Some((ix, select)),
+            "remove" => remove = Some((ix, select)),
             other => panic!("Unknown table source: {:?}", other),
         }
     }

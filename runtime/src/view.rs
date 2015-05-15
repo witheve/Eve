@@ -3,8 +3,8 @@ use relation::{Relation, SingleSelect, Reference, MultiSelect};
 
 #[derive(Clone, Debug)]
 pub struct Table {
-    pub insert: Option<SingleSelect>,
-    pub remove: Option<SingleSelect>,
+    pub insert: Option<(usize, SingleSelect)>,
+    pub remove: Option<(usize, SingleSelect)>,
 }
 
 #[derive(Clone, Debug)]
