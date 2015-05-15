@@ -126,7 +126,9 @@ div:hover > .hover-reveal { opacity: 1; }
 
 .ui-editor .box-selection { position:absolute; border:1px solid red; z-index: 1000;}
 
-.ui-element { background:#666; position:absolute; overflow:hidden; pointer-events:auto; }
+.ui-element { background:#666; position:absolute; overflow:hidden; pointer-events:auto; background-size: contain; background-repeat:no-repeat; font-family: "Helvetica Neue"; }
+.ui-element.image { background-color:transparent; }
+.ui-element.text { background-color:transparent; }
 .ui-element .selected { z-index: 10 !important; }
 .ui-element.locked, .ui-element.hidden { pointer-events:none; }
 .ui-element.hidden { display:none; }
