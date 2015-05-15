@@ -250,7 +250,7 @@ var queryEditor = (function(window, microReact, api) {
         break;
       case "addViewBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
-        diffs = diff.addViewBlock(queryId, info.sourceId);
+        diffs = diff.addViewBlock(queryId, info.sourceId, info.kind);
         break;
       case "addAggregateBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
@@ -1991,7 +1991,7 @@ var queryEditor = (function(window, microReact, api) {
     var type = evt.dataTransfer.getData("type");
     var value = evt.dataTransfer.getData("value");
     if(type === "view") {
-      return dispatch("addViewBlock", {queryId: elem.queryId, sourceId: value});
+      return dispatch("addViewBlock", {queryId: elem.queryId, sourceId: value, kind: "join"});
     }
     if(type === "aggregate") {
       return dispatch("addAggregateBlock", {queryId: elem.queryId, kind: value});
