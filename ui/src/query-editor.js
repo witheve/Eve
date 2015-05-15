@@ -318,8 +318,9 @@ var queryEditor = (function(window, microReact, api) {
         var appStyleId = uuid();
         var typStyleId = uuid();
         diffs.push(["uiComponentElement", "inserted", neue]);
-        diffs.push(["uiStyle", "inserted", [txId, appStyleId, "appearance", elemId]],
-                   ["uiStyle", "inserted", [txId, typStyleId, "typography", elemId]]);
+        diffs.push(["uiStyle", "inserted", [txId, appStyleId, "appearance", elemId, false]],
+                   ["uiStyle", "inserted", [txId, typStyleId, "typography", elemId, false]],
+                   ["uiStyle", "inserted", [txId, typStyleId, "content", elemId, false]]);
 
         // @TODO: Instead of hardcoding, have a map of special element diff handlers.
         if(info.control === "map") {
@@ -434,7 +435,7 @@ var queryEditor = (function(window, microReact, api) {
           if(oldProps && oldProps[info.property]) {
             diffs.push(["uiComponentAttribute", "removed", oldProps[info.property]]);
           }
-          diffs.push(["uiComponentAttribute", "inserted", [txId, styleId, info.property, info.value, false]]);
+          diffs.push(["uiComponentAttribute", "inserted", [0, styleId, info.property, info.value, false]]);
         });
         break;
       case "stopSetAttributeForSelection":
@@ -456,9 +457,13 @@ var queryEditor = (function(window, microReact, api) {
         });
         break;
       case "setSelectionStyle":
+        var styleId = info.id;
+        var type = info.type;
         var sel = localState.uiSelection;
-        sel.forEach(function(cur) {
-          diffs.push(["uiStyle", "inserted", [txId, info.style, info.type, cur[1]]]);
+        sel.forEach(function(id) {
+          var prevStyle = ixer.index("uiElementToStyle")[id][type];
+          diffs.push(["uiStyle", "inserted", [txId, styleId, type, id, info.shared]],
+                     ["uiStyle", "removed", prevStyle]);
         });
         break;
       case "duplicateSelection":
@@ -1206,9 +1211,27 @@ var queryEditor = (function(window, microReact, api) {
       }
     }
 
+
+    if(type === "image") {
+      elem.attr = "backgroundImage";
+    } else {
+      elem.attr = "text";
+    }
+
     if(localState.modifyingUiText === id) {
-      elem.children = [input(elem.text, {id: id}, updateContent, submitContent)];
-      elem.text = undefined;
+      if(type === "image") {
+        var curInput = input(elem.text, {id: id}, updateImage, submitContent);
+        curInput.postRender = focusOnce;
+        elem.children = [curInput];
+        curInput.attr = "backgroundImage";
+        elem.text = undefined;
+      } else {
+        var curInput = input(elem.text, {id: id}, updateContent, submitContent);
+        curInput.postRender = focusOnce;
+        elem.children = [curInput];
+        curInput.attr = "text";
+        elem.text = undefined;
+      }
     }
 
     //   if(uiCustomControlRender[type]) {
@@ -1219,17 +1242,21 @@ var queryEditor = (function(window, microReact, api) {
 
   function setModifyingText(e, elem) {
     localState.modifyingUiText = elem.control[1];
+    startAdjustAttr(e, elem);
     render();
-    //focus the input
-    e.currentTarget.firstChild.focus();
   }
 
   function updateContent(e, elem) {
     dispatch("setAttributeForSelection", {componentId: elem.key.id, property: "text", value: e.currentTarget.textContent});
   }
 
+  function updateImage(e, elem) {
+    dispatch("setAttributeForSelection", {componentId: elem.key.id, property: "backgroundImage", value: e.currentTarget.textContent});
+  }
+
   function submitContent(e, elem) {
     localState.modifyingUiText = false;
+    dispatch("stopSetAttributeForSelection", {oldAttrs: localState.initialAttrs, property: elem.attr});
     render();
   }
 
@@ -1390,10 +1417,12 @@ var queryEditor = (function(window, microReact, api) {
 
 
   var uiControlInfo = [{text: "text", icon: ""},
+                       {text: "image", icon: ""},
                        {text: "box", icon: ""},
                        {text: "button", icon: ""},
                        {text: "input", icon: ""},
-                       {text: "map", icon: ""}];
+                       {text: "map", icon: ""}
+                      ];
 
   function uiControls(componentId, activeLayer) {
     var items = uiControlInfo.map(function(cur) {
@@ -1540,10 +1569,10 @@ var queryEditor = (function(window, microReact, api) {
     var attrs = selectionInfo.attributes;
     var componentId = selectionInfo.componentId;
     var styleName;
-    if(selectionInfo.styles.appearance) {
-      styleName = code.name(selectionInfo.styles.appearance[1]);
+    if(selectionInfo.styles.appearance && selectionInfo.styles.appearance[4]) {
+      styleName = {value:selectionInfo.styles.appearance[1], text: code.name(selectionInfo.styles.appearance[1])};
     } else {
-      styleName = "---";
+      styleName = {text: "No visual style", value: "none"};
     }
 
     var borderColorPicker = colorSelector(componentId, "borderColor", attrs["borderColor"]);
@@ -1576,11 +1605,29 @@ var queryEditor = (function(window, microReact, api) {
     borderRadiusAdjuster.initializer = startAdjustAttr;
     borderRadiusAdjuster.finalizer = stopAdjustAttr;
 
-
-    var visualStyle = selectable("No visual style", ["No visual style", "Foo", "Bar", "Add a new style"]);
-    visualStyle.c += " styleSelector";
-    visualStyle.handler = function(elem, value) {
-      console.log("got style", value);
+    if(!localState.addingAppearanceStyle) {
+      var sharedAppearance = (ixer.index("stylesBySharedAndType")[true] || {})["appearance"] || [];
+      var styles = sharedAppearance.map(function(cur) {
+        return {value: cur[1], text: code.name(cur[1])};
+      });
+      styles.unshift({text: "No text style", value: "none"});
+      styles.push({text: "Add a new style", value: "addStyle"});
+      var visualStyle = selectable(styleName, styles);
+      visualStyle.c += " styleSelector";
+      visualStyle.handler = function(elem, value) {
+        if(value === "none") {
+          dispatch("setSelectionStyle", {type: "appearance", id: uuid(), shared: false});
+        } else if(value === "addStyle") {
+          localState.addingAppearanceStyle = uuid();
+          dispatch("setSelectionStyle", {type: "appearance", id: localState.addingAppearanceStyle, shared: true});
+        } else {
+          dispatch("setSelectionStyle", {type: "appearance", id: value, shared: true});
+        }
+        render();
+      }
+    } else {
+      visualStyle = input("", localState.addingAppearanceStyle, rename, doneAddingStyle);
+      visualStyle.postRender = focusOnce;
     }
 
     return {c: "option-group", children: [
@@ -1598,17 +1645,26 @@ var queryEditor = (function(window, microReact, api) {
     ]};
   }
 
-  function selectable(value, items, setFont) {
+  function selectable(activeItem, items, setFont) {
     var options = items.map(function(cur) {
-      var item = {t: "option", value: cur, text: cur};
+      var value, text;
+      if(typeof cur === "string") {
+        value = cur;
+        text = cur;
+      } else {
+        value = cur.value;
+        text = cur.text;
+      }
+      var item = {t: "option", value: value, text: text};
       if(setFont) {
         item.fontFamily = cur;
       }
-      if(cur === value) {
+      if((activeItem.value || activeItem) === value) {
         item.selected = "selected";
       }
       return item;
     })
+    var value = typeof activeItem === "string" ? activeItem : activeItem.text;
     return {c: "selectable", change: selectSelectable, children: [
       {t: "select", children: options},
       {c: "selectable-value", text: value}
@@ -1651,15 +1707,16 @@ var queryEditor = (function(window, microReact, api) {
     dispatch("setAttributeForSelection", {componentId: elem.componentId, property: "textAlign", value: final, storeEvent: true});
   }
 
-  uiProperties.typography = ["text", "fontFamily", "fontSize", "color", "textAlign", "verticalAlign"];
+  uiProperties.typography = ["fontFamily", "fontSize", "color", "textAlign", "verticalAlign"];
+  uiProperties.content = ["text"];
   function textInspector(selectionInfo, binding) {
     var componentId = selectionInfo.componentId;
     var attrs = selectionInfo.attributes;
     var styleName;
-    if(selectionInfo.styles.appearance) {
-      styleName = code.name(selectionInfo.styles.appearance[1]);
+    if(selectionInfo.styles.typography && selectionInfo.styles.typography[4]) {
+      styleName = {value:selectionInfo.styles.typography[1], text: code.name(selectionInfo.styles.typography[1])};
     } else {
-      styleName = "no shared style";
+      styleName = {text: "No text style", value: "none"};
     }
 
     var font = attrs["fontFamily"] || "Helvetica Neue";
@@ -1691,10 +1748,29 @@ var queryEditor = (function(window, microReact, api) {
     align.componentId = componentId;
     align.handler = selectAlign;
 
-    var typographyStyle = selectable("No text style", ["No typorgaphy style", "Foo", "Bar", "Add a new style"]);
-    typographyStyle.c += " styleSelector";
-    typographyStyle.handler = function(elem, value) {
-      console.log("got style", value);
+    if(!localState.addingTypographyStyle) {
+      var sharedTypography = (ixer.index("stylesBySharedAndType")[true] || {})["typography"] || [];
+      var styles = sharedTypography.map(function(cur) {
+        return {value: cur[1], text: code.name(cur[1])};
+      });
+      styles.unshift({text: "No text style", value: "none"});
+      styles.push({text: "Add a new style", value: "addStyle"});
+      var typographyStyle = selectable(styleName, styles);
+      typographyStyle.c += " styleSelector";
+      typographyStyle.handler = function(elem, value) {
+        if(value === "none") {
+          dispatch("setSelectionStyle", {type: "typography", id: uuid(), shared: false});
+        } else if(value === "addStyle") {
+          localState.addingTypographyStyle = uuid();
+          dispatch("setSelectionStyle", {type: "typography", id: localState.addingTypographyStyle, shared: true});
+        } else {
+          dispatch("setSelectionStyle", {type: "typography", id: value, shared: true});
+        }
+        render();
+      }
+    } else {
+      typographyStyle = input("", localState.addingTypographyStyle, rename, doneAddingStyle);
+      typographyStyle.postRender = focusOnce;
     }
 
     return {c: "option-group", children: [
@@ -1708,6 +1784,12 @@ var queryEditor = (function(window, microReact, api) {
       valign,
       align,
     ]};
+  }
+
+  function doneAddingStyle(e, elem) {
+    localState.addingTypographyStyle = null;
+    localState.addingAppearanceStyle = null;
+    render();
   }
 
   uiProperties.layer = [];
@@ -1863,7 +1945,7 @@ var queryEditor = (function(window, microReact, api) {
       var styleId = ixer.index("uiElementToStyle")[id][style][1];
       var oldProps = ixer.index("uiStyleToAttr")[styleId];
       if(oldProps) {
-        attrs.push(["uiComponentAttribute", "removed", oldProps[elem.attr]]);
+        attrs.push(oldProps[elem.attr]);
       }
     });
     localState.initialAttrs = attrs;
@@ -1917,6 +1999,9 @@ var queryEditor = (function(window, microReact, api) {
     }
     if(uiProperties.layout.indexOf(prop) !== -1) {
       return "layout";
+    }
+    if(uiProperties.content.indexOf(prop) !== -1) {
+      return "content";
     }
     return undefined;
   }
