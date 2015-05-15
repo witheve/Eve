@@ -3,8 +3,8 @@ use relation::{Relation, SingleSelect, Reference, MultiSelect};
 
 #[derive(Clone, Debug)]
 pub struct Table {
-    pub insert: Option<(usize, SingleSelect)>,
-    pub remove: Option<(usize, SingleSelect)>,
+    pub insert: Option<SingleSelect>,
+    pub remove: Option<SingleSelect>,
 }
 
 #[derive(Clone, Debug)]
@@ -71,8 +71,8 @@ impl View {
             View::Union(ref union) => {
                 assert_eq!(union.selects.len(), inputs.len());
                 let mut output = Relation::with_fields(old_output.fields.clone(), old_output.names.clone());
-                for (select, input) in union.selects.iter().zip(inputs.into_iter()) {
-                    for values in select.select(input) {
+                for select in union.selects.iter() {
+                    for values in select.select(&inputs[..]) {
                         output.index.insert(values);
                     }
                 }

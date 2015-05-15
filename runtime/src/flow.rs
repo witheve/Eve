@@ -143,12 +143,14 @@ impl Flow {
         for (ix, node) in self.nodes.iter().enumerate() {
             match node.view {
                 View::Table(Table{ref insert, ref remove}) => {
+                    let upstream = node.upstream.iter().map(|ix| self.outputs[*ix].borrow()).collect::<Vec<_>>();
+                    let inputs = upstream.iter().map(|borrowed| &**borrowed).collect::<Vec<_>>();
                     let mut inserts = match *insert {
-                        Some((ix, ref select)) => select.select(&*self.outputs[node.upstream[ix]].borrow()),
+                        Some(ref select) => select.select(&inputs[..]),
                         None => vec![],
                     };
                     let mut removes = match *remove {
-                        Some((ix, ref select)) => select.select(&*self.outputs[node.upstream[ix]].borrow()),
+                        Some(ref select) => select.select(&inputs[..]),
                         None => vec![],
                     };
                     inserts.sort();
