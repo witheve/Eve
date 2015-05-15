@@ -1,25 +1,25 @@
 use std::cmp::Ordering;
 use std::rc::Rc;
+use std::iter::Iterator;
+
+use value::{Value, Field};
 
 #[derive(Debug, Clone)]
-pub struct Map<K,V> {
+pub struct Relation {
+    fields: Vec<Field>,
     max_adjacent_chunks: usize,
-    chunks: Vec<Rc<Chunk<K,V>>>,
+    chunks: Vec<Rc<Chunk>>,
 }
 
 #[derive(Debug, Clone)]
-struct Chunk<K,V> {
+struct Chunk {
     size: usize,
-    items: Vec<(K, V)>,
+    items: Vec<Value>,
 }
 
-pub trait Monoid {
-    fn zero() -> Self;
-    fn add(v1: Self, v2: Self) -> Self;
-}
+struct Tuples
 
-fn merge<K: Ord + Clone, V: Eq + Monoid + Clone>(a: &mut Chunk<K,V>, b: &mut Chunk<K,V>) -> Chunk<K,V> {
-    // TODO requires that Monoid::add is commutative because we don't track which side the pivot came from
+fn merge(a: &mut Chunk, b: &mut Chunk) -> Chunk {
     assert!(a.size > 0);
     assert!(b.size > 0);
     let size = a.size + b.size;
@@ -79,6 +79,25 @@ impl<K: Ord + Clone, V: Eq + Monoid + Clone> Map<K,V> {
                 }
             }
         }
+    }
+
+    pub fn iter(&self) -> Iter<K,V> {
+        Iter{
+            chunks: &*self.chunks,
+            positions: vec![0; self.chunks.len()],
+        }
+    }
+}
+
+pub struct Iter<'a, K, V> where K: 'a, V: 'a {
+    chunks: &'a [Rc<Chunk<K,V>>],
+    positions: Vec<usize>,
+}
+
+impl<'a, K, V> Iterator for Iter<'a, K, V> {
+    type Item = &'a (K,V);
+    fn next(&mut self) -> Option<&'a (K,V)> {
+
     }
 }
 

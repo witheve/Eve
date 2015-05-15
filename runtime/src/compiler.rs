@@ -213,20 +213,18 @@ fn create_flow(compiler: &Compiler) -> Flow {
     }
 }
 
-fn reuse_state(compiler: Compiler, flow: &mut Flow, changes: &mut Changes) {
+fn reuse_state(compiler: Compiler, flow: &mut Flow) {
     let Flow{nodes, outputs, ..} = compiler.flow;
     for (node, output) in nodes.into_iter().zip(outputs.into_iter()) {
         let id = &node.id[..];
         if flow.get_ix(id) != None
            && output.borrow().fields == flow.get_output(id).fields {
             flow.set_output(id, output);
-        } else {
-            changes.push((id.to_owned(), output.borrow().as_remove()));
         }
     }
 }
 
-pub fn recompile(old_flow: Flow, changes: &mut Changes) -> Flow {
+pub fn recompile(old_flow: Flow) -> Flow {
     let dependency = create_dependency(&old_flow);
     let schedule = create_schedule(&old_flow);
     let compiler = Compiler{
@@ -235,15 +233,8 @@ pub fn recompile(old_flow: Flow, changes: &mut Changes) -> Flow {
         schedule: schedule,
     };
     let mut new_flow = create_flow(&compiler);
-    reuse_state(compiler, &mut new_flow, changes);
+    reuse_state(compiler, &mut new_flow);
     new_flow
-}
-
-pub fn needs_recompile(changes: &[(Id, Change)]) -> bool {
-    let schema = schema();
-    changes.iter().any(|&(ref changed_id, _)|
-        schema.iter().any(|&(ref compiler_id, _, _)|
-            changed_id == compiler_id))
 }
 
 pub fn bootstrap(mut flow: Flow) -> Flow {
@@ -283,25 +274,25 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
             select_values.push(vec![string!("{}", id), string!("{}: {}", id, field), string!("remove"), string!("remove: {}: {}", id, field)]);
         }
     }
-    flow.get_output_mut("view").change(&Change{
+    flow.get_output_mut("view").change(Change{
         fields: vec!["view: view".to_owned(), "view: kind".to_owned()],
         insert: view_values,
         remove: Vec::new(),
     });
-    flow.get_output_mut("field").change(&Change{
+    flow.get_output_mut("field").change(Change{
         fields: vec!["field: field".to_owned(), "field: view".to_owned(), "field: kind".to_owned()],
         insert: field_values,
         remove: Vec::new(),
     });
-    flow.get_output_mut("source").change(&Change{
+    flow.get_output_mut("source").change(Change{
         fields: vec!["source: view".to_owned(), "source: source".to_owned(), "source: source view".to_owned()],
         insert: source_values,
         remove: Vec::new(),
     });
-    flow.get_output_mut("select").change(&Change{
+    flow.get_output_mut("select").change(Change{
         fields: vec!["select: view".to_owned(), "select: view field".to_owned(), "select: source".to_owned(), "select: source field".to_owned()],
         insert: select_values,
         remove: Vec::new(),
     });
-    recompile(flow, &mut Vec::new()) // bootstrap away our dummy nodes
+    recompile(flow) // bootstrap away our dummy nodes
 }
