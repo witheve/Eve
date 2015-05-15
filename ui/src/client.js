@@ -1,4 +1,6 @@
-var client = (function eveClient(ixer, dispatcher) {
+var client = (function eveClient(api, dispatcher) {
+  var ixer = api.ixer;
+
   function now() {
     if(window.performance) {
       return window.performance.now();
@@ -6,9 +8,8 @@ var client = (function eveClient(ixer, dispatcher) {
     return (new Date()).getTime();
   }
 
-  function initialize() {
-    console.log("initing");
-    dispatcher.initIndexer();
+  function initialize(noFacts) {
+    api.initIndexer(noFacts);
     sendToServer(ixer.dumpMapDiffs(), true);
   }
 
@@ -40,8 +41,9 @@ var client = (function eveClient(ixer, dispatcher) {
         initialize();
       } else if(!server.initialized) {
         server.initialized = true;
+        initialize(true);
       }
-      console.log("received", data);
+      // console.log("received", data);
       var start = now();
       ixer.handleMapDiffs(data.changes);
       var time = now() - start;
@@ -85,7 +87,6 @@ var client = (function eveClient(ixer, dispatcher) {
           uiRenderer.renderMapDiffs(mapDiffs.element, mapDiffs.attr, mapDiffs.marker);
         }
 
-        console.log('rendering');
         dispatcher.render();
       }
     };
@@ -103,7 +104,7 @@ var client = (function eveClient(ixer, dispatcher) {
       console.log("not connected");
       server.queue.push(message);
     } else {
-      console.log("sending", message);
+      // console.log("sending", message);
       if(!formatted) {
         message = toMapDiffs(message);
       }
@@ -119,8 +120,8 @@ var client = (function eveClient(ixer, dispatcher) {
         }
       }
 
-      console.log("\nspecial --- \n", JSON.stringify(specialPayload, null, 2));
-      console.log("\npayload --- \n", JSON.stringify(payload, null, 2));
+//       console.log("\nspecial --- \n", JSON.stringify(specialPayload, null, 2));
+//       console.log("\npayload --- \n", JSON.stringify(payload, null, 2));
 
       if(specialPayload.changes.length) {
         server.ws.send(JSON.stringify(specialPayload));
@@ -175,4 +176,4 @@ var client = (function eveClient(ixer, dispatcher) {
 
   return {sendToServer: sendToServer};
 
-})(queryEditor.ixer, queryEditor);
+})(api, queryEditor);

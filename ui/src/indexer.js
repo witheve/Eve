@@ -138,6 +138,44 @@ var Indexing = (function() {
         var fields = diff[1]; // @FIXME: Reorder fields as necessary to support concurrent editing of view structure.
         var inserted = diff[2];
         var removed = diff[3];
+
+        var fieldIds = window.api.code.sortedViewFields(table); // @GLOBAL Due to circular ref. w/ synchronous dependency loading.
+        if(!fieldIds) {
+          fieldIds = fields;
+        }
+        var mapping = {};
+        var changed = false;
+        var fieldLength = fields.length;
+        for(var ix = 0; ix < fieldLength; ix++) {
+          mapping[ix] = fieldIds.indexOf(fields[ix]);
+          if(mapping[ix] === -1) {
+            throw new Error("Invalid mapping for field: '" + fields[ix] + "' to fields: " + JSON.stringify(fieldIds));
+          }
+          if(mapping[ix] !== ix) { changed = true; }
+        }
+
+        if(changed) {
+          var neueInserted = [];
+          for(var insertedIx = 0, insertedLength = inserted.length; insertedIx < insertedLength; insertedIx++) {
+            var neue = [];
+            for(var ix = 0; ix < fieldLength; ix++) {
+              neue[mapping[ix]] = inserted[insertedIx][ix];
+            }
+            neueInserted.push(neue);
+          }
+          inserted = neueInserted;
+
+          var neueRemoved = [];
+          for(var removedIx = 0, removedLength = removed.length; removedIx < removedLength; removedIx++) {
+            var neue = [];
+            for(var ix = 0; ix < fieldLength; ix++) {
+              neue[mapping[ix]] = removed[removedIx][ix];
+            }
+            neueRemoved.push(neue);
+          }
+          removed = neueRemoved;
+        }
+
         if(inserted.length || removed.length) {
           this.handleDiff(table, inserted, removed);
         }
