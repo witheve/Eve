@@ -29,6 +29,7 @@ var api = (function(Indexing) {
     // Editor
     "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"]]},
     block: {name: "block", fields: ["query", "block", "view"]},
+    "block aggregate": {name: "block aggregate", fields: ["block", "kind"]},
     "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
     "grouped by": {name: "grouped by", fields: ["inner", "inner field", "outer", "outer field"]},
 
@@ -166,10 +167,10 @@ var api = (function(Indexing) {
       var field = code.nameToField(viewId, fieldName);
       if(!field) { throw new Error("Field " + fieldName + " of view " + code.name(viewId) + " not found."); }
       var namedFieldId = field[1];
-      var fields = code.sortedViewFields(viewId);
+      var fieldIds = code.sortedViewFields(viewId);
 
-      for(var ix = 0; ix < fields.length; ix++) {
-        var fieldId = fields[ix][1];
+      for(var ix = 0; ix < fieldIds.length; ix++) {
+        var fieldId = fieldIds[ix];
         if(fieldId === namedFieldId) {
           return ix;
         }
@@ -231,11 +232,12 @@ var api = (function(Indexing) {
       return diffs;
     },
 
-    addViewBlock: function addBlock(queryId, sourceViewId) {
+    addViewBlock: function addBlock(queryId, sourceViewId, kind) {
+      kind = kind || "union";
       var viewId = uuid();
       var blockId = uuid();
       var diffs = [["block", "inserted", [queryId, blockId, viewId]],
-                   ["view", "inserted", [viewId, "union"]]];
+                   ["view", "inserted", [viewId, kind]]];
 
       if(sourceViewId) {
         diffs.push.apply(diffs, diff.addViewSource(viewId, sourceViewId));
@@ -243,11 +245,12 @@ var api = (function(Indexing) {
       return diffs;
     },
 
-    addAggregateBlock: function addBlock(queryId) {
+    addAggregateBlock: function addBlock(queryId, kind) {
       var viewId = uuid();
       var blockId = uuid();
       var diffs = [["block", "inserted", [queryId, blockId, viewId]],
-                   ["view", "inserted", [viewId, "aggregate"]]];
+                   ["view", "inserted", [viewId, "aggregate"]],
+                   ["block aggregate", "inserted", [blockId, kind]]];
       return diffs;
     },
 

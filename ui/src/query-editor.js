@@ -250,11 +250,11 @@ var queryEditor = (function(window, microReact, api) {
         break;
       case "addViewBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
-        diffs = diff.addViewBlock(queryId, info.sourceId);
+        diffs = diff.addViewBlock(queryId, info.sourceId, info.kind);
         break;
       case "addAggregateBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
-        diffs = diff.addAggregateBlock(queryId);
+        diffs = diff.addAggregateBlock(queryId, info.kind);
         break;
       case "addUnionBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
@@ -503,6 +503,7 @@ var queryEditor = (function(window, microReact, api) {
         window.client.sendToServer(diffs);
       }
       render();
+      console.log("rendering");
     } else {
       //       console.warn("No diffs to index, skipping.");
     }
@@ -2056,9 +2057,11 @@ var queryEditor = (function(window, microReact, api) {
   function editor(queryId) {
     var blocks = ixer.index("query to blocks")[queryId] || [];
     var items = [];
+    console.log("editor", blocks, code.ix("block", "view"));
     for(var ix = 0; ix < blocks.length; ix++) {
       var viewId = blocks[ix][code.ix("block", "view")];
       var viewKind = ixer.index("view to kind")[viewId];
+      console.log(" - ", viewId, viewKind);
       if(viewKind === "join") { items.push(viewBlock(viewId)); }
       if(viewKind === "union") { items.push(unionBlock(viewId));  }
       if(viewKind === "aggregate") { items.push(aggregateBlock(viewId)); }
@@ -2075,19 +2078,17 @@ var queryEditor = (function(window, microReact, api) {
   function editorDrop(evt, elem) {
     var type = evt.dataTransfer.getData("type");
     var value = evt.dataTransfer.getData("value");
+    console.log(type, value);
     if(type === "view") {
-      return dispatch("addViewBlock", {queryId: elem.queryId, sourceId: value});
+      return dispatch("addViewBlock", {queryId: elem.queryId, sourceId: value, kind: "join"});
     }
     if(type === "aggregate") {
+      console.log("adding agg block", elem.queryId, value);
       return dispatch("addAggregateBlock", {queryId: elem.queryId, kind: value});
     }
     if(type === "union") {
       return dispatch("addUnionBlock", {queryId: elem.queryId});
     }
-  }
-
-  function addAggregateBlock(evt, elem) {
-    dispatch("addAggregateBlock", {queryId: elem.queryId});
   }
 
   /**

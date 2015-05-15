@@ -1,9 +1,9 @@
 use std::collections::BitSet;
 use std::cell::RefCell;
 
-use value::{Id, Value};
-use relation::{Relation, Change, Select};
-use view::{View, Table, Union};
+use value::{Id, Value, Tuple};
+use relation::{Relation, Change, SingleSelect, Reference, MultiSelect};
+use view::{View, Table, Union, Join, Constraint, ConstraintOp};
 use flow::{Node, Flow, Changes};
 
 pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
@@ -131,15 +131,40 @@ fn create_schedule(flow: &Flow) -> Relation {
     }
 }
 
-fn create_single_select(compiler: &Compiler, view_id: &Value, source_id: &Value) -> Select {
+fn create_single_select(compiler: &Compiler, view_id: &Value, source_id: &Value) -> SingleSelect {
     let fields = compiler.flow.get_output("field").find_all("view", view_id).iter().map(|field| {
-            compiler.flow.get_output("select").iter().find(|select|
-                select["view"] == *view_id
-                && select["view field"] == field["field"]
-                && select["source"] == *source_id
-            ).unwrap()["source field"].as_str().to_owned()
-        }).collect();
-    Select{fields: fields}
+        let select_table = compiler.flow.get_output("select");
+        let select = select_table.iter().find(|select|
+            select["view"] == *view_id
+            && select["view field"] == field["field"]
+            && select["source"] == *source_id
+            ).unwrap();
+        select["source field"].as_str().to_owned()
+    }).collect();
+    SingleSelect{fields: fields}
+}
+
+fn create_reference(compiler: &Compiler, sources: &[Tuple], source_id: &Value, field_id: &Value) -> Reference {
+    if source_id.as_str() == "constant" {
+        let value = compiler.flow.get_output("constant").find_one("constant", field_id)["value"].clone();
+        Reference::Constant{value: value}
+    } else {
+        let source = sources.iter().position(|source| source["source"] == *source_id).unwrap();
+        let field = field_id.as_str().to_owned();
+        Reference::Variable{source: source, field: field}
+    }
+}
+
+fn create_multi_select(compiler: &Compiler, sources: &[Tuple], view_id: &Value) -> MultiSelect {
+    let references = compiler.flow.get_output("field").find_all("view", view_id).iter().map(|field| {
+        let select_table = compiler.flow.get_output("select");
+        let select = select_table.iter().find(|select|
+            select["view"] == *view_id
+            && select["view field"] == field["field"]
+            ).unwrap();
+        create_reference(compiler, sources, &select["source"], &select["source field"])
+    }).collect();
+    MultiSelect{references: references}
 }
 
 fn create_table(compiler: &Compiler, view_id: &Value) -> Table {
@@ -163,10 +188,50 @@ fn create_union(compiler: &Compiler, view_id: &Value) -> Union {
     Union{selects: selects}
 }
 
+fn create_constraint(compiler: &Compiler, sources: &[Tuple], view_id: &Value, constraint_id: &Value) -> Constraint {
+    let left_table = compiler.flow.get_output("constraint left");
+    let left = left_table.find_one("constraint", constraint_id);
+    let left = create_reference(compiler, sources, &left["left source"], &left["left field"]);
+    let right_table = compiler.flow.get_output("constraint right");
+    let right = right_table.find_one("constraint", constraint_id);
+    let right = create_reference(compiler, sources, &right["right source"], &right["right field"]);
+    let op = match compiler.flow.get_output("constraint operation").find_one("constraint", constraint_id)["operation"].as_str() {
+        "==" => ConstraintOp::EQ,
+        "!=" => ConstraintOp::NEQ,
+        "<" => ConstraintOp::LT,
+        ">" => ConstraintOp::GT,
+        "<=" => ConstraintOp::LTE,
+        ">=" => ConstraintOp::GTE,
+        other => panic!("Unknown constraint operation: {:?}", other),
+    };
+    Constraint{left: left, op: op, right: right}
+}
+
+fn create_join(compiler: &Compiler, view_id: &Value) -> Join {
+    let sources = compiler.dependency.find_all("downstream view", view_id);
+    let mut constraints = vec![vec![]; sources.len()];
+    for constraint in compiler.flow.get_output("constraint").find_all("view", view_id).iter() {
+        let constraint = create_constraint(compiler, &sources[..], view_id, &constraint["constraint"]);
+        let left_ix = match constraint.left {
+            Reference::Variable{source, ..} => source,
+            Reference::Constant{..} => 0,
+        };
+        let right_ix = match constraint.right {
+            Reference::Variable{source, ..} => source,
+            Reference::Constant{..} => 0,
+        };
+        let ix = ::std::cmp::min(left_ix, right_ix);
+        constraints[ix].push(constraint);
+    }
+    let select = create_multi_select(compiler, &sources[..], view_id);
+    Join{constraints: constraints, select: select}
+}
+
 fn create_node(compiler: &Compiler, view_id: &Value, view_kind: &Value) -> Node {
     let view = match view_kind.as_str() {
         "table" => View::Table(create_table(compiler, view_id)),
         "union" => View::Union(create_union(compiler, view_id)),
+        "join" => View::Join(create_join(compiler, view_id)),
         other => panic!("Unknown view kind: {}", other),
     };
     let upstream = compiler.dependency.find_all("downstream view", view_id).iter().map(|dependency| {
