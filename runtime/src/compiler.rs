@@ -121,8 +121,10 @@ fn create_schedule(flow: &Flow) -> Relation {
     let mut schedule = Vec::new();
     let mut ix = 0.0;
     for view in flow.get_output("view").iter() {
-        schedule.push(vec![Value::Float(ix), view["view"].clone()]);
-        ix += 1.0;
+        if view["kind"].as_str() != "primitive" {
+            schedule.push(vec![Value::Float(ix), view["view"].clone()]);
+            ix += 1.0;
+        }
     }
     Relation{
         fields: vec!["schedule: ix".to_owned(), "schedule: view".to_owned()],
