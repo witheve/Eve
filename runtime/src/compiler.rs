@@ -121,8 +121,10 @@ fn create_schedule(flow: &Flow) -> Relation {
     let mut schedule = Vec::new();
     let mut ix = 0.0;
     for view in flow.get_output("view").iter() {
-        schedule.push(vec![Value::Float(ix), view["view"].clone()]);
-        ix += 1.0;
+        if view["kind"].as_str() != "primitive" {
+            schedule.push(vec![Value::Float(ix), view["view"].clone()]);
+            ix += 1.0;
+        }
     }
     Relation{
         fields: vec!["schedule: ix".to_owned(), "schedule: view".to_owned()],
@@ -131,7 +133,7 @@ fn create_schedule(flow: &Flow) -> Relation {
     }
 }
 
-fn create_single_select(compiler: &Compiler, view_id: &Value, source_id: &Value) -> SingleSelect {
+fn create_single_select(compiler: &Compiler, view_id: &Value, source_id: &Value, source_ix: usize) -> SingleSelect {
     let fields = compiler.flow.get_output("field").find_all("view", view_id).iter().map(|field| {
         let select_table = compiler.flow.get_output("select");
         let select = select_table.iter().find(|select|
@@ -141,7 +143,7 @@ fn create_single_select(compiler: &Compiler, view_id: &Value, source_id: &Value)
             ).unwrap();
         select["source field"].as_str().to_owned()
     }).collect();
-    SingleSelect{fields: fields}
+    SingleSelect{source: source_ix, fields: fields}
 }
 
 fn create_reference(compiler: &Compiler, sources: &[Tuple], source_id: &Value, field_id: &Value) -> Reference {
@@ -170,8 +172,8 @@ fn create_multi_select(compiler: &Compiler, sources: &[Tuple], view_id: &Value) 
 fn create_table(compiler: &Compiler, view_id: &Value) -> Table {
     let mut insert = None;
     let mut remove = None;
-    for source in compiler.flow.get_output("source").find_all("view", view_id) {
-        let select = create_single_select(compiler, view_id, &source["source"]);
+    for (ix, source) in compiler.flow.get_output("source").find_all("view", view_id).iter().enumerate() {
+        let select = create_single_select(compiler, view_id, &source["source"], ix);
         match source["source"].as_str() {
             "insert" => insert = Some(select),
             "remove" => remove = Some(select),
@@ -182,8 +184,8 @@ fn create_table(compiler: &Compiler, view_id: &Value) -> Table {
 }
 
 fn create_union(compiler: &Compiler, view_id: &Value) -> Union {
-    let selects = compiler.dependency.find_all("downstream view", view_id).iter().map(|dependency| {
-        create_single_select(compiler, view_id, &dependency["source"])
+    let selects = compiler.dependency.find_all("downstream view", view_id).iter().enumerate().map(|(ix, dependency)| {
+        create_single_select(compiler, view_id, &dependency["source"], ix)
     }).collect();
     Union{selects: selects}
 }
