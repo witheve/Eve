@@ -171,8 +171,7 @@ impl Flow {
         changed
     }
 
-    pub fn quiesce(mut self, changes: Changes) -> (Self, Changes) {
-        let old_self = self.clone();
+    pub fn quiesce(mut self, changes: Changes) -> Self {
         self.change(changes);
         loop {
             // TODO if compiler::needs_recompile...
@@ -183,7 +182,6 @@ impl Flow {
                 break
             }
         }
-        let changes = self.changes_from(old_self);
-        (self, changes)
+        self
     }
 }

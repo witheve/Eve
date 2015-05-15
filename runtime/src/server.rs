@@ -140,10 +140,8 @@ pub fn run() {
         for line in old_events.lines() {
             let json = Json::from_str(&line).unwrap();
             let event: Event = FromJson::from_json(&json);
-            let (new_flow, _changes) = flow.quiesce(event.changes);
-            flow = new_flow;
+            flow = flow.quiesce(event.changes);
         }
-        drop(events);
     });
 
     let mut events = OpenOptions::new().write(true).append(true).open("./events").unwrap();
@@ -170,8 +168,9 @@ pub fn run() {
                     let event: Event = FromJson::from_json(&json);
                     events.write_all(input_text.as_bytes()).unwrap();
                     events.write_all("\n".as_bytes()).unwrap();
-                    let (new_flow, changes) = flow.quiesce(event.changes);
-                    flow = new_flow;
+                    let old_flow = flow.clone();
+                    flow = flow.quiesce(event.changes);
+                    let changes = flow.changes_from(old_flow);
                     let output_text = format!("{}", Event{changes: changes}.to_json());
                     events.flush().unwrap();
                     for sender in senders.iter_mut() {
