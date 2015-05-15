@@ -76,7 +76,7 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     ("display name", vec!["id"], vec!["name"]),
     // things can be displayed in ordered lists
     // `priority` is an f64. higher priority things are displayed first. ties are broken by id
-    ("display order", vec!["field"], vec!["priority"]),
+    ("display order", vec!["id"], vec!["priority"]),
 
     // the compiler reflects its decisions into some builtin views
     // a dependency exists whenever the contents on one view depend directly on another
