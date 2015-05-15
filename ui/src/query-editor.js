@@ -418,7 +418,7 @@ var queryEditor = (function(window, microReact, api) {
           if(oldProps && oldProps[info.property]) {
             diffs.push(["uiComponentAttribute", "removed", oldProps[info.property]]);
           }
-          diffs.push(["uiComponentAttribute", "inserted", [txId, styleId, info.property, info.value, false]]);
+          diffs.push(["uiComponentAttribute", "inserted", [0, styleId, info.property, info.value, false]]);
         });
         break;
       case "stopSetAttributeForSelection":
@@ -1193,16 +1193,25 @@ var queryEditor = (function(window, microReact, api) {
       }
     }
 
+
+    if(type === "image") {
+      elem.attr = "backgroundImage";
+    } else {
+      elem.attr = "text";
+    }
+
     if(localState.modifyingUiText === id) {
       if(type === "image") {
         var curInput = input(elem.text, {id: id}, updateImage, submitContent);
         curInput.postRender = focusOnce;
         elem.children = [curInput];
+        curInput.attr = "backgroundImage";
         elem.text = undefined;
       } else {
         var curInput = input(elem.text, {id: id}, updateContent, submitContent);
         curInput.postRender = focusOnce;
         elem.children = [curInput];
+        curInput.attr = "text";
         elem.text = undefined;
       }
     }
@@ -1215,6 +1224,7 @@ var queryEditor = (function(window, microReact, api) {
 
   function setModifyingText(e, elem) {
     localState.modifyingUiText = elem.control[1];
+    startAdjustAttr(e, elem);
     render();
   }
 
@@ -1228,6 +1238,7 @@ var queryEditor = (function(window, microReact, api) {
 
   function submitContent(e, elem) {
     localState.modifyingUiText = false;
+    dispatch("stopSetAttributeForSelection", {oldAttrs: localState.initialAttrs, property: elem.attr});
     render();
   }
 
@@ -1730,14 +1741,11 @@ var queryEditor = (function(window, microReact, api) {
       typographyStyle.c += " styleSelector";
       typographyStyle.handler = function(elem, value) {
         if(value === "none") {
-          console.log("use an element style");
           dispatch("setSelectionStyle", {type: "typography", id: uuid(), shared: false});
         } else if(value === "addStyle") {
-          console.log("add a new style");
           localState.addingTypographyStyle = uuid();
           dispatch("setSelectionStyle", {type: "typography", id: localState.addingTypographyStyle, shared: true});
         } else {
-          console.log("set style to", value);
           dispatch("setSelectionStyle", {type: "typography", id: value, shared: true});
         }
         render();
@@ -1919,7 +1927,7 @@ var queryEditor = (function(window, microReact, api) {
       var styleId = ixer.index("uiElementToStyle")[id][style][1];
       var oldProps = ixer.index("uiStyleToAttr")[styleId];
       if(oldProps) {
-        attrs.push(["uiComponentAttribute", "removed", oldProps[elem.attr]]);
+        attrs.push(oldProps[elem.attr]);
       }
     });
     localState.initialAttrs = attrs;

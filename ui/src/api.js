@@ -107,11 +107,11 @@ var api = (function(Indexing) {
   ixer.addIndex("parentLayerToLayers", "uiComponentLayer", Indexing.create.collector([6]));
   ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.collector([2]));
   ixer.addIndex("uiLayerToElements", "uiComponentElement", Indexing.create.collector([3]));
-  ixer.addIndex("uiStyles", "uiStyle", Indexing.create.latestCollector({keys: [1], uniqueness: [1]}));
-  ixer.addIndex("uiStyle", "uiStyle", Indexing.create.latestLookup({keys: [1, false]}));
-  ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.latestLookup({keys: [3, 2, false]}));
-  ixer.addIndex("uiElementToStyles", "uiStyle", Indexing.create.latestCollector({keys: [3], uniqueness: [2]}));
-  ixer.addIndex("stylesBySharedAndType", "uiStyle", Indexing.create.latestCollector({keys: [4, 2], uniqueness: [2]}));
+  ixer.addIndex("uiStyles", "uiStyle", Indexing.create.collector([1]));
+  ixer.addIndex("uiStyle", "uiStyle", Indexing.create.lookup([1, false]));
+  ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.lookup([3, 2, false]));
+  ixer.addIndex("uiElementToStyles", "uiStyle", Indexing.create.collector([3]));
+  ixer.addIndex("stylesBySharedAndType", "uiStyle", Indexing.create.collector([4, 2]));
   ixer.addIndex("uiStyleToAttr", "uiComponentAttribute", Indexing.create.lookup([1, 2, false]));
   ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.collector([1]));
   ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup([0, 1]));
