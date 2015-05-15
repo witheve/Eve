@@ -55,7 +55,7 @@ var api = (function(Indexing) {
     "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"], facts: []},
     "uiComponentLayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden", "parentLayer"], facts: []},
     "uiComponentAttribute": {name: "uiComponentAttribute", fields: ["tx", "id", "property", "value"]},
-    "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element"]},
+    "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element", "shared"]},
     "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "union"]},
 
   };
@@ -111,6 +111,7 @@ var api = (function(Indexing) {
   ixer.addIndex("uiStyle", "uiStyle", Indexing.create.latestLookup({keys: [1, false]}));
   ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.latestLookup({keys: [3, 2, false]}));
   ixer.addIndex("uiElementToStyles", "uiStyle", Indexing.create.latestCollector({keys: [3], uniqueness: [2]}));
+  ixer.addIndex("stylesBySharedAndType", "uiStyle", Indexing.create.latestCollector({keys: [4, 2], uniqueness: [2]}));
   ixer.addIndex("uiStyleToAttr", "uiComponentAttribute", Indexing.create.lookup([1, 2, false]));
   ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.collector([1]));
   ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup([0, 1]));
@@ -382,20 +383,44 @@ var api = (function(Indexing) {
     },
     duplicateElement: function(element, id, txId) {
       var diffs = [];
+      var oldId = element[1];
       var neue = element.slice();
       //generate new ids for the element, everything else remains
       neue[0] = txId;
       neue[1] = id;
       diffs.push(["uiComponentElement", "inserted", neue]);
       //duplicate all of the attributes
-      var styles = ixer.index("uiElementToStyles")[element[1]];
+      var styles = ixer.index("uiElementToStyles")[oldId];
       if(styles) {
         styles.forEach(function(cur) {
-          var style = cur.slice();
-          style[0] = txId;
-          style[3] = id;
-          diffs.push(["uiStyle", "inserted", style]);
+          if(cur[4] === false) {
+            diffs.push.apply(diffs, diff.duplicateStyle(cur, neue[1], txId));
+          } else {
+            var style = cur.slice();
+            style[0] = txId;
+            style[3] = id;
+            diffs.push(["uiStyle", "inserted", style]);
+          }
         });
+      }
+      return diffs;
+    },
+    duplicateStyle: function(toDuplicate, elementId, txId) {
+      var diffs = [];
+      var style = toDuplicate.slice();
+      var oldId = toDuplicate[1];
+      var neueId = uuid();
+      style[0] = txId;
+      style[1] = neueId;
+      style[3] = elementId;
+      diffs.push(["uiStyle", "inserted", style]);
+      var styles = ixer.index("uiStyleToAttrs")[oldId];
+      if(styles) {
+        styles.forEach(function(attr) {
+          var neueAttr = attr.slice();
+          neueAttr[1] = neueId;
+          diffs.push(["uiComponentAttribute", "inserted", neueAttr]);
+        })
       }
       return diffs;
     },
