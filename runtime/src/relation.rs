@@ -179,7 +179,7 @@ impl Reference {
     pub fn resolve<'a>(&'a self, inputs: &'a [Tuple<'a>]) -> &Value {
         match *self {
             Reference::Constant{ref value} => value,
-            Reference::Variable{source, ref field} => &inputs[source][&field[..]],
+            Reference::Variable{source, ref field} => &inputs[source].field(field),
         }
     }
 }

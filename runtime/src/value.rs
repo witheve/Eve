@@ -80,3 +80,11 @@ impl<'a, 'b> Index<&'b str> for Tuple<'a> {
     }
 }
 
+// TODO when id is a real type this will also be impl Index
+impl<'a> Tuple<'a> {
+    fn field(&'a self, index: String) -> 'a Value {
+        let ix = self.field.iter().position(|field| &field[..] == index).unwrap();
+        &self.values[ix]
+    }
+}
+
