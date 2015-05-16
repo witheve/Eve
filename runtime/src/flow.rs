@@ -1,8 +1,7 @@
 use std::collections::BitSet;
-use std::mem::replace;
 use std::cell::{RefCell, Ref, RefMut};
 
-use value::{Id, Value};
+use value::{Id};
 use relation::{Change, Relation};
 use view::{View, Table};
 use compiler;
@@ -101,7 +100,7 @@ impl Flow {
         }
         for (old_ix, old_node) in old_self.nodes.iter().enumerate() {
             match self.get_ix(&old_node.id[..]) {
-                Some(new_ix) => {
+                Some(_) => {
                     () // already handled above
                 }
                 None => {
