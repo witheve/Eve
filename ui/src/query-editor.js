@@ -301,10 +301,8 @@ var queryEditor = (function(window, microReact, api) {
           }, 1);
 
           if(numSelects !== numFields * numSources) {
-            console.log("incomplete, only saving locally.");
             sendToServer = false;
           } else {
-            console.log("complete, sending all selects to server.");
             diffs = diffs.concat(selects.map(function(select) {
               return ["select", "inserted", select];
             }));
@@ -2144,11 +2142,9 @@ var queryEditor = (function(window, microReact, api) {
   function editor(queryId) {
     var blocks = ixer.index("query to blocks")[queryId] || [];
     var items = [];
-    console.log("editor", blocks, code.ix("block", "view"));
     for(var ix = 0; ix < blocks.length; ix++) {
       var viewId = blocks[ix][code.ix("block", "view")];
       var viewKind = ixer.index("view to kind")[viewId];
-      console.log(" - ", viewId, viewKind);
       if(viewKind === "join") { items.push(viewBlock(viewId)); }
       if(viewKind === "union") { items.push(unionBlock(viewId));  }
       if(viewKind === "aggregate") { items.push(aggregateBlock(viewId)); }
@@ -2165,12 +2161,10 @@ var queryEditor = (function(window, microReact, api) {
   function editorDrop(evt, elem) {
     var type = evt.dataTransfer.getData("type");
     var value = evt.dataTransfer.getData("value");
-    console.log(type, value);
     if(type === "view") {
       return dispatch("addViewBlock", {queryId: elem.queryId, sourceId: value, kind: "join"});
     }
     if(type === "aggregate") {
-      console.log("adding agg block", elem.queryId, value);
       return dispatch("addAggregateBlock", {queryId: elem.queryId, kind: value});
     }
     if(type === "union") {
