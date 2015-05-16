@@ -327,12 +327,15 @@ fn reuse_state(old_flow: Flow, new_flow: &mut Flow) {
                 for values in old_output.index.into_iter() {
                     new_output.index.insert(with_mapping(values, &mapping[..]));
                 }
-            } // else throw it away
+            } else {
+                println!("Warning, cannot migrate state for: {:?}", old_node.id);
+            }
         }
     }
 }
 
 pub fn recompile(mut old_flow: Flow) -> Flow {
+    println!("Compiling...");
     let dependency = create_dependency(&old_flow);
     let dependency_ix = old_flow.get_ix("dependency").unwrap();
     old_flow.outputs[dependency_ix] = RefCell::new(dependency);
@@ -341,6 +344,7 @@ pub fn recompile(mut old_flow: Flow) -> Flow {
     old_flow.outputs[schedule_ix] = RefCell::new(schedule);
     let mut new_flow = create_flow(&old_flow);
     reuse_state(old_flow, &mut new_flow);
+    println!("Compiled...");
     new_flow
 }
 
@@ -399,6 +403,11 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
     flow.get_output_mut("select").change(Change{
         fields: vec!["select: view".to_owned(), "select: view field".to_owned(), "select: source".to_owned(), "select: source field".to_owned()],
         insert: select_values,
+        remove: Vec::new(),
+    });
+      flow.get_output_mut("display name").change(Change{
+        fields: vec!["display name: id".to_owned(), "display name: name".to_owned()],
+        insert: display_name_values,
         remove: Vec::new(),
     });
     recompile(flow) // bootstrap away our dummy nodes
