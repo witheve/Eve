@@ -17,7 +17,7 @@ var api = (function(Indexing) {
     "constraint right": {name: "constraint right", fields: ["constraint", "right source", "right field"]},
     "constraint operation": {name: "constraint operation", fields: ["constraint", "operation"]},
 
-    "aggregate grouping": {name: "aggregate grouping", fields: ["aggregate", "inner field", "group source", "outer field"]},
+    "aggregate grouping": {name: "aggregate grouping", fields: ["aggregate", "inner field", "outer field"]},
     "aggregate sorting": {name: "aggregate sorting", fields: ["aggregate", "inner field", "priority", "direction"]},
     "aggregate limit from": {name: "aggregate limit from", fields: ["aggregate", "from source", "from field"]},
     "aggregate limit to": {name: "aggregate limit to", fields: ["aggregate", "to source", "to field"]},
