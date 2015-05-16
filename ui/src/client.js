@@ -47,7 +47,7 @@ var client = (function eveClient(api, dispatcher) {
       data.changes.forEach(function(change) {
         if(change[2].length || change[3].length) {
           console.log(" ", change[0], "+" + change[2].length, "/", "-" + change[3].length,
-                      {fields: change[0], inserts: change[2], removes: change[3]});
+                      {fields: change[1], inserts: change[2], removes: change[3]});
         }
       });
       console.log("end received");
