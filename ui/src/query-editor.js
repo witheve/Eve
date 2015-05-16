@@ -506,9 +506,9 @@ var queryEditor = (function(window, microReact, api) {
         diffs = diff.updateViewConstraint(info.constraintId, opts);
 
         var constraint = ixer.index("constraint")[info.constraintId];
-        var constraintLeft = ixer.index("constraint left")[info.constraintId];
-        var constraintRight = ixer.index("constraint right")[info.constraintId];
-        var constraintOperation = ixer.index("constraint operation")[info.constraintId];
+        var constraintLeft = ixer.index("constraint left")[info.constraintId] || [];
+        var constraintRight = ixer.index("constraint right")[info.constraintId] || [];
+        var constraintOperation = ixer.index("constraint operation")[info.constraintId] || [];
 
         var constraintFieldIx = code.ix("constraint left", "left field");
         var constraintSourceIx = code.ix("constraint left", "left source");
@@ -520,10 +520,10 @@ var queryEditor = (function(window, microReact, api) {
         opts.operation = opts.operation || constraintOperation[constraintOperationIx];
 
         if(opts.leftField && opts.leftSource && opts.rightField && opts.rightSource && opts.operation) {
-          diffs.push(constraint);
-          if(!info.type === "left") { diffs.push(["constraint left", "inserted", constraintLeft]); }
-          if(!info.type === "right") { diffs.push(["constraint right", "inserted", constraintRight]); }
-          if(!info.type === "operation") { diffs.push(["constraint operation", "inserted", constraintOperation]); }
+          diffs.push(["constraint", "inserted", constraint]);
+          if(info.type !== "left") { diffs.push(["constraint left", "inserted", constraintLeft]); }
+          if(info.type !== "right") { diffs.push(["constraint right", "inserted", constraintRight]); }
+          if(info.type !== "operation") { diffs.push(["constraint operation", "inserted", constraintOperation]); }
           console.log("sending", diffs);
         } else {
           sendToServer = false;
