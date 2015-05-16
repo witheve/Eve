@@ -394,6 +394,23 @@ var queryEditor = (function(window, microReact, api) {
           });
         }
         break;
+      case "bindGroup":
+        var prev = ixer.index("groupToBinding")[info.groupId];
+        if(prev) {
+          diffs.push(["uiGroupBinding", "removed", [info.groupId, prev]]);
+        }
+        diffs.push(["uiGroupBinding", "inserted", [info.groupId, info.itemId]]);
+        break;
+      case "bindAttr":
+        var elemId = info.elementId;
+        var attr = info.attr;
+        var field = info.field;
+        var prev = (ixer.index("elementAttrToBinding")[elemId] || {})[attr];
+        if(prev) {
+          diffs.push(["uiAttrBinding", "removed", [elemId, attr, prev]]);
+        }
+        diffs.push(["uiAttrBinding", "inserted", [elemId, attr, field]]);
+        break;
       case "stopChangingSelection":
         var sel = localState.uiSelection;
         var elementIndex = ixer.index("uiComponentElement");
@@ -536,7 +553,6 @@ var queryEditor = (function(window, microReact, api) {
         window.client.sendToServer(diffs);
       }
       render();
-      console.log("rendering");
     } else {
       //       console.warn("No diffs to index, skipping.");
     }
@@ -859,13 +875,32 @@ var queryEditor = (function(window, microReact, api) {
     var subItems = [];
     var indent = 15;
     if(isOpen) {
+      var binding = ixer.index("groupToBinding")[layerId];
+      if(binding) {
+        var fieldItems = code.sortedViewFields(binding).map(function(field) {
+          return {c: "layer-element group-binding", children: [
+          {c: "layer-row", draggable:true, dragstart: layerDrag, type: "binding", itemId: field, children:[
+            {c: "icon ion-ios-arrow-thin-right"},
+            {text: code.name(field)}
+          ]},
+        ]}
+        });
+        subItems.push({c: "layer-element group-binding", children: [
+          {c: "layer-row", children:[
+            {c: "icon ion-ios-photos"},
+            {text: code.name(binding)}
+          ]},
+          {c: "layer-items", children: fieldItems}
+        ]});
+      }
+
       var subLayers = ixer.index("parentLayerToLayers")[layerId];
       if(subLayers) {
         subLayers.sort(function(a, b) {
           return a[3] - b[3];
         });
-        subItems = subLayers.map(function(cur) {
-          return layerListItem(cur, depth+1);
+        subLayers.forEach(function(cur) {
+          subItems.push(layerListItem(cur, depth+1));
         });
       }
       var elements = ixer.index("uiLayerToElements")[layerId] || [];
@@ -914,9 +949,9 @@ var queryEditor = (function(window, microReact, api) {
   function layerDrop(e, elem) {
     e.stopPropagation();
     var type = e.dataTransfer.getData("type");
-    if(type === "table" || type === "query") {
+    if(type === "view" || type === "table" || type === "query") {
       //if it's a data item, then we need to setup a binding
-
+      dispatch("bindGroup", {groupId: elem.layerId, itemId: e.dataTransfer.getData("value")});
     } else if(type === "layer") {
       //if it's a layer, we need to reparent it
       var layerId = e.dataTransfer.getData("itemId");
@@ -1216,7 +1251,7 @@ var queryEditor = (function(window, microReact, api) {
     var klass = type + " ui-element" + selClass + hidden + locked;
     var elem = {c: klass, id: "elem" + id, left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6],
                 control: cur, mousedown: addToSelection, selected: selected, zIndex: layer[3] + 1,
-                draggable: true, drag: moveSelection, dragend: stopMoveSelection, dragstart: startMoveSelection, dblclick: setModifyingText};
+                draggable: true, dragover: preventDefault, drop: dropOnControl, drag: moveSelection, dragend: stopMoveSelection, dragstart: startMoveSelection, dblclick: setModifyingText};
     if(attrs) {
       for(var i = 0, len = attrs.length; i < len; i++) {
         var curAttr = attrs[i];
@@ -1234,9 +1269,20 @@ var queryEditor = (function(window, microReact, api) {
       elem.attr = "text";
     }
 
+    var binding = (ixer.index("elementAttrToBinding")[id] || {})[elem.attr];
+    if(binding) {
+      elem.children = [
+        {c: "attr-binding", children: [
+          {c: "icon ion-ios-arrow-thin-right"},
+          {text: code.name(binding)}
+        ]}
+      ];
+      elem.text = undefined;
+    }
+
     if(localState.modifyingUiText === id) {
       if(type === "image") {
-        var curInput = input(elem.text, {id: id}, updateImage, submitContent);
+        var curInput = input(elem.backgroundImage, {id: id}, updateImage, submitContent);
         curInput.postRender = focusOnce;
         elem.children = [curInput];
         curInput.attr = "backgroundImage";
@@ -1254,6 +1300,14 @@ var queryEditor = (function(window, microReact, api) {
     //     elem = uiCustomControlRender[type](elem);
     //   }
     return elem;
+  }
+
+  function dropOnControl(e, elem) {
+    var type = e.dataTransfer.getData("type");
+    if(type === "binding") {
+      dispatch("bindAttr", {attr: elem.attr, elementId: elem.control[1], field: e.dataTransfer.getData("itemId")})
+      e.stopPropagation();
+    }
   }
 
   function setModifyingText(e, elem) {
@@ -1648,10 +1702,10 @@ var queryEditor = (function(window, microReact, api) {
 
     return {c: "option-group", children: [
       visualStyle,
-      {c: "layoutBoxFilled", borderRadius: attrs["borderRadius"], children: [
+      {c: "layout-box-filled", borderRadius: attrs["borderRadius"], children: [
         colorSelector(componentId, "backgroundColor", attrs["backgroundColor"])
       ]},
-      {c: "layoutBoxOutline", borderRadius: attrs["borderRadius"], borderWidth: attrs["borderWidth"], borderColor: attrs["borderColor"], children: [borderColorPicker]},
+      {c: "layout-box-outline", borderRadius: attrs["borderRadius"], borderWidth: (borderWidth > 10 ? 10 : borderWidth || 1), borderColor: attrs["borderColor"], children: [borderColorPicker]},
       {c: "label", text: "w:"},
       borderWidthAdjuster,
       {c: "label", text: "r:"},

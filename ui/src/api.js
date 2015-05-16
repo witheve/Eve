@@ -58,6 +58,7 @@ var api = (function(Indexing) {
     "uiComponentAttribute": {name: "uiComponentAttribute", fields: ["tx", "id", "property", "value"]},
     "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element", "shared"]},
     "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "union"]},
+    "uiAttrBinding": {name: "uiAttrBinding", fields: ["elementId", "attr", "field"]},
 
   };
 
@@ -117,6 +118,7 @@ var api = (function(Indexing) {
   ixer.addIndex("uiStyleToAttr", "uiComponentAttribute", Indexing.create.lookup([1, 2, false]));
   ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.collector([1]));
   ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup([0, 1]));
+  ixer.addIndex("elementAttrToBinding", "uiAttrBinding", Indexing.create.lookup([0, 1, 2]));
 
   ixer.addIndex("uiElementToMap", "uiMap", Indexing.create.latestLookup({keys: [2, false]}));
   ixer.addIndex("uiMapAttr", "uiMapAttr", Indexing.create.lookup([0, 1, 2]));

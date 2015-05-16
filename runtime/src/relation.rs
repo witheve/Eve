@@ -157,11 +157,13 @@ impl<'a> Iterator for Iter<'a> {
 
 #[derive(Clone, Debug)]
 pub struct SingleSelect{
+    pub source: usize,
     pub fields: Vec<Field>,
 }
 
 impl SingleSelect {
-    pub fn select(&self, relation: &Relation) -> Vec<Vec<Value>> {
+    pub fn select(&self, inputs: &[&Relation]) -> Vec<Vec<Value>> {
+        let relation = inputs[self.source];
         let mapping = mapping(&relation.fields[..], &self.fields[..]).unwrap();
         relation.index.iter().map(|values| with_mapping(values.clone(), &mapping[..])).collect()
     }
@@ -174,10 +176,10 @@ pub enum Reference {
 }
 
 impl Reference {
-    pub fn resolve<'a>(&'a self, tuples: &'a [Tuple<'a>]) -> &Value {
+    pub fn resolve<'a>(&'a self, inputs: &'a [Tuple<'a>]) -> &Value {
         match *self {
             Reference::Constant{ref value} => value,
-            Reference::Variable{source, ref field} => &tuples[source][&field[..]],
+            Reference::Variable{source, ref field} => &inputs[source][&field[..]],
         }
     }
 }
@@ -188,7 +190,7 @@ pub struct MultiSelect{
 }
 
 impl MultiSelect {
-    pub fn select(&self, tuples: &[Tuple]) -> Vec<Value> {
-        self.references.iter().map(|reference| reference.resolve(tuples).clone()).collect()
+    pub fn select(&self, inputs: &[Tuple]) -> Vec<Value> {
+        self.references.iter().map(|reference| reference.resolve(inputs).clone()).collect()
     }
 }

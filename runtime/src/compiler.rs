@@ -2,8 +2,8 @@ use std::collections::BitSet;
 use std::cell::RefCell;
 
 use value::{Id, Value, Tuple};
-use relation::{Relation, Change, SingleSelect, Reference, MultiSelect};
-use view::{View, Table, Union, Join, Constraint, ConstraintOp};
+use relation::{Relation, Change, SingleSelect, Reference, MultiSelect, mapping, with_mapping};
+use view::{View, Table, Union, Join, Constraint, ConstraintOp, Aggregate};
 use flow::{Node, Flow, Changes};
 
 pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
@@ -49,8 +49,8 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     ("constraint operation", vec!["constraint"], vec!["operation"]),
 
     // aggregates group an "inner" source by the rows of an "outer" source
-    // the grouping is determined by binding inner fields to outer fields or constants
-    ("aggregate grouping", vec!["aggregate", "inner field"], vec!["group source", "group field"]),
+    // the grouping is determined by binding inner fields to outer fields (TODO or constants)
+    ("aggregate grouping", vec!["aggregate", "inner field"], vec!["outer field"]),
     // before aggregation the groups are sorted
     // `priority` is an f64. higher priority fields are compared first. ties are broken by field id
     // `direction` is one of "ascending" or "descending"
@@ -88,12 +88,6 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     ]
 }
 
-struct Compiler {
-    flow: Flow,
-    dependency: Relation,
-    schedule: Relation,
-}
-
 fn create_dependency(flow: &Flow) -> Relation {
     let mut dependency = Vec::new();
     for view in flow.get_output("view").iter() {
@@ -121,8 +115,10 @@ fn create_schedule(flow: &Flow) -> Relation {
     let mut schedule = Vec::new();
     let mut ix = 0.0;
     for view in flow.get_output("view").iter() {
-        schedule.push(vec![Value::Float(ix), view["view"].clone()]);
-        ix += 1.0;
+        if view["kind"].as_str() != "primitive" {
+            schedule.push(vec![Value::Float(ix), view["view"].clone()]);
+            ix += 1.0;
+        }
     }
     Relation{
         fields: vec!["schedule: ix".to_owned(), "schedule: view".to_owned()],
@@ -131,9 +127,9 @@ fn create_schedule(flow: &Flow) -> Relation {
     }
 }
 
-fn create_single_select(compiler: &Compiler, view_id: &Value, source_id: &Value) -> SingleSelect {
-    let fields = compiler.flow.get_output("field").find_all("view", view_id).iter().map(|field| {
-        let select_table = compiler.flow.get_output("select");
+fn create_single_select(flow: &Flow, view_id: &Value, source_id: &Value, source_ix: usize) -> SingleSelect {
+    let fields = flow.get_output("field").find_all("view", view_id).iter().map(|field| {
+        let select_table = flow.get_output("select");
         let select = select_table.iter().find(|select|
             select["view"] == *view_id
             && select["view field"] == field["field"]
@@ -141,12 +137,12 @@ fn create_single_select(compiler: &Compiler, view_id: &Value, source_id: &Value)
             ).unwrap();
         select["source field"].as_str().to_owned()
     }).collect();
-    SingleSelect{fields: fields}
+    SingleSelect{source: source_ix, fields: fields}
 }
 
-fn create_reference(compiler: &Compiler, sources: &[Tuple], source_id: &Value, field_id: &Value) -> Reference {
+fn create_reference(flow: &Flow, sources: &[Tuple], source_id: &Value, field_id: &Value) -> Reference {
     if source_id.as_str() == "constant" {
-        let value = compiler.flow.get_output("constant").find_one("constant", field_id)["value"].clone();
+        let value = flow.get_output("constant").find_one("constant", field_id)["value"].clone();
         Reference::Constant{value: value}
     } else {
         let source = sources.iter().position(|source| source["source"] == *source_id).unwrap();
@@ -155,23 +151,23 @@ fn create_reference(compiler: &Compiler, sources: &[Tuple], source_id: &Value, f
     }
 }
 
-fn create_multi_select(compiler: &Compiler, sources: &[Tuple], view_id: &Value) -> MultiSelect {
-    let references = compiler.flow.get_output("field").find_all("view", view_id).iter().map(|field| {
-        let select_table = compiler.flow.get_output("select");
+fn create_multi_select(flow: &Flow, sources: &[Tuple], view_id: &Value) -> MultiSelect {
+    let references = flow.get_output("field").find_all("view", view_id).iter().map(|field| {
+        let select_table = flow.get_output("select");
         let select = select_table.iter().find(|select|
             select["view"] == *view_id
             && select["view field"] == field["field"]
             ).unwrap();
-        create_reference(compiler, sources, &select["source"], &select["source field"])
+        create_reference(flow, sources, &select["source"], &select["source field"])
     }).collect();
     MultiSelect{references: references}
 }
 
-fn create_table(compiler: &Compiler, view_id: &Value) -> Table {
+fn create_table(flow: &Flow, view_id: &Value) -> Table {
     let mut insert = None;
     let mut remove = None;
-    for source in compiler.flow.get_output("source").find_all("view", view_id) {
-        let select = create_single_select(compiler, view_id, &source["source"]);
+    for (ix, source) in flow.get_output("source").find_all("view", view_id).iter().enumerate() {
+        let select = create_single_select(flow, view_id, &source["source"], ix);
         match source["source"].as_str() {
             "insert" => insert = Some(select),
             "remove" => remove = Some(select),
@@ -181,21 +177,21 @@ fn create_table(compiler: &Compiler, view_id: &Value) -> Table {
     Table{insert: insert, remove: remove}
 }
 
-fn create_union(compiler: &Compiler, view_id: &Value) -> Union {
-    let selects = compiler.dependency.find_all("downstream view", view_id).iter().map(|dependency| {
-        create_single_select(compiler, view_id, &dependency["source"])
+fn create_union(flow: &Flow, view_id: &Value) -> Union {
+    let selects = flow.get_output("dependency").find_all("downstream view", view_id).iter().enumerate().map(|(ix, dependency)| {
+        create_single_select(flow, view_id, &dependency["source"], ix)
     }).collect();
     Union{selects: selects}
 }
 
-fn create_constraint(compiler: &Compiler, sources: &[Tuple], view_id: &Value, constraint_id: &Value) -> Constraint {
-    let left_table = compiler.flow.get_output("constraint left");
+fn create_constraint(flow: &Flow, sources: &[Tuple], view_id: &Value, constraint_id: &Value) -> Constraint {
+    let left_table = flow.get_output("constraint left");
     let left = left_table.find_one("constraint", constraint_id);
-    let left = create_reference(compiler, sources, &left["left source"], &left["left field"]);
-    let right_table = compiler.flow.get_output("constraint right");
+    let left = create_reference(flow, sources, &left["left source"], &left["left field"]);
+    let right_table = flow.get_output("constraint right");
     let right = right_table.find_one("constraint", constraint_id);
-    let right = create_reference(compiler, sources, &right["right source"], &right["right field"]);
-    let op = match compiler.flow.get_output("constraint operation").find_one("constraint", constraint_id)["operation"].as_str() {
+    let right = create_reference(flow, sources, &right["right source"], &right["right field"]);
+    let op = match flow.get_output("constraint operation").find_one("constraint", constraint_id)["operation"].as_str() {
         "==" => ConstraintOp::EQ,
         "!=" => ConstraintOp::NEQ,
         "<" => ConstraintOp::LT,
@@ -207,11 +203,12 @@ fn create_constraint(compiler: &Compiler, sources: &[Tuple], view_id: &Value, co
     Constraint{left: left, op: op, right: right}
 }
 
-fn create_join(compiler: &Compiler, view_id: &Value) -> Join {
-    let sources = compiler.dependency.find_all("downstream view", view_id);
+fn create_join(flow: &Flow, view_id: &Value) -> Join {
+    let dependency_table = flow.get_output("dependency");
+    let sources = dependency_table.find_all("downstream view", view_id);
     let mut constraints = vec![vec![]; sources.len()];
-    for constraint in compiler.flow.get_output("constraint").find_all("view", view_id).iter() {
-        let constraint = create_constraint(compiler, &sources[..], view_id, &constraint["constraint"]);
+    for constraint in flow.get_output("constraint").find_all("view", view_id).iter() {
+        let constraint = create_constraint(flow, &sources[..], view_id, &constraint["constraint"]);
         let left_ix = match constraint.left {
             Reference::Variable{source, ..} => source,
             Reference::Constant{..} => 0,
@@ -223,22 +220,62 @@ fn create_join(compiler: &Compiler, view_id: &Value) -> Join {
         let ix = ::std::cmp::min(left_ix, right_ix);
         constraints[ix].push(constraint);
     }
-    let select = create_multi_select(compiler, &sources[..], view_id);
+    let select = create_multi_select(flow, &sources[..], view_id);
     Join{constraints: constraints, select: select}
 }
 
-fn create_node(compiler: &Compiler, view_id: &Value, view_kind: &Value) -> Node {
+fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
+    let dependency_table = flow.get_output("dependency");
+    let sources = dependency_table.find_all("downstream view", view_id);
+    let outer_ix = sources.iter().position(|source| source["source"].as_str() == "outer").unwrap();
+    let inner_ix = sources.iter().position(|source| source["source"].as_str() == "inner").unwrap();
+    let outer_source = sources[outer_ix].clone();
+    let inner_source = sources[inner_ix].clone();
+    let grouping_table = flow.get_output("aggregate grouping");
+    let groupings = grouping_table.find_all("aggregate", view_id);
+    let field_table = flow.get_output("field");
+    let fields = field_table.find_all("view", &inner_source["source view"]);
+    let ungrouped = fields.iter().filter(|field|
+            groupings.iter().find(|grouping| grouping["inner field"] == field["field"]).is_none()
+        ).collect::<Vec<_>>();
+    let sorting_table = flow.get_output("aggregate sorting");
+    let mut sortable = ungrouped.iter().map(|field|
+        match sorting_table.find_maybe("inner field", &field["field"]) {
+            None => (Value::Float(0.0), &field["field"]),
+            Some(sorting) => (sorting["priority"].clone(), &field["field"]),
+        }).collect::<Vec<_>>();
+    sortable.sort();
+    let outer_fields =
+        groupings.iter().map(|grouping| grouping["outer field"].as_str().to_owned())
+        .collect();
+    let inner_fields =
+        groupings.iter().map(|grouping| grouping["inner field"].as_str().to_owned())
+        .chain(sortable.iter().map(|&(_, ref field_id)| field_id.as_str().to_owned()))
+        .collect();
+    let inputs = &[outer_source];
+    let outer = SingleSelect{source: outer_ix, fields: outer_fields};
+    let inner = SingleSelect{source: inner_ix, fields: inner_fields};
+    let limit_from = flow.get_output("aggregate limit from").find_maybe("aggregate", view_id)
+        .map(|limit_from| create_reference(flow, inputs, &limit_from["source"], &limit_from["field"]));
+    let limit_to = flow.get_output("aggregate limit to").find_maybe("aggregate", view_id)
+        .map(|limit_to| create_reference(flow, inputs, &limit_to["source"], &limit_to["field"]));
+    let select = create_multi_select(flow, &[inner_source], view_id);
+    Aggregate{outer: outer, inner: inner, limit_from: limit_from, limit_to: limit_to, select: select}
+}
+
+fn create_node(flow: &Flow, view_id: &Value, view_kind: &Value) -> Node {
     let view = match view_kind.as_str() {
-        "table" => View::Table(create_table(compiler, view_id)),
-        "union" => View::Union(create_union(compiler, view_id)),
-        "join" => View::Join(create_join(compiler, view_id)),
+        "table" => View::Table(create_table(flow, view_id)),
+        "union" => View::Union(create_union(flow, view_id)),
+        "join" => View::Join(create_join(flow, view_id)),
+        "aggregate" => View::Aggregate(create_aggregate(flow, view_id)),
         other => panic!("Unknown view kind: {}", other),
     };
-    let upstream = compiler.dependency.find_all("downstream view", view_id).iter().map(|dependency| {
-        compiler.schedule.find_one("view", &dependency["upstream view"])["ix"].as_usize()
+    let upstream = flow.get_output("dependency").find_all("downstream view", view_id).iter().map(|dependency| {
+        flow.get_output("schedule").find_one("view", &dependency["upstream view"])["ix"].as_usize()
     }).collect(); // arrives in ix order so will match the arg order selected by create_join/union
-    let mut downstream = compiler.dependency.find_all("upstream view", view_id).iter().map(|dependency| {
-        compiler.schedule.find_one("view", &dependency["downstream view"])["ix"].as_usize()
+    let mut downstream = flow.get_output("dependency").find_all("upstream view", view_id).iter().map(|dependency| {
+        flow.get_output("schedule").find_one("view", &dependency["downstream view"])["ix"].as_usize()
     }).collect::<Vec<_>>();
     downstream.sort();
     downstream.dedup();
@@ -250,22 +287,22 @@ fn create_node(compiler: &Compiler, view_id: &Value, view_kind: &Value) -> Node 
     }
 }
 
-fn create_flow(compiler: &Compiler) -> Flow {
+fn create_flow(flow: &Flow) -> Flow {
     let mut nodes = Vec::new();
     let mut dirty = BitSet::new();
     let mut outputs = Vec::new();
-    for schedule in compiler.schedule.iter() {
-        let view_table = compiler.flow.get_output("view");
+    for schedule in flow.get_output("schedule").iter() {
+        let view_table = flow.get_output("view");
         let view = view_table.find_one("view", &schedule["view"]);
-        nodes.push(create_node(compiler, &view["view"], &view["kind"]));
+        nodes.push(create_node(flow, &view["view"], &view["kind"]));
         dirty.insert(schedule["ix"].as_usize());
-        let field_table = compiler.flow.get_output("field");
+        let field_table = flow.get_output("field");
         let fields = field_table.find_all("view", &view["view"]);
         let field_ids = fields.iter().map(|field|
             field["field"].as_str().to_owned()
             ).collect();
         let field_names = fields.iter().map(|field|
-            match compiler.flow.get_output("display name").find_maybe("id", &field["field"]) {
+            match flow.get_output("display name").find_maybe("id", &field["field"]) {
                 Some(display_name) => display_name["name"].as_str().to_owned(),
                 None => "<unnamed>".to_owned(),
             }).collect();
@@ -278,27 +315,33 @@ fn create_flow(compiler: &Compiler) -> Flow {
     }
 }
 
-fn reuse_state(compiler: Compiler, flow: &mut Flow) {
-    let Flow{nodes, outputs, ..} = compiler.flow;
-    for (node, output) in nodes.into_iter().zip(outputs.into_iter()) {
-        let id = &node.id[..];
-        if flow.get_ix(id) != None
-           && output.borrow().fields == flow.get_output(id).fields {
-            flow.set_output(id, output);
+fn reuse_state(old_flow: Flow, new_flow: &mut Flow) {
+    let Flow{nodes, outputs, ..} = old_flow;
+    for (old_node, old_output) in nodes.into_iter().zip(outputs.into_iter()) {
+        let id = &old_node.id[..];
+        if let Some(new_ix) = new_flow.get_ix(id) {
+            let old_output = old_output.into_inner();
+            let mut new_output = new_flow.outputs[new_ix].borrow_mut();
+            if new_output.fields == old_output.fields {
+                new_output.index = old_output.index;
+            } else if let Some(mapping) = mapping(&old_output.fields[..], &new_output.fields[..]) {
+                for values in old_output.index.into_iter() {
+                    new_output.index.insert(with_mapping(values, &mapping[..]));
+                }
+            } // else throw it away
         }
     }
 }
 
-pub fn recompile(old_flow: Flow) -> Flow {
+pub fn recompile(mut old_flow: Flow) -> Flow {
     let dependency = create_dependency(&old_flow);
+    let dependency_ix = old_flow.get_ix("dependency").unwrap();
+    old_flow.outputs[dependency_ix] = RefCell::new(dependency);
     let schedule = create_schedule(&old_flow);
-    let compiler = Compiler{
-        flow: old_flow,
-        dependency: dependency,
-        schedule: schedule,
-    };
-    let mut new_flow = create_flow(&compiler);
-    reuse_state(compiler, &mut new_flow);
+    let schedule_ix = old_flow.get_ix("schedule").unwrap();
+    old_flow.outputs[schedule_ix] = RefCell::new(schedule);
+    let mut new_flow = create_flow(&old_flow);
+    reuse_state(old_flow, &mut new_flow);
     new_flow
 }
 
