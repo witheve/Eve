@@ -3,7 +3,7 @@ use std::cell::RefCell;
 
 use value::{Id, Value, Tuple};
 use relation::{Relation, Change, SingleSelect, Reference, MultiSelect};
-use view::{View, Table, Union, Join, Constraint, ConstraintOp};
+use view::{View, Table, Union, Join, Constraint, ConstraintOp, Aggregate};
 use flow::{Node, Flow, Changes};
 
 pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
@@ -49,8 +49,8 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     ("constraint operation", vec!["constraint"], vec!["operation"]),
 
     // aggregates group an "inner" source by the rows of an "outer" source
-    // the grouping is determined by binding inner fields to outer fields or constants
-    ("aggregate grouping", vec!["aggregate", "inner field"], vec!["group source", "group field"]),
+    // the grouping is determined by binding inner fields to outer fields (TODO or constants)
+    ("aggregate grouping", vec!["aggregate", "inner field"], vec!["outer field"]),
     // before aggregation the groups are sorted
     // `priority` is an f64. higher priority fields are compared first. ties are broken by field id
     // `direction` is one of "ascending" or "descending"
@@ -229,11 +229,50 @@ fn create_join(compiler: &Compiler, view_id: &Value) -> Join {
     Join{constraints: constraints, select: select}
 }
 
+fn create_aggregate(compiler: &Compiler, view_id: &Value) -> Aggregate {
+    let sources = compiler.dependency.find_all("downstream view", view_id);
+    let outer_ix = sources.iter().position(|source| source["source"].as_str() == "outer").unwrap();
+    let inner_ix = sources.iter().position(|source| source["source"].as_str() == "inner").unwrap();
+    let outer_source = sources[outer_ix].clone();
+    let inner_source = sources[inner_ix].clone();
+    let grouping_table = compiler.flow.get_output("aggregate grouping");
+    let groupings = grouping_table.find_all("aggregate", view_id);
+    let field_table = compiler.flow.get_output("field");
+    let fields = field_table.find_all("view", &inner_source["source view"]);
+    let ungrouped = fields.iter().filter(|field|
+            groupings.iter().find(|grouping| grouping["inner field"] == field["field"]).is_none()
+        ).collect::<Vec<_>>();
+    let sorting_table = compiler.flow.get_output("aggregate sorting");
+    let mut sortable = ungrouped.iter().map(|field|
+        match sorting_table.find_maybe("inner field", &field["field"]) {
+            None => (Value::Float(0.0), &field["field"]),
+            Some(sorting) => (sorting["priority"].clone(), &field["field"]),
+        }).collect::<Vec<_>>();
+    sortable.sort();
+    let outer_fields =
+        groupings.iter().map(|grouping| grouping["outer field"].as_str().to_owned())
+        .collect();
+    let inner_fields =
+        groupings.iter().map(|grouping| grouping["inner field"].as_str().to_owned())
+        .chain(sortable.iter().map(|&(_, ref field_id)| field_id.as_str().to_owned()))
+        .collect();
+    let inputs = &[outer_source];
+    let outer = SingleSelect{source: outer_ix, fields: outer_fields};
+    let inner = SingleSelect{source: inner_ix, fields: inner_fields};
+    let limit_from = compiler.flow.get_output("aggregate limit from").find_maybe("aggregate", view_id)
+        .map(|limit_from| create_reference(compiler, inputs, &limit_from["source"], &limit_from["field"]));
+    let limit_to = compiler.flow.get_output("aggregate limit to").find_maybe("aggregate", view_id)
+        .map(|limit_to| create_reference(compiler, inputs, &limit_to["source"], &limit_to["field"]));
+    let select = create_multi_select(compiler, &[inner_source], view_id);
+    Aggregate{outer: outer, inner: inner, limit_from: limit_from, limit_to: limit_to, select: select}
+}
+
 fn create_node(compiler: &Compiler, view_id: &Value, view_kind: &Value) -> Node {
     let view = match view_kind.as_str() {
         "table" => View::Table(create_table(compiler, view_id)),
         "union" => View::Union(create_union(compiler, view_id)),
         "join" => View::Join(create_join(compiler, view_id)),
+        "aggregate" => View::Aggregate(create_aggregate(compiler, view_id)),
         other => panic!("Unknown view kind: {}", other),
     };
     let upstream = compiler.dependency.find_all("downstream view", view_id).iter().map(|dependency| {

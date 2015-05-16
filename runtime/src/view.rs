@@ -51,10 +51,20 @@ pub struct Join {
 }
 
 #[derive(Clone, Debug)]
+pub struct Aggregate {
+    pub outer: SingleSelect,
+    pub inner: SingleSelect,
+    pub limit_from: Option<Reference>,
+    pub limit_to: Option<Reference>,
+    pub select: MultiSelect,
+}
+
+#[derive(Clone, Debug)]
 pub enum View {
     Table(Table),
     Union(Union),
     Join(Join),
+    Aggregate(Aggregate),
 }
 
 #[derive(Clone, Debug)]
@@ -124,6 +134,44 @@ impl View {
                                 next_action = Action::Next;
                             }
                         }
+                    }
+                }
+                Some(output)
+            }
+            View::Aggregate(ref aggregate) => {
+                let mut output = Relation::with_fields(old_output.fields.clone(), old_output.names.clone());
+                let mut outer = aggregate.outer.select(&inputs[..]);
+                let mut inner = aggregate.inner.select(&inputs[..]);
+                outer.sort();
+                outer.dedup();
+                inner.sort();
+                let mut group_start = 0;
+                for outer_values in outer.iter() {
+                    let mut group_end = group_start;
+                    while inner[group_end][0..outer_values.len()] == outer_values[..] {
+                        group_end += 1;
+                    }
+                    let outer_tuple = Tuple{
+                        fields: &aggregate.outer.fields[..],
+                        names: &aggregate.outer.fields[..],
+                        values: &outer_values[..]
+                    };
+                    let inputs = &[outer_tuple];
+                    let limit_from = match aggregate.limit_from {
+                        None => group_start,
+                        Some(ref reference) => group_start + reference.resolve(inputs).as_usize(),
+                    };
+                    let limit_to = match aggregate.limit_to {
+                        None => group_end,
+                        Some(ref reference) => group_start + reference.resolve(inputs).as_usize(),
+                    };
+                    for inner_values in &inner[limit_from..limit_to] {
+                        let inner_tuple = Tuple{
+                            fields: &aggregate.inner.fields[..],
+                            names: &aggregate.inner.fields[..],
+                            values: &outer_values[..]
+                        };
+                        output.index.insert(aggregate.select.select(&[inner_tuple]));
                     }
                 }
                 Some(output)
