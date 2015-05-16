@@ -192,7 +192,7 @@ fn create_constraint(flow: &Flow, sources: &[Tuple], constraint_id: &Value) -> C
     let right = right_table.find_one("constraint", constraint_id);
     let right = create_reference(flow, sources, &right["right source"], &right["right field"]);
     let op = match flow.get_output("constraint operation").find_one("constraint", constraint_id)["operation"].as_str() {
-        "==" => ConstraintOp::EQ,
+        "=" => ConstraintOp::EQ,
         "!=" => ConstraintOp::NEQ,
         "<" => ConstraintOp::LT,
         ">" => ConstraintOp::GT,
