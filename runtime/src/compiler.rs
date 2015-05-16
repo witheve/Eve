@@ -217,7 +217,7 @@ fn create_join(flow: &Flow, view_id: &Value) -> Join {
             Reference::Variable{source, ..} => source,
             Reference::Constant{..} => 0,
         };
-        let ix = ::std::cmp::min(left_ix, right_ix);
+        let ix = ::std::cmp::max(left_ix, right_ix);
         constraints[ix].push(constraint);
     }
     let select = create_multi_select(flow, &sources[..], view_id);
