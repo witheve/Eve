@@ -506,9 +506,9 @@ var queryEditor = (function(window, microReact, api) {
         diffs = diff.updateViewConstraint(info.constraintId, opts);
 
         var constraint = ixer.index("constraint")[info.constraintId];
-        var constraintLeft = ixer.index("constraint left")[info.constraintId];
-        var constraintRight = ixer.index("constraint right")[info.constraintId];
-        var constraintOperation = ixer.index("constraint operation")[info.constraintId];
+        var constraintLeft = ixer.index("constraint left")[info.constraintId] || [];
+        var constraintRight = ixer.index("constraint right")[info.constraintId] || [];
+        var constraintOperation = ixer.index("constraint operation")[info.constraintId] || [];
 
         var constraintFieldIx = code.ix("constraint left", "left field");
         var constraintSourceIx = code.ix("constraint left", "left source");
