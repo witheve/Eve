@@ -280,11 +280,27 @@ var queryEditor = (function(window, microReact, api) {
         var view = ixer.index("view")[info.viewId];
         var kind = view[code.ix("view", "kind")];
         if(kind === "union") {
-          // do not send to server unless sel.length = field.length * sources.length
-          var sources = ixer.index("view to sources")[info.viewId] || [];
-          var fields = ixer.index("view to fields")[info.viewId] || [];
-          var selects = ixer.index("view to selects")[info.viewId] || [];
-          if(selects.length !== fields.length * sources.length) {
+          // do not send to server unless selects.length = fields.length * sources.length
+          var sourceIdIx = code.ix("source", "source");
+          var numSources = (ixer.index("view to sources")[info.viewId] || []).reduce(function(memo, source) {
+            if(source[sourceIdIx] !== info.sourceId) { return memo + 1; }
+            return memo;
+          }, 1);
+          var fieldIdIx = code.ix("field", "field");
+          var numFields = (ixer.index("view to fields")[info.viewId] || []).reduce(function(memo, field) {
+            if(field[fieldIdIx] !== info.fieldId) { return memo + 1; }
+            return memo;
+          }, 1);
+          var selectSourceIx = code.ix("select", "source");
+          var selectFieldIx = code.ix("select", "view field");
+          var selects = (ixer.index("view to selects")[info.viewId] || []);
+          var numSelects = selects.reduce(function(memo, select) {
+            if(select[selectSourceIx] !== info.sourceId
+               || select[selectFieldIx] !== info.fieldId) { return memo + 1; }
+            return memo;
+          }, 1);
+
+          if(numSelects !== numFields * numSources) {
             console.log("incomplete, only saving locally.");
             sendToServer = false;
           } else {
