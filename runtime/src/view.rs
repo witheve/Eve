@@ -92,6 +92,7 @@ impl View {
                 assert_eq!(join.constraints.len(), inputs.len());
                 let mut output = Relation::with_fields(old_output.fields.clone(), old_output.names.clone());
                 let num_inputs = inputs.len();
+                assert!(num_inputs > 0);
                 let mut iters = Vec::with_capacity(num_inputs);
                 let mut tuples = Vec::with_capacity(num_inputs);
                 let mut next_action = Action::Down;
@@ -126,11 +127,11 @@ impl View {
                             }
                         }
                         Action::Up => {
+                            iters.pop();
+                            tuples.pop();
                             if tuples.len() == 0 {
                                 break;
                             } else {
-                                iters.pop();
-                                tuples.pop();
                                 next_action = Action::Next;
                             }
                         }

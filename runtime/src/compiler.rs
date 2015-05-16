@@ -344,7 +344,7 @@ pub fn recompile(mut old_flow: Flow) -> Flow {
     old_flow.outputs[schedule_ix] = RefCell::new(schedule);
     let mut new_flow = create_flow(&old_flow);
     reuse_state(old_flow, &mut new_flow);
-    println!("Compiled...");
+    println!("Compiled!");
     new_flow
 }
 
