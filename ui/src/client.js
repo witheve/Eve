@@ -127,9 +127,7 @@ var client = (function eveClient(api, dispatcher) {
         server.ws.send(JSON.stringify(specialPayload));
       }
       if(payload.changes.length) {
-        setTimeout(function() {
-          server.ws.send(JSON.stringify(payload));
-        }, 500);
+        server.ws.send(JSON.stringify(payload));
       }
     }
   }
