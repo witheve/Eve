@@ -1,65 +1,87 @@
 var api = (function(Indexing) {
-    //---------------------------------------------------------
+  function clone(item) {
+    if (!item) { return item; }
+    var result;
+
+    if(item.constructor === Array) {
+      result = [];
+      item.forEach(function(child, index, array) {
+        result[index] = clone( child );
+      });
+    } else if(typeof item == "object") {
+      result = {};
+      for (var i in item) {
+        result[i] = clone( item[i] );
+      }
+    } else {
+      //it's a primitive
+      result = item;
+    }
+    return result;
+  }
+
+  //---------------------------------------------------------
   // Data
   //---------------------------------------------------------
 
   var ixer = new Indexing.Indexer();
   var tables = {
-    // Compiler
-    view: {name: "view", fields: ["view", "kind"]},
-    field: {name: "field", fields: ["view", "field", "kind"]},
-    source: {name: "source", fields: ["view", "source", "source view"]},
-    constant: {name: "constant", fields: ["constant", "value"]},
-    select: {name: "select", fields: ["view", "view field", "source", "source field"]},
+    compiler: {
+      view: {name: "view", fields: ["view", "kind"]},
+      field: {name: "field", fields: ["view", "field", "kind"]},
+      source: {name: "source", fields: ["view", "source", "source view"]},
+      constant: {name: "constant", fields: ["constant", "value"]},
+      select: {name: "select", fields: ["view", "view field", "source", "source field"]},
 
-    "constraint": {name: "constraint", fields: ["constraint", "view"]},
-    "constraint left": {name: "constraint left", fields: ["constraint", "left source", "left field"]},
-    "constraint right": {name: "constraint right", fields: ["constraint", "right source", "right field"]},
-    "constraint operation": {name: "constraint operation", fields: ["constraint", "operation"]},
+      "constraint": {name: "constraint", fields: ["constraint", "view"]},
+      "constraint left": {name: "constraint left", fields: ["constraint", "left source", "left field"]},
+      "constraint right": {name: "constraint right", fields: ["constraint", "right source", "right field"]},
+      "constraint operation": {name: "constraint operation", fields: ["constraint", "operation"]},
 
-    "aggregate grouping": {name: "aggregate grouping", fields: ["aggregate", "inner field", "outer field"]},
-    "aggregate sorting": {name: "aggregate sorting", fields: ["aggregate", "inner field", "priority", "direction"]},
-    "aggregate limit from": {name: "aggregate limit from", fields: ["aggregate", "from source", "from field"]},
-    "aggregate limit to": {name: "aggregate limit to", fields: ["aggregate", "to source", "to field"]},
-    "aggregate argument": {name: "aggregate argument", fields: ["aggregate", "reducer source", "reducer field", "argument source", "argument field"]},
+      "aggregate grouping": {name: "aggregate grouping", fields: ["aggregate", "inner field", "outer field"]},
+      "aggregate sorting": {name: "aggregate sorting", fields: ["aggregate", "inner field", "priority", "direction"]},
+      "aggregate limit from": {name: "aggregate limit from", fields: ["aggregate", "from source", "from field"]},
+      "aggregate limit to": {name: "aggregate limit to", fields: ["aggregate", "to source", "to field"]},
+      "aggregate argument": {name: "aggregate argument", fields: ["aggregate", "reducer source", "reducer field", "argument source", "argument field"]},
 
-    "display order": {name: "display order", fields: ["id", "priority"]},
-    "display name": {name: "display name", fields: ["id", "name"]},
+      "display order": {name: "display order", fields: ["id", "priority"]},
+      "display name": {name: "display name", fields: ["id", "name"]}
+    },
+    editor: {
+      "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"]]},
+      block: {name: "block", fields: ["query", "block", "view"]},
+      "block aggregate": {name: "block aggregate", fields: ["block", "kind"]},
+      "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
+      "grouped by": {name: "grouped by", fields: ["inner", "inner field", "outer", "outer field"]}
+    },
 
-    // Editor
-    "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"]]},
-    block: {name: "block", fields: ["query", "block", "view"]},
-    "block aggregate": {name: "block aggregate", fields: ["block", "kind"]},
-    "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
-    "grouped by": {name: "grouped by", fields: ["inner", "inner field", "outer", "outer field"]},
+    example: {
+      "department heads": {name: "department heads", fields: ["department", "head"]},
+      "employees": {name: "employees", fields: ["department", "name", "salary"]},
+      "foo": {name: "foo", fields: ["a", "b"]},
+      "book": {name: "book", fields: ["isbn", "title", "author", "price", "cost"]},
 
-    // Examples
-    "department heads": {name: "department heads", fields: ["department", "head"]},
-    "employees": {name: "employees", fields: ["department", "name", "salary"]},
-    "foo": {name: "foo", fields: ["a", "b"]},
-    "book": {name: "book", fields: ["isbn", "title", "author", "price", "cost"]},
+      // FourSquare
+      "place": {name: "place", fields: ["place", "name", "priceRange"]},
+      "placeToAddress": {name: "placeToAddress", fields: ["place", "street", "city", "state", "zip"]},
+      "placeToHours": {name: "placeToHours", fields: ["place", "day", "start", "end"]},
+      "placeToImage": {name: "placeToImage", fields: ["image", "place"]},
+      "image": {name: "image", fields: ["image", "user", "url", "description", "tick"]},
+      "taste": {name: "taste", fields: ["taste", "name"]},
+      "placeToTaste": {name: "placeToTaste", fields: ["tick","place", "taste", "rank"]},
+      "review": {name: "review", fields: ["tick", "place", "user", "text", "rating", "approved"]},
+      "placeToRating": {name: "placeToRating", fields: ["place", "rating", "reviewCount"]},
+      "user": {name: "user", fields: ["id", "token", "name"]},
+      "userCheckin": {name: "userCheckin", fields: ["tick", "user", "place"]},
 
-    // FourSquare
-    "place": {name: "place", fields: ["place", "name", "priceRange"]},
-    "placeToAddress": {name: "placeToAddress", fields: ["place", "street", "city", "state", "zip"]},
-    "placeToHours": {name: "placeToHours", fields: ["place", "day", "start", "end"]},
-    "placeToImage": {name: "placeToImage", fields: ["image", "place"]},
-    "image": {name: "image", fields: ["image", "user", "url", "description", "tick"]},
-    "taste": {name: "taste", fields: ["taste", "name"]},
-    "placeToTaste": {name: "placeToTaste", fields: ["tick","place", "taste", "rank"]},
-    "review": {name: "review", fields: ["tick", "place", "user", "text", "rating", "approved"]},
-    "placeToRating": {name: "placeToRating", fields: ["place", "rating", "reviewCount"]},
-    "user": {name: "user", fields: ["id", "token", "name"]},
-    "userCheckin": {name: "userCheckin", fields: ["tick", "user", "place"]},
-
-    //ui
-    "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"], facts: []},
-    "uiComponentLayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden", "parentLayer"], facts: []},
-    "uiComponentAttribute": {name: "uiComponentAttribute", fields: ["tx", "id", "property", "value"]},
-    "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element", "shared"]},
-    "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "union"]},
-    "uiAttrBinding": {name: "uiAttrBinding", fields: ["elementId", "attr", "field"]},
-
+      //ui
+      "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"], facts: []},
+      "uiComponentLayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden", "parentLayer"], facts: []},
+      "uiComponentAttribute": {name: "uiComponentAttribute", fields: ["tx", "id", "property", "value"]},
+      "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element", "shared"]},
+      "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "union"]},
+      "uiAttrBinding": {name: "uiAttrBinding", fields: ["elementId", "attr", "field"]}
+    }
   };
 
   function initIndexer(noFacts) {
@@ -444,15 +466,18 @@ var api = (function(Indexing) {
     }
   };
 
-  function injectViews(tables, ixer, noFacts) {
+  function injectViews(tableGroups, ixer, noFacts) {
     var diffs = [];
     var add = function(viewId, view) {
       diffs = diffs.concat(diff.addView(viewId, view, noFacts));
       diffs.push(["editor item", "inserted", [viewId, "table"]]);
     };
 
-    for(var tableId in tables) {
-      add(tableId, tables[tableId]);
+    for(var tableGroup in tableGroups) {
+      var tables = tableGroups[tableGroup];
+      for(var tableId in tables) {
+        add(tableId, tables[tableId]);
+      }
     }
 
     ixer.handleDiffs(diffs);
@@ -466,5 +491,11 @@ var api = (function(Indexing) {
                     uiGridSize: 10};
 
 
-  return {localState: localState, ixer: ixer, initIndexer: initIndexer, code: code, diff: diff};
+  return {localState: localState,
+          ixer: ixer,
+          initIndexer: initIndexer,
+          code: code,
+          diff: diff,
+          clone: clone,
+          builtins: tables};
 })(Indexing);

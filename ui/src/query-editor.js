@@ -4,6 +4,7 @@ var queryEditor = (function(window, microReact, api) {
   var code = api.code;
   var diff = api.diff;
   var localState = api.localState;
+  var clone = api.clone;
 
   if(window.queryEditor) {
     try {
@@ -62,26 +63,6 @@ var queryEditor = (function(window, microReact, api) {
     return input;
   }
 
-  function clone(item) {
-    if (!item) { return item; }
-    var result;
-
-    if(item.constructor === Array) {
-      result = [];
-      item.forEach(function(child, index, array) {
-        result[index] = clone( child );
-      });
-    } else if(typeof item == "object") {
-      result = {};
-      for (var i in item) {
-        result[i] = clone( item[i] );
-      }
-    } else {
-      //it's a primitive
-      result = item;
-    }
-    return result;
-  }
 
   function reverseDiff(diff) {
     var neue = [];
@@ -299,10 +280,11 @@ var queryEditor = (function(window, microReact, api) {
                || select[selectFieldIx] !== info.fieldId) { return memo + 1; }
             return memo;
           }, 1);
-
+          console.log(numSelects, numFields, numSources);
           if(numSelects !== numFields * numSources) {
             sendToServer = false;
           } else {
+            console.log('sending to server');
             diffs = diffs.concat(selects.map(function(select) {
               return ["select", "inserted", select];
             }));
@@ -317,6 +299,7 @@ var queryEditor = (function(window, microReact, api) {
         break;
       case "addViewConstraint":
         diffs = diff.addViewConstraint(info.viewId, {operation: "=", leftSource: info.leftSource, leftField: info.leftField});
+        sendToServer = false;
         break;
       case "groupView":
         var old = ixer.index("grouped by")[info.inner];
@@ -521,6 +504,32 @@ var queryEditor = (function(window, microReact, api) {
           opts.operation = info.value;
         }
         diffs = diff.updateViewConstraint(info.constraintId, opts);
+
+        var constraint = ixer.index("constraint")[info.constraintId];
+        var constraintLeft = ixer.index("constraint left")[info.constraintId];
+        var constraintRight = ixer.index("constraint right")[info.constraintId];
+        var constraintOperation = ixer.index("constraint operation")[info.constraintId];
+
+        var constraintFieldIx = code.ix("constraint left", "left field");
+        var constraintSourceIx = code.ix("constraint left", "left source");
+        var constraintOperationIx = code.ix("constraint operation", "operation");
+        opts.leftField = opts.leftField || constraintLeft[constraintFieldIx];
+        opts.leftSource = opts.leftSource || constraintLeft[constraintSourceIx];
+        opts.RightField = opts.RightField || constraintRight[constraintFieldIx];
+        opts.RightSource = opts.RightSource || constraintRight[constraintSourceIx];
+        opts.operation = opts.operation || constraintOperation[constraintOperationIx];
+
+        if(opts.leftField && opts.leftSource && opts.rightField && opts.rightSource && opts.operation) {
+          diffs.push(constraint);
+          if(!info.type === "left") { diffs.push(["constraint left", "inserted", constraintLeft]); }
+          if(!info.type === "right") { diffs.push(["constraint right", "inserted", constraintRight]); }
+          if(!info.type === "operation") { diffs.push(["constraint operation", "inserted", constraintOperation]); }
+          console.log("sending", diffs);
+        } else {
+          sendToServer = false;
+          console.log("incomplete");
+        }
+
         break;
       case "removeViewConstraint":
         diffs = diff.removeViewConstraint(info.constraintId);

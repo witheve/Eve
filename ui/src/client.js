@@ -113,15 +113,15 @@ var client = (function eveClient(api, dispatcher) {
 
       for(var ix = 0; ix < message.changes.length; ix++) {
         var table = message.changes[ix][0];
-        if(table === "view" || table === "field") {
+        if(api.builtins.compiler[table]) {
           specialPayload.changes.push(message.changes[ix]);
         } else {
           payload.changes.push(message.changes[ix]);
         }
       }
 
-//       console.log("\nspecial --- \n", JSON.stringify(specialPayload, null, 2));
-//       console.log("\npayload --- \n", JSON.stringify(payload, null, 2));
+      console.log("\nspecial --- \n", api.clone(specialPayload.changes));
+      console.log("\npayload --- \n", api.clone(payload.changes));
 
       if(specialPayload.changes.length) {
         server.ws.send(JSON.stringify(specialPayload));
