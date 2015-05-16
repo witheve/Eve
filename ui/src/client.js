@@ -43,7 +43,14 @@ var client = (function eveClient(api, dispatcher) {
         server.initialized = true;
         initialize(true);
       }
-      // console.log("received", data);
+      console.log("received");
+      data.changes.forEach(function(change) {
+        if(change[2].length || change[3].length) {
+          console.log(" ", change[0], "+" + change[2].length, "/", "-" + change[3].length,
+                      {fields: change[0], inserts: change[2], removes: change[3]});
+        }
+      });
+      console.log("end received");
       var start = now();
       ixer.handleMapDiffs(data.changes);
       var time = now() - start;
