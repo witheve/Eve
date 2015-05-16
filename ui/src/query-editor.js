@@ -277,6 +277,39 @@ var queryEditor = (function(window, microReact, api) {
         break;
       case "addViewSelection":
         diffs = diff.addViewSelection(info.viewId, info.sourceId, info.sourceFieldId, info.fieldId);
+        var view = ixer.index("view")[info.viewId];
+        var kind = view[code.ix("view", "kind")];
+        if(kind === "union") {
+          // do not send to server unless selects.length = fields.length * sources.length
+          var sourceIdIx = code.ix("source", "source");
+          var numSources = (ixer.index("view to sources")[info.viewId] || []).reduce(function(memo, source) {
+            if(source[sourceIdIx] !== info.sourceId) { return memo + 1; }
+            return memo;
+          }, 1);
+          var fieldIdIx = code.ix("field", "field");
+          var numFields = (ixer.index("view to fields")[info.viewId] || []).reduce(function(memo, field) {
+            if(field[fieldIdIx] !== info.fieldId) { return memo + 1; }
+            return memo;
+          }, 1);
+          var selectSourceIx = code.ix("select", "source");
+          var selectFieldIx = code.ix("select", "view field");
+          var selects = (ixer.index("view to selects")[info.viewId] || []);
+          var numSelects = selects.reduce(function(memo, select) {
+            if(select[selectSourceIx] !== info.sourceId
+               || select[selectFieldIx] !== info.fieldId) { return memo + 1; }
+            return memo;
+          }, 1);
+
+          if(numSelects !== numFields * numSources) {
+            console.log("incomplete, only saving locally.");
+            sendToServer = false;
+          } else {
+            console.log("complete, sending all selects to server.");
+            diffs = diffs.concat(selects.map(function(select) {
+              return ["select", "inserted", select];
+            }));
+          }
+        }
         break;
       case "addViewSource":
         diffs = diff.addViewSource(info.viewId, info.sourceId, info.kind);
@@ -289,7 +322,7 @@ var queryEditor = (function(window, microReact, api) {
         break;
       case "groupView":
         var old = ixer.index("grouped by")[info.inner];
-        if(old) { throw new Error("Fuck you. -- Chris"); }
+        if(old) { throw new Error("Cannot group by multiple views."); }
         var left = ixer.index("constraint left")[info.constraintId] || [];
         var innerField = left[code.ix("constraint left", "left field")];
         diffs = [["grouped by", "inserted", [info.inner, innerField, info.outer, info.outerField]]];
