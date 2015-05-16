@@ -284,15 +284,27 @@ var queryEditor = (function(window, microReact, api) {
           if(numSelects !== numFields * numSources) {
             sendToServer = false;
           } else {
-            console.log('sending to server');
             diffs = diffs.concat(selects.map(function(select) {
               return ["select", "inserted", select];
             }));
+            var sources = ixer.index("view to sources")[info.viewId];
+            diffs = diffs.concat(sources.map(function(source) {
+              return ["source", "inserted", source];
+            }));
+            console.log('sending to server', diffs);
           }
         }
         break;
       case "addViewSource":
         diffs = diff.addViewSource(info.viewId, info.sourceId, info.kind);
+        var view = ixer.index("view")[info.viewId];
+        var kind = view[code.ix("view", "kind")];
+        if(kind === "union") {
+          var selects = (ixer.index("view to selects")[info.viewId] || []);
+          if(selects.length) {
+            sendToServer = false;
+          }
+        }
         break;
       case "removeViewSource":
         diffs = diff.removeViewSource(info.viewId, info.sourceId);
