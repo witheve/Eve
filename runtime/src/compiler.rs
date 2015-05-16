@@ -1,10 +1,10 @@
 use std::collections::BitSet;
 use std::cell::RefCell;
 
-use value::{Id, Value, Tuple};
+use value::{Value, Tuple};
 use relation::{Relation, Change, SingleSelect, Reference, MultiSelect, mapping, with_mapping};
 use view::{View, Table, Union, Join, Constraint, ConstraintOp, Aggregate};
-use flow::{Node, Flow, Changes};
+use flow::{Node, Flow};
 
 pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // the schema is arranged as (table name, unique key fields, other fields)
@@ -184,7 +184,7 @@ fn create_union(flow: &Flow, view_id: &Value) -> Union {
     Union{selects: selects}
 }
 
-fn create_constraint(flow: &Flow, sources: &[Tuple], view_id: &Value, constraint_id: &Value) -> Constraint {
+fn create_constraint(flow: &Flow, sources: &[Tuple], constraint_id: &Value) -> Constraint {
     let left_table = flow.get_output("constraint left");
     let left = left_table.find_one("constraint", constraint_id);
     let left = create_reference(flow, sources, &left["left source"], &left["left field"]);
@@ -208,7 +208,7 @@ fn create_join(flow: &Flow, view_id: &Value) -> Join {
     let sources = dependency_table.find_all("downstream view", view_id);
     let mut constraints = vec![vec![]; sources.len()];
     for constraint in flow.get_output("constraint").find_all("view", view_id).iter() {
-        let constraint = create_constraint(flow, &sources[..], view_id, &constraint["constraint"]);
+        let constraint = create_constraint(flow, &sources[..], &constraint["constraint"]);
         let left_ix = match constraint.left {
             Reference::Variable{source, ..} => source,
             Reference::Constant{..} => 0,
@@ -318,8 +318,7 @@ fn create_flow(flow: &Flow) -> Flow {
 fn reuse_state(old_flow: Flow, new_flow: &mut Flow) {
     let Flow{nodes, outputs, ..} = old_flow;
     for (old_node, old_output) in nodes.into_iter().zip(outputs.into_iter()) {
-        let id = &old_node.id[..];
-        if let Some(new_ix) = new_flow.get_ix(id) {
+        if let Some(new_ix) = new_flow.get_ix(&old_node.id[..]) {
             let old_output = old_output.into_inner();
             let mut new_output = new_flow.outputs[new_ix].borrow_mut();
             if new_output.fields == old_output.fields {
@@ -328,12 +327,15 @@ fn reuse_state(old_flow: Flow, new_flow: &mut Flow) {
                 for values in old_output.index.into_iter() {
                     new_output.index.insert(with_mapping(values, &mapping[..]));
                 }
-            } // else throw it away
+            } else {
+                println!("Warning, cannot migrate state for: {:?}", old_node.id);
+            }
         }
     }
 }
 
 pub fn recompile(mut old_flow: Flow) -> Flow {
+    println!("Compiling...");
     let dependency = create_dependency(&old_flow);
     let dependency_ix = old_flow.get_ix("dependency").unwrap();
     old_flow.outputs[dependency_ix] = RefCell::new(dependency);
@@ -342,6 +344,7 @@ pub fn recompile(mut old_flow: Flow) -> Flow {
     old_flow.outputs[schedule_ix] = RefCell::new(schedule);
     let mut new_flow = create_flow(&old_flow);
     reuse_state(old_flow, &mut new_flow);
+    println!("Compiled...");
     new_flow
 }
 
@@ -400,6 +403,11 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
     flow.get_output_mut("select").change(Change{
         fields: vec!["select: view".to_owned(), "select: view field".to_owned(), "select: source".to_owned(), "select: source field".to_owned()],
         insert: select_values,
+        remove: Vec::new(),
+    });
+      flow.get_output_mut("display name").change(Change{
+        fields: vec!["display name: id".to_owned(), "display name: name".to_owned()],
+        insert: display_name_values,
         remove: Vec::new(),
     });
     recompile(flow) // bootstrap away our dummy nodes

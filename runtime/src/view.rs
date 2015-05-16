@@ -1,4 +1,4 @@
-use value::{Field, Value, Tuple};
+use value::{Tuple};
 use relation::{Relation, SingleSelect, Reference, MultiSelect};
 
 #[derive(Clone, Debug)]
@@ -169,10 +169,11 @@ impl View {
                         let inner_tuple = Tuple{
                             fields: &aggregate.inner.fields[..],
                             names: &aggregate.inner.fields[..],
-                            values: &outer_values[..]
+                            values: &inner_values[..]
                         };
                         output.index.insert(aggregate.select.select(&[inner_tuple]));
                     }
+                    group_start = group_end;
                 }
                 Some(output)
             }
