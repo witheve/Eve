@@ -2,7 +2,7 @@ use std::collections::BitSet;
 use std::cell::RefCell;
 
 use value::{Id, Value, Tuple};
-use relation::{Relation, Change, SingleSelect, Reference, MultiSelect};
+use relation::{Relation, Change, SingleSelect, Reference, MultiSelect, mapping, with_mapping};
 use view::{View, Table, Union, Join, Constraint, ConstraintOp, Aggregate};
 use flow::{Node, Flow, Changes};
 
@@ -315,13 +315,20 @@ fn create_flow(flow: &Flow) -> Flow {
     }
 }
 
-fn reuse_state(old_flow: Flow, flow: &mut Flow) {
+fn reuse_state(old_flow: Flow, new_flow: &mut Flow) {
     let Flow{nodes, outputs, ..} = old_flow;
-    for (node, output) in nodes.into_iter().zip(outputs.into_iter()) {
-        let id = &node.id[..];
-        if flow.get_ix(id) != None
-           && output.borrow().fields == flow.get_output(id).fields {
-            flow.set_output(id, output);
+    for (old_node, old_output) in nodes.into_iter().zip(outputs.into_iter()) {
+        let id = &old_node.id[..];
+        if let Some(new_ix) = new_flow.get_ix(id) {
+            let old_output = old_output.into_inner();
+            let mut new_output = new_flow.outputs[new_ix].borrow_mut();
+            if new_output.fields == old_output.fields {
+                new_output.index = old_output.index;
+            } else if let Some(mapping) = mapping(&old_output.fields[..], &new_output.fields[..]) {
+                for values in old_output.index.into_iter() {
+                    new_output.index.insert(with_mapping(values, &mapping[..]));
+                }
+            } // else throw it away
         }
     }
 }
