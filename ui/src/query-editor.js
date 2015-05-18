@@ -289,15 +289,15 @@ var queryEditor = (function(window, microReact, api) {
             diffs = diffs.concat(selects.map(function(select) {
               return ["select", "inserted", select];
             }));
-            var sources = ixer.index("view to sources")[info.viewId];
+            var sources = ixer.index("view to sources")[info.viewId] || [];
             diffs = diffs.concat(sources.map(function(source) {
               return ["source", "inserted", source];
             }));
-            var blockFields = ixer.index("view and source to block fields")[info.viewId]["selection"];
+            var blockFields = ixer.index("view and source to block fields")[info.viewId]["selection"] || [];
             diffs = diffs.concat(blockFields.map(function(blockField) {
               return ["block field", "inserted", blockField];
             }));
-            var fields = ixer.index("view to fields")[info.viewId];
+            var fields = ixer.index("view to fields")[info.viewId] || [];
             diffs = diffs.concat(fields.map(function(field) {
               return ["field", "inserted", field];
             }));
@@ -750,7 +750,7 @@ var queryEditor = (function(window, microReact, api) {
 
         // @NOTE: We can hoist this if perf is an issue.
         if(isEditable) {
-          tds[tdIx].children = [input(cur[tdIx], {row: cur, ix: tdIx, view: id}, updateRow)];
+          tds[tdIx].children = [input(cur[tdIx], {row: cur, ix: tdIx, view: id}, updateRow, submitRow)];
         } else {
           tds[tdIx].text = cur[tdIx];
         }
@@ -762,7 +762,7 @@ var queryEditor = (function(window, microReact, api) {
       adderRows.forEach(function(cur, rowNum) {
         var tds = [];
         for(var i = 0, len = fields.length; i < len; i++) {
-          tds[i] = {c: "field", children: [input(cur[i], {numFields:len, rowNum: rowNum, ix: i, view: id}, updateAdder)]};
+          tds[i] = {c: "field", children: [input(cur[i], {numFields:len, rowNum: rowNum, ix: i, view: id}, updateAdder, maybeSubmitAdder)]};
         }
         trs.push({c: "row", children: tds});
       });
@@ -782,16 +782,31 @@ var queryEditor = (function(window, microReact, api) {
     var key = elem.key;
     var row = localState.adderRows[key.rowNum];
     row[key.ix] = coerceInput(e.currentTarget.textContent);
-    if(row.length === key.numFields) {
-      localState.adderRows.splice(key.rowNum, 1);
-      if(localState.adderRows.length === 0) {
-        localState.adderRows.push([]);
-      }
-      dispatch("addRow", {table: key.view, neue: row});
+  }
+
+  function maybeSubmitAdder(e, elem, type) {
+    var key = elem.key;
+    var row = localState.adderRows[key.rowNum];
+    row[key.ix] = coerceInput(e.currentTarget.textContent);
+    if(row.length !== key.numFields) { return; }
+    var isValid = row.every(function(cell) {
+      return cell !== undefined;
+    });
+    if(!isValid) { return; }
+
+    localState.adderRows.splice(key.rowNum, 1);
+    if(localState.adderRows.length === 0) {
+      localState.adderRows.push([]);
     }
+    dispatch("addRow", {table: key.view, neue: row});
   }
 
   function updateRow(e, elem) {
+    var neue = elem.key.row.slice();
+    neue[elem.key.ix] = coerceInput(e.currentTarget.textContent);
+  }
+
+  function submitRow(e, elem, type) {
     var neue = elem.key.row.slice();
     neue[elem.key.ix] = coerceInput(e.currentTarget.textContent);
     dispatch("updateRow", {table: elem.key.view, old: elem.key.row, neue: neue})
