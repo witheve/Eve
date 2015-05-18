@@ -281,7 +281,8 @@ var queryEditor = (function(window, microReact, api) {
                || select[selectFieldIx] !== info.fieldId) { return memo + 1; }
             return memo;
           }, 1);
-          console.log(numSelects, numFields, numSources);
+
+          // @FIXME: This went from okay to bad fast.
           if(numSelects !== numFields * numSources) {
             sendToServer = false;
           } else {
@@ -292,7 +293,20 @@ var queryEditor = (function(window, microReact, api) {
             diffs = diffs.concat(sources.map(function(source) {
               return ["source", "inserted", source];
             }));
-            console.log('sending to server', diffs);
+            var blockFields = ixer.index("view and source to block fields")[info.viewId]["selection"];
+            diffs = diffs.concat(blockFields.map(function(blockField) {
+              return ["block field", "inserted", blockField];
+            }));
+            var fields = ixer.index("view to fields")[info.viewId];
+            diffs = diffs.concat(fields.map(function(field) {
+              return ["field", "inserted", field];
+            }));
+            var fieldIdIx = code.ix("field", "field");
+            diffs = diffs.concat(fields.map(function(field) {
+              var id = field[fieldIdIx];
+              return ["display name", "inserted", [id, code.name(id)]];
+            }));
+            console.log(diffs);
           }
         }
         break;
@@ -2596,6 +2610,10 @@ var queryEditor = (function(window, microReact, api) {
     var outerSource = sources.outer;
     var innerSource = sources.inner;
 
+    var groupBy = ixer.index("grouped by")[innerSource] || [];
+    console.log(groupBy);
+
+
     var fields = ixer.index("view and source to block fields")[viewId] || {};
     fields = fields["selection"] || [];
     var selectionItems = fields.map(function(field) {
@@ -2611,17 +2629,18 @@ var queryEditor = (function(window, microReact, api) {
         {t: "h3", text: "Untitled Agg. Block"},
         {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock}
       ]},
-      {text: "For each"},
-      {c: "block-section view-sources", viewId: viewId, sourceId: "outer",
-       drop: aggregateSourceDrop, dragover: preventDefault, children: [
-         outerSource ? viewSource(viewId, "outer") : undefined
-       ]},
-      {text: "Gather"},
+      {text: "With"},
       {c: "block-section view-sources", viewId: viewId, sourceId: "inner", drop: aggregateSourceDrop, dragover: preventDefault, children: [
         innerSource ? viewSource(viewId, "inner") : undefined
       ]},
       {text: "Where"},
       viewConstraints(viewId),
+      {c: "block-section view-selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems},
+    ]};
+  }
+
+  function sortLimitAggregate(viewId, outerSource, innerSource) {
+    return {c: "sort-limit-aggregate", viewId: viewId, children: [
       {text: "Sort by"},
       {c: "block-section aggregate-sort", children: [
         {text: "<field>"},
@@ -2632,7 +2651,12 @@ var queryEditor = (function(window, microReact, api) {
         {text: "<constant>"},
         {text: "<constant>"}
       ]},
-      {c: "block-section view-selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems},
+    ]};
+  }
+
+  function primitiveAggregate(viewId, outerSource, innerSource) {
+    return {c: "primitive-aggregate", viewId: viewId, children: [
+      {text: "argument mapping here"}
     ]};
   }
 
