@@ -405,7 +405,7 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
         insert: select_values,
         remove: Vec::new(),
     });
-      flow.get_output_mut("display name").change(Change{
+    flow.get_output_mut("display name").change(Change{
         fields: vec!["display name: id".to_owned(), "display name: name".to_owned()],
         insert: display_name_values,
         remove: Vec::new(),

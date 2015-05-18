@@ -5,6 +5,7 @@ use value::{Id};
 use relation::{Change, Relation};
 use view::{View, Table};
 use compiler;
+use function;
 
 #[derive(Clone, Debug)]
 pub struct Node {
@@ -25,11 +26,12 @@ pub struct Flow {
 
 impl Flow {
     pub fn new() -> Self {
-        let flow = Flow {
+        let mut flow = Flow {
             nodes: Vec::new(),
             outputs: Vec::new(),
             dirty: BitSet::new(),
         };
+        function::install(&mut flow);
         compiler::bootstrap(flow)
     }
 
