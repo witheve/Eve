@@ -306,7 +306,6 @@ var queryEditor = (function(window, microReact, api) {
               var id = field[fieldIdIx];
               return ["display name", "inserted", [id, code.name(id)]];
             }));
-            console.log(diffs);
           }
         }
         break;
@@ -2592,8 +2591,9 @@ var queryEditor = (function(window, microReact, api) {
   function unionSourceMappingDrop(evt, elem) {
     var type = evt.dataTransfer.getData("type");
     if(type !== "field") { return; }
-    var fieldId = evt.dataTransfer.getData("fieldId");
-    var blockField = ixer.index("block field")[fieldId];
+    var blockFieldId = evt.dataTransfer.getData("fieldId");
+    var blockField = ixer.index("block field")[blockFieldId];
+    var fieldId = blockField[code.ix("block field", "field")];
     var viewId = blockField[code.ix("block field", "view")];
     var sourceId = blockField[code.ix("block field", "source")];
     if(viewId !== elem.viewId) { return; }
