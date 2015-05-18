@@ -89,6 +89,7 @@ var queryEditor = (function(window, microReact, api) {
     var old = eventStack;
     eventStack = old.parent;
     localState = clone(eventStack.localState);
+    api.localState = localState;
     return reverseDiff(old.diffs);
   }
 
@@ -725,7 +726,9 @@ var queryEditor = (function(window, microReact, api) {
       }
       return {c: "header", children: [input(cur.name, cur.id, oninput, onsubmit)]};
     });
-    ths.push({c: "header add-column ion-plus", click: addField, table: id});
+    if(isEditable) {
+      ths.push({c: "header add-column ion-plus", click: addField, table: id});
+    }
     var trs = [];
     rows.forEach(function(cur) {
       var tds = [];
@@ -741,14 +744,16 @@ var queryEditor = (function(window, microReact, api) {
       }
       trs.push({c: "row", children: tds});
     })
-    var adderRows = localState.adderRows;
-    adderRows.forEach(function(cur, rowNum) {
-      var tds = [];
-      for(var i = 0, len = fields.length; i < len; i++) {
-        tds[i] = {c: "field", children: [input(cur[i], {numFields:len, rowNum: rowNum, ix: i, view: id}, updateAdder)]};
-      }
-      trs.push({c: "row", children: tds});
-    });
+    if(isEditable) {
+      var adderRows = localState.adderRows;
+      adderRows.forEach(function(cur, rowNum) {
+        var tds = [];
+        for(var i = 0, len = fields.length; i < len; i++) {
+          tds[i] = {c: "field", children: [input(cur[i], {numFields:len, rowNum: rowNum, ix: i, view: id}, updateAdder)]};
+        }
+        trs.push({c: "row", children: tds});
+      });
+    }
     //   trs.push({id: "spacer2", c: "spacer", height: Math.max(totalRows - start - numRows, 0) * itemHeight});
     return {c: "table", children: [
       {c: "headers", children: ths},
@@ -2104,8 +2109,7 @@ var queryEditor = (function(window, microReact, api) {
                             {c: "query-editor",
                              children: [
                                {c: "query-workspace", children: [
-                                 editor(queryId),
-                                 inspectorPane(queryId)
+                                 editor(queryId)
                                ]},
                                queryResult(queryId)
                              ]});
@@ -2166,9 +2170,30 @@ var queryEditor = (function(window, microReact, api) {
     for(var ix = 0; ix < blocks.length; ix++) {
       var viewId = blocks[ix][code.ix("block", "view")];
       var viewKind = ixer.index("view to kind")[viewId];
-      if(viewKind === "join") { items.push(viewBlock(viewId)); }
-      if(viewKind === "union") { items.push(unionBlock(viewId));  }
-      if(viewKind === "aggregate") { items.push(aggregateBlock(viewId)); }
+      var editorPane;
+      if(viewKind === "join") { editorPane = viewBlock(viewId); }
+      if(viewKind === "union") { editorPane = unionBlock(viewId);  }
+      if(viewKind === "aggregate") { editorPane =aggregateBlock(viewId); }
+
+      var rows = ixer.facts(viewId) || [];
+      var fields = (ixer.index("view to fields")[viewId] || []).map(function(field) {
+        var id = field[code.ix("field", "field")];
+        return {name: code.name(id), id: id};
+      });
+      // This is a weird way to use display order.
+      var order = ixer.index("display order");
+      rows.sort(function(a, b) {
+        var aIx = order[viewId + JSON.stringify(a)];
+        var bIx = order[viewId + JSON.stringify(b)];
+        return aIx - bIx;
+      });
+
+      var inspectorPane = {c: "inspector-pane", children: [virtualizedTable(viewId, fields, rows, false)]};
+
+      items.push({c: "block " + viewKind, children: [
+        editorPane,
+        inspectorPane
+      ]});
     }
     if(items.length) {
       items.push({c: "add-aggregate-btn", text: "Add an aggregate by dragging it here...", queryId: queryId});
@@ -2676,6 +2701,8 @@ var queryEditor = (function(window, microReact, api) {
   //---------------------------------------------------------
   // Go
   //---------------------------------------------------------
+
+  if(window.queryEditor) { render(); }
 
   return { container: renderer.content, localState: localState, renderer: renderer, render: render, eventStack: eventStack };
 })(window, microReact, api);
