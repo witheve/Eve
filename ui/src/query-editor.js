@@ -289,7 +289,7 @@ var queryEditor = (function(window, microReact, api) {
             diffs = diffs.concat(selects.map(function(select) {
               return ["select", "inserted", select];
             }));
-            var sources = ixer.index("view to sources")[info.viewId];
+            var sources = ixer.index("view to sources")[info.viewId] || [];
             diffs = diffs.concat(sources.map(function(source) {
               return ["source", "inserted", source];
             }));
@@ -297,7 +297,7 @@ var queryEditor = (function(window, microReact, api) {
             diffs = diffs.concat(blockFields.map(function(blockField) {
               return ["block field", "inserted", blockField];
             }));
-            var fields = ixer.index("view to fields")[info.viewId];
+            var fields = ixer.index("view to fields")[info.viewId] || [];
             diffs = diffs.concat(fields.map(function(field) {
               return ["field", "inserted", field];
             }));
