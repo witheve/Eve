@@ -82,19 +82,19 @@ impl Flow {
         for (ix, node) in self.nodes.iter().enumerate() {
             match old_self.get_ix(&node.id[..]) {
                 Some(old_ix) => {
-                    let output = self.outputs[ix].borrow();
+                    let new_output = self.outputs[ix].borrow();
                     let old_output = old_self.outputs[old_ix].borrow();
-                    if output.fields == old_output.fields {
-                        let change = self.outputs[ix].borrow().change_from(&*old_self.outputs[old_ix].borrow());
+                    if new_output.fields == old_output.fields {
+                        let change = new_output.change_from(&*old_output);
                         changes.push((node.id.clone(), change));
                     } else {
-                        changes.push((node.id.clone(), output.as_insert()));
-                        changes.push((node.id.clone(), output.as_remove()));
+                        changes.push((node.id.clone(), new_output.as_insert()));
+                        changes.push((node.id.clone(), old_output.as_remove()));
                     }
                 }
                 None => {
-                    let output = self.outputs[ix].borrow();
-                    changes.push((node.id.clone(), output.as_insert()));
+                    let new_output = self.outputs[ix].borrow();
+                    changes.push((node.id.clone(), new_output.as_insert()));
                 }
             }
         }
