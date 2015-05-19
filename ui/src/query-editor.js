@@ -206,6 +206,8 @@ var queryEditor = (function(window, microReact, api) {
         break;
       case "rename":
         var id = info.id;
+        sendToServer = !!info.sendToServer;
+        if(info.value === undefined) { return; }
         diffs.push(["display name", "inserted", [id, info.value]],
                    ["display name", "removed", [id, code.name(id)]])
         break;
@@ -259,54 +261,54 @@ var queryEditor = (function(window, microReact, api) {
         break;
       case "addViewSelection":
         diffs = diff.addViewSelection(info.viewId, info.sourceId, info.sourceFieldId, info.fieldId);
-        var view = ixer.index("view")[info.viewId];
-        var kind = view[code.ix("view", "kind")];
-        if(kind === "union") {
-          // do not send to server unless selects.length = fields.length * sources.length
-          var sourceIdIx = code.ix("source", "source");
-          var numSources = (ixer.index("view to sources")[info.viewId] || []).reduce(function(memo, source) {
-            if(source[sourceIdIx] !== info.sourceId) { return memo + 1; }
-            return memo;
-          }, 1);
-          var fieldIdIx = code.ix("field", "field");
-          var numFields = (ixer.index("view to fields")[info.viewId] || []).reduce(function(memo, field) {
-            if(field[fieldIdIx] !== info.fieldId) { return memo + 1; }
-            return memo;
-          }, 1);
-          var selectSourceIx = code.ix("select", "source");
-          var selectFieldIx = code.ix("select", "view field");
-          var selects = (ixer.index("view to selects")[info.viewId] || []);
-          var numSelects = selects.reduce(function(memo, select) {
-            if(select[selectSourceIx] !== info.sourceId
-               || select[selectFieldIx] !== info.fieldId) { return memo + 1; }
-            return memo;
-          }, 1);
+        break;
+      case "addUnionSelection":
+        diffs = diff.addViewSelection(info.viewId, info.sourceId, info.sourceFieldId, info.fieldId);
 
-          // @FIXME: This went from okay to bad fast.
-          if(numSelects !== numFields * numSources) {
-            sendToServer = false;
-          } else {
-            diffs = diffs.concat(selects.map(function(select) {
-              return ["select", "inserted", select];
-            }));
-            var sources = ixer.index("view to sources")[info.viewId] || [];
-            diffs = diffs.concat(sources.map(function(source) {
-              return ["source", "inserted", source];
-            }));
-            var blockFields = ixer.index("view and source to block fields")[info.viewId]["selection"] || [];
-            diffs = diffs.concat(blockFields.map(function(blockField) {
-              return ["block field", "inserted", blockField];
-            }));
-            var fields = ixer.index("view to fields")[info.viewId] || [];
-            diffs = diffs.concat(fields.map(function(field) {
-              return ["field", "inserted", field];
-            }));
-            var fieldIdIx = code.ix("field", "field");
-            diffs = diffs.concat(fields.map(function(field) {
-              var id = field[fieldIdIx];
-              return ["display name", "inserted", [id, code.name(id)]];
-            }));
-          }
+        // do not send to server unless selects.length = fields.length * sources.length
+        var sourceIdIx = code.ix("source", "source");
+        var numSources = (ixer.index("view to sources")[info.viewId] || []).reduce(function(memo, source) {
+          if(source[sourceIdIx] !== info.sourceId) { return memo + 1; }
+          return memo;
+        }, 1);
+        var fieldIdIx = code.ix("field", "field");
+        var numFields = (ixer.index("view to fields")[info.viewId] || []).reduce(function(memo, field) {
+          if(field[fieldIdIx] !== info.fieldId) { return memo + 1; }
+          return memo;
+        }, 1);
+        var selectSourceIx = code.ix("select", "source");
+        var selectFieldIx = code.ix("select", "view field");
+        var selects = (ixer.index("view to selects")[info.viewId] || []);
+        var numSelects = selects.reduce(function(memo, select) {
+          if(select[selectSourceIx] !== info.sourceId
+             || select[selectFieldIx] !== info.fieldId) { return memo + 1; }
+          return memo;
+        }, 1);
+
+        // @FIXME: This went from okay to bad fast.
+        if(numSelects !== numFields * numSources) {
+          sendToServer = false;
+        } else {
+          diffs = diffs.concat(selects.map(function(select) {
+            return ["select", "inserted", select];
+          }));
+          var sources = ixer.index("view to sources")[info.viewId] || [];
+          diffs = diffs.concat(sources.map(function(source) {
+            return ["source", "inserted", source];
+          }));
+          var blockFields = ixer.index("view and source to block fields")[info.viewId]["selection"] || [];
+          diffs = diffs.concat(blockFields.map(function(blockField) {
+            return ["block field", "inserted", blockField];
+          }));
+          var fields = ixer.index("view to fields")[info.viewId] || [];
+          diffs = diffs.concat(fields.map(function(field) {
+            return ["field", "inserted", field];
+          }));
+          var fieldIdIx = code.ix("field", "field");
+          diffs = diffs.concat(fields.map(function(field) {
+            var id = field[fieldIdIx];
+            return ["display name", "inserted", [id, code.name(id)]];
+          }));
         }
         break;
       case "addViewSource":
@@ -550,7 +552,6 @@ var queryEditor = (function(window, microReact, api) {
           if(info.type !== "left") { diffs.push(["constraint left", "inserted", constraintLeft]); }
           if(info.type !== "right") { diffs.push(["constraint right", "inserted", constraintRight]); }
           if(info.type !== "operation") { diffs.push(["constraint operation", "inserted", constraintOperation]); }
-          console.log("sending", diffs);
         } else {
           sendToServer = false;
           console.log("incomplete");
@@ -724,10 +725,10 @@ var queryEditor = (function(window, microReact, api) {
                              ]});
   }
 
-  function rename(e, elem) {
+  function rename(e, elem, sendToServer) {
     var value = e.currentTarget.textContent;
-    if(value !== code.name(elem.key)) {
-      dispatch("rename", {value: value, id: elem.key});
+    if(value !== undefined) {
+      dispatch("rename", {value: value, id: elem.key, sendToServer: sendToServer});
     }
   }
 
@@ -2598,7 +2599,7 @@ var queryEditor = (function(window, microReact, api) {
       ]},
       {c: "content", children: [
         {c: "block-pane", children: sourceItems},
-        {c: "block-pane mapping", viewId: viewId, dragover: preventDefault, drop: viewSelectionsDrop, children: fieldMappingItems},
+        {c: "block-pane mapping", viewId: viewId, dragover: preventDefault, drop: unionSourceMappingDrop, children: fieldMappingItems},
       ]}
     ]};
   }
@@ -2612,8 +2613,8 @@ var queryEditor = (function(window, microReact, api) {
     var viewId = blockField[code.ix("block field", "view")];
     var sourceId = blockField[code.ix("block field", "source")];
     if(viewId !== elem.viewId) { return; }
-
-    dispatch("addViewSelection", {viewId: viewId, sourceFieldId: fieldId, sourceId: sourceId, fieldId: elem.fieldId});
+    console.log({viewId: viewId, sourceFieldId: fieldId, sourceId: sourceId, fieldId: elem.fieldId});
+    dispatch("addUnionSelection", {viewId: viewId, sourceFieldId: fieldId, sourceId: sourceId, fieldId: elem.fieldId});
     evt.stopPropagation();
   }
 
