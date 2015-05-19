@@ -79,7 +79,7 @@ var api = (function(Indexing) {
       "uiComponentLayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden", "parentLayer"], facts: []},
       "uiComponentAttribute": {name: "uiComponentAttribute", fields: ["tx", "id", "property", "value"]},
       "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element", "shared"]},
-      "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "union"]},
+      "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "view"]},
       "uiAttrBinding": {name: "uiAttrBinding", fields: ["elementId", "attr", "field"]}
     }
   };
