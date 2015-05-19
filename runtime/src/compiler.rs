@@ -1,5 +1,6 @@
 use std::collections::BitSet;
 use std::cell::RefCell;
+use function;
 
 use value::{Value, Tuple};
 use relation::{Relation, Change, SingleSelect, Reference, MultiSelect, mapping, with_mapping};
@@ -410,5 +411,6 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
         insert: display_name_values,
         remove: Vec::new(),
     });
+    function::install(&mut flow);
     recompile(flow) // bootstrap away our dummy nodes
 }
