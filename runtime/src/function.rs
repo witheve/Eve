@@ -37,12 +37,15 @@ pub fn install(flow: &mut Flow) {
         view_values.push(vec![string!("{}", name), string!("primitive")]);
         for field in scalar_inputs.into_iter() {
             field_values.push(vec![string!("{}: {}", name, field), string!("{}", name), string!("scalar input")]);
+            display_name_values.push(vec![string!("{}: {}", name, field), string!("{}", field)]);
         }
         for field in vector_inputs.into_iter() {
             field_values.push(vec![string!("{}: {}", name, field), string!("{}", name), string!("vector input")]);
+            display_name_values.push(vec![string!("{}: {}", name, field), string!("{}", field)]);
         }
         for field in outputs.into_iter() {
             field_values.push(vec![string!("{}: {}", name, field), string!("{}", name), string!("output")]);
+            display_name_values.push(vec![string!("{}: {}", name, field), string!("{}", field)]);
         }
     }
     flow.get_output_mut("view").change(Change{
