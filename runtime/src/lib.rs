@@ -26,7 +26,7 @@ pub mod value;
 pub mod relation;
 pub mod view;
 pub mod flow;
-pub mod function;
+pub mod primitive;
 pub mod compiler;
 pub mod server;
 // pub mod test;

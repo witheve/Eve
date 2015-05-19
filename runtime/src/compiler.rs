@@ -1,11 +1,11 @@
 use std::collections::BitSet;
 use std::cell::RefCell;
-use function;
 
 use value::{Value, Tuple};
 use relation::{Relation, Change, SingleSelect, Reference, MultiSelect, mapping, with_mapping};
 use view::{View, Table, Union, Join, Constraint, ConstraintOp, Aggregate};
 use flow::{Node, Flow};
+use primitive;
 
 pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // the schema is arranged as (table name, unique key fields, other fields)
@@ -411,6 +411,6 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
         insert: display_name_values,
         remove: Vec::new(),
     });
-    function::install(&mut flow);
+    primitive::install(&mut flow);
     recompile(flow) // bootstrap away our dummy nodes
 }

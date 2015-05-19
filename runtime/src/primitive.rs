@@ -3,12 +3,12 @@ use flow::Flow;
 use value::Value;
 
 #[derive(Clone, Debug, Copy)]
-pub enum Function {
+pub enum Primitive {
     Add
 }
 
-pub fn eval(function: Function, arguments: &[Value]) -> Value {
-    use function::Function::*;
+pub fn eval(function: Primitive, arguments: &[Value]) -> Value {
+    use primitive::Primitive::*;
     use value::Value::*;
     match (function, arguments) {
         (Add, [Float(a), Float(b)]) => Float(a+b),
@@ -16,9 +16,9 @@ pub fn eval(function: Function, arguments: &[Value]) -> Value {
     }
 }
 
-pub fn from_str(string: &str) -> Function {
+pub fn from_str(string: &str) -> Primitive {
     match string {
-        "add" => Function::Add,
+        "add" => Primitive::Add,
         _ => panic!("Unknown function: {:?}", string),
     }
 }
