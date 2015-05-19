@@ -1,5 +1,6 @@
 use std::collections::BitSet;
 use std::cell::RefCell;
+use function;
 
 use value::{Value, Tuple};
 use relation::{Relation, Change, SingleSelect, Reference, MultiSelect, mapping, with_mapping};
@@ -405,10 +406,11 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
         insert: select_values,
         remove: Vec::new(),
     });
-      flow.get_output_mut("display name").change(Change{
+    flow.get_output_mut("display name").change(Change{
         fields: vec!["display name: id".to_owned(), "display name: name".to_owned()],
         insert: display_name_values,
         remove: Vec::new(),
     });
+    function::install(&mut flow);
     recompile(flow) // bootstrap away our dummy nodes
 }

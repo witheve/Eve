@@ -24,9 +24,9 @@ macro_rules! string {
 pub mod value;
 // pub mod map;
 pub mod relation;
-// pub mod query;
 pub mod view;
 pub mod flow;
+pub mod function;
 pub mod compiler;
 pub mod server;
 // pub mod test;

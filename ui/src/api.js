@@ -168,8 +168,8 @@ var api = (function(Indexing) {
       }
     },
     sortedViewFields: function(viewId) {
-      var fields = ixer.index("view to fields")[viewId];
-      if(!fields) { return; }
+      var fields = (ixer.index("view to fields")[viewId] || []).slice();
+      if(!fields || !fields.length) { return; }
       var fieldsLength = fields.length;
       for(var ix = 0; ix < fieldsLength; ix++) {
         var fieldId = fields[ix][1];
@@ -288,9 +288,11 @@ var api = (function(Indexing) {
     },
 
     addViewSelection: function addViewSelection(viewId, sourceId, sourceFieldId, fieldId) {
+      var neue;
       var diffs = [];
       if(!fieldId) {
         fieldId = uuid();
+        neue = [viewId, fieldId, sourceId, sourceFieldId];
         var blockFieldId = uuid();
         var name = code.name(sourceFieldId);
         var order = ixer.index("display order")[sourceFieldId];
@@ -301,15 +303,15 @@ var api = (function(Indexing) {
                    ["display order", "inserted", [blockFieldId, 0]],
                    ["display name", "inserted", [blockFieldId, name]]);
       } else {
+        neue = [viewId, fieldId, sourceId, sourceFieldId];
         var old = ixer.index("view and source and field to select")[viewId] || {};
         old = old[sourceId] || {};
         old = old[fieldId];
-        if(old) {
+        if(old && !Indexing.arraysIdentical(old, neue)) {
           diffs.push(["select", "removed", old]);
         }
       }
-
-      diffs.push(["select", "inserted", [viewId, fieldId, sourceId, sourceFieldId]]);
+      diffs.push(["select", "inserted", neue]);
       return diffs;
     },
     cacheViewSourceFields: function(viewId, sourceId, sourceViewId) {
@@ -499,3 +501,8 @@ var api = (function(Indexing) {
           clone: clone,
           builtins: tables};
 })(Indexing);
+
+if(!window.DEBUG) {
+  window.DEBUG = {RECEIVE: 0,
+                  SEND: 0};
+}
