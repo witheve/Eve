@@ -50,7 +50,7 @@ var api = (function(Indexing) {
     editor: {
       "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"]]},
       block: {name: "block", fields: ["query", "block", "view"]},
-      "block aggregate": {name: "block aggregate", fields: ["block", "kind"]},
+      "block aggregate": {name: "block aggregate", fields: ["view", "kind"]},
       "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
       "grouped by": {name: "grouped by", fields: ["inner", "inner field", "outer", "outer field"]}
     },
@@ -111,6 +111,7 @@ var api = (function(Indexing) {
   ixer.addIndex("view and source field to select", "select", Indexing.create.lookup([0, 3, false]));
   ixer.addIndex("view and source and field to select", "select", Indexing.create.lookup([0, 2, 1, false]));
 
+  // editor
 
   ixer.addIndex("block", "block", Indexing.create.lookup([1, false]));
   ixer.addIndex("block to query", "block", Indexing.create.lookup([1, 0]));
@@ -121,6 +122,7 @@ var api = (function(Indexing) {
   ixer.addIndex("block field", "block field", Indexing.create.lookup([0, false]));
   ixer.addIndex("view and source to block fields", "block field", Indexing.create.collector([1, 2]));
   ixer.addIndex("grouped by", "grouped by", Indexing.create.lookup([0, false]));
+  ixer.addIndex("block aggregate", "block aggregate", Indexing.create.lookup([0, false]));
 
   ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
 
@@ -275,7 +277,7 @@ var api = (function(Indexing) {
       var blockId = uuid();
       var diffs = [["block", "inserted", [queryId, blockId, viewId]],
                    ["view", "inserted", [viewId, "aggregate"]],
-                   ["block aggregate", "inserted", [blockId, kind]]];
+                   ["block aggregate", "inserted", [viewId, kind]]];
       return diffs;
     },
 
