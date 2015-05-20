@@ -207,9 +207,9 @@ var queryEditor = (function(window, microReact, api) {
       case "rename":
         var id = info.id;
         sendToServer = !!info.sendToServer;
-        if(info.value === undefined) { return; }
+        if(info.value === undefined || info.value === info.initial[1]) { return; }
         diffs.push(["display name", "inserted", [id, info.value]],
-                   ["display name", "removed", [id, code.name(id)]])
+                   ["display name", "removed", info.initial])
         break;
 
       case "addField":
@@ -728,7 +728,7 @@ var queryEditor = (function(window, microReact, api) {
   function rename(e, elem, sendToServer) {
     var value = e.currentTarget.textContent;
     if(value !== undefined) {
-      dispatch("rename", {value: value, id: elem.key, sendToServer: sendToServer});
+      dispatch("rename", {value: value, id: elem.key, sendToServer: sendToServer, initial: [localState.initialKey, localState.initialValue]});
     }
   }
 
@@ -825,7 +825,12 @@ var queryEditor = (function(window, microReact, api) {
         }
       }
     }
-    return {c: "input text-input", contentEditable: true, input: oninput, text: value, key: key, blur: blur, keydown: keydown};
+    return {c: "input text-input", contentEditable: true, input: oninput, focus: storeInitialInput, text: value, key: key, blur: blur, keydown: keydown};
+  }
+
+  function storeInitialInput(e, elem) {
+    localState.initialKey = elem.key;
+    localState.initialValue = elem.text;
   }
 
   //---------------------------------------------------------
