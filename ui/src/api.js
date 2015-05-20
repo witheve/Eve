@@ -52,7 +52,8 @@ var api = (function(Indexing) {
       block: {name: "block", fields: ["query", "block", "view"]},
       "block aggregate": {name: "block aggregate", fields: ["view", "kind"]},
       "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
-      "grouped by": {name: "grouped by", fields: ["inner", "inner field", "outer", "outer field"]}
+      "grouped by": {name: "grouped by", fields: ["inner", "inner field", "outer", "outer field"]},
+      empty: {name: "empty", fields: ["empty"]}
     },
 
     example: {
@@ -277,6 +278,8 @@ var api = (function(Indexing) {
       var blockId = uuid();
       var diffs = [["block", "inserted", [queryId, blockId, viewId]],
                    ["view", "inserted", [viewId, "aggregate"]],
+                   ["source", "inserted", [viewId, "inner", "empty"]],
+                   ["source", "inserted", [viewId, "outer", "empty"]],
                    ["block aggregate", "inserted", [viewId, kind]]];
       return diffs;
     },
