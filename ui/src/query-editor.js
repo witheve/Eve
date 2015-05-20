@@ -123,7 +123,7 @@ var queryEditor = (function(window, microReact, api) {
                    ["display name", "inserted", [id, "Untitled Table"]],
                    ["display name", "inserted", [fieldId, "A"]]);
         localState.activeItem = id;
-        localState.adderRows = [[]];
+        localState.adderRows = [[], []];
         break;
       case "addQuery":
         var id = uuid();
@@ -225,12 +225,15 @@ var queryEditor = (function(window, microReact, api) {
                    ["display order", "inserted", [info.table + JSON.stringify(info.neue), ix]]);
         break;
       case "updateRow":
+        sendToServer = info.submit;
         var oldString = info.table + JSON.stringify(info.old);
-        var ix = ixer.index("display order")[oldString];
+        var ix = info.ix;
+        var neueString = info.table + JSON.stringify(info.neue);
+        if(oldString === neueString) return;
         diffs.push([info.table, "inserted", info.neue],
                    [info.table, "removed", info.old],
                    ["display order", "removed", [oldString, ix]],
-                   ["display order", "inserted", [info.table + JSON.stringify(info.neue), ix]]);
+                   ["display order", "inserted", [neueString, ix]]);
         break;
       case "addViewBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
@@ -665,7 +668,7 @@ var queryEditor = (function(window, microReact, api) {
     localState.activeItem = elem.itemId;
     var type = ixer.index("editor item to type")[elem.itemId];
     if(type === "table") {
-      localState.adderRows = [[]];
+      localState.adderRows = [[], []];
     } else if(type === "ui") {
       var layer = ixer.index("parentLayerToLayers")[elem.itemId][0];
       localState.uiActiveLayer = layer[1];
@@ -744,14 +747,14 @@ var queryEditor = (function(window, microReact, api) {
       ths.push({c: "header add-column ion-plus", click: addField, table: id});
     }
     var trs = [];
-    rows.forEach(function(cur) {
+    rows.forEach(function(cur, rowIx) {
       var tds = [];
       for(var tdIx = 0, len = fields.length; tdIx < len; tdIx++) {
         tds[tdIx] = {c: "field"};
 
         // @NOTE: We can hoist this if perf is an issue.
         if(isEditable) {
-          tds[tdIx].children = [input(cur[tdIx], {row: cur, ix: tdIx, view: id}, updateRow, submitRow)];
+          tds[tdIx].children = [input(cur[tdIx], {rowIx: rowIx, row: cur, ix: tdIx, view: id}, updateRow, submitRow)];
         } else {
           tds[tdIx].text = cur[tdIx];
         }
@@ -763,7 +766,7 @@ var queryEditor = (function(window, microReact, api) {
       adderRows.forEach(function(cur, rowNum) {
         var tds = [];
         for(var i = 0, len = fields.length; i < len; i++) {
-          tds[i] = {c: "field", children: [input(cur[i], {numFields:len, rowNum: rowNum, ix: i, view: id}, updateAdder, maybeSubmitAdder)]};
+          tds[i] = {c: "field", children: [input(cur[i], {row: cur, numFields:len, rowNum: rowNum, ix: i, view: id}, updateAdder, maybeSubmitAdder)]};
         }
         trs.push({c: "row", children: tds});
       });
@@ -796,7 +799,7 @@ var queryEditor = (function(window, microReact, api) {
     if(!isValid) { return; }
 
     localState.adderRows.splice(key.rowNum, 1);
-    if(localState.adderRows.length === 0) {
+    if(localState.adderRows.length <= 1) {
       localState.adderRows.push([]);
     }
     dispatch("addRow", {table: key.view, neue: row});
@@ -805,12 +808,13 @@ var queryEditor = (function(window, microReact, api) {
   function updateRow(e, elem) {
     var neue = elem.key.row.slice();
     neue[elem.key.ix] = coerceInput(e.currentTarget.textContent);
+    dispatch("updateRow", {table: elem.key.view, ix:localState.initialKey.rowIx, old: elem.key.row.slice(), neue: neue, submit: false})
   }
 
   function submitRow(e, elem, type) {
     var neue = elem.key.row.slice();
     neue[elem.key.ix] = coerceInput(e.currentTarget.textContent);
-    dispatch("updateRow", {table: elem.key.view, old: elem.key.row, neue: neue})
+    dispatch("updateRow", {table: elem.key.view, ix:localState.initialKey.rowIx, old: localState.initialKey.row.slice(), neue: neue, submit: true})
   }
 
   function input(value, key, oninput, onsubmit) {
