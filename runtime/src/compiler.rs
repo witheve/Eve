@@ -336,7 +336,6 @@ fn reuse_state(old_flow: Flow, new_flow: &mut Flow) {
 }
 
 pub fn recompile(mut old_flow: Flow) -> Flow {
-    println!("Compiling...");
     let dependency = create_dependency(&old_flow);
     let dependency_ix = old_flow.get_ix("dependency").unwrap();
     old_flow.outputs[dependency_ix] = RefCell::new(dependency);
@@ -345,7 +344,6 @@ pub fn recompile(mut old_flow: Flow) -> Flow {
     old_flow.outputs[schedule_ix] = RefCell::new(schedule);
     let mut new_flow = create_flow(&old_flow);
     reuse_state(old_flow, &mut new_flow);
-    println!("Compiled!");
     new_flow
 }
 

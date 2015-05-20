@@ -172,11 +172,18 @@ impl Flow {
     }
 
     pub fn quiesce(mut self, changes: Changes) -> Self {
-        self.change(changes);
+        time!("changing", {
+            self.change(changes);
+        });
         loop {
             // TODO if compiler::needs_recompile...
-            self = compiler::recompile(self);
-            self.recalculate();
+
+            time!("compiling", {
+                self = compiler::recompile(self);
+            });
+            time!("calculating", {
+                self.recalculate();
+            });
             let changed = self.tick();
             if !changed {
                 break
