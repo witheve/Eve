@@ -242,6 +242,7 @@ var queryEditor = (function(window, microReact, api) {
       case "addAggregateBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
         diffs = diff.addAggregateBlock(queryId, info.kind);
+        sendToServer = false;
         break;
       case "addUnionBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
@@ -323,6 +324,9 @@ var queryEditor = (function(window, microReact, api) {
           if(selects.length) {
             sendToServer = false;
           }
+        }
+        if(kind === "aggregate") {
+          diffs.push(["view", "inserted", view]);
         }
         break;
       case "removeViewSource":
@@ -2179,6 +2183,7 @@ var queryEditor = (function(window, microReact, api) {
     for(var key in elem.dragData) {
       evt.dataTransfer.setData(key, elem.dragData[key]);
     }
+    evt.stopPropagation();
   }
 
   var queryTools = {
@@ -2211,7 +2216,7 @@ var queryEditor = (function(window, microReact, api) {
       var editorPane;
       if(viewKind === "join") { editorPane = viewBlock(viewId); }
       if(viewKind === "union") { editorPane = unionBlock(viewId);  }
-      if(viewKind === "aggregate") { editorPane =aggregateBlock(viewId); }
+      if(viewKind === "aggregate") { editorPane = aggregateBlock(viewId); }
 
       var rows = ixer.facts(viewId) || [];
       var fields = (ixer.index("view to fields")[viewId] || []).map(function(field) {
@@ -2271,7 +2276,8 @@ var queryEditor = (function(window, microReact, api) {
     }
     var groupedBy = ixer.index("grouped by")[viewId];
 
-    return {c: "block view-block", viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, children: [
+    return {c: "block view-block", viewId: viewId, drop: viewBlockDrop, dragover: preventDefault,
+            dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem, children: [
       {c: "block-title", children: [
         {t: "h3", text: "Untitled Block"},
         {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock}
@@ -2601,7 +2607,8 @@ var queryEditor = (function(window, microReact, api) {
                                                              {text: "drag an existing union to begin merging"}]});
     }
 
-    return {c: "block union-block", viewId: viewId, dragover: preventDefault, drop: viewBlockDrop, children: [
+    return {c: "block union-block", viewId: viewId, dragover: preventDefault, drop: viewBlockDrop,
+            dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem, children: [
       {c: "block-title", children: [
         {t: "h3", text: "Untitled Union Block"},
         {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock}
@@ -2631,12 +2638,16 @@ var queryEditor = (function(window, microReact, api) {
    * Aggregate Block
    */
   function aggregateBlock(viewId) {
+    var blockAggregate = ixer.index("block aggregate")[viewId];
+
     var sources = ixer.index("source")[viewId] || {};
     var outerSource = sources.outer;
     var innerSource = sources.inner;
 
     var groupBy = ixer.index("grouped by")[innerSource] || [];
-    console.log(groupBy);
+    console.log("blockAgg", blockAggregate);
+    var aggregateKind = blockAggregate[code.ix("block aggregate", "kind")];
+    console.log("groupBy",groupBy);
 
 
     var fields = ixer.index("view and source to block fields")[viewId] || {};
@@ -2649,6 +2660,13 @@ var queryEditor = (function(window, microReact, api) {
       selectionItems.push({text: "Drag local fields into me to make them available in the query."});
     }
 
+    var content;
+    if(aggregateKind === "sort+limit") {
+      content = sortLimitAggregate(viewId, outerSource, innerSource);
+    } else {
+      content = primitiveAggregate(viewId, outerSource, innerSource, aggregateKind);
+    }
+
     return {c: "block aggregate-block", viewId: viewId, children: [
       {c: "block-title", children: [
         {t: "h3", text: "Untitled Agg. Block"},
@@ -2658,8 +2676,7 @@ var queryEditor = (function(window, microReact, api) {
       {c: "block-section view-sources", viewId: viewId, sourceId: "inner", drop: aggregateSourceDrop, dragover: preventDefault, children: [
         innerSource ? viewSource(viewId, "inner") : undefined
       ]},
-      {text: "Where"},
-      viewConstraints(viewId),
+      content,
       {c: "block-section view-selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems},
     ]};
   }
@@ -2681,7 +2698,8 @@ var queryEditor = (function(window, microReact, api) {
 
   function primitiveAggregate(viewId, outerSource, innerSource) {
     return {c: "primitive-aggregate", viewId: viewId, children: [
-      {text: "argument mapping here"}
+      {text: "Where"},
+      viewConstraints(viewId),
     ]};
   }
 
