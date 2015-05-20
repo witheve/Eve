@@ -235,7 +235,7 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
     let grouping_table = flow.get_output("aggregate grouping");
     let groupings = grouping_table.find_all("aggregate", view_id);
     let field_table = flow.get_output("field");
-    let fields = field_table.find_all("view", &inner_source["source view"]);
+    let fields = field_table.find_all("view", &inner_source["downstream view"]);
     let ungrouped = fields.iter().filter(|field|
             groupings.iter().find(|grouping| grouping["inner field"] == field["field"]).is_none()
         ).collect::<Vec<_>>();
