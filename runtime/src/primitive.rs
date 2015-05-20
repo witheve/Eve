@@ -7,23 +7,25 @@ pub enum Primitive {
     Add
 }
 
-pub fn eval(function: Primitive, arguments: &[Value]) -> Value {
-    use primitive::Primitive::*;
-    use value::Value::*;
-    match (function, arguments) {
-        (Add, [Float(a), Float(b)]) => Float(a+b),
-        _ => panic!("Type error from calling: {:?} {:?}", function, &arguments)
+impl Primitive {
+    pub fn eval(self, arguments: &[Value]) -> Vec<Value> {
+        use primitive::Primitive::*;
+        use value::Value::*;
+        match (self, arguments) {
+            (Add, [Float(a), Float(b)]) => vec![Float(a+b)],
+            _ => panic!("Type error while calling: {:?} {:?}", self, &arguments)
+        }
+    }
+
+    pub fn from_str(string: &str) -> Self {
+        match string {
+            "add" => Primitive::Add,
+            _ => panic!("Unknown primitive: {:?}", string),
+        }
     }
 }
 
-pub fn from_str(string: &str) -> Primitive {
-    match string {
-        "add" => Primitive::Add,
-        _ => panic!("Unknown function: {:?}", string),
-    }
-}
-
-pub fn functions() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, Vec<&'static str>)> {
+pub fn primitives() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, Vec<&'static str>)> {
     vec![
         ("add", vec!["in A", "in B"], vec![], vec!["out"]),
     ]
@@ -33,7 +35,7 @@ pub fn install(flow: &mut Flow) {
     let mut view_values = Vec::new();
     let mut field_values = Vec::new();
     let mut display_name_values = Vec::new();
-    for (name, scalar_inputs, vector_inputs, outputs) in functions().into_iter() {
+    for (name, scalar_inputs, vector_inputs, outputs) in primitives().into_iter() {
         view_values.push(vec![string!("{}", name), string!("primitive")]);
         for field in scalar_inputs.into_iter() {
             field_values.push(vec![string!("{}: {}", name, field), string!("{}", name), string!("scalar input")]);
