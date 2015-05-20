@@ -1,7 +1,5 @@
 use value::{Tuple};
-use relation;
 use relation::{Relation, SingleSelect, Reference, MultiSelect};
-use primitive::Primitive;
 
 #[derive(Clone, Debug)]
 pub struct Table {

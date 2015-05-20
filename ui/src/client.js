@@ -1,4 +1,4 @@
-var client = (function eveClient(api, dispatcher) {
+var client = (function eveClient(window, api, dispatcher) {
   var ixer = api.ixer;
 
   function now() {
@@ -6,6 +6,68 @@ var client = (function eveClient(api, dispatcher) {
       return window.performance.now();
     }
     return (new Date()).getTime();
+  }
+
+  function formatTime(time) {
+    time = time || new Date();
+    return pad("", time.getHours(), "0", 2) + ":" + pad("", time.getMinutes(), "0", 2) + ":" + pad("", time.getSeconds(), "0", 2);
+  }
+
+  function pad(left, right, pad, length) {
+    left = "" + left;
+    right = "" + right;
+    pad = (pad !== undefined) ? pad : " ";
+    length = (length !== undefined) ? length : 120;
+
+    var padding = "";
+    var delta = length - left.length - right.length;
+    if(delta > 0) {
+      padding = new Array(delta + 1).join(pad);
+    }
+    return left + padding + right;
+  }
+
+  function writeDataToConsole(data, verbosity) {
+    verbosity = +verbosity;
+    data.changes.forEach(function(change) {
+      if(change[2].length || change[3].length) {
+        if(verbosity == 1) {
+          console.log(" ", change[0], "+" + change[2].length + "/-" + change[3].length);
+        }
+        if(verbosity == 2) {
+          console.log(" ", change[0], "+" + change[2].length + "/-" + change[3].length,
+                      {fields: change[1], inserts: change[2], removes: change[3]});
+        }
+        if(verbosity == 3) {
+          console.log(" ", change[0], "+", change[2].length + "/-" + change[3].length);
+          console.log("   inserts", change[1]);
+          console.table(change[2]);
+          console.log("   removes", change[1]);
+          console.table(change[3]);
+        }
+      }
+    });
+  }
+
+  function getDataStats(data) {
+    var totalAdds = 0;
+    var totalRemoves = 0;
+    var malformedDiffs = [];
+    data.changes.forEach(function(change) {
+      totalAdds += change[2].length;
+      totalRemoves += change[3].length;
+      var hasMalformedDiffs = change[2].some(function(diff) {
+        return (diff.length !== change[1].length);
+      });
+      hasMalformedDiffs = hasMalformedDiffs || change[3].some(function(diff) {
+        return (diff.length !== change[1].length);
+      });
+      if(hasMalformedDiffs) {
+        malformedDiffs.push(change[0]);
+      }
+    });
+
+    return {adds: totalAdds, removes: totalRemoves, malformedDiffs: malformedDiffs};
   }
 
   function initialize(noFacts) {
@@ -43,14 +105,18 @@ var client = (function eveClient(api, dispatcher) {
         server.initialized = true;
         initialize(true);
       }
-      console.log("received");
-      data.changes.forEach(function(change) {
-        if(change[2].length || change[3].length) {
-          console.log(" ", change[0], "+" + change[2].length, "/", "-" + change[3].length,
-                      {fields: change[1], inserts: change[2], removes: change[3]});
+      if(window.DEBUG.RECEIVE) {
+        var stats = getDataStats(data);
+        if(stats.adds || stats.removes) {
+          var header = "[client:received][+" + stats.adds + "/-" + stats.removes + "]";
+          console.group(pad(header, formatTime()));
+          if(stats.malformedDiffs.length) {
+            console.warn("The following views have malformed diffs:", stats.malformedDiffs);
+          }
+          writeDataToConsole(data, window.DEBUG.RECEIVE);
+          console.groupEnd();
         }
-      });
-      console.log("end received");
+      }
       var start = now();
       ixer.handleMapDiffs(data.changes);
       var time = now() - start;
@@ -127,8 +193,34 @@ var client = (function eveClient(api, dispatcher) {
         }
       }
 
-      console.log("\nspecial --- \n", api.clone(specialPayload.changes));
-      console.log("\npayload --- \n", api.clone(payload.changes));
+      if(window.DEBUG.SEND) {
+        var stats = getDataStats(payload);
+        var specialStats = getDataStats(specialPayload);
+        if(stats.adds || stats.removes || specialStats.adds || specialStats.removes) {
+          var header = "[client:sent][+" + (stats.adds + specialStats.adds) + "/-" + (stats.removes + specialStats.removes) + "]";
+          console.group(pad(header, formatTime()));
+
+          if(specialStats.adds || specialStats.removes) {
+            var header = "[special][+" + specialStats.adds + "/-" + specialStats.removes + "]";
+            console.group(header);
+            if(specialStats.malformedDiffs.length) {
+              console.warn("The following views have malformed diffs:", specialStats.malformedDiffs);
+            }
+            writeDataToConsole(specialPayload, window.DEBUG.SEND);
+            console.groupEnd();
+          }
+          if(stats.adds || stats.removes) {
+            var header = "[normal][+" + stats.adds + "/-" + stats.removes + "]";
+            console.group(header);
+            if(stats.malformedDiffs.length) {
+              console.warn("The following views have malformed diffs:", stats.malformedDiffs);
+            }
+            writeDataToConsole(payload, window.DEBUG.SEND);
+            console.groupEnd();
+          }
+          console.groupEnd();
+        }
+      }
 
       if(specialPayload.changes.length) {
         server.ws.send(JSON.stringify(specialPayload));
@@ -181,4 +273,4 @@ var client = (function eveClient(api, dispatcher) {
 
   return {sendToServer: sendToServer};
 
-})(api, queryEditor);
+})(window, api, queryEditor);
