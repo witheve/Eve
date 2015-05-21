@@ -382,6 +382,9 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
         view_values.push(vec![string!("{}", id), string!("table")]);
         view_values.push(vec![string!("insert: {}", id), string!("union")]);
         view_values.push(vec![string!("remove: {}", id), string!("union")]);
+        display_name_values.push(vec![string!("{}", id), string!("{}", id)]);
+        display_name_values.push(vec![string!("insert: {}", id), string!("insert: {}", id)]);
+        display_name_values.push(vec![string!("remove: {}", id), string!("remove: {}", id)]);
         tag_values.push(vec![string!("{}", id), string!("compiler")]);
         tag_values.push(vec![string!("insert: {}", id), string!("compiler")]);
         tag_values.push(vec![string!("remove: {}", id), string!("compiler")]);
