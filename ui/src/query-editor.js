@@ -242,7 +242,6 @@ var queryEditor = (function(window, microReact, api) {
       case "addAggregateBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
         diffs = diff.addAggregateBlock(queryId, info.kind);
-        sendToServer = false;
         break;
       case "addUnionBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
