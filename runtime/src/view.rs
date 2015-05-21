@@ -55,7 +55,7 @@ pub enum JoinSource {
     Primitive{
         primitive: Primitive,
         arguments: Vec<Reference>,
-        fields: Vec<String>,
+        fields: Vec<Field>,
         // TODO `fields` is here just to hack a Tuple in - will go away when we stop using Tuple
     },
 }

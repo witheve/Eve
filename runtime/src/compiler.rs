@@ -211,7 +211,7 @@ fn create_constraint(flow: &Flow, sources: &[Tuple], constraint_id: &Value) -> C
 fn create_join(flow: &Flow, view_id: &Value) -> Join {
     let dependency_table = flow.get_output("dependency");
     let dependencies = dependency_table.find_all("downstream view", view_id);
-    let sources = dependencies.iter().enumerate().map(|(input, dependency)|
+    let sources = dependencies.iter().enumerate().map(|(input, _dependency)|
         JoinSource::Relation{input: input}
         ).collect();
     let mut constraints = vec![vec![]; dependencies.len()];
