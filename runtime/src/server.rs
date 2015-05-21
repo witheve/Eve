@@ -163,7 +163,6 @@ pub fn run() {
 
             ServerEvent::Change(input_text) => {
                 time!("changing", {
-                    println!("{:?}", input_text);
                     let json = Json::from_str(&input_text).unwrap();
                     let event: Event = FromJson::from_json(&json);
                     events.write_all(input_text.as_bytes()).unwrap();
