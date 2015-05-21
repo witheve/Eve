@@ -362,7 +362,7 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
     for &(ref id, ref unique_fields, ref other_fields) in schema.iter() {
         flow.nodes.push(Node{
             id: format!("{}", id),
-                view: View::Union(Union{selects: Vec::new()}), // dummy node
+                view: View::Union(Union{selects: Vec::new()}), // dummy node, replaced by recompile
                 upstream: Vec::new(),
                 downstream: Vec::new(),
             });

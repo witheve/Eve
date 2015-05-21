@@ -37,6 +37,7 @@ pub fn install(flow: &mut Flow) {
     let mut display_name_values = Vec::new();
     for (name, scalar_inputs, vector_inputs, outputs) in primitives().into_iter() {
         view_values.push(vec![string!("{}", name), string!("primitive")]);
+        display_name_values.push(vec![string!("{}", name), string!("{}", name)]);
         for field in scalar_inputs.into_iter() {
             field_values.push(vec![string!("{}: {}", name, field), string!("{}", name), string!("scalar input")]);
             display_name_values.push(vec![string!("{}: {}", name, field), string!("{}", field)]);
