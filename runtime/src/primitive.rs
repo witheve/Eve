@@ -1,6 +1,6 @@
 use relation::Change;
 use flow::Flow;
-use value::Value;
+use value::{Value, Field, Tuple};
 
 #[derive(Clone, Debug, Copy)]
 pub enum Primitive {
@@ -8,11 +8,11 @@ pub enum Primitive {
 }
 
 impl Primitive {
-    pub fn eval(self, arguments: &[Value]) -> Vec<Value> {
+    pub fn eval<'a>(self, arguments: &[&Value]) -> Vec<Vec<Value>> {
         use primitive::Primitive::*;
         use value::Value::*;
         match (self, arguments) {
-            (Add, [Float(a), Float(b)]) => vec![Float(a+b)],
+            (Add, [&Float(a), &Float(b)]) => vec![vec![Float(a+b)]],
             _ => panic!("Type error while calling: {:?} {:?}", self, &arguments)
         }
     }

@@ -1,6 +1,8 @@
-use value::{Value, Tuple};
-use relation::{Relation, SingleSelect, Reference, MultiSelect};
 use std::collections::BTreeSet;
+
+use value::{Value, Field, Tuple};
+use relation::{Relation, SingleSelect, Reference, MultiSelect};
+use primitive::Primitive;
 
 #[derive(Clone, Debug)]
 pub struct Table {
@@ -47,7 +49,15 @@ impl Constraint {
 
 #[derive(Clone, Debug)]
 pub enum JoinSource {
-    Relation{input: usize},
+    Relation{
+        input: usize
+    },
+    Primitive{
+        primitive: Primitive,
+        arguments: Vec<Reference>,
+        fields: Vec<String>,
+        // TODO `fields` is here just to hack a Tuple in - will go away when we stop using Tuple
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -74,7 +84,7 @@ pub enum View {
     Aggregate(Aggregate),
 }
 
-fn join_step<'a>(join: &Join, inputs: &[&'a Relation], tuples: &mut Vec<Tuple<'a>>, index: &mut BTreeSet<Vec<Value>>) {
+fn join_step<'a>(join: &'a Join, inputs: &[&'a Relation], tuples: &mut Vec<Tuple<'a>>, index: &mut BTreeSet<Vec<Value>>) {
     let ix = tuples.len();
     if ix == join.sources.len() {
         index.insert(join.select.select(&tuples[..]));
@@ -88,6 +98,25 @@ fn join_step<'a>(join: &Join, inputs: &[&'a Relation], tuples: &mut Vec<Tuple<'a
                     }
                     tuples.pop();
                 }
+            }
+            JoinSource::Primitive{ref primitive, ref arguments, ref fields} => {
+                let output = {
+                    let arguments = arguments.iter().map(|reference|
+                        reference.resolve(&tuples[..])
+                        ).collect::<Vec<_>>();
+                    primitive.eval(&arguments[..])
+                };
+                for values in output.into_iter() {
+                    let tuple = Tuple{fields: &fields[..], names: &fields[..], values: &values[..]};
+                    // promise the borrow checker that we will pop `tuple` before leaving this scope
+                    let tuple = unsafe{ ::std::mem::transmute::<Tuple, Tuple<'a>>(tuple) };
+                    tuples.push(tuple);
+                    if join.constraints[ix].iter().all(|constraint| constraint.is_satisfied_by(&tuples[..])) {
+                        join_step(join, inputs, tuples, index)
+                    }
+                    tuples.pop();
+                }
+
             }
         }
     }
