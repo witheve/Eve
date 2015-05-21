@@ -91,16 +91,20 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
 
 fn create_dependency(flow: &Flow) -> Relation {
     let mut dependency = Vec::new();
+    let view_table = flow.get_output("view");
     for view in flow.get_output("view").iter() {
         let mut ix = 0.0;
         for source in flow.get_output("source").find_all("view", &view["view"]) {
-            dependency.push(vec![
-                source["source view"].clone(),
-                Value::Float(ix),
-                source["source"].clone(),
-                view["view"].clone(),
-                ]);
-            ix += 1.0;
+            let source_view = view_table.find_one("view", &source["source view"]);
+            if source_view["kind"].as_str() != "primitive" {
+                dependency.push(vec![
+                    source["source view"].clone(),
+                    Value::Float(ix),
+                    source["source"].clone(),
+                    view["view"].clone(),
+                    ]);
+                ix += 1.0;
+            }
         }
     }
     Relation{
