@@ -3,7 +3,7 @@ use std::cell::RefCell;
 
 use value::{Value, Tuple};
 use relation::{Relation, Change, SingleSelect, Reference, MultiSelect, mapping, with_mapping};
-use view::{View, Table, Union, Join, Constraint, ConstraintOp, Aggregate};
+use view::{View, Table, Union, Join, JoinSource, Constraint, ConstraintOp, Aggregate};
 use flow::{Node, Flow};
 use primitive;
 
@@ -206,10 +206,13 @@ fn create_constraint(flow: &Flow, sources: &[Tuple], constraint_id: &Value) -> C
 
 fn create_join(flow: &Flow, view_id: &Value) -> Join {
     let dependency_table = flow.get_output("dependency");
-    let sources = dependency_table.find_all("downstream view", view_id);
-    let mut constraints = vec![vec![]; sources.len()];
+    let dependencies = dependency_table.find_all("downstream view", view_id);
+    let sources = dependencies.iter().enumerate().map(|(input, dependency)|
+        JoinSource::Relation{input: input}
+        ).collect();
+    let mut constraints = vec![vec![]; dependencies.len()];
     for constraint in flow.get_output("constraint").find_all("view", view_id).iter() {
-        let constraint = create_constraint(flow, &sources[..], &constraint["constraint"]);
+        let constraint = create_constraint(flow, &dependencies[..], &constraint["constraint"]);
         let left_ix = match constraint.left {
             Reference::Variable{source, ..} => source,
             Reference::Constant{..} => 0,
@@ -221,8 +224,8 @@ fn create_join(flow: &Flow, view_id: &Value) -> Join {
         let ix = ::std::cmp::max(left_ix, right_ix);
         constraints[ix].push(constraint);
     }
-    let select = create_multi_select(flow, &sources[..], view_id);
-    Join{constraints: constraints, select: select}
+    let select = create_multi_select(flow, &dependencies[..], view_id);
+    Join{sources: sources, constraints: constraints, select: select}
 }
 
 fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {

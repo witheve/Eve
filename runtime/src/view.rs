@@ -46,7 +46,13 @@ impl Constraint {
 }
 
 #[derive(Clone, Debug)]
+pub enum JoinSource {
+    Relation{input: usize},
+}
+
+#[derive(Clone, Debug)]
 pub struct Join {
+    pub sources: Vec<JoinSource>,
     pub constraints: Vec<Vec<Constraint>>,
     pub select: MultiSelect,
 }
@@ -70,15 +76,19 @@ pub enum View {
 
 fn join_step<'a>(join: &Join, inputs: &[&'a Relation], tuples: &mut Vec<Tuple<'a>>, index: &mut BTreeSet<Vec<Value>>) {
     let ix = tuples.len();
-    if ix == join.constraints.len() {
+    if ix == join.sources.len() {
         index.insert(join.select.select(&tuples[..]));
     } else {
-        for tuple in inputs[ix].iter() {
-            tuples.push(tuple);
-            if join.constraints[ix].iter().all(|constraint| constraint.is_satisfied_by(&tuples[..])) {
-                join_step(join, inputs, tuples, index)
+        match join.sources[ix] {
+            JoinSource::Relation{input} => {
+                for tuple in inputs[input].iter() {
+                    tuples.push(tuple);
+                    if join.constraints[ix].iter().all(|constraint| constraint.is_satisfied_by(&tuples[..])) {
+                        join_step(join, inputs, tuples, index)
+                    }
+                    tuples.pop();
+                }
             }
-            tuples.pop();
         }
     }
 }
@@ -100,7 +110,7 @@ impl View {
             View::Join(ref join) => {
                 assert_eq!(join.constraints.len(), inputs.len());
                 let mut output = Relation::with_fields(old_output.fields.clone(), old_output.names.clone());
-                let mut tuples = Vec::with_capacity(inputs.len());
+                let mut tuples = Vec::with_capacity(join.sources.len());
                 join_step(join, inputs, &mut tuples, &mut output.index);
                 Some(output)
             }
