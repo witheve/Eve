@@ -86,6 +86,9 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // the schedule determines what order views will be executed in
     // `ix` is an integer. views with lower ixes are executed first.
     ("schedule", vec!["view"], vec!["ix"]),
+
+    // tags are used to organise views
+    ("tag", vec!["view"], vec!["tag"]),
     ]
 }
 
@@ -370,6 +373,7 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
         flow.outputs.push(RefCell::new(Relation::with_fields(fields, names)));
     }
     let mut view_values = Vec::new();
+    let mut tag_values = Vec::new();
     let mut field_values = Vec::new();
     let mut select_values = Vec::new();
     let mut source_values = Vec::new();
@@ -378,6 +382,9 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
         view_values.push(vec![string!("{}", id), string!("table")]);
         view_values.push(vec![string!("insert: {}", id), string!("union")]);
         view_values.push(vec![string!("remove: {}", id), string!("union")]);
+        tag_values.push(vec![string!("{}", id), string!("compiler")]);
+        tag_values.push(vec![string!("insert: {}", id), string!("compiler")]);
+        tag_values.push(vec![string!("remove: {}", id), string!("compiler")]);
         for &field in unique_fields.iter().chain(other_fields.iter()) {
             field_values.push(vec![string!("{}: {}", id, field), string!("{}", id), string!("output")]);
             field_values.push(vec![string!("insert: {}: {}", id, field), string!("insert: {}", id), string!("output")]);
@@ -394,6 +401,11 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
     flow.get_output_mut("view").change(Change{
         fields: vec!["view: view".to_owned(), "view: kind".to_owned()],
         insert: view_values,
+        remove: Vec::new(),
+    });
+    flow.get_output_mut("tag").change(Change{
+        fields: vec!["tag: view".to_owned(), "tag: tag".to_owned()],
+        insert: tag_values,
         remove: Vec::new(),
     });
     flow.get_output_mut("field").change(Change{
