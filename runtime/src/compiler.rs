@@ -1,11 +1,13 @@
 use std::collections::BitSet;
 use std::cell::RefCell;
+use std::fmt::Debug;
 
 use value::{Value, Tuple};
 use relation::{Relation, Change, SingleSelect, Reference, MultiSelect, mapping, with_mapping};
 use view::{View, Table, Union, Join, JoinSource, Constraint, ConstraintOp, Aggregate};
 use flow::{Node, Flow};
 use primitive;
+use primitive::Primitive;
 
 pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // the schema is arranged as (table name, unique key fields, other fields)
@@ -90,6 +92,21 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // tags are used to organise views
     ("tag", vec!["view"], vec!["tag"]),
     ]
+}
+
+fn topological_sort<K: Eq + Debug>(mut input: Vec<(K, Vec<K>)>) -> Vec<(K, Vec<K>)> {
+    let mut output = Vec::new();
+    while input.len() > 0 {
+        match input.iter().position(|&(_, ref parents)|
+                parents.iter().all(|parent_key|
+                    output.iter().find(|&&(ref output_key, _)| output_key == parent_key) != None
+                    )
+                ) {
+            Some(ix) => output.push(input.swap_remove(ix)),
+            None => panic!("Cannot topological sort - stuck at {:?} {:?}", input, output),
+        }
+    }
+    output
 }
 
 fn create_dependency(flow: &Flow) -> Relation {
@@ -212,14 +229,19 @@ fn create_constraint(flow: &Flow, sources: &[Tuple], constraint_id: &Value) -> C
 }
 
 fn create_join(flow: &Flow, view_id: &Value) -> Join {
-    let dependency_table = flow.get_output("dependency");
-    let dependencies = dependency_table.find_all("downstream view", view_id);
-    let sources = dependencies.iter().enumerate().map(|(input, _dependency)|
-        JoinSource::Relation{input: input}
-        ).collect();
-    let mut constraints = vec![vec![]; dependencies.len()];
-    for constraint in flow.get_output("constraint").find_all("view", view_id).iter() {
-        let constraint = create_constraint(flow, &dependencies[..], &constraint["constraint"]);
+    // here be dragons...
+    let source_table = flow.get_output("source");
+    let sources = source_table.find_all("view", view_id);
+    let view_table = flow.get_output("view");
+    let source_views = sources.iter().map(|source|
+        view_table.find_one("view", &source["source view"])
+        ).collect::<Vec<_>>();
+    let constraint_table = flow.get_output("constraint");
+    let constraints = constraint_table.find_all("view", view_id);
+    let mut primitive_references = vec![vec![]; sources.len()];
+    let mut join_constraints = vec![vec![]; sources.len()];
+    for constraint in constraints.iter() {
+        let constraint = create_constraint(flow, &sources[..], &constraint["constraint"]);
         let left_ix = match constraint.left {
             Reference::Variable{source, ..} => source,
             Reference::Constant{..} => 0,
@@ -229,23 +251,71 @@ fn create_join(flow: &Flow, view_id: &Value) -> Join {
             Reference::Constant{..} => 0,
         };
         let ix = ::std::cmp::max(left_ix, right_ix);
-        constraints[ix].push(constraint);
+        if (constraint.op == ConstraintOp::EQ)
+        && (left_ix != right_ix)
+        && (source_views[ix]["kind"].as_str() == "primitive") {
+            if left_ix < right_ix {
+                let field = match constraint.right {
+                    Reference::Variable{ref field, ..} => field,
+                    _ => unreachable!(),
+                };
+                primitive_references[ix].push((field.to_owned(), constraint.left.clone()));
+            } else {
+                let field = match constraint.left {
+                    Reference::Variable{ref field, ..} => field,
+                    _ => unreachable!(),
+                };
+                primitive_references[ix].push((field.to_owned(), constraint.right.clone()))
+            }
+        }
+        join_constraints[ix].push(constraint);
     }
-    let select = create_multi_select(flow, &dependencies[..], view_id);
-    Join{sources: sources, constraints: constraints, select: select}
+    let dependency_table = flow.get_output("dependency");
+    let dependencies = dependency_table.find_all("downstream view", view_id);
+    let field_table = flow.get_output("field");
+    let join_sources = sources.iter().enumerate().map(|(source_ix, source)| {
+        let source_view = view_table.find_one("view", &source["source view"]);
+        match source_view["kind"].as_str() {
+            "primitive" => {
+                let primitive = Primitive::from_str(source_view["view"].as_str());
+                let fields = field_table.find_all("view", &source_view["view"]);
+                let input_fields = fields.iter()
+                    .filter(|field| field["kind"].as_str() != "output")
+                    .map(|field| field["field"].as_str().to_owned())
+                    .collect::<Vec<_>>();
+                let output_fields = fields.iter()
+                    .filter(|field| field["kind"].as_str() == "output")
+                    .map(|field| field["field"].as_str().to_owned())
+                    .collect::<Vec<_>>();
+                let references = &primitive_references[source_ix];
+                let arguments = input_fields.iter().map(|input_field|
+                    references.iter().find(|&&(ref field, _)| field == input_field).unwrap().1.clone()
+                    ).collect();
+                JoinSource::Primitive{primitive: primitive, arguments: arguments, fields: output_fields}
+            }
+            _ => {
+                let input_ix = dependencies.iter().position(|dependency|
+                    dependency["source"] == source["source"]
+                    ).unwrap();
+                JoinSource::Relation{input: input_ix}
+            }
+        }
+    }).collect();
+    let select = create_multi_select(flow, &sources[..], view_id);
+    Join{sources: join_sources, constraints: join_constraints, select: select}
 }
 
 fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
     let dependency_table = flow.get_output("dependency");
-    let sources = dependency_table.find_all("downstream view", view_id);
-    let outer_ix = sources.iter().position(|source| source["source"].as_str() == "outer").unwrap();
-    let inner_ix = sources.iter().position(|source| source["source"].as_str() == "inner").unwrap();
-    let outer_source = sources[outer_ix].clone();
-    let inner_source = sources[inner_ix].clone();
+    let dependencies = dependency_table.find_all("downstream view", view_id);
+    let outer_ix = dependencies.iter().position(|dependency| dependency["source"].as_str() == "outer").unwrap();
+    let inner_ix = dependencies.iter().position(|dependency| dependency["source"].as_str() == "inner").unwrap();
+    let outer_dependency = dependencies[outer_ix].clone();
+    let inner_dependency = dependencies[inner_ix].clone();
     let grouping_table = flow.get_output("aggregate grouping");
     let groupings = grouping_table.find_all("aggregate", view_id);
     let field_table = flow.get_output("field");
-    let fields = field_table.find_all("view", &inner_source["downstream view"]);
+    let fields = field_table.find_all("view", &inner_dependency["downstream view"]);
     let ungrouped = fields.iter().filter(|field|
             groupings.iter().find(|grouping| grouping["inner field"] == field["field"]).is_none()
         ).collect::<Vec<_>>();
@@ -263,14 +333,14 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
         groupings.iter().map(|grouping| grouping["inner field"].as_str().to_owned())
         .chain(sortable.iter().map(|&(_, ref field_id)| field_id.as_str().to_owned()))
         .collect();
-    let inputs = &[outer_source];
+    let inputs = &[outer_dependency];
     let outer = SingleSelect{source: outer_ix, fields: outer_fields};
     let inner = SingleSelect{source: inner_ix, fields: inner_fields};
     let limit_from = flow.get_output("aggregate limit from").find_maybe("aggregate", view_id)
-        .map(|limit_from| create_reference(flow, inputs, &limit_from["source"], &limit_from["field"]));
+        .map(|limit_from| create_reference(flow, inputs, &limit_from["from source"], &limit_from["from field"]));
     let limit_to = flow.get_output("aggregate limit to").find_maybe("aggregate", view_id)
-        .map(|limit_to| create_reference(flow, inputs, &limit_to["source"], &limit_to["field"]));
-    let select = create_multi_select(flow, &[inner_source], view_id);
+        .map(|limit_to| create_reference(flow, inputs, &limit_to["to source"], &limit_to["to field"]));
+    let select = create_multi_select(flow, &[inner_dependency], view_id);
     Aggregate{outer: outer, inner: inner, limit_from: limit_from, limit_to: limit_to, select: select}
 }
 
