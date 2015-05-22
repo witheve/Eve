@@ -15,7 +15,7 @@ pub struct Union {
     pub selects: Vec<SingleSelect>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConstraintOp {
     EQ,
     NEQ,

@@ -4,7 +4,8 @@ use value::{Value};
 
 #[derive(Clone, Debug, Copy)]
 pub enum Primitive {
-    Add
+    Add,
+    Subtract,
 }
 
 impl Primitive {
@@ -13,6 +14,7 @@ impl Primitive {
         use value::Value::*;
         match (self, arguments) {
             (Add, [&Float(a), &Float(b)]) => vec![vec![Float(a+b)]],
+            (Subtract, [&Float(a), &Float(b)]) => vec![vec![Float(a-b)]],
             _ => panic!("Type error while calling: {:?} {:?}", self, &arguments)
         }
     }
@@ -20,6 +22,7 @@ impl Primitive {
     pub fn from_str(string: &str) -> Self {
         match string {
             "add" => Primitive::Add,
+            "subtract" => Primitive::Subtract,
             _ => panic!("Unknown primitive: {:?}", string),
         }
     }
@@ -28,6 +31,7 @@ impl Primitive {
 pub fn primitives() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, Vec<&'static str>)> {
     vec![
         ("add", vec!["in A", "in B"], vec![], vec!["out"]),
+        ("subtract", vec!["in A", "in B"], vec![], vec!["out"]),
     ]
 }
 
