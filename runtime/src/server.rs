@@ -3,8 +3,10 @@ use std::sync::mpsc;
 use websocket::{Server, Message, Sender, Receiver};
 use websocket::server::sender;
 use websocket::stream::WebSocketStream;
+use websocket::message::CloseData;
 use std::io::prelude::*;
 use std::fs::OpenOptions;
+use std::net::Shutdown;
 use rustc_serialize::json::{Json, ToJson};
 
 use value::Value;
@@ -91,6 +93,7 @@ impl FromJson for Event {
 pub enum ServerEvent {
     Change(String),
     Sync(sender::Sender<WebSocketStream>),
+    Terminate(Option<CloseData>),
 }
 
 // TODO holy crap why is everything blocking? this is a mess
@@ -116,10 +119,19 @@ pub fn serve() -> mpsc::Receiver<ServerEvent> {
 
                 // handle messages
                 for message in receiver.incoming_messages() {
-                    let message = message.unwrap();
+                    let message = match message {
+                        Ok(m) => m,
+                        Err(_) => return,
+                    };
                     match message {
                         Message::Text(text) => {
                             event_sender.send(ServerEvent::Change(text)).unwrap();
+                        }
+                        Message::Close(_) => {
+                            let ip_addr = format!("{}", ip);
+                            println!("Received close message from {}.",ip_addr);
+                            let close_message = CloseData{status_code: 0, reason: ip_addr};
+                            event_sender.send(ServerEvent::Terminate(Some(close_message))).unwrap();
                         }
                         _ => println!("Unknown message: {:?}", message)
                     }
@@ -179,6 +191,28 @@ pub fn run() {
                         };
                     }
                 })
+            }
+
+            ServerEvent::Terminate(m) => {
+                let terminate_ip = m.unwrap().reason;
+                println!("Closing connection from {}....",terminate_ip);
+                let ip_ix = senders.iter_mut().position(|mut sender| {
+                                                          let ip = sender.get_mut().peer_addr().unwrap();
+                                                          let ip_addr = format!("{}", ip);
+                                                          ip_addr == terminate_ip
+                                                     });
+                match ip_ix {
+                    Some(ix) => {
+                        match senders[ix].get_mut().shutdown(Shutdown::Both) {
+                            Ok(_) => {
+                                senders.remove(ix);
+                                println!("Connection from {} has closed successfully.",terminate_ip);
+                            },
+                            Err(_) => println!("Connection from {} failed to shut down!",terminate_ip),
+                        }
+                    },
+                    None => panic!("IP address {} is not connected",terminate_ip),
+                }
             }
 
         }
