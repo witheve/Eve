@@ -2767,7 +2767,7 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function updateAggregateLimit(evt, elem, value) {
-    dispatch("updateAggregateLimit", {viewId: elem.parentId, key: elem.key, value:  evt.target.value || evt.currentTarget.textContent});
+    dispatch("updateAggregateLimit", {viewId: elem.parentId, key: elem.key, value:  +evt.target.value || +evt.currentTarget.textContent});
   }
 
   function updateAggregateSort(evt, elem) {

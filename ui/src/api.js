@@ -134,6 +134,8 @@ var api = (function(Indexing) {
 
   ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
 
+  ixer.addIndex("eveuser id to username", "eveuser", Indexing.create.lookup([0, 1]));
+
   // ui
 
   ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.lookup([1, false]));
