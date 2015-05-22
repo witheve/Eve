@@ -333,17 +333,13 @@ var api = (function(Indexing) {
         var id = oldFact[code.ix("block field", "block field")];
         var oldOrder = ixer.index("display order")[id];
         var oldName = ixer.index("display name")[id];
-        diffs.push(["block field", "removed", oldFact],
-                   ["display order", "removed", [id, oldOrder]],
-                   ["display name", "removed", [id, oldName]]);
+        diffs.push(["block field", "removed", oldFact]);
       };
       var fields = ixer.index("view to fields")[sourceViewId] || [];
       for(var ix = 0; ix < fields.length; ix++) {
         var blockId = uuid();
         var fieldId = fields[ix][code.ix("field", "field")];
-        diffs.push(["block field", "inserted", [blockId, viewId, sourceId, sourceViewId, fieldId]],
-                   ["display order", "inserted", [blockId, ixer.index("display order")[fieldId]]],
-                   ["display name", "inserted", [blockId, ixer.index("display name")[fieldId]]]);
+        diffs.push(["block field", "inserted", [blockId, viewId, sourceId, sourceViewId, fieldId]]);
       }
 
       return diffs;

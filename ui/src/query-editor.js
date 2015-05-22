@@ -2402,7 +2402,8 @@ var queryEditor = (function(window, microReact, api) {
     fields = fields[sourceId] || [];
     var fieldItems = fields.map(function(field) {
       var id = field[code.ix("block field", "block field")];
-      return fieldItem(code.name(id) || "Untitled", id, {c: "pill field"});
+      var fieldId = field[code.ix("block field", "field")];
+      return fieldItem(code.name(fieldId) || "Untitled", id, {c: "pill field"});
     });
 
     var sourceName;
@@ -2638,8 +2639,9 @@ var queryEditor = (function(window, microReact, api) {
       var fieldItems = [];
       for(var fieldIx = 0; fieldIx < sourceFields.length; fieldIx++) {
         var field = sourceFields[fieldIx];
-        var fieldId = field[code.ix("block field", "block field")];
-        fieldItems.push(fieldItem(code.name(fieldId) || "Untitled", fieldId, {c: "pill field"}));
+        var blockFieldId = field[code.ix("block field", "block field")];
+        var fieldId = field[code.ix("block field", "field")];
+        fieldItems.push(fieldItem(code.name(fieldId) || "Untitled", blockFieldId, {c: "pill field"}));
       }
       sourceItems.push({c: "union-source", children: [
         {text: code.name(sourceId)},
