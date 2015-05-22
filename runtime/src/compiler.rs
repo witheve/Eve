@@ -3,7 +3,7 @@ use std::cell::RefCell;
 
 use value::{Value, Tuple};
 use relation::{Relation, Change, SingleSelect, Reference, MultiSelect, mapping, with_mapping};
-use view::{View, Table, Union, Join, Constraint, ConstraintOp, Aggregate};
+use view::{View, Table, Union, Join, JoinSource, Constraint, ConstraintOp, Aggregate};
 use flow::{Node, Flow};
 use primitive;
 
@@ -86,21 +86,28 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // the schedule determines what order views will be executed in
     // `ix` is an integer. views with lower ixes are executed first.
     ("schedule", vec!["view"], vec!["ix"]),
+
+    // tags are used to organise views
+    ("tag", vec!["view"], vec!["tag"]),
     ]
 }
 
 fn create_dependency(flow: &Flow) -> Relation {
     let mut dependency = Vec::new();
+    let view_table = flow.get_output("view");
     for view in flow.get_output("view").iter() {
         let mut ix = 0.0;
         for source in flow.get_output("source").find_all("view", &view["view"]) {
-            dependency.push(vec![
-                source["source view"].clone(),
-                Value::Float(ix),
-                source["source"].clone(),
-                view["view"].clone(),
-                ]);
-            ix += 1.0;
+            let source_view = view_table.find_one("view", &source["source view"]);
+            if source_view["kind"].as_str() != "primitive" {
+                dependency.push(vec![
+                    source["source view"].clone(),
+                    Value::Float(ix),
+                    source["source"].clone(),
+                    view["view"].clone(),
+                    ]);
+                ix += 1.0;
+            }
         }
     }
     Relation{
@@ -206,10 +213,13 @@ fn create_constraint(flow: &Flow, sources: &[Tuple], constraint_id: &Value) -> C
 
 fn create_join(flow: &Flow, view_id: &Value) -> Join {
     let dependency_table = flow.get_output("dependency");
-    let sources = dependency_table.find_all("downstream view", view_id);
-    let mut constraints = vec![vec![]; sources.len()];
+    let dependencies = dependency_table.find_all("downstream view", view_id);
+    let sources = dependencies.iter().enumerate().map(|(input, _dependency)|
+        JoinSource::Relation{input: input}
+        ).collect();
+    let mut constraints = vec![vec![]; dependencies.len()];
     for constraint in flow.get_output("constraint").find_all("view", view_id).iter() {
-        let constraint = create_constraint(flow, &sources[..], &constraint["constraint"]);
+        let constraint = create_constraint(flow, &dependencies[..], &constraint["constraint"]);
         let left_ix = match constraint.left {
             Reference::Variable{source, ..} => source,
             Reference::Constant{..} => 0,
@@ -221,8 +231,8 @@ fn create_join(flow: &Flow, view_id: &Value) -> Join {
         let ix = ::std::cmp::max(left_ix, right_ix);
         constraints[ix].push(constraint);
     }
-    let select = create_multi_select(flow, &sources[..], view_id);
-    Join{constraints: constraints, select: select}
+    let select = create_multi_select(flow, &dependencies[..], view_id);
+    Join{sources: sources, constraints: constraints, select: select}
 }
 
 fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
@@ -235,7 +245,7 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
     let grouping_table = flow.get_output("aggregate grouping");
     let groupings = grouping_table.find_all("aggregate", view_id);
     let field_table = flow.get_output("field");
-    let fields = field_table.find_all("view", &inner_source["source view"]);
+    let fields = field_table.find_all("view", &inner_source["downstream view"]);
     let ungrouped = fields.iter().filter(|field|
             groupings.iter().find(|grouping| grouping["inner field"] == field["field"]).is_none()
         ).collect::<Vec<_>>();
@@ -336,7 +346,6 @@ fn reuse_state(old_flow: Flow, new_flow: &mut Flow) {
 }
 
 pub fn recompile(mut old_flow: Flow) -> Flow {
-    println!("Compiling...");
     let dependency = create_dependency(&old_flow);
     let dependency_ix = old_flow.get_ix("dependency").unwrap();
     old_flow.outputs[dependency_ix] = RefCell::new(dependency);
@@ -345,7 +354,6 @@ pub fn recompile(mut old_flow: Flow) -> Flow {
     old_flow.outputs[schedule_ix] = RefCell::new(schedule);
     let mut new_flow = create_flow(&old_flow);
     reuse_state(old_flow, &mut new_flow);
-    println!("Compiled!");
     new_flow
 }
 
@@ -354,7 +362,7 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
     for &(ref id, ref unique_fields, ref other_fields) in schema.iter() {
         flow.nodes.push(Node{
             id: format!("{}", id),
-                view: View::Union(Union{selects: Vec::new()}), // dummy node
+                view: View::Union(Union{selects: Vec::new()}), // dummy node, replaced by recompile
                 upstream: Vec::new(),
                 downstream: Vec::new(),
             });
@@ -365,6 +373,7 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
         flow.outputs.push(RefCell::new(Relation::with_fields(fields, names)));
     }
     let mut view_values = Vec::new();
+    let mut tag_values = Vec::new();
     let mut field_values = Vec::new();
     let mut select_values = Vec::new();
     let mut source_values = Vec::new();
@@ -373,6 +382,12 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
         view_values.push(vec![string!("{}", id), string!("table")]);
         view_values.push(vec![string!("insert: {}", id), string!("union")]);
         view_values.push(vec![string!("remove: {}", id), string!("union")]);
+        display_name_values.push(vec![string!("{}", id), string!("{}", id)]);
+        display_name_values.push(vec![string!("insert: {}", id), string!("insert: {}", id)]);
+        display_name_values.push(vec![string!("remove: {}", id), string!("remove: {}", id)]);
+        tag_values.push(vec![string!("{}", id), string!("compiler")]);
+        tag_values.push(vec![string!("insert: {}", id), string!("compiler")]);
+        tag_values.push(vec![string!("remove: {}", id), string!("compiler")]);
         for &field in unique_fields.iter().chain(other_fields.iter()) {
             field_values.push(vec![string!("{}: {}", id, field), string!("{}", id), string!("output")]);
             field_values.push(vec![string!("insert: {}: {}", id, field), string!("insert: {}", id), string!("output")]);
@@ -389,6 +404,11 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
     flow.get_output_mut("view").change(Change{
         fields: vec!["view: view".to_owned(), "view: kind".to_owned()],
         insert: view_values,
+        remove: Vec::new(),
+    });
+    flow.get_output_mut("tag").change(Change{
+        fields: vec!["tag: view".to_owned(), "tag: tag".to_owned()],
+        insert: tag_values,
         remove: Vec::new(),
     });
     flow.get_output_mut("field").change(Change{

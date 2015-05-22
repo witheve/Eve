@@ -40,10 +40,12 @@ var client = (function eveClient(window, api, dispatcher) {
         }
         if(verbosity == 3) {
           console.log(" ", change[0], "+", change[2].length + "/-" + change[3].length);
-          console.log("   inserts", change[1]);
+          console.groupCollapsed("   inserts", change[1]);
           console.table(change[2]);
-          console.log("   removes", change[1]);
+          console.groupEnd();
+          console.groupCollapsed("   removes", change[1]);
           console.table(change[3]);
+          console.groupEnd();
         }
       }
     });

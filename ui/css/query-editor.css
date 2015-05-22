@@ -231,6 +231,11 @@ div:hover > .hover-reveal { opacity: 1; }
 .query-editor .union-block .field-mapping  .mapping-pair > * { padding: 0.1em 0.25em; }
 .query-editor .union-block .field-mapping .mapping-header { border-bottom: 1px solid #505050; }
 
+.query-editor .aggregate-block .aggregate-sort { flex-direction: row; }
+.query-editor .aggregate-block .aggregate-sort > * { margin: 0 0.2em;}
+.query-editor .aggregate-block .aggregate-limit { flex-direction: row; }
+.query-editor .aggregate-block .aggregate-limit > * { margin: 0 0.2em;}
+
 
 /* inspector */
 .query-workspace > .inspector { flex: 1; border-left: 1px solid #404040; }

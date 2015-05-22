@@ -27,6 +27,7 @@ var api = (function(Indexing) {
   var ixer = new Indexing.Indexer();
   var tables = {
     compiler: {
+      tag: {name: "tag", fields: ["view", "tag"]},
       view: {name: "view", fields: ["view", "kind"]},
       field: {name: "field", fields: ["view", "field", "kind"]},
       source: {name: "source", fields: ["view", "source", "source view"]},
@@ -50,9 +51,18 @@ var api = (function(Indexing) {
     editor: {
       "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"]]},
       block: {name: "block", fields: ["query", "block", "view"]},
-      "block aggregate": {name: "block aggregate", fields: ["block", "kind"]},
+      "block aggregate": {name: "block aggregate", fields: ["view", "kind"]},
       "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
-      "grouped by": {name: "grouped by", fields: ["inner", "inner field", "outer", "outer field"]}
+      "grouped by": {name: "grouped by", fields: ["inner", "inner field", "outer", "outer field"]},
+      empty: {name: "empty", fields: ["empty"]},
+
+      //ui
+      "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"], facts: []},
+      "uiComponentLayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden", "parentLayer"], facts: []},
+      "uiComponentAttribute": {name: "uiComponentAttribute", fields: ["tx", "id", "property", "value"]},
+      "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element", "shared"]},
+      "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "view"]},
+      "uiAttrBinding": {name: "uiAttrBinding", fields: ["elementId", "attr", "field"]}
     },
 
     example: {
@@ -73,14 +83,6 @@ var api = (function(Indexing) {
       "placeToRating": {name: "placeToRating", fields: ["place", "rating", "reviewCount"]},
       "user": {name: "user", fields: ["id", "token", "name"]},
       "userCheckin": {name: "userCheckin", fields: ["tick", "user", "place"]},
-
-      //ui
-      "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"], facts: []},
-      "uiComponentLayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden", "parentLayer"], facts: []},
-      "uiComponentAttribute": {name: "uiComponentAttribute", fields: ["tx", "id", "property", "value"]},
-      "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element", "shared"]},
-      "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "view"]},
-      "uiAttrBinding": {name: "uiAttrBinding", fields: ["elementId", "attr", "field"]}
     }
   };
 
@@ -110,7 +112,11 @@ var api = (function(Indexing) {
   ixer.addIndex("view to selects", "select", Indexing.create.collector([0]));
   ixer.addIndex("view and source field to select", "select", Indexing.create.lookup([0, 3, false]));
   ixer.addIndex("view and source and field to select", "select", Indexing.create.lookup([0, 2, 1, false]));
+  ixer.addIndex("view to aggregate sorting", "aggregate sorting", Indexing.create.lookup([0, false]));
+  ixer.addIndex("view to aggregate limit from", "aggregate limit from", Indexing.create.lookup([0, false]));
+  ixer.addIndex("view to aggregate limit to", "aggregate to", Indexing.create.lookup([0, false]));
 
+  // editor
 
   ixer.addIndex("block", "block", Indexing.create.lookup([1, false]));
   ixer.addIndex("block to query", "block", Indexing.create.lookup([1, 0]));
@@ -121,6 +127,7 @@ var api = (function(Indexing) {
   ixer.addIndex("block field", "block field", Indexing.create.lookup([0, false]));
   ixer.addIndex("view and source to block fields", "block field", Indexing.create.collector([1, 2]));
   ixer.addIndex("grouped by", "grouped by", Indexing.create.lookup([0, false]));
+  ixer.addIndex("block aggregate", "block aggregate", Indexing.create.lookup([0, false]));
 
   ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
 
@@ -262,7 +269,8 @@ var api = (function(Indexing) {
       var viewId = uuid();
       var blockId = uuid();
       var diffs = [["block", "inserted", [queryId, blockId, viewId]],
-                   ["view", "inserted", [viewId, kind]]];
+                   ["view", "inserted", [viewId, kind]],
+                   ["tag", "inserted", [viewId, "local"]]];
 
       if(sourceViewId) {
         diffs.push.apply(diffs, diff.addViewSource(viewId, sourceViewId));
@@ -275,7 +283,9 @@ var api = (function(Indexing) {
       var blockId = uuid();
       var diffs = [["block", "inserted", [queryId, blockId, viewId]],
                    ["view", "inserted", [viewId, "aggregate"]],
-                   ["block aggregate", "inserted", [blockId, kind]]];
+                   ["source", "inserted", [viewId, "inner", "empty"]],
+                   ["source", "inserted", [viewId, "outer", "empty"]],
+                   ["block aggregate", "inserted", [viewId, kind]]];
       return diffs;
     },
 
@@ -342,12 +352,17 @@ var api = (function(Indexing) {
       var sourceId = kind || uuid();
       var queryId = ixer.index("view to query")[viewId];
 
+      var displayId = sourceId;
+      if(sourceId == "inner" || sourceId === "outer" || sourceId === "insert" || sourceId === "remove") {
+        displayId = viewId + "-" + sourceId;
+      }
+
       if(queryId === undefined) { queryId = code.activeItemId(); }
       var count = code.countSource(queryId, sourceViewId);
       var name = code.name(sourceViewId) + (count ? " (" + (count + 1) + ")" : "");
       var diffs = [["source", "inserted", [viewId, sourceId, sourceViewId]],
-                   ["display name", "inserted", [sourceId, name]],
-                   ["display order", "inserted", [sourceId, 0]]];
+                   ["display name", "inserted", [displayId, name]],
+                   ["display order", "inserted", [displayId, 0]]];
 
       diffs = diffs.concat(diff.cacheViewSourceFields(viewId, sourceId, sourceViewId));
 
@@ -408,6 +423,25 @@ var api = (function(Indexing) {
                                                      opts.rightField || oldConstraintRight[sideField]]]);
       }
       if(opts.operation) { diffs.push(["constraint operation", "inserted", [constraintId, opts.operation]]); }
+
+      return diffs;
+    },
+    updateAggregateSort: function(viewId, field, direction) {
+      var diffs = [];
+      var neue;
+      var old = ixer.index("view to aggregate sorting")[viewId];
+      if(old) {
+        neue = old.slice();
+      } else {
+        neue = [viewId, field || "", 0, direction || ""];
+      }
+
+      neue[1] = field || neue[1];
+      neue[3] = direction || neue[3] || "ascending";
+      diffs.push(["aggregate sorting", "inserted", neue]);
+      if(old && !Indexing.arraysIdentical(neue, old)) {
+        diffs.push(["aggregate sorting", "removed", old]);
+      }
 
       return diffs;
     },

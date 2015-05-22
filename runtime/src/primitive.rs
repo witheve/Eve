@@ -1,6 +1,6 @@
 use relation::Change;
 use flow::Flow;
-use value::Value;
+use value::{Value};
 
 #[derive(Clone, Debug, Copy)]
 pub enum Primitive {
@@ -8,11 +8,11 @@ pub enum Primitive {
 }
 
 impl Primitive {
-    pub fn eval(self, arguments: &[Value]) -> Vec<Value> {
+    pub fn eval<'a>(self, arguments: &[&Value]) -> Vec<Vec<Value>> {
         use primitive::Primitive::*;
         use value::Value::*;
         match (self, arguments) {
-            (Add, [Float(a), Float(b)]) => vec![Float(a+b)],
+            (Add, [&Float(a), &Float(b)]) => vec![vec![Float(a+b)]],
             _ => panic!("Type error while calling: {:?} {:?}", self, &arguments)
         }
     }
@@ -37,6 +37,7 @@ pub fn install(flow: &mut Flow) {
     let mut display_name_values = Vec::new();
     for (name, scalar_inputs, vector_inputs, outputs) in primitives().into_iter() {
         view_values.push(vec![string!("{}", name), string!("primitive")]);
+        display_name_values.push(vec![string!("{}", name), string!("{}", name)]);
         for field in scalar_inputs.into_iter() {
             field_values.push(vec![string!("{}: {}", name, field), string!("{}", name), string!("scalar input")]);
             display_name_values.push(vec![string!("{}: {}", name, field), string!("{}", field)]);

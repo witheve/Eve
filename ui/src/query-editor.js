@@ -324,6 +324,9 @@ var queryEditor = (function(window, microReact, api) {
             sendToServer = false;
           }
         }
+        if(kind === "aggregate") {
+          diffs.push(["view", "inserted", view]);
+        }
         break;
       case "removeViewSource":
         diffs = diff.removeViewSource(info.viewId, info.sourceId);
@@ -331,6 +334,15 @@ var queryEditor = (function(window, microReact, api) {
       case "addViewConstraint":
         diffs = diff.addViewConstraint(info.viewId, {operation: "=", leftSource: info.leftSource, leftField: info.leftField});
         sendToServer = false;
+        break;
+      case "updateAggregateSort":
+        var params = {};
+        params[info.key] = info.value;
+        diffs = diff.updateAggregateSort(info.viewId, params.field, params.direction);
+        var neue = diffs[0][2];
+        console.log("N", params, neue);
+        sendToServer = neue[code.ix("aggregate sorting", "inner field")]
+        && neue[code.ix("aggregate sorting", "direction")];
         break;
       case "groupView":
         var old = ixer.index("grouped by")[info.inner];
@@ -620,9 +632,12 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function editorItemList(itemId) {
-    var items = ixer.facts("editor item").map(function(cur) {
+    var views = ixer.facts("view");
+    // @TODO: filter me based on tags local and compiler.
+    var items = views.map(function(cur) {
       var id = cur[0];
-      var type = cur[1];
+      var kind = cur[1];
+      var type = ixer.index("editor item to type")[id];
       var klass = "editor-item " + type;
       var icon = "ion-grid";
       if(type === "query") {
@@ -633,7 +648,9 @@ var queryEditor = (function(window, microReact, api) {
       if(itemId === id) {
         klass += " selected";
       }
+
       var name = code.name(id) || "";
+      if(!code.name(id)) { console.log(id); }
       return {c: klass, name: name, click: selectEditorItem, dblclick: closeSelectEditorItem, dragData: {value: id, type: "view"}, itemId: id, draggable: true, dragstart: dragItem, children: [
         {c: "icon " + icon},
         {text: name},
@@ -840,6 +857,25 @@ var queryEditor = (function(window, microReact, api) {
   function storeInitialInput(e, elem) {
     localState.initialKey = elem.key;
     localState.initialValue = elem.text;
+  }
+
+  function selectInput(value, key, options, onsubmit) {
+    var blur, input;
+    if(onsubmit) {
+      blur = function inputBlur(e, elem) {
+        onsubmit(e, elem, "blurred");
+      }
+      input = function inputInput(e, elem) {
+        onsubmit(e, elem, "enter");
+      }
+    }
+    var children = [];
+    for(var val in options) {
+      var name = options[val];
+      children.push({t: "option", value: val, text: name, selected: val === value});
+    }
+
+    return {t: "select", c: "input", key: key, input: input, focus: storeInitialInput, blur: blur, children: children};
   }
 
   //---------------------------------------------------------
@@ -2201,6 +2237,7 @@ var queryEditor = (function(window, microReact, api) {
     for(var key in elem.dragData) {
       evt.dataTransfer.setData(key, elem.dragData[key]);
     }
+    evt.stopPropagation();
   }
 
   var queryTools = {
@@ -2233,7 +2270,7 @@ var queryEditor = (function(window, microReact, api) {
       var editorPane;
       if(viewKind === "join") { editorPane = viewBlock(viewId); }
       if(viewKind === "union") { editorPane = unionBlock(viewId);  }
-      if(viewKind === "aggregate") { editorPane =aggregateBlock(viewId); }
+      if(viewKind === "aggregate") { editorPane = aggregateBlock(viewId); }
 
       var rows = ixer.facts(viewId) || [];
       var fields = (ixer.index("view to fields")[viewId] || []).map(function(field) {
@@ -2293,7 +2330,8 @@ var queryEditor = (function(window, microReact, api) {
     }
     var groupedBy = ixer.index("grouped by")[viewId];
 
-    return {c: "block view-block", viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, children: [
+    return {c: "block view-block", viewId: viewId, drop: viewBlockDrop, dragover: preventDefault,
+            dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem, children: [
       {c: "block-title", children: [
         {t: "h3", text: "Untitled Block"},
         {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock}
@@ -2367,9 +2405,17 @@ var queryEditor = (function(window, microReact, api) {
       return fieldItem(code.name(id) || "Untitled", id, {c: "pill field"});
     });
 
+    var sourceName;
+
+    if(sourceId == "inner" || sourceId === "outer" || sourceId === "insert" || sourceId === "remove") {
+      sourceName = code.name(viewId + "-" + sourceId);
+    } else {
+      sourceName = code.name(sourceId);
+    }
+
     var children = [
       {c: "view-source-title", children: [
-        {t: "h4", text: code.name(sourceId) || "Untitled"},
+        {t: "h4", text: sourceName || "Untitled"},
         {c: "hover-reveal close-btn ion-android-close", viewId: viewId, sourceId: sourceId, click: removeSource}
       ]}
     ].concat(fieldItems);
@@ -2398,9 +2444,9 @@ var queryEditor = (function(window, microReact, api) {
 
       return {c: "view-constraint", children: [
         {c: "hover-reveal grip", children: [{c: "ion-android-more-vertical"}, {c: "ion-android-more-vertical"}]},
-        token.blockField({key: "left", constraintId: id, source: leftSource, field: leftField}, updateViewConstraint, dropConstraintField),
-        token.operation({key: "operation", constraintId: id, operation: operation}, updateViewConstraint),
-        token.blockField({key: "right", constraintId: id, source: rightSource, field: rightField}, updateViewConstraint, dropConstraintField),
+        token.blockField({key: "left", parentId: id, source: leftSource, field: leftField}, updateViewConstraint, dropConstraintField),
+        token.operation({key: "operation", parentId: id, operation: operation}, updateViewConstraint),
+        token.blockField({key: "right", parentId: id, source: rightSource, field: rightField}, updateViewConstraint, dropConstraintField),
         {c: "hover-reveal close-btn ion-android-close", constraintId: id, click: removeConstraint}
       ]};
     });
@@ -2428,7 +2474,7 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function updateViewConstraint(evt, elem) {
-    var id = elem.constraintId;
+    var id = elem.parentId;
     dispatch("updateViewConstraint", {constraintId: id, type: elem.key, value: elem.value});
     stopEditToken(evt, elem);
     evt.stopPropagation();
@@ -2437,7 +2483,7 @@ var queryEditor = (function(window, microReact, api) {
   function dropConstraintField(evt, elem) {
     var type = evt.dataTransfer.getData("type");
     if(type !== "field") { return; }
-    var viewId = ixer.index("constraint to view")[elem.constraintId];
+    var viewId = ixer.index("constraint to view")[elem.parentId];
     var id = evt.dataTransfer.getData("fieldId");
     var blockField = ixer.index("block field")[id];
     var draggedViewId = blockField[code.ix("block field", "view")];
@@ -2446,7 +2492,7 @@ var queryEditor = (function(window, microReact, api) {
 
     if(draggedViewId === viewId) {
       // If the field is block local, add it as a constraint.
-      dispatch("updateViewConstraint", {constraintId: elem.constraintId, type: elem.key, value: fieldId, source: sourceId});
+      dispatch("updateViewConstraint", {constraintId: elem.parentId, type: elem.key, value: fieldId, source: sourceId});
       evt.stopPropagation();
     } else if(elem.key === "right") {
       // If the field is accessible in the query, use it for grouping.
@@ -2455,7 +2501,7 @@ var queryEditor = (function(window, microReact, api) {
       if(!select) { return; }
       if(ixer.index("view to query")[viewId] !== ixer.index("view to query")[draggedViewId]) { return; }
       console.warn("@TODO: group by", draggedViewId, fieldId);
-      dispatch("groupView", {constraintId: elem.constraintId, inner: viewId, outer: draggedViewId, outerField: fieldId});
+      dispatch("groupView", {constraintId: elem.parentId, inner: viewId, outer: draggedViewId, outerField: fieldId});
       evt.stopPropagation();
     }
   }
@@ -2473,18 +2519,18 @@ var queryEditor = (function(window, microReact, api) {
 
   var token = {
     operation: function(params, onChange, onDrop) {
-      var state = tokenState[params.constraintId];
+      var state = tokenState[params.parentId];
       if(state) { state = state[params.key]; }
 
       return {c: "token operation",
               key: params.key,
-              constraintId: params.constraintId,
+              parentId: params.parentId,
               children: [{c: "name", text: params.operation || "<op>"},
                          (state === 1) ? tokenEditor.operation(params, onChange) : undefined],
               click: editToken};
     },
     blockField: function(params, onChange, onDrop) {
-      var state = tokenState[params.constraintId];
+      var state = tokenState[params.parentId];
       if(state) { state = state[params.key]; }
       var name = "<field>";
       var source;
@@ -2497,7 +2543,7 @@ var queryEditor = (function(window, microReact, api) {
 
       return {c: "token field",
               key: params.key,
-              constraintId: params.constraintId,
+              parentId: params.parentId,
               children: [{c: "name", text: name},
                          (source ? {c: "source", text: "(" + source +")"} : undefined),
                          (state === 1) ? tokenEditor.blockField(params, onChange) : undefined],
@@ -2508,14 +2554,14 @@ var queryEditor = (function(window, microReact, api) {
   };
 
   function editToken(evt, elem) {
-    var state = tokenState[elem.constraintId];
-    if(!state) { state = tokenState[elem.constraintId] = {}; }
+    var state = tokenState[elem.parentId];
+    if(!state) { state = tokenState[elem.parentId] = {}; }
     state[elem.key] = 1;
     render();
   }
 
   function stopEditToken(evt, elem) {
-    var state = tokenState[elem.constraintId];
+    var state = tokenState[elem.parentId];
     state[elem.key] = 0;
     render();
   }
@@ -2524,24 +2570,24 @@ var queryEditor = (function(window, microReact, api) {
     operation: function(params, onChange) {
       var items = ["=", "<", "≤", ">", "≥", "≠"].map(function(rel) {
         var item = selectorItem({c: "operation", key: params.key, name: rel, value: rel}, onChange);
-        item.constraintId = params.constraintId;
+        item.parentId = params.parentId;
         return item;
       });
       var select = selector(items, {c: "operation", key: params.key, tabindex: -1, focus: true}, stopEditToken);
-      select.constraintId = params.constraintId;
+      select.parentId = params.parentId;
       return select;
     },
     blockField: function(params, onChange) {
-      var viewId = ixer.index("constraint to view")[params.constraintId];
+      var viewId = ixer.index("constraint to view")[params.parentId];
       var fields = getBlockFields(viewId);
       var items = fields.map(function(field) {
         var fieldId = field[code.ix("field", "field")];
         var item = selectorItem({c: "field", key: params.key, name: code.name(fieldId) || "Untitled", value: fieldId}, onChange);
-        item.constraintId = params.constraintId;
+        item.parentId = params.parentId;
         return item;
       });
       var select = selector(items, {c: "field", key: params.key, tabindex: -1, focus: true}, stopEditToken);
-      select.constraintId = params.constraintId;
+      select.parentId = params.parentId;
       return select;
     }
   };
@@ -2623,7 +2669,8 @@ var queryEditor = (function(window, microReact, api) {
                                                              {text: "drag an existing union to begin merging"}]});
     }
 
-    return {c: "block union-block", viewId: viewId, dragover: preventDefault, drop: viewBlockDrop, children: [
+    return {c: "block union-block", viewId: viewId, dragover: preventDefault, drop: viewBlockDrop,
+            dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem, children: [
       {c: "block-title", children: [
         {t: "h3", text: "Untitled Union Block"},
         {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock}
@@ -2653,12 +2700,15 @@ var queryEditor = (function(window, microReact, api) {
    * Aggregate Block
    */
   function aggregateBlock(viewId) {
+    var blockAggregate = ixer.index("block aggregate")[viewId];
+
     var sources = ixer.index("source")[viewId] || {};
     var outerSource = sources.outer;
     var innerSource = sources.inner;
 
     var groupBy = ixer.index("grouped by")[innerSource] || [];
-    console.log(groupBy);
+    console.log(blockAggregate, sources, groupBy);
+    var aggregateKind = blockAggregate[code.ix("block aggregate", "kind")];
 
 
     var fields = ixer.index("view and source to block fields")[viewId] || {};
@@ -2671,6 +2721,13 @@ var queryEditor = (function(window, microReact, api) {
       selectionItems.push({text: "Drag local fields into me to make them available in the query."});
     }
 
+    var content;
+    if(aggregateKind === "sort+limit") {
+      content = sortLimitAggregate(viewId, outerSource, innerSource);
+    } else {
+      content = primitiveAggregate(viewId, outerSource, innerSource, aggregateKind);
+    }
+
     return {c: "block aggregate-block", viewId: viewId, children: [
       {c: "block-title", children: [
         {t: "h3", text: "Untitled Agg. Block"},
@@ -2680,30 +2737,67 @@ var queryEditor = (function(window, microReact, api) {
       {c: "block-section view-sources", viewId: viewId, sourceId: "inner", drop: aggregateSourceDrop, dragover: preventDefault, children: [
         innerSource ? viewSource(viewId, "inner") : undefined
       ]},
-      {text: "Where"},
-      viewConstraints(viewId),
+      content,
       {c: "block-section view-selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems},
     ]};
   }
 
   function sortLimitAggregate(viewId, outerSource, innerSource) {
+    var sortSource = "inner";
+    var sortField, sortDir;
+    var aggregateSorting = ixer.index("view to aggregate sorting")[viewId];
+    if(aggregateSorting) {
+      sortField = aggregateSorting[code.ix("aggregate sorting", "inner field")];
+      sortDir = aggregateSorting[code.ix("aggregate sorting", "direction")];
+    }
+
+    var limitFrom = ixer.index("view to aggregate limit from")[viewId];
+    var limitFromValue = (limitFrom ? limitFrom[code.ix("aggregate limit from", "from field")] : 0);
+    var limitTo = ixer.index("view to aggregate limit to")[viewId];
+    var limitFromValue = (limitFrom ? limitFrom[code.ix("aggregate limit from", "from field")] : 0);
+
+
     return {c: "sort-limit-aggregate", viewId: viewId, children: [
-      {text: "Sort by"},
       {c: "block-section aggregate-sort", children: [
-        {text: "<field>"},
-        {text: "<direction>"}
+        {text: "Sort by"},
+        token.blockField({key: "field", parentId: viewId, source: sortSource, field: sortField}, updateAggregateSort, dropAggregateField),
+        selectInput(sortDir || "ascending", "direction", {ascending: "▲", descending: "▼"}, updateAggregateSort)
       ]},
-      {text: "Limit"},
       {c: "block-section aggregate-limit", children: [
-        {text: "<constant>"},
-        {text: "<constant>"}
+        {text: "Limit"},
+        input(limitFrom, "from", updateAggregateLimit),
+        {text: "-"},
+        input(limitTo, "to", updateAggregateLimit),
       ]},
     ]};
   }
 
+  function updateAggregateLimit(evt, elem) {
+  }
+
+  function updateAggregateSort(evt, elem) {
+    var info = {viewId: elem.parentId, key: elem.key, value: elem.value || evt.target.value};
+    dispatch("updateAggregateSort", info);
+  }
+
+  function dropAggregateField(evt, elem) {
+    var type = evt.dataTransfer.getData("type");
+    if(type !== "field") { return; }
+    var viewId = elem.parentId;
+    var id = evt.dataTransfer.getData("fieldId");
+    var blockField = ixer.index("block field")[id];
+    var fieldId = blockField[code.ix("block field", "field")];
+    var draggedViewId = blockField[code.ix("block field", "view")];
+    if(viewId !== draggedViewId) { return; }
+
+    var info = {viewId: elem.parentId, key: elem.key, value: fieldId};
+    dispatch("updateAggregateSort", info);
+  }
+
   function primitiveAggregate(viewId, outerSource, innerSource) {
     return {c: "primitive-aggregate", viewId: viewId, children: [
-      {text: "argument mapping here"}
+      {text: "Where"},
+      viewConstraints(viewId),
     ]};
   }
 

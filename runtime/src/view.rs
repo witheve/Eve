@@ -1,5 +1,8 @@
-use value::{Tuple};
+use std::collections::BTreeSet;
+
+use value::{Value, Field, Tuple};
 use relation::{Relation, SingleSelect, Reference, MultiSelect};
+use primitive::Primitive;
 
 #[derive(Clone, Debug)]
 pub struct Table {
@@ -45,7 +48,21 @@ impl Constraint {
 }
 
 #[derive(Clone, Debug)]
+pub enum JoinSource {
+    Relation{
+        input: usize
+    },
+    Primitive{
+        primitive: Primitive,
+        arguments: Vec<Reference>,
+        fields: Vec<Field>,
+        // TODO `fields` is here just to hack a Tuple in - will go away when we stop using Tuple
+    },
+}
+
+#[derive(Clone, Debug)]
 pub struct Join {
+    pub sources: Vec<JoinSource>,
     pub constraints: Vec<Vec<Constraint>>,
     pub select: MultiSelect,
 }
@@ -67,15 +84,46 @@ pub enum View {
     Aggregate(Aggregate),
 }
 
-#[derive(Clone, Debug)]
-enum Action {
-    Up,
-    Next,
-    Down,
+fn join_step<'a>(join: &'a Join, inputs: &[&'a Relation], tuples: &mut Vec<Tuple<'a>>, index: &mut BTreeSet<Vec<Value>>) {
+    let ix = tuples.len();
+    if ix == join.sources.len() {
+        index.insert(join.select.select(&tuples[..]));
+    } else {
+        match join.sources[ix] {
+            JoinSource::Relation{input} => {
+                for tuple in inputs[input].iter() {
+                    tuples.push(tuple);
+                    if join.constraints[ix].iter().all(|constraint| constraint.is_satisfied_by(&tuples[..])) {
+                        join_step(join, inputs, tuples, index)
+                    }
+                    tuples.pop();
+                }
+            }
+            JoinSource::Primitive{ref primitive, ref arguments, ref fields} => {
+                let output = {
+                    let arguments = arguments.iter().map(|reference|
+                        reference.resolve(&tuples[..])
+                        ).collect::<Vec<_>>();
+                    primitive.eval(&arguments[..])
+                };
+                for values in output.into_iter() {
+                    let tuple = Tuple{fields: &fields[..], names: &fields[..], values: &values[..]};
+                    // promise the borrow checker that we will pop `tuple` before leaving this scope
+                    let tuple = unsafe{ ::std::mem::transmute::<Tuple, Tuple<'a>>(tuple) };
+                    tuples.push(tuple);
+                    if join.constraints[ix].iter().all(|constraint| constraint.is_satisfied_by(&tuples[..])) {
+                        join_step(join, inputs, tuples, index)
+                    }
+                    tuples.pop();
+                }
+
+            }
+        }
+    }
 }
 
 impl View {
-    pub fn run(&self, old_output: &Relation, inputs: Vec<&Relation>) -> Option<Relation> {
+    pub fn run(&self, old_output: &Relation, inputs: &[&Relation]) -> Option<Relation> {
         match *self {
             View::Table(_) => None,
             View::Union(ref union) => {
@@ -91,52 +139,8 @@ impl View {
             View::Join(ref join) => {
                 assert_eq!(join.constraints.len(), inputs.len());
                 let mut output = Relation::with_fields(old_output.fields.clone(), old_output.names.clone());
-                let num_inputs = inputs.len();
-                assert!(num_inputs > 0);
-                let mut iters = Vec::with_capacity(num_inputs);
-                let mut tuples = Vec::with_capacity(num_inputs);
-                let mut next_action = Action::Down;
-                loop {
-                    match next_action {
-                        Action::Down => {
-                            if tuples.len() == num_inputs {
-                                output.index.insert(join.select.select(&tuples[..]));
-                                next_action = Action::Next;
-                            } else {
-                                let iter = inputs[tuples.len()].iter();
-                                iters.push(iter);
-                                tuples.push(Tuple{fields: &[], names: &[], values: &[]}); // dummy value
-                                next_action = Action::Next;
-                            }
-                        }
-                        Action::Next => {
-                            let ix = iters.len() - 1;
-                            match iters[ix].next() {
-                                Some(tuple) => {
-                                    tuples[ix] = tuple;
-                                    if join.constraints[ix].iter().all(|constraint|
-                                        constraint.is_satisfied_by(&tuples[..])) {
-                                        next_action = Action::Down;
-                                    } else {
-                                        next_action = Action::Next;
-                                    }
-                                }
-                                None => {
-                                    next_action = Action::Up;
-                                }
-                            }
-                        }
-                        Action::Up => {
-                            iters.pop();
-                            tuples.pop();
-                            if tuples.len() == 0 {
-                                break;
-                            } else {
-                                next_action = Action::Next;
-                            }
-                        }
-                    }
-                }
+                let mut tuples = Vec::with_capacity(join.sources.len());
+                join_step(join, inputs, &mut tuples, &mut output.index);
                 Some(output)
             }
             View::Aggregate(ref aggregate) => {
