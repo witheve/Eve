@@ -611,8 +611,10 @@ var queryEditor = (function(window, microReact, api) {
     } else if(type === "table") {
       workspace = tableWorkspace(itemId);
     }
+    var arrowDir = localState.showMenu ? "left" : "right";
     return {id: "root", c: "root", children: [
       editorItemList(itemId),
+      {c: "items-toggle ion-ios-arrow-" + arrowDir, click: toggleMenu},
       workspace,
     ]};
   }
@@ -631,17 +633,20 @@ var queryEditor = (function(window, microReact, api) {
       if(itemId === id) {
         klass += " selected";
       }
-      return {c: klass, click: selectEditorItem, dblclick: closeSelectEditorItem, dragData: {value: id, type: "view"}, itemId: id, draggable: true, dragstart: dragItem, children: [
+      var name = code.name(id) || "";
+      return {c: klass, name: name, click: selectEditorItem, dblclick: closeSelectEditorItem, dragData: {value: id, type: "view"}, itemId: id, draggable: true, dragstart: dragItem, children: [
         {c: "icon " + icon},
-        {text: code.name(id)},
+        {text: name},
       ]};
     })
+    items.sort(function(a, b) {
+      return a.name.localeCompare(b.name);
+    });
     var width = 0;
     if(localState.showMenu) {
       width = 200;
     }
     return {c: "editor-item-list", width:width, children: [
-      {c: "title", click: toggleMenu, text: "items"},
       {c: "adder", children: [
         {c: "button table", click: addItem, event: "addTable", children: [
           {c: "ion-grid"},
@@ -681,16 +686,17 @@ var queryEditor = (function(window, microReact, api) {
     selectEditorItem(e, elem);
   }
 
-  function genericWorkspace(klass, controls, options, content) {
-    var finalControls = controls;
-    if(!localState.showMenu) {
-      var finalControls = [{c: "menu-toggle", click: toggleMenu, text: "items"}].concat(controls);
-    }
+  function genericWorkspace(klass, itemId, content) {
+//     var finalControls = controls;
+//     if(!localState.showMenu) {
+//       var finalControls = [{c: "menu-toggle", click: toggleMenu, text: "items"}].concat(controls);
+//     }
+    var title = input(code.name(itemId), itemId, rename, rename);
+    title.c += " title";
     return {id: "workspace",
             c: "workspace-container " + klass,
             children: [
-              {c: "control-bar", children: finalControls},
-              {c: "option-bar", children: options},
+              title,
               {c: "content", children: [content]}
             ]};
   }
@@ -720,8 +726,7 @@ var queryEditor = (function(window, microReact, api) {
       return aIx - bIx;
     });
     return genericWorkspace("",
-                            [],
-                            [input(code.name(tableId), tableId, rename, rename)],
+                            tableId,
                             {c: "table-editor",
                              children: [
                                virtualizedTable(tableId, fields, rows, true)
@@ -863,12 +868,17 @@ var queryEditor = (function(window, microReact, api) {
       canvasLayers.push({c: "box-selection", top: rect.top, left: rect.left, width: rect.width, height: rect.height});
     }
     return genericWorkspace("query",
-                            [uiControls(componentId, activeLayer)],
-                            uiInspectors(componentId, selectionInfo, layers, activeLayer),
+                            componentId,
                             {c: "ui-editor",
                              children: [
-                               {c: "ui-canvas", componentId: componentId, children: canvasLayers, mousedown: startBoxSelection, mouseup: stopBoxSelection, mousemove: adjustBoxSelection},
                                layersBox(componentId, layers, activeLayer),
+                               {c: "ui-canvas-container", children: [
+                                 uiControls(componentId, activeLayer),
+                                 {c: "row", children: [
+                                   {c: "ui-canvas", componentId: componentId, children: canvasLayers, mousedown: startBoxSelection, mouseup: stopBoxSelection, mousemove: adjustBoxSelection},
+                                   {c: "attributes", children: uiInspectors(componentId, selectionInfo, layers, activeLayer)},
+                                 ]},
+                               ]},
                              ]});
   }
 
@@ -1548,19 +1558,23 @@ var queryEditor = (function(window, microReact, api) {
   }
 
 
-  var uiControlInfo = [{text: "text", icon: ""},
-                       {text: "image", icon: ""},
-                       {text: "box", icon: ""},
-                       {text: "button", icon: ""},
-                       {text: "input", icon: ""},
-                       {text: "map", icon: ""}
+  var uiControlInfo = [{text: "text", icon: "text-control", iconText: "T"},
+                       {text: "image", icon: "ion-image"},
+                       {text: "box", icon: "ion-stop"},
+                       {text: "button", icon: "ion-share"},
+                       {text: "input", icon: "ion-compose"},
+                       {text: "map", icon: "ion-ios-location"}
                       ];
 
   function uiControls(componentId, activeLayer) {
     var items = uiControlInfo.map(function(cur) {
+      var icon = {c: "icon " + cur.icon};
+      if(cur.iconText) {
+        icon.text = cur.iconText;
+      }
       return {c: "control", click: addElement, controlType: cur.text, componentId: componentId, layer: activeLayer,
               children: [
-                {c: "icon"},
+                icon,
                 {text: cur.text}
               ]};
     })
@@ -1684,15 +1698,17 @@ var queryEditor = (function(window, microReact, api) {
     leftAdjuster.initializer = startMoveSelection;
     leftAdjuster.finalizer = stopMoveSelection;
     //pos, size
-    return {c: "option-group", children: [
-      {c: "label", text: "x:"},
-      leftAdjuster,
-      {c: "label", text: "y:"},
-      topAdjuster,
-      {c: "label", text: "w:"},
-      widthAdjuster,
-      {c: "label", text: "h:"},
-      heightAdjuster,
+    return {c: "option-group size-attributes", children: [
+      {c: "size-outline"},
+      {c: "width-outline"},
+      {c: "height-outline"},
+      {c: "top-left-point", children :[
+        leftAdjuster,
+        {text: ","},
+        topAdjuster,
+      ]},
+      {c: "width-adjuster", children: [widthAdjuster]},
+      {c: "height-adjuster", children: [heightAdjuster]},
     ]};
   }
 
@@ -1721,7 +1737,7 @@ var queryEditor = (function(window, microReact, api) {
 
     var borderWidth = attrs["borderWidth"] === undefined ? 0 : attrs["borderWidth"];
     var borderWidthAdjuster = adjustable(borderWidth, 0, 20, 1);
-    borderWidthAdjuster.text = borderWidth + "px";
+    borderWidthAdjuster.text = borderWidth;
     borderWidthAdjuster.handler = adjustAttr;
     borderWidthAdjuster.attr = "borderWidth";
     borderWidthAdjuster.componentId = componentId;
@@ -1730,7 +1746,7 @@ var queryEditor = (function(window, microReact, api) {
 
     var borderRadius = attrs["borderRadius"] === undefined ? 0 : attrs["borderRadius"];
     var borderRadiusAdjuster = adjustable(borderRadius, 0, 100, 1);
-    borderRadiusAdjuster.text = borderRadius + "px";
+    borderRadiusAdjuster.text = borderRadius;
     borderRadiusAdjuster.handler = adjustAttr;
     borderRadiusAdjuster.attr = "borderRadius";
     borderRadiusAdjuster.componentId = componentId;
@@ -1762,18 +1778,18 @@ var queryEditor = (function(window, microReact, api) {
       visualStyle.postRender = focusOnce;
     }
 
-    return {c: "option-group", children: [
+    return {c: "option-group visual-attributes", children: [
       visualStyle,
-      {c: "layout-box-filled", borderRadius: attrs["borderRadius"], children: [
+      {c: "layout-box-filled", backgroundColor: attrs["backgroundColor"], borderRadius: attrs["borderRadius"], children: [
         colorSelector(componentId, "backgroundColor", attrs["backgroundColor"])
       ]},
-      {c: "layout-box-outline", borderRadius: attrs["borderRadius"], borderWidth: (borderWidth > 10 ? 10 : borderWidth || 1), borderColor: attrs["borderColor"], children: [borderColorPicker]},
-      {c: "label", text: "w:"},
+      opacityAdjuster,
+      {c: "border-options", children: [
+        {c: "layout-box-outline", borderRadius: attrs["borderRadius"], borderWidth: (borderWidth > 10 ? 10 : borderWidth || 1), borderColor: attrs["borderColor"], children: [borderColorPicker]},
+        {c: "border-radius-outline"},
+        {c: "border-radius-adjuster", children: [borderRadiusAdjuster]},
+      ]},
       borderWidthAdjuster,
-      {c: "label", text: "r:"},
-      borderRadiusAdjuster,
-      {c: "label", text: "opacity:"},
-      opacityAdjuster
     ]};
   }
 
@@ -1867,8 +1883,11 @@ var queryEditor = (function(window, microReact, api) {
     fontSizeAdjuster.finalizer = stopAdjustAttr;
 
     var fontColor = colorSelector(componentId, "color", attrs["color"]);
+    fontColor.backgroundColor = undefined;
     fontColor.color = attrs["color"];
     fontColor.c += " font-color";
+    fontColor.text = "Text";
+    fontColor.fontFamily = attrs["fontFamily"];
 
     var verticalAlign = vAlignMapping[attrs["verticalAlign"]] || "Top";
     var valign = selectable(verticalAlign, ["Top", "Center", "Bottom"]);
@@ -1905,16 +1924,18 @@ var queryEditor = (function(window, microReact, api) {
       typographyStyle.postRender = focusOnce;
     }
 
-    return {c: "option-group", children: [
+    return {c: "option-group text-attributes", children: [
       typographyStyle,
-      fontColor,
-      {c: "label", text: "size:"},
-      fontSizeAdjuster,
-      {c: "label", text: "font:"},
-      fontPicker,
-      {c: "label", text: "align:"},
-      valign,
-      align,
+      {c: "font-color-size", children: [
+        fontColor,
+        {c: "font-size"},
+        fontSizeAdjuster,
+      ]},
+      {c: "font-family", children: [fontPicker]},
+      {c: "font-align", children: [
+        valign,
+        align,
+      ]},
     ]};
   }
 
@@ -2143,7 +2164,8 @@ var queryEditor = (function(window, microReact, api) {
   //---------------------------------------------------------
 
   function queryWorkspace(queryId) {
-    return genericWorkspace("query", [queryControls(queryId)], [],
+    var controls = queryControls(queryId);
+    return genericWorkspace("query", queryId,
                             {c: "query-editor",
                              children: [
                                {c: "query-workspace", children: [
