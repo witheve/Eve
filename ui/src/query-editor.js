@@ -344,6 +344,13 @@ var queryEditor = (function(window, microReact, api) {
         sendToServer = neue[code.ix("aggregate sorting", "inner field")]
         && neue[code.ix("aggregate sorting", "direction")];
         break;
+      case "updateAggregateLimit":
+        var table = (info.key === "from") ? "aggregate limit from" : "aggregate limit to";
+        // @FIXME: Hard-coded to work with constants only.
+        var constantId = uuid();
+        diffs = [["constant", "inserted", [constantId, info.value]],
+                 [table, "inserted", [info.viewId, "constant", constantId]]];
+        break;
       case "groupView":
         var old = ixer.index("grouped by")[info.inner];
         if(old) { throw new Error("Cannot group by multiple views."); }
@@ -2737,7 +2744,10 @@ var queryEditor = (function(window, microReact, api) {
     var limitTo = ixer.index("view to aggregate limit to")[viewId];
     var limitFromValue = (limitFrom ? limitFrom[code.ix("aggregate limit from", "from field")] : 0);
 
-
+    var fromLimitInput = input(limitFrom, "from", updateAggregateLimit);
+    fromLimitInput.parentId = viewId;
+    var toLimitInput = input(limitTo, "to", updateAggregateLimit);
+    toLimitInput.parentId = viewId;
     return {c: "sort-limit-aggregate", viewId: viewId, children: [
       {c: "block-section aggregate-sort", children: [
         {text: "Sort by"},
@@ -2746,18 +2756,20 @@ var queryEditor = (function(window, microReact, api) {
       ]},
       {c: "block-section aggregate-limit", children: [
         {text: "Limit"},
-        input(limitFrom, "from", updateAggregateLimit),
+        fromLimitInput,
         {text: "-"},
-        input(limitTo, "to", updateAggregateLimit),
+        toLimitInput,
       ]},
     ]};
   }
 
-  function updateAggregateLimit(evt, elem) {
+  function updateAggregateLimit(evt, elem, value) {
+    console.log(elem, evt.target.value);
+    dispatch("updateAggregateLimit", {viewId: elem.parentId, key: elem.key, value:  evt.target.value || evt.currentTarget.textContent});
   }
 
   function updateAggregateSort(evt, elem) {
-    var info = {viewId: elem.parentId, key: elem.key, value: elem.value || evt.target.value};
+    var info = {viewId: elem.parentId, key: elem.key, value: evt.target.value || evt.currentTarget.textContent};
     dispatch("updateAggregateSort", info);
   }
 

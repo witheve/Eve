@@ -39,7 +39,7 @@ var client = (function eveClient(window, api, dispatcher) {
                       {fields: change[1], inserts: change[2], removes: change[3]});
         }
         if(verbosity == 3) {
-          console.log(" ", change[0], "+", change[2].length + "/-" + change[3].length);
+          console.log(" ", change[0], "+" + change[2].length + "/-" + change[3].length);
           console.groupCollapsed("   inserts", change[1]);
           console.table(change[2]);
           console.groupEnd();
