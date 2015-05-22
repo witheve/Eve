@@ -357,10 +357,10 @@ fn create_node(flow: &Flow, view_id: &Value, view_kind: &Value) -> Node {
         other => panic!("Unknown view kind: {}", other),
     };
     let upstream = flow.get_output("dependency").find_all("downstream view", view_id).iter().map(|dependency| {
-        flow.get_output("schedule").find_one("view", &dependency["upstream view"])["ix"].as_usize()
+        flow.get_output("view schedule").find_one("view", &dependency["upstream view"])["ix"].as_usize()
     }).collect(); // arrives in ix order so will match the arg order selected by create_join/union
     let mut downstream = flow.get_output("dependency").find_all("upstream view", view_id).iter().map(|dependency| {
-        flow.get_output("schedule").find_one("view", &dependency["downstream view"])["ix"].as_usize()
+        flow.get_output("view schedule").find_one("view", &dependency["downstream view"])["ix"].as_usize()
     }).collect::<Vec<_>>();
     downstream.sort();
     downstream.dedup();
@@ -376,7 +376,7 @@ fn create_flow(flow: &Flow) -> Flow {
     let mut nodes = Vec::new();
     let mut dirty = BitSet::new();
     let mut outputs = Vec::new();
-    for schedule in flow.get_output("schedule").iter() {
+    for schedule in flow.get_output("view schedule").iter() {
         let view_table = flow.get_output("view");
         let view = view_table.find_one("view", &schedule["view"]);
         nodes.push(create_node(flow, &view["view"], &view["kind"]));
@@ -419,7 +419,7 @@ fn reuse_state(old_flow: Flow, new_flow: &mut Flow) {
     }
 }
 
-pub fn recompile(mut old_flow: Flow) -> Flow {
+pub fn recompile(old_flow: Flow) -> Flow {
     calculate_dependency(&old_flow);
     calculate_view_schedule(&old_flow);
     let mut new_flow = create_flow(&old_flow);
