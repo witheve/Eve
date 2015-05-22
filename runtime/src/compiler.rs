@@ -81,16 +81,18 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // `priority` is an f64. higher priority things are displayed first. ties are broken by id
     ("display order", vec!["id"], vec!["priority"]),
 
-    // the compiler reflects its decisions into some builtin views
+    // tags are used to organise views
+    ("tag", vec!["view"], vec!["tag"]),
+
+    // the compiler reflects its decisions into some builtin views:
+
     // a dependency exists whenever the contents on one view depend directly on another
     // `ix` is an integer identifying the edge
     ("dependency", vec!["upstream view", "ix"], vec!["source", "downstream view"]),
-    // the schedule determines what order views will be executed in
-    // `ix` is an integer. views with lower ixes are executed first.
-    ("schedule", vec!["view"], vec!["ix"]),
 
-    // tags are used to organise views
-    ("tag", vec!["view"], vec!["tag"]),
+    // the view schedule determines what order views will be executed in
+    // `ix` is an integer. views with lower ixes are executed first.
+    ("view schedule", vec!["view"], vec!["ix"]),
     ]
 }
 
@@ -109,7 +111,7 @@ fn topological_sort<K: Eq + Debug>(mut input: Vec<(K, Vec<K>)>) -> Vec<(K, Vec<K
     output
 }
 
-fn create_dependency(flow: &Flow) -> Relation {
+fn calculate_dependency(flow: &Flow) {
     let mut dependency = Vec::new();
     let view_table = flow.get_output("view");
     for view in flow.get_output("view").iter() {
@@ -127,14 +129,15 @@ fn create_dependency(flow: &Flow) -> Relation {
             }
         }
     }
-    Relation{
-        fields: vec!["dependency: upstream view".to_owned(), "dependency: ix".to_owned(), "dependency: source".to_owned(), "dependency: downstream view".to_owned()],
-        names: vec!["upstream view".to_owned(), "ix".to_owned(), "source".to_owned(), "downstream view".to_owned()],
-        index: dependency.into_iter().collect(),
-    }
+    *flow.get_output_mut("dependency") =
+        Relation{
+            fields: vec!["dependency: upstream view".to_owned(), "dependency: ix".to_owned(), "dependency: source".to_owned(), "dependency: downstream view".to_owned()],
+            names: vec!["upstream view".to_owned(), "ix".to_owned(), "source".to_owned(), "downstream view".to_owned()],
+            index: dependency.into_iter().collect(),
+        };
 }
 
-fn create_schedule(flow: &Flow) -> Relation {
+fn calculate_view_schedule(flow: &Flow) {
     // TODO actually schedule sensibly
     // TODO warn about cycles through aggregates
     let mut schedule = Vec::new();
@@ -145,11 +148,12 @@ fn create_schedule(flow: &Flow) -> Relation {
             ix += 1.0;
         }
     }
-    Relation{
-        fields: vec!["schedule: ix".to_owned(), "schedule: view".to_owned()],
-        names: vec!["ix".to_owned(), "view".to_owned()],
-        index: schedule.into_iter().collect(),
-    }
+    *flow.get_output_mut("view schedule") =
+        Relation{
+            fields: vec!["view schedule: ix".to_owned(), "view schedule: view".to_owned()],
+            names: vec!["ix".to_owned(), "view".to_owned()],
+            index: schedule.into_iter().collect(),
+        };
 }
 
 fn create_single_select(flow: &Flow, view_id: &Value, source_id: &Value, source_ix: usize) -> SingleSelect {
@@ -416,12 +420,8 @@ fn reuse_state(old_flow: Flow, new_flow: &mut Flow) {
 }
 
 pub fn recompile(mut old_flow: Flow) -> Flow {
-    let dependency = create_dependency(&old_flow);
-    let dependency_ix = old_flow.get_ix("dependency").unwrap();
-    old_flow.outputs[dependency_ix] = RefCell::new(dependency);
-    let schedule = create_schedule(&old_flow);
-    let schedule_ix = old_flow.get_ix("schedule").unwrap();
-    old_flow.outputs[schedule_ix] = RefCell::new(schedule);
+    calculate_dependency(&old_flow);
+    calculate_view_schedule(&old_flow);
     let mut new_flow = create_flow(&old_flow);
     reuse_state(old_flow, &mut new_flow);
     new_flow
