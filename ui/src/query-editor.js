@@ -346,10 +346,16 @@ var queryEditor = (function(window, microReact, api) {
         break;
       case "updateAggregateLimit":
         var table = (info.key === "from") ? "aggregate limit from" : "aggregate limit to";
+        var old = ixer.index("view to " + table)[info.viewId];
         // @FIXME: Hard-coded to work with constants only.
-        var constantId = uuid();
-        diffs = [["constant", "inserted", [constantId, info.value]],
-                 [table, "inserted", [info.viewId, "constant", constantId]]];
+        if(info.value) {
+          var constantId = uuid();
+          diffs = [["constant", "inserted", [constantId, info.value]],
+                   [table, "inserted", [info.viewId, "constant", constantId]]];
+        }
+        if(old) {
+          diffs.push([table, "removed", old]);
+        }
         break;
       case "groupView":
         var old = ixer.index("grouped by")[info.inner];
