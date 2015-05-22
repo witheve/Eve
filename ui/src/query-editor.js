@@ -632,7 +632,7 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function editorItemList(itemId) {
-    var views = ixer.facts("view");
+    var views = ixer.facts("editor item");
     // @TODO: filter me based on tags local and compiler.
     var items = views.map(function(cur) {
       var id = cur[0];
@@ -2201,10 +2201,12 @@ var queryEditor = (function(window, microReact, api) {
 
   function queryWorkspace(queryId) {
     var controls = queryControls(queryId);
+    console.log(controls);
     return genericWorkspace("query", queryId,
                             {c: "query-editor",
                              children: [
                                {c: "query-workspace", children: [
+                                 controls,
                                  editor(queryId)
                                ]},
                                queryResult(queryId)
@@ -2268,9 +2270,9 @@ var queryEditor = (function(window, microReact, api) {
       var viewId = blocks[ix][code.ix("block", "view")];
       var viewKind = ixer.index("view to kind")[viewId];
       var editorPane;
-      if(viewKind === "join") { editorPane = viewBlock(viewId); }
-      if(viewKind === "union") { editorPane = unionBlock(viewId);  }
-      if(viewKind === "aggregate") { editorPane = aggregateBlock(viewId); }
+      if(viewKind === "join") { editorPane = viewBlock(viewId, ix); }
+      if(viewKind === "union") { editorPane = unionBlock(viewId, ix);  }
+      if(viewKind === "aggregate") { editorPane = aggregateBlock(viewId, ix); }
 
       var rows = ixer.facts(viewId) || [];
       var fields = (ixer.index("view to fields")[viewId] || []).map(function(field) {
@@ -2318,7 +2320,7 @@ var queryEditor = (function(window, microReact, api) {
   /**
    * View Block
    */
-  function viewBlock(viewId) {
+  function viewBlock(viewId, ix) {
     var fields = ixer.index("view and source to block fields")[viewId] || {};
     fields = fields["selection"] || [];
     var selectionItems = fields.map(function(field) {
@@ -2333,7 +2335,7 @@ var queryEditor = (function(window, microReact, api) {
     return {c: "block view-block", viewId: viewId, drop: viewBlockDrop, dragover: preventDefault,
             dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem, children: [
       {c: "block-title", children: [
-        {t: "h3", text: "Untitled Block"},
+        {t: "h3", text: alphabet[ix]},
         {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock}
       ]},
       viewSources(viewId),
@@ -2622,7 +2624,7 @@ var queryEditor = (function(window, microReact, api) {
   /**
    * Union Block
    */
-  function unionBlock(viewId) {
+  function unionBlock(viewId, ix) {
     var fields = ixer.index("view and source to block fields")[viewId] || {};
     fields = fields.selection || [];
     var selectSources = ixer.index("view and source and field to select")[viewId] || {};
@@ -2674,7 +2676,7 @@ var queryEditor = (function(window, microReact, api) {
     return {c: "block union-block", viewId: viewId, dragover: preventDefault, drop: viewBlockDrop,
             dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem, children: [
       {c: "block-title", children: [
-        {t: "h3", text: "Untitled Union Block"},
+        {t: "h3", text: alphabet[ix]},
         {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock}
       ]},
       {c: "content", children: [
