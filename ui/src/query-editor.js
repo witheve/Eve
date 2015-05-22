@@ -340,7 +340,6 @@ var queryEditor = (function(window, microReact, api) {
         params[info.key] = info.value;
         diffs = diff.updateAggregateSort(info.viewId, params.field, params.direction);
         var neue = diffs[0][2];
-        console.log("N", params, neue);
         sendToServer = neue[code.ix("aggregate sorting", "inner field")]
         && neue[code.ix("aggregate sorting", "direction")];
         break;
@@ -659,8 +658,6 @@ var queryEditor = (function(window, microReact, api) {
       if(itemId === id) {
         klass += " selected";
       }
-
-      if(!code.name(id)) { console.log(id); }
 
       return {c: klass, click: selectEditorItem, dblclick: closeSelectEditorItem, dragData: {value: id, type: "view"}, itemId: id, draggable: true, dragstart: dragItem, children: [
         {c: "icon " + icon},
@@ -2685,7 +2682,6 @@ var queryEditor = (function(window, microReact, api) {
     var viewId = blockField[code.ix("block field", "view")];
     var sourceId = blockField[code.ix("block field", "source")];
     if(viewId !== elem.viewId) { return; }
-    console.log({viewId: viewId, sourceFieldId: fieldId, sourceId: sourceId, fieldId: elem.fieldId});
     dispatch("addUnionSelection", {viewId: viewId, sourceFieldId: fieldId, sourceId: sourceId, fieldId: elem.fieldId});
     evt.stopPropagation();
   }
@@ -2701,7 +2697,7 @@ var queryEditor = (function(window, microReact, api) {
     var innerSource = sources.inner;
 
     var groupBy = ixer.index("grouped by")[innerSource] || [];
-    console.log(blockAggregate, sources, groupBy);
+    // console.log(blockAggregate, sources, groupBy);
     var aggregateKind = blockAggregate[code.ix("block aggregate", "kind")];
 
 
@@ -2745,14 +2741,15 @@ var queryEditor = (function(window, microReact, api) {
       sortDir = aggregateSorting[code.ix("aggregate sorting", "direction")];
     }
 
-    var limitFrom = ixer.index("view to aggregate limit from")[viewId];
-    var limitFromValue = (limitFrom ? limitFrom[code.ix("aggregate limit from", "from field")] : 0);
-    var limitTo = ixer.index("view to aggregate limit to")[viewId];
-    var limitFromValue = (limitFrom ? limitFrom[code.ix("aggregate limit from", "from field")] : 0);
+    // @FIXME: hard coded to work with constants only.
+    var limitFrom = ixer.index("view to aggregate limit from")[viewId] || [];
+    var limitFromValue = ixer.index("constant to value")[limitFrom[code.ix("aggregate limit from", "from field")]];
+    var limitTo = ixer.index("view to aggregate limit to")[viewId] || [];
+    var limitToValue = ixer.index("constant to value")[limitTo[code.ix("aggregate limit to", "to field")]];
 
-    var fromLimitInput = input(limitFrom, "from", updateAggregateLimit);
+    var fromLimitInput = input(limitFromValue, "from", updateAggregateLimit);
     fromLimitInput.parentId = viewId;
-    var toLimitInput = input(limitTo, "to", updateAggregateLimit);
+    var toLimitInput = input(limitToValue, "to", updateAggregateLimit);
     toLimitInput.parentId = viewId;
     return {c: "sort-limit-aggregate", viewId: viewId, children: [
       {c: "block-section aggregate-sort", children: [
@@ -2770,7 +2767,6 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function updateAggregateLimit(evt, elem, value) {
-    console.log(elem, evt.target.value);
     dispatch("updateAggregateLimit", {viewId: elem.parentId, key: elem.key, value:  evt.target.value || evt.currentTarget.textContent});
   }
 
