@@ -307,15 +307,15 @@ fn create_join(flow: &Flow, view_id: &Value) -> Join {
 
 fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
     let dependency_table = flow.get_output("dependency");
-    let sources = dependency_table.find_all("downstream view", view_id);
-    let outer_ix = sources.iter().position(|source| source["source"].as_str() == "outer").unwrap();
-    let inner_ix = sources.iter().position(|source| source["source"].as_str() == "inner").unwrap();
-    let outer_source = sources[outer_ix].clone();
-    let inner_source = sources[inner_ix].clone();
+    let dependencies = dependency_table.find_all("downstream view", view_id);
+    let outer_ix = dependencies.iter().position(|dependency| dependency["source"].as_str() == "outer").unwrap();
+    let inner_ix = dependencies.iter().position(|dependency| dependency["source"].as_str() == "inner").unwrap();
+    let outer_dependency = dependencies[outer_ix].clone();
+    let inner_dependency = dependencies[inner_ix].clone();
     let grouping_table = flow.get_output("aggregate grouping");
     let groupings = grouping_table.find_all("aggregate", view_id);
     let field_table = flow.get_output("field");
-    let fields = field_table.find_all("view", &inner_source["downstream view"]);
+    let fields = field_table.find_all("view", &inner_dependency["downstream view"]);
     let ungrouped = fields.iter().filter(|field|
             groupings.iter().find(|grouping| grouping["inner field"] == field["field"]).is_none()
         ).collect::<Vec<_>>();
@@ -333,14 +333,14 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
         groupings.iter().map(|grouping| grouping["inner field"].as_str().to_owned())
         .chain(sortable.iter().map(|&(_, ref field_id)| field_id.as_str().to_owned()))
         .collect();
-    let inputs = &[outer_source];
+    let inputs = &[outer_dependency];
     let outer = SingleSelect{source: outer_ix, fields: outer_fields};
     let inner = SingleSelect{source: inner_ix, fields: inner_fields};
     let limit_from = flow.get_output("aggregate limit from").find_maybe("aggregate", view_id)
-        .map(|limit_from| create_reference(flow, inputs, &limit_from["source"], &limit_from["field"]));
+        .map(|limit_from| create_reference(flow, inputs, &limit_from["from source"], &limit_from["from field"]));
     let limit_to = flow.get_output("aggregate limit to").find_maybe("aggregate", view_id)
-        .map(|limit_to| create_reference(flow, inputs, &limit_to["source"], &limit_to["field"]));
-    let select = create_multi_select(flow, &[inner_source], view_id);
+        .map(|limit_to| create_reference(flow, inputs, &limit_to["to source"], &limit_to["to field"]));
+    let select = create_multi_select(flow, &[inner_dependency], view_id);
     Aggregate{outer: outer, inner: inner, limit_from: limit_from, limit_to: limit_to, select: select}
 }
 
