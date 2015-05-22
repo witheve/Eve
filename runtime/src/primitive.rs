@@ -6,6 +6,7 @@ use value::{Value};
 pub enum Primitive {
     Add,
     Subtract,
+    Count,
 }
 
 impl Primitive {
@@ -15,6 +16,7 @@ impl Primitive {
         match (self, arguments) {
             (Add, [&Float(a), &Float(b)]) => vec![vec![Float(a+b)]],
             (Subtract, [&Float(a), &Float(b)]) => vec![vec![Float(a-b)]],
+            (Count, _) => unimplemented!(), // what would the interface even be...  eval_scalar vs eval_vector?
             _ => panic!("Type error while calling: {:?} {:?}", self, &arguments)
         }
     }
@@ -23,6 +25,7 @@ impl Primitive {
         match string {
             "add" => Primitive::Add,
             "subtract" => Primitive::Subtract,
+            "count" => Primitive::Count,
             _ => panic!("Unknown primitive: {:?}", string),
         }
     }
@@ -32,6 +35,7 @@ pub fn primitives() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, 
     vec![
         ("add", vec!["in A", "in B"], vec![], vec!["out"]),
         ("subtract", vec!["in A", "in B"], vec![], vec!["out"]),
+        ("count", vec![], vec!["in"], vec!["out"]),
     ]
 }
 
