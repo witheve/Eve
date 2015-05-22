@@ -232,6 +232,8 @@ div:hover > .hover-reveal { opacity: 1; }
 
 .query-editor .aggregate-block .aggregate-sort { flex-direction: row; }
 .query-editor .aggregate-block .aggregate-sort > * { margin: 0 0.2em;}
+.query-editor .aggregate-block .aggregate-limit { flex-direction: row; }
+.query-editor .aggregate-block .aggregate-limit > * { margin: 0 0.2em;}
 
 
 /* inspector */

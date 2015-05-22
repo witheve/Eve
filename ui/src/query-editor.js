@@ -2385,8 +2385,11 @@ var queryEditor = (function(window, microReact, api) {
     });
 
     var sourceName;
+
     if(sourceId == "inner" || sourceId === "outer" || sourceId === "insert" || sourceId === "remove") {
       sourceName = code.name(viewId + "-" + sourceId);
+    } else {
+      sourceName = code.name(sourceId);
     }
 
     var children = [
@@ -2719,26 +2722,36 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function sortLimitAggregate(viewId, outerSource, innerSource) {
-    var aggregateSorting = ixer.index("view to aggregate sorting")[viewId];
     var sortSource = "inner";
     var sortField, sortDir;
+    var aggregateSorting = ixer.index("view to aggregate sorting")[viewId];
     if(aggregateSorting) {
       sortField = aggregateSorting[code.ix("aggregate sorting", "inner field")];
       sortDir = aggregateSorting[code.ix("aggregate sorting", "direction")];
     }
 
+    var limitFrom = ixer.index("view to aggregate limit from")[viewId];
+    var limitFromValue = (limitFrom ? limitFrom[code.ix("aggregate limit from", "from field")] : 0);
+    var limitTo = ixer.index("view to aggregate limit to")[viewId];
+    var limitFromValue = (limitFrom ? limitFrom[code.ix("aggregate limit from", "from field")] : 0);
+
+
     return {c: "sort-limit-aggregate", viewId: viewId, children: [
       {c: "block-section aggregate-sort", children: [
         {text: "Sort by"},
         token.blockField({key: "field", parentId: viewId, source: sortSource, field: sortField}, updateAggregateSort, dropAggregateField),
-        selectInput(sortDir, "direction", {ascending: "▲", descending: "▼"}, updateAggregateSort)
+        selectInput(sortDir || "ascending", "direction", {ascending: "▲", descending: "▼"}, updateAggregateSort)
       ]},
-      {text: "Limit"},
       {c: "block-section aggregate-limit", children: [
-        {text: "<constant>"},
-        {text: "<constant>"}
+        {text: "Limit"},
+        input(limitFrom, "from", updateAggregateLimit),
+        {text: "-"},
+        input(limitTo, "to", updateAggregateLimit),
       ]},
     ]};
+  }
+
+  function updateAggregateLimit(evt, elem) {
   }
 
   function updateAggregateSort(evt, elem) {
