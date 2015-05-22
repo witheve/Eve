@@ -55,6 +55,7 @@ var api = (function(Indexing) {
       "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
       "grouped by": {name: "grouped by", fields: ["inner", "inner field", "outer", "outer field"]},
       empty: {name: "empty", fields: ["empty"]},
+      "eveuser": {name: "eveuser", fields: ["id", "username"]},
 
       //ui
       "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"], facts: []},
