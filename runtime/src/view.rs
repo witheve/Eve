@@ -170,6 +170,7 @@ impl View {
                         None => group_end,
                         Some(ref reference) => group_start + reference.resolve(inputs).as_usize(),
                     };
+                    let limit_to = ::std::cmp::max(limit_to, limit_from); // the slice explodes if end < start
                     for inner_values in &inner[limit_from..limit_to] {
                         let inner_tuple = Tuple{
                             fields: &aggregate.inner.fields[..],
