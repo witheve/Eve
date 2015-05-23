@@ -391,19 +391,35 @@ var queryEditor = (function(window, microReact, api) {
         && neue[code.ix("aggregate sorting", "direction")];
         break;
       case "updateAggregateLimit":
+        sendToServer = info.sendToServer;
         var table = (info.key === "from") ? "aggregate limit from" : "aggregate limit to";
-        var old = ixer.index("view to " + table)[info.viewId];
+
         // @FIXME: Hard-coded to work with constants only.
         var constantId = uuid();
-        var neue = [info.viewId, "constant", constantId];
+        var limit = ixer.index("view to " + table)[info.viewId];
+        if(!limit) { limit = [info.viewId, "constant", constantId]; }
+        else {
+          constantId = limit[2];
+          var oldConstant = ixer.index("constant")[constantId];
+          if(oldConstant && !oldConstant[1] === info.value) {
+            console.log("removing", oldConstant[1], info.value);
+            diffs.push(["constant", "removed", oldConstant]);
+          }
+          console.log(table, constantId);
+        }
+
         if(info.value) {
-          diffs = [["constant", "inserted", [constantId, info.value]],
-                   [table, "inserted", neue]];
+          diffs.push(["constant", "inserted", [constantId, info.value]],
+                     [table, "inserted", limit]);
+        } else {
+          console.log("no value");
+          diffs.push([table, "removed", limit]);
         }
-        if(old && !api.arraysIdentical(old, neue)) {
-          diffs.push([table, "removed", old]);
+        if(sendToServer && localState.initialValue) {
+          console.log("sending", constantId, localState.initialValue);
+          diffs.push(["constant", "removed", [constantId, localState.initialValue]]);
         }
-        sendToServer = info.sendToServer;
+
         break;
       case "groupView":
         var old = ixer.index("grouped by")[info.inner];
@@ -2782,7 +2798,6 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function updateAggregateLimit(evt, elem, type) {
-    console.log(type);
     dispatch("updateAggregateLimit", {viewId: elem.parentId, key: elem.key, value:  +evt.target.value || +evt.currentTarget.textContent, sendToServer: !!type});
   }
 
