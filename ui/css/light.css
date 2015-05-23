@@ -211,85 +211,31 @@ div:hover > .hover-reveal { opacity: 1; }
 - query editor
 ---------------------------------------------------------*/
 
-.query-editor { flex:1; border-radius:3px; box-shadow:0 0 20px #111; background: #fff; color: #555; }
-
-.query-workspace { flex-direction: row; flex: 2;}
-.query-workspace > .pane { border-right: 1px solid #404040; }
-
-/* shared */
-.query-editor .close-btn { flex: 0 0 auto; margin-left: auto; }
-.query-editor .close-btn:hover { margin-left: auto; color: #FF7070; }
-.query-editor .close-btn:active { margin-left: auto; color: #CC5050; }
-
-.query-editor .block .block-pane { flex: 1 1 auto; background: #303030; margin: 0 4px; min-width: 30%; }
-
-/* tree */
-.tree.pane { flex-direction: column !important; }
-.tree.bar { flex-direction: row !important; }
-.tree .tree-item { padding: 0.2em 0.5em; }
-
-.tree-item.pill {flex-shrink: 0; margin: 0 2px; border-radius: 0px; }
-
-/* workspace */
-.query-editor .workspace { position: relative; flex: 1; flex-direction: column; overflow-x: auto; padding-bottom: 3em;  }
-.query-editor .workspace > .feed {margin: auto; background: rgba(0, 0, 0, 0.25); box-shadow: 0 0 128px 128px rgba(0, 0, 0, 0.25); }
-
-.query-editor .workspace > .block { flex-shrink: 0; flex-direction: row; min-height: 4em; background: ; margin-bottom: 16px; padding-bottom: 4px; }
-.query-editor .workspace > .block > * { flex: 1; }
-.query-editor .workspace > .block .block-title { flex-direction: row; font-weight: 100; font-size: 1.1em; color: ; padding: 4px; }
-.query-editor .workspace > .block .block-title > h3 { margin: auto; }
-.query-editor .workspace > .block .block-title > .close-btn { margin-left: 0; }
-
-.query-editor .workspace .block-section { min-height: 2em; flex-direction: column; background: ; margin: 0 4px; }
-
-.query-editor .workspace .view-selections { flex-wrap: wrap; align-items: center; padding: 2px 2px; }
-
-.query-editor .view-sources { padding: 0 0px; }
-.query-editor .view-sources > .view-source { flex-direction: row; flex-wrap: wrap; align-items: baseline; padding-bottom: 2px; border-bottom: 0px solid #404040; }
-
-.query-editor .view-source-title { flex-direction: row; flex-shrink: 0; padding: 4px; background: ; color: ; }
-.query-editor .view-source-title > h4 { margin-right: 6px; }
-.query-editor .field.pill { font-size: 14px; margin: 2px; background-color: ; color: ; }
-.query-editor .field.pill:hover { background-color: ; box-shadow: 0 1px 2px 0 #202030; }
-.query-editor .field.pill:active { background-color: ; box-shadow: 0 2px 4px 0 #202030; }
-
-.query-editor .view-constraints { flex-direction: column; padding-bottom: 1em; }
-.query-editor .view-constraint { flex-direction: row; padding-left: 0.3em; overflow: hidden; text-overflow: ellipsis; }
-.query-editor .view-constraint > * { padding: 0.2em; }
-.query-editor .view-constraint .grip { flex-direction: row; }
-
-.query-editor .workspace .token { flex: 0 1 auto; flex-direction: row; align-items: baseline; position: relative; white-space: nowrap;}
-.query-editor .workspace .token.field .name {flex-shrink: 0; }
-.query-editor .workspace .token.field .source { flex-shrink: 1; margin-left: 0.25em; font-size: 0.75em; color: #aaa; text-overflow: ellipis; white-space: nowrap; overflow: hidden; }
-.query-editor .workspace .token-selector, .workspace .selector { position: absolute; padding: 0.2em; z-index: 10; background: ; outline: none; }
-.query-editor .workspace .selector-item:hover { background: rgba(255, 255, 255, 0.2); }
-
-.query-editor .workspace .token-selector.value { flex-direction: row; }
-.query-editor .token-selector.value > .type-selector li { flex: 0; padding: 0.2em; }
-
-.query-editor .block-section.view-grouping { flex-direction: row; }
-.query-editor .block-section.view-grouping > * { margin: 0 0.25em;}
-
-.query-editor .union-block .content { flex-direction: row; }
-.query-editor .union-block .union-source { margin-bottom: 10px; }
-.query-editor .union-block .field-mapping { flex-direction: row; margin-bottom: 10px;}
-.query-editor .union-block .field-mapping .mapping-pair + .mapping-pair { border-left: 1px solid #404040; }
-.query-editor .union-block .field-mapping  .mapping-pair > * { padding: 0.1em 0.25em; }
-.query-editor .union-block .field-mapping .mapping-header { border-bottom: 1px solid #505050; }
-
-
-/* inspector */
-.query-workspace > .inspector { flex: 1; border-left: 1px solid #404040; }
-
-
-/* result */
-.query-editor .query-result { flex: 1; border-top: 1px solid #404040; }
-
-/*---------------------------------------------------------
-- query editor 2
----------------------------------------------------------*/
-
-.union-block, .view-block { flex-direction:row; background: rgba(0,0,0,0.1); }
+.query-editor { flex:1; color: #555; }
+.query-editor .query-workspace { flex:1; }
+.union-block, .view-block { flex: 1; flex-direction:row; background: rgba(0,0,0,0.1); }
 .query-workspace { flex-direction:column; }
 .query-workspace .control-group { padding:5px 0; background:rgba(0,0,0,0.1); flex-direction:row; border-bottom:1px solid rgba(0,0,0,0.05); }
 .query-workspace .control-group .control { padding: 0 15px; }
+
+.query-workspace > .block {flex: none; border-radius:3px; overflow:hidden; background:#fff; flex-direction:row; margin-bottom:15px; box-shadow: 0 0 20px #111; }
+
+.query-workspace .inspector-pane { min-height:100px; max-height:100px; flex:1; }
+
+.query-workspace .block-title { padding-top:10px; align-items:center; width:22px; color: #aaa; }
+.query-workspace .join .block-title { background:rgba(174, 127, 255, 0.5); border-left:1px solid rgba(0,0,0,0.2); color: rgba(0,0,0,0.4); }
+.query-workspace .block-lines { padding: 10px 0; color: rgba(0,0,0,0.4); padding-left: 10px; }
+.query-workspace .view-block { background: rgba(174, 127, 255,0.5); border-bottom:1px solid rgba(0,0,0,0.2);  }
+.query-workspace .view-source { flex-direction:row; flex:none; }
+.query-workspace .view-source + .view-source { margin-top:5px; }
+.query-workspace .view-source-title { color: rgba(0,0,0,0.65); margin-right:3px; }
+
+.query-workspace .new-block { min-height:50px; opacity: 0.5;}
+.query-workspace .new-block > .block { flex:1; flex-direction:row; background: rgba(0,0,0,0.1); }
+.query-workspace .new-block .block-title { color: #eee; background: rgba(0,0,0,0.3); }
+.query-workspace .new-block .block-lines { }
+
+.query-editor-controls { border-bottom:1px solid rgba(0,0,0,0.2); background: rgba(0,0,0,0.1); background: rgba(174, 127, 255,0.5); padding:0 5px; flex-direction:row; }
+.query-editor-controls .control { font-size:9pt; padding:5px 0;  border-right: 1px solid rgba(0,0,0,0.2);  margin-right: 5px; padding-right:5px; }
+
+.full-flex { flex: 1; }

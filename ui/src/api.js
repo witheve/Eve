@@ -94,6 +94,8 @@ var api = (function(Indexing) {
   // This index needs to be hardcoded for code.ix to work.
   ixer.addIndex("view to fields", "field", Indexing.create.collector([0]));
 
+  ixer.addIndex("constant", "constant", Indexing.create.lookup([0]));
+  ixer.addIndex("constant to value", "constant", Indexing.create.lookup([0, 1]));
   ixer.addIndex("display name", "display name", Indexing.create.lookup([0, 1]));
   ixer.addIndex("display order", "display order", Indexing.create.lookup([0, 1]));
   ixer.addIndex("field to view", "field", Indexing.create.lookup([1, 0]));

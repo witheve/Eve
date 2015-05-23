@@ -340,9 +340,21 @@ var queryEditor = (function(window, microReact, api) {
         params[info.key] = info.value;
         diffs = diff.updateAggregateSort(info.viewId, params.field, params.direction);
         var neue = diffs[0][2];
-        console.log("N", params, neue);
         sendToServer = neue[code.ix("aggregate sorting", "inner field")]
         && neue[code.ix("aggregate sorting", "direction")];
+        break;
+      case "updateAggregateLimit":
+        var table = (info.key === "from") ? "aggregate limit from" : "aggregate limit to";
+        var old = ixer.index("view to " + table)[info.viewId];
+        // @FIXME: Hard-coded to work with constants only.
+        if(info.value) {
+          var constantId = uuid();
+          diffs = [["constant", "inserted", [constantId, info.value]],
+                   [table, "inserted", [info.viewId, "constant", constantId]]];
+        }
+        if(old) {
+          diffs.push([table, "removed", old]);
+        }
         break;
       case "groupView":
         var old = ixer.index("grouped by")[info.inner];
@@ -650,7 +662,6 @@ var queryEditor = (function(window, microReact, api) {
       }
 
       var name = code.name(id) || "";
-      if(!code.name(id)) { console.log(id); }
       return {c: klass, name: name, click: selectEditorItem, dblclick: closeSelectEditorItem, dragData: {value: id, type: "view"}, itemId: id, draggable: true, dragstart: dragItem, children: [
         {c: "icon " + icon},
         {text: name},
@@ -2205,11 +2216,7 @@ var queryEditor = (function(window, microReact, api) {
     return genericWorkspace("query", queryId,
                             {c: "query-editor",
                              children: [
-                               {c: "query-workspace", children: [
-                                 controls,
-                                 editor(queryId)
-                               ]},
-                               queryResult(queryId)
+                               editor(queryId)
                              ]});
   }
 
@@ -2264,16 +2271,12 @@ var queryEditor = (function(window, microReact, api) {
   // Editor
   //---------------------------------------------------------
   function editor(queryId) {
+    localState.queryEditorActive = 0;
     var blocks = ixer.index("query to blocks")[queryId] || [];
     var items = [];
     for(var ix = 0; ix < blocks.length; ix++) {
       var viewId = blocks[ix][code.ix("block", "view")];
       var viewKind = ixer.index("view to kind")[viewId];
-      var editorPane;
-      if(viewKind === "join") { editorPane = viewBlock(viewId, ix); }
-      if(viewKind === "union") { editorPane = unionBlock(viewId, ix);  }
-      if(viewKind === "aggregate") { editorPane = aggregateBlock(viewId, ix); }
-
       var rows = ixer.facts(viewId) || [];
       var fields = (ixer.index("view to fields")[viewId] || []).map(function(field) {
         var id = field[code.ix("field", "field")];
@@ -2287,18 +2290,52 @@ var queryEditor = (function(window, microReact, api) {
         return aIx - bIx;
       });
 
+      var editorPane;
       var inspectorPane = {c: "inspector-pane", children: [virtualizedTable(viewId, fields, rows, false)]};
+      if(viewKind === "join") {
+        editorPane = viewBlock(viewId, ix);
+        inspectorPane.viewId = viewId;
+        inspectorPane.drop = viewSelectionsDrop;
+        inspectorPane.dragOver = preventDefault;
+      }
+      if(viewKind === "union") { editorPane = unionBlock(viewId, ix);  }
+      if(viewKind === "aggregate") { editorPane = aggregateBlock(viewId, ix); }
+      var controls;
+      if(localState.queryEditorActive === ix) {
+        controls = {c: "query-editor-controls", children: [
+          {c: "control", text: "add constraint"},
+          {c: "control", text: "add calculation"},
+        ]};
+      }
 
       items.push({c: "block " + viewKind, children: [
-        editorPane,
-        inspectorPane
+        {c: "full-flex", children: [
+          editorPane,
+          controls,
+          inspectorPane,
+        ]},
+        {c: "block-title", children: [
+          {t: "h3", text: alphabet[ix]},
+          //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
+        ]},
       ]});
     }
+    items.push({c: "block new-block", children: [
+      {c: "block unused", children: [
+        {c: "block-title", children: [
+          {t: "h3", text: alphabet[ix]},
+          //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
+        ]},
+        {c: "block-lines", children: []},
+      ]},
+      {c: "inspector-pane"}
+    ]});
+
     if(items.length) {
       items.push({c: "add-aggregate-btn", text: "Add an aggregate by dragging it here...", queryId: queryId});
     }
 
-    return {c: "workspace", queryId: queryId, drop: editorDrop, dragover: preventDefault, children: items.length ? items : [
+    return {c: "query-workspace", queryId: queryId, drop: editorDrop, dragover: preventDefault, children: items.length ? items : [
       {c: "feed", text: "Feed me sources"}
     ]};
   }
@@ -2332,22 +2369,16 @@ var queryEditor = (function(window, microReact, api) {
     }
     var groupedBy = ixer.index("grouped by")[viewId];
 
+    var lines = viewSources(viewId).concat(viewConstraints(viewId));
     return {c: "block view-block", viewId: viewId, drop: viewBlockDrop, dragover: preventDefault,
-            dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem, children: [
-      {c: "block-title", children: [
-        {t: "h3", text: alphabet[ix]},
-        {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock}
-      ]},
-      viewSources(viewId),
-      viewConstraints(viewId),
-      (groupedBy ? {c: "block-section view-grouping", children: [
-        {text: "Grouped by"},
-        {text: code.name(groupedBy[code.ix("grouped by", "inner field")])},
-        {text: "="},
-        {text: code.name(groupedBy[code.ix("grouped by", "outer field")])},
-      ]} : undefined),
-      {c: "block-section view-selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems}
-    ]};
+            dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem,
+            children: [
+//               {c: "block-title", children: [
+//                 {t: "h3", text: alphabet[ix]},
+// //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
+//               ]},
+              {c: "block-lines", children: lines},
+            ]};
   }
 
   function viewBlockDrop(evt, elem) {
@@ -2396,17 +2427,21 @@ var queryEditor = (function(window, microReact, api) {
       return viewSource(viewId, sourceId);
     });
 
-    return {c: "block-section view-sources", children: sourceItems};
+    return sourceItems;
   }
 
   function viewSource(viewId, sourceId) {
     var fields = ixer.index("view and source to block fields")[viewId] || {};
     fields = fields[sourceId] || [];
-    var fieldItems = fields.map(function(field) {
+    var fieldItems = [];
+    fields.forEach(function(field) {
       var id = field[code.ix("block field", "block field")];
       var fieldId = field[code.ix("block field", "field")];
-      return fieldItem(code.name(fieldId) || "Untitled", id, {c: "pill field"});
+      fieldItems.push(fieldItem(code.name(fieldId) || "Untitled", id, {c: "pill field"}));
+      fieldItems.push({t: "pre", text: ", "});
     });
+    fieldItems.pop();
+    fieldItems.push({text: ")"});
 
     var sourceName;
 
@@ -2419,8 +2454,9 @@ var queryEditor = (function(window, microReact, api) {
     var children = [
       {c: "view-source-title", children: [
         {t: "h4", text: sourceName || "Untitled"},
-        {c: "hover-reveal close-btn ion-android-close", viewId: viewId, sourceId: sourceId, click: removeSource}
-      ]}
+//         {c: "hover-reveal close-btn ion-android-close", viewId: viewId, sourceId: sourceId, click: removeSource}
+      ]},
+      {text: "("}
     ].concat(fieldItems);
     return {c: "tree bar view-source", children: children};
   }
@@ -2453,7 +2489,7 @@ var queryEditor = (function(window, microReact, api) {
         {c: "hover-reveal close-btn ion-android-close", constraintId: id, click: removeConstraint}
       ]};
     });
-    return {c: "block-section view-constraints", viewId: viewId, drop: viewConstraintsDrop, dragover: preventDefault, children: constraintItems};
+    return constraintItems;
   }
 
   function viewConstraintsDrop(evt, elem) {
@@ -2695,7 +2731,6 @@ var queryEditor = (function(window, microReact, api) {
     var viewId = blockField[code.ix("block field", "view")];
     var sourceId = blockField[code.ix("block field", "source")];
     if(viewId !== elem.viewId) { return; }
-    console.log({viewId: viewId, sourceFieldId: fieldId, sourceId: sourceId, fieldId: elem.fieldId});
     dispatch("addUnionSelection", {viewId: viewId, sourceFieldId: fieldId, sourceId: sourceId, fieldId: elem.fieldId});
     evt.stopPropagation();
   }
@@ -2711,7 +2746,7 @@ var queryEditor = (function(window, microReact, api) {
     var innerSource = sources.inner;
 
     var groupBy = ixer.index("grouped by")[innerSource] || [];
-    console.log(blockAggregate, sources, groupBy);
+    // console.log(blockAggregate, sources, groupBy);
     var aggregateKind = blockAggregate[code.ix("block aggregate", "kind")];
 
 
@@ -2755,12 +2790,16 @@ var queryEditor = (function(window, microReact, api) {
       sortDir = aggregateSorting[code.ix("aggregate sorting", "direction")];
     }
 
-    var limitFrom = ixer.index("view to aggregate limit from")[viewId];
-    var limitFromValue = (limitFrom ? limitFrom[code.ix("aggregate limit from", "from field")] : 0);
-    var limitTo = ixer.index("view to aggregate limit to")[viewId];
-    var limitFromValue = (limitFrom ? limitFrom[code.ix("aggregate limit from", "from field")] : 0);
+    // @FIXME: hard coded to work with constants only.
+    var limitFrom = ixer.index("view to aggregate limit from")[viewId] || [];
+    var limitFromValue = ixer.index("constant to value")[limitFrom[code.ix("aggregate limit from", "from field")]];
+    var limitTo = ixer.index("view to aggregate limit to")[viewId] || [];
+    var limitToValue = ixer.index("constant to value")[limitTo[code.ix("aggregate limit to", "to field")]];
 
-
+    var fromLimitInput = input(limitFromValue, "from", updateAggregateLimit);
+    fromLimitInput.parentId = viewId;
+    var toLimitInput = input(limitToValue, "to", updateAggregateLimit);
+    toLimitInput.parentId = viewId;
     return {c: "sort-limit-aggregate", viewId: viewId, children: [
       {c: "block-section aggregate-sort", children: [
         {text: "Sort by"},
@@ -2769,18 +2808,19 @@ var queryEditor = (function(window, microReact, api) {
       ]},
       {c: "block-section aggregate-limit", children: [
         {text: "Limit"},
-        input(limitFrom, "from", updateAggregateLimit),
+        fromLimitInput,
         {text: "-"},
-        input(limitTo, "to", updateAggregateLimit),
+        toLimitInput,
       ]},
     ]};
   }
 
-  function updateAggregateLimit(evt, elem) {
+  function updateAggregateLimit(evt, elem, value) {
+    dispatch("updateAggregateLimit", {viewId: elem.parentId, key: elem.key, value:  evt.target.value || evt.currentTarget.textContent});
   }
 
   function updateAggregateSort(evt, elem) {
-    var info = {viewId: elem.parentId, key: elem.key, value: elem.value || evt.target.value};
+    var info = {viewId: elem.parentId, key: elem.key, value: evt.target.value || evt.currentTarget.textContent};
     dispatch("updateAggregateSort", info);
   }
 
