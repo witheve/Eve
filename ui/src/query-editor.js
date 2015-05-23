@@ -242,6 +242,11 @@ var queryEditor = (function(window, microReact, api) {
       case "addAggregateBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
         diffs = diff.addAggregateBlock(queryId, info.kind);
+        var primitive = ixer.index("primitive")[info.kind];
+        if(primitive) {
+          var viewId = diffs[0][2][0];
+          dispatch("addPrimitiveSource", {viewId: viewId, primitiveId: info.kind}); // @FIXME: Hacky, I know, but I need to send half to the server.
+        }
         break;
       case "addUnionBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
@@ -388,16 +393,17 @@ var queryEditor = (function(window, microReact, api) {
       case "updateAggregateLimit":
         var table = (info.key === "from") ? "aggregate limit from" : "aggregate limit to";
         var old = ixer.index("view to " + table)[info.viewId];
-        console.log("OLD", old, ixer);
         // @FIXME: Hard-coded to work with constants only.
+        var constantId = uuid();
+        var neue = [info.viewId, "constant", constantId];
         if(info.value) {
-          var constantId = uuid();
           diffs = [["constant", "inserted", [constantId, info.value]],
-                   [table, "inserted", [info.viewId, "constant", constantId]]];
+                   [table, "inserted", neue]];
         }
-        if(old) {
+        if(old && !api.arraysIdentical(old, neue)) {
           diffs.push([table, "removed", old]);
         }
+        sendToServer = info.sendToServer;
         break;
       case "groupView":
         var old = ixer.index("grouped by")[info.inner];
@@ -408,17 +414,7 @@ var queryEditor = (function(window, microReact, api) {
         diffs = diffs.concat(diff.removeViewConstraint(info.constraintId));
         break;
       case "addPrimitiveSource":
-        diffs = diff.addViewSource(info.viewId, info.primitiveId);
-        var sourceId = diffs[0][2][code.ix("source", "source")];
-
-        var fields = ixer.index("view to fields")[info.primitiveId] || [];
-        fields.forEach(function(field) {
-          var id = field[code.ix("field", "field")];
-          var kind = field[code.ix("field", "kind")];
-          if(kind === "vector input" || kind === "scalar input") {
-            diffs = diffs.concat(diff.addViewConstraint(info.viewId, {operation: "=", leftSource: sourceId, leftField: id}));
-          }
-        });
+        diffs = diff.addPrimitiveSource(info.viewId, info.primitiveId);
 
         sendToServer = false;
         break;
@@ -2766,9 +2762,9 @@ var queryEditor = (function(window, microReact, api) {
     var limitTo = ixer.index("view to aggregate limit to")[viewId] || [];
     var limitToValue = ixer.index("constant to value")[limitTo[code.ix("aggregate limit to", "to field")]];
 
-    var fromLimitInput = input(limitFromValue, "from", updateAggregateLimit);
+    var fromLimitInput = input(limitFromValue, "from", updateAggregateLimit, updateAggregateLimit);
     fromLimitInput.parentId = viewId;
-    var toLimitInput = input(limitToValue, "to", updateAggregateLimit);
+    var toLimitInput = input(limitToValue, "to", updateAggregateLimit, updateAggregateLimit);
     toLimitInput.parentId = viewId;
     return {c: "sort-limit-aggregate", viewId: viewId, children: [
       {c: "block-section aggregate-sort", children: [
@@ -2785,8 +2781,9 @@ var queryEditor = (function(window, microReact, api) {
     ]};
   }
 
-  function updateAggregateLimit(evt, elem, value) {
-    dispatch("updateAggregateLimit", {viewId: elem.parentId, key: elem.key, value:  +evt.target.value || +evt.currentTarget.textContent});
+  function updateAggregateLimit(evt, elem, type) {
+    console.log(type);
+    dispatch("updateAggregateLimit", {viewId: elem.parentId, key: elem.key, value:  +evt.target.value || +evt.currentTarget.textContent, sendToServer: !!type});
   }
 
   function updateAggregateSort(evt, elem) {
