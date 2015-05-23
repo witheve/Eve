@@ -83,8 +83,8 @@ impl Flow {
                         let change = new_output.change_from(&*old_output);
                         changes.push((node.id.clone(), change));
                     } else {
-                        changes.push((node.id.clone(), new_output.as_insert()));
                         changes.push((node.id.clone(), old_output.as_remove()));
+                        changes.push((node.id.clone(), new_output.as_insert()));
                     }
                 }
                 None => {
