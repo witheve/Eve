@@ -388,6 +388,7 @@ var queryEditor = (function(window, microReact, api) {
       case "updateAggregateLimit":
         var table = (info.key === "from") ? "aggregate limit from" : "aggregate limit to";
         var old = ixer.index("view to " + table)[info.viewId];
+        console.log("OLD", old, ixer);
         // @FIXME: Hard-coded to work with constants only.
         if(info.value) {
           var constantId = uuid();

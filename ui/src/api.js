@@ -1,3 +1,10 @@
+if(!window.DEBUG) {
+  window.DEBUG = {RECEIVE: 3,
+                  SEND: 3,
+                  INDEXER: 1};
+}
+
+
 var api = (function(Indexing) {
   function clone(item) {
     if (!item) { return item; }
@@ -121,7 +128,7 @@ var api = (function(Indexing) {
   ixer.addIndex("view and source and field to select", "select", Indexing.create.lookup([0, 2, 1, false]));
   ixer.addIndex("view to aggregate sorting", "aggregate sorting", Indexing.create.lookup([0, false]));
   ixer.addIndex("view to aggregate limit from", "aggregate limit from", Indexing.create.lookup([0, false]));
-  ixer.addIndex("view to aggregate limit to", "aggregate to", Indexing.create.lookup([0, false]));
+  ixer.addIndex("view to aggregate limit to", "aggregate limit to", Indexing.create.lookup([0, false]));
 
   // editor
   ixer.addIndex("block", "block", Indexing.create.lookup([1, false]));
@@ -617,7 +624,3 @@ var api = (function(Indexing) {
           builtins: tables};
 })(Indexing);
 
-if(!window.DEBUG) {
-  window.DEBUG = {RECEIVE: 3,
-                  SEND: 3};
-}
