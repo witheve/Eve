@@ -55,7 +55,7 @@ var api = (function(Indexing) {
       "block aggregate": {name: "block aggregate", fields: ["view", "kind"]},
       "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
       "grouped by": {name: "grouped by", fields: ["inner", "inner field", "outer", "outer field"]},
-      empty: {name: "empty", fields: ["empty"]},
+      empty: {name: "empty", fields: [], facts: [[]]},
       "eveuser": {name: "eveuser", fields: ["id", "username"]},
 
       //ui
