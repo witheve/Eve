@@ -415,7 +415,7 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
             None => (Value::Float(0.0), &field["field"]),
             Some(sorting) => (sorting["priority"].clone(), &field["field"]),
         }).collect::<Vec<_>>();
-    sortable.sort();
+    sortable.sort_by(|a,b| b.cmp(a));
     let outer_fields =
         groupings.iter().map(|grouping| grouping["outer field"].as_str().to_owned())
         .collect();
