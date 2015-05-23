@@ -68,11 +68,20 @@ pub struct Join {
 }
 
 #[derive(Clone, Debug)]
+pub struct Reducer {
+    primitive: Primitive,
+    arguments: Vec<Reference>,
+    fields: Vec<Field>,
+    // TODO `fields` is here just to hack a Tuple in - will go away when we stop using Tuple
+}
+
+#[derive(Clone, Debug)]
 pub struct Aggregate {
     pub outer: SingleSelect,
     pub inner: SingleSelect,
     pub limit_from: Option<Reference>,
     pub limit_to: Option<Reference>,
+    pub reducers: Vec<Reducer>,
     pub select: MultiSelect,
 }
 
