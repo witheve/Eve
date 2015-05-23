@@ -152,6 +152,8 @@ var client = (function eveClient(window, api, dispatcher) {
                 }
               }
             });
+          } else if(diff[0] === "view") {
+            ixer.handleDiffs(api.diff.computePrimitives());
           }
         }
 
