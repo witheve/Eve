@@ -49,6 +49,7 @@ var api = (function(Indexing) {
       "display name": {name: "display name", fields: ["id", "name"]}
     },
     editor: {
+      initialized: {name: "initialized", fields: ["initialized"], facts: [[true]]},
       primitive: {name: "primitive", fields: ["view", "kind"]},
       "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"]]},
       block: {name: "block", fields: ["query", "block", "view"]},
@@ -123,7 +124,6 @@ var api = (function(Indexing) {
   ixer.addIndex("view to aggregate limit to", "aggregate to", Indexing.create.lookup([0, false]));
 
   // editor
-
   ixer.addIndex("block", "block", Indexing.create.lookup([1, false]));
   ixer.addIndex("block to query", "block", Indexing.create.lookup([1, 0]));
   ixer.addIndex("view to query", "block", Indexing.create.lookup([2, 0]));
@@ -271,7 +271,6 @@ var api = (function(Indexing) {
       return neue;
     },
     isConstraintComplete: function(opts) {
-      console.log('LF', opts.leftField, "LS", opts.leftSource, "RF", opts.rightField, "RS", opts.rightSource, "O", opts.operation);
       return (opts.leftField && opts.leftSource && opts.rightField && opts.rightSource && opts.operation) && true;
     }
   };
@@ -378,7 +377,6 @@ var api = (function(Indexing) {
       return diffs;
     },
     cacheViewSourceFields: function(viewId, sourceId, sourceViewId) {
-      console.log("caching view source fields");
       var diffs = [];
       var oldFacts = ixer.index("view and source to block fields")[viewId] || {};
       oldFacts = oldFacts[sourceId] || [];
@@ -615,6 +613,6 @@ var api = (function(Indexing) {
 })(Indexing);
 
 if(!window.DEBUG) {
-  window.DEBUG = {RECEIVE: 0,
-                  SEND: 0};
+  window.DEBUG = {RECEIVE: 3,
+                  SEND: 3};
 }

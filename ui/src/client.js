@@ -101,11 +101,17 @@ var client = (function eveClient(window, api, dispatcher) {
         console.log("slow parse (> 5ms):", time);
       }
 
-      if(!server.initialized && data.changes.length === 54) { // @FIXME: Why is this the check?
-        initialize();
-      } else if(!server.initialized) {
+      if(!server.initialized) {
+        var initialized = data.changes.some(function(diff) {
+          return diff[0] === "initialized";
+        });
+        if(initialized) {
+
+          initialize(true);
+        } else {
+          initialize();
+        }
         server.initialized = true;
-        initialize(true);
       }
       if(window.DEBUG.RECEIVE) {
         var stats = getDataStats(data);
