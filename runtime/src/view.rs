@@ -152,7 +152,8 @@ impl View {
                 let mut group_start = 0;
                 for outer_values in outer.iter() {
                     let mut group_end = group_start;
-                    while inner[group_end][0..outer_values.len()] == outer_values[..] {
+                    while (group_end < inner.len())
+                    && (inner[group_end][0..outer_values.len()] == outer_values[..]) {
                         group_end += 1;
                     }
                     let outer_tuple = Tuple{
