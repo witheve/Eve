@@ -320,8 +320,7 @@ var api = (function(Indexing) {
 
       var primitive = ixer.index("primitive")[kind];
       if(primitive) {
-        var sourceId = "@TODO: FIXME";
-        diffs = diffs.concat(diff.addViewSource(viewId, sourceId)); // @TODO: FIXME
+        diffs = diffs.concat(diff.addViewSource(viewId, kind));
       }
       return diffs;
     },

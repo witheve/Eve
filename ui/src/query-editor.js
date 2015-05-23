@@ -357,8 +357,6 @@ var queryEditor = (function(window, microReact, api) {
           if(!code.isConstraintComplete(opts)) {
             complete = false;
           }
-          console.log("Constraint", constraintId, opts);
-          console.log(" - complete:", code.isConstraintComplete(opts));
           return [constraintId, opts];
         });
 
