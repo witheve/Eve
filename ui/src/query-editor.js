@@ -335,6 +335,50 @@ var queryEditor = (function(window, microReact, api) {
         diffs = diff.addViewConstraint(info.viewId, {operation: "=", leftSource: info.leftSource, leftField: info.leftField});
         sendToServer = false;
         break;
+      case "updateViewConstraint":
+        var viewId = ixer.index("constraint to view")[info.constraintId];
+
+        // @TODO: redesign this to pass in opts directly.
+        var opts = {};
+        if(info.type === "left") {
+          opts.leftField = info.value;
+          opts.leftSource = info.source;
+        } else if(info.type === "right") {
+          opts.rightField = info.value;
+          opts.rightSource = info.source;
+        } else if(info.type === "operation") {
+          opts.operation = info.value;
+        }
+        diffs = diff.updateViewConstraint(info.constraintId, opts);
+
+        var constraint = ixer.index("constraint")[info.constraintId];
+        var constraintLeft = ixer.index("constraint left")[info.constraintId] || [];
+        var constraintRight = ixer.index("constraint right")[info.constraintId] || [];
+        var constraintOperation = ixer.index("constraint operation")[info.constraintId] || [];
+
+        var constraintFieldIx = code.ix("constraint left", "left field");
+        var constraintSourceIx = code.ix("constraint left", "left source");
+        var constraintOperationIx = code.ix("constraint operation", "operation");
+        opts.leftField = opts.leftField || constraintLeft[constraintFieldIx];
+        opts.leftSource = opts.leftSource || constraintLeft[constraintSourceIx];
+        opts.RightField = opts.RightField || constraintRight[constraintFieldIx];
+        opts.RightSource = opts.RightSource || constraintRight[constraintSourceIx];
+        opts.operation = opts.operation || constraintOperation[constraintOperationIx];
+
+        if(opts.leftField && opts.leftSource && opts.rightField && opts.rightSource && opts.operation) {
+          diffs.push(["constraint", "inserted", constraint]);
+          if(info.type !== "left") { diffs.push(["constraint left", "inserted", constraintLeft]); }
+          if(info.type !== "right") { diffs.push(["constraint right", "inserted", constraintRight]); }
+          if(info.type !== "operation") { diffs.push(["constraint operation", "inserted", constraintOperation]); }
+        } else {
+          sendToServer = false;
+          console.log("incomplete");
+        }
+
+        break;
+      case "removeViewConstraint":
+        diffs = diff.removeViewConstraint(info.constraintId);
+        break;
       case "updateAggregateSort":
         var params = {};
         params[info.key] = info.value;
@@ -363,6 +407,21 @@ var queryEditor = (function(window, microReact, api) {
         var innerField = left[code.ix("constraint left", "left field")];
         diffs = [["grouped by", "inserted", [info.inner, innerField, info.outer, info.outerField]]];
         diffs = diffs.concat(diff.removeViewConstraint(info.constraintId));
+        break;
+      case "addPrimitive":
+        diffs = diff.addViewSource(info.viewId, info.primitiveId);
+        var sourceId = diffs[0][2][code.ix("source", "source")];
+
+        var fields = ixer.index("view to fields")[info.primitiveId] || [];
+        fields.forEach(function(field) {
+          var id = field[code.ix("field", "field")];
+          var kind = field[code.ix("field", "kind")];
+          if(kind === "vector input" || kind === "scalar input") {
+            diffs = diffs.concat(diff.addViewConstraint(info.viewId, {operation: "=", leftSource: sourceId, leftField: id}));
+          }
+        });
+
+        sendToServer = false;
         break;
       case "addUiComponentElement":
         var elemId = uuid();
@@ -544,50 +603,7 @@ var queryEditor = (function(window, microReact, api) {
           diffs.push.apply(diffs, diff.duplicateElement(elem, neueId, localState.txId++));
         });
         break;
-      case "updateViewConstraint":
-        var viewId = ixer.index("constraint to view")[info.constraintId];
 
-        // @TODO: redesign this to pass in opts directly.
-        var opts = {};
-        if(info.type === "left") {
-          opts.leftField = info.value;
-          opts.leftSource = info.source;
-        } else if(info.type === "right") {
-          opts.rightField = info.value;
-          opts.rightSource = info.source;
-        } else if(info.type === "operation") {
-          opts.operation = info.value;
-        }
-        diffs = diff.updateViewConstraint(info.constraintId, opts);
-
-        var constraint = ixer.index("constraint")[info.constraintId];
-        var constraintLeft = ixer.index("constraint left")[info.constraintId] || [];
-        var constraintRight = ixer.index("constraint right")[info.constraintId] || [];
-        var constraintOperation = ixer.index("constraint operation")[info.constraintId] || [];
-
-        var constraintFieldIx = code.ix("constraint left", "left field");
-        var constraintSourceIx = code.ix("constraint left", "left source");
-        var constraintOperationIx = code.ix("constraint operation", "operation");
-        opts.leftField = opts.leftField || constraintLeft[constraintFieldIx];
-        opts.leftSource = opts.leftSource || constraintLeft[constraintSourceIx];
-        opts.RightField = opts.RightField || constraintRight[constraintFieldIx];
-        opts.RightSource = opts.RightSource || constraintRight[constraintSourceIx];
-        opts.operation = opts.operation || constraintOperation[constraintOperationIx];
-
-        if(opts.leftField && opts.leftSource && opts.rightField && opts.rightSource && opts.operation) {
-          diffs.push(["constraint", "inserted", constraint]);
-          if(info.type !== "left") { diffs.push(["constraint left", "inserted", constraintLeft]); }
-          if(info.type !== "right") { diffs.push(["constraint right", "inserted", constraintRight]); }
-          if(info.type !== "operation") { diffs.push(["constraint operation", "inserted", constraintOperation]); }
-        } else {
-          sendToServer = false;
-          console.log("incomplete");
-        }
-
-        break;
-      case "removeViewConstraint":
-        diffs = diff.removeViewConstraint(info.constraintId);
-        break;
       case "undo":
         storeEvent = false;
         diffs = scaryUndoEvent();
