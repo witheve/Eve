@@ -54,7 +54,7 @@ impl<T: FromJson> FromJson for Vec<T> {
 }
 
 pub struct Event {
-    changes: Changes,
+    pub changes: Changes,
 }
 
 impl ToJson for Event {
