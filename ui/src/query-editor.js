@@ -2321,38 +2321,41 @@ var queryEditor = (function(window, microReact, api) {
       if(localState.queryEditorActive === ix) {
         controls = {c: "query-editor-controls", children: [
 //           {c: "control", text: alphabet[ix]},
-          {c: "control", text: "add constraint"},
+          {c: "control", text: "add filter"},
           {c: "control", text: "add calculation"},
         ]};
       }
 
-      items.push({c: "block " + viewKind, editorIx: ix, click: setQueryEditorActive, children: [
+      items.push({c: "block " + viewKind, editorIx: ix, viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, click: setQueryEditorActive, children: [
+        {c: "block-title", children: [
+          {t: "h3", text: alphabet[ix]},
+          //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
+        ]},
         {c: "full-flex", children: [
           editorPane,
           controls,
           inspectorPane,
         ]},
-//         {c: "block-title", children: [
-//           {t: "h3", text: alphabet[ix]},
-//           //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
-//         ]},
       ]});
     }
     items.push({c: "block new-block", children: [
       {c: "block unused", children: [
-        {c: "block-lines", children: [
-          {c: "block-title", children: [
-            {t: "h3", text: alphabet[ix]},
-            //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
-          ]},
-        ]},
+//         {c: "block-title", children: [
+//           {t: "h3", text: "new"},
+//           //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
+//         ]},
+        {c: "controls", children: [
+          {c: "control join", text: "join"},
+          {c: "control union", click: newUnionBlock, text: "merge"},
+          {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "sort+limit", text: "sort and limit"},
+          {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "count", text: "count"},
+          {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "sum", text: "sum"},
+          {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "min", text: "min"},
+          {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "max", text: "max"},
+          {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "empty", text: "is empty?"},
+        ]}
       ]},
-      {c: "inspector-pane"}
     ]});
-
-    if(items.length) {
-      items.push({c: "add-aggregate-btn", text: "Add an aggregate by dragging it here...", queryId: queryId});
-    }
 
     return {c: "query-workspace", queryId: queryId, drop: editorDrop, dragover: preventDefault, children: items.length ? items : [
       {c: "feed", text: "Feed me sources"}
@@ -2364,17 +2367,19 @@ var queryEditor = (function(window, microReact, api) {
     render();
   }
 
+  function newAggregateBlock(e, elem) {
+    dispatch("addAggregateBlock", {queryId: elem.queryId, kind: elem.kind});
+  }
+
+  function newUnionBlock(e, elem) {
+      dispatch("addUnionBlock", {queryId: elem.queryId});
+  }
+
   function editorDrop(evt, elem) {
     var type = evt.dataTransfer.getData("type");
     var value = evt.dataTransfer.getData("value");
     if(type === "view") {
       return dispatch("addViewBlock", {queryId: elem.queryId, sourceId: value, kind: "join"});
-    }
-    if(type === "aggregate") {
-      return dispatch("addAggregateBlock", {queryId: elem.queryId, kind: value});
-    }
-    if(type === "union") {
-      return dispatch("addUnionBlock", {queryId: elem.queryId});
     }
   }
 
@@ -2397,10 +2402,10 @@ var queryEditor = (function(window, microReact, api) {
     return {c: "block view-block", viewId: viewId, drop: viewBlockDrop, dragover: preventDefault,
             dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem,
             children: [
-              {c: "block-title", children: [
-                {t: "h3", text: alphabet[ix]},
-//                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
-              ]},
+//               {c: "block-title", children: [
+//                 {t: "h3", text: alphabet[ix]},
+// //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
+//               ]},
               {c: "block-lines", children: lines},
             ]};
   }
@@ -2734,10 +2739,6 @@ var queryEditor = (function(window, microReact, api) {
 
     return {c: "block union-block", viewId: viewId, dragover: preventDefault, drop: viewBlockDrop,
             dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem, children: [
-      {c: "block-title", children: [
-        {t: "h3", text: alphabet[ix]},
-        {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock}
-      ]},
       {c: "content", children: [
         {c: "block-pane", children: sourceItems},
         {c: "block-pane mapping", viewId: viewId, dragover: preventDefault, drop: unionSourceMappingDrop, children: fieldMappingItems},
