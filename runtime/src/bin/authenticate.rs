@@ -1,7 +1,7 @@
 extern crate eve;
 
 use std::env;
-use eve::server::*;
+use eve::authenticate::*;
 use std::fs::OpenOptions;
 
 #[allow(dead_code)]
