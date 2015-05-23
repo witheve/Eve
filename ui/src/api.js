@@ -112,6 +112,7 @@ var api = (function(Indexing) {
   ixer.addIndex("constraint", "constraint", Indexing.create.lookup([0, false]));
   ixer.addIndex("constraint to view", "constraint", Indexing.create.lookup([0, 1]));
   ixer.addIndex("constraint left", "constraint left", Indexing.create.lookup([0, false]));
+  ixer.addIndex("source to constraints", "constraint left", Indexing.create.collector([1]));
   ixer.addIndex("constraint right", "constraint right", Indexing.create.lookup([0, false]));
   ixer.addIndex("constraint operation", "constraint operation", Indexing.create.lookup([0, false]));
   ixer.addIndex("view to selects", "select", Indexing.create.collector([0]));
@@ -133,7 +134,8 @@ var api = (function(Indexing) {
   ixer.addIndex("view and source to block fields", "block field", Indexing.create.collector([1, 2]));
   ixer.addIndex("grouped by", "grouped by", Indexing.create.lookup([0, false]));
   ixer.addIndex("block aggregate", "block aggregate", Indexing.create.lookup([0, false]));
-  ixer.addIndex("primitive kind to view", "primitive", Indexing.create.lookup([1, 0]));
+  ixer.addIndex("primitive", "primitive", Indexing.create.lookup([0, false]));
+  ixer.addIndex("primitive kind to views", "primitive", Indexing.create.collector([1]));
 
   ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
 
@@ -249,6 +251,28 @@ var api = (function(Indexing) {
         }
       }
       return result;
+    },
+    getConstraint: function(constraintId) {
+      var constraint = ixer.index("constraint")[constraintId];
+      var constraintLeft = ixer.index("constraint left")[constraintId] || [];
+      var constraintRight = ixer.index("constraint right")[constraintId] || [];
+      var constraintOperation = ixer.index("constraint operation")[constraintId] || [];
+
+      var constraintFieldIx = code.ix("constraint left", "left field");
+      var constraintSourceIx = code.ix("constraint left", "left source");
+      var constraintOperationIx = code.ix("constraint operation", "operation");
+      var neue = {};
+      neue.leftField = constraintLeft[constraintFieldIx];
+      neue.leftSource = constraintLeft[constraintSourceIx];
+      neue.rightField = constraintRight[constraintFieldIx];
+      neue.rightSource = constraintRight[constraintSourceIx];
+      neue.operation = constraintOperation[constraintOperationIx];
+
+      return neue;
+    },
+    isConstraintComplete: function(opts) {
+      console.log('LF', opts.leftField, "LS", opts.leftSource, "RF", opts.rightField, "RS", opts.rightSource, "O", opts.operation);
+      return (opts.leftField && opts.leftSource && opts.rightField && opts.rightSource && opts.operation) && true;
     }
   };
 
