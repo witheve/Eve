@@ -43,9 +43,9 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // `value` may be any valid eve value
     ("constant", vec!["constant"], vec!["value"]),
 
-    // constraints belong to a join view
+    // constraints filter the results of joins and aggregates
     // the left and right fields are compared using the operation
-    // `operation` is one of "==", "/=", "<", "<=", ">", ">="
+    // `operation` is one of "=", "/=", "<", "<=", ">", ">="
     ("constraint", vec!["constraint"], vec!["view"]),
     ("constraint left", vec!["constraint"], vec!["left source", "left field"]),
     ("constraint right", vec!["constraint"], vec!["right source", "right field"]),
@@ -62,10 +62,9 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // groups may optionally be limited by an inner field or constant
     ("aggregate limit from", vec!["aggregate"], vec!["from source", "from field"]),
     ("aggregate limit to", vec!["aggregate"], vec!["to source", "to field"]),
-    // the groups may be reduced by binding against reducer sources
+    // the groups may be reduced by constraining against reducer sources
     // constants and grouped inner fields may both be used as ScalarInput arguments
     // ungrouped inner fields which are not bound to outer fields may be used as VectorInput arguments
-    ("aggregate argument", vec!["aggregate", "reducer source", "reducer field"], vec!["argument source", "argument field"]),
 
     // views produce output by binding fields from sources
     // each table or join field must be bound exactly once
@@ -86,14 +85,163 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
 
     // the compiler reflects its decisions into some builtin views:
 
-    // a dependency exists whenever the contents on one view depend directly on another
+    // a view dependency exists whenever the contents of one view depend directly on another
     // `ix` is an integer identifying the edge
-    ("dependency", vec!["upstream view", "ix"], vec!["source", "downstream view"]),
+    ("view dependency", vec!["upstream view", "ix"], vec!["source", "downstream view"]),
 
     // the view schedule determines what order views will be executed in
     // `ix` is an integer. views with lower ixes are executed first.
     ("view schedule", vec!["view"], vec!["ix"]),
+
+    // a source dependency exists whenever one source must be calculated before another
+    // eg arguments to a primitive view
+    ("source dependency", vec!["upstream source", "upstream field", "downstream source", "downstream field"], vec![]),
+
+    // the source schedule determines in what order sources will be explored inside joins/aggregates
+    // `ix` is an integer. views with lower ixes are explored first.
+    ("source schedule", vec!["source"], vec!["ix"]),
+
+    // the constraint schedule determines when constraints will be checked
+    // `ix` is an integer. the constraint will be checked after the corresponding source is explored
+    ("constraint schedule", vec!["constraint"], vec!["ix"]),
     ]
+}
+
+// TODO really need to define physical ordering of fields in each view
+//      and stop relying on implicit ordering
+//      and stop using fields at runtime
+
+fn overwrite_compiler_view(flow: &Flow, view: &str, items: Vec<Vec<Value>>) {
+    let (_, unique_fields, other_fields) = schema().into_iter().find(|&(ref v, _, _)| *v == view).unwrap();
+    let fields = unique_fields.iter().chain(other_fields.iter())
+        .map(|field| format!("{}: {}", view, field))
+        .collect();
+    let names = unique_fields.iter().chain(other_fields.iter())
+        .map(|field| format!("{}", field))
+        .collect();
+    let index = items.into_iter().collect();
+    *flow.get_output_mut(view) = Relation{fields: fields, names: names, index: index};
+}
+
+// TODO we don't really need source in here
+fn calculate_view_dependency(flow: &Flow) {
+    let mut items = Vec::new();
+    let view_table = flow.get_output("view");
+    for view in view_table.iter() {
+        let mut ix = 0.0;
+        for source in flow.get_output("source").find_all("view", &view["view"]) {
+            let source_view = view_table.find_one("view", &source["source view"]);
+            if source_view["kind"].as_str() != "primitive" {
+                items.push(vec![
+                    source["source view"].clone(),
+                    Value::Float(ix),
+                    source["source"].clone(),
+                    view["view"].clone(),
+                    ]);
+                ix += 1.0;
+            }
+        }
+    }
+    overwrite_compiler_view(flow, "view dependency", items);
+}
+
+fn calculate_view_schedule(flow: &Flow) {
+    // TODO actually schedule sensibly
+    // TODO warn about cycles through aggregates
+    let mut items = Vec::new();
+    let mut ix = 0.0;
+    for view in flow.get_output("view").iter() {
+        if view["kind"].as_str() != "primitive" {
+            items.push(vec![view["view"].clone(), Value::Float(ix)]);
+            ix += 1.0;
+        }
+    }
+    overwrite_compiler_view(flow, "view schedule", items);
+}
+
+fn calculate_source_dependency(flow: &Flow) {
+    let mut items = Vec::new();
+    let source_table = flow.get_output("source");
+    let field_table = flow.get_output("field");
+    let constraint_left_table = flow.get_output("constraint left");
+    let constraint_right_table = flow.get_output("constraint right");
+    let constraint_operation_table = flow.get_output("constraint operation");
+    let view_table = flow.get_output("view");
+    for source in source_table.iter() {
+        let source_view = view_table.find_one("view", &source["source view"]);
+        if source_view["kind"].as_str() == "primitive" {
+            for left in constraint_left_table.find_all("left source", &source["source"]) {
+                let operation = constraint_operation_table.find_one("constraint", &left["constraint"]);
+                let right = constraint_right_table.find_one("constraint", &left["constraint"]);
+                let field = field_table.find_one("field", &left["left field"]);
+                if operation["operation"].as_str() == "="
+                && right["right source"] != left["left source"]
+                && field["kind"].as_str() != "output" {
+                    items.push(vec![
+                        right["right source"].clone(), right["right field"].clone(),
+                        left["left source"].clone(), left["left field"].clone()
+                        ]);
+                }
+            }
+            for right in constraint_right_table.find_all("right source", &source["source"]) {
+                let operation = constraint_operation_table.find_one("constraint", &right["constraint"]);
+                let left = constraint_left_table.find_one("constraint", &right["constraint"]);
+                let field = field_table.find_one("field", &right["right field"]);
+                if operation["operation"].as_str() == "="
+                && left["left source"] != right["right source"]
+                && field["kind"].as_str() != "output" {
+                    items.push(vec![
+                        left["left source"].clone(), left["left field"].clone(),
+                        right["right source"].clone(), right["right field"].clone()
+                        ]);
+                }
+            }
+        }
+    }
+    overwrite_compiler_view(flow, "source dependency", items);
+}
+
+fn calculate_source_schedule(flow: &Flow) {
+    let mut items = Vec::new();
+    let view_table = flow.get_output("view");
+    let source_table = flow.get_output("source");
+    let source_dependency_table = flow.get_output("source dependency");
+    for view in view_table.iter() {
+        // TODO this is an overly strict scheduling
+        //      we could allow schedules where each field has at least one binding upstream
+        //      instead we require that all bindings are upstream
+        // TODO need to handle "constant" source specially
+        let sources_and_upstreams = source_table.find_all("view", &view["view"]).iter().map(|source| {
+            let upstream = source_dependency_table.find_all("downstream source", &source["source"])
+                .iter().map(|dependency| dependency["upstream source"].clone())
+                .collect();
+            (source["source"].clone(), upstream)
+        }).collect();
+        let sources_and_upstreams = topological_sort(sources_and_upstreams);
+        for (ix, (source, _)) in sources_and_upstreams.into_iter().enumerate() {
+            items.push(vec![source, Value::Float(ix as f64)]);
+        }
+    }
+    overwrite_compiler_view(flow, "source schedule", items);
+}
+
+fn calculate_constraint_schedule(flow: &Flow) {
+    let mut items = Vec::new();
+    let constraint_table = flow.get_output("constraint");
+    let constraint_left_table = flow.get_output("constraint left");
+    let constraint_right_table = flow.get_output("constraint right");
+    let source_schedule_table = flow.get_output("source schedule");
+    for constraint in constraint_table.iter() {
+        let left = constraint_left_table.find_one("constraint", &constraint["constraint"]);
+        let right = constraint_right_table.find_one("constraint", &constraint["constraint"]);
+        let left_schedule = source_schedule_table.find_one("source", &left["left source"]);
+        let right_schedule = source_schedule_table.find_one("source", &right["right source"]);
+        let left_ix = left_schedule["ix"].as_usize();
+        let right_ix = right_schedule["ix"].as_usize();
+        let ix = ::std::cmp::max(left_ix, right_ix);
+        items.push(vec![constraint["constraint"].clone(), Value::Float(ix as f64)]);
+    }
+    overwrite_compiler_view(flow, "constraint schedule", items);
 }
 
 fn topological_sort<K: Eq + Debug>(mut input: Vec<(K, Vec<K>)>) -> Vec<(K, Vec<K>)> {
@@ -109,51 +257,6 @@ fn topological_sort<K: Eq + Debug>(mut input: Vec<(K, Vec<K>)>) -> Vec<(K, Vec<K
         }
     }
     output
-}
-
-fn calculate_dependency(flow: &Flow) {
-    let mut dependency = Vec::new();
-    let view_table = flow.get_output("view");
-    for view in flow.get_output("view").iter() {
-        let mut ix = 0.0;
-        for source in flow.get_output("source").find_all("view", &view["view"]) {
-            let source_view = view_table.find_one("view", &source["source view"]);
-            if source_view["kind"].as_str() != "primitive" {
-                dependency.push(vec![
-                    source["source view"].clone(),
-                    Value::Float(ix),
-                    source["source"].clone(),
-                    view["view"].clone(),
-                    ]);
-                ix += 1.0;
-            }
-        }
-    }
-    *flow.get_output_mut("dependency") =
-        Relation{
-            fields: vec!["dependency: upstream view".to_owned(), "dependency: ix".to_owned(), "dependency: source".to_owned(), "dependency: downstream view".to_owned()],
-            names: vec!["upstream view".to_owned(), "ix".to_owned(), "source".to_owned(), "downstream view".to_owned()],
-            index: dependency.into_iter().collect(),
-        };
-}
-
-fn calculate_view_schedule(flow: &Flow) {
-    // TODO actually schedule sensibly
-    // TODO warn about cycles through aggregates
-    let mut schedule = Vec::new();
-    let mut ix = 0.0;
-    for view in flow.get_output("view").iter() {
-        if view["kind"].as_str() != "primitive" {
-            schedule.push(vec![Value::Float(ix), view["view"].clone()]);
-            ix += 1.0;
-        }
-    }
-    *flow.get_output_mut("view schedule") =
-        Relation{
-            fields: vec!["view schedule: ix".to_owned(), "view schedule: view".to_owned()],
-            names: vec!["ix".to_owned(), "view".to_owned()],
-            index: schedule.into_iter().collect(),
-        };
 }
 
 fn create_single_select(flow: &Flow, view_id: &Value, source_id: &Value, source_ix: usize) -> SingleSelect {
@@ -207,7 +310,7 @@ fn create_table(flow: &Flow, view_id: &Value) -> Table {
 }
 
 fn create_union(flow: &Flow, view_id: &Value) -> Union {
-    let selects = flow.get_output("dependency").find_all("downstream view", view_id).iter().enumerate().map(|(ix, dependency)| {
+    let selects = flow.get_output("view dependency").find_all("downstream view", view_id).iter().enumerate().map(|(ix, dependency)| {
         create_single_select(flow, view_id, &dependency["source"], ix)
     }).collect();
     Union{selects: selects}
@@ -233,51 +336,31 @@ fn create_constraint(flow: &Flow, sources: &[Tuple], constraint_id: &Value) -> C
 }
 
 fn create_join(flow: &Flow, view_id: &Value) -> Join {
-    // here be dragons...
     let source_table = flow.get_output("source");
-    let sources = source_table.find_all("view", view_id);
+    let source_schedule_table = flow.get_output("source schedule");
+    let source_dependency_table = flow.get_output("source dependency");
     let view_table = flow.get_output("view");
-    let source_views = sources.iter().map(|source|
-        view_table.find_one("view", &source["source view"])
-        ).collect::<Vec<_>>();
+    let view_dependency_table = flow.get_output("view dependency");
     let constraint_table = flow.get_output("constraint");
-    let constraints = constraint_table.find_all("view", view_id);
-    let mut primitive_references = vec![vec![]; sources.len()];
-    let mut join_constraints = vec![vec![]; sources.len()];
-    for constraint in constraints.iter() {
-        let constraint = create_constraint(flow, &sources[..], &constraint["constraint"]);
-        let left_ix = match constraint.left {
-            Reference::Variable{source, ..} => source,
-            Reference::Constant{..} => 0,
-        };
-        let right_ix = match constraint.right {
-            Reference::Variable{source, ..} => source,
-            Reference::Constant{..} => 0,
-        };
-        let ix = ::std::cmp::max(left_ix, right_ix);
-        if (constraint.op == ConstraintOp::EQ)
-        && (left_ix != right_ix)
-        && (source_views[ix]["kind"].as_str() == "primitive") {
-            if left_ix < right_ix {
-                let field = match constraint.right {
-                    Reference::Variable{ref field, ..} => field,
-                    _ => unreachable!(),
-                };
-                primitive_references[ix].push((field.to_owned(), constraint.left.clone()));
-            } else {
-                let field = match constraint.left {
-                    Reference::Variable{ref field, ..} => field,
-                    _ => unreachable!(),
-                };
-                primitive_references[ix].push((field.to_owned(), constraint.right.clone()))
-            }
-        }
-        join_constraints[ix].push(constraint);
-    }
-    let dependency_table = flow.get_output("dependency");
-    let dependencies = dependency_table.find_all("downstream view", view_id);
+    let constraint_schedule_table = flow.get_output("constraint schedule");
     let field_table = flow.get_output("field");
-    let join_sources = sources.iter().enumerate().map(|(source_ix, source)| {
+
+    let dependencies = view_dependency_table.find_all("downstream view", view_id);
+
+    let mut ixes_and_sources = source_table.find_all("view", view_id).into_iter().map(|source| {
+        let schedule = source_schedule_table.find_one("source", &source["source"]);
+        (schedule["ix"].as_usize(), source)
+        }).collect::<Vec<_>>();
+    ixes_and_sources.sort();
+    let sources = ixes_and_sources.into_iter().map(|(_, source)| source).collect::<Vec<_>>();
+
+    let mut join_constraints = vec![vec![]; sources.len()];
+    for constraint in constraint_table.find_all("view", view_id).iter() {
+        let ix = constraint_schedule_table.find_one("constraint", &constraint["constraint"])["ix"].as_usize();
+        join_constraints[ix].push(create_constraint(flow, &sources[..], &constraint["constraint"]));
+    }
+
+    let join_sources = sources.iter().map(|source| {
         let source_view = view_table.find_one("view", &source["source view"]);
         match source_view["kind"].as_str() {
             "primitive" => {
@@ -285,32 +368,35 @@ fn create_join(flow: &Flow, view_id: &Value) -> Join {
                 let fields = field_table.find_all("view", &source_view["view"]);
                 let input_fields = fields.iter()
                     .filter(|field| field["kind"].as_str() != "output")
-                    .map(|field| field["field"].as_str().to_owned())
+                    .map(|field| field["field"].clone())
                     .collect::<Vec<_>>();
                 let output_fields = fields.iter()
                     .filter(|field| field["kind"].as_str() == "output")
                     .map(|field| field["field"].as_str().to_owned())
                     .collect::<Vec<_>>();
-                let references = &primitive_references[source_ix];
-                let arguments = input_fields.iter().map(|input_field|
-                    references.iter().find(|&&(ref field, _)| field == input_field).unwrap().1.clone()
-                    ).collect();
+                let dependencies = source_dependency_table.find_all("downstream source", &source["source"]);
+                let arguments = input_fields.iter().map(|input_field| {
+                    let dependency = dependencies.iter().find(|dependency| dependency["downstream field"] == *input_field).unwrap();
+                    create_reference(flow, &sources[..], &dependency["upstream source"], &dependency["upstream field"])
+                    }).collect();
                 JoinSource::Primitive{primitive: primitive, arguments: arguments, fields: output_fields}
             }
             _ => {
                 let input_ix = dependencies.iter().position(|dependency|
                     dependency["source"] == source["source"]
-                    ).unwrap();
+                    ).unwrap(); // TODO really should use ix here but it's tricky in create_node
                 JoinSource::Relation{input: input_ix}
             }
         }
     }).collect();
+
     let select = create_multi_select(flow, &sources[..], view_id);
+
     Join{sources: join_sources, constraints: join_constraints, select: select}
 }
 
 fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
-    let dependency_table = flow.get_output("dependency");
+    let dependency_table = flow.get_output("view dependency");
     let dependencies = dependency_table.find_all("downstream view", view_id);
     let outer_ix = dependencies.iter().position(|dependency| dependency["source"].as_str() == "outer").unwrap();
     let inner_ix = dependencies.iter().position(|dependency| dependency["source"].as_str() == "inner").unwrap();
@@ -356,10 +442,10 @@ fn create_node(flow: &Flow, view_id: &Value, view_kind: &Value) -> Node {
         "aggregate" => View::Aggregate(create_aggregate(flow, view_id)),
         other => panic!("Unknown view kind: {}", other),
     };
-    let upstream = flow.get_output("dependency").find_all("downstream view", view_id).iter().map(|dependency| {
+    let upstream = flow.get_output("view dependency").find_all("downstream view", view_id).iter().map(|dependency| {
         flow.get_output("view schedule").find_one("view", &dependency["upstream view"])["ix"].as_usize()
     }).collect(); // arrives in ix order so will match the arg order selected by create_join/union
-    let mut downstream = flow.get_output("dependency").find_all("upstream view", view_id).iter().map(|dependency| {
+    let mut downstream = flow.get_output("view dependency").find_all("upstream view", view_id).iter().map(|dependency| {
         flow.get_output("view schedule").find_one("view", &dependency["downstream view"])["ix"].as_usize()
     }).collect::<Vec<_>>();
     downstream.sort();
@@ -376,7 +462,10 @@ fn create_flow(flow: &Flow) -> Flow {
     let mut nodes = Vec::new();
     let mut dirty = BitSet::new();
     let mut outputs = Vec::new();
-    for schedule in flow.get_output("view schedule").iter() {
+    let view_schedule_table = flow.get_output("view schedule");
+    let num_schedules = view_schedule_table.index.len();
+    for ix in (0..num_schedules) {
+        let schedule = view_schedule_table.find_one("ix", &Value::Float(ix as f64));
         let view_table = flow.get_output("view");
         let view = view_table.find_one("view", &schedule["view"]);
         nodes.push(create_node(flow, &view["view"], &view["kind"]));
@@ -420,8 +509,11 @@ fn reuse_state(old_flow: Flow, new_flow: &mut Flow) {
 }
 
 pub fn recompile(old_flow: Flow) -> Flow {
-    calculate_dependency(&old_flow);
+    calculate_view_dependency(&old_flow);
     calculate_view_schedule(&old_flow);
+    calculate_source_dependency(&old_flow);
+    calculate_source_schedule(&old_flow);
+    calculate_constraint_schedule(&old_flow);
     let mut new_flow = create_flow(&old_flow);
     reuse_state(old_flow, &mut new_flow);
     new_flow
