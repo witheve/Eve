@@ -137,7 +137,6 @@ impl View {
                 Some(output)
             }
             View::Join(ref join) => {
-                assert_eq!(join.constraints.len(), inputs.len());
                 let mut output = Relation::with_fields(old_output.fields.clone(), old_output.names.clone());
                 let mut tuples = Vec::with_capacity(join.sources.len());
                 join_step(join, inputs, &mut tuples, &mut output.index);
