@@ -338,7 +338,7 @@ fn create_constraint(flow: &Flow, sources: &[Tuple], constraint_id: &Value) -> C
 fn create_join(flow: &Flow, view_id: &Value) -> Join {
     let source_table = flow.get_output("source");
     let source_schedule_table = flow.get_output("source schedule");
-    let source_dependency_table = flow.get_output("source dependecy");
+    let source_dependency_table = flow.get_output("source dependency");
     let view_table = flow.get_output("view");
     let view_dependency_table = flow.get_output("view dependency");
     let constraint_table = flow.get_output("constraint");
@@ -382,9 +382,9 @@ fn create_join(flow: &Flow, view_id: &Value) -> Join {
                 JoinSource::Primitive{primitive: primitive, arguments: arguments, fields: output_fields}
             }
             _ => {
-                let input_ix = dependencies.iter().find(|dependency|
+                let input_ix = dependencies.iter().position(|dependency|
                     dependency["source"] == source["source"]
-                    ).unwrap()["ix"].as_usize();
+                    ).unwrap(); // TODO really should use ix here but it's tricky in create_node
                 JoinSource::Relation{input: input_ix}
             }
         }
