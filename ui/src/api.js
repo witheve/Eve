@@ -442,19 +442,21 @@ var api = (function(Indexing) {
       var sideField = code.ix("constraint left", "left field");
 
       var oldConstraint = ixer.index("constraint")[constraintId];
-      if(oldConstraint && opts.view) {
+      if(oldConstraint && opts.view && oldConstraint[code.ix("constraint", "view")] !== opts.view) {
         diffs.push(["constraint", "removed", oldConstraint]);
       }
       var oldConstraintLeft = ixer.index("constraint left")[constraintId];
-      if(oldConstraintLeft && (opts.leftSource || opts.leftField)) {
+      if(oldConstraintLeft && (opts.leftSource || opts.leftField) &&
+        (opts.leftSource !== oldConstraintLeft[sideSource] || opts.leftField !== oldConstraintLeft[sideField])) {
         diffs.push(["constraint left", "removed", oldConstraintLeft]);
       }
       var oldConstraintRight = ixer.index("constraint right")[constraintId];
-      if(oldConstraintRight && (opts.rightSource || opts.rightField)) {
+      if(oldConstraintRight && (opts.rightSource || opts.rightField) &&
+         (opts.rightSource !== oldConstraintRight[sideSource] || opts.rightField !== oldConstraintRight[sideField])) {
         diffs.push(["constraint right", "removed", oldConstraintRight]);
       }
       var oldConstraintOperation = ixer.index("constraint operation")[constraintId];
-      if(oldConstraintOperation && opts.operation) {
+      if(oldConstraintOperation && opts.operation && opts.operation !== oldConstraintOperation[code.ix("constraint operation", "operation")]) {
         diffs.push(["constraint operation", "removed", oldConstraintOperation]);
       }
 
