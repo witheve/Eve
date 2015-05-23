@@ -462,7 +462,10 @@ fn create_flow(flow: &Flow) -> Flow {
     let mut nodes = Vec::new();
     let mut dirty = BitSet::new();
     let mut outputs = Vec::new();
-    for schedule in flow.get_output("view schedule").iter() {
+    let view_schedule_table = flow.get_output("view schedule");
+    let num_schedules = view_schedule_table.index.len();
+    for ix in (0..num_schedules) {
+        let schedule = view_schedule_table.find_one("ix", &Value::Float(ix as f64));
         let view_table = flow.get_output("view");
         let view = view_table.find_one("view", &schedule["view"]);
         nodes.push(create_node(flow, &view["view"], &view["kind"]));
