@@ -431,7 +431,7 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
     let limit_to = flow.get_output("aggregate limit to").find_maybe("aggregate", view_id)
         .map(|limit_to| create_reference(flow, inputs, &limit_to["to source"], &limit_to["to field"]));
     let select = create_multi_select(flow, &[inner_dependency], view_id);
-    Aggregate{outer: outer, inner: inner, limit_from: limit_from, limit_to: limit_to, select: select}
+    Aggregate{outer: outer, inner: inner, limit_from: limit_from, limit_to: limit_to, reducers: vec![], select: select}
 }
 
 fn create_node(flow: &Flow, view_id: &Value, view_kind: &Value) -> Node {
