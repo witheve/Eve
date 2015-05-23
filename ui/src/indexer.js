@@ -114,7 +114,7 @@ var Indexing = (function() {
         }
       }
       if(shouldRebuild) {
-        this.needsRebuild[false];
+        this.needsRebuild[table] = false;
       }
     },
     indexOnly: function(table) {

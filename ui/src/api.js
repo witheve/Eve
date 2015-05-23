@@ -49,12 +49,14 @@ var api = (function(Indexing) {
       "display name": {name: "display name", fields: ["id", "name"]}
     },
     editor: {
+      primitive: {name: "primitive", fields: ["view", "kind"]},
       "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"]]},
       block: {name: "block", fields: ["query", "block", "view"]},
       "block aggregate": {name: "block aggregate", fields: ["view", "kind"]},
       "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
       "grouped by": {name: "grouped by", fields: ["inner", "inner field", "outer", "outer field"]},
       empty: {name: "empty", fields: ["empty"]},
+      "eveuser": {name: "eveuser", fields: ["id", "username"]},
 
       //ui
       "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"], facts: []},
@@ -101,6 +103,7 @@ var api = (function(Indexing) {
   ixer.addIndex("field to view", "field", Indexing.create.lookup([1, 0]));
   ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
   ixer.addIndex("view to kind", "view", Indexing.create.lookup([0, 1]));
+  ixer.addIndex("view kind to views", "view", Indexing.create.collector([1]));
   ixer.addIndex("source", "source", Indexing.create.lookup([0, 1, false]));
   ixer.addIndex("view and source view to source", "source", Indexing.create.lookup([0, 2, false]));
   ixer.addIndex("view to sources", "source", Indexing.create.collector([0]));
@@ -109,6 +112,7 @@ var api = (function(Indexing) {
   ixer.addIndex("constraint", "constraint", Indexing.create.lookup([0, false]));
   ixer.addIndex("constraint to view", "constraint", Indexing.create.lookup([0, 1]));
   ixer.addIndex("constraint left", "constraint left", Indexing.create.lookup([0, false]));
+  ixer.addIndex("source to constraints", "constraint left", Indexing.create.collector([1]));
   ixer.addIndex("constraint right", "constraint right", Indexing.create.lookup([0, false]));
   ixer.addIndex("constraint operation", "constraint operation", Indexing.create.lookup([0, false]));
   ixer.addIndex("view to selects", "select", Indexing.create.collector([0]));
@@ -130,8 +134,12 @@ var api = (function(Indexing) {
   ixer.addIndex("view and source to block fields", "block field", Indexing.create.collector([1, 2]));
   ixer.addIndex("grouped by", "grouped by", Indexing.create.lookup([0, false]));
   ixer.addIndex("block aggregate", "block aggregate", Indexing.create.lookup([0, false]));
+  ixer.addIndex("primitive", "primitive", Indexing.create.lookup([0, false]));
+  ixer.addIndex("primitive kind to views", "primitive", Indexing.create.collector([1]));
 
   ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
+
+  ixer.addIndex("eveuser id to username", "eveuser", Indexing.create.lookup([0, 1]));
 
   // ui
 
@@ -243,6 +251,28 @@ var api = (function(Indexing) {
         }
       }
       return result;
+    },
+    getConstraint: function(constraintId) {
+      var constraint = ixer.index("constraint")[constraintId];
+      var constraintLeft = ixer.index("constraint left")[constraintId] || [];
+      var constraintRight = ixer.index("constraint right")[constraintId] || [];
+      var constraintOperation = ixer.index("constraint operation")[constraintId] || [];
+
+      var constraintFieldIx = code.ix("constraint left", "left field");
+      var constraintSourceIx = code.ix("constraint left", "left source");
+      var constraintOperationIx = code.ix("constraint operation", "operation");
+      var neue = {};
+      neue.leftField = constraintLeft[constraintFieldIx];
+      neue.leftSource = constraintLeft[constraintSourceIx];
+      neue.rightField = constraintRight[constraintFieldIx];
+      neue.rightSource = constraintRight[constraintSourceIx];
+      neue.operation = constraintOperation[constraintOperationIx];
+
+      return neue;
+    },
+    isConstraintComplete: function(opts) {
+      console.log('LF', opts.leftField, "LS", opts.leftSource, "RF", opts.rightField, "RS", opts.rightSource, "O", opts.operation);
+      return (opts.leftField && opts.leftSource && opts.rightField && opts.rightSource && opts.operation) && true;
     }
   };
 
@@ -345,6 +375,25 @@ var api = (function(Indexing) {
       }
 
       return diffs;
+    },
+    computePrimitives: function cachePrimitives() {
+      var primitives = ixer.index("view kind to views").primitive || [];
+      return primitives.map(function(primitive) {
+        var viewId = primitive[code.ix("view", "view")];
+        var fields = ixer.index("view to fields")[viewId] || [];
+        var type = "scalar";
+        var isVector = fields.some(function(field) {
+          var kind = field[code.ix("field", "kind")];
+          if(kind === "vector input") {
+            return true;
+          }
+        });
+        if(isVector) {
+          type = "vector";
+        }
+
+        return ["primitive", "inserted", [viewId, type]];
+      });
     },
     addViewSource: function addViewSource(viewId, sourceViewId, kind) {
       var sourceId = kind || uuid();

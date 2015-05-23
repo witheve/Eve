@@ -45,11 +45,6 @@ impl Flow {
         self.outputs[self.get_ix(id).unwrap()].borrow_mut()
     }
 
-    pub fn set_output(&mut self, id: &str, output: RefCell<Relation>) {
-        let ix = self.get_ix(id).unwrap();
-        self.outputs[ix] = output;
-    }
-
     pub fn change(&mut self, changes: Changes) {
         for (id, changes) in changes.into_iter() {
             match self.get_ix(&*id) {

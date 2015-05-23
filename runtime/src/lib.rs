@@ -1,11 +1,13 @@
 #![feature(collections)]
-#![feature(collections_drain)]
 #![feature(slice_patterns)]
-#![feature(alloc)]
-
+#![feature(scoped)]
 extern crate rustc_serialize;
 extern crate websocket;
 extern crate time;
+extern crate hyper;
+extern crate cookie;
+extern crate url;
+extern crate mime;
 
 macro_rules! time {
     ($name:expr, $expr:expr) => {{
@@ -29,4 +31,5 @@ pub mod flow;
 pub mod primitive;
 pub mod compiler;
 pub mod server;
+pub mod authenticate;
 // pub mod test;

@@ -152,6 +152,8 @@ var client = (function eveClient(window, api, dispatcher) {
                 }
               }
             });
+          } else if(diff[0] === "view") {
+            ixer.handleDiffs(api.diff.computePrimitives());
           }
         }
 
@@ -163,6 +165,29 @@ var client = (function eveClient(window, api, dispatcher) {
         }
 
         dispatcher.render();
+      }
+
+      // Get the user ID from a cookie
+      var name = "userid" + "=";
+      var cookie = document.cookie.split(';');
+      var userid = "";
+      if (cookie[0].indexOf(name) == 0)
+        userid=cookie[0].substring(name.length,cookie[0].length);
+
+      // Check if the user ID is found. If not, redirect the user to log in.
+      if(userid == "") {
+        // TODO Handle a user who isn't logged in.
+        console.log("Session has not been authenticated.");
+      } else {
+        var eveusers = api.ixer.index("eveuser id to username");
+        var username = eveusers[userid];
+        if (typeof username == 'undefined') {
+          // TODO Handle a user who is not in the eveuser table
+          console.log("Session cookie does not identify an eveuser.");
+        } else {
+          // TODO Handle a user who is logged in
+          console.log("You are logged in as " + username);
+        }
       }
     };
 
