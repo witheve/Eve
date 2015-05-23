@@ -82,7 +82,7 @@ div:hover > .hover-reveal { opacity: 1; }
 ---------------------------------------------------------*/
 
 .table { overflow-x: auto; flex-shrink: 0 1; }
-.table .headers { flex-direction:row; background: rgba(0,0,0,0.1); flex:none; }
+.table .headers { flex-direction:row; background: rgba(0,0,0,0.05); border-bottom:1px solid rgba(0,0,0,0.1); flex:none; }
 .table .rows { overflow-y: auto; }
 .table .rows > div { flex-direction:row; }
 .table .row { flex: none; }
@@ -220,12 +220,11 @@ div:hover > .hover-reveal { opacity: 1; }
 
 .query-workspace > .block {flex: none; border-radius:3px; overflow:hidden; background:#fff; flex-direction:row; margin-bottom:15px; box-shadow: 0 0 20px #111; }
 
-.query-workspace .inspector-pane { min-height:100px; max-height:100px; flex:1; }
+.query-workspace .inspector-pane { min-height:50px; max-height:100px; flex:1; }
 
-.query-workspace .block-title { padding-top:10px; align-items:center; width:22px; color: #aaa; }
-.query-workspace .join .block-title { background:rgba(174, 127, 255, 0.5); border-left:1px solid rgba(0,0,0,0.2); color: rgba(0,0,0,0.4); }
+.query-workspace .block-title { padding:10px; justify-content:center; align-items:center; color: rgba(0,0,0,0.65); font-size:9pt; border-right:1px solid rgba(0,0,0,0.1); }
 .query-workspace .block-lines { padding: 10px 0; color: rgba(0,0,0,0.4); padding-left: 10px; }
-.query-workspace .view-block { background: rgba(174, 127, 255,0.5); border-bottom:1px solid rgba(0,0,0,0.2);  }
+.query-workspace .view-block { background: aliceblue; border-bottom:1px solid rgba(0,0,0,0.1);  }
 .query-workspace .view-source { flex-direction:row; flex:none; }
 .query-workspace .view-source + .view-source { margin-top:5px; }
 .query-workspace .view-source-title { color: rgba(0,0,0,0.65); margin-right:3px; }
@@ -235,7 +234,7 @@ div:hover > .hover-reveal { opacity: 1; }
 .query-workspace .new-block .block-title { color: #eee; background: rgba(0,0,0,0.3); }
 .query-workspace .new-block .block-lines { }
 
-.query-editor-controls { border-bottom:1px solid rgba(0,0,0,0.2); background: rgba(0,0,0,0.1); background: rgba(174, 127, 255,0.5); padding:0 5px; flex-direction:row; }
+.query-editor-controls { border-bottom:1px solid rgba(0,0,0,0.1); background: rgba(0,0,0,0.1); background: aliceblue; padding:0 5px; flex-direction:row; }
 .query-editor-controls .control { font-size:9pt; padding:5px 0;  border-right: 1px solid rgba(0,0,0,0.2);  margin-right: 5px; padding-right:5px; }
 
 .full-flex { flex: 1; }

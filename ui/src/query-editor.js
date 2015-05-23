@@ -2231,7 +2231,6 @@ var queryEditor = (function(window, microReact, api) {
 
   function queryWorkspace(queryId) {
     var controls = queryControls(queryId);
-    console.log(controls);
     return genericWorkspace("query", queryId,
                             {c: "query-editor",
                              children: [
@@ -2321,6 +2320,7 @@ var queryEditor = (function(window, microReact, api) {
       var controls;
       if(localState.queryEditorActive === ix) {
         controls = {c: "query-editor-controls", children: [
+//           {c: "control", text: alphabet[ix]},
           {c: "control", text: "add constraint"},
           {c: "control", text: "add calculation"},
         ]};
@@ -2332,19 +2332,20 @@ var queryEditor = (function(window, microReact, api) {
           controls,
           inspectorPane,
         ]},
-        {c: "block-title", children: [
-          {t: "h3", text: alphabet[ix]},
-          //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
-        ]},
+//         {c: "block-title", children: [
+//           {t: "h3", text: alphabet[ix]},
+//           //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
+//         ]},
       ]});
     }
     items.push({c: "block new-block", children: [
       {c: "block unused", children: [
-        {c: "block-title", children: [
-          {t: "h3", text: alphabet[ix]},
-          //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
+        {c: "block-lines", children: [
+          {c: "block-title", children: [
+            {t: "h3", text: alphabet[ix]},
+            //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
+          ]},
         ]},
-        {c: "block-lines", children: []},
       ]},
       {c: "inspector-pane"}
     ]});
@@ -2359,7 +2360,6 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function setQueryEditorActive(e, elem) {
-    console.log("setQueryEditorActive", elem.editorIx);
     localState.queryEditorActive = elem.editorIx;
     render();
   }
@@ -2397,10 +2397,10 @@ var queryEditor = (function(window, microReact, api) {
     return {c: "block view-block", viewId: viewId, drop: viewBlockDrop, dragover: preventDefault,
             dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem,
             children: [
-//               {c: "block-title", children: [
-//                 {t: "h3", text: alphabet[ix]},
-// //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
-//               ]},
+              {c: "block-title", children: [
+                {t: "h3", text: alphabet[ix]},
+//                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
+              ]},
               {c: "block-lines", children: lines},
             ]};
   }
