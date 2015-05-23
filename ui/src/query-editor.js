@@ -661,12 +661,10 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function editorItemList(itemId) {
-    var views = ixer.facts("view");
     // @TODO: filter me based on tags local and compiler.
-    var items = views.map(function(cur) {
+    var items = ixer.facts("editor item").map(function(cur) {
       var id = cur[0];
-      var kind = cur[1];
-      var type = ixer.index("editor item to type")[id];
+      var type = cur[1];
       var klass = "editor-item " + type;
       var icon = "ion-grid";
       if(type === "query") {
@@ -2209,12 +2207,17 @@ var queryEditor = (function(window, microReact, api) {
   //---------------------------------------------------------
 
   function queryWorkspace(queryId) {
+    var primitiveItems = (ixer.facts("primitive") || []).map(function(primitive) {
+      var id = primitive[0];
+      return {c: "primitive", dragData: {value: id, type: "view"}, itemId: id, draggable: true, dragstart: dragItem, text: code.name(id)};
+    });
     return genericWorkspace("query", [queryControls(queryId)], [],
                             {c: "query-editor",
                              children: [
                                {c: "query-workspace", children: [
                                  editor(queryId)
                                ]},
+                               {c: "primitive-cursor", children: primitiveItems},
                                queryResult(queryId)
                              ]});
   }
@@ -2328,6 +2331,7 @@ var queryEditor = (function(window, microReact, api) {
    */
   function viewBlock(viewId) {
     var fields = ixer.index("view and source to block fields")[viewId] || {};
+
     fields = fields["selection"] || [];
     var selectionItems = fields.map(function(field) {
       var id = field[code.ix("block field", "block field")];
@@ -2385,6 +2389,7 @@ var queryEditor = (function(window, microReact, api) {
     if(blockField[code.ix("block field", "view")] !== elem.viewId) { return; }
     var fieldId = blockField[code.ix("block field", "field")];
     var sourceId = blockField[code.ix("block field", "source")];
+    console.log("BF", id, sourceId);
     dispatch("addViewSelection", {viewId: elem.viewId, sourceFieldId: fieldId, sourceId: sourceId});
     evt.stopPropagation();
   }

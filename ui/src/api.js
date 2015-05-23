@@ -335,28 +335,50 @@ var api = (function(Indexing) {
       if(!fieldId) {
         fieldId = uuid();
         neue = [viewId, fieldId, sourceId, sourceFieldId];
-        var blockFieldId = uuid();
-        var name = code.name(sourceFieldId);
-        var order = ixer.index("display order")[sourceFieldId];
-        diffs.push(["field", "inserted", [viewId, fieldId, "output"]],
-                   ["display order", "inserted", [fieldId, 0]],
-                   ["display name", "inserted", [fieldId, name]],
-                   ["block field", "inserted", [blockFieldId, viewId, "selection", viewId, fieldId]],
-                   ["display order", "inserted", [blockFieldId, 0]],
-                   ["display name", "inserted", [blockFieldId, name]]);
+
+        var old = ixer.index("view and source field to select")[viewId] || {};
+        old = old[sourceFieldId];
+        var changed = true;
+        if(old) {
+          changed = !Indexing.arraysIdentical(old, neue);
+          if(changed) {
+            diffs.push(["select", "removed", old]);
+          }
+        }
+        if(changed) {
+          var blockFieldId = uuid();
+          var name = code.name(sourceFieldId);
+          var order = ixer.index("display order")[sourceFieldId];
+
+          diffs.push(["field", "inserted", [viewId, fieldId, "output"]],
+                     ["display order", "inserted", [fieldId, 0]],
+                     ["display name", "inserted", [fieldId, name]],
+                     ["block field", "inserted", [blockFieldId, viewId, "selection", viewId, fieldId]],
+                     ["display order", "inserted", [blockFieldId, 0]],
+                     ["display name", "inserted", [blockFieldId, name]],
+                     ["select", "inserted", neue]);
+        }
       } else {
         neue = [viewId, fieldId, sourceId, sourceFieldId];
         var old = ixer.index("view and source and field to select")[viewId] || {};
         old = old[sourceId] || {};
         old = old[fieldId];
-        if(old && !Indexing.arraysIdentical(old, neue)) {
-          diffs.push(["select", "removed", old]);
+        var changed = true;
+        if(old) {
+          changed = !Indexing.arraysIdentical(old, neue);
+          if(changed) {
+            diffs.push(["select", "removed", old]);
+          }
+        }
+        if(changed) {
+          diffs.push(["select", "inserted", neue]);
         }
       }
-      diffs.push(["select", "inserted", neue]);
+
       return diffs;
     },
     cacheViewSourceFields: function(viewId, sourceId, sourceViewId) {
+      console.log("caching view source fields");
       var diffs = [];
       var oldFacts = ixer.index("view and source to block fields")[viewId] || {};
       oldFacts = oldFacts[sourceId] || [];
