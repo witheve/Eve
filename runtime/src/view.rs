@@ -170,7 +170,8 @@ impl View {
                         None => group_end,
                         Some(ref reference) => group_start + reference.resolve(inputs).as_usize(),
                     };
-                    let limit_to = ::std::cmp::max(limit_to, limit_from); // the slice explodes if end < start
+                    let limit_from = ::std::cmp::min(::std::cmp::max(limit_from, group_start), group_end);
+                    let limit_to = ::std::cmp::min(::std::cmp::max(limit_to, limit_from), group_end);
                     for inner_values in &inner[limit_from..limit_to] {
                         let inner_tuple = Tuple{
                             fields: &aggregate.inner.fields[..],
