@@ -317,6 +317,12 @@ var api = (function(Indexing) {
                    ["source", "inserted", [viewId, "inner", "empty"]],
                    ["source", "inserted", [viewId, "outer", "empty"]],
                    ["block aggregate", "inserted", [viewId, kind]]];
+
+      var primitive = ixer.index("primitive")[kind];
+      if(primitive) {
+        var sourceId = "@TODO: FIXME";
+        diffs = diffs.concat(diff.addViewSource(viewId, sourceId)); // @TODO: FIXME
+      }
       return diffs;
     },
 
@@ -509,7 +515,7 @@ var api = (function(Indexing) {
       if(old) {
         neue = old.slice();
       } else {
-        neue = [viewId, field || "", 0, direction || ""];
+        neue = [viewId, field || "", 1000, direction || ""];
       }
 
       neue[1] = field || neue[1];
