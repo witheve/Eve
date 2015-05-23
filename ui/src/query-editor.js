@@ -324,9 +324,6 @@ var queryEditor = (function(window, microReact, api) {
             sendToServer = false;
           }
         }
-        if(kind === "aggregate") {
-          diffs.push(["view", "inserted", view]);
-        }
         break;
       case "removeViewSource":
         diffs = diff.removeViewSource(info.viewId, info.sourceId);

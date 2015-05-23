@@ -429,9 +429,16 @@ var api = (function(Indexing) {
       if(queryId === undefined) { queryId = code.activeItemId(); }
       var count = code.countSource(queryId, sourceViewId);
       var name = code.name(sourceViewId) + (count ? " (" + (count + 1) + ")" : "");
-      var diffs = [["source", "inserted", [viewId, sourceId, sourceViewId]],
+      var neue = [viewId, sourceId, sourceViewId];
+      var diffs = [["source", "inserted", neue],
                    ["display name", "inserted", [displayId, name]],
                    ["display order", "inserted", [displayId, 0]]];
+
+      var old = ixer.index("source")[viewId] || {};
+      old = old[sourceId];
+      if(old && !Indexing.arraysIdentical(old, neue)) {
+        diffs.push(["source", "removed", old]);
+      }
 
       diffs = diffs.concat(diff.cacheViewSourceFields(viewId, sourceId, sourceViewId));
 
