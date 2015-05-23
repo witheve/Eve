@@ -216,6 +216,10 @@ var Indexing = (function() {
     },
     index: function(name) {
       if(this.indexes[name]) {
+        var indexObj = this.indexes[name];
+        if(window.DEBUG && DEBUG.INDEXER && !this.tables[indexObj.table]) {
+           console.warn("Indexed table '" + indexObj.table + "' does not yet exist for index '" + name + "'.");
+        }
         return this.indexes[name].index;
       }
       return null;
