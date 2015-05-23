@@ -400,10 +400,10 @@ var queryEditor = (function(window, microReact, api) {
         if(!limit) { limit = [info.viewId, "constant", constantId]; }
         else {
           constantId = limit[2];
-          var oldConstant = ixer.index("constant")[constantId];
-          if(oldConstant && !oldConstant[1] === info.value) {
-            console.log("removing", oldConstant[1], info.value);
-            diffs.push(["constant", "removed", oldConstant]);
+          var oldConstantValue = ixer.index("constant to value")[constantId];
+          if(oldConstantValue !== undefined && oldConstantValue !== info.value) {
+            console.log("removing", oldConstantValue, info.value);
+            diffs.push(["constant", "removed", oldConstantValue]);
           }
           console.log(table, constantId);
         }
@@ -412,10 +412,9 @@ var queryEditor = (function(window, microReact, api) {
           diffs.push(["constant", "inserted", [constantId, info.value]],
                      [table, "inserted", limit]);
         } else {
-          console.log("no value");
           diffs.push([table, "removed", limit]);
         }
-        if(sendToServer && localState.initialValue) {
+        if(sendToServer && localState.initialValue && localState.initialValue !== info.value) {
           console.log("sending", constantId, localState.initialValue);
           diffs.push(["constant", "removed", [constantId, localState.initialValue]]);
         }
