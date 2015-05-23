@@ -2271,7 +2271,6 @@ var queryEditor = (function(window, microReact, api) {
   // Editor
   //---------------------------------------------------------
   function editor(queryId) {
-    localState.queryEditorActive = 0;
     var blocks = ixer.index("query to blocks")[queryId] || [];
     var items = [];
     for(var ix = 0; ix < blocks.length; ix++) {
@@ -2308,7 +2307,7 @@ var queryEditor = (function(window, microReact, api) {
         ]};
       }
 
-      items.push({c: "block " + viewKind, children: [
+      items.push({c: "block " + viewKind, editorIx: ix, click: setQueryEditorActive, children: [
         {c: "full-flex", children: [
           editorPane,
           controls,
@@ -2338,6 +2337,12 @@ var queryEditor = (function(window, microReact, api) {
     return {c: "query-workspace", queryId: queryId, drop: editorDrop, dragover: preventDefault, children: items.length ? items : [
       {c: "feed", text: "Feed me sources"}
     ]};
+  }
+
+  function setQueryEditorActive(e, elem) {
+    console.log("setQueryEditorActive", elem.editorIx);
+    localState.queryEditorActive = elem.editorIx;
+    render();
   }
 
   function editorDrop(evt, elem) {
