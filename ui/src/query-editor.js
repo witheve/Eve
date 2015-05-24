@@ -2748,15 +2748,17 @@ var queryEditor = (function(window, microReact, api) {
       content = primitiveAggregate(viewId, outerSource, innerSource, aggregateKind);
     }
 
-    return {c: "block aggregate-block", viewId: viewId, children: [
+    return {c: "block aggregate-block", viewId: viewId,
+            sourceId: "inner", drop: aggregateSourceDrop, dragover: preventDefault, children: [
       {c: "block-title", children: [
         {t: "h3", text: "Untitled Agg. Block"},
         {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock}
       ]},
       {text: "With"},
-      {c: "block-section view-sources", viewId: viewId, sourceId: "inner", drop: aggregateSourceDrop, dragover: preventDefault, children: [
-        innerSource ? viewSource(viewId, "inner") : undefined
-      ]},
+      viewSources(viewId),
+//       {c: "block-section view-sources", viewId: viewId, children: [
+//         innerSource ? viewSource(viewId, "inner") : undefined
+//       ]},
       content,
       {c: "block-section view-selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems},
     ]};
