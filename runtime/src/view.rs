@@ -109,13 +109,7 @@ fn join_step<'a>(join: &'a Join, inputs: &[&'a Relation], tuples: &mut Vec<Tuple
                 }
             }
             JoinSource::Primitive{ref primitive, ref arguments, ref fields} => {
-                let output = {
-                    let arguments = arguments.iter().map(|reference|
-                        reference.resolve(&tuples[..])
-                        ).collect::<Vec<_>>();
-                    primitive.eval(&arguments[..])
-                };
-                for values in output.into_iter() {
+                for values in primitive.eval_from_join(&arguments[..], &tuples[..]).into_iter() {
                     let tuple = Tuple{fields: &fields[..], names: &fields[..], values: &values[..]};
                     // promise the borrow checker that we will pop `tuple` before leaving this scope
                     let tuple = unsafe{ ::std::mem::transmute::<Tuple, Tuple<'a>>(tuple) };
@@ -125,7 +119,6 @@ fn join_step<'a>(join: &'a Join, inputs: &[&'a Relation], tuples: &mut Vec<Tuple
                     }
                     tuples.pop();
                 }
-
             }
         }
     }
