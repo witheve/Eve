@@ -104,7 +104,7 @@ var api = (function(Indexing) {
   // This index needs to be hardcoded for code.ix to work.
   ixer.addIndex("view to fields", "field", Indexing.create.collector([0]));
 
-  ixer.addIndex("constant", "constant", Indexing.create.lookup([0]));
+  ixer.addIndex("constant", "constant", Indexing.create.lookup([0, false]));
   ixer.addIndex("constant to value", "constant", Indexing.create.lookup([0, 1]));
   ixer.addIndex("display name", "display name", Indexing.create.lookup([0, 1]));
   ixer.addIndex("display order", "display order", Indexing.create.lookup([0, 1]));
@@ -319,16 +319,11 @@ var api = (function(Indexing) {
     addAggregateBlock: function addBlock(queryId, kind) {
       var viewId = uuid();
       var blockId = uuid();
-      var diffs = [["block", "inserted", [queryId, blockId, viewId]],
-                   ["view", "inserted", [viewId, "aggregate"]],
+      var diffs = [["view", "inserted", [viewId, "aggregate"]],
+                   ["block", "inserted", [queryId, blockId, viewId]],
                    ["source", "inserted", [viewId, "inner", "empty"]],
                    ["source", "inserted", [viewId, "outer", "empty"]],
                    ["block aggregate", "inserted", [viewId, kind]]];
-
-      var primitive = ixer.index("primitive")[kind];
-      if(primitive) {
-        diffs = diffs.concat(diff.addViewSource(viewId, kind));
-      }
       return diffs;
     },
 
@@ -452,6 +447,20 @@ var api = (function(Indexing) {
 
       diffs = diffs.concat(diff.cacheViewSourceFields(viewId, sourceId, sourceViewId));
 
+      return diffs;
+    },
+    addPrimitiveSource: function addPrimitiveSource(viewId, primitiveId) {
+      var diffs = diff.addViewSource(viewId, primitiveId);
+      var sourceId = diffs[0][2][code.ix("source", "source")];
+
+      var fields = ixer.index("view to fields")[primitiveId] || [];
+      fields.forEach(function(field) {
+        var id = field[code.ix("field", "field")];
+        var kind = field[code.ix("field", "kind")];
+        if(kind === "vector input" || kind === "scalar input") {
+          diffs = diffs.concat(diff.addViewConstraint(viewId, {operation: "=", leftSource: sourceId, leftField: id}));
+        }
+      });
       return diffs;
     },
     removeViewSource(viewId, sourceId) {
@@ -621,6 +630,7 @@ var api = (function(Indexing) {
           code: code,
           diff: diff,
           clone: clone,
-          builtins: tables};
+          builtins: tables,
+          arraysIdentical: Indexing.arraysIdentical};
 })(Indexing);
 
