@@ -2828,6 +2828,7 @@ var queryEditor = (function(window, microReact, api) {
       {c: "block-section view-sources", viewId: viewId, sourceId: "inner", drop: aggregateSourceDrop, dragover: preventDefault, children: [
         innerSource ? sourceWithFields("view", viewId, "inner") : undefined
       ]},
+      viewSources(viewId),
       content,
       {c: "block-section view-selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems},
     ]};
