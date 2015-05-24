@@ -163,7 +163,7 @@ impl View {
                         names: &aggregate.outer.fields[..],
                         values: &outer_values[..]
                     };
-                    let inputs = &[outer_tuple];
+                    let inputs = &[outer_tuple.clone()];
                     let limit_from = match aggregate.limit_from {
                         None => group_start,
                         Some(ref reference) => group_start + reference.resolve(inputs).as_usize(),
@@ -174,16 +174,31 @@ impl View {
                     };
                     let limit_from = ::std::cmp::min(::std::cmp::max(limit_from, group_start), group_end);
                     let limit_to = ::std::cmp::min(::std::cmp::max(limit_to, limit_from), group_end);
-                    for inner_values in &inner[limit_from..limit_to] {
+                    let group = &inner[limit_from..limit_to];
+                    let output_values = aggregate.reducers.iter().map(|reducer|
+                        reducer.primitive.eval_from_aggregate(&reducer.arguments[..], &outer_tuple, &aggregate.inner.fields[..], group)
+                        ).collect::<Vec<_>>();
+                    let mut output_tuples = aggregate.reducers.iter().zip(output_values.iter())
+                        .map(|(reducer, values)|
+                            Tuple {
+                                fields: &reducer.fields[..],
+                                names: &reducer.fields[..],
+                                values: &values[..],
+                            })
+                        .collect::<Vec<_>>();
+                    for inner_values in group {
                         let inner_tuple = Tuple{
                             fields: &aggregate.inner.fields[..],
                             names: &aggregate.inner.fields[..],
                             values: &inner_values[..]
                         };
-                        output.index.insert(aggregate.select.select(&[inner_tuple]));
+                        output_tuples.push(inner_tuple);
+                        output.index.insert(aggregate.select.select(&output_tuples[..]));
+                        output_tuples.pop();
                     }
                     group_start = group_end;
                 }
+                println!("{:?}", output);
                 Some(output)
             }
         }

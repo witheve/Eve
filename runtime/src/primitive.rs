@@ -54,13 +54,15 @@ impl Primitive {
         }
     }
 
-    pub fn eval_from_aggregate<'a>(&self, arguments: &[Reference], outer: &Tuple, inner_fields: &[Field], inner_values: &[Vec<Value>]) -> Vec<Vec<Value>> {
+    pub fn eval_from_aggregate<'a>(&self, arguments: &[Reference], outer: &Tuple, inner_fields: &[Field], inner_values: &[Vec<Value>]) -> Vec<Value> {
         use primitive::Primitive::*;
         use value::Value::*;
         match (*self, arguments) {
             (Add, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Subtract, _) => panic!("Cannot use {:?} in an aggregate", self),
-            (Count, [_]) => vec![vec![Float(inner_values.len() as f64)]],
+            (Count, [_]) => {
+                vec![Float(inner_values.len() as f64)]
+            }
             (Sum, [ref input_ref]) => {
                 let input = input_ref.resolve_as_vector(outer, inner_fields, inner_values);
                 let sum = input.iter().fold(0f64, |sum, value|
@@ -68,7 +70,7 @@ impl Primitive {
                         Float(float) => sum + float,
                         _ => panic!("Type error while calling: {:?} {:?}", self, input),
                     });
-                vec![vec![Float(sum)]]
+                vec![Float(sum)]
             },
             _ => panic!("Wrong number of arguments while calling: {:?} {:?}", self, arguments),
         }
