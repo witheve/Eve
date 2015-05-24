@@ -1,3 +1,10 @@
+if(!window.DEBUG) {
+  window.DEBUG = {RECEIVE: 3,
+                  SEND: 3,
+                  INDEXER: 1};
+}
+
+
 var api = (function(Indexing) {
   function clone(item) {
     if (!item) { return item; }
@@ -49,13 +56,14 @@ var api = (function(Indexing) {
       "display name": {name: "display name", fields: ["id", "name"]}
     },
     editor: {
+      initialized: {name: "initialized", fields: ["initialized"], facts: [[true]]},
       primitive: {name: "primitive", fields: ["view", "kind"]},
       "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"]]},
       block: {name: "block", fields: ["query", "block", "view"]},
       "block aggregate": {name: "block aggregate", fields: ["view", "kind"]},
       "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
       "grouped by": {name: "grouped by", fields: ["inner", "inner field", "outer", "outer field"]},
-      empty: {name: "empty", fields: ["empty"]},
+      empty: {name: "empty", fields: [], facts: [[]]},
       "eveuser": {name: "eveuser", fields: ["id", "username"]},
 
       //ui
@@ -96,7 +104,7 @@ var api = (function(Indexing) {
   // This index needs to be hardcoded for code.ix to work.
   ixer.addIndex("view to fields", "field", Indexing.create.collector([0]));
 
-  ixer.addIndex("constant", "constant", Indexing.create.lookup([0]));
+  ixer.addIndex("constant", "constant", Indexing.create.lookup([0, false]));
   ixer.addIndex("constant to value", "constant", Indexing.create.lookup([0, 1]));
   ixer.addIndex("display name", "display name", Indexing.create.lookup([0, 1]));
   ixer.addIndex("display order", "display order", Indexing.create.lookup([0, 1]));
@@ -120,10 +128,9 @@ var api = (function(Indexing) {
   ixer.addIndex("view and source and field to select", "select", Indexing.create.lookup([0, 2, 1, false]));
   ixer.addIndex("view to aggregate sorting", "aggregate sorting", Indexing.create.lookup([0, false]));
   ixer.addIndex("view to aggregate limit from", "aggregate limit from", Indexing.create.lookup([0, false]));
-  ixer.addIndex("view to aggregate limit to", "aggregate to", Indexing.create.lookup([0, false]));
+  ixer.addIndex("view to aggregate limit to", "aggregate limit to", Indexing.create.lookup([0, false]));
 
   // editor
-
   ixer.addIndex("block", "block", Indexing.create.lookup([1, false]));
   ixer.addIndex("block to query", "block", Indexing.create.lookup([1, 0]));
   ixer.addIndex("view to query", "block", Indexing.create.lookup([2, 0]));
@@ -271,7 +278,6 @@ var api = (function(Indexing) {
       return neue;
     },
     isConstraintComplete: function(opts) {
-      console.log('LF', opts.leftField, "LS", opts.leftSource, "RF", opts.rightField, "RS", opts.rightSource, "O", opts.operation);
       return (opts.leftField && opts.leftSource && opts.rightField && opts.rightSource && opts.operation) && true;
     }
   };
@@ -313,8 +319,8 @@ var api = (function(Indexing) {
     addAggregateBlock: function addBlock(queryId, kind) {
       var viewId = uuid();
       var blockId = uuid();
-      var diffs = [["block", "inserted", [queryId, blockId, viewId]],
-                   ["view", "inserted", [viewId, "aggregate"]],
+      var diffs = [["view", "inserted", [viewId, "aggregate"]],
+                   ["block", "inserted", [queryId, blockId, viewId]],
                    ["source", "inserted", [viewId, "inner", "empty"]],
                    ["source", "inserted", [viewId, "outer", "empty"]],
                    ["block aggregate", "inserted", [viewId, kind]]];
@@ -335,25 +341,46 @@ var api = (function(Indexing) {
       if(!fieldId) {
         fieldId = uuid();
         neue = [viewId, fieldId, sourceId, sourceFieldId];
-        var blockFieldId = uuid();
-        var name = code.name(sourceFieldId);
-        var order = ixer.index("display order")[sourceFieldId];
-        diffs.push(["field", "inserted", [viewId, fieldId, "output"]],
-                   ["display order", "inserted", [fieldId, 0]],
-                   ["display name", "inserted", [fieldId, name]],
-                   ["block field", "inserted", [blockFieldId, viewId, "selection", viewId, fieldId]],
-                   ["display order", "inserted", [blockFieldId, 0]],
-                   ["display name", "inserted", [blockFieldId, name]]);
+
+        var old = ixer.index("view and source field to select")[viewId] || {};
+        old = old[sourceFieldId];
+        var changed = true;
+        if(old) {
+          changed = !Indexing.arraysIdentical(old, neue);
+          if(changed) {
+            diffs.push(["select", "removed", old]);
+          }
+        }
+        if(changed) {
+          var blockFieldId = uuid();
+          var name = code.name(sourceFieldId);
+          var order = ixer.index("display order")[sourceFieldId];
+
+          diffs.push(["field", "inserted", [viewId, fieldId, "output"]],
+                     ["display order", "inserted", [fieldId, 0]],
+                     ["display name", "inserted", [fieldId, name]],
+                     ["block field", "inserted", [blockFieldId, viewId, "selection", viewId, fieldId]],
+                     ["display order", "inserted", [blockFieldId, 0]],
+                     ["display name", "inserted", [blockFieldId, name]],
+                     ["select", "inserted", neue]);
+        }
       } else {
         neue = [viewId, fieldId, sourceId, sourceFieldId];
         var old = ixer.index("view and source and field to select")[viewId] || {};
         old = old[sourceId] || {};
         old = old[fieldId];
-        if(old && !Indexing.arraysIdentical(old, neue)) {
-          diffs.push(["select", "removed", old]);
+        var changed = true;
+        if(old) {
+          changed = !Indexing.arraysIdentical(old, neue);
+          if(changed) {
+            diffs.push(["select", "removed", old]);
+          }
+        }
+        if(changed) {
+          diffs.push(["select", "inserted", neue]);
         }
       }
-      diffs.push(["select", "inserted", neue]);
+
       return diffs;
     },
     cacheViewSourceFields: function(viewId, sourceId, sourceViewId) {
@@ -407,12 +434,33 @@ var api = (function(Indexing) {
       if(queryId === undefined) { queryId = code.activeItemId(); }
       var count = code.countSource(queryId, sourceViewId);
       var name = code.name(sourceViewId) + (count ? " (" + (count + 1) + ")" : "");
-      var diffs = [["source", "inserted", [viewId, sourceId, sourceViewId]],
+      var neue = [viewId, sourceId, sourceViewId];
+      var diffs = [["source", "inserted", neue],
                    ["display name", "inserted", [displayId, name]],
                    ["display order", "inserted", [displayId, 0]]];
 
+      var old = ixer.index("source")[viewId] || {};
+      old = old[sourceId];
+      if(old && !Indexing.arraysIdentical(old, neue)) {
+        diffs.push(["source", "removed", old]);
+      }
+
       diffs = diffs.concat(diff.cacheViewSourceFields(viewId, sourceId, sourceViewId));
 
+      return diffs;
+    },
+    addPrimitiveSource: function addPrimitiveSource(viewId, primitiveId) {
+      var diffs = diff.addViewSource(viewId, primitiveId);
+      var sourceId = diffs[0][2][code.ix("source", "source")];
+
+      var fields = ixer.index("view to fields")[primitiveId] || [];
+      fields.forEach(function(field) {
+        var id = field[code.ix("field", "field")];
+        var kind = field[code.ix("field", "kind")];
+        if(kind === "vector input" || kind === "scalar input") {
+          diffs = diffs.concat(diff.addViewConstraint(viewId, {operation: "=", leftSource: sourceId, leftField: id}));
+        }
+      });
       return diffs;
     },
     removeViewSource(viewId, sourceId) {
@@ -442,19 +490,21 @@ var api = (function(Indexing) {
       var sideField = code.ix("constraint left", "left field");
 
       var oldConstraint = ixer.index("constraint")[constraintId];
-      if(oldConstraint && opts.view) {
+      if(oldConstraint && opts.view && oldConstraint[code.ix("constraint", "view")] !== opts.view) {
         diffs.push(["constraint", "removed", oldConstraint]);
       }
       var oldConstraintLeft = ixer.index("constraint left")[constraintId];
-      if(oldConstraintLeft && (opts.leftSource || opts.leftField)) {
+      if(oldConstraintLeft && (opts.leftSource || opts.leftField) &&
+        (opts.leftSource !== oldConstraintLeft[sideSource] || opts.leftField !== oldConstraintLeft[sideField])) {
         diffs.push(["constraint left", "removed", oldConstraintLeft]);
       }
       var oldConstraintRight = ixer.index("constraint right")[constraintId];
-      if(oldConstraintRight && (opts.rightSource || opts.rightField)) {
+      if(oldConstraintRight && (opts.rightSource || opts.rightField) &&
+         (opts.rightSource !== oldConstraintRight[sideSource] || opts.rightField !== oldConstraintRight[sideField])) {
         diffs.push(["constraint right", "removed", oldConstraintRight]);
       }
       var oldConstraintOperation = ixer.index("constraint operation")[constraintId];
-      if(oldConstraintOperation && opts.operation) {
+      if(oldConstraintOperation && opts.operation && opts.operation !== oldConstraintOperation[code.ix("constraint operation", "operation")]) {
         diffs.push(["constraint operation", "removed", oldConstraintOperation]);
       }
 
@@ -480,7 +530,7 @@ var api = (function(Indexing) {
       if(old) {
         neue = old.slice();
       } else {
-        neue = [viewId, field || "", 0, direction || ""];
+        neue = [viewId, field || "", 1000, direction || ""];
       }
 
       neue[1] = field || neue[1];
@@ -580,10 +630,7 @@ var api = (function(Indexing) {
           code: code,
           diff: diff,
           clone: clone,
-          builtins: tables};
+          builtins: tables,
+          arraysIdentical: Indexing.arraysIdentical};
 })(Indexing);
 
-if(!window.DEBUG) {
-  window.DEBUG = {RECEIVE: 0,
-                  SEND: 0};
-}

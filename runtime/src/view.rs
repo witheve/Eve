@@ -68,11 +68,20 @@ pub struct Join {
 }
 
 #[derive(Clone, Debug)]
+pub struct Reducer {
+    primitive: Primitive,
+    arguments: Vec<Reference>,
+    fields: Vec<Field>,
+    // TODO `fields` is here just to hack a Tuple in - will go away when we stop using Tuple
+}
+
+#[derive(Clone, Debug)]
 pub struct Aggregate {
     pub outer: SingleSelect,
     pub inner: SingleSelect,
     pub limit_from: Option<Reference>,
     pub limit_to: Option<Reference>,
+    pub reducers: Vec<Reducer>,
     pub select: MultiSelect,
 }
 
@@ -137,7 +146,6 @@ impl View {
                 Some(output)
             }
             View::Join(ref join) => {
-                assert_eq!(join.constraints.len(), inputs.len());
                 let mut output = Relation::with_fields(old_output.fields.clone(), old_output.names.clone());
                 let mut tuples = Vec::with_capacity(join.sources.len());
                 join_step(join, inputs, &mut tuples, &mut output.index);
@@ -153,7 +161,8 @@ impl View {
                 let mut group_start = 0;
                 for outer_values in outer.iter() {
                     let mut group_end = group_start;
-                    while inner[group_end][0..outer_values.len()] == outer_values[..] {
+                    while (group_end < inner.len())
+                    && (inner[group_end][0..outer_values.len()] == outer_values[..]) {
                         group_end += 1;
                     }
                     let outer_tuple = Tuple{
@@ -170,6 +179,8 @@ impl View {
                         None => group_end,
                         Some(ref reference) => group_start + reference.resolve(inputs).as_usize(),
                     };
+                    let limit_from = ::std::cmp::min(::std::cmp::max(limit_from, group_start), group_end);
+                    let limit_to = ::std::cmp::min(::std::cmp::max(limit_to, limit_from), group_end);
                     for inner_values in &inner[limit_from..limit_to] {
                         let inner_tuple = Tuple{
                             fields: &aggregate.inner.fields[..],

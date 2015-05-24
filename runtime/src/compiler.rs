@@ -405,7 +405,7 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
     let grouping_table = flow.get_output("aggregate grouping");
     let groupings = grouping_table.find_all("aggregate", view_id);
     let field_table = flow.get_output("field");
-    let fields = field_table.find_all("view", &inner_dependency["downstream view"]);
+    let fields = field_table.find_all("view", &inner_dependency["upstream view"]);
     let ungrouped = fields.iter().filter(|field|
             groupings.iter().find(|grouping| grouping["inner field"] == field["field"]).is_none()
         ).collect::<Vec<_>>();
@@ -415,7 +415,7 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
             None => (Value::Float(0.0), &field["field"]),
             Some(sorting) => (sorting["priority"].clone(), &field["field"]),
         }).collect::<Vec<_>>();
-    sortable.sort();
+    sortable.sort_by(|a,b| b.cmp(a));
     let outer_fields =
         groupings.iter().map(|grouping| grouping["outer field"].as_str().to_owned())
         .collect();
@@ -431,7 +431,7 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
     let limit_to = flow.get_output("aggregate limit to").find_maybe("aggregate", view_id)
         .map(|limit_to| create_reference(flow, inputs, &limit_to["to source"], &limit_to["to field"]));
     let select = create_multi_select(flow, &[inner_dependency], view_id);
-    Aggregate{outer: outer, inner: inner, limit_from: limit_from, limit_to: limit_to, select: select}
+    Aggregate{outer: outer, inner: inner, limit_from: limit_from, limit_to: limit_to, reducers: vec![], select: select}
 }
 
 fn create_node(flow: &Flow, view_id: &Value, view_kind: &Value) -> Node {
