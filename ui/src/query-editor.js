@@ -400,10 +400,10 @@ var queryEditor = (function(window, microReact, api) {
         if(!limit) { limit = [info.viewId, "constant", constantId]; }
         else {
           constantId = limit[2];
-          var oldConstantValue = ixer.index("constant to value")[constantId];
-          if(oldConstantValue !== undefined && oldConstantValue !== info.value) {
-            console.log("removing", oldConstantValue, info.value);
-            diffs.push(["constant", "removed", oldConstantValue]);
+          var oldConstant = ixer.index("constant")[constantId];
+          if(oldConstant && oldConstant[1] !== info.value) {
+            console.log("removing", oldConstant, info.value);
+            diffs.push(["constant", "removed", oldConstant]);
           }
           console.log(table, constantId);
         }
