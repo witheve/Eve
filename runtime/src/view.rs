@@ -69,9 +69,9 @@ pub struct Join {
 
 #[derive(Clone, Debug)]
 pub struct Reducer {
-    primitive: Primitive,
-    arguments: Vec<Reference>,
-    fields: Vec<Field>,
+    pub primitive: Primitive,
+    pub arguments: Vec<Reference>,
+    pub fields: Vec<Field>,
     // TODO `fields` is here just to hack a Tuple in - will go away when we stop using Tuple
 }
 
@@ -192,8 +192,10 @@ impl View {
                             names: &aggregate.inner.fields[..],
                             values: &inner_values[..]
                         };
+                        output_tuples.push(outer_tuple.clone());
                         output_tuples.push(inner_tuple);
                         output.index.insert(aggregate.select.select(&output_tuples[..]));
+                        output_tuples.pop();
                         output_tuples.pop();
                     }
                     group_start = group_end;

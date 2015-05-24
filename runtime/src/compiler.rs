@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use value::{Value, Tuple};
 use relation::{Relation, Change, SingleSelect, Reference, MultiSelect, mapping, with_mapping};
-use view::{View, Table, Union, Join, JoinSource, Constraint, ConstraintOp, Aggregate};
+use view::{View, Table, Union, Join, JoinSource, Constraint, ConstraintOp, Aggregate, Reducer};
 use flow::{Node, Flow};
 use primitive;
 use primitive::Primitive;
@@ -396,6 +396,9 @@ fn create_join(flow: &Flow, view_id: &Value) -> Join {
 }
 
 fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
+    let view_table = flow.get_output("view");
+    let source_table = flow.get_output("source");
+    let source_dependency_table = flow.get_output("source dependency");
     let dependency_table = flow.get_output("view dependency");
     let dependencies = dependency_table.find_all("downstream view", view_id);
     let outer_ix = dependencies.iter().position(|dependency| dependency["source"].as_str() == "outer").unwrap();
@@ -423,15 +426,47 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
         groupings.iter().map(|grouping| grouping["inner field"].as_str().to_owned())
         .chain(sortable.iter().map(|&(_, ref field_id)| field_id.as_str().to_owned()))
         .collect();
-    let inputs = &[outer_dependency];
+    let limit_inputs = &[outer_dependency.clone()];
     let outer = SingleSelect{source: outer_ix, fields: outer_fields};
     let inner = SingleSelect{source: inner_ix, fields: inner_fields};
     let limit_from = flow.get_output("aggregate limit from").find_maybe("aggregate", view_id)
-        .map(|limit_from| create_reference(flow, inputs, &limit_from["from source"], &limit_from["from field"]));
+        .map(|limit_from| create_reference(flow, limit_inputs, &limit_from["from source"], &limit_from["from field"]));
     let limit_to = flow.get_output("aggregate limit to").find_maybe("aggregate", view_id)
-        .map(|limit_to| create_reference(flow, inputs, &limit_to["to source"], &limit_to["to field"]));
-    let select = create_multi_select(flow, &[inner_dependency], view_id);
-    Aggregate{outer: outer, inner: inner, limit_from: limit_from, limit_to: limit_to, reducers: vec![], select: select}
+        .map(|limit_to| create_reference(flow, limit_inputs, &limit_to["to source"], &limit_to["to field"]));
+    let reducer_sources = source_table.find_all("view", view_id).into_iter().filter(|source|
+        match source["source"].as_str() {
+            "inner" | "outer" => false,
+            _ => true,
+        }).collect::<Vec<_>>();
+    let reducer_inputs = &[outer_dependency.clone(), inner_dependency.clone()];
+    let reducers = reducer_sources.iter().map(|source| {
+        let source_view = view_table.find_one("view", &source["source view"]);
+        match source_view["kind"].as_str() {
+            "primitive" => (),
+            other => panic!("Aggregate {:?} has a non-primitive reducer: {:?}", view_id, source["source"]),
+        };
+        let primitive = Primitive::from_str(source_view["view"].as_str());
+        let fields = field_table.find_all("view", &source_view["view"]);
+        let input_fields = fields.iter()
+        .filter(|field| field["kind"].as_str() != "output")
+        .map(|field| field["field"].clone())
+        .collect::<Vec<_>>();
+        let output_fields = fields.iter()
+        .filter(|field| field["kind"].as_str() == "output")
+        .map(|field| field["field"].as_str().to_owned())
+        .collect::<Vec<_>>();
+        let dependencies = source_dependency_table.find_all("downstream source", &source["source"]);
+        let arguments = input_fields.iter().map(|input_field| {
+            let dependency = dependencies.iter().find(|dependency| dependency["downstream field"] == *input_field).unwrap();
+            create_reference(flow, &reducer_inputs[..], &dependency["upstream source"], &dependency["upstream field"])
+        }).collect();
+        Reducer{primitive: primitive, arguments: arguments, fields: output_fields}
+    }).collect();
+    let mut outputs = reducer_sources;
+    outputs.push(outer_dependency);
+    outputs.push(inner_dependency);
+    let select = create_multi_select(flow, &outputs[..], view_id);
+    Aggregate{outer: outer, inner: inner, limit_from: limit_from, limit_to: limit_to, reducers: reducers, select: select}
 }
 
 fn create_node(flow: &Flow, view_id: &Value, view_kind: &Value) -> Node {
