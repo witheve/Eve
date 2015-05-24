@@ -443,7 +443,7 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
         let source_view = view_table.find_one("view", &source["source view"]);
         match source_view["kind"].as_str() {
             "primitive" => (),
-            other => panic!("Aggregate {:?} has a non-primitive reducer: {:?}", view_id, source["source"]),
+            other => panic!("Aggregate {:?} has a non-primitive reducer {:?} of kind {:?}", view_id, source["source"], other),
         };
         let primitive = Primitive::from_str(source_view["view"].as_str());
         let fields = field_table.find_all("view", &source_view["view"]);
