@@ -2240,7 +2240,6 @@ var queryEditor = (function(window, microReact, api) {
       var id = primitive[0];
       return {c: "primitive", dragData: {value: id, type: "view"}, itemId: id, draggable: true, dragstart: dragItem, text: code.name(id)};
     });
-    var controls = queryControls(queryId);
     return genericWorkspace("query", queryId,
                             {c: "query-editor",
                              children: [
@@ -2278,24 +2277,6 @@ var queryEditor = (function(window, microReact, api) {
     evt.stopPropagation();
   }
 
-  var queryTools = {
-    union: ["merge"],
-    aggregate: ["sort+limit", "sum", "count", "min", "max", "empty"]
-  };
-  function queryControls(queryId) {
-    var items = [];
-    var toolTypes = Object.keys(queryTools);
-    for(var typeIx = 0; typeIx < toolTypes.length; typeIx++) {
-      var type = toolTypes[typeIx];
-      var tools = queryTools[type];
-      for(var toolIx = 0; toolIx < tools.length; toolIx++) {
-        var tool = tools[toolIx];
-        items.push(treeItem(tool, tool, type, {c: "control tool query-tool"}));
-      }
-    }
-    return controlGroup(items);
-  }
-
   //---------------------------------------------------------
   // Editor
   //---------------------------------------------------------
@@ -2329,12 +2310,8 @@ var queryEditor = (function(window, microReact, api) {
       if(viewKind === "union") { editorPane = unionBlock(viewId, ix);  }
       if(viewKind === "aggregate") { editorPane = aggregateBlock(viewId, ix); }
       var controls;
-      if(localState.queryEditorActive === ix) {
-        controls = {c: "query-editor-controls", children: [
-//           {c: "control", text: alphabet[ix]},
-          {c: "control", text: "add filter"},
-          {c: "control", text: "add calculation"},
-        ]};
+      if(localState.queryEditorActive === viewId) {
+        controls = querySuggestionBar(queryId, viewId);
       }
 
       items.push({c: "block " + viewKind, editorIx: ix, viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, click: setQueryEditorActive, children: [
@@ -2351,10 +2328,6 @@ var queryEditor = (function(window, microReact, api) {
     }
     items.push({c: "block new-block", children: [
       {c: "block unused", children: [
-//         {c: "block-title", children: [
-//           {t: "h3", text: "new"},
-//           //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
-//         ]},
         {c: "controls", children: [
           {c: "control join", text: "join"},
           {c: "control union", click: newUnionBlock, text: "merge"},
@@ -2373,8 +2346,37 @@ var queryEditor = (function(window, microReact, api) {
     ]};
   }
 
+  function suggestionBarItem(key, text) {
+    var info = localState.queryEditorInfo;
+    return {c: "suggestion-bar-item", key: key, text: text, click: info ? info.handler : undefined};
+  }
+
+  function querySuggestionBar(queryId, viewId) {
+    var info = localState.queryEditorInfo;
+    var items;
+    if(info && info.type === "field") {
+      if(info.sourceId) {
+        //get the fields for this source
+        var sourceView = ixer.index("source")[info.viewId][info.sourceId][code.ix("source", "source view")];
+        items = (ixer.index("view to fields")[sourceView] || []).map(function(cur) {
+          var fieldId = cur[code.ix("field", "field")];
+          return suggestionBarItem(fieldId, code.name(fieldId));
+        });
+      } else if(info.viewId) {
+        //it's any available field from the sources
+      }
+    } else {
+      items = [
+        suggestionBarItem("add filter", "add filter"),
+        suggestionBarItem("add calculation", "add calculation"),
+      ]
+    }
+    return {c: "suggestion-bar", children: items};
+  }
+
   function setQueryEditorActive(e, elem) {
-    localState.queryEditorActive = elem.editorIx;
+    localState.queryEditorActive = elem.viewId;
+    localState.queryEditorInfo = {};
     render();
   }
 
@@ -2471,13 +2473,27 @@ var queryEditor = (function(window, microReact, api) {
       else { return idA > idB }
     });
     var sourceItems = sourceIds.map(function(sourceId) {
-      return viewSource(viewId, sourceId);
+      return sourceWithFields("view", viewId, sourceId);
     });
 
     return sourceItems;
   }
 
-  function viewSource(viewId, sourceId) {
+  function sourceTitle(type, viewId, sourceId) {
+    var sourceName;
+
+    if(sourceId == "inner" || sourceId === "outer" || sourceId === "insert" || sourceId === "remove") {
+      sourceName = code.name(viewId + "-" + sourceId);
+    } else {
+      sourceName = code.name(sourceId);
+    }
+
+    return {c: type + "-source-title source-title", children: [
+      {t: "h4", text: sourceName || "Untitled"},
+    ]};
+  }
+
+  function sourceWithFields(type, viewId, sourceId) {
     var fields = ixer.index("view and source to block fields")[viewId] || {};
     fields = fields[sourceId] || [];
     var fieldItems = [];
@@ -2490,22 +2506,13 @@ var queryEditor = (function(window, microReact, api) {
     fieldItems.pop();
     fieldItems.push({text: ")"});
 
-    var sourceName;
-
-    if(sourceId == "inner" || sourceId === "outer" || sourceId === "insert" || sourceId === "remove") {
-      sourceName = code.name(viewId + "-" + sourceId);
-    } else {
-      sourceName = code.name(sourceId);
-    }
+    var title = sourceTitle(type, viewId, sourceId);
 
     var children = [
-      {c: "view-source-title", children: [
-        {t: "h4", text: sourceName || "Untitled"},
-//         {c: "hover-reveal close-btn ion-android-close", viewId: viewId, sourceId: sourceId, click: removeSource}
-      ]},
+      title,
       {text: "("}
     ].concat(fieldItems);
-    return {c: "tree bar view-source", children: children};
+    return {c: "source " + type + "-source", children: children};
   }
 
   function removeSource(evt, elem) {
@@ -2713,50 +2720,62 @@ var queryEditor = (function(window, microReact, api) {
     for(var sourceIx = 0; sourceIx < sourceIds.length; sourceIx++) {
       var sourceId = sourceIds[sourceIx];
       var source = sources[sourceId];
-      var sourceFields = ixer.index("view and source to block fields")[viewId] || {};
-      sourceFields = sourceFields[sourceId] || [];
-      var fieldItems = [];
-      for(var fieldIx = 0; fieldIx < sourceFields.length; fieldIx++) {
-        var field = sourceFields[fieldIx];
-        var blockFieldId = field[code.ix("block field", "block field")];
-        var fieldId = field[code.ix("block field", "field")];
-        fieldItems.push(fieldItem(code.name(fieldId) || "Untitled", blockFieldId, {c: "pill field"}));
-      }
-      sourceItems.push({c: "union-source", children: [
-        {text: code.name(sourceId)},
-        {c: "tree bar union-source-fields", children: fieldItems}
-      ]});
+      var rowItems = [];
+      rowItems.push({t: "td", c: "source-name", children: [sourceTitle("union", viewId, sourceId)]});
 
-      if(!fields.length) { continue; }
-      var selectFields = selectSources[sourceId] || [];
+      if(fields.length) {
+        var selectFields = selectSources[sourceId] || [];
 
-      var mappingPairs = [];
-      for(var fieldIx = 0; fieldIx < fields.length; fieldIx++) {
-        var field = fields[fieldIx];
-        var fieldId = field[code.ix("block field", "field")];
-        var selectField = selectFields[fieldId] || [];
-        var mappedFieldId = selectField[code.ix("select", "source field")];
-        mappingPairs.push({c: "mapping-pair", viewId: viewId, sourceId: sourceId, fieldId: fieldId, dragover: preventDefault, drop: unionSourceMappingDrop, children: [
-          {c: "mapping-header", text: code.name(fieldId) || "Untitled"}, // @FIXME: code.name(fieldId) not set?
-          (mappedFieldId ? {c: "mapping-row", text: code.name(mappedFieldId) || "Untitled"}
-           : {c: "mapping-row", text: "---"})
-        ]});
+        var mappingPairs = [];
+        for(var fieldIx = 0; fieldIx < fields.length; fieldIx++) {
+          var field = fields[fieldIx];
+          var fieldId = field[code.ix("block field", "field")];
+          var selectField = selectFields[fieldId] || [];
+          var mappedFieldId = selectField[code.ix("select", "source field")];
+          rowItems.push({t: "td", c: "mapped-field", viewId: viewId, sourceId: sourceId, fieldId: fieldId, click: fieldSuggestions, handler: setMappingField,
+                         text: (mappedFieldId ? code.name(mappedFieldId) || "Untitled" : "---")});
+        }
       }
-      fieldMappingItems.push({c: "field-mapping", children: mappingPairs});
+      rowItems.push({t: "td", c: "mapped-field", viewId: viewId, sourceId: sourceId, click: fieldSuggestions, handler: setMappingField, text: "---"});
+      sourceItems.push({t: "tr", children: rowItems});
     }
 
-    if(!fields.length) {
-      fieldMappingItems.push({c: "field-mapping", children: [{text: "drag fields to begin mapping; or"},
-                                                             {text: "drag an existing union to begin merging"}]});
-    }
+    var headers = [{t: "th", c: "spacer"}];
+    fields.forEach(function(cur) {
+      headers.push({t: "th", c: "mapping-header", text: code.name(cur[code.ix("block field", "field")])});
+    });
+    headers.push({t: "th", c: "mapping-header", text: "---"});
 
     return {c: "block union-block", viewId: viewId, dragover: preventDefault, drop: viewBlockDrop,
             dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem, children: [
-      {c: "content", children: [
-        {c: "block-pane", children: sourceItems},
-        {c: "block-pane mapping", viewId: viewId, dragover: preventDefault, drop: unionSourceMappingDrop, children: fieldMappingItems},
-      ]}
+              {t: "table", children: [
+                {t: "thead", children: [
+                  {t: "tr", children: headers}
+                ]},
+                {t: "tbody", children: sourceItems}
+              ]}
+//               {c: "block-pane mapping", viewId: viewId, dragover: preventDefault, drop: unionSourceMappingDrop, children: fieldMappingItems},
     ]};
+  }
+
+  function fieldSuggestions(e, elem) {
+    e.stopPropagation();
+    localState.queryEditorActive = elem.viewId;
+    localState.queryEditorInfo = {
+      type: "field",
+      sourceId: elem.sourceId,
+      viewId: elem.viewId,
+      fieldId: elem.fieldId,
+      handler: elem.handler
+    };
+    render();
+  }
+
+  function setMappingField(e, elem) {
+    console.log(elem.key);
+    var info = localState.queryEditorInfo;
+    dispatch("addUnionSelection", {viewId: info.viewId, sourceFieldId: elem.key, sourceId: info.sourceId, fieldId: info.fieldId});
+    e.stopPropagation();
   }
 
   function unionSourceMappingDrop(evt, elem) {
@@ -2805,13 +2824,9 @@ var queryEditor = (function(window, microReact, api) {
     }
 
     return {c: "block aggregate-block", viewId: viewId, children: [
-      {c: "block-title", children: [
-        {t: "h3", text: "Untitled Agg. Block"},
-        {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock}
-      ]},
       {text: "With"},
       {c: "block-section view-sources", viewId: viewId, sourceId: "inner", drop: aggregateSourceDrop, dragover: preventDefault, children: [
-        innerSource ? viewSource(viewId, "inner") : undefined
+        innerSource ? sourceWithFields("view", viewId, "inner") : undefined
       ]},
       content,
       {c: "block-section view-selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems},
