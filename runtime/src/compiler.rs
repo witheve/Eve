@@ -109,6 +109,9 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // `ix` is an integer, the index of the field
     ("index layout", vec!["view", "field"], vec!["ix"]),
 
+    // constants used by each view
+    ("view constant", vec!["view", "constant"], vec![]),
+
     // view layout determines the order in which source/field pairs are stored while computing the view
     // `ix` is an integer, the index of the field
     ("view layout", vec!["view", "source", "field"], vec!["ix"]),
@@ -286,6 +289,47 @@ fn calculate_index_layout(flow: &Flow) {
         }
     }
     overwrite_compiler_view(flow, "index layout", items);
+}
+
+fn calculate_view_constant(flow: &Flow) {
+    let mut items = Vec::new();
+    let view_table = flow.get_output("view");
+    let constraint_table = flow.get_output("constraint");
+    let constraint_left_table = flow.get_output("constraint left");
+    let constraint_right_table = flow.get_output("constraint right");
+    let limit_from_table = flow.get_output("aggregate limit from");
+    let limit_to_table = flow.get_output("aggregate limit to");
+    let select_table = flow.get_output("select");
+    for view in view_table.iter() {
+        for constraint in constraint_table.find_all("view", &view["view"]) {
+            for constraint_left in constraint_left_table.find_all("constraint", &constraint["constraint"]) {
+                if constraint_left["left source"].as_str() == "constant" {
+                    items.push(vec![view["view"].clone(), constraint_left["left field"].clone()]);
+                }
+            }
+            for constraint_right in constraint_right_table.find_all("constraint", &constraint["constraint"]) {
+                if constraint_right["right source"].as_str() == "constant" {
+                    items.push(vec![view["view"].clone(), constraint_right["right field"].clone()]);
+                }
+            }
+        }
+        for limit_from in limit_from_table.find_all("aggregate", &view["view"]) {
+            if limit_from["from source"].as_str() == "constant" {
+                items.push(vec![view["view"].clone(), limit_from["from field"].clone()]);
+            }
+        }
+        for limit_to in limit_to_table.find_all("aggregate", &view["view"]) {
+            if limit_to["to source"].as_str() == "constant" {
+                items.push(vec![view["view"].clone(), limit_to["to field"].clone()]);
+            }
+        }
+        for select in select_table.find_all("view", &view["view"]) {
+            if select["source"].as_str() == "constant" {
+                items.push(vec![view["view"].clone(), select["source field"].clone()]);
+            }
+        }
+    }
+    overwrite_compiler_view(flow, "view constant", items);
 }
 
 fn topological_sort<K: Eq + Debug>(mut input: Vec<(K, Vec<K>)>) -> Vec<(K, Vec<K>)> {
@@ -600,6 +644,7 @@ pub fn recompile(old_flow: Flow) -> Flow {
     calculate_source_schedule(&old_flow);
     calculate_constraint_schedule(&old_flow);
     calculate_index_layout(&old_flow);
+    calculate_view_constant(&old_flow);
     let mut new_flow = create_flow(&old_flow);
     reuse_state(old_flow, &mut new_flow);
     new_flow
