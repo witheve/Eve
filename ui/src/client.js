@@ -117,7 +117,7 @@ var client = (function eveClient(window, api, dispatcher) {
         var stats = getDataStats(data);
         if(stats.adds || stats.removes) {
           var header = "[client:received][+" + stats.adds + "/-" + stats.removes + "]";
-          console.group(pad(header, formatTime()));
+          console.groupCollapsed(pad(header, formatTime()));
           if(stats.malformedDiffs.length) {
             console.warn("The following views have malformed diffs:", stats.malformedDiffs);
           }
@@ -231,7 +231,7 @@ var client = (function eveClient(window, api, dispatcher) {
         var specialStats = getDataStats(specialPayload);
         if(stats.adds || stats.removes || specialStats.adds || specialStats.removes) {
           var header = "[client:sent][+" + (stats.adds + specialStats.adds) + "/-" + (stats.removes + specialStats.removes) + "]";
-          console.group(pad(header, formatTime()));
+          console.groupCollapsed(pad(header, formatTime()));
 
           if(specialStats.adds || specialStats.removes) {
             var header = "[special][+" + specialStats.adds + "/-" + specialStats.removes + "]";

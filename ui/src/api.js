@@ -1,7 +1,7 @@
 if(!window.DEBUG) {
   window.DEBUG = {RECEIVE: 3,
                   SEND: 3,
-                  INDEXER: 1};
+                  INDEXER: 0};
 }
 
 
@@ -63,7 +63,7 @@ var api = (function(Indexing) {
       "block aggregate": {name: "block aggregate", fields: ["view", "kind"]},
       "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
       "grouped by": {name: "grouped by", fields: ["inner", "inner field", "outer", "outer field"]},
-      empty: {name: "empty", fields: [], facts: [[]]},
+      "empty view": {name: "empty view", fields: [], facts: [[]]},
       "eveuser": {name: "eveuser", fields: ["id", "username"]},
 
       //ui
@@ -321,10 +321,10 @@ var api = (function(Indexing) {
       var blockId = uuid();
       var diffs = [["view", "inserted", [viewId, "aggregate"]],
                    ["block", "inserted", [queryId, blockId, viewId]],
-                   ["source", "inserted", [viewId, "inner", "empty"]],
-                   ["source", "inserted", [viewId, "outer", "empty"]],
-                   ["display name", "inserted", [viewId + "-inner", "inner"]],
-                   ["display name", "inserted", [viewId + "-outer", "outer"]],
+                   ["source", "inserted", [viewId, "inner", "empty view"]],
+                   ["source", "inserted", [viewId, "outer", "empty view"]],
+                   ["display name", "inserted", [viewId + "-inner", "empty"]],
+                   ["display name", "inserted", [viewId + "-outer", "empty"]],
                    ["block aggregate", "inserted", [viewId, kind]]];
       return diffs;
     },
@@ -444,7 +444,9 @@ var api = (function(Indexing) {
       var old = ixer.index("source")[viewId] || {};
       old = old[sourceId];
       if(old && !Indexing.arraysIdentical(old, neue)) {
-        diffs.push(["source", "removed", old]);
+        var oldName = ixer.index("display name")[displayId];
+        diffs.push(["source", "removed", old],
+                   ["display name", "removed", [displayId, oldName]]);
       }
 
       diffs = diffs.concat(diff.cacheViewSourceFields(viewId, sourceId, sourceViewId));

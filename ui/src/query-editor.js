@@ -409,10 +409,8 @@ var queryEditor = (function(window, microReact, api) {
           constantId = limit[2];
           var oldConstant = ixer.index("constant")[constantId];
           if(oldConstant && oldConstant[1] !== info.value) {
-            console.log("removing", oldConstant, info.value);
             diffs.push(["constant", "removed", oldConstant]);
           }
-          console.log(table, constantId);
         }
 
         if(info.value) {
@@ -422,7 +420,6 @@ var queryEditor = (function(window, microReact, api) {
           diffs.push([table, "removed", limit]);
         }
         if(sendToServer && localState.initialValue && localState.initialValue !== info.value) {
-          console.log("sending", constantId, localState.initialValue);
           diffs.push(["constant", "removed", [constantId, localState.initialValue]]);
         }
 
@@ -2478,13 +2475,12 @@ var queryEditor = (function(window, microReact, api) {
     if(blockField[code.ix("block field", "view")] !== elem.viewId) { return; }
     var fieldId = blockField[code.ix("block field", "field")];
     var sourceId = blockField[code.ix("block field", "source")];
-    console.log("BF", id, sourceId);
     dispatch("addViewSelection", {viewId: elem.viewId, sourceFieldId: fieldId, sourceId: sourceId});
     evt.stopPropagation();
   }
 
   // Sources
-  function viewSources(viewId) {
+  function viewSources(viewId, drop) {
     var sourceIdIx = code.ix("source", "source");
     var sources = ixer.index("view to sources")[viewId] || [];
     var sourceIds = sources.map(function(source) {
@@ -2498,7 +2494,7 @@ var queryEditor = (function(window, microReact, api) {
       else { return idA > idB }
     });
     var sourceItems = sourceIds.map(function(sourceId) {
-      return sourceWithFields("view", viewId, sourceId);
+      return sourceWithFields("view", viewId, sourceId, drop);
     });
 
     return sourceItems;
@@ -2508,17 +2504,17 @@ var queryEditor = (function(window, microReact, api) {
     var sourceName;
 
     if(sourceId == "inner" || sourceId === "outer" || sourceId === "insert" || sourceId === "remove") {
-      sourceName = code.name(viewId + "-" + sourceId);
+      sourceName = code.name(viewId + "-" + sourceId) + " (" + sourceId + ")";
     } else {
       sourceName = code.name(sourceId);
     }
 
     return {c: type + "-source-title source-title", children: [
-      {t: "h4", text: sourceName || "Untitled"},
+      {t: "h4", text: sourceName || "Untitled"}
     ]};
   }
 
-  function sourceWithFields(type, viewId, sourceId) {
+  function sourceWithFields(type, viewId, sourceId, drop) {
     var fields = ixer.index("view and source to block fields")[viewId] || {};
     fields = fields[sourceId] || [];
     var fieldItems = [];
@@ -2537,7 +2533,9 @@ var queryEditor = (function(window, microReact, api) {
       title,
       {text: "("}
     ].concat(fieldItems);
-    return {c: "source " + type + "-source", children: children};
+
+    return {c: "source " + type + "-source", viewId: viewId, sourceId: sourceId,
+            dragover: (drop ? preventDefault : undefined), drop: drop, children: children};
   }
 
   function removeSource(evt, elem) {
@@ -2880,12 +2878,16 @@ var queryEditor = (function(window, microReact, api) {
       content = primitiveAggregate(viewId, outerSource, innerSource, aggregateKind);
     }
 
-    return {c: "block aggregate-block", viewId: viewId, children: [
-      {text: "With"},
-      {c: "block-section view-sources", viewId: viewId, sourceId: "inner", drop: aggregateSourceDrop, dragover: preventDefault, children: [
-        innerSource ? sourceWithFields("view", viewId, "inner") : undefined
+    return {c: "block aggregate-block", children: [
+      {c: "block-title", children: [
+        {t: "h3", text: "Untitled Agg. Block"},
+        {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock}
       ]},
-      viewSources(viewId),
+      {text: "With"},
+      viewSources(viewId, aggregateSourceDrop),
+//       {c: "block-section view-sources", viewId: viewId, children: [
+//         innerSource ? viewSource(viewId, "inner") : undefined
+//       ]},
       content,
       {c: "block-section view-selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems},
     ]};
@@ -2962,7 +2964,11 @@ var queryEditor = (function(window, microReact, api) {
     var value = evt.dataTransfer.getData("value");
     if(type === "view") {
       if(viewId === value) { return console.error("Cannot join view with parent."); }
-      dispatch("addViewSource", {viewId: viewId, sourceId: value, kind: sourceId});
+      var kind;
+      if(sourceId === "inner" || sourceId === "outer") {
+        kind = sourceId;
+      }
+      dispatch("addViewSource", {viewId: viewId, sourceId: value, kind: kind});
       evt.stopPropagation();
       return;
     }

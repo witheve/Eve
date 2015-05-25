@@ -9,6 +9,7 @@ pub enum Primitive {
     Subtract,
     Count,
     Sum,
+    Empty,
 }
 
 // TODO we hackily assign source numbers to inner and outer
@@ -50,28 +51,33 @@ impl Primitive {
             (Subtract, [&Float(a), &Float(b)]) => vec![vec![Float(a-b)]],
             (Count, _) => panic!("Cannot use {:?} in a join", self),
             (Sum, _) => panic!("Cannot use {:?} in a join", self),
+            (Empty, _) => panic!("Cannot use {:?} in a join", self),
             _ => panic!("Type error while calling: {:?} {:?}", self, &arguments)
         }
     }
 
-    pub fn eval_from_aggregate<'a>(&self, arguments: &[Reference], outer: &Tuple, inner_fields: &[Field], inner_values: &[Vec<Value>]) -> Vec<Value> {
+    pub fn eval_from_aggregate<'a>(&self, arguments: &[Reference], outer: &Tuple, inner_fields: &[Field], inner_values: &[Vec<Value>]) -> Vec<Vec<Value>> {
         use primitive::Primitive::*;
         use value::Value::*;
         match (*self, arguments) {
             (Add, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Subtract, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Count, [_]) => {
-                vec![Float(inner_values.len() as f64)]
+                vec![vec![Float(inner_values.len() as f64)]]
             }
-            (Sum, [ref input_ref]) => {
-                let input = input_ref.resolve_as_vector(outer, inner_fields, inner_values);
-                let sum = input.iter().fold(0f64, |sum, value|
+            (Sum, [ref in_ref]) => {
+                let in_values = in_ref.resolve_as_vector(outer, inner_fields, inner_values);
+                let sum = in_values.iter().fold(0f64, |sum, value|
                     match **value {
                         Float(float) => sum + float,
-                        _ => panic!("Type error while calling: {:?} {:?}", self, input),
+                        _ => panic!("Type error while calling: {:?} {:?}", self, in_values),
                     });
-                vec![Float(sum)]
+                vec![vec![Float(sum)]]
             },
+            (Empty, [ref in_ref]) => {
+                let in_values = in_ref.resolve_as_vector(outer, inner_fields, inner_values);
+                vec![vec![Bool(in_values.len() == 0)]]
+            }
             _ => panic!("Wrong number of arguments while calling: {:?} {:?}", self, arguments),
         }
     }
@@ -82,6 +88,7 @@ impl Primitive {
             "subtract" => Primitive::Subtract,
             "count" => Primitive::Count,
             "sum" => Primitive::Sum,
+            "empty" => Primitive::Empty,
             _ => panic!("Unknown primitive: {:?}", string),
         }
     }
@@ -93,6 +100,7 @@ pub fn primitives() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, 
         ("subtract", vec!["in A", "in B"], vec![], vec!["out"]),
         ("count", vec![], vec!["in"], vec!["out"]),
         ("sum", vec![], vec!["in"], vec!["out"]),
+        ("empty", vec![], vec!["in"], vec!["out"]),
     ]
 }
 
