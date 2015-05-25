@@ -137,6 +137,7 @@ var api = (function(Indexing) {
   ixer.addIndex("view to aggregate sorting", "aggregate sorting", Indexing.create.lookup([0, false]));
   ixer.addIndex("view to aggregate limit from", "aggregate limit from", Indexing.create.lookup([0, false]));
   ixer.addIndex("view to aggregate limit to", "aggregate limit to", Indexing.create.lookup([0, false]));
+  ixer.addIndex("aggregate grouping", "aggregate grouping", Indexing.create.lookup([0, false]));
 
   // editor
   ixer.addIndex("block", "block", Indexing.create.lookup([1, false]));
@@ -550,6 +551,18 @@ var api = (function(Indexing) {
       diffs.push(["aggregate sorting", "inserted", neue]);
       if(old && !Indexing.arraysIdentical(neue, old)) {
         diffs.push(["aggregate sorting", "removed", old]);
+      }
+
+      return diffs;
+    },
+    updateAggregateGrouping: function(viewId, source, field) {
+      var old = ixer.index("aggregate grouping")[viewId];
+      var neue = old ? old.slice() : [viewId, "", ""];
+      var ix = code.ix("aggregate grouping", source + " field");
+      neue[ix] = field;
+      var diffs = [["aggregate grouping", "inserted", neue]];
+      if(old && !Indexing.arraysIdentical(old, neue)) {
+        diffs.push(["aggregate grouping", "removed", old]);
       }
 
       return diffs;
