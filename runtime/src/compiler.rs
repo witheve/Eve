@@ -703,7 +703,7 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
                 upstream: Vec::new(),
                 downstream: Vec::new(),
             });
-        let mut names = unique_fields.iter().chain(other_fields.iter())
+        let names = unique_fields.iter().chain(other_fields.iter())
             .map(|&field| field.to_owned()).collect::<Vec<_>>();
         let fields = names.iter().map(|name| format!("{}: {}", id.clone(), name)).collect();
         flow.outputs.push(RefCell::new(Relation::with_fields(fields, names)));
