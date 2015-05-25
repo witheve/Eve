@@ -63,7 +63,7 @@ var api = (function(Indexing) {
       "block aggregate": {name: "block aggregate", fields: ["view", "kind"]},
       "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
       "grouped by": {name: "grouped by", fields: ["inner", "inner field", "outer", "outer field"]},
-      empty: {name: "empty", fields: [], facts: [[]]},
+      "empty view": {name: "empty view", fields: [], facts: [[]]},
       "eveuser": {name: "eveuser", fields: ["id", "username"]},
 
       //ui
@@ -321,8 +321,8 @@ var api = (function(Indexing) {
       var blockId = uuid();
       var diffs = [["view", "inserted", [viewId, "aggregate"]],
                    ["block", "inserted", [queryId, blockId, viewId]],
-                   ["source", "inserted", [viewId, "inner", "empty"]],
-                   ["source", "inserted", [viewId, "outer", "empty"]],
+                   ["source", "inserted", [viewId, "inner", "empty view"]],
+                   ["source", "inserted", [viewId, "outer", "empty view"]],
                    ["display name", "inserted", [viewId + "-inner", "empty"]],
                    ["display name", "inserted", [viewId + "-outer", "empty"]],
                    ["block aggregate", "inserted", [viewId, kind]]];
