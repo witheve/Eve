@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::fmt::Debug;
 
 use value::{Value, Tuple};
-use relation::{Relation, Change, SingleSelect, Reference, MultiSelect, mapping, with_mapping};
+use relation::{Relation, SingleSelect, Reference, MultiSelect, mapping, with_mapping};
 use view::{View, Table, Union, Join, JoinSource, Constraint, ConstraintOp, Aggregate, Reducer};
 use flow::{Node, Flow};
 use primitive;
@@ -742,41 +742,28 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
             select_values.push(vec![string!("{}", id), string!("{}: {}", id, field), string!("remove"), string!("remove: {}: {}", id, field)]);
         }
     }
-    flow.get_output_mut("view").change(Change{
-        fields: vec!["view: view".to_owned(), "view: kind".to_owned()],
-        insert: view_values,
-        remove: Vec::new(),
-    });
-    flow.get_output_mut("tag").change(Change{
-        fields: vec!["tag: view".to_owned(), "tag: tag".to_owned()],
-        insert: tag_values,
-        remove: Vec::new(),
-    });
-    flow.get_output_mut("field").change(Change{
-        fields: vec!["field: field".to_owned(), "field: view".to_owned(), "field: kind".to_owned()],
-        insert: field_values,
-        remove: Vec::new(),
-    });
-    flow.get_output_mut("source").change(Change{
-        fields: vec!["source: view".to_owned(), "source: source".to_owned(), "source: source view".to_owned()],
-        insert: source_values,
-        remove: Vec::new(),
-    });
-    flow.get_output_mut("select").change(Change{
-        fields: vec!["select: view".to_owned(), "select: view field".to_owned(), "select: source".to_owned(), "select: source field".to_owned()],
-        insert: select_values,
-        remove: Vec::new(),
-    });
-    flow.get_output_mut("display name").change(Change{
-        fields: vec!["display name: id".to_owned(), "display name: name".to_owned()],
-        insert: display_name_values,
-        remove: Vec::new(),
-    });
-    flow.get_output_mut("display order").change(Change{
-        fields: vec!["display order: id".to_owned(), "display order: priority".to_owned()],
-        insert: display_order_values,
-        remove: Vec::new(),
-    });
-    primitive::install(&mut flow);
+    for (name, scalar_inputs, vector_inputs, outputs) in primitive::primitives().into_iter() {
+        view_values.push(vec![string!("{}", name), string!("primitive")]);
+        display_name_values.push(vec![string!("{}", name), string!("{}", name)]);
+        for field in scalar_inputs.into_iter() {
+            field_values.push(vec![string!("{}: {}", name, field), string!("{}", name), string!("scalar input")]);
+            display_name_values.push(vec![string!("{}: {}", name, field), string!("{}", field)]);
+        }
+        for field in vector_inputs.into_iter() {
+            field_values.push(vec![string!("{}: {}", name, field), string!("{}", name), string!("vector input")]);
+            display_name_values.push(vec![string!("{}: {}", name, field), string!("{}", field)]);
+        }
+        for field in outputs.into_iter() {
+            field_values.push(vec![string!("{}: {}", name, field), string!("{}", name), string!("output")]);
+            display_name_values.push(vec![string!("{}: {}", name, field), string!("{}", field)]);
+        }
+    }
+    overwrite_compiler_view(&flow, "view", view_values);
+    overwrite_compiler_view(&flow, "tag", tag_values);
+    overwrite_compiler_view(&flow, "field", field_values);
+    overwrite_compiler_view(&flow, "source", source_values);
+    overwrite_compiler_view(&flow, "select", select_values);
+    overwrite_compiler_view(&flow, "display name", display_name_values);
+    overwrite_compiler_view(&flow, "display order", display_order_values);
     recompile(flow) // bootstrap away our dummy nodes
 }
