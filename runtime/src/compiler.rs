@@ -273,7 +273,7 @@ fn calculate_index_layout(flow: &Flow) {
                 }
             }
             None => {
-                // other fields we just order arbitrarly
+                // other fields we just order arbitrarily
                 for (ix, field) in field_table.find_all("view", &view["view"]).iter().enumerate() {
                     items.push(vec![
                         view["view"].clone(),
