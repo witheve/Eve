@@ -415,7 +415,14 @@ var queryEditor = (function(window, microReact, api) {
         if(sendToServer && localState.initialValue && localState.initialValue !== info.value) {
           diffs.push(["constant", "removed", [constantId, localState.initialValue]]);
         }
-
+        break;
+      case "updateAggregateGrouping":
+        console.log(info);
+        diffs = diff.updateAggregateGrouping(info.aggregate, info.source, info.field);
+        if(diffs.length) {
+          var neue = diffs[0][2];//@FIXME: Hacky.
+          sendToServer = neue[code.ix("aggregate grouping", "inner field")] && neue[code.ix("aggregate grouping", "outer field")];
+        }
         break;
       case "groupView":
         var old = ixer.index("grouped by")[info.inner];
@@ -2719,14 +2726,18 @@ var queryEditor = (function(window, microReact, api) {
    */
   function aggregateBlock(viewId) {
     var blockAggregate = ixer.index("block aggregate")[viewId];
+    var aggregateKind = blockAggregate[code.ix("block aggregate", "kind")];
 
     var sources = ixer.index("source")[viewId] || {};
     var outerSource = sources.outer;
     var innerSource = sources.inner;
 
-    var groupBy = ixer.index("grouped by")[innerSource] || [];
-    // console.log(blockAggregate, sources, groupBy);
-    var aggregateKind = blockAggregate[code.ix("block aggregate", "kind")];
+    var grouping = ixer.index("aggregate grouping")[viewId];
+    if(grouping) {
+      var innerField = grouping[code.ix("aggregate grouping", "inner field")];
+      var outerField = grouping[code.ix("aggregate grouping", "outer field")];
+    }
+
 
 
     var fields = ixer.index("view and source to block fields")[viewId] || {};
@@ -2756,9 +2767,36 @@ var queryEditor = (function(window, microReact, api) {
 //       {c: "block-section view-sources", viewId: viewId, children: [
 //         innerSource ? viewSource(viewId, "inner") : undefined
 //       ]},
+
+      {c: "block-section aggregate-grouping", children: [
+        {text: "Group by"},
+        token.blockField({key: "outer", parentId: viewId, source: "outer", field: outerField}, updateAggregateGrouping, dropAggregateGroupingField),
+        {text: "="},
+        token.blockField({key: "inner", parentId: viewId, source: "inner", field: innerField}, updateAggregateGrouping, dropAggregateGroupingField),
+      ]},
       content,
       {c: "block-section view-selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems},
     ]};
+  }
+
+  function updateAggregateGrouping(evt, elem) {
+
+  }
+
+  function dropAggregateGroupingField(evt, elem) {
+    var viewId = elem.parentId;
+    var type = evt.dataTransfer.getData("type");
+    var value = evt.dataTransfer.getData("value");
+    if(type === "field") {
+      var id = evt.dataTransfer.getData("fieldId");
+      var blockField = ixer.index("block field")[id];
+      if(blockField[code.ix("block field", "view")] !== viewId) { return; }
+      var fieldId = blockField[code.ix("block field", "field")];
+      var sourceId = blockField[code.ix("block field", "source")];
+      if(sourceId !== elem.key) { return; }
+
+      dispatch("updateAggregateGrouping", {aggregate: viewId, source: sourceId, field: fieldId});
+    }
   }
 
   function sortLimitAggregate(viewId, outerSource, innerSource) {
