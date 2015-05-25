@@ -104,6 +104,14 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // the constraint schedule determines when constraints will be checked
     // `ix` is an integer. the constraint will be checked after the corresponding source is explored
     ("constraint schedule", vec!["constraint"], vec!["ix"]),
+
+    // index layout determines the order in which fields are stored in the view index
+    // `ix` is an integer, the index of the field
+    ("index layout", vec!["view", "field"], vec!["ix"]),
+
+    // view layout determines the order in which source/field pairs are stored while computing the view
+    // `ix` is an integer, the index of the field
+    ("view layout", vec!["view", "source", "field"], vec!["ix"]),
     ]
 }
 
