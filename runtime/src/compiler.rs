@@ -713,15 +713,13 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
     let mut tag_values = Vec::new();
     let mut field_values = Vec::new();
     let mut display_name_values = Vec::new();
-    let mut display_order_values = Vec::new();
     for (id, unique_fields, other_fields) in schema.into_iter() {
         view_values.push(vec![string!("{}", id), string!("table")]);
         display_name_values.push(vec![string!("{}", id), string!("{}", id)]);
         tag_values.push(vec![string!("{}", id), string!("compiler")]);
-        for (ix, field) in unique_fields.into_iter().chain(other_fields.into_iter()).rev().enumerate() {
+        for field in unique_fields.into_iter().chain(other_fields.into_iter()) {
             field_values.push(vec![string!("{}: {}", id, field), string!("{}", id), string!("output")]);
             display_name_values.push(vec![string!("{}: {}", id, field), string!("{}", field)]);
-            display_order_values.push(vec![string!("{}: {}", id, field), Value::Float(ix as f64)]);
         }
     }
     for (name, scalar_inputs, vector_inputs, outputs) in primitive::primitives().into_iter() {
@@ -744,6 +742,5 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
     overwrite_compiler_view(&flow, "tag", tag_values);
     overwrite_compiler_view(&flow, "field", field_values);
     overwrite_compiler_view(&flow, "display name", display_name_values);
-    overwrite_compiler_view(&flow, "display order", display_order_values);
     recompile(flow) // bootstrap away our dummy nodes
 }
