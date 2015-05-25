@@ -50,10 +50,18 @@ var api = (function(Indexing) {
       "aggregate sorting": {name: "aggregate sorting", fields: ["aggregate", "inner field", "priority", "direction"]},
       "aggregate limit from": {name: "aggregate limit from", fields: ["aggregate", "from source", "from field"]},
       "aggregate limit to": {name: "aggregate limit to", fields: ["aggregate", "to source", "to field"]},
-      "aggregate argument": {name: "aggregate argument", fields: ["aggregate", "reducer source", "reducer field", "argument source", "argument field"]},
 
       "display order": {name: "display order", fields: ["id", "priority"]},
-      "display name": {name: "display name", fields: ["id", "name"]}
+      "display name": {name: "display name", fields: ["id", "name"]},
+
+      "view dependency": {name: "view dependency", fields: ["upstream view", "ix", "source", "downstream view"]},
+      "view schedule": {name: "view schedule", fields: ["view", "ix"]},
+      "source dependency": {name: "source dependency", fields: ["upstream source", "upstream field", "downstream source", "downstream field"]},
+      "source schedule": {name: "source schedule", fields: ["view", "source", "ix"]},
+      "constraint schedule": {name: "constraint schedule", fields: ["constraint", "ix"]},
+      "index layout": {name: "index layout", fields: ["view", "field", "ix"]},
+      "view constant": {name: "view constant", fields: ["view", "constant"]},
+      "view layout": {name: "view layout", fields: ["view", "source", "field", "ix"]},
     },
     editor: {
       initialized: {name: "initialized", fields: ["initialized"], facts: [[true]]},
@@ -129,6 +137,7 @@ var api = (function(Indexing) {
   ixer.addIndex("view to aggregate sorting", "aggregate sorting", Indexing.create.lookup([0, false]));
   ixer.addIndex("view to aggregate limit from", "aggregate limit from", Indexing.create.lookup([0, false]));
   ixer.addIndex("view to aggregate limit to", "aggregate limit to", Indexing.create.lookup([0, false]));
+  ixer.addIndex("aggregate grouping", "aggregate grouping", Indexing.create.lookup([0, false]));
 
   // editor
   ixer.addIndex("block", "block", Indexing.create.lookup([1, false]));
@@ -200,9 +209,9 @@ var api = (function(Indexing) {
         fields[ix] = [ixer.index("display order")[fieldId], fieldId];
       }
       fields.sort(function(a, b) {
-        var delta = a[0] - b[0];
+        var delta = b[0] - a[0];
         if(delta) { return delta; }
-        else { return a[1] > b[1]; }
+        else { return a[1] < b[1]; }
       });
 
       var fieldIds = [];
@@ -291,7 +300,7 @@ var api = (function(Indexing) {
         var fieldId = view.name + ": " + fieldName;
         diffs.push(["field", "inserted", [viewId, fieldId, "output"]]); // @NOTE: Can this be any other kind?
         diffs.push(["display name", "inserted", [fieldId, fieldName]]);
-        diffs.push(["display order", "inserted", [fieldId, ix]]);
+        diffs.push(["display order", "inserted", [fieldId, -ix]]);
       }
       if(!noFacts && view.facts) {
         for(var ix = 0; ix < view.facts.length; ix++) {
@@ -542,6 +551,18 @@ var api = (function(Indexing) {
       diffs.push(["aggregate sorting", "inserted", neue]);
       if(old && !Indexing.arraysIdentical(neue, old)) {
         diffs.push(["aggregate sorting", "removed", old]);
+      }
+
+      return diffs;
+    },
+    updateAggregateGrouping: function(viewId, source, field) {
+      var old = ixer.index("aggregate grouping")[viewId];
+      var neue = old ? old.slice() : [viewId, "", ""];
+      var ix = code.ix("aggregate grouping", source + " field");
+      neue[ix] = field;
+      var diffs = [["aggregate grouping", "inserted", neue]];
+      if(old && !Indexing.arraysIdentical(old, neue)) {
+        diffs.push(["aggregate grouping", "removed", old]);
       }
 
       return diffs;
