@@ -1,5 +1,3 @@
-use relation::Change;
-use flow::Flow;
 use value::{Value, Field, Tuple};
 use relation::Reference;
 

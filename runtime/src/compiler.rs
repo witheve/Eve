@@ -712,34 +712,16 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
     let mut view_values = Vec::new();
     let mut tag_values = Vec::new();
     let mut field_values = Vec::new();
-    let mut select_values = Vec::new();
-    let mut source_values = Vec::new();
     let mut display_name_values = Vec::new();
     let mut display_order_values = Vec::new();
     for (id, unique_fields, other_fields) in schema.into_iter() {
         view_values.push(vec![string!("{}", id), string!("table")]);
-        view_values.push(vec![string!("insert: {}", id), string!("union")]);
-        view_values.push(vec![string!("remove: {}", id), string!("union")]);
         display_name_values.push(vec![string!("{}", id), string!("{}", id)]);
-        display_name_values.push(vec![string!("insert: {}", id), string!("insert: {}", id)]);
-        display_name_values.push(vec![string!("remove: {}", id), string!("remove: {}", id)]);
         tag_values.push(vec![string!("{}", id), string!("compiler")]);
-        tag_values.push(vec![string!("insert: {}", id), string!("compiler")]);
-        tag_values.push(vec![string!("remove: {}", id), string!("compiler")]);
         for (ix, field) in unique_fields.into_iter().chain(other_fields.into_iter()).rev().enumerate() {
             field_values.push(vec![string!("{}: {}", id, field), string!("{}", id), string!("output")]);
-            field_values.push(vec![string!("insert: {}: {}", id, field), string!("insert: {}", id), string!("output")]);
-            field_values.push(vec![string!("remove: {}: {}", id, field), string!("remove: {}", id), string!("output")]);
             display_name_values.push(vec![string!("{}: {}", id, field), string!("{}", field)]);
-            display_name_values.push(vec![string!("insert: {}: {}", id, field), string!("{}", field)]);
-            display_name_values.push(vec![string!("remove: {}: {}", id, field), string!("{}", field)]);
             display_order_values.push(vec![string!("{}: {}", id, field), Value::Float(ix as f64)]);
-            display_order_values.push(vec![string!("insert: {}: {}", id, field), Value::Float(ix as f64)]);
-            display_order_values.push(vec![string!("remove: {}: {}", id, field), Value::Float(ix as f64)]);
-            source_values.push(vec![string!("{}", id), string!("insert"), string!("insert: {}", id)]);
-            source_values.push(vec![string!("{}", id), string!("remove"), string!("remove: {}", id)]);
-            select_values.push(vec![string!("{}", id), string!("{}: {}", id, field), string!("insert"), string!("insert: {}: {}", id, field)]);
-            select_values.push(vec![string!("{}", id), string!("{}: {}", id, field), string!("remove"), string!("remove: {}: {}", id, field)]);
         }
     }
     for (name, scalar_inputs, vector_inputs, outputs) in primitive::primitives().into_iter() {
@@ -761,8 +743,6 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
     overwrite_compiler_view(&flow, "view", view_values);
     overwrite_compiler_view(&flow, "tag", tag_values);
     overwrite_compiler_view(&flow, "field", field_values);
-    overwrite_compiler_view(&flow, "source", source_values);
-    overwrite_compiler_view(&flow, "select", select_values);
     overwrite_compiler_view(&flow, "display name", display_name_values);
     overwrite_compiler_view(&flow, "display order", display_order_values);
     recompile(flow) // bootstrap away our dummy nodes
