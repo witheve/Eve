@@ -127,7 +127,7 @@ fn join_step<'a>(join: &'a Join, inputs: &[&'a Relation], tuples: &mut Vec<Tuple
 
 fn aggregate_step<'a>(aggregate: &Aggregate, input_fields: &[&[Field]], input_sets: &'a [&[Vec<Value>]], tuples: &mut Vec<Tuple<'a>>, index: &mut BTreeSet<Vec<Value>>) {
     if input_fields.len() == 0 {
-        aggregate.select.select(&tuples[..]);
+        index.insert(aggregate.select.select(&tuples[..]));
     } else {
         for values in input_sets[0].iter() {
             let tuple = Tuple{fields: input_fields[0], names: input_fields[0], values: &values[..]};

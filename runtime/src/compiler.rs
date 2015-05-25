@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::fmt::Debug;
 
 use value::{Value, Tuple};
-use relation::{Relation, Change, SingleSelect, Reference, MultiSelect, mapping, with_mapping};
+use relation::{Relation, SingleSelect, Reference, MultiSelect, mapping, with_mapping};
 use view::{View, Table, Union, Join, JoinSource, Constraint, ConstraintOp, Aggregate, Reducer};
 use flow::{Node, Flow};
 use primitive;
@@ -99,7 +99,7 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
 
     // the source schedule determines in what order sources will be explored inside joins/aggregates
     // `ix` is an integer. views with lower ixes are explored first.
-    ("source schedule", vec!["source"], vec!["ix"]),
+    ("source schedule", vec!["view", "source"], vec!["ix"]),
 
     // the constraint schedule determines when constraints will be checked
     // `ix` is an integer. the constraint will be checked after the corresponding source is explored
@@ -108,6 +108,9 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // index layout determines the order in which fields are stored in the view index
     // `ix` is an integer, the index of the field
     ("index layout", vec!["view", "field"], vec!["ix"]),
+
+    // constants used by each view
+    ("view constant", vec!["view", "constant"], vec![]),
 
     // view layout determines the order in which source/field pairs are stored while computing the view
     // `ix` is an integer, the index of the field
@@ -129,6 +132,10 @@ fn overwrite_compiler_view(flow: &Flow, view: &str, items: Vec<Vec<Value>>) {
         .collect();
     let index = items.into_iter().collect();
     *flow.get_output_mut(view) = Relation{fields: fields, names: names, index: index};
+}
+
+fn sort_by_ix(tuples: &mut Vec<Tuple>) {
+    tuples.sort_by(|a,b| a["ix"].cmp(&b["ix"]));
 }
 
 // TODO we don't really need source in here
@@ -227,7 +234,7 @@ fn calculate_source_schedule(flow: &Flow) {
         }).collect();
         let sources_and_upstreams = topological_sort(sources_and_upstreams);
         for (ix, (source, _)) in sources_and_upstreams.into_iter().enumerate() {
-            items.push(vec![source, Value::Float(ix as f64)]);
+            items.push(vec![view["view"].clone(), source, Value::Float(ix as f64)]);
         }
     }
     overwrite_compiler_view(flow, "source schedule", items);
@@ -286,6 +293,85 @@ fn calculate_index_layout(flow: &Flow) {
         }
     }
     overwrite_compiler_view(flow, "index layout", items);
+}
+
+fn calculate_view_constant(flow: &Flow) {
+    let mut items = Vec::new();
+    let view_table = flow.get_output("view");
+    let constraint_table = flow.get_output("constraint");
+    let constraint_left_table = flow.get_output("constraint left");
+    let constraint_right_table = flow.get_output("constraint right");
+    let limit_from_table = flow.get_output("aggregate limit from");
+    let limit_to_table = flow.get_output("aggregate limit to");
+    let select_table = flow.get_output("select");
+    for view in view_table.iter() {
+        for constraint in constraint_table.find_all("view", &view["view"]) {
+            for constraint_left in constraint_left_table.find_all("constraint", &constraint["constraint"]) {
+                if constraint_left["left source"].as_str() == "constant" {
+                    items.push(vec![view["view"].clone(), constraint_left["left field"].clone()]);
+                }
+            }
+            for constraint_right in constraint_right_table.find_all("constraint", &constraint["constraint"]) {
+                if constraint_right["right source"].as_str() == "constant" {
+                    items.push(vec![view["view"].clone(), constraint_right["right field"].clone()]);
+                }
+            }
+        }
+        for limit_from in limit_from_table.find_all("aggregate", &view["view"]) {
+            if limit_from["from source"].as_str() == "constant" {
+                items.push(vec![view["view"].clone(), limit_from["from field"].clone()]);
+            }
+        }
+        for limit_to in limit_to_table.find_all("aggregate", &view["view"]) {
+            if limit_to["to source"].as_str() == "constant" {
+                items.push(vec![view["view"].clone(), limit_to["to field"].clone()]);
+            }
+        }
+        for select in select_table.find_all("view", &view["view"]) {
+            if select["source"].as_str() == "constant" {
+                items.push(vec![view["view"].clone(), select["source field"].clone()]);
+            }
+        }
+    }
+    overwrite_compiler_view(flow, "view constant", items);
+}
+
+fn calculate_view_layout(flow: &Flow) {
+    let mut items = Vec::new();
+    let view_table = flow.get_output("view");
+    let view_constant_table = flow.get_output("view constant");
+    let source_table = flow.get_output("source");
+    let source_schedule_table = flow.get_output("source schedule");
+    let index_layout_table = flow.get_output("index layout");
+    for view in view_table.iter() {
+        let mut ix = 0;
+        for view_constant in view_constant_table.find_all("view", &view["view"]) {
+            items.push(vec![
+                view["view"].clone(),
+                string!("constant"),
+                view_constant["constant"].clone(),
+                Value::Float(ix as f64),
+                ]);
+            ix += 1;
+        }
+        let mut source_schedules = source_schedule_table.find_all("view", &view["view"]);
+        sort_by_ix(&mut source_schedules);
+        for source_schedule in source_schedules {
+            let source = source_table.find_one("source", &source_schedule["source"]);
+            let mut index_layouts = index_layout_table.find_all("view", &source["view"]);
+            sort_by_ix(&mut index_layouts);
+            for index_layout in index_layouts {
+                items.push(vec![
+                    view["view"].clone(),
+                    source["source"].clone(),
+                    index_layout["field"].clone(),
+                    Value::Float(ix as f64),
+                    ]);
+                ix += 1;
+            }
+        }
+    }
+    overwrite_compiler_view(flow, "view layout", items);
 }
 
 fn topological_sort<K: Eq + Debug>(mut input: Vec<(K, Vec<K>)>) -> Vec<(K, Vec<K>)> {
@@ -547,6 +633,7 @@ fn create_flow(flow: &Flow) -> Flow {
     let mut nodes = Vec::new();
     let mut dirty = BitSet::new();
     let mut outputs = Vec::new();
+    let index_layout_table = flow.get_output("index layout");
     let view_schedule_table = flow.get_output("view schedule");
     let num_schedules = view_schedule_table.index.len();
     for ix in (0..num_schedules) {
@@ -555,13 +642,13 @@ fn create_flow(flow: &Flow) -> Flow {
         let view = view_table.find_one("view", &schedule["view"]);
         nodes.push(create_node(flow, &view["view"], &view["kind"]));
         dirty.insert(schedule["ix"].as_usize());
-        let field_table = flow.get_output("field");
-        let fields = field_table.find_all("view", &view["view"]);
-        let field_ids = fields.iter().map(|field|
-            field["field"].as_str().to_owned()
+        let mut index_layouts = index_layout_table.find_all("view", &view["view"]);
+        sort_by_ix(&mut index_layouts);
+        let field_ids = index_layouts.iter().map(|index_layout|
+            index_layout["field"].as_str().to_owned()
             ).collect();
-        let field_names = fields.iter().map(|field|
-            match flow.get_output("display name").find_maybe("id", &field["field"]) {
+        let field_names = index_layouts.iter().map(|index_layout|
+            match flow.get_output("display name").find_maybe("id", &index_layout["field"]) {
                 Some(display_name) => display_name["name"].as_str().to_owned(),
                 None => "<unnamed>".to_owned(),
             }).collect();
@@ -600,6 +687,8 @@ pub fn recompile(old_flow: Flow) -> Flow {
     calculate_source_schedule(&old_flow);
     calculate_constraint_schedule(&old_flow);
     calculate_index_layout(&old_flow);
+    calculate_view_constant(&old_flow);
+    calculate_view_layout(&old_flow);
     let mut new_flow = create_flow(&old_flow);
     reuse_state(old_flow, &mut new_flow);
     new_flow
@@ -626,7 +715,8 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
     let mut select_values = Vec::new();
     let mut source_values = Vec::new();
     let mut display_name_values = Vec::new();
-    for &(ref id, ref unique_fields, ref other_fields) in schema.iter() {
+    let mut display_order_values = Vec::new();
+    for (id, unique_fields, other_fields) in schema.into_iter() {
         view_values.push(vec![string!("{}", id), string!("table")]);
         view_values.push(vec![string!("insert: {}", id), string!("union")]);
         view_values.push(vec![string!("remove: {}", id), string!("union")]);
@@ -636,49 +726,44 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
         tag_values.push(vec![string!("{}", id), string!("compiler")]);
         tag_values.push(vec![string!("insert: {}", id), string!("compiler")]);
         tag_values.push(vec![string!("remove: {}", id), string!("compiler")]);
-        for &field in unique_fields.iter().chain(other_fields.iter()) {
+        for (ix, field) in unique_fields.into_iter().chain(other_fields.into_iter()).rev().enumerate() {
             field_values.push(vec![string!("{}: {}", id, field), string!("{}", id), string!("output")]);
             field_values.push(vec![string!("insert: {}: {}", id, field), string!("insert: {}", id), string!("output")]);
             field_values.push(vec![string!("remove: {}: {}", id, field), string!("remove: {}", id), string!("output")]);
             display_name_values.push(vec![string!("{}: {}", id, field), string!("{}", field)]);
             display_name_values.push(vec![string!("insert: {}: {}", id, field), string!("{}", field)]);
             display_name_values.push(vec![string!("remove: {}: {}", id, field), string!("{}", field)]);
+            display_order_values.push(vec![string!("{}: {}", id, field), Value::Float(ix as f64)]);
+            display_order_values.push(vec![string!("insert: {}: {}", id, field), Value::Float(ix as f64)]);
+            display_order_values.push(vec![string!("remove: {}: {}", id, field), Value::Float(ix as f64)]);
             source_values.push(vec![string!("{}", id), string!("insert"), string!("insert: {}", id)]);
             source_values.push(vec![string!("{}", id), string!("remove"), string!("remove: {}", id)]);
             select_values.push(vec![string!("{}", id), string!("{}: {}", id, field), string!("insert"), string!("insert: {}: {}", id, field)]);
             select_values.push(vec![string!("{}", id), string!("{}: {}", id, field), string!("remove"), string!("remove: {}: {}", id, field)]);
         }
     }
-    flow.get_output_mut("view").change(Change{
-        fields: vec!["view: view".to_owned(), "view: kind".to_owned()],
-        insert: view_values,
-        remove: Vec::new(),
-    });
-    flow.get_output_mut("tag").change(Change{
-        fields: vec!["tag: view".to_owned(), "tag: tag".to_owned()],
-        insert: tag_values,
-        remove: Vec::new(),
-    });
-    flow.get_output_mut("field").change(Change{
-        fields: vec!["field: field".to_owned(), "field: view".to_owned(), "field: kind".to_owned()],
-        insert: field_values,
-        remove: Vec::new(),
-    });
-    flow.get_output_mut("source").change(Change{
-        fields: vec!["source: view".to_owned(), "source: source".to_owned(), "source: source view".to_owned()],
-        insert: source_values,
-        remove: Vec::new(),
-    });
-    flow.get_output_mut("select").change(Change{
-        fields: vec!["select: view".to_owned(), "select: view field".to_owned(), "select: source".to_owned(), "select: source field".to_owned()],
-        insert: select_values,
-        remove: Vec::new(),
-    });
-    flow.get_output_mut("display name").change(Change{
-        fields: vec!["display name: id".to_owned(), "display name: name".to_owned()],
-        insert: display_name_values,
-        remove: Vec::new(),
-    });
-    primitive::install(&mut flow);
+    for (name, scalar_inputs, vector_inputs, outputs) in primitive::primitives().into_iter() {
+        view_values.push(vec![string!("{}", name), string!("primitive")]);
+        display_name_values.push(vec![string!("{}", name), string!("{}", name)]);
+        for field in scalar_inputs.into_iter() {
+            field_values.push(vec![string!("{}: {}", name, field), string!("{}", name), string!("scalar input")]);
+            display_name_values.push(vec![string!("{}: {}", name, field), string!("{}", field)]);
+        }
+        for field in vector_inputs.into_iter() {
+            field_values.push(vec![string!("{}: {}", name, field), string!("{}", name), string!("vector input")]);
+            display_name_values.push(vec![string!("{}: {}", name, field), string!("{}", field)]);
+        }
+        for field in outputs.into_iter() {
+            field_values.push(vec![string!("{}: {}", name, field), string!("{}", name), string!("output")]);
+            display_name_values.push(vec![string!("{}: {}", name, field), string!("{}", field)]);
+        }
+    }
+    overwrite_compiler_view(&flow, "view", view_values);
+    overwrite_compiler_view(&flow, "tag", tag_values);
+    overwrite_compiler_view(&flow, "field", field_values);
+    overwrite_compiler_view(&flow, "source", source_values);
+    overwrite_compiler_view(&flow, "select", select_values);
+    overwrite_compiler_view(&flow, "display name", display_name_values);
+    overwrite_compiler_view(&flow, "display order", display_order_values);
     recompile(flow) // bootstrap away our dummy nodes
 }
