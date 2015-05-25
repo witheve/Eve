@@ -323,6 +323,8 @@ var api = (function(Indexing) {
                    ["block", "inserted", [queryId, blockId, viewId]],
                    ["source", "inserted", [viewId, "inner", "empty"]],
                    ["source", "inserted", [viewId, "outer", "empty"]],
+                   ["display name", "inserted", [viewId + "-inner", "inner"]],
+                   ["display name", "inserted", [viewId + "-outer", "outer"]],
                    ["block aggregate", "inserted", [viewId, kind]]];
       return diffs;
     },
