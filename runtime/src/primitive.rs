@@ -9,8 +9,6 @@ pub enum Primitive {
     Subtract,
     Count,
     Sum,
-    Min,
-    Max,
     Any
 }
 
@@ -53,8 +51,6 @@ impl Primitive {
             (Subtract, [&Float(a), &Float(b)]) => vec![vec![Float(a-b)]],
             (Count, _) => panic!("Cannot use {:?} in a join", self),
             (Sum, _) => panic!("Cannot use {:?} in a join", self),
-            (Min, _) => panic!("Cannot use {:?} in a join", self),
-            (Max, _) => panic!("Cannot use {:?} in a join", self),
             (Any, _) => panic!("Cannot use {:?} in a join", self),
             _ => panic!("Type error while calling: {:?} {:?}", self, &arguments)
         }
@@ -78,44 +74,6 @@ impl Primitive {
                     });
                 vec![vec![Float(sum)]]
             },
-            (Min, [ref by_ref, ref of_ref]) => {
-                let by_values = by_ref.resolve_as_vector(outer, inner_fields, inner_values);
-                let of_values = of_ref.resolve_as_vector(outer, inner_fields, inner_values);
-                assert!(by_values.len() == of_values.len());
-                if by_values.len() == 0 {
-                    vec![]
-                } else {
-                    let (_, min) = by_values[1..].into_iter().zip(of_values[1..].into_iter()).fold(
-                        (&by_values[0], &of_values[0]),
-                        |(min_by_value, min_of_value), (by_value, of_value)| {
-                            if by_value < min_by_value {
-                                (by_value, of_value)
-                            } else {
-                                (min_by_value, min_of_value)
-                            }
-                        });
-                    vec![vec![(*min).clone()]]
-                }
-            },
-            (Max, [ref by_ref, ref of_ref]) => {
-                let by_values = by_ref.resolve_as_vector(outer, inner_fields, inner_values);
-                let of_values = of_ref.resolve_as_vector(outer, inner_fields, inner_values);
-                assert!(by_values.len() == of_values.len());
-                if by_values.len() == 0 {
-                    vec![]
-                } else {
-                    let (_, max) = by_values[1..].into_iter().zip(of_values[1..].into_iter()).fold(
-                        (&by_values[0], &of_values[0]),
-                        |(max_by_value, max_of_value), (by_value, of_value)| {
-                            if by_value > max_by_value {
-                                (by_value, of_value)
-                            } else {
-                                (max_by_value, max_of_value)
-                            }
-                        });
-                    vec![vec![(*max).clone()]]
-                }
-            },
             (Any, [ref in_ref]) => {
                 let in_values = in_ref.resolve_as_vector(outer, inner_fields, inner_values);
                 vec![vec![Bool(in_values.len() > 0)]]
@@ -130,8 +88,6 @@ impl Primitive {
             "subtract" => Primitive::Subtract,
             "count" => Primitive::Count,
             "sum" => Primitive::Sum,
-            "min" => Primitive::Min,
-            "max" => Primitive::Max,
             "any" => Primitive::Any,
             _ => panic!("Unknown primitive: {:?}", string),
         }
@@ -144,8 +100,6 @@ pub fn primitives() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, 
         ("subtract", vec!["in A", "in B"], vec![], vec!["out"]),
         ("count", vec![], vec!["in"], vec!["out"]),
         ("sum", vec![], vec!["in"], vec!["out"]),
-        ("min", vec![], vec!["by", "of"], vec!["out"]),
-        ("max", vec![], vec!["by", "of"], vec!["out"]),
         ("any", vec![], vec!["in"], vec!["out"]),
     ]
 }
