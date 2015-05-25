@@ -134,6 +134,21 @@ fn overwrite_compiler_view(flow: &Flow, view: &str, items: Vec<Vec<Value>>) {
     *flow.get_output_mut(view) = Relation{fields: fields, names: names, index: index};
 }
 
+fn topological_sort<K: Eq + Debug>(mut input: Vec<(K, Vec<K>)>) -> Vec<(K, Vec<K>)> {
+    let mut output = Vec::new();
+    while input.len() > 0 {
+        match input.iter().position(|&(_, ref parents)|
+                parents.iter().all(|parent_key|
+                    output.iter().find(|&&(ref output_key, _)| output_key == parent_key) != None
+                    )
+                ) {
+            Some(ix) => output.push(input.swap_remove(ix)),
+            None => panic!("Cannot topological sort - stuck at {:?} {:?}", input, output),
+        }
+    }
+    output
+}
+
 fn sort_by_ix(tuples: &mut Vec<Tuple>) {
     tuples.sort_by(|a,b| a["ix"].cmp(&b["ix"]));
 }
@@ -372,21 +387,6 @@ fn calculate_view_layout(flow: &Flow) {
         }
     }
     overwrite_compiler_view(flow, "view layout", items);
-}
-
-fn topological_sort<K: Eq + Debug>(mut input: Vec<(K, Vec<K>)>) -> Vec<(K, Vec<K>)> {
-    let mut output = Vec::new();
-    while input.len() > 0 {
-        match input.iter().position(|&(_, ref parents)|
-                parents.iter().all(|parent_key|
-                    output.iter().find(|&&(ref output_key, _)| output_key == parent_key) != None
-                    )
-                ) {
-            Some(ix) => output.push(input.swap_remove(ix)),
-            None => panic!("Cannot topological sort - stuck at {:?} {:?}", input, output),
-        }
-    }
-    output
 }
 
 fn create_single_select(flow: &Flow, view_id: &Value, source_id: &Value, source_ix: usize) -> SingleSelect {
