@@ -779,11 +779,18 @@ var queryEditor = (function(window, microReact, api) {
   //---------------------------------------------------------
 
   function tableWorkspace(tableId) {
-    var fields = ixer.index("view to fields")[tableId].map(function(cur) {
-      return {name: code.name(cur[1]), id: cur[1]};
-    });
-    var rows = ixer.facts(tableId);
     var order = ixer.index("display order");
+    var fields = (ixer.index("view to fields")[tableId] || []).map(function(field) {
+      var id = field[code.ix("field", "field")];
+      return {name: code.name(id), id: id, priority: order[id] || 0};
+    });
+    fields.sort(function(a, b) {
+      var delta = b.priority - a.priority;
+      if(delta) { return delta; }
+      else { return a.id.localeCompare(b.id); }
+    });
+
+    var rows = ixer.facts(tableId);
     rows.sort(function(a, b) {
       var aIx = order[tableId + JSON.stringify(a)];
       var bIx = order[tableId + JSON.stringify(b)];
@@ -2300,10 +2307,14 @@ var queryEditor = (function(window, microReact, api) {
       var rows = ixer.facts(viewId) || [];
       var fields = (ixer.index("view to fields")[viewId] || []).map(function(field) {
         var id = field[code.ix("field", "field")];
-        return {name: code.name(id), id: id};
+        return {name: code.name(id), id: id, priority: order[id] || 0};
       });
-      // This is a weird way to use display order.
-      var order = ixer.index("display order");
+      fields.sort(function(a, b) {
+        var delta = b.priority - a.priority;
+        if(delta) { return delta; }
+        else { return a.id.localeCompare(b.id); }
+      });
+
       rows.sort(function(a, b) {
         var aIx = order[viewId + JSON.stringify(a)];
         var bIx = order[viewId + JSON.stringify(b)];
@@ -2431,10 +2442,13 @@ var queryEditor = (function(window, microReact, api) {
   function viewBlock(viewId, ix) {
     var fields = ixer.index("view and source to block fields")[viewId] || {};
 
+    var blockFieldIdIx = code.ix("block field", "block field");
+    var fieldIdIx = code.ix("block field", "field");
     fields = fields["selection"] || [];
     var selectionItems = fields.map(function(field) {
-      var id = field[code.ix("block field", "block field")];
-      return fieldItem(code.name(id) || "Untitled", id, {c: "pill field"});
+      var id = field[blockFieldIdIx];
+      var fieldId = field[fieldIdIx];
+      return fieldItem(code.name(fieldId) || "Untitled", id, {c: "pill field"});
     });
     if(!selectionItems.length) {
       selectionItems.push({text: "Drag local fields into me to make them available in the query."});
@@ -2500,7 +2514,7 @@ var queryEditor = (function(window, microReact, api) {
       return source[sourceIdIx];
     });
 
-    sources.sort(api.displaySort);
+    sourceIds.sort(api.displaySort);
     var sourceItems = sourceIds.map(function(sourceId) {
       return sourceWithFields("view", viewId, sourceId, drop);
     });
@@ -2895,9 +2909,13 @@ var queryEditor = (function(window, microReact, api) {
 
     var fields = ixer.index("view and source to block fields")[viewId] || {};
     fields = fields["selection"] || [];
+
+    var blockFieldIdIx = code.ix("block field", "block field");
+    var fieldIdIx = code.ix("block field", "field");
     var selectionItems = fields.map(function(field) {
-      var id = field[code.ix("block field", "block field")];
-      return fieldItem(code.name(id) || "Untitled", id, {c: "pill field"});
+      var id = field[blockFieldIdIx];
+      var fieldId = field[fieldIdIx];
+      return fieldItem(code.name(fieldId) || "Untitled", id, {c: "pill field"});
     });
     if(!selectionItems.length) {
       selectionItems.push({text: "Drag local fields into me to make them available in the query."});

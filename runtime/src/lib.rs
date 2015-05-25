@@ -32,4 +32,5 @@ pub mod primitive;
 pub mod compiler;
 pub mod server;
 pub mod authenticate;
+pub mod client;
 // pub mod test;
