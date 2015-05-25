@@ -2402,7 +2402,7 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   // Sources
-  function viewSources(viewId) {
+  function viewSources(viewId, drop) {
     var sourceIdIx = code.ix("source", "source");
     var sources = ixer.index("view to sources")[viewId] || [];
     var sourceIds = sources.map(function(source) {
@@ -2416,13 +2416,13 @@ var queryEditor = (function(window, microReact, api) {
       else { return idA > idB }
     });
     var sourceItems = sourceIds.map(function(sourceId) {
-      return viewSource(viewId, sourceId);
+      return viewSource(viewId, sourceId, drop);
     });
 
     return {c: "block-section view-sources", children: sourceItems};
   }
 
-  function viewSource(viewId, sourceId) {
+  function viewSource(viewId, sourceId, drop) {
     var fields = ixer.index("view and source to block fields")[viewId] || {};
     fields = fields[sourceId] || [];
     var fieldItems = fields.map(function(field) {
@@ -2434,10 +2434,12 @@ var queryEditor = (function(window, microReact, api) {
     var sourceName;
 
     if(sourceId == "inner" || sourceId === "outer" || sourceId === "insert" || sourceId === "remove") {
-      sourceName = code.name(viewId + "-" + sourceId);
+      sourceName = code.name(viewId + "-" + sourceId) + " (" + sourceId + ")";
+      console.log(sourceId, sourceName);
     } else {
       sourceName = code.name(sourceId);
     }
+
 
     var children = [
       {c: "view-source-title", children: [
@@ -2445,7 +2447,8 @@ var queryEditor = (function(window, microReact, api) {
         {c: "hover-reveal close-btn ion-android-close", viewId: viewId, sourceId: sourceId, click: removeSource}
       ]}
     ].concat(fieldItems);
-    return {c: "tree bar view-source", children: children};
+    return {c: "tree bar view-source", viewId: viewId, sourceId: sourceId,
+            dragover: (drop ? preventDefault : undefined), drop: drop, children: children};
   }
 
   function removeSource(evt, elem) {
@@ -2748,14 +2751,13 @@ var queryEditor = (function(window, microReact, api) {
       content = primitiveAggregate(viewId, outerSource, innerSource, aggregateKind);
     }
 
-    return {c: "block aggregate-block", viewId: viewId,
-            sourceId: "inner", drop: aggregateSourceDrop, dragover: preventDefault, children: [
+    return {c: "block aggregate-block", children: [
       {c: "block-title", children: [
         {t: "h3", text: "Untitled Agg. Block"},
         {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock}
       ]},
       {text: "With"},
-      viewSources(viewId),
+      viewSources(viewId, aggregateSourceDrop),
 //       {c: "block-section view-sources", viewId: viewId, children: [
 //         innerSource ? viewSource(viewId, "inner") : undefined
 //       ]},
@@ -2833,9 +2835,14 @@ var queryEditor = (function(window, microReact, api) {
     var sourceId = elem.sourceId;
     var type = evt.dataTransfer.getData("type");
     var value = evt.dataTransfer.getData("value");
+    console.log("drop", viewId, sourceId, type, value);
     if(type === "view") {
       if(viewId === value) { return console.error("Cannot join view with parent."); }
-      dispatch("addViewSource", {viewId: viewId, sourceId: value, kind: sourceId});
+      var kind;
+      if(sourceId === "inner" || sourceId === "outer") {
+        kind = sourceId;
+      }
+      dispatch("addViewSource", {viewId: viewId, sourceId: value, kind: kind});
       evt.stopPropagation();
       return;
     }

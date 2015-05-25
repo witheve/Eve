@@ -323,8 +323,8 @@ var api = (function(Indexing) {
                    ["block", "inserted", [queryId, blockId, viewId]],
                    ["source", "inserted", [viewId, "inner", "empty"]],
                    ["source", "inserted", [viewId, "outer", "empty"]],
-                   ["display name", "inserted", [viewId + "-inner", "inner"]],
-                   ["display name", "inserted", [viewId + "-outer", "outer"]],
+                   ["display name", "inserted", [viewId + "-inner", "empty"]],
+                   ["display name", "inserted", [viewId + "-outer", "empty"]],
                    ["block aggregate", "inserted", [viewId, kind]]];
       return diffs;
     },
@@ -432,6 +432,7 @@ var api = (function(Indexing) {
       if(sourceId == "inner" || sourceId === "outer" || sourceId === "insert" || sourceId === "remove") {
         displayId = viewId + "-" + sourceId;
       }
+      console.log("Source ID", sourceId, "Display ID", displayId);
 
       if(queryId === undefined) { queryId = code.activeItemId(); }
       var count = code.countSource(queryId, sourceViewId);
@@ -444,7 +445,9 @@ var api = (function(Indexing) {
       var old = ixer.index("source")[viewId] || {};
       old = old[sourceId];
       if(old && !Indexing.arraysIdentical(old, neue)) {
-        diffs.push(["source", "removed", old]);
+        var oldName = ixer.index("display name")[displayId];
+        diffs.push(["source", "removed", old],
+                   ["display name", "removed", [displayId, oldName]]);
       }
 
       diffs = diffs.concat(diff.cacheViewSourceFields(viewId, sourceId, sourceViewId));
