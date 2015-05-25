@@ -466,7 +466,13 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
     outputs.push(outer_dependency);
     outputs.push(inner_dependency);
     let select = create_multi_select(flow, &outputs[..], view_id);
-    Aggregate{outer: outer, inner: inner, limit_from: limit_from, limit_to: limit_to, reducers: reducers, select: select}
+    let inner_ix = outputs.len() - 1;
+    let selects_inner = select.references.iter().any(|reference|
+        match *reference {
+            Reference::Variable{source, ..} => source == inner_ix,
+            Reference::Constant{..} => false,
+        });
+    Aggregate{outer: outer, inner: inner, limit_from: limit_from, limit_to: limit_to, reducers: reducers, selects_inner: selects_inner, select: select}
 }
 
 fn create_node(flow: &Flow, view_id: &Value, view_kind: &Value) -> Node {
