@@ -715,7 +715,8 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
     let mut select_values = Vec::new();
     let mut source_values = Vec::new();
     let mut display_name_values = Vec::new();
-    for &(ref id, ref unique_fields, ref other_fields) in schema.iter() {
+    let mut display_order_values = Vec::new();
+    for (id, unique_fields, other_fields) in schema.into_iter() {
         view_values.push(vec![string!("{}", id), string!("table")]);
         view_values.push(vec![string!("insert: {}", id), string!("union")]);
         view_values.push(vec![string!("remove: {}", id), string!("union")]);
@@ -725,13 +726,16 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
         tag_values.push(vec![string!("{}", id), string!("compiler")]);
         tag_values.push(vec![string!("insert: {}", id), string!("compiler")]);
         tag_values.push(vec![string!("remove: {}", id), string!("compiler")]);
-        for &field in unique_fields.iter().chain(other_fields.iter()) {
+        for (ix, field) in unique_fields.into_iter().chain(other_fields.into_iter()).rev().enumerate() {
             field_values.push(vec![string!("{}: {}", id, field), string!("{}", id), string!("output")]);
             field_values.push(vec![string!("insert: {}: {}", id, field), string!("insert: {}", id), string!("output")]);
             field_values.push(vec![string!("remove: {}: {}", id, field), string!("remove: {}", id), string!("output")]);
             display_name_values.push(vec![string!("{}: {}", id, field), string!("{}", field)]);
             display_name_values.push(vec![string!("insert: {}: {}", id, field), string!("{}", field)]);
             display_name_values.push(vec![string!("remove: {}: {}", id, field), string!("{}", field)]);
+            display_order_values.push(vec![string!("{}: {}", id, field), Value::Float(ix as f64)]);
+            display_order_values.push(vec![string!("insert: {}: {}", id, field), Value::Float(ix as f64)]);
+            display_order_values.push(vec![string!("remove: {}: {}", id, field), Value::Float(ix as f64)]);
             source_values.push(vec![string!("{}", id), string!("insert"), string!("insert: {}", id)]);
             source_values.push(vec![string!("{}", id), string!("remove"), string!("remove: {}", id)]);
             select_values.push(vec![string!("{}", id), string!("{}: {}", id, field), string!("insert"), string!("insert: {}: {}", id, field)]);
@@ -766,6 +770,11 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
     flow.get_output_mut("display name").change(Change{
         fields: vec!["display name: id".to_owned(), "display name: name".to_owned()],
         insert: display_name_values,
+        remove: Vec::new(),
+    });
+    flow.get_output_mut("display order").change(Change{
+        fields: vec!["display order: id".to_owned(), "display order: priority".to_owned()],
+        insert: display_order_values,
         remove: Vec::new(),
     });
     primitive::install(&mut flow);
