@@ -2482,7 +2482,15 @@ var queryEditor = (function(window, microReact, api) {
   // Sources
   function viewSources(viewId, drop) {
     var sourceIdIx = code.ix("source", "source");
+    var primitives = [];
     var sources = ixer.index("view to sources")[viewId] || [];
+    var sourceViewIx = code.ix("source", "source view");
+    sources = sources.filter(function(source) {
+      var sourceView = source[sourceViewIx];
+      var primitive = ixer.index("primitive")[sourceView];
+      primitives.push(primitive);
+      return !primitive;
+    });
     var sourceIds = sources.map(function(source) {
       return source[sourceIdIx];
     });
@@ -2496,7 +2504,6 @@ var queryEditor = (function(window, microReact, api) {
     var sourceItems = sourceIds.map(function(sourceId) {
       return sourceWithFields("view", viewId, sourceId, drop);
     });
-
     return sourceItems;
   }
 
@@ -2879,15 +2886,8 @@ var queryEditor = (function(window, microReact, api) {
     }
 
     return {c: "block aggregate-block", children: [
-      {c: "block-title", children: [
-        {t: "h3", text: "Untitled Agg. Block"},
-        {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock}
-      ]},
       {text: "With"},
-      viewSources(viewId, aggregateSourceDrop),
-//       {c: "block-section view-sources", viewId: viewId, children: [
-//         innerSource ? viewSource(viewId, "inner") : undefined
-//       ]},
+      {c: "block-section view-sources", viewId: viewId, children: viewSources(viewId, aggregateSourceDrop)},
       content,
       {c: "block-section view-selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems},
     ]};
