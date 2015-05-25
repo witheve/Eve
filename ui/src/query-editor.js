@@ -773,7 +773,7 @@ var queryEditor = (function(window, microReact, api) {
     fields.sort(function(a, b) {
       var delta = b.priority - a.priority;
       if(delta) { return delta; }
-      else { return a.id < b.id; }
+      else { return a.id.localeCompare(b.id); }
     });
 
     var rows = ixer.facts(tableId);
@@ -2310,7 +2310,7 @@ var queryEditor = (function(window, microReact, api) {
       fields.sort(function(a, b) {
         var delta = b.priority - a.priority;
         if(delta) { return delta; }
-        else { return a.id < b.id; }
+        else { return a.id.localeCompare(b.id); }
       });
 
       rows.sort(function(a, b) {
@@ -2424,11 +2424,13 @@ var queryEditor = (function(window, microReact, api) {
       return source[sourceIdIx];
     });
 
-    sources.sort(function(idA, idB) {
+    sources.sort(function(a, b) {
+      var idA = a[sourceIdIx];
+      var idB = b[sourceIdIx];
       var orderA = ixer.index("display order")[idA];
       var orderB = ixer.index("display order")[idB];
       if(orderB - orderA) { return orderB - orderA; }
-      else { return idA > idB }
+      else { return idA.localeCompare(idB) }
     });
     var sourceItems = sourceIds.map(function(sourceId) {
       return viewSource(viewId, sourceId, drop);

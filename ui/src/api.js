@@ -211,9 +211,8 @@ var api = (function(Indexing) {
       fields.sort(function(a, b) {
         var delta = b[0] - a[0];
         if(delta) { return delta; }
-        else { return a[1] < b[1]; }
+        else { return a[1].localeCompare(b[1]); }
       });
-
       var fieldIds = [];
       for(var ix = 0; ix < fieldsLength; ix++) {
         fieldIds.push(fields[ix][1]);
@@ -371,8 +370,6 @@ var api = (function(Indexing) {
                      ["display order", "inserted", [fieldId, 0]],
                      ["display name", "inserted", [fieldId, name]],
                      ["block field", "inserted", [blockFieldId, viewId, "selection", viewId, fieldId]],
-                     ["display order", "inserted", [blockFieldId, 0]],
-                     ["display name", "inserted", [blockFieldId, name]],
                      ["select", "inserted", neue]);
         }
       } else {
@@ -405,10 +402,11 @@ var api = (function(Indexing) {
         var oldName = ixer.index("display name")[id];
         diffs.push(["block field", "removed", oldFact]);
       };
+      var fieldIdIx = code.ix("field", "field")
       var fields = ixer.index("view to fields")[sourceViewId] || [];
       for(var ix = 0; ix < fields.length; ix++) {
         var blockId = uuid();
-        var fieldId = fields[ix][code.ix("field", "field")];
+        var fieldId = fields[ix][fieldIdIx];
         diffs.push(["block field", "inserted", [blockId, viewId, sourceId, sourceViewId, fieldId]]);
       }
 
