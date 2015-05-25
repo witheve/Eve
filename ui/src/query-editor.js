@@ -765,11 +765,18 @@ var queryEditor = (function(window, microReact, api) {
   //---------------------------------------------------------
 
   function tableWorkspace(tableId) {
-    var fields = ixer.index("view to fields")[tableId].map(function(cur) {
-      return {name: code.name(cur[1]), id: cur[1]};
-    });
-    var rows = ixer.facts(tableId);
     var order = ixer.index("display order");
+    var fields = (ixer.index("view to fields")[tableId] || []).map(function(field) {
+      var id = field[code.ix("field", "field")];
+      return {name: code.name(id), id: id, priority: order[id] || 0};
+    });
+    fields.sort(function(a, b) {
+      var delta = b.priority - a.priority;
+      if(delta) { return delta; }
+      else { return a.id < b.id; }
+    });
+
+    var rows = ixer.facts(tableId);
     rows.sort(function(a, b) {
       var aIx = order[tableId + JSON.stringify(a)];
       var bIx = order[tableId + JSON.stringify(b)];
@@ -2294,13 +2301,18 @@ var queryEditor = (function(window, microReact, api) {
       if(viewKind === "union") { editorPane = unionBlock(viewId);  }
       if(viewKind === "aggregate") { editorPane = aggregateBlock(viewId); }
 
+      var order = ixer.index("display order");
       var rows = ixer.facts(viewId) || [];
       var fields = (ixer.index("view to fields")[viewId] || []).map(function(field) {
         var id = field[code.ix("field", "field")];
-        return {name: code.name(id), id: id};
+        return {name: code.name(id), id: id, priority: order[id] || 0};
       });
-      // This is a weird way to use display order.
-      var order = ixer.index("display order");
+      fields.sort(function(a, b) {
+        var delta = b.priority - a.priority;
+        if(delta) { return delta; }
+        else { return a.id < b.id; }
+      });
+
       rows.sort(function(a, b) {
         var aIx = order[viewId + JSON.stringify(a)];
         var bIx = order[viewId + JSON.stringify(b)];
