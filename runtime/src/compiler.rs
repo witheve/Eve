@@ -252,6 +252,42 @@ fn calculate_constraint_schedule(flow: &Flow) {
     overwrite_compiler_view(flow, "constraint schedule", items);
 }
 
+fn calculate_index_layout(flow: &Flow) {
+    let mut items = Vec::new();
+    let schema = schema().into_iter().map(|(view, mut unique_fields, mut other_fields)| {
+        unique_fields.append(&mut other_fields);
+        (view, unique_fields)
+    }).collect::<Vec<_>>();
+    let view_table = flow.get_output("view");
+    let field_table = flow.get_output("field");
+    for view in view_table.iter() {
+        match schema.iter().find(|&&(view_id, _)| view_id == view["view"].as_str()) {
+            Some(&(_, ref fields)) => {
+                // force compiler fields to be stored in the order we wrote the fields
+                for (ix, field) in fields.iter().enumerate() {
+                    items.push(vec![
+                        view["view"].clone(),
+                        string!("{}: {}", view["view"].as_str(), field),
+                        Value::Float(ix as f64),
+                        ]);
+                }
+            }
+            None => {
+                // other fields we just order arbitrarly
+                for (ix, field) in field_table.find_all("view", &view["view"]).iter().enumerate() {
+                    items.push(vec![
+                        view["view"].clone(),
+                        field["field"].clone(),
+                        Value::Float(ix as f64),
+                        ]);
+                }
+
+            }
+        }
+    }
+    overwrite_compiler_view(flow, "index layout", items);
+}
+
 fn topological_sort<K: Eq + Debug>(mut input: Vec<(K, Vec<K>)>) -> Vec<(K, Vec<K>)> {
     let mut output = Vec::new();
     while input.len() > 0 {
@@ -563,6 +599,7 @@ pub fn recompile(old_flow: Flow) -> Flow {
     calculate_source_dependency(&old_flow);
     calculate_source_schedule(&old_flow);
     calculate_constraint_schedule(&old_flow);
+    calculate_index_layout(&old_flow);
     let mut new_flow = create_flow(&old_flow);
     reuse_state(old_flow, &mut new_flow);
     new_flow
