@@ -773,7 +773,7 @@ var queryEditor = (function(window, microReact, api) {
     fields.sort(function(a, b) {
       var delta = b.priority - a.priority;
       if(delta) { return delta; }
-      else { return a.id < b.id; }
+      else { return a.id.localeCompare(b.id); }
     });
 
     var rows = ixer.facts(tableId);
@@ -2310,7 +2310,7 @@ var queryEditor = (function(window, microReact, api) {
       fields.sort(function(a, b) {
         var delta = b.priority - a.priority;
         if(delta) { return delta; }
-        else { return a.id < b.id; }
+        else { return a.id.localeCompare(b.id); }
       });
 
       rows.sort(function(a, b) {
