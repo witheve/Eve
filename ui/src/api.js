@@ -209,9 +209,9 @@ var api = (function(Indexing) {
         fields[ix] = [ixer.index("display order")[fieldId], fieldId];
       }
       fields.sort(function(a, b) {
-        var delta = a[0] - b[0];
+        var delta = b[0] - a[0];
         if(delta) { return delta; }
-        else { return a[1] > b[1]; }
+        else { return a[1] < b[1]; }
       });
 
       var fieldIds = [];
@@ -300,7 +300,7 @@ var api = (function(Indexing) {
         var fieldId = view.name + ": " + fieldName;
         diffs.push(["field", "inserted", [viewId, fieldId, "output"]]); // @NOTE: Can this be any other kind?
         diffs.push(["display name", "inserted", [fieldId, fieldName]]);
-        diffs.push(["display order", "inserted", [fieldId, ix]]);
+        diffs.push(["display order", "inserted", [fieldId, -ix]]);
       }
       if(!noFacts && view.facts) {
         for(var ix = 0; ix < view.facts.length; ix++) {
