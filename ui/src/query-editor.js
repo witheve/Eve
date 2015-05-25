@@ -237,7 +237,8 @@ var queryEditor = (function(window, microReact, api) {
         break;
       case "addViewBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
-        diffs = diff.addViewBlock(queryId, info.sourceId, info.kind);
+        var viewId = uuid();
+        diffs = diff.addViewBlock(queryId, info.sourceId, info.kind, viewId);
         break;
       case "addAggregateBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
@@ -343,14 +344,15 @@ var queryEditor = (function(window, microReact, api) {
         // @TODO: redesign this to pass in opts directly.
         var opts = code.getConstraint(info.constraintId);
         if(info.type === "left") {
-          opts.leftField = info.value;
-          opts.leftSource = info.source;
+          opts.leftField = info.value.field[code.ix("field", "field")];
+          opts.leftSource = info.value.source[code.ix("source", "source")];
         } else if(info.type === "right") {
-          opts.rightField = info.value;
-          opts.rightSource = info.source;
+          opts.rightField = info.value.field[code.ix("field", "field")];
+          opts.rightSource = info.value.source[code.ix("source", "source")];
         } else if(info.type === "operation") {
           opts.operation = info.value;
         }
+
 
         var complete = code.isConstraintComplete(opts);
         var constraints = ixer.index("source to constraints")[opts.leftSource] || [];
@@ -365,6 +367,8 @@ var queryEditor = (function(window, microReact, api) {
           return [constraintId, opts];
         });
 
+        console.log(opts, complete);
+
         diffs = diff.updateViewConstraint(info.constraintId, opts);
         if(complete) {
           diffs = constraintOpts.reduce(function(memo, constraintPair) {
@@ -372,6 +376,9 @@ var queryEditor = (function(window, microReact, api) {
             return memo.concat(diff.updateViewConstraint(constraintPair[0], constraintPair[1]));
           }, diffs);
           diffs.push(["source", "inserted", ixer.index("source")[viewId][opts.leftSource]]);
+          //@FIXME: Chris added this because the server was never being sent the actual constraint entry
+          //I suspect this is supposed to work some other way?
+          diffs.push(["constraint", "inserted", [info.constraintId, viewId]])
 
         } else {
           sendToServer = false;
@@ -2314,7 +2321,7 @@ var queryEditor = (function(window, microReact, api) {
         controls = querySuggestionBar(queryId, viewId);
       }
 
-      items.push({c: "block " + viewKind, editorIx: ix, viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, click: setQueryEditorActive, children: [
+      items.push({c: "block " + viewKind, editorIx: ix, viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, handler: blockSuggestionHandler, click: setQueryEditorActive, children: [
         {c: "block-title", children: [
           {t: "h3", text: alphabet[ix]},
           //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
@@ -2346,6 +2353,13 @@ var queryEditor = (function(window, microReact, api) {
     ]};
   }
 
+  function blockSuggestionHandler(e, elem) {
+    var info = localState.queryEditorInfo;
+    if(elem.key === "add filter") {
+      dispatch("addViewConstraint", {viewId: info.viewId});
+    }
+  }
+
   function suggestionBarItem(key, text) {
     var info = localState.queryEditorInfo;
     return {c: "suggestion-bar-item", key: key, text: text, click: info ? info.handler : undefined};
@@ -2364,7 +2378,15 @@ var queryEditor = (function(window, microReact, api) {
         });
       } else if(info.viewId) {
         //it's any available field from the sources
+        items = getBlockFields(info.viewId).map(function(fieldAndSource) {
+          var fieldId = fieldAndSource.field[code.ix("field", "field")];
+          return suggestionBarItem(fieldAndSource, code.name(fieldId));
+        });
       }
+    } else if(info.type === "constraint op") {
+      items = ["=", "<", "<=", ">", ">=", "!="].map(function(op) {
+        return suggestionBarItem(op, op);
+      });
     } else {
       items = [
         suggestionBarItem("add filter", "add filter"),
@@ -2376,7 +2398,10 @@ var queryEditor = (function(window, microReact, api) {
 
   function setQueryEditorActive(e, elem) {
     localState.queryEditorActive = elem.viewId;
-    localState.queryEditorInfo = {};
+    localState.queryEditorInfo = {
+      viewId: elem.viewId,
+      handler: elem.handler,
+    };
     render();
   }
 
@@ -2536,14 +2561,42 @@ var queryEditor = (function(window, microReact, api) {
       var rightField = right[code.ix("constraint right", "right field")];
 
       return {c: "view-constraint", children: [
-        {c: "hover-reveal grip", children: [{c: "ion-android-more-vertical"}, {c: "ion-android-more-vertical"}]},
-        token.blockField({key: "left", parentId: id, source: leftSource, field: leftField}, updateViewConstraint, dropConstraintField),
-        token.operation({key: "operation", parentId: id, operation: operation}, updateViewConstraint),
-        token.blockField({key: "right", parentId: id, source: rightSource, field: rightField}, updateViewConstraint, dropConstraintField),
-        {c: "hover-reveal close-btn ion-android-close", constraintId: id, click: removeConstraint}
+        viewConstraintToken("left", id, viewId, code.name(leftSource) + "." + code.name(leftField)),
+        viewConstraintToken("operation", id, viewId, operation),
+        viewConstraintToken("right", id, viewId, code.name(rightSource) + "." + code.name(rightField))
       ]};
     });
     return constraintItems;
+  }
+
+  function viewConstraintToken(side, constraintId, viewId, text) {
+    var klass = "token field";
+    var handler = fieldSuggestions;
+    if(side === "operation") {
+      klass = "token";
+      handler = constraintOpSuggestions;
+    }
+    //check if we are editing this token
+    var info = localState.queryEditorInfo;
+    var token = info ? info.token || {} : {};
+    if(token.constraintId === constraintId && token.side === side) {
+      klass += " active";
+    }
+    return {c: klass, side: side, constraintId: constraintId, handler: updateViewConstraint, click: handler, viewId: viewId, text: text};
+  }
+
+  function constraintOpSuggestions(e, elem) {
+    e.stopPropagation();
+    localState.queryEditorActive = elem.viewId;
+    localState.queryEditorInfo = {
+      type: "constraint op",
+      sourceId: elem.sourceId,
+      viewId: elem.viewId,
+      fieldId: elem.fieldId,
+      token: elem,
+      handler: elem.handler
+    };
+    render();
   }
 
   function viewConstraintsDrop(evt, elem) {
@@ -2561,9 +2614,10 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function updateViewConstraint(evt, elem) {
-    var id = elem.parentId;
-    dispatch("updateViewConstraint", {constraintId: id, type: elem.key, value: elem.value});
-    stopEditToken(evt, elem);
+    console.log(elem);
+    var info = localState.queryEditorInfo;
+    var token = info.token;
+    dispatch("updateViewConstraint", {constraintId: token.constraintId, type: token.side, value: elem.key});
     evt.stopPropagation();
   }
 
@@ -2656,8 +2710,8 @@ var queryEditor = (function(window, microReact, api) {
   var tokenEditor = {
     operation: function(params, onChange) {
       var items = ["=", "<", "≤", ">", "≥", "≠"].map(function(rel) {
-        var item = selectorItem({c: "operation", key: params.key, name: rel, value: rel}, onChange);
-        item.parentId = params.parentId;
+        var item = selectoritem({c: "operation", key: params.key, name: rel, value: rel}, onchange);
+        item.parentid = params.parentid;
         return item;
       });
       var select = selector(items, {c: "operation", key: params.key, tabindex: -1, focus: true}, stopEditToken);
@@ -2667,9 +2721,10 @@ var queryEditor = (function(window, microReact, api) {
     blockField: function(params, onChange) {
       var viewId = ixer.index("constraint to view")[params.parentId];
       var fields = getBlockFields(viewId);
-      var items = fields.map(function(field) {
+      var items = fields.map(function(sourceAndField) {
+        var field = sourceAndField.field;
         var fieldId = field[code.ix("field", "field")];
-        var item = selectorItem({c: "field", key: params.key, name: code.name(fieldId) || "Untitled", value: fieldId}, onChange);
+        var item = selectorItem({c: "field", key: params.key, name: code.name(fieldId) || "Untitled", value: sourceAndField}, onChange);
         item.parentId = params.parentId;
         return item;
       });
@@ -2689,7 +2744,9 @@ var queryEditor = (function(window, microReact, api) {
     var sources = ixer.index("view to sources")[viewId] || [];
     return sources.reduce(function(memo, source) {
       var sourceViewId = source[code.ix("source", "source view")];
-      memo.push.apply(memo, ixer.index("view to fields")[sourceViewId]);
+      memo.push.apply(memo, ixer.index("view to fields")[sourceViewId].map(function(field) {
+        return {source: source, field: field};
+      }));
       return memo;
     }, []);
   }
@@ -2766,13 +2823,13 @@ var queryEditor = (function(window, microReact, api) {
       sourceId: elem.sourceId,
       viewId: elem.viewId,
       fieldId: elem.fieldId,
+      token: elem,
       handler: elem.handler
     };
     render();
   }
 
   function setMappingField(e, elem) {
-    console.log(elem.key);
     var info = localState.queryEditorInfo;
     dispatch("addUnionSelection", {viewId: info.viewId, sourceFieldId: elem.key, sourceId: info.sourceId, fieldId: info.fieldId});
     e.stopPropagation();

@@ -302,9 +302,9 @@ var api = (function(Indexing) {
       return diffs;
     },
 
-    addViewBlock: function addBlock(queryId, sourceViewId, kind) {
+    addViewBlock: function addBlock(queryId, sourceViewId, kind, viewId) {
       kind = kind || "union";
-      var viewId = uuid();
+      var viewId = viewId || uuid();
       var blockId = uuid();
       var diffs = [["block", "inserted", [queryId, blockId, viewId]],
                    ["view", "inserted", [viewId, kind]],

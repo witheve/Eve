@@ -251,6 +251,11 @@ div:hover > .hover-reveal { opacity: 1; }
 .query-workspace .new-block .aggregate { background: rgb(193, 255, 201); }
 .query-workspace .new-block .union { background: rgb(224, 185, 255); }
 
+.query-workspace .view-constraint { flex-direction:row; margin-top:5px; }
+.query-workspace .token.field { flex-direction:row; min-width:20px; }
+.query-workspace .token + .token { margin-left: 5px; }
+.query-workspace .token.active { background: rgba(0,0,0,0.1); }
+
 .query-workspace .union-source-item { flex-direction:row;  }
 .query-workspace .union-source-item + .union-source-item { padding-top:5px; margin-top:5px; border-top:1px solid rgba(0,0,0,0.1); }
 .query-workspace .union-source { flex-direction:row; }
