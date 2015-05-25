@@ -99,7 +99,7 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
 
     // the source schedule determines in what order sources will be explored inside joins/aggregates
     // `ix` is an integer. views with lower ixes are explored first.
-    ("source schedule", vec!["source"], vec!["ix"]),
+    ("source schedule", vec!["view", "source"], vec!["ix"]),
 
     // the constraint schedule determines when constraints will be checked
     // `ix` is an integer. the constraint will be checked after the corresponding source is explored
@@ -132,6 +132,10 @@ fn overwrite_compiler_view(flow: &Flow, view: &str, items: Vec<Vec<Value>>) {
         .collect();
     let index = items.into_iter().collect();
     *flow.get_output_mut(view) = Relation{fields: fields, names: names, index: index};
+}
+
+fn sort_by_ix(tuples: &mut Vec<Tuple>) {
+    tuples.sort_by(|a,b| a["ix"].cmp(&b["ix"]));
 }
 
 // TODO we don't really need source in here
@@ -230,7 +234,7 @@ fn calculate_source_schedule(flow: &Flow) {
         }).collect();
         let sources_and_upstreams = topological_sort(sources_and_upstreams);
         for (ix, (source, _)) in sources_and_upstreams.into_iter().enumerate() {
-            items.push(vec![source, Value::Float(ix as f64)]);
+            items.push(vec![view["view"].clone(), source, Value::Float(ix as f64)]);
         }
     }
     overwrite_compiler_view(flow, "source schedule", items);
@@ -330,6 +334,44 @@ fn calculate_view_constant(flow: &Flow) {
         }
     }
     overwrite_compiler_view(flow, "view constant", items);
+}
+
+fn calculate_view_layout(flow: &Flow) {
+    let mut items = Vec::new();
+    let view_table = flow.get_output("view");
+    let view_constant_table = flow.get_output("view constant");
+    let source_table = flow.get_output("source");
+    let source_schedule_table = flow.get_output("source schedule");
+    let index_layout_table = flow.get_output("index layout");
+    for view in view_table.iter() {
+        let mut ix = 0;
+        for view_constant in view_constant_table.find_all("view", &view["view"]) {
+            items.push(vec![
+                view["view"].clone(),
+                string!("constant"),
+                view_constant["constant"].clone(),
+                Value::Float(ix as f64),
+                ]);
+            ix += 1;
+        }
+        let mut source_schedules = source_schedule_table.find_all("view", &view["view"]);
+        sort_by_ix(&mut source_schedules);
+        for source_schedule in source_schedules {
+            let source = source_table.find_one("source", &source_schedule["source"]);
+            let mut index_layouts = index_layout_table.find_all("view", &source["view"]);
+            sort_by_ix(&mut index_layouts);
+            for index_layout in index_layouts {
+                items.push(vec![
+                    view["view"].clone(),
+                    source["source"].clone(),
+                    index_layout["field"].clone(),
+                    Value::Float(ix as f64),
+                    ]);
+                ix += 1;
+            }
+        }
+    }
+    overwrite_compiler_view(flow, "view layout", items);
 }
 
 fn topological_sort<K: Eq + Debug>(mut input: Vec<(K, Vec<K>)>) -> Vec<(K, Vec<K>)> {
@@ -591,6 +633,7 @@ fn create_flow(flow: &Flow) -> Flow {
     let mut nodes = Vec::new();
     let mut dirty = BitSet::new();
     let mut outputs = Vec::new();
+    let index_layout_table = flow.get_output("index layout");
     let view_schedule_table = flow.get_output("view schedule");
     let num_schedules = view_schedule_table.index.len();
     for ix in (0..num_schedules) {
@@ -599,13 +642,13 @@ fn create_flow(flow: &Flow) -> Flow {
         let view = view_table.find_one("view", &schedule["view"]);
         nodes.push(create_node(flow, &view["view"], &view["kind"]));
         dirty.insert(schedule["ix"].as_usize());
-        let field_table = flow.get_output("field");
-        let fields = field_table.find_all("view", &view["view"]);
-        let field_ids = fields.iter().map(|field|
-            field["field"].as_str().to_owned()
+        let mut index_layouts = index_layout_table.find_all("view", &view["view"]);
+        sort_by_ix(&mut index_layouts);
+        let field_ids = index_layouts.iter().map(|index_layout|
+            index_layout["field"].as_str().to_owned()
             ).collect();
-        let field_names = fields.iter().map(|field|
-            match flow.get_output("display name").find_maybe("id", &field["field"]) {
+        let field_names = index_layouts.iter().map(|index_layout|
+            match flow.get_output("display name").find_maybe("id", &index_layout["field"]) {
                 Some(display_name) => display_name["name"].as_str().to_owned(),
                 None => "<unnamed>".to_owned(),
             }).collect();
@@ -645,6 +688,7 @@ pub fn recompile(old_flow: Flow) -> Flow {
     calculate_constraint_schedule(&old_flow);
     calculate_index_layout(&old_flow);
     calculate_view_constant(&old_flow);
+    calculate_view_layout(&old_flow);
     let mut new_flow = create_flow(&old_flow);
     reuse_state(old_flow, &mut new_flow);
     new_flow

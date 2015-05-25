@@ -57,7 +57,7 @@ var api = (function(Indexing) {
       "view dependency": {name: "view dependency", fields: ["upstream view", "ix", "source", "downstream view"]},
       "view schedule": {name: "view schedule", fields: ["view", "ix"]},
       "source dependency": {name: "source dependency", fields: ["upstream source", "upstream field", "downstream source", "downstream field"]},
-      "source schedule": {name: "source schedule", fields: ["source", "ix"]},
+      "source schedule": {name: "source schedule", fields: ["view", "source", "ix"]},
       "constraint schedule": {name: "constraint schedule", fields: ["constraint", "ix"]},
       "index layout": {name: "index layout", fields: ["view", "field", "ix"]},
       "view constant": {name: "view constant", fields: ["view", "constant"]},
