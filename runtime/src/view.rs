@@ -82,6 +82,7 @@ pub struct Aggregate {
     pub limit_from: Option<Reference>,
     pub limit_to: Option<Reference>,
     pub reducers: Vec<Reducer>,
+    pub selects_inner: bool,
     pub select: MultiSelect,
 }
 
@@ -124,6 +125,21 @@ fn join_step<'a>(join: &'a Join, inputs: &[&'a Relation], tuples: &mut Vec<Tuple
     }
 }
 
+fn aggregate_step<'a>(aggregate: &Aggregate, input_fields: &[&[Field]], input_sets: &'a [&[Vec<Value>]], tuples: &mut Vec<Tuple<'a>>, index: &mut BTreeSet<Vec<Value>>) {
+    if input_fields.len() == 0 {
+        aggregate.select.select(&tuples[..]);
+    } else {
+        for values in input_sets[0].iter() {
+            let tuple = Tuple{fields: input_fields[0], names: input_fields[0], values: &values[..]};
+            // promise the borrow checker that we will pop `tuple` before leaving this scope
+            let tuple = unsafe{ ::std::mem::transmute::<Tuple, Tuple<'a>>(tuple) };
+            tuples.push(tuple);
+            aggregate_step(aggregate, &input_fields[1..], &input_sets[1..], tuples, index);
+            tuples.pop();
+        }
+    }
+}
+
 impl View {
     pub fn run(&self, old_output: &Relation, inputs: &[&Relation]) -> Option<Relation> {
         match *self {
@@ -152,55 +168,52 @@ impl View {
                 outer.dedup();
                 inner.sort();
                 let mut group_start = 0;
-                for outer_values in outer.iter() {
+                for outer_values in outer.into_iter() {
                     let mut group_end = group_start;
                     while (group_end < inner.len())
                     && (inner[group_end][0..outer_values.len()] == outer_values[..]) {
                         group_end += 1;
                     }
-                    let outer_tuple = Tuple{
-                        fields: &aggregate.outer.fields[..],
-                        names: &aggregate.outer.fields[..],
-                        values: &outer_values[..]
-                    };
-                    let inputs = &[outer_tuple.clone()];
-                    let limit_from = match aggregate.limit_from {
-                        None => group_start,
-                        Some(ref reference) => group_start + reference.resolve(inputs).as_usize(),
-                    };
-                    let limit_to = match aggregate.limit_to {
-                        None => group_end,
-                        Some(ref reference) => group_start + reference.resolve(inputs).as_usize(),
-                    };
-                    let limit_from = ::std::cmp::min(::std::cmp::max(limit_from, group_start), group_end);
-                    let limit_to = ::std::cmp::min(::std::cmp::max(limit_to, limit_from), group_end);
-                    let group = &inner[limit_from..limit_to];
-                    let output_values = aggregate.reducers.iter().map(|reducer|
-                        reducer.primitive.eval_from_aggregate(&reducer.arguments[..], &outer_tuple, &aggregate.inner.fields[..], group)
-                        ).collect::<Vec<_>>();
-                    let mut output_tuples = aggregate.reducers.iter().zip(output_values.iter())
-                        .map(|(reducer, values)|
-                            Tuple {
-                                fields: &reducer.fields[..],
-                                names: &reducer.fields[..],
-                                values: &values[..],
-                            })
-                        .collect::<Vec<_>>();
-                    for inner_values in group {
-                        let inner_tuple = Tuple{
-                            fields: &aggregate.inner.fields[..],
-                            names: &aggregate.inner.fields[..],
-                            values: &inner_values[..]
+                    let (group, output_values) = {
+                        let outer_tuple = Tuple{
+                            fields: &aggregate.outer.fields[..],
+                            names: &aggregate.outer.fields[..],
+                            values: &outer_values[..]
                         };
-                        output_tuples.push(outer_tuple.clone());
-                        output_tuples.push(inner_tuple);
-                        output.index.insert(aggregate.select.select(&output_tuples[..]));
-                        output_tuples.pop();
-                        output_tuples.pop();
+                        let limit_inputs = &[outer_tuple.clone()];
+                        let limit_from = match aggregate.limit_from {
+                            None => group_start,
+                            Some(ref reference) => group_start + reference.resolve(limit_inputs).as_usize(),
+                        };
+                        let limit_to = match aggregate.limit_to {
+                            None => group_end,
+                            Some(ref reference) => group_start + reference.resolve(limit_inputs).as_usize(),
+                        };
+                        let limit_from = ::std::cmp::min(::std::cmp::max(limit_from, group_start), group_end);
+                        let limit_to = ::std::cmp::min(::std::cmp::max(limit_to, limit_from), group_end);
+                        let group = &inner[limit_from..limit_to];
+                        let output_values = aggregate.reducers.iter().map(|reducer| {
+                            reducer.primitive.eval_from_aggregate(&reducer.arguments[..], &outer_tuple, &aggregate.inner.fields[..], group)
+                        }).collect::<Vec<_>>();
+                        (group, output_values)
+                    };
+                    let outer_items = vec![outer_values];
+                    let mut output_fields = aggregate.reducers.iter().map(|reducer|
+                        &reducer.fields[..]
+                        ).collect::<Vec<_>>();
+                    let mut output_sets = output_values.iter().map(|values|
+                        &values[..]
+                        ).collect::<Vec<_>>();
+                    output_fields.push(&aggregate.outer.fields[..]);
+                    output_sets.push(&outer_items[..]);
+                    if aggregate.selects_inner {
+                        output_fields.push(&aggregate.inner.fields[..]);
+                        output_sets.push(group);
                     }
+                    let mut tuples = Vec::with_capacity(output_fields.len());
+                    aggregate_step(aggregate, &output_fields[..], &output_sets[..], &mut tuples, &mut output.index);
                     group_start = group_end;
                 }
-                println!("{:?}", output);
                 Some(output)
             }
         }
