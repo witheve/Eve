@@ -402,10 +402,8 @@ var queryEditor = (function(window, microReact, api) {
           constantId = limit[2];
           var oldConstant = ixer.index("constant")[constantId];
           if(oldConstant && oldConstant[1] !== info.value) {
-            console.log("removing", oldConstant, info.value);
             diffs.push(["constant", "removed", oldConstant]);
           }
-          console.log(table, constantId);
         }
 
         if(info.value) {
@@ -415,7 +413,6 @@ var queryEditor = (function(window, microReact, api) {
           diffs.push([table, "removed", limit]);
         }
         if(sendToServer && localState.initialValue && localState.initialValue !== info.value) {
-          console.log("sending", constantId, localState.initialValue);
           diffs.push(["constant", "removed", [constantId, localState.initialValue]]);
         }
 
@@ -2396,7 +2393,6 @@ var queryEditor = (function(window, microReact, api) {
     if(blockField[code.ix("block field", "view")] !== elem.viewId) { return; }
     var fieldId = blockField[code.ix("block field", "field")];
     var sourceId = blockField[code.ix("block field", "source")];
-    console.log("BF", id, sourceId);
     dispatch("addViewSelection", {viewId: elem.viewId, sourceFieldId: fieldId, sourceId: sourceId});
     evt.stopPropagation();
   }
@@ -2435,7 +2431,6 @@ var queryEditor = (function(window, microReact, api) {
 
     if(sourceId == "inner" || sourceId === "outer" || sourceId === "insert" || sourceId === "remove") {
       sourceName = code.name(viewId + "-" + sourceId) + " (" + sourceId + ")";
-      console.log(sourceId, sourceName);
     } else {
       sourceName = code.name(sourceId);
     }
@@ -2835,7 +2830,6 @@ var queryEditor = (function(window, microReact, api) {
     var sourceId = elem.sourceId;
     var type = evt.dataTransfer.getData("type");
     var value = evt.dataTransfer.getData("value");
-    console.log("drop", viewId, sourceId, type, value);
     if(type === "view") {
       if(viewId === value) { return console.error("Cannot join view with parent."); }
       var kind;

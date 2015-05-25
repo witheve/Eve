@@ -432,7 +432,6 @@ var api = (function(Indexing) {
       if(sourceId == "inner" || sourceId === "outer" || sourceId === "insert" || sourceId === "remove") {
         displayId = viewId + "-" + sourceId;
       }
-      console.log("Source ID", sourceId, "Display ID", displayId);
 
       if(queryId === undefined) { queryId = code.activeItemId(); }
       var count = code.countSource(queryId, sourceViewId);
