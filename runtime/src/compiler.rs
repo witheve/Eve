@@ -705,7 +705,6 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
             });
         let mut names = unique_fields.iter().chain(other_fields.iter())
             .map(|&field| field.to_owned()).collect::<Vec<_>>();
-        names.sort(); // fields are implicitly sorted in the compiler - need to use the same ordering here
         let fields = names.iter().map(|name| format!("{}: {}", id.clone(), name)).collect();
         flow.outputs.push(RefCell::new(Relation::with_fields(fields, names)));
     }
