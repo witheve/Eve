@@ -27,6 +27,13 @@ var api = (function(Indexing) {
     return result;
   }
 
+  function displaySort(idA, idB) {
+    var orderA = ixer.index("display order")[idA];
+    var orderB = ixer.index("display order")[idB];
+    if(orderB - orderA) { return orderB - orderA; }
+    else { return idA > idB }
+  }
+
   //---------------------------------------------------------
   // Data
   //---------------------------------------------------------
@@ -50,10 +57,17 @@ var api = (function(Indexing) {
       "aggregate sorting": {name: "aggregate sorting", fields: ["aggregate", "inner field", "priority", "direction"]},
       "aggregate limit from": {name: "aggregate limit from", fields: ["aggregate", "from source", "from field"]},
       "aggregate limit to": {name: "aggregate limit to", fields: ["aggregate", "to source", "to field"]},
-      "aggregate argument": {name: "aggregate argument", fields: ["aggregate", "reducer source", "reducer field", "argument source", "argument field"]},
 
       "display order": {name: "display order", fields: ["id", "priority"]},
-      "display name": {name: "display name", fields: ["id", "name"]}
+      "display name": {name: "display name", fields: ["id", "name"]},
+
+      "view dependency": {name: "view dependency", fields: ["upstream view", "ix", "source", "downstream view"]},
+      "view schedule": {name: "view schedule", fields: ["view", "ix"]},
+      "source dependency": {name: "source dependency", fields: ["upstream source", "upstream field", "downstream source", "downstream field"]},
+      "source schedule": {name: "source schedule", fields: ["source", "ix"]},
+      "constraint schedule": {name: "constraint schedule", fields: ["constraint", "ix"]},
+      "index layout": {name: "index layout", fields: ["view", "field", "ix"]},
+      "view layout": {name: "view layout", fields: ["view", "source", "field", "ix"]},
     },
     editor: {
       initialized: {name: "initialized", fields: ["initialized"], facts: [[true]]},
@@ -129,6 +143,7 @@ var api = (function(Indexing) {
   ixer.addIndex("view to aggregate sorting", "aggregate sorting", Indexing.create.lookup([0, false]));
   ixer.addIndex("view to aggregate limit from", "aggregate limit from", Indexing.create.lookup([0, false]));
   ixer.addIndex("view to aggregate limit to", "aggregate limit to", Indexing.create.lookup([0, false]));
+  ixer.addIndex("aggregate grouping", "aggregate grouping", Indexing.create.lookup([0, false]));
 
   // editor
   ixer.addIndex("block", "block", Indexing.create.lookup([1, false]));
@@ -546,6 +561,18 @@ var api = (function(Indexing) {
 
       return diffs;
     },
+    updateAggregateGrouping: function(viewId, source, field) {
+      var old = ixer.index("aggregate grouping")[viewId];
+      var neue = old ? old.slice() : [viewId, "", ""];
+      var ix = code.ix("aggregate grouping", source + " field");
+      neue[ix] = field;
+      var diffs = [["aggregate grouping", "inserted", neue]];
+      if(old && !Indexing.arraysIdentical(old, neue)) {
+        diffs.push(["aggregate grouping", "removed", old]);
+      }
+
+      return diffs;
+    },
     duplicateElement: function(element, id, txId) {
       var diffs = [];
       var oldId = element[1];
@@ -635,6 +662,7 @@ var api = (function(Indexing) {
           diff: diff,
           clone: clone,
           builtins: tables,
-          arraysIdentical: Indexing.arraysIdentical};
+          arraysIdentical: Indexing.arraysIdentical,
+          displaySort: displaySort};
 })(Indexing);
 

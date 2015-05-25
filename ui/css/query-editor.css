@@ -236,6 +236,9 @@ div:hover > .hover-reveal { opacity: 1; }
 .query-editor .aggregate-block .aggregate-limit { flex-direction: row; }
 .query-editor .aggregate-block .aggregate-limit > * { margin: 0 0.2em;}
 
+.query-editor .aggregate-block .aggregate-grouping { flex-direction: row; }
+.query-editor .aggregate-block .aggregate-grouping > * { margin: 0 0.2em;}
+
 
 /* inspector */
 .query-workspace > .inspector { flex: 1; border-left: 1px solid #404040; }
