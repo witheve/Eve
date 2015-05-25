@@ -1,7 +1,7 @@
 if(!window.DEBUG) {
   window.DEBUG = {RECEIVE: 3,
                   SEND: 3,
-                  INDEXER: 1};
+                  INDEXER: 0};
 }
 
 
