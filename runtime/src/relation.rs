@@ -158,14 +158,14 @@ impl<'a> Iterator for Iter<'a> {
 #[derive(Clone, Debug)]
 pub struct SingleSelect{
     pub source: usize,
-    pub fields: Vec<Field>,
+    pub mapping: Vec<usize>,
+    pub fields: Vec<Field>, // TODO remove when reference reform is done
 }
 
 impl SingleSelect {
     pub fn select(&self, inputs: &[&Relation]) -> Vec<Vec<Value>> {
         let relation = inputs[self.source];
-        let mapping = mapping(&relation.fields[..], &self.fields[..]).unwrap();
-        relation.index.iter().map(|values| with_mapping(values.clone(), &mapping[..])).collect()
+        relation.index.iter().map(|values| with_mapping(values.clone(), &self.mapping[..])).collect()
     }
 }
 

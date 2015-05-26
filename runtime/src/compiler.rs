@@ -2,7 +2,7 @@ use std::collections::BitSet;
 use std::cell::RefCell;
 use std::fmt::Debug;
 
-use value::{Value, Tuple};
+use value::{Value, Field, Tuple};
 use relation::{Relation, SingleSelect, Reference, MultiSelect, mapping, with_mapping};
 use view::{View, Table, Union, Join, JoinSource, Constraint, ConstraintOp, Aggregate, Reducer};
 use flow::{Node, Flow};
@@ -389,17 +389,33 @@ fn calculate_view_layout(flow: &Flow) {
     overwrite_compiler_view(flow, "view layout", items);
 }
 
+fn create_index_mapping(flow: &Flow, view_id: &Value, fields: &[Field]) -> Vec<usize> {
+    let index_layout_table = flow.get_output("index layout");
+    let index_layouts = index_layout_table.find_all("view", view_id);
+    fields.iter().map(|field| {
+        index_layouts.iter().find(|index_layout|
+            index_layout["field"].as_str() == &field[..]
+        ).unwrap()["ix"].as_usize()
+    }).collect()
+}
+
 fn create_single_select(flow: &Flow, view_id: &Value, source_id: &Value, source_ix: usize) -> SingleSelect {
-    let fields = flow.get_output("field").find_all("view", view_id).iter().map(|field| {
-        let select_table = flow.get_output("select");
-        let select = select_table.iter().find(|select|
-            select["view"] == *view_id
-            && select["view field"] == field["field"]
-            && select["source"] == *source_id
+    let field_table = flow.get_output("field");
+    let source_table = flow.get_output("source");
+    let select_table = flow.get_output("select");
+    let selects = select_table.iter().filter(|select|
+        (select["view"] == *view_id)
+        && (select["source"] == *source_id)
+        ).collect::<Vec<_>>();
+    let fields = field_table.find_all("view", view_id).iter().map(|field| {
+        let select = selects.iter().find(|select|
+            select["view field"] == field["field"]
             ).unwrap();
         select["source field"].as_str().to_owned()
-    }).collect();
-    SingleSelect{source: source_ix, fields: fields}
+    }).collect::<Vec<_>>();
+    let source = source_table.find_one("source", source_id);
+    let mapping = create_index_mapping(flow, &source["source view"], &fields[..]);
+    SingleSelect{source: source_ix, mapping: mapping, fields: fields}
 }
 
 fn create_reference(flow: &Flow, sources: &[Tuple], source_id: &Value, field_id: &Value) -> Reference {
@@ -551,14 +567,16 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
     sortable.sort_by(|a,b| b.cmp(a));
     let outer_fields =
         groupings.iter().map(|grouping| grouping["outer field"].as_str().to_owned())
-        .collect();
+        .collect::<Vec<_>>();
     let inner_fields =
         groupings.iter().map(|grouping| grouping["inner field"].as_str().to_owned())
         .chain(sortable.iter().map(|&(_, ref field_id)| field_id.as_str().to_owned()))
-        .collect();
+        .collect::<Vec<_>>();
+    let outer_mapping = create_index_mapping(flow, &outer_dependency["upstream view"], &outer_fields[..]);
+    let inner_mapping = create_index_mapping(flow, &inner_dependency["upstream view"], &inner_fields[..]);
+    let outer = SingleSelect{source: outer_ix, mapping: outer_mapping, fields: outer_fields};
+    let inner = SingleSelect{source: inner_ix, mapping: inner_mapping, fields: inner_fields};
     let limit_inputs = &[outer_dependency.clone()];
-    let outer = SingleSelect{source: outer_ix, fields: outer_fields};
-    let inner = SingleSelect{source: inner_ix, fields: inner_fields};
     let limit_from = flow.get_output("aggregate limit from").find_maybe("aggregate", view_id)
         .map(|limit_from| create_reference(flow, limit_inputs, &limit_from["from source"], &limit_from["from field"]));
     let limit_to = flow.get_output("aggregate limit to").find_maybe("aggregate", view_id)
