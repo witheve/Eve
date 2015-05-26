@@ -18,7 +18,7 @@
     this.lastDiff = {};
     var self = this;
     this.handleEvent = function handleEvent(e) {
-      var id = e.currentTarget._id;
+      var id = (e.currentTarget || e.target)._id;
       var elem = self.tree[id];
       if(!elem) return;
       var handler = elem[e.type];
@@ -80,7 +80,7 @@
 
         var style = div.style;
         if(cur.c !== prev.c) div.className = cur.c;
-        if(cur.draggable !== prev.draggable) div.draggable = cur.draggable === undefined ? "false" : "true";
+        if(cur.draggable !== prev.draggable) div.draggable = cur.draggable === undefined ? null : "true";
         if(cur.contentEditable !== prev.contentEditable) div.contentEditable = cur.contentEditable || "inherit";
         if(cur.colspan !== prev.colspan) div.colSpan = cur.colspan;
         if(cur.placeholder !== prev.placeholder) div.placeholder = cur.placeholder;

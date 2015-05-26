@@ -531,8 +531,10 @@ var queryEditor = (function(window, microReact, api) {
         sel.forEach(function(cur, ix) {
           var elem = elementIndex[cur];
           var old = oldElements[ix];
-          diffs.push(["uiComponentElement", "inserted", elem],
-                     ["uiComponentElement", "removed", old]);
+          if(!window.Indexing.arraysIdentical(elem, old)) {
+            diffs.push(["uiComponentElement", "inserted", elem],
+                       ["uiComponentElement", "removed", old]);
+          }
         });
         break;
       case "offsetSelection":
@@ -580,7 +582,7 @@ var queryEditor = (function(window, microReact, api) {
           if(oldProps && oldProps[info.property]) {
             diffs.push(["uiComponentAttribute", "removed", oldProps[info.property]]);
           }
-          diffs.push(["uiComponentAttribute", "inserted", [0, styleId, info.property, info.value, false]]);
+          diffs.push(["uiComponentAttribute", "inserted", [txId, styleId, info.property, info.value]]);
         });
         break;
       case "stopSetAttributeForSelection":
@@ -1168,15 +1170,21 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function startBoxSelection(e, elem) {
-    if(!e.shiftKey) { clearSelection(e, elem); }
     var x = e.clientX;
     var y = e.clientY;
     var canvasRect = e.currentTarget.getBoundingClientRect();
-    x -= Math.floor(canvasRect.left);
-    y -= Math.floor(canvasRect.top);
-    localState.boxSelectStart = [x, y];
-    localState.boxSelectStop = [x, y];
-    render();
+    //@HACK: we have to allow blurs and other events to finish before we
+    //clear and start adjusting the selection, otherwise they'll try to set
+    //attributes for a selection that no longer exists. E.g. when setting the
+    //text of an element and then clicking on the canvas to blur.
+    setTimeout(function() {
+      if(!e.shiftKey) { clearSelection(e, elem); }
+      x -= Math.floor(canvasRect.left);
+      y -= Math.floor(canvasRect.top);
+      localState.boxSelectStart = [x, y];
+      localState.boxSelectStop = [x, y];
+      render();
+    }, 0);
   }
 
   function adjustBoxSelection(e, elem) {
@@ -1477,7 +1485,8 @@ var queryEditor = (function(window, microReact, api) {
 
   function submitContent(e, elem) {
     localState.modifyingUiText = false;
-    dispatch("stopSetAttributeForSelection", {oldAttrs: localState.initialAttrs, property: elem.attr});
+    dispatch("stopSetAttributeForSelection", {oldAttrs: localState.initialAttrs.shift(), property: elem.attr});
+    console.log("submit content!");
     render();
   }
 
@@ -1515,7 +1524,7 @@ var queryEditor = (function(window, microReact, api) {
     var canvasRect = e.currentTarget.parentNode.getBoundingClientRect();
     localState.dragOffsetX = x - elem.left - canvasRect.left;
     localState.dragOffsetY = y - elem.top - canvasRect.top;
-    localState.initialElements = selectionToElements();
+    localState.initialElements.push(selectionToElements());
     clearDragImage(e);
     if(e.altKey) {
       //@HACK: if you cause a rerender before the event finishes, the drag is killed?
@@ -1538,8 +1547,7 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function stopMoveSelection(e, elem) {
-    var elems = localState.initialElements;
-    localState.initialElements = null;
+    var elems = localState.initialElements.shift();
     dispatch("stopChangingSelection", {oldElements: elems})
   }
 
@@ -2111,11 +2119,37 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function colorSelector(componentId, attr, value) {
-    return {c: "color-picker", backgroundColor: value || "#999999", mousedown: stopPropagation, children: [
-      {t: "input", type: "color", key: [componentId, attr],
-       value: value, input: setAttribute}
-    ]};
+//       {t: "input", type: "color", key: [componentId, attr],
+//        value: value, input: setAttribute}
+    return {c: "color-picker", backgroundColor: value || "#999999", mousedown: startSelectingColor, attr: attr, key: [componentId, attr],
+            change: setAttribute, blur: stopSelectingColor};
   }
+
+  function startSelectingColor(e, elem) {
+    startAdjustAttr(e, elem);
+    e.stopPropagation();
+  }
+
+  function stopSelectingColor(e, elem) {
+    stopAdjustAttr(e, elem);
+  }
+
+  function setupColorPickers(div, elem) {
+    jQuery(".color-picker").colorPicker({
+      opacity: false,
+      renderCallback: function($elm, toggled) {
+        var div = $elm.get(0);
+        var eveElem = renderer.tree[div._id];
+        if(eveElem && eveElem.change) {
+          div.type = "color";
+          div.value = this.color.colors.HEX;
+          eveElem.change({currentTarget: div}, eveElem);
+        }
+      }
+    });
+  }
+
+  setupColorPickers();
 
   function styleSelector(id, opts, onClose) {
     var options = {};
@@ -2176,16 +2210,15 @@ var queryEditor = (function(window, microReact, api) {
       var id = cur;
       var styleId = ixer.index("uiElementToStyle")[id][style][1];
       var oldProps = ixer.index("uiStyleToAttr")[styleId];
-      if(oldProps) {
+      if(oldProps && oldProps[elem.attr]) {
         attrs.push(oldProps[elem.attr]);
       }
     });
-    localState.initialAttrs = attrs;
+    localState.initialAttrs.push(attrs);
   }
 
   function stopAdjustAttr(e, elem) {
-    var initial = localState.initialAttrs;
-    localState.initialAttrs = null;
+    var initial = localState.initialAttrs.shift();
     dispatch("stopSetAttributeForSelection", {oldAttrs: initial, property: elem.attr});
   }
 
@@ -2202,6 +2235,7 @@ var queryEditor = (function(window, microReact, api) {
     var property = elem.key[1];
     var target = e.currentTarget;
     var value = target.value;
+    var storeEvent = false;
     if(target.type === "color") {
       value = target.value;
     } else if(target.type === "checkbox") {
@@ -2209,7 +2243,8 @@ var queryEditor = (function(window, microReact, api) {
     } else if(target.type === undefined) {
       value = target.textContent;
     }
-    dispatch("setAttributeForSelection", {componentId: componentId, property: property, value: value});
+
+    dispatch("setAttributeForSelection", {componentId: componentId, property: property, value: value, storeEvent: storeEvent});
   }
 
   // Map attribute handler
@@ -2614,7 +2649,6 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function updateViewConstraint(evt, elem) {
-    console.log(elem);
     var info = localState.queryEditorInfo;
     var token = info.token;
     dispatch("updateViewConstraint", {constraintId: token.constraintId, type: token.side, value: elem.key});
@@ -2978,23 +3012,6 @@ var queryEditor = (function(window, microReact, api) {
   function selectorItem(opts, onChange) {
     return {t: "li", c: "selector-item field " + opts.c, key: opts.key, text: opts.name, value: opts.value, click: onChange};
   }
-
-  //---------------------------------------------------------
-  // Inspector
-  //---------------------------------------------------------
-
-  function inspectorPane(queryId) {
-    return {c: "inspector pane"};
-  }
-
-  //---------------------------------------------------------
-  // Result
-  //---------------------------------------------------------
-
-  function queryResult(queryId) {
-    return {c: "query-result"};
-  }
-
 
   //---------------------------------------------------------
   // Global key handling
