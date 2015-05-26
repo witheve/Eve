@@ -2693,8 +2693,7 @@ var queryEditor = (function(window, microReact, api) {
       var sourceId = ixer.index("constraint to source")[constraintId];
       var source = ixer.index("source")[viewId] || {};
       source = source[sourceId];
-      var sourceView = source[sourceViewIx];
-      if(!ixer.index("primitive")[sourceView]) {
+      if(!source || !ixer.index("primitive")[source[sourceViewIx]]) {
         return viewConstraintItem(viewId, constraintId);
       }
     });
