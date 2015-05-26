@@ -2355,10 +2355,13 @@ var queryEditor = (function(window, microReact, api) {
   function viewBlock(viewId) {
     var fields = ixer.index("view and source to block fields")[viewId] || {};
 
+    var blockFieldIdIx = code.ix("block field", "block field");
+    var fieldIdIx = code.ix("block field", "field");
     fields = fields["selection"] || [];
     var selectionItems = fields.map(function(field) {
-      var id = field[code.ix("block field", "block field")];
-      return fieldItem(code.name(id) || "Untitled", id, {c: "pill field"});
+      var id = field[blockFieldIdIx];
+      var fieldId = field[fieldIdIx];
+      return fieldItem(code.name(fieldId) || "Untitled", id, {c: "pill field"});
     });
     if(!selectionItems.length) {
       selectionItems.push({text: "Drag local fields into me to make them available in the query."});
@@ -2752,13 +2755,15 @@ var queryEditor = (function(window, microReact, api) {
       var outerField = grouping[code.ix("aggregate grouping", "outer field")];
     }
 
-
-
     var fields = ixer.index("view and source to block fields")[viewId] || {};
     fields = fields["selection"] || [];
+
+    var blockFieldIdIx = code.ix("block field", "block field");
+    var fieldIdIx = code.ix("block field", "field");
     var selectionItems = fields.map(function(field) {
-      var id = field[code.ix("block field", "block field")];
-      return fieldItem(code.name(id) || "Untitled", id, {c: "pill field"});
+      var id = field[blockFieldIdIx];
+      var fieldId = field[fieldIdIx];
+      return fieldItem(code.name(fieldId) || "Untitled", id, {c: "pill field"});
     });
     if(!selectionItems.length) {
       selectionItems.push({text: "Drag local fields into me to make them available in the query."});
