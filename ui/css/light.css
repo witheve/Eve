@@ -285,6 +285,7 @@ div:hover > .hover-reveal { opacity: 1; }
 /*---------------------------------------------------------
 - rendered program styles
 ---------------------------------------------------------*/
-
-.rendered-program .absolute {position:absolute;}
-.rendered-program .layer {flex: 1; position:relative; }
+.rendered-program { position:relative; }
+.rendered-program .absolute {position:absolute; overflow:hidden;}
+.rendered-program .layer {flex: 1; position:absolute; }
+.rendered-program .repeat-container { position:relative; }
