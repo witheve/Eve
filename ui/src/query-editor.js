@@ -2617,20 +2617,27 @@ var queryEditor = (function(window, microReact, api) {
 
       return {c: "spaced-row primitive-constraint", children: content};
     },
-    add: function(viewId, sourceId, sourceViewId) {
+    infix: function(viewId, sourceId, sourceViewId, operator) {
       var constraintIds = code.getViewSourceConstraints(viewId, sourceId);
       var a = code.getConstraint(constraintIds[0]);
       var b = code.getConstraint(constraintIds[1]);
       var aName = a.rightField ? (code.name(a.rightSource) + "." + code.name(a.rightField)) : "<field A>";
-      var bName = b.rightField ? (code.name(b.rightSource) + "." + code.name(b.rightField)) : "<field A>";
+      var bName = b.rightField ? (code.name(b.rightSource) + "." + code.name(b.rightField)) : "<field B>";
 
       return {c: "spaced-row primitive-constraint", children: [
         {text: "<column>"},
         {text: "☞"},
         viewConstraintToken("right", a.id, viewId, aName),
-        {text: "+"},
+        {text: operator},
         viewConstraintToken("right", b.id, viewId, bName)
       ]}
+    },
+
+    add: function(viewId, sourceId, sourceViewId) {
+      return primitiveEditor.infix(viewId, sourceId, sourceViewId, "+");
+    },
+    subtract: function(viewId, sourceId, sourceViewId) {
+      return primitiveEditor.infix(viewId, sourceId, sourceViewId, "-");
     }
   };
 
