@@ -430,14 +430,6 @@ var queryEditor = (function(window, microReact, api) {
           sendToServer = neue[code.ix("aggregate grouping", "inner field")] && neue[code.ix("aggregate grouping", "outer field")];
         }
         break;
-      case "groupView":
-        var old = ixer.index("grouped by")[info.inner];
-        if(old) { throw new Error("Cannot group by multiple views."); }
-        var left = ixer.index("constraint left")[info.constraintId] || [];
-        var innerField = left[code.ix("constraint left", "left field")];
-        diffs = [["grouped by", "inserted", [info.inner, innerField, info.outer, info.outerField]]];
-        diffs = diffs.concat(diff.removeViewConstraint(info.constraintId));
-        break;
       case "addPrimitiveSource":
         diffs = diff.addPrimitiveSource(info.viewId, info.primitiveId);
 
@@ -2428,10 +2420,29 @@ var queryEditor = (function(window, microReact, api) {
         });
       } else if(info.viewId) {
         //it's any available field from the sources
-        items = getBlockFields(info.viewId).map(function(fieldAndSource) {
+        var sourceViewIx = code.ix("source", "source view");
+        items = getBlockFields(info.viewId)
+        .filter(function(fieldAndSource) {
+          // Strip all fields from primitive sources.
+          var sourceViewId = fieldAndSource.source[sourceViewIx];
+          return !ixer.index("primitive")[sourceViewId];
+        })
+        .map(function(fieldAndSource) {
           var fieldId = fieldAndSource.field[code.ix("field", "field")];
           return suggestionBarItem(fieldAndSource, code.name(fieldId));
         });
+
+        var viewSources = ixer.index("source")[info.viewId] || {};
+        var calculatedFields = (ixer.index("view to calculated fields")[info.viewId] || []);
+        items = items.concat(calculatedFields.map(function(calculated) {
+          var calculatedId = calculated[code.ix("calculated field", "calculated field")];
+          var fieldId = calculated[code.ix("calculated field", "field")];
+          console.log(calculated, ixer.index("field"));
+          var field = ixer.index("field")[fieldId];
+          var sourceId = calculated[code.ix("calculated field", "source")];
+          var source = viewSources[sourceId];
+          return suggestionBarItem({field: field, source: source}, code.name(calculatedId) || "Untitled");
+        }));
       }
     } else if(info.type === "constraint op") {
       items = ["=", "<", "<=", ">", ">=", "!="].map(function(op) {
@@ -2488,7 +2499,6 @@ var queryEditor = (function(window, microReact, api) {
     if(!selectionItems.length) {
       selectionItems.push({text: "Drag local fields into me to make them available in the query."});
     }
-    var groupedBy = ixer.index("grouped by")[viewId];
 
     var lines = viewSources(viewId).concat(viewConstraints(viewId)).concat(viewPrimitives(viewId));
     return {c: "block view-block", viewId: viewId, drop: viewBlockDrop, dragover: preventDefault,
@@ -2599,17 +2609,27 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   // Calculations
+  function getFieldName(viewId, sourceId, fieldId) {
+    var calculated = ixer.index("field to calculated field")[fieldId];
+    if(calculated) {
+      return code.name(calculated[code.ix("calculated field", "calculated field")]);
+    } else {
+      return code.name(sourceId) + "." + code.name(fieldId);
+    }
+  }
+
   var primitiveEditor = {
     default: function(viewId, sourceId, sourceViewId) {
+      var out = ixer.index("view and source to calculated field")[viewId][sourceId];
       var constraintIds = code.getViewSourceConstraints(viewId, sourceId);
       var constraintArgs = constraintIds.map(function(constraintId, ix) {
         var constraint = code.getConstraint(constraintId);
-        var name = constraint.rightField ? (code.name(constraint.rightSource) + "." + code.name(constraint.rightField)) : "<field " + alphabet[ix] + ">";
+        var name = constraint.rightField ? getFieldName(viewId, constraint.rightSource, constraint.rightField) : "<field " + alphabet[ix] + ">";
         return viewConstraintToken("right", constraint.id, viewId, name);
       });
 
       var content = [
-        {text: "<column>"},
+        {text: code.name(out)},
         {text: "☞"},
         {text: code.name(sourceViewId) + "("},
       ].concat(constraintArgs);
@@ -2618,14 +2638,15 @@ var queryEditor = (function(window, microReact, api) {
       return {c: "spaced-row primitive-constraint", children: content};
     },
     infix: function(viewId, sourceId, sourceViewId, operator) {
+      var out = ixer.index("view and source to calculated field")[viewId][sourceId];
       var constraintIds = code.getViewSourceConstraints(viewId, sourceId);
       var a = code.getConstraint(constraintIds[0]);
       var b = code.getConstraint(constraintIds[1]);
-      var aName = a.rightField ? (code.name(a.rightSource) + "." + code.name(a.rightField)) : "<field A>";
-      var bName = b.rightField ? (code.name(b.rightSource) + "." + code.name(b.rightField)) : "<field B>";
+      var aName = a.rightField ? getFieldName(viewId, a.rightSource, a.rightField) : "<field A>";
+      var bName = b.rightField ? getFieldName(viewId, b.rightSource, b.rightField) : "<field B>";
 
       return {c: "spaced-row primitive-constraint", children: [
-        {text: "<column>"},
+        {text: code.name(out)},
         {text: "☞"},
         viewConstraintToken("right", a.id, viewId, aName),
         {text: operator},
