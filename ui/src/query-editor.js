@@ -2566,15 +2566,21 @@ var queryEditor = (function(window, microReact, api) {
   // Calculations
   var primitiveEditor = {
     default: function(viewId, sourceId, sourceViewId) {
-      var constraintIdIx = code.ix("constraint", "constraint");
-      var constraints = ixer.index("source to constraints")[viewId] || {};
-      constraints = constraints[sourceId] || [];
-
-      var constraintItems = constraints.map(function(constraint) {
-        var constraintId = constraint[constraintIdIx];
-        return viewConstraintItem(viewId, constraintId);
+      var constraintIds = code.getViewSourceConstraints(viewId, sourceId);
+      var constraintArgs = constraintIds.map(function(constraintId, ix) {
+        var constraint = code.getConstraint(constraintId);
+        var name = constraint.rightField ? (code.name(constraint.rightSource) + "." + code.name(constraint.rightField)) : "<field " + alphabet[ix] + ">";
+        return viewConstraintToken("right", constraint.id, viewId, name);
       });
-      return constraintItems;
+
+      var content = [
+        {text: "<column>"},
+        {text: "☞"},
+        {text: code.name(sourceViewId) + "("},
+      ].concat(constraintArgs);
+      content.push({text: ")"});
+
+      return {c: "spaced-row primitive-constraint", children: content};
     },
     add: function(viewId, sourceId, sourceViewId) {
       var constraintIds = code.getViewSourceConstraints(viewId, sourceId);
@@ -2616,11 +2622,18 @@ var queryEditor = (function(window, microReact, api) {
   // Constraints
   function viewConstraints(viewId) {
     var constraintIdIx = code.ix("constraint", "constraint");
+    var sourceViewIx = code.ix("source", "source view");
     var constraints = ixer.index("view to constraints")[viewId] || [];
 
     var constraintItems = constraints.map(function(constraint) {
       var constraintId = constraint[constraintIdIx];
-      return viewConstraintItem(viewId, constraintId);
+      var sourceId = ixer.index("constraint to source")[constraintId];
+      var source = ixer.index("source")[viewId] || {};
+      source = source[sourceId];
+      var sourceView = source[sourceViewIx];
+      if(!ixer.index("primitive")[sourceView]) {
+        return viewConstraintItem(viewId, constraintId);
+      }
     });
     return constraintItems;
   }

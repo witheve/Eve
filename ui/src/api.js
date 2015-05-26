@@ -136,6 +136,7 @@ var api = (function(Indexing) {
   ixer.addIndex("constraint to view", "constraint", Indexing.create.lookup([0, 1]));
   ixer.addIndex("constraint left", "constraint left", Indexing.create.lookup([0, false]));
   ixer.addIndex("source to constraints", "constraint left", Indexing.create.collector([1]));
+  ixer.addIndex("constraint to source", "constraint left", Indexing.create.lookup([0, 1]));
   ixer.addIndex("constraint right", "constraint right", Indexing.create.lookup([0, false]));
   ixer.addIndex("constraint operation", "constraint operation", Indexing.create.lookup([0, false]));
   ixer.addIndex("view to selects", "select", Indexing.create.collector([0]));
