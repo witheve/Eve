@@ -1,4 +1,4 @@
-var client = (function eveClient(window, api, dispatcher) {
+var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
   var ixer = api.ixer;
 
   function now() {
@@ -170,6 +170,7 @@ var client = (function eveClient(window, api, dispatcher) {
           uiRenderer.renderMapDiffs(mapDiffs.element, mapDiffs.attr, mapDiffs.marker);
         }
 
+        uiEditorRenderer.render();
         dispatcher.render();
       }
 
@@ -306,4 +307,4 @@ var client = (function eveClient(window, api, dispatcher) {
 
   return {sendToServer: sendToServer};
 
-})(window, api, queryEditor);
+})(window, api, queryEditor, uiEditorRenderer);

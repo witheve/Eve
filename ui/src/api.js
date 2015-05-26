@@ -662,6 +662,8 @@ var api = (function(Indexing) {
   var localState = {txId: 0,
                     uiActiveLayer: null,
                     openLayers: {},
+                    initialAttrs: [],
+                    initialElements: [],
                     activeItem: 1,
                     showMenu: true,
                     uiGridSize: 10};

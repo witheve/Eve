@@ -1,4 +1,4 @@
-body { height:100vh; -webkit-user-select: none; background: #404040; color: #eee; font-family: Avenir, Arial; overflow: hidden;}
+body { height:100vh; -webkit-user-select: none; background: #404040; color: #eee; font-family: Avenir, Arial; }
 body * { box-sizing: border-box; }
 .__root {width: 100%; height: 100%; display:flex; }
 div { display: flex; flex-direction: column; }
@@ -200,7 +200,7 @@ div:hover > .hover-reveal { opacity: 1; }
 .attributes .font-color-size { flex-direction:row; justify-content:center; align-items:center;  margin-top:10px; }
 .attributes .font-color-size .adjustable { margin-left:5px;  }
 .attributes .font-color { font-size:14pt; height: 18px; line-height:18px; }
-.attributes .font-color input { position:absolute; top:0; height:18px; }
+.attributes .font-color input { position:absolute; top:0; height:18px; left:0; }
 .attributes .font-size { margin-left:3px; height: 18px; width:4px; border:1px solid #999; border-left: none;  }
 .attributes .font-align { flex-direction: row; justify-content:center; margin-top:5px; }
 .attributes .font-align .selectable { flex:1; text-align:center;}
@@ -235,7 +235,6 @@ div:hover > .hover-reveal { opacity: 1; }
 .query-workspace .join .block-title { background: rgb(156, 217, 255); }
 .query-workspace .union .block-title { background:  rgb(217, 172, 253); }
 .query-workspace .aggregate .block-title { background: rgb(193, 255, 201); }
-
 
 .query-workspace .view-block { background: aliceblue; border-bottom:1px solid rgba(0,0,0,0.1); }
 .query-workspace .aggregate-block { padding:10px; background: rgba(193, 255, 201, 0.25); border-bottom:1px solid rgba(0,0,0,0.1);  }
@@ -279,3 +278,16 @@ div:hover > .hover-reveal { opacity: 1; }
 .union .suggestion-bar { background: rgba(224, 185, 255, 0.25); }
 
 .full-flex { flex: 1; }
+
+/*---------------------------------------------------------
+- Color picker
+---------------------------------------------------------*/
+
+.cp-color-picker { display:block; z-index:100000; }
+
+/*---------------------------------------------------------
+- rendered program styles
+---------------------------------------------------------*/
+
+.rendered-program .absolute {position:absolute;}
+.rendered-program .layer {flex: 1; position:relative; }
