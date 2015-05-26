@@ -9,18 +9,16 @@ use hyper::Url;
 use hyper::header::{Headers,ContentType,Location,SetCookie};
 use cookie::Cookie;
 
-use websocket::{client,Client,stream,Message, Sender, Receiver};
-
 use mime::Mime;
 
 use url::SchemeData::Relative;
 
 use rustc_serialize::json;
-use rustc_serialize::json::ToJson;
 
+use websocket::{Message, Sender};
+
+use client::*;
 use value::Value;
-use server::Event;
-use relation::Change;
 
 #[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
 pub struct Session {
@@ -131,11 +129,11 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 									println!("Login Successful. Redirecting to user area.");
 
 									// Connect to the Eve runtime and add the user to the eveuser table
-									let ws_result = open_websocket("ws://192.168.137.38:2794",vec![session_data.user.id.clone(),
-																								   session_data.user.username.clone()]);
+									let ws_result = open_websocket("ws://192.168.137.38:2794");
 									match ws_result {
 										// If things went okay, redirect to the Eve UI
-										Ok((send_loop,receive_loop)) => {
+										Ok((mut send_thread,receive_thread)) => {
+										//Ok((mut send_thread,receive_thread)) => {
 											// Form the response
 											*res.status_mut() = hyper::status::StatusCode::PermanentRedirect;
 
@@ -148,10 +146,27 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 											headers.set(cookies);
 											*res.headers_mut() = headers;
 
-											let _ = send_loop.join();
-											let _ = receive_loop.join();
+											// Create an eveuser table
+											let table_name = "eveuser";
+											let table_fields = vec!["id","username"];
+											let row_data = vec![Value::String(session_data.user.id.clone()),
+																Value::String(session_data.user.username.clone())
+														   	   ];
+
+											// TODO figure out how to do this without a new scope
+											{
+												send_event(&create_table(&table_name,&table_fields),&mut send_thread);
+											}
+											{
+												send_event(&insert_fact(&table_name,&table_fields,&row_data),&mut send_thread);
+											}
+											send_thread.send_message(Message::Close(None)).unwrap();
+
+											//let _ = send_thread.join();
+											let _ = receive_thread.join();
+
 										}
-										// Otherwise,
+										// Otherwise, throw an error... maybe redirect to a special page.
 										Err(e) => {
 											println!("ERROR: Had trouble connecting to the Eve runtime: {}",e);
 											*res.status_mut() = hyper::status::StatusCode::NotFound;
@@ -178,165 +193,6 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 			};
 		}
 		_ => panic!("Oh no!"),
-	}
-}
-
-fn open_websocket(url_string: &str,data: Vec<String>) -> Result<(::std::thread::JoinGuard<()>,::std::thread::JoinGuard<()>),String> {
-
-	use std::thread;
-	use std::sync::mpsc::channel;
-
-	//let mut context = SslContext::new(SslMethod::Tlsv1).unwrap();
-	//let _ = context.set_certificate_file(&(Path::new("server.crt")), X509FileType::PEM);
-	//let _ = context.set_private_key_file(&(Path::new("server.key")), X509FileType::PEM);
-	let url = Url::parse(url_string).unwrap();
-	println!("Connecting to {}", url);
-	let request = match Client::connect(url) {
-		Ok(t) => t,
-		Err(e) => {
-			return Err(format!("{}", e).to_string());
-		}
-	};
-
-	let response = match request.send() {
-		Ok(t) => t,
-		Err(e) => {
-			return Err(format!("{}", e).to_string());
-		}
-	};
-
-	response.validate().unwrap();
-	let (sender, receiver) = response.begin().split();
-	let (tx, rx) = channel();
-
-	// Send an initial ping to the server
-	tx.send(Message::Ping(vec![0])).unwrap();
-
-	let send_loop = thread::scoped(move || { send_handler(sender,&rx) } );
-	let receive_loop = thread::scoped(move || { receive_handler(receiver,&tx,data) } );
-	Ok((send_loop,receive_loop))
-}
-
-fn send_handler(ref mut sender: client::sender::Sender<stream::WebSocketStream>, rx: &::std::sync::mpsc::Receiver<Message>) {
-
-	loop {
-
-		let message = match rx.recv() {
-			Ok(m) => m,
-			Err(e) => {
-				println!("Send Message Error: {:?}", e);
-				return;
-			}
-		};
-		match message {
-			Message::Close(_) => {
-				println!("Received close connection message");
-				let _ = sender.send_message(message);
-				return;
-			}
-			_ => (),
-		}
-		// Send the message
-		match sender.send_message(message) {
-			Ok(()) => {
-				println!("Sending a message");
-				()
-			},
-			Err(e) => {
-				println!("Cannot send message, sending close connection instead: {:?}", e);
-				let _ = sender.send_message(Message::Close(None));
-				return;
-			}
-		}
-	}
-
-}
-
-fn receive_handler(ref mut receiver: client::receiver::Receiver<stream::WebSocketStream>, tx: &::std::sync::mpsc::Sender<Message>, data: Vec<String>) {
-
-	let mut response_count = 0;
-
-	// Receive loop
-	for message in receiver.incoming_messages() {
-
-		let message = match message {
-			Ok(m) => m,
-			Err(e) => {
-				println!("Receive Loop1: {:?}", e);
-				let _ = tx.send(Message::Close(None));
-				return;
-			}
-		};
-
-		match message {
-			Message::Close(_) => {
-				let _ = tx.send(Message::Close(None));
-				return;
-			},
-			Message::Text(_) => {
-				println!("Received Text");
-
-				// Create an eveuser table
-				let create_table = Event{changes: vec![("display name".to_string(),Change {
-																		     fields: vec!["display name: id".to_string(),"display name: name".to_string()],
-																		     insert: vec![
-																		  		 	     	vec![Value::String("eveuser".to_string()),Value::String("eveuser".to_string())],
-																		  		 	     	vec![Value::String("eveuser: id".to_string()),Value::String("id".to_string())],
-																		  		 	     	vec![Value::String("eveuser: username".to_string()),Value::String("username".to_string())],
-																		  	     		 ],
-																		     remove: vec![],
-																		    }
-												),
-												("view".to_string(),Change {
-																		     fields: vec!["view: view".to_string(),"view: kind".to_string()],
-																		     insert: vec![
-																		  		 	     	vec![Value::String("eveuser".to_string()),Value::String("table".to_string())],
-																		  	     		 ],
-																		     remove: vec![],
-																		    }
-												),
-												("field".to_string(),Change {
-																		     fields: vec!["field: view".to_string(),"field: field".to_string(),"field: kind".to_string()],
-																		     insert: vec![
-																		  		 	     	vec![Value::String("eveuser".to_string()),Value::String("eveuser: id".to_string()),Value::String("output".to_string())],
-																		  		 	     	vec![Value::String("eveuser".to_string()),Value::String("eveuser: username".to_string()),Value::String("output".to_string())],
-																		  	     		 ],
-																		     remove: vec![],
-																		    }
-												),
-											   ]
-								 };
-
-					// Insert the logged in user to the eveuser table
-					let insert_user = Event{changes: vec![("eveuser".to_string(),Change {
-																		     fields: vec!["eveuser: id".to_string(),"eveuser: username".to_string()],
-																		     insert: vec![
-																		  		 	     	vec![Value::String(data[0].clone()),Value::String(data[1].clone())],
-																		  	     		 ],
-																		     remove: vec![],
-																		    }
-												),
-											   ]
-								 };
-
-				// First we create the eveuser table
-				if response_count == 0 {
-					let json_event = create_table.to_json();
-					let _ = tx.send(Message::Text(json_event.to_string()));
-					response_count = response_count + 1;
-				// We get back a response from the server, now insert the user
-				} else if response_count == 1 {
-					let json_event = insert_user.to_json();
-					let _ = tx.send(Message::Text(json_event.to_string()));
-					response_count = response_count + 1;
-				// We get back a response again, so we've done our job. Close the connection
-				} else {
-					tx.send(Message::Close(None)).unwrap();
-					return;
-				}
-			},
-			_ => println!("Unhandled message type"),
-		}
 	}
 }
 
