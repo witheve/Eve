@@ -2138,6 +2138,7 @@ var queryEditor = (function(window, microReact, api) {
 
   function setupColorPickers(div, elem) {
     jQuery(".color-picker").colorPicker({
+      doRender: false,
       opacity: false,
       renderCallback: function($elm, toggled) {
         var div = $elm.get(0);

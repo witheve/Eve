@@ -80,6 +80,8 @@ var api = (function(Indexing) {
       "calculated field": {name: "calculated field", fields: ["calculated field", "view", "source", "source view", "field"]},
       "empty view": {name: "empty view", fields: [], facts: [[]]},
       "eveuser": {name: "eveuser", fields: ["id", "username"]},
+      "client event": {name: "client event", fields: ["session", "eventId", "type", "element", "row"]},
+      "mouse position": {name: "mouse position", fields: ["session", "eventId", "x", "y"]},
 
       //ui
       "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"], facts: []},
@@ -185,6 +187,7 @@ var api = (function(Indexing) {
   ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.collector([1]));
   ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup([0, 1]));
   ixer.addIndex("elementAttrToBinding", "uiAttrBinding", Indexing.create.lookup([0, 1, 2]));
+  ixer.addIndex("elementAttrBindings", "uiAttrBinding", Indexing.create.collector([0]));
 
   ixer.addIndex("uiElementToMap", "uiMap", Indexing.create.latestLookup({keys: [2, false]}));
   ixer.addIndex("uiMapAttr", "uiMapAttr", Indexing.create.lookup([0, 1, 2]));
