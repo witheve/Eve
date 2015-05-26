@@ -617,16 +617,12 @@ fn create_join(flow: &Flow, view_id: &Value) -> Join {
                     .filter(|field| field["kind"].as_str() != "output")
                     .map(|field| field["field"].clone())
                     .collect::<Vec<_>>();
-                let output_fields = fields.iter()
-                    .filter(|field| field["kind"].as_str() == "output")
-                    .map(|field| field["field"].as_str().to_owned())
-                    .collect::<Vec<_>>();
                 let dependencies = source_dependency_table.find_all("downstream source", &source["source"]);
                 let arguments = input_fields.iter().map(|input_field| {
                     let dependency = dependencies.iter().find(|dependency| dependency["downstream field"] == *input_field).unwrap();
                     get_view_layout_ix(flow, view_id, &dependency["upstream source"], &dependency["upstream field"])
                     }).collect();
-                JoinSource::Primitive{primitive: primitive, arguments: arguments, fields: output_fields}
+                JoinSource::Primitive{primitive: primitive, arguments: arguments}
             }
             _ => {
                 let input_ix = dependencies.iter().position(|dependency|
@@ -693,16 +689,12 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
         .filter(|field| field["kind"].as_str() != "output")
         .map(|field| field["field"].clone())
         .collect::<Vec<_>>();
-        let output_fields = fields.iter()
-        .filter(|field| field["kind"].as_str() == "output")
-        .map(|field| field["field"].as_str().to_owned())
-        .collect::<Vec<_>>();
         let dependencies = source_dependency_table.find_all("downstream source", &source["source"]);
         let arguments = input_fields.iter().map(|input_field| {
             let dependency = dependencies.iter().find(|dependency| dependency["downstream field"] == *input_field).unwrap();
             get_view_layout_ix(flow, view_id, &dependency["upstream source"], &dependency["upstream field"])
         }).collect();
-        Reducer{primitive: primitive, arguments: arguments, fields: output_fields}
+        Reducer{primitive: primitive, arguments: arguments}
     }).collect();
     let select = create_view_select(flow, view_id);
     let selects_inner = select_table.find_all("view", view_id).iter().any(|select|

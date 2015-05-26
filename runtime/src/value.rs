@@ -67,7 +67,6 @@ pub type Field = Id;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Tuple<'a> {
-    pub fields: &'a [Field],
     pub names: &'a [String],
     pub values: &'a [Value],
 }
@@ -79,12 +78,3 @@ impl<'a, 'b> Index<&'b str> for Tuple<'a> {
         &self.values[ix]
     }
 }
-
-// TODO when id is a real type this will also be impl Index
-impl<'a> Tuple<'a> {
-    pub fn field(&'a self, index: &str) -> &'a Value {
-        let ix = self.fields.iter().position(|field| &field[..] == index).unwrap();
-        &self.values[ix]
-    }
-}
-

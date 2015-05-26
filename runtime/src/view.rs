@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use value::{Value, Field};
+use value::Value;
 use relation::{Relation, IndexSelect, ViewSelect};
 use primitive::{Primitive, resolve_as_scalar};
 use std::cmp::{min, max};
@@ -54,8 +54,6 @@ pub enum JoinSource {
     Primitive{
         primitive: Primitive,
         arguments: Vec<usize>,
-        fields: Vec<Field>,
-        // TODO `fields` is here just to hack a Tuple in - will go away when we stop using Tuple
     },
 }
 
@@ -71,8 +69,6 @@ pub struct Join {
 pub struct Reducer {
     pub primitive: Primitive,
     pub arguments: Vec<usize>,
-    pub fields: Vec<Field>,
-    // TODO `fields` is here just to hack a Tuple in - will go away when we stop using Tuple
 }
 
 #[derive(Clone, Debug)]
