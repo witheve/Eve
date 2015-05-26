@@ -116,6 +116,7 @@ div:hover > .hover-reveal { opacity: 1; }
 ---------------------------------------------------------*/
 
 .ui-editor { flex: 1; flex-direction:row; }
+.ui-editor .ui-canvas-container { flex:1; flex-direction:row; }
 .ui-editor .ui-canvas { position: relative; flex:1; overflow:hidden; margin:20px; background: rgba(255,255,255,0.1); }
 .ui-editor .selection { position:absolute; border:1px solid red; z-index:2; pointer-events:none; }
 .ui-editor .selection .resize-handle { position:absolute; border:1px solid red; background: rgba(255,0,0,0.2); z-index:2; pointer-events:auto; }

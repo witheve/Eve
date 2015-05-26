@@ -27,6 +27,13 @@ var api = (function(Indexing) {
     return result;
   }
 
+  function displaySort(idA, idB) {
+    var orderA = ixer.index("display order")[idA];
+    var orderB = ixer.index("display order")[idB];
+    if(orderB - orderA) { return orderB - orderA; }
+    else { return idA.localeCompare(idB); }
+  }
+
   //---------------------------------------------------------
   // Data
   //---------------------------------------------------------
@@ -70,9 +77,11 @@ var api = (function(Indexing) {
       block: {name: "block", fields: ["query", "block", "view"]},
       "block aggregate": {name: "block aggregate", fields: ["view", "kind"]},
       "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
-      "grouped by": {name: "grouped by", fields: ["inner", "inner field", "outer", "outer field"]},
+      "calculated field": {name: "calculated field", fields: ["calculated field", "view", "source", "source view", "field"]},
       "empty view": {name: "empty view", fields: [], facts: [[]]},
       "eveuser": {name: "eveuser", fields: ["id", "username"]},
+      "client event": {name: "client event", fields: ["session", "eventId", "type", "element", "row"]},
+      "mouse position": {name: "mouse position", fields: ["session", "eventId", "x", "y"]},
 
       //ui
       "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"], facts: []},
@@ -116,6 +125,7 @@ var api = (function(Indexing) {
   ixer.addIndex("constant to value", "constant", Indexing.create.lookup([0, 1]));
   ixer.addIndex("display name", "display name", Indexing.create.lookup([0, 1]));
   ixer.addIndex("display order", "display order", Indexing.create.lookup([0, 1]));
+  ixer.addIndex("field", "field", Indexing.create.lookup([1, false]));
   ixer.addIndex("field to view", "field", Indexing.create.lookup([1, 0]));
   ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
   ixer.addIndex("view to kind", "view", Indexing.create.lookup([0, 1]));
@@ -129,6 +139,7 @@ var api = (function(Indexing) {
   ixer.addIndex("constraint to view", "constraint", Indexing.create.lookup([0, 1]));
   ixer.addIndex("constraint left", "constraint left", Indexing.create.lookup([0, false]));
   ixer.addIndex("source to constraints", "constraint left", Indexing.create.collector([1]));
+  ixer.addIndex("constraint to source", "constraint left", Indexing.create.lookup([0, 1]));
   ixer.addIndex("constraint right", "constraint right", Indexing.create.lookup([0, false]));
   ixer.addIndex("constraint operation", "constraint operation", Indexing.create.lookup([0, false]));
   ixer.addIndex("view to selects", "select", Indexing.create.collector([0]));
@@ -148,7 +159,9 @@ var api = (function(Indexing) {
   ixer.addIndex("query to views", "block", Indexing.create.collector([0, 2]));
   ixer.addIndex("block field", "block field", Indexing.create.lookup([0, false]));
   ixer.addIndex("view and source to block fields", "block field", Indexing.create.collector([1, 2]));
-  ixer.addIndex("grouped by", "grouped by", Indexing.create.lookup([0, false]));
+  ixer.addIndex("view to calculated fields", "calculated field", Indexing.create.collector([1]));
+  ixer.addIndex("field to calculated field", "calculated field", Indexing.create.lookup([4, false]));
+  ixer.addIndex("view and source to calculated field", "calculated field", Indexing.create.lookup([1, 2, 0]));
   ixer.addIndex("block aggregate", "block aggregate", Indexing.create.lookup([0, false]));
   ixer.addIndex("primitive", "primitive", Indexing.create.lookup([0, false]));
   ixer.addIndex("primitive kind to views", "primitive", Indexing.create.collector([1]));
@@ -174,6 +187,7 @@ var api = (function(Indexing) {
   ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.collector([1]));
   ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup([0, 1]));
   ixer.addIndex("elementAttrToBinding", "uiAttrBinding", Indexing.create.lookup([0, 1, 2]));
+  ixer.addIndex("elementAttrBindings", "uiAttrBinding", Indexing.create.collector([0]));
 
   ixer.addIndex("uiElementToMap", "uiMap", Indexing.create.latestLookup({keys: [2, false]}));
   ixer.addIndex("uiMapAttr", "uiMapAttr", Indexing.create.lookup([0, 1, 2]));
@@ -276,17 +290,29 @@ var api = (function(Indexing) {
       var constraintFieldIx = code.ix("constraint left", "left field");
       var constraintSourceIx = code.ix("constraint left", "left source");
       var constraintOperationIx = code.ix("constraint operation", "operation");
-      var neue = {};
-      neue.leftField = constraintLeft[constraintFieldIx];
-      neue.leftSource = constraintLeft[constraintSourceIx];
-      neue.rightField = constraintRight[constraintFieldIx];
-      neue.rightSource = constraintRight[constraintSourceIx];
-      neue.operation = constraintOperation[constraintOperationIx];
+      var neue = {id: constraintId,
+                  view: constraint[code.ix("constraint", "view")],
+                  leftField: constraintLeft[constraintFieldIx],
+                  leftSource: constraintLeft[constraintSourceIx],
+                  rightField: constraintRight[constraintFieldIx],
+                  rightSource: constraintRight[constraintSourceIx],
+                  operation: constraintOperation[constraintOperationIx]};
+
 
       return neue;
     },
     isConstraintComplete: function(opts) {
       return (opts.leftField && opts.leftSource && opts.rightField && opts.rightSource && opts.operation) && true;
+    },
+    getViewSourceConstraints: function(viewId, sourceId) {
+      var constraintIdIx = code.ix("constraint left", "constraint");
+      var constraints = ixer.index("source to constraints")[sourceId] || {};
+      var constraintIds = constraints.map(function(constraint) {
+        return constraint[constraintIdIx];
+      }).filter(function(constraintId) {
+        return ixer.index("constraint to view")[constraintId] === viewId;
+      });
+      return constraintIds;
     }
   };
 
@@ -310,9 +336,9 @@ var api = (function(Indexing) {
       return diffs;
     },
 
-    addViewBlock: function addBlock(queryId, sourceViewId, kind) {
+    addViewBlock: function addBlock(queryId, sourceViewId, kind, viewId) {
       kind = kind || "union";
-      var viewId = uuid();
+      var viewId = viewId || uuid();
       var blockId = uuid();
       var diffs = [["block", "inserted", [queryId, blockId, viewId]],
                    ["view", "inserted", [viewId, kind]],
@@ -393,23 +419,35 @@ var api = (function(Indexing) {
     },
     cacheViewSourceFields: function(viewId, sourceId, sourceViewId) {
       var diffs = [];
-      var oldFacts = ixer.index("view and source to block fields")[viewId] || {};
-      oldFacts = oldFacts[sourceId] || [];
-      for(var ix = 0; ix < oldFacts.length; ix++) {
-        var oldFact = oldFacts[ix];
-        var id = oldFact[code.ix("block field", "block field")];
-        var oldOrder = ixer.index("display order")[id];
-        var oldName = ixer.index("display name")[id];
-        diffs.push(["block field", "removed", oldFact]);
-      };
-      var fieldIdIx = code.ix("field", "field")
-      var fields = ixer.index("view to fields")[sourceViewId] || [];
-      for(var ix = 0; ix < fields.length; ix++) {
-        var blockId = uuid();
-        var fieldId = fields[ix][fieldIdIx];
-        diffs.push(["block field", "inserted", [blockId, viewId, sourceId, sourceViewId, fieldId]]);
-      }
+      if(!ixer.index("primitive")[sourceViewId]) {
+        var oldFacts = ixer.index("view and source to block fields")[viewId] || {};
+        oldFacts = oldFacts[sourceId] || [];
+        for(var ix = 0; ix < oldFacts.length; ix++) {
+          var oldFact = oldFacts[ix];
+          diffs.push(["block field", "removed", oldFact]);
+        };
+        var fieldIdIx = code.ix("field", "field")
+        var fields = ixer.index("view to fields")[sourceViewId] || [];
+        for(var ix = 0; ix < fields.length; ix++) {
+          var blockId = uuid();
+          var fieldId = fields[ix][fieldIdIx];
+          diffs.push(["block field", "inserted", [blockId, viewId, sourceId, sourceViewId, fieldId]]);
+        }
+      } else {
+        var fieldIdIx = code.ix("field", "field")
+        var fieldKindIx = code.ix("field", "kind")
+        var fields = ixer.index("view to fields")[sourceViewId] || [];
+        for(var ix = 0; ix < fields.length; ix++) {
+          var calculatedId = uuid();
+          var fieldId = fields[ix][fieldIdIx];
+          var kind = fields[ix][fieldKindIx];
+          if(kind === "output") {
+            diffs.push(["calculated field", "inserted", [calculatedId, viewId, sourceId, sourceViewId, fieldId]],
+                       ["display name", "inserted", [calculatedId, fieldId]]);
+          }
+        }
 
+      }
       return diffs;
     },
     computePrimitives: function cachePrimitives() {
@@ -642,6 +680,8 @@ var api = (function(Indexing) {
   var localState = {txId: 0,
                     uiActiveLayer: null,
                     openLayers: {},
+                    initialAttrs: [],
+                    initialElements: [],
                     activeItem: 1,
                     showMenu: true,
                     uiGridSize: 10};
@@ -654,6 +694,7 @@ var api = (function(Indexing) {
           diff: diff,
           clone: clone,
           builtins: tables,
-          arraysIdentical: Indexing.arraysIdentical};
+          arraysIdentical: Indexing.arraysIdentical,
+          displaySort: displaySort};
 })(Indexing);
 
