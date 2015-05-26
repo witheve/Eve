@@ -283,17 +283,29 @@ var api = (function(Indexing) {
       var constraintFieldIx = code.ix("constraint left", "left field");
       var constraintSourceIx = code.ix("constraint left", "left source");
       var constraintOperationIx = code.ix("constraint operation", "operation");
-      var neue = {};
-      neue.leftField = constraintLeft[constraintFieldIx];
-      neue.leftSource = constraintLeft[constraintSourceIx];
-      neue.rightField = constraintRight[constraintFieldIx];
-      neue.rightSource = constraintRight[constraintSourceIx];
-      neue.operation = constraintOperation[constraintOperationIx];
+      var neue = {id: constraintId,
+                  view: constraint[code.ix("constraint", "view")],
+                  leftField: constraintLeft[constraintFieldIx],
+                  leftSource: constraintLeft[constraintSourceIx],
+                  rightField: constraintRight[constraintFieldIx],
+                  rightSource: constraintRight[constraintSourceIx],
+                  operation: constraintOperation[constraintOperationIx]};
+
 
       return neue;
     },
     isConstraintComplete: function(opts) {
       return (opts.leftField && opts.leftSource && opts.rightField && opts.rightSource && opts.operation) && true;
+    },
+    getViewSourceConstraints: function(viewId, sourceId) {
+      var constraintIdIx = code.ix("constraint left", "constraint");
+      var constraints = ixer.index("source to constraints")[sourceId] || {};
+      var constraintIds = constraints.map(function(constraint) {
+        return constraint[constraintIdIx];
+      }).filter(function(constraintId) {
+        return ixer.index("constraint to view")[constraintId] === viewId;
+      });
+      return constraintIds;
     }
   };
 

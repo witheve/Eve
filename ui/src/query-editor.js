@@ -424,7 +424,6 @@ var queryEditor = (function(window, microReact, api) {
         }
         break;
       case "updateAggregateGrouping":
-        console.log(info);
         diffs = diff.updateAggregateGrouping(info.aggregate, info.source, info.field);
         if(diffs.length) {
           var neue = diffs[0][2];//@FIXME: Hacky.
@@ -2301,6 +2300,7 @@ var queryEditor = (function(window, microReact, api) {
   function editor(queryId) {
     var blocks = ixer.index("query to blocks")[queryId] || [];
     var items = [];
+    var order = ixer.index("display order");
     for(var ix = 0; ix < blocks.length; ix++) {
       var viewId = blocks[ix][code.ix("block", "view")];
       var viewKind = ixer.index("view to kind")[viewId];
@@ -2564,7 +2564,34 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   // Calculations
-  var primitiveEditor = {};
+  var primitiveEditor = {
+    default: function(viewId, sourceId, sourceViewId) {
+      var constraintIdIx = code.ix("constraint", "constraint");
+      var constraints = ixer.index("source to constraints")[viewId] || {};
+      constraints = constraints[sourceId] || [];
+
+      var constraintItems = constraints.map(function(constraint) {
+        var constraintId = constraint[constraintIdIx];
+        return viewConstraintItem(viewId, constraintId);
+      });
+      return constraintItems;
+    },
+    add: function(viewId, sourceId, sourceViewId) {
+      var constraintIds = code.getViewSourceConstraints(viewId, sourceId);
+      var a = code.getConstraint(constraintIds[0]);
+      var b = code.getConstraint(constraintIds[1]);
+      var aName = a.rightField ? (code.name(a.rightSource) + "." + code.name(a.rightField)) : "<field A>";
+      var bName = b.rightField ? (code.name(b.rightSource) + "." + code.name(b.rightField)) : "<field A>";
+
+      return {c: "spaced-row primitive-constraint", children: [
+        {text: "<column>"},
+        {text: "☞"},
+        viewConstraintToken("right", a.id, viewId, aName),
+        {text: "+"},
+        viewConstraintToken("right", b.id, viewId, bName)
+      ]}
+    }
+  };
 
   function viewPrimitives(viewId, drop) {
     var sourceIdIx = code.ix("source", "source");
@@ -2581,7 +2608,7 @@ var queryEditor = (function(window, microReact, api) {
     });
 
     var primitiveItems = primitives.map(function(primitive) {
-      return [primitiveEditor[primitive[1]] || primitiveEditor.default](primitive[0], primitive[1]);
+      return (primitiveEditor[primitive[1]] || primitiveEditor.default)(viewId, primitive[0], primitive[1]);
     });
     return primitiveItems;
   }
@@ -2592,23 +2619,28 @@ var queryEditor = (function(window, microReact, api) {
     var constraints = ixer.index("view to constraints")[viewId] || [];
 
     var constraintItems = constraints.map(function(constraint) {
-      var id = constraint[constraintIdIx];
-      var op = ixer.index("constraint operation")[id] || [];
-      var operation = op[code.ix("constraint operation", "operation")];
-      var left = ixer.index("constraint left")[id] || [];
-      var leftSource = left[code.ix("constraint left", "left source")];
-      var leftField = left[code.ix("constraint left", "left field")];
-      var right = ixer.index("constraint right")[id] || [];
-      var rightSource = right[code.ix("constraint right", "right source")];
-      var rightField = right[code.ix("constraint right", "right field")];
-
-      return {c: "view-constraint", children: [
-        viewConstraintToken("left", id, viewId, code.name(leftSource) + "." + code.name(leftField)),
-        viewConstraintToken("operation", id, viewId, operation),
-        viewConstraintToken("right", id, viewId, code.name(rightSource) + "." + code.name(rightField))
-      ]};
+      var constraintId = constraint[constraintIdIx];
+      return viewConstraintItem(viewId, constraintId);
     });
     return constraintItems;
+  }
+
+  function viewConstraintItem(viewId, constraintId) {
+    var op = ixer.index("constraint operation")[constraintId] || [];
+    var operation = op[code.ix("constraint operation", "operation")];
+    var left = ixer.index("constraint left")[constraintId] || [];
+    var leftSource = left[code.ix("constraint left", "left source")];
+    var leftField = left[code.ix("constraint left", "left field")];
+    var right = ixer.index("constraint right")[constraintId] || [];
+    var rightSource = right[code.ix("constraint right", "right source")];
+    var rightField = right[code.ix("constraint right", "right field")];
+
+    return {c: "view-constraint", children: [
+      viewConstraintToken("left", constraintId, viewId, code.name(leftSource) + "." + code.name(leftField)),
+      viewConstraintToken("operation", constraintId, viewId, operation),
+      viewConstraintToken("right", constraintId, viewId, code.name(rightSource) + "." + code.name(rightField))
+    ]};
+
   }
 
   function viewConstraintToken(side, constraintId, viewId, text) {
@@ -2656,7 +2688,6 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function updateViewConstraint(evt, elem) {
-    console.log(elem);
     var info = localState.queryEditorInfo;
     var token = info.token;
     dispatch("updateViewConstraint", {constraintId: token.constraintId, type: token.side, value: elem.key});
