@@ -367,8 +367,6 @@ var queryEditor = (function(window, microReact, api) {
           return [constraintId, opts];
         });
 
-        console.log(opts, complete);
-
         diffs = diff.updateViewConstraint(info.constraintId, opts);
         if(complete) {
           diffs = constraintOpts.reduce(function(memo, constraintPair) {
@@ -1866,7 +1864,6 @@ var queryEditor = (function(window, microReact, api) {
       visualStyle = input("", localState.addingAppearanceStyle, rename, doneAddingStyle);
       visualStyle.postRender = focusOnce;
     }
-
     return {c: "option-group visual-attributes", children: [
       visualStyle,
       {c: "layout-box-filled", backgroundColor: attrs["backgroundColor"], borderRadius: attrs["borderRadius"], children: [
@@ -2124,7 +2121,7 @@ var queryEditor = (function(window, microReact, api) {
 //       {t: "input", type: "color", key: [componentId, attr],
 //        value: value, input: setAttribute}
     return {c: "color-picker", backgroundColor: value || "#999999", mousedown: startSelectingColor, attr: attr, key: [componentId, attr],
-            change: setAttribute, blur: stopSelectingColor};
+            change: setAttribute, commit: stopSelectingColor};
   }
 
   function startSelectingColor(e, elem) {
@@ -2140,6 +2137,13 @@ var queryEditor = (function(window, microReact, api) {
     jQuery(".color-picker").colorPicker({
       doRender: false,
       opacity: false,
+      onCommit: function($elm) {
+        var div = $elm.get(0);
+        var eveElem = renderer.tree[div._id] || renderer.prevTree[div._id];
+        if(eveElem && eveElem.commit) {
+          eveElem.commit({currentTarget: div}, eveElem);
+        }
+      },
       renderCallback: function($elm, toggled) {
         var div = $elm.get(0);
         var eveElem = renderer.tree[div._id];
