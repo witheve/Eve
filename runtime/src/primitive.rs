@@ -1,5 +1,4 @@
-use value::{Value, Field, Tuple};
-use relation::Reference;
+use value::{Value};
 
 #[derive(Clone, Debug, Copy)]
 pub enum Primitive {
@@ -10,40 +9,34 @@ pub enum Primitive {
     Empty,
 }
 
-// TODO we hackily assign source numbers to inner and outer
-//      will be fixed when Reference goes away
-const OUTER: usize = 0;
-const INNER: usize = 1;
-
-impl Reference {
-    pub fn resolve_as_vector<'a>(&'a self, outer: &'a Tuple, inner_fields: &[Field], inner_values: &'a [Vec<Value>]) -> Vec<&Value> {
-        match *self {
-            Reference::Constant{ref value} => {
-                vec![value]
-            },
-            Reference::Variable{source, ref field} => {
-                match source {
-                    OUTER => {
-                        vec![outer.field(field)]
-                    }
-                    INNER => {
-                        let ix = inner_fields.iter().position(|inner_field| inner_field == field).unwrap();
-                        inner_values.iter().map(|values| &values[ix]).collect()
-                    }
-                    _ => unreachable!(),
-                }
-            }
-        }
+pub fn resolve_as_scalar<'a>(mut ix: usize, constants: &'a [Value], outer: &'a [Value]) -> &'a Value {
+    if ix < constants.len() {
+        return &constants[ix];
+    } else {
+        ix = ix - constants.len()
     }
+    return &outer[ix];
+}
+
+pub fn resolve_as_vector<'a>(mut ix: usize, constants: &'a [Value], outer: &'a [Value], inner: &'a [Vec<Value>]) -> Vec<&'a Value> {
+    if ix < constants.len() {
+        return vec![&constants[ix]; inner.len()];
+    } else {
+        ix = ix - constants.len()
+    }
+    if ix < outer.len() {
+        return vec![&outer[ix]; inner.len()];
+    } else {
+        ix = ix - outer.len()
+    }
+    return inner.iter().map(|values| &values[ix]).collect();
 }
 
 impl Primitive {
-    pub fn eval_from_join<'a>(&self, arguments: &[Reference], inputs: &[Tuple]) -> Vec<Vec<Value>> {
+    pub fn eval_from_join<'a>(&self, arguments: &[usize], inputs: &[&Value]) -> Vec<Vec<Value>> {
         use primitive::Primitive::*;
         use value::Value::*;
-        let values = arguments.iter().map(|reference|
-            reference.resolve(&inputs[..])
-            ).collect::<Vec<_>>();
+        let values = arguments.iter().map(|ix| inputs[*ix]).collect::<Vec<_>>();
         match (*self, &values[..]) {
             (Add, [&Float(a), &Float(b)]) => vec![vec![Float(a+b)]],
             (Subtract, [&Float(a), &Float(b)]) => vec![vec![Float(a-b)]],
@@ -54,17 +47,17 @@ impl Primitive {
         }
     }
 
-    pub fn eval_from_aggregate<'a>(&self, arguments: &[Reference], outer: &Tuple, inner_fields: &[Field], inner_values: &[Vec<Value>]) -> Vec<Vec<Value>> {
+    pub fn eval_from_aggregate<'a>(&self, arguments: &[usize], constants: &[Value], outer: &[Value], inner: &[Vec<Value>]) -> Vec<Vec<Value>> {
         use primitive::Primitive::*;
         use value::Value::*;
         match (*self, arguments) {
             (Add, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Subtract, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Count, [_]) => {
-                vec![vec![Float(inner_values.len() as f64)]]
+                vec![vec![Float(inner.len() as f64)]]
             }
-            (Sum, [ref in_ref]) => {
-                let in_values = in_ref.resolve_as_vector(outer, inner_fields, inner_values);
+            (Sum, [in_ix]) => {
+                let in_values = resolve_as_vector(in_ix, constants, outer, inner);
                 let sum = in_values.iter().fold(0f64, |sum, value|
                     match **value {
                         Float(float) => sum + float,
@@ -72,8 +65,8 @@ impl Primitive {
                     });
                 vec![vec![Float(sum)]]
             },
-            (Empty, [ref in_ref]) => {
-                let in_values = in_ref.resolve_as_vector(outer, inner_fields, inner_values);
+            (Empty, [in_ix]) => {
+                let in_values = resolve_as_vector(in_ix, constants, outer, inner);
                 vec![vec![Bool(in_values.len() == 0)]]
             }
             _ => panic!("Wrong number of arguments while calling: {:?} {:?}", self, arguments),

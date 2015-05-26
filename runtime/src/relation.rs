@@ -156,41 +156,31 @@ impl<'a> Iterator for Iter<'a> {
 }
 
 #[derive(Clone, Debug)]
-pub struct SingleSelect{
+pub struct IndexSelect{
     pub source: usize,
     pub mapping: Vec<usize>,
-    pub fields: Vec<Field>, // TODO remove when reference reform is done
 }
 
-impl SingleSelect {
+impl IndexSelect {
     pub fn select(&self, inputs: &[&Relation]) -> Vec<Vec<Value>> {
         let relation = inputs[self.source];
-        relation.index.iter().map(|values| with_mapping(values.clone(), &self.mapping[..])).collect()
+        relation.index.iter().map(|values|
+            self.mapping.iter().map(|ix|
+                values[*ix].clone()
+            ).collect()
+        ).collect()
     }
 }
 
 #[derive(Clone, Debug)]
-pub enum Reference {
-    Constant{value: Value},
-    Variable{source: usize, field: Field}
+pub struct ViewSelect{
+    pub mapping: Vec<usize>,
 }
 
-impl Reference {
-    pub fn resolve<'a>(&'a self, inputs: &'a [Tuple<'a>]) -> &Value {
-        match *self {
-            Reference::Constant{ref value} => value,
-            Reference::Variable{source, ref field} => &inputs[source].field(&field[..]),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct MultiSelect{
-    pub references: Vec<Reference>,
-}
-
-impl MultiSelect {
-    pub fn select(&self, inputs: &[Tuple]) -> Vec<Value> {
-        self.references.iter().map(|reference| reference.resolve(inputs).clone()).collect()
+impl ViewSelect {
+    pub fn select(&self, input: &[&Value]) -> Vec<Value> {
+        self.mapping.iter().map(|ix|
+            input[*ix].clone()
+        ).collect()
     }
 }
