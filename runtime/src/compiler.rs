@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::fmt::Debug;
 
 use value::{Value, Tuple};
-use relation::{Relation, SingleSelect, Reference, MultiSelect, mapping, with_mapping};
+use relation::{Relation, IndexSelect, ViewSelect, mapping, with_mapping};
 use view::{View, Table, Union, Join, JoinSource, Constraint, ConstraintOp, Aggregate, Reducer};
 use flow::{Node, Flow};
 use primitive;
@@ -109,8 +109,8 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // `ix` is an integer, the index of the field
     ("index layout", vec!["view", "field"], vec!["ix"]),
 
-    // constants used by each view
-    ("view constant", vec!["view", "constant"], vec![]),
+    // sources and fields actually used by each view
+    ("view reference", vec!["view", "source", "field"], vec![]),
 
     // view layout determines the order in which source/field pairs are stored while computing the view
     // `ix` is an integer, the index of the field
@@ -151,6 +151,21 @@ fn topological_sort<K: Eq + Debug>(mut input: Vec<(K, Vec<K>)>) -> Vec<(K, Vec<K
 
 fn sort_by_ix(tuples: &mut Vec<Tuple>) {
     tuples.sort_by(|a,b| a["ix"].cmp(&b["ix"]));
+}
+
+fn sort_by_priority(tuples: &mut Vec<Tuple>) {
+    tuples.sort_by(|a,b| b["priority"].cmp(&a["priority"]));
+}
+
+fn move_to_start<T, F>(vec: &mut Vec<T>, f: F) where F: FnMut(&T) -> bool {
+    let ix = vec.iter().position(f);
+    match ix {
+        Some(ix) => {
+            let t = vec.remove(ix);
+            vec.insert(0, t);
+        }
+        None => ()
+    }
 }
 
 // TODO we don't really need source in here
@@ -247,7 +262,16 @@ fn calculate_source_schedule(flow: &Flow) {
                 .collect();
             (source["source"].clone(), upstream)
         }).collect();
-        let sources_and_upstreams = topological_sort(sources_and_upstreams);
+        let mut sources_and_upstreams = topological_sort(sources_and_upstreams);
+
+        // aggregates need to have outer/inner at the end
+        move_to_start(&mut sources_and_upstreams, |&(ref source_id, _)|
+            source_id.as_str() == "inner"
+            );
+        move_to_start(&mut sources_and_upstreams, |&(ref source_id, _)|
+            source_id.as_str() == "outer"
+            );
+
         for (ix, (source, _)) in sources_and_upstreams.into_iter().enumerate() {
             items.push(vec![view["view"].clone(), source, Value::Float(ix as f64)]);
         }
@@ -310,7 +334,7 @@ fn calculate_index_layout(flow: &Flow) {
     overwrite_compiler_view(flow, "index layout", items);
 }
 
-fn calculate_view_constant(flow: &Flow) {
+fn calculate_view_reference(flow: &Flow) {
     let mut items = Vec::new();
     let view_table = flow.get_output("view");
     let constraint_table = flow.get_output("constraint");
@@ -322,114 +346,208 @@ fn calculate_view_constant(flow: &Flow) {
     for view in view_table.iter() {
         for constraint in constraint_table.find_all("view", &view["view"]) {
             for constraint_left in constraint_left_table.find_all("constraint", &constraint["constraint"]) {
-                if constraint_left["left source"].as_str() == "constant" {
-                    items.push(vec![view["view"].clone(), constraint_left["left field"].clone()]);
-                }
+                items.push(vec![
+                    view["view"].clone(),
+                    constraint_left["left source"].clone(),
+                    constraint_left["left field"].clone(),
+                    ]);
             }
             for constraint_right in constraint_right_table.find_all("constraint", &constraint["constraint"]) {
-                if constraint_right["right source"].as_str() == "constant" {
-                    items.push(vec![view["view"].clone(), constraint_right["right field"].clone()]);
-                }
+                items.push(vec![
+                    view["view"].clone(),
+                    constraint_right["right source"].clone(),
+                    constraint_right["right field"].clone(),
+                    ]);
             }
         }
         for limit_from in limit_from_table.find_all("aggregate", &view["view"]) {
-            if limit_from["from source"].as_str() == "constant" {
-                items.push(vec![view["view"].clone(), limit_from["from field"].clone()]);
-            }
+            items.push(vec![
+                view["view"].clone(),
+                limit_from["from source"].clone(),
+                limit_from["from field"].clone(),
+                ]);
         }
         for limit_to in limit_to_table.find_all("aggregate", &view["view"]) {
-            if limit_to["to source"].as_str() == "constant" {
-                items.push(vec![view["view"].clone(), limit_to["to field"].clone()]);
-            }
+            items.push(vec![
+                view["view"].clone(),
+                limit_to["to source"].clone(),
+                limit_to["to field"].clone(),
+                ]);
         }
         for select in select_table.find_all("view", &view["view"]) {
-            if select["source"].as_str() == "constant" {
-                items.push(vec![view["view"].clone(), select["source field"].clone()]);
-            }
+            items.push(vec![
+                view["view"].clone(),
+                select["source"].clone(),
+                select["source field"].clone(),
+                ]);
         }
     }
-    overwrite_compiler_view(flow, "view constant", items);
+    overwrite_compiler_view(flow, "view reference", items);
 }
 
 fn calculate_view_layout(flow: &Flow) {
     let mut items = Vec::new();
     let view_table = flow.get_output("view");
-    let view_constant_table = flow.get_output("view constant");
+    let view_reference_table = flow.get_output("view reference");
     let source_table = flow.get_output("source");
     let source_schedule_table = flow.get_output("source schedule");
     let index_layout_table = flow.get_output("index layout");
+    let grouping_table = flow.get_output("aggregate grouping");
+    let sorting_table = flow.get_output("aggregate sorting");
+    let field_table = flow.get_output("field");
+
     for view in view_table.iter() {
         let mut ix = 0;
-        for view_constant in view_constant_table.find_all("view", &view["view"]) {
-            items.push(vec![
-                view["view"].clone(),
-                string!("constant"),
-                view_constant["constant"].clone(),
-                Value::Float(ix as f64),
-                ]);
-            ix += 1;
+
+        // constants go first
+        for view_reference in view_reference_table.find_all("view", &view["view"]) {
+            if view_reference["source"].as_str() == "constant" {
+                items.push(vec![
+                    view["view"].clone(),
+                    string!("constant"),
+                    view_reference["field"].clone(),
+                    Value::Float(ix as f64),
+                    ]);
+                ix += 1;
+            }
         }
+
+        // then other sources go in source order
         let mut source_schedules = source_schedule_table.find_all("view", &view["view"]);
         sort_by_ix(&mut source_schedules);
         for source_schedule in source_schedules {
             let source = source_table.find_one("source", &source_schedule["source"]);
-            let mut index_layouts = index_layout_table.find_all("view", &source["view"]);
-            sort_by_ix(&mut index_layouts);
-            for index_layout in index_layouts {
+            let mut push_field = |field_id: &Value| {
                 items.push(vec![
                     view["view"].clone(),
                     source["source"].clone(),
-                    index_layout["field"].clone(),
+                    field_id.clone(),
                     Value::Float(ix as f64),
                     ]);
                 ix += 1;
+            };
+            match source["source"].as_str() {
+                "outer" => {
+                    // only use the grouped fields
+                    for grouping in grouping_table.find_all("aggregate", &view["view"]) {
+                        push_field(&grouping["outer field"].clone());
+                    }
+                }
+                "inner" => {
+                    // use grouped fields first
+                    let groupings = grouping_table.find_all("aggregate", &view["view"]);
+                    for grouping in groupings.iter() {
+                        push_field(&grouping["inner field"].clone());
+                    }
+
+                    // followed by sorting fields
+                    let mut sortings = sorting_table.find_all("aggregate", &view["view"]);
+                    sortings.retain(|sorting|
+                        !groupings.iter().any(|grouping|
+                            grouping["inner field"] == sorting["inner field"]));
+                    sort_by_priority(&mut sortings);
+                    for sorting in sortings.iter() {
+                        push_field(&sorting["inner field"]);
+                    }
+
+                    // followed by all remaining fields
+                    let mut fields = field_table.find_all("view", &source["source view"]);
+                    fields.retain(|field|
+                        !groupings.iter().any(|grouping|
+                            grouping["inner field"] == field["field"]));
+                    fields.retain(|field|
+                        !sortings.iter().any(|sorting|
+                            sorting["inner field"] == field["field"]));
+                    fields.sort_by(|a,b| a["field"].cmp(&b["field"]));
+                    for field in fields.iter() {
+                        push_field(&field["field"]);
+                    }
+                }
+                _ => {
+                    // use all fields
+                    let mut index_layouts = index_layout_table.find_all("view", &source["source view"]);
+                    sort_by_ix(&mut index_layouts);
+                    for index_layout in index_layouts.into_iter() {
+                        let field = field_table.find_one("field", &index_layout["field"]);
+                        if field["kind"].as_str() == "output" {
+                            push_field(&index_layout["field"].clone());
+                        }
+                    }
+                }
             }
         }
     }
     overwrite_compiler_view(flow, "view layout", items);
 }
 
-fn create_single_select(flow: &Flow, view_id: &Value, source_id: &Value, source_ix: usize) -> SingleSelect {
-    let fields = flow.get_output("field").find_all("view", view_id).iter().map(|field| {
-        let select_table = flow.get_output("select");
+fn get_index_layout_ix(flow: &Flow, view_id: &Value, field_id: &Value) -> usize {
+    flow.get_output("index layout").iter().find(|index_layout|
+        index_layout["view"] == *view_id
+        && index_layout["field"] == *field_id
+        ).unwrap()["ix"].as_usize()
+}
+
+fn get_view_layout_ix(flow: &Flow, view_id: &Value, source_id: &Value, field_id: &Value) -> usize {
+    flow.get_output("view layout").iter().find(|view_layout|
+        view_layout["view"] == *view_id
+        && view_layout["source"] == *source_id
+        && view_layout["field"] == *field_id
+        ).unwrap()["ix"].as_usize()
+}
+
+fn create_constants(flow: &Flow, view_id: &Value) -> Vec<Value> {
+    let view_layout_table = flow.get_output("view layout");
+    let constant_table = flow.get_output("constant");
+    let mut view_layouts = view_layout_table.iter().filter(|view_layout|
+        view_layout["view"] == *view_id
+        && view_layout["source"].as_str() == "constant"
+        ).collect::<Vec<_>>();
+    sort_by_ix(&mut view_layouts);
+    view_layouts.iter().map(|view_layout| {
+        let constant = constant_table.find_one("constant", &view_layout["field"]);
+        constant["value"].clone()
+    }).collect::<Vec<_>>()
+}
+
+fn create_index_select(flow: &Flow, view_id: &Value, source_id: &Value, source_ix: usize) -> IndexSelect {
+    let field_table = flow.get_output("field");
+    let source_table = flow.get_output("source");
+    let select_table = flow.get_output("select");
+    let selects = select_table.iter().filter(|select|
+        (select["view"] == *view_id)
+        && (select["source"] == *source_id)
+        ).collect::<Vec<_>>();
+    let fields = field_table.find_all("view", view_id).iter().map(|field| {
+        let select = selects.iter().find(|select|
+            select["view field"] == field["field"]
+            ).unwrap();
+        &select["source field"]
+    }).collect::<Vec<_>>();
+    let source = source_table.find_one("source", source_id);
+    let mapping = fields.iter().map(|field_id| {
+        get_index_layout_ix(flow, &source["source view"], field_id)
+        }).collect();
+    IndexSelect{source: source_ix, mapping: mapping}
+}
+
+fn create_view_select(flow: &Flow, view_id: &Value) -> ViewSelect {
+    let field_table = flow.get_output("field");
+    let select_table = flow.get_output("select");
+    let mapping = field_table.find_all("view", view_id).iter().map(|field| {
         let select = select_table.iter().find(|select|
             select["view"] == *view_id
             && select["view field"] == field["field"]
-            && select["source"] == *source_id
             ).unwrap();
-        select["source field"].as_str().to_owned()
+        get_view_layout_ix(flow, view_id, &select["source"], &select["source field"])
     }).collect();
-    SingleSelect{source: source_ix, fields: fields}
-}
-
-fn create_reference(flow: &Flow, sources: &[Tuple], source_id: &Value, field_id: &Value) -> Reference {
-    if source_id.as_str() == "constant" {
-        let value = flow.get_output("constant").find_one("constant", field_id)["value"].clone();
-        Reference::Constant{value: value}
-    } else {
-        let source = sources.iter().position(|source| source["source"] == *source_id).unwrap();
-        let field = field_id.as_str().to_owned();
-        Reference::Variable{source: source, field: field}
-    }
-}
-
-fn create_multi_select(flow: &Flow, sources: &[Tuple], view_id: &Value) -> MultiSelect {
-    let references = flow.get_output("field").find_all("view", view_id).iter().map(|field| {
-        let select_table = flow.get_output("select");
-        let select = select_table.iter().find(|select|
-            select["view"] == *view_id
-            && select["view field"] == field["field"]
-            ).unwrap();
-        create_reference(flow, sources, &select["source"], &select["source field"])
-    }).collect();
-    MultiSelect{references: references}
+    ViewSelect{mapping: mapping}
 }
 
 fn create_table(flow: &Flow, view_id: &Value) -> Table {
     let mut insert = None;
     let mut remove = None;
     for (ix, source) in flow.get_output("source").find_all("view", view_id).iter().enumerate() {
-        let select = create_single_select(flow, view_id, &source["source"], ix);
+        let select = create_index_select(flow, view_id, &source["source"], ix);
         match source["source"].as_str() {
             "insert" => insert = Some(select),
             "remove" => remove = Some(select),
@@ -441,18 +559,18 @@ fn create_table(flow: &Flow, view_id: &Value) -> Table {
 
 fn create_union(flow: &Flow, view_id: &Value) -> Union {
     let selects = flow.get_output("view dependency").find_all("downstream view", view_id).iter().enumerate().map(|(ix, dependency)| {
-        create_single_select(flow, view_id, &dependency["source"], ix)
+        create_index_select(flow, view_id, &dependency["source"], ix)
     }).collect();
     Union{selects: selects}
 }
 
-fn create_constraint(flow: &Flow, sources: &[Tuple], constraint_id: &Value) -> Constraint {
+fn create_constraint(flow: &Flow, view_id: &Value, constraint_id: &Value) -> Constraint {
     let left_table = flow.get_output("constraint left");
     let left = left_table.find_one("constraint", constraint_id);
-    let left = create_reference(flow, sources, &left["left source"], &left["left field"]);
+    let left = get_view_layout_ix(flow, view_id, &left["left source"], &left["left field"]);
     let right_table = flow.get_output("constraint right");
     let right = right_table.find_one("constraint", constraint_id);
-    let right = create_reference(flow, sources, &right["right source"], &right["right field"]);
+    let right = get_view_layout_ix(flow, view_id, &right["right source"], &right["right field"]);
     let op = match flow.get_output("constraint operation").find_one("constraint", constraint_id)["operation"].as_str() {
         "=" => ConstraintOp::EQ,
         "!=" => ConstraintOp::NEQ,
@@ -475,6 +593,8 @@ fn create_join(flow: &Flow, view_id: &Value) -> Join {
     let constraint_schedule_table = flow.get_output("constraint schedule");
     let field_table = flow.get_output("field");
 
+    let constants = create_constants(flow, view_id);
+
     let dependencies = view_dependency_table.find_all("downstream view", view_id);
 
     let mut ixes_and_sources = source_table.find_all("view", view_id).into_iter().map(|source| {
@@ -487,7 +607,7 @@ fn create_join(flow: &Flow, view_id: &Value) -> Join {
     let mut join_constraints = vec![vec![]; sources.len()];
     for constraint in constraint_table.find_all("view", view_id).iter() {
         let ix = constraint_schedule_table.find_one("constraint", &constraint["constraint"])["ix"].as_usize();
-        join_constraints[ix].push(create_constraint(flow, &sources[..], &constraint["constraint"]));
+        join_constraints[ix].push(create_constraint(flow, view_id, &constraint["constraint"]));
     }
 
     let join_sources = sources.iter().map(|source| {
@@ -500,16 +620,12 @@ fn create_join(flow: &Flow, view_id: &Value) -> Join {
                     .filter(|field| field["kind"].as_str() != "output")
                     .map(|field| field["field"].clone())
                     .collect::<Vec<_>>();
-                let output_fields = fields.iter()
-                    .filter(|field| field["kind"].as_str() == "output")
-                    .map(|field| field["field"].as_str().to_owned())
-                    .collect::<Vec<_>>();
                 let dependencies = source_dependency_table.find_all("downstream source", &source["source"]);
                 let arguments = input_fields.iter().map(|input_field| {
                     let dependency = dependencies.iter().find(|dependency| dependency["downstream field"] == *input_field).unwrap();
-                    create_reference(flow, &sources[..], &dependency["upstream source"], &dependency["upstream field"])
+                    get_view_layout_ix(flow, view_id, &dependency["upstream source"], &dependency["upstream field"])
                     }).collect();
-                JoinSource::Primitive{primitive: primitive, arguments: arguments, fields: output_fields}
+                JoinSource::Primitive{primitive: primitive, arguments: arguments}
             }
             _ => {
                 let input_ix = dependencies.iter().position(|dependency|
@@ -520,9 +636,9 @@ fn create_join(flow: &Flow, view_id: &Value) -> Join {
         }
     }).collect();
 
-    let select = create_multi_select(flow, &sources[..], view_id);
+    let select = create_view_select(flow, view_id);
 
-    Join{sources: join_sources, constraints: join_constraints, select: select}
+    Join{constants: constants, sources: join_sources, constraints: join_constraints, select: select}
 }
 
 fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
@@ -530,45 +646,40 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
     let source_table = flow.get_output("source");
     let source_dependency_table = flow.get_output("source dependency");
     let dependency_table = flow.get_output("view dependency");
+    let select_table = flow.get_output("select");
+    let view_layout_table = flow.get_output("view layout");
+    let field_table = flow.get_output("field");
+
+    let constants = create_constants(flow, view_id);
+
     let dependencies = dependency_table.find_all("downstream view", view_id);
     let outer_ix = dependencies.iter().position(|dependency| dependency["source"].as_str() == "outer").unwrap();
     let inner_ix = dependencies.iter().position(|dependency| dependency["source"].as_str() == "inner").unwrap();
     let outer_dependency = dependencies[outer_ix].clone();
     let inner_dependency = dependencies[inner_ix].clone();
-    let grouping_table = flow.get_output("aggregate grouping");
-    let groupings = grouping_table.find_all("aggregate", view_id);
-    let field_table = flow.get_output("field");
-    let fields = field_table.find_all("view", &inner_dependency["upstream view"]);
-    let ungrouped = fields.iter().filter(|field|
-            groupings.iter().find(|grouping| grouping["inner field"] == field["field"]).is_none()
-        ).collect::<Vec<_>>();
-    let sorting_table = flow.get_output("aggregate sorting");
-    let mut sortable = ungrouped.iter().map(|field|
-        match sorting_table.find_maybe("inner field", &field["field"]) {
-            None => (Value::Float(0.0), &field["field"]),
-            Some(sorting) => (sorting["priority"].clone(), &field["field"]),
-        }).collect::<Vec<_>>();
-    sortable.sort_by(|a,b| b.cmp(a));
-    let outer_fields =
-        groupings.iter().map(|grouping| grouping["outer field"].as_str().to_owned())
-        .collect();
-    let inner_fields =
-        groupings.iter().map(|grouping| grouping["inner field"].as_str().to_owned())
-        .chain(sortable.iter().map(|&(_, ref field_id)| field_id.as_str().to_owned()))
-        .collect();
-    let limit_inputs = &[outer_dependency.clone()];
-    let outer = SingleSelect{source: outer_ix, fields: outer_fields};
-    let inner = SingleSelect{source: inner_ix, fields: inner_fields};
+    let mut view_layouts = view_layout_table.find_all("view", view_id);
+    sort_by_ix(&mut view_layouts);
+    let outer_mapping = view_layouts.iter().filter(|view_layout|
+            view_layout["source"].as_str() == "outer"
+        ).map(|view_layout|
+            get_index_layout_ix(flow, &outer_dependency["upstream view"], &view_layout["field"])
+        ).collect();
+    let inner_mapping = view_layouts.iter().filter(|view_layout|
+            view_layout["source"].as_str() == "inner"
+        ).map(|view_layout|
+            get_index_layout_ix(flow, &inner_dependency["upstream view"], &view_layout["field"])
+        ).collect();
+    let outer = IndexSelect{source: outer_ix, mapping: outer_mapping};
+    let inner = IndexSelect{source: inner_ix, mapping: inner_mapping};
     let limit_from = flow.get_output("aggregate limit from").find_maybe("aggregate", view_id)
-        .map(|limit_from| create_reference(flow, limit_inputs, &limit_from["from source"], &limit_from["from field"]));
+        .map(|limit_from| get_view_layout_ix(flow, view_id, &limit_from["from source"], &limit_from["from field"]));
     let limit_to = flow.get_output("aggregate limit to").find_maybe("aggregate", view_id)
-        .map(|limit_to| create_reference(flow, limit_inputs, &limit_to["to source"], &limit_to["to field"]));
+        .map(|limit_to| get_view_layout_ix(flow, view_id, &limit_to["to source"], &limit_to["to field"]));
     let reducer_sources = source_table.find_all("view", view_id).into_iter().filter(|source|
         match source["source"].as_str() {
             "inner" | "outer" => false,
             _ => true,
         }).collect::<Vec<_>>();
-    let reducer_inputs = &[outer_dependency.clone(), inner_dependency.clone()];
     let reducers = reducer_sources.iter().map(|source| {
         let source_view = view_table.find_one("view", &source["source view"]);
         match source_view["kind"].as_str() {
@@ -581,28 +692,18 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
         .filter(|field| field["kind"].as_str() != "output")
         .map(|field| field["field"].clone())
         .collect::<Vec<_>>();
-        let output_fields = fields.iter()
-        .filter(|field| field["kind"].as_str() == "output")
-        .map(|field| field["field"].as_str().to_owned())
-        .collect::<Vec<_>>();
         let dependencies = source_dependency_table.find_all("downstream source", &source["source"]);
         let arguments = input_fields.iter().map(|input_field| {
             let dependency = dependencies.iter().find(|dependency| dependency["downstream field"] == *input_field).unwrap();
-            create_reference(flow, &reducer_inputs[..], &dependency["upstream source"], &dependency["upstream field"])
+            get_view_layout_ix(flow, view_id, &dependency["upstream source"], &dependency["upstream field"])
         }).collect();
-        Reducer{primitive: primitive, arguments: arguments, fields: output_fields}
+        Reducer{primitive: primitive, arguments: arguments}
     }).collect();
-    let mut outputs = reducer_sources;
-    outputs.push(outer_dependency);
-    outputs.push(inner_dependency);
-    let select = create_multi_select(flow, &outputs[..], view_id);
-    let inner_ix = outputs.len() - 1;
-    let selects_inner = select.references.iter().any(|reference|
-        match *reference {
-            Reference::Variable{source, ..} => source == inner_ix,
-            Reference::Constant{..} => false,
-        });
-    Aggregate{outer: outer, inner: inner, limit_from: limit_from, limit_to: limit_to, reducers: reducers, selects_inner: selects_inner, select: select}
+    let select = create_view_select(flow, view_id);
+    let selects_inner = select_table.find_all("view", view_id).iter().any(|select|
+        select["source"].as_str() == "inner"
+        );
+    Aggregate{constants: constants, outer: outer, inner: inner, limit_from: limit_from, limit_to: limit_to, reducers: reducers, selects_inner: selects_inner, select: select}
 }
 
 fn create_node(flow: &Flow, view_id: &Value, view_kind: &Value) -> Node {
@@ -687,7 +788,7 @@ pub fn recompile(old_flow: Flow) -> Flow {
     calculate_source_schedule(&old_flow);
     calculate_constraint_schedule(&old_flow);
     calculate_index_layout(&old_flow);
-    calculate_view_constant(&old_flow);
+    calculate_view_reference(&old_flow);
     calculate_view_layout(&old_flow);
     let mut new_flow = create_flow(&old_flow);
     reuse_state(old_flow, &mut new_flow);

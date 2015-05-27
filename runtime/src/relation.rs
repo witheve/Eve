@@ -117,30 +117,29 @@ impl Relation {
     pub fn find_maybe(&self, name: &str, value: &Value) -> Option<Tuple> {
         let ix = self.names.iter().position(|my_name| &my_name[..] == name).unwrap();
         self.index.iter().find(|values| values[ix] == *value).map(|values|
-            Tuple{fields: &self.fields[..], names: &self.names[..], values: &values[..]}
+            Tuple{names: &self.names[..], values: &values[..]}
             )
     }
 
     pub fn find_one(&self, name: &str, value: &Value) -> Tuple {
         let ix = self.names.iter().position(|my_name| &my_name[..] == name).unwrap();
         let values = self.index.iter().find(|values| values[ix] == *value).unwrap();
-        Tuple{fields: &self.fields[..], names: &self.names[..], values: &values[..]}
+        Tuple{names: &self.names[..], values: &values[..]}
     }
 
     pub fn find_all(&self, name: &str, value: &Value) -> Vec<Tuple> {
         let ix = self.names.iter().position(|my_name| &my_name[..] == name).unwrap();
         self.index.iter().filter(|values| values[ix] == *value)
-            .map(|values| Tuple{fields: &self.fields[..], names: &self.names[..], values: &values[..]})
+            .map(|values| Tuple{names: &self.names[..], values: &values[..]})
             .collect()
     }
 
     pub fn iter(&self) -> Iter {
-        Iter{fields: &self.fields[..], names: &self.names[..], iter: self.index.iter()}
+        Iter{names: &self.names[..], iter: self.index.iter()}
     }
 }
 
 pub struct Iter<'a> {
-    fields: &'a [Field],
     names: &'a [String],
     iter: btree_set::Iter<'a, Vec<Value>>,
 }
@@ -150,47 +149,37 @@ impl<'a> Iterator for Iter<'a> {
     fn next(&mut self) -> Option<Tuple<'a>> {
         match self.iter.next() {
             None => None,
-            Some(values) => Some(Tuple{fields: self.fields, names: self.names, values: &values[..]}),
+            Some(values) => Some(Tuple{names: self.names, values: &values[..]}),
         }
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct SingleSelect{
+pub struct IndexSelect{
     pub source: usize,
-    pub fields: Vec<Field>,
+    pub mapping: Vec<usize>,
 }
 
-impl SingleSelect {
+impl IndexSelect {
     pub fn select(&self, inputs: &[&Relation]) -> Vec<Vec<Value>> {
         let relation = inputs[self.source];
-        let mapping = mapping(&relation.fields[..], &self.fields[..]).unwrap();
-        relation.index.iter().map(|values| with_mapping(values.clone(), &mapping[..])).collect()
+        relation.index.iter().map(|values|
+            self.mapping.iter().map(|ix|
+                values[*ix].clone()
+            ).collect()
+        ).collect()
     }
 }
 
 #[derive(Clone, Debug)]
-pub enum Reference {
-    Constant{value: Value},
-    Variable{source: usize, field: Field}
+pub struct ViewSelect{
+    pub mapping: Vec<usize>,
 }
 
-impl Reference {
-    pub fn resolve<'a>(&'a self, inputs: &'a [Tuple<'a>]) -> &Value {
-        match *self {
-            Reference::Constant{ref value} => value,
-            Reference::Variable{source, ref field} => &inputs[source].field(&field[..]),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct MultiSelect{
-    pub references: Vec<Reference>,
-}
-
-impl MultiSelect {
-    pub fn select(&self, inputs: &[Tuple]) -> Vec<Value> {
-        self.references.iter().map(|reference| reference.resolve(inputs).clone()).collect()
+impl ViewSelect {
+    pub fn select(&self, input: &[&Value]) -> Vec<Value> {
+        self.mapping.iter().map(|ix|
+            input[*ix].clone()
+        ).collect()
     }
 }
