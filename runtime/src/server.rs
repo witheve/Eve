@@ -203,6 +203,7 @@ pub fn run() {
                                                      });
                 match ip_ix {
                     Some(ix) => {
+                        senders[ix].send_message(Message::Close(None)).unwrap();
                         match senders[ix].get_mut().shutdown(Shutdown::Both) {
                             Ok(_) => {
                                 senders.remove(ix);
