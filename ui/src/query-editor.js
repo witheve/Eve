@@ -217,16 +217,21 @@ var queryEditor = (function(window, microReact, api) {
                    ["display name", "inserted", [fieldId, alphabet[ix]]],
                    ["display order", "inserted", [fieldId, -ix]]);
         var oldFacts = (ixer.facts(info.table) || []).slice();
-        console.log(info.table, oldFacts.slice());
         var neueFacts = oldFacts.map(function(fact) {
           var neue = fact.slice();
           neue.push("");
+          var oldKey = info.table + JSON.stringify(fact);
+          var neueKey = info.table + JSON.stringify(neue);
+          var priority = ixer.index("display order")[oldKey];
+          diffs.push(["display order", "removed", [oldKey, priority]],
+                     ["display order", "inserted", [neueKey, priority]]);
+
           return neue;
         });
         ixer.clearTable(info.table); // @HACKY way to clear the existing indexes.
         setTimeout(function() {
           dispatch("replaceFacts", {table: info.table, neue: neueFacts});
-        }, 0);
+        }, 1000);
         break;
       case "replaceFacts":
         var diffs = [];
@@ -249,9 +254,11 @@ var queryEditor = (function(window, microReact, api) {
         var neueString = info.table + JSON.stringify(info.neue);
         if(oldString === neueString) return;
         diffs.push([info.table, "inserted", info.neue],
-                   [info.table, "removed", info.old],
-                   ["display order", "removed", [oldString, ix]],
                    ["display order", "inserted", [neueString, ix]]);
+        if(info.old) {
+          diffs.push([info.table, "removed", info.old],
+          ["display order", "removed", [oldString, ix]]);
+        }
         break;
       case "addViewBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
@@ -370,7 +377,6 @@ var queryEditor = (function(window, microReact, api) {
         } else if(info.type === "operation") {
           opts.operation = info.value;
         }
-
 
         var complete = code.isConstraintComplete(opts);
         var constraints = ixer.index("source to constraints")[opts.leftSource] || [];
@@ -833,13 +839,14 @@ var queryEditor = (function(window, microReact, api) {
     }
     var trs = [];
     rows.forEach(function(cur, rowIx) {
+      var priority = ixer.index("display order")[id + JSON.stringify(cur)];
       var tds = [];
       for(var tdIx = 0, len = fields.length; tdIx < len; tdIx++) {
         tds[tdIx] = {c: "field"};
 
         // @NOTE: We can hoist this if perf is an issue.
         if(isEditable) {
-          tds[tdIx].children = [input(cur[tdIx], {rowIx: rowIx, row: cur, ix: tdIx, view: id}, updateRow, submitRow)];
+          tds[tdIx].children = [input(cur[tdIx], {rowIx: priority, row: cur, ix: tdIx, view: id}, updateRow, submitRow)];
         } else {
           tds[tdIx].text = cur[tdIx];
         }
@@ -876,7 +883,6 @@ var queryEditor = (function(window, microReact, api) {
   function maybeSubmitAdder(e, elem, type) {
     var key = elem.key;
     var row = localState.adderRows[key.rowNum];
-    console.log(key.rowNum, row);
     row[key.ix] = coerceInput(e.currentTarget.textContent);
     if(row.length !== key.numFields) { return; }
     var isValid = row.every(function(cell) {
