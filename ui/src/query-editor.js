@@ -797,7 +797,7 @@ var queryEditor = (function(window, microReact, api) {
     var order = ixer.index("display order");
     var fields = (ixer.index("view to fields")[tableId] || []).map(function(field) {
       var id = field[code.ix("field", "field")];
-      return {name: code.name(id), id: id, priority: order[id] || 0};
+      return {name: getLocalFieldName(id), id: id, priority: order[id] || 0};
     });
     fields.sort(function(a, b) {
       var delta = b.priority - a.priority;
@@ -2363,7 +2363,7 @@ var queryEditor = (function(window, microReact, api) {
       var rows = ixer.facts(viewId) || [];
       var fields = (ixer.index("view to fields")[viewId] || []).map(function(field) {
         var id = field[code.ix("field", "field")];
-        return {name: code.name(id), id: id, priority: order[id] || 0};
+        return {name: getLocalFieldName(id), id: id, priority: order[id] || 0};
       });
       fields.sort(function(a, b) {
         var delta = b.priority - a.priority;
@@ -2575,7 +2575,7 @@ var queryEditor = (function(window, microReact, api) {
     if(blockField[code.ix("block field", "view")] !== elem.viewId) { return; }
     var fieldId = blockField[code.ix("block field", "field")];
     var sourceId = blockField[code.ix("block field", "source")];
-    dispatch("addViewSelection", {viewId: elem.viewId, sourceFieldId: fieldId, sourceId: sourceId, isCalculated: true});
+    dispatch("addViewSelection", {viewId: elem.viewId, sourceFieldId: fieldId, sourceId: sourceId, isCalculated: isCalculated});
     evt.stopPropagation();
   }
 
@@ -2649,6 +2649,14 @@ var queryEditor = (function(window, microReact, api) {
       return code.name(calculatedId);
     } else {
       return code.name(sourceId) + "." + code.name(fieldId);
+    }
+  }
+  function getLocalFieldName(fieldId) {
+    var calculatedId = ixer.index("field to calculated field")[fieldId];
+    if(calculatedId) {
+      return code.name(calculatedId);
+    } else {
+      return code.name(fieldId);
     }
   }
 

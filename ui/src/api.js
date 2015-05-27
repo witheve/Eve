@@ -411,7 +411,9 @@ var api = (function(Indexing) {
           var name = code.name(sourceFieldId);
           if(isCalculated) {
             var calculatedId = ixer.index("field to calculated field")[sourceFieldId];
-            name = code.name(calculatedId);
+            if(calculatedId) {
+              name = code.name(calculatedId);
+            }
           }
           var order = ixer.index("display order")[sourceFieldId];
 
@@ -437,7 +439,6 @@ var api = (function(Indexing) {
           diffs.push(["select", "inserted", neue]);
         }
       }
-
       return diffs;
     },
     cacheViewSourceFields: function(viewId, sourceId, sourceViewId) {
