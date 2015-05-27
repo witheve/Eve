@@ -128,7 +128,7 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 									println!("Welcome to Eve, {:?}!",session_data.user.username);
 									println!("Login Successful. Redirecting to user area.");
 
-									// Connect to the Eve runtime and add the user to the eveuser table
+									// Connect to the Eve runtime and add the user to the eveusers table
 									let ws_result = open_websocket("ws://192.168.137.38:2794");
 									match ws_result {
 										// If things went okay, redirect to the Eve UI
@@ -147,9 +147,10 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 											*res.headers_mut() = headers;
 
 											// Create an eveuser table
-											let table_name = "eveuser";
+											let table_name = "eveusers";
 											let table_fields = vec!["id","username"];
-											let row_data = vec![Value::String(session_data.user.id.clone()),
+											let row_data = vec![
+																Value::String(session_data.user.id.clone()),
 																Value::String(session_data.user.username.clone())
 														   	   ];
 
