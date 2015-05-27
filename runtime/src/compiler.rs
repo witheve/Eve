@@ -264,7 +264,7 @@ fn calculate_source_schedule(flow: &Flow) {
         }).collect();
         let mut sources_and_upstreams = topological_sort(sources_and_upstreams);
 
-        // aggregates need to have outer/inner at the beginning
+        // aggregates need to have outer/inner at the end
         move_to_start(&mut sources_and_upstreams, |&(ref source_id, _)|
             source_id.as_str() == "inner"
             );
@@ -465,10 +465,13 @@ fn calculate_view_layout(flow: &Flow) {
                 }
                 _ => {
                     // use all fields
-                    let mut index_layouts = index_layout_table.find_all("view", &view["view"]);
+                    let mut index_layouts = index_layout_table.find_all("view", &source["source view"]);
                     sort_by_ix(&mut index_layouts);
                     for index_layout in index_layouts.into_iter() {
-                        push_field(&index_layout["field"].clone());
+                        let field = field_table.find_one("field", &index_layout["field"]);
+                        if field["kind"].as_str() == "output" {
+                            push_field(&index_layout["field"].clone());
+                        }
                     }
                 }
             }

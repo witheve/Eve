@@ -198,15 +198,14 @@ impl View {
                         }).collect::<Vec<_>>();
                         (group, output_values)
                     };
-                    let outer_items = vec![outer_values];
-                    let mut output_sets = output_values.iter().map(|values|
-                        &values[..]
-                        ).collect::<Vec<_>>();
-                    output_sets.push(&outer_items[..]);
+                    let mut output_sets = vec![];
                     if aggregate.selects_inner {
                         output_sets.push(group);
                     }
-                    let mut state = Vec::new();
+                    for output in output_values.iter() {
+                        output_sets.push(output);
+                    }
+                    let mut state = outer_values.iter().collect();
                     aggregate_step(aggregate, &output_sets[..], &mut state, &mut output.index);
                     group_start = group_end;
                 }
