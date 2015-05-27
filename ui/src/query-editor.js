@@ -2394,7 +2394,7 @@ var queryEditor = (function(window, microReact, api) {
 
       items.push({c: "block " + viewKind, editorIx: ix, viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, handler: blockSuggestionHandler, click: setQueryEditorActive, children: [
         {c: "block-title", children: [
-          {t: "h3", text: alphabet[ix]},
+          {t: "h3", text: code.name(viewId)},
           //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
         ]},
         {c: "full-flex", children: [
@@ -2939,17 +2939,6 @@ var queryEditor = (function(window, microReact, api) {
       memo.push.apply(memo, ixer.index("view to fields")[sourceViewId].map(function(field) {
         return {source: source, field: field};
       }));
-      return memo;
-    }, []);
-  }
-
-  function getQueryFields(queryId, exclude) {
-    var viewIds = ixer.index("query to views")[queryId] || [];
-    return viewIds.reduce(function(memo, viewId) {
-      if(viewId !== exclude && viewId) {
-        memo.push.apply(memo, getBlockFields(viewId));
-      }
-
       return memo;
     }, []);
   }

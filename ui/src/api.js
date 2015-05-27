@@ -174,7 +174,6 @@ var api = (function(Indexing) {
   ixer.addIndex("view to query", "block", Indexing.create.lookup([2, 0]));
   ixer.addIndex("view to block", "block", Indexing.create.lookup([2, 1]));
   ixer.addIndex("query to blocks", "block", Indexing.create.collector([0]));
-  ixer.addIndex("query to views", "block", Indexing.create.collector([0, 2]));
   ixer.addIndex("block field", "block field", Indexing.create.lookup([0, false]));
   ixer.addIndex("view and source to block fields", "block field", Indexing.create.collector([1, 2]));
   ixer.addIndex("calculated field", "calculated field", Indexing.create.lookup([0, false]));
@@ -223,6 +222,12 @@ var api = (function(Indexing) {
     activeItemId: function() {
       //       return (ixer.first("active editor item") || [])[0];
       return localState.activeItem;
+    },
+    queryViews: function(queryId) {
+      var blockViewIx = code.ix("block", "view");
+      return (ixer.index("query to blocks")[queryId] || []).map(function(block) {
+        return block[blockViewIx];
+      });
     },
     nameToField(viewId, fieldName) {
       var fields = ixer.index("view to fields")[viewId];
@@ -359,8 +364,10 @@ var api = (function(Indexing) {
       kind = kind || "union";
       var viewId = viewId || uuid();
       var blockId = uuid();
+      var queryViews = code.queryViews(queryId);
       var diffs = [["block", "inserted", [queryId, blockId, viewId]],
                    ["view", "inserted", [viewId, kind]],
+                   ["display name", "inserted", [viewId, getUniqueName(queryViews, alphabet)]],
                    ["tag", "inserted", [viewId, "local"]]];
 
       if(sourceViewId) {
@@ -372,8 +379,11 @@ var api = (function(Indexing) {
     addAggregateBlock: function addBlock(queryId, kind) {
       var viewId = uuid();
       var blockId = uuid();
-      var diffs = [["view", "inserted", [viewId, "aggregate"]],
-                   ["block", "inserted", [queryId, blockId, viewId]],
+      var queryViews = code.queryViews(queryId);
+      var diffs = [["block", "inserted", [queryId, blockId, viewId]],
+                   ["view", "inserted", [viewId, "aggregate"]],
+                   ["display name", "inserted", [viewId, getUniqueName(queryViews, alphabet)]],
+                   ["tag", "inserted", [viewId, "local"]],
                    ["source", "inserted", [viewId, "inner", "empty view"]],
                    ["source", "inserted", [viewId, "outer", "empty view"]],
                    ["display name", "inserted", [viewId + "-inner", "empty"]],
@@ -385,8 +395,11 @@ var api = (function(Indexing) {
     addUnionBlock: function addBlock(queryId) {
       var viewId = uuid();
       var blockId = uuid();
+      var queryViews = code.queryViews(queryId);
       var diffs = [["block", "inserted", [queryId, blockId, viewId]],
-                   ["view", "inserted", [viewId, "union"]]];
+                   ["view", "inserted", [viewId, "union"]],
+                   ["display name", "inserted", [viewId, getUniqueName(queryViews, alphabet)]],
+                   ["tag", "inserted", [viewId, "local"]]];
       return diffs;
     },
 
@@ -458,16 +471,11 @@ var api = (function(Indexing) {
           diffs.push(["block field", "inserted", [blockId, viewId, sourceId, sourceViewId, fieldId]]);
         }
       } else {
-        var calculatedNameIx = 0;
         var calculatedIdIx = code.ix("calculated field", "calculated field");
-        var calculatedFields = ixer.index("view to calculated fields")[viewId] || [];
-        calculatedFields.forEach(function(calculated) {
-          var id = calculated[calculatedIdIx];
-          var nameIx = alphabetLowerToIx[code.name(id)] || 0;
-          if(nameIx >= calculatedNameIx) {
-            calculatedNameIx = nameIx + 1;
-          }
+        var calculatedFieldIds = (ixer.index("view to calculated fields")[viewId] || []).map(function(calculated) {
+          return calculated[calculatedIdIx];
         });
+        var calculatedNameIx = getUniqueNameIx(calculatedFieldIds, alphabetLower);
 
         var fieldIdIx = code.ix("field", "field")
         var fieldKindIx = code.ix("field", "kind")
@@ -710,6 +718,29 @@ var api = (function(Indexing) {
     }
 
     ixer.handleDiffs(diffs);
+  }
+
+  function getUniqueNameIx(existing, names) {
+    var toIx = invert(names);
+    var ix = 0;
+    existing = existing || [];
+    existing.forEach(function(curId) {
+      var curIx = +toIx[code.name(curId)] || 0;
+      if(curIx >= ix) {
+        ix = curIx + 1;
+      }
+    });
+
+    if(ix > names.length) {
+      console.warn("name space exhausted, reusing existing names!");
+      ix = 0;
+    }
+
+    return ix;
+  }
+
+  function getUniqueName(existing, names) {
+    return names[getUniqueNameIx(existing, names)];
   }
 
   var localState = {txId: 0,
