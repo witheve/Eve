@@ -207,7 +207,7 @@ pub fn insert_fact(table_name: &&str, table_fields: &Vec<&str>, row_data: &Vec<V
 											.map(|field_name| table_name.to_string() + ": " + field_name)
 											.collect();
 
-	Event{changes: vec![("eveuser".to_string(),Change {
+	Event{changes: vec![(table_name.to_string(),Change {
 														fields: concat_field_names,
 												    	insert: vec![row_data.clone()],
 												    	remove: vec![],
