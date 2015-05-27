@@ -3073,7 +3073,7 @@ var queryEditor = (function(window, microReact, api) {
     return {c: "block aggregate-block", children: [
       {text: "With"},
       {c: "block-section view-sources", viewId: viewId, children: viewSources(viewId, aggregateSourceDrop).concat(viewPrimitives(viewId))},
-      {c: "block-section aggregate-grouping", children: [
+      {c: "block-section aggregate-grouping spaced-row", children: [
         {text: "Group by"},
         token.blockField({key: "outer", parentId: viewId, source: "outer", field: outerField}, updateAggregateGrouping, dropAggregateGroupingField),
         {text: "="},
