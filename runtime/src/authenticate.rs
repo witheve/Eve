@@ -104,7 +104,7 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 							let mut headers = Headers::new();
 							let json: Mime = "application/json".parse().unwrap();
 							let content_type = ContentType(json);
-							headers.set_raw("X-Authrocket-Account",vec!["org_0vC7wPw9XphPGQnSqYB6bz".to_string().into_bytes()]);  //AuthrocketAccount("org_0vC7wPw9XphPGQnSqYB6bz".to_string());
+							headers.set_raw("X-Authrocket-Account",vec!["org_0vC7wPw9XphPGQnSqYB6bz".to_string().into_bytes()]);
 							headers.set_raw("X-Authrocket-Api-Key",vec!["key_jtnCRWxQvDD0p5HATR9RBIe4WnxnwV6pWNzwmZQLnSZ".to_string().into_bytes()]);
 							headers.set_raw("X-Authrocket-Realm",vec!["rl_0vC7wd03CqwhpK7kT8fvAc".to_string().into_bytes()]);
 							headers.set_raw("Accept",vec!["application/json".to_string().into_bytes()]);
@@ -127,7 +127,7 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 									let ws_result = open_websocket("ws://192.168.137.38:2794");
 									match ws_result {
 										// If things went okay, redirect to the Eve UI
-										Ok((mut send_thread,receive_thread)) => {
+										Ok(mut sender) => {
 										//Ok((mut send_thread,receive_thread)) => {
 											// Form the response
 											*res.status_mut() = hyper::status::StatusCode::PermanentRedirect;
@@ -149,18 +149,10 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 																Value::String(session_data.user.username.clone())
 														   	   ];
 
-											// TODO figure out how to do this without a new scope
-											{
-												send_event(&create_table(&table_name,&table_fields),&mut send_thread);
-											}
-											{
-												send_event(&insert_fact(&table_name,&table_fields,&row_data),&mut send_thread);
-											}
-											send_thread.send_message(Message::Close(None)).unwrap();
-
-											//let _ = send_thread.join();
-											let _ = receive_thread.join();
-
+											// Create eveusers table and insert the new user
+											send_event(&create_table(&table_name,&table_fields),&mut sender);
+											send_event(&insert_fact(&table_name,&table_fields,&row_data),&mut sender);
+											sender.send_message(Message::Close(None)).unwrap();
 										}
 										// Otherwise, throw an error... maybe redirect to a special page.
 										Err(e) => {
