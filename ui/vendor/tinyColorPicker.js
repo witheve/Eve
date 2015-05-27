@@ -490,8 +490,8 @@
 			gap = _options.gap;
 
 		if (event) {
-      if(_colorPicker.$trigger && _colorPicker.$trigger[0] !== $this[0]) {
-        _colorPicker.$trigger.blur();
+      if(_colorPicker.$trigger && _colorPicker.$trigger[0] !== $this[0] && _options.onCommit) {
+        _options.onCommit(_colorPicker.$trigger);
       }
 
 			_$trigger = findElement($this);
@@ -519,10 +519,10 @@
 				preRender(true);
 			});
 		} else {
+      if(_options.onCommit && _colorPicker.$trigger) {
+        _options.onCommit(_colorPicker.$trigger);
+      }
 			$(_$UI).hide(_options.animationSpeed, function() {
-        if(_colorPicker.$trigger) {
-          _colorPicker.$trigger.blur();
-        }
 				_colorPicker.$trigger = null;
 				preRender(false);
 			});
