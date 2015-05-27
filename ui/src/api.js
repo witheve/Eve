@@ -34,6 +34,23 @@ var api = (function(Indexing) {
     else { return idA.localeCompare(idB); }
   }
 
+  function invert(obj) {
+    var res = {};
+    for(var key in obj) {
+      if(!obj.hasOwnProperty(key)) { continue; }
+      res[obj[key]] = key;
+    }
+    return res;
+  }
+
+  var alphabet = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+                  "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"];
+  var alphabetLower = alphabet.map(function(char) {
+    return char.toLowerCase();
+  });
+  var alphabetLowerToIx = invert(alphabetLower);
+
+
   //---------------------------------------------------------
   // Data
   //---------------------------------------------------------
@@ -97,6 +114,7 @@ var api = (function(Indexing) {
       "employees": {name: "employees", fields: ["department", "name", "salary"]},
       "foo": {name: "foo", fields: ["a", "b"]},
       "book": {name: "book", fields: ["isbn", "title", "author", "price", "cost"]},
+      "edge": {name: "edge", fields: ["to", "from"], facts: [["a", "b"], ["b", "c"], ["c", "d"]]},
 
       // FourSquare
       "place": {name: "place", fields: ["place", "name", "priceRange"]},
@@ -159,8 +177,9 @@ var api = (function(Indexing) {
   ixer.addIndex("query to views", "block", Indexing.create.collector([0, 2]));
   ixer.addIndex("block field", "block field", Indexing.create.lookup([0, false]));
   ixer.addIndex("view and source to block fields", "block field", Indexing.create.collector([1, 2]));
+  ixer.addIndex("calculated field", "calculated field", Indexing.create.lookup([0, false]));
   ixer.addIndex("view to calculated fields", "calculated field", Indexing.create.collector([1]));
-  ixer.addIndex("field to calculated field", "calculated field", Indexing.create.lookup([4, false]));
+  ixer.addIndex("field to calculated field", "calculated field", Indexing.create.lookup([4, 0]));
   ixer.addIndex("view and source to calculated field", "calculated field", Indexing.create.lookup([1, 2, 0]));
   ixer.addIndex("block aggregate", "block aggregate", Indexing.create.lookup([0, false]));
   ixer.addIndex("primitive", "primitive", Indexing.create.lookup([0, false]));
@@ -371,7 +390,7 @@ var api = (function(Indexing) {
       return diffs;
     },
 
-    addViewSelection: function addViewSelection(viewId, sourceId, sourceFieldId, fieldId) {
+    addViewSelection: function addViewSelection(viewId, sourceId, sourceFieldId, fieldId, isCalculated) {
       var neue;
       var diffs = [];
       if(!fieldId) {
@@ -390,11 +409,15 @@ var api = (function(Indexing) {
         if(changed) {
           var blockFieldId = uuid();
           var name = code.name(sourceFieldId);
+          if(isCalculated) {
+            var calculatedId = ixer.index("field to calculated field")[sourceFieldId];
+            name = code.name(calculatedId);
+          }
           var order = ixer.index("display order")[sourceFieldId];
 
           diffs.push(["field", "inserted", [viewId, fieldId, "output"]],
                      ["display order", "inserted", [fieldId, 0]],
-                     ["display name", "inserted", [fieldId, name]],
+                     ["display name", "inserted", [fieldId, name || ""]],
                      ["block field", "inserted", [blockFieldId, viewId, "selection", viewId, fieldId]],
                      ["select", "inserted", neue]);
         }
@@ -434,6 +457,17 @@ var api = (function(Indexing) {
           diffs.push(["block field", "inserted", [blockId, viewId, sourceId, sourceViewId, fieldId]]);
         }
       } else {
+        var calculatedNameIx = 0;
+        var calculatedIdIx = code.ix("calculated field", "calculated field");
+        var calculatedFields = ixer.index("view to calculated fields")[viewId] || [];
+        calculatedFields.forEach(function(calculated) {
+          var id = calculated[calculatedIdIx];
+          var nameIx = alphabetLowerToIx[code.name(id)] || 0;
+          if(nameIx >= calculatedNameIx) {
+            calculatedNameIx = nameIx + 1;
+          }
+        });
+
         var fieldIdIx = code.ix("field", "field")
         var fieldKindIx = code.ix("field", "kind")
         var fields = ixer.index("view to fields")[sourceViewId] || [];
@@ -443,7 +477,7 @@ var api = (function(Indexing) {
           var kind = fields[ix][fieldKindIx];
           if(kind === "output") {
             diffs.push(["calculated field", "inserted", [calculatedId, viewId, sourceId, sourceViewId, fieldId]],
-                       ["display name", "inserted", [calculatedId, fieldId]]);
+                       ["display name", "inserted", [calculatedId, alphabetLower[calculatedNameIx++]]]);
           }
         }
 
@@ -695,6 +729,8 @@ var api = (function(Indexing) {
           clone: clone,
           builtins: tables,
           arraysIdentical: Indexing.arraysIdentical,
-          displaySort: displaySort};
+          displaySort: displaySort,
+          invert: invert,
+          alphabet: alphabet};
 })(Indexing);
 

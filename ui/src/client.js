@@ -51,25 +51,38 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
     });
   }
 
+  function isUndefined(val) {
+    return val === undefined;
+  }
+
   function getDataStats(data) {
     var totalAdds = 0;
     var totalRemoves = 0;
     var malformedDiffs = [];
+    var badValues = [];
     data.changes.forEach(function(change) {
       totalAdds += change[2].length;
       totalRemoves += change[3].length;
-      var hasMalformedDiffs = change[2].some(function(diff) {
-        return (diff.length !== change[1].length);
+      var hasMalformedDiffs = false;
+      var hasBadValues = false;
+      change[2].forEach(function(diff) {
+        hasMalformedDiffs = hasMalformedDiffs || (diff.length !== change[1].length);
+        hasBadValues = hasBadValues || diff.some(isUndefined);
       });
-      hasMalformedDiffs = hasMalformedDiffs || change[3].some(function(diff) {
-        return (diff.length !== change[1].length);
+
+      change[3].forEach(function(diff) {
+        hasMalformedDiffs = hasMalformedDiffs || (diff.length !== change[1].length);
+        hasBadValues = hasBadValues || diff.some(isUndefined);
       });
       if(hasMalformedDiffs) {
         malformedDiffs.push(change[0]);
       }
+      if(hasBadValues) {
+        badValues.push(change[0]);
+      }
     });
 
-    return {adds: totalAdds, removes: totalRemoves, malformedDiffs: malformedDiffs};
+    return {adds: totalAdds, removes: totalRemoves, malformedDiffs: malformedDiffs, badValues: badValues};
   }
 
   function initialize(noFacts) {
@@ -120,6 +133,9 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
           console.groupCollapsed(pad(header, formatTime()));
           if(stats.malformedDiffs.length) {
             console.warn("The following views have malformed diffs:", stats.malformedDiffs);
+          }
+          if(stats.badValues.length) {
+            console.warn("The following views have bad values:", stats.badValues);
           }
           writeDataToConsole(data, window.DEBUG.RECEIVE);
           console.groupEnd();
@@ -240,6 +256,9 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
             if(specialStats.malformedDiffs.length) {
               console.warn("The following views have malformed diffs:", specialStats.malformedDiffs);
             }
+            if(stats.badValues.length) {
+              console.warn("The following views have bad values:", stats.badValues);
+            }
             writeDataToConsole(specialPayload, window.DEBUG.SEND);
             console.groupEnd();
           }
@@ -248,6 +267,9 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
             console.group(header);
             if(stats.malformedDiffs.length) {
               console.warn("The following views have malformed diffs:", stats.malformedDiffs);
+            }
+            if(stats.badValues.length) {
+              console.warn("The following views have bad values:", stats.badValues);
             }
             writeDataToConsole(payload, window.DEBUG.SEND);
             console.groupEnd();

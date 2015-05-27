@@ -5,6 +5,7 @@ var queryEditor = (function(window, microReact, api) {
   var diff = api.diff;
   var localState = api.localState;
   var clone = api.clone;
+  var alphabet = api.alphabet;
 
   if(window.queryEditor) {
     try {
@@ -45,9 +46,6 @@ var queryEditor = (function(window, microReact, api) {
   //---------------------------------------------------------
   // utils
   //---------------------------------------------------------
-
-  var alphabet = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
-                  "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"];
 
   var KEYS = {UP: 38,
               DOWN: 40,
@@ -269,7 +267,7 @@ var queryEditor = (function(window, microReact, api) {
         }
         break;
       case "addViewSelection":
-        diffs = diff.addViewSelection(info.viewId, info.sourceId, info.sourceFieldId, info.fieldId);
+        diffs = diff.addViewSelection(info.viewId, info.sourceId, info.sourceFieldId, info.fieldId, info.isCalculated);
         break;
       case "addUnionSelection":
         diffs = diff.addViewSelection(info.viewId, info.sourceId, info.sourceFieldId, info.fieldId);
@@ -2543,10 +2541,15 @@ var queryEditor = (function(window, microReact, api) {
     if(type !== "field") { return; }
     var id = evt.dataTransfer.getData("fieldId");
     var blockField = ixer.index("block field")[id];
+    var isCalculated = false;
+    if(!blockField) {
+      blockField = ixer.index("calculated field")[id];
+      isCalculated = true;
+    }
     if(blockField[code.ix("block field", "view")] !== elem.viewId) { return; }
     var fieldId = blockField[code.ix("block field", "field")];
     var sourceId = blockField[code.ix("block field", "source")];
-    dispatch("addViewSelection", {viewId: elem.viewId, sourceFieldId: fieldId, sourceId: sourceId});
+    dispatch("addViewSelection", {viewId: elem.viewId, sourceFieldId: fieldId, sourceId: sourceId, isCalculated: true});
     evt.stopPropagation();
   }
 
@@ -2615,9 +2618,9 @@ var queryEditor = (function(window, microReact, api) {
 
   // Calculations
   function getFieldName(viewId, sourceId, fieldId) {
-    var calculated = ixer.index("field to calculated field")[fieldId];
-    if(calculated) {
-      return code.name(calculated[code.ix("calculated field", "calculated field")]);
+    var calculatedId = ixer.index("field to calculated field")[fieldId];
+    if(calculatedId) {
+      return code.name(calculatedId);
     } else {
       return code.name(sourceId) + "." + code.name(fieldId);
     }
@@ -2626,6 +2629,7 @@ var queryEditor = (function(window, microReact, api) {
   var primitiveEditor = {
     default: function(viewId, sourceId, sourceViewId) {
       var out = ixer.index("view and source to calculated field")[viewId][sourceId];
+      var outField = ixer.index("calculated field")[out][code.ix("calculated field", "field")];
       var constraintIds = code.getViewSourceConstraints(viewId, sourceId);
       var constraintArgs = constraintIds.map(function(constraintId, ix) {
         var constraint = code.getConstraint(constraintId);
@@ -2634,7 +2638,7 @@ var queryEditor = (function(window, microReact, api) {
       });
 
       var content = [
-        {text: code.name(out)},
+        fieldItem(code.name(out), out, {c: "pill field"}),
         {text: "☞"},
         {text: code.name(sourceViewId) + "("},
       ].concat(constraintArgs);
@@ -2644,6 +2648,7 @@ var queryEditor = (function(window, microReact, api) {
     },
     infix: function(viewId, sourceId, sourceViewId, operator) {
       var out = ixer.index("view and source to calculated field")[viewId][sourceId];
+      var outField = ixer.index("calculated field")[out][code.ix("calculated field", "field")];
       var constraintIds = code.getViewSourceConstraints(viewId, sourceId);
       var a = code.getConstraint(constraintIds[0]);
       var b = code.getConstraint(constraintIds[1]);
@@ -2651,7 +2656,7 @@ var queryEditor = (function(window, microReact, api) {
       var bName = b.rightField ? getFieldName(viewId, b.rightSource, b.rightField) : "<field B>";
 
       return {c: "spaced-row primitive-constraint", children: [
-        {text: code.name(out)},
+        fieldItem(code.name(out), out, {c: "pill field"}),
         {text: "☞"},
         viewConstraintToken("right", a.id, viewId, aName),
         {text: operator},
@@ -3134,6 +3139,7 @@ var queryEditor = (function(window, microReact, api) {
     return {c: "primitive-aggregate", viewId: viewId, children: [
       {text: "Where"},
       viewConstraints(viewId),
+      viewPrimitives(viewId)
     ]};
   }
 
