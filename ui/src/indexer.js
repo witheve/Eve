@@ -79,6 +79,9 @@ var Indexing = (function() {
       }
       return {changes: final};
     },
+    clearTable: function(table) {
+      this.handleDiff(table, [], this.tables[table]);
+    },
     load: function(pickle) {
       var diffs = {};
       for(var table in pickle) {
