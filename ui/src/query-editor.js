@@ -215,10 +215,30 @@ var queryEditor = (function(window, microReact, api) {
         var ix = ixer.index("view to fields")[info.table].length;
         diffs.push(["field", "inserted", [info.table, fieldId, "output"]], // @NOTE: Can this be any other kind?
                    ["display name", "inserted", [fieldId, alphabet[ix]]],
-                   ["display order", "inserted", [fieldId, ix]]);
+                   ["display order", "inserted", [fieldId, -ix]]);
+        var oldFacts = (ixer.facts(info.table) || []).slice();
+        console.log(info.table, oldFacts.slice());
+        var neueFacts = oldFacts.map(function(fact) {
+          var neue = fact.slice();
+          neue.push("");
+          return neue;
+        });
+        ixer.clearTable(info.table); // @HACKY way to clear the existing indexes.
+        setTimeout(function() {
+          dispatch("replaceFacts", {table: info.table, neue: neueFacts});
+        }, 0);
+        break;
+      case "replaceFacts":
+        var diffs = [];
+        diffs = diffs.concat((info.old || []).map(function(fact) {
+          return [info.table, "removed", fact];
+        }));
+        diffs = diffs.concat((info.neue || []).map(function(fact) {
+          return [info.table, "inserted", fact];
+        }));
         break;
       case "addRow":
-        var ix = ixer.facts(info.table).length;
+        var ix = ixer.facts(info.table).length || 0;
         diffs.push([info.table, "inserted", info.neue],
                    ["display order", "inserted", [info.table + JSON.stringify(info.neue), ix]]);
         break;
@@ -856,13 +876,13 @@ var queryEditor = (function(window, microReact, api) {
   function maybeSubmitAdder(e, elem, type) {
     var key = elem.key;
     var row = localState.adderRows[key.rowNum];
+    console.log(key.rowNum, row);
     row[key.ix] = coerceInput(e.currentTarget.textContent);
     if(row.length !== key.numFields) { return; }
     var isValid = row.every(function(cell) {
       return cell !== undefined;
     });
     if(!isValid) { return; }
-
     localState.adderRows.splice(key.rowNum, 1);
     if(localState.adderRows.length <= 1) {
       localState.adderRows.push([]);
