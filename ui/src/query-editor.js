@@ -417,7 +417,8 @@ var queryEditor = (function(window, microReact, api) {
           }, diffs);
           diffs.push(["source", "inserted", ixer.index("source")[viewId][opts.leftSource]]);
 
-          var calculatedFieldId = ixer.index("view and source to calculated field")[viewId][opts.leftSource];
+          var calculatedFieldId = ixer.index("view and source to calculated field")[viewId] || {};
+          calculatedFieldId = calculatedFieldId[opts.leftSource];
           if(calculatedFieldId) {
             diffs.push(["calculated field", "inserted", ixer.index("calculated field")[calculatedFieldId]]);
             diffs.push(["display name", "inserted", [calculatedFieldId, code.name(calculatedFieldId)]]);
@@ -3156,10 +3157,10 @@ var queryEditor = (function(window, microReact, api) {
       {c: "block-section view-sources", viewId: viewId, children: viewSources(viewId, aggregateSourceDrop).concat(viewPrimitives(viewId))},
       {c: "block-section aggregate-grouping spaced-row", children: [
         {text: "Group by"},
-        queryToken("field", "outer", viewId, getLocalFieldName(outerField), {handler: updateAggregateGrouping, drop: dropAggregateGroupingField}),
+        queryToken("field", "outer", viewId, getLocalFieldName(outerField) || "<outer field>", {handler: updateAggregateGrouping, drop: dropAggregateGroupingField}),
         //token.blockField({key: "outer", parentId: viewId, source: "outer", field: outerField}, updateAggregateGrouping, dropAggregateGroupingField),
         {text: "="},
-        queryToken("field", "inner", viewId, getLocalFieldName(innerField), {handler: updateAggregateGrouping, drop: dropAggregateGroupingField})
+        queryToken("field", "inner", viewId, getLocalFieldName(innerField) || "<inner field>", {handler: updateAggregateGrouping, drop: dropAggregateGroupingField})
         //token.blockField({key: "inner", parentId: viewId, source: "inner", field: innerField}, updateAggregateGrouping, dropAggregateGroupingField),
       ]},
       content,
@@ -3172,15 +3173,21 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function dropAggregateGroupingField(evt, elem) {
-    var viewId = elem.parentId;
+    var viewId = elem.expression;
     var type = evt.dataTransfer.getData("type");
     var value = evt.dataTransfer.getData("value");
+
+
+
     if(type === "field") {
       var id = evt.dataTransfer.getData("fieldId");
       var blockField = ixer.index("block field")[id];
       if(blockField[code.ix("block field", "view")] !== viewId) { return; }
       var fieldId = blockField[code.ix("block field", "field")];
       var sourceId = blockField[code.ix("block field", "source")];
+
+    console.log(viewId, type, value, sourceId, elem.key);
+
       if(sourceId !== elem.key) { return; }
 
       dispatch("updateAggregateGrouping", {aggregate: viewId, source: sourceId, field: fieldId});
