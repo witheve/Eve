@@ -152,6 +152,8 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
     } else if(type === "input") {
       elem.input = handleInputEvent;
       elem.keydown = handleKeyEvent;
+    } else {
+      elem.c += " non-interactive";
     }
 
     return elem;
