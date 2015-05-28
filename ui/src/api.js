@@ -443,10 +443,10 @@ var api = (function(Indexing) {
               name = code.name(calculatedId);
             }
           }
-          var order = ixer.index("display order")[sourceFieldId];
+          var fields = ixer.index("view to fields")[viewId] || [];
 
           diffs.push(["field", "inserted", [viewId, fieldId, "output"]],
-                     ["display order", "inserted", [fieldId, 0]],
+                     ["display order", "inserted", [fieldId, -fields.length]],
                      ["display name", "inserted", [fieldId, name || ""]],
                      ["block field", "inserted", [blockFieldId, viewId, "selection", viewId, fieldId]],
                      ["select", "inserted", neue]);
