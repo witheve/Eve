@@ -731,6 +731,9 @@ var queryEditor = (function(window, microReact, api) {
     // @TODO: filter me based on tags local and compiler.
     var items = ixer.facts("editor item").map(function(cur) {
       var id = cur[0];
+      if(!localState.showHidden && code.hasTag(id, "hidden")) {
+        return;
+      }
       var type = cur[1];
       var klass = "editor-item " + type;
       var icon = "ion-grid";
@@ -771,8 +774,16 @@ var queryEditor = (function(window, microReact, api) {
           {c: "ion-plus"},
         ]},
       ]},
-      {c: "items", children: items}
+      {c: "items", children: items},
+      {c: "show-hidden", click: toggleHiddenEditorItems, children: [
+        {text: "show hidden"}
+      ]}
     ]};
+  }
+
+  function toggleHiddenEditorItems(e, elem) {
+    localState.showHidden = !localState.showHidden;
+    render();
   }
 
   function addItem(e, elem) {
@@ -1003,6 +1014,10 @@ var queryEditor = (function(window, microReact, api) {
       var rect = boxSelectRect();
       canvasLayers.push({c: "box-selection", top: rect.top, left: rect.left, width: rect.width, height: rect.height});
     }
+    var canvas = {c: "ui-canvas", componentId: componentId, children: canvasLayers, mousedown: startBoxSelection, mouseup: stopBoxSelection, mousemove: adjustBoxSelection};
+    if(localState.uiPreview) {
+      canvas = canvasPreview();
+    }
     return genericWorkspace("query",
                             componentId,
                             {c: "ui-editor",
@@ -1011,11 +1026,23 @@ var queryEditor = (function(window, microReact, api) {
                                {c: "ui-canvas-container", children: [
                                  uiControls(componentId, activeLayer),
                                  {c: "row", children: [
-                                   {c: "ui-canvas", componentId: componentId, children: canvasLayers, mousedown: startBoxSelection, mouseup: stopBoxSelection, mousemove: adjustBoxSelection},
+                                   canvas,
                                    {c: "attributes", children: uiInspectors(componentId, selectionInfo, layers, activeLayer)},
                                  ]},
                                ]},
                              ]});
+  }
+
+  function canvasPreview() {
+    return {id: "canvasPreview", c: "ui-canvas preview", postRender: injectCanvasPreview};
+  }
+
+  function injectCanvasPreview(div, elem) {
+    console.log("inject");
+    var previewRoot = window.uiEditorRenderer.root;
+    if(previewRoot.parentNode !== div) {
+      div.appendChild(previewRoot);
+    }
   }
 
   function canvasLayer(layer, selectionInfo) {
@@ -1703,9 +1730,10 @@ var queryEditor = (function(window, microReact, api) {
   var uiControlInfo = [{text: "text", icon: "text-control", iconText: "T"},
                        {text: "image", icon: "ion-image"},
                        {text: "box", icon: "ion-stop"},
+                       {text: "spacer", icon: "ion-arrow-expand"},
                        {text: "button", icon: "ion-share"},
                        {text: "input", icon: "ion-compose"},
-                       {text: "map", icon: "ion-ios-location"}
+//                        {text: "map", icon: "ion-ios-location"}
                       ];
 
   function uiControls(componentId, activeLayer) {
@@ -1719,8 +1747,18 @@ var queryEditor = (function(window, microReact, api) {
                 icon,
                 {text: cur.text}
               ]};
-    })
+    });
+    var previewClass = localState.uiPreview ? " active" : "";
+    items.push({c: "control design-mode-toggle" + previewClass, click: toggleUiPreview, children: [
+      {c: "icon " + "ion-eye"},
+      {text: "preview"}
+    ]})
     return controlGroup(items);
+  }
+
+  function toggleUiPreview(e, elem) {
+    localState.uiPreview = !localState.uiPreview;
+    render();
   }
 
   function addElement(e, elem) {
