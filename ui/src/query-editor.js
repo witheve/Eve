@@ -2492,7 +2492,7 @@ var queryEditor = (function(window, microReact, api) {
           {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "count", text: "count"},
           {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "sum", text: "sum"},
           {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "mean", text: "avg"},
-          {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "stdev", text: "stdev"},
+          {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "stddev", text: "stdev"},
           {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "empty", text: "is empty?"},
         ]}
       ]},
