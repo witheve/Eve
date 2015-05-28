@@ -288,7 +288,7 @@ var queryEditor = (function(window, microReact, api) {
         diffs = diff.addAggregateBlock(queryId, info.kind);
         var primitive = ixer.index("primitive")[info.kind];
         if(primitive) {
-          var viewId = diffs[0][2][0];
+          var viewId = diffs[1][2][code.ix("view", "view")];
           dispatch("addPrimitiveSource", {viewId: viewId, primitiveId: info.kind}); // @FIXME: Hacky, I know, but I need to send half to the server.
         }
         break;
