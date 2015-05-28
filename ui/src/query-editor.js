@@ -2417,13 +2417,10 @@ var queryEditor = (function(window, microReact, api) {
         controls = querySuggestionBar(queryId, viewId);
       }
 
-      var isLocal = code.hasTag(viewId, "local");
-
       items.push({c: "block " + viewKind, editorIx: ix, viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, handler: blockSuggestionHandler, click: setQueryEditorActive, children: [
         {c: "block-title", children: [
-          {t: "h3", text: code.name(viewId)},
-          //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
-          {c: "ion-log-out icon-btn export-view-btn" + (isLocal ? "" : " exported"), viewId: viewId, click: exportView},
+          {t: "h3", text: code.name(viewId)}
+          //                 ,
         ]},
         {c: "full-flex", children: [
           editorPane,
@@ -2514,6 +2511,13 @@ var queryEditor = (function(window, microReact, api) {
         suggestionBarItem("add calculation", "add calculation"),
       ]
     }
+
+    // Misc. block controls.
+    var isLocal = code.hasTag(viewId, "local");
+    items.push(
+      {c: "suggestion-bar-item ion-log-out export-view-btn" + (isLocal ? "" : " exported"), viewId: viewId, click: exportView},
+      {c: "suggestion-bar-item ion-android-close close-btn", viewId: viewId, click: removeViewBlock}
+    );
     return {c: "suggestion-bar", children: items};
   }
 

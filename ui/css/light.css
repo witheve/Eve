@@ -218,8 +218,8 @@ div:hover > .hover-reveal { opacity: 1; }
 .query-workspace .control-group { padding:5px 0; background:rgba(0,0,0,0.1); flex-direction:row; border-bottom:1px solid rgba(0,0,0,0.05); }
 .query-workspace .control-group .control { padding: 0 15px; }
 
-.query-workspace .export-view-btn { -webkit-transform: rotateY(180deg); position: absolute; bottom: 4px; left: 4px;}
-.query-workspace .export-view-btn.exported { -webkit-transform: none; position: absolute; bottom: 4px; left: 4px;}
+.query-workspace .export-view-btn { -webkit-transform: rotateY(180deg); margin-left: auto; }
+.query-workspace .export-view-btn.exported { -webkit-transform: none;}
 .query-workspace .export-view-btn:hover { color: #666; }
 .query-workspace .export-view-btn:active { color: #444; }
 
