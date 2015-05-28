@@ -297,19 +297,7 @@ var queryEditor = (function(window, microReact, api) {
         diffs = diff.addUnionBlock(queryId);
         break;
       case "removeViewBlock":
-        var view = ixer.index("view")[info.viewId];
-        var blockId = ixer.index("view to block")[info.viewId];
-        var block = ixer.index("block")[blockId];
-        var sources = ixer.index("view to sources")[info.viewId] || [];
-        diffs = [["view", "removed", view],
-                 ["block", "removed", block]];
-        for(var ix = 0; ix < sources.length; ix++) {
-          var sourceId = sources[ix][code.ix("source", "source")];
-          diffs = diffs.concat(diff.removeViewSource(info.viewId, sourceId));
-        }
-        if(view[code.ix("view", "kind")] === "aggregate") {
-          console.warn("@FIXME: Remove aggregate entries for view on removal.");
-        }
+        diffs = diff.removeViewBlock(info.viewId);
         break;
       case "addViewSelection":
         diffs = diff.addViewSelection(info.viewId, info.sourceId, info.sourceFieldId, info.fieldId, info.isCalculated);
@@ -2544,7 +2532,7 @@ var queryEditor = (function(window, microReact, api) {
     console.log(info);
     if(!info || !info.token) {
       removeViewBlock(evt, elem);
-    } {
+    } else {
       var token = info.token;
       var id = token.expression;
       if(ixer.index("constraint")[id]) {
@@ -3197,16 +3185,16 @@ var queryEditor = (function(window, microReact, api) {
   function sortLimitAggregate(viewId, outerSource, innerSource) {
     var sortSource = "inner";
     var sortField, sortDir;
-    var aggregateSorting = ixer.index("view to aggregate sorting")[viewId];
+    var aggregateSorting = ixer.index("aggregate sorting")[viewId];
     if(aggregateSorting) {
       sortField = aggregateSorting[code.ix("aggregate sorting", "inner field")];
       sortDir = aggregateSorting[code.ix("aggregate sorting", "direction")];
     }
 
     // @FIXME: hard coded to work with constants only.
-    var limitFrom = ixer.index("view to aggregate limit from")[viewId] || [];
+    var limitFrom = ixer.index("aggregate limit from")[viewId] || [];
     var limitFromValue = ixer.index("constant to value")[limitFrom[code.ix("aggregate limit from", "from field")]];
-    var limitTo = ixer.index("view to aggregate limit to")[viewId] || [];
+    var limitTo = ixer.index("aggregate limit to")[viewId] || [];
     var limitToValue = ixer.index("constant to value")[limitTo[code.ix("aggregate limit to", "to field")]];
 
     var fromLimitInput = input(limitFromValue, "from", updateAggregateLimit, updateAggregateLimit);

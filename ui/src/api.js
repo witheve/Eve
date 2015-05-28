@@ -165,9 +165,9 @@ var api = (function(Indexing) {
   ixer.addIndex("view to selects", "select", Indexing.create.collector([0]));
   ixer.addIndex("view and source field to select", "select", Indexing.create.lookup([0, 3, false]));
   ixer.addIndex("view and source and field to select", "select", Indexing.create.lookup([0, 2, 1, false]));
-  ixer.addIndex("view to aggregate sorting", "aggregate sorting", Indexing.create.lookup([0, false]));
-  ixer.addIndex("view to aggregate limit from", "aggregate limit from", Indexing.create.lookup([0, false]));
-  ixer.addIndex("view to aggregate limit to", "aggregate limit to", Indexing.create.lookup([0, false]));
+  ixer.addIndex("aggregate sorting", "aggregate sorting", Indexing.create.lookup([0, false]));
+  ixer.addIndex("aggregate limit from", "aggregate limit from", Indexing.create.lookup([0, false]));
+  ixer.addIndex("aggregate limit to", "aggregate limit to", Indexing.create.lookup([0, false]));
   ixer.addIndex("aggregate grouping", "aggregate grouping", Indexing.create.lookup([0, false]));
   ixer.addIndex("id to tags", "tag", Indexing.create.collector([0]));
 
@@ -565,6 +565,60 @@ var api = (function(Indexing) {
       });
       return diffs;
     },
+    removeViewBlock: function removeViewBlock(viewId) {
+      var blockId = ixer.index("view to block")[viewId];
+      var block = ixer.index("block")[blockId];
+      var diffs = [["block", "removed", block]];
+      diffs = diffs.concat(diff.removeView(viewId));
+      return diffs;
+    },
+    removeView: function removeView(viewId) {
+      var diffs = [["view", "removed", ixer.index("view")[viewId]]];
+      var view = ixer.index("view")[viewId];
+      var sources = ixer.index("source")[viewId] || {};
+      for(var sourceId in sources) {
+        diffs = diffs.concat(diff.removeViewSource(viewId, sourceId));
+      }
+
+      var fields = ixer.index("view to fields")[viewId] || [];
+      diffs = diffs.concat(fields.map(function(field) {
+        return ["field", "removed", field];
+      }));
+
+      var selects = ixer.index("view to selects")[viewId] || [];
+      diffs = diffs.concat(selects.map(function(select) {
+        return ["select", "removed", select];
+      }));
+
+      if(view[code.ix("view", "kind")] === "aggregate") {
+        diffs = diffs.concat(diff.removeAggregate(viewId));
+      }
+      return diffs;
+    },
+    removeAggregate: function removeAggregate(viewId) {
+      var diffs = [];
+      var aggregateGrouping = ixer.index("aggregate grouping")[viewId];
+      if(aggregateGrouping) {
+        diffs.push(["aggregate grouping", "removed", aggregateGrouping]);
+      }
+
+      var aggregateSorting = ixer.index("aggregate sorting")[viewId];
+      if(aggregateSorting) {
+        diffs.push(["aggregate sorting", "removed", aggregateSorting]);
+      }
+
+      var aggregateLimitFrom = ixer.index("aggregate limit from")[viewId];
+      if(aggregateLimitFrom) {
+        diffs.push(["aggregate limit from", "removed", aggregateLimitFrom]);
+      }
+
+      var aggregateLimitTo = ixer.index("aggregate limit to")[viewId];
+      if(aggregateLimitTo) {
+        diffs.push(["aggregate limit to", "removed", aggregateLimitTo]);
+      }
+
+      return diffs;
+    },
     removeViewSource(viewId, sourceId) {
       var source = ixer.index("source")[viewId][sourceId];
       var diffs = [["source", "removed", source]];
@@ -628,7 +682,7 @@ var api = (function(Indexing) {
     updateAggregateSort: function(viewId, field, direction) {
       var diffs = [];
       var neue;
-      var old = ixer.index("view to aggregate sorting")[viewId];
+      var old = ixer.index("aggregate sorting")[viewId];
       if(old) {
         neue = old.slice();
       } else {
