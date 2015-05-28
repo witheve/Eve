@@ -6,6 +6,8 @@ pub enum Primitive {
     Subtract,
     Count,
     Sum,
+    Mean,
+    StandardDeviation,
     Empty,
 }
 
@@ -42,6 +44,8 @@ impl Primitive {
             (Subtract, [&Float(a), &Float(b)]) => vec![vec![Float(a-b)]],
             (Count, _) => panic!("Cannot use {:?} in a join", self),
             (Sum, _) => panic!("Cannot use {:?} in a join", self),
+            (Mean, _) => panic!("Cannot use {:?} in a join", self),
+            (StandardDeviation, _) => panic!("Cannot use {:?} in a join", self),
             (Empty, _) => panic!("Cannot use {:?} in a join", self),
             _ => panic!("Type error while calling: {:?} {:?}", self, &arguments)
         }
@@ -65,6 +69,31 @@ impl Primitive {
                     });
                 vec![vec![Float(sum)]]
             },
+            (Mean, [in_ix]) => {
+                let in_values = resolve_as_vector(in_ix, constants, outer, inner);
+                let sum = in_values.iter().fold(0f64, |sum, value|
+                    match **value {
+                        Float(float) => sum + float,
+                        _ => panic!("Type error while calling: {:?} {:?}", self, in_values),
+                    });
+                let mean = sum / (in_values.len() as f64);
+                vec![vec![Float(mean)]]
+            },
+            (StandardDeviation, [in_ix]) => {
+                let in_values = resolve_as_vector(in_ix, constants, outer, inner);
+                let sum = in_values.iter().fold(0f64, |sum, value|
+                    match **value {
+                        Float(float) => sum + float,
+                        _ => panic!("Type error while calling: {:?} {:?}", self, in_values),
+                    });
+                let sum_squares = in_values.iter().fold(0f64, |sum, value|
+                    match **value {
+                        Float(float) => sum + float.powi(2),
+                        _ => panic!("Type error while calling: {:?} {:?}", self, in_values),
+                    });
+                let standard_deviation = ((sum_squares - sum.powi(2)) / (in_values.len() as f64)).sqrt();
+                vec![vec![Float(standard_deviation)]]
+            },
             (Empty, [in_ix]) => {
                 let in_values = resolve_as_vector(in_ix, constants, outer, inner);
                 vec![vec![Bool(in_values.len() == 0)]]
@@ -79,6 +108,8 @@ impl Primitive {
             "subtract" => Primitive::Subtract,
             "count" => Primitive::Count,
             "sum" => Primitive::Sum,
+            "mean" => Primitive::Mean,
+            "standard deviation" => Primitive::StandardDeviation,
             "empty" => Primitive::Empty,
             _ => panic!("Unknown primitive: {:?}", string),
         }
@@ -91,6 +122,8 @@ pub fn primitives() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, 
         ("subtract", vec!["in A", "in B"], vec![], vec!["out"]),
         ("count", vec![], vec!["in"], vec!["out"]),
         ("sum", vec![], vec!["in"], vec!["out"]),
+        ("mean", vec![], vec!["in"], vec!["out"]),
+        ("standard deviation", vec![], vec!["in"], vec!["out"]),
         ("empty", vec![], vec!["in"], vec!["out"]),
     ]
 }
