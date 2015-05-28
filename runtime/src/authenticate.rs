@@ -101,18 +101,13 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 							let req = client.request(hyper::method::Method::Get,&*api_call);
 
 							// Set the appropriate headers for authorocket
-							let json: Mime = "application/json".parse().unwrap();
-							let accept = Accept("application/json".to_string());
-							let content_type = ContentType(json);
-							let account = AuthrocketAccount("org_0vC7wPw9XphPGQnSqYB6bz".to_string());
-							let key = AuthrocketApiKey("key_jtnCRWxQvDD0p5HATR9RBIe4WnxnwV6pWNzwmZQLnSZ".to_string());
-							let realm = AuthrocketRealm("rl_0vC7wd03CqwhpK7kT8fvAc".to_string());
-
 							let mut headers = Headers::new();
-							headers.set(account);
-							headers.set(key);
-							headers.set(realm);
-							headers.set(accept);
+							let json: Mime = "application/json".parse().unwrap();
+							let content_type = ContentType(json);
+							headers.set_raw("X-Authrocket-Account",vec!["org_0vC7wPw9XphPGQnSqYB6bz".to_string().into_bytes()]);
+							headers.set_raw("X-Authrocket-Api-Key",vec!["key_jtnCRWxQvDD0p5HATR9RBIe4WnxnwV6pWNzwmZQLnSZ".to_string().into_bytes()]);
+							headers.set_raw("X-Authrocket-Realm",vec!["rl_0vC7wd03CqwhpK7kT8fvAc".to_string().into_bytes()]);
+							headers.set_raw("Accept",vec!["application/json".to_string().into_bytes()]);
 							headers.set(content_type);
 
 							// Send the request and receive a response with session data
@@ -128,11 +123,11 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 									println!("Welcome to Eve, {:?}!",session_data.user.username);
 									println!("Login Successful. Redirecting to user area.");
 
-									// Connect to the Eve runtime and add the user to the eveuser table
+									// Connect to the Eve runtime and add the user to the eveusers table
 									let ws_result = open_websocket("ws://192.168.137.38:2794");
 									match ws_result {
 										// If things went okay, redirect to the Eve UI
-										Ok((mut send_thread,receive_thread)) => {
+										Ok(mut sender) => {
 										//Ok((mut send_thread,receive_thread)) => {
 											// Form the response
 											*res.status_mut() = hyper::status::StatusCode::PermanentRedirect;
@@ -147,24 +142,17 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 											*res.headers_mut() = headers;
 
 											// Create an eveuser table
-											let table_name = "eveuser";
+											let table_name = "eveusers";
 											let table_fields = vec!["id","username"];
-											let row_data = vec![Value::String(session_data.user.id.clone()),
+											let row_data = vec![
+																Value::String(session_data.user.id.clone()),
 																Value::String(session_data.user.username.clone())
 														   	   ];
 
-											// TODO figure out how to do this without a new scope
-											{
-												send_event(&create_table(&table_name,&table_fields),&mut send_thread);
-											}
-											{
-												send_event(&insert_fact(&table_name,&table_fields,&row_data),&mut send_thread);
-											}
-											send_thread.send_message(Message::Close(None)).unwrap();
-
-											//let _ = send_thread.join();
-											let _ = receive_thread.join();
-
+											// Create eveusers table and insert the new user
+											send_event(&create_table(&table_name,&table_fields),&mut sender);
+											send_event(&insert_fact(&table_name,&table_fields,&row_data),&mut sender);
+											sender.send_message(Message::Close(None)).unwrap();
 										}
 										// Otherwise, throw an error... maybe redirect to a special page.
 										Err(e) => {
@@ -193,101 +181,5 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 			};
 		}
 		_ => panic!("Oh no!"),
-	}
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct AuthrocketAccount(pub String);
-
-impl hyper::header::Header for AuthrocketAccount {
-	fn header_name() -> &'static str {
-	    "X-Authrocket-Account"
-	}
-	fn parse_header(raw: &[Vec<u8>]) -> Option<Self> {
-	    hyper::header::parsing::from_one_raw_str(raw).map(AuthrocketAccount)
-	}
-}
-
-impl hyper::header::HeaderFormat for AuthrocketAccount {
-	fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-	    ::std::fmt::Display::fmt(&self.0, f)
-	}
-}
-
-impl ::std::fmt::Display for AuthrocketAccount {
-	fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-	    ::std::fmt::Display::fmt(&self.0, f)
-	}
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct AuthrocketApiKey(pub String);
-
-impl hyper::header::Header for AuthrocketApiKey {
-	fn header_name() -> &'static str {
-	    "X-Authrocket-Api-Key"
-	}
-	fn parse_header(raw: &[Vec<u8>]) -> Option<Self> {
-	    hyper::header::parsing::from_one_raw_str(raw).map(AuthrocketApiKey)
-	}
-}
-
-impl hyper::header::HeaderFormat for AuthrocketApiKey {
-	fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-	    ::std::fmt::Display::fmt(&self.0, f)
-	}
-}
-
-impl ::std::fmt::Display for AuthrocketApiKey {
-	fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-	    ::std::fmt::Display::fmt(&self.0, f)
-	}
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct AuthrocketRealm(pub String);
-
-impl hyper::header::Header for AuthrocketRealm {
-	fn header_name() -> &'static str {
-	    "X-Authrocket-Realm"
-	}
-	fn parse_header(raw: &[Vec<u8>]) -> Option<Self> {
-	    hyper::header::parsing::from_one_raw_str(raw).map(AuthrocketRealm)
-	}
-}
-
-impl hyper::header::HeaderFormat for AuthrocketRealm {
-	fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-	    ::std::fmt::Display::fmt(&self.0, f)
-	}
-}
-
-impl ::std::fmt::Display for AuthrocketRealm {
-	fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-	    ::std::fmt::Display::fmt(&self.0, f)
-	}
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Accept(pub String);
-
-impl hyper::header::Header for Accept {
-	fn header_name() -> &'static str {
-	    "Accept"
-	}
-	fn parse_header(raw: &[Vec<u8>]) -> Option<Self> {
-	    hyper::header::parsing::from_one_raw_str(raw).map(Accept)
-	}
-}
-
-impl hyper::header::HeaderFormat for Accept {
-	fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-	    ::std::fmt::Display::fmt(&self.0, f)
-	}
-}
-
-impl ::std::fmt::Display for Accept {
-	fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-	    ::std::fmt::Display::fmt(&self.0, f)
 	}
 }

@@ -96,9 +96,10 @@ var api = (function(Indexing) {
       "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
       "calculated field": {name: "calculated field", fields: ["calculated field", "view", "source", "source view", "field"]},
       "empty view": {name: "empty view", fields: [], facts: [[]]},
-      "eveuser": {name: "eveuser", fields: ["id", "username"]},
       "client event": {name: "client event", fields: ["session", "eventId", "type", "element", "row"]},
       "mouse position": {name: "mouse position", fields: ["session", "eventId", "x", "y"]},
+      "eveusers": {name: "eveusers", fields: ["id", "username"]},
+      "sessions": {name: "sessions", fields: ["id", "user id", "status"]},
 
       //ui
       "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"], facts: []},
@@ -186,7 +187,7 @@ var api = (function(Indexing) {
 
   ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
 
-  ixer.addIndex("eveuser id to username", "eveuser", Indexing.create.lookup([0, 1]));
+  ixer.addIndex("eveusers id to username", "eveusers", Indexing.create.lookup([0, 1]));
 
   // ui
 
