@@ -116,6 +116,7 @@ var api = (function(Indexing) {
       "foo": {name: "foo", fields: ["a", "b"]},
       "book": {name: "book", fields: ["isbn", "title", "author", "price", "cost"]},
       "edge": {name: "edge", fields: ["to", "from"], facts: [["a", "b"], ["b", "c"], ["c", "d"]]},
+      numbers: {name: "numbers", fields: ["x"], facts: [[0], [1], [2], [3]]},
 
       // FourSquare
       "place": {name: "place", fields: ["place", "name", "priceRange"]},

@@ -398,9 +398,16 @@ var queryEditor = (function(window, microReact, api) {
             return memo.concat(diff.updateViewConstraint(constraintPair[0], constraintPair[1]));
           }, diffs);
           diffs.push(["source", "inserted", ixer.index("source")[viewId][opts.leftSource]]);
+
+          var calculatedFieldId = ixer.index("view and source to calculated field")[viewId][opts.leftSource];
+          if(calculatedFieldId) {
+            console.log(ixer.index("calculated field")[calculatedFieldId]);
+            diffs.push(["calculated field", "inserted", ixer.index("calculated field")[calculatedFieldId]]);
+          }
+
           //@FIXME: Chris added this because the server was never being sent the actual constraint entry
           //I suspect this is supposed to work some other way?
-          diffs.push(["constraint", "inserted", [info.constraintId, viewId]])
+          diffs.push(["constraint", "inserted", [info.constraintId, viewId]]);
 
         } else {
           sendToServer = false;
@@ -2466,7 +2473,6 @@ var queryEditor = (function(window, microReact, api) {
         items = items.concat(calculatedFields.map(function(calculated) {
           var calculatedId = calculated[code.ix("calculated field", "calculated field")];
           var fieldId = calculated[code.ix("calculated field", "field")];
-          console.log(calculated, ixer.index("field"));
           var field = ixer.index("field")[fieldId];
           var sourceId = calculated[code.ix("calculated field", "source")];
           var source = viewSources[sourceId];
