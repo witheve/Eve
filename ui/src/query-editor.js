@@ -297,19 +297,7 @@ var queryEditor = (function(window, microReact, api) {
         diffs = diff.addUnionBlock(queryId);
         break;
       case "removeViewBlock":
-        var view = ixer.index("view")[info.viewId];
-        var blockId = ixer.index("view to block")[info.viewId];
-        var block = ixer.index("block")[blockId];
-        var sources = ixer.index("view to sources")[info.viewId] || [];
-        diffs = [["view", "removed", view],
-                 ["block", "removed", block]];
-        for(var ix = 0; ix < sources.length; ix++) {
-          var sourceId = sources[ix][code.ix("source", "source")];
-          diffs = diffs.concat(diff.removeViewSource(info.viewId, sourceId));
-        }
-        if(view[code.ix("view", "kind")] === "aggregate") {
-          console.warn("@FIXME: Remove aggregate entries for view on removal.");
-        }
+        diffs = diff.removeViewBlock(info.viewId);
         break;
       case "addViewSelection":
         diffs = diff.addViewSelection(info.viewId, info.sourceId, info.sourceFieldId, info.fieldId, info.isCalculated);
@@ -743,6 +731,9 @@ var queryEditor = (function(window, microReact, api) {
     // @TODO: filter me based on tags local and compiler.
     var items = ixer.facts("editor item").map(function(cur) {
       var id = cur[0];
+      if(!localState.showHidden && code.hasTag(id, "hidden")) {
+        return;
+      }
       var type = cur[1];
       var klass = "editor-item " + type;
       var icon = "ion-grid";
@@ -783,8 +774,16 @@ var queryEditor = (function(window, microReact, api) {
           {c: "ion-plus"},
         ]},
       ]},
-      {c: "items", children: items}
+      {c: "items", children: items},
+      {c: "show-hidden", click: toggleHiddenEditorItems, children: [
+        {text: "show hidden"}
+      ]}
     ]};
+  }
+
+  function toggleHiddenEditorItems(e, elem) {
+    localState.showHidden = !localState.showHidden;
+    render();
   }
 
   function addItem(e, elem) {
@@ -1015,6 +1014,10 @@ var queryEditor = (function(window, microReact, api) {
       var rect = boxSelectRect();
       canvasLayers.push({c: "box-selection", top: rect.top, left: rect.left, width: rect.width, height: rect.height});
     }
+    var canvas = {c: "ui-canvas", componentId: componentId, children: canvasLayers, mousedown: startBoxSelection, mouseup: stopBoxSelection, mousemove: adjustBoxSelection};
+    if(localState.uiPreview) {
+      canvas = canvasPreview();
+    }
     return genericWorkspace("query",
                             componentId,
                             {c: "ui-editor",
@@ -1023,11 +1026,23 @@ var queryEditor = (function(window, microReact, api) {
                                {c: "ui-canvas-container", children: [
                                  uiControls(componentId, activeLayer),
                                  {c: "row", children: [
-                                   {c: "ui-canvas", componentId: componentId, children: canvasLayers, mousedown: startBoxSelection, mouseup: stopBoxSelection, mousemove: adjustBoxSelection},
+                                   canvas,
                                    {c: "attributes", children: uiInspectors(componentId, selectionInfo, layers, activeLayer)},
                                  ]},
                                ]},
                              ]});
+  }
+
+  function canvasPreview() {
+    return {id: "canvasPreview", c: "ui-canvas preview", postRender: injectCanvasPreview};
+  }
+
+  function injectCanvasPreview(div, elem) {
+    console.log("inject");
+    var previewRoot = window.uiEditorRenderer.root;
+    if(previewRoot.parentNode !== div) {
+      div.appendChild(previewRoot);
+    }
   }
 
   function canvasLayer(layer, selectionInfo) {
@@ -1715,9 +1730,10 @@ var queryEditor = (function(window, microReact, api) {
   var uiControlInfo = [{text: "text", icon: "text-control", iconText: "T"},
                        {text: "image", icon: "ion-image"},
                        {text: "box", icon: "ion-stop"},
+                       {text: "spacer", icon: "ion-arrow-expand"},
                        {text: "button", icon: "ion-share"},
                        {text: "input", icon: "ion-compose"},
-                       {text: "map", icon: "ion-ios-location"}
+//                        {text: "map", icon: "ion-ios-location"}
                       ];
 
   function uiControls(componentId, activeLayer) {
@@ -1731,8 +1747,18 @@ var queryEditor = (function(window, microReact, api) {
                 icon,
                 {text: cur.text}
               ]};
-    })
+    });
+    var previewClass = localState.uiPreview ? " active" : "";
+    items.push({c: "control design-mode-toggle" + previewClass, click: toggleUiPreview, children: [
+      {c: "icon " + "ion-eye"},
+      {text: "preview"}
+    ]})
     return controlGroup(items);
+  }
+
+  function toggleUiPreview(e, elem) {
+    localState.uiPreview = !localState.uiPreview;
+    render();
   }
 
   function addElement(e, elem) {
@@ -2544,7 +2570,7 @@ var queryEditor = (function(window, microReact, api) {
     console.log(info);
     if(!info || !info.token) {
       removeViewBlock(evt, elem);
-    } {
+    } else {
       var token = info.token;
       var id = token.expression;
       if(ixer.index("constraint")[id]) {
@@ -3157,10 +3183,10 @@ var queryEditor = (function(window, microReact, api) {
       {c: "block-section view-sources", viewId: viewId, children: viewSources(viewId, aggregateSourceDrop).concat(viewPrimitives(viewId))},
       {c: "block-section aggregate-grouping spaced-row", children: [
         {text: "Group by"},
-        queryToken("field", "outer", viewId, getLocalFieldName(outerField) || "<outer field>", {handler: updateAggregateGrouping, drop: dropAggregateGroupingField}),
+        queryToken("field", "outer", viewId, getLocalFieldName(outerField) || "<outer field>", {handler: updateAggregateGrouping, drop: dropAggregateGroupingField, viewId: viewId, sourceId: "outer"}),
         //token.blockField({key: "outer", parentId: viewId, source: "outer", field: outerField}, updateAggregateGrouping, dropAggregateGroupingField),
         {text: "="},
-        queryToken("field", "inner", viewId, getLocalFieldName(innerField) || "<inner field>", {handler: updateAggregateGrouping, drop: dropAggregateGroupingField})
+        queryToken("field", "inner", viewId, getLocalFieldName(innerField) || "<inner field>", {handler: updateAggregateGrouping, drop: dropAggregateGroupingField, viewId: viewId, sourceId: "inner"})
         //token.blockField({key: "inner", parentId: viewId, source: "inner", field: innerField}, updateAggregateGrouping, dropAggregateGroupingField),
       ]},
       content,
@@ -3169,15 +3195,16 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function updateAggregateGrouping(evt, elem) {
-
+    var info = localState.queryEditorInfo;
+    var token = info.token;
+    var fieldId = elem.key;
+    dispatch("updateAggregateGrouping", {aggregate: token.viewId, source: token.sourceId, field: fieldId});
   }
 
   function dropAggregateGroupingField(evt, elem) {
     var viewId = elem.expression;
     var type = evt.dataTransfer.getData("type");
     var value = evt.dataTransfer.getData("value");
-
-
 
     if(type === "field") {
       var id = evt.dataTransfer.getData("fieldId");
@@ -3197,16 +3224,16 @@ var queryEditor = (function(window, microReact, api) {
   function sortLimitAggregate(viewId, outerSource, innerSource) {
     var sortSource = "inner";
     var sortField, sortDir;
-    var aggregateSorting = ixer.index("view to aggregate sorting")[viewId];
+    var aggregateSorting = ixer.index("aggregate sorting")[viewId];
     if(aggregateSorting) {
       sortField = aggregateSorting[code.ix("aggregate sorting", "inner field")];
       sortDir = aggregateSorting[code.ix("aggregate sorting", "direction")];
     }
 
     // @FIXME: hard coded to work with constants only.
-    var limitFrom = ixer.index("view to aggregate limit from")[viewId] || [];
+    var limitFrom = ixer.index("aggregate limit from")[viewId] || [];
     var limitFromValue = ixer.index("constant to value")[limitFrom[code.ix("aggregate limit from", "from field")]];
-    var limitTo = ixer.index("view to aggregate limit to")[viewId] || [];
+    var limitTo = ixer.index("aggregate limit to")[viewId] || [];
     var limitToValue = ixer.index("constant to value")[limitTo[code.ix("aggregate limit to", "to field")]];
 
     var fromLimitInput = input(limitFromValue, "from", updateAggregateLimit, updateAggregateLimit);
