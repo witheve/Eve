@@ -83,15 +83,15 @@ div:hover > .hover-reveal { opacity: 1; }
 
 .table { overflow-x: auto; flex-shrink: 0 1; }
 .table .headers { flex-direction:row; background: rgba(0,0,0,0.05); border-bottom:1px solid rgba(0,0,0,0.1); flex:none; }
-.table .rows { overflow-y: auto; }
+.table .rows { overflow-y: auto; overflow-x:hidden; }
 .table .rows > div { flex-direction:row; }
 .table .row { flex: none; }
-.table .header { width: 200px; padding: 5px; flex:none; }
+.table .header { width: 200px; padding: 5px; flex:none; background: rgba(243,243,243,1); border-bottom:1px solid rgba(0,0,0,0.1); margin-bottom:-1px; }
 .table .field { width: 200px; padding: 5px; flex:none; white-space: nowrap; overflow:hidden; }
 
 .table-editor {  flex:1; border-radius:3px; box-shadow:0 0 20px #111; background: #fff; color: #555; }
 .table-editor > .table .headers { padding-left: 10px;  }
-.table-editor > .table .rows { padding-left: 10px;  }
+.table-editor > .table .rows { padding-left: 10px; height:100%; flex:1; }
 
 /*---------------------------------------------------------
 - input
