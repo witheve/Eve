@@ -398,9 +398,16 @@ var queryEditor = (function(window, microReact, api) {
             return memo.concat(diff.updateViewConstraint(constraintPair[0], constraintPair[1]));
           }, diffs);
           diffs.push(["source", "inserted", ixer.index("source")[viewId][opts.leftSource]]);
+
+          var calculatedFieldId = ixer.index("view and source to calculated field")[viewId][opts.leftSource];
+          if(calculatedFieldId) {
+            console.log(ixer.index("calculated field")[calculatedFieldId]);
+            diffs.push(["calculated field", "inserted", ixer.index("calculated field")[calculatedFieldId]]);
+          }
+
           //@FIXME: Chris added this because the server was never being sent the actual constraint entry
           //I suspect this is supposed to work some other way?
-          diffs.push(["constraint", "inserted", [info.constraintId, viewId]])
+          diffs.push(["constraint", "inserted", [info.constraintId, viewId]]);
 
         } else {
           sendToServer = false;
@@ -2466,7 +2473,6 @@ var queryEditor = (function(window, microReact, api) {
         items = items.concat(calculatedFields.map(function(calculated) {
           var calculatedId = calculated[code.ix("calculated field", "calculated field")];
           var fieldId = calculated[code.ix("calculated field", "field")];
-          console.log(calculated, ixer.index("field"));
           var field = ixer.index("field")[fieldId];
           var sourceId = calculated[code.ix("calculated field", "source")];
           var source = viewSources[sourceId];
@@ -2755,28 +2761,46 @@ var queryEditor = (function(window, microReact, api) {
     var rightField = right[code.ix("constraint right", "right field")];
 
     return {c: "view-constraint", children: [
-      viewConstraintToken("left", constraintId, viewId, code.name(leftSource) + "." + code.name(leftField)),
+      viewConstraintToken("left", constraintId, viewId, getFieldName(viewId, leftSource, leftField)),
       viewConstraintToken("operation", constraintId, viewId, operation),
-      viewConstraintToken("right", constraintId, viewId, code.name(rightSource) + "." + code.name(rightField))
+      viewConstraintToken("right", constraintId, viewId, getFieldName(viewId, rightSource, rightField))
     ]};
 
   }
 
   function viewConstraintToken(side, constraintId, viewId, text) {
-    var klass = "token field";
-    var handler = fieldSuggestions;
+    var type = "field";
     if(side === "operation") {
-      klass = "token";
+      type = "operation";
+    }
+    return queryToken(type, side, constraintId, text, {viewId: viewId, handler: updateViewConstraint});
+  }
+  function queryToken(type, key, expression, text, opts) {
+    opts = opts || {};
+    var klass = "token " + type + " " + (opts.c || "");
+    var dragover = (opts.drop ? preventDefault : undefined);
+
+    var handler = fieldSuggestions;
+    if(type === "operation") {
       handler = constraintOpSuggestions;
     }
+
     //check if we are editing this token
     var info = localState.queryEditorInfo;
     var token = info ? info.token || {} : {};
-    if(token.constraintId === constraintId && token.side === side) {
+    if(token.expression === expression && token.key === key) {
       klass += " active";
     }
-    return {c: klass, side: side, constraintId: constraintId, handler: updateViewConstraint, click: handler, viewId: viewId, text: text};
+    var token = {c: klass, key: key, expression: expression, text: text, click: handler};
+    for(var prop in opts) {
+      token[prop] = opts[prop];
+    }
+    if(opts.drop && ! token.dragover) {
+      token.dragover = preventDefault;
+    }
+    return token;
   }
+
 
   function constraintOpSuggestions(e, elem) {
     e.stopPropagation();
@@ -2809,7 +2833,7 @@ var queryEditor = (function(window, microReact, api) {
   function updateViewConstraint(evt, elem) {
     var info = localState.queryEditorInfo;
     var token = info.token;
-    dispatch("updateViewConstraint", {constraintId: token.constraintId, type: token.side, value: elem.key});
+    dispatch("updateViewConstraint", {constraintId: token.expression, type: token.key, value: elem.key});
     evt.stopPropagation();
   }
 
@@ -3072,9 +3096,11 @@ var queryEditor = (function(window, microReact, api) {
       {c: "block-section view-sources", viewId: viewId, children: viewSources(viewId, aggregateSourceDrop).concat(viewPrimitives(viewId))},
       {c: "block-section aggregate-grouping spaced-row", children: [
         {text: "Group by"},
-        token.blockField({key: "outer", parentId: viewId, source: "outer", field: outerField}, updateAggregateGrouping, dropAggregateGroupingField),
+        queryToken("field", "outer", viewId, getLocalFieldName(outerField), {handler: updateAggregateGrouping, drop: dropAggregateGroupingField}),
+        //token.blockField({key: "outer", parentId: viewId, source: "outer", field: outerField}, updateAggregateGrouping, dropAggregateGroupingField),
         {text: "="},
-        token.blockField({key: "inner", parentId: viewId, source: "inner", field: innerField}, updateAggregateGrouping, dropAggregateGroupingField),
+        queryToken("field", "inner", viewId, getLocalFieldName(innerField), {handler: updateAggregateGrouping, drop: dropAggregateGroupingField})
+        //token.blockField({key: "inner", parentId: viewId, source: "inner", field: innerField}, updateAggregateGrouping, dropAggregateGroupingField),
       ]},
       content,
       {c: "block-section view-selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems},
