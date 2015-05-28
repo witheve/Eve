@@ -3183,10 +3183,10 @@ var queryEditor = (function(window, microReact, api) {
       {c: "block-section view-sources", viewId: viewId, children: viewSources(viewId, aggregateSourceDrop).concat(viewPrimitives(viewId))},
       {c: "block-section aggregate-grouping spaced-row", children: [
         {text: "Group by"},
-        queryToken("field", "outer", viewId, getLocalFieldName(outerField) || "<outer field>", {handler: updateAggregateGrouping, drop: dropAggregateGroupingField}),
+        queryToken("field", "outer", viewId, getLocalFieldName(outerField) || "<outer field>", {handler: updateAggregateGrouping, drop: dropAggregateGroupingField, viewId: viewId, sourceId: "outer"}),
         //token.blockField({key: "outer", parentId: viewId, source: "outer", field: outerField}, updateAggregateGrouping, dropAggregateGroupingField),
         {text: "="},
-        queryToken("field", "inner", viewId, getLocalFieldName(innerField) || "<inner field>", {handler: updateAggregateGrouping, drop: dropAggregateGroupingField})
+        queryToken("field", "inner", viewId, getLocalFieldName(innerField) || "<inner field>", {handler: updateAggregateGrouping, drop: dropAggregateGroupingField, viewId: viewId, sourceId: "inner"})
         //token.blockField({key: "inner", parentId: viewId, source: "inner", field: innerField}, updateAggregateGrouping, dropAggregateGroupingField),
       ]},
       content,
@@ -3195,15 +3195,16 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function updateAggregateGrouping(evt, elem) {
-
+    var info = localState.queryEditorInfo;
+    var token = info.token;
+    var fieldId = elem.key;
+    dispatch("updateAggregateGrouping", {aggregate: token.viewId, source: token.sourceId, field: fieldId});
   }
 
   function dropAggregateGroupingField(evt, elem) {
     var viewId = elem.expression;
     var type = evt.dataTransfer.getData("type");
     var value = evt.dataTransfer.getData("value");
-
-
 
     if(type === "field") {
       var id = evt.dataTransfer.getData("fieldId");
