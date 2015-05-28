@@ -13,7 +13,7 @@ use value::Value;
 use relation::Change;
 use flow::{Changes, Flow};
 
-trait FromJson {
+pub trait FromJson {
     fn from_json(json: &Json) -> Self;
 }
 
