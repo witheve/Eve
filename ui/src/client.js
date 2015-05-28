@@ -279,10 +279,10 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
       }
 
       if(specialPayload.changes.length) {
-        server.ws.send(JSON.stringify(specialPayload));
+        server.ws.send(CBOR.encode(specialPayload));
       }
       if(payload.changes.length) {
-        server.ws.send(JSON.stringify(payload));
+        server.ws.send(CBOR.encode(payload));
       }
     }
   }

@@ -14,6 +14,7 @@ hyper = "*"
 cookie = "*"
 url = "*"
 mime = "*"
+cbor = "*"
 
 [profile.release]
 debug = true

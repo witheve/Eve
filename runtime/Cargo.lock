@@ -2,6 +2,7 @@
 name = "eve"
 version = "0.0.1"
 dependencies = [
+ "cbor 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "cookie 0.1.20 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mime 0.0.11 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -21,6 +22,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "byteorder"
 version = "0.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "cbor"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "byteorder 0.3.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-serialize 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "cookie"
