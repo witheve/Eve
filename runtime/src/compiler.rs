@@ -426,7 +426,9 @@ fn calculate_view_layout(flow: &Flow) {
         let mut source_schedules = source_schedule_table.find_all("view", &view["view"]);
         sort_by_ix(&mut source_schedules);
         for source_schedule in source_schedules {
-            let source = source_table.find_one("source", &source_schedule["source"]);
+            let source = source_table.iter().find(|source|
+                source["view"] == view["view"]
+                && source["source"] == source_schedule["source"]).unwrap();
             let mut push_field = |field_id: &Value| {
                 items.push(vec![
                     view["view"].clone(),
@@ -533,7 +535,9 @@ fn create_index_select(flow: &Flow, view_id: &Value, source_id: &Value, source_i
             ).unwrap();
         &select["source field"]
     }).collect::<Vec<_>>();
-    let source = source_table.find_one("source", source_id);
+    let source = source_table.iter().find(|source|
+        source["view"] == *view_id
+        && source["source"] == *source_id).unwrap();
     let mapping = fields.iter().map(|field_id| {
         get_index_layout_ix(flow, &source["source view"], field_id)
         }).collect();
