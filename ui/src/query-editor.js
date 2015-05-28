@@ -251,6 +251,10 @@ var queryEditor = (function(window, microReact, api) {
         sendToServer = info.submit;
         var oldString = info.table + JSON.stringify(info.old);
         var ix = info.ix;
+        if(ix === undefined) {
+          console.error("No ix specified for", oldString);
+          ix = 0;
+        }
         var neueString = info.table + JSON.stringify(info.neue);
         if(oldString === neueString) return;
         diffs.push([info.table, "inserted", info.neue],
