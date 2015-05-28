@@ -260,6 +260,24 @@ var queryEditor = (function(window, microReact, api) {
           ["display order", "removed", [oldString, ix]]);
         }
         break;
+      case "exportView":
+        // @TODO: Should we make this capable of exporting multiple views?
+//         var query = ixer.index("view to query")[info.viewId];
+//         var queryBlocks = ixer.index("query to blocks")[query] || [];
+//         var blockViewIx = code.ix("block", "view");
+//         queryBlocks.forEach(function(block) {
+//           var viewId = block[blockViewIx];
+//           if(!code.hasTag(viewId, "local")) {
+//             diffs.push(["tag", "inserted", [viewId, "local"]]);
+//           }
+//         });
+//        diffs.push(["tag", "removed", [info.viewId, "local"]]);
+        if(code.hasTag(info.viewId, "local")) {
+          diffs.push(["tag", "removed", [info.viewId, "local"]]);
+        } else {
+          diffs.push(["tag", "inserted", [info.viewId, "local"]]);
+        }
+        break;
       case "addViewBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
         var viewId = uuid();
@@ -398,9 +416,17 @@ var queryEditor = (function(window, microReact, api) {
             return memo.concat(diff.updateViewConstraint(constraintPair[0], constraintPair[1]));
           }, diffs);
           diffs.push(["source", "inserted", ixer.index("source")[viewId][opts.leftSource]]);
+
+          var calculatedFieldId = ixer.index("view and source to calculated field")[viewId] || {};
+          calculatedFieldId = calculatedFieldId[opts.leftSource];
+          if(calculatedFieldId) {
+            diffs.push(["calculated field", "inserted", ixer.index("calculated field")[calculatedFieldId]]);
+            diffs.push(["display name", "inserted", [calculatedFieldId, code.name(calculatedFieldId)]]);
+          }
+
           //@FIXME: Chris added this because the server was never being sent the actual constraint entry
           //I suspect this is supposed to work some other way?
-          diffs.push(["constraint", "inserted", [info.constraintId, viewId]])
+          diffs.push(["constraint", "inserted", [info.constraintId, viewId]]);
 
         } else {
           sendToServer = false;
@@ -409,7 +435,24 @@ var queryEditor = (function(window, microReact, api) {
 
         break;
       case "removeViewConstraint":
-        diffs = diff.removeViewConstraint(info.constraintId);
+        var constraint = code.getConstraint(info.constraintId);
+        console.log("!", constraint);
+
+
+        var calculatedId = ixer.index("view and source to calculated field")[constraint.view] || {};
+        calculatedId = calculatedId[constraint.leftSource];
+        if(calculatedId) {
+          var constraintIdIx = code.ix("constraint", "constraint");
+          var constraints = ixer.index("source to constraints")[constraint.leftSource] || [];
+          constraints.forEach(function(constraint) {
+            diffs = diffs.concat(diff.removeViewConstraint(constraint[constraintIdIx]));
+          });
+          diffs.push(["calculated field", "removed", ixer.index("calculated field")[calculatedId]],
+                     ["source", "removed", ixer.index("source")[constraint.view][constraint.leftSource]]);
+        } else {
+          diffs = diff.removeViewConstraint(info.constraintId);
+        }
+
         break;
       case "updateAggregateSort":
         var params = {};
@@ -2394,8 +2437,8 @@ var queryEditor = (function(window, microReact, api) {
 
       items.push({c: "block " + viewKind, editorIx: ix, viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, handler: blockSuggestionHandler, click: setQueryEditorActive, children: [
         {c: "block-title", children: [
-          {t: "h3", text: code.name(viewId)},
-          //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
+          {t: "h3", text: code.name(viewId)}
+          //                 ,
         ]},
         {c: "full-flex", children: [
           editorPane,
@@ -2422,6 +2465,10 @@ var queryEditor = (function(window, microReact, api) {
     return {c: "query-workspace", queryId: queryId, drop: editorDrop, dragover: preventDefault, children: items.length ? items : [
       {c: "feed", text: "Feed me sources"}
     ]};
+  }
+
+  function exportView(evt, elem) {
+    dispatch("exportView", {viewId: elem.viewId});
   }
 
   function blockSuggestionHandler(e, elem) {
@@ -2466,7 +2513,6 @@ var queryEditor = (function(window, microReact, api) {
         items = items.concat(calculatedFields.map(function(calculated) {
           var calculatedId = calculated[code.ix("calculated field", "calculated field")];
           var fieldId = calculated[code.ix("calculated field", "field")];
-          console.log(calculated, ixer.index("field"));
           var field = ixer.index("field")[fieldId];
           var sourceId = calculated[code.ix("calculated field", "source")];
           var source = viewSources[sourceId];
@@ -2483,7 +2529,28 @@ var queryEditor = (function(window, microReact, api) {
         suggestionBarItem("add calculation", "add calculation"),
       ]
     }
+
+    // Misc. block controls.
+    var isLocal = code.hasTag(viewId, "local");
+    items.push(
+      {c: "suggestion-bar-item ion-log-out export-view-btn" + (isLocal ? "" : " exported"), viewId: viewId, click: exportView},
+      {c: "suggestion-bar-item ion-android-close close-btn", viewId: viewId, click: removeSelectedItem}
+    );
     return {c: "suggestion-bar", children: items};
+  }
+
+  function removeSelectedItem(evt, elem) {
+    var info = localState.queryEditorInfo;
+    console.log(info);
+    if(!info || !info.token) {
+      removeViewBlock(evt, elem);
+    } {
+      var token = info.token;
+      var id = token.expression;
+      if(ixer.index("constraint")[id]) {
+        dispatch("removeViewConstraint", {constraintId: id});
+      }
+    }
   }
 
   function setQueryEditorActive(e, elem) {
@@ -2673,7 +2740,7 @@ var queryEditor = (function(window, microReact, api) {
 
       var content = [
         fieldItem(code.name(out), out, {c: "pill field"}),
-        {text: "☞"},
+        {text: "⇒"},
         {text: code.name(sourceViewId) + "("},
       ].concat(constraintArgs);
       content.push({text: ")"});
@@ -2691,7 +2758,7 @@ var queryEditor = (function(window, microReact, api) {
 
       return {c: "spaced-row primitive-constraint", children: [
         fieldItem(code.name(out), out, {c: "pill field"}),
-        {text: "☞"},
+        {text: "⇒"},
         viewConstraintToken("right", a.id, viewId, aName),
         {text: operator},
         viewConstraintToken("right", b.id, viewId, bName)
@@ -2755,28 +2822,46 @@ var queryEditor = (function(window, microReact, api) {
     var rightField = right[code.ix("constraint right", "right field")];
 
     return {c: "view-constraint", children: [
-      viewConstraintToken("left", constraintId, viewId, code.name(leftSource) + "." + code.name(leftField)),
+      viewConstraintToken("left", constraintId, viewId, getFieldName(viewId, leftSource, leftField)),
       viewConstraintToken("operation", constraintId, viewId, operation),
-      viewConstraintToken("right", constraintId, viewId, code.name(rightSource) + "." + code.name(rightField))
+      viewConstraintToken("right", constraintId, viewId, getFieldName(viewId, rightSource, rightField))
     ]};
 
   }
 
   function viewConstraintToken(side, constraintId, viewId, text) {
-    var klass = "token field";
-    var handler = fieldSuggestions;
+    var type = "field";
     if(side === "operation") {
-      klass = "token";
+      type = "operation";
+    }
+    return queryToken(type, side, constraintId, text, {viewId: viewId, handler: updateViewConstraint});
+  }
+  function queryToken(type, key, expression, text, opts) {
+    opts = opts || {};
+    var klass = "token " + type + " " + (opts.c || "");
+    var dragover = (opts.drop ? preventDefault : undefined);
+
+    var handler = fieldSuggestions;
+    if(type === "operation") {
       handler = constraintOpSuggestions;
     }
+
     //check if we are editing this token
     var info = localState.queryEditorInfo;
     var token = info ? info.token || {} : {};
-    if(token.constraintId === constraintId && token.side === side) {
+    if(token.expression === expression && token.key === key) {
       klass += " active";
     }
-    return {c: klass, side: side, constraintId: constraintId, handler: updateViewConstraint, click: handler, viewId: viewId, text: text};
+    var token = {c: klass, key: key, expression: expression, text: text, click: handler};
+    for(var prop in opts) {
+      token[prop] = opts[prop];
+    }
+    if(opts.drop && ! token.dragover) {
+      token.dragover = preventDefault;
+    }
+    return token;
   }
+
 
   function constraintOpSuggestions(e, elem) {
     e.stopPropagation();
@@ -2809,7 +2894,7 @@ var queryEditor = (function(window, microReact, api) {
   function updateViewConstraint(evt, elem) {
     var info = localState.queryEditorInfo;
     var token = info.token;
-    dispatch("updateViewConstraint", {constraintId: token.constraintId, type: token.side, value: elem.key});
+    dispatch("updateViewConstraint", {constraintId: token.expression, type: token.key, value: elem.key});
     evt.stopPropagation();
   }
 
@@ -3072,9 +3157,11 @@ var queryEditor = (function(window, microReact, api) {
       {c: "block-section view-sources", viewId: viewId, children: viewSources(viewId, aggregateSourceDrop).concat(viewPrimitives(viewId))},
       {c: "block-section aggregate-grouping spaced-row", children: [
         {text: "Group by"},
-        token.blockField({key: "outer", parentId: viewId, source: "outer", field: outerField}, updateAggregateGrouping, dropAggregateGroupingField),
+        queryToken("field", "outer", viewId, getLocalFieldName(outerField) || "<outer field>", {handler: updateAggregateGrouping, drop: dropAggregateGroupingField}),
+        //token.blockField({key: "outer", parentId: viewId, source: "outer", field: outerField}, updateAggregateGrouping, dropAggregateGroupingField),
         {text: "="},
-        token.blockField({key: "inner", parentId: viewId, source: "inner", field: innerField}, updateAggregateGrouping, dropAggregateGroupingField),
+        queryToken("field", "inner", viewId, getLocalFieldName(innerField) || "<inner field>", {handler: updateAggregateGrouping, drop: dropAggregateGroupingField})
+        //token.blockField({key: "inner", parentId: viewId, source: "inner", field: innerField}, updateAggregateGrouping, dropAggregateGroupingField),
       ]},
       content,
       {c: "block-section view-selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems},
@@ -3086,15 +3173,21 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function dropAggregateGroupingField(evt, elem) {
-    var viewId = elem.parentId;
+    var viewId = elem.expression;
     var type = evt.dataTransfer.getData("type");
     var value = evt.dataTransfer.getData("value");
+
+
+
     if(type === "field") {
       var id = evt.dataTransfer.getData("fieldId");
       var blockField = ixer.index("block field")[id];
       if(blockField[code.ix("block field", "view")] !== viewId) { return; }
       var fieldId = blockField[code.ix("block field", "field")];
       var sourceId = blockField[code.ix("block field", "source")];
+
+    console.log(viewId, type, value, sourceId, elem.key);
+
       if(sourceId !== elem.key) { return; }
 
       dispatch("updateAggregateGrouping", {aggregate: viewId, source: sourceId, field: fieldId});

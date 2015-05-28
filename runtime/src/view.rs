@@ -198,14 +198,20 @@ impl View {
                         }).collect::<Vec<_>>();
                         (group, output_values)
                     };
+                    let null = Value::Null;
                     let mut output_sets = vec![];
+                    let mut state = outer_values.iter().collect::<Vec<_>>();
                     if aggregate.selects_inner {
                         output_sets.push(group);
+                    } else {
+                        // nasty hack - fill null values for inner so that the ixes work out right
+                        for _ in aggregate.inner.mapping.iter() {
+                            state.push(&null);
+                        }
                     }
                     for output in output_values.iter() {
                         output_sets.push(output);
                     }
-                    let mut state = outer_values.iter().collect();
                     aggregate_step(aggregate, &output_sets[..], &mut state, &mut output.index);
                     group_start = group_end;
                 }

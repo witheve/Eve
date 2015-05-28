@@ -96,9 +96,10 @@ var api = (function(Indexing) {
       "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
       "calculated field": {name: "calculated field", fields: ["calculated field", "view", "source", "source view", "field"]},
       "empty view": {name: "empty view", fields: [], facts: [[]]},
-      "eveuser": {name: "eveuser", fields: ["id", "username"]},
       "client event": {name: "client event", fields: ["session", "eventId", "type", "element", "row"]},
       "mouse position": {name: "mouse position", fields: ["session", "eventId", "x", "y"]},
+      "eveusers": {name: "eveusers", fields: ["id", "username"]},
+      "sessions": {name: "sessions", fields: ["id", "user id", "status"]},
 
       //ui
       "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"], facts: []},
@@ -115,6 +116,7 @@ var api = (function(Indexing) {
       "foo": {name: "foo", fields: ["a", "b"]},
       "book": {name: "book", fields: ["isbn", "title", "author", "price", "cost"]},
       "edge": {name: "edge", fields: ["to", "from"], facts: [["a", "b"], ["b", "c"], ["c", "d"]]},
+      numbers: {name: "numbers", fields: ["x"], facts: [[0], [1], [2], [3]]},
 
       // FourSquare
       "place": {name: "place", fields: ["place", "name", "priceRange"]},
@@ -167,6 +169,7 @@ var api = (function(Indexing) {
   ixer.addIndex("view to aggregate limit from", "aggregate limit from", Indexing.create.lookup([0, false]));
   ixer.addIndex("view to aggregate limit to", "aggregate limit to", Indexing.create.lookup([0, false]));
   ixer.addIndex("aggregate grouping", "aggregate grouping", Indexing.create.lookup([0, false]));
+  ixer.addIndex("id to tags", "tag", Indexing.create.collector([0]));
 
   // editor
   ixer.addIndex("block", "block", Indexing.create.lookup([1, false]));
@@ -186,7 +189,7 @@ var api = (function(Indexing) {
 
   ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
 
-  ixer.addIndex("eveuser id to username", "eveuser", Indexing.create.lookup([0, 1]));
+  ixer.addIndex("eveusers id to username", "eveusers", Indexing.create.lookup([0, 1]));
 
   // ui
 
@@ -218,6 +221,13 @@ var api = (function(Indexing) {
   var code = {
     name: function(id) {
       return ixer.index("display name")[id];
+    },
+    hasTag: function(id, tag) {
+      var tags = ixer.index("id to tags")[id] || [];
+      var valueIx = code.ix("tag", "tag");
+      return tags.some(function(cur) {
+        return cur[valueIx] === tag;
+      });
     },
     activeItemId: function() {
       //       return (ixer.first("active editor item") || [])[0];

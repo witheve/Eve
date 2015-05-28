@@ -285,15 +285,25 @@ fn calculate_constraint_schedule(flow: &Flow) {
     let constraint_left_table = flow.get_output("constraint left");
     let constraint_right_table = flow.get_output("constraint right");
     let source_schedule_table = flow.get_output("source schedule");
+    let field_table = flow.get_output("field");
     for constraint in constraint_table.iter() {
         let left = constraint_left_table.find_one("constraint", &constraint["constraint"]);
-        let right = constraint_right_table.find_one("constraint", &constraint["constraint"]);
         let left_schedule = source_schedule_table.find_one("source", &left["left source"]);
-        let right_schedule = source_schedule_table.find_one("source", &right["right source"]);
         let left_ix = left_schedule["ix"].as_usize();
+        let left_field = field_table.find_one("field", &left["left field"]);
+
+        let right = constraint_right_table.find_one("constraint", &constraint["constraint"]);
+        let right_schedule = source_schedule_table.find_one("source", &right["right source"]);
         let right_ix = right_schedule["ix"].as_usize();
-        let ix = ::std::cmp::max(left_ix, right_ix);
-        items.push(vec![constraint["constraint"].clone(), Value::Float(ix as f64)]);
+        let right_field = field_table.find_one("field", &right["right field"]);
+
+        match (left_field["kind"].as_str(), right_field["kind"].as_str()) {
+            ("output", "output") => {
+                let ix = ::std::cmp::max(left_ix, right_ix);
+                items.push(vec![constraint["constraint"].clone(), Value::Float(ix as f64)]);
+            }
+            _ => () // non-output fields can't be constrained directly - handled by arguments to primitives instead
+        }
     }
     overwrite_compiler_view(flow, "constraint schedule", items);
 }
@@ -606,8 +616,13 @@ fn create_join(flow: &Flow, view_id: &Value) -> Join {
 
     let mut join_constraints = vec![vec![]; sources.len()];
     for constraint in constraint_table.find_all("view", view_id).iter() {
-        let ix = constraint_schedule_table.find_one("constraint", &constraint["constraint"])["ix"].as_usize();
-        join_constraints[ix].push(create_constraint(flow, view_id, &constraint["constraint"]));
+        match constraint_schedule_table.find_maybe("constraint", &constraint["constraint"]) {
+            Some(constraint_schedule) => {
+                let join_constraint = create_constraint(flow, view_id, &constraint["constraint"]);
+                join_constraints[constraint_schedule["ix"].as_usize()].push(join_constraint);
+            }
+            None => () // not scheduled, must be a primitive argument instead
+        }
     }
 
     let join_sources = sources.iter().map(|source| {

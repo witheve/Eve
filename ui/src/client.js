@@ -202,7 +202,7 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
         // TODO Handle a user who isn't logged in.
         console.log("Session has not been authenticated.");
       } else {
-        var eveusers = api.ixer.index("eveuser id to username");
+        var eveusers = api.ixer.index("eveusers id to username");
         var username = eveusers[userid];
         if (typeof username == 'undefined') {
           // TODO Handle a user who is not in the eveuser table

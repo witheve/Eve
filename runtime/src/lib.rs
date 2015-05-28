@@ -1,6 +1,5 @@
 #![feature(collections)]
 #![feature(slice_patterns)]
-#![feature(scoped)]
 extern crate rustc_serialize;
 extern crate websocket;
 extern crate time;

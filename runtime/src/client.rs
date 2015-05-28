@@ -6,15 +6,19 @@ use value::Value;
 use server::Event;
 use relation::Change;
 
+use std::thread;
+
 use rustc_serialize::json::*;
 
-pub fn open_websocket(url_string: &str) -> Result<(client::sender::Sender<stream::WebSocketStream>,::std::thread::JoinGuard<()>),String> { //Result<(client::sender::Sender<stream::WebSocketStream>,client::receiver::Receiver<stream::WebSocketStream>),String> { //Result<(::std::thread::JoinGuard<()>,::std::thread::JoinGuard<()>),String> {
+pub fn open_websocket(url_string: &str) -> Result<client::sender::Sender<stream::WebSocketStream>,String> { //Result<(client::sender::Sender<stream::WebSocketStream>,client::receiver::Receiver<stream::WebSocketStream>),String> { //Result<(::std::thread::JoinGuard<()>,::std::thread::JoinGuard<()>),String> {
 
 	//let mut context = SslContext::new(SslMethod::Tlsv1).unwrap();
 	//let _ = context.set_certificate_file(&(Path::new("server.crt")), X509FileType::PEM);
 	//let _ = context.set_private_key_file(&(Path::new("server.key")), X509FileType::PEM);
+
 	let url = Url::parse(url_string).unwrap();
 	println!("Connecting to {}", url);
+
 	let request = match Client::connect(url) {
 		Ok(t) => t,
 		Err(e) => {
@@ -36,113 +40,31 @@ pub fn open_websocket(url_string: &str) -> Result<(client::sender::Sender<stream
 		}
 	};
 
-	let (sender, receiver) = response.begin().split();
-	//let (tx, _) = ::std::sync::mpsc::channel();
+	let (sender, mut receiver) = response.begin().split();
 
-	let receive_thread = ::std::thread::scoped(move || { receive_handler(receiver) } );
+	thread::spawn(move || {
+		for message in receiver.incoming_messages() {
+	        let message = match message {
+	            Ok(m) => m,
+	            Err(_) => return,
+	        };
+	        match message {
+	            Message::Text(_) => (),
+	            Message::Close(_) => {
+	                println!("Received close message");
+	                return;
+	            }
+	            _ => println!("Unknown message: {:?}", message)
+	        }
+        }
+	});
 
-	Ok((sender,receive_thread))
-
-	// Send an initial ping to the server
-	//sender.send_message(Message::Ping(vec![0])).unwrap();
-
-	//let send_thread = ::std::thread::scoped(move || { send_handler(sender,&rx) } );
-
-
-	//Ok((send_thread,receive_thread))
-
-}
-
-/*
-fn send_handler(ref mut sender: client::sender::Sender<stream::WebSocketStream>, rx: &::std::sync::mpsc::Receiver<Message>) {
-
-	loop {
-
-		let message = match rx.recv() {
-			Ok(m) => m,
-			Err(e) => {
-				println!("Send Message Error: {:?}", e);
-				return;
-			}
-		};
-
-		match message {
-			Message::Close(_) => {
-				println!("Sending a close connection message");
-				sender.send_message(message).unwrap();
-				return;
-			}
-			_ => (),
-		}
-
-		match sender.send_message(message) {
-			Ok(()) => {
-				println!("Sending a message");
-				()
-			},
-			Err(e) => {
-				println!("Cannot send message, sending close connection instead: {:?}", e);
-				sender.send_message(Message::Close(None)).unwrap();
-				return;
-			}
-		}
-	}
-}*/
-
-//fn receive_handler(ref mut receiver: client::receiver::Receiver<stream::WebSocketStream>, tx: &::std::sync::mpsc::Sender<Message>) {
-	fn receive_handler(ref mut receiver: client::receiver::Receiver<stream::WebSocketStream>) {
-
-	// Receive loop
-	for message in receiver.incoming_messages() {
-
-		let message = match message {
-			Ok(m) => m,
-			Err(e) => {
-				println!("Receive Loop Error: {:?}", e);
-				//tx.send(Message::Close(None)).unwrap();
-				return;
-			}
-		};
-
-		match message {
-			Message::Close(_) => {
-				println!("Received Close Message");
-				//tx.send(Message::Close(None)).unwrap();
-				return;
-			},
-			Message::Text(_) => {
-				println!("Received Text");
-
-				/*
-				// Create an eveuser table
-				let table_name = "eveuser";
-				let table_fields = vec!["id","username"];
-
-				// First we create the eveuser table
-				if response_count == 0 {
-					let json_event = create_table(&table_name,&table_fields).to_json();
-					tx.send(Message::Text(json_event.to_string())).unwrap();
-					response_count = response_count + 1;
-				// We get back a response from the server, now insert the user
-				} else if response_count == 1 {
-					let json_event = insert_fact(&table_name,&table_fields,&data).to_json();
-					tx.send(Message::Text(json_event.to_string())).unwrap();
-					response_count = response_count + 1;
-				// We get back a response again, so we've done our job. Close the connection
-				} else {
-					tx.send(Message::Close(None)).unwrap();
-					return;
-				}*/
-			},
-			_ => println!("Unhandled message type"),
-		}
-	}
+	Ok(sender)
 }
 
 pub fn send_event(event: &Event,sender: &mut client::sender::Sender<stream::WebSocketStream>) {
 
 	sender.send_message(Message::Text(event.to_json().to_string())).unwrap();
-
 }
 
 pub fn create_table(table_name: &&str, table_fields: &Vec<&str>) -> Event {
@@ -194,7 +116,6 @@ pub fn create_table(table_name: &&str, table_fields: &Vec<&str>) -> Event {
 				);
 
 	Event{changes: vec![display_name,view,field] }
-
 }
 
 // TODO make sure table exists before trying to insert a fact into it
@@ -207,10 +128,10 @@ pub fn insert_fact(table_name: &&str, table_fields: &Vec<&str>, row_data: &Vec<V
 											.map(|field_name| table_name.to_string() + ": " + field_name)
 											.collect();
 
-	Event{changes: vec![("eveuser".to_string(),Change {
+	Event{changes: vec![(table_name.to_string(),Change{
 														fields: concat_field_names,
 												    	insert: vec![row_data.clone()],
-												    	remove: vec![],
+												      	remove: vec![],
 												      }
 						)]
 		 }
