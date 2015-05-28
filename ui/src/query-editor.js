@@ -401,8 +401,8 @@ var queryEditor = (function(window, microReact, api) {
 
           var calculatedFieldId = ixer.index("view and source to calculated field")[viewId][opts.leftSource];
           if(calculatedFieldId) {
-            console.log(ixer.index("calculated field")[calculatedFieldId]);
             diffs.push(["calculated field", "inserted", ixer.index("calculated field")[calculatedFieldId]]);
+            diffs.push(["display name", "inserted", [calculatedFieldId, code.name(calculatedFieldId)]]);
           }
 
           //@FIXME: Chris added this because the server was never being sent the actual constraint entry
@@ -2679,7 +2679,7 @@ var queryEditor = (function(window, microReact, api) {
 
       var content = [
         fieldItem(code.name(out), out, {c: "pill field"}),
-        {text: "☞"},
+        {text: "⇒"},
         {text: code.name(sourceViewId) + "("},
       ].concat(constraintArgs);
       content.push({text: ")"});
@@ -2697,7 +2697,7 @@ var queryEditor = (function(window, microReact, api) {
 
       return {c: "spaced-row primitive-constraint", children: [
         fieldItem(code.name(out), out, {c: "pill field"}),
-        {text: "☞"},
+        {text: "⇒"},
         viewConstraintToken("right", a.id, viewId, aName),
         {text: operator},
         viewConstraintToken("right", b.id, viewId, bName)
