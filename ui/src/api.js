@@ -100,6 +100,7 @@ var api = (function(Indexing) {
       "mouse position": {name: "mouse position", fields: ["session", "eventId", "x", "y"]},
       "eveusers": {name: "eveusers", fields: ["id", "username"]},
       "sessions": {name: "sessions", fields: ["id", "user id", "status"]},
+      "query export": {name: "query export", fields: ["query", "view"]},
 
       //ui
       "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"], facts: []},
@@ -115,6 +116,8 @@ var api = (function(Indexing) {
       "employees": {name: "employees", fields: ["department", "name", "salary"]},
 
       "book": {name: "book", fields: ["isbn", "title", "author", "price", "cost"]},
+      "book sales": {name: "book sales", fields: ["order", "sales"]},
+      "PDGF assay": {name: "PDGF assay", fields: ["PDGF concentration", "Seed density", "Well #", "Absorbance"]},
       "click": {name: "click", fields: ["event number", "button", "binding"]},
 
 
@@ -191,6 +194,7 @@ var api = (function(Indexing) {
   ixer.addIndex("block aggregate", "block aggregate", Indexing.create.lookup([0, false]));
   ixer.addIndex("primitive", "primitive", Indexing.create.lookup([0, false]));
   ixer.addIndex("primitive kind to views", "primitive", Indexing.create.collector([1]));
+  ixer.addIndex("query to export", "query export", Indexing.create.lookup([0, 1]));
 
   ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
 

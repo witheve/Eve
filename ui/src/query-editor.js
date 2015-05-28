@@ -276,11 +276,11 @@ var queryEditor = (function(window, microReact, api) {
 //           }
 //         });
 //        diffs.push(["tag", "removed", [info.viewId, "local"]]);
-        if(code.hasTag(info.viewId, "local")) {
-          diffs.push(["tag", "removed", [info.viewId, "local"]]);
-        } else {
-          diffs.push(["tag", "inserted", [info.viewId, "local"]]);
+        var prevExport = ixer.index("query to export")[info.queryId];
+        if(prevExport) {
+          diffs.push(["query export", "removed", [info.queryId, prevExport]]);
         }
+        diffs.push(["query export", "inserted", [info.queryId, info.viewId]]);
         break;
       case "addViewBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
@@ -747,8 +747,17 @@ var queryEditor = (function(window, microReact, api) {
         klass += " selected";
       }
 
+      var dragId = id;
+      var draggable = true;
+      if(type === "query") {
+        dragId = ixer.index("query to export")[id];
+        if(!dragId) {
+          draggable = false;
+        }
+      }
+
       var name = code.name(id) || "";
-      return {c: klass, name: name, click: selectEditorItem, dblclick: closeSelectEditorItem, dragData: {value: id, type: "view"}, itemId: id, draggable: true, dragstart: dragItem, children: [
+      return {c: klass, name: name, click: selectEditorItem, dblclick: closeSelectEditorItem, dragData: {value: dragId, type: "view"}, itemId: id, draggable: draggable, dragstart: dragItem, children: [
         {c: "icon " + icon},
         {text: name},
       ]};
@@ -1039,7 +1048,6 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function injectCanvasPreview(div, elem) {
-    console.log("inject");
     var previewRoot = window.uiEditorRenderer.root;
     if(previewRoot.parentNode !== div) {
       div.appendChild(previewRoot);
@@ -2487,8 +2495,8 @@ var queryEditor = (function(window, microReact, api) {
           {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "sort+limit", text: "sort and limit"},
           {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "count", text: "count"},
           {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "sum", text: "sum"},
-          {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "min", text: "min"},
-          {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "max", text: "max"},
+          {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "mean", text: "avg"},
+          {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "stdev", text: "stdev"},
           {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "empty", text: "is empty?"},
         ]}
       ]},
@@ -2500,7 +2508,7 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function exportView(evt, elem) {
-    dispatch("exportView", {viewId: elem.viewId});
+    dispatch("exportView", {viewId: elem.viewId, queryId: elem.queryId});
   }
 
   function blockSuggestionHandler(e, elem) {
@@ -2563,9 +2571,9 @@ var queryEditor = (function(window, microReact, api) {
     }
 
     // Misc. block controls.
-    var isLocal = code.hasTag(viewId, "local");
+    var exported = ixer.index("query to export")[queryId] === viewId;
     items.push(
-      {c: "suggestion-bar-item ion-log-out export-view-btn" + (isLocal ? "" : " exported"), viewId: viewId, click: exportView},
+      {c: "suggestion-bar-item ion-log-out export-view-btn" + (exported ? " exported" : ""), viewId: viewId, queryId: queryId, click: exportView},
       {c: "suggestion-bar-item ion-android-close close-btn", viewId: viewId, click: removeSelectedItem}
     );
     return {c: "suggestion-bar", children: items};
