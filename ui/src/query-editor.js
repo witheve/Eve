@@ -23,7 +23,7 @@ var queryEditor = (function(window, microReact, api) {
   document.body.appendChild(renderer.content);
   renderer.queued = false;
   function render() {
-    if(renderer.queued === false) {
+   if(renderer.queued === false) {
       renderer.queued = true;
       requestAnimationFrame(function() {
         renderer.queued = false;
@@ -424,9 +424,6 @@ var queryEditor = (function(window, microReact, api) {
         break;
       case "removeViewConstraint":
         var constraint = code.getConstraint(info.constraintId);
-        console.log("!", constraint);
-
-
         var calculatedId = ixer.index("view and source to calculated field")[constraint.view] || {};
         calculatedId = calculatedId[constraint.leftSource];
         if(calculatedId) {
@@ -2454,8 +2451,13 @@ var queryEditor = (function(window, microReact, api) {
         inspectorPane.drop = viewSelectionsDrop;
         inspectorPane.dragOver = preventDefault;
       }
+      if(viewKind === "aggregate") {
+        editorPane = aggregateBlock(viewId, ix);
+        inspectorPane.viewId = viewId;
+        inspectorPane.drop = viewSelectionsDrop;
+        inspectorPane.dragOver = preventDefault;
+      }
       if(viewKind === "union") { editorPane = unionBlock(viewId, ix);  }
-      if(viewKind === "aggregate") { editorPane = aggregateBlock(viewId, ix); }
       var controls;
       if(localState.queryEditorActive === viewId) {
         controls = querySuggestionBar(queryId, viewId);
@@ -2567,7 +2569,6 @@ var queryEditor = (function(window, microReact, api) {
 
   function removeSelectedItem(evt, elem) {
     var info = localState.queryEditorInfo;
-    console.log(info);
     if(!info || !info.token) {
       removeViewBlock(evt, elem);
     } else {
@@ -3157,20 +3158,6 @@ var queryEditor = (function(window, microReact, api) {
       var outerField = grouping[code.ix("aggregate grouping", "outer field")];
     }
 
-    var fields = ixer.index("view and source to block fields")[viewId] || {};
-    fields = fields["selection"] || [];
-
-    var blockFieldIdIx = code.ix("block field", "block field");
-    var fieldIdIx = code.ix("block field", "field");
-    var selectionItems = fields.map(function(field) {
-      var id = field[blockFieldIdIx];
-      var fieldId = field[fieldIdIx];
-      return fieldItem(code.name(fieldId) || "Untitled", id, {c: "pill field"});
-    });
-    if(!selectionItems.length) {
-      selectionItems.push({text: "Drag local fields into me to make them available in the query."});
-    }
-
     var content;
     if(aggregateKind === "sort+limit") {
       content = sortLimitAggregate(viewId, outerSource, innerSource);
@@ -3189,8 +3176,7 @@ var queryEditor = (function(window, microReact, api) {
         queryToken("field", "inner", viewId, getLocalFieldName(innerField) || "<inner field>", {handler: updateAggregateGrouping, drop: dropAggregateGroupingField, viewId: viewId, sourceId: "inner"})
         //token.blockField({key: "inner", parentId: viewId, source: "inner", field: innerField}, updateAggregateGrouping, dropAggregateGroupingField),
       ]},
-      content,
-      {c: "block-section view-selections tree bar", viewId: viewId, drop: viewSelectionsDrop, dragover: preventDefault, children: selectionItems},
+      content
     ]};
   }
 
@@ -3212,8 +3198,6 @@ var queryEditor = (function(window, microReact, api) {
       if(blockField[code.ix("block field", "view")] !== viewId) { return; }
       var fieldId = blockField[code.ix("block field", "field")];
       var sourceId = blockField[code.ix("block field", "source")];
-
-    console.log(viewId, type, value, sourceId, elem.key);
 
       if(sourceId !== elem.key) { return; }
 
@@ -3338,7 +3322,6 @@ var queryEditor = (function(window, microReact, api) {
   //---------------------------------------------------------
   // Go
   //---------------------------------------------------------
-
   if(window.queryEditor) { render(); }
 
   return { container: renderer.content, localState: localState, renderer: renderer, render: render, eventStack: eventStack };

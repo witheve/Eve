@@ -113,11 +113,10 @@ var api = (function(Indexing) {
     example: {
       "department heads": {name: "department heads", fields: ["department", "head"]},
       "employees": {name: "employees", fields: ["department", "name", "salary"]},
-//       "foo": {name: "foo", fields: ["a", "b"]},
+
       "book": {name: "book", fields: ["isbn", "title", "author", "price", "cost"]},
       "click": {name: "click", fields: ["event number", "button", "binding"]},
-//       "edge": {name: "edge", fields: ["to", "from"], facts: [["a", "b"], ["b", "c"], ["c", "d"]]},
-//       numbers: {name: "numbers", fields: ["x"], facts: [[0], [1], [2], [3]]},
+
 
       // FourSquare
 //       "place": {name: "place", fields: ["place", "name", "priceRange"]},
@@ -131,6 +130,11 @@ var api = (function(Indexing) {
 //       "placeToRating": {name: "placeToRating", fields: ["place", "rating", "reviewCount"]},
 //       "user": {name: "user", fields: ["id", "token", "name"]},
 //       "userCheckin": {name: "userCheckin", fields: ["tick", "user", "place"]},
+    },
+
+    test: {
+      "edge": {name: "edge", fields: ["to", "from"], facts: [["a", "b"], ["b", "c"], ["c", "d"]]},
+      numbers: {name: "numbers", fields: ["x"], facts: [[0], [1], [2], [3]]},
     }
   };
 
@@ -771,11 +775,12 @@ var api = (function(Indexing) {
   var groupsToHide = {
     "compiler": true,
     "editor": true,
+    "test": true
   };
 
   function injectViews(tableGroups, ixer, noFacts) {
     var diffs = [];
-    var add = function(viewId, view) {
+    var add = function(viewId, view, shouldHide) {
       diffs = diffs.concat(diff.addView(viewId, view, noFacts));
       diffs.push(["editor item", "inserted", [viewId, "table"]]);
       if(shouldHide) {
