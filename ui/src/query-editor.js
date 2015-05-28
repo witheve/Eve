@@ -3009,7 +3009,7 @@ var queryEditor = (function(window, microReact, api) {
     var sources = ixer.index("view to sources")[viewId] || [];
     return sources.reduce(function(memo, source) {
       var sourceViewId = source[code.ix("source", "source view")];
-      memo.push.apply(memo, ixer.index("view to fields")[sourceViewId].map(function(field) {
+      memo.push.apply(memo, (ixer.index("view to fields")[sourceViewId] || []).map(function(field) {
         return {source: source, field: field};
       }));
       return memo;
