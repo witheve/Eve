@@ -434,7 +434,24 @@ var queryEditor = (function(window, microReact, api) {
 
         break;
       case "removeViewConstraint":
-        diffs = diff.removeViewConstraint(info.constraintId);
+        var constraint = code.getConstraint(info.constraintId);
+        console.log("!", constraint);
+
+
+        var calculatedId = ixer.index("view and source to calculated field")[constraint.view] || {};
+        calculatedId = calculatedId[constraint.leftSource];
+        if(calculatedId) {
+          var constraintIdIx = code.ix("constraint", "constraint");
+          var constraints = ixer.index("source to constraints")[constraint.leftSource] || [];
+          constraints.forEach(function(constraint) {
+            diffs = diffs.concat(diff.removeViewConstraint(constraint[constraintIdIx]));
+          });
+          diffs.push(["calculated field", "removed", ixer.index("calculated field")[calculatedId]],
+                     ["source", "removed", ixer.index("source")[constraint.view][constraint.leftSource]]);
+        } else {
+          diffs = diff.removeViewConstraint(info.constraintId);
+        }
+
         break;
       case "updateAggregateSort":
         var params = {};
@@ -2516,9 +2533,23 @@ var queryEditor = (function(window, microReact, api) {
     var isLocal = code.hasTag(viewId, "local");
     items.push(
       {c: "suggestion-bar-item ion-log-out export-view-btn" + (isLocal ? "" : " exported"), viewId: viewId, click: exportView},
-      {c: "suggestion-bar-item ion-android-close close-btn", viewId: viewId, click: removeViewBlock}
+      {c: "suggestion-bar-item ion-android-close close-btn", viewId: viewId, click: removeSelectedItem}
     );
     return {c: "suggestion-bar", children: items};
+  }
+
+  function removeSelectedItem(evt, elem) {
+    var info = localState.queryEditorInfo;
+    console.log(info);
+    if(!info || !info.token) {
+      removeViewBlock(evt, elem);
+    } {
+      var token = info.token;
+      var id = token.expression;
+      if(ixer.index("constraint")[id]) {
+        dispatch("removeViewConstraint", {constraintId: id});
+      }
+    }
   }
 
   function setQueryEditorActive(e, elem) {
