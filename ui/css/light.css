@@ -292,3 +292,4 @@ div:hover > .hover-reveal { opacity: 1; }
 .rendered-program .absolute {position:absolute; overflow:hidden;}
 .rendered-program .layer {flex: 1; position:absolute; }
 .rendered-program .repeat-container { position:relative; }
+.rendered-program .non-interactive { pointer-events:none; }
