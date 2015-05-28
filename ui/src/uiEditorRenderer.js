@@ -173,9 +173,12 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
 
   function handleMouseEvent(e, elem) {
     var boundId = elem.row.length ? JSON.stringify(elem.row) : "";
-    window.client.sendToServer([["client event", "inserted", [session, ++eventId, e.type, elem.elementId, boundId]],
-                                ["click", "inserted", [eventId, elem.elementId, boundId]],
-                                ["mouse position", "inserted", [session, eventId, e.clientX, e.clientY]]]);
+    var diffs = [["client event", "inserted", [session, ++eventId, e.type, elem.elementId, boundId]],
+                 ["mouse position", "inserted", [session, eventId, e.clientX, e.clientY]]]
+    if(e.type === "click") {
+      diffs.push(["click", "inserted", [eventId, elem.elementId, boundId]]);
+    }
+    window.client.sendToServer(diffs);
   }
 
   function handleInputEvent(e, elem) {
