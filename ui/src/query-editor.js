@@ -260,6 +260,24 @@ var queryEditor = (function(window, microReact, api) {
           ["display order", "removed", [oldString, ix]]);
         }
         break;
+      case "exportView":
+        // @TODO: Should we make this capable of exporting multiple views?
+//         var query = ixer.index("view to query")[info.viewId];
+//         var queryBlocks = ixer.index("query to blocks")[query] || [];
+//         var blockViewIx = code.ix("block", "view");
+//         queryBlocks.forEach(function(block) {
+//           var viewId = block[blockViewIx];
+//           if(!code.hasTag(viewId, "local")) {
+//             diffs.push(["tag", "inserted", [viewId, "local"]]);
+//           }
+//         });
+//        diffs.push(["tag", "removed", [info.viewId, "local"]]);
+        if(code.hasTag(info.viewId, "local")) {
+          diffs.push(["tag", "removed", [info.viewId, "local"]]);
+        } else {
+          diffs.push(["tag", "inserted", [info.viewId, "local"]]);
+        }
+        break;
       case "addViewBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
         var viewId = uuid();
@@ -2399,10 +2417,13 @@ var queryEditor = (function(window, microReact, api) {
         controls = querySuggestionBar(queryId, viewId);
       }
 
+      var isLocal = code.hasTag(viewId, "local");
+
       items.push({c: "block " + viewKind, editorIx: ix, viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, handler: blockSuggestionHandler, click: setQueryEditorActive, children: [
         {c: "block-title", children: [
           {t: "h3", text: code.name(viewId)},
           //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
+          {c: "ion-log-out icon-btn export-view-btn" + (isLocal ? "" : " exported"), viewId: viewId, click: exportView},
         ]},
         {c: "full-flex", children: [
           editorPane,
@@ -2429,6 +2450,10 @@ var queryEditor = (function(window, microReact, api) {
     return {c: "query-workspace", queryId: queryId, drop: editorDrop, dragover: preventDefault, children: items.length ? items : [
       {c: "feed", text: "Feed me sources"}
     ]};
+  }
+
+  function exportView(evt, elem) {
+    dispatch("exportView", {viewId: elem.viewId});
   }
 
   function blockSuggestionHandler(e, elem) {
