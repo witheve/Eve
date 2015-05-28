@@ -142,6 +142,8 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
         }
       }
       var start = now();
+      // @FIXME: We need to isolate and process compiler views first, to ensure that the necessary data for ordering
+      // other views is available and not stale.
       ixer.handleMapDiffs(data.changes);
       var time = now() - start;
       if(time > 5) {
