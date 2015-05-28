@@ -13,7 +13,7 @@ use value::Value;
 use relation::Change;
 use flow::{Changes, Flow};
 
-trait FromJson {
+pub trait FromJson {
     fn from_json(json: &Json) -> Self;
 }
 
@@ -142,18 +142,23 @@ pub fn serve() -> mpsc::Receiver<ServerEvent> {
     event_receiver
 }
 
-pub fn run() {
+pub fn load(filename: &str) -> Flow {
     let mut flow = Flow::new();
+    let mut events = OpenOptions::new().create(true).open(filename).unwrap();
+    let mut old_events = String::new();
+    events.read_to_string(&mut old_events).unwrap();
+    for line in old_events.lines() {
+        let json = Json::from_str(&line).unwrap();
+        let event: Event = FromJson::from_json(&json);
+        flow = flow.quiesce(event.changes);
+    }
+    flow
+}
 
+pub fn run() {
+    let mut flow;
     time!("reading saved state", {
-        let mut events = OpenOptions::new().create(true).open("./events").unwrap();
-        let mut old_events = String::new();
-        events.read_to_string(&mut old_events).unwrap();
-        for line in old_events.lines() {
-            let json = Json::from_str(&line).unwrap();
-            let event: Event = FromJson::from_json(&json);
-            flow = flow.quiesce(event.changes);
-        }
+        flow = load("./events");
     });
 
     let mut events = OpenOptions::new().write(true).append(true).open("./events").unwrap();
