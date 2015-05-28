@@ -12,7 +12,6 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
 
   var renderer = new microReact.Renderer();
   renderer.content.classList.add("rendered-program");
-  document.body.appendChild(renderer.content);
 
   renderer.queued = false;
   function render() {
@@ -173,7 +172,9 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
   var session = uuid();
 
   function handleMouseEvent(e, elem) {
-    window.client.sendToServer([["client event", "inserted", [session, ++eventId, e.type, elem.elementId, JSON.stringify(elem.row)]],
+    var boundId = elem.row.length ? JSON.stringify(elem.row) : "";
+    window.client.sendToServer([["client event", "inserted", [session, ++eventId, e.type, elem.elementId, boundId]],
+                                ["click", "inserted", [eventId, elem.elementId, boundId]],
                                 ["mouse position", "inserted", [session, eventId, e.clientX, e.clientY]]]);
   }
 

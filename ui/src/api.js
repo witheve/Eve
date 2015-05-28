@@ -113,23 +113,24 @@ var api = (function(Indexing) {
     example: {
       "department heads": {name: "department heads", fields: ["department", "head"]},
       "employees": {name: "employees", fields: ["department", "name", "salary"]},
-      "foo": {name: "foo", fields: ["a", "b"]},
+//       "foo": {name: "foo", fields: ["a", "b"]},
       "book": {name: "book", fields: ["isbn", "title", "author", "price", "cost"]},
-      "edge": {name: "edge", fields: ["to", "from"], facts: [["a", "b"], ["b", "c"], ["c", "d"]]},
-      numbers: {name: "numbers", fields: ["x"], facts: [[0], [1], [2], [3]]},
+      "click": {name: "click", fields: ["event number", "button", "binding"]},
+//       "edge": {name: "edge", fields: ["to", "from"], facts: [["a", "b"], ["b", "c"], ["c", "d"]]},
+//       numbers: {name: "numbers", fields: ["x"], facts: [[0], [1], [2], [3]]},
 
       // FourSquare
-      "place": {name: "place", fields: ["place", "name", "priceRange"]},
-      "placeToAddress": {name: "placeToAddress", fields: ["place", "street", "city", "state", "zip"]},
-      "placeToHours": {name: "placeToHours", fields: ["place", "day", "start", "end"]},
-      "placeToImage": {name: "placeToImage", fields: ["image", "place"]},
-      "image": {name: "image", fields: ["image", "user", "url", "description", "tick"]},
-      "taste": {name: "taste", fields: ["taste", "name"]},
-      "placeToTaste": {name: "placeToTaste", fields: ["tick","place", "taste", "rank"]},
-      "review": {name: "review", fields: ["tick", "place", "user", "text", "rating", "approved"]},
-      "placeToRating": {name: "placeToRating", fields: ["place", "rating", "reviewCount"]},
-      "user": {name: "user", fields: ["id", "token", "name"]},
-      "userCheckin": {name: "userCheckin", fields: ["tick", "user", "place"]},
+//       "place": {name: "place", fields: ["place", "name", "priceRange"]},
+//       "placeToAddress": {name: "placeToAddress", fields: ["place", "street", "city", "state", "zip"]},
+//       "placeToHours": {name: "placeToHours", fields: ["place", "day", "start", "end"]},
+//       "placeToImage": {name: "placeToImage", fields: ["image", "place"]},
+//       "image": {name: "image", fields: ["image", "user", "url", "description", "tick"]},
+//       "taste": {name: "taste", fields: ["taste", "name"]},
+//       "placeToTaste": {name: "placeToTaste", fields: ["tick","place", "taste", "rank"]},
+//       "review": {name: "review", fields: ["tick", "place", "user", "text", "rating", "approved"]},
+//       "placeToRating": {name: "placeToRating", fields: ["place", "rating", "reviewCount"]},
+//       "user": {name: "user", fields: ["id", "token", "name"]},
+//       "userCheckin": {name: "userCheckin", fields: ["tick", "user", "place"]},
     }
   };
 
@@ -767,17 +768,26 @@ var api = (function(Indexing) {
     }
   };
 
+  var groupsToHide = {
+    "compiler": true,
+    "editor": true,
+  };
+
   function injectViews(tableGroups, ixer, noFacts) {
     var diffs = [];
     var add = function(viewId, view) {
       diffs = diffs.concat(diff.addView(viewId, view, noFacts));
       diffs.push(["editor item", "inserted", [viewId, "table"]]);
+      if(shouldHide) {
+        diffs.push(["tag", "inserted", [viewId, "hidden"]]);
+      }
     };
 
     for(var tableGroup in tableGroups) {
       var tables = tableGroups[tableGroup];
+      var shouldHide = groupsToHide[tableGroup];
       for(var tableId in tables) {
-        add(tableId, tables[tableId]);
+        add(tableId, tables[tableId], shouldHide);
       }
     }
 
