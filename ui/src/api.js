@@ -169,6 +169,7 @@ var api = (function(Indexing) {
   ixer.addIndex("view to aggregate limit from", "aggregate limit from", Indexing.create.lookup([0, false]));
   ixer.addIndex("view to aggregate limit to", "aggregate limit to", Indexing.create.lookup([0, false]));
   ixer.addIndex("aggregate grouping", "aggregate grouping", Indexing.create.lookup([0, false]));
+  ixer.addIndex("id to tags", "tag", Indexing.create.collector([0]));
 
   // editor
   ixer.addIndex("block", "block", Indexing.create.lookup([1, false]));
@@ -220,6 +221,13 @@ var api = (function(Indexing) {
   var code = {
     name: function(id) {
       return ixer.index("display name")[id];
+    },
+    hasTag: function(id, tag) {
+      var tags = ixer.index("id to tags")[id] || [];
+      var valueIx = code.ix("tag", "tag");
+      return tags.some(function(cur) {
+        return cur[valueIx] === tag;
+      });
     },
     activeItemId: function() {
       //       return (ixer.first("active editor item") || [])[0];

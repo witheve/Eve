@@ -260,6 +260,24 @@ var queryEditor = (function(window, microReact, api) {
           ["display order", "removed", [oldString, ix]]);
         }
         break;
+      case "exportView":
+        // @TODO: Should we make this capable of exporting multiple views?
+//         var query = ixer.index("view to query")[info.viewId];
+//         var queryBlocks = ixer.index("query to blocks")[query] || [];
+//         var blockViewIx = code.ix("block", "view");
+//         queryBlocks.forEach(function(block) {
+//           var viewId = block[blockViewIx];
+//           if(!code.hasTag(viewId, "local")) {
+//             diffs.push(["tag", "inserted", [viewId, "local"]]);
+//           }
+//         });
+//        diffs.push(["tag", "removed", [info.viewId, "local"]]);
+        if(code.hasTag(info.viewId, "local")) {
+          diffs.push(["tag", "removed", [info.viewId, "local"]]);
+        } else {
+          diffs.push(["tag", "inserted", [info.viewId, "local"]]);
+        }
+        break;
       case "addViewBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
         var viewId = uuid();
@@ -401,8 +419,8 @@ var queryEditor = (function(window, microReact, api) {
 
           var calculatedFieldId = ixer.index("view and source to calculated field")[viewId][opts.leftSource];
           if(calculatedFieldId) {
-            console.log(ixer.index("calculated field")[calculatedFieldId]);
             diffs.push(["calculated field", "inserted", ixer.index("calculated field")[calculatedFieldId]]);
+            diffs.push(["display name", "inserted", [calculatedFieldId, code.name(calculatedFieldId)]]);
           }
 
           //@FIXME: Chris added this because the server was never being sent the actual constraint entry
@@ -2401,8 +2419,8 @@ var queryEditor = (function(window, microReact, api) {
 
       items.push({c: "block " + viewKind, editorIx: ix, viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, handler: blockSuggestionHandler, click: setQueryEditorActive, children: [
         {c: "block-title", children: [
-          {t: "h3", text: code.name(viewId)},
-          //                 {c: "hover-reveal close-btn ion-android-close", viewId: viewId, click: removeViewBlock},
+          {t: "h3", text: code.name(viewId)}
+          //                 ,
         ]},
         {c: "full-flex", children: [
           editorPane,
@@ -2429,6 +2447,10 @@ var queryEditor = (function(window, microReact, api) {
     return {c: "query-workspace", queryId: queryId, drop: editorDrop, dragover: preventDefault, children: items.length ? items : [
       {c: "feed", text: "Feed me sources"}
     ]};
+  }
+
+  function exportView(evt, elem) {
+    dispatch("exportView", {viewId: elem.viewId});
   }
 
   function blockSuggestionHandler(e, elem) {
@@ -2489,6 +2511,13 @@ var queryEditor = (function(window, microReact, api) {
         suggestionBarItem("add calculation", "add calculation"),
       ]
     }
+
+    // Misc. block controls.
+    var isLocal = code.hasTag(viewId, "local");
+    items.push(
+      {c: "suggestion-bar-item ion-log-out export-view-btn" + (isLocal ? "" : " exported"), viewId: viewId, click: exportView},
+      {c: "suggestion-bar-item ion-android-close close-btn", viewId: viewId, click: removeViewBlock}
+    );
     return {c: "suggestion-bar", children: items};
   }
 
@@ -2679,7 +2708,7 @@ var queryEditor = (function(window, microReact, api) {
 
       var content = [
         fieldItem(code.name(out), out, {c: "pill field"}),
-        {text: "☞"},
+        {text: "⇒"},
         {text: code.name(sourceViewId) + "("},
       ].concat(constraintArgs);
       content.push({text: ")"});
@@ -2697,7 +2726,7 @@ var queryEditor = (function(window, microReact, api) {
 
       return {c: "spaced-row primitive-constraint", children: [
         fieldItem(code.name(out), out, {c: "pill field"}),
-        {text: "☞"},
+        {text: "⇒"},
         viewConstraintToken("right", a.id, viewId, aName),
         {text: operator},
         viewConstraintToken("right", b.id, viewId, bName)
