@@ -597,6 +597,7 @@ var api = (function(Indexing) {
           return;
         }
         var curFields = ixer.index("view to fields")[curSourceViewId];
+        if(!curFields) { return; }
         curFields.forEach(function(cur) {
           var curId = cur[fieldIdIx];
           var curName = code.name(curId);
