@@ -188,7 +188,6 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
           uiRenderer.renderMapDiffs(mapDiffs.element, mapDiffs.attr, mapDiffs.marker);
         }
 
-        uiEditorRenderer.render();
         dispatcher.render();
       }
 

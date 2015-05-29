@@ -28,6 +28,7 @@ var queryEditor = (function(window, microReact, api) {
       requestAnimationFrame(function() {
         renderer.queued = false;
         renderer.render(root());
+        window.uiEditorRenderer.render();
       });
     }
   }
@@ -2772,7 +2773,15 @@ var queryEditor = (function(window, microReact, api) {
     if(calculatedId) {
       return code.name(calculatedId);
     } else {
-      return code.name(sourceId) + "." + code.name(fieldId);
+      var sourceName = code.name(sourceId);
+      var fieldName = code.name(fieldId);
+      if(sourceName && fieldName) {
+        return sourceName + "." + fieldName;
+      } else if(fieldName) {
+        return fieldName;
+      } else {
+        return "field";
+      }
     }
   }
   function getLocalFieldName(fieldId) {
