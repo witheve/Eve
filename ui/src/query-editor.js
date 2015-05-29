@@ -480,11 +480,27 @@ var queryEditor = (function(window, microReact, api) {
         }
         break;
       case "updateAggregateGrouping":
-        diffs = diff.updateAggregateGrouping(info.aggregate, info.source, info.field);
-        if(diffs.length) {
-          var neue = diffs[0][2];//@FIXME: Hacky.
-          sendToServer = neue[code.ix("aggregate grouping", "inner field")] && neue[code.ix("aggregate grouping", "outer field")];
+//         diffs = diff.updateAggregateGrouping(info.aggregate, info.source, info.field);
+//         if(diffs.length) {
+//           var neue = diffs[0][2];//@FIXME: Hacky.
+//           sendToServer = neue[code.ix("aggregate grouping", "inner field")] && neue[code.ix("aggregate grouping", "outer field")];
+//         }
+        var viewId = info.aggregate;
+        console.log(info, viewId);
+        var old = ixer.index("aggregate grouping")[viewId] || [];
+        var neue = [viewId, info.field, info.field];
+        if(old && !api.arraysIdentical(old, neue)) {
+          diffs.push(["aggregate grouping", "removed", old]);
+        } else if(!old) {
+          var sources = ixer.index("source")[viewId];
+          var innerSource = sources.inner;
+          if(sources.outer) {
+            diffs.push(["source", "removed", sources.outer]);
+          }
+          diffs.push(["source", "inserted", [viewId, "outer", innerSource[code.ix("source", "source view")]]]);
         }
+        diffs.push(["aggregate grouping", "inserted", neue]);
+
         break;
       case "addPrimitiveSource":
         diffs = diff.addPrimitiveSource(info.viewId, info.primitiveId);
@@ -3180,15 +3196,17 @@ var queryEditor = (function(window, microReact, api) {
     }
 
     return {c: "block aggregate-block", children: [
-      {text: "With"},
-      {c: "block-section view-sources", viewId: viewId, children: viewSources(viewId, aggregateSourceDrop).concat(viewPrimitives(viewId))},
+      // {c: "block-section view-sources", viewId: viewId, children: viewSources(viewId, aggregateSourceDrop).concat(viewPrimitives(viewId))},
+//       {c: "block-section aggregate-grouping spaced-row", children: [
+//         {text: "Group by"},
+//         queryToken("field", "outer", viewId, getLocalFieldName(outerField) || "<outer field>", {handler: updateAggregateGrouping, drop: dropAggregateGroupingField, viewId: viewId, sourceId: "outer"}),
+//         {text: "="},
+//         queryToken("field", "inner", viewId, getLocalFieldName(innerField) || "<inner field>", {handler: updateAggregateGrouping, drop: dropAggregateGroupingField, viewId: viewId, sourceId: "inner"})
+//       ]},
+      {c: "block-section view-sources", viewId: viewId, children: [sourceWithFields("view", viewId, "inner", aggregateSourceDrop)].concat(viewPrimitives(viewId))},
       {c: "block-section aggregate-grouping spaced-row", children: [
         {text: "Group by"},
-        queryToken("field", "outer", viewId, getLocalFieldName(outerField) || "<outer field>", {handler: updateAggregateGrouping, drop: dropAggregateGroupingField, viewId: viewId, sourceId: "outer"}),
-        //token.blockField({key: "outer", parentId: viewId, source: "outer", field: outerField}, updateAggregateGrouping, dropAggregateGroupingField),
-        {text: "="},
-        queryToken("field", "inner", viewId, getLocalFieldName(innerField) || "<inner field>", {handler: updateAggregateGrouping, drop: dropAggregateGroupingField, viewId: viewId, sourceId: "inner"})
-        //token.blockField({key: "inner", parentId: viewId, source: "inner", field: innerField}, updateAggregateGrouping, dropAggregateGroupingField),
+        queryToken("field", "inner", viewId, getLocalFieldName(innerField) || "<field>", {handler: updateAggregateGrouping, drop: dropAggregateGroupingField, viewId: viewId, sourceId: "inner"}),
       ]},
       content
     ]};
@@ -3277,11 +3295,7 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function primitiveAggregate(viewId, outerSource, innerSource) {
-    return {c: "primitive-aggregate", viewId: viewId, children: [
-      {text: "Where"},
-      viewConstraints(viewId),
-      viewPrimitives(viewId)
-    ]};
+    return undefined;
   }
 
   function aggregateSourceDrop(evt, elem) {
