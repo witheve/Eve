@@ -357,6 +357,8 @@ var queryEditor = (function(window, microReact, api) {
         break;
       case "addViewSource":
         diffs = diff.addViewSource(info.viewId, info.sourceId, info.kind);
+        var sourceId = diffs[0][2][code.ix("source", "source")];
+        diffs = diffs.concat(diff.autoJoin(info.viewId, sourceId, info.sourceId));
         var view = ixer.index("view")[info.viewId];
         var kind = view[code.ix("view", "kind")];
         if(kind === "union") {

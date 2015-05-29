@@ -574,6 +574,46 @@ var api = (function(Indexing) {
       });
       return diffs;
     },
+    autoJoin: function(viewId, sourceId, sourceViewId) {
+      var diffs = [];
+      var sources = ixer.index("view to sources")[viewId];
+      if(!sources) { return diffs; }
+
+      var fields = ixer.index("view to fields")[sourceViewId];
+      if(!fields) { return diffs; }
+      var fieldIdIx = code.ix("field", "field");
+      var names = fields.map(function(field) {
+        var fieldId = field[fieldIdIx];
+        return code.name(fieldId);
+      });
+
+      var sourceIdIx = code.ix("source", "source");
+      var sourceViewIx = code.ix("source", "source view");
+      sources.forEach(function(source) {
+        var curSourceId = source[sourceIdIx];
+        var curSourceViewId = source[sourceViewIx];
+        if(curSourceViewId === sourceViewId) {
+          // It never makes sense to join every field in a source.
+          return;
+        }
+        var curFields = ixer.index("view to fields")[curSourceViewId];
+        curFields.forEach(function(cur) {
+          var curId = cur[fieldIdIx];
+          var curName = code.name(curId);
+          var fieldIx = names.indexOf(curName);
+          if(fieldIx !== -1) {
+            var field = fields[fieldIx];
+            var fieldId = field[fieldIdIx];
+            diffs = diffs.concat(diff.addViewConstraint(viewId, {leftSource: sourceId,
+                                                                 leftField: fieldId,
+                                                                 operation: "=",
+                                                                 rightSource: curSourceId,
+                                                                 rightField: curId}));
+          }
+        });
+      });
+      return diffs;
+    },
     removeViewBlock: function removeViewBlock(viewId) {
       var blockId = ixer.index("view to block")[viewId];
       var block = ixer.index("block")[blockId];
