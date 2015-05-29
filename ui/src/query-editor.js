@@ -487,7 +487,7 @@ var queryEditor = (function(window, microReact, api) {
 //         }
         var viewId = info.aggregate;
         console.log(info, viewId);
-        var old = ixer.index("aggregate grouping")[viewId] || [];
+        var old = ixer.index("aggregate grouping")[viewId];
         var neue = [viewId, info.field, info.field];
         if(old && !api.arraysIdentical(old, neue)) {
           diffs.push(["aggregate grouping", "removed", old]);
