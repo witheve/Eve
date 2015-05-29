@@ -44,8 +44,8 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
     var layerIx = layer[3];
     var elements = ixer.index("uiLayerToElements")[layerId];
     var subLayers = parentLayerIndex[layerId];
-    var offset = elements ? elementsToBoundingBox(elements) : {top: 0, left: 0, width: "100%", height: "100%"};
     var binding = bindingIndex[layerId];
+    var offset = elements && binding ? elementsToBoundingBox(elements) : {top: 0, left: 0, width: "100%", height: "100%"};
     var boundRows;
     var layerChildren = [];
     if(binding) {
