@@ -251,7 +251,7 @@ var queryEditor = (function(window, microReact, api) {
       case "updateRow":
         sendToServer = info.submit;
         var oldString = info.table + JSON.stringify(info.old);
-        var ix = info.ix;
+        var ix = info.priority;
         if(ix === undefined) {
           console.error("No ix specified for", oldString);
           ix = 0;
@@ -917,7 +917,7 @@ var queryEditor = (function(window, microReact, api) {
 
         // @NOTE: We can hoist this if perf is an issue.
         if(isEditable) {
-          tds[tdIx].children = [input(cur[tdIx], {rowIx: priority, row: cur, ix: tdIx, view: id}, updateRow, submitRow)];
+          tds[tdIx].children = [input(cur[tdIx], {priority: priority, row: cur, ix: tdIx, view: id}, updateRow, submitRow)];
         } else {
           tds[tdIx].text = cur[tdIx];
         }
@@ -970,13 +970,13 @@ var queryEditor = (function(window, microReact, api) {
   function updateRow(e, elem) {
     var neue = elem.key.row.slice();
     neue[elem.key.ix] = coerceInput(e.currentTarget.textContent);
-    dispatch("updateRow", {table: elem.key.view, ix:localState.initialKey.rowIx, old: elem.key.row.slice(), neue: neue, submit: false})
+    dispatch("updateRow", {table: elem.key.view, priority: localState.initialKey.priority, old: elem.key.row.slice(), neue: neue, submit: false})
   }
 
   function submitRow(e, elem, type) {
     var neue = elem.key.row.slice();
     neue[elem.key.ix] = coerceInput(e.currentTarget.textContent);
-    dispatch("updateRow", {table: elem.key.view, ix:localState.initialKey.rowIx, old: localState.initialKey.row.slice(), neue: neue, submit: true})
+    dispatch("updateRow", {table: elem.key.view, priority:localState.initialKey.priority, old: localState.initialKey.row.slice(), neue: neue, submit: true})
   }
 
   function input(value, key, oninput, onsubmit) {
