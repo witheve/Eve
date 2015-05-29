@@ -27,14 +27,9 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
   var parentLayerIndex = ixer.index("parentLayerToLayers");
 
   function rendererRoot() {
-    //@TODO: figure out what page we're looking at and only render
-    //the layers for that page
-    var allLayers = ixer.facts("uiComponentLayer");
-    if(!allLayers || !allLayers[0]) {
-      return {};
-    }
-    var componentId = allLayers[0][2];
+    var componentId = code.activeItemId();
     var layers = parentLayerIndex[componentId];
+    if(!layers) return {};
 
     var layerItems = layers.map(function(layer) {
       return renderLayer(layer);
