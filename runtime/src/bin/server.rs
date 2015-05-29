@@ -1,10 +1,12 @@
 #![feature(fs_walk)]
 
+extern crate rustc_serialize;
 extern crate eve;
 
 use std::env;
 use std::fs::{OpenOptions, walk_dir};
 use std::io::prelude::*;
+use rustc_serialize::json::Json;
 
 use eve::server::*;
 use eve::value::*;
