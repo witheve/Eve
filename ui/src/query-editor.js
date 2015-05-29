@@ -2266,6 +2266,7 @@ var queryEditor = (function(window, microReact, api) {
         }
       },
       renderCallback: function($elm, toggled) {
+        if(toggled === false) return;
         var div = $elm.get(0);
         var eveElem = renderer.tree[div._id];
         if(eveElem && eveElem.change) {
