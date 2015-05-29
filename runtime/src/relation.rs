@@ -46,12 +46,15 @@ impl Relation {
         }
     }
 
-    pub fn change(&mut self, changes: Change) {
-        let mapping = mapping(&*changes.fields, &*self.fields).unwrap();
-        for values in changes.insert.into_iter() {
+    pub fn change(&mut self, change: Change) {
+        assert_eq!(self.fields.len(), change.fields.len());
+        let mapping = mapping(&*change.fields, &*self.fields).unwrap();
+        for values in change.insert.into_iter() {
+            assert_eq!(values.len(), mapping.len());
             self.index.insert(with_mapping(values, &*mapping));
         }
-        for values in changes.remove.into_iter() {
+        for values in change.remove.into_iter() {
+            assert_eq!(values.len(), mapping.len());
             self.index.remove(&with_mapping(values, &*mapping));
         }
     }
