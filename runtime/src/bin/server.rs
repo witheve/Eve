@@ -35,7 +35,6 @@ fn test_examples() {
 
 #[allow(dead_code)]
 fn main() {
-
 	for argument in env::args() {
     	match &*argument {
     		"clean" => {

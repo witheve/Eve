@@ -8,6 +8,7 @@ use std::io::prelude::*;
 use std::fs::OpenOptions;
 use std::net::Shutdown;
 use rustc_serialize::json::{Json, ToJson};
+use cbor;
 
 use value::Value;
 use relation::Change;
@@ -91,7 +92,7 @@ impl FromJson for Event {
 }
 
 pub enum ServerEvent {
-    Change(String),
+    Change(Vec<u8>),
     Sync(sender::Sender<WebSocketStream>),
     Terminate(Option<CloseData>),
 }
@@ -124,8 +125,8 @@ pub fn serve() -> mpsc::Receiver<ServerEvent> {
                         Err(_) => return,
                     };
                     match message {
-                        Message::Text(text) => {
-                            event_sender.send(ServerEvent::Change(text)).unwrap();
+                        Message::Binary(bytes) => {
+                            event_sender.send(ServerEvent::Change(bytes)).unwrap();
                         }
                         Message::Close(_) => {
                             let ip_addr = format!("{}", ip);
@@ -178,11 +179,14 @@ pub fn run() {
                 })
             }
 
-            ServerEvent::Change(input_text) => {
+            ServerEvent::Change(input_bytes) => {
                 time!("changing", {
-                    let json = Json::from_str(&input_text).unwrap();
+                    // TODO we throw cbor in here to avoid https://github.com/rust-lang/rustc-serialize/issues/113
+                    let mut decoder = cbor::Decoder::from_bytes(&input_bytes[..]);
+                    let cbor = decoder.items().next().unwrap().unwrap();
+                    let json = cbor.to_json();
                     let event: Event = FromJson::from_json(&json);
-                    events.write_all(input_text.as_bytes()).unwrap();
+                    events.write_all(format!("{}", json).as_bytes()).unwrap();
                     events.write_all("\n".as_bytes()).unwrap();
                     let old_flow = flow.clone();
                     flow = flow.quiesce(event.changes);
