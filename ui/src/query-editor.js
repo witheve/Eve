@@ -2495,7 +2495,8 @@ var queryEditor = (function(window, microReact, api) {
         controls = querySuggestionBar(queryId, viewId);
       }
 
-      items.push({c: "block " + viewKind, editorIx: ix, viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, handler: blockSuggestionHandler, click: setQueryEditorActive, children: [
+      items.push({c: "block " + viewKind, editorIx: ix, viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, handler: blockSuggestionHandler, click: setQueryEditorActive,
+                  dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem, children: [
         {c: "block-title", children: [
           {t: "h3", text: code.name(viewId)}
           //                 ,
@@ -2657,7 +2658,6 @@ var queryEditor = (function(window, microReact, api) {
 
     var lines = viewSources(viewId).concat(viewConstraints(viewId)).concat(viewPrimitives(viewId));
     return {c: "block view-block", viewId: viewId, drop: viewBlockDrop, dragover: preventDefault,
-            dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem,
             children: [
 //               {c: "block-title", children: [
 //                 {t: "h3", text: alphabet[ix]},
@@ -3136,8 +3136,7 @@ var queryEditor = (function(window, microReact, api) {
     });
     headers.push({t: "th", c: "mapping-header", text: "---"});
 
-    return {c: "block union-block", viewId: viewId, dragover: preventDefault, drop: viewBlockDrop,
-            dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem, children: [
+    return {c: "block union-block", viewId: viewId, dragover: preventDefault, drop: viewBlockDrop, children: [
               {t: "table", children: [
                 {t: "thead", children: [
                   {t: "tr", children: headers}
@@ -3315,11 +3314,11 @@ var queryEditor = (function(window, microReact, api) {
     var value = evt.dataTransfer.getData("value");
     if(type === "view") {
       if(viewId === value) { return console.error("Cannot join view with parent."); }
-      var kind;
+      var kind = "inner";
       if(sourceId === "inner" || sourceId === "outer") {
         kind = sourceId;
-      } else {
-        if(!ixer.index("primitive")[value]) { return; } // Bail on trying to add a non-primitive source besides inner or outer.
+      } else if(ixer.index("primitive")[value]) {
+        kind = undefined;
       }
 
       dispatch("addViewSource", {viewId: viewId, sourceId: value, kind: kind});
