@@ -3318,7 +3318,10 @@ var queryEditor = (function(window, microReact, api) {
       var kind;
       if(sourceId === "inner" || sourceId === "outer") {
         kind = sourceId;
+      } else {
+        if(!ixer.index("primitive")[value]) { return; } // Bail on trying to add a non-primitive source besides inner or outer.
       }
+
       dispatch("addViewSource", {viewId: viewId, sourceId: value, kind: kind});
       evt.stopPropagation();
       return;
