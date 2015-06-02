@@ -2495,7 +2495,7 @@ var queryEditor = (function(window, microReact, api) {
         controls = querySuggestionBar(queryId, viewId);
       }
 
-      items.push({c: "block " + viewKind, editorIx: ix, viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, handler: blockSuggestionHandler, click: setQueryEditorActive,
+      items.push({c: "block " + viewKind, editorIx: ix, viewId: viewId, handler: blockSuggestionHandler, click: setQueryEditorActive,
                   dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem, children: [
         {c: "block-title", children: [
           {t: "h3", text: code.name(viewId)}
@@ -3313,6 +3313,7 @@ var queryEditor = (function(window, microReact, api) {
     var type = evt.dataTransfer.getData("type");
     var value = evt.dataTransfer.getData("value");
     if(type === "view") {
+      evt.stopPropagation();
       if(viewId === value) { return console.error("Cannot join view with parent."); }
       var kind = "inner";
       if(sourceId === "inner" || sourceId === "outer") {
@@ -3322,8 +3323,6 @@ var queryEditor = (function(window, microReact, api) {
       }
 
       dispatch("addViewSource", {viewId: viewId, sourceId: value, kind: kind});
-      evt.stopPropagation();
-      return;
     }
 
   }
