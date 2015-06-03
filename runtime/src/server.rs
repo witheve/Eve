@@ -9,10 +9,12 @@ use std::fs::OpenOptions;
 use std::net::Shutdown;
 use rustc_serialize::json::{Json, ToJson};
 use cbor;
+use hyper::header::Cookie;
 
 use value::Value;
 use relation::Change;
 use flow::{Changes, Flow};
+use client;
 
 pub trait FromJson {
     fn from_json(json: &Json) -> Self;
@@ -54,6 +56,7 @@ impl<T: FromJson> FromJson for Vec<T> {
     }
 }
 
+#[derive(Debug)]
 pub struct Event {
     pub changes: Changes,
 }
@@ -93,7 +96,7 @@ impl FromJson for Event {
 
 pub enum ServerEvent {
     Change(Vec<u8>),
-    Sync(sender::Sender<WebSocketStream>),
+    Sync((sender::Sender<WebSocketStream>,Option<String>)),
     Terminate(Option<CloseData>),
 }
 
@@ -108,6 +111,10 @@ pub fn serve() -> mpsc::Receiver<ServerEvent> {
                 // accept request
                 let request = connection.unwrap().read_request().unwrap();
                 request.validate().unwrap();
+
+                // Get the User ID from a cookie in the headers
+                let user_id = get_user_id(request.headers.get::<Cookie>());
+
                 let response = request.accept();
                 let (mut sender, mut receiver) = response.send().unwrap().split();
 
@@ -116,7 +123,7 @@ pub fn serve() -> mpsc::Receiver<ServerEvent> {
                 ::std::io::stdout().flush().unwrap(); // TODO is this actually necessary?
 
                 // hand over sender
-                event_sender.send(ServerEvent::Sync(sender)).unwrap();
+                event_sender.send(ServerEvent::Sync((sender,user_id))).unwrap();
 
                 // handle messages
                 for message in receiver.incoming_messages() {
@@ -164,10 +171,29 @@ pub fn run() {
 
     let mut events = OpenOptions::new().write(true).append(true).open("./events").unwrap();
     let mut senders: Vec<sender::Sender<_>> = Vec::new();
+
+    // Create sessions table
+    let sessisons_table = client::create_table(&"sessions",&vec!["id","user id","status"]);
+    flow = flow.quiesce(sessisons_table.changes);
+
     for server_event in serve() {
         match server_event {
 
-            ServerEvent::Sync(mut sender) => {
+            ServerEvent::Sync((mut sender,user_id)) => {
+
+                // If we have a user ID, create a new session
+                match user_id {
+                    Some(user_id) => {
+                        let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
+                        let session = client::insert_fact(&"sessions",&vec!["id","user id","status"],&vec![Value::String(session_id),
+                                                                                                            Value::String(user_id),
+                                                                                                            Value::Float(1f64)
+                                                                                                           ]);
+                        flow = send_changes(session,flow,&mut senders);
+                    },
+                    None => (),
+                };
+
                 time!("syncing", {
                     let changes = flow.as_changes();
                     let text = format!("{}", Event{changes: changes}.to_json());
@@ -189,43 +215,84 @@ pub fn run() {
                     events.write_all("\n".as_bytes()).unwrap();
                     events.flush().unwrap();
                     let event: Event = FromJson::from_json(&json);
-                    let old_flow = flow.clone();
-                    flow = flow.quiesce(event.changes);
-                    let changes = flow.changes_from(old_flow);
-                    let output_text = format!("{}", Event{changes: changes}.to_json());
-
-                    for sender in senders.iter_mut() {
-                        match sender.send_message(Message::Text(output_text.clone())) {
-                            Ok(_) => (),
-                            Err(error) => println!("Send error: {}", error),
-                        };
-                    }
+                    flow = send_changes(event,flow,&mut senders);
                 })
             }
 
             ServerEvent::Terminate(m) => {
                 let terminate_ip = m.unwrap().reason;
                 println!("Closing connection from {}....",terminate_ip);
+                // Find the index of the connection's sender
                 let ip_ix = senders.iter_mut().position(|mut sender| {
-                                                          let ip = sender.get_mut().peer_addr().unwrap();
-                                                          let ip_addr = format!("{}", ip);
-                                                          ip_addr == terminate_ip
-                                                     });
+                                                          let ip = format!("{}",sender.get_mut().peer_addr().unwrap());
+                                                          ip == terminate_ip
+                                                        });
+
+                // Properly clean up connections and the session table
                 match ip_ix {
                     Some(ix) => {
-                        senders[ix].send_message(Message::Close(None)).unwrap();
+                        // Close the connection
+                        let _ = senders[ix].send_message(Message::Close(None));
+
                         match senders[ix].get_mut().shutdown(Shutdown::Both) {
                             Ok(_) => {
-                                senders.remove(ix);
                                 println!("Connection from {} has closed successfully.",terminate_ip);
                             },
-                            Err(_) => println!("Connection from {} failed to shut down!",terminate_ip),
+                            Err(e) => println!("Connection from {} failed to shut down properly: {}",terminate_ip,e),
+                        }
+
+                        senders.remove(ix);
+
+                        // Update the session table
+                        let sessions = flow.get_output("sessions").clone();
+                        let ip_string = Value::String(terminate_ip.clone());
+
+                        match sessions.index.iter().find(|session| session[0] == ip_string) {
+                            Some(session) => {
+                                let mut closed_session = session.clone();
+                                closed_session[1] = Value::Float(0f64); // Set status to 0
+                                let change = Change {
+                                                        fields: sessions.fields.clone(),
+                                                        insert: vec![closed_session.clone()],
+                                                        remove: vec![session.clone()],
+                                                    };
+                                let event = Event{changes: vec![("sessions".to_string(),change)]};
+                                flow = send_changes(event,flow,&mut senders);
+
+                            },
+                            None => println!("No session found"),
                         }
                     },
                     None => panic!("IP address {} is not connected",terminate_ip),
                 }
             }
-
         }
+    }
+}
+
+fn send_changes(event: Event, mut flow: Flow, mut senders: &mut Vec<sender::Sender<WebSocketStream>>) -> Flow {
+
+    let old_flow = flow.clone();
+    flow = flow.quiesce(event.changes);
+    let changes = flow.changes_from(old_flow);
+    let output_text = format!("{}", Event{changes: changes}.to_json());
+    for sender in senders.iter_mut() {
+        match sender.send_message(Message::Text(output_text.clone())) {
+            Ok(_) => (),
+            Err(error) => println!("Send error: {}", error),
+        };
+    }
+    flow
+}
+
+pub fn get_user_id(cookies: Option<&Cookie>) -> Option<String> {
+    match cookies {
+        Some(cookies) => {
+            match cookies.iter().find(|cookie| cookie.name == "userid") {
+                Some(user_id) => Some(user_id.value.clone()),
+                None => None,
+            }
+        },
+        None => None,
     }
 }
