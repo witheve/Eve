@@ -72,7 +72,9 @@ var Indexing = (function() {
     clear: function() {
       var final = {};
       for(var table in this.tables) {
-        this.handleDiff(table, [], this.tables[table].slice());
+        if(this.tables[table]) {
+          this.handleDiff(table, [], this.tables[table].slice());
+        }
       }
       for(var index in this.indexes) {
         this.indexes[index].index = {};
@@ -80,7 +82,9 @@ var Indexing = (function() {
       return {changes: final};
     },
     clearTable: function(table) {
-      this.handleDiff(table, [], this.tables[table].slice());
+      if(this.tables[table]) {
+        this.handleDiff(table, [], this.tables[table].slice());
+      }
     },
     load: function(pickle) {
       var diffs = {};
