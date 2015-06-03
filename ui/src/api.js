@@ -90,7 +90,7 @@ var api = (function(Indexing) {
     editor: {
       initialized: {name: "initialized", fields: ["initialized"], facts: [[true]]},
       primitive: {name: "primitive", fields: ["view", "kind"]},
-      "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"]]},
+      "editor item": {name: "editor item", fields: ["item", "type"], facts: []},
       block: {name: "block", fields: ["query", "block", "view"]},
       "block aggregate": {name: "block aggregate", fields: ["view", "kind"]},
       "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
@@ -112,27 +112,27 @@ var api = (function(Indexing) {
     },
 
     example: {
-      "department heads": {name: "department heads", fields: ["department", "head"]},
-      "employees": {name: "employees", fields: ["department", "name", "salary"]},
+//       "department heads": {name: "department heads", fields: ["department", "head"]},
+//       "employees": {name: "employees", fields: ["department", "name", "salary"]},
 
-      "book": {name: "book", fields: ["isbn", "title", "author", "price", "cost"]},
-      "book sales": {name: "book sales", fields: ["order", "sales"]},
-      "PDGF assay": {name: "PDGF assay", fields: ["PDGF concentration", "Seed density", "Well #", "Absorbance"]},
+//       "book": {name: "book", fields: ["isbn", "title", "author", "price", "cost"]},
+//       "book sales": {name: "book sales", fields: ["order", "sales"]},
+//       "PDGF assay": {name: "PDGF assay", fields: ["PDGF concentration", "Seed density", "Well #", "Absorbance"]},
       "click": {name: "click", fields: ["event number", "button", "binding"]},
 
 
       // FourSquare
-//       "place": {name: "place", fields: ["place", "name", "priceRange"]},
-//       "placeToAddress": {name: "placeToAddress", fields: ["place", "street", "city", "state", "zip"]},
-//       "placeToHours": {name: "placeToHours", fields: ["place", "day", "start", "end"]},
-//       "placeToImage": {name: "placeToImage", fields: ["image", "place"]},
-//       "image": {name: "image", fields: ["image", "user", "url", "description", "tick"]},
-//       "taste": {name: "taste", fields: ["taste", "name"]},
-//       "placeToTaste": {name: "placeToTaste", fields: ["tick","place", "taste", "rank"]},
-//       "review": {name: "review", fields: ["tick", "place", "user", "text", "rating", "approved"]},
-//       "placeToRating": {name: "placeToRating", fields: ["place", "rating", "reviewCount"]},
-//       "user": {name: "user", fields: ["id", "token", "name"]},
-//       "userCheckin": {name: "userCheckin", fields: ["tick", "user", "place"]},
+      "place": {name: "place", fields: ["place", "name", "priceRange"]},
+      "placeToAddress": {name: "placeToAddress", fields: ["place", "street", "city", "state", "zip"]},
+      "placeToHours": {name: "placeToHours", fields: ["place", "day", "start", "end"]},
+      "placeToImage": {name: "placeToImage", fields: ["image", "place"]},
+      "image": {name: "image", fields: ["image", "user", "url", "description", "tick"]},
+      "taste": {name: "taste", fields: ["taste", "name"]},
+      "placeToTaste": {name: "placeToTaste", fields: ["tick","place", "taste", "rank"]},
+      "review": {name: "review", fields: ["tick", "place", "user", "text", "rating", "approved"]},
+      "placeToRating": {name: "placeToRating", fields: ["place", "rating", "reviewCount"]},
+      "user": {name: "user", fields: ["id", "token", "name"]},
+      "userCheckin": {name: "userCheckin", fields: ["tick", "user", "place"]},
     },
 
     test: {
@@ -875,7 +875,7 @@ var api = (function(Indexing) {
                     openLayers: {},
                     initialAttrs: [],
                     initialElements: [],
-                    activeItem: 1,
+                    activeItem: null,
                     showMenu: true,
                     uiGridSize: 10};
 
