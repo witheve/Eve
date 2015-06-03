@@ -1,6 +1,5 @@
 use std::io::Read;
 use std::error::Error;
-
 use hyper;
 use hyper::net::Fresh;
 use hyper::server::{Server, Request, Response};
@@ -8,16 +7,13 @@ use hyper::uri::RequestUri;
 use hyper::Url;
 use hyper::header::{Headers,ContentType,Location,SetCookie};
 use cookie::Cookie;
-
 use mime::Mime;
-
 use url::SchemeData::Relative;
-
 use rustc_serialize::json;
-
 use websocket::{Message, Sender};
 
 use client::*;
+use server;
 use value::Value;
 
 #[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
@@ -64,7 +60,7 @@ pub struct Credential {
 }
 
 pub fn run() {
-    Server::http(auth).listen("0.0.0.0:8080").unwrap();
+	Server::http(auth).listen("0.0.0.0:8080").unwrap();
 }
 
 fn auth(req: Request, mut res: Response<Fresh>) {
@@ -89,7 +85,7 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 
 			// Handle login
 			match &*requested_file {
-				"auth.html" => {
+				"login.html" => {
 					println!("Authenticating User");
 					let pairs = query_pairs.clone().unwrap();
 					match &pairs[..] {
@@ -128,7 +124,6 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 									match ws_result {
 										// If things went okay, redirect to the Eve UI
 										Ok(mut sender) => {
-										//Ok((mut send_thread,receive_thread)) => {
 											// Form the response
 											*res.status_mut() = hyper::status::StatusCode::PermanentRedirect;
 
@@ -141,18 +136,16 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 											headers.set(cookies);
 											*res.headers_mut() = headers;
 
-											// Create an eveuser table
+											// Create eveusers table and insert the new user
 											let table_name = "eveusers";
 											let table_fields = vec!["id","username"];
 											let row_data = vec![
 																Value::String(session_data.user.id.clone()),
 																Value::String(session_data.user.username.clone())
 														   	   ];
-
-											// Create eveusers table and insert the new user
 											send_event(&create_table(&table_name,&table_fields),&mut sender);
 											send_event(&insert_fact(&table_name,&table_fields,&row_data),&mut sender);
-											sender.send_message(Message::Close(None)).unwrap();
+											let _ = sender.send_message(Message::Close(None));
 										}
 										// Otherwise, throw an error... maybe redirect to a special page.
 										Err(e) => {
@@ -164,7 +157,6 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 									}
 
 									println!("Login complete.");
-
 								}
 								_ => {
 									println!("ERROR: Could not authenticate user with token {}",token);
@@ -177,7 +169,13 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 						_ => panic!("Oh no!"), //serve_file("404.html",res),
 					}
 				},
-				_ => panic!("Oh no!"), //serve_file(&*requested_file,res),
+				"logout.html" => {
+					println!("Logging out...");
+					let user_id = server::get_user_id(req.headers.get::<hyper::header::Cookie>());
+                	println!("{:?}",user_id);
+				},
+				"favicon.ico" => (),
+				other => panic!("Cannot serve {}",other), //serve_file(&*requested_file,res),
 			};
 		}
 		_ => panic!("Oh no!"),
