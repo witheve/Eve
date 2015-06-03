@@ -3271,12 +3271,12 @@ var queryEditor = (function(window, microReact, api) {
     var toLimitInput = input(limitToValue, "to", updateAggregateLimit, updateAggregateLimit);
     toLimitInput.parentId = viewId;
     return {c: "sort-limit-aggregate", viewId: viewId, children: [
-      {c: "block-section aggregate-sort", children: [
+      {c: "spaced-row block-section aggregate-sort", children: [
         {text: "Sort by"},
         token.blockField({key: "field", parentId: viewId, source: sortSource, field: sortField}, updateAggregateSort, dropAggregateField),
         selectInput(sortDir || "ascending", "direction", {ascending: "▲", descending: "▼"}, updateAggregateSort)
       ]},
-      {c: "block-section aggregate-limit", children: [
+      {c: "spaced-row block-section aggregate-limit", children: [
         {text: "Limit"},
         fromLimitInput,
         {text: "-"},
