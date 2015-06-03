@@ -150,7 +150,11 @@ impl View {
             View::Table(_) => None,
             View::Union(ref union) => {
                 assert_eq!(union.selects.len(), inputs.len());
-                let mut output = Relation::with_fields(old_output.fields.clone(), old_output.names.clone());
+                let mut output = Relation::new(
+                    old_output.view.clone(),
+                    old_output.fields.clone(),
+                    old_output.names.clone()
+                    );
                 for select in union.selects.iter() {
                     for values in select.select(&inputs[..]) {
                         output.index.insert(values);
@@ -159,13 +163,21 @@ impl View {
                 Some(output)
             }
             View::Join(ref join) => {
-                let mut output = Relation::with_fields(old_output.fields.clone(), old_output.names.clone());
+                let mut output = Relation::new(
+                    old_output.view.clone(),
+                    old_output.fields.clone(),
+                    old_output.names.clone()
+                    );
                 let mut tuples = Vec::with_capacity(join.sources.len());
                 join_step(join, 0, inputs, &mut tuples, &mut output.index);
                 Some(output)
             }
             View::Aggregate(ref aggregate) => {
-                let mut output = Relation::with_fields(old_output.fields.clone(), old_output.names.clone());
+                let mut output = Relation::new(
+                    old_output.view.clone(),
+                    old_output.fields.clone(),
+                    old_output.names.clone()
+                    );
                 let mut outer = aggregate.outer.select(&inputs[..]);
                 let mut inner = aggregate.inner.select(&inputs[..]);
                 outer.sort();

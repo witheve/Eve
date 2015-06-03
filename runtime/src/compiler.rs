@@ -131,7 +131,7 @@ fn overwrite_compiler_view(flow: &Flow, view: &str, items: Vec<Vec<Value>>) {
         .map(|field| format!("{}", field))
         .collect();
     let index = items.into_iter().collect();
-    *flow.get_output_mut(view) = Relation{fields: fields, names: names, index: index};
+    *flow.get_output_mut(view) = Relation{view: view.to_owned(), fields: fields, names: names, index: index};
 }
 
 fn topological_sort<K: Eq + Debug>(mut input: Vec<(K, Vec<K>)>) -> Vec<(K, Vec<K>)> {
@@ -760,6 +760,7 @@ fn create_flow(flow: &Flow) -> Flow {
         let schedule = view_schedule_table.find_one("ix", &Value::Float(ix as f64));
         let view_table = flow.get_output("view");
         let view = view_table.find_one("view", &schedule["view"]);
+        let view_id = view["view"].as_str().to_owned();
         nodes.push(create_node(flow, &view["view"], &view["kind"]));
         dirty.insert(schedule["ix"].as_usize());
         let mut index_layouts = index_layout_table.find_all("view", &view["view"]);
@@ -772,7 +773,7 @@ fn create_flow(flow: &Flow) -> Flow {
                 Some(display_name) => display_name["name"].as_str().to_owned(),
                 None => "<unnamed>".to_owned(),
             }).collect();
-        outputs.push(RefCell::new(Relation::with_fields(field_ids, field_names)));
+        outputs.push(RefCell::new(Relation::new(view_id, field_ids, field_names)));
     }
     Flow{
         nodes: nodes,
@@ -816,7 +817,7 @@ pub fn recompile(old_flow: Flow) -> Flow {
 
 pub fn bootstrap(mut flow: Flow) -> Flow {
     let schema = schema();
-    for &(ref id, ref unique_fields, ref other_fields) in schema.iter() {
+    for &(id, ref unique_fields, ref other_fields) in schema.iter() {
         flow.nodes.push(Node{
             id: format!("{}", id),
                 view: View::Union(Union{selects: Vec::new()}), // dummy node, replaced by recompile
@@ -825,8 +826,8 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
             });
         let names = unique_fields.iter().chain(other_fields.iter())
             .map(|&field| field.to_owned()).collect::<Vec<_>>();
-        let fields = names.iter().map(|name| format!("{}: {}", id.clone(), name)).collect();
-        flow.outputs.push(RefCell::new(Relation::with_fields(fields, names)));
+        let fields = names.iter().map(|name| format!("{}: {}", id, name)).collect();
+        flow.outputs.push(RefCell::new(Relation::new(id.to_owned(), fields, names)));
     }
     let mut view_values = Vec::new();
     let mut tag_values = Vec::new();
