@@ -28,6 +28,7 @@ var queryEditor = (function(window, microReact, api) {
       requestAnimationFrame(function() {
         renderer.queued = false;
         renderer.render(root());
+        window.uiEditorRenderer.render();
       });
     }
   }
@@ -202,6 +203,36 @@ var queryEditor = (function(window, microReact, api) {
                      ["uiComponentElement", "removed", elem])
         }
         break;
+      case "changeElementPosition":
+        var elem = ixer.index("uiComponentElement")[info.elementId];
+        var target = ixer.index("uiComponentElement")[info.targetId];
+        var neue = elem.slice();
+        var changed = false;
+        neue[0] = txId;
+        if(elem[3] !== target[3]) {
+          changed = true;
+          neue[3] = target[3];
+        }
+        if(elem[9] !== target[9]) {
+          changed = true;
+          //move all the others
+          neue[9] = target[9];
+          var others = ixer.index("uiLayerToElements")[target[3]] || [];
+          for(var othersIx = 0, othersLen = others.length; othersIx < othersLen; othersIx++) {
+            var other = others[othersIx];
+            if(other[9] >= neue[9] && neue[1] !== other[1]) {
+              var neueOther = other.slice();
+              neueOther[9] = other[9] + 1;
+              diffs.push(["uiComponentElement", "inserted", neueOther],
+                         ["uiComponentElement", "removed", other]);
+            }
+          }
+        }
+        if(changed) {
+          diffs.push(["uiComponentElement", "inserted", neue],
+                     ["uiComponentElement", "removed", elem]);
+        }
+        break;
       case "rename":
         var id = info.id;
         sendToServer = !!info.sendToServer;
@@ -250,7 +281,7 @@ var queryEditor = (function(window, microReact, api) {
       case "updateRow":
         sendToServer = info.submit;
         var oldString = info.table + JSON.stringify(info.old);
-        var ix = info.ix;
+        var ix = info.priority;
         if(ix === undefined) {
           console.error("No ix specified for", oldString);
           ix = 0;
@@ -446,9 +477,7 @@ var queryEditor = (function(window, microReact, api) {
 
         break;
       case "updateAggregateSort":
-        var params = {};
-        params[info.key] = info.value;
-        diffs = diff.updateAggregateSort(info.viewId, params.field, params.direction);
+        diffs = diff.updateAggregateSort(info.viewId, info.field, info.direction);
         var neue = diffs[0][2];
         sendToServer = neue[code.ix("aggregate sorting", "inner field")]
         && neue[code.ix("aggregate sorting", "direction")];
@@ -459,7 +488,7 @@ var queryEditor = (function(window, microReact, api) {
 
         // @FIXME: Hard-coded to work with constants only.
         var constantId = uuid();
-        var limit = ixer.index("view to " + table)[info.viewId];
+        var limit = ixer.index(table)[info.viewId];
         if(!limit) { limit = [info.viewId, "constant", constantId]; }
         else {
           constantId = limit[2];
@@ -486,7 +515,6 @@ var queryEditor = (function(window, microReact, api) {
 //           sendToServer = neue[code.ix("aggregate grouping", "inner field")] && neue[code.ix("aggregate grouping", "outer field")];
 //         }
         var viewId = info.aggregate;
-        console.log(info, viewId);
         var old = ixer.index("aggregate grouping")[viewId];
         var neue = [viewId, info.field, info.field];
         if(old && !api.arraysIdentical(old, neue)) {
@@ -509,13 +537,14 @@ var queryEditor = (function(window, microReact, api) {
         break;
       case "addUiComponentElement":
         var elemId = uuid();
-        var neue = [txId, elemId, info.componentId, info.layerId, info.control, info.left, info.top, info.right, info.bottom];
+        var neue = [txId, elemId, info.componentId, info.layerId, info.control, info.left, info.top, info.right, info.bottom, info.zIndex];
         var appStyleId = uuid();
         var typStyleId = uuid();
+        var contentStyleId = uuid();
         diffs.push(["uiComponentElement", "inserted", neue]);
         diffs.push(["uiStyle", "inserted", [txId, appStyleId, "appearance", elemId, false]],
                    ["uiStyle", "inserted", [txId, typStyleId, "typography", elemId, false]],
-                   ["uiStyle", "inserted", [txId, typStyleId, "content", elemId, false]]);
+                   ["uiStyle", "inserted", [txId, contentStyleId, "content", elemId, false]]);
 
         // @TODO: Instead of hardcoding, have a map of special element diff handlers.
         if(info.control === "map") {
@@ -679,6 +708,13 @@ var queryEditor = (function(window, microReact, api) {
           diffs.push(["uiStyle", "inserted", [txId, styleId, type, id, info.shared]],
                      ["uiStyle", "removed", prevStyle]);
         });
+        if(info.copyCurrent && sel && sel.length) {
+          console.log("copying current");
+          //duplicate the attrs to this newly created style
+          var id = sel[0];
+          var prevStyle = ixer.index("uiElementToStyle")[id][type];
+          diffs.push.apply(diffs, diff.duplicateStyle(prevStyle, id, txId, styleId));
+        }
         break;
       case "duplicateSelection":
         var sel = localState.uiSelection;
@@ -713,7 +749,13 @@ var queryEditor = (function(window, microReact, api) {
 
       ixer.handleDiffs(diffs);
       if(sendToServer) {
-        window.client.sendToServer(diffs);
+        if(DEBUG.DELAY) {
+          setTimeout(function() {
+            window.client.sendToServer(diffs);
+          }, DEBUG.DELAY);
+        } else {
+          window.client.sendToServer(diffs);
+        }
       }
       render();
     } else {
@@ -916,7 +958,7 @@ var queryEditor = (function(window, microReact, api) {
 
         // @NOTE: We can hoist this if perf is an issue.
         if(isEditable) {
-          tds[tdIx].children = [input(cur[tdIx], {rowIx: priority, row: cur, ix: tdIx, view: id}, updateRow, submitRow)];
+          tds[tdIx].children = [input(cur[tdIx], {priority: priority, row: cur, ix: tdIx, view: id}, updateRow, submitRow)];
         } else {
           tds[tdIx].text = cur[tdIx];
         }
@@ -969,13 +1011,13 @@ var queryEditor = (function(window, microReact, api) {
   function updateRow(e, elem) {
     var neue = elem.key.row.slice();
     neue[elem.key.ix] = coerceInput(e.currentTarget.textContent);
-    dispatch("updateRow", {table: elem.key.view, ix:localState.initialKey.rowIx, old: elem.key.row.slice(), neue: neue, submit: false})
+    dispatch("updateRow", {table: elem.key.view, priority: localState.initialKey.priority, old: elem.key.row.slice(), neue: neue, submit: false})
   }
 
   function submitRow(e, elem, type) {
     var neue = elem.key.row.slice();
     neue[elem.key.ix] = coerceInput(e.currentTarget.textContent);
-    dispatch("updateRow", {table: elem.key.view, ix:localState.initialKey.rowIx, old: localState.initialKey.row.slice(), neue: neue, submit: true})
+    dispatch("updateRow", {table: elem.key.view, priority:localState.initialKey.priority, old: localState.initialKey.row.slice(), neue: neue, submit: true})
   }
 
   function input(value, key, oninput, onsubmit) {
@@ -1166,13 +1208,16 @@ var queryEditor = (function(window, microReact, api) {
         });
       }
       var elements = ixer.index("uiLayerToElements")[layerId] || [];
+      elements.sort(function(a, b) {
+        return a[9] - b[9];
+      });
       elements.forEach(function(cur) {
         var elemId = cur[1];
         var selectedClass = "";
         if(localState.uiSelection && localState.uiSelection.indexOf(elemId) > -1) {
           selectedClass = " selected";
         }
-        subItems.push({c: "layer-element depth-" + (depth + 1) + selectedClass, control: cur, click: addToSelection, children: [
+        subItems.push({c: "layer-element depth-" + (depth + 1) + selectedClass, itemId: elemId, dragover: preventDefault, drop: dropOnElementItem, control: cur, click: addToSelection, children: [
           {c: "layer-row", itemId: elemId, draggable:true, dragstart: layerDrag, type: "element", children:[
             {c: "icon ion-ios-crop" + (selectedClass ? "-strong" : "")},
             {text: cur[4]}
@@ -1195,6 +1240,19 @@ var queryEditor = (function(window, microReact, api) {
       ]},
       {c: "layer-items", children: subItems}
     ]};
+  }
+
+  function dropOnElementItem(e, elem) {
+    var type = e.dataTransfer.getData("type");
+    if(type === "element") {
+      e.stopPropagation();
+      var elementId = e.dataTransfer.getData("itemId");
+      dispatch("changeElementPosition", {elementId: elementId, targetId: elem.itemId});
+    } else if(type === "layer") {
+      e.stopPropagation();
+      var layerId = e.dataTransfer.getData("itemId");
+      dispatch("changeLayerPosition", {elementId: elementId, targetId: elem.itemId});
+    }
   }
 
   function toggleOpenLayer(e, elem) {
@@ -1518,7 +1576,7 @@ var queryEditor = (function(window, microReact, api) {
     var locked = layer[4] ? " locked" : "";
     var klass = type + " ui-element" + selClass + hidden + locked;
     var elem = {c: klass, id: "elem" + id, left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6],
-                control: cur, mousedown: addToSelection, selected: selected, zIndex: layer[3] + 1,
+                control: cur, mousedown: addToSelection, selected: selected, zIndex: layer[3] + (cur[9] || 0),
                 draggable: true, dragover: preventDefault, drop: dropOnControl, drag: moveSelection, dragend: stopMoveSelection, dragstart: startMoveSelection, dblclick: setModifyingText};
     if(attrs) {
       for(var i = 0, len = attrs.length; i < len; i++) {
@@ -1789,13 +1847,20 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function addElement(e, elem) {
+    var layerId = elem.layer[1];
+    var els = ixer.index("uiLayerToElements")[layerId];
+    var zIndex = 0;
+    if(els) {
+      zIndex = els.length;
+    }
     dispatch("addUiComponentElement", {componentId: elem.componentId,
-                                       layerId: elem.layer[1],
+                                       layerId: layerId,
                                        control: elem.controlType,
                                        left: elem.left || 100,
                                        right: elem.right || 200,
                                        top: elem.top || 100,
-                                       bottom: elem.bottom || 200})
+                                       bottom: elem.bottom || 200,
+                                       zIndex: zIndex});
   }
 
 
@@ -1961,9 +2026,10 @@ var queryEditor = (function(window, microReact, api) {
     borderRadiusAdjuster.finalizer = stopAdjustAttr;
 
     if(!localState.addingAppearanceStyle) {
-      var sharedAppearance = (ixer.index("stylesBySharedAndType")[true] || {})["appearance"] || [];
-      var styles = sharedAppearance.map(function(cur) {
-        return {value: cur[1], text: code.name(cur[1])};
+      var sharedAppearance = (ixer.index("stylesBySharedAndType")[true] || {})["appearance"] || {};
+      var uniqueStyles = Object.keys(sharedAppearance);
+      var styles = uniqueStyles.map(function(cur) {
+        return {value: cur, text: code.name(cur)};
       });
       styles.unshift({text: "No text style", value: "none"});
       styles.push({text: "Add a new style", value: "addStyle"});
@@ -1974,7 +2040,7 @@ var queryEditor = (function(window, microReact, api) {
           dispatch("setSelectionStyle", {type: "appearance", id: uuid(), shared: false});
         } else if(value === "addStyle") {
           localState.addingAppearanceStyle = uuid();
-          dispatch("setSelectionStyle", {type: "appearance", id: localState.addingAppearanceStyle, shared: true});
+          dispatch("setSelectionStyle", {type: "appearance", id: localState.addingAppearanceStyle, shared: true, copyCurrent: true});
         } else {
           dispatch("setSelectionStyle", {type: "appearance", id: value, shared: true});
         }
@@ -2106,9 +2172,10 @@ var queryEditor = (function(window, microReact, api) {
     align.handler = selectAlign;
 
     if(!localState.addingTypographyStyle) {
-      var sharedTypography = (ixer.index("stylesBySharedAndType")[true] || {})["typography"] || [];
-      var styles = sharedTypography.map(function(cur) {
-        return {value: cur[1], text: code.name(cur[1])};
+      var sharedTypography = (ixer.index("stylesBySharedAndType")[true] || {})["typography"] || {};
+      var uniqueStyles = Object.keys(sharedTypography);
+      var styles = uniqueStyles.map(function(cur) {
+        return {value: cur, text: code.name(cur)};
       });
       styles.unshift({text: "No text style", value: "none"});
       styles.push({text: "Add a new style", value: "addStyle"});
@@ -2119,7 +2186,7 @@ var queryEditor = (function(window, microReact, api) {
           dispatch("setSelectionStyle", {type: "typography", id: uuid(), shared: false});
         } else if(value === "addStyle") {
           localState.addingTypographyStyle = uuid();
-          dispatch("setSelectionStyle", {type: "typography", id: localState.addingTypographyStyle, shared: true});
+          dispatch("setSelectionStyle", {type: "typography", id: localState.addingTypographyStyle, shared: true, copyCurrent: true});
         } else {
           dispatch("setSelectionStyle", {type: "typography", id: value, shared: true});
         }
@@ -2146,9 +2213,9 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function doneAddingStyle(e, elem) {
+    rename(e, elem, true);
     localState.addingTypographyStyle = null;
     localState.addingAppearanceStyle = null;
-    render();
   }
 
   uiProperties.layer = [];
@@ -2176,10 +2243,6 @@ var queryEditor = (function(window, microReact, api) {
       {c: "pair", children: [{c: "label", text: "interactive"},
                              inspectorCheckbox(attrs["draggable"], [componentId, "draggable"], setMapAttribute, binding)]},
     ]};
-  }
-
-  uiProperties.repeat = [];
-  function repeatInspector() {
   }
 
   // Inputs
@@ -2265,6 +2328,7 @@ var queryEditor = (function(window, microReact, api) {
         }
       },
       renderCallback: function($elm, toggled) {
+        if(toggled === false) return;
         var div = $elm.get(0);
         var eveElem = renderer.tree[div._id];
         if(eveElem && eveElem.change) {
@@ -2493,7 +2557,8 @@ var queryEditor = (function(window, microReact, api) {
         controls = querySuggestionBar(queryId, viewId);
       }
 
-      items.push({c: "block " + viewKind, editorIx: ix, viewId: viewId, drop: viewBlockDrop, dragover: preventDefault, handler: blockSuggestionHandler, click: setQueryEditorActive, children: [
+      items.push({c: "block " + viewKind, editorIx: ix, viewId: viewId, handler: blockSuggestionHandler, click: setQueryEditorActive,
+                  dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem, children: [
         {c: "block-title", children: [
           {t: "h3", text: code.name(viewId)}
           //                 ,
@@ -2655,7 +2720,6 @@ var queryEditor = (function(window, microReact, api) {
 
     var lines = viewSources(viewId).concat(viewConstraints(viewId)).concat(viewPrimitives(viewId));
     return {c: "block view-block", viewId: viewId, drop: viewBlockDrop, dragover: preventDefault,
-            dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem,
             children: [
 //               {c: "block-title", children: [
 //                 {t: "h3", text: alphabet[ix]},
@@ -2772,7 +2836,15 @@ var queryEditor = (function(window, microReact, api) {
     if(calculatedId) {
       return code.name(calculatedId);
     } else {
-      return code.name(sourceId) + "." + code.name(fieldId);
+      var sourceName = code.name(sourceId);
+      var fieldName = code.name(fieldId);
+      if(sourceName && fieldName) {
+        return sourceName + "." + fieldName;
+      } else if(fieldName) {
+        return fieldName;
+      } else {
+        return "field";
+      }
     }
   }
   function getLocalFieldName(fieldId) {
@@ -3126,8 +3198,7 @@ var queryEditor = (function(window, microReact, api) {
     });
     headers.push({t: "th", c: "mapping-header", text: "---"});
 
-    return {c: "block union-block", viewId: viewId, dragover: preventDefault, drop: viewBlockDrop,
-            dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem, children: [
+    return {c: "block union-block", viewId: viewId, dragover: preventDefault, drop: viewBlockDrop, children: [
               {t: "table", children: [
                 {t: "thead", children: [
                   {t: "tr", children: headers}
@@ -3256,13 +3327,18 @@ var queryEditor = (function(window, microReact, api) {
     fromLimitInput.parentId = viewId;
     var toLimitInput = input(limitToValue, "to", updateAggregateLimit, updateAggregateLimit);
     toLimitInput.parentId = viewId;
+
+    var dirInput = selectInput(sortDir || "ascending", "direction", {ascending: "▲", descending: "▼"}, updateAggregateSortDirection);
+    dirInput.parentId = viewId;
+
     return {c: "sort-limit-aggregate", viewId: viewId, children: [
-      {c: "block-section aggregate-sort", children: [
+      {c: "spaced-row block-section aggregate-sort", children: [
         {text: "Sort by"},
-        token.blockField({key: "field", parentId: viewId, source: sortSource, field: sortField}, updateAggregateSort, dropAggregateField),
-        selectInput(sortDir || "ascending", "direction", {ascending: "▲", descending: "▼"}, updateAggregateSort)
+        queryToken("field", "sort", viewId, getLocalFieldName(sortField) || "<field>", {handler: updateAggregateSortField, drop: dropAggregateField, viewId: viewId, sourceId: "inner"}),
+        //token.blockField({key: "field", parentId: viewId, source: sortSource, field: sortField}, updateAggregateSort, dropAggregateField),
+        dirInput
       ]},
-      {c: "block-section aggregate-limit", children: [
+      {c: "spaced-row block-section aggregate-limit", children: [
         {text: "Limit"},
         fromLimitInput,
         {text: "-"},
@@ -3275,9 +3351,14 @@ var queryEditor = (function(window, microReact, api) {
     dispatch("updateAggregateLimit", {viewId: elem.parentId, key: elem.key, value:  +evt.target.value || +evt.currentTarget.textContent, sendToServer: !!type});
   }
 
-  function updateAggregateSort(evt, elem) {
-    var info = {viewId: elem.parentId, key: elem.key, value: evt.target.value || evt.currentTarget.textContent};
-    dispatch("updateAggregateSort", info);
+  function updateAggregateSortField(evt, elem) {
+    var info = localState.queryEditorInfo;
+    var token = info.token;
+    dispatch("updateAggregateSort", {viewId: token.viewId, field: elem.key});
+  }
+
+  function updateAggregateSortDirection(evt, elem) {
+    dispatch("updateAggregateSort", {viewId: elem.parentId, direction: evt.target.value});
   }
 
   function dropAggregateField(evt, elem) {
@@ -3304,14 +3385,16 @@ var queryEditor = (function(window, microReact, api) {
     var type = evt.dataTransfer.getData("type");
     var value = evt.dataTransfer.getData("value");
     if(type === "view") {
+      evt.stopPropagation();
       if(viewId === value) { return console.error("Cannot join view with parent."); }
-      var kind;
+      var kind = "inner";
       if(sourceId === "inner" || sourceId === "outer") {
         kind = sourceId;
+      } else if(ixer.index("primitive")[value]) {
+        kind = undefined;
       }
+
       dispatch("addViewSource", {viewId: viewId, sourceId: value, kind: kind});
-      evt.stopPropagation();
-      return;
     }
 
   }

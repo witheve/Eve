@@ -114,6 +114,7 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
         console.log("slow parse (> 5ms):", time);
       }
 
+      var changes;
       if(!server.initialized) {
         var initialized = data.changes.some(function(diff) {
           return diff[0] === "initialized";
@@ -125,6 +126,15 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
           initialize();
         }
         server.initialized = true;
+        changes = data.changes;
+      } else {
+        changes = [];
+        for(var changeIx = 0; changeIx < data.changes.length; changeIx++) {
+          var id = data.changes[changeIx][0];
+          if(api.code.hasTag(id, "remote")) {
+            changes.push(data.changes[changeIx]);
+          }
+        }
       }
       if(window.DEBUG.RECEIVE) {
         var stats = getDataStats(data);
@@ -144,7 +154,7 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
       var start = now();
       // @FIXME: We need to isolate and process compiler views first, to ensure that the necessary data for ordering
       // other views is available and not stale.
-      ixer.handleMapDiffs(data.changes);
+      ixer.handleMapDiffs(changes);
       var time = now() - start;
       if(time > 5) {
         console.log("slow handleDiffs (> 5ms):", time);
@@ -188,7 +198,6 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
           uiRenderer.renderMapDiffs(mapDiffs.element, mapDiffs.attr, mapDiffs.marker);
         }
 
-        uiEditorRenderer.render();
         dispatcher.render();
       }
 

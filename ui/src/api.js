@@ -90,7 +90,7 @@ var api = (function(Indexing) {
     editor: {
       initialized: {name: "initialized", fields: ["initialized"], facts: [[true]]},
       primitive: {name: "primitive", fields: ["view", "kind"]},
-      "editor item": {name: "editor item", fields: ["item", "type"], facts: [[1, "query"]]},
+      "editor item": {name: "editor item", fields: ["item", "type"], facts: []},
       block: {name: "block", fields: ["query", "block", "view"]},
       "block aggregate": {name: "block aggregate", fields: ["view", "kind"]},
       "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
@@ -103,40 +103,43 @@ var api = (function(Indexing) {
       "query export": {name: "query export", fields: ["query", "view"]},
 
       //ui
-      "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"], facts: []},
+      "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom", "zindex"], facts: []},
       "uiComponentLayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden", "parentLayer"], facts: []},
       "uiComponentAttribute": {name: "uiComponentAttribute", fields: ["tx", "id", "property", "value"]},
       "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element", "shared"]},
       "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "view"]},
-      "uiAttrBinding": {name: "uiAttrBinding", fields: ["elementId", "attr", "field"]}
+      "uiAttrBinding": {name: "uiAttrBinding", fields: ["elementId", "attr", "field"]},
+
     },
 
     example: {
+
       "department heads": {name: "department heads", fields: ["department", "head"]},
       "employees": {name: "employees", fields: ["department", "name", "salary"]},
+
 
       "book": {name: "book", fields: ["isbn", "title", "author", "price", "cost"]},
       "book sales": {name: "book sales", fields: ["order", "sales"]},
       "PDGF assay": {name: "PDGF assay", fields: ["PDGF concentration", "Seed density", "Well #", "Absorbance"]},
+    },
+
+    foursquare: {
       "click": {name: "click", fields: ["event number", "button", "binding"]},
-
-
-      // FourSquare
-//       "place": {name: "place", fields: ["place", "name", "priceRange"]},
-//       "placeToAddress": {name: "placeToAddress", fields: ["place", "street", "city", "state", "zip"]},
-//       "placeToHours": {name: "placeToHours", fields: ["place", "day", "start", "end"]},
-//       "placeToImage": {name: "placeToImage", fields: ["image", "place"]},
-//       "image": {name: "image", fields: ["image", "user", "url", "description", "tick"]},
-//       "taste": {name: "taste", fields: ["taste", "name"]},
-//       "placeToTaste": {name: "placeToTaste", fields: ["tick","place", "taste", "rank"]},
-//       "review": {name: "review", fields: ["tick", "place", "user", "text", "rating", "approved"]},
-//       "placeToRating": {name: "placeToRating", fields: ["place", "rating", "reviewCount"]},
-//       "user": {name: "user", fields: ["id", "token", "name"]},
-//       "userCheckin": {name: "userCheckin", fields: ["tick", "user", "place"]},
+      "place": {name: "place", fields: ["place", "name", "priceRange"]},
+      "place to address": {name: "place to address", fields: ["place", "street", "city", "state", "zip"]},
+      "place to hours": {name: "place to hours", fields: ["place", "day", "start", "end"]},
+      "place to rating": {name: "place to rating", fields: ["place", "rating", "reviewCount"]},
+      "place to image": {name: "place to image", fields: ["image", "place"]},
+      "image": {name: "image", fields: ["image", "user", "url", "description", "tick"]},
+      "taste": {name: "taste", fields: ["taste", "name"]},
+      "place to taste": {name: "place to taste", fields: ["tick","place", "taste", "rank"]},
+      "review": {name: "review", fields: ["tick", "place", "user", "text", "rating", "approved"]},
+      "user": {name: "user", fields: ["id", "token", "name"]},
+      "user checkin": {name: "user checkin", fields: ["tick", "user", "place"]}
     },
 
     test: {
-      "edge": {name: "edge", fields: ["to", "from"], facts: [["a", "b"], ["b", "c"], ["c", "d"]]},
+      edge: {name: "edge", fields: ["to", "from"], facts: [["a", "b"], ["b", "c"], ["c", "d"]]},
       numbers: {name: "numbers", fields: ["x"], facts: [[0], [1], [2], [3]]},
     }
   };
@@ -212,7 +215,7 @@ var api = (function(Indexing) {
   ixer.addIndex("uiStyle", "uiStyle", Indexing.create.lookup([1, false]));
   ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.lookup([3, 2, false]));
   ixer.addIndex("uiElementToStyles", "uiStyle", Indexing.create.collector([3]));
-  ixer.addIndex("stylesBySharedAndType", "uiStyle", Indexing.create.collector([4, 2]));
+  ixer.addIndex("stylesBySharedAndType", "uiStyle", Indexing.create.collector([4, 2, 1]));
   ixer.addIndex("uiStyleToAttr", "uiComponentAttribute", Indexing.create.lookup([1, 2, false]));
   ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.collector([1]));
   ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup([0, 1]));
@@ -387,7 +390,8 @@ var api = (function(Indexing) {
       var diffs = [["block", "inserted", [queryId, blockId, viewId]],
                    ["view", "inserted", [viewId, kind]],
                    ["display name", "inserted", [viewId, getUniqueName(queryViews, alphabet)]],
-                   ["tag", "inserted", [viewId, "local"]]];
+                   ["tag", "inserted", [viewId, "local"]],
+                   ["tag", "inserted", [viewId, "remote"]]];
 
       if(sourceViewId) {
         diffs.push.apply(diffs, diff.addViewSource(viewId, sourceViewId));
@@ -403,6 +407,7 @@ var api = (function(Indexing) {
                    ["view", "inserted", [viewId, "aggregate"]],
                    ["display name", "inserted", [viewId, getUniqueName(queryViews, alphabet)]],
                    ["tag", "inserted", [viewId, "local"]],
+                   ["tag", "inserted", [viewId, "remote"]],
                    ["source", "inserted", [viewId, "inner", "empty view"]],
                    ["source", "inserted", [viewId, "outer", "empty view"]],
                    ["display name", "inserted", [viewId + "-inner", "empty"]],
@@ -454,6 +459,8 @@ var api = (function(Indexing) {
                      ["display name", "inserted", [fieldId, name || ""]],
                      ["block field", "inserted", [blockFieldId, viewId, "selection", viewId, fieldId]],
                      ["select", "inserted", neue]);
+
+          ixer.clearTable(viewId); // Hack to ensure we delete stale context.
         }
       } else {
         neue = [viewId, fieldId, sourceId, sourceFieldId];
@@ -736,11 +743,11 @@ var api = (function(Indexing) {
       if(old) {
         neue = old.slice();
       } else {
-        neue = [viewId, field || "", 1000, direction || ""];
+        neue = [viewId, field || "", 1000, direction || "ascending"];
       }
 
       neue[1] = field || neue[1];
-      neue[3] = direction || neue[3] || "ascending";
+      neue[3] = direction || neue[3];
       diffs.push(["aggregate sorting", "inserted", neue]);
       if(old && !Indexing.arraysIdentical(neue, old)) {
         diffs.push(["aggregate sorting", "removed", old]);
@@ -782,17 +789,20 @@ var api = (function(Indexing) {
           }
         });
       }
+      console.log(diffs);
       return diffs;
     },
-    duplicateStyle: function(toDuplicate, elementId, txId) {
+    duplicateStyle: function(toDuplicate, elementId, txId, useStyleId) {
       var diffs = [];
       var style = toDuplicate.slice();
       var oldId = toDuplicate[1];
-      var neueId = uuid();
+      var neueId = useStyleId || uuid();
       style[0] = txId;
       style[1] = neueId;
       style[3] = elementId;
-      diffs.push(["uiStyle", "inserted", style]);
+      if(!useStyleId) {
+        diffs.push(["uiStyle", "inserted", style]);
+      }
       var styles = ixer.index("uiStyleToAttrs")[oldId];
       if(styles) {
         styles.forEach(function(attr) {
@@ -818,6 +828,7 @@ var api = (function(Indexing) {
   };
 
   var groupsToHide = {
+    "example": true,
     "compiler": true,
     "editor": true,
     "test": true
@@ -825,9 +836,10 @@ var api = (function(Indexing) {
 
   function injectViews(tableGroups, ixer, noFacts) {
     var diffs = [];
-    var add = function(viewId, view, shouldHide) {
+    var add = function(viewId, view, group, shouldHide) {
       diffs = diffs.concat(diff.addView(viewId, view, noFacts));
-      diffs.push(["editor item", "inserted", [viewId, "table"]]);
+      diffs.push(["editor item", "inserted", [viewId, "table"]],
+                 ["tag", "inserted", [viewId, group]]);
       if(shouldHide) {
         diffs.push(["tag", "inserted", [viewId, "hidden"]]);
       }
@@ -837,7 +849,7 @@ var api = (function(Indexing) {
       var tables = tableGroups[tableGroup];
       var shouldHide = groupsToHide[tableGroup];
       for(var tableId in tables) {
-        add(tableId, tables[tableId], shouldHide);
+        add(tableId, tables[tableId], tableGroup, shouldHide);
       }
     }
 
@@ -872,7 +884,7 @@ var api = (function(Indexing) {
                     openLayers: {},
                     initialAttrs: [],
                     initialElements: [],
-                    activeItem: 1,
+                    activeItem: null,
                     showMenu: true,
                     uiGridSize: 10};
 
