@@ -185,14 +185,15 @@ pub fn run() {
                     let mut decoder = cbor::Decoder::from_bytes(&input_bytes[..]);
                     let cbor = decoder.items().next().unwrap().unwrap();
                     let json = cbor.to_json();
-                    let event: Event = FromJson::from_json(&json);
                     events.write_all(format!("{}", json).as_bytes()).unwrap();
                     events.write_all("\n".as_bytes()).unwrap();
+                    events.flush().unwrap();
+                    let event: Event = FromJson::from_json(&json);
                     let old_flow = flow.clone();
                     flow = flow.quiesce(event.changes);
                     let changes = flow.changes_from(old_flow);
                     let output_text = format!("{}", Event{changes: changes}.to_json());
-                    events.flush().unwrap();
+
                     for sender in senders.iter_mut() {
                         match sender.send_message(Message::Text(output_text.clone())) {
                             Ok(_) => (),
