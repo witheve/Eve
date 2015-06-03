@@ -103,7 +103,7 @@ var api = (function(Indexing) {
       "query export": {name: "query export", fields: ["query", "view"]},
 
       //ui
-      "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom"], facts: []},
+      "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom", "zindex"], facts: []},
       "uiComponentLayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden", "parentLayer"], facts: []},
       "uiComponentAttribute": {name: "uiComponentAttribute", fields: ["tx", "id", "property", "value"]},
       "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element", "shared"]},
