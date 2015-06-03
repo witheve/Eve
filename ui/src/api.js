@@ -407,6 +407,7 @@ var api = (function(Indexing) {
                    ["view", "inserted", [viewId, "aggregate"]],
                    ["display name", "inserted", [viewId, getUniqueName(queryViews, alphabet)]],
                    ["tag", "inserted", [viewId, "local"]],
+                   ["tag", "inserted", [viewId, "remote"]],
                    ["source", "inserted", [viewId, "inner", "empty view"]],
                    ["source", "inserted", [viewId, "outer", "empty view"]],
                    ["display name", "inserted", [viewId + "-inner", "empty"]],

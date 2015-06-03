@@ -1,16 +1,13 @@
-use websocket::{client,Client,stream,Message, Sender, Receiver};
-
+use websocket::{client,Client,stream,Message,Sender,Receiver};
 use hyper::Url;
+use std::thread;
+use rustc_serialize::json::*;
 
 use value::Value;
 use server::Event;
 use relation::Change;
 
-use std::thread;
-
-use rustc_serialize::json::*;
-
-pub fn open_websocket(url_string: &str) -> Result<client::sender::Sender<stream::WebSocketStream>,String> { //Result<(client::sender::Sender<stream::WebSocketStream>,client::receiver::Receiver<stream::WebSocketStream>),String> { //Result<(::std::thread::JoinGuard<()>,::std::thread::JoinGuard<()>),String> {
+pub fn open_websocket(url_string: &str) -> Result<client::sender::Sender<stream::WebSocketStream>,String> {
 
 	//let mut context = SslContext::new(SslMethod::Tlsv1).unwrap();
 	//let _ = context.set_certificate_file(&(Path::new("server.crt")), X509FileType::PEM);
@@ -49,7 +46,10 @@ pub fn open_websocket(url_string: &str) -> Result<client::sender::Sender<stream:
 	            Err(_) => return,
 	        };
 	        match message {
-	            Message::Text(_) => (),
+	            Message::Text(_) => {
+	           		//let json = Json::from_str(&text).unwrap();
+                    //let event: Event = FromJson::from_json(&json);
+	        	},
 	            Message::Close(_) => {
 	                println!("Received close message");
 	                return;
@@ -72,15 +72,15 @@ pub fn create_table(table_name: &&str, table_fields: &Vec<&str>) -> Event {
 	let table_string = Value::String(table_name.to_string());
 
 	// Creates a vector of names of the form: "table_name: field_name"
-	let concat_field_names: Vec<Value> = table_fields.iter()
-											.map(|field_name| Value::String(table_name.to_string() + ": " + field_name))
-											.collect();
+	let concat_field_names = table_fields.iter()
+										 .map(|field_name| Value::String(table_name.to_string() + ": " + field_name))
+										 .collect::<Vec<_>>();
 
 	// Concats a vector of display names of the form: (display name: id, display name: name)
-	let display_name_fields: Vec<Vec<Value>> = concat_field_names.iter()
+	let display_name_fields = concat_field_names.iter()
 												.zip(table_fields.iter())
 												.map(|(concat_name,field_name)| vec![concat_name.clone(),Value::String(field_name.to_string())])
-												.collect();
+												.collect::<Vec<_>>();
 
 	// Creates the display name insert
 	let display_name_inserts = vec![vec![table_string.clone(),table_string.clone()]];
@@ -103,7 +103,7 @@ pub fn create_table(table_name: &&str, table_fields: &Vec<&str>) -> Event {
 											}
 				);
 
-	// Create field insert vector of the from: field: view, field: field, "output"
+	// Create field insert vector of the from: [field: view, field: field, "output"]
 	let field_inserts = concat_field_names.iter()
 										  .map(|concat_field| vec![table_string.clone(), concat_field.clone(), Value::String("output".to_string())])
 										  .collect::<Vec<_>>();
@@ -124,9 +124,9 @@ pub fn insert_fact(table_name: &&str, table_fields: &Vec<&str>, row_data: &Vec<V
 	assert_eq!(table_fields.len(),row_data.len());
 
 	// Creates a vector of names of the form: "table_name: field_name"
-	let concat_field_names: Vec<String> = table_fields.iter()
-											.map(|field_name| table_name.to_string() + ": " + field_name)
-											.collect();
+	let concat_field_names = table_fields.iter()
+										 .map(|field_name| table_name.to_string() + ": " + field_name)
+										 .collect();
 
 	Event{changes: vec![(table_name.to_string(),Change{
 														fields: concat_field_names,
