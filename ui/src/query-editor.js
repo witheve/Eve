@@ -460,7 +460,7 @@ var queryEditor = (function(window, microReact, api) {
 
         // @FIXME: Hard-coded to work with constants only.
         var constantId = uuid();
-        var limit = ixer.index("view to " + table)[info.viewId];
+        var limit = ixer.index(table)[info.viewId];
         if(!limit) { limit = [info.viewId, "constant", constantId]; }
         else {
           constantId = limit[2];
