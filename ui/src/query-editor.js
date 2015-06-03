@@ -2573,8 +2573,8 @@ var queryEditor = (function(window, microReact, api) {
     items.push({c: "block new-block", children: [
       {c: "block unused", children: [
         {c: "controls", children: [
-          {c: "control join", text: "join"},
-          {c: "control union", click: newUnionBlock, text: "merge"},
+          {c: "control join", click: newJoinBlock, queryId: queryId, text: "join"},
+          {c: "control union", click: newUnionBlock, queryId: queryId, text: "merge"},
           {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "sort+limit", text: "sort and limit"},
           {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "count", text: "count"},
           {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "sum", text: "sum"},
@@ -2682,6 +2682,10 @@ var queryEditor = (function(window, microReact, api) {
       handler: elem.handler,
     };
     render();
+  }
+
+  function newJoinBlock(e, elem) {
+    dispatch("addViewBlock", {queryId: elem.queryId, kind: "join"});
   }
 
   function newAggregateBlock(e, elem) {
