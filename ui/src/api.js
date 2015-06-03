@@ -215,7 +215,7 @@ var api = (function(Indexing) {
   ixer.addIndex("uiStyle", "uiStyle", Indexing.create.lookup([1, false]));
   ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.lookup([3, 2, false]));
   ixer.addIndex("uiElementToStyles", "uiStyle", Indexing.create.collector([3]));
-  ixer.addIndex("stylesBySharedAndType", "uiStyle", Indexing.create.collector([4, 2]));
+  ixer.addIndex("stylesBySharedAndType", "uiStyle", Indexing.create.collector([4, 2, 1]));
   ixer.addIndex("uiStyleToAttr", "uiComponentAttribute", Indexing.create.lookup([1, 2, false]));
   ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.collector([1]));
   ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup([0, 1]));
@@ -788,17 +788,20 @@ var api = (function(Indexing) {
           }
         });
       }
+      console.log(diffs);
       return diffs;
     },
-    duplicateStyle: function(toDuplicate, elementId, txId) {
+    duplicateStyle: function(toDuplicate, elementId, txId, useStyleId) {
       var diffs = [];
       var style = toDuplicate.slice();
       var oldId = toDuplicate[1];
-      var neueId = uuid();
+      var neueId = useStyleId || uuid();
       style[0] = txId;
       style[1] = neueId;
       style[3] = elementId;
-      diffs.push(["uiStyle", "inserted", style]);
+      if(!useStyleId) {
+        diffs.push(["uiStyle", "inserted", style]);
+      }
       var styles = ixer.index("uiStyleToAttrs")[oldId];
       if(styles) {
         styles.forEach(function(attr) {

@@ -540,10 +540,11 @@ var queryEditor = (function(window, microReact, api) {
         var neue = [txId, elemId, info.componentId, info.layerId, info.control, info.left, info.top, info.right, info.bottom, info.zIndex];
         var appStyleId = uuid();
         var typStyleId = uuid();
+        var contentStyleId = uuid();
         diffs.push(["uiComponentElement", "inserted", neue]);
         diffs.push(["uiStyle", "inserted", [txId, appStyleId, "appearance", elemId, false]],
                    ["uiStyle", "inserted", [txId, typStyleId, "typography", elemId, false]],
-                   ["uiStyle", "inserted", [txId, typStyleId, "content", elemId, false]]);
+                   ["uiStyle", "inserted", [txId, contentStyleId, "content", elemId, false]]);
 
         // @TODO: Instead of hardcoding, have a map of special element diff handlers.
         if(info.control === "map") {
@@ -707,6 +708,13 @@ var queryEditor = (function(window, microReact, api) {
           diffs.push(["uiStyle", "inserted", [txId, styleId, type, id, info.shared]],
                      ["uiStyle", "removed", prevStyle]);
         });
+        if(info.copyCurrent && sel && sel.length) {
+          console.log("copying current");
+          //duplicate the attrs to this newly created style
+          var id = sel[0];
+          var prevStyle = ixer.index("uiElementToStyle")[id][type];
+          diffs.push.apply(diffs, diff.duplicateStyle(prevStyle, id, txId, styleId));
+        }
         break;
       case "duplicateSelection":
         var sel = localState.uiSelection;
@@ -2018,9 +2026,10 @@ var queryEditor = (function(window, microReact, api) {
     borderRadiusAdjuster.finalizer = stopAdjustAttr;
 
     if(!localState.addingAppearanceStyle) {
-      var sharedAppearance = (ixer.index("stylesBySharedAndType")[true] || {})["appearance"] || [];
-      var styles = sharedAppearance.map(function(cur) {
-        return {value: cur[1], text: code.name(cur[1])};
+      var sharedAppearance = (ixer.index("stylesBySharedAndType")[true] || {})["appearance"] || {};
+      var uniqueStyles = Object.keys(sharedAppearance);
+      var styles = uniqueStyles.map(function(cur) {
+        return {value: cur, text: code.name(cur)};
       });
       styles.unshift({text: "No text style", value: "none"});
       styles.push({text: "Add a new style", value: "addStyle"});
@@ -2031,7 +2040,7 @@ var queryEditor = (function(window, microReact, api) {
           dispatch("setSelectionStyle", {type: "appearance", id: uuid(), shared: false});
         } else if(value === "addStyle") {
           localState.addingAppearanceStyle = uuid();
-          dispatch("setSelectionStyle", {type: "appearance", id: localState.addingAppearanceStyle, shared: true});
+          dispatch("setSelectionStyle", {type: "appearance", id: localState.addingAppearanceStyle, shared: true, copyCurrent: true});
         } else {
           dispatch("setSelectionStyle", {type: "appearance", id: value, shared: true});
         }
@@ -2163,9 +2172,10 @@ var queryEditor = (function(window, microReact, api) {
     align.handler = selectAlign;
 
     if(!localState.addingTypographyStyle) {
-      var sharedTypography = (ixer.index("stylesBySharedAndType")[true] || {})["typography"] || [];
-      var styles = sharedTypography.map(function(cur) {
-        return {value: cur[1], text: code.name(cur[1])};
+      var sharedTypography = (ixer.index("stylesBySharedAndType")[true] || {})["typography"] || {};
+      var uniqueStyles = Object.keys(sharedTypography);
+      var styles = uniqueStyles.map(function(cur) {
+        return {value: cur, text: code.name(cur)};
       });
       styles.unshift({text: "No text style", value: "none"});
       styles.push({text: "Add a new style", value: "addStyle"});
@@ -2176,7 +2186,7 @@ var queryEditor = (function(window, microReact, api) {
           dispatch("setSelectionStyle", {type: "typography", id: uuid(), shared: false});
         } else if(value === "addStyle") {
           localState.addingTypographyStyle = uuid();
-          dispatch("setSelectionStyle", {type: "typography", id: localState.addingTypographyStyle, shared: true});
+          dispatch("setSelectionStyle", {type: "typography", id: localState.addingTypographyStyle, shared: true, copyCurrent: true});
         } else {
           dispatch("setSelectionStyle", {type: "typography", id: value, shared: true});
         }
@@ -2203,9 +2213,9 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function doneAddingStyle(e, elem) {
+    rename(e, elem, true);
     localState.addingTypographyStyle = null;
     localState.addingAppearanceStyle = null;
-    render();
   }
 
   uiProperties.layer = [];
@@ -2233,10 +2243,6 @@ var queryEditor = (function(window, microReact, api) {
       {c: "pair", children: [{c: "label", text: "interactive"},
                              inspectorCheckbox(attrs["draggable"], [componentId, "draggable"], setMapAttribute, binding)]},
     ]};
-  }
-
-  uiProperties.repeat = [];
-  function repeatInspector() {
   }
 
   // Inputs

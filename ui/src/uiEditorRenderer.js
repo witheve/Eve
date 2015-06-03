@@ -112,9 +112,10 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
     var top = element[6];
     var right = element[7];
     var bottom = element[8];
+    var zIndex = element[9];
     var elem = {c: "absolute", left: left - offset.left, top: top - offset.top,
                 width: right - left, height: bottom - top, elementId: elementId,
-                row: row};
+                zIndex: zIndex, row: row};
 
     var attrs = [];
     var styles = stylesIndex[elementId] || [];
