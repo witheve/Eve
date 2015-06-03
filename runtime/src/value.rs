@@ -12,10 +12,10 @@ pub enum Value {
 impl ::std::fmt::Debug for Value {
     fn fmt(&self, formatter: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
         match *self {
-            Value::Null => formatter.write_str("null"),
-            Value::Bool(bool) => bool.fmt(formatter),
-            Value::String(ref string) => string.fmt(formatter),
-            Value::Float(float) => float.fmt(formatter),
+            Value::Null => formatter.write_str("null").unwrap(),
+            Value::Bool(bool) => bool.fmt(formatter).unwrap(),
+            Value::String(ref string) => string.fmt(formatter).unwrap(),
+            Value::Float(float) => float.fmt(formatter).unwrap(),
         };
         Ok(())
     }
@@ -98,7 +98,7 @@ impl<'a> ::std::fmt::Debug for Tuple<'a> {
         for (name, value) in self.names.iter().zip(self.values.iter()) {
             debug_struct.field(name, value);
         }
-        debug_struct.finish();
+        debug_struct.finish().unwrap();
         Ok(())
     }
 }
