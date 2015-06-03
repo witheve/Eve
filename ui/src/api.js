@@ -387,7 +387,8 @@ var api = (function(Indexing) {
       var diffs = [["block", "inserted", [queryId, blockId, viewId]],
                    ["view", "inserted", [viewId, kind]],
                    ["display name", "inserted", [viewId, getUniqueName(queryViews, alphabet)]],
-                   ["tag", "inserted", [viewId, "local"]]];
+                   ["tag", "inserted", [viewId, "local"]],
+                   ["tag", "inserted", [viewId, "remote"]]];
 
       if(sourceViewId) {
         diffs.push.apply(diffs, diff.addViewSource(viewId, sourceViewId));
@@ -454,6 +455,8 @@ var api = (function(Indexing) {
                      ["display name", "inserted", [fieldId, name || ""]],
                      ["block field", "inserted", [blockFieldId, viewId, "selection", viewId, fieldId]],
                      ["select", "inserted", neue]);
+
+          ixer.clearTable(viewId); // Hack to ensure we delete stale context.
         }
       } else {
         neue = [viewId, fieldId, sourceId, sourceFieldId];
