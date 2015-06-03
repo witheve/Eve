@@ -742,11 +742,11 @@ var api = (function(Indexing) {
       if(old) {
         neue = old.slice();
       } else {
-        neue = [viewId, field || "", 1000, direction || ""];
+        neue = [viewId, field || "", 1000, direction || "ascending"];
       }
 
       neue[1] = field || neue[1];
-      neue[3] = direction || neue[3] || "ascending";
+      neue[3] = direction || neue[3];
       diffs.push(["aggregate sorting", "inserted", neue]);
       if(old && !Indexing.arraysIdentical(neue, old)) {
         diffs.push(["aggregate sorting", "removed", old]);
