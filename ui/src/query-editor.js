@@ -487,7 +487,6 @@ var queryEditor = (function(window, microReact, api) {
 //           sendToServer = neue[code.ix("aggregate grouping", "inner field")] && neue[code.ix("aggregate grouping", "outer field")];
 //         }
         var viewId = info.aggregate;
-        console.log(info, viewId);
         var old = ixer.index("aggregate grouping")[viewId];
         var neue = [viewId, info.field, info.field];
         if(old && !api.arraysIdentical(old, neue)) {
@@ -714,7 +713,13 @@ var queryEditor = (function(window, microReact, api) {
 
       ixer.handleDiffs(diffs);
       if(sendToServer) {
-        window.client.sendToServer(diffs);
+        if(DEBUG.DELAY) {
+          setTimeout(function() {
+            window.client.sendToServer(diffs);
+          }, DEBUG.DELAY);
+        } else {
+          window.client.sendToServer(diffs);
+        }
       }
       render();
     } else {
