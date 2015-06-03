@@ -203,6 +203,36 @@ var queryEditor = (function(window, microReact, api) {
                      ["uiComponentElement", "removed", elem])
         }
         break;
+      case "changeElementPosition":
+        var elem = ixer.index("uiComponentElement")[info.elementId];
+        var target = ixer.index("uiComponentElement")[info.targetId];
+        var neue = elem.slice();
+        var changed = false;
+        neue[0] = txId;
+        if(elem[3] !== target[3]) {
+          changed = true;
+          neue[3] = target[3];
+        }
+        if(elem[9] !== target[9]) {
+          changed = true;
+          //move all the others
+          neue[9] = target[9];
+          var others = ixer.index("uiLayerToElements")[target[3]] || [];
+          for(var othersIx = 0, othersLen = others.length; othersIx < othersLen; othersIx++) {
+            var other = others[othersIx];
+            if(other[9] >= neue[9] && neue[1] !== other[1]) {
+              var neueOther = other.slice();
+              neueOther[9] = other[9] + 1;
+              diffs.push(["uiComponentElement", "inserted", neueOther],
+                         ["uiComponentElement", "removed", other]);
+            }
+          }
+        }
+        if(changed) {
+          diffs.push(["uiComponentElement", "inserted", neue],
+                     ["uiComponentElement", "removed", elem]);
+        }
+        break;
       case "rename":
         var id = info.id;
         sendToServer = !!info.sendToServer;
@@ -507,7 +537,7 @@ var queryEditor = (function(window, microReact, api) {
         break;
       case "addUiComponentElement":
         var elemId = uuid();
-        var neue = [txId, elemId, info.componentId, info.layerId, info.control, info.left, info.top, info.right, info.bottom];
+        var neue = [txId, elemId, info.componentId, info.layerId, info.control, info.left, info.top, info.right, info.bottom, info.zIndex];
         var appStyleId = uuid();
         var typStyleId = uuid();
         diffs.push(["uiComponentElement", "inserted", neue]);
@@ -1170,13 +1200,16 @@ var queryEditor = (function(window, microReact, api) {
         });
       }
       var elements = ixer.index("uiLayerToElements")[layerId] || [];
+      elements.sort(function(a, b) {
+        return a[9] - b[9];
+      });
       elements.forEach(function(cur) {
         var elemId = cur[1];
         var selectedClass = "";
         if(localState.uiSelection && localState.uiSelection.indexOf(elemId) > -1) {
           selectedClass = " selected";
         }
-        subItems.push({c: "layer-element depth-" + (depth + 1) + selectedClass, control: cur, click: addToSelection, children: [
+        subItems.push({c: "layer-element depth-" + (depth + 1) + selectedClass, itemId: elemId, dragover: preventDefault, drop: dropOnElementItem, control: cur, click: addToSelection, children: [
           {c: "layer-row", itemId: elemId, draggable:true, dragstart: layerDrag, type: "element", children:[
             {c: "icon ion-ios-crop" + (selectedClass ? "-strong" : "")},
             {text: cur[4]}
@@ -1199,6 +1232,19 @@ var queryEditor = (function(window, microReact, api) {
       ]},
       {c: "layer-items", children: subItems}
     ]};
+  }
+
+  function dropOnElementItem(e, elem) {
+    var type = e.dataTransfer.getData("type");
+    if(type === "element") {
+      e.stopPropagation();
+      var elementId = e.dataTransfer.getData("itemId");
+      dispatch("changeElementPosition", {elementId: elementId, targetId: elem.itemId});
+    } else if(type === "layer") {
+      e.stopPropagation();
+      var layerId = e.dataTransfer.getData("itemId");
+      dispatch("changeLayerPosition", {elementId: elementId, targetId: elem.itemId});
+    }
   }
 
   function toggleOpenLayer(e, elem) {
@@ -1522,7 +1568,7 @@ var queryEditor = (function(window, microReact, api) {
     var locked = layer[4] ? " locked" : "";
     var klass = type + " ui-element" + selClass + hidden + locked;
     var elem = {c: klass, id: "elem" + id, left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6],
-                control: cur, mousedown: addToSelection, selected: selected, zIndex: layer[3] + 1,
+                control: cur, mousedown: addToSelection, selected: selected, zIndex: layer[3] + (cur[9] || 0),
                 draggable: true, dragover: preventDefault, drop: dropOnControl, drag: moveSelection, dragend: stopMoveSelection, dragstart: startMoveSelection, dblclick: setModifyingText};
     if(attrs) {
       for(var i = 0, len = attrs.length; i < len; i++) {
@@ -1793,13 +1839,20 @@ var queryEditor = (function(window, microReact, api) {
   }
 
   function addElement(e, elem) {
+    var layerId = elem.layer[1];
+    var els = ixer.index("uiLayerToElements")[layerId];
+    var zIndex = 0;
+    if(els) {
+      zIndex = els.length;
+    }
     dispatch("addUiComponentElement", {componentId: elem.componentId,
-                                       layerId: elem.layer[1],
+                                       layerId: layerId,
                                        control: elem.controlType,
                                        left: elem.left || 100,
                                        right: elem.right || 200,
                                        top: elem.top || 100,
-                                       bottom: elem.bottom || 200})
+                                       bottom: elem.bottom || 200,
+                                       zIndex: zIndex});
   }
 
 
