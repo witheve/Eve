@@ -477,9 +477,7 @@ var queryEditor = (function(window, microReact, api) {
 
         break;
       case "updateAggregateSort":
-        var params = {};
-        params[info.key] = info.value;
-        diffs = diff.updateAggregateSort(info.viewId, params.field, params.direction);
+        diffs = diff.updateAggregateSort(info.viewId, info.field, info.direction);
         var neue = diffs[0][2];
         sendToServer = neue[code.ix("aggregate sorting", "inner field")]
         && neue[code.ix("aggregate sorting", "direction")];
@@ -490,7 +488,7 @@ var queryEditor = (function(window, microReact, api) {
 
         // @FIXME: Hard-coded to work with constants only.
         var constantId = uuid();
-        var limit = ixer.index("view to " + table)[info.viewId];
+        var limit = ixer.index(table)[info.viewId];
         if(!limit) { limit = [info.viewId, "constant", constantId]; }
         else {
           constantId = limit[2];
@@ -3323,13 +3321,18 @@ var queryEditor = (function(window, microReact, api) {
     fromLimitInput.parentId = viewId;
     var toLimitInput = input(limitToValue, "to", updateAggregateLimit, updateAggregateLimit);
     toLimitInput.parentId = viewId;
+
+    var dirInput = selectInput(sortDir || "ascending", "direction", {ascending: "▲", descending: "▼"}, updateAggregateSortDirection);
+    dirInput.parentId = viewId;
+
     return {c: "sort-limit-aggregate", viewId: viewId, children: [
-      {c: "block-section aggregate-sort", children: [
+      {c: "spaced-row block-section aggregate-sort", children: [
         {text: "Sort by"},
-        token.blockField({key: "field", parentId: viewId, source: sortSource, field: sortField}, updateAggregateSort, dropAggregateField),
-        selectInput(sortDir || "ascending", "direction", {ascending: "▲", descending: "▼"}, updateAggregateSort)
+        queryToken("field", "sort", viewId, getLocalFieldName(sortField) || "<field>", {handler: updateAggregateSortField, drop: dropAggregateField, viewId: viewId, sourceId: "inner"}),
+        //token.blockField({key: "field", parentId: viewId, source: sortSource, field: sortField}, updateAggregateSort, dropAggregateField),
+        dirInput
       ]},
-      {c: "block-section aggregate-limit", children: [
+      {c: "spaced-row block-section aggregate-limit", children: [
         {text: "Limit"},
         fromLimitInput,
         {text: "-"},
@@ -3342,9 +3345,14 @@ var queryEditor = (function(window, microReact, api) {
     dispatch("updateAggregateLimit", {viewId: elem.parentId, key: elem.key, value:  +evt.target.value || +evt.currentTarget.textContent, sendToServer: !!type});
   }
 
-  function updateAggregateSort(evt, elem) {
-    var info = {viewId: elem.parentId, key: elem.key, value: evt.target.value || evt.currentTarget.textContent};
-    dispatch("updateAggregateSort", info);
+  function updateAggregateSortField(evt, elem) {
+    var info = localState.queryEditorInfo;
+    var token = info.token;
+    dispatch("updateAggregateSort", {viewId: token.viewId, field: elem.key});
+  }
+
+  function updateAggregateSortDirection(evt, elem) {
+    dispatch("updateAggregateSort", {viewId: elem.parentId, direction: evt.target.value});
   }
 
   function dropAggregateField(evt, elem) {

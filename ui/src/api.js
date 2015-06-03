@@ -108,35 +108,38 @@ var api = (function(Indexing) {
       "uiComponentAttribute": {name: "uiComponentAttribute", fields: ["tx", "id", "property", "value"]},
       "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element", "shared"]},
       "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "view"]},
-      "uiAttrBinding": {name: "uiAttrBinding", fields: ["elementId", "attr", "field"]}
+      "uiAttrBinding": {name: "uiAttrBinding", fields: ["elementId", "attr", "field"]},
+
     },
 
     example: {
-//       "department heads": {name: "department heads", fields: ["department", "head"]},
-//       "employees": {name: "employees", fields: ["department", "name", "salary"]},
 
-//       "book": {name: "book", fields: ["isbn", "title", "author", "price", "cost"]},
-//       "book sales": {name: "book sales", fields: ["order", "sales"]},
-//       "PDGF assay": {name: "PDGF assay", fields: ["PDGF concentration", "Seed density", "Well #", "Absorbance"]},
+      "department heads": {name: "department heads", fields: ["department", "head"]},
+      "employees": {name: "employees", fields: ["department", "name", "salary"]},
+
+
+      "book": {name: "book", fields: ["isbn", "title", "author", "price", "cost"]},
+      "book sales": {name: "book sales", fields: ["order", "sales"]},
+      "PDGF assay": {name: "PDGF assay", fields: ["PDGF concentration", "Seed density", "Well #", "Absorbance"]},
+    },
+
+    foursquare: {
       "click": {name: "click", fields: ["event number", "button", "binding"]},
-
-
-      // FourSquare
       "place": {name: "place", fields: ["place", "name", "priceRange"]},
-      "placeToAddress": {name: "placeToAddress", fields: ["place", "street", "city", "state", "zip"]},
-      "placeToHours": {name: "placeToHours", fields: ["place", "day", "start", "end"]},
-      "placeToImage": {name: "placeToImage", fields: ["image", "place"]},
+      "place to address": {name: "place to address", fields: ["place", "street", "city", "state", "zip"]},
+      "place to hours": {name: "place to hours", fields: ["place", "day", "start", "end"]},
+      "place to rating": {name: "place to rating", fields: ["place", "rating", "reviewCount"]},
+      "place to image": {name: "place to image", fields: ["image", "place"]},
       "image": {name: "image", fields: ["image", "user", "url", "description", "tick"]},
       "taste": {name: "taste", fields: ["taste", "name"]},
-      "placeToTaste": {name: "placeToTaste", fields: ["tick","place", "taste", "rank"]},
+      "place to taste": {name: "place to taste", fields: ["tick","place", "taste", "rank"]},
       "review": {name: "review", fields: ["tick", "place", "user", "text", "rating", "approved"]},
-      "placeToRating": {name: "placeToRating", fields: ["place", "rating", "reviewCount"]},
       "user": {name: "user", fields: ["id", "token", "name"]},
-      "userCheckin": {name: "userCheckin", fields: ["tick", "user", "place"]},
+      "user checkin": {name: "user checkin", fields: ["tick", "user", "place"]}
     },
 
     test: {
-      "edge": {name: "edge", fields: ["to", "from"], facts: [["a", "b"], ["b", "c"], ["c", "d"]]},
+      edge: {name: "edge", fields: ["to", "from"], facts: [["a", "b"], ["b", "c"], ["c", "d"]]},
       numbers: {name: "numbers", fields: ["x"], facts: [[0], [1], [2], [3]]},
     }
   };
@@ -739,11 +742,11 @@ var api = (function(Indexing) {
       if(old) {
         neue = old.slice();
       } else {
-        neue = [viewId, field || "", 1000, direction || ""];
+        neue = [viewId, field || "", 1000, direction || "ascending"];
       }
 
       neue[1] = field || neue[1];
-      neue[3] = direction || neue[3] || "ascending";
+      neue[3] = direction || neue[3];
       diffs.push(["aggregate sorting", "inserted", neue]);
       if(old && !Indexing.arraysIdentical(neue, old)) {
         diffs.push(["aggregate sorting", "removed", old]);
@@ -821,6 +824,7 @@ var api = (function(Indexing) {
   };
 
   var groupsToHide = {
+    "example": true,
     "compiler": true,
     "editor": true,
     "test": true
@@ -828,9 +832,10 @@ var api = (function(Indexing) {
 
   function injectViews(tableGroups, ixer, noFacts) {
     var diffs = [];
-    var add = function(viewId, view, shouldHide) {
+    var add = function(viewId, view, group, shouldHide) {
       diffs = diffs.concat(diff.addView(viewId, view, noFacts));
-      diffs.push(["editor item", "inserted", [viewId, "table"]]);
+      diffs.push(["editor item", "inserted", [viewId, "table"]],
+                 ["tag", "inserted", [viewId, group]]);
       if(shouldHide) {
         diffs.push(["tag", "inserted", [viewId, "hidden"]]);
       }
@@ -840,7 +845,7 @@ var api = (function(Indexing) {
       var tables = tableGroups[tableGroup];
       var shouldHide = groupsToHide[tableGroup];
       for(var tableId in tables) {
-        add(tableId, tables[tableId], shouldHide);
+        add(tableId, tables[tableId], tableGroup, shouldHide);
       }
     }
 
