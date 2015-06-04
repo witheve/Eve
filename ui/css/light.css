@@ -8,6 +8,7 @@ div { display: flex; flex-direction: column; }
 div:hover > .hover-reveal { opacity: 1; }
 
 .row { flex-direction:row; flex: 1; }
+.flex-column { flex-direction: column !important; }
 
 /*---------------------------------------------------------
 - root
@@ -231,6 +232,7 @@ div:hover > .hover-reveal { opacity: 1; }
 .query-editor .spaced-row > * { margin: 0 0.2em; }
 
 .query-workspace > .block {flex: none; border-radius:3px; overflow:hidden; background:#fff; flex-direction:row; margin-bottom:15px; box-shadow: 0 0 20px #111; }
+.block.unused > .controls + .controls { border-top: 1px solid #999; }
 
 .query-workspace .block-pane { flex: 1; }
 
