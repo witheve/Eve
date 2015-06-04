@@ -57,7 +57,7 @@ div:hover > .hover-reveal { opacity: 1; }
 ---------------------------------------------------------*/
 
 .control-bar { height:41px; background: rgba(62,73,75,1); border-bottom:1px solid rgba(53,64,76,1); align-items:flex-start; flex-direction:row; flex:none; }
-.control-bar .control-group { flex-direction:row; }
+.control-bar .control-group { flex-direction:row; flex:none; }
 .control-bar .control-group + .control-group { border-left: 1px solid rgba(45,56,57,1); }
 .control-bar .control { height:40px; padding: 0 15px; justify-content:center;  }
 .control-bar .control + .control { padding-left: 0; }
@@ -117,7 +117,7 @@ div:hover > .hover-reveal { opacity: 1; }
 
 .ui-editor { flex: 1; flex-direction:row; }
 .ui-editor .ui-canvas-container { flex:1; flex-direction:row; }
-.ui-editor .ui-canvas { position: relative; flex:1; overflow:hidden; margin:20px; background: rgba(255,255,255,0.1); }
+.ui-editor .ui-canvas { position: relative; flex:1; overflow-x:hidden; overflow-y:auto; margin:20px; background: rgba(255,255,255,0.1); }
 .ui-editor .selection { position:absolute; border:1px solid red; z-index:2; pointer-events:none; }
 .ui-editor .selection .resize-handle { position:absolute; border:1px solid red; background: rgba(255,0,0,0.2); z-index:2; pointer-events:auto; }
 .ui-editor .selection .trash { position:absolute; right: -25px; top: -25px; font-size: 18pt; pointer-events:auto; }

@@ -1084,7 +1084,12 @@ var queryEditor = (function(window, microReact, api) {
       var rect = boxSelectRect();
       canvasLayers.push({c: "box-selection", top: rect.top, left: rect.left, width: rect.width, height: rect.height});
     }
-    var canvas = {c: "ui-canvas", componentId: componentId, children: canvasLayers, mousedown: startBoxSelection, mouseup: stopBoxSelection, mousemove: adjustBoxSelection};
+    var canvas = {c: "row", children: [
+      {c: "ui-canvas-scroller", children: [
+        {c: "ui-canvas", height: 2000, componentId: componentId, children: canvasLayers, mousedown: startBoxSelection, mouseup: stopBoxSelection, mousemove: adjustBoxSelection},
+      ]},
+      {c: "attributes", children: uiInspectors(componentId, selectionInfo, layers, activeLayer)},
+    ]};
     if(localState.uiPreview) {
       canvas = canvasPreview();
     }
@@ -1095,10 +1100,7 @@ var queryEditor = (function(window, microReact, api) {
                                layersBox(componentId, layers, activeLayer),
                                {c: "ui-canvas-container", children: [
                                  uiControls(componentId, activeLayer),
-                                 {c: "row", children: [
-                                   canvas,
-                                   {c: "attributes", children: uiInspectors(componentId, selectionInfo, layers, activeLayer)},
-                                 ]},
+                                 canvas,
                                ]},
                              ]});
   }

@@ -126,12 +126,13 @@ div:hover > .hover-reveal { opacity: 1; }
 
 .ui-editor { flex: 1; flex-direction:row; }
 .ui-editor .ui-canvas-container { flex:1;  background: #fff; box-shadow:0 0 20px #111; border-radius:3px; color: #555; margin-right:20px; }
-.ui-editor .ui-canvas-container .control-group { flex-direction:row; background: rgba(0,0,0,0.1); padding:5px; justify-content: center; border-bottom:1px solid rgba(0,0,0,0.1); }
+.ui-editor .ui-canvas-container .control-group { flex: none; flex-direction:row; background: rgba(0,0,0,0.1); padding:5px; justify-content: center; border-bottom:1px solid rgba(0,0,0,0.1); }
 .ui-editor .ui-canvas-container .control-group .control { padding:0 15px; cursor:default; align-items:center; font-size:9pt; width:70px; color: #777; }
 .ui-editor .ui-canvas-container .control-group .control .icon { font-size:16pt; font-family:Times New Roman; color: #555; }
 .ui-editor .ui-canvas-container .control-group .design-mode-toggle.active .icon { color:rgba(0,146,201,1); }
 .ui-editor .ui-canvas-container .attributes { background: rgba(0,0,0,0.05); width:120px; }
-.ui-editor .ui-canvas { position: relative; flex:1; overflow:hidden;}
+.ui-editor .ui-canvas-scroller { position: relative; flex:1; flex-direction:row; overflow-y:auto; overflow-x:hidden; overflow:auto; }
+.ui-editor .ui-canvas { position: relative; flex:1; }
 .ui-editor .selection { position:absolute; border:1px solid rgba(0,146,201,1); z-index:2; pointer-events:none; }
 .ui-editor .selection .resize-handle { position:absolute; border:1px solid rgba(0,146,201,1); background: rgba(0,146,201,0.2); z-index:2; pointer-events:auto; }
 .ui-editor .selection .trash { position:absolute; right: -25px; top: -25px; font-size: 18pt; pointer-events:auto; }
@@ -299,7 +300,7 @@ div:hover > .hover-reveal { opacity: 1; }
 ---------------------------------------------------------*/
 .rendered-program { position:relative; overflow:auto; flex:1; }
 .rendered-program > div { flex: 1; }
-.rendered-program .absolute {position:absolute; overflow:hidden; cursor:default; }
+.rendered-program .absolute { position:absolute; overflow:hidden; cursor:default; text-align:left; background-size:100%; }
 .rendered-program .layer {flex: 1; position:absolute; }
 .rendered-program .repeat-container { position:relative; }
 .rendered-program .non-interactive { pointer-events:none; }
