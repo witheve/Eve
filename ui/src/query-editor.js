@@ -2546,7 +2546,6 @@ var queryEditor = (function(window, microReact, api) {
         var aIx = order[viewId + JSON.stringify(a)];
         var bIx = order[viewId + JSON.stringify(b)];
         if(!aIx && !bIx && sortingIx !== undefined) {
-          console.log(sortingIx, a, b);
           if(a[sortingIx] === b[sortingIx]) { return 0; }
           if(sortingDirection === "ascending") {
             return (a[sortingIx] < b[sortingIx]) ? -1 : 1;

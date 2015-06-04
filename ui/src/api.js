@@ -282,11 +282,8 @@ var api = (function(Indexing) {
     },
     ixById: function(viewId, fieldId) {
       var fieldIds = code.sortedViewFields(viewId) || [];
-      console.log('fId', fieldIds);
-
       for(var ix = 0; ix < fieldIds.length; ix++) {
         var curFieldId = fieldIds[ix];
-        console.log(curFieldId, fieldId);
         if(curFieldId === fieldId) {
           return ix;
         }
