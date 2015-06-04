@@ -2683,8 +2683,9 @@ var queryEditor = (function(window, microReact, api) {
           return suggestionBarItem({field: field, source: source}, code.name(calculatedId) || "Untitled");
         }));
       }
-
-      items.push(suggestionBarItem("new constant", "new constant"));
+      if(info && info.token && info.token.constantHandler) {
+        items.push(suggestionBarItem("new constant", "new constant"));
+      }
     } else if(info.type === "constraint op") {
       items = ["=", "<", "<=", ">", ">=", "!="].map(function(op) {
         return suggestionBarItem(op, op);
