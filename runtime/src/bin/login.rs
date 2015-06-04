@@ -1,6 +1,14 @@
+#![feature(slice_patterns)]
+extern crate eve;
+extern crate hyper;
+extern crate cookie;
+extern crate mime;
+extern crate url;
+extern crate websocket;
+extern crate rustc_serialize;
+
 use std::io::Read;
 use std::error::Error;
-use hyper;
 use hyper::net::Fresh;
 use hyper::server::{Server, Request, Response};
 use hyper::uri::RequestUri;
@@ -12,58 +20,58 @@ use url::SchemeData::Relative;
 use rustc_serialize::json;
 use websocket::{Message, Sender};
 
-use client::*;
-use server;
-use value::Value;
+use eve::client::*;
+use eve::server;
+use eve::value::Value;
 
 #[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
-pub struct Session {
-	pub client: String,
-	pub id: String,
-	pub user_id: String,
-	pub object: String,
-	pub created_at: f64,
-	pub expires_at: f64,
-	pub ip: String,
-	pub user: User,
+struct Session {
+	client: String,
+	id: String,
+	user_id: String,
+	object: String,
+	created_at: f64,
+	expires_at: f64,
+	ip: String,
+	user: User,
 }
 
 #[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
-pub struct User {
-	pub custom: Custom,
-	pub id: String,
-	pub realm_id: String,
-	pub username: String,
-	pub state: String,
-	pub user_type: String,
-	pub reference: Option<String>,
-	pub name: String,
-	pub email: String,
-	pub object: String,
-	pub last_login_at: f64,
-	pub last_login_on: f64,
-	pub created_at: f64,
-	pub first_name: Option<String>,
-	pub last_name: Option<String>,
-	pub credentials: Vec<Credential>,
-	pub membership_count: f64,
+struct User {
+	custom: Custom,
+	id: String,
+	realm_id: String,
+	username: String,
+	state: String,
+	user_type: String,
+	reference: Option<String>,
+	name: String,
+	email: String,
+	object: String,
+	last_login_at: f64,
+	last_login_on: f64,
+	created_at: f64,
+	first_name: Option<String>,
+	last_name: Option<String>,
+	credentials: Vec<Credential>,
+	membership_count: f64,
 }
 
 #[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
-pub struct Custom;
+struct Custom;
 
 #[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
-pub struct Credential {
+struct Credential {
 	id: String,
 	credential_type: String,
 	object: String,
 }
 
-pub fn run() {
-	Server::http(auth).listen("0.0.0.0:8080").unwrap();
+fn main() {
+	Server::http(login).listen("0.0.0.0:8080").unwrap();
 }
 
-fn auth(req: Request, mut res: Response<Fresh>) {
+fn login(req: Request, mut res: Response<Fresh>) {
 
 	match (&req.method.clone(), &req.uri.clone()) {
 		(&hyper::Get, &RequestUri::AbsolutePath(ref relative_path)) => {
@@ -143,8 +151,11 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 																Value::String(session_data.user.id.clone()),
 																Value::String(session_data.user.username.clone())
 														   	   ];
-											send_event(&create_table(&table_name,&table_fields),&mut sender);
-											send_event(&insert_fact(&table_name,&table_fields,&row_data),&mut sender);
+											let mut create_eveusers_table = create_table(&table_name,&table_fields,None);
+											create_eveusers_table = insert_fact(&"tag",&vec!["view","tag"],&vec![Value::String("eveusers".to_string()),Value::String("remote".to_string())],Some(create_eveusers_table));
+											let insert_user = insert_fact(&table_name,&table_fields,&row_data,None);
+											send_event(&create_eveusers_table,&mut sender);
+											send_event(&insert_user,&mut sender);
 											let _ = sender.send_message(Message::Close(None));
 										}
 										// Otherwise, throw an error... maybe redirect to a special page.
