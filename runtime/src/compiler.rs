@@ -522,35 +522,39 @@ fn create_constants(flow: &Flow, view_id: &Value) -> Vec<Value> {
 }
 
 fn create_index_select(flow: &Flow, view_id: &Value, source_id: &Value, source_ix: usize) -> IndexSelect {
-    let field_table = flow.get_output("field");
+    let index_layout_table = flow.get_output("index layout");
     let source_table = flow.get_output("source");
     let select_table = flow.get_output("select");
     let selects = select_table.iter().filter(|select|
         (select["view"] == *view_id)
         && (select["source"] == *source_id)
         ).collect::<Vec<_>>();
-    let fields = field_table.find_all("view", view_id).iter().map(|field| {
+    let mut index_layouts = index_layout_table.find_all("view", view_id);
+    sort_by_ix(&mut index_layouts);
+    let source_fields = index_layouts.iter().map(|index_layout| {
         let select = selects.iter().find(|select|
-            select["view field"] == field["field"]
+            select["view field"] == index_layout["field"]
             ).unwrap();
         &select["source field"]
     }).collect::<Vec<_>>();
     let source = source_table.iter().find(|source|
         source["view"] == *view_id
         && source["source"] == *source_id).unwrap();
-    let mapping = fields.iter().map(|field_id| {
-        get_index_layout_ix(flow, &source["source view"], field_id)
+    let mapping = source_fields.iter().map(|source_field_id| {
+        get_index_layout_ix(flow, &source["source view"], source_field_id)
         }).collect();
     IndexSelect{source: source_ix, mapping: mapping}
 }
 
 fn create_view_select(flow: &Flow, view_id: &Value) -> ViewSelect {
-    let field_table = flow.get_output("field");
+    let index_layout_table = flow.get_output("index layout");
     let select_table = flow.get_output("select");
-    let mapping = field_table.find_all("view", view_id).iter().map(|field| {
+    let mut index_layouts = index_layout_table.find_all("view", view_id);
+    sort_by_ix(&mut index_layouts);
+    let mapping = index_layouts.iter().map(|index_layout| {
         let select = select_table.iter().find(|select|
             select["view"] == *view_id
-            && select["view field"] == field["field"]
+            && select["view field"] == index_layout["field"]
             ).unwrap();
         get_view_layout_ix(flow, view_id, &select["source"], &select["source field"])
     }).collect();
