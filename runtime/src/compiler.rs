@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use value::{Value, Tuple};
 use relation::{Relation, IndexSelect, ViewSelect, mapping, with_mapping};
-use view::{View, Table, Union, Join, JoinSource, Constraint, ConstraintOp, Aggregate, Reducer};
+use view::{View, Table, Union, Join, JoinSource, Constraint, ConstraintOp, Aggregate, Direction, Reducer};
 use flow::{Node, Flow};
 use primitive;
 use primitive::Primitive;
@@ -672,6 +672,7 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
     let select_table = flow.get_output("select");
     let view_layout_table = flow.get_output("view layout");
     let field_table = flow.get_output("field");
+    let sorting_table = flow.get_output("aggregate sorting");
 
     let constants = create_constants(flow, view_id);
 
@@ -694,6 +695,21 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
         ).collect();
     let outer = IndexSelect{source: outer_ix, mapping: outer_mapping};
     let inner = IndexSelect{source: inner_ix, mapping: inner_mapping};
+    let directions = view_layouts.iter().filter(|view_layout|
+            view_layout["source"].as_str() == "inner"
+        ).map(|view_layout|
+            sorting_table.iter().find(|sorting|
+                sorting["aggregate"] == *view_id
+                && sorting["inner field"] == view_layout["field"]
+            ).map_or(
+                Direction::Ascending,
+                |sorting| match sorting["direction"].as_str() {
+                    "ascending" => Direction::Ascending,
+                    "descending" => Direction::Descending,
+                    _ => panic!("Unknown sort direction: {:?}", sorting),
+                }
+            )
+        ).collect();
     let limit_from = flow.get_output("aggregate limit from").find_maybe("aggregate", view_id)
         .map(|limit_from| get_view_layout_ix(flow, view_id, &limit_from["from source"], &limit_from["from field"]));
     let limit_to = flow.get_output("aggregate limit to").find_maybe("aggregate", view_id)
@@ -726,7 +742,7 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
     let selects_inner = select_table.find_all("view", view_id).iter().any(|select|
         select["source"].as_str() == "inner"
         );
-    Aggregate{constants: constants, outer: outer, inner: inner, limit_from: limit_from, limit_to: limit_to, reducers: reducers, selects_inner: selects_inner, select: select}
+    Aggregate{constants: constants, outer: outer, inner: inner, directions: directions, limit_from: limit_from, limit_to: limit_to, reducers: reducers, selects_inner: selects_inner, select: select}
 }
 
 fn create_node(flow: &Flow, view_id: &Value, view_kind: &Value) -> Node {

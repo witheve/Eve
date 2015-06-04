@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use value::Value;
 use relation::{Relation, IndexSelect, ViewSelect};
 use primitive::{Primitive, resolve_as_scalar};
-use std::cmp::{min, max};
+use std::cmp::{min, max, Ordering};
 
 #[derive(Clone, Debug)]
 pub struct Table {
@@ -71,11 +71,18 @@ pub struct Reducer {
     pub arguments: Vec<usize>,
 }
 
+#[derive(Clone, Debug, Copy)]
+pub enum Direction {
+    Ascending,
+    Descending,
+}
+
 #[derive(Clone, Debug)]
 pub struct Aggregate {
     pub constants: Vec<Value>,
     pub outer: IndexSelect,
     pub inner: IndexSelect,
+    pub directions: Vec<Direction>,
     pub limit_from: Option<usize>,
     pub limit_to: Option<usize>,
     pub reducers: Vec<Reducer>,
@@ -144,6 +151,21 @@ fn aggregate_step<'a>(aggregate: &Aggregate, input_sets: &'a [&[Vec<Value>]], st
     }
 }
 
+fn compare_in_direction(xs: &[Value], ys: &[Value], directions: &[Direction]) -> Ordering {
+    for ((x,y), direction) in xs.iter().zip(ys.iter()).zip(directions.iter()) {
+        let cmp = match *direction {
+            Direction::Ascending => x.cmp(y),
+            Direction::Descending => y.cmp(x),
+        };
+        match cmp {
+            Ordering::Greater => return Ordering::Greater,
+            Ordering::Equal => (),
+            Ordering::Less => return Ordering::Less,
+        };
+    }
+    return Ordering::Equal;
+}
+
 impl View {
     pub fn run(&self, old_output: &Relation, inputs: &[&Relation]) -> Option<Relation> {
         match *self {
@@ -180,9 +202,9 @@ impl View {
                     );
                 let mut outer = aggregate.outer.select(&inputs[..]);
                 let mut inner = aggregate.inner.select(&inputs[..]);
-                outer.sort();
+                outer.sort_by(|a,b| compare_in_direction(&a[..], &b[..], &aggregate.directions[..]));
                 outer.dedup();
-                inner.sort();
+                inner.sort_by(|a,b| compare_in_direction(&a[..], &b[..], &aggregate.directions[..]));
                 let constants = &aggregate.constants[..];
                 let mut group_start = 0;
                 for outer_values in outer.into_iter() {
