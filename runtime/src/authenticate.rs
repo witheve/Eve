@@ -143,8 +143,8 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 																Value::String(session_data.user.id.clone()),
 																Value::String(session_data.user.username.clone())
 														   	   ];
-											send_event(&create_table(&table_name,&table_fields),&mut sender);
-											send_event(&insert_fact(&table_name,&table_fields,&row_data),&mut sender);
+											send_event(&create_table(&table_name,&table_fields,None),&mut sender);
+											send_event(&insert_fact(&table_name,&table_fields,&row_data,None),&mut sender);
 											let _ = sender.send_message(Message::Close(None));
 										}
 										// Otherwise, throw an error... maybe redirect to a special page.

@@ -173,7 +173,7 @@ pub fn run() {
     let mut senders: Vec<sender::Sender<_>> = Vec::new();
 
     // Create sessions table
-    let sessisons_table = client::create_table(&"sessions",&vec!["id","user id","status"]);
+    let sessisons_table = client::create_table(&"sessions",&vec!["id","user id","status"],None);
     flow = flow.quiesce(sessisons_table.changes);
 
     for server_event in serve() {
@@ -185,11 +185,11 @@ pub fn run() {
                 match user_id {
                     Some(user_id) => {
                         let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
-                        let session = client::insert_fact(&"sessions",&vec!["id","user id","status"],&vec![Value::String(session_id),
+                        let add_session = client::insert_fact(&"sessions",&vec!["id","user id","status"],&vec![Value::String(session_id),
                                                                                                             Value::String(user_id),
                                                                                                             Value::Float(1f64)
-                                                                                                           ]);
-                        flow = send_changes(session,flow,&mut senders);
+                                                                                                           ],None);
+                        flow = send_changes(add_session,flow,&mut senders);
                     },
                     None => (),
                 };
@@ -240,24 +240,23 @@ pub fn run() {
                             },
                             Err(e) => println!("Connection from {} failed to shut down properly: {}",terminate_ip,e),
                         }
-
                         senders.remove(ix);
 
                         // Update the session table
                         let sessions = flow.get_output("sessions").clone();
                         let ip_string = Value::String(terminate_ip.clone());
-
                         match sessions.index.iter().find(|session| session[0] == ip_string) {
                             Some(session) => {
                                 let mut closed_session = session.clone();
+                                // TODO Shouldn't use a hardcoded index to access the field
                                 closed_session[1] = Value::Float(0f64); // Set status to 0
                                 let change = Change {
                                                         fields: sessions.fields.clone(),
                                                         insert: vec![closed_session.clone()],
                                                         remove: vec![session.clone()],
                                                     };
-                                let event = Event{changes: vec![("sessions".to_string(),change)]};
-                                flow = send_changes(event,flow,&mut senders);
+                                let make_session_inactive = Event{changes: vec![("sessions".to_string(),change)]};
+                                flow = send_changes(make_session_inactive,flow,&mut senders);
 
                             },
                             None => println!("No session found"),
@@ -277,6 +276,7 @@ fn send_changes(event: Event, mut flow: Flow, mut senders: &mut Vec<sender::Send
     let changes = flow.changes_from(old_flow);
     let output_text = format!("{}", Event{changes: changes}.to_json());
     for sender in senders.iter_mut() {
+    	println!("Sending message to {:?}",sender.get_mut().peer_addr());
         match sender.send_message(Message::Text(output_text.clone())) {
             Ok(_) => (),
             Err(error) => println!("Send error: {}", error),
