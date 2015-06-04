@@ -2,6 +2,8 @@ use websocket::{client,Client,stream,Message,Sender,Receiver};
 use hyper::Url;
 use std::thread;
 use rustc_serialize::json::*;
+use cbor::ToCbor;
+use cbor;
 
 use value::Value;
 use server::Event;
@@ -64,7 +66,11 @@ pub fn open_websocket(url_string: &str) -> Result<client::sender::Sender<stream:
 
 pub fn send_event(event: &Event,sender: &mut client::sender::Sender<stream::WebSocketStream>) {
 
-	sender.send_message(Message::Text(event.to_json().to_string())).unwrap();
+	let mut e = cbor::Encoder::from_memory();
+	let json = event.to_json();
+	let cbor = json.to_cbor();
+	e.encode(vec![cbor]).unwrap();
+	sender.send_message(Message::Binary(e.into_bytes())).unwrap();
 }
 
 pub fn create_table(table_name: &&str, table_fields: &Vec<&str>) -> Event {
