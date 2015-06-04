@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use value::Value;
 use relation::{Relation, IndexSelect, ViewSelect};
 use primitive::{Primitive, resolve_as_scalar};
-use std::cmp::{min, max};
+use std::cmp::{min, max, Ordering};
 
 #[derive(Clone, Debug)]
 pub struct Table {
@@ -71,11 +71,18 @@ pub struct Reducer {
     pub arguments: Vec<usize>,
 }
 
+#[derive(Clone, Debug, Copy)]
+pub enum Direction {
+    Ascending,
+    Descending,
+}
+
 #[derive(Clone, Debug)]
 pub struct Aggregate {
     pub constants: Vec<Value>,
     pub outer: IndexSelect,
     pub inner: IndexSelect,
+    pub directions: Vec<Direction>,
     pub limit_from: Option<usize>,
     pub limit_to: Option<usize>,
     pub reducers: Vec<Reducer>,
@@ -144,13 +151,32 @@ fn aggregate_step<'a>(aggregate: &Aggregate, input_sets: &'a [&[Vec<Value>]], st
     }
 }
 
+fn compare_in_direction(xs: &[Value], ys: &[Value], directions: &[Direction]) -> Ordering {
+    for ((x,y), direction) in xs.iter().zip(ys.iter()).zip(directions.iter()) {
+        let cmp = match *direction {
+            Direction::Ascending => x.cmp(y),
+            Direction::Descending => y.cmp(x),
+        };
+        match cmp {
+            Ordering::Greater => return Ordering::Greater,
+            Ordering::Equal => (),
+            Ordering::Less => return Ordering::Less,
+        };
+    }
+    return Ordering::Equal;
+}
+
 impl View {
     pub fn run(&self, old_output: &Relation, inputs: &[&Relation]) -> Option<Relation> {
         match *self {
             View::Table(_) => None,
             View::Union(ref union) => {
                 assert_eq!(union.selects.len(), inputs.len());
-                let mut output = Relation::with_fields(old_output.fields.clone(), old_output.names.clone());
+                let mut output = Relation::new(
+                    old_output.view.clone(),
+                    old_output.fields.clone(),
+                    old_output.names.clone()
+                    );
                 for select in union.selects.iter() {
                     for values in select.select(&inputs[..]) {
                         output.index.insert(values);
@@ -159,18 +185,26 @@ impl View {
                 Some(output)
             }
             View::Join(ref join) => {
-                let mut output = Relation::with_fields(old_output.fields.clone(), old_output.names.clone());
+                let mut output = Relation::new(
+                    old_output.view.clone(),
+                    old_output.fields.clone(),
+                    old_output.names.clone()
+                    );
                 let mut tuples = Vec::with_capacity(join.sources.len());
                 join_step(join, 0, inputs, &mut tuples, &mut output.index);
                 Some(output)
             }
             View::Aggregate(ref aggregate) => {
-                let mut output = Relation::with_fields(old_output.fields.clone(), old_output.names.clone());
+                let mut output = Relation::new(
+                    old_output.view.clone(),
+                    old_output.fields.clone(),
+                    old_output.names.clone()
+                    );
                 let mut outer = aggregate.outer.select(&inputs[..]);
                 let mut inner = aggregate.inner.select(&inputs[..]);
-                outer.sort();
+                outer.sort_by(|a,b| compare_in_direction(&a[..], &b[..], &aggregate.directions[..]));
                 outer.dedup();
-                inner.sort();
+                inner.sort_by(|a,b| compare_in_direction(&a[..], &b[..], &aggregate.directions[..]));
                 let constants = &aggregate.constants[..];
                 let mut group_start = 0;
                 for outer_values in outer.into_iter() {
@@ -198,9 +232,9 @@ impl View {
                         }).collect::<Vec<_>>();
                         (group, output_values)
                     };
-                    let null = Value::Null;
                     let mut output_sets = vec![];
-                    let mut state = outer_values.iter().collect::<Vec<_>>();
+                    let null = Value::Null;
+                    let mut state = constants.iter().chain(outer_values.iter()).collect::<Vec<_>>();
                     if aggregate.selects_inner {
                         output_sets.push(group);
                     } else {

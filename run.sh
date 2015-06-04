@@ -1,6 +1,6 @@
 pushd .
   cd runtime
-  multirust override nightly-2015-05-25
+  multirust override nightly-2015-06-02
   if [ "x$1" = "x--debug" ]; then
     RUST_BACKTRACE=1 cargo run --bin=server
   elif [ "x$1" = "x--clean" ]; then

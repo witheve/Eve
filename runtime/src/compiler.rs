@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use value::{Value, Tuple};
 use relation::{Relation, IndexSelect, ViewSelect, mapping, with_mapping};
-use view::{View, Table, Union, Join, JoinSource, Constraint, ConstraintOp, Aggregate, Reducer};
+use view::{View, Table, Union, Join, JoinSource, Constraint, ConstraintOp, Aggregate, Direction, Reducer};
 use flow::{Node, Flow};
 use primitive;
 use primitive::Primitive;
@@ -131,7 +131,7 @@ fn overwrite_compiler_view(flow: &Flow, view: &str, items: Vec<Vec<Value>>) {
         .map(|field| format!("{}", field))
         .collect();
     let index = items.into_iter().collect();
-    *flow.get_output_mut(view) = Relation{fields: fields, names: names, index: index};
+    *flow.get_output_mut(view) = Relation{view: view.to_owned(), fields: fields, names: names, index: index};
 }
 
 fn topological_sort<K: Eq + Debug>(mut input: Vec<(K, Vec<K>)>) -> Vec<(K, Vec<K>)> {
@@ -522,35 +522,39 @@ fn create_constants(flow: &Flow, view_id: &Value) -> Vec<Value> {
 }
 
 fn create_index_select(flow: &Flow, view_id: &Value, source_id: &Value, source_ix: usize) -> IndexSelect {
-    let field_table = flow.get_output("field");
+    let index_layout_table = flow.get_output("index layout");
     let source_table = flow.get_output("source");
     let select_table = flow.get_output("select");
     let selects = select_table.iter().filter(|select|
         (select["view"] == *view_id)
         && (select["source"] == *source_id)
         ).collect::<Vec<_>>();
-    let fields = field_table.find_all("view", view_id).iter().map(|field| {
+    let mut index_layouts = index_layout_table.find_all("view", view_id);
+    sort_by_ix(&mut index_layouts);
+    let source_fields = index_layouts.iter().map(|index_layout| {
         let select = selects.iter().find(|select|
-            select["view field"] == field["field"]
+            select["view field"] == index_layout["field"]
             ).unwrap();
         &select["source field"]
     }).collect::<Vec<_>>();
     let source = source_table.iter().find(|source|
         source["view"] == *view_id
         && source["source"] == *source_id).unwrap();
-    let mapping = fields.iter().map(|field_id| {
-        get_index_layout_ix(flow, &source["source view"], field_id)
+    let mapping = source_fields.iter().map(|source_field_id| {
+        get_index_layout_ix(flow, &source["source view"], source_field_id)
         }).collect();
     IndexSelect{source: source_ix, mapping: mapping}
 }
 
 fn create_view_select(flow: &Flow, view_id: &Value) -> ViewSelect {
-    let field_table = flow.get_output("field");
+    let index_layout_table = flow.get_output("index layout");
     let select_table = flow.get_output("select");
-    let mapping = field_table.find_all("view", view_id).iter().map(|field| {
+    let mut index_layouts = index_layout_table.find_all("view", view_id);
+    sort_by_ix(&mut index_layouts);
+    let mapping = index_layouts.iter().map(|index_layout| {
         let select = select_table.iter().find(|select|
             select["view"] == *view_id
-            && select["view field"] == field["field"]
+            && select["view field"] == index_layout["field"]
             ).unwrap();
         get_view_layout_ix(flow, view_id, &select["source"], &select["source field"])
     }).collect();
@@ -668,6 +672,7 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
     let select_table = flow.get_output("select");
     let view_layout_table = flow.get_output("view layout");
     let field_table = flow.get_output("field");
+    let sorting_table = flow.get_output("aggregate sorting");
 
     let constants = create_constants(flow, view_id);
 
@@ -690,6 +695,21 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
         ).collect();
     let outer = IndexSelect{source: outer_ix, mapping: outer_mapping};
     let inner = IndexSelect{source: inner_ix, mapping: inner_mapping};
+    let directions = view_layouts.iter().filter(|view_layout|
+            view_layout["source"].as_str() == "inner"
+        ).map(|view_layout|
+            sorting_table.iter().find(|sorting|
+                sorting["aggregate"] == *view_id
+                && sorting["inner field"] == view_layout["field"]
+            ).map_or(
+                Direction::Ascending,
+                |sorting| match sorting["direction"].as_str() {
+                    "ascending" => Direction::Ascending,
+                    "descending" => Direction::Descending,
+                    _ => panic!("Unknown sort direction: {:?}", sorting),
+                }
+            )
+        ).collect();
     let limit_from = flow.get_output("aggregate limit from").find_maybe("aggregate", view_id)
         .map(|limit_from| get_view_layout_ix(flow, view_id, &limit_from["from source"], &limit_from["from field"]));
     let limit_to = flow.get_output("aggregate limit to").find_maybe("aggregate", view_id)
@@ -722,7 +742,7 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
     let selects_inner = select_table.find_all("view", view_id).iter().any(|select|
         select["source"].as_str() == "inner"
         );
-    Aggregate{constants: constants, outer: outer, inner: inner, limit_from: limit_from, limit_to: limit_to, reducers: reducers, selects_inner: selects_inner, select: select}
+    Aggregate{constants: constants, outer: outer, inner: inner, directions: directions, limit_from: limit_from, limit_to: limit_to, reducers: reducers, selects_inner: selects_inner, select: select}
 }
 
 fn create_node(flow: &Flow, view_id: &Value, view_kind: &Value) -> Node {
@@ -760,6 +780,7 @@ fn create_flow(flow: &Flow) -> Flow {
         let schedule = view_schedule_table.find_one("ix", &Value::Float(ix as f64));
         let view_table = flow.get_output("view");
         let view = view_table.find_one("view", &schedule["view"]);
+        let view_id = view["view"].as_str().to_owned();
         nodes.push(create_node(flow, &view["view"], &view["kind"]));
         dirty.insert(schedule["ix"].as_usize());
         let mut index_layouts = index_layout_table.find_all("view", &view["view"]);
@@ -772,7 +793,7 @@ fn create_flow(flow: &Flow) -> Flow {
                 Some(display_name) => display_name["name"].as_str().to_owned(),
                 None => "<unnamed>".to_owned(),
             }).collect();
-        outputs.push(RefCell::new(Relation::with_fields(field_ids, field_names)));
+        outputs.push(RefCell::new(Relation::new(view_id, field_ids, field_names)));
     }
     Flow{
         nodes: nodes,
@@ -816,7 +837,7 @@ pub fn recompile(old_flow: Flow) -> Flow {
 
 pub fn bootstrap(mut flow: Flow) -> Flow {
     let schema = schema();
-    for &(ref id, ref unique_fields, ref other_fields) in schema.iter() {
+    for &(id, ref unique_fields, ref other_fields) in schema.iter() {
         flow.nodes.push(Node{
             id: format!("{}", id),
                 view: View::Union(Union{selects: Vec::new()}), // dummy node, replaced by recompile
@@ -825,8 +846,8 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
             });
         let names = unique_fields.iter().chain(other_fields.iter())
             .map(|&field| field.to_owned()).collect::<Vec<_>>();
-        let fields = names.iter().map(|name| format!("{}: {}", id.clone(), name)).collect();
-        flow.outputs.push(RefCell::new(Relation::with_fields(fields, names)));
+        let fields = names.iter().map(|name| format!("{}: {}", id, name)).collect();
+        flow.outputs.push(RefCell::new(Relation::new(id.to_owned(), fields, names)));
     }
     let mut view_values = Vec::new();
     let mut tag_values = Vec::new();

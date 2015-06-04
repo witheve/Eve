@@ -2471,15 +2471,10 @@ var queryEditor = (function(window, microReact, api) {
   //---------------------------------------------------------
 
   function queryWorkspace(queryId) {
-    var primitiveItems = (ixer.facts("primitive") || []).map(function(primitive) {
-      var id = primitive[0];
-      return {c: "primitive", dragData: {value: id, type: "view"}, itemId: id, draggable: true, dragstart: dragItem, text: code.name(id)};
-    });
     return genericWorkspace("query", queryId,
                             {c: "query-editor",
                              children: [
-                               editor(queryId),
-                               {c: "primitive-cursor", children: primitiveItems},
+                               editor(queryId)
                              ]});
   }
 
@@ -2572,18 +2567,28 @@ var queryEditor = (function(window, microReact, api) {
         ]},
       ]});
     }
+
+    var primitiveKindIx = code.ix("primitive", "kind");
+    var scalarPrimitiveItems = (ixer.facts("primitive") || []).filter(function(primitive) {
+      return primitive[primitiveKindIx] === "scalar";
+    }).map(function(primitive) {
+      var id = primitive[0];
+      return {c: "control function", dragData: {value: id, type: "view"}, itemId: id, draggable: true, dragstart: dragItem, text: code.name(id)};
+    });
+
     items.push({c: "block new-block", children: [
-      {c: "block unused", children: [
+      {c: "block unused flex-column", children: [
         {c: "controls", children: [
-          {c: "control join", text: "join"},
-          {c: "control union", click: newUnionBlock, text: "merge"},
+          {c: "control join", click: newJoinBlock, queryId: queryId, text: "join"},
+          {c: "control union", click: newUnionBlock, queryId: queryId, text: "merge"},
           {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "sort+limit", text: "sort and limit"},
           {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "count", text: "count"},
           {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "sum", text: "sum"},
           {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "mean", text: "avg"},
           {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "stddev", text: "stdev"},
           {c: "control aggregate", click: newAggregateBlock, queryId: queryId, kind: "empty", text: "is empty?"},
-        ]}
+        ]},
+        {c: "controls", children: scalarPrimitiveItems}
       ]},
     ]});
 
@@ -2684,6 +2689,10 @@ var queryEditor = (function(window, microReact, api) {
       handler: elem.handler,
     };
     render();
+  }
+
+  function newJoinBlock(e, elem) {
+    dispatch("addViewBlock", {queryId: elem.queryId, kind: "join"});
   }
 
   function newAggregateBlock(e, elem) {

@@ -114,7 +114,8 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
         console.log("slow parse (> 5ms):", time);
       }
 
-      var changes;
+      var initializing = false;
+
       if(!server.initialized) {
         var initialized = data.changes.some(function(diff) {
           return diff[0] === "initialized";
@@ -126,16 +127,22 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
           initialize();
         }
         server.initialized = true;
-        changes = data.changes;
-      } else {
-        changes = [];
-        for(var changeIx = 0; changeIx < data.changes.length; changeIx++) {
-          var id = data.changes[changeIx][0];
-          if(api.code.hasTag(id, "remote")) {
+        initializing = true;
+      }
+
+      var changes = [];
+      var compilerChanges = [];
+      for(var changeIx = 0; changeIx < data.changes.length; changeIx++) {
+        var id = data.changes[changeIx][0];
+        if(initializing || api.code.hasTag(id, "remote")) {
+          if(api.builtins.compiler[id]) {
+            compilerChanges.push(data.changes[changeIx]);
+          } else {
             changes.push(data.changes[changeIx]);
           }
         }
       }
+
       if(window.DEBUG.RECEIVE) {
         var stats = getDataStats(data);
         if(stats.adds || stats.removes) {
@@ -154,6 +161,9 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
       var start = now();
       // @FIXME: We need to isolate and process compiler views first, to ensure that the necessary data for ordering
       // other views is available and not stale.
+      if(compilerChanges.length) {
+        ixer.handleMapDiffs(compilerChanges);
+      }
       ixer.handleMapDiffs(changes);
       var time = now() - start;
       if(time > 5) {
