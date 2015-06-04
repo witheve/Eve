@@ -173,8 +173,9 @@ pub fn run() {
     let mut senders: Vec<sender::Sender<_>> = Vec::new();
 
     // Create sessions table
-    let sessisons_table = client::create_table(&"sessions",&vec!["id","user id","status"],None);
-    flow = flow.quiesce(sessisons_table.changes);
+    let mut sessions_table = client::create_table(&"sessions",&vec!["id","user id","status"],None);
+    sessions_table = client::insert_fact(&"tag",&vec!["view","tag"],&vec![Value::String("sessions".to_string()),Value::String("remote".to_string())],Some(sessions_table));
+    flow = flow.quiesce(sessions_table.changes);
 
     for server_event in serve() {
         match server_event {
@@ -186,9 +187,9 @@ pub fn run() {
                     Some(user_id) => {
                         let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
                         let add_session = client::insert_fact(&"sessions",&vec!["id","user id","status"],&vec![Value::String(session_id),
-                                                                                                            Value::String(user_id),
-                                                                                                            Value::Float(1f64)
-                                                                                                           ],None);
+                                                                                                               Value::String(user_id),
+                                                                                                               Value::Float(1f64)
+                                                                                                              ],None);
                         flow = send_changes(add_session,flow,&mut senders);
                     },
                     None => (),
@@ -276,7 +277,6 @@ fn send_changes(event: Event, mut flow: Flow, mut senders: &mut Vec<sender::Send
     let changes = flow.changes_from(old_flow);
     let output_text = format!("{}", Event{changes: changes}.to_json());
     for sender in senders.iter_mut() {
-    	println!("Sending message to {:?}",sender.get_mut().peer_addr());
         match sender.send_message(Message::Text(output_text.clone())) {
             Ok(_) => (),
             Err(error) => println!("Send error: {}", error),

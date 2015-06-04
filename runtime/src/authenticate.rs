@@ -143,8 +143,11 @@ fn auth(req: Request, mut res: Response<Fresh>) {
 																Value::String(session_data.user.id.clone()),
 																Value::String(session_data.user.username.clone())
 														   	   ];
-											send_event(&create_table(&table_name,&table_fields,None),&mut sender);
-											send_event(&insert_fact(&table_name,&table_fields,&row_data,None),&mut sender);
+											let mut create_eveusers_table = create_table(&table_name,&table_fields,None);
+											create_eveusers_table = insert_fact(&"tag",&vec!["view","tag"],&vec![Value::String("eveusers".to_string()),Value::String("remote".to_string())],Some(create_eveusers_table));
+											let insert_user = insert_fact(&table_name,&table_fields,&row_data,None);
+											send_event(&create_eveusers_table,&mut sender);
+											send_event(&insert_user,&mut sender);
 											let _ = sender.send_message(Message::Close(None));
 										}
 										// Otherwise, throw an error... maybe redirect to a special page.
