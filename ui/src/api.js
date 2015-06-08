@@ -96,10 +96,6 @@ var api = (function(Indexing) {
       "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
       "calculated field": {name: "calculated field", fields: ["calculated field", "view", "source", "source view", "field"]},
       "empty view": {name: "empty view", fields: [], facts: [[]]},
-      "client event": {name: "client event", fields: ["session", "eventId", "type", "element", "row"]},
-      "mouse position": {name: "mouse position", fields: ["session", "eventId", "x", "y"]},
-      "eveusers": {name: "eveusers", fields: ["id", "username"]},
-      "sessions": {name: "sessions", fields: ["id", "user id", "status"]},
       "query export": {name: "query export", fields: ["query", "view"]},
 
       //ui
@@ -109,7 +105,14 @@ var api = (function(Indexing) {
       "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element", "shared"]},
       "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "view"]},
       "uiAttrBinding": {name: "uiAttrBinding", fields: ["elementId", "attr", "field"]},
+    },
 
+    runtime: {
+      "client event": {name: "client event", fields: ["session", "eventId", "type", "element", "row"]},
+      "mouse position": {name: "mouse position", fields: ["session", "eventId", "x", "y"]},
+      "eveusers": {name: "eveusers", fields: ["id", "username"]},
+      "sessions": {name: "sessions", fields: ["id", "user id", "status"]},
+      "url segments": {name: "url segments", fields: ["session", "segment #", "segment"]},
     },
 
     example: {
@@ -898,6 +901,7 @@ var api = (function(Indexing) {
           builtins: tables,
           arraysIdentical: Indexing.arraysIdentical,
           displaySort: displaySort,
+          injectViews: injectViews,
           invert: invert,
           alphabet: alphabet};
 })(Indexing);

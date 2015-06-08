@@ -350,4 +350,4 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
 
   return {sendToServer: sendToServer};
 
-})(window, api, queryEditor, uiEditorRenderer);
+})(window, api, dispatcher, uiEditorRenderer);

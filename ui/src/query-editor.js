@@ -725,7 +725,14 @@ var queryEditor = (function(window, microReact, api) {
           diffs.push.apply(diffs, diff.duplicateElement(elem, neueId, localState.txId++));
         });
         break;
-
+      case "toggleKey":
+        var isKey = code.hasTag(info.fieldId, "key");
+        if(isKey) {
+          diffs.push(["tag", "removed", [info.fieldId, "key"]]);
+        } else {
+          diffs.push(["tag", "inserted", [info.fieldId, "key"]]);
+        }
+        break;
       case "undo":
         storeEvent = false;
         diffs = scaryUndoEvent();
@@ -944,7 +951,9 @@ var queryEditor = (function(window, microReact, api) {
       if(cur.id) {
         oninput = onsubmit = rename;
       }
-      return {c: "header", children: [input(cur.name, cur.id, oninput, onsubmit)]};
+      var isKey = code.hasTag(cur.id, "key") ? "isKey" : "";
+      return {c: "header", children: [input(cur.name, cur.id, oninput, onsubmit),
+                                      {c: "ion-key key" + isKey, click: toggleKey, fieldId: cur.id}]};
     });
     if(isEditable) {
       ths.push({c: "header add-column ion-plus", click: addField, table: id});
@@ -980,6 +989,10 @@ var queryEditor = (function(window, microReact, api) {
       {c: "headers", children: ths},
       {c: "rows", children: trs}
     ]};
+  }
+
+  function toggleKey(e, elem) {
+    dispatch("toggleKey", {fieldId: elem.fieldId});
   }
 
   function addField(e, elem) {
@@ -3446,5 +3459,6 @@ var queryEditor = (function(window, microReact, api) {
   //---------------------------------------------------------
   if(window.queryEditor) { render(); }
 
-  return { container: renderer.content, localState: localState, renderer: renderer, render: render, eventStack: eventStack };
+  window.dispatcher = { container: renderer.content, localState: localState, renderer: renderer, render: render, eventStack: eventStack };
+  return window.dispatcher;
 })(window, microReact, api);

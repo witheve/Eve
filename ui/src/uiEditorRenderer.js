@@ -1,13 +1,21 @@
+/*-------------------------------------------------------
+- UI Editor Renderer
+- this renderer is a bit of a hack until we can easily
+- translate ui editor facts into views that generate
+- uiRenderedFactors
+-------------------------------------------------------*/
 var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
 
   var ixer = api.ixer;
   var code = api.code;
 
+  var ids = {"active page": "bc850d72-854a-49e4-8d7b-5bafa9d1e6d1"};
+  var session = "me";
+
+  ixer.addIndex("active page", ids["active page"], Indexing.create.lookup([2, 0]));
+
   /*-------------------------------------------------------
-  - UI Editor Renderer
-  - this renderer is a bit of a hack until we can easily
-  - translate ui editor facts into views that generate
-  - uiRenderedFactors
+  - Renderer
   -------------------------------------------------------*/
 
   var renderer = new microReact.Renderer();
@@ -27,7 +35,13 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
   var parentLayerIndex = ixer.index("parentLayerToLayers");
 
   function rendererRoot() {
-    var componentId = code.activeItemId();
+    if(dispatcher.isApp) {
+      //in an app we check the active page
+      var componentId = ixer.index("active page")[session];
+    } else {
+      //we're in the editor, so we render based on what the active item is
+      var componentId = code.activeItemId();
+    }
     var layers = parentLayerIndex[componentId];
     if(!layers) return {};
 
@@ -117,6 +131,11 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
                 width: right - left, height: bottom - top, elementId: elementId,
                 zIndex: zIndex, row: row};
 
+    if(type === "input") {
+      elem.t = "input";
+      elem.type = "text";
+    }
+
     var attrs = [];
     var styles = stylesIndex[elementId] || [];
     for(var ix = 0, len = styles.length; ix < len; ix++) {
@@ -164,8 +183,6 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
   }
 
   var eventId = 0;
-  //TODO: How do we associate events to sessions?
-  var session = uuid();
 
   function handleMouseEvent(e, elem) {
     var boundId = elem.row.length ? JSON.stringify(elem.row) : "";
